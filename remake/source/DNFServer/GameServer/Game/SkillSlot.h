@@ -129,6 +129,15 @@ public:
     int GetCurCharacTotalSP(const CUser* user, bool flag);
     int _GetBaseSkillPoint(const CUser* user) const;
     int _GetQuestSkillPoint(const CUser* user);
+    bool CheckCondition(const CUser* user);                            // ORIG T 0x08609d10 _ZN8WongWork13CSkillChanger14CheckConditionEPK5CUser
+    void CountElixer(CUser* user);                                     // ORIG T 0x08609d9c _ZN8WongWork13CSkillChanger11CountElixerEP5CUser
+    int* GetElixerCount();                                             // ORIG W 0x0869780e _ZN8WongWork13CSkillChanger14GetElixerCountEv（返回 this，即第一组计数数组）
+    int* GetNeedElixerCount();                                         // ORIG W 0x08697816 _ZN8WongWork13CSkillChanger18GetNeedElixerCountEv（返回 this+0x48）
+    int* GetNeedElixerAbility();                                       // ORIG W 0x08697822 _ZN8WongWork13CSkillChanger20GetNeedElixerAbilityEv（返回 this+0x6c）
+    static bool _fnEnumQuestClear(unsigned int questIdx, char* args);  // ORIG T 0x0860a6da _ZN8WongWork13CSkillChanger17_fnEnumQuestClearEjPc（enumQuestClear 回调，静态）
+    void _CountQuestSPBook(const CUser* user, int& a, int& b, int& c, int& d);  // ORIG T 0x0860a680 _ZN8WongWork13CSkillChanger17_CountQuestSPBookEPK5CUserRiS4_S4_S4_
+    void _addSPRelatedItem(int* a, int* b, int itemIdx, int count);    // ORIG T 0x0860a868 _ZN8WongWork13CSkillChanger17_addSPRelatedItemEPiS1_ii
+    void _addSFPRelatedItem(int* a, int* b, int itemIdx, int count);   // ORIG T 0x0860a918 _ZN8WongWork13CSkillChanger18_addSFPRelatedItemEPiS1_ii
     union
     {
         char m_pad[0x92];

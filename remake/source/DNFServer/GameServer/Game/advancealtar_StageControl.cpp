@@ -1,40 +1,63 @@
 // df_game_r Game/ advancealtar::StageControl 专属 TU（从 GameStubs.cpp 拆出）。
-// 布局依据 CGameManager.h（m_pad[0xc0]；ctor/dtor 由 CGameManager.cpp 提供）。
-// getIndex/setIndex 依 ORIG 访问 +0 的 index；leaveUser/onTimerStageTick/reset
-// 依赖 ProcStage/CharacData 完整布局（当前 CGameManager.h 仅为 pad 占位），
-// 按任务约定保留为签名匹配的空体桩（符号 T），后续批次补全语义。
+// 声明唯一归口 advancealtar.h（具名布局：m_index@+0x00 / ProcStage 槽@+0x04 /
+// CharacData 槽@+0x98，sizeof 0xc0）；本 TU 全部函数依据
+// docs/class_func_reports/advancealtar__StageControl/ 报告翻译。
 #include "CGameManager.h"
 #include "CInventory.h"  // PacketGuard 完整定义 / CInventory::SendItemLockListInven
 #include "GameWorld.h"
 #include <cstring>        // std::memset / std::memcpy
+#include <new>            // placement new（StageControl 子对象构造）
 #include "advancealtar_ProcStage.h"  // ProcStage/CharacData 完整类型（getProcStage/selectStage）
 
 namespace advancealtar
 {
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812f9a2（StageControl.md 全文）：m_index=-1 →
+//   ProcStage::ProcStage(this+4, characData@this+0x98)（T 0x812dc18）+
+//   CharacData::CharacData(this+0x98)（T 0x812d024）。
+// 子对象以字节槽持有（advancealtar.h 布局注释），此处 placement 构造；
+// ORIG 先 ProcStage 后 CharacData 的顺序保留（ProcStage ctor 仅存指针，
+// 无观察差异）。
+// ----------------------------------------------------------------------------
+StageControl::StageControl()
+{
+    m_index = -1;
+    new (getCharacData()) CharacData;
+    new (reinterpret_cast<void*>(m_procStage)) ProcStage(*getCharacData());
+}
 
-// ORIG 0x81348ba：(const) return *(int*)this;
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812fa06（~StageControl.md 全文）：CharacData::~CharacData →
+//   ProcStage::~ProcStage（vector@+0x80、map@+0x50、ProcSummonObjectMs@+0x18
+//   随成员析构；堆元素由 reset() delete，与 ORIG 一致）。
+// ----------------------------------------------------------------------------
+StageControl::~StageControl()
+{
+    reinterpret_cast<ProcStage*>(m_procStage)->~ProcStage();
+    getCharacData()->~CharacData();
+}
+
+// ORIG W 0x81348ba：(const) return *(int*)this;
 int StageControl::getIndex() const
 {
-    return *(const int*)(const void*)&m_pad[0];
+    return m_index;
 }
 
-// ORIG 0x82a669c：*(int*)this = idx;
+// ORIG W 0x82a669c：*(int*)this = idx;
 void StageControl::setIndex(int idx)
 {
-    *(int*)(void*)&m_pad[0] = idx;
+    m_index = idx;
 }
 
-// ORIG 0x812fc4e：leaveUser —— 用户离开 advancealtar 舞台。
-//   布局：+0x04 ProcStage；+0x98 CharacData（+0x04 m_user，setUser/getUser W thunk 实证）。
-//   user 为空/无当前角色 → 0；
-//   HistoryLog::leaveDungeon（未建模，推断跳过）→
-//   GameWorld::out_from_dungeon(user) → 广播 basic_info(0,2) →
-//   send_itemspace(0) → SendItemLockListInven() → setAdvanceAltarIndex(-1)
-//   （CUser+0x8d012）→ StageControl::destroy（未建模，推断跳过）→ 1。
+// ORIG T 0x0812fc4e（leaveUser.md 全文）：getUser/getCurCharacR 判空 → 0；
+//   [blocker] HistoryLog::leaveDungeon(user, procStage)（报告 0x8133abc 在，
+//   源码声明/定义缺，随 ProcStage 域批次）→ out_from_dungeon → 广播
+//   basic_info(0,2) → send_itemspace(0) → getCurCharacInvenR().
+//   SendItemLockListInven() → setAdvanceAltarIndex(-1)（CUser+0x8d012）→
+//   destroy(this) → 1。
 char StageControl::leaveUser()
 {
-    char* cd = (char*)this + 0x98;
-    CUser* user = *(CUser**)(cd + 4);  // CharacData+0x04 m_user（setUser/getUser thunk 实证）
+    CUser* user = getCharacData()->getUser();  // CharacData::getUser W thunk 实证
     if (user == 0)
     {
         return 0;
@@ -43,9 +66,7 @@ char StageControl::leaveUser()
     {
         return 0;
     }
-    // [推断/未建模批次] ORIG 调 HistoryLog::leaveDungeon(user, getProcStage(this))；
-    // StageControl::destroy 已建模（本 TU）但 ORIG leaveUser 是否收尾销毁需
-    // leaveUser.md 复核，维持前批跳过决策不变。
+    // [blocker] ORIG 此处调 HistoryLog::leaveDungeon(user, *getProcStage())。
     G_GameWorld()->out_from_dungeon(user);
     PacketGuard guard;
     guard.put_header(0, 2);
@@ -55,47 +76,31 @@ char StageControl::leaveUser()
     guard.finalize(true);
     G_GameWorld()->send_all(guard, user);
     user->send_itemspace(0);
-    user->getCurCharacInvenW()->SendItemLockListInven();
-    user->m_field8d012 = -1;  // ORIG CUser::setAdvanceAltarIndex(user,-1)
-    return 1;  // ORIG uVar4 = 1
+    user->getCurCharacInvenR()->SendItemLockListInven();
+    user->m_advanceAltarIdx = -1;  // ORIG CUser::setAdvanceAltarIndex(user,-1)
+    destroy();                // ORIG 尾部真实调用 destroy(this)（leaveUser.md 实证）
+    return 1;                 // ORIG uVar4 = 1
 }
 
-// ORIG 0x812fb98：onTimerStageTick —— ProcStage+0x04 state 为 3/4 时推进
-//   CharacData::upGage（+0x98 处）与 ProcStage::procTimeLine（+0x04 处）。
-//   [推断] sendTestCheckGage（upGage 尾部发包）与 procTimeLine 依赖
-//   ProcSummonObjectMs 内部（未建模），暂不执行；state 检查与 upGage 真实。
+// ORIG T 0x0812fb98（onTimerStageTick.md 全文）：ProcStage::getState 为 3/4 时
+//   CharacData::upGage() + ProcStage::procTimeLine()，恒返回 1。
 char StageControl::onTimerStageTick()
 {
-    char* procStage = (char*)this + 0x04;
-    int state = *(int*)(procStage + 0x04);
-    if (state == 3 || state == 4)
+    ProcStage* procStage = getProcStage();
+    int state = procStage->m_state;  // ProcStage::getState W 0x08134838（+0x04）
+    if (state == ProcStage::State::S_N3 || state == ProcStage::State::S_N4)
     {
-        // ORIG CharacData::upGage @ 0x812d0b6（真实偏移实现）
-        char* cd = (char*)this + 0x98;
-        CDataManager* dm = G_CDataManager();
-        int gageLevel = *(int*)(cd + 0x08);
-        int gage = *(int*)(cd + 0x0c);
-        char* cfg = (char*)dm + 0x6364;
-        int base = **(int**)(cfg + 0x18);
-        int maxGage = base * *(int*)(cfg + 0x0c + (gageLevel + 4) * 4);
-        if (gage < maxGage)
-        {
-            float inc = (float)*(int*)(cfg + 0x08) *
-                        ((float)*(int*)(cfg + 0x08 + gageLevel * 4) / (float)base);
-            *(int*)(cd + 0x0c) = gage + (int)(inc + 0.5f);
-        }
-        else
-        {
-            *(int*)(cd + 0x0c) = maxGage;
-        }
-        // [推断] ORIG 此处调 CharacData::sendTestCheckGage() 与
-        // ProcStage::procTimeLine()（均依赖未建模内部），暂不执行。
+        getCharacData()->upGage();
+        procStage->procTimeLine();
     }
     return 1;  // ORIG 恒返回 1
 }
 
+// ORIG T 0x0812fa54（reset.md 全文）：ProcStage::resetAll() + CharacData::reset()。
 void StageControl::reset()
 {
+    getProcStage()->resetAll();
+    getCharacData()->reset();
 }
 
 // ORIG T 0x081300ce（docs/class_func_reports/advancealtar__StageControl/destroy.md
@@ -109,13 +114,13 @@ void StageControl::destroy()
 // ORIG W 0x081348ae：return (ProcStage*)(this + 0x04)。
 ProcStage* StageControl::getProcStage()
 {
-    return reinterpret_cast<ProcStage*>(reinterpret_cast<char*>(this) + 0x04);
+    return reinterpret_cast<ProcStage*>(m_procStage);
 }
 
 // ORIG W 0x081348a0：return (CharacData*)(this + 0x98)。
 CharacData* StageControl::getCharacData()
 {
-    return reinterpret_cast<CharacData*>(reinterpret_cast<char*>(this) + 0x98);
+    return reinterpret_cast<CharacData*>(m_characData);
 }
 
 // ----------------------------------------------------------------------------
@@ -192,6 +197,156 @@ int StageControl::selectStage(CUser* user, int stageId,
     return 0;
 }
 
+// ----------------------------------------------------------------------------
+// ORIG T 0x081306be（sendEplp.md 全文）：getUser 判空直接返回；
+//   available = user->m_advanceAltar.isAvailableTciket()（CUser+0x8df60）；
+//   NOTIPacketStruct::_NotiAdvanceAltarEplpState{int eplpType;
+//   char isAvailableTicket; pad[3]}（8B，权威定义 advancealtar.h）；
+//   put_header(0,0x20e) + put_binary(8) + finalize(true) → Send。
+// ----------------------------------------------------------------------------
+void StageControl::sendEplp(StageEndType::T endType)
+{
+    CUser* user = getCharacData()->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+
+    NOTIPacketStruct::_NotiAdvanceAltarEplpState body;
+    body.m_eplpType = endType;
+    body.m_isAvailableTicket =
+        user->m_advanceAltar.isAvailableTciket() ? 1 : 0;
+
+    PacketGuard guard;
+    guard.put_header(0, 0x20e);
+    guard.put_binary((char*)&body, 8);
+    guard.finalize(true);
+    user->Send(guard);
+}
+
+// ORIG T 0x08130644（onEplp.md 全文）：sendEplp(endType) +
+//   Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex())
+//   （ORIG T 0x0812f956，定义 advancealtar_ProcStage.cpp）。
+// ----------------------------------------------------------------------------
+void StageControl::onEplp(StageEndType::T endType)
+{
+    sendEplp(endType);
+    Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex());
+}
+
+// ORIG T 0x08130692（onEplpReturnVillage.md 全文）：ProcStage::getState()==6 → leaveUser()。
+void StageControl::onEplpReturnVillage()
+{
+    if (getProcStage()->m_state == ProcStage::State::S_N6)
+    {
+        leaveUser();
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x081305f6（onClearReward.md 全文）：(-1 < e && 2 < e) && e == 3 时
+//   ProcStage::setState(6) + Timer_StageControl::RegistTimerEPLP(getIndex(), 3)
+//   （第二参为字面 3，非透传）。
+// ----------------------------------------------------------------------------
+void StageControl::onClearReward(StageEndType::T endType)
+{
+    if (!(endType < 0) && endType > 2 && endType == 3)
+    {
+        getProcStage()->setState(ProcStage::State::S_N6);
+        Timer_StageControl::RegistTimerEPLP(getIndex(), (StageEndType::T)3);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812fbfa（onTimer.md 全文）：msg 0xa9 → onEplp(endType)；
+//   0xaa → onEplpReturnVillage()；0xa8 → onClearReward(endType)；其余无操作。
+//   TIMER_MESSAGE 0xa8-0xaa 枚举器名待 TimerDispatcher 批次定名，暂用字面值。
+// ----------------------------------------------------------------------------
+void StageControl::onTimer(TIMER_MESSAGE msg, StageEndType::T endType)
+{
+    if (msg == (TIMER_MESSAGE)0xa9)
+    {
+        onEplp(endType);
+    }
+    else if (msg == (TIMER_MESSAGE)0xaa)
+    {
+        onEplpReturnVillage();
+    }
+    else if (msg == (TIMER_MESSAGE)0xa8)
+    {
+        onClearReward(endType);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812fdd4（gotoStage.md 全文；静态语义，asm 不使用 this）：
+//   getUserVillage 判空 → cMyTrace(0x585 行, vill) 返回；getArea(get_area(false))
+//   判空 → cMyTrace(0x58c 行, area) 返回；否则 erase_user →
+//   包1 0x17{short uid, byte vill, byte 0xff, short posX, short posY,
+//   byte direction, byte visible_values} Send → clear →
+//   包2 3{byte 1, short uid, byte 1} Send + send_all(guard, user) → set_state(0xd)。
+// ----------------------------------------------------------------------------
+void StageControl::gotoStage(CUser* user)
+{
+    Village* vill = G_GameWorld()->getUserVillage(user);
+    if (vill == 0)
+    {
+        cMyTrace trace("static void advancealtar::StageControl::gotoStage(CUser*)",
+                       0x585, 5);
+        trace("%d", (int)user->getCurCharacVill());
+        return;
+    }
+    int areaId = user->get_area(false);
+    Area* area = vill->getArea(areaId);
+    if (area == 0)
+    {
+        cMyTrace trace("static void advancealtar::StageControl::gotoStage(CUser*)",
+                       0x58c, 5);
+        trace("%d", areaId);
+        return;
+    }
+
+    area->erase_user(user);
+    PacketGuard guard;
+    guard.put_header(0, 0x17);
+    guard.put_short(user->get_unique_id() & 0xffff);
+    guard.put_byte(user->getCurCharacVill());
+    guard.put_byte(0xff);
+    guard.put_short(user->get_posX() & 0xffff);
+    guard.put_short(user->get_posY() & 0xffff);
+    guard.put_byte(user->get_direction());
+    guard.put_byte(user->get_charac_visible_values());
+    guard.finalize(true);
+    user->Send(guard);
+
+    guard.clear();
+    guard.put_header(0, 3);
+    guard.put_byte(1);
+    guard.put_short(user->get_unique_id() & 0xffff);
+    guard.put_byte(1);
+    guard.finalize(true);
+    user->Send(guard);
+    G_GameWorld()->send_all(guard, user);
+    user->set_state((ch_state)0xd);
+}
+
+// ----------------------------------------------------------------------------
+// [blocker] getCenterCount（ORIG T 0x081307a6）/ sendMapInfo（ORIG T 0x081301e0）
+// 依赖未建模符号，暂不落地定义（声明已入 advancealtar.h）：
+//   - CharacAdvanceAltarManager::getTowerInfo(int,int&,int&) const：CUser.h/CUser.cpp
+//     缺声明与定义（owner TranslateCUserNext 已硬中止，待 Main 重派）
+//   - ProcStage::{getMap,getTimeLine,getCurrentSurvivalRoundNo,getMapBasisLevel}：
+//     ORIG W thunk（0x08134860/0x08134852/0x08134878/0x08134894）头内未声明、
+//     cpp 未定义（ProcStage 域，本批已获授权但属 sendMapInfo 直译配套，随
+//     getTowerInfo 一并落地）
+//   - ProcSummonObjectMs 子树（阻塞 ProcStage ctor/dtor/procTimeLine，进而
+//     阻塞 StageControl 完整 ctor/dtor 与 onTimerStageTick 尾调）
+//   已就绪：_NotiAdvanceAltarMapInfo/_NotiAdvanceAltarEplpState（shared/packet
+//   权威）、_PhaseSummary/TimeLine（advancealtar.h）、CMap::get_index/
+//   get_monster_list/_mapMonster、_MapMonsterSummary/m_createdMapMonsters/
+//   addCreatedMapMonster（advancealtar_ProcStage.h/cpp 本批落地）。
+// ----------------------------------------------------------------------------
+
 // ---- TimeLine / Phase / TimeLineSummary（ORIG advancealtar__TimeLine 报告）----
 Phase::Phase()
     : m_field0(0), m_field4(0), m_assigns()
@@ -203,7 +358,6 @@ void Phase::reset()
     // ORIG T 0x08899cf8：两标量清零 + vector clear。
     m_field0 = 0;
     m_field4 = 0;
-    m_assigns.clear();
 }
 
 TimeLineSummary::TimeLineSummary()

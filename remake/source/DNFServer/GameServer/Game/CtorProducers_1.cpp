@@ -138,8 +138,12 @@ void sub_CNPCDynamicInfoC1(void*, const void*) asm("_ZN15CNPCDynamicInfoC1EPK10C
 
 namespace DNFFLib { void Make_Dir(char* dir); }   // T 0x08108ad7
 
-bool loadRDARScriptListFile(void* list, const char* dir, const char* listPath,
-                            std::map<int, int>*);   // ORIG T 0x088bbd77
+int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                           const char* listPath, std::map<int, int>* unused);
+   // ORIG T 0x088bbd77 _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_
+   //   _PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE；定义 STScriptFileList.cpp。
+   // 旧本地声明 bool(void*,...) mangled 不匹配（Pv ≠ P16STScriptFileList），
+   // 曾产生未解析引用——本批次统一为 ORIG 签名（ScriptFileAndGlobalsB2）。
 
 // ---- CCharacter 桥（destroy/set_data 为 T 符号，CCharacter.h 未声明）----
 void sub_CCharacterDestroy(void*) asm("_ZN10CCharacter7destroyEv");
@@ -426,7 +430,7 @@ bool CNPCDynamicInfoManager::add(const CNPCScript* script)
 // ============================================================================
 
 TowerOfDespair_APC_Mgr::TowerOfDespair_APC_Mgr()
-    : m_map()
+    : m_APCInfoMap()
 {
 }
 
@@ -1045,7 +1049,7 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
         trace("%s load failed\n", common);
         return 0x1bf;
     }
-    if (m_npcCommon.m_vec18.size() > 0x32)
+    if (m_npcCommon.m_favorableNpcList.size() > 0x32)
     {
         cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1c3, 5);
         trace("%s Favorable npc count over\n", common);

@@ -658,6 +658,13 @@ int CUserPremium::GetAdvPremiumCount() const
     return *reinterpret_cast<const int*>(&m_pad[0x848]);
 }
 
+// ORIG W 0x0863bd5c：*(int*)(this+0x848) + *(int*)(this+0x84c)
+int CUserPremium::GetTotalPremiumCount() const
+{
+    return *reinterpret_cast<const int*>(&m_pad[0x848])
+         + *reinterpret_cast<const int*>(&m_pad[0x84c]);
+}
+
 void CUserPremium::InitPremium()
 {
     // ORIG：memset(this, 0, 0x848) —— 前缀 + entries
@@ -1149,4 +1156,24 @@ void _Additioal_info::subtract(const _Additioal_info& other)
 void _Additioal_info::operator+=(const _Additioal_info& other)
 {
     add(other);
+}
+
+// ORIG W 0x0830ed48 _ZN8WongWork12CUserPremium25GetAddIndependentDropRateEij
+// 二参（unsigned，1..4）选 m_independentDropRates 列；一参（int，0..0x69）选
+// g_SPremiumInfo 行；越界返回 0。
+unsigned int WongWork::CUserPremium::GetAddIndependentDropRate(int level, unsigned int type)
+{
+    if (type == 0)
+        return 0;
+    if (type <= 4)
+    {
+        if (level < 0)
+            return 0;
+        if (level <= 0x69)
+        {
+            return GlobalData::g_SPremiumInfo[level].m_independentDropRates[type - 1];
+        }
+        return 0;
+    }
+    return 0;
 }

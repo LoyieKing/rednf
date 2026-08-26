@@ -113,6 +113,15 @@ public:
     int& getEquipmentMagicalAttack(int level);
     int& getEquipmentMagicalDefense(int level);
 
+    // ORIG GetLevelUpSkill 0x0861d472 签名嵌套枚举：param*0xc+script+0x40c
+    // 选第 idx 档 vector<LevelUpSkill>（成员名 DWARF 无 C++ 信息，按档位命名）。
+    enum ENUM_SKILL_UP_VECTOR_INDEX
+    {
+        ENUM_SKILL_UP_VECTOR_INDEX_0 = 0,
+        ENUM_SKILL_UP_VECTOR_INDEX_1 = 1,
+        ENUM_SKILL_UP_VECTOR_INDEX_2 = 2
+    };
+
     // ---- 嵌套结构 ----
     struct RebirthAppendageinfo
     {
@@ -247,7 +256,7 @@ public:
     bool m_mpDrain;                                    // +0x23d [MP drain]
     std::vector<std::vector<float> > m_vec240;         // +0x240（[level linear ability] 表）
     std::vector<LevelUpSkill> m_levelUpSkills24c;      // +0x24c
-    char m_pad258[0xc];                                // +0x258
+    std::vector<LevelUpSkill> m_levelUpSkills258;      // +0x258（skill_levelup 第二档；GetLevelUpSkill idx==1）
     std::vector<STAvatarAbilityVariation> m_avatar264; // +0x264（[avatar select ability]）
     char m_pad270[4];                                  // +0x270
     float m_roomListMoveSpeedRate;                     // +0x274 [room list move speed rate]
@@ -396,7 +405,7 @@ struct EquipmentParameterInfoLayoutMirror
     bool m_mpDrain;
     char m_vec240[sizeof(std::vector<std::vector<float> >)];
     char m_levelUpSkills24c[sizeof(std::vector<LevelUpSkill>)];
-    char m_pad258[0xc];
+    char m_levelUpSkills258[sizeof(std::vector<LevelUpSkill>)];
     char m_avatar264[sizeof(std::vector<STAvatarAbilityVariation>)];
     char m_pad270[4];
     float m_roomListMoveSpeedRate;

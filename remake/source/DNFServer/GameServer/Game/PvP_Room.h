@@ -46,7 +46,7 @@ public:
     int get_pvp_battle_mode();
     int GetManager() const;
     int GetManagerSeat() const;
-    bool isRematchable() const;
+    unsigned char isRematchable() const;
     void setReamtchable(bool flag);
     int GetRequestedMapNo();
     void SetRequestedMapNo(short mapNo);
@@ -93,28 +93,27 @@ public:
     int OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
                           ENUM_WALKOUT_TYPE walkoutType);
     int set_ready_state(CUser* user, bool ready);
-    int make_ready_info(char* buf, int seat);
-    int check_start_state();
+    bool check_start_state();
     int start_pvp();
     int end_pvp();
     int end_pvp_result();
     int send_pvp_end();
-    int CheckPassword(const char* password, int len);
-    int IsExistPassword();
-    int IsEndPvpBattle();
-    int is_last_win(int seat);
+    bool CheckPassword(const char* password, int len);
+    unsigned char IsExistPassword();
+    unsigned char IsEndPvpBattle();
+    unsigned char IsInsertTimerRecvPvpRank();
     int is_closeable_seat_state();
-    int IsAllMoreThanGrade(int grade);
+    bool IsAllMoreThanGrade(int grade);
+    bool is_last_win(int seat);
     int IsPvpObserver(int seat);
     int check_winner();
-    int check_team_pvp();
     int check_recv_pvp_rank();
+    int check_team_pvp();
     int set_recv_pvp_rank_flag(CUser* user);
     int set_recv_pvp_end_result_flag(CUser* user);
-    int IsInsertTimerRecvPvpRank();
+    bool IsThereSameGuildMember();
     int insert_timer_recv_pvp_rank();
     int insert_timer_recv_pvp_end_result();
-    int IsThereSameGuildMember();
     int check_acquire_guild_point();
     int GiveOuterPenalty(CUser* user);
     int VoteLackUser(CUser* user, int vote);
@@ -150,6 +149,7 @@ public:
     int GetAce() const;
     int CancelAllTimer();
     int make_room_info(char* buf);
+    int make_ready_info(char* buf, int seat);
     int make_seat_info(char* buf, int seat);
     int make_state_info(char* buf);
     void send_to_pvp(PacketGuard& guard);
@@ -193,15 +193,15 @@ private:
     char m_field5dc[12];                // +0x5dc
     Mutex m_mutex;                      // +0x5e8
     int m_joinCount;                    // +0x600
-    char m_field604;                    // +0x604
+    unsigned char m_field604;           // +0x604
     char m_password[0xb];               // +0x605
     int m_passwordLen;                  // +0x610
-    char m_field614;                    // +0x614
+    unsigned char m_field614;           // +0x614
     char m_field615;                    // +0x615
-    char m_field616;                    // +0x616
-    char m_field617;                    // +0x617
+    unsigned char m_field616;           // +0x616
+    unsigned char m_field617;           // +0x617
     int m_field618;                     // +0x618
-    char m_field61c;                    // +0x61c
+    unsigned char m_field61c;           // +0x61c
     char m_pad61d[3];                   // +0x61d
     CRelayBattleMgr m_relayMgr;         // +0x620
     CDeathMatchBattleMgr m_deathMatch;  // +0x69c

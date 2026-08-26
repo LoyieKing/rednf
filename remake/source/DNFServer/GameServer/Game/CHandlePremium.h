@@ -25,6 +25,7 @@ class CHandlePremium
 public:
     // 0x086af8b4  _ZN8WongWork14CHandlePremium23handleNotifyPremiumInfoEP5CUserii
     static void handleNotifyPremiumInfo(CUser* user, int type, int remainSec);
+    static void handlePremiumTimeout(CUser* user);
 
     // 0x086afc32  _ZN8WongWork14CHandlePremium19handlePremiumEffectEP5CUser17ENUM_PREMIUM_TYPE
     static void handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type);
@@ -35,6 +36,13 @@ public:
     // 0x086af7e8  _ZN8WongWork14CHandlePremium20handleSetUserPremiumEP5CUser17ENUM_PREMIUM_TYPEllib
     static void handleSetUserPremium(CUser* user, ENUM_PREMIUM_TYPE type,
                                      long start, long end, int flag, bool recalc);
+    // ---- G7 miscB 追加（定义 WongWorkMiscB_A.cpp）----
+    // 0x086af96e _ZN8WongWork14CHandlePremium23handleReturn2CharacViewEP5CUser：
+    // 取 premium 列表，逐项 type!=0 且 state==3 → handleSetUserPremium(type,0,0,0,true)。
+    static void handleReturn2CharacView(CUser* user);
+    // 0x086b0594 _ZN8WongWork14CHandlePremium30handleRemoveOneDayLethePremiumEP5CUser：
+    // isAffectedPremium(0x21) 时撤销 premium、删限制物品并通知；随后置非使用 Lethe 状态 + trace。
+    static void handleRemoveOneDayLethePremium(CUser* user);
 };
 
 }  // namespace WongWork

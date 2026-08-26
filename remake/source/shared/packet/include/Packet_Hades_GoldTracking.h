@@ -18,11 +18,9 @@ public:
     unsigned int m_gold;       // +0x22（param_4：金币量，语义待定）
     unsigned short m_usedFatigue; // +0x26（param_5：3 个调用点均传 getCurCharacUsedFatigue）
     unsigned char m_eventType; // +0x28（param_1：2=邮寄/选角，4=拍卖）
-    Packet_Hades_GoldTracking() : PacketHeader(0xfdc, 0x29),
-        m_accId(0), m_characId(0), m_gold(0), m_usedFatigue(0), m_eventType(0)
-    {
-        memset(m_ip, 0, sizeof(m_ip));
-    };
+    // ORIG C1 0x84b99fa W（0x23）：仅写 PacketHeader 头，不清零载荷——ip 清零由
+    // 调用方 CHades::GoldTracking 内显式 memset 完成。
+    Packet_Hades_GoldTracking() : PacketHeader(0xfdc, 0x29) {};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Hades_GoldTracking, 0x29);

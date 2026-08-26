@@ -26,6 +26,7 @@
 #include "QuickParty.h"                 // 需先于 CParty.h（守卫次序，同 CParty.cpp）
 #include "CParty.h"
 #include "CDungeon.h"
+#include "BattleData.h"   // finish_loading 装载标志 m_arr7e4（CParty +0xb10）
 #include "InterfacePacketBuf.h"
 #include "PacketGuard.h"
 #include "LogManager.h"                 // logFormat
@@ -148,6 +149,7 @@ void CParty::die_user(CUser* user)
 // ============================================================================
 void CParty::finish_loading(CUser* user)
 {
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
     for (int i = 0; i <= 3; ++i)                        // -0xc
     {
         if (m_member[i].m_pUser != user)
@@ -155,16 +157,12 @@ void CParty::finish_loading(CUser* user)
         if (m_finishLoadingFlag[i] != 0)                // +0x37c[i]
             return;
         m_finishLoadingFlag[i] = 1;
-        // BattleData 区 +0xb10[i]（未建模占位区；偏移经 m_padBattleData2
-        // (+0x390,0x794) 布局证实。ORIG 为 this+i+0xb10 单指令寻址）
-        if (*reinterpret_cast<char*>(reinterpret_cast<char*>(this) + 0xb10 + i) !=
-            1)
+        // BattleData::m_arr7e4[slot]（CParty +0xb10；装载完成标志：
+        // OnStartMapFinishLoading 成功后置 1）
+        if (bd.m_arr7e4[i] != 1)
         {
             if (OnStartMapFinishLoading(user))
-            {
-                *reinterpret_cast<char*>(reinterpret_cast<char*>(this) + 0xb10 +
-                                         i) = 1;
-            }
+                bd.m_arr7e4[i] = 1;
         }
     }
 
@@ -518,7 +516,7 @@ void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
     CDungeon* dungeon = m_dungeon;                      // -0x3c (+0xcac)
     if (dungeon != 0)
     {
-        if ((char)dungeon->m_89f > 0)
+        if ((char)dungeon->m_bloodDungeonType > 0)
             specialDungeon = true;
         if (dungeon->isTowerOfDespairDungeon())
             specialDungeon = true;
@@ -536,12 +534,12 @@ void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
     }
     if (dungeon != 0)
     {
-        if (dungeon->m_85c != 0)
+        if (dungeon->m_entryRestrictFlag != 0)
             allowPenalty = false;
     }
     if (dungeon != 0)
     {
-        if (dungeon->m_87a != 0)
+        if (dungeon->m_villageAttackEventFlag != 0)
             allowPenalty = false;
     }
 

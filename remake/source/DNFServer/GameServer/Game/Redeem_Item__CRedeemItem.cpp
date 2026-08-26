@@ -7,6 +7,8 @@
 
 #include "CDataManager.h"
 #include "CItem.h"
+#include "GameWorld.h"        // G_GameWorld / IsEnchantRevisionChannel
+#include "PacketGuard.h"
 
 namespace Redeem_Item
 {
@@ -76,6 +78,56 @@ int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
     if (m_redeemList.size() > 0x14)
         m_redeemList.pop_front();
     m_redeemList.push_back(info);
+    return 1;
+}
+
+
+// ORIG T 0x085f73ee _ZN11Redeem_Item11CRedeemItem15Send_RedeemListEP5CUser：
+// header(0,0x121)/byte(list size)/逐项（≤0x15 项）：+0x40 计数、Inven_Item
+// 字段展开、附魔通道分支、增幅属性、3rd Chronicle 子包与 put_packet，最后
+// finalize + Send 并返回 1。
+int CRedeemItem::Send_RedeemList(CUser* user)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x121);
+    packet.put_byte((int)m_redeemList.size());
+
+    int count = 0;
+    for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
+             m_redeemList.begin();
+         count < 0x15 && it != m_redeemList.end(); ++it, ++count)
+    {
+        const Inven_Item_Expand_RedeemInfo& entry = *it;
+
+        // Inven_Item_Expand_RedeemInfo 前 0x3c 字节即 Inven_Item 镜像
+        // （AddRedeemList 拷贝实证），按字段口径逐项写出。
+        Inven_Item item;
+        std::memcpy(&item, &entry.m_data[0], 0x3c);
+        unsigned char lastByte = entry.m_byte3c;
+
+        packet.put_int(entry.m_count40);                    // +0x40 兑换计数
+        packet.put_int(item.m_addInfo);                     // +0x02 物品 idx
+        packet.put_int(item.m_addInfo2);                    // +0x07 数量/强化值
+        packet.put_byte((int)item.GetItemAttr());           // 属性字节
+        packet.put_short((int)item.m_fieldb);               // +0x0b 耐久
+        (void)lastByte;
+        packet.put_byte((int)(unsigned char)item.m_field0); // +0x00 绑定标记
+
+        if (!G_GameWorld()->IsEnchantRevisionChannel())
+            packet.put_int(item.m_fieldd);                  // +0x0d 强化信息
+        else
+            packet.put_int(0);
+
+        packet.put_byte((int)item.m_amp.getAbilityType() & 0xff);
+        packet.put_short((int)item.m_amp.getAbilityValue() & 0xffff);
+
+        WongWork::CItemUpgrade* upgrade = G_CDataManager()->m_itemUpgrade;
+        upgrade->make3rdChroniclePacket(user, item, &packet);
+        packet.put_packet(item);
+    }
+
+    packet.finalize(true);
+    user->Send(packet);
     return 1;
 }
 

@@ -646,31 +646,41 @@ template Taiwan::SigResetStayTimeEvent* CStreamGuard::GetInBuffer<Taiwan::SigRes
 template Taiwan::SigLoadHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigLoadHeroMissionData>();
 template Taiwan::SigSaveHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigSaveHeroMissionData>();
 
-// ORIG clear 语义（非整块 memset）：
-//   ITEM::clear      @0x08694c9a：仅对 entry[0] 调 INFO::clear（循环条件 i<=0）。
-//   DIMENSION::clear @0x08694cd2：对 entry[0..10] 调 INFO::clear，entry[11] 不动。
-//   PC_ROOM_INFO::clear    @0x0848f9a2：+0 int=0 / +4,+5,+6 byte=0 / +8 int=-1。
-//   DIMENSION_INFO::clear  @0x0848f9e4：+0 int=0 / +4..+7 byte=0。
-void SIG_SAVE_PC_ROOM_RENT_ITEM::clear()
+// ORIG 权威两层结构（条目类型 RENT_INFO，容器 RENT_ITEM）：
+//   PC_ROOM_INFO::clear  @0x0848f9a2：+0 int=0 / +4,+5,+6 byte=0 / +8 int=-1。
+//   DIMENSION_INFO::clear@0x0848f9e4：+0 int=0 / +4..+7 byte=0。
+//   ITEM::clear 0x8694c9a：for i<=0 调 INFO::clear(&entry[i])。
+//   ITEM::clear 0x8694cd2：for i<=0xa 调 INFO::clear（entry[11] 不动）。
+void SIG_SAVE_PC_ROOM_RENT_INFO::clear()
 {
-    m_entry[0].m_itemIndex = 0;
-    m_entry[0].m_field4 = 0;
-    m_entry[0].m_field5 = 0;
-    m_entry[0].m_inEquip = 0;
-    m_entry[0].m_field8 = -1;
+    m_itemIndex = 0;
+    m_field4 = 0;
+    m_field5 = 0;
+    m_inEquip = 0;
+    m_field8 = -1;
 }
 
-void SIG_SAVE_DIMENSION_RENT_ITEM::clear()
+void SIG_SAVE_DIMENSION_RENT_INFO::clear()
+{
+    m_itemIndex = 0;
+    m_field4 = 0;
+    m_field5 = 0;
+    m_inEquip = 0;
+    m_field7 = 0;
+}
+
+void SIG_SAVE_PC_ROOM_RENT_ITEM::clear()      // ORIG W 0x8694c9a
+{
+    for (int i = 0; i <= 0; ++i)
+        m_entry[i].clear();
+}
+
+void SIG_SAVE_DIMENSION_RENT_ITEM::clear()    // ORIG W 0x8694cd2
 {
     for (int i = 0; i <= 10; ++i)
-    {
-        m_entry[i].m_itemIndex = 0;
-        m_entry[i].m_field4 = 0;
-        m_entry[i].m_field5 = 0;
-        m_entry[i].m_inEquip = 0;
-        m_entry[i].m_field7 = 0;
-    }
+        m_entry[i].clear();
 }
+
 
 // ============================================================================
 // CHARAC_DATA / TAG_* 缓存区清理原语（Prod_DispatcherHelpers 批次补定义；
@@ -692,21 +702,21 @@ void CHARAC_DATA::Reset()       // ORIG W 0x822ec9e
     m_data[0x12c] = 0;
     m_data[0x12d] = 0;
     m_data[0x12f] = 0;                   // 注意：+0x12e 未清（ORIG 跳过）
-    *reinterpret_cast<int*>(m_data + 0x130) = 0;   // ORIG +0x139：dword 清零
+    m_dword130 = 0;                      // ORIG +0x139：dword 清零（movl $0,0x130(%eax)）
 }
 
 void TAG_CHARAC_DATA::clear()   // ORIG W 0x822ed84
 {
-    memset(m_data, 0, sizeof(m_data));   // 0x78 字节清零
+    memset(this, 0, sizeof(TAG_CHARAC_DATA));   // 0x78 字节清零（ORIG 实参序：size→0→this）
     m_data[0x25] = static_cast<char>(0xff);   // ORIG 尾部：+0x25 置 0xff
 }
 
 void TAG_CHARAC_INVEN_DATA::clear()   // ORIG W 0x822edd0
 {
-    memset(m_data, 0, sizeof(m_data));   // 0x4024 字节清零
+    memset(this, 0, sizeof(TAG_CHARAC_INVEN_DATA));   // 0x4024 字节清零
 }
 
 void TAG_CHARAC_ETC_DATA::clear()     // ORIG W 0x822edf4
 {
-    memset(m_data, 0, sizeof(m_data));   // 0x330 字节清零（tagSkillSlot+tagSkillCombo）
+    memset(this, 0, sizeof(TAG_CHARAC_ETC_DATA));   // 0x330 字节清零（tagSkillSlot+tagSkillCombo）
 }

@@ -7,6 +7,20 @@
 namespace CMDPacketStruct
 {
 struct STBaseResponse {};
+// ORIG altar dispatcher 家族（advancealtar，Wave5）请求/响应载体：
+// read_packet 以 PacketBuf::get_binary 将请求体整块读入 STBaseRequest；
+// 各类读取长度不同（0xe/0x14/0x18/0x20/0x24/0x30），buffer 取最大并留余。
+struct STBaseRequest { unsigned char m_data[0x40]; };
+
+// ORIG _SetSlotData（N15CMDPacketStruct12_SetSlotDataE）：setSlot/exchangeSlot
+// 域 12 字节块（req+0x18 起整块传递；首 int 为槽类型判别 1/2，
+// 见 advancealtar__Dispatcher_SetSlot/process_packet +0xa4）。
+// 字段名【推断】，权威精化归 CharacAdvanceAltarManager 实现批次。
+struct _SetSlotData { int m_type; int m_field4; int m_field8; };
+
+// ORIG ResetStarType::T（N15CMDPacketStruct13ResetStarType1TE）：resetStar(CUser*,T)
+// 的 opaque 枚举传参；枚举器名不可从二进制恢复【推断】。
+struct ResetStarType { enum T { RS_N0 = 0 }; };
 }
 
 namespace advancealtar {
@@ -19,6 +33,11 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    // Wave5 三分解方法（非虚 const，不影响 IPacketDispatcher 虚表）。
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140b32
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140b04
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x08140b3c
 };
 
 class Dispatcher_BuyItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -30,6 +49,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0813fbe6
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x0813fbb8
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x0813fc06
 };
 
 class Dispatcher_SetSlot : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -41,6 +64,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814004e
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140020
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x0814006e
 };
 
 class Dispatcher_ResetStar : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -52,6 +79,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814108a
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x0814105c
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x081410aa
 };
 
 class Dispatcher_StartGame : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -74,6 +105,11 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    // Wave5 三分解方法（非虚 const）。
+    int check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;         // ORIG T 0x081405ae（恒 0）
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140580
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x081405b8
 };
 
 class Dispatcher_UpgradeGage : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -85,6 +121,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    int check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;         // ORIG T 0x08140314（恒 0）
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x081402e6
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x0814031e
 };
 
 class Dispatcher_ExchangeSlot : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -96,6 +136,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140884
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140856
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x081408a4
 };
 
 class Dispatcher_GetAchievementReward : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -107,6 +151,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
+    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140d80
+    int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140d52
+    int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                       CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x08140da0（ORIG 空体）
 };
 
 }
@@ -128,6 +176,8 @@ public:
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    bool getItem(const CUser& user, int invenType, short slot, Inven_Item& out) const;                       // ORIG T 0x081e71c0
+    void notifyUpdatedInventoryItemInfo(CUser& user, short slot) const;                                      // ORIG T 0x081e70e6
 };
 
 class Dispatcher_Antibot : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -156,6 +206,7 @@ public:
     Dispatcher_Teleport();
     virtual ~Dispatcher_Teleport();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG 0x081d056c（三参形态）
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -199,9 +250,9 @@ public:
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    void send(CUser* user, ParamBase& param);
+        void send(CUser* user, ParamBase& param);
+    void process_skill_init(CUser* user, ParamBase& param);  // ORIG 0x081e5bdc
 };
-
 class Dispatcher_Antibot_DP : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
@@ -262,6 +313,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int checkComboSkillIndex(short idx);   // ORIG 0x0825f292
 };
 
 class Dispatcher_GM_Command : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -417,7 +469,6 @@ class Dispatcher_RefundSkill : public IPacketDispatcher<MSG_REFUND_SKILL, stRefu
 {
 public:
     Dispatcher_RefundSkill();
-    virtual ~Dispatcher_RefundSkill();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -480,6 +531,7 @@ public:
     Dispatcher_BossDieCheck();
     virtual ~Dispatcher_BossDieCheck();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081cd71e
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -501,6 +553,7 @@ public:
     virtual ~Dispatcher_CollectItems();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081e329e
     void send(CUser* user, ParamBase& param);
 };
 
@@ -580,11 +633,11 @@ class Dispatcher_MailBox_Send : public IPacketDispatcher<MSG_MAILBOX_SEND, stMai
 {
 public:
     Dispatcher_MailBox_Send();
-    virtual ~Dispatcher_MailBox_Send();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int GuildMailCheck(CUser* user, MSG_BASE& msg);   // ORIG 0x081cc8c2（check_error 调用）
 };
 
 class Dispatcher_MemberSecede : public IPacketDispatcher<MSG_MEMBER_SECEDE, stMemberSecedeParam, ch_state3>
@@ -645,6 +698,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG 0x081e1e98（三参形态）
 };
 
 class Dispatcher_TitleBookGet : public IPacketDispatcher<MSG_TITLEBOOK_GET, ParamBase, ch_state3>
@@ -844,7 +898,6 @@ class Dispatcher_PartyTeleport : public IPacketDispatcher<MSG_PARTY_TELEPORT, st
 {
 public:
     Dispatcher_PartyTeleport();
-    virtual ~Dispatcher_PartyTeleport();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -890,6 +943,7 @@ public:
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int getItem(const CUser& user, int invenType, short slot, Inven_Item& out) const;  // ORIG 0x081e756c
 };
 
 class Dispatcher_WithdrawMoney : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1026,11 +1080,11 @@ class Dispatcher_PcRoomRentItem : public IPacketDispatcher<MSG_RENT_ITEM, stRent
 {
 public:
     Dispatcher_PcRoomRentItem();
-    virtual ~Dispatcher_PcRoomRentItem();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    void giveDimensionItems(CUser* user, InstanceRentalSystem::RentInput& input);  // ORIG 0x081e583e
 };
 
 class Dispatcher_PvPChannelInfo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1242,6 +1296,9 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+
+private:
+    CMTRand* m_rand;   // +0x04（ORIG ctor W 0x08595348：new CMTRand(time(0))）
 };
 
 class Dispatcher_PVPRequestFight : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1818,7 +1875,6 @@ class Dispatcher_AvatarOptionChange : public IPacketDispatcher<MSG_CHANGE_AVATAR
 {
 public:
     Dispatcher_AvatarOptionChange();
-    virtual ~Dispatcher_AvatarOptionChange();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -1969,6 +2025,7 @@ public:
     Dispatcher_GuildCargoPushItem();
     virtual ~Dispatcher_GuildCargoPushItem();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg);   // ORIG 0x081d0f64
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -2048,7 +2105,6 @@ class Dispatcher_StackableActionUse : public IPacketDispatcher<MSG_STACKABLE_ACT
 {
 public:
     Dispatcher_StackableActionUse();
-    virtual ~Dispatcher_StackableActionUse();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -2278,7 +2334,6 @@ class Dispatcher_SecurityCardAuthRpy : public IPacketDispatcher<MSG_SECU_RPY, Se
 {
 public:
     Dispatcher_SecurityCardAuthRpy();
-    virtual ~Dispatcher_SecurityCardAuthRpy();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -2436,6 +2491,20 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int _read_packet(PacketBuf& packet);   // ORIG 0x08225806
+
+private:
+    // ORIG 成员布局（_reset/_read_packet/_send_result 实证；基类仅 vptr）
+    short m_field4;               // +0x04（包内读出的目标槽）
+    short m_newSlot;              // +0x06（合成结果入包槽位）
+    short m_slots[2];             // +0x08（两个材料槽位）
+    Inven_Item m_materials[2];    // +0x0c（stride 0x3d）
+    const CItem* m_itemRefs[2];   // +0x88（find_item 结果）
+    Inven_Item m_resultItem;      // +0x90
+    unsigned char m_select;       // +0xcd（包内读出的选择字节）
+    unsigned char m_padCe[2];     // +0xce..+0xcf
+    CUser* m_user;                // +0xd0
+    unsigned char m_targetKind;   // +0xd4（0/1/2/3，按目标物品 idx 判别）
 };
 
 class Dispatcher_GatheringPartyStatus : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2584,7 +2653,6 @@ class Dispatcher_BlueMarbleConfirmInfo : public IPacketDispatcher<MSG_BLUE_MARBL
 {
 public:
     Dispatcher_BlueMarbleConfirmInfo();
-    virtual ~Dispatcher_BlueMarbleConfirmInfo();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3043,6 +3111,7 @@ class Dispatcher_Select_Item_Grwoth_Power : public IPacketDispatcher<MSG_GROWTH_
 public:
     Dispatcher_Select_Item_Grwoth_Power();
     virtual ~Dispatcher_Select_Item_Grwoth_Power();
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG 0x081db580（三参形态）
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3161,6 +3230,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    void sendRewardItemSystemMail(CUser* user, unsigned long itemIdx, int count);   // ORIG 0x081e4b6c
 };
 
 class Dispatcher_CallPartyMemberRealtimeInfo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state3>

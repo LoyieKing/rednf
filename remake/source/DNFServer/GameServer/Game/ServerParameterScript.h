@@ -163,10 +163,14 @@ static_assert(sizeof(stSharedServerMessageInfo) == 0x24,
 struct stWeekendBouns
 {
     stWeekendBouns();  // ORIG 0x0836f374 W
-    unsigned short m_field0;   // +0x00
-    unsigned short m_pad2;     // +0x02
-    int m_field4;              // +0x04
-    int m_field8;              // +0x08（ORIG 未初始化，仅占位）
+    unsigned short m_bonusFatiguePercent;   // +0x00（importServerParameterScript.md
+                                            //   0x8a8b90f "[weekend bonus fatigue]"
+                                            //   mov %dx,0x4b4(%eax) 实证，word）
+    unsigned short m_pad2;                  // +0x02
+    int m_bonusExpPercent;                  // +0x04（importServerParameterScript.md
+                                            //   0x8a8b95b "[weekend bonus exp]"
+                                            //   mov %eax,0x4b8(%edx) 实证）
+    int m_field8;                           // +0x08（ORIG 未初始化，仅占位）
 };
 
 static_assert(sizeof(stWeekendBouns) == 0xc,
@@ -231,7 +235,8 @@ struct EventRewardItemInfo
     std::vector<int> m_growTypes;  // +0x0c
 };
 
-#ifndef GAME_CDATAMANAGER_H_
+#ifndef GAME_SITEMGENREF_DEFINED
+#define GAME_SITEMGENREF_DEFINED
 struct sItemGenRef
 {
     int m_field0;    // +0x00
@@ -292,8 +297,8 @@ public:
     int getRecoverStaminaPrice(int idx, int price);
     int GetPvPChannelGradePenalty(int grade);
     int GetDailyMatchCount() { return m_f8; }
-    bool CheckUnusableEquipmentInfo(int type, int idx);
-    bool CheckUnusableItem(int equipType, unsigned long itemIdx) const;
+    bool CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_TYPE type, int idx);  // ORIG W 0x08568af6
+    bool CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType, unsigned long itemIdx) const;  // ORIG W 0x08568bbe
     std::vector<std::pair<int, int> >& GetPvPLiveEventReward() { return m_veca0; }
     int GetPvPLiveEventPlayCount() const { return m_ac; }   // ORIG 0x8269508
     int get_pvp_item_give(int idx);
@@ -460,16 +465,16 @@ public:
     std::vector<int> m_vec49dc;                                 // +0x49dc
     int m_49e8;                                                 // +0x49e8
     int m_49ec;                                                 // +0x49ec
-    int m_49f0;                                                 // +0x49f0
-    // ORIG ServerParameterScript 尺寸 0x4ae0（比本类旧基线 0x49f4 多 0xec）；
-    // 末尾缺失 0xec 字节导致 CDataManager 自 m_inGameAd 起所有字段偏移少 0xec。
-    char m_pad49f4[0xec];                                       // +0x49f4..0x4ae0
+    int m_49f0;                                                 // +0x49f0（末成员；
+    //   ORIG clear 最大写此处，类尺寸 0x49f4）
 };
 
 // ---- 布局断言（ORIG 证据：clear 0x0836f38c / dtor 0x0837bb42 /
 //      SetItemDropRate CDM+0x428/+0x468 两 vector<sItemGenRef>）----
-static_assert(sizeof(ServerParameterScript) == 0x4ae0,
-              "ServerParameterScript layout drift (ORIG size 0x4ae0)");
+// ORIG 尺寸证据：CDM C1/init/dtor 以 add $0x4a5c 定位下一成员 m_inGameAd
+// （SPS 起点 +0x68）→ sizeof 0x49f4；clear 0x0836f38c 最大写 +0x49f0。
+static_assert(sizeof(ServerParameterScript) == 0x49f4,
+              "ServerParameterScript layout drift (ORIG size 0x49f4)");
 static_assert(offsetof(ServerParameterScript, m_monsterExpTable398) == 0x398,
               "ServerParameterScript exp table offset drift");
 static_assert(offsetof(ServerParameterScript, m_expBonusWeight3ac) == 0x3ac,

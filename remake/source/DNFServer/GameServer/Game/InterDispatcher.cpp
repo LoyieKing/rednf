@@ -10,12 +10,74 @@
 // 此处按 CGameManager.cpp 同例作 TU 内声明避免引入重型头。
 char* NumberToString(unsigned int value, int radix);
 #include <new>
+#include <cstdio>              // puts (Inter_Terminate)
+#include <cstdlib>             // exit (Inter_Terminate)
+#include "GlobalData.h"        // B2 dispatcher singleton pointers
+#include "CPowerManager.h"     // PowerWar result consumers
 
-// ======== 基类 ========
+// B2 的若干消费接口在当前重建头中只有调用点/报告，没有可复用的
+// 声明。这里仅声明其原始 ABI 符号：不定义镜像类、不改变对象布局，
+// 生成的 call 仍直达 nm/ORIG 中的目标。
+class CAutoMarketConditionsControl;
+extern CAutoMarketConditionsControl* inter_get_auto_market_control(CDataManager*)
+    asm("_ZN12CDataManager30GetAutoMarketContitionsControlEv");
+extern void inter_auto_market_load_database(
+    CAutoMarketConditionsControl*, SIG_AUTO_MARKET_CONDITIONS_CONTROL*)
+    asm("_ZN28CAutoMarketConditionsControl12LoadDatabaseEP34SIG_AUTO_MARKET_CONDITIONS_CONTROL");
 
-ISigDispatcher::ISigDispatcher() {}
+extern void inter_breakaway_load_db_data(
+    break_away_prevent::CBreakAwayPreventSystem*,
+    SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER*)
+    asm("_ZN18break_away_prevent23CBreakAwayPreventSystem10loadDbDataEP37SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER");
+extern void inter_online_preliminary_load_team_info(
+    online_preliminary::COnlinePreliminaryTeamMgr*, CUser*, char*)
+    asm("_ZN18online_preliminary25COnlinePreliminaryTeamMgr14OnLoadTeamInfoEP5CUserPc");
 
-ISigDispatcher::~ISigDispatcher() {}
+extern void inter_cuser_set_mileage(CUser*, int)
+    asm("_ZN5CUser10SetMileageEi");
+extern void inter_cuser_send_cash_data(CUser*, bool)
+    asm("_ZN5CUser12SendCashDataEb");
+extern void inter_cuser_add_secu_reward(CUser*, unsigned char)
+    asm("_ZN5CUser17AddSecuRewardItemEh");
+extern void inter_cuser_send_cmd_error(CUser*, int, unsigned char)
+    asm("_ZN5CUser18SendCmdErrorPacketE14ENUM_CMDPACKETh");
+extern void inter_cpad_send_change_pwd_reward(Sanicova::CPad*, CUser*)
+    asm("_ZN8Sanicova4CPad18SendChagePwdRewardEP5CUser");
+extern void inter_history_auction(
+    cUserHistoryLog*, SIG_AUCTION_LOG_MESSAGE_AG*)
+    asm("_ZN15cUserHistoryLog7AuctionEP26SIG_AUCTION_LOG_MESSAGE_AG");
+extern void inter_history_auction_point(
+    cUserHistoryLog*, SIG_AUCTION_LOG_MESSAGE_PG*)
+    asm("_ZN15cUserHistoryLog12AuctionPointEP26SIG_AUCTION_LOG_MESSAGE_PG");
+extern void inter_cmc_set_point_per_hack_type(int*)
+    asm("_ZN8WongWork12CMCAPManager19setPointPerHackTypeEPi");
+
+extern void inter_db_load_clean_pad_point()
+    asm("_ZN20DB_LoadCleanPadPoint11makeRequestEv");
+extern void inter_timer_hades_heartbeat()
+    asm("_ZN20Timer_HadesHeartBeat15registNextTimerEv");
+extern void inter_timer_monitor_server(long, int, int)
+    asm("_ZN25TimerConnectMonitorServer15registNextTimerElii");
+extern CGuildServerProxy* inter_get_guild_server_proxy(
+    CServerProxyMgr<CGuildServerProxy>*, int)
+    asm("_ZN15CServerProxyMgrI17CGuildServerProxyE14GetServerProxyE17ENUM_SERVER_GROUP");
+extern void inter_send_guild_exp_limit(CGuildServerProxy*)
+    asm("_ZN17CGuildServerProxy17SendGuildExpLimitEv");
+extern void inter_check_new_member_hacklog(unsigned int, CUser*, unsigned int)
+    asm("_Z21checkNewMemberHacklogjP5CUserj");
+
+// GameWorld 只在本 TU 中按调用所需声明成员，避免为三个短处理器引入
+// 整个世界对象定义；成员签名与 GameWorld.h/ORIG 保持一致。
+class GameWorld
+{
+public:
+    void send_chat_msg(CUser*, char, unsigned short, unsigned int,
+                       char*, int, char*, int, ENUM_NOTIPACKET);
+    void UpdateServerSnapShot();
+    void ResetCraneItemNeedMaterial(int);
+};
+GameWorld* G_GameWorld();
+
 
 // ======== 主分发器（逐指令转写自 docs/class_func_reports/InterDispatcher/）=====
 
@@ -314,6 +376,7 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[694] = new Inter_HadesAction();  // slot +0xad8
     m_dispatchers[695] = new Inter_Check3rdPartyConcent();  // slot +0xadc
     m_dispatchers[697] = new Inter_SelectCharacMid();  // slot +0xae4
+    m_dispatchers[708] = new Inter_NpcLimitBuyItemInfo();  // slot +0xb10
     m_dispatchers[710] = new Inter_NpcLimitBuyItemInfoAll();  // slot +0xb18
     m_dispatchers[711] = new Inter_NpcLimitBuyItemChangeInfo();  // slot +0xb1c
     m_dispatchers[712] = new Inter_NpcLimitBuyItemInfoRenew();  // slot +0xb20
@@ -354,14 +417,14 @@ InterDispatcher::~InterDispatcher()
 // ORIG 0x84be906 逐指令转写。
 ISigDispatcher* InterDispatcher::get_dispatcher(int code)
 {
-    if (m_dispatchers[code] == 0)
+    if (m_dispatchers[code] != 0)
     {
-        LogManager::logFormat(1, "InterDispatcher.cpp",
-                              "ISigDispatcher* InterDispatcher::get_dispatcher(int)",
-                              0x5e5, "cmd_map.find( code %d )", code);
-        return 0;
+        return m_dispatchers[code];
     }
-    return m_dispatchers[code];
+    LogManager::logFormat(1, "InterDispatcher.cpp",
+                          "ISigDispatcher* InterDispatcher::get_dispatcher(int)",
+                          0x5e5, "cmd_map.find( code %d )", code);
+    return 0;
 }
 
 // ORIG 0x84be95e 逐指令转写。
@@ -390,8 +453,8 @@ bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
                               0x602, "get_dispatcher(%d)", code);
         return false;
     }
-    int result = d->dispatch_sig(user, data, len);
-    if (result != 0)
+    int result = 0;
+    if ((result = d->dispatch_sig(user, data, len)) != 0)
     {
         if (user != 0)
         {
@@ -529,23 +592,36 @@ int Inter_LoadEtc::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 
 Inter_DeleteChannel::Inter_DeleteChannel() {}
 Inter_DeleteChannel::~Inter_DeleteChannel() {}
-int Inter_DeleteChannel::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_DeleteChannel::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84bf7ea)：函数体未还原
+    int* packet = reinterpret_cast<int*>(data);
+    if (packet[2] == 1)
+    {
+        return 0x806;
+    }
+    return 0;
 }
 
 Inter_Notice::Inter_Notice() {}
 Inter_Notice::~Inter_Notice() {}
-int Inter_Notice::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_Notice::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84c5212)：函数体未还原
+    char* packet = data;
+    char notice_len = packet[0x51];
+    char* message = packet + 1;
+    GameWorld* world = G_GameWorld();
+    world->send_chat_msg(0, 0, 0, 0, message,
+                         static_cast<int>(notice_len), 0, 0,
+                         static_cast<ENUM_NOTIPACKET>(0x0c));
+    return 0;
 }
 
 Inter_Terminate::Inter_Terminate() {}
 Inter_Terminate::~Inter_Terminate() {}
 int Inter_Terminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84c7dee)：函数体未还原
+    puts("Game Server is Terminated");
+    exit(0);
 }
 
 Inter_ReadyToTerminate::Inter_ReadyToTerminate() {}
@@ -914,9 +990,10 @@ int Inter_UpdateLogout::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*
 
 Inter_UserRepel::Inter_UserRepel() {}
 Inter_UserRepel::~Inter_UserRepel() {}
-int Inter_UserRepel::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_UserRepel::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84ce5c4)：函数体未还原
+    user->DisConnSig(static_cast<DISCONN_SIG>(0x14), true, 0);
+    return 0;
 }
 
 Inter_AvatarInsert::Inter_AvatarInsert() {}
@@ -1406,14 +1483,21 @@ Inter_LoadCleanPadPointReq::Inter_LoadCleanPadPointReq() {}
 Inter_LoadCleanPadPointReq::~Inter_LoadCleanPadPointReq() {}
 int Inter_LoadCleanPadPointReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d553e)：函数体未还原
+    inter_db_load_clean_pad_point();
+    cMyTrace trace(
+        "virtual int Inter_LoadCleanPadPointReq::dispatch_sig(CUser*, char*, int)",
+        0x371d, 0);
+    trace("Get CleanPad point Request");
+    return 0;
 }
 
 Inter_LoadCleanPadPoint::Inter_LoadCleanPadPoint() {}
 Inter_LoadCleanPadPoint::~Inter_LoadCleanPadPoint() {}
-int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d5586)：函数体未还原
+    int* point = reinterpret_cast<int*>(data);
+    inter_cmc_set_point_per_hack_type(point);
+    return 0;
 }
 
 Inter_NotifyAuctionMail::Inter_NotifyAuctionMail() {}
@@ -1481,9 +1565,18 @@ int Inter_AuctionResultMyBidding::dispatch_sig(CUser* /*user*/, char* /*data*/, 
 
 Inter_AuctionLogMessage::Inter_AuctionLogMessage() {}
 Inter_AuctionLogMessage::~Inter_AuctionLogMessage() {}
-int Inter_AuctionLogMessage::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_AuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d7a90)：函数体未还原
+    if (user == 0)
+    {
+        return 0;
+    }
+    SIG_AUCTION_LOG_MESSAGE_AG* message =
+        reinterpret_cast<SIG_AUCTION_LOG_MESSAGE_AG*>(data);
+    inter_history_auction(
+        reinterpret_cast<cUserHistoryLog*>(
+            reinterpret_cast<char*>(user) + 0x79700), message);
+    return 0;
 }
 
 Inter_AuctionNotifyAuctionService::Inter_AuctionNotifyAuctionService() {}
@@ -1495,9 +1588,18 @@ int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* /*dat
 
 Inter_PointAuctionLogMessage::Inter_PointAuctionLogMessage() {}
 Inter_PointAuctionLogMessage::~Inter_PointAuctionLogMessage() {}
-int Inter_PointAuctionLogMessage::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_PointAuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d7c4c)：函数体未还原
+    if (user == 0)
+    {
+        return 0;
+    }
+    SIG_AUCTION_LOG_MESSAGE_PG* message =
+        reinterpret_cast<SIG_AUCTION_LOG_MESSAGE_PG*>(data);
+    inter_history_auction_point(
+        reinterpret_cast<cUserHistoryLog*>(
+            reinterpret_cast<char*>(user) + 0x79700), message);
+    return 0;
 }
 
 Inter_PointAuctionChargeCeraPoint::Inter_PointAuctionChargeCeraPoint() {}
@@ -1544,9 +1646,12 @@ int Inter_LoadBloodDungeonBestRecord::dispatch_sig(CUser* /*user*/, char* /*data
 
 Inter_LoadBreakAwayPreventSystem::Inter_LoadBreakAwayPreventSystem() {}
 Inter_LoadBreakAwayPreventSystem::~Inter_LoadBreakAwayPreventSystem() {}
-int Inter_LoadBreakAwayPreventSystem::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadBreakAwayPreventSystem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d928c)：函数体未还原
+    SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* packet =
+        reinterpret_cast<SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER*>(data);
+    inter_breakaway_load_db_data(GlobalData::s_BreakAwaySys, packet);
+    return 0;
 }
 
 Inter_LoadBreakAwayPreventMessage::Inter_LoadBreakAwayPreventMessage() {}
@@ -1593,9 +1698,15 @@ int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* /*data*/, 
 
 Inter_LoadAutoMarketConditionsControl::Inter_LoadAutoMarketConditionsControl() {}
 Inter_LoadAutoMarketConditionsControl::~Inter_LoadAutoMarketConditionsControl() {}
-int Inter_LoadAutoMarketConditionsControl::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadAutoMarketConditionsControl::dispatch_sig(
+    CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d891c)：函数体未还原
+    SIG_AUTO_MARKET_CONDITIONS_CONTROL* packet =
+        reinterpret_cast<SIG_AUTO_MARKET_CONDITIONS_CONTROL*>(data);
+    CAutoMarketConditionsControl* control =
+        inter_get_auto_market_control(G_CDataManager());
+    inter_auto_market_load_database(control, packet);
+    return 0;
 }
 
 Inter_UpdateOneDayLethe::Inter_UpdateOneDayLethe() {}
@@ -1607,9 +1718,13 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* /*user*/, char* /*data*/, int /
 
 Inter_DisconnectMonitorServer::Inter_DisconnectMonitorServer() {}
 Inter_DisconnectMonitorServer::~Inter_DisconnectMonitorServer() {}
-int Inter_DisconnectMonitorServer::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_DisconnectMonitorServer::dispatch_sig(
+    CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84d9c8e)：函数体未还原
+    int* packet = reinterpret_cast<int*>(data);
+    int monitor_id = *packet;
+    inter_timer_monitor_server(30L, 0, monitor_id);
+    return 0;
 }
 
 Inter_ResposncePCRoomPlyerList::Inter_ResposncePCRoomPlyerList() {}
@@ -1642,16 +1757,21 @@ int Inter_NoticePowerWarRank::dispatch_sig(CUser* /*user*/, char* /*data*/, int 
 
 Inter_LoadPowerWarStatueRanker::Inter_LoadPowerWarStatueRanker() {}
 Inter_LoadPowerWarStatueRanker::~Inter_LoadPowerWarStatueRanker() {}
-int Inter_LoadPowerWarStatueRanker::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadPowerWarStatueRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84da394)：函数体未还原
+    unsigned int* packet = reinterpret_cast<unsigned int*>(data);
+    GlobalData::s_power_manager->SetPowerWarUserRankingInfo(packet);
+    return 0;
 }
 
 Inter_LoadPowerWarStatueInfo::Inter_LoadPowerWarStatueInfo() {}
 Inter_LoadPowerWarStatueInfo::~Inter_LoadPowerWarStatueInfo() {}
-int Inter_LoadPowerWarStatueInfo::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadPowerWarStatueInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84da3be)：函数体未还原
+    SIG_LOAD_POWER_WAR_STATUE_INFO* packet =
+        reinterpret_cast<SIG_LOAD_POWER_WAR_STATUE_INFO*>(data);
+    GlobalData::s_power_manager->SetPowerWarUserStatueInfo(packet);
+    return 0;
 }
 
 Inter_UpdateServerMessage::Inter_UpdateServerMessage() {}
@@ -1777,7 +1897,9 @@ Inter_GuildExpLimit::Inter_GuildExpLimit() {}
 Inter_GuildExpLimit::~Inter_GuildExpLimit() {}
 int Inter_GuildExpLimit::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84dcaee)：函数体未还原
+    inter_send_guild_exp_limit(inter_get_guild_server_proxy(
+        GlobalData::s_guild_proxy_mgr, 0));
+    return 0;
 }
 
 Inter_SetIPCount::Inter_SetIPCount() {}
@@ -1796,9 +1918,13 @@ int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*le
 
 Inter_CancelRestingUser::Inter_CancelRestingUser() {}
 Inter_CancelRestingUser::~Inter_CancelRestingUser() {}
-int Inter_CancelRestingUser::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_CancelRestingUser::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84dccb8)：函数体未还原
+    if (user != 0)
+    {
+        user->setRestingUserRestrict(false);
+    }
+    return 0;
 }
 
 Inter_ApplyTempPowerSide::Inter_ApplyTempPowerSide() {}
@@ -2111,9 +2237,12 @@ int Inter_LoadOnlinePreliminaryMemberMatchList::dispatch_sig(CUser* /*user*/, ch
 
 Inter_LoadOnlinePreliminaryTeamMatchList::Inter_LoadOnlinePreliminaryTeamMatchList() {}
 Inter_LoadOnlinePreliminaryTeamMatchList::~Inter_LoadOnlinePreliminaryTeamMatchList() {}
-int Inter_LoadOnlinePreliminaryTeamMatchList::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadOnlinePreliminaryTeamMatchList::dispatch_sig(
+    CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e2790)：函数体未还原
+    inter_online_preliminary_load_team_info(
+        GlobalData::s_onlinePreliminaryTeamMgr, user, data);
+    return 0;
 }
 
 Inter_LoadCharacLinkBonus::Inter_LoadCharacLinkBonus() {}
@@ -2174,9 +2303,13 @@ int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* /*data
 
 Inter_LoadMileage::Inter_LoadMileage() {}
 Inter_LoadMileage::~Inter_LoadMileage() {}
-int Inter_LoadMileage::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadMileage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e4d4e)：函数体未还原
+    int* packet = reinterpret_cast<int*>(data);
+    int mileage = packet[2];
+    inter_cuser_set_mileage(user, mileage);
+    inter_cuser_send_cash_data(user, false);
+    return 0;
 }
 
 Inter_GuildExpBookDelete::Inter_GuildExpBookDelete() {}
@@ -2295,21 +2428,36 @@ Inter_HadesDisConnect::Inter_HadesDisConnect() {}
 Inter_HadesDisConnect::~Inter_HadesDisConnect() {}
 int Inter_HadesDisConnect::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e4342)：函数体未还原
+    inter_timer_hades_heartbeat();
+    return 0;
 }
 
 Inter_GoblinPadChagePwdReward::Inter_GoblinPadChagePwdReward() {}
 Inter_GoblinPadChagePwdReward::~Inter_GoblinPadChagePwdReward() {}
-int Inter_GoblinPadChagePwdReward::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_GoblinPadChagePwdReward::dispatch_sig(
+    CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e4354)：函数体未还原
+    char* packet = data;
+    if (user != 0)
+    {
+        Sanicova::CPad* pad = user->getPad();
+        inter_cpad_send_change_pwd_reward(pad, user);
+    }
+    return 0;
 }
 
 Inter_GoblinPadSamePwdCheck::Inter_GoblinPadSamePwdCheck() {}
 Inter_GoblinPadSamePwdCheck::~Inter_GoblinPadSamePwdCheck() {}
-int Inter_GoblinPadSamePwdCheck::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_GoblinPadSamePwdCheck::dispatch_sig(
+    CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e4388)：函数体未还原
+    char* packet = data;
+    if (user != 0)
+    {
+        inter_cuser_send_cmd_error(user, 0x74,
+                                   static_cast<unsigned char>(0x8b));
+    }
+    return 0;
 }
 
 Inter_PunishCancel::Inter_PunishCancel() {}
@@ -2363,9 +2511,11 @@ int Inter_LevelUpReward::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len
 
 Inter_GetUserRegdate::Inter_GetUserRegdate() {}
 Inter_GetUserRegdate::~Inter_GetUserRegdate() {}
-int Inter_GetUserRegdate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_GetUserRegdate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e4fb6)：函数体未还原
+    unsigned int* packet = reinterpret_cast<unsigned int*>(data);
+    inter_check_new_member_hacklog(packet[1], user, packet[2]);
+    return 0;
 }
 
 Inter_GoldControlMoneyActionCancel::Inter_GoldControlMoneyActionCancel() {}
@@ -2405,9 +2555,18 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* /*d
 
 Inter_SendSecuReward::Inter_SendSecuReward() {}
 Inter_SendSecuReward::~Inter_SendSecuReward() {}
-int Inter_SendSecuReward::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_SendSecuReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e5e1e)：函数体未还原
+    int* packet = reinterpret_cast<int*>(data);
+    if (*packet == 0)
+    {
+        inter_cuser_add_secu_reward(user, static_cast<unsigned char>(8));
+    }
+    else
+    {
+        inter_cuser_add_secu_reward(user, static_cast<unsigned char>(0x10));
+    }
+    return 0;
 }
 
 Inter_HadesAction::Inter_HadesAction() {}
@@ -2475,9 +2634,11 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 
 Inter_LoadPuUserCheck::Inter_LoadPuUserCheck() {}
 Inter_LoadPuUserCheck::~Inter_LoadPuUserCheck() {}
-int Inter_LoadPuUserCheck::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e7fe2)：函数体未还原
+    char* packet = data;
+    user->m_field796d8 = *packet;
+    return 0;
 }
 
 Inter_CollectItemsResult::Inter_CollectItemsResult() {}
@@ -2533,7 +2694,8 @@ Inter_UpdateServerSnapShot::Inter_UpdateServerSnapShot() {}
 Inter_UpdateServerSnapShot::~Inter_UpdateServerSnapShot() {}
 int Inter_UpdateServerSnapShot::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e8064)：函数体未还原
+    G_GameWorld()->UpdateServerSnapShot();
+    return 0;
 }
 
 Inter_LoadCharacTypeHotKey::Inter_LoadCharacTypeHotKey() {}
@@ -2545,9 +2707,12 @@ int Inter_LoadCharacTypeHotKey::dispatch_sig(CUser* /*user*/, char* /*data*/, in
 
 Inter_UpdateMiniCraneSeed::Inter_UpdateMiniCraneSeed() {}
 Inter_UpdateMiniCraneSeed::~Inter_UpdateMiniCraneSeed() {}
-int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    return 0;  // TODO(ORIG 0x84e8906)：函数体未还原
+    char* packet = data;
+    int seed = *reinterpret_cast<int*>(packet + 0x0a);
+    G_GameWorld()->ResetCraneItemNeedMaterial(seed);
+    return 0;
 }
 
 Inter_GetPremiumSelectedCubeInfo::Inter_GetPremiumSelectedCubeInfo() {}
@@ -2571,18 +2736,45 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* /*user*/, char* /*dat
     return 0;  // TODO(ORIG 0x80e2104)：函数体未还原
 }
 
-Inter_LoadEventLevelupSupport::Inter_LoadEventLevelupSupport() {}
-Inter_LoadEventLevelupSupport::~Inter_LoadEventLevelupSupport() {}
 int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     return 0;  // TODO(ORIG 0x84e8ce4)：函数体未还原
 }
 
-Inter_SelectAllowProxyUser::Inter_SelectAllowProxyUser() {}
-Inter_SelectAllowProxyUser::~Inter_SelectAllowProxyUser() {}
 int Inter_SelectAllowProxyUser::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     return 0;  // TODO(ORIG 0x84e8f68)：函数体未还原
 }
 
-int Inter_MonitorGuildPointDel::g_lastDeleteTime;  // ORIG B 0x943dd88
+
+// ======== Inter_NpcLimitBuyItemInfo（B1：生命周期/reset；业务方法待类型域补齐） ========
+Inter_NpcLimitBuyItemInfo::Inter_NpcLimitBuyItemInfo()
+{
+    reset();
+}
+
+Inter_NpcLimitBuyItemInfo::~Inter_NpcLimitBuyItemInfo()
+{
+}
+
+void Inter_NpcLimitBuyItemInfo::reset()
+{
+    m_error = 0;
+    m_needItem.first = 0;
+    m_needItem.second = 0;
+    m_param1 = -1;
+    m_param2 = -1;
+    m_itemRef = 0;
+    m_data1c = 0;
+    m_invenItem1.reset();
+    m_invenItem2.reset();
+}
+
+int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+{
+    return 0;  // TODO(ORIG 0x84e65a2)：checkError/sendPacket 待 LimitNpcBuyItemInfo 域补齐
+}
+
+// 基类定义故意置于所有派生类实现之后（B1 ABI 形状修复）。
+ISigDispatcher::ISigDispatcher() {}
+ISigDispatcher::~ISigDispatcher() {}

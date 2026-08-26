@@ -464,22 +464,21 @@ int GameWorld::GetChannelUserCount(ENUM_SERVER_GROUP group, stOccStatisticByAge&
 
 int GameWorld::_GetChannelType()
 {
-    CEnvironment* env = G_CEnvironment();
-    const Server_Envir& server = env->m_serverEnvir;
-    if (server.m_channelType <= 0x12)
+    if (G_CEnvironment()->m_serverEnvir.m_channelType <= 0x12)
     {
-        return server.m_channelType;
+        return G_CEnvironment()->m_serverEnvir.m_channelType;
     }
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
+    unsigned int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
     channel_info_t* info = channelScript->getChannelInfo(
-        (unsigned char)server.m_channelType,
-        (unsigned int)server.m_serverGroup);
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+        channelNo);
     if (info == NULL)
     {
         return 0x13;
     }
-    return *(int*)((char*)info + 4);
+    return info->m_channelType;
 }
 
 int GameWorld::GetChannelType() const
@@ -489,28 +488,73 @@ int GameWorld::GetChannelType() const
 
 bool GameWorld::IsIntegratedPvPBaseChannel() const
 {
-    return m_channelType <= 0x10 && (1 << m_channelType) & 0x1e700;
+    if ((unsigned int)m_channelType > 0x10)
+    {
+        return false;
+    }
+    if ((((unsigned int)1 << (unsigned int)m_channelType) & 0x1e700) == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool GameWorld::IsPVPChannel() const
 {
-    return m_channelType <= 0x10 && (1 << m_channelType) & 0x1e7f0;
+    if ((unsigned int)m_channelType > 0x10)
+    {
+        return false;
+    }
+    if ((((unsigned int)1 << (unsigned int)m_channelType) & 0x1e7f0) == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool GameWorld::IsFreePvPChannel() const
 {
-    return m_channelType <= 0x10 && (1 << m_channelType) & 0x166a0;
+    if ((unsigned int)m_channelType > 0x10)
+    {
+        return false;
+    }
+    if ((((unsigned int)1 << (unsigned int)m_channelType) & 0x166a0) == 0)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool GameWorld::IsWinPointPvPChannel() const
+{
+    if ((unsigned int)m_channelType > 0xf)
+    {
+        return false;
+    }
+    if ((((unsigned int)1 << (unsigned int)m_channelType) & 0x8110) == 0)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool GameWorld::IsSameTeamChannelJoin()
+{
+    if ((unsigned int)m_channelType > 0xf)
+    {
+        return false;
+    }
+    if ((((unsigned int)1 << (unsigned int)m_channelType) & 0xc200) == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool GameWorld::IsSchoolPvPChannel() const
 {
     if ((unsigned int)(m_channelType - 9) <= 1) return true;
     return false;
-}
-
-bool GameWorld::IsWinPointPvPChannel() const
-{
-    return m_channelType <= 0xf && (1 << m_channelType) & 0x8110;
 }
 
 bool GameWorld::IsPvPSkilTreeChannel() const
@@ -554,14 +598,20 @@ bool GameWorld::is_dungeon_tag_matching_channel(char* channel)
 {
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
+    unsigned int channelNo = G_CEnvironment()->get_channel_no();
     channel_info_t* info = channelScript->getChannelInfo(
-        (unsigned char)*(int*)((char*)G_CEnvironment() + 0x378),
-        G_CEnvironment()->get_channel_no());
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+        channelNo);
     if (info == NULL)
     {
         return false;
     }
-    return strcmp(channel, (const char*)info + 8) == 0;
+    bool matched = strcmp(channel, info->m_dungeonName.c_str()) == 0;
+    if (matched)
+    {
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -796,8 +846,8 @@ unsigned short GameWorld::make_unique_id()
         {
             m_uniqueId = 0;
         }
-    } while (m_UserInWorld.find(m_uniqueId) != m_UserInWorld.end());
-    return m_uniqueId;
+    } while (!(m_UserInWorld.find(m_uniqueId) == m_UserInWorld.end()));
+    return (unsigned short)m_uniqueId;
 }
 
 unsigned short GameWorld::find_session(unsigned int accId)
@@ -824,7 +874,8 @@ CUser* GameWorld::find_from_world(unsigned short uniqueId)
 
 CUser* GameWorld::find_user_from_world_byaccid(unsigned int accId)
 {
-    unsigned short session = find_session(accId);
+    int padSlot; (void)padSlot;
+    unsigned int session = (unsigned short)find_session(accId);
     if (session == 0)
     {
         LogManager::logFormat(
@@ -911,9 +962,9 @@ void GameWorld::arrange_users()
 
 int GameWorld::CheckUserCount(int add)
 {
-    unsigned int size = m_UserInWorld.size();
+    int size = m_UserInWorld.size();
     int maxUserNum = G_CEnvironment()->m_serverEnvir.m_maxUserNum;
-    if ((int)size + add > maxUserNum)
+    if (add + size > maxUserNum)
     {
         return false;
     }
@@ -1119,14 +1170,19 @@ void GameWorld::send_to_user(int uniqueId, PacketGuard& packet)
 
 void GameWorld::send_to_vill(int vill, PacketGuard& packet)
 {
-    if (vill != 0 && vill <= (int)g_townScriptFileList.size() && 0 < vill &&
-        vill < MAX_VILLAGE_NUM)
+    if (vill != 0 && !(g_townScriptFileList.size() < vill) &&
+        0 < vill && vill < MAX_VILLAGE_NUM)
     {
-        for (int i = 0; i < m_pVill[vill].m_areaCount; i++)
+        Village* pVill = &m_pVill[vill];
+        for (int i = 0; i < pVill->m_areaCount; i++)
         {
-            if (m_pVill[vill].m_pAreas[i].get_area_index() != -1)
+            Area* pArea = &pVill->m_pAreas[i];
+            if (pArea->get_area_index() == -1)
             {
-                m_pVill[vill].m_pAreas[i].send_to_all(packet);
+            }
+            else
+            {
+                pArea->send_to_all(packet);
             }
         }
     }
@@ -2006,218 +2062,210 @@ void GameWorld::out_from_dungeon(CUser* user)
 
 void GameWorld::goto_pvp(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->erase_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 0x17);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte((int)user->getCurCharacVill());
-        packet.put_byte(0xfe);
-        packet.put_short((unsigned short)user->get_posX());
-        packet.put_short((unsigned short)user->get_posY());
-        packet.put_byte((int)user->get_direction());
-        packet.put_byte((int)user->get_charac_visible_values());
-        packet.finalize(true);
-        user->Send(packet);
-        user->set_state((ch_state)6);
-        packet.clear();
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(2);
-        packet.finalize(true);
-        send_all(packet, user);
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
         LogManager::logFormat(1, "world.cpp", "void GameWorld::goto_pvp(CUser*)",
                               0x998, "user %s - check_valid_area() fail",
                               user->getCurCharacName());
+        return;
     }
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->erase_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 0x17);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte((int)user->getCurCharacVill());
+    packet.put_byte(0xfe);
+    packet.put_short((unsigned short)user->get_posX());
+    packet.put_short((unsigned short)user->get_posY());
+    packet.put_byte((int)user->get_direction());
+    packet.put_byte((int)user->get_charac_visible_values());
+    packet.finalize(true);
+    user->Send(packet);
+    user->set_state((ch_state)6);
+    packet.clear();
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(2);
+    packet.finalize(true);
+    send_all(packet, user);
 }
 
 void GameWorld::out_from_pvp(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        user->SetPvpIndex(-1);
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->insert_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(0);
-        packet.finalize(true);
-        send_all(packet, user);
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
         cMyTrace trace("void GameWorld::out_from_pvp(CUser*)", 0x9ce, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
+        return;
     }
+    user->SetPvpIndex(-1);
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->insert_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(0);
+    packet.finalize(true);
+    send_all(packet, user);
 }
 
 void GameWorld::goto_warroom(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->erase_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 0x17);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte((int)user->getCurCharacVill());
-        packet.put_byte(0xfe);
-        packet.put_short((unsigned short)user->get_posX());
-        packet.put_short((unsigned short)user->get_posY());
-        packet.put_byte((int)user->get_direction());
-        packet.put_byte((int)user->get_charac_visible_values());
-        packet.finalize(true);
-        user->Send(packet);
-        user->set_state((ch_state)8);
-        packet.clear();
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(3);
-        packet.finalize(true);
-        send_all(packet, user);
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
         LogManager::logFormat(1, "world.cpp", "void GameWorld::goto_warroom(CUser*)",
                               0x9f3, "user %s - check_valid_area() fail",
                               user->getCurCharacName());
+        return;
     }
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->erase_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 0x17);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte((int)user->getCurCharacVill());
+    packet.put_byte(0xfe);
+    packet.put_short((unsigned short)user->get_posX());
+    packet.put_short((unsigned short)user->get_posY());
+    packet.put_byte((int)user->get_direction());
+    packet.put_byte((int)user->get_charac_visible_values());
+    packet.finalize(true);
+    user->Send(packet);
+    user->set_state((ch_state)8);
+    packet.clear();
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(3);
+    packet.finalize(true);
+    send_all(packet, user);
 }
 
 void GameWorld::out_from_warroom(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        user->SetWarRoomIndex(-1);
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->insert_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(0);
-        packet.finalize(true);
-        send_all(packet, user);
-        user->getCurCharacInvenW()->RemoveKCItem();
-        user->InitFinishPoint();
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
         cMyTrace trace("void GameWorld::out_from_warroom(CUser*)", 0xa29, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
+        return;
     }
+    user->SetWarRoomIndex(-1);
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->insert_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(0);
+    packet.finalize(true);
+    send_all(packet, user);
+    user->getCurCharacInvenW()->RemoveKCItem();
+    user->InitFinishPoint();
 }
 
 void GameWorld::gotoBlueMarble(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->erase_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 0x17);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte((int)user->getCurCharacVill());
-        packet.put_byte(0xfe);
-        packet.put_short((unsigned short)user->get_posX());
-        packet.put_short((unsigned short)user->get_posY());
-        packet.put_byte((int)user->get_direction());
-        packet.put_byte((int)user->get_charac_visible_values());
-        packet.finalize(true);
-        user->Send(packet);
-        user->set_state((ch_state)0xb);
-        packet.clear();
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(7);
-        packet.finalize(true);
-        send_all(packet, user);
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(),
+                          user->get_area(false)))
     {
         LogManager::logFormat(1, "world.cpp",
                               "void GameWorld::gotoBlueMarble(CUser*)", 0xa54,
                               "user %s - check_valid_area() fail",
                               user->getCurCharacName());
+        return;
     }
+
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->erase_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 0x17);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte((int)user->getCurCharacVill());
+    packet.put_byte(0xfe);
+    packet.put_short((unsigned short)user->get_posX());
+    packet.put_short((unsigned short)user->get_posY());
+    packet.put_byte((int)user->get_direction());
+    packet.put_byte((int)user->get_charac_visible_values());
+    packet.finalize(true);
+    user->Send(packet);
+    user->set_state((ch_state)0xb);
+    packet.clear();
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(7);
+    packet.finalize(true);
+    send_all(packet, user);
 }
 
 void GameWorld::outFromBlueMarble(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
-    {
-        user->setBlueMarbleIndex(-1);
-        Village* village = getUserVillage(user);
-        if (village != NULL)
-        {
-            Area* area = village->getArea(user->get_area(false));
-            if (area != NULL)
-            {
-                area->insert_user(user);
-            }
-        }
-        PacketGuard packet;
-        packet.put_header(0, 3);
-        packet.put_byte(1);
-        packet.put_short((unsigned short)user->get_unique_id());
-        packet.put_byte(0);
-        packet.finalize(true);
-        send_all(packet, user);
-    }
-    else
+    if (!check_valid_area((int)user->getCurCharacVill(),
+                          user->get_area(false)))
     {
         cMyTrace trace("void GameWorld::outFromBlueMarble(CUser*)", 0xa7f, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
+        return;
     }
+
+    user->setBlueMarbleIndex(-1);
+    Village* village = getUserVillage(user);
+    if (village != NULL)
+    {
+        Area* area = village->getArea(user->get_area(false));
+        if (area != NULL)
+        {
+            area->insert_user(user);
+        }
+    }
+    PacketGuard packet;
+    packet.put_header(0, 3);
+    packet.put_byte(1);
+    packet.put_short((unsigned short)user->get_unique_id());
+    packet.put_byte(0);
+    packet.finalize(true);
+    send_all(packet, user);
 }
 
 void GameWorld::fishing(CUser* user)
@@ -2338,27 +2386,40 @@ bool GameWorld::IsPowerWarSafeZone(int vill, int area)
 
 bool GameWorld::EnableChat(const char* name)
 {
-    if (name == 0 || strlen(name) >= 31)
+    if (name == NULL)
     {
         return false;
     }
+    if (strlen(name) >= 31)
+    {
+        return false;
+    }
+
     std::string str(name);
-    if (m_idMap.find(str) == m_idMap.end())
+    std::map<std::string, SimpleInfo>::iterator it = m_idMap.find(str);
+    if (!(it == m_idMap.end()))
     {
-        return false;
+        SimpleInfo& info = m_idMap[str];
+        if (info.m_chatBan != 0)
+        {
+            SimpleInfo& info2 = m_idMap[str];
+            info2.m_chatBan = 0;
+            SimpleInfo& info3 = m_idMap[str];
+            info3.m_chatEndTick = 0;
+            cMyTrace trace("bool GameWorld::EnableChat(const char*)",
+                           0x156c, 0);
+            trace("%s is able to chat now\n", name);
+            return true;
+        }
+        else
+        {
+            cMyTrace trace("bool GameWorld::EnableChat(const char*)",
+                           0x1571, 0);
+            trace("%s is already able to chat!\n", str.c_str());
+            return true;
+        }
     }
-    SimpleInfo& info = m_idMap[str];
-    if (info.m_chatBan == 0)
-    {
-        cMyTrace trace("bool GameWorld::EnableChat(const char*)", 0x1571, 0);
-        trace("%s is already able to chat!\n", str.c_str());
-        return true;
-    }
-    info.m_chatBan = 0;
-    info.m_chatEndTick = 0;
-    cMyTrace trace("bool GameWorld::EnableChat(const char*)", 0x156c, 0);
-    trace("%s is able to chat now\n", name);
-    return true;
+    return false;
 }
 
 bool GameWorld::EnableMove(const char* name)
@@ -2596,57 +2657,57 @@ unsigned int GameWorld::GetLeftTimeOfForbiddenMove(const char* name)
 
 void GameWorld::ResetMidnight()
 {
+    int padSlot; (void)padSlot;
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2)
-        {
-            user->ResetDailyCharacExpandDataMidnight();
-        }
+        if (!(user->get_state() > 2))
+            continue;
+        user->ResetDailyCharacExpandDataMidnight();
     }
 }
 
 void GameWorld::resetDailyData()
 {
+    int padSlot; (void)padSlot;
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 1)
-        {
-            user->resetDailyData();
-        }
+        if (!(user->get_state() > 1))
+            continue;
+        user->resetDailyData();
     }
 }
 
 void GameWorld::ResetAllCoins()
 {
+    int padSlot; (void)padSlot;
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2)
+        if (!(user->get_state() > 2))
+            continue;
+        user->RecoverCoin(1);
+        if (user->GetOpencoin() == 0)
         {
-            user->RecoverCoin(1);
-            if (user->GetOpencoin() == 0)
-            {
-                user->SendOpenflag();
-            }
+            user->SendOpenflag();
         }
     }
 }
 
 void GameWorld::ResetAllCleadpadPoint()
 {
+    int padSlot; (void)padSlot;
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2)
-        {
-            user->m_mcap.reset();
-        }
+        if (!(user->get_state() > 2))
+            continue;
+        user->m_mcap.reset();
     }
     cMyTrace trace("void GameWorld::ResetAllCleadpadPoint()", 0x1385, 0);
     trace("RESET ALL USER CLEANPAD POINT OK!!!!");
@@ -3024,17 +3085,6 @@ bool GameWorld::InitChannelType()
     return true;
 }
 
-bool GameWorld::IsSameTeamChannelJoin()
-{
-    if (m_channelType <= 0xf)
-    {
-        if ((1 << m_channelType) & 0xc200)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 bool GameWorld::IsEnchantRevisionChannel()
 {
@@ -3925,10 +3975,9 @@ void GameWorld::ProcessAllUsers(T functor)
          it != m_UserInWorld.end(); ++it)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2)
-        {
-            functor(user);
-        }
+        if (!(user->get_state() > 2))
+            continue;
+        functor(user);
     }
 }
 

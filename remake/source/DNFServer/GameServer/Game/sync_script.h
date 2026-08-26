@@ -88,8 +88,9 @@ public:
 class STMonsterScript
 {
 public:
-    int m_field0;        // +0x00
-    std::string m_str4;  // +0x04
+    int m_index;         // +0x00（真实布局权威定义见 STMonsterScript.h，
+                         //  此处仅 DB 入库所需最小字段视图，名称与权威一致）
+    std::string m_name;  // +0x004 [name]
 };
 
 namespace sync_script
@@ -121,7 +122,7 @@ public:
     const char* GetAttachType(int type);
     const char* GetAttackElement(EquipmentParameterInfo* param);
     void GetLevelUpSkill(STEquipmentScript* script,
-                         int vectorIndex);
+                         EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX vectorIndex);
     const char* GetUsableCharacter(STEquipmentScript* script);
     const char* GetUsableCharacter(STStackableScript* script);
     bool LoadItemInfoMasterScript(const char* path);
@@ -166,7 +167,7 @@ public:
     bool truncate_charac_advance_altar_item_desc();
 
     void SetEnable(bool flag) { m_field0 = flag ? 1 : 0; }
-    bool IsEnable() const { return m_field0 == 1; }
+    bool IsEnable() { return m_field0 == 1; }   // ORIG _ZN11sync_script11CSyncScript8IsEnableEv（非 const）
 
     // ---- 成员布局（与 CItemList.cpp 私有声明一致） ----
     struct SITEMTYPE

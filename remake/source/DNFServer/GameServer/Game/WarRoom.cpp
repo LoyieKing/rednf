@@ -13,6 +13,7 @@
 
 #include "WarRoom.h"
 #include "CItem.h"
+#include "CEquipItem.h"
 #include "CDataManager.h"
 #include "CDungeon.h"
 #include "CEnvironment.h"
@@ -179,7 +180,7 @@ int WarRoom::GetLiveCount() const
     int count = 0;
     for (int i = 0; i <= 5; ++i)
     {
-        if ((m_slots[i] != 0) && (m_pad184[i] != 0))
+        if ((m_slots[i] != 0) && (m_liveFlag[i] != 0))
             ++count;
     }
     return count;
@@ -242,23 +243,26 @@ void WarRoom::AddBanList(CUser* user)
 int WarRoom::IsBanUser(CUser* user)
 {
     unsigned int id = user->get_acc_id();
-    return m_map.find(id) != m_map.end();
+    std::map<unsigned int, int>::iterator it = m_map.find(id);
+    std::map<unsigned int, int>::iterator e = m_map.end();
+    return it != e;
 }
 
 void WarRoom::UpdateBanList()
 {
     int cur = GlobalData::s_systemTime_.getCurSec();
-    for (std::map<unsigned int, int>::iterator it = m_map.begin(); it != m_map.end(); )
+    std::map<unsigned int, int>::iterator it = m_map.begin();
+    std::map<unsigned int, int>::iterator e = m_map.end();
+    while (it != e)
     {
         int t = it->second;
-        int diff = cur - t;
-        if (diff < *(int*)((char*)G_CDataManager() + 0x88a0) / 1000)
+        if ((cur - t) >= G_CDataManager()->m_warAreaCounter.m_banInterval / 1000)
         {
-            ++it;
+            m_map.erase(it++);
         }
         else
         {
-            m_map.erase(it++);
+            ++it;
         }
     }
 }
@@ -273,13 +277,13 @@ void WarRoom::BattleReset()
             ((CUser*)m_slots[i])->getHackAnalyzer()->resetHackInfo();
             ((CUser*)m_slots[i])->ResetCoinCount();
         }
-        m_pad184[i] = 0;
+        m_liveFlag[i] = 0;
         m_slotData[i] = 0;
-        ((int*)m_pad1a4)[i] = 0;
-        ((int*)m_pad14)[i] = -1;
+        m_slotFp[i] = 0;
+        m_hostVotes[i] = -1;
     }
     m_field.Reset();
-    memset(&m_pad1a4[0x18], 0, 0x10);
+    memset(m_roleKillCnt, 0, sizeof(m_roleKillCnt));
     m_userCount = 0;
     m_flag10 = 0;
     m_flag11 = 0;
@@ -292,7 +296,7 @@ void WarRoom::Reset()
     BattleReset();
     m_field8 = 0;
     m_levelBand = 2;
-    m_field1 = 0;
+    m_roomSeq = 0;
     m_field30 = 0;
     for (int i = 0; i <= 5; ++i)
     {
@@ -310,12 +314,12 @@ void WarRoom::InvalidUserCheck()
         {
             if (((CUser*)m_slots[i])->getCurCharacR() == 0)
             {
-                short idx = ((CUser*)m_slots[i])->GetWarRoomIndex();
-                cMyTrace trace("void WarRoom::InvalidUserCheck()", 0x236, 5);
-                trace("WarRoom::InvalidUserCheck slot(%d) warRoomIndex(%d)", i, (int)idx);
+                cMyTrace("void WarRoom::InvalidUserCheck()", 0x236, 5)
+                    ("WarRoom::InvalidUserCheck slot(%d) warRoomIndex(%d)",
+                     i, ((CUser*)m_slots[i])->GetWarRoomIndex());
                 m_slotState[i] = 0xff;
                 m_slots[i] = 0;
-                m_pad184[i] = 0;
+                m_liveFlag[i] = 0;
             }
         }
     }
@@ -329,8 +333,7 @@ int WarRoom::IsJoinable(CUser* user)
     if (user->isCompetitionMercenary() != 0)
         return 0x15;
     if (user->getCurCharacMoney() <
-        *(int*)((char*)G_CDataManager() + 4 +
-                ((unsigned char)m_levelBand + 0x221c) * 4))
+        G_CDataManager()->m_warAreaCounter.m_doorFee[(unsigned char)m_levelBand])
         return 10;
     if (user->CheckFatigue() == 1)
     {
@@ -382,18 +385,17 @@ int WarRoom::WalkOutUserBySlot(int slot)
                               "WarRoom::WalkOutUserBySlot no slot(%d)", slot);
         return 4;
     }
-    CUser* user = (CUser*)m_slots[slot];
-    user->getHackAnalyzer()->reportHackInfo();
-    user->getHackAnalyzer()->resetHackInfo();
+    ((CUser*)m_slots[slot])->getHackAnalyzer()->reportHackInfo();
+    ((CUser*)m_slots[slot])->getHackAnalyzer()->resetHackInfo();
     m_slotState[slot] = 0xff;
-    G_GameWorld()->out_from_warroom(user);
+    G_GameWorld()->out_from_warroom((CUser*)m_slots[slot]);
     if (m_pDungeon != 0)
     {
-        user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
-                                        (unsigned char)m_levelBand);
+        ((CUser*)m_slots[slot])->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
+                                                           (unsigned char)m_levelBand);
     }
     m_slots[slot] = 0;
-    m_pad184[slot] = 0;
+    m_liveFlag[slot] = 0;
     PacketGuard packet;
     MakeSlotInfo((char*)&packet, slot);
     G_GameWorld()->send_all(packet);
@@ -459,7 +461,7 @@ int WarRoom::ShutDown()
 void WarRoom::Prepare()
 {
     int dungeonIdx =
-        *(int*)((char*)G_CDataManager() + 0xc + (m_levelBand + 0x2228) * 4);
+        G_CDataManager()->m_warAreaCounter.m_warAreaDungeon[(unsigned char)m_levelBand];
     void* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (dungeon == 0)
     {
@@ -469,13 +471,13 @@ void WarRoom::Prepare()
     else
     {
         m_pDungeon = (CDungeon*)dungeon;
-        int mapIdx = *(int*)((char*)m_pDungeon + 0x704);
+        int mapIdx = m_pDungeon->m_warRoomData.m_10;
         void* map = G_CDataManager()->find_map(mapIdx);
         if (map == 0)
         {
             LogManager::logFormat(1, "WarRoom.cpp", "void WarRoom::Prepare()", 0x678,
                                   "WARROOM Find Map[%d] Error",
-                                  *(int*)((char*)m_pDungeon + 0x704));
+                                  m_pDungeon->m_warRoomData.m_10);
         }
         else
         {
@@ -507,20 +509,25 @@ void WarRoom::Start()
     {
         if (m_slots[i] != 0)
         {
-            CUser* u = (CUser*)m_slots[i];
-            u->getHackAnalyzer()->beginCollectHackInfo(u);
+            ((CUser*)m_slots[i])->getHackAnalyzer()->beginCollectHackInfo(
+                (CUser*)m_slots[i]);
         }
     }
 }
 
 void WarRoom::ReviveAll()
 {
-    for (int i = 0; i <= 5; ++i)
+    int i = 0;
+    while (i <= 5)
     {
-        if ((m_slots[i] != 0) && (m_pad184[i] == 0))
+        if (m_slots[i] != 0)
         {
-            SetCharacterLive(i, (CUser*)m_slots[i], true, false, 0, 0xff);
+            if (m_liveFlag[i] == 0)
+            {
+                SetCharacterLive(i, (CUser*)m_slots[i], true, false, 0, 0xff);
+            }
         }
+        ++i;
     }
 }
 
@@ -556,78 +563,76 @@ int WarRoom::SendWalkOut(CUser* user, ENUM_WALKOUT_TYPE type)
     user->Send(packet);
     return 1;
 }
-
 void WarRoom::SendWarRoomFailMsg()
 {
-    unsigned int key = GenTimerKey((TIMER_MESSAGE)0x46);
+    // P23：嵌套实参求值序 GenTimerKey→m_index→G_TimerQueue()（ORIG ebx/esi 缓存）。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
-                                    (TIMER_MESSAGE)0x46, 10, key, 0);
+                                (TIMER_MESSAGE)0x46, 10,
+                                GenTimerKey((TIMER_MESSAGE)0x46), 0);
 }
-
 void WarRoom::WarRoomFail()
 {
-    if (GetLiveCount() == 0)
+    if (GetLiveCount() != 0)
+        return;
+    for (int i = 0; i <= 5; ++i)
     {
-        for (int i = 0; i <= 5; ++i)
+        if (m_slots[i] != 0)
         {
-            if (m_slots[i] != 0)
-            {
-                CUser* u = (CUser*)m_slots[i];
-                AddBanList(u);
-                WalkOutUserBySlot(i);
-                SendWalkOut(u, (ENUM_WALKOUT_TYPE)4);
-            }
+            AddBanList((CUser*)m_slots[i]);
+            CUser* u = (CUser*)m_slots[i];
+            WalkOutUserBySlot(i);
+            SendWalkOut(u, (ENUM_WALKOUT_TYPE)4);
         }
-        ChangeState(WARROOM_STATE_0);
     }
+    ChangeState(WARROOM_STATE_0);
 }
 
 int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
 {
     if ((m_slots[(int)a] != 0) && ((CUser*)m_slots[(int)a] == user))
     {
-        ((unsigned long*)m_pad14)[a] = b;
+        m_hostVotes[(int)a] = (int)b;
         if (m_userCount == 0)
         {
-            unsigned int key = GenTimerKey((TIMER_MESSAGE)0x47);
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
-                                            (TIMER_MESSAGE)0x47, 5, key, 0);
+                                        (TIMER_MESSAGE)0x47, 5,
+                                        GenTimerKey((TIMER_MESSAGE)0x47), 0);
         }
         m_userCount += 1;
     }
     return 0;
 }
-
 void WarRoom::CheckHostChange()
 {
-    bool sent = false;
+    // ORIG 0x86c0964：found 布尔物化；dtor 在公共汇合点执行后按 found 分派。
+    bool found = false;
     if (m_userCount > 1)
     {
         PacketGuard packet;
         packet.put_header(0, 0x160);
-        unsigned int bestIdx = 0xffffffff;   // -0x18
-        int bestSlot = -1;                   // -0x14
+        unsigned int bestIdx = 0xffffffff;
+        int bestSlot = -1;
         for (int i = 0; i <= 5; ++i)
         {
-            if ((m_slots[i] != 0) && (((int*)m_pad14)[i] != -1) &&
-                ((unsigned int)((int*)m_pad14)[i] <= bestIdx))
+            if ((m_slots[i] != 0) && (m_hostVotes[i] != -1) &&
+                ((unsigned int)m_hostVotes[i] <= bestIdx))
             {
-                bestIdx = ((unsigned int*)m_pad14)[i];
+                bestIdx = (unsigned int)m_hostVotes[i];
                 bestSlot = i;
             }
         }
-        if (bestSlot != -1)
+        found = (bestSlot != -1);
+        if (found)
         {
             packet.put_byte(bestSlot);
             packet.finalize(true);
             SendToRoom(packet);
-            sent = true;
         }
     }
-    if (!sent)
+    if (!found)
         return;
     for (int i = 0; i <= 5; ++i)
-        ((int*)m_pad14)[i] = -1;
+        m_hostVotes[i] = -1;
     m_userCount = 0;
 }
 
@@ -635,7 +640,7 @@ void WarRoom::HandleTimerTimeBomb()
 {
     m_field.m_mapInfo.m_monsterMap.clear();
     m_flag10 = 1;
-    if (*(int*)((char*)&m_field + 0xf4) == *(int*)((char*)m_pDungeon + 0x744))
+    if (m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50)
         ChangeState(WARROOM_STATE_5);
     else
         ChangeState(WARROOM_STATE_4);
@@ -648,8 +653,8 @@ void WarRoom::HandleTimerResultCount()
     {
         if ((m_slots[i] != 0) && (m_slotData[i] != 0))
         {
+            AddBanList((CUser*)m_slots[i]);
             CUser* u = (CUser*)m_slots[i];
-            AddBanList(u);
             WalkOutUserBySlot(i);
             SendWalkOut(u, (ENUM_WALKOUT_TYPE)m_slotData[i]);
         }
@@ -674,33 +679,33 @@ void WarRoom::SendStatePacket()
 
 void WarRoom::MakeStateInfo(char* buf)
 {
-    InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
-    p->put_short(m_index);
-    p->put_byte(m_state);
-    p->put_short(m_curSpawnStep);
+    InterfacePacketBuf& p = *(InterfacePacketBuf*)buf;
+    p.put_short(m_index);
+    p.put_byte(m_state);
+    p.put_short(m_curSpawnStep);
 }
 
 void WarRoom::MakeRoomInfo(char* buf)
 {
-    ((InterfacePacketBuf*)buf)->put_short(m_index);
-    ((InterfacePacketBuf*)buf)->put_byte((unsigned char)m_field8);
-    ((InterfacePacketBuf*)buf)->put_byte((unsigned char)m_levelBand);
-    ((InterfacePacketBuf*)buf)->put_byte((unsigned char)m_field1);
-    ((InterfacePacketBuf*)buf)->put_byte(m_state);
+    InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
+    p->put_short(m_index);
+    p->put_byte((unsigned char)m_field8);
+    p->put_byte((unsigned char)m_levelBand);
+    p->put_byte((unsigned char)m_roomSeq);
+    p->put_byte(m_state);
     if (m_pDungeon == 0)
-        ((InterfacePacketBuf*)buf)->put_short(0);
+        p->put_short(0);
     else
-        ((InterfacePacketBuf*)buf)->put_short(*(int*)((char*)m_pDungeon + 0x704));
+        p->put_short(m_pDungeon->m_warRoomData.m_10);
     for (int i = 0; i <= 5; ++i)
     {
-        ((InterfacePacketBuf*)buf)->put_byte(m_slotState[i]);
+        p->put_byte(m_slotState[i]);
         if (m_slots[i] == 0)
-            ((InterfacePacketBuf*)buf)->put_short(0xffff);
+            p->put_short(0xffff);
         else
-            ((InterfacePacketBuf*)buf)->put_short(((CUser*)m_slots[i])->get_unique_id());
+            p->put_short(((CUser*)m_slots[i])->get_unique_id());
     }
 }
-
 void WarRoom::MakeSlotInfo(char* buf, int seat)
 {
     ((InterfacePacketBuf*)buf)->put_header(0, 0x59);
@@ -762,14 +767,14 @@ void WarRoom::OnLeaveState(WARROOM_STATE state)
             {
                 int money = ((CUser*)m_slots[i])->getCurCharacMoney();
                 int min = std::min(
-                    *(int*)((char*)G_CDataManager() + 4 + (m_levelBand + 0x221c) * 4),
+                    G_CDataManager()->m_warAreaCounter.m_doorFee[(unsigned char)m_levelBand],
                     money);
                 ((CInventory*)((CUser*)m_slots[i])->getCurCharacInvenW())
                     ->use_money(min, (eMoneySubReason)0xf, 1);
                 if (((CUser*)m_slots[i])->GetFinishPointTotal() > 0)
                 {
-                    cMyTrace trace("void WarRoom::OnLeaveState(WARROOM_STATE)", 0x55b, 5);
-                    trace("%d", ((CUser*)m_slots[i])->GetFinishPointTotal());
+                    cMyTrace("void WarRoom::OnLeaveState(WARROOM_STATE)", 0x55b, 5)
+                        ("쟁역 FP누적됨 발생", ((CUser*)m_slots[i])->GetFinishPointTotal());
                     ((CUser*)m_slots[i])->InitFinishPoint();
                 }
             }
@@ -809,9 +814,9 @@ void WarRoom::OnEnterState()
         for (int i = 0; i <= 5; ++i)
         {
             if (m_slots[i] == 0)
-                m_pad184[i] = 0;
+                m_liveFlag[i] = 0;
             else
-                m_pad184[i] = 1;
+                m_liveFlag[i] = 1;
         }
         if (GetWaiterCount() <= 2)
         {
@@ -832,7 +837,7 @@ void WarRoom::OnEnterState()
         }
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x41);
-            int ms = *(int*)((char*)G_CDataManager() + 0x88a8);
+            int ms = G_CDataManager()->m_warAreaCounter.m_readyCount;
             G_TimerQueue()->InsertTimerInMilisecond(
                 (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x41, ms, key, 0);
         }
@@ -861,11 +866,11 @@ void WarRoom::OnEnterState()
                 if (m_slots[i] != 0)
                 {
                     ((CUser*)m_slots[i])->FatigueUp(
-                        *(int*)((char*)m_pDungeon + 0x7e8));
+                        m_pDungeon->m_warRoomData.m_ec);
                 }
             }
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x45);
-            int ms = *(int*)((char*)m_pDungeon + 0x7f0);
+            int ms = m_pDungeon->m_warRoomData.m_f4;
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x45, ms / 1000, key, 0);
         }
@@ -877,12 +882,12 @@ void WarRoom::OnEnterState()
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x43, 10, key, 0);
         }
-        if (m_curSpawnStep != *(int*)((char*)m_pDungeon + 0x744))
+        if (m_curSpawnStep != m_pDungeon->m_warRoomData.m_50)
             m_curSpawnStep += 1;
         break;
     case 5:
-        if ((m_flag10 != 0) && (*(int*)((char*)&m_field + 0xf4) ==
-                                *(int*)((char*)m_pDungeon + 0x744)))
+        if ((m_flag10 != 0) && (m_field.m_stageIdx ==
+                                m_pDungeon->m_warRoomData.m_50))
         {
             PacketGuard packet;
             packet.put_header(0, 0x156);
@@ -892,10 +897,10 @@ void WarRoom::OnEnterState()
                 if (m_slots[i] != 0)
                 {
                     int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
-                    if (*(int*)((char*)G_CDataManager() + 0x88ec) < fp)
+                    if (G_CDataManager()->m_warAreaCounter.m_wpPenalty < fp)
                     {
                         ((CUser*)m_slots[i])->DecreaseWarPoint(
-                            *(int*)((char*)G_CDataManager() + 0x88ec));
+                            G_CDataManager()->m_warAreaCounter.m_wpPenalty);
                     }
                     else
                     {
@@ -933,24 +938,18 @@ void WarRoom::CheckFatuigue()
     {
         if (m_slots[i] != 0)
         {
-            if (((CUser*)m_slots[i])->CheckFatigue() != 1)
+            if (!((CUser*)m_slots[i])->CheckFatigue())
             {
                 CUser* u = (CUser*)m_slots[i];
                 WalkOutUserBySlot(i);
                 SendWalkOut(u, (ENUM_WALKOUT_TYPE)5);
             }
-            else
+            else if (((CUser*)m_slots[i])->getCurCharacMoney() <
+                     G_CDataManager()->m_warAreaCounter.m_doorFee[(unsigned char)m_levelBand])
             {
-                int money = ((CUser*)m_slots[i])->getCurCharacMoney();
-                CDataManager* mgr = G_CDataManager();
-                int need =
-                    *(int*)((char*)mgr + 4 + (m_levelBand + 0x221c) * 4);
-                if (money < need)
-                {
-                    CUser* u = (CUser*)m_slots[i];
-                    WalkOutUserBySlot(i);
-                    SendWalkOut(u, (ENUM_WALKOUT_TYPE)8);
-                }
+                CUser* u = (CUser*)m_slots[i];
+                WalkOutUserBySlot(i);
+                SendWalkOut(u, (ENUM_WALKOUT_TYPE)8);
             }
         }
     }
@@ -977,7 +976,7 @@ void WarRoom::CalcGuildFP()
     {
         if (m_slots[local_28] != 0)
         {
-            ((int*)m_pad1a4)[local_28] =
+            m_slotFp[local_28] =
                 ((CUser*)m_slots[local_28])->GetFinishPointTotal();
             local_40[local_28] =
                 ((CUser*)m_slots[local_28])->get_charac_guildkey();
@@ -989,7 +988,7 @@ void WarRoom::CalcGuildFP()
     {
         if ((m_slots[local_24] != 0) && (local_4c[local_24 + 6] == 0))
         {
-            local_20 = ((int*)m_pad1a4)[local_24];
+            local_20 = m_slotFp[local_24];
             local_1c = 1;
             local_4c[local_24 + 6] = 1;
             local_4c[0] = 0;
@@ -1004,7 +1003,7 @@ void WarRoom::CalcGuildFP()
                 if ((m_slots[local_14] != 0) && (local_4c[local_14 + 6] == 0) &&
                     (local_40[local_24] == local_40[local_14]))
                 {
-                    local_20 += ((int*)m_pad1a4)[local_14];
+                    local_20 += m_slotFp[local_14];
                     local_1c += 1;
                     local_4c[local_14 + 6] = 1;
                     local_4c[local_14] = 1;
@@ -1016,7 +1015,7 @@ void WarRoom::CalcGuildFP()
                 for (local_10 = 0; local_10 <= 5; ++local_10)
                 {
                     if ((m_slots[local_10] != 0) && (local_4c[local_10] != 0))
-                        ((int*)m_pad1a4)[local_10] = local_20 / local_1c;
+                        m_slotFp[local_10] = local_20 / local_1c;
                 }
             }
         }
@@ -1033,7 +1032,7 @@ void WarRoom::SendGuildFP()
         if (m_slots[i] != 0)
         {
             if (((CUser*)m_slots[i])->GetFinishPointTotal() <
-                *(int*)((char*)G_CDataManager() + 0x88a4))
+                G_CDataManager()->m_warAreaCounter.m_kickPoint)
             {
                 m_slotData[i] = 9;
             }
@@ -1099,8 +1098,8 @@ void WarRoom::ClearReward()
     int totalExp = 0;
     for (int i = 0; i <= 3; ++i)
     {
-        totalExp += (int)((float)*(int*)((char*)m_pDungeon + 0x10 + (i + 0x1e0) * 4) *
-                          ((float*)&m_pad1a4[0x18])[i]);
+        totalExp += (int)((float)m_pDungeon->m_warRoomData.m_9c[i] *
+                          m_roleKillCnt[i]);
     }
     for (int i = 0; i <= 5; ++i)
     {
@@ -1110,7 +1109,8 @@ void WarRoom::ClearReward()
             PacketGuard packet2;
             int sp = 0;
             int sfp = 0;
-            float rate = *(float*)((char*)m_pDungeon + 0x7a0);
+            float rate;
+            memcpy(&rate, &m_pDungeon->m_warRoomData.m_ac, sizeof(rate));
             int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
             int baseExp = (int)((float)totalExp * ((float)fp * rate + 1.0f));
             float avatarRate = (((CUser*)m_slots[i])->IsEquipAvatar() != 0) ? 0.02f : 0.0f;
@@ -1127,15 +1127,17 @@ void WarRoom::ClearReward()
             int premiumExp = 0;
             float expFactor = 0.0f;
             CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(3);
-            if ((*(unsigned char (**)(void*, int))(*(char**)evt + 0x34))(evt, 0) != 0)
+            if (((CExpDoubleEvent*)evt)->IsEventing(0))
             {
                 int f = ((CExpDoubleEvent*)GlobalData::s_event_manager->GetRepeatEvent(3))
                             ->GetExpFactor();
                 expFactor = (float)f / 100.0f;
             }
             void* channel = G_CDataManager()->GetChannelScript();
+            // 渠道组字节：ORIG movzbl G_CEnvironment()+0x378 低字节
+            //             = Server_Envir::m_serverGroup(+0x1e0)
             float bonus = ((channel_script_t*)channel)->getBonusRate(
-                *(unsigned char*)((char*)G_CEnvironment() + 0x378),
+                (unsigned char)G_CEnvironment()->get_server_group(),
                 (unsigned int)G_CEnvironment()->get_channel_no(),
                 (unsigned int)m_pDungeon->get_index());
             channelExp = (int)((float)baseExp * bonus);
@@ -1159,8 +1161,7 @@ void WarRoom::ClearReward()
             }
             int burningBonus = 0;
             CEventBase* burning = GlobalData::s_event_manager->GetRepeatEvent(0xf);
-            if ((*(unsigned char (**)(void*, int))(*(char**)burning + 0x34))(burning, 0) !=
-                0)
+            if (((CBurningFatigueEvent*)burning)->IsEventing(0))
             {
                 int rate2 = ((CBurningFatigueEvent*)burning)->getBonusExpRate(
                     ((CUser*)m_slots[i])->getCurCharacUsedFatigue());
@@ -1231,8 +1232,7 @@ int WarRoom::Join(CUser* user, int& seat)
             }
             else
             {
-                packet2.put_byte(
-                    *(unsigned char*)((char*)((CUser*)m_slots[i])->getCurCharacR() + 0x75));
+                packet2.put_byte(((CUser*)m_slots[i])->getCurCharacR()->m_stamina);
             }
         }
     }
@@ -1261,8 +1261,7 @@ int WarRoom::Join(CUser* user, int& seat)
         user->m_historyLog.EnterDungeon(m_pDungeon->GetDungeonName(),
                                         (unsigned char)m_levelBand);
     }
-    m_slotState[slot] = 0;
-    m_pad184[slot] = 1;
+    m_liveFlag[slot] = 1;
     packet1.clear();
     packet1.put_header(0, 2);
     packet1.put_byte(1);
@@ -1286,7 +1285,7 @@ int WarRoom::Join(CUser* user, int& seat)
     }
     else
     {
-        packet2.put_byte(*(unsigned char*)((char*)user->getCurCharacR() + 0x75));
+        packet2.put_byte(user->getCurCharacR()->m_stamina);
     }
     packet2.finalize(true);
     SendToRoom(packet2);
@@ -1302,7 +1301,7 @@ int WarRoom::Join(CUser* user, int& seat)
 
 void WarRoom::SetCharacterLive(int seat, CUser* user, bool live, bool a, short b, int c)
 {
-    m_pad184[seat] = live;
+    this->m_liveFlag[seat] = live;
     PacketGuard packet;
     packet.put_header(0, 0x5f);
     packet.put_byte(GetUserSlot(user));
@@ -1314,7 +1313,7 @@ void WarRoom::SetCharacterLive(int seat, CUser* user, bool live, bool a, short b
     }
     else if (m_flag12 == 0)
     {
-        packet.put_short(*(int*)((char*)m_pDungeon + 0x7c8));
+        packet.put_short(m_pDungeon->m_warRoomData.m_d4);
     }
     else
     {
@@ -1328,33 +1327,33 @@ void WarRoom::SetCharacterLive(int seat, CUser* user, bool live, bool a, short b
 int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** out,
                           bool& a, bool& b, bool& c)
 {
-    if ((user != 0) && (state == (ENUM_SEAT_STATE)0xff))
+    if (user == 0)
+        return 0;
+    if (state != (ENUM_SEAT_STATE)0xff)
+        return 0;
+    if (m_slots[seat] == 0)
     {
-        if (m_slots[seat] == 0)
+        cMyTrace trace(
+            "int WarRoom::SetSlotState(CUser*, int, ENUM_SEAT_STATE, CUser**, bool&, bool&, bool&)",
+            0x590, 5);
+        trace("WARAREA  WarRoom::SetSlotState players_[pos] is NULL pos(%d)", seat);
+    }
+    else
+    {
+        *out = (CUser*)m_slots[seat];
+        m_slotState[seat] = 0xff;
+        m_liveFlag[seat] = 0;
+        a = true;
+        if (GetState() > 2)
         {
-            cMyTrace trace(
-                "int WarRoom::SetSlotState(CUser*, int, ENUM_SEAT_STATE, CUser**, bool&, bool&, bool&)",
-                0x590, 5);
-            trace("WARAREA  WarRoom::SetSlotState players_[pos] is NULL pos(%d)", seat);
+            AddBanList(user);
         }
-        else
+        user->getHackAnalyzer()->reportHackInfo();
+        user->getHackAnalyzer()->resetHackInfo();
+        if (m_pDungeon != 0)
         {
-            *out = (CUser*)m_slots[seat];
-            m_slotState[seat] = 0xff;
-            m_slots[seat] = 0;
-            m_pad184[seat] = 0;
-            a = true;
-            if (GetState() > 2)
-            {
-                AddBanList(user);
-            }
-            user->getHackAnalyzer()->reportHackInfo();
-            user->getHackAnalyzer()->resetHackInfo();
-            if (m_pDungeon != 0)
-            {
-                user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
-                                                (unsigned char)m_levelBand);
-            }
+            user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
+                                            (unsigned char)m_levelBand);
         }
     }
     return 0;
@@ -1402,7 +1401,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
     int slot = GetUserSlot(user);
     if (slot < 0)
         return 4;
-    if (m_pad184[slot] == 0)
+    if (m_liveFlag[slot] == 0)
         return 0x12;
     if ((killerSlot != 0xff) && ((killerSlot < 0) || (killerSlot > 5)))
     {
@@ -1432,7 +1431,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
         if (m_flag12 == 0)
         {
             ((CUser*)m_slots[killerSlot])->WarAreaKill(
-                4, *(int*)((char*)m_pDungeon + 0x7c8), 1.0f);
+                4, m_pDungeon->m_warRoomData.m_d4, 1.0f);
         }
         else
         {
@@ -1453,8 +1452,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
     }
     else
     {
-        ReviveAll();
-        if ((*(int*)((char*)&m_field + 0xf4) == *(int*)((char*)m_pDungeon + 0x744)) ||
+        if ((m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50) ||
             (m_flag11 != 0))
         {
             return 0;
@@ -1467,10 +1465,10 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
             if (m_slots[i] != 0)
             {
                 int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
-                if (*(int*)((char*)G_CDataManager() + 0x88ec) < fp)
+                if (G_CDataManager()->m_warAreaCounter.m_wpPenalty < fp)
                 {
                     ((CUser*)m_slots[i])->DecreaseWarPoint(
-                        *(int*)((char*)G_CDataManager() + 0x88ec));
+                        G_CDataManager()->m_warAreaCounter.m_wpPenalty);
                 }
                 else
                 {
@@ -1510,7 +1508,7 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
         }
         else
         {
-            ((float*)&m_pad1a4[0x18])[monster.m_roleType] += monster.m_field28;
+            m_roleKillCnt[monster.m_roleType] += monster.m_field28;
             for (int i = 0; i <= 5; ++i)
             {
                 if (m_slots[i] != 0)
@@ -1524,12 +1522,13 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                                                   monster.m_mobIndex,
                                                   (ENUM_QUEST_ENEMY_TYPE)1);
                     }
-                    int exp = (int)((float)*(int*)((char*)m_pDungeon + 0x10 +
-                                                   (monster.m_roleType + 0x1e0) * 4) *
+                    int exp = (int)((float)m_pDungeon->m_warRoomData
+                                        .m_9c[monster.m_roleType] *
                                     monster.m_field18);
                     if (isKiller)
                     {
-                        exp = (int)(*(float*)((char*)G_CDataManager() + 0x88f0) *
+                        exp = (int)(G_CDataManager()->m_warAreaCounter
+                                        .m_monsterExpConst *
                                     (float)exp);
                     }
                     ExpBonusPointResult bonus;
@@ -1577,20 +1576,20 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                     if (m_slots[i] != 0)
                     {
                         CUser* u = (CUser*)m_slots[i];
-                        if (*(int*)((char*)u + 0x8e08c) > 0)
+                        if (u->m_fatigueGain > 0)
                         {
                             if (u->getCurCharacInvenR()->GetCreatureMgrR()
                                     ->IsGrowCreature_Equipped_Creature() != 1)
                             {
                                 u->getCurCharacInvenW()->GetCreatureMgrW()->GainExp(
-                                    *(int*)((char*)u + 0x8e08c));
+                                    u->m_fatigueGain);
                             }
                         }
-                        *(int*)((char*)u + 0x8e08c) = 0;
+                        u->m_fatigueGain = 0;
                     }
                 }
                 GenTimerKey((TIMER_MESSAGE)0x45);
-                if (*(int*)((char*)&m_field + 0xf4) == *(int*)((char*)m_pDungeon + 0x744))
+                if (m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50)
                 {
                     m_flag12 = 1;
                     ChangeState(WARROOM_STATE_5);
@@ -1609,36 +1608,34 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
 int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
 {
     map_monster monster;
-    int result = 3;
     int count = GetWaiterCount();
-    if (count != 0)
+    if (count == 0)
+        return 3;
+    int wp = 0;
+    for (int i = 0; i <= 5; ++i)
     {
-        int wp = 0;
-        for (int i = 0; i <= 5; ++i)
+        if (m_slots[i] != 0)
         {
-            if (m_slots[i] != 0)
+            bool isTarget = (killer != 0) && ((CUser*)m_slots[i] == killer);
+            if (isTarget)
             {
-                if ((killer != 0) && ((CUser*)m_slots[i] == killer))
-                {
-                    wp = m_field.HandleWpPerMonster(killer, a, b, monster);
-                    killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
-                }
+                wp = m_field.HandleWpPerMonster(killer, a, b, monster);
+                killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
             }
         }
-        short killerUid = -1;
-        if (killer != 0)
-            killerUid = killer->get_unique_id();
-        PacketGuard packet;
-        packet.put_header(0, 0x151);
-        packet.put_int(a);
-        packet.put_short(killerUid);
-        packet.put_int(b);
-        packet.put_short(wp);
-        packet.finalize(true);
-        SendToRoom(packet);
-        result = 0;
     }
-    return result;
+    short killerUid = -1;
+    if (killer != 0)
+        killerUid = killer->get_unique_id();
+    PacketGuard packet;
+    packet.put_header(0, 0x151);
+    packet.put_int(a);
+    packet.put_short(killerUid);
+    packet.put_int(b);
+    packet.put_short(wp);
+    packet.finalize(true);
+    SendToRoom(packet);
+    return 0;
 }
 
 int WarRoom::HandleGetItem(CUser* user, int idx)
@@ -1729,7 +1726,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
             else
             {
                 bool randomOption = false;
-                if ((*(unsigned char (**)(void*))(*(char**)item + 0x4c))(item) != 0)
+                if (item->IsRandomOption() != 0)
                 {
                     if (user->getCheckPickUpRandomOptionItem() == 1)
                         randomOption = false;
@@ -1769,7 +1766,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                             user->getCurCharacNo(), ipg);
                         added = user->addAvatarItem(
                             (unsigned long)fieldItem.m_item.m_addInfo, 0,
-                            *(char*)((char*)&fieldItem.m_item + 0x0b), ipg,
+                            (char)fieldItem.m_item.m_fieldb, ipg,
                             (eAvatarItemAddReason)0x11);
                     }
                     if (added == -1)
@@ -1888,8 +1885,8 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
             break;
         }
         if ((item.isEquipableItemType() != 0) &&
-            ((*(int*)((char*)pItem + 0x234) == 0xb) ||
-             (*(int*)((char*)pItem + 0x234) < 10)))
+            ((((CEquipItem*)pItem)->m_itemType == 0xb) ||
+             (((CEquipItem*)pItem)->m_itemType < 10)))
         {
             return 0x17;
         }
@@ -1908,16 +1905,19 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         field.m_item.m_fieldb = item.m_fieldb;
         field.m_item.m_field0 = item.m_field0;
         field.m_item.m_fieldd = item.m_fieldd;
-        *(int*)((char*)&field.m_item + 0x15) = *(int*)((char*)&item + 0x15);
-        *(int*)((char*)&field.m_item + 0x19) = *(int*)((char*)&item + 0x19);
-        *(unsigned short*)((char*)&field.m_item + 0x1d) =
-            *(unsigned short*)((char*)&item + 0x1d);
-        *(int*)((char*)&field.m_item + 0x11) = *(int*)((char*)&item + 0x11);
-        *(int*)((char*)&field.m_item + 0x25) = *(int*)((char*)&item + 0x25);
-        *(int*)((char*)&field.m_item + 0x29) = *(int*)((char*)&item + 0x29);
-        *(int*)((char*)&field.m_item + 0x2d) = *(int*)((char*)&item + 0x2d);
-        *(unsigned short*)((char*)&field.m_item + 0x31) =
-            *(unsigned short*)((char*)&item + 0x31);
+        field.m_item.m_amp = item.m_amp;
+        field.m_item.m_random.m_random.m_field0 =
+            item.m_random.m_random.m_field0;
+        field.m_item.m_random.m_random.m_field3 =
+            item.m_random.m_random.m_field3;
+        field.m_item.m_random.m_random.m_field6 =
+            item.m_random.m_random.m_field6;
+        field.m_item.m_random.m_random.m_seed9 =
+            item.m_random.m_random.m_seed9;
+        field.m_item.m_random.m_random.m_fielda.m_field2 =
+            item.m_random.m_random.m_fielda.m_field2;
+        field.m_item.m_random.m_random.m_seedd.m_field =
+            item.m_random.m_random.m_seedd.m_field;
         field.m_item.m_upgradeSep.SetUpgradeSeparate(
             item.m_upgradeSep.GetUpgradeSeparate());
         int price2;
@@ -2022,8 +2022,8 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
     packet.put_int(field.m_item.m_addInfo);
     packet.put_byte(field.m_item.GetItemAttr());
     packet.put_int(field.m_item.get_add_info());
-    packet.put_short(*(unsigned short*)((char*)&field.m_item + 0x0b));
-    packet.put_int(*(int*)((char*)&field.m_item + 0x0d));
+    packet.put_short(field.m_item.m_fieldb);
+    packet.put_int(field.m_item.m_fieldd);
     packet.put_byte(field.m_item.m_amp.getAbilityType());
     packet.put_short(field.m_item.m_amp.getAbilityValue());
     packet.put_packet(field.m_item);
@@ -2042,30 +2042,30 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 
 int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
 {
-    int st = GetState();
-    if ((st != 3) && (st != 4))
+    bool invalid = (GetState() == 3) || (GetState() == 4);
+    if (invalid)
         return 0x13;
     CUser* target = 0;
-    int slot = 0;
+    int slot;
     for (slot = 0; slot <= 5; ++slot)
     {
-        if ((m_slots[slot] != 0) &&
-            (((CUser*)m_slots[slot])->get_unique_id() == uid))
+        if (m_slots[slot] != 0)
         {
-            if (m_pad184[slot] != 0)
-                return 0x12;
-            target = (CUser*)m_slots[slot];
-            break;
+            if (((CUser*)m_slots[slot])->get_unique_id() == uid)
+            {
+                if (m_liveFlag[slot] != 0)
+                    return 0x12;
+                target = (CUser*)m_slots[slot];
+                break;
+            }
         }
     }
     if (target == 0)
         return 0x15;
-    if (user->GetUsedCoinCount() < *(int*)((char*)m_pDungeon + 0x87c))
-    {
-        const char* name = target->getCurCharacName();
-        HistoryLog::WriteUseCoin((_IO_FILE*)user->m_field796f8, name);
-        SetCharacterLive(slot, target, true, true, 0, 0xff);
-        return 0;
-    }
-    return 0x16;
+    if (user->GetUsedCoinCount() >= m_pDungeon->m_87c)
+        return 0x16;
+    HistoryLog::WriteUseCoin((_IO_FILE*)user->m_field796f8,
+                             target->getCurCharacName());
+    SetCharacterLive(slot, target, true, true, 0, 0xff);
+    return 0;
 }

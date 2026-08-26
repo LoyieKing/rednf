@@ -122,21 +122,26 @@ public:
     Action_SendMail m_mail;                         // +0x28（get_mail_data 返回处）
 };                                                  // 0x10+0x18+0x44 = 0x6c
 
-// 0x65（new 100=0x64）。ctor W 0x08985eec：基类 → string+0x8 → 清零字节 +0xc、
-// +0x14 → Action_SendMail+0x20 → string clear → mail.reset。
+// 0x65（new 100=0x64）。ctor W 0x08985eec：基类 → string+0x8 → 字节+c=0 →
+// int+0x10=0 → 字节+0x14=0 → int+0x18=-1 → int+0x1c=-1 → Action_SendMail+0x20
+// → string clear → mail.reset。字段名取自 importUsedFatigueGiveItemEventScript
+// 解析标签（objdump·报告缺失，调用者 importInGameEventScript.md 已完整阅读）。
 class UsedFatigueGiveItemScript : public InGameEventScript
 {
 public:
     UsedFatigueGiveItemScript();
     ~UsedFatigueGiveItemScript();
 
-    std::string   m_dbTableName;  // +0x08
-    unsigned char m_flag0c;       // +0x0c（C1 写 0）
-    unsigned char m_pad0d[7];     // +0x0d..0x13（无访问证据）
-    unsigned char m_flag14;       // +0x14（C1 写 0）
-    unsigned char m_pad15[0xb];   // +0x15..0x1f
-    Action_SendMail m_mail;       // +0x20
-};                                // 0x20+0x44 = 0x64
+    std::string   m_dbTableName;   // +0x08（[db table]）
+    unsigned char m_userType;      // +0x0c（[user type]；C1 写 0）
+    unsigned char m_pad0d[3];      // +0x0d..0x0f
+    int           m_usedFatigue;   // +0x10（[used fatigue]；C1 写 0）
+    unsigned char m_charcEventFlag;  // +0x14（[charc event] 置 1；C1 写 0）
+    unsigned char m_pad15[3];      // +0x15..0x17
+    int           m_jobType;       // +0x18（[apply job type]；C1 写 -1）
+    int           m_fatigueLimit;  // +0x1c（[used fatigue limit]；C1 写 -1）
+    Action_SendMail m_mail;        // +0x20
+};                                 // 0x20+0x44 = 0x64
 
 // 0x56（new 0x78）。ctor W 0x0898597a：基类 → string+0x8 → vec<pair>+0x10 →
 // pair+0x1c → string+0x28 → Action_SendMail+0x2c → string+0x70 → string+0x74 →
@@ -158,18 +163,23 @@ public:
     std::string m_str74;                         // +0x74
 };                                               // 0x74+0x4 = 0x78
 
-// 0x5c（new 0x18）。ctor W 0x08985fb8：基类 → string+0x8 → clear → 字节+0x10=1。
-// +0x11..0x17 无访问证据。
+// 0x5c（new 0x18）。ctor W 0x08985fb8：基类 → string+0x8 → clear → int+0xc=0 →
+// 字节+0x10=1 → word+0x12=0x20 → word+0x14=0x20。字段名取自
+// importPcBangPlayTimeScript 解析标签（objdump·报告缺失）。
 class PcBangPlayTimeScript : public InGameEventScript
 {
 public:
     PcBangPlayTimeScript();
     ~PcBangPlayTimeScript();
 
-    std::string   m_dbTableName;  // +0x08
-    unsigned char m_flag10;       // +0x10（C1 写 1）
-    unsigned char m_pad11[7];     // +0x11..0x17
-};                                // 0x18
+    std::string    m_dbTableName;   // +0x08（[db table]）
+    int            m_playTime;      // +0x0c（[play time]；C1 写 0）
+    unsigned char  m_numberOfTime;  // +0x10（[number of time]；C1 写 1）
+    unsigned char  m_pad11;         // +0x11
+    unsigned short m_startTag;      // +0x12（[start tag]；C1 写 0x20）
+    unsigned short m_endTag;        // +0x14（[end tag]；C1 写 0x20）
+    unsigned char  m_pad16[2];      // +0x16..0x17
+};                                 // 0x18
 
 // 0x191/0x192/0x19c 共用（new 0x50）。ctor W 0x089858da：基类 → string+0x8 →
 // Action_SendMail+0xc → string clear → mail.reset。
@@ -212,47 +222,74 @@ public:
     Action_SendMail m_mail;                // +0x20
 };                                         // 0x20+0x44 = 0x64
 
-// 0x199（new 0x10）。ctor W 0x08985c74：基类 → string+0x8 → clear。
-// +0xc..0xf 无访问证据（operator new 0x10 实证存在保留区）。
+// 0x199（new 0x10）。ctor W 0x08985c74：基类 → string+0x8 → 字节+c=0 → clear。
+// +0xc 字节由 importFatigueQuantityEventScript 的 [user type] 写入（objdump·报告缺失）。
 class FatigueQuantityScript : public InGameEventScript
 {
 public:
     FatigueQuantityScript();
     ~FatigueQuantityScript();
 
-    std::string   m_dbTableName;  // +0x08
-    unsigned char m_pad0c[4];     // +0x0c..0xf
+    std::string   m_dbTableName;  // +0x08（[db table]）
+    unsigned char m_userType;     // +0x0c（[user type]；C1 写 0）
+    unsigned char m_pad0d[3];     // +0x0d..0xf
 };                                // 0x10
 
 // 0x19b 之前段（new 0x30）。ctor W 0x08985d1c：基类 → string+0x8 →
 // set<uint>+0xc → vector<pair<PurchaseBonusRule,Action_SendMail>>+0x24
-// （PurchaseBonusRule 尺寸未建模，尾部按保留字节占位，装载批次补全）。
+// （PurchaseBonusRule 已按 verifyGiveBonusReward/sendPurchaseBonusReward
+//   双报告建模为 3×int；解析标签见 importPurchaseCashItemBonusEventScript）。
 class PurchaseCashItemBonusScript : public InGameEventScript
 {
 public:
+    // 奖励档位规则（3×int）。布局由 verifyGiveBonusReward.md /
+    // sendPurchaseBonusReward.md 汇编双证：+0x00 与购买数比较
+    // （>count 则不发）、+0x04 上限（非 0 且 < count 不发）、
+    // +0x08 步进（(count-start)%step!=0 不发）；
+    // sendPurchaseBonusReward 中 pair.first 尺寸 0xc（mail 位于 pair+0xc）。
+    struct PurchaseBonusRule
+    {
+        int m_purchaseStartCount;     // +0x00（[purchase start count]）
+        int m_purchaseEndCount;       // +0x04（[purchase end count]）
+        int m_purchaseMutipleNumber;  // +0x08（[purchase mutiple number]）
+    };                                // sizeof = 0xc
+
     PurchaseCashItemBonusScript();
     ~PurchaseCashItemBonusScript();
 
     std::string m_dbTableName;    // +0x08
-    std::set<unsigned int> m_set0c;  // +0x0c
-    unsigned char m_pad24[0xc];   // +0x24..0x2f（真实为 rule-mail vector）
-};                                // 0x30
+    std::set<unsigned int> m_set0c;  // +0x0c（目标商品 goods 集合，
+                                     //   updateTargetGoodsCount find 键）
+    std::vector<std::pair<PurchaseBonusRule, Action_SendMail> > m_ruleMails24;  // +0x24
+};                                // 0x24+0xc = 0x30
 
 // 0x19b（new 0x34）。ctor W 0x08985e0a：基类 → string+0x8 → 字节+c=0 →
 // vec<int>+0x10 → vector<pair<vector<uint>,Action_SendMail>>+0x1c →
-// vector<pair<ObjectBringUpRule,Action_SendMail>>+0x28（Rule 未建模，尾部占位）。
+// vector<pair<ObjectBringUpRule,Action_SendMail>>+0x28。Rule 布局（3×int，
+// C1=全 -1）由 ObjectBringUpRule C1/reset objdump 与
+// verifyGiveBringUpReward.md（报告，已完整阅读）双证。
 class ObjectBringUpScript : public InGameEventScript
 {
 public:
+    struct ObjectBringUpRule
+    {
+        ObjectBringUpRule();          // ORIG W 0x08985dd4：调 reset()
+        void reset();                 // ORIG T 0x08985de8：三 int 全写 -1
+
+        int m_rewardStartCount;       // +0x00（[reward start count]）
+        int m_rewardEndCount;         // +0x04（[reward end count]）
+        int m_rewardMutipleNumber;    // +0x08（[reward mutiple number]）
+    };                                // sizeof = 0xc
+
     ObjectBringUpScript();
     ~ObjectBringUpScript();
 
-    std::string   m_dbTableName;  // +0x08（C1 clear）
-    unsigned char m_flag0c;       // +0x0c（C1 写 0）
-    std::vector<int> m_ints10;    // +0x10
-    std::vector<std::pair<std::vector<unsigned int>, Action_SendMail> > m_ruleMails1c;  // +0x1c
-    unsigned char m_pad28[0xc];   // +0x28..0x33（真实为 ObjectBringUpRule vector）
-};                                // 0x34
+    std::string   m_dbTableName;  // +0x08（[db table]；C1 clear）
+    unsigned char m_exchangeRuleFlag;  // +0x0c（[exchange rule]；C1 写 0）
+    std::vector<int> m_materialItemIdxs;  // +0x10（[material item] 整数列）
+    std::vector<std::pair<std::vector<unsigned int>, Action_SendMail> > m_ruleMails1c;  // +0x1c（[eventitem send]）
+    std::vector<std::pair<ObjectBringUpRule, Action_SendMail> > m_sendMails28;  // +0x28（[send]）
+};                                // 0x28+0xc = 0x34
 
 // 0x193（new 0x24）。ctor W 0x08986134：基类 → vec<int>+0x8 → vec<int>+0x14 →
 // string+0x20（get_db_table_name 返回处）。
@@ -280,5 +317,6 @@ bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* sc
 bool importFatigueQuantityEventScript(FatigueQuantityScript* script, char const* path);        // T 0x08982fc6
 bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script, char const* path); // T 0x089834a6
 bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* path);            // T 0x08983e48
+bool importActionMailScript(Action_SendMail* mail);  // T 0x0897f147
 
 #endif  // DNF_GAME_INGAME_EVENT_SCRIPTS_H

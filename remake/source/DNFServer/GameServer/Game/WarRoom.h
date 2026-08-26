@@ -41,7 +41,12 @@ public:
     int GetLiveCount() const;
     int GetRemainSeat() const;
     int GetWaiterCount() const;
-    int GetUserSlot(CUser* user);
+    int GetUserSlot(CUser* user);   // ORIG CGameManager 域调用（席位查找，未命中 -1）
+    // ORIG CGameManager::WarRoomAlloc 0x8298a81/+0x05b 分配时直写 +0x00/+0x01
+    //（ORIG 无 setter；内联实现不产生新符号）。+0x00 暂存 war area 序号
+    // （IsJoinable/Reset 按 2..6 等级段解释），+0x01 为区内分配序号。
+    void setLevelBand(char band) { m_levelBand = band; }
+    void setRoomSeq(char seq) { m_roomSeq = seq; }
     int IsJoinable(CUser* user);
     int IsBanUser(CUser* user);
     void CheckFatuigue();
@@ -100,9 +105,15 @@ public:
     void OnEnterState();
     void OnLeaveState(WARROOM_STATE state);
 
-private:
+public:
+    // +0x00/+0x01 由 CGameManager::WarRoomAlloc(0x8298a81/+0x05b) 分配时直写：
+    // +0x00 暂存 war area 序号（IsJoinable/Reset 按 2..6 等级段解释），
+    // +0x01 为区内分配序号（MakeRoomInfo 随等级段广播）。ORIG 无 setter，
+    // 故仅调整访问段（Itanium ABI 按声明序布局，无布局/新符号影响）。
     char m_levelBand;                   // +0x000
-    char m_field1;                      // +0x001
+    char m_roomSeq;                     // +0x001（WarRoomAlloc 分配计数、Reset 清零）
+
+private:
     char m_pad2[2];                     // +0x002
     int m_index;                        // +0x004
     char m_field8;                      // +0x008
@@ -112,7 +123,8 @@ private:
     char m_flag11;                      // +0x011
     char m_flag12;                      // +0x012
     char m_pad13;                       // +0x013
-    char m_pad14[0x18];                 // +0x014
+    int m_hostVotes[6];                 // +0x14（HostChangeWarRoom 直写低 32 位投票值，
+                                        //      -1=未投；CheckHostChange 取最小非 -1 槽广播）
     int m_userCount;                    // +0x02c
     char m_field30;                     // +0x030
     char m_pad31[3];                    // +0x031
@@ -121,9 +133,13 @@ private:
     int m_state;                        // +0x144
     int m_slotState[6];                 // +0x148
     int m_timerKey[9];                  // +0x160（GenTimerKey 数组，msg 0x40..0x47 → 下标 1..8）
-    char m_pad184[8];                   // +0x184（0x184..0x18b，含 6 个存活标志位）
+    char m_liveFlag[6];                 // +0x184（槽存活标志：非 0=在场且存活）
+    char m_pad18a[2];                   // +0x18a（ORIG Reset 不触及的尾随 2 字节）
     int m_slotData[6];                  // +0x18c
-    char m_pad1a4[0x28];                // +0x1a4
+    int m_slotFp[6];                    // +0x1a4（CalcGuildFP 公会 FP 均摊工作区；
+                                        //      ORIG BattleReset 初始化 -1）
+    float m_roleKillCnt[4];             // +0x1bc（按 monster roleType 累计击杀权重，
+                                        //      ClearReward 经验加权；BattleReset 清零）
     int m_fpBase;                       // +0x1cc
     CDungeon* m_pDungeon;               // +0x1d0
     int m_fp;                           // +0x1d4

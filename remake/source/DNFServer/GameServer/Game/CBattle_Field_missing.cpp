@@ -21,6 +21,9 @@
 
 #include "CBattle_Field.h"
 #include "CVillageMonsterMgr.h"   // 完整类型（reset_field 调用 OnKillVillageMonster 4 参重载）
+#include "LogManager.h"          // logFormat（血轮日志）
+#include "TimerQueue.h"          // G_TimerQueue / InsertTimerInMilisecond
+#include "GameRand.h"           // get_rand_int
 
 // ================= CBattle_Field::CBattle_Field() — ORIG 0x082a44fe =================
 //
@@ -123,7 +126,7 @@ void CBattle_Field::reset_field()
     m_dungeonDiff   = 0;                    // +0x1a0
     m_questStageMap = 0;                    // +0x19c = (+0x1a0)
     m_field198      = 0;                    // +0x198 = (+0x19c)
-    m_maze          = NULL;                 // +0x70 = (+0x198)
+    m_mapMobCount  = 0;                     // +0x70 = (+0x198)
 
     m_apcKillCount  = 0;                    // +0x1a8
     m_pDungeon      = NULL;                 // +0x188
@@ -210,4 +213,667 @@ void CBattle_Field::reset_hell_party_value()
     // —— m_hellPartyItemRate[4]（+0x224）= script[15..18]/10000 ——
     for (int i = 0; i < 4; ++i)
         m_hellPartyItemRate[i] = s[15 + i] / 10000.0f;
+}
+// ============================================================================
+// == 血轮（Blood Dungeon）链 —— ORIG 报告逐指令转写（2026-08-25 批次）      ==
+// 符号清单：/tmp/df_batches/undef_link_syms_2026-08-25.txt 中 CBattle_Field 域；
+// 依赖血轮辅助函数（同报告）一并实现，报告均在 docs/class_func_reports/CBattle_Field/。
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::isQuestMaze —— ORIG T 0x0830e31e：返回 m_questMaze(+0x110)。
+// ---------------------------------------------------------------------------
+bool CBattle_Field::isQuestMaze()
+{
+    return m_questMaze;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_cnt_of_phase(short smallRound, short phase)
+//   —— ORIG T 0x08306a62：阶段生成数 = STAssignBloodSystem.m_startCnt +
+//      phase * m_cntInc（随机阶段经 m_bloodPhaseOrder 回退）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_cnt_of_phase(short smallRound, short phase)
+{
+    if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    int cnt = 0;
+    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    if (sysIdx == 0xffffffffu)
+    {
+        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+            return -1;
+        sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
+    }
+    if ((int)sysIdx < (int)m_bloodSystems.size())
+    {
+        const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
+        for (int p = 0; p < (int)phase + 1; ++p)
+            cnt = sys.m_startCnt + sys.m_cntInc * p;
+        return cnt;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_time_of_phase(short smallRound)
+//   —— ORIG T 0x0830690a：阶段时间 = STAssignBloodSystem.m_timeB（+0x18）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_time_of_phase(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    if (sysIdx == 0xffffffffu)
+    {
+        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+            return -1;
+        sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
+    }
+    if ((int)sysIdx < (int)m_bloodSystems.size())
+        return m_bloodSystems[sysIdx].m_timeB;
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_phase_total_cnt_of_small_round(short)
+//   —— ORIG T 0x08306c0e：阶段总数 = STAssignBloodSystem.m_totalCnt（+0x24）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_phase_total_cnt_of_small_round(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    if (sysIdx == 0xffffffffu)
+    {
+        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+            return -1;
+        sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
+    }
+    if ((int)sysIdx < (int)m_bloodSystems.size())
+        return m_bloodSystems[sysIdx].m_totalCnt;
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_time_of_next_small_round(short)
+//   —— ORIG T 0x0830676a：下一小轮时间 = m_timeA - m_totalCnt * m_timeB。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_time_of_next_small_round(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    if (sysIdx == 0xffffffffu)
+    {
+        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+            return -1;
+        sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
+    }
+    if ((int)sysIdx < (int)m_bloodSystems.size())
+    {
+        const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
+        return sys.m_timeA - sys.m_totalCnt * sys.m_timeB;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_round_of_small_round(short)
+//   —— ORIG T 0x083065f8：小轮对应大轮 = phaseTime.m_smallRoundOrder。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_round_of_small_round(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    return m_bloodPhaseTimes[smallRound].m_smallRoundOrder;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_round_difficylty_of_small_round(short)
+//   —— ORIG T 0x083062fe：小轮难度 = phaseTime.m_difficulty（+0x18 char）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_round_difficylty_of_small_round(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    return (int)(signed char)m_bloodPhaseTimes[smallRound].m_difficulty;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_small_round_interval(short)
+//   —— ORIG T 0x083066ea：小轮间隔 = phaseTime.m_interval（+0x08）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_small_round_interval(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    return m_bloodPhaseTimes[smallRound].m_interval;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::checkBloodSpawnOrder(short) —— ORIG T 0x08306e32：
+//   小轮序在 [0,size) 且前 smallRound 个阶段均已清除（m_bloodPhaseClear 前段全 true）。
+// ---------------------------------------------------------------------------
+bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
+{
+    if ((size_t)smallRound >= m_bloodPhaseClear.size())
+        return 0;
+    if (m_bloodPhaseClear.empty())
+        return 0;
+    for (int i = 0; i < (int)smallRound; ++i)
+    {
+        if (!m_bloodPhaseClear[i])
+            return 0;
+    }
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
+//                                        short nextRound)
+//   —— ORIG T 0x08305992（_ZN13CBattle_Field23BloodMonsterSpawnPacketEiiss）：
+//   遍历当前图怪物表，收集 bloodSmallRoundOrder==smallRound 且未参战（killFlag!=1）
+//   的怪物组包（header 0xd2）发送；数量不足则 logFormat 错误。
+// ---------------------------------------------------------------------------
+void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
+                                            short nextRound)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xd2);
+    packet.put_short(cnt);
+    MapInfo* mapInfo = GetCurrentMapInfo();
+    if (mapInfo == 0)
+        return;
+    int putCount = 0;
+    std::map<int, map_monster>::iterator it = mapInfo->m_monsterMap.begin();
+    for (; it != mapInfo->m_monsterMap.end(); ++it)
+    {
+        if (putCount == cnt)
+            break;
+        const map_monster& mob = it->second;
+        if (mob.m_bloodSmallRoundOrder != smallRound || mob.m_bloodKillFlag == 1)
+            continue;
+        packet.put_byte((int)mob.m_bloodDifficulty);
+        packet.put_short((int)(short)mob.m_instId);
+        packet.put_int(mob.m_mobIndex);
+        if (time == -1)
+            packet.put_byte(3);
+        else
+            packet.put_byte(0);
+        if (m_pDungeon != 0 && *(char*)((char*)m_pDungeon + 0x89f) == 2)
+            packet.put_byte(0x46);
+        else
+            packet.put_byte(0x3c);
+        packet.put_short((int)mob.m_bloodPhaseTime);
+        packet.put_short((int)mob.m_bloodRoundOrder);
+        packet.put_short((int)mob.m_bloodSpawnIdx);
+        packet.put_short((int)mob.m_bloodPhaseIdx);
+        const_cast<map_monster&>(mob).m_bloodKillFlag = 1;
+        ++putCount;
+    }
+    if (putCount == cnt)
+    {
+        packet.put_short(time);
+        packet.finalize(true);
+        m_party->send_to_party(packet);
+    }
+    else
+    {
+        LogManager::logFormat(1, "battle_field.cpp",
+                              "void CBattle_Field::BloodMonsterSpawnPacket(int, int, short, short)",
+                              0xe43, "BLOOD_LOG : EROOR BLOOD SPAWN MONSTER COUNT!!\n");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
+//                                int timerKey, int phaseIdx)
+//   —— ORIG T 0x0830553a（报告 BloodPhaseSpawn.md 逐指令转写）。
+// ---------------------------------------------------------------------------
+void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
+                                    int timerKey, int phaseIdx)
+{
+    const short spawnCnt = (short)get_blood_spawn_cnt_of_phase(smallRound, nextRound);
+    int spawnTime = get_blood_spawn_time_of_phase(smallRound);
+    const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
+    const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
+    const short lastSmallRoundOrder = (short)m_bloodRound.getBloodLastSmallRoundOrder();
+
+    if (spawnCnt < 0 || spawnTime < 0)
+    {
+        LogManager::logFormat(1, "battle_field.cpp",
+                              "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                              0xdb8,
+                              "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
+                              (int)smallRound);
+        return;
+    }
+    if (m_pMap != 0 && lastSmallRoundOrder == smallRound)
+    {
+        if (m_pMap->get_map_type() == 1)
+            spawnTime = -1;
+        else
+            spawnTime = 0;
+    }
+    const int totalPhase = get_blood_spawn_phase_total_cnt_of_small_round(smallRound);
+    if (totalPhase < 0)
+    {
+        LogManager::logFormat(1, "battle_field.cpp",
+                              "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                              0xdcc,
+                              "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
+                              (int)smallRound);
+        return;
+    }
+    if ((int)nextRound < totalPhase - 1)
+    {
+        const unsigned int key = (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)timerKey);
+        int hi = spawnTime >> 31;
+        TimerQueue* tq = G_TimerQueue();
+        tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                    m_party->GetPartyIndex(),
+                                    (TIMER_MESSAGE)timerKey,
+                                    (long long)spawnTime,
+                                    (int)key, 0);
+    }
+    else
+    {
+        m_bloodSpawnTime[phaseIdx] = 0;
+        m_bloodPhaseClear[nextRound] = true;
+        if (checkBloodSpawnOrder(smallRoundOrder))
+        {
+            if (lastSmallRoundOrder < smallRoundOrder)
+            {
+                m_bloodRound.incBloodRoundOrder();
+                m_bloodRound.setPreMapBloodRoundOrder();
+                return;
+            }
+            int curRound = get_blood_round_of_small_round(smallRoundOrder);
+            int prevRound = get_blood_round_of_small_round(smallRoundOrder - 1);
+            int curDiff = get_blood_round_difficylty_of_small_round(smallRoundOrder);
+            int prevDiff = get_blood_round_difficylty_of_small_round(smallRoundOrder - 1);
+            if (curRound < 0 || prevRound < 0)
+            {
+                LogManager::logFormat(
+                    1, "battle_field.cpp",
+                    "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                    0xdee,
+                    "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ROUND!!\n",
+                    (int)smallRoundOrder);
+                return;
+            }
+            int nextTime = get_blood_spawn_time_of_next_small_round(smallRound);
+            if (nextTime < 1)
+            {
+                LogManager::logFormat(
+                    1, "battle_field.cpp",
+                    "void CBattle_Field::BloodPhaseSpawn(short, short&, int, int)",
+                    0xdf5,
+                    "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
+                    (int)smallRoundOrder);
+                return;
+            }
+            if (prevRound == curRound && prevDiff == curDiff)
+            {
+                const unsigned int key =
+                    (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)0x16);
+                int hi = nextTime >> 31;
+                TimerQueue* tq = G_TimerQueue();
+                tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                            m_party->GetPartyIndex(),
+                                            (TIMER_MESSAGE)0x16,
+                                            (long long)nextTime,
+                                            (int)key, 0);
+            }
+            else
+            {
+                m_bloodRound.incBloodRoundOrder();
+                m_bloodRound.setPreMapBloodRoundOrder();
+            }
+        }
+    }
+    nextRound = (short)(nextRound + 1);
+    (void)roundOrder;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodPhaseSpawnTimerResgister(short) —— ORIG T 0x083053d2：
+//   为当前小轮注册各阶段定时器（0x17..0x20），疯狂轮额外发包。
+// ---------------------------------------------------------------------------
+int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
+{
+    int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
+    if (cnt < 0 || 10 < cnt)
+        return -1;
+    if (cnt == 0)
+        cnt = 1;
+    short curRound = smallRound;
+    for (int i = 0; i < cnt; ++i)
+    {
+        int interval = get_blood_spawn_small_round_interval(curRound);
+        if (interval < 1)
+            return -1;
+        if (m_bloodCrazyRound == curRound)
+            BloodCrazyMonsterSpawnPacket();
+        m_bloodSpawnCnt[i] = curRound;
+        m_bloodSpawnTime[i] = 0;
+        const unsigned int key =
+            (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
+        int hi = interval >> 31;
+        TimerQueue* tq = G_TimerQueue();
+        tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                    m_party->GetPartyIndex(),
+                                    (TIMER_MESSAGE)(0x17 + i),
+                                    (long long)interval,
+                                    (int)key, 0);
+        ++curRound;
+        m_bloodRound.incBloodSmallRoundOrder();
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodRoundIntervalPacket(short round, int interval)
+//   —— ORIG T 0x08305e9c：header 0xd7 = 大轮+1、间隔。
+// ---------------------------------------------------------------------------
+void CBattle_Field::BloodRoundIntervalPacket(short round, int interval)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xd7);
+    packet.put_byte((int)round + 1);
+    packet.put_int(interval);
+    packet.finalize(true);
+    m_party->send_to_party(packet);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodCrazyMonsterSpawnPacket() —— ORIG T 0x08305d0c：
+//   header 0xd5 = 刷怪计+m_bloodCrazyType。
+// ---------------------------------------------------------------------------
+void CBattle_Field::BloodCrazyMonsterSpawnPacket()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xd5);
+    packet.put_int(m_bloodSpawnCntCur);
+    packet.put_byte((int)(signed char)m_bloodCrazyType);
+    packet.finalize(true);
+    m_party->send_to_party(packet);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::BloodSpawnTimerManager(bool a, bool b) —— ORIG T 0x08304dd2：
+//   检查血轮顺序→发间隔包→注册阶段定时器。
+// ---------------------------------------------------------------------------
+void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
+{
+    const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
+    const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
+    const short lastSmallRoundOrder = (short)m_bloodRound.getBloodLastSmallRoundOrder();
+    (void)lastSmallRoundOrder;
+    if (smallRoundOrder > lastSmallRoundOrder)
+        return;
+    if (!checkBloodSpawnOrder(smallRoundOrder))
+    {
+        LogManager::logFormat(
+            1, "battle_field.cpp",
+            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd0c,
+            "BLOOD_LOG : round_order_ (%d), small_round_order_ (%d) : SET ORDER ERROR!!\n",
+            (int)roundOrder, (int)smallRoundOrder);
+        return;
+    }
+    bool isFirst = false;
+    if (smallRoundOrder == 0)
+        isFirst = true;
+    int interval = get_blood_spawn_small_round_interval(smallRoundOrder);
+    if (interval < 1)
+    {
+        LogManager::logFormat(
+            1, "battle_field.cpp",
+            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd19,
+            "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
+            (int)smallRoundOrder);
+        return;
+    }
+    if ((onStart && !isMinimal) || isFirst)
+    {
+        m_bloodReward.onStartBloodRound();
+        BloodRoundIntervalPacket(roundOrder, interval);
+    }
+    int r = BloodPhaseSpawnTimerResgister(smallRoundOrder);
+    if (r == -1)
+    {
+        LogManager::logFormat(
+            1, "battle_field.cpp",
+            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd2b,
+            "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
+            (int)smallRoundOrder);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::getNextRoundDifficulty(short) —— ORIG T 0x083061b6：
+//   下一轮难度 = getUltimateDifficylty()；最后一轮或第 0 轮=1。
+// ---------------------------------------------------------------------------
+int CBattle_Field::getNextRoundDifficulty(short round)
+{
+    int diff = (int)getUltimateDifficylty();
+    if (round == getBloodMaxRound() - 1 || round == 0)
+        diff = 1;
+    return diff;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int diff)
+//   —— ORIG T 0x08305f50：末轮强制推进（置全阶段清除、移除当前轮旧怪、写新小轮序）。
+// ---------------------------------------------------------------------------
+bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int diff)
+{
+    const short nextOrder = (short)getNextSamllRoundOrder(round, diff);
+    if (nextOrder == 0)
+    {
+        LogManager::logFormat(
+            1, "battle_field.cpp",
+            "bool CBattle_Field::forceValuesToChangeRound(short, short, int)", 0xe7e,
+            "ULTIMATE_LOG : blood_round_order (%d) forceValuesToChangeRound ERROR!!\n",
+            (int)round);
+        return 0;
+    }
+    if (smallRound < nextOrder)
+    {
+        for (int i = 0; i < nextOrder; ++i)
+            m_bloodPhaseClear[i] = true;
+        MapInfo* mapInfo = GetCurrentMapInfo();
+        if (mapInfo != 0)
+        {
+            std::map<int, map_monster>::iterator it = mapInfo->m_monsterMap.begin();
+            while (it != mapInfo->m_monsterMap.end())
+            {
+                if ((int)(unsigned short)it->second.m_bloodRoundOrder2 > (int)round)
+                    break;
+                if (it->second.m_bloodRoundOrder2 == round &&
+                    (int)(signed char)it->second.m_bloodSpawned == diff)
+                    break;
+                std::map<int, map_monster>::iterator victim = it;
+                ++it;
+                mapInfo->m_monsterMap.erase(victim);
+            }
+        }
+    }
+    m_bloodRound.setBloodSmallRoundOrder(nextOrder);
+    return 1;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::sendUltimateRandomDifficulty(int a, int b) —— ORIG T 0x08306436：
+//   header 0x126 = 两字节难度信息。
+// ---------------------------------------------------------------------------
+void CBattle_Field::sendUltimateRandomDifficulty(int a, int b)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x126);
+    packet.put_byte(a);
+    packet.put_byte(b);
+    packet.finalize(true);
+    m_party->send_to_party(packet);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::sendUltimateRandomDifficulty(int a, int b, int c)
+//   —— ORIG T 0x0830637c：header 0x126 = 两字节+short。
+// ---------------------------------------------------------------------------
+void CBattle_Field::sendUltimateRandomDifficulty(int a, int b, int c)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x126);
+    packet.put_byte(a);
+    packet.put_byte(b);
+    packet.put_short(c);
+    packet.finalize(true);
+    m_party->send_to_party(packet);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::startUltimateRound() —— ORIG T 0x083064de：
+//   终局轮开始：下一轮难度非法→日志；旧轮清理后重注册血轮定时器。
+// ---------------------------------------------------------------------------
+void CBattle_Field::startUltimateRound()
+{
+    const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
+    const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
+    (void)m_bloodRound.getBloodLastSmallRoundOrder();
+    int nextDiff = getNextRoundDifficulty(roundOrder);
+    if (nextDiff != 1)
+    {
+        if (nextDiff == 0)
+        {
+            LogManager::logFormat(1, "battle_field.cpp",
+                                  "void CBattle_Field::startUltimateRound()", 0xf04,
+                                  "ULTIMATE_LOG : ULITMATE ROUND (%d) startUltimateRound() ERROR!!\n",
+                                  (int)roundOrder);
+            return;
+        }
+        if (!forceValuesToChangeRound(roundOrder, smallRoundOrder, nextDiff))
+        {
+            LogManager::logFormat(1, "battle_field.cpp",
+                                  "void CBattle_Field::startUltimateRound()", 0xf0a,
+                                  "ULTIMATE_LOG : startUltimateRound() ERROR!!\n",
+                                  (int)roundOrder);
+            return;
+        }
+    }
+    BloodSpawnTimerManager(true, false);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::CBloodClearRewardData::getUltimateRewardItem()
+//   —— ORIG T 0x083070ca：按 m_ultimateClearPoint 查 CDataManager
+//      m_bloodDungeon.m_map358 概率表；rand<field4 → 0x4e4，
+//      field4<=rand<field0+field4 → 0x4e3，否则 -1。
+// ---------------------------------------------------------------------------
+int CBattle_Field::CBloodClearRewardData::getUltimateRewardItem()
+{
+    const int clearPoint = getUltimateRoundClearPoint();
+    std::map<int, STUltimateRewardProb>::const_iterator it =
+        G_CDataManager()->m_bloodDungeon.m_map358.find(clearPoint);
+    if (it == G_CDataManager()->m_bloodDungeon.m_map358.end())
+        return -1;
+    int roll = get_rand_int(100);
+    const STUltimateRewardProb& p = it->second;
+    if (roll < p.m_field4)
+        return 0x4e4;
+    if (p.m_field0 + p.m_field4 < roll)
+        return -1;
+    return 0x4e3;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::CBloodClearRewardData::setRewarItemCopy(Inven_Item, int, int)
+//   —— ORIG T 0x085bf176：m_reward[rewardIdx].m_item[itemIdx].setCopy(item)。
+// ---------------------------------------------------------------------------
+void CBattle_Field::CBloodClearRewardData::setRewarItemCopy(Inven_Item item,
+                                                            int rewardIdx,
+                                                            int itemIdx)
+{
+    m_reward[rewardIdx].m_item[itemIdx].setCopy(item);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::CBloodClearRewardData::setRewardItemAddInfo(float, int, int)
+//   —— ORIG T 0x085bf1a8：m_item[itemIdx].set_add_info(add_info * rate)。
+// ---------------------------------------------------------------------------
+void CBattle_Field::CBloodClearRewardData::setRewardItemAddInfo(float rate,
+                                                                int rewardIdx,
+                                                                int itemIdx)
+{
+    Inven_Item& item = m_reward[rewardIdx].m_item[itemIdx];
+    int newAdd = (int)((float)item.get_add_info() * rate);
+    item.set_add_info(newAdd);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
+//     bool isClear, short round, CParty* party, CDungeon const* dungeon)
+//   —— ORIG T 0x08306fc4：结算血轮（记录时长并写历史）。
+// ---------------------------------------------------------------------------
+void CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
+    bool isClear, short round, CParty* party, const CDungeon* dungeon)
+{
+    if (isClear)
+        setBloodClear(true);
+    m_bloodRound = (int)round;
+    m_endTick = GlobalData::s_systemTime_.getCurTickCount();
+    unsigned int clearTime = getBloodRoundClearTime();
+    addPlayTime(clearTime);
+    const char* dungeonName = dungeon->GetDungeonName();
+    unsigned int playTime = getPlayTime();
+    party->historyBloodRoundClear(m_bloodRound, clearTime / 1000,
+                                  playTime / 1000, dungeonName);
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::get_blood_spawn_cnt_of_small_round(short)
+//   —— ORIG T 0x08306670：小轮刷怪数 = phaseTime.m_spawnCnt（+0x14）。
+// ---------------------------------------------------------------------------
+int CBattle_Field::get_blood_spawn_cnt_of_small_round(short smallRound)
+{
+    if (m_bloodPhaseTimes.empty())
+        return -1;
+    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+        return -1;
+    return m_bloodPhaseTimes[smallRound].m_spawnCnt;
+}
+
+// ---------------------------------------------------------------------------
+// CBattle_Field::getNextSamllRoundOrder(short round, int diff)
+//   —— ORIG T 0x08306212：找当前大轮+难度的第一个怪，取其血小轮序；无则 0。
+// ---------------------------------------------------------------------------
+short CBattle_Field::getNextSamllRoundOrder(short round, int diff)
+{
+    MapInfo* mapInfo = GetCurrentMapInfo();
+    if (mapInfo == 0)
+        return 0;
+    std::map<int, map_monster>::iterator it = mapInfo->m_monsterMap.begin();
+    for (; it != mapInfo->m_monsterMap.end(); ++it)
+    {
+        const map_monster& mob = it->second;
+        if (mob.m_bloodRoundOrder2 == round &&
+            (int)(signed char)mob.m_bloodSpawned == diff)
+            return (short)mob.m_bloodSmallRoundOrder;
+    }
+    return 0;
 }

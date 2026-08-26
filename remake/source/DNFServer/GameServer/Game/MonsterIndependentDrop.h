@@ -57,9 +57,10 @@ public:
     // 遍历 m_dropItems，pair.second > get_rand_int(10000) 时收 pair.first。
     void deathTowerSpecifyItemDrop(std::vector<unsigned long>& dropIds) const
     {
-        for (std::vector<std::pair<int, int> >::const_iterator it =
-                 m_dropItems.begin();
-             it != m_dropItems.end(); ++it)
+        // ORIG 0x834a19c：begin/end 迭代器均在初始化区求值（缓存 end）
+        std::vector<std::pair<int, int> >::const_iterator it = m_dropItems.begin();
+        std::vector<std::pair<int, int> >::const_iterator endIter = m_dropItems.end();
+        for (; it != endIter; ++it)
         {
             int r = get_rand_int(10000);
             if (it->second > r)

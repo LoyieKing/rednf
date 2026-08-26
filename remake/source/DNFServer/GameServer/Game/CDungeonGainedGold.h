@@ -11,6 +11,8 @@
 class CDungeonGainedGold
 {
 public:
+    CDungeonGainedGold();   // ORIG T 0x869705c 空体（CUser ctor 0x864e410 调用实证）
+    ~CDungeonGainedGold();  // ORIG T 0x8697062 空体
     unsigned int incGainedGold(unsigned int amount);   // ORIG 0x850d4b6 族
     unsigned int getGainedGold();
     void setGainedGold(unsigned int value);

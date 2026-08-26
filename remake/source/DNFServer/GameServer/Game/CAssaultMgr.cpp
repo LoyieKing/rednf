@@ -12,6 +12,7 @@
 #include "GlobalData.h"           // s_power_manager / s_event_manager / s_systemTime_
 #include "ServerParameterScript.h"  // getAssaultGhostTime（GiveupPanalty）
 #include "CPowerManager.h"
+#include "CGuildServerProxy.h"    // CEventBase / CEventManager::GetRepeatEvent（_IsGiveupPanalty）
 #include "CInventory.h"           // user_creature::CCreatureMgr::TurnStomach（DetachUser）
 #include "GameWorld.h"            // G_GameWorld / send_all（SendUserState）
 
@@ -356,14 +357,17 @@ void CAssaulter::GiveupPanalty()
 // 其余依赖未还原子系统处标注，不造桩）。
 // ============================================================================
 
-// ORIG T 0x82eacf4：_IsGiveupPanalty(bool)。报告显示经重复事件 0x20 的虚表
-// +0x34 槽位（deliveryEnd）返回值判定事件状态；该虚调用语义依赖 CEventBase
-// 事件状态模型，尚未还原 → 此处不造桩，返回 false（不惩罚）并标注。
-// [依赖] CEventBase 事件激活判定（虚表 +0x34）需对应事件报告还原。
+// ORIG T 0x82eacf4：GetRepeatEvent(0x20) 后经 vtable+0x34 虚调用判活——该槽
+// 即 IsEventing(CUser*)，与 IsPowerWarEventOn 0x0847f910 的 GetRepeatEvent→
+// vtable+0x34→call(0) 形态逐指令一致；活动进行中直接返回 false（不惩罚）。
+// 否则 m_state（+0x10c）∈[2,4] 且 !flag 时返回 true。ORIG 对事件指针无空检，
+// 保持原样。
 bool CAssaultPlace::_IsGiveupPanalty(bool flag)
 {
-    (void)flag;
-    return false;
+    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
+    if (event->IsEventing((CUser*)0))
+        return false;
+    return m_state >= 2 && m_state <= 4 && !flag;
 }
 
 // ORIG T 0x82eab1a：_IsBroadcastRunaway —— PowerWar 且村庄==7 时 true。

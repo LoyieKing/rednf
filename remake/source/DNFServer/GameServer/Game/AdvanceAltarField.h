@@ -12,6 +12,21 @@
 
 namespace advancealtar
 {
+// ---- AdvanceAltarShopType::T（ORIG mangled NS_20AdvanceAltarShopType1TE）----
+// 权威定义原在 SyncScriptDeps.h；此处同守卫幂等复制（ENUM_ERROR 先例），供
+// CDataManager.h 内 BuyShopData/AdvanceAltarShopParameter 方法签名引用。
+#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
+#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
+namespace AdvanceAltarShopType
+{
+enum T
+{
+    T_0 = 0,
+    T_1 = 1,
+    T_2 = 2
+};
+}
+#endif
 
 // ---- FieldType::T：ORIG getFieldType(0x88a27a2) 名称→编号全表 ----
 struct FieldType
@@ -56,7 +71,7 @@ struct FieldData
     int m_value;        // +0x04（整型字段值）
     std::string m_str;  // +0x08（字符串字段值：getdataType==0 的 ft）
 
-    FieldData() : m_field0(-1), m_value(0), m_str() {}
+    FieldData() : m_field0(-1), m_value(0), m_str() { m_str.clear(); }  // ORIG 含 Ss::clear()
 };
 
 typedef std::map<FieldType::T, FieldData> FieldDataMap;
@@ -67,11 +82,9 @@ typedef std::map<int, FieldDataMap> LevelFieldDataMap;
 // 自 CDungeon.h 迁入收敛（advancealtar 命名空间共享类型统一本叶头）。
 struct _RewardItem
 {
-    _RewardItem()  // ORIG C1/C2 W：三 int 清零
+    _RewardItem()  // ORIG C1/C2 W：memset(this,0,0xc)
     {
-        m_type = 0;
-        m_value1 = 0;
-        m_value2 = 0;
+        memset(this, 0, sizeof(*this));
     }
 
     int m_type;      // +0x00（RewardItemType：0=normal 1=event）

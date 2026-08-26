@@ -127,12 +127,15 @@ struct stHellParty_t
     float m_ancientDungeonAddRate;   // +0x4c [ancient dungeon add rate]
     unsigned short m_groupIndex;     // +0x50 [group index]（map key）
     std::map<unsigned short, stHellPartyMonsterGroupList> m_groupMap;  // +0x54
-    // 难度表：ctor 循环 i=0..5 清零五组；[difficulty] 以 1 基下标写入。
-    unsigned char m_field6c[7];      // +0x6c（+0x6d..0x72 = 'A'..'E' 槽 tag 字节）
-    unsigned short m_field72[7];     // +0x72（+0x74..0x7e = 各槽 monster 数）
-    unsigned char m_field7e[7];      // +0x7e
-    unsigned char m_field84[7];      // +0x84
-    unsigned char m_field8a[7];      // +0x8a
+    // 难度表（ctor 0x891b242 清零环 i=0..5 实证：byte@0x6c+i、
+    //   ushort@0x72+2i（movw 0x2(%eax,%edx,2), edx=i+0x38）、byte@0x7e/0x84/0x8a+i；
+    //   各表 6 槽；GetHellPartyDifficulty 0x82ffa2e memcpy 6 字节、
+    //   GetHellPartyEventType 0x82ffb06 查 0x8a[diff]、guideLineValue dword@0x90）。
+    unsigned char m_field6c[6];      // +0x6c（tag 字节）
+    unsigned short m_field72[6];     // +0x72（各槽 monster 数）
+    unsigned char m_field7e[6];      // +0x7e
+    unsigned char m_field84[6];      // +0x84
+    unsigned char m_field8a[6];      // +0x8a
     int m_guideLineValue;            // +0x90 [guide line value]
 };                                 // sizeof 0x94
 
@@ -264,79 +267,43 @@ public:
 };
 bool ImportSecurityReward(SecurityReward* out);   // _Z20ImportSecurityRewardP14SecurityReward（定义 InitScriptProducers_2.cpp）
 
-// ---- ORIG TowerOfDespairMgr（sizeof 0x35c；ctor 0x08643ac4 / dtor 0x08643be2 /
-//      LoadScript 0x08643e7e；报告 TowerOfDespairMgr/*.md。Ctor_Group1 权威化）----
-struct TOD_Layer            // ORIG resetLayer 0x085fe852：首 short 置 1
-{
-    TOD_Layer(unsigned short layer);   // ORIG T 0x085fe7b4（报告 TOD_Layer/TOD_Layer.md）
-    void resetLayer() { m_layer = 1; }
-    unsigned short GetLayer() const;   // ORIG T 0x0822ec40（定义 PartyDepsA2.cpp）
-    // ORIG T 0x086439c8（报告缺失，按 nm 实现）：层 +n，>100 回卷 1。
-    TOD_Layer operator+(int n) const;
+// ---- TOD 域权威定义（TOD_Layer/SendingAPC_Info/TowerOfDespair_APC_Mgr/
+//      TowerOfDespairMgr）已统一至 TowerOfDespairMgr.h（2026-08-25 合并，
+//      原此处镜像删除；TOD_UserState 保留本头）。----
+#include "TowerOfDespairMgr.h"
 
-    unsigned short m_layer;
-};
-
-// ORIG TOD_UserState（角色扩展数据 0xd 槽对象；完整布局未建模，此处仅声明
-// GetDungeonIndex_isTOD 所需一员。对象由 CUserCharacInfo 数据区承载，本工程不构造）。
+// ORIG TOD_UserState（角色扩展数据 0xd 槽对象；布局按报告逐字段建模，
+// 对象由 CUserCharacInfo 数据区承载，本工程不构造）。字段依据：
+//   TOD_UserState/getEnterCount.md     —— +0x10 int（ORIG T 0x08643872）
+//   TOD_UserState/getLastClearTime.md  —— +0x1c int（ORIG T 0x0864387e）
+//   TOD_UserState/getTodayEnterLayer.md —— +0x14 ushort（当日层）
+//   CDungeon.cpp tod 注                —— +0x16 ushort lastEnterLayer【推断】
 class TOD_UserState
 {
 public:
     // ORIG T 0x0864383e（报告 TOD_UserState/getTodayEnterLayer.md）：sret 返回
     // *(const TOD_Layer*)(this+0x14) + 1（经 TOD_Layer(ushort) 构造，>100 回卷 1）。
     TOD_Layer getTodayEnterLayer() const;
-};
-class PacketBuf;            // 完整定义见 PacketBuf.h（SendingAPC_Info 内嵌）
-struct SendingAPC_Info      // ORIG ctor 0x085fe860：PacketBuf@+4 构造+clear，
-{                           // +0x17338 起 0xbc 清零，sizeof 0x1733c
-    SendingAPC_Info();
-    ~SendingAPC_Info();
-    char m_pad0[4];                       // +0x00
-    PacketBuf* m_bufView;                 // 占位指针域【布局见下方 static_assert】
-    char m_pad8[0x1733c - 8];
-};
-class TowerOfDespair_APC_Mgr   // ORIG = map<TOD_Layer,SendingAPC_Info> @0
-{
-public:
-    TowerOfDespair_APC_Mgr();
-    ~TowerOfDespair_APC_Mgr();
-    std::map<int, SendingAPC_Info*> m_map;   // 值改堆指针避免 0x1733c 栈值拷贝【推断】
-};
 
-// ORIG sizeof 0x35c：CDungeon*[101]@0x000、uint[101]@0x194、set@0x328、
-// vector<uint>@0x340、ushort 0x34c/0x34e/0x350、APC_Mgr*@0x354、int@0x358。
-class CDungeon;
-class CUser;
-class TowerOfDespairMgr
-{
-public:
-    TowerOfDespairMgr();                              // ORIG 0x08643ac4
-    ~TowerOfDespairMgr();                             // ORIG 0x08643be2
-    int LoadScript(const char* dir, const char* path); // ORIG 0x08643e7e（0=成功）
-    void _Set_LayerByDungeonIndex(unsigned int layer, const CDungeon* dungeon); // 0x08643c6c
-    void _Set_LayerByDungeonIndex(unsigned int layer, unsigned int idx);        // 0x08643c86
-    void _Set_APCIndexByLayer(unsigned int layer);     // 0x08643cf4
+    // ---- CheckEnterable 链访问器（定义 BossTowerDepsC2.cpp）----
+    int getEnterCount() const;      // ORIG T 0x08643872：*(int*)(this+0x10)
+    int getLastClearTime() const;   // ORIG T 0x0864387e：*(int*)(this+0x1c)
 
-    // ---- 查询族（报告 TowerOfDespairMgr/*.md；定义 PartyDepsA2.cpp，
-    //      CheckEnterable 定义 blocked 待 TOD 批次）----
-    CDungeon* Get_CDungeonByLayer(unsigned int layer);          // ORIG T 0x08643d14
-    unsigned int Get_DungeonIndexByLayer(unsigned int layer);   // ORIG T 0x08643d76
-    int Get_APCIndexByLayer(unsigned int layer);                // ORIG T 0x08643d9c（不在表=−1）
-    int GetBaseLayerIndex();                                    // ORIG T 0x086440a0（缓存 m_field358）
-    int CheckEnterable(CUser* user, const CDungeon* dungeon);   // ORIG T 0x086440ee【blocked】
+    // ORIG T 0x0864388a（objdump 转写，定义暂寄 CDungeon.cpp）：
+    // enterCount/lastEnterLayer 递增、写 lastEnterTime、当日层为 0 时写
+    // firstEnterTime，末尾 charac_expand::CData::alter 脏标记。
+    void IncreaseEnterCount();
+    // ORIG T 0x0864390e（本批次定义 CPartyDepsD2.cpp）：层推进+脏标记+清层时间。
+    void ClearLayer();
 
-    CDungeon* m_layerDungeons[101];                    // +0x000
-    unsigned int m_dungeonIndexOfLayer[101];           // +0x194
-    std::set<int> m_layerSet;                          // +0x328
-    std::vector<unsigned int> m_npcLayers;             // +0x340
-    unsigned short m_enterableCount;                   // +0x34c [enterable count]
-    unsigned short m_minLevel;                         // +0x34e [min Level]
-    unsigned short m_topLayer;                         // +0x350 [top layer]
-    TowerOfDespair_APC_Mgr* m_apcMgr;                  // +0x354
-    int m_field358;                                    // +0x358（GetBaseLayerIndex 缓存）
-    static void SendMessageToCUser(CUser* user, char* msg);   // ORIG T 0x08644366（静态成员：
-                                                              //   ORIG asm 无 this 槽，user@0x8；依赖 CUser::Send）
-};  // sizeof 0x35c
+    char m_pad0[0xc];               // +0x00..+0x0b（未建模区）
+    int m_firstEnterTime;           // +0x0c（当日首次进入时间；IncreaseEnterCount 写）
+    int m_enterCount;               // +0x10（getEnterCount）
+    unsigned short m_todayLayer;    // +0x14（getTodayEnterLayer 读口径）
+    unsigned short m_lastEnterLayer;// +0x16（IncreaseEnterCount 递增）
+    int m_lastEnterTime;            // +0x18（IncreaseEnterCount 每次写入当前秒）
+    int m_lastClearTime;            // +0x1c（getLastClearTime）
+};
 
 // ---- ORIG CLevelRewardTable(0x6088)/CLevelRewardTableMgr(0x14) 权威
 //      （ctor 0x086975feW/0x08687710、GetInstance W 0x0837505b、
@@ -392,8 +359,9 @@ public:
     AvatarRoulette();
     ~AvatarRoulette();
     void clear();                       // ORIG 0x8911cf6 T（仅清 m_avatars）
-    void swap(AvatarRoulette* other);   // ORIG 0x8911e4e T：前 5 dword + 11 桶 swap，返回 1
 
+    int swap(AvatarRoulette* other);    // ORIG 0x8911e4e T：前 5 dword 拷贝 + 11 桶
+                                        // vector::swap；恒返回 1（ORIG eax=1 实证）
     int m_avatarCoinInfo;               // +0x00 [avatar coin info]
     int m_rareCloneAvatarRate;          // +0x04 [rare clone avatar rate]
     int m_rareAvatarRate;               // +0x08 [rare avatar rate]

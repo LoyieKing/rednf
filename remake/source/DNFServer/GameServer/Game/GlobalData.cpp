@@ -4,6 +4,10 @@
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
 
 #include "GlobalData.h"
+#include "CCapchaDataManager.h"
+#include "CExpertJob.h"      // expert_job::CExpertJobMgr/CExpertJobFactory 权威   // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威
+#include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
+#include "CItemList.h"             // get_rand_int
 
 #include <iostream>
 #include <new>
@@ -12,8 +16,8 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
-#include <algorithm>
-#include <map>
+#include <list>
+#include <string>
 #include <string>
 #include <deque>
 #include <math.h>
@@ -35,6 +39,7 @@
 #include "CInventory.h"              // CSecu_ProtectionField 权威定义（CInventory.h）
 #include "CMyFileLog.h"              // 租赁 log（RandomRentalA2 批次）
 #include "CUser.h"    // StackableAction proc_* 需要 CUser 完整类型
+#include "CSimpleSSO.h"  // WongWork::CSimpleSSO 权威定义（原局部类已收敛）
 #include "CItem.h"    // StackableAction proc_* 需要 CItem 完整类型
 #include "CLogGameChannel.h"  // WongWork::CLogGameChannel 权威定义
 #include "CCeraShop.h"        // WongWork::CCeraShop 权威声明
@@ -43,7 +48,12 @@
 #include "CGlobalEffectManager.h" // CGlobalEffectManager 权威声明（本地占位已移除）
 #include "CSystemTime.h"      // CSystemTime::getCurSec（IPG 请求 curSec）
 #include "RefPvpGrade.h"      // RefPvpGrade 权威定义（ORIG 布局 0x14c）
+#include "Teleport.h"        // Teleport/NPC_Teleport/User_Teleport 权威声明
+#include "CBusinessImpl.h"   // IBusiness/CBusinessImpl 权威声明
+#include "CHackLog_InvalidAreaMove.h"  // checkSeriaRoom（User_Teleport::check_rule）
 #include "CFatigueBatteryHandle.h"  // CFatigueBatteryHandle 权威定义（ORIG ctor 0x84a7ff8 空体）
+#include "sync_script.h"     // sync_script::CSyncScript 权威定义（GetInstanceSyncScript/SetEnable/IsEnable）
+#include "TimerQueue.h"      // G_TimerQueue / TimerEntry（RegistNextTimer）
 #include "CBlackIPMonitor.h"  // WongWork::CBlackIPMonitor 权威定义（ORIG ctor 0x82a6526）
 #include "CTimeGate.h"        // CTimeGate : village_object::IObject 权威定义（ORIG ctor 0x8284512）
 #include "CVillageObjectMgr.h" // village_object::{IObject,CVillageObjectMgr} 权威定义（本地镜像已移除）
@@ -52,59 +62,8 @@
 #include "CCommunityServerProxy.h"
 #include "CSchoolServerProxy.h"
 
-// ============================================================================
-// StaticPool<T,N> —— 与 CGameManager.h 相同模板声明（成员定义在
-// CGameManager.cpp 显式实例化，_ZN10StaticPoolI…E* 符号由此链接）。
-// ============================================================================
-template <class T, int N>
-class StaticPool
-{
-public:
-    struct CNode
-    {
-        T data;        // +0x00
-        int magic;     // +sizeof(T)，恒 0x8f21
-        char bUse;     // +sizeof(T)+4
-    };
-
-    StaticPool();
-    ~StaticPool();
-
-    T* Acquire();
-    T* Get(int index);
-    void Free(T* p);
-    int GetIndex(T* p);
-    int GetLastErrorCode() const { return m_nErrorCode; }
-    static int Size() { return N; }
-    int Remain() { return (int)m_Queue.size(); }
-
-private:
-    CNode* m_pNode;              // +0x00
-    std::queue<CNode*> m_Queue;  // +0x04
-    int m_nErrorCode;            // +0x2c
-};
-
-// 池化类型最小声明（与 CGameManager.h / CUserCharacInfo.h 同名同布局）。
-namespace expert_job
-{
-class CEnchanter
-{
-public:
-    CEnchanter() {}
-    ~CEnchanter() {}
-private:
-    char m_pad[0x100];
-};
-
-class CDisjointer
-{
-public:
-    CDisjointer() {}
-    ~CDisjointer() {}
-private:
-    char m_pad[0x100];
-};
-}
+// StaticPool/expert_job::CEnchanter/CDisjointer 权威声明已迁 CExpertJob.h
+//（含 CExpertJobFactory/CExpertJobMgr），本 TU 经 include 获取。
 
 #include "CEnvironment.h"
 #include "GameTypes.h"
@@ -573,11 +532,14 @@ class CAutoPunishRuleBlackIPMgr
 public:
     CAutoPunishRuleBlackIPMgr();
     void reset();
-private:
-    char m_pad[0x18];
-};
 
-// ---- 反挂机/反作弊规则表相关类型（ORIG namespace WongWork；ctor 需实例化容器）----
+    // ORIG 嵌套类型（reset/C1 的 multimap 符号实证）。
+    struct stIPInfo_t { char m_pad[0x18]; };
+
+private:
+    std::multimap<unsigned long, stIPInfo_t> m_map;  // +0x00
+};
+// ---- 反挂机/反作弊规则表相关类型（ORIG namespace WongWork）----
 #ifndef DNF_GAME_WONGWORK_HACKTYPE_TYPES
 #define DNF_GAME_WONGWORK_HACKTYPE_TYPES
 struct HackTypeInfo_t { char m_pad[0x10]; };  // 仅容器实例化（布局待细化）
@@ -594,12 +556,12 @@ struct stHacktypeExceptionInfo_t
 {
     unsigned short m_cnt;   // +0x00（ctor 第一参数）
     unsigned short m_flag;  // +0x02（ctor 第二参数）
-    stHacktypeExceptionInfo_t() {}
     stHacktypeExceptionInfo_t(short cnt, short flag)
-        : m_cnt((unsigned short)cnt), m_flag((unsigned short)flag)
+        : m_cnt(cnt), m_flag(flag)
     {
     }
 };  // 4 字节
+
 #endif
 
 class CAutoPunishRuleHackTypeMgr
@@ -610,30 +572,16 @@ public:
 private:
     // ORIG 布局（ctor 反汇编 0x82a5b1a）：四个 STL 容器，总 sizeof 0x70
     std::multimap<ENUM_HACKTYPE, HackTypeInfo_t> m_hackTypeMap;         // +0x00
-    char m_pad[0xc];                                                    // +0x18（未初始化区）
+    int m_field18;                                                      // +0x18
+    int m_field1c;                                                      // +0x1c
+    int m_field20;                                                      // +0x20
     std::multimap<unsigned short, HackIPCounter_t> m_ipCounterMap;      // +0x24
     std::multimap<unsigned short, HackFullIPCounter_t> m_fullIPCounterMap;  // +0x40
     std::map<int, stHacktypeExceptionInfo_t> m_exceptionMap;            // +0x58
 };
 
-class CSimpleSSO
-{
-public:
-    CSimpleSSO();
-    ~CSimpleSSO();
-    void init(MySQL* mysql);
-
-    // ORIG 0x093ac220（.data）：31*24 个 16 字节 SSO 会话密钥串指针
-    static const char* const strKeyTable_[31 * 24];
-
-private:
-    // ORIG 布局：CRijndael m_keyTable[31][24]（每块 0x47c，共 0xd0860 字节）
-    // + MySQL* m_mysql（+0xd0860）。CRijndael 本实现为 0x4a0（尾部多 0x24 临时
-    // 缓冲），故以字节区保留 ORIG 步长，init 逐块调用 Initialize（写入范围
-    // 0x18..0x43c，块内安全）。（推断）
-    char m_keyData[0xd0860];
-    MySQL* m_mysql;
-};
+// WongWork::CSimpleSSO 权威定义已收敛到 CSimpleSSO.h（顶部 include）；
+// 成员函数 ctor/dtor/init 在本 TU，其余方法在 WongWorkSSO_A.cpp。
 
 class CSecurityCardCenter
 {
@@ -723,17 +671,6 @@ private:
     std::map<int, stDungeonExp> m_expMap;             // +0x18
 };
 
-namespace sync_script
-{
-class CSyncScript
-{
-public:
-    static CSyncScript* GetInstanceSyncScript();
-    static void SetEnable(bool enable);
-    static bool IsEnable();
-};
-}
-
 class CGM_Manager;  // 完整定义见 CGM_Manager.h（真实布局）
 
 namespace break_away_prevent
@@ -747,9 +684,18 @@ struct STRewardDataKey
         return memcmp(m_data, o.m_data, 3) < 0;
     }
 };
+// 奖励条目（loadDbData/selectReward：+0x00..+0x10 五个 4 字节字段，stride 0x18）。
+struct STRewardData
+{
+    int m_field0;   // +0x00
+    int m_field4;   // +0x04
+    int m_field8;   // +0x08
+    int m_fieldc;   // +0x0c
+    int m_field10;  // +0x10
+};
 struct STRewardDataList
 {
-    char m_pad[4];
+    std::list<STRewardData> m_list;
 };
 
 class CBreakAwayPreventSystem
@@ -757,6 +703,9 @@ class CBreakAwayPreventSystem
 public:
     CBreakAwayPreventSystem();
     ~CBreakAwayPreventSystem();
+    // ORIG T 0x0831c49e：拷贝基类区（0x2e4）后按条目填充
+    // m_rewardMap（key=+0x10..+0x12 三字节 / value=5×int）与 m_keys[]。
+    void loadDbData(SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data);
 private:
     // ORIG：基类区 0x2e4 + map + 5×STRewardDataKey(+0x2fc) + memset(+0x30b,0x1f)。
     char m_base[0x2e4];
@@ -766,37 +715,36 @@ private:
 };
 }
 
-namespace expert_job
-{
-// CExpertJobFactory（ORIG W 0x0849f68c）：两个池，sizeof 0x60。
-class CExpertJobFactory
-{
-public:
-    CExpertJobFactory();
-    ~CExpertJobFactory();
-    StaticPool<CEnchanter, 300> m_enchanterPool;    // +0x00
-    StaticPool<CDisjointer, 600> m_disjointerPool;  // +0x30
-};
-
-class CExpertJobMgr
-{
-public:
-    CExpertJobMgr();
-    ~CExpertJobMgr();
-private:
-    CExpertJobFactory* m_factory;  // +0x00
-};
-}
+// CExpertJobFactory/CExpertJobMgr 权威声明已迁 CExpertJob.h（含 StaticPool 双池），
+// 本 TU 仅保留其成员函数定义（下方）。
 
 namespace village_attacked
 {
+// 本地最小视图（权威布局见 CVillageMonsterMgr.h；本 TU 仅需 C1/D1 的容器
+// 实例化形态，Zone/CVillageMonsterArea 以同布局本地类型参与 map 模板实例）。
+struct Zone
+{
+    unsigned char m_a;
+    unsigned char m_b;
+};
+inline bool operator<(const Zone& x, const Zone& y)
+{
+    if (x.m_a != y.m_a)
+        return x.m_a < y.m_a;
+    return x.m_b < y.m_b;
+}
+struct CVillageMonsterArea { char m_pad[0x3c]; };  // ORIG sizeof 0x3c
+
 class CVillageMonsterMgr
 {
 public:
     CVillageMonsterMgr();
     ~CVillageMonsterMgr();
 private:
-    char m_pad[0x24];
+    int m_field00;                                 // +0x00（ctor 体清零）
+    int m_field04;                                 // +0x04（ctor 体清零）
+    std::map<Zone, CVillageMonsterArea> m_areas;   // +0x08（0x18）
+    int m_field20;                                 // +0x20（ctor 体清零）
 };
 
 }
@@ -871,13 +819,36 @@ private:
 };
 
 
+// _DailySchedule 本地布局副本（权威定义 CDailyScheduleManager.h，0x24 字节；
+// 本 TU 不 include 该头，仅按同布局参与 vector 模板实例化）。
+struct _DailySchedule
+{
+    int m_eventId;              // +0x00
+    int m_type;                 // +0x04
+    int m_idx;                  // +0x08
+    int m_startSec;             // +0x0c
+    int m_endSec;               // +0x10
+    int m_wday;                 // +0x14
+    unsigned char m_startHour;  // +0x18
+    unsigned char m_startMin;   // +0x19
+    unsigned char m_startSec2;  // +0x1a
+    unsigned char m_endHour;    // +0x1b
+    unsigned char m_endMin;     // +0x1c
+    unsigned char m_endSec2;    // +0x1d
+    short m_pad1e;              // +0x1e
+    int m_state;                // +0x20
+};  // 0x24
+
 class CDailyScheduleManager
 {
 public:
     CDailyScheduleManager();
     ~CDailyScheduleManager();
 private:
-    char m_pad[0xe4];
+    // 权威布局见 CDailyScheduleManager.h；本 TU 镜像仅供 C1/D1 产出
+    // vector<_DailySchedule> 构造/析构调用（+0xd8）。
+    _DailySchedule m_pad024[6];               // +0x000..0x0d7（6×0x24）
+    std::vector<_DailySchedule> m_schedules;  // +0xd8
 };
 
 namespace online_preliminary
@@ -898,72 +869,16 @@ class COnlinePreliminaryTeamMgr
 public:
     COnlinePreliminaryTeamMgr();
     ~COnlinePreliminaryTeamMgr();
+    // ORIG T 0x08588be4：data 首 4 字节为 key，命中 m_teamMap 时
+    // 委托 COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(data)。
+    void OnLoadTeamInfo(CUser* user, char* data);
 private:
     CTeamFactory* m_factory;                        // +0x00
     std::map<int, COnlinePreliminaryTeam*> m_teamMap;  // +0x04
 };
 }
 
-namespace game_master
-{
-// game_master 命令体系（ORIG T 符号众多，完整还原超本任务范围）。
-// 本 TU 以最小类型保留 CGameMasterMgr 的 ORIG 布局与构造序列（推断）。
-class IGameMaster
-{
-public:
-    virtual ~IGameMaster() {}
-};
-class CCommand
-{
-public:
-    virtual ~CCommand() {}
-};
-class CCommandMap
-{
-public:
-    CCommandMap();
-    void insert(int id, const char* name, CCommand* cmd);
-    std::map<int, CCommand*> m_cmdById;        // +0x00
-    std::map<std::string, CCommand*> m_cmdByName;  // +0x18
-};
-class CSeniorGameMaster : public IGameMaster
-{
-public:
-    CSeniorGameMaster(IGameMaster* master) { m_master = master; }
-    IGameMaster* m_master;  // +0x00
-};
-class CJuniorGameMaster : public IGameMaster
-{
-public:
-    CJuniorGameMaster(IGameMaster* master) { m_master = master; }
-    IGameMaster* m_master;  // +0x00
-};
-class CMoveCharacCmd : public CCommand
-{
-public:
-    CMoveCharacCmd() { memset(m_pad, 0, sizeof(m_pad)); }
-    char m_pad[0xc];
-};
-
-class CGameMasterMgr
-{
-public:
-    CGameMasterMgr();
-private:
-    CSeniorGameMaster* m_senior;  // +0x00
-    CJuniorGameMaster* m_junior;  // +0x04
-    CCommandMap m_cmdMap;         // +0x08
-};
-}
-
-class CBusinessImpl
-{
-public:
-    CBusinessImpl();
-    ~CBusinessImpl();
-private:
-    char m_pad[4];
-};
+// game_master 命令体系完整声明见 GameMasterCmd.h（GmCore/GmRegister 等 TU 实现）。
 
 class TimerUpdatePvPGrade
 {
@@ -1008,7 +923,9 @@ void* CreateAntiServerObj(const char* path);
 bool* GetLightServerFlag();   // extern（CDataManagerScripts.cpp 定义）
 char IsLightServer()
 {
-    return *(char*)GetLightServerFlag();
+    // ORIG 0x822ad44：旗标指针先落局部变量再解引用。
+    bool* flag = GetLightServerFlag();
+    return *flag;
 }
 namespace StackableAction
 {
@@ -1072,27 +989,10 @@ public:
     CExtractionMgr();
     ~CExtractionMgr();
 private:
-    CAlchemistExtraction* m_alchemist;        // +0x00
-    CEnchanterExtraction* m_enchanter;        // +0x04
-    CDollControllerExtraction* m_doll;        // +0x08
+    // ORIG D1 0x84a311a 以 (CExtraction**) 索引循环析构 → 成员为数组。
+    CExtraction* m_slots[3];                  // +0x00/+0x04/+0x08
 };
 }
-
-class NPC_Teleport
-{
-public:
-    NPC_Teleport();
-private:
-    char m_pad[0x14];
-};
-
-class User_Teleport
-{
-public:
-    User_Teleport();
-private:
-    char m_pad[0x14];
-};
 
 
 namespace random_option
@@ -1124,12 +1024,23 @@ public:
     // ORIG B 0x93f5758：map<string, vector<int>> 人证类型表。
     static std::map<std::string, std::vector<int> > humanCertifyTable_;
 };
+class CParty
+{
+public:
+    void* GetPartyTelePort();   // ORIG T（权威 CParty.h:317）
+};
 
 class GameWorld
 {
 public:
+    bool IsPVPChannel() const;                       // 权威 GameWorld.h:121
+    bool IsPvPSkilTreeChannel() const;               // 权威 GameWorld.h:125
     int GetChannelType() const;
     bool IsIntegratedPvPBaseChannel() const;
+    CUser* find_from_world(unsigned short uniqueId);   // ORIG T 0x086c4b9c（权威 GameWorld.h:145）
+    void send_to_area(int vill, int area, PacketGuard& packet);  // 权威 GameWorld.h:163
+    bool move_area(CUser* user, int vill, int area, int x, int y, int z,
+                   bool flag, int param, int prevVill, int prevArea);  // 权威 GameWorld.h:197
 };
 
 GameWorld* G_GameWorld();
@@ -1179,10 +1090,11 @@ public:
     void seed(unsigned int s) { m_counter = s; }
     unsigned int getUInt32()
     {
-        unsigned int v = m_counter;
-        m_counter = v + 1;
-        return kXorRandMsTable0[v & 0xff] ^ kXorRandMsTable1[(v >> 8) & 0xff] ^
-               kXorRandMsTable2[(v >> 16) & 0xff] ^ kXorRandMsTable3[(v >> 24) & 0xff];
+        // ORIG 0x8adfa90：后缀自增取旧值；再以字节指针逐字节查 4 张表异或。
+        unsigned int v = m_counter++;
+        const unsigned char* p = (const unsigned char*)&v;
+        return kXorRandMsTable0[p[0]] ^ kXorRandMsTable1[p[1]] ^
+               kXorRandMsTable2[p[2]] ^ kXorRandMsTable3[p[3]];
     }
     unsigned int operator()() { return getUInt32(); }
 private:
@@ -1212,15 +1124,6 @@ private:
 
 // GreyImage 方法实现在 GameStubs.cpp（ORIG 中 GreyImage 独立 TU；GlobalData TU
 // 仅保留声明，使 GenerateCaptchaData 的 EH 清理结构对齐 ORIG）。
-
-#pragma pack(push, 2)
-struct MSG_UDP_CAPCHA_CERTIFY
-{
-    unsigned short m_text[5];                        // +0x00
-    int m_size;                                      // +0x0a
-    unsigned char m_image[0x339e - 0xe];             // +0x0e
-};
-#pragma pack(pop)
 
 // ---- drawLine（ORIG 0x080dea17，文件内静态）----
 static void drawLine(GreyImage* img, int x1, int y1, int x2, int y2)
@@ -1543,17 +1446,8 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
     memcpy(image->getImage(), tmp.getImage(), (size_t)width * height);
 }
 
-namespace WongWork
-{
-class CCapchaDataManager
-{
-public:
-    void push(const MSG_UDP_CAPCHA_CERTIFY& msg);
-private:
-    std::deque<MSG_UDP_CAPCHA_CERTIFY> m_queue;   // ORIG：deque（0x28 字节）
-};
-}
-
+// s_capchaDataManager（ORIG 0x941f7a0；namespace GlobalData 成员）定义；
+// 类型/方法见 CCapchaDataManager.h。
 WongWork::CCapchaDataManager GlobalData::s_capchaDataManager;
 void WongWork::CCapchaDataManager::push(const MSG_UDP_CAPCHA_CERTIFY& msg)
 {
@@ -1565,28 +1459,37 @@ void WongWork::CCapchaDataManager::push(const MSG_UDP_CAPCHA_CERTIFY& msg)
     }
 }
 
+bool WongWork::CCapchaDataManager::isEmpty()
+{
+    // ORIG W 0x086977fa：deque::empty。
+    return m_queue.empty();
+}
+
+MSG_UDP_CAPCHA_CERTIFY* WongWork::CCapchaDataManager::peekData()
+{
+    // ORIG T 0x08299f74：at(get_rand_int(size()))——随机取一条。
+    return &m_queue.at(static_cast<unsigned int>(
+        get_rand_int(static_cast<int>(m_queue.size()))));
+}
+
 // ============================================================================
 // 依赖类 stub 实现（GlobalData.cpp 自含声明的占位类；G2/G4/G6/G7/G8 批次接管）
 // ============================================================================
 
-// ---- ThreadInterface 线程族 ----
-DBThread::DBThread()
+DBThread::DBThread() : m_bLogDB(false)
 {
-    // ORIG 0x083ff5f2：ThreadInterface 基类 + CQueryCounter 构造（成员隐式构造）。
-    m_bLogDB = false;
+    // ORIG 0x083ff5f2：先置 +0x0c=false，再隐式构造 CQueryCounter@+0x10。
 }
-void DBThread::setLogDB(bool isLogDB)
+void DBThread::setLogDB(bool logDB)
 {
-    // ORIG 0x083ff6c8：置 +0x0c 标志；CQueryCounter::setLogDB；
-    // 遍历 0..0x10 号 DB 句柄：非 logDB 时 4 号句柄不挂查询计数，
-    // logDB 时仅 4 号句柄挂查询计数。
-    m_bLogDB = isLogDB;
-    m_queryCounter.setLogDB(isLogDB);
+    // ORIG 0x083ff6c8：置标志后经成员回读；循环内经 isLogDB() 判定。
+    m_bLogDB = logDB;
+    m_queryCounter.setLogDB(m_bLogDB);
     for (int i = 0; i <= 0x10; ++i)
     {
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)i,
                                                       (ENUM_SERVER_GROUP)0);
-        if (isLogDB)
+        if (isLogDB())
         {
             if (i == 4)
             {
@@ -1621,18 +1524,46 @@ ARAD::Arad_ServerStateManager::Arad_ServerStateManager()
     // ORIG 0x81a922c：bool@0=0；Mutex@+4；map@+0x1c（成员自动构造）。
 }
 
-PacketPool::PacketPool() : m_pool(new DynamicPool<PacketBuf>(0)), m_threadID(0) {}
-PacketPool::~PacketPool() { delete m_pool; }
+PacketPool::PacketPool()
+{
+    // ORIG 0x828fc76：先置 m_threadID=0；new DynamicPool(10)；SetPoolSize(10,10)；
+    // m_pCheckCallback=0。
+    m_threadID = 0;
+    m_pool = new DynamicPool<PacketBuf>(10);
+    m_pool->SetPoolSize(10, 10);
+    m_pool->m_pCheckCallback = 0;
+}
+PacketPool::~PacketPool()
+{
+    // ORIG 0x828fd82：if(m_pool){ delete m_pool; m_pool=0; }。
+    if (m_pool)
+    {
+        delete m_pool;
+        m_pool = 0;
+    }
+}
 pthread_t PacketPool::getThreadID() { return m_threadID; }
 void PacketPool::setThreadID(unsigned long tid) { m_threadID = tid; }
 PacketBuf* PacketPool::Acquire()
 {
-    return m_pool ? m_pool->Acquire() : 0;
+    // ORIG 0x828fdba：Acquire 失败时 logFormat（App.cpp:0x275）后返回 0；
+    // 成功路径调用 packet->clear() 后返回。
+    PacketBuf* packet = m_pool->Acquire();
+    if (packet == 0)
+    {
+        LogManager::logFormat(
+            1, "App.cpp", "PacketBuf* PacketPool::Acquire()", 0x275,
+            "[PacketPool alloc fail] curthreadid(%08x), poolthreadid(%08x), alloc_cnt(%d), size(%d)",
+            pthread_self(), getThreadID(), m_pool->Remain(), m_pool->Size());
+        return 0;
+    }
+    packet->clear();
+    return packet;
 }
 void PacketPool::Free(PacketBuf* packet)
 {
-    if (m_pool)
-        m_pool->Free(packet);
+    // ORIG 0x858e2ae：无空判，直接转调 DynamicPool::Free。
+    m_pool->Free(packet);
 }
 
 // ---- CServerProxyMgr<CMonitorServerProxy>/<CGuildServerProxy>/<CStatisticServerProxy> ----
@@ -1656,7 +1587,6 @@ CPCRoomServerProxy::CPCRoomServerProxy(char* ip, int port)
 {
     (void)port;
 }
-CFatigueBatteryHandle::CFatigueBatteryHandle() {}  // ORIG 0x84a7ff8：空体（纯 ret，无成员初始化）
 CmmChannelProxy::CmmChannelProxy(std::string ip, int port)
     : m_ip(ip), m_port(port)
 {
@@ -1699,22 +1629,19 @@ WongWork::CCeraShop::CCeraShop()
 {
     // ORIG 0x83202b8：new SpecialItemHandler(0x74) 存 +0；+4 置 0。
     m_handler = new SpecialItemHandler(this);
-    m_field4 = 0;
+    m_originalItemIdx = 0;
 }
 WongWork::CCeraShop::~CCeraShop()
 {
-    // ORIG 0x8320314：析构并释放 SpecialItemHandler。
-    if (m_handler)
-    {
-        delete m_handler;  // SpecialItemHandler 析构未还原（推断：默认）
-        m_handler = 0;
-    }
+    // ORIG 0x8320314：仅 delete m_handler（不置空）。
+    delete m_handler;
 }
-WongWork::CAutoPunishRuleBlackIPMgr::CAutoPunishRuleBlackIPMgr()
+WongWork::CAutoPunishRuleBlackIPMgr::CAutoPunishRuleBlackIPMgr() {}
+void WongWork::CAutoPunishRuleBlackIPMgr::reset()
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-void WongWork::CAutoPunishRuleBlackIPMgr::reset() {}  // TODO(后续批次)
+    // ORIG 0x82a5a74：m_map.clear()。
+    m_map.clear();
+}
 WongWork::CAutoPunishRuleHackTypeMgr::CAutoPunishRuleHackTypeMgr()
 {
     // ORIG 0x082a5b1a：构造 4 个容器（multimap<ENUM_HACKTYPE,HackTypeInfo_t>
@@ -1740,7 +1667,14 @@ WongWork::CAutoPunishRuleHackTypeMgr::CAutoPunishRuleHackTypeMgr()
     m_exceptionMap.insert(std::make_pair(0xe0, stHacktypeExceptionInfo_t(0x00, 0x14)));
     m_exceptionMap.insert(std::make_pair(0xe1, stHacktypeExceptionInfo_t(0x00, 0x32)));
 }
-void WongWork::CAutoPunishRuleHackTypeMgr::reset() {}  // TODO(后续批次)
+void WongWork::CAutoPunishRuleHackTypeMgr::reset()
+{
+    // ORIG 0x82a5a9c：m_hackTypeMap.clear(); +0x18/+0x1c/+0x20 清零。
+    m_hackTypeMap.clear();
+    m_field18 = 0;
+    m_field1c = 0;
+    m_field20 = 0;
+}
 WongWork::CBlackIPMonitor::CBlackIPMonitor()
 {
     // ORIG 0x82a6526：构造 std::multimap<unsigned int, stBlackIPMonitorEntry_t>（成员隐式）。
@@ -2464,9 +2398,8 @@ bool CDBConnector::ConnectWithServerGroup(DBInfoMap infoMap)
 
 // ---- CDBConnector ----
 CDBConnector::CDBConnector(DBMgr* dbMgr)
+    : m_dbMgr(dbMgr)   // ORIG C1 0x080ec5fc：先存 DBMgr*，再默认构造成员 STDBConnInfo。
 {
-    // ORIG 0x080ec5fc：存 DBMgr*；STDBConnInfo 成员构造。
-    m_dbMgr = dbMgr;
 }
 CDBConnector::~CDBConnector() {}  // TODO(后续批次)
 bool CDBConnector::Init(STDBConnInfo& info)
@@ -2533,17 +2466,8 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
     outMap[idx] = info;
     return true;
 }
-// ---- sync_script ----
-namespace sync_script
-{
-CSyncScript* CSyncScript::GetInstanceSyncScript()
-{
-    static CSyncScript inst;  // TODO(后续批次)
-    return &inst;
-}
-void CSyncScript::SetEnable(bool) {}  // TODO(后续批次)
-bool CSyncScript::IsEnable() { return false; }  // TODO(后续批次)
-}
+// sync_script::CSyncScript 权威定义见 sync_script.h（SetEnable/IsEnable 内联 +
+// GetInstanceSyncScript 单例访问器）；本 TU 不再提供本地镜像。
 
 // ---- 事件/GM/统计 ----
 // CEventManager 构造/析构已移入 CEventManager.cpp（独立 TU）。
@@ -2605,29 +2529,31 @@ CStatisticMgr::CStatisticMgr()
 }
 
 // ORIG T 0x0860ecc6 IncreaseLevelDungeonPlay(level, playCount)：
-// level ∉ [1,200] → 仅 trace；否则 find 命中 → m_playCount += playCount、
-// ++m_userCount；未命中 → insert{1, playCount}。
+// level ∉ [1,200] → 仅 trace(type=0)；否则 find 命中 → 引用缓存后
+// m_playCount += playCount、++m_userCount；未命中 → 先写 playCount 再置
+// userCount=1，insert。
 void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCount)
 {
     if (level < 1 || level > 200)
     {
         cMyTrace tr("void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int, int)",
-                    0x550, 5);
+                    0x550, 0);
         tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
         return;
     }
     std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
-    if (it != m_levelPlayMap.end())
+    if (it == m_levelPlayMap.end())
     {
-        it->second.m_playCount += playCount;
-        it->second.m_userCount += 1;
+        stDungeonPlayInfo info;
+        info.m_playCount = playCount;
+        info.m_userCount = 1;
+        m_levelPlayMap.insert(std::make_pair(level, info));
     }
     else
     {
-        stDungeonPlayInfo info;
-        info.m_userCount = 1;
-        info.m_playCount = playCount;
-        m_levelPlayMap.insert(std::make_pair(level, info));
+        stDungeonPlayInfo& info = it->second;
+        info.m_playCount += playCount;
+        info.m_userCount += 1;
     }
 }
 
@@ -2642,9 +2568,60 @@ break_away_prevent::CBreakAwayPreventSystem::CBreakAwayPreventSystem()
     memset(m_tail, 0, sizeof(m_tail));
     m_rewardMap.clear();
 }
+
+// ORIG T 0x0831c486 [0x0831c486, 0x0831c49d]：仅析构 +0x2e4 的
+// m_rewardMap（std::map<STRewardDataKey,STRewardDataList>），成员自动析构等价。
 break_away_prevent::CBreakAwayPreventSystem::~CBreakAwayPreventSystem()
 {
-    // ORIG 0x0831d548 区域：map 析构（成员自动）+ 基类析构（推断）。
+}
+// ORIG T 0x0831c49e（loadDbData.md 全量转写）：拷贝 SIG 基类区 0x2e4，
+// 清 map 后按条目组装：条目 stride 0x18，key=+0x10/+0x11/+0x12 三字节，
+// value=+0x14..+0x24 五个 int（STRewardData）。key 已存在 → list push_back；
+// 否则新建 list 插入 map。同时维护 m_keys（5 项）。
+void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
+    SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data)
+{
+    memcpy(m_base, data, 0x2e4);
+    m_rewardMap.clear();
+
+    int keyCount = 0;
+    int count = *(int*)((char*)data + 0x2e0);
+    for (int i = 0; i < count; ++i)
+    {
+        const char* entry = (const char*)(data) + i * 0x18;
+        STRewardDataKey key;
+        key.m_data[0] = entry[0x11];
+        key.m_data[1] = entry[0x12];
+        key.m_data[2] = entry[0x10];
+
+        STRewardData reward;
+        reward.m_field0 = *(int*)(entry + 0x14);
+        reward.m_field4 = *(int*)(entry + 0x18);
+        reward.m_field8 = *(int*)(entry + 0x1c);
+        reward.m_fieldc = *(int*)(entry + 0x20);
+        reward.m_field10 = *(int*)(entry + 0x24);
+
+        std::map<STRewardDataKey, STRewardDataList>::iterator it =
+            m_rewardMap.find(key);
+        if (it != m_rewardMap.end())
+        {
+            it->second.m_list.push_back(reward);
+        }
+        else
+        {
+            STRewardDataList list;
+            list.m_list.push_back(reward);
+            m_rewardMap.insert(std::make_pair(key, list));
+        }
+
+        if (keyCount < 5)
+        {
+            m_keys[keyCount].m_data[0] = key.m_data[0];
+            m_keys[keyCount].m_data[1] = key.m_data[1];
+            m_keys[keyCount].m_data[2] = key.m_data[2];
+            ++keyCount;
+        }
+    }
 }
 expert_job::CExpertJobFactory::CExpertJobFactory()
 {
@@ -2672,18 +2649,20 @@ expert_job::CExpertJobMgr::~CExpertJobMgr()
 }
 // CVillageObjectMgr ctor/dtor 现由 CVillageObjectMgr.cpp 提供
 //（ORIG 0x86b6f30 默认构造 std::map；dtor 0x86b6f44 调用 map dtor）。
-village_attacked::CVillageMonsterMgr::CVillageMonsterMgr()
-{
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-village_attacked::CVillageMonsterMgr::~CVillageMonsterMgr() {}  // TODO(后续批次)
+// CVillageMonsterMgr ctor/dtor 现由 CVillageMonsterMgr.cpp 提供（LinkVillageSolo）。
 village_attacked::CRevengeDungeon::CRevengeDungeon()
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-bool village_attacked::CRevengeDungeon::IsOpenRevengeDungeon()  // ORIG 0x8234ff6：读 +0x0 字节
+    // ORIG 0x82aa6a4：+0 字节清零 + +0x04 int 清零。
+    m_isOpen = false;
+    m_field04 = 0;
+}
+bool village_attacked::CRevengeDungeon::IsOpenRevengeDungeon()  // ORIG 0x8234ff6
 {
-    return m_pad[0] != 0;
+    return m_isOpen;
+}
+int village_attacked::CRevengeDungeon::GetCloseTime()  // ORIG W 0x085bff32
+{
+    return m_field04;
 }
 InstanceRentalSystem::InstanceRentalSystem()
 {
@@ -2816,11 +2795,8 @@ bool InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
     return machine->Rent(user, input, output);
 }
 
-CDailyScheduleManager::CDailyScheduleManager()
-{
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-CDailyScheduleManager::~CDailyScheduleManager() {}  // TODO(后续批次)
+CDailyScheduleManager::CDailyScheduleManager() {}
+CDailyScheduleManager::~CDailyScheduleManager() {}
 online_preliminary::CTeamFactory::CTeamFactory()
 {
     // ORIG 0x08588e2e：StaticPool 成员构造（new CNode[600]）。
@@ -2844,42 +2820,130 @@ online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
                               0xd9);
     }
 }
+// ORIG T 0x085886fe：m_factory 非空时 delete（CTeamFactory D1 + operator delete）；
+// m_teamMap@+0x04 由编译器析构（ORIG 尾调 map D1）。
 online_preliminary::COnlinePreliminaryTeamMgr::~COnlinePreliminaryTeamMgr()
 {
-    // ORIG 0x085886fe：delete factory；map 由编译器析构。
     delete m_factory;
-    m_factory = 0;
 }
-game_master::CCommandMap::CCommandMap()
+// ORIG T 0x08588be4（OnLoadTeamInfo.md 全量转写）：data 首 4 字节为队伍 key，
+// 命中 m_teamMap 时委托 loadDataPreliminaryTeamMatchList(data)。
+void online_preliminary::COnlinePreliminaryTeamMgr::OnLoadTeamInfo(
+    CUser* user, char* data)
 {
-    // ORIG 0x082a7f64：map<int,CCommand*> + map<string,CCommand*> 构造（成员自动）。
-}
-void game_master::CCommandMap::insert(int id, const char* name, CCommand* cmd)
-{
-    // ORIG 注册：按 id 与命令名双索引（推断简化；ORIG 直接操作 map）。
-    m_cmdById[id] = cmd;
-    if (name)
+    std::map<int, COnlinePreliminaryTeam*>::iterator it =
+        m_teamMap.find(*(int*)data);
+    if (it != m_teamMap.end())
     {
-        m_cmdByName[name] = cmd;
+        it->second->loadDataPreliminaryTeamMatchList(data);
     }
 }
-game_master::CGameMasterMgr::CGameMasterMgr()
+// game_master::CCommandMap / CGameMasterMgr 真实实现见 GmCore.cpp 与 GmRegister.cpp
+//（ORIG CCommandMap ctor 0x082a7f64、add(int) 0x082a7c76、add(string) 0x082a7cdc、
+// Mgr ctor 注册链 0x082a8a28）。
+
+// ---- IBusiness / CBusinessImpl（报告 docs/class_func_reports/CBusinessImpl/）----
+
+IBusiness::IBusiness()
 {
-    // ORIG 0x082a8a28（1610 insn）：构造 CCommandMap@+0x08；new CSeniorGameMaster/
-    // CJuniorGameMaster；随后注册大量 GM 命令（CCommandMap::insert(id, name, cmd)）。
-    // 命令对象类型（CMoveCharacCmd 等 40+ 类）未还原，此处保留构造序列与
-    // 核心命令注册（推断：命令注册表不完整）。
-    m_senior = new CSeniorGameMaster(0);
-    m_junior = new CJuniorGameMaster(m_senior);
-    CCommandMap& map = m_cmdMap;
-    map.insert(1, "move", new CMoveCharacCmd);
+    // ORIG W 0x082a7c24：仅设 vptr（编译器生成）。
 }
-CBusinessImpl::CBusinessImpl() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-CBusinessImpl::~CBusinessImpl() {}  // TODO(后续批次)
+
+CBusinessImpl::CBusinessImpl()
+{
+    // ORIG 0x082a7c32：call IBusiness ctor + 设 vptr（编译器生成序列）。
+}
+
+CBusinessImpl::~CBusinessImpl()
+{
+    // ORIG 0x082a7c4e：仅重置 vptr（编译器生成序列）。
+}
+
+void CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
+                                       unsigned char* data, short len)
+{
+    (void)b;
+    (void)c;
+    // ORIG 0x080de240：按 stream 长档位取池；<<0x252 <<-1；
+    // put_binary({int a, uint d, short len}, 0xc)；put_binary(data, len)。
+    const int size = (int)len + 0x14;
+    CStreamGuard guard(true);
+    if (size < 0x1000)
+    {
+        guard.Set(GlobalData::s_small_stream_pool->Acquire("BusinessImpl.cpp", 0x3a));
+    }
+    else if (0x3fff < size)
+    {
+        guard.Set(GlobalData::s_big_stream_pool->Acquire("BusinessImpl.cpp", 0x42));
+    }
+    else
+    {
+        guard.Set(GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x3e));
+    }
+    **guard << 0x252;
+    **guard << -1;
+    struct
+    {
+        int field00;
+        unsigned int field04;
+        int field08;
+    } hdr;
+    hdr.field00 = a;
+    hdr.field04 = d;
+    hdr.field08 = (unsigned short)(len);   /* movzwl %ax */
+    guard->put_binary(&hdr, 0xc);
+    guard->put_binary(data, (int)len);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+}
+
+void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
+                                 tagAntibotPunishInfo* info, char* reason)
+{
+    (void)a;
+    (void)b;
+    (void)reason;
+    // ORIG 0x080de3ee：StreamPool 取流；CStreamGuard(stream,true)；<<0x253 <<-1；
+    // put_binary({uint c; EPUNISHMODE mode(byte); info 前 8 字节}, 0x10)。
+    Stream* s = GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x59);
+    CStreamGuard guard(s, true);
+    **guard << 0x253;
+    **guard << -1;
+    struct
+    {
+        unsigned int field00;
+        EPUNISHMODE field04;
+        int field08;
+        int field0c;
+    } body;
+    body.field00 = c;
+    body.field04 = mode;
+    const int* infoWords = reinterpret_cast<const int*>(info);
+    body.field08 = infoWords[0];
+    body.field0c = infoWords[1];
+    guard->put_binary(&body, 0x10);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+}
+
+void CBusinessImpl::ProcessProtectMsg(tagTSafeModePkg* pkg)
+{
+    // ORIG 0x080de4ec：StreamPool 取流；<<0x254 <<-1；put_binary(pkg, 0x34)。
+    Stream* s = GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x75);
+    CStreamGuard guard(s, true);
+    **guard << 0x254;
+    **guard << -1;
+    guard->put_binary(pkg, 0x34);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+}
 
 // ---- 定时器/DB 请求/反外挂 ----
 void TimerUpdatePvPGrade::registNextTimer(long long) {}  // TODO(后续批次)
-void Timer_GenerateCaptchaData::RegistNextTimer(int) {}  // TODO(后续批次)
+void Timer_GenerateCaptchaData::RegistNextTimer(int sec)
+{
+    // ORIG 0x863b2ba：G_TimerQueue()->InsertTimer((OBJ_TYPE)2, 0, (TIMER_MESSAGE)0xa1,
+    // sec, 0, 0)。
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0xa1,
+                                sec, 0, 0);
+}
 // ---- DB 请求（ORIG 模式：Acquire 流 → CStreamGuard → <<msgId → <<-1 → 入 DB 队列）----
 void DB_ReloadAutoPunishRuleBackIP::makeRequest()
 {
@@ -3037,23 +3101,300 @@ expert_extraction::CDollControllerExtraction::CDollControllerExtraction() {}
 expert_extraction::CDollControllerExtraction::~CDollControllerExtraction() {}
 expert_extraction::CExtractionMgr::CExtractionMgr()
 {
-    // ORIG 0x084a302e：new 3 个子提取器对象。
-    m_alchemist = new CAlchemistExtraction;
-    m_enchanter = new CEnchanterExtraction;
-    m_doll = new CDollControllerExtraction;
+    // ORIG 0x084a302e：new 三个子提取器对象，依次存 +0/+4/+8。
+    m_slots[0] = new CAlchemistExtraction;
+    m_slots[1] = new CEnchanterExtraction;
+    m_slots[2] = new CDollControllerExtraction;
 }
 expert_extraction::CExtractionMgr::~CExtractionMgr()
 {
-    // ORIG 0x084a311a：逐个 delete（虚析构释放）。
-    delete m_alchemist;
-    m_alchemist = 0;
-    delete m_enchanter;
-    m_enchanter = 0;
-    delete m_doll;
-    m_doll = 0;
+    // ORIG 0x84a311a：for i∈[0,2] if(m_slots[i]) delete m_slots[i];（不置空）。
+    for (int i = 0; i < 3; ++i)
+    {
+        if (m_slots[i])
+        {
+            delete m_slots[i];
+        }
+    }
 }
-NPC_Teleport::NPC_Teleport() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-User_Teleport::User_Teleport() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+// ---- Teleport / NPC_Teleport / User_Teleport（报告 Teleport/、NPC_Teleport/、User_Teleport/）----
+
+STCheckRuleData::STCheckRuleData() {}
+STTeleportData::STTeleportData() {}
+
+Teleport::Teleport()
+{
+    // ORIG 0x08283c30：设 vptr；stPartyTelePort::reset(this+4)；*(this+0x10)=0。
+    m_tp.reset();
+    m_endCoolTime = 0;
+}
+Teleport::~Teleport()
+{
+    // ORIG D1 0x082843b0：重置 vptr，无成员析构（POD）。
+}
+int Teleport::check_rule(STCheckRuleData const& data)
+{
+    // ORIG 0x08283d82：转发 check_rule(data.m_user)。
+    return check_rule(data.m_user);
+}
+void Teleport::set_party_teleport(stPartyTelePort const& tp)
+{
+    // ORIG 0x08283d98：拷贝 stPartyTelePort 前 10 字节（8 字节 + short）。
+    *reinterpret_cast<int*>(&m_tp) = *reinterpret_cast<const int*>(&tp);
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_tp) + 4) =
+        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&tp) + 4);
+    *reinterpret_cast<short*>(reinterpret_cast<char*>(&m_tp) + 8) =
+        *reinterpret_cast<const short*>(reinterpret_cast<const char*>(&tp) + 8);
+}
+stPartyTelePort& Teleport::get_party_teleport()
+{
+    // ORIG 0x08283db6：返回 this+4。
+    return m_tp;
+}
+void Teleport::set_end_cool_time(CUser* user)
+{
+    // ORIG 0x08283dc2：endCoolTime=aura_option(2)；now=getCurSec；
+    // endCoolTime = (now < endCoolTime ? endCoolTime - now : 0)。
+    if (user != 0)
+    {
+        m_endCoolTime = user->get_aura_avatar_option_value(2);
+        int now = GlobalData::s_systemTime_.getCurSec();
+        if (now < m_endCoolTime)
+        {
+            m_endCoolTime = m_endCoolTime - now;
+        }
+        else
+        {
+            m_endCoolTime = 0;
+        }
+    }
+}
+int Teleport::get_end_cool_time()
+{
+    // ORIG 0x08283e24：返回 this+0x10。
+    return m_endCoolTime;
+}
+void Teleport::update_next_end_cool_time(CUser* user)
+{
+    // ORIG 0x08283e30：is_equip_aura_avatar('..', &remain) 取剩余；
+    // set_aura_avatar_option_value(2, getCurSec()+remain)；UpdateAuraAvatarOption。
+    if (user != 0)
+    {
+        int remain = 0;
+        user->is_equip_aura_avatar(2, remain);
+        int v = GlobalData::s_systemTime_.getCurSec() + remain;
+        user->set_aura_avatar_option_value(2, v);
+        int cur = user->get_aura_avatar_option_value(2);
+        user->UpdateAuraAvatarOption(2, cur);
+    }
+}
+void Teleport::send_teleport_effect(CUser* user, int type)
+{
+    // ORIG 0x08283eba：PacketGuard put_header(0,0x17b)/put_byte(type)/put_byte(1)
+    // /put_short(GetUID)/finalize(true)；按 vill/area send_to_area。
+    if (user != 0)
+    {
+        PacketGuard packet;
+        packet.put_header(0, 0x17b);
+        packet.put_byte((int)(char)type);
+        packet.put_byte(1);
+        packet.put_short(user->GetUID());
+        packet.finalize(true);
+        G_GameWorld()->send_to_area(
+            (int)user->getCurCharacVill(), user->get_area(false), packet);
+    }
+}
+bool Teleport::move_area(CUser* user)
+{
+    // ORIG 0x08283fb8：effect(1) → GameWorld::move_area(...) → effect(2)+
+    // update_next_end_cool_time。m_tp 字段直读（stPartyTelePort getters 归属
+    // CPartyTelePort 域未在本 TU）。
+    if (user == 0)
+    {
+        return false;
+    }
+    send_teleport_effect(user, 1);
+    const bool ok = G_GameWorld()->move_area(
+        user, (int)(unsigned char)m_tp.m_village, (int)(unsigned char)m_tp.m_areaIndex,
+        (int)m_tp.m_posx, (int)m_tp.m_posy,
+        (int)(unsigned char)m_tp.m_direction, true, 2, 0, 0);
+    if (ok)
+    {
+        send_teleport_effect(user, 2);
+        update_next_end_cool_time(user);
+    }
+    return ok;
+}
+NPC_Teleport::NPC_Teleport()
+{
+    // ORIG 0x082840da：call Teleport ctor + 设 vptr（编译器生成序列）。
+}
+NPC_Teleport::~NPC_Teleport() {}
+
+int Teleport::check_rule(CUser* user)
+{
+    // ORIG 0x08283c5a：状态/渠道/vill/aura 冷却校验链（报告 Teleport/check_rule.md）。
+    if (user == 0)
+    {
+        return 1;
+    }
+    int result;
+    if (user->get_state() != 3)
+    {
+        result = 0x13;
+    }
+    else
+    {
+        bool pvpChannel = G_GameWorld()->IsPVPChannel() || G_GameWorld()->IsPvPSkilTreeChannel();
+        if (pvpChannel)
+        {
+            result = 0x13;
+        }
+        else
+        {
+            char vill = user->getCurCharacVill();
+            if (vill == 7)
+            {
+                result = 0xbe;
+            }
+            else
+            {
+                int remain = 0;
+                if (!user->isGMUser())
+                {
+                    int equipped =
+                        (int)user->is_equip_aura_avatar(2, remain);
+                    if (equipped > 0)
+                    {
+                        return equipped;
+                    }
+                }
+                int auraEnd = user->get_aura_avatar_option_value(2);
+                bool expired =
+                    (!user->isGMUser()) &&
+                    (auraEnd > GlobalData::s_systemTime_.getCurSec());
+                if (expired)
+                {
+                    result = 0x16;
+                }
+                else
+                {
+                    result = 0;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+
+int NPC_Teleport::check_rule(STCheckRuleData const& data)
+{
+    // ORIG 0x082840f6：r = Teleport::check_rule(data)；r==0 → 返回 0。
+    int r = Teleport::check_rule(data);
+    if (r != 0)
+    {
+        return r;
+    }
+    return 0;
+}
+void NPC_Teleport::set_teleport_data(STTeleportData const& data)
+{
+    // ORIG 0x08284124：set_party_teleport(data.m_tp)。
+    set_party_teleport(*reinterpret_cast<const stPartyTelePort*>(
+        reinterpret_cast<const char*>(&data) + 4));
+}
+
+User_Teleport::User_Teleport()
+{
+    // ORIG 0x08284142：call Teleport ctor + 设 vptr（编译器生成序列）。
+}
+User_Teleport::~User_Teleport() {}
+int User_Teleport::check_rule(STCheckRuleData const& data)
+{
+    // ORIG 0x0828415e：单一 result 变量贯穿（基类链 + find_from_world 链式校验）。
+    int result;
+    result = Teleport::check_rule(data);
+    if (result == 0)
+    {
+        CUser* target = G_GameWorld()->find_from_world((unsigned short)data.m_field00);
+        if (target == 0)
+        {
+            result = 0x15;
+        }
+        else
+        {
+            int state = target->get_state();
+            if (state == 3)
+            {
+                char vill = target->getCurCharacVill();
+                bool special = vill == 7 || vill == 8 || vill == 10;
+                if (special)
+                {
+                    result = 4;
+                }
+                else
+                {
+                    int areaIdx = target->get_area(false);
+                    char hacked =
+                        CHackLog_InvalidAreaMove::checkSeriaRoom((int)vill, areaIdx);
+                    bool seriaOk = hacked != 0;
+                    if (seriaOk)
+                    {
+                        result = 4;
+                    }
+                    else
+                    {
+                        int assault = target->GetAssaultPlace();
+                        if (assault != 0)
+                        {
+                            result = 0x9c;
+                        }
+                        else
+                        {
+                            CParty* party =
+                                static_cast<CParty*>(target->GetParty());
+                            if (party != 0)
+                            {
+                                CPartyTelePort* tp = static_cast<CPartyTelePort*>(
+                                    party->GetPartyTelePort());
+                                if (tp->get_teleport_state() != -1)
+                                {
+                                    return 0x9e;
+                                }
+                            }
+                            result = 0;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                result = 4;
+            }
+        }
+    }
+    return result;
+}
+void User_Teleport::set_teleport_data(STTeleportData const& data)
+{
+    // ORIG 0x082842b8：find_from_world(data.field00)；命中则取 vill/area/pos/
+    // direction 组装局部 stPartyTelePort 后 set_party_teleport。
+    CUser* target = G_GameWorld()->find_from_world((unsigned short)data.m_field00);
+    if (target != 0)
+    {
+        stPartyTelePort tp;
+        tp.m_state = data.m_field00 >> 16;                 /* 【推断】ORIG 未回读该字段 */
+        (void)tp.m_state;
+        tp.reset();
+        tp.m_village = (unsigned char)target->getCurCharacVill();
+        tp.m_areaIndex = (unsigned char)target->get_area(false);
+        tp.m_posx = (short)target->get_posX();
+        tp.m_posy = (short)target->get_posY();
+        tp.m_direction = (unsigned char)target->get_direction();
+        set_party_teleport(tp);
+    }
+}
 void* random_option::GetRandomOption()
 {
     // ORIG T 0x085f0eb0：返回 G_CDataManager()->+0x148（RandomOptionScript 成员）。
@@ -3246,7 +3587,7 @@ WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;
 WongWork::CGMAccounts* GlobalData::s_pGMAccounts_ = 0;
 CEventManager* GlobalData::s_event_manager = 0;
 WongWork::IPG::CIPGHelper* GlobalData::s_pIPGHelper = 0;
-void* GlobalData::s_rentalSystem = 0;
+InstanceRentalSystem* GlobalData::s_rentalSystem = 0;
 RefPvpGrade* GlobalData::s_ref_pvp_grade = 0;
 WongWork::CLogGameChannel* GlobalData::s_pLogGameChannel = 0;
 WongWork::CCeraShop* GlobalData::s_pCeraShop = 0;
@@ -3422,7 +3763,7 @@ void GlobalData::Fini()
     delete s_auction_proxy;
     delete s_cera_auction_proxy;
     delete s_db_connector;
-    delete (InstanceRentalSystem*)s_rentalSystem;
+    delete s_rentalSystem;
     for (int i = 0; i < 9; ++i)
     {
         if (s_packet_pool_list[i])
@@ -3909,8 +4250,8 @@ bool GlobalData::Init()
     {
         syncEnable = true;
     }
-    sync_script::CSyncScript::SetEnable(syncEnable);
-    if (sync_script::CSyncScript::IsEnable())
+    sync_script::GetInstanceSyncScript()->SetEnable(syncEnable);
+    if (sync_script::GetInstanceSyncScript()->IsEnable())
     {
         int webIdx = 5;
         STDBConnInfo& web1 =
@@ -4340,11 +4681,12 @@ bool GetSelectionIndex(CUser& user, int& outIndex, int type)
 bool GetCharacterJob(CUser& user, char& outJob)
 {
     const _Charac_info* cur = user.getCurCharacR();
-    if (cur != 0)
+    if (cur == 0)
     {
-        outJob = *(reinterpret_cast<const char*>(cur) + 0x26);  // job 字节 [推断]
+        return false;
     }
-    return cur != 0;
+    outJob = cur->m_field26;  // job 字节（+0x26）
+    return true;
 }
 
 }  // namespace pc_room
@@ -4684,13 +5026,21 @@ void RentalMachineDimension::log(CUser& user, int itemId)
 // ---- Dimension::checkRentalLevel —— T 0x0826f7e4（同名报告）----------------
 bool RentalMachineDimension::checkRentalLevel(int level)
 {
-    return 0x40 < level;
+    if (0x40 < level)
+    {
+        return true;
+    }
+    return false;
 }
 
 // ---- Dimension::checkRentalGrowJob —— T 0x0826f7fc（同名报告）--------------
 bool RentalMachineDimension::checkRentalGrowJob(int growType)
 {
-    return growType != 0;
+    if (growType != 0)
+    {
+        return true;
+    }
+    return false;
 }
 
 // ---- Dimension::GetRewardItemGiveList —— T 0x0826f814（同名报告：透传）-----

@@ -54,6 +54,10 @@ char IsLightServer();   // _Z13IsLightServerv 0x0822ad44 W（定义 GlobalData.c
 #include "CMonitorServerProxy.h"  // SendTcpPacket（SelectCharac 监视包）
 #include "CServerProxyMgr.h"      // CServerProxyMgr<CMonitorServerProxy>::GetServerProxy
 #include "../Monitor/LimitNpcBuyItem.h"  // LimitNpcBuyItemInfoAll（监视包布局）
+#include "CDisconnectDetecter.h"   // disconnect_detecter（PvpHeartBeat）
+#include "CPremiumLetheManager.h"  // ResetSkillReq（OneDayLetheTicket）
+#include "Packet_Notice_Guild_War_Info.h"            // shared/packet/include
+#include "Packet_Disable_User_OneToOneChat_Police.h" // shared/packet/include
 #include "Packet_Monitor_Del_Buddy.h" // shared/packet/include（RemoveFriend 监视包）
 
 // ============================================================================
@@ -139,7 +143,7 @@ int DisPatcher_CheckConn::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) {
 int DisPatcher_CheckConn::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_CheckConn::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232a88 W _ZN20DisPatcher_CheckConn7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ea900)
 
-DisPatcher_Login::DisPatcher_Login() {}
+DisPatcher_Login::DisPatcher_Login() : m_field4(0) {}   // ORIG C1：基类 C1 后写 *(this+0x4)=0
 DisPatcher_Login::~DisPatcher_Login() {}
 int DisPatcher_Login::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_Login::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
@@ -171,7 +175,7 @@ void DisPatcher_SelectCharac::send(CUser* /*user*/, ParamBase& /*param*/) {}  //
 int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stSelectCharac& out = static_cast<stSelectCharac&>(param);
-    MSG_CHARAC_SELECT& req = static_cast<MSG_CHARAC_SELECT&>(msg);
+    MSG_CHARAC_SELECT& req = *reinterpret_cast<MSG_CHARAC_SELECT*>(&msg);
 
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
@@ -537,7 +541,7 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stCreateCharac& out = static_cast<stCreateCharac&>(param);
-    MSG_CREATE_CHARACTER& req = static_cast<MSG_CREATE_CHARACTER&>(msg);
+    MSG_CREATE_CHARACTER& req = *reinterpret_cast<MSG_CREATE_CHARACTER*>(&msg);
 
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
@@ -689,7 +693,7 @@ void DisPatcher_DeleteCharac::send(CUser* /*user*/, ParamBase& /*param*/) {}  //
 int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stDeleteCharac& out = static_cast<stDeleteCharac&>(param);
-    MSG_DELETE_CHARACTER& req = static_cast<MSG_DELETE_CHARACTER&>(msg);
+    MSG_DELETE_CHARACTER& req = *reinterpret_cast<MSG_DELETE_CHARACTER*>(&msg);
 
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
@@ -784,7 +788,7 @@ int DisPatcher_GetUserInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param
                         "virtual int DisPatcher_GetUserInfo::process(CUser*, MSG_BASE&, ParamBase&)",
                         0, user->get_acc_id());
     }
-    MSG_USERINFO_REQ& req = static_cast<MSG_USERINFO_REQ&>(msg);
+    MSG_USERINFO_REQ& req = *reinterpret_cast<MSG_USERINFO_REQ*>(&msg);
     G_GameWorld()->get_user_info(user,
                                  static_cast<int>(req.m_targetId),
                                  static_cast<signed char>(req.m_slot));
@@ -856,7 +860,7 @@ int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& para
                         out.m_errNo, user->get_acc_id());
     }
 
-    const MSG_PARTY_SET_INFO& info = static_cast<const MSG_PARTY_SET_INFO&>(msg);
+    const MSG_PARTY_SET_INFO& info = *reinterpret_cast<const MSG_PARTY_SET_INFO*>(&msg);
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party == 0)
     {
@@ -947,7 +951,7 @@ int DisPatcher_WalkoutParty::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
     stWalkoutPartyParam& out = static_cast<stWalkoutPartyParam&>(param);
     out.m_errNo = 0;
-    const MSG_WALKOUT_PARTY& req = static_cast<const MSG_WALKOUT_PARTY&>(msg);
+    const MSG_WALKOUT_PARTY& req = *reinterpret_cast<const MSG_WALKOUT_PARTY*>(&msg);
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party == 0)
     {
@@ -1075,7 +1079,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
 {
     static const char* const kPretty =
         "virtual int DisPatcher_SelectDungeon::process(CUser*, MSG_BASE&, ParamBase&)";
-    const MSG_SELECT_DUNGEON& req = static_cast<const MSG_SELECT_DUNGEON&>(msg);
+    const MSG_SELECT_DUNGEON& req = *reinterpret_cast<const MSG_SELECT_DUNGEON*>(&msg);
     stSelectDungeonParam& out = static_cast<stSelectDungeonParam&>(param);
 
     out.m_4 = check_error(user, msg, param);
@@ -1164,7 +1168,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
 
     bool checkSpecial = ((short)req.m_dungeonIdx != (short)10000);
     CDungeon* dungeon = G_CDataManager()->find_dungeon((int)req.m_dungeonIdx);
-    if (dungeon != 0 && dungeon->m_800 != 0)
+    if (dungeon != 0 && dungeon->m_advanceAltarSurvivalFlag != 0)
     {
         checkSpecial = false;
     }
@@ -1272,7 +1276,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         return 0;
     }
 
-    if (dungeon->m_800 != 0)
+    if (dungeon->m_advanceAltarSurvivalFlag != 0)
     {
         // ---- 祭坛副本 ----
         const int selErr = advancealtar::Manager::selectStage(
@@ -1283,7 +1287,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         return 0;
     }
 
-    if (dungeon->m_85c != 0)
+    if (dungeon->m_entryRestrictFlag != 0)
     {
         // ---- 等级下限检查型（ORIG 不判空 party，保持一致）----
         for (int i = 0; i < 4; ++i)
@@ -1300,7 +1304,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
             }
         }
     }
-    else if (dungeon->m_87a != 0)
+    else if (dungeon->m_villageAttackEventFlag != 0)
     {
         // ---- 复仇地下城 ----
         if ((char)req.m_dungeonType != 0)
@@ -1318,8 +1322,8 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                 out.m_c = 0x15;
                 return 0;
             }
-            if ((signed char)dungeon->m_879 < memberCount ||
-                memberCount < (signed char)dungeon->m_878)
+            if ((signed char)dungeon->m_maxAttackPartyMember < memberCount ||
+                memberCount < (signed char)dungeon->m_minAttackPartyMember)
             {
                 out.m_c = 0xab;
                 return 0;
@@ -1332,7 +1336,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                 }
                 CUser* member = party->get_user(i);
                 const unsigned char revengeCnt = member->GetCurRevengeDungeonCount();
-                if (revengeCnt == 0 || (unsigned char)dungeon->m_87b < revengeCnt)
+                if (revengeCnt == 0 || (unsigned char)dungeon->m_maxRevengeCount < revengeCnt)
                 {
                     member->SetCurRevengeDungeonCount(0);
                     out.m_c = 0xad;
@@ -1396,7 +1400,7 @@ int DisPatcher_DeleteItem::check_error(CUser* /*user*/, MSG_BASE& /*msg*/) { ret
 int DisPatcher_DeleteItem::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const MSG_DELETE_ITEM& req = static_cast<const MSG_DELETE_ITEM&>(msg);
+    const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
     stDeleteItemParam& out = static_cast<stDeleteItemParam&>(param);
     // ORIG thunk 0x0822fe4e = CUser::GetPartyIndex()，结果作 GetParty(int) 实参
     CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
@@ -1460,7 +1464,7 @@ int DisPatcher_DeleteItem::restricted_check(CUser* user, MSG_BASE& /*msg*/)
 }
 int DisPatcher_DeleteItem::condition_check(CUser* user, MSG_BASE& msg, INVEN_TYPE& type, int idx)
 {
-    const MSG_DELETE_ITEM& req = static_cast<const MSG_DELETE_ITEM&>(msg);
+    const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
     if (type == INVEN_TYPE_INVEN && req.m_position[idx] <= 9)
     {
         return 0x17;   // 普通背包槽位 <=9 受保护
@@ -1480,7 +1484,7 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
         "virtual int DisPatcher_DeleteItem::process(CUser*, MSG_BASE&, ParamBase&)";
-    const MSG_DELETE_ITEM& req = static_cast<const MSG_DELETE_ITEM&>(msg);
+    const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
     stDeleteItemParam& out = static_cast<stDeleteItemParam&>(param);
 
     out.m_4 = check_error(user, msg);
@@ -1687,7 +1691,7 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
         "virtual int DisPatcher_MoveItem::process(CUser*, MSG_BASE&, ParamBase&)";
-    const MSG_MOVE_ITEMSPACE& req = static_cast<const MSG_MOVE_ITEMSPACE&>(msg);
+    const MSG_MOVE_ITEMSPACE& req = *reinterpret_cast<const MSG_MOVE_ITEMSPACE*>(&msg);
     stMoveItemParam& out = static_cast<stMoveItemParam&>(param);
 
     out.m_4 = check_error(user, msg);
@@ -1754,7 +1758,7 @@ void DisPatcher_SortItem::send(CUser* /*user*/, ParamBase& /*param*/) {}  // TOD
 // ORIG 0x081c9c54 T process（process.md 全文转写）。
 int DisPatcher_SortItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const MSG_SORT_ITEM& req = static_cast<const MSG_SORT_ITEM&>(msg);
+    const MSG_SORT_ITEM& req = *reinterpret_cast<const MSG_SORT_ITEM*>(&msg);
     stOnSortItemParam& out = static_cast<stOnSortItemParam&>(param);
     const int err = check_error(user, msg);
     if (err > 0)
@@ -1971,7 +1975,7 @@ void DisPatcher_BuyItem::statistic_process(CUser* user, BuyItemParam& param)
 int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     BuyItemParam& data = static_cast<BuyItemParam&>(param);
-    MSG_BUY_ITEM& req = static_cast<MSG_BUY_ITEM&>(msg);
+    MSG_BUY_ITEM& req = *reinterpret_cast<MSG_BUY_ITEM*>(&msg);
 
     int errNo = check_error(user, msg);
     if (errNo > 0)
@@ -2098,7 +2102,7 @@ int DisPatcher_RepairEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param
                         "virtual int DisPatcher_RepairEquip::process(CUser*, MSG_BASE&, ParamBase&)",
                         0, user->get_acc_id());
     }
-    MSG_REPAIR_EQUIP& req = static_cast<MSG_REPAIR_EQUIP&>(msg);
+    MSG_REPAIR_EQUIP& req = *reinterpret_cast<MSG_REPAIR_EQUIP*>(&msg);
     stRepairEquipParam& out = static_cast<stRepairEquipParam&>(param);
     Store* store = G_Store();  // ORIG thunk 0x8151add = _Z7G_Storev
     out.m_errNo = store->repair_equip(user, (char)req.m_0d, req.m_0e, req.m_10,
@@ -2161,7 +2165,7 @@ void DisPatcher_ChangeSkill::send(CUser* /*user*/, ParamBase& /*param*/) {}  // 
 int DisPatcher_ChangeSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stOnChangeSkillParam& out = static_cast<stOnChangeSkillParam&>(param);
-    MSG_CHANGE_SKILLSLOT& req = static_cast<MSG_CHANGE_SKILLSLOT&>(msg);
+    MSG_CHANGE_SKILLSLOT& req = *reinterpret_cast<MSG_CHANGE_SKILLSLOT*>(&msg);
 
     int errNo = check_error(user, msg);
     if (errNo > 0)
@@ -2214,7 +2218,7 @@ int DisPatcher_BuySkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
     // ORIG 在错误分支之后才把 param/msg 存入局部（-0x18/-0x14），声明位置保持一致
     stOnBuySkillParam& out = static_cast<stOnBuySkillParam&>(param);
-    MSG_BUY_SKILL& req = static_cast<MSG_BUY_SKILL&>(msg);
+    MSG_BUY_SKILL& req = *reinterpret_cast<MSG_BUY_SKILL*>(&msg);
     out.m_355 = req.m_count;
     if (req.m_count == 1)
     {   // 单条模式（只读 entry0；ORIG 不经 backupSkill）
@@ -2508,7 +2512,7 @@ int DisPatcher_SetPos::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         "virtual int DisPatcher_SetPos::process(CUser*, MSG_BASE&, ParamBase&)",
                         0, user->get_acc_id());
     }
-    MSG_USER_SET_POS& req = static_cast<MSG_USER_SET_POS&>(msg);
+    MSG_USER_SET_POS& req = *reinterpret_cast<MSG_USER_SET_POS*>(&msg);
     G_GameWorld()->move_position(user,
                                  (int)req.m_0d,          // x（ushort 零扩展）
                                  (int)req.m_0f,          // y
@@ -2537,7 +2541,7 @@ int DisPatcher_SetArea::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         "virtual int DisPatcher_SetArea::process(CUser*, MSG_BASE&, ParamBase&)",
                         out.m_errNo, user->get_acc_id());
     }
-    MSG_SET_USER_AREA& req = static_cast<MSG_SET_USER_AREA&>(msg);
+    MSG_SET_USER_AREA& req = *reinterpret_cast<MSG_SET_USER_AREA*>(&msg);
     G_GameWorld()->move_area(user,
                              (int)req.m_0d,           // vill（sbyte）
                              (int)req.m_0e,           // area（sbyte）
@@ -2569,6 +2573,28 @@ int DisPatcher_Fish::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
         return 0;
     }
     G_GameWorld()->fishing(user);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// ORIG W 0x08595a6c _ZN21DisPatcher_FinishLoad{C1,C2}Ev —— 无独立报告（该类报告目录
+// 仅 process/check_error/Party_hack_check/read），objdump 0x8595a6c 转写：
+// call 模板基类实例 C1（IPacketDispatcher<MSG_FINISH_LOADING,stFinishLoadParam,
+// ch_state0>::C1，ORIG 0x85984c6；PacketTypes.cpp 显式实例化）后写最终虚表指针。
+// ---------------------------------------------------------------------------
+DisPatcher_FinishLoad::DisPatcher_FinishLoad() {}
+// ORIG T 0x08264bfe _ZN21DisPatcher_FinishLoad11check_errorEP5CUserR8MSG_BASE
+// （docs/class_func_reports/DisPatcher_FinishLoad/check_error.md ## 汇编 + ## 反编译 C
+// 全文转写）。ORIG mov 0xc(%ebp) 在隐式 this(+0x8) 之后即第一具名参数 user——
+// Ghidra 伪 C 的 "GetDebugCommand((CUser*)param_2)" 为其省略 this 的编号假象，
+// 实参就是 user。GetDebugCommand()==1 → 0x7fffffff，否则 0；
+// if/else 形态对应 ORIG sete/test/je 分支骨架。
+int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
+{
+    if (user->GetDebugCommand() == 1)
+    {
+        return 0x7fffffff;
+    }
     return 0;
 }
 // 队伍 >2 人时逐成员核对：0 号记录 job/growType/IP 前缀/前三技能 index，
@@ -2711,7 +2737,7 @@ int DisPatcher_FinishLoad::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return 0;
     }
     Party_hack_check(user);
-    MSG_FINISH_LOADING& req = static_cast<MSG_FINISH_LOADING&>(msg);
+    MSG_FINISH_LOADING& req = *reinterpret_cast<MSG_FINISH_LOADING*>(&msg);
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
@@ -2729,6 +2755,48 @@ int DisPatcher_FinishLoad::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                     user, (WongWork::ENUM_HACKTYPE)0x25c, 1, 0, 0);
             }
         }
+    }
+    return 0;
+}
+// ---------------------------------------------------------------------------
+// ORIG W 0x08265540 D1 / 0x08265570 D0 _ZN21DisPatcher_FinishLoadD{1,0}Ev
+// —— 无独立报告；objdump：写最终虚表指针后调模板基类实例 D1（0x08266d9e），
+// 删除版追加 operator delete。空体由编译器按同形态生成，与同类
+// DisPatcher_Fish/DisPatcher_UseSkill 写法一致。
+// ---------------------------------------------------------------------------
+DisPatcher_FinishLoad::~DisPatcher_FinishLoad() {}
+// ORIG W 0x08265492 _ZN21DisPatcher_FinishLoad11check_stateEP5CUserR9PacketBuf
+// （无独立报告；objdump 全文转写）。Get_State_Check(user->get_state()) 为真
+// （state ∈ {5,6,12,13}）→ 0，否则 0x7fffffff——xor $1/test/je 分支骨架与
+// 上方 check_error 注释一致。依赖 Global::CGlobalFunc::Get_State_Check
+// （ORIG T 0x081466f0，声明 BossTowerFunc.h、定义 BossTowerFunc.cpp）。
+int DisPatcher_FinishLoad::check_state(CUser* user, PacketBuf& /*packet*/)
+{
+    if (!Global::CGlobalFunc::Get_State_Check(
+            static_cast<ch_state>(user->get_state())))
+    {
+        return 0x7fffffff;
+    }
+    return 0;
+}
+// ORIG T 0x08264b66 _ZN21DisPatcher_FinishLoad4readER9PacketBufR8MSG_BASE
+// （docs/class_func_reports/DisPatcher_FinishLoad/read.md ## 汇编 + ## 反编译 C
+// 全文转写）。两次 PacketBuf::get_int 分别写 m_0d/m_11（msg+0x0d/+0x11 具名
+// 字段）；任一失败即以 LineFunc(0x5f7/0x5f8) 返回（第三、四参恒 0），全成返回 0。
+int DisPatcher_FinishLoad::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    MSG_FINISH_LOADING& req = *reinterpret_cast<MSG_FINISH_LOADING*>(&msg);
+    if (!packet.get_int(req.m_0d))
+    {
+        return LineFunc(0x5f7,
+                        "virtual int DisPatcher_FinishLoad::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
+    }
+    if (!packet.get_int(req.m_11))
+    {
+        return LineFunc(0x5f8,
+                        "virtual int DisPatcher_FinishLoad::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
     }
     return 0;
 }
@@ -2834,7 +2902,7 @@ bool CHackLog_InvalidUsingSkill::IsValidUsingSkill(const SKILL_USING_VALIDATE_IN
 int DisPatcher_UseSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stUseSkillParam& out = static_cast<stUseSkillParam&>(param);
-    MSG_USE_SKILL& req = static_cast<MSG_USE_SKILL&>(msg);
+    MSG_USE_SKILL& req = *reinterpret_cast<MSG_USE_SKILL*>(&msg);
 
     out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo >= 1)
@@ -2892,13 +2960,13 @@ struct CPartyDungeonView
 // m_errNo=check_error；>0 返 0；<0 LineFunc(0xcbb,pretty,err,acc_id) 返回其值；
 // ==0：CharacDie(getCurCharacName, msg+0xd, msg+0xf) → GetPartyIndex→G_CGameManager()->GetParty
 // 备用队 → CBossTowerFunc::DieCharacInDungeon 为假时：state==0xd 先 advancealtar dieCharac；
-// 无队/无 dungeon/dungeon->m_89f(signed)<1：备用队非空则 die_user，返 0；
+// 无队/无 dungeon/dungeon->m_bloodDungeonType(signed)<1：备用队非空则 die_user，返 0；
 // 否则 BloodHandleDieUser + m_errNo=0x7fffffff，返 0。CBossTowerFunc 为真直接返 0。
 int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
         "virtual int DisPatcher_DieCharacInDungeon::process(CUser*, MSG_BASE&, ParamBase&)";
-    MSG_DIE_CHARACTER& req = static_cast<MSG_DIE_CHARACTER&>(msg);
+    MSG_DIE_CHARACTER& req = *reinterpret_cast<MSG_DIE_CHARACTER*>(&msg);
     stDieCharacInDungeon& out = static_cast<stDieCharacInDungeon&>(param);
 
     out.m_errNo = check_error(user, msg);
@@ -2931,7 +2999,7 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
         CPartyDungeonView* view =
             reinterpret_cast<CPartyDungeonView*>(myParty);
         if (myParty == 0 || view->m_dungeon == 0 ||
-            static_cast<signed char>(view->m_dungeon->m_89f) < 1)
+            static_cast<signed char>(view->m_dungeon->m_bloodDungeonType) < 1)
         {
             if (partyByIdx != 0)
             {
@@ -2972,7 +3040,7 @@ int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         "virtual int DisPatcher_UseCoin::process(CUser*, MSG_BASE&, ParamBase&)",
                         out.m_errNo, user->get_acc_id());
     }
-    MSG_USE_COIN& req = static_cast<MSG_USE_COIN&>(msg);
+    MSG_USE_COIN& req = *reinterpret_cast<MSG_USE_COIN*>(&msg);
     out.m_8 = req.m_0d;  // movzwl 0xd(%eax) -> mov %dx,0x8(%eax)
     int state = user->get_state();
     if (state == 5)
@@ -3077,7 +3145,7 @@ void DisPatcher_GetItem::send(CUser* /*user*/, ParamBase& /*param*/) {}  // TODO
 int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stGetItemParam& out = static_cast<stGetItemParam&>(param);
-    MSG_GET_ITEM& req = static_cast<MSG_GET_ITEM&>(msg);
+    MSG_GET_ITEM& req = *reinterpret_cast<MSG_GET_ITEM*>(&msg);
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo >= 1)
     {
@@ -3125,7 +3193,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             //  无任何 TU 定义。其后为：checkGetItemPacket 门（_Z18checkGetItemPacketiii
             //  T 0x889209d 亦无定义；命中计 0x12e）、CBattle_Field(party+0xb24)::
             //  get_dungeon_index → G_CDataManager()->find_dungeon(idx) 判空 logFormat
-            //  ("...find_dungeon(%d) fail", 0xf14)、dungeon->m_85c && pos∈{2,3,4} &&
+            //  ("...find_dungeon(%d) fail", 0xf14)、dungeon->m_entryRestrictFlag && pos∈{2,3,4} &&
             //  出参 bool 为假时 PacketGuard put_header(0,0x56)/put_byte(5)/put_short(
             //  get_unique_id&0xffff)/put_int(itemId)/finalize(true) 后 GameWorld::
             //  send_all 广播；结束 m_errNo=0。
@@ -3376,7 +3444,7 @@ int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         "virtual int DisPatcher_MoveMap::process(CUser*, MSG_BASE&, ParamBase&)",
                         out.m_errNo, user->get_acc_id());
     }
-    MSG_MOVE_MAP& req = static_cast<MSG_MOVE_MAP&>(msg);
+    MSG_MOVE_MAP& req = *reinterpret_cast<MSG_MOVE_MAP*>(&msg);
     if (req.m_1a != 1)
     {   // 客户端未置 0x1a 标志 → 记 0x25a
         user->getHackAnalyzer()->addServerHackCnt(
@@ -3387,7 +3455,7 @@ int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     CheckTrapBitsHackCnt(user, req);
     CheckOneMapPlayTimeHackCnt(user, req);
 
-    if (Global::CBossTowerFunc::MoveMap(user, &req.m_1b))
+    if (Global::CBossTowerFunc::MoveMap(user, req.m_1b))
     {   // 死亡塔/Boss 塔自行处理换图
         return 0;
     }
@@ -3426,7 +3494,7 @@ void DisPatcher_DropItem::send(CUser* /*user*/, ParamBase& /*param*/) {}  // TOD
 int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stDropItemParam& out = static_cast<stDropItemParam&>(param);
-    MSG_DROP_ITEM& req = static_cast<MSG_DROP_ITEM&>(msg);
+    MSG_DROP_ITEM& req = *reinterpret_cast<MSG_DROP_ITEM*>(&msg);
     out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo >= 1)
     {
@@ -3508,7 +3576,7 @@ int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x33, (unsigned char)(errNo & 0xff));
         return -1;
     }
-    MSG_DECREASE_DURABILITY& req = static_cast<MSG_DECREASE_DURABILITY&>(msg);
+    MSG_DECREASE_DURABILITY& req = *reinterpret_cast<MSG_DECREASE_DURABILITY*>(&msg);
     stOnUseEquipParam& out = static_cast<stOnUseEquipParam&>(param);
     CInventory* inven = user->getCurCharacInvenW();  // thunk 0x80da28e
     out.m_errNo = inven->use_equip((int)(signed char)req.m_0d);  // movzbl+movesbl
@@ -3572,7 +3640,7 @@ int DisPatcher_SetPVPReady::process(CUser* user, MSG_BASE& msg, ParamBase& param
         return -1;
     }
     stOnSetPvPReadyParam& out = static_cast<stOnSetPvPReadyParam&>(param);
-    MSG_SET_READY_STATE& req = static_cast<MSG_SET_READY_STATE&>(msg);
+    MSG_SET_READY_STATE& req = *reinterpret_cast<MSG_SET_READY_STATE*>(&msg);
     out.m_errNo = room->set_ready_state(user, req.m_0d != 0);
     if (out.m_errNo < 0)
     {   // 全员就绪 → 开赛并广播状态包
@@ -3696,7 +3764,7 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
     static const char* const kFile = "PacketDispatcher_Impl_1.cpp";
     static const char* const kPretty =
         "int DisPatcher_AddFriend::process_packet_jpn(CUser*, MSG_BASE&, ParamBase&)";
-    MSG_ADD_FRIEND& req = static_cast<MSG_ADD_FRIEND&>(msg);
+    MSG_ADD_FRIEND& req = *reinterpret_cast<MSG_ADD_FRIEND*>(&msg);
     stAddFriendParam& out = static_cast<stAddFriendParam&>(param);
 
     out.m_field4 = check_error(user, msg);
@@ -3747,7 +3815,7 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
 {
     static const char* const kPretty =
         "virtual int DisPatcher_RemoveFriend::process(CUser*, MSG_BASE&, ParamBase&)";
-    MSG_REMOVE_FRIEND& req = static_cast<MSG_REMOVE_FRIEND&>(msg);
+    MSG_REMOVE_FRIEND& req = *reinterpret_cast<MSG_REMOVE_FRIEND*>(&msg);
     stRemoveFriendParam& out = static_cast<stRemoveFriendParam&>(param);
 
     out.m_errNo = check_error(user, msg);
@@ -3779,25 +3847,41 @@ int DisPatcher_Cera::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*pa
 
 DisPatcher_EnterWarRoom::DisPatcher_EnterWarRoom() {}
 DisPatcher_EnterWarRoom::~DisPatcher_EnterWarRoom() {}
-int DisPatcher_EnterWarRoom::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_EnterWarRoom::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
+{
+    // ORIG 0x0820229e：纯 LineFunc 占位（报告 DisPatcher_EnterWarRoom/dispatch_sig.md）。
+    return LineFunc(0x97fb, __PRETTY_FUNCTION__, 0, 0);
+}
 int DisPatcher_EnterWarRoom::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_EnterWarRoom::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233616 W _ZN23DisPatcher_EnterWarRoom7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x0820229e) 亦仅为 LineFunc(0x97fb) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_EnterWarRoom/dispatch_sig.md）
 
 DisPatcher_SetWarRoomSeatState::DisPatcher_SetWarRoomSeatState() {}
 DisPatcher_SetWarRoomSeatState::~DisPatcher_SetWarRoomSeatState() {}
-int DisPatcher_SetWarRoomSeatState::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_SetWarRoomSeatState::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
+{
+    // ORIG 0x082022ca：纯 LineFunc 占位（报告 DisPatcher_SetWarRoomSeatState/dispatch_sig.md）。
+    return LineFunc(0x9848, __PRETTY_FUNCTION__, 0, 0);
+}
 int DisPatcher_SetWarRoomSeatState::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_SetWarRoomSeatState::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823362a W _ZN30DisPatcher_SetWarRoomSeatState7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x082022ca) 亦仅为 LineFunc(0x9848) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_SetWarRoomSeatState/dispatch_sig.md）
 
 DisPatcher_DieWarRoomCharacter::DisPatcher_DieWarRoomCharacter() {}
 DisPatcher_DieWarRoomCharacter::~DisPatcher_DieWarRoomCharacter() {}
-int DisPatcher_DieWarRoomCharacter::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_DieWarRoomCharacter::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
+{
+    // ORIG 0x082022f6：纯 LineFunc 占位（报告 DisPatcher_DieWarRoomCharacter/dispatch_sig.md）。
+    return LineFunc(0x9867, __PRETTY_FUNCTION__, 0, 0);
+}
 int DisPatcher_DieWarRoomCharacter::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_DieWarRoomCharacter::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823363e W _ZN30DisPatcher_DieWarRoomCharacter7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x082022f6) 亦仅为 LineFunc(0x9867) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_DieWarRoomCharacter/dispatch_sig.md）
 
 DisPatcher_StartWarRoomTemp::DisPatcher_StartWarRoomTemp() {}
 DisPatcher_StartWarRoomTemp::~DisPatcher_StartWarRoomTemp() {}
-int DisPatcher_StartWarRoomTemp::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_StartWarRoomTemp::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
+{
+    // ORIG 0x08201b06：纯 LineFunc 占位（报告 DisPatcher_StartWarRoomTemp/dispatch_sig.md）。
+    return LineFunc(0x9737, __PRETTY_FUNCTION__, 0, 0);
+}
 int DisPatcher_StartWarRoomTemp::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_StartWarRoomTemp::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082335ee W _ZN27DisPatcher_StartWarRoomTemp7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x08201b06) 亦仅为 LineFunc(0x9737) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_StartWarRoomTemp/dispatch_sig.md）
 
@@ -3809,14 +3893,36 @@ int DisPatcher_ReportClient4Hack::process(CUser* /*user*/, MSG_BASE& /*msg*/, Pa
 
 DisPatcher_RequestGuildWarInfo::DisPatcher_RequestGuildWarInfo() {}
 DisPatcher_RequestGuildWarInfo::~DisPatcher_RequestGuildWarInfo() {}
-int DisPatcher_RequestGuildWarInfo::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_RequestGuildWarInfo::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
+{
+    // ORIG 0x0820439a（报告 DisPatcher_RequestGuildWarInfo/dispatch_sig.md 全文转写）：
+    // state>=2 且当前角色存在时组 Packet_Notice_Guild_War_Info 并经公会代理发送。
+    if (user->get_state() >= 2 && user->getCurCharacR() != 0)
+    {
+        Packet_Notice_Guild_War_Info pkt;
+        pkt.m_uid = user->GetUID();
+        pkt.m_characNo = user->get_charac_no(-1);
+        CGuildServerProxy* proxy =
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
+        proxy->SendPacket(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+    }
+    return 0;
+}
 int DisPatcher_RequestGuildWarInfo::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_RequestGuildWarInfo::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233756 W _ZN30DisPatcher_RequestGuildWarInfo7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x0820439a，见 docs/class_func_reports/DisPatcher_RequestGuildWarInfo/dispatch_sig.md)
 
 DisPatcher_PvpHeartBeat::DisPatcher_PvpHeartBeat() {}
 DisPatcher_PvpHeartBeat::~DisPatcher_PvpHeartBeat() {}
-int DisPatcher_PvpHeartBeat::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
 int DisPatcher_PvpHeartBeat::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
+int DisPatcher_PvpHeartBeat::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
+{
+    // ORIG 0x08204458（报告 DisPatcher_PvpHeartBeat/dispatch_sig.md 全文转写）。
+    if (user->get_state() >= 2 && user->getCurCharacR() != 0)
+    {
+        disconnect_detecter::GetInstanceDisconnectDetecter()->RefreshRecvTime(user);
+    }
+    return 0;
+}
 int DisPatcher_PvpHeartBeat::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823376a W _ZN23DisPatcher_PvpHeartBeat7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x08204458，见 docs/class_func_reports/DisPatcher_PvpHeartBeat/dispatch_sig.md)
 
 DisPatcher_MultiBoxLottery::DisPatcher_MultiBoxLottery() {}
@@ -3833,13 +3939,67 @@ int DisPatcher_UdpCharacteristic::process(CUser* /*user*/, MSG_BASE& /*msg*/, Pa
 
 DIspatcher_OneDayLetheTicket::DIspatcher_OneDayLetheTicket() {}
 DIspatcher_OneDayLetheTicket::~DIspatcher_OneDayLetheTicket() {}
-int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
+{
+    // ORIG 0x0821b106（报告 DIspatcher_OneDayLetheTicket/dispatch_sig.md 全文转写）。
+    static const char kPretty[] =
+        "virtual int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser*, PacketBuf&)";
+    cMyTrace trace(kPretty, 0xceaa, 0);
+    trace("ONE_DAY_LETHE : SKILL_INIT_PACKET");
+    if (user == 0)
+    {
+        return 0;
+    }
+    if (user->get_state() != 3)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
+        return 0;
+    }
+    bool blocked;
+    if (G_GameWorld()->IsPVPChannel())
+    {
+        blocked = !G_GameWorld()->IsPvPSkilTreeChannel();
+    }
+    else
+    {
+        blocked = false;
+    }
+    CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+    if (blocked || lethe == 0 || lethe->ResetSkillReq(user) != true)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
+    }
+    return 0;
+}
 int DIspatcher_OneDayLetheTicket::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int DIspatcher_OneDayLetheTicket::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233d80 W _ZN28DIspatcher_OneDayLetheTicket7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 0x08233d80..0x08233d94 核实），全部逻辑位于 dispatch_sig(0x0821b106：cMyTrace"ONE_DAY_LETHE : SKILL_INIT_PACKET"→state==3→非 PVP/PvPSkillTree 渠道校验→GetPremiumLetheManager().ResetSkillReq(user)，报告 docs/class_func_reports/DIspatcher_OneDayLetheTicket/dispatch_sig.md)
 
 Dispatcer_polic_one_to_one_chat_disable::Dispatcer_polic_one_to_one_chat_disable() {}
 Dispatcer_polic_one_to_one_chat_disable::~Dispatcer_polic_one_to_one_chat_disable() {}
-int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
+int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf& packet)
+{
+    // ORIG 0x082272ce（报告 Dispatcer_polic_one_to_one_chat_disable/dispatch_sig.md）：
+    // state>2 且当前角色存在 → 读包组 Packet_Disable_User_OneToOneChat_Police；
+    // GM 发起时回填 characNo 并经 Monitor 代理 SendTcpPacket(0x30)。
+    if (user->get_state() >= 3 && user->getCurCharacR() != 0)
+    {
+        Packet_Disable_User_OneToOneChat_Police pkt;
+        unsigned int nameLen = 0;
+        char name[0x1e] = {0};
+        packet.get_int(nameLen);
+        packet.get_str(name, static_cast<int>(sizeof(name)), static_cast<int>(nameLen));
+        pkt.m_nameLength = nameLen;
+        memcpy(pkt.m_name, name, sizeof(pkt.m_name));
+        if (user->isGMUser())
+        {
+            pkt.m_gmId = user->getCurCharacNo();
+            CMonitorServerProxy* proxy =
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
+            proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+        }
+    }
+    return 0;
+}
 int Dispatcer_polic_one_to_one_chat_disable::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/) { return 0; }  // TODO(ORIG)
 int Dispatcer_polic_one_to_one_chat_disable::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082342a8 W _ZN39Dispatcer_polic_one_to_one_chat_disable7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 0x082342a8..0x082342bc 核实），全部逻辑位于 dispatch_sig(0x082272ce：state>2 且当前角色存在 → 组 Packet_Disable_User_OneToOneChat_Police(get_int+get_str) → isGMUser 时经 s_monitor_proxy_mgr SendTcpPacket(0x30)，报告 docs/class_func_reports/Dispatcer_polic_one_to_one_chat_disable/dispatch_sig.md)
 
@@ -3856,7 +4016,7 @@ void DisPatcher_CheckSecurityProtection::send(CUser* /*user*/, ParamBase& /*para
 int DisPatcher_CheckSecurityProtection::process(CUser* user, MSG_BASE& /*msg*/, ParamBase& param)
 {
     CheckSecurityProtection& out = static_cast<CheckSecurityProtection&>(param);
-    out.m_pad[0] = static_cast<char>(
+    out.m_4 = static_cast<unsigned char>(
         GlobalData::s_pSecuProtectionField->Check(user, static_cast<SECURITY_PROTCTION>(0x38)));
     return 0;
 }
@@ -4026,7 +4186,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
 {
     stRegenROIResult& out = static_cast<stRegenROIResult&>(param);
     MSG_REGENERATION_RANDOM_OPTION& req =
-        static_cast<MSG_REGENERATION_RANDOM_OPTION&>(msg);
+        *reinterpret_cast<MSG_REGENERATION_RANDOM_OPTION*>(&msg);
 
     out.m_errNo = 0;
     Inven_Item items[2];
@@ -4142,7 +4302,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
 // SendUpdateItem×2 + SendCmdOkPacket(0x1c8)。全程错误只发包不外抛，恒返 0。
 int DispatcherResetRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_RESET_RANDOM_OPTION& req = static_cast<MSG_RESET_RANDOM_OPTION&>(msg);
+    MSG_RESET_RANDOM_OPTION& req = *reinterpret_cast<MSG_RESET_RANDOM_OPTION*>(&msg);
 
     if (!(user->get_state() == 3 && user->getCurCharacR() != 0))
     {
@@ -4275,8 +4435,8 @@ int CUser::serviceOfShusia()
 // ORIG 0x0822fc06 W _ZN5CUser29SetLoadRentalInfoFromExchangeEb：写 +0x6ef91 字节
 void CUser::SetLoadRentalInfoFromExchange(bool flag)
 {
-    char value = flag;
-    m_rentalFlag2 = value;                     // +0x6ef91（m_rentalFlag2）
+    // ORIG 0x0822fc06：movzbl 参数后直接按字节存 +0x6ef91（无 0/1 归一化）。
+    m_rentalFlag2 = flag;                      // +0x6ef91（m_rentalFlag2）
 }
 
 // ORIG 0x0868e672 T _ZN5CUser25RemoveCharacMercenaryInfoEj：转调雇佣兵管理器
@@ -4294,8 +4454,8 @@ int CUser::GetGuildIdBeforeDeleteCharacter(int slot)
 
 
 // ORIG 0x08230844 W _ZN5CUser31SetDeleteEventDungeonInvitationEb：
-// 写 m_field8eb20 字节（objdump 逐指令转写；SelectDungeon::process 对全队调用）。
+// 写 m_deleteEventDungeonInvitation 字节（objdump 逐指令转写；SelectDungeon::process 对全队调用）。
 void CUser::SetDeleteEventDungeonInvitation(bool flag)
 {
-    m_field8eb20 = flag ? 1 : 0;
+    m_deleteEventDungeonInvitation = flag ? 1 : 0;
 }

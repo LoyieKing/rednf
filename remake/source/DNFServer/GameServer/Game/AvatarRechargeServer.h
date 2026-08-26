@@ -23,11 +23,15 @@
 //   +0x4c bool            已装载标志（ctor/clearScript 清零，loadScript 成功置 1）
 
 #include <map>
+#include <vector>
 
-#include "Arad_DataManager.h"   // ARAD::ScriptInterface / Singleton
+#include "Arad_DataManager.h"   // ARAD::ScriptInterface / Singleton / PRINT_ERROR
 
-namespace arad { struct SigAradAvatarEnduranceSave; }
-class CUser;  // 前置声明（CalcDurabilityChangeEquip 形参；完整定义见 CUser.h）
+#include "CUser.h"              // CUser::eSendTarget（UpdateAvatarEndurance 形参）
+
+namespace arad { struct SigAradAvatarEnduranceSave; struct SigAradUseAvatarRecharge; }
+class Inven_Item;
+struct stAvatarEmblemInfo_t;
 
 namespace ARAD {
 namespace SCRIPT {
@@ -77,10 +81,51 @@ public:
     // 换装（CUser::change_equip 头像分支 ChangeEquip 成功路径）后按 dstSlot 计算
     // 装备耐久变化；定义由 AvatarRechargeServer TU 批次提供。
     void CalcDurabilityChangeEquip(CUser* user, int equipSlot);
+    // ORIG T 0x081902e8 _ZN20AvatarRechargeServer20CalcDurabilityDetailEP5CUseriRSt6vectorIiSaIiEE：
+    // 空槽/耐久 0 → 返 false；否则按耐久减免率掷点，命中递减耐久、
+    // UpdateEndurance 上报并把槽位 push 进 rates，返 true。
+    // 定义见 AvatarRechargeC2.cpp（报告 AvatarRechargeServer/CalcDurabilityDetail.md）。
+    bool CalcDurabilityDetail(CUser* user, int equipSlot, std::vector<int>& rates);
     // ORIG 0x0819114c：非静态成员（asm 读 this+0x38 → m_script.m_useEmblemGradeRateMap），
     // 命中返回 rate，未命中返回 0。调用方经 Singleton<AvatarRechargeServer>::Get() 访问。
     int GetRateFromEmblemGrade(int grade);
+    // ---- 以下声明按 docs/class_func_reports/AvatarRechargeServer/ 各报告转写 ----
 
+    // ORIG T 0x08190416 _ZN...14SendDurabilityEP5CUsercsci：
+    // user 有效且 get_state()==5、param2==1、param4==3 时，向单人(1)/队伍(2)
+    // 目标上报头像耐久变化。
+    void SendDurability(CUser* user, char param2, short param3, char param4, int param5);
+
+    // ORIG T 0x0819049a _ZN...14CalcDurabilityEP5CUseri：
+    // 外层循环 count 次；每次对槽位 0..9 掷点 CalcDurabilityDetail，
+    // 命中的槽位逐个经 UpdateAvatarEndurance(2,...) 上报。
+    void CalcDurability(CUser* user, int count);
+
+    // ORIG T 0x081906e2：使用充值石前置校验（石/头像存在、IsEmblemRechargeStone、
+    // CheckItemLock×2），通过时写 sig->maxEndurance 并返 true。
+    bool CheckConditionUseRecharge(CUser* user, arad::SigAradUseAvatarRecharge* sig);
+
+    // ORIG T 0x08190a70：删除充值石并按 [emblem recharge stone info] 数值加耐久
+    // （clamp 至 maxEndurance），回传 addEndurance/enduranceAfter，DB 保存流，返 true。
+    bool Recharge(CUser* user, arad::SigAradUseAvatarRecharge* sig);
+
+    // ORIG T 0x08190ed8：徽章合成路径加耐久。累加 grades 各 grade 在
+    // [recharge use emblem info] 的数值，clamp 后写入头像并上报/保存。
+    bool UseEmblem(CUser* user, std::vector<int>& grades, Inven_Item* emblemItem,
+                   short slot);
+
+    // ORIG T 0x081911b6 _ZN...17GmReduceEnduranceEP5CUserss：
+    // GM 直改装备区(0)槽位耐久：clamp 到 [0, 充值上限×socket 数]，上报 + 保存 + 系统提示。
+    void GmReduceEndurance(CUser* user, short slot, short delta);
+
+    // ORIG T 0x08191318 / 0x08191364：GM 开关耐久减免率模式。
+    // GmSet：enable 写 +0x58；rate<0→0 / ≤100→×10 / >100→1000 写 +0x54。
+    void GmChangeEnduranceReduceRate(CUser* user, bool enable, int rate);
+    void GmSetEnduranceReduceRate(CUser* user, bool enable, int rate);
+
+    // ORIG T 0x081913f6 _ZN...21UpdateAvatarEnduranceEN5CUser11eSendTargetEPS0_s：
+    // 组 0x220 包（uid/slot/item_idx/endur）经 SendPacket 上报；slot 限 0..9。
+    void UpdateAvatarEndurance(CUser::eSendTarget target, CUser* user, short slot);
     // ORIG 0x08190dea / 0x08190eae：不触碰 this（静态），经 DB 队列发耐久保存流。
     static void SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceSave& save);
     static void SaveAvatarEnduranceUnit(int key, int value);

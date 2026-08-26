@@ -133,21 +133,10 @@ public:
 
 namespace expert_job { class CExpertJob; }  // 完整定义见 CExpertJob.h
 
-namespace online_preliminary
-{
-class COnlinePreliminaryTeam
-{
-public:
-    int GetTeamId() const;
-    const char* GetTeamName() const;
-};
-// ORIG T 0x08560920（静态成员；exchange_interspace 7/3→7 域前置校验，定义由后续批次补）
-class COnlinePreliminary
-{
-public:
-    static bool CheckUnusableEquipment(const Inven_Item* item);
-};
-}
+// online_preliminary 域（PlayCountInfoEx/COnlinePreliminaryTeam/
+// COnlinePreliminary）已迁至唯一权威头 OnlinePreliminary.h
+// （OnlyOrig_OnlinePvp 批，2026-08-27，经 Main 批准）。
+#include "OnlinePreliminary.h"
 
 class seriaRoom_AniDeco
 {
@@ -300,6 +289,235 @@ namespace GlobalData
 extern CSystemTime s_systemTime_;
 extern CPowerManager* s_power_manager;
 }
+
+// ============================================================================
+// _Charac_info 布局视图（ORIG 尺寸 0x14d1，pack(1)）。
+// 完整 _Charac_info 定义在 CUser.h（vector<_Charac_info> 角色列表宿主）；
+// 本视图供 CUserCharacInfo 访问器以具名字段读写 m_selected/m_tag 指向的
+// 同一块 ORIG 内存。偏移证据：docs/class_func_reports/CUserCharacInfo/ 各
+// 函数汇编 + cusercharac_worklist.tsv（orig_addr 逐函数核对）。
+// STL 成员用 pack 外包装类型固定布局（pack(1) 会使首次实例化缩为 0x15）。
+// ============================================================================
+struct CharacInfoCoolList
+{
+    std::vector<ContinuousItemInfo> m_list;
+};
+struct CharacInfoEffectList
+{
+    std::vector<ContinuousItemInfo> m_list;
+};
+struct CharacInfoBloodMap
+{
+    std::map<int, stBloodBestRecord> m_map;
+};
+
+// m_growType 位域（ORIG getCurCharFirst/SecondGrowType 为真实成员位域提取；
+// setCurCharGrowthType/setCurCharChangingGrowthType 汇编 shl/sar 有符号位域
+// 形态，0x864e2d8 / 0x864e34e）
+union GrowTypeBits
+{
+    unsigned char byte;
+    struct
+    {
+        signed char first : 4;   // bit0..3
+        signed char second : 3;  // bit4..6
+        signed char third : 1;   // bit7
+    };
+};
+
+#pragma pack(push, 1)
+struct CharacInfoFields
+{
+    int m_characNo;                    // +0x00（getCurCharacNo）
+    char m_name[0x1e];                 // +0x04..0x22（getCurCharacName）
+    unsigned char m_vill;              // +0x22
+    unsigned char m_villPvP;           // +0x23
+    char m_pad24;                      // +0x24
+    unsigned char m_villPrev;          // +0x25
+    unsigned char m_job;               // +0x26
+    short m_level;                      // +0x27
+    GrowTypeBits m_growType;           // +0x29（位域）
+    GrowTypeBits m_growTypeChanging;  // +0x2a
+    int m_exp;                         // +0x2b
+    int m_partyBonusExp;               // +0x2f
+    unsigned short m_fatigue;          // +0x33
+    unsigned short m_maxFatigue;       // +0x35
+    unsigned short m_fatigueGrownUpBuff;   // +0x37
+    CommonTime m_createTime;           // +0x39（0x14；set_charac_createtime）
+    unsigned short m_usedFatigue;      // +0x4d
+    unsigned short m_fatigueBattery;   // +0x4f
+    unsigned int m_tutorialFlags;      // +0x51
+    char m_tutorialFlags2[0x10];       // +0x55
+    CReliablePerson m_reliablePerson;  // +0x65（0x10）
+    unsigned char m_stamina;           // +0x75
+    unsigned char m_backupStamina;     // +0x76
+    unsigned short m_premiumFatigue;   // +0x77
+    unsigned short m_maxPremiumFatigue;// +0x79
+    long m_lastPlayTick;               // +0x7b
+    long m_lastPlayTickPowerWar;       // +0x7f
+    char m_pad83[5];                   // +0x83..0x88
+    char m_addInfo[0x52];              // +0x88..0xda
+    char m_inven[0x892 - 0xda];        // +0xda..0x892（CInventory 内嵌）
+    char m_skill[0xdaa - 0x892];       // +0x892..0xdaa
+    char m_cargo[0xdbe - 0xdaa];       // +0xdaa..0xdbe（CCargo 内嵌，0x14）
+    int m_guildkey;                    // +0xdbe
+    unsigned char m_guildCreateRight;  // +0xdc2
+    unsigned short m_guildCreateFlag;  // +0xdc3
+    char m_guildName[0x17];            // +0xdc5
+    char m_guildAddr[0xd];             // +0xddc
+    int m_guildExp;                    // +0xde9
+    unsigned short m_guildTempExp;      // +0xded
+    int m_guildTodayExp;               // +0xdef
+    unsigned char m_guildMemberGrade;  // +0xdf3
+    unsigned int m_dungeonHelpAbuseRatio;  // +0xdf4
+    unsigned int m_dungeonHelpAbuseExp;    // +0xdf8
+    short m_levelBeforeDungeon;        // +0xdfc
+    unsigned int m_helpAbuseComputedRatio; // +0xdfe
+    long m_loginTick;                  // +0xe02
+    int m_finishPoint;                 // +0xe06
+    int m_finishPointTotal;            // +0xe0a
+    float m_warAreaKill[5];            // +0xe0e（0x14，InitFinishPoint 清零区）
+    int m_memberkey;                   // +0xe22
+    int m_connectUpperMember;          // +0xe26
+    int m_memberBonusExp;              // +0xe2a
+    int m_fatigueBufBonusExp;          // +0xe2e
+    unsigned char m_uppermemberExpLevel;  // +0xe32
+    int m_memberPayTexMoney;           // +0xe33
+    int m_memberPayTexFatigue;         // +0xe37
+    char m_overEquipFlag;              // +0xe3b
+    int m_blackCount;                  // +0xe3c
+    union
+    {
+        unsigned char m_visibleValues;              // +0xe40（整字节）
+        struct
+        {
+            signed int visible : 1;                 // bit0
+            signed int growAvatar : 1;              // bit1
+            signed int teleport : 1;                // bit2
+            signed int m_padBits : 5;
+        } m_visibleBits;
+    };
+    int m_assaultPlace;                // +0xe41
+    int m_assaultCount;                // +0xe45
+    int m_chaosPoint;                  // +0xe49
+    int m_chaosExp;                    // +0xe4d
+    int m_chaosModeCount;              // +0xe51
+    int m_chaosKillCount;              // +0xe55
+    int m_chaosDieCount;               // +0xe59
+    int m_chaosDieTime;                // +0xe5d
+    int m_chaosStateTime;              // +0xe61
+    unsigned char m_superState;        // +0xe65
+    unsigned char m_ghost;             // +0xe66
+    unsigned char m_leaveTimeout;      // +0xe67
+    int m_chaosKillTime;               // +0xe68
+    int m_assaultFatigueCount;         // +0xe6c
+    unsigned char m_opencoin;          // +0xe70
+    int m_luckPoint;                   // +0xe71
+    int m_luckPointUpdateTimeCount;    // +0xe75
+    int m_dungeonPlayCount;            // +0xe79
+    int m_expertJobType;               // +0xe7d
+    int m_expertJobExp;                // +0xe81
+    expert_job::CExpertJob* m_expertJob;   // +0xe85
+    online_preliminary::COnlinePreliminaryTeam* m_onlinePreliminaryTeam;  // +0xe89
+    unsigned short m_powerWarHP;       // +0xe8d
+    unsigned char m_joinPower;         // +0xe8f
+    char m_padE90;                     // +0xe90
+    long m_powerWarProcessLastUpdateTime;  // +0xe91
+    long m_powerWarLastPlayTime;       // +0xe95
+    char m_padE99;                     // +0xe99
+    CharacInfoCoolList m_coolTimeItemList;   // +0xe9a
+    CharacInfoEffectList m_effectItemList;   // +0xea6
+    unsigned char m_isAffectedExpDouble;   // +0xeb2
+    unsigned char m_oneDayLetheFlag;       // +0xeb3
+    unsigned char m_isInitSkillFlag;       // +0xeb4
+    unsigned char m_oneDayLetheFlag2ND;    // +0xeb5
+    unsigned char m_isInitSkillFlag2ND;    // +0xeb6
+    unsigned char m_firstTimeLogin;        // +0xeb7
+    unsigned char m_saveDemensionInout;    // +0xeb8
+    char m_demensionInout[6];              // +0xeb9
+    unsigned char m_saveBloodInout;        // +0xebf
+    char m_ultimateInout[3];               // +0xec0
+    unsigned char m_bloodBestRecordUpdate; // +0xec3
+    int m_bloodBestRound;                  // +0xec4
+    unsigned int m_bloodBestTime;          // +0xec8
+    CharacInfoBloodMap m_bloodBestMap;       // +0xecc（0x18）
+    unsigned char m_isExpItemAffected;     // +0xee4
+    float m_expAffectRate;                 // +0xee5
+    unsigned char m_isDisguiseCharac;      // +0xee9
+    unsigned char m_disguiseKind;          // +0xeea
+    unsigned short m_disguiseIndex;        // +0xeeb
+    char m_backupSkill[0x199];             // +0xeed
+    char m_backupSkill2ND[0x199];          // +0x1086
+    unsigned short m_powerWarPoint;        // +0x121f
+    int m_powerWarAssaultCount;            // +0x1221
+    int m_powerWarAssaultVictoryCount;     // +0x1225
+    unsigned short m_straightVictories;    // +0x1229
+    unsigned char m_isEndLetheAtLogin;     // +0x122b
+    unsigned short m_curCharacEmotion;     // +0x122c
+    long m_lastItemLimitEditionBuyTime;    // +0x122e
+    unsigned short m_curConditionEventStep;    // +0x1232
+    unsigned short m_curConditionEventRewardStep;  // +0x1234
+    unsigned short m_properDungeonClearCount;     // +0x1236
+    unsigned char m_properDungeonUser;     // +0x1238
+    char m_skillTreeIndex;                 // +0x1239
+    unsigned short m_curCharacEventItemCount;    // +0x123a
+    unsigned short m_curCharacEventAddItemCount; // +0x123c
+    char m_curExEquipSlotStat;             // +0x123e
+    unsigned char m_eventCharacterGrowtype;     // +0x123f
+    char m_pad1240;                    // +0x1240
+    unsigned char m_memberDungeonFlag;     // +0x1241
+    unsigned char m_revengeCount;          // +0x1242
+    unsigned char m_revengeDungeonCount;   // +0x1243
+    unsigned char m_villageAttackDBUpdate; // +0x1244
+    char m_linkCharacSlotIndex;            // +0x1245
+    unsigned char m_characLinkType;        // +0x1246
+    int m_characLinkBonusExp;              // +0x1247
+    int m_characLinkBonusGold;             // +0x124b
+    char m_pad124f[5];                     // +0x124f
+    char m_skillCommand[0x18];             // +0x1254
+    unsigned short m_memberBonusFatigue;   // +0x126c
+    unsigned char m_guildSecede;           // +0x126e
+    int m_lastPlayDungeonIndex;            // +0x126f
+    unsigned char m_upgradeSeparateTrue;   // +0x1273
+    unsigned char m_upgradeSeparateFalse;  // +0x1274
+    char m_curEquipslotFlag;               // +0x1275
+    unsigned char m_curChannelEquipslotSwitch;  // +0x1276
+    unsigned char m_curExpandEquipslotSwitch;   // +0x1277
+    unsigned char m_bringUpRewardFlag;     // +0x1278
+    unsigned char m_curUseBringUpMaterialCount; // +0x1279
+    unsigned char m_curUseBringUpMaterialTotal; // +0x127a
+    unsigned char m_growthPowerExpRewardRight;  // +0x127b
+    int m_seriaBufBonusExp;                // +0x127c
+    unsigned char m_growthPowerReward;     // +0x1280
+    union
+    {
+        stAuraAvatarOption m_auraAvatarOption;  // +0x1281（ORIG 结构复制形态）
+        int m_auraAvatarOptionArr[3];           // +0x1281（ORIG 下标形态）
+    };
+    int m_premiumBonusExp;                 // +0x128d
+    int m_weekendBonusExp;                 // +0x1291
+    char m_pad1295[8];                     // +0x1295
+    WpBonusPointResult m_wpBonus;    // +0x129d（8 字节）
+    ExpBonusPointResult m_expBonus;   // +0x12a5（8 字节）
+    int m_chaosResponTime;                 // +0x12ad
+    int m_assaultMoney;                    // +0x12b1
+    unsigned short m_assaultedUserId;      // +0x12b5
+    CharacterOption m_characterOption;     // +0x12b7
+    unsigned char m_strikerSkillIndex;     // +0x14b7
+    int m_tagCharacNo;                     // +0x14b8
+    char m_pad14bc;                        // +0x14bc
+    unsigned char m_blueMarbleEnterCount;  // +0x14bd
+    int m_blueMarbleUserDeadCount;         // +0x14be
+    int m_maxEquipLevel;                   // +0x14c2
+    int m_characViewState;                 // +0x14c6
+    seriaRoom_AniDeco m_seriaRoomAniDeco;  // +0x14ca
+    unsigned char m_cubePremiumContract;   // +0x14ce
+    unsigned char m_cubePremiumCount;      // +0x14cf
+    unsigned char m_cubePremiumSaved;      // +0x14d0
+};
+#pragma pack(pop)
+static_assert(sizeof(CharacInfoFields) == 0x14d1,
+              "_Charac_info layout drift (ORIG size 0x14d1 @CUserCharacInfo worklist)");
 
 // ============================================================================
 // CUserCharacInfo
@@ -583,7 +801,7 @@ public:
     void setCurCharacGuildSecede(char flag);
 
     // ---- 村庄 / 战斗区 / PvP / 混沌 ----
-    unsigned char getCurCharacVill() const;
+    signed char getCurCharacVill() const;
     unsigned char getCurCharacVill4Save() const;
     unsigned char getCurCharacVillPrev() const;
     void setCurCharacVill(char vill);
@@ -668,7 +886,7 @@ public:
     void resetCharacTutorialFlag();
     unsigned char getCurCharacEventCharacterGrowtype();
     void setCurCharacEventCharacterGrowtype(char growtype);
-    unsigned char IsProperDungeonUser();
+    bool IsProperDungeonUser();   // ORIG W 0x08335ca4：读 +0x1238 字节标志（bool 语义）
     void SetProperDungeonUser();
     void ClearProperDungeonUser();
     unsigned short GetProperDungeonClearCount() const;
@@ -746,7 +964,7 @@ public:
     void calcHelpAbuseRatioBeforeLevelUp(int param);
 
     // ---- 可见性 / 外观 / 其它状态 ----
-    unsigned char get_charac_visible_values();
+    signed char get_charac_visible_values();
     void set_charac_visible_values(char values);
     int get_charac_visible_grow_avatar();
     void set_charac_visible_grow_avatar(bool flag);

@@ -4,11 +4,19 @@
 #include "AvatarFixedHiddenOptionServer.h"
 
 #include <cstdio>
-#include <cstring>
 #include <map>
 
+#include "CEnvironment.h"    // less_TCHAR / SpinLock
 #include "GameTypes.h"       // cMyTrace
 #include "DNFLexWrapper.h"   // loadRDARScriptFile / ScanType / ScanInt / ScanFloat
+
+// ---- 布局断言（ORIG elf32-i386 反汇编实证）----
+typedef char avatar_hidden_ability_variation_size_assert[
+    sizeof(STAvatarHiddenAbilityVariation) == 0x14 ? 1 : -1];
+typedef char avatar_fixed_hidden_option_size_assert[
+    sizeof(ARAD::SCRIPT::AvatarFixedHiddenOption) == 0x4c ? 1 : -1];
+typedef char avatar_fixed_hidden_option_server_size_assert[
+    sizeof(AvatarFixedHiddenOptionServer) == 0x98 ? 1 : -1];
 
 // ============================================================================
 // STAvatarHiddenAbilityVariation —— ORIG ctor W 0x088b01e8 / 0x088b021a、dtor W 0x088b0aae
@@ -76,59 +84,52 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::isMaterialItemIndex(int itemIndex)
     return m_materialItemIndex == itemIndex;
 }
 
-namespace
-{
-
-// less_TCHAR 等价的 C 串比较器（ORIG map 键为 char_const*，函数局部静态映射内部使用，
-// 不跨 TU 出现于 ABI）。【推断】比较器名；语义按 std::map<char*,int> strcmp 序。
-struct LessCStr
-{
-    bool operator()(const char* a, const char* b) const
-    {
-        return std::strcmp(a, b) < 0;
-    }
-};
-
-typedef std::map<const char*, int, LessCStr> AbilityLookup;
-
-}  // namespace
-
 // ORIG 0x088aef52 parseAbility：首次调用构建 21 项静态映射（SpinLock 双检的语义等价：
 // 函数局部静态守卫），随后查 tag → 内部 id，读数值入桶。未知标签返回 false。
 bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
     std::vector<STAvatarHiddenAbilityVariation>& variations, std::string& tag)
 {
-    static AbilityLookup s_lookup;
-    static bool s_inited = false;
-    if (!s_inited)
+    // ORIG：__lookup 为 map<const char*,int,less_TCHAR>，__init_lock 为 SpinLock，
+    // __inited 在锁保护下置位；使用真实公共类型以保留跨 TU 依赖和初始化语义。
+    static std::map<const char*, int, less_TCHAR> lookup;
+    static SpinLock initLock;
+    static bool inited = false;
+
+    if (!inited)
     {
-        // 插入次序与 ORIG 初始化链一致（0x46..0xac）。
-        s_lookup.insert(std::make_pair("[physical attack]", 0x46));
-        s_lookup.insert(std::make_pair("[magical attack]", 0x4b));
-        s_lookup.insert(std::make_pair("[physical defense]", 0x50));
-        s_lookup.insert(std::make_pair("[magical defense]", 0x55));
-        s_lookup.insert(std::make_pair("[HP MAX]", 0x5a));
-        s_lookup.insert(std::make_pair("[MP MAX]", 0x5f));
-        s_lookup.insert(std::make_pair("[HP regen speed]", 100));
-        s_lookup.insert(std::make_pair("[MP Regen speed]", 0x69));
-        s_lookup.insert(std::make_pair("[attack speed]", 0x6e));
-        s_lookup.insert(std::make_pair("[move speed]", 0x73));
-        s_lookup.insert(std::make_pair("[cast speed]", 0x78));
-        s_lookup.insert(std::make_pair("[inventory limit]", 0x7d));
-        s_lookup.insert(std::make_pair("[stuck]", 0x82));
-        s_lookup.insert(std::make_pair("[stuck resistance]", 0x87));
-        s_lookup.insert(std::make_pair("[all activestatus resistance]", 0x8c));
-        s_lookup.insert(std::make_pair("[hit recovery]", 0x91));
-        s_lookup.insert(std::make_pair("[equipment magical defence]", 0x96));
-        s_lookup.insert(std::make_pair("[equipment physical defence]", 0x9c));
-        s_lookup.insert(std::make_pair("[jump power]", 0xa2));
-        s_lookup.insert(std::make_pair("[physical critical hit]", 0xa7));
-        s_lookup.insert(std::make_pair("[magical critical hit]", 0xac));
-        s_inited = true;
+        initLock.enter();
+        if (!inited)
+        {
+            // 插入次序与 ORIG 初始化链一致（0x46..0xac）。
+            lookup.insert(std::make_pair("[physical attack]", 0x46));
+            lookup.insert(std::make_pair("[magical attack]", 0x4b));
+            lookup.insert(std::make_pair("[physical defense]", 0x50));
+            lookup.insert(std::make_pair("[magical defense]", 0x55));
+            lookup.insert(std::make_pair("[HP MAX]", 0x5a));
+            lookup.insert(std::make_pair("[MP MAX]", 0x5f));
+            lookup.insert(std::make_pair("[HP regen speed]", 100));
+            lookup.insert(std::make_pair("[MP Regen speed]", 0x69));
+            lookup.insert(std::make_pair("[attack speed]", 0x6e));
+            lookup.insert(std::make_pair("[move speed]", 0x73));
+            lookup.insert(std::make_pair("[cast speed]", 0x78));
+            lookup.insert(std::make_pair("[inventory limit]", 0x7d));
+            lookup.insert(std::make_pair("[stuck]", 0x82));
+            lookup.insert(std::make_pair("[stuck resistance]", 0x87));
+            lookup.insert(std::make_pair("[all activestatus resistance]", 0x8c));
+            lookup.insert(std::make_pair("[hit recovery]", 0x91));
+            lookup.insert(std::make_pair("[equipment magical defence]", 0x96));
+            lookup.insert(std::make_pair("[equipment physical defence]", 0x9c));
+            lookup.insert(std::make_pair("[jump power]", 0xa2));
+            lookup.insert(std::make_pair("[physical critical hit]", 0xa7));
+            lookup.insert(std::make_pair("[magical critical hit]", 0xac));
+            inited = true;
+        }
+        initLock.leave();
     }
 
-    AbilityLookup::const_iterator it = s_lookup.find(tag.c_str());
-    if (it == s_lookup.end())
+    std::map<const char*, int, less_TCHAR>::const_iterator it =
+        lookup.find(tag.c_str());
+    if (it == lookup.end())
         return false;
 
     switch (it->second)

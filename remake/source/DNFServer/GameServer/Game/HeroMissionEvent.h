@@ -13,6 +13,7 @@
 // ============================================================================
 
 #include <map>
+#include <string>
 #include <vector>
 
 #include "Arad_DataManager.h"   // ARAD::Singleton 模板唯一声明点（定义/实例化见 ARAD.cpp）
@@ -43,6 +44,12 @@ public:
     unsigned short m_field6;  // +0x06
     unsigned short m_field8;  // +0x08
     unsigned short m_fieldA;  // +0x0a（完成进度；processMission 读取）
+
+    // ORIG _ZN16HeroMissionValue5clearEv T 0x08164b80（全字段清零）
+    void clear();
+    // ORIG _ZN16HeroMissionValue14setStringTokenESs T 0x08164d68（按值收 token 串，
+    // 解析 "mission,cur,max,flag" 形式；定义归 HeroMission 域批次）
+    void setStringToken(std::string token);
 };
 
 // ---- BaseHeroMissionCondition（ORIG vtable 0x08b7f0d8：虚析构 + 2 纯虚槽）----
@@ -64,6 +71,9 @@ class HeroMissionEvent
 {
 public:
     HeroMissionEvent();
+    void sendMissionData(CUser* user);                    // ORIG 0x0816770e
+    void setEventData(CUser* user, char const* data);     // ORIG 0x08166752
+    // （另有 std::string const& 重载 ORIG 0x08166d0e，不在本批）
 
     void processMission(CUser* user, HeroMissionCondition::MissionNo::T mission,
                         unsigned int param);   // ORIG 0x081672be

@@ -218,7 +218,18 @@ public:
     unsigned char m_attr;              // +0x06（upgrade:bit0-4 / reseal:bit5-7）
     int m_addInfo2;                    // +0x07（set_add_info / get_add_info）
     unsigned short m_fieldb;           // +0x0b（endurance）
-    int m_fieldd;                      // +0x0d
+    union
+    {
+        int m_fieldd;                  // +0x0d（整体读写口径：SendUpdateItem 包字段、
+                                       //      UseLimitCube 结果数、CCreatureMgr 拷贝）
+        struct
+        {
+            short m_fielddLo;          // +0x0d（低 16 位）
+            unsigned short m_avatarEndur;  // +0x0f（头像/徽章耐久计数：
+                                           //      AvatarRechargeServer::CalcDurabilityDetail
+                                           //      0x081902e8 实证读减并经 UpdateEndurance 上报）
+        } m_fieldSplit;
+    };                                 // +0x0d..0x10
     stAmplifyOption_t m_amp;           // +0x11
     ChronicleRandomOptionInfo m_random; // +0x1f
     UpgradeSeparateInfo m_upgradeSep;  // +0x33

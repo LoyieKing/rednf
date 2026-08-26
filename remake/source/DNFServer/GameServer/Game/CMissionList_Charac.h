@@ -3,15 +3,17 @@
 
 // df_game_r CMissionList_Charac（G3-1 批次，2026-08-17）。
 // 布局依据 ORIG ctor 0x832af8a / dtor 0x85ec626 / _reset 0x85e476c /
-// CDataMgr::CDataMgr new 尺寸 0x158：
+// CDataMgr::CDataMgr new 尺寸 0x158 与 ORIG getIssue_all/getIssue_mode/
+// isClearMission 字段偏移（m_field148@0x148 / m_field14c@0x14c）：
 //   charac_expand::CData 基类（pack(1)：vptr +0x00 / m_bIsSave +0x04，sizeof 5）
-//   MissionInfo m_missionList[36]      +0x05（步长 8，kind 0..0x23）
-//   std::bitset<256> m_clearedFlags    +0x128（32 字节）
-//   short m_field148                   +0x148
-//   short m_field14a                   +0x14a
-//   short m_field14c                   +0x14c
-//   char  m_field14e                   +0x14e
-//   CUser* m_user                      +0x154
+//   char m_pad0[3]                    +0x05（CData 基类子对象按 vptr 对齐补齐到 8）
+//   MissionInfo m_missionList[36]     +0x08（步长 8，kind 0..0x23）
+//   std::bitset<256> m_clearedFlags   +0x128（32 字节）
+//   short m_field148                  +0x148
+//   short m_field14a                  +0x14a
+//   short m_field14c                  +0x14c
+//   char  m_field14e                  +0x14e
+//   CUser* m_user                     +0x154
 //   sizeof = 0x158（pack(1)）。
 // 虚表 0x8cc3c08 槽位：ResetDailyMidnight @0（基类）/ loadData @1 / getData @2 /
 //   ResetDaily @3 / ~ @4,5 / _saveData @6 / _reset @7。
@@ -88,11 +90,12 @@ public:
     bool isClearStealingSkillMission() const;
 
     // ---- 成员 ----
-    MissionInfo m_missionList[36];       // +0x05
+    char m_pad0[3];               // +0x05
+    MissionInfo m_missionList[36];       // +0x08
     std::bitset<256> m_clearedFlags;     // +0x128
-    short m_field148;                    // +0x148
-    short m_field14a;                    // +0x14a
-    short m_field14c;                    // +0x14c
+    unsigned short m_field148;                 // +0x148
+    unsigned short m_field14a;           // +0x14a
+    unsigned short m_field14c;           // +0x14c
     char m_field14e;                     // +0x14e
     char m_pad14f[5];                    // +0x14f..0x153
     CUser* m_user;                       // +0x154

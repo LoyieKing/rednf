@@ -19,7 +19,7 @@ enum INVEN_TYPE
 
 #ifndef DNF_ENUM_EITEMADDREASON_DEFINED
 #define DNF_ENUM_EITEMADDREASON_DEFINED
-enum eItemAddReason { eItemAddReason_0 = 0, eItemAddReason_0xd = 0xd };
+enum eItemAddReason { eItemAddReason_0 = 0, eItemAddReason_0xd = 0xd, eItemAddReason_0x13 = 0x13 };
 #endif
 #ifndef DNF_ENUM_EMONEYADDREASON_DEFINED
 #define DNF_ENUM_EMONEYADDREASON_DEFINED
@@ -37,12 +37,14 @@ enum eItemDelReason
 {
     eItemDelReason_0 = 0,
     eItemDelReason_3 = 3,
+    eItemDelReason_0xc = 0xc,
+    eItemDelReason_0xd = 0xd,
     eItemDelReason_0x2b = 0x2b
 };
 #endif
 #ifndef DNF_ENUM_EMONEYSUBREASON_DEFINED
 #define DNF_ENUM_EMONEYSUBREASON_DEFINED
-enum eMoneySubReason { eMoneySubReason_0 = 0 };
+enum eMoneySubReason { eMoneySubReason_0 = 0, eMoneySubReason_0xd = 0xd, eMoneySubReason_0x2e = 0x2e };
 #endif
 #ifndef DNF_ENUM_ECOINSUBREASON_DEFINED
 #define DNF_ENUM_ECOINSUBREASON_DEFINED
@@ -155,7 +157,7 @@ enum eExpAddReason { eExpAddReason_0 = 0 };
 #endif
 #ifndef DNF_ENUM_EAPPLYITEMREASON_DEFINED
 #define DNF_ENUM_EAPPLYITEMREASON_DEFINED
-enum eApplyItemReason { eApplyItemReason_0 = 0 };
+enum eApplyItemReason { eApplyItemReason_0 = 0, eApplyItemReason_1 = 1 };
 #endif
 #ifndef DNF_ENUM_NOTIPACKET_DEFINED
 #define DNF_ENUM_NOTIPACKET_DEFINED

@@ -55,198 +55,19 @@
 
 
 struct map_item;
+struct SIG_CREATURE_ITEM_DETAIL_INFO;   // ORIG 全局域；完整布局见 CCreatureMgr.cpp
 struct MSG_MONSTER_DIE;
 
-enum ENUM_TOWER_STATE
-{
-    TOWER_STATE_NONE = 0,
-    TOWER_STATE_READY = 1,
-    TOWER_STATE_PLAYING = 2,
-    TOWER_STATE_CLEAR = 3,
-    TOWER_STATE_REWARD = 4,
-    TOWER_STATE_EPLP = 5,
-};
 
-enum ENUM_STAGE_STATE
-{
-    STAGE_STATE_NONE = 0,
-    STAGE_STATE_START = 1,
-    STAGE_STATE_FINISH = 2,
-};
+#include "CDeathTower.h"   // WongWork::CDeathTower 完整定义（唯一声明归口，2026-08-27 迁出）
 
 namespace WongWork
 {
     class CDeathTower;
-
-    class CDeathTower
-    {
-    public:
-        class CDungeonMgr
-        {
-        public:
-            void reset();
-            bool initDungeonMgr(int dungeonIdx);
-            CDungeon* getDungeon() const;
-            CMap* getStageMap(int stage);
-            int getEndStage();
-        private:
-            CDungeon* m_pDungeon;
-            char m_pad4[4];
-        };
-
-        class CStage
-        {
-        public:
-            void reset();
-            void resetCurrentStage();
-            bool setState(ENUM_STAGE_STATE state);
-            int getState();
-            bool checkClearStage();
-            int killMonster(int idx, map_monster& monster);
-            bool moveNextStage(unsigned int endStage);
-            void onStartStage();
-            void onFinishStage();
-            int getStageClearTime();
-            int getStageMapIndex();
-            int getCurrentStage();
-            bool peekItem(int idx, map_item& item);
-            bool pickupItem(int idx, map_item& item);
-            int dropItem(const map_item& item);
-            bool consistMap(CDungeonMgr* dungeonMgr, CMap* map, CDeathTower* tower);
-            void makeStagePacket(PacketGuard& packet);
-        private:
-            int m_currentStage;     // +0x00
-            unsigned int m_startTick;  // +0x04
-            unsigned int m_finishTick; // +0x08
-            char m_pad0c[4];         // +0x0c (MapInfo start)
-            int m_stageMapIndex;       // +0x10
-            std::map<int, map_monster> m_monsterMap;  // +0x18
-            char m_pad30[0x18];        // +0x30 - 0x18 = 0x18
-            std::map<int, map_item> m_itemMap;  // +0x30
-            int m_instIdCounter;       // +0x48
-            int m_dropItemCnt;         // +0x4c
-            char m_pad50[0xf8 - 0x50]; // +0x50
-            int m_state;               // +0xf8
-        };
-
-        class CPlayData
-        {
-        public:
-            void reset();
-            int getStartMemberCnt();
-            void makeStartMemberInfo(CParty* party);
-            void resetMemberReady();
-            void setMemberAlive(int idx, bool alive);
-            int isMemberAlive(int idx);
-            int getLastRoutedTurn();
-            void setMemberReady(int idx, bool ready);
-            int isMemberReady(int idx);
-            bool checkEnterStartMap(int idx);
-            bool checkAllMemberReady(int memberCnt);
-            void addPlayTime(unsigned int time);
-            unsigned int getPlayTime();
-            unsigned int getLastPlayTime();
-            Inven_Item* getRewardItem(int idx);
-            int getRewardItemCount(int idx);
-            int getRewardExp(int idx);
-            int m_field0;
-            char m_memberAlive[4];
-            char m_memberReady[4];
-            int m_allReady;
-            unsigned int m_playTime;
-            unsigned int m_lastPlayTime;
-            char m_pad18[0xf0];     // +0x18..+0x108
-            int m_rewardItemCount[4]; // +0x108
-            int m_rewardExp[4];       // +0x118
-            int m_lastRoutedTurn;     // +0x128
-            char m_pad12c[0xa2c - 0x12c];
-        };
-    CDeathTower();
-    ~CDeathTower();
-
-    void _beginTowerClearProcess(bool);
-    int _checkMemberDie();
-    int _checkMemberReady();
-    int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
-    int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
-    int _checkStartGameCondition(unsigned char&);
-    int _checkTimerKey(TIMER_MESSAGE, unsigned int);
-    void _destroy();
-    int _genTimerKey(TIMER_MESSAGE);
-    bool _makeDropItem(CUser*, char, int, int, map_item&);
-    void _onClear(bool);
-    void _onFinishDeathTower();
-    void _onFinishStage();
-    void _onPrepareFinishTower();
-    void _onStartDeathTower();
-    void _onStartStage();
-    CUser* _pickupItem(CUser*, char*, int, const map_item&, bool, char, const CItem*);
-    int _pickupItemMoney(CUser*, int, const map_item&, int*, int*);
-    void attachParty(CParty*);
-    void deathTowerCardStatistic(int, CUser*, const Inven_Item*);
-    int genTimerKey(TIMER_MESSAGE);
-    CDungeonMgr* getCDungeonMGr();
-    CStage* getCStage();
-    int getIdx();
-    int getTowerState();
-    int handleDieUser(CUser*);
-    int handleDropItem(CUser*, int, int, char, int, int);
-    int handleFinishLoading(CUser*);
-    int handleKillMonster(CUser*, unsigned short, unsigned short, const MSG_MONSTER_DIE&, int*);
-    int handleLeaveUser(CUser*);
-    int handleMoveMap();
-    int handlePickupItem(CUser*, int, bool, char);
-    int handleSelectEPLPCommand(CUser*, int);
-    int handleStageCommand(CUser*, unsigned char);
-    int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
-    int handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);
-    int onLeaveUser(CUser*);
-    int onTimer(TIMER_MESSAGE, unsigned int);
-    void reset();
-    void setIdx(int);
-    int setTowerState(ENUM_TOWER_STATE);
-
-private:
-    CParty* m_party;        // +0x00
-    int m_idx;              // +0x04
-    int m_towerState;       // +0x08
-    CDungeonMgr m_dungeonMgr;  // +0x0c
-    CStage m_stage;         // +0x14
-    char m_pad14[0xfc];     // +0x14..+0x110
-    CPlayData m_playData;   // +0x110
-    char m_pad110[0xa2c];   // +0x110..+0xb3c
-    int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..)
-    char m_pad_end[0x18];   // +0xb64
-};
-
-// CBossTower 类声明见 CBossTower.h（唯一声明点；CGameManager.h 顶部 include）
 }
-
-#include "advancealtar_StageDifficulty.h"  // StageDifficulty::T（StageControl::selectStage 参数；叶子头无环）
-namespace advancealtar
-{
-class CharacData;   // 完整定义 advancealtar_ProcStage.h（StageControl::getCharacData 返回类型）
-class ProcStage;    // 完整定义 advancealtar_ProcStage.h（StageControl::getProcStage 返回类型）
-class StageControl
-{
-public:
-    StageControl();
-    ~StageControl();
-    int getIndex() const;         // ORIG 0x81348ba
-    void setIndex(int idx);       // ORIG 0x82a669c
-    char leaveUser();             // ORIG 0x812fc4e（返回 0/1，见 class_func_reports）
-    char onTimerStageTick();      // ORIG 0x812fb98（恒返回 1）
-    void reset();                 // ORIG 0x812fa54
-    int selectStage(CUser* user, int stageId, advancealtar::StageDifficulty::T diff);  // ORIG T 0x0812fa7a
-    void sendStageInfo();         // ORIG T 0x081300f6：向当前用户发 0x209 舞台信息包
-    // 子对象访问（ORIG W thunk objdump 实证；定义 advancealtar_StageControl.cpp）
-    ProcStage* getProcStage();    // 0x081348ae：return (ProcStage*)(this+0x04)
-    CharacData* getCharacData();  // 0x081348a0：return (CharacData*)(this+0x98)
-    void destroy();               // ORIG T 0x081300ce：reset() + returnAdvanceAltar(this)
-private:
-    char m_pad[0xc0];
-};
-}
+#include "advancealtar.h"  // advancealtar::StageControl 完整定义（唯一声明归口；
+                           // StaticPool<StageControl,600> / m_stageMap 需要完整类型）。
+                           // 原 m_pad[0xc0] 占位段已迁 advancealtar.h（具名布局）。
 
 // QuickParty 类声明见 QuickParty.h（唯一声明点；CGameManager.h 顶部 include）
 
@@ -256,136 +77,12 @@ private:
 // CACHE_CHARACTER_TYPE 完整定义在 CGameManager.cpp（SIG_LOAD_* 子对象布局，
 // ORIG C1 0x8492262）；此处仅前置声明供 StaticPool 声明使用。
 class CACHE_CHARACTER_TYPE;
-// ORIG 全局枚举（mangled `17ENUM_ASSAULT_TEAM`，无 namespace 前缀）。
-enum ENUM_ASSAULT_TEAM
-{
-    ENUM_ASSAULT_TEAM_0 = 0
-};
+#include "CAssaultMgr.h"   // pvp_assault 域权威头（OnlyOrig_Assault 迁入；原 251-358 段整体迁出）
 
-namespace pvp_assault
-{
-
-// ORIG 枚举（pvp_assault 域；mangled NS_18ENUM_ASSAULT_STATEE）。
-enum ENUM_ASSAULT_STATE
-{
-    ENUM_ASSAULT_STATE_0 = 0
-};
-
-// ORIG CAssaulter::C1 0x82e661e：清零前两个 int；步长 0x20（CAssaultPlace 内 [8]）。
-class CAssaulter
-{
-public:
-    CAssaulter() : m_field00(0), m_field04(0), m_state08(0) {}
-
-    CUser* GetUser();                    // ORIG W 0x82f0542（读 +0x00）
-    bool Empty();                        // ORIG W 0x82f055c（= IsAttachAble，+0x00==0）
-    ENUM_ASSAULT_TEAM GetTeam();         // ORIG W 0x82f0570（读 +0x04）
-    unsigned short GetUserUniqueId();    // ORIG T 0x82e6662（user->get_unique_id()）
-    void SetState(ENUM_ASSAULT_STATE s); // ORIG W 0x82f057c（写 +0x08）
-    ENUM_ASSAULT_STATE GetState();       // ORIG W 0x82f058a（读 +0x08）
-    int GetHp();                         // ORIG T 0x82e6688：return *(int*)(this+0x10)
-    void DetachUser();                   // ORIG T 0x82e6812：清槽位 + 卸 creature
-    void GiveupPanalty();                // ORIG T 0x82e6868（依赖 cUserHistoryLog::GiveupPvP）
-
-    unsigned int m_field00;   // CUser* m_user
-    unsigned int m_field04;   // ENUM_ASSAULT_TEAM m_team
-    unsigned int m_state08;   // ENUM_ASSAULT_STATE
-    char m_pad0c[0x4];
-    int m_hp10;               // +0x10（GetHp 读）
-    char m_pad14[0x0c];
-};
-
-// ORIG Point2d::C1 0x82f046a（默认空）/C1Eii 0x82f0472 / operator- 0x82f0496。
-class Point2d
-{
-public:
-    Point2d() {}
-    Point2d(int x, int y) : m_x(x), m_y(y) {}
-
-    int m_x;
-    int m_y;
-};
-
-// ORIG PartyInfo::C1 0x82f05ee：清零单个 int；Set/Get 即该 int 的读写。
-class PartyInfo
-{
-public:
-    PartyInfo() : m_field00(0) {}
-
-    unsigned int m_field00;
-};
-
-// ORIG CAssaultPlace::C1 0x82f0614：CAssaulter[8]@+0x000（步长 0x20）->
-//   Point2d@+0x118 -> PartyInfo[2]@+0x12c（步长 4）；D1 0x82f13b6 反向析构数组。
-class CAssaultPlace
-{
-public:
-    CAssaulter m_assaulters[8];     // +0x000
-    char m_pad100[4];               // +0x100（GetAssaulterCount 读 +0x100）
-    int m_field104;                 // +0x104（图标包 put_int）
-    char m_pad108[4];               // +0x108
-    int m_state;                    // +0x10c（GetState）
-    short m_view110;                // +0x110（图标包 put_short）
-    short m_view114;                // +0x114（图标包 put_short）
-    Point2d m_pos;                  // +0x118（IsArea 比较 x/y）
-    PartyInfo m_parties[2];         // +0x12c
-    // ---- 方法声明（CAssaultMgr 批次使用；实现后续批次按报告还原） ----
-    bool IsArea(int vill, int area);                        // ORIG W 0x82f06ae
-    bool ExistUser(CUser* user);                            // ORIG T 0x82e8366
-    bool CheckPlayable();                                   // ORIG W 0x82f06ea
-    int GetState();                                         // ORIG W 0x82f06fe
-    void MakeViewAssaultIconOnePlayer(PacketGuard* p, bool flag);
-                                                            // ORIG T 0x82e89c0
-    bool SendPacket(PacketGuard& p);                        // ORIG T 0x82e6bf6
-    bool SendPacket(PacketGuard& p, ENUM_ASSAULT_TEAM team);// ORIG T 0x82e6c56
-    bool GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team);     // ORIG T 0x82e6cdc
-    void LeaveAssaultPlace(CUser* user, bool flag);         // ORIG T 0x82eb450
-    static void SendUserState(CUser* user);                 // ORIG T 0x82e83c4（ORIG 调用点仅压一个栈参——静态形态）
-
-    // ---- 前置内部函数（上述方法依赖；ORIG 权威符号）----
-    bool _CheckPlayable();                                  // ORIG T 0x82e9142
-    void _GetTeamCount(int* counts);                        // ORIG T 0x82e7232
-    int _GetUserIndex(CUser* user, bool strict);            // ORIG T 0x82e849a
-    void LeaveAssaultPlace(int index, bool delFlag,
-                           bool penaltyFlag);               // ORIG T 0x82ead6a
-
-    // ---- 攻击 LeaveAssaultPlace 链私有 helper（ORIG 权威；自包含部分已还原）----
-    bool _IsGiveupPanalty(bool flag);                       // ORIG T 0x82eacf4
-    bool _IsBroadcastRunaway(CUser* user);                  // ORIG T 0x82eab1a
-    void _BroadcastRunaway(CUser* user, int index);         // ORIG T 0x82eab7a
-    void _MakeLeaveUser(PacketGuard* p, int index);         // ORIG T 0x82e9046
-    void _MakeCloseAssault(PacketGuard* p, int tick);       // ORIG T 0x82e88d6
-    void _MakeUserState(PacketGuard* p, CUser* user);       // ORIG T 0x82e8d60
-    int  _SendCloseAssault(CUser* user, int tick);          // ORIG T 0x82e7b2a
-};
-
-// ORIG T 0x82e564c：team 0→6、1→4、其他→0。
-int GetDirectionByTeam(ENUM_ASSAULT_TEAM team);
-
-}  // namespace pvp_assault
-
-namespace exchange_server
-{
-
-// ORIG CSession::C1 0x848ffd0：基类 CNetwork<95000,450000>（尺寸 0xb8+N1+N2 =
-//   0x851a0）-> 置基类 m_field0c=1 -> 清零 +0x851a0/+0x851a4。
-class CSession : public CNetwork<95000, 450000>
-{
-public:
-    CSession();
-
-private:
-    unsigned int m_field851a0;  // +0x851a0
-    unsigned int m_field851a4;  // +0x851a4
-};
-
-// ---- 角色缓存管理器自由函数（CUser::CacheCharacterMemory 等调用；ORIG）----
-// 实现见 CGameManager.cpp（CCacheCharacterMgr + GetInstanceCacheCharacterMgr）。
-CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo);       // 0x848f220
-void FreeCharacterMemory(CACHE_CHARACTER_TYPE* mem);              // 0x848f23c
-bool CacheCharacterMemory(int characNo, CACHE_CHARACTER_TYPE* mem);// 0x848f258
-
-}  // namespace exchange_server
+#include "ExchangeServer.h"   // exchange_server 权威类/自由函数声明（OnlyOrig_Exchange 批）
+using exchange_server::AcquireCharacterMemory;
+using exchange_server::CacheCharacterMemory;
+using exchange_server::FreeCharacterMemory;
 
 #ifndef DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
 #define DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
@@ -442,6 +139,9 @@ class CEgg
 public:
     CEgg() {}
     ~CEgg() {}
+    // ORIG _ZN13user_creature4CEgg5HatchEPi T 0x0833912a：蛋物品 find_item 非空
+    // 且非 stackable → *out = get_hatch_item_id() 返回 1；否则 0。
+    bool Hatch(int* out);
 private:
     char m_pad[0x100];
 };
@@ -472,6 +172,12 @@ public:
     // ORIG _ZN13user_creature8CStomach14IncrementValueEf T 0x08336e66：
     // m_value += amount；>100 则钳到 100.0f；返回新值。
     float IncrementValue(float amount);
+    // ORIG _ZN13user_creature8CStomach13IsSaveStomachENS_14CREATURE_STATEE T 0x8336dee：
+    // state==1 → 饱食度>0 才可保存；state 2..3 → 饱食度==100.0f 视为满不可保存；
+    // 其余 state 恒真。
+    bool IsSaveStomach(CREATURE_STATE state);
+    // ORIG _ZN13user_creature8CStomach6ResumeEv T 0x8336e4c：m_lastTime = 当前秒。
+    void Resume();
 };                                    // 共 8B（+0x34..+0x3b）
 
 // ORIG 内部包类型（CDBMsgSender::Init 0x833f7a8：0x89 走 BigStreamPool，
@@ -501,6 +207,10 @@ public:
     bool RecvMail(Inven_Item* item, int characNo, int slot, int reason, int mapSize);
     // ORIG _ZN13user_creature12CDBMsgSender8SendMailEP10Inven_Itemiiii W 0x833fe8c
     bool SendMail(Inven_Item* item, int characNo, int slot, int reason, int mapSize);
+    // ORIG _ZN13user_creature12CDBMsgSender12UseKeepRightEii W 0x083401ec：
+    // GetInBuffer<SIG_CREATURE_ITEM> 清 0x74；m_hdr|=0x80；+0x30=uid、
+    // +0x52=flag 低字节。SetKeepRightItem 免充标志落库用。
+    bool UseKeepRight(int uid, int flag);
 
     template <class T> T* GetInBuffer()
     {
@@ -516,10 +226,20 @@ public:
     // buf 清 0x74；m_hdr|=0x40；compat.m_itemIdx(+0x08)=新宠物物品 idx；
     // m_addInfo2(+0x30)=宠物 uid。Evolute/SelectEvolute 进化落库用。
     bool EvoluteCreature(int uid, int itemIdx);
-    // ORIG _ZN13user_creature12CDBMsgSender16SwapCreatureItemEP5CUserP10Inven_ItemiS4_i
-    // W 0x0833fa0c：SIG_SWAP_CREATURE_ITEM 清 0x74 后填双物品 idx/slot/空标志。
+    // ORIG _ZN13user_creature12CDBMsgSender20EventEvoluteCreatureEiii W 0x833fddc：
+    // buf 清 0x74；m_hdr|=0x248；compat.m_itemIdx(+0x08)=新宠物物品 idx；
+    // m_addInfo2(+0x30)=uid；exp 写 +0x4c；find_item 后 m_days(+0x54)=
+    // getUsablePeriod()、m_expireTick(+0x58)=getExpirationDate()。EventEvolute 落库用。
+    bool EventEvoluteCreature(int uid, int itemIdx, int exp);
     bool SwapCreatureItem(CUser* user, Inven_Item* item1, int slot1,
                           Inven_Item* item2, int slot2);
+    // ORIG _ZN13user_creature12CDBMsgSender16RenameCreatureItemEiPKc W 0x083405aa
+    // ORIG _ZN13user_creature12CDBMsgSender16RenameCreatureItemEiPKc W 0x083405aa
+    //   （Main 授权补充；RenameCreature 落库用，定义随 CCreatureMgr.cpp）。
+    bool RenameCreatureItem(int uid, const char* name);
+    // ORIG _ZN13user_creature12CDBMsgSender13HatchCreatureEii W 0x083405b4
+    //   （Main 授权补充；Hatch 落库用，定义随 CCreatureMgr.cpp）。
+    bool HatchCreature(int uid, int flag, int itemIdx);
 };
 class COverSkillTime
 {
@@ -528,8 +248,8 @@ public:
     bool checkTime();  // ORIG T 0x0833d65e：(curSec-m_time)∈(0,20.0) 浮点判定
 };
 
-
 class CCreatureScript;  // user_creature 域内前置（权威声明见 CCreatureScript.h）
+class CCreatureMgr;     // 前置：SaveCreatureItem/LoadCreatureItem 双向引用
 
 // ORIG CCreature 继承 CCreatureItem（实证：SetState/UseFeed 以
 // CCreatureItem::GetUid(this) 取 +0x0c；IsNoCharge(+0x14) 与
@@ -571,9 +291,11 @@ public:
     bool GainItemExpCreature(int exp, CUser* user);          // ORIG T 0x83379c0
     // ORIG _ZN13user_creature9CCreature11isMaxLevelEv 0x833756e
     bool isMaxLevel();
-    // ORIG _ZN13user_creature9CCreature7UseFeedEP5CUserRi T 0x083373d4：
-    // 喂食：复活死亡宠广播 → IncrementValue(30) → 状态包，out 写新饱食度。
     bool UseFeed(CUser* user, int& stomachValue);
+    // ORIG _ZN13user_creature9CCreature10SetStomachEi W 0x0833f070：写 +0x38
+    // ORIG _ZN13user_creature9CCreature10SetStomachEi W 0x0833f070：写 +0x38
+    // m_stomach.m_value = (float)stomachValue。
+    void SetStomach(int stomachValue);
 
     // ---- ORIG W 访问器 ----
     bool IsSave();                    // W 0x833f04c：movzbl +0x40
@@ -589,6 +311,31 @@ public:
 
     int IsAbleEvolute(CUser* user) const;   // ORIG T 0x083380fc（RestoreUserQuestStubs 批次）
     int IsAbleSelectEvolute(CUser* user);   // ORIG T 0x08337d58（RestoreUserQuestStubs 批次）
+    // ---- Save/Load 落库链（TranslateCCreatureMgrTU 批次；签名与 ORIG mangled 一致）----
+    // ---- TranslateCCreatureTU 追加（ORIG 报告齐备，实现落 CCreature.cpp；
+    //      经 user_creature 域属主 TranslateCCreatureMgrTU 书面协调授权）----
+    bool RenameCreature(const char* name);              // ORIG T 0x83373aa
+    bool EvoluteMulty(CUser* user, int creatureId);     // ORIG T 0x8338950
+    bool EventEvolute(CUser* user, int creatureId, int slot);  // ORIG T 0x833db2e
+    bool ItemEvolute(CUser* user, int itemIdx);         // ORIG T 0x8338ca0
+    bool IsEvolutionCreature(int creatureId);           // ORIG T 0x83388ec
+    bool IsEvolutionCreatureMulty(int creatureId);      // ORIG T 0x8338922
+    bool IsEventEvolutionCreature(int creatureId);      // ORIG T 0x8338bfa
+    int GetLearnOverSkillLevel();                       // ORIG T 0x8338c78
+    int GetOverSkillRecoveryTime();                     // ORIG T 0x8338c50
+    int GetSkillRecoveryTime();                         // ORIG T 0x8338c28
+    // ORIG _ZN13user_creature9CCreature16SaveCreatureItemEP10Inven_ItemP29SIG_CREATURE_ITEM_DETAIL_INFOP5CUser
+    //   T 0x83387f6：宠物序列化进 SIG_LOAD_INVENTORY 条目（GetCreatureItem 逐条调用）。
+    bool SaveCreatureItem(Inven_Item* item, SIG_CREATURE_ITEM_DETAIL_INFO* info,
+                          CUser* user);
+    // ORIG _ZN13user_creature9CCreature16LoadCreatureItemEPNS_12CCreatureMgrEP10Inven_ItemP29SIG_CREATURE_ITEM_DETAIL_INFOP5CUser
+    //   T 0x83385aa：DB 载入侧逆操作（注册/装备/回填槽物）。
+    bool LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
+                          SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user);
+    // ORIG _ZN13user_creature9CCreature3DieEP5CUser T 0x8338536：死亡通知广播。
+    bool Die(CUser* user);
+    // ORIG _ZN13user_creature9CCreature17CheckDiedCreatureEv... 实为 (P5CUser) T 0x83384b8
+    bool CheckDiedCreature(CUser* user);
     // ---- 布局（总 0x100；基区按 CCreatureItem 展开为具名字段）----
     int m_vptr;                     // +0x00（ORIG vptr 槽占位）
     int m_itemId;                   // +0x04（CCreatureItem::GetItemId）
@@ -615,6 +362,26 @@ public:
     COverSkillTime m_overSkill;    // +0x50
     char m_pad54[0xac];            // → 总 0x100（保持镜像尺寸）
 };
+
+class CCreatureItem;   // 前向：CCreatureItemFactory 返回/释放（权威定义见 CInventory.h）
+
+// ORIG 创世宠物项工厂（ctor 0x0833f67a）：两 DynamicPool（+0x00 CEgg 池、
+// +0x5c CCreature 池，各 0x3e8 基数），总尺寸 0xb8。AcquireCreatureItem(type)
+//   type==0 → 蛋池，type==1 → 宠物池；Acquire 后经 vtable+0 调 C1。
+class CCreatureItemFactory
+{
+public:
+    CCreatureItemFactory();   // ORIG C1 0x0833f67a（定义 CCreatureMgr.cpp）
+    ~CCreatureItemFactory();  // ORIG D1 0x0833f6d0（定义 CCreatureMgr.cpp）
+    CCreatureItem* AcquireCreatureItem(int type);  // ORIG 0x0833f57c
+    bool FreeCreatureItem(CCreatureItem* item);    // ORIG 0x0833f618
+private:
+    DynamicPool<CEgg> m_eggPool;             // +0x00
+    DynamicPool<CCreature> m_creaturePool;   // +0x5c
+};
+
+// ORIG guard 单例（guard var 0x943c070 / instance 0x943c080）。定义 CCreatureMgr.cpp。
+CCreatureItemFactory* GetInstanceCreatureItemFactory();
 
 }
 

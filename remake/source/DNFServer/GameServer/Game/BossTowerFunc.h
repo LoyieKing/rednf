@@ -1,6 +1,11 @@
 #ifndef DNF_GAME_BOSS_TOWER_FUNC_H_
 #define DNF_GAME_BOSS_TOWER_FUNC_H_
 
+// Get_State_Check(ch_state) 形参需要完整枚举类型（C++98 无法前向声明 enum），
+// 故引入 CUser.h 取全局枚举 ch_state。本头消费方仅 BossTowerFunc.cpp 与
+// DisPatcherCore.cpp，二者原本就已包含 CUser.h，无新增回环风险。
+#include "CUser.h"
+
 // ============================================================================
 // BossTowerFunc.h —— Global::CBossTowerFunc 权威声明
 //
@@ -43,6 +48,18 @@ public:
     static void GiveUpGame(CUser* user);                        // ORIG T 0x08146ad8（恒返回 1；DisP_GroupG 调用）
 };
 
+// ----------------------------------------------------------------------------
+// ORIG 与 CBossTowerFunc 同一编译单元的静态语义函数类（asm 不使用 this）：
+//   _ZN6Global11CGlobalFunc15Get_State_CheckE8ch_state（T 0x081466f0）。
+// ----------------------------------------------------------------------------
+class CGlobalFunc
+{
+public:
+    // (unsigned)state <= 0xd 且 (1 << state) & 0x3420 非零（state ∈ {5,6,12,13}）
+    // → true；否则 false。定义见 BossTowerFunc.cpp（报告
+    // Global__CGlobalFunc/Get_State_Check.md ## 汇编 + ## 反编译 C 全文转写）。
+    static bool Get_State_Check(ch_state state);
+};
 }  // namespace Global
 
 #endif  // DNF_GAME_BOSS_TOWER_FUNC_H_

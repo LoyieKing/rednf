@@ -146,9 +146,13 @@ void STSkillScript::Clear()
         m_growType[i].m_8[1] = 0;
     }
     m_vecf4.clear();
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < 2; ++i)
     {
-        m_arr100[i] = 0;
+        m_f100[i] = 0.f;
+    }
+    for (int i = 0; i < 4; ++i)
+    {
+        m_i108[i] = 0;
     }
     m_arr138[0] = 0;
     m_arr138[1] = 0;

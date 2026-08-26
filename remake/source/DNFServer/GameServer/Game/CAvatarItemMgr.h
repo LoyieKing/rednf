@@ -19,6 +19,9 @@ namespace WongWork
 class CAvatarItemMgr
 {
 public:
+    // G7 miscB 追加：ORIG _ZN8WongWork14CAvatarItemMgrC1ERKS0_ W 0x0869937c
+    // （合成式逐成员拷贝，定义 WongWorkMiscB_A.cpp）。
+    CAvatarItemMgr(const CAvatarItemMgr& other);
     void Reset();
     bool IsTempKey(int key) const;
     int _AssignTempKey();

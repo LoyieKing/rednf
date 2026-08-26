@@ -185,8 +185,8 @@ bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
 // ORIG stWeekendBouns::stWeekendBouns() 0x0836f374
 stWeekendBouns::stWeekendBouns()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_bonusFatiguePercent = 0;
+    m_bonusExpPercent = 0;
 }
 
 // ORIG stLevelCond4PremiumGoldCard::stLevelCond4PremiumGoldCard() 0x0836f348
@@ -311,12 +311,15 @@ float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
 
 int ServerParameterScript::getLuckPoint(int idx, int& out)
 {
-    if (idx >= 0 && idx < (int)m_luck48.size())
+    unsigned int i = 0;
+    for (; i < m_luck48.size(); ++i)
     {
-        out = m_luck48[idx].m_field0;
-        return 1;
+        if (idx <= m_luck48[i].m_field0)
+        {
+            out = m_luck48[i].m_field1;
+            return 1;
+        }
     }
-    out = 0;
     return 0;
 }
 
@@ -327,21 +330,23 @@ int ServerParameterScript::getLuckPoint(int idx, int& out)
 //   行耗尽返回 0。
 int ServerParameterScript::getLuckPointDeductionRate(int level, int grade)
 {
-    for (unsigned int i = 0; i < m_luckDed54.size(); ++i)
+    unsigned int i = 0;
+    while (i < m_luckDed54.size())
     {
-        if (m_luckDed54[i].m_field0 == level)
-            continue;
-        for (int j = 0; j <= 2; ++j)
+        if (level <= m_luckDed54[i].m_field0)
         {
-            if (j < (int)m_luckDed54[i].m_levels.size() &&
-                m_luckDed54[i].m_levels[j] == grade)
+            int j = 0;
+            for (;;)
             {
-                return m_luckDed54[i].m_levels[j];
+                if (j > 2)
+                    return m_luckDed54[i].m_levels[3];
+                if (m_vec6c[j] <= grade)
+                    break;
+                ++j;
             }
+            return m_luckDed54[i].m_levels[j];
         }
-        if ((int)m_luckDed54[i].m_levels.size() > 3)
-            return m_luckDed54[i].m_levels[3];
-        return 0;
+        ++i;
     }
     return 0;
 }
@@ -443,7 +448,7 @@ int ServerParameterScript::GetPvPChannelGradePenalty(int grade)
     return it->second;
 }
 
-bool ServerParameterScript::CheckUnusableEquipmentInfo(int type, int idx)
+bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_TYPE type, int idx)
 {
     for (std::vector<stUnusableEquipmentInfo>::iterator it =
              m_unusableEC.begin();
@@ -457,7 +462,7 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(int type, int idx)
     return false;
 }
 
-bool ServerParameterScript::CheckUnusableItem(int equipType,
+bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
                                               unsigned long itemIdx) const
 {
     return m_unusableItemFC.find(itemIdx) != m_unusableItemFC.end();

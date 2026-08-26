@@ -19,10 +19,6 @@ TournamentMonster::TournamentMonster()
     Clear();
 }
 
-TournamentMonster::~TournamentMonster()
-{
-}
-
 void TournamentMonster::Clear()
 {
     m_mobId = 0;

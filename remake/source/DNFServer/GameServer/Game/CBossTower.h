@@ -22,6 +22,7 @@
 #include "CBossDungeonEntranceLog.h"
 
 #include "CBossStage.h"
+#include "TimerQueue.h"  // TIMER_MESSAGE（_onTimerProcess ORIG 参数类型）
 class CUser;
 struct MSG_MONSTER_DIE;
 
@@ -57,31 +58,34 @@ public:
     // 新增虚（char 按值，与 CBossStage 的 char& 版本不同）0x08143d2c
     virtual int handlePickupItem(CUser* user, int a, bool b, char c);
 
-    // ---- 其余方法（声明；实现见 CDeathTower.cpp / 后续批次）----
+    // ---- 其余非虚方法（全部于 CBossTower.cpp 按对应 ORIG 报告转写实现）----
     int InitBossTower(CParty* party, int towerIdx);        // 0x08142f32（ORIG eax 0/1）
-    void InsertRewardExp();                                // 0x081446a2
-    void InsertRewardItems();                              // 0x081447a0
-    void SendELPLPacket();                                 // 0x081441d4
-    void SendRewardPacket();                               // 0x0814432a
+    int InsertRewardExp();                                 // 0x081446a2（ORIG eax 恒 1）
+    int InsertRewardItems();                               // 0x081447a0（ORIG eax 恒 1）
+    int SendELPLPacket();                                  // 0x081441d4（ORIG eax 恒 1）
+    int SendRewardPacket();                                // 0x0814432a（ORIG eax 恒 1）
     void _destroy();                                       // 0x08142b36
     void _onPrepareFinishTower(bool flag);                 // 0x08142d24
-    void _onTimerProcess(int timerMsg, unsigned int a);    // 0x08142cde
+    void _onTimerProcess(TIMER_MESSAGE msg, unsigned int a);  // 0x08142cde（mangled E13TIMER_MESSAGEj）
     int checkStartGameCondition(unsigned char& a, bool b);// 0x08142fa6（ORIG eax 0/1）
-    void generateRewardExp();                              // 0x08144d54
-    void generateRewardItem();                             // 0x08144e36
-    void handleEPLPCommand(int cmd);                       // 0x08142b72
+    int generateRewardExp();                               // 0x08144d54（ORIG eax 恒 1；非虚，隐藏基类重载）
+    int generateRewardItem();                              // 0x08144e36（ORIG eax 恒 1；非虚，隐藏基类重载）
+    int handleEPLPCommand(int cmd);                        // 0x08142b72（ORIG eax 0/1）
     int handleFinishLoading(CUser* user);                 // 0x08143f6a（ORIG 返回 0/1）
     int handleUseItem(CUser* user, unsigned long a, unsigned char b);    // 0x081454b8（ORIG 返回 0/1）
-    void onChargeRequireItem(CUser* user);                 // 0x0814530c
-    void onClearBossTower();                               // 0x08144508
+    int onChargeRequireItem(CUser* user);                  // 0x0814530c（ORIG eax 0/1）
+    int onClearBossTower();                                // 0x08144508（ORIG eax 0/1）
     int onFinishStage();                                   // 0x081440b2（ORIG 恒返 1）
     char handleStartGame(CParty* party, int a, char b, ENUM_DUNGEON_TYPE dungeonType);  // 0x081434f4（ORIG mangled ...ic17ENUM_DUNGEON_TYPE；SelectDungeon 读 %al 返回值）
-    void onReadyTimerCheck();                              // 0x0814512a
-    void onReturnVillage();                                // 0x08144fca
+    int onReadyTimerCheck();                               // 0x0814512a（ORIG eax 0/1）
+    int onReturnVillage();                                 // 0x08144fca（ORIG 恒返 1）
 
 private:
     int m_idx;                      // +0xaf0（getIdx/setIdx）
-    char m_padAF4[0xafc - 0xaf4];   // +0xaf4..+0xafc
+    int m_towerStartTick;           // +0xaf4（handleStartGame 开局时刻；
+                                    //   _onPrepareFinishTower 结算时长起点）
+    int m_towerEndTick;             // +0xaf8（handleStartGame 清零；
+                                    //   _onPrepareFinishTower 置当前 tick）
     char m_prepareFinishFlag;       // +0xafc（_onPrepareFinishTower(bool) 写入）
     CBossDungeonEntranceLog m_dungeonLog;  // +0xb00..+0xb18（0x18）
     // 总尺寸 0xb18

@@ -17,7 +17,17 @@
 #include <vector>
 
 class CItem;
-struct DisJointResult;
+// ---- DisJointResult（ORIG W ctor 0x082347a2：10×int 清零环，sizeof 0x28）----
+// 字段写入点实证（GetResult 0x084733f6 / _GetAdditionalItem 0x084732b4）：
+//   m_f[0]=+0x00 分解金钱；m_f[1]=+0x04 附加物数量；
+//   m_f[5]=+0x14 cube 索引（m_cubeIndexVecs[4][0]）；
+//   m_f[6]=+0x18 附加物 item idx；其余槽位仅由 ctor 清零。
+struct DisJointResult
+{
+    DisJointResult();  // ORIG _ZN14DisJointResultC1Ev W 0x082347a2
+
+    int m_f[10];       // +0x00..+0x24（10 int）
+};  // sizeof == 0x28
 
 // ---- LotteryInfo：唯一权威声明见 LotteryInfo.h（原本地副本删除，布局一致；
 //      方法定义归属 CStackableItem.cpp）----
@@ -88,7 +98,16 @@ public:
 
     // 其余查询方法（GetPredictResult/GetResult 等）报告在案，定义待分解域批次。
 
+    // ORIG T 0x08473116 _ZN8DisJoint17GetPredictResultEi：返回 &m_resultVecs[rarity]
+    // （rarity 越界时返回基址；定义 ExpertJobLink4.cpp）
+    std::vector<int>* GetPredictResult(int rarity);
     std::vector<int> m_resultVecs[6];          // +0x628（LoadDisJoint 聚合目标，步长 0xc）
+
+    // ---- 分解结果（定义 ItemUpgradeVtableB2.cpp）----
+    int GetResult(int itemIdx, DisJointResult& out);            // T 0x084733f6
+    void _GetAdditionalItem(const CItem* item, int* outIdx,
+                            int* outCount);                     // T 0x084732b4
+    int _GetAdditionalItemInfo(int rarity);                     // T 0x08473224
 };  // sizeof == 0x658
 
 bool importDisjointScript(DisjointScript* script, const char* path);  // ORIG T 0x088e4d88（声明；定义待脚本导入域批次）

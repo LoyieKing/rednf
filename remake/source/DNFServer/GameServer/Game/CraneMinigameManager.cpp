@@ -7,20 +7,6 @@
 #include "GameTypes.h"          // cMyTrace
 #include "DNFLexWrapper.h"      // loadRDARScriptFile/ScanType/ScanInt/ScanFloat
 
-// importActionMailScript —— ORIG T 0x0897f147（0x678 字节）。
-// 完整邮件脚本解析依赖未建模类型，这里以可链接最小实现提供符号；
-// 行为按推断：消费当前 token 后返回（外层解析器逐 token 推进，不会死循环）。
-void importActionMailScript(Action_SendMail* mail)
-{
-    if (mail == 0)
-        return;
-    // 推断：完整实现待后续批次；此处仅清空物品/收件人状态（字段对应真实
-    // ::Action_SendMail 布局，见 InGameEventScripts.h）。
-    mail->m_jobMap.clear();
-    mail->m_itemIdx = 0;
-    mail->m_addInfo = 0;
-}
-
 // ============================================================================
 // importCraneMinigameScript —— ORIG 0x088e3924（0x74d 字节）。
 // 反汇编转写：loadRDARScriptFile("", path) 失败返回 false；随后逐 token 分派：

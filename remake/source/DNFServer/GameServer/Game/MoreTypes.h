@@ -43,7 +43,14 @@ struct MSG { char m_pad[0x100]; };
 }
 
 namespace DBInsertGiveBoxEventReward {
-struct MSG { char m_pad[0x100]; };
+// ORIG 布局（makeRequest 反汇编）：+0 acc_id（get_acc_id）、+4 charac_no
+// （get_charac_no(-1)），总尺寸 0x100（网络缓冲）。
+struct MSG
+{
+    unsigned int m_accId;   // +0x00
+    int m_characNo;         // +0x04
+    char m_pad08[0xf8];     // +0x08..+0xff
+};
 }
 
 namespace DBSelectMobileAuthRewardTw {
@@ -115,7 +122,32 @@ struct __attribute__((packed)) SigLoadRewardEventItem
 };
 struct SigSaveRewardEventItem { char m_pad[0x100]; };
 struct SigSetCharacCreateTime { char m_pad[0x100]; };
-struct SigAradAvatarEnduranceSave { char m_pad[0x100]; };
+// ORIG W 0x081933de init()/0x081933f6 C1：仅清 +0x00 与 +0x04 两 dword。
+struct SigAradAvatarEnduranceSave
+{
+    SigAradAvatarEnduranceSave() { uiId = 0; endurance = 0; }
+    void init() { uiId = 0; endurance = 0; }   // ORIG 0x081933de
+
+    unsigned int uiId;        // +0x00（avatar uid，Inven_Item::m_addInfo2）
+    unsigned int endurance;   // +0x04（Inven_Item::m_fieldSplit.m_avatarEndur）
+    char m_tail[0x100 - 8];   // 补齐至原 pad 大小 0x100（Stream::GetOutBuffer 兼容）
+};
+// ORIG W 0x081a09c4 init()/0x081a09f8 C1：清 word/word/dword/dword/dword 共 0x10。
+struct SigAradUseAvatarRecharge
+{
+    SigAradUseAvatarRecharge() { init(); }
+    void init()   // ORIG 0x081a09c4
+    {
+        avatarSlot = 0; stoneSlot = 0; addEndurance = 0;
+        maxEndurance = 0; enduranceAfter = 0;
+    }
+
+    unsigned short avatarSlot;      // +0x00（INVEN_TYPE_AVATAR 槽位）
+    unsigned short stoneSlot;       // +0x02（充值石槽位）
+    int addEndurance;               // +0x04（本次实际增加耐久）
+    int maxEndurance;               // +0x08（上限 = 充值上限 × socket 数）
+    unsigned int enduranceAfter;    // +0x0c（操作后耐久计数）
+};  // sizeof = 0x10
 struct SigAradAvatarHiddenOptionSave { char m_pad[0x100]; };
 }
 

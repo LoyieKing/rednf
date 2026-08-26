@@ -1,4 +1,5 @@
 // CDataManager 脚本 POD 的构造/析构实现，独立于通用桩 TU.
+#include "CBoosterGage.h"  // BoosterGageData 权威布局（须先于 CDataManager.h）
 #include "CDataManager.h"
 #include "GameWorld.h"
 #include "CItemGeneratorMgr.h"
@@ -27,22 +28,23 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 
 #define ZERO_POD(T) T::T() { memset(this, 0, sizeof(*this)); } T::~T() {}
 
-// ---- QuestParameterScript（ORIG C1 0x836f1c2 / clear 0x836f130 / D1 0x837d3ca）----
 QuestParameterScript::QuestParameterScript()
 {
     clear();
 }
 QuestParameterScript::~QuestParameterScript() {}
+
 void QuestParameterScript::clear()
 {
+    // ORIG clear 0x836f130：先清全部容器，末尾清 +0x18/+0x1c/+0x20 三 int。
     m_map0.clear();
-    m_field18 = 0;
-    m_field1c = 0;
-    m_field20 = 0;
     m_vec24.clear();
     m_vec30.clear();
     m_map3c.clear();
     m_map54.clear();
+    m_field18 = 0;
+    m_field1c = 0;
+    m_field20 = 0;
 }
 
 // ---- GuildParameterScript（ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542）----
@@ -172,11 +174,11 @@ eventReward::~eventReward()
 }
 
 // ---- ConditionLevelChkDungeon / FairPvPStatScript / RegenerationROI ----
-// ORIG C1 0x837c9ac / D1 0x837c9d0：仅构造/析构 +0x00 的 vector<int>。
+// ORIG C1 0x837c9ac / D1 0x837c9c0（本 TU 唯一 owner）：仅构造/析构 +0x00 的
+// vector<int>；objdump 直转，标量成员无动作。
 ConditionLevelChkDungeon::ConditionLevelChkDungeon()
     : m_unableDungeons()
 {
-    m_applyLevel = 0;
 }
 ConditionLevelChkDungeon::~ConditionLevelChkDungeon() {}
 // ORIG C1 0x83724f0：map 构造后 clear()；D1 仅析构 map；clear 0x83724c8 清空 map。
@@ -186,9 +188,19 @@ FairPvPStatScript::FairPvPStatScript()
 }
 FairPvPStatScript::~FairPvPStatScript() {}
 void FairPvPStatScript::clear() { m_map0.clear(); }
-RegenerationROI::RegenerationROI()
-    : m_regeneratorPtr(0), m_regenerator(), m_expertJobList(0)
+// ORIG _ZN28RandomOptionItem_RegeneratorC1Ev 0x85f971a T：四容器构造后 +0x48=0。
+RandomOptionItem_Regenerator::RandomOptionItem_Regenerator()
+    : m_map0(), m_map18(), m_vec30(), m_vec3c()
 {
+    m_field48 = 0;
+}
+
+RegenerationROI::RegenerationROI()
+    : m_regenerator()
+{
+    // ORIG C1 0x85f8486：构造 +0x04 regenerator 后 new CMTRand(0x9c8) 存 +0x00；
+    // 不初始化 +0x50。
+    m_regeneratorPtr = new CMTRand();
 }
 RegenerationROI::~RegenerationROI()
 {
@@ -228,7 +240,7 @@ bool stSeriaBlessingScript::is_possible_lv(int lv) const
 CharacterStatus* FairPvPStatScript::FindCharacStat(int job, int growType)
 {
     std::map<CharacterKind, CharacterStatus>::iterator it =
-        m_map0.find(CharacterKind((char)job, (char)growType));
+        m_map0.find(CharacterKind((unsigned char)job, (unsigned char)growType));
     if (it != m_map0.end())
         return &it->second;
     return 0;
@@ -262,7 +274,15 @@ stStepRewardStackableItemScript::stStepRewardStackableItemScript()
     m_map0.clear();
 }
 stStepRewardStackableItemScript::~stStepRewardStackableItemScript() {}
-stGrowthCapsuleScript::stGrowthCapsuleScript() { memset(this, 0, sizeof(*this)); }
+stGrowthCapsuleScript::stGrowthCapsuleScript()
+{
+    // ORIG C1 0x0837114a：五个 int 成员逐个清零（非 memset）。
+    m_maxGageExp = 0;
+    m_gagePercent = 0;
+    m_capsuleId = 0;
+    m_capsuleExp = 0;
+    m_capsuleLimitLv = 0;
+}
 CLottery_NeedMoney::CLottery_NeedMoney() : m_needMoneyMap() {}
 CLottery_NeedMoney::~CLottery_NeedMoney() {}
 
@@ -548,9 +568,10 @@ bool* GetLightServerFlag()
 
 void SetLightServerFlag(bool flag)
 {
-    g_lightServerFlag = flag;
+    // ORIG：经 GetLightServerFlag() 取标志指针（存入局部变量）后写入。
+    bool* lightFlag = GetLightServerFlag();
+    *lightFlag = flag;
 }
-
 // stLimitItemUsageInfoEx 权威定义在 CDataManager.h（含 ctor/dtor 声明），
 // 此处不再重复定义。
 // ============================================================================
@@ -695,7 +716,9 @@ MultiBoxLotteryInfo::LotteryDefaultArad::~LotteryDefaultArad() {}
 
 // ---- BaseItemKey / BaseItemValue（CItemList.h）----
 BaseItemKey::BaseItemKey() {}
-BaseItemKey::BaseItemKey(unsigned char, unsigned char, unsigned short)
+BaseItemKey::BaseItemKey(unsigned char rarity, unsigned char usableLevel,
+                         unsigned short groupName)
+    : m_rarity(rarity), m_level(usableLevel), m_partType(groupName)
 {
 }
 BaseItemValue::BaseItemValue() : m_field0(0) {}
@@ -769,19 +792,15 @@ stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
 stBloodDungeon_t::~stBloodDungeon_t() {}
 void stBloodDungeon_t::clear()
 {
-    // ORIG：+0x00..+0x31f 置 1.0f（200 float）；+0x320 = 1；
-    // +0x324..+0x32f 清 0；+0x330 = 1.0f；+0x334 vector.clear()；
-    // +0x340..+0x357 清 0；+0x358 map.clear()
-    for (int i = 0; i < 200; ++i)
+    // ORIG 0x8370b02：循环(unsigned≤199)置 1.0f → +0x334 clear → +0x320=1 →
+    // +0x330=1.0f → memset(+0x324,0,0xc) → memset(+0x340,0,0x18) → +0x358 clear。
+    for (unsigned int i = 0; i <= 199; ++i)
         m_rate[i] = 1.0f;
-    m_field320 = 1;
-    memset(m_field324, 0, sizeof(m_field324));
-    m_field330 = 1.0f;
     m_vec334.clear();
-    memset(m_pad340, 0, sizeof(m_pad340));
-    m_ultDiffPoint344 = 0;
-    m_ultPointTotal348 = 0;
-    memset(m_pad34c, 0, sizeof(m_pad34c));
+    m_field320 = 1;
+    m_field330 = 1.0f;
+    memset(m_field324, 0, sizeof(m_field324));
+    memset(m_pad340, 0, 0x18);  // 连续覆盖 +0x340..+0x357（含 344/348 两 int）
     m_map358.clear();
 }
 // stVillageAttacked_t 现为纯 vector 包装（CDataManager.h），ctor/dtor 隐式生成
@@ -792,34 +811,44 @@ void stBloodDungeon_t::clear()
 // ORIG C1 0x8370970：四个 200 元素表初始化 + 尾部字段，非全量 memset。
 stDeathTower_t::stDeathTower_t()
 {
-    m_field0 = 0.0f;      // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
-    m_fieldc84 = 0.0f;    // float 语义（[monster exp weight] fstps）
-    m_floatc94 = 1.0f;
+    m_apcExpWeight = 0.0f;        // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
+    m_monsterExpWeight = 0.0f;    // float 语义（[monster exp weight] fstps）
+    m_rewardGoldWeight = 1.0f;
     for (int i = 0; i < 200; ++i)
     {
-        m_rateA[i] = 1.0f;   // this+0x04+i*4
-        m_cntB[i] = 0;       // this+0x324+i*4
-        m_rateC[i] = 1.0f;   // this+0x644+i*4
-        m_cntD[i] = 0;       // this+0x964+i*4
+        m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4
+        m_rewardCardNum[i] = 0;               // this+0x324+i*4
+        m_illusionRewardExpWeight[i] = 1.0f;  // this+0x644+i*4
+        m_illusionRewardCardNum[i] = 0;       // this+0x964+i*4
     }
-    memset(m_rewardProbC88, 0, sizeof(m_rewardProbC88));  // ORIG memset(+0xc88,0,12)
+    memset(m_rewardItemProb, 0, sizeof(m_rewardItemProb));  // ORIG memset(+0xc88,0,12)
 }
 
 // live_server_info_t ctor ORIG 0x0837dd64：仅 map 成员构造（自动）。
 live_server_info_t::live_server_info_t() : m_pvpChannelMap() {}
 live_server_info_t::~live_server_info_t() {}
 
-// ---- stQuestShop / WorldDropInfo / SlangNameData / InvalidCharData----
-stQuestShop::stQuestShop() : m_field18(-1) { memset(m_pad28, 0, sizeof(m_pad28)); }
+stQuestShop::stQuestShop()
+{
+    // ORIG C1 0x83710d4：[map C1][initCost C1][map clear] 后 -1、memset(+0x28,0,0x4d)。
+    m_map0.clear();
+    m_field18 = -1;
+    memset(m_pad28, 0, sizeof(m_pad28));
+}
 stQuestShop::~stQuestShop() {}
-WorldDropInfo::WorldDropInfo() : m_first(0), m_chunks(), m_total(0) {}  // ORIG C1 0x8374ec8
-SlangNameData::SlangNameData() {}  // 含 vector<string>+vector<uchar>+vector<ushort> 成员 → 默认构造
-SlangNameData::~SlangNameData() {}
 InvalidCharData::InvalidCharData()
-    : m_charList(), m_charRange(), m_shortList(), m_shortRange(), m_slangFilter(0)
+    : m_charList(), m_charRange(), m_shortList(), m_shortRange()
 {
 }
 InvalidCharData::~InvalidCharData() {}
+
+// ---- SlangNameData（ORIG C1 0x837d08e / D1 0x837d0fa，本 TU 唯一 owner）----
+// C1 依次构造 string/unsigned-char/unsigned-short 三个 vector；D1 反向析构。
+SlangNameData::SlangNameData()
+    : m_slangList(), m_charList(), m_shortList()
+{
+}
+SlangNameData::~SlangNameData() {}
 
 // ---- STGrowthPowerData（ORIG C1 0x83711fe / D1 0x837d290）----
 STGrowthPowerData::STGrowthPowerData() : m_vec0(), m_vecC(), m_map18()
@@ -837,8 +866,12 @@ AvatarVariation::AvatarColorInfo::AvatarColorInfo() : m_colorMap(), m_nameMap()
 }
 AvatarVariation::AvatarColorInfo::~AvatarColorInfo() {}
 BoosterGageData::BoosterGageData()
-    : m_BoosterPoint(), m_cMaxBoosterGage(0), m_cFieldD(0), m_cMultiboxCount(0)
 {
+    // ORIG C1 0x83850cc：[vector C1] 后 clear + 三字节清零。
+    m_BoosterPoint.clear();
+    m_cMaxBoosterGage = 0;
+    m_cFieldD = 0;
+    m_cMultiboxCount = 0;
 }
 BoosterGageData::~BoosterGageData() {}
 
@@ -899,10 +932,17 @@ int reseal_table_t::get_oneshot_reseal_cost(unsigned char param_1,
     return 1;
 }
 
-// ---- InGameAdvertisementScript（ORIG C1 0x83732f0 W：0x98 字节清零）----
+// ---- InGameAdvertisementScript（本 TU 唯一 owner；InitScriptProducers_7 重复已删）----
+// ORIG C1 0x83732f0：仅调 clear()。
 InGameAdvertisementScript::InGameAdvertisementScript()
 {
-    memset(m_exposeConditionOfTeen, 0, sizeof(m_exposeConditionOfTeen));
+    clear();
+}
+
+// ORIG clear 0x8373304：memset(this, 1, 0x97)——前 0x97 字节置 1，尾字节保持原值。
+void InGameAdvertisementScript::clear()
+{
+    memset(this, 1, 0x97);
 }
 
 // ---- PcBangItemRentarData（ORIG D1 0x837c2c0）----
@@ -936,7 +976,7 @@ stLimitItemUsageInfoEx::~stLimitItemUsageInfoEx() {}
 
 // ---- CNPCRelationEventManager（ORIG D1 0x890ce34：遍历 map 删除节点后析构 map）----
 CNPCRelationEventManager::CNPCRelationEventManager()
-    : m_npcEventMap(), m_itemLimitEditionMgr(0)
+    : m_npcEventMap()
 {
 }
 CNPCRelationEventManager::~CNPCRelationEventManager()
@@ -1047,12 +1087,20 @@ advancealtar::RewardParameter::RewardParameter()
     // m_rewardMap 默认构造即空 map，与 ORIG 一致。
 }
 advancealtar::RewardParameter::~RewardParameter() {}
+// ORIG _ZN12advancealtar11BuyShopDataC1Ev 0x88a3630：三 vector 构造后 +0=0、clear×3。
+advancealtar::BuyShopData::BuyShopData()
+{
+    m_nField0 = 0;
+    m_vecT0.clear();
+    m_vecT1.clear();
+    m_vecT2.clear();
+}
 advancealtar::ConfigParameter::ConfigParameter()
 {
     // ORIG 0x889b662：+0/+4 清零、char*+0x18=&(+8)、两段 0x10 memset。
     m_0 = 0;
     m_4 = 0.0f;
-    m_strPtr = reinterpret_cast<char*>(m_gageUpRate);
+    m_strPtr = reinterpret_cast<char*>(this) + 8;
     std::memset(m_gageUpRate, 0, sizeof(m_gageUpRate));
     std::memset(m_gageUpAux, 0, sizeof(m_gageUpAux));
 }
@@ -1095,12 +1143,9 @@ int eventReward::importRewardTable(const char* dir, const char* file)
 // ============================================================================
 DeleteInvalidItemScript::DeleteInvalidItemData::DeleteInvalidItemData()
 {
-    // ORIG C1 0x08ac220c W：三 int 清零。
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    // ORIG C1 0x08ac220c W：转调 init()（三 int 清零）。
+    init();
 }
-
 void DeleteInvalidItemScript::DeleteInvalidItemData::init()
 {
     // ORIG 0x08ac2220 W：三 int 清零。
@@ -1256,7 +1301,7 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
 
         BuyShopData shop;
         int ridableId = ScanInt(&ok);
-        if (ok && isValidRidableId(ridableId))
+        if (ok && isValidRidableId(static_cast<advancealtar::RidableId::T>(ridableId)))
         {
             shop.m_nField0 = ridableId;
             const char* endTag = 0;
@@ -1385,6 +1430,48 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
         // ORIG LAB_088a267d：无论段内成败，[/ridable id] 或 EOF 都插入当前 shop。
         m_buyShopMap.insert(std::make_pair(shop.m_nField0, shop));
     }
+}
+
+// ---- advancealtar::BuyUpgradeData::getFieldDataPoint（ORIG T 0x088a2e4c）----
+// m_listMap.find(level) 未命中→0；it->second.find(ft) 未命中→0；命中返回
+// &fit->second（FieldData*）。报告 advancealtar__BuyUpgradeData/getFieldDataPoint.md。
+advancealtar::FieldData* advancealtar::BuyUpgradeData::getFieldDataPoint(
+    int level, FieldType::T ft)
+{
+    std::map<int, FieldDataMap>::iterator it = m_listMap.find(level);
+    if (it == m_listMap.end())
+        return 0;
+    std::map<FieldType::T, FieldData>::iterator fit = it->second.find(ft);
+    if (fit == it->second.end())
+        return 0;
+    return &fit->second;
+}
+
+// ---- advancealtar::BuyShopData::getBuyUpgradeDataVec（ORIG T 0x088a105c）----
+// type 0/1/2 → &m_vecT0/T1/T2；其它 → 0。报告 advancealtar__BuyShopData/。
+std::vector<advancealtar::BuyUpgradeData>*
+advancealtar::BuyShopData::getBuyUpgradeDataVec(AdvanceAltarShopType::T type)
+{
+    switch (type)
+    {
+    case AdvanceAltarShopType::T_0: return &m_vecT0;
+    case AdvanceAltarShopType::T_1: return &m_vecT1;
+    case AdvanceAltarShopType::T_2: return &m_vecT2;
+    default: return 0;
+    }
+}
+
+// ---- advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec
+// （ORIG T 0x088a0fe8）：m_buyShopMap.find(key) 未命中→0；命中转调
+// BuyShopData::getBuyUpgradeDataVec(type)。报告同名 md。
+std::vector<advancealtar::BuyUpgradeData>*
+advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
+    int key, AdvanceAltarShopType::T type)
+{
+    std::map<int, BuyShopData>::iterator it = m_buyShopMap.find(key);
+    if (it == m_buyShopMap.end())
+        return 0;
+    return it->second.getBuyUpgradeDataVec(type);
 }
 
 // ============================================================================
@@ -1554,7 +1641,13 @@ stItemMakingSkill::~stItemMakingSkill() {}
 // ---- ChoiceItemInfo / ImageCommunicationData（无析构声明）----
 ChoiceItemInfo::ChoiceItemInfo()
 {
-    memset(this, 0, sizeof(*this));
+    clear();
+}
+
+void ChoiceItemInfo::clear()
+{
+    m_checked = 0;
+    m_choice = static_cast<unsigned int>(-1);
 }
 ImageCommunicationData::ImageCommunicationData()
 {
@@ -1676,6 +1769,10 @@ void WarAreaCounter::clear()
     memset(m_warAreaDungeon, 0, sizeof(m_warAreaDungeon));
     m_wpPerMonsterHp.clear();
     m_num = 0;
+    // ORIG 尾段：+0x140=num 后 memset(+0x144,0,0x3c0)、清 +0x138、+0x13c。
+    memset(m_warRoomCount, 0, sizeof(m_warRoomCount));
+    m_wpPenalty = 0;
+    m_monsterExpConst = 0;
 }
 WarAreaCounter::~WarAreaCounter() {}
 
@@ -1813,3 +1910,16 @@ stRecipeInfo* STExpertJobScript::GetRecipeInfo(int index)
 }
 // ORIG D1 0x837c3d4 (W)：析构成员 map<int,rewardInfoList>。
 createChracScript::~createChracScript() {}
+
+// ---- GuildParameterScript::getExpWeight（ORIG T 0x08979864）----
+// 自高向低扫 m_vecE4（vector<pair<int,double>>，等级阈值→经验权重），
+// 首个 first<=guildLevel 的 second；全不命中取 [0].second（ORIG 无判空，照抄）。
+double GuildParameterScript::getExpWeight(int guildLevel)
+{
+    for (int i = (int)m_vecE4.size() - 1; i >= 0; --i)
+    {
+        if (m_vecE4[i].first <= guildLevel)
+            return m_vecE4[i].second;
+    }
+    return m_vecE4[0].second;
+}

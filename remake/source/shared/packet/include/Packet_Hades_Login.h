@@ -16,12 +16,9 @@ public:
     char m_mac[65];         // +0x1e（strncpy(..., CNetwork::get_mac_addr, 0x41)，源 CNetwork+0x6ee2c）
     unsigned char m_channel;// +0x5f（CEnvironment::get_channel_no，int→byte 截断）
     unsigned int m_uid;     // +0x60（CUser::GetUID，CUser+0x704a4/0x704a6 两 u16 拼装）
-    Packet_Hades_Login() : PacketHeader(0xfd2, 0x64),
-        m_accId(0), m_channel(0), m_uid(0)
-    {
-        memset(m_ip, 0, sizeof(m_ip));
-        memset(m_mac, 0, sizeof(m_mac));
-    };
+    // ORIG C1 0x84b9946 W（0x23）：仅写 PacketHeader 头，不清零载荷——调用方
+    // （CHades::Send_Login）自行覆盖 acc_id/channel/ip/mac/uid 各字段。
+    Packet_Hades_Login() : PacketHeader(0xfd2, 0x64) {};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Hades_Login, 0x64);

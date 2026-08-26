@@ -11,7 +11,7 @@
 //   ImportCharacterScript          T 0x08a0ce06
 //   ImportEquipmentAniScript       T 0x089c05f8
 // 及其直接叶子依赖（全部 ORIG nm 真实符号）：
-//   getElement T 0x088bfe5b / getItemRarity T 0x088bfd97 /
+//   getElement T 0x088bfe5b（唯一定义 CreatureScript.cpp）/ getItemRarity T 0x088bfd97 /
 //   GetRoundInt W 0x08a3df64 / getCompoundAvatarPartsType T 0x0890308a /
 //   setCompoundAvatarData T 0x08902b8e / setCompoundRareAvatarData T 0x08902e78 /
 //   getCompoundRareAvatarType T 0x08902f42 / getObjectCategory T 0x08a3ca1b /
@@ -27,7 +27,7 @@
 //   ACTIVESTATUS_MAXLEVEL D 0x0936e484 等 ACTIVESTATUS_* 域、
 //   ACTIVESTATUS_TAG(static) d 0x093f5480[17]、g_weaponDurabilityDecreaseRate_
 //   D 0x093f52a0[11][6]、upgradeWeaponAttackPowerRate_(static) d 0x093f5080[11][6][2]、
-//   g_szCharacterScriptBaseDirectory B 0x094fe840[0x100]、
+//   g_szCharacterScriptBaseDirectory B 0x094fe840[0x100]（唯一定义 InitScriptProducers_4.cpp）、
 //   g_creatureModuleDamageRateMap B 0x094ff12c / g_creatureIndexDamageRateMap B 0x094ff144。
 // 无独立报告的函数（GetRoundInt/WeaponInfo/子结构 clear/initObjectCategory/
 // MODULE_NAME_TAG 初始化/s_objCategoryString 内容）均按 ORIG objdump 转写并在
@@ -65,8 +65,10 @@ extern char g_creatureScriptBaseDirectory[];   // B 0x094ff4e0（定义 Creature
 
 // ============================ 全局表 ============================
 
-// ORIG B 0x094fe840 [0x100]：角色脚本基目录（InitCharacterScript 回填）。
-char g_szCharacterScriptBaseDirectory[0x100];
+extern char g_szCharacterScriptBaseDirectory[0x100];
+    // ORIG B 0x094fe840 [0x100]：角色脚本基目录。唯一定义在 InitScriptProducers_4.cpp
+    // （InitCharacterScript 回填，与 g_szStackableScriptBaseDirectory 同域）；
+    // 本 TU 仅 ImportCharacterScript 读取。
 
 // ---- ACTIVESTATUS 域（importActiveStatusTable 写入目标；初值取自 .data）----
 int ACTIVESTATUS_MAXLEVEL = 150;                    // D 0x0936e484（初值实证）
@@ -148,15 +150,9 @@ int GetRoundInt(float v)
     return static_cast<int>(v - 0.5f);
 }
 
-// ORIG getElement T 0x088bfe5b（报告全文转写）：strcmp 阶梯，未命中 4。
-int getElement(const char* tag)
-{
-    if (std::strcmp(tag, "[fire element]") == 0) return 0;
-    if (std::strcmp(tag, "[water element]") == 0) return 1;
-    if (std::strcmp(tag, "[dark element]") == 0) return 2;
-    if (std::strcmp(tag, "[light element]") == 0) return 3;
-    return 4;
-}
+int getElement(const char* tag);
+    // _Z10getElementPKc T 0x088bfe5b：strcmp 阶梯，未命中 4。唯一定义在
+    // CreatureScript.cpp（声明见 CreatureScript.h），本 TU 仅调用。
 
 // ORIG getItemRarity T 0x088bfd97（报告全文转写）：未命中 6（RARITY_MAX）。
 int getItemRarity(const char* name)
@@ -1955,7 +1951,8 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
 
 // STEquipmentAniScript 本地布局视图（与 InitScriptProducers_5.cpp 本地定义同布局
 // 0x7c；字段名按 ORIG ctor 0x0898ca36 / clear 0x0898ce62 / 导入器写点实证）。
-class STEquipmentAniScript
+// 权威声明现居 STEquipmentScript.h，本 TU 视图改名以避让（仅本 TU 内使用）。
+class LocalEquipmentAniScriptView
 {
 public:
     int m_layer;                                  // +0x00（[LAYER]）
@@ -2029,8 +2026,11 @@ const int kAniTagCount = sizeof(kAniTagTable) / sizeof(kAniTagTable[0]);
 
 // ORIG ImportEquipmentAniScript T 0x089c05f8（报告 ## 汇编 + ## 反编译 C 全文转写）。
 // 主文件列子文件名 → 逐个 loadRDARScriptFile 解析 → (文件名, 条目) 入 table。
-void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
+void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* tableArg)
 {
+    // 本地视图与权威 STEquipmentScript.h 布局一致(0x7c),体内按本地名访问。
+    std::map<std::string, LocalEquipmentAniScriptView>* table =
+        (std::map<std::string, LocalEquipmentAniScriptView>*)tableArg;
     if (!loadRDARScriptFile("", "Etc/equipmentAniScript.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptItem.cpp",
@@ -2059,7 +2059,7 @@ void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table
         if (!loadRDARScriptFile("", fit->c_str()))
             return;
 
-        STEquipmentAniScript entry;
+        LocalEquipmentAniScriptView entry;
         std::string token;
         std::string str;
 

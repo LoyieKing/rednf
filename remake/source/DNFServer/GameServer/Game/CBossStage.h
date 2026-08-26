@@ -10,8 +10,9 @@
 //   - reset（0x0814bea2）：+0x9e8/+0x9ec=0、MapInfo::Clear@+0x9f4、memset +0x9c8,0x10。
 //   - 虚表：CBossPlay 6 虚槽 + 新增 4 虚（handleMoveMap/handlePickupItem(char&)/
 //     handleDropItem/handleKillMonster）。
-//   - 后段（+0x9e8..+0xaf0）字段无具名成员（MapInfo 等），保留 m_pad 地址形式，
-//     ctor/dtor/reset 在 CBossStage.cpp 按 ORIG 偏移访问。
+//   - 后段（+0x9e8..+0xaf0）字段具名化：m_startTick/m_endTick/m_dungeon/
+//     m_stageData(MapInfo)/m_stageCur/m_stageMax/m_difficulty/m_expParamA，
+//     protected 供派生类 CBossTower 直接访问。
 //
 // 由 FixCBossPlay 建立；CBossTower : CBossStage。
 // ============================================================================
@@ -59,7 +60,7 @@ public:
                              unsigned short b, unsigned short c);             // 0x0814d628
     bool killMonsterErase(unsigned short a, map_monster& mob, int& b);        // 0x0814d214
     bool moveNextStage();                                                     // 0x0814d1b6
-private:
+protected:
     // ---- 后段具名成员（ORIG 偏移实证，总尺寸 0xaf0）----
     int m_startTick;           // +0x9e8（handleMoveMap 计时起点，reset 清零）
     int m_endTick;             // +0x9ec（handleMoveMap 计时终点【推断：通关时刻】）

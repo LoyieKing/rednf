@@ -61,14 +61,53 @@
 
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
 class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
+class CDungeon;  // stGenerateRefData_t::m_dungeon（+0x40 指针，仅前置声明）
 
-// ---- ::CLuckPoint（全局命名空间，与 WongWork::CLuckPoint 不同类型；
-//      CParty.h 既有前向声明。ORIG UseLuckPoint T 0x08550a84） ----
 class CLuckPoint
 {
 public:
     static bool UseLuckPoint(CUser* user, int itemType, int rarity, int grade);
+    void AddUser(CUser* user);   // ORIG T 0x08550932：user 非空时 push_back（
+                                 //   CParty::GetLuckPoint 奖励收集；ORIG AddUser 反汇编实证）
+    // ORIG T 0x08550be4：按稀有度权重表+幸运系数修正 roll 并返回映射稀有度
+    // （定义 CClearReward.cpp）。
+    int GetItemRarity(int* table, int roll, int dropType);
+    // ORIG T 0x085509da：成员幸运点均值（sum(GetCurCharacLuckPoint)/size；空 0）。
+    int GetLuckPoint();
+    // ORIG T 0x08550e50 _ZN10CLuckPoint15GetUserGainItemEi：m_points(+0xc) 按
+    // 序号取用户下标再回 m_users；越界/负序号返回 0（LinkKillChain 批次补声明）。
+    int GetUserGainItem(int idx);
+    std::vector<CUser*> m_users;   // +0x00（vector 0xc；ORIG AddUser 0x08550932
+                                   //   push_back 到 this+0 实证）
+    // +0x0c：ORIG GetUserGainItem 0x08550e50 以 map<int,int>::size/operator[]
+    // 访问 +0xc（idx→用户序号映射；GetUserGainItem 反汇编实证）。
+    std::map<int, int> m_points;   // +0x0c
 };
+
+// ---- ::WorldDropItemChunck / ::WorldDropInfo（全局命名空间；原 CDataManager.h
+//      定义移入此处：WongWork::CWorldDrop 成员数组需要完整类型。生命周期唯一
+//      owner：C1/D1 均在 DropLayoutDeps.cpp（ORIG 0x08374ec8 / 0x08374ede）；
+//      ImportWorldDrop InitScriptProducers_1.cpp T 0x089022be。）----
+// ORIG WorldDropItemChunck：WongWork::CWorldDrop::generateRandomItem 0x085383b8
+// 读元素 +0x00（道具 idx）/+0x04（权重），元素步长 8。
+struct WorldDropItemChunck
+{
+    int m_itemIdx;   // +0x00
+    int m_rate;      // +0x04（权重；ImportWorldDrop 累加至槽位总量）
+};
+
+class WorldDropInfo
+{
+public:
+    WorldDropInfo();
+    ~WorldDropInfo();
+
+    // ORIG 槽位步长 0x14（m_worldDrop1[201]@+0x6734 → m_worldDrop2@+0x76e8 自证）；
+    // ImportWorldDrop 0x089022be 写 +0x00/+0x04(vector)/+0x10，装载后 m_first=m_total。
+    int m_first;                        // +0x00（装载完成时 = m_total）
+    std::vector<WorldDropItemChunck> m_chunks;  // +0x04
+    int m_total;                        // +0x10（权重总和）
+};  // sizeof == 0x14
 
 namespace WongWork
 {
@@ -131,16 +170,16 @@ struct stGenerateRefData_t
     // +0x34..+0x47：调用方上下文区。独立掉落路径（generateIndependentItem
     // 0x834989a / independentItemRateControl 0x834972f）按字节读取以下字段；
     // 其余仍由调用方按原始偏移写入（保持字节布局不变）。
-    char m_field34;                 // +0x34（基准值；与 +0x3f 组成等级差【推断】）
-    char m_field35;                 // +0x35
-    char m_rateSlot;                // +0x36（m_rate[] 掉率档位下标【推断】；WarField 写 mob level）
-    char m_pad37;                   // +0x37
-    char m_pad38[4];                // +0x38..+0x3b
-    char m_field3c;                 // +0x3c（==3 时 premium 加成分支生效）
-    char m_field3d;                 // +0x3d
-    char m_countSlot;               // +0x3e（m_rate[] 数量档位下标【推断】）
-    char m_levelHigh;               // +0x3f（等级上界；与 m_field34 差为档差【推断】）
-    char m_pad40[8];                // +0x40..+0x47
+	char m_field34;                 // +0x34（基准值；与 +0x3f 组成等级差【推断】）
+	char m_field35;                 // +0x35
+	char m_rateSlot;                // +0x36（m_rate[] 掉率档位下标【推断】；WarField 写 mob level）
+	char m_pad37;                   // +0x37
+	int m_rankBonusIndex;           // +0x38（eRankBonusIndex；_generateRandomItem 按 float 位型读）
+	unsigned short m_goldBase;      // +0x3c（金币公式基数分量）
+	unsigned short m_goldFactor;    // +0x3e（金币公式加倍分量）
+	CDungeon* m_dungeon;            // +0x40（_generateSpecificItem 取 clear_item 的目标副本）
+	unsigned short m_field44;       // +0x44
+	char m_pad46[2];                // +0x46..+0x47
 };
 
 // ---- stGenerateResult_t（掉落生成结果；sizeof 0x30） ----
@@ -246,6 +285,9 @@ public:
                               RegenerationROI*, int optType);            // ORIG T 0x085f1bb0
     unsigned int RegenVer_choose_item(ENUM_RARITY rarity, int level,
                                       const std::vector<int>& itemGroups); // ORIG T 0x085f1802
+    // ORIG T 0x085f1560：随机选项槽按稀有度选 item（CItemGenRateTable::chooseItem
+    // rarity==2 分支；定义置 CRandomOptionItemHandle 域）。
+    unsigned int choose_item(ENUM_RARITY& rarity, int level);
     int RegenVer_get_option_quantity(ENUM_RARITY rarity, int grade,
                                      unsigned char optType, int level,
                                      int& outQuantity, RegenerationROI*); // ORIG T 0x085f1a62
@@ -259,6 +301,7 @@ private:
     int _get_part_type_by_ItemGroup(int limit,
                                     const std::vector<int>& groups) const; // T 0x085f11a4
     int _get_base_item(ENUM_RARITY rarity, int limit);                   // T 0x085f1426
+    int _random_application(ENUM_RARITY rarity, int level);              // T 0x085f0ec2
     int _get_option_type(unsigned long itemIdx, ENUM_RARITY rarity,
                          int level, int group, unsigned char& outType);  // T 0x085f2338
     int _get_option_quantity(ENUM_RARITY rarity, int grade,
@@ -279,6 +322,15 @@ private:
 
 namespace WongWork
 {
+// ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----
+enum eItemDropType_t
+{
+    eItemDropType_0 = 0,
+    eItemDropType_1 = 1,
+    eItemDropType_2 = 2,
+    eItemDropType_3 = 3
+};
+
 // ---- CItemGenRateTable（掉落等级累积表宿主；sizeof 0x2356C）-----------------
 class CItemGenRateTable
 {
@@ -288,6 +340,10 @@ public:
     void init();                                 // T 0x085345b6
     void destroy();                              // T 0x08534638
     void generateTable(stGenItemRange_t* range, bool keepRandomOption);  // T 0x0853466c
+    // ORIG T 0x085349a4：random_option 槽（rarity==2）优先，否则按
+    // type*0x7110+rarity*0x12d8+level*24 槽位 map：empty→-1；roll=randInt(maxKey)；
+    // lower_bound(roll)==end 回退 --it；返回 it->second。
+    int chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int level);
     bool _itemTypeVerify(int type, const CItem* item) const;                  // T 0x08534906
     void set_disable_drop_random_option_item();  // W 0x08539e4e
 
@@ -407,15 +463,52 @@ public:
 class CClearReward : public CItemGenerator
 {
 public:
-    CClearReward(int count);                                   // W 0x0853a968
-    int loadScript(char const* path);                          // T 0x085392c0（虚槽 +0x04）
+    void setDropRatio(float ratio);                            // T 0x085385c8（虚槽 +0x00）
+    CClearReward(int count);                                   // W 0x0853a968（C1/C2 同址）
+    int loadScript(char const* path);                          // T 0x085392c0
+
+    // ---- 掉落概率组（eClearRewardDropProb_t 0..5，见 loadScript [drop prob]） ----
+    enum eClearRewardDropProb_t
+    {
+        eDropProb_default = 0,
+        eDropProb_event = 1,
+        eDropProb_event2 = 2,
+        eDropProb_pcroomDefault = 3,
+        eDropProb_pcroomEvent = 4,
+        eDropProb_pcroomBonus = 5
+    };
+
+    // 非虚查询（ORIG T/W 直呼；clear_reward 消费）
+    int getGoldCardCommission(int n);                          // T 0x085385b2
+    float getGoldCardCreateRate();                             // W 0x085bf000
+    int getRewardItemRatePerMapMaxCount(int mapCount) const;   // W 0x085bf018
+
+    // 虚槽 +0x08/+0x0c 实现（ORIG T）
+    void generateRandomItem(stGenerateRefData_t const& ref,
+                            stGenerateResult_t& result);       // T 0x0853873a
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);     // T 0x08538c84
+    // 非虚金币/金卡族（clear_reward 经 getGenerator(2) 直呼）
+    void generatePremiumGoldCardItem(stGenerateRefData_t const& ref,
+                                     stGenerateResult_t& result,
+                                     ENUM_RARITY rarity, unsigned int defaultItem);
+                                                                 // T 0x08538a92
+    int generateGoldCardBlankItem(Inven_Item& item);            // T 0x08539166（返回 0/1）
+    int generatePcRoomCardBlankItem(Inven_Item& item);          // T 0x0853900c（返回 0/1）
+    void power_war_dungeon_gold_clear_reward(stGenerateRefData_t const& ref,
+                                             stGenerateResult_t& result,
+                                             int level);        // T 0x08538e64
 
 protected:
-    struct stGenItemProb_t { int v[3]; };                      // 每行三值
-    struct stGoldCardBlankItemInfo_t { int v[3]; };            // 空白卡三元组
-    std::vector<stGenItemProb_t> m_probs[7];         // +0x18..0x6b（ctor 构造 7 个）
-    char m_pad6c[0x3c];                              // +0x6c..0xa7（未建模区）
-    int m_dropKindProb[2];                           // +0xa8/+0xac
+    struct stGenItemProb_t { int v[3]; };                      // 每行三值 {lo, hi, value}
+    struct stGoldCardBlankItemInfo_t { int v[3]; };            // 空白卡三元组 {weight, itemIdx, count}
+
+    // 12×vector 连续区（0.9 字节/个）：前 6 为 loadScript 脚本源组[A]，后 6 为
+    // setDropRatio 缩放副本[B]（setDropRatio 0x085385c8 复制 0x18..0x5f → 0x60..0xa7，
+    // _generateRandomItem/_getGenItemProbIdx 只读 [B]；ORIG ctor 构造全部 12 个）。
+    std::vector<stGenItemProb_t> m_scriptProbs[6];   // +0x18..0x5f
+    std::vector<stGenItemProb_t> m_workProbs[6];     // +0x60..0xa7
+    int m_dropKindProb[2];                           // +0xa8/+0xac（[drop kind prob] 阈值/概率）
     char m_padb0[4];                                 // +0xb0..0xb3
     int m_dropItemTypeProb[4];                       // +0xb4（ORIG 索引 1..4 → 下标 i-1）
     int m_dungeonDropBonus[5];                       // +0xc4
@@ -431,6 +524,14 @@ protected:
     int m_rewardRatePerMap[10];                      // +0x23b4c（ctor memset 0x28）
     int m_pcRoomBlankTotal;                          // +0x23b74
     std::vector<stGoldCardBlankItemInfo_t> m_pcRoomBlanks;  // +0x23b78
+
+private:
+    // clear_reward 族内部实现（ORIG T；定义 CClearReward.cpp）
+    int _getGenItemProbIdx(int value, eClearRewardDropProb_t drop);  // T 0x08538694
+    void _generateRandomItem(stGenerateRefData_t const& refClear, int param,
+                             stGenerateResult_t& result, float dropRate);  // T 0x085387c0
+    void _generateSpecificItem(stGenerateRefData_t const& refClear,
+                               stGenerateResult_t& result);        // T 0x08538bf8
 };  // sizeof 0x23b84
 
 class CDungeonDrop : public CItemGenerator
@@ -443,12 +544,15 @@ class CWorldDrop : public CItemGenerator
 {
 public:
     CWorldDrop(int count);                                     // W 0x0853a826
-    // 非虚双参重载（ORIG T 0x0853855c 直呼）。定义待掉落域批次。
+    // 虚槽 +0x04 覆写（vtable _ZTVN8WongWork10CWorldDropE 0x08c9a710；ORIG W
+    // 0x0853a81c 空实现 return 0 —— ORIG 即如此，非占位）。
+    int loadScript(char const* path);
+    // 非虚双参重载（ORIG T 0x0853855c 直呼）。定义见 StrikerWorldDropB2.cpp。
     int loadScript(char const* path, char const* warArea);
 
-    char m_tail[0x1f80 - 0x18];     // 未建模区（ORIG 分配尺寸 0x1f80；ctor 于
-                                    // +0x18 构造 201×0x14 WorldDropInfo 实证）
-};
+    WorldDropInfo m_worldDrop[201];     // +0x18（ctor 循环 WorldDropInfoC1Ev ×0xc8）
+    WorldDropInfo m_warAreaDrop[201];   // +0xfcc（双参 loadScript 第二装载目标）
+};  // sizeof == 0x1f80 == ORIG 分配尺寸
  
  }  // namespace WongWork
  

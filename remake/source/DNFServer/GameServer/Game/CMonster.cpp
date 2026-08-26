@@ -50,10 +50,8 @@ void* CMonster::getMonsterScript() const
 
 void CMonster::set_monster(STMonsterScript& script)
 {
-    m_index = script.m_field0;
-    // 当前 STMonsterScript 只暴露基础字段，不能将 m_vec7c 伪装成掉落表。
-    // 四组特殊表、权重、塔表及其它脚本字段待镜像补齐后按报告偏移复制。
-    m_script = script;
+    m_index = script.m_index;
+    m_script = script;   // op= 深拷贝全部真实布局成员（ORIG 0x0834f650 同构）
 }
 
 unsigned char CMonster::IsHellMonster() const

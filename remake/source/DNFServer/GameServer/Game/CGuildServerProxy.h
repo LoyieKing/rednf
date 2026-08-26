@@ -148,6 +148,8 @@ public:
     CEventManager();                       // 0x08114ce4 T（CEventManager.cpp）
     ~CEventManager();                      // 0x08114d4e T（CEventManager.cpp）
     CEventBase* GetRepeatEvent(int type);  // 0x08115998
+    // ORIG T 0x08116212：存在重叠经验加成事件（set_clear_reward_exp_parameter 消费）。
+    bool IsExistOverlappedExpBonusEvent();
     int AddEvent(int type, CEventBase* event);            // 0x08115982
     void dailyresetData();                                 // 0x0811630e
     bool LoadEventFromDB();                                // 0x081159b6
@@ -202,6 +204,9 @@ public:
     std::list<stGMInfo_t> GetGMList() const { return m_gmList; }  // ORIG 0x082a7388 W
     void LoadGmList(unsigned int mid, int level);   // ORIG 0x081094ea T（Gm_List.cpp）
     void clearGmList();                             // ORIG 0x08109510 T（Gm_List.cpp）
+    int loadGMAccounts(char const* path);                // ORIG T 0x0810933c _ZN8WongWork11CGMAccounts14loadGMAccountsEPKc
+    int appendGM(unsigned int mid, unsigned int type);   // ORIG T 0x081093ee _ZN8WongWork11CGMAccounts8appendGMEjj
+    void AppendGM_Sys(unsigned int mid, char type);      // ORIG T 0x08109524 _ZN8WongWork11CGMAccounts12AppendGM_SysEjc
 private:
     std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };

@@ -5,10 +5,13 @@
 // ## 反编译 C）后转写；依赖叶子函数按其自身报告转写：
 //   ConditionLevelChkDungeon/isEventDungeon.md、isApplyLevel.md
 //   TowerOfDespairMgr/{Get_CDungeonByLayer,Get_DungeonIndexByLayer,
-//                      Get_APCIndexByLayer,GetBaseLayerIndex,SendMessageToCUser}.md
+//                      Get_APCIndexByLayer,GetBaseLayerIndex}.md
 //   TOD_UserState/getTodayEnterLayer.md、TOD_Layer/TOD_Layer.md
 //   （TOD_Layer::GetLayer 无独立报告，按 nm 0x0822ec40 直读 m_layer 实现，
 //     标记"报告缺失"。）
+// 去重后本 TU 不定义、仅调用（owner 提供，链接期解析）：
+//   TOD_Layer::TOD_Layer(unsigned short)    —— TowerOfDespairMgr.cpp（TOD 域 owner）
+//   TowerOfDespairMgr::SendMessageToCUser(CUser*, char*) —— TowerAPCLeafC3.cpp（ORIG T 0x08644366）
 // 定义仍缺失（blocked，声明已在权威头）：
 //   TowerOfDespairMgr::CheckEnterable   ORIG T 0x086440ee（待 TOD 批次）
 //   CUser::MakeTagCharacInfo            ORIG T 0x08690776（待 CUser 批次）
@@ -51,19 +54,6 @@ int getHellPartyEntranceItemNeedCount(int minLevel);
 unsigned short TOD_Layer::GetLayer() const
 {
     return m_layer;
-}
-
-// ORIG T 0x085fe7b4 _ZN9TOD_LayerC1Et（报告 TOD_Layer/TOD_Layer.md）：
-// m_layer=v；>100 时 cMyTrace 告警并回卷为 1。
-TOD_Layer::TOD_Layer(unsigned short layer)
-{
-    m_layer = layer;
-    if (100 < m_layer)
-    {
-        cMyTrace trace("TOD_Layer::TOD_Layer(short unsigned int)", 0x10, 5);
-        trace("@TOD: invalid layer setting : %d", static_cast<unsigned int>(layer));
-        m_layer = 1;
-    }
 }
 
 // ORIG T 0x086439c8 _ZNK9TOD_LayerplEi（报告缺失，按 nm 反汇编实现）：
@@ -125,11 +115,9 @@ bool ConditionLevelChkDungeon::isApplyLevel(int level)
 TOD_Layer TOD_UserState::getTodayEnterLayer() const
 {
     // ORIG：return *(const TOD_Layer*)(this+0x14) + 1
-    //   （经 TOD_Layer::operator+(int)，sret 链与 ORIG 一致）。
-    const TOD_Layer* today =
-        reinterpret_cast<const TOD_Layer*>(
-            reinterpret_cast<const char*>(this) + 0x14);
-    return *today + 1;
+    //   （经 TOD_Layer::operator+(int)，sret 链与 ORIG 一致）；
+    //   this+0x14 = TOD_UserState::m_todayLayer（DataManagerInitDepends.h）。
+    return TOD_Layer(m_todayLayer) + 1;
 }
 
 // ============================================================================
@@ -199,28 +187,6 @@ int TowerOfDespairMgr::GetBaseLayerIndex()
         }
     }
     return m_field358;
-}
-
-// ============================================================================
-// TowerOfDespairMgr::SendMessageToCUser —— ORIG T 0x08644366
-//   （报告 TowerOfDespairMgr/SendMessageToCUser.md）：仅 GM 可见文本通知包
-//   （header(0,0xc)/byte0/short0/byte0/int len/str/finalize(true)→Send）。
-//   CUser::Send 定义 blocked（ORIG T 0x086485ba 待批次）。
-// ============================================================================
-void TowerOfDespairMgr::SendMessageToCUser(CUser* user, char* msg)
-{
-    if (user->isGMUser())
-    {
-        PacketGuard packet;
-        packet.put_header(0, 0xc);
-        packet.put_byte(0);
-        packet.put_short(0);
-        packet.put_byte(0);
-        packet.put_int(static_cast<int>(strlen(msg)));
-        packet.put_str(msg, static_cast<int>(strlen(msg)));
-        packet.finalize(true);
-        user->Send(packet);
-    }
 }
 
 // ============================================================================

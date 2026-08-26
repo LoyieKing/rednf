@@ -271,7 +271,7 @@ int CDataManager::initFairPVPSkillPoint()
 // 键==50000 仅 Clear；否则 ImportMapScript 导入（失败打印并返回 0）。
 // 每个文件 new CMap + set_map(拷贝)。m_list4 为空时仅以 (15,15) 注册进
 // m_mapList；否则逐 dungeon 下标（find_dungeon 失败 trace 后返回 0）
-// 按 m_vec10 各坐标注册进 dungeon 与 m_mapList；m_148>0 时额外 insertStart。
+// 按 m_recoveryObjects 各坐标注册进 dungeon 与 m_mapList；m_dungeonStartArea.m_w>0 时额外 insertStart。
 int CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
 {
     STMapScript script;
@@ -320,23 +320,23 @@ int CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
                 return 0;
             }
 
-            if (script.m_vec10.size() == 0)
+            if (script.m_recoveryObjects.size() == 0)
             {
                 dungeon->InsertMap(15, 15, map);
                 m_mapList->insert_map(15, 15, map, pvpMaps);
-                if (script.m_148 > 0)
+                if (script.m_dungeonStartArea.m_w > 0)  /* +0x148 = m_dungeonStartArea.m_w（新 0x1c MapArea 吸收旧独立 int）*/
                 {
                     dungeon->insertStart(15, map);
                 }
             }
 
-            for (int i = 0; i < static_cast<int>(script.m_vec10.size()); ++i)
+            for (int i = 0; i < static_cast<int>(script.m_recoveryObjects.size()); ++i)
             {
-                int x = script.m_vec10[i].first;
-                int y = script.m_vec10[i].second;
+                int x = script.m_recoveryObjects[i].first;
+                int y = script.m_recoveryObjects[i].second;
                 dungeon->InsertMap(x, y, map);
                 m_mapList->insert_map(x, y, map, pvpMaps);
-                if (script.m_148 > 0)
+                if (script.m_dungeonStartArea.m_w > 0)  /* +0x148 = m_dungeonStartArea.m_w（新 0x1c MapArea 吸收旧独立 int）*/
                 {
                     dungeon->insertStart(x, map);
                 }

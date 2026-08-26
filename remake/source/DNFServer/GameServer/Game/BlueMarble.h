@@ -71,7 +71,7 @@ public:
     int resetBuffInfo(int seat);
     int resetIndexInfo(int seat);
     int checkUserConditionEnterBlueMarble(CUser* user);
-    int checkBlueMarbleUserConfirm(CUser* user);
+    void checkBlueMarbleUserConfirm(CUser* user);
     int enterBlueMarble(CUser* user);
     int checkStartBlueMarble();
     int startBlueMarble();

@@ -36,6 +36,9 @@ public:
 
 namespace advancealtar
 {
+#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
+#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
+// 同守卫幂等副本另见 AdvanceAltarField.h（CDataManager.h 引用方）。
 namespace AdvanceAltarShopType
 {
 enum T
@@ -44,7 +47,8 @@ enum T
     T_1 = 1,
     T_2 = 2
 };
-}
+}  // namespace AdvanceAltarShopType
+#endif
 
 class BuyShopData;
 

@@ -25,14 +25,7 @@
 #include "CVillageMonsterMgr.h" // village_attacked::CVillageMonsterMgr::OnEvent
 #include "GlobalData.h"         // GlobalData::s_systemTime_ / s_villageMonsterMgr
 
-// CParty::m_dungeon（+0xcac，CParty.h private）以本地偏移视图读取：
-// ORIG traceEnd 直读 party+0xcac（_ZN5CUser8GetPartyEv 后 mov 0xcac(%eax)），
-// 偏移与 CParty.h 建模一致（+0xcac CDungeon* m_dungeon）。
-struct CPartyDungeonView
-{
-    char m_pad[0xcac];
-    CDungeon* m_dungeon;
-};
+// CParty::m_dungeon（+0xcac）在 CParty.h 为 public 数据成员，直接具名访问。
 
 stMonsterDamageLog_t::stMonsterDamageLog_t()
 {
@@ -65,13 +58,13 @@ void CTraceMobDieHack::reset()
     m_traceBeginTime = 0;
     m_mobKillers.clear();
     m_hackLogs.clear();
-    m_bTracing = 0;
+    m_bTracing = false;
     m_dungeonDiff = 5;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i <= 3; ++i)
     {
-        m_users[i] = 0;
-        m_damage[i] = 0;
-        m_count[i] = 0;
+        m_records[i].m_user = 0;
+        m_records[i].m_damage = 0;
+        m_records[i].m_count = 0;
     }
 }
 
@@ -84,48 +77,47 @@ void CTraceMobDieHack::traceBegin(long t, bool b)
 
 void CTraceMobDieHack::traceEnd(CUser* killer, CUser** users)
 {
-    if (m_bTracing != 1)
+    if (!m_bTracing)
     {
         return;
     }
     long curSec = GlobalData::s_systemTime_.getCurSec();
-    m_bTracing = 0;
-    if (killer == 0)
+    m_bTracing = false;
+    if (killer == 0 || killer->GetParty() == 0 ||
+        ((CParty*)killer->GetParty())->m_dungeon == 0)
     {
         return;
     }
-    CParty* party = (CParty*)killer->GetParty();
-    if (party == 0 || ((CPartyDungeonView*)party)->m_dungeon == 0)
-    {
-        return;
-    }
-    CDungeon* dungeon = ((CPartyDungeonView*)party)->m_dungeon;
-    int dungeonIndex = dungeon->get_index();
-    int specialDungeons[4] = {1, 2, 0x29, 0x21};
-    for (int i = 0; i < 4; ++i)
+    int dungeonIndex = ((CParty*)killer->GetParty())->m_dungeon->get_index();
+    int specialDungeons[4];
+    specialDungeons[0] = 1;
+    specialDungeons[1] = 2;
+    specialDungeons[2] = 0x29;
+    specialDungeons[3] = 0x21;
+    unsigned int i = 0;
+    do
     {
         if (specialDungeons[i] == dungeonIndex)
         {
             return;
         }
-    }
-    for (int j = 0; j < 4; ++j)
+        ++i;
+    } while (i <= 3);
+    for (int j = 0; j <= 3; ++j)
     {
-        CUser* u = users[j];
-        if (u == 0 || u->getCurCharacR() == 0 ||
-            (party = (CParty*)u->GetParty()) == 0)
+        if (users[j] == 0 || users[j]->getCurCharacR() == 0 ||
+            users[j]->GetParty() == 0)
         {
             continue;
         }
-        int level = u->get_charac_level();
-        int stdLevel = ((CPartyDungeonView*)party)->m_dungeon->get_standard_level();
-        if (level > stdLevel + 10)
+        if (users[j]->get_charac_level() >
+            ((CParty*)users[j]->GetParty())->m_dungeon->get_standard_level() + 10)
         {
             continue;
         }
-        m_users[j] = u;
-        m_damage[j] += (int)(curSec - m_traceBeginTime);
-        m_count[j] += 1;
+        m_records[j].m_user = users[j];
+        m_records[j].m_damage += (int)(curSec - m_traceBeginTime);
+        m_records[j].m_count += 1;
     }
 }
 
@@ -142,14 +134,13 @@ int CTraceMobDieHack::addMonsterDamage(int nMonsterIndex, unsigned short monster
         result = m_map1.insert(std::make_pair(monsterId, log));
     if (!result.second)
     {
-        stMonsterDamageLog_t& entry = m_map1[monsterId];
-        if (entry.m_damage == damage)
+        if (m_map1[monsterId].m_damage == damage)
         {
-            entry.m_count += 1;
+            m_map1[monsterId].m_count = m_map1[monsterId].m_count + 1;
         }
         else
         {
-            entry = log;
+            m_map1[monsterId] = log;
         }
     }
     return m_map1[monsterId].m_count;
@@ -172,57 +163,56 @@ void CTraceMobDieHack::reportHackInfo()
         reset();
         return;
     }
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i <= 3; ++i)
     {
-        if (m_users[i] == 0 || m_count[i] <= 1)
+        if (m_records[i].m_user == 0 || m_records[i].m_count <= 1)
         {
             continue;
         }
-        int avg = m_damage[i] / m_count[i];
-        if (m_dungeonDiff != 5 && m_bInspectUser != 1)
+        int avg = m_records[i].m_damage / m_records[i].m_count;
+        if (m_dungeonDiff != 5 && !m_bInspectUser)
         {
             int limit = 10;
-            if (m_dungeonDiff == 0)
+            switch (m_dungeonDiff)
             {
+            case 0:
                 limit = 5;
-            }
-            else if (m_dungeonDiff == 1)
-            {
+                break;
+            case 1:
                 limit = 6;
-            }
-            else if (m_dungeonDiff == 2)
-            {
+                break;
+            case 2:
                 limit = 7;
-            }
-            else if (m_dungeonDiff == 3)
-            {
+                break;
+            case 3:
                 limit = 8;
+                break;
+            default:
+                break;
             }
             if (avg <= limit)
             {
-                WongWork::CHackAnalyzer* analyzer =
-                    m_users[i]->getHackAnalyzer();
-                analyzer->addServerHackCnt(
-                    m_users[i], (WongWork::ENUM_HACKTYPE)0x19e,
-                    (unsigned int)(limit - avg + 1), 0, 0);
+                unsigned int extra = (unsigned int)(limit - avg);
+                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
+                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x19e,
+                    extra + 1, 0, 0);
             }
         }
-        if (m_bInspectUser == 0)
+        if (m_bInspectUser)
+        {
+            if (avg < 10)
+            {
+                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
+                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x194, 1, 0, 0);
+            }
+        }
+        else
         {
             if (avg < 0x14)
             {
-                WongWork::CHackAnalyzer* analyzer =
-                    m_users[i]->getHackAnalyzer();
-                analyzer->addServerHackCnt(
-                    m_users[i], (WongWork::ENUM_HACKTYPE)0x193, 1, 0, 0);
+                m_records[i].m_user->getHackAnalyzer()->addServerHackCnt(
+                    m_records[i].m_user, (WongWork::ENUM_HACKTYPE)0x193, 1, 0, 0);
             }
-        }
-        else if (avg < 10)
-        {
-            WongWork::CHackAnalyzer* analyzer =
-                m_users[i]->getHackAnalyzer();
-            analyzer->addServerHackCnt(
-                m_users[i], (WongWork::ENUM_HACKTYPE)0x194, 1, 0, 0);
         }
     }
     reset();
@@ -230,40 +220,37 @@ void CTraceMobDieHack::reportHackInfo()
 
 void CTraceMobDieHack::_collect(CUser** users, int param_2)
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i <= 3; ++i)
     {
-        CUser* u = users[i];
-        if (u == 0)
+        if (users[i] == 0)
         {
             continue;
         }
-        if (u->IsGameMasterMode())
+        if (users[i]->IsGameMasterMode())
         {
             continue;
         }
-        CParty* party = (CParty*)u->GetParty();
-        if (party == 0 || ((CPartyDungeonView*)party)->m_dungeon == 0)
+        if (users[i]->GetParty() == 0 ||
+            ((CParty*)users[i]->GetParty())->m_dungeon == 0)
         {
             continue;
         }
-        int level = u->get_charac_level();
-        if (level <= 10)
+        if (users[i]->get_charac_level() <= 10)
         {
             continue;
         }
-        int diff = level -
-                   ((CPartyDungeonView*)u->GetParty())->m_dungeon->get_standard_level();
+        int diff = users[i]->get_charac_level() -
+                   ((CParty*)users[i]->GetParty())->m_dungeon->get_standard_level();
         if (diff > 5)
         {
             continue;
         }
         stHackLog_t log;
-        log.m_accId = u->get_acc_id();
-        log.m_characNo = u->getCurCharacNo();
+        log.m_accId = users[i]->get_acc_id();
+        log.m_characNo = users[i]->getCurCharacNo();
         log.m_hackType = 0x193;
         log.m_value = param_2;
         log.m_count = 1;
-
         std::vector<stHackLog_t>::iterator found =
             std::find(m_hackLogs.begin(), m_hackLogs.end(), log);
         if (found == m_hackLogs.end())

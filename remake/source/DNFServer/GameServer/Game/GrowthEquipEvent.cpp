@@ -48,11 +48,11 @@ void GrowthEquipEvent::SelectGrowthWeapon(CUser& user, int itemId, int addInfo)
     *(int*)(data + 0x04) = user.get_charac_no(-1);      // +0x2c get_charac_no(-1)
     *(int*)(data + 0x08) = addInfo;
 
-    // 渠道组：整合 PvP 基础渠道用用户所属 server group，否则取环境 +0x378
-    //（该字段未在 CEnvironment.h 权威布局建模，沿用 CBossPlay.cpp 同款裸偏移+注释）。
+    // 渠道组：整合 PvP 基础渠道用用户所属 server group，否则取环境
+    // m_serverEnvir.m_serverGroup（+0x378，经 get_server_group()）
     int serverGroup;
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = *(int*)((char*)G_CEnvironment() + 0x378);
+        serverGroup = G_CEnvironment()->get_server_group();
     else
         serverGroup = (int)user.GetServerGroup();
     *(short*)(data + 0x12) = (short)serverGroup;
@@ -76,7 +76,7 @@ void GrowthEquipEvent::SendGrowthWeaponEventInfo(CUser& user)
 
     int serverGroup;
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = *(int*)((char*)G_CEnvironment() + 0x378);
+        serverGroup = G_CEnvironment()->get_server_group();
     else
         serverGroup = (int)user.GetServerGroup();
 
@@ -119,7 +119,7 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
 
     int serverGroup;
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = *(int*)((char*)G_CEnvironment() + 0x378);
+        serverGroup = G_CEnvironment()->get_server_group();
     else
         serverGroup = (int)user.GetServerGroup();
 

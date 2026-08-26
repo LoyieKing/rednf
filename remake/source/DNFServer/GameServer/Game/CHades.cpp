@@ -1,17 +1,22 @@
 // df_game_r 还原 —— XNuclear::CHades（Hades 反外挂客户端成员类，内嵌于 CUser +0x8e954）。
-// 参照 docs/class_funcReports/XNuclear__CHades/：
-//   Send_ReturnToVillage @ ORIG 0x084b9386：纯空函数。
-//   UseFatigue           @ ORIG 0x084b9552：needLogin 后累加 +0x1c 计数，>1 时
-//                        StdCateUpdate(1,0) 并清零。
-//   StdCateUpdate        @ ORIG 0x084b938c：needLogin 后发 Packet_Hades_StdUpdate
-//                        （PacketHeader(0xfd9,0x12)，+0x0a acc_id，+0x0e/+0x10 cate/type）。
-//   needLogin            @ ORIG 0x84b9718：+0x24 连接秒缓存 != proxy 当前值时重新登录。
+// 参照 docs/class_func_reports/XNuclear__CHades/：
+//   Send_Login           @ ORIG 0x084b9200
+//   needLogin            @ ORIG 0x084b9718
+//   GetIP                @ ORIG 0x084b9774
+//   Send_UserStatus      @ ORIG 0x084b97fe
+//   Send_ReturnToVillage @ ORIG 0x084b9386（纯空函数）
 #include "CUser.h"
+#include "CMCAPManager.h"
 
 #include <string.h>
 
+#include "CEnvironment.h"
 #include "CHadesServerProxy.h"
 #include "GlobalData.h"
+#include "Packet_Hades_Login.h"
+#include "Packet_Hades_StdUpdate.h"
+#include "Packet_Hades_GoldTracking.h"
+#include "Packet_Hades_UserStatus.h"
 
 namespace XNuclear
 {
@@ -28,65 +33,112 @@ void CHades::ExpUp(unsigned int flag)
     needLogin();
 }
 
-// ORIG 0x084b9718：缓存(+0x24) 与 proxy 当前连接秒数不一致则重登并同步 cate=3。
+// ORIG 0x084b9718：缓存(m_connSec) 与 proxy 当前连接秒数不一致则重登并同步 cate=3。
 bool CHades::needLogin()
 {
-    int cached = *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x24);
+    int cached = m_connSec;
     int cur = GlobalData::s_hades_proxy->GetHadesSocketConnSec();
     if (cached != cur)
     {
         Send_Login();
         StdCateUpdate(3, 0);
+        return true;
     }
-    return cached != cur;
+    return false;
 }
 
-// ORIG 0x084b938c。Packet_Hades_StdUpdate（ORIG C1 0x84b9a42 W）：
-//   PacketHeader(0xfd9, 0x12)；+0x0a dword = user->get_acc_id()；
-//   +0x0e word = cate；+0x10 word = type。经 proxy SendHadesTcpPacket 发送。
+// ORIG 0x084b938c。Packet_Hades_StdUpdate（ORIG C1 0x84b9a42 W，0xfd9/0x12）：
+//   +0x0a acc_id、+0x0e cate、+0x10 type；经 proxy SendHadesTcpPacket 发送。
 void CHades::StdCateUpdate(unsigned short cate, unsigned short type)
 {
     needLogin();
 
-    // 本地按 ORIG 布局建模的 Packet_Hades_StdUpdate（0x12 字节头区 + 载荷，
-    // PacketHeader 具体布局由 PacketHeader 权威实现提供；此处保持字段偏移一致）。推断：
-    // 头部 0xa 字节由 PacketHeader(0xfd9,0x12) 写入。
-    struct Packet_Hades_StdUpdate
-    {
-        char m_header[0x0a];        // +0x00 PacketHeader(0xfd9, 0x12)
-        unsigned int m_accId;       // +0x0a
-        unsigned short m_cate;      // +0x0e
-        unsigned short m_type;      // +0x10
-    } packet;
+    Packet_Hades_StdUpdate packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_stdCate = cate;
+    packet.m_fieldC = type;
 
-    CUser* user = *reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x20);
-    memset(&packet, 0, sizeof(packet));
-    {
-        // PacketHeader(0xfd9, 0x12)：与 ORIG 一致地写头部两字段
-        // （PacketHeader 布局见 PacketHeader 权威定义：+0x00 id、+0x02 size 等）。
-        unsigned short* u16 = reinterpret_cast<unsigned short*>(&packet);
-        u16[0] = 0xfd9;
-        u16[1] = 0x12;
-    }
-    packet.m_accId = static_cast<unsigned int>(user->get_acc_id());
-    packet.m_cate = cate;
-    packet.m_type = type;
-
-    GlobalData::s_hades_proxy->SendHadesTcpPacket(
-        reinterpret_cast<char*>(&packet));
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
 }
 
-// ORIG 0x084b9200：完整实现需 Packet_Hades_Login / CNetwork::get_mac_addr /
-// Send_UserStatus 等未建模类型。此处按可观测主流程近似：刷新连接秒缓存并标记
-// 需要重登（推断——登录包载荷构造待后续批次补齐）。
+// ORIG 0x084b9200（Send_Login.md）：刷新连接秒缓存，构造 Packet_Hades_Login
+// （ORIG C1 0x84b9946 W，0xfd2/0x64）：+0x0a acc_id、+0x5f channel_no(字节截断)、
+// +0x0e ip[16]（先零化局部缓冲 → GetIP → strcpy）、+0x1e mac strncpy 0x41、
+// +0x60 uid；发送后转调 Send_UserStatus()。
 void CHades::Send_Login()
 {
-    if (GlobalData::s_hades_proxy != 0)
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x24) =
-            GlobalData::s_hades_proxy->GetHadesSocketConnSec();
+    m_connSec = GlobalData::s_hades_proxy->GetHadesSocketConnSec();
+
+    Packet_Hades_Login packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_channel = (unsigned char)G_CEnvironment()->get_channel_no();
+
+    char ip[16] = { 0 };
+    GetIP(ip);
+    strcpy(packet.m_ip, ip);
+
+    strncpy(packet.m_mac, m_user->m_network.get_mac_addr(), 0x41);
+    packet.m_uid = m_user->GetUID();
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+    Send_UserStatus();
 }
 
-// ORIG 0x084b9552：needLogin 后计数 +1；累计 >1 时上报 cate=1 并清零。
+// ORIG 0x084b9774（GetIP.md）：peer IP 抓取失败（空串）且 CMCAPManager 内
+// PC房 IP(+0x28) 非空时，清零输出缓冲后拷贝该 IP。
+void CHades::GetIP(char* out)
+{
+    m_user->m_network.GetPeerIP2(out, 4);
+    if (out[0] == '\0')
+    {
+        if (m_user->m_mcap.m_pcRoomIp[0] != '\0')
+        {
+            memset(out, 0, 0x10);
+            strncpy(out, m_user->m_mcap.m_pcRoomIp, 0x10);
+        }
+    }
+}
+
+// ORIG 0x084b97fe（Send_UserStatus.md）。Packet_Hades_UserStatus（ORIG C1
+// 0x84b9a1e W，0xfdd/0x12）：+0x0a acc_id、+0x0e 状态位域——getSecuType 各位
+// 逐次读取：&(1|2|0x20) 任一命中→|1；&8→|2；&0x10→|4。
+void CHades::Send_UserStatus()
+{
+    Packet_Hades_UserStatus packet;
+    packet.m_accId = m_user->get_acc_id();
+
+    unsigned int status = 0;
+
+    // ORIG 逐次调用 getSecuType（不缓存中间值），内联条件使 movzbl/and/test
+    // 序列与 ORIG 一致；guard 分支三路汇合后统一置位。
+    bool hasSecuGuard = false;
+    if ((m_user->getSecuType() & 1) != 0)
+    {
+        hasSecuGuard = true;
+    }
+    else if ((m_user->getSecuType() & 2) != 0)
+    {
+        hasSecuGuard = true;
+    }
+    else if ((m_user->getSecuType() & 0x20) != 0)
+    {
+        hasSecuGuard = true;
+    }
+    if (hasSecuGuard)
+        status = status | 1;
+
+    if ((m_user->getSecuType() & 8) != 0)
+        status = status | 2;
+
+    if ((m_user->getSecuType() & 0x10) != 0)
+        status = status | 4;
+
+    packet.m_status = status;
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+}
+
+// ORIG 0x084b9552（UseFatigue.md）：needLogin 后计数 +1；累计 >1 时上报 cate=1 并清零。
 void CHades::UseFatigue(unsigned int count)
 {
     (void)count;
@@ -96,7 +148,30 @@ void CHades::UseFatigue(unsigned int count)
     {
         StdCateUpdate(1, 0);
         m_useFatigueCnt = 0;
+        return;
     }
+}
+
+// ORIG 0x084b949a（GoldTracking.md）：needLogin 后构造 Packet_Hades_GoldTracking
+// （ORIG C1 0x84b99fa W，0xfdc/0x29）：+0x0a acc_id、+0x0e money、+0x12 ip[16]
+// （显式 memset 0x10，NULL 跳过 strncpy）、+0x22 param4、+0x26 (u16)fatigue、
+// +0x28 type；经 proxy 发送。
+void CHades::GoldTracking(unsigned char type, unsigned int money, char* ip,
+                          unsigned int param4, unsigned int fatigue)
+{
+    needLogin();
+
+    Packet_Hades_GoldTracking packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_characId = money;
+    memset(packet.m_ip, 0, 0x10);
+    if (ip != 0)
+        strncpy(packet.m_ip, ip, 0x10);
+    packet.m_gold = param4;
+    packet.m_usedFatigue = (unsigned short)fatigue;
+    packet.m_eventType = type;
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
 }
 
 }  // namespace XNuclear

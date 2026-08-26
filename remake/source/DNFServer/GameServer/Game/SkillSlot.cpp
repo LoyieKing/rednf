@@ -11,6 +11,8 @@
 #include "CDataManager.h"
 #include "InterfacePacketBuf.h"
 #include "GameWorld.h"
+#include "CCharacter.h"
+#include "STExpertJobScript.h"
 #include "PacketGuard.h"
 #include "CInventory.h"
 
@@ -2705,6 +2707,102 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
     }
 }
 
+
+// ==== SkillSlot::InitSkill @ 0x08608120（报告 docs/class_func_reports/SkillSlot/InitSkill.md）====
+// PvP 树频道：givePvPSkillTree + 脚本点数 set_remain_sp_at_index(+日志)。
+// 普通树：建号技能补发 → get_give_skill 表 → growtype_skill 循环 →
+// ExpertJob 增益技循环 → CSkillChanger::SkillInitialize → 日志/发包。
+int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
+{
+    if (m_parent == 0)
+        return false;
+
+    if (G_GameWorld()->IsPvPSkilTreeChannel())
+    {
+        int kindArg = 1;
+        if (kind != -1 && kind != 0)
+            kindArg = 2;
+        m_parent->givePvPSkillTree(0, true, kindArg);
+        int pvpGrade = m_parent->get_pvp_grade();
+        char secondGrow = m_parent->getCurCharSecondGrowType();
+        char firstGrow = m_parent->getCurCharFirstGrowType();
+        int job = m_parent->get_charac_job();
+        int sp = reinterpret_cast<PvPSkillTreeParameterScript*>(
+                     reinterpret_cast<char*>(G_CDataManager()) + 0xa800)
+                     ->getPvPSkillPoint(job, firstGrow, secondGrow, pvpGrade,
+                                        false);
+        set_remain_sp_at_index(sp, kind);
+        if (sendFlag)
+        {
+            m_parent->send_skill_info();
+            cMyTrace trace(
+                "bool SkillSlot::InitSkill(bool, ENUM_SKILL_TREE_KIND)", 0xb47,
+                0);
+            trace("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
+                  m_parent->getCurCharacName());
+        }
+        InitSkillHistoryLog(kind, 1);
+        return true;
+    }
+
+    if (kind == -1 || kind == 0)
+    {
+        addSkillOnCreateCharacter(&m_skillSlot[0],
+                                  m_parent->get_charac_job());
+    }
+    else
+    {
+        addSkillOnCreateCharacter(&m_skillSlot2[0],
+                                  m_parent->get_charac_job());
+    }
+
+    std::vector<std::pair<int, int> > giveVec;
+    char secondGrow = m_parent->getCurCharSecondGrowType();
+    char firstGrow = m_parent->getCurCharFirstGrowType();
+    CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
+    char got = chars[m_parent->get_charac_job()].get_give_skill(
+        firstGrow, secondGrow, giveVec, 0);
+    if ((got ^ 1) != 0)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < (int)giveVec.size(); ++i)
+    {
+        growtype_skill(m_parent->get_charac_job(), giveVec[i].first,
+                       giveVec[i].second, kind);
+    }
+
+    STExpertJobScript* expert = static_cast<STExpertJobScript*>(
+        G_CDataManager()->GetExpertJobScript(
+            m_parent->GetCurCharacExpertJobType()));
+    if (expert != 0)
+    {
+        for (int i = 0; i < (int)expert->m_growSkillVec.size(); ++i)
+        {
+            int level =
+                m_parent->GetCurExpertJobLevel(m_parent->GetCurCharacExpertJobExp());
+            growtype_skill(m_parent->get_charac_job(),
+                           expert->m_growSkillVec[i].first, level, kind);
+        }
+    }
+
+    WongWork::CSkillChanger changer;
+    int changerKind = 1;
+    if (kind != -1 && kind != 0)
+        changerKind = 2;
+    changer.SkillInitialize(m_parent, changerKind, false);
+    if (sendFlag)
+    {
+        m_parent->send_skill_info();
+        cMyTrace trace2(
+            "bool SkillSlot::InitSkill(bool, ENUM_SKILL_TREE_KIND)", 0xb86, 0);
+        trace2("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
+               m_parent->getCurCharacName());
+    }
+    InitSkillHistoryLog(kind, 0);
+    return true;
+}
 
 // ==================== WongWork::CSkillChanger（从 GameStubs_remaining.cpp 迁移） ====================
 

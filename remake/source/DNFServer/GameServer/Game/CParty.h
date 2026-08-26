@@ -27,6 +27,7 @@
 #include "CUser.h"
 #include "CPartyResultRecvFlag.h"
 #include "CTraceMobDieHack.h"
+#include "CDungeonClearTracer.h"   // +0xc7c 内嵌追踪器（ORIG giveup_game 0x85b2baa 实证）
 
 // ---- 本批次临时类型（主 agent 集成后迁移到权威头） ----
 #ifndef DNF_ENUM_PARTY_INFO_TYPE_DEFINED
@@ -103,6 +104,7 @@ enum T
 // RewardData_Param/Result、IRewardType 族、QuickPartyData）统一由
 // CQuickPartyRewardManager.h 提供（本头原占位枚举已并入）。
 #include "CQuickPartyRewardManager.h"
+#include "CTournamentDungeonReward.h"  // +0x17bc 值成员 m_tournamentReward 完整类型
 
 // ---- 前向声明（权威定义属后续批次 / 已有头） ----
 class CDungeon;
@@ -296,10 +298,10 @@ public:
     void* GetSecretShopData();
 
     // ---- CBattle_Field 转发 ----
-    void checkBossRoom();
+    bool checkBossRoom();   // ORIG W 0x0822d8f6（al=check_end_point 返回）
     bool checkStartRoom();   // ORIG W 0x0826525e：转发 CBattle_Field::check_start_point
                              // （FinishLoad::process 按 bool 测试，原 void 声明与调用方不符）
-    void DeleteDungeonDropItem(int idx);
+    int DeleteDungeonDropItem(int idx);   // ORIG W 0x0860b62a（返回 pickup_item 结果）
 
     // ---- 传送 / 快速队伍区（+0x1ad0） ----
     int get_quick_party_index();
@@ -346,7 +348,7 @@ public:
     void join_user(CUser* user);
     int leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
     int walkout_member(CUser* user, int param);   // ORIG 0x859ca4a：8=非队长 4=槽位空 1=leave_user==1 0=成功
-    void change_manager(CUser* user, int slot);
+    int change_manager(CUser* user, int slot);   // ORIG T 0x0859c978：0 成功/8 非本人/18 已是/21 参数槽错
     int change_manager();
     void battle_data_reset();     // 0x859aec2
     int set_host();
@@ -355,14 +357,16 @@ public:
     bool IsExistUser(CUser* user);
     int isMyMember(unsigned int userNo);
     bool _checkValidUser(int idx);
-    bool checkValidUser(int idx);
-    void enumPartyMember(bool (*func)(CUser*));
+    int change_manager_for_quick_party();   // ORIG 0x859b404：清 manager 槽位后
+                                            //   改选首个有效成员为 host/manager
+    int delete_party_for_quick_party(CUser* user,
+                                     std::list<CUser*>& list);   // ORIG 0x859b52c
     int get_member_count();
     int getMemberNames(char* buf);
     int get_live_count();
     int get_live_count_enter_map();
     int get_party_seatno(CUser* user);
-    unsigned int GetMemberSlotNo(unsigned int userNo);
+    CUser* GetMemberSlotNo(unsigned int characNo);  // ORIG T 0x0859acc2：按角色编号返回 CUser*
     unsigned int GetMemberSlotNo(CUser const* user) const;
     void ClearBadP2PUser();
     void CheckMemberArea();
@@ -383,6 +387,7 @@ public:
 
     // ---- 队伍状态 / 移动 ----
     void changePartyMemberInfo(MSG_MOVE_MAP& info, char flag);
+    bool canFatigueUp(unsigned char flag);   // ORIG T 0x085a8c88（changePartyMemberInfo 消费）
     void changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool flag);
     void changeBattleDataOnMoveMap(bool flag);   // ORIG T 0x085a8ee0（move_map 调用）
     bool move_map(MSG_MOVE_MAP& info);   // ORIG T 0x085a8f4e 返回 eax=0/1
@@ -401,6 +406,8 @@ public:
     void resetFinishLoadingVar();
     bool CanDoPartyActionAssalutState();
     void TimeoutCompleteAfterAssault();
+    void SelectEPLPCommand(int cmd);   // ORIG 0x85a22a8：SetEPLPState(3)+
+                                       // InsertTimer(1,idx,0x14,cmd,key,0)
     bool check_timer_key(TIMER_MESSAGE msg, int param);
     int gen_timer_key(TIMER_MESSAGE msg);
     bool checkMoveMapHackCnt(MSG_MOVE_MAP& info);
@@ -429,10 +436,10 @@ public:
     void send_invite_bluemarble(int mapIdx);
     void send_quick_party_matching_result(bool flag, CUser* user);
     int SendWalkout(int param, ENUM_WALKOUT_TYPE type);   // ORIG 返回 eax=1
-    void SendDungeonCharacInfo(CUser* user, bool flag);
-    void SendDungeonStatisticParty(bool flag, CUser* user);
-    void SendDungeonStatisticPartyJob(bool flag, CUser* user);
-    void SendDungeonStatisticPartyCharac(bool flag, CUser* user);
+    bool SendDungeonCharacInfo(CUser* user, bool flag);   // ORIG T 0x085b5098 尾部 mov $0x1,%eax
+    bool SendDungeonStatisticParty(bool flag, CUser* user);        // ORIG 尾部 mov $0x1,%eax
+    bool SendDungeonStatisticPartyJob(bool flag, CUser* user);     // ORIG T 0x085b52a6 同上
+    bool SendDungeonStatisticPartyCharac(bool flag, CUser* user);  // ORIG T 0x085b53aa 同上
     void SendPartyMemberTagChracInfo();
     void SendSecretShopItemList(CUser* user);
     void sendPremiumGoldCardStatistic(int a, int b, int c);
@@ -450,22 +457,27 @@ public:
     // ORIG 返回 int（>0 为副本 idx；DisPatcher_SelectDungeon::process 消费，
     // asm mov %eax 写 param）。返回类型不参与 mangled，当前无定义（后续批次补）。
     int dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype);
-    void do_after_dungeon_start(CDungeon const* dungeon, CUser* user);
+    int do_after_dungeon_start(CDungeon const* dungeon, CUser* user);   // ORIG 返回 eax
+                                                                        //（OnStartMapFinishLoading test）
     int check_dungeon_start(CDungeon const* dungeon);
     int check_dungeon_start(CDungeon const* dungeon, int& param);   // ORIG 错误码（0x859f7fa）
     bool CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag,
                                 Inven_Item* item, int* param);
     bool CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& flag,
                                   Inven_Item* item, int* param);
+    // ORIG _ZN6CParty24CheckEnterAncientDungeonEPK8CDungeon 单参版（0x859e7fe，
+    //   别名报告 CheckEnterAncientDungeon_0859e7fe.md）：dungeon 未组队入场券
+    //   检查，已组队时转调上方 4 参事件版。
+    int CheckEnterAncientDungeon(CDungeon const* dungeon);
     int CheckEnterDimensionDungeon(CDungeon const* dungeon);
-    bool CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
-                                    char mode);
-    bool CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
-                                    bool flag2);
+    int CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
+                                   char mode);          // ORIG 返回错误码 0xab/1（0x0859f36a）
+    int CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
+                                   bool flag2);         // ORIG 返回错误码 0xab~0xad/1（0x0859f1ce）
     int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
     bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
-    void CheckHellCoinLimint(int param);
+    int CheckHellCoinLimint(int param);   // ORIG eax=0/1（checkLimitUsedCoinCondition 消费）
     int checkDugeonInoutTime(int param);
     int checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
                                    ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
@@ -482,13 +494,19 @@ public:
                                      std::vector<int>& list1,
                                      std::vector<int>& list2);
     void CheckClearQuestHellParty(std::vector<int>& list);
-    void do_after_dungeon_start_checkndelete_item(RequiredItem const& item,
-                                                  CUser* user);
+    int do_after_dungeon_start_checkndelete_item(RequiredItem const& item,
+                                                 CUser* user);   // ORIG T 0x085a0756 返回 eax
 
     // ---- 副本结算 ----
     void dungeon_clear();
     void prepare_dungeon_clear();
     void clear_reward(int param);
+    float calDeadUserDungeonPenalty(int slot);   // ORIG T 0x085ad9b4（死亡成员经验惩罚率；
+                                                 //   clear_reward/set_clear_reward_exp_parameter 消费）
+    // ORIG T 0x085bddfc：维度/绝望塔副本次数记账（DungeonPermission diff==2 消费）；
+    //   命中成员记录槽且次数未达 dm 上限时 CUser::AddDungeonClear(dungeonIdx,3)。
+    bool addDungeonClear(const CDungeon* dungeon, int param, int slot);
+    void DungeonPermission(int param);           // ORIG T 0x085b12f8（clear_reward 尾部调用）
     void OnDungeonClear(CUser* user, bool success);
     void OnFailedDungeonClear(CUser* user);
     void OnSuccessedDungeonClear(CUser* user);
@@ -497,9 +515,9 @@ public:
     void ClearDungeon();
     void giveup_game(CUser* user, bool a, bool b, bool c);
     void party_dungeon_fail();
-    void set_play_result(CUser* user, GameResultSet& result);
+    int set_play_result(CUser* user, GameResultSet& result);   // ORIG 返回 eax=0（0x85b2068）
     void forced_set_play_result();
-    void SetPlayResult(CUser* user);
+    int SetPlayResult(CUser* user);   // ORIG 0x85b2412 返回 0/1
     void set_clear_reward_exp_parameter(CUser* user, unsigned int a,
                                        stClearRewardExpParameter_t& param);
     unsigned int getClearRewardBonusExp(CUser* user, unsigned int& a,
@@ -521,19 +539,20 @@ public:
     int get_blood_dungeon_admission_fee(CUser* user);
 
     // ---- 怪物击杀 / 血之副本 ----
-    void CheckMapClear();
+    bool CheckMapClear();                   // ORIG T 0x085bea4a：转发 CBattle_Field::check_grid_clear
+    bool IsUseFatigueDungeon();             // ORIG T 0x085be9c8（定义见 UserCoreDepsB2.cpp）
     void OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
                          MSG_MONSTER_DIE const& dieInfo);
     void MemberRegisterKillMonster(map_monster& monster, unsigned char flag);
-    void OnFightVillageMonster(CUser* user, int monsterIdx);
-    void OnFinishVillageMonsterFighting(CUser* user, bool flag);
-    void kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
-                      MSG_MONSTER_DIE const& dieInfo, int* param);
+    int OnFightVillageMonster(CUser* user, int monsterIdx);   // ORIG 返回 0/1/0x15（0x85b9596）
+    int OnFinishVillageMonsterFighting(CUser* user, bool flag);   // ORIG 返回 0/3（0x85b99ac）
+    int kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
+                     MSG_MONSTER_DIE const& dieInfo, int* param);  // ORIG 返回 0/1
     void kill_blood_monster(CUser* user, int monsterIdx, unsigned short* param);
     void BloodHandleDieUser(CUser* user);
     void beginBloodClearProcess(bool flag);
     void onBloodClear(bool flag, int param);
-    void onBloodRewardTimer(TIMER_MESSAGE msg);
+    int onBloodRewardTimer(TIMER_MESSAGE msg);   // ORIG 返回 0/1（0x85b6a48）
     void finishBloodDungeon();
     void generateBloodRewardExp(int a, int b, unsigned int c, short d);
     void generateBloodRewardItem(int a, int b, unsigned int c, unsigned int d,
@@ -554,7 +573,7 @@ public:
     bool HaveAlreadySelectedCard(char a, eClearRewardCardType_t type);
     bool IsCompleteCardSelectOfMembers(eClearRewardCardType_t type);
     bool HasAllMemberSelection();
-    void SetCardNumber(CUser* user, char a, eClearRewardCardType_t type);
+    bool SetCardNumber(CUser* user, char a, eClearRewardCardType_t type);   // ORIG 返回 al（0x85b415a）
     bool _checkGoldCardSelectable(CUser* user, eClearRewardCardType_t type,
                                   int param);
     void insert_time_card_select_msg(int param);
@@ -565,13 +584,13 @@ public:
 
     // ---- 锦标赛 / TOD ----
     void OnTODRewardTimer(TIMER_MESSAGE msg);
-    void OnTimeoutBossDie(int a, unsigned int b);
+    int OnTimeoutBossDie(int a, unsigned int b);   // ORIG 0x85aa5d4 返回 0/1
     int _Send_TOD_APCInfo(int a);   // ORIG 恒返回 eax=1（0x85bac26）
     void _Send_TOD_ClearReward();
     int GetDungeonIndex_isTOD(int& a, int& b);   // ORIG 返回错误码（0x85bacc0）
     void InsertTournamentDungeonTimer(TIMER_MESSAGE msg);
     bool isTournamentVictory();
-    bool TournamentDungeonClear(bool flag);
+    void TournamentDungeonClear(bool flag);   // ORIG 0x85bd236 无返回值
     void MakeTournamentReward(CTournamentDungeonReward& reward);
     char GetTournamentDungeonClearState();
     void SetTournamentDungeonClearState(char state);
@@ -580,9 +599,9 @@ public:
     void SetProperDungeonEvent(CUser* user, int param);
     void SetProperLevelDungeon(CUser* user);
     void SetRidableObjectState(int state, eRidableObjectState type);
-    void DestroyPassiveObject(int param);
+    unsigned char DestroyPassiveObject(int param);   // ORIG 返回 al（0x85b6540）
     void check_passive_skill();
-    void CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type);
+    bool recv_party_packet_all();   // ORIG al：全员已回包=1（0x85b3fd7）
     bool HasNoQuestGoWithApcInParty(Quest const* quest);
     bool IsClearedQuest(int questIdx);
     void MakeQuestRewardPacket(PacketGuard* packet, CUser* user);
@@ -595,6 +614,7 @@ public:
     float CalcurateManageBonus(ManageBonusType::T type, CUser* user,
                                unsigned int param);   // ORIG 返回 st0 浮点
     float CalcAvatarBonus();
+    int get_total_level();   // ORIG T 0x0859a1ae：有效成员等级合计
     float CalcCreatureBonus(CUser* user);
     float getAvatarBonus();
     float getCreatureBonus(CUser* user);
@@ -620,7 +640,7 @@ public:
     bool isMonsterDrop_item(int monsterIdx);
     void _makeRewardItemInfo(CUser const* user, Inven_Item* item,
                              PacketGuard& packet);
-    void _putItemIntoUser(CUser* user, Inven_Item* item, PacketGuard& packet);
+    int _putItemIntoUser(CUser* user, Inven_Item* item, PacketGuard& packet);   // ORIG 返回放入数（0x85aab84）
     void increase_result_card_gold(WongWork::stGenerateResult_t& result);
     void increase_hell_party_ratio(char* str);
     void cal_hellparty_value(int a, int b, int c);
@@ -628,17 +648,20 @@ public:
 
     // ---- 其它 ----
     void ReviveUser(CUser* user, unsigned short a);
-    void VoteLackUser(CUser* user, int param);
-    void OnTimerWalkOutLackUser();
+    int VoteLackUser(CUser* user, int param);   // ORIG 0x85b3c90 返回 0/1
+    int OnTimerWalkOutLackUser();   // ORIG 0x85b3e12 返回 0/1
     void SaveCoin(eCoinSubReason reason);
     int GetCoinCount(CUser* user);
-    unsigned int GetMapPlayingTime();   // ORIG T 0x085b6768（CheckOneMapPlayTimeHackCnt
+    // ORIG T 0x085bdd2a 返回 int（0 普通/1 脚本 boss/2 维度/3 血轮普通/
+    //   4 血轮疯狂/5 绝望塔/6 锦标赛/8 空指针；addDungeonClear 消费），
+    //   原 void 声明与返回值不符（LinkKillChain 批次修正）。
+    int getDungeonTypeKind(CDungeon const* dungeon);
+    unsigned int GetMapPlayingTime();   // ORIG T 0x85b6768（CheckOneMapPlayTimeHackCnt
                                         //  以返回值/1000 为基准，原 void 声明与调用方不符）
-    void getDungeonTypeKind(CDungeon const* dungeon);
     bool getDungeonDropTestFlag();   // ORIG T 0x085bdc76 返回 al（GM 成员且
                                      // getDungeonMapSaving 时 1；原 void 声明与
                                      // move_map 调用方 test al 不符）
-    void getPartyMemberAvgLevel();
+    int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     void is_limit_minimum_age(int age, int& param);
     void is_limit_minimum_level(int level, int& param);
@@ -649,7 +672,7 @@ public:
     void GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,
                                   CItem* item);
     int GetPartyType();
-    int GetNoSendSetPlayResultUser(int param);
+    const char* GetNoSendSetPlayResultUser(int param);   // ORIG T 0x85b2384 返回昵称/空串
     void IncreaseSetPlayResultCount(CUser* user);
     int GetSetPlayResultCount();
     int GetPartyMemberForceDropFlag();
@@ -718,20 +741,32 @@ public:
     char m_enterMapFlag[4];                // +0x384（get_live_count_enter_map）
     char m_field388[4];                    // +0x388（game_start 逐成员清零的装载标志组）
     char m_field38c[4];                    // +0x38c（game_start 逐成员清零）
-    unsigned char m_padBattleData2[0x794]; // +0x390 BattleData 余下（占位，至 0xb24）
-    // ---- CBattle_Field 区（+0xb24，0xcd0 字节） ----
-    unsigned char m_padBattleField1[0x188];  // +0xb24
-    CDungeon* m_dungeon;                    // +0xcac
+    unsigned char m_padBattleData2[0x784]; // +0x390 BattleData 余下（占位，至 0xb14）
+    int m_memberUsedCoin[4];               // +0xb14 BattleData 逐成员已用硬币数
+                                           //   （GetCoinCount=INT_MAX-该值、
+                                           //    ReviveUser 扣减；ORIG 报告实证）
+    unsigned char m_padBattleField1[0x158];  // +0xb24（BF+0x000..0x157）
+    CDungeonClearTracer m_dungeonClearTracer;  // +0xc7c（BF+0x158；ORIG giveup_game
+                                               //   Trace((CDungeonClearTracer*)(this+0xc7c))）
+    unsigned char m_padc94[0x18];              // +0xc94（BF+0x170..0x187）
     unsigned char m_padcb0[0x14];           // +0xcb0
     char m_fieldCC4;                        // +0xcc4（CheckEnterDimensionDungeon 直读，维度模式）
-    unsigned char m_padcc5[0x13];           // +0xcc5
+    unsigned char m_padcc5[0xf];            // +0xcc5..0xcd3（BF 未建模区）
+    int m_fieldCD4;                         // +0xcd4（CheckHellCoinLimint 比较 ==1；
+                                            //   ORIG 语义名未证【推断：hell 币限开关】）
     int m_partyType;                        // +0xcd8
     unsigned char m_padcdc[0x11];           // +0xcdc
     char m_sealDoorItemsOk;                 // +0xced（UseSealDoorItems：全员通过=1/失败=0）
     unsigned char m_padcee[0x6e];           // +0xcee..0xd5b
     int m_standardDimensionLevel;           // +0xd5c
-    // CBattle_Field(+0xb24, 0xcd0) 余下 0xa94 字节未声明：+0xd60..0x17f3
-    unsigned char m_padCBattleField2[0xa94];    // +0xd60..0x17f3
+    // CBattle_Field(+0xb24, 0xcd0) 余下区 +0xd60..0x17f3：
+    //   0x17a8..0x17f3 已按 ORIG ClearDungeon(0x85a9330)/MakeTournamentReward 具名
+    //   （m_todRewardItems 待发奖励清单、m_tournamentReward 0x38 值成员）。
+    unsigned char m_padCBattleField2[0xa48];    // +0xd60..0x17a7
+    std::vector<std::pair<int, int> > m_todRewardItems;  // +0x17a8（ClearDungeon 待发奖励清单）
+    int m_todRewardItemIdx;                     // +0x17b4（-1=无特殊奖励；0xcf2/0x4e4 等）
+    int m_todRewardItemCnt;                     // +0x17b8（特殊奖励数量）
+    CTournamentDungeonReward m_tournamentReward; // +0x17bc（0x38；MakeTournamentReward 实证）
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
     unsigned char m_padMap[0x18];       // +0x1844 std::map<int,int>
 
@@ -753,7 +788,8 @@ public:
     int m_mapHitList3[0x2d];   // +0x19ec
     char m_field1aa0;       // +0x1aa0
     char m_pad1aa1[3];      // +0x1aa1
-    unsigned char m_field1aa4[0x10];  // +0x1aa4
+    int m_field1aa4[4];     // +0x1aa4（ORIG OnUsedSkill/CheckHackAverageHitCount/
+                            //   checkMoveMapHackCnt 按 int 逐槽读改写，共 0x10 字节）
     int m_field1ab4;        // +0x1ab4
     int m_field1ab8;        // +0x1ab8
 

@@ -79,32 +79,30 @@ char COperator<int>::Product(int a, int b, int& out)
     return 1;
 }
 
-namespace
-{
-CPrivateStoreMgr g_privateStoreMgr;
-}
 
-// ORIG 0x085ca3d6。真实布局含 CPrivateStore(+4)、StaticPool<CPrivateStore,300>(+0x68)、
-// zone 表(+0xc8)；此处还原 stores 表（卖家 +0x98 / 买家 +0xb0）为真实 std::map 并初始化。
-// StaticPool / 嵌入 store 深层成员尚未还原（见各函数报告推断标注）。
+// ORIG 0x085ca3d6（报告 private_store__CPrivateStoreMgr/CPrivateStoreMgr.md 逐指令）：
+// IUserPos 基类构造（写基类 vptr）→ 派生 vptr → 构造 +0x04 store、+0x68 池、
+// +0x98/+0xb0/+0xc8 三张表，函数体再对三表 clear()。析构序与成员声明逆序一致。
 CPrivateStoreMgr::CPrivateStoreMgr()
 {
     m_storeSellers.clear();
     m_storeBuyers.clear();
+    m_zoneStores.clear();
 }
 
-// ORIG 0x085ca4fe。真实析构遍历 zone 表释放 list、并析构 StaticPool 与嵌入 store；
-// 此处释放 stores 表中的池对象（推断：StaticPool 尚未还原，故按普通堆归还得）
-// 并清空两张 map。
+// ORIG 0x085ca4fe（报告 ~CPrivateStoreMgr.md 逐指令）：遍历 zone 表 delete 每个
+// list<CPrivateStore*>；随后按声明逆序自动析构 zone 表/买家表/卖家表/+0x68 池/
+// +0x04 嵌入 store。
 CPrivateStoreMgr::~CPrivateStoreMgr()
 {
-    for (std::map<CUser*, CPrivateStore*>::iterator it = m_storeSellers.begin();
-         it != m_storeSellers.end(); ++it)
+    for (std::map<PrivateStoreZone, std::list<CPrivateStore*>*>::iterator it =
+             m_zoneStores.begin();
+         it != m_zoneStores.end(); ++it)
     {
-        delete it->second;  // 推断：ORIG 经 StaticPool::Free 归还，等价释放
+        std::list<CPrivateStore*>* pList = it->second;
+        if (pList != 0)
+            delete pList;
     }
-    m_storeSellers.clear();
-    m_storeBuyers.clear();
 }
 
 // ORIG 0x085c4be8：函数内静态单例（__cxa_guard）。
@@ -263,7 +261,7 @@ CPrivateStore::~CPrivateStore() {}
 
 // ORIG W 0x82345e4：返回 +0x08（m_dollCreated）是否非 0。
 // dispatch_sig 购买链中用于判定卖家 store 已创建 doll（私商店铺实体）。
-unsigned char CPrivateStore::isDollCreated()
+bool CPrivateStore::isDollCreated()
 {
     return m_dollCreated;  // ORIG：movzbl +0x08 直返，不做 0/1 归一化
 }
@@ -2124,130 +2122,142 @@ void CPacketBufPrivate::MakeErrorReturnPacket(int code1, int code2, int code3)
     finalize(true);
 }
 
-// ORIG 0x085ca358：store 卖家表查找（map +0x98），返回 CPrivateStore*。
-void* CPrivateStoreMgr::FindStoreSeller(CUser* user)
+// ORIG 0x085ca358（报告 FindStoreSeller.md 逐指令）：卖家表(+0x98) find，命中返 mapped。
+CPrivateStore* CPrivateStoreMgr::FindStoreSeller(CUser* user)
 {
     if (!user)
         return 0;
     std::map<CUser*, CPrivateStore*>::iterator it = m_storeSellers.find(user);
-    if (it == m_storeSellers.end())
-        return 0;
-    return it->second;
+    if (it != m_storeSellers.end())
+        return it->second;
+    return 0;
 }
 
-// ORIG 0x085ca2da：store 买家表查找（map +0xb0）。
-void* CPrivateStoreMgr::FindStoreBuyer(CUser* user)
+// ORIG 0x085ca2da（报告 FindStoreBuyer.md 逐指令）：买家表(+0xb0) find，命中返 mapped。
+CPrivateStore* CPrivateStoreMgr::FindStoreBuyer(CUser* user)
 {
     if (!user)
         return 0;
     std::map<CUser*, CPrivateStore*>::iterator it = m_storeBuyers.find(user);
-    if (it == m_storeBuyers.end())
-        return 0;
-    return it->second;
+    if (it != m_storeBuyers.end())
+        return it->second;
+    return 0;
 }
 
-// ORIG 0x085ca914：从买家表移除该用户，返回是否命中。
+// ORIG 0x85ca914（报告 FreeStoreBuyer.md 逐指令）：买家表 find 命中则 erase，返回命中与否。
 int CPrivateStoreMgr::FreeStoreBuyer(CUser* user)
 {
     std::map<CUser*, CPrivateStore*>::iterator it = m_storeBuyers.find(user);
-    if (it == m_storeBuyers.end())
-        return 0;
-    m_storeBuyers.erase(it);
-    return 1;
+    if (it != m_storeBuyers.end())
+    {
+        m_storeBuyers.erase(it);
+        return 1;
+    }
+    return 0;
 }
 
-// ORIG 0x085ca874：从卖家表移除该用户；ORIG 同时经 StaticPool(<this+0x68>)::Free
-// 归还 CPrivateStore（推断：此处由 ~CPrivateStoreMgr 统一释放，故仅移除表项）。
+// ORIG 0x85ca874（报告 FreeStoreSeller.md 逐指令）：卖家表 find 命中则先经
+// StaticPool(+0x68)::Free 归还 store 对象再 erase 表项，返回命中与否。
 int CPrivateStoreMgr::FreeStoreSeller(CUser* user)
 {
     std::map<CUser*, CPrivateStore*>::iterator it = m_storeSellers.find(user);
-    if (it == m_storeSellers.end())
-        return 0;
-    m_storeSellers.erase(it);
-    return 1;
+    if (it != m_storeSellers.end())
+    {
+        m_storePool.Free(it->second);
+        m_storeSellers.erase(it);
+        return 1;
+    }
+    return 0;
 }
 
-// ORIG 0x085ca698：取得/创建卖家 store。逻辑：
-//   - 若卖家已存在 => *out = store，返回 1；
-//   - 否则从 StaticPool(+0x68) 申请新 store；
-//       * 池满 => 退回管理器嵌入 store(this+4)，通过 SetSeller 绑定，返回 0；
-//       * 成功 => Clear/SetParent/SetSeller，插入 map(+0x98)，返回 1。
-// 依赖的 CPrivateStore 方法 (Clear/SetParent/SetSeller) 与 StaticPool 成员尚未还原，
-// 此处还原表查找+新表项登记的真实语义，store 构造与 CPrivateStore 初始化标「推断」。
+// ORIG 0x085ca698（报告 GetStoreSeller.md 逐指令）：已开店则直取；否则从
+// StaticPool(+0x68) 申请——池满退回 +0x04 嵌入 store（SetSeller 后返回 0），
+// 成功则 Clear/SetParent/SetSeller 并登记卖家表，*out=store 返回 1。
 int CPrivateStoreMgr::GetStoreSeller(ISeller** out, CUser* user)
 {
-    CPrivateStore* store = (CPrivateStore*)FindStoreSeller(user);
-    if (!store)
+    CPrivateStore* store;
+    if ((store = FindStoreSeller(user)) == 0)
     {
-        // 推断：ORIG 从 StaticPool<CPrivateStore,300>(+0x68) 申请；
-        // 该池成员未还原，暂以堆分配等价代替（~CPrivateStoreMgr 负责释放）。
-        store = new CPrivateStore();
-        // 推断：ORIG 调用 CPrivateStore::Clear/SetParent/SetSeller 初始化。
+        if ((store = m_storePool.Acquire()) == 0)
+        {
+            *out = &m_embeddedStore;
+            m_embeddedStore.SetSeller(user);
+            return 0;
+        }
+        store->Clear();
+        store->SetParent(this);
+        store->SetSeller(user);
         m_storeSellers[user] = store;
     }
-    *out = (ISeller*)store;
+    *out = store;
     return 1;
 }
 
-// ORIG 0x085ca7b8：取得/创建买家 store。逻辑：
-//   - 买家已存在 => 直接取；
-//   - 否则依据卖家 user3 查找卖家 store，绑定为买家并登记 map(+0xb0)。
-// CPrivateStore 初始化 (SetBuyer 等) 与嵌入 store 回退 (this+8) 标「推断」。
+// ORIG 0x085ca7b8（报告 GetStoreBuyer_085ca7b8.md 逐指令）：买家未登记则按卖家
+// 查其 store 并登记买家表；两者皆无时回退 +0x04 嵌入 store 的 IBuyer 子对象
+// （this+8）并 SetBuyer 返回 0；命中时 *out 为 store+4 之 IBuyer 接口。
 int CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, CUser* sellerUser)
 {
-    CPrivateStore* store = (CPrivateStore*)FindStoreBuyer(user);
-    if (!store)
+    CPrivateStore* store;
+    if ((store = FindStoreBuyer(user)) == 0)
     {
-        // 推断：ORIG 复用卖家 user3 的 store 作为买家容器；
-        // 若两者皆无，回退到管理器嵌入 store(this+8)。
-        store = (CPrivateStore*)FindStoreSeller(sellerUser);
-        if (!store)
-            store = new CPrivateStore();  // 推断：等价于嵌入回退
-        // 推断：ORIG 调用 CPrivateStore::SetBuyer(store, user) 绑定买家。
+        if ((store = FindStoreSeller(sellerUser)) == 0)
+        {
+            *out = &m_embeddedStore;   // 派生→IBuyer 隐式转换即 +4（ORIG this+8）
+            m_embeddedStore.SetBuyer(user);
+            return 0;
+        }
         m_storeBuyers[user] = store;
     }
-    // 推断：ORIG 返回 store+4 之 IBuyer 接口指针。
-    *out = (IBuyer*)store;
+    *out = (store != 0) ? store : 0;   // 派生→IBuyer 隐式转换产生 store+4
+    store->SetBuyer(user);
     return 1;
 }
 
-// ORIG 0x085ca760：按 world unique id 解析卖家 CUser 后委托 GetStoreBuyer(3 参版)。
-int CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short uniqueId)
+// ORIG 0x085ca760（报告 GetStoreBuyer.md 逐指令）：按 world unique id 解析卖家
+// CUser（初始置空）后委托 GetStoreBuyer(3 参版)。
+void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short sellerIndex)
 {
-    CUser* sellerUser = G_GameWorld()->find_from_world(uniqueId);
-    return GetStoreBuyer(out, user, sellerUser);
+    unsigned short idx = sellerIndex;
+    CUser* sellerUser = 0;
+    sellerUser = G_GameWorld()->find_from_world(idx);
+    GetStoreBuyer(out, user, sellerUser);
 }
 
-// ORIG T 0x85caa8a（报告 function_reports/game/_ZN13private_store16CPrivateStoreMgr5EnterEP5CUser.md）：
-// 委托 LoadPrivateStore(user) 后固定返回 1。
+// ORIG T 0x85caa8a（报告 Enter.md 逐指令）：委托 LoadPrivateStore(user)，恒返 1。
 int CPrivateStoreMgr::Enter(CUser* user)
 {
     LoadPrivateStore(user);
     return 1;
 }
 
+// ORIG 0x85ca994（报告 Exit.md 逐指令）：买家身份在册则经 IBuyer 虚槽 +0xc
+// （ExitPrivateStore）通知后 FreeStoreBuyer；卖家身份在册则经 ISeller 虚槽 +4
+// （RemovePrivateStore(true)）通知后 FreeStoreSeller；user 空指针返 0。
 int CPrivateStoreMgr::Exit(CUser* user)
 {
-    if (!user)
+    if (user == 0)
         return 0;
-    if (FindStoreBuyer(user))
+    CPrivateStore* store;
+    if ((store = FindStoreBuyer(user)) != 0)
     {
         IBuyer* buyer = 0;
         GetStoreBuyer(&buyer, user, (CUser*)0);
-        // 推断：ORIG 经 IBuyer 虚表通知退出（*(*(int*)buyer + 0xc)）。
+        buyer->ExitPrivateStore();
         FreeStoreBuyer(user);
     }
-    if (FindStoreSeller(user))
+    if ((store = FindStoreSeller(user)) != 0)
     {
         ISeller* seller = 0;
         GetStoreSeller(&seller, user);
-        // 推断：ORIG 经 ISeller 虚表通知退出（*(*(int*)seller + 4)(seller, 1)）。
+        seller->RemovePrivateStore(true);
         FreeStoreSeller(user);
     }
     return 1;
 }
 
-// ORIG 0x085caaaa：CPacketBufPrivate 构造错误返回包并经 CUser::Send 下发，返回 0。
+// ORIG T 0x85caaaa（报告 HandleError.md 逐指令）：栈上 CPacketBufPrivate 构造
+// MakeErrorReturnPacket(code1,code2,code3) 后经 CUser::Send 下发，析构，返回 0。
 int CPrivateStoreMgr::HandleError(CUser* user, int code1, int code2, int code3)
 {
     CPacketBufPrivate packet;
@@ -2256,34 +2266,30 @@ int CPrivateStoreMgr::HandleError(CUser* user, int code1, int code2, int code3)
     return 0;
 }
 
-// ORIG 0x085cad5e：卖家在 store 表中，且状态为 1 或 2，且 (未生成娃娃 || (生成娃娃 && 状态==1))。
+// ORIG 0x85cad5e（报告 IsBusyPrivateStore.md 逐指令）：卖家在册且状态为 1/2 时，
+// 未生成娃娃即忙碌；已生成娃娃仅状态 1 忙碌。
 bool CPrivateStoreMgr::IsBusyPrivateStore(CUser* user)
 {
-    CPrivateStore* store = (CPrivateStore*)FindStoreSeller(user);
-    if (!store)
-        return false;
-    int state = store->GetState();
-    if (state != 1 && state != 2)
-        return false;
-    if (store->isDollCreated())
+    CPrivateStore* store = 0;
+    store = GetInstancePrivateStoreMgr()->FindStoreSeller(user);
+    if (store != 0 && (store->GetState() == 1 || store->GetState() == 2))
     {
-        // 生成娃娃后仅状态 1 视为忙碌（ORIG 见 IsBusyPrivateStore.md）。
-        return store->GetState() == 1 ? true : false;
+        if (store->isDollCreated() == 0)
+            return true;
+        return store->GetState() == 1;
     }
-    return true;
+    return false;
 }
 
-// ORIG 0x085cab24：申请 Stream，写 0x78(type)、GetUID、get_charac_no(-1) 三项，
-// 放入 DB 消息队列(DB_Q=2)。全部依赖已具备，为真实实现。
-int CPrivateStoreMgr::LoadPrivateStore(CUser* user)
+// ORIG 0x85cab24（报告 LoadPrivateStore.md 逐指令）：申请 Stream 构造 CStreamGuard，
+// 写 0x78(type)、GetUID、get_charac_no(-1) 三项后放入 DB 消息队列(DB_Q=2)。
+void CPrivateStoreMgr::LoadPrivateStore(CUser* user)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("PrivateStore.cpp", 0xcb9);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PrivateStore.cpp", 0xcb9), true);
     guard->operator<<(0x78);
     guard->operator<<((int)user->GetUID());
     guard->operator<<(user->get_charac_no(-1));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return 0;
 }
 
 // ---- MakeNotipacketPrivateStoreInfo（ORIG W 0x85cc5bc，objdump 逐指令转写）----
@@ -2569,17 +2575,18 @@ void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(CUser* buyerUser, Inven
     finalize(true);
 }
 
-// ORIG T 0x85cac16（报告 function_reports/game/_ZN13private_store16CPrivateStoreMgr24
-// LoadPrivateStoreResponseEP5CUserPNS_17SIG_PRIVATE_STOREE.md）。DB 响应分支：
-//   sig->m_dollCreated == 1：ResetItems → CopyItems(sig 条目,0xe) →
-//     RecallPrivateStoreItemToMail → SavePrivateStore → Clear → FreeStoreSeller；
+// ORIG T 0x85cac16（报告 LoadPrivateStoreResponse.md 逐指令）。
+//   sig->m_dollCreated==1（DB 恢复失败回执）：GetStoreSeller → ResetItems →
+//     CopyItems(sig 条目,0xe) → RecallPrivateStoreItemToMail → SavePrivateStore →
+//     Clear → FreeStoreSeller；
 //   否则若 IsPermissionPrivateStore：MakeNotipacketPrivateStoreInfo(sig) → Send；
-//     包内条数非 0 时再经 ISeller 虚表槽 +0x14 通知卖家。
+//     包内条数非 0 时再经 ISeller 虚槽 +0x14（RecreatePrivateStore）通知卖家。
 void CPrivateStoreMgr::LoadPrivateStoreResponse(CUser* user, SIG_PRIVATE_STORE* sig)
 {
+    int made = 0;
     if (sig->m_dollCreated == 1)
     {
-        ISeller* seller = 0;
+        ISeller* seller;
         GetStoreSeller(&seller, user);
         CPrivateStore* store = static_cast<CPrivateStore*>(seller);
         store->ResetItems();
@@ -2592,25 +2599,20 @@ void CPrivateStoreMgr::LoadPrivateStoreResponse(CUser* user, SIG_PRIVATE_STORE* 
     else if (user->IsPermissionPrivateStore())
     {
         CPacketBufPrivate packet;
-        int made = packet.MakeNotipacketPrivateStoreInfo(sig);
+        made = packet.MakeNotipacketPrivateStoreInfo(sig);
         user->Send(packet);
         if (made != 0)
         {
-            // ORIG：经 ISeller 虚表槽 +0x14（RecreatePrivateStore，vtable 0x8cbeb68 实证）
-            // 通知卖家重建私商。接口已切真实十槽，此处即标准虚调用（编译器生成
-            // vtable +0x14 槽分发），与 ORIG 槽位一一对应。
-            ISeller* seller = 0;
+            ISeller* seller;
             GetStoreSeller(&seller, user);
-            if (seller != 0)
-                seller->RecreatePrivateStore(sig);
+            seller->RecreatePrivateStore(sig);
         }
     }
 }
 
+// ORIG T 0x86d23a4（objdump 逐指令）：返回卖家表(+0x98) size()。
 int CPrivateStoreMgr::GetPrivateStoreSize()
 {
-    // 推断：ORIG 统计 zone 表中活跃 store 数量（map +0xc8）；zone 表未还原，
-    // 暂以卖家表规模近似（卖家 store 即当前在开店的 store）。
     return (int)m_storeSellers.size();
 }
 }

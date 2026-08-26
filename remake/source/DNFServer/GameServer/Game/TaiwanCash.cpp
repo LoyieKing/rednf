@@ -238,3 +238,261 @@ bool CheckBillingErrorCode(int code)
 {
     return code == 0;
 }
+
+// ============================================================================
+// Wave5 仅ORIG批 —— TaiwanCash 新增 9 方法（追加块，不改上方既有实现）。
+// 依据 docs/class_func_reports/Taiwan__TaiwanCash/{getBalance,getBalance_0817381a,
+// checkEntrance,gift,cancel,charge,confirm,purchase,ceraPoint}.md 汇编逐条转写。
+// Query 完整类型来自 TaiwanQueries.h（TwQuery 批次）；各 processBilling<X>
+// 显式实例化 → ORIG 独立 W 符号 _ZN6Taiwan10TaiwanCash14processBillingINS_IXXXEEEbRT_。
+// NumberToString(y,i) @0x08109098 以 snprintf 等价替代【推断：等价日志面，
+// 沿用本 TU purchase 既有模式】。所有 SQL/存储过程文本在各 Query 归属批内。
+// ============================================================================
+
+#include "TaiwanQueries.h"
+
+namespace Taiwan
+{
+
+// ---- getBalance(const char*, int&) —— ORIG T 0x08173766 ----
+int TaiwanCash::getBalance(const char* account, int& balance)
+{
+    // BalanceQuery: m_balance@+0x04 / m_resultCode@+0x08
+    BalanceQuery query(account);
+    if (!processBilling<BalanceQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    balance = query.m_balance;
+    {
+        cMyTrace trace("getBalance", 0x46, 0);
+        trace("[Taiwan, Billing] BalanceQuery Balance:%d, Result:%d",
+              balance, query.m_resultCode);
+    }
+    return 0;
+}
+
+// ---- getBalance(const char*, int&, int&) —— ORIG T 0x0817381a ----
+int TaiwanCash::getBalance(const char* account, int& balance, int& point)
+{
+    // BalancePointQuery: m_balance@+0x04 / m_point@+0x08 / m_resultCode@+0x0c
+    BalancePointQuery query(account);
+    if (!processBilling<BalancePointQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    balance = query.m_balance;
+    point = query.m_point;
+    {
+        cMyTrace trace("getBalance", 0x5a, 0);
+        trace("[Taiwan, Billing] BalancePointQuery Balance:%d, Point:%d, Result:%d",
+              balance, point, query.m_resultCode);
+    }
+    return 0;
+}
+
+// ---- checkEntrance(const char*, char&) —— ORIG T 0x081736ce ----
+int TaiwanCash::checkEntrance(const char* account, char& entrance)
+{
+    (void)entrance;  // ORIG 未写回该出参（汇编无 store，仅 trace 结果码）——忠实转写
+
+    EntranceQuery query;
+    // EntranceQuery: m_resultCode@+0x04
+    if (!processBilling<EntranceQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    {
+        cMyTrace trace("checkEntrance", 0x34, 0);
+        trace("[Taiwan, Billing] EntranceQuery Entrance:%d", query.m_resultCode);
+    }
+    return 0;
+}
+
+// ---- gift —— ORIG T 0x08173b20 ----
+int TaiwanCash::gift(unsigned long long uid, int price, int pay,
+                     const char* account, const char* sendCharac,
+                     const char* recvCharac, const char* giftMsg,
+                     BillTransaction& trans)
+{
+    (void)giftMsg;  // ORIG 未把该参传入 GiftQuery——忠实转写
+
+
+    // GiftQuery(account, sendCharac, recvCharac, uint(price=p2), uint(pay=p3), uid)；
+    // m_resultCode@+0x1c / m_trans@+0x20（asm: esp+0x10=*(ebp+0x14)、esp+0x14=*(ebp+0x18)）。
+    GiftQuery query(account, sendCharac, recvCharac,
+                    static_cast<unsigned int>(price),
+                    static_cast<unsigned int>(pay),
+                    static_cast<long long>(uid));
+    if (!processBilling<GiftQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    trans.m_field0 = query.m_trans.m_field0;
+    trans.m_tranNo = query.m_trans.m_tranNo;
+
+    {
+        char tranBuf[32];
+        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
+                      static_cast<unsigned long long>(trans.m_tranNo));
+        cMyTrace trace("gift", 0x95, 0);
+        trace("[Taiwan, Billing] GiftQuery Account:%s, SendCharac:%s, RecvCharac:%s, Price:%d, Transaction:%s",
+              account, sendCharac, recvCharac, pay, tranBuf);
+    }
+    return 0;
+}
+
+// ---- cancel(const BillTransaction&) —— ORIG T 0x08173d1c ----
+int TaiwanCash::cancel(const BillTransaction& trans)
+{
+    // tranNo 高低双字均为 0 → 直接返回 0（ORIG test lo|hi）。
+    if ((static_cast<int>(trans.m_tranNo & 0xffffffffULL) |
+         static_cast<int>(trans.m_tranNo >> 32)) == 0)
+        return 0;
+
+    CancelQuery query(trans);
+    // CancelQuery: m_resultCode@+0x00
+    if (!processBilling<CancelQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    {
+        char tranBuf[32];
+        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
+                      static_cast<unsigned long long>(trans.m_tranNo));
+        cMyTrace trace("cancel", 0xb9, 0);
+        trace("[Taiwan, Billing] CancelQuery Transaction:%s", tranBuf);
+    }
+    return 0;
+}
+
+// ---- charge —— ORIG T 0x08173df0 ----
+int TaiwanCash::charge(char* p1, unsigned char serviceType, unsigned char p3,
+                       unsigned int price, char* p5, char* p6, char* p7, char* p8,
+                       unsigned long long uid, BillTransaction& trans)
+{
+    (void)p3;   // ORIG 未用于 ChargeQuery 构造——按汇编忠实
+    (void)p5; (void)p6; (void)p7;
+    (void)uid;  // 同上
+
+    // ChargeQuery(p1, p8, "", price, (char)serviceType)；
+    // m_resultCode@+0x14 / m_trans@+0x18。
+    ChargeQuery query(p1, p8, "", price, static_cast<char>(serviceType));
+    if (!processBilling<ChargeQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    trans.m_field0 = query.m_trans.m_field0;
+    trans.m_tranNo = query.m_trans.m_tranNo;
+
+    {
+        char tranBuf[32];
+        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
+                      static_cast<unsigned long long>(trans.m_tranNo));
+        cMyTrace trace("charge", 0xce, 0);
+        trace("[Taiwan, Billing] ChargeQuery Account:%s, Price:%d, Transaction:%s",
+              p1, static_cast<int>(price), tranBuf);
+    }
+    return 0;
+}
+
+// ---- confirm(const BillTransaction&) —— ORIG T 0x08173c48 ----
+int TaiwanCash::confirm(const BillTransaction& trans)
+{
+    // tranNo 高低双字均为 0 → 直接返回 0（ORIG test lo|hi）。
+    if ((static_cast<int>(trans.m_tranNo & 0xffffffffULL) |
+         static_cast<int>(trans.m_tranNo >> 32)) == 0)
+        return 0;
+
+    ConfirmQuery query(trans);
+    // ConfirmQuery: m_resultCode@+0x00
+    if (!processBilling<ConfirmQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    {
+        char tranBuf[32];
+        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
+                      static_cast<unsigned long long>(trans.m_tranNo));
+        cMyTrace trace("confirm", 0xa7, 0);
+        trace("[Taiwan, Billing] ConfirmQuery Transaction:%s", tranBuf);
+    }
+    return 0;
+}
+
+// ---- purchase(6 参重载) —— ORIG T 0x081738e6 ----
+int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
+                         const char* account, const char* charac,
+                         BillTransaction& trans)
+{
+    PurchaseQuery query(account, charac,
+                        static_cast<unsigned int>(price),
+                        static_cast<unsigned int>(pay),
+                        static_cast<long long>(uid));
+    if (!processBilling<PurchaseQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    trans.m_field0 = query.m_trans.m_field0;
+    trans.m_tranNo = query.m_trans.m_tranNo;
+
+    {
+        char tranBuf[32];
+        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
+                      static_cast<unsigned long long>(trans.m_tranNo));
+        cMyTrace trace("purchase", 0x6e, 0);
+        trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
+              account, charac, pay, tranBuf);
+    }
+    return 0;
+}
+
+// ---- ceraPoint —— ORIG T 0x08173f0c ----
+int TaiwanCash::ceraPoint(char* p1, char* p2, char command, char* p4, char* p5,
+                          char p6, char p7, int price)
+{
+    // CeraPointQuery(p1, p2, p4, p5, (uint)price, p6, p7, command)；
+    // m_resultCode@+0x18。
+    CeraPointQuery query(p1, p2, p4, p5,
+                         static_cast<unsigned int>(price),
+                         p6, p7, command);
+    if (!processBilling<CeraPointQuery>(query))
+        return 4;
+    if (!checkResultCode(query.m_resultCode))
+        return query.m_resultCode;
+
+    {
+        cMyTrace trace("ceraPoint", 0xe0, 0);
+        trace("[Taiwan, Billing] CeraPointQuery Command:%c, Price:%d",
+              static_cast<int>(command), static_cast<int>(price));
+    }
+    return 0;
+}
+
+}  // namespace Taiwan
+
+// ---- processBilling<X> 显式实例化 → ORIG W 符号 ----
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::BalanceQuery>(
+    Taiwan::BalanceQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::BalancePointQuery>(
+    Taiwan::BalancePointQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::EntranceQuery>(
+    Taiwan::EntranceQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::GiftQuery>(
+    Taiwan::GiftQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::CancelQuery>(
+    Taiwan::CancelQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::ChargeQuery>(
+    Taiwan::ChargeQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::ConfirmQuery>(
+    Taiwan::ConfirmQuery&);
+template bool Taiwan::TaiwanCash::processBilling<Taiwan::CeraPointQuery>(
+    Taiwan::CeraPointQuery&);

@@ -422,16 +422,15 @@ IBuyRule* CSecretShop::GetRule(eBuyRule rule)
 
 int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 {
-    int out[5];
-    out[1] = 10000;
-    out[2] = m_pRand->randInt((const unsigned long&)out[1]);
-    out[0] = 1000;
+    int randomSeed = 10000;
+    int randVal = m_pRand->randInt((const unsigned long&)randomSeed);
+    int npcIdx = 1000;
     SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
-    if (!script->GetNpcByDungeonIdx(out[0], out[2], level))
-        script->GetNpcByDungeonLev(out[0], out[2], level);
-    if (out[0] != 0 && out[0] != 1000)
-        m_statistic.RecordShow(out[0], dungeonIdx, price);
-    return out[0];
+    if (!script->GetNpcByDungeonIdx(npcIdx, randVal, level))
+        script->GetNpcByDungeonLev(npcIdx, randVal, level);
+    if (npcIdx != 0 && npcIdx != 1000)
+        m_statistic.RecordShow(npcIdx, dungeonIdx, price);
+    return npcIdx;
 }
 
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
@@ -528,10 +527,9 @@ void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int 
 void CSecretShop::SendSecretShopNpc(CUser* user, int npcIdx)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0x114);
-    buf->put_int(npcIdx);
-    buf->finalize(true);
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0x114);
+    ((InterfacePacketBuf*)&packet)->put_int(npcIdx);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     user->Send(packet);
 }
 
@@ -539,16 +537,15 @@ void CSecretShop::SendSecretShopItemList(CUser* user, std::vector<SALE_INFO>& li
 {
     int count = (int)list.size();
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0x115);
-    buf->put_int(count);
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0x115);
+    ((InterfacePacketBuf*)&packet)->put_int(count);
     for (int i = 0; i < count; ++i) {
-        buf->put_int(list[i].m_itemIdx);
-        buf->put_byte(list[i].m_rule);
-        buf->put_int(list[i].m_price);
-        buf->put_int(list[i].m_limit);
+        ((InterfacePacketBuf*)&packet)->put_int(list[i].m_itemIdx);
+        ((InterfacePacketBuf*)&packet)->put_byte(list[i].m_rule);
+        ((InterfacePacketBuf*)&packet)->put_int(list[i].m_price);
+        ((InterfacePacketBuf*)&packet)->put_int(list[i].m_limit);
     }
-    buf->finalize(true);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     user->Send(packet);
 }
 

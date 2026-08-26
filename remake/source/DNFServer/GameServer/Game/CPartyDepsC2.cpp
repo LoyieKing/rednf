@@ -33,29 +33,16 @@
 #include "CInventory.h"         // insertItemIntoInventory 完整类型
 #include "CWorldMap.h"
 #include "GameWorld.h"
-#include "CGuildServerProxy.h"   // CEventManager / CEventBase（IsEventing vptr+0x34 槽13）
-#include "GlobalData.h"
-#include "CMailBoxHelper.h"
-#include "RDARScriptStringManager.h"
-#include "CBattle_Field.h"
+#include "CBloodDungeonRewardFirstEvent.h"   // GetGold W 0x085bff1a（真实类，本批次闭环）
+#include "CBloodDungeonRewardSecondEvent.h"  // GetGold W 0x085bff26
+ #include "CGuildServerProxy.h"   // CEventManager / CEventBase（IsEventing vptr+0x34 槽13）
+ #include "GlobalData.h"
+ #include "CMailBoxHelper.h"
+ #include "RDARScriptStringManager.h"
+ #include "CBattle_Field.h"
 
 namespace
 {
-
-// ---- 血之副本结算 repeat 事件（ORIG 类布局未建模，仅暴露 GetGold 调用面）----
-// 继承 CEventBase：GetRepeatEvent 返回指针先经 IsEventing(vptr+0x34, slot13)
-// 判活，再以本类静态绑定调用非虚 GetGold。GetGold 定义待事件域批次。
-class CBloodDungeonRewardSecondEvent : public CEventBase
-{
-public:
-    int GetGold();   // ORIG W 0x085bff26 _ZN30CBloodDungeonRewardSecondEvent7GetGoldEv
-};
-
-class CBloodDungeonRewardFirstEvent : public CEventBase
-{
-public:
-    int GetGold();   // ORIG W 0x085bff1a _ZN29CBloodDungeonRewardFirstEvent7GetGoldEv
-};
 
 // ---- CCharacBloodDungeon 只读视图（类未建模，同 CUser.cpp 本地视图惯例）----
 // 报告缺失标记：docs/class_func_reports/CCharacBloodDungeon/ 仅 ResetDaily/
@@ -86,8 +73,8 @@ void CParty::increase_ancient_dungeon_ticket()
         return;
 
     // dungeon+0x7f4 = RequiredItem.m_0（道具 idx）；+0x7f8 = RequiredItem.m_4
-    const int itemId = m_dungeon->m_requiredItem1.m_0;
-    const int createParam = m_dungeon->m_requiredItem1.m_4;
+    const int itemId = m_dungeon->m_entryRequiredItem.m_itemIdx;
+    const int createParam = m_dungeon->m_entryRequiredItem.m_itemCount;
 
     CDataManager* dataMgr = G_CDataManager();
     if (dataMgr->find_item(itemId) == 0)   // find_item(int) const 0x0835fa32
@@ -268,7 +255,7 @@ bool CParty::make_blood_dungeon_info(CUser* user, PacketGuard& packet)
              it != dungeonList.end(); ++it)
         {
             CDungeon* dungeon = G_CDataManager()->find_dungeon(*it);  // 0x0835f9f8
-            if (dungeon == 0 || (char)dungeon->m_89f != 1)
+            if (dungeon == 0 || (char)dungeon->m_bloodDungeonType != 1)
                 continue;
 
             packet.put_short(*it);
@@ -376,7 +363,7 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
 
     checkMoveMapHackCnt(info);
 
-    if ((char)m_dungeon->m_89f < 1)
+    if ((char)m_dungeon->m_bloodDungeonType < 1)
         bf.MakePacket(0x1d, &packet);       // MakePacket T 0x083090a4
     else
         bf.MakePacket(0xd3, &packet);

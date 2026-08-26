@@ -43,6 +43,15 @@ public:
 
     bool importScript(const char* path);       // ORIG T 0x088e0968
 
+    float GetExpBonus(int level);              // ORIG T 0x088e0f58（m_expBonus[level]/0.1f）
+    float GetGoldBonus(int level);             // ORIG T 0x088e0fce（m_goldBonus[level]/0.1f）
+                                               // 实现暂居 CPartyDepsD2.cpp（PartyDepsD2 批次，
+                                               // CParty::CalcurateManageBonus 依赖闭环）
+    int GetLevel(int point);     // ORIG T 0x088e0ed4（定义 CUser.cpp，LinkMisc5）
+    int GetPoint(int level);     // ORIG T 0x088e0e0a（同上）
+    int GetLevelUpRequirePoint(unsigned int maxLevel);
+                                 // ORIG T 0x088e1114（同上）
+
     // ---- 布局（ctor 0x088e06cc / importScript 实证）----
     std::vector<ManagePointBonus> m_pointBonus;      // +0x00（[point bonus]）
     std::vector<int> m_manageLevelPoint;             // +0x0c（[manage level point]）

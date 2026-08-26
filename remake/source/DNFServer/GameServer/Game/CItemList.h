@@ -17,19 +17,24 @@
 #include "CStackableItem.h"
 #include "CEquipItem.h"
 #include "STEquipmentScript.h"
+#include "ServerParameterScript.h"  // ENUM_UNUSABLE_EQUIPMENT_TYPE（CCompound 私有转换函数参数）
+
 #include "STStackableScript.h"
 
 // ============================================================================
 // STCeraShopItem（商城 DB 条目，G4 商城/交易域批次，ORIG 尺寸 0x88）
 // 布局依据 STCeraShopItem::C1 (0x88fd974) / clear (0x88fd9c4) /
 // CCeraShopGoods::SetItem (0x8510c1a) 逐字段推导（COW string 尺寸 4）。
+// 真名线索（Load_Goods_File / insertCeraShopItemIntoDB 的 SQL+日志实证）：
+//   m_field8=ipg_no（"fail IPG" 日志、dnf_item_price(ipg_no,...) 首列）、
+//   m_field14=it_no（itemIdx，dnf_item_price 第二列 / find_item 参数）、
+//   m_field1c=it_cnt（dnf_item_price 第三列）、m_field38=cera_price 来源、
+//   m_field22=sale type（insertCeraShopItemIntoDB 的 c 分支选择 0/1），
+//   m_field10=m_lottoMap 键（GetRestrictCode 查询源）。
 // ============================================================================
 struct STCeraShopItem
 {
     STCeraShopItem();
-    STCeraShopItem(const STCeraShopItem& other);
-    ~STCeraShopItem();
-    STCeraShopItem& operator=(const STCeraShopItem& other);
     bool operator==(const STCeraShopItem& other);
 
     void clear();
@@ -38,17 +43,14 @@ struct STCeraShopItem
     bool isLimitSaleItem();
 
     char m_field0;                    // +0x00
-    char m_pad01[3];                  // +0x01
     int m_field4;                     // +0x04
     int m_field8;                     // +0x08（operator== 比较位）
     int m_fieldc;                     // +0x0c（groupIdx）
     int m_field10;                    // +0x10（subGroupIdx）
     int m_field14;                    // +0x14（itemIdx）
     char m_field18;                   // +0x18
-    char m_pad19[3];                  // +0x19
     int m_field1c;                    // +0x1c（stackCount）
     char m_field20;                   // +0x20（sticker）
-    char m_pad21;                     // +0x21
     unsigned short m_field22;         // +0x22（expiryDate）
     int m_field24;                    // +0x24
     int m_field28;                    // +0x28
@@ -57,7 +59,6 @@ struct STCeraShopItem
     int m_field34;                    // +0x34（mileagePrice）
     int m_field38;                    // +0x38（ceraPrice）
     char m_field3c;                   // +0x3c
-    char m_pad3d[3];                  // +0x3d
     std::string m_name;               // +0x40
     int m_field44;                    // +0x44（bonusWeight）
     int m_field48;                    // +0x48
@@ -70,7 +71,6 @@ struct STCeraShopItem
     int m_field58;                    // +0x58
     int m_field5c;                    // +0x5c
     char m_field60;                   // +0x60
-    char m_pad61[3];                  // +0x61
     unsigned short m_field62;         // +0x62
     unsigned short m_field64;         // +0x64
     int m_field68;                    // +0x68
@@ -78,7 +78,6 @@ struct STCeraShopItem
     int m_field70;                    // +0x70
     int m_field74;                    // +0x74
     char m_field78;                   // +0x78
-    char m_pad79[3];                  // +0x79
     int m_field7c;                    // +0x7c
     int m_field80;                    // +0x80
     char m_field84;                   // +0x84
@@ -106,11 +105,11 @@ public:
     int GetFeaturedIdx() const;
     int GetSticker() const;
     int GetExpiryDate() const;
-    int GetBonusWeight() const;
+    float GetBonusWeight() const;
     CItem* GetRelatedItem() const;
-    bool isGiftDisallowance_() const;
-    bool isCeraPointDisallowance_() const;
-    bool isStackBuyable() const;
+    unsigned char isGiftDisallowance_() const;
+    unsigned char isCeraPointDisallowance_() const;
+    unsigned char isStackBuyable() const;
 
     int m_itemIdx;                    // +0x00
     int m_stackCount;                 // +0x04
@@ -279,33 +278,125 @@ public:
 
 namespace ExtreamDungeon
 {
+
+// ── ORIG 合成链枚举（按值传参，ABI=int；成员名不可考，按数值命名）──
+enum ENUM_INPUTITEMS_RARITY
+{
+    INPUT_RARITY_0 = 0,
+    INPUT_RARITY_1 = 1,
+    INPUT_RARITY_2 = 2
+};
+
+enum ENUM_OUTPUTITEMS_RARITY
+{
+    OUTPUT_RARITY_0 = 0,
+    OUTPUT_RARITY_1 = 1,
+    OUTPUT_RARITY_2 = 2,
+    OUTPUT_RARITY_3 = 3
+};
+
+enum eBindSphereType
+{
+    BIND_SPHERE_OFF = 0,
+    BIND_SPHERE_ON = 1
+};
+// ── ORIG 强制规则条目（ctor 0x832e00a：flag→+0x00 字节、value→+0x04）──
+struct forceRule_ResultItem
+{
+    forceRule_ResultItem() : m_flag(false), m_value(0) {}
+    forceRule_ResultItem(bool flag, int value);
+    char m_flag;   // +0x00（1=禁止合成，0=强制允许）
+    int m_value;   // +0x04
+};
+
+// ── ORIG 排序表项（ctor 0x832dfbe / dtor 0x8330cec；_AddItem 构造）──
+struct OUTPUT_ITEM_STR
+{
+    OUTPUT_ITEM_STR(int usableLevel, int index);
+    bool operator<(const OUTPUT_ITEM_STR& other) const;   // 升序【推断】
+
+    int m_usableLevel;   // +0x00
+    int m_index;         // +0x04
+};
+
+// ── ORIG BindCube_ScriptData（ctor 0x832e058 / dtor 0x832e220，尺寸 0xb88，
+//    作为 CCompound 的 +0x04 子对象；偏移均为相对本对象）──
+class BindCube_ScriptData
+{
+public:
+    BindCube_ScriptData();
+    ~BindCube_ScriptData();
+
+    int m_rarityDicision[3][4];                          // +0x000（LoadScript [rarity dicision] 写入区）
+    std::vector<OUTPUT_ITEM_STR> m_bindItems[0x3b][4];   // +0x030（行步 0x30；列=装备类别）
+    std::vector<OUTPUT_ITEM_STR> m_resultItems[4];       // +0xb40（_AddItem 按类别入表）
+    std::map<int, forceRule_ResultItem> m_forceRules;    // +0xb70（绝对 +0xb74）
+};                                                        // 尺寸 0xb88
+
+// ── ORIG BindCube_LvBonusScriptData（ctor 0x832e318 / dtor 0x832e3ac，尺寸 0x30）──
+class BindCube_LvBonusScriptData
+{
+public:
+    BindCube_LvBonusScriptData();
+    ~BindCube_LvBonusScriptData();
+
+    std::vector<unsigned int> m_levels;    // +0x00（[level/silver level dicision] 等级表）
+    std::vector<unsigned int> m_rates[3];  // +0x0c（3 行比率表）
+};                                          // 尺寸 0x30
+
 class CCompound_ExtreamDun_Item
 {
 public:
     CCompound_ExtreamDun_Item();    // ORIG 0x832c402
     ~CCompound_ExtreamDun_Item();   // ORIG 0x832c524
     // ORIG _ZN14ExtreamDungeon25CCompound_ExtreamDun_Item10LoadScriptEPKcS2_
-    // （返回 0=成功，非 0 为出错行号；CDataManager::init 调用）
+    // （返回 0=成功，非 0 为错误码；CDataManager::init 调用）
     int LoadScript(const char* dir, const char* path);
-    void check_N_addItem(CEquipItem& item);
+    bool check_N_addItem(CEquipItem& item);   // ORIG 返回 _AddItem 结果（0/1）
     void after_addItem();
     void ForceResultItemRule_Setting(int idx, bool flag, int value);
 
-    // ORIG forceRule_ResultItem（栈对象 8 字节，ctor @0x832e00a）
-    struct forceRule_ResultItem
-    {
-        forceRule_ResultItem() : m_flag(0), m_value(0) {}
-        forceRule_ResultItem(bool flag, int value)
-            : m_flag(flag ? 1 : 0), m_value(value) {}
-        int m_flag;   // +0x00
-        int m_value;  // +0x04
-    };
+    bool _isPossibleResultItem(CEquipItem& item) const;         // ORIG 0x832db4e（const 方法、非 const 引用参数）
+    bool _AddItem(CEquipItem& item);                            // ORIG 0x832dd1c
+    int _convertOutputItem(ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const;   // ORIG 0x832c5ac
+    int _convertInputItem(ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const;    // ORIG 0x832c620
+
+    // ── ORIG 合成主链（nm -S 核实；Main 2026-08-26 授权补声明）──
+    int checkCompoundable(Inven_Item* items, const CEquipItem** refs, char kind) const;   // T 0x832d7d6
+    bool makeCompoundItem(const CEquipItem** refs, char select, Inven_Item& out,
+                          eBindSphereType bind);                                          // T 0x832ccc0
 
 private:
-    bool _isPossibleResultItem(const CEquipItem& item);   // ORIG 0x832db4e
-    bool _AddItem(CEquipItem& item);                      // ORIG 0x832dd1c
-    int _convertOutputItem(int eqType) const;             // ORIG 0x832c5ac
-    int _convertInputItem(int eqType) const;              // ORIG 0x832c620
+    int _get_base_level(const CEquipItem* const* refs) const;                             // W 0x832e40c
+    int _convertInput_To_Output(ENUM_INPUTITEMS_RARITY inRarity) const;                   // T 0x832c5f0
+    int _determine_rarity(unsigned int randVal,                                             // ORIG 返回 0..4（4=未命中）
+                          ENUM_INPUTITEMS_RARITY inRarity) const;      // T 0x832c976
+    std::pair<unsigned int, unsigned int> _determine_level_bonus(
+        unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity, unsigned int& idxOut,
+        eBindSphereType bind) const;                                                      // T 0x832c9ca（sret）
+    std::pair<unsigned int, unsigned int> _determine_level_bonus(
+        ENUM_INPUTITEMS_RARITY inRarity, unsigned int baseLevel,
+        ENUM_OUTPUTITEMS_RARITY outRarity, eBindSphereType bind) const;                   // T 0x832cadc（sret）
+    unsigned int _determine_level_bonus_index(unsigned int baseLevel,
+                                              ENUM_INPUTITEMS_RARITY inRarity,
+                                              eBindSphereType bind) const;                // T 0x832cc02
+    int _exception_Rare(const CEquipItem** refs, char select,
+                        ENUM_OUTPUTITEMS_RARITY outRarity, unsigned int baseLevel) const; // T 0x832cffe
+    static bool BindTable_Predicate(const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b);  // T 0x832c3cc
+    int _FindSelectItem(unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
+                        const std::pair<unsigned int, unsigned int>& range) const;        // T 0x832d15e
+    int _FindRandomItem(ENUM_OUTPUTITEMS_RARITY outRarity,
+                        const std::pair<unsigned int, unsigned int>& range) const;        // T 0x832d2ce
+    int _FindItemAll_BindSphere(const CEquipItem** refs, char select,
+                                ENUM_OUTPUTITEMS_RARITY outRarity,
+                                std::pair<unsigned int, unsigned int> range) const;       // T 0x832d438
+    int _FindItemRelateCreationRate(
+        std::vector<OUTPUT_ITEM_STR>::const_iterator begin,
+        std::vector<OUTPUT_ITEM_STR>::const_iterator end) const;                          // T 0x832d4b4
+
+    CMTRand* m_rand;                          // +0x000（new CMTRand(time)，尺寸 0x9c8）
+    BindCube_ScriptData m_data;               // +0x004（0xb88）
+    BindCube_LvBonusScriptData m_lvBonus[2];  // +0xb8c（普通/白银两套等级决策）
 };
 }
 

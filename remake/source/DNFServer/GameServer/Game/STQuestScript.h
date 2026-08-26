@@ -69,7 +69,10 @@ public:
     bool getApplyLevel(std::multiset<int>* out);
 
     ST_TrainingQuest_Select_Prob m_selectProb;   // +0x00
-    std::vector<int> m_questProb[69];            // +0x1138
+    // ORIG C1 0x8371cc8 构造 0x46=70 个 vector（+0x1138 起）；clear 0x8371dd4 循环
+    // i<=0x45；reset_same_apply_level_cnt 0x8371e48 写 m_applyCount@+0x148c →
+    // sizeof 0x1490（CDM m_dailyTrainingQuest@+0xa1c4 边界互证）。
+    std::vector<int> m_questProb[70];            // +0x1138
     std::vector<int> m_sameApplyQuest;           // +0x1480
     int m_applyCount;                            // +0x148c
 };

@@ -22,7 +22,7 @@
 // 遍历 G_CDataManager()+0xa89c 的 vector<stIndependentDropRateControl>
 // （即 m_independentDrop.m_vec18，+0xa884 + 0x18 实证）：
 //   ctrl.m_itemId == drop.m_itemIdx 且 drop.m_rate[jobIdx] != 0 时，
-//   diff = (u8)ref.m_levelHigh - (u8)ref.m_field34；若 ctrl.m_field04 > diff：
+//   diff = (u8)ref.m_field34 - (u8)ref.m_field34；若 ctrl.m_field04 > diff：
 //   f = (float)(10000 - ctrl.m_field08*diff)；f==0 → f=1.0f；
 //   drop.m_rate[jobIdx] = (int)(rate * (f / 10000.0f))（fistpl 舍入）。
 void independentItemRateControl(stMonsterIndependentDrop_t& drop,
@@ -42,7 +42,7 @@ void independentItemRateControl(stMonsterIndependentDrop_t& drop,
         if (drop.m_rate[jobIdx] == 0)                              // test → next
             continue;
 
-        const int diff = (int)(unsigned char)ref.m_levelHigh - (int)base34;
+        const int diff = (int)((ref.m_goldFactor >> 8) & 0xff) - (int)base34;  // +0x3f（旧 m_levelHigh：等级上界）
         if (it->m_field04 <= diff)                                 // setle → skip
             continue;
 
@@ -65,7 +65,7 @@ void independentItemRateControl(stMonsterIndependentDrop_t& drop,
 //      m_rangeMin <= ref.m_field2c <= m_rangeMax，否则要求
 //      m_rangeMin <= chan <= m_rangeMax，不满足则跳过该项。
 //   2) independentItemRateControl(copy, ref)。
-//   3) premium：m_rate[10]>0 && ref.m_premiumDropRate>0 && ref.m_field3c==3 时
+//   3) premium：m_rate[10]>0 && ref.m_premiumDropRate>0 && ref.m_goldBase==3 时
 //      m_rate[jobIdx] = m_rate[jobIdx]*(premium+100)/100。
 //   4) ref.m_field25 && ref.m_field30>1：m_rate[jobIdx] *= m_field30，
 //      上限 0xf4240。
@@ -85,7 +85,7 @@ void generateIndependentItem(
 {
     const unsigned char jobIdx = (unsigned char)ref.m_rateSlot;     // movzbl 0x36
     const unsigned char chanByte = (unsigned char)ref.m_field34;    // movzbl 0x34
-    const unsigned char groupIdx = (unsigned char)ref.m_countSlot;  // movzbl 0x3e
+    const unsigned char groupIdx = (unsigned char)ref.m_goldFactor;  // movzbl 0x3e
 
     for (std::vector<stMonsterIndependentDrop_t>::const_iterator it =
              drops.begin();
@@ -119,7 +119,7 @@ void generateIndependentItem(
         // ---- 3) premium 掉率加成 ----
         if (drop.m_rate[10] > 0 &&
             ref.m_premiumDropRate > 0 &&
-            (unsigned char)ref.m_field3c == 3)
+            (unsigned char)ref.m_goldBase == 3)
         {
             // imul + 0x51eb851f/sar5 有符号除 100（中间 fildl/fistpl 恒等往返）。
             drop.m_rate[jobIdx] =

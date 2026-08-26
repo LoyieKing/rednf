@@ -2,6 +2,7 @@
 #define DNF_GAME_AVATAR_COIN_H_
 
 class CUser;
+class Inven_Item;
 class AvatarCoin
 {
 public:
@@ -10,6 +11,7 @@ public:
     int Add(unsigned int value);
     unsigned int Use();
     unsigned int Get() const;
+    static bool BuyProcess(CUser* user, Inven_Item& item);          // ORIG 0x081801d0
     char IsUsable() const;
     static int GetPackage(CUser* user, int avatarUid, bool bReset); // ORIG 0x0818028a
     static int SaveToDB(CUser* user);                               // ORIG 0x081800d6

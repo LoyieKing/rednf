@@ -35,6 +35,14 @@ public:
     int GetRankingByCharacNo(unsigned int charNo);
     char GetWinnerSide();
     bool IsWinerSide(char side);
+    // PowerUp 定时器四件套：ORIG 均为 inline 弱符号，+0x1c/+0x20 即下方
+    // m_field1c/m_field20（GetPowerUpRemainTime 读 +0x1c、GetPowerUpTimerPeriod
+    // 读 +0x20、两个 setter 分别写 +0x1c/+0x20，见 ORIG 0x863bdac/0x863bdb8/
+    // 0x826888be/0x826888cc）。
+    int GetPowerUpRemainTime() { return m_field1c; }
+    void SetPowerUpRemainTime(int remainSec) { m_field1c = remainSec; }
+    int GetPowerUpTimerPeriod() { return m_field20; }
+    void SetPowerUpTimerPeriod(int period) { m_field20 = period; }
 
     char m_winnerSide;          // +0x00
     char m_pad01[3];            // +0x01..+0x03

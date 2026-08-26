@@ -18,6 +18,13 @@
 #include "PacketGuard.h"
 #include <cstring>
 
+// ORIG _ZN20AvatarRouletteServer15isAvatarPotteryEm（T 0x0817fb0a，定义
+// CtorProducers_1.cpp）；与 CMailBoxHelper.cpp 同款同名桥接声明。
+namespace AvatarRouletteServer
+{
+bool isAvatarPottery(unsigned long v);
+} // namespace AvatarRouletteServer
+
 unsigned int AvatarCoin::Use()
 {
     // register 绑定使 -O0 下分支条件直接用 test %al 取字节（ORIG 形态），
@@ -129,20 +136,35 @@ int AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
     return 1;
 }
 
-// ============================================================================
-// AvatarRouletteServer（类布局未完整建模；isAvatarPottery 仅依赖 +0x18 处的
-// 指向 unsigned long 的指针字段）。
-// ============================================================================
-class AvatarRouletteServer
+// ---- AvatarCoin::BuyProcess ORIG @ 0x081801d0 ----
+// mangled _ZN10AvatarCoin10BuyProcessEP5CUserR10Inven_Item
+// 陶罐（avatar pottery）商品购买：isAvatarPottery(item.m_addInfo) 为假直接
+// 返 0；否则取 m_addInfo2（+0x07）为币值，加到背包基址 +0x658 的 AvatarCoin，
+// SaveToDB 失败打 ORIG 同文日志（__PRETTY_FUNCTION__ 文本），随后
+// HistoryLog::AddLog + SendSyncPacket，返 1。
+bool AvatarCoin::BuyProcess(CUser* user, Inven_Item& item)
 {
-public:
-    bool isAvatarPottery(unsigned long itemIdx);  // ORIG 0x0817fb0a
-
-    char m_pad[0x18];            // +0x00
-    unsigned long* m_pCompare;   // +0x18（ORIG **(ulong**)(this+0x18)）
-};
-
-bool AvatarRouletteServer::isAvatarPottery(unsigned long itemIdx)
-{
-    return *m_pCompare == itemIdx;
+    // register 绑定使 -O0 下分支条件直接 test %al（ORIG 形态，同 Use()）；
+    // 成功体直落、失败跳转，与 ORIG je 布局一致。
+    register char pottery __asm__("al") = AvatarRouletteServer::isAvatarPottery(
+        static_cast<unsigned long>(item.m_addInfo));
+    if (pottery != 0)
+    {
+        unsigned int amount = static_cast<unsigned int>(item.m_addInfo2);
+        coinOf(reinterpret_cast<char*>(user->getCurCharacInvenW()))
+            ->Add(amount);
+        if (SaveToDB(user) != 1)
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_AvatarRoulette.cpp",
+                "static bool AvatarCoin::BuyProcess(CUser*, Inven_Item&)",
+                0x19d, "SaveAvatarCoin failed");
+        }
+        HistoryLog::AddLog(user,
+                           static_cast<unsigned int>(item.m_addInfo2));
+        SendSyncPacket(user);
+        return true;
+    }
+    return false;
 }
+

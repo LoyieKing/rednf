@@ -8,7 +8,8 @@
 #include <utility>
 #include <vector>
 
-class RidableScript;
+#include "CDungeon.h"  // RidableObject 完整类型（DungeonRidableObject::operator= 形参）
+
 class CParty;
 class PacketGuard;
 #ifndef DNF_ENUM_ERIDABLEOBJECTSTATE_DEFINED
@@ -16,16 +17,18 @@ class PacketGuard;
 enum eRidableObjectState { eRidableObjectState_0 = 0 };
 #endif
 
-// DungeonRidableObject（map 值类型；偏移自 CheckAppearRidableObject 0x82fe9c8 /
-// SetRidableObjectState 0x82feb5e 访问实证；完整布局后续批次细化）。
+// DungeonRidableObject（map 值类型；ORIG 0x830e9ba ctor：前 6 int 走 RidableObject
+// ctor（全 -1），state=0；operator=(RidableObject) W 0x830e9d8 拷贝前 6 字段）。
 struct DungeonRidableObject
 {
-    DungeonRidableObject() : m_x(0), m_y(0), m_field0c(0), m_field10(0),
-                             m_field14(0), m_field18(0), m_state(0) {}
+    DungeonRidableObject() : m_x(-1), m_y(-1), m_field0c(-1), m_field10(-1),
+                             m_field14(-1), m_field18(-1), m_state(0) {}
+
+    DungeonRidableObject& operator=(RidableObject other);  // ORIG 0x830e9d8
 
     int m_x;        // +0x00
     int m_y;        // +0x04
-    int m_field0c;  // +0x08
+    int m_field0c;  // +0x08（SetRidableObject 的 map key）
     int m_field10;  // +0x0c
     int m_field14;  // +0x10
     int m_field18;  // +0x14
@@ -38,7 +41,7 @@ public:
     ~CRidable();
 
     void Clear();                                            // ORIG 0x82fe6bc
-    int GetObjectCnt() const;                                // ORIG 0x830ea0a
+    int GetObjectCnt();                                      // ORIG 0x830ea0a（W，非 const：_ZN8CRidable12GetObjectCntEv）
     void GetObjectPos(std::vector<std::pair<int, int> >& out) const;  // ORIG 0x82fec2c
     void SetRidableObject(RidableScript& script);            // ORIG 0x82fe6d0
     void SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e
@@ -46,9 +49,10 @@ public:
     void SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d);     // ORIG 0x82fece2
 
 private:
-    std::map<int, DungeonRidableObject> m_objects;   // +0x00
-    int m_flag18;                                    // +0x18（state==3 出现条件）
-    char m_pad1c[4];                                 // +0x1c
+    std::map<int, DungeonRidableObject> m_objects;   // +0x00（本工具链 sizeof=0x18）
+    unsigned char m_flag18;                          // +0x18（SetRidableObject 0x82fe6d0 写字节；CheckAppear 状态3条件）
+    char m_pad19[3];                                 // +0x19..+0x1b
+    int m_count1c;                                   // +0x1c（SetRidableObject 写入脚本对象数）
 };
 
 

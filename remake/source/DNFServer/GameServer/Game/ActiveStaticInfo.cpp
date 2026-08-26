@@ -90,7 +90,7 @@ void ActiveStaticInfo::clear()
     m_statBase24 = 0;
     m_statBase25 = 0;
     m_statBase26 = 0;
-    m_statBase27 = 0;
+    m_statBase27 = 0.0f;   // +0x1a8 float
     m_statBase28 = 0;
     m_statBase29 = 0;
     m_statBase30 = 0;

@@ -186,8 +186,9 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
         m_hellPartyActive = 0;                         // +0x89d 非 1 清标记
 
     m_pDungeon = const_cast<CDungeon*>(dungeon);       // +0x188
-    // ORIG 读 *(dungeon + (0x1b8+diff)*4) = m_6e0[diff]（MazeScript* 表）
-    m_maze = (MazeScript*)dungeon->m_6e0[diff];        // +0x70
+    // ORIG 082ff6e9 读 *(dungeon + (0x1b8+diff)*4) = m_6e0[diff]（每图怪物基数 int，
+    //   getAddChampionMobCnt 按难度缩放；非 MazeScript* 表）。
+    m_mapMobCount = dungeon->m_6e0[diff];              // +0x70
     m_field1a4 = 0;                                    // +0x1a4
 
     MazeScript* maze = GetAppropriateMaze((ENUM_DUNGEON_DIFFICULTY)diff);
@@ -494,7 +495,7 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
                 std::pair<int, CMap*> value(8, map);
                 m_dummyMap4a4[idx].insert(value);
             }
-            m_624 = 1;                                 // +0x624（byte 写）
+            m_hasDummyMap = 1;                         // +0x624（byte 写）
         }
         else
         {

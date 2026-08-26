@@ -268,6 +268,23 @@ public:
     // ORIG 0x822c9ee：mov 0x2a0(%eax),%eax —— 返回第 2 材料项的数量（m_limitCube.m_2ndMaterialCount）
     int get_2nd_material_count();
     int get_amplify_reinforce_count(int count);
+    // ---- 强化/增幅券访问器（定义 ItemUpgradeVtableB2.cpp；均为 0xf 字节
+    //      内联级访问器，objdump 忠实转写）----
+    // ORIG _ZN14CStackableItem17IsReinforceTicketEv W 0x084b4222：movzbl +0x30f
+    bool IsReinforceTicket();
+    // ORIG _ZN14CStackableItem16GetReinforceRateEv W 0x084b4232：movzbl +0x312
+    unsigned char GetReinforceRate();
+    // ORIG _ZN14CStackableItem24IsAmplifyReinforceTicketEv W 0x084b4242：
+    // movzbl +0x313
+    bool IsAmplifyReinforceTicket();
+    // ORIG _ZN14CStackableItem23GetAmplifyReinforceRateEv W 0x084b4252：
+    // movzbl +0x316
+    unsigned char GetAmplifyReinforceRate();
+    // ORIG _ZN14CStackableItem17GetReinforceVauleEv T 0x0854b4f8：movzwl +0x310
+    unsigned short GetReinforceVaule();
+    // ORIG _ZN14CStackableItem24GetAmplifyReinforceValueEv T 0x0854b508：
+    // movzwl +0x314
+    unsigned short GetAmplifyReinforceValue();
     // ORIG 0x854b518：返回 +0x344 字节非零（随机增幅券标记）。
     bool is_random_amplify_reinforce_ticket();
     void get_limit_cube_item(std::pair<int, int>& out);

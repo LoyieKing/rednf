@@ -94,11 +94,11 @@ bool Global::CBossTowerFunc::SelectDungeon(CParty* party, short dungeonIdx,
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x08655220 _ZN5CUser12getBossTowerEv
-// m_field8d010(+0x8d010 short)<0 → 0；否则 G_CGameManager()->getBossTower(idx)。
+// m_bossTowerIdx(+0x8d010 short)<0 → 0；否则 G_CGameManager()->getBossTower(idx)。
 // ----------------------------------------------------------------------------
 WongWork::CBossTower* CUser::getBossTower()
 {
-    const short idx = m_field8d010;
+    const short idx = m_bossTowerIdx;
     if (idx < 0)
     {
         return 0;
@@ -108,11 +108,11 @@ WongWork::CBossTower* CUser::getBossTower()
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x08655262 _ZN5CUser15getAdvanceAltarEv
-// m_field8d012(+0x8d012 short)<0 → 0；否则 G_CGameManager()->getAdvanceAltar(idx)。
+// m_advanceAltarIdx(+0x8d012 short)<0 → 0；否则 G_CGameManager()->getAdvanceAltar(idx)。
 // ----------------------------------------------------------------------------
 advancealtar::StageControl* CUser::getAdvanceAltar()
 {
-    const short idx = static_cast<short>(m_field8d012);
+    const short idx = static_cast<short>(m_advanceAltarIdx);
     if (idx < 0)
     {
         return 0;
@@ -239,4 +239,28 @@ char Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)
         return 1;
     }
     return 0;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x081466f0 _ZN6Global11CGlobalFunc15Get_State_CheckE8ch_state
+// （docs/class_func_reports/Global__CGlobalFunc/Get_State_Check.md ## 汇编 +
+// ## 反编译 C 全文转写）：cmp $0xd + ja（无符号比较）→ 越界直接 0；否则
+// (1 << state) & 0x3420 测试位 5/6/12/13（5=队伍玩法、12(0xc)=BossTower，
+// 参见同文件 UseItem/DieCharacInDungeon 的 state 分支注释）。命中 → 1，否则 0。
+// ORIG 调用方（objdump xref）：DisPatcher_FinishLoad::check_state(0x82654a6)、
+// 0x81c2bd4、0x81c4b5b、0x81feef2、0x8232256、0x82324c0。
+bool Global::CGlobalFunc::Get_State_Check(ch_state state)
+{
+    if (static_cast<unsigned int>(state) > 0xd)
+    {
+        return false;
+    }
+
+    unsigned int bit = 1;
+    bit <<= static_cast<unsigned int>(state);
+    if ((bit & 0x3420u) != 0)
+    {
+        return true;
+    }
+    return false;
 }

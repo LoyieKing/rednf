@@ -19,10 +19,40 @@
 #define GAME_CCOMPOUND_AVATAR_H_
 
 #include <cstddef>
+#include "Inven_Item.h"   // G7 miscB 追加：tagCompoundInfo 按值 Inven_Item 成员（0x3d，pack(1)）
+
+class CItem;              // find_item 结果指针（tagCompoundInfo +0x88/+0x8c）
+class CUser;
+class CMTRand;            // PvPTypes.h（0x9c8 MT19937）
+struct MSG_COMPOUND_AVATAR;  // 合成头像请求包（源码未建模，仅指针传参）
+
+// G7 miscB 追加：SendCmdErrorPacket/PacketGuard 头内声明所需枚举（guard 与权威头一致）。
+#ifndef DNF_GAME_ENUM_ERROR_DEFINED
+#define DNF_GAME_ENUM_ERROR_DEFINED
+enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
+#endif
+
+#include <map>
 #include <utility>
 #include <vector>
 
-class CMTRand;  // PvPTypes.h（0x9c8 MT19937）
+// ProcTest 形参枚举（与 STEquipmentScript.h/Quest.h 同 guard，唯一定义）。
+#ifndef DNF_ENUM_CHARACTERJOB_DEFINED
+#define DNF_ENUM_CHARACTERJOB_DEFINED
+enum ENUM_CHARACTERJOB
+{
+    ENUM_CHARACTERJOB_0 = 0
+};
+#endif
+
+#ifndef DNF_ENUM_EQUIPMENTTYPE_DEFINED
+#define DNF_ENUM_EQUIPMENTTYPE_DEFINED
+enum ENUM_EQUIPMENTTYPE
+{
+    ENUM_EQUIPMENTTYPE_0 = 0
+};
+#endif
+
 
 // ---- 远古稀有头像立方（ORIG C1 0x0891aa3a：单循环「置零 int + clear 向量」，
 //      末尾 clear 首向量；其余生命周期为逐成员语义）----
@@ -95,6 +125,11 @@ public:
 
     // ORIG T 0x08333ea6：return importCompoundAvatarTable(dir,path,this) == 0。
     bool LoadScript(const char* dir, const char* path);
+    // ORIG _ZN8WongWork15CCompoundAvatar8ProcTestE17ENUM_CHARACTERJOB18ENUM_EQUIPMENTTYPEiiRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE
+    // T 0x08333fda：以表 idx=1 条目按 m_optsA/m_optsB 权重抽样 10000 次统计 itemId 分布。
+    void ProcTest(ENUM_CHARACTERJOB job, ENUM_EQUIPMENTTYPE equipType,
+                  int addRate, int bonusFlag,
+                  std::map<int, int>& result);
 
     // ---- 布局（ORIG ctor 汇编实证）----
     tagCompoundAvatarTable m_tables[11];             // +0x00..+0x83

@@ -12,11 +12,18 @@
 #include <utility>
 #include <vector>
 
-// ---- 键命令单元（0x18 字节；与 CSkill.h 同布局，避免重复声明冲突） ----
+// ---- 键命令单元（ORIG clear W 0x088c414c / C1 W 0x88c4174 / copy C1 0x83d6ac4：
+//      vector<int>@+0x00、int@+0x0c（clear→0）、int@+0x10（clear→0x12c），sizeof
+//      0x14；与 CSkill.h 同一类型，避免重复声明冲突） ----
 #ifndef DNF_GAME_CSKILL_H_
 struct STKeyCommandUnit
 {
-    char m_pad[0x18];
+    STKeyCommandUnit();
+    void clear();
+
+    std::vector<int> m_ids;   // +0x00（键索引序列）
+    int m_fieldC;             // +0x0c（clear 写 0；importCommand [speed] 十进制）
+    int m_field10;            // +0x10（clear 写 0x12c；连接符 '!'','~' 超时）
 };
 #endif
 
@@ -109,12 +116,13 @@ public:
         int m_8[2];   // +0x08
     } m_growType[6];                      // +0x94（16 字节/个）
     std::vector<int> m_vecf4;             // +0xf4
-    int m_arr100[6];                      // +0x100
-    int m_arr138[2];                      // +0x138
+    float m_f100[2];                      // +0x100（ORIG for_each<float*> 段，"%f"）
+    int m_i108[4];                        // +0x108（ORIG +0x110..+0x118 int 段取 [2..3]）
     int m_118;                            // +0x118
     std::vector<SkillUseItem> m_useItems11c;  // +0x11c
     std::vector<int> m_vec128;            // +0x128
     int m_134;                            // +0x134（1）
+    int m_arr138[2];                      // +0x138
     std::vector<int> m_vec140;            // +0x140
     std::vector<int> m_vec14c;            // +0x14c
     int m_158;                            // +0x158（1）

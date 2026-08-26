@@ -68,6 +68,7 @@ public:
     StatisticsNatType();
     ~StatisticsNatType();
     char m_pad[0x18];
+    static void UpdateNatType();   // ORIG T _ZN17StatisticsNatType13UpdateNatTypeEv 0x0860c968（静态语义，定义缺口记报告）
 };
 
 // ---- SimpleInfo：GameWorld m_idMap（+0x8c）的 value（0x10 字节） ----

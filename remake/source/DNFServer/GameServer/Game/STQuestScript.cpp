@@ -369,11 +369,7 @@ ST_TrainingQuest_Select_Prob::~ST_TrainingQuest_Select_Prob()
 
 TrainingQuestScript::TrainingQuestScript()
 {
-    for (int i = 0; i < 69; ++i)
-    {
-        m_questProb[i].clear();
-    }
-    m_sameApplyQuest.clear();
+    // ORIG C1 0x8371cc8：成员数组隐式构造（70 个 vector）后仅调 clear()。
     clear();
 }
 
@@ -436,22 +432,21 @@ int TrainingQuestScript::getTrainingQuest(int dayIndex, int questCount, int job)
     }
     if (questCount == -100)
     {
-        if (m_applyCount >= (int)m_sameApplyQuest.size())
+        if (m_applyCount >= m_sameApplyQuest.size())
         {
             return 0x7fffffff;
         }
         return m_sameApplyQuest.at(m_applyCount);
     }
-    int idx = questCount - 1 + dayIndex;
-    if (idx < 0)
+    if (dayIndex - 1 + questCount < 0)
     {
         return 0x7fffffff;
     }
-    if (m_applyCount >= (int)m_questProb[idx].size())
+    if (m_applyCount >= m_questProb[dayIndex - 1 + questCount].size())
     {
         return 0x7fffffff;
     }
-    return m_questProb[idx].at(m_applyCount);
+    return m_questProb[dayIndex - 1 + questCount].at(m_applyCount);
 }
 
 bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
@@ -478,14 +473,19 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
             }
         }
     }
-    int level = 1;
-    for (std::vector<int>::iterator it = tmp.begin(); it != tmp.end(); ++it)
+    for (int level = 1; level <= 0x46; ++level)
     {
-        if (*it != -100 && *it + level > 0)
+        for (std::vector<int>::iterator it = tmp.begin(); it != tmp.end(); ++it)
         {
-            out->insert(*it);
+            if (*it == -100)
+            {
+                out->insert(*it);
+            }
+            else if (*it + level >= 1)
+            {
+                out->insert(*it);
+            }
         }
-        ++level;
     }
     return true;
 }

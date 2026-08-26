@@ -584,7 +584,7 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
     return 0x17;
 }
 
-int BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
+void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
 {
     int userBlueMarbleIndex;
     UserSpace::T moveSpace;

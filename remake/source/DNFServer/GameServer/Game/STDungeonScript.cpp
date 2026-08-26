@@ -299,9 +299,7 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                 break;
             }
             std::vector<advancealtar::_RewardItem>& vec =
-                (idx == 0) ? script->m_clearReward2d4.m_vec0
-                           : (idx == 1) ? script->m_clearReward2d4.m_vecc
-                                        : script->m_clearReward2d4.m_vec18;
+                script->m_clearReward2d4.m_vec[idx];
             while (true)
             {
                 advancealtar::_RewardItem item;

@@ -2,7 +2,9 @@
 // df_game_r 还原 —— InitScriptProducers_8.cpp
 // CDataManager::init()（ORIG 0x08358332..0x0835f1d5，docs/class_func_reports/
 // CDataManager/init.md）依赖的 12 个脚本装载自由函数 + 被调依赖
-// importDeathTowerScript/importVendingMachineInfoCore。逐函数自 ORIG objdump
+// importVendingMachineInfoCore（本 TU 定义）。importDeathTowerScript 唯一定义
+// 在 InitScriptProducers_6.cpp（重复强符号已清理），本 TU 仅声明供
+// importTowerInfo 调用。逐函数自 ORIG objdump
 // 反汇编与 docs/class_func_reports/_lt_global_gt_/ 对应报告转写，非固定返回：
 //
 //   importResealTable                _Z17importResealTablePKcP14reseal_table_t      T 0x089008b8
@@ -62,6 +64,7 @@
 // ---- 外部被调（ORIG 真实自由函数，定义在各权威 TU）----
 int getCharacterJobToEnumValue(std::string& name);   // _Z26getCharacterJobToEnumValueRSs T 0x089bbc0f
 int getDrawLayer(const char* name);                  // _Z12getDrawLayerPKc T 0x088be12d
+int importDeathTowerScript(const char* path, struct stDeathTower_t& out); // _Z22importDeathTowerScriptPKcR14stDeathTower_t T 0x089089f3（唯一定义 InitScriptProducers_6.cpp）
 
 // ---- STScriptFileList 本地镜像（布局权威：STScriptFileList.cpp 同名本地类，
 //      sizeof 0x18 = std::map<int,std::string>；ORIG ctor 0x088bacf8）----
@@ -482,106 +485,6 @@ int importVendingMachineInfo(const char* dir, const char* list,
         out.push_back(vm);
     }
     return 0;
-}
-
-// ============================================================================
-// importDeathTowerScript —— ORIG 0x089089f3（importTowerInfo 被调依赖）
-// 各段权重/数量写入 stDeathTower_t 四张 200 元素表与尾部字段；
-// [reward item prob] 三列做前缀和写 +0xc88/+0xc8c/+0xc90。
-// 错误码：0x187e 打开失败、0x1887 apc、0x18b8 monster、0x18be/0x18c1/0x18c4
-// prob 三列、0x18ca gold、0x18cd 未知标签；EOF 返回 0。
-// ============================================================================
-int importDeathTowerScript(const char* path, stDeathTower_t& out)
-{
-    std::string token;
-    bool ok = false;
-
-    if (!loadRDARScriptFile("", path))
-        return 0x187e;
-
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            return 0;
-
-        if (token == "[apc exp weight]")
-        {
-            out.m_field0 = ScanFloat(&ok);
-            if (!ok)
-                return 0x1887;
-        }
-        else if (token == "[reward exp weight]")
-        {
-            for (int i = 1;; ++i)                      // ORIG ebx 自 1 起
-            {
-                const float v = ScanFloat(&ok);
-                if (!ok)
-                    break;
-                out.m_rateA[i] = v;                    // fstps 0x4(%eax,%ebx,4)
-            }
-        }
-        else if (token == "[reward card num]")
-        {
-            for (int i = 1;; ++i)
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                out.m_cntB[i] = v;                     // +0x324+i*4
-            }
-        }
-        else if (token == "[illusion reward exp weight]")
-        {
-            for (int i = 1;; ++i)
-            {
-                const float v = ScanFloat(&ok);
-                if (!ok)
-                    break;
-                out.m_rateC[i] = v;                    // +0x644+i*4
-            }
-        }
-        else if (token == "[illusion reward card num]")
-        {
-            for (int i = 1;; ++i)
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                out.m_cntD[i] = v;                     // +0x964+i*4
-            }
-        }
-        else if (token == "[monster exp weight]")
-        {
-            out.m_fieldc84 = ScanFloat(&ok);
-            if (!ok)
-                return 0x18b8;
-        }
-        else if (token == "[reward item prob]")
-        {
-            const int first = ScanInt(&ok);            // 先存储后校验
-            out.m_rewardProbC88[0] = first;
-            if (!ok)
-                return 0x18be;
-            const int second = ScanInt(&ok);
-            out.m_rewardProbC88[1] = out.m_rewardProbC88[0] + second;
-            if (!ok)
-                return 0x18c1;
-            const int third = ScanInt(&ok);
-            out.m_rewardProbC88[2] = out.m_rewardProbC88[1] + third;
-            if (!ok)
-                return 0x18c4;
-        }
-        else if (token == "[reward gold weight]")
-        {
-            out.m_floatc94 = ScanFloat(&ok);
-            if (!ok)
-                return 0x18ca;
-        }
-        else
-        {
-            return 0x18cd;                             // 未知标签
-        }
-    }
 }
 
 // ============================================================================

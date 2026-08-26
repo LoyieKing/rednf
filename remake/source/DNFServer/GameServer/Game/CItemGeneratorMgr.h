@@ -49,6 +49,11 @@ public:
     // ORIG 0x0814a7d0：返回 m_generators[type]（this + 0x3c0 + type*4）
     CItemGenerator* getGenerator(eGenerateType_t type);
 
+    // ORIG T 0x085342c6：++计数器[rarity + 30*genType + 6*dropType]（无符号溢出回绕，
+    // 计数区位于对象头 0x3c0 字节前的统一统计数组）。
+    void onTryGenerateRandomItem(eGenerateType_t genType, eItemDropType_t dropType,
+                                 ENUM_RARITY rarity);
+
     CItemGeneratorMgr();             // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev W 0x08374ef4
     ~CItemGeneratorMgr();            // 定义于 CDataManagerScripts.cpp（仅析构 common）
     void setDropRatio(float ratio);  // 定义于 CDataManagerScripts.cpp（逐生成器虚调用）

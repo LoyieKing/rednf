@@ -16,6 +16,8 @@
 
 #include <set>
 #include <utility>
+#include <list>
+#include <map>
 #include <vector>
 
 #include "Inven_Item.h"     // CMailBox::CMail 内嵌 Inven_Item（完整类型）
@@ -25,6 +27,15 @@
 // 声明所需不完整类型
 class CUser;
 class PacketGuard;
+
+class Stream;
+
+// ---- ORIG 全局信件明细载荷（SetMailBoxInfo 栈帧推断，约 300 字节；原
+//      CGameManager.cpp 局部定义上移至此，letterInfo map 值类型所需） ----
+struct SIG_LETTER_INFO
+{
+    char m_pad[0x12c];
+};
 struct MSG_CHECK_MAIL_RECEIVER;               // 定义见 CGameManager.h（0x3f88）
 struct SIG_MAILBOX_LIST;                      // 定义见 SigTypes.h
 struct SIG_MAILBOX_SEND_NEW_MAIL;             // 定义见 SigTypes.h
@@ -114,10 +125,27 @@ public:
     void setMailIterator();
 
 private:
-    char m_pad[0x84];   // +0x000
-    std::vector<unsigned int> m_loadLackList;   // +0x84（SetPackageLoadLack ORIG 0x8557676）
-    char m_padTail[0x100 - 0x84 - sizeof(std::vector<unsigned int>)];
+    // ---- ORIG 真实布局（ctor 0x085579b2 / dtor 0x08557aac / Init 0x08551d98
+    //      / getNextMail 0x0855236a 偏移证据；2026-08-26 自 m_pad[0x100] 提升）----
+    bool m_bInit;                   // +0x00（Init 判 1 清理后置 0）
+    unsigned int m_lastLoadIdx;     // +0x04（GetLastLoadIdx/SetLoadState 写时间）
+    int m_notLoadedMailCount;       // +0x08（Get/SetNotLoadedMailCount）
+    char m_pad0c[4];                // +0x0c
+    StaticPool<CMail, 20> m_mailPool;               // +0x10（sizeof 0x30）
+    std::map<unsigned int, CMail*> m_mailMap;       // +0x40
+    std::list<Stream*> m_streamList;                // +0x58
+    std::map<unsigned int, CMail*>::const_iterator m_mailIterator;  // +0x60
+    std::map<int, bool> m_letterKeepCount;          // +0x64（sizeof 0x18）
+    unsigned int m_lastLoadLetterIdx;               // +0x7c（Get/SetLastLoadLetterIdx）
+    int m_loadedLetterCount;                        // +0x80（Get/SetLoadedLetterCount）
+    std::vector<unsigned int> m_loadLackList;       // +0x84
+    std::map<unsigned int, SIG_LETTER_INFO> m_letterInfo;   // +0x90
+    char m_padTail[0x100 - 0xa8];   // 尾垫至 ORIG 总尺寸 0x100
 };
+
+// ---- 布局守 ABI 断言（成员自然偏移依赖下列尺寸；漂移即编译失败） ----
+static_assert(sizeof(SIG_LETTER_INFO) == 0x12c, "SIG_LETTER_INFO ABI drift");
+static_assert(sizeof(WongWork::CMailBox) == 0x100, "CMailBox ABI drift (ORIG 0x100)");
 
 // SIG_MAILBOX_* 完整定义见 SigTypes.h（全局作用域）
 class CMailBoxHelper

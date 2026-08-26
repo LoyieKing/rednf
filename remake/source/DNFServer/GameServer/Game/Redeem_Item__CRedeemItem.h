@@ -39,6 +39,7 @@ class CRedeemItem : public charac_expand::CData
 public:
     bool isAddableFilter(const Inven_Item& item);
     int AddRedeemList(const Inven_Item& item, int param2, bool param3);
+    int Send_RedeemList(CUser* user);    // ORIG T 0x085f73ee（返 1） _ZN11Redeem_Item11CRedeemItem15Send_RedeemListEP5CUser
 
 private:
     bool _isFPItem(const Inven_Item& item) const;

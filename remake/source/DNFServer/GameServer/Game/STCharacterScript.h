@@ -121,7 +121,10 @@ public:
         CharacterEtcStats m_etc[2];                     // +0xc8
     };  // sizeof == 0x100
 
-    STCharacterScript() { Clear(); }     // ORIG C1 W 0x08368348：逐成员构造后调 Clear()
+    // 定义在 STCharacterLayoutC3.cpp（ORIG 为 W 内联符号，重建侧按值构造仅经
+    // asm 桥，故落盘为普通外链定义；头文件保持纯声明防 ODR）：
+    STCharacterScript();                 // ORIG C1/C2 W 0x08368348：逐成员构造后调 Clear()
+    ~STCharacterScript();                // ORIG D1/D2 W 0x08376362：逆序逐成员析构
 
     void Clear();                        // ORIG _ZN17STCharacterScript5ClearEv W 0x08367a98
 

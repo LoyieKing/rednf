@@ -4,6 +4,10 @@
 // 类定义唯一见 CDungeonGainedGold.h（CUser.h 值成员依赖此头）。
 #include "CDungeonGainedGold.h"
 
+// ORIG 0x869705c / 0x8697062：空体 ctor/dtor（CUser ctor 0x864e410 调用实证）。
+CDungeonGainedGold::CDungeonGainedGold() {}
+CDungeonGainedGold::~CDungeonGainedGold() {}
+
 unsigned int CDungeonGainedGold::incGainedGold(unsigned int amount)
 {
     // ORIG 语义：返回「跨越的 10 万分位差」（newGold/100000 - oldGold/100000），

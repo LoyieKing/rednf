@@ -10,7 +10,7 @@
 #include "CGameManager.h"     // G_CGameManager / getAdvanceAltar / StageControl 完整声明
 #include "PacketGuard.h"      // PacketGuard : InterfacePacketBuf（put_header/put_byte/put_int/finalize）
 #include "GameTypes.h"        // cMyTrace
-#include "CUser.h"            // CUser 完整类型（m_field8d012 字段化写）
+#include "CUser.h"            // CUser 完整类型（m_advanceAltarIdx 字段化写）
 #include "advancealtar_ProcStage.h"  // ProcStage / Timer_StageControl / HistoryLog（本批新增叶子头）
 
 namespace advancealtar
@@ -22,7 +22,7 @@ namespace advancealtar
 // "StaticPool Defence DungeonNULL" → 3；
 //   StageControl::selectStage != 0 → control->destroy() 后透传错误码；
 //   == 0 → setAdvanceAltarIndex(control->getIndex())（ORIG 经 CUser::setAdvanceAltarIndex
-//   W 0x0813490e 写 m_field8d012，此处字段化等价写）→ 返回 0。
+//   W 0x0813490e 写 m_advanceAltarIdx，此处字段化等价写）→ 返回 0。
 // ----------------------------------------------------------------------------
 int Manager::selectStage(CUser* user, int stageId, StageDifficulty::T diff)
 {
@@ -51,7 +51,7 @@ int Manager::selectStage(CUser* user, int stageId, StageDifficulty::T diff)
         control->destroy();
         return err;
     }
-    user->m_field8d012 = static_cast<short>(control->getIndex());  // ORIG setAdvanceAltarIndex(+0x8d012)
+    user->m_advanceAltarIdx = static_cast<short>(control->getIndex());  // ORIG setAdvanceAltarIndex(+0x8d012)
     return 0;
 }
 

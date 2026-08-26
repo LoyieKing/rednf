@@ -449,7 +449,10 @@ void CDeathTowerRanking::init(unsigned int type)
 
 CDeathTower::CDeathTower()
 {
-    memset(this, 0, sizeof(*this));
+    // ORIG 0x82a75da：CDungeonMgr/CStage/CPlayData 子对象 ctor 由编译器生成；
+    // 函数体仅将 m_timerKeys[TIMER_MESSAGE 0x48..0x4e] 清零。
+    for (int i = 0x48; i <= 0x4e; ++i)
+        m_timerKeys[i - 0x48] = 0;
 }
 
 CDeathTower::~CDeathTower() {}
@@ -468,15 +471,15 @@ void CDeathTower::setIdx(int idx)
 {
     m_idx = idx;
 }
-
 int CDeathTower::setTowerState(ENUM_TOWER_STATE state)
 {
-    if (state > (ENUM_TOWER_STATE)m_towerState)
+    // ORIG 0x8469c34：state <= m_towerState 时返回 0；否则写入并返回 1。
+    if (state <= (ENUM_TOWER_STATE)m_towerState)
     {
-        m_towerState = (int)state;
-        return 1;
+        return 0;
     }
-    return 0;
+    m_towerState = state;
+    return 1;
 }
 
 void CDeathTower::reset()
@@ -494,9 +497,9 @@ void CDeathTower::_destroy()
     G_CGameManager()->returnDeathTower(this);
 }
 
-CDeathTower::CDungeonMgr* CDeathTower::getCDungeonMGr()
+CDeathTower::CDungeonMgr* CDeathTower::getCDungeonMGr() const
 {
-    return &m_dungeonMgr;
+    return (CDungeonMgr*)&m_dungeonMgr;
 }
 
 CDeathTower::CStage* CDeathTower::getCStage()
@@ -526,15 +529,14 @@ int CDeathTower::genTimerKey(TIMER_MESSAGE msg)
 
 int CDeathTower::_genTimerKey(TIMER_MESSAGE msg)
 {
-    int idx = (int)msg - 0x48;
-    m_timerKeys[idx]++;
-    return m_timerKeys[idx];
+    // ORIG 0x830edec：返回 ++m_timerKeys[msg - 0x48]。
+    return ++m_timerKeys[(int)msg - 0x48];
 }
 
-int CDeathTower::_checkTimerKey(TIMER_MESSAGE msg, unsigned int key)
+bool CDeathTower::_checkTimerKey(TIMER_MESSAGE msg, unsigned int key)
 {
-    int idx = (int)msg - 0x48;
-    return (m_timerKeys[idx] == (int)key) ? 1 : 0;
+    // ORIG 0x8469c68：key == m_timerKeys[msg - 0x48]。
+    return key == (unsigned int)m_timerKeys[(int)msg - 0x48];
 }
 
 int CDeathTower::_checkMemberDie()
@@ -1100,9 +1102,25 @@ void CDeathTower::_onStartStage()
 }
 
 // ---- CStage ----
+// ORIG W 0x82a74ca：MapInfo ctor（编译器生成）后 resetCurrentStage()。
+CDeathTower::CStage::CStage()
+{
+    m_currentStage = 1;
+}
+
+// ORIG W 0x82a74ec：仅 MapInfo dtor（编译器生成）。
+CDeathTower::CStage::~CStage()
+{
+}
+
 void CDeathTower::CStage::reset()
 {
-    memset(this, 0, sizeof(*this));
+    // ORIG 0x84614ec：MapInfo::Clear(m_mapInfo)；m_assignItemIdx/m_dropItemCnt
+    // = get_rand_int(60000)；m_state = 0。
+    m_mapInfo.Clear();
+    m_mapInfo.m_assignItemIdx = get_rand_int(60000);
+    m_mapInfo.m_dropItemCnt = get_rand_int(60000);
+    m_state = 0;
 }
 
 void CDeathTower::CStage::onStartStage()
@@ -1122,7 +1140,7 @@ int CDeathTower::CStage::getStageClearTime()
 
 int CDeathTower::CStage::getStageMapIndex()
 {
-    return m_stageMapIndex;
+    return m_mapInfo.m_mapIndex;
 }
 
 int CDeathTower::CStage::getCurrentStage()
@@ -1352,7 +1370,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
     {
         throw 0x15;
     }
-    if (!m_stage.consistMap(&m_dungeonMgr, map, this))
+    if (!m_stage.consistMap(m_dungeonMgr, map, this))
     {
         throw 1;
     }
@@ -1412,31 +1430,36 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
 // ---- CDungeonMgr ----
 void CDeathTower::CDungeonMgr::reset()
 {
-    memset(this, 0, sizeof(*this));
+    // ORIG W 0x82a7498：m_pDungeon = 0；m_endStage = 0。
+    m_pDungeon = 0;
+    m_endStage = 0;
 }
 
 bool CDeathTower::CDungeonMgr::initDungeonMgr(int dungeonIdx)
 {
     // ORIG 0x084605a2：m_pDungeon = G_CDataManager()->find_dungeon(dungeonIdx)；
-    // 为空返回 false；否则 m_pad4(+4) = getDeathTowerMaxStage()，返回 true。
     m_pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (m_pDungeon == 0)
         return false;
-    *(int*)m_pad4 = m_pDungeon->getDeathTowerMaxStage();
+    m_endStage = m_pDungeon->getDeathTowerMaxStage();
     return true;
-}CMap* CDeathTower::CDungeonMgr::getStageMap(int stage)
+}
+
+CMap* CDeathTower::CDungeonMgr::getStageMap(unsigned int stage)
 {
-    CDungeon* dungeon = getDungeon();
-    if (!dungeon) return NULL;
-    int mapIdx = dungeon->getDeathTowerMapIndex(stage);
-    return (CMap*)G_CDataManager()->find_map(mapIdx);
+    // ORIG 0x84605ee：mapIdx = m_pDungeon->getDeathTowerMapIndex(stage)；
+    // map = G_CDataManager()->find_map(mapIdx)；为空返回 0，否则返回 map。
+    int mapIdx = m_pDungeon->getDeathTowerMapIndex(stage);
+    CMap* map = (CMap*)G_CDataManager()->find_map(mapIdx);
+    if (map == 0)
+        return 0;
+    return map;
 }
 
 int CDeathTower::CDungeonMgr::getEndStage()
 {
-    CDungeon* dungeon = getDungeon();
-    if (!dungeon) return 0;
-    return dungeon->getDeathTowerMaxStage();
+    // ORIG W 0x8469ab4：返回 m_endStage（+0x04）。
+    return m_endStage;
 }
 
 int CDeathTower::handleFinishLoading(CUser* user)
@@ -1516,21 +1539,24 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
 
 int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 {
-    std::map<int, map_monster>::iterator it = m_monsterMap.find(idx);
-    if (it == m_monsterMap.end())
+    // ORIG 0x8461708：find(idx)；命中则 monster = it->second、取
+    // m_field14(+0x14) 作返回值并 erase；未命中返回 0。
+    std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(idx);
+    if (it == m_mapInfo.m_monsterMap.end())
     {
         return 0;
     }
     monster = it->second;
-    int field14 = (unsigned char)it->second.m_field14;
-    m_monsterMap.erase(it);
-    return field14;
+    int roleType = (unsigned char)it->second.m_field14;
+    m_mapInfo.m_monsterMap.erase(it);
+    return roleType;
 }
 
 bool CDeathTower::CStage::peekItem(int idx, map_item& item)
 {
-    std::map<int, map_item>::iterator it = m_itemMap.find(idx);
-    if (it == m_itemMap.end())
+    // ORIG 0x8461534：m_mapInfo.m_itemMap.find(idx)；命中拷贝 0x54 字节返回 true。
+    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
+    if (it == m_mapInfo.m_itemMap.end())
     {
         return false;
     }
@@ -1608,7 +1634,7 @@ int CDeathTower::handleMoveMap()
     }
 
     m_stage.reset();
-    if (!m_stage.consistMap(&m_dungeonMgr, map, this))
+    if (!m_stage.consistMap(m_dungeonMgr, map, this))
     {
         throw 1;
     }
@@ -1794,8 +1820,10 @@ int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
 int CDeathTower::CStage::getState() { return m_state; }
 bool CDeathTower::CStage::checkClearStage()
 {
-    for (std::map<int, map_monster>::iterator it = m_monsterMap.begin();
-         it != m_monsterMap.end(); ++it)
+    // ORIG 0x8461b3e：遍历 m_mapInfo.m_monsterMap，若 m_dropCnt(+0x2c)==100 且
+    // m_field13(+0x13)==0 则未清台返回 false；全部通过返回 true。
+    for (std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.begin();
+         it != m_mapInfo.m_monsterMap.end(); ++it)
     {
         map_monster& mob = it->second;
         if (mob.m_dropCnt == 100 && mob.m_field13 == 0)
@@ -1830,40 +1858,45 @@ bool CDeathTower::CStage::setState(ENUM_STAGE_STATE state)
     m_state = state;
     return true;
 }
+
 bool CDeathTower::CStage::moveNextStage(unsigned int endStage)
 {
+    // ORIG 0x84617da：checkClearStage() 且 m_currentStage < endStage 时
+    // ++m_currentStage 返回 true，否则 false。
     if (checkClearStage() && (unsigned int)m_currentStage < endStage)
     {
-        m_currentStage++;
+        ++m_currentStage;
         return true;
     }
     return false;
 }
 
-
 bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
 {
-    std::map<int, map_item>::iterator it = m_itemMap.find(idx);
-    if (it == m_itemMap.end())
+    // ORIG 0x84615e4：peek 语义 + erase。
+    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
+    if (it == m_mapInfo.m_itemMap.end())
     {
         return false;
     }
     item = it->second;
-    m_itemMap.erase(it);
+    m_mapInfo.m_itemMap.erase(it);
     return true;
 }
-int CDeathTower::CStage::dropItem(const map_item& item)
+
+int CDeathTower::CStage::dropItem(map_item& item)
 {
-    int idx = m_dropItemCnt;
-    m_dropItemCnt++;
-    map_item localItem = item;
-    localItem.m_itemIndex = idx;
-    m_itemMap[idx] = localItem;
+    // ORIG 0x84616a8：idx = m_mapInfo.m_dropItemCnt++；item.m_itemIndex = idx；
+    // MapInfo::Add_Item(m_mapInfo, item)（按值拷贝入参）；返回 idx。
+    int idx = m_mapInfo.m_dropItemCnt++;
+    item.m_itemIndex = idx;
+    m_mapInfo.Add_Item(item);
     return idx;
 }
-bool CDeathTower::CStage::consistMap(CDungeonMgr* dungeonMgr, CMap* map, CDeathTower* tower)
+bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* map,
+                                     CDeathTower* tower)
 {
-    m_stageMapIndex = map->get_index();
+    m_mapInfo.m_mapIndex = map->get_index();
 
     std::vector<unsigned int> mobIdVec;
     CAICharacterList* aiList = G_CDataManager()->m_aiCharacterList;
@@ -1900,14 +1933,14 @@ bool CDeathTower::CStage::consistMap(CDungeonMgr* dungeonMgr, CMap* map, CDeathT
             map_monster mob;
             memset(&mob, 0, sizeof(mob));
             mob.m_mobId = mobIdx;
-            mob.m_instId = m_instIdCounter;
-            m_instIdCounter++;
+            mob.m_instId = m_mapInfo.m_assignItemIdx;
+            m_mapInfo.m_assignItemIdx++;
             mob.m_roleType = 5;
             mob.m_mobIndex = data.m_type;
             mob.m_level = aiChar->getLevel();
-            mob.m_dropCnt = data.m_level;
+            mob.m_dropCnt = data.m_camp;
 
-            m_monsterMap[mobIdx] = mob;
+            m_mapInfo.m_monsterMap[mobIdx] = mob;
             mobIdx++;
         }
     }
@@ -2197,22 +2230,36 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
 
 Inven_Item* CDeathTower::CPlayData::getRewardItem(int idx)
 {
-    return (Inven_Item*)m_pad18 + idx;
+    // ORIG 0x8469c06：&m_rewards[idx].m_items[0]
+    return m_rewards[idx].m_items;
 }
 
 int CDeathTower::CPlayData::getRewardItemCount(int idx)
 {
-    return m_rewardItemCount[idx];
+    // ORIG 0x8469bec：m_rewards[idx].m_itemCnt
+    return m_rewards[idx].m_itemCnt;
 }
 
 int CDeathTower::CPlayData::getRewardExp(int idx)
 {
+    // ORIG 0x8469c1e：m_rewardExp[idx]（+0x9b8 起）
     return m_rewardExp[idx];
 }
 
 int CDeathTower::CPlayData::getLastRoutedTurn()
 {
     return m_lastRoutedTurn;
+}
+
+void CDeathTower::CPlayData::setLastRoutedTurn(int turn)
+{
+    // ORIG 0x8469b4c：m_lastRoutedTurn（+0x00）= turn
+    m_lastRoutedTurn = turn;
+}
+
+char* CDeathTower::CPlayData::getStartMemberInfo()
+{
+    return m_startMemberInfo;
 }
 
 CDungeon* CDeathTower::CDungeonMgr::getDungeon() const
@@ -2222,18 +2269,18 @@ CDungeon* CDeathTower::CDungeonMgr::getDungeon() const
 
 void CDeathTower::CStage::resetCurrentStage()
 {
-    m_currentStage = 0;
+    m_currentStage = 1;
 }
 
 void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
 {
     packet.put_short(m_currentStage);
     packet.put_int(get_rand_int(0));
-    packet.put_short(m_stageMapIndex);
-    packet.put_byte(m_monsterMap.size());
+    packet.put_short(m_mapInfo.m_mapIndex);
+    packet.put_byte(m_mapInfo.m_monsterMap.size());
 
-    for (std::map<int, map_monster>::iterator it = m_monsterMap.begin();
-         it != m_monsterMap.end(); ++it)
+    for (std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.begin();
+         it != m_mapInfo.m_monsterMap.end(); ++it)
     {
         map_monster& mob = it->second;
         packet.put_int(mob.m_mobId);
@@ -2248,60 +2295,69 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
 
 void CDeathTower::CPlayData::reset()
 {
-    // ORIG 0x08461f18：+0x10/+0x14/+0x00 清零；4 成员 alive/ready 清 0；
-    // stRewardItem_t[4]（+0x18，步长 0x268）逐个 reset（内联：首字段 0，
-    // 10 个 Inven_Item@+4+i*0x3d reset + itemIdx@+6 置 -1）；
-    // +0x9b8+i*4（stRewardItem 区尾）清 0；+0xa28 起 4 字节清 0。
-    *(int*)((char*)this + 0x10) = 0;
-    *(int*)((char*)this + 0x14) = 0;
-    *(int*)((char*)this + 0x0) = 0;
+    // ORIG 0x08461f18：m_playTime/m_lastPlayTime/m_lastRoutedTurn 清零；
+    // 4 成员 alive/ready 清 0；m_rewards[4]（步长 0x268）逐个
+    // stRewardItem_t::reset；m_rewardExp[4] 清 0；m_enterStartMap[4] 清 0。
+    m_playTime = 0;
+    m_lastPlayTime = 0;
+    m_lastRoutedTurn = 0;
     for (int i = 0; i < 4; ++i)
     {
-        ((char*)this)[4 + i] = 0;
-        ((char*)this)[8 + i] = 0;
-        char* reward = (char*)this + i * 0x268 + 0x18;
-        *(int*)reward = 0;
-        for (int j = 0; j < 10; ++j)
-        {
-            reinterpret_cast<Inven_Item*>(reward + j * 0x3d + 4)->reset();
-            *(int*)(reward + j * 0x3d + 6) = -1;
-        }
-        *(int*)((char*)this + (i + 0x26c) * 4 + 8) = 0;
+        m_memberAlive[i] = 0;
+        m_memberReady[i] = 0;
+        m_rewards[i].reset();
+        m_rewardExp[i] = 0;
     }
     for (int i = 0; i < 4; ++i)
-        ((char*)this)[0xa28 + i] = 0;
+        m_enterStartMap[i] = 0;
+}
+
+// ORIG 0x08461cb4：m_itemCnt=0；10 个 Inven_Item reset 后 itemIdx(+0x02) 置 -1。
+void CDeathTower::CPlayData::stRewardItem_t::reset()
+{
+    m_itemCnt = 0;
+    for (int i = 0; i < 10; ++i)
+    {
+        m_items[i].reset();
+        m_items[i].m_addInfo = -1;
+    }
 }
 
 int CDeathTower::CPlayData::getStartMemberCnt()
 {
-    return m_field0;
+    return m_startMemberCnt;
 }
 
 void CDeathTower::CPlayData::makeStartMemberInfo(CParty* party)
 {
-    // ORIG 0x08461d02：memset(+0x9cc, 0, 0x5c)；遍历 0..3 个队伍槽，
+    // ORIG 0x08461d02：memset(m_startMemberInfo,0,0x5c)；遍历 4 个队伍槽，
     // 有效成员（get_user 非空且 checkValidUser==1）把名字 strcpy 到
-    // +0x9cc+i*0x17，level/job/growType 写到 +0x9e0/+0x9e1/+0x9e2（步长 0x17）；
-    // 结束时 +0x9c8 = get_member_count()。
-    memset((char*)this + 0x9cc, 0, 0x5c);
+    // m_startMemberInfo+count*0x17，level/job/growType 写到条目 +0x14/+0x15/+0x16；
+    // 结束时 m_startMemberCnt = get_member_count()。
+    memset(m_startMemberInfo, 0, sizeof(m_startMemberInfo));
     int count = 0;
-    int i = 0;
-    while (i < 4)
+    for (int i = 0; i < 4; ++i)
     {
         CUserCharacInfo* info = (CUserCharacInfo*)party->get_user(i);
-        if (info != 0 && party->checkValidUser(i) == 1)
+        bool invalid;
+        if (info == 0)
+            invalid = true;
+        else
+            invalid = party->checkValidUser(i) != 1;
+        if (!invalid)
         {
-            const char* name = info->getCurCharacName();
-            if (name != 0)
-                strcpy((char*)this + count * 0x17 + 0x9cc, name);
-            ((char*)this)[count * 0x17 + 0x9e0] = (char)info->get_charac_level();
-            ((char*)this)[count * 0x17 + 0x9e1] = (char)info->get_charac_job();
-            ((char*)this)[count * 0x17 + 0x9e2] = (char)info->getCurCharacGrowType();
+            strcpy(m_startMemberInfo + count * 0x17,
+                   info->getCurCharacName());
+            m_startMemberInfo[count * 0x17 + 0x14] =
+                (char)info->get_charac_level();
+            m_startMemberInfo[count * 0x17 + 0x15] =
+                (char)info->get_charac_job();
+            m_startMemberInfo[count * 0x17 + 0x16] =
+                (char)info->getCurCharacGrowType();
             ++count;
         }
-        ++i;
     }
-    *(int*)((char*)this + 0x9c8) = party->get_member_count();
+    m_startMemberCnt = party->get_member_count();
 }
 
 void CDeathTower::CPlayData::resetMemberReady()
@@ -2315,39 +2371,55 @@ void CDeathTower::CPlayData::resetMemberReady()
 
 void CDeathTower::CPlayData::setMemberAlive(int idx, bool alive)
 {
-    m_memberAlive[idx] = alive ? 1 : 0;
+    m_memberAlive[idx] = alive;
 }
 
-int CDeathTower::CPlayData::isMemberAlive(int idx)
+bool CDeathTower::CPlayData::isMemberAlive(int idx)
 {
     return m_memberAlive[idx];
 }
 
 void CDeathTower::CPlayData::setMemberReady(int idx, bool ready)
 {
-    m_memberReady[idx] = ready ? 1 : 0;
+    m_memberReady[idx] = ready;
 }
 
-int CDeathTower::CPlayData::isMemberReady(int idx)
+bool CDeathTower::CPlayData::isMemberReady(int idx)
 {
     return m_memberReady[idx];
 }
 
 bool CDeathTower::CPlayData::checkEnterStartMap(int idx)
 {
-    return m_memberAlive[idx] != 0;
+    // ORIG 0x08461e4a：!m_enterStartMap[idx] 时置 true 并返回 true。
+    if (!m_enterStartMap[idx])
+    {
+        m_enterStartMap[idx] = true;
+        return true;
+    }
+    return false;
 }
 
 bool CDeathTower::CPlayData::checkAllMemberReady(int memberCnt)
 {
-    for (int i = 0; i < memberCnt; ++i)
+    // ORIG 0x08461e7e：m_allReady 已置位直接 true；否则统计 m_memberReady，
+    // 计满 memberCnt 时置 m_allReady=1 并返回 true（循环固定 4 槽）。
+    if (m_allReady != 0)
+        return true;
+    int readyCnt = 0;
+    for (int i = 0; i < 4; ++i)
     {
-        if (!m_memberReady[i])
+        if (m_memberReady[i])
         {
-            return false;
+            ++readyCnt;
+            if (readyCnt == memberCnt)
+            {
+                m_allReady = 1;
+                return true;
+            }
         }
     }
-    return true;
+    return false;
 }
 
 void CDeathTower::CPlayData::addPlayTime(unsigned int time)

@@ -18,8 +18,8 @@
 
 // ---- C1 @ 0x88fd974 ----
 STCeraShopItem::STCeraShopItem()
+    : m_name()
 {
-    new (&m_name) std::string();
     clear();
     m_field84 = 0;
 }
@@ -38,7 +38,6 @@ void STCeraShopItem::clear()
     m_field20 = 0;
     m_field22 = 0;
     m_field24 = 0;
-    m_field28 = 0;
     m_field2c = 0;
     m_field30 = 0;
     m_field38 = 0;
@@ -68,32 +67,12 @@ void STCeraShopItem::clear()
     m_field7c = 0xffffffff;
 }
 
-// ---- 拷贝构造 @ 0x8923e28（逐字节拷贝 + COW string 拷贝） ----
-STCeraShopItem::STCeraShopItem(const STCeraShopItem& other)
-{
-    new (&m_name) std::string(other.m_name);
-    memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
-}
-
-STCeraShopItem::~STCeraShopItem()
-{
-    m_name.~basic_string();
-}
-
-// ---- operator= @ 0x892408a ----
-STCeraShopItem& STCeraShopItem::operator=(const STCeraShopItem& other)
-{
-    // ORIG @ 0x892408a（无自赋值守卫，逐字段字节拷贝 + COW string 赋值）。
-    memcpy(this, &other, 0x40);
-    m_name = other.m_name;
-    memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
-    return *this;
-}
-
 // ---- operator== @ 0x891a89e ----
 bool STCeraShopItem::operator==(const STCeraShopItem& other)
 {
-    return m_field8 == other.m_field8;
+    if (m_field8 == other.m_field8)
+        return true;
+    return false;
 }
 
 // ---- 访问器 ----
@@ -109,7 +88,9 @@ int STCeraShopItem::getGoldPrice()
 
 bool STCeraShopItem::isLimitSaleItem()
 {
-    return m_field54 != -2;
+    if (m_field54 == -2)
+        return false;
+    return true;
 }
 
 // ============================================================================
@@ -200,9 +181,9 @@ int CCeraShopGoods::GetExpiryDate() const
     return m_expiryDate;
 }
 
-int CCeraShopGoods::GetBonusWeight() const
+float CCeraShopGoods::GetBonusWeight() const
 {
-    return m_bonusWeight;
+    return *(float*)&m_bonusWeight;
 }
 
 CItem* CCeraShopGoods::GetRelatedItem() const
@@ -210,19 +191,19 @@ CItem* CCeraShopGoods::GetRelatedItem() const
     return m_pItem;
 }
 
-bool CCeraShopGoods::isGiftDisallowance_() const
+unsigned char CCeraShopGoods::isGiftDisallowance_() const
 {
-    return m_giftDisallow != 0;
+    return m_giftDisallow;
 }
 
-bool CCeraShopGoods::isCeraPointDisallowance_() const
+unsigned char CCeraShopGoods::isCeraPointDisallowance_() const
 {
-    return m_ceraPointDisallow != 0;
+    return m_ceraPointDisallow;
 }
 
-bool CCeraShopGoods::isStackBuyable() const
+unsigned char CCeraShopGoods::isStackBuyable() const
 {
-    return m_stackBuyable != 0;
+    return m_stackBuyable;
 }
 
 // ============================================================================

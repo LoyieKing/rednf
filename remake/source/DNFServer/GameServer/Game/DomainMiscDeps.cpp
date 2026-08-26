@@ -10,7 +10,7 @@
 //   TimerNPCMoodChange::registNextTimer(long)            0x086381ec（纯 ret）
 //   TimerUpdateItemGenerateStatistics::registNextTimer(long) 0x08637318
 //   OS_API::Sleep(int)                                   0x0858c4e0
-//   DNFFLib::Make_Dir(char*)                             0x08108ad7
+//   （DNFFLib::Make_Dir 0x08108ad7 归属 ServerCommon/DNFFunctionLib.cpp，不在此重复）
 // 逐函数对照 docs/class_func_reports/<类>/<方法>.md 的 ## 汇编 与
 // ## 反编译 C 转写；报告缺失处以 objdump 反汇编为准并标注。
 
@@ -67,21 +67,8 @@ void Sleep(int ms)
 }  // namespace OS_API
 
 // ===========================================================================
-// DNFFLib::Make_Dir —— ORIG 0x08108ad7：opendir 失败时 mkdir(dir,0777)。
-// （ORIG 未 closedir——忠实转写保留；调用频度为目录缺失时一次。）
-// ===========================================================================
-namespace DNFFLib
-{
-void Make_Dir(char* dir)
-{
-    DIR* d = opendir(dir);
-    if (d == 0)
-    {
-        mkdir(dir, 0777);
-    }
-}
-}  // namespace DNFFLib
-
+// DNFFLib::Make_Dir —— 唯一定义在 ServerCommon/DNFFunctionLib.cpp
+// （ORIG 0x08108ad7：opendir 失败时 mkdir(dir,0777)；此处仅声明引用，不重复实现）。
 // ===========================================================================
 // 定时器注册
 // ===========================================================================

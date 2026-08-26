@@ -1,0 +1,237 @@
+#ifndef GAME_CDEATHTOWER_H_
+#define GAME_CDEATHTOWER_H_
+
+// ============================================================================
+// df_game_r 还原 —— WongWork::CDeathTower（死亡之塔）权威声明。
+// （2026-08-27 自 CGameManager.h 原地迁出做唯一完整定义点；
+//   原 WongWork 段已由 #include "CDeathTower.h" 替换。）
+// ============================================================================
+
+#include "GameEnums.h"     // ENUM_ITEMSPACE / ENUM_CMDPACKET 等（guard 保护枚举）
+#include "CParty.h"        // TIMER_MESSAGE / ENUM_DUNGEON_TYPE guard 枚举、CParty 完整类型
+#include "Inven_Item.h"
+#include "WarField.h"      // MapInfo / map_item / map_monster
+#include "PacketGuard.h"   // CPacketHandler : public PacketGuard
+
+struct MSG_MONSTER_DIE;
+class CDungeon;
+class CMap;
+
+namespace WongWork
+{
+    class CDeathTower
+    {
+    public:
+
+        // ORIG 嵌套枚举（mangled NS0_16ENUM_TOWER_STATEE / NS0_16ENUM_STAGE_STATEE）
+        enum ENUM_TOWER_STATE
+        {
+            TOWER_STATE_NONE = 0,
+            TOWER_STATE_READY = 1,
+            TOWER_STATE_PLAYING = 2,
+            TOWER_STATE_CLEAR = 3,
+            TOWER_STATE_REWARD = 4,
+            TOWER_STATE_EPLP = 5,
+        };
+
+        enum ENUM_STAGE_STATE
+        {
+            STAGE_STATE_NONE = 0,
+            STAGE_STATE_START = 1,
+            STAGE_STATE_FINISH = 2,
+        };
+        class CDungeonMgr
+        {
+        public:
+            CDungeonMgr();                      // ORIG W 0x82a74b0（空函数：push ebp/mov/pop ebp/ret）
+            ~CDungeonMgr();                     // ORIG W 0x82a74b6（空函数）
+            void reset();                       // ORIG W 0x82a7498
+            bool initDungeonMgr(int dungeonIdx);// ORIG 0x84605a2
+            CDungeon* getDungeon() const;
+            CMap* getStageMap(unsigned int stage);  // ORIG 0x84605ee
+            int getEndStage();                  // ORIG W 0x8469ab4
+
+            CDungeon* m_pDungeon;   // +0x00
+            int m_endStage;         // +0x04（getDeathTowerMaxStage 写入）
+        };
+
+
+        class CStage
+        {
+        public:
+            CStage();                           // ORIG W 0x82a74ca：MapInfo ctor + resetCurrentStage
+            ~CStage();                          // ORIG W 0x82a74ec：MapInfo dtor
+            void reset();                       // ORIG 0x84614ec
+            void resetCurrentStage();           // ORIG W 0x82a74bc（m_currentStage = 1）
+            bool setState(ENUM_STAGE_STATE state);  // ORIG 0x8461c5a
+            int getState();
+            bool checkClearStage();
+            int killMonster(int idx, map_monster& monster);
+            bool moveNextStage(unsigned int endStage);
+            void onStartStage();
+            void onFinishStage();
+            int getStageClearTime();
+            int getStageMapIndex();
+            int getCurrentStage();
+            bool peekItem(int idx, map_item& item);
+            bool pickupItem(int idx, map_item& item);
+            int dropItem(map_item& item);       // ORIG 0x84616a8（非 const 引用）
+            bool consistMap(const CDungeonMgr& dungeonMgr, const CMap* map,
+                            CDeathTower* tower);    // ORIG 0x8460634
+            void makeStagePacket(PacketGuard& packet);
+
+            int m_currentStage;      // +0x00
+            unsigned int m_startTick;   // +0x04
+            unsigned int m_finishTick;  // +0x08
+            MapInfo m_mapInfo;       // +0x0c..+0xf8（ORIG C1/D1/reset/dropItem 实证内嵌）
+            int m_state;             // +0xf8
+        };
+
+        class CPlayData
+        {
+        public:
+            // ORIG W 0x82a7502 C1（10× Inven_Item ctor，步长 0x3d）/ 0x8461cb4 reset；
+            // 尺寸 0x268 = 4 + 10*0x3d 对齐到 4。
+            class stRewardItem_t
+            {
+            public:
+                stRewardItem_t();               // ORIG W 0x82a7502：逐个 Inven_Item() 构造 10 项
+
+                void reset();
+
+                int m_itemCnt;           // +0x00
+                Inven_Item m_items[10];  // +0x04
+            };
+
+            CPlayData();                        // ORIG W 0x82a7538：m_rewards[4] 逐个 stRewardItem_t()
+            ~CPlayData();                       // ORIG W 0x82a7572（空函数）
+
+            void generateRewardExp(int memberIdx, int stage, unsigned int baseExp,
+                                   CParty* party, CDungeonMgr& dungeonMgr);
+                                   // ORIG T 0x08462538
+            void generateRewardItem(int memberIdx, int count, const CDungeonMgr& dungeonMgr,
+                                    unsigned int param4, unsigned int param5, CParty* party);
+                                   // ORIG T 0x08461fc0
+            void reset();
+            int getStartMemberCnt();
+            void makeStartMemberInfo(CParty* party);
+            void resetMemberReady();
+            void setMemberAlive(int idx, bool alive);
+            bool isMemberAlive(int idx);
+            bool isMemberReady(int idx);
+            void setLastRoutedTurn(int turn);
+            char* getStartMemberInfo();
+            void setMemberReady(int idx, bool ready);
+            int getLastRoutedTurn();
+            bool checkEnterStartMap(int idx);
+            bool checkAllMemberReady(int memberCnt);
+            void addPlayTime(unsigned int time);
+            unsigned int getPlayTime();
+            unsigned int getLastPlayTime();
+            Inven_Item* getRewardItem(int idx);
+            int getRewardItemCount(int idx);
+            int getRewardExp(int idx);
+
+            int m_lastRoutedTurn;               // +0x00（getLast/setLastRoutedTurn）
+            bool m_memberAlive[4];              // +0x04
+            bool m_memberReady[4];              // +0x08
+            char m_allReady;                    // +0x0c（byte，checkAllMemberReady）
+            char m_pad0d[3];
+            unsigned int m_playTime;            // +0x10
+            unsigned int m_lastPlayTime;        // +0x14
+            stRewardItem_t m_rewards[4];        // +0x18..+0x9b8（步长 0x268）
+            int m_rewardExp[4];                 // +0x9b8..+0x9c7
+            int m_startMemberCnt;               // +0x9c8
+            char m_startMemberInfo[0x5c];       // +0x9cc（4×0x17：name[20]/level/job/growType）
+            bool m_enterStartMap[4];            // +0xa28（checkEnterStartMap）
+        };
+
+        // ORIG 嵌套包处理器：CPacketHandler : public PacketGuard
+        //（ctor 0x08469a8c / dtor 0x08469aa0 仅转发 PacketGuard C1/D1）。
+        class CPacketHandler : public PacketGuard
+        {
+        public:
+            CPacketHandler();                   // ORIG W 0x08469a8c
+            ~CPacketHandler();                  // ORIG W 0x08469aa0
+
+            void makePickupItemHeader(unsigned short a, unsigned short b);   // ORIG T 0x0845fc6c
+            void appendPickupMoney(int* moneyA, int* moneyB, CParty* party);// ORIG T 0x0845fcc4
+            void appendPickupItem(char* name, unsigned short uid, int v3, int v4); // ORIG T 0x0845fdc0
+            void makeCommonError(ENUM_CMDPACKET cmd, ENUM_ERROR err);       // ORIG T 0x0845fe4c
+            void makeDropItemError(ENUM_CMDPACKET cmd, ENUM_ERROR err, char slot); // ORIG T 0x0845fea6
+            void makeDropItemNotify(unsigned short uid, int x, int y,
+                                    unsigned short dropIdx, const map_item& item); // ORIG T 0x0845ff1a
+            void makeDropItem(char order, int xy, int itemKey);             // ORIG T 0x084600a6
+            void makeFinishLoading();                                       // ORIG T 0x0846012c
+            void makeDieState(unsigned short uid);                          // ORIG T 0x08460176
+            void makeDisplayRangking(unsigned int tableType, unsigned int key,
+                                     unsigned int stage, unsigned int clearTime, bool flag,
+                                     unsigned int dungeonIdx, unsigned int playTime); // ORIG T 0x084601da
+            void makeDisplayReward(int v1, int cnt1, const Inven_Item* items1,
+                                   int cnt2, const Inven_Item* items2,
+                                   int cnt3, const Inven_Item* items3,
+                                   int cnt4, const Inven_Item* items4);     // ORIG T 0x084602c4
+            void makeDisplayEPLP(bool flag);                                // ORIG T 0x084604b0
+            void makeUpdateItemList(CUser* user, ENUM_ITEMSPACE space, int slot); // ORIG T 0x0846050e
+        };
+
+    CDeathTower();
+    ~CDeathTower();
+
+    void _beginTowerClearProcess(bool);
+    int _checkMemberDie();
+    int _checkMemberReady();
+    int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+    int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
+    int _checkStartGameCondition(unsigned char&);
+    bool _checkTimerKey(TIMER_MESSAGE, unsigned int);   // ORIG 0x8469c68
+    void _destroy();
+    int _genTimerKey(TIMER_MESSAGE);
+    bool _makeDropItem(CUser*, char, int, int, map_item&);
+    void _onClear(bool);
+    void _onFinishDeathTower();
+    void _onFinishStage();
+    void _onPrepareFinishTower();
+    void _onStartDeathTower();
+    void _onStartStage();
+    CUser* _pickupItem(CUser*, char*, int, const map_item&, bool, char, const CItem*);
+    int _pickupItemMoney(CUser*, int, const map_item&, int*, int*);
+    void attachParty(CParty*);
+    void deathTowerCardStatistic(int, CUser*, const Inven_Item*);
+    int genTimerKey(TIMER_MESSAGE);
+            CDungeonMgr* getCDungeonMGr() const;   // ORIG _ZNK…14getCDungeonMGrEv
+            CStage* getCStage();
+    int getIdx();
+    int getTowerState();
+    int handleDieUser(CUser*);
+    int handleDropItem(CUser*, int, int, char, int, int);
+    int handleFinishLoading(CUser*);
+    int handleKillMonster(CUser*, unsigned short, unsigned short, const MSG_MONSTER_DIE&, int*);
+    int handleLeaveUser(CUser*);
+    int handleMoveMap();
+    int handlePickupItem(CUser*, int, bool, char);
+    int handleSelectEPLPCommand(CUser*, int);
+    int handleStageCommand(CUser*, unsigned char);
+    int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
+    int handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);
+    int onLeaveUser(CUser*);
+    int onTimer(TIMER_MESSAGE, unsigned int);
+    void reset();
+    void setIdx(int);
+    int setTowerState(ENUM_TOWER_STATE);
+
+private:
+    CParty* m_party;        // +0x00
+    int m_idx;              // +0x04
+    int m_towerState;       // +0x08
+    CDungeonMgr m_dungeonMgr;  // +0x0c
+    CStage m_stage;         // +0x14
+    CPlayData m_playData;   // +0x110（尺寸 0xa2c，至 +0xb3c）
+    int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..)
+    char m_pad_end[0x18];   // +0xb64
+};
+
+// CBossTower 类声明见 CBossTower.h（唯一声明点）
+}
+
+#endif  // GAME_CDEATHTOWER_H_

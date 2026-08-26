@@ -14,7 +14,7 @@
 //   WongWork::{CItemGenRateTable,CSecialIMonsterDropItemGenRateTable}
 //     C1/~D1/init/destroy/generateTable/_itemTypeVerify/
 //     set_disable_drop_random_option_item(仅前者)
-//   WorldDropInfo::~WorldDropInfo（objdump 0x08374ede 直转）
+//   WorldDropInfo C1/D1（objdump 0x08374ec8 / 0x08374ede 直转）
 //   random_option::CRandomOptionItemHandle::set_disable_drop（W 0x08539e42；
 //     C1/D1 复用 GlobalData.cpp 权威定义）
 //   CItem::{get_gen_rate,isSpecialMonsterDropItem,isDropItemDungeonDifficulty,
@@ -726,7 +726,7 @@ int CClearReward::loadScript(char const* path)
             stGenItemProb_t fill;
             fill.v[0] = fill.v[1] = fill.v[2] = 0;
             for (int i = 0; i <= 5; ++i)
-                m_probs[i].resize(count, fill);
+                m_scriptProbs[i].resize(count, fill);
         }
         else if (section == "[drop prob]")
         {
@@ -751,9 +751,9 @@ int CClearReward::loadScript(char const* path)
                     slot = 5;
                 else
                     return 0x969;
-                for (size_t j = 0; j < m_probs[slot].size(); ++j)
+                for (size_t j = 0; j < m_scriptProbs[slot].size(); ++j)
                 {
-                    int* e = &m_probs[slot][j].v[0];
+                    int* e = &m_scriptProbs[slot][j].v[0];
                     e[0] = ScanInt(&ok);
                     if (!ok)
                         return 0x96f;
@@ -989,9 +989,11 @@ int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
 }  // namespace WongWork
 
 // ============================================================================
-// WorldDropInfo::~WorldDropInfo —— ORIG D1 0x08374ede（objdump 直转，无独立报告：
-// 仅析构 +0x04 的 vector<WorldDropItemChunck>；标量成员无动作）。
+// WorldDropInfo 生命周期（本 TU 唯一 owner；无独立报告，objdump 直转）：
+//   C1 0x08374ec8：仅构造 +0x04 的 vector<WorldDropItemChunck>；
+//   D1 0x08374ede：仅析构该 vector；标量成员 m_first/m_total 无动作。
 // ============================================================================
+WorldDropInfo::WorldDropInfo() : m_chunks() {}
 WorldDropInfo::~WorldDropInfo() {}
 
 // ============================================================================

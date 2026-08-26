@@ -2,6 +2,9 @@
 // 逐指令转写依据 docs/class_func_reports/ARAD__SCRIPT__AvatarConvert/*.md 与
 // docs/class_func_reports/AvatarConvertServer/{AvatarConvertServer,~AvatarConvertServer,
 // Test,Load,Destroy}.md（ORIG 地址见各函数注释）。
+#include <cstring>
+#include <new>
+
 #include <cstdio>
 #include <string>
 
@@ -70,10 +73,14 @@ int AvatarConvert::loadScript()
     while (ScanType(token, true))
     {
         int totalWeight = 0;   // ORIG -0x40：每条记录重置
-        // ORIG：operator new(0x24) → memset 0x24 字节 → ConvertResult::C1。
-        ConvertResult* convertResult = new ConvertResult();
+        // ORIG：operator new(0x24) → memset(0) 0x24 字节（标量预清零：无 info 条目
+        // 的空记录 back()/m_totalWeight 读 0）→ ConvertResult::C1。
+        ConvertResult* convertResult =
+            static_cast<ConvertResult*>(::operator new(sizeof(ConvertResult)));
+        memset(convertResult, 0, sizeof(ConvertResult));
+        new (convertResult) ConvertResult();
         convertResult->m_grade = ScanInt((bool*)0);
-        convertResult->m_flag = (ScanInt((bool*)0) == 1);
+        convertResult->m_field20 = (ScanInt((bool*)0) == 1);
         for (;;)
         {
             int key = ScanTypeOrInt(isType, token, isInt, true);

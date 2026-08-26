@@ -122,6 +122,24 @@ T* Singleton<T>::Get()
 int notifyOpenMessageDialog(CUser* user, int a, int b,
                             const AradServerStateMessage& msg);  // ORIG 0x81978dd
 
+// ORIG T 0x08197d00 _ZN4ARAD19notifySystemMessageEP5CUserPc：
+// 系统提示消息（PacketGuard 组包 Send）。定义归 Arad 域 TU，此处仅声明。
+void notifySystemMessage(CUser* user, char* msg);
+
+// ============================================================================
+// PRINT_ERROR —— ARAD 错误上报辅助（全静态成员）。
+// ORIG W：isEmpty 0x08197ba4 / CheckItemLock 0x08197bfd / delete_item 0x08197c56。
+// 定义归 Arad 域 TU，此处仅声明（AvatarRechargeServer 等调用方使用）。
+// ============================================================================
+class PRINT_ERROR
+{
+public:
+    static void isEmpty(char* tag, CUser* user, unsigned short slot);
+    static void CheckItemLock(char* tag, CUser* user, unsigned short slot);
+    static void delete_item(char* tag, CUser* user, unsigned short slot);
+};
+
+
 }  // namespace ARAD
 
 // ============================================================================

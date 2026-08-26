@@ -31,8 +31,7 @@
 class ThreadInterface
 {
 public:
-    ThreadInterface()                      // 0x08630b38
-        : m_tid(0), m_tidCopy(0) {}
+    ThreadInterface() {}                   // 0x08630b38 仅 vptr；m_tid/m_tidCopy 未初始化
     virtual ~ThreadInterface() {}          // 0x08630b46 / 0x08630b6c
     virtual void stop() {}                 // 0x08630c14（槽0，空体）
     virtual void dispatch(void* arg)       // 槽3 线程体（ORIG 纯虚；重建空默认体）

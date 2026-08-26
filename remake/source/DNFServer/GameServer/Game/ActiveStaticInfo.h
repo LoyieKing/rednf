@@ -17,7 +17,8 @@ public:
     float m_hpRatio;
     int m_mpBase;
     float m_mpRatio;
-    int m_flag14;
+    char m_flag14;                     // +0x14（ORIG clear movb $1,0x14；byte 非 int）
+    char m_pad15[3];                   // +0x15
     int m_attack;
     float m_attackRatio;
     int m_magicAttack;
@@ -50,13 +51,18 @@ public:
     int m_statBase15; int m_statBase16; int m_statBase17; int m_statBase18;
     int m_statBase19; int m_statBase20; int m_statBase21; int m_statBase22;
     int m_statBase23; int m_statBase24; int m_statBase25; int m_statBase26;
-    int m_statBase27; int m_statBase28; int m_statBase29; int m_statBase30;
+    float m_statBase27;                // +0x1a8（ORIG flds 0x1a8 浮点直读→float 实证）
+    int m_statBase28; int m_statBase29; int m_statBase30;
     float m_statRatio15; int m_statBase31; int m_statBase32; int m_statBase33;
     int m_statBase34; float m_statRatio16; int m_statBase35; int m_statBase36;
     float m_statRatio17; int m_statBase37;
     int m_table1[18]; int m_table2[18]; int m_table3[18];
+    int m_field2b8[5];                 // +0x2b8（ORIG clear 尾循环 k≤4 逐项清零；
+                                       //   缺失曾使 ASI=0x2e0/map_monster 整体 -0x10 偏移）
     int m_f2cc; int m_f2d0; int m_f2d4; int m_f2d8;
     float m_f2dc; float m_f2e0; int m_f2e4; int m_f2e8; float m_f2ec;
 };
+
+static_assert(sizeof(ActiveStaticInfo) == 0x2f0, "ActiveStaticInfo size");
 
 #endif  // DNF_GAME_ACTIVESTATICINFO_H_

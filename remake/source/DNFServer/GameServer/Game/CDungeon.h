@@ -44,15 +44,21 @@ struct GridScript
     std::vector<int> m_layeredMapIndexes;   // +0x1c
 
     GridScript();
-    GridScript(const GridScript& other);
-    ~GridScript();
-    GridScript& operator=(const GridScript& other);
     void clear();
+    // 拷贝构造/赋值由编译器按成员合成（ORIG C1ERKS_/aSERKS_ 为合成形态：
+    // int 直拷 + vector 拷贝构造，83d281c）。
 };
 
 struct RidableObject
 {
-    char m_pad[4];
+    // ORIG clear 0x830e47c：6 个 int 全置 -1（sizeof=0x18）；
+    // 字段名为与 DungeonRidableObject 前 6 字段的位置镜像【推断】，拷贝语义实证。
+    int m_x;        // +0x00
+    int m_y;        // +0x04
+    int m_field0c;  // +0x08
+    int m_field10;  // +0x0c
+    int m_field14;  // +0x10
+    int m_field18;  // +0x14
 
     RidableObject();
     ~RidableObject();
@@ -63,9 +69,7 @@ class RidableScript
 {
 public:
     RidableScript();
-    RidableScript(const RidableScript& other);
     ~RidableScript();
-    RidableScript& operator=(const RidableScript& other);
     void clear();
 
     int m_0;                                // +0x00
@@ -73,35 +77,36 @@ public:
     std::vector<RidableObject> m_objects;   // +0x08
 };
 
+
 // MazeScript（0x74 字节，由 ORIG ctor/copy/dtor 逐字段实证）
 class MazeScript
 {
 public:
     MazeScript();
-    MazeScript(const MazeScript& other);
     ~MazeScript();
-    MazeScript& operator=(const MazeScript& other);
-    int getGrid(int x, int y);
+    GridScript* getGrid(int x, int y);  // ORIG 88f2c2a：返回 &m_grids[w*y+x]
     const GridScript& getGridR(int x, int y) const;  // ORIG 0822adc2（实现在 MazeScript.cpp）
     void clear();
 
-    int m_width;                              // +0x00
-    int m_height;                             // +0x04
+    int m_width;                              // +0x00（clear 置 1）
+    int m_height;                             // +0x04（clear 置 1）
     std::vector<GridScript> m_grids;          // +0x08
     std::vector<std::pair<int, int> > m_vec14;  // +0x14
     std::vector<std::pair<int, int> > m_vec20;  // +0x20
-    int m_2c;                                 // +0x2c
-    int m_30;                                 // +0x30
-    int m_34;                                 // +0x34
+    int m_2c;                                 // +0x2c（clear 置 -1）
+    int m_30;                                 // +0x30（clear 置 -1）
+    int m_34;                                 // +0x34（clear 置 -1）
     RidableScript m_ridable;                  // +0x38
-    int m_4c;                                 // +0x4c（maze quest type）
-    int m_50;                                 // +0x50
-    int m_54;                                 // +0x54
+    int m_questType;                          // +0x4c（maze quest type；clear 置 -1；
+                                              //      set_dungeon 按 0/1/-1 分流）
+    int m_50;                                 // +0x50（clear 置 -1）
+    int m_54;                                 // +0x54（clear 置 -1）
     std::vector<DungeonClearCondition> m_clearCondition; // +0x58
-    int m_64;                                 // +0x64
-    int m_68;                                 // +0x68（party count min）
-    int m_6c;                                 // +0x6c（party count max）
-    int m_70;                                 // +0x70
+    int m_64;                                 // +0x64（clear 置 0）
+    int m_partyCountMin;                      // +0x68（GetRandMazebyPartyCount 下界）
+    int m_partyCountMax;                      // +0x6c（GetRandMazebyPartyCount 上界）
+    unsigned char m_70;                       // +0x70（clear 字节清零；拷贝按 1 字节，
+                                              //      ORIG movzbl 0x7876e89 实证）
 };
 
 // ---- CDungeon 支撑类型（尺寸来自 ORIG 容器函数 / 构造体）----
@@ -112,10 +117,9 @@ struct stDungeonAssignItem_t
     std::list<std::pair<int, int> > m_list;     // +0x04
 
     stDungeonAssignItem_t();
-    stDungeonAssignItem_t(const stDungeonAssignItem_t& other);
     ~stDungeonAssignItem_t();
-    stDungeonAssignItem_t& operator=(const stDungeonAssignItem_t& other);
     void clear();
+    // 拷贝构造/赋值合成（ORIG C1ERKS_ 83d1a94：int 直拷 + list 拷贝构造）。
 };
 
 struct RandomList
@@ -190,19 +194,13 @@ public:
     int m_8;                                  // +0x08
     int m_c;                                  // +0x0c
     int m_10;                                 // +0x10
-    std::vector<int> m_vec14;                 // +0x14
-    std::vector<int> m_vec20;                 // +0x20
-    std::vector<int> m_vec2c;                 // +0x2c
-    std::vector<int> m_vec38;                 // +0x38
+    std::vector<int> m_vec14[4];              // +0x14..+0x43（ORIG ctor 数组循环 836a202）
     std::vector<int> m_vec44;                 // +0x44
     int m_50;                                 // +0x50
     int m_54;                                 // +0x54
     int m_58;                                 // +0x58
     int m_5c[4];                              // +0x5c
-    std::vector<int> m_vec6c;                 // +0x6c
-    std::vector<int> m_vec78;                 // +0x78
-    std::vector<int> m_vec84;                 // +0x84
-    std::vector<int> m_vec90;                 // +0x90
+    std::vector<int> m_vec6c[4];              // +0x6c..+0x9b（ORIG ctor 数组循环 836a275）
     int m_9c[4];                              // +0x9c
     int m_ac;                                 // +0xac
     std::vector<STMonsterTypeSpawnProb> m_spawnProb; // +0xb0
@@ -225,17 +223,15 @@ public:
     RequiredItem();
     void clear();
 
-    int m_0;   // +0x00（-1）
-    int m_4;   // +0x04
-    char m_8;  // +0x08
+    int m_itemIdx;     // +0x00（-1 = 无入场物品；check_item_exist/make_item 实证）
+    int m_itemCount;   // +0x04（需求数量，m_addInfo2 比较实证）
+    char m_enableFlag; // +0x08（非 0 启用校验；TOD 0x7fc/CParty m_8 实证）
 };
 
-#include "advancealtar_StageDifficulty.h"  // StageDifficulty 权威定义（2026-08-24 提取为叶子头；CGameManager.h 亦需）
+#include "advancealtar_StageDifficulty.h"  // StageType 权威定义（叶子头）
 #include "AdvanceAltarField.h"  // advancealtar::_RewardItem 等共享类型权威定义
-                                // （_RewardItem 自本文件迁入收敛，2026-08-24）
 namespace advancealtar
 {
-
 class ClearRewardData
 {
 public:
@@ -244,9 +240,9 @@ public:
     ClearRewardData& operator=(const ClearRewardData& other);
     void clear();
 
-    std::vector<_RewardItem> m_vec0;    // +0x00
-    std::vector<_RewardItem> m_vecc;    // +0x0c
-    std::vector<_RewardItem> m_vec18;   // +0x18（ORIG ctor 构造 3 个 vector，sizeof 0x24）
+    // ORIG clear 0x83xxxx：vector<_RewardItem> 数组 [3]（clear/ctor/dtor 均
+    // 以 i=0..2 循环实证，8376c9c 区段）；sizeof 0x24。
+    std::vector<_RewardItem> m_vec[3];  // +0x00/+0x0c/+0x18
 };
 
 struct RoundRewardData
@@ -293,9 +289,11 @@ struct TournamentRewardRate
     int m_c;   // +0x0c
 };
 
+// ORIG sizeof=12：vector size() 反比 magic 0xAAAAAAAB（/12，82855e7）与
+// allocate 的 n*3*4（new_allocator）双证。字段语义未证，按 POD 整型建模。
 struct TournamentRewardItem
 {
-    char m_pad[4];
+    int m_data[3];
 };
 
 class TournamentRewardItemRate
@@ -316,11 +314,10 @@ struct STNamedMonsterMapPos
     int m_x;   // +0x00
     int m_y;   // +0x04
 };
-
 class stConditionEnterBossRoom_t
 {
 public:
-    stConditionEnterBossRoom_t();
+    stConditionEnterBossRoom_t();  // ORIG 836b552：仅 vector 构造，m_0 不初始化
     ~stConditionEnterBossRoom_t();
     void clear();
 
@@ -328,26 +325,29 @@ public:
     std::vector<int> m_vec4;    // +0x04
 };
 
+// ORIG sizeof=12（vector<RecoveryInfo>::size 反比 magic /12 实证）。
 struct RecoveryInfo
 {
-    char m_pad[4];
+    int m_data[3];
 };
 
 struct RecoveryStairInfo
 {
     RecoveryStairInfo();
-    RecoveryStairInfo(const RecoveryStairInfo& other);
     ~RecoveryStairInfo();
-    RecoveryStairInfo& operator=(const RecoveryStairInfo& other);
 
-    char m_pad[0xc];
+    // ORIG C1ERKS_/aSERKS_（88f627e/88f6344）：前 3 个 int 逐个拷贝 +
+    // vector 拷贝，为合成形态 → 拷贝构造/赋值由编译器生成。
+    int m_0;                          // +0x00（语义未证）
+    int m_4;                          // +0x04（语义未证）
+    int m_8;                          // +0x08（语义未证）
     std::vector<RecoveryInfo> m_vec;  // +0x0c
 };
 
 struct UseCoinDungeonDiff
 {
     int m_0;    // +0x00
-    char m_4;   // +0x04
+    bool m_4;   // +0x04（checkFreeRevivalCondition 以 xor $1 取反测试，83652fc）
     char m_5;   // +0x05
     char m_6;   // +0x06
     char m_7;   // +0x07
@@ -372,11 +372,11 @@ public:
     STTowerDialog& operator=(const STTowerDialog& other);
     void clear();
 
-    int m_0;            // +0x00
-    std::string m_str4; // +0x04
-    char m_8;           // +0x08
-    char m_9;           // +0x09
-    char m_a;           // +0x0a
+    int m_index;        // +0x00（clear 置 0；ORIG 报告语义 index）
+    std::string m_name; // +0x04（clear 调 std::string::clear）
+    char m_flag8;       // +0x08（三个 flag 字节；clear 置 0）
+    char m_flag9;       // +0x09
+    char m_flagA;       // +0x0a
 };
 
 class STTowerFullDialog
@@ -559,16 +559,16 @@ public:
     const char* GetDungeonName() const;
     int getDungeonKind() const;
     float get_exp_weight() const;
-    int get_limit_party_count() const;
-    int get_limit_Inout_count() const;
-    int get_blood_dungeon_type() const;
-    int get_dimension_possible() const;
-    int get_dimension_min_partymem() const;
-    int limitOfStackableItemInTower() const;
-    int isNoFatigueDungeon() const;
+    unsigned char get_limit_party_count() const;   // ORIG 单 movzbl（822b4ba）
+    unsigned char get_limit_Inout_count() const;
+    unsigned char get_blood_dungeon_type() const;  // ORIG 单 movzbl（826b92e）
+    unsigned char get_dimension_possible() const;  // ORIG 单 movzbl（826b93x）
+    unsigned char get_dimension_min_partymem() const;
+    unsigned char limitOfStackableItemInTower() const;
+    unsigned char isNoFatigueDungeon() const;      // ORIG 单 movzbl（822b4e4）
     int GetType_DungeonInHeritance() const;
     bool isTowerOfDespairDungeon() const;
-    int getQuestNpcDungeon() const;
+    unsigned char getQuestNpcDungeon() const;      // ORIG 单 movzbl
     int getAICharacterAppearRate() const;
     int getEventMonsterTotalProb() const;
     int getTryGenEventMonsterCnt() const;
@@ -582,8 +582,8 @@ public:
     int getTowerMaxClearRewardItemNum() const;
     int getHeroesRequiredQuest() const;
     int GetDummyAppearCount() const;
-    int IsHaveDummyMap() const;
-    int hasTowerItemDrop() const;
+    unsigned char IsHaveDummyMap() const;          // ORIG 单 movzbl（830e616）
+    unsigned char hasTowerItemDrop() const;        // ORIG 单 movzbl（8150934）
     std::vector<std::pair<int, int> >* getDropItems() const;
     std::vector<std::pair<int, int> >* getObjectDropItems() const;
     std::vector<stDungeonAssignItem_t>* getSpecialPassiveObjectItems() const;
@@ -616,19 +616,21 @@ public:
     bool IsOpenScheduleDungeon() const;
     int GetPartyMemberCoinLimit() const;
 
-    int m_flag4;                    // +0x04
+    int m_typeInheritance;          // +0x04（GetType_DungeonInHeritance；set_dungeon
+                                    //      在 script+0x2a9 非 0 时置 1）
     int m_index;                    // +0x08
-    int m_c;                        // +0x0c
-    int m_10;                       // +0x10
-    float m_14;                     // +0x14（get_exp_weight；set_dungeon 以位模式复制）
-    std::string m_name;             // +0x18
+    int m_minLevel;                 // +0x0c（get_min_level）
+    int m_standardLevel;            // +0x10（get_standard_level）
+    float m_expWeight;              // +0x14（get_exp_weight；set_dungeon 以位模式复制）
+    std::string m_name;             // +0x18（CodePage 转换后的副本名）
     std::map<int, int> m_clearItemMap; // +0x1c
-    int m_34;                       // +0x34
-    unsigned char m_38;             // +0x38
-    unsigned char m_39;             // +0x39
-    unsigned char m_3a;             // +0x3a
-    unsigned char m_3b;             // +0x3b
-    unsigned char m_3c;             // +0x3c
+    int m_heroesRequiredQuest;      // +0x34（getHeroesRequiredQuest）
+    unsigned char m_dimensionPossible;    // +0x38（get_dimension_possible；
+                                          //      非 0 时写 dimensionInout[m_38-1]）
+    unsigned char m_dimensionInoutValue;  // +0x39（set_dimensionInout 的 value）
+    unsigned char m_dimensionMinPartymem; // +0x3a（get_dimension_min_partymem）
+    unsigned char m_limitPartyCount;      // +0x3b（get_limit_party_count）
+    unsigned char m_limitInoutCount;      // +0x3c（get_limit_Inout_count）
     std::vector<std::pair<int, int> > m_vec40; // +0x40
     std::vector<std::pair<int, int> > m_vec4c; // +0x4c
     std::vector<stDungeonAssignItem_t> m_vec58; // +0x58
@@ -636,67 +638,75 @@ public:
     std::multimap<int, CMap*> m_map1a4[16];       // +0x1a4
     std::multimap<int, CMap*> m_dummyMap324[16];  // +0x324
     std::multimap<int, CMap*> m_dummyMap4a4[16];  // +0x4a4
-    unsigned char m_624;            // +0x624
-    int m_628;                      // +0x628
-    std::vector<MazeScript> m_mazeList;  // +0x62c
+    unsigned char m_hasDummyMap;    // +0x624（IsHaveDummyMap）
+    int m_dummyAppearCount;         // +0x628（GetDummyAppearCount）
+    std::vector<MazeScript> m_mazeList;     // +0x62c
     std::vector<MazeScript> m_mazeList0[2]; // +0x638（ORIG 数组循环构造/析构）
-    int m_650;                      // +0x650
-    int m_654;                      // +0x654
-    std::map<int, std::vector<RandomList> > m_map658; // +0x658
-    int m_670;                      // +0x670
-    std::vector<int> m_vec674;      // +0x674
-    int m_680;                      // +0x680
-    int m_684;                      // +0x684
-    int m_688;                      // +0x688
-    int m_68c;                      // +0x68c
-    std::vector<stEventMonster_t> m_eventMonsters; // +0x690
-    int m_69c;                      // +0x69c
-    int m_6a0;                      // +0x6a0
-    int m_6a4;                      // +0x6a4
+    int m_aiCharacterAppearRate;            // +0x650（getAICharacterAppearRate）
+    int m_randomTowerMaxStage;              // +0x654（getRandomTowerMaxStage）
+    std::map<int, std::vector<RandomList> > m_map658; // +0x658（随机塔地图表）
+    int m_dungeonKind;                      // +0x670（getDungeonKind）
+    std::vector<int> m_deathTowerMapIndexes; // +0x674（getDeathTowerMapIndex）
+    int m_deathTowerMaxStage;               // +0x680（getDeathTowerMaxStage）
+    int m_tryGenEventMonsterCnt;            // +0x684（getTryGenEventMonsterCnt）
+    int m_tryGenEventMonsterProb;           // +0x688（getTryGenEventMonsterProb）
+    int m_eventMonsterTotalProb;            // +0x68c（getEventMonsterTotalProb）
+    std::vector<stEventMonster_t> m_eventMonsters;          // +0x690
+    int m_tryGenSecondEventMonsterCnt;                      // +0x69c
+    int m_tryGenSecondEventMonsterProb;                     // +0x6a0
+    int m_secondEventMonsterTotalProb;                      // +0x6a4
     std::vector<stSecondEventMonster_t> m_secondEventMonsters; // +0x6a8
-    unsigned char m_6b4;            // +0x6b4
-    unsigned char m_6b5;            // +0x6b5
-    int m_6b8;                      // +0x6b8
+    unsigned char m_limitStackableItemInTower;              // +0x6b4（同名访问器）
+    unsigned char m_hasTowerItemDrop;                       // +0x6b5（同名访问器）
+    int m_towerMaxClearRewardItemNum;                       // +0x6b8（同名访问器）
     std::vector<DimensionPartyCount> m_dimensionPartyCount; // +0x6bc
-    unsigned char m_6c8;            // +0x6c8
-    unsigned char m_6c9;            // +0x6c9
-    int m_6cc;                      // +0x6cc
-    bool m_6d0;                     // +0x6d0
-    bool m_6d1;                     // +0x6d1
-    std::vector<int> m_vec6d4;      // +0x6d4
+    unsigned char m_noFatigueFlag;          // +0x6c8（isNoFatigueDungeon）
+    bool m_riskFlag;                        // +0x6c9（isRiskDungeon；bool 化配单
+                                            //      movzbl 返回，布局不变）
+    int m_partyMemberCoinLimit;             // +0x6cc（GetPartyMemberCoinLimit）
+    bool m_enterEachMap;                    // +0x6d0（IsEnterEachMap）
+    bool m_openEvenEnemy;                   // +0x6d1（IsOpenEvenEnemy）
+    std::vector<int> m_vec6d4;      // +0x6d4（语义未证；ORIG Clear 清空）
     int m_6e0[5];                   // +0x6e0（set_dungeon 从 script+0xb4 复制 5 个 int）
     STWarRoomData m_warRoomData;    // +0x6f4
-    RequiredItem m_requiredItem1;   // +0x7f4
-    char m_800;                     // +0x800
-    int m_804;                      // +0x804
-    int m_808[3];                   // +0x808
-    std::vector<int> m_vec814;      // +0x814
-    int m_820[3];                   // +0x820
+    RequiredItem m_entryRequiredItem;   // +0x7f4（入场必要物品；TOD 门票/vilmark/
+                                        //      CheckEnter 链共用，set_dungeon 自
+                                        //      script+0x7c 9 字节复制）
+    char m_advanceAltarSurvivalFlag;    // +0x800（script+0x2ab；importer
+                                        //      "[advance altar survival map]" 实证）
+    int m_advanceAltarType;             // +0x804（script+0x2ac；importer StageType 实证）
+    int m_808[3];                   // +0x808（script+0x2b0 3 int）
+    std::vector<int> m_vec814;      // +0x814（script+0x2c8）
+    int m_820[3];                   // +0x820（script+0x2bc 3 int）
     advancealtar::ClearRewardData m_clearReward; // +0x82c
     advancealtar::SurvivalRewardData m_survivalReward; // +0x850
-    char m_85c;                     // +0x85c（set_dungeon 从 script+0x88 复制）
-    RequiredItem m_requiredItem2;   // +0x860
-    std::vector<std::pair<int, int> > m_vec86c; // +0x86c
-    char m_878;                     // +0x878
-    char m_879;                     // +0x879
-    char m_87a;                     // +0x87a
-    char m_87b;                     // +0x87b
-    int m_87c;                      // +0x87c
-    int m_880[5];                   // +0x880
-    int m_894;                      // +0x894
-    int m_898;                      // +0x898
-    unsigned char m_89c;            // +0x89c
-    unsigned char m_89d;            // +0x89d
-    unsigned char m_89e;            // +0x89e
-    unsigned char m_89f;            // +0x89f
-    int m_8a0;                      // +0x8a0
-    int m_8a4;                      // +0x8a4
-    unsigned char m_8a8;            // +0x8a8
+    char m_entryRestrictFlag;       // +0x85c（script+0x88；CParty 2257 vilmark 入场
+                                    //      物品链 / PartyClosure 分支门【推断】）
+    RequiredItem m_entryRequiredItem2;  // +0x860（第二入场物品槽，script+0x8c）
+    std::vector<std::pair<int, int> > m_vec86c; // +0x86c（script+0x98）
+    char m_minAttackPartyMember;    // +0x878（CheckEnterVillageAttackRevenge 下界，
+                                    //      signed char 比较，085ba85d）
+    char m_maxAttackPartyMember;    // +0x879（同上上界，085ba84b）
+    char m_villageAttackEventFlag;  // +0x87a（script+0x316；非 0 启用村庄攻击事件
+                                    //      成员数/复仇数校验与疲劳豁免【推断】）
+    char m_maxRevengeCount;         // +0x87b（复仇次数上限，byte 比较 085ba8bb）
+    int m_87c;                      // +0x87c（script+0xa4；-1 哨兵，语义未证）
+    int m_880[5];                   // +0x880（std::copy 自 script+0x128）
+    int m_894;                      // +0x894（script+0x13c）
+    int m_898;                      // +0x898（script+0x168）
+    unsigned char m_89c;            // +0x89c（script+0x28c，入场限制组合位，语义未证）
+    unsigned char m_89d;            // +0x89d（script+0x140；!=1 时清 hell 标记）
+    unsigned char m_89e;            // +0x89e（script+0x28d，村庄怪副本标记）
+    unsigned char m_bloodDungeonType; // +0x89f（get_blood_dungeon_type；
+                                      //      script+0x28e；1=血腥 2=终极）
+    int m_8a0;                      // +0x8a0（script+0x3c4）
+    int m_tournamentRoundFatigue;   // +0x8a4（getTournamentRoundFatigue）
+    unsigned char m_tournamentFlag; // +0x8a8（isTournamentDungeon：signed <=1 判定）
     std::map<int, TournamentRewardRate> m_map8ac; // +0x8ac
     TournamentRewardItemRate m_itemRate8c4;       // +0x8c4
     std::map<unsigned char, unsigned int> m_map8d8; // +0x8d8
     std::vector<STNamedMonsterMapPos> m_vec8f0;   // +0x8f0
-    unsigned char m_8fc;            // +0x8fc
+    unsigned char m_questNpcDungeon; // +0x8fc（getQuestNpcDungeon；script+0x2aa）
     std::vector<std::vector<float> > m_vec900;    // +0x900
     stConditionEnterBossRoom_t m_bossRoom90c;     // +0x90c
     std::map<int, UseCoinDungeonDiff> m_map91c;   // +0x91c

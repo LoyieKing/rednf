@@ -6,6 +6,10 @@
 #include "CSystemTime.h"
 #include "PacketGuard.h"
 #include "DB_SelectLevelUpReward.h"   // process_level_up_reward 的 DB 确认请求
+#include "GameWorld.h"
+#include "CDataManager.h"
+#include "DB_UpdateInGameEventHistory.h"
+#include "InGameEventScripts.h"
 #include <ctime>
 #include <cstring>
 
@@ -178,12 +182,31 @@ void CEventEntity::set_event_end_time(int t)
 
 CEventScriptMng::CEventScriptMng()
     : InGameEventInfoList(), InGameEventScriptLoader(),
-      m_entities(), m_field48(0), m_flag4c(0), m_vec50()
+      m_entities(), m_todayTime(0), m_todayTimeDay(0), m_eventRecordTypes()
 {
+    m_entities.clear();
+    m_info.clear();
+    m_scripts.clear();
 }
 
 CEventScriptMng::~CEventScriptMng()
 {
+    for (std::map<std::string, InGameEventScript*>::iterator it =
+             m_scripts.begin();
+         it != m_scripts.end(); ++it)
+    {
+        if (it->second != 0)
+            delete it->second;
+        it->second = 0;
+    }
+
+    for (std::map<int, CEventEntity*>::iterator it = m_entities.begin();
+         it != m_entities.end(); ++it)
+    {
+        if (it->second != 0)
+            delete it->second;
+        it->second = 0;
+    }
 }
 
 // ORIG 0x810ba36：key ∈ [0,0x19c] 时取 map[key] 并调用其虚 is_eventing。
@@ -212,9 +235,150 @@ void EventClassify::CEventScriptMng::process_add_item_count_db(CUser* user,
         user->IncCurCharacEventAddItemCount((unsigned short)count);
 }
 
-// ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_field48)、
+// ORIG 0x810b110：按事件类型取实体，并转发到实体的表名访问器。
+char* CEventScriptMng::get_db_table_name(int key)
+{
+    return get_event_entity(key)->get_db_table_name();
+}
+
+// ORIG 0x810bde0：事件开启且用户尚未确认时，调用账号首次登录实体动作。
+void CEventScriptMng::process_account_first_login(
+    int key, CUser* user, std::bitset<32u> flags)
+{
+    if (user == 0 || !is_eventing(key))
+        return;
+
+    const int confirmFlag = get_convert_to_user_confirmflag(key);
+    if (!flags[confirmFlag])
+    {
+        CEventEntity* entity = get_event_entity(key);
+        if (entity != 0)
+            static_cast<CAccountFirstLogin*>(entity)->do_action(
+                key, user, flags);
+    }
+}
+
+// ORIG 0x810c110：活动 0x56 开启时更新用户服务器疲劳值。
+void CEventScriptMng::process_add_fatigue_count(CUser* user, int count)
+{
+    if (user != 0 && is_eventing(0x56))
+        user->set_server_fatigue_count((short)count);
+}
+
+// ORIG 0x810bf00：活动 0x193 的任务计数命中时累加一次物品计数。
+void CEventScriptMng::process_add_quest_count_db(CUser* user, int questId)
+{
+    if (user == 0)
+        return;
+
+    CAddItemCountDB* entity =
+        static_cast<CAddItemCountDB*>(get_event_entity(0x193));
+    if (entity != 0 && entity->is_event_quest(questId) != 0)
+        user->IncCurCharacEventAddItemCount(1);
+}
+
+// ORIG 0x810c0a6：升级奖励按指定等级/成长类型发放。
+void CEventScriptMng::process_level_up_reward_recv_level(
+    CUser* user, int level, int growType)
+{
+    if (user == 0 || !is_eventing(0x194))
+        return;
+
+    CLevelUpReward* entity =
+        static_cast<CLevelUpReward*>(get_event_entity(0x194));
+    if (entity != 0)
+        entity->send_reward_from_recv_level(user, level, growType);
+}
+
+// ORIG 0x810c152：按疲劳事件用户类型累加已使用疲劳量。
+void CEventScriptMng::inc_user_fatigue(CUser* user,
+                                       unsigned int fatigue)
+{
+    CFatigueQuantity* entity =
+        static_cast<CFatigueQuantity*>(get_event_entity(0x199));
+    if (entity == 0 || !is_eventing(0x199))
+        return;
+
+    const char userType = entity->get_user_type();
+    if (userType == 0 ||
+        (userType == 1 && user->GetPCRoomNo() != 0))
+        user->IncCurCharacUsedFatigueQuantity(fatigue);
+}
+
+// ORIG 0x810c1ea：礼物疲劳事件验证通过后发送奖励。
+bool CEventScriptMng::send_gift_fatigue_item(
+    CUser* user, unsigned int fatigue)
+{
+    if (!is_eventing(0x65))
+        return false;
+
+    CUsedFatigueGiveItem* entity =
+        static_cast<CUsedFatigueGiveItem*>(get_event_entity(0x65));
+    if (entity == 0 || entity->verifyApplyUser(user) == 0)
+        return false;
+
+    user->IncCurCharacUsedGiftFatigueQuantity(fatigue);
+    entity->sendEventItemFromFatigue(user, fatigue);
+    return true;
+}
+
+// ORIG 0x810c270：商城奖励活动开启时更新目标商品计数。
+void CEventScriptMng::update_purchase_target_item_count(
+    CUser* user, unsigned int goodsId, stCeraShopIPGRequest_t* request)
+{
+    if (!is_eventing(0x19a))
+        return;
+
+    CPurchaseCashItemBonus* entity =
+        static_cast<CPurchaseCashItemBonus*>(get_event_entity(0x19a));
+    if (entity != 0)
+        entity->updateTargetGoodsCount(user, goodsId, request);
+}
+
+// ORIG 0x810c2d4：透传商城消费奖励邮件结果。
+bool CEventScriptMng::send_purchase_bonus_mail(
+    CUser* user, unsigned int goodsId)
+{
+    if (!is_eventing(0x19a))
+        return false;
+
+    CPurchaseCashItemBonus* entity =
+        static_cast<CPurchaseCashItemBonus*>(get_event_entity(0x19a));
+    return entity != 0 &&
+           entity->sendPurchaseBonusReward(user, (int)goodsId) != 0;
+}
+
+// ORIG 0x810c33a：养成事件开启时发送疲劳奖励。
+bool CEventScriptMng::send_bring_up_item_fatigue(
+    CUser* user, int fatigue)
+{
+    if (!is_eventing(0x19b))
+        return false;
+
+    CObjectBringUp* entity =
+        static_cast<CObjectBringUp*>(get_event_entity(0x19b));
+    if (entity == 0)
+        return false;
+
+    entity->sendEventItemFromFatigue(user, (unsigned int)fatigue);
+    return true;
+}
+
+// ORIG 0x810c3a4：网吧事件初始化通知。
+void CEventScriptMng::send_pc_room_play_init_time(CUser* user)
+{
+    if (!is_eventing(0x5c))
+        return;
+
+    CPcRoomPlayTime* entity =
+        static_cast<CPcRoomPlayTime*>(get_event_entity(0x5c));
+    if (entity != 0 && entity->verifyUserPcRoomPlayEvent(user) == 0)
+        user->sendNotiPcRoomPlayTime();
+}
+
+// ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_todayTime)、
 // 占位 byte 后遍历实体：is_eventing 的实体调用虚 send_init_data(user,packet,
-// key,m_flag4c,flag)，成功则计数+1；回填计数、finalize 并 CUser::Send。
+// key,m_todayTimeDay,flag)，成功则计数+1；回填计数、finalize 并 CUser::Send。
 void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
 {
     if (user == 0)
@@ -222,7 +386,7 @@ void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
 
     PacketGuard packet;
     packet.put_header(0, 0x176);
-    packet.put_int(m_field48);
+    packet.put_int(m_todayTime);
     int countIdx = packet.get_index();
     packet.put_byte(0);
     unsigned char count = 0;
@@ -233,7 +397,7 @@ void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
         {
             if (it->second->send_init_data(user, packet,
                                            static_cast<short>(it->first),
-                                           m_flag4c, flag))
+                                           m_todayTimeDay, flag))
                 ++count;
         }
     }
@@ -279,25 +443,21 @@ int CEventScriptMng::get_record_type(int key)
     return entity->get_event_record_type();
 }
 
-// ORIG 0x810c6d6：return *(int*)(this+0x48)。
 int CEventScriptMng::get_today_time()
 {
-    return m_field48;
+    return m_todayTime;
 }
 
-// ORIG 0x810c6ca：return (byte)(this+0x4c)。
 unsigned char CEventScriptMng::get_today_time_day()
 {
-    return m_flag4c;
+    return m_todayTimeDay;
 }
 
-// ORIG 0x810c75c：InGameEventInfoList map<int,InGameEventInfo> find != end。
 bool CEventScriptMng::is_current_ingame_event_record_type(int key)
 {
     return m_info.find(key) != m_info.end();
 }
 
-// ORIG 0x810c6e2：clear out 后把 InGameEventInfoList map 的全部 key 写入 out。
 void CEventScriptMng::get_ingame_event_record_type_list(std::vector<int>& out)
 {
     out.clear();
@@ -306,7 +466,6 @@ void CEventScriptMng::get_ingame_event_record_type_list(std::vector<int>& out)
         out.push_back(it->first);
 }
 
-// ORIG 0x810c974：两个 YYYYMMDD 整数相差的天数；任一 <=0 或前>后返回 -1。
 int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
 {
     if (yyyymmdd1 < 1 && yyyymmdd2 < 1)
@@ -332,107 +491,57 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
     return static_cast<int>((v2 - v1) / 0x15180);
 }
 
-// ORIG 0x810c5d2：按当前系统时刻与「换日小时」刷新 m_field48(YYYYMMDD)/m_flag4c(日)。
 void CEventScriptMng::update_time_values(int hour)
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
-    time_t prev = now - 0x15180;   // 前一日
+    time_t prev = now - 0x15180;
     struct tm localT, prevT;
     localtime_r(&now, &localT);
     localtime_r(&prev, &prevT);
 
     if (localT.tm_hour < 0 || hour <= localT.tm_hour)
     {
-        m_flag4c = static_cast<unsigned char>(localT.tm_mday);
-        m_field48 = localT.tm_year * 10000 + (localT.tm_mon + 1) * 100
-                    + 19000000 + static_cast<unsigned char>(m_flag4c);
+        m_todayTimeDay = static_cast<unsigned char>(localT.tm_mday);
+        m_todayTime = localT.tm_year * 10000 + (localT.tm_mon + 1) * 100
+                      + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
     else
     {
-        m_flag4c = static_cast<unsigned char>(prevT.tm_mday);
-        m_field48 = prevT.tm_year * 10000 + (prevT.tm_mon + 1) * 100
-                    + 19000000 + static_cast<unsigned char>(m_flag4c);
+        m_todayTimeDay = static_cast<unsigned char>(prevT.tm_mday);
+        m_todayTime = prevT.tm_year * 10000 + (prevT.tm_mon + 1) * 100
+                      + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
 }
 
-// ORIG 0x810cdb0：清空并填充 m_vec50 的事件记录类型号集合。
 void CEventScriptMng::init_event_nums()
 {
-    m_vec50.clear();
-
-    m_vec50.push_back(0x56);
-    m_vec50.push_back(0x191);
-    m_vec50.push_back(0x192);
-    m_vec50.push_back(0x193);
-    m_vec50.push_back(0x194);
-    m_vec50.push_back(0x196);
-    m_vec50.push_back(0x197);
-    m_vec50.push_back(0x199);
-    m_vec50.push_back(0x19a);
-    m_vec50.push_back(0x19b);
-    m_vec50.push_back(0x5c);
-    m_vec50.push_back(0x65);
-    m_vec50.push_back(0x19c);
+    m_eventRecordTypes.clear();
+    m_eventRecordTypes.push_back(0x56);
+    m_eventRecordTypes.push_back(0x191);
+    m_eventRecordTypes.push_back(0x192);
+    m_eventRecordTypes.push_back(0x193);
+    m_eventRecordTypes.push_back(0x194);
+    m_eventRecordTypes.push_back(0x196);
+    m_eventRecordTypes.push_back(0x197);
+    m_eventRecordTypes.push_back(0x199);
+    m_eventRecordTypes.push_back(0x19a);
+    m_eventRecordTypes.push_back(0x19b);
+    m_eventRecordTypes.push_back(0x5c);
+    m_eventRecordTypes.push_back(0x65);
+    m_eventRecordTypes.push_back(0x19c);
 }
 
-// ORIG 0x810bd14（_ZN13EventClassify15CEventScriptMng17init_evnet_entityEv）：
-// init_event_nums() 后遍历 m_vec50（this+0x50 vector<int>）；对尚无实体的记录
-// 类型，m_entities[type] = create_event_entity(type, true)（基类实体）。
 void CEventScriptMng::init_evnet_entity()
 {
     init_event_nums();
-
-    // ORIG：循环下标按有符号 setg 与 size() 比较；map 槽位由复合赋值直接
-    // 写入（无具名中间变量），与 ORIG 寄存器编排一致。
-    for (int i = 0; (int)m_vec50.size() > i; ++i)
+    for (int i = 0; (int)m_eventRecordTypes.size() > i; ++i)
     {
-        if (get_event_entity(m_vec50[i]) == 0)
-            m_entities[m_vec50[i]] = create_event_entity(m_vec50[i], true);
+        if (get_event_entity(m_eventRecordTypes[i]) == 0)
+            m_entities[m_eventRecordTypes[i]] =
+                create_event_entity(m_eventRecordTypes[i], true);
     }
 }
 
-void CEventScriptMng::process_level_up_reward(CUser* user, bool flag)
-{
-    if (user == 0)
-        return;
-    if (!is_eventing(0x194))
-        return;
-
-    CLevelUpReward* reward =
-        static_cast<CLevelUpReward*>(get_event_entity(0x194));
-    const int recvCheck = reward->is_recv_check_item();
-    if (recvCheck != 0)
-    {
-        const int ok = reward->check_recv_level(user->get_charac_level(),
-                                                user->get_charac_job(),
-                                                user->getCurCharFirstGrowType(),
-                                                flag);
-        if (ok != 0)
-        {
-            DB_SelectLevelUpReward::makeRequest(
-                static_cast<int>(user->GetUID()),
-                user->getCurCharacNo(),
-                user->get_charac_level());
-        }
-    }
-    else
-    {
-        const int set = reward->set_reward_item(user->get_charac_level(),
-                                                user->get_charac_job(),
-                                                user->getCurCharFirstGrowType());
-        if (set != 0)
-        {
-            reward->do_action(user);
-        }
-    }
-}
-
-// ORIG 0x810ba7a（_ZN13EventClassify15CEventScriptMng14initScriptlistER19InGameEventInfoList）：
-// 遍历 list.m_info；m_isEventing 非空的项：toTString(m_name) 构造临时串 →
-// 基类 getEventScript(id, name) 取脚本（失败 return 0）→ m_entities[id] =
-// create_event_entity(id,false) → 虚 set_event_flag(flag!=0) → 虚
-// set_event_data(mapKey, script) → set_event_start_time/set_event_end_time。
-// 循环耗尽后调 init_evnet_entity() 并 return 1。
 bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 {
     for (std::map<int, InGameEventInfo>::iterator it = list.m_info.begin();
@@ -442,9 +551,7 @@ bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
         if (info.m_isEventing == 0)
             continue;
 
-        // ORIG 以 toTString 结果立即构造临时 std::string。
         std::string name(toTString(info.m_name));
-
         InGameEventScript* script =
             InGameEventScriptLoader::getEventScript(info.m_eventId, name);
         if (script == 0)
@@ -460,6 +567,34 @@ bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 
     init_evnet_entity();
     return true;
+}
+
+
+void CEventScriptMng::process_level_up_reward(CUser* user, bool flag)
+{
+    if (user == 0 || !is_eventing(0x194))
+        return;
+
+    CLevelUpReward* reward =
+        static_cast<CLevelUpReward*>(get_event_entity(0x194));
+    if (reward->is_recv_check_item() != 0)
+    {
+        const int ok = reward->check_recv_level(user->get_charac_level(),
+                                                user->get_charac_job(),
+                                                user->getCurCharFirstGrowType(),
+                                                flag);
+        if (ok != 0)
+            DB_SelectLevelUpReward::makeRequest(
+                static_cast<int>(user->GetUID()),
+                user->getCurCharacNo(),
+                user->get_charac_level());
+    }
+    else if (reward->set_reward_item(user->get_charac_level(),
+                                     user->get_charac_job(),
+                                     user->getCurCharFirstGrowType()) != 0)
+    {
+        reward->do_action(user);
+    }
 }
 
 }  // namespace EventClassify

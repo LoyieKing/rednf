@@ -2,20 +2,30 @@
 #define DNF_GAME_INTER_DISPATCHER_H_
 
 // df_game_r 还原 —— InterDispatcher / ISigDispatcher / 全部 Inter_* 信号分发器
-// 本头为这些类型的唯一声明点。全部类名/槽位/注册顺序取自 ORIG 构造函数
-// （0x84bbafa）objdump 逐条转写；每对象 operator new(4)，对象尺寸=4（仅 vptr）。
-// InterDispatcher 自身无虚表（ORIG nm 无对应 _ZTV），为普通类。
-// 具体类的 dispatch_sig 等函数体属后续还原批次：当前为带 ORIG 地址注释的 stub
-// （与 Dispatchers.cpp 既有 stub 约定一致），符号名/签名与 ORIG 一致。
+// 本头为这些类型的唯一声明点。类名/槽位/注册顺序取自 ORIG 构造函数
+// （0x84bbafa）objdump 逐条转写；绝大多数对象尺寸=4（仅 vptr），
+// 例外：Inter_NpcLimitBuyItemInfo=0x98（含 pair+双 Inven_Item 成员）。
+// ORIG 槽 724/846 的 Inter_DispatcherAradOnly(0x1c)/Inter_DispatcherTaiwan(0x1c)
+// 分别内嵌 ARAD/Taiwan 内部分发子系统（TaiwanInternalDispatcher /
+// ARAD::DISPATCHER::Arad_InternalDispatcher，当前工程无定义），待该域实现后补注册。
+// ISigDispatcher 虚函数顺序：dispatch_sig 在虚析构之前（ORIG dispatch 经
+// vtable[0] 调用，见 0x84be970）；Inter_LoadEventLevelupSupport/
+// Inter_SelectAllowProxyUser 无用户声明 ctor/dtor（new 值初始化形态）。
 
 class CUser;
+class LimitNpcBuyItemInfo;  // game_master::NpcLimitBuyItem 脚本域类型（checkError 参数）
 
+#include <utility>          // std::pair（Inter_NpcLimitBuyItemInfo 成员）
+#include "Inven_Item.h"     // Inven_Item（pack(1)，成员对齐 1）
+
+// ORIG dispatch() 经 vtable[0] 调用 dispatch_sig（0x84be970 处 call *%edx 无位移），
+// 故 dispatch_sig 声明必须位于虚析构之前（Itanium ABI 槽位=声明顺序）。
 class ISigDispatcher
 {
 public:
     ISigDispatcher();
-    virtual ~ISigDispatcher();
     virtual int dispatch_sig(CUser* user, char* data, int len) = 0;
+    virtual ~ISigDispatcher();
 };
 
 class Inter_Disconnect : public ISigDispatcher
@@ -354,6 +364,10 @@ public:
     Inter_MonitorServerEventStart();
     virtual ~Inter_MonitorServerEventStart();
     virtual int dispatch_sig(CUser* user, char* data, int len);
+    // ORIG T _ZN29Inter_MonitorServerEventStart19SendEventNotiPacketEbssP5CUser
+    // 0x084cf2de（静态语义：调用点无实例）。TimerEventChristmas 等调用。
+    static void SendEventNotiPacket(bool noti, short eventIdx, short interval,
+                                    CUser* user);
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -904,8 +918,8 @@ public:
     Inter_MonitorGuildPointDel();
     virtual ~Inter_MonitorGuildPointDel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
-    static int getLastDeleteTime();   // ORIG W 0x82a5a4c
-    static int g_lastDeleteTime;      // ORIG B 0x943dd88
+    // getLastDeleteTime/g_lastDeleteTime 唯一声明点：Inter_MonitorGuildPointDel.h
+    // （定义 Inter_MonitorGuildPointDel.cpp；ORIG W 0x82a5a4c / B 0x943dd88）。
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -3144,6 +3158,36 @@ private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
+// ORIG 对象尺寸 0x98（ctor 处 operator new(0x98)，0x84bbafa+0xb50）。
+// 布局（ORIG ctor/reset/checkError 汇编逐字段）：vptr@0、m_error@4、
+// m_needItem pair<int,int>@8（pair::pair 由 ORIG ctor 显式调用）、
+// m_param1@0x10=-1、m_param2@0x14=-1、m_itemRef@0x18、m_hasData@0x1c、
+// 两成员 Inven_Item@0x1d/0x5a（Inven_Item 为 pack(1)，对齐 1 → 自然落位）。
+class Inven_Item;
+
+
+class Inter_NpcLimitBuyItemInfo : public ISigDispatcher
+{
+public:
+    Inter_NpcLimitBuyItemInfo();
+    virtual ~Inter_NpcLimitBuyItemInfo();
+    virtual int dispatch_sig(CUser* user, char* data, int len);
+    void checkError(CUser* user, LimitNpcBuyItemInfo* info);
+    void reset();
+    void sendPacket(CUser* user);
+
+private:
+    int m_error;                       // +0x04
+    std::pair<int, int> m_needItem;    // +0x08 (need item idx / need count)
+    int m_param1;                      // +0x10 reset 写 -1
+    int m_param2;                      // +0x14 reset 写 -1
+    int m_itemRef;                     // +0x18 CItem*（find_item 结果）
+    unsigned char m_data1c;            // +0x1c
+    Inven_Item m_invenItem1;           // +0x1d
+    Inven_Item m_invenItem2;           // +0x5a
+};
+
+
 class Inter_NpcLimitBuyItemInfoAll : public ISigDispatcher
 {
 public:
@@ -3364,11 +3408,12 @@ private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
+// ORIG ctor 调用点为「operator new 后 movl $0x0,(%eax) 再 call C1」的值初始化
+// 形态（0x84bbafa+0x2d32/+0x2d3e）：类无用户声明构造/析构，new X() 触发
+// 零初始化 + 隐式 C1（仅置 vptr）。故此处不得声明显式 ctor/dtor。
 class Inter_LoadEventLevelupSupport : public ISigDispatcher
 {
 public:
-    Inter_LoadEventLevelupSupport();
-    virtual ~Inter_LoadEventLevelupSupport();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
 private:
@@ -3378,8 +3423,6 @@ private:
 class Inter_SelectAllowProxyUser : public ISigDispatcher
 {
 public:
-    Inter_SelectAllowProxyUser();
-    virtual ~Inter_SelectAllowProxyUser();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
 private:

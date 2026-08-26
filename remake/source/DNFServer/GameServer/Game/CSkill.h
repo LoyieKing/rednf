@@ -27,11 +27,17 @@ public:
     int m_maxLevel[2];   // +0x08
 };
 
-// CSkill 键命令单元（+0x124 vector 元素，0x18 字节）
+// CSkill 键命令单元（+0x124 vector 元素；真实布局见 STSkillScript.h——
+// ORIG clear W 0x088c414c：vector<int>@0、int@0xc、int@0x10，sizeof 0x14）
 #ifndef GAME_STSKILLSCRIPT_H_
 struct STKeyCommandUnit
 {
-    char m_pad[0x18];
+    STKeyCommandUnit();
+    void clear();
+
+    std::vector<int> m_ids;   // +0x00
+    int m_fieldC;             // +0x0c
+    int m_field10;            // +0x10
 };
 #endif
 

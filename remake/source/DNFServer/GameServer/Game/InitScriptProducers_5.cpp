@@ -91,32 +91,6 @@ STScriptFileList g_worldMapScriptFileList;           // B 0x09501000 (0x18)
 // docs/class_func_reports/_lt_global_gt_/ImportEquipmentAniScript.md，
 // 定义属数据域批次——本 TU 仅按 ORIG ABI extern 引用。
 // 最小完整视图（std::pair<std::string,V> 要求 V 完整才能实例化 map；
-// 字段序依据 clear.md：string@+0x04/+0x08/+0x0c、+0x18..+0x28、+0x4c..+0x58、
-// +0x60，vector<string>@+0x70；中段精确字段类型属「推断」，本 TU 不访问）。
-// 权威定义/ImportEquipmentAniScript 解析器由数据域批次落地后应迁移。
-class STEquipmentAniScript
-{
-public:
-    int m_field0;                    // +0x00
-    std::string m_str04;             // +0x04
-    std::string m_str08;             // +0x08
-    std::string m_str0c;             // +0x0c
-    std::string m_str10;             // +0x10（clear 循环 (i+8)*4+0xc 区）
-    std::string m_str14;             // +0x14（clear 循环 (i+12)*4+0xc 区）
-    std::string m_str18;             // +0x18
-    std::string m_str1c;             // +0x1c
-    std::string m_str20;             // +0x20
-    std::string m_str24;             // +0x24
-    std::string m_str28;             // +0x28
-    char m_pad2c[0x4c - 0x2c];
-    std::string m_str4c;             // +0x4c
-    std::string m_str50;             // +0x50
-    std::string m_str54;             // +0x54
-    std::string m_str58;             // +0x58
-    std::string m_str60;             // +0x60
-    char m_pad64[0x70 - 0x64];
-    std::vector<std::string> m_vec70;  // +0x70
-};
 void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table); // _Z24..
 std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript = 0;  // B 0x094f7bf8
 

@@ -19,75 +19,23 @@
 #include "TimerQueue.h"   // G_TimerQueue / TimerEntry::OBJ_TYPE / TIMER_MESSAGE
 #include "LogManager.h"   // LogManager::logFormat
 
-// ---- 拍卖服务器注册包（ORIG 弱符号 ctor，尺寸 0x16） ----
-class PCK_AUCTION_REGIST_GA
+// ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
+struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
 {
-public:
-    PCK_AUCTION_REGIST_GA();
-    char m_data[0x16];
+    PCK_AUCTION_REGIST_GA() { PACKET_CTOR_BODY(0, 0, 0x16); }
 };
-
-class PCK_AUCTION_REGIST_GP
+struct PCK_AUCTION_REGIST_GP : public nsl::PACKET_HEADER
 {
-public:
-    PCK_AUCTION_REGIST_GP();
-    char m_data[0x16];
+    PCK_AUCTION_REGIST_GP() { PACKET_CTOR_BODY(0x12, 0, 0x16); }
 };
-
-// ---- 就绪检查包（ORIG 弱符号 ctor，尺寸 0x12） ----
-class PCK_AUCTION_CHECK_AUCTION_READY_GA
+struct PCK_AUCTION_CHECK_AUCTION_READY_GA : public nsl::PACKET_HEADER
 {
-public:
-    PCK_AUCTION_CHECK_AUCTION_READY_GA();
-    char m_data[0x12];
+    PCK_AUCTION_CHECK_AUCTION_READY_GA() { PACKET_CTOR_BODY(0, 0xd, 0x12); }
 };
-
-class PCK_AUCTION_CHECK_AUCTION_READY_GP
+struct PCK_AUCTION_CHECK_AUCTION_READY_GP : public nsl::PACKET_HEADER
 {
-public:
-    PCK_AUCTION_CHECK_AUCTION_READY_GP();
-    char m_data[0x12];
+    PCK_AUCTION_CHECK_AUCTION_READY_GP() { PACKET_CTOR_BODY(0x12, 0xd, 0x12); }
 };
-
-PCK_AUCTION_REGIST_GA::PCK_AUCTION_REGIST_GA()
-{
-    nsl::PACKET_HEADER* h = (nsl::PACKET_HEADER*)this;
-    new (h) nsl::PACKET_HEADER();
-    memset(this, 0, 0x16);
-    h->setCategory(0);
-    h->setPacketID(0);
-    h->setSize(0x16);
-}
-
-PCK_AUCTION_REGIST_GP::PCK_AUCTION_REGIST_GP()
-{
-    nsl::PACKET_HEADER* h = (nsl::PACKET_HEADER*)this;
-    new (h) nsl::PACKET_HEADER();
-    memset(this, 0, 0x16);
-    h->setCategory(0x12);
-    h->setPacketID(0);
-    h->setSize(0x16);
-}
-
-PCK_AUCTION_CHECK_AUCTION_READY_GA::PCK_AUCTION_CHECK_AUCTION_READY_GA()
-{
-    nsl::PACKET_HEADER* h = (nsl::PACKET_HEADER*)this;
-    new (h) nsl::PACKET_HEADER();
-    memset(this, 0, 0x12);
-    h->setCategory(0);
-    h->setPacketID(0xd);
-    h->setSize(0x12);
-}
-
-PCK_AUCTION_CHECK_AUCTION_READY_GP::PCK_AUCTION_CHECK_AUCTION_READY_GP()
-{
-    nsl::PACKET_HEADER* h = (nsl::PACKET_HEADER*)this;
-    new (h) nsl::PACKET_HEADER();
-    memset(this, 0, 0x12);
-    h->setCategory(0x12);
-    h->setPacketID(0xd);
-    h->setSize(0x12);
-}
 
 // ============================================================================
 // CAuctionServerProxy（ORIG 0x82f7a90 起，BaseServerProxy 派生）
@@ -105,7 +53,7 @@ public:
     void SendPacket(nsl::PACKET_HEADER* packet);
     void SendRegistPacket();
     void SendCheckAuctionReadyPacket();
-    bool IsRunning();
+    unsigned char IsRunning();
     void SetRunning(bool flag);
 
     char m_running;   // +0x30e0c
@@ -145,8 +93,7 @@ void CAuctionServerProxy::SendPacket(nsl::PACKET_HEADER* packet)
 void CAuctionServerProxy::SendRegistPacket()
 {
     PCK_AUCTION_REGIST_GA packet;
-    int envField = 0;
-    envField = *(int*)((char*)G_CEnvironment() + 0x198);
+    int envField = G_CEnvironment()->m_serverEnvir.m_gcNo;
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
 
@@ -156,14 +103,14 @@ void CAuctionServerProxy::SendCheckAuctionReadyPacket()
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
 
-bool CAuctionServerProxy::IsRunning()
+unsigned char CAuctionServerProxy::IsRunning()
 {
-    return m_running != 0;
+    return m_running;
 }
 
 void CAuctionServerProxy::SetRunning(bool flag)
 {
-    m_running = flag ? 1 : 0;
+    m_running = flag;
 }
 
 // ============================================================================
@@ -182,7 +129,7 @@ public:
     void SendPacket(nsl::PACKET_HEADER* packet);
     void SendRegistPacket();
     void SendCheckCeraAuctionReadyPacket();
-    bool IsRunning();
+    unsigned char IsRunning();
     void SetRunning(bool flag);
 
     char m_running;   // +0x30e0c
@@ -232,14 +179,14 @@ void CCeraAuctionServerProxy::SendCheckCeraAuctionReadyPacket()
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
 
-bool CCeraAuctionServerProxy::IsRunning()
+unsigned char CCeraAuctionServerProxy::IsRunning()
 {
-    return m_running != 0;
+    return m_running;
 }
 
 void CCeraAuctionServerProxy::SetRunning(bool flag)
 {
-    m_running = flag ? 1 : 0;
+    m_running = flag;
 }
 
 // ============================================================================

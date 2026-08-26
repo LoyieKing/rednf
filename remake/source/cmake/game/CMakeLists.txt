@@ -84,6 +84,7 @@ dnf_service(game
         ${SVC_DIR}/PacketTracer.cpp
         ${SVC_DIR}/DisPatcherCore.cpp
         ${SVC_DIR}/GameSecurity.cpp
+        ${SVC_DIR}/CServerEvent.cpp
         ${SVC_DIR}/InitEnvHelpers.cpp
         ${SVC_DIR}/UserPacketCounter.cpp
         ${SVC_DIR}/CAppLoadChecker.cpp
@@ -168,11 +169,15 @@ dnf_service(game
         ${SVC_DIR}/CUserDepsA.cpp
         ${SVC_DIR}/CUserDepsB.cpp
         ${SVC_DIR}/CUserMissingA2.cpp
+        ${SVC_DIR}/UserCoreDepsB2.cpp
+        ${SVC_DIR}/CBloodDungeonRewardEvents.cpp
         ${SVC_DIR}/SigTypes.cpp
         ${SVC_DIR}/CParty.cpp
         ${SVC_DIR}/CPartyDepsA2.cpp
         ${SVC_DIR}/CPartyDepsB2.cpp
         ${SVC_DIR}/CPartyDepsC2.cpp
+        ${SVC_DIR}/CPartyDepsD2.cpp
+        ${SVC_DIR}/PartyClosureC2.cpp
         ${SVC_DIR}/CDungeon.cpp
         ${SVC_DIR}/CDungeonClearTracer.cpp
         ${SVC_DIR}/CGameManager.cpp
@@ -181,6 +186,8 @@ dnf_service(game
         ${SVC_DIR}/CBattle_Field.cpp
         ${SVC_DIR}/CBattle_Field_missing.cpp
         ${SVC_DIR}/BattleDungeonMapA2.cpp
+        ${SVC_DIR}/BattleDepsB2.cpp
+        ${SVC_DIR}/BattleMonsterDepsC2.cpp
         ${SVC_DIR}/BlueMarble.cpp
         ${SVC_DIR}/CDeathTower.cpp
         ${SVC_DIR}/GameWorld.cpp
@@ -299,6 +306,17 @@ dnf_service(game
         ${SVC_DIR}/CSlotBoundChecker.cpp
         ${SVC_DIR}/CValueStatistic.cpp
         ${SVC_DIR}/Gm_List.cpp
+        ${SVC_DIR}/GmCore.cpp
+        ${SVC_DIR}/GmMacro.cpp
+        ${SVC_DIR}/GmRegister.cpp
+        ${SVC_DIR}/GmCmds_M.cpp
+        ${SVC_DIR}/GmCmds_A.cpp
+        ${SVC_DIR}/GmCmds_B.cpp
+        ${SVC_DIR}/GmCmds_C.cpp
+        ${SVC_DIR}/GmCmds_D.cpp
+        ${SVC_DIR}/GmCmds_E.cpp
+        ${SVC_DIR}/GmCmds_F.cpp
+        ${SVC_DIR}/GmCmds_G.cpp
         ${SVC_DIR}/CItemLock.cpp
         ${SVC_DIR}/CItemUpgrade.cpp
         ${SVC_DIR}/CPrivateStoreMgr.cpp
@@ -324,6 +342,7 @@ dnf_service(game
         ${SVC_DIR}/EventAvatarListScript.cpp
         ${SVC_DIR}/EventCharacterParameterScript.cpp
         ${SVC_DIR}/EventNewCharacterReward.cpp
+        ${SVC_DIR}/CPartyExpBonusEvent.cpp
         ${SVC_DIR}/GameUtils.cpp
         ${SVC_DIR}/CItemDictionary.cpp
         ${SVC_DIR}/STNameList.cpp
@@ -338,9 +357,12 @@ dnf_service(game
         ${SVC_DIR}/advancealtar_Manager.cpp
         ${SVC_DIR}/advancealtar_ProcStage.cpp
         ${SVC_DIR}/advancealtar_StageTimeline.cpp
+        ${SVC_DIR}/StageMapScriptC2.cpp
         ${SVC_DIR}/BossTowerFunc.cpp
+        ${SVC_DIR}/TowerOfDespairMgr.cpp
+        ${SVC_DIR}/BossTowerDepsC2.cpp
         ${SVC_DIR}/CMCAPManager.cpp
-        ${SVC_DIR}/CServerEvent.cpp
+        ${SVC_DIR}/LinkMiscSecuTimerSolo.cpp
         ${SVC_DIR}/CPvPLiveEventData.cpp
         ${SVC_DIR}/CShutdowManager.cpp
         ${SVC_DIR}/CMyFileLog.cpp
@@ -350,6 +372,8 @@ dnf_service(game
         ${SVC_DIR}/CLogGameChannel.cpp
         ${SVC_DIR}/CMissionRank.cpp
         ${SVC_DIR}/CStatisticContainer.cpp
+        ${SVC_DIR}/StrikerWorldDropB2.cpp
+        ${SVC_DIR}/ItemUpgradeVtableB2.cpp
         ${SVC_DIR}/OnlinePreliminaryTeam.cpp
         ${SVC_DIR}/CSpecialItemRoutingManager.cpp
         ${SVC_DIR}/CAICharacterList.cpp
@@ -370,6 +394,7 @@ dnf_service(game
         ${SVC_DIR}/Arad_StatisticsEventItemList.cpp
         ${SVC_DIR}/ARAD.cpp
         ${SVC_DIR}/Arad_Dispatcher.cpp
+        ${SVC_DIR}/Arad_InternalDispatcher.cpp
         ${SVC_DIR}/BuffInfo.cpp
         ${SVC_DIR}/TileIndexInfo.cpp
         ${SVC_DIR}/CActionPointManager.cpp
@@ -392,11 +417,23 @@ dnf_service(game
         ${SVC_DIR}/CEventScriptMng_entities.cpp
         ${SVC_DIR}/CEventScriptMng_entitiesB.cpp
         ${SVC_DIR}/EventClassify_Action.cpp
+        	${SVC_DIR}/DB_UpdatePurchaseCashItemBonus.cpp
+	${SVC_DIR}/DBInsertGiveBoxEventReward.cpp
+	${SVC_DIR}/DB_UpdateChuseokPackagePurchase.cpp
+	${SVC_DIR}/UserPartyLink4.cpp
+	${SVC_DIR}/ExpertJobLink4.cpp
+	${SVC_DIR}/CBattle_Field_kill_monster.cpp
+	${SVC_DIR}/CClearReward.cpp
+	${SVC_DIR}/CPartyLink2.cpp
+	${SVC_DIR}/CBattle_Field_KillChain.cpp
+	${SVC_DIR}/CKillMonsterInfo_chain.cpp
+	${SVC_DIR}/CParty_KillChain.cpp
         ${SVC_DIR}/CExpDoubleEvent.cpp
         ${SVC_DIR}/CPCRoomBurningEvent.cpp
         ${SVC_DIR}/CExpertJob.cpp
         ${SVC_DIR}/AvatarFixedHiddenOptionServer.cpp
         ${SVC_DIR}/AvatarRechargeServer.cpp
+        ${SVC_DIR}/AvatarRechargeC2.cpp
         ${SVC_DIR}/EmblemCompoundServer.cpp
         ${SVC_DIR}/AvatarConvertServer.cpp
         ${SVC_DIR}/AvatarItem.cpp
@@ -426,6 +463,7 @@ dnf_service(game
         ${SVC_DIR}/DB_InsertAccountFirstLoginFlag.cpp
         ${SVC_DIR}/DB_InsertAccountFirstLoginDailyFlag.cpp
         ${SVC_DIR}/DB_SelectLevelUpReward.cpp
+        ${SVC_DIR}/DB_UpdateInGameEventHistory.cpp
         ${SVC_DIR}/ContainerTemplateInstantiations.cpp
         ${SVC_DIR}/QuestClear.cpp
         ${SVC_DIR}/CCreatureMgr.cpp
@@ -462,11 +500,35 @@ dnf_service(game
         ${SVC_DIR}/SyncScriptDeps.cpp
         ${SVC_DIR}/EventUpgradeJar.cpp
         ${SVC_DIR}/EventLevelupA2.cpp
+        ${SVC_DIR}/EventMailTypesC2.cpp
         ${SVC_DIR}/ScriptLeafA2.cpp
         ${SVC_DIR}/RandomRentalA2.cpp
+        ${SVC_DIR}/EventRewardQuickPartyB2.cpp
+        ${SVC_DIR}/EventScriptsCompleteB2.cpp
+        ${SVC_DIR}/LinkGlobalsB2.cpp
         ${SVC_DIR}/ScriptDepsB.cpp
         ${SVC_DIR}/ScriptDepsA.cpp
         ${SVC_DIR}/DomainMiscDeps.cpp
+        ${SVC_DIR}/APSystemLeafC3.cpp
+        ${SVC_DIR}/MonsterAbilityLeafC3.cpp
+        ${SVC_DIR}/STCharacterLayoutC3.cpp
+        ${SVC_DIR}/TowerAPCLeafC3.cpp
+        ${SVC_DIR}/HackTickLeafC3.cpp
+        ${SVC_DIR}/LevelupSupportLeafC3.cpp
+        ${SVC_DIR}/CPartyQuestLeafC3.cpp
+        ${SVC_DIR}/BattleMonsterTailC3A.cpp
+        ${SVC_DIR}/BattleMonsterTailC3B.cpp
+        ${SVC_DIR}/TournamentTailC3C.cpp
+        ${SVC_DIR}/TournamentFinalC3.cpp
+        ${SVC_DIR}/CCreature.cpp
+        ${SVC_DIR}/Arad_Function_Set.cpp
+        ${SVC_DIR}/BingoEventLink4.cpp
+        ${SVC_DIR}/ExpertJobLink4.cpp
+        ${SVC_DIR}/UserPartyLink4.cpp
+        ${SVC_DIR}/DB_LinkMisc4.cpp
+        ${SVC_DIR}/DispDebugJoint4.cpp
+        ${SVC_DIR}/HeroMissionLink4.cpp
+        ${SVC_DIR}/LinkMisc4_Data.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

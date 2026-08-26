@@ -68,7 +68,6 @@ public:
         int m_group;                   // +0x14
 
         TournamentInfo();                       // ORIG 0830ea64
-        ~TournamentInfo();                      // ORIG 08314bb6
         void Clear();                           // ORIG 0830ea1e
         bool operator<(const TournamentInfo& other) const;  // ORIG 0830eaa6
     };
@@ -111,7 +110,7 @@ public:
         int m_bloodRound;                 // +0x08
         unsigned int m_startTick;         // +0x0c
         unsigned int m_endTick;           // +0x10
-        char m_isBloodClear;              // +0x14
+        bool m_isBloodClear;              // +0x14
         int m_rewardExp[4];               // +0x18
         stRewardItem_t m_reward[4];       // +0x28
         int m_ultimateClearPoint;         // +0x9c8
@@ -133,7 +132,7 @@ public:
         void setRewardItem(int idx, int itemIdx);      // ORIG 085bf15a
         void setRewarItemCopy(Inven_Item item, int rewardIdx, int itemIdx);  // ORIG 085bf176
         void setRewardItemAddInfo(float rate, int rewardIdx, int itemIdx);   // ORIG 085bf1a8
-        bool isBloodClear();              // ORIG 085bf21c
+        unsigned char isBloodClear();              // ORIG 085bf21c
         void setBloodClear(bool v);             // ORIG 0830ec7c
         int getUltimateRewardItem();            // ORIG 083070ca
         int getUltimateRoundClearPoint(); // ORIG 0830ec94
@@ -168,8 +167,10 @@ public:
     {
         int m_eventIdx;              // +0x00
         std::pair<int, int> m_pos;   // +0x04
-        int m_field0c;               // +0x0c
-        int m_field10;               // +0x10
+        int m_monsterIdx;            // +0x0c（ORIG 元素 0x18：push_back lea 0x18；
+                                     //   SetGridPath 082ffb30 写 script m_monsterIdx(+4)）
+        int m_field10;               // +0x10（script m_field0c）
+        int m_field14;               // +0x14（script m_field10）
 
         stEventMonsterStatus_t();    // ORIG 0830ee4c
         ~stEventMonsterStatus_t();   // ORIG 08316adc
@@ -277,25 +278,25 @@ public:
     void setLayeredMapIndex();                                // 0830df3c
     void setPremiumDropRate(WongWork::stGenerateRefData_t& ref, int premiumRate);  // 0830b848
     void startUltimateRound();                                // 083064de
-    bool IsAssignNPCByPotion();                               // 0822cee2
-    bool IsEnableHellDungeon();                               // 0830ed07
+    unsigned char IsAssignNPCByPotion();                               // 0822cee2
+    static unsigned char IsEnableHellDungeon();                               // 0830ed07
     char IsFirstEnterDungeon();                               // 08307656
-    bool IsVisitedCurrentMap();                               // 085bf2e8
+    unsigned char IsVisitedCurrentMap();                               // 085bf2e8
     bool SetDamagedPacketCnt(int uid);                        // 08308f4e
     int check_movemap_range(int x, int y);                    // 08307b2a
-    bool isWorldMapTowerArea();                               // 085bf31c
+    unsigned char isWorldMapTowerArea();                               // 085bf31c
     void set_visited_map_goto(int x, int y);                  // 08308a24
     void setEplpWaitingTimer(QuickParty::RandomBuffDungeon type);  // 0830ac7a
     void set_monster_ability();                               // 083026da
     void AddTournamentMonster(const TournamentInfo& info, std::list<_mapMonster>& mobList,
                               bool isUltimate);              // 08304718
     bool DestroyPassiveObject(int idx);                       // 082ff3ec
-    char* GetEnableHellDungeon();                             // 0822cf26
+    static char* GetEnableHellDungeon();                             // 0822cf26
     void InsertTournamentInfo(std::vector<int>& indexes,
                               std::vector<TournamentInfo>& infos,
                               std::map<short, TournamentInfo>& roundMap);  // 08303e02
     void SetAssignNPCByPotion(bool flag);                     // 085d19d6
-    void SetEnableHellDungeon(bool flag);                     // 0822cf30
+    static void SetEnableHellDungeon(bool flag);                     // 0822cf30
     bool checkBloodSpawnOrder(short smallRound);              // 08306e32
     void check_elevator_timer();                              // 0830d902
     int getAddChampionMobCnt();                               // 083010ee
@@ -312,7 +313,8 @@ public:
     char getUltimateDifficylty();                             // 0822d02e
     void setUltimateDifficulty(char diff);                    // 0822d012
     void BloodSpawnTimerManager(bool a, bool b);              // 08304dd2
-    void BloodMonsterSpawnPacket(int a, short b, short c);    // 08305992
+    void BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
+                                 short nextRound);   // 08305992（ORIG Eiiss：int,int,short,short）
     void BloodRoundMaxTimePacket(short round, int a, int b);  // 08305dc4
     void BloodRoundIntervalPacket(short round, int interval); // 08305e9c
     void ConsistTournamentRound(std::vector<TournamentInfo>& first,
@@ -320,7 +322,7 @@ public:
                                 std::map<short, std::vector<TournamentInfo> >& roundMap,
                                 std::list<_mapMonster>& mobList);  // 08303ace
     int GetHellPartyDifficulty(ENUM_DUNGEON_TYPE type);       // 082ffa2e
-    bool IsKilledAllHellGruoups();                            // 085bf250
+    unsigned char IsKilledAllHellGruoups();                            // 085bf250
     void ResetFirstEnterDungeon();                            // 08307662
     void add_hell_party_monster(map_monster& mob, int& uid, int& seq,
                                 std::map<unsigned short, STHellPartyGroupOrder>* groups);
@@ -398,7 +400,10 @@ public:
     int m_curY;                            // +0x64
     int m_lastX;                           // +0x68
     int m_lastY;                           // +0x6c
-    MazeScript* m_maze;                    // +0x70
+    int m_mapMobCount;                     // +0x70（SelectDungeon 082ff48e 自
+                                           //   CDungeon::m_6e0[diff] 复制的每图怪物基数；
+                                           //   getAddChampionMobCnt 按难度 ×150/250/500%
+                                           //   缩放——ORIG 算术实证为 int，非指针）
     MazeScript* m_gridMaze;                // +0x74
     std::map<int, MapInfo> m_mapInfo;      // +0x78
     Mutex m_mutexField;                    // +0x90
@@ -409,7 +414,7 @@ public:
     CClearCondition m_clearCondition;      // +0xf0
     CMap* m_pMap;                          // +0x108
     int m_layeredMapIndex;                 // +0x10c
-    char m_questMaze;                      // +0x110
+    bool m_questMaze;                      // +0x110（ORIG setQuestMaze/isQuestMaze 按布尔字节读写；char→bool 不改布局）
     char m_pad111[3];                      // +0x111
     int m_curSeatNo;                       // +0x114（SetCurSeatNo 082a43cc / getCurPosXY 实证）
     std::vector<int> m_apcList;            // +0x118
@@ -465,14 +470,16 @@ public:
     float m_hellPartyItemRate[4];          // +0x224
     float m_hellPartyScriptRate;           // +0x234
     int m_hellPartyLevel;                  // +0x238
-    char m_worldMapTowerArea;              // +0x23c
+    bool m_worldMapTowerArea;              // +0x23c
     char m_pad23d[3];                      // +0x23d
     std::vector<STAssignBloodSystem> m_bloodSystems;        // +0x240
     std::vector<STAssignBloodPhaseTime> m_bloodPhaseTimes;  // +0x24c
     std::vector<short> m_bloodPhaseOrder;  // +0x258
     std::vector<bool> m_bloodPhaseClear;   // +0x264（vector<bool> 0x14 字节）
-    char m_bloodSpawnCnt[0x16];            // +0x278
-    char m_bloodSpawnTime[0x16];           // +0x28e
+    short m_bloodSpawnCnt[11];             // +0x278（ORIG BloodPhaseSpawnTimerResgister
+                                           //   movw 写入实证为 short[11]，尺寸 0x16 不变）
+    short m_bloodSpawnTime[11];            // +0x28e（同上；TimerDispatcher 血轮 Register
+                                           //   族按 short 读取）
     int m_bloodSpawnCntCur;                // +0x2a4
     short m_bloodCrazyRound;               // +0x2a8
     char m_bloodCrazyType;                 // +0x2aa
@@ -499,7 +506,7 @@ static_assert(sizeof(CBattle_Field::CTowerOfDespairRewardData) == 0x14,
               "CTowerOfDespairRewardData size");
 static_assert(sizeof(CBattle_Field::stConditionEnterBossRoomStatus_t) == 0x18,
               "stConditionEnterBossRoomStatus_t size");
-static_assert(sizeof(CBattle_Field::stEventMonsterStatus_t) == 0x14,
+static_assert(sizeof(CBattle_Field::stEventMonsterStatus_t) == 0x18,
               "stEventMonsterStatus_t size");
 static_assert(sizeof(CBattle_Field::TournamentInfo) == 0x18, "TournamentInfo size");
 static_assert(sizeof(CBattle_Field::CBloodRound) == 8, "CBloodRound size");

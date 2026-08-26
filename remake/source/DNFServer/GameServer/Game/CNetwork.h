@@ -99,7 +99,6 @@ public:
     unsigned int m_innerIp;   // +0x58+N1+N2
     char m_macAddr[0x44];     // +0x5c+N1+N2
     Mutex m_mutex;            // +0xa0+N1+N2
-    char m_padTail[4];        // +0xa0+N1+N2+0x18（ORIG 尺寸 = 0xb8+N1+N2）
 };
 
 template <int N1, int N2>

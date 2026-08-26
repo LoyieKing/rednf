@@ -33,6 +33,15 @@ struct CDungeon_8a0_proxy
     int m_8a0;
 };
 
+// G_CDataManager() +0x6170 处的 int 表视图（incUltimateRoundClearPoint 08307096
+// 实证 add $0x185c,%edx + (%eax,%edx,4) 寻址 = 元素索引 v+0x185c 的成员数组
+// 折算形态；视图仅本 TU 使用）
+struct CDataManager_UltimateArr_proxy
+{
+    char m_pad[0x6170];
+    int m_arr[1];
+};
+
 // ============================================================================
 // 小访问器（ORIG 弱符号，直接读反汇编实现）
 // ============================================================================
@@ -204,7 +213,7 @@ bool CBattle_Field::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int i
     return false;
 }
 
-bool CBattle_Field::IsVisitedCurrentMap()
+unsigned char CBattle_Field::IsVisitedCurrentMap()
 {
     return GetCurrentMapInfo()->m_visited;
 }
@@ -214,7 +223,7 @@ void CBattle_Field::setWorldMapTowerArea(bool flag)
     m_worldMapTowerArea = flag;
 }
 
-bool CBattle_Field::isWorldMapTowerArea()
+unsigned char CBattle_Field::isWorldMapTowerArea()
 {
     return m_worldMapTowerArea;
 }
@@ -337,18 +346,18 @@ char CBattle_Field::getUltimateDifficylty()
     return m_ultimateDifficulty;
 }
 
-bool CBattle_Field::IsAssignNPCByPotion()
+unsigned char CBattle_Field::IsAssignNPCByPotion()
 {
     return GetCurrentMapInfo()->m_assignNPCByPotion;
 }
 
-bool CBattle_Field::IsEnableHellDungeon()
+unsigned char CBattle_Field::IsEnableHellDungeon()
 {
     char* p = GetEnableHellDungeon();
     return *p;
 }
 
-void CBattle_Field::set_dungeon_diff(char diff)
+void CBattle_Field::set_dungeon_diff(register char diff)
 {
     m_dungeonDiff = ((unsigned char)diff > 4) ? 4 : (unsigned char)diff;
 }
@@ -417,7 +426,7 @@ MapInfo* CBattle_Field::getCurrentLayeredMapInfo()
     return getLayeredMapInfoIndex(getLayeredMapIndex());
 }
 
-bool CBattle_Field::IsKilledAllHellGruoups()
+unsigned char CBattle_Field::IsKilledAllHellGruoups()
 {
     return m_killedAllHellGroups;
 }
@@ -451,10 +460,6 @@ int CBattle_Field::getBloodMaxRound()
 CBattle_Field::TournamentInfo::TournamentInfo()
 {
     Clear();
-}
-
-CBattle_Field::TournamentInfo::~TournamentInfo()
-{
 }
 
 void CBattle_Field::TournamentInfo::Clear()
@@ -536,8 +541,8 @@ void CBattle_Field::reset_blood_values()
     m_bloodPhaseClear.clear();
     memset(m_bloodSpawnCnt, 0, sizeof(m_bloodSpawnCnt));
     memset(m_bloodSpawnTime, 0, sizeof(m_bloodSpawnTime));
+    m_bloodCrazyRound = -1;
     m_bloodSpawnCntCur = 0;
-    m_bloodCrazyRound = 0xffff;
     m_bloodCrazyType = 0;
 }
 
@@ -634,7 +639,7 @@ void CBattle_Field::CBloodClearRewardData::setBloodClear(bool v)
     m_isBloodClear = v;
 }
 
-bool CBattle_Field::CBloodClearRewardData::isBloodClear()
+unsigned char CBattle_Field::CBloodClearRewardData::isBloodClear()
 {
     return m_isBloodClear;
 }
@@ -646,7 +651,10 @@ int CBattle_Field::CBloodClearRewardData::getUltimateRoundClearPoint()
 
 void CBattle_Field::CBloodClearRewardData::incUltimateRoundClearPoint(int v)
 {
-    m_ultimateClearPoint = m_ultimateClearPoint + ((int*)G_CDataManager())[v + 0x185c];
+    // ORIG 08307096：m_9c8 += dm_intTable[v+0x185c]；视图 m_arr[v] 折算同址。
+    m_ultimateClearPoint =
+        m_ultimateClearPoint
+        + ((CDataManager_UltimateArr_proxy*)G_CDataManager())->m_arr[v];
 }
 
 CBattle_Field::CTowerOfDespairRewardData::CTowerOfDespairRewardData()
@@ -773,37 +781,44 @@ int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 //   type 3/6 → 绝望之塔 timer(0x4d)；4/5 → party timer(0x25)；其余 → party
 //   timer(0x15)。秒数均 0x1e。
 // ============================================================================
-void CBattle_Field::setEplpWaitingTimer(QuickParty::RandomBuffDungeon type)
+void CBattle_Field::setEplpWaitingTimer(register QuickParty::RandomBuffDungeon type)
 {
     if (m_party == 0)
         return;
 
-    int t = static_cast<int>(type);
-    if (t == 3 || t == 6)
+    if (type <= 5)
     {
-        CUser* mgr = m_party->getManager();
-        if (mgr == 0)
-            return;                                 // getManager 为空则直接返回（推断保护）
-        WongWork::CDeathTower* tower = mgr->getDeathTower();
+        if (type > 3)
+        {
+            register unsigned int key = static_cast<unsigned int>(
+                m_party->gen_timer_key((TIMER_MESSAGE)0x25));
+            int idx = m_party->GetPartyIndex();
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
+                                        (TIMER_MESSAGE)0x25, 0x1e, key, 0x25);
+            return;
+        }
+        if (type != 3)
+        {
+            goto timer15;
+        }
+    }
+    else if (type != 6)
+    {
+        goto timer15;
+    }
+    {
+        WongWork::CDeathTower* tower = m_party->getManager()->getDeathTower();
         if (tower == 0)
             return;
-        unsigned int key = static_cast<unsigned int>(
+        register unsigned int key = static_cast<unsigned int>(
             tower->genTimerKey((TIMER_MESSAGE)0x4d));
         int idx = tower->getIdx();
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, idx,
                                     (TIMER_MESSAGE)0x4d, 0x1e, key, 0x4d);
         return;
     }
-    if (t == 4 || t == 5)
-    {
-        unsigned int key = static_cast<unsigned int>(
-            m_party->gen_timer_key((TIMER_MESSAGE)0x25));
-        int idx = m_party->GetPartyIndex();
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
-                                    (TIMER_MESSAGE)0x25, 0x1e, key, 0x25);
-        return;
-    }
-    unsigned int key = static_cast<unsigned int>(
+timer15:
+    register unsigned int key = static_cast<unsigned int>(
         m_party->gen_timer_key((TIMER_MESSAGE)0x15));
     int idx = m_party->GetPartyIndex();
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,

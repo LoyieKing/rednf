@@ -12,6 +12,8 @@
 #include "CUser.h"
 #include "SigTypes.h"        // SIG_LOAD_ETC/SIG_LOAD_DUNGEON_CLEAR/SIG_REQ_BLACK_COUNT/SIG_ATTENDANCE_EVENT 完整布局
 #include "CDungeonClear.h"   // WongWork::CDungeonClear::toString
+#include "CCharacList.h"          // CCharacList::m_characs（calc_lev_stat 角色表）
+#include "CharacManageScript.h"   // CharacManageScript 完整类型（管理等级链）
 #include "GameResultType.h"  // GameResultType（GetRecord 序列化 0x50/元素）
 #include "CTitleBook.h"   // item_lock::CItemLock / stItemLockRef 权威定义
 #include "CGameManager.h"
@@ -25,6 +27,13 @@
 #include "SyncScriptDeps.h"   // toTString（RewardItem2DeleteInvalidItem 字符串表翻译）
 #include "PacketBuf.h"
 #include "GameTypes.h"
+#include "CEventScriptMng.h"   // EventClassify::CEventScriptMng（set_server_fatigue_count 当日键）
+#include "CCapchaDataManager.h"  // WongWork::CCapchaDataManager（GlobalData::s_capchaDataManager）
+#include "CDungeon.h"          // CDungeon::m_89e（exceptedStateMoneyLog 搬运副本标记）
+#include "DBInsertGiveBoxEventReward.h"  // GiveMeBoxReward 转发（ORIG 0x08693758）
+#include "Packet_Monitor_Increase_Guild_Exp.h"  // WorkPerFiveMin 公会上报包（0x40e,0x1c）
+#include "CMonitorServerProxy.h"  // SendNoticeCharLive（WorkPerTenMin）
+#include "CGuildServerProxy.h"    // SendPacket（WorkPerFiveMin）
 #include "InterfacePacketBuf.h"
 #include "GameWorld.h"
 #include "LogManager.h"
@@ -34,6 +43,11 @@
 #include "CMonitorServerProxy.h"
 #include "CServerProxyMgr.h"
 #include "GlobalData.h"
+#include "Arad_DataManager.h"    // ARAD::Singleton<Arad_DataManager>（ReturnToSelectCharacList）
+#include "Arad_EventPeriodDataManager.h"  // ARAD::Arad_EventPeriodDataManager::delUserRewardData
+#include "Arad_InternalDispatcher.h"  // ARAD::DISPATCHER::make_internal_stream_jpn (ENUM_INTERNALPACKET_JPN)
+#include "CExpertJob.h"          // expert_job::CExpertJobMgr::OnLeaveUser
+#include "CHandlePremium.h"      // WongWork::CHandlePremium（handleReturn2CharacView）
 #include "CPowerManager.h"    // s_power_manager 完整类型（make_basic_info 排名查询）
 #include "AuctionProxy.h"    // CAuctionServerProxy/CCeraAuctionServerProxy 完整类型（IsRunning）
 #include "CDeathTowerRanking.h"
@@ -54,7 +68,8 @@
 #include "CQuestShop.h"          // set_grow_type 清 QP
 #include "Quest.h"               // Quest/MonsterKillItem（CheckQuestMonster）
 #include "CUserProc.h"           // APSystem::_ActionGroupIndex / CUserProc
-#include "HeroMissionEvent.h"     // ARAD::Singleton<HeroMissionEvent>
+#include "HeroMissionEvent.h"
+#include "ServiceRestrictManager.h"     // ARAD::Singleton<HeroMissionEvent>
 #include "EpollHandler.h"        // G_EpollHandler
 #include "MsgQueueMgr.h"         // s_msgq_mgr->put
 #include "CStreamGuard.h"                  // CStreamGuard（SendAradEventItemLog）
@@ -111,6 +126,8 @@ class CBattle_Field
 {
 public:
     int get_dungeon_index();
+    char m_pad[0x128];            // +0x00..+0x127
+    short m_villageMonsterId;     // +0x128（exceptedStateMoneyLog 读取，完整类 CBattle_Field.h:421）
 };
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
@@ -194,7 +211,6 @@ int CUser::AntibotSend(PacketBuf& packet)
     }
     return 1;
 }
-void Secu_AccountHacking::resetInfo() {}
 
 _Quest_Authen_Data::_Quest_Authen_Data() { memset(&m_characNo, 0, 0x48); }   // ORIG memset 0x48（覆盖尾部 m_field761c/d）
 void _Quest_Authen_Data::reset() { memset(&m_characNo, 0, 0x48); }
@@ -215,17 +231,17 @@ void CUser::_379::reset()
 
 void CUser::resetInformNoticeFlag()
 {
-    memset(&m_field8ebb1, 0, 1);
+    memset(&m_informNoticeFlag, 0, 1);
 }
 
 void CUser::disableSaveInformNoticeFlag()
 {
-    m_informNoticeFlag = 0;
+    m_saveInformNoticeFlag = 0;   // ORIG 0x868fa6c 写 +0x8ebc1
 }
 
 void CUser::enableSaveInformNoticeFlag()
 {
-    m_informNoticeFlag = 1;
+    m_saveInformNoticeFlag = 1;   // ORIG enableSave 写 +0x8ebc1
 }
 
 namespace WongWork
@@ -447,7 +463,7 @@ void PlayInfo::Reset()
 // ============================================================================
 
 CUser::CUser()
-    : m_field704a8(0), m_field79670(0), m_field796d8(0), m_field8cfc4(0)
+    : m_field704a8(0), m_field79670(0), m_field796d8(0), m_chState(0)
 {
     m_field8ec24 = 0;
     m_field8ec2c = 0;
@@ -482,7 +498,7 @@ CUser::CUser()
     m_rentalInfo.clear();
     m_field8cfcc = (UserSpace::T)0;
     m_codeHackCheck.m_field30 = 0;
-    m_field8d012 = 0xffff;
+    m_advanceAltarIdx = 0xffff;
     m_field8eba8 = 0;
     m_field8ebac = 0;
     m_field8ebb0 = 0;
@@ -498,8 +514,8 @@ CUser::~CUser()
 void CUser::reset()
 {
     ResetCurCharac();
-    m_field796cc = 0;
-    m_field796d0 = 0;
+    m_gmBossDifficulty = 0;
+    m_gmBossMapIndex = 0;
     m_field8cf00 = 0;
     m_field8ead8 = 0;
     m_premium.InitPremium();
@@ -541,13 +557,13 @@ void CUser::reset()
     m_codeHackCheck.m_field44 = 0;
     m_character.m_f44 = 0;
     m_field8cfc0 = 0xffffffff;
-    m_codeHackCheck.m_field46 = 0;
+    m_codeHackCheck.m_totalFatigueUsed = 0;
     m_levelupEvents.clear();
     m_characExpand.reset();
     m_premium.m_field98c = 0;
     m_limitItemUsage.clear();
     m_quest.m_field761c = 0;
-    m_field704ac = 0;
+    m_accId = 0;
     m_codeHackCheck.m_field59 = 0;
     m_accountCargo.Clear();
     m_codeHackCheck.m_field5c = 0;
@@ -566,8 +582,8 @@ void CUser::reset()
     reset_ingame_event_history();
     reset_ingame_event_history_update();
     m_mercenaryMgr.m_characs.clear();
-    m_network.m_padTail[0] = 0;
-    m_network.m_padTail[1] = 0xff;
+    m_field6ef68 = 0;
+    m_field6ef69 = 0xff;
     resetMoneyLog();
     m_expReward.m_field4 = 0;
     m_expReward.m_field5 = 0;
@@ -594,8 +610,8 @@ void CUser::ResetCurCharac()
     getBattleRecordRefW()->clear();
     m_list8cf80.clear();
     getDungeonClearRefW()->clear();
-    m_field796cc = 0;
-    m_field796d0 = 0;
+    m_gmBossDifficulty = 0;
+    m_gmBossMapIndex = 0;
     if (getCurCharacR() != 0)
     {
         ((CInventory*)getCurCharacInvenR())->GetAvatarItemMgrW()->Reset();
@@ -631,17 +647,17 @@ void CUser::ResetCurCharac()
     }
     setCurCharac(0);
     setTagCharac(0);
-    m_field8d002 = 0xffff;
+    m_tradeSpaceIdx = 0xffff;
     m_field8d004 = 0xffff;
-    m_field8d006 = 0xffff;
+    m_pvpRoomIdx = 0xffff;
     m_field8d008 = 0xffff;
     m_field8d00c = 0xffff;
     m_field8cfcc = (UserSpace::T)0;
     m_clientSpec.m_field5fc = 0;
-    m_network.m_padTail[0] = 0;
-    m_network.m_padTail[1] = 0xff;
+    m_field6ef68 = 0;
+    m_field6ef69 = 0xff;
     m_guildAgitDB.m_pad[2] = 0;
-    m_field8cf04 = 0xffffffff;
+    m_playingDungeonIdx = 0xffffffff;
     m_clientSpec.m_field608 = 0;
     m_codeHackCheck.m_field48 = 0;
     m_codeHackCheck.m_field4c = 0;
@@ -667,8 +683,8 @@ void CUser::ResetCurCharac()
 
 void CUser::reset_server_fatigue_data()
 {
-    m_field8eb4d = 0;
-    m_field8eb4c = 0;
+    m_serverFatigueDbType = 0;
+    m_serverFatigueValue = 0;
     m_map8eb50.clear();
 }
 
@@ -684,8 +700,8 @@ short CUser::get_server_fatigue_count(unsigned char type)
 // ORIG 0x0818d4c4：若当前疲劳 DB 类型(+0x8eb4d) == type 返回 (+0x8eb4c) 否则 0。
 int CUser::get_fatigue_count_db(int type)
 {
-    if ((unsigned char)m_field8eb4d == (unsigned char)type)
-        return (unsigned char)m_field8eb4c;
+    if ((unsigned char)m_serverFatigueDbType == (unsigned char)type)
+        return (unsigned char)m_serverFatigueValue;
     return 0;
 }
 
@@ -721,9 +737,9 @@ void* CUser::getHades()
 
 void* CUser::GetPVPRoom()
 {
-    if (m_field8d006 < 0)
+    if (m_pvpRoomIdx < 0)
         return 0;
-    return G_CGameManager()->GetPvp(m_field8d006, this, 0);
+    return G_CGameManager()->GetPvp(m_pvpRoomIdx, this, 0);
 }
 
 void* CUser::GetSecretShopData()
@@ -761,7 +777,7 @@ void CUser::resetMoneyLog()
 {
     for (int i = 0; i <= 6; ++i)
         m_moneyLogs[i].reset();
-    m_field796c8 = 0;
+    m_moneyLogIdx = 0;
 }
 
 void CUser::ResetDBLogItem()
@@ -948,13 +964,17 @@ struct CharacListElemView
     char m_job;                     // +0x026
     short m_level;                  // +0x027
     char m_field29;                 // +0x029
-    char m_pad2a[0x83 - 0x2a];
+    char m_pad2a[0x39 - 0x2a];
+    CommonTime m_createTime;        // +0x039（UpdateCharacView → long 写记录 +0x8c）
+    char m_pad4d[0x83 - 0x4d];
     char m_forbidPlayFlag;          // +0x083（禁玩标记；到期清零并投递 SIG_FORBID_USER_TO_PLAY）
     int m_forbidPlayLeftSec;        // +0x084（剩余秒）
     char m_pad88[0xda - 0x88];
     char m_inventory[0xe40 - 0xda]; // +0x0da 每角色 CInventory 子对象（MakeEquipList 接收者）
-    char m_fielde40;                // +0xe40
-    char m_pade41[0xe66 - 0xe41];
+    char m_fielde40;                // +0xe40（bit1 → 记录 flags bit4）
+    char m_pade41[0xe5d - 0xe41];
+    int m_fielde5d;                 // +0xe5d（UpdateCharacView 直拷记录 +0x90）
+    char m_pade61[0xe66 - 0xe61];
     unsigned char m_reenterable;    // +0xe66（now < expireSec → 1，随 viewState 写出）
     char m_pade67[0x1240 - 0xe67];
     unsigned char m_field1240;      // +0x1240
@@ -1449,7 +1469,7 @@ void CUser::send_equip(int slot)
     // 否则（slot<0xc 或 0x16）→ 广播 make_basic_info(type 0) 给全房间。
     if (slot >= 0xc && slot != 0x16)
         return;
-    int state = m_field8cfc4;   // +0x8cfc4（推断：角色状态）
+    int state = m_chState;   // +0x8cfc4（推断：角色状态）
     bool inState = (state == 0xc) || (state == 5) || (state == 8) || (state == 10);
     if (inState)
     {
@@ -1724,7 +1744,7 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
 // ---- 基础访问器（G1-3 桩替换） ----
 unsigned int CUser::get_acc_id() const
 {
-    return m_field704ac;
+    return m_accId;
 }
 
 const char* CUser::get_acc_name() const
@@ -1734,13 +1754,13 @@ const char* CUser::get_acc_name() const
 
 int CUser::get_state()
 {
-    return m_field8cfc4;
+    return m_chState;
 }
 
 void CUser::set_state(ch_state state)
 {
-    m_field8cfc4 = state;
-    if (m_field8cfc4 == 5)
+    m_chState = state;
+    if (m_chState == 5)
         ClearItemSellCount();
     if (getCurCharacR() != 0)
     {
@@ -1925,7 +1945,7 @@ void CUser::DecreaseGuildPowerWarPoint(unsigned int point)
 
 unsigned char CUser::is_fighting()
 {
-    int state = m_field8cfc4;
+    int state = m_chState;
     if ((unsigned)state > 10)
         return false;
     int bit = 1 << state;
@@ -1985,13 +2005,13 @@ int CUser::get_aura_avatar_option_value(int idx)
 void CUser::SetTradeSpace(int idx)
 {
     lock();
-    m_field8d002 = (short)idx;
+    m_tradeSpaceIdx = (short)idx;
     unlock();
 }
 
 bool CUser::CheckFatigue()
 {
-    if (m_field704ac == 0)
+    if (m_accId == 0)
         return true;
     return getCurCharacTotalFatigue() < getCurCharacTotalMaxFatigue();
 }
@@ -2170,12 +2190,12 @@ void CUser::setLastPacketID(int id)
 
 int CUser::getPlayingDungeonIndex()
 {
-    return m_field8cf04;
+    return m_playingDungeonIdx;
 }
 
 void CUser::setPlayingDungeonIndex(int index)
 {
-    m_field8cf04 = index;
+    m_playingDungeonIdx = index;
 }
 
 UserSpace::T CUser::getMoveSpace() const
@@ -2600,7 +2620,7 @@ void CUser::SendFatigue()
 
 bool CUser::CheckInTrade()
 {
-    return (~(unsigned short)m_field8d002 & 0x8000) != 0;
+    return (~(unsigned short)m_tradeSpaceIdx & 0x8000) != 0;
 }
 
 int CUser::isEnableAvatarSocketAction()
@@ -2646,17 +2666,17 @@ bool CUser::checkInDeathTower()
 
 bool CUser::checkInBossTower()
 {
-    return (~(unsigned short)m_field8d010 & 0x8000) != 0;
+    return (~(unsigned short)m_bossTowerIdx & 0x8000) != 0;
 }
 
 bool CUser::checkInAdvanceAltar() const
 {
-    return (~(unsigned short)m_field8d012 & 0x8000) != 0;
+    return (~(unsigned short)m_advanceAltarIdx & 0x8000) != 0;
 }
 
 short CUser::getAdvanceAltarIndex() const
 {
-    return (short)(unsigned short)m_field8d012;
+    return (short)(unsigned short)m_advanceAltarIdx;
 }
 
 unsigned short CUser::getBlueMarbleIndex()
@@ -2709,12 +2729,12 @@ int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
 
 short CUser::getBossTowerIndex()
 {
-    return (short)(unsigned short)m_field8d010;
+    return (short)(unsigned short)m_bossTowerIdx;
 }
 
 void CUser::setBossTowerIndex(short index)
 {
-    m_field8d010 = index;
+    m_bossTowerIdx = index;
 }
 
 short CUser::GetPartyIndex()
@@ -2724,12 +2744,12 @@ short CUser::GetPartyIndex()
 
 bool CUser::CheckInPvp()
 {
-    return (~(unsigned short)m_field8d006 & 0x8000) != 0;
+    return (~(unsigned short)m_pvpRoomIdx & 0x8000) != 0;
 }
 
 short CUser::GetPvpIndex()
 {
-    return (short)(unsigned short)m_field8d006;
+    return (short)(unsigned short)m_pvpRoomIdx;
 }
 
 short CUser::GetWarRoomIndex()
@@ -2739,7 +2759,7 @@ short CUser::GetWarRoomIndex()
 
 int CUser::GetTradeSpace()
 {
-    return (short)(unsigned short)m_field8d002;
+    return (short)(unsigned short)m_tradeSpaceIdx;
 }
 
 void CUser::SetPartyIndex(short index)
@@ -2798,7 +2818,7 @@ char CUser::get_direction()
 
 int CUser::GetUserState()
 {
-    int state = m_field8cfc4;
+    int state = m_chState;
     if (state > 3)
     {
         if (state == 5 || state == 10)
@@ -3004,7 +3024,7 @@ short CUser::getAccountMemberBonusFatigue()
 
 void CUser::resetAccountUsedFatigue()
 {
-    m_codeHackCheck.m_field46 = 0;
+    m_codeHackCheck.m_totalFatigueUsed = 0;
 }
 
 void CUser::incChattingMessageCount(int count)
@@ -3525,7 +3545,7 @@ void CUser::setPcRoomPlayStartTime(unsigned int time)
 
 unsigned char CUser::IsDeleteEventDungeonInvitation() const
 {
-    return m_field8eb20;
+    return m_deleteEventDungeonInvitation;
 }
 
 unsigned char CUser::IsUsedCoinInDungeon() const
@@ -3541,6 +3561,60 @@ void CUser::ResetCoinCount()
 int CUser::GetUsedCoinCount()
 {
     return m_field8eb1c;
+}
+
+// ORIG W 0x082604ec _ZNK5CUser21getCurCharacQuestRefR Ev（const）
+// 返回 m_quest（+0x858d4）引用指针；与 getCurCharacQuestR 同址、独立符号。
+UserQuest* CUser::getCurCharacQuestRefR() const
+{
+    return (UserQuest*)((char*)this + 0x858d4);
+}
+
+// ORIG W 0x0830edaa _ZN5CUser36getAddIndependentDropRateFromPremiumE17ENUM_PREMIUM_TYPEj
+// 转发 m_premium（+0x7121c）独立掉落率查询（参数直传，ORIG 无交换）。
+unsigned int CUser::getAddIndependentDropRateFromPremium(ENUM_PREMIUM_TYPE type, unsigned int level)
+{
+    return m_premium.GetAddIndependentDropRate(type, level);
+}
+
+// ORIG T 0x08689576 _ZN5CUser23EventDungeonClearRewardERKSt6vectorISt4pairIiiESaIS2_EE
+// 事件地下城清剿奖励发放：逐 (itemId,count)；find_item 失败直接结束；
+// 背包无该物品 → make_item 构造后 insertItemIntoInventory（reason 13，log=1，
+// stackable=false）；已有 → ItemAdd 日志 + 数量累加 update_item；
+// 成功落位后 SendUpdateItemList(1, 0, slot)。
+void CUser::EventDungeonClearReward(std::vector<std::pair<int, int> > const& items)
+{
+    const int count = items.size();
+    for (int i = 0; i < count; ++i)
+    {
+        int itemId = items[i].first;
+        int itemCnt = items[i].second;
+        CItem* data = G_CDataManager()->find_item(itemId);
+        if (data == NULL)
+            break;
+        Inven_Item item;
+        int slot = getCurCharacInvenR()->GetInvenData(itemId, item);
+        if (slot < 0)
+        {
+            data->make_item(item);
+            item.m_addInfo = itemId;
+            item.m_addInfo2 = itemCnt;
+            slot = getCurCharacInvenW()->insertItemIntoInventory(
+                item, eItemAddReason_0xd, true, false);
+        }
+        else
+        {
+            int addInfo = item.get_add_info();
+            m_historyLog.ItemAdd(INVEN_TYPE_EQUIP, itemCnt, addInfo, item,
+                                 eItemAddReason_0xd);
+            item.m_addInfo2 += itemCnt;
+            getCurCharacInvenW()->update_item(INVEN_TYPE_EQUIP, slot, item);
+        }
+        if (slot >= 0)
+        {
+            SendUpdateItemList(eSendTarget_1, ENUM_ITEMSPACE_0, slot);
+        }
+    }
 }
 
 void CUser::set_trick_area(int area)
@@ -4087,7 +4161,7 @@ int CUser::GetCurCharacUsedFatigueQuantity()
 
 bool CUser::isHumanCertified()
 {
-    return *(unsigned char*)((char*)m_pad8e100) != 0;
+    return m_humanCertified;
 }
 
 bool CUser::isLoadingHackGold()
@@ -4280,12 +4354,359 @@ bool CUser::isCleanPadVerifyLimit()
 
 void CUser::resetTotalPcRoomPlayTime()
 {
-    *(int*)((char*)m_pad8eba0) = 0;
+    m_totalPcRoomPlayTime = 0;
 }
 
 void CUser::ResetCurCharacUsedFatigueQuantity()
 {
     *(int*)((char*)&m_field8eba8) = 0;
+}
+
+// ORIG _ZN5CUser24set_server_fatigue_countEs T 0x0868d32a：按当日
+// get_today_time_day 在 m_map8eb50 累加，无表项则插入。
+void CUser::set_server_fatigue_count(short v)
+{
+    unsigned char todayDay =
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())
+            ->get_today_time_day();
+    std::map<unsigned char, short>::iterator it = m_map8eb50.find(todayDay);
+    if (it != m_map8eb50.end())
+    {
+        it->second = static_cast<short>(it->second + v);
+    }
+    else
+    {
+        m_map8eb50.insert(std::make_pair(todayDay, v));
+    }
+}
+
+// ORIG _ZN5CUser31IncCurCharacUsedFatigueQuantityEj W 0x08110e1e：m_field8eba8 += n。
+void CUser::IncCurCharacUsedFatigueQuantity(unsigned int n)
+{
+    m_field8eba8 = m_field8eba8 + n;
+}
+
+// ORIG _ZN5CUser35IncCurCharacUsedGiftFatigueQuantityEj W 0x08110e3a：m_field8ebac += n。
+void CUser::IncCurCharacUsedGiftFatigueQuantity(unsigned int n)
+{
+    m_field8ebac = m_field8ebac + n;
+}
+
+// ORIG _ZN5CUser27ProcProperLevelDungeonClearEv T 0x0868f5fa（0x13 字节）：单行转发。
+void CUser::ProcProperLevelDungeonClear()
+{
+    GiveMeBoxReward();
+}
+
+// ORIG _ZN5CUser15GiveMeBoxRewardEv T 0x08693758：单行转发 DB 请求。
+void CUser::GiveMeBoxReward()
+{
+    DBInsertGiveBoxEventReward::makeRequest(this);
+}
+
+// ORIG _ZN5CUser18SetTradePunishTypeEi T 0x08689890：printf 日志后
+// m_codeHackCheck.m_tradePunishType |= type。
+void CUser::SetTradePunishType(int type)
+{
+    printf("CUser::SetTradePunishType(%d) \n", type);
+    m_codeHackCheck.m_tradePunishType =
+        m_codeHackCheck.m_tradePunishType | type;
+}
+
+// ORIG _ZN5CUser10SetMileageEi T 0x086509c6：LogHistory 记录新旧值后写 m_mileage。
+void CUser::SetMileage(int mileage)
+{
+    LogHistory("Mileage %s,%d,%d,%d", "Set", mileage, m_mileage, mileage);
+    m_mileage = mileage;
+}
+
+// ORIG _ZN5CUser12AddMoneyPlusEi T 0x0868f266：当日滚窗 m_money[0]+=value，m_money[2]=now。
+void CUser::AddMoneyPlus(int value)
+{
+    if (exceptedStateMoneyLog())
+    {
+        return;
+    }
+    const int now = GlobalData::s_systemTime_.getCurSec();
+    NextCharacMoneyLog(now);
+    m_moneyLogs[m_moneyLogIdx].m_money[2] = now;
+    m_moneyLogs[m_moneyLogIdx].m_money[0] += value;
+}
+
+// ORIG _ZN5CUser13AddMoneyMinusEi T 0x0868f310：当日滚窗 m_money[1]+=value，m_money[2]=now。
+void CUser::AddMoneyMinus(int value)
+{
+    if (exceptedStateMoneyLog())
+    {
+        return;
+    }
+    const int now = GlobalData::s_systemTime_.getCurSec();
+    NextCharacMoneyLog(now);
+    m_moneyLogs[m_moneyLogIdx].m_money[2] = now;
+    m_moneyLogs[m_moneyLogIdx].m_money[1] += value;
+}
+
+// ORIG _ZN5CUser18NextCharacMoneyLogEi T 0x0868f1c0：当前槽含时间且与
+// 传入时刻不同日 → 槽推进（钳 6）。
+void CUser::NextCharacMoneyLog(int now)
+{
+    if (m_moneyLogs[m_moneyLogIdx].m_money[2] != 0)
+    {
+        struct tm currentTm;
+        struct tm oldTm;
+        const time_t current = now;
+        const time_t old = m_moneyLogs[m_moneyLogIdx].m_money[2];
+        localtime_r(&current, &currentTm);
+        localtime_r(&old, &oldTm);
+        if (currentTm.tm_yday != oldTm.tm_yday)
+        {
+            m_moneyLogIdx = m_moneyLogIdx + 1;
+            if (m_moneyLogIdx > 6)
+            {
+                m_moneyLogIdx = 6;
+            }
+        }
+    }
+}
+
+// ORIG _ZN5CUser21exceptedStateMoneyLogEv T 0x0868f3ba：组队村庄怪标记/搬运副本/
+// 状态 8/村庄 7 任一命中 → 跳过货币滚窗。
+bool CUser::exceptedStateMoneyLog()
+{
+    CParty* party = static_cast<CParty*>(GetParty());
+    if (party != 0)
+    {
+        CBattle_Field& bf =
+            *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+        if (bf.m_villageMonsterId != 0)
+        {
+            return true;
+        }
+        if (party->m_dungeon != 0 && party->m_dungeon->m_89e != 0)
+        {
+            return true;
+        }
+    }
+    if (get_state() == 8)
+    {
+        return true;
+    }
+    if (getCurCharacVill() == 7)
+    {
+        return true;
+    }
+    return false;
+}
+
+// ORIG _ZN5CUser11UseWinPointEi12eWPSubReason T 0x0864fcc6：底层扣减 + WPSub 日志。
+int CUser::UseWinPoint(int winPoint, eWPSubReason reason)
+{
+    useWinPoint(winPoint, reason);
+    if (winPoint != 0)
+    {
+        m_historyLog.WPSub(getPVPResultR()->m_winPoint, winPoint, reason);
+    }
+    return getPVPResultR()->m_winPoint;
+}
+
+// ORIG _ZN5CUser17AddSecuRewardItemEh T 0x08688328（0x14 字节）：仅参数存
+// 未使用局部（ORIG 即空操作）。
+void CUser::AddSecuRewardItem(unsigned char rewardType)
+{
+    unsigned char local = rewardType;   // ORIG mov %al,-0xa4(%ebp) 后直接返回
+    (void)local;
+}
+
+// ORIG _ZN5CUser24GenerateCleanPadVeriDataERtRhS0_ T 0x08649ac4：生成三段
+// CleanPad 验证种子（ushort randInt(0xffff)+1 / uchar randInt(6) /
+// ushort randInt(0xffff)+1）存 m_mcap 并回填出参。
+void CUser::GenerateCleanPadVeriData(unsigned short& outA, unsigned char& outB,
+                                     unsigned short& outC)
+{
+    m_mcap.m_cleanPadVeriA =
+        static_cast<unsigned short>(get_rand_int(0xffff) + 1);
+    m_mcap.m_cleanPadVeriB = static_cast<unsigned char>(get_rand_int(6));
+    m_mcap.m_cleanPadVeriC =
+        static_cast<unsigned short>(get_rand_int(0xffff) + 1);
+    outA = m_mcap.m_cleanPadVeriA;
+    outB = m_mcap.m_cleanPadVeriB;
+    outC = m_mcap.m_cleanPadVeriC;
+}
+
+// ORIG _ZN5CUser15reqHumanCertifyEv T 0x0867f26e（0x252 字节）：未认证时发起
+// CleanPad 人工认证——记日志/暴露计数、从验证队列随机取一条填 0x7d 包
+// （byte 5 + int + binary + 认证种子三段 + 错误计数 + 0），发送后记 tick。
+bool CUser::reqHumanCertify()
+{
+    if (!isHumanCertified())
+    {
+        return false;
+    }
+    const unsigned int point = m_mcap.getPoint();
+    m_historyLog.RequestCleanPad(static_cast<unsigned int>(point), 0);
+    m_mcap.incExposedCount();
+    if (GlobalData::s_capchaDataManager.isEmpty())
+    {
+        return false;
+    }
+    MSG_UDP_CAPCHA_CERTIFY* msg = GlobalData::s_capchaDataManager.peekData();
+    memcpy(m_capchaCertify, msg, 0xa);
+
+    PacketGuard pg;
+    pg.put_header(0, 0x7d);
+    pg.put_byte(5);
+    pg.put_int(msg->m_size);
+    pg.put_binary(reinterpret_cast<const char*>(msg->m_image), msg->m_size);
+    pg.put_byte(m_mcap.getPoint() > 0x251b ? 1 : 0);
+
+    unsigned short veriA = 0;
+    unsigned char veriB = 0;
+    unsigned short veriC = 0;
+    GenerateCleanPadVeriData(veriA, veriB, veriC);
+    pg.put_short(veriA);
+    pg.put_byte(veriB);
+    pg.put_short(veriC);
+    pg.put_byte(m_humanCertifyErrorCnt);
+    pg.put_byte(0);
+    pg.finalize(true);
+    Send(pg);
+    m_mcap.m_capchaReqTick = GlobalData::s_systemTime_.getCurTickCount();
+    return true;
+}
+
+// ORIG _ZN5CUser22sendNotiPcRoomPlayTimeEv T 0x0868f83c：包 0x1a8（网吧时长通知）。
+void CUser::sendNotiPcRoomPlayTime()
+{
+    PacketGuard pg;
+    pg.put_header(0, 0x1a8);
+    pg.put_int(getTotalPcRoomPlayTime());
+    pg.finalize(true);
+    Send(pg);
+}
+
+// ORIG _ZN5CUser12SendCashDataEb T 0x0865082a：包 0x35（商城货币数据；
+// flag=1 时全 0，否则 Cera/Mileage/CeraPoint）。
+void CUser::SendCashData(bool flag)
+{
+    PacketGuard pg;
+    pg.put_header(0, 0x35);
+    pg.put_byte(1);
+    if (flag)
+    {
+        pg.put_int(0);
+        pg.put_int(0);
+        pg.put_int(0);
+    }
+    else
+    {
+        pg.put_int(GetCera());
+        pg.put_int(GetMileage());
+        pg.put_int(GetCeraPoint());
+    }
+    pg.finalize(true);
+    Send(pg);
+}
+
+// ORIG _ZN5CUser15recover_staminaEv T 0x0865784e：满体力外每分钟恢复
+// （+9，钳 100）并回发包 0x4。
+void CUser::recover_stamina()
+{
+    if (m_chState <= 2)
+    {
+        return;
+    }
+    if (m_chState == 5)
+    {
+        return;
+    }
+    if (getCurCharacR()->m_stamina <= 0x63)
+    {
+        addCurcharacStamina(9);
+        if (getCurCharacR()->m_stamina > 0x64)
+        {
+            setCurCharacStamina(0x64);
+        }
+        PacketGuard pg;
+        pg.put_header(0, 0x4);
+        pg.put_byte(getCurCharacR()->m_stamina);
+        pg.finalize(true);
+        Send(pg);
+    }
+}
+
+// ORIG _ZN5CUser13WorkPerTenMinEv T 0x08653196：无角色时 trace；有激活角色
+// 则向监视代理上报角色在线（characNo）。
+void CUser::WorkPerTenMin()
+{
+    if (m_chState <= 2)
+    {
+        return;
+    }
+    if (getCurCharacR() == 0)
+    {
+        cMyTrace trace("CUser::WorkPerTenMin()", 0x1d71, 5);
+        trace("WorkPerTenMin() m_id(%s) character - m_selected is null..",
+              NumberToString(get_acc_id(), 0));
+        return;
+    }
+    if (get_charac_memberkey() != 0)
+    {
+        GlobalData::s_monitor_proxy_mgr
+            ->GetServerProxy(GetServerGroup())
+            ->SendNoticeCharLive(getCurCharacNo());
+    }
+}
+
+// ORIG _ZN5CUser14WorkPerFiveMinEv T 0x08652f0c：五/十分钟公会上报族
+// （一般经验与今日经验两段同构）；无角色时 trace 返回。
+void CUser::WorkPerFiveMin()
+{
+    if (m_chState <= 2)
+    {
+        return;
+    }
+    if (getCurCharacR() == 0)
+    {
+        cMyTrace trace("CUser::WorkPerFiveMin()", 0x1d24, 5);
+        trace("WorkPerFiveMin() m_id(%s) character - m_selected is null..",
+              NumberToString(get_acc_id(), 0));
+        return;
+    }
+    if (get_guild_exp() != 0)
+    {
+        Packet_Monitor_Increase_Guild_Exp packet;
+        packet.m_charNo = getCurCharacNo();
+        packet.m_guildKey = get_charac_guildkey();
+        packet.m_addExp = get_guild_exp();
+        packet.m_notify = m_field796d9;
+        packet.m_expType = 0;
+        m_historyLog.GuildAddExp(get_charac_guildkey(),
+                                 static_cast<const char*>(GetGuildDBInfo()),
+                                 getCurCharacNo(), get_guild_exp());
+        GlobalData::s_guild_proxy_mgr
+            ->GetServerProxy(GetServerGroup())
+            ->SendPacket(reinterpret_cast<char*>(&packet), 0x1c);
+        m_field796d9 = 0;
+        reset_guild_exp();
+    }
+    if (get_guild_today_exp() != 0)
+    {
+        Packet_Monitor_Increase_Guild_Exp packet;
+        packet.m_charNo = getCurCharacNo();
+        packet.m_guildKey = get_charac_guildkey();
+        packet.m_addExp = get_guild_today_exp();
+        packet.m_notify = m_field796d9;
+        packet.m_expType = 2;
+        m_historyLog.GuildAddExp(get_charac_guildkey(),
+                                 static_cast<const char*>(GetGuildDBInfo()),
+                                 getCurCharacNo(), get_guild_today_exp());
+        GlobalData::s_guild_proxy_mgr
+            ->GetServerProxy(GetServerGroup())
+            ->SendPacket(reinterpret_cast<char*>(&packet), 0x1c);
+        m_field796d9 = 0;
+        reset_guild_today_exp();
+    }
 }
 
 int CUser::get_server_fatigue_day_size()
@@ -4310,12 +4731,12 @@ void CUser::SetNonClientFlag(bool flag)
 
 void CUser::setHumanCertified(bool flag)
 {
-    *(unsigned char*)((char*)m_pad8e100) = flag ? 1 : 0;
+    m_humanCertified = flag ? 1 : 0;
 }
 
 void CUser::incTradeCount()
 {
-    *(int*)((char*)&m_pad8d0fd[0xf]) = *(int*)((char*)&m_pad8d0fd[0xf]) + 1;
+    m_tradeCount = m_tradeCount + 1;
 }
 
 float CUser::GetRating()
@@ -4649,15 +5070,15 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     // socket<0 或 state==0 仅 trace 返回；非 ProgLogout 时按 sig==5 重映射
     // 0x30/0x31/0x32，sig∉{6,0x30..0x32} 先发包 199(int sig)，ResetEpoll 后
     // 组流(<<1<<uid) 投递队列 1。深水区统计上报见报告（推断，暂略）。
-    Mutex& mtx = *(Mutex*)((char*)this + 0x8cfa0);   // 推断：连接互斥量
+    Mutex& mtx = m_mutex2;   // ORIG this+0x8cfa0 实证
     mtx.lock();
 
     // 推断：ORIG 经 ARAD::Singleton<Arad_DataManager>::findGameScript 取
     // Arad_EventPeriodDataManager 并 delUserRewardData(this)；该 Singleton 特化
     // 未实例化，留待 ARAD 域批次。
 
-    int sock = *(int*)((char*)this + 0xe0);   // 推断：CNetwork socket 字段
-    int chState = m_field8cfc4;
+    int sock = m_network.m_sock;   // ORIG this+0xe0 实证
+    int chState = m_chState;
     if (sock < 0 || chState == 0)
     {
         mtx.unlock();
@@ -4668,8 +5089,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     {
         SetProgLogout();
         char ip[16];
-        bool haveIp = ((CNetwork<4096, 450000>*)((char*)this + 0xe0))
-                          ->GetPeerIP2(ip, 0x10) != 0;
+        bool haveIp = m_network.GetPeerIP2(ip, 0x10) != 0;
         (void)haveIp;
         int reason = (int)sig;
         if (reason == 5)
@@ -5124,7 +5544,7 @@ void CUser::SendChattingEmoticon()
 // 各 isSaveXxx 脏块经 StreamPool+CStreamGuard 组包投递队列 2 后 disable。
 void CUser::UpdateData()
 {
-    if (m_field8cfc4 <= 2)
+    if (m_chState <= 2)
         return;
     if (G_GameWorld()->GetChannelType() == 7)
         return;
@@ -5311,8 +5731,9 @@ void CUser::UpdateLogout(bool param)
         *(int*)(sig + 0x13) =
             (int)(now - *(long*)((char*)this + 0x71ba4));   // 推断：登录时刻
         *(unsigned int*)(sig + 0x17) = *(unsigned int*)((char*)this + 0x8d10c);
-        *(unsigned int*)(sig + 0x1b) = *(unsigned int*)((char*)this + 0x703a4);
-        *(unsigned short*)(sig + 0x1f) = *(unsigned short*)((char*)this + 0x79642);
+        *(unsigned int*)(sig + 0x1b) = m_gameOption.m_playExpAdd;   // ORIG this+0x703a4 = m_gameOption+0x640
+        *(unsigned short*)(sig + 0x1f) =
+            (unsigned short)m_codeHackCheck.m_totalFatigueUsed;   // ORIG this+0x79642 实证
         *(unsigned char*)(sig + 0x21) = GetPuUser();
         SetUserManagerToolIP(this, reinterpret_cast<SIG_UPDATE_LOGOUT*>(sig));  // ORIG 0x865569e 实证传结构基址
 
@@ -5416,7 +5837,7 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
     _deleteSpecificItemTitieBook(list);
 
     WongWork::CMailBox* mailBox =
-        *(WongWork::CMailBox**)((char*)this + 0x71b98);   // 推断：邮箱成员
+        (WongWork::CMailBox*)m_premium.m_mailBox;   // ORIG this+0x71b98 实证
     if (mailBox != 0)
     {
         std::vector<std::pair<int, int> > mailDel;
@@ -5532,15 +5953,215 @@ void CUser::setLinkCharacDisconnectFlag(bool flag)
     *(unsigned char*)((char*)&m_breakAway.m_pad14[1]) = flag ? 1 : 0;
 }
 
-// 0x08651740（TSV：地址空缺，以类报告为准）
-// ORIG：GameWorld::GetChannelType()!=7 且 CCharacterView::isSaveCharacView() 时，
-// 经 StreamPool 分配 Stream，写 SIG_UPDATE_CHARAC_VIEW（0x14d8 字节，首字段 acc_id、
-// +0x14d4=serverGroup），逐 _Charac_info 填充 {acc_id, name, …} 各可见字段，
-// 调 updateCharacViewVisibleData 后经 MsgQueueMgr::put 投递并 disableSaveCharacView()。
-// 依赖 Stream/StreamPool/CStreamGuard/SIG_UPDATE_CHARAC_VIEW/updateCharacViewVisibleData
-// 等未建模链路，提供可链接的签名匹配骨架（推断）。
+// ---- UpdateCharacView 链（报告 docs/class_func_reports/CUser/UpdateCharacView.md、
+// updateCharacViewVisibleData.md、checkRentedItem.md；ORIG 0x8651740/0x8651322/0x8677188）----
+
+// _Charac_info avatar 装备槽源视图（位于每角色 CInventory 子对象内部；
+// updateCharacViewVisibleData 循环 1/2 按 info + i*0x3d + 0xf6 寻址）。
+struct AvatarSlotSrcView
+{
+    char m_pad0[2];
+    int m_itemIndex;                    // +0x02（非 0 才处理）
+    char m_pad6;
+    int m_expansionKey;                 // +0x07（GetExpansionInfo 键）
+};
+
+// 当前角色不匹配时的可见缓存源槽（info + k*8 + 0x75e，12 槽直拷）。
+struct VisibleCacheSlotSrcView
+{
+    int m_itemIndex;
+    short m_fieldA;
+    short m_fieldB;
+};
+
+// SIG_UPDATE_CHARAC_VIEW 单记录视图（stride 0x94）：首槽 rec[0] 头 = acc_id，
+// rec[i>0] 头 ← 前一角色 _Charac_info+0x12ad；数据体 CHARAC_LOGIN_DATA(0x90)。
+// FindRentalInfoByItemIndex：ORIG 局部仿函数（W 0x8697d2c/0x8697d3a），按
+// RentalInfo.m_itemIndex 匹配。
+struct FindRentalInfoByItemIndex
+{
+    explicit FindRentalInfoByItemIndex(int itemIndex) : m_itemIndex(itemIndex) {}
+    bool operator()(const InstanceRentalSystem::RentalInfo& info) const
+    {
+        return info.m_itemIndex == m_itemIndex;
+    }
+
+    int m_itemIndex;
+};
+
+struct SigUpdateCharacViewRecord
+{
+    int m_headField;                    // +0x00（rec[0]=acc_id；rec[i>0]←前一角色 expireSec）
+    CHARAC_LOGIN_DATA m_data;           // +0x04（0x90）
+};
+typedef char sig_charac_view_rec_size_ok[(sizeof(SigUpdateCharacViewRecord) == 0x94) ? 1 : -1];
+
+// ORIG T 0x08677188：在 m_rentalInfo[param] 视图中查找 characNo 的租借记录里
+// 是否存在 itemIndex 匹配项。
+bool CUser::checkRentedItem(unsigned int characNo, int itemIndex, int param)
+{
+    std::map<unsigned int,
+             std::vector<InstanceRentalSystem::RentalInfo> > rentalMap;
+    GetInstanceRentalInfo(rentalMap, param);
+
+    std::map<unsigned int,
+             std::vector<InstanceRentalSystem::RentalInfo> >::const_iterator it =
+        rentalMap.find(characNo);
+    if (it == rentalMap.end())
+        return false;
+
+    const std::vector<InstanceRentalSystem::RentalInfo>& infos = it->second;
+    return std::find_if(infos.begin(), infos.end(),
+                        FindRentalInfoByItemIndex(itemIndex)) != infos.end();
+}
+
+// ORIG T 0x08651322：填充单角色的可见数据区（avatar 外观槽 / 租赁槽 /
+// 非当前角色缓存直拷 / 改名状态）。
+void CUser::updateCharacViewVisibleData(const _Charac_info& info,
+                                        struct CHARAC_LOGIN_DATA& data)
+{
+    memset(data.m_avatarSlots, 0, 0x60);
+
+    const CharacListElemView& view =
+        reinterpret_cast<const CharacListElemView&>(info);
+    bool isCurCharac =
+        getCurCharacR() != 0 &&
+        getCurCharacR()->m_characNo == view.m_characNo;
+
+    if (isCurCharac)
+    {
+        data.m_renameOrViewState = (unsigned char)getRequestRenameState();
+
+        // 槽 0..8：avatar 装备槽（有物品且扩展信息存在时写索引/颜色对）。
+        for (int i = 0; i < 9; ++i)
+        {
+            const AvatarSlotSrcView& slot =
+                *reinterpret_cast<const AvatarSlotSrcView*>(
+                    reinterpret_cast<const char*>(&info) + i * 0x3d + 0xf6);
+            if (slot.m_itemIndex == 0)
+                continue;
+
+            CInventory* inven =
+                reinterpret_cast<CInventory*>(
+                    reinterpret_cast<char*>(const_cast<_Charac_info*>(&info)) +
+                    0xda);
+            const void* expansion =
+                inven->GetAvatarItemMgrR()->GetExpansionInfo(slot.m_expansionKey);
+            if (expansion == 0)
+                continue;
+
+            if (inven->GetClearAvatar(i) != 0)
+                data.m_avatarSlots[i].m_itemIndex = inven->GetClearAvatar(i);
+            else
+                data.m_avatarSlots[i].m_itemIndex = slot.m_itemIndex;
+            data.m_avatarSlots[i].m_expansionA =
+                *static_cast<const short*>(expansion);
+            data.m_avatarSlots[i].m_expansionB =
+                *(static_cast<const short*>(expansion) + 1);
+        }
+
+        // 槽 9..11：租赁位（任一租期类型命中则整槽清零，否则仅写索引）。
+        for (int i = 9; i < 12; ++i)
+        {
+            const AvatarSlotSrcView& slot =
+                *reinterpret_cast<const AvatarSlotSrcView*>(
+                    reinterpret_cast<const char*>(&info) + i * 0x3d + 0xf6);
+            unsigned int characNo = (unsigned int)view.m_characNo;
+            bool rented = checkRentedItem(characNo, slot.m_itemIndex, 1) ||
+                          checkRentedItem(characNo, slot.m_itemIndex, 2);
+            if (rented)
+            {
+                memset(&data.m_avatarSlots[i], 0, sizeof(data.m_avatarSlots[i]));
+            }
+            else
+            {
+                data.m_avatarSlots[i].m_itemIndex = slot.m_itemIndex;
+                data.m_avatarSlots[i].m_expansionA = 0;
+                data.m_avatarSlots[i].m_expansionB = 0;
+            }
+        }
+    }
+    else
+    {
+        // 非当前角色：从可见缓存表（info + k*8 + 0x75e）12 槽直拷。
+        for (int k = 0; k < 12; ++k)
+        {
+            const VisibleCacheSlotSrcView& src =
+                *reinterpret_cast<const VisibleCacheSlotSrcView*>(
+                    reinterpret_cast<const char*>(&info) + k * 8 + 0x75e);
+            data.m_avatarSlots[k].m_itemIndex = src.m_itemIndex;
+            data.m_avatarSlots[k].m_expansionA = src.m_fieldA;
+            data.m_avatarSlots[k].m_expansionB = src.m_fieldB;
+        }
+        data.m_renameOrViewState = (unsigned char)view.m_viewState;
+    }
+}
+
+// ORIG T 0x08651740：角色视图变化落库包。频道 !=7 且 isSaveCharacView() 时组
+// SIG_UPDATE_CHARAC_VIEW（header 6 + UID），memset 全块后逐 _Charac_info 填
+// 记录（stride 0x94）并调 updateCharacViewVisibleData，投递 DB_Q 后清保存标志。
 void CUser::UpdateCharacView()
 {
+    if (G_GameWorld()->GetChannelType() == 7)
+        return;
+    if (!m_characterView.isSaveCharacView())
+        return;
+
+    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1b1f);
+    CStreamGuard guard(stream, true);
+
+    guard << (int)6;
+    guard << (int)GetUID();
+
+    SIG_UPDATE_CHARAC_VIEW* sig = guard.GetInBuffer<SIG_UPDATE_CHARAC_VIEW>();
+    memset(sig, 0, 0x14d8);
+
+    *(unsigned char*)((char*)sig + 0x14d4) =
+        (unsigned char)GetServerGroup();
+    *(unsigned int*)((char*)sig + 0) = get_acc_id();
+
+    SigUpdateCharacViewRecord* recs =
+        reinterpret_cast<SigUpdateCharacViewRecord*>(sig);
+
+    int recIdx = 0;
+    for (std::vector<_Charac_info>::iterator it = m_characList.begin();
+         it != m_characList.end(); ++it)
+    {
+        const CharacListElemView& view =
+            reinterpret_cast<const CharacListElemView&>(*it);
+        SigUpdateCharacViewRecord& rec = recs[recIdx];
+
+        rec.m_data.m_characNo = it->m_characNo;
+        strncpy(rec.m_data.m_name, it->m_name, 0x1e);
+        rec.m_data.m_job = (unsigned char)it->m_field26;
+        rec.m_data.m_field19 = (unsigned char)it->m_field29;
+        rec.m_data.m_level = it->m_level;
+
+        updateCharacViewVisibleData(*it, rec.m_data);
+
+        rec.m_data.m_lastPlayTime = (long)view.m_createTime;
+        rec.m_data.m_field8c = view.m_fielde5d;
+
+        // bit0 ← 禁玩标记（info+0x1240 非零）。
+        unsigned int flagBit0 = (view.m_field1240 != 0) ? 1u : 0u;
+        rec.m_data.m_flags =
+            (unsigned char)(((unsigned int)rec.m_data.m_flags & 0xfeu) | flagBit0);
+
+        rec.m_data.m_field1d = it->m_field14b7;
+        rec.m_data.m_field1e = it->m_field14b8;
+
+        // bit4 ← info+0xe40 的 bit1（ORIG shl $6 / sar $7 取位）。
+        unsigned int flagBit4 =
+            ((((unsigned int)(unsigned char)view.m_fielde40 << 6) >> 7) & 1u) << 4;
+        rec.m_data.m_flags =
+            (unsigned char)(((unsigned int)rec.m_data.m_flags & 0xefu) | flagBit4);
+
+        recs[recIdx + 1].m_headField = view.m_expireSec;
+
+        ++recIdx;
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     m_characterView.disableSaveCharacView();
 }
 
@@ -5581,8 +6202,8 @@ void CUser::log_out()
     set_multiboxLotteryItemFailCnt(0);
     GlobalData::s_pGMAccounts_->removeGM(get_acc_id(), 0);
     m_field796f8 = 0;
-    m_field8cfc4 = 0;
-    m_field704ac = 0;
+    m_chState = 0;
+    m_accId = 0;
     CUserGlobalInfoHandleInstance()->reset_uniqueid_flag(m_field704a8);
     m_field704a8 = 0;
     SetSlotIDX(0);
@@ -5606,7 +6227,7 @@ void CUser::prepareDisconnect()
     {
         setHumanCertified(true);
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x3b9, 1, 0, 0);
-        *(int*)((char*)this + 0x8e0fc) += 1;   // 推断：SSO 强制保存计数
+        m_humanCertifyErrorCnt += 1;   // ORIG this+0x8e0fc 实证：SSO 强制保存计数
         // 推断：DB_ForceSaveSimpleSSO::makeRequest(accId, cnt) 待 DB 域接线。
     }
     // 推断：trace "[Taiwan, Antibot] Delete client. (sequence:%d, mid:%u)"
@@ -5876,7 +6497,7 @@ void CUser::FatigueUp(int v)
             *(int*)((char*)this + 0x8e064) += v;   // 推断：混沌疲劳累计
         }
     }
-    m_field8e08c = v;
+    m_fatigueGain = v;
     incCurCharacUsedFatigue((unsigned short)v);
     if ((short)(prevFatigue + (unsigned short)v) % 20 == 0)
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x263, 1, 0, 0);
@@ -5910,7 +6531,8 @@ void CUser::FatigueUp(int v)
     // 依赖未建模，待事件域批次接线。
 
     // ARAD::Singleton<AvatarRechargeServer>::CalcDurability(this,v) 待特化实例化（推断）
-    *(short*)((char*)this + 0x79642) = *(short*)((char*)this + 0x79642) + (short)v;
+    m_codeHackCheck.m_totalFatigueUsed =
+        (short)(m_codeHackCheck.m_totalFatigueUsed + (short)v);   // ORIG this+0x79642 实证
     if (get_charac_level() != 0)
     {
         // 推断：GuildParameterScript::getGuildExpWeight(G_CDataManager()+0xa50c)
@@ -6926,9 +7548,56 @@ void CUser::processDelDailyItem()
     }
 }
 
-// 0x086802b8
+// 0x086802b8（reqHumanCertify4ClearMap.md 反编译全文转写）：
+// flag 为真时按 mcap 点数概率（get_rand_int(10000) < point）触发；点数 ≥100.0
+// 时按 (100-point/100) 与 0 取大降 stdDropRate（ServiceRestrict(3,1) 受限时）
+// 并 DB_SaveUserHandicap 上报（DB 域待接线，暂略）；随后 reqHumanCertify()
+// 通过则取消人证并 InsertTimer(0,uid,9,0x3c,key++,−1)。
 void CUser::reqHumanCertify4ClearMap(bool flag)
 {
+    bool forceCertify;
+    if (flag)
+    {
+        forceCertify = get_rand_int(0x2710) < m_mcap.getPoint();
+    }
+    else
+    {
+        forceCertify = true;
+    }
+    if (!forceCertify)
+        return;
+
+    unsigned int point = m_mcap.getPoint();
+    if ((double)point >= 100.0)
+    {
+        int rate = std::max(100 - (int)(point / 100), 0);
+        if (rate < getStdDropRate())
+        {
+            {
+                ServiceRestrictManager* srm =
+                    ARAD::Singleton<ServiceRestrictManager>::Get();
+                if (srm != 0 && srm->isRestricted(RestrictCategory::Enum_3, 1))
+            {
+                setStdDropRate(rate);
+                int nowRate = getStdDropRate();
+                // 推断：DB_SaveUserHandicap::makeRequest(accId,0x9c41,0x65,
+                //   nowRate,1,0) 待 DB 域建模后接线。
+                (void)nowRate;
+                }
+            }
+        }
+    }
+
+    if (reqHumanCertify())
+    {
+        setHumanCertified(false);
+        if (0x7ffffffe < m_humanCertifyTimerKey)
+            m_humanCertifyTimerKey = 0;
+        m_humanCertifyTimerKey += 1;
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, GetUID(),
+                                    (TIMER_MESSAGE)9, 0x3c,
+                                    m_humanCertifyTimerKey, (unsigned int)-1);
+    }
 }
 
 // （ORIG 末尾区；GameStubs 原定义）
@@ -7012,11 +7681,23 @@ void CUser::ProcPremiumFatigue()
     setCurCharacMaxPremiumFatigue(
         static_cast<unsigned short>(maxPremiumFatigue));
 }
+// ORIG T 0x0868866e（报告 docs/class_func_reports/CUser/isSecurityServiceUsed.md）：
+// 安全键盘激活 或 安全卡激活 或 secuGrade(+0x8e97f) 非零 → 已启用安全服务。
+bool CUser::isSecurityServiceUsed()
+{
+    if (getPad()->isActivate())
+        return true;
+    if (getSecurityCard()->isActivate())
+        return true;
+    return m_hades.m_secuGrade != 0;
 
-// 0x0867cd20（原 GameStubs 桩，保持符号；premium 状态查询后续细化）
+}
+
+// ORIG W 0x0863bea2：return m_premium(+0x7121c).GetTotalPremiumCount() != 0
+// （scout 报告误关联 0x867cd20 = _UpdateUserInfo4Guild，已按真实符号核实）。
 bool CUser::IsPremiumUser() const
 {
-    return false;
+    return m_premium.GetTotalPremiumCount() != 0;
 }
 
 // ============================================================================
@@ -7743,11 +8424,11 @@ void CUser::GetCharacCashAttendanceInfo(SIG_ATTENDANCE_EVENT& info) const
 // ---- 四个 CUser 字段访问器（CacheCharacterMemory 域；ORIG W 弱符号）----
 int CUser::getTotalPcRoomPlayTime() const            // 0x08110e10：*(int*)(this+0x8eba0)
 {
-    return *(int*)((const char*)m_pad8eba0);
+    return m_totalPcRoomPlayTime;
 }
 unsigned char CUser::getPcRoomPlayTimeRewardCnt() const   // 0x08110dec：*(uchar*)(this+0x8eba4)
 {
-    return *(unsigned char*)((const char*)m_pad8eba0 + 4);
+    return m_pcRoomPlayTimeRewardCnt;
 }
 int CUser::GetCurCharacUsedGiftFatigueQuantity() const   // 0x08110e6c：*(int*)(this+0x8ebac)
 {
@@ -7957,7 +8638,7 @@ void CUser::_SaveCharacData()
 
     *(unsigned int*)(sig + 0xf2) = *(unsigned int*)getDungeonGainedGold(); /*推断: +0x00 值*/
     *(unsigned int*)(sig + 0xe6) = get_acc_id();
-    *(unsigned int*)(sig + 0xea) = *(unsigned int*)((char*)this + 0x8d110); /*推断*/
+    *(unsigned int*)(sig + 0xea) = (unsigned int)m_field8d110;   /* ORIG this+0x8d110 实证 */
     *(unsigned int*)(sig + 0xee) = GetOverTradeGoldCount();
     *(float*)(sig + 0xf6) = (float)GetRating();
     sig[0xfa] = (char)GetTutorialSkipable();
@@ -8612,7 +9293,7 @@ void CUser::SendMoenyLog()
 
     if (getCurCharacR() != 0)
     {
-        for (int i = 0; i < 7 && i <= m_field796c8; ++i)
+        for (int i = 0; i < 7 && i <= m_moneyLogIdx; ++i)
         {
             if (m_moneyLogs[i].m_money[0] == 0 &&
                 m_moneyLogs[i].m_money[1] == 0)
@@ -8633,6 +9314,42 @@ void CUser::SendMoenyLog()
         }
     }
     resetMoneyLog();
+}
+
+// ORIG T 0x0868152c sz0x1e0：PC 房 login 通知。填 stLogin（login[0]=3/acc 名/
+// charac 名/ip/uid/accid）→ stLoginPacket 桥打包 → SendTcpPacket；随后
+// ReadPacket 读回包。nexon_packet 未建模，与 SendLogoutToPCRoomServer 同桥。
+void CUser::SendLoginToPCRoomServer()
+{
+    char login[0x20e];
+    char packet[0x1210];
+    char reply[0x20e];
+    memset(login, 0, sizeof(login));
+    login[0] = 3;
+    strcpy(login + 2, get_acc_name());
+    login[1] = (char)strlen(get_acc_name());
+    strcpy(login + 0x102, getCurCharacName());
+    login[0x101] = (char)strlen(getCurCharacName());
+    const int ip = get_public_ip_address();
+    *(int*)(login + 0x201) = ip;
+    login[0x205] = 0;
+    *(int*)(login + 0x206) = GetUID();
+    *(int*)(login + 0x20a) = get_acc_id();
+    printf(
+        "stLogin::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
+        "Addr:%d canTry_:%d UserIdx:%d m_id:%d\n",
+        login[0], login[1], login + 2, login[0x101], (int)(login + 0x102),
+        ip, login[0x205], GetUID(), get_acc_id());
+
+    typedef void* (*MakeLoginPacketFn)(void*, const void*);  // 0x08694252
+    ((MakeLoginPacketFn)0x08694252)(packet, login);
+    typedef int (*GetLengthFn)(void*);                       // 0x08694224
+    int len = ((GetLengthFn)0x08694224)(packet);
+    ((void(*)(void*, char*, int))0x08471a32)(GlobalData::s_pcroom_proxy,
+                                             packet, len); /* 桥接 SendTcpPacket */
+    memset(reply, 0, sizeof(reply));
+    typedef void (*ReadPacketFn)(const char*, void*);        // 0x086943af
+    ((ReadPacketFn)0x086943af)(packet, reply);
 }
 
 // ORIG T 0x0868170c sz0x113：PC 房 logout 通知。nexon_packet::stLoginPacket
@@ -8755,8 +9472,8 @@ void CUser::onUpdateHackCount(WongWork::ENUM_HACKTYPE type, int count,
         memset(&info, 0, sizeof(info));  /*推断*/  // HackTypeInfo_t ctor 仅清零
         if (checkMax(GlobalData::g_autoPunishRuleHackTypeMgr, type,
                      getAccCnt(getHackAnalyzer(), type), getHackAnalyzer(),
-                     &info, (char*)this + 0x8d1b8, (char*)this + 0x8d1d0,
-                     (char*)this + 0x8d1c4, ip))
+                     &info, &m_lookOuts1, &m_ipCounters,
+                     &m_lookOuts2, ip))
         {
             s_user_setHackUserFromInfo(this, info, getAccCnt);
         }
@@ -8766,8 +9483,8 @@ void CUser::onUpdateHackCount(WongWork::ENUM_HACKTYPE type, int count,
             memset(&info2, 0, sizeof(info2));
             if (checkMax(GlobalData::g_autoPunishRuleHackTypeMgr, type,
                          getAccCnt(getHackAnalyzer(), type), getHackAnalyzer(),
-                         &info2, (char*)this + 0x8d1b8,
-                         (char*)this + 0x8d1d0, (char*)this + 0x8d1c4, ip))
+                         &info2, &m_lookOuts1,
+                         &m_ipCounters, &m_lookOuts2, ip))
             {
                 s_user_setHackUserFromInfo(this, info2, getAccCnt);
             }
@@ -9030,10 +9747,6 @@ void CUser::SendEventJarOutputItemStatistics(
 // 构造 16 字节 Sig{itemIndex,count,accId,characNo(-1)} 经内部流 0x20 投递
 // LOGDB_Q。反编译见 docs/class_func_reports/CUser/SendAradEventItemLog.md。
 // ============================================================================
-namespace ARAD { namespace DISPATCHER {
-// 定义于 AvatarRechargeServer.cpp（ORIG 0x081977b6）
-void make_internal_stream_jpn(CStreamGuard& guard, int type, int param);
-}}
 
 void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
 {
@@ -9062,7 +9775,7 @@ void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
 
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xb9c7);
     CStreamGuard guard(stream, true);
-    ARAD::DISPATCHER::make_internal_stream_jpn(guard, 0x20, (int)GetUID());
+    ARAD::DISPATCHER::make_internal_stream_jpn(guard, ARAD::K_ARAD_EVENT_ITEM_LOG, (int)GetUID());
     guard.put_binary(&sig, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
@@ -9098,4 +9811,455 @@ void CUser::incQuestPoint(int qp, int questIdx, bool send)
         }
         m_historyLog.QPAdd(before, questIdx, qp);
     }
+}
+
+// ============================================================================
+// ORIG T 0x0864d90a：从 m_list711ec（+0x711ec list<int>）删除 state。
+// ============================================================================
+void CUser::RemoveRestrictedGoods(int state)
+{
+    std::list<int>::iterator it = std::find(m_list711ec.begin(),
+                                            m_list711ec.end(), state);
+    if (it != m_list711ec.end())
+        m_list711ec.erase(it);
+}
+
+// ============================================================================
+// ORIG T 0x0867ceae：全部角色 m_needCheckOverEquipItem（+0xe3b）置 1。
+// ============================================================================
+void CUser::SetNeedCheckOverEquipItem()
+{
+    for (unsigned int i = 0; i < m_characList.size(); ++i)
+    {
+        if (&m_characList[i] != 0)
+            m_characList[i].m_needCheckOverEquipItem = 1;
+    }
+}
+// ============================================================================
+// LinkMisc5 批次（散点链接期未定义符号，第四阶）
+// ============================================================================
+
+// ---- CSecurityCard 状态 getter（ORIG W 0x0822ef0e/0x0822ef1a/0x0822ef26，
+//      objdump 忠实转写；声明补于 CUser.h WongWork::CSecurityCard）----
+bool WongWork::CSecurityCard::isActivate() const
+{
+    return m_activate2f != 0;   // +0x2f 激活标志
+}
+
+bool WongWork::CSecurityCard::isCertified() const
+{
+    return m_certified30 != 0;  // +0x30 认证标志
+}
+
+int WongWork::CSecurityCard::getFailCnt()
+{
+    return m_failCnt34;         // +0x34 失败计数
+}
+
+// ============================================================================
+// ORIG T 0x0868991c _ZN5CUser17isTradePunishTypeEi：
+//   type==0 → m_tradePunishType(+0x79628)!=0；否则按位与命中。
+// ============================================================================
+bool CUser::isTradePunishType(int type)
+{
+    if (type == 0 && m_codeHackCheck.m_tradePunishType != 0)
+        return 1;
+    if ((type & m_codeHackCheck.m_tradePunishType) == 0)
+        return 0;
+    return 1;
+}
+
+// ============================================================================
+// ORIG T 0x086624f8 sz 0x30 _ZN5CUser15send_RedeemInfoEv：
+//   GetCharacExpandData(6) 取 Redeem_Item::CRedeemItem 后 Send_RedeemList。
+// ============================================================================
+void CUser::send_RedeemInfo()
+{
+    Redeem_Item::CRedeemItem* redeem =
+        (Redeem_Item::CRedeemItem*)GetCharacExpandData(
+            (ENUM_CHARAC_EXPAND_TYPE)6);
+    redeem->Send_RedeemList(this);
+}
+
+// ============================================================================
+// ORIG T 0x08664ae8 sz 0x167 _ZN5CUser13calc_lev_statER15_Additioal_info：
+//   基础块 add 后按当前等级循环叠加成长属性块（≤14 首转/≤49 二转/之后三转）。
+// ============================================================================
+void CUser::calc_lev_stat(_Additioal_info& info)
+{
+    CCharacter* chars = G_CDataManager()->m_characList->m_characs;
+    info.add(*(const _Additioal_info*)&chars[get_charac_job()]);
+
+    const void* statBase =
+        chars[get_charac_job()].get_growtype_stat(0, 0);            // 无成长
+    int firstGrow = (signed char)getCurCharFirstGrowType();
+    const void* statFirst =
+        chars[get_charac_job()].get_growtype_stat(firstGrow, 0);    // 一转
+    int secondGrow = (signed char)getCurCharSecondGrowType();
+    const void* statSecond =
+        chars[get_charac_job()].get_growtype_stat(firstGrow,
+                                                  secondGrow);      // 二转
+
+    for (int level = 1; get_charac_level() > level; ++level)
+    {
+        if (level <= 14)
+            info.add(*(const _Additioal_info*)statBase);
+        else if (level <= 49)
+            info.add(*(const _Additioal_info*)statFirst);
+        else
+            info.add(*(const _Additioal_info*)statSecond);
+    }
+}
+
+// ============================================================================
+// ORIG T 0x0868ff04 sz 0x9c _ZN5CUser21CalcurateUserMaxLevelEv：
+//   全角色 m_level 最大值 clamp 到 70 后 SetUserMaxLevel。
+// ============================================================================
+void CUser::CalcurateUserMaxLevel()
+{
+    int maxLevel = 0;
+    for (unsigned int i = 0; i < m_characList.size(); ++i)
+    {
+        if ((int)m_characList[i].m_level > maxLevel)
+            maxLevel = m_characList[i].m_level;
+    }
+    if (maxLevel > 70)
+        maxLevel = 70;
+    SetUserMaxLevel(maxLevel);
+}
+
+// ============================================================================
+// ORIG T 0x0868e704 sz 0x2bb _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard：
+//   管理等级/点数 + 雇佣兵列表逐个序列化（剩余时间、状态、名字、三状态字节）。
+// ============================================================================
+void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
+{
+    bool leveledUp = CalcurateManageLevel();
+    if (leveledUp)
+        SendManageLevelUpNoti();
+
+    packet.put_byte(GetManageLevel());
+    packet.put_int(GetManagePoint());
+    packet.put_byte((signed char)m_mercenaryMgr.m_characs.size());
+
+    for (unsigned int i = 0; i < m_mercenaryMgr.m_characs.size(); ++i)
+    {
+        CHARAC_LOAD_MERCENARY& merc = m_mercenaryMgr.m_characs[i];
+
+        // 剩余时间 = 到期秒 - 当前秒
+        int remainSec =
+            merc.m_field2c - GlobalData::s_systemTime_.getCurSec();
+
+        packet.put_int(merc.m_characNo);
+
+        int nameLen;
+        if (&merc.m_name[0] == 0)
+            nameLen = 0;
+        else
+            nameLen = strlen(merc.m_name);
+        packet.put_int(nameLen);
+        if (nameLen != 0)
+            packet.put_str(merc.m_name, nameLen);
+
+        if (remainSec > 0)
+            packet.put_byte(1);
+        else if (merc.m_field30 == 0xff)
+            packet.put_byte(0);
+        else
+            packet.put_byte(2);
+
+        packet.put_int(remainSec);
+        packet.put_byte((signed char)merc.m_field30);
+        packet.put_byte((signed char)merc.m_field31);
+        packet.put_byte((signed char)merc.m_avatarBonus);
+    }
+}
+// ============================================================================
+// ORIG T 0x0868fec8 _ZN5CUser14SetUserMaxLevelEi：写 m_field8ebd8（0 → 1）。
+// ============================================================================
+void CUser::SetUserMaxLevel(int level)
+{
+    if (level > 0)
+        m_field8ebd8 = level;
+    else
+        m_field8ebd8 = 1;
+}
+
+// ============================================================================
+// ORIG T 0x0868fe2c _ZN5CUser14SetManageLevelEi：超上限取脚本 m_manageLevelMax。
+// ============================================================================
+void CUser::SetManageLevel(int level)
+{
+    CharacManageScript* script =
+        G_CDataManager()->m_altarConfig.m_characManageScript;
+    if (script->m_manageLevelMax < level)
+        m_field8ebd0 = script->m_manageLevelMax;
+    else
+        m_field8ebd0 = level;
+}
+// ============================================================================
+// ORIG T 0x0868fe72 _ZN5CUser14SetManagePointEi：点数封顶升级所需后写入。
+// ============================================================================
+void CUser::SetManagePoint(int point)
+{
+    CharacManageScript* script =
+        G_CDataManager()->m_altarConfig.m_characManageScript;
+    int require =
+        script->GetLevelUpRequirePoint((unsigned int)script->m_manageLevelMax);
+    if (point > require)
+        point = require;
+    m_field8ebd4 = point;
+}
+
+// ============================================================================
+// ORIG T 0x0868ffa0 sz 0x86 _ZN5CUser20CalcurateManagePointEv：
+//   Σ 各角色等级对应管理点数后 SetManagePoint。
+// ============================================================================
+void CUser::CalcurateManagePoint()
+{
+    int total = 0;
+    for (unsigned int i = 0; i < m_characList.size(); ++i)
+    {
+        short level = m_characList[i].m_level;
+        total += G_CDataManager()->m_altarConfig.m_characManageScript->GetPoint(
+            (int)level);
+    }
+    SetManagePoint(total);
+}
+
+// ============================================================================
+// ORIG T 0x08690026 sz 0x25 _ZN5CUser20CalcurateManageLevelEv：
+//   重算点数、查等级、SetManageLevel；返回等级是否提升。
+// ============================================================================
+bool CUser::CalcurateManageLevel()
+{
+    CalcurateManagePoint();
+    int newLevel = G_CDataManager()->m_altarConfig.m_characManageScript->GetLevel(
+        GetManagePoint());
+    int oldLevel = GetManageLevel();
+    SetManageLevel(newLevel);
+    return oldLevel < newLevel;
+}
+
+// ============================================================================
+// ORIG T 0x08690b58 _ZN5CUser21SendManageLevelUpNotiEv：空包 header(0,0x19f)。
+// ============================================================================
+void CUser::SendManageLevelUpNoti()
+{
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0x19f);
+    packet.finalize(true);
+    Send(packet);
+}
+// ============================================================================
+// CharacManageScript 查询三方法（报告 CharacManageScript/GetLevel.md、
+// GetPoint.md、GetLevelUpRequirePoint.md；声明补于 CharacManageScript.h，
+// 实现居本 TU 以闭合 CUser 管理等级链）。
+// ============================================================================
+
+// ORIG T 0x088e0ed4：point 为 0 返 0；自高向低找首个不高于 point 的门槛，
+// 等级取其下标加一，最后 clamp 到 m_manageLevelMax。
+int CharacManageScript::GetLevel(int point)
+{
+    if (point == 0)
+        return 0;
+
+    unsigned int cursor = m_manageLevelPoint.size();
+    unsigned int level = 0;
+    while (true)
+    {
+        unsigned int prev = cursor - 1;
+        if ((int)prev < 0)
+            break;
+        if (!(point < m_manageLevelPoint[prev]))
+        {
+            level = cursor;
+            break;
+        }
+        cursor = prev;
+    }
+
+    if ((int)level > m_manageLevelMax)
+        level = (unsigned int)m_manageLevelMax;
+    return (int)level;
+}
+
+// ORIG T 0x088e0e0a：Σ 每行区间 [start..end] 内 lv 不超过 level 的 bonus。
+int CharacManageScript::GetPoint(int level)
+{
+    int total = 0;
+    for (std::vector<ManagePointBonus>::iterator it = m_pointBonus.begin();
+         it != m_pointBonus.end(); ++it)
+    {
+        for (int lv = it->m_field00; lv <= it->m_field04; ++lv)
+        {
+            if (lv <= level)
+                total += it->m_field08;
+        }
+    }
+    return total;
+}
+
+// ORIG T 0x088e1114：max 为 0 或越界返 0；否则取第 max 个门槛值。
+int CharacManageScript::GetLevelUpRequirePoint(unsigned int maxLevel)
+{
+    if (maxLevel != 0 && maxLevel <= m_manageLevelPoint.size())
+        return m_manageLevelPoint[maxLevel - 1];
+    return 0;
+}
+
+// ============================================================================
+// CUser::ReturnToSelectCharacList @ 0x08686fee（ReturnToSelectCharacList.md）
+//   返回角色选择列表：成员税上报 → 各管理器 CheckOut → 私商/突袭/专家/在线
+//   团队离场 → 播放时间落库 → 复仇数据 → DB 日志/更新 → 登出缓存 → 离开
+//   世界 → 重置角色/任务 → ARAD 周期数据清理 → 角色视图复位。
+// ============================================================================
+// 以下依赖符号均为 ORIG 真实符号；类/实现由对应域批次提供：
+//   DB_UpdateCharacPlayTime::makeRequest(int,long)（DB 域）
+//   DB_UpdateRevengeData::makeRequest(uint,uchar,uchar)（DB 域）
+//   expert_job::CExpertJobMgr::OnLeaveUser(CUser*)（专家批次）
+//   online_preliminary::COnlinePreliminaryTeamMgr::OnLeaveUser(CUser*)（在线批次）
+//   WongWork::CHandlePremium::handleReturn2CharacView(CUser*)（premium 批次）
+//   ARAD::Singleton<Arad_DataManager>::Get()（ARAD 域；SPECIAL）
+// ============================================================================
+// 注：以下依赖符号（DB_UpdateCharacPlayTime/DB_UpdateRevengeData、
+// expert_job::CExpertJobMgr::OnLeaveUser、online_preliminary::
+// COnlinePreliminaryTeamMgr::OnLeaveUser、WongWork::CHandlePremium::
+// handleReturn2CharacView）均为 ORIG 真实符号，但对应权威类声明缺方法 /
+// DB 请求类未建模，属外域缺口（BLOCKED，见报告）；其调用点在下方保留为
+// 真实调用，由对应域批次补权威声明后即可编译。
+void CUser::ReturnToSelectCharacList(bool param)
+{
+    UpdateCurCharacVisibleToCharacViewMemory();
+    WorkPerFiveMin();
+
+    int memberKey = get_charac_memberkey();
+    if (memberKey != 0)
+    {
+        int payMoney = get_member_pay_tex_money_to_upper();
+        int payFatigue = get_member_pay_tex_fatigue_to_upper();
+        unsigned int characNo = getCurCharacNo();
+        bool isUpper = is_connect_upper_member();
+        CMonitorServerProxy* proxy =
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
+        proxy->SendMemberPayTax(isUpper, characNo, payMoney, payFatigue);
+        if (payMoney > 0)
+            set_member_pay_tex_money_to_upper(0);
+        if (payFatigue > 0)
+            set_member_pay_tex_fatigue_to_upper(0);
+    }
+
+    CGameManager* gm = G_CGameManager();
+    set_uppermember_exp_level(0);
+    set_connect_upper_member(0);
+    gm->CheckOutTrade(this);
+    gm->CheckOutParty(this, false);
+    gm->CheckOutPvp(this, false);
+    gm->CheckOutWarRoom(this);
+    gm->checkOutBlueMarble(this);
+
+    private_store::CPrivateStoreMgr* psMgr = private_store::GetInstancePrivateStoreMgr();
+    (*(void(**)(private_store::CPrivateStoreMgr*, CUser*))(*(void**)psMgr))(psMgr, this);
+
+    pvp_assault::CAssaultMgr* assaultMgr = pvp_assault::GetInstanceAssaultMgr();
+    assaultMgr->OnLeaveAssaultPlace(this, true);
+    // BLOCKED：expert_job::CExpertJobMgr::OnLeaveUser（0x0849e214，权威类缺方法，
+    //   由专家域批次补声明/定义后恢复调用）。
+    long playTick = GetCharacPlayTick();
+    int characNo = get_charac_no(-1);
+    // BLOCKED：DB_UpdateCharacPlayTime::makeRequest(int,long)（DB 域）。
+    // BLOCKED：online_preliminary::COnlinePreliminaryTeamMgr::OnLeaveUser（在线域）。
+    unsigned int curCharacNo = getCurCharacNo();
+    unsigned char villageCnt = GetCurVillageAttackCount();
+    unsigned char revengeCnt = GetCurRevengeDungeonCount();
+    if (IsVillageAttackDBUpdate())
+        ;
+    // BLOCKED：DB_UpdateRevengeData::makeRequest(uint,uchar,uchar)（DB 域）。
+
+    DBUpdateDBLogItem();
+    ResetDBLogItem();
+    UpdateData();
+    LogoutCachedCharacter(1);
+
+    GameWorld* gw = G_GameWorld();
+    gw->leave_game_world(this);
+    ResetCharacExpandData();
+
+    {
+        std::string name("Arad_EventPeriodDataManager");
+        ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
+        ARAD::Arad_EventPeriodDataManager* epdm =
+            (ARAD::Arad_EventPeriodDataManager*)adm->findGameScript(name);
+        epdm->delUserRewardData(this);
+    }
+
+    ResetCurCharac();
+    resetSaveFlags();
+    set_state((ch_state)2);
+    doLinkCharacDisconnect();
+
+    GameWorld* gw2 = G_GameWorld();
+    gw2->InsertLoginUser(this);
+    m_inventoryMemory.reset();
+    m_quest.reset();
+
+    long now = (long)time(0);
+    getPad()->setCheckTime(now);
+    CerashopAddRestrict::Manager::ClearBuyRestrictItem(this);
+    // BLOCKED：WongWork::CHandlePremium::handleReturn2CharacView（0x086af96e，
+    //   权威类缺方法，由 premium 批次补声明/定义后恢复调用）。
+
+    if (param)
+    {
+        PacketGuard pg;
+        pg.put_header(1, 7);
+        pg.put_byte(1);
+        pg.finalize(true);
+        Send(pg);
+    }
+}
+
+// ============================================================================
+// InventoryMemory::reset @ 0x0822d472（W 0x83 字节）：清空 m_pad 区。
+// ============================================================================
+void InventoryMemory::reset()
+{
+    memset(m_pad, 0, sizeof(m_pad));
+}
+
+// ============================================================================
+// Sanicova::CPad::setCheckTime @ 0x084ebe20（W 0xe 字节）：写 +0x30 m_lastGenTime30。
+// ============================================================================
+namespace Sanicova
+{
+void CPad::setCheckTime(long t)
+{
+    m_lastGenTime30 = (int)t;
+}
+}
+
+// ============================================================================
+// cUserHistoryLog::Enchant3rdChronicleItem @ 0x08684c28（T 0x78 字节）
+//   三代强化日志（m_user->LogHistory）。版本号/字段按报告调用点（布尔 isEnchant
+//   + itemIdx/materialIdx/equipType/count）。
+// ============================================================================
+void cUserHistoryLog::Enchant3rdChronicleItem(bool isEnchant, int itemIdx,
+                                              int materialIdx, int equipType,
+                                              int count)
+{
+    m_user->LogHistory("Enchant3rdChronicle,%d,%d,%d,%d,%d",
+                       isEnchant ? 1 : 0, itemIdx, materialIdx, equipType, count);
+}
+
+// ============================================================================
+// CUser::UpdateCurCharacVisibleToCharacViewMemory @ 0x08651628
+//   遍历当前角色背包各槽，将物品可见数据写入 characView 内存窗口。
+//   BLOCKED：槽级可见数据字段映射（imul 0x3d/0xd0×8 内存窗口）需
+//   CCharacView/Inven_Item 细部布局；此处按报告序委托 UpdateCharacView()
+//   （相邻真实符号 0x8651740）同步视图，精确窗口写入待用户视图批次补。
+// ============================================================================
+void CUser::UpdateCurCharacVisibleToCharacViewMemory()
+{
+    UpdateCharacView();
 }

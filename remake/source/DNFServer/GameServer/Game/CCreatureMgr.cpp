@@ -1089,6 +1089,22 @@ bool CDBMsgSender::UseFeedCreature(int uid, int stomachValue)
     return true;
 }
 
+// ORIG _ZN13user_creature12CDBMsgSender12UseKeepRightEii W 0x083401ec
+// （objdump 逐条转写，SetKeepRightItem 落库用）：m_stream 空 → 0；
+// GetInBuffer<SIG_CREATURE_ITEM> → memset 0x74 → m_hdr|=0x80；
+// +0x30(m_addInfo2)=uid；+0x52(m_keepRight)=flag 低字节；返回 1。
+bool CDBMsgSender::UseKeepRight(int uid, int flag)
+{
+    if (m_stream == 0)
+        return false;
+    SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
+    memset(buf, 0, 0x74);
+    buf->m_hdr |= 0x80;
+    buf->m_addInfo2 = uid;               // +0x30：宠物 uid
+    buf->m_keepRight = (unsigned char)flag;  // +0x52
+    return true;
+}
+
 // ORIG _ZN13user_creature12CDBMsgSender15EvoluteCreatureEii W 0x833fd74
 // （objdump 逐条转写）：m_stream 空 → 0；buf 清 0x74 后 m_hdr|=0x40；
 // compat.m_itemIdx(+0x08)=新宠物物品 idx；m_addInfo2(+0x30)=uid；返回 1。
@@ -1407,6 +1423,72 @@ bool CCreatureMgr::EquipCreatureItem(CCreature* dismantleItem,
     return true;
 }
 
+// ============================================================================
+// CheckItem / SetKeepRightItem（Cerashop creature 商品购买预检链）
+// ============================================================================
+
+// ORIG _ZN13user_creature12CCreatureMgr16SetKeepRightItemEP5CUserP10Inven_Item
+// T 0x0833c00c（SetKeepRightItem.md）：遍历 m_creatureItems，对
+// GetCreatureItemType()==1 且 IsNoCharge() 的宠物清免充标志并落库——
+// CDBMsgSender((ENUM_INTERNALPACKET)0x8a, user).UseKeepRight(uid, flag)
+// （flag 为清标志后重读的 IsNoCharge，恒 0）；失败打 cMyTrace
+// ("...SetKeepRightItem(CUser*, Inven_Item*)",0xdf0,5) 返 0；成功 Send +
+// CPacketRespondent(m_user,0,0).MakeNotipacketCreatureItemList(
+// &m_creatureItems, slotNo)。循环尽 item->reset() 返 1。
+bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
+{
+    for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();
+         it != m_creatureItems.end(); ++it)
+    {
+        CCreatureItem* creatureItem = it->second;
+        if (creatureItem == 0 || creatureItem->GetCreatureItemType() != 1)
+            continue;
+
+        // 同一对象按 CCreature 语义访问（ORIG 直呼 CCreature 访问器，
+        // 单继承布局同址；镜像类型间 reinterpret_cast 保持同一符号）。
+        CCreature* creature = reinterpret_cast<CCreature*>(creatureItem);
+        if (creature->IsNoCharge())
+        {
+
+        creature->SetNoCharge(false);
+        CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
+        int noCharge = (int)(unsigned char)creature->IsNoCharge();
+        int uid = creatureItem->GetUid();
+        if (!sender.UseKeepRight(uid, noCharge))
+        {
+            cMyTrace trace(
+                "bool user_creature::CCreatureMgr::SetKeepRightItem(CUser*, Inven_Item*)",
+                0xdf0, 5);
+            trace("cannot write db uid(%d)\n",
+                  user->get_unique_id() & 0xffff);
+            return false;
+        }
+        sender.Send();
+        CPacketRespondent pkt(m_user, 0, 0);
+        pkt.MakeNotipacketCreatureItemList(&m_creatureItems,
+                                           creatureItem->GetSlotNo());
+        }
+    }
+    item->reset();
+    return true;
+}
+
+// ORIG _ZN13user_creature12CCreatureMgr9CheckItemEP5CUserP10Inven_ItemRb
+// T 0x0833c240（CheckItem.md）：默认 outFlag=true；仅当物品为堆叠宠物蛋类
+// （m_field1==7 ITEM_TYPE_CREATURE_STACK 且 m_addInfo==0x1a）时置 outFlag=
+// false 并委托 SetKeepRightItem 清占用（其返回值即函数返回）；否则返 true。
+bool CCreatureMgr::CheckItem(CUser* user, Inven_Item* item, bool& b)
+{
+    b = true;
+    if (item->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_STACK &&
+        item->m_addInfo == 0x1a)
+    {
+        b = false;
+        return SetKeepRightItem(user, item);
+    }
+    return true;
+}
+
 // ORIG _ZNK13user_creature12CCreatureMgr12GetExtraGoldEi T 0x0833c31a：
 // 无装备宠/已死亡 → 0；按宠物种族 id 给额外金币比例（*5 或 *3 再 /100）。
 int CCreatureMgr::GetExtraGold(int gold) const
@@ -1591,6 +1673,124 @@ bool CCreatureMgr::SwapCreatureItem(Inven_Item* item1, int slot1, int type1,
     return true;
 }
 
+// ORIG _ZN13user_creature12CCreatureMgr16ResponseCreatureEv T 0x0833a6d8：
+// 构造 CPacketRespondent(user,0,0) → 填充 ResponseCreature 通知包 →
+// 以 (村, 区域) 广播（门区由 Broadcast 内部直发本人），透传其返回值。
+int CCreatureMgr::ResponseCreature()
+{
+    CPacketRespondent respondent(m_user, 0, 0);
+    respondent.MakeNotipacketResponseCreature();
+    int area = m_user->get_area(false);
+    int vill = (int)(char)m_user->getCurCharacVill();  // ORIG movsbl 符号扩展
+    return (int)respondent.Broadcast(vill, area);
+}
+
+// ORIG _ZN13user_creature12CCreatureMgr20RegisterCreatureItemEPNS_13CCreatureItemEi
+// T 0x0833a77e：uid 查重后插入 m_creatureItems；重复则 cMyTrace 报错返回 false。
+bool CCreatureMgr::RegisterCreatureItem(CCreatureItem* item, int uid)
+{
+    if (FindCreatureItem(uid) != 0)
+    {
+        cMyTrace trace(
+            "bool user_creature::CCreatureMgr::RegisterCreatureItem"
+            "(user_creature::CCreatureItem*, int)", 0xbb4, 5);
+        trace("RegisterCreatureItem failed. uid(%d), key(%d)\n",
+              m_user->get_unique_id() & 0xffff, uid);
+        return false;
+    }
+    m_creatureItems.insert(std::make_pair(uid, item));
+    return true;
+}
+
+// ============================================================================
+// CDBMsgSender::RenameCreatureItem @ 0x0833fbde（W，objdump 逐条转写）
+//   m_stream 空 → 0；GetInBuffer<SIG_CREATURE_ITEM> → memset 0x74 →
+//   m_hdr|=0x200；+0x30(m_addInfo2)=uid；name 拷入 +0x04 m_item 兼容区（截 0x27）；
+//   返回 1。hdr 位/name 位置依同族（UseFeedCreature|0x2 等）推断，无独立报告。
+// ============================================================================
+bool CDBMsgSender::RenameCreatureItem(int uid, const char* name)
+{
+    if (m_stream == 0)
+        return false;
+    SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
+    if (buf == 0)
+        return false;
+    memset(buf, 0, 0x74);
+    buf->m_hdr |= 0x200;
+    buf->m_addInfo2 = uid;                            // +0x30
+    char* dst = reinterpret_cast<char*>(buf->m_item); // +0x04
+    strncpy(dst, name != 0 ? name : "", 0x27);
+    return true;
+}
+
+// ============================================================================
+// CDBMsgSender::HatchCreature @ 0x0833fcc2（W，objdump 逐条转写）
+//   m_stream 空 → 0；GetInBuffer<SIG_CREATURE_ITEM> → memset 0x74 →
+//   m_hdr|=0x400；+0x30(m_addInfo2)=uid；+0x50(m_flag50)=flag 低字节；
+//   +0x08(m_item 兼容区 m_itemIdx)=itemIdx；返回 1。hdr 位推断同族。
+// ============================================================================
+bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
+{
+    if (m_stream == 0)
+        return false;
+    SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
+    if (buf == 0)
+        return false;
+    memset(buf, 0, 0x74);
+    buf->m_hdr |= 0x400;
+    buf->m_addInfo2 = uid;                            // +0x30
+    buf->m_flag50 = (unsigned char)flag;              // +0x50
+    Inven_Item_Compatible* compat =
+        (Inven_Item_Compatible*)(void*)buf->m_item;   // +0x04
+    compat->m_itemIdx = itemIdx;                      // +0x08
+    return true;
+}
+
+// ============================================================================
+// RenameCreature @ 0x08339b6e（RenameCreature.md）
+//   装备宠物非空 → use_item 消耗改名书（creatureIdx×1，slot 空间）→ 宠物改名 +
+//   改名通知广播 → CDBMsgSender::RenameCreatureItem 落库 → 成功 Send+回执包，
+//   失败 trace+SetError(2)。use_item 失败按返回错误码 SetError。
+// ============================================================================
+void CCreatureMgr::RenameCreature(const char* name, int creatureIdx, int slot)
+{
+    CPacketRespondent respondent(m_user, 1, 0x67);
+    if (m_equippedCreature == 0)
+    {
+        respondent.SetError(4);
+        return;
+    }
+    CInventory* inven = m_user->getCurCharacInvenW();
+    int useRet = inven->use_item(creatureIdx, 1, slot);
+    if (useRet != 0)
+    {
+        respondent.SetError(useRet);
+        return;
+    }
+    m_equippedCreature->RenameCreature(name);
+    int len = (int)strlen(name);
+    respondent.MakeNotipacketRenameCreature(name, len);
+    int area = m_user->get_area(false);
+    int vill = (int)(char)m_user->getCurCharacVill();
+    respondent.Broadcast(vill, area);
+    CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
+    int uid = reinterpret_cast<CCreatureItem*>(m_equippedCreature)->GetUid();
+    bool ok = sender.RenameCreatureItem(uid, name);
+    if (ok)
+    {
+        sender.Send();
+        respondent.MakeCmdpacketRenameCreature(creatureIdx, slot);
+    }
+    else
+    {
+        cMyTrace trace(
+            "void user_creature::CCreatureMgr::RenameCreature(const char*, int, int)",
+            0xaa0, 5);
+        trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
+        respondent.SetError(2);
+    }
+}
+
 }  // namespace user_creature
 
 // ============================================================================
@@ -1629,4 +1829,201 @@ void Inven_Item_Compatible::makeInvenItem(Inven_Item& item)
     memcpy(dst, &m_amp0, 4);
     memcpy(dst + 4, &m_rand0, 8);
     memcpy(dst + 12, &m_rand8, 2);
+}
+
+// ============================================================================
+// CCreatureItemFactory（ORIG ctor 0x0833f67a / dtor 0x0833f6d0 / guard 单例）
+//   两 DynamicPool：+0x00 CEgg 池、+0x5c CCreature 池，各 0x3e8（1000）基数。
+//   AcquireCreatureItem(type)：type==1 → CCreature 池，type==0 → CEgg 池；
+//   Acquire 后经 vtable+0 调 C1 构造。失败 cMyTrace 报错并返回 0。
+//   FreeCreatureItem(item)：按池归还。
+// ============================================================================
+namespace
+{
+    const char* kCreativeFactoryTrace = 
+        "user_creature::CCreatureItemFactory::AcquireCreatureItem(user_creature::CREATURE_ITME_TYPE)";
+}
+
+user_creature::CCreatureItemFactory::CCreatureItemFactory()
+    : m_eggPool(0x3e8), m_creaturePool(0x3e8)
+{
+}
+
+user_creature::CCreatureItemFactory::~CCreatureItemFactory()
+{
+}
+
+user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatureItem(int type)
+{
+    user_creature::CCreatureItem* item = 0;
+    if (type == 1)
+        item = reinterpret_cast<user_creature::CCreatureItem*>(m_creaturePool.Acquire());
+    else if (type == 0)
+        item = reinterpret_cast<user_creature::CCreatureItem*>(m_eggPool.Acquire());
+    if (item != 0)
+    {
+        return item;
+    }
+    cMyTrace trace("bool user_creature::CCreatureItemFactory::AcquireCreatureItem("
+                   "user_creature::CREATURE_ITME_TYPE)", 0x68, 5);
+    trace("AcquireCreatureItem failed\n");
+    return 0;
+}
+
+bool user_creature::CCreatureItemFactory::FreeCreatureItem(user_creature::CCreatureItem* item)
+{
+    if (item == 0)
+        return false;
+    return m_creaturePool.Free(reinterpret_cast<user_creature::CCreature*>(item));
+}
+
+// ORIG guard 单例（guard var 0x943c070 / instance 0x943c080）。
+user_creature::CCreatureItemFactory* user_creature::GetInstanceCreatureItemFactory()
+{
+    static user_creature::CCreatureItemFactory* s_instance;
+    if (s_instance == 0)
+        s_instance = new user_creature::CCreatureItemFactory();
+    return s_instance;
+}
+
+// ============================================================================
+// CEgg::Hatch @ 0x0833912a（objdump 逐条转写）：蛋物品 find_item 非空且
+//   非 stackable → *out = CEquipItem::get_hatch_item_id() 返回 1；否则 0。
+// ============================================================================
+bool user_creature::CEgg::Hatch(int* out)
+{
+    CItem* item = G_CDataManager()->find_item(
+        reinterpret_cast<user_creature::CCreatureItem*>(this)->GetItemId());
+    if (item == 0)
+        return false;
+    if (item->is_stackable())
+        return false;
+    // ORIG CEquipItem::get_hatch_item_id() 返回 +0x164（无具名，按字节偏移直访）。
+    *out = *(int*)((char*)item + 0x164);
+    return true;
+}
+
+// ============================================================================
+// CCreature::SetStomach @ 0x0833f070：写 +0x38 m_stomach.m_value = stomachValue。
+// ============================================================================
+void user_creature::CCreature::SetStomach(int stomachValue)
+{
+    m_stomach.m_value = (float)stomachValue;
+}
+
+// ============================================================================
+// CCreatureItem::Set @ 0x0833ef20：深拷贝 src 各字段（蛋 → 宠物项复制）。
+// ============================================================================
+void user_creature::CCreatureItem::Set(user_creature::CCreatureItem* src)
+{
+    if (src == 0)
+        return;
+    m_itemId = src->m_itemId;
+    m_creatureItemType = src->m_creatureItemType;
+    m_uid = src->m_uid;
+    m_slotNo = src->m_slotNo;
+    m_noCharge = src->m_noCharge;
+    m_stat = src->m_stat;
+    m_expireTime = src->m_expireTime;
+}
+
+// ============================================================================
+// CCreatureMgr::Hatch @ 0x08339fa0（Hatch.md）
+//   蛋孵化：m_creatureItems 按 addInfo 查蛋（不存在 → SetError(0x15)）；
+//   蛋类型非 0 → SetError(0x17)；CEgg::Hatch 失败 → SetError(0x11)；
+//   工厂取新宠物项失败 → SetError(0x16)；Set(蛋副本) + SetItemId(孵化结果) +
+//   SetCreatureItemType(1) + SetStomach(100)；
+//   计算到期（getUsablePeriod==0 且 getExpirationDate!=0 → 过期日-当前秒，
+//   否则 当前秒+usablePeriod*0x15180；两者皆 0 → 0）；
+//   Unregister 旧蛋 + Register 新宠；槽位写 m_addInfo/m_itemId；
+//   CDBMsgSender::HatchCreature 落库 → 成功 LogHistory+Send+SetOk+列表包+Send
+//   +SendUpdateItemList；失败 trace+SetError(2)。
+// ============================================================================
+bool user_creature::CCreatureMgr::Hatch(int addInfo)
+{
+    CPacketRespondent respondent(m_user, 1, 0x69);
+    std::map<int, CCreatureItem*>::iterator it = m_creatureItems.find(addInfo);
+    if (it == m_creatureItems.end())
+    {
+        respondent.SetError(0x15);
+        return false;
+    }
+    CEgg* egg = reinterpret_cast<CEgg*>(it->second);
+    if (reinterpret_cast<CCreatureItem*>(egg)->GetCreatureItemType() != 0)
+    {
+        respondent.SetError(0x17);
+        return false;
+    }
+    int creatureItemId = 0;
+    if (!egg->Hatch(&creatureItemId))
+    {
+        respondent.SetError(0x11);
+        return false;
+    }
+    CCreatureItem* newItem = GetInstanceCreatureItemFactory()->AcquireCreatureItem(1);
+    if (newItem == 0)
+    {
+        respondent.SetError(0x16);
+        return false;
+    }
+    newItem->Set(it->second);
+    newItem->SetItemId(creatureItemId);
+    newItem->SetCreatureItemType(1);
+    reinterpret_cast<CCreature*>(newItem)->SetStomach(100);
+
+    CItem* itemScript = G_CDataManager()->find_item(creatureItemId);
+    int expireTime = 0;
+    if (itemScript != 0)
+    {
+        int usablePeriod = itemScript->getUsablePeriod();
+        int expirationDate = itemScript->getExpirationDate();
+        if (usablePeriod == 0 && expirationDate != 0)
+        {
+            expireTime = expirationDate - OS_API::GetDateTimeTick();
+        }
+        else if (usablePeriod == 0 && expirationDate == 0)
+        {
+            expireTime = 0;
+        }
+        else
+        {
+            expireTime = OS_API::GetDateTimeTick() + usablePeriod * 0x15180;
+        }
+    }
+    newItem->SetExpireTime(expireTime);
+
+    int eggUid = reinterpret_cast<CCreatureItem*>(egg)->GetUid();
+    UnregisterCreatureItem(eggUid);
+    int newUid = newItem->GetUid();
+    RegisterCreatureItem(newItem, newUid);
+
+    Inven_Item* slotItem = m_user->getCurCharacInvenW()->GetInvenRef(3, newItem->GetSlotNo());
+    if (slotItem != 0)
+    {
+        slotItem->m_addInfo = 0;
+        slotItem->m_addInfo2 = newItem->GetItemId();
+    }
+
+    CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
+    int capturedUid = newItem->GetUid();
+    int capturedItemId = newItem->GetItemId();
+    bool ok = sender.HatchCreature(capturedUid, 1, capturedItemId);
+    if (ok)
+    {
+        m_user->LogHistory("Hatch,%d,%d", capturedItemId, capturedUid);
+        sender.Send();
+        respondent.SetOk();
+        respondent.Send();
+        int slotNo = newItem->GetSlotNo();
+        respondent.MakeNotipacketCreatureItemList(&m_creatureItems, slotNo);
+        respondent.Send();
+        m_user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7, slotNo);
+    }
+    else
+    {
+        cMyTrace trace("bool user_creature::CCreatureMgr::Hatch(int)", 0xb1a, 5);
+        trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
+        respondent.SetError(2);
+    }
+    return ok;
 }

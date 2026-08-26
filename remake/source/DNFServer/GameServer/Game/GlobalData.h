@@ -10,12 +10,13 @@
 // ============================================================================
 
 #include <queue>
-
+#include "EventUpgradeJarInfo.h"   // Event_Upgrade_Jar 完整类型（s_pEvent_UpGrade_Jar）
 #include "GameBase.h"
 #include "SPremiumInfo.h"         // g_SPremiumInfo 权威元素类型（SPremiumInfo 0x120）
 #include "CSystemTime.h"
 #include "StreamPool.h"
-#include "EventUpgradeJarInfo.h"   // Event_Upgrade_Jar 完整类型（s_pEvent_UpGrade_Jar）
+
+class InstanceRentalSystem;       // 前向：s_rentalSystem 强指针（Fini 单 mov 访存）
 
 // ---- THREAD_TYPE（ORIG mangling 需要枚举类型名）----
 enum THREAD_TYPE
@@ -125,7 +126,9 @@ class CRevengeDungeon
 public:
     CRevengeDungeon();
     bool IsOpenRevengeDungeon();   // ORIG W 0x8234ff6（读 +0x0 字节）
-    char m_pad[8];
+    int GetCloseTime();            // ORIG _ZN16village_attacked15CRevengeDungeon11GetCloseTimeEv
+    bool m_isOpen;                 // +0x00
+    int m_field04;                 // +0x04
 };
 class CVillageMonsterMgr;
 }
@@ -196,7 +199,7 @@ extern XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
 extern CEventManager* s_event_manager;                       // 0941f730
 extern WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
 extern SPremiumInfo g_SPremiumInfo[0x6a];                    // 09483a40 (0x7740)
-extern void* s_rentalSystem;                                 // 0941f738
+extern InstanceRentalSystem* s_rentalSystem;                 // 0941f738
 extern RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
 extern WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740
 extern WongWork::CCeraShop* s_pCeraShop;                     // 0941f744

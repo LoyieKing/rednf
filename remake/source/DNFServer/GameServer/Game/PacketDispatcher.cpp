@@ -19,6 +19,7 @@
 #include "LogManager.h"
 #include "cHistoryTrace.h"         // cMyTrace
 #include <string.h>
+#include "CEnvironment.h"    // GlobalInstance<T>
 
 char* NumberToString(unsigned int value, int radix);  // ORIG _Z14NumberToStringji
 
@@ -824,4 +825,10 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         _NS_PI_Check_CMD(packetClass, cmd, packet, user);
     }
     return 1;
+}
+
+// ---- 全局单例访问器（ORIG W 0x0823453e）----
+PacketDispatcher* G_PacketDispatcher()
+{
+    return GlobalInstance<PacketDispatcher>::inst_ptr();
 }

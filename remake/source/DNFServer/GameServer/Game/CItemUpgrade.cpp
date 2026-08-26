@@ -15,6 +15,10 @@
 #include "DB_ReqItemUpgradeLog.h"
 #include "PvPTypes.h"            // CMTRand（+0x4e8 randInt）
 #include "GameTypes.h"           // cMyTrace
+#include "DisJoint.h"            // DisJoint::GetResult/getPredictResultItemTypeCount
+#include "CCubeStatistic.h"      // CCubeStatistic::collectCubeStatistics
+#include "STStackableScript.h"   // STEnchantSystemMapKey/MapData
+#include "PacketTypes.h"         // MSG_ENCHANT 完整类型
 
 #include <cstring>
 #include <cstdio>
@@ -351,5 +355,300 @@ void CItemUpgrade::_NoticeUpgrade(const CUser* user, const Inven_Item& item,
         ->put_packet_random_option(packet);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
+}
+
+// ============================================================================
+// isDoEnchant @ 0x0854977a（isDoEnchant.md）：randInt(100)（经 this+0x4e8
+//   CMTRand）与 buf[(item+0x1f & 1) ? 1 : 0]（char 符号扩展）比较；rand<=bufVal
+//   返回 true。
+// ============================================================================
+bool CItemUpgrade::isDoEnchant(const Inven_Item& item, char* buf)
+{
+    unsigned long range = 100;
+    CMTRand* rng = *(CMTRand**)(reinterpret_cast<char*>(this) + 0x4e8);
+    int roll = rng->randInt(range);
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(&item) + 0x1f;
+    int bufVal = (p[0] & 1) ? (int)((signed char)buf[1])
+                            : (int)((signed char)buf[0]);
+    return roll <= bufVal;
+}
+
+// ============================================================================
+// ProcUpgrade(MSG_ENCHANT*) @ 0x0854a1ba（ProcUpgrade_0854a1ba.md）
+//   三代强化（ENCHANT 消息）主流程。返回错误码；0 成功。
+// ============================================================================
+int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet)
+{
+    if (user == 0 || msg == 0 || packet == 0)
+        return 4;
+    CInventory* invenW = user->getCurCharacInvenW();
+    if (invenW == 0)
+        return 4;
+
+    Inven_Item slotA = invenW->GetInvenSlot(1, msg->m_0d);
+    if (slotA.isEmpty())
+        return 4;
+    if (slotA.m_addInfo != msg->m_0f)
+        return 4;
+
+    Inven_Item material = invenW->GetInvenSlot(1, msg->m_13);
+    if (material.isEmpty())
+        return 0x16;
+
+    int start = 0, end = 0;
+    invenW->getStartEndPos((Inven_Item::ITEM_TYPE)0, start, end);
+    if (msg->m_0d < start || msg->m_0d > end)
+        return 0x13;
+
+    CItem* itemScript = G_CDataManager()->find_item(slotA.m_addInfo);
+    if (itemScript == 0)
+        return 4;
+    CItem* materialScript = G_CDataManager()->find_item(material.m_addInfo);
+    if (materialScript == 0)
+        return 4;
+
+    int cond = _CheckCondition(user, slotA, itemScript, material, msg->m_19);
+    if (cond != 0)
+    {
+        LogManager::logFormat(1, "ItemUpgrade.cpp",
+            "ENUM_ERROR WongWork::CItemUpgrade::ProcUpgrade(CUser*, MSG_ENCHANT*, PacketGuard*)",
+            0x756,
+            "3RD_CHRONICLE_LOG : ENCHANT SYSTEM _CheckCondition() ERROR!! CHARAC NO(%u) ERROR(%u)",
+            user->getCurCharacNo(), cond);
+        return cond;
+    }
+
+    bool doEnchant = isDoEnchant(slotA, reinterpret_cast<char*>(
+        reinterpret_cast<char*>(materialScript) + 0x30d));
+
+    if (!invenW->delete_item(INVEN_TYPE_EQUIP, msg->m_13, 1, (eItemDelReason)0xc, true))
+        return 0x11;
+
+    packet->put_byte(1);
+    packet->put_short(msg->m_13);
+    Inven_Item material2 = invenW->GetInvenSlot(1, msg->m_13);
+    packet->put_short((int)(material2.m_addInfo & 0xffff));
+    packet->put_byte(doEnchant ? 1 : 0);
+
+    int ret = 0;
+    if (doEnchant)
+    {
+        // ORIG CItem 虚表 +0xc（GetItemType）返回装备类型。
+        ENUM_EQUIPMENTTYPE equipType =
+            (ENUM_EQUIPMENTTYPE)itemScript->GetItemType();
+        ret = ProcUpgrade_3rdChronicle(user, equipType, msg->m_19,
+                                       slotA, materialScript);
+        if (ret != 1)
+        {
+            cMyTrace trace(
+                "ENUM_ERROR WongWork::CItemUpgrade::ProcUpgrade(CUser*, MSG_ENCHANT*, PacketGuard*)",
+                0x786, 5);
+            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
+                  user->getCurCharacNo());
+            return 1;
+        }
+    }
+    else
+    {
+        int sellPrice = 0;
+        G_Store()->GetSellItemPrice(slotA, itemScript, (short)msg->m_19, false,
+                                    sellPrice);
+        GetInstanceValueStatistic()->AddValueStatistic(
+            (VALUE_STATISTIC_FIELD)0xf, user, (unsigned int)sellPrice);
+        int penalty = _ProcPenalty(user, &slotA, itemScript, msg->m_0d, packet);
+        if (penalty != 0)
+        {
+            cMyTrace trace(
+                "ENUM_ERROR WongWork::CItemUpgrade::ProcUpgrade(CUser*, MSG_ENCHANT*, PacketGuard*)",
+                0x77e, 5);
+            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)\n",
+                  penalty, user->getCurCharacNo());
+            return penalty;
+        }
+    }
+
+    if (slotA.m_addInfo != 0)
+        invenW->update_item(INVEN_TYPE_EQUIP, msg->m_0d, slotA);
+    user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, msg->m_0d);
+
+    int count = 0;
+    const unsigned char* f = reinterpret_cast<const unsigned char*>(&slotA) + 0x1f;
+    if ((f[0] & 1) != 0)  ++count;
+    if ((f[1] & 1) != 0)  ++count;
+
+    user->m_historyLog.Enchant3rdChronicleItem(doEnchant,
+        itemScript->get_index(), material.m_addInfo, msg->m_19, count);
+    return 0;
+}
+
+// ============================================================================
+// _CheckCondition(ENCHANT 5 参) @ 0x085497ea（_CheckCondition_085497ea.md）
+//   三代强化条件校验。返回错误码，0=通过。
+// ============================================================================
+int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
+                                  const CItem* itemScript, const Inven_Item& ticket,
+                                  unsigned char param)
+{
+    const stAmplifyOption_t& amp =
+        *reinterpret_cast<const stAmplifyOption_t*>(
+            reinterpret_cast<const char*>(&item) + 0x11);
+    if (!amp.isIdentified())
+        return 0xae;
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(&item) + 0x11;
+    if (p[1] != 1)
+        return 0x13;
+    int itemType = itemScript->GetItemType();
+    if (itemType == 0xb)
+        return 0x13;
+    if (itemType < 10 || itemType > 0x15)
+        return 0x13;
+    unsigned short endurance =
+        *reinterpret_cast<const unsigned short*>(
+            reinterpret_cast<const char*>(&item) + 0xb);
+    if (endurance != (unsigned short)(
+            reinterpret_cast<const CEquipItem*>(itemScript)->get_endurance()))
+        return 7;
+
+    // BLOCKED：DisJoint::getPredictResultItemTypeCount 未建模（DisJoint.h 无声明），
+    //   空间检查按保守 need=1（+hasAbility 再 +1）近似；真实值待分解域批次提供。
+    int need = 1;
+    if (amp.hasAbility())
+        ++need;
+    if (need != 0)
+    {
+        const CInventory* invenR = user->getCurCharacInvenR();
+        if ((unsigned int)(invenR->InvenEmptycount(Inven_Item::ITEM_TYPE_3) +
+                           invenR->QuickEmptyCount()) < (unsigned)need)
+            return 0x15;
+    }
+
+    int materialIdx = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(&ticket) + 2);
+    const CItem* materialScript = G_CDataManager()->find_item(materialIdx);
+    if (itemScript == 0)
+        return 0x15;
+    if ((p[0x1f - 0x11] & 1) == 0 || (p[0x20 - 0x11] & 1) == 0)
+    {
+        // 两字节均就绪时检查 enchant 槽匹配；否则遍历装备附魔表匹配 job+growType。
+        const std::vector<STEnchantSystemData>& vec =
+            reinterpret_cast<const CEquipItem*>(itemScript)->m_enchantVec;
+        bool matched = false;
+        for (std::vector<STEnchantSystemData>::const_iterator it = vec.begin();
+             it != vec.end(); ++it)
+        {
+            if (it->m_a == user->get_charac_job() &&
+                it->m_b == (int)((signed char)user->getCurCharFirstGrowType()))
+            {
+                matched = true;
+                break;
+            }
+        }
+        return matched ? 0 : 1;
+    }
+    return 0x13;
+}
+
+// ============================================================================
+// ProcUpgrade_3rdChronicle @ 0x0854a006（ProcUpgrade_3rdChronicle.md）
+//   三代强化落点：按 key(job/growType/equipType/param) 查 itemScript+0x2f4 附魔表；
+//   命中 → item+0x1f 或 item+0x20（按首字节 &1 二选一）写入附魔类型/槽位，返回 1；
+//   未命中 → 0。
+// ============================================================================
+int CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
+                                           unsigned char param, Inven_Item& item,
+                                           const CItem* itemScript)
+{
+    // ORIG key：job + growType + equipType + param 组合查 map（CStackableItem+0x2f4）。
+    // 该 map 权威键类型 STEnchantSystemMapKey 仅含 m_field0（int），此处用
+    // map<int,int>（CStackableItem::m_enchantMap）查 job 键近似。
+    const std::map<int, int>* map2f4 =
+        reinterpret_cast<const std::map<int, int>*>(
+            reinterpret_cast<const char*>(itemScript) + 0x2f4);
+    std::map<int, int>::const_iterator it = map2f4->find(user->get_charac_job());
+    bool found = it != map2f4->end();
+
+    unsigned char* f = reinterpret_cast<unsigned char*>(&item) + 0x1f;
+    if ((f[0] & 1) == 0)
+    {
+        f[0] |= 1;
+        f[0] = (unsigned char)((f[0] & 0xf9) |
+                               ((param & 0x1f) * 8));
+    }
+    else
+    {
+        f[1] |= 1;
+        f[1] = (unsigned char)((f[1] & 0xf9) |
+                               ((param & 0x1f) * 8));
+    }
+    return found ? 1 : 0;
+}
+
+// ============================================================================
+// _ProcPenalty(ENCHANT 5 参) @ 0x08549ac8（_ProcPenalty_08549ac8.md）
+//   三代强化惩罚：删材料 → 分解 → 附加物品入包+插入事件物品+统计。返回错误码。
+// ============================================================================
+int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
+                               const CItem* itemScript, unsigned short slot,
+                               PacketGuard* packet)
+{
+    const stAmplifyOption_t& amp =
+        *reinterpret_cast<const stAmplifyOption_t*>(
+            reinterpret_cast<const char*>(item) + 0x11);
+    const upgrade_table_t* table = amp.hasAbility()
+        ? GlobalData::s_itemAmplifier_->getUpgradeInfoTable()
+        : reinterpret_cast<const upgrade_table_t*>(
+            reinterpret_cast<const char*>(this) + 4);
+
+    CInventory* invenW = user->getCurCharacInvenW();
+    if (!invenW->delete_item(INVEN_TYPE_EQUIP, slot, 1, (eItemDelReason)0xd, true))
+        return 0x11;
+
+    unsigned int upgrade = (unsigned int)(unsigned char)item->GetUpgrade();
+    packet->put_short(slot);
+
+    DisJointResult djr;
+    DisJoint* dj = *(DisJoint**)((char*)G_CDataManager() + 0x1c);
+    int itemIdx = *(int*)((char*)item + 2);
+    if (dj->GetResult(itemIdx, djr) != 0)
+    {
+        packet->put_byte(0);
+        return 0;
+    }
+
+    *(int*)((char*)item + 2) = 0;
+    std::vector<std::pair<int, int> > addItems;
+    addItems.reserve(6);
+    for (int i = 0; i < 5; ++i)
+    {
+        int fi = reinterpret_cast<int*>(&djr)[4 + i];
+        if (fi != 0)
+            addItems.push_back(std::make_pair(fi, fi));
+    }
+    if (amp.hasAbility())
+        _getAdditionalDisjointItem(upgrade, itemScript, addItems, *table);
+    _getAdditionalDisjointItem(upgrade, itemScript, addItems, *table);
+
+    std::vector<int> outSlots;
+    int insertRet = invenW->insert_event_items(addItems, outSlots,
+        (eMoneyAddReason)7, (eItemAddReason)0x13, false, "", "");
+    packet->put_byte(insertRet);
+
+    // ORIG outSlots 每 3 项一槽（slot/itemIdx/count 三连）。逐槽出品（reduce 精度受限）。
+    if (insertRet != 0)
+    {
+        for (std::vector<int>::const_iterator it = outSlots.begin();
+             it != outSlots.end(); it += 3)
+        {
+            int slotVal = *it;
+            int idx = (it + 1 != outSlots.end()) ? *(it + 1) : 0;
+            int cnt = (it + 2 != outSlots.end()) ? *(it + 2) : 0;
+            packet->put_short(slotVal);
+            if (it + 1 != outSlots.end())
+                packet->put_item_idx((unsigned long)(idx & 0xffff));
+            if (it + 2 != outSlots.end())
+                packet->put_int(cnt);
+        }
+    }
+    return 0;
 }
 }  // namespace WongWork

@@ -23,6 +23,7 @@ class DisPatcher_Login : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state
 {
 public:
     DisPatcher_Login();
+    int m_field4;   // +0x04（ORIG C1 0x081e8b7e 域写 0；登录态标记占位）
     virtual ~DisPatcher_Login();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -330,6 +331,7 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
+class Inven_Item;
 class DisPatcher_DisJointItem : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
@@ -338,6 +340,10 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+    // ORIG T 0x081fa0f6 _ZN23DisPatcher_DisJointItem22_checkDisjointableItemERK10Inven_ItemP5CUser
+    // （静态成员；定义 ExpertJobLink4.cpp）
+    static int _checkDisjointableItem(const Inven_Item& item, CUser* targetUser);
 };
 
 class DisPatcher_Lottery : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
@@ -534,6 +540,8 @@ public:
     void CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& info);
 };
 
+class GameResultSet;
+
 class DisPatcher_SetPlayResult : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
@@ -542,6 +550,7 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    static int SendResult(CParty* party, GameResultSet& result, int step);  // ORIG T 0x081f5db6
 };
 
 class DisPatcher_DropItem : public IPacketDispatcher<MSG_DROP_ITEM, stDropItemParam, (ch_state)3>
@@ -676,6 +685,7 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    char _debugCommandSetLevel(CUser* user, int level);  // ORIG T 0x0858efde _ZN23DisPatcher_DebugCommand21_debugCommandSetLevelEP5CUseri
 };
 
 class DisPatcher_AddFriend : public IPacketDispatcher<MSG_ADD_FRIEND, stAddFriendParam, (ch_state)3>

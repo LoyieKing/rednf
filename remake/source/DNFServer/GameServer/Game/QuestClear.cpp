@@ -4,56 +4,61 @@
 
 namespace WongWork
 {
+
+// P1 组件视图：save-flag 字节位于对象 +0x7530，用组件视图折叠为单指令 disp
+// （movb $x,0x7530(%eax)），与 ORIG 一致。
+struct QC_SaveFlagView
+{
+    unsigned char m_pad[0x7530];
+    unsigned char m_saveFlag;   // +0x7530
+};
+
 CQuestClear::CQuestClear()
 {
-    // ORIG 0x08694b92：循环 0x7530 次调用 STClearedQuest::C1Ev（每次将首字节=0，等价
-    // 于清零 m_cleared[0..0x752f]）后再调 clear()。STClearedQuest 为 POD（m_pad[0x14]，
-    // C1Ev 仅置 0x00），净效果即全部清零 —— 故仅调用 clear() 与之等效。
+    // ORIG 0x08694b92：循环 0x7530 次调用 STClearedQuest::C1Ev（每次将首字节=0）后调
+    // clear()。STClearedQuest 为 POD（C1Ev 仅置首字节 0），净效果即全部清零。
     clear();
 }
 
 CQuestClear::~CQuestClear()
 {
-    // ORIG 0x0822e4cc（D1Ev/D2Ev，W/weak）：push %ebp; mov %esp,%ebp; pop %ebp; ret
-    // —— 合法空析构，无成员需释放，空体正确，勿改。
+    // ORIG 0x0822e4cc（D1Ev/D2Ev）：push %ebp; mov %esp,%ebp; pop %ebp; ret —— 合法空析构。
 }
 
 void CQuestClear::clear()
 {
-    // ORIG 0x0808bb06：memset 0x7530 + 尾部 1 字节（+0x7530 save-flag）清零
+    // ORIG 0x0808bb06：memset 0x7530 + save-flag(+0x7530) 单指令清零。
     memset(m_cleared, 0, 0x7530);
-    *((unsigned char*)this + 0x7530) = 0;
+    ((QC_SaveFlagView*)this)->m_saveFlag = 0;
 }
 
-bool CQuestClear::isClearedQuest(unsigned int questIdx) const
+unsigned char CQuestClear::isClearedQuest(unsigned int questIdx) const
 {
-    // ORIG 0x0808bae0：idx==0 或 idx>0x752f → 0；否则返回 m_cleared[idx]（0/非0）。
+    // ORIG 0x0808bae0：idx==0 或 idx>0x752f → 0；否则 movzbl 直返字节（P9 无 setne）。
     if (questIdx == 0 || questIdx > 0x752f)
-        return false;
-    return m_cleared[questIdx] != 0;
+        return 0;
+    return m_cleared[questIdx];
 }
 
 const STClearedQuest* CQuestClear::getClearedQuest() const
 {
-    // ORIG（0x0808bb80）返回 this：m_cleared 位于 +0x00，UserQuest::get_quest 据此
-    // memcpy 0x7530 字节到 SIG_LOAD_QUEST::m_cleared。
+    // ORIG（0x0808bb80）返回 this：m_cleared 位于 +0x00，get_quest 据此 memcpy 0x7530 字节。
     return reinterpret_cast<const STClearedQuest*>(this);
 }
 
 bool CQuestClear::resetClearedQuests(unsigned int questIdx)
 {
-    // ORIG 0x0808baac：idx==0 或 idx>0x752f → 返回 0；否则置 save-flag(+0x7530)=1，
-    // 清 m_cleared[idx]=0，返回 1。
+    // ORIG 0x0808baac：save-flag=1 后清 m_cleared[idx]=0（movb $1,0x7530(%eax) 单指令）。
     if (questIdx == 0 || questIdx > 0x752f)
         return false;
-    *((unsigned char*)this + 0x7530) = 1;   // save-flag
+    ((QC_SaveFlagView*)this)->m_saveFlag = 1;
     m_cleared[questIdx] = 0;
     return true;
 }
 
 void CQuestClear::setClearedQuest(const STClearedQuest* quest)
 {
-    // ORIG 0x0808bb5e：memcpy(this, quest, 0x7530)，不含尾部 save-flag(+0x7530)。
+    // ORIG 0x0808bb5e：memcpy(this, quest, 0x7530)，不含 save-flag。
     memcpy(m_cleared, quest, 0x7530);
 }
 
@@ -65,26 +70,25 @@ bool CQuestClear::syncScript()
 
 bool CQuestClear::setClearedQuest(unsigned int questIdx)
 {
-    // ORIG 0x0808ba78：idx==0 或 idx>0x752f → 返回 0；否则置 save-flag(+0x7530)=1，
-    // 置 m_cleared[idx]=1，返回 1。
+    // ORIG 0x0808ba78：save-flag=1 后置 m_cleared[idx]=1（单指令 disp 写入）。
     if (questIdx == 0 || questIdx > 0x752f)
         return false;
-    *((unsigned char*)this + 0x7530) = 1;   // save-flag
+    ((QC_SaveFlagView*)this)->m_saveFlag = 1;
     m_cleared[questIdx] = 1;
     return true;
 }
 
-bool CQuestClear::checkSaveFlag() const
+unsigned char CQuestClear::checkSaveFlag() const
 {
-    // ORIG 0x0808bb3e：返回 +0x7530 save-flag 字节（0/非0）。
-    return *((const unsigned char*)this + 0x7530) != 0;
+    // ORIG 0x0808bb3e：movzbl 0x7530(%eax) 直返 save-flag 字节（P9）。
+    return ((const QC_SaveFlagView*)this)->m_saveFlag;
 }
 
 int CQuestClear::getClearedQuestNum() const
 {
-    // ORIG 0x0808bbc4：统计 m_cleared[1..0x752f] 非零个数。
+    // ORIG 0x0808bbc4：统计 m_cleared[1..0x752f] 非零数；有符号比较 setle（P2：i <= 0x752f）。
     int count = 0;
-    for (unsigned int i = 1; i < 30000; ++i)
+    for (int i = 1; i <= 0x752f; ++i)
     {
         if (m_cleared[i] != 0)
             ++count;
@@ -94,16 +98,16 @@ int CQuestClear::getClearedQuestNum() const
 
 void CQuestClear::resetSaveFlags()
 {
-    // ORIG 0x0808bb4e：清零 +0x7530 save-flag。
-    *((unsigned char*)this + 0x7530) = 0;
+    // ORIG 0x0808bb4e：清零 save-flag（movb $0,0x7530 单指令）。
+    ((QC_SaveFlagView*)this)->m_saveFlag = 0;
 }
 
 void CQuestClear::enumQuestClear(bool (*cb)(unsigned int, char*), ...) const
 {
-    // ORIG 0x0808bb88：va_start 后对 i=1..0x752f 调 cb(i, (char*)ap)。
+    // ORIG 0x0808bb88：va_start 后对 i=1..0x752f 调 cb(i,(char*)ap)；setle 有符号比较（P2）。
     va_list ap;
     va_start(ap, cb);
-    for (unsigned int i = 1; i < 30000; ++i)
+    for (int i = 1; i <= 0x752f; ++i)
         cb(i, (char*)ap);
     va_end(ap);
 }

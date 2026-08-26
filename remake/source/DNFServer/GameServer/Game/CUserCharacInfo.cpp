@@ -1,7 +1,12 @@
 // ============================================================================
-// df_game_r 还原 —— CUserCharacInfo 全部函数（G1-2 批次，498 符号）。
-// 依据 docs/class_func_reports/CUserCharacInfo.md（98 个 T 函数）与 ORIG
-// 反汇编（386 个 W 访问器）逐函数实现；identical 口径编译验证。
+// df_game_r 还原 —— CUserCharacInfo 全部函数（498 符号）。
+// 依据 docs/class_func_reports/CUserCharacInfo/（98 个 T 函数逐函数报告）与
+// ORIG 反汇编（386 个 W 访问器）逐函数实现；identical 口径编译验证。
+// 本批次（CUserCharacInfoNext）：_Charac_info 布局视图 CharacInfoFields
+// （0x14d1，具名字段）迁入 owned header；全部 m_selected/m_tag 裸偏移访问
+// 字段化（guildName/guildAddr/wpBonus/expBonus/warAreaKill/name/createTime/
+// backupSkill/coolTime/effectItem 列表/cargo/inven）；IncFatigueBatteryCharging
+// 改经 ServerParameterScript::m_fatigueTable5c0.m_capLimit 具名成员。
 // ============================================================================
 
 #include "CUserCharacInfo.h"
@@ -13,229 +18,11 @@
 #include "CUser.h"
 #include "CInventory.h"
 #include "CExpertJob.h"   // expert_job::CExpertJob 完整类型（IsBusyDisjointStore 用 GetType）
-#include "LogManager.h"
+#include "ServerParameterScript.h"   // IncFatigueBatteryCharging/DieCurCharac 经 CDataManager+0x68 实例
 #include "GameWorld.h"
 
-// ----------------------------------------------------------------------------
-// _Charac_info 本地完整布局（ORIG 尺寸 0x14d1；与 SkillSlot.h 的占位不冲突）
-// ----------------------------------------------------------------------------
-// STL 成员用 pack 外包装类型固定布局（pack(1) 会使首次实例化缩为 0x15）
-struct CharacInfoCoolList
-{
-    std::vector<ContinuousItemInfo> m_list;
-};
-struct CharacInfoEffectList
-{
-    std::vector<ContinuousItemInfo> m_list;
-};
-struct CharacInfoBloodMap
-{
-    std::map<int, stBloodBestRecord> m_map;
-};
-
-// m_growType 位域（ORIG getCurCharFirst/SecondGrowType 为真实成员位域提取）
-union GrowTypeBits
-{
-    unsigned char byte;
-    struct
-    {
-        signed char first : 4;   // bit0..3
-        signed char second : 3;  // bit4..6
-        signed char third : 1;   // bit7
-    };
-};
-
-#pragma pack(push, 1)
-struct CharacInfoFields
-{
-    int m_characNo;                    // +0x00
-    char m_name[0x1e];                 // +0x04..0x22
-    unsigned char m_vill;              // +0x22
-    unsigned char m_villPvP;           // +0x23
-    char m_pad24;                      // +0x24
-    unsigned char m_villPrev;          // +0x25
-    unsigned char m_job;               // +0x26
-    short m_level;                      // +0x27
-    GrowTypeBits m_growType;           // +0x29（位域）
-    GrowTypeBits m_growTypeChanging;  // +0x2a
-    int m_exp;                         // +0x2b
-    int m_partyBonusExp;               // +0x2f
-    unsigned short m_fatigue;          // +0x33
-    unsigned short m_maxFatigue;       // +0x35
-    unsigned short m_fatigueGrownUpBuff;   // +0x37
-    CommonTime m_createTime;           // +0x39（0x14）
-    unsigned short m_usedFatigue;      // +0x4d
-    unsigned short m_fatigueBattery;   // +0x4f
-    unsigned int m_tutorialFlags;      // +0x51
-    char m_tutorialFlags2[0x10];       // +0x55
-    CReliablePerson m_reliablePerson;  // +0x65（0x10）
-    unsigned char m_stamina;           // +0x75
-    unsigned char m_backupStamina;     // +0x76
-    unsigned short m_premiumFatigue;   // +0x77
-    unsigned short m_maxPremiumFatigue;// +0x79
-    long m_lastPlayTick;               // +0x7b
-    long m_lastPlayTickPowerWar;       // +0x7f
-    char m_pad83[5];                   // +0x83..0x88
-    char m_addInfo[0x52];              // +0x88..0xda
-    char m_inven[0x892 - 0xda];        // +0xda..0x892
-    char m_skill[0xdaa - 0x892];       // +0x892..0xdaa
-    char m_cargo[0xdbe - 0xdaa];       // +0xdaa..0xdbe
-    int m_guildkey;                    // +0xdbe
-    unsigned char m_guildCreateRight;  // +0xdc2
-    unsigned short m_guildCreateFlag;  // +0xdc3
-    char m_guildName[0x17];            // +0xdc5
-    char m_guildAddr[0xd];             // +0xddc
-    int m_guildExp;                    // +0xde9
-    unsigned short m_guildTempExp;      // +0xded
-    int m_guildTodayExp;               // +0xdef
-    unsigned char m_guildMemberGrade;  // +0xdf3
-    unsigned int m_dungeonHelpAbuseRatio;  // +0xdf4
-    unsigned int m_dungeonHelpAbuseExp;    // +0xdf8
-    short m_levelBeforeDungeon;        // +0xdfc
-    unsigned int m_helpAbuseComputedRatio; // +0xdfe
-    long m_loginTick;                  // +0xe02
-    int m_finishPoint;                 // +0xe06
-    int m_finishPointTotal;            // +0xe0a
-    float m_warAreaKill[5];            // +0xe0e
-    int m_memberkey;                   // +0xe22
-    int m_connectUpperMember;          // +0xe26
-    int m_memberBonusExp;              // +0xe2a
-    int m_fatigueBufBonusExp;          // +0xe2e
-    unsigned char m_uppermemberExpLevel;  // +0xe32
-    int m_memberPayTexMoney;           // +0xe33
-    int m_memberPayTexFatigue;         // +0xe37
-    char m_overEquipFlag;              // +0xe3b
-    int m_blackCount;                  // +0xe3c
-    union
-    {
-        unsigned char m_visibleValues;              // +0xe40（整字节）
-        struct
-        {
-            signed int visible : 1;                 // bit0
-            signed int growAvatar : 1;              // bit1
-            signed int teleport : 1;                // bit2
-            signed int m_padBits : 5;
-        } m_visibleBits;
-    };
-    int m_assaultPlace;                // +0xe41
-    int m_assaultCount;                // +0xe45
-    int m_chaosPoint;                  // +0xe49
-    int m_chaosExp;                    // +0xe4d
-    int m_chaosModeCount;              // +0xe51
-    int m_chaosKillCount;              // +0xe55
-    int m_chaosDieCount;               // +0xe59
-    int m_chaosDieTime;                // +0xe5d
-    int m_chaosStateTime;              // +0xe61
-    unsigned char m_superState;        // +0xe65
-    unsigned char m_ghost;             // +0xe66
-    unsigned char m_leaveTimeout;      // +0xe67
-    int m_chaosKillTime;               // +0xe68
-    int m_assaultFatigueCount;         // +0xe6c
-    unsigned char m_opencoin;          // +0xe70
-    int m_luckPoint;                   // +0xe71
-    int m_luckPointUpdateTimeCount;    // +0xe75
-    int m_dungeonPlayCount;            // +0xe79
-    int m_expertJobType;               // +0xe7d
-    int m_expertJobExp;                // +0xe81
-    expert_job::CExpertJob* m_expertJob;   // +0xe85
-    online_preliminary::COnlinePreliminaryTeam* m_onlinePreliminaryTeam;  // +0xe89
-    unsigned short m_powerWarHP;       // +0xe8d
-    unsigned char m_joinPower;         // +0xe8f
-    char m_padE90;                     // +0xe90
-    long m_powerWarProcessLastUpdateTime;  // +0xe91
-    long m_powerWarLastPlayTime;       // +0xe95
-    char m_padE99;                     // +0xe99
-    CharacInfoCoolList m_coolTimeItemList;   // +0xe9a
-    CharacInfoEffectList m_effectItemList;   // +0xea6
-    unsigned char m_isAffectedExpDouble;   // +0xeb2
-    unsigned char m_oneDayLetheFlag;       // +0xeb3
-    unsigned char m_isInitSkillFlag;       // +0xeb4
-    unsigned char m_oneDayLetheFlag2ND;    // +0xeb5
-    unsigned char m_isInitSkillFlag2ND;    // +0xeb6
-    unsigned char m_firstTimeLogin;        // +0xeb7
-    unsigned char m_saveDemensionInout;    // +0xeb8
-    char m_demensionInout[6];              // +0xeb9
-    unsigned char m_saveBloodInout;        // +0xebf
-    char m_ultimateInout[3];               // +0xec0
-    unsigned char m_bloodBestRecordUpdate; // +0xec3
-    int m_bloodBestRound;                  // +0xec4
-    unsigned int m_bloodBestTime;          // +0xec8
-    CharacInfoBloodMap m_bloodBestMap;       // +0xecc（0x18）
-    unsigned char m_isExpItemAffected;     // +0xee4
-    float m_expAffectRate;                 // +0xee5
-    unsigned char m_isDisguiseCharac;      // +0xee9
-    unsigned char m_disguiseKind;          // +0xeea
-    unsigned short m_disguiseIndex;        // +0xeeb
-    char m_backupSkill[0x199];             // +0xeed
-    char m_backupSkill2ND[0x199];          // +0x1086
-    unsigned short m_powerWarPoint;        // +0x121f
-    int m_powerWarAssaultCount;            // +0x1221
-    int m_powerWarAssaultVictoryCount;     // +0x1225
-    unsigned short m_straightVictories;    // +0x1229
-    unsigned char m_isEndLetheAtLogin;     // +0x122b
-    unsigned short m_curCharacEmotion;     // +0x122c
-    long m_lastItemLimitEditionBuyTime;    // +0x122e
-    unsigned short m_curConditionEventStep;    // +0x1232
-    unsigned short m_curConditionEventRewardStep;  // +0x1234
-    unsigned short m_properDungeonClearCount;     // +0x1236
-    unsigned char m_properDungeonUser;     // +0x1238
-    char m_skillTreeIndex;                 // +0x1239
-    unsigned short m_curCharacEventItemCount;    // +0x123a
-    unsigned short m_curCharacEventAddItemCount; // +0x123c
-    char m_curExEquipSlotStat;             // +0x123e
-    unsigned char m_eventCharacterGrowtype;     // +0x123f
-    char m_pad1240;                    // +0x1240
-    unsigned char m_memberDungeonFlag;     // +0x1241
-    unsigned char m_revengeCount;          // +0x1242
-    unsigned char m_revengeDungeonCount;   // +0x1243
-    unsigned char m_villageAttackDBUpdate; // +0x1244
-    char m_linkCharacSlotIndex;            // +0x1245
-    unsigned char m_characLinkType;        // +0x1246
-    int m_characLinkBonusExp;              // +0x1247
-    int m_characLinkBonusGold;             // +0x124b
-    char m_pad124f[5];                     // +0x124f
-    char m_skillCommand[0x18];             // +0x1254
-    unsigned short m_memberBonusFatigue;   // +0x126c
-    unsigned char m_guildSecede;           // +0x126e
-    int m_lastPlayDungeonIndex;            // +0x126f
-    unsigned char m_upgradeSeparateTrue;   // +0x1273
-    unsigned char m_upgradeSeparateFalse;  // +0x1274
-    char m_curEquipslotFlag;               // +0x1275
-    unsigned char m_curChannelEquipslotSwitch;  // +0x1276
-    unsigned char m_curExpandEquipslotSwitch;   // +0x1277
-    unsigned char m_bringUpRewardFlag;     // +0x1278
-    unsigned char m_curUseBringUpMaterialCount; // +0x1279
-    unsigned char m_curUseBringUpMaterialTotal; // +0x127a
-    unsigned char m_growthPowerExpRewardRight;  // +0x127b
-    int m_seriaBufBonusExp;                // +0x127c
-    unsigned char m_growthPowerReward;     // +0x1280
-    union
-    {
-        stAuraAvatarOption m_auraAvatarOption;  // +0x1281（ORIG 结构复制形态）
-        int m_auraAvatarOptionArr[3];           // +0x1281（ORIG 下标形态）
-    };
-    int m_premiumBonusExp;                 // +0x128d
-    int m_weekendBonusExp;                 // +0x1291
-    char m_pad1295[8];                     // +0x1295
-    WpBonusPointResult m_wpBonus;    // +0x129d（8 字节）
-    ExpBonusPointResult m_expBonus;   // +0x12a5（8 字节）
-    int m_chaosResponTime;                 // +0x12ad
-    int m_assaultMoney;                    // +0x12b1
-    unsigned short m_assaultedUserId;      // +0x12b5
-    CharacterOption m_characterOption;     // +0x12b7
-    unsigned char m_strikerSkillIndex;     // +0x14b7
-    int m_tagCharacNo;                     // +0x14b8
-    char m_pad14bc;                        // +0x14bc
-    unsigned char m_blueMarbleEnterCount;  // +0x14bd
-    int m_blueMarbleUserDeadCount;         // +0x14be
-    int m_maxEquipLevel;                   // +0x14c2
-    int m_characViewState;                 // +0x14c6
-    seriaRoom_AniDeco m_seriaRoomAniDeco;  // +0x14ca
-    unsigned char m_cubePremiumContract;   // +0x14ce
-    unsigned char m_cubePremiumCount;      // +0x14cf
-    unsigned char m_cubePremiumSaved;      // +0x14d0
-};
-#pragma pack(pop)
+// _Charac_info 布局视图（CharacInfoFields，0x14d1）见 CUserCharacInfo.h；
+// 此处仅保留访问别名。ORIG 经完整类型直接成员寻址，本 TU 以同布局视图等价。
 int DEFAULT_MAX_FATIGUE = 0;  // ORIG 全局（0x9370f5c），原 GameStubs.cpp 定义迁移
 
 #define CUR ((CharacInfoFields*)m_selected)
@@ -464,7 +251,7 @@ void CUserCharacInfo::set_charac_fatigue_buf_bonus_exp(int exp)
 
 void CUserCharacInfo::set_charac_createtime(long t)
 {
-    ((CommonTime*)((char*)m_selected + 0x39))->SetCreateTime(t);
+    CUR->m_createTime.SetCreateTime(t);
 }
 
 void CUserCharacInfo::set_aura_avatar_option_value(int index, int value)
@@ -607,14 +394,14 @@ void CUserCharacInfo::setGuildCreateFlag(unsigned short flag)
 }
 
 
-void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind, unsigned short index)
+// ORIG W 0x0822f8f6：m_selected 非空时返回其 +0xee9 字节，否则 0。
+unsigned char CUserCharacInfo::isDisguiseCharac()
 {
     if (m_selected)
     {
-    CUR->m_isDisguiseCharac = flag;
-    setDisguiseKind(kind);
-    setDisguiseIndex(index);
+        return CUR->m_isDisguiseCharac;
     }
+    return 0;
 }
 
 
@@ -632,6 +419,20 @@ void CUserCharacInfo::setDisguiseIndex(unsigned short index)
     if (m_selected)
     {
     CUR->m_disguiseIndex = index;
+    }
+}
+
+
+// ORIG W 0x0822f91a：m_selected 非空时置 +0xee9 伪装标志，再依次
+// setDisguiseKind(kind)（W 0x0822f976）/ setDisguiseIndex(index)（W 0x0822f99e）。
+void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
+                                        unsigned short index)
+{
+    if (m_selected)
+    {
+    CUR->m_isDisguiseCharac = flag;
+    setDisguiseKind(kind);
+    setDisguiseIndex(index);
     }
 }
 
@@ -1102,8 +903,8 @@ void CUserCharacInfo::resetTempGuildNameAddr()
 {
     if (m_selected)
     {
-    memset((char*)CUR + 0xdc5, 0, 0x17);
-    memset((char*)CUR + 0xddc, 0, 0xd);
+    memset(CUR->m_guildName, 0, sizeof(CUR->m_guildName));
+    memset(CUR->m_guildAddr, 0, sizeof(CUR->m_guildAddr));
     }
 }
 
@@ -1313,6 +1114,9 @@ bool CUserCharacInfo::isExistItem(int itemIdx)
 {
     if (!m_selected)
         return false;
+    // ORIG（0x8678084）为 lea 0xdaa/0xda(%eax) 直接偏移寻址；具名字段取址
+    // 会生成 add/mov 链破坏 identical 形态，故此处保留偏移式访问（证据：
+    // docs/class_func_reports/CUserCharacInfo/isExistItem.md）。
     if (((const CCargo*)((const char*)m_selected + 0xdaa))->check_item_exist(itemIdx) != -1)
         return true;
     if (((const CInventory*)((const char*)m_selected + 0xda))->check_item_exist(itemIdx) != -1)
@@ -1320,12 +1124,6 @@ bool CUserCharacInfo::isExistItem(int itemIdx)
     return false;
 }
 
-
-
-unsigned char CUserCharacInfo::isDisguiseCharac()
-{
-    return m_selected ? CUR->m_isDisguiseCharac : 0;
-}
 
 
 unsigned char CUserCharacInfo::isBloodBestRecordUpdate()
@@ -1460,7 +1258,7 @@ int CUserCharacInfo::get_connect_upper_member()
     return m_selected ? CUR->m_connectUpperMember : 0;
 }
 
-unsigned char CUserCharacInfo::get_charac_visible_values()
+signed char CUserCharacInfo::get_charac_visible_values()
 {
     return m_selected ? CUR->m_visibleValues : 0;
 }
@@ -2050,12 +1848,12 @@ unsigned char CUserCharacInfo::getCurChannelEquipslotSwitch()
 
 char* CUserCharacInfo::getCreateGuildName()
 {
-    return m_selected ? (char*)CUR + 0xdc5 : 0;
+    return m_selected ? (char*)CUR->m_guildName : 0;
 }
 
 char* CUserCharacInfo::getCreateGuildAddr()
 {
-    return m_selected ? (char*)CUR + 0xddc : 0;
+    return m_selected ? (char*)CUR->m_guildAddr : 0;
 }
 
 bool CUserCharacInfo::getContractOfCubePremiumInfo(unsigned char& active, unsigned char& count)
@@ -2205,21 +2003,23 @@ void CUserCharacInfo::checkBonusPoint()
         CItem* found = G_CDataManager()->find_item(invenItem->m_addInfo);
         if (found == 0)
             continue;
-        if (*(int*)((char*)((CEquipItem*)found)->getWpBonusPoint() + 0) == 0)
+        WpBonusPointData* wp = ((CEquipItem*)found)->getWpBonusPoint();
+        if (wp->m_type == 0)
         {
-            CUR->m_wpBonus.m_base += *(int*)((char*)((CEquipItem*)found)->getWpBonusPoint() + 4);
+            CUR->m_wpBonus.m_base += wp->m_value;
         }
-        else if (*(int*)((char*)((CEquipItem*)found)->getWpBonusPoint() + 0) == 1)
+        else if (wp->m_type == 1)
         {
-            CUR->m_wpBonus.m_add += *(int*)((char*)((CEquipItem*)found)->getWpBonusPoint() + 4);
+            CUR->m_wpBonus.m_add += wp->m_value;
         }
-        if (*(int*)((char*)((CEquipItem*)found)->getExpBonusPoint() + 0) == 0)
+        ExpBonusPointData* exp = ((CEquipItem*)found)->getExpBonusPoint();
+        if (exp->m_type == 0)
         {
-            CUR->m_expBonus.m_base += *(int*)((char*)((CEquipItem*)found)->getExpBonusPoint() + 4);
+            CUR->m_expBonus.m_base += exp->m_value;
         }
-        else if (*(int*)((char*)((CEquipItem*)found)->getExpBonusPoint() + 0) == 1)
+        else if (exp->m_type == 1)
         {
-            CUR->m_expBonus.m_add += *(int*)((char*)((CEquipItem*)found)->getExpBonusPoint() + 4);
+            CUR->m_expBonus.m_add += exp->m_value;
         }
     }
 }
@@ -2230,8 +2030,8 @@ void CUserCharacInfo::resetBonusPoint()
 {
     if (m_selected)
     {
-    memset((char*)m_selected + 0x129d, 0, 8);
-    memset((char*)m_selected + 0x12a5, 0, 8);
+    memset(&CUR->m_wpBonus, 0, sizeof(CUR->m_wpBonus));
+    memset(&CUR->m_expBonus, 0, sizeof(CUR->m_expBonus));
     }
 }
 
@@ -2830,7 +2630,7 @@ unsigned char CUserCharacInfo::IsSaveBloodInoutValue()
     return CUR->m_saveBloodInout;
 }
 
-unsigned char CUserCharacInfo::IsProperDungeonUser()
+bool CUserCharacInfo::IsProperDungeonUser()
 {
     return m_selected ? CUR->m_properDungeonUser : 0;
 }
@@ -2897,7 +2697,7 @@ bool CUserCharacInfo::IsAvailableCurCharacTradeGoldDaily(unsigned int gold)
 
 const char* CUserCharacInfo::getCurCharacName() const
 {
-    return m_selected ? (const char*)((char*)m_selected + 4) : "";
+    return m_selected ? (const char*)CUR->m_name : "";
 }
 
 
@@ -2907,7 +2707,7 @@ void CUserCharacInfo::InitFinishPoint()
     {
     CUR->m_finishPoint = 0;
     CUR->m_finishPointTotal = 0;
-    memset((char*)CUR + 0xe0e, 0, 0x14);
+    memset(CUR->m_warAreaKill, 0, sizeof(CUR->m_warAreaKill));
     ((CUser*)this)->m_historyLog.FPSub(
         0, CUR->m_finishPoint, CUR->m_finishPointTotal, (eFPSubReason)1);
     }
@@ -2966,19 +2766,16 @@ void CUserCharacInfo::IncFatigueBatteryCharging(short value)
     if (m_selected)
     {
         enableSaveCharacStat();
-        struct ServerParamBatteryView
-        {
-            char pad[0x5c0];
-            unsigned short m_maxFatigueBattery;   // +0x5c0
-        };
-        ServerParamBatteryView* sp =
-            (ServerParamBatteryView*)((char*)G_CDataManager() + 0x68);
+        // ORIG IncFatigueBatteryCharging（0x86566e4）：movzwl 0x5c0(%eax) 读
+        // CDataManager+0x68 处 ServerParameterScript 的疲劳电池常量表上限。
+        ServerParameterScript* sp =
+            (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
         unsigned short old = CUR->m_fatigueBattery;
         CUR->m_fatigueBattery = (unsigned short)(CUR->m_fatigueBattery + value);
         if ((short)CUR->m_fatigueBattery < (short)old ||
-            (int)(short)CUR->m_fatigueBattery > (int)sp->m_maxFatigueBattery)
+            (int)(short)CUR->m_fatigueBattery > (int)sp->m_fatigueTable5c0.m_capLimit)
         {
-            CUR->m_fatigueBattery = sp->m_maxFatigueBattery;
+            CUR->m_fatigueBattery = sp->m_fatigueTable5c0.m_capLimit;
         }
     }
 }
@@ -3459,12 +3256,12 @@ int CUserCharacInfo::GetCurCharacChaosDieCount()
 
 const char* CUserCharacInfo::GetCurCharacBackupSkill2ND() const
 {
-    return m_selected ? (const char*)CUR + 0x1086 : 0;
+    return m_selected ? (const char*)CUR->m_backupSkill2ND : 0;
 }
 
 const char* CUserCharacInfo::GetCurCharacBackupSkill() const
 {
-    return m_selected ? (const char*)CUR + 0xeed : 0;
+    return m_selected ? (const char*)CUR->m_backupSkill : 0;
 }
 
 unsigned short CUserCharacInfo::GetCurCharacAssaultedUserId()
@@ -3508,14 +3305,13 @@ void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
 
 const std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacEffectItemListR() const
 {
-    return (const std::vector<ContinuousItemInfo>*)((const char*)m_selected + 0xea6);
+    return &CUR->m_effectItemList.m_list;
 }
 
 const std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacCoolTimeItemListR() const
 {
-    return (const std::vector<ContinuousItemInfo>*)((const char*)m_selected + 0xe9a);
+    return &CUR->m_coolTimeItemList.m_list;
 }
-
 int CUserCharacInfo::GetCharacPlayTick()
 {
     return GlobalData::s_systemTime_.getCurSec() - GetCharacStartPlayTick();
@@ -3557,9 +3353,9 @@ bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& 
 {
     if (user != 0 && m_selected != 0)
     {
-        if (((const CCargo*)((const char*)m_selected + 0xdaa))->FindItemLock(b, space, slot))
+        if (((const CCargo*)(const void*)CUR->m_cargo)->FindItemLock(b, space, slot))
             return true;
-        if (((const CInventory*)((const char*)m_selected + 0xda))->FindItemLock(b, space, slot))
+        if (((const CInventory*)(const void*)CUR->m_inven)->FindItemLock(b, space, slot))
             return true;
         CExpandEquipslot* expand = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
         if (expand->FindItemLock(b, space, slot))
@@ -3573,8 +3369,7 @@ bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& 
 
 bool CUserCharacInfo::EnablePeriodExpItem()
 {
-    std::vector<ContinuousItemInfo>* v =
-        (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xea6);
+    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
     std::vector<ContinuousItemInfo>::iterator it = v->begin();
     unsigned int now = GlobalData::s_systemTime_.getCurSec();
     for (; it != v->end();)
@@ -3614,8 +3409,7 @@ void CUserCharacInfo::SetExpAffectItemEffect(bool flag, float rate)
 
 bool CUserCharacInfo::EnablePeriodExpDouble()
 {
-    std::vector<ContinuousItemInfo>* v =
-        (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xea6);
+    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
     std::vector<ContinuousItemInfo>::iterator it = v->begin();
     unsigned int now = GlobalData::s_systemTime_.getCurSec();
     for (; it != v->end();)
@@ -3682,7 +3476,7 @@ int CUserCharacInfo::get_charac_level() const
     return m_selected ? CUR->m_level : 0;
 }
 
-unsigned char CUserCharacInfo::getCurCharacVill() const
+signed char CUserCharacInfo::getCurCharacVill() const
 {
     if (!m_selected)
         return 0;
@@ -3815,8 +3609,7 @@ int CUserCharacInfo::GetCurCharacLuckPoint()
 
 void CUserCharacInfo::ClearUselessEffectItem(unsigned int expireTime)
 {
-    std::vector<ContinuousItemInfo>* v =
-        (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xea6);
+    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
     for (std::vector<ContinuousItemInfo>::iterator it = v->begin(); it != v->end();)
     {
         if (it->m_expireTime < expireTime)
@@ -3828,13 +3621,12 @@ void CUserCharacInfo::ClearUselessEffectItem(unsigned int expireTime)
 
 std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacEffectItemList()
 {
-    return (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xea6);
+    return &CUR->m_effectItemList.m_list;
 }
 
 void CUserCharacInfo::ClearUselessCooltimeItem(unsigned int expireTime)
 {
-    std::vector<ContinuousItemInfo>* v =
-        (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xe9a);
+    std::vector<ContinuousItemInfo>* v = &CUR->m_coolTimeItemList.m_list;
     for (std::vector<ContinuousItemInfo>::iterator it = v->begin(); it != v->end();)
     {
         if (it->m_expireTime < expireTime)
@@ -3846,7 +3638,7 @@ void CUserCharacInfo::ClearUselessCooltimeItem(unsigned int expireTime)
 
 std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacCoolTimeItemList()
 {
-    return (std::vector<ContinuousItemInfo>*)((char*)m_selected + 0xe9a);
+    return &CUR->m_coolTimeItemList.m_list;
 }
 
 void CUserCharacInfo::ClearProperDungeonUser()

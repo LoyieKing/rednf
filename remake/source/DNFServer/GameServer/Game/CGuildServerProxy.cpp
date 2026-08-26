@@ -150,7 +150,8 @@ bool CGuildServerProxy::InitTcp()
     {
         ret = ((CGuildNetView*)&m_tcp)
                   ->CreateConnectionSocket(m_ip.c_str(), m_tcpPort);
-        while (ret != 0)
+        if (ret != 0)
+
         {
             cMyTrace("bool CGuildServerProxy::InitTcp()", 0x4ea, 0)
                 ("CGuildServerProxy CreateConnectionSocket() error(%d:%d:%s)",
@@ -633,7 +634,6 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
                               0x852, "Find fail from guild info proxy(guild_id:%d)", guildId);
         return false;
     }
-    STGuildProxy* pGuild = &it->second;
     it->second = info;
     return true;
 }
@@ -819,7 +819,6 @@ void CGuildServerProxy::SendGuildBoardDelete(unsigned int boardNo,
     pkt.m_boardNo = boardNo;
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
-
 void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
                                            unsigned char group, unsigned char channel)
 {

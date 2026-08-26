@@ -51,7 +51,8 @@ struct map_item
 
     map_item();
     map_item(const map_item& other);
-    ~map_item();
+    // ORIG 无 ~map_item 符号：保持隐式 trivial 析构（用户定义空体会使
+    // std::list/map 节点析构产生额外 call 与 D1 符号，偏离 df_game_r）。
     map_item& operator=(const map_item& other);
 };
 
@@ -134,7 +135,7 @@ struct stMapPlayInfo_t
     int m_useItemType2Count;    // +0x08
     int m_useItemOtherCount;    // +0x0c
     void init();               // ORIG 0815132c
-    unsigned int getPlayTick() const;  // ORIG W 0x830e7ea
+    unsigned int getPlayTick();  // ORIG W 0x830e7ea（非 const：_ZN15stMapPlayInfo_t11getPlayTickEv 无 K）
 };
 // ---- MapInfo（0xec 字节；ctor 08151394） ----
 struct MapInfo

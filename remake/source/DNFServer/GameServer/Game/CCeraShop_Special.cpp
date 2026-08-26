@@ -31,8 +31,12 @@
 #include "CEquipItem.h"     // getAvatarPeriod
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_ / findString
 #include "GameWorld.h"      // G_GameWorld / send_all
+#include "STStackableScript.h"  // STStackablePackageData（包数据 ORIG 实证元素类型）
+#include "SkillSlot.h"          // SkillSlot 权威布局（getCurCharacSkillR 返回其对象）
 // 注：WongWork::CGenUniqueNo 权威声明在 CInventory.h（已含）；勿重复 include CGenUniqueNo.h。
 #include "premium_helper_function.h"
+#include "DB_UpdateChuseokPackagePurchase.h"  // makeRequest（Chuseok 落库请求）
+#include "CItemGenerator.h"  // random_option::CRandomOptionItemHandle::give_option
 
 #include <cstring>
 #include <map>
@@ -41,6 +45,8 @@
 extern void DB_SaveFeaturedGoodsIdx_makeRequest(unsigned int accId, int characNo,
                                                 int restrictCode, int curSec, int d)
     asm("_ZN23DB_SaveFeaturedGoodsIdx11makeRequestEjiiii");
+
+
 
 // ---- SpecialItemHandler（ORIG 全局类，execute @0x0827be0a T）----
 // 表驱动分发器：对象前 0x70 字节为 14 组 {int flag; int offset}，offset 指向
@@ -249,9 +255,11 @@ void SpecialItemHandler::respond_special_item_booster_selection(
 void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
-    void* helper = GlobalData::s_pIPGHelper;
+    WongWork::IPG::CIPGHelper* helper = GlobalData::s_pIPGHelper;
     CUser* user = static_cast<CUser*>(param.m_user);
     int value = param.m_value;
+    // CIPGHelper 虚接口（vtable+0xc 槽）尚未建模成头，沿用裸槽派发；指针类型
+    // 已按 GlobalData.h 权威声明落地。
     typedef void (*Fn)(void*, void*, int, int, int, int);
     Fn fn = *reinterpret_cast<Fn*>(*reinterpret_cast<char**>(helper) + 0xc);
     fn(helper, user, value, 2, 0, 0);
@@ -306,7 +314,8 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
 // setOriginalItem → _onBuySpecialItem(user, 6, itemIdx) → 遍历 find_item(itemIdx)
 // 的 booster 子物品表 getBoosterItem，逐项 _processAdditionalItem →
 // GetRestrictCode/IsRestrictedGoods/SetRestrictedGoods/SaveFeaturedIdx → SaveInventory。
-// BLOCKED: 子物品项上 vtable+0x60 的 setItem 调用（CItem 虚方法，未确证）跳过。
+// 子物品项 vtable+0x60 槽经 CItem 虚表序核对 = set_parent_booster_item_id(ulong)，
+// 已按真实虚方法直调（CItem.h 声明，槽位 +0x60 吻合）。
 void SpecialItemHandler::respond_special_item_booster(int,
                                                       const STSpecailItem_Param& param,
                                                       STSpecailItem_Result&)
@@ -357,9 +366,10 @@ void SpecialItemHandler::respond_special_item_booster(int,
 // （std::vector<tagPackageItemSelection> / std::vector<STStackablePackageData> / iterator 操作），
 // 由编译器依本函数 STL 用法自动生成，无需手写。依赖的 CCeraShop 方法
 // (_onBuySpecialItem/_processAdditionalItem) 声明于 CCeraShop.h，实现由 CCeraShop 还原批次提供。
-// 包字段/随机箱统计调用链：find_item(itemIdx)+0x21c 包列表、+0x234 逐选择包表，
-// ceraParam 的 vector<tagPackageItemSelection>(+0xc)/vector<pair<int,int>>(+0x0)，
-// 逐包 _processAdditionalItem + CUser::SendRandomBoxStatistic(0x380/0x28982d/0x289749)。
+// 包字段/随机箱统计调用链：CStackableItem::m_pkg21c(+0x21c) 包列表、m_pkg234(+0x234)
+// 逐选择包表，ceraParam 的 vector<tagPackageItemSelection>(+0xc)/vector<pair<int,int>>(+0x0)，
+// 逐包 _processAdditionalItem（子物品 vtable+0x60 槽按 CItem::set_parent_booster_item_id
+// 真实虚方法直调）+ CUser::SendRandomBoxStatistic(0x380/0x28982d/0x289749)。
 void SpecialItemHandler::respond_special_item_package(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
@@ -387,18 +397,21 @@ void SpecialItemHandler::respond_special_item_package(
     m_owner->_onBuySpecialItem(user, (ENUM_CERA_SPECIALITEM)5,
                                static_cast<unsigned long>(itemIdx));
 
-    CItem* pItem = G_CDataManager()->find_item(itemIdx);
-    // pkgList：复制 find_item(itemIdx)+0x21c 的 vector<STStackablePackageData>（该包的基础物表）。
+    // ORIG 实证元素类型（respond_special_item_package 反编译）：
+    //   +0x21c = std::vector<STStackablePackageData>（包基础物表）
+    //   +0x234 = std::vector<std::vector<STStackablePackageData>>（每选择包组表）
+    // 头文件 m_pkg21c/m_pkg234 当前为 vector<char> 占位（元素类型修正涉共享头
+    // CStackableItem.h 的多 TU 验证，另行批次）；此处以具名字段锚定偏移、按
+    // ORIG 类型取视图。
+    CStackableItem* stackItem =
+        static_cast<CStackableItem*>(G_CDataManager()->find_item(itemIdx));
     std::vector<STStackablePackageData> pkgList(
-        *reinterpret_cast<std::vector<STStackablePackageData>*>(
-            reinterpret_cast<char*>(pItem) + 0x21c));
-    // pkgTable：+0x234 的 vector<vector<STStackablePackageData>>（每选择外层的包组表）。
+        *reinterpret_cast<std::vector<STStackablePackageData>*>(&stackItem->m_pkg21c));
     std::vector<std::vector<STStackablePackageData> >* pkgTable =
         reinterpret_cast<std::vector<std::vector<STStackablePackageData> >*>(
-            reinterpret_cast<char*>(pItem) + 0x234);
+            &stackItem->m_pkg234);
     std::vector<tagPackageItemSelection>& selections = cera->m_sel;   // +0xc
     std::vector<std::pair<int, int> >& pairs = cera->m_pairs;         // +0x0
-
     if (!selections.empty())
     {
         if (selections.size() > 1)
@@ -452,7 +465,7 @@ void SpecialItemHandler::respond_special_item_package(
         }
     }
 
-    // 逐包处理：配对 itemIdx→count 消费、vtable+0x60 set_parent_booster_item_id、
+    // 逐包处理：配对 itemIdx→count 消费、set_parent_booster_item_id（vtable+0x60 槽）、
     // _processAdditionalItem、SendRandomBoxStatistic。
     for (std::vector<STStackablePackageData>::iterator it = pkgList.begin();
          it != pkgList.end(); ++it)
@@ -474,28 +487,17 @@ void SpecialItemHandler::respond_special_item_package(
         }
 
         CItem* sub = G_CDataManager()->find_item(it->m_field0);
+        // ORIG (**(code**)(*sub + 0x60))(sub, itemIdx)：CItem vtable 序核对槽 +0x60
+        // = set_parent_booster_item_id(unsigned long)，按真实虚方法直调。
         if (sub != 0)
-        {
-            // ORIG 原始 vtable+0x60 调用：(**(code**)(*sub + 0x60))(sub, itemIdx)
-            // 经 objdump 解析 CStackableItem vtable 槽 0x60 = set_parent_booster_item_id(ulong)；
-            // 但 ORIG 是裸 vtable 派发，不依赖头文件 virtual 排序，此处按汇编原样派发。
-            typedef void (*SetItemFn)(void*, unsigned long);
-            char* vtbl = *reinterpret_cast<char* const*>(sub);
-            SetItemFn fn = *reinterpret_cast<SetItemFn*>(vtbl + 0x60);
-            fn(sub, static_cast<unsigned long>(itemIdx));
-        }
+            sub->set_parent_booster_item_id(static_cast<unsigned long>(itemIdx));
 
         m_owner->_processAdditionalItem(
             user, static_cast<unsigned long>(it->m_field0),
             static_cast<unsigned short>(it->m_field4), local25, 0xff, *items, *cera, 0);
 
         if (sub != 0)
-        {
-            typedef void (*SetItemFn)(void*, unsigned long);
-            char* vtbl = *reinterpret_cast<char* const*>(sub);
-            SetItemFn fn = *reinterpret_cast<SetItemFn*>(vtbl + 0x60);
-            fn(sub, 0);
-        }
+            sub->set_parent_booster_item_id(0);
 
         // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）
         if (it->m_field0 == 0x289749)
@@ -635,7 +637,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             user->SetRestrictedGoods(count);
             int serverCode = 0;
             if (GlobalData::g_SPremiumInfo[ptype].m_useTargetServer == 1)
-                serverCode = *(int*)((char*)G_CEnvironment() + 0x378);
+                serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x198+0x1e0
             m_owner->SaveFeaturedIdx(user, count, (int)timeB, serverCode);
         }
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
@@ -654,12 +656,17 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             }
             user->m_historyLog.SkillSPInfoSave(user, (eSkillSPInfoSaveReason)0);
             int job = user->get_charac_job();
-            user->m_historyLog.SkillSave(
-                reinterpret_cast<const _Mastered_skill*>(user->getCurCharacSkillR() + 0x46),
-                (unsigned int)job, 0, (eSkillSaveReason)0);
-            user->m_historyLog.SkillSave(
-                reinterpret_cast<const _Mastered_skill*>(user->getCurCharacSkillR() + 0x1de),
-                (unsigned int)job, 1, (eSkillSaveReason)0);
+            // getCurCharacSkillR() 返回当前角色 SkillSlot 对象（SkillSlot.h 权威布局：
+            // m_skillSlot[204]@+0x46 / m_skillSlot2[204]@+0x1de），ORIG 裸偏移即两棵
+            // 技能树已学技能块，经访问器按树序取用。
+            const SkillSlot* skills =
+                reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR());
+            user->m_historyLog.SkillSave(skills->get_skillslot_buf(SKILL_TREE_1),
+                                         (unsigned int)job, SKILL_TREE_1,
+                                         (eSkillSaveReason)0);
+            user->m_historyLog.SkillSave(skills->get_skillslot_buf(SKILL_TREE_2),
+                                         (unsigned int)job, SKILL_TREE_2,
+                                         (eSkillSaveReason)0);
         }
         break;
     }
@@ -789,11 +796,12 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
 }
 
 // ---- get_target_server —— ORIG 0x0827d0f5 ----
-// g_SPremiumInfo[type*0x120+0x5c]==1 时返回 G_CEnvironment()+0x378，否则 0。
+// g_SPremiumInfo[type].m_useTargetServer(+0x5c)==1 时返回
+// G_CEnvironment()->m_serverEnvir.m_serverGroup（CEnvironment+0x378），否则 0。
 int premium_helper_function::get_target_server(int type)
 {
     if (GlobalData::g_SPremiumInfo[type].m_useTargetServer == 1)
-        return *(int*)((char*)G_CEnvironment() + 0x378);
+        return G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x198+0x1e0
     return 0;
 }
 
@@ -845,6 +853,15 @@ void premium_helper_function::write_log(CUser* user, int type)
         packet.finalize(true);
         G_GameWorld()->send_all(packet, user);
     }
+}
+
+// ---- _isPackageItem —— ORIG 0x08326739（_Z14_isPackageItemPK5CItem，全局函数 T）----
+// 包类商品判定：GetItemType() ∈ {0xe, 0xf, 0x10}。ORIG 为全局符号，仅本 TU
+// （_processAdditionalItem）使用，落地为 file-static。
+static bool _isPackageItem(const CItem* item)
+{
+    int type = item->GetItemType();
+    return type == 0xe || type == 0xf || type == 0x10;
 }
 
 namespace WongWork
@@ -1649,10 +1666,9 @@ bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
     p.m_char1f = flag2 ? 1 : 0;
     p.m_extra = extra;
 
-    // ORIG：handler = *(SpecialItemHandler**)this（+0x00 指针，GlobalData.cpp ctor 建模一致）。
-    void* handler = *reinterpret_cast<void* const*>(this);
+    // m_handler：CCeraShop +0x00 的 SpecialItemHandler*（权威具名成员，ctor new 填充）。
     STSpecailItem_Result result;
-    if (!reinterpret_cast<SpecialItemHandler*>(handler)->execute(type, p, result))
+    if (!m_handler->execute(type, p, result))
         return false;
 
     restrictCode = result.m_value;
@@ -1835,12 +1851,189 @@ void CCeraShop::SaveFeaturedIdx(CUser* user, int restrictCode, int curSec, int d
 }
 
 // ============================================================================
-// setOriginalItem —— ORIG 0x08327ee6 (T)
-// 仅记录 itemIdx 到 m_field4（this+4）。
+// setOriginalItem —— ORIG 0x08327ee6 (T)：记录原始商品 idx 到 m_originalItemIdx。
 // ============================================================================
 void CCeraShop::setOriginalItem(int itemIdx)
 {
-    m_field4 = reinterpret_cast<void*>(itemIdx);  // *(int*)(this+4) = itemIdx
+    m_originalItemIdx = itemIdx;
+}
+
+// ============================================================================
+// getOriginalItem —— ORIG 0x08327ef4 (T)：读取记录的原始商品 idx（<=0 返回 0）。
+// ============================================================================
+int CCeraShop::getOriginalItem()
+{
+    return m_originalItemIdx > 0 ? m_originalItemIdx : 0;
+}
+
+// ============================================================================
+// Is2010ChuseokPacket —— ORIG 0x083280dc (T)
+// 2010 秋夕（Chuseok）包商品判定：itemIdx ∈ (0x2896d3, 0x2896ef]。
+// ============================================================================
+bool CCeraShop::Is2010ChuseokPacket(unsigned long itemIdx)
+{
+    return itemIdx > 0x2896d3 && itemIdx <= 0x2896ef;
+}
+
+// ============================================================================
+// _processCoin —— ORIG 0x08325a88 (T)
+// 代币购买入账：PayCoin += value → historyLog.PayCoinAdd(总额, 增量, reason 3)
+// → SaveMoneyCoin → SendCoin。第 3 参 flag 在 ORIG 中未参与逻辑（签名保留）。
+// ============================================================================
+void CCeraShop::_processCoin(CUser* user, unsigned short value, bool)
+{
+    user->getCurCharacInvenW()->SetPayCoin(
+        user->getCurCharacInvenR()->GetPayCoin() + value);
+    user->m_historyLog.PayCoinAdd(
+        (int)user->getCurCharacInvenR()->GetPayCoin(), (int)value,
+        (eCoinAddReason)3);
+    user->SaveMoneyCoin();
+    user->SendCoin();
+}
+
+// ============================================================================
+// autoUnsealItem —— ORIG 0x08327f10 (T)
+// 自动解封：商品为随机选项物品（IsRandomOption）且原商品
+// （getOriginalItem→find_item）IsRandomOptionUnseal 时，经
+// GlobalData::g_randomOptionHandle->give_option 写入 invItem 的随机选项区
+// （m_random.m_random，ORIG &invItem+0x25）。失败记 logFormat。
+// ============================================================================
+void CCeraShop::autoUnsealItem(const CItem* item, Inven_Item& invItem)
+{
+    if (item != 0 && item->IsRandomOption())
+    {
+        int original = getOriginalItem();
+        if (original != 0)
+        {
+            const CItem* origItem = G_CDataManager()->find_item(original);
+            if (origItem != 0 && origItem->IsRandomOptionUnseal())
+            {
+                // ORIG 实参序 vtable 槽核对 —— get_rarity/getUsableLevel/
+                // getItemGroupName/GetRandomOptionGrade(vtable+0x50)；
+                // options = invItem.m_random.m_random（ORIG &invItem+0x25）。
+                if (!GlobalData::g_randomOptionHandle->give_option(
+                        (unsigned long)invItem.m_addInfo,
+                        (ENUM_RARITY)item->get_rarity(),
+                        item->getUsableLevel(), item->getItemGroupName(),
+                        item->GetRandomOptionGrade(), &invItem.m_random.m_random))
+                {
+                    LogManager::logFormat(
+                        1, "CeraShop.cpp",
+                        "void WongWork::CCeraShop::autoUnsealItem(const CItem*, Inven_Item&)",
+                        0x2131, "autoUnsealItem : %d", invItem.m_addInfo);
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// _processItem —— ORIG 0x08325b22 (T)
+// 一般可叠/装备商品主路径：ProcessSpecialItem 扣费分发（c1=c2=0、flag2=false、
+// extra=item.m_addInfo2）→ AvatarCoin::BuyProcess → insertItemIntoInventory(0xf)
+// → SendUpdateItemList（artifact 走 ITEMSPACE 7）→ save 时 SaveInventory；
+// 入包失败走 ReqDBSendNewMailCashShop 邮件兜底并返回 0。
+// ============================================================================
+int CCeraShop::_processItem(CUser* user, Inven_Item item, int count, int& restrictCode,
+                            long curSec, bool flag, bool save,
+                            std::vector<Inven_Item>& items,
+                            stCeraShopItemParam_t& param)
+{
+    int slot = -1;
+    if (!ProcessSpecialItem(user, item.m_addInfo, count, restrictCode, curSec,
+                            flag, items, param, 0, 0, false, item.m_addInfo2))
+    {
+        if (AvatarCoin::BuyProcess(user, item))
+            return 0;
+
+        if ((slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                 item, (eItemAddReason)0xf, true, false)) != -1)
+        {
+            if (item.m_field1 == Inven_Item::ITEM_TYPE_ARTIFACT)
+                user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7,
+                                         slot);
+            else
+                user->SendUpdateItemList(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,
+                                         slot);
+            if (save)
+                user->SaveInventory();
+        }
+        else
+        {
+            const char* msg =
+                g_scriptStringManager_.findString(4, "game_server_msg_104",
+                                                  (bool*)0);
+            WongWork::CMailBoxHelper::ReqDBSendNewMailCashShop(
+                user, item, 0, (unsigned int)user->getCurCharacNo(), true, msg,
+                (int)std::strlen(msg));
+            slot = 0;
+        }
+        return slot;
+    }
+    return 0;
+}
+
+// ============================================================================
+// _processCreature —— ORIG 0x08325d66 (T)
+// 造物（creature）商品：CCreatureMgr::CheckItem 预检（失败置 outFlag=1）→
+// type==5（蛋）时 SetEggItem 孵化转换（失败记 History ERROR 并置 outFlag=1）→
+// insertItemIntoInventory(0x19)：成功则 InsertCreatureItem + 刷新列表 +
+// SaveInventory，outCode=GetInvenSlot(3,slot).m_addInfo；失败按类型走
+// Creature/CashShop 邮件兜底，outCode=item.m_addInfo、返回 0。
+// ============================================================================
+int CCeraShop::_processCreature(CUser* user, Inven_Item item, int& outCode,
+                                int& outFlag, bool, int usablePeriod,
+                                int expirationDate)
+{
+    int slot = -1;
+    bool checkOk = true;
+    if (!user->getCurCharacInvenW()->GetCreatureMgrW()->CheckItem(user, &item,
+                                                                  checkOk))
+        outFlag = 1;
+    if (checkOk)
+    {
+        if (item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+        {
+            if (!user_creature::CCreatureItemConverter::SetEggItem(&item))
+            {
+                LogManager::logFormat(
+                    1, "CeraShop.cpp",
+                    "int WongWork::CCeraShop::_processCreature(CUser*, Inven_Item, int&, int&, bool, int, int)",
+                    0x171f, "History ERROR, CCreatureItemConverter::SetEggItem");
+                outFlag = 1;
+            }
+        }
+
+        slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+            item, (eItemAddReason)0x19, true, false);
+        if (slot < 0)
+        {
+            const char* msg =
+                g_scriptStringManager_.findString(4, "game_server_msg_104",
+                                                  (bool*)0);
+            if (item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+                WongWork::CMailBoxHelper::ReqDBSendNewCreatureMail(
+                    user, user->getCurCharacNo(), item, msg,
+                    (int)std::strlen(msg));
+            else
+                WongWork::CMailBoxHelper::ReqDBSendNewMailCashShop(
+                    user, item, 0, (unsigned int)user->getCurCharacNo(), true,
+                    msg, (int)std::strlen(msg));
+            outCode = item.m_addInfo;
+            return 0;
+        }
+        else
+        {
+            user->getCurCharacInvenW()->GetCreatureMgrW()->InsertCreatureItem(
+                &item, slot, 0x19, usablePeriod, expirationDate);
+            user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7,
+                                     slot);
+            user->SaveInventory();
+            Inven_Item placed = user->getCurCharacInvenR()->GetInvenSlot(3, slot);
+            outCode = placed.m_addInfo;  // ORIG 读 sret 缓冲 +2 处 dword
+        }
+    }
+    return slot;
 }
 
 // ============================================================================
@@ -1925,10 +2118,11 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
     {
         const WongWork::SUserPremiumInfo& e = list[i];
         serverCode = 0;
-        // g_SPremiumInfo[type*0x120+0x5c]==1 → serverCode = *(int*)(G_CEnvironment()+0x378)
+        // m_useTargetServer(+0x5c)==1 → serverCode = m_serverEnvir.m_serverGroup
+        // （CEnvironment+0x378）
         if (GlobalData::g_SPremiumInfo[e.m_type].m_useTargetServer == 1)
         {
-            serverCode = *(unsigned int*)((char*)G_CEnvironment() + 0x378);
+            serverCode = (unsigned int)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         }
         Stream* stream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x20e7);
         CStreamGuard guard(stream, true);
@@ -1975,8 +2169,8 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
 
-    // ORIG 后续：if (Is2010ChuseokPacket(this, itemIdx)) DB_UpdateChuseokPackagePurchase::makeRequest(get_acc_id());
-    // BLOCKED: Is2010ChuseokPacket 与 DB_UpdateChuseokPackagePurchase 未建模（无报告/符号）。
+    if (Is2010ChuseokPacket(itemIdx))
+        DB_UpdateChuseokPackagePurchase::makeRequest(user->get_acc_id());
 }
 
 // ============================================================================
@@ -2043,10 +2237,9 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
 // _processAdditionalItem —— ORIG 0x083267a2 (T)
 // itemIdx==1（金币）→ _processCoin + 推入 items；否则按物品类型分派：
 //   可叠特殊物品（type 0x10/0x22）→ insertItemIntoInventory/邮件兜底；
-//   头像 → AddAvatarItem/邮件兜底 + genIPGNo + findString；非头像非造物 →
-//   _processItem；造物 → _processCreature。每轮按可叠/包判断 push_back。
-// BLOCKED 子生产者（独立批次）：_processCoin、_processItem、_processCreature、
-// autoUnsealItem、_isPackageItem、SendAradEventItemLog。
+//   头像 → AddAvatarItem/邮件兜底 + genIPGNo + findString + SendAradEventItemLog；
+//   非头像非造物 → _processItem（0xc1 时嵌套发放 0x10）；造物 → _processCreature。
+//   循环前 autoUnsealItem；每轮按可叠/包（_isPackageItem）判断 push_back。
 // ============================================================================
 void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
                                        unsigned short slot, unsigned char a,
@@ -2058,7 +2251,7 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
 
     if (itemIdx == 1)
     {
-        // BLOCKED: _processCoin(user, slot, 0) —— 独立生产者（未建模）。
+        _processCoin(user, slot, false);
         Inven_Item coin;
         coin.m_addInfo = 1;
         coin.m_addInfo2 = (int)slot;
@@ -2129,7 +2322,7 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
         itemIdx == 0x7556 || itemIdx == 0x7661)
         invItem.SetUpgrade(0xc);
 
-    // BLOCKED: autoUnsealItem(item, invItem) —— 独立生产者（未建模）。
+    autoUnsealItem(item, invItem);
 
     int local_7c = 0;  // ORIG +0x7c 累积出参（_processItem/_processCreature 使用）
 
@@ -2160,29 +2353,46 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
                     user, characNo, (int)itemIdx, expireDate, (char)a, (char)b,
                     agency, msg, (int)msgLen);
             }
-            // BLOCKED: user->SendAradEventItemLog(itemIdx, 1) —— 未建模。
+            user->SendAradEventItemLog((unsigned long)itemIdx, 1);
         }
         else if (item->IsCreatureItem())
         {
-            // BLOCKED: _processCreature(user, invItem, &local_7c, 0,
-            //           item->getUsablePeriod(), item->getExpirationDate()) —— 独立生产者。
+            int creatureSlot = 0;  // ORIG local_94 出参（本调用链内死存储）
+            _processCreature(user, invItem, creatureSlot, local_7c, false,
+                             item->getUsablePeriod(), item->getExpirationDate());
         }
         else
         {
-            // BLOCKED: _processItem(user, invItem, 0, &local_7c,
-            //           GlobalData::s_systemTime_.getCurSec(), true, false, items, param)
-            //           —— 独立生产者。
-            // ORIG 内含 itemIdx==0xc1 时对 item 0x10 的嵌套 _processItem，一并 BLOCKED。
+            long curSec = GlobalData::s_systemTime_.getCurSec();
+            _processItem(user, invItem, 0, local_7c, curSec, true, false, items,
+                         param);
+            // ORIG 嵌套：0xc1 商品追加发放固定物品 0x10（count=0xc352，save=true）。
+            if (itemIdx == 0xc1)
+            {
+                CItem* found = G_CDataManager()->find_item((int)itemIdx);
+                CItem* item10 = G_CDataManager()->find_item(0x10);  // ORIG 无空判
+                if (found != 0)
+                {
+                    std::vector<Inven_Item> nestedItems;
+                    stCeraShopItemParam_t nestedParam;
+                    int nestedRestrict = 0;
+                    Inven_Item nestedItem;
+                    item10->make_item(nestedItem);
+                    nestedItem.m_addInfo = 0x10;
+                    nestedItem.m_addInfo2 = 1;
+                    _processItem(user, nestedItem, 0xc352, nestedRestrict, curSec,
+                                 false, true, nestedItems, nestedParam);
+                }
+            }
         }
-
         if (!item->is_stackable())
         {
             items.push_back(invItem);
         }
         else
         {
-            // BLOCKED: if (!_isPackageItem(item)) items.push_back(invItem) —— 未建模。
-            items.push_back(invItem);
+            if (!_isPackageItem(item))
+                items.push_back(invItem);
         }
     }
 }

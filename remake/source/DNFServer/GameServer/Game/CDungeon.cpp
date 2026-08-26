@@ -21,6 +21,8 @@
 #include "GlobalData.h"             // GlobalData::s_systemTime_/s_statistic_proxy_mgr
 #include "CServerProxyMgr.h"        // GetServerProxy 完整模板
 #include "CStatisticServerProxy.h"  // 统计上报
+#include "DataManagerInitDepends.h" // TOD_UserState/TOD_Layer（绝望之塔扩展数据）
+#include "CBoosterGage.h"           // charac_expand::CData::alter（脏标记）
 
 // ============================================================================
 // 支撑类型：GridScript / RidableObject / RidableScript / DungeonClearCondition
@@ -33,137 +35,137 @@
 
 int CDungeon::GetType_DungeonInHeritance() const
 {
-    return m_flag4;
+    return m_typeInheritance;
 }
 
 int CDungeon::getDungeonKind() const
 {
-    return m_670;
+    return m_dungeonKind;
 }
 
-int CDungeon::isNoFatigueDungeon() const
+unsigned char CDungeon::isNoFatigueDungeon() const
 {
-    return m_6c8;
+    return m_noFatigueFlag;
 }
 
-int CDungeon::get_blood_dungeon_type() const
+unsigned char CDungeon::get_blood_dungeon_type() const
 {
-    return m_89f;
+    return m_bloodDungeonType;
 }
 
-int CDungeon::getQuestNpcDungeon() const
+unsigned char CDungeon::getQuestNpcDungeon() const
 {
-    return m_8fc;
+    return m_questNpcDungeon;
 }
 
-int CDungeon::get_limit_party_count() const
+unsigned char CDungeon::get_limit_party_count() const
 {
-    return m_3b;
+    return m_limitPartyCount;
 }
 
-int CDungeon::get_limit_Inout_count() const
+unsigned char CDungeon::get_limit_Inout_count() const
 {
-    return m_3c;
+    return m_limitInoutCount;
 }
 
-int CDungeon::limitOfStackableItemInTower() const
+unsigned char CDungeon::limitOfStackableItemInTower() const
 {
-    return m_6b4;
+    return m_limitStackableItemInTower;
 }
 
 int CDungeon::getHeroesRequiredQuest() const
 {
-    return m_34;
+    return m_heroesRequiredQuest;
 }
 
 int CDungeon::getAICharacterAppearRate() const
 {
-    return m_650;
+    return m_aiCharacterAppearRate;
 }
 
 int CDungeon::getRandomTowerMaxStage() const
 {
-    return m_654;
+    return m_randomTowerMaxStage;
 }
 
 int CDungeon::getDeathTowerMaxStage() const
 {
-    return m_680;
+    return m_deathTowerMaxStage;
 }
 
 int CDungeon::getDeathTowerMapIndex(unsigned int idx) const
 {
-    return m_vec674[idx];
+    return m_deathTowerMapIndexes[idx];
 }
 
 int CDungeon::getTowerMaxClearRewardItemNum() const
 {
-    return m_6b8;
+    return m_towerMaxClearRewardItemNum;
 }
 
 int CDungeon::getEventMonsterTotalProb() const
 {
-    return m_68c;
+    return m_eventMonsterTotalProb;
 }
 
 int CDungeon::getTryGenEventMonsterCnt() const
 {
-    return m_684;
+    return m_tryGenEventMonsterCnt;
 }
 
 int CDungeon::getTryGenEventMonsterProb() const
 {
-    return m_688;
+    return m_tryGenEventMonsterProb;
 }
 
 int CDungeon::getSecondEventMonsterTotalProb() const
 {
-    return m_6a4;
+    return m_secondEventMonsterTotalProb;
 }
 
 int CDungeon::getTryGenSecondEventMonsterCnt() const
 {
-    return m_69c;
+    return m_tryGenSecondEventMonsterCnt;
 }
 
 int CDungeon::getTryGenSecondEventMonsterProb() const
 {
-    return m_6a0;
+    return m_tryGenSecondEventMonsterProb;
 }
 
-int CDungeon::hasTowerItemDrop() const
+unsigned char CDungeon::hasTowerItemDrop() const
 {
-    return m_6b5;
+    return m_hasTowerItemDrop;
 }
 
 int CDungeon::GetDummyAppearCount() const
 {
-    return m_628;
+    return m_dummyAppearCount;
 }
 
-int CDungeon::IsHaveDummyMap() const
+unsigned char CDungeon::IsHaveDummyMap() const
 {
-    return m_624;
+    return m_hasDummyMap;
 }
 
 bool CDungeon::isRiskDungeon() const
 {
-    return m_6c9;
+    return m_riskFlag;
 }
 
 bool CDungeon::IsOpenEvenEnemy() const
 {
-    return m_6d1;
+    return m_openEvenEnemy;
 }
 
 int CDungeon::GetPartyMemberCoinLimit() const
 {
-    return m_6cc;
+    return m_partyMemberCoinLimit;
 }
 
 float CDungeon::get_exp_weight() const
 {
-    return m_14;
+    return m_expWeight;
 }
 std::vector<std::pair<int, int> >* CDungeon::getDropItems() const
 {
@@ -196,9 +198,9 @@ std::map<int, std::vector<RandomList> >* CDungeon::getRandomTowerMapIndexes()
     return const_cast<std::map<int, std::vector<RandomList> >*>(&m_map658);
 }
 
-int CDungeon::get_dimension_min_partymem() const
+unsigned char CDungeon::get_dimension_min_partymem() const
 {
-    return m_3a;
+    return m_dimensionMinPartymem;
 }
 
 std::vector<MazeScript>* CDungeon::GetQuestMazeScriptVector(
@@ -209,16 +211,15 @@ std::vector<MazeScript>* CDungeon::GetQuestMazeScriptVector(
 
 // ---- 迁移自 GameStubs.cpp 的 CDungeon 桩方法（ORIG 弱符号，签名已核对）----
 CDungeon::CDungeon()
-    : m_flag4(0),
-      m_6c9(0),
-      m_6cc(0),
-      m_6d0(0),
-      m_6d1(0)
+    : m_typeInheritance(0),
+      m_riskFlag(false),
+      m_partyMemberCoinLimit(0),
+      m_enterEachMap(false),
+      m_openEvenEnemy(false)
 {
-    // ORIG 0x08373f3c：初始化列表按成员声明位置赋值（vtable 后立即 m_flag4，
+    // ORIG 0x08373f3c：初始化列表按成员声明位置赋值（vtable 后立即 +0x04，
     // 0x6bc vector 构造后 0x6c9/0x6cc/0x6d0/0x6d1），其它 POD 不初始化。
 }
-
 CDungeon::~CDungeon()
 {
     // ORIG 0x08376fd8：析构 std 容器成员（自动）。
@@ -232,14 +233,14 @@ int CDungeon::get_index() const
 
 int CDungeon::get_min_level() const
 {
-    // ORIG 0x0814559a：return m_c（+0x0c）
-    return m_c;
+    // ORIG 0x0814559a：return m_minLevel（+0x0c）
+    return m_minLevel;
 }
 
 int CDungeon::get_standard_level() const
 {
-    // ORIG 0x080f9810：return m_10（+0x10）
-    return m_10;
+    // ORIG 0x080f9810：return m_standardLevel（+0x10）
+    return m_standardLevel;
 }
 
 const char* CDungeon::GetDungeonName() const
@@ -247,11 +248,10 @@ const char* CDungeon::GetDungeonName() const
     // ORIG 0x081455a6：return m_name.c_str()（m_name +0x18）
     return m_name.c_str();
 }
-
-int CDungeon::get_dimension_possible() const
+unsigned char CDungeon::get_dimension_possible() const
 {
-    // ORIG 0x0826b938：return m_38（movzbl 0x38）
-    return m_38;
+    // ORIG 0x0826b938：return m_dimensionPossible（单 movzbl）
+    return m_dimensionPossible;
 }
 
 bool CDungeon::isTowerOfDespairDungeon() const
@@ -262,24 +262,38 @@ bool CDungeon::isTowerOfDespairDungeon() const
 
 bool CDungeon::isTournamentDungeon() const
 {
-    // ORIG 0x0836520a：+0x8a8 位标志（1=普通赛, 2=特殊）
-    return m_8a8 != 0 && m_8a8 <= 1;
+    // ORIG 0x0836520a：m_tournamentFlag 非 0 且 (signed char)<=1
+    //（1=普通锦标赛，2=特殊，负值视为普通）
+    if (m_tournamentFlag != 0 && (char)m_tournamentFlag <= 1)
+        return true;
+    return false;
+}
+
+int CDungeon::getTournamentRoundFatigue() const
+{
+    // ORIG T 0x08365238：返回 m_tournamentRoundFatigue（+0x8a4）；0 兜底返回 1。
+    if (m_tournamentRoundFatigue == 0)
+        return 1;
+    return m_tournamentRoundFatigue;
 }
 
 bool CDungeon::IsEnterEachMap() const
 {
-    // ORIG 0x08365278：return (bool)m_6d0（movzbl 0x6d0）
-    return m_6d0;
+    // ORIG 0x08365278：return m_enterEachMap（movzbl 0x6d0）
+    return m_enterEachMap;
 }
 
 // ORIG _ZN12CDataManager18set_dimensionInoutEic / _ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE
 // 真实 C++ 成员实现（权威声明在 CDataManager.h），语义按 ORIG 反汇编：
-//   set_dimensionInout：idx∈[0,5] 写 m_dimensionInout[idx]（080eed82 W）
-//   set_limit_inout_count：写 m_limitInoutCount[type]（08374c82 W）
+//   set_dimensionInout（080eed82）：idx>5 或 idx<0 早退，再写数组
+//   set_limit_inout_count（08374c82）：写 m_limitInoutCount[type]
 void CDataManager::set_dimensionInout(int idx, char value)
 {
-    if (idx >= 0 && idx <= 5)
-        m_dimensionInout[idx] = value;
+    if (idx > 5)
+        return;
+    if (idx < 0)
+        return;
+    m_dimensionInout[idx] = value;
 }
 
 void CDataManager::set_limit_inout_count(char value, ENUM_BLOOD_TYPE type)
@@ -291,9 +305,9 @@ void CDungeon::set_dungeon(STDungeonScript& script)
 {
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
-    m_10 = script.m_ac;
-    m_c = script.m_78;
-    m_14 = script.m_b0;
+    m_standardLevel = script.m_ac;
+    m_minLevel = script.m_78;
+    m_expWeight = script.m_b0;
 
     char nameBuf[500] = {0};
     strcpy(nameBuf, script.m_str1c.c_str());
@@ -309,46 +323,42 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     for (int i = 0; i < 5; ++i)
         m_6e0[i] = script.m_b4[i];
 
-    m_34 = script.m_14;
-    m_38 = script.m_304;
-    m_39 = script.m_305;
-    m_3a = script.m_306;
-    if (m_38 != 0)
+    m_heroesRequiredQuest = script.m_14;
+    m_dimensionPossible = script.m_304;
+    m_dimensionInoutValue = script.m_305;
+    m_dimensionMinPartymem = script.m_306;
+    if (m_dimensionPossible != 0)
     {
-        G_CDataManager()->set_dimensionInout((int)(char)m_38 - 1, (char)m_39);
+        G_CDataManager()->set_dimensionInout(
+            (int)(char)m_dimensionPossible - 1, (char)m_dimensionInoutValue);
         G_CDataManager()->set_original_dimensionInout(
-            (int)(char)m_38 - 1, (char)m_39);
+            (int)(char)m_dimensionPossible - 1, (char)m_dimensionInoutValue);
     }
-    m_3b = script.m_324;
-    m_3c = script.m_325;
+    m_limitPartyCount = script.m_324;
+    m_limitInoutCount = script.m_325;
     if (m_index == 0x2aff)
     {
-        G_CDataManager()->set_limit_inout_count((char)m_3c, (ENUM_BLOOD_TYPE)2);
+        G_CDataManager()->set_limit_inout_count(
+            (char)m_limitInoutCount, (ENUM_BLOOD_TYPE)2);
     }
     if (m_index == 0x2afe)
     {
-        G_CDataManager()->set_limit_inout_count((char)m_3c, (ENUM_BLOOD_TYPE)1);
+        G_CDataManager()->set_limit_inout_count(
+            (char)m_limitInoutCount, (ENUM_BLOOD_TYPE)1);
     }
 
-    for (std::vector<MazeScript>::iterator mit = script.m_mazeList170.begin();
-         mit != script.m_mazeList170.end(); ++mit)
+    std::vector<MazeScript>::iterator mit = script.m_mazeList170.begin();
+    std::vector<MazeScript>::iterator mitEnd = script.m_mazeList170.end();
+    while (mit != mitEnd)
     {
         MazeScript* maze = &(*mit);
-        if (maze->m_4c == 0)
-        {
+        if (maze->m_questType == 0)
             m_mazeList0[0].push_back(*maze);
-        }
-        else
-        {
-            if (maze->m_4c == 1)
-            {
-                m_mazeList0[1].push_back(*maze);
-            }
-            else if (maze->m_4c == -1)
-            {
-                m_mazeList.push_back(*maze);
-            }
-        }
+        else if (maze->m_questType == 1)
+            m_mazeList0[1].push_back(*maze);
+        else if (maze->m_questType == -1)
+            m_mazeList.push_back(*maze);
+        ++mit;
     }
 
     int totalRate = 0;
@@ -378,21 +388,21 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     } while (true);
 
 copy_rest:
-    m_vec40 = script.m_vecd4;
-    m_vec4c = script.m_vece0;
-    m_vec58 = script.m_vecec;
+    m_vec40 = script.m_vecd4;          // 通关掉落
+    m_vec4c = script.m_vece0;          // 对象掉落
+    m_vec58 = script.m_vecec;          // 指定物品对象
     script.m_warRoom18c.copy(&m_warRoomData);
-    m_requiredItem1 = script.m_requiredItem7c;
-    m_85c = script.m_88;
-    m_requiredItem2 = script.m_requiredItem8c;
+    m_entryRequiredItem = script.m_requiredItem7c;
+    m_entryRestrictFlag = script.m_88;
+    m_entryRequiredItem2 = script.m_requiredItem8c;
     m_vec86c = script.m_vec98;
-    m_878 = script.m_314;
-    m_879 = script.m_315;
-    m_87b = script.m_317;
+    m_minAttackPartyMember = script.m_314;
+    m_maxAttackPartyMember = script.m_315;
+    m_maxRevengeCount = script.m_317;
     if (script.m_316)
-        m_87a = 1;
+        m_villageAttackEventFlag = 1;
     else
-        m_87a = 0;
+        m_villageAttackEventFlag = 0;
     m_87c = script.m_a4;
     m_bossRoom90c.m_0 = script.m_bossRoom328.m_0;
     m_bossRoom90c.m_vec4 = script.m_bossRoom328.m_vec4;
@@ -402,28 +412,28 @@ copy_rest:
     m_89c = script.m_28c;
     m_89d = script.m_140;
     m_89e = script.m_28d;
-    m_89f = script.m_28e;
-    m_800 = script.m_2ab;
-    m_804 = script.m_2ac;
+    m_bloodDungeonType = script.m_28e;
+    m_advanceAltarSurvivalFlag = script.m_2ab;
+    m_advanceAltarType = script.m_2ac;
     memcpy(m_808, script.m_2b0, sizeof(m_808));
     memcpy(m_820, script.m_2bc, sizeof(m_820));
     m_vec814 = script.m_vec2c8;
     m_clearReward = script.m_clearReward2d4;
     m_survivalReward = script.m_survival2f8;
-    m_624 = 0;
-    m_628 = script.m_16c;
-    m_650 = script.m_338;
-    m_670 = script.m_358;
-    m_680 = script.m_368;
-    if (m_680 != 0)
+    m_hasDummyMap = 0;
+    m_dummyAppearCount = script.m_16c;
+    m_aiCharacterAppearRate = script.m_338;
+    m_dungeonKind = script.m_358;
+    m_deathTowerMaxStage = script.m_368;
+    if (m_deathTowerMaxStage != 0)
     {
-        m_vec674.reserve(m_680 + 1);
+        m_deathTowerMapIndexes.reserve(m_deathTowerMaxStage + 1);
         for (unsigned int i = 0; i < script.m_vec35c.size(); ++i)
-            m_vec674[script.m_vec35c.at(i).first] =
+            m_deathTowerMapIndexes[script.m_vec35c.at(i).first] =
                 script.m_vec35c.at(i).second;
     }
-    m_654 = script.m_33c;
-    if (m_654 != 0)
+    m_randomTowerMaxStage = script.m_33c;
+    if (m_randomTowerMaxStage != 0)
     {
         m_map658.clear();
         for (std::map<int, std::vector<RandomList> >::const_iterator rit =
@@ -435,130 +445,127 @@ copy_rest:
     }
     m_8a0 = script.m_3c4;
     m_vec8f0 = script.m_vec3c8;
-    m_684 = script.m_3d4;
-    m_688 = script.m_3d8;
-    m_68c = script.m_3dc;
+    m_tryGenEventMonsterCnt = script.m_3d4;
+    m_tryGenEventMonsterProb = script.m_3d8;
+    m_eventMonsterTotalProb = script.m_3dc;
     m_eventMonsters = script.m_vec3e0;
-    m_69c = script.m_3ec;
-    m_6a0 = script.m_3f0;
-    m_6a4 = script.m_3f4;
+    m_tryGenSecondEventMonsterCnt = script.m_3ec;
+    m_tryGenSecondEventMonsterProb = script.m_3f0;
+    m_secondEventMonsterTotalProb = script.m_3f4;
     m_secondEventMonsters = script.m_vec3f8;
-    m_6b4 = (script.m_380 == 1);
-    m_6b5 = (script.m_3b4 == 1);
-    m_6b8 = script.m_3b8;
+    m_limitStackableItemInTower = (script.m_380 == 1);
+    m_hasTowerItemDrop = (script.m_3b4 == 1);
+    m_towerMaxClearRewardItemNum = script.m_3b8;
     m_vec900 = script.m_vec404;
-    m_6c8 = script.m_48c;
+    m_noFatigueFlag = script.m_48c;
     if (script.m_2a9 != 0)
     {
-        m_flag4 = 1;
+        m_typeInheritance = 1;
     }
-    m_8fc = script.m_2aa;
-    m_8a8 = script.m_494;
-    m_8a4 = script.m_498;
+    m_questNpcDungeon = script.m_2aa;
+    m_tournamentFlag = script.m_494;
+    m_tournamentRoundFatigue = script.m_498;
     m_itemRate8c4 = script.m_itemRate4b4;
     m_map8ac = script.m_map49c;
     m_itemRate8c4.m_10 = script.m_4c4;
     m_map8d8 = script.m_map4c8;
     m_map91c = script.m_map4e4;
     m_dimensionPartyCount.swap(script.m_dimension308);
-    m_6c9 = script.m_4e0;
-    m_6cc = script.m_4fc;
-    m_6d0 = script.m_504;
-    m_6d1 = script.m_505;
+    m_riskFlag = script.m_4e0;
+    m_partyMemberCoinLimit = script.m_4fc;
+    m_enterEachMap = script.m_504;
+    m_openEvenEnemy = script.m_505;
 }
 
-// ORIG _ZN12CDataManager18set_dimensionInoutEic：m_dimensionInout[idx]=value（idx 0..5）
-// 注：CDataManager.h union 布局暂差 0x18（+0xaa5c vs ORIG +0xaa74），
-// 用局部镜像结构按 ORIG 偏移直接寻址（不修改 CDataManager.h）。
-// ---- CDungeon_TowerOfDespair（迁移自 GameStubs.cpp；ORIG W 0x08377606）----
-CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
-{
-}
-
-// ---- 绝望之塔（TOD）本地视图类型 ----
+// ---- 绝望之塔（TOD）----
 // ORIG：GetCharacExpandData(0xd) 返回 TOD_UserState（charac_expand 扩展数据，
-// 本工程尚未建模完整类）。以下按 ORIG 反汇编以裸偏移访问其字段：
-//   +0x0c int（当日首次进入时间） +0x10 int enterCount +0x14 ushort todayLayer
-//   +0x16 ushort lastEnterLayer   +0x18 int lastClearTime【推断布局】。
-namespace tod_detail
-{
+// 权威布局见 DataManagerInitDepends.h；IncreaseEnterCount/getEnterCount/
+// getTodayEnterLayer/TOD_Layer::GetLayer 均为 ORIG 真实符号）。
 
-struct TOD_Layer  // ORIG 0x085fe7b4：仅 ushort 包装
+// ORIG T 0x0864388a（报告缺失，按 objdump 逐指令转写；定义暂寄本 TU）。
+void TOD_UserState::IncreaseEnterCount()
 {
-    unsigned short m_layer;
+    m_enterCount = m_enterCount + 1;
+    m_lastEnterLayer = m_lastEnterLayer + 1;
+    m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
+    if (m_todayLayer == 0)
+        m_firstEnterTime = GlobalData::s_systemTime_.getCurSec();
+    ((charac_expand::CData*)this)->alter();
+}
+
+// TowerOfDespairStatistic_Key（ORIG ctor 0x8374ca2：两个 dword 清零）。
+struct TowerOfDespairStatistic_Key
+{
+    unsigned int m_0;   // +0x00（packet+0xe，当日层写入口）
+    unsigned int m_4;   // +0x04
+
+    TowerOfDespairStatistic_Key();
 };
 
-unsigned short tod_GetLayer(const TOD_Layer& l) { return l.m_layer; }  // 0x0822ec40
-
-void tod_increaseEnterCount(char* st, CSystemTime& sysTime)  // ORIG 0x0864388a
+TowerOfDespairStatistic_Key::TowerOfDespairStatistic_Key()
 {
-    *(int*)(st + 0x10) += 1;
-    *(unsigned short*)(st + 0x16) = (unsigned short)(*(unsigned short*)(st + 0x16) + 1);
-    *(int*)(st + 0x18) = sysTime.getCurSec();
-    if (tod_GetLayer(*(const TOD_Layer*)(st + 0x14)) == 0)
-        *(int*)(st + 0x0c) = sysTime.getCurSec();
-    // ORIG 末尾调用 charac_expand::CData::alter(this)（脏标记）；CData 未建模，
-    // 该标记当前无可执行语义【推断】。
+    m_0 = 0;
+    m_4 = 0;
 }
-
-}  // namespace tod_detail
 
 // Packet_TowerOfDespair_Statistic_GTS（ORIG ctor 0x08374cba W，总尺寸 0x17）：
-// PacketHeader(0x271c,0x17)[10] + TowerOfDespairStatistic_Key[8] + byte flag +
-// uint accId。本函数只写 layer(+0xe)/flag(+0x12)/accId(+0x13)。
+// PacketHeader(0x271c,0x17)[10] + Key[8] + byte flag + uint accId。
 struct Packet_TowerOfDespair_Statistic_GTS
 {
-    Packet_TowerOfDespair_Statistic_GTS()
-    {
-        new (m_buf) PacketHeader(0x271c, 0x17);
-        memset(m_buf + 0xa, 0, 8);
-        m_buf[0x12] = 0;
-        *(unsigned int*)(m_buf + 0x13) = 0;
-    }
+    PacketHeader m_header;   // +0x00（packed 0xa 字节）
+    TowerOfDespairStatistic_Key m_key;  // +0x0a
+    unsigned char m_flag;    // +0x12
+    unsigned int m_accId;    // +0x13
 
-    char m_buf[0x17];
-};
+    Packet_TowerOfDespair_Statistic_GTS();
+} __attribute__((packed));
 
-CDungeon_TowerOfDespair::~CDungeon_TowerOfDespair()
+Packet_TowerOfDespair_Statistic_GTS::Packet_TowerOfDespair_Statistic_GTS()
+    : m_header(0x271c, 0x17)   // 成员序：header → key(默认构造) → flag/accId
 {
+    m_flag = 0;
+    m_accId = 0;
 }
 
+CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
+{
+    // ORIG C1/C2 0x08377606：先构造基类 CDungeon，再覆写 vtable 为 0x8c349f8
+    //（唯一虚槽 _do_after_dungeon_start 指向派生实现）；成员构造由编译器生成。
+}
 int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
 {
-    // ORIG 0x0834d8ec（254 insn）：进入绝望之塔——递增计数、扣门票、发包回执、
-    // 统计上报。
+    // ORIG 0x0834d8ec：进入绝望之塔——递增计数、二次进入扣门票、发包回执、统计。
     if (user == 0)
         return 0;
 
-    char* todState = (char*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd);
-    if (todState == 0)
-        return 1;  // ORIG 无空检查；扩展数据未分配时跳过【推断保护】
+    TOD_UserState* todState =
+        (TOD_UserState*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd);
+    todState->IncreaseEnterCount();
+    int enterCount = todState->getEnterCount();
 
-    tod_detail::tod_increaseEnterCount(todState, GlobalData::s_systemTime_);
-    int enterCount = *(int*)(todState + 0x10);
-
-    if (enterCount > 1 && m_requiredItem1.m_0 != 0)
+    if (enterCount > 1 && m_entryRequiredItem.m_enableFlag != 0)
     {
-        // 二次及以上进入需持有门票物品：m_requiredItem1.m_0=itemIdx，
-        // m_requiredItem1.m_4=需求数量（ORIG this+0x7f4/+0x7f8）。
-        const CInventory* invenC = user->getCurCharacInvenR();
-        int slot = invenC->check_item_exist(m_requiredItem1.m_0);
+        // 二次及以上进入需持有门票物品（ORIG this+0x7f4/+0x7f8/+0x7fc）。
+        int itemIdx = m_entryRequiredItem.m_itemIdx;
+        const CInventory* invenR = user->getCurCharacInvenR();
+        int slot = invenR->check_item_exist(itemIdx);
         if (slot == -1)
             return 0;
-        Inven_Item item = invenC->GetInvenSlot((INVEN_TYPE)1, slot);
-        if (item.m_addInfo2 < m_requiredItem1.m_4)
+        Inven_Item item =
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, slot);
+        if (item.m_addInfo2 < m_entryRequiredItem.m_itemCount)
             return 0;
 
-        CInventory* invenW = user->getCurCharacInvenW();
-        bool delOk = invenW->delete_item((INVEN_TYPE)1, slot, m_requiredItem1.m_4,
-                                         (eItemDelReason)0xe, true) == 1;
-        if (!delOk)
+        int delCount = m_entryRequiredItem.m_itemCount;
+        unsigned int chNo = user->getCurCharacNo();
+        if (!user->getCurCharacInvenW()->delete_item(
+                (INVEN_TYPE)1, slot, delCount, (eItemDelReason)0xe, true))
         {
             cMyTrace trace(
                 "virtual bool CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser*) const",
                 0x96f, 5);
             trace("CDungeon_TowerOfDespair::_do_after_dungeon_start, delete_item failed , User ch =%d , %d %d",
-                  user->getCurCharacNo(), slot, m_requiredItem1.m_4);
+                  chNo, slot, delCount);
             return 0;
         }
 
@@ -567,7 +574,7 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
         pg.put_byte(0);
         pg.put_short(1);
         pg.put_short(slot);
-        int rest = item.m_addInfo2 - m_requiredItem1.m_4;
+        int rest = item.m_addInfo2 - m_entryRequiredItem.m_itemCount;
         if (rest == 0)
             pg.put_int(-1);
         else
@@ -585,17 +592,16 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
         user->Send(pg);
         user->SaveInventory();
     }
+
     Packet_TowerOfDespair_Statistic_GTS gts;
-    tod_detail::TOD_Layer todayLayer =
-        *(const tod_detail::TOD_Layer*)(todState + 0x14);  // ORIG getTodayEnterLayer 拷贝 +0x14
-    *(unsigned int*)(gts.m_buf + 0xe) =
-        tod_detail::tod_GetLayer(todayLayer) & 0xffff;
-    gts.m_buf[0x12] = 1;
-    *(unsigned int*)(gts.m_buf + 0x13) = user->get_acc_id();
+    TOD_Layer todayLayer = todState->getTodayEnterLayer();
+    gts.m_key.m_0 = todayLayer.GetLayer();
+    gts.m_flag = 1;
+    gts.m_accId = user->get_acc_id();
 
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    proxy->SendPacket(gts.m_buf, 0x17);
+    proxy->SendPacket((char*)&gts, sizeof(Packet_TowerOfDespair_Statistic_GTS));
     return 1;
 }
 int CDungeon::_do_after_dungeon_start(CUser* user) const
@@ -618,62 +624,70 @@ void CDungeon::GetRandMaze(int& out) const
 
 int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 {
+    // ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
+    // 收集候选；候选唯一/随机取，空则全表随机。
     if (m_mazeList.size() == 1)
         return (int)&m_mazeList[0];
 
     std::vector<MazeScript*> candidates;
     unsigned int i = 0;
-    while (i < m_mazeList.size())
+    while (m_mazeList.size() > i)
     {
         MazeScript* maze = const_cast<MazeScript*>(&m_mazeList[i]);
-        if (maze->m_68 <= partyCount && partyCount <= maze->m_6c)
-        {
-            MazeScript* mazeTmp = maze;
-            candidates.push_back(mazeTmp);
-        }
-        ++i;
+        if (maze->m_partyCountMin <= partyCount &&
+            partyCount <= maze->m_partyCountMax)
+            candidates.push_back(maze);
+        i = i + 1;
     }
+
     unsigned int r = 0;
+    MazeScript* result;
     if (!candidates.empty())
     {
         if (candidates.size() == 1)
-            return (int)candidates[0];
-        r = rand() % candidates.size();
-        return (int)candidates[r];
+            result = candidates[0];
+        else
+        {
+            r = rand() % candidates.size();
+            result = candidates[r];
+        }
     }
     else
     {
         r = rand() % m_mazeList.size();
-        return (int)&m_mazeList[r];
+        result = const_cast<MazeScript*>(&m_mazeList[r]);
     }
+    return (int)result;
 }
 
 int CDungeon::GetStartMap(int direction) const
 {
-    if (direction < 0x10 && direction >= 0)
+    // ORIG 0x0834c75a：方向守卫共享一个 -1 返回块；空表 log 后 -1；
+    // 随机前进 it++（后置）逐槽检查；返回 it->first。
+    if (direction > 0xf || direction < 0)
+        return -1;
+
+    if (m_maplist[direction].size() == 0)
     {
-        if (m_maplist[direction].size() == 0)
-        {
-            LogManager::logFormat(
-                1, "data_manager.cpp", "int CDungeon::GetStartMap(int) const",
-                0x79a,
-                "CDungeon::GetStartMap() : direction(%d), dungeon index(%d), "
-                "start_maplist_[direction].size() == 0, May be Script Error!",
-                direction, m_index);
-            return -1;
-        }
-        int r = get_rand_int(m_maplist[direction].size());
-        __gnu_cxx::hash_map<int, CMap*>::const_iterator it =
-            m_maplist[direction].begin();
-        for (int i = 0; i < r; ++i)
-        {
-            ++it;
-            if (it == m_maplist[direction].end())
-                return -1;
-        }
-        return it->first;
+        LogManager::logFormat(
+            1, "data_manager.cpp", "int CDungeon::GetStartMap(int) const",
+            0x79a,
+            "CDungeon::GetStartMap() : direction(%d), dungeon index(%d), "
+            "start_maplist_[direction].size() == 0, May be Script Error!",
+            direction, m_index);
+        return -1;
     }
-    return -1;
+
+    int r = get_rand_int(m_maplist[direction].size());
+    __gnu_cxx::hash_map<int, CMap*>::const_iterator it =
+        m_maplist[direction].begin();
+    for (int i = 0; i < r; i++)
+    {
+        it++;
+        if (it == m_maplist[direction].end())
+            return -1;
+    }
+    return it->first;
 }
 
 int CDungeon::get_clear_item() const
@@ -706,30 +720,26 @@ int CDungeon::get_clear_item(int level) const
 
 int CDungeon::getLimitCoinDiff(int diff, int& out) const
 {
+    // ORIG 0x08365316：size==0 → 0；命中取 value.m_0 写 out 返回 1；未命中返回 0
     if (m_map91c.size() == 0)
         return 0;
     std::map<int, UseCoinDungeonDiff>::const_iterator it = m_map91c.find(diff);
-    if (it == m_map91c.end())
-        return 0;
-    out = it->second.m_0;
-    return 1;
+    if (it != m_map91c.end())
+    {
+        out = it->second.m_0;
+        return 1;
+    }
+    return 0;
 }
 
 bool CDungeon::checkFreeRevivalCondition(int diff) const
 {
+    // ORIG 0x08365298：it != end 且 !(value.m_4)（xor $1 取反测试）→ true
     std::map<int, UseCoinDungeonDiff>::const_iterator it = m_map91c.find(diff);
-    if (it != m_map91c.end() && it->second.m_4 != 1)
+    if (it != m_map91c.end() && !it->second.m_4)
         return true;
     return false;
 }
-
-int CDungeon::getTournamentRoundFatigue() const
-{
-    if (m_8a4 == 0)
-        return 1;
-    return m_8a4;
-}
-
 bool CDungeon::get_dimension_member_count(DimensionPartyCount& out) const
 {
     // ORIG 0x0834d220：std::find 匹配 m_0/m_1，命中复制 m_2 返回 true
@@ -756,32 +766,16 @@ GridScript::GridScript()
     clear();
 }
 
-GridScript::GridScript(const GridScript& other)
-{
-    m_gridValue = other.m_gridValue;
-    m_mapCandidates = other.m_mapCandidates;
-    m_secondCandidates = other.m_secondCandidates;
-    m_layeredMapIndexes = other.m_layeredMapIndexes;
-}
-
-GridScript::~GridScript()
-{
-}
-
-GridScript& GridScript::operator=(const GridScript& other)
-{
-    m_gridValue = other.m_gridValue;
-    m_mapCandidates = other.m_mapCandidates;
-    m_secondCandidates = other.m_secondCandidates;
-    m_layeredMapIndexes = other.m_layeredMapIndexes;
-    return *this;
-}
-
 void RidableObject::clear()
 {
-    m_pad[0] = 0;
+    // ORIG 0x830e47c：前 5 个字段写 -1，+0x14（m_field18）写 0xc8（200）。
+    m_x = -1;
+    m_y = -1;
+    m_field0c = -1;
+    m_field10 = -1;
+    m_field14 = -1;
+    m_field18 = 0xc8;
 }
-
 RidableObject::RidableObject()
 {
     clear();
@@ -803,23 +797,8 @@ RidableScript::RidableScript()
     clear();
 }
 
-RidableScript::RidableScript(const RidableScript& other)
-{
-    m_0 = other.m_0;
-    m_4 = other.m_4;
-    m_objects = other.m_objects;
-}
-
 RidableScript::~RidableScript()
 {
-}
-
-RidableScript& RidableScript::operator=(const RidableScript& other)
-{
-    m_0 = other.m_0;
-    m_4 = other.m_4;
-    m_objects = other.m_objects;
-    return *this;
 }
 
 void DungeonClearCondition::clear()
@@ -841,21 +820,27 @@ DungeonClearCondition::~DungeonClearCondition()
 // ============================================================================
 // MazeScript（0x74 字节）
 // ============================================================================
-
 void MazeScript::clear()
 {
-    m_width = 0;
-    m_height = 0;
-    m_2c = 0;
-    m_30 = 0;
-    m_34 = 0;
-    m_4c = 0;
-    m_50 = 0;
-    m_54 = 0;
+    // ORIG 0x88f2a76：宽高置 1；三组 vector clear；0x2c..0x54 置 -1；
+    // 0x64..0x6c 置 0；0x70 字节清零；ridable clear。
+    m_width = 1;
+    m_height = 1;
+    m_grids.clear();
+    m_vec14.clear();
+    m_vec20.clear();
+    m_2c = -1;
+    m_30 = -1;
+    m_34 = -1;
+    m_questType = -1;
+    m_50 = -1;
+    m_54 = -1;
+    m_clearCondition.clear();
     m_64 = 0;
-    m_68 = 0;
-    m_6c = 0;
+    m_partyCountMin = 0;
+    m_partyCountMax = 0;
     m_70 = 0;
+    m_ridable.clear();
 }
 
 MazeScript::MazeScript()
@@ -863,56 +848,16 @@ MazeScript::MazeScript()
     clear();
 }
 
-MazeScript::MazeScript(const MazeScript& other)
-{
-    m_width = other.m_width;
-    m_height = other.m_height;
-    m_grids = other.m_grids;
-    m_vec14 = other.m_vec14;
-    m_vec20 = other.m_vec20;
-    m_2c = other.m_2c;
-    m_30 = other.m_30;
-    m_34 = other.m_34;
-    m_ridable = other.m_ridable;
-    m_4c = other.m_4c;
-    m_50 = other.m_50;
-    m_54 = other.m_54;
-    m_clearCondition = other.m_clearCondition;
-    m_64 = other.m_64;
-    m_68 = other.m_68;
-    m_6c = other.m_6c;
-    m_70 = other.m_70;
-}
-
 MazeScript::~MazeScript()
 {
+    // ORIG D1/D2 0x08376f00（合成形态）：逆序析构 m_clearCondition(+0x58)、
+    // m_ridable(+0x38)、m_vec20/m_vec14/m_grids；由编译器按成员声明生成。
 }
 
-MazeScript& MazeScript::operator=(const MazeScript& other)
+GridScript* MazeScript::getGrid(int x, int y)
 {
-    m_width = other.m_width;
-    m_height = other.m_height;
-    m_grids = other.m_grids;
-    m_vec14 = other.m_vec14;
-    m_vec20 = other.m_vec20;
-    m_2c = other.m_2c;
-    m_30 = other.m_30;
-    m_34 = other.m_34;
-    m_ridable = other.m_ridable;
-    m_4c = other.m_4c;
-    m_50 = other.m_50;
-    m_54 = other.m_54;
-    m_clearCondition = other.m_clearCondition;
-    m_64 = other.m_64;
-    m_68 = other.m_68;
-    m_6c = other.m_6c;
-    m_70 = other.m_70;
-    return *this;
-}
-
-int MazeScript::getGrid(int x, int y)
-{
-    return m_grids[m_width * y + x].m_gridValue;
+    // ORIG 0x88f2c2a：返回 &m_grids[m_width*y+x]（vector::operator[] 结果）
+    return &m_grids[m_width * y + x];
 }
 
 // ============================================================================
@@ -930,23 +875,8 @@ stDungeonAssignItem_t::stDungeonAssignItem_t()
     clear();
 }
 
-stDungeonAssignItem_t::stDungeonAssignItem_t(
-    const stDungeonAssignItem_t& other)
-{
-    m_assignItemIdx = other.m_assignItemIdx;
-    m_list = other.m_list;
-}
-
 stDungeonAssignItem_t::~stDungeonAssignItem_t()
 {
-}
-
-stDungeonAssignItem_t& stDungeonAssignItem_t::operator=(
-    const stDungeonAssignItem_t& other)
-{
-    m_assignItemIdx = other.m_assignItemIdx;
-    m_list = other.m_list;
-    return *this;
 }
 
 RandomList::~RandomList()
@@ -987,26 +917,31 @@ STDeadTowerData::STDeadTowerData()
 
 STDeadTowerData::~STDeadTowerData()
 {
+    // ORIG D1/D2 0x0836b41c（合成形态）：仅析构 m_vec（+0x00）。
+}
+
+STWarRoomData::STWarRoomData()
+{
+    // ORIG C1/C2 0x0836a1f6：构造 m_vec14[4]（+0x14）/m_vec44（+0x44）/
+    // m_vec6c[4]（+0x6c）/m_spawnProb（+0xb0）后调用 clear()。
+    clear();
 }
 
 void STWarRoomData::clear()
 {
+    // ORIG 0x836a398：两个 vector<int>[4] 数组循环 + 标量区。
     memset(&m_0, 0, 0xc);
     m_c = 0;
     m_10 = -1;
-    m_vec14.clear();
-    m_vec20.clear();
-    m_vec2c.clear();
-    m_vec38.clear();
+    for (int i = 0; i < 4; ++i)
+        m_vec14[i].clear();
     m_vec44.clear();
     m_50 = 0;
     m_54 = 0;
     m_58 = 0;
     memset(m_5c, 0, sizeof(m_5c));
-    m_vec6c.clear();
-    m_vec78.clear();
-    m_vec84.clear();
-    m_vec90.clear();
+    for (int i = 0; i < 4; ++i)
+        m_vec6c[i].clear();
     memset(m_9c, 0, sizeof(m_9c));
     m_ac = 0;
     m_spawnProb.clear();
@@ -1014,8 +949,8 @@ void STWarRoomData::clear()
     m_c0 = 0;
     memset(m_c4, 0, sizeof(m_c4));
     m_d4 = 0;
-    m_d8 = 0;
     memset(m_dc, 0, sizeof(m_dc));
+    m_d8 = 0;
     m_ec = 0;
     m_f0 = 0;
     m_f4 = 0;
@@ -1025,21 +960,16 @@ void STWarRoomData::clear()
 
 void STWarRoomData::copy(STWarRoomData* other)
 {
+    // ORIG 0x836a578：数组按元素 reserve/push_back，标量逐个/memcpy。
     memcpy(other, this, 0xc);
     other->m_c = m_c;
     other->m_10 = m_10;
-    other->m_vec14.reserve(m_vec14.size());
-    for (size_t i = 0; i < m_vec14.size(); ++i)
-        other->m_vec14.push_back(m_vec14[i]);
-    other->m_vec20.reserve(m_vec20.size());
-    for (size_t i = 0; i < m_vec20.size(); ++i)
-        other->m_vec20.push_back(m_vec20[i]);
-    other->m_vec2c.reserve(m_vec2c.size());
-    for (size_t i = 0; i < m_vec2c.size(); ++i)
-        other->m_vec2c.push_back(m_vec2c[i]);
-    other->m_vec38.reserve(m_vec38.size());
-    for (size_t i = 0; i < m_vec38.size(); ++i)
-        other->m_vec38.push_back(m_vec38[i]);
+    for (int i = 0; i < 4; ++i)
+    {
+        other->m_vec14[i].reserve(m_vec14[i].size());
+        for (size_t j = 0; j < m_vec14[i].size(); ++j)
+            other->m_vec14[i].push_back(m_vec14[i][j]);
+    }
     other->m_vec44.reserve(m_vec44.size());
     for (size_t i = 0; i < m_vec44.size(); ++i)
         other->m_vec44.push_back(m_vec44[i]);
@@ -1047,18 +977,12 @@ void STWarRoomData::copy(STWarRoomData* other)
     other->m_54 = m_54;
     other->m_58 = m_58;
     memcpy(other->m_5c, m_5c, sizeof(m_5c));
-    other->m_vec6c.reserve(m_vec6c.size());
-    for (size_t i = 0; i < m_vec6c.size(); ++i)
-        other->m_vec6c.push_back(m_vec6c[i]);
-    other->m_vec78.reserve(m_vec78.size());
-    for (size_t i = 0; i < m_vec78.size(); ++i)
-        other->m_vec78.push_back(m_vec78[i]);
-    other->m_vec84.reserve(m_vec84.size());
-    for (size_t i = 0; i < m_vec84.size(); ++i)
-        other->m_vec84.push_back(m_vec84[i]);
-    other->m_vec90.reserve(m_vec90.size());
-    for (size_t i = 0; i < m_vec90.size(); ++i)
-        other->m_vec90.push_back(m_vec90[i]);
+    for (int i = 0; i < 4; ++i)
+    {
+        other->m_vec6c[i].reserve(m_vec6c[i].size());
+        for (size_t j = 0; j < m_vec6c[i].size(); ++j)
+            other->m_vec6c[i].push_back(m_vec6c[i][j]);
+    }
     memcpy(other->m_9c, m_9c, sizeof(m_9c));
     other->m_ac = m_ac;
     other->m_spawnProb.reserve(m_spawnProb.size());
@@ -1077,35 +1001,26 @@ void STWarRoomData::copy(STWarRoomData* other)
     other->m_fc = m_fc;
 }
 
-STWarRoomData::STWarRoomData()
-{
-    clear();
-}
-
 STWarRoomData::~STWarRoomData()
 {
 }
 
 void RequiredItem::clear()
 {
-    m_0 = -1;
-    m_4 = 0;
-    m_8 = 0;
+    m_itemIdx = -1;
+    m_itemCount = 0;
+    m_enableFlag = 0;
 }
 
 RequiredItem::RequiredItem()
 {
     clear();
 }
-
-// ============================================================================
-// advancealtar::ClearRewardData / SurvivalRewardData / 其它奖励类型
-// ============================================================================
-
 void advancealtar::ClearRewardData::clear()
 {
-    m_vec0.clear();
-    m_vecc.clear();
+    // ORIG：vector<_RewardItem> m_vec[3] 数组循环 clear（i=0..2）。
+    for (int i = 0; i < 3; ++i)
+        m_vec[i].clear();
 }
 
 advancealtar::ClearRewardData::ClearRewardData()
@@ -1120,8 +1035,8 @@ advancealtar::ClearRewardData::~ClearRewardData()
 advancealtar::ClearRewardData& advancealtar::ClearRewardData::operator=(
     const ClearRewardData& other)
 {
-    m_vec0 = other.m_vec0;
-    m_vecc = other.m_vecc;
+    for (int i = 0; i < 3; ++i)
+        m_vec[i] = other.m_vec[i];
     return *this;
 }
 
@@ -1163,62 +1078,43 @@ TournamentRewardItemRate& TournamentRewardItemRate::operator=(
     return *this;
 }
 
-void stConditionEnterBossRoom_t::clear()
-{
-    m_0 = 0;
-    m_vec4.clear();
-}
-
 stConditionEnterBossRoom_t::stConditionEnterBossRoom_t()
 {
-    clear();
+    // ORIG 0x836b552：仅 vector<int> 构造（m_0 不初始化）。
 }
 
 stConditionEnterBossRoom_t::~stConditionEnterBossRoom_t()
 {
 }
 
+void stConditionEnterBossRoom_t::clear()
+{
+    m_0 = 0;
+    m_vec4.clear();
+}
+
 RecoveryStairInfo::RecoveryStairInfo()
 {
 }
 
-RecoveryStairInfo::RecoveryStairInfo(const RecoveryStairInfo& other)
-{
-    m_vec = other.m_vec;
-}
-
 RecoveryStairInfo::~RecoveryStairInfo()
 {
-}
-
-RecoveryStairInfo& RecoveryStairInfo::operator=(
-    const RecoveryStairInfo& other)
-{
-    m_vec = other.m_vec;
-    return *this;
+    // ORIG D1/D2 0x083dc7d2（合成形态）：仅析构 m_vec（+0x0c）。
 }
 
 void STTowerDialog::clear()
 {
-    m_0 = 0;
-    m_str4.clear();
-    m_8 = 0;
-    m_9 = 0;
-    m_a = 0;
+    // ORIG W 0x088f2d38：m_index=0、m_name.clear()、三个 flag 字节清零。
+    m_index = 0;
+    m_name.clear();
+    m_flag8 = 0;
+    m_flag9 = 0;
+    m_flagA = 0;
 }
 
 STTowerDialog::STTowerDialog()
 {
     clear();
-}
-
-STTowerDialog::STTowerDialog(const STTowerDialog& other)
-{
-    m_0 = other.m_0;
-    m_str4 = other.m_str4;
-    m_8 = other.m_8;
-    m_9 = other.m_9;
-    m_a = other.m_a;
 }
 
 STTowerDialog::~STTowerDialog()
@@ -1227,11 +1123,11 @@ STTowerDialog::~STTowerDialog()
 
 STTowerDialog& STTowerDialog::operator=(const STTowerDialog& other)
 {
-    m_0 = other.m_0;
-    m_str4 = other.m_str4;
-    m_8 = other.m_8;
-    m_9 = other.m_9;
-    m_a = other.m_a;
+    m_index = other.m_index;
+    m_name = other.m_name;
+    m_flag8 = other.m_flag8;
+    m_flag9 = other.m_flag9;
+    m_flagA = other.m_flagA;
     return *this;
 }
 

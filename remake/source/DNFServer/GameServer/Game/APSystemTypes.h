@@ -27,6 +27,22 @@ public:
     char m_pad[0x100];
 };
 
+// APSystem::_ActionPoint —— 行动点 DB 行记录。
+// ORIG W 0x0848f5b4 _ZN8APSystem12_ActionPointC1Ev/C2Ev（ctor 体=memset(this,0,0xb)，
+// objdump 转写，实现见 APSystemLeafC3.cpp）。步长 0xb 实证：_SIG_LOAD_ACTION_POINT
+// ctor 0x0848f5d8 自 +0xd 起按 0xb 步长构造 300 个元素；DB_LoadActionPoint::
+// ParseActionClearState(…,_ActionPoint*,…) 同步长遍历、组索引 @+0x02。
+// int 落在未对齐 +0x02 槽 → 必须 pack(1)，sizeof == 0xb。ORIG 无 D1/D2 符号（平凡析构）。
+class __attribute__((packed)) _ActionPoint
+{
+public:
+    _ActionPoint();
+
+    unsigned short m_actionNo;   // +0x00
+    int m_groupIndex;            // +0x02（IsValidActionGroupIndex 实参来源）
+    unsigned char m_days[5];     // +0x06..+0x0a
+};                               // sizeof 0xb
+
 // 元素布局（importActionPointSystemEtcScript 0x08894996 汇编实证，sizeof 0x30）：
 //   B+0x00 ushort / B+0x02 int(IsValidActionGroupIndex 参数) / B+0x06 byte[5]
 //   （写 -(char)v；其中 +8/+9 槽随后被独立扫描覆写）/ B+0x0c word（map 键）/

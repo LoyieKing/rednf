@@ -14,7 +14,7 @@
 //   6. UserMercenaryInfoMgr::CheckCharacIndex    （4 的依赖，ORIG T 0x081b4262）
 //   7. CHARAC_LOAD_MERCENARY::Reset          .../CHARAC_LOAD_MERCENARY/Reset.md
 //                                            ORIG T 0x081b410a（布局自证）
-//   8. CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel
+//   8.（已迁回 CFatigueBatteryHandle.cpp 本类 TU；此处不再定义）
 //                                            .../CFatigueBatteryHandle/ActiveFatigueBattery_EndLevel.md
 //                                            ORIG T 0x084a81f4
 //   9. DB_LoadCharacHotKeyOption::makeRequest .../DB_LoadCharacHotKeyOption/makeRequest.md
@@ -191,41 +191,6 @@ void CHARAC_LOAD_MERCENARY::Reset()
     m_field30 = 0xff;
     m_field31 = 0xff;
     m_avatarBonus = 0xa;
-}
-
-// ----------------------------------------------------------------------------
-// 8. ORIG T 0x084a81f4 sz 0xa9。
-// used=(int)(short)user->GetFatigueBatteryCharging()（cwtl 符号扩展）；result=used；
-// 二次读取与 result 不等时经 cMyTrace 记录 "FATIGUE BATTERY ACTIVE ERR :
-// char no(%d), usedFatigue(%d)" 并重取；返回 result 截 short。
-// ORIG 另有 G_CDataManager()+0x68 死存储（结果从不读取），按原样保留以对齐栈形。
-// ----------------------------------------------------------------------------
-short CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser* user)
-{
-    int result = 0;
-    int used =
-        static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging()));
-
-    // ORIG 死存储：call G_CDataManager(); add $0x68,%eax; mov %eax,-0xc(%ebp)，
-    // 之后从未读取——保留以维持指令形态。
-    stFatigueBatteryConstantTable_t* unusedTable =
-        reinterpret_cast<stFatigueBatteryConstantTable_t*>(
-            reinterpret_cast<unsigned char*>(G_CDataManager()) + 0x68);
-    (void)unusedTable;
-
-    result = used;
-    if (static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging())) !=
-        static_cast<short>(result))
-    {
-        cMyTrace trace(
-            "short int CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser*)",
-            0x77, 0);
-        trace("FATIGUE BATTERY ACTIVE ERR : char no(%d), usedFatigue(%d)",
-              user->getCurCharacNo(), result);
-        result = static_cast<int>(
-            static_cast<short>(user->GetFatigueBatteryCharging()));
-    }
-    return static_cast<short>(result);
 }
 
 // ----------------------------------------------------------------------------

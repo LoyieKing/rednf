@@ -108,6 +108,41 @@ private:
 
 // 布局自检：锁死 ORIG 数组步长 ABI（CCharacList = CCharacter[10]，步长 0x7dc；
 // CDataManager::m_characList 指向该数组基址，_update_charac_stat 按下标取行）。
+namespace WongWork
+{
+// WongWork::CCalcCharacStat —— 全静态角色属性计算器（ORIG 7 方法均 T）。
+// mangled（无 const/static 标记差异，返回类型不参与 mangling）：
+//   _ZN8WongWork15CCalcCharacStat14InitializeStatEP15_Additioal_infoi      T 0x0831e9ca
+//   _ZN8WongWork15CCalcCharacStat15ApplyElixerItemEP15_Additioal_infoii    T 0x0831e85c
+//   _ZN8WongWork15CCalcCharacStat8CalcStatEP15_Additioal_infoiiiii         T 0x0831ec4a
+//   _ZN8WongWork15CCalcCharacStat13_CalcSwordmanEP15_Additioal_infoii      T 0x0831ed6c
+//   _ZN8WongWork15CCalcCharacStat12_CalcFighterEP15_Additioal_infoii       T 0x0831f282
+//   _ZN8WongWork15CCalcCharacStat9_CalcMageEP15_Additioal_infoii           T 0x0831fc3a
+//   _ZN8WongWork15CCalcCharacStat11_CalcGunnerEP15_Additioal_infoii        T 0x0831f75c
+// 定义见 WongWorkMisc_A.cpp。
+class CCalcCharacStat
+{
+public:
+    static void InitializeStat(_Additioal_info* out, int job);
+
+    static void ApplyElixerItem(_Additioal_info* out, int statIdx, int value);
+
+    static _Additioal_info* CalcStat(_Additioal_info* out, int job,
+                                     int firstGrow, int secondGrow,
+                                     int level);
+
+    // 第二参数为成长系类型（2nd grow subtype），第三参数为目标等级。
+    static _Additioal_info* _CalcSwordman(_Additioal_info* out,
+                                          int secondType, int level);
+    static _Additioal_info* _CalcFighter(_Additioal_info* out,
+                                         int secondType, int level);
+    static _Additioal_info* _CalcMage(_Additioal_info* out,
+                                      int secondType, int level);
+    static _Additioal_info* _CalcGunner(_Additioal_info* out,
+                                        int secondType, int level);
+};
+}  // namespace WongWork
+
 typedef char CCharacter_size_0x7dc[(sizeof(CCharacter) == 0x7dc) ? 1 : -1];
 
 #endif  // DNF_GAME_CCHARACTER_H_

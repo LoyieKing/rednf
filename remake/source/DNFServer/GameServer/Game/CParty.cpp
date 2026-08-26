@@ -58,6 +58,11 @@ typedef std::map<int, int> MapII;
 #include "CDimensionActivationEvent.h"
 #include "CBattle_Field.h"
 #include "GameWorld.h"
+#include "TimerQueue.h"   // insert_time_* 定时器注册（ORIG 0x8630e16 InsertTimer）
+#include "CUserProc.h"   // APSystem::CUserProc::ClearActionAndSendtoUser（SetCardNumber）
+#include "CPCRoomBurningEvent.h"   // generateBloodRewardExp 事件加成
+#include "CExpDoubleEvent.h"
+#include "CBurningFatigueEvent.h"
 // MapInfo 经 CBattle_Field.h→WarField.h 引入；显式析构/构造带模板参数需 typedef。
 typedef std::vector<MapInfo> MapInfoVec;
 #include "CUser.h"
@@ -68,6 +73,16 @@ typedef std::vector<MapInfo> MapInfoVec;
 #include "EventNewCharacterReward.h"
 #include "GlobalData.h"
 #include "CServerEvent.h"   // CServerEvent::GetExpRate（sumGainedEachExp）
+
+// ---- ClearRewardFinal 批次（clear_reward / set_clear_reward_exp_parameter）----
+#include "CItemGeneratorMgr.h"       // WongWork::CItemGeneratorMgr::getGenerator(2)
+#include "CPartyExpBonusEvent.h"     // repeat 事件 0x18 队伍经验加成
+#include "HeroMissionEvent.h"        // ARAD::Singleton<HeroMissionEvent>::processMission
+#include "CConditionEventManager.h"  // IsFreeGoldCard / ProcessCheckStepUp
+#include "CGlobalEffectManager.h"    // s_globalEffectManager_ 效果 2
+#include "CEnvironment.h"            // G_CEnvironment / get_channel_no
+#include "STExpReward.h"             // set_clear_reward_exp_parameter 局部结构
+#include "Quest.h"                   // check_clear_item/get_clear_itemlist（clear_reward）
 
 // ============================================================================
 // 所有 extern "C" asm 桥已删除（game_verify_guide.md §9/§10）：
@@ -292,7 +307,8 @@ char CParty::getTitleIndex()
 
 void CParty::setTitleIndex(unsigned char idx)
 {
-    m_titleIndex = idx;
+    struct V { char m_pad[0x11b]; unsigned char m_f; };
+    ((V*)this)->m_f = idx;
 }
 
 char* CParty::getTitle()
@@ -441,9 +457,10 @@ void* CParty::GetSecretShopData()
     return &m_padShop;
 }
 
-void CParty::checkBossRoom()
-{
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point();
+bool CParty::checkBossRoom()
+{   // ORIG W 0x0822d8f6：al 透传 check_end_point 返回值（check_allmember_loading
+    // 以 && 消费，原 void 声明与 ORIG 不符）
+    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point();
 }
 
 bool CParty::checkStartRoom()
@@ -451,9 +468,10 @@ bool CParty::checkStartRoom()
     return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_start_point();
 }
 
-void CParty::DeleteDungeonDropItem(int idx)
-{
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->pickup_item(idx);
+int CParty::DeleteDungeonDropItem(int idx)
+{   // ORIG W 0x0860b62a：转发 CBattle_Field::pickup_item 并透传其返回值
+    // （processRouting 以 `0 < 返回值` 判定删除失败）。
+    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->pickup_item(idx);
 }
 
 int CParty::get_quick_party_index()
@@ -784,6 +802,24 @@ void CParty::check_passive_skill()
 
 bool CParty::isHelpAbuseParty(CUser* user)
 {
+    return false;  // ORIG T 0x085a21ca（0xa 字节）：恒 0。
+}
+
+// ORIG T 0x085a21d4（0x71 字节）：任一有效成员 isHelpAbuseParty 则真。
+bool CParty::isHelpAbuseParty()
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (!checkValidUser(i))
+        {
+            continue;
+        }
+        CUser* user = get_user(i);
+        if (isHelpAbuseParty(user))
+        {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -929,9 +965,10 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         if (repeatEvent->IsEventing(static_cast<CUser*>(0)))
         {
             // ORIG *(int*)(G_CDataManager()+0x520) == ServerParameterScript+0x4b8
-            int weekendPercent = *reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(&G_CDataManager()->m_serverParameter) +
-                0x4b8);
+            //   = stWeekendBouns.m_bonusExpPercent（importServerParameterScript.md
+            //   0x8a8b95b "[weekend bonus exp]" mov %eax,0x4b8(%edx) 实证）。
+            int weekendPercent =
+                G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusExpPercent;
             user->setWeekendBonusExp(baseExp, weekendPercent);
             weekendBonus = user->getWeekendBonusExp();
             total += weekendBonus;
@@ -1003,6 +1040,26 @@ int CParty::change_manager()
     }
     LogManager::logFormat(1, "party.cpp", "bool CParty::change_manager()",
                           0x689, "there is no manager(party empty)");
+    return 0;
+}
+
+// ==== CParty::change_manager @ 0x0859c978（两参版，change_manager() 无参版同族报告）====
+// ORIG _ZN6CParty14change_managerEP5CUseri T：仅现任 manager 可换任；
+// slot 越界/空槽→21、非本人→8、目标已是 manager→18；成功换 m_manager 并广播。
+int CParty::change_manager(CUser* user, int slot)
+{
+    if (slot < 0 || 3 < slot)
+        return 0x15;
+    if (m_member[slot].m_pUser == 0)
+        return 0x15;
+    if (user != m_manager)
+        return 8;
+    if (m_member[slot].m_pUser == m_manager)
+        return 0x12;
+    m_manager = m_member[slot].m_pUser;
+    set_host();
+    send_host_info();
+    G_GameWorld()->send_party_info_to_all(this, 2);
     return 0;
 }
 
@@ -1145,12 +1202,12 @@ int CParty::GetUserPosition(CUser* user)
 bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag,
                                     Inven_Item* items, int* param)
 {
-    if (((dungeon->m_requiredItem2.m_0 != -1) ||
-         (dungeon->m_requiredItem1.m_0 != -1)) &&
-        ((dungeon->m_requiredItem2.m_0 == -1) ||
-         ((dungeon->m_requiredItem2.m_8 == 1) ||
-          (dungeon->m_requiredItem1.m_0 == -1) ||
-          (dungeon->m_requiredItem1.m_8 == 1))))
+    if (((dungeon->m_entryRequiredItem2.m_itemIdx != -1) ||
+         (dungeon->m_entryRequiredItem.m_itemIdx != -1)) &&
+        ((dungeon->m_entryRequiredItem2.m_itemIdx == -1) ||
+         ((dungeon->m_entryRequiredItem2.m_enableFlag == 1) ||
+          (dungeon->m_entryRequiredItem.m_itemIdx == -1) ||
+          (dungeon->m_entryRequiredItem.m_enableFlag == 1))))
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -1159,7 +1216,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
             char local_d = 1;
             int* pi = &param[i];
             *pi = m_member[i].m_pUser->getCurCharacInvenR()
-                      ->check_item_exist(dungeon->m_requiredItem2.m_0);
+                      ->check_item_exist(dungeon->m_entryRequiredItem2.m_itemIdx);
             if (*pi == -1)
             {
                 flag = (unsigned char)i;
@@ -1170,7 +1227,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                 Inven_Item* piv = &items[i];
                 *piv = m_member[i].m_pUser->getCurCharacInvenR()
                            ->GetInvenSlot(1, *pi);
-                if (piv->m_addInfo2 < dungeon->m_requiredItem2.m_4)
+                if (piv->m_addInfo2 < dungeon->m_entryRequiredItem2.m_itemCount)
                 {
                     flag = (unsigned char)i;
                     local_d = 0;
@@ -1181,7 +1238,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                 local_d = 1;
                 pi = &param[i];
                 *pi = m_member[i].m_pUser->getCurCharacInvenR()
-                          ->check_item_exist(dungeon->m_requiredItem1.m_0);
+                          ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
                 if (*pi == -1)
                 {
                     flag = (unsigned char)i;
@@ -1192,7 +1249,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                     Inven_Item* piv = &items[i];
                     *piv = m_member[i].m_pUser->getCurCharacInvenR()
                                ->GetInvenSlot(1, *pi);
-                    if (piv->m_addInfo2 < dungeon->m_requiredItem1.m_4)
+                    if (piv->m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
                     {
                         flag = (unsigned char)i;
                         local_d = 0;
@@ -1249,11 +1306,12 @@ int CParty::checkInoutConditionDungeon()
         {
             worldMap = G_CDataManager()->m_worldMapList.find_world_map(worldIdx);
         }
+        CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
         bool hellDun = false;
         if ((worldMap != 0 &&
              worldMap->IsInHellDungeon() != 0 &&
-             reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->IsEnableHellDungeon() != 0) &&
-            *(int*)((char*)this + 0xcd4) == 1)
+             bfView.IsEnableHellDungeon() != 0) &&
+            bfView.m_hellPartyMode == 1)   // ORIG this+0xcd4（BF+0x1b0 m_hellPartyMode）
         {
             hellDun = true;
         }
@@ -1273,7 +1331,7 @@ int CParty::checkInoutConditionDungeon()
         if (m_partyType == 1 ||
             (worldMap != 0 && worldMap->hasDeathTower() == 1) ||
             m_dungeon->isNoFatigueDungeon() == 1 ||
-            m_dungeon->m_800 == 1)
+            m_dungeon->m_advanceAltarSurvivalFlag == 1)
         {
             noFat = false;
         }
@@ -1425,12 +1483,12 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
 // ORIG 0x85ba804：村庄攻击/复仇模式进入检查。
 int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
 {
-    if (dungeon->m_87a == 0)
+    if (dungeon->m_villageAttackEventFlag == 0)
         return 0;
     int memberCount = get_member_count();
     if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
         return 0x15;
-    if (dungeon->m_879 < memberCount || memberCount < dungeon->m_878)
+    if (dungeon->m_maxAttackPartyMember < memberCount || memberCount < dungeon->m_minAttackPartyMember)
         return 0xab;
     for (int i = 0; i <= 3; ++i)
     {
@@ -1438,7 +1496,7 @@ int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
             continue;
         CUser* u = get_user(i);
         unsigned char cur = u->GetCurRevengeDungeonCount();
-        if (cur == 0 || (unsigned char)dungeon->m_87b < cur)
+        if (cur == 0 || (unsigned char)dungeon->m_maxRevengeCount < cur)
         {
             u->SetCurRevengeDungeonCount(0);
             return 0xad;
@@ -1525,20 +1583,17 @@ int CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,
 
 bool CParty::check_timer_key(TIMER_MESSAGE msg, int param)
 {
-    // ORIG: mov 0x8(%eax,%edx,4)，索引 (msg-0xb+0x50)，基址 this+8
-    int idx = (int)msg - 0xb;
-    idx += 0x50;
-    return ((int*)((char*)this + 8))[idx] == param;
+    // ORIG: lea -0xb(%eax),%edx; add $0x50,%edx; mov 0x8(%eax,%edx,4)
+    struct Keys { char m_pad[8]; int m_k[64]; };
+    return ((Keys*)this)->m_k[(int)msg - 0xb + 0x50] == param;
 }
 
 int CParty::gen_timer_key(TIMER_MESSAGE msg)
 {
-    // ORIG: 同 check_timer_key 地址形态（timer key 数组，位于 m_title 区）
-    int idx = (int)msg - 0xb;
-    idx += 0x50;
-    int* key = &((int*)((char*)this + 8))[idx];
-    *key = *key + 1;
-    return *key;
+    // ORIG: sub $0xb,%eax; lea 0x50(%eax),%ecx; mov 0x8(%edx,%ecx,4)…
+    struct Keys { char m_pad[8]; int m_k[64]; };
+    ++((Keys*)this)->m_k[(int)msg + 0x45];
+    return ((Keys*)this)->m_k[(int)msg + 0x45];
 }
 
 void CParty::resetFinishLoadingVar()
@@ -1551,12 +1606,10 @@ void CParty::resetFinishLoadingVar()
 
 bool CParty::CanDoPartyActionAssalutState()
 {
-    char ch = GetAssaultState();
-    int state = ch;
+    int state = (char)GetAssaultState();
     if (state <= 1 || state > 6)
         return true;
-    else
-        return false;
+    return false;
 }
 
 void CParty::resetMemberUseCoin()
@@ -2250,15 +2303,16 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
         return 1;
     if (dungeon->isTowerOfDespairDungeon())
         return 1;
-    if (*(unsigned char*)((char*)dungeon + 0x85c) != 0)   // ORIG +0x85c（SurvivalRewardData 后间隙）
+    if ((unsigned char)dungeon->m_entryRestrictFlag != 0)   // ORIG dungeon+0x85c（set_dungeon 自
+                                              //   STDungeonScript+0x88 复制的事件副本标志）
     {
         if (CheckEnterEventDungeon(dungeon, flag, items, param) != 1)
             return 0;
         return 1;
     }
-    if (dungeon->m_requiredItem1.m_0 == -1)
+    if (dungeon->m_entryRequiredItem.m_itemIdx == -1)
         return 1;
-    if (dungeon->m_requiredItem1.m_8 != 1)
+    if (dungeon->m_entryRequiredItem.m_enableFlag != 1)
         return 1;
     if (m_partyType == 1)
         return 1;
@@ -2270,7 +2324,7 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
         if (dungeonIdx == 0x5dc)
         {
             param[i] = m_member[i].m_pUser->getCurCharacInvenR()
-                ->check_vilmark_dungeon_item_exist(dungeon->m_requiredItem1.m_0);
+                ->check_vilmark_dungeon_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
             if (param[i] == -1)
             {
                 flag = (unsigned char)i;
@@ -2280,7 +2334,7 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
         else
         {
             param[i] = m_member[i].m_pUser->getCurCharacInvenR()
-                ->check_item_exist(dungeon->m_requiredItem1.m_0);
+                ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
             if (param[i] == -1)
             {
                 flag = (unsigned char)i;
@@ -2288,7 +2342,7 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
             }
         }
         items[i] = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(1, param[i]);
-        if (items[i].m_addInfo2 < dungeon->m_requiredItem1.m_4)
+        if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
         {
             flag = (unsigned char)i;
             return 0;
@@ -2298,20 +2352,20 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
 }
 bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, int* param)
 {
-    if (m_partyType != 1 && dungeon->m_requiredItem1.m_8 != 0)
+    if (m_partyType != 1 && dungeon->m_entryRequiredItem.m_enableFlag != 0)
     {
         for (int i = 0; i <= 3; ++i)
         {
             if (_checkValidUser(i) != 1)
                 continue;
-            int itemIdx = dungeon->m_requiredItem1.m_4;
+            int itemIdx = dungeon->m_entryRequiredItem.m_itemCount;
             int slot = param[i];
             CInventory* inv = m_member[i].m_pUser->getCurCharacInvenW();
             char r = (char)inv->delete_item((INVEN_TYPE)1, slot, itemIdx,
                                             (eItemDelReason)0xe, true);
             if (r != 1)
             {
-                int itemIdx2 = dungeon->m_requiredItem1.m_4;
+                int itemIdx2 = dungeon->m_entryRequiredItem.m_itemCount;
                 int slot2 = param[i];
                 int characNo = m_member[i].m_pUser->getCurCharacNo();
                 char log[16];
@@ -2328,7 +2382,7 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
             packet.put_byte(0);
             packet.put_short(1);
             packet.put_short(param[i]);
-            int diff = items[i].m_addInfo2 - dungeon->m_requiredItem1.m_4;
+            int diff = items[i].m_addInfo2 - dungeon->m_entryRequiredItem.m_itemCount;
             if (diff == 0)
             {
                 packet.put_int(-1);
@@ -2372,16 +2426,15 @@ void CParty::set_charac_live(CUser* user, ENUM_USER_DUNGEON_STATE state)
         ++slot;
     }
 
-    char* base = reinterpret_cast<char*>(this);
     if (state == ENUM_USER_DUNGEON_STATE_0)
     {
-        *(base + 0x380 + slot) = 0;
+        m_liveFlag[slot] = 0;            // +0x380
     }
     else if (state >= ENUM_USER_DUNGEON_STATE_0 && state < (ENUM_USER_DUNGEON_STATE)3)
     {
-        *(base + 0x380 + slot) = 1;      // m_liveFlag[slot]
-        *(base + 0x384 + slot) = 1;      // m_enterMapFlag[slot]
-        *(base + 0x388 + slot) = 1;      // BattleData 第三标志组首字节
+        m_liveFlag[slot] = 1;            // +0x380
+        m_enterMapFlag[slot] = 1;        // +0x384
+        m_field388[slot] = 1;            // BattleData 第三标志组首字节
         if (state == (ENUM_USER_DUNGEON_STATE)1)
             m_member[slot].m_field14 += 1;   // ORIG：*(int*)(this+slot*0x18+0x8c) += 1
     }
@@ -2700,7 +2753,7 @@ int CParty::create_party(CUser* user)
     m_state = 1;                                   // +0x6a
     user->SetPartyIndex((short)m_partyIndex);      // +0x64（cwtl 截断）
     user->resetStraightVictories();
-    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->reset_teleport_data();
+    ((CPartyTelePort*)GetPartyTelePort())->reset_teleport_data();
     return 1;
 }
 
@@ -2715,9 +2768,10 @@ int CParty::set_single_play(CUser* user)
     m_autoCreated = 1;                             // +0x13c
     m_state = 1;                                   // +0x6a
     user->SetPartyIndex((short)m_partyIndex);
-    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->reset_teleport_data();
+    ((CPartyTelePort*)GetPartyTelePort())->reset_teleport_data();
     return 1;
 }
+
 
 // ---- CParty::walkout_member（ORIG T 0x859ca4a）----
 int CParty::walkout_member(CUser* user, int slot)
@@ -3123,7 +3177,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         UseSealDoorItems(m_hellWorldMap->m_field34) == 0)
         return 1;
 
-    if ((char)dungeon->m_89f < 1)
+    if ((char)dungeon->m_bloodDungeonType < 1)
     {
         if (!dungeon->isTournamentDungeon())
         {
@@ -3187,7 +3241,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 
     secretshop::SECRET_SHOP_DATA& shop =
         *reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
-    if (((char)dungeon->m_89f < 1) && m_manager->get_state() != 10 &&
+    if (((char)dungeon->m_bloodDungeonType < 1) && m_manager->get_state() != 10 &&
         dungeon->isTowerOfDespairDungeon() == 0 &&
         dungeon->isTournamentDungeon() == 0)
     {
@@ -3231,7 +3285,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 
         if (partyType != 1)
         {
-            bool fatigueSkip = (dungeon->m_87a == 1) || (dungeon->m_89f != 0) ||
+            bool fatigueSkip = (dungeon->m_villageAttackEventFlag == 1) || (dungeon->m_bloodDungeonType != 0) ||
                                (dungeonIdx == 10000) ||
                                (dungeon->isNoFatigueDungeon() == 1);
             if (!fatigueSkip)
@@ -3421,7 +3475,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
                     0x165c, 4);
                 trace("Dungeon(%d) drop money(%d) on %d' party member with difficulty %d",
-                      *(int*)((char*)m_dungeon + 8), money, get_member_count(),
+                      m_dungeon->m_index, money, get_member_count(),
                       bf.get_dungeon_diff());
             }
             int share = mi.m_item.get_add_info() / liveCount;   // -0xc0
@@ -4078,4 +4132,2799 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     packet.finalize(true);
     user->Send(packet);
     return 0;
+}
+
+// ============================================================================
+// insert_time_*（ORIG 0x85b2114..0x85b22e1）：gen_timer_key 后向 TimerQueue
+// 注册 OBJ_TYPE_1 定时器，param1=队伍索引，sec=调用方参数，param3=0。
+// ============================================================================
+void CParty::insert_time_dungeon_clear_msg(int param)
+{
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0xd, param,
+        gen_timer_key((TIMER_MESSAGE)0xd), 0);
+}
+
+void CParty::insert_time_card_select_msg(int param)
+{
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0x10, param,
+        gen_timer_key((TIMER_MESSAGE)0x10), 0);
+}
+
+void CParty::insert_time_clear_dungeon_reward_msg(int param)
+{
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0x11, param,
+        gen_timer_key((TIMER_MESSAGE)0x11), 0);
+}
+
+void CParty::insert_time_dungeon_score_scroll_msg(int param)
+{
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0x12, param,
+        gen_timer_key((TIMER_MESSAGE)0x12), 0);
+}
+
+void CParty::insert_time_card_select_right_msg(int param)
+{
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)1, m_partyIndex, (TIMER_MESSAGE)0x13, param,
+        gen_timer_key((TIMER_MESSAGE)0x13), 0);
+}
+
+// ============================================================================
+// CParty::set_play_result —— ORIG 0x085b2068：仅队长发起时把全员
+// setPlayingDungeonIndex(-1) 并置 state=3 / m_recvResultFlag=1。
+// ============================================================================
+int CParty::set_play_result(CUser* user, GameResultSet& result)
+{
+    int ret = 0;                                        // -0x10
+    if (m_host == user && !m_recvResultFlag)            // +0x70 / +0x118
+    {
+        for (int i = 0; i <= 3; ++i)                    // -0xc
+        {
+            if (_checkValidUser(i))
+                m_member[i].m_pUser->setPlayingDungeonIndex(-1);
+        }
+        m_state = 3;                                    // +0x6a（ORIG movb 直写）
+        m_recvResultFlag = true;                        // +0x118（ORIG movb 直写）
+    }
+    return ret;
+}
+
+// ============================================================================
+// CParty::forced_set_play_result —— ORIG 0x085b26e8：非 state==3 时向全队
+// 广播 0x22 结算强制包头（byte0/int0/byte0/byte0）。
+// ============================================================================
+void CParty::forced_set_play_result()
+{
+    if ((unsigned char)m_state != 3)                    // +0x6a
+    {
+        PacketGuard packet;
+        packet.put_header(0, 0x22);
+        packet.put_byte(0);
+        packet.put_int(0);
+        packet.put_byte(0);
+        packet.put_byte(0);
+        packet.finalize(true);
+        send_to_party(packet);
+    }
+}
+
+// ============================================================================
+// CParty::map_load_forced_finish —— ORIG 0x085b1e66：装载超时强制收尾；
+// 空队走 destroy+日志，否则未完成装载的有效成员逐个 giveup_game。
+// ============================================================================
+void CParty::map_load_forced_finish()
+{
+    if (m_pad119 == 0)                                  // +0x119 处理守卫
+    {
+        int count = get_member_count();                 // -0x10
+        if (count == 0)
+        {
+            char log1[16];
+            new (log1) cMyTrace("void CParty::map_load_forced_finish()", 0x3184, 0);
+            (*reinterpret_cast<cMyTrace*>(log1))(
+                "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)");
+            destroy();
+            LogManager::logFormat(
+                1, "party.cpp", "void CParty::map_load_forced_finish()", 0x3187,
+                "CParty::map_load_forced_finish 1, Using: %d, Member = 0\n",
+                (unsigned int)(unsigned char)m_field68);   // +0x68
+        }
+        else
+        {
+            for (int i = 0; i <= 3; ++i)                // -0xc
+            {
+                if (_checkValidUser(i) && m_finishLoadingFlag[i] != 1)
+                    giveup_game(m_member[i].m_pUser, false, false, false);
+            }
+            if (get_member_count() > 0)
+                check_allmember_loading(true);
+        }
+    }
+}
+
+// ============================================================================
+// 卡片选择（ORIG 0x85b401c..0x85b494e）。m_field204[type][slot]：
+// dungeon_reward_card 表，0xff=未选。
+// ============================================================================
+bool CParty::HaveAlreadySelectedCard(char a, eClearRewardCardType_t type)
+{
+    if ((int)type < 2)
+    {
+        for (int i = 0; i <= 3; ++i)
+        {
+            if (m_field204[(int)type][i] == a)
+                return true;
+        }
+    }
+    return false;
+}
+
+bool CParty::_checkGoldCardSelectable(CUser* user, eClearRewardCardType_t type,
+                                      int param)
+{
+    if (user == 0)
+        return false;
+    if ((int)type < 0 || 1 < (int)type)
+        return false;
+    if (param < 0 || 3 < param)
+        return false;
+    if (m_field1e4[(int)type][param] == 0)              // +0x1e4 金卡费用表
+        return true;
+
+    CInventory* inven =
+        const_cast<CInventory*>(
+            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW());
+    if (inven->use_money(m_field1e4[(int)type][param],
+                         (eMoneySubReason)0x14, true) == 0)
+        return false;
+    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, 0);
+    return true;
+}
+
+void CParty::SendEachCardInfo()
+{
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(1, 0x4a);
+    packet.put_byte(1);
+    for (int i = 0; i <= 3; ++i)                        // -0xc
+    {
+        packet.put_byte((int)(char)m_field204[0][i]);   // +0x204[i]
+        packet.put_byte((int)(char)m_field204[1][i]);   // +0x208[i]
+        if ((unsigned char)m_field204[1][i] == 0xff)
+        {
+            packet.put_byte(0);
+        }
+        else
+        {
+            int countIdx = packet.get_index();
+            Inven_Item& item0 = bd.m_itemGroups2[(unsigned char)m_field204[1][i]][0];
+            Inven_Item& item1 = bd.m_itemGroups2[(unsigned char)m_field204[1][i]][1];
+            packet.put_byte(1);
+            packet.put_int(0);
+            packet.put_int(item0.get_add_info());
+            if (item1.m_addInfo != 0)                   // +0x7af int 读
+            {
+                packet.put_int(item1.m_addInfo);
+                packet.put_int(item1.get_add_info());
+                packet.put_byte(countIdx, 2);           // 回填选项组数
+            }
+        }
+        packet.put_byte((unsigned char)m_field38c[i]);  // +0x38c
+    }
+    packet.finalize(true);
+    send_to_party(packet);
+}
+
+bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
+{
+    int slot = GetMemberSlotNo(user);                   // -0x18
+    if (slot == -1 || 3 < (int)a)
+        return false;
+    if (HaveAlreadySelectedCard((char)slot, type))
+        return false;
+    if ((unsigned char)m_field204[(int)type][(int)a] != 0xff)
+        return false;
+    if (!_checkGoldCardSelectable(user, type, slot))
+        return false;
+
+    m_field204[(int)type][(int)a] = (char)slot;
+    if ((int)type != 1)
+        return true;
+
+    // 金卡：事件 0x41 进行中跳过发放
+    CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
+    if (ev41->IsEventing(0))
+        return true;                                    // ORIG 跳共用尾部
+
+    CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    Inven_Item& reward = bd.m_itemGroups2[slot][1];     // +0x7ad + slot*0x7a
+    int putSlot = ci->getCurCharacInvenW()->tryInsertItemIntoInventory(reward);
+    if (putSlot == -1)
+    {
+        reward.m_addInfo = 0;                           // +0x7af / +0x7b4 清零
+        reward.m_addInfo2 = 0;
+    }
+    else
+    {
+        CEventBase* ev40 = GlobalData::s_event_manager->GetRepeatEvent(0x40);
+        if ((!ev40->IsEventing(0) && !IsReturnUserParty() &&
+             !IsEventCharacParty()) || reward.m_field1 != 1)
+        {
+            // 不清奖励槽
+        }
+        else if (ci->getCurCharacInvenW()->check_empty_count(
+                     Inven_Item::ITEM_TYPE_EQUIP, 2) == 1)
+        {
+            // 空位充足，不清
+        }
+        else
+        {
+            reward.m_addInfo = 0;
+            reward.m_addInfo2 = 0;
+        }
+    }
+
+    if (user != 0)
+    {
+        APSystem::_ActionGroupIndex clearGroup;
+        clearGroup.m_value = 8;
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            user, clearGroup, 0, (ENUM_PACKETCLASS)0);
+        if (reward.m_addInfo != 0)
+        {
+            CItem* item = G_CDataManager()->find_item(reward.m_addInfo);
+            if (item != 0)
+            {
+                int rarity = item->get_rarity();
+                if (rarity >= 0 && rarity <= 4)
+                {
+                    APSystem::_ActionGroupIndex rewardGroup;
+                    rewardGroup.m_value = 0x15;
+                    APSystem::CUserProc::ClearActionAndSendtoUser(
+                        user, rewardGroup, 0, (ENUM_PACKETCLASS)0);
+                }
+            }
+        }
+    }
+    return true;
+}
+
+void CParty::CompleteCardSelect()
+{
+    for (int i = 0; i <= 3; ++i)                        // -0x14
+    {
+        if ((unsigned char)m_field204[0][i] == 0xff)
+        {
+            for (int z = 0; z <= 3; ++z)                // -0x10
+            {
+                if (_checkValidUser(z))
+                {
+                    if (!IsSelectCard((char)z, eClearRewardCardType_t_0))
+                    {
+                        m_field204[0][i] = (char)z;
+                        if ((unsigned char)m_field204[0][i] == 0xff)
+                        {
+                            LogManager::logFormat(
+                                1, "party.cpp",
+                                "void CParty::CompleteCardSelect()", 0x36f8,
+                                "INIT_CARD_NUM != dungeon_reward_card_[i]==>> "
+                                "dungeon_reward_card_[i] = %d, i = %d, z = %d",
+                                (int)(char)m_field204[0][i], i, z);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void CParty::SendCardSelectComplete()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x43);
+    packet.finalize(true);
+    send_to_party(packet);
+}
+
+bool CParty::IsCompleteCardSelectOfMembers(eClearRewardCardType_t type)
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (m_member[i].m_pUser != 0)
+        {
+            if ((int)type == 2)
+            {
+                for (int j = 0; j < 2; ++j)
+                {
+                    if ((unsigned char)m_field204[j][i] == 0xff)
+                        return false;
+                }
+            }
+            else if ((unsigned char)m_field204[(int)type][i] == 0xff)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// ============================================================================
+// CParty::TournamentDungeonClear —— ORIG 0x85bd236：锦标赛结算；逐有效成员
+// 发卡牌奖励，胜利路径追加卡型 1 与通关日志，随后注册 0x15 秘商定时器。
+// ============================================================================
+void CParty::TournamentDungeonClear(bool flag)
+{
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    if (m_dungeon == 0)                                 // +0xcac
+    {
+        LogManager::logFormat(
+            1, "party.cpp", "void CParty::TournamentDungeonClear(bool)", 0x45bc,
+            "Tournament Dungeon is NULL");
+        return;
+    }
+    if (m_dungeon->isTournamentDungeon() != 1)
+    {
+        LogManager::logFormat(
+            1, "party.cpp", "void CParty::TournamentDungeonClear(bool)", 0x45c2,
+            "Dungeon(%d) is can not call function", bf.get_dungeon_index());
+        return;
+    }
+
+    SaveCoin(flag ? (eCoinSubReason)1 : (eCoinSubReason)2);
+    PacketGuard packet;
+    for (int slot = 0; slot < 4; ++slot)                // -0x18
+    {
+        if (_checkValidUser(slot))
+        {
+            Inven_Item items[2];                        // -0xa6
+            if (bf.m_tournamentReward.GetItemFromCard(
+                    ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, slot, items, 2))
+            {
+                _putItemIntoUser(m_member[slot].m_pUser, items, packet);
+            }
+            if (flag)
+            {
+                for (int i = 0; i < 2; ++i)
+                    items[i].reset();
+                if (bf.m_tournamentReward.GetItemFromCard(
+                        ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, slot, items, 2))
+                {
+                    _putItemIntoUser(m_member[slot].m_pUser, items, packet);
+                }
+                HistoryLog::WriteDunClear(
+                    (FILE*)m_member[slot].m_pUser->m_field796f8);
+                OnSuccessedDungeonClear(m_member[slot].m_pUser);
+                if (m_member[slot].m_pUser != 0 &&
+                    m_member[slot].m_pUser->IsProperLevelDungeonUser())
+                {
+                    m_member[slot].m_pUser->ProcProperLevelDungeonClear();
+                }
+            }
+            else
+            {
+                OnFailedDungeonClear(m_member[slot].m_pUser);
+            }
+        }
+    }
+
+    SetEPLPState(2);
+    int sec = 0x3c;                                     // -0x1c
+    secretshop::SECRET_SHOP_DATA& shop =
+        *reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
+    if (shop.IsOpen())
+        sec = *(int*)((char*)G_CDataManager() + 0xa784) * 0x3c;   // 秘商开放剩余基数（CDataManager 域待具名）
+    int key = gen_timer_key((TIMER_MESSAGE)0x15);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
+                                (TIMER_MESSAGE)0x15, sec, key, 0);
+    set_state(1);
+    sendInoutConditionDungeon((RetryFailReason::T)checkInoutConditionDungeon());
+    CheckHackAverageHitCount();
+    ClearMapHitCount();
+    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonClear();
+}
+
+// ============================================================================
+// CParty::MakeTournamentReward —— ORIG 0x85bcb40：按当前轮次生成奖励与金币，
+// 逐成员发经验/奖励包（0x184），置锦标赛清除状态并注册 0x2e 定时器。
+// ============================================================================
+void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
+{
+    bool victory = m_tournamentVictory;                 // +0x11a
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    int round = bf.GetTournamentCurRound();
+    reward.MakeReward(&m_dungeon->m_map8ac, &m_dungeon->m_itemRate8c4, round,
+                      victory);
+
+    int dungIdx = bf.get_dungeon_index();
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungIdx);
+    int memberCount = get_member_count();               // -0x2c
+    if (dungeon == 0)
+    {
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::MakeTournamentReward(CTournamentDungeonReward&)",
+            0x4540, "Unknown Dungeon %d", dungIdx);
+        return;
+    }
+    if (memberCount < 1)
+    {
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::MakeTournamentReward(CTournamentDungeonReward&)",
+            0x4545, "No Member[%d] in party", memberCount);
+        return;
+    }
+
+    int stdLevel = dungeon->get_standard_level();       // -0x28
+    WongWork::stGenerateRefData_t ref;                  // -0xdc
+    ref.m_field34 = (char)stdLevel;
+    ref.m_field35 = (char)bf.get_dungeon_diff();
+    ref.m_rateSlot = (char)memberCount;
+    {
+        int one = 1;
+        memcpy(&ref.m_rankBonusIndex, &one, sizeof(one));         // ORIG local_a4=1（int 写）
+        BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+        unsigned short v;
+        v = (unsigned short)bd.m_field48;               // +0x374
+        memcpy(&ref.m_goldBase, &v, sizeof(v));
+        v = (unsigned short)bd.m_killedMonster1;        // +0x36c
+        memcpy(&ref.m_goldFactor, &v, sizeof(v));
+        v = 0;                                          // +0x40
+        memcpy(&ref.m_dungeon, &v, sizeof(v));
+        v = (unsigned short)bd.m_killedMonster2;        // +0x370
+        memcpy((char*)&ref.m_dungeon + 2, &v, sizeof(v));
+    }
+
+    WongWork::stGenerateResult_t result;                // -0x94
+    WongWork::CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
+    genMgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
+        ->generateRandomItem(ref, result);
+
+    float goldRate = *(float*)((char*)dungeon + 0x8d4);   // 金币率（CDungeon 域待具名）
+    if (goldRate < 0.0f)
+        goldRate = 1.0f;
+    reward.SetRewardGold(result, goldRate);
+
+    int exp = 0;                                        // -0x18
+    int expRound = bf.GetTournamentCurRound();          // -0x14
+    if (!victory)
+        expRound = expRound - 1;
+    if (expRound < 0)
+        expRound = 0;
+
+    std::map<unsigned char, unsigned int>::const_iterator itExp =
+        dungeon->m_map8d8.find((unsigned char)expRound);
+    if (itExp != dungeon->m_map8d8.end())
+        exp = (int)itExp->second;
+
+    for (int slot = 0; slot < 4; ++slot)                // -0x10
+    {
+        PacketGuard packet;                             // -0x4c
+        packet.clear();
+        packet.put_header(0, 0x184);
+        if (_checkValidUser(slot))
+        {
+            CUser* user = m_member[slot].m_pUser;
+            user->setChattingMessageCount(0);
+            bool abuse = isHelpAbuseParty(user);
+            reinterpret_cast<CUserCharacInfo*>(user)->calcHelpAbuseRatio(
+                (unsigned int)exp, abuse);
+            reinterpret_cast<CUserCharacInfo*>(user)->reset_level_before_dungeon();
+
+            int sp = 0;                                 // -0x50
+            int sfp = 0;                                // -0x54
+            if (user->gain_exp_sp(exp, sp, sfp,
+                                  (CUser::eExpAddReason)2, 0, false))
+            {
+                PacketGuard infoPacket;                 // -0x60
+                infoPacket.clear();
+                infoPacket.put_header(0, 2);
+                infoPacket.put_byte(1);
+                infoPacket.put_short(1);
+                user->make_basic_info((char*)&infoPacket, 1);
+                infoPacket.finalize(true);
+                user->Send(infoPacket);
+            }
+            packet.put_byte(expRound);
+            packet.put_int(exp);
+            if (!victory)
+                packet.put_byte(0);
+            else
+                MakeQuestRewardPacket(&packet, user);
+            reward.MakeRewardPacket(&packet, victory);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+    }
+    SetTournamentDungeonClearState(1);
+    InsertTournamentDungeonTimer((TIMER_MESSAGE)0x2e);
+}
+
+bool IsCollectDungeonStatistic();   // ORIG T 0x08484a51（InitEnvHelpers.cpp 定义）
+extern Inven_Item g_emptySlot;      // ORIG 全局 0x943ddc0（AccountCargo.cpp 定义）
+
+// ============================================================================
+// CParty::OnKilledMonster —— ORIG 0x85b5a4c：怪物击杀反外挂核查链
+// （伤害占比/跨图伤害/秒杀检测）后按 check_grid_clear 收图。
+// ============================================================================
+void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
+                             MSG_MONSTER_DIE const& dieInfo)
+{
+    IsCollectDungeonStatistic();
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    bool skip = false;
+    if (bf.IsClearDungeon() || dieInfo.m_fieldA22 != 0)
+        skip = true;
+    if (!skip && user != 0)
+    {
+        int addCnt =
+            reinterpret_cast<CTraceMobDieHack*>(&m_pad210)
+                ->addMonsterDamage(monsterIdx,
+                                   (unsigned short)dieInfo.m_fieldF,
+                                   (int)dieInfo.m_killValue2);
+        if (2 < addCnt)
+        {
+            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
+            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
+        }
+    }
+
+    bool doCrossCheck = true;
+    int dungIdx = bf.get_dungeon_index();
+    if (dungIdx == 0x3e || dungIdx == 0x3f || dungIdx == 0x40)
+        doCrossCheck = false;
+
+    if (doCrossCheck && dieInfo.m_fieldA22 == 0 &&
+        monster.m_roleType < 4 &&
+        (unsigned int)dieInfo.m_killValue2 <
+            (unsigned int)reinterpret_cast<ActiveStaticInfo*>(
+                reinterpret_cast<char*>(&monster) + 0x38)->getHpMax() &&
+        monsterIdx != 10 && monsterIdx != 0xc351 && monsterIdx != 0x40a)
+    {
+        for (int i = 0; i < 4; ++i)                     // -0x20
+        {
+            if (checkValidUser(i))
+            {
+                CUser* member = get_user(i);
+                void* memberParty = member->GetParty();
+                void* userParty = user->GetParty();
+                if (memberParty != 0 && userParty != 0 && member != 0)
+                {
+                    CDungeon* mpDungeon = *(CDungeon**)((char*)memberParty + 0xcac);
+                    CDungeon* upDungeon = *(CDungeon**)((char*)userParty + 0xcac);
+                    if (mpDungeon == 0 || upDungeon == 0)
+                    {
+                        if (member == user)
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
+                        else
+                            member->getHackAnalyzer()->addServerHackCnt(
+                                member, (WongWork::ENUM_HACKTYPE)0x71, 1, 0, 0);
+                    }
+                    else
+                    {
+                        bool special = mpDungeon->get_index() == 0x2afe ||
+                                       upDungeon->get_index() == 0x2afe;
+                        if (special)
+                        {
+                            if (member == user)
+                                user->getHackAnalyzer()->addServerHackCnt(
+                                    user, (WongWork::ENUM_HACKTYPE)0x70, 1, 2, 0);
+                            else
+                                member->getHackAnalyzer()->addServerHackCnt(
+                                    member, (WongWork::ENUM_HACKTYPE)0x71, 1, 2, 0);
+                        }
+                        else if (member == user)
+                        {
+                            user->getHackAnalyzer()->addServerHackCnt(
+                                user, (WongWork::ENUM_HACKTYPE)0x70, 1, 0, 0);
+                        }
+                        else
+                        {
+                            member->getHackAnalyzer()->addServerHackCnt(
+                                member, (WongWork::ENUM_HACKTYPE)0x71, 1, 0, 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    bool instantCheck = false;
+    if (dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4)
+    {
+        MapInfo* mapInfo = bf.GetCurrentMapInfo();
+        if (mapInfo->m_killChecker1.getUseSkillMaterialTime() == 0)
+            instantCheck = true;
+    }
+    if (instantCheck)
+    {
+        int level = 0;                                  // -0x10
+        unsigned int hpMax = (unsigned int)reinterpret_cast<ActiveStaticInfo*>(
+            reinterpret_cast<char*>(&monster) + 0x38)->getHpMax();
+        if (hpMax * 4 < (unsigned int)dieInfo.m_killValue2)
+            level = 3;
+        else if (hpMax * 3 < (unsigned int)dieInfo.m_killValue2)
+            level = 2;
+        else if (hpMax * 2 < (unsigned int)dieInfo.m_killValue2)
+            level = 1;
+        if (level != 0)
+        {
+            WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
+            hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x86, level, 0, 0);
+        }
+    }
+    if (bf.check_grid_clear())
+        bf.onClearMap(true);
+}
+
+// ============================================================================
+// CParty::OnFightVillageMonster —— ORIG 0x85b9596：村庄受攻战入场；管理器
+// 受理后走 game_start 全流程并广播 0x1c/0x1d 地图包。
+// ============================================================================
+int CParty::OnFightVillageMonster(CUser* user, int param)
+{
+    int ret = 0;                                        // -0x34
+    if (GlobalData::s_villageMonsterMgr->OnFightVillageMonster(
+            user, (unsigned short)param) == 0)
+    {
+        ret = 0;
+        game_start(user);
+        CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+        int dungIdx = bf.get_dungeon_index();           // -0x30
+        int diff = 0;                                   // -0x2c
+        CDungeon* dungeon = G_CDataManager()->find_dungeon(dungIdx);   // -0x28
+        if (dungeon == 0)
+        {
+            return 0x15;
+        }
+        GameWorld* world = G_GameWorld();
+        int wmIdx = world->GetWorldMapIndex(user);      // -0x24
+        if (0 < wmIdx)
+        {
+            // ORIG：CDataManager+0x8780 CWorldMapList::find_world_map(wmIdx)
+            //       （CWorldMapList 成员待 CDataManager 域具名）
+            typedef CWorldMap* (*FindWmFn)(void*, int);
+            (void)(FindWmFn)0;   // 形态说明；实际调用见下
+            CWorldMapList& wml = *reinterpret_cast<CWorldMapList*>(
+                reinterpret_cast<char*>(G_CDataManager()) + 0x8780);
+            m_hellWorldMap = wml.find_world_map(wmIdx);   // +0x1868
+        }
+        if (bf.SelectDungeon(dungIdx, dungeon, diff, (ENUM_DUNGEON_TYPE)0,
+                             get_member_count(), 0, 0, 0))
+        {
+            char names[0x100];                          // -0x140
+            memset(names, 0, sizeof(names));
+            _getMemberNames(names);
+            for (int i = 0; i < 4; ++i)                 // -0x20
+            {
+                if (_checkValidUser(i))
+                {
+                    m_member[i].m_pUser->m_historyLog.EnterDungeon(
+                        dungeon->GetDungeonName(), diff, names, 0);
+                }
+            }
+            PacketGuard packet;
+            packet.clear();
+            packet.put_header(0, 0x1c);
+            packet.put_short((short)dungIdx);
+            packet.put_byte(diff);
+            bf.MakePacket(0x1c, &packet);
+            send_to_party(packet);
+            packet.clear();
+            bf.MakePacket(0x1d, &packet);
+            send_to_party(packet);
+
+            BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+            bd.m_field20 = (int)GlobalData::s_systemTime_.getCurTickCount();
+            bd.m_field24 = 0;
+            bd.m_field10 = 0;
+            bd.m_field14 = 0;
+            bd.m_field18 = 0;
+            bd.m_field1c = 0;
+            bd.m_field2c = 0;
+            bd.m_field30 = 0;
+            bd.m_field34 = bd.m_field20;
+            bd.m_field38 = bd.m_field24;
+            set_state(2);
+            SetEPLPState(1);
+            send_loadingcheck_msg();
+            PacketGuard ack;
+            ack.clear();
+            ack.put_header(1, 0x10b);
+            ack.put_byte(1);
+            ack.finalize(true);
+            user->Send(ack);
+            return 0;
+        }
+        return 1;
+    }
+    return ret;
+}
+
+// ============================================================================
+// CParty::OnFinishVillageMonsterFighting —— ORIG 0x85b99ac：村庄战收尾；
+// 结算胜负、giveup_game 并对全员发 0x1ec 复仇地下城资格包。
+// ============================================================================
+int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
+{
+    CUser* members[4] = {0, 0, 0, 0};                   // -0x54
+    for (int i = 0; i < 4; ++i)                         // -0x3c
+    {
+        if (checkValidUser(i))
+            members[i] = get_user(i);
+    }
+    if (user == 0)
+    {
+        for (int i = 0; i < 4; ++i)                     // -0x38
+        {
+            if (checkValidUser(i))
+            {
+                user = get_user(i);
+                break;
+            }
+        }
+    }
+    if (user == 0)
+        return 3;
+
+    bool notClear;                                      // -0x42
+    bool isClear;                                       // -0x41
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    if (!bf.check_grid_clear())
+    {
+        notClear = true;
+        isClear = false;
+    }
+    else
+    {
+        notClear = false;
+        isClear = true;
+    }
+    if (GlobalData::s_villageMonsterMgr->OnKillVillageMonster(user, notClear)
+        != 0)
+    {
+        return 0;
+    }
+
+    giveup_game(user, false, isClear, flag);
+    *(unsigned short*)((char*)this + 0xc4c) = 0;   // BF+0x128 村庄区（待 CBattle_Field 域具名）
+    {
+        PacketGuard ack;                                // -0x60
+        ack.clear();
+        ack.put_header(1, 0x10c);
+        ack.put_byte(1);
+        ack.finalize(true);
+        user->Send(ack);
+    }
+    if (!GlobalData::s_villageMonsterMgr->OnEvent() &&
+        GlobalData::s_villageMonsterMgr->GetRewardType() == 1)
+    {
+        int nowSec = GlobalData::s_systemTime_.getCurSec();          // -0x34
+        int closeTime =
+            GlobalData::s_revengeDungeonMgr->GetCloseTime();         // -0x30
+        int remain = closeTime < nowSec ? 0 : closeTime - nowSec;    // -0x2c
+        for (int i = 0; i < 4; ++i)                     // -0x28
+        {
+            if (members[i] != 0)
+            {
+                CUserCharacInfo* ci =
+                    reinterpret_cast<CUserCharacInfo*>(members[i]);
+                char body[10];                          // -0x6a
+                memset(body, 0, sizeof(body));
+                PacketGuard packet;                     // -0x78
+                packet.put_header(0, 0x1ec);
+                unsigned int attackCount =
+                    (unsigned int)ci->GetCurVillageAttackCount();
+                // ORIG：CDataManager+0x500 std::vector<ConditionEnterRevenge>
+                // （元素 0xc：min/max/count；CDataManager 域字段待具名）
+                char* vecBase =
+                    reinterpret_cast<char*>(G_CDataManager()) + 0x500;
+                char* vecBegin = *(char**)vecBase;
+                char* vecEnd = *(char**)(vecBase + 4);
+                unsigned int condCount =
+                    (unsigned int)(vecEnd - vecBegin) / 0xc;
+                packet.put_binary(body, 10);
+                packet.finalize(true);
+                members[i]->Send(packet);
+                members[i]->SetVillageAttackedReward(false);
+                for (unsigned int c = 0; c < condCount; ++c)
+                {
+                    char* item = vecBegin + c * 0xc;
+                    unsigned int lo = *(unsigned int*)item;
+                    unsigned int hi = *(unsigned int*)(item + 4);
+                    unsigned char count = *(unsigned char*)(item + 8);
+                    if (lo <= attackCount && attackCount <= hi)
+                    {
+                        ci->SetCurRevengeDungeonCount(count);
+                        ci->VillageAttack_DBUpdate();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+// ============================================================================
+// CParty::prepare_dungeon_clear —— ORIG 0x85aa39a：清图前处理（追踪器、任务
+// 认证、宠物经验）并视条件触发 ClearDungeon。
+// ============================================================================
+void CParty::prepare_dungeon_clear()
+{
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    m_dungeonClearTracer.SetClearedDungeon(m_tournamentVictory != 0);
+    m_dungeonClearTracer.SetEndPoint(bf.check_end_point());
+    if (!bf.check_grid_clear())
+        return;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        if (_checkValidUser(i) && m_partyType != 1)     // +0xcd8
+        {
+            CUser* user = m_member[i].m_pUser;
+            UserQuest* quest = user->getCurCharacQuestW();
+            quest->set_authen_data((QUEST_CONDITION)1, bf.get_cur_map(), 0);
+            if (0 < user->m_fatigueGain)
+            {
+                const user_creature::CCreatureMgr* mgrR =
+                    reinterpret_cast<CUserCharacInfo*>(user)
+                        ->getCurCharacInvenR()
+                        ->GetCreatureMgrR();
+                if (!mgrR->IsGrowCreature_Equipped_Creature())
+                {
+                    int exp = user->m_fatigueGain;
+                    user_creature::CCreatureMgr* mgrW =
+                        reinterpret_cast<CUserCharacInfo*>(user)
+                            ->getCurCharacInvenW()
+                            ->GetCreatureMgrW();
+                    mgrW->GainExp(exp);
+                }
+            }
+            user->m_fatigueGain = 0;
+        }
+    }
+
+    int mapIdx = bf.GetCurrentMapIndex();
+    if (bf.ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1, mapIdx))
+        ClearDungeon();
+    else if (bf.check_end_point())
+        ClearDungeon();
+}
+
+// ============================================================================
+// CParty::party_dungeon_fail —— ORIG 0x85b3670：全灭败北处理（计时差记录、
+// 逐成员退场与惩罚、状态复位或解散；锦标赛路径改发奖励）。
+// ============================================================================
+void CParty::party_dungeon_fail()
+{
+    if (!(m_tournamentVictory == 0 && check_allmember_die() && m_dungeon != 0))
+        return;
+
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    char skipPanalty = 0;                               // -0x31
+    CDungeon* dungeon = m_dungeon;                      // -0x30
+    if (dungeon != 0)
+    {
+        skipPanalty = (*((char*)dungeon + 0x89f) > 0) ? 1 : 0;   // 进度标志（CDungeon 域待具名）
+        if (dungeon->isTowerOfDespairDungeon())
+            skipPanalty = 1;
+    }
+    if (*(unsigned short*)((char*)this + 0xc4c) != 0)   // BF+0x128 村庄区（待具名）
+        skipPanalty = 1;
+    if (dungeon != 0 &&
+        (dungeon->get_dimension_possible() >= 1 || *((char*)dungeon + 0x89c) != 0))
+        skipPanalty = 1;
+
+    if (dungeon->isTournamentDungeon())
+    {
+        bf.m_tournamentReward.ResetReward();
+        MakeTournamentReward(bf.m_tournamentReward);
+        return;
+    }
+
+    unsigned int now =
+        (unsigned int)GlobalData::s_systemTime_.getCurTickCount();
+    unsigned int elapsedLow = now - (unsigned int)bd.m_field20;
+    bd.m_field0 = (int)(elapsedLow - (unsigned int)bd.m_field2c);
+    bd.m_field4 =
+        (int)((0u - (unsigned int)(now < (unsigned int)bd.m_field20)
+               - (unsigned int)bd.m_field24 - (unsigned int)bd.m_field30)
+              - (unsigned int)(elapsedLow < (unsigned int)bd.m_field2c));
+    SaveCoin((eCoinSubReason)2);
+    CheckHackAverageHitCount();
+    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonFail();
+
+    PacketGuard packet;
+    for (int slot = 0; slot < 4; ++slot)                // -0x2c
+    {
+        if (_checkValidUser(slot))
+        {
+            CUser* user = m_member[slot].m_pUser;
+            OnFailedDungeonClear(user);
+            G_GameWorld()->out_from_dungeon(user);
+            if (user->getMoveSpace() != (UserSpace::T)1)
+            {
+                GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(
+                    dungeon->get_index() != 0, true);
+            }
+            if (user->getMoveSpace() == (UserSpace::T)1)
+            {
+                BlueMarble* marble =
+                    reinterpret_cast<BlueMarble*>(user->getBlueMarble());
+                if (marble != 0)
+                    marble->giveupDungeon(user);
+            }
+            if (m_partyType != 1)
+            {
+                char has85c = (dungeon != 0 && *((char*)dungeon + 0x85c) != 0) ? 1 : 0;
+                char has87a = (dungeon != 0 && *((char*)dungeon + 0x87a) != 0) ? 1 : 0;
+                if (skipPanalty != 1 && has85c != 1 && has87a != 1)
+                    user->giveup_panalty();
+            }
+        }
+    }
+
+    packet.clear();
+    packet.put_header(0, 2);
+    packet.put_byte(0);
+    packet.put_short((short)get_member_count());
+    if (m_autoCreated == 0)                             // +0x13c
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            if (_checkValidUser(i))
+                m_member[i].m_pUser->make_basic_info((char*)&packet, 0);
+        }
+        set_state(1);
+        battle_data_reset();
+        packet.finalize(true);
+        if (!IsExistInvisible())
+            G_GameWorld()->send_all(packet);
+        else
+            send_to_party(packet);
+    }
+    else
+    {
+        short mgrIndex = m_manager->GetPartyIndex();
+        int mgrState = m_manager->get_state();
+        unsigned int accId = m_manager->get_acc_id();
+        char* idStr = NumberToString(accId, 0);
+        char log1[16];
+        new (log1) cMyTrace("void CParty::party_dungeon_fail()", 0x3541, 0);
+        (*reinterpret_cast<cMyTrace*>(log1))(
+            "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
+            idStr, mgrState, (int)mgrIndex);
+        m_manager->SetPartyIndex(-1);
+        if (getManager()->getMoveSpace() != (UserSpace::T)1)
+            m_manager->set_state((ch_state)3);
+        m_manager->make_basic_info((char*)&packet, 0);
+        destroy();
+        packet.finalize(true);
+        if (getManager()->getMoveSpace() == (UserSpace::T)1)
+            send_to_party(packet);
+        else
+            G_GameWorld()->send_all(packet, m_host);
+    }
+}
+
+// ============================================================================
+// CParty::dungeon_clear —— ORIG 0x85ab736：胜利结算；发放三组奖励物品与金卡，
+// 清空奖励槽并注册 0x15 秘商定时器。
+// ============================================================================
+void CParty::dungeon_clear()
+{
+    SaveCoin((eCoinSubReason)1);
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    PacketGuard packet;
+    int memberCount = get_member_count();               // -0x20
+    int goldCardCount = 0;                              // -0x24
+    for (int slot = 0; slot <= 3; ++slot)               // -0x18
+    {
+        if (slot > 3)
+        {
+            SetEPLPState(2);
+            int sec = 0x3c;                             // -0x1c
+            secretshop::SECRET_SHOP_DATA& shop =
+                *reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
+            if (shop.IsOpen())
+                sec = *(int*)((char*)G_CDataManager() + 0xa784) * 0x3c;
+            int key = gen_timer_key((TIMER_MESSAGE)0x15);
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                        GetPartyIndex(), (TIMER_MESSAGE)0x15,
+                                        sec, key, 0);
+            set_state(1);
+            sendInoutConditionDungeon(
+                (RetryFailReason::T)checkInoutConditionDungeon());
+            if (IsPremiumGoldCardParty())
+                sendPremiumGoldCardStatistic(m_dungeon->get_standard_level(),
+                                             memberCount, goldCardCount);
+            CheckHackAverageHitCount();
+            ClearMapHitCount();
+            reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->dungeonClear();
+            return;
+        }
+        if (_checkValidUser(slot))
+        {
+            CUser* user = m_member[slot].m_pUser;
+            Inven_Item* g0 = bd.m_itemGroups0[slot];    // +0x3a0 组
+            Inven_Item* g1 = bd.m_itemGroups1[slot];    // +0x588 组
+            Inven_Item* g2 = bd.m_itemGroups2[slot];    // +0x770 组
+            int put = _putItemIntoUser(user, &g0[0], packet);
+            put += _putItemIntoUser(user, &g1[0], packet);
+            if (HaveAlreadySelectedCard(
+                    (char)slot, (eClearRewardCardType_t)1))
+            {
+                CItem* card = G_CDataManager()->find_item(g2[1].m_addInfo);
+                if (card != 0)
+                {
+                    int price = 0;
+                    G_Store()->GetSellItemPrice(g2[1], card,
+                                                (short)g2[1].m_addInfo2,
+                                                false, price);
+                    GetInstanceValueStatistic()->AddValueStatistic(
+                        (VALUE_STATISTIC_FIELD)5, user, (unsigned int)price);
+                }
+                put += _putItemIntoUser(user, &g2[0], packet);
+                CEventBase* ev40 =
+                    GlobalData::s_event_manager->GetRepeatEvent(0x40);
+                bool giveGold = ev40->IsEventing(0) || IsReturnUserParty() ||
+                                IsEventCharacParty();
+                if (giveGold && !IsPremiumGoldCardParty())
+                    put += _putItemIntoUser(user, &g2[0], packet);
+                ++goldCardCount;
+            }
+            (void)put;
+            g0[0].reset();
+            g0[1].reset();
+            g1[0].reset();
+            g1[1].reset();
+            g2[0].reset();
+            g2[1].reset();
+            bd.ResetEventDungeonClearPoint();
+            HistoryLog::WriteDunClear((FILE*)user->m_field796f8);
+            OnSuccessedDungeonClear(user);
+        }
+    }
+}
+
+// ============================================================================
+// CParty::_putItemIntoUser —— ORIG 0x85aab84：双槽奖励发放（items[0] 金币/
+// 主物、items[1] 装备），含背包失败邮件退还与幸运点扣减。
+// ============================================================================
+int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet)
+{
+    int count = 0;                                      // -0x48
+    int pktType = 0;                                    // -0x40
+    packet.clear();
+    packet.put_header(0, 0xe);
+    packet.put_byte(pktType);
+    int countIdx = packet.get_index();                  // -0x68
+    packet.put_short(count);
+
+    if (items[0].get_add_info() > 0)                    // 金币槽
+    {
+        if (499999 < items[0].get_add_info())
+        {
+            CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+            char log1[16];
+            new (log1) cMyTrace(
+                "int CParty::_putItemIntoUser(CUser*, Inven_Item*, PacketGuard&)",
+                0x232d, 4);
+            (*reinterpret_cast<cMyTrace*>(log1))(
+                "Dungeon(%d) reward money(%d) on %d' party member with difficulty %d",
+                *(int*)((char*)this + 0xcb8), items[0].get_add_info(),
+                get_member_count(), bf.get_dungeon_diff());
+        }
+        CInventory* inven =
+            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW();
+        int oldMoney = inven->get_money();
+        int gained = inven->gain_money(items[0].get_add_info(),
+                                       (eMoneyAddReason)5, true, false);
+        if (gained < items[0].get_add_info())
+            user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0,
+                                      (unsigned long)items[0].get_add_info(),
+                                      (unsigned long)gained);
+        GetInstanceValueStatistic()->AddValueStatistic(
+            (VALUE_STATISTIC_FIELD)3, user, (unsigned int)gained);
+        if (m_dungeon != 0)
+        {
+            // +0x89e：金币流水分类标志（CDungeon 域待具名）
+            if (*((char*)m_dungeon + 0x89e) == 0)
+                GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                    (CIRCULATION_STATISTIC_FIELD)1, user,
+                    (unsigned int)gained);
+            else
+                GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                    (CIRCULATION_STATISTIC_FIELD)0xf, user,
+                    (unsigned int)gained);
+        }
+        user->saveTaxMoneyForUpperMember(items[0].get_add_info());
+
+        packet.put_short(0);
+        packet.put_int(0);
+        packet.put_int(inven->get_money());
+        packet.put_byte(0);
+        packet.put_short(0);
+        packet.put_byte(0);
+        packet.put_int(0);
+        packet.put_byte(0);
+        packet.put_short(0);
+        packet.put_packet(g_emptySlot);
+        ++count;
+    }
+
+    int space = items[1].GetItemSpace();
+    if (pktType != space)
+    {
+        if (0 < count)
+        {
+            packet.put_short(countIdx, count);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+        count = 0;
+        packet.clear();
+        packet.put_header(0, 0xe);
+        pktType = space;
+        packet.put_byte(pktType);
+        countIdx = packet.get_index();
+        packet.put_short(count);
+    }
+
+    CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
+    int slot = ci->getCurCharacInvenW()->insertItemIntoInventory(items[1],
+                                                                (eItemAddReason)0xb,
+                                                                true, true);
+    bool isTournament = m_dungeon != 0 && m_dungeon->isTournamentDungeon() != 0;
+    if (slot < 1)
+    {
+        CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
+        bool ev41ing = ev41->IsEventing(0);
+        bool hasItem = items[1].m_addInfo != 0 && items[1].m_addInfo != -1;
+        const char* senderKey = 0;
+        if (ev41ing && hasItem && !isTournament)
+            senderKey = g_scriptStringManager_.findString(
+                4, "game_server_msg_155", 0);       // 活动期获得
+        else if (!ev41ing && hasItem && isTournament)
+            senderKey = g_scriptStringManager_.findString(
+                4, "game_server_msg_250", 0);       // 锦标赛背包已满退还
+        if (senderKey != 0 &&
+            G_CDataManager()->find_item(items[1].m_addInfo) != 0)
+        {
+            char title[21];                         // -0x89
+            strncpy(title, senderKey, 0x14);
+            char bodyText[256];                     // -0x19e
+            strncpy(bodyText,
+                    g_scriptStringManager_.findString(4, "game_server_msg_104", 0),
+                    0xff);
+            unsigned int serverGroup =
+                (unsigned int)user->GetServerGroup();
+            unsigned int characNo =
+                (unsigned int)ci->getCurCharacNo();
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                title, items[1], 0, characNo, bodyText,
+                (int)strlen(bodyText), 8,
+                (ENUM_SERVER_GROUP)serverGroup, false, false);
+        }
+    }
+    else
+    {
+        packet.put_short((short)slot);
+        const Inven_Item* ref =
+            ci->getCurCharacInvenR()->GetInvenRef(
+                items[1].GetInventoryType(), slot);
+        packet.put_int(*reinterpret_cast<const int*>(reinterpret_cast<const char*>(ref) + 2));
+        packet.put_int(ref->get_add_info());
+        packet.put_byte((unsigned int)ref->GetItemAttr() & 0xff);
+        packet.put_short((unsigned int)ref->m_fieldb & 0xffff);
+        packet.put_byte((unsigned int)(unsigned char)*reinterpret_cast<const unsigned char*>(ref));
+        packet.put_int(*(const int*)&ref->m_fieldd);
+        packet.put_byte((unsigned int)ref->m_amp.getAbilityType() & 0xff);
+        packet.put_short((unsigned int)ref->m_amp.getAbilityValue() & 0xffff);
+        if (ref->isAvatarItemType())
+        {
+            packet.put_int(0x1e);
+            const WongWork::CAvatarItemMgr* avMgrR =
+                ci->getCurCharacInvenR()->GetAvatarItemMgrR();
+            packet.put_binary(
+                (char*)avMgrR->getJewelSocketData(ref->get_add_info()), 0x1e);
+            void* expInfo = const_cast<WongWork::CAvatarItemMgr*>(avMgrR)
+                                ->GetExpansionInfo(ref->get_add_info());
+            packet.put_int(4);
+            if (expInfo == 0)
+            {
+                stAvatarExpansionInfo_t init0;
+                init0.init();
+                packet.put_binary((char*)&init0, 4);
+            }
+            else
+                packet.put_binary((char*)expInfo, 4);
+        }
+        packet.put_byte(0);
+        packet.put_packet(*ref);
+        ++count;
+
+        CItem* card = G_CDataManager()->find_item(items[1].m_addInfo);
+        if (card != 0)
+        {
+            int sellPrice = 0;
+            G_Store()->GetSellItemPrice(items[1], card,
+                                        (short)items[1].m_addInfo2, false,
+                                        sellPrice);
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)4, user, (unsigned int)sellPrice);
+        }
+        if ((unsigned char) *reinterpret_cast<unsigned char*>(
+                reinterpret_cast<char*>(&items[1]) + 0x3e) ==
+                1 &&
+            card != 0)
+        {
+            CLuckPoint::UseLuckPoint(user, (int)(unsigned char) * reinterpret_cast<unsigned char*>(
+                                         reinterpret_cast<char*>(&items[1]) + 0x3e),
+                                     card->get_rarity(), card->get_grade());
+        }
+    }
+
+    if (0 < count)
+    {
+        packet.put_short(countIdx, count);
+        packet.finalize(true);
+        user->Send(packet);
+    }
+    return count;
+}
+
+// ============================================================================
+// CParty::onBloodClear —— ORIG 0x85b7c9e：血之副本单轮结算日志与成败回调。
+// ============================================================================
+void CParty::onBloodClear(bool flag, int param)
+{
+    if (flag)
+    {
+        unsigned int playTime = (unsigned int)GetMapPlayingTime();
+        m_member[param].m_pUser->m_historyLog.MapClear(
+            *(unsigned short*)((char*)this + 0x183e),
+            (int)(playTime / 1000), 0);
+        if (*(char*)(*(int**)&m_dungeon + 0x89f) == 1)   // 血图进度（CDungeon 域待具名）
+        {
+            APSystem::_ActionGroupIndex group;
+            group.m_value = 0x1a;
+            APSystem::CUserProc::ClearActionAndSendtoUser(
+                m_member[param].m_pUser, group, 0, (ENUM_PACKETCLASS)0);
+        }
+        OnSuccessedDungeonClear(m_member[param].m_pUser);
+    }
+    else
+    {
+        OnFailedDungeonClear(m_member[param].m_pUser);
+    }
+}
+
+// ============================================================================
+// CParty::BloodClearRewardPacket —— ORIG 0x85b8bf8：0xd1 血轮奖励包
+// （四组 int 对 + 组数，物品表按 0x3d 步进）。
+// ============================================================================
+void CParty::BloodClearRewardPacket(int a, int b, int c, Inven_Item const* items1,
+                                    int d, Inven_Item const* items2, int e,
+                                    Inven_Item const* items3, int f,
+                                    Inven_Item const* items4)
+{
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    PacketGuard packet;
+    packet.put_header(0, 0xd1);
+    packet.put_byte(b);
+    packet.put_byte(bf.getBloodMaxRound());
+    packet.put_byte(c);
+    const Inven_Item* groups[4] = {items1, items2, items3, items4};
+    int counts[4] = {c, d, e, f};
+    for (int g = 0; g < 4; ++g)
+    {
+        if (g > 0)
+            packet.put_byte(counts[g]);
+        for (int i = 0; i < counts[g]; ++i)
+        {
+            packet.put_int(
+                *(const int*)(reinterpret_cast<const char*>(groups[g]) +
+                              i * 0x3d + 2));
+            packet.put_int(groups[g][i].get_add_info());
+        }
+    }
+    packet.finalize(true);
+    m_member[a].m_pUser->Send(packet);
+}
+
+// ============================================================================
+// CParty::generateBloodRewardExp —— ORIG 0x85b7ea2：血轮经验生成
+// （基础×轮次权重×进出次数权重 → getClearRewardBonusExp 加成聚合）。
+// ============================================================================
+void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
+                                    short inoutCnt)
+{
+    CUser* user = get_user(slot);                       // -0x1c
+    unsigned int exp = 0;                               // -0x20
+    char* dmBase = (char*)G_CDataManager();
+    if (*(char*)(*(int**)&m_dungeon + 0x89f) == 2)      // 最终轮（CDungeon 域待具名）
+    {
+        long long raw = (long long)round * (long long)baseExp;
+        float weight = *(float*)(dmBase + ((round + 0x178c) * 4));   // 轮权重表（待具名）
+        double prod = 10.0f * weight * (double)raw;     // ORIG _DAT_08cbbbf8=10.0
+        exp = (unsigned int)(long long)(prod + 0.5);
+    }
+    else
+    {
+        long long raw = (long long)round * (long long)baseExp;
+        float weight = *(float*)(dmBase + ((round + 0x178c) * 4));
+        // 进出次数权重 vector<float>（CDataManager 域字段待具名）
+        float inoutWeight =
+            *(float*)(*(char**)(dmBase + 0x6164) + (int)inoutCnt * 4);
+        double prod = (double)(inoutWeight * (float)raw * weight);
+        exp = (unsigned int)(long long)(prod + 0.5);
+    }
+    if (1000000 < exp)
+    {
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            0x3cec,
+            "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP(%u), BASE EXP (%u), "
+            "EXP_WEIGHT(%f), EXP_INOUT_WEIGHT(%f), LAST_ROUND(%d), "
+            "INOUT_CNT(%d)\n",
+            exp, baseExp,
+            *(float*)(dmBase + ((round + 0x178c) * 4)),
+            *(float*)(*(char**)(dmBase + 0x6164) + (int)inoutCnt * 4),
+            round, (int)inoutCnt);
+    }
+
+    stClearRewardBonusExp_t bonus;                      // -0x68
+    stClearRewardExpParameter_t param;                  // -0xc8
+    param.m_avatarBonus = getAvatarBonus();
+    param.m_creatureBonus = getCreatureBonus(user);
+
+    CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);
+    CPCRoomBurningEvent* pcr = static_cast<CPCRoomBurningEvent*>(ev8);
+    if (pcr->IsEventing(user))
+        param.m_pcRoomBurningRate = (float)(pcr->GetExpFactor() / 100);
+
+    CEventBase* ev3 = GlobalData::s_event_manager->GetRepeatEvent(3);
+    CExpDoubleEvent* expDouble = static_cast<CExpDoubleEvent*>(ev3);
+    if (expDouble->IsEventing(0))
+        param.m_expDoubleRate = (float)(expDouble->GetExpFactor() / 100.0f);
+
+    CBurningFatigueEvent* fatigue =
+        static_cast<CBurningFatigueEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0xf));
+    if (fatigue->IsEventing(0))
+        param.m_burningFatigueBonusExp = fatigue->getBonusExpRate(
+            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacUsedFatigue());
+
+    channel_script_t* chScript =
+        (channel_script_t*)G_CDataManager()->GetChannelScript();
+    unsigned int dungIdx = m_dungeon->get_index();
+    CEnvironment* env = G_CEnvironment();
+    unsigned int channelNo = (unsigned int)env->get_channel_no();
+    unsigned char channelType = *(unsigned char*)((char*)env + 0x378);
+    param.m_serverChannelRate =
+        chScript->getBonusRate(channelType, channelNo, dungIdx);
+
+    if (user->IsHavePremiumAdvantage())
+        param.m_premiumAdvantageRate = (float)(
+            user->GetPremiumInfo()->GetAdvantageExpRate() / 100);
+
+    param.m_serverEventExpRate = (float)(CServerEvent::GetExpRate() / 100);
+    param.m_manageBonus = CalcurateManageBonus(
+        ManageBonusType::T_0, user, (unsigned int)exp);
+
+    unsigned int bonusExp = getClearRewardBonusExp(user, exp, param, bonus);
+    if (1000000 < bonusExp)
+    {
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            0x3d12, "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP!! (%u)\n",
+            bonusExp);
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            0x3d1c,
+            "BLOOD_LOG : EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
+            param.m_avatarBonus, param.m_creatureBonus,
+            param.m_pcRoomBurningRate, param.m_expDoubleRate,
+            param.m_serverChannelRate, param.m_premiumAdvantageRate,
+            param.m_serverEventExpRate, param.m_burningFatigueBonusExp);
+    }
+
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    bf.m_bloodReward.setRewardExp(slot, bonusExp);
+}
+
+// ============================================================================
+// CParty::beginBloodClearProcess —— ORIG 0x85b75d4：血轮结算主流程
+// （状态机推进 → 逐成员奖励/经验/记录包 0xd0 → 0x23 定时器）。
+// ============================================================================
+void CParty::beginBloodClearProcess(bool flag)
+{
+    // CCharacBloodDungeon 只读视图（类未建模；CUser.cpp 同款模式）
+    struct BloodEnterCountView
+    {
+        char m_pad0[0xc];
+        int m_enterCount;   // +0x0c
+    };
+
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    if (bf.getBloodState() >= 3)
+        return;
+
+    int playTime = 0;                                   // -0x34
+    int round = 0;                                      // -0x40[0]
+    int bestTime = 0;                                   // -0x30
+    int bestRound = 0;                                  // -0x2c
+    int ultimatePoint = 0;                              // -0x28
+    playTime = bf.m_bloodReward.getPlayTime();
+    if (flag)
+    {
+        round = bf.getBloodMaxRound();
+        bf.m_bloodReward.setCurrentBloodRound(round);
+    }
+    else
+    {
+        round = bf.m_bloodReward.getCurrentBloodRound();
+    }
+
+    if (!bf.setBloodState((ENUM_BLOOD_STATE)3))
+        return;
+
+    if (flag && *(char*)(*(int**)&m_dungeon + 0x89f) == 2)
+    {
+        short maxRound = (short)bf.getBloodMaxRound();
+        ultimatePoint =
+            bf.getNextRoundDifficulty((short)(maxRound - 1));
+        bf.m_bloodReward.incUltimateRoundClearPoint(ultimatePoint);
+    }
+
+    for (int slot = 0; slot < 4; ++slot)                // -0x20
+    {
+        if (!(get_user(slot) == 0 || !checkValidUser(slot)))
+        {
+            CUser* user = get_user(slot);
+            user->setChattingMessageCount(0);
+            onBloodClear(flag, slot);
+            CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
+            ci->set_charac_party_bonus_exp(0);
+            ci->set_charac_member_bonus_exp(0);
+            ci->set_charac_fatigue_buf_bonus_exp(0);
+            ci->set_charac_seria_buf_bonus_exp(0);
+
+            checkBloodRenewMyRecord(slot, playTime, round,
+                                    bf.get_dungeon_index());
+
+            int itemMax = round * 10 / bf.getBloodMaxRound();   // -0x18
+            if (itemMax == 0)
+                itemMax = 1;
+            int itemLimit = 10;                         // -0x40[1]
+            int itemCount = std::min(itemLimit, round);
+            generateBloodRewardItem(slot, itemCount,
+                                    (unsigned int)ci->get_charac_level(),
+                                    (unsigned int)itemMax, flag);
+
+            unsigned int mobReward = 0;                 // -0x44
+            G_CDataManager()->get_mob_reward(ci->get_charac_level(),
+                                             mobReward);
+            QuickParty::RewardData_Param rp(this);
+            QuickParty::RewardData_Result rr;
+            rr.m_value00 = (int)mobReward;
+            set_random_reward((QuickParty::RandomBuffType)0, rp, rr);
+            mobReward = (unsigned int)rr.m_value00;
+
+            char* dmBase = (char*)G_CDataManager();
+            int inoutSize =
+                (int)*(unsigned int*)(*(char**)dmBase + 0x6164 + 8);  // vector size
+            BloodEnterCountView* bloodView =
+                reinterpret_cast<BloodEnterCountView*>(
+                    user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1));
+            int enterCount = bloodView->m_enterCount;   // -0x6c
+            int expLimit = inoutSize - 1;               // -0x40[2]
+            int inoutCnt = std::min(expLimit, enterCount);
+            generateBloodRewardExp(slot, round, mobReward,
+                                   (short)inoutCnt);
+
+            unsigned int rewardExp =
+                bf.m_bloodReward.getRewardExp(slot);    // -0x10
+            if (1000000 < rewardExp)
+            {
+                LogManager::logFormat(
+                    1, "party.cpp",
+                    "void CParty::beginBloodClearProcess(bool)", 0x3c79,
+                    "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP(%u)\n",
+                    rewardExp);
+                rewardExp = 1000000;
+                bf.m_bloodReward.setRewardExp(slot, 1000000);
+            }
+            if (round == 0)
+            {
+                playTime = 0;
+                round = 0;
+            }
+            bestTime = (int)ci->getBloodBestTimeRecord();
+            bestRound = ci->getBloodBestRoundRecord();
+            if (bestRound == -1)
+            {
+                bestTime = playTime;
+                bestRound = round;
+            }
+            PacketGuard packet;                         // -0x78
+            packet.put_header(0, 0xd0);
+            packet.put_int(playTime);
+            packet.put_int(round);
+            packet.put_int(bestTime);
+            packet.put_int(bestRound);
+            packet.put_int(bf.getBloodMaxRound());
+            packet.put_int((int)bf.m_bloodReward.getRewardExp(slot));
+            packet.finalize(true);
+            m_member[slot].m_pUser->Send(packet);
+
+            int key = gen_timer_key((TIMER_MESSAGE)0x23);
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                        GetPartyIndex(), (TIMER_MESSAGE)0x23,
+                                        8, key, 0x23);
+        }
+    }
+}
+
+// ============================================================================
+// CParty::generateBloodRewardItem —— ORIG 0x85b840e：血轮物品奖励
+// （rand<1000 分稀有/普通两生成路径，终局轮追加终极奖励）。
+// ============================================================================
+void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
+                                     unsigned int param2, bool flag)
+{
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    bf.m_bloodReward.setRewardItem(slot, round);
+    for (int i = 0; i < round; ++i)                     // -0x3c
+    {
+        WongWork::stGenerateRefData_t ref;              // -0x198
+        WongWork::stGenerateResult_t result;            // -0xa4
+        CLuckPoint luckPoint;                           // -0x98
+        GetLuckPoint(&luckPoint, false);
+        unsigned int roll = (unsigned int)get_rand_int(1000);   // -0x38
+        char* dmBase = (char*)G_CDataManager();
+        unsigned int rareLine = *(unsigned int*)(dmBase + 0x6154) * param2;   // -0x34
+        unsigned int normalLine = *(unsigned int*)(dmBase + 0x6158) * param2;// -0x30
+
+        if (roll < rareLine)
+        {
+            ref.m_field34 = (char)param1;               // +0x34
+            ref.m_field35 = 0;                          // +0x35
+            ref.m_rateSlot = 1;                         // +0x36
+            int one = 1;
+            memcpy(&ref.m_rankBonusIndex, &one, sizeof(one));     // +0x38 = 1（位型）
+            unsigned int v15c = 0x10001;
+            memcpy(&ref.m_goldBase, &v15c, sizeof(v15c));// +0x3c
+            memcpy(&ref.m_dungeon, &v15c, sizeof(v15c));   // +0x40
+
+            WongWork::stGenerateResult_t specific;      // -0xd4
+            WongWork::CItemGeneratorMgr* genMgr =
+                G_CDataManager()->getItemGenerator();
+            genMgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
+                ->generateSpecificItem(ref, specific);
+            const Inven_Item& item = *specific.m_dropItems.begin();
+            bf.m_bloodReward.setRewarItemCopy(item, slot, i);
+
+            int dungIdx =
+                m_dungeon != 0 ? m_dungeon->get_index() : 0;   // -0x2c
+            QuickParty::RewardData_Param rp(this);
+            rp.m_param4 = dungIdx;
+            QuickParty::RewardData_Result rr;
+            rr.m_value00 = item.get_add_info();
+            set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rr);
+            Inven_Item& mutable_item =
+                const_cast<Inven_Item&>(*specific.m_dropItems.begin());
+            mutable_item.m_addInfo2 = rr.m_value00;
+            float addRate = *(float*)(dmBase + 0x6160);
+            bf.m_bloodReward.setRewardItemAddInfo(addRate, slot, i);
+        }
+        else if (roll < normalLine)
+        {
+            ref.m_field34 = (char)param1;
+            ref.m_field35 = 0;
+            float oneF = 1.0f;
+            memcpy(&ref.m_rankBonusIndex, &oneF, sizeof(oneF));   // +0x38 float=1.0（位型）
+            unsigned int zero = 0;
+            memcpy(&ref.m_goldBase, &zero, sizeof(zero));    // +0x3c..0x3f = 0
+            int dungPtrBits = *(int*)&m_dungeon;
+            memcpy(&ref.m_dungeon, &dungPtrBits, sizeof(dungPtrBits)); // +0x40
+
+            WongWork::CItemGeneratorMgr* genMgr =
+                G_CDataManager()->getItemGenerator();
+            genMgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
+                ->generateRandomItem(ref, result);
+            if (!result.m_dropItems.empty())
+            {
+                const Inven_Item& item = *result.m_dropItems.begin();
+                bf.m_bloodReward.setRewarItemCopy(item, slot, i);
+                CItem* card =
+                    G_CDataManager()->find_item(item.m_addInfo);
+                if (card != 0)
+                    CLuckPoint::UseLuckPoint(m_member[slot].m_pUser,
+                                             (int)(unsigned char)item.m_field1,
+                                             card->get_rarity(),
+                                             card->get_grade());
+            }
+        }
+    }
+
+    if (flag && *(char*)(*(int**)&m_dungeon + 0x89f) == 2)
+    {
+        int ultIdx = bf.m_bloodReward.getUltimateRewardItem();   // -0x24
+        CItem* card = G_CDataManager()->find_item(ultIdx);       // -0x20
+        if (card != 0)
+        {
+            WongWork::stGenerateResult_t specific;
+            Inven_Item made;                        // -0x14e（默认构造）
+            G_CDataManager()->getItemList()->create_item(
+                ENUM_ITEM_CREATE_TYPE_1, made, 1);
+            specific.m_dropItems.push_back(made);
+            const Inven_Item& item = *specific.m_dropItems.begin();
+            bf.m_bloodReward.setRewarItemCopy(item, slot, round - 1);
+        }
+    }
+}
+
+// ============================================================================
+// CParty::onBloodRewardTimer —— ORIG 0x85b6a48：0x22/0x23/0x24/0x25 血轮
+// 定时器状态机（奖励包→物品/经验发放→收尾）。
+// ============================================================================
+int CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
+{
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    if (gen_timer_key(msg) == 0)
+        return 0;
+    if (bf.getBloodState() == 0)
+        return 0;
+
+    if ((int)msg == 0x23)
+    {
+        if (bf.getBloodState() < 3)
+            return 0;
+        for (int slot = 0; slot < 4; ++slot)            // -0x3c
+        {
+            if (!(get_user(slot) == 0 || !checkValidUser(slot)))
+            {
+                BloodClearRewardPacket(
+                    slot,
+                    bf.m_bloodReward.getCurrentBloodRound(),
+                    bf.m_bloodReward.getRewardItemCount(3),
+                    bf.m_bloodReward.getRewardItem(3),
+                    bf.m_bloodReward.getRewardItemCount(2),
+                    bf.m_bloodReward.getRewardItem(2),
+                    bf.m_bloodReward.getRewardItemCount(1),
+                    bf.m_bloodReward.getRewardItem(1),
+                    bf.m_bloodReward.getRewardItemCount(0),
+                    bf.m_bloodReward.getRewardItem(0));
+            }
+        }
+        bf.setBloodState((ENUM_BLOOD_STATE)4);
+        int key = gen_timer_key((TIMER_MESSAGE)0x24);
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
+                                    (TIMER_MESSAGE)0x24, 8, key, 0x24);
+    }
+    else if ((int)msg == 0x24)
+    {
+        if (bf.getBloodState() < 4)
+            return 0;
+        for (int slot = 0; slot < 4; ++slot)            // -0x38
+        {
+            if (!(get_user(slot) == 0 || !checkValidUser(slot)))
+            {
+                CUserCharacInfo* ci =
+                    reinterpret_cast<CUserCharacInfo*>(get_user(slot));
+                for (int i = 0; i < bf.m_bloodReward.getRewardItemCount(slot);
+                     ++i)                               // -0x30
+                {
+                    Inven_Item* item = bf.m_bloodReward.getRewardItem(slot) + i;
+                    int putSlot = -1;                   // -0x28
+                    if (*(int*)((char*)item + 2) != -1)
+                    {
+                        if (*(int*)((char*)item + 2) == 0)   // 金币槽
+                        {
+                            CInventory* inven = ci->getCurCharacInvenW();
+                            int gained =
+                                inven->gain_money(item->get_add_info(),
+                                                  (eMoneyAddReason)5, true,
+                                                  false);
+                            if (gained < item->get_add_info())
+                                get_user(slot)->SendMoneyFullReason(
+                                    (ENUM_MONEY_FULL_REASON)0,
+                                    (unsigned long)item->get_add_info(),
+                                    (unsigned long)gained);
+                            putSlot = 0;
+                            if (*(char*)(*(int**)&m_dungeon + 0x89f) == 1)
+                                GetInstanceCirculationStatistic()
+                                    ->AddCirculationStatistic(
+                                        (CIRCULATION_STATISTIC_FIELD)0xb,
+                                        get_user(slot),
+                                        (unsigned int)gained);
+                            else if (*(char*)(*(int**)&m_dungeon + 0x89f) ==
+                                     2)
+                                GetInstanceCirculationStatistic()
+                                    ->AddCirculationStatistic(
+                                        (CIRCULATION_STATISTIC_FIELD)0xc,
+                                        get_user(slot),
+                                        (unsigned int)gained);
+                        }
+                        else
+                        {
+                            putSlot = ci->getCurCharacInvenW()
+                                          ->insertItemIntoInventory(
+                                              *item, (eItemAddReason)0xb, true,
+                                              true);
+                        }
+                    }
+                    if (putSlot < 0)
+                    {
+                        int itemKey = *(int*)((char*)item + 2);
+                        if (itemKey == 0x4e3 || itemKey == 0x4e4)
+                        {
+                            if (G_CDataManager()->find_item(itemKey) != 0)
+                            {
+                                char title[21];         // -0x65
+                                strncpy(title,
+                                        g_scriptStringManager_.findString(
+                                            4, "game_server_msg_153", 0),
+                                        0x14);
+                                char bodyText[256];     // -0x165
+                                strncpy(bodyText,
+                                        g_scriptStringManager_.findString(
+                                            4, "game_server_msg_154", 0),
+                                        0xff);
+                                unsigned int serverGroup =
+                                    (unsigned int)get_user(slot)->GetServerGroup();
+                                unsigned int characNo = (unsigned int)
+                                    ci->getCurCharacNo();
+                                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                                    title, *item, 0, characNo, bodyText,
+                                    (int)strlen(bodyText), 8,
+                                    (ENUM_SERVER_GROUP)serverGroup, false,
+                                    false);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        PacketGuard packet;             // -0x50
+                        packet.put_header(0, 0xe);
+                        packet.put_byte(item->GetItemSpace());
+                        packet.put_short(1);
+                        INVEN_TYPE invenType =
+                            (INVEN_TYPE)GetInvenTypeFromItemSpace(
+                                item->GetItemSpace());
+                        ci->getCurCharacInvenR()->MakeItemPacket(
+                            invenType, putSlot, packet);
+                        packet.finalize(true);
+                        get_user(slot)->Send(packet);
+                    }
+                }
+
+                unsigned int rewardExp =
+                    (unsigned int)bf.m_bloodReward.getRewardExp(slot);   // -0x34
+                if (1000000 < rewardExp)
+                {
+                    LogManager::logFormat(
+                        1, "party.cpp",
+                        "bool CParty::onBloodRewardTimer(TIMER_MESSAGE)", 0x3bd4,
+                        "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP!! (%u)\n",
+                        rewardExp);
+                    rewardExp = 1000000;
+                }
+                int sp = 0;                             // -0x40
+                int sfp = 0;                            // -0x44
+                if (get_user(slot)->gain_exp_sp(
+                        (int)rewardExp, sp, sfp, (CUser::eExpAddReason)2, 0,
+                        false))
+                    get_user(slot)->SendNotiPacket((CUser::eSendTarget)2,
+                                                   (ENUM_NOTIPACKET)2, 1);
+            }
+        }
+        bf.setBloodState((ENUM_BLOOD_STATE)5);
+        SetEPLPState(2);
+        int key = gen_timer_key((TIMER_MESSAGE)0x25);
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
+                                    (TIMER_MESSAGE)0x25, 0x3c, key, 0x25);
+        sendInoutConditionDungeon(
+            (RetryFailReason::T)checkInoutConditionDungeon());
+    }
+    else if ((int)msg == 0x25)
+    {
+        if (GetEPLPState() != 2)
+            return 0;
+        if (GetSelectedEPLPCmd() == 3)
+            return 0;
+        finishBloodDungeon();
+    }
+    else if ((int)msg == 0x22)
+    {
+        if (bf.getBloodState() < 2)
+            return 0;
+        if (get_member_count() < 1)
+            return 0;
+        bool clearOk = bf.check_grid_clear() && bf.check_end_point() &&
+                       bf.m_bloodReward.isBloodClear();
+        if (!check_allmember_die())
+        {
+            if (clearOk)
+                beginBloodClearProcess(true);
+        }
+        else
+        {
+            beginBloodClearProcess(clearOk);
+        }
+    }
+    return 1;
+}
+
+// ============================================================================
+// CParty::finishBloodDungeon —— ORIG 0x85b8f92：单行转发 ReturnToVillage。
+// ============================================================================
+void CParty::finishBloodDungeon()
+{
+    ReturnToVillage();
+}
+// ============================================================================
+// CParty::set_clear_reward_exp_parameter —— ORIG T 0x085adb00（0x5d4 字节）
+//   报告：docs/class_func_reports/CParty/set_clear_reward_exp_parameter.md
+//   逐段对照 ## 汇编 + ## 反编译 C 转写。要点：
+//   - PC 房间燃烧经验：GetExpFactor()/100 为【整数除法】（imul 0x51eb851f/sar 5）；
+//     双倍经验 GetExpFactor()/100.0f 为浮点除（flds _DAT_08cbbbcc=100.0f）。
+//   - m_pcRoomSameUserBonus(+0x34) 按原始 dword 位型写入（读取方按 float 解释）。
+//   - 回归用户队伍奖励 0x3e4ccccd = 0.2f。
+//   - 成长之力：get_growth_power_exp_reward 返回 dword，取 (v>>16)&0xff / 100。
+//   - getAddExpRateFromPremium(0x4f)：ORIG 直呼 CUser 方法（W 0x085bfd76 =
+//     WongWork::CUserPremium::GetAddExpBonus(type)：type∈[0,0x69] 时返回
+//     g_SPremiumInfo[type].m_field44）；该转发链未建模为成员函数，
+//     就地取权威表字段（与 sumGainedEachExp 同惯例）。
+// ============================================================================
+void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
+                                            stClearRewardExpParameter_t& param)
+{
+    CDataManager* dm = G_CDataManager();                    // -0x38 local_3c
+    int dungeonIndex =
+        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index();
+    CDungeon* dungeon = dm->find_dungeon(dungeonIndex);     // -0x34 local_38
+    ServerParameterScript* spScript = &dm->m_serverParameter;  // -0x30 local_34（+0x68）
+
+    if (dungeon == 0)
+    {
+        LogManager::logFormat(
+            1, "party.cpp",
+            "void CParty::set_clear_reward_exp_parameter(CUser*, uint, stClearRewardExpParameter_t&)",
+            0x294a, "Unknown Dungeon %d",
+            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+        return;
+    }
+    if (user == 0)
+    {
+        return;
+    }
+
+    // +0x096..+0x119：四项基础加成
+    float avatarBonus = CalcAvatarBonus();                  // -0x2c local_30
+
+    float pcRoomBurningRate = 0.0f;                         // -0x28 local_2c
+    {
+        CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);
+        if (ev8->IsEventing(user))
+        {
+            CPCRoomBurningEvent* burning = static_cast<CPCRoomBurningEvent*>(
+                GlobalData::s_event_manager->GetRepeatEvent(8));
+            pcRoomBurningRate = static_cast<float>(burning->GetExpFactor() / 100);
+        }
+    }
+
+    float expDoubleRate = 0.0f;                             // -0x24 local_28
+    {
+        CEventBase* ev3 = GlobalData::s_event_manager->GetRepeatEvent(3);
+        if (ev3->IsEventing(static_cast<CUser*>(0)))
+        {
+            CExpDoubleEvent* doubleEv = static_cast<CExpDoubleEvent*>(
+                GlobalData::s_event_manager->GetRepeatEvent(3));
+            expDoubleRate = static_cast<float>(doubleEv->GetExpFactor()) / 100.0f;
+        }
+    }
+
+    float periodItemRate = 0.0f;                            // -0x20 local_24
+    if (user->IsExpItemAffected() && user->EnablePeriodExpItem())
+    {
+        periodItemRate = user->GetExpAffectRate();
+    }
+
+    int pcRoomSameUserBonus = 0;                            // -0x1c local_20
+    unsigned int pcbangNo = static_cast<unsigned int>(user->GetPCRoomNo());
+    if (pcbangNo != 0 && existSamePCRoomUser(pcbangNo))
+    {
+        pcRoomSameUserBonus = *reinterpret_cast<int*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x7d4);
+    }
+
+    float returnUserBonus = 0.0f;                           // -0x18 local_1c
+    if (IsReturnUserParty())
+    {
+        returnUserBonus = 0.2f;                             // ORIG 0x3e4ccccd
+    }
+
+    // +0x21a..+0x27c：param 基础字段回填
+    param.m_deadPenaltyRate = calDeadUserDungeonPenalty(param.m_deadMemberCount);
+    param.m_rankBonusWeight = spScript->GetExpBonusWeight(
+        static_cast<eRankBonusIndex>(param.m_rankBonusIdx));
+    param.m_avatarBonus = avatarBonus;
+    param.m_creatureBonus = CalcCreatureBonus(user);
+    param.m_pcRoomBurningRate = pcRoomBurningRate;
+    param.m_expDoubleRate = expDoubleRate;
+
+    // +0x27f..+0x2d5：燃烧疲劳奖励
+    CBurningFatigueEvent* fatigueEvent = static_cast<CBurningFatigueEvent*>(
+        GlobalData::s_event_manager->GetRepeatEvent(0xf));
+    if (fatigueEvent->IsEventing(static_cast<CUser*>(0)))
+    {
+        param.m_burningFatigueBonusExp =
+            fatigueEvent->getBonusExpRate(user->getCurCharacUsedFatigue());
+    }
+
+    // +0x2d8..+0x394：频道加成（服务器类型 1/2 走 getBonusRateEventServer）
+    channel_script_t* channelScript =
+        static_cast<channel_script_t*>(dm->GetChannelScript());
+    CEnvironment* env = G_CEnvironment();
+    int serverType = *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1a8);
+    unsigned char channelByte =
+        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(env) + 0x378);
+    if (serverType == 1 || serverType == 2)
+    {
+        param.m_serverChannelRate = channelScript->getBonusRateEventServer(
+            channelByte, static_cast<unsigned int>(env->get_channel_no()));
+    }
+    else
+    {
+        param.m_serverChannelRate = channelScript->getBonusRate(
+            channelByte, static_cast<unsigned int>(env->get_channel_no()),
+            static_cast<unsigned int>(dungeon->get_index()));
+    }
+
+    // +0x397..+0x3cd：会员/服务器/全局效果加成
+    if (user->IsHavePremiumAdvantage())
+    {
+        param.m_premiumAdvantageRate =
+            static_cast<float>(user->GetPremiumInfo()->GetAdvantageExpRate()) /
+            100.0f;
+    }
+    param.m_serverEventExpRate =
+        static_cast<float>(CServerEvent::GetExpRate()) / 100.0f;
+    if (GlobalData::s_globalEffectManager_->isAffectedEffect(2))
+    {
+        param.m_globalEffectRate =
+            GlobalData::s_globalEffectManager_->getEffectValue(2);
+    }
+
+    // +0x41a..+0x429：网吧同号/回归用户奖励（dword 位型写入）
+    *reinterpret_cast<int*>(&param.m_pcRoomSameUserBonus) = pcRoomSameUserBonus;
+    param.m_returnUserPartyBonus = returnUserBonus;
+
+    // +0x42c..+0x474：事件角色队伍经验比例
+    if (!IsEventCharacParty())
+    {
+        param.m_eventCharacExpRatio = 0.0f;
+    }
+    else
+    {
+        EventNewCharacterReward* newCharEv = reinterpret_cast<EventNewCharacterReward*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0xa2));
+        if (newCharEv != 0)
+        {
+            param.m_eventCharacExpRatio = newCharEv->eventExpRatio();
+        }
+    }
+
+    // +0x477..+0x498：管理加成
+    param.m_manageBonus =
+        CalcurateManageBonus(static_cast<ManageBonusType::T>(0), user, exp);
+
+    // +0x49e..+0x4dd：成长之力（STExpReward 局部回填 dword0 后取字节 2）
+    STExpReward growthTmp;                                     // -0x3c
+    growthTmp.m_reward = user->get_growth_power_exp_reward();  // sret dword → +0x00
+    param.m_growthPowerExpRate =
+        static_cast<float>((growthTmp.m_reward >> 16) & 0xff) / 100.0f;
+
+    // +0x4e0..+0x530：会员额外经验（premium type 0x4f）
+    if (!user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f)))
+    {
+        param.m_premiumAddExpRate = 0.0f;
+    }
+    else
+    {
+        param.m_premiumAddExpRate =
+            static_cast<float>(GlobalData::g_SPremiumInfo[0x4f].m_field44) /
+            100.0f;
+    }
+
+    // +0x533..+0x57b：周期经验道具（与重叠加成事件互斥清零）
+    param.m_periodExpItemRate = periodItemRate;
+    if (param.m_periodExpItemRate != 0.0f &&
+        GlobalData::s_event_manager->IsExistOverlappedExpBonusEvent())
+    {
+        param.m_periodExpItemRate = 0.0f;
+    }
+
+    // +0x57b..+0x5c7：清零四项角色 bonus exp
+    user->set_charac_party_bonus_exp(0);
+    user->set_charac_member_bonus_exp(0);
+    user->set_charac_fatigue_buf_bonus_exp(0);
+    user->set_charac_seria_buf_bonus_exp(0);
+}
+// ============================================================================
+// CParty::clear_reward —— ORIG T 0x085ae0d4（0x3119 字节）
+//   报告：docs/class_func_reports/CParty/clear_reward.md（## 汇编 + ## 反编译 C
+//   逐段对照转写）。浮点常量（df_game_r .rodata）：_DAT_08cbbbcc=100.0f、
+//   _DAT_08cbbbec=10000.0f、0x08cbbbf0=double 100.0；fistp 就近舍入序列按工程
+//   惯例以 (int)/(long long)(x+0.5) 转写。
+//   stGenerateRefData_t 调用上下文区按 ORIG 原始偏移写入：
+//     +0x34..+0x37 dword：第一遍 stdLevel/diff 打包，第二遍 getGoldCardCreateRate/
+//     mapRatio 位型覆盖；+0x3c..+0x3f dword：金币字段打包与掉落概率组号复用；
+//     +0x40 CDungeon*（第二遍填充）。
+//   奖励槽视图：BattleData::m_itemGroups{0,1,2}[slot][2]（this+0x3a0/+0x588/+0x770）。
+// ============================================================================
+void CParty::clear_reward(int param)
+{
+    CDataManager* dm = G_CDataManager();
+    int dungIdx =
+        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index();
+    CDungeon* dungeon = dm->find_dungeon(dungIdx);
+    int memberCount = get_member_count();
+
+    if (dungeon == 0)
+    {
+        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+                              0x2a07, "Unknown Dungeon %d",
+                              reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+        return;
+    }
+    if (memberCount < 1)
+    {
+        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+                              0x2a0c, "No Member[%d] in party", memberCount);
+        return;
+    }
+    if (dungeon->isTournamentDungeon())
+    {
+        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+                              0x2a13, "TournamentDungeon(%d) can not call function",
+                              reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+        return;
+    }
+
+    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+
+    int rankBonusIdx = dm->getRankBonusIndex(param);
+    ServerParameterScript* spScript =
+        reinterpret_cast<ServerParameterScript*>(
+            reinterpret_cast<char*>(dm) + 0x68);             // dm+0x68 子对象视图
+
+    int stdLevel = 0;
+    if (dungeon->get_dimension_possible() > 0)
+        stdLevel = getStandardDimensionLevel();
+    else
+        stdLevel = dungeon->get_standard_level();
+
+    bd.m_field68c += 1;
+
+    int gridCount = 0;
+    MazeScript* maze = bfView.getMaze();
+    for (int gy = 0; gy < maze->m_width; ++gy)
+    {
+        for (int gx = 0; gx < maze->m_height; ++gx)
+        {
+            if (maze->getGridR(gy, gx).m_gridValue != 0)
+                gridCount += 1;
+        }
+    }
+    float mapRatio =
+        static_cast<float>(bd.m_field68c) / static_cast<float>(gridCount);
+
+    WongWork::CClearReward* clearGen = static_cast<WongWork::CClearReward*>(
+        dm->getItemGenerator()->getGenerator(
+            WongWork::CItemGeneratorMgr::eGenerateType_2));
+    int ratePerMapMax = clearGen->getRewardItemRatePerMapMaxCount(gridCount);
+    if (ratePerMapMax != 0)
+    {
+        mapRatio = static_cast<float>(
+                       static_cast<unsigned long long>(ratePerMapMax)) *
+                   mapRatio / 10000.0f;
+    }
+
+    WongWork::stGenerateRefData_t ref;
+    ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
+    ref.m_field34 = static_cast<char>(stdLevel);
+    ref.m_rateSlot = static_cast<char>(memberCount);
+    ref.m_rankBonusIndex = rankBonusIdx;
+    ref.m_goldBase = static_cast<unsigned short>(bd.m_field48);
+    ref.m_goldFactor = static_cast<unsigned short>(bd.m_killedMonster1);
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&ref) + 0x40) = 0;
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&ref) + 0x42) =
+        static_cast<unsigned short>(bd.m_killedMonster2);
+
+    WongWork::stGenerateResult_t result;
+    if (dungeon->m_89e == 0)
+    {
+        clearGen->generateSpecificItem(ref, result);
+    }
+    else
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            if (_checkValidUser(i))
+            {
+                clearGen->power_war_dungeon_gold_clear_reward(
+                    ref, result, m_member[i].m_pUser->get_charac_level());
+            }
+        }
+    }
+    increase_result_card_gold(result);
+
+    ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
+    ref.m_field34 = static_cast<char>(stdLevel);
+    *reinterpret_cast<float*>(reinterpret_cast<char*>(&ref) + 0x38) = mapRatio;
+    ref.m_dungeon = dungeon;
+
+    int minStdDropRate = 100;
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (_checkValidUser(i))
+        {
+            ServiceRestrictManager* restrictMgr =
+                ARAD::Singleton<ServiceRestrictManager>::Get();
+            if (restrictMgr->isRestricted(RestrictCategory::Enum_1, 1))
+            {
+                minStdDropRate =
+                    std::min(m_member[i].m_pUser->getStdDropRate(), minStdDropRate);
+            }
+        }
+    }
+
+    char guildTodayFlag[4] = {0, 0, 0, 0};
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (_checkValidUser(i) && m_member[i].m_pUser->IsTodayGuildMember())
+        {
+            guildTodayFlag[i] = 1;
+            for (int j = 0; j <= 3; ++j)
+            {
+                if (_checkValidUser(j) &&
+                    m_member[i].m_pUser->get_charac_guildkey() ==
+                        m_member[j].m_pUser->get_charac_guildkey())
+                {
+                    guildTodayFlag[j] = 1;
+                }
+            }
+        }
+    }
+
+    for (int slot = 0; slot <= 3; ++slot)
+    {
+        if (!_checkValidUser(slot))
+        {
+            continue;
+        }
+        CUser* user = m_member[slot].m_pUser;
+
+        if (dungeon->m_entryRestrictFlag != 0 &&
+            user->IsDeleteEventDungeonInvitation())
+        {
+            user->EventDungeonClearReward(dungeon->m_vec86c);
+        }
+        unsigned int newRankIdx = dm->getNewRankIndex(param);
+        if (newRankIdx < 3)
+        {
+            APSystem::_ActionGroupIndex group;
+            group.m_value = 0x10;
+            APSystem::CUserProc::ClearActionAndSendtoUser(
+                user, group, 0, static_cast<ENUM_PACKETCLASS>(0));
+        }
+
+        Inven_Item* rewardItems = bd.m_itemGroups0[slot];
+        if (dungeon->m_89e == 0)
+        {
+            int lvl = user->get_charac_level();
+            double basePenalty = dm->BaseExpPenalty(lvl, stdLevel);
+            if (basePenalty >= 1.0 || dungeon->isRiskDungeon())
+            {
+                unsigned short guildLvl = static_cast<unsigned short>(
+                    *reinterpret_cast<const unsigned short*>(
+                        reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x22));
+                unsigned long long tempExp =
+                    static_cast<unsigned long long>(user->get_guild_temp_exp());
+                float weight = dm->m_guildParameter.getExpWeight(guildLvl);
+                int addExp = static_cast<int>(
+                    static_cast<double>(weight) *
+                        static_cast<double>(tempExp) + 0.5);
+                if (guildTodayFlag[slot] == 0)
+                {
+                    user->add_guild_exp(addExp);
+                }
+                else
+                {
+                    addExp += static_cast<int>(
+                        dm->m_guildParameter.m_fieldFC / 100.0 *
+                            static_cast<double>(addExp) + 0.5);
+                    user->add_guild_today_exp(addExp);
+                }
+            }
+        }
+        else
+        {
+            int lvl = user->get_charac_level();
+            ref.m_field34 = static_cast<char>(lvl);
+            unsigned short guildLvl = static_cast<unsigned short>(
+                *reinterpret_cast<const unsigned short*>(
+                    reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x22));
+            unsigned long long tempExp =
+                static_cast<unsigned long long>(user->get_guild_temp_exp());
+            float weight = dm->m_guildParameter.getExpWeight(guildLvl);
+            int addExp = static_cast<int>(
+                static_cast<double>(weight) * static_cast<double>(tempExp) + 0.5);
+            if (guildTodayFlag[slot] == 0)
+            {
+                user->add_guild_exp(addExp);
+            }
+            else
+            {
+                addExp += static_cast<int>(
+                    dm->m_guildParameter.m_fieldFC / 100.0 *
+                        static_cast<double>(addExp) + 0.5);
+                user->add_guild_today_exp(addExp);
+            }
+        }
+        user->reset_guild_temp_exp();
+
+        {
+            ServiceRestrictManager* restrictMgr =
+                ARAD::Singleton<ServiceRestrictManager>::Get();
+            if (restrictMgr->isRestricted(RestrictCategory::Enum_1, 1))
+            {
+                ref.m_dropRate = user->getStdDropRate();
+            }
+        }
+
+        {
+            std::vector<Inven_Item>& items = result.m_dropItems;
+            if (!items.empty())
+            {
+                rewardItems[0].setCopy(items.front());
+            }
+        }
+
+        if (m_liveFlag[slot] != 1 && m_enterMapFlag[slot] != 1 &&
+            m_field388[slot] != 1)
+        {
+            bd.m_arr64[slot] += 1;
+        }
+
+        float deadPenalty = calDeadUserDungeonPenalty(slot);
+        if (deadPenalty > 0.0f)
+        {
+            int addInfo = rewardItems[0].get_add_info();
+            rewardItems[0].set_add_info(static_cast<int>(
+                (1.0f - deadPenalty) * static_cast<float>(addInfo) + 0.5f));
+            m_field38c[slot] = 1;
+        }
+
+        {
+            int addInfo = rewardItems[0].get_add_info();
+            rewardItems[0].set_add_info(static_cast<int>(
+                static_cast<double>(static_cast<float>(minStdDropRate) / 100.0f) *
+                    static_cast<double>(addInfo) + 0.5));
+        }
+
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) =
+            user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 3 : 0;
+        WongWork::stGenerateResult_t genResult;
+        GetLuckPoint(reinterpret_cast<CLuckPoint*>(&genResult.m_luckPoint), false);
+        clearGen->generateRandomItem(ref, genResult);
+        if (!genResult.m_dropItems.empty())
+        {
+            rewardItems[1].setCopy(genResult.m_dropItems.front());
+        }
+
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) =
+            user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 4 : 1;
+        Inven_Item* goldCardItems = bd.m_itemGroups2[slot];
+        goldCardItems[0].setCopy(rewardItems[0]);
+        goldCardItems[0].set_add_info(0);
+
+        bool goldCardPath = true;
+        if (clearGen == 0)
+        {
+            goldCardPath = false;
+        }
+        else
+        {
+            CEventBase* ev10 = GlobalData::s_event_manager->GetRepeatEvent(0x10);
+            if (ev10->IsEventing(static_cast<CUser*>(0)))
+                goldCardPath = false;
+        }
+        if (goldCardPath)
+        {
+            float commissionRate = 1.0f;
+            CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
+            if (ev41->IsEventing(static_cast<CUser*>(0)) && IsPremiumGoldCardParty())
+            {
+                commissionRate = *reinterpret_cast<float*>(
+                    reinterpret_cast<char*>(G_CDataManager()) + 0x48fc);
+            }
+            CGameManager* gameMgr = G_CGameManager();
+            CConditionEventManager* condMgr = gameMgr->GetConditionEventManager();
+            if (condMgr != 0)
+            {
+                int step = user->GetCurConditionEventStep();
+                if (condMgr->IsFreeGoldCard(user, static_cast<char>(step + 1)))
+                    commissionRate = 0.0f;
+            }
+            int commission = clearGen->getGoldCardCommission(stdLevel);
+            m_field1e4[1][slot] = static_cast<int>(
+                static_cast<float>(commission) * commissionRate + 0.5f);
+            float createRate = clearGen->getGoldCardCreateRate();
+            *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x34) =
+                *reinterpret_cast<const int*>(&createRate);
+        }
+
+        genResult.m_dropItems.clear();
+        {
+            CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
+            if (ev41->IsEventing(static_cast<CUser*>(0)) && IsPremiumGoldCardParty())
+            {
+                clearGen->generatePremiumGoldCardItem(
+                    ref, genResult, static_cast<ENUM_RARITY>(-1),
+                    GetPremiumGoldCardDefaultItem());
+            }
+            else
+            {
+                clearGen->generateRandomItem(ref, genResult);
+                if (!genResult.m_dropItems.empty() &&
+                    (IsReturnUserParty() || IsEventCharacParty()))
+                {
+                    clearGen->generatePremiumGoldCardItem(
+                        ref, genResult, static_cast<ENUM_RARITY>(1), 10000);
+                }
+            }
+        }
+
+        if (genResult.m_dropItems.empty())
+        {
+            goldCardItems[1].reset();
+            CEventBase* ev13 = GlobalData::s_event_manager->GetRepeatEvent(0x13);
+            if (ev13->IsEventing(static_cast<CUser*>(0)))
+            {
+                clearGen->generateGoldCardBlankItem(goldCardItems[1]);
+            }
+        }
+        else
+        {
+            goldCardItems[1].setCopy(genResult.m_dropItems.front());
+            if (goldCardItems[1].m_addInfo == -1 || dungeon->m_89e != 0)
+            {
+                goldCardItems[1].reset();
+            }
+        }
+
+        if (dungeon->m_villageAttackEventFlag != 0)
+        {
+            Inven_Item eventItem;
+            eventItem.m_addInfo = *reinterpret_cast<int*>(
+                reinterpret_cast<char*>(G_CDataManager()) + 0x50c);
+            dm->getItemList()->create_item(
+                static_cast<ENUM_ITEM_CREATE_TYPE>(1), eventItem, 1);
+            goldCardItems[0].reset();
+            goldCardItems[1].reset();
+            rewardItems[0].reset();
+            rewardItems[1].reset();
+            rewardItems[1].setCopy(eventItem);
+            bd.ResetEventDungeonClearPoint();
+        }
+
+        *reinterpret_cast<float*>(reinterpret_cast<char*>(&ref) + 0x34) = mapRatio;
+        if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)))
+        {
+            Inven_Item* pcRoomItems = bd.m_itemGroups1[slot];
+            pcRoomItems[0].setCopy(rewardItems[0]);
+            pcRoomItems[0].set_add_info(0);
+            *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) = 5;
+            genResult.m_dropItems.clear();
+            clearGen->generateRandomItem(ref, genResult);
+            if (genResult.m_dropItems.empty())
+            {
+                pcRoomItems[1].reset();
+                WongWork::CClearReward* pcRoomGen =
+                    static_cast<WongWork::CClearReward*>(dm->getItemGenerator()->getGenerator(
+                        WongWork::CItemGeneratorMgr::eGenerateType_2));
+                if (pcRoomGen != 0)
+                {
+                    CEventBase* ev1d =
+                        GlobalData::s_event_manager->GetRepeatEvent(0x1d);
+                    if (ev1d->IsEventing(static_cast<CUser*>(0)))
+                    {
+                        pcRoomGen->generatePcRoomCardBlankItem(pcRoomItems[1]);
+                    }
+                }
+            }
+            else
+            {
+                pcRoomItems[1].setCopy(genResult.m_dropItems.front());
+            }
+        }
+    }
+
+    unsigned int mobReward = 0;
+    if (dungeon->m_89e != 1)
+    {
+        dm->get_mob_reward(stdLevel, mobReward);
+    }
+    float partyBonusRate = spScript->m_expGroup368[memberCount - 1];
+    partyBonusRate +=
+        static_cast<CPartyExpBonusEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x18))
+            ->getBonusRate(memberCount, isHelpAbuseParty());
+
+    unsigned int totalMobExp = 0;
+    if (dungeon->m_89e != 1)
+    {
+        int killCount = bd.GetTotalKilledMonsterCount();
+        float baseExp = static_cast<float>(killCount) *
+                        static_cast<float>(mobReward) / 2.0f * partyBonusRate;
+        float diffWeight =
+            spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
+        double weighted =
+            static_cast<double>(baseExp) * static_cast<double>(diffWeight);
+        totalMobExp = static_cast<unsigned int>(static_cast<long long>(
+            weighted * dungeon->get_exp_weight() + 0.5));
+    }
+
+    PacketGuard pkBasic;
+    PacketGuard pkReward;
+    std::list<map_item> questItemList;
+    Inven_Item questItem;
+
+    for (int slot = 0; slot <= 3; ++slot)
+    {
+        if (!_checkValidUser(slot))
+        {
+            continue;
+        }
+        CUser* user = m_member[slot].m_pUser;
+
+        user->setChattingMessageCount(0);
+
+        if (dungeon->m_89e != 0)
+        {
+            dm->get_mob_reward(user->get_charac_level(), mobReward);
+            int killCount = bd.GetTotalKilledMonsterCount();
+            float baseExp = static_cast<float>(killCount) *
+                            static_cast<float>(mobReward) / 2.0f * partyBonusRate;
+            float diffWeight =
+                spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
+            double weighted =
+                static_cast<double>(baseExp) * static_cast<double>(diffWeight);
+            totalMobExp = static_cast<unsigned int>(static_cast<long long>(
+                weighted * dungeon->get_exp_weight() + 0.5));
+        }
+
+        int userLevel = user->get_charac_level();
+        unsigned int personalExp = 0;
+        if (dungeon->m_89e == 1)
+        {
+            personalExp = totalMobExp / memberCount;
+        }
+        else if (!dungeon->isRiskDungeon())
+        {
+            double penalty = dm->BaseExpPenalty(userLevel, stdLevel);
+            double scaled = static_cast<double>(
+                static_cast<float>(static_cast<double>(
+                    static_cast<unsigned long long>(totalMobExp)) * penalty) *
+                static_cast<float>(MemberPenaltyRate()));
+            personalExp = static_cast<unsigned int>(static_cast<long long>(
+                scaled / memberCount + 0.5));
+        }
+        else
+        {
+            double scaled = static_cast<double>(
+                static_cast<float>(static_cast<double>(
+                    static_cast<unsigned long long>(totalMobExp)) *
+                    static_cast<float>(MemberPenaltyRate())));
+            personalExp = static_cast<unsigned int>(static_cast<long long>(
+                scaled / memberCount + 0.5));
+        }
+
+        QuickParty::RewardData_Param rewardParam(this);
+        QuickParty::RewardData_Result rewardResult;
+        rewardResult.m_value00 = static_cast<int>(personalExp);
+        set_random_reward(static_cast<QuickParty::RandomBuffType>(0), rewardParam,
+                          rewardResult);
+        personalExp = static_cast<unsigned int>(rewardResult.m_value00);
+
+        stClearRewardExpParameter_t expParam;
+        expParam.m_deadMemberCount = slot;
+        expParam.m_rankBonusIdx = rankBonusIdx;
+        set_clear_reward_exp_parameter(user, personalExp, expParam);
+        stClearRewardBonusExp_t bonus;
+        unsigned int bonusTotal =
+            getClearRewardBonusExp(user, personalExp, expParam, bonus);
+
+        bool helpAbuse = isHelpAbuseParty(user);
+        user->calcHelpAbuseRatio(bonusTotal, helpAbuse);
+        user->reset_level_before_dungeon();
+
+        int spPoints = 0;
+        int sfpPoints = 0;
+        bool leveledUp = user->gain_exp_sp(
+            static_cast<int>(bonusTotal), spPoints, sfpPoints,
+            static_cast<CUser::eExpAddReason>(2), 0, false);
+        if (leveledUp)
+        {
+            pkBasic.clear();
+            pkBasic.put_header(0, 2);
+            pkBasic.put_byte(1);
+            pkBasic.put_short(1);
+            user->make_basic_info(reinterpret_cast<char*>(&pkBasic), 1);
+            pkBasic.finalize(true);
+            user->Send(pkBasic);
+        }
+
+        if (user->IsHavePremiumAdvantage())
+        {
+            float premiumDeduction;   // ORIG quirk: flds -0x2cc has no writer
+            int deduction = static_cast<int>(premiumDeduction + 0.5f);
+            *reinterpret_cast<int*>(reinterpret_cast<char*>(user) + 0x8e05c) -= deduction;
+            *reinterpret_cast<int*>(reinterpret_cast<char*>(user) + 0x8e068) -= deduction;
+        }
+
+        questItemList.clear();
+
+        pkReward.clear();
+        pkReward.put_header(0, 0x23);
+        pkReward.put_int(bonus.m_channelBonusExp + static_cast<int>(personalExp));
+        pkReward.put_int(bonus.m_rankWeightExp);
+        user->set_charac_party_bonus_exp(static_cast<int>(bonus.m_rankWeightExp));
+
+        unsigned int extraExp = 0;
+        {
+            float denom = partyBonusRate;
+            float bonusRate =
+                static_cast<CPartyExpBonusEvent*>(
+                    GlobalData::s_event_manager->GetRepeatEvent(0x18))
+                    ->getBonusRate(memberCount, isHelpAbuseParty());
+            if (personalExp != 0)
+            {
+                int sub = static_cast<int>(
+                    static_cast<float>(personalExp) / (bonusRate + denom) +
+                    0.5f);
+                unsigned int sum = bonus.m_avatarBonusExp +
+                                   bonus.m_rankWeightExp +
+                                   bonus.m_selectedBonusExp +
+                                   bonus.m_channelBonusExp +
+                                   bonus.m_premiumAdvExp +
+                                   bonus.m_serverEventExp +
+                                   bonus.m_serverChannelExp +
+                                   bonus.m_creatureBonusExp;
+                extraExp = (personalExp - static_cast<unsigned int>(sub)) *
+                           (sum / personalExp + 1);
+            }
+        }
+        pkReward.put_int(static_cast<int>(extraExp));
+        pkReward.put_int(bonus.m_avatarBonusExp);
+        pkReward.put_byte(bonus.m_bestType);
+        pkReward.put_int(bonus.m_selectedBonusExp + bonus.m_serverEventExp +
+                         bonus.m_burningFatigueExp);
+        pkReward.put_int(bonus.m_periodItemExp);
+        pkReward.put_int(bonus.m_premiumAdvExp);
+        pkReward.put_int(bonus.m_pcRoomSameUserExp);
+        pkReward.put_int(bonus.m_serverChannelExp);
+        pkReward.put_int(bonus.m_upperMemberExp);
+        pkReward.put_int(bonus.m_creatureBonusExp);
+        pkReward.put_int(bonus.m_returnUserExp);
+        pkReward.put_int(bonus.m_eventCharacExp);
+        pkReward.put_int(bonus.m_manageExp);
+        pkReward.put_int(bonus.m_growthPowerExp);
+        pkReward.put_int(bonus.m_premiumAddExp);
+        int questCountPos = pkReward.get_index();
+        pkReward.put_byte(0);
+
+        int questPutCount = 0;
+        for (int qi = 0; qi < 0x14; ++qi)
+        {
+            UserQuest* questRef = user->getCurCharacQuestRefR();
+            if (questRef->m_quest[qi] == 0 || questRef->m_trigger[qi] == 0)
+            {
+                continue;
+            }
+            Quest* quest = dm->find_quest(questRef->m_quest[qi]);
+            if (quest == 0)
+            {
+                continue;
+            }
+            short characClass = questRef->m_authenData.m_characClass;
+            if (!quest->check_clear_item(bfView.get_dungeon_index(),
+                                         static_cast<int>(characClass)))
+            {
+                continue;
+            }
+            int requiredCount = questRef->m_quest[qi];
+            if (requiredCount <= 0)
+            {
+                continue;
+            }
+            std::vector<std::pair<int, int> > clearItems(
+                quest->get_clear_itemlist(bfView.get_dungeon_index()));
+            for (unsigned int ci = 0; ci < clearItems.size(); ++ci)
+            {
+                questItem.reset();
+                std::pair<int, int> entry = clearItems.at(ci);
+                dm->getItemList()->create_item(
+                    static_cast<ENUM_ITEM_CREATE_TYPE>(1), questItem,
+                    entry.second);
+                CInventory* inventory = user->getCurCharacInvenW();
+                int putSlotNo = inventory->insertItemIntoInventory(
+                    questItem, static_cast<eItemAddReason>(0xb), true, true);
+                if (putSlotNo >= 0)
+                {
+                    pkReward.put_short(putSlotNo);
+                    pkReward.put_int(entry.first);
+                    pkReward.put_int(questItem.get_add_info());
+                    pkReward.put_short(static_cast<int>(questItem.m_fieldb));
+                    pkReward.put_byte(static_cast<int>(
+                        static_cast<unsigned char>(
+                            questItem.m_amp.getAbilityType())));
+                    pkReward.put_short(
+                        static_cast<int>(questItem.m_amp.getAbilityValue()));
+                    questPutCount += 1;
+                    if (questItem.m_field1 == 1)
+                    {
+                        CItem* itemDef = dm->find_item(entry.first);
+                        if (itemDef != 0)
+                        {
+                            CLuckPoint::UseLuckPoint(
+                                user,
+                                static_cast<int>(questItem.m_field1),
+                                itemDef->get_rarity(),
+                                itemDef->get_grade());
+                        }
+                    }
+                }
+            }
+        }
+        if (questPutCount != 0)
+        {
+            pkReward.put_byte(questCountPos, questPutCount);
+        }
+
+        for (int j = 0; j <= 3; ++j)
+        {
+            if (_checkValidUser(j))
+            {
+                _makeRewardItemInfo(m_member[j].m_pUser, bd.m_itemGroups0[j],
+                                    pkReward);
+            }
+            else
+            {
+                pkReward.put_byte(0);
+            }
+        }
+        pkReward.put_int(m_field1e4[1][slot]);
+
+        for (int j = 0; j <= 3; ++j)
+        {
+            (void)_checkValidUser(j);
+            pkReward.put_byte(0);
+        }
+
+        for (int j = 0; j <= 3; ++j)
+        {
+            if (_checkValidUser(j))
+            {
+                if (!m_member[j].m_pUser->isAffectedPremium(
+                        static_cast<ENUM_PREMIUM_TYPE>(0xc)))
+                {
+                    pkReward.put_byte(0);
+                }
+                else
+                {
+                    _makeRewardItemInfo(m_member[j].m_pUser,
+                                        bd.m_itemGroups1[j], pkReward);
+                }
+            }
+            else
+            {
+                pkReward.put_byte(0);
+            }
+        }
+
+        int hellCoinValue = static_cast<int>(
+            100.0f * bd.m_hellPartyValueTotal /
+                static_cast<float>(bfView.m_hellPartyRatio0) + 0.5f);
+        pkReward.put_int(hellCoinValue);
+
+        bool returnFlag = false;
+        if (user->GetParty() != 0)
+        {
+            returnFlag =
+                reinterpret_cast<CParty*>(user->GetParty())->IsReturnUserParty();
+        }
+        pkReward.put_byte(returnFlag ? 1 : 0);
+
+        bool eventFlag = false;
+        if (user->GetParty() != 0)
+        {
+            eventFlag =
+                reinterpret_cast<CParty*>(user->GetParty())->IsEventCharacParty();
+        }
+        pkReward.put_byte(eventFlag ? 1 : 0);
+
+        pkReward.put_byte(expParam.m_deadPenaltyRate != 0.0f ? 1 : 0);
+
+        pkReward.finalize(true);
+        user->Send(pkReward);
+
+        if (m_dungeon != 0 && user != 0 && m_partyType != 1 &&
+            user->getCurCharacR() != 0)
+        {
+            bool properDungeon = dungeon->m_bloodDungeonType == 0 &&
+                                 dungeon->get_dimension_possible() == 0 &&
+                                 dungeon->m_89e != 1 &&
+                                 !dungeon->isTowerOfDespairDungeon();
+            if (properDungeon && user->IsProperDungeonUser())
+            {
+                HeroMissionEvent* heroMission =
+                    ARAD::Singleton<HeroMissionEvent>::Get();
+                heroMission->processMission(
+                    user, static_cast<HeroMissionCondition::MissionNo::T>(1), 1);
+                user->IncProperDungeonClearCount();
+                CGameManager* gameMgr2 = G_CGameManager();
+                CConditionEventManager* condMgr2 =
+                    gameMgr2->GetConditionEventManager();
+                if (condMgr2 != 0)
+                {
+                    condMgr2->ProcessCheckStepUp(user, 2);
+                }
+            }
+        }
+        if (m_dungeon != 0 && user != 0 && m_partyType != 1 &&
+            user->getCurCharacR() != 0)
+        {
+            bool properLevel = dungeon->m_bloodDungeonType == 0 &&
+                               dungeon->m_89e != 1 &&
+                               !dungeon->isTowerOfDespairDungeon();
+            if (properLevel && user->IsProperLevelDungeonUser())
+            {
+                user->ProcProperLevelDungeonClear();
+            }
+        }
+    }
+
+    if (IsPremiumGoldCardParty())
+    {
+        PacketGuard goldCardPacket;
+        goldCardPacket.put_header(0, 0x12a);
+        goldCardPacket.finalize(true);
+        send_to_party(goldCardPacket);
+    }
+    if (dungeon->m_entryRestrictFlag == 0)
+    {
+        DungeonPermission(param);
+    }
 }

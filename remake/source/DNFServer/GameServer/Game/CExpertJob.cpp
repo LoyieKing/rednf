@@ -25,7 +25,8 @@ namespace collision_detection
 
 Rectangle::Rectangle() : m_pos(0, 0), m_width(0), m_height(0) {}
 
-// ORIG W 0x85cb492：四段包含判定（边界相等视为命中），任一命中返回 true。
+// ORIG W 0x85cb492：两矩形相交四情形（任一命中返回 true）：
+//   左上角点包含 / 右边界x带×上边y带 / 上边x带×下边y带 / 右边界x带×下边y带。
 bool Rectangle::include(Rectangle const& other) const
 {
     // 块A：other 左上点落在本矩形内
@@ -35,21 +36,21 @@ bool Rectangle::include(Rectangle const& other) const
         other.m_pos.m_y <= m_pos.m_y + m_height)
         return true;
 
-    // 块B：other 整体包含于本矩形
-    if (other.m_pos.m_x >= m_pos.m_x &&
+    // 块B：other 右边界 x 落在本矩形内且上边 y 在 y 区间
+    if (other.m_pos.m_x + other.m_width >= m_pos.m_x &&
         other.m_pos.m_x + other.m_width <= m_pos.m_x + m_width &&
         other.m_pos.m_y >= m_pos.m_y &&
-        other.m_pos.m_y + other.m_height <= m_pos.m_y + m_height)
+        other.m_pos.m_y <= m_pos.m_y + m_height)
         return true;
 
-    // 块C：other 左边在 x 区间且下边在 y 区间
+    // 块C：other 左边 x 在 x 区间且下边 y 落在本矩形内
     if (other.m_pos.m_x >= m_pos.m_x &&
         other.m_pos.m_x <= m_pos.m_x + m_width &&
         other.m_pos.m_y + other.m_height >= m_pos.m_y &&
         other.m_pos.m_y + other.m_height <= m_pos.m_y + m_height)
         return true;
 
-    // 块D：other 右边在 x 区间且下边在 y 区间
+    // 块D：other 右边界 x 与下边 y 均落在本矩形内
     if (other.m_pos.m_x + other.m_width >= m_pos.m_x &&
         other.m_pos.m_x + other.m_width <= m_pos.m_x + m_width &&
         other.m_pos.m_y + other.m_height >= m_pos.m_y &&
@@ -66,14 +67,14 @@ namespace expert_job
 
 ExpertJobMaterial::ExpertJobMaterial() { Reset(); }
 
-// ORIG 0x849f252：清零 +0x00/+0x04/+0x08 与 +0x0c/+0x0e（short）。
+// ORIG 0x849f252：先清 +0x0c/+0x0e（short），再清 +0x00/+0x04/+0x08。
 void ExpertJobMaterial::Reset()
 {
-    m_field00 = 0;
-    m_field04 = 0;
-    m_field08 = 0;
-    m_field0c = 0;
+    m_slot = 0;
     m_field0e = 0;
+    m_user = 0;
+    m_item = 0;
+    m_itemIndex = 0;
 }
 
 // ORIG 0x849f2b4：仅置 vptr。
@@ -156,10 +157,8 @@ stCompoundRate* CExpertJob::GetSuccessRate(CUser* user, CStackableItem const* it
                                            int& variation)
 {
     variation = 0;
-    user->GetCurCharacExpertJobType();
-    CDataManager* cm = G_CDataManager();
-    STExpertJobScript* script =
-        (STExpertJobScript*)cm->GetExpertJobScript(user->GetCurCharacExpertJobType());
+    STExpertJobScript* script = (STExpertJobScript*)
+        G_CDataManager()->GetExpertJobScript(user->GetCurCharacExpertJobType());
     if (script == 0)
         return 0;
     int itemIndex = ((CItem*)item)->get_index();
@@ -207,24 +206,37 @@ bool CExpertJob::IsSuccess(CUser* user, CStackableItem const* item, int& resultE
 }
 
 // IsLearnRecipe @ 0x849b590：GetRecipeInfoIndex(itemIndex) 找到 recipe 且
-// 已学习（get_recipe）或 GM → true；否则 cMyTrace + false。
+// 已学习（get_recipe）或 GM → true；否则对应 cMyTrace + false。
 bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
 {
-    user->GetCurCharacExpertJobType();
-    CDataManager* cm = G_CDataManager();
-    STExpertJobScript* script =
-        (STExpertJobScript*)cm->GetExpertJobScript(user->GetCurCharacExpertJobType());
+    STExpertJobScript* script = (STExpertJobScript*)
+        G_CDataManager()->GetExpertJobScript(user->GetCurCharacExpertJobType());
     if (script == 0)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x13f, 0);
+        trace("EXPERT_JOB_ERROR : GetExpertJobScript() charac_no(%d)",
+              user->getCurCharacNo());
         return false;
+    }
     int idx = script->GetRecipeInfoIndex(((CItem*)item)->get_index());
     if (idx < 0)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x146, 0);
+        trace("EXPERT_JOB_ERROR : GetRecipeInfoIndex() charac_no(%d)",
+              user->getCurCharacNo());
         return false;
+    }
     CCharacExpertJob* expand =
         (CCharacExpertJob*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0);
     if (expand->get_recipe(idx) != 1)
     {
         if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()))
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x14e, 0);
+            trace("EXPERT_JOB_ERROR : get_recipe() charac_no(%d)",
+                  user->getCurCharacNo());
             return false;
+        }
     }
     return true;
 }
@@ -237,10 +249,8 @@ void CExpertJob::IncreaseExpertJobExp(CUser* user, int exp)
 {
     if (user->getCurCharacR() == 0)
         return;
-    user->GetCurCharacExpertJobType();
-    CDataManager* cm = G_CDataManager();
-    STExpertJobScript* script =
-        (STExpertJobScript*)cm->GetExpertJobScript(user->GetCurCharacExpertJobType());
+    STExpertJobScript* script = (STExpertJobScript*)
+        G_CDataManager()->GetExpertJobScript(user->GetCurCharacExpertJobType());
     if (script == 0)
         return;
     int maxExp = script->m_expVec[script->m_expVec.size() - 1].m_exp;
@@ -250,7 +260,8 @@ void CExpertJob::IncreaseExpertJobExp(CUser* user, int exp)
     bool isBoundary = false;
     int curLevel = user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
     int newLevel = user->GetCurExpertJobLevel(exp);
-    STExpertJobEtcScript* etc = (STExpertJobEtcScript*)cm->GetExpertJobEtcScript();
+    STExpertJobEtcScript* etc =
+        (STExpertJobEtcScript*)G_CDataManager()->GetExpertJobEtcScript();
     if (curLevel != newLevel)
     {
         std::map<unsigned char, short>* lvlMap = &etc->m_levelMap;
@@ -327,76 +338,81 @@ CCharacExpertJob::~CCharacExpertJob()
 {
 }
 
-// InitScript 0x0832b36c：m_recipeInfo = script+0x274；m_field0c = 0；清 30 字节
-// recipe flag；alter()。
+// InitScript 0x0832b36c：m_endurance = script->m_enduranceInit（+0x274，
+// [endurance initial value]）；m_enchantCount = 0；清 30 字节 recipe flag；
+// alter()。
 bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 {
-    m_recipeInfo = *(int*)((char*)script + 0x274);
-    m_field0c = 0;
+    m_endurance = script->m_enduranceInit;
+    m_enchantCount = 0;
     for (int i = 0; i < 0x1e; ++i)
         m_recipeFlag[i] = 0;
     alter();
     return 1;
 }
 
-// get_recipe 0x0832b306：idx = index>>3，越界(<0 || >0x1d)返回 0；
+// get_recipe 0x0832b306：idx = index/8（带符号除），越界(<0 || >0x1d)返回 0；
 // 返回 bitmap 第 (index%8) 位。
 int CCharacExpertJob::get_recipe(int index) const
 {
-    int idx = index >> 3;
+    int idx = index / 8;              // ORIG：带符号除（sar/shr/lea 惯用法），非算术右移
+    int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
         return 0;
-    int bit = index % 8;
-    return ((int)(char)m_recipeFlag[idx] >> (bit & 0x1f)) & 1;
+    return ((int)(char)m_recipeFlag[idx] >> bit) & 1;
 }
 
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。
 int CCharacExpertJob::set_recipe(int index)
 {
-    int idx = index >> 3;
+    int idx = index / 8;
+    int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
         return 0;
-    int bit = index % 8;
-    if ((((int)(char)m_recipeFlag[idx] >> (bit & 0x1f)) & 1) == 0)
+    if ((((int)(char)m_recipeFlag[idx] >> bit) & 1) == 0)
     {
-        m_recipeFlag[idx] |= (unsigned char)(1 << (bit & 0x1f));
+        m_recipeFlag[idx] |= (unsigned char)(1 << bit);
         return 1;
     }
     return 0;
 }
+
 
 // learnRecipe 0x0832b3c0：GetRecipeInfoIndex(recipeIndex)；index<0 → 0；
 // GetRecipeInfo(index) 为空 → 0；recipeInfo->m_field8 <= param+2 才 set_recipe + alter。
 int CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript* script,
                                   int param)
 {
-    int idx = script->GetRecipeInfoIndex(recipeIndex);
+    int idx = -1;                                   // ORIG：-1 初始化
+    idx = script->GetRecipeInfoIndex(recipeIndex);
     if (idx < 0)
         return 0;
     stRecipeInfo* info = script->GetRecipeInfo(idx);
     if (info == 0)
         return 0;
-    if (param + 2 < (unsigned int)info->m_field8)
+    if (param + 2 < (int)(unsigned int)info->m_field8)   // ushort 零扩展后有符号比较
         return 0;
     set_recipe(idx);
     alter();
     return 1;
 }
 
-// loadData 0x0832b1fe：从 pData 拷贝 +0x06/+0x08/+0x0c 与 30 字节 recipe flag。
+// loadData 0x0832b1fe：pData 即 DB 侧 SIG_EXPERT_JOB 载荷（wire 布局见
+// SigTypes.h），按具名字段拷入。
 bool CCharacExpertJob::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
-    m_giveupCount = *(unsigned short*)(pData + 4);
-    m_recipeInfo = *(int*)(pData + 8);
-    m_field0c = *(int*)(pData + 0xc);
+    const SIG_EXPERT_JOB* sig = (const SIG_EXPERT_JOB*)pData;
+    m_giveupCount = sig->m_giveupCount;
+    m_endurance = sig->m_endurance;
+    m_enchantCount = sig->m_enchantCount;
     for (int i = 0; i < 0x1e; ++i)
-        m_recipeFlag[i] = (unsigned char)pData[i + 0x10];
+        m_recipeFlag[i] = sig->m_recipeFlag[i];
     return 1;
 }
 
-// _saveData 0x0832b0ac：StreamGuard 写 0x181 头 + UID + SIG_EXPERT_JOB 载荷，
-// MsgQueueMgr::put(DB_Q)。
+// _saveData 0x0832b0ac：StreamGuard 写 0x181 头 + UID + SIG_EXPERT_JOB 载荷
+// （DB wire 格式，结构定义见 SigTypes.h），MsgQueueMgr::put(DB_Q)。
 bool CCharacExpertJob::_saveData(CUser* pUser)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("CharacExpertJob.cpp", 0x16);
@@ -404,28 +420,33 @@ bool CCharacExpertJob::_saveData(CUser* pUser)
     guard << 0x181;
     guard << (int)pUser->GetUID();
     SIG_EXPERT_JOB* buf = guard->GetInBuffer<SIG_EXPERT_JOB>();
-    memset(buf, 0, 0x30);
-    *(int*)buf = (int)pUser->getCurCharacNo();
-    *(unsigned short*)((char*)buf + 4) = m_giveupCount;
-    *(int*)((char*)buf + 8) = m_recipeInfo;
-    *(int*)((char*)buf + 0xc) = m_field0c;
-    memcpy((char*)buf + 0x10, m_recipeFlag, 0x1e);
+    memset(buf, 0, sizeof(SIG_EXPERT_JOB));   // wire 载荷整体清零（含 pad）
+    buf->m_characNo = (int)pUser->getCurCharacNo();
+    buf->m_giveupCount = m_giveupCount;
+    buf->m_endurance = m_endurance;
+    buf->m_enchantCount = m_enchantCount;
+    memcpy(buf->m_recipeFlag, m_recipeFlag, 0x1e);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
 }
 
-// _reset 0x0832b064：清 +0x06/+0x08/+0x0c 与 30 字节 recipe flag。
+// _reset 0x0832b064：清 +0x06(giveup)/+0x08(endurance)/+0x0c(enchant) 与 30 字节 recipe flag。
 void CCharacExpertJob::_reset()
 {
     m_giveupCount = 0;
-    m_recipeInfo = 0;
-    m_field0c = 0;
+    m_endurance = 0;
+    m_enchantCount = 0;
     for (int i = 0; i < 0x1e; ++i)
         m_recipeFlag[i] = 0;
 }
 
-unsigned short CCharacExpertJob::get_giveup_count() const { return m_giveupCount; }
+// ORIG 0x849f5ac：先 CData::alter() 再写 +0x06。
+void CCharacExpertJob::set_giveup_count(unsigned short c)
+{
+    alter();
+    m_giveupCount = c;
+}
 
-void CCharacExpertJob::set_giveup_count(unsigned short c) { m_giveupCount = c; }
+unsigned short CCharacExpertJob::get_giveup_count() const { return m_giveupCount; }
 
 }  // namespace expert_job

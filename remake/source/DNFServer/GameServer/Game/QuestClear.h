@@ -25,6 +25,9 @@ namespace WongWork
 struct STClearedQuest
 {
     char m_pad[0x14];
+
+    // ORIG W 0x0848f768：C1Ev 仅置首字节 0（QuestClear.cpp 循环调用处的真实目标符号）。
+    STClearedQuest();
 };
 
 class CQuestClear
@@ -33,13 +36,13 @@ public:
     CQuestClear();
     ~CQuestClear();
     void clear();
-    bool isClearedQuest(unsigned int questIdx) const;
+    unsigned char isClearedQuest(unsigned int questIdx) const;
     const STClearedQuest* getClearedQuest() const;
     bool resetClearedQuests(unsigned int questIdx);   // ORIG 返回 1/0
     void setClearedQuest(const STClearedQuest* quest);
     static bool syncScript();                          // ORIG 恒返回 1
     bool setClearedQuest(unsigned int questIdx);       // ORIG 返回 1/0
-    bool checkSaveFlag() const;                        // ORIG 返回 +0x7530 save-flag 字节
+    unsigned char checkSaveFlag() const;               // ORIG 返回 +0x7530 save-flag 字节
     int getClearedQuestNum() const;                    // ORIG 统计 m_cleared[1..0x752f] 非零数
     void resetSaveFlags();                             // ORIG 清零 +0x7530 save-flag
     void enumQuestClear(bool (*cb)(unsigned int, char*), ...) const;  // ORIG 遍历 1..0x752f

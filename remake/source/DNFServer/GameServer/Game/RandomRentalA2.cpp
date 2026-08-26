@@ -1281,3 +1281,99 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
     SendMessageToCUser(user, ss.str().c_str());
     return 0x13;
 }
+
+namespace random_option
+{
+
+// ---- _random_application —— T 0x085f0ec2（_random_application.md 全文转写）----
+// m_map0 查 (rarity,level)：命中时 roll=randInt(m_field8+m_field4)，
+// m_field8 < roll → 1（应用），否则 0；未命中 0。
+int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
+{
+    RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
+    RandomOptionScript* table =
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    std::map<RandomApplicationKey, RandomApplicationValue>::iterator it =
+        table->m_map0.find(key);
+    if (it != table->m_map0.end())
+    {
+        const int bound = it->second.m_field8 + it->second.m_field4;
+        const unsigned long roll =
+            static_cast<unsigned long>(m_rand->randInt(bound));
+        if (static_cast<unsigned int>(it->second.m_field8) < roll)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// ---- choose_item —— T 0x085f1560（choose_item.md 全文转写）----
+// m_disabled 非 0 → -1；level>9 时向下取整到十位（钳 0x50）；
+// level<10 且 rarity==2 → rarity 清 0 返 -1；_random_application 通过后
+// 按 (rarity,levelLimit,partType) 查 m_baseItems60，取第 baseItem 项
+// （越界回退末项）的 BaseItemValue::m_field0；任何失配 rarity 清 0 返 -1。
+unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
+                                                  int level)
+{
+    if (m_disabled == 0)
+    {
+        if (level > 9)
+        {
+            if (level < 0x50)
+            {
+                const int rem = level % 10;
+                level = level - rem;
+            }
+            else
+            {
+                level = 0x50;
+            }
+        }
+        if (level < 10 && rarity == 2)
+        {
+            rarity = static_cast<ENUM_RARITY>(0);
+            return 0xffffffff;
+        }
+        if (_random_application(rarity, level) == 1)
+        {
+            m_field08 = m_field08 + 1;
+            const int levelLimit = _get_level_limit(rarity, level);
+            const int partType = _get_part_type(levelLimit);
+            const int baseItem = _get_base_item(rarity, levelLimit);
+            BaseItemKey key((unsigned char)rarity,
+                            (unsigned char)levelLimit,
+                            (unsigned short)partType);
+            RandomOptionScript* table =
+                reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+            std::map<BaseItemKey, std::map<int, BaseItemValue> >::iterator it =
+                table->m_baseItems60.find(key);
+            if (it == table->m_baseItems60.end())
+            {
+                rarity = static_cast<ENUM_RARITY>(0);
+                return 0xffffffff;
+            }
+            if (!it->second.empty())
+            {
+                int idx = 0;
+                std::map<int, BaseItemValue>::iterator vit = it->second.begin();
+                while (vit != it->second.end() && baseItem > idx)
+                {
+                    ++vit;
+                    idx = idx + 1;
+                }
+                if (vit == it->second.end())
+                {
+                    --vit;
+                }
+                return static_cast<unsigned int>(vit->second.m_field0);
+            }
+            rarity = static_cast<ENUM_RARITY>(0);
+            return 0xffffffff;
+        }
+        return 0xffffffff;
+    }
+    return 0xffffffff;
+}
+
+}  // namespace random_option

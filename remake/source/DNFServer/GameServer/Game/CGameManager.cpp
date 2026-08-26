@@ -26,6 +26,7 @@
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
 #include "MsgQueueMgr.h"
+#include "EpollHandler.h"
 #include "StreamPool.h"
 #include "MoreTypes.h"
 #include "SigTypes.h"
@@ -36,6 +37,7 @@
 // ---- 跨类真实类型头（替代 extern "C" asm 桥；符号与 ORIG mangled 一致）----
 #include "GameWorld.h"
 #include "CDataManager.h"
+#include "PvPTypes.h"   // BlueMarbleScriptManager/channel_script_t/channel_info_t 完整类型
 #include "CMissionList_Charac.h"
 #include "CEventCharacterHandler.h"
 #include "CDungeon.h"
@@ -108,7 +110,7 @@ char* NumberToString(unsigned int value, int radix);
 CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance();
 CEventCharacterHandler* CEventCharacterHandlerInstance();
 CShutdowManager* GetInstanceShutdowManager();
-void* G_EpollHandler();
+EpollHandler* G_EpollHandler();
 extern CSchoolMgr* g_schoolMgr;
 extern CGuildAgitManager* g_guildAgitMgr;
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
@@ -119,9 +121,9 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime
 // ============================================================================
 struct SIG_UPDATE_LINK_CHARAC_CONNECT_STATE
 {
-    int m_field0;
-    int m_field4;
-    int m_field8;
+    unsigned int m_accId;     // +0x00（ORIG *(info)=param_1=accId）
+    unsigned int m_characNo;  // +0x04
+    int m_action;             // +0x08（ENUM_CHARAC_LINK_ACTION_TYPE）
 };
 
 // PacketGuard 权威定义见 PacketGuard.h（InterfacePacketBuf 子类）。
@@ -270,24 +272,12 @@ int StaticPool<T, N>::GetIndex(T* p)
     return index;
 }
 // ============================================================================
-// WongWork::CMailBox —— ORIG 布局（反汇编 0x8551d98/0x85579b2 核对）：
-//   +0x00 bool        m_bInit
-//   +0x04 int         m_mailLoadCount
-//   +0x08 int         m_loadedLetterCount
-//   +0x10 StaticPool<CMail,20> m_mailPool
-//   +0x40 map<unsigned int, CMail*> m_mailMap
-//   +0x58 list<Stream*> m_streamList            （GCC4.4 list=8 字节）
-//   +0x60 map::const_iterator m_mailIterator    （4 字节）
-//   +0x64 map<int,bool> m_letterKeepCount
-//   +0x7c int          m_xxx（Init 置 0）
-//   +0x80 int          m_xxx（Init 置 0）
-//   +0x84 vector<unsigned int> m_xxx
-//   +0x90 map<unsigned int, SIG_LETTER_INFO> m_letterInfo
-// 头文件仍为 m_pad[0x100]（ABI 大小一致），此处以偏移访问实现真实语义。
-// ============================================================================
-typedef std::map<unsigned int, WongWork::CMailBox::CMail*> CMailBoxMailMap;
-typedef std::list<Stream*> CMailBoxStreamList;
-typedef std::map<int, bool> CMailBoxKeepMap;
+// WongWork::CMailBox —— ORIG 布局（反汇编 0x8551d98/0x85579b2 核对）已于
+// 2026-08-26 提升为 CMailBoxHelper.h 真实成员（m_bInit@+0x00 / m_lastLoadIdx@+0x04 /
+// m_notLoadedMailCount@+0x08 / m_mailPool@+0x10 / m_mailMap@+0x40 / m_streamList@+0x58 /
+// m_mailIterator@+0x60 / m_letterKeepCount@+0x64 / m_lastLoadLetterIdx@+0x7c /
+// m_loadedLetterCount@+0x80 / m_loadLackList@+0x84 / m_letterInfo@+0x90，
+// sizeof 0x100 断言守 ABI）；本 TU 各方法直接以具名成员访问。
 // ---- StaticPool 元素类型完整布局（ORIG CACHE_CHARACTER_TYPE::C1 0x8492262）----
 // 子对象顺序与偏移：
 //   SIG_LOAD_CHARAC@+0x00000 / SIG_LOAD_INVENTORY@+0x00703 / SIG_LOAD_QUEST@+0x15b4f /
@@ -330,76 +320,58 @@ public:
 };
 static_assert(sizeof(CACHE_CHARACTER_TYPE) == 0x3f85c, "CACHE_CHARACTER_TYPE ABI drift (ORIG 0x3f85c)");
 
-typedef std::map<unsigned int, WongWork::CMailBox::CMail*> CMailBoxMailMap;
-struct SIG_LETTER_INFO
-{
-    char m_pad[0x12c];  // 大小推断自 SetMailBoxInfo 栈帧（300 字节左右）
-};
-typedef std::map<unsigned int, SIG_LETTER_INFO> CMailBoxLetterMap;
+
 
 WongWork::CMailBox::CMailBox()
 {
-    // ORIG 0x085579b2：按布局顺序构造 7 个成员（StaticPool/map/list/iter/map/vector/map）
-    new (m_pad + 0x10) StaticPool<CMail, 20>();
-    new (m_pad + 0x40) CMailBoxMailMap();
-    new (m_pad + 0x58) CMailBoxStreamList();
-    new (m_pad + 0x60) CMailBoxMailMap::const_iterator();
-    new (m_pad + 0x64) CMailBoxKeepMap();
-    // m_loadLackList（+0x84）为具名成员，随隐式成员初始化构造
-    new (m_pad + 0x90) CMailBoxLetterMap();
+    // ORIG 0x085579b2：按布局顺序构造 7 个子对象成员；现均为真实成员，由
+    // 编译器按声明序（= ORIG 构造序 pool→map→list→iter→keep→vector→map）生成。
 }
 
 WongWork::CMailBox::~CMailBox()
 {
-    // ORIG 0x08557aac：逆序析构 7 个成员
-    reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->~CMailBoxLetterMap();
-    // m_loadLackList（+0x84）为具名成员，随隐式析构释放
-    reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->~CMailBoxKeepMap();
-    reinterpret_cast<CMailBoxStreamList*>(m_pad + 0x58)->~CMailBoxStreamList();
-    reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40)->~CMailBoxMailMap();
-    reinterpret_cast<StaticPool<CMail, 20>*>(m_pad + 0x10)->~StaticPool<CMail, 20>();
+    // ORIG 0x08557aac：逆序析构 7 个子对象成员；现由编译器生成（逆声明序）。
 }
 
 void WongWork::CMailBox::Init()
 {
     // ORIG 0x08551d98：若已初始化（m_bInit==1）则清理全部邮件/流/信标状态
-    if (m_pad[0] == 1)
+    if (m_bInit)
     {
-        CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
-        StaticPool<CMail, 20>& pool = *reinterpret_cast<StaticPool<CMail, 20>*>(m_pad + 0x10);
-        for (CMailBoxMailMap::iterator it = mailMap.begin(); it != mailMap.end(); ++it)
+        for (std::map<unsigned int, CMail*>::iterator it = m_mailMap.begin();
+             it != m_mailMap.end(); ++it)
         {
             CMail* mail = it->second;
             if (mail != 0)
             {
                 // 内联 CMail::ResetPackage（ORIG 0x085519fe）：
-                // +0x08=0; +0x28=0; Inven_Item@+0x2c reset; +0x70=0; +0x74=0
-                char* mb = (char*)mail;
-                *(char*)(mb + 0x8) = 0;
-                *(int*)(mb + 0x28) = 0;
-                reinterpret_cast<Inven_Item*>(mb + 0x2c)->reset();
-                *(int*)(mb + 0x70) = 0;
-                *(char*)(mb + 0x74) = 0;
-                pool.Free(mail);
+                // senderName[0]=0; money(+0x28)=0; item(+0x2c).reset; type(+0x70)=0;
+                // unlimit(+0x74)=0
+                mail->m_senderName[0] = '\0';
+                mail->m_packageMoney = 0;
+                mail->m_item.reset();
+                mail->m_packageType = 0;
+                mail->m_unlimit = 0;
+                m_mailPool.Free(mail);
             }
         }
-        mailMap.clear();
-        m_pad[0] = 0;
-        *(int*)(m_pad + 0x4) = 0;
-        *(int*)(m_pad + 0x8) = 0;
-        CMailBoxStreamList& streamList = *reinterpret_cast<CMailBoxStreamList*>(m_pad + 0x58);
-        for (CMailBoxStreamList::iterator it = streamList.begin(); it != streamList.end(); ++it)
+        m_mailMap.clear();
+        m_bInit = false;
+        m_lastLoadIdx = 0;
+        m_notLoadedMailCount = 0;
+        for (std::list<Stream*>::iterator it = m_streamList.begin();
+             it != m_streamList.end(); ++it)
         {
             Stream* s = *it;
             if (s != 0)
                 GlobalData::s_stream_pool->Free(s);
         }
-        streamList.clear();
-        reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->clear();
-        *(int*)(m_pad + 0x7c) = 0;
-        *(int*)(m_pad + 0x80) = 0;
+        m_streamList.clear();
+        m_letterKeepCount.clear();
+        m_lastLoadLetterIdx = 0;
+        m_loadedLetterCount = 0;
         m_loadLackList.clear();
-        reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->clear();
+        m_letterInfo.clear();
     }
 }
 
@@ -426,169 +398,23 @@ void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
 int WongWork::CMailBox::getMailLoadCount() { return 0; }
 WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
 {
-    // ORIG 0x0855236a：迭代器 @0x60 指向 m_mailMap（+0x40）；未到 end 则返回
-    // second 并前移，否则返回 0。
-    CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
-    CMailBoxMailMap::const_iterator& it =
-        *reinterpret_cast<CMailBoxMailMap::const_iterator*>(m_pad + 0x60);
-    if (it == mailMap.end())
+    // ORIG 0x0855236a：迭代器指向 m_mailMap；未到 end 则返回 second 并前移，
+    // 否则返回 0。
+    if (m_mailIterator == m_mailMap.end())
         return 0;
-    CMail* mail = it->second;
-    ++it;
+    CMail* mail = m_mailIterator->second;
+    ++m_mailIterator;
     return mail;
 }
 void WongWork::CMailBox::incMailLoadCount() {}
 void WongWork::CMailBox::reset() {}
 void WongWork::CMailBox::setMailIterator()
 {
-    // ORIG 0x0855232e：迭代器 @0x60 = m_mailMap.begin()
-    CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
-    *reinterpret_cast<CMailBoxMailMap::const_iterator*>(m_pad + 0x60) = mailMap.begin();
+    // ORIG 0x0855232e：迭代器 = m_mailMap.begin()
+    m_mailIterator = m_mailMap.begin();
 }
 // void WongWork::CDungeonClear::clear() 已由 CDungeonClear.cpp 提供（合并移除）
-advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
-advancealtar::StageControl::~StageControl() {}
 
-// ============================================================================
-// exchange_server::CCacheCharacterMgr —— 角色缓存管理器（ORIG 布局/语义）
-// 布局（ORIG C1 0x8490e98）：Mutex@+0x00 / StaticPool<CACHE_CHARACTER_TYPE,1000>
-// @+0x18 / std::map<int,CACHE_CHARACTER_TYPE*>@+0x48（charac_no -> 缓存内存）。
-// 单例经 GetInstanceCacheCharacterMgr（ORIG 0x8490f71，__cxa_guard）获取。
-// 公共自由函数（CUser::CacheCharacterMemory 等调用，ORIG）：
-//   AcquireCharacterMemory(int)@0x848f220 / FreeCharacterMemory@0x848f23c /
-//   CacheCharacterMemory(int, CACHE_CHARACTER_TYPE*)@0x848f258。
-// 成员语义（objdump 逐函数核对）：
-//   AcquireCharacter：先查 map，命中则 memset+写 cacheTime 返回；未命中且池空时
-//     CollectGarbage，仍空返回 0；否则池 Acquire + memset + 写 cacheTime。
-//   FreeCharacter：池 Free；若 (1000-remain)!=map.size() 则 cMyTrace 告警。
-//   CacheCharacter：insert map(charac_no,mem)，已存在则更新指针，恒返回 true。
-//   GetCacheCharacter：查 map，erase 可选。
-//   CollectGarbage：删除 cacheTime 距今 >29s(0x1d) 的条目。
-// ============================================================================
-namespace exchange_server
-{
-
-class CCacheCharacterMgr
-{
-public:
-    CCacheCharacterMgr() {}   // m_mutex/m_pool/m_map 按声明序隐式构造（+0x00/+0x18/+0x48）
-    ~CCacheCharacterMgr() {}
-
-    CACHE_CHARACTER_TYPE* AcquireCharacter(int characNo)
-    {
-        Guard<Mutex> g(&m_mutex);
-        CACHE_CHARACTER_TYPE* mem = 0;
-        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.find(characNo);
-        if (it != m_map.end())
-        {
-            mem = it->second;
-            memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-            mem->setCacheTime((unsigned int)time(0));
-            return mem;
-        }
-        if (m_pool.Remain() == 0)
-        {
-            if (!CollectGarbage())
-                return 0;
-        }
-        mem = m_pool.Acquire();
-        if (mem != 0)
-        {
-            memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-            mem->setCacheTime((unsigned int)time(0));
-        }
-        return mem;
-    }
-
-    void FreeCharacter(CACHE_CHARACTER_TYPE* mem)
-    {
-        Guard<Mutex> g(&m_mutex);
-        m_pool.Free(mem);
-        int used = StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size() - m_pool.Remain();
-        if (used != (int)m_map.size())
-        {
-            cMyTrace tr("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0);
-            tr("map size(%d), pool remain(%d), max(%d)",
-               (int)m_map.size(), m_pool.Remain(),
-               StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size());
-        }
-    }
-
-    bool CacheCharacter(int characNo, CACHE_CHARACTER_TYPE* mem)
-    {
-        Guard<Mutex> g(&m_mutex);
-        std::pair<std::map<int, CACHE_CHARACTER_TYPE*>::iterator, bool> r =
-            m_map.insert(std::make_pair(characNo, mem));
-        if (!r.second)
-            r.first->second = mem;   // 已存在则更新指针
-        return true;
-    }
-
-    bool GetCacheCharacter(int characNo, CACHE_CHARACTER_TYPE** out, bool erase)
-    {
-        Guard<Mutex> g(&m_mutex);
-        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.find(characNo);
-        if (it != m_map.end())
-        {
-            *out = it->second;
-            if (erase)
-                m_map.erase(it);
-            return true;
-        }
-        return false;
-    }
-
-    bool CollectGarbage()
-    {
-        unsigned int now = (unsigned int)time(0);
-        bool removed = false;
-        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.begin();
-        while (it != m_map.end())
-        {
-            if ((now - it->second->getCacheTime()) > 0x1d)
-            {
-                m_pool.Free(it->second);
-                std::map<int, CACHE_CHARACTER_TYPE*>::iterator cur = it;
-                ++it;
-                m_map.erase(cur);
-                removed = true;
-            }
-            else
-            {
-                ++it;
-            }
-        }
-        return removed;
-    }
-
-private:
-    Mutex m_mutex;                                        // +0x00
-    StaticPool<CACHE_CHARACTER_TYPE, 1000> m_pool;        // +0x18
-    std::map<int, CACHE_CHARACTER_TYPE*> m_map;           // +0x48
-};
-
-CCacheCharacterMgr* GetInstanceCacheCharacterMgr()
-{
-    static CCacheCharacterMgr s_instance;
-    return &s_instance;
-}
-
-CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo)
-{
-    return GetInstanceCacheCharacterMgr()->AcquireCharacter(characNo);
-}
-
-void FreeCharacterMemory(CACHE_CHARACTER_TYPE* mem)
-{
-    GetInstanceCacheCharacterMgr()->FreeCharacter(mem);
-}
-
-bool CacheCharacterMemory(int characNo, CACHE_CHARACTER_TYPE* mem)
-{
-    return GetInstanceCacheCharacterMgr()->CacheCharacter(characNo, mem);
-}
-
-}  // namespace exchange_server
 
 // ============================================================================
 // 显式实例化（本 TU 池成员使用）
@@ -600,13 +426,6 @@ template class StaticPool<PvP_Room, 600>;
 template class StaticPool<WarRoom, 40>;
 template class StaticPool<WongWork::CDeathTower, 600>;
 
-// ORIG exchange_server::CSession::C1 0x848ffd0：基类 CNetwork<95000,450000>
-// 自动构造后置基类 m_field0c=1，清零 +0x851a0/+0x851a4。
-exchange_server::CSession::CSession()
-    : m_field851a0(0), m_field851a4(0)
-{
-    m_field0c = 1;
-}
 template class StaticPool<WongWork::CBossTower, 600>;
 template class StaticPool<advancealtar::StageControl, 600>;
 template class StaticPool<QuickParty::CQuickParty, 300>;
@@ -964,10 +783,10 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
         if (party != 0)
         {
             bool bVar1 = false;
-            void* dungeon = *(void**)((char*)party + 0xcac);
+            CDungeon* dungeon = party->m_dungeon;  // ORIG *(party+0xcac)（CBattle_Field 区）
             if (dungeon != 0)
             {
-                bVar1 = *(char*)((char*)dungeon + 0x89f) > 0;
+                bVar1 = dungeon->m_bloodDungeonType > 0;
                 if (((CDungeon*)dungeon)->isTowerOfDespairDungeon())
                     bVar1 = true;
             }
@@ -975,7 +794,7 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
             if (dungeon != 0)
             {
                 char c = ((CDungeon*)dungeon)->get_dimension_possible();
-                if (c < 1 && *(char*)((char*)dungeon + 0x89c) == 0 &&
+                if (c < 1 && dungeon->m_89c == 0 &&
                     !((CDungeon*)dungeon)->isTournamentDungeon())
                     bVar2 = false;
                 else
@@ -983,14 +802,16 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
                 if (bVar2)
                     bVar1 = true;
             }
-            ((CDungeonClearTracer*)((char*)party + 0xc7c))->Trace("void CGameManager::CheckOutParty(CUser*, bool)");
-            if (*(int*)((char*)party + 0xcd8) != 1 && party->get_state() == 2)
+            // +0xc7c：CParty::m_dungeonClearTracer（CParty.h 权威成员，BF+0x158）。
+            party->m_dungeonClearTracer.Trace(
+                "void CGameManager::CheckOutParty(CUser*, bool)");
+            if (party->m_partyType != 1 && party->get_state() == 2)
             {
                 bVar2 = false;
-                if (dungeon != 0 && *(char*)((char*)dungeon + 0x85c) != 0)
+                if (dungeon != 0 && dungeon->m_entryRestrictFlag != 0)
                     bVar2 = true;
                 bool bVar3 = false;
-                if (dungeon != 0 && *(char*)((char*)dungeon + 0x87a) != 0)
+                if (dungeon != 0 && dungeon->m_villageAttackEventFlag != 0)
                     bVar3 = true;
                 if (!bVar1 && bVar2 && bVar3)
                     user->giveup_panalty();
@@ -1530,9 +1351,9 @@ void CGameManager::checkOutBossTower(CUser* user)
         WongWork::CBossTower* tower = getBossTower(user->getBossTowerIndex());
         if (tower != 0)
         {
-            typedef char (*LeaveFn)(void*, void*);
-            LeaveFn leave = *(LeaveFn*)(*(void**)tower + 0x14);
-            if (leave(tower, user) != 1)
+            // ORIG 调虚表槽 +0x14 = WongWork::CBossPlay::checkAllMemberReady(int)
+            // （vtable 0x08b70260 实证：槽内 0x081493fe；实参为 CUser* 转 int）。
+            if ((char)tower->checkAllMemberReady((int)user) != 1)
             {
                 LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutBossTower(CUser*)", 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",
@@ -1712,27 +1533,27 @@ void CGameManager::checkOutBlueMarble(CUser* user)
 
 void CGameManager::allocBlueMarble()
 {
-    void* dm = G_CDataManager();
-    void* script = ((CDataManager*)dm)->getBlueMarbleScript();
+    CDataManager* dm = (CDataManager*)G_CDataManager();
+    BlueMarbleScriptManager* script = (BlueMarbleScriptManager*)dm->getBlueMarbleScript();
     for (int i = 0; i < 300; ++i)
     {
         BlueMarble* marble = getBlueMarble();
         marble->getMemoryPoolIndex();
-        for (int j = 0; j < *(int*)((char*)script + 0x30); ++j)
+        for (int j = 0; j < script->m_info.m_playerMax; ++j)  // ORIG *(script+0x30)
         {
-            marble->setUserInfo((BlueMarbleScriptManager*)script);
+            marble->setUserInfo(script);
         }
-        marble->setScript((BlueMarbleScriptManager*)script);
+        marble->setScript(script);
     }
 }
 
 BlueMarble* CGameManager::findJoinableBlueMarble()
 {
-    void* dm = G_CDataManager();
-    void* script = ((CDataManager*)dm)->getBlueMarbleScript();
+    CDataManager* dm = (CDataManager*)G_CDataManager();
+    BlueMarbleScriptManager* script = (BlueMarbleScriptManager*)dm->getBlueMarbleScript();
     if (script == 0)
         return 0;
-    int count = *(int*)((char*)script + 0x30);
+    int count = script->m_info.m_playerMax;  // ORIG *(script+0x30)
     BlueMarble* result = 0;
     for (int n = 0; n < count; ++n)
     {
@@ -1837,8 +1658,9 @@ void CGameManager::SendPartyList(CUser* user)
                             {
                                 char dim = ((CDataManager*)G_CDataManager())->get_dimensionInout(j);
                                 guard.put_byte((int)dim);
-                                const void* characR = member->getCurCharacR();
-                                guard.put_byte(*(const char*)((const char*)characR + 0xeb9 + j));
+                                // ORIG *(char*)(characR+0xeb9+j) = _Charac_info
+                                // m_demensionInout[j]（CUserCharacInfo::getDemensionInoutValue）。
+                                guard.put_byte((int)member->getDemensionInoutValue((char)j));
                             }
                         }
                     }
@@ -1942,11 +1764,17 @@ void CGameManager::WarRoomAlloc()
             if (need <= count)
                 break;
             WarRoom* room = GetWarRoom();
-            *(char*)room = (char)area;
-            *((char*)room + 1) = (char)count;
+            // ORIG 0x8298a81/+0x05b：直写 +0x00=area、+0x01=count。
+            // +0x00 即 WarRoom::m_levelBand 槽（IsJoinable 按 2..6 等级段解释），
+            // +0x01 即 m_roomSeq（区内分配序号，MakeRoomInfo 广播）。
+            room->m_levelBand = (char)area;
+            room->m_roomSeq = (char)count;
             room->Prepare();
-            void* dm3 = G_CDataManager();
-            if (count < *(int*)((char*)dm3 + 8 + (hourTable * 10 + area + 0x223c) * 4))
+            CDataManager* dm3 = (CDataManager*)G_CDataManager();
+            // ORIG *(dm+8+(hourTable*10+area+0x223c)*4)：m_warRoomCount 扁平表
+            // （WarAreaCounter+0x144，240 项；头文件按 [10][10]+pad 建模）。
+            if (count < reinterpret_cast<int*>(
+                            dm3->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area])
                 room->SetState((WARROOM_STATE)0);
             else
                 room->SetState((WARROOM_STATE)-1);
@@ -1958,20 +1786,23 @@ void CGameManager::WarRoomAlloc()
 
 void CGameManager::WarRoomCountAdjustByChannelInfo()
 {
-    void* dm = G_CDataManager();
-    void* script = ((CDataManager*)dm)->GetChannelScript();
-    void* env = G_CEnvironment();
-    unsigned int channelNo = ((CEnvironment*)env)->get_channel_no();
-    channel_info_t* info = ((channel_script_t*)script)->getChannelInfo(*(unsigned char*)((char*)env + 0x378), channelNo);
+    CDataManager* dm = (CDataManager*)G_CDataManager();
+    channel_script_t* script = (channel_script_t*)dm->GetChannelScript();
+    CEnvironment* env = G_CEnvironment();
+    unsigned int channelNo = env->get_channel_no();
+    // ORIG movzbl 读 env+0x378 = Server_Envir::m_serverGroup 低字节。
+    channel_info_t* info =
+        script->getChannelInfo((unsigned char)env->m_serverEnvir.m_serverGroup, channelNo);
     for (int a = 0; a < 10; ++a)
     {
         for (int b = 0; b < 0x18; ++b)
         {
-            void* dm2 = G_CDataManager();
-            float f = *(float*)((char*)info + 8 + (a + 4) * 4);
-            void* dm3 = G_CDataManager();
-            *(int*)((char*)dm2 + 8 + (b * 10 + a + 0x223c) * 4) =
-                (int)(*(float*)((char*)dm3 + 4 + (b + 0x21ec) * 4) * f);
+            CDataManager* dm2 = (CDataManager*)G_CDataManager();
+            float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
+            CDataManager* dm3 = (CDataManager*)G_CDataManager();
+            // 写表：dm+8+(b*10+a+0x223c)*4 = m_warRoomCount 扁平 [b*10+a]。
+            reinterpret_cast<int*>(dm3->m_warAreaCounter.m_warRoomCount)[b * 10 + a] =
+                (int)(dm3->m_warAreaCounter.m_counterTable[b] * f);
         }
     }
 }
@@ -2042,8 +1873,11 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             }
             return;
         }
-        void* dm = G_CDataManager();
-        int diff = *(int*)((char*)dm + 8 + (hourTable * 10 + area + 0x223c) * 4) -
+        CDataManager* dm = (CDataManager*)G_CDataManager();
+        // ORIG *(dm+8+(hourTable*10+area+0x223c)*4)：m_warAreaCounter.m_warRoomCount
+        // 扁平视图（WarAreaCounter+0x144，[hour][area]）。
+        int diff = reinterpret_cast<int*>(
+                       dm->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area] -
                    current[area];
         cMyTrace tr2("void CGameManager::WarRoomCountManage(int)", 0x3097, 0);
         tr2("WarRoomCountManage diff(%d) currentWarRoomCount(lev%d)", diff, current[area]);
@@ -2134,8 +1968,9 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
     int totalDiff = 0;
     for (int area = 0; area < 10; ++area)
     {
-        void* dm = G_CDataManager();
-        int diff = *(int*)((char*)dm + 8 + (hourTable * 10 + area + 0x223c) * 4) -
+        CDataManager* dm = (CDataManager*)G_CDataManager();
+        int diff = reinterpret_cast<int*>(
+                       dm->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area] -
                    current[area];
         if (diff < 0)
         {
@@ -2201,9 +2036,9 @@ void CGameManager::updateDBLinkCharacConnectState(
     SIG_UPDATE_LINK_CHARAC_CONNECT_STATE* info =
         guard->GetInBuffer<SIG_UPDATE_LINK_CHARAC_CONNECT_STATE>();
     memset(info, 0, 0xc);
-    *(unsigned int*)info = accId;
-    *(unsigned int*)((char*)info + 4) = characNo;
-    *(unsigned int*)((char*)info + 8) = (unsigned int)action;
+    info->m_accId = accId;
+    info->m_characNo = characNo;
+    info->m_action = (int)action;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -2261,9 +2096,13 @@ CSharedServerMessageManager* CGameManager::GetSharedServerMessageManager()
 {
     if (m_pSharedServerMessageMgr == 0)
     {
-        void* dm = G_CDataManager();
+        CDataManager* dmp = (CDataManager*)G_CDataManager();
         void* pMgr = operator new(0x18);
-        new (pMgr) CSharedServerMessageManager((stSharedServerMessageInfo*)((char*)dm + 0x7d8));
+        // ORIG lea 0x7d8(dm)：CDataManager 内嵌 stSharedServerMessageInfo。
+        // 该结构即 ServerParameterScript::m_shared770（ServerParameterScript.h +0x770，
+        // ORIG C1 0x836fed4 实证），m_serverParameter 位于 CDataManager+0x68，
+        // 0x68+0x770=0x7d8 与 ORIG lea 偏移一致。
+        new (pMgr) CSharedServerMessageManager(&dmp->m_serverParameter.m_shared770);
         m_pSharedServerMessageMgr = (CSharedServerMessageManager*)pMgr;
     }
     return m_pSharedServerMessageMgr;
@@ -2323,17 +2162,15 @@ void SendUserInfoToUpperServer(Packet_Monitor_UDP_Reply_UserInfo& pkt,
 {
     if (type == 0xcb)
     {
-        unsigned short len = *(unsigned short*)((char*)&pkt + 2);
         CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(int)group);
-        proxy->SendTcpPacket((char*)&pkt, len);
+        proxy->SendTcpPacket((char*)&pkt, pkt.packetSize);  // ORIG *(u16*)(pkt+2)
     }
     else if (type == 0xc9)
     {
-        unsigned short len = *(unsigned short*)((char*)&pkt + 2);
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(int)group);
-        proxy->SendTcpPacket((char*)&pkt, len);
+        proxy->SendTcpPacket((char*)&pkt, pkt.packetSize);
     }
-    memset((char*)&pkt + 0xc, 0, 0x16da);
+    memset(&pkt.m_items, 0, 0x16da);  // ORIG memset(pkt+0xc,0,0x16da)
 }
 
 
@@ -2342,8 +2179,7 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
 {
     int userCount = 0;
     Packet_Monitor_UDP_Reply_UserInfo pkt;
-    char* p = (char*)&pkt;
-    p[11] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    pkt.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();  // ORIG p[11]
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() && channelType == 0xc9)
     {
         int idx = 0;
@@ -2351,12 +2187,11 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
         while (idx < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
         {
             Packet_ChannelType ctype;
-            *(unsigned int*)((char*)&ctype + 0xc) =
-                (unsigned int)((CEnvironment*)G_CEnvironment())->get_channel_no();
-            *(unsigned int*)((char*)&ctype + 0x10) =
-                (unsigned int)G_GameWorld()->GetChannelType();
+            // ORIG 写 pkt+0xa/+0xe（12 字节头旧读法 +0xc/+0x10 为误对齐）。
+            ctype.m_channel = (unsigned int)((CEnvironment*)G_CEnvironment())->get_channel_no();
+            ctype.m_type = (int)G_GameWorld()->GetChannelType();
             CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)group);
-            proxy->SendTcpPacket((char*)&ctype, *(unsigned short*)((char*)&ctype + 8));
+            proxy->SendTcpPacket((char*)&ctype, ctype.packetSize);
             group = GlobalData::s_monitor_proxy_mgr->GetNextIndex(idx);
         }
     }
@@ -2375,27 +2210,27 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                     (int)(size_t)user->GetServerGroup() == group)
                 {
                     int n = userCount;
-                    *(unsigned int*)(p + 12 + n * 0x4e) = user->get_acc_id();
-                    *(unsigned int*)(p + 16 + n * 0x4e) = user->get_charac_no(-1);
-                    *(unsigned int*)(p + 20 + n * 0x4e) = user->GetUID();
-                    *(unsigned int*)(p + 24 + n * 0x4e) = user->get_charac_guildkey();
-                    p[28 + n * 0x4e] = user->get_charac_job();
-                    p[29 + n * 0x4e] = user->getCurCharacGrowType();
-                    *(unsigned short*)(p + 30 + n * 0x4e) = user->get_charac_level();
-                    *(unsigned int*)(p + 62 + n * 0x4e) = user->get_charac_memberkey();
-                    strcpy(p + 32 + n * 0x4e, user->getCurCharacName());
-                    p[82 + n * 0x4e] = user->getSex();
-                    memcpy(p + 83 + n * 0x4e, user->GetSsnString(), 6);
+                    ST_MonitorReplyUserInfo& item = pkt.m_items[n];  // ORIG p+12+n*0x4e
+                    item.m_dbid = user->get_acc_id();
+                    item.m_charNo = user->get_charac_no(-1);
+                    item.m_channel = user->GetUID();  // 游戏端写 UID（见包头注释）
+                    item.m_guildKey = user->get_charac_guildkey();
+                    item.m_job = user->get_charac_job();
+                    item.m_grade = user->getCurCharacGrowType();
+                    item.m_level = user->get_charac_level();
+                    item.m_memberKey = user->get_charac_memberkey();
+                    strcpy(item.m_name, user->getCurCharacName());
                     char ipBuf[16];
-                    ((CNetwork<4096, 450000>*)((char*)user + 0xe0))
-                        ->GetPeerIP2(ipBuf, 0x10);
-                    strcpy(p + 66 + n * 0x4e, ipBuf);
+                    user->m_network.GetPeerIP2(ipBuf, 0x10);  // ORIG (CNetwork*)(user+0xe0)
+                    strcpy(item.m_ip, ipBuf);
+                    item.m_sex = user->getSex();
+                    memcpy(item.m_ssn, user->GetSsnString(), 6);
                     lastUser = user;
                     userCount = userCount + 1;
                     if (userCount > 0x4a)
                     {
-                        *(unsigned short*)(p + 2) = 0x16e6;
-                        p[10] = (char)userCount;
+                        pkt.packetSize = 0x16e6;
+                        pkt.m_count = (unsigned char)userCount;  // ORIG p[10]
                         SendUserInfoToUpperServer(pkt, channelType, user, (ENUM_SERVER_GROUP)group);
                         userCount = 0;
                     }
@@ -2403,8 +2238,8 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
             }
             if (userCount != 0)
             {
-                *(unsigned short*)(p + 2) = (short)(userCount * 0x4e + 0xc);
-                p[10] = (char)userCount;
+                pkt.packetSize = (unsigned short)(userCount * 0x4e + 0xc);
+                pkt.m_count = (unsigned char)userCount;
                 SendUserInfoToUpperServer(pkt, channelType, lastUser, (ENUM_SERVER_GROUP)group);
                 userCount = 0;
             }
@@ -2425,8 +2260,8 @@ void CGameManager::send_userinfos_to_cutoff_server()
     for (int i = 9; i != -1; --i)
         new (&buckets[i]) STTempUsers();
     Packet_CutOff_UDP_Reply_UserInfo pkt;
-    ((char*)&pkt)[12] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
-    ((char*)&pkt)[13] = *(char*)((char*)G_CEnvironment() + 0x378);
+    pkt.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    pkt.m_group = (unsigned char)((CEnvironment*)G_CEnvironment())->m_serverEnvir.m_serverGroup;
     if (!m_userByAccId.empty())
     {
         std::map<unsigned int, CUser*>::iterator it = m_userByAccId.begin();
@@ -2439,24 +2274,21 @@ void CGameManager::send_userinfos_to_cutoff_server()
                 unsigned int bucketIdx = accId % 10;
                 STTempUsers* bucket = &buckets[bucketIdx];
                 unsigned short n = bucket->m_count;
-                ((int*)buckets)[bucketIdx * 0x259 + n] = (int)accId;
+                bucket->m_ids[n] = (int)accId;
                 bucket->m_count = bucket->m_count + 1;
             }
         }
         for (int i = 0; i < 10; ++i)
         {
-            if (*(unsigned short*)((char*)buckets + i * 0x964) != 0)
+            STTempUsers* bucket = &buckets[i];
+            if (bucket->m_count != 0)  // ORIG *(u16*)(buckets+i*0x964)
             {
-                *(unsigned short*)((char*)&pkt + 2) =
-                    *(unsigned short*)((char*)buckets + i * 0x964) * 4 + 0xe;
-                *(unsigned int*)((char*)&pkt + 6) =
-                    *(unsigned int*)((char*)buckets + 4 + i * 0x964);
-                *(unsigned short*)((char*)&pkt + 10) =
-                    *(unsigned short*)((char*)buckets + i * 0x964);
-                memcpy((char*)&pkt + 16,
-                       (char*)buckets + 4 + i * 0x964,
-                       (unsigned int)*(unsigned short*)((char*)buckets + i * 0x964) * 4);
-                GlobalData::s_double_check_proxy->SendPacket((char*)&pkt, (unsigned int)*(unsigned short*)((char*)buckets + i * 0x964) * 4 + 0xe);
+                pkt.packetSize = (unsigned short)(bucket->m_count * 4 + 0xe);
+                pkt.m_connNo = bucket->m_ids[0];  // ORIG *(u32*)(pkt+6)
+                pkt.m_count = bucket->m_count;    // u16 计数（权威头 +0xa）
+                memcpy(pkt.m_accIds, bucket->m_ids, (unsigned int)bucket->m_count * 4);  // ORIG pkt+0xe
+                GlobalData::s_double_check_proxy->SendPacket(
+                    (char*)&pkt, (unsigned int)(bucket->m_count * 4 + 0xe));
             }
         }
     }
@@ -2520,11 +2352,12 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     }
     user->ResetItemByScript(vecA);
     int curSec2 = GlobalData::s_systemTime_.getCurSec();
-    const void* characR2 = user->getCurCharacR();
-    long lastPlay = *(long*)((char*)characR2 + 0x7b);
-    void* env = G_CEnvironment();
+    // ORIG *(long*)(getCurCharacR()+0x7b) = _Charac_info::m_lastPlayTick
+    //（CharacInfoFields 镜像，CUserCharacInfo::getCurCharacLastPlayTick 同址）。
+    long lastPlay = user->getCurCharacLastPlayTick();
+    CEnvironment* env = G_CEnvironment();
     if (CheckDailyScheduleTime(
-            *(int*)((char*)env + 0x37c), lastPlay, curSec2))
+            env->m_serverEnvir.m_fatigueTime, lastPlay, curSec2))  // ORIG env+0x37c
     {
         std::vector<std::pair<int, int> > vecC;
         user->deleteDailyStackableItem(vecC, 3, 8);
@@ -2662,20 +2495,20 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     pics->clear();
     user->ReCalcChattingEmoticon();
     user->SendChattingEmoticon();
-        Packet_Monitor_Char_Info monitor;  // ORIG ctor 0x82a3ffa
-    *(unsigned int*)((char*)&monitor + 0xa) = user->get_acc_id();
-    ((char*)&monitor)[0xe] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
-    ((char*)&monitor)[0x3d] = (char)G_GameWorld()->GetChannelType();
-    *(unsigned int*)((char*)&monitor + 0xf) = (unsigned int)user->get_charac_no(-1);
-    *(unsigned int*)((char*)&monitor + 0x13) = user->get_charac_guildkey();
-    ((char*)&monitor)[0x17] = user->get_charac_job();
-    ((char*)&monitor)[0x18] = user->getCurCharacGrowType();
-    *(unsigned short*)((char*)&monitor + 0x19) = user->get_charac_level();
-    *(unsigned int*)((char*)&monitor + 0x1b) = user->get_charac_memberkey();
+    Packet_Monitor_Char_Info monitor;  // ORIG ctor 0x82a3ffa
+    monitor.m_dbid = user->get_acc_id();
+    monitor.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    monitor.m_channelType = (char)G_GameWorld()->GetChannelType();
+    monitor.m_charNo = user->get_charac_no(-1);
+    monitor.m_guildKey = user->get_charac_guildkey();
+    monitor.m_job = user->get_charac_job();
+    monitor.m_grade = user->getCurCharacGrowType();
+    monitor.m_level = user->get_charac_level();
+    monitor.m_memberKey = user->get_charac_memberkey();
     const char* name = user->getCurCharacName();
     int nameLen = (int)strlen(name);
-    memcpy((char*)&monitor + 0x1f, user->getCurCharacName(), nameLen);
-    ((char*)&monitor)[0x3e] = user->IsReturnUserFirstLogin();
+    memcpy(monitor.m_name, name, nameLen);
+    monitor.m_returnUser = user->IsReturnUserFirstLogin();
     int serverGroup = (int)(size_t)user->GetServerGroup();
     CMonitorServerProxy* monitorProxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)serverGroup);
     monitorProxy->SendTcpPacket((char*)&monitor, 0x3f);
@@ -2759,6 +2592,69 @@ void CGameManager::user_disconnect(CUser* user)
             returnUserPool(user);
         }
 }
+}
+
+// ORIG 0x82985a8 _ZN12CGameManager9user_exitEP5CUser：主动登出路径。
+// 与 user_disconnect 的差异：state==0 视为异常直接拒绝；state<3 分支
+// UpdateLogout(false)（disconnect 为 true）；无 DeleteRentalItemInfo；
+// state>=3 分支末尾 ResetEpoll + checkLogOutCorrectly。
+bool CGameManager::user_exit(CUser* user)
+{
+    if (user == 0)
+    {
+        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x1271, 5);
+        tr("USER_EXIT [%s][%d]", "bool CGameManager::user_exit(CUser*)", 0x1271);
+        return false;
+    }
+    if (user->get_state() == 0)
+    {
+        unsigned int mid = user->get_acc_id();
+        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x127a, 5);
+        tr("USER_EXIT STATE NONE [%s][%d]mid(%d)",
+           "bool CGameManager::user_exit(CUser*)", 0x127a, mid);
+        return false;
+    }
+    HistoryLog::LogClose((FILE*)user->m_field796f8);   // ORIG *(user+0x796f8)
+    user->prepareDisconnect();
+    G_GameWorld()->EraseLoginUser(user);
+    if (user->get_state() < 3)
+    {
+        user->SetSaveRentalInfoToExchange(false);
+        user->LogoutCachedCharacter(0);
+        user->UpdateLogout(false);
+    }
+    else
+    {
+        CheckOutTrade(user);
+        CheckOutParty(user, true);
+        CheckOutPvp(user, false);
+        CheckOutWarRoom(user);
+        checkOutDeathTower(user);
+        checkOutBossTower(user);
+        checkOutAdvanceAltar(user);
+        checkOutBlueMarble(user);
+        G_GameWorld()->leave_game_world(user);
+        user->SetGameMasterMode(false);
+        user->UpdateData();
+        user->LogoutCachedCharacter(0);
+        user->UpdateLogout(false);
+        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x12dc, 0);
+        tr("ID: %s - UID: %d from Logout",
+           user->getCurCharacName(), user->get_unique_id() & 0xffff);
+        int err = G_EpollHandler()->ResetEpoll(user->m_network.get_socket());
+        if (err != 0)
+        {
+            LogManager::logFormat(1, "App.cpp", "bool CGameManager::user_exit(CUser*)", 0x12e3,
+                                  "(m_id: %s) G_EpollHandler()->ResetEpoll(pUser->get_socket(%d)) %d(%s)",
+                                  NumberToString(user->get_acc_id(), 0),
+                                  user->m_network.get_socket(), err, strerror(err));
+        }
+        user->ResetCurCharac();
+        user->doLinkCharacDisconnect();
+        returnUserPool(user);
+        user->checkLogOutCorrectly();
+    }
+    return true;
 }
 CGameManager::CGameManager()
     : m_mutex(), m_uid(0), m_pad1a(), m_noGameGuard(), m_gameGuard2(),

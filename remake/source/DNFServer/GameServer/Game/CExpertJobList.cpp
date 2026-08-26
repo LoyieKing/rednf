@@ -72,20 +72,18 @@ void STExpertJobScript::Clear()
     m_expVec.clear();
     m_growSkillVec.clear();
     m_portableDisjointMap.clear();
-    for (int i = 0; i < 3; ++i) m_disjointSelfService[i] = 0;
+    m_selfDisjoin.clear();   // ORIG：stSelfDisjoinMaterialInfo::clear @0x0896dbe6
     m_shopDollMap.clear();
     m_unsealScrollMap.clear();
     m_monsterCardBindRateMap.clear();
-    for (int i = 0; i < 4; ++i) { m_bindListCnt[i] = 0; m_bindList[i].clear(); }
-    for (int i = 0; i < 4; ++i) { m_bindOnlyCnt[i] = 0; m_bindOnly[i].clear(); }
+    m_commonBindInfo.clear();    // ORIG：this+0x84 BindInfo clear
+    m_specialBindInfo.clear();   // ORIG：this+0xc4 BindInfo clear
     m_alchemistExtractInfo.clear();
     m_enchanterExtractInfo.clear();
     m_dollExtractInfo.clear();
-    for (int i = 0; i < 3; ++i) { m_alchemistResult[i].clear(); }
-    m_enchanterResultCnt = 0;
-    m_enchanterResult.clear();
-    for (int i = 0; i < 3; ++i) m_extractResultCnt[i] = 0;
-    for (int i = 0; i < 3; ++i) m_dollResult[i].clear();
+    m_alchemistResultInfo.clear();
+    m_enchanterResultInfo.clear();
+    m_dollResultInfo.clear();
     m_disjointResultMap.clear();
     m_baseConst = 0;
     m_additionalConst = 0;
@@ -385,11 +383,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[disjoint self service]")
             {
-                script->m_disjointSelfService[0] = ScanInt(&ok);
+                script->m_selfDisjoin.m_field0 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_disjointSelfService[1] = ScanInt(&ok);
+                script->m_selfDisjoin.m_field4 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_disjointSelfService[2] = ScanInt(&ok);
+                script->m_selfDisjoin.m_field8 = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[shop doll info]")
@@ -458,11 +456,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field8 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_bindOnly[idx].push_back(res);
+                    script->m_specialBindInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field8;
                 }
                 for (int i = 0; i < 4; ++i)
-                    script->m_bindOnlyCnt[i] = cnt[i];
+                    script->m_specialBindInfo.m_count[i] = cnt[i];
             }
             else if (section == "[monstercard bind list]")
             {
@@ -476,11 +474,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field8 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_bindList[idx].push_back(res);
+                    script->m_commonBindInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field8;
                 }
                 for (int i = 0; i < 4; ++i)
-                    script->m_bindListCnt[i] = cnt[i];
+                    script->m_commonBindInfo.m_count[i] = cnt[i];
             }
             else if (section == "[alchemist extraction info]")
             {
@@ -561,11 +559,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                             "import expertjob script - [alchemist extraction result item] result_type is invalid");
                         return false;
                     }
-                    script->m_alchemistResult[idx].push_back(res);
+                    script->m_alchemistResultInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field8;
                 }
                 for (int i = 0; i < 3; ++i)
-                    script->m_extractResultCnt[i] = cnt[i];
+                    script->m_alchemistResultInfo.m_count[i] = cnt[i];
             }
             else if (section == "[enchanter extraction result item]")
             {
@@ -578,9 +576,9 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     res.m_field8 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     total += (int)res.m_field8;
-                    script->m_enchanterResult.push_back(res);
+                    script->m_enchanterResultInfo.m_vec.push_back(res);
                 }
-                script->m_enchanterResultCnt = total;
+                script->m_enchanterResultInfo.m_count = total;
             }
             else if (section == "[doll_controller extraction result item]")
             {
@@ -620,11 +618,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         idx = 0;
                     }
-                    script->m_dollResult[idx].push_back(res);
+                    script->m_dollResultInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field8;
                 }
                 for (int i = 0; i < 3; ++i)
-                    script->m_extractResultCnt[i] = cnt[i];
+                    script->m_dollResultInfo.m_count[i] = cnt[i];
             }
         }
         return true;

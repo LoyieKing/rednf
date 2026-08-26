@@ -373,9 +373,9 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_stackable = 0;
     m_int58 = script.m_184;
     m_int5c = script.m_180;
-    m_randomTable.m_field10 = *(const int*)((const char*)&script.m_pad738 + 0x18);
+    m_randomTable.m_field10 = (int)script.m_artifact738.m_expRate;
     m_randomTable.m_field14 = script.m_6bc;
-    m_randomTable.m_field20 = *(const int*)((const char*)&script.m_pad738 + 0x00);
+    m_randomTable.m_field20 = script.m_artifact738.m_minLevel;
     if (script.m_field1b4 == 0x16)
     {
         switch (script.m_1b8)
@@ -508,14 +508,11 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_auraOptionValue = script.m_884;
     {
         // ORIG 依字节偏移读 STEquipmentScript +0x81c/+0x820/+0x824/+0x828
-        //（位于 m_pad81c 内）。
-        const char* base = (const char*)&script.m_pad81c;
-        int uVar4 = *(const int*)(base + 0x04);
-        m_field1e0 = *(const int*)(base + 0x00);
-        m_field1e4 = uVar4;
-        uVar4 = *(const int*)(base + 0x0c);
-        m_field1e8 = *(const int*)(base + 0x08);
-        m_field1ec = uVar4;
+        //（+0x81c/+0x820=wpBonus、+0x824/+0x828=expBonus，具名成员见 STEquipmentScript.h）。
+        m_field1e0 = script.m_wpBonus81c.m_type;
+        m_field1e4 = script.m_wpBonus81c.m_value;
+        m_field1e8 = script.m_expBonus824.m_type;
+        m_field1ec = script.m_expBonus824.m_value;
     }
     m_avatarAbility = script.m_param1c0.m_avatar264;
     if (script.m_890 == 1)

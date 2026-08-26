@@ -11,8 +11,7 @@
 #define CELECTION_GET_ELECTED(V, C)                                          \
     do                                                                       \
     {                                                                        \
-        int tally[C];                                                        \
-        std::fill(tally, tally + (C), 0);                                    \
+        int tally[C] = { 0 };                                                \
         for (int i = 0; i <= (V) - 1; ++i)                                   \
             for (int j = 0; j <= (C) - 1; ++j)                               \
                 tally[j] += m_voters[i].m_votes[j];                          \
@@ -120,56 +119,58 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 #include <cstring>
 #include "CMap.h"
 
-struct CMapPathArea
-{
-    int m_x;
-    int m_y;
-    int m_width;
-    int m_height;
-};
+// isInArea / makePathArea / isInPathArea —— ORIG 全局函数（mangled _Z8isInAreaiiP7MapArea
+// _Z12makePathAreaP7MapAreaPA2_KiS3_ _Z12isInPathAreaiiPA2_KiS1_）。
+// 语义（报告 08891c18 / 0889203b / 08891f20）：
+//   makePathArea(areas, area1(坐标), area2(宽高))：宽/高取自 area2（≤0 用默认值），
+//   坐标取 area1 并裁剪到区域内；isInArea 为严格半开区间 [x0,x0+w)×[y0,y0+h)。
+// 默认为第 0/1 区 w=0x78 h=0x6a；第 2/3 区 w=0x8c h=0x28。
+// 实现地点：CMap.cpp（本域）；MapArea 权威定义见 CVillageMonsterMgr.h。
 
-static bool isInArea(int x, int y, const CMapPathArea& area)
+int isInArea(int x, int y, MapArea* area)
 {
-    return x > area.m_x && x <= area.m_x + area.m_width &&
-           y > area.m_y && y <= area.m_y + area.m_height;
+    if (x < area->m_x)
+        return 0;
+    if (x >= area->m_x + area->m_w)
+        return 0;
+    if (y < area->m_y)
+        return 0;
+    if (y >= area->m_y + area->m_h)
+        return 0;
+    return 1;
 }
 
-static void makePathArea(CMapPathArea areas[4],
-                         const int area1[][2], const int area2[][2])
+void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
 {
-    static const int defaults[4] = { 0x78, 0x6a, 0x8c, 0x14 };
     for (int i = 0; i < 4; ++i)
     {
-        const bool firstHalf = i < 2;
-        const int defaultWidth = firstHalf ? defaults[0] : defaults[2];
-        const int defaultHeight = firstHalf ? defaults[1] : defaults[3];
-        areas[i].m_width = area1[i][0] > 0 ? area1[i][0] : defaultWidth;
-        areas[i].m_height = area1[i][1] > 0 ? area1[i][1] : defaultHeight;
-        if (firstHalf)
+        if (i == 0 || i == 1)
         {
-            areas[i].m_x = i == 0 ? area2[i][0]
-                                  : area2[i][0] - areas[i].m_width;
-            areas[i].m_y = area2[i][1] > 0
-                ? area2[i][1] - areas[i].m_height / 2
-                : defaultHeight;
+            areas[i].m_w = area2[i][0] > 0 ? area2[i][0] : 0x78;
+            areas[i].m_h = area2[i][1] > 0 ? area2[i][1] : 0x6a;
+            if (i == 0)
+                areas[i].m_x = area1[i][0];
+            else
+                areas[i].m_x = area1[i][0] - areas[i].m_w;
+            areas[i].m_y = area1[i][1] - areas[i].m_h / 2;
         }
         else
         {
-            areas[i].m_x = area2[i][0] - areas[i].m_width / 2;
-            areas[i].m_y = area2[i][1] > 0
-                ? area2[i][1] - areas[i].m_height / 2
-                : 0x28;
+            areas[i].m_w = area2[i][0] > 0 ? area2[i][0] : 0x8c;
+            areas[i].m_h = area2[i][1] > 0 ? area2[i][1] : 0x28;
+            areas[i].m_x = area1[i][0] - areas[i].m_w / 2;
+            areas[i].m_y = area1[i][1] - areas[i].m_h / 2;
         }
     }
 }
 
 int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2])
 {
-    CMapPathArea areas[4];
+    MapArea areas[4];
     makePathArea(areas, area1, area2);
     for (int i = 0; i < 4; ++i)
     {
-        if (isInArea(x, y, areas[i]))
+        if (isInArea(x, y, &areas[i]))
             return 1;
     }
     return 0;
@@ -183,13 +184,17 @@ int monsterLevel(const STAssignMonster& monster)
 
 void makeMapMonster(_mapMonster& out, const STAssignMonster& in)
 {
+    // ORIG insert_monster 0834e9d4 / insert_condition_monster 0834ead4：
+    // 字段映射（非直译字段名，与 STAssignMonster 偏移对应）：
+    //   +0x0c m_spawnType ← m_20；+0x10 m_levelAdd ← m_1c；+0x14 m_field14 ← m_18；
+    //   +0x18 m_roleType ← m_24；+0x24 m_level ← m_14/10。
     out.m_mobId = in.m_0;
     out.m_flag04 = in.m_4;
     out.m_field08 = in.m_8;
-    out.m_posX = in.m_20;
-    out.m_champion = in.m_1c;
-    out.m_roleType = in.m_18;
-    out.m_field14 = in.m_14;
+    out.m_spawnType = in.m_20;
+    out.m_levelAdd = in.m_1c;
+    out.m_field14 = in.m_18;
+    out.m_roleType = in.m_24;
     out.m_level = monsterLevel(in);
     out.m_hpPct = in.m_4c;
     out.m_orderIdx = in.m_50;
@@ -197,8 +202,6 @@ void makeMapMonster(_mapMonster& out, const STAssignMonster& in)
     out.m_mobList = in.m_vec28;
 }
 }
-
-// ============================================================================
 // _mapItem / _mapMonster 生命周期 —— 唯一定义点（声明见 CMap.h）。
 // ============================================================================
 
@@ -254,8 +257,11 @@ _mapMonster::~_mapMonster() {}
 
 
 CMap::CMap()
-    : m_bossCount(0), m_assignedNpcCount(0)
 {
+    // ORIG 0834dcda：容器构造后清 this+0(m_bossCount) 与 this+0x7c(m_assignedNpcCount)。
+    // 写在 body 使其位于容器构造之后（匹配 ORIG movl $0,(%eax)/movl $0,0x7c(%eax) 顺序）。
+    m_bossCount = 0;
+    m_assignedNpcCount = 0;
 }
 
 CMap::~CMap()
@@ -274,10 +280,10 @@ void CMap::destroy()
 
 void CMap::destory()
 {
-    destroy();
+    // ORIG 0834ed1e：空体（push/mov/pop/ret，仅返回）。
 }
 
-int CMap::checkFitInPathObject(int x, int y) const
+bool CMap::checkFitInPathObject(int x, int y) const
 {
     return isInPathArea(x, y,
                         reinterpret_cast<const int (*)[2]>(m_pathArea1),
@@ -301,8 +307,8 @@ int CMap::insert_monster(STAssignMonster monster, int area)
     makeMapMonster(item, monster);
     if (area != -1)
     {
-        item.m_flag30 = 1;
-        item.m_orderIdx = area;
+        item.m_champion = 1;
+        item.m_posX = area;      // ORIG 0834ea80/0834ea84：area!=-1 时 m_champion=1, m_posX=area
     }
     m_monsterList.push_back(item);
     return 1;
@@ -310,14 +316,17 @@ int CMap::insert_monster(STAssignMonster monster, int area)
 
 void CMap::insert_condition_monster(STAssignMonster monster)
 {
+    // ORIG 0834ead4：仅拷贝 mobId/flag04/field08/spawnType(m_20)/levelAdd(m_1c)/
+    // field14(m_18)/roleType(m_24)/level(m_14/10)/orderIdx(m_50)。
+    // 不拷贝 m_hpPct/m_flag30/m_mobList/m_champion/m_posX（保持 ctor 默认）。
     _mapMonster item;
     item.m_mobId = monster.m_0;
     item.m_flag04 = monster.m_4;
     item.m_field08 = monster.m_8;
-    item.m_posX = monster.m_20;
-    item.m_champion = monster.m_1c;
-    item.m_roleType = monster.m_18;
-    item.m_field14 = monster.m_14;
+    item.m_spawnType = monster.m_20;
+    item.m_levelAdd = monster.m_1c;
+    item.m_field14 = monster.m_18;
+    item.m_roleType = monster.m_24;
     item.m_level = monsterLevel(monster);
     item.m_orderIdx = monster.m_50;
     m_conditionMonsterList.push_back(item);
@@ -348,19 +357,19 @@ int CMap::CheckEntrance(int flag) const
 }
 int CMap::set_map(STMapScript script)
 {
-    m_4 = script.m_0;
+    m_4 = script.m_index;
     m_8 = script.m_c;
-    m_80 = script.m_4c;
-    m_entranceVec = script.m_vec10;
+    m_80 = script.m_championRate;
+    m_entranceVec = script.m_recoveryObjects;
     m_pathObjectList = script.m_list4;
-    m_bloodSystem = script.m_vec288;
-    m_bloodPhaseTime = script.m_vec294;
-    m_b4 = script.m_284;
-    std::memcpy(m_pathArea1, script.m_pathArea1, sizeof(m_pathArea1));
-    std::memcpy(m_pathArea2, script.m_pathArea2, sizeof(m_pathArea2));
+    m_bloodSystem = script.m_vecBloodSystem;
+    m_bloodPhaseTime = script.m_vecBloodPhaseTime;
+    m_b4 = script.m_maxMonsterDropException;
+    std::memcpy(m_pathArea1, script.m_pathgatePos, sizeof(m_pathArea1));
+    std::memcpy(m_pathArea2, script.m_pathgateRange, sizeof(m_pathArea2));
 
-    for (std::vector<STAssignMonster>::const_iterator it = script.m_vec34.begin();
-         it != script.m_vec34.end(); ++it)
+    for (std::vector<STAssignMonster>::const_iterator it = script.m_vecMonster.begin();
+         it != script.m_vecMonster.end(); ++it)
     {
         STAssignMonster monster = *it;
         if (m_8 == 2 && monster.m_14 == 3)
@@ -370,15 +379,15 @@ int CMap::set_map(STMapScript script)
         insert_monster(monster, -1);
     }
 
-    for (std::vector<STAssignMonster>::const_iterator it = script.m_vec40.begin();
-         it != script.m_vec40.end(); ++it)
+    for (std::vector<STAssignMonster>::const_iterator it = script.m_vecConditionMonster.begin();
+         it != script.m_vecConditionMonster.end(); ++it)
     {
         insert_condition_monster(*it);
     }
 
     int area = 0;
-    for (std::list<STAssignSpecialPassiveObj>::const_iterator obj = script.m_list58.begin();
-         obj != script.m_list58.end(); ++obj, ++area)
+    for (std::list<STAssignSpecialPassiveObj>::const_iterator obj = script.m_listSpecialPassive.begin();
+         obj != script.m_listSpecialPassive.end(); ++obj, ++area)
     {
         for (std::vector<SPOBJ_ACTION_DATAS>::const_iterator action = obj->m_vec10.begin();
              action != obj->m_vec10.end(); ++action)
@@ -402,22 +411,22 @@ int CMap::set_map(STMapScript script)
         }
     }
 
-    m_rivalData1 = script.m_vec250;
-    m_rivalData2 = script.m_vec278;
-    m_78 = script.m_268;
-    m_aiCharacters = script.m_vec25c;
-    m_assignedNpcCount = static_cast<int>(script.m_vec60.size());
-    for (std::list<STAssignPassiveObject>::const_iterator it = script.m_list2c.begin();
-         it != script.m_list2c.end(); ++it)
+    m_rivalData1 = script.m_vecMonsterSpawnPos;
+    m_rivalData2 = script.m_vecEventMonsterPos;
+    m_78 = script.m_apcRandomPoint;
+    m_aiCharacters = script.m_vecAICharacter;
+    m_assignedNpcCount = static_cast<int>(script.m_vecNpc.size());
+    for (std::list<STAssignPassiveObject>::const_iterator it = script.m_listPassiveObject.begin();
+         it != script.m_listPassiveObject.end(); ++it)
     {
         m_passiveObjectList.push_back(it->m_0);
     }
-    m_ec = script.m_324;
+    m_ec = script.m_maxMonsterCountException;
     m_f0 = script.m_328;
-    m_timeLine = script.m_timeLine330;
+    m_timeLine = script.m_timeLine;
     m_110 = script.m_178;
-    m_tournamentMap = script.m_map2b8;
-    m_12c = script.m_36e;
+    m_tournamentMap = script.m_tournamentMonsters;
+    m_12c = script.m_fixChampion;
     return 1;
 }
 

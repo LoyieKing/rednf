@@ -237,12 +237,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         }
         case 4:  // 背包→交易窗口
         {
-            CTradeSpace* trade = G_CGameManager()->GetTradeSpace((int)m_field8d002);
+            CTradeSpace* trade = G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
             if (trade == 0)
                 return 1;
             if (trade->is_empty())
             {
-                m_field8d002 = -1;
+                m_tradeSpaceIdx = -1;
                 return 0x15;
             }
             if (trade->check_trade_possibility() == 1)
@@ -378,12 +378,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         else if (toSpace == 4)
         {
             CTradeSpace* trade =
-                G_CGameManager()->GetTradeSpace((int)m_field8d002);
+                G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
             if (trade == 0)
                 return 1;
             if (trade->is_empty())
             {
-                m_field8d002 = -1;
+                m_tradeSpaceIdx = -1;
                 return 0x15;
             }
             if (trade->check_trade_possibility() == 1)
@@ -578,12 +578,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         case 4:  // 装备→交易窗口
         {
             CTradeSpace* trade =
-                G_CGameManager()->GetTradeSpace((int)m_field8d002);
+                G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
             if (trade == 0)
                 return 1;
             if (trade->is_empty())
             {
-                m_field8d002 = -1;
+                m_tradeSpaceIdx = -1;
                 return 0x15;
             }
             if (trade->check_trade_possibility() == 1)
@@ -640,12 +640,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         if ((unsigned int)toSpace > 7u || ((1u << toSpace) & 0x8bu) == 0)
             return 1;
 
-        CTradeSpace* trade = G_CGameManager()->GetTradeSpace((int)m_field8d002);
+        CTradeSpace* trade = G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
         if (trade == 0)
             return 1;
         if (trade->is_empty())
         {
-            m_field8d002 = -1;
+            m_tradeSpaceIdx = -1;
             return 0x15;
         }
         if (trade->check_trade_possibility() == 1)
@@ -672,12 +672,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         if (toSpace == 4)
         {
             CTradeSpace* trade =
-                G_CGameManager()->GetTradeSpace((int)m_field8d002);
+                G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
             if (trade == 0)
                 return 1;
             if (trade->is_empty())
             {
-                m_field8d002 = -1;
+                m_tradeSpaceIdx = -1;
                 return 0x15;
             }
             if (trade->check_trade_possibility() == 1)

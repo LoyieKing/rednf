@@ -14,6 +14,7 @@
 class CUser;      // 前向（参数指针；完整定义在 CUser.h）
 class Inven_Item; // 前向（容器元素；完整定义在 Inven_Item.h）
 class CCeraShopGoods;  // 前向（_CheckBuyingCondition/_CheckValidCount 形参；完整定义在 CItemList.h）
+class CItem;      // 前向（autoUnsealItem 形参；完整定义在 CItem.h）
 
 // ORIG SpecialItemHandler 为全局类（mangled _ZN18SpecialItemHandler…，非 WongWork 前缀）。
 // 仅 CCeraShop 持有指针；权威声明见 SpecialItemHandler.h，实现见 CCeraShop_Special.cpp。
@@ -42,7 +43,8 @@ struct tagPackageItemSelection
 namespace WongWork
 {
 
-// ORIG 布局：+0x00 SpecialItemHandler* m_handler（ctor new 0x74）+0x04 void* m_field4；
+// ORIG 布局：+0x00 SpecialItemHandler* m_handler（ctor new 0x74）+0x04 int
+// m_originalItemIdx（setOriginalItem 0x08327ee6 写入 / getOriginalItem 0x08327ef4 读取）；
 // ctor 0x083202b8 / dtor 0x08320314，对象 sizeof = 8（非多态）。
 class CCeraShop
 {
@@ -88,6 +90,7 @@ public:
     // ---- SpecialItemHandler::respond_special_item_* 消费的 CCeraShop 方法 ----
     // （声明自 ORIG mangled 符号；实现由 CCeraShop 还原批次提供，见 WongWork__CCeraShop 报告。）
     void setOriginalItem(int itemIdx);                                            // 0x08327ee6
+    int getOriginalItem();                                                        // 0x08327ef4
     void _onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM kind,
                            unsigned long itemIdx);                                // 0x08327454
     void _sendCargoUpgradePacket(CUser* user, int type);                          // 0x08327726
@@ -103,10 +106,21 @@ public:
                                 std::vector<Inven_Item>& items,
                                 stCeraShopItemParam_t& param,
                                 unsigned char flag);                              // 0x083267a2
+    // ---- 特殊商品子流程（本 TU 实现；签名与 ORIG mangled 一致）----
+    bool Is2010ChuseokPacket(unsigned long itemIdx);                           // 0x083280dc
+    void _processCoin(CUser* user, unsigned short value, bool flag);            // 0x08325a88
+    void autoUnsealItem(const CItem* item, Inven_Item& invItem);                // 0x08327f10
+    int _processItem(CUser* user, Inven_Item item, int count, int& restrictCode,
+                     long curSec, bool flag, bool save,
+                     std::vector<Inven_Item>& items,
+                     stCeraShopItemParam_t& param);                              // 0x08325b22
+    int _processCreature(CUser* user, Inven_Item item, int& outCode,
+                         int& outFlag, bool flag, int usablePeriod,
+                         int expirationDate);                                    // 0x08325d66
 
 private:
     SpecialItemHandler* m_handler;  // +0x00
-    void* m_field4;                 // +0x04
+    int m_originalItemIdx;          // +0x04（setOriginalItem 写入 / getOriginalItem 读取）
 };
 
 }  // namespace WongWork

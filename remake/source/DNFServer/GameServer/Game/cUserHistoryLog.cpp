@@ -3,44 +3,41 @@
 // +0x04 m_traderAccount[0x1e]、+0x22 m_traderCharac[0x1e]（首字节当"交易中"标志）、+0x40 m_pad。
 #include "CUser.h"
 #include "SkillSlot.h"        // CSkillChanger / SkillSlot / _Mastered_skill（SkillSPInfoSave/SkillSave 依赖）
-#include "DNFFunctionLib.h"   // NumberToString
+#include "DNFFunctionLib.h"   // NumberToString / DNFFLib::Binary2Hex
 #include <cstring>            // strncpy
 #include <cstdio>             // sprintf
 #include <vector>
 #include <utility>
 #include "CEnvironment.h"     // G_CEnvironment / get_server_group（Logout）
 #include "Secu_HackLogCheckByParty.h"  // MSG_MONSTER_DIE 完整定义（KillMonster）
+#include "CInventory.h"      // GetInvenRef / get_money（Login 实际使用完整类型）
 
 
-// ---- 本地辅助（ORIG 依赖 CItemGloballyUniqueIdentifierPrint / getItemXPos / getItemYPos，
-//      三者均未在重建源码中还原，故此处在文件内实现等价行为并标「推断」）----
-// GUID 十六进制串：ORIG 用 CItemGloballyUniqueIdentifierPrint::operator() 把
-// item+0x15 的 0x11 字节 GUID 渲染为大写 hex 字符串（返回指针供 %s）。此处等价复刻。【推断】
-static const char* itemGUIDToHex(const Inven_Item& item)
+#include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
+
+// ---- CItemGloballyUniqueIdentifierPrint（ORIG W 0x84ebe58 族实证）----
+// ctor：memset(this,0,0x15)；operator()：DNFFLib::Binary2Hex(&guid,0xa,this)，返回缓冲；
+// dtor 空。0xa 字节 → 20 hex 字符 + NUL = 0x15 缓冲尺寸吻合。
+class CItemGloballyUniqueIdentifierPrint
 {
-    static char s_buf[17 * 2 + 1];
-    static const char hex[] = "0123456789ABCDEF";
-    const unsigned char* p = (const unsigned char*)&item + 0x15;
-    for (int i = 0; i < 17; ++i)
+public:
+    CItemGloballyUniqueIdentifierPrint()
     {
-        s_buf[i * 2]     = hex[(p[i] >> 4) & 0xf];
-        s_buf[i * 2 + 1] = hex[p[i] & 0xf];
+        memset(m_buf, 0, sizeof(m_buf));
     }
-    s_buf[34] = 0;
-    return s_buf;
-}
+    ~CItemGloballyUniqueIdentifierPrint() {}
 
-// item X/Y 网格坐标：ORIG 从 (m_user + 0x79700) 读取（该地址实为用户自身 cUserHistoryLog
-// 子对象，原 getItemXPos/getItemYPos 全局函数体未还原）。此处按报告口径从入参首字节读取
-// ushort 作占位，语义待 getItemXPos/getItemYPos 还原后替换。【推断】
-static unsigned short getItemXPos(const void* p)
-{
-    return *(const unsigned short*)p;
-}
-static unsigned short getItemYPos(const void* p)
-{
-    return *((const unsigned short*)p + 1);
-}
+    const char* operator()(const itemGloballyUniqueIdentifier_t& guid)
+    {
+        DNFFLib::Binary2Hex(reinterpret_cast<const unsigned char*>(&guid), 0xa, m_buf);
+        return m_buf;
+    }
+
+private:
+    char m_buf[0x15];
+};
+
+
 // 构造：仅清零 m_user（ORIG 0x8695fe4，C1/C2 同址）
 cUserHistoryLog::cUserHistoryLog()
 {
@@ -98,34 +95,39 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
-    if (!m_user)
-        return;
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
-    unsigned int upgrade = item.GetUpgrade();
-    unsigned int reseal = item.GetReSealCount();
-    if (reason == static_cast<eItemAddReason>(1) ||
-        reason == static_cast<eItemAddReason>(2))
+    if ((int)reason == 1 || (int)reason == 2)
     {
-        if (m_traderCharac[0] == 0)
-            return;
-        m_user->LogHistory(
-            "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
-            "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-            (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-            m_traderCharac, m_traderAccount,
-            upgrade & 0xff, (unsigned)item.m_fieldb,
-            raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
-            raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
-            raw[0x31], raw[0x32],
-            reseal & 0xff, itemGUIDToHex(item));
-    }
-    else
-    {
-        // ORIG：getItemXPos/YPos(*(int*)this + 0x79700)；该全局函数未还原，
-        // 按现有占位 helper 从指针首部取 ushort。【推断】
-        const void* posSrc = *reinterpret_cast<char* const*>(this) + 0x79700;
-        unsigned short xPos = getItemXPos(posSrc);
-        unsigned short yPos = getItemYPos(posSrc);
+        if (*(const char*)((const char*)this + 0x22) != 0)
+        {
+            // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
+            CItemGloballyUniqueIdentifierPrint print;
+            const char* guid = print(
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+            unsigned int reseal = item.GetReSealCount();
+            unsigned int upgrade = item.GetUpgrade();
+            m_user->LogHistory(
+                "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
+                "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
+                (int)invenType, item.m_addInfo, a3, a4, (int)reason,
+                m_traderCharac, m_traderAccount,
+                upgrade & 0xff, (unsigned)item.m_fieldb,
+                raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
+                raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
+                raw[0x31], raw[0x32],
+                reseal & 0xff, guid);
+        }
+        // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
+        const cUserHistoryLog* posSrc =
+            reinterpret_cast<const cUserHistoryLog*>(
+                *reinterpret_cast<char* const*>(this) + 0x79700);
+        unsigned short xPos = posSrc->getItemXPos();
+        unsigned short yPos = posSrc->getItemYPos();
+        CItemGloballyUniqueIdentifierPrint print;
+        const char* guid = print(
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+        unsigned int reseal = item.GetReSealCount();
+        unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
             "Item+,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
             "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -137,7 +139,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
             raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
             raw[0x31], raw[0x32],
-            reseal & 0xff, itemGUIDToHex(item));
+            reseal & 0xff, guid);
     }
 }
 
@@ -146,16 +148,17 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
-    if (!m_user)
-        return;
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
-    unsigned int upgrade = item.GetUpgrade();
-    unsigned int reseal = item.GetReSealCount();
-    if (reason == static_cast<eItemDelReason>(1) ||
-        reason == static_cast<eItemDelReason>(2))
+    if ((int)reason == 1 || (int)reason == 2)
     {
-        if (m_traderCharac[0] != 0)
+        if (*(const char*)((const char*)this + 0x22) != 0)
         {
+            // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
+            CItemGloballyUniqueIdentifierPrint print;
+            const char* guid = print(
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+            unsigned int reseal = item.GetReSealCount();
+            unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
                 "Item-,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
                 "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -165,11 +168,16 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                 raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
                 raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
                 raw[0x31], raw[0x32],
-                reseal & 0xff, itemGUIDToHex(item));
+                reseal & 0xff, guid);
         }
     }
     else
     {
+        CItemGloballyUniqueIdentifierPrint print;
+        const char* guid = print(
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+        unsigned int reseal = item.GetReSealCount();
+        unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
             "Item-,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
             "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -180,20 +188,23 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
             raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
             raw[0x31], raw[0x32],
-            reseal & 0xff, itemGUIDToHex(item));
+            reseal & 0xff, guid);
     }
 
     // Compound 补丁块（ORIG +0x543）：reason==8 && m_field1(ITEM_TYPE)==1。
     if ((int)reason == 8 && item.m_field1 == 1)
     {
+        unsigned int lockV = item.m_amp.GetLock();
+        unsigned int valueV = item.m_amp.getAbilityValue();
+        unsigned int typeV = item.m_amp.getAbilityType();
         m_user->LogHistory(
             "Compound-,%u,%d,%d,%d,%d,%d,%d,%d,",
-            (unsigned)item.m_addInfo, upgrade & 0xff, item.get_add_info(),
+            (unsigned)item.m_addInfo, item.GetUpgrade() & 0xff, item.get_add_info(),
             (unsigned)(item.m_upgradeSep.m_field & 0x1f),
             item.m_fieldd,
-            (unsigned)item.m_amp.getAbilityType() & 0xff,
-            (unsigned)item.m_amp.getAbilityValue() & 0xffff,
-            (unsigned)item.m_amp.GetLock() & 0xff);
+            typeV & 0xff,
+            valueV & 0xffff,
+            lockV & 0xff);
     }
 }
 
@@ -256,6 +267,33 @@ void cUserHistoryLog::MoneySub(int money, int sub, eMoneySubReason reason)
     } else {
         m_user->LogHistory("Money-,%d,%d,%d", money, sub, static_cast<int>(reason));
     }
+}
+
+// ORIG T 0x8682cc8（0x32 字节）：LogHistory("WP-,%d,%d,%d", cur, sub, reason)。
+void cUserHistoryLog::WPSub(int cur, int sub, eWPSubReason reason)
+{
+    m_user->LogHistory("WP-,%d,%d,%d", cur, sub, static_cast<int>(reason));
+}
+
+// ORIG T 0x8685bb8（0x40 字节）：GuildAddExp,"%d/%d/%d",%d,"%s",%d,%d
+// （年/月/日/guildKey/guildDBInfo/characNo/exp）。
+void cUserHistoryLog::GuildAddExp(unsigned int guildKey,
+                                  const char* guildDBInfo,
+                                  unsigned int characNo, int exp)
+{
+    const time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm local;
+    localtime_r(&now, &local);
+    m_user->LogHistory(
+        "GuildAddExp,\"%d/%d/%d\",%d,\"%s\",%d,%d",
+        local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+        guildKey, guildDBInfo, characNo, exp);
+}
+
+// ORIG T 0x086853e6（0x32 字节）：LogHistory("CleanPad,%d,%d", a, b)。
+void cUserHistoryLog::RequestCleanPad(unsigned int a, char b)
+{
+    m_user->LogHistory("CleanPad,%d,%d", a, static_cast<int>(b));
 }
 
 void cUserHistoryLog::CoinAdd(int coin, int amount, eCoinAddReason reason)
@@ -803,12 +841,16 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 }
 
 // ORIG T 0x868433e（报告全文）："Item+,..."
-// GUID 串沿用本文件既有等价实现 itemGUIDToHex（ORIG CItemGloballyUniqueIdentifierPrint
-// 对 item+0x15 的渲染，W 0x84ebe58/0x84ebe7c 未单独还原）。
+// GUID 串：ORIG CItemGloballyUniqueIdentifierPrint 对 item+0x15 的渲染
+// （W 0x84ebe58/0x84ebe7c，本文件真实建模）。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
 {
+    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
+    CItemGloballyUniqueIdentifierPrint print;
+    const char* guid = print(
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -824,7 +866,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
         privStoreItemByteAt(item, 0x2f), privStoreItemByteAt(item, 0x30),
         privStoreItemByteAt(item, 0x31), privStoreItemByteAt(item, 0x32),
         (unsigned)item.GetReSealCount() & 0xff,
-        itemGUIDToHex(item));
+        guid);
 }
 
 // ORIG T 0x868412a（报告全文）："Item-,..."——注意 %s 只有一个名字参数（param_8）。
@@ -832,6 +874,10 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
 {
+    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
+    CItemGloballyUniqueIdentifierPrint print;
+    const char* guid = print(
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -847,7 +893,7 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
         privStoreItemByteAt(item, 0x2f), privStoreItemByteAt(item, 0x30),
         privStoreItemByteAt(item, 0x31), privStoreItemByteAt(item, 0x32),
         (unsigned)item.GetReSealCount() & 0xff,
-        itemGUIDToHex(item));
+        guid);
 }
 
 // ============================================================================
@@ -903,4 +949,542 @@ void cUserHistoryLog::EnterDungeon(int dungeonIdx, int a, int b,
 {
     m_user->LogHistory("AdvanceDungeonEnter,%d,%d,%d,%s,%d,%d",
                        dungeonIdx, a, b, memberNames, static_cast<int>(flag), state);
+}
+
+// ============================================================================
+// ORIG T 0x08685452（Auction.md 全量转写）：按 m_type 0/1/2/3 分派
+// LogHistory 格式串（SIG_AUCTION_LOG_MESSAGE_AG 布局见 SigTypes.h）。
+// ============================================================================
+void cUserHistoryLog::Auction(SIG_AUCTION_LOG_MESSAGE_AG* msg)
+{
+    switch (msg->m_type)
+    {
+        case 0:
+            m_user->LogHistory("Auction_reg_s,%llu,%d,%u,%hhu,%d,%hu,%u",
+                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
+                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
+            break;
+        case 1:
+            m_user->LogHistory("Auction_reg_f,%llu,%d,%u,%hhu,%d,%hu,%u,%hhu",
+                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
+                msg->m_arg16, msg->m_arg1a, msg->m_arg1c, msg->m_arg20);
+            break;
+        case 2:
+            m_user->LogHistory("Auction_bid_s,%llu,%d,%d,%d",
+                msg->m_key, msg->m_arg09, msg->m_arg0d, msg->m_arg11);
+            break;
+        case 3:
+            m_user->LogHistory("Auction_bid_f,%llu,%d,%d",
+                msg->m_key, msg->m_arg09, msg->m_arg0d);
+            break;
+        default:
+            m_user->LogHistory("Auction_unknown,%d", (int)msg->m_type);
+            break;
+    }
+}
+
+// ============================================================================
+// ORIG T 0x08685654（AuctionPoint.md 全量转写）：与 Auction 同型，POINT_* 串。
+// ============================================================================
+void cUserHistoryLog::AuctionPoint(SIG_AUCTION_LOG_MESSAGE_PG* msg)
+{
+    switch (msg->m_type)
+    {
+        case 0:
+            m_user->LogHistory("POINT_reg_s,%llu,%d,%u,%hhu,%d,%hu,%u",
+                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
+                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
+            break;
+        case 1:
+            m_user->LogHistory("POINT_reg_f,%llu,%d,%u,%hhu,%d,%hu,%u",
+                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg15,
+                msg->m_arg16, msg->m_arg1a, msg->m_arg1c);
+            break;
+        case 2:
+            m_user->LogHistory("POINT_bid_s,%llu,%d,%d",
+                msg->m_key, msg->m_arg09, msg->m_arg0d);
+            break;
+        case 3:
+            m_user->LogHistory("POINT_bid_f,%llu,%d,%d",
+                msg->m_key, msg->m_arg09, msg->m_arg0d);
+            break;
+        default:
+            m_user->LogHistory("POINT_unknown,%d", (int)msg->m_type);
+            break;
+    }
+}
+
+// ============================================================================
+// Wave5 仅ORIG 清零批（TaiwanLog）——54 个 ORIG-only 方法补齐。
+// 逐函数依据 docs/class_func_reports/cUserHistoryLog/ 报告（汇编+反编译C）
+// 与 df_game_r objdump（无报告者已注明地址）转写。
+// ============================================================================
+
+// ORIG _ZN15cUserHistoryLog16AntibotPacketLogEN20AntibotPacketLogType1TE @0x08686dd0
+void cUserHistoryLog::AntibotPacketLog(AntibotPacketLogType::T type)
+{
+    m_user->LogHistory("AntibotPacketLog,%d", (int)type);
+}
+
+// ORIG _ZN15cUserHistoryLog15BuyCashShopItemEjmjPKccN19CeraShopPaymentType1TEy
+//      @0x08686ea0：价格 u64 经 NumberToString 渲染后入参。
+void cUserHistoryLog::BuyCashShopItem(unsigned int itemIdx, unsigned long uid,
+                                      unsigned int count, const char* buyer, char flag,
+                                      CeraShopPaymentType::T payType,
+                                      unsigned long long price)
+{
+    m_user->LogHistory("BuyCashItem, %u, %u, %u, %s, %d, %d, %s",
+                       itemIdx, (unsigned int)uid, count, buyer, (int)flag,
+                       (int)payType, NumberToString(price, 0));
+}
+
+// ORIG _ZN15cUserHistoryLog12CashInvenAddE19eCashInvenAddReasonjjm @0x0868683a
+void cUserHistoryLog::CashInvenAdd(eCashInvenAddReason reason, unsigned int a,
+                                   unsigned int b, unsigned long c)
+{
+    m_user->LogHistory("CashInven+,%u,%u,%u,%u",
+                       (unsigned)reason, a, b, (unsigned)c);
+}
+
+// ORIG _ZN15cUserHistoryLog12CashInvenDelE19eCashInvenDelReasonjjmj @0x08686874
+void cUserHistoryLog::CashInvenDel(eCashInvenDelReason reason, unsigned int a,
+                                   unsigned int b, unsigned long c, unsigned int d)
+{
+    m_user->LogHistory("CashInven-,%u,%u,%u,%u,%u",
+                       (unsigned)reason, a, b, (unsigned)c, d);
+}
+
+// ORIG _ZN15cUserHistoryLog9CharacAddEi @0x08682a92：
+//   栈上 TimeLog_ 计时后读 m_charac[idx].m_field26(+0x26 growtype) 日志 "Charac+,%d"。
+//   【推断】TimeLog_ 为纯计时局部对象，无可观察副作用，重建中省略。
+void cUserHistoryLog::CharacAdd(int idx)
+{
+    std::vector<_Charac_info>& characs =
+        *reinterpret_cast<std::vector<_Charac_info>*>(
+            reinterpret_cast<char*>(m_user) + 0x796e8);
+    m_user->LogHistory("Charac+,%d", (int)characs[idx].m_field26);
+}
+
+// ORIG _ZN15cUserHistoryLog9CharacDelEi @0x08682ae0（与 CharacAdd 同型，"Charac-,"）
+void cUserHistoryLog::CharacDel(int idx)
+{
+    std::vector<_Charac_info>& characs =
+        *reinterpret_cast<std::vector<_Charac_info>*>(
+            reinterpret_cast<char*>(m_user) + 0x796e8);
+    m_user->LogHistory("Charac-,%d", (int)characs[idx].m_field26);
+}
+
+// ORIG _ZN15cUserHistoryLog6DiePvPE23ENUM_PVP_HISTORY_REASONjjiiiiPKc @0x08686490
+void cUserHistoryLog::DiePvP(ENUM_PVP_HISTORY_REASON reason, unsigned int a, unsigned int b,
+                             int c, int d, int e, int f, const char* name)
+{
+    m_user->LogHistory("PVP,%d,%u,%u,%d,%d,%d,%d,\"%s\"",
+                       (int)reason, a, b, c, d, e, f, name);
+}
+
+// ORIG _ZN15cUserHistoryLog11EnchantItemEiiibPKcS1_ @0x08684d74
+void cUserHistoryLog::EnchantItem(int a, int b, int c, bool up,
+                                  const char* name1, const char* name2)
+{
+    if (up)
+        m_user->LogHistory("Enchant+,%d,%d,%d,\"%s\",\"%s\"", a, b, c, name1, name2);
+    else
+        m_user->LogHistory("Enchant-,%d,%d,%d,\"%s\",\"%s\"", a, b, c, name1, name2);
+}
+
+// ORIG _ZN15cUserHistoryLog6EndPvPE23ENUM_PVP_HISTORY_REASONbj @0x0868642e
+void cUserHistoryLog::EndPvP(ENUM_PVP_HISTORY_REASON reason, bool flag, unsigned int v)
+{
+    m_user->LogHistory("PVP,%d,%d,%u", (int)reason, flag ? 1 : 0, v);
+}
+
+// ORIG _ZN15cUserHistoryLog10EndRidableENS_12eRidableTypeEi @0x0868695c：注意参数换位
+void cUserHistoryLog::EndRidable(eRidableType type, int a)
+{
+    m_user->LogHistory("Transform,%d,%d,%d", 0, a, (int)type);
+}
+
+// ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
+//   仅当 reasonIdx>0xc 或 (1<<reasonIdx)&0x1892==0 时记录（排除常规来源）。
+void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
+{
+    if ((0xc < (unsigned)reasonIdx) ||
+        (((1u << ((unsigned char)reasonIdx & 0x1f)) & 0x1892U) == 0))
+    {
+        m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reasonIdx);
+    }
+}
+
+// ORIG _ZN15cUserHistoryLog16FullIPCounterLogEiiiiiPc @0x08685d54
+void cUserHistoryLog::FullIPCounterLog(int a, int b, int c, int d, int e, char* ip)
+{
+    m_user->LogHistory("D_IPCount,%d,%d,%d,%d,%d,%s", a, b, c, d, e, ip);
+}
+
+// ---- GuildCargo 族（全部为 "GuildCargo,%d..." 前缀透传；ORIG 地址见各注释） ----
+void cUserHistoryLog::GuildCargo(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a)   // 0x086864e6
+{
+    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+}
+void cUserHistoryLog::GuildCargoResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                       int a, int b)                              // 0x08686512
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d", (int)reason, a, b);
+}
+void cUserHistoryLog::GuildCargoHistory(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a) // 0x08686544
+{
+    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+}
+void cUserHistoryLog::GuildCargoHistoryResult(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a) // 0x08686570
+{
+    m_user->LogHistory("GuildCargo,%d,%d", (int)reason, a);
+}
+void cUserHistoryLog::GuildCargoCheckPushItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                              int a, int b, int c, int d, int e, int f)  // 0x0868659c
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+}
+void cUserHistoryLog::GuildCargoCheckPushItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                                    int a, int b, int c, int d, int e, int f) // 0x086865ea
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+}
+void cUserHistoryLog::GuildCargoPushItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                         int a, int b, int c, int d, int e, int f,
+                                         unsigned char g)                         // 0x08686638
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d,%d",
+                       (int)reason, a, b, c, d, e, f, g & 0xff);
+}
+void cUserHistoryLog::GuildCargoItemRecovery(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                             int a, int b, int c, int d, int e,
+                                             unsigned char f)                     // 0x08686694
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d",
+                       (int)reason, a, b, c, d, e, f & 0xff);
+}
+void cUserHistoryLog::GuildCargoPopItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                        int a, int b, int c, int d, int e)        // 0x086866ea
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e);
+}
+void cUserHistoryLog::GuildCargoPopItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                              int a, int b, int c, int d, int e, int f) // 0x08686780
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+}
+void cUserHistoryLog::GuildCargoPushItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                               int a, int b, int c, int d, int e, int f) // 0x08686732
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d,%d,%d,%d", (int)reason, a, b, c, d, e, f);
+}
+void cUserHistoryLog::GuildCargoMoveItem(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                         int a, int b)                            // 0x086867ce
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d", (int)reason, a, b);
+}
+void cUserHistoryLog::GuildCargoMoveItemResult(ENUM_GUILD_CARGO_HISTORY_REASON reason,
+                                               int a, int b, int c)               // 0x08686800
+{
+    m_user->LogHistory("GuildCargo,%d,%d,%d,%d", (int)reason, a, b, c);
+}
+
+// ---- 公会日期族：ORIG 取 GlobalData::s_systemTime_ 当前秒 + localtime_r，
+//      "%d/%d/%d" = tm_year+1900(tm_year+0x76c)/tm_mon+1/tm_mday ----
+// ORIG _ZN15cUserHistoryLog11GuildCreateEjPKcj @0x08685978
+void cUserHistoryLog::GuildCreate(unsigned int guildKey, const char* guildName,
+                                  unsigned int characNo)
+{
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm broken;
+    localtime_r(&now, &broken);
+    m_user->LogHistory("GuildCreate,\"%d/%d/%d\",%d,\"%s\",%d",
+                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       guildKey, guildName, characNo);
+}
+
+// ORIG _ZN15cUserHistoryLog9GuildJoinEjPKcjtc @0x08685a48
+void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
+                                unsigned int characNo, unsigned short a, char b)
+{
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm broken;
+    localtime_r(&now, &broken);
+    m_user->LogHistory("GuildJoin,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
+                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       guildKey, guildName, characNo, (unsigned)a, (int)b);
+}
+
+// ORIG _ZN15cUserHistoryLog8GuildOutEjPKcjct @0x08685b00
+void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
+                               unsigned int characNo, char a, unsigned short b)
+{
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm broken;
+    localtime_r(&now, &broken);
+    m_user->LogHistory("GuildOut,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
+                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       guildKey, guildName, characNo, (int)a, (unsigned)b);
+}
+
+// ORIG _ZN15cUserHistoryLog16GuildChangeGradeEjPKcjjhh @0x08685c4e
+void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildName,
+                                       unsigned int characNo, unsigned int grade,
+                                       unsigned char oldGrade, unsigned char newGrade)
+{
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm broken;
+    localtime_r(&now, &broken);
+    m_user->LogHistory("GuildChangeGrade,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d,%d",
+                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       guildKey, guildName, characNo, grade,
+                       (unsigned)(oldGrade & 0xff), (unsigned)(newGrade & 0xff));
+}
+
+// ORIG _ZN15cUserHistoryLog9useEmblemEmmjPKcj @0x08685a08
+void cUserHistoryLog::useEmblem(unsigned long a, unsigned long b, unsigned int c,
+                                const char* d, unsigned int e)
+{
+    m_user->LogHistory("UseEmblem,%d,%d,%d,%s,%d", (int)a, (int)b, c, d, e);
+}
+
+// ORIG _ZN15cUserHistoryLog12StartRidableENS_12eRidableTypeEi @0x08686928：参数换位同 EndRidable
+void cUserHistoryLog::StartRidable(eRidableType type, int a)
+{
+    m_user->LogHistory("Transform,%d,%d,%d", 1, a, (int)type);
+}
+
+// ORIG _ZN15cUserHistoryLog11HackDetectedEjjjjjj @0x08685320：按尾参是否为零递增格式长度
+void cUserHistoryLog::HackDetected(unsigned int a, unsigned int b, unsigned int c,
+                                   unsigned int d, unsigned int e, unsigned int f)
+{
+    if (e == 0 && f == 0)
+        m_user->LogHistory("Hack,%d,%d,%d,%d", a, b, c, d);
+    else if (f == 0)
+        m_user->LogHistory("Hack,%d,%d,%d,%d,%d", a, b, c, d, e);
+    else
+        m_user->LogHistory("Hack,%d,%d,%d,%d,%d,%d", a, b, c, d, e, f);
+}
+
+// ORIG _ZN15cUserHistoryLog15HadesHistoryLogEjjjj @0x08685418
+void cUserHistoryLog::HadesHistoryLog(unsigned int a, unsigned int b, unsigned int c,
+                                      unsigned int d)
+{
+    m_user->LogHistory("Hades,%d,%d,%d,%d", a, b, c, d);
+}
+
+// ORIG _ZN15cUserHistoryLog12IPCounterLogEiiiiiPc @0x08685d0c
+void cUserHistoryLog::IPCounterLog(int a, int b, int c, int d, int e, char* ip)
+{
+    m_user->LogHistory("IPCount,%d,%d,%d,%d,%d,%s", a, b, c, d, e, ip);
+}
+
+// ORIG _ZN15cUserHistoryLog21IPCounterLog_InsertIpEiiPc @0x08685d9c
+void cUserHistoryLog::IPCounterLog_InsertIp(int a, int b, char* ip)
+{
+    m_user->LogHistory("IPCountInt,%d,%d,%s", a, b, ip);
+}
+
+// ORIG _ZN15cUserHistoryLog18ItemMakingSkillAddE21ENUM_ITEM_MAKING_TYPEiis @0x08686a88
+void cUserHistoryLog::ItemMakingSkillAdd(ENUM_ITEM_MAKING_TYPE type, int a, int b, short c)
+{
+    m_user->LogHistory("ItemMakingSkill+,%d,%d,%d,%d",
+                       (int)type, a, b, (int)c);
+}
+
+// ORIG _ZN15cUserHistoryLog20MercenaryCompetitionEjcc @0x08686aca
+void cUserHistoryLog::MercenaryCompetition(unsigned int a, char b, char c)
+{
+    m_user->LogHistory("MercenaryCompetition,%u,%d,%d", a, (int)b, (int)c);
+}
+
+// ORIG _ZN15cUserHistoryLog15MercenaryReturnEjiiiii @0x08686b0a（注意 "MecenaryReturn" 拼写照抄 ORIG）
+void cUserHistoryLog::MercenaryReturn(unsigned int mercNo, int a, int b, int c, int d, int e)
+{
+    m_user->LogHistory("MecenaryReturn,%u,%d,%d,%d,%d,%d", mercNo, a, b, c, d, e);
+}
+
+// ORIG _ZN15cUserHistoryLog5QPSubEiii @0x0868885a
+void cUserHistoryLog::QPSub(int before, int questIdx, int sub)
+{
+    m_user->LogHistory("QP-,%d,%d,%d", before, questIdx, sub);
+}
+
+// ORIG _ZN15cUserHistoryLog11SecuServiceE22ENUM_SECU_SERVICE_TYPE24ENUM_SECU_SERVICE_ACTION
+//      @0x0868479c：仅 type 0/1 有日志串。
+void cUserHistoryLog::SecuService(ENUM_SECU_SERVICE_TYPE type, ENUM_SECU_SERVICE_ACTION action)
+{
+    if (type == ENUM_SECU_SERVICE_TYPE_GOBLIN)
+        m_user->LogHistory("s_gob,%d", (int)action);
+    else if (type == ENUM_SECU_SERVICE_TYPE_CARD)
+        m_user->LogHistory("s_card,%d", (int)action);
+}
+
+// ORIG _ZN15cUserHistoryLog27SelectCubeForPremiumServiceEi @0x08686da0
+void cUserHistoryLog::SelectCubeForPremiumService(int a)
+{
+    if (m_user != 0)
+        m_user->LogHistory("SelectCubeForPremiumService,%d", a);
+}
+
+// ORIG _ZN15cUserHistoryLog21SendBuffertoClientLogEishb @0x08686e3a
+void cUserHistoryLog::SendBuffertoClientLog(int kind, short a, unsigned char b, bool c)
+{
+    const char* name = (kind == 0) ? "ANTIBOT" : "DPROTO";
+    m_user->LogHistory("SendBuffertoClient [%s],%d,%d,%d",
+                       name, (int)a, (unsigned)b, (unsigned)c);
+}
+
+// ORIG _ZN15cUserHistoryLog23SendMailForCeraShopGiftEjcjj @0x086848da
+void cUserHistoryLog::SendMailForCeraShopGift(unsigned int mailIdx, char flag,
+                                              unsigned int a, unsigned int b)
+{
+    m_user->LogHistory("MailSG,%u,%d,%u,%u", mailIdx, (int)flag, a, b);
+}
+
+// ORIG _ZN15cUserHistoryLog8StartPvPE23ENUM_PVP_HISTORY_REASONPKcS2_S2_S2_S2_S2_S2_S2_
+//      @0x086863b6：两条 PVP 行（前 4 名/后 4 名角色名）。
+void cUserHistoryLog::StartPvP(ENUM_PVP_HISTORY_REASON reason, const char* n1, const char* n2,
+                               const char* n3, const char* n4, const char* n5,
+                               const char* n6, const char* n7, const char* n8)
+{
+    m_user->LogHistory("PVP,%d,\"%s\",\"%s\",\"%s\",\"%s\"", (int)reason, n1, n2, n3, n4);
+    m_user->LogHistory("PVP,%d,\"%s\",\"%s\",\"%s\",\"%s\"", (int)reason, n5, n6, n7, n8);
+}
+
+// ORIG _ZN15cUserHistoryLog21UseAvatarOptionChangeEiiii @0x08686d0e
+void cUserHistoryLog::UseAvatarOptionChange(int a, int b, int c, int d)
+{
+    if (m_user != 0)
+        m_user->LogHistory("UseAvatarOptionChange,%d,%d,%d,%d", a, b, c, d);
+}
+
+// ORIG _ZN15cUserHistoryLog6UseDyeEiiiRKSsi @0x08686cba
+void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, int d)
+{
+    if (m_user != 0)
+        m_user->LogHistory("UseDye ,%d,%d,%d,%s,%d", a, b, c, dyeName.c_str(), d);
+}
+
+// ---- 物品网格坐标视图：ORIG 存于 this+0x40/+0x42（类尾部 m_pad 区）， ----
+// ---- 此前 static helper 直读偏移，现改用具名成员 m_itemX/m_itemY。     ----
+
+// ORIG W _ZN15cUserHistoryLog11getItemXPosEv @0x08696000（movzwl 0x40(%eax)）
+unsigned short cUserHistoryLog::getItemXPos() const
+{
+    return *reinterpret_cast<const unsigned short*>(
+        reinterpret_cast<const char*>(this) + 0x40);
+}
+
+// ORIG W _ZN15cUserHistoryLog11getItemYPosEv @0x0869600c（movzwl 0x42(%eax)）
+unsigned short cUserHistoryLog::getItemYPos() const
+{
+    return *reinterpret_cast<const unsigned short*>(
+        reinterpret_cast<const char*>(this) + 0x42);
+}
+
+// ORIG W _ZN15cUserHistoryLog12SetItemXYPosEtt @0x0822f084（movw → 0x40/0x42）
+void cUserHistoryLog::SetItemXYPos(unsigned short x, unsigned short y)
+{
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x40) = x;
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x42) = y;
+}
+
+// ORIG _ZN15cUserHistoryLog13QuestCompleteEi @0x0868514e（格式串 ORIG .rodata 0x8cf0957）
+void cUserHistoryLog::QuestComplete(int questIdx)
+{
+    m_user->LogHistory("QuestComplete,%d", questIdx);
+}
+
+// ORIG _ZN15cUserHistoryLog13RedeemItemDelEii @0x086869bc（格式串 ORIG 0x8cf0e9d）
+void cUserHistoryLog::RedeemItemDel(int a, int b)
+{
+    m_user->LogHistory("RedeemItem-,%d,%d", a, b);
+}
+
+// ORIG _ZN15cUserHistoryLog16ItemLockUsingLogEhiiii @0x08689808（格式串 ORIG 0x8cf1153）
+void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int c, int d)
+{
+    m_user->LogHistory("ItemLock,%d,%d,%d,%d,%d", lockType & 0xff, a, b, c, d);
+}
+
+// ORIG _ZN15cUserHistoryLog9CeraPointE23ENUM_CERAPOINT_LOG_TYPEj @0x0868593c：
+//   尾参为当前余额 CUser::GetCeraPoint()。
+void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
+{
+    m_user->LogHistory("CeraPoint,%d,%d,%d", (int)type, amount,
+                       (int)m_user->GetCeraPoint());
+}
+
+// ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：
+//   扫描背包 invenType=0 槽 10..0x13 统计强化/稀有件、invenType=2 全槽计数、
+//   回归判定 local_60、专家职业等级，输出 "IP+,..." 18 字段行。
+void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int param4,
+                            unsigned char loginType, int param6)
+{
+    int region;                                  // local_60 回归分类
+    int upgradeFirst = 0;                        // local_58（首件强化）
+    int firstItemId = 0;                         // local_54（10 号槽 itemId）
+    int upgradeSum = 0;                          // local_50（其余件强化和）
+    int rareCount = 0;                           // local_4c（rarity 0/1 计数）
+    int petCount = 0;                            // local_48（invenType=2 计数）
+
+    CInventory* invenR = m_user->getCurCharacInvenW();  // ORIG InvenR 读路径；W 视图等价（只读槽位）
+    int money = reinterpret_cast<CInventory*>(
+                    reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
+                    + 0xda)->get_money();
+
+    for (int slot = 10; slot < 0x14; ++slot)
+    {
+        const Inven_Item* it = invenR->GetInvenRef(0, slot);
+        if (it == 0 || *(const int*)&it->m_addInfo == 0)
+            continue;
+        if (slot == 10)
+        {
+            upgradeFirst = it->GetUpgrade() & 0xff;
+            firstItemId = it->m_addInfo;
+        }
+        else
+        {
+            upgradeSum += it->GetUpgrade() & 0xff;
+        }
+        CItem* item = G_CDataManager()->find_item(it->m_addInfo);
+        if (item != 0 && (item->get_rarity() == 0 || item->get_rarity() == 1))
+            ++rareCount;
+    }
+    for (int slot = 0; slot < 0x74; ++slot)
+    {
+        const Inven_Item* it = invenR->GetInvenRef(2, slot);
+        if (it != 0 && *(const int*)&it->m_addInfo != 0)
+            ++petCount;
+    }
+
+    // +0x7b 处回归用户标记【推断：ORIG *(int*)(charac+0x7b)，该字段未具名】
+    const _Charac_info* ch = m_user->getCurCharacR();
+    int returnUserFlag = *reinterpret_cast<const int*>(reinterpret_cast<const char*>(ch) + 0x7b);
+    if (returnUserFlag == 0 && m_user->GetFirstLogin())
+        region = 0;
+    else if (loginType == 0 && returnUserFlag != 0)
+        region = 1;
+    else if (loginType == 1 && returnUserFlag != 0)
+        region = 2;
+    else if (loginType == 2 && returnUserFlag != 0)
+        region = 3;
+    else
+        region = -1;   // ORIG 未初始化路径保持全零默认 → 与 ORIG 一致的 local_60 初值
+
+    int expertJobLevel = 0;                      // local_3c
+    int expertJobType = m_user->GetCurCharacExpertJobType();  // 返回值亦入 %d
+    STExpertJobScript* script =
+        reinterpret_cast<STExpertJobScript*>(G_CDataManager()->GetExpertJobScript(expertJobType));
+    if (script != 0)
+        expertJobLevel = script->GetLevel((unsigned)m_user->GetCurCharacExpertJobExp());
+
+    m_user->LogHistory(
+        "IP+,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%p",
+        param2, param3, param4, (int)loginType, param6,
+        m_user->get_charac_job(), m_user->get_charac_level(),
+        (int)m_user->getCurCharFirstGrowType(), (int)m_user->getCurCharSecondGrowType(),
+        region, money, upgradeFirst, firstItemId, upgradeSum, rareCount, petCount,
+        expertJobType, expertJobLevel, reinterpret_cast<void*>(m_user));
 }

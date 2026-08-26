@@ -34,6 +34,8 @@ enum ENUM_WORLD_TYPE
     ENUM_WORLD_TYPE_1 = 1
 };
 
+class Inven_Item;
+
 class CItem
 {
 public:
@@ -89,6 +91,7 @@ public:
     unsigned char check_job_type(char job) const;
     bool isEpicRoutingItem() const;
     bool IsRoutingItem() const;           // ORIG 0x8150f18（返回 +0xbd 路由标志）
+    bool IsPriorityJob(int job, int growType);   // ORIG W 0x085beec8（m_vecC0 路由优先职业匹配）
     bool isPackagable() const;
     bool IsEnableWorld(ENUM_WORLD_TYPE type) const;  // 0x822c87c
     // ptr 重载（ORIG 0x822c8ea）：对 other->m_setd4 中的每个世界类型，

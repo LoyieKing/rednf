@@ -307,6 +307,7 @@ T* GlobalInstance<T>::m_p = NULL;
 
 // ---- trim（ORIG 全局函数，实现属于 ServerCommon/Library TU）----
 void trim(char* str);
+void trim(std::string& s);   // ORIG _Z4trimRSs @0x0829f068（game_master 命令体系用）
 
 // ---- 单例访问器 ----
 CEnvironment* G_CEnvironment();

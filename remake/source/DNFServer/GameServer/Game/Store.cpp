@@ -112,24 +112,9 @@ int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndurance,
     return (int)price;
 }
 
-// 出售价格系数表（由 InitEquipmentScript 从脚本加载，索引 0=非随机选项，2=随机选项）
-static int g_itemSellPriceRate[3] = {0};
-
-// ---- 自由函数（ORIG 符号 _Z16getItemSellPriceiiib） ----
-int getItemSellPrice(int basePrice, int curEndurance, int maxEndurance, bool isRandomOption)
-{
-    int rateIndex = isRandomOption ? 2 : 0;
-    if (curEndurance > maxEndurance)
-        curEndurance = maxEndurance;
-
-    int rate = g_itemSellPriceRate[rateIndex];
-    int price = (basePrice * rate) / 100;
-
-    if (maxEndurance != 0)
-        price = (price * curEndurance) / maxEndurance;
-
-    return price;
-}
+// getItemSellPrice 的唯一实现归 ItemUpgradeVtableB2.cpp（ORIG 0x0898c86e）；
+// 本 TU 的 Store::GetSellItemPrice 仅调用该共享自由函数。
+int getItemSellPrice(int basePrice, int curEndurance, int maxEndurance, bool isRandomOption);
 
 Store* G_Store()
 {

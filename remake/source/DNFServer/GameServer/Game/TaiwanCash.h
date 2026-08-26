@@ -69,6 +69,22 @@ private:
 };
 
 // ---- Taiwan::TaiwanCash —— 台湾计费入口（含 MySQL 连接 + 串行锁）----
+    // ---------------------------------------------------------------------------
+    // 以下 8 个方法使用的存储过程 Query 类（ORIG Taiwan::xxxQuery）：权威定义由
+    // TaiwanQueries.h 提供（TwQuery 批次），此处仅前置声明；本 TU 在拿到完整类型后
+    // 显式实例化 processBilling<X>（ORIG 各实例为独立 W 符号）。各 Query 统一约定
+    // 暴露：int m_resultCode（@out_code）；BillTransaction m_trans（@out_tran，
+    // Gift/Charge/Purchase 族）；附加输出字段见 docs/class_func_reports/Taiwan__*Query/。
+    // ---------------------------------------------------------------------------
+    class BalanceQuery;
+    class BalancePointQuery;
+    class EntranceQuery;
+    class GiftQuery;
+    class CancelQuery;
+    class ChargeQuery;
+    class ConfirmQuery;
+    class CeraPointQuery;
+
 class TaiwanCash
 {
 public:
@@ -85,6 +101,48 @@ public:
 
     bool checkResultCode(int code);                 // ORIG 0x0817366e：code==0
     void increaseRequest();                         // ORIG 0x0817365a：++m_requestCount
+
+    // ---- 以下 9 个方法：ORIG Taiwan__TaiwanCash 报告逐函数转写（Wave5 仅ORIG批）----
+    // ORIG T 0x08173766：BalanceQuery(account)；0=成功、4=processBilling 失败、
+    // 其余为 @out_code；成功时 balance = m_balance。
+    int getBalance(const char* account, int& balance);
+
+    // ORIG T 0x0817381a：BalancePointQuery(account)；balance=m_balance、point=m_point。
+    int getBalance(const char* account, int& balance, int& point);
+
+    // ORIG T 0x081736ce：EntranceQuery()；ORIG 未写回 entrance 出参（汇编无 store，
+    // 仅 trace 结果码）——忠实转写。参数名【推断】。
+    int checkEntrance(const char* account, char& entrance);
+
+    // ORIG T 0x08173b20：GiftQuery(account, sendCharac, recvCharac, price, pay, uid)；
+    // giftMsg 参数未被 ORIG 使用；成功拷贝 query.m_trans → trans。
+    int gift(unsigned long long uid, int price, int pay,
+             const char* account, const char* sendCharac,
+             const char* recvCharac, const char* giftMsg,
+             BillTransaction& trans);
+
+    // ORIG T 0x08173d1c：tranNo==0 直接返回 0；否则 CancelQuery(trans)。
+    int cancel(const BillTransaction& trans);
+
+    // ORIG T 0x08173df0：ChargeQuery(account=p1, p8, "", price=p4, type=(char)p2)；
+    // p3/p5/p6/p7/uid 未被 ORIG 用于查询构造（按汇编忠实）。
+    int charge(char* p1, unsigned char serviceType, unsigned char p3,
+               unsigned int price, char* p5, char* p6, char* p7, char* p8,
+               unsigned long long uid, BillTransaction& trans);
+
+    // ORIG T 0x08173c48：tranNo==0 直接返回 0；否则 ConfirmQuery(trans)。
+    int confirm(const BillTransaction& trans);
+
+    // ORIG T 0x081738e6：PurchaseQuery(account, charac, price, pay, uid)；
+    // 与上方 7 参版本构成重载；成功拷贝 query.m_trans → trans。
+    int purchase(unsigned long long uid, int price, int pay,
+                 const char* account, const char* charac,
+                 BillTransaction& trans);
+
+    // ORIG T 0x08173f0c：
+    // CeraPointQuery(p1, p2, p4, p5, (uint)p8, p6, p7, p3)。
+    int ceraPoint(char* p1, char* p2, char command, char* p4, char* p5,
+                  char p6, char p7, int price);
 
     // ORIG 模板成员（实例 _ZN6Taiwan10TaiwanCash14processBillingINS_13PurchaseQueryEEEbRT_
     // W 0x08175770）：Guard<Mutex> → increaseRequest → setQuery/execQuery/getResult。

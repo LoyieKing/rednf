@@ -96,7 +96,7 @@ T* Stream::GetOutBuffer()
     {
         return 0;
     }
-    char* p = m_buffer + out_ptr();
+    char* p = (char*)((unsigned long)m_buffer + (unsigned long)m_outPtr);   // 与 GetInBuffer 同式（ORIG lea 形态）
     out_ptr((int)sizeof(T));
     return (T*)p;
 }

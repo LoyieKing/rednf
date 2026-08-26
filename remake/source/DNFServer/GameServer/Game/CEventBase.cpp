@@ -41,8 +41,8 @@ int CEventBase::GetAddInfo()
 }
 
 void CEventBase::changeCharacName(CUser*, int, char*, int) {}
-void CEventBase::dailyresetData() {}
-void CEventBase::deliveryStart(CDelivery*) {}
+void CEventBase::dailyresetData() {}      // ORIG 0x0810ae9c（0x6 字节空体）
+void CEventBase::deliveryStart(CDelivery*) {}  // ORIG 0x0810aea2（空体）
 void CEventBase::deliveryEnd(CDelivery*) {}
 void CEventBase::delivery(DeliveryMsg&) {}
 

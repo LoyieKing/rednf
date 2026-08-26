@@ -123,22 +123,20 @@ int convertTabTypeStringToEnum(const char* text)
 }
 
 // ============================================================================
-// stNPCCommonData_t::clear —— ORIG W 0x089fae9e（loadNPCCommonData 入口调用）。
-// 容器 clear 为实证；标量清零部分为「推断」（clear 本体未单独出报告）。
+// stNPCCommonData_t::clear —— ORIG W 0x089fae9e（objdump 全文核实）：
+// 仅清标量——循环 i=0..9 写 favorExp[i]（movw $0,0x2(%eax,%edx,2)，cmpl $0x9/setle），
+// 再按 +0x00→+0x34→+0x30→+0x32 顺序清四个标量；无任何容器 clear。
 // ============================================================================
 void stNPCCommonData_t::clear()
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i <= 9; ++i)
     {
-        m_field0[i] = 0;
+        m_favorExp[i] = 0;
     }
-    m_vec18.clear();
-    m_vec24.clear();
-    m_field30 = 0;
-    m_field32 = 0;
-    m_field34 = 0;
-    m_vec38.clear();
-    m_vec44.clear();
+    m_maxFavorExp = 0;
+    m_maxFavorLevelNpc = 0;
+    m_favorSystemBeginQuest = 0;
+    m_favorSystemBeginLevel = 0;
 }
 
 // ============================================================================
@@ -154,6 +152,7 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
     }
 
     std::string token;
+    int idx = 0;
     bool ok = false;
 
     out.clear();
@@ -162,88 +161,85 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
     {
         if (!ScanType(token, true))
         {
-            return 0;
+            break;
         }
 
         if (token == "[npc favor exp]")
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                unsigned short value = static_cast<unsigned short>(ScanInt(&ok));
+                out.m_favorExp[idx] = static_cast<unsigned short>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0;
                 }
-                out.m_field0[idx + 1] = value;             // 写 base+2*idx+2
-                if (value > out.m_field0[0])               // max(slot0, slot[i+1])
-                {
-                    out.m_field0[0] = value;
-                }
+                out.m_maxFavorExp =
+                    std::max(out.m_maxFavorExp, out.m_favorExp[idx]);
             }
         }
         else if (token == "[favorable npc list]")
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                out.m_vec18.push_back(idx);
+                out.m_favorableNpcList.push_back(idx);
             }
         }
         else if (token == "[illustration variable npc list]")
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                out.m_vec24.push_back(idx);
+                out.m_illustrationVariableNpcList.push_back(idx);
             }
         }
         else if (token == "[max favor level npc]")
         {
-            out.m_field34 = static_cast<unsigned short>(ScanInt(&ok));
+            out.m_maxFavorLevelNpc = static_cast<unsigned short>(ScanInt(&ok));
             if (!ok)
             {
-                return 0;
+                break;
             }
         }
         else if (token == "[favor system begin quest]")
         {
-            out.m_field30 = static_cast<unsigned short>(ScanInt(&ok));
+            out.m_favorSystemBeginQuest = static_cast<unsigned short>(ScanInt(&ok));
             if (!ok)
             {
-                return 0;
+                break;
             }
         }
         else if (token == "[favor system begin level]")
         {
-            out.m_field32 = static_cast<unsigned short>(ScanInt(&ok));
+            out.m_favorSystemBeginLevel = static_cast<unsigned short>(ScanInt(&ok));
             if (!ok)
             {
-                return 0;
+                break;
             }
         }
         else if (token == "[favor level reward npc]")
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                int npcId = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                out.m_vec38.push_back(idx);
+                out.m_favorLevelRewardNpcList.push_back(npcId);
             }
         }
         else if (token == "[favor duration buff list]")
@@ -268,7 +264,7 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
                     {
                         return 0;
                     }
-                    getChangeStatusType(s);         // ORIG 首次调用（结果弃用）
+                    int discardedType = getChangeStatusType(s);   // ORIG 存局部后弃用
                     int value = ScanInt(&ok);
                     if (!ok)
                     {
@@ -281,14 +277,21 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
                     {
                         return 0;
                     }
-                    buff.m_isNotPlus = (s != "+") ? 1 : 0;
+                    if (s == "+")
+                    {
+                        buff.m_isNotPlus = 0;
+                    }
+                    else
+                    {
+                        buff.m_isNotPlus = 1;
+                    }
                     buffs.push_back(buff);
                 }
-                out.m_vec44.push_back(std::make_pair(first, buffs));
+                out.m_favorDurationBuffList.push_back(std::make_pair(first, buffs));
             }
         }
-        // 其余令牌忽略（ORIG 无 else 分支，直接回主循环）
     }
+    return 0;
 }
 
 // ============================================================================
@@ -575,12 +578,17 @@ namespace stagemap
 struct StageData
 {
     int m_field0;                            // +0x00
+    int m_field4;                            // +0x04 (ORIG StageData stride 0x10)
+    int m_field8;                            // +0x08
+    int m_fieldC;                            // +0x0c
 };
 
 struct DistrictData
 {
     int m_field0;                            // +0x00
-    std::vector<StageData> m_vec4;           // +0x04
+    std::vector<StageData> m_vec4;           // +0x04 (ORIG StageData vector)
+    std::string m_appendImage;              // +0x10 (ORIG std::string size 4)
+    int m_field14;                           // +0x14
 };
 
 struct AreaData

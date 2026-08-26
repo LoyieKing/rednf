@@ -30,6 +30,11 @@ public:
     void SetData(int expireDate, int registTime, const char* ipgAgency);
     void setEmblemSocketData(const stAvatarEmblemInfo_t& emblem);
     int updateEmblemSocket(int grade, unsigned long itemId);
+    // ---- G7 miscB 追加（ORIG 真实符号，定义 WongWorkMiscB_A.cpp）----
+    void setColor(short color1, short color2);  // _ZN8WongWork11Avatar_Item8setColorEss W 0x082fa2fa（语义同 setColorEss）
+    int updateEmblemSocket(unsigned int grade, unsigned int itemId);
+    //   _ZN8WongWork11Avatar_Item18updateEmblemSocketEjj W 0x082fa2a6
+    ~Avatar_Item();                             // D1/D2 W 0x082fa354（ORIG 空体）
 
     int m_expireDate;                          // +0x00
     int m_registTime;                          // +0x04

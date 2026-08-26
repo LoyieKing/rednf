@@ -69,7 +69,7 @@ public:
     void reset();
 
     // ---- 弱（inline）helper（ORIG W）----
-    bool isMemberAlive(int idx) { return m_memberAlive[idx] != 0; }   // 0x08145682
+    int isMemberAlive(int idx) { return m_memberAlive[idx]; }   // 0x08145682（movzbl 直返）
     void setMemberAlive(int idx, bool alive) { m_memberAlive[idx] = alive ? 1 : 0; } // 0x0814a7e4
     void setMemberReady(int idx, bool ready) { m_memberReady[idx] = ready ? 1 : 0; } // 0x08145692
 
@@ -79,7 +79,7 @@ protected:  // 派生类 CBossTower::handleUseItem 写 m_useItemCount/m_memberFi
     CParty* m_party;             // +0x04
     int m_field8;                // +0x08
     char m_allMemberReady;       // +0x0c
-    char m_memberAlive[4];       // +0x0d
+    unsigned char m_memberAlive[4]; // +0x0d（ORIG isMemberAlive 以 movzbl 零扩展读取）
     char m_memberReady[4];       // +0x11
     int m_rewardExp[4];          // +0x18（generateRewardExp 逐成员写入，16 字节）
     stRewardItem_t m_memberReward[4];  // +0x28（4 * 0x268 = 0x9a0）

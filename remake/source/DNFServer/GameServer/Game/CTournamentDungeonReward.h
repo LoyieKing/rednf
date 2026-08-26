@@ -1,11 +1,29 @@
 #ifndef DNF_GAME_CTOURNAMENTDUNGEONREWARD_H_
 #define DNF_GAME_CTOURNAMENTDUNGEONREWARD_H_
 
-// G2 占位（TODO：真实实现属后续批次）。
+#include <map>
+
+class TournamentRewardRate;              // CDungeon.h 权威定义
+class TournamentRewardItemRate;
+struct TournamentRewardItem;
+class PacketGuard;
+class InterfacePacketBuf;
+namespace WongWork
+{
+struct stGenerateResult_t;
+}
+
 // ORIG：多态类（ctor 0x8284770 写虚表 0x8c0cbf0），尺寸 0x38
 // （CBattle_Field 成员 @ +0xc98..+0xcd0）。
+class Inven_Item;
 
-// ORIG Clear 0x8284750：int+0 = -1、int+4 = 0、byte+8 = 0xff（sizeof 0xc）。
+// ORIG mangled 32 字符类型名（GetItemFromCard 参数；值域实证 0/1）
+enum ENUM_TOURNAMENT_REWARD_CARD_TYPE
+{
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE_0 = 0,
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE_1 = 1
+};
+
 class TournamentRewardType
 {
 public:
@@ -28,6 +46,22 @@ public:
     CTournamentDungeonReward();      // ORIG 0x8284770
     virtual ~CTournamentDungeonReward();  // ORIG D1 0x82847dc / D0 0x8284802
     void ResetReward();              // ORIG 0x8284820
+    void MakeReward(const std::map<int, TournamentRewardRate>* rates,
+                    const TournamentRewardItemRate* itemRate, int round,
+                    bool victory);   // ORIG 0x8284890
+    void SetRewardGold(const WongWork::stGenerateResult_t& result,
+                       float goldRate);   // ORIG 0x8284b8e
+    void MakeRewardPacket(PacketGuard* packet, bool flag);   // ORIG 0x8284caa
+private:
+    void DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE card,
+                            const TournamentRewardRate& rate,
+                            const TournamentRewardItemRate* itemRate);   // ORIG 0x8284a24
+    void _MakeRewardPacket(ENUM_TOURNAMENT_REWARD_CARD_TYPE type,
+                           InterfacePacketBuf* packet);   // ORIG 0x82852e4
+
+public:
+    int GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo,
+                        Inven_Item* items, unsigned int maxItems);   // ORIG 0x828502e
 
 private:
     int m_field04;                       // +0x04（ResetReward 清零）

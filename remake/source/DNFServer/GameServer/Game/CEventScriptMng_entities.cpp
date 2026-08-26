@@ -7,11 +7,17 @@
 //   - CPcRoomPlayTime     ← 事件记录类型 0x5c
 //   - CAccountFirstLogin  ← 事件记录类型 0x191/0x192
 //   - CAddItemCountDB     ← 事件记录类型 0x193
-// create_event_entity（CEventScriptMng，0x810b402）按记录类型 new 各派生类
-// （0x20 先清零再调 ctor）；每个 ctor 只调基类 ctor + 设 vptr。
 //
-// 依赖外部类（CEventActionMng::process_action_send_mail、DB_InsertAccountFirstLoginFlag）
-// 当前由 FixEventScriptDeps / EventClassify 事件系统补全，本 TU 仅声明引用。
+// 脚本绑定：m_script1c 指向的具体脚本类型由记录类型唯一确定（ORIG nm W 符号：
+// 六个派生类 ctor 均为隐式生成，仅调基类 C1 + 设 vptr；对象由 create_event_entity
+// value-init：operator new(0x20) → 整块清零 → C1 thunk）。除 CAccountFirstLogin
+// （entitiesB 的派生类需显式调用基类 ctor，故保留声明并补 m_script1c=0 对齐工厂
+// 清零终态）外均不声明 ctor，由编译器同样产生清零循环 + 弱 C1。
+//
+// 脚本访问一律经 InGameEventScripts.h 权威布局的具名字段（禁止裸偏移）：
+//   0x194→LevelUpRewardScript        0x65→UsedFatigueGiveItemScript
+//   0x56→AttendanceScript            0x5c→PcBangPlayTimeScript
+//   0x191/0x192→AccountFirstLoginScript    0x193→AddItemCountDBScript
 
 #include "CEventScriptMng.h"
 
@@ -27,21 +33,41 @@
 #include <cstring>
 #include <vector>
 
+#include "InGameEventScripts.h"         // 具体事件脚本类型（权威布局）
 // 依赖类由事件系统提供（FixEventScriptDeps）：
 #include "EventClassify_Action.h"       // EventClassify::Action_SendMail / CEventActionMng
 #include "DB_InsertAccountFirstLoginFlag.h"
+#include "GameTypes.h"                  // cMyTrace
+
+// ORIG T 0x0889232e（定义 BingoEventLink4.cpp）：
+bool isSetBit_Uint(unsigned int value, int bit);
+// ORIG T 0x0810904b（声明 CInventory.h/SkillSlot.h）：
+char* NumberToString(unsigned int value, int radix);
 
 namespace EventClassify
 {
 
-// ============ CLevelUpReward ============
+// process_action_send_mail 形参用的是 EventClassify_Action.h 的命名空间内
+// Action_SendMail；脚本子对象 m_mail 为全局 ::Action_SendMail（ORIG 符号口径，
+// 见 InGameEventScripts.h）。两者逐字段同布局（sizeof 均 0x44）。用宏桥接：
+// -O0 下 inline 函数会产生多余调用帧（ORIG 无）。
+typedef char dnf_mail_layout_assert_[
+    (sizeof(::Action_SendMail) == sizeof(Action_SendMail)) ? 1 : -1];
+#define EVENT_MAIL_REF(mail) (*reinterpret_cast<Action_SendMail*>(&(mail)))
 
-CLevelUpReward::CLevelUpReward()
-    : CEventEntity(), m_script1c(0)
+// ============ CLevelUpReward（0x194 → LevelUpRewardScript）============
+// ORIG T 0x810e4ea：以绑定脚本 m_mail（+0x28）为 Action_SendMail&，
+// flag=true 走 process_action_send_mail 发奖。
+void CLevelUpReward::do_action(CUser* user)
 {
+    CEventActionMng mng;
+    mng.process_action_send_mail(
+        user,
+        EVENT_MAIL_REF(static_cast<LevelUpRewardScript*>(m_script1c)->m_mail),
+        true);
 }
-
-void CLevelUpReward::set_event_data(int key, InGameEventScript* script)
+ 
+ void CLevelUpReward::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810e168：call vtable+0x18（set_event_record_type(key)），再写 +0x1c。
     set_event_record_type(key);
@@ -50,47 +76,93 @@ void CLevelUpReward::set_event_data(int key, InGameEventScript* script)
 
 char* CLevelUpReward::get_db_table_name()
 {
-    // ORIG 0x810e2d6：return m_script + 0xc。
-    return reinterpret_cast<char*>(m_script1c) + 0xc;
+    // ORIG 0x810e2d6：return &m_dbTableName（调用方按 std::string& 解释）。
+    return reinterpret_cast<char*>(
+        &static_cast<LevelUpRewardScript*>(m_script1c)->m_dbTableName);
 }
 
 char CLevelUpReward::is_recv_check_item()
 {
-    // ORIG 0x810e2f2：return *(char*)(m_script + 8)。
-    return *(reinterpret_cast<char*>(m_script1c) + 8);
+    // ORIG 0x810e2f2：return m_flag08。
+    return static_cast<char>(
+        static_cast<LevelUpRewardScript*>(m_script1c)->m_flag08);
 }
 
 char* CLevelUpReward::get_mail_data()
 {
-    // ORIG 0x810e2e4：return m_script + 0x28（Action_SendMail）。
-    return reinterpret_cast<char*>(m_script1c) + 0x28;
+    // ORIG 0x810e2e4：return &m_mail。
+    return reinterpret_cast<char*>(
+        &static_cast<LevelUpRewardScript*>(m_script1c)->m_mail);
 }
 
-void CLevelUpReward::do_action(CUser* user)
+// 成长类型匹配（m_filter[1]，0xff 通配）则遍历条件项；项 m_level 满足
+// growType < m_level <= level 时填充 m_mail（reset/set_item/标题/正文）并发奖。
+int CLevelUpReward::send_reward_from_recv_level(CUser* user, int level,
+                                                int growType)
 {
-    // ORIG 0x810e4ea：CEventActionMng::process_action_send_mail(mail=script+0x28, true)。
-    if (m_script1c == 0)
-        return;
-    CEventActionMng mng;
-    mng.process_action_send_mail(user, *reinterpret_cast<Action_SendMail*>(get_mail_data()), true);
+    LevelUpRewardScript* script =
+        static_cast<LevelUpRewardScript*>(m_script1c);
+    int job = user->get_charac_job();
+    int curGrowType = static_cast<int>(user->getCurCharFirstGrowType());
+
+    std::map<int, Condition_LevelUp>::iterator it =
+        script->m_conditions.find(job);
+    if (it == script->m_conditions.end())
+        return 1;
+
+    if (it->second.m_filter[1] != 0xff &&
+        static_cast<int>(it->second.m_filter[1]) != curGrowType)
+        return 1;
+
+    Condition_LevelUp::ItemVector& items = it->second.m_items;
+    for (unsigned int i = 0; i < items.size(); ++i)
+    {
+        Condition_LevelUp::Reward_Item& item = items[i];
+        if (growType < item.m_level && item.m_level <= level)
+        {
+            ::Action_SendMail* mail =
+                &static_cast<LevelUpRewardScript*>(m_script1c)->m_mail;
+            mail->reset();
+            mail->set_item(item.m_itemIndex, item.m_itemCount);
+            mail->m_field30 = item.m_title;
+            mail->m_field34 = item.m_content;
+            do_action(user);
+        }
+    }
+    return 1;
 }
-
-// ============ CUsedFatigueGiveItem ============
-
-CUsedFatigueGiveItem::CUsedFatigueGiveItem()
-    : CEventEntity(), m_script1c(0)
-{
-}
-
+// ORIG T 0x811056e（vtable slot 2）：基类 is_eventing 且
+// GetRepeatEvent(0x65) 非空且其 IsEventing(0) 为真才返回 true。
 bool CUsedFatigueGiveItem::is_eventing()
 {
-    // ORIG 0x811056e：基类 is_eventing && GetRepeatEvent(0x65) && IsEventing(0)。
-    if (!CEventEntity::is_eventing())
-        return false;
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x65);
-    if (evt == 0)
-        return false;
-    return evt->IsEventing(0);
+    if (CEventEntity::is_eventing())
+    {
+        CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x65);
+        if (evt->IsEventing(0))
+            return true;
+    }
+    return false;
+}
+
+// ORIG T 0x08110756：脚本 job 过滤（-1 通配），随后按 [user type] 分派：
+//   0=全适用；1=仅 premium（ENUM_PREMIUM_TYPE 0xc）；其它=不适用。
+int CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
+{
+    UsedFatigueGiveItemScript* script =
+        static_cast<UsedFatigueGiveItemScript*>(m_script1c);
+    int job = script->m_jobType;
+    if (job >= 0 && job != static_cast<int>(user->get_charac_job()))
+        return 0;
+
+    switch (script->m_userType)
+    {
+        case 0:
+            return 1;
+        case 1:
+            return user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 1 : 0;
+        default:
+            return 0;
+    }
 }
 
 void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
@@ -102,72 +174,76 @@ void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
 
 char* CUsedFatigueGiveItem::get_db_table_name()
 {
-    // ORIG 0x81105e8：return m_script + 8。
-    return reinterpret_cast<char*>(m_script1c) + 8;
+    // ORIG 0x81105e8：return &m_dbTableName。
+    return reinterpret_cast<char*>(
+        &static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName);
 }
 
 bool CUsedFatigueGiveItem::getIsCharacEvent(bool& out) const
 {
-    // ORIG 0x81107ea：m_script != 0 → out = *(bool*)(m_script+0x14)；返回 m_script!=0。
-    if (m_script1c != 0)
-        out = *(reinterpret_cast<bool*>(reinterpret_cast<char*>(m_script1c) + 0x14));
-    return m_script1c != 0;
+    // ORIG 0x81107ea：m_script == 0 直接返回 false；否则按 bool 读
+    // m_charcEventFlag（+0x14 字节）后返回 true。
+    if (m_script1c == 0)
+        return false;
+    out = *reinterpret_cast<const bool*>(
+        &static_cast<const UsedFatigueGiveItemScript*>(m_script1c)->m_charcEventFlag);
+    return true;
 }
 
 void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
 {
     // ORIG 0x81105f6：按已用疲劳档位周期发放奖励邮件。
-    if (m_script1c == 0 || user == 0)
+    // 档位间隔 m_usedFatigue、上限 m_fatigueLimit（<0 不限）、邮件 m_mail；
+    // 循环先判当前已用疲劳/上限，再 ++step 后按档位取模并发信（ORIG do-while），
+    // 发信成功读 m_mail.m_itemIdx 记日志收尾。全程不缓存脚本指针（与 ORIG 同）。
+    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_usedFatigue == 0)
         return;
-    char* scr = reinterpret_cast<char*>(m_script1c);
-    if (*(int*)(scr + 0x10) == 0)                 // 间隔档位为 0 → 不发
+    if (user->GetCurCharacUsedGiftFatigueQuantity() == 0)
         return;
-    int used = user->GetCurCharacUsedGiftFatigueQuantity();
-    if (used == 0)
+    unsigned int step =
+        (unsigned int)(user->GetCurCharacUsedGiftFatigueQuantity() - fatigue);
+    // 入口护栏：m_fatigueLimit >= 0 且 step >= 上限 → 一档都不发。
+    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit >= 0 &&
+        (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit <= step)
         return;
-    unsigned int step = used - fatigue;
-    // 当 (step) 越过档位边界时发放（ORIG 循环逻辑）。
-    for (;; ++step)
+
+    CEventActionMng mng;
+    while ((unsigned int)user->GetCurCharacUsedGiftFatigueQuantity() > step)
     {
-        unsigned int cur = (unsigned int)user->GetCurCharacUsedGiftFatigueQuantity();
-        if (cur <= step)
+        if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit >= 0 &&
+            (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_fatigueLimit <= step)
             return;
-        if (*(int*)(scr + 0x1c) >= 0 && *(unsigned int*)(scr + 0x1c) <= step)
-            return;
-        if (step % *(unsigned int*)(scr + 0x10) != 0)
+        ++step;                                   // 先自增再判档位/发信（ORIG do-while）
+        if (step % (unsigned int)static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_usedFatigue != 0u)
             continue;
-        CEventActionMng mng;
-        if (mng.process_action_send_mail(user,
-                *reinterpret_cast<Action_SendMail*>(scr + 0x20), true) == 0)
+        int sent = mng.process_action_send_mail(
+            user,
+            EVENT_MAIL_REF(static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail),
+            true);
+        if (sent == 0)
             continue;
-        int reward = *(int*)(scr + 0x40);
-        int characNo = user->getCurCharacNo();
-        unsigned int accId = user->get_acc_id();
         LogManager::logFormat(1, "EventClassify.cpp",
             "void EventClassify::CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser*, unsigned int)",
             0x83f,
             "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
-            accId, characNo, reward);
-        return;
+            user->get_acc_id(), user->getCurCharacNo(),
+            static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail.m_itemIdx);
     }
 }
 
-// ============ CAttendance ============
-
-CAttendance::CAttendance()
-    : CEventEntity(), m_script1c(0)
-{
-}
+// ============ CAttendance（0x56 → AttendanceScript）============
 
 bool CAttendance::is_eventing()
 {
-    // ORIG 0x810e75c：GetRepeatEvent(0x56) && IsEventing(0)。
-    if (!CEventEntity::is_eventing())
-        return false;
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x56);
-    if (evt == 0)
-        return false;
-    return evt->IsEventing(0);
+    // ORIG 0x810e75c：GetRepeatEvent(0x56) 判空后经 vptr+0x34 判 IsEventing(0)，
+    // 结果与判空合成一个 bool 条件（双重归一化形态）。
+    if (CEventEntity::is_eventing())
+    {
+        CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x56);
+        if (evt != 0 && evt->IsEventing(0))
+            return true;
+    }
+    return false;
 }
 
 void CAttendance::set_event_data(int key, InGameEventScript* script)
@@ -180,55 +256,110 @@ void CAttendance::set_event_data(int key, InGameEventScript* script)
 bool CAttendance::send_init_data(CUser* user, PacketGuard& packet,
                                  short key, unsigned char count, bool flag)
 {
-    // ORIG 0x810e804：packet.put_short(key)；put_short(get_server_fatigue_count(count)
-    //   + get_fatigue_count_db(count))；return 1。
+    // 两计数以单表达式按 int 相加（前者经寄存器缓存）后整体传入；return 1。
     packet.put_short(key);
-    short s = user->get_server_fatigue_count(count);
-    s = (short)(s + user->get_fatigue_count_db(count));
-    packet.put_short(s);
+    packet.put_short(
+        user->get_server_fatigue_count(count) +
+        user->get_fatigue_count_db(count));
     return true;
 }
 
 char* CAttendance::get_db_table_name()
 {
-    // ORIG 0x810e7cc：return m_script + 8。
-    return reinterpret_cast<char*>(m_script1c) + 8;
+    // ORIG 0x810e7cc：return &m_dbTableName。
+    return reinterpret_cast<char*>(
+        &static_cast<AttendanceScript*>(m_script1c)->m_dbTableName);
 }
 
 char* CAttendance::get_mail_data()
 {
-    // ORIG 0x810e7da：return m_script + 0x2c。
-    return reinterpret_cast<char*>(m_script1c) + 0x2c;
+    // ORIG 0x810e7da：return &m_mail。
+    return reinterpret_cast<char*>(
+        &static_cast<AttendanceScript*>(m_script1c)->m_mail);
 }
 
 int CAttendance::get_fatigue_condition()
 {
-    // ORIG 0x810e7e8：return *(int*)(m_script + 0xc)。
-    return *(reinterpret_cast<int*>(reinterpret_cast<char*>(m_script1c) + 0xc));
+    // ORIG 0x810e7e8：return m_field0c。
+    return static_cast<AttendanceScript*>(m_script1c)->m_field0c;
 }
 
 int CAttendance::get_final_day_condition()
 {
-    // ORIG 0x810e7f6：return *(int*)(m_script + 0x24)。
-    return *(reinterpret_cast<int*>(reinterpret_cast<char*>(m_script1c) + 0x24));
+    // ORIG 0x810e7f6：return m_field24。
+    return static_cast<AttendanceScript*>(m_script1c)->m_field24;
 }
 
-// ============ CPcRoomPlayTime ============
-
-CPcRoomPlayTime::CPcRoomPlayTime()
-    : CEventEntity(), m_script1c(0)
+// ORIG 0x810e878：day 越界（<0 或 ≥ m_attends.size()）直接返回；命中则把
+// m_attends[day] 写入 mail 的 itemIdx/addInfo，正文 key 取 m_str70 后发奖邮件。
+void CAttendance::send_attend_reward_item(CUser* user, int day)
 {
+    AttendanceScript* script = static_cast<AttendanceScript*>(m_script1c);
+    if (script->m_attends.empty() || day < 0 ||
+        static_cast<size_t>(day) >= script->m_attends.size())
+    {
+        return;
+    }
+
+    char* mid = NumberToString(user->get_acc_id(), 0);
+    cMyTrace trace(
+        "void EventClassify::CAttendance::send_attend_reward_item(CUser*, int)",
+        0x5ad, 0);
+    trace("send_attend_reward_item m_id:%s day:%d", mid, day);
+
+    const std::pair<int, int>& reward = script->m_attends[day];
+    script->m_mail.m_itemIdx = reward.first;
+    script->m_mail.m_addInfo = reward.second;
+    script->m_mail.m_field34 = script->m_str70;
+
+    CEventActionMng mng;
+    mng.process_action_send_mail(user, EVENT_MAIL_REF(script->m_mail), true);
 }
+
+// ORIG 0x810e9c0：统计 attendFlags 置位数（bit 0..31），等于 final 记录数才发：
+// mail 写入 m_pair1c（全勤终奖），正文 key 取 m_str74。
+void CAttendance::send_attend_final_rward_item(CUser* user, int attendFlags,
+                                               int record)
+{
+    char* mid = NumberToString(user->get_acc_id(), 0);
+    cMyTrace trace(
+        "void EventClassify::CAttendance::send_attend_final_rward_item(CUser*, int, int)",
+        0x5ba, 0);
+    trace("send_attend_final_rward_item m_id:%s day:%d record:%u",
+          mid, record, static_cast<unsigned int>(attendFlags));
+
+    int setBits = 0;
+    for (int bit = 0; bit < 0x20; ++bit)
+    {
+        if (isSetBit_Uint(static_cast<unsigned int>(attendFlags), bit))
+            ++setBits;
+    }
+    if (record != setBits)
+    {
+        return;
+    }
+
+    AttendanceScript* script = static_cast<AttendanceScript*>(m_script1c);
+    script->m_mail.m_itemIdx = script->m_pair1c.first;
+    script->m_mail.m_addInfo = script->m_pair1c.second;
+    script->m_mail.m_field34 = script->m_str74;
+
+    CEventActionMng mng;
+    mng.process_action_send_mail(user, EVENT_MAIL_REF(script->m_mail), true);
+}
+
+// ============ CPcRoomPlayTime（0x5c → PcBangPlayTimeScript）============
 
 bool CPcRoomPlayTime::is_eventing()
 {
-    // ORIG 0x8110814：GetRepeatEvent(0x5c) && IsEventing(0)。
-    if (!CEventEntity::is_eventing())
-        return false;
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x5c);
-    if (evt == 0)
-        return false;
-    return evt->IsEventing(0);
+    // ORIG 0x8110814：GetRepeatEvent(0x5c) 直接解引用判 IsEventing(0)
+    // （ORIG 无空检）。
+    if (CEventEntity::is_eventing())
+    {
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x5c)->IsEventing(0))
+            return true;
+    }
+    return false;
 }
 
 void CPcRoomPlayTime::set_event_data(int key, InGameEventScript* script)
@@ -240,33 +371,32 @@ void CPcRoomPlayTime::set_event_data(int key, InGameEventScript* script)
 
 char* CPcRoomPlayTime::get_db_table_name()
 {
-    // ORIG 0x8110864：return m_script + 8。
-    return reinterpret_cast<char*>(m_script1c) + 8;
+    // ORIG 0x8110864：return &m_dbTableName。
+    return reinterpret_cast<char*>(
+        &static_cast<PcBangPlayTimeScript*>(m_script1c)->m_dbTableName);
 }
 
 int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
 {
-    // ORIG 0x8110a38：is_eventing()==1 → 若 premium(0xc) 且 次数>=档位 → 0x12 else 0；
-    //   非 premium → 7；未开 → 0xb2。
-    if (is_eventing())
-    {
-        if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
-        {
-            unsigned char cnt = user->getPcRoomPlayTimeRewardCnt();
-            if (cnt < *(unsigned char*)(reinterpret_cast<char*>(m_script1c) + 0x10))
-                return 0;
-            return 0x12;
-        }
+    // ORIG 0x8110a38：未开事件 → 0xb2；非 0xc 类 premium → 7；
+    // 领奖次数达到 m_numberOfTime（先判 >=）→ 0x12，否则 0。
+    if (!is_eventing())
+        return 0xb2;
+    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
         return 7;
-    }
-    return 0xb2;
+    if ((unsigned int)user->getPcRoomPlayTimeRewardCnt() >=
+        (unsigned int)static_cast<PcBangPlayTimeScript*>(m_script1c)->m_numberOfTime)
+        return 0x12;
+    return 0;
 }
 
-// ============ CAccountFirstLogin ============
+// ============ CAccountFirstLogin（0x191/0x192 → AccountFirstLoginScript）============
 
 CAccountFirstLogin::CAccountFirstLogin()
     : CEventEntity(), m_script1c(0)
 {
+    // 显式保留（entitiesB 的 CAccountFirstLoginDaily 需可调用基类 ctor）。
+    // ORIG ctor 为 W 隐式且工厂先整块清零；此处补 m_script1c=0 复现清零终态。
 }
 
 void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)
@@ -278,46 +408,44 @@ void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)
 
 char* CAccountFirstLogin::get_db_table_name()
 {
-    // ORIG 0x810debe：return m_script + 8。
-    return reinterpret_cast<char*>(m_script1c) + 8;
+    // ORIG 0x810debe：return &m_dbTableName。
+    return reinterpret_cast<char*>(
+        &static_cast<AccountFirstLoginScript*>(m_script1c)->m_dbTableName);
 }
 
 char* CAccountFirstLogin::get_mail_data()
 {
-    // ORIG 0x810decc：return m_script + 0xc。
-    return reinterpret_cast<char*>(m_script1c) + 0xc;
+    // ORIG 0x810decc：return &m_mail。
+    return reinterpret_cast<char*>(
+        &static_cast<AccountFirstLoginScript*>(m_script1c)->m_mail);
 }
 
 void CAccountFirstLogin::do_action(int flags, CUser* user, std::bitset<32u> /*bs*/)
 {
-    // ORIG 0x810df04：发首登奖励邮件并写 DB 首登标志。
+    // ORIG 0x810df04：发首登奖励邮件并请求 DB 落首登标记（仅判 user 空指针）。
+    // 服务器组：PvP 统合频道取 GetServerGroup 低字节，否则取 CEnvironment +0x378
+    // 低字节（共享头暂无命名字段，待补后字段化）。
     if (user == 0)
         return;
-    if (m_script1c == 0)
-        return;
     CEventActionMng mng;
-    mng.process_action_send_mail(user, *reinterpret_cast<Action_SendMail*>(get_mail_data()), true);
+    mng.process_action_send_mail(
+        user,
+        EVENT_MAIL_REF(static_cast<AccountFirstLoginScript*>(m_script1c)->m_mail),
+        true);
 
     int serverGroup = 0;
-    GameWorld* gw = G_GameWorld();
-    if (gw->IsIntegratedPvPBaseChannel())
-        serverGroup = user->GetServerGroup();
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        serverGroup = (unsigned char)user->GetServerGroup();
     else
-        serverGroup = *(int*)((char*)G_CEnvironment() + 0x378);
-    serverGroup &= 0xff;
+        serverGroup =
+            (unsigned char)*(unsigned int*)((char*)G_CEnvironment() + 0x378);
 
-    int characNo = user->getCurCharacNo();
-    unsigned int accId = user->get_acc_id();
-    unsigned int uid = user->GetUID();
-    DB_InsertAccountFirstLoginFlag::makeRequest(uid, accId, serverGroup, characNo, flags);
+    DB_InsertAccountFirstLoginFlag::makeRequest(
+        (int)user->GetUID(), user->get_acc_id(), serverGroup,
+        (unsigned int)user->getCurCharacNo(), flags);
 }
 
-// ============ CAddItemCountDB ============
-
-CAddItemCountDB::CAddItemCountDB()
-    : CEventEntity(), m_script1c(0)
-{
-}
+// ============ CAddItemCountDB（0x193 → AddItemCountDBScript）============
 
 void CAddItemCountDB::set_event_data(int key, InGameEventScript* script)
 {
@@ -328,38 +456,41 @@ void CAddItemCountDB::set_event_data(int key, InGameEventScript* script)
 
 char* CAddItemCountDB::get_db_table_name()
 {
-    // ORIG 0x810e15a：return m_script + 0x20。
-    return reinterpret_cast<char*>(m_script1c) + 0x20;
+    // ORIG 0x810e15a：return &m_dbTableName。
+    return reinterpret_cast<char*>(
+        &static_cast<AddItemCountDBScript*>(m_script1c)->m_dbTableName);
 }
 
 int CAddItemCountDB::is_event_item(int itemId)
 {
-    // ORIG 0x810e08e：遍历 vector<int>(m_script+8) 判 itemId。
-    std::vector<int>* vec = reinterpret_cast<std::vector<int>*>(
-        reinterpret_cast<char*>(m_script1c) + 8);
-    for (std::vector<int>::iterator it = vec->begin(); it != vec->end(); ++it)
-        if (*it == itemId)
+    // ORIG 0x810e08e：size() 后按下标遍历 m_itemIdxs（每次内联解引用脚本）。
+    int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_itemIdxs.size();
+    for (int i = 0; i < count; ++i)
+    {
+        if (static_cast<AddItemCountDBScript*>(m_script1c)->m_itemIdxs[i] == itemId)
             return 1;
+    }
     return 0;
 }
 
 int CAddItemCountDB::is_event_quest(int questId)
 {
-    // ORIG 0x810e0f4：遍历 vector<int>(m_script+0x14) 判 questId。
-    std::vector<int>* vec = reinterpret_cast<std::vector<int>*>(
-        reinterpret_cast<char*>(m_script1c) + 0x14);
-    for (std::vector<int>::iterator it = vec->begin(); it != vec->end(); ++it)
-        if (*it == questId)
+    // ORIG 0x810e0f4：size() 后按下标遍历 m_questIds（每次内联解引用脚本）。
+    int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_questIds.size();
+    for (int i = 0; i < count; ++i)
+    {
+        if (static_cast<AddItemCountDBScript*>(m_script1c)->m_questIds[i] == questId)
             return 1;
+    }
     return 0;
 }
 
-
 // ============================================================================
 // create_event_entity @ 0x0810b402（CEventScriptMng 实体工厂）。
-// flag=true → 仅基类实体（operator new 0x1c + CEventEntity ctor，无清零循环）。
-// 否则按记录类型分配 0x20 字节、先整块清零再调用对应派生类构造
-// （ORIG 每分支均为 operator new(0x20) → 8×dword 清零 → 派生 C1 thunk）：
+// flag=true → 仅基类实体（operator new 0x1c + CEventEntity ctor，无清零）。
+// 否则按记录类型 value-init 对应派生类：operator new(0x20) → 整块清零循环 →
+// C1 thunk（隐式 ctor 下 gcc 与 ORIG 同形；组 B/CAccountFirstLogin 为显式
+// ctor，成员终态一致）。
 //   0x56→CAttendance        0x5c→CPcRoomPlayTime       0x65→CUsedFatigueGiveItem
 //   0x191/0x192→CAccountFirstLogin    0x193→CAddItemCountDB   0x194→CLevelUpReward
 //   0x196→CExchangeRandomItemReward   0x197→CAvatarDisjointRandomReward
@@ -377,66 +508,49 @@ CEventEntity* CEventScriptMng::create_event_entity(int recordType, bool flag)
         return entity;
     }
 
-
-    // ORIG 每分支内联重复：operator new(0x20) → 8×dword 清零循环 → 派生 ctor
-    // （value-init 语义；ORIG 无 memset 调用）。宏不产生新符号。
-#define DNF_NEW_ZEROED_ENTITY(CTOR_EXPR)                                     \
-    do                                                                       \
-    {                                                                        \
-        void* mem = ::operator new(0x20);                                    \
-        unsigned int off = 0;                                                \
-        do                                                                   \
-        {                                                                    \
-            *reinterpret_cast<unsigned int*>(                                \
-                static_cast<char*>(mem) + off) = 0;                          \
-            off += 4;                                                        \
-        } while (off < 0x20);                                                \
-        entity = new (mem) CTOR_EXPR;                                        \
-    } while (0)
-
+    // 分支体按 ORIG 代码布局顺序排列（ctor 地址升序，gcc -O0 同序生成）。
     switch (recordType)
     {
-    case 0x56:                                      // ORIG 08110fdc
-        DNF_NEW_ZEROED_ENTITY(CAttendance());
-        break;
-    case 0x5c:                                      // ORIG 08111084
-        DNF_NEW_ZEROED_ENTITY(CPcRoomPlayTime());
-        break;
-    case 0x65:                                      // ORIG 081110a0
-        DNF_NEW_ZEROED_ENTITY(CUsedFatigueGiveItem());
-        break;
     case 0x191:                                     // ORIG 08110f88
     case 0x192:
-        DNF_NEW_ZEROED_ENTITY(CAccountFirstLogin());
+        entity = new CAccountFirstLogin();
         break;
     case 0x193:                                     // ORIG 08110fa4
-        DNF_NEW_ZEROED_ENTITY(CAddItemCountDB());
+        entity = new CAddItemCountDB();
         break;
     case 0x194:                                     // ORIG 08110fc0
-        DNF_NEW_ZEROED_ENTITY(CLevelUpReward());
+        entity = new CLevelUpReward();
+        break;
+    case 0x56:                                      // ORIG 081110fdc
+        entity = new CAttendance();
         break;
     case 0x196:                                     // ORIG 08110ff8
-        DNF_NEW_ZEROED_ENTITY(CExchangeRandomItemReward());
+        entity = new CExchangeRandomItemReward();
         break;
     case 0x197:                                     // ORIG 08111014
-        DNF_NEW_ZEROED_ENTITY(CAvatarDisjointRandomReward());
+        entity = new CAvatarDisjointRandomReward();
         break;
     case 0x199:                                     // ORIG 08111030
-        DNF_NEW_ZEROED_ENTITY(CFatigueQuantity());
+        entity = new CFatigueQuantity();
         break;
     case 0x19a:                                     // ORIG 0811104c
-        DNF_NEW_ZEROED_ENTITY(CPurchaseCashItemBonus());
+        entity = new CPurchaseCashItemBonus();
         break;
     case 0x19b:                                     // ORIG 08111068
-        DNF_NEW_ZEROED_ENTITY(CObjectBringUp());
+        entity = new CObjectBringUp();
+        break;
+    case 0x5c:                                      // ORIG 08111084
+        entity = new CPcRoomPlayTime();
+        break;
+    case 0x65:                                      // ORIG 081110a0
+        entity = new CUsedFatigueGiveItem();
         break;
     case 0x19c:                                     // ORIG 0811110a
-        DNF_NEW_ZEROED_ENTITY(CAccountFirstLoginDaily());
+        entity = new CAccountFirstLoginDaily();
         break;
     default:                                        // ORIG 未匹配返回 0（无分配）
-        return 0;
+        break;
     }
-#undef DNF_NEW_ZEROED_ENTITY
     return entity;
 }
 }  // namespace EventClassify

@@ -35,13 +35,15 @@
 
 // ---------------------------------------------------------------------------
 // MSG_BASE：所有 MSG 类型的基类
-// ORIG：_ZN8MSG_BASEC1Ev(0x812c076) 空体，但所有 MSG 派生类字段自 +0xd 起
-// （如 MSG_ENCHANT +0xd、MSG_BREAK_AWAY +0xd），故为 0xd 字节包头。
+// ORIG：_ZN8MSG_BASEC1Ev(0x812c076) 空体（nm 实证无 D0/D1/D2 —— 不得声明
+// 析构，否则每个 MSG_* 派生类型产生伪 D1/D2 与模板内多余清理块）；
+// 所有 MSG 派生类字段自 +0xd 起（如 MSG_ENCHANT +0xd、MSG_BREAK_AWAY +0xd），
+// 故为 0xd 字节包头。MSG 家族一律 POD（各派生类亦无 C1/D1，见 nm 扫描）。
 class MSG_BASE
 {
 public:
-    MSG_BASE() {}
-    ~MSG_BASE() {}
+    MSG_BASE();                  // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
+                                 // 定义唯一提供于 PacketTypes.cpp（keeper 协作约定）。
     char m_head[0xd];
 };
 
@@ -119,16 +121,17 @@ public:
 template <class MSG, class Param, ch_state state>
 int IPacketDispatcher<MSG, Param, state>::check_state(CUser* user, PacketBuf& packet)
 {
-    int userState = user->get_state();
-    if (userState <= (int)state - 1)
+    // ORIG 代码形态（ch_state0 实例 shr $0x1f / 其余 cmp $N-1,setle）：
+    // 条件必须内联求值、不得引入具名局部；val 不初始化；len 以调用结果
+    // 直接作实参（ORIG get_len 返回值驻留 %eax 直填 0x18(%esp)）。
+    if (user->get_state() <= (int)state - 1)
     {
         packet.set_index(1);
-        short val = 0;
+        short val;
         packet.get_short(val);
-        int len = packet.get_len();
         LogManager::logFormat(1, "dispatcher.cpp",
                               "int IPacketDispatcher::check_state(CUser*, PacketBuf&)",
-                              0x94, "state(%d) len(%d)", (int)val, len);
+                              0x94, "state(%d) len(%d)", (int)val, packet.get_len());
         return 0x95;
     }
     return 0;
@@ -144,25 +147,27 @@ template <class MSG, class Param, ch_state state>
 void IPacketDispatcher<MSG, Param, state>::send(CUser* user, ParamBase& param)
 {
 }
-
 template <class MSG, class Param, ch_state state>
 int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketBuf& packet)
 {
+    // ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
+    // MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；
+    // 赋值内嵌于条件（(result = read(...)) != 0 / (result = process(...)) > 0
+    // ⇒ setne/setg 物化形态）；MSG 为 POD 不调用构造。
     if (check_state(user, packet) > 0)
     {
         return 0;
     }
 
     MSG msg;
-    int result = read(packet, msg);
-    if (result != 0)
+    int result = 0;
+    if ((result = this->read(packet, *reinterpret_cast<MSG_BASE*>(&msg))) != 0)
     {
         return result;
     }
 
     Param param;
-    result = process(user, msg, param);
-    if (result > 0)
+    if ((result = this->process(user, *reinterpret_cast<MSG_BASE*>(&msg), param)) > 0)
     {
         return result;
     }
@@ -250,6 +255,8 @@ private:
     IDispatcher* m_dispatchers[606];              // +0x000..+0x977
     CLocalChinaErrorDispatcher m_chinaError;      // +0x978
 };
+
+PacketDispatcher* G_PacketDispatcher();   // ORIG W 0x0823453e：GlobalInstance<PacketDispatcher>::inst_ptr()
 
 static_assert(sizeof(PacketDispatcher) == 0x990, "PacketDispatcher layout mismatch");
 static_assert(sizeof(CLocalChinaErrorDispatcher) == 0x18,

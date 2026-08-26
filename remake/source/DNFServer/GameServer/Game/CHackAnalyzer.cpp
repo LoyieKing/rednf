@@ -1,14 +1,21 @@
-// df_game_r Game/ WongWork::CHackAnalyzer 实现（S5 语义对齐批次）。
-// 依据 docs/class_func_reports/WongWork__CHackAnalyzer/*.md 逐函数还原：
-//   addServerHackCnt 0x080f8c7e / reportHackInfo 0x080f8080 /
-//   resetHackInfo 0x080f81a6 / CheckExceptionCnt 0x080f81fc /
-//   CheckHackRateByPartyCount 0x080f8320 / CheckHackRateByDifficult 0x080f842e /
-//   ReqDBSaveHackInfo 0x080f8f62 / AddCheckRateHackTypeList 0x080f8550 /
-//   getBaseHackType 0x080f9868 / setBaseHackType 0x080f9856 /
-//   resetServerHackAccumulatedCnt 0x086950b6 / onUpdateHackCount 0x080f8c4e
-#include "CUser.h"
+// df_game_r Game/ WongWork::CHackAnalyzer 实现（G6 missing 批次，权威头
+// CHackAnalyzer.h；Secu_AccountHacking 全部方法 + CHackAnalyzer 缺失方法）。
+// 依据 docs/class_func_reports/WongWork__CHackAnalyzer/*.md 与
+// Secu_AccountHacking/*.md 逐函数还原（##汇编 + ##反编译C 两段均已读）；
+// 报告缺失的 4 个小符号（getServerHackCnt / resetServerHackCnt /
+// setServerHackAccumulatedCnt / checkCollectedHack）以 ORIG nm + objdump
+// 区间取证后转写并明确标注「报告缺失」。附带落 DB_SelectCharacMid /
+// DB_ReqSaveHackUserPunish::makeRequest（各自报告在手，此前无 owner）。
+#include "CHackAnalyzer.h"
 
+#include <algorithm>
 #include <string.h>
+
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CDataManager.h"
+#include "CInventory.h"
+#include "CItem.h"
 #include "CStreamGuard.h"
 #include "GlobalData.h"
 #include "MsgQueueMgr.h"
@@ -17,11 +24,18 @@
 #include "CParty.h"
 #include "CDungeon.h"
 #include "CBattle_Field.h"
-#include "CUserCharacInfo.h"
+#include "CSystemTime.h"
+#include "PacketBuf.h"
+#include "DB_SelectCharacMid.h"
+#include "DB_ReqSaveHackUserPunish.h"
 
 // ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，objdump -s 实测）----
 static const short _S_HACK_CHECK_RATE_BY_PARTYCOUNT[4] = {100, 50, 33, 25};
 static const short _S_HACK_CHECK_RATE_BY_DIFFICULT[5] = {25, 20, 15, 10, 0};
+
+// 浮点比率系数（ORIG flds 0x8b3e2a0 / 0x8c00fd0，objdump 实测均 100.0f）
+static const float _S_HACK_RATIO_COEF_100F = 100.0f;
+
 namespace WongWork
 {
 
@@ -35,15 +49,9 @@ struct SIG_SAVE_CLIENT_HACK_LOG
 };
 
 // 计数区寻址（ORIG：this + 4*(idx)+8，idx = t-0x65 与 t-0x65+0xf44）。
-// m_cntRegion 自 this+0x28 起。两数组均落在 ctor memset 区域内。
-static inline int& hackCntA(CHackAnalyzer* self, int type)
-{
-    return *(int*)(self->m_cntRegion + ((type - 0x65) * 4 + 8) - 0x28);
-}
-static inline int& hackCntB(CHackAnalyzer* self, int type)
-{
-    return *(int*)(self->m_cntRegion + ((type - 0x65 + 0xf44) * 4 + 8) - 0x28);
-}
+#define HACK_CNT_A(T) (*(int*)(m_cntRegion + ((((int)(T)) - 0x65) * 4 + 8) - 0x28))
+#define HACK_CNT_B(T) \
+    (*(int*)(m_cntRegion + ((((int)(T)) - 0x65 + 0xf44) * 4 + 8) - 0x28))
 
 // ORIG WongWork::CAutoPunishRuleHackTypeMgr 布局镜像（权威定义在
 // GlobalData.cpp；此处仅按偏移只读访问 m_exceptionMap @+0x58）。「推断」标注：
@@ -54,17 +62,19 @@ struct stHacktypeExceptionInfoView_t
     unsigned short m_flag;
 };
 
+// 报告缺失符号（nm W 0x080f9876，objdump 逐指令转写，0x1c 字节）：
+// return ((m_flag04 & flag) == flag) —— sete 规范化 bool。
+bool CHackAnalyzer::checkCollectedHack(ENUM_REPORT_4_HACK_FLAG flag)
+{
+    return (((unsigned char)m_flag04 & flag) == flag);
+}
+
 CHackAnalyzer::CHackAnalyzer()
 {
-    std::vector<stHackInfo_t>* list =
-        new (&m_hackInfoList) std::vector<stHackInfo_t>();
-    (void)list;
-    new (&m_checkTypes) std::vector<int>();
-    new (&m_exceptionCntMap) std::map<int, int>();
-    new (&m_checkRateHackTypes) std::vector<int>();
-    new (&m_vec7a30) std::vector<int>();
+    // ORIG C1 0x086950d2：隐式构造五个容器成员，再 resetHackInfo、
+    // memset(this+0x28,0,0x3cf0)、AddCheckRateHackTypeList。
     resetHackInfo();
-    memset(m_cntRegion + 0x00, 0, 0x3cf0);  // ORIG memset(this+0x28,0,0x3cf0)
+    memset(m_cntRegion + 0x00, 0, 0x3cf0);
     AddCheckRateHackTypeList();
 }
 
@@ -74,10 +84,45 @@ ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_baseHac
 
 void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t) { m_baseHackType = (int)t; }
 
+void CHackAnalyzer::setUserP(CUser* user)
+{
+    // ORIG T 0x080f79c0（setUserP.md）：*(this+0) = user（与 beginCollectHackInfo
+    // 共用首槽槽位复用）。
+    m_baseHackType = (int)user;
+}
+
+CUser* CHackAnalyzer::getUserP()
+{
+    // ORIG T 0x080f79ce（getUserP.md）：非零路径 fallthrough（回读同槽），
+    // 空值返回置函数尾（与 ORIG 分支排布一致）。
+    if (m_baseHackType != 0)
+        return (CUser*)m_baseHackType;
+    return (CUser*)0;
+}
+
+int CHackAnalyzer::getServerHackCnt(ENUM_HACKTYPE type)
+{
+    // 报告缺失（nm W 0x08695086）：读 A 表槽（与 addServerHackCnt 同寻址）。
+    return HACK_CNT_A(type);
+}
+
+void CHackAnalyzer::resetServerHackCnt(ENUM_HACKTYPE type)
+{
+    // 报告缺失（nm W 0x0869509c）：A 表槽清零。
+    HACK_CNT_A(type) = 0;
+}
+
+void CHackAnalyzer::setServerHackAccumulatedCnt(ENUM_HACKTYPE type,
+                                                unsigned int cnt)
+{
+    // 报告缺失（nm W 0x084eb57c）：B 表累计槽直写（lea idx-0x65+0xf44 ×4 +8）。
+    HACK_CNT_B(type) = (int)cnt;
+}
+
 void CHackAnalyzer::resetServerHackAccumulatedCnt(ENUM_HACKTYPE type)
 {
-    // ORIG W 0x086950b6：清 B 表累计项（推断：与 addServerHackCnt 的 B 数组对应）。
-    hackCntB(this, (int)type) = 0;
+    // ORIG W 0x086950b6：B 表累计槽清零（与 addServerHackCnt 同寻址）。
+    HACK_CNT_B(type) = 0;
 }
 
 void CHackAnalyzer::setLastMonsterDeadTime(long t)
@@ -86,10 +131,14 @@ void CHackAnalyzer::setLastMonsterDeadTime(long t)
     m_field7a08 = (int)t;
 }
 
-void CHackAnalyzer::beginCollectHackInfo(CUser*)
+void CHackAnalyzer::beginCollectHackInfo(CUser* user)
 {
-    // ORIG 0x080f79e8（本批未展开）：清空收集列表并记录用户指针。
-    m_hackInfoList.clear();
+    // ORIG 0x080f79e8：+0x00 收 user、+0x20=系统当前秒、+0x24 清零、
+    // +0x14 vector<int> clear（m_checkTypes）。
+    m_baseHackType = (int)user;  // ORIG *(int*)this = user（槽位复用）
+    m_field20 = GlobalData::s_systemTime_.getCurSec();
+    m_field24 = 0;
+    m_checkTypes.clear();
 }
 
 bool CHackAnalyzer::CheckExceptionCnt(ENUM_HACKTYPE type, int cnt)
@@ -134,35 +183,27 @@ bool CHackAnalyzer::CheckExceptionCnt(ENUM_HACKTYPE type, int cnt)
 
 bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
 {
-    for (std::vector<int>::iterator it = m_checkRateHackTypes.begin();
-         it != m_checkRateHackTypes.end(); ++it)
-    {
-        if (*it == (int)type)
-        {
-            int idx = count - 1;
-            if (idx < 0 || idx > 3 ||
-                _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx] == 100)
-                return true;
-            return !(get_rand_int(100) > _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx]);
-        }
-    }
-    return true;
+    // ORIG 0x080f8320：std::find 于 m_checkRateHackTypes(+0x7a24) 查 type；
+    // 未命中返回 true；idx=count-1 越界或费率==100 返回 true；
+    // 否则命中当 get_rand_int(100) <= 费率。
+    if (std::find(m_checkRateHackTypes.begin(), m_checkRateHackTypes.end(),
+                  (int)type) == m_checkRateHackTypes.end())
+        return true;
+
+    int idx = count - 1;
+    if (idx < 0 || idx > 3 || _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx] == 100)
+        return true;
+    return get_rand_int(100) <= _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx];
 }
 
 bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
                                              int difficult)
 {
-    bool found = false;
-    for (std::vector<int>::iterator it = m_checkRateHackTypes.begin();
-         it != m_checkRateHackTypes.end(); ++it)
-    {
-        if (*it == (int)type)
-        {
-            found = true;
-            break;
-        }
-    }
-    if (!found)
+    // ORIG 0x080f842e：std::find 查 m_vec7a30(+0x7a30)；未命中返回 true；
+    // type==0x86 时 lvDiff<<1；difficult 越界返回 true；chance=100-lvDiff-表值，
+    // <=0x18 且非 0x86 时抬到 0x19；命中当 get_rand_int(100) <= chance。
+    if (std::find(m_vec7a30.begin(), m_vec7a30.end(), (int)type) ==
+        m_vec7a30.end())
         return true;
 
     if ((int)type == 0x86)
@@ -171,23 +212,59 @@ bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
         return true;
 
     int chance = 100 - lvDiff - _S_HACK_CHECK_RATE_BY_DIFFICULT[difficult];
-    if (chance < 0x19 && (int)type != 0x86)
+    if (chance <= 0x18 && (int)type != 0x86)
         chance = 0x19;
-    return !(chance < get_rand_int(100));
+    return get_rand_int(100) <= chance;
 }
 
 void CHackAnalyzer::AddCheckRateHackTypeList()
 {
-    static const int kTypes[] = {
-        0x84,  0xdc,  0x138, 0x139, 0x86,  0xde,  0x1a4, 0x1a5,
-        0x1a7, 0xdf,  0xe0,  0xe1,  0x1a4, 0x1a5, 0x1a7, 0xdf,
-        0xe0,  0xe1,  0x84,  0xca,  0xcd,  0xce,  0xd0,  0xd1,
-        0xd7,  0xd8,  0xd9,  0xda,  0xdb,  0xdc,  0x138, 0x139,
-        0x193, 0x19e, 0x86,  0xde,  0x1a4, 0x1a5, 0x1a7, 0xdf,
-        0xe0,  0xe1,
-    };
-    for (unsigned int i = 0; i < sizeof(kTypes) / sizeof(kTypes[0]); ++i)
-        m_checkRateHackTypes.push_back(kTypes[i]);
+    // ORIG 0x080f8550：前 18 项压入 m_checkRateHackTypes(+0x7a24)，
+    // 后 24 项压入 m_vec7a30(+0x7a30)；均为栈上 int 变量逐值 push_back。
+    int v;
+    v = 0x84; m_checkRateHackTypes.push_back(v);
+    v = 0xdc; m_checkRateHackTypes.push_back(v);
+    v = 0x138; m_checkRateHackTypes.push_back(v);
+    v = 0x139; m_checkRateHackTypes.push_back(v);
+    v = 0x86; m_checkRateHackTypes.push_back(v);
+    v = 0xde; m_checkRateHackTypes.push_back(v);
+    v = 0x1a4; m_checkRateHackTypes.push_back(v);
+    v = 0x1a5; m_checkRateHackTypes.push_back(v);
+    v = 0x1a7; m_checkRateHackTypes.push_back(v);
+    v = 0xdf; m_checkRateHackTypes.push_back(v);
+    v = 0xe0; m_checkRateHackTypes.push_back(v);
+    v = 0xe1; m_checkRateHackTypes.push_back(v);
+    v = 0x1a4; m_checkRateHackTypes.push_back(v);
+    v = 0x1a5; m_checkRateHackTypes.push_back(v);
+    v = 0x1a7; m_checkRateHackTypes.push_back(v);
+    v = 0xdf; m_checkRateHackTypes.push_back(v);
+    v = 0xe0; m_checkRateHackTypes.push_back(v);
+    v = 0xe1; m_checkRateHackTypes.push_back(v);
+
+    v = 0x84; m_vec7a30.push_back(v);
+    v = 0xca; m_vec7a30.push_back(v);
+    v = 0xcd; m_vec7a30.push_back(v);
+    v = 0xce; m_vec7a30.push_back(v);
+    v = 0xd0; m_vec7a30.push_back(v);
+    v = 0xd1; m_vec7a30.push_back(v);
+    v = 0xd7; m_vec7a30.push_back(v);
+    v = 0xd8; m_vec7a30.push_back(v);
+    v = 0xd9; m_vec7a30.push_back(v);
+    v = 0xda; m_vec7a30.push_back(v);
+    v = 0xdb; m_vec7a30.push_back(v);
+    v = 0xdc; m_vec7a30.push_back(v);
+    v = 0x138; m_vec7a30.push_back(v);
+    v = 0x139; m_vec7a30.push_back(v);
+    v = 0x193; m_vec7a30.push_back(v);
+    v = 0x19e; m_vec7a30.push_back(v);
+    v = 0x86; m_vec7a30.push_back(v);
+    v = 0xde; m_vec7a30.push_back(v);
+    v = 0x1a4; m_vec7a30.push_back(v);
+    v = 0x1a5; m_vec7a30.push_back(v);
+    v = 0x1a7; m_vec7a30.push_back(v);
+    v = 0xdf; m_vec7a30.push_back(v);
+    v = 0xe0; m_vec7a30.push_back(v);
+    v = 0xe1; m_vec7a30.push_back(v);
 }
 
 void CHackAnalyzer::ReqDBSaveHackInfo(unsigned int uid, unsigned int type,
@@ -215,7 +292,9 @@ void CHackAnalyzer::reportHackInfo()
     for (std::vector<stHackInfo_t>::iterator it = m_hackInfoList.begin();
          it != m_hackInfoList.end(); ++it)
     {
-        ReqDBSaveHackInfo(it->m_uid, it->m_hackType, it->m_cnt, it->m_time, 1);
+        stHackInfo_t info = *it;
+        ReqDBSaveHackInfo(info.m_uid, info.m_hackType, info.m_cnt,
+                          info.m_time, 1);
     }
 }
 
@@ -230,19 +309,252 @@ void CHackAnalyzer::resetHackInfo()
     m_field7a08 = 0;
 }
 
-void CHackAnalyzer::onUpdateHackCount(CUser* user, ENUM_HACKTYPE type,
-                                      unsigned int a, unsigned int b,
-                                      unsigned int c)
+void CHackAnalyzer::_addHackInfo(ENUM_REPORT_4_HACK_FLAG flag,
+                                 ENUM_HACKTYPE type, int value)
 {
-    user->onUpdateHackCount(type, (int)a, b, c);
+    // ORIG 0x080f7fd2（_addHackInfo.md）：取 acc_id / curCharacNo 作记录前两域，
+    // {uid, hackNo, type(u16), value(int)} 落栈后 push_back 进 m_hackInfoList，
+    // 随后 m_flag04 |= flag。
+    stHackInfo_t info;
+    info.m_uid = ((CUser*)m_baseHackType)->get_acc_id();
+    info.m_hackType = (unsigned int)((CUser*)m_baseHackType)->getCurCharacNo();
+    info.m_cnt = (unsigned short)(unsigned int)type;
+    info.m_time = value;
+    m_hackInfoList.push_back(info);
+
+    m_flag04 = (unsigned char)((unsigned)flag | (unsigned)m_flag04);
+}
+
+int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
+{
+    // ORIG 0x080f7a22（analyzeHackReport.md）：头 2 字节标志位驱动各检测分支；
+    // 失败读包路径一律 return 0，成功路径 return 1；flags&0x100 时对 param_1
+    // 直连其分析器加 0x32c 计数。
+    unsigned short flags;                 // ORIG 无预清零（getHackType 直填）
+    if (!stGetHackTypeOperator<unsigned short, 2>::getHackType(pkt, flags))
+        return 0;
+
+    if (m_baseHackType == 0)
+        return 1;
+
+    if ((flags & 0x1) != 0)
+    {
+        unsigned int speedMs;
+        if (!pkt->get_int(speedMs))
+            return 0;
+        _analyzeSpeedHack(speedMs);
+    }
+    if ((flags & 0x2) != 0)
+    {
+        _analyzeDifficultyHack('\0');
+        ((CUser*)m_baseHackType)->DisConnSig((DISCONN_SIG)0x18, false, false);
+    }
+    if ((flags & 0x8) != 0)
+    {
+        unsigned int memVal;
+        if (!pkt->get_int(memVal))
+            return 0;
+        _analyzeMemoryHack(memVal);
+    }
+    if ((flags & 0x4) != 0)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_EQUIPMENT_UPGRADE,
+                     (ENUM_HACKTYPE)0x3c5, 0);
+        ReqDBSaveHackUserPunish(((CUser*)m_baseHackType)->get_acc_id(), 0xa8);
+        ((CUser*)m_baseHackType)->DisConnSig((DISCONN_SIG)0x18, false, false);
+    }
+    if ((flags & 0x80) != 0)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_MONSTER_DIE, (ENUM_HACKTYPE)0x3bd, 0);
+    }
+    if ((flags & 0x10) != 0)
+    {
+        char byteVal;
+        if (!pkt->get_byte(byteVal))
+            return 0;
+        _addHackInfo(REPORT_4_HACK_FLAG_PAYLOAD_BYTE, (ENUM_HACKTYPE)0x3be,
+                     (int)byteVal);
+    }
+    if ((flags & 0x20) != 0)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_MISC, (ENUM_HACKTYPE)0x3c6, 0);
+    }
+    if ((flags & 0x100) != 0)
+    {
+        user->getHackAnalyzer()->addServerHackCnt(user, (ENUM_HACKTYPE)0x32c,
+                                                  1, 0, 0);
+    }
+    return 1;
+}
+
+void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
+{
+    // ORIG 0x080f7cca（_analyzeSpeedHack.md）：ratio=(int)(100.0f*ms/elapsed)；
+    // ratio<=0x45 或 >0x82 时记 0x3c1。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_SPEED))
+        return;
+
+    if (m_field24 == 0)
+    {
+        _reportIncurrectReport();
+        return;
+    }
+
+    unsigned long long numMs = ms;                       // ORIG fildll（零扩展对）
+    int elapsed = m_field24 - m_field20;                 // ORIG fildl
+    int ratio = (int)(_S_HACK_RATIO_COEF_100F *
+                      ((double)numMs / (double)elapsed));
+
+    if (ratio <= 0x45 || ratio > 0x82)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_SPEED, (ENUM_HACKTYPE)0x3c1, ratio);
+    }
+}
+
+void CHackAnalyzer::_analyzeDifficultyHack(char level)
+{
+    // ORIG 0x080f7d82（_analyzeDifficultyHack.md）。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_DIFFICULTY))
+        return;
+    _addHackInfo(REPORT_4_HACK_FLAG_DIFFICULTY, (ENUM_HACKTYPE)0x3bf,
+                 (int)level);
+}
+
+void CHackAnalyzer::_analyzeMemoryHack(unsigned int val)
+{
+    // ORIG 0x080f7dce（_analyzeMemoryHack.md）。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_MEMORY))
+        return;
+    if (val == 0)
+        return;
+    _addHackInfo(REPORT_4_HACK_FLAG_MEMORY, (ENUM_HACKTYPE)0x3bc, (int)val);
+}
+
+void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
+{
+    // ORIG 0x080f7e18（_analyzeEquipmentUpgradeHack.md）：当前角色背包装备栏
+    // 前 0x16 格 Inven_Item::GetUpgrade 低字节须逐一等于客户端上报表值。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_EQUIPMENT_UPGRADE))
+        return;
+
+    const CInventory* inv = ((CUser*)m_baseHackType)->getCurCharacInvenR();
+    for (int i = 0; i < 0x16; ++i)
+    {
+        const Inven_Item* item =
+            (const Inven_Item*)((char const*)inv + i * 0x3d + 0x1c);
+        unsigned short upgrade = item->GetUpgrade();
+        if ((upgrade & 0xff) != table[i])
+        {
+            _addHackInfo(REPORT_4_HACK_FLAG_EQUIPMENT_UPGRADE,
+                         (ENUM_HACKTYPE)0x3c3, 0);
+            return;
+        }
+    }
+}
+
+void CHackAnalyzer::_analyzeMonsterDieHack()
+{
+    // ORIG 0x080f7eb6（_analyzeMonsterDieHack.md）：采集窗口 <11 秒且 kill 记录
+    // 全为 0xffff 填充时记 0x3c0。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_MONSTER_DIE))
+        return;
+
+    if (m_field24 - m_field20 > 0xa)
+        return;
+
+    std::vector<int>::const_iterator e = m_checkTypes.end();
+    std::vector<int>::const_iterator it = m_checkTypes.begin();
+    while (it != e && *it == 0xffff)
+        ++it;
+    if (it == e)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_MONSTER_DIE, (ENUM_HACKTYPE)0x3c0,
+                     m_field24 - m_field20);
+    }
+}
+
+void CHackAnalyzer::analyzeMonsterDieHack()
+{
+    // ORIG W 0x080f7cb6（analyzeMonsterDieHack.md）：纯转发。
+    _analyzeMonsterDieHack();
+}
+
+void CHackAnalyzer::_reportIncurrectReport()
+{
+    // ORIG W 0x080f8032（_reportIncurrectReport.md）。
+    if (checkCollectedHack(REPORT_4_HACK_FLAG_INCURRECT))
+        return;
+    int state = ((CUser*)m_baseHackType)->get_state();
+    _addHackInfo(REPORT_4_HACK_FLAG_INCURRECT, (ENUM_HACKTYPE)0x3c4, state);
+}
+
+void CHackAnalyzer::ValidateFixMobDiePos(CUser* user, unsigned short mobId,
+                                         unsigned short x, unsigned short y)
+{
+    // ORIG T 0x080f908c（ValidateFixMobDiePos.md）：查 FixMobInfo 白名单表；
+    // mobId 命中而坐标出框（或 0xd6ed 特例坐标不等于框边界 xMin/xMax）时
+    // addServerHackCnt(user, 0xd2, 1, 0, 0)。
+    // 静态表（ORIG nm d @0x0936f9c0 size 0x84 / FixMobInfoSize @0x0936fa44
+    // =11；内容 objdump -s .data 实测，第 11 项全零不参与比较循环）。
+    struct FixMobInfoRec
+    {
+        unsigned int m_mid;       // +0x00
+        unsigned short m_xMin;    // +0x04
+        unsigned short m_xMax;    // +0x06
+        unsigned short m_yMin;    // +0x08
+        unsigned short m_yMax;    // +0x0a
+    };
+    static FixMobInfoRec FixMobInfo[] = {
+        {0xbba,  0x468, 0x468,  0xed,  0xed },
+        {0xd6ed, 0x80,  0x337,  0x9d,  0x139},
+        {0x2f0,  0xb,   0xb,    0x82,  0x15e},
+        {0x2ef,  0x378, 0x378,  0x82,  0x15e},
+        {0xdb29, 0x4f9, 0x4f9,  0xff,  0xff },
+        {0xf010, 0xffee, 0xffee, 0x120, 0x120},
+        {0xf108, 0x57,  0x57,   0x175, 0x175},
+        {0xef9c, 0x384, 0x384,  0xf0,  0xf0 },
+        {0x3f2,  0x377, 0x377,  0xca,  0xca },
+        {0xdcbb, 0x552, 0x552,  0xfb,  0xfb },
+        {0,      0,     0,      0,     0    },
+    };
+    static short FixMobInfoSize = 11;
+
+    for (int i = 0; i < FixMobInfoSize - 1; ++i)
+    {
+        if (mobId == FixMobInfo[i].m_mid)
+        {
+            if (x < FixMobInfo[i].m_xMin ||
+                FixMobInfo[i].m_xMax < x ||
+                y < FixMobInfo[i].m_yMin ||
+                FixMobInfo[i].m_yMax < y)
+            {
+                addServerHackCnt(user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
+                return;
+            }
+            if (mobId != 0xd6ed)
+                return;
+            if (FixMobInfo[i].m_xMin == x)
+                return;
+            if (FixMobInfo[i].m_xMax == x)
+                return;
+            addServerHackCnt(user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
+            return;
+        }
+    }
+}
+
+void CHackAnalyzer::onUpdateHackCount(CUser* user, ENUM_HACKTYPE type, int a,
+                                      unsigned int b, unsigned int c)
+{
+    user->onUpdateHackCount(type, a, b, c);
 }
 
 void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
                                      unsigned int count, unsigned int a,
                                      unsigned int b)
 {
-    int t = (int)type;
-    if (t < 0 || 0xfa1 < t)
+    // ORIG：直接用形参比较，不落局部（保持指令形态）。
+    if ((int)type < 0 || 0xfa1 < (int)type)
     {
         int base = (int)getBaseHackType();
         int etc = user->SetETC(0x34e, base);
@@ -252,11 +564,12 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
         return;
     }
 
-    if (!CheckExceptionCnt(type, (int)count))
+    // ORIG：CheckExceptionCnt 返回真（异常额度内）→ 跳过统计；假 → 继续
+    // 并在尾部推进计数器（见 addServerHackCnt.md 汇编 +0x93/+0x98）。
+    if (CheckExceptionCnt(type, (int)count))
         return;
-    // 账号盗用类且 B 表累计非 0 时跳过统计（ORIG bVar1 分支）。
     if (Secu_AccountHacking::checkAccountHackingHackType(type) &&
-        hackCntB(this, t) != 0)
+        HACK_CNT_B(type) != 0)
         return;
 
 
@@ -271,34 +584,317 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
         CDungeon* dungeon = *(CDungeon**)(pc + 0xcac);
         if (dungeon != 0)
         {
-            int lv = ((CUserCharacInfo*)user)->get_charac_level();
-            int stdLv = dungeon->get_standard_level();
-            int lvDiff = (lv - stdLv < 0) ? 0 : lv - stdLv;
+            // ORIG：条件与 else 分支各调用一次 getter（-O0 不复用）。
+            int lvDiff;
+            if (((CUserCharacInfo*)user)->get_charac_level() -
+                    dungeon->get_standard_level() <
+                0)
+                lvDiff = 0;
+            else
+                lvDiff = ((CUserCharacInfo*)user)->get_charac_level() -
+                         dungeon->get_standard_level();
             int diff = ((CBattle_Field*)(pc + 0xb24))->get_dungeon_diff();
             if (!CheckHackRateByDifficult(type, lvDiff, diff))
                 return;
         }
     }
 
-    if (t != 0x25b && t != 0x25c && t != 0x25d && t != 0x25e && t != 0x25f &&
-        t != 0x260 && t != 0x325 && t != 0x6f)
+    if (((int)type == 0x25b) || ((int)type == 0x25c) ||
+        ((int)type == 0x25d) || ((int)type == 0x25e) ||
+        ((int)type == 0x25f) || ((int)type == 0x260) ||
+        ((int)type == 0x325) || ((int)type == 0x6f))
+        return;
+
     {
-        hackCntA(this, t) += (int)count;
-        hackCntB(this, t) += (int)count;
+        HACK_CNT_A(type) += (int)count;
+        HACK_CNT_B(type) += (int)count;
         onUpdateHackCount(user, type, count, a, b);
     }
 }
 
-
+void CHackAnalyzer::ReqDBSaveHackUserPunish(unsigned int accId,
+                                            unsigned int punish)
+{
+    // ORIG T 0x080f906a（ReqDBSaveHackUserPunish.md）：直发 DB 请求（ip=NULL）。
+    DB_ReqSaveHackUserPunish::makeRequest(accId, punish, (char const*)0);
+}
 
 }  // namespace WongWork
-// Secu_AccountHacking::checkAccountHackingHackType —— ORIG 0x08278a48（0x4f 字节）：
-// 纯静态判定：hacktype ∈ {0x2c6..0x2cb, 0x2cd} 返回 true，否则 false。
-bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
+
+// ============================================================================
+// Secu_AccountHacking（全局作用域；声明见 CHackAnalyzer.h）
+// ============================================================================
+
+Secu_AccountHacking::Secu_AccountHacking() {}
+// ORIG C1/D1 @0x08695aa4/aaa 均为空体（push ebp/mov/pop ebp/ret）。
+
+Secu_AccountHacking::~Secu_AccountHacking() {}
+
+void Secu_AccountHacking::init(CUser* user)
 {
-    const int t = static_cast<int>(type);
-    if (t == 0x2c6 || t == 0x2c7 || t == 0x2c8 ||
-        t == 0x2c9 || t == 0x2ca || t == 0x2cb || t == 0x2cd)
+    // ORIG T 0x08278a98（init.md）：+0x10 存 user 后 resetInfo。
+    m_userP = user;
+    resetInfo();
+}
+
+void Secu_AccountHacking::resetInfo()
+{
+    // ORIG T 0x08278ab4（resetInfo.md）：memset(this,0,6)；+8/+0xc 清零。
+    memset(&m_flag[0], 0, 6);
+    m_sendCnt = 0;
+    m_loginTime = 0;
+}
+
+void Secu_AccountHacking::setLoginTime()
+{
+    // ORIG T 0x08279020（setLoginTime.md）：+0xc = s_systemTime_.getCurSec()。
+    m_loginTime = GlobalData::s_systemTime_.getCurSec();
+}
+
+WongWork::ENUM_HACKTYPE Secu_AccountHacking::getMatchingHacktype(
+    AccountHackingType::T t)
+{
+    // ORIG W 0x0827912a（getMatchingHacktype.md）：线性 cmpl/jne 映射链。
+    if (t == AccountHackingType::GOLD_0) return (WongWork::ENUM_HACKTYPE)0x2c6;
+    if (t == AccountHackingType::GOLD_1) return (WongWork::ENUM_HACKTYPE)0x2c7;
+    if (t == AccountHackingType::GOLD_2) return (WongWork::ENUM_HACKTYPE)0x2c8;
+    if (t == AccountHackingType::GOLD_3) return (WongWork::ENUM_HACKTYPE)0x2c9;
+    if (t == AccountHackingType::AVATAR_COUNT) return (WongWork::ENUM_HACKTYPE)0x2ca;
+    if (t == AccountHackingType::AVATAR_TIME) return (WongWork::ENUM_HACKTYPE)0x2cb;
+    return (WongWork::ENUM_HACKTYPE)0xfa1;
+}
+
+bool Secu_AccountHacking::isAvatar(unsigned int itemIdx)
+{
+    // ORIG T 0x08278aec（isAvatar.md）：find_item 命中且虚槽+0x10
+    // IsAvatarItem（CItem vtable 第 4 虚，P5 实证）返回真。
+    CItem* item = G_CDataManager()->find_item((int)itemIdx);
+    if (item != 0 && item->IsAvatarItem())
         return true;
     return false;
 }
+
+void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* msg)
+{
+    // ORIG T 0x08278b48（sendMail.md）：检查类型 0（金币+单 avatar）/2
+    // （金币+avatar 列表）时取出金额与 avatar 物品号逐一 sendGold/sendAvatar。
+    // MSG_CHECK_MAIL_RECEIVER 各字段偏移（0x33/0x37/0x3b/0x3d/0x32）来自报告
+    // 汇编；该类型为 set<T> 写入的字节数据区，仓库尚无具名字段建模（§4.3 例外）。
+    if (((CUser*)m_userP)->getCurCharacInvenR() == 0)
+        return;
+
+    if (*(int*)msg == 0)
+    {
+        const CInventory* inv = ((CUser*)m_userP)->getCurCharacInvenR();
+        sendGold(name, 0, *(unsigned int*)((char*)msg + 0x32),
+                 inv->get_money(), 2, (char*)0);
+        if (isAvatar(*(unsigned int*)((char*)msg + 0x3d)))
+            sendAvatar(name, 0);
+    }
+    else if (*(int*)msg == 2)
+    {
+        const CInventory* inv = ((CUser*)m_userP)->getCurCharacInvenR();
+        sendGold(name, 0, *(unsigned int*)((char*)msg + 0x33),
+                 inv->get_money(), 2, (char*)0);
+        for (int i = 0;
+             i < (int)(unsigned char)((char*)msg)[0x37]; ++i)
+        {
+            if (isAvatar(*(unsigned int*)((char*)msg + i * 0xb + 0x3b)))
+                sendAvatar(name, 0);
+        }
+    }
+}
+
+void Secu_AccountHacking::sendGold(char const* name, unsigned int a,
+                                   unsigned int money, unsigned int b,
+                                   unsigned char trackType, char* ip)
+{
+    // ORIG T 0x08278cce（sendGold.md）：同名角色或金额<=500 直返；否则按 name
+    // 是否为空分别走 analyze 加计数（附 Hades 金币追踪）/ DB 查询；
+    // fatigue<=100 时按比例分档 setPatten(0/1/2)。
+    if (!(isSameAccountCharacter(name)) && money > 500)
+    {
+        if (name == (char const*)0)
+        {
+            ((CUser*)m_userP)->getHackAnalyzer()->addServerHackCnt(
+                (CUser*)m_userP, (WongWork::ENUM_HACKTYPE)0x2ce, 1, money, 0);
+            unsigned int fatigue =
+                (unsigned int)((CUser*)m_userP)->getCurCharacUsedFatigue();
+            ((XNuclear::CHades*)((CUser*)m_userP)->getHades())
+                ->GoldTracking(trackType, money, ip, a, fatigue);
+        }
+        else
+        {
+            DB_SelectCharacMid::makeRequest(
+                (int)((CUser*)m_userP)->GetUID(), 0, name, 0x2ce, money, 0);
+        }
+
+        if (m_userP != 0)
+        {
+            unsigned int fatigue =
+                (unsigned int)((CUser*)m_userP)->getCurCharacUsedFatigue();
+            if (fatigue <= 100)
+            {
+                unsigned long long numMoney = money;   // ORIG fildll
+                unsigned long long numB = b;           // ORIG fildll
+                int ratio = (int)(_S_HACK_RATIO_COEF_100F *
+                                  ((double)numMoney / (double)numB));
+                setPatten(AccountHackingType::GOLD_0, name, a, money);
+                if (ratio < 0x46)
+                {
+                    if (ratio >= 0x32)
+                        setPatten(AccountHackingType::GOLD_1, name, a, money);
+                    else if (ratio > 0x1d)
+                        setPatten(AccountHackingType::GOLD_2, name, a, money);
+                }
+            }
+        }
+    }
+}
+
+bool Secu_AccountHacking::isSameAccountCharacter(char const* name)
+{
+    // ORIG T 0x08279182（isSameAccountCharacter.md）：绑定用户的角色列表中
+    // strncmp(m_name, name, 0x1e)==0 即命中（列表元素 _Charac_info +0x04 起）。
+    if (name == 0)
+        return false;
+
+    std::vector<_Charac_info>::const_iterator it =
+        ((CUser*)m_userP)->m_characList.begin();
+    std::vector<_Charac_info>::const_iterator e =
+        ((CUser*)m_userP)->m_characList.end();
+    while (it != e)
+    {
+        if (strncmp(it->m_name, name, 0x1e) == 0)
+            return true;
+        ++it;
+    }
+    return false;
+}
+
+void Secu_AccountHacking::setPatten(AccountHackingType::T t, char const* name,
+                                    unsigned int a, unsigned int b)
+{
+    // ORIG T 0x0827903c（setPatten.md）：未标记且已绑定用户时置位，随后按 a
+    // 选择 DB 直查或经分析器加计数。
+    if (m_flag[(int)t])
+        return;
+    if (m_userP == 0)
+        return;
+
+    m_flag[(int)t] = 1;
+
+    // ORIG +0x66/+0x6f：两实参先早溢出到 -0x10/-0xc 栈槽（gcc callee 后续
+    // 仍需引用时选择 caller-saved 缓存；此处以局部副本驱动同型）
+    unsigned int aSpill = a;
+    unsigned int bSpill = b;
+
+    if (aSpill == 0)
+    {
+        // ORIG：getMatchingHacktype 缓存 ebx 后再求 GetUID（P24 实参序），
+        // 不引入具名中间变量。
+        DB_SelectCharacMid::makeRequest((int)((CUser*)m_userP)->GetUID(), 0,
+                                        name,
+                                        (unsigned int)getMatchingHacktype(t),
+                                        bSpill, 0);
+    }
+    else
+    {
+        ((CUser*)m_userP)->getHackAnalyzer()->addServerHackCnt(
+            (CUser*)m_userP, getMatchingHacktype(t), 1, aSpill, bSpill);
+    }
+}
+
+bool Secu_AccountHacking::isGoldPatten(AccountHackingType::T t)
+{
+    // ORIG W 0x08279258（isGoldPatten.md）：0..3 判金伪型。
+    if (t == AccountHackingType::GOLD_0 ||
+        t == AccountHackingType::GOLD_1 ||
+        t == AccountHackingType::GOLD_2 ||
+        t == AccountHackingType::GOLD_3)
+        return true;
+    return false;
+}
+
+bool Secu_AccountHacking::isAvatarPatten(AccountHackingType::T t)
+{
+    // ORIG W 0x08279282（isAvatarPatten.md）：4/5 判 avatar 伪型。
+    if (t == AccountHackingType::AVATAR_COUNT ||
+        t == AccountHackingType::AVATAR_TIME)
+        return true;
+    return false;
+}
+
+bool Secu_AccountHacking::isDetectionGoldPatten()
+{
+    // ORIG W 0x082792a0（isDetectionGoldPatten.md）：前四标志任一置位；
+    // 线性测试→共享 true 块（P45），用 || 短路链逐字同构。
+    return m_flag[0] || m_flag[1] || m_flag[2] || m_flag[3];
+}
+
+void Secu_AccountHacking::sendAvatar(char const* name, unsigned int a)
+{
+    // ORIG T 0x08278f16（sendAvatar.md）：同名直返；fatigue<=100 时自增计数，
+    // 检测过金币伪型→AVATAR_COUNT；计数>=8 且距登录<600 秒→AVATAR_TIME。
+    if (isSameAccountCharacter(name))
+        return;
+
+    if (!((m_userP != 0) &&
+          ((unsigned int)((CUser*)m_userP)->getCurCharacUsedFatigue() <=
+           100)))
+        return;
+
+    m_sendCnt = m_sendCnt + 1;
+
+    if (isDetectionGoldPatten())
+        setPatten(AccountHackingType::AVATAR_COUNT, name, a, 0);
+
+    if (m_sendCnt >= 8)
+    {
+        int curSec = GlobalData::s_systemTime_.getCurSec();
+        if ((unsigned int)(curSec - m_loginTime) <= 599)
+            setPatten(AccountHackingType::AVATAR_TIME, name, a, 0);
+    }
+}
+
+bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
+{
+    // ORIG T 0x08278a48（0x4f 字节）：线性 cmpl/je(jne) 判定，
+    // hacktype ∈ {0x2c6..0x2cb, 0x2cd} 返回 true，否则 false。（P45）
+    if (type == 0x2c6 || type == 0x2c7 || type == 0x2c8 ||
+        type == 0x2c9 || type == 0x2ca || type == 0x2cb ||
+        type == 0x2cd)
+        return true;
+    return false;
+}
+
+// ============================================================================
+// DB_SelectCharacMid / DB_ReqSaveHackUserPunish（本批唯一 owner；报告在手）
+// ============================================================================
+
+void DB_SelectCharacMid::makeRequest(int serverGroup, unsigned int field2,
+                                     char const* name, unsigned int field4,
+                                     unsigned int field5, unsigned int field6)
+{
+    // ORIG T 0x0844676c（DB_SelectCharacMid/makeRequest.md）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xae42), true);
+    **guard << 0x2b9;
+    **guard << serverGroup;
+    SIG_CHECK_CHAR_MID* sig = guard->GetInBuffer<SIG_CHECK_CHAR_MID>();
+    sig->m_field00 = field2;
+    sig->m_field04 = field4;
+    sig->m_field08 = field5;
+    sig->m_field0c = field6;
+    strncpy(sig->m_name, name, 0x1e);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}
+
+// ==== 模板实例（ORIG W 0x080f9b82：get_short 转发形态）====
+template <typename T, int N>
+bool stGetHackTypeOperator<T, N>::getHackType(PacketBuf* pkt, T& out)
+{
+    return pkt->get_short(out);
+}
+
+template struct stGetHackTypeOperator<unsigned short, 2>;

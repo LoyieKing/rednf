@@ -17,6 +17,8 @@
 #include "Inven_Item.h"
 #include "GlobalData.h"
 #include "TimerQueue.h"
+#include "SPremiumInfo.h"
+#include "CPremiumLetheManager.h"
 #include "PacketGuard.h"
 #include "InterfacePacketBuf.h"
 #include "CStreamGuard.h"
@@ -211,6 +213,54 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
     user->SendCoin();
     if ((int)type == 9999)
         user->setCurCharacLastPlayTick((long)curSec);
+}
+
+
+// ---- handlePremiumTimeout —— ORIG T 0x086afa7c (handlePremiumTimeout.md) ----
+// CheckPremiumTimeout 返回 0xc（PC 房类）→ setPremiumState(0xc,3)+通知；
+// 其它非 0 → handleSetUserPremium(type,0,0,0,1) + RemoveRestrictedGoods +
+// 角色在线时 ProcPremiumFatigue/SendFatigue + g_SPremiumInfo[type] 分支
+// （kind==1 且 field64>0 → SetNeedCheckOverEquipItem+SendNotiPacket 组；
+//  0x53/0x57 → 表情重算；0x21 → Lethe 标志）+ 通知。
+void CHandlePremium::handlePremiumTimeout(CUser* user)
+{
+    SUserPremiumInfo info = user->GetPremiumInfo()->CheckPremiumTimeout();
+    int timeoutType = info.m_type;
+    if (timeoutType == 0xc)
+    {
+        user->GetPremiumInfoW()->setPremiumState((ENUM_PREMIUM_TYPE)0xc,
+                                                 (ENUM_PREMIUM_STATE)3);
+        handleNotifyPremiumInfo(user, 0xc, 0);
+        return;
+    }
+    if (timeoutType == 0)
+        return;
+
+    handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)timeoutType, 0, 0, 0, true);
+    user->RemoveRestrictedGoods(timeoutType);
+    if (user->getCurCharacR() != 0)
+    {
+        user->ProcPremiumFatigue();
+        user->SendFatigue();
+        if (GlobalData::g_SPremiumInfo[timeoutType].m_kind == 1)
+        {
+            if (GlobalData::g_SPremiumInfo[timeoutType].m_field64 > 0)
+                user->SetNeedCheckOverEquipItem();
+            user->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)2, 1);
+        }
+        if (timeoutType == 0x53 || timeoutType == 0x57)
+        {
+            user->ReCalcChattingEmoticon();
+            user->SendChattingEmoticon();
+        }
+        else if (timeoutType == 0x21)
+        {
+            user->SetOneDayLetheFlag(
+                CPremiumLetheManager::NOT_USE_LETHE_STATE);
+            user->SetIsEndLetheAtLogin();
+        }
+    }
+    handleNotifyPremiumInfo(user, timeoutType, 0);
 }
 
 }  // namespace WongWork

@@ -37,7 +37,8 @@ public:
     virtual void reset() = 0;                          // vtable +0
     virtual bool put_object_info(PacketGuard& p) = 0;  // vtable +4
 protected:
-    ~IObject() {}
+    // ORIG 无 IObject D1/D2 符号（派生类 D1 不调基类析构）：
+    // 必须保持隐式 trivial 析构，禁止用户定义空体（会生成 IObjectD2 弱符号）。
 };
 class CVillageObjectMgr
 {

@@ -35,8 +35,6 @@ map_item::map_item(const map_item& other)
       m_dropIndex(other.m_dropIndex), m_createTick(other.m_createTick),
       m_item(other.m_item), m_ownerId(other.m_ownerId) {}
 
-map_item::~map_item() {}
-
 map_item& map_item::operator=(const map_item& other)
 {
     if (this != &other)

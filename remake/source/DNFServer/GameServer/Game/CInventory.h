@@ -34,6 +34,7 @@
                               // 唯一声明点，删除本头原局部最小镜像避免 ODR）
 #include "InterfacePacketBuf.h"
 #include "CUser.h"          // 权威 CUser/cUserHistoryLog/共享枚举（G1-3 统一）
+#include "AvatarCoin.h"     // 权威 AvatarCoin（m_avatarCoin +0x658；替代原内嵌空桩占位）
 
 // ---- 枚举（值以 CInventory 反汇编中立即数为准） ----
 #ifndef DNF_ENUM_INVEN_TYPE_DEFINED
@@ -210,11 +211,15 @@ public:
     void SetCreatureItemType(int type) { m_creatureItemType = type; }  // W 0x833efe2
     int GetUid() { return m_uid; }                              // W 0x833efbe
     int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
-    int GetNoCharge() { return (int)m_noCharge; }               // W 0x833efd6（movzbl）
+    /// ORIG W 0x833eff0（movzbl）
     unsigned char GetStat() { return m_stat; }                  // W 0x833eff0（movzbl）
     void SetExpireTime(int expireTime) { m_expireTime = expireTime; }  // W 0x833effc
     int getExpireTime() const { return m_expireTime; }          // W 0x833f00a（_ZNK）
     void SetSlotNo(int slotNo);                                 // ORIG T 0x08337050（写 +0x10）
+    // ORIG _ZN13user_creature13CCreatureItem3SetEPS0_ W 0x0833ef20：深拷贝 src 的
+    //   m_itemId/m_creatureItemType/m_uid/m_slotNo/m_noCharge/m_stat/m_expireTime
+    //   （蛋 → 宠物项复制语义；定义 CCreatureMgr.cpp）。
+    void Set(CCreatureItem* src);
 
     int m_vptr;            // +0x00（ORIG vptr 槽；本镜像以整型保持偏移）
     int m_itemId;          // +0x04
@@ -239,6 +244,7 @@ class CCreatureMgr
 {
 public:
     void Reset();
+    bool CheckDiedCreature();   // ORIG T _ZN13user_creature12CCreatureMgr17CheckDiedCreatureEv 0x08339acc（TimerCreature 调用；定义缺口记报告）
     void SetUser(CUser* user);
     void TurnStomach(bool fighting);
     int UseItem(Inven_Item* item, int slot);  // ORIG _ZN13user_creature12CCreatureMgr7UseItemEP10Inven_Itemi
@@ -258,6 +264,7 @@ public:
     bool Dismantle(CCreature* creature);                         // ORIG T 0x0833934c
     int GetExtraGold(int gold) const;                            // ORIG T 0x0833c31a（Prod_CParty get_item 依赖）
     int GetOverSkillExtraGold(int gold) const;                   // ORIG T 0x0833c6f6
+    bool SetKeepRightItem(CUser* user, Inven_Item* item);  // ORIG T 0x0833c00c（定义 CCreatureMgr.cpp）
     bool GainExp(int exp);                               // ORIG _ZN13user_creature12CCreatureMgr7GainExpEi
     bool IsEquippedCreature() const;                     // ORIG _ZNK13user_creature12CCreatureMgr18IsEquippedCreatureEv
     bool IsGrowCreature_Equipped_Creature() const;       // ORIG _ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv
@@ -267,6 +274,9 @@ public:
     int GetCreatureItemId() const;                 // ORIG _ZNK13user_creature12CCreatureMgr17GetCreatureItemIdEv
     const char* GetCreatureName() const;           // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureNameEv
     bool UseFeed();                              // ORIG _ZN13user_creature12CCreatureMgr7UseFeedEv
+    bool CheckItem(CUser* user, Inven_Item* item, bool& b);  // ORIG T 0x0833c240（定义 CCreatureMgr.cpp）
+    int ResponseCreature();                        // ORIG T 0x0833a6d8（定义 CCreatureMgr.cpp）
+    bool RegisterCreatureItem(CCreatureItem* item, int uid);  // ORIG T 0x0833a77e（定义 CCreatureMgr.cpp）
     void setTempExpireTime(int time);            // ORIG W 0x833f10c
     bool IsCreatureEquipmentScope(int slot);       // ORIG 0x833926c（非 const）
     bool IsDieCreature() const;                    // ORIG _ZNK13user_creature12CCreatureMgr13IsDieCreatureEv
@@ -283,6 +293,8 @@ public:
     CArtifact* GetArtifact(int slot);  // ORIG _ZN13user_creature12CCreatureMgr11GetArtifactEi T 0x833be56（槽 0x17..0x1a → m_artifacts[0..3]）
     int GetCreatureItem(SIG_LOAD_INVENTORY* sig) const;       // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureItemEP18SIG_LOAD_INVENTORY 0x833b80c
     // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
+    void RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
+    bool Hatch(int addInfo);                                           // ORIG _ZN13user_creature12CCreatureMgr5HatchEi 0x08339fa0
     std::map<int, CCreatureItem*> m_creatureItems;  // +0x00（24B）
     CCreature* m_equippedCreature;                  // +0x18
     CUser* m_user;                                  // +0x1c
@@ -293,17 +305,9 @@ public:
     char m_pad49[3];                                // +0x49，总 0x4c
 };
 }
-class CUser;
-class AvatarCoin
-{
-public:
-    AvatarCoin() {}
-    void Set(unsigned int) {}
-    void Add(unsigned int) {}
-    unsigned int Use() { return 0; }
-    static int GetPackage(CUser* user, int avatarUid, bool bReset); // ORIG 0x0818028a（AvatarRoulette 批次补实现）
-    char m_pad[4];
-};
+// AvatarCoin 权威声明见 AvatarCoin.h（本头原内嵌空桩占位与权威头冲突，
+// 已删除；m_avatarCoin 成员 +0x658 使用同一权威类，方法由 AvatarCoin.cpp /
+// Arad_AvatarRoulette.cpp 提供真实定义）。
 
 // WongWork::CGenUniqueNo 权威声明见 CGenUniqueNo.h（char* genIPGNo，
 // 完整 ENUM_IPGNO_TYPE）；本头不再局部重复声明。
@@ -335,9 +339,16 @@ public:
     int GetOppositeErr(int err);
     int GetCashShopErr(int err);        // ORIG W 0x82881a2：商城错误码映射
     unsigned int GetProtectionType(SECURITY_PROTCTION type);
-    int CheckRestoreType(CUser* user, unsigned int protType);
-    int CheckTradingType(CUser* user, unsigned int protType, SECURITY_PROTCTION type);
+    int CheckRestoreType(CUser* user, unsigned long protType);   // ORIG m EP5CUserm 0x08288bf2
+    int CheckTradingType(CUser* user, unsigned long protType, SECURITY_PROTCTION type); // ORIG m 0x082880c46…0x08288c46
     int CheckEtcType(CUser* user, SECURITY_PROTCTION type);
+    // ---- LinkMisc5 收口（定义 CSecu_ProtectionField.cpp）----
+    Inven_Item* GetInvenItemPtr(CUser* user, char space, short slot);  // ORIG T 0x082886ae
+    CItem* GetItemPtr(CUser* user, char space, short slot);            // ORIG T 0x082884d6
+    int CheckItemRarity(CUser* user, SECURITY_PROTCTION type,
+                        const CItem* item, const Inven_Item* itemRef); // ORIG T 0x082887d0
+    int CheckOpposite(CUser* user, SECURITY_PROTCTION type, CUser* opposite); // ORIG T 0x08288994
+    int CheckAccountType(CUser* user, unsigned long protType);         // ORIG T 0x08288ac8
     CSecu_ProtectionField();   // ORIG W 0x82aa6d4：构造 m_typeMap 后 init()
     void init();               // ORIG T 0x828824e：填充 0x47 项保护类型表
 

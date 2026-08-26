@@ -265,16 +265,16 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     if (user == 0)
         return 0;
 
-    // 基础经验 = round((float)(a*b) × 死亡之塔费率)。GetTowerScript 返回
-    // it->second+4（即 &stDeathTower_t::m_rateA[0]），ORIG flds 0x4(%eax,%edx,4)
-    // 读 m_rateA[1+a]；x87 fistpll 就近舍入，直接 (long long) 强转等价。
+    // 基础经验 = round((float)(a*b) × 死亡之塔费率)。GetTowerScript 返回结构体基址，
+    // ORIG flds 0x4(%eax,%edx,4) 读 m_rewardExpWeight[1+a]（[reward exp weight] 表，
+    // 脚本下标从 1 起）；x87 fistpll 就近舍入，直接 (long long) 强转等价。
     unsigned int clearExp;
     {
         stDeathTower_t* tower =
             G_CDataManager()->GetTowerScript(dungeon->get_index());
-        float* rateA = reinterpret_cast<float*>(&tower->m_field0);
         clearExp = (unsigned int)(long long)(
-            (double)(long long)((unsigned long long)a * b) * rateA[1 + a]);
+            (double)(long long)((unsigned long long)a * b) *
+            tower->m_rewardExpWeight[1 + a]);
     }
 
     stClearRewardBonusExp_t bonus;
@@ -288,9 +288,10 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     channel_script_t* chScript = (channel_script_t*)dm2->GetChannelScript();
     CEnvironment* env = G_CEnvironment();
     unsigned int channelNo = (unsigned int)env->get_channel_no();
-    // 渠道类型字节：ORIG 读 G_CEnvironment()+0x378（set_clear_reward_exp_parameter/
-    // generateRewardExp 两份报告一致引用；CEnvironment.h 权威布局尚未建模该字段）
-    unsigned char channelType = *(unsigned char*)((char*)env + 0x378);
+    // 渠道组字节：ORIG movzbl G_CEnvironment()+0x378 低字节
+    //             = Server_Envir::m_serverGroup(+0x1e0)（set_clear_reward_exp_parameter/
+    //             generateRewardExp 两份报告一致引用）
+    unsigned char channelType = (unsigned char)env->get_server_group();
     float channelRate =
         chScript->getBonusRate(channelType, channelNo, dungeon->get_index());
 

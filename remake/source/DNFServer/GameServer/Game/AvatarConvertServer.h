@@ -58,7 +58,7 @@ public:
         int m_totalWeight;              // +0x04（= m_cumWeights.back()）
         std::vector<GetInfo> m_infos;      // +0x08（12B → +0x14）
         std::vector<int> m_cumWeights;     // +0x14（累计和 → +0x20）
-        bool m_flag;                    // +0x20（ScanInt()==1；pad +0x21..+0x23）
+        bool m_field20;                 // +0x20（ScanInt()==1；语义未知，pad +0x21..+0x23）
 
     private:
         ConvertResult(const ConvertResult&);

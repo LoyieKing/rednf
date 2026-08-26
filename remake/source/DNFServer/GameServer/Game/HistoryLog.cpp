@@ -28,17 +28,23 @@ void get_str_date(char* buf, int len, char sep)
     (void)len;
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm value;
-    localtime_r(&now, &value);
-    if (sep == 0) sprintf(buf, "%04d-%02d-%02d", value.tm_year + 1900, value.tm_mon + 1, value.tm_mday);
-    else sprintf(buf, "%04d%c%02d%c%02d", value.tm_year + 1900, sep, value.tm_mon + 1, sep, value.tm_mday);
+    // ORIG：使用 localtime_r 的返回值指针访问字段。
+    struct tm* pValue = localtime_r(&now, &value);
+    if (sep == 0)
+        sprintf(buf, "%04d-%02d-%02d", pValue->tm_year + 1900, pValue->tm_mon + 1, pValue->tm_mday);
+    else
+        sprintf(buf, "%04d%c%02d%c%02d", pValue->tm_year + 1900, sep,
+                pValue->tm_mon + 1, sep, pValue->tm_mday);
 }
 void get_str_datetime(char* buf, int len)
 {
     (void)len;
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm value;
-    localtime_r(&now, &value);
-    sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", value.tm_year + 1900, value.tm_mon + 1, value.tm_mday, value.tm_hour, value.tm_min, value.tm_sec);
+    struct tm* pValue = localtime_r(&now, &value);
+    sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", pValue->tm_year + 1900,
+            pValue->tm_mon + 1, pValue->tm_mday, pValue->tm_hour,
+            pValue->tm_min, pValue->tm_sec);
 }
 
 // ---- 格式串（ORIG rodata 逐字节） ----
@@ -133,12 +139,11 @@ bool HistoryLog::CheckFD(FILE* file)
 
 void HistoryLog::LogClose(FILE* file)
 {
-    if (file != 0)
-    {
-        fclose(file);
-        logfiles_.Free(file);
-        count_ -= 1;
-    }
+    if (file == 0)
+        return;
+    fclose(file);
+    logfiles_.Free(file);
+    count_ -= 1;
 }
 
 FILE* HistoryLog::LogOpen(unsigned int chNo)
@@ -156,6 +161,7 @@ FILE* HistoryLog::LogOpen(unsigned int chNo)
         return 0;
     }
 
+
     char date[10];
     date[0] = '\0';
     date[1] = '\0';
@@ -169,8 +175,7 @@ FILE* HistoryLog::LogOpen(unsigned int chNo)
     date[9] = '\0';
     get_str_date(date, 10, '\0');
 
-    char dir[50];
-    memset(dir, 0, sizeof(dir));
+    char dir[50] = { '\0' };
     sprintf(dir, "%s%s/", "./history/", date);
 
     struct stat st;
@@ -179,10 +184,10 @@ FILE* HistoryLog::LogOpen(unsigned int chNo)
         mkdir(dir, 0x1fd);
     }
 
-    char path[127];
-    memset(path, 0, sizeof(path));
+    char path[127] = { '\0' };
     char* num = NumberToString(chNo, 0);
     sprintf(path, "%s%s.log", dir, num);
+
 
     file = fopen(path, "a");
     if (file == 0)

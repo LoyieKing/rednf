@@ -7,29 +7,7 @@
 #ifndef GAME_BATTLEDATA_H_
 #define GAME_BATTLEDATA_H_
 
-// 事件地下城请求结构（布局按反汇编推导；mangling 含类型名，须与 ORIG 一致）。
-namespace CMDPacketStruct
-{
-
-// _STReqEventDungeonClearRoom：+0x0e ushort 房间号、+0x10 ushort、+0x12 ushort
-struct _STReqEventDungeonClearRoom
-{
-    char m_pad[0x0e];
-    unsigned short m_roomIndex;     // +0x0e
-    unsigned short m_monsterIndex;  // +0x10
-    unsigned short m_monsterCount;  // +0x12
-};
-
-// _STReqEventDungeonDestoryObject：+0x0e ushort 房间号、+0x10 int 类型、+0x14 ushort 点数
-struct _STReqEventDungeonDestoryObject
-{
-    char m_pad[0x0e];
-    unsigned short m_roomIndex;   // +0x0e
-    int m_destroyType;            // +0x10
-    unsigned short m_point;       // +0x14
-};
-
-}  // namespace CMDPacketStruct
+#include "CMDPacketStruct.h"   // CMDPacketStruct::_STReqEventDungeon* 权威定义
 
 // 事件地下城清除数据（0x8 每项，数组首地址 this+0x62c，共 12 项）
 struct stEventClearData
@@ -41,10 +19,8 @@ struct stEventClearData
     unsigned char m_pad7;       // +0x07
 };
 
-struct stInvenItem
-{
-    char m_pad[0x3d];
-};
+#include "Inven_Item.h"   // 权威物品布局（pack(1)，0x3d 每项；BattleData.cpp
+                          //   placement-new Inven_Item 实证，替代 char 占位镜像）
 
 struct stGameResult
 {
@@ -98,9 +74,9 @@ public:
     char m_arr5c[4];     // +0x5c
     char m_arr60[4];     // +0x60
     int m_arr64[4];      // +0x64
-    stInvenItem m_itemGroups0[4][2];  // +0x74
-    stInvenItem m_itemGroups1[4][2];  // +0x25c
-    stInvenItem m_itemGroups2[4][2];  // +0x444
+    Inven_Item m_itemGroups0[4][2];  // +0x74
+    Inven_Item m_itemGroups1[4][2];  // +0x25c
+    Inven_Item m_itemGroups2[4][2];  // +0x444
     stEventClearData m_eventClear[12];// +0x62c
     int m_field68c;      // +0x68c
     stGameResult m_gameResults[4];    // +0x690

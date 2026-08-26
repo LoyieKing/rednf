@@ -16,7 +16,6 @@ public:
     long deathTowerSpecifyItemDrop() const;
     int get_index();
     int get_index() const;
-    static void* getMonsterScript(CMonster* self);
     void* getMonsterScript() const;
     void generateIndependentItem(const WongWork::stGenerateRefData_t& ref,
                                  std::vector<Inven_Item>& out) const;  // ORIG 0x0834f876
@@ -37,9 +36,10 @@ private:
     unsigned char m_deathTowerFlag;
     int m_independentDropCount;
     int m_catchItemCount;
-    STMonsterScript m_script;
-    char m_scriptReserved[0xc98 - sizeof(STMonsterScript)];
-    char m_reservedTail[0x1d24 - 0xd28];
+    STMonsterScript m_script;          // 真实布局（sizeof 0x1cc4，本批次重建）
+    // 脚本区之后到权重表的保留字节：脚本区起点 0x60、m_weight 固定 0x1d24，
+    // 保留量随真实 STMonsterScript 尺寸收缩（原两段 reserved 合并）。
+    char m_scriptReserved[0x1d24 - 0x60 - sizeof(STMonsterScript)];
     int m_weight;               // +0x1d24
     char m_tailEnd[4];
 };

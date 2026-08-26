@@ -74,11 +74,18 @@ extern int g_levelExpTable[256];
 class CMapListImpl;
 class CMonsterManagerImpl;
 
+class CNPCDynamicInfo;  // 前置：仅以指针出现在 m_map 值类型
+
+// 权威实现/布局见 CtorProducers_1.cpp（ctor 0x083760f2W / dtor 0x08376106W /
+// getNPCInfo / add）。本 TU 只镜像布局（ORIG sizeof 0x18，+0x00 std::map），
+// 保证 new/delete 尺寸正确；ctor/dtor 定义唯一归属 CtorProducers_1.cpp。
 class CNPCDynamicInfoManager
 {
 public:
-    CNPCDynamicInfoManager();  // ORIG _ZN22CNPCDynamicInfoManagerC2Ev W（init new；定义待专属批次）
+    CNPCDynamicInfoManager();  // ORIG _ZN22CNPCDynamicInfoManagerC2Ev W
     ~CNPCDynamicInfoManager();
+
+    std::map<unsigned int, CNPCDynamicInfo*> m_map;   // +0x00
 };
 
 class CChattingEmoticon
@@ -235,7 +242,6 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
     return err;
 }
 
-CNPCDynamicInfoManager::~CNPCDynamicInfoManager() {}  // TODO(后续批次)
 
 int* Get_instance_stHellParty_t()
 {
@@ -253,6 +259,21 @@ int* Get_instance_stHellParty_t()
 }
 
 // ===================== 查询 =====================
+// ORIG W 0x0830e6d2 _ZNK12CDataManager11getDropRateEv：读 +0xb3f0 float。
+float CDataManager::getDropRate() const
+{
+    return m_dropRate;
+}
+
+// ORIG T 0x088dcee2 _ZNK16channel_script_t23getBonusRateEventServerEhj
+// 服务器频道加成版本：命中频道信息即固定 0.02f，否则 0.0f。
+float channel_script_t::getBonusRateEventServer(unsigned char channel, unsigned int idx) const
+{
+    if (getChannelInfo(channel, idx) != 0)
+        return 0.02f;
+    return 0.0f;
+}
+
 
 CItem* CDataManager::find_item(int idx) const
 {
@@ -543,7 +564,9 @@ float CDataManager::BaseExpPenalty(int levelA, int levelB)
     return result;
 }
 
-void CDataManager::SetExpRate(float rate)
+// ORIG 0x08360716：float 比较用 fucompp+fnstsw+sahf（i486 形态）、循环体
+// fildll/fmuls/fistpll（64 位零扩展中间量）——以 target attribute 与强转链复刻。
+__attribute__((target("arch=i486"))) void CDataManager::SetExpRate(float rate)
 {
     if (m_expRate != rate)
     {
@@ -552,29 +575,32 @@ void CDataManager::SetExpRate(float rate)
         for (int i = 0; i <= 200; ++i)
         {
             m_mobReward[i] =
-                (int)((long long)((double)(unsigned int)m_mobReward[i] * rate));
+                (int)(long long)((float)(unsigned long long)(unsigned int)m_mobReward[i] *
+                                 rate);
         }
     }
 }
 
-void CDataManager::SetItemDropRate(float rate)
+// ORIG 0x083607d8：ratio 先行物化到局部（fmuls 直乘内存槽），两段循环分别
+// 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
+// ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。
+__attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
     if (m_dropRate != rate)
     {
         float old = m_dropRate;
+        float ratio = old / rate;
         m_dropRate = rate;
         m_itemGeneratorMgr->setDropRatio(rate);
         for (unsigned int i = 0; i < m_serverParameter.m_genRefs1.size(); ++i)
         {
-            m_serverParameter.m_genRefs1[i].m_dropRate =
-                (int)((float)m_serverParameter.m_genRefs1[i].m_dropRate *
-                      (rate / old));
+            sItemGenRef& ref = m_serverParameter.m_genRefs1[i];
+            ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
         }
         for (unsigned int i = 0; i < m_serverParameter.m_genRefs0.size(); ++i)
         {
-            m_serverParameter.m_genRefs0[i].m_dropRate =
-                (int)((float)m_serverParameter.m_genRefs0[i].m_dropRate *
-                      (rate / old));
+            sItemGenRef& ref = m_serverParameter.m_genRefs0[i];
+            ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
         }
     }
 }
@@ -1135,10 +1161,6 @@ std::set<int>* CDataManager::getUltimateDungeonList() const
 // 注：ORIG 仅有非 const getBlueMarbleScript()（0x08365eea，nm 无 _ZNK 重载）；
 // 原 TU 内发明的 const 重载已删除（调用点走非 const 版本）。
 
-void CDataManager::getDungeonIndexList() const
-{
-    m_dungeonList->getDungeonIndexList();
-}
 
 void* CDataManager::get_hellparty_script_values()
 {
@@ -1372,19 +1394,16 @@ void CDataManager::set_lottery_use_cost(unsigned int cost)
 
 void* CDataManager::GetExpertJobScript(int job)
 {
-    // ORIG 0x0822b5f2 W：m_regeneration.m_expertJobList（+0x50，init 写入
-    // new CExpertJobList*）→ get(job)。字段已类型语义化为指针。
-    CExpertJobList* list = m_regeneration.m_expertJobList;
-    return list->get(job);
-
+    // ORIG 0x0822b5f2 W：m_regeneration.m_expertJobList（CDM+0x5090）直取后
+    // 调 CExpertJobList::get(job)，无中间暂存。
+    return m_regeneration.m_expertJobList->get(job);
 }
 
 void* CDataManager::GetExpertJobEtcScript()
 {
-    // ORIG 0x0849f516 W：((CExpertJobList*)m_regeneration.m_expertJobList)->get_etc()：
-    //   return this + 0x18（CExpertJobList 内 ·etc 脚本位于 +0x18）。
-    // CUser 将其作 std::map<uchar,short>（等级→所需角色等级）。
-    return (char*)m_regeneration.m_expertJobList + 0x18;
+    // ORIG 0x0849f516 W：调 CExpertJobList::get_etc()（W 0x0849f50a，返回 this+0x18
+    // = &m_etc）。CUser 侧将其作 std::map<uchar,short>（等级→所需角色等级）读取。
+    return m_regeneration.m_expertJobList->get_etc();
 }
 
 void* CDataManager::GetChannelScript() const
@@ -1395,16 +1414,18 @@ void* CDataManager::GetChannelScript() const
 
 stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
 {
-    // ORIG W 0x081455d8：m_deathTowerMap.find(dungeonIdx)；未找到打 cMyTrace，
-    // 一律返回 &it->second + 4（指向 stDeathTower_t::m_rateA[0]）。调用方（如
-    // CBossPlay::generateRewardExp/generateRewardItem）以该返回基址访问塔奖励表。
-    std::map<unsigned int, stDeathTower_t>::iterator it = m_deathTowerMap.find(dungeonIdx);
+    // ORIG W 0x081455d8：m_deathTowerMap.find(dungeonIdx)；未找到打 cMyTrace；
+    // 尾部单条 add $0x4,%eax 是 pair.second 的偏移 —— 返回值即 &it->second
+    // （结构体基址）。调用方（CBossPlay/CBossStage）按字段偏移取用：
+    // flds 0x4(%eax,%edx,4) = m_rateA[idx]、+0xc88/+0xc8c/+0xc94 奖励概率。
+    std::map<unsigned int, stDeathTower_t>::iterator it =
+        m_deathTowerMap.find(dungeonIdx);
     if (it == m_deathTowerMap.end())
     {
         cMyTrace trace("stDeathTower_t* CDataManager::GetTowerScript(unsigned int)", 0xd44, 5);
         trace("Dungeon idx not found : %u", dungeonIdx);
     }
-    return (stDeathTower_t*)((char*)&it->second + 4);
+    return &it->second;
 }
 
 void* CDataManager::getBlueMarbleScript()
@@ -1665,7 +1686,7 @@ void* CDataManager::get_dungeon(int idx)
     return find_dungeon(idx);
 }
 
-int CDataManager::reselectDailyTrainingQuest()
+bool CDataManager::reselectDailyTrainingQuest()
 {
     // ORIG 0x08363ce0 T。主分支：
     //  1) suffleTrainingQuests() 重排每日训练任务。
@@ -3550,4 +3571,61 @@ int CDataManager::init()
     }
 
     return 1;
+}
+
+// ===================== 副本次数排行 =====================
+
+// ORIG T 0x083639d2 _ZN12CDataManager26getDungeonClearAverageTimeEii23ENUM_DUNGEON_DIFFICULTY：
+//   以 (dungeonIdx, partyCount) 为键查 m_rankSystem.m_dungeonRank.m_map0；
+//   未命中返回 0；命中按 difficulty(0..3) 取 stClearTimeAverage::m_v[难度]，
+//   其它难度返回 0。
+unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyCount,
+                                                      int difficulty)
+{
+    stClearTimeAverageMapKey key;
+    key.m_a = dungeonIdx;
+    key.m_b = partyCount;
+
+    std::map<stClearTimeAverageMapKey, stClearTimeAverage>::const_iterator it =
+        m_rankSystem.m_dungeonRank.m_map0.find(key);
+    if (it == m_rankSystem.m_dungeonRank.m_map0.end())
+        return 0;
+
+    switch (difficulty)
+    {
+    case 0: return (unsigned int)it->second.m_v[0];
+    case 1: return (unsigned int)it->second.m_v[1];
+    case 2: return (unsigned int)it->second.m_v[2];
+    case 3: return (unsigned int)it->second.m_v[3];
+    default: return 0;
+    }
+}
+
+// ORIG T 0x08363ac8 _ZN12CDataManager22getClearTimeBonusPointEii：
+//   avgTime/clearTime 任一为 0 → 0；diff = avgTime - clearTime；
+//   遍历 m_dungeonRank.m_vec18（vector<stBonusPointValues>）：
+//     若 diff < 当前 lo：列表首项 → 0，否则返回上一项 value；
+//     否则记录 (lo, value) 继续；循环结束返回最后一个 value。
+int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
+{
+    if (avgTime == 0 || clearTime == 0)
+        return 0;
+
+    int diff = avgTime - clearTime;
+    int result = 0;
+    const std::vector<stBonusPointValues>& values =
+        m_rankSystem.m_dungeonRank.m_vec18;
+
+    for (std::vector<stBonusPointValues>::const_iterator it = values.begin();
+         it != values.end(); ++it)
+    {
+        if (diff < it->m_a)
+        {
+            if (it == values.begin())
+                return 0;
+            return result;
+        }
+        result = it->m_b;
+    }
+    return result;
 }

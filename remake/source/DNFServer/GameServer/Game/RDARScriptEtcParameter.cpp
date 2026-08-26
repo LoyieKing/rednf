@@ -16,12 +16,10 @@
 #include "CBoosterGage.h"        // BoosterGageData 真实布局 + BoosterPoint
 #include "CDataManager.h"        // 目标成员类型：InvalidCharData/ImageCommunicationData
                                  // + m_moneyLimit/m_invalidChar/m_mapA928/m_mapA940/m_imageCommData
-#include "sync_script.h"         // STEquipmentPartSetPiece 完整类型（含 STEquipmentScript.h）
 
 #include "DNFLexWrapper.h"       // loadRDARScriptFile/ScanType/ScanInt/ScanStr
 #include <string>
 #include <map>
-#include <vector>
 #include <cstring>
 
 // ============================================================================
@@ -329,41 +327,11 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 }
 
 // ===========================================================================
-// 装备部件套装（ORIG "../RDARScriptEtcParameter.cpp" 域）
+// 装备部件套装（ORIG "../RDARScriptEtcParameter.cpp" 域）——本 TU 不再持有。
 //
-// 类视图与 DataManagerInitDepends.h 权威声明逐字段一致；本 TU 不直接包含该头
-// （其 importInvalidName bool 声明与本 TU 既有 int 本地声明冲突）。
-// C1 0x0891b002 W：string@+0x04 / vector@+0x0c 默认构造 → m_field0=-1 → m_script=0
-// D1 0x08907348 W：m_script 非空则 ~STEquipmentScript()+delete 并置 0
-//                  → 成员逆序析构 ~vector(+0x0c) → ~string(+0x04)
+// 唯一定义归 InitScriptProducers_2.cpp（importEquipmentPartSetInfo 生产 TU，
+// DataManagerInitDepends.h 权威声明指定）：STEquipmentPartSetData 类视图 +
+// C1 0x0891b002 W / D1 0x08907348 T + g_equipmentPartSetMap_（B 0x094f7130）。
+// 本文件此前与该 TU 三重重复（wave22 链接 multiple definition），已删除；
+// 本 TU 无任何消费点，无需前向声明。
 // ===========================================================================
-class STEquipmentPartSetData
-{
-public:
-    STEquipmentPartSetData();
-    ~STEquipmentPartSetData();
-
-    int m_field0;                                   // +0x00（ctor 置 -1）
-    std::string m_name4;                            // +0x04
-    STEquipmentScript* m_script;                    // +0x08（dtor delete）
-    std::vector<STEquipmentPartSetPiece> m_pieces;  // +0x0c
-};
-
-STEquipmentPartSetData::STEquipmentPartSetData()
-{
-    m_field0 = -1;      // ORIG c7 00 ff ff ff ff
-    m_script = 0;       // ORIG c7 40 08 00 00 00 00
-}
-
-STEquipmentPartSetData::~STEquipmentPartSetData()
-{
-    if (m_script != 0)
-        delete m_script;    // ORIG：~STEquipmentScript() + operator delete
-    m_script = 0;           // ORIG movl $0x0,0x8(%eax)
-    // m_pieces / m_name 由成员析构按逆序自动完成（与 ORIG 显式序列一致）。
-}
-
-// ORIG g_equipmentPartSetMap_ B 0x094f7130 (0x18)：全局装备部件套装表，
-// 键=套装 id（脚本段首 ScanInt），值=STEquipmentPartSetData；
-// 消费方 importEquipmentPartSetInfo（T 0x089073d9，本体待专属批次落地）。
-std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;

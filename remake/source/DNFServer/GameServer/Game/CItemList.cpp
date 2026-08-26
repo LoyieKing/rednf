@@ -166,62 +166,129 @@ void InsertArtifact(sync_script::CSyncScript* self, void* script)
 // ORIG STStackableScript 字段镜像（insert_stackable_item_to_db 访问位）。
 struct StackScriptFull
 {
-    int m_field0;                     // +0x00
-    int m_field4;                     // +0x04
-    int m_field8;                     // +0x08
-    int m_fieldc;                     // +0x0c
-    int m_field10;                    // +0x10
-    int m_field14;                    // +0x14
-    int m_field18;                    // +0x18
-    int m_field1c;                    // +0x1c
+    int m_itNo;                     // +0x00
+    int m_class;                     // +0x04
+    int m_revertType;                     // +0x08
+    int m_createRatio;                     // +0x0c
+    int m_rarity;                    // +0x10
+    int m_price;                    // +0x14
+    int m_cash;                    // +0x18
+    int m_medal;                    // +0x1c
     char m_pad20[0x14];               // +0x20
-    int m_field34;                    // +0x34
+    int m_weight;                    // +0x34
     char m_pad38[0x24];               // +0x38
-    int m_field5c;                    // +0x5c
+    int m_level;                    // +0x5c
     char m_pad60[8];                  // +0x60
-    int m_field68;                    // +0x68
-    std::string m_str6c;              // +0x6c
-    int m_field70;                    // +0x70
+    int m_coolTime;                    // +0x68
+    std::string m_url;              // +0x6c
+    int m_urlLen;                    // +0x70
     char m_pad74[0xac - 0x74];        // +0x74
-    std::string m_strac;              // +0xac
-    std::string m_strb0;              // +0xb0
-    std::string m_strb4;              // +0xb4
-    std::string m_strb8;              // +0xb8
-    std::string m_strbc;              // +0xbc
+    std::string m_name;              // +0xac
+    std::string m_engName;              // +0xb0
+    std::string m_explain;              // +0xb4
+    std::string m_detailExplain;              // +0xb8
+    std::string m_flavorText;              // +0xbc
     int m_fieldc0;                    // +0xc0
-    int m_fieldc4;                    // +0xc4
+    int m_iconMarkNumber;                    // +0xc4
     char m_padc8[0x4bc - 0xc8];
     std::map<int, void*> m_map4bc;    // +0x4bc（ORIG map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>）
 };
 
-// ORIG EquipmentParameterInfo 字段镜像（insert_stackable/insert_equiptment 访问位）。
+// EquipmentParameterInfo 字段镜像（TU 私有）：真名取自 dnf_item_info 列名。
 struct EquipParamInfo
 {
-    char m_pad00[0x188];
-    std::vector< ::ItemAuraInfo> m_vec188;
+    // dnf_item_info 列名即字段真名（insert_stackable_item_to_db 值序实证）。
+    char m_pad00[4];                                   // +0x000
+    int m_hpMax;                                       // +0x004 hp_max
+    float m_hpMaxRate;                                 // +0x008 hp_max_rate
+    int m_mpMax;                                       // +0x00c mp_max
+    float m_mpMaxRate;                                 // +0x010 mp_max_rate
+    int m_phyAtt;                                      // +0x014 phy_att
+    int m_phyDef;                                      // +0x018 phy_def
+    int m_magAtt;                                      // +0x01c mag_att
+    char m_pad20[4];
+    int m_magDef;                                      // +0x024 mag_def
+    char m_pad28[0x54 - 0x28];
+    int m_equipPhyAtt;                                 // +0x054 equip_phy_att
+    char m_pad58[4];
+    int m_equipPhyDef;                                 // +0x05c equip_phy_def
+    char m_pad60[4];
+    int m_equipMagAtt;                                 // +0x064 equip_mag_att
+    char m_pad68[4];
+    int m_equipMagDef;                                 // +0x06c equip_mag_def
+    char m_pad70[0x74 - 0x70];
+    int m_physAbsDmg;                                  // +0x074 physical_absolute_damage
+    int m_physDmgReduce;                               // +0x078 physical_damage_reduce
+    float m_physAbsDef;                                // +0x07c physical_absolute_defense
+    int m_magAbsDmg;                                   // +0x080 magical_absolute_damage
+    int m_magDmgReduce;                                // +0x084 magical_damage_reduce
+    float m_magAbsDef;                                 // +0x088 magical_absolute_defense
+    char m_pad8c[0xb0 - 0x8c];
+    int m_refFire;                                     // +0x0b0 ref_fire
+    int m_refWater;                                    // +0x0b4 ref_water
+    int m_refDark;                                     // +0x0b8 ref_dark
+    int m_refLight;                                    // +0x0bc ref_light
+    int m_refAll;                                      // +0x0c0 ref_all
+    int m_refSlow;                                     // +0x0c4 ref_slow
+    int m_refFreeze;                                   // +0x0c8 ref_freeze
+    int m_refPoison;                                   // +0x0cc ref_poison
+    int m_refStun;                                     // +0x0d0 ref_stun
+    int m_refCus;                                      // +0x0d4 ref_cus
+    int m_refBlind;                                    // +0x0d8 ref_blind
+    int m_refLite;                                     // +0x0dc ref_lite
+    int m_refSton;                                     // +0x0e0 ref_ston
+    int m_refSleep;                                    // +0x0e4 ref_sleep
+    int m_refDeekement;                                // +0x0e8 ref_deekement
+    int m_refDeadlystrike;                             // +0x0ec ref_deadlystrike
+    int m_refBleeding;                                 // +0x0f0 ref_bleeding
+    int m_refPierce;                                   // +0x0f4 ref_pierce
+    int m_refStuck;                                    // +0x0f8 ref_stuck
+    int m_refConfuse;                                  // +0x0fc ref_confuse
+    int m_refHold;                                     // +0x100 ref_hold
+    int m_armorBreakRes;                               // +0x104 armor_break_resistance
+    int m_refAllStat;                                  // +0x108 ref_all_stat
+    int m_invenMax;                                    // +0x10c inven_max
+    int m_hpRegenRate;                                 // +0x110 hp_regenrate
+    int m_mpRegenRate;                                 // +0x114 mp_regenrate
+    char m_pad118[4];                                  // +0x118（本 TU 未读）
+    int m_movSpeed;                                    // +0x11c mov_speed
+    char m_pad120[8];                                  // +0x120（本 TU 未读）
+    int m_attSpeed;                                    // +0x128 att_speed
+    int m_quest;                                       // +0x12c quest
+    int m_hitRecovery;                                 // +0x130 hit_recovery
+    int m_jump;                                        // +0x134 jump
+    float m_criticalHitRate;                           // +0x138 criticalhit_rate
+    float m_magicalCriticalHit;                        // +0x13c magical_critical_hit
+    char m_pad140[4];                                  // +0x140（本 TU 未读）
+    int m_attActiveStatus;                             // +0x144 att_active_status
+    float m_attActiveStatusRatio;                      // +0x148 att_active_status_ratio
+    int m_attActiveStatusPow;                          // +0x14c att_active_status_pow
+    char m_pad150[0x188 - 0x150];
+    std::vector< ::ItemAuraInfo> m_vec188;             // +0x188 item_aura
     char m_pad194[0x1b8 - 0x194];
-    std::vector< ::EquipmentSkillDataUp> m_vec1b8;
-    char m_pad1c4[0x24c - 0x1c4];
-    std::vector< ::LevelUpSkill> m_levelUpSkills;
+    std::vector< ::EquipmentSkillDataUp> m_vec1b8;     // +0x1b8 skill_data_up
+    char m_pad1c4[0x220 - 0x1c4];
+    int m_attBackforce;                                // +0x220 att_backforce
+    int m_attUpforce;                                  // +0x224 att_upforce
+    float m_stuckRate;                                 // +0x228 stuck_rate
+    unsigned char m_attDefenseIgnore;                  // +0x22c att_defenseIgnore
+    char m_pad22d[0x23c - 0x22d];
+    unsigned char m_attHpDrain;                        // +0x23c att_hp_drain
+    unsigned char m_attMpDrain;                        // +0x23d att_mp_drain
+    char m_pad23e[0x24c - 0x23e];
+    std::vector< ::LevelUpSkill> m_levelUpSkills;      // +0x24c skill_levelup
     char m_pad258[0x264 - 0x258];
-    std::vector< ::STAvatarAbilityVariation> m_vec264;
-    char m_pad270[0x480 - 0x270];
-    int m_field4; int m_fieldc; int m_field14; int m_field18;
-    int m_field1c; int m_field24; int m_field54; int m_field5c;
-    int m_field64; int m_field6c; int m_fieldb0; int m_fieldb4;
-    int m_fieldb8; int m_fieldbc; int m_fieldc0; int m_fieldc4;
-    int m_fieldc8; int m_fieldcc; int m_fieldd0; int m_fieldd4;
-    int m_fieldd8; int m_fielddc; int m_fielde0; int m_fielde4;
-    int m_fielde8; int m_fieldec; int m_fieldf0; int m_fieldf4;
-    int m_fieldf8; int m_fieldfc; int m_field100; int m_field104;
-    int m_field108; int m_field10c; int m_field110; int m_field114;
-    int m_field11c; int m_field128; int m_field12c; int m_field130;
-    int m_field134; int m_field144; float m_field148; int m_field14c;
-    int m_field220; int m_field224; unsigned char m_field23c;
-    unsigned char m_field23d; float m_field138; float m_field228;
-    unsigned char m_field22c; float m_field274; float m_field13c;
-    int m_field74; int m_field78; float m_field7c; int m_field80;
-    int m_field84; float m_field88;
+    std::vector< ::STAvatarAbilityVariation> m_vec264; // +0x264 avatar_select_ability
+    char m_pad270[0x274 - 0x270];
+    float m_roomListMoveSpeedRate;                     // +0x274 room_list_move_speed_rate
+    char m_pad278[0x284 - 0x278];
+    int m_rigidity;                                    // +0x284 rigidity
+    int m_fireAttack;                                  // +0x288 fire_attack
+    int m_waterAttack;                                 // +0x28c water_attack
+    int m_darkAttack;                                  // +0x290 dark_attack
+    int m_lightAttack;                                 // +0x294 light_attack
+    int m_allAttack;                                   // +0x298 all_attack
+    char m_pad29c[0x560 - 0x29c];                      // 尾部未访问区段占位
 };
 
 struct stAvatarTypeSelectFull
@@ -233,7 +300,7 @@ struct stAvatarTypeSelectFull
 // 动画帧号（+0x0c/+0x10/+0x30/+0x34，格式化为 "%02d%02d"）。注意 setEquipmentAniScriptLay
 // （ORIG 0x89c1cb9）对同一区段（+0xc..+0x40）写入 std::string；两函数对该区的解读不同
 // 【推断】——此处镜像以 insert 函数读法具名，保持既有 int 读行为可审计。
-struct STEquipmentAniScript
+struct LocalAniScriptMirror
 {
     char m_pad0[0xc];        // +0x00
     int m_aniFrame0c;        // +0x0c（insert 读取帧号 a）
@@ -294,9 +361,9 @@ struct EquipScriptFull
     std::map<int, EquipParamInfo> m_map678;
 };
 
-std::vector<STEquipmentAniScript>* AniInfoVector(void* script, int job)
+std::vector<LocalAniScriptMirror>* AniInfoVector(void* script, int job)
 {
-    static std::vector<STEquipmentAniScript> dummy;
+    static std::vector<LocalAniScriptMirror> dummy;
     return &dummy;
 }
 }
@@ -606,7 +673,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         {
             continue;
         }
-        std::vector<STEquipmentAniScript>* anis = AniInfoVector(script, i);
+        std::vector<LocalAniScriptMirror>* anis = AniInfoVector(script, i);
         if (anis->empty())
         {
             continue;
@@ -628,7 +695,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             char t3[8] = {0};
             sprintf(t3, "*%d", (int)anis->size());
             strcat(tmp, t3);
-            for (std::vector<STEquipmentAniScript>::iterator ait =
+            for (std::vector<LocalAniScriptMirror>::iterator ait =
                      anis->begin();
                  ait != anis->end(); ++ait)
             {
@@ -672,9 +739,9 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             // anis 实际指向 EquipmentAniInfoScript（ORIG 0x898d03e 布局：+0x00 与
             // +0x18 各一个 vector<STEquipmentAniScript>）；+0x18 为第二动画 vector。
             // 局部镜像未建模双 vector 外层，故保留地址形式，锚定偏移【推断】。
-            std::vector<STEquipmentAniScript>* sub =
-                (std::vector<STEquipmentAniScript>*)((char*)anis + 0x18);
-            for (std::vector<STEquipmentAniScript>::iterator ait =
+            std::vector<LocalAniScriptMirror>* sub =
+                (std::vector<LocalAniScriptMirror>*)((char*)anis + 0x18);
+            for (std::vector<LocalAniScriptMirror>::iterator ait =
                      sub->begin();
                  ait != sub->end(); ++ait)
             {
@@ -1005,7 +1072,7 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     int key;
     db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    std::string typeName = ((StackScriptFull*)script)->m_strbc;
+    std::string typeName = ((StackScriptFull*)script)->m_flavorText;
     int out2;
     int out1;
     if (!StackableGetType(this, typeName, 0, 0, out1, out2, false))
@@ -1020,53 +1087,53 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     char local_874[1024] = {0};
     char local_474[1024] = {0};
     if (!CodePage::script2Database(
-            (char*)((StackScriptFull*)script)->m_strac.c_str(), local_474))
+            (char*)((StackScriptFull*)script)->m_name.c_str(), local_474))
     {
         cMyTrace(
             "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
             0x523, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(),
-                      ((StackScriptFull*)script)->m_strac.c_str(),
+                      ((StackScriptFull*)script)->m_name.c_str(),
                       "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
                       0x523);
         return false;
     }
     if (!CodePage::script2Database(
-            (char*)((StackScriptFull*)script)->m_strb4.c_str(), local_874))
+            (char*)((StackScriptFull*)script)->m_explain.c_str(), local_874))
     {
         cMyTrace(
             "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
             0x52a, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(),
-                      ((StackScriptFull*)script)->m_strb4.c_str(),
+                      ((StackScriptFull*)script)->m_explain.c_str(),
                       "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
                       0x52a);
         return false;
     }
-    buf << ((StackScriptFull*)script)->m_field0;
+    buf << ((StackScriptFull*)script)->m_itNo;
     buf << ", '" << EscapeDB(db, local_474, local_1874) << "'";
     buf << ", '"
-        << EscapeDB(db, (char*)((StackScriptFull*)script)->m_strb0.c_str(),
+        << EscapeDB(db, (char*)((StackScriptFull*)script)->m_engName.c_str(),
                     local_1474)
         << "'";
     buf << ", '" << EscapeDB(db, local_874, acStack_1074) << "'";
     buf << ", " << out1;
     buf << ", " << out2;
     buf << ", '" << UsableCharString(this, script) << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_field4;
+    buf << ", " << ((StackScriptFull*)script)->m_class;
     buf << ", '"
-        << AttachTypeString(this, ((StackScriptFull*)script)->m_field8)
+        << AttachTypeString(this, ((StackScriptFull*)script)->m_revertType)
         << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_field5c;
+    buf << ", " << ((StackScriptFull*)script)->m_level;
     buf << ", " << 0;
-    buf << ", " << ((StackScriptFull*)script)->m_fieldc;
-    buf << ", " << ((StackScriptFull*)script)->m_field10;
-    buf << ", " << ((StackScriptFull*)script)->m_field34;
-    buf << ", " << ((StackScriptFull*)script)->m_field14;
-    buf << ", " << ((StackScriptFull*)script)->m_field18;
-    buf << ", " << ((StackScriptFull*)script)->m_field1c;
+    buf << ", " << ((StackScriptFull*)script)->m_createRatio;
+    buf << ", " << ((StackScriptFull*)script)->m_rarity;
+    buf << ", " << ((StackScriptFull*)script)->m_weight;
+    buf << ", " << ((StackScriptFull*)script)->m_price;
+    buf << ", " << ((StackScriptFull*)script)->m_cash;
+    buf << ", " << ((StackScriptFull*)script)->m_medal;
     buf << ", " << 0;
-    buf << ", " << ((StackScriptFull*)script)->m_field68;
+    buf << ", " << ((StackScriptFull*)script)->m_coolTime;
     key = 0x13;
     ep = (EquipParamInfo*)((StackScriptFull*)script)->m_map4bc[key];
     if (ep == 0)
@@ -1096,76 +1163,76 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     }
     else
     {
-        buf << ", " << ep->m_field4;
+        buf << ", " << ep->m_hpMax;
         e2 = ep;
-        buf << ", " << e2->m_fieldc;
-        buf << ", " << e2->m_field14;
-        buf << ", " << e2->m_field18;
-        buf << ", " << e2->m_field1c;
-        buf << ", " << e2->m_field24;
-        buf << ", " << e2->m_field54;
-        buf << ", " << e2->m_field5c;
-        buf << ", " << e2->m_field64;
-        buf << ", " << e2->m_field6c;
-        buf << ", " << e2->m_fieldb0;
-        buf << ", " << e2->m_fieldb4;
-        buf << ", " << e2->m_fieldb8;
-        buf << ", " << e2->m_fieldbc;
-        buf << ", " << e2->m_fieldc0;
-        buf << ", " << e2->m_fieldc4;
-        buf << ", " << e2->m_fieldc8;
-        buf << ", " << e2->m_fieldcc;
-        buf << ", " << *(int*)((char*)e2 + 0xcc);
-        buf << ", " << *(int*)((char*)e2 + 0xd0);
-        buf << ", " << *(int*)((char*)e2 + 0xd4);
-        buf << ", " << *(int*)((char*)e2 + 0xd8);
-        buf << ", " << *(int*)((char*)e2 + 0xdc);
-        buf << ", " << *(int*)((char*)e2 + 0xe0);
-        buf << ", " << *(int*)((char*)e2 + 0xe4);
-        buf << ", " << *(int*)((char*)e2 + 0xe8);
-        buf << ", " << *(int*)((char*)e2 + 0xec);
-        buf << ", " << *(int*)((char*)e2 + 0xf0);
-        buf << ", " << *(int*)((char*)e2 + 0xfc);
-        buf << ", " << *(int*)((char*)e2 + 0x100);
-        buf << ", " << *(int*)((char*)e2 + 0x108);
-        buf << ", " << *(int*)((char*)e2 + 0xf4);
-        buf << ", " << *(int*)((char*)e2 + 0xf8);
-        buf << ", " << *(int*)((char*)e2 + 0x10c);
-        buf << ", " << *(int*)((char*)e2 + 0x110);
-        buf << ", " << *(int*)((char*)e2 + 0x114);
-        buf << ", " << *(int*)((char*)e2 + 0x11c);
-        buf << ", " << *(int*)((char*)e2 + 0x128);
-        buf << ", " << *(int*)((char*)e2 + 0x12c);
-        buf << ", " << *(int*)((char*)e2 + 0x130);
-        buf << ", " << *(int*)((char*)e2 + 0x134);
+        buf << ", " << e2->m_mpMax;
+        buf << ", " << e2->m_phyAtt;
+        buf << ", " << e2->m_phyDef;
+        buf << ", " << e2->m_magAtt;
+        buf << ", " << e2->m_magDef;
+        buf << ", " << e2->m_equipPhyAtt;
+        buf << ", " << e2->m_equipPhyDef;
+        buf << ", " << e2->m_equipMagAtt;
+        buf << ", " << e2->m_equipMagDef;
+        buf << ", " << e2->m_refFire;
+        buf << ", " << e2->m_refWater;
+        buf << ", " << e2->m_refDark;
+        buf << ", " << e2->m_refLight;
+        buf << ", " << e2->m_refAll;
+        buf << ", " << e2->m_refSlow;
+        buf << ", " << e2->m_refFreeze;
+        buf << ", " << e2->m_refPoison;
+        buf << ", " << e2->m_refPoison;
+        buf << ", " << e2->m_refStun;
+        buf << ", " << e2->m_refCus;
+        buf << ", " << e2->m_refBlind;
+        buf << ", " << e2->m_refLite;
+        buf << ", " << e2->m_refSton;
+        buf << ", " << e2->m_refSleep;
+        buf << ", " << e2->m_refDeekement;
+        buf << ", " << e2->m_refDeadlystrike;
+        buf << ", " << e2->m_refBleeding;
+        buf << ", " << e2->m_refConfuse;
+        buf << ", " << e2->m_refHold;
+        buf << ", " << e2->m_refAllStat;
+        buf << ", " << e2->m_refPierce;
+        buf << ", " << e2->m_refStuck;
+        buf << ", " << e2->m_invenMax;
+        buf << ", " << e2->m_hpRegenRate;
+        buf << ", " << e2->m_mpRegenRate;
+        buf << ", " << e2->m_movSpeed;
+        buf << ", " << e2->m_attSpeed;
+        buf << ", " << e2->m_quest;
+        buf << ", " << e2->m_hitRecovery;
+        buf << ", " << e2->m_jump;
         buf << ", '" << AttackElementString(this, e2) << "'";
-        buf << ", " << *(int*)((char*)e2 + 0x144);
-        buf << ", " << *(float*)((char*)e2 + 0x148);
-        buf << ", " << *(int*)((char*)e2 + 0x14c);
-        buf << ", " << *(int*)((char*)e2 + 0x220);
-        buf << ", " << *(int*)((char*)e2 + 0x224);
-        buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)e2 + 0x23c);
-        buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)e2 + 0x23d);
-        buf << ", " << *(float*)((char*)e2 + 0x138);
-        buf << ", " << *(float*)((char*)e2 + 0x228);
-        buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)e2 + 0x22c);
-        buf << ", " << *(float*)((char*)e2 + 0x274);
-        buf << ", " << *(float*)((char*)e2 + 8);
-        buf << ", " << *(float*)((char*)e2 + 0x10);
-        buf << ", " << *(int*)((char*)e2 + 0x288);
-        buf << ", " << *(int*)((char*)e2 + 0x28c);
-        buf << ", " << *(int*)((char*)e2 + 0x290);
-        buf << ", " << *(int*)((char*)e2 + 0x294);
-        buf << ", " << *(int*)((char*)e2 + 0x298);
-        buf << ", " << *(int*)((char*)e2 + 0x284);
-        buf << ", " << *(float*)((char*)e2 + 0x13c);
-        buf << ", " << *(int*)((char*)e2 + 0x74);
-        buf << ", " << *(int*)((char*)e2 + 0x78);
-        buf << ", " << *(float*)((char*)e2 + 0x7c);
-        buf << ", " << *(int*)((char*)e2 + 0x80);
-        buf << ", " << *(int*)((char*)e2 + 0x84);
-        buf << ", " << *(float*)((char*)e2 + 0x88);
-        buf << ", " << *(int*)((char*)e2 + 0x104);
+        buf << ", " << e2->m_attActiveStatus;
+        buf << ", " << e2->m_attActiveStatusRatio;
+        buf << ", " << e2->m_attActiveStatusPow;
+        buf << ", " << e2->m_attBackforce;
+        buf << ", " << e2->m_attUpforce;
+        buf << ", " << (unsigned int)(unsigned char)e2->m_attHpDrain;
+        buf << ", " << (unsigned int)(unsigned char)e2->m_attMpDrain;
+        buf << ", " << e2->m_criticalHitRate;
+        buf << ", " << e2->m_stuckRate;
+        buf << ", " << (unsigned int)(unsigned char)e2->m_attDefenseIgnore;
+        buf << ", " << e2->m_roomListMoveSpeedRate;
+        buf << ", " << e2->m_hpMaxRate;
+        buf << ", " << e2->m_mpMaxRate;
+        buf << ", " << e2->m_fireAttack;
+        buf << ", " << e2->m_waterAttack;
+        buf << ", " << e2->m_darkAttack;
+        buf << ", " << e2->m_lightAttack;
+        buf << ", " << e2->m_allAttack;
+        buf << ", " << e2->m_rigidity;
+        buf << ", " << e2->m_magicalCriticalHit;
+        buf << ", " << e2->m_physAbsDmg;
+        buf << ", " << e2->m_physDmgReduce;
+        buf << ", " << e2->m_physAbsDef;
+        buf << ", " << e2->m_magAbsDmg;
+        buf << ", " << e2->m_magDmgReduce;
+        buf << ", " << e2->m_magAbsDef;
+        buf << ", " << e2->m_armorBreakRes;
         buf << ", '"
             << std::for_each(e2->m_levelUpSkills.begin(),
                              e2->m_levelUpSkills.end(),
@@ -1176,12 +1243,12 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     buf << ", '"
         << EscapeDB(db,
                     URLString(this,
-                              (char*)((StackScriptFull*)script)->m_str6c.c_str(),
-                              (int)((StackScriptFull*)script)->m_str6c.length(),
-                              ((StackScriptFull*)script)->m_field70),
+                              (char*)((StackScriptFull*)script)->m_url.c_str(),
+                              (int)((StackScriptFull*)script)->m_url.length(),
+                              ((StackScriptFull*)script)->m_urlLen),
                     local_c74)
         << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_fieldc4;
+    buf << ", " << ((StackScriptFull*)script)->m_iconMarkNumber;
     FieldChecker fc;
     db->set_query(
         "inSert into dnf_item_info(it_no, it_name, it_eng_name, it_explain, "
@@ -1361,7 +1428,8 @@ void CItemList::getCeraShopBonusItem(int idx, unsigned long& outItem,
                 sum = it2->m_field8 + sum;
                 if (sum > rand)
                 {
-                    outItem = it2->m_field0;
+                    // ORIG 仅写 64 位出参低 32 位（int→ulong 不做零扩展高位写）。
+                    (unsigned int&)outItem = it2->m_field0;
                     outCount = (unsigned short)it2->m_field4;
                     return;
                 }
@@ -1567,118 +1635,76 @@ bool CItemList::init()
 
 bool CItemList::load_item_files()
 {
+    // ORIG 控制流：装备表循环内失败立即 return false；path 为空或表尾则
+    // 转入可堆叠表循环；可堆叠表尾/空 path 时 DisplayMaxLength 后成功返回。
     STStackableScript stackScript;
     CEquipItem* pEquip = 0;
     CStackableItem* pStack = 0;
     const char* path = 0;
     std::map<int, std::string>::iterator it;
-    int status = 0;
-    bool result;
 
     sync_script::GetInstanceSyncScript()->truncate_dnf_item_info_table();
-    it = sync_script::g_equipItemInfoTable.begin();
 
-    for (;;)
+    it = sync_script::g_equipItemInfoTable.begin();
+    while (it != sync_script::g_equipItemInfoTable.end())
     {
-        if (it == sync_script::g_equipItemInfoTable.end())
+        STEquipmentScript eqScript;
+        path = it->second.c_str();
+        if (!path)
         {
-            it = sync_script::g_stackableItemInfoTable.begin();
             break;
         }
+        if (!ImportEquipmentScript(&eqScript, path, false, 0, it->first))
         {
-            STEquipmentScript eqScript;
-            path = it->second.c_str();
-            if (!path)
-            {
-                status = 0;
-            }
-            else if (!ImportEquipmentScript(&eqScript, path, false, 0, it->first))
-            {
-                LogManager::logFormat(1, "item.cpp",
-                    "bool CItemList::load_item_files()", 0x8e8,
-                    "ImportEquipmentScript() fail file - %s", path);
-                result = false;
-                status = 1;
-            }
-            else
-            {
-                sync_script::CSyncScript* sync =
-                    sync_script::GetInstanceSyncScript();
-                if (!sync->insert_equiptment_item_to_db(&eqScript, 0, 0, 0) &&
-                    eqScript.m_field1b4 != 0x16 &&
-                    eqScript.m_field1b4 != 0x17 &&
-                    eqScript.m_field1b4 != 0x18 &&
-                    eqScript.m_field1b4 != 0x19)
-                {
-                    printf("insert_equiptment_item_to_db() fail file - %s", path);
-                }
-                pEquip = new CEquipItem;
-                if (!pEquip)
-                {
-                    LogManager::logFormat(1, "item.cpp",
-                        "bool CItemList::load_item_files()", 0x903,
-                        "new CEquipItem error");
-                    result = false;
-                    status = 1;
-                }
-                else
-                {
-                    pEquip->set_item(eqScript);
-                    if (!pEquip->verify())
-                    {
-                        LogManager::logFormat(1, "item.cpp",
-                            "bool CItemList::load_item_files()", 0x90a,
-                            "Equip item verify fail. [%s]", path);
-                        result = false;
-                        status = 1;
-                    }
-                    else
-                    {
-                        insert_item(((CItem*)pEquip)->get_grade(),
-                                    ((CItem*)pEquip)->get_index(),
-                                    (CItem*)pEquip);
-                        ((ExtreamDungeon::CCompound_ExtreamDun_Item*)
-                            GlobalData::s_pCompoundBindCube)
-                            ->check_N_addItem(*pEquip);
-                        ++it;
-                        status = 2;
-                    }
-                }
-            }
+            LogManager::logFormat(1, "item.cpp",
+                "bool CItemList::load_item_files()", 0x8e8,
+                "ImportEquipmentScript() fail file - %s", path);
+            return false;
         }
-        if (status == 0)
+        sync_script::CSyncScript* sync = sync_script::GetInstanceSyncScript();
+        if (!sync->insert_equiptment_item_to_db(&eqScript, 0, 0, 0) &&
+            eqScript.m_field1b4 != 0x16 && eqScript.m_field1b4 != 0x17 &&
+            eqScript.m_field1b4 != 0x18 && eqScript.m_field1b4 != 0x19)
         {
-            it = sync_script::g_stackableItemInfoTable.begin();
-            break;
+            printf("insert_equiptment_item_to_db() fail file - %s", path);
         }
-        if (status == 1)
+        pEquip = new CEquipItem;
+        if (pEquip == 0)
         {
-            return result;
+            LogManager::logFormat(1, "item.cpp",
+                "bool CItemList::load_item_files()", 0x903,
+                "new CEquipItem error");
+            return false;
         }
+        pEquip->set_item(eqScript);
+        if (!pEquip->verify())
+        {
+            LogManager::logFormat(1, "item.cpp",
+                "bool CItemList::load_item_files()", 0x90a,
+                "Equip item verify fail. [%s]", path);
+            return false;
+        }
+        insert_item(pEquip->get_grade(), pEquip->get_index(), pEquip);
+        ((ExtreamDungeon::CCompound_ExtreamDun_Item*)
+            GlobalData::s_pCompoundBindCube)->check_N_addItem(*pEquip);
+        ++it;
     }
 
-    for (;;)
+    it = sync_script::g_stackableItemInfoTable.begin();
+    while (it != sync_script::g_stackableItemInfoTable.end())
     {
-        if (it == sync_script::g_stackableItemInfoTable.end())
-        {
-            sync_script::DisplayMaxLength();
-            result = true;
-            break;
-        }
         path = it->second.c_str();
         if (!path)
         {
             sync_script::DisplayMaxLength();
-            result = true;
-            break;
+            return true;
         }
         if (!ImportStackableScript(&stackScript, path, false, it->first))
         {
             LogManager::logFormat(1, "item.cpp",
                 "bool CItemList::load_item_files()", 0x926,
                 "importStackableScript fail file - %s", path);
-            result = false;
-            break;
+            return false;
         }
         if (GlobalInstance<Arad_GiftItem_Set>::inst()->open(&stackScript))
         {
@@ -1686,8 +1712,7 @@ bool CItemList::load_item_files()
                 "bool CItemList::load_item_files()", 0x931,
                 "[ERROR] Arad GiftItem Setting!! [item_idx:%d][levelt:%d]",
                 stackScript.m_field0, stackScript.m_field5c);
-            result = false;
-            break;
+            return false;
         }
         if (!sync_script::GetInstanceSyncScript()
                  ->insert_stackable_item_to_db(&stackScript))
@@ -1695,13 +1720,12 @@ bool CItemList::load_item_files()
             printf("insert_stackable_item_to_db() fail file - %s", path);
         }
         pStack = new CStackableItem;
-        if (!pStack)
+        if (pStack == 0)
         {
             LogManager::logFormat(1, "item.cpp",
                 "bool CItemList::load_item_files()", 0x941,
                 "ptemp_stack_data is null");
-            result = false;
-            break;
+            return false;
         }
         pStack->set_item(stackScript);
         if (!pStack->verify())
@@ -1709,42 +1733,34 @@ bool CItemList::load_item_files()
             LogManager::logFormat(1, "item.cpp",
                 "bool CItemList::load_item_files()", 0x948,
                 "Stackable item verify fail. [%s]", path);
-            result = false;
-            break;
+            return false;
         }
-        if (pStack->GetItemType() == 7)
+        if (pStack->GetItemType() == 7 &&
+            pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
         {
-            if (pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
-            {
-                cMyTrace trace("bool CItemList::load_item_files()", 0x94f, 5);
-                trace("Stackable item set_item fail (file [%s])", path);
-                result = false;
-                break;
-            }
+            cMyTrace trace("bool CItemList::load_item_files()", 0x94f, 5);
+            trace("Stackable item set_item fail (file [%s])", path);
+            return false;
         }
-        if (pStack->GetItemType() == 0xd)
+        if (pStack->GetItemType() == 0xd &&
+            pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
         {
-            if (pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
-            {
-                cMyTrace trace("bool CItemList::load_item_files()", 0x957, 5);
-                trace("Stackable item set_item fail 2 (file [%s])", path);
-                result = false;
-                break;
-            }
+            cMyTrace trace("bool CItemList::load_item_files()", 0x957, 5);
+            trace("Stackable item set_item fail 2 (file [%s])", path);
+            return false;
         }
-        insert_item(((CItem*)pStack)->get_grade(),
-                    ((CItem*)pStack)->get_index(), (CItem*)pStack);
+        insert_item(pStack->get_grade(), pStack->get_index(), pStack);
         ++it;
     }
-    return result;
+    sync_script::DisplayMaxLength();
+    return true;
 }
 
 bool CItemList::Load_Goods_File(const char* path)
 {
+    // ORIG 形态：16 个 vector<STCeraShopItem> 桶；内层循环先缓存 count 与
+    // shopList[i][j] 引用（ix 调用位次与 ORIG 一致），再逐字段访问。
     std::vector<STCeraShopItem> shopList[0x10];
-    int i;
-    int j;
-    bool result;
 
     if (!importCashShopItemList((char*)path, shopList, m_bonusList, 0, 0, 0, 0))
     {
@@ -1754,16 +1770,18 @@ bool CItemList::Load_Goods_File(const char* path)
         return false;
     }
     sync_script::GetInstanceSyncScript()->truncateCeraShopItemTable();
-    for (i = 0; i < 0x10; ++i)
+    for (int i = 0; i < 0x10; ++i)
     {
-        for (j = 0; j < (int)shopList[i].size(); ++j)
+        const int count = (int)shopList[i].size();
+        for (int j = 0; j < count; ++j)
         {
             CCeraShopGoods* goods = new CCeraShopGoods(shopList[i][j]);
             m_goodsMap[shopList[i][j].m_field8] = goods;
-            int value = shopList[i][j].m_field38;
-            if (shopList[i][j].m_field14 == 1)
+            STCeraShopItem& item = shopList[i][j];
+            int value;
+            if (item.m_field14 == 1)
             {
-                value = shopList[i][j].m_field38;
+                value = item.m_field38;
             }
             else
             {
@@ -1772,38 +1790,32 @@ bool CItemList::Load_Goods_File(const char* path)
                 std::vector<stAvatarTypeSelect_t>* avatarList =
                     (std::vector<stAvatarTypeSelect_t>*)
                     equip->getAvatarTypeSelect();
-                value = shopList[i][j].m_field38;
-                if (shopList[i][j].m_fieldc == 0 &&
-                    shopList[i][j].m_field8 != -1)
+                value = item.m_field38;
+                if (item.m_fieldc == 0 && item.m_field8 != -1 &&
+                    !avatarList->empty())
                 {
-                    if (!avatarList->empty())
-                    {
-                        value = (*avatarList)[(int)(short)shopList[i][j].m_field22 - 1]
-                                    .m_fieldc;
-                    }
+                    value =
+                        (*avatarList)[(int)(short)item.m_field22 - 1].m_fieldc;
                 }
             }
             if (value != 0 &&
-                ((short)shopList[i][j].m_field22 == 1 ||
-                 (short)shopList[i][j].m_field22 == 0))
+                ((short)item.m_field22 == 1 || (short)item.m_field22 == 0))
             {
-                CItem* item = G_CDataManager()->find_item(shopList[i][j].m_field14);
-                if (item && shopList[i][j].m_field8 != -1)
+                CItem* pItem = G_CDataManager()->find_item(item.m_field14);
+                if (pItem != 0 && item.m_field8 != -1)
                 {
-                    const char* iconName = item->GetItemIconName();
-                    const char* name = item->GetItemName();
+                    const char* iconName = pItem->GetItemIconName();
+                    const char* name = pItem->GetItemName();
                     if (!sync_script::GetInstanceSyncScript()
                              ->insertCeraShopItemIntoDB(
-                                 shopList[i][j].m_field8,
-                                 shopList[i][j].m_field14,
-                                 shopList[i][j].m_field1c,
-                                 value, (char)(short)shopList[i][j].m_field22,
-                                 name, iconName))
+                                 item.m_field8, item.m_field14, item.m_field1c,
+                                 value, (short)item.m_field22, name, iconName))
                     {
-                        LogManager::logFormat(1, "item.cpp",
-                            "bool CItemList::Load_Goods_File(const char*)", 0xb01,
-                            "insertCeraShopItemIntoDB() fail IPG - %d",
-                            shopList[i][j].m_field8);
+                        LogManager::logFormat(
+                            1, "item.cpp",
+                            "bool CItemList::Load_Goods_File(const char*)",
+                            0xb01, "insertCeraShopItemIntoDB() fail IPG - %d",
+                            item.m_field8);
                         return false;
                     }
                 }
@@ -1849,16 +1861,9 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
         return 0;
     }
 
-    // ORIG：enum = str_to_enum(c_str(script + 0x180))；构造函数把
-    // "ST_EVENT_GIFT_ITEM"[1..6] 填入 this+0x1c 的 map<string,int>，此处内联等价映射。
+    // ORIG：kind = str_to_enum(c_str(script + 0x180))——调用真实 str_to_enum。
     const char* name = script->m_arad178.m_str8.c_str();
-    int kind = 0;
-    if (strcmp(name, "ST_EVENT_GIFT_ITEM") == 0)       kind = 1;
-    else if (strcmp(name, "ST_EVENT_GIFT_ITEM2") == 0) kind = 2;
-    else if (strcmp(name, "ST_EVENT_GIFT_ITEM3") == 0) kind = 3;
-    else if (strcmp(name, "ST_EVENT_GIFT_ITEM4") == 0) kind = 4;
-    else if (strcmp(name, "ST_EVENT_GIFT_ITEM5") == 0) kind = 5;
-    else if (strcmp(name, "ST_EVENT_GIFT_ITEM6") == 0) kind = 6;
+    const int kind = str_to_enum(name);
     if (kind == 0)
     {
         return 0;
@@ -1959,202 +1964,623 @@ int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
 }
 
 // ============================================================================
-// ExtreamDungeon::CCompound_ExtreamDun_Item::after_addItem
-// ORIG 0x832de18 T（_ZN14ExtreamDungeon25CCompound_ExtreamDun_Item13after_addItemEv）
+// ExtreamDungeon::CCompound_ExtreamDun_Item（ORIG bindsphere.etc 域）
+// 类布局（ctor 0x832c402 / BindCube_ScriptData ctor 0x832e058 实证）：
+//   +0x000 CMTRand*（new CMTRand(time)，对象 0x9c8）
+//   +0x004 BindCube_ScriptData m_data（0xb88：+0x30 合成行表 0x3b×4、
+//          +0xb40 结果表 ×4、+0xb70 强制规则 map——绝对偏移即 +0xb74）
+//   +0xb8c BindCube_LvBonusScriptData m_lvBonus[2]（各 0x30，普通/白银两套）
 // ============================================================================
-// 类布局（ctor 0x832c402 实证）：+0x00 CMTRand*、+0x04 BindCube_ScriptData
-// （内含 vector<OUTPUT_ITEM_STR> 数组，行步 0x30/4 个列向量、列步 12）、
-// +0xb8c BindCube_LvBonusScriptData[2]（各 0x30）。after_addItem 对
-// 0x34+i*0x30+j*12（i=1..0x3a，j=0..3）与 0xb44+k*12（k=0..3）处的
-// vector 各做一次升序排序；比较器 OUTPUT_ITEM_STR::operator<（先 a 后 b）。
 namespace ExtreamDungeon
 {
-struct OUTPUT_ITEM_STR
+
+forceRule_ResultItem::forceRule_ResultItem(bool flag, int value)   // ORIG 0x832e00a
 {
-    int m_field0;  // +0x00
-    int m_field4;  // +0x04
+    m_flag = flag;
+    m_value = value;
+}
 
-    bool operator<(const OUTPUT_ITEM_STR& other) const
+OUTPUT_ITEM_STR::OUTPUT_ITEM_STR(int usableLevel, int index)       // ORIG 0x832dfbe
+{
+    m_usableLevel = usableLevel;
+    m_index = index;
+}
+
+bool OUTPUT_ITEM_STR::operator<(const OUTPUT_ITEM_STR& other) const
+{
+    if (m_usableLevel == other.m_usableLevel)
     {
-        if (m_field0 != other.m_field0)
-            return m_field0 < other.m_field0;
-        return m_field4 < other.m_field4;
+        return m_index < other.m_index;
     }
-};
+    return m_usableLevel < other.m_usableLevel;
+}
 
-// ── 构造（ORIG 0x832c402）──
-// 布局：+0x00 CMTRand*；+0x04 BindCube_ScriptData（含 3x4 int 网格 @+0x04 与
-// vector<OUTPUT_ITEM_STR> rows）；+0xb8c BindCube_LvBonusScriptData[2]（各 0x30）。
-// ctor：new CMTRand(time(0)) 存 +0x00；对 rows 各 vector 默认构造。
+// 子脚本对象生命周期全部由具名容器成员承担（与 ORIG ctor/dtor 的逐元素
+// 构造/逆序析构一致；此处仅提供符号落点）。
+BindCube_ScriptData::BindCube_ScriptData() {}
+BindCube_ScriptData::~BindCube_ScriptData() {}
+BindCube_LvBonusScriptData::BindCube_LvBonusScriptData() {}
+BindCube_LvBonusScriptData::~BindCube_LvBonusScriptData() {}
+
+// ── 构造（ORIG 0x832c402）：成员初始化序 m_data → m_lvBonus[2]，
+//    随后 body 内 new CMTRand(time(0)) 存 +0x00。──
 CCompound_ExtreamDun_Item::CCompound_ExtreamDun_Item()
 {
-    // ORIG 0x832c402 顺序：BindCube 行向量 → LvBonus[2]（各 0x30 = levels+3×rates
-    // 共 4 个 vector，LoadScript 的 [level]/[silver level] dicision 写入区）→
-    // new CMTRand(time(0)) 存 +0x00。
-    char* base = (char*)this;
-    for (int i = 1; i <= 0x3a; ++i)
-        for (int j = 0; j <= 3; ++j)
-            new (base + 0x34 + i * 0x30 + j * 12) std::vector<OUTPUT_ITEM_STR>();
-    for (int k = 0; k <= 3; ++k)
-        new (base + 0xb44 + k * 12) std::vector<OUTPUT_ITEM_STR>();
-    for (int b = 0; b < 2; ++b)
-        for (int v = 0; v < 4; ++v)
-            new (base + 0xb8c + b * 0x30 + v * 12) std::vector<unsigned int>();
-
-    CMTRand* rand = new CMTRand();
-    rand->seed((unsigned long)time(0));
-    *(CMTRand**)this = rand;
+    const unsigned long seed = time(0);
+    m_rand = new CMTRand(seed);
 }
 
 CCompound_ExtreamDun_Item::~CCompound_ExtreamDun_Item()
 {
-    // ORIG 0x832c524 顺序：delete +0x00 CMTRand（置空）→ LvBonus[2] 各 4 向量 →
-    // +0xb44 组 → BindCube 行向量。
-    if (*(void**)this != 0)
-        delete *(CMTRand**)this;
-    *(CMTRand**)this = 0;
-
-    typedef std::vector<OUTPUT_ITEM_STR> OutVec;
-    typedef std::vector<unsigned int> LvVec;
-    char* base = (char*)this;
-    for (int b = 0; b < 2; ++b)
-        for (int v = 0; v < 4; ++v)
-            ((LvVec*)(base + 0xb8c + b * 0x30 + v * 12))->~LvVec();
-    for (int k = 0; k <= 3; ++k)
-        ((OutVec*)(base + 0xb44 + k * 12))->~OutVec();
-    for (int i = 1; i <= 0x3a; ++i)
-        for (int j = 0; j <= 3; ++j)
-            ((OutVec*)(base + 0x34 + i * 0x30 + j * 12))->~OutVec();
+    // ORIG 0x832c524：delete 随机数句柄并置空；m_lvBonus[2]/m_data 由成员
+    // 析构按声明逆序销毁（LvBonus 逆序 → ScriptData），顺序与 ORIG 一致。
+    if (m_rand != 0)
+    {
+        delete m_rand;
+    }
+    m_rand = 0;
 }
 
-void CCompound_ExtreamDun_Item::after_addItem()
+void CCompound_ExtreamDun_Item::after_addItem()                     // ORIG 0x832de18
 {
-    char* base = (char*)this;
-    for (int i = 1; i <= 0x3a; ++i)
+    for (int i = 1; i < 0x3b; ++i)
     {
-        for (int j = 0; j <= 3; ++j)
+        for (int j = 0; j < 4; ++j)
         {
-            std::vector<OUTPUT_ITEM_STR>* vec =
-                (std::vector<OUTPUT_ITEM_STR>*)(base + 0x34 + i * 0x30 + j * 12);
-            std::sort(vec->begin(), vec->end());
+            std::sort(m_data.m_bindItems[i][j].begin(),
+                      m_data.m_bindItems[i][j].end());
         }
     }
-    for (int k = 0; k <= 3; ++k)
+    for (int k = 0; k < 4; ++k)
     {
-        std::vector<OUTPUT_ITEM_STR>* vec =
-            (std::vector<OUTPUT_ITEM_STR>*)(base + 0xb44 + k * 12);
-        std::sort(vec->begin(), vec->end());
+        std::sort(m_data.m_resultItems[k].begin(), m_data.m_resultItems[k].end());
     }
 }
-// ---- check_N_addItem（ORIG 0x832db00）/ ForceResultItemRule_Setting（ORIG 0x832d784）
-// 及私有 helper（_isPossibleResultItem 0x832db4e / _AddItem 0x832dd1c /
-// _convertOutputItem 0x832c5ac / _convertInputItem 0x832c620）。
-// 布局说明（ORIG ctor 0x832c402 / .bss 全局实例实证）：对象依赖 .bss 零初始化，
-// 零内存即合法空 std::map / 空 std::vector；重建按同布局裸偏移访问（推断命名）。
 
-int CCompound_ExtreamDun_Item::_convertOutputItem(int eqType) const
+bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x832dd1c
 {
-    if (eqType == 2) return 2;
-    if (eqType == 1) return 1;
-    if (eqType == 3) return 3;
-    if (eqType == 9) return 0;
+    // cat=_convertOutputItem(GetUsableEquipmentType)；cat==4 → 不可入表；
+    // 否则 {usableLevel,index} 同记结果表[cat] 与合成行表[group][cat]。
+    const int cat = _convertOutputItem(
+        (ENUM_UNUSABLE_EQUIPMENT_TYPE)item.GetUsableEquipmentType());
+    if (cat == 4)
+    {
+        return false;
+    }
+    OUTPUT_ITEM_STR entry(item.getUsableLevel(), item.get_index());
+    m_data.m_resultItems[cat].push_back(static_cast<OUTPUT_ITEM_STR&&>(entry));
+    OUTPUT_ITEM_STR entry2(item.getUsableLevel(), item.get_index());
+    m_data.m_bindItems[item.getItemGroupName()][cat].push_back(
+        static_cast<OUTPUT_ITEM_STR&&>(entry2));
+    return true;
+}
+
+bool CCompound_ExtreamDun_Item::_isPossibleResultItem(              // ORIG 0x832db4e
+    CEquipItem& item) const
+{
+    if ((unsigned int)item.getItemGroupName() > 0x3a ||
+        item.getItemGroupName() <= 0)
+    {
+        return false;
+    }
+
+    // 强制规则命中即一票裁决：flag==0（强制允许）→ true，非零 → false。
+    std::map<int, forceRule_ResultItem>::const_iterator endIt =
+        m_data.m_forceRules.end();
+    std::map<int, forceRule_ResultItem>::const_iterator it =
+        m_data.m_forceRules.find(item.get_index());
+    if (it != endIt)
+    {
+        if (it->second.m_flag != 0)
+        {
+            return false;
+        }
+        if (it->second.m_flag != 1)
+        {
+            return true;
+        }
+    }
+
+    if (_convertInputItem(
+            (ENUM_UNUSABLE_EQUIPMENT_TYPE)item.GetUsableEquipmentType()) == 2 &&
+        item.getItemGroupName() > 0x19 && item.getItemGroupName() < 0x33)
+    {
+        return false;
+    }
+
+    if (item.getUsableLevel() > 0x46)
+    {
+        return false;
+    }
+
+    if (item.get_gen_rate() == 0)
+    {
+        return _convertInputItem(
+                   (ENUM_UNUSABLE_EQUIPMENT_TYPE)
+                       item.GetUsableEquipmentType()) == 1;
+    }
+
+    // gen_rate!=0 → 虚表槽 +0x4c 回调裁决（非零→false，零→true）。
+    typedef char (*VCheckFn)(const void*);
+    void* const* vtbl = *(void* const* const*)&item;
+    VCheckFn fn = (VCheckFn)vtbl[0x4c / 4];
+    return fn((const void*)&item) == 0;
+}
+
+bool CCompound_ExtreamDun_Item::check_N_addItem(CEquipItem& item)   // ORIG 0x832db00
+{
+    if (_isPossibleResultItem(item) != true)
+    {
+        return false;
+    }
+    if (_AddItem(item) != true)
+    {
+        return false;
+    }
+    return true;
+}
+
+void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(        // ORIG 0x832d784
+    int idx, bool flag, int value)
+{
+    m_data.m_forceRules[idx] = forceRule_ResultItem(flag, value);
+}
+
+int CCompound_ExtreamDun_Item::_convertOutputItem(                  // ORIG 0x832c5ac
+    ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
+{
+    switch (eqType)
+    {
+    case 2: return 2;
+    case 1: return 1;
+    case 3: return 3;
+    case 9: return 0;
+    default: return 4;
+    }
+}
+
+int CCompound_ExtreamDun_Item::_convertInputItem(                   // ORIG 0x832c620
+    ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
+{
+    switch (eqType)
+    {
+    case 2: return 1;
+    case 1: return 0;
+    case 3: return 2;
+    case 9: return 0;
+    default: return 3;
+    }
+}
+
+int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x832d7d6
+    Inven_Item* items, const CEquipItem** refs, char kind) const
+{
+    int inputType[2];
+    for (int i = 0; i < 2; ++i)
+    {
+        if (items[i].isEmpty() || refs[i] == 0)
+        {
+            return 0x31;
+        }
+        inputType[i] = _convertInputItem(
+            (ENUM_UNUSABLE_EQUIPMENT_TYPE)refs[i]->GetUsableEquipmentType());
+        // vtable +0x4c 槽（P5 直调）
+        if (refs[i]->IsRandomOption())
+        {
+            return 7;
+        }
+        if (inputType[i] == 3)
+        {
+            return 0x17;
+        }
+        if (inputType[i] == 2 && refs[i]->getItemGroupName() > 0x19 &&
+            refs[i]->getItemGroupName() <= 0x32)
+        {
+            return 0x17;
+        }
+        if (!items[i].m_amp.isIdentified())
+        {
+            return 0x13;
+        }
+        if ((unsigned char)items[i].m_field0 != 1)
+        {
+            return 0x12;
+        }
+        int group = refs[i]->getItemGroupName();
+        if (group > 0 && group > 0x3a)
+        {
+            return 0x11;
+        }
+        if (refs[i]->GetAttachType() == 1)
+        {
+            return 1;
+        }
+        // vtable +0x48 槽（P5 直调）
+        if (refs[i]->PeriodAfterUnsealing() != 0)
+        {
+            return 1;
+        }
+        if (items[i].m_upgradeSep.IsTradeRestriction())
+        {
+            return 1;
+        }
+    }
+    if (inputType[0] != inputType[1])
+    {
+        return 0x16;
+    }
+    if (kind == 0)
+    {
+        if (inputType[0] != 0)
+        {
+            return 0x11;
+        }
+    }
+    else if (kind == 1 || kind == 3)
+    {
+        if (inputType[0] != 1 && inputType[0] != 2)
+        {
+            return 0x11;
+        }
+    }
+    else
+    {
+        return 0x11;
+    }
+    if (kind == 3)
+    {
+        if (refs[0]->getUsableLevel() > 0x3c || refs[1]->getUsableLevel() > 0x3c)
+        {
+            return 0x11;
+        }
+    }
+    else
+    {
+        if (refs[0]->getUsableLevel() > 0x45 || refs[1]->getUsableLevel() > 0x45)
+        {
+            return 0x11;
+        }
+    }
+    return 0;
+}
+
+bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x832ccc0
+    const CEquipItem** refs, char select, Inven_Item& out, eBindSphereType bind)
+{
+    out.reset();
+    int baseLevel = _get_base_level(refs);
+    int inRarity = _convertInputItem(
+        (ENUM_UNUSABLE_EQUIPMENT_TYPE)refs[0]->GetUsableEquipmentType());
+
+    // 双次 randInt()%1000000 + 1（magic 常量 0x431bde83 实证）
+    unsigned int r0 = (unsigned int)(m_rand->randInt() % 1000000) + 1;
+    unsigned int r1 = (unsigned int)(m_rand->randInt() % 1000000) + 1;
+    (void)r0;  // ORIG 计算了两个随机数，仅第二个参与判定
+
+    unsigned int outputRarity = 4;
+    if (inRarity == 0)
+    {
+        outputRarity = (unsigned int)_determine_rarity(r1,
+            (ENUM_INPUTITEMS_RARITY)inRarity);
+    }
+    else
+    {
+        outputRarity = (unsigned int)_convertInput_To_Output(
+            (ENUM_INPUTITEMS_RARITY)inRarity);
+    }
+
+    std::pair<unsigned int, unsigned int> bonus = _determine_level_bonus(
+        (ENUM_INPUTITEMS_RARITY)inRarity, (unsigned int)baseLevel,
+        (ENUM_OUTPUTITEMS_RARITY)outputRarity, bind);
+
+    int found = 0;
+    if (!(bonus.second == 0xa && inRarity != 1 && (baseLevel % 10) > 4))
+    {
+        found = _FindItemAll_BindSphere(refs, select,
+            (ENUM_OUTPUTITEMS_RARITY)outputRarity,
+            std::make_pair(bonus.first + (unsigned int)baseLevel,
+                           bonus.second + (unsigned int)baseLevel));
+    }
+    if (found == 0)
+    {
+        if (inRarity >= 1 && inRarity <= 2)
+        {
+            found = _FindItemAll_BindSphere(refs, select,
+                (ENUM_OUTPUTITEMS_RARITY)outputRarity,
+                std::make_pair((unsigned int)(baseLevel + 5),
+                               (unsigned int)(baseLevel + 1)));
+            if (found == 0)
+            {
+                found = _FindItemAll_BindSphere(refs, select,
+                    (ENUM_OUTPUTITEMS_RARITY)outputRarity,
+                    std::make_pair((unsigned int)(baseLevel + 0xa),
+                                   (unsigned int)(baseLevel + 6)));
+            }
+        }
+        else if (inRarity == 0)
+        {
+            found = _exception_Rare(refs, select,
+                (ENUM_OUTPUTITEMS_RARITY)outputRarity, (unsigned int)baseLevel);
+        }
+    }
+    if (found == 0)
+    {
+        return false;
+    }
+    out.m_addInfo = found;
+    CItem* info = G_CDataManager()->find_item(found);
+    if (info == 0)
+    {
+        return false;
+    }
+    info->make_item(out);
+    return true;
+}
+
+int CCompound_ExtreamDun_Item::_get_base_level(                     // ORIG W 0x832e40c
+    const CEquipItem* const* refs) const
+{
+    return (refs[0]->getUsableLevel() + refs[1]->getUsableLevel()) >> 1;
+}
+
+int CCompound_ExtreamDun_Item::_convertInput_To_Output(             // ORIG T 0x832c5f0
+    ENUM_INPUTITEMS_RARITY inRarity) const
+{
+    switch ((int)inRarity)
+    {
+    case 1: return 2;
+    case 2: return 3;
+    case 0: return 0;
+    default: return 4;
+    }
+}
+
+int CCompound_ExtreamDun_Item::_determine_rarity(                   // ORIG T 0x832c976
+    unsigned int randVal, ENUM_INPUTITEMS_RARITY inRarity) const
+{
+    if ((int)inRarity < 0 || (int)inRarity > 2)
+    {
+        return 0;
+    }
+    for (int i = 0; i <= 3; ++i)
+    {
+        if ((unsigned int)m_data.m_rarityDicision[(int)inRarity][i] >= randVal)
+        {
+            return i;   // 循环耗尽时返回 4（ORIG 如此）
+        }
+    }
     return 4;
 }
 
-int CCompound_ExtreamDun_Item::_convertInputItem(int eqType) const
+std::pair<unsigned int, unsigned int>                              // ORIG T 0x832c9ca
+CCompound_ExtreamDun_Item::_determine_level_bonus(
+    unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
+    unsigned int& idxOut, eBindSphereType bind) const
 {
-    if (eqType == 2) return 1;
-    if (eqType == 1) return 0;
-    if (eqType == 3) return 2;
-    if (eqType == 9) return 0;
-    return 3;
-}
-
-bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)
-{
-    // ORIG：cat=_convertOutputItem(GetUsableEquipmentType)；cat==4 → false；
-    // 否则把 {usableLevel, index} push 到 +0xb44+cat*0xc 与
-    // +0x34+groupName*0x30+cat*0xc 两个 vector<OUTPUT_ITEM_STR>。
-    const int eqType = *(const int*)((const char*)&item + 0x1bc);   // 推断：GetUsableEquipmentType（ORIG W 0x832e036 读 +0x1bc）
-    const int cat = _convertOutputItem(eqType);
-    const bool ok = (cat != 4);
-    if (ok)
+    idxOut = _determine_level_bonus_index(baseLevel, inRarity, bind);
+    const std::vector<unsigned int>& rates =
+        m_lvBonus[(int)bind].m_rates[(int)inRarity];
+    if (idxOut == 0 || idxOut >= rates.size())
     {
-        OUTPUT_ITEM_STR entry;
-        entry.m_field0 = item.getUsableLevel();
-        entry.m_field4 = item.get_index();
-        char* base = (char*)this;
-        ((std::vector<OUTPUT_ITEM_STR>*)(base + 0xb44 + cat * 0xc))->push_back(entry);
-        const int group = item.getItemGroupName();
-        ((std::vector<OUTPUT_ITEM_STR>*)(base + 0x34 + group * 0x30 + cat * 0xc))
-            ->push_back(entry);
+        return std::pair<unsigned int, unsigned int>(0u, 0u);
     }
-    return ok;
+    return std::pair<unsigned int, unsigned int>(rates[idxOut], rates[idxOut - 1] + 1);
 }
 
-bool CCompound_ExtreamDun_Item::_isPossibleResultItem(const CEquipItem& item)
+std::pair<unsigned int, unsigned int>                              // ORIG T 0x832cadc
+CCompound_ExtreamDun_Item::_determine_level_bonus(
+    ENUM_INPUTITEMS_RARITY inRarity, unsigned int baseLevel,
+    ENUM_OUTPUTITEMS_RARITY outRarity, eBindSphereType bind) const
 {
-    // ORIG：groupName∈(0,0x3a] 直接 false；
-    // 强制规则 map(+0xb74) find(index)：命中且 flag==0 → false、flag==1 → true；
-    // 未命中：_convertInputItem(eqType)==2 且 groupName∈[0x19,0x33) → false；
-    // usableLevel<0x47 且 get_gen_rate()==0 时要求 _convertInputItem(eqType)==1；
-    // 否则取虚表槽 0x4c/4 的回调，返回其非零结果（推断：可合成判定虚方法）。
-    const int group = item.getItemGroupName();
-    if (group <= 0 || group >= 0x3b)
-        return false;
-
-    typedef std::map<int, forceRule_ResultItem> ForceRuleMap;
-    ForceRuleMap& rules = *(ForceRuleMap*)((char*)this + 0xb74);
-    ForceRuleMap::const_iterator it = rules.find(item.get_index());
-    if (it != rules.end())
+    unsigned int idx = _determine_level_bonus_index(baseLevel, inRarity, bind);
+    if ((int)inRarity == 0 && (int)outRarity > 1 && (int)outRarity <= 3 && idx != 0)
     {
-        if (it->second.m_flag == 0)
-            return false;
-        if (it->second.m_flag == 1)
-            return true;
+        --idx;
     }
-
-    const int eqType =
-        *(const int*)((const char*)&item + 0x1bc);   // 推断：GetUsableEquipmentType
-    const int inputCat = _convertInputItem(eqType);
-    if (inputCat == 2 && group > 0x19 && group < 0x33)
-        return false;
-
-    if (item.getUsableLevel() < 0x47)
+    const std::vector<unsigned int>& rates =
+        m_lvBonus[(int)bind].m_rates[(int)inRarity];
+    if (idx == 0 || idx >= rates.size())
     {
-        const int genRate = *(const int*)((const char*)&item + 0x50);   // 推断：get_gen_rate（ORIG W 0x832e02a 读 +0x50）
-        if (genRate == 0)
-            return _convertInputItem(eqType) == 1;
-        // genRate!=0 → 走下方虚表槽判定
+        return std::pair<unsigned int, unsigned int>(0u, 0u);
     }
-    // 推断：vtable 槽 +0x4c 回调（ORIG (**(code**)(*param_1 + 0x4c))(...)）
-    typedef char (*VFn)(const void*);
-    void* const* vtbl = *(void* const* const*)&item;
-    VFn fn = (VFn)vtbl[0x4c / 4];
-    return fn(&item) != 0;
+    return std::pair<unsigned int, unsigned int>(rates[idx], rates[idx - 1] + 1);
 }
 
-void CCompound_ExtreamDun_Item::check_N_addItem(CEquipItem& item)
+unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T 0x832cc02
+    unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
+    eBindSphereType bind) const
 {
-    // ORIG 26 insn：纯门卫+委托（_isPossibleResultItem → _AddItem），无其它副作用。
-    if (_isPossibleResultItem(item))
-        _AddItem(item);
+    if ((int)inRarity < 0 || (int)inRarity > 2)
+    {
+        return 0;
+    }
+    unsigned int idx = 0;
+    for (;;)
+    {
+        const std::vector<unsigned int>& rates =
+            m_lvBonus[(int)bind].m_rates[(int)inRarity];
+        if (rates.size() == 0)
+        {
+            break;
+        }
+        if (rates[idx] >= baseLevel)
+        {
+            break;
+        }
+        ++idx;
+    }
+    return idx;
 }
 
-void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(int idx, bool flag,
-                                                            int value)
+int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x832cffe
+    const CEquipItem** refs, char select, ENUM_OUTPUTITEMS_RARITY outRarity,
+    unsigned int baseLevel) const
 {
-    typedef std::map<int, forceRule_ResultItem> ForceRuleMap;
-    ForceRuleMap& rules = *(ForceRuleMap*)((char*)this + 0xb74);
-    rules[idx] = forceRule_ResultItem(flag, value);
+    int found = 0;
+    for (unsigned int g = 0; g <= 1u; ++g)
+    {
+        for (int c = (int)baseLevel; c >= 0; --c)
+        {
+            if (c == 0)
+            {
+                found = _FindItemAll_BindSphere(refs, select, outRarity,
+                    std::make_pair(baseLevel + g * 5u + 5u, baseLevel + g * 5u + 1u));
+            }
+            else if (c > 1)
+            {
+                found = _FindItemAll_BindSphere(refs, select, outRarity,
+                    std::make_pair(baseLevel + g, baseLevel + g));
+            }
+            if (found != 0)
+            {
+                return found;
+            }
+        }
+    }
+    return found;
 }
 
-// ---- LoadScript（ORIG T 0x0832c65e，报告 ExtreamDungeon__CCompound_ExtreamDun_Item/
-// LoadScript.md）----
-// RDAR 脚本节：[insert rarity]（3×ScanStr 丢弃）、[rarity dicision]（3×4 int
-// 网格 @+0x04）、[level dicision]/[silver level dicision]（count + count 个等级
-// 入 levels 向量、3 行×count 比率入 rates[r]，向量组 @+0xb8c / +0xbbc 各 0x30）。
-// 返回 0=成功；loadRDARScriptFile 失败返回 0x62。
+bool CCompound_ExtreamDun_Item::BindTable_Predicate(                // ORIG T 0x832c3cc
+    const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b)
+{
+    if (a.m_usableLevel != b.m_usableLevel)
+    {
+        return a.m_usableLevel < b.m_usableLevel;
+    }
+    return a.m_index < b.m_index;
+}
+
+int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x832d15e
+    unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
+    const std::pair<unsigned int, unsigned int>& range) const
+{
+    if ((int)group <= 0 || group > 0x3a)
+    {
+        return 0;
+    }
+    if ((int)outRarity < 0 || (int)outRarity > 3)
+    {
+        return 0;
+    }
+    // ORIG 绝对偏移 this+0x30（= &m_data + 0x2c）；头注释与绝对值差 4，
+    // 按 objdump 实证偏移访问。
+    typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
+    const ItemVec& table = *reinterpret_cast<const ItemVec*>(
+        reinterpret_cast<const char*>(&m_data) + 0x2c +
+        48u * group + 12u * (unsigned int)outRarity);
+    OUTPUT_ITEM_STR lowKey((int)range.first, 0);
+    ItemVec::const_iterator lo = std::lower_bound(
+        table.begin(), table.end(), lowKey, &BindTable_Predicate);
+    OUTPUT_ITEM_STR highKey((int)range.second, 0x7fffffff);
+    ItemVec::const_iterator hi = std::upper_bound(
+        table.begin(), table.end(), highKey, &BindTable_Predicate);
+    if (lo == hi)
+    {
+        return 0;
+    }
+    return _FindItemRelateCreationRate(lo, hi);
+}
+
+int CCompound_ExtreamDun_Item::_FindRandomItem(                     // ORIG T 0x832d2ce
+    ENUM_OUTPUTITEMS_RARITY outRarity,
+    const std::pair<unsigned int, unsigned int>& range) const
+{
+    if ((int)outRarity < 0 || (int)outRarity > 3)
+    {
+        return 0;
+    }
+    typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
+    // ORIG 绝对偏移 this+0xb40（= &m_data + 0xb3c），同上按实证偏移。
+    const ItemVec& table = *reinterpret_cast<const ItemVec*>(
+        reinterpret_cast<const char*>(&m_data) + 0xb3c +
+        12u * (unsigned int)outRarity);
+    OUTPUT_ITEM_STR lowKey((int)range.first, 0);
+    ItemVec::const_iterator lo = std::lower_bound(
+        table.begin(), table.end(), lowKey, &BindTable_Predicate);
+    OUTPUT_ITEM_STR highKey((int)range.second, 0x7fffffff);
+    ItemVec::const_iterator hi = std::upper_bound(
+        table.begin(), table.end(), highKey, &BindTable_Predicate);
+    if (lo == hi)
+    {
+        return 0;
+    }
+    return _FindItemRelateCreationRate(lo, hi);
+}
+
+int CCompound_ExtreamDun_Item::_FindItemAll_BindSphere(             // ORIG T 0x832d438
+    const CEquipItem** refs, char select, ENUM_OUTPUTITEMS_RARITY outRarity,
+    std::pair<unsigned int, unsigned int> range) const
+{
+    if ((int)outRarity == 2)
+    {
+        return _FindRandomItem(outRarity, range);
+    }
+    if ((int)outRarity == 0 || (int)outRarity == 1)
+    {
+        int group = refs[(int)select]->getItemGroupName();
+        return _FindSelectItem((unsigned int)group, outRarity, range);
+    }
+    return 0;
+}
+
+int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x832d4b4
+    std::vector<OUTPUT_ITEM_STR>::const_iterator begin,
+    std::vector<OUTPUT_ITEM_STR>::const_iterator end) const
+{
+    if (begin == end)
+    {
+        return 0;
+    }
+    std::vector<std::pair<int, unsigned int> > entries;   // (权重, itemIdx)
+    int totalGen = 0;
+    for (std::vector<OUTPUT_ITEM_STR>::const_iterator it = begin; it != end; ++it)
+    {
+        CItem* info = G_CDataManager()->find_item(it->m_index);
+        if (info == 0)
+        {
+            continue;
+        }
+        std::map<int, forceRule_ResultItem>::const_iterator rule =
+            m_data.m_forceRules.find(it->m_index);
+        if (rule != m_data.m_forceRules.end())
+        {
+            entries.push_back(std::make_pair((int)rule->second.m_value,
+                                             (unsigned int)it->m_index));
+            totalGen += rule->second.m_value;
+        }
+        else
+        {
+            entries.push_back(std::make_pair(info->get_gen_rate(),
+                                             (unsigned int)it->m_index));
+            totalGen += info->get_gen_rate();
+        }
+    }
+    unsigned int pick = 0;
+    if (totalGen == 0)
+    {
+        if (entries.size() == 0)
+        {
+            return 0;
+        }
+        return entries[m_rand->randInt() % entries.size()].second;
+    }
+    pick = (unsigned int)(m_rand->randInt() % totalGen) + 1;
+    unsigned int acc = 0;
+    for (unsigned int i = 0; i < entries.size(); ++i)
+    {
+        acc += (unsigned int)entries[i].first;
+        if (pick <= acc)
+        {
+            return entries[i].second;
+        }
+    }
+    return 0;
+}
+
+
+// ── LoadScript（ORIG T 0x0832c65e）：RDAR 脚本节解析。
+// [insert rarity] 丢 3 token；[rarity dicision] 写 3×4 网格；
+// [level dicision]/[silver level dicision] 分别写 m_lvBonus[0]/[1]。
 int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
 {
     if (!loadRDARScriptFile(dir, path))
@@ -2164,42 +2590,55 @@ int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
 
     std::string token;
     std::string scratch;
-    char* base = (char*)this;
 
     while (ScanType(token, true))
     {
         if (token == "[insert rarity]")
         {
             for (int i = 0; i < 3; ++i)
+            {
                 ScanStr(&scratch);
+            }
         }
         else if (token == "[rarity dicision]")
         {
-            // 网格 @this+0x04：m[i][j] → this+(i*4+j)*4+4（i=0..2，j=0..3）。
             for (int i = 0; i < 3; ++i)
-                for (int j = 0; j < 4; ++j)
-                    *(int*)(base + 4 + (i * 4 + j) * 4) = ScanInt((bool*)0);
-        }
-        else if (token == "[level dicision]" || token == "[silver level dicision]")
-        {
-            const bool silver = (token == "[silver level dicision]");
-            const int count = ScanInt((bool*)0);
-            const unsigned int ucount = (unsigned int)count;   // ORIG 以 unsigned 比较
-            const int blockBase = silver ? 0xbbc : 0xb8c;   // levels 向量基址
-            typedef std::vector<unsigned int> LvVec;
-
-            for (unsigned int k = 0; k < ucount; ++k)
             {
-                unsigned int level = (unsigned int)ScanInt((bool*)0);
-                ((LvVec*)(base + blockBase))->push_back(level);
+                for (int j = 0; j < 4; ++j)
+                {
+                    m_data.m_rarityDicision[i][j] = ScanInt((bool*)0);
+                }
+            }
+        }
+        else if (token == "[level dicision]")
+        {
+            const unsigned int count = (unsigned int)ScanInt((bool*)0);
+            for (unsigned int k = 0; k < count; ++k)
+            {
+                m_lvBonus[0].m_levels.push_back((unsigned int)ScanInt((bool*)0));
             }
             for (int r = 0; r < 3; ++r)
             {
-                LvVec& rates = *(LvVec*)(base + blockBase + 0xc + r * 0xc);
-                for (unsigned int k = 0; k < ucount; ++k)
+                for (unsigned int k = 0; k < count; ++k)
                 {
-                    unsigned int rate = (unsigned int)ScanInt((bool*)0);
-                    rates.push_back(rate);
+                    m_lvBonus[0].m_rates[r].push_back(
+                        (unsigned int)ScanInt((bool*)0));
+                }
+            }
+        }
+        else if (token == "[silver level dicision]")
+        {
+            const unsigned int count = (unsigned int)ScanInt((bool*)0);
+            for (unsigned int k = 0; k < count; ++k)
+            {
+                m_lvBonus[1].m_levels.push_back((unsigned int)ScanInt((bool*)0));
+            }
+            for (int r = 0; r < 3; ++r)
+            {
+                for (unsigned int k = 0; k < count; ++k)
+                {
+                    m_lvBonus[1].m_rates[r].push_back(
+                        (unsigned int)ScanInt((bool*)0));
                 }
             }
         }

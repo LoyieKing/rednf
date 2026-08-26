@@ -10,6 +10,7 @@
 #include "CVillageObjectMgr.h" // village_object::IObject
 #include "Inven_Item.h"
 #include "CInventory.h"   // INVEN_TYPE / CInventory 完整类型（CheckValidItem 族）
+#include "StaticPool.h"   // StaticPool<CPrivateStore,300>（ORIG Mgr +0x68 池成员）
 #include "PacketGuard.h"
 
 class CUser;
@@ -98,6 +99,39 @@ public:
 
 // ORIG B _ZN13private_store21g_CharacterControllerE @0x09472de0（BSS，size 6）
 extern CCharacterControllerPrivate g_CharacterController;
+
+// ---- PrivateStoreZone（2 字节 zone 标识；ORIG C1(h,h) W 0x85cb6f6：
+//      +0x00=参数a、+0x01=参数b，zone map 键类型）----
+struct PrivateStoreZone
+{
+    PrivateStoreZone(unsigned char a, unsigned char b) : m_a(a), m_b(b) {}
+    PrivateStoreZone() : m_a(0), m_b(0) {}
+
+    unsigned char m_a;   // +0x00
+    unsigned char m_b;   // +0x01
+};
+
+inline bool operator<(PrivateStoreZone const& lhs, PrivateStoreZone const& rhs)
+{
+    if (lhs.m_a != rhs.m_a)
+        return lhs.m_a < rhs.m_a;
+    return lhs.m_b < rhs.m_b;
+}
+
+// ---- IUserPos（私商管理器接口基类；ORIG C1 W 0x85cb93c 仅写 vptr 0x8cbebb0，
+//      vtable 两槽均 __cxa_pure_virtual；CPrivateStoreMgr vtable 0x8cbeb38 实证
+//      槽+0=Enter(0x85ca994)、槽+4=HandleError(0x85caaaa)；typeinfo 单继承实证）----
+class IUserPos
+{
+protected:
+    IUserPos() {}
+    ~IUserPos() {}
+
+public:
+    virtual int Enter(CUser* user) = 0;                          // 槽+0
+    virtual int HandleError(CUser* user, int code1, int code2,   // 槽+4
+                            int code3) = 0;
+};
 // ---- COperator<T>（溢出检测运算助手；ORIG 仅存在 int 特化 W _ZN13private_store9COperatorIiE7ProductEiiRi @0x85cd22a）----
 template <typename T>
 class COperator
@@ -137,14 +171,11 @@ private:
 struct PrivateStoreItem
 {
     PrivateStoreItem();
-
+    void Reset();                                  // ORIG W 0x823459a
     unsigned char GetState() { return m_flag3d; }  // ORIG W 0x85cb662：movzbl +0x3d 直返
-    void Reset();
-
-    Inven_Item m_item;          // +0x00（0x3d）
-    char m_pad3d[3];
-    unsigned char m_flag3d;     // +0x3d
-    int m_field40;              // +0x40
+    Inven_Item m_item;          // +0x00（packed 0x3d）
+    unsigned char m_flag3d;     // +0x3d（GetState；ORIG Reset 清零位）
+    int m_field40;              // +0x40（售价）
     unsigned short m_field44;   // +0x44
     unsigned char m_field46;    // +0x46
     unsigned short m_field48;   // +0x48
@@ -192,7 +223,7 @@ public:
     bool ExitPrivateStore();                                                    // ORIG T 0x85c8fd4
 
     unsigned char GetState() { return m_state; }          // ORIG W 0x82345d8：movzbl +0x10（调用方仅读 %al，故按字节返回）
-    unsigned char isDollCreated();                        // ORIG W 0x82345e4：movzbl +0x08 直返（定义于 .cpp）
+    bool isDollCreated();                                 // ORIG W 0x82345e4：movzbl +0x08 直返（定义于 .cpp）
     CUser* GetSeller() { return m_pSeller; }              // ORIG W 0x85cb87c：返回 +0x2c
     std::string* GetSubject() { return &m_name; }         // ORIG W 0x85cb888：返回 &+0x48
     int GetSellerIndex();                                 // ORIG W 0x85cb894：GetSeller()->get_unique_id()
@@ -285,39 +316,46 @@ public:
     int MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig);               // ORIG W 0x85cc5bc
 };
 
-// 私有商店管理器（ORIG 域 0x085ca3d6）。
-// 布局依据 docs/class_func_reports/private_store__CPrivateStoreMgr/ 报告：
-//   +0x04  CPrivateStore（管理器自带/回退 store）
-//   +0x68  StaticPool<CPrivateStore,300>
-//   +0x98  map<CUser*,CPrivateStore*>   —— 店主(卖家)表
-//   +0xb0  map<CUser*,CPrivateStore*>   —— 买家表
-//   +0xc8  map<PrivateStoreZone,list<CPrivateStore*>*>
-// 当前头文件为渐进重建的最小可编译声明：stores 表已用真实 std::map 表达，
-// StaticPool/zone 表等深层依赖尚未还原（见各函数报告标注）。
-class CPrivateStoreMgr
+// 私有商店管理器（ORIG 域 0x085ca3d6，typeinfo 单继承 IUserPos 实证）。
+// 权威布局（ctor 0x85ca3d6 / dtor 0x85ca4fe 汇编逐字段核对）：
+//   +0x00 vptr（IUserPos 主基类）
+//   +0x04 CPrivateStore                       —— 管理器自带/池满回退 store（sizeof 0x64）
+//   +0x68 StaticPool<CPrivateStore,300>       —— store 对象池（sizeof 0x30，紧跟 store 尾）
+//   +0x98 map<CUser*,CPrivateStore*>          —— 店主(卖家)表
+//   +0xb0 map<CUser*,CPrivateStore*>          —— 买家表
+//   +0xc8 map<PrivateStoreZone,list<CPrivateStore*>*> —— zone 店铺列表表
+class CPrivateStoreMgr : public IUserPos
 {
 public:
     CPrivateStoreMgr();
     ~CPrivateStoreMgr();
-    int Enter(CUser*);
-    int Exit(CUser*);
-    void* FindStoreBuyer(CUser*);
-    void* FindStoreSeller(CUser*);
 
-    int FreeStoreBuyer(CUser*);
-    int FreeStoreSeller(CUser*);
-    int GetStoreBuyer(IBuyer**, CUser*, unsigned short);
-    int GetStoreBuyer(IBuyer**, CUser*, CUser*);
-    int GetStoreSeller(ISeller**, CUser*);
-    int HandleError(CUser*, int, int, int);
-    bool IsBusyPrivateStore(CUser*);
-    int LoadPrivateStore(CUser*);
-    void LoadPrivateStoreResponse(CUser*, SIG_PRIVATE_STORE*);   // ORIG T 0x85cac16（返回 void，ORIG 尾部无 eax 装载）
-    int GetPrivateStoreSize();
+    int Enter(CUser* user);                          // IUserPos 槽+0（ORIG T 0x85caa8a）
+    int HandleError(CUser* user, int code1,          // IUserPos 槽+4（ORIG T 0x85caaaa）
+                    int code2, int code3);
+    int Exit(CUser* user);                           // 非虚（ORIG T 0x85ca994）
+
+    CPrivateStore* FindStoreBuyer(CUser* user);      // ORIG T 0x85ca2da
+    CPrivateStore* FindStoreSeller(CUser* user);     // ORIG T 0x85ca358
+    int FreeStoreBuyer(CUser* user);                 // ORIG T 0x85ca914
+    int FreeStoreSeller(CUser* user);                // ORIG T 0x85ca874
+    int GetStoreBuyer(IBuyer** out, CUser* user,
+                      CUser* sellerUser);            // ORIG T 0x85ca7b8
+    void GetStoreBuyer(IBuyer** out, CUser* user,
+                       unsigned short sellerIndex);  // ORIG T 0x85ca760（返回 void）
+    int GetStoreSeller(ISeller** out, CUser* user);  // ORIG T 0x85ca698
+    bool IsBusyPrivateStore(CUser* user);            // ORIG T 0x85cad5e
+    void LoadPrivateStore(CUser* user);              // ORIG T 0x85cab24（返回 void）
+    void LoadPrivateStoreResponse(CUser* user,
+                                  SIG_PRIVATE_STORE* sig);  // ORIG T 0x85cac16（返回 void）
+    int GetPrivateStoreSize();                       // ORIG T 0x86d23a4：卖家表 size()
 
 private:
-    std::map<CUser*, CPrivateStore*> m_storeSellers;  // ORIG +0x98
-    std::map<CUser*, CPrivateStore*> m_storeBuyers;   // ORIG +0xb0
+    CPrivateStore m_embeddedStore;                   // +0x04（sizeof 0x64，尾即池头）
+    StaticPool<CPrivateStore, 300> m_storePool;      // +0x68
+    std::map<CUser*, CPrivateStore*> m_storeSellers; // +0x98
+    std::map<CUser*, CPrivateStore*> m_storeBuyers;  // +0xb0
+    std::map<PrivateStoreZone, std::list<CPrivateStore*>*> m_zoneStores;  // +0xc8
 };
 
 CPrivateStoreMgr* GetInstancePrivateStoreMgr();

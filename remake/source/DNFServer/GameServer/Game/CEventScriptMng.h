@@ -13,9 +13,12 @@
 #include <string>
 #include <vector>
 
+#include "InGameEventScripts.h"   // 具体事件脚本类型（PurchaseCashItemBonusScript 等）
+
 class CUser;
 class PacketGuard;
 class InGameEventScript;
+struct stCeraShopIPGRequest_t;
 
 // ---- InGameEventInfo / InGameEventInfoList：ORIG 为全局作用域类型
 // （_Z25importInGameEventInfoListP19InGameEventInfoListPKc 实证），
@@ -109,22 +112,24 @@ protected:
 // ============================================================================
 // EventClassify 事件实体（CEventEntity 派生类）。ORIG 统一布局：
 //   基类 0x1c + 私有 InGameEventScript*（+0x1c）= sizeof 0x20。
-// create_event_entity（0x810b402）按事件记录类型 new 对应类（0x20 字节先清零，
-// 再调 ctor）。每个 ctor = 调基类 CEventEntity ctor + 设 vptr。
-// 各派生类虚表只覆写部分槽位（见各类注释），get_db_table_name 一律覆写 slot 8。
+// create_event_entity（0x810b402）按事件记录类型 value-init 对应类：
+//   operator new(0x20) → 整块清零循环 → C1 thunk。
+// ORIG 各派生 ctor 符号均为 W（隐式生成：调基类 CEventEntity ctor + 设 vptr），
+// 除 CAccountFirstLogin 外均不声明 ctor，由编译器同样产生清零循环 + 弱 C1。
+// 脚本访问一律经 InGameEventScripts.h 具体脚本类型的具名字段，禁止裸偏移。
 // ============================================================================
 
-// CLevelUpReward ← 事件记录类型 0x194。get_db_table_name 返回 m_script+0xc，
-// get_mail_data 返回 m_script+0x28（Action_SendMail）。
+// CLevelUpReward ← 事件记录类型 0x194（脚本 LevelUpRewardScript）。
+// get_db_table_name 返回 &m_dbTableName（调用方按 std::string& 解释），
+// get_mail_data 返回 &m_mail。ORIG ctor W 隐式（C1 0x081110fc），不声明。
 class CLevelUpReward : public CEventEntity
 {
 public:
-    CLevelUpReward();                                // 0x081110fc
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e168
-    virtual char* get_db_table_name();               // slot 8 0x810e2d6：m_script+0xc
-    char  is_recv_check_item();                      // 0x810e2f2：*(m_script+8)
-    char* get_mail_data();                           // 0x810e2e4：m_script+0x28
-    int   set_reward_item(int, int, int);            // 0x810e302
+    virtual char* get_db_table_name();               // slot 8 0x810e2d6：&m_dbTableName
+    char  is_recv_check_item();                      // 0x810e2f2：m_flag08
+    char* get_mail_data();                           // 0x810e2e4：&m_mail
+    int   set_reward_item(int, int, int);            // 0x810e302（定义 EventLevelupA2）
     int   check_recv_level(int, int, int, bool);     // 0x810e192
     void  do_action(CUser* user);                    // 0x810e4ea（非虚）
     int   send_reward_from_recv_level(CUser*, int, int);  // 0x810e51a
@@ -132,29 +137,30 @@ protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
 
-// CUsedFatigueGiveItem ← 事件记录类型 0x65。虚表覆写 is_eventing(slot2)/
-// set_event_data(slot4)/get_db_table_name(slot8)。get_db_table_name 返回 m_script+8。
+// CUsedFatigueGiveItem ← 事件记录类型 0x65（脚本 UsedFatigueGiveItemScript）。
+// 虚表覆写 is_eventing(slot2)/set_event_data(slot4)/get_db_table_name(slot8)；
+// get_db_table_name 返回 &m_dbTableName。ORIG ctor W 隐式（0x081110a0），不声明。
 class CUsedFatigueGiveItem : public CEventEntity
 {
 public:
-    CUsedFatigueGiveItem();                          // 0x081110a0
     virtual bool is_eventing();                      // slot 2 0x811056e
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x81105be
     virtual char* get_db_table_name();               // slot 8 0x81105e8：m_script+8
     bool  getIsCharacEvent(bool& out) const;         // 0x81107ea
+    char  get_user_type() const;                     // 0x8110eec（ZNK，读脚本 +0xc）
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x81105f6
     int   verifyApplyUser(CUser*);                   // 0x8110756
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
 
-// CAttendance ← 事件记录类型 0x56。虚表覆写 is_eventing(slot2)/set_event_data(slot4)/
-// send_init_data(slot7)/get_db_table_name(slot8)。get_db_table_name 返回 m_script+8，
-// get_mail_data 返回 m_script+0x2c。
+// CAttendance ← 事件记录类型 0x56（脚本 AttendanceScript）。虚表覆写 is_eventing
+// (slot2)/set_event_data(slot4)/send_init_data(slot7)/get_db_table_name(slot8)；
+// get_db_table_name 返回 &m_dbTableName，get_mail_data 返回 &m_mail。
+// ORIG ctor W 隐式（0x08110fdc），不声明。
 class CAttendance : public CEventEntity
 {
 public:
-    CAttendance();                                   // 0x08110fdc
     virtual bool is_eventing();                      // slot 2 0x810e75c
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810eadc
     virtual bool send_init_data(CUser* user, PacketGuard& packet,
@@ -169,12 +175,12 @@ protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
 
-// CPcRoomPlayTime ← 事件记录类型 0x5c。虚表覆写 is_eventing(slot2)/set_event_data(slot4)/
-// get_db_table_name(slot8)。get_db_table_name 返回 m_script+8。
+// CPcRoomPlayTime ← 事件记录类型 0x5c（脚本 PcBangPlayTimeScript）。虚表覆写
+// is_eventing(slot2)/set_event_data(slot4)/get_db_table_name(slot8)；
+// get_db_table_name 返回 &m_dbTableName。ORIG ctor W 隐式（0x08111084），不声明。
 class CPcRoomPlayTime : public CEventEntity
 {
 public:
-    CPcRoomPlayTime();                               // 0x08111084
     virtual bool is_eventing();                      // slot 2 0x8110814
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x8110872
     virtual char* get_db_table_name();               // slot 8 0x8110864：m_script+8
@@ -184,9 +190,12 @@ protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
 
-// CAccountFirstLogin ← 事件记录类型 0x191/0x192。虚表覆写 set_event_data(slot4)/
-// get_db_table_name(slot8)，并新增虚槽 slot 9 = do_action。get_db_table_name 返回
-// m_script+8，get_mail_data 返回 m_script+0xc。CAccountFirstLoginDaily 由此类派生。
+// CAccountFirstLogin ← 事件记录类型 0x191/0x192（脚本 AccountFirstLoginScript）。
+// 虚表覆写 set_event_data(slot4)/get_db_table_name(slot8)，并新增虚槽 slot 9 =
+// do_action。get_db_table_name 返回 &m_dbTableName，get_mail_data 返回 &m_mail。
+// CAccountFirstLoginDaily 由此类派生。ORIG ctor 为 W 隐式（0x08110f88）；此处
+// 保留显式声明仅因 entitiesB 的派生类需显式调用基类构造，ctor 内补 m_script1c=0
+// 对齐 ORIG 工厂清零终态。
 class CAccountFirstLogin : public CEventEntity
 {
 public:
@@ -199,12 +208,12 @@ protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
 
-// CAddItemCountDB ← 事件记录类型 0x193。虚表覆写 set_event_data(slot4)/
-// get_db_table_name(slot8)。get_db_table_name 返回 m_script+0x20。
+// CAddItemCountDB ← 事件记录类型 0x193（脚本 AddItemCountDBScript）。虚表覆写
+// set_event_data(slot4)/get_db_table_name(slot8)；get_db_table_name 返回
+// &m_dbTableName。ORIG ctor W 隐式（0x08110fa4），不声明。
 class CAddItemCountDB : public CEventEntity
 {
 public:
-    CAddItemCountDB();                               // 0x08110fa4
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e064
     virtual char* get_db_table_name();               // slot 8 0x810e15a：m_script+0x20
     int is_event_item(int itemId);                   // 0x810e08e
@@ -228,6 +237,7 @@ public:
     virtual ~CFatigueQuantity();                     // D1 0x08114aac / D0 0x08114adc
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f95e
     virtual char* get_db_table_name();               // slot 8 0x810f988：m_script+8
+    char get_user_type() const;                       // 0x08110edc（ZNK const）
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -262,6 +272,7 @@ public:
     virtual ~CObjectBringUp();                       // D1 0x08114a10 / D0 0x08114a40
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810fcb2
     virtual char* get_db_table_name();               // slot 8 0x810fcdc：m_script+8
+    void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x8110386
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -275,6 +286,11 @@ public:
     virtual ~CPurchaseCashItemBonus();               // D1 0x08114a5e / D0 0x08114a8e
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f996
     virtual char* get_db_table_name();               // slot 8 0x810f9c0：m_script+8
+    void  updateTargetGoodsCount(CUser*, unsigned int,
+                                 stCeraShopIPGRequest_t*);  // 0x810f9ce
+    bool  sendPurchaseBonusReward(CUser*, int);             // 0x810fb34
+    bool  verifyGiveBonusReward(
+              PurchaseCashItemBonusScript::PurchaseBonusRule&, int);  // 0x810fae0
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -287,6 +303,7 @@ public:
     CAccountFirstLoginDaily();                       // 0x0811110a
     virtual ~CAccountFirstLoginDaily();              // D1 0x08114c80 / D0 0x08114cb0
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810dfc6 委托
+    virtual void do_action(int flags, CUser* user, std::bitset<32u> bs);
 };
 
 class CEventScriptMng : public InGameEventInfoList, public InGameEventScriptLoader
@@ -298,13 +315,24 @@ public:
     void send_event_init_data(CUser* user, bool flag);   // ORIG 0x810c40e T
     void process_level_up_reward(CUser* user, bool flag);   // ORIG 0x0810bf56（CUser::_onLevelUp 尾调用；声明先行）
     void process_add_item_count_db(CUser* user, int itemId, int count);   // ORIG T 0x0810bea8（事件 0x193 拾取计数）
+    char* get_db_table_name(int key);
+    void process_account_first_login(int key, CUser* user, std::bitset<32u> flags);
+    void process_add_fatigue_count(CUser* user, int count);
+    void process_add_quest_count_db(CUser* user, int questId);
+    void process_level_up_reward_recv_level(CUser* user, int level, int growType);
+    void inc_user_fatigue(CUser* user, unsigned int fatigue);
+    bool send_gift_fatigue_item(CUser* user, unsigned int fatigue);
+    void update_purchase_target_item_count(CUser* user, unsigned int goodsId, stCeraShopIPGRequest_t* request);
+    bool send_purchase_bonus_mail(CUser* user, unsigned int goodsId);
+    bool send_bring_up_item_fatigue(CUser* user, int fatigue);
+    void send_pc_room_play_init_time(CUser* user);
     // ---- 已恢复的访问器/工具方法（各报告） ----
     int  get_convert_to_user_confirmflag(int key);      // ORIG 0x810b0cc
     CEventEntity* get_event_entity(int key);            // ORIG 0x810b96a
     bool is_event_entity(int key) const;                // ORIG 0x810b9d4
     int  get_record_type(int key);                      // ORIG 0x810c7b8
-    int  get_today_time();                              // ORIG 0x810c6d6：return m_field48
-    unsigned char get_today_time_day();                 // ORIG 0x810c6ca：return m_flag4c
+    int  get_today_time();                              // ORIG 0x810c6d6：return m_todayTime
+    unsigned char get_today_time_day();                 // ORIG 0x810c6ca：return m_todayTimeDay
     bool is_current_ingame_event_record_type(int key);  // ORIG 0x810c75c
     void get_ingame_event_record_type_list(std::vector<int>& out); // ORIG 0x810c6e2
     int  get_pass_day(int yyyymmdd1, int yyyymmdd2);    // ORIG 0x810c974
@@ -322,14 +350,16 @@ public:
     // ORIG _ZN13EventClassify15CEventScriptMng17init_evnet_entityEv 0x810bd14 T
     // （initScriptlist 尾部调用。声明先行，定义归同上批次）
     void init_evnet_entity();
+    // ORIG _ZN13EventClassify15CEventScriptMng23test_process_change_dayEi 0x0810cc70 T
+    void test_process_change_day(int timeVal);
 
 private:
     std::map<int, CEventEntity*> m_entities;   // +0x30，sizeof 0x18 → 0x48
 public:                                        // ORIG 直访成员
-    int m_field48;                             // +0x48
-    unsigned char m_flag4c;                    // +0x4c
+    int m_todayTime;                           // +0x48（yyyymmdd 当日时间值）
+    unsigned char m_todayTimeDay;              // +0x4c（当日 dd）
 private:
-    std::vector<int> m_vec50;                  // +0x50，sizeof 0xc → 0x5c
+    std::vector<int> m_eventRecordTypes;       // +0x50，sizeof 0xc → 0x5c
 };
 
 }  // namespace EventClassify

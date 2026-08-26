@@ -13,7 +13,7 @@ class map_monster;
 // MSG_MONSTER_DIE（网络填充结构，ORIG 访问至少到 +0xa21；
 // setKillMonsterInfo 0x82794d6 使用 +0xa1e/+0xa1a 两个计数值——语义推断：
 // +0xa1e 为耗时类、+0xa1a 为经验类累计）。
-struct MSG_MONSTER_DIE
+struct __attribute__((packed)) MSG_MONSTER_DIE
 {
     char m_pad[0xf];
     short m_fieldF;   // +0x0f
@@ -23,7 +23,13 @@ struct MSG_MONSTER_DIE
 
     // ---- 以下字段由 cUserHistoryLog::KillMonster（ORIG 0x086851ac）日志读取 ----
     unsigned char m_fieldA22;    // +0xa22
-    char m_pad23[6];             // +0xa23
+    char m_pad23[1];             // +0xa23
+    // CBossStage::handleKillMonster（ORIG 0x08150565/0x08150578 movzwl）读取后作为
+    // cUserHistoryLog::KillMonster 第 4/5 参，与 +0xa1e（耗时类）/+0xa1a（经验类）
+    // 在 "KillMob,…" 日志中成对输出；语义名不可恢复【推断】。
+    unsigned short m_killPairA24;  // +0xa24
+    unsigned short m_killPairA26;  // +0xa26
+    char m_pad28[1];             // +0xa28
     short m_fieldA29;            // +0xa29
     short m_fieldA2b;            // +0xa2b
     int m_fieldA2d;              // +0xa2d

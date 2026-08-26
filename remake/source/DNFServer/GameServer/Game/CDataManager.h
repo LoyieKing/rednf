@@ -183,6 +183,8 @@ struct stDBLogItem
 // 各元素仅承载 vector/map 模板参数名以匹配 ORIG mangled 符号；字段布局未逐字段
 // 确认（仅容器语义），元素体为最小占位（[推断]）。
 
+#ifndef GAME_SITEMGENREF_DEFINED
+#define GAME_SITEMGENREF_DEFINED
 // sItemGenRef：ServerParameterScript.h 的 m_genRefs 元素类型，须先于其定义。
 struct sItemGenRef
 {
@@ -192,6 +194,7 @@ struct sItemGenRef
     int m_fieldc;    // +0x0c
     int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
 };
+#endif
 
 // EventRewardSection/EventRewardItemInfo 定义于 ServerParameterScript.h。
 #include "ServerParameterScript.h"
@@ -263,7 +266,7 @@ struct stMercenaryCompetitionArea
 };
 struct STBreakAwaySection         // ORIG C1 0x822afb0（清零）；get_break_away_section_data
 {                                 //   sret memmove 3 字节实证 → sizeof 0x3
-    STBreakAwaySection() { m_field0 = 0; m_field1 = 0; m_field2 = 0; }
+    STBreakAwaySection() { m_field0 = m_field1 = m_field2 = 0; }  // ORIG 链式清零形态
     char m_field0;                // +0x00
     char m_field1;                // +0x01（get_break_away_section_data 按此与 level 比较）
     char m_field2;                // +0x02
@@ -625,21 +628,22 @@ struct stRefillItemInfo
 // 并发编辑收敛：保留后位版本，此处仅留指引注释）。
 
 // stNPCCommonData_t（ORIG C1 0x837612e / D1 0x83761c6 / clear 0x89fae9e）：
-// +0x00 ushort[10] +0x18 vector<int> +0x24 vector<int>
-// +0x30 ushort +0x32 ushort +0x34 ushort +0x38 vector<int>
-// +0x44 vector<pair<int,vector<stOneBuff_t>>>，sizeof 0x50
+// {maxFavorExp@0; favorExp[10]@2}（clear 循环 movw $0,0x2(%eax,%edx,2) +
+// getIllustIndex 遍历实证）+0x18 favorableNpcList +0x24 illustrationVariableNpcList
+// +0x30 favorSystemBeginQuest +0x32 favorSystemBeginLevel +0x34 maxFavorLevelNpc
+// +0x38 favorLevelRewardNpcList +0x44 favorDurationBuffList，sizeof 0x50。
 struct stNPCCommonData_t
 {
-    unsigned short m_field0[10];                       // +0x00
-    char m_pad14[4];                                   // +0x14
-    std::vector<int> m_vec18;                          // +0x18
-    std::vector<int> m_vec24;                          // +0x24
-    unsigned short m_field30;                          // +0x30
-    unsigned short m_field32;                          // +0x32
-    unsigned short m_field34;                          // +0x34
-    char m_pad36[2];                                   // +0x36
-    std::vector<int> m_vec38;                          // +0x38
-    std::vector<std::pair<int, std::vector<stOneBuff_t> > > m_vec44; // +0x44
+    unsigned short m_maxFavorExp;                    // +0x00 [npc favor exp] max
+    unsigned short m_favorExp[10];                   // +0x02..+0x14 [npc favor exp]
+    std::vector<int> m_favorableNpcList;             // +0x18 [favorable npc list]
+    std::vector<int> m_illustrationVariableNpcList;  // +0x24 [illustration variable npc list]
+    unsigned short m_favorSystemBeginQuest;          // +0x30 [favor system begin quest]
+    unsigned short m_favorSystemBeginLevel;          // +0x32 [favor system begin level]
+    unsigned short m_maxFavorLevelNpc;               // +0x34 [max favor level npc]
+    char m_pad36[2];                                 // +0x36（未知字节保留 m_pad）
+    std::vector<int> m_favorLevelRewardNpcList;      // +0x38 [favor level reward npc]
+    std::vector<std::pair<int, std::vector<stOneBuff_t> > > m_favorDurationBuffList; // +0x44
     void clear();   // ORIG W 0x089fae9e（定义 ScriptLeafA2.cpp）
 };                                                   // （loadNPCCommonData 实证）
 
@@ -652,6 +656,7 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path);
 // +0x30 vector<int> +0x3c vector<_str_option_value_ratio>，sizeof 0x48
 struct RandomOptionItem_Regenerator
 {
+    RandomOptionItem_Regenerator();  // ORIG T 0x85f971a：4 容器构造后 +0x48=0
     std::map<int, str_index_to_itemgroup> m_map0;      // +0x00
     std::map<int, std::map<int, _str_cost> > m_map18;  // +0x18
     std::vector<int> m_vec30;                          // +0x30
@@ -1095,7 +1100,7 @@ public:
     bool isEventDungeon(int dungeonIdx);
     bool isApplyLevel(int level);
 
-    // ORIG C1 0x837c9ac / D1 0x837c9d0：仅构造/析构 +0x00 的 vector<int>，
+    // ORIG C1 0x837c9ac / D1 0x837c9c0（owner：CDataManagerScripts.cpp）：仅构造/析构 +0x00 的 vector<int>，
     // sizeof 0x10。
     // importConditionEventChkDungeonScript（0x8913891）：[unable dungeon] 向
     // m_unableDungeons push_back；[apply level] 写 m_applyLevel（+0x0c）。
@@ -1107,18 +1112,18 @@ public:
 struct CharacterKind
 {
     CharacterKind() {}
-    CharacterKind(char job, char grow) { m_job = job; m_grow = grow; }
-    // std::less 键序（ORIG 内联于 map::find；次序仅影响树形不影响查找正确性）[推断]
+    // ORIG 调用点（FairPvPStatScript::FindCharacStat）以 movzbl 扩展 → unsigned char。
+    CharacterKind(unsigned char job, unsigned char grow) { m_job = job; m_grow = grow; }
+    // ORIG 三段式比较（cmp/jae 形态，_ZNK13CharacterKindltERKS_ 实证）。
     bool operator<(const CharacterKind& o) const
     {
-        if (m_job != o.m_job) return m_job < o.m_job;
+        if (m_job < o.m_job) return true;
+        if (o.m_job < m_job) return false;
         return m_grow < o.m_grow;
     }
-    char m_job;     // +0x00
-    char m_grow;    // +0x01
+    unsigned char m_job;     // +0x00
+    unsigned char m_grow;    // +0x01
 };
-
-// ORIG CharacterStatus（FindCharacStat 0x8693c66 / CUser::make_charac_stat
 // 0x8659faa 逐字段读取；sizeof 0x54）。u16 簇实为 +0x08..0x39 共 25 项：
 // [26] 会把尾段推到 +0x40 并因对齐使 sizeof 膨胀到 0x58，与 ORIG 记录布局
 // （尾段 int@0x3c … int@0x50）错位 —— make_charac_stat TU 验证实测修正。
@@ -1238,8 +1243,7 @@ public:
                               std::vector<LevelUpRewardItemData>& out);  // 定义 CUserDepsB.cpp
 
     std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData> m_map0;  // +0x00
-    char m_pad18[0xc];                                                 // +0x18
-};
+};  // sizeof 0x18（ORIG C1 0x8371194/D1 0x8371530 仅构造/析构该 map）
 
 class stStepRewardStackableItemScript
 {
@@ -1306,16 +1310,17 @@ struct stDeathTower_t
 
     // ORIG C1 0x8370970：+0x00 int=0；float[200]@+0x004=1.0f；
     // int[200]@+0x324=0；float[200]@+0x644=1.0f；int[200]@+0x964=0；
-    // +0xc84 int=0；memset(+0xc88,0,12)；+0xc94 float=1.0f；sizeof 0xc98
-    float m_field0;       // +0x000（importDeathTowerScript [apc exp weight] fstps 实证为 float）
-    float m_rateA[200];   // +0x004
-    int m_cntB[200];      // +0x324
-    float m_rateC[200];   // +0x644
-    int m_cntD[200];      // +0x964
-    float m_fieldc84;     // +0xc84（[monster exp weight] fstps 实证为 float）
-    int m_rewardProbC88[3];  // +0xc88..+0xc93（[reward item prob] 三级累计：
-                             //   [0]=v1、[1]=[0]+v2、[2]=[1]+v3；ORIG memset 区）
-    float m_floatc94;     // +0xc94（ctor 置 1.0f）
+    // +0xc84 int=0；memset(+0xc88,0,12)；+0xc94 float=1.0f；sizeof 0xc98。
+    // 字段语义 = importDeathTowerScript（ORIG T 0x089089f3）脚本节名：
+    float m_apcExpWeight;                  // +0x000（[apc exp weight] fstps 实证为 float）
+    float m_rewardExpWeight[200];          // +0x004（[reward exp weight]，脚本下标从 1 起）
+    int   m_rewardCardNum[200];            // +0x324（[reward card num]，下标从 1 起）
+    float m_illusionRewardExpWeight[200];  // +0x644（[illusion reward exp weight]）
+    int   m_illusionRewardCardNum[200];    // +0x964（[illusion reward card num]）
+    float m_monsterExpWeight;              // +0xc84（[monster exp weight] fstps 实证为 float）
+    int   m_rewardItemProb[3];             // +0xc88..+0xc93（[reward item prob] 三级累计：
+                                           //   [0]=v1、[1]=[0]+v2、[2]=[1]+v3；ORIG memset 区）
+    float m_rewardGoldWeight;              // +0xc94（[reward gold weight]，ctor 置 1.0f）
 };
 
 struct stBloodDungeon_t
@@ -1372,7 +1377,7 @@ public:
     ~CActionPointEtcParameter();
     void ClearData();
     bool IsValidTodayRewardItem(_SIG_LOAD_ACTION_POINT::_TodayRewardItem item);
-    bool IsValidActionGroupIndex(_ActionGroupIndex group);   // ORIG T 0x08894956（定义待 AP 域批次）
+    static bool IsValidActionGroupIndex(_ActionGroupIndex group);   // ORIG T 0x08894956（静态成员实证：体仅 [ebp+8]=组值范围判定 [1,0x2d]，两处调用方均只压一个实参；实现 APSystemLeafC3.cpp）
     // ORIG _ZN8APSystem24CActionPointEtcParameter32importActionPointSystemEtcScriptEPKcRS0_
     // （CDataManager::init 对 m_actionPoint1/m_actionPoint2 各调一次）
     bool importActionPointSystemEtcScript(const char* path,
@@ -1468,14 +1473,23 @@ struct BuyUpgradeData
     std::string m_strDesc;            // +0x0c（[name]）
     std::vector<FieldType::T> m_fieldTypes;  // +0x10（[field name]*，getFieldType 命中项）
     LevelFieldDataMap m_listMap;      // +0x1c（[list] 行集：key=行首 FieldType-0 值）
+
+    // ORIG T 0x088a2e4c：m_listMap.find(level) 未命中→0；再 find(ft) 未命中→0；
+    // 命中返回 &fit->second（FieldData*，调用方取 +4 m_value）。
+    FieldData* getFieldDataPoint(int level, FieldType::T ft);
 };
+
 // ORIG BuyShopData（reset @ 0x88a1090）：+0x00 int；三 vector<BuyUpgradeData> 于 +0x04/+0x10/+0x1c。
 struct BuyShopData
 {
+    BuyShopData();  // ORIG C1 0x88a3630：三 vector 构造后 +0=0、clear×3
     int m_nField0;                        // +0x00
     std::vector<BuyUpgradeData> m_vecT0;  // +0x04（T_0）
     std::vector<BuyUpgradeData> m_vecT1;  // +0x10（T_1）
     std::vector<BuyUpgradeData> m_vecT2;  // +0x1c（T_2）
+
+    // ORIG T 0x088a105c：type 0/1/2 → &m_vecT0/T1/T2，其它 → 0。
+    std::vector<BuyUpgradeData>* getBuyUpgradeDataVec(AdvanceAltarShopType::T type);
 };
 
 class StageTimeLineParameter
@@ -1512,7 +1526,10 @@ public:
     // 二者由 importAdvanceAltarShopParameter 调用；定义归 ShopParameter 生产批次。
     int getFieldType(std::string name);
     int getdataType(FieldType::T ft);
-
+    // ORIG T 0x088a0fe8：m_buyShopMap.find(key) 未命中→0；命中转调
+    // BuyShopData::getBuyUpgradeDataVec(type)。
+    std::vector<BuyUpgradeData>* getBuyUpgradeDataVec(int key,
+                                                      AdvanceAltarShopType::T type);
     // ORIG D1 0x88a0fa2：+0x00 map<int,BuyShopData> +0x18
     // map<int,_StarRestFeeByGold>，sizeof 0x30
     std::map<int, BuyShopData> m_buyShopMap;     // +0x00
@@ -1600,29 +1617,9 @@ public:
     std::map<int, stQuestShopStatus> m_map0;          // +0x00
     int m_field18;                                    // +0x18（ctor 置 -1；[quest status] 取 max(idx)）
     stQuestShoptInitCost m_initCost;                  // +0x1c（[initialization costs] 三值）
-    char m_pad28[0x50];                               // +0x28
+    char m_pad28[0x4d];                               // +0x28（ORIG C1 memset 0x4d）
 };
 
-// ORIG WorldDropItemChunck：WongWork::CWorldDrop::generateRandomItem 0x085383b8
-// 读元素 +0x00（道具 idx）/+0x04（权重），元素步长 8。
-struct WorldDropItemChunck
-{
-    int m_itemIdx;   // +0x00
-    int m_rate;      // +0x04（权重；ImportWorldDrop 累加至槽位总量）
-};
-
-class WorldDropInfo
-{
-public:
-    WorldDropInfo();
-    ~WorldDropInfo();
-
-    // ORIG 槽位步长 0x14（m_worldDrop1[201]@+0x6734 → m_worldDrop2@+0x76e8 自证）；
-    // ImportWorldDrop 0x089022be 写 +0x00/+0x04(vector)/+0x10，装载后 m_first=m_total。
-    int m_first;                        // +0x00（装载完成时 = m_total）
-    std::vector<WorldDropItemChunck> m_chunks;  // +0x04
-    int m_total;                        // +0x10（权重总和）
-};
 
 class SlangNameData
 {
@@ -1830,6 +1827,8 @@ public:
     GuildParameterScript();
     ~GuildParameterScript();
     void clear();
+    // ORIG T 0x08979864：公会经验权重（clear_reward 公会经验发放）。
+    double getExpWeight(int guildLevel);  // ORIG 返回 double（fldl；m_vecE4 的 second）
 
     // ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542，sizeof 0x11c：
     // +0x00 int +0x04 int +0x08 char +0x0c int +0x10 map<int,int>
@@ -1981,16 +1980,14 @@ public:
     // ORIG：数据成员可被自由函数 importSecretShopScript（0x8a81cf0）直接
     // 访问，故为 public。
     // ---- 布局（依据 ORIG SecretShopScript::SecretShopScript() 构造汇编推导） ----
+    // ORIG C1 0x83720f4 实证：容器相邻无 pad —— multimap@+0x00 / multimap@+0x18 /
+    // set@+0x30 / map@+0x48 / stDungeonSales@+0x60（sizeof 0x20）；clear 0x8372020
+    // 另写 +0x80/+0x84 两 int；总大小 0x88（CDM m_titleBook@+0xa788 边界互证）。
     std::multimap<int, stDungeonNpc> m_npcMap;      // +0x00（[npc] 段）
-    char m_pad0c[0x0c];                             // +0x0c
     std::multimap<int, stDungeonNpc> m_levelNpcMap; // +0x18（[level npc] 段，verifyNpc）
-    char m_pad24[0x0c];                             // +0x24
     std::set<stLevelSection> m_levelSections;       // +0x30（[level section] 段，GetLevelIdx）
-    char m_pad3c[0x0c];                             // +0x3c
     std::map<int, stNpcSales> m_dungeonNpcMap;      // +0x48（[dungeon npc] 段，GetItemByDungeonIdx）
-    char m_pad54[0x0c];                             // +0x54
     stDungeonSales m_eventDungeonSales;             // +0x60（GetItemByEvent）
-    char m_pad74[0x0c];                             // +0x74
     int m_priceVarPercent;                          // +0x80（GetRandItemPrice 读取 /100）
     int m_int84;                                    // +0x84
 
@@ -2056,8 +2053,8 @@ public:
     };
     int m_reqLevel;        // +0x00（CAccountCargo.cpp:482 读作 reqLevel）
     int m_itemIdx;         // +0x04
-    std::map<int, UpgradeInfo> m_upgradeMap;  // +0x08
-    char m_pad14[0x20 - 0x14];                // +0x14..0x20（保持 0x20 总大小）
+    std::map<int, UpgradeInfo> m_upgradeMap;  // +0x08（ORIG C1 0x8372480 构造于此，
+    //   map 尾即 +0x20；sizeof 0x20 由 CDM m_pvpSkillTree@+0xa800 边界互证）
 };
 
 class PvPSkillTreeParameterScript
@@ -2186,6 +2183,9 @@ struct channel_script_t
     ~channel_script_t();
     channel_info_t* getChannelInfo(unsigned char channel, unsigned int idx) const;
     float getBonusRate(unsigned char channel, unsigned int a, unsigned int b) const;
+    // ORIG T 0x08a8d0ae：服务器加成版本（服务器频道*索引 0/1/2 分流；定义归
+    // channel 域导入 TU）。clear_reward 经验通道加成在 server channel 1/2 时调用。
+    float getBonusRateEventServer(unsigned char channel, unsigned int a) const;  // T 0x088dcee2
 
 private:
     std::map<std::string, channel_dungeon_info_t> m_channelDungeonMap;  // +0x00
@@ -2308,6 +2308,7 @@ class ChoiceItemInfo
 {
 public:
     ChoiceItemInfo();
+    void clear();               // ORIG W _ZN14ChoiceItemInfo5clearEv：m_checked=0、m_choice=-1
     bool m_checked;             // +0x00
     char m_pad1[3];             // +0x01
     unsigned int m_choice;      // +0x04
@@ -2453,7 +2454,7 @@ public:
     //      ScriptLeafA2.cpp 先行声明引用；asm 均传 this，为非静态成员）----
     char getSubKeyType(std::string& token);              // T 0x080ef0c0
     char getSubKeyAction(std::string& token);            // T 0x080ef128
-    void getOptionType(std::string& token, itemData& out);   // T 0x080ef190
+    bool getOptionType(std::string& token, itemData& out);   // T 0x080ef190
     void defaultOption(char action, itemData& out);      // W 0x080ef25c
     // ORIG _ZN11eventReward18ImportRewardScriptEPKcS1_ 0x080ef3a2 T
     // （单脚本解析；声明先行，定义归 eventReward 生产批次）
@@ -2461,11 +2462,11 @@ public:
     ~eventReward();
 
     // ORIG D1 0x837dfb2：+0x00 map<rewardKey,map<int,vector<itemData>>>
-    // +0x18 CSlotBoundChecker（ORIG 为 map<SlotBoundKey,SlotBound>；重建
-    // CSlotBoundChecker 采用静态数组实现（CInventory.h/CSlotBoundChecker.cpp），
-    // 无 per-instance 成员，+0x18 以 pad 占位保持 sizeof 0x30）[推断]
+    // +0x18 内嵌 CSlotBoundChecker（其唯一成员即 map<SlotBoundKey,SlotBound>，
+    // sizeof 0x18；权威 CSlotBoundChecker 于 CInventory.h 为静态数组重建且无
+    // 成员，无法内嵌，故此处直接以同布局 map 成员保持 ABI 与生命周期形态）。
     std::map<rewardKey, std::map<int, std::vector<itemData> > > m_map0;  // +0x00
-    char m_pad18[0x18];                                                  // +0x18
+    std::map<SlotBoundKey, SlotBound> m_slotBoundMap;                    // +0x18
 };
 
 class DeleteInvalidItemScript
@@ -2591,6 +2592,7 @@ static_assert(offsetof(QuestListLayoutMirror, m_listE0) == 0xe0,
 
 class DisJoint;
 class PacketGuard;  // 前向：CItemUpgrade::make3rdChroniclePacket 参数
+class MSG_ENCHANT;  // 前向：CItemUpgrade::ProcUpgrade(MSG_ENCHANT*)（权威定义见 PacketTypes.h）
 class upgrade_table_t;   // 权威声明见 CItemAmplifier.h（CItemUpgrade helper 参数）
 struct upgrade_info_t;   // 权威声明见 CItemAmplifier.h（CItemUpgrade helper 参数）
 #include "CItemUpgrade_Separate.h"  // WongWork::IItemUpgrade（虚基接口：槽0 ProcUpgrade、
@@ -2607,8 +2609,29 @@ public:
     CItemUpgrade();   // ORIG T 0x085461c8（定义 CtorProducers_2C.cpp）
     ~CItemUpgrade();  // 非虚（ORIG 无 D0 符号）
     // 虚槽覆盖：槽序经 ORIG vtable 实证（ProcUpgrade 在前）。
+    // ORIG _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP11MSG_ENCHANTP11PacketGuard
+    //   T 0x0854a1ba：三代强化（ENCHANT 消息）主流程（定义 CItemUpgrade.cpp）。
+    int ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet);
+    // ORIG _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP16MSG_ITEM_UPGRADEP11PacketGuard
+    //   T 0x0854779c vtable+0x00 槽纯虚覆盖（定义 ItemUpgradeVtableB2.cpp）。
     int ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg, PacketGuard* packet);
-    // ↑ ORIG T 0x0854779c；完整实现待升级域批次（报告 1957 行），vtable 槽位先行对齐。
+    // ORIG _ZN8WongWork12CItemUpgrade11isDoEnchantERK10Inven_ItemPc T 0x0854977a
+    //   （定义 CItemUpgrade.cpp；ProcUpgrade(ENCHANT) 调用）。
+    bool isDoEnchant(const Inven_Item& item, char* buf);
+    // ORIG _ZN8WongWork12CItemUpgrade15_CheckConditionEPK5CUserRK10Inven_ItemPK5CItemS6_h
+    //   T 0x085497ea（ENCHANT 版 5 参；定义 CItemUpgrade.cpp）。
+    int _CheckCondition(const CUser* user, const Inven_Item& item,
+                        const CItem* itemScript, const Inven_Item& ticket,
+                        unsigned char param);
+    // ORIG _ZN8WongWork12CItemUpgrade12_ProcPenaltyEP5CUserP10Inven_ItemPK5CItemtP11PacketGuard
+    //   T 0x08549ac8（ENCHANT 版 5 参；定义 CItemUpgrade.cpp）。
+    int _ProcPenalty(CUser* user, Inven_Item* item, const CItem* itemScript,
+                     unsigned short slot, PacketGuard* packet);
+    // ORIG _ZN8WongWork12CItemUpgrade24ProcUpgrade_3rdChronicleEP5CUser18ENUM_EQUIPMENTTYPEhR10Inven_ItemPK5CItem
+    //   T 0x0854a006（定义 CItemUpgrade.cpp）。
+    int ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
+                                 unsigned char param, Inven_Item& item,
+                                 const CItem* itemScript);
     // LoadUpgradeScript 为 IItemUpgrade 纯虚槽1 覆盖；基类返回 int（ORIG eax
     // 透传 import 错误行号，0=成功），派生覆盖随基类返回 int。
     int LoadUpgradeScript(const char* path);                // ORIG T 0x0854919a（槽 +0x04）
@@ -2641,6 +2664,29 @@ public:
     // 0x8546824：广播强化通知包。
     void _NoticeUpgrade(const CUser* user, const Inven_Item& item,
                         bool isAmplify);
+
+    // ---- ProcUpgrade 依赖的升级域内部方法（定义 ItemUpgradeVtableB2.cpp）----
+    unsigned short _getUpgradeCountByUpgradeItem(const Inven_Item& target,
+                                                 const Inven_Item& material,
+                                                 ENUM_ERROR& err);  // T 0x08548e68
+    unsigned char _getUpgradeRateByUpgradeItem(const Inven_Item& target,
+                                               const Inven_Item& material,
+                                               ENUM_ERROR& err);    // T 0x08548ffa
+    bool _CheckTargetUsableLv(const Inven_Item& material,
+                              const Inven_Item& target) const;      // T 0x08548c3c
+    int _ProcPortableUpgradeItem(const Inven_Item& material,
+                                 const Inven_Item& target,
+                                 upgrade_info_t& info) const;       // T 0x08548d3c
+    bool _DoProcUpgrade(CUser* user, Inven_Item* item,
+                        const upgrade_info_t* info);                // T 0x0854755a
+    int _ProcPenalty(CUser* user, Inven_Item* item, const CItem* itemScript,
+                     unsigned short slot, const upgrade_table_t& table,
+                     const upgrade_info_t* info, PacketGuard* packet,
+                     Inven_Item* ticketCopy, char ticketFlag);      // T 0x08546bba
+    void _getAdditionalDisjointItem(
+        unsigned int up, const CItem* itemScript,
+        std::vector<std::pair<int, int> >& items,
+        const upgrade_table_t& table);                              // T 0x08546938
 };
 }
 namespace WongWork { class CItemUpgrade_Separate; }  // ORIG _ZN8WongWork21CItemUpgrade_Separate…（权威声明 CItemUpgrade_Separate.h）
@@ -2715,19 +2761,32 @@ public:
 // ============================================================================
 struct ItemShopScript
 {
-    void clear();                                   // ORIG 0x8514046
+    void clear()                                     // ORIG 0x8514046
+    {
+        m_shopId = 0;
+        m_limitType = 0;
+        m_limitCount = 0;
+        m_field0c = 0;
+        m_shopName = "";
+        m_curItemList.clear();
+        m_strList.clear();
+        m_limitNpcBuyList.clear();
+        m_dailyList.clear();
+        m_isOneADay = 0;
+    }
+    ItemShopScript() { clear(); }                   // ORIG C1 0x85140c8
     int m_shopId;                                   // +0x00
     int m_limitType;                                // +0x04
     int m_limitCount;                               // +0x08
     char m_field0c;                                 // +0x0c
-    char m_pad0d[3];                                // +0x0d
+    // Compiler padding from +0x0d to the aligned string at +0x10.
     std::string m_shopName;                         // +0x10
     std::vector<int> m_curItemList;                 // +0x14
     std::vector<std::string> m_strList;             // +0x20
     std::vector<int> m_limitNpcBuyList;             // +0x2c
     std::vector<std::vector<int> > m_dailyList;     // +0x38
     char m_isOneADay;                               // +0x44
-    char m_pad45[3];                                // +0x45
+    // Compiler padding from +0x45 to the aligned time field at +0x48.
     int m_lastUpdateTime;                           // +0x48
 };
 
@@ -2740,7 +2799,7 @@ struct ItemShopScript
 class CItemShop
 {
 public:
-    CItemShop();
+    CItemShop() {}                                  // ORIG C1 0x8374e76
 
     // ---- 装载 ----
     bool loadItemShopFiles();
@@ -2769,6 +2828,7 @@ public:
     ~CAICharacterList();
     void destroy();   // ORIG 0x0834a59a：遍历 m_charMap delete 全部 CAICharacter
     static CAICharacter* get(void* list, unsigned int idx);
+    static CAICharacter* getByLevel(void* list, unsigned int level);  // ORIG T 0x0834aa60
     CAICharacter* getByAP(unsigned int ap);          // ORIG T 0x0834aaf4
     int getMinAP();                                  // ORIG W 0x08150872：返回 m_maxAP(+0x4bc)
     std::map<int, int> const& getAPCount() const;    // ORIG W 0x08150880：返回 m_apStatMap(+0x520) 引用
@@ -2788,14 +2848,19 @@ namespace WongWork
 {
 class CItemGeneratorMgr;  // 权威声明见 CItemGeneratorMgr.h（ORIG 位于 namespace WongWork）
 }
-// ---- CAutoMarketConditionsControl（ORIG sizeof 0x444：init 0x835cdb1
-//      new(0x444) 实证；完整定义自 CDataManager.cpp 上提至本头）----
+struct SIG_AUTO_MARKET_CONDITIONS_CONTROL;
 class CAutoMarketConditionsControl
 {
 public:
     CAutoMarketConditionsControl();              // ORIG T 0x082f8108（CDataManager.cpp）
     ~CAutoMarketConditionsControl();             // ORIG T 0x082f8144
-    int LoadScript(const char* path);            // ORIG T 0x082f815c（返回出错行，0=成功）
+    // ORIG T 0x082f8684 _ZN28CAutoMarketConditionsControl12LoadDatabaseEP34SIG_AUTO_MARKET_CONDITIONS_CONTROL
+    int LoadDatabase(SIG_AUTO_MARKET_CONDITIONS_CONTROL* msg);
+    // ORIG T 0x082f815c：脚本加载（CDataManager.cpp 已实现）。
+    int LoadScript(const char* path);
+    // ORIG T 0x082f8540（int）/ T 0x082f85a8（无参）：耐久度比率包广播。
+    void SendNotiSetDurability(int value);
+    void SendNotiSetDurability();
     // ORIG T 0x082f89bc _ZN28CAutoMarketConditionsControl21GetGoldDropAmountRateEii
     int GetGoldDropAmountRate(int level, int gold);
 
@@ -2840,6 +2905,8 @@ public:
     CItem* find_item(int idx) const;
     CItem* find_item(const char* name) const;
     CItem* FindGoods(int goodsIdx) const;
+    // ORIG W 0x0830e6d2 _ZNK12CDataManager11getDropRateEv：读 m_dropRate（+0xb3f0）。
+    float getDropRate() const;
     void set_AuctionRegFreeCeraItem(unsigned int idx);
     void set_lottery_use_cost(unsigned int cost);
     CSkill* find_skill(int skillId, int level) const;
@@ -2883,7 +2950,7 @@ public:
     // ---- 任务 ----
     std::vector<int>* getDailyTrainingQuest(int idx);
     int isThereDailyTrainingQuestList(int idx, int questIdx);
-    int reselectDailyTrainingQuest();
+    bool reselectDailyTrainingQuest();
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>* get_kind_mission_list(int idx) const;
     void get_New_DailyMission(std::vector<std::pair<unsigned int, unsigned int> >& out) const;
@@ -2958,7 +3025,7 @@ public:
     CItemList* getItemList() { return m_itemList; }   // ORIG 布局 +0x0c：返回 m_itemList（具名访问器，替代 *(CItemList**)((char*)G_CDataManager()+0xc) 裸偏移）
     WongWork::CItemGeneratorMgr* getItemGenerator();  // ORIG W 0x0814a6ea：返回 m_itemGeneratorMgr (+0x8cc0)；定义见 CDataManagerScripts.cpp
     std::set<int>* getUltimateDungeonList() const;
-    void getDungeonIndexList() const;
+    CDungeonList* getDungeonIndexList();   // ORIG T 0x08365434 _ZN12CDataManager19getDungeonIndexListEv（透传 CDungeonList::getDungeonIndexList 返回值；非 const）
     void setChoiceItem(bool flag, unsigned int idx);
     bool checkChoiceItem() const;
     unsigned int getChoiceItem() const;

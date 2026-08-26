@@ -49,14 +49,19 @@ struct stAvatarTypeSelect_t
 
 struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，pack(1)）
 
+// ORIG checkBonusPoint 0x868ec5c：getWpBonusPoint()/getExpBonusPoint() 返回
+// 8 字节视图 {int type; int value;}；type==0 → 加 CUserCharacInfo 基础值
+// (m_base)、type==1 → 加百分比附加值 (m_add)，value 为加数。
 struct WpBonusPointData
 {
-    char m_pad[8];
+    int m_type;     // +0x00（0=基础 / 1=附加）
+    int m_value;    // +0x04
 };
 
 struct ExpBonusPointData
 {
-    char m_pad[8];
+    int m_type;     // +0x00（0=基础 / 1=附加）
+    int m_value;    // +0x04
 };
 
 class STEquipmentScript;
@@ -86,7 +91,8 @@ public:
 class CEquipItem : public CItem
 {
 public:
-    int GetUsableMaxLevel() const;  // ORIG 084e9700（返回 +0x1c0）
+    int GetUsableMaxLevel() const;         // ORIG W 0x084e9700（返回 +0x1c0）
+    int GetUsableEquipmentType() const;    // ORIG W 0x0832e036（返回 +0x1bc；定义见 UserCoreDepsB2.cpp）
 public:
     CEquipItem();
     virtual ~CEquipItem();
@@ -122,6 +128,9 @@ public:
     int getGrowthRepairCost(int level) const;
     // ORIG 0x822ca80：返回 +0x1cc 的 float 折扣率（强化成本折扣）。
     float getUpgradeCostDiscount() const;
+    // ORIG _ZNK10CEquipItem22getUpgradeProbIncreaseEv W 0x0854b552：返回 +0x1d0 int
+    //（强化成功率提升值；_DoProcUpgrade 扣减概率用）。
+    int getUpgradeProbIncrease() const;
     WpBonusPointData* getWpBonusPoint() const;
     int get_aura_avatar_option_value();
     bool isExistUpgradableLevelTag();

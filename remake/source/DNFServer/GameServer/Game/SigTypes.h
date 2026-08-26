@@ -14,7 +14,7 @@ struct stAvatarEmblemInfo_t;  // GamePODTypes.h 完整定义（SIG_AVATAR_INSERT
 
 struct InformNoticeFlagData
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 // ORIG sizeof = 0x3f84（MSG_CHECK_MAIL_RECEIVER::set<1, MSG_BUY_CERASHOP_ITEM> @0x82378ee
@@ -31,17 +31,17 @@ static_assert(sizeof(MSG_BUY_CERASHOP_ITEM) == 0x3f84, "MSG_BUY_CERASHOP_ITEM AB
 
 struct Packet_Tcp_Server_Connect
 {
-    char m_pad[0x100];
+    char m_pad[0xb];
 };
 
 struct SIG_ACCOUNT_CARGO_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0xd60];
 };
 
 struct SIG_ARRANGE_USER_LOGIN_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 #pragma pack(push, 1)
@@ -202,32 +202,32 @@ static_assert(sizeof(SIG_AUCTION_RESULT_BUY_ITEM_APIECE) == 0x12,
 
 struct SIG_AUTO_MARKET_CONDITIONS_CONTROL
 {
-    char m_pad[0x100];
+    char m_pad[0x6c];
 };
 
 struct SIG_AUTO_PUNISH_RULE_BLACK_IP
 {
-    char m_pad[0x100];
+    char m_pad[0x3e84];
 };
 
 struct SIG_AUTO_PUNISH_RULE_HACK_TYPE
 {
-    char m_pad[0x100];
+    char m_pad[0x2720];
 };
 
 struct SIG_AVATAR_CHANGE_OWNER
 {
-    char m_pad[0x100];
+    char m_pad[0xd];
 };
 
 struct SIG_AVATAR_CHANGE_STAT
 {
-    char m_pad[0x100];
+    char m_pad[0x51];
 };
 
 struct SIG_AVATAR_COLOR_CHANGE
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_AVATAR_INSERT
@@ -236,7 +236,7 @@ struct SIG_AVATAR_INSERT
     //  +0x00 int / +0x04 uint / +0x08 uchar(a2) / +0x09 uchar(bSet) / +0x0a int(expire)
     //  +0x0e uchar(expire low) / +0x0f agency[0x18] / +0x28 int / +0x2c uchar
     //  +0x2d stAvatarEmblemInfo_t(0x1e)
-    unsigned char m_data[0x4c];
+    unsigned char m_data[0x53];   // ORIG GetInBuffer 实例化 sizeof=0x53（0x850d3c8 布局尾 +0x2d+0x1e=0x4b 对齐补足）
 
     static void set(SIG_AVATAR_INSERT* ins, int a1, unsigned int a2, int a3, int expire,
                     bool bSet, char c, const char* agency, int a7, unsigned long a8);
@@ -245,92 +245,99 @@ struct SIG_AVATAR_INSERT
 };
 struct SIG_AVATAR_OPTION_CHANGE
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_BEST_CLEAR_TIME
 {
-    char m_pad[0x100];
+    char m_pad[0x5dc8];
 };
 
 struct SIG_BLOOD_DUNGEON
 {
-    char m_pad[0x100];
+    char m_pad[0x28];
 };
 
 struct SIG_BREAK_AWAY_PREVENT_MESSAGE
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER
 {
-    char m_pad[0x100];
+    char m_pad[0x2e4];
 };
 
 struct SIG_BREAK_AWAY_UV_LIST
 {
-    char m_pad[0x100];
+    char m_pad[0x1f];
 };
 
 struct SIG_CERASHOP_PURCHASE_COUNT
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_CHANGE_CHARAC_NAME
 {
-    char m_pad[0x100];
+    char m_pad[0x30];
 };
 
 struct SIG_CHARACTER_OPTION
 {
-    char m_pad[0x100];
+    char m_pad[0x204];
 };
 
 struct SIG_CHECK_ADD_FRIEND
 {
-    char m_pad[0x100];
+    char m_pad[0x24];
 };
 
 struct SIG_CHECK_CHARAC_NAME
 {
-    char m_pad[0x100];
+    char m_pad[0x24];
 };
 
+// 具名化（G6 HackAnM 批次；DB_SelectCharacMid::makeRequest ORIG T 0x0844676c
+// 报告偏移：+0/+4/+8/+0xc uint 四域，+0x10 strncpy(name,0x1e)，尾 2 字节对齐）。
 struct SIG_CHECK_CHAR_MID
 {
-    char m_pad[0x100];
+    unsigned int m_field00;
+    unsigned int m_field04;
+    unsigned int m_field08;
+    unsigned int m_field0c;
+    char m_name[0x1e];           // +0x10（strncpy 目标）
+    char m_pad2e[2];             // +0x2e 对齐尾（sizeof 保持 0x30）
 };
 
 struct SIG_CHECK_CHAR_MID_RESULT
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 struct SIG_CHECK_JOIN_GUILD
 {
-    char m_pad[0x100];
+    char m_pad[0x1c];
 };
 
 struct SIG_CHECK_JOIN_GUILD_DB_REPLY
 {
-    char m_pad[0x100];
+    char m_pad[0x44];
 };
 
 struct SIG_CHECK_MY_ACCOUNT_IN_DB
 {
-    char m_pad[0x100];
+    char m_pad[0x29];
 };
 
 struct SIG_CHECK_MY_ACCOUNT_OK
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_CHECK_USER_SECU_REWARD
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 // ---- 组合技数据（0xe 字节：技能索引 + 6 个连招技能）----
@@ -362,7 +369,7 @@ static_assert(sizeof(SIG_COMBO_SKILL) == 0xb2, "SIG_COMBO_SKILL ABI drift");
 
 struct SIG_CREATE_ACCOUNT_CARGO_RESULT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 #pragma pack(push, 1)
@@ -427,7 +434,7 @@ struct SIG_CREATURE_ITEM
     unsigned char m_pad4c[4];
     unsigned char m_flag50;     // +0x50（InsertCreatureItem：get_sub_type()==0→1）
     unsigned char m_reason;     // +0x51
-    unsigned char m_pad52[1];
+    unsigned char m_keepRight;  // +0x52（UseKeepRight W 0x083401ec：flag 低字节）
     unsigned char m_field53;    // +0x53
     int m_days;                 // +0x54（InsertCreatureItem ← 参数 days）
     int m_expireTick;           // +0x58（InsertCreatureItem ← 参数 expireTick）
@@ -450,7 +457,7 @@ struct SIG_CREATURE_ITEM_LAYOUT_MIRROR
     char m_pad4c[0x04];
     char m_flag50;
     char m_reason;
-    char m_pad52;
+    char m_keepRight;
     char m_field53;
     char m_days[0x04];
     char m_expireTick[0x04];
@@ -476,22 +483,22 @@ static_assert(offsetof(SIG_CREATURE_ITEM_LAYOUT_MIRROR, m_mapSize) == 0x68, "SIG
 
 struct SIG_CREATURE_ITEM_LIST
 {
-    char m_pad[0x100];
+    char m_pad[0x4078];
 };
 
 struct SIG_DEATH_TOWER_GET_BEST_RECORD
 {
-    char m_pad[0x100];
+    char m_pad[0x878];
 };
 
 struct SIG_DEATH_TOWER_LOAD_TOP_RANKER
 {
-    char m_pad[0x100];
+    char m_pad[0x35b68];
 };
 
 struct SIG_DEATH_TOWER_UPDATE_BEST_RECORD
 {
-    char m_pad[0x100];
+    char m_pad[0x6c];
 };
 #pragma pack(push, 1)
 // 真实布局（DisPatcher_DeleteCharac::process 0x081c1182 反汇编实证，memset 0x14）：
@@ -508,22 +515,22 @@ static_assert(sizeof(SIG_DELETE_CHARAC) == 0x14, "SIG_DELETE_CHARAC ABI drift");
 
 struct SIG_DOUBLE_CHECK_GUILD_ADDRESS
 {
-    char m_pad[0x100];
+    char m_pad[0xd];
 };
 
 struct SIG_DOUBLE_CHECK_GUILD_NAME
 {
-    char m_pad[0x100];
+    char m_pad[0x17];
 };
 
 struct SIG_DUNGEON_DATA_STATISTIC
 {
-    char m_pad[0x100];
+    char m_pad[0x80];
 };
 
 struct SIG_EVENT_LEVEUP_SUPPORT_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x2c];
 };
 
 // SIG_EVENT_SERVER_MESSAGE 完整定义唯一化至 CSharedServerMessageManager.h
@@ -532,57 +539,67 @@ struct SIG_EVENT_LEVEUP_SUPPORT_INFO
 
 struct SIG_EVENT_STAGE_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x78];
 };
 
+// DB 载荷 wire 布局（ORIG _saveData 0x0832b0ac / loadData 0x0832b1fe 实证；
+// 自然对齐 == packed 布局，总尺寸 0x30 不变）。字段与 CCharacExpertJob 成员
+// 一一对应；仅 _saveData/loadData 按此结构读写。
 struct SIG_EXPERT_JOB
 {
-    char m_pad[0x100];
+    int            m_characNo;         // +0x00
+    unsigned short m_giveupCount;      // +0x04
+    unsigned short m_pad06;            // +0x06（wire 保留）
+    int            m_endurance;        // +0x08
+    int            m_enchantCount;     // +0x0c
+    unsigned char  m_recipeFlag[0x1e]; // +0x10（240 位 recipe bitmap）
+    char           m_pad2e[2];         // +0x2e（补齐 0x30）
 };
+static_assert(sizeof(SIG_EXPERT_JOB) == 0x30, "SIG_EXPERT_JOB size");
 
 struct SIG_EXTEND_CHARAC_SLOT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_FAIR_PVP_SCORE
 {
-    char m_pad[0x100];
+    char m_pad[0x688];
 };
 
 struct SIG_FIND_FACTORY_HUB
 {
-    char m_pad[0x100];
+    char m_pad[0x24];
 };
 
 struct SIG_FIND_FACTORY_HUB_FATIGUE_CHECK
 {
-    char m_pad[0x100];
+    char m_pad[0x24];
 };
 
 struct SIG_FIND_FACTORY_HUB_USER
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_FIND_FACTORY_HUB_USER_NO_CONN
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_FORBID_USER_TO_PLAY
 {
-    char m_pad[0x100];
+    char m_pad[0x9];
 };
 
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_GET_USER_REGDATE
@@ -592,52 +609,52 @@ struct SIG_GET_USER_REGDATE
     unsigned int m_id;        // +0x00（SQL where m_id=%d）
     int m_regDay;             // +0x04（yyyymmdd，列 0 /100）
     unsigned int m_regDate;   // +0x08（member_info.reg_date 原始 epoch）
-    char m_pad[0xf4];         // 保持既有 0x100 尺寸
+    // ORIG GetInBuffer 实例化 sizeof=0xc：仅 3 个 dword，无尾部 pad
 };
 
 struct SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_GOBLIN_UPDATE_REWARD
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_GOBLIN_UPDATE_VALIDITYTIME
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_GOLD_CONTROL_EXCEPTION_MID
 {
-    char m_pad[0x100];
+    char m_pad[0x2];
 };
 
 struct SIG_GUILD_JOIN_LIST
 {
-    char m_pad[0x100];
+    char m_pad[0xd4c];
 };
 
 struct SIG_HACK_IP_SAVE
 {
-    char m_pad[0x100];
+    char m_pad[0x28];
 };
 
 struct SIG_HADES_PUNISH
 {
-    char m_pad[0x100];
+    char m_pad[0x24];
 };
 
 struct SIG_INSERT_0712_WINTER_EVENT_COUPON
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_INSERT_ACHIEVE_EVENT
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 
     // ORIG 嵌套枚举（_ZN24SIG_INSERT_ACHIEVE_EVENT17ENUM_ACHIEVE_TYPEE）。
     // 调用点观察值：1=CUser::_onLevelUp level 0x12；2=_onLevelUp level 0x30；
@@ -652,37 +669,37 @@ struct SIG_INSERT_ACHIEVE_EVENT
 
 struct SIG_INSERT_AUTO_PUNISH_FIRST_USER
 {
-    char m_pad[0x100];
+    char m_pad[0x2c];
 };
 
 struct SIG_INSERT_AUTO_PUNISH_SECOND_USER
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 struct SIG_INSERT_RESPONSE_TIME
 {
-    char m_pad[0x100];
+    char m_pad[0x7d8];
 };
 
 struct SIG_INSERT_SERVER_LOAD_STATISTIC
 {
-    char m_pad[0x100];
+    char m_pad[0xa];
 };
 
 struct SIG_INSERT_UNLIMIT_SUPPORT_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x2c];
 };
 
 struct SIG_IN_GAME_ADVERTISEMENT_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_IP_MONITOR_PUNISH
 {
-    char m_pad[0x100];
+    char m_pad[0xc88];
 };
 
 // SIG_ITEM_DICTIONARY_FLAG —— 物品词典位图存档（ORIG int characNo + 5000 字节位图，共 0x138c）。
@@ -698,17 +715,17 @@ static_assert(sizeof(SIG_ITEM_DICTIONARY_FLAG) == 0x138c, "SIG_ITEM_DICTIONARY_F
 
 struct SIG_ITEM_LOCK_UPDATE
 {
-    char m_pad[0x100];
+    char m_pad[0x324];
 };
 
 struct SIG_ITEM_MAKING_SKILL
 {
-    char m_pad[0x100];
+    char m_pad[0x1c];
 };
 
 struct SIG_JOIN_GUILD_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x64];
 };
 
 struct SIG_LETTER_STAT
@@ -719,12 +736,12 @@ struct SIG_LETTER_STAT
 
 struct SIG_LOAD_BLOOD_DUNGEON_BEST_RECORD
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE
 {
-    char m_pad[0x100];
+    char m_pad[0x80];
 };
 
 // ORIG sizeof = 0x703（CACHE_CHARACTER_TYPE@+0x0 → +0x703）。
@@ -736,7 +753,13 @@ struct SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE
 #pragma pack(push, 1)
 struct CHARAC_DATA
 {
-    char m_data[0x676];        // +0x000
+    union {
+        char m_data[0x676];        // +0x000（整体 blob 视图，既有按偏移访问不变）
+        struct {
+            char m_head[0x130];    // +0x000..+0x12f
+            int  m_dword130;       // +0x130（CHARAC_DATA::Reset 尾部 dword 清零，
+        };                         //   ORIG 0x822ec9e+0x139 行 movl $0,0x130(%eax)）
+    };
     unsigned int m_schoolNo;   // +0x676（RequestDBCharac 写入；Reset 不清）
 
     void Reset();              // ORIG W 0x822ec9e _ZN11CHARAC_DATA5ResetEv
@@ -801,22 +824,22 @@ static_assert(offsetof(SIG_LOAD_CHARAC, m_strikerSkillIndex) == 0x68a, "SIG_LOAD
 
 struct SIG_LOAD_CHARAC_HOTKEY_OPTION
 {
-    char m_pad[0x100];
+    char m_pad[0xc4];
 };
 
 struct SIG_LOAD_CLEANPAD_POINT
 {
-    char m_pad[0x100];
+    char m_pad[0x3cf0];
 };
 
 struct SIG_LOAD_DIMENSION
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_LOAD_DNF_HACK_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x3cf4];
 };
 
 // ORIG sizeof = 0x1810（CACHE_CHARACTER_TYPE@+0x1d2f3 → +0x1eb03）。
@@ -907,18 +930,20 @@ static_assert(sizeof(SIG_LOAD_ETC) == 0x14b60, "SIG_LOAD_ETC ABI drift");
 
 struct SIG_LOAD_EVENTITEM
 {
-    char m_pad[0x100];
+    char m_pad[0x5c];
 };
 
 struct SIG_LOAD_GAME_OPTION
 {
-    char m_pad[0x100];
+    char m_pad[0x4b0];
 };
 
 // ORIG SIG_SAVE_PC_ROOM_RENT_ITEM（CUser::GetPcRoomRentInfo @0x86769ea 填充）：
-// 最多 2 个 0xc 条目，各条目 [0]=itemIndex(int) / [4]=byte / [5]=byte / [6]=inEquip / [7]=pad / [8]=int。
+// 容器 2 个 0xc 条目；条目类型权威名 SIG_SAVE_PC_ROOM_RENT_INFO
+//（W ctor 0x848f98e / clear 0x0848f9a2：+0 int=0 / +4,+5,+6 byte=0 / +8 int=-1）。
+// ITEM ctor 0x8491cbe 仅构造 entry[0]；ITEM clear 0x8694c9a 仅清 entry[0]。
 #pragma pack(push, 1)
-struct SIG_SAVE_PC_ROOM_RENT_ITEM_ENTRY
+struct SIG_SAVE_PC_ROOM_RENT_INFO
 {
     int  m_itemIndex;   // +0x00
     char m_field4;      // +0x04
@@ -926,35 +951,45 @@ struct SIG_SAVE_PC_ROOM_RENT_ITEM_ENTRY
     char m_inEquip;     // +0x06
     char m_pad7;        // +0x07
     int  m_field8;      // +0x08
+
+    SIG_SAVE_PC_ROOM_RENT_INFO() { clear(); }   // ORIG W 0x848f98e（内联，转调 clear）
+    void clear();                               // ORIG W 0x0848f9a2
 };
 struct SIG_SAVE_PC_ROOM_RENT_ITEM
 {
-    SIG_SAVE_PC_ROOM_RENT_ITEM_ENTRY m_entry[2];
-    void clear();
+    SIG_SAVE_PC_ROOM_RENT_INFO m_entry[2];
+    SIG_SAVE_PC_ROOM_RENT_ITEM() {}               // ORIG W 0x8491cbe（隐式逐元素构造 entry[0..1]）
+    void clear();                                 // ORIG W 0x08694c9a
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_ITEM) == 0x18, "SIG_SAVE_PC_ROOM_RENT_ITEM ABI drift");
-static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_ITEM_ENTRY) == 0xc, "SIG_SAVE_PC_ROOM_RENT_ITEM_ENTRY ABI drift");
+static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_INFO) == 0xc, "SIG_SAVE_PC_ROOM_RENT_INFO ABI drift");
 
 // ORIG SIG_SAVE_DIMENSION_RENT_ITEM（CUser::GetDimensionRentInfo @0x8676bec 填充）：
-// 最多 12 个 8 字节条目，各条目 [0]=itemIndex(int) / [4]=byte / [5]=byte / [6]=inEquip / [7]=byte。
+// 容器 12 个 8 字节条目；条目类型权威名 SIG_SAVE_DIMENSION_RENT_INFO
+//（W ctor 0x848f9d0 / clear 0x0848f9e4：+0 int=0 / +4..+7 byte=0）。
+// ITEM ctor 0x8491cf2 仅构造 entry[0..10]；ITEM clear 0x8694cd2 仅清 entry[0..10]。
 #pragma pack(push, 1)
-struct SIG_SAVE_DIMENSION_RENT_ITEM_ENTRY
+struct SIG_SAVE_DIMENSION_RENT_INFO
 {
     int  m_itemIndex;   // +0x00
     char m_field4;      // +0x04
     char m_field5;      // +0x05
     char m_inEquip;     // +0x06
     char m_field7;      // +0x07
+
+    SIG_SAVE_DIMENSION_RENT_INFO() { clear(); }   // ORIG W 0x848f9d0（内联，转调 clear）
+    void clear();                                 // ORIG W 0x0848f9e4
 };
 struct SIG_SAVE_DIMENSION_RENT_ITEM
 {
-    SIG_SAVE_DIMENSION_RENT_ITEM_ENTRY m_entry[12];
-    void clear();
+    SIG_SAVE_DIMENSION_RENT_INFO m_entry[12];
+    SIG_SAVE_DIMENSION_RENT_ITEM() {}             // ORIG W 0x8491cf2（隐式逐元素构造 entry[0..11]）
+    void clear();                                 // ORIG W 0x08694cd2
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_ITEM) == 0x60, "SIG_SAVE_DIMENSION_RENT_ITEM ABI drift");
-static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_ITEM_ENTRY) == 8, "SIG_SAVE_DIMENSION_RENT_ITEM_ENTRY ABI drift");
+static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_INFO) == 8, "SIG_SAVE_DIMENSION_RENT_INFO ABI drift");
 // (keep original old block tail intact below)
 // ORIG sizeof = 0x1544c（CACHE_CHARACTER_TYPE@+0x703 → +0x15b4f）。
 // 填充函数与关键偏移（GetInventoryInfo @0x864d4ba / GetInventory @0x864d646 /
@@ -1032,17 +1067,17 @@ static_assert(offsetof(SIG_LOAD_KILL_MONSTER_INFO, m_characNo) == 0xafc8, "SIG_L
 
 struct SIG_LOAD_NO_CACHE_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0x2c];
 };
 
 struct SIG_LOAD_POWER_WAR_STATUE_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x80];
 };
 
 struct SIG_LOAD_PU_USER_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x1];
 };
 
 // ORIG sizeof = 0x7608（RequestDBQuest @0x81c70c2 memset 0x7608；布局与
@@ -1066,7 +1101,7 @@ static_assert(offsetof(SIG_LOAD_QUEST, m_cleared) == 0xb0, "SIG_LOAD_QUEST m_cle
 
 struct SIG_LOAD_SKILL
 {
-    char m_pad[0x100];
+    char m_pad[0x414];
 };
 
 // ORIG sizeof = 0x19c（CACHE_CHARACTER_TYPE@+0x1d157 → +0x1d2f3）。
@@ -1088,12 +1123,12 @@ static_assert(offsetof(SIG_LOAD_TICKET, m_tickets) == 0x00c, "SIG_LOAD_TICKET m_
 
 struct SIG_LOGIN_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0x4358];
 };
 
 struct SIG_MAILBOX_CHECK_RECEIVER
 {
-    char m_pad[0x100];
+    char m_pad[0x3fde];
 };
 
 struct SIG_MAILBOX_DEL_MAIL
@@ -1128,17 +1163,17 @@ struct SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL
 
 struct SIG_MERCENARY_DB_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0xbd4];
 };
 
 struct SIG_MILEAGE_STRUCT
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_MOUSE_REGISTER
 {
-    char m_pad[0x100];
+    char m_pad[0x59];
 };
 
 // 真实布局（GameWorld NAT 统计上报：type/count/time）
@@ -1151,27 +1186,27 @@ struct SIG_NAT_TYPE_USER
 
 struct SIG_OBJECT_BRING_UP
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_ONLINE_PRELIMINARY_MEMBER
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 struct SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST
 {
-    char m_pad[0x100];
+    char m_pad[0x4bc];
 };
 
 struct SIG_ONLINE_PRELIMINARY_TEAM
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST
 {
-    char m_pad[0x100];
+    char m_pad[0x328];
 };
 
 // SIG_PARTY_STATUS（0x1c8）—— ORIG 权威布局（Dispatcher_GatheringPartyStatus::dispatch_sig @ 0x8203878）
@@ -1211,147 +1246,152 @@ static_assert(offsetof(SIG_PARTY_STATUS, m_partyEntries) == 0x160, "SIG_PARTY_ST
 
 struct SIG_PREMIUM_LETHE_FLAG
 {
-    char m_pad[0x100];
+    char m_pad[0x1a0];
 };
 
 struct SIG_PURCHASE_CASHITEM_BONUS
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_QUERY_CHARAC_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x30];
 };
 
 struct SIG_QUEST_SHOP_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0x155];
 };
 
 struct SIG_REDEEMINFO_LIST_TO_DB
 {
-    char m_pad[0x100];
+    char m_pad[0x59c];
 };
 
 struct SIG_RELOAD_IN_GAME_ADVERTISEMENT
 {
-    char m_pad[0x100];
+    char m_pad[0x67b60];
 };
 
 struct SIG_REQUEST_CHARAC_SKILL_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x1a0];
 };
 
 struct SIG_REQUEST_JOIN_GUILD
 {
-    char m_pad[0x100];
+    char m_pad[0x44];
 };
 
 struct SIG_REQUEST_JOIN_GUILD_DB_REPLY
 {
-    char m_pad[0x100];
+    char m_pad[0x48];
 };
 
 struct SIG_REQUEST_TAG_CHARAC_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x414c];
 };
 
 struct SIG_REQUEST_TOD_USER_STATE
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_REQ_LOAD_GAME_OPTION
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_RESTING_USER_RESTRICT
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO
 {
-    char m_pad[0x100];
+    char m_pad[0x198];
 };
 
 struct SIG_SAVE_BLOOD_CLEAR_COUNT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_SAVE_CHARAC
 {
-    char m_pad[0x100];
+    char m_pad[0x10d];
 };
 
 struct SIG_SAVE_CHARAC_INFORM_NOTICE
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 struct SIG_SAVE_CHATTING_EMOTICON
 {
-    char m_pad[0x100];
+    char m_pad[0x214];
 };
 
 struct SIG_SAVE_CLIENT_HACK_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x12];
 };
 
 struct SIG_SAVE_CONDITION_EVENT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_SAVE_CRAZY_LEVELUP_EVENT
 {
-    char m_pad[0x100];
+    char m_pad[0xd];
 };
 
 struct SIG_SAVE_DUNGEON_CLEAR
 {
-    char m_pad[0x100];
+    char m_pad[0x180c];
 };
 
 struct SIG_SAVE_EVENTITEM
 {
-    char m_pad[0x100];
+    char m_pad[0x19];
 };
 
 struct SIG_SAVE_GAME_OPTION_1
 {
-    char m_pad[0x100];
+    char m_pad[0x4c];
 };
 
 struct SIG_SAVE_GAME_OPTION_QUICKCHAT
 {
-    char m_pad[0x100];
+    char m_pad[0x25c];
 };
 
 struct SIG_SAVE_GEO_REJECT
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_SAVE_GOLD_ZERO_TRADE_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0xe0];
 };
 
+// 具名化（G6 HackAnM 批次；DB_ReqSaveHackUserPunish::makeRequest ORIG T
+// 0x08425494 报告偏移：+0 accId / +4 punish / +8 ip[16]（NULL→"000.000.000.000"，
+// 否则 strncpy 0x10）；sizeof 保持 0x18）。
 struct SIG_SAVE_HACK_USER_PUNISH
 {
-    char m_pad[0x100];
+    unsigned int m_accId;
+    unsigned int m_punish;
+    char m_ip[0x10];
 };
 
 // SIG_SAVE_INVENTORY（0xad99）—— ORIG 权威布局（CUser::SaveInventory @0x864fe52 /
@@ -1435,87 +1475,87 @@ struct SIG_SAVE_LOGGAMECHANNEL
 
 struct SIG_SAVE_PC_ROOM_PLAY_TIME
 {
-    char m_pad[0x100];
+    char m_pad[0x9];
 };
 
 struct SIG_SAVE_PROXY_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x2d];
 };
 
 struct SIG_SAVE_PVP
 {
-    char m_pad[0x100];
+    char m_pad[0x88];
 };
 
 struct SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_SECOND_USER_DATA
 {
-    char m_pad[0x100];
+    char m_pad[0x14];
 };
 
 struct SIG_SECOND_USER_DATA_SET
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_SECURITY_CARD_ACTIVATE
 {
-    char m_pad[0x100];
+    char m_pad[0xc];
 };
 
 struct SIG_SECURITY_CARD_ADD_CERT_CNT
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_SECURITY_CARD_DISUSE
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_SECURITY_CARD_ISSUE
 {
-    char m_pad[0x100];
+    char m_pad[0x90];
 };
 
 struct SIG_SECURITY_CARD_RETRANSFER
 {
-    char m_pad[0x100];
+    char m_pad[0x8c];
 };
 
 struct SIG_SECURITY_CARD_SERVICE_VALIDITYTIME
 {
-    char m_pad[0x100];
+    char m_pad[0x1c];
 };
 
 struct SIG_SECURITY_CARD_UPDATE_FAIL_CNT
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_SECURITY_CARD_UPDATE_VALIDITYTIME
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_SECU_SERVICE_REWARD
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_SEND_USER_REWARD
 {
-    char m_pad[0x100];
+    char m_pad[0x4];
 };
 
 struct SIG_STATISTIC_CERASHOP_GIFT_LOG
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_SWAP_CREATURE_ITEM
@@ -1528,100 +1568,99 @@ struct SIG_SWAP_CREATURE_ITEM
     int m_itemIdx2;           // +0x0c（item2->get_add_info()）
     int m_slot2;              // +0x10
     unsigned char m_empty2;   // +0x14（item2->isEmpty() 时置 1）
-    char m_pad15[0xeb];       // 至 0x74（ORIG memset 范围），整体保持 0x100
+    char m_pad15[3];          // +0x15；ORIG 实例化 sizeof=0x18（GetInBuffer<SIG_SWAP_CREATURE_ITEM>）
 };
-
 struct SIG_TOD_RELOADED_USER_APC
 {
-    char m_pad[0x100];
+    char m_pad[0x758];
 };
 
 struct SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL
 {
-    char m_pad[0x100];
+    char m_pad[0x30];
 };
 
 struct SIG_UPDATE_AVATAR_JEWEL_SOCKET
 {
-    char m_pad[0x100];
+    char m_pad[0x28];
 };
 
 struct SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_UPDATE_CHARACTER_DAY_EVENT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_UPDATE_CHARAC_VIEW
 {
-    char m_pad[0x100];
+    char m_pad[0x14d8];
 };
 
 struct SIG_UPDATE_COMPOUND_EMBLEM_STATISTIC
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_UPDATE_DIMENSION
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct SIG_UPDATE_LOGIN
 {
-    char m_pad[0x100];
+    char m_pad[0x20];
 };
 
 struct SIG_UPDATE_LOGOUT
 {
-    char m_pad[0x100];
+    char m_pad[0x8b];
 };
 
 struct SIG_UPDATE_QUEST
 {
-    char m_pad[0x100];
+    char m_pad[0x7601];
 };
 
 struct SIG_UPDATE_SCHOOL_POINT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 // 真实布局（GameWorld::UpdateStatistic4LEV ORIG memset 0x124；原 0x100 pad 已替换）
 struct SIG_UPDATE_STATISTIC4LEV
 {
     int m_gcNo;              // +0x00
-    int m_count[70];         // +0x04..+0x118
-    int m_time;              // +0x11c
+    int m_count[71];         // +0x04..+0x11f（UpdateStatistic4ChannelUserLev memset 0x124、按 level 直接下标）
+    int m_time;              // +0x120（getCurSec）
 };
 
 struct SIG_UPDATE_USER_HANDICAP
 {
-    char m_pad[0x100];
+    char m_pad[0x18];
 };
 
 struct SIG_UPGRADE_ACCOUNT_CARGO_RESULT
 {
-    char m_pad[0x100];
+    char m_pad[0x8];
 };
 
 struct SIG_USER_PLAY_TIME_STATISTIC
 {
-    char m_pad[0x100];
+    char m_pad[0xf4];
 };
 
 struct STAdvanceAltarEntranceData
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 struct STAdvanceAltarLayerStatData
 {
-    char m_pad[0x100];
+    char m_pad[0x10];
 };
 
 // STBossDungeonTowerLog 权威定义见 CBossDungeonEntranceLog.h（0x10 POD，
@@ -1705,25 +1744,25 @@ struct user_gold_info
 
 
 // ---- Additional types for GetOutBuffer instantiations ----
-struct MSG_STAT_BREAKJAR { char m_pad[0x100]; };
-struct MSG_STAT_COMPOSITON { char m_pad[0x100]; };
-struct MSG_STAT_DUNGEONCLEAR { char m_pad[0x100]; };
-struct MSG_STAT_PVPPLAY { char m_pad[0x100]; };
+struct MSG_STAT_BREAKJAR { char m_pad[0xc]; };
+struct MSG_STAT_COMPOSITON { char m_pad[0xd]; };
+struct MSG_STAT_DUNGEONCLEAR { char m_pad[0x19]; };
+struct MSG_STAT_PVPPLAY { char m_pad[0x10]; };
 #include "MSG_STAT_RANKRES.h"   // 权威 MSG_STAT_RANKRES（0x6c，替换占位）
-struct Packet_Mannerless_User_Accusation { char m_pad[0x100]; };
-struct Packet_PvPResult { char m_pad[0x100]; };
-struct SIG_AVATAR_MOVE { char m_pad[0x100]; };
-struct SIG_BILLING_RECORD { char m_pad[0x100]; };
-struct SIG_BOOSTER_GAGE_DATA { char m_pad[0x100]; };
-struct SIG_CERASHOP_ERROR_LOG { char m_pad[0x100]; };
-struct SIG_CIRCULATION_STATISTIC { char m_pad[0x100]; };
-struct SIG_DELETE_CHANNEL { char m_pad[0x100]; };
-struct SIG_INSERT_CHANNEL { char m_pad[0x100]; };
-struct SIG_INSERT_TICKET { char m_pad[0x100]; };
-struct SIG_MANNERLESS_USER { char m_pad[0x100]; };
-struct SIG_NAT_TYPE { char m_pad[0x100]; };
-struct SIG_REMOVE_EVENTITEM { char m_pad[0x100]; };
-struct SIG_REMOVE_FEATURED_GOODSIDX { char m_pad[0x100]; };
+struct Packet_Mannerless_User_Accusation { char m_pad[0x15f]; };
+struct Packet_PvPResult { char m_pad[0x80]; };
+struct SIG_AVATAR_MOVE { char m_pad[0x16]; };
+struct SIG_BILLING_RECORD { char m_pad[0x10e]; };
+struct SIG_BOOSTER_GAGE_DATA { char m_pad[0x8]; };
+struct SIG_CERASHOP_ERROR_LOG { char m_pad[0x1c]; };
+struct SIG_CIRCULATION_STATISTIC { char m_pad[0xc8]; };
+struct SIG_DELETE_CHANNEL { char m_pad[0xc]; };
+struct SIG_INSERT_CHANNEL { char m_pad[0x5c]; };
+struct SIG_INSERT_TICKET { char m_pad[0x8]; };
+struct SIG_MANNERLESS_USER { char m_pad[0x13a]; };
+struct SIG_NAT_TYPE { char m_pad[0x14]; };
+struct SIG_REMOVE_EVENTITEM { char m_pad[0x18]; };
+struct SIG_REMOVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
 // SIG_REQUEST_PVP_MISSION_LIST —— PvP 任务存档结构（ORIG 0x14a 字节）。
 // CMissionList_Charac.cpp 曾以本地 struct 定义（与权威冲突）；按 ORIG 迁移至本头。
 // ORIG 证据（df_game_r）：
@@ -1765,23 +1804,24 @@ struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
     char m_skills[0x198];            // +0x0d
     unsigned char m_state2;          // +0x1a5
     unsigned char m_treeKind;        // +0x1a6
+    unsigned char m_pad1a7;          // +0x1a7（ORIG 实例化 sizeof=0x1a8）
 };
 #pragma pack(pop)
-static_assert(sizeof(SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD) == 0x1a7, "SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD ABI drift");
-struct SIG_SAVE_ACCOUNT_INFO { char m_pad[0x100]; };
-struct SIG_SAVE_CHARACINFO4GUILD { char m_pad[0x100]; };
-struct SIG_SAVE_EXPAND_CHARAC { char m_pad[0x100]; };
-struct SIG_SAVE_FEATURED_GOODSIDX { char m_pad[0x100]; };
-struct SIG_SAVE_PREMIUM_INFO { char m_pad[0x100]; };
-struct SIG_SAVE_RANK { char m_pad[0x100]; };
-struct SIG_SELECT_SERVER_MESSAGE { char m_pad[0x100]; };
-struct SIG_UPDATE_CHANNEL { char m_pad[0x100]; };
-struct SIG_UPDATE_DETAIL_CHANNEL { char m_pad[0x100]; };
-struct SIG_UPDATE_GROWTYPE { char m_pad[0x100]; };
-struct SIG_UPDATE_NPC_RELATIONSHIP { char m_pad[0x100]; };
-struct SIG_UPDATE_SERVER_MESSAGE { char m_pad[0x100]; };
-struct SIG_VALUE_STATISTIC { char m_pad[0x100]; };
+static_assert(sizeof(SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD) == 0x1a8, "SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD ABI drift");
+struct SIG_SAVE_ACCOUNT_INFO { char m_pad[0x70]; };
+struct SIG_SAVE_CHARACINFO4GUILD { char m_pad[0x14]; };
+struct SIG_SAVE_EXPAND_CHARAC { char m_pad[0x89c]; };
+struct SIG_SAVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
+struct SIG_SAVE_PREMIUM_INFO { char m_pad[0x18]; };
+struct SIG_SAVE_RANK { char m_pad[0x1f48]; };
+struct SIG_SELECT_SERVER_MESSAGE { char m_pad[0x4]; };
+struct SIG_UPDATE_CHANNEL { char m_pad[0x3a]; };
+struct SIG_UPDATE_DETAIL_CHANNEL { char m_pad[0x10]; };
+struct SIG_UPDATE_GROWTYPE { char m_pad[0x5]; };
+struct SIG_UPDATE_NPC_RELATIONSHIP { char m_pad[0x260]; };
+struct SIG_UPDATE_SERVER_MESSAGE { char m_pad[0x60]; };
+struct SIG_VALUE_STATISTIC { char m_pad[0x80]; };
 // stAchievement_DBSaveData 权威定义见 CAchievement.h（此处不重复）
-struct stTitleBook_Save { char m_pad[0x100]; };
+struct stTitleBook_Save { char m_pad[0x6b3e]; };
 
 #endif  // DNF_GAME_SIG_TYPES_H_

@@ -22,7 +22,6 @@
 //   makeFairPVPEquipmentPackageKey 由 InitScripts_2 提供（勿在此重复定义）
 //   tokenizeStr / ConvertStringToTime / getGrowTypeIndex 由 InitScripts_6 提供
 //   loadAppendageType / loadValueType 沿用 extern 声明（定义归其报告域批次）
-//   InGameAdvertisementScript::clear 0x8373304
 //   stLimitItemUsageInfo::Add 0x891b4a8 / stResetItemInfo::Add 0x891b4dc /
 //   stRefillItemInfo::Add 0x891b502
 //   stQuestShopStatus C1 0x891b948 / clear 0x891b8cc / D1 0x83cd826
@@ -1259,12 +1258,6 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 // ============================================================================
 // 依赖的 ORIG 小符号定义
 // ============================================================================
-
-// ORIG 0x8373304 W：memset(this, 1, 0x97)。
-void InGameAdvertisementScript::clear()
-{
-    memset(this, 1, 0x97);
-}
 
 // ORIG 0x891b4a8 W：临时元素 {kind,a,b} 后 push_back。
 void stLimitItemUsageInfo::Add(unsigned char kind, int a, int b)

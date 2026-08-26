@@ -3,151 +3,322 @@
 #include <cstring>
 
 
+// ORIG 0x812c076：空体 leaf（push/mov/pop/ret，无栈帧）。
+// 唯一定义处（PacketDispatcher.h keeper 协作约定）：声明于共享头，定义归本 TU，
+// 使各 TU 中 MSG keeper 构造对 _ZN8MSG_BASEC1Ev 的调用在链接期落到同一空实现。
+MSG_BASE::MSG_BASE() {}
+
 InstanceRentalSystem::RentOutput::RentOutput() : m_infos(), m_deleted() {}  // ORIG 0x8231c4e
 InstanceRentalSystem::RentOutput::~RentOutput() {}                          // ORIG 0x8231c94
 
 MSG_ABNORMAL_USE_STACKABLE::MSG_ABNORMAL_USE_STACKABLE() {}
 MSG_ACHIEVEMENT_TRIGGER::MSG_ACHIEVEMENT_TRIGGER() {}
-MSG_ADD_FRIEND::MSG_ADD_FRIEND() {}
 MSG_APPROVE_JOIN_GUILD::MSG_APPROVE_JOIN_GUILD() {}
 MSG_AVATAR_DISJOINT_RANDOM_REWARD::MSG_AVATAR_DISJOINT_RANDOM_REWARD() {}
-MSG_BINGO_QUIZ::MSG_BINGO_QUIZ() {}
-MSG_BLUE_MARBLE::MSG_BLUE_MARBLE() {}
-MSG_BLUE_MARBLE_CONFIRM_INFO::MSG_BLUE_MARBLE_CONFIRM_INFO() {}
+MSG_BINGO_QUIZ::MSG_BINGO_QUIZ()
+{
+    m_0d = 0;  // ORIG C1：+0xd int 清零
+}
+MSG_BLUE_MARBLE::MSG_BLUE_MARBLE()
+{
+    m_0d = 0;  // ORIG C1：+0xd byte 清零
+}
+MSG_BLUE_MARBLE_CONFIRM_INFO::MSG_BLUE_MARBLE_CONFIRM_INFO()
+    : m_0e(0xffff)
+{  // ORIG C1：+0xd byte、+0xe word=-1
+    m_0d = 0;
+}
 MSG_BOSS_DIE_CHECK::MSG_BOSS_DIE_CHECK() {}
-MSG_BREAK_AWAY::MSG_BREAK_AWAY() {}
-MSG_BUY_ITEM::MSG_BUY_ITEM() {}
+MSG_BREAK_AWAY::MSG_BREAK_AWAY() : m_checkFlag(0) {}
 // 字段化后保持占位版语义：+0xd 包头后全量清零（ORIG 无出线 ctor，此为本仓库构造约定）。
-MSG_BUY_SKILL::MSG_BUY_SKILL() { memset(&m_treeKind, 0, sizeof(MSG_BUY_SKILL) - sizeof(MSG_BASE)); }
+MSG_BUY_SKILL::MSG_BUY_SKILL()
+    : m_treeKind(0), m_count(0)
+{
+    memset(m_entries, 0, 4);  // ORIG 0x8230956 仅清 +0xf 起 4 字节
+}
 MSG_CANCEL_JOIN_GUILD::MSG_CANCEL_JOIN_GUILD() {}
-MSG_CHANGE_ANOTHER_SKILL_TREE::MSG_CHANGE_ANOTHER_SKILL_TREE() {}
+MSG_CHANGE_ANOTHER_SKILL_TREE::MSG_CHANGE_ANOTHER_SKILL_TREE()
+{
+    m_0d = 0xff;  // ORIG C1：哨兵
+}
 MSG_CHANGE_AVATAR_OPTION::MSG_CHANGE_AVATAR_OPTION() {}
 MSG_CHANGE_EMOTION::MSG_CHANGE_EMOTION() {}
 MSG_CHANGE_HOST_WARROOM::MSG_CHANGE_HOST_WARROOM() {}
 MSG_CHANGE_LETTER_STAT::MSG_CHANGE_LETTER_STAT() {}
 MSG_CHANGE_RANDOM_OPTION::MSG_CHANGE_RANDOM_OPTION() {}
-MSG_CHANGE_SKILLSLOT::MSG_CHANGE_SKILLSLOT() {}
-MSG_CHARAC_SELECT::MSG_CHARAC_SELECT() {}
+MSG_CHARAC_SELECT::MSG_CHARAC_SELECT() : m_slot(-1), m_0e(0), m_12(0) {}
 // MSG_CHECK_GUILD_JOIN ORIG 0x0822dd7c：+0xd int=0；+0x11 起 memset 0x17。
 MSG_CHECK_GUILD_JOIN::MSG_CHECK_GUILD_JOIN()
-{
-    *(unsigned int*)&m_pad[0] = 0;
-    memset(m_pad + 4, 0, 0x17);
+{  // ORIG 0x0822dd7c：+0xd int=0；memset(this+0x11,0,0x17)
+    m_0d = 0;
+    memset(m_11, 0, sizeof(m_11));
 }
 // MSG_CLIENT_SPEC_STATISTIC ORIG 0x082556a0：调 Client_Spec ctor 于 +0xe。
 // 本仓库 Client_Spec 为 pad 占位（HWSpec[0xff] 子对象未建模），构造为空（推断）。
 MSG_CLIENT_SPEC_STATISTIC::MSG_CLIENT_SPEC_STATISTIC() {}
-MSG_COMBO_SKILL::MSG_COMBO_SKILL() : m_pad0d(0), m_comboMap()
+MSG_COMBO_SKILL::MSG_COMBO_SKILL() : m_pad0d(0)
 {
-    m_comboMap.clear();  // ORIG 0x82603d6 显式 clear
+    m_comboMap.clear();  // ORIG 0x82603d6 构造后显式 clear
 }
-MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET::MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET() {}
+MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET::MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET()
+{
+    m_0d = 0;  // ORIG C1
+}
 MSG_COMPATIBILITY_INDEX::MSG_COMPATIBILITY_INDEX()
     : m_0d(0), m_0e(0), m_10(0), m_14(0), m_16(0), m_18(0), m_1a(0),
       m_1c(0), m_1d(0) {}  // ORIG 0x822e174
-MSG_CREATE_CHARACTER::MSG_CREATE_CHARACTER() {}
 MSG_CREATE_DISJOINT_STORE::MSG_CREATE_DISJOINT_STORE() {}
-MSG_DECREASE_DURABILITY::MSG_DECREASE_DURABILITY() {}
-MSG_DELETE_CHARACTER::MSG_DELETE_CHARACTER() {}
 MSG_DELETE_ITEM::MSG_DELETE_ITEM() {}
 MSG_DELETE_TO_BLACKLIST::MSG_DELETE_TO_BLACKLIST() {}
 MSG_DENY_JOIN_GUILD::MSG_DENY_JOIN_GUILD() {}
-MSG_DIE_CHARACTER::MSG_DIE_CHARACTER() {}
 MSG_DONATE_GUILD_FUND::MSG_DONATE_GUILD_FUND() {}
-MSG_DROP_ITEM::MSG_DROP_ITEM() {}
-MSG_ENCHANT::MSG_ENCHANT() : m_19(0)
+MSG_ENCHANT::MSG_ENCHANT()
 {
-    // ORIG 0x822dc04 链式赋值：m_0d = m_13 = 0; m_0f = m_15 = 0
+    // ORIG 0x822dc04：先写 +0x13/+0x15，再拷贝到 +0x0d/+0x0f，末尾 +0x19
     m_13 = 0;
     m_0d = m_13;
     m_15 = 0;
     m_0f = m_15;
+    m_19 = 0;
 }
 MSG_ENCHANT_BY_BEAD::MSG_ENCHANT_BY_BEAD() {}
 MSG_ENTER_DISJOINT_STORE::MSG_ENTER_DISJOINT_STORE() {}
 MSG_EQUIPSLOT_SWITCH::MSG_EQUIPSLOT_SWITCH() {}
 MSG_EXCHANGE_RANDOM_ITEM_REWARD::MSG_EXCHANGE_RANDOM_ITEM_REWARD() {}
 MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE::MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE() {}
-MSG_EXPERT_EXTRACTION::MSG_EXPERT_EXTRACTION() {}
-MSG_FATIGUE_ATTENDANCE::MSG_FATIGUE_ATTENDANCE() {}
-MSG_FINISH_LOADING::MSG_FINISH_LOADING() {}
+MSG_EXPERT_EXTRACTION::MSG_EXPERT_EXTRACTION()
+{
+    // ORIG C1：+0xd byte=0、+0x10 word=0、+0xe ← (+0x10)
+    m_0d = 0;
+    m_10 = 0;
+    m_0e = m_10;
+}
+MSG_FATIGUE_ATTENDANCE::MSG_FATIGUE_ATTENDANCE()
+{
+    m_0d = 0;  // ORIG C1
+}
 MSG_FLOAT_RDATA_MODULATION::MSG_FLOAT_RDATA_MODULATION() {}
-MSG_GET_ITEM::MSG_GET_ITEM() {}
 MSG_GOLD_TAKE_INCREASING_AMOUNT::MSG_GOLD_TAKE_INCREASING_AMOUNT() {}
-MSG_GROWTH_EQUIPMENT::MSG_GROWTH_EQUIPMENT() {}
-MSG_GROWTH_POWER::MSG_GROWTH_POWER() { memset(m_pad, 0, sizeof(m_pad)); }
+MSG_GROWTH_EQUIPMENT::MSG_GROWTH_EQUIPMENT()
+{
+    // ORIG C1：+0xd/+0x11 int 清零
+    m_0d = 0;
+    m_11 = 0;
+}
+MSG_GROWTH_POWER::MSG_GROWTH_POWER()
+{
+    // ORIG C1：+0xd byte 清零、memset(this+0xe,0,5)
+    m_0d = 0;
+    memset(m_0e, 0, sizeof(m_0e));
+}
 MSG_GUILD_ATTENDANCE::MSG_GUILD_ATTENDANCE() {}
-MSG_GUILD_BOARD::MSG_GUILD_BOARD() {}
+// ORIG 0x822b802：+0=0xff、+1=0xff、+2=0、memset(this+3,0,0x1e)
+STGuildMemberCharacData::STGuildMemberCharacData()
+{
+    m_0 = 0xff;
+    m_1 = 0xff;
+    m_2 = 0;
+    memset(m_pad3, 0, 0x1e);
+}
+
+// ORIG 0x822b83c：成员 C1（m_members@0x84）→ ints +0x78/+0x7c/+0x80 清零 →
+// memset(this,0,0x78)（+0..+0x77 全为 m_pad78，与 memset 首参等价）。
+// 唯一定义处归本 TU：消除 MSG_GUILD_BOARD 构造对 _ZN18STGuildBoardDBInfoC1Ev 的 undefined。
+STGuildBoardDBInfo::STGuildBoardDBInfo()
+    : m_members()
+{
+    m_78 = 0;
+    m_7c = 0;
+    m_80 = 0;
+    memset(m_pad78, 0, 0x78);
+}
+
+MSG_GUILD_BOARD::MSG_GUILD_BOARD() : m_info()
+{
+    m_b2 = 0;  // ORIG 0x822dbfa
+}
 MSG_GUILD_CARGO_MOVE_ITEM::MSG_GUILD_CARGO_MOVE_ITEM() {}
 MSG_GUILD_CARGO_POP_ITEM::MSG_GUILD_CARGO_POP_ITEM() {}
 MSG_GUILD_CARGO_PUSH_ITEM::MSG_GUILD_CARGO_PUSH_ITEM() {}
 MSG_HATCH_CREATURE::MSG_HATCH_CREATURE() {}
-MSG_INFORM_NOTICE::MSG_INFORM_NOTICE() {}
-MSG_INFORM_NOTICE_2ND::MSG_INFORM_NOTICE_2ND() {}
+MSG_INFORM_NOTICE::MSG_INFORM_NOTICE()
+{
+    m_0d = 0x80;  // ORIG C1：notice 类型哨兵
+}
+MSG_INFORM_NOTICE_2ND::MSG_INFORM_NOTICE_2ND()
+{
+    m_0d = 0x80;  // ORIG C1
+}
 MSG_ITEM_DICTIONARY::MSG_ITEM_DICTIONARY() {}
 MSG_ITEM_HYPER_LINK_MESSAGE::MSG_ITEM_HYPER_LINK_MESSAGE() {}
-MSG_ITEM_UPGRADE::MSG_ITEM_UPGRADE() { memset(m_pad, 0, sizeof(m_pad)); }
+MSG_ITEM_UPGRADE::MSG_ITEM_UPGRADE()
+{
+    // ORIG C1：先 +0x25 word=0，memset(this+0x28,0,0x81)，末尾 +0x27 byte=0
+    m_25 = 0;
+    memset(m_28, 0, sizeof(m_28));
+    m_27 = 0;
+}
 MSG_LOG_INGAME_ADVERTISEMENT::MSG_LOG_INGAME_ADVERTISEMENT() {}
 MSG_MAILBOX_EXTRACT_ITEM::MSG_MAILBOX_EXTRACT_ITEM() {}
 MSG_MAILBOX_SEND::MSG_MAILBOX_SEND() {}
 MSG_MEMBER_ENTER_REPLY::MSG_MEMBER_ENTER_REPLY() {}
 MSG_MEMBER_SECEDE::MSG_MEMBER_SECEDE() {}
-MSG_MONSTERCARD_BIND::MSG_MONSTERCARD_BIND() {}
+MSG_MONSTERCARD_BIND::MSG_MONSTERCARD_BIND()
+{
+    // ORIG C1：拷贝链 m_11←0 → m_0f ← m_11 → m_0d ← m_0f
+    m_11 = 0;
+    m_0f = m_11;
+    m_0d = m_0f;
+}
 MSG_MOTION_HACK::MSG_MOTION_HACK() {}
-MSG_MOVE_ITEMSPACE::MSG_MOVE_ITEMSPACE() {}
-MSG_MOVE_MAP::MSG_MOVE_MAP() {}
 MSG_OBJECT_BRING_UP::MSG_OBJECT_BRING_UP() {}
-MSG_OPEN_CERAPACKAGE::MSG_OPEN_CERAPACKAGE() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE::MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE() {}
+MSG_OPEN_CERAPACKAGE::MSG_OPEN_CERAPACKAGE()
+{
+    // ORIG C1：+0xe word 清零、memset(this+0x14,0,0x118)
+    m_0e = 0;
+    memset(m_14, 0, sizeof(m_14));
+}
+MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE::MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE()
+{
+    m_0d = 0;  // ORIG C1：+0xd byte、+0xe int
+    m_0e = 0;
+}
 MSG_P2P_STATISTICS::MSG_P2P_STATISTICS()
-    : m_0d(0), m_0e(0), m_10(0), m_12(0), m_14(0), m_18(0), m_1c(0), m_20(0),
-      m_24(0), m_28(0), m_2a(0), m_2c(0), m_30(0), m_34(0), m_38(0), m_3c(0) {}  // ORIG 0x822e1d2
-MSG_PARTY_SET_INFO::MSG_PARTY_SET_INFO() {}
-MSG_PARTY_TELEPORT::MSG_PARTY_TELEPORT() {}
-MSG_PARTY_TELEPORT_CONFIRM::MSG_PARTY_TELEPORT_CONFIRM() {}
-MSG_PURIFY_ITEM::MSG_PURIFY_ITEM() {}
+    : m_10(0), m_18(0), m_1c(0), m_24(0), m_2a(0), m_30(0), m_38(0), m_3c(0)
+{  // ORIG 0x822e1d2：逐字段写入序 d,e,10,12,14,18,1c,20,24,28,2a,2c,30,34,38,3c
+    m_0d = 0;
+    m_0e = 0;
+    m_12 = 0;
+    m_14 = 0;
+    m_20 = 0;
+    m_28 = 0;
+    m_2c = 0;
+    m_34 = 0;
+}
+MSG_PARTY_TELEPORT::MSG_PARTY_TELEPORT()
+{
+    // ORIG C1：byte/byte/word/word/byte 全零
+    m_0d = 0;
+    m_0e = 0;
+    m_0f = 0;
+    m_11 = 0;
+    m_13 = 0;
+}
+MSG_PARTY_TELEPORT_CONFIRM::MSG_PARTY_TELEPORT_CONFIRM()
+{
+    m_0d = 0;  // ORIG C1
+}
+MSG_PURIFY_ITEM::MSG_PURIFY_ITEM()
+{
+    // ORIG C1：四组标量清零
+    m_0d = 0;
+    m_0f = 0;
+    m_13 = 0;
+    m_15 = 0;
+}
 MSG_PVP_MISSION_COMBO_CLEAR::MSG_PVP_MISSION_COMBO_CLEAR() {}
-MSG_PVP_MISSION_HP_PERCENT::MSG_PVP_MISSION_HP_PERCENT() : m_0d(0) {}  // ORIG 0x8250c7c：两个 vector 默认构造
+MSG_PVP_MISSION_HP_PERCENT::MSG_PVP_MISSION_HP_PERCENT() {}  // ORIG 0x8250c7c：仅两个 vector C1（+0xe/+0x1a），无标量初始化
 MSG_PVP_MISSION_HP_PERCENT::~MSG_PVP_MISSION_HP_PERCENT() {}           // ORIG 0x8250cd2：逆序析构两个 vector
-MSG_PVP_TIMEOUT::MSG_PVP_TIMEOUT() {}
-MSG_QUEST_SHOP::MSG_QUEST_SHOP() {}
-MSG_QUICK_CHAT::MSG_QUICK_CHAT() {}
-MSG_QUICK_PARTY::MSG_QUICK_PARTY() {}
-MSG_REFUND_SKILL::MSG_REFUND_SKILL() {}
-MSG_REGENERATION_RANDOM_OPTION::MSG_REGENERATION_RANDOM_OPTION() {}
+MSG_QUEST_SHOP::MSG_QUEST_SHOP()
+{
+    // ORIG C1：+0xd/+0xe byte 清零
+    m_0d = 0;
+    m_0e = 0;
+}
+MSG_QUICK_CHAT::MSG_QUICK_CHAT()
+{  // ORIG C1：m_quick 自动构造于 +0x12；此处清零标量
+    m_0d = 0;
+    m_11 = 0;
+}
+MSG_QUICK_PARTY::MSG_QUICK_PARTY()
+{
+    // ORIG C1：+0xe word=0、+0x10 byte=0xff
+    m_0e = 0;
+    m_10 = 0xff;
+}
+MSG_REFUND_SKILL::MSG_REFUND_SKILL()
+{
+    // ORIG C1：+0xd int 与 +0x11..+0x13 bytes 清零
+    m_0d = 0;
+    m_11 = 0;
+    m_12 = 0;
+    m_13 = 0;
+}
 MSG_REGISTER_TO_BLACKLIST::MSG_REGISTER_TO_BLACKLIST() {}
-MSG_REMOVE_FRIEND::MSG_REMOVE_FRIEND() {}
-MSG_RENAME_CREATURE::MSG_RENAME_CREATURE() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_RENT_ITEM::MSG_RENT_ITEM() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_REPAIR_EQUIP::MSG_REPAIR_EQUIP() {}
-MSG_REQUEST_CHARAC_SKILL_INFO::MSG_REQUEST_CHARAC_SKILL_INFO() {}
+MSG_RENAME_CREATURE::MSG_RENAME_CREATURE()
+{
+    memset(m_14, 0, sizeof(m_14));  // ORIG C1：memset(this+0x14,0,0xd)
+}
+MSG_RENT_ITEM::MSG_RENT_ITEM()
+{  // ORIG C1：+0xd/+0xe byte 清零、memset(this+0xf,0,2)
+    m_0d = 0;
+    m_0e = 0;
+    memset(m_0f, 0, sizeof(m_0f));
+}
+MSG_REQUEST_CHARAC_SKILL_INFO::MSG_REQUEST_CHARAC_SKILL_INFO()
+{
+    m_0d = 0xff;  // ORIG C1：哨兵
+}
 MSG_REQUEST_DISJOINT_ITEM::MSG_REQUEST_DISJOINT_ITEM() {}
 MSG_REQUEST_INGAME_ADVERTISEMENT::MSG_REQUEST_INGAME_ADVERTISEMENT() {}
-MSG_REQUEST_GUILD_JOIN::MSG_REQUEST_GUILD_JOIN() { memset(m_pad, 0, sizeof(m_pad)); }
+MSG_REQUEST_GUILD_JOIN::MSG_REQUEST_GUILD_JOIN()
+{  // ORIG C1：+0xd int=0；memset(+0x11)；+0x28 int=0；memset(+0x2c)
+    m_0d = 0;
+    m_28 = 0;
+    memset(m_11, 0, sizeof(m_11));
+    memset(m_2c, 0, sizeof(m_2c));
+}
 MSG_REQUEST_MEMBER_ENTER::MSG_REQUEST_MEMBER_ENTER() {}
-MSG_RESET_RANDOM_OPTION::MSG_RESET_RANDOM_OPTION() {}
-MSG_RIGHT_OF_CHANGE_GROW_TYPE::MSG_RIGHT_OF_CHANGE_GROW_TYPE() {}
+MSG_RESET_RANDOM_OPTION::MSG_RESET_RANDOM_OPTION()
+    : m_equipSlot(0), m_scrollSlot(0), m_rarityChoice(0)
+{
+}
+MSG_RIGHT_OF_CHANGE_GROW_TYPE::MSG_RIGHT_OF_CHANGE_GROW_TYPE()
+{
+    m_0d = 0;  // ORIG C1：word、byte
+    m_0f = 0;
+}
 MSG_SAVE_CHARACTER_OPTION::MSG_SAVE_CHARACTER_OPTION() {}
 MSG_SAVE_GAME_OPTION_1::MSG_SAVE_GAME_OPTION_1() {}
 MSG_SAVE_GAME_OPTION_2::MSG_SAVE_GAME_OPTION_2() {}
 MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON() {}
-MSG_SAVE_QUEST_NOTIFY::MSG_SAVE_QUEST_NOTIFY() { memset(m_pad, 0, sizeof(m_pad)); }
+MSG_SAVE_QUEST_NOTIFY::MSG_SAVE_QUEST_NOTIFY()
+{
+    memset(m_0d, 0, sizeof(m_0d));  // ORIG C1：memset(this+0xd,0,0x28)
+}
 MSG_SCAN_DLL::MSG_SCAN_DLL() {}
 MSG_SCAN_DRV::MSG_SCAN_DRV() {}
 MSG_SCRIPT_HASH::MSG_SCRIPT_HASH() {}
 MSG_SECRET_SHOP_BUY_ITEM::MSG_SECRET_SHOP_BUY_ITEM() {}
 MSG_SECRET_SHOP_OPEN_CLOSE::MSG_SECRET_SHOP_OPEN_CLOSE() {}
-MSG_SECURITY_LOG_PACKET::MSG_SECURITY_LOG_PACKET() { memset(m_pad, 0, sizeof(m_pad)); }
+MSG_SECURITY_LOG_PACKET::MSG_SECURITY_LOG_PACKET()
+{  // ORIG C1：memset(this,0,0x25)
+    memset((char*)this, 0, 0x25);
+}
 MSG_SECU_RPY::MSG_SECU_RPY() {}
-MSG_SELECT_DUNGEON::MSG_SELECT_DUNGEON() {}
-MSG_SELECT_STRIKER::MSG_SELECT_STRIKER() {}
+MSG_SELECT_STRIKER::MSG_SELECT_STRIKER()
+{
+    m_0d = 0xff;  // ORIG C1：哨兵
+    m_0e = 0;
+}
 MSG_SERIAROOM_DECO_EVENT::MSG_SERIAROOM_DECO_EVENT() {}
-MSG_SET_READY_STATE::MSG_SET_READY_STATE() {}
-MSG_SET_USER_AREA::MSG_SET_USER_AREA() {}
-MSG_SKILL_COMMAND::MSG_SKILL_COMMAND() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_SKILL_INIT::MSG_SKILL_INIT() {}
-MSG_SOLO_TELEPORT::MSG_SOLO_TELEPORT() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_SORT_ITEM::MSG_SORT_ITEM() {}
+MSG_SKILL_COMMAND::MSG_SKILL_COMMAND()
+{  // ORIG 0x8230b?? memset(this,0,4)：仅包头前 4 字节（整体清零语义，CQuickChattingOption::clear 同型）
+    memset((char*)this, 0, 4);
+}
+MSG_SKILL_INIT::MSG_SKILL_INIT()
+{
+    m_0d = 0;  // ORIG C1：+0xd byte 清零
+}
+MSG_SOLO_TELEPORT::MSG_SOLO_TELEPORT()
+{  // ORIG 0x0822d764 调用链实证
+    memset(m_0d, 0, sizeof(m_0d));  // +0xd..+0x2a
+    m_2c = 0;
+    m_30 = 0;
+    m_34 = -1;      // +0x34 dword = 0xffffffff
+    m_tp.reset();   // stPartyTelePort::reset @ +0x38（ORIG 出线调用）
+    m_44 = 0;
+}
 MSG_STACKABLE_ACTION_USE::MSG_STACKABLE_ACTION_USE()
     : m_0d(0), m_0f(0), m_10(0), m_14(0), m_15(0), m_19(0) {}  // ORIG 0x826033e
 MSG_TELEPORT::MSG_TELEPORT() {}
@@ -155,16 +326,32 @@ MSG_TEMP_STRUCT::MSG_TEMP_STRUCT() {}
 MSG_TITLEBOOK_GET::MSG_TITLEBOOK_GET() {}
 MSG_TITLEBOOK_OTHERUSER::MSG_TITLEBOOK_OTHERUSER() {}
 MSG_TITLEBOOK_PUT::MSG_TITLEBOOK_PUT() {}
-MSG_UPDATE_CONTRACT_OF_CUBE_INFO::MSG_UPDATE_CONTRACT_OF_CUBE_INFO() {}
-MSG_USERINFO_REQ::MSG_USERINFO_REQ() {}
-MSG_USER_HISTORY_LOG::MSG_USER_HISTORY_LOG() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_USER_SET_POS::MSG_USER_SET_POS() {}
-MSG_USE_COIN::MSG_USE_COIN() {}
-MSG_USE_DYE::MSG_USE_DYE() {}
-MSG_USE_LIMIT_CUBE::MSG_USE_LIMIT_CUBE() { memset(m_pad, 0, sizeof(m_pad)); }
-MSG_USE_RENAME_CARD::MSG_USE_RENAME_CARD() {}
-MSG_USE_SKILL::MSG_USE_SKILL() {}
-MSG_WALKOUT_PARTY::MSG_WALKOUT_PARTY() {}
+MSG_UPDATE_CONTRACT_OF_CUBE_INFO::MSG_UPDATE_CONTRACT_OF_CUBE_INFO()
+{
+    m_0d = 0;  // ORIG C1
+    m_0e = 0;
+}
+MSG_USER_HISTORY_LOG::MSG_USER_HISTORY_LOG()
+{
+    // ORIG C1：+0xd byte、+0x10 int 清零、memset(this+0x14,0,0x100)
+    m_0d = 0;
+    m_10 = 0;
+    memset(m_14, 0, sizeof(m_14));
+}
+MSG_USE_DYE::MSG_USE_DYE()
+{
+    // ORIG C1：+0xe/+0x10 word 清零
+    m_0e = 0;
+    m_10 = 0;
+}
+MSG_USE_LIMIT_CUBE::MSG_USE_LIMIT_CUBE()
+{  // ORIG C1：memset(this,0,4)（同 MSG_SKILL_COMMAND）
+    memset((char*)this, 0, 4);
+}
+MSG_USE_RENAME_CARD::MSG_USE_RENAME_CARD()
+{
+    m_0e = 0;  // ORIG C1：+0xe word
+}
 MSG_WARROOM_WP_PER_MONSTER::MSG_WARROOM_WP_PER_MONSTER() {}
 MsgClearQuestIndex::MsgClearQuestIndex() : m_questIdxs() {}  // ORIG 0x8231a3a：仅 vector C1
 // ORIG 0x08235266（W）：逐标量拷贝 +0x00..+0x08 / +0x0c / +0x10，跳过 +0x09..+0x0b
@@ -172,80 +359,157 @@ MsgClearQuestIndex::MsgClearQuestIndex() : m_questIdxs() {}  // ORIG 0x8231a3a�
 // std::vector<int>::operator=。
 MsgClearQuestIndex& MsgClearQuestIndex::operator=(const MsgClearQuestIndex& other)
 {
-    memcpy(&m_head[0], &other.m_head[0], 9);
-    m_head[0xc] = other.m_head[0xc];
+    // ORIG 0x8235266：基类子对象整体赋值（3×dword + 尾字节），随后 count/vector
+    static_cast<MSG_BASE&>(*this) = static_cast<const MSG_BASE&>(other);
     m_count = other.m_count;
     m_questIdxs = other.m_questIdxs;
     return *this;
 }
-MsgLimitNpcBuyItem::MsgLimitNpcBuyItem() {}
-MsgMercenaryCompetition::MsgMercenaryCompetition() {}
-MsgMercenaryReturn::MsgMercenaryReturn() {}
-MsgRequestAssaultPrice::MsgRequestAssaultPrice() {}
-MsgTournamentRewardSelect::MsgTournamentRewardSelect() {}
-
-AbnormalUseStackable::AbnormalUseStackable() {}
-BuyItemParam::BuyItemParam() : m_item(), m_resultItem(), m_pair()
-{  // ORIG 0x8230906
-    m_80 = 0;
-    m_84 = 0;
-    m_88 = 0;
-    m_8c = 0;
-    m_90 = 0;
-    m_94 = 0;
-    m_a0 = -1;
-    m_a4 = -1;
-    m_a8 = 0;
-    m_ac = 0;
-    m_b0 = 0;
+MsgRequestAssaultPrice::MsgRequestAssaultPrice()
+{
+    m_0d = -1;  // ORIG C1：word=0xffff
 }
-CheckSecurityProtection::CheckSecurityProtection() {}
-InformNoticeData::InformNoticeData() {}
-InformNoticeData2nd::InformNoticeData2nd() {}
-LimitNpcBuyItem::LimitNpcBuyItem() {}
+MsgTournamentRewardSelect::MsgTournamentRewardSelect()
+{
+    m_0d = 0xff;  // ORIG C1：双 byte 哨兵
+    m_0e = 0xff;
+}
+
+AbnormalUseStackable::AbnormalUseStackable()
+{
+    m_4 = 0;  // ORIG C1：byte
+}
+BuyItemParam::BuyItemParam()
+    : m_item(), m_resultItem(), m_80(0), m_84(0), m_88(0), m_8c(0),
+      m_90(0), m_94(0), m_pair(), m_a0(-1), m_a4(-1), m_a8(0), m_ac(0), m_b0(0)
+{  // ORIG 0x8230906：初始化列表按声明序 emit —— 两 Inven_Item C1、六连 0 写
+}
+
+CheckSecurityProtection::CheckSecurityProtection()
+{
+    m_4 = 0;  // ORIG C1：byte
+}
+InformNoticeData::InformNoticeData() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+InformNoticeData2nd::InformNoticeData2nd() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+LimitNpcBuyItem::LimitNpcBuyItem() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 PcRoomPlayTimeRewardParam::PcRoomPlayTimeRewardParam() {}
 ReqDebugClearQuestResult::ReqDebugClearQuestResult() : m_index() {}  // ORIG 0x8231a72
-ReqResult::ReqResult() {}
-STQuestShopBuyParam::STQuestShopBuyParam() {}
-STQuestShopParam::STQuestShopParam() {}
-STUdateItemParam::STUdateItemParam() {}
-ScanBotByDllParam::ScanBotByDllParam() {}
-ScanBotByDrvParam::ScanBotByDrvParam() {}
-ScriptHashParam::ScriptHashParam() {}
-SecuCardRpyParam::SecuCardRpyParam() {}
-SendMercenaryCompetitionResult::SendMercenaryCompetitionResult() {}
-SendMercenaryReturnResult::SendMercenaryReturnResult() {}
-TempParam::TempParam() {}
-saveQuestNotifyParam::saveQuestNotifyParam() {}
-stAddFriendParam::stAddFriendParam() { m_field4 = 0; }  // ORIG 0x8230f64
-stAvatarDisjointRandomReward::stAvatarDisjointRandomReward()
-    : m_rewards()
-{  // ORIG 0x82319aa
+ReqResult::ReqResult() : m_found(0), m_questIdx(-1) {}
+STQuestShopBuyParam::STQuestShopBuyParam()
+{  // ORIG C1：+4 byte、+6 word、+8 int
+    m_4 = 0;
+    m_6 = 0;
+    m_8 = 0;
+}
+STQuestShopParam::STQuestShopParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+STUdateItemParam::STUdateItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+ScanBotByDllParam::ScanBotByDllParam()
+{  // ORIG C1：+4 int、+8 byte、+a word
+    m_4 = 0;
+    m_8 = 0;
+    m_a = 0;
+}
+ScanBotByDrvParam::ScanBotByDrvParam()
+{  // ORIG C1：+4 int、+8 byte
     m_4 = 0;
     m_8 = 0;
 }
+ScriptHashParam::ScriptHashParam()
+{  // ORIG C1：+4/+5 byte、+8 int 清零
+    m_4 = 0;
+    m_5 = 0;
+    m_8 = 0;
+}
+SecuCardRpyParam::SecuCardRpyParam()
+{
+    m_4 = 0;  // ORIG C1：两 byte
+    m_5 = 0;
+}
+SendMercenaryCompetitionResult::SendMercenaryCompetitionResult() {}
+SendMercenaryReturnResult::SendMercenaryReturnResult()
+{  // ORIG C1：competition_reward_result 出线构造于 +0xc（成员自动构造承担）
+}
+
+// ORIG _slot_String 成员函数（0x8236xxx 实证）：string@+2，两 byte 拷贝语义
+MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::_slot_String() {}
+MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::_slot_String(const _slot_String& o)
+    : m_str(o.m_str)
+{
+    m_slot = o.m_slot;
+    m_b = o.m_b;
+}
+MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String&
+MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::operator=(const _slot_String& o)
+{
+    m_slot = o.m_slot;
+    m_b = o.m_b;
+    m_str = o.m_str;
+    return *this;
+}
+MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::~_slot_String() {}
+TempParam::TempParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+saveQuestNotifyParam::saveQuestNotifyParam() {}
+stAddFriendParam::stAddFriendParam() { m_field4 = 0; }  // ORIG 0x8230f64
+stAvatarDisjointRandomReward::stAvatarDisjointRandomReward() : m_4(0), m_8(0) {}  // ORIG 0x82319aa
 stBingoQuiz::stBingoQuiz() {}
 stBingoReward::stBingoReward() {}
-stBlueMarble::stBlueMarble() {}
-stBlueMarbleConfirmInfo::stBlueMarbleConfirmInfo() {}
-stBossDieCheckParam::stBossDieCheckParam() {}
-stBreakAwayParam::stBreakAwayParam() {}
-stCallMemberListParam::stCallMemberListParam() {}
+stBlueMarble::stBlueMarble() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stBlueMarbleConfirmInfo::stBlueMarbleConfirmInfo() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stBossDieCheckParam::stBossDieCheckParam()
+{  // ORIG C1：+4 int、+8 byte、+a word、+c int
+    m_4 = 0;
+    m_8 = 0;
+    m_a = 0;
+    m_c = 0;
+}
+stBreakAwayParam::stBreakAwayParam() : m_resultCode(0) {}
+stCallMemberListParam::stCallMemberListParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stChangeAnotherSkillTree::stChangeAnotherSkillTree() {}
 stChangeAvatarOption::stChangeAvatarOption() {}
-stChangeEmotionParam::stChangeEmotionParam() {}
-stChangeHostWarRoom::stChangeHostWarRoom() {}
+stChangeEmotionParam::stChangeEmotionParam()
+{
+    m_4 = 0;  // ORIG C1：word
+}
+stChangeHostWarRoom::stChangeHostWarRoom() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stChangeLetterStatParam::stChangeLetterStatParam() {}
-stCharacSlotExtendEffect::stCharacSlotExtendEffect() {}
-stClientSpecStatisticParam::stClientSpecStatisticParam() {}
-stCloseDisjointStoreParam::stCloseDisjointStoreParam() {}
-stCollectItems::stCollectItems() {}
-stComboSkill::stComboSkill() {}
-stComboSkillExtensionQuickSlotReset::stComboSkillExtensionQuickSlotReset() {}
-stCreateCharac::stCreateCharac() {}
-stCreateDisjointStoreParam::stCreateDisjointStoreParam() {}
-stDeleteCharac::stDeleteCharac() {}
+stCharacSlotExtendEffect::stCharacSlotExtendEffect()
+{  // ORIG C1：+4 int、+8/+9 byte
+    m_4 = 0;
+    m_8 = 0;
+    m_9 = 0;
+}
+stClientSpecStatisticParam::stClientSpecStatisticParam()
+{
+    m_4 = 0;  // ORIG C1：byte
+}
+stCloseDisjointStoreParam::stCloseDisjointStoreParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stCollectItems::stCollectItems()
+{  // ORIG C1：+4 int、+8/+a word 清零
+    m_4 = 0;
+    m_8 = 0;
+    m_a = 0;
+}
+stComboSkill::stComboSkill() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stComboSkillExtensionQuickSlotReset::stComboSkillExtensionQuickSlotReset() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stCreateCharac::stCreateCharac() : m_errNo(0) {}
+stCreateDisjointStoreParam::stCreateDisjointStoreParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stDeleteCharac::stDeleteCharac() : m_errNo(0) {}
 stDeleteItemParam::stDeleteItemParam()
+    : m_4(0), m_8(0), m_9(0)
 {  // ORIG 0x8230b38：i=0..100 清零三个数组
     for (int i = 0; i < 100; ++i)
     {
@@ -254,21 +518,30 @@ stDeleteItemParam::stDeleteItemParam()
         m_counts19c[i] = 0;
     }
 }
-stDeleteToBlackListParam::stDeleteToBlackListParam() {}
-stDieCharacInDungeon::stDieCharacInDungeon() {}
-stDropItemParam::stDropItemParam() {}
-stEnchantByBeadParam::stEnchantByBeadParam() {}
-stEnchantParam::stEnchantParam() {}
-stEnterDisjointStoreParam::stEnterDisjointStoreParam() {}
-stEquipslotSwitch::stEquipslotSwitch() {}
-stExchangeRandomItemReward::stExchangeRandomItemReward()
-    : m_rewards(), m_items()
-{  // ORIG 0x823191e
-    m_4 = 0;
-    m_8 = 0;
-    m_9 = 0;
+stDeleteToBlackListParam::stDeleteToBlackListParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stDieCharacInDungeon::stDieCharacInDungeon() : m_errNo(0) {}
+stDropItemParam::stDropItemParam()
+    : m_errNo(0), m_8(0)
+{  // ORIG C1 另清 +0xc int（字段已补入头文件）
+    m_c = 0;
 }
-stExpandEquipslotFlagUpdate::stExpandEquipslotFlagUpdate() {}
+// NOTE(ORIG 0x8230d02)：还存在 +0xc int 清零，待头文件补 int m_c 后加入初始化列表。
+stEnchantByBeadParam::stEnchantByBeadParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stEnchantParam::stEnchantParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stEnterDisjointStoreParam::stEnterDisjointStoreParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stEquipslotSwitch::stEquipslotSwitch()
+{
+    m_4 = 0;  // ORIG C1：byte
+}
+stExchangeRandomItemReward::stExchangeRandomItemReward() : m_4(0), m_8(0), m_9(0) {}  // ORIG 0x823191e
+stExpandEquipslotFlagUpdate::stExpandEquipslotFlagUpdate()
+{
+    m_4 = 0;  // ORIG C1：byte
+}
 stExpertExtraction::stExpertExtraction() : m_list()
 {  // ORIG 0x82317fe
     m_4 = 0;
@@ -276,139 +549,208 @@ stExpertExtraction::stExpertExtraction() : m_list()
     m_list.clear();
 }
 stFatigueAttendance::stFatigueAttendance() {}
-stFinishLoadParam::stFinishLoadParam() {}
-stGetItemParam::stGetItemParam() {}
-stGoldTakeIncreasingAmount::stGoldTakeIncreasingAmount() {}
-stGrowthCreature::stGrowthCreature() {}
-stGrowthEquipment::stGrowthEquipment()
-    : m_10(0), m_14(0)
-{  // ORIG 0x8231e56
+stFinishLoadParam::stFinishLoadParam() : m_errNo(0) {}
+stGetItemParam::stGetItemParam() : m_errNo(0) {}
+stGoldTakeIncreasingAmount::stGoldTakeIncreasingAmount()
+{  // ORIG C1：+4 int、+8 byte
     m_4 = 0;
+    m_8 = 0;
+}
+stGrowthCreature::stGrowthCreature() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGrowthEquipment::stGrowthEquipment() : m_4(0), m_8(0), m_c(0), m_10(0), m_14(0) {}  // ORIG 0x8231e56
+stGrowthPowerParam::stGrowthPowerParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildBoardParam::stGuildBoardParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildCargoHistoryParam::stGuildCargoHistoryParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildCargoMoveItemParam::stGuildCargoMoveItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildCargoParam::stGuildCargoParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildCargoPopItemParam::stGuildCargoPopItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stGuildCargoPushItemParam::stGuildCargoPushItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stHatchCreature::stHatchCreature() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stImageCommunicationEquipmentUse::stImageCommunicationEquipmentUse()
+{
+    m_4 = 0;  // ORIG C1：三连 int
     m_8 = 0;
     m_c = 0;
 }
-stGrowthPowerParam::stGrowthPowerParam() {}
-stGuildBoardParam::stGuildBoardParam() {}
-stGuildCargoHistoryParam::stGuildCargoHistoryParam() {}
-stGuildCargoMoveItemParam::stGuildCargoMoveItemParam() {}
-stGuildCargoParam::stGuildCargoParam() {}
-stGuildCargoPopItemParam::stGuildCargoPopItemParam() {}
-stGuildCargoPushItemParam::stGuildCargoPushItemParam() {}
-stHatchCreature::stHatchCreature() {}
-stImageCommunicationEquipmentUse::stImageCommunicationEquipmentUse() {}
-stItemDictionary::stItemDictionary() {}
-stItemHyperLinkMessage::stItemHyperLinkMessage() {}
-stLeavePartyParam::stLeavePartyParam() {}
+stItemDictionary::stItemDictionary() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stItemHyperLinkMessage::stItemHyperLinkMessage() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stLeavePartyParam::stLeavePartyParam() : m_errNo(0) {}
 stLogIngameAdvertisement::stLogIngameAdvertisement() {}
-stMailboxExtractParam::stMailboxExtractParam() {}
-stMailboxOpenParam::stMailboxOpenParam() {}
-stMailboxSendParam::stMailboxSendParam() {}
+stMailboxExtractParam::stMailboxExtractParam()
+{
+    m_4 = 0;  // ORIG C1：双 int
+    m_8 = 0;
+}
+stMailboxOpenParam::stMailboxOpenParam()
+{
+    m_4 = 0;  // ORIG C1：双 int
+    m_8 = 0;
+}
+stMailboxSendParam::stMailboxSendParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stMemberEnterReplyParam::stMemberEnterReplyParam() {}
-stMemberSecedeParam::stMemberSecedeParam() {}
-stMonstercardBind::stMonstercardBind() : m_list()
-{  // ORIG 0x823175a
+stMemberSecedeParam::stMemberSecedeParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stMonstercardBind::stMonstercardBind()
+{  // ORIG 0x823175a：vector C1 先于标量（成员自动构造），随后拷贝链与 clear
+    m_4 = 0;
     m_c = 0;
     m_a = m_c;
     m_8 = m_a;
-    m_4 = 0;
     m_list.clear();
 }
-stMoveItemParam::stMoveItemParam()
-    : m_10(0), m_14(0)
-{  // ORIG 0x8230cd4
-    m_4 = 0;
-    m_8 = 0;
-    m_a = 0;
-    m_c = 0;
-}
-stMoveMapParam::stMoveMapParam() {}
-stObjectBringUp::stObjectBringUp() : m_items()
-{  // ORIG 0x8231ae6
-    m_4 = 0;
-    m_8 = 0;
-    m_a = 0;
-    m_b = 0;
-}
+stMoveItemParam::stMoveItemParam() : m_4(0), m_8(0), m_a(0), m_c(0), m_10(0), m_14(0) {}  // ORIG 0x8230cd4
+stMoveMapParam::stMoveMapParam() : m_errNo(0) {}
+stObjectBringUp::stObjectBringUp() : m_4(0), m_8(0), m_a(0), m_b(0) {}  // ORIG 0x8231ae6
 stOnBuySkillParam::stOnBuySkillParam()
-{  // ORIG 0x8230a04：70 个 buySkillInfo 逐个构造（成员默认 ctor）
-    for (int i = 0; i < 70; ++i)
-        m_infos[i] = buySkillInfo();
-    m_350 = -1;
+    : m_4(0), m_350(-1)
+{  // ORIG 0x8230a04：m_infos[70] 隐式逐元素 buySkillInfoC1（GCC 循环），尾部标量与
+   // memset(this+8,0,0x348)。唯一指令级差异：ORIG 将 m_4 清零置于数组构造前。
     m_354 = 0;
     m_355 = 0;
+    memset(m_infos, 0, sizeof(m_infos));
 }
-stOnChangeSkillParam::stOnChangeSkillParam() {}
-stOnGetUserInfoParam::stOnGetUserInfoParam() {}
-stOnPvPTimeOut::stOnPvPTimeOut() {}
-stOnRecoverStaminaParam::stOnRecoverStaminaParam() {}
-stOnSetPvPReadyParam::stOnSetPvPReadyParam() {}
-stOnSortItemParam::stOnSortItemParam() {}
-stOnUseEquipParam::stOnUseEquipParam() {}
-stOpenCeraPackage::stOpenCeraPackage() {}
+stOnChangeSkillParam::stOnChangeSkillParam() : m_curSlot(-1), m_newSlot(-1) {}
+stOnGetUserInfoParam::stOnGetUserInfoParam()
+{  // ORIG C1：+4 word、+6 byte
+    m_4 = 0;
+    m_6 = 0;
+}
+stOnPvPTimeOut::stOnPvPTimeOut() : m_timeOutResult(-1) {}
+stOnRecoverStaminaParam::stOnRecoverStaminaParam() : m_errNo(-1) {}
+stOnSetPvPReadyParam::stOnSetPvPReadyParam() : m_errNo(0) {}
+stOnSortItemParam::stOnSortItemParam() : m_invenType(0), m_result(0) {}
+stOnUseEquipParam::stOnUseEquipParam() : m_errNo(0), m_8(0) {}
+stOpenCeraPackage::stOpenCeraPackage() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stPartyTeleport::stPartyTeleport() {}
 stPartyTeleportConfirm::stPartyTeleportConfirm() {}
 stQuickChatParam::stQuickChatParam() {}
-stQuickPartyParam::stQuickPartyParam() {}
+stQuickPartyParam::stQuickPartyParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stRefundSkill::stRefundSkill() {}
-stRegenROIResult::stRegenROIResult() {}
-stRegisterToBlackListParam::stRegisterToBlackListParam() {}
-stRemoveFriendParam::stRemoveFriendParam() {}
-stRenameCreature::stRenameCreature() {}
-stRentItemParam::stRentItemParam() : m_output()
-{  // ORIG 0x8231cda
-    m_4 = 0;
-}
-stRepairDisjointMachineParam::stRepairDisjointMachineParam() {}
-stRepairEquipParam::stRepairEquipParam() {}
+stRegenROIResult::stRegenROIResult() : m_errNo(0), m_insertedSlot(0) {}
+stRegisterToBlackListParam::stRegisterToBlackListParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stRemoveFriendParam::stRemoveFriendParam() : m_errNo(0) {}
+stRenameCreature::stRenameCreature() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stRentItemParam::stRentItemParam() : m_4(0) {}  // ORIG 0x8231cda；RentOutput 成员自动构造
+stRepairDisjointMachineParam::stRepairDisjointMachineParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stRepairEquipParam::stRepairEquipParam() : m_errNo(0), m_8(0), m_a(0), m_c(0) {}
 stRequestAssaultPrice::stRequestAssaultPrice() {}
 stRequestBlackListParam::stRequestBlackListParam() {}
 stRequestCharacSkillInfo::stRequestCharacSkillInfo() {}
-stRequestDisjointItemParam::stRequestDisjointItemParam() {}
+stRequestDisjointItemParam::stRequestDisjointItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stRequestIngameAdvertisement::stRequestIngameAdvertisement() {}
-stRequestMemberEnterParam::stRequestMemberEnterParam() {}
+stRequestMemberEnterParam::stRequestMemberEnterParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stRightOfChangeGrowType::stRightOfChangeGrowType() {}
-stSaveCharacOption::stSaveCharacOption() {}
-stSecretShopBuyItemParam::stSecretShopBuyItemParam() {}
-stSecretShopOpenCloseParam::stSecretShopOpenCloseParam() {}
+stSaveCharacOption::stSaveCharacOption() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stSecretShopBuyItemParam::stSecretShopBuyItemParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stSecretShopOpenCloseParam::stSecretShopOpenCloseParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stSecurityLogParam::stSecurityLogParam() {}
-stSelectCharac::stSelectCharac() {}
+stSelectCharac::stSelectCharac() : m_errNo(0) {}
+// NOTE(stSelectDungeonParam ORIG 0x8230dd8：+4/+8/+c=0、+10=2、+14=0 —— 头文件字段就绪后改写)
 stSelectDungeonParam::stSelectDungeonParam()
-    : m_14(0)
-{  // ORIG 0x8230dd8
+{  // ORIG 0x8230dd8：写入序 +4/+8/+c=0、+10=2、+14=0
     m_4 = 0;
     m_8 = 0;
     m_c = 0;
     m_10 = 2;
+    m_14 = 0;
 }
 stSelectStriker::stSelectStriker() {}
 stSendClearedMission::stSendClearedMission() : m_missionIdxs() {}  // ORIG 0x8250d1e
-stSeriaRoomDecoEvent::stSeriaRoomDecoEvent() {}
-stSetAreaParam::stSetAreaParam() {}
-stSetPartyInfo::stSetPartyInfo() {}
-stSkillCommandParam::stSkillCommandParam() {}
-stSkillInit::stSkillInit() {}
-stSoloTeleportParam::stSoloTeleportParam() {}
+stSeriaRoomDecoEvent::stSeriaRoomDecoEvent()
+{  // ORIG C1：+4 int、+8/+a word
+    m_4 = 0;
+    m_8 = 0;
+    m_a = 0;
+}
+stSetAreaParam::stSetAreaParam()
+{  // ORIG C1：写入序 +4 int、+8/+9 byte
+    m_errNo = 0;
+    m_8 = 0;
+    m_9 = 0;
+}
+// NOTE(ORIG 0x8230e5e)：另有 +8/+9 两字节清零，待头文件补字段。
+stSetPartyInfo::stSetPartyInfo() : m_errNo(0) {}
+stSkillCommandParam::stSkillCommandParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stSkillInit::stSkillInit()
+{
+    // ORIG C1：+4 int、+8 byte 清零
+    m_4 = 0;
+    m_8 = 0;
+}
+stSoloTeleportParam::stSoloTeleportParam()
+{
+    m_4 = 0;  // ORIG C1：三连 int
+    m_8 = 0;
+    m_c = 0;
+}
 stStackableActionUse::stStackableActionUse() {}
-stStartGameParam::stStartGameParam() {}
+stStartGameParam::stStartGameParam()
+{  // ORIG C1：+4=0、+8=0、+0xc=2
+    m_errNo = 0;
+    m_8 = 0;
+    m_c = 2;
+}
+// NOTE(ORIG 0x8230f2a)：另清 +8 int 与 +c int=2，待头文件补字段。
 stTeleportParam::stTeleportParam()
-    : m_14(0)
-{  // ORIG 0x8231362
+{  // ORIG 0x8231362：写入序 +4、+8(word)、+10、+11、+14
     m_4 = 0;
     m_8 = 0;
     m_10 = 0;
     m_11 = 0;
+    m_14 = 0;
 }
 stTournamentRewardSelect::stTournamentRewardSelect() {}
 stTournamentRewardSelectState::stTournamentRewardSelectState() {}
-stUpdateContractOfCubeInfo::stUpdateContractOfCubeInfo() {}
-stUpgradeDisjointMachineParam::stUpgradeDisjointMachineParam() {}
-stUseCoinParam::stUseCoinParam() {}
-stUseDye::stUseDye() {}
-stUseLimitCube::stUseLimitCube() {}
-stUseRenameCard::stUseRenameCard() {}
-stUseSkillParam::stUseSkillParam() {}
-stWalkoutPartyParam::stWalkoutPartyParam() {}
-stWarRoomWp::stWarRoomWp() {}
+stUpdateContractOfCubeInfo::stUpdateContractOfCubeInfo()
+{  // ORIG C1：+4 int、+8/+9 byte
+    m_4 = 0;
+    m_8 = 0;
+    m_9 = 0;
+}
+stUpgradeDisjointMachineParam::stUpgradeDisjointMachineParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stUseCoinParam::stUseCoinParam() : m_errNo(0)
+{
+    m_8 = 0;  // ORIG C1：+4 int、+8 word 清零
+}
+stUseDye::stUseDye() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stUseLimitCube::stUseLimitCube()
+{  // ORIG C1：+4 byte、+8/+c int、+10 word
+    m_4 = 0;
+    m_8 = 0;
+    m_c = 0;
+    m_10 = 0;
+}
+stUseRenameCard::stUseRenameCard() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
+stUseSkillParam::stUseSkillParam() : m_errNo(0) {}  // ORIG C1：+4 int 清零
+stWalkoutPartyParam::stWalkoutPartyParam() : m_errNo(0) {}
+stWarRoomWp::stWarRoomWp() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 
 // 显式实例化 IPacketDispatcher 模板
 template class IPacketDispatcher<MSG_ENCHANT, stEnchantParam, ch_state0>;

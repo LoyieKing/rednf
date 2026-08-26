@@ -21,6 +21,8 @@ private:
 public:
     // EventNewCharacterReward::isEventCharacter @ 0x0816bcea —— param 是否活动角色职业。
     bool isEventCharacter(int job);
+    float eventExpRatio();   // ORIG T 0x0816bd06 _ZN23EventNewCharacterReward13eventExpRatioEv
+                             // （set_clear_reward_exp_parameter 事件角色经验比例；定义待事件域批次）
 };
 
 #endif  // GAME_EVENTNEWCHARACTERREWARD_H_

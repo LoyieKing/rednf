@@ -20,14 +20,16 @@
 
 class STScriptFileList;  // ORIG 全局类（NpcScript.h 镜像 / 各 TU 本地模型）
 
-// ---- ContentsType（ORIG 全局类；getType T 0x08ac34a4，定义待数据域批次）----
+// ---- ContentsType（ORIG 全局类；getString T 0x08ac3434 / getType T 0x08ac34a4，
+//      定义见 EventRewardQuickPartyB2.cpp）----
 struct ContentsType
 {
     enum T
     {
         T_0 = 0
     };
-    static int getType(const char* name);   // [声明] 定义待数据域批次
+    static const char* getString(T type);   // T 0x08ac3434
+    static int getType(const char* name);   // T 0x08ac34a4
 };
 
 // ---- ContentsRevision（[contents revision] 行；ORIG 栈对象 16 字节）----
@@ -61,7 +63,14 @@ struct StrikerSkillDataUp
 // ---- TagSkillPenalty（readSkillPenalty 行；栈对象 0x10）----
 struct TagSkillPenalty
 {
-    TagSkillPenalty() : m_skillIdx(0), m_value(0), m_isPercent(0), m_pad(0) {}
+    TagSkillPenalty() { clear(); }  // ORIG C1/C2 T 0x08a9d768：仅调 clear()
+    void clear()                    // ORIG T 0x08a9d77c：+0=0、+4=0、+8 字节 0、+0xc=0
+    {
+        m_skillIdx = 0;
+        m_value = 0;
+        m_isPercent = false;        // movb $0x0,0x8
+        m_pad = 0;
+    }
     int m_skillIdx;   // +0x00
     int m_value;      // +0x04
     bool m_isPercent; // +0x08（与 "%" 比较）
@@ -142,7 +151,10 @@ public:
     std::vector<TagSkillPenalty> m_coolTimePenalty;    // +0x58
     int m_field64;                               // +0x64（clear 置 0）
     int m_field68;                               // +0x68（clear 置 0）
-    char m_pad6c[0xc];                           // +0x6c..0x77（ORIG 间隙，未观测）
+    std::vector<ParentLevelPenalty> m_parentLevelPenalty;   // +0x6c（ctor 0x08a9d88e
+                                                            //  构造 vector@+0x6c；
+                                                            //  importParentLevelPenlaty
+                                                            //  0x08a9e654 clear/push_back 实证）
     std::map<int, std::vector<StrikerSkill>*> m_skillMap;  // +0x78
     void* m_fileList;                            // +0x90（create/destory 管理；ORIG STScriptFileList*）
     std::vector<StrikerSkillAddCommand> m_macroCommands;   // +0x94（[striker skill macro]）

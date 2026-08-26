@@ -33,21 +33,23 @@ namespace WongWork
 
 // Ctor（ORIG 0x0814bd0c）：CBossPlay 基类、置 vtable（编译器自动）、构造
 // MapInfo、Clear、get_rand_int(60000) 写 m_assignItemIdx/m_dropItemCnt，
-// m_stageCur=1、m_dungeon=0、m_difficulty=0。
-CBossStage::CBossStage() : m_dungeon(0)
+// 函数体内依次 m_stageCur=1、m_dungeon=0、m_difficulty=0。
+CBossStage::CBossStage()
 {
     m_stageCur = 1;
-    m_stageData.Clear();
+    m_dungeon = 0;
     m_difficulty = 0;
+    m_stageData.Clear();
     m_stageData.m_assignItemIdx = get_rand_int(60000);   // ORIG +0xa30
     m_stageData.m_dropItemCnt = get_rand_int(60000);     // ORIG +0xa34
 }
 
-// Dtor（ORIG 0x0814bdd6）：置 vtable（编译器自动）、Clear、rand、析构
-// MapInfo、CBossPlay 基类（编译器自动）。
+// Dtor（ORIG 0x0814bdd6）：置 vtable（编译器自动）、m_stageCur=1、
+//   m_dungeon=0、m_difficulty=0、Clear、rand×2、析构 MapInfo、基类（编译器自动）。
 CBossStage::~CBossStage()
 {
     m_stageCur = 1;
+    m_dungeon = 0;
     m_difficulty = 0;
     m_stageData.Clear();
     m_stageData.m_assignItemIdx = get_rand_int(60000);
@@ -55,13 +57,13 @@ CBossStage::~CBossStage()
 }
 
 // ORIG 0x0814bea2：m_startTick=0、m_endTick=0、MapInfo::Clear、
-//   memset(this+0x9c8, 0, 0x10)（+0x9c8 为 CBossPlay 私有 pad，保持地址形式）。
+//   memset(m_useItemCount, 0, 0x10)（CBossPlay::m_useItemCount[4]，ORIG this+0x9c8）。
 void CBossStage::reset()
 {
     m_startTick = 0;
     m_endTick = 0;
     m_stageData.Clear();
-    memset(reinterpret_cast<char*>(this) + 0x9c8, 0, 0x10);
+    memset(m_useItemCount, 0, sizeof(m_useItemCount));
 }
 
 
@@ -95,13 +97,12 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
             analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0x19f, 1, 0, 0);
         if (mapIndex[i] == 0)
             analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0x19b, 1, 0, 0);
-        // CBossPlay 私有 m_pad9c8 视图（ORIG 同址逐 int 判零）
-        if (*reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(this) + 0x9c8 + i * 4) == 0)
+        // ORIG this+0x9c8+i*4 逐 int 判零（CBossPlay::m_useItemCount[i]）
+        if (m_useItemCount[i] == 0)
             analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0xdd, 1, 0, 0);
 
-        ((cUserHistoryLog*)((char*)user + 0x79700))
-            ->MapClear(mapIndex[i], playSec, 0);
+        // cUserHistoryLog 为 CUser 嵌套成员 m_historyLog（ORIG user+0x79700）
+        user->m_historyLog.MapClear(mapIndex[i], playSec, 0);
     }
 
     if (!moveNextStage())
@@ -116,18 +117,16 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
         CUser* manager = party->getManager();
         if (manager != 0 && manager->isGMUser())
         {
-            // +0x796d0：GM 指定下一图索引（取走即清零）
-            if (*(int*)((char*)manager + 0x796d0) != 0)
+            // CUser GM 调试字段（"bossmap"/"bossdifficult" 指令写入，取走即清零）
+            if (manager->m_gmBossMapIndex != 0)
             {
-                mapIdx = *(int*)((char*)manager + 0x796d0);
-                *(int*)((char*)manager + 0x796d0) = 0;
+                mapIdx = manager->m_gmBossMapIndex;
+                manager->m_gmBossMapIndex = 0;
             }
-            // +0x796cc：GM 指定难度（byte，取走即清零）
-            if (*(unsigned char*)((char*)manager + 0x796cc) != 0)
+            if (manager->m_gmBossDifficulty != 0)
             {
-                m_difficulty =
-                    (int)(signed char)*(unsigned char*)((char*)manager + 0x796cc);
-                *(unsigned char*)((char*)manager + 0x796cc) = 0;
+                m_difficulty = (int)(signed char)manager->m_gmBossDifficulty;
+                manager->m_gmBossDifficulty = 0;
             }
         }
 
@@ -356,12 +355,12 @@ int CBossStage::handleKillMonster(CUser* user, unsigned short a,
 
     int curExp = user->getCurCharacExp();
     char roleType = mob.m_roleType;
-    ((cUserHistoryLog*)((char*)user + 0x79700))
-        ->KillMonster(mob.m_mobIndex,
+    // cUserHistoryLog 为 CUser 嵌套成员 m_historyLog（ORIG user+0x79700）
+    user->m_historyLog.KillMonster(mob.m_mobIndex,
                       die.m_killValue1,   // +0xa1e（耗时类）
                       die.m_killValue2,   // +0xa1a（经验类）
-                      *(const unsigned short*)(reinterpret_cast<const char*>(&die) + 0xa24),
-                      *(const unsigned short*)(reinterpret_cast<const char*>(&die) + 0xa26),
+                      die.m_killPairA24,
+                      die.m_killPairA26,
                       die, roleType, roleType == 5, curExp, (int)exp,
                       (eExpAddReason)0xb);
 
@@ -372,45 +371,53 @@ int CBossStage::handleKillMonster(CUser* user, unsigned short a,
 
 // ============================================================================
 // 非虚方法（逐函数按 docs/class_func_reports/WongWork__CBossStage/ 报告转写）
-// 字段速查（char* s = this）：
-//   +0x9f0 dungeon   +0x9f4 MapInfo   +0x9f8 curMapIndex
-//   +0xa30 mobSeq    +0xa34 itemSeq   +0xa3c seedVal
-//   +0xae0 stageCur  +0xae4 stageMax  +0xae8 difficulty  +0xaec expParamA
+// 字段速查（均已具名，偏移仅作对照）：
+//   m_dungeon(+0x9f0)  m_stageData(MapInfo@+0x9f4；m_mapIndex+0x9f8、
+//     m_assignItemIdx+0xa30、m_dropItemCnt+0xa34、m_mapBasisLevel+0xa3c)
+//   m_stageCur(+0xae0)  m_stageMax(+0xae4)  m_difficulty(+0xae8)
+//   m_expParamA(+0xaec)  基类 CBossPlay::m_useItemCount[4](+0x9c8)
 // ============================================================================
 
 // ---- moveNextStage（ORIG 0x0814d1b6）----
-// 本层怪物清空（monsterMap.empty()）且 m_stageCur < m_stageMax 时进入下一层。
+// 怪物清空（monsterMap.empty()）且 m_stageCur < m_stageMax（无符号比较）
+// 时 m_stageCur+=1 进入下一层。
 bool CBossStage::moveNextStage()
 {
     if (!m_stageData.m_monsterMap.empty())
         return false;
-    if ((unsigned int)m_stageCur >= (unsigned int)m_stageMax)
-        return false;
-    m_stageCur += 1;
-    return true;
+    if ((unsigned int)m_stageCur < (unsigned int)m_stageMax)
+    {
+        m_stageCur += 1;
+        return true;
+    }
+    return false;
 }
 
 // ---- randomMapIndex（ORIG 0x0814f4fc）----
-// 按当前层数查 CDungeon::getRandomTowerMapIndexes() 表，10000 权重段随机。
+// acc/roll 先置零；栈上 vector 拷贝后遍历；getRandomTowerMapIndexes 在
+// find 与 end 处各调用一次（ORIG 两次外呼）。
 bool CBossStage::randomMapIndex(int& index)
 {
+    int acc = 0;
+    int roll = 0;
+    std::map<int, std::vector<RandomList> >::const_iterator it;
+    std::vector<RandomList> vec;
+    int stageCur = m_stageCur;                        // +0xae0
     const std::map<int, std::vector<RandomList> >* towerMaps =
         m_dungeon->getRandomTowerMapIndexes();
-    std::map<int, std::vector<RandomList> >::const_iterator it =
-        towerMaps->find(m_stageCur);
-    if (it == towerMaps->end())
+    it = towerMaps->find(stageCur);
+    const std::map<int, std::vector<RandomList> >* endMaps =
+        m_dungeon->getRandomTowerMapIndexes();
+    if (it == endMaps->end())
         return false;
-
-    // ORIG 将 vector 拷贝到栈上再遍历，语义等价于直接读表。
-    int acc = 0;
-    int roll = get_rand_int(10000);
-    for (std::vector<RandomList>::const_iterator r = it->second.begin();
-         r != it->second.end(); ++r)
+    vec = it->second;
+    roll = get_rand_int(10000);
+    for (unsigned int i = 0; i < vec.size(); ++i)
     {
-        acc += r->m_weight;                       // 元素 +0x04 权重累加
+        acc += vec[i].m_weight;
         if (roll < acc)
         {
-            index = r->m_mapIndex;                // 元素 +0x00 地图索引
+            index = vec[i].m_mapIndex;
             break;
         }
     }
@@ -418,17 +425,22 @@ bool CBossStage::randomMapIndex(int& index)
 }
 
 // ---- killMonsterErase（ORIG 0x0814d214）----
-bool CBossStage::killMonsterErase(unsigned short uid, map_monster& mob,
+// find(uid) → const_iterator 判 end() → mob=it->second、outCount=(uchar)+0x14、
+// erase(by key) → true；未找到 false。
+bool CBossStage::killMonsterErase(unsigned short uidParam, map_monster& mob,
                                   int& outCount)
 {
-    std::map<int, map_monster>& mobs = m_stageData.m_monsterMap;
-    std::map<int, map_monster>::iterator it = mobs.find((int)uid);
-    if (it == mobs.end())
-        return false;
-    mob = it->second;                             // map_monster::operator=
-    outCount = (int)(unsigned char)it->second.m_field14;  // +0x14 byte
-    mobs.erase(it);
-    return true;
+    int uid = uidParam;                           // ORIG 以 int 局部承接（无 ushort 槽）
+    std::map<int, map_monster>::const_iterator it =
+        m_stageData.m_monsterMap.find(uid);
+    if (it != m_stageData.m_monsterMap.end())
+    {
+        mob = it->second;                             // map_monster::operator=
+        outCount = (unsigned char)it->second.m_level;   // ORIG pair+0x14 = mob+0x10
+        m_stageData.m_monsterMap.erase(uid);          // by-key erase
+        return true;
+    }
+    return false;
 }
 
 // ---- KillMonsterGetExp（ORIG 0x0814d300）----
@@ -453,16 +465,16 @@ int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
             exp, roleType, m_expParamA, 1.0f, 1.0f, false);
 
         // 死亡之塔费率（ORIG x87 fistpll 就近舍入；经验恒正，
-        // (double)x+0.5 截断等价）。第一层费率在 stDeathTower_t+0x00，
-        // 第二层在 +0xc84。
+        // (double)x+0.5 截断等价）。APC（roleType==5）额外乘 [apc exp weight]
+        // （stDeathTower_t+0x00）；所有怪乘 [monster exp weight]（+0xc84）。
         float expF = (float)total;
         stDeathTower_t* tower = G_CDataManager()->GetTowerScript(
             dungeon->get_index());
         if (roleType == 5)
-            total = (unsigned int)((double)*(float*)((char*)tower) * expF + 0.5);
+            total = (unsigned int)((double)tower->m_apcExpWeight * expF + 0.5);
         tower = G_CDataManager()->GetTowerScript(dungeon->get_index());
         total = (unsigned int)(
-            (double)*(float*)((char*)tower + 0xc84) * (float)total + 0.5);
+            (double)tower->m_monsterExpWeight * (float)total + 0.5);
 
         STGainedEachExpData data;                 // ORIG ctor W 0x08151a56
         data.m_exp = total;
@@ -603,8 +615,11 @@ bool CBossStage::RoutingPickupItem(CUser* user, unsigned int uid,
 {
     CSpecialItemRoutingManager* mgr =
         G_CGameManager()->GetSpecialItemRoutingManager();
-    int ret = mgr->StartRouting(user, item.m_item, uid);
-    if (ret != 0)
+
+    int ret = 0;
+    ret = mgr->StartRouting(user, item.m_item, uid);
+    bool failed = (ret != 0);
+    if (failed)
     {
         PacketGuard packet;
         packet.clear();
@@ -617,6 +632,7 @@ bool CBossStage::RoutingPickupItem(CUser* user, unsigned int uid,
     }
     return true;
 }
+
 
 namespace
 {
@@ -666,8 +682,8 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
         WongWork::CGenUniqueNo::genIPGNo(
             (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
             (unsigned int)user->getCurCharacNo(), agency);
-        // 第三参取 map_item+0x1b 字节（ORIG movzwl+movsbl）
-        char periodByte = reinterpret_cast<const char*>(&item)[0x1b];
+        // 第三参取 map_item+0x1b = m_item.m_fieldb 低字节（ORIG movzwl+movsbl）
+        char periodByte = (char)(unsigned char)item.m_item.m_fieldb;
         slot = user->addAvatarItem((unsigned long)item.m_item.m_addInfo, 0,
                                    periodByte, agency,
                                    (eAvatarItemAddReason)0x10);
@@ -765,7 +781,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
         WongWork::CGenUniqueNo::genIPGNo(
             (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
             (unsigned int)winner->getCurCharacNo(), agency);
-        char periodByte = reinterpret_cast<const char*>(&item)[0x1b];
+        char periodByte = (char)(unsigned char)item.m_item.m_fieldb;
         slot = winner->addAvatarItem((unsigned long)item.m_item.m_addInfo, 0,
                                      periodByte, agency,
                                      (eAvatarItemAddReason)0x10);
@@ -854,10 +870,10 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
 
         if (tmp.isEquipableItemType())
         {
-            // ORIG 读 CItem 对象 +0x234 int（未具名字段【推断】为装备子类型区）
-            int subKind = *(const int*)(
-                reinterpret_cast<const char*>(script) + 0x234);
-            if (subKind == 0xb || subKind < 10)
+            // ORIG 读装备对象 +0x234 int = CEquipItem::m_itemType（CEquipItem.h）
+            const CEquipItem* equip =
+                static_cast<const CEquipItem*>(script);
+            if (equip->m_itemType == 0xb || equip->m_itemType < 10)
                 return false;
         }
 
@@ -867,18 +883,7 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         out.m_item.m_field1 = tmp.m_field1;               // byte +0x11
         out.m_item.m_addInfo = tmp.m_addInfo;             // dword +0x12
         out.m_item.m_fieldd = tmp.m_fieldd;               // dword +0x1d
-        memcpy(reinterpret_cast<char*>(&out) + 0x21,
-               reinterpret_cast<const char*>(&tmp) + 0x11,
-               4);                                        // m_amp+0 dword +0x21
-        memcpy(reinterpret_cast<char*>(&out) + 0x25,
-               reinterpret_cast<const char*>(&tmp) + 0x15,
-               4);                                        // m_amp+4 dword +0x25
-        memcpy(reinterpret_cast<char*>(&out) + 0x29,
-               reinterpret_cast<const char*>(&tmp) + 0x19,
-               4);                                        // m_amp+8 dword +0x29
-        memcpy(reinterpret_cast<char*>(&out) + 0x2d,
-               reinterpret_cast<const char*>(&tmp) + 0x1d,
-               2);                                        // m_amp+0xc word +0x2d
+        out.m_item.m_amp = tmp.m_amp;                     // +0x21..+0x2e 整体拷贝（14 字节 POD）
         if (!tmp.isEquipableItemType())
             out.m_item.set_add_info(count);               // 非装备用丢弃数量
         else
@@ -896,8 +901,7 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         out.m_item.m_field0 = 0;                          // byte +0x00 = 0
         out.m_item.m_field1 = 2;                          // byte +0x11 = 2
         out.m_item.m_addInfo = 0;                         // dword +0x12 = 0
-        *reinterpret_cast<unsigned short*>(
-            reinterpret_cast<char*>(&out) + 0x1b) = 0;    // word +0x1b = 0
+        out.m_item.m_fieldb = 0;                          // word +0x1b = 0
         out.m_item.set_add_info(count);
         out.m_item.ResetItemAttr();
     }
@@ -971,7 +975,7 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
             stGenerateRefData_t ref;
             ref.m_field34 = (char)eraseCnt;        // +0x34（DepB 具名化）
             ref.m_rateSlot = (char)m_difficulty;
-            ref.m_countSlot = (char)getParty()->get_member_count();
+            ref.m_goldFactor = (unsigned short)((ref.m_goldFactor & 0xff00) | (getParty()->get_member_count() & 0xff));  // +0x3e 字节写（保 +0x3f 等级上界）
             mon->generateIndependentItem(ref, result.m_dropItems);
         }
     }
@@ -986,7 +990,7 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
             stGenerateRefData_t ref;
             ref.m_field34 = (char)eraseCnt;
             ref.m_rateSlot = (char)m_difficulty;
-            ref.m_countSlot = (char)getParty()->get_member_count();
+            ref.m_goldFactor = (unsigned short)((ref.m_goldFactor & 0xff00) | (getParty()->get_member_count() & 0xff));  // +0x3e 字节写（保 +0x3f 等级上界）
             ai->generateIndependentItem(ref, result.m_dropItems);
         }
     }
@@ -1044,11 +1048,8 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
             }
         }
         packet.put_short((int)item.m_item.m_fieldb);     // word @+0x1b
-        const unsigned char* ampBytes = reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(&item) + 0x21);
         packet.put_byte((int)item.m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)item.m_item.m_amp.getAbilityValue() & 0xffff);
-        (void)ampBytes;
         packet.put_packet(item.m_item);
         if (!item.m_item.isAvatarItemType())
         {
@@ -1120,7 +1121,8 @@ bool CBossStage::consistMap(const CMap* map)
             m_stageData.m_assignItemIdx += 1;
             mob.m_roleType = 5;                               // APC
             mob.m_level = (char)(unsigned char)ai->getLevel();
-            mob.m_dropCnt = it->m_level;                      // 布点数据 +0x10 dword
+            mob.m_dropCnt = it->m_camp;                       // +0x10 dword（STMapScript 批次命名 m_camp；
+                                                              //   本调用面按等级消费，语义双证待裁决）
             m_stageData.Add_Mob(mob);                         // ctor 已清 +0x11/+0x12
             ++counter;
         }
@@ -1229,8 +1231,9 @@ bool CBossStage::consistMap(const CMap* map)
             singleSpawnSeqs.push_back(mob.m_instId);
 
         mob.m_field13 = (char)(unsigned char)em.m_champion;   // em +0x1c
-        mob.m_field14 = (char)(unsigned char)*reinterpret_cast<
-            const char*>(reinterpret_cast<const char*>(&em) + 0x20);
+        // em +0x20 低字节（_mapMonster::m_posX 首字节；CBattle_Field 同型转写
+        // BattleMonsterDepsC2.cpp mob.m_field14 ← ref.m_posX）
+        mob.m_field14 = (char)(unsigned char)em.m_posX;
         mob.m_dropCnt = em.m_hpPct;                           // em +0x28
         m_stageData.Add_Mob(mob);
         ++counter;
@@ -1307,28 +1310,29 @@ bool CBossStage::consistMap(const CMap* map)
 // ----------------------------------------------------------------------------
 // ORIG T 0x0814f426（docs/class_func_reports/WongWork__CBossStage/
 // RandomConsistMap.md 全文，GlobalBossAndAltar 2026-08-24）：
-// randomMapIndex 失败 → false；GM 且 m_field796d0(+0x796d0) 非空时强制该图并清零；
+// randomMapIndex 失败 → false；GM 且 m_gmBossMapIndex(+0x796d0) 非空时强制该图并清零；
 // find_map 空/consistMap 失败 → false；成功记 m_startTick(+0x9e8) 并返回 true。
 // ----------------------------------------------------------------------------
 bool CBossStage::RandomConsistMap(CUser& user)
 {
     int mapIdx = 0;
-    if (!randomMapIndex(mapIdx))
+    if (randomMapIndex(mapIdx) != true)
         return false;
 
-    if (user.isGMUser() && user.m_field796d0 != 0)
+
+    if (user.isGMUser() && user.m_gmBossMapIndex != 0)
     {
-        mapIdx = user.m_field796d0;
-        user.m_field796d0 = 0;
+        mapIdx = user.m_gmBossMapIndex;
+        user.m_gmBossMapIndex = 0;
     }
 
     CMap* map = static_cast<CMap*>(G_CDataManager()->find_map(mapIdx));
     const bool failed = (map == 0) || !consistMap(map);
-    if (!failed)
-    {
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(this) + 0x9e8) =
-            GlobalData::s_systemTime_.getCurTickCount();
-    }
-    return !failed;
+    if (failed)
+        return false;
+    // ORIG this+0x9e8 = m_startTick
+    m_startTick = (int)GlobalData::s_systemTime_.getCurTickCount();
+    return true;
 }
+
 }  // namespace WongWork

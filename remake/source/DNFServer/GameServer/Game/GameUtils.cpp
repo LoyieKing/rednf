@@ -24,6 +24,17 @@ void trim(char* s)
     if (p != s) memmove(s, p, strlen(p) + 1);
 }
 
+// ---- trim(std::string&)（ORIG _Z4trimRSs @0x0829f068：字符集仅空格）----
+void trim(std::string& s)
+{
+    size_t b = s.find_first_not_of(" ", 0);
+    if (b != std::string::npos)
+        s.erase(0, b);
+    size_t e = s.find_last_not_of(" ", 0);
+    if (e != std::string::npos)
+        s.erase(e + 1, std::string::npos);
+}
+
 // ---- less_TCHAR（CEnvironment map 比较器）----
 bool less_TCHAR::operator()(const char* const& x, const char* const& y) const
 {

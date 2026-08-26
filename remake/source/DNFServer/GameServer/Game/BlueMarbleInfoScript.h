@@ -67,8 +67,12 @@ public:
     std::vector<int> getUniqueDungeonIndex(int level);
     int getDungeonDifficulty(int dungeon);
 
-private:
+public:  // m_playerMax：CGameManager::allocBlueMarble / findJoinableBlueMarble 按
+         // ORIG *(managerScript+0x30) 直读（ORIG 无 getter 符号；公开字段避免
+         // 新增 inline 弱符号污染 compare）。
     int m_playerMax;              // +0x00
+
+private:
     int m_enterLevel;             // +0x04
     int m_enterMaxLevel;          // +0x08
     int m_enterCount;             // +0x0c

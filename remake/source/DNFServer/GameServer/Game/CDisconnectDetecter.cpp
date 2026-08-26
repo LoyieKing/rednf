@@ -50,10 +50,12 @@ public:
 // ---- TimerDetectDisconnect::registNextTimer @ 0x086374e0 ----
 // 断线检测器定时器：10 秒后触发 dispatch_sig(0x6d)，若 DoDetectingDisconnect
 // 仍检测到断线用户则再次登记（自续期），见 TimerDetectDisconnect 报告。
+// ORIG 以 int 局部（-0xc(%ebp)）承载 10 再传参，帧 sub $0x38。
 void TimerDetectDisconnect::registNextTimer()
 {
+    int interval = 10;
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x6d, 10, 0, 0);
+                                (TIMER_MESSAGE)0x6d, interval, 0, 0);
 }
 
 // cMyTrace 由 TimerQueue.h 间接引入的 GameTypes.h 声明（实现属独立 TU）。
@@ -78,13 +80,12 @@ bool DetectedObjectKey::operator<(const DetectedObjectKey& other) const
     {
         return true;
     }
-    if (m_uid != other.m_uid)
+    if (m_uid == other.m_uid)
     {
-        return false;
-    }
-    if (m_uniqueId < other.m_uniqueId)
-    {
-        return true;
+        if (m_uniqueId < other.m_uniqueId)
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -140,12 +141,15 @@ bool CDisconnectDetecter::RefreshRecvTime(CUser* user)
 {
     DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
     std::map<DetectedObjectKey, int>::iterator it = m_map.find(key);
-    bool found = it != m_map.end();
-    if (found)
+    if (it != m_map.end())
     {
         it->second = GlobalData::s_systemTime_.getCurSec();
     }
-    return found;
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CDisconnectDetecter::DoDetectingDisconnect()
@@ -177,7 +181,11 @@ void CDisconnectDetecter::OnDisconnect(CUser* user)
 
 bool CDisconnectDetecter::_IsTimeout(int time)
 {
-    return GlobalData::s_systemTime_.getCurSec() - time > 30;
+    if (GlobalData::s_systemTime_.getCurSec() - time > 30)
+    {
+        return true;
+    }
+    return false;
 }
 
 CUser* CDisconnectDetecter::_GetUser(int uid, int uniqueId)
@@ -185,9 +193,9 @@ CUser* CDisconnectDetecter::_GetUser(int uid, int uniqueId)
     CUser* user = G_CGameManager()->getUser(uid, 2);
     if (user != 0)
     {
-        if ((user->get_unique_id() & 0xffff) != uniqueId)
+        if ((unsigned short)user->get_unique_id() != uniqueId)
         {
-            user = 0;
+            return 0;
         }
     }
     return user;
