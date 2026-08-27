@@ -255,8 +255,20 @@ struct SIG_BEST_CLEAR_TIME
 
 struct SIG_BLOOD_DUNGEON
 {
-    char m_pad[0x28];
+    // ORIG 0x832a330 _saveData / 0x832a4c6 loadData 字节映射实证；
+    // 字段语义 [推断]（与 CCharacBloodDungeon 内存镜像对应，见 W9_EventSmall.h）。
+    int m_characNo;            // +0x00
+    int m_point;               // +0x04
+    int m_weeklyEnterCount;    // +0x08
+    int m_useGold;             // +0x0c
+    int m_dailyInitTime;       // +0x10（getDailyInitializeTime(6,0,0)）
+    int m_field14;             // +0x14 [推断]
+    int m_enterCount;          // +0x18
+    unsigned char m_flag1c;    // +0x1c byte
+    int m_field20;             // +0x20 [推断]
+    int m_field24;             // +0x24 [推断]（sizeof = 0x28）
 };
+static_assert(sizeof(SIG_BLOOD_DUNGEON) == 0x28, "SIG_BLOOD_DUNGEON ABI drift");
 
 struct SIG_BREAK_AWAY_PREVENT_MESSAGE
 {
@@ -1322,10 +1334,20 @@ struct SIG_REQUEST_TAG_CHARAC_INFO
     char m_pad[0x414c];
 };
 
+// 具名化（W9_StructMisc 批次；ORIG TOD_UserState::loadData 0x086434fc /
+// _saveData 0x08643642 写读序实证，sizeof 保持 0x18）。
 struct SIG_REQUEST_TOD_USER_STATE
 {
-    char m_pad[0x18];
+    int m_characNo;                 // +0x00（save=CUser::get_charac_no(-1)）
+    int m_firstEnterTime;           // +0x04（loadData 第 2 dword / save ←this+0xc）
+    int m_enterCount;               // +0x08
+    unsigned short m_todayLayer;    // +0x0c
+    unsigned short m_lastEnterLayer;// +0x0e
+    int m_lastEnterTime;            // +0x10
+    int m_lastClearTime;            // +0x14
 };
+static_assert(sizeof(SIG_REQUEST_TOD_USER_STATE) == 0x18,
+              "SIG_REQUEST_TOD_USER_STATE ABI drift");
 
 struct SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION
 {

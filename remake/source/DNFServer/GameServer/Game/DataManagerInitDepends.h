@@ -271,16 +271,23 @@ bool ImportSecurityReward(SecurityReward* out);   // _Z20ImportSecurityRewardP14
 //      TowerOfDespairMgr）已统一至 TowerOfDespairMgr.h（2026-08-25 合并，
 //      原此处镜像删除；TOD_UserState 保留本头）。----
 #include "TowerOfDespairMgr.h"
+#include "CBoosterGage.h"               // charac_expand::CData（TOD_UserState 基类）
 
-// ORIG TOD_UserState（角色扩展数据 0xd 槽对象；布局按报告逐字段建模，
-// 对象由 CUserCharacInfo 数据区承载，本工程不构造）。字段依据：
+// ORIG TOD_UserState（角色扩展数据 0xd 槽对象；布局按报告逐字段建模；
+// ORIG vtable 0x08cec600 槽序 = charac_expand::CData 完全一致
+// [ResetDailyMidnight, loadData, getData, ResetDaily, ~, ~, _saveData, _reset]，
+// 故继承该基类产生正确 ABI）。字段依据：
 //   TOD_UserState/getEnterCount.md     —— +0x10 int（ORIG T 0x08643872）
 //   TOD_UserState/getLastClearTime.md  —— +0x1c int（ORIG T 0x0864387e）
 //   TOD_UserState/getTodayEnterLayer.md —— +0x14 ushort（当日层）
 //   CDungeon.cpp tod 注                —— +0x16 ushort lastEnterLayer【推断】
-class TOD_UserState
+class TOD_UserState : public charac_expand::CData
 {
 public:
+    TOD_UserState();            // ORIG T 0x08643460：CData ctor 后写本类 vptr、
+                                // SIG_REQUEST_TOD_USER_STATE(this+8) 内嵌构造
+    ~TOD_UserState();           // ORIG D1 0x086434ae / D0 0x086434de
+
     // ORIG T 0x0864383e（报告 TOD_UserState/getTodayEnterLayer.md）：sret 返回
     // *(const TOD_Layer*)(this+0x14) + 1（经 TOD_Layer(ushort) 构造，>100 回卷 1）。
     TOD_Layer getTodayEnterLayer() const;
@@ -301,10 +308,19 @@ public:
     // 写 lastEnterLayer(+0x16)/当日层（oldGmRoutine "wjfakd" GM 命令调用）。
     void setEnterLayer(const TOD_Layer& layer);
 
-    char m_pad0[0xc];               // +0x00..+0x0b（未建模区）
+    // ---- 虚槽覆盖/生命周期（W9_StructMisc 批次实现）----
+    virtual void ResetDaily();                  // ORIG T 0x08643624：enterCount=0 + alter
+    virtual bool loadData(CUser* pUser, char* pData);     // ORIG T 0x086434fc
+    virtual void getData(char* pData) const;              // ORIG T 0x086435ca
+    virtual bool _saveData(CUser* pUser);                 // ORIG T 0x08643642
+    virtual void _reset();                                // ORIG T 0x086437ec
+
+    // 数据区（+0x08..+0x1f = ORIG 内嵌 SIG_REQUEST_TOD_USER_STATE 同布局；
+    // loadData/_saveData/_reset 全部按此段操作）。
+    int m_field8;                   // +0x08（_reset 清零；loadData 首写入；语义未证【推断】）
     int m_firstEnterTime;           // +0x0c（当日首次进入时间；IncreaseEnterCount 写）
-    int m_enterCount;               // +0x10（getEnterCount）
-    unsigned short m_todayLayer;    // +0x14（getTodayEnterLayer 读口径）
+    int m_enterCount;               // +0x10（getEnterCount / ResetDaily 清零）
+    unsigned short m_todayLayer;    // +0x14（getTodayEnterLayer 读口径；TOD_Layer::resetLayer 触达）
     unsigned short m_lastEnterLayer;// +0x16（IncreaseEnterCount 递增）
     int m_lastEnterTime;            // +0x18（IncreaseEnterCount 每次写入当前秒）
     int m_lastClearTime;            // +0x1c（getLastClearTime）

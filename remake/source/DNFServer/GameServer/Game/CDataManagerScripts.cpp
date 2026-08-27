@@ -786,6 +786,31 @@ void stRankSystemInfo::clear()
     m_field74 = 0;
 }
 
+// ---- stRankSystemInfo 嵌套子类（ORIG W 符号）----
+// stDungeonClearTimeData：C1 0x0891b6f2（调 clear）/ clear 0x0891b706
+// （memset(this,0,0x1c)）/ D1 0x0893fbc6（空体）。
+stRankSystemInfo::stDungeonClearTimeData::stDungeonClearTimeData()
+{
+    clear();
+}
+void stRankSystemInfo::stDungeonClearTimeData::clear()
+{
+    memset(this, 0, sizeof(*this));   // ORIG memset 0x1c
+}
+stRankSystemInfo::stDungeonClearTimeData::~stDungeonClearTimeData() {}
+
+// stComboIntervalBoundary：C1 0x0891b72a / clear 0x0891b73e
+// （memset(this,0,0x10)）/ D1 0x08940176（空体）。
+stRankSystemInfo::stComboIntervalBoundary::stComboIntervalBoundary()
+{
+    clear();
+}
+void stRankSystemInfo::stComboIntervalBoundary::clear()
+{
+    memset(this, 0, sizeof(*this));   // ORIG memset 0x10
+}
+stRankSystemInfo::stComboIntervalBoundary::~stComboIntervalBoundary() {}
+
 // ---- stBloodDungeon_t（ORIG C1 0x8370a3a / clear 0x8370b02 / D1 0x8370ab0）----
 stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
 {

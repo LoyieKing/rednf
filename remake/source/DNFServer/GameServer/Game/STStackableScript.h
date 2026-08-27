@@ -42,12 +42,40 @@ struct STStatusGenerate
     int m_field0;   // +0x00
 };
 
+// ---- STStatChange（ORIG C1 0x089c328a / clear 0x089c329e / D1 0x089d3f1a）----
+// clear 次序：+0x0c int=0 → +0x00=0 → +0x04=0 → +0x08 字节=0。sizeof 0x10。
+class STStatChange
+{
+public:
+    STStatChange();
+    ~STStatChange();
+    void clear();
+
+    int m_field0;       // +0x00
+    int m_field4;       // +0x04
+    unsigned char m_field8;   // +0x08
+    char m_pad9[3];     // +0x09..+0x0b
+    int m_fieldC;       // +0x0c
+};   // sizeof 0x10
+
+// ---- STStatChangeVector（ORIG C1 0x089c32c8 / clear 0x089c330a /
+//      D1 0x089c3ace / operator= 0x089c40fe）----
+// C1 = vector ctor 后 clear；clear：vector.clear、+0x0c/+0x10 int=0、
+// +0x14 字节=0；operator= = vector operator= + 三标量拷贝。sizeof 0x18。
 class STStatChangeVector
 {
 public:
+    STStatChangeVector();
+    ~STStatChangeVector();
+    STStatChangeVector& operator=(const STStatChangeVector& other);
     void clear();
-    int m_field0;   // +0x00
-};
+
+    std::vector<STStatChange> m_vec0;   // +0x00
+    int m_fieldC;                       // +0x0c
+    int m_field10;                      // +0x10
+    unsigned char m_field14;            // +0x14
+    char m_pad15[3];                    // +0x15..+0x17
+};   // sizeof 0x18
 
 
 

@@ -114,6 +114,7 @@ public:
     const char* Get_APCNameByLayer(const TOD_Layer& layer);     // ORIG T 0x08643e4a
     void SendAPCInfo(TOD_Layer const& layer, CUser* user);      // ORIG T 0x08644338
     static void SendMessageToCUser(CUser* user, char* msg);     // ORIG T 0x08644366
+    unsigned short GetMinLv() { return m_minLevel; }   // ORIG W 0x08643a1e：movzwl +0x34e
 
     CDungeon* m_layerDungeons[101];                    // +0x000
     unsigned int m_dungeonIndexOfLayer[101];           // +0x194

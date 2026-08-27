@@ -334,6 +334,7 @@ public:
 // ORIG sizeof=12（vector<RecoveryInfo>::size 反比 magic /12 实证）。
 struct RecoveryInfo
 {
+    ~RecoveryInfo();   // ORIG W 0x088f9346：空体（vector<RecoveryInfo> 析构触发）
     int m_data[3];
 };
 

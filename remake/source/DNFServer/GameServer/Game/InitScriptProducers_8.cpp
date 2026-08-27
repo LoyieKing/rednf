@@ -543,7 +543,7 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
         {
             for (;;)
             {
-                stDungeonClearTimeData data;
+                stRankSystemInfo::stDungeonClearTimeData data;
                 ok = false;
                 data.m_v[0] = ScanInt(&ok);
                 if (!ok) break;
@@ -616,7 +616,7 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
         {
             for (;;)
             {
-                stComboIntervalBoundary boundary;
+                stRankSystemInfo::stComboIntervalBoundary boundary;
                 boundary.m_v[0] = ScanInt(&ok);
                 if (!ok) break;
                 boundary.m_v[1] = ScanInt(&ok);

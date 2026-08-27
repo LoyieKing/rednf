@@ -295,8 +295,6 @@ struct pieceQuestRewardStatus
 // stBonusPointValues：2 个 int；stComboIntervalBoundary：4 个 int（0x10）。
 struct stClearTimeAverage         { int m_v[5]; };   // +0x00..0x13
 struct stBonusPointValues         { int m_a; int m_b; };
-struct stDungeonClearTimeData     { int m_v[7]; };   // +0x00..0x1b
-struct stComboIntervalBoundary    { int m_v[4]; };   // +0x00..0x0f
 // ---- stUnlimitChallengeInfo 元素（ORIG importUnlimitChallengeScript 0x0890bc63 实证）----
 struct stUnlimitChallengeRewardInfo
 {
@@ -1297,6 +1295,26 @@ public:
     stRankSystemInfo();
     ~stRankSystemInfo();
     void clear();
+
+    // ORIG C1 0x0891b6f2 / clear 0x0891b706（memset(this,0,0x1c)）/
+    // D1 0x0893fbc6（空体）。7 个 int（0x1c）。
+    struct stDungeonClearTimeData
+    {
+        stDungeonClearTimeData();          // ORIG W 0x0891b6f2：调 clear
+        ~stDungeonClearTimeData();         // ORIG W 0x0893fbc6：空体
+        void clear();                      // ORIG W 0x0891b706
+        int m_v[7];                        // +0x00..0x1b
+    };
+    // ORIG C1 0x0891b72a / clear 0x0891b73e（memset(this,0,0x10)）/
+    // D1 0x08940176（空体）。4 个 int（0x10）。
+    struct stComboIntervalBoundary
+    {
+        stComboIntervalBoundary();         // ORIG W 0x0891b72a：调 clear
+        ~stComboIntervalBoundary();        // ORIG W 0x08940176：空体
+        void clear();                      // ORIG W 0x0891b73e
+        int m_v[4];                        // +0x00..0x0f
+    };
+
 
     // ORIG C1 0x8370eba / D1 0x837ce4c：+0x00 stDungeonRankSystem_t（0x38）
     // +0x38 vector<stDungeonClearTimeData> +0x44 map<int,int>

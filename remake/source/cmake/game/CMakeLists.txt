@@ -117,6 +117,10 @@ dnf_service(game
         ${SVC_DIR}/CPartyOnlyOrig.cpp
         ${SVC_DIR}/CUserOnlyOrig.cpp
         ${SVC_DIR}/CodeHackChecksum.cpp
+        ${SVC_DIR}/W9Interval.cpp
+        ${SVC_DIR}/W9HeroCondition.cpp   # line 121: HeroMissionCondition/Base 域实现
+        ${SVC_DIR}/W9_StructMisc.cpp     # line 122: stRankSystemInfo/RecoveryInfo/stCeraShopBonusItemInfo_t/TOD_UserState 生命周期（W9_StructMisc 批）
+        ${SVC_DIR}/WindowsPackFiles.cpp # line 123: WindowsExe/DataFile/PackFile 校验族+CBitManager/CObfuscator/CCompressedBlob/LoadClientFile（W9_WinExe 批）
         ${SVC_DIR}/advancealtar_misc.cpp
         ${SVC_DIR}/StringResource.cpp
         ${SVC_DIR}/advancealtar_DB.cpp
@@ -156,6 +160,8 @@ dnf_service(game
         ${SVC_DIR}/W7LinkDB.cpp
         ${SVC_DIR}/W8_AradSig.cpp
         ${SVC_DIR}/W8_EventClassifyB.cpp
+        ${SVC_DIR}/W8LT_EventTail.cpp
+        ${SVC_DIR}/W9_EventSmall.cpp
         ${SVC_DIR}/CDataManagerTailB.cpp
         ${SVC_DIR}/W6_HackPunishDeps.cpp
         ${SVC_DIR}/W6_ItemGenDeps.cpp

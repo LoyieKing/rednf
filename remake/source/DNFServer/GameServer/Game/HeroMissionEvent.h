@@ -2,7 +2,7 @@
 #define GAME_HEROMISSIONEVENT_H_
 
 // ============================================================================
-// df_game_r 还原 —— HeroMissionEvent（台湾 Hero Mission 事件，typo 批次）。
+// df_game_r 还原 —— HeroMissionEvent（台湾 Hero Mission 事件）。
 // 布局依据 ORIG ctor 0x08166522 / findMissionValue 0x08168010 反汇编推导：
 //   基类 CEventBase（+0x00 vptr / +0x04 stADDINFO / +0x08 m_isEventing）
 //   +0x0c map<MissionNo::T, BaseHeroMissionCondition*> m_conditions
@@ -17,24 +17,10 @@
 #include <vector>
 
 #include "Arad_DataManager.h"   // ARAD::Singleton 模板唯一声明点（定义/实例化见 ARAD.cpp）
+#include "HeroMissionCondition.h" // HeroMissionCondition / BaseHeroMissionCondition
+                                  // 权威定义（W9_W7HS 批次；本头不再重复声明）
 #include "CGuildServerProxy.h"   // struct Word_Param（StartEvent 参数类型；LT07 批次引入）
 
-class CUser;
-
-namespace HeroMissionCondition
-{
-namespace MissionNo
-{
-// ORIG 参数类型：HeroMissionCondition::MissionNo::T（按值，enum）。
-// mangled: N20HeroMissionCondition9MissionNo1TE
-enum T
-{
-    T_0 = 0,
-    T_4 = 4,
-    T_6 = 6
-};
-}
-}
 
 // ---- HeroMissionValue（ORIG clear 0x08164b80：+0x00 int，+0x04..+0x0a ushort）----
 class HeroMissionValue
@@ -53,18 +39,6 @@ public:
     void setStringToken(std::string token);
     // ORIG _ZN16HeroMissionValue5resetEv T 0x08164bb2（resetMissionForGm 依赖）。
     void reset();
-};
-
-// ---- BaseHeroMissionCondition（ORIG vtable 0x08b7f0d8：虚析构 + 2 纯虚槽）----
-// vptr+0x08 = 条件处理（派生类实现），vptr+0x0c = 第二个纯虚（派生类实现）。
-class BaseHeroMissionCondition
-{
-public:
-    virtual ~BaseHeroMissionCondition() {}
-    virtual void process(CUser* user, HeroMissionValue* value,
-                         unsigned int param) = 0;   // vptr+0x08
-    virtual void process2(CUser* user, HeroMissionValue* value,
-                          unsigned int param) = 0;  // vptr+0x0c
 };
 
 // ============================================================================

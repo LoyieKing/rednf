@@ -133,6 +133,7 @@ public:
 
 struct stCeraShopBonusItemInfo_t
 {
+    ~stCeraShopBonusItemInfo_t();    // ORIG W 0x089363da：空体
     int m_field0;                    // +0x00
     unsigned short m_field4;         // +0x04
     char m_pad6[2];                  // +0x06

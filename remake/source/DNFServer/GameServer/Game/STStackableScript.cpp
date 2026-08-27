@@ -11,9 +11,44 @@
 
 #include "DNFLexWrapper.h"
 
+// ---- STStatChange（ORIG clear 0x089c329e：+0x0c→+0x00→+0x04→+0x08 字节清零）----
+STStatChange::STStatChange()
+{
+    clear();
+}
+void STStatChange::clear()
+{
+    m_fieldC = 0;
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+}
+STStatChange::~STStatChange() {}
+
+// ---- STStatChangeVector（ORIG C1 0x089c32c8 / clear 0x089c330a /
+//      D1 0x089c3ace / operator= 0x089c40fe）----
+STStatChangeVector::STStatChangeVector() : m_vec0()
+{
+    clear();
+}
+STStatChangeVector::~STStatChangeVector() {}
+STStatChangeVector& STStatChangeVector::operator=(const STStatChangeVector& other)
+{
+    // ORIG：vector operator= 后逐个拷贝 +0x0c/+0x10 int 与 +0x14 字节。
+    m_vec0 = other.m_vec0;
+    m_fieldC = other.m_fieldC;
+    m_field10 = other.m_field10;
+    m_field14 = other.m_field14;
+    return *this;
+}
+
+// ---- ORIG clear 0x089c330a：容器清空 + 三标量清零。保持显式定义供引用。----
 void STStatChangeVector::clear()
 {
-    m_field0 = 0;
+    m_vec0.clear();
+    m_fieldC = 0;
+    m_field10 = 0;
+    m_field14 = 0;
 }
 
 Arad_STStackableScript::Arad_STStackableScript()

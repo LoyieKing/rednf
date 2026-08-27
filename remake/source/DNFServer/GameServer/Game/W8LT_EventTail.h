@@ -5,6 +5,8 @@
 #ifndef GAME_W8LT_EVENTTAIL_H_
 #define GAME_W8LT_EVENTTAIL_H_
 
+#include "SigTypes.h"
+#include "MoreTypes.h"
 #include "CGuildServerProxy.h"   // CEventBase/CDelivery/DeliveryMsg/Word_Param
 
 class STSDCActiveStatusSyncDataSend;   // 前置：SDC 同步数据（仅 SDC TU 内按报告布局使用）
