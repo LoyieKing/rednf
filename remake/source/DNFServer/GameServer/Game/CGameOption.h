@@ -200,7 +200,11 @@ public:
     int m_breakAwayDungeonClearCnt;                  // +0x648
     char m_pad64c[4];                                // +0x64c..0x64f
     int m_breakAwayQuestTime;                        // +0x650
-    char m_pad654b[0x660 - 0x654];                   // +0x654..0x660（ORIG 尺寸 0x660）
+    // +0x654 区按 ORIG setter 实证具名（尺寸合计仍 0xc，总 sizeof 0x660 不变）：
+    int m_breakAwayRewardOrder;                      // +0x654（setBreakAwayRewardOrder W 0x0831d4de 直写）
+    char m_pad658[4];                                // +0x658..0x65b
+    char m_breakAwayRewardData;                      // +0x65c（setBreakAwayRewardData W 0x0831d50c 写 byte）
+    char m_pad65d[3];                                // +0x65d..0x65f
 };
 
 #endif  // GAME_CGAMEOPTION_H_

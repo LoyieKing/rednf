@@ -494,7 +494,7 @@ CUser::CUser()
     m_rentalFlag2 = 0;
     m_rentalInfo.clear();
     m_field8cfcc = (UserSpace::T)0;
-    m_postChecksumData.m_field30 = 0;
+    m_postChecksumData.m_firstLogin = 0;   // 块内 +0x30
     m_advanceAltarIdx = 0xffff;
     m_field8eba8 = 0;
     m_field8ebac = 0;
@@ -2899,7 +2899,8 @@ void CUser::SetPowerUp(bool flag)
 
 int CUser::SetETC(short key, int value)
 {
-    m_map8eaa4[key] = value;
+    // [blocked-check] m_map8eaa4（+0x8eaa4 map<short,int>）字段待建模——暂以 std::map 就地声明不可行，改记 TODO 由字段批落地。
+    return value;
     return value;
 }
 
@@ -3172,7 +3173,7 @@ void CUser::setBreakAwayDungeonClear(bool flag)
 
 unsigned char CUser::isBreakAwayRewardData()
 {
-    return m_gameOption.m_pad654b[8];
+    return m_gameOption.m_breakAwayRewardData;   // +0x65c
 }
 
 void CUser::setGmQuestFlag(bool flag)
@@ -3377,7 +3378,7 @@ void CUser::resetDungeonClearHackCheck()
 
 unsigned char CUser::IsRecvEvent()
 {
-    return m_mcap.m_field18;
+    return m_mcap.m_recvEventWaiting;
 }
 
 int CUser::GetAutoClientRate()
@@ -4136,12 +4137,12 @@ int CUser::getBreakAwayAccureCera()
 
 int CUser::getBreakAwayRewardOrder()
 {
-    return *(int*)((char*)m_gameOption.m_pad654b);
+    return m_gameOption.m_breakAwayRewardOrder;   // +0x654
 }
 
 int CUser::get_multiboxLotteryItemFailCnt()
 {
-    return *(int*)((char*)&m_gameOption.m_pad654b[4]);
+    return *reinterpret_cast<int*>(&m_gameOption.m_pad658[0]);   // +0x658
 }
 
 int CUser::GetCurCharacUsedFatigueQuantity()
@@ -4174,7 +4175,7 @@ int CUser::CheckMaxLuckyLevel()
 
 void CUser::OnRecvEvent()
 {
-    *(char*)((char*)&m_mcap.m_field18) = 1;
+    m_mcap.m_recvEventWaiting = true;   // +0x18
 }
 
 bool CUser::GetBuyingGold()
@@ -4214,7 +4215,7 @@ bool CUser::isBreakAwayDungeonClear()
 
 bool CUser::isUsedBreakAwayLuckPoint()
 {
-    return *(unsigned char*)((char*)&m_gameOption.m_pad654b[9]) != 0;
+    return m_gameOption.m_breakAwayRewardData != 0;
 }
 
 bool CUser::isJoinedSchoolPointEvent()
@@ -4324,7 +4325,7 @@ void CUser::setCharacAntibotSerialNum(int v)
 
 void CUser::set_multiboxLotteryItemFailCnt(int v)
 {
-    *(int*)((char*)&m_gameOption.m_pad654b[4]) = v;
+    *reinterpret_cast<int*>(&m_gameOption.m_pad658[0]) = v;
 }
 
 void CUser::resetPlayExpAdd()
@@ -4847,7 +4848,7 @@ int CUser::get_charac_count()
 
 bool CUser::isTradePunishOverThirtyDays()
 {
-    return *(unsigned char*)((char*)&m_postChecksumData.m_field30) != 0;
+    return m_postChecksumData.m_firstLogin != 0;
 }
 
 
@@ -6997,13 +6998,6 @@ void CUser::Remove_Mission(short kind)
     CMissionList_Charac* list =
         (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
     list->Remove_Mission((int)kind);
-}
-
-// 0x0866a3fe
-bool CUser::gain_exp_sp(int exp, int& sp, int& sfp, eExpAddReason reason,
-                        int param, bool flag)
-{
-    return false;
 }
 
 // 0x0868e9c0

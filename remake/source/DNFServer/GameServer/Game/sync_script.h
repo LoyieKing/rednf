@@ -19,6 +19,7 @@
 
 class MySQL;
 class STSkillScript;
+class SkillUseItem;
 
 // ---- 权威类型（唯一声明点收敛：本地镜像已删除，改引权威头）----
 #include "EquipmentParameterInfo.h"
@@ -173,8 +174,9 @@ public:
     struct SITEMTYPE
     {
         SITEMTYPE() : m_field0(0), m_field1(0), m_field2(0), m_field4(0) {}
+        // ORIG C1 _ZN...SITEMTYPEC1EbhhtSs：第5参 std::string 按值。
         SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
-                  unsigned short f4, const std::string& name)
+                  unsigned short f4, std::string name)
             : m_field0(usable ? 1 : 0), m_field1(f1), m_field2(f2),
               m_field4(f4), m_str8(name)
         {
@@ -246,8 +248,6 @@ public:
 // ---- CStringMaker（ORIG 全部为 W 内联符号；类体单 std::string 成员） ----
 // operator()(int)@0x08375f6c / (float)@0x08626cd0 / (SkillUseItem)@0x08626d98 /
 // (EquipmentSkillDataUp)@0x08626e6e / (LevelUpSkill)@0x08626f7a /
-// (ItemAuraInfo)@0x08627066 / (vector<float>&)@0x08627146 / c_str@0x08376034 /
-// op std::string@0x086272c0 / C1@0x08375f58 / copy C1@0x0837f594 / D1@0x0837f580
 class CStringMaker
 {
 public:
@@ -257,11 +257,11 @@ public:
 
     void operator()(int v);
     void operator()(float v);
-    void operator()(const SkillUseItem& v);
     void operator()(EquipmentSkillDataUp v);
+    void operator()(SkillUseItem v);
     void operator()(LevelUpSkill v);
     void operator()(ItemAuraInfo v);
-    void operator()(const std::vector<float>& values);
+    void operator()(std::vector<float>& values);
 
     const char* c_str();
     operator std::string();

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Arad_DataManager.h"   // ARAD::Singleton 模板唯一声明点（定义/实例化见 ARAD.cpp）
+#include "CGuildServerProxy.h"   // struct Word_Param（StartEvent 参数类型；LT07 批次引入）
 
 class CUser;
 

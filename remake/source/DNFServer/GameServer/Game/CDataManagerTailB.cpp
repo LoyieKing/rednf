@@ -379,9 +379,9 @@ int CDataManager::Verify() const
         {
             // [ORIG +0x1187..] 怪物等级区间检查（CDataManager+0x08 管理器 +
             // 0x18 monsterMap；CMonster+0x58/+0x5c level min/max）
-            for (__gnu_cxx::hash_map<int, CMonster*>::iterator it =
-                     m_monsterManager->m_monsterMap.begin();
-                 it != m_monsterManager->m_monsterMap.end(); ++it)
+            for (__gnu_cxx::hash_map<int, CMonster*>::const_iterator
+                     it(m_monsterManager->m_monsterMap.begin()),
+                     e(m_monsterManager->m_monsterMap.end()); it != e; ++it)
             {
                 CMonster* mon = it->second;
                 const char* mp = (const char*)mon;
@@ -397,9 +397,9 @@ int CDataManager::Verify() const
 
             // [ORIG +0x11a0..+0x1313] 全副本通关模拟（WongWork::CDungeonClear）
             WongWork::CDungeonClear clearSim;
-            for (__gnu_cxx::hash_map<int, CDungeon*>::iterator it =
-                     m_dungeonList->m_dungeonMap.begin();
-                 it != m_dungeonList->m_dungeonMap.end(); ++it)
+            for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator
+                     it(m_dungeonList->m_dungeonMap.begin()),
+                     e(m_dungeonList->m_dungeonMap.end()); it != e; ++it)
             {
                 clearSim.addClearedDungeon(
                     (short)(*it->second).get_index(), '\x04');

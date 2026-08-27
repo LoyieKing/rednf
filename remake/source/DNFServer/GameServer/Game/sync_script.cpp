@@ -90,68 +90,6 @@ const char* GetAttackElementString(int element)
     }
 }
 
-// ORIG sync_script::CStringMaker（ctor 0x08375f58 / operator()(int) 0x08375f6c /
-// operator()(float) 0x08626cd0 / operator()(SkillUseItem) 0x08626d98 /
-// operator()(vector<float>&) 0x08627146 / c_str 0x08376034，均 W 弱符号；
-// 成员为单个 std::string）。各重载：sprintf 后按需前置 ","（非首元素）追加。
-// vector<float> 重载：空向量直接返回；内层元素以迭代器!=begin 判定逗号。
-class CStringMaker
-{
-public:
-    CStringMaker() {}
-    void operator()(int v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%d", v);
-        append(num);
-    }
-    void operator()(float v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%f", v);
-        append(num);
-    }
-    void operator()(const SkillUseItem& v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%d,%d,%d", v.m_index, v.m_useLevel[0], v.m_useLevel[1]);
-        append(num);
-    }
-    void operator()(const std::vector<float>& values)
-    {
-        if (values.empty())
-        {
-            return;
-        }
-        if (!m_str.empty())
-        {
-            m_str += ",";
-        }
-        for (size_t i = 0; i < values.size(); ++i)
-        {
-            if (i != 0)
-            {
-                m_str += ",";
-            }
-            char num[0x100] = {0};
-            sprintf(num, "%f", values[i]);
-            m_str += num;
-        }
-    }
-    const char* c_str() const { return m_str.c_str(); }
-
-private:
-    void append(const char* num)
-    {
-        if (!m_str.empty())
-        {
-            m_str += ",";
-        }
-        m_str += num;
-    }
-
-    std::string m_str;   // ORIG +0x00 单 string 成员
-};
 
 // ORIG CStreamBuffer（ctor 0x086269be memset(buf,0,0xa000) / c_str 0x086269e2 /
 // operator<<(const char*) 0x08626a4a "%s" / <<(int) 0x08626a70 "%d" /
@@ -202,10 +140,12 @@ private:
 // for_each 累加：std::for_each 按值收 functor，必须取返回副本再读结果
 // （ORIG 反编译同样消费 for_each 返回值）。
 template <class It>
-CStringMaker makeString(It first, It last)
+sync_script::CStringMaker makeString(It first, It last)
 {
-    return std::for_each(first, last, CStringMaker());
+    return std::for_each(first, last, sync_script::CStringMaker());
 }
+
+
 }
 
 // ===================== CSyncScript 实现 =====================
@@ -219,10 +159,123 @@ std::map<int, std::string> g_monsterInfoTable;    // ORIG 0x94ff260
 std::map<int, std::string> g_questInfoTable;      // ORIG 0x9500480
 std::map<int, std::string> g_skillInfoTable[11];  // ORIG 0x9500820
 
+// ---- CStringMaker 实现（ORIG 各符号均为 W 内联；唯一定义发射点） ----
+
+CStringMaker::CStringMaker() {}                       // C1 0x08375f58
+CStringMaker::CStringMaker(const CStringMaker& o)     // copy C1 0x0837f594
+    : m_str(o.m_str)
+{
+}
+CStringMaker::~CStringMaker() {}                      // D1 0x0837f580
+
+void CStringMaker::operator()(int v)                  // 0x08375f6c "%d"
+{
+    char num[0x100] = {0};
+    sprintf(num, "%d", v);
+    if (!m_str.empty())
+    {
+        m_str += ",";
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(float v)                // 0x08626cd0 "%f"
+{
+    char num[0x100] = {0};
+    sprintf(num, "%f", v);
+    if (!m_str.empty())
+    {
+        m_str += ",";
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(SkillUseItem v)         // 0x08626d98 "%d,%d,%d"
+{
+    char num[0x100] = {0};
+    sprintf(num, "%d,%d,%d", v.m_index, v.m_useLevel[0], v.m_useLevel[1]);
+    if (!m_str.empty())
+    {
+        m_str += ";";   // ORIG 分隔串 @0x8ce2df7 为 ';'
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
+{
+    char num[0x100] = {0};
+    sprintf(num, "%d,%d,%d,%d,%d,%d,%d", v.m_job, v.m_v4, v.m_v8,
+            v.m_percent, v.m_v10, v.m_key, v.m_module);
+    if (!m_str.empty())
+    {
+        m_str += ";";
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→99
+{
+    char num[0x100] = {0};
+    int job = (v.m_job == 0xb) ? 0x63 : v.m_job;
+    sprintf(num, "%d,%d,%d", job, v.m_field4, v.m_field8);
+    if (!m_str.empty())
+    {
+        m_str += ";";
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(ItemAuraInfo v)         // 0x08627066 "%d,%d,%d,%d"
+{
+    char num[0x100] = {0};
+    // ORIG 参数栈：v+0 int / (uchar)v+4 / float v+8（vararg 提升 double）/
+    // v+c int，fmt "%d,%d,%d,%d"。
+    sprintf(num, "%d,%d,%d,%d", v.m_field0, (int)v.m_field4, v.m_float8,
+            v.m_fieldc);
+    if (!m_str.empty())
+    {
+        m_str += ";";
+    }
+    m_str += num;
+}
+
+void CStringMaker::operator()(std::vector<float>& values)  // 0x08627146
+{
+    if (values.empty())
+    {
+        return;
+    }
+    if (!m_str.empty())
+    {
+        m_str += ";";
+    }
+    for (std::vector<float>::iterator it = values.begin(); it != values.end();
+         ++it)
+    {
+        if (it != values.begin())
+        {
+            m_str += ",";   // 元素间 ORIG 逗号 @0x8ce2dec
+        }
+        char num[0x100] = {0};
+        sprintf(num, "%f", *it);
+        m_str += num;
+    }
+}
+
+const char* CStringMaker::c_str()                     // 0x08376034
+{
+    return m_str.c_str();
+}
+
+CStringMaker::operator std::string()                  // 0x086272c0
+{
+    return m_str;
+}
+
 // CSyncScript 构造/析构由 CItemList.cpp（ORIG 0x861cbb4 区）提供；本 TU 不重复定义。
 
-bool CSyncScript::GetType(std::string name, int job, int idx, int& out1,
-                          int& out2, bool flag)
+bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
+                          int& out1, int& out2, bool flag)
 {
     if (name.empty())
     {
@@ -246,16 +299,14 @@ bool CSyncScript::GetType(std::string name, int job, int idx, int& out1,
     SITEMTYPE local = m_itemTypeMap[key];
     if (m_vec1.empty() || m_vec1[0] == local.m_field1)
     {
-        SWEAPONTYPE wp;
-        wp.m_job = job;
-        wp.m_idx = idx;
+        SWEAPONTYPE wp(job, idx);
         local = m_weaponMap[wp];
     }
     else if (m_vec1.size() >= 2 && m_vec1[1] == local.m_field1)
     {
-        SARMORTYPE ap;
-        ap.m_field0 = (unsigned char)idx;
-        ap.m_str4 = name;
+        // ORIG 0x861d1d5：SARMORTYPE((uchar)idx, key)，key 为 "stackable "/名
+        // 组合串（拷贝自 local_50），非去括号原名。
+        SARMORTYPE ap((unsigned char)idx, key);
         local = m_armorMap[ap];
     }
     out1 = local.m_field1;
@@ -288,9 +339,41 @@ const char* CSyncScript::GetURL(const char* str, int len, int idx)
     return strUrl.c_str();
 }
 
-const char* CSyncScript::GetUserJob(int job)
+const char* CSyncScript::GetUserJob(ENUM_CHARACTERJOB job)
 {
+    // ORIG 0x861d2dc switch 跳表 → 常量字符串（GetJobString 同语义）。
     return GetJobString(job);
+}
+
+bool CSyncScript::insert_artifact_info_to_db(STEquipmentScript* script)
+{
+    // ORIG 0x08624b8e：未启用直接 return true；启用则向 dnf_artifact_info 写入
+    // it_id（script+0）与 m_artifact738（script+0x738 起 11 列）。
+    if (m_field0 != 1)
+    {
+        return true;
+    }
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)5,
+                                                  (ENUM_SERVER_GROUP)0);
+    const STEquipmentScript::artifact_info& art = script->m_artifact738;
+    if (!db->set_query(
+            "inSert into dnf_artifact_info(it_id, creature_min_level, "
+            "physical_attack, magical_attack, skill_consume_mp_rate, "
+            "skill_charge_time_rate, skill_overcharge_time_rate, "
+            "experience_amount, physical_critical_hit, magical_critical_hit, "
+            "stuck) values(%d, %d, %d, %d, %f, %f, %f, %f, %f, %f, %f)",
+            (int)script->m_field0, art.m_minLevel, art.m_physAttack,
+            art.m_magAttack, art.m_mpRate, art.m_chargeRate,
+            art.m_overChargeRate, art.m_expRate, art.m_physCrit,
+            art.m_magCrit, art.m_stuck))
+    {
+        return false;
+    }
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 const char* CSyncScript::GetAttachType(int type)
@@ -359,7 +442,7 @@ void CSyncScript::GetLevelUpSkill(
     {
         level_up_skill += "|";
         const LevelUpSkill& skill = vec->at(i);   // ORIG 用 at
-        const char* job = GetUserJob(skill.m_job);
+        const char* job = GetUserJob((ENUM_CHARACTERJOB)skill.m_job);
         if (std::string(job) == "")
         {
             level_up_skill += "\xb0\xf8\xc5\xeb";   // 공용
@@ -383,7 +466,7 @@ const char* CSyncScript::GetUsableCharacter(STEquipmentScript* script)
         {
             if (script->m_usable[i] != 0)
             {
-                return GetUserJob(i);
+                return GetUserJob((ENUM_CHARACTERJOB)i);
             }
         }
         return "";
@@ -399,7 +482,7 @@ const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
         {
             if (script->m_usable[i] != 0)
             {
-                return GetUserJob(i);
+                return GetUserJob((ENUM_CHARACTERJOB)i);
             }
         }
         return "";
@@ -448,9 +531,7 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
             std::string name;
             ScanStr(&name);
             int job = getCharacterJob(str.c_str());
-            SWEAPONTYPE wp;
-            wp.m_job = job;
-            wp.m_idx = subType;
+            SWEAPONTYPE wp((ENUM_CHARACTERJOB)job, subType);
             m_weaponMap[wp] = SITEMTYPE(false, (unsigned char)type,
                                          (unsigned char)subType,
                                          (unsigned short)value, name);
@@ -463,9 +544,7 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
             int value = ScanInt((int*)0);
             std::string name;
             ScanStr(&name);
-            SARMORTYPE ap;
-            ap.m_field0 = (unsigned char)subType;
-            ap.m_str4 = str;
+            SARMORTYPE ap((unsigned char)subType, str);
             m_armorMap[ap] = SITEMTYPE(false, (unsigned char)type,
                                        (unsigned char)subType,
                                        (unsigned short)value, name);

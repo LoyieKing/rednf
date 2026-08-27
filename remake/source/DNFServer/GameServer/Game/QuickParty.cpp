@@ -4,6 +4,7 @@
 // remove_quick_party_in_pool / push_quick_party_in_pool / destroy 等仍由后续批次实现。
 
 #include "QuickParty.h"
+#include "CGameManager.h"
 
 #include <vector>
 
@@ -18,16 +19,7 @@
 // 此处按 ORIG 符号做最小声明（_ZN12CGameManager13GetQuickPartyEi /
 // _ZN12CGameManager26GetQuickPartyRewardManagerEv，非虚函数，链接解析到真实定义）。
 #include "CQuickPartyRewardManager.h"
-class CGameManager
-{
-public:
-    QuickParty::CQuickParty* GetQuickParty(int index);
-    QuickParty::CQuickPartyRewardManager* GetQuickPartyRewardManager();
-    CParty* GetParty(int partyIndex);   // ORIG _ZN12CGameManager8GetPartyEi
-    QuickParty::CQuickParty* GetQuickParty();                 // ORIG _ZN12CGameManager13GetQuickPartyEv（取池空槽）
-    QuickParty::CQuickPartySystemManager* GetQuickPartySystemManager();  // ORIG _ZN12CGameManager26GetQuickPartySystemManagerEv
-    void PutQuickParty(QuickParty::CQuickParty* qp);  // ORIG _ZN12CGameManager14PutQuickPartyEPN10QuickParty11CQuickPartyE
-};
+// [dedup] CGameManager 权威定义见 CGameManager.h（namespace WongWork），本 TU 本地桩已删。
 CGameManager* G_CGameManager();   // CDungeon.h 同声明
 
 namespace QuickParty
@@ -113,15 +105,7 @@ void CQuickParty::destroy()
           occupiedCnt, registeredCnt);
 }
 
-int CGameManager::GetActiveQuickPartyCnt() const
-{
-    return static_cast<int>(m_quickPartyMap.size());
-}
-
-int CGameManager::GetOccupiedQuickPartyPoolCnt()
-{
-    return StaticPool<QuickParty::CQuickParty, 300>::Size() - m_quickPartyPool.Remain();
-}
+// [moved] GetActiveQuickPartyCnt/GetOccupiedQuickPartyPoolCnt 定义移至 CGameManager.cpp（避免陷入 namespace QuickParty）。
 
 // ===================== CQuickPartySystemManager =====================
 

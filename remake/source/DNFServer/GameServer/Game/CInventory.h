@@ -189,13 +189,7 @@ enum VALUE_STATISTIC_FIELD
 struct stEquipCondition;
 struct stEquipConditionForChronicle;
 
-struct md5_context
-{
-    char m_pad[224];
-};
-void md5_starts(md5_context* ctx);
-void md5_update(md5_context* ctx, unsigned char* data, int len);
-void md5_finish(md5_context* ctx, unsigned char* out);
+#include "md5.h"   // md5_context/md5_starts/md5_update/md5_finish 权威归口本头外（md5.h）
 
 namespace OS_API
 {

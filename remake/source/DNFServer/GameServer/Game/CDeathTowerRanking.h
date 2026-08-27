@@ -106,13 +106,13 @@ public:
             m_flag90 = 0;
             m_field94 = -1;
         }
-        bool operator>(stBestRecord_t& other)
+        bool operator>(const stBestRecord_t& other) const
         {
             if (m_stage != other.m_stage)
                 return m_stage > other.m_stage;
             return m_playTime < other.m_playTime;
         }
-        bool operator==(stBestRecord_t& other)
+        bool operator==(const stBestRecord_t& other) const
         {
             return m_stage == other.m_stage && m_playTime == other.m_playTime;
         }

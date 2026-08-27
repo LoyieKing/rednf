@@ -34,12 +34,15 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     bool m_saveCleanPadPoint;  // +0x14（IsSaveCleanPadPoint；0x8e414）
     char m_pad15[3];         // +0x15..0x17
 
-    bool m_field18;     // +0x18（0x8e408 IsRecvEvent）
+    bool m_recvEventWaiting; // +0x18（0x8e408；CUser::StartRecvEventWaiting ORIG 0x0867f1fe 清零启动等待）
     char m_pad19[3];    // +0x19..0x1b
     int m_field1c;      // +0x1c（0x8e40c GetAutoClientRate）
     char m_pad20[8];         // +0x20..0x27
     char m_pcRoomIp[16];     // +0x28（0x8e418 PC房 IP 字符串；CHades::GetIP @0x84b9774 回退源实证）
-    char m_pad38[0x44 - 0x38];   // +0x38..0x43
+    char m_pad38[4];                 // +0x38..0x3b（保持）
+    unsigned int m_sellTimeChkBaseSec; // +0x3c（0x8e42c；CUser::SellItemTimeChecker
+                                     //   ORIG 0x08230256 的窗口基准秒，超窗重置分支写回 nowSec）
+    int m_sellTimeHitCount;          // +0x40（0x8e430；同函数命中计数/重置清零）
     short m_timeChkMinA;         // +0x44（GetItemTimeChecker 窗口 min val1）
     short m_timeChkMaxA;         // +0x46（max val1）
     short m_timeChkMinB;         // +0x48（min val2）
@@ -68,7 +71,7 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     char m_pad554[4];                   // +0x554..0x558
     ::cSecuUserAction* m_secuUserAction; // +0x558（0x8e948；InitOnAccept 0x086493c8 new 后挂接并 Init()）
     unsigned int m_capchaReqTick;       // +0x55c（reqHumanCertify 写 getCurTickCount）
-    char m_pad560[1];                   // +0x560
+    bool m_hackIpLogged;                // +0x560（setHackUser ORIG 0x0867f748 type==3 IP 监视登记标志写 1）
     bool m_field561;   // +0x561（0x8e951 isARSUserKick）
     char m_pad562[0x564 - 0x562];
 

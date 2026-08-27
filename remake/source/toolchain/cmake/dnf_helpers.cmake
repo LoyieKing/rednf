@@ -21,7 +21,7 @@ function(dnf_service NAME)
     endif()
 
     set(COMMON_FLAGS
-        -O0 -fno-enforce-eh-specs -nostdinc
+        -O0 -fno-enforce-eh-specs -nostdinc -std=gnu++0x
         # 注意：必须用 -isystem<path> 连接形式（单 token）——CMake 的
         # target_compile_options 会把重复的独立 "-isystem <path>" 参数吞掉，
         # 只保留第一个（GCC 4.4.7 实测已验证连接形式可用）。

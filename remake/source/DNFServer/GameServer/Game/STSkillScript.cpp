@@ -8,15 +8,22 @@
 // DNFLexWrapper.h 权威声明调用真实符号。
 // ============================================================================
 
-#include "STSkillScript.h"
-
+#include <stdio.h>
 #include <string.h>
+
+#include "STSkillScript.h"
 
 #include <map>
 
 #include "DNFLexWrapper.h"
+#include "CEnvironment.h"   // class SpinLock
+#include "NpcScript.h"      // class STScriptFileList（0x18 布局）
+#include "Quest.h"             // enum ENUM_CHARACTERJOB
 
 // ===================== 前置声明（ORIG 自由函数，实现于各权威 TU） =====================
+
+// （RegisterSkillTags / FinalizeImport 为 ORIG ImportSkillScript 内联段，无独立符号，
+//   已分别内联到主循环注册分支与尾部修正，禁止以函数形式编造。）
 
 bool importCommand(STKeyCommand* command);                          // T 0x088c167a
 bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
@@ -30,6 +37,55 @@ public:
 };
 
 extern std::map<int, std::string> g_staSkillScriptFileList[11];     // B 0x9500820
+
+
+// ---- ORIG ImportSkillScript 尾部修正段（8a9ac50..8a9af42，内联于 ImportSkillScript，
+//      无独立符号；按“文件内 static helper 与 ORIG 内联语义一致”规则承载）----
+// 汇编证据：docs/class_func_reports/_lt_global_gt_/ImportSkillScript.md 2862-3096 行 +
+// Ghidra C 4832-4913 行（max level 夹紧 / 价格向量 back() 补齐 / 图标索引定位）。
+static int FinalizeImport(STSkillScript* script, ENUM_CHARACTERJOB job,
+                          int iconIdx, const char* path)
+{
+    // [growtype maximum level] 表逐项夹紧最大等级（8a9ac5a..8a9aca4，i<=5 setle）
+    for (int i = 0; i <= 5; ++i)
+    {
+        if (script->m_14 < script->m_arr7c[i])
+        {
+            printf("SKILL ERROR : 만렙이 배울 수 있는 레벨 미만 [%s]\n", path);
+            script->m_14 = script->m_arr7c[i];
+        }
+    }
+    // 购买价格向量：非空且 size < 最大等级时以 back() 复制补齐（8a9acc8..ae7f）
+    if (!script->m_vec18.empty())
+        while (script->m_vec18.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec18.push_back(script->m_vec18.back());
+    if (!script->m_vec24.empty())
+        while (script->m_vec24.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec24.push_back(script->m_vec24.back());
+    if (!script->m_vec204.empty())
+        while (script->m_vec204.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec204.push_back(script->m_vec204.back());
+    if (!script->m_vec210.empty())
+        while (script->m_vec210.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec210.push_back(script->m_vec210.back());
+    if (!script->m_vec128.empty())
+        while (script->m_vec128.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec128.push_back(script->m_vec128.back());
+
+    // job==0xb 特判 -1；否则 iconIdx==-1 时经技能脚本文件表全量扫描定位（8a9ae7f..ae90）
+    if (job == 0xb)
+    {
+        script->m_field0 = -1;
+    }
+    else
+    {
+        if (iconIdx == -1)
+            iconIdx = reinterpret_cast<STScriptFileList*>(
+                          &g_staSkillScriptFileList[job])->FindIndexByFullScan(path);
+        script->m_field0 = iconIdx;
+    }
+    return 1;
+}
 
 // ===================== 嵌套结构 =====================
 
@@ -236,9 +292,80 @@ void STSkillScript::Clear()
 namespace
 {
 
+// TAG_* 常量：与 kSkillTags 表 id 一一对应（ORIG ImportSkillScript switch case 实证）
+enum
+{
+    TAG_NAME = 0x129,
+    TAG_NAME2 = 0x12c,
+    TAG_EXPLAIN = 0x12f,
+    TAG_BASIC_EXPLAIN = 0x132,
+    TAG_BASIC_PROPERTY = 0x135,
+    TAG_MAXIMUM_LEVEL = 0x159,
+    TAG_PURCHASE_COST = 0x15c,
+    TAG_SPECIAL_PURCHASE_COST = 0x166,
+    TAG_REQUIRED_LEVEL = 0x172,
+    TAG_REQUIRED_LEVEL_RANGE = 0x175,
+    TAG_REQUIRED_RANK = 0x178,
+    TAG_REQUIRED_GUILD_LEVEL = 0x17b,
+    TAG_REQUIRED_GUILD_LEVEL_RANGE = 0x17e,
+    TAG_PRE_REQUIRED_SKILL = 0x181,
+    TAG_STEEL_LEARNING_SKILL = 0x18e,
+    TAG_TYPE = 0x194,
+    TAG_SKILL_CLASS = 0x19b,
+    TAG_GROWTYPE_FITNESS = 0x19f,
+    TAG_SECOND_GROWTYPE_FITNESS = 0x1a4,
+    TAG_GROWTYPE_MAXIMUM_LEVEL = 0x1ac,
+    TAG_SECOND_GROWTYPE_MAXIMUM_LEVEL = 0x1b1,
+    TAG_SKILL_FITNESS_GROWTYPE = 0x1b9,
+    TAG_SKILL_FITNESS_SECOND_GROWTYPE = 0x1c4,
+    TAG_CASTING_TIME = 0x1cf,
+    TAG_DURABILITY_DECREASE_RATE = 0x1d3,
+    TAG_CONSUME_MP = 0x1d6,
+    TAG_MAINTAIN_MP = 0x1dc,
+    TAG_CONSUME_ITEM = 0x1e0,
+    TAG_LIMIT_COUNT = 0x1ee,
+    TAG_AUTO_LIMIT_COUNT_REDUCE = 0x1f8,
+    TAG_COOL_TIME = 0x1fb,
+    TAG_LEAGUE_BAN = 0x1ff,
+    TAG_SKILL_UNDER_COOLTIME_EFFECT = 0x202,
+    TAG_SKILL_UNDER_COOLTIME_EFFECT_EACH = 0x20d,
+    TAG_AUTO_COOLTIME_APPLY = 0x218,
+    TAG_WEAPON_EFFECT_TYPE = 0x21b,
+    TAG_ICON = 0x224,
+    TAG_COMMAND_KEY_EXPLAIN = 0x22a,
+    TAG_COMMAND = 0x22d,
+    TAG_STATIC_DATA = 0x230,
+    TAG_COOLTIME_LEVEL_INFO = 0x23b,
+    TAG_LEVEL_INFO = 0x23f,
+    TAG_LEVEL_PROPERTY = 0x258,
+    TAG_SHAKE_SCREEN = 0x27c,
+    TAG_SEAL_ENABLE = 0x280,
+    TAG_ACTIVE_SEAL_ENABLE = 0x283,
+    TAG_PHYSICAL_MAGICAL_CHANGE = 0x287,
+    TAG_SKILL_PRELOADING_IMAGE = 0x28b,
+    TAG_PURCHASE_GSP = 0x292,
+    TAG_PURCHASE_GOLD = 0x29d,
+    TAG_START_COOL_TIME = 0x2a8,
+    TAG_SKILL_COMMAND_ADVANTAGE = 0x2ac,
+    TAG_IS_LINKED_BLAST = 0x2b1,
+    TAG_LINKED_BLAST_ADD_POINT = 0x2b4,
+    TAG_LINKED_BLAST_DEC_POINT = 0x2b7,
+    TAG_CHILD_SKILL_INDEX = 0x2bb,
+    TAG_FEATURE_SKILL_INDEX = 0x2be,
+    TAG_FEATURE_SKILL_TYPE = 0x2c1,
+    TAG_SPECIAL_LEVEL_UP = 0x2c4,
+    TAG_BASIC_EXPLAIN_EX = 0x2e1,
+    TAG_EXPLAIN_EX = 0x2e4,
+    TAG_EXECUTABLE_STATES = 0x2e7,
+    TAG_NUT_SKILL_SCRIPT = 0x2fe,
+    TAG_COMMAND_CUSTOMIZING = 0x319,
+    TAG_COMBO_SET = 0x31d,
+};
+
 std::map<const char*, int> s_skillTagMap;
 SpinLock s_skillTagLock;
 bool s_skillTagReady = false;
+const int kTagCount = 65;   // ORIG 技能标签表项数（下表 65 项实证：多对项合并一行）
 const struct SkillTagEntry { int id; const char* name; } kSkillTags[kTagCount] =
 {
     { 0x129, "[name]" },                          { 0x12c, "[name2]" },
@@ -328,8 +455,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         switch (tagId)
         {
-        case 0:                                      // 未就绪路径：逐条注册（8a97f87 起）
-            RegisterSkillTags();
+        case 0:                                      // 未就绪路径：逐条注册（ORIG 生成插桩链 8a97f87 起逐 tag insert）
+            for (int regIdx = 0; regIdx < kTagCount; ++regIdx)
+                s_skillTagMap[kSkillTags[regIdx].name] = kSkillTags[regIdx].id;
             break;
 
         case TAG_NAME:                               // [name]
@@ -354,7 +482,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             feat.m_field0[0] = ScanInt(&okFlag);
             if (!okFlag)
                 break;
-            feat.m_field0[1] = ScanInt(0);
+            feat.m_field0[1] = ScanInt((bool*)0);
             ScanStr(&feat.m_str8);
             bool cont = true;
             while (cont)
@@ -362,9 +490,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 value = ScanInt(&okFlag);
                 if (okFlag)
                 {
-                    int value2 = ScanInt(0);
+                    int value2 = ScanInt((bool*)0);
                     feat.m_vecC.push_back(std::pair<int, int>(value, value2));
-                    float fValue = ScanFloat(0);
+                    float fValue = ScanFloat((bool*)0);
                     feat.m_vec18.push_back(fValue);
                 }
                 else
@@ -372,48 +500,73 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                     cont = false;
                 }
             }
-            EraseOverlappingFeatures(&script->m_levelFeatures1b4,
-                                     feat.m_field0[0], feat.m_field0[1]);
+            // ORIG 内联重叠擦除（8a982b2..8a983a9）：删除与 [feat.f0, feat.f1] 相交项
+            for (std::vector<SkillLevelFeature>::iterator it =
+                     script->m_levelFeatures1b4.begin();
+                 it != script->m_levelFeatures1b4.end();)
+            {
+                bool overlap =
+                    (it->m_field0[1] >= feat.m_field0[0]) &&
+                    (it->m_field0[0] <= feat.m_field0[1]);
+                if (overlap)
+                    it = script->m_levelFeatures1b4.erase(it);
+                else
+                    ++it;
+            }
             script->m_levelFeatures1c0.push_back(feat);
             break;
         }
 
         case TAG_MAXIMUM_LEVEL:                      // [maximum level]
-            script->m_14 = ScanInt(0);
+            script->m_14 = ScanInt((bool*)0);
             break;
 
         case TAG_PURCHASE_COST:                      // [purchase cost]
         {
-            script->m_vec18.clear();
-            ReadIntVecInto(script->m_vec18, &value, &okFlag);
+            script->m_vec18.clear();                 // 8a984cd
+            for (;;)                                 // ORIG 内联读取向量（8a984db..）
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;                           // 失败→主循环尾 8a9ac24
+                script->m_vec18.push_back(value);
+            }
             break;
         }
 
         case TAG_SPECIAL_PURCHASE_COST:              // [special purchase cost]
         {
             script->m_vec24.clear();
-            ReadIntVecInto(script->m_vec24, &value, &okFlag);
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec24.push_back(value);
+            }
             break;
         }
 
+
+
         case TAG_REQUIRED_LEVEL:                     // [required level]
-            script->m_30 = ScanInt(0);
+            script->m_30 = ScanInt((bool*)0);
             break;
 
         case TAG_REQUIRED_LEVEL_RANGE:               // [required level range]
-            script->m_34 = ScanInt(0);
+            script->m_34 = ScanInt((bool*)0);
             break;
 
         case TAG_REQUIRED_RANK:                      // [required rank]
-            script->m_38 = ScanInt(0);
+            script->m_38 = ScanInt((bool*)0);
             break;
 
         case TAG_REQUIRED_GUILD_LEVEL:               // [required guild level]
-            script->m_3c = ScanInt(0);
+            script->m_3c = ScanInt((bool*)0);
             break;
 
         case TAG_REQUIRED_GUILD_LEVEL_RANGE:         // [required guild level range]
-            script->m_40 = ScanInt(0);
+            script->m_40 = ScanInt((bool*)0);
             break;
 
         case TAG_PRE_REQUIRED_SKILL:                 // [pre required skill]
@@ -426,7 +579,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 value = ScanInt(&okFlag);
                 if (okFlag)
                 {
-                    int subVal = ScanInt(0);
+                    int subVal = ScanInt((bool*)0);
                     int pushVal = value;
                     int pushSub = subVal;
                     script->m_vec44.push_back(pushVal);
@@ -444,9 +597,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
         {
             int enableVal = ScanInt(&okFlag);
             script->m_1e8 = (enableVal == 1) ? 1 : 0;
-            script->m_1ec = ScanInt(0);
-            script->m_1f0 = ScanInt(0);
-            script->m_1f4 = ScanInt(0);
+            script->m_1ec = ScanInt((bool*)0);
+            script->m_1f0 = ScanInt((bool*)0);
+            script->m_1f4 = ScanInt((bool*)0);
             break;
         }
 
@@ -459,60 +612,76 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             break;                                   // 其它值不写（8a9ac17 落主循环尾）
 
         case TAG_SKILL_CLASS:                        // [skill class]
-            script->m_60 = ScanInt(0);
+            script->m_60 = ScanInt((bool*)0);
             break;
 
         case TAG_GROWTYPE_FITNESS:                   // [growtype fitness]
             for (int i = 0; i <= 5; ++i)
-                script->m_arr64[i][0] = ScanInt(0);  // dst = this+(i+0x18)*4+0x04
+                script->m_arr64[i] = ScanInt((bool*)0);   // dst = +0x64+i*4（8a98b44..）
             break;
 
         case TAG_SECOND_GROWTYPE_FITNESS:            // [second growtype fitness]
             for (int i = 0; i <= 5; ++i)
                 for (int j = 0; j <= 1; ++j)
                     script->m_growType[i].m_0[j] =
-                        ScanInt(0);                  // dst = this+(i*16+j)+0x24+0x10
+                        ScanInt((bool*)0);                  // dst = this+(i*16+j)+0x24+0x10
             break;
 
         case TAG_GROWTYPE_MAXIMUM_LEVEL:             // [growtype maximum level]
             for (int i = 0; i <= 5; ++i)
-                script->m_arr7c[i][0] = ScanInt(0);  // dst = this+(i+0x1c)*4+0xc
+                script->m_arr7c[i] = ScanInt((bool*)0);   // dst = +0x7c+i*4
             break;
 
         case TAG_SECOND_GROWTYPE_MAXIMUM_LEVEL:      // [second growtype maximum level]
             for (int i = 0; i <= 5; ++i)
                 for (int j = 0; j <= 1; ++j)
                     script->m_growType[i].m_8[j] =
-                        ScanInt(0);                  // dst = this+(i*16+j)+0x24+0x1c
+                        ScanInt((bool*)0);                  // dst = this+(i*16+j)+0x24+0x1c
             break;
 
         case TAG_SKILL_FITNESS_GROWTYPE:             // [skill fitness growtype]
-            script->m_vecf4.clear();
-            ReadIntVecInto(script->m_vecf4, &value, &okFlag);
+        {
+            script->m_vec1dc.clear();                // ORIG 目标 +0x1dc（8a98dd8）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;                           // 失败→主循环尾
+                script->m_vec1dc.push_back(value);
+            }
             break;
+        }
 
         case TAG_SKILL_FITNESS_SECOND_GROWTYPE:      // [skill fitness second growtype]
-            script->m_vec128.clear();
-            ReadIntVecInto(script->m_vec128, &value, &okFlag);
+        {
+            script->m_vec128.clear();                // 目标 +0xf4（8a98e8a..8a98ec2）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec128.push_back(value);
+            }
             break;
+        }
 
         case TAG_CASTING_TIME:                       // [casting time]
             for (int i = 0; i <= 1; ++i)
-                script->m_i108[i] = ScanInt(0);      // dst = this+(i+0x44)*4+0x00
+                script->m_i108[i] = ScanInt((bool*)0);      // dst = this+(i+0x44)*4+0x00
             break;
 
         case TAG_DURABILITY_DECREASE_RATE:           // [durability decrease rate]
-            script->m_118 = ScanInt(0);
+            script->m_118 = ScanInt((bool*)0);
             break;
 
         case TAG_CONSUME_MP:                         // [consume MP]
             for (int i = 0; i <= 1; ++i)
-                script->m_f100[i] = ScanFloat(0);    // fstps this+i*0x40
+                script->m_f100[i] = ScanFloat((bool*)0);    // fstps this+i*0x40
             break;
 
         case TAG_MAINTAIN_MP:                        // [maintain MP]
             for (int i = 0; i <= 1; ++i)
-                script->m_f100[i] = ScanFloat(0);    // fstps this+i*0x40+0x08（ORIG 同址别名写）
+                script->m_f100[i] = ScanFloat((bool*)0);    // fstps this+i*0x40+0x08（ORIG 同址别名写）
             break;
 
         case TAG_CONSUME_ITEM:                       // [consume item]
@@ -525,8 +694,8 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 item.m_index = ScanInt(&okFlag);
                 if (okFlag)
                 {
-                    item.m_useLevel[0] = ScanInt(0);
-                    item.m_useLevel[1] = ScanInt(0);
+                    item.m_useLevel[0] = ScanInt((bool*)0);
+                    item.m_useLevel[1] = ScanInt((bool*)0);
                     script->m_useItems11c.push_back(item);
                 }
                 else
@@ -539,40 +708,55 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_LIMIT_COUNT:                        // [limit count]
         {
-            script->m_vec140.clear();
-            ReadIntVecInto(script->m_vec140, &value, &okFlag);
+            script->m_vec128.clear();                // ORIG 目标 +0x128（8a99254）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;                           // 失败→主循环尾
+                script->m_vec128.push_back(value);
+            }
             break;
         }
 
         case TAG_AUTO_LIMIT_COUNT_REDUCE:            // [auto limit count reduce]
-            script->m_134 = ScanInt(0);
+            script->m_134 = ScanInt((bool*)0);
             break;
 
         case TAG_COOL_TIME:                          // [cool time]
             for (int i = 0; i <= 1; ++i)
-                script->m_i108[i + 19] = ScanInt(0); // dst = this+(i+0x4c)*4+0x08
-            break;
-
-        case TAG_LEAGUE_BAN:                         // [league ban]
-            script->m_23c = ScanInt(0);
+                script->m_i108[i + 19] = ScanInt((bool*)0); // dst = this+(i+0x4c)*4+0x08
             break;
 
         case TAG_SKILL_UNDER_COOLTIME_EFFECT:        // [skill under cooltime effect]
         {
-            script->m_vec140.clear();
-            ReadIntVecInto(script->m_vec140, &value, &okFlag);
+            script->m_vec140.clear();                // 目标 +0x140（8a99487）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec140.push_back(value);
+            }
             break;
         }
 
         case TAG_SKILL_UNDER_COOLTIME_EFFECT_EACH:   // [skill under cooltime effect each]
         {
-            script->m_vec14c.clear();
-            ReadIntVecInto(script->m_vec14c, &value, &okFlag);
+            script->m_vec14c.clear();                // 目标 +0x14c（8a99571）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec14c.push_back(value);
+            }
             break;
         }
 
+
         case TAG_AUTO_COOLTIME_APPLY:                // [auto cooltime apply]
-            script->m_158 = ScanInt(0);
+            script->m_158 = ScanInt((bool*)0);
             break;
 
         case TAG_WEAPON_EFFECT_TYPE:                 // [weapon effect type]
@@ -591,9 +775,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             iconA[0] = 0;                            // 占位避免未用告警（ORIG 直接指针比较）
             (void)iconA;
             ScanStr(&script->m_str160[0]);
-            script->m_arr168[0] = ScanInt(0);
+            script->m_arr168[0] = ScanInt((bool*)0);
             ScanStr(&script->m_str160[1]);
-            script->m_arr168[1] = ScanInt(0);
+            script->m_arr168[1] = ScanInt((bool*)0);
             break;
         }
 
@@ -607,19 +791,25 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_STATIC_DATA:                        // [static data]
         {
-            script->m_vec198.clear();
-            ReadIntVecInto(script->m_vec198, &value, &okFlag);
+            script->m_vec198.clear();                // 目标 +0x198（8a998e8）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec198.push_back(value);
+            }
             break;
         }
 
         case TAG_COOLTIME_LEVEL_INFO:                // [cooltime level info]
-            script->m_1a4 = ScanInt(0);
+            script->m_1a4 = ScanInt((bool*)0);
             break;
 
         case TAG_LEVEL_INFO:                         // [level info]
         {
             script->m_vec1a8.clear();
-            int rowCnt = ScanInt(0);                 // -0x40
+            int rowCnt = ScanInt((bool*)0);                 // -0x40
             {
                 std::vector<float> rowFiller;        // resize 第 2 参临时向量
                 script->m_vec1a8.resize(rowCnt, rowFiller);
@@ -656,7 +846,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             feat.m_field0[0] = ScanInt(&okFlag);
             if (!okFlag)
                 break;
-            feat.m_field0[1] = ScanInt(0);
+            feat.m_field0[1] = ScanInt((bool*)0);
             ScanStr(&feat.m_str8);
             bool cont = true;
             while (cont)
@@ -664,9 +854,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 value = ScanInt(&okFlag);
                 if (okFlag)
                 {
-                    int value2 = ScanInt(0);
+                    int value2 = ScanInt((bool*)0);
                     feat.m_vecC.push_back(std::pair<int, int>(value, value2));
-                    float fValue = ScanFloat(0);
+                    float fValue = ScanFloat((bool*)0);
                     feat.m_vec18.push_back(fValue);
                 }
                 else
@@ -674,27 +864,38 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                     cont = false;
                 }
             }
-            EraseOverlappingFeatures(&script->m_levelFeatures1b4,
-                                     feat.m_field0[0], feat.m_field0[1]);
+            // ORIG 内联重叠擦除（[level property] 同 [basic property] 段）
+            for (std::vector<SkillLevelFeature>::iterator it =
+                     script->m_levelFeatures1b4.begin();
+                 it != script->m_levelFeatures1b4.end();)
+            {
+                bool overlap =
+                    (it->m_field0[1] >= feat.m_field0[0]) &&
+                    (it->m_field0[0] <= feat.m_field0[1]);
+                if (overlap)
+                    it = script->m_levelFeatures1b4.erase(it);
+                else
+                    ++it;
+            }
             script->m_levelFeatures1b4.push_back(feat);
             break;
         }
 
         case TAG_SHAKE_SCREEN:                       // [shake screen]
-            script->m_1cc = ScanInt(0);
-            script->m_1d0 = ScanInt(0);
+            script->m_1cc = ScanInt((bool*)0);
+            script->m_1d0 = ScanInt((bool*)0);
             break;
 
         case TAG_SEAL_ENABLE:                        // [seal enable]
-            script->m_1d4 = (ScanInt(0) != 0) ? 1 : 0;
+            script->m_1d4 = (ScanInt((bool*)0) != 0) ? 1 : 0;
             break;
 
         case TAG_ACTIVE_SEAL_ENABLE:                 // [active seal enable]
-            script->m_1d5 = (ScanInt(0) != 0) ? 1 : 0;
+            script->m_1d5 = (ScanInt((bool*)0) != 0) ? 1 : 0;
             break;
 
         case TAG_PHYSICAL_MAGICAL_CHANGE:            // [physical magical change]
-            script->m_1d8 = ScanInt(0);
+            script->m_1d8 = ScanInt((bool*)0);
             break;
 
         case TAG_SKILL_PRELOADING_IMAGE:             // [skill preloading image]
@@ -711,50 +912,62 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_PURCHASE_GSP:                       // [purchase gsp]
         {
-            script->m_vec204.clear();
-            ReadIntVecInto(script->m_vec204, &value, &okFlag);
+            script->m_vec204.clear();                // 目标 +0x204（purchase gsp）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec204.push_back(value);
+            }
             break;
         }
 
         case TAG_PURCHASE_GOLD:                      // [purchase gold]
         {
-            script->m_vec210.clear();
-            ReadIntVecInto(script->m_vec210, &value, &okFlag);
+            script->m_vec210.clear();                // 目标 +0x210（purchase gold）
+            for (;;)
+            {
+                value = ScanInt(&okFlag);
+                if (!okFlag)
+                    break;
+                script->m_vec210.push_back(value);
+            }
             break;
         }
 
         case TAG_START_COOL_TIME:                    // [start cool time]
-            script->m_21c = ScanInt(0);
-            script->m_220 = ScanInt(0);
+            script->m_21c = ScanInt((bool*)0);
+            script->m_220 = ScanInt((bool*)0);
             break;
 
         case TAG_SKILL_COMMAND_ADVANTAGE:            // [skill command advantage]
-            script->m_240 = ScanInt(0);
-            script->m_244 = ScanInt(0);
+            script->m_240 = ScanInt((bool*)0);
+            script->m_244 = ScanInt((bool*)0);
             break;
 
         case TAG_IS_LINKED_BLAST:                    // [is linked blast]
-            script->m_248 = ScanInt(0);
+            script->m_248 = ScanInt((bool*)0);
             break;
 
         case TAG_LINKED_BLAST_ADD_POINT:             // [linked blast add point]
-            script->m_24c = ScanInt(0);
+            script->m_24c = ScanInt((bool*)0);
             break;
 
         case TAG_LINKED_BLAST_DEC_POINT:             // [linked blast dec point]
-            script->m_250 = ScanInt(0);
+            script->m_250 = ScanInt((bool*)0);
             break;
 
         case TAG_CHILD_SKILL_INDEX:                  // [child skill index]
-            script->m_25c = ScanInt(0);
+            script->m_25c = ScanInt((bool*)0);
             break;
 
         case TAG_FEATURE_SKILL_INDEX:               // [feature skill index]
-            script->m_258 = ScanInt(0);
+            script->m_258 = ScanInt((bool*)0);
             break;
 
         case TAG_FEATURE_SKILL_TYPE:                 // [feature skill type]
-            script->m_260 = (ScanInt(0) != 0) ? 1 : 0;
+            script->m_260 = (ScanInt((bool*)0) != 0) ? 1 : 0;
             break;
 
         case TAG_SPECIAL_LEVEL_UP:                   // [special level up]
@@ -774,7 +987,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 bool keepEnable = (enableVal == -1);
                 if (!keepEnable)
                     featData.m_enable = 0;           // 仅 -1 保持 ctor 初值 1
-                featData.m_4 = ScanInt(0);           // -0x61c
+                featData.m_4 = ScanInt((bool*)0);           // -0x61c
                 ScanStr(&opToken);
                 featData.m_c = 0;                    // 默认 '+' 分支值
                 if (opToken == "+")                  // 0x8e29cb5
@@ -783,7 +996,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                     featData.m_c = 1;
                 else if (opToken == "%")             // 0x8e29cb9
                     featData.m_c = 2;
-                featData.m_c = ScanInt(0);           // -0x614：数值段直接覆盖符号序号槽
+                featData.m_c = ScanInt((bool*)0);           // -0x614：数值段直接覆盖符号序号槽
                 script->m_passive268.push_back(featData);
                 cont = true;                         // ebx=1 继续
             }
@@ -823,7 +1036,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             break;
 
         case TAG_COMMAND_CUSTOMIZING:                // [command customizing]
-            script->m_280 = (ScanInt(0) != 0) ? 1 : 0;
+            script->m_280 = (ScanInt((bool*)0) != 0) ? 1 : 0;
             break;
 
         case TAG_COMBO_SET:                          // [combo set]
@@ -849,6 +1062,18 @@ int ImportSkillScript(STSkillScript* script, const char* path,
         }
 
         default:                                     // 8a9ab85（含 tagId==-1 未知标签）
+            if (s_skillTagReady)                     // 未就绪时 ORIG 直接落 8a9ac24 循环尾
+            {
+                // processModuleTagSet(int&,int&,string*,type,bool)：_Z19processModuleTagSetRiS_PSsib
+                int moduleA = -1;                    // -0x628
+                int moduleB = -1;                    // -0x62c
+                processModuleTagSet(&moduleA, &moduleB, &token,
+                                    static_cast<int>(job), true);
+                if (moduleA != -1)
+                    script->m_228[moduleA] = 1;      // +0x228+a（8a9abf0）
+                if (moduleB != -1)
+                    script->m_224 = moduleB;         // +0x224（8a9ac0c）
+            }
             break;
         }
 
@@ -861,12 +1086,5 @@ int ImportSkillScript(STSkillScript* script, const char* path,
         break;                                       // 已就绪：退出 switch 循环
     }
 
-    if (!s_skillTagReady)                            // 8a9ab85 分支入口
-    {
-        FinishBodyParse(script);
-        FinishModuleTags(script, token, path, static_cast<int>(job));
-        return 1;
-    }
-
-    return FinalizeImport(script, job, iconIdx, path);
+    return FinalizeImport(script, job, iconIdx, path);   // 主循环退出：ORIG 8a9ac50 尾部修正段
 }

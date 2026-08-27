@@ -8,6 +8,8 @@
 // 本文件只声明必要接口并调用。
 
 #include "CDataManager.h"
+// ENUM_CHARACTERJOB 由 CDataManager.h 链中的 STEquipmentScript.h 提供（与
+// Quest.h/STSkillScript.h 同名同构）；仅作 ImportSkillScript 形参 cast 使用。
 #include "CMap.h"
 
 #include <ext/hash_map>
@@ -262,7 +264,7 @@ public:
 int get_rand_int(int range);
 
 extern int ImportSkillScript(STSkillScript* script, const char* path,
-                             int job, int type, int flag);
+                             ENUM_CHARACTERJOB job, int type, int flag);
 extern int ImportDungeonScript(STDungeonScript* script, const char* path);
 extern int ImportMonsterScript(STMonsterScript* script, int type,
                                const char* path, bool flag);
@@ -839,7 +841,7 @@ int CSkillList::init()
             {
                 break;
             }
-            if (!ImportSkillScript(&script, (const char*)path, job, 0, -1))
+            if (!ImportSkillScript(&script, (const char*)path, (ENUM_CHARACTERJOB)job, 0, -1))
             {
                 printf("Skill Script Error: %s\n", (const char*)path);
                 return 0;
@@ -860,7 +862,7 @@ int CSkillList::init()
                     return 0;
                 }
                 STSkillScript s2;
-                if (!ImportSkillScript(&s2, (const char*)path, job, 4, -1) ||
+                if (!ImportSkillScript(&s2, (const char*)path, (ENUM_CHARACTERJOB)job, 4, -1) ||
                     !sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s2, job, 4))
                 {
@@ -868,7 +870,7 @@ int CSkillList::init()
                     return 0;
                 }
                 STSkillScript s3;
-                if (!ImportSkillScript(&s3, (const char*)path, job, 6, -1) ||
+                if (!ImportSkillScript(&s3, (const char*)path, (ENUM_CHARACTERJOB)job, 6, -1) ||
                     !sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s3, job, 6))
                 {
@@ -876,7 +878,7 @@ int CSkillList::init()
                     return 0;
                 }
                 STSkillScript s4;
-                if (!ImportSkillScript(&s4, (const char*)path, job, 11, -1) ||
+                if (!ImportSkillScript(&s4, (const char*)path, (ENUM_CHARACTERJOB)job, 11, -1) ||
                     !sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s4, job, 11))
                 {

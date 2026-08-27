@@ -301,3 +301,24 @@ void HeroMissionValue::setStringToken(std::string token)
     ++tit;
     m_field8 = (unsigned short)atoi((*tit).c_str());    // +0x08
 }
+
+// ---------------------------------------------------------------------------
+// ~HeroMissionEvent 三形态（ORIG D1/D2 @0x081665a2 同体、D0 @0x0816662c）。
+// ORIG 析构顺序：m_values(+0x24) → m_conditions(+0x0c)，与本类成员声明逆序
+// 一致；vptr 镜像字段无需处理（ORIG 仅重写 vptr，镜像方案无虚表）。
+// 类为非虚布局镜像，GCC 正常析构定义即产出 D1/D2 两符号（同体，与 ORIG
+// 别名一致）；D0 删除型析构单独以 asm 标签桥出，语义为 D1 + operator delete，
+// 与 ORIG D0 体逐条对应（call D1Ev; call _ZdlPv）。
+// ---------------------------------------------------------------------------
+HeroMissionEvent::~HeroMissionEvent()
+{
+    // 成员（std::map/vector）由编译器按逆序自动析构。
+}
+
+// ORIG _ZN16HeroMissionEventD0Ev T 0x0816662c：先析构再 operator delete。
+void HeroMissionEvent_deleting_dtor(HeroMissionEvent* self)
+    __asm__("_ZN16HeroMissionEventD0Ev");
+void HeroMissionEvent_deleting_dtor(HeroMissionEvent* self)
+{
+    delete self;
+}

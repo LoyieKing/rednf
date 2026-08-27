@@ -152,6 +152,10 @@ dnf_service(game
         ${SVC_DIR}/W6_RankMailDeps.cpp
         ${SVC_DIR}/W6_SecMiscDeps.cpp
         ${SVC_DIR}/W6_CeraShopDeps.cpp
+        ${SVC_DIR}/W8LT_DBTask.cpp
+        ${SVC_DIR}/W7LinkDB.cpp
+        ${SVC_DIR}/W8_AradSig.cpp
+        ${SVC_DIR}/W8_EventClassifyB.cpp
         ${SVC_DIR}/CDataManagerTailB.cpp
         ${SVC_DIR}/W6_HackPunishDeps.cpp
         ${SVC_DIR}/W6_ItemGenDeps.cpp
@@ -606,7 +610,6 @@ dnf_service(game
         ${SVC_DIR}/W7_LinkTailGrowth.cpp
         ${SVC_DIR}/W7_UserLinkTail.cpp
         ${SVC_DIR}/W7_UserOnlyC.cpp
-        ${SVC_DIR}/W8_CU_MAIN.cpp
         ${SVC_DIR}/W8_CU_A.cpp
         ${SVC_DIR}/W8_CU_B.cpp
         ${SVC_DIR}/W8_CU_C.cpp

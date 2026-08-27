@@ -6,11 +6,23 @@
 #include "CUser.h"
 #include "CQuestShop.h"
 #include "PacketGuard.h"
-#include "CDataManager.h"
+#include "GlobalData.h"
 
 #include "CInventory.h"
 #include "CStreamGuard.h"
 #include "MsgQueueMgr.h"
+// ORIG C1 0x85eebc8 size 0x97：CData 基类（vptr）、map@+0x08、map@+0x20 构造，
+// _reset() 收尾；异常清理路径按 ORIG try/leave 版式由编译器生成。
+CQuestShop::CQuestShop()
+{
+}
+
+// ORIG D1 0x85eec60 size 0x89：vptr 重置 → ~map(+0x20) → ~map(+0x08) → ~CData；
+// D0（deleting）由编译器按虚析构规则产出（+operator delete，D1 后 delete this）。
+CQuestShop::~CQuestShop()
+{
+}
+
 int CQuestShop::getQp() const { return m_qp; }
 int CQuestShop::getInitQp() const { return m_initQp; }
 int CQuestShop::getInitCount() const { return m_initCount; }
@@ -59,9 +71,8 @@ void CQuestShop::clearQP(CUser* user)
     user->setInitQuestPoint();
     setQp(getInitQp());
     clearBuyingStatuslist();
-    cUserHistoryLog* history = reinterpret_cast<cUserHistoryLog*>(
-        reinterpret_cast<char*>(user) + 0x79700);
-    history->ClearUsedQP(oldQp, getQp(), getInitCount(), 0);
+    // ORIG 0x85ef5d5：history = CUser +0x79700（具名成员 m_historyLog）
+    user->m_historyLog.ClearUsedQP(oldQp, getQp(), getInitCount(), 0);
 }
 
 void CQuestShop::makePacket_BuyingStatusList(PacketGuard& packet, bool flag)
@@ -70,37 +81,34 @@ void CQuestShop::makePacket_BuyingStatusList(PacketGuard& packet, bool flag)
         flag ? m_tagBuyingStatus : m_buyingStatus;
     packet.put_byte(static_cast<int>(status.size()));
 
+    const stQuestShop& questShop = G_CDataManager()->m_questShop;
     for (std::map<unsigned char, short>::const_iterator it = status.begin();
          it != status.end(); ++it)
     {
         int itemStatus = -1;
-        const unsigned int itemIndex = static_cast<unsigned char>(it->first);
+        const int itemIndex = static_cast<int>(it->first);
         int count = static_cast<int>(it->second);
-        if (itemIndex < 0x4d)
-        {
-            const unsigned char* table = reinterpret_cast<const unsigned char*>(
-                reinterpret_cast<const char*>(G_CDataManager()) + 0x63c0);
-            itemStatus = static_cast<int>(static_cast<signed char>(table[itemIndex]));
-        }
+        if (itemIndex <= 0x4c)
+            itemStatus = static_cast<signed char>(questShop.m_pad28[itemIndex]);
         else
             count = 0;
-
         packet.put_byte(itemStatus);
         packet.put_short(count);
     }
 }
 
 // ============================================================================
- // CQuestShop::subQp(unsigned char, unsigned char)  ORIG T 0x85eed2a size 0x7e
-void CQuestShop::subQp(unsigned char status, unsigned char count)
+// ---- CQuestShop::subQp(unsigned char, unsigned char)  ORIG T 0x85eed2a
+int CQuestShop::subQp(unsigned char status, unsigned char count)
 {
     int cost = findStatusQp(status);              // +0x00..+0x33
     if (cost <= 0)
-        return;
-    cost = static_cast<int>(count) * cost;        // imul
-    if (getQp() - cost >> 31 != 0)                // 负数判定（shr 0x1f）
-        return;
-    subQp(cost);
+        return 1;                                 // +0x3b
+    cost = static_cast<int>(count) * cost;        // imul +0x4a
+    if ((getQp() - cost >> 31) != 0)              // shr $0x1f 负数判定
+        return 0x16;                              // +0x5d
+    subQp(cost);                                  // _ZN10CQuestShop5subQpEi
+    return 0;                                     // +0xa1
 }
 
 // ---- ORIG T 0x85eeda8 size 0xc2：查 [quest status] 表中该 status 的 QP ---
@@ -168,6 +176,8 @@ void CQuestShop::incStatusBuyingCount(unsigned char status, unsigned char count)
  // 镜像以产生/承载真实符号与 getMaxCount 内部访问。
 struct stQuestShopStatus
 {
+    int getMaxCount(int level);
+
     std::string m_name;                    // +0x00
     std::string m_name2;                   // +0x04
     std::string m_explain;                 // +0x08
@@ -208,11 +218,12 @@ bool CQuestShop::checkBuyingStatus_LimitLevel(unsigned char status, short count,
         table.find(static_cast<int>(status));
     if (it == table.end())                        // +0xb3: 未找到 → false
         return false;
-    // call getMaxCount(stQuestShopStatus*, param3)；镜像布局兼容，取低层视图
-    const stQuestShopStatus* qs =
-        reinterpret_cast<const stQuestShopStatus*>(&it->second);
+    // ORIG：把 map 值视图当 ORIG 顶层 stQuestShopStatus 传给 getMaxCount
+    // （两类型布局同为 0x30，见上方镜像 static_assert）。
+    stQuestShopStatus* qs = const_cast<stQuestShopStatus*>(
+        reinterpret_cast<const stQuestShopStatus*>(&it->second));
     const int maxCount = qs->getMaxCount(characLevel);
-    if (static_cast<int>(count) > maxCount)       // movswl +0xc0 cmp jle
+    if (static_cast<int>(count) > maxCount)       // +0xc0 cmp/jle
         return false;
     return true;                                  // +0xaa
 }
@@ -237,22 +248,21 @@ int CQuestShop::calUsedQp()
 {
     unsigned char qp = 0;                                  // -0x19
     int used = 0;                                          // -0x18
+    const stQuestShop& questShop = G_CDataManager()->m_questShop;
     for (std::map<unsigned char, short>::const_iterator it =
              m_buyingStatus.begin();
          it != m_buyingStatus.end(); ++it)
     {
         const int statusIdx = static_cast<int>(it->first); // -0x10
         const int count = static_cast<int>(it->second);    // cwtl -0xc
-        if (statusIdx > 0x4c)                       // cmpl $0x4c jle
+        if (statusIdx > 0x4c)                       // cmpl $0x4c → return -1
             return -1;
         const int itemStatus = static_cast<signed char>(
-            *(reinterpret_cast<const signed char*>(
-                  reinterpret_cast<const char*>(G_CDataManager()) + 0x63c0 +
-                  statusIdx)));                     // m_pad28[type]
+            questShop.m_pad28[statusIdx]);          // dm+0x63c0 表（具名成员）
         qp = static_cast<unsigned char>(findStatusQp(itemStatus));
         if (qp == 0)                                // +0xbc cmpb jne
             return -1;
-        used += static_cast<int>(qp) * count;       // imul/add
+        used += static_cast<int>(qp) * count;       // imul/add -0x2d0
     }
     return used;                                    // +0xd2 循环外
 }
@@ -271,12 +281,10 @@ bool CQuestShop::buyStatus(CUser* user, unsigned char status,
         return 0xe;                                 // +0x93
     const int beforeQp = getQp();                   // -0x10
     const int subRet = subQp(status, count);
-    if (subRet != 0)                                // +0xca
+    if (subRet != 0)                                // +0xca je
         return subRet;
     incStatusBuyingCount(status, count);
-    cUserHistoryLog* history = reinterpret_cast<cUserHistoryLog*>(
-        reinterpret_cast<char*>(user) + 0x79700);   // ORIG add $0x79700,%edx
-    history->QPSub(beforeQp, getQp(), static_cast<int>(status));
+    user->m_historyLog.QPSub(beforeQp, getQp(), static_cast<int>(status));
     return 0;
 }
 
@@ -286,9 +294,9 @@ bool CQuestShop::clearUsedQp(CUser* user)
     int initQp = 0;                                 // -0x18
     const int cost = getInitCost(getInitCount());   // -0x14
     if (user->getCurCharacInvenR()->get_money() < cost)
-        return 0xa;                                 // +0x45
+        return 0xa;                                 // +0x45 setl
     if (!user->getCurCharacInvenW()->use_money(
-            cost, (eMoneySubReason)0x2b, true))     // xor $1 判定
+            cost, (eMoneySubReason)0x2b, true))     // xor $1 判定 false→ret1
         return 1;                                   // +0x86
     const int beforeQp = getQp();                   // -0x10
     incInitCount();
@@ -298,9 +306,7 @@ bool CQuestShop::clearUsedQp(CUser* user)
     clearBuyingStatuslist();
     const int afterQp = getQp();                    // -0xc
     const int initCount = getInitCount();
-    cUserHistoryLog* history = reinterpret_cast<cUserHistoryLog*>(
-        reinterpret_cast<char*>(user) + 0x79700);
-    history->ClearUsedQP(beforeQp, afterQp, initCount, cost);
+    user->m_historyLog.ClearUsedQP(beforeQp, afterQp, initCount, cost);
     return 0;
 }
 
@@ -318,8 +324,10 @@ void CQuestShop::_reset()
 // ---- ORIG T 0x85efdc0 size 0x94：装入 tag 状态计数 ------------------------
 bool CQuestShop::SetTagCharacQuestShopData(CHARAC_QUEST_SHOP_DATA* data)
 {
-    const CQuestShop::SigQuestShopView& view =
-        *reinterpret_cast<const SigQuestShopView*>(data);
+    // ORIG 按序列化块偏移访问 tag 区（0x85efdc0 movzwl 0xc+i*2）；
+    // 该内存即 SIG_QUEST_SHOP_DATA 布局（SigTypes.h 权威定义），具名访问。
+    const SIG_QUEST_SHOP_DATA& view =
+        *reinterpret_cast<const SIG_QUEST_SHOP_DATA*>(data);
     for (int i = 0; i <= 0x4c; ++i)                 // cmp $0x4c setle
     {
         const unsigned short count = view.m_statusCounts[i]; // movzwl 0xc+i*2
@@ -336,26 +344,25 @@ bool CQuestShop::SetTagCharacQuestShopData(CHARAC_QUEST_SHOP_DATA* data)
 bool CQuestShop::loadData(CUser* user, char* data)
 {
     _reset();   // ORIG call *(vtable+0x1c)（CData 虚槽 7 _reset）
-    const SigQuestShopView& view =
-        *reinterpret_cast<const SigQuestShopView*>(data);
-    m_qp = static_cast<int>(view.m_qp);             // mov 0x4(%eax)→0x38(this)
-    setInitCount(static_cast<int>(view.m_initCount)); // 0x8(%eax)
-    m_piece = static_cast<int>(view.m_questPiece);  // mov 0xa6(%eax)→0x44(this)
+    const SigQuestShopLoadBlock& block =
+        *reinterpret_cast<const SigQuestShopLoadBlock*>(data);
+    m_qp = static_cast<int>(block.m_main.m_qp);     // mov 0x4→m_qp(+0x38)
+    setInitCount(static_cast<int>(block.m_main.m_initCount));
+    m_piece = static_cast<int>(block.m_main.m_questPiece); // 0xa6→(+0x44)
     for (int i = 0; i <= 0x4c; ++i)
     {
-        const unsigned short count = view.m_statusCounts[i];
+        const unsigned short count = block.m_main.m_statusCounts[i];
         if (count == 0)                             // test ax / je
             continue;
         m_buyingStatus.insert(
             std::map<unsigned char, short>::value_type(
                 static_cast<unsigned char>(i), static_cast<short>(count)));
     }
-    if (*reinterpret_cast<const unsigned char*>(data + 0x154) !=
-        0)                                          // movzbl 0x154(%eax)
-        SetTagCharacQuestShopData(reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
-            data + 0xaa));
+    if (block.m_tagFlag != 0)                       // movzbl 0x154(%eax)
+        SetTagCharacQuestShopData(const_cast<CHARAC_QUEST_SHOP_DATA*>(
+            reinterpret_cast<const CHARAC_QUEST_SHOP_DATA*>(&block.m_tag)));
     if (user->getCurCharacLastPlayTick() <=
-        static_cast<long>(0x500723cf))              // cmp/setle
+        static_cast<long>(0x500723cf))              // cmp/setle +0x12a
         clearQP(user);
     return 1;                                       // +0x139
 }
@@ -363,34 +370,31 @@ bool CQuestShop::loadData(CUser* user, char* data)
 // ---- ORIG T 0x85efb66 size 0x20e：_saveData 虚槽 6（入 DB_Q）--------------
 bool CQuestShop::_saveData(CUser* user)
 {
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QuestShop.cpp",
-                                                          0x21b),
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QuestShop.cpp", 0x21b),
                        true);                       // ORIG ctor(stream,1)
     guard << 0x279;                                 // operator<<(int)
     guard << user->GetUID();
     SIG_QUEST_SHOP_DATA* sig =
         guard.GetInBuffer<SIG_QUEST_SHOP_DATA>();   // pt()+GetInBuffer 模板
     if (sig == 0)
-        return 0;
+        return 0;                                   // ebx=0
     memset(sig, 0, 0x155);
-    SigQuestShopView& view =
-        *reinterpret_cast<SigQuestShopView*>(sig);
-    view.m_characNo =
+    sig->m_characNo =
         static_cast<unsigned int>(user->get_charac_no(-1)); // mov %edx,(%eax)
-    view.m_qp = static_cast<unsigned int>(getQp());
-    view.m_initCount = static_cast<unsigned int>(getInitCount());
-    view.m_questPiece = static_cast<unsigned int>(getPiece()); // 0xa6
+    sig->m_qp = static_cast<unsigned int>(getQp());
+    sig->m_initCount = static_cast<unsigned int>(getInitCount());
+    sig->m_questPiece = static_cast<unsigned int>(getPiece()); // 0xa6
     for (std::map<unsigned char, short>::const_iterator it =
              m_buyingStatus.begin();
          it != m_buyingStatus.end(); ++it)
     {
         const unsigned char key = it->first;        // -0xb
         const unsigned short value = static_cast<unsigned short>(it->second);
-        if (key > 0x4c)                             // cmp $0x4c seta jne skip
+        if (key > 0x4c)                             // cmp $0x4c seta → skip
             continue;
-        view.m_statusCounts[key] = value;           // mov %cx,0xc(key*2)
+        sig->m_statusCounts[key] = value;           // mov %cx,0xc(key*2)
     }
-    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard); // DB_Q
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard); // DB_Q @GlobalData
     return 1;                                       // ebx=1
 }
 
@@ -398,7 +402,8 @@ bool CQuestShop::_saveData(CUser* user)
 void CQuestShop::getData(char* out) const
 {
     memset(out, 0, 0x155);
-    SigQuestShopView& view = *reinterpret_cast<SigQuestShopView*>(out);
+    SIG_QUEST_SHOP_DATA& view =
+        *reinterpret_cast<SIG_QUEST_SHOP_DATA*>(out);
     view.m_qp = static_cast<unsigned int>(getQp());       // 0x4(%eax)
     view.m_initCount = static_cast<unsigned int>(getInitCount()); // 0x8
     view.m_questPiece = static_cast<unsigned int>(getPiece()); // 0xa6
@@ -412,8 +417,8 @@ void CQuestShop::getData(char* out) const
             continue;
         view.m_statusCounts[key] = value;
     }
-    SigQuestShopView& tagView =
-        *reinterpret_cast<SigQuestShopView*>(out + 0xaa); // +0x97a
+    SIG_QUEST_SHOP_DATA& tagView =
+        *reinterpret_cast<SIG_QUEST_SHOP_DATA*>(out + 0xaa); // +0x97a
     for (std::map<unsigned char, short>::const_iterator it =
              m_tagBuyingStatus.begin();
          it != m_tagBuyingStatus.end(); ++it)

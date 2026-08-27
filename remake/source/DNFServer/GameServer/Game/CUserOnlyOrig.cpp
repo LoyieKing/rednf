@@ -89,9 +89,7 @@ public:
 };
 enum { DISCONN_SIG_PARSE_FAIL = 4, DISCONN_SIG_RECV_ERR = 5, DISCONN_SIG_END_OF_SESSION = 1 };
 // Parsing/checkHumanCertify 等使用的裸偏移字段访问宏（CUser.h 未建模区；偏移自函数内 ORIG 注记）
-#define W7_CU_BYTE(off)  (*(unsigned char*)((char*)this + (off)))
-#define W7_CU_SHORT(off) (*(unsigned short*)((char*)this + (off)))
-#define W7_CU_INT(off)   (*(int*)((char*)this + (off)))
+// （W7_CU_BYTE/SHORT/INT 偏移宏已按铁律删除；对应字段已具名化于 CUser.h）
 #include "DataManagerInitDepends.h" // CLevelRewardTableMgr 权威完整类
 // ---- DB 请求类最小声明（实现 owner：DB 域批次；签名对齐本 TU 调用点/ORIG mangled）----
 class DB_InsertArchieveEventLog
@@ -832,8 +830,7 @@ void CUser::AddCurCharacMercenaryInfo()
 // ---------------------------------------------------------------------------
 void CUser::AddDailyBadge(ENUM_BADGE_TYPE badge)
 {
-    unsigned short cnt = W7_CU_SHORT(0x8e084 + (int)badge * 2) /*@+0x8E084 ushort 表*/;     // m_dailyBadgeCounts @ +0x8E084
-    W7_CU_SHORT(0x8e084 + (int)badge * 2) /*@+0x8E084 ushort 表*/ = (unsigned short)(cnt + 1);
+    m_dailyBadge[(int)badge] = (short)(m_dailyBadge[(int)badge] + 1);   // ushort 计数自增（ORIG movzwl+lea1 同型）
 }
 
 // ---------------------------------------------------------------------------
@@ -1438,7 +1435,7 @@ int CUser::checkSelectCharac(int slot)
 // ---------------------------------------------------------------------------
 bool CUser::CheckTicket(int ticketIdx)
 {
-    if (W7_CU_BYTE(0xbfc) != 0) /*+0xbfc gm 标志*/
+    if (m_clientSpec.m_gmUserFlag != 0)
         return true;
     if (G_GameWorld()->IsPVPChannel())
         return true;
@@ -1458,13 +1455,13 @@ bool CUser::CheckTicket(int ticketIdx)
 // ---------------------------------------------------------------------------
 void CUser::ClearChildrensDayEvent()
 {
-    if (W7_CU_BYTE(0x8e098) == 0)                      // fields_A: uchar @0x8e098
+    if (m_childrensDayEventState == 0)
         return;
-    W7_CU_BYTE(0x8e098) = 0;
+    m_childrensDayEventState = 0;
     for (int i = 0; i <= 9; i++)
     {
-        *(int*)((char*)this + 0x8e09c + i * 4) = -1;   /*slots 表 @0x8E09C*/   // 表 A 基址 @+0x23824
-        *(int*)((char*)this + 0x8e0c4 + i * 4) = -1;   /*periods 表 @0x8E0C4*/   // 表 B 基址 @+0x23830
+        m_childrensDaySlots[i] = -1;
+        m_childrensDayPeriods[i] = -1;
     }
 }
 
@@ -1500,8 +1497,7 @@ void CUser::ClearMissionKind(short kind)
 // ---------------------------------------------------------------------------
 bool CUser::ClearSkills()
 {
-    bool block = (W7_CU_BYTE(0x711d8) /*fields_A 建议名；现头可能已有对应字段*/
-                  == 0) && (getCurCharacR() != 0);
+    bool block = (m_clientSpec.m_gmUserFlag == 0) && (getCurCharacR() != 0);   // Client_Spec+0xbfc → CUser+0x711d8
     if (!block)
     {
         ((SkillSlot*)getCurCharacSkillW())->debugCommandResetSkill();
@@ -1510,17 +1506,13 @@ bool CUser::ClearSkills()
     return false;
 }
 
-// >>> W7-BLOCKED CUser::collectPcRoomPlayTime —— 残余混合依赖，详见 /tmp/w7_blocked.tsv 汇总
-// ---------------------------------------------------------------------------
-// 50) CUser::collectPcRoomPlayTime()
-//     报告：docs/class_func_reports/CUser/collectPcRoomPlayTime.md。ORIG 0x0868f7ba。
-// ---------------------------------------------------------------------------
-// void CUser::collectPcRoomPlayTime()
-// {
-//     int now = GlobalData::s_systemTime_.getCurSec();
-//     m_totalPcRoomPlayTime += now - m_pcRoomPlayStartTime;    // +0x8eba0 / +0x8eb9c
-//     m_pcRoomPlayStartTime = now;
-// }
+void CUser::collectPcRoomPlayTime()
+{
+    // 报告：docs/class_func_reports/CUser/collectPcRoomPlayTime.md。ORIG 0x0868f7ba。
+    int now = GlobalData::s_systemTime_.getCurSec();
+    m_totalPcRoomPlayTime += now - (int)m_pcRoomPlayStartTime;   // +0x8eba0 / +0x8eb9c
+    m_pcRoomPlayStartTime = (unsigned int)now;
+}
 //
 //
 // ============================================================================
@@ -2320,7 +2312,7 @@ void CUser::DoItemUnlockCancel(int paramA, int paramB)
 // ---------------------------------------------------------------------------
 // 29. CUser::gain_exp_sp(int,int&,int&,eExpAddReason,int,bool) T 0x0866a3fe
 // bool CUser::gain_exp_sp(int exp, int& spRef, int& sfpRef,
-//                         CUser::eExpAddReason reason, int subReason, bool chargeFlag)
+//                         ::eExpAddReason reason, int subReason, bool chargeFlag)
 // {
 //     if ((*reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x1a8)) == 2) {                  // env+0x1a8
 //         if (0x31 < get_charac_level()) {
@@ -2858,11 +2850,11 @@ void CUser::get_ingame_event_history(int key, std::pair<int,int>& out)
 //     return m_multiboxLotteryFailCnt;
 // }
 //
-// ORIG 0x08110dd0 W：byte 自增
-// void CUser::incPcRoomPlayTimeRewardCnt()
-// {
-//     ++m_pcRoomPlayTimeRewardCnt;                // +0x8eba4 已具名
-// }
+// ORIG 0x08110dd0 W：byte 自增（objdump 逐指令转写）
+void CUser::incPcRoomPlayTimeRewardCnt()
+{
+    ++m_pcRoomPlayTimeRewardCnt;                // +0x8eba4 unsigned char
+}
 //
 // ============================ 角色列表 / 链接角色 ============================
 //
@@ -4684,7 +4676,7 @@ void CUser::processReturnUser()
 //         set_charac_member_bonus_exp(0);
 //         set_charac_fatigue_buf_bonus_exp(0);
 //         char leveledUp = gain_exp_sp(expGain, curLevelExp, newExp,
-//                                      (eExpAddReason)13, 0);
+//                                      (::eExpAddReason)13, 0);
 //         if (leveledUp) {
 //             if (getCurCharacStamina() < 100)
 //                 setCurCharacStamina((unsigned char)'d');
@@ -5246,44 +5238,6 @@ void CUser::ResetMissionList()
 // }
 
 // ----------------------------------------------------------------------------
-// ORIG 0x0868b20c CUser::rewardExp(int base, int& bonusA, int& bonusB,
-//     int& spBefore, int& spAfter, eExpAddReason reason, bool triggerGrowth)
-void CUser::rewardExp(int expBase, int& bonusA, int& bonusB,
-                      int& spBefore, int& spAfter, eExpAddReason reason,
-                      bool triggerGrowth)
-{
-    PacketGuard packet;
-    ENUM_SKILL_TREE_KIND tree =
-        (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();
-    spBefore = ((SkillSlot*)getCurCharacSkillR())->get_remain_sp_at_index(tree);
-
-    calcHelpAbuseRatio(expBase, triggerGrowth ? true : false);
-    char leveledUp = gain_exp_sp(expBase, bonusA, bonusB, reason, 0,
-                                 triggerGrowth);
-    spAfter = ((SkillSlot*)getCurCharacSkillR())->get_remain_sp_at_index(tree);
-    if (!leveledUp) return;
-
-    if (m_chState == 3) {
-        packet.clear();
-        packet.put_header(0, 2);
-        packet.put_byte(0);
-        packet.put_short(1);
-        make_basic_info((char*)&packet, 0);
-        packet.finalize(true);
-        G_GameWorld()->send_all(packet, this);
-    } else if (m_chState == 5 || m_chState == 8) {
-        packet.clear();
-        packet.put_header(0, 2);
-        packet.put_byte(1);
-        packet.put_short(1);
-        make_basic_info((char*)&packet, 1);
-        packet.finalize(true);
-        CParty* party = (CParty*)GetParty();
-        if (party != 0) party->send_to_party(packet);
-    }
-    if (triggerGrowth)
-        decide_growth_power_reward_system();
-}
 
 // ----------------------------------------------------------------------------
 // ORIG 0x0868148c CUser::SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src,
@@ -6216,7 +6170,7 @@ void CUser::setPcRoomPlayTimeData(unsigned int startTime, unsigned int total,
 // ---------------------------------------------------------------------------
 void CUser::SetPuUser(bool flag)
 {
-    W7_CU_BYTE(0x796d8) = (unsigned char)(flag ? 1 : 0);                          // char +0x796d8(P33 直写)
+    m_field796d8 = (char)(flag ? 1 : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -6559,7 +6513,7 @@ void CUser::SetTradePunishOverThirtyDays(bool flag)
 {
     printf(" CUser::SetTradePunishOverThirtydays(%c) \n",
            static_cast<unsigned int>(flag));
-    W7_CU_BYTE(0x7962c) = (unsigned char)(flag ? 1 : 0);                 // uchar +0x7962c
+    m_postChecksumData.m_tradePunishOverThirtyDays = (unsigned char)(flag ? 1 : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -6567,7 +6521,7 @@ void CUser::SetTradePunishOverThirtyDays(bool flag)
 // ---------------------------------------------------------------------------
 void CUser::setUsedBreakAwayLuckPoint(bool flag)
 {
-    W7_CU_BYTE(0x703c1) = (unsigned char)(flag ? 1 : 0);                    // uchar +0x703c1
+    m_usedBreakAwayLuckPoint = (char)(flag ? 1 : 0);
 }
 
 // >>> W7-BLOCKED CUser::st_monstorkill —— CUser::st_monstorkill 嵌套类型未建模于权威头
@@ -6623,7 +6577,7 @@ void CUser::setUsedBreakAwayLuckPoint(bool flag)
 // ---------------------------------------------------------------------------
 void CUser::StartRecvEventWaiting()
 {
-    W7_CU_BYTE(0x8e408) = 0;                          // byte +0x8e408(fields_F 归属待核)
+    m_mcap.m_recvEventWaiting = false;                // CMCAPManager +0x18（CUser+0x8e408）
 
     unsigned short uid  = static_cast<unsigned short>(get_unique_id());
     unsigned int   uidw = GetUID();
@@ -7745,12 +7699,12 @@ int CUser::InitOnAccept(int socketFd)
     m_gameOption.m_breakAwayDungeonClearCnt = 0;       // +0x703ac
     memset(m_gameOption.m_pad64c, 0, sizeof(m_gameOption.m_pad64c));  // +0x703b0
     m_gameOption.m_breakAwayQuestTime = 0;             // +0x703b4
-    memset(m_gameOption.m_pad654b, 0, 4);              // +0x703b8（int 宽写）
+    m_gameOption.m_breakAwayRewardOrder = 0;           // +0x703b8（int 宽写；CGameOption+0x654 具名化 by CU_D）
 
     m_multiboxLotteryFailCnt = 0;                      // +0x703bc
     m_breakAway.clear();                               // STBreakAwayRewards::clear W 0x0831d454
-    m_pad703c0[0] = 0;                                 // +0x703c0/b（两个 movb）
-    m_pad703c0[1] = 0;
+    m_pad703c0 = 0;                                    // +0x703c0（两个 movb）
+    m_usedBreakAwayLuckPoint = 0;                      // +0x703c1
 
     memset(m_skillCommands, 0, sizeof(m_skillCommands));  // ORIG memset(this+0x703db,0,200)
                                                           // （50×STCommand pack(1)=200B）
@@ -7833,7 +7787,7 @@ int CUser::InitOnAccept(int socketFd)
 
     m_mcap.m_capchaReqTick = 0;                        // +0x8e94c
     m_mcap.m_field544 = false;                         // +0x8e934
-    m_mcap.m_pad560[0] = 0;                            // +0x8e950
+    m_mcap.m_hackIpLogged = false;                     // +0x8e950
     m_mcap.m_field561 = false;                         // +0x8e951
 
     m_hades.m_secuReward = false;                      // +0x8e97c
@@ -8408,9 +8362,9 @@ L08666990:
         int spAfter = 0;                                     // -0xe8
         if (get_charac_level() > 0x54) value = 0;
         if (itemIdx == (unsigned int)G_CDataManager()->m_growthCapsule.m_capsuleId)
-            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (eExpAddReason)3, true);
+            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (::eExpAddReason)3, true);
         else
-            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (eExpAddReason)0, true);
+            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (::eExpAddReason)0, true);
         packet.clear();
         packet.put_header(1, 0x20);
         packet.put_byte(1);

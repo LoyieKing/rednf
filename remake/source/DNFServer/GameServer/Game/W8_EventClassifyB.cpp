@@ -27,6 +27,8 @@
 #include "CInventory.h"
 #include "CItem.h"                   // GetItemType/get_grade/get_index
 #include "CAvatarItemMgr.h"          // UnRegistItem/GetExpireDate
+#include "CStatisticServerProxy.h"
+
 #include "CDataManager.h"            // G_CDataManager/find_item/m_eventAvatarList
 #include "GlobalData.h"              // s_stream_pool/s_msgq_mgr/s_*_proxy_mgr
 #include "MsgQueueMgr.h"
@@ -42,19 +44,30 @@
 #include "DB_UpdateAvatarHistory.h"
 #include "DB_UpdateInGameEventHistory.h"
 
-namespace EventClassify
-{
-
-namespace
-{
-
-// ORIG DB_SavePcRoomPlayTimeEvent::makeRequest(uint,uint,uchar) T 0x08447bd0；
-// 权威头未建，此处最小声明，符号由后续 DB 批次提供（UNLINKED_CALLEE）。
+// ORIG 全局作用域真实类 DB_SavePcRoomPlayTimeEvent
+// （_ZN26DB_SavePcRoomPlayTimeEvent11makeRequestEjjh，T 0x08447bd0；
+//   权威类定义与实例注册在 W8LT_DBTask.cpp，makeRequest 定义同 TU）。
 struct DB_SavePcRoomPlayTimeEvent
 {
     static void makeRequest(unsigned int accId, unsigned int totalTime,
                             unsigned char rewardCnt);
 };
+
+namespace EventClassify
+{
+
+
+// 脚本子对象 m_mail / m_sendMails28.second 为全局 ::Action_SendMail（ORIG
+// 符号口径），CEventActionMng 接口取 EventClassify::Action_SendMail&；两者
+// 布局一致（0x44，InGameEventScripts.h vs EventClassify_Action.h 双证），
+// 与 CEventScriptMng_entities*.cpp 的既有桥接口径相同。
+inline EventClassify::Action_SendMail& bridgeMail(::Action_SendMail& mail)
+{
+    return *reinterpret_cast<EventClassify::Action_SendMail*>(&mail);
+}
+
+ namespace
+ {
 
 #pragma pack(push, 1)
 
@@ -176,8 +189,8 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
     ObjectBringUpScript* script =
         static_cast<ObjectBringUpScript*>(m_script1c);
 
-    for (std::vector<std::pair<ObjectBringUpScript::ObjectBringUpRule,
-                               Action_SendMail> >::iterator it =
+    for (::std::vector< ::std::pair<ObjectBringUpScript::ObjectBringUpRule,
+                                  ::Action_SendMail> >::iterator it =
              script->m_sendMails28.begin();
          it != script->m_sendMails28.end(); ++it)
     {
@@ -194,7 +207,7 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
             {
                 CEventActionMng actionMng;
                 int result = actionMng.process_action_send_mail(
-                    user, it->second, false);
+                    user, bridgeMail(it->second), false);
                 if (result != 0)
                 {
                     LogManager::logFormat(
@@ -236,7 +249,7 @@ bool CObjectBringUp::sendBringUpReward(CUser* user,
         {
             CEventActionMng actionMng;
             int result = actionMng.process_action_send_mail(
-                user, it->second, false);
+                user, bridgeMail(it->second), false);
             if (result != 0)
             {
                 LogManager::logFormat(
@@ -293,7 +306,7 @@ int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
         (int)user->getPcRoomPlayTimeRewardCnt());
     user->resetTotalPcRoomPlayTime();
 
-    DB_SavePcRoomPlayTimeEvent::makeRequest(     // UNLINKED_CALLEE
+    ::DB_SavePcRoomPlayTimeEvent::makeRequest(
         (unsigned int)user->get_acc_id(),
         (unsigned int)user->getTotalPcRoomPlayTime(),
         user->getPcRoomPlayTimeRewardCnt());
@@ -544,8 +557,8 @@ int CExchangeRandomItemReward::sendRandomItemReward(
     {
         script->m_mail.set_item(it->first, it->second);
         CEventActionMng actionMng;
-        int result = actionMng.process_action_send_mail(user, script->m_mail,
-                                                        true);
+        int result = actionMng.process_action_send_mail(
+            user, bridgeMail(script->m_mail), true);
         if (result != 0)
             return result;
         ++flag;
@@ -577,7 +590,7 @@ int CAvatarDisjointRandomReward::checkAvatarDisjointError(
     if (!citem->getUsableItemType(2))            // ORIG vtable slot +0x24
         return 0x17;
 
-    WongWork::CAvatarItemMgr* mgr =
+    const WongWork::CAvatarItemMgr* mgr =
         user->getCurCharacInvenW()->GetAvatarItemMgrR();
     if (mgr->GetExpireDate(item.m_addInfo2) != 0)
         return 0x17;
@@ -588,7 +601,7 @@ int CAvatarDisjointRandomReward::checkAvatarDisjointError(
             item.m_addInfo))
         return 0x17;
 
-    if (item.IsTradeRestriction())
+    if (item.m_upgradeSep.IsTradeRestriction())
         return 0x17;
     return 0;
 }
@@ -711,8 +724,8 @@ int CAvatarDisjointRandomReward::sendRandomItemReward(
     {
         script->m_mail.set_item(it->first, it->second);
         CEventActionMng actionMng;
-        int result = actionMng.process_action_send_mail(user, script->m_mail,
-                                                        false);
+        int result = actionMng.process_action_send_mail(
+            user, bridgeMail(script->m_mail), false);
         if (result != 0)
             return result;
     }

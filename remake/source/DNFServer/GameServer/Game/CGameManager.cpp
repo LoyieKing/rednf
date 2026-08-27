@@ -2654,3 +2654,13 @@ CGameManager::~CGameManager()
     m_pCraneMinigameMgr = 0;
 }
 
+// ==== Wave6 QuickParty 访问器（声明 CGameManager.h:558 区）====
+int CGameManager::GetActiveQuickPartyCnt() const
+{
+    return static_cast<int>(m_quickPartyMap.size());
+}
+
+int CGameManager::GetOccupiedQuickPartyPoolCnt()
+{
+    return StaticPool<QuickParty::CQuickParty, 300>::Size() - m_quickPartyPool.Remain();
+}

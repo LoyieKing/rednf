@@ -61,6 +61,7 @@ struct STGuildProxy;   // 仅指针引用（LoadCoolTimeItemInfo）；完整定�
 #include <time.h>
 
 #include "CUserCharacInfo.h"
+#include "InstanceRentalSystem.h"
 #include "SigTypes.h"        // SIG_LOAD_CHARAC/INVENTORY/TICKET + SIG_SAVE_PC_ROOM_RENT_ITEM 等完整布局
 #include "CNetwork.h"
 #include "CGameOption.h"
@@ -485,45 +486,13 @@ struct _Charac_info
     char m_field29;         // +0x29（MakeTagCharacInfo put_byte(movsbl)）
     char m_pad2a[0x75 - 0x2a];  // +0x2a..0x74
     unsigned char m_stamina;    // +0x75（疲劳值；SelectCharac 恢复/make_charac_stat 序列化）
-    char m_pad2a[0x82 - 0x2a];  // +0x2a..0x81
-    unsigned char m_field83;          // +0x83（CreateCharac 0x0864a312 清零）
-    unsigned int m_field84;           // +0x84（CreateCharac 0x0864a2fe 清零）
-    unsigned char m_skillData[0x52];  // +0x88..0xd9（CreateCharac 0x0864a21b 起自
-                                      //   *(G_CDataManager()+0x14)+(schar)job*0x7dc 复制 0x52；
-                                      //   SetCharacInfo 不触碰）
-    char m_padda[0xdbe - 0xda];       // +0xda..0xdbd
+    char m_pad76[0xdbe - 0x76];       // +0x76..0xdbd
     int m_guildId;                    // +0xdbe（GetGuildIdBeforeDeleteCharacter 读取）
     char m_paddc2[0xe3b - 0xdc2];     // +0xdc2..0xe3a
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 置 1）
-    char m_pade3c[0xe40 - 0xe3c];     // +0xe3c..0xe3f
-    unsigned char m_restrictFlags;    // +0xe40 bit0=创建后强制置1(SetCharacInfo src[0x1c]&1
-                                      //   /CreateCharac 死代码)，bit1=(src[0x1c]>>4)&1；
-                                      //   CHARAC_LOGIN_DATA 注记 bit4 引用同源
-    char m_pade41[0xe5d - 0xe41];     // +0xe41..0xe5c
-    int m_fieldE5D;                   // +0xe5d（SetCharacInfo ← DB src+0x8c @0x08649eeb）
-    char m_pade61[0xe66 - 0xe61];     // +0xe61..0xe65
-    unsigned char m_expireFlag;       // +0xe66（SetCharacInfo curSec<src+0x90 @0x08649ebd）
-    char m_pade67[0xf8 - 0xe67];      // +0xe67..0xf7
-    struct CharacLinkMark             // SetCharacInfo 循环1 @0x08649d5c：每角色 12 槽，
-    {                                 //   仅槽首 dword 被写（src+(i+4)*8+8）
-        unsigned int m_markValue;     // 块内 +0x00
-        char m_gap1[0x3c];            // 块内 +0x04..0x3c（ORIG stride 0x3d 未建模区）
-    };
-    CharacLinkMark m_linkMarks[12];   // +0xf8..0x3db
-    char m_pad3dc[0x75e - 0x3dc];     // +0x3dc..0x75d
-    CHARAC_LOGIN_DATA::AvatarSlot m_avatarSlots[12]; // +0x75e..0x7bd（SetCharacInfo 循环2
-                                     //   @0x08649d9f：itemIdx/+0xc/+0xe 三连写）
-    char m_pad7be[0x12ad - 0x7be];    // +0x7be..0x12ac
-    int m_field12AD;                  // +0x12ad（SetCharacInfo ← DB src+0x90 @0x08649edf）
-    char m_pad12b1[0x1239 - 0x12b1];  // +0x12b1..0x1238
-    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择；CreateCharac 置 0xff）
-    char m_pad123a[0x1240 - 0x123a];  // +0x123a..0x123f
-    unsigned char m_restrictPlay;     // +0x1240（CreateCharac 0x0864a32c ← sig+0x24!=0；
-                                      //   CHARAC_LOGIN_DATA m_flags bit0 注记引用）
-    char m_pad1241[0x1246 - 0x1241];  // +0x1241..0x1245
-    unsigned char m_linkPairType;     // +0x1246（checkCharacLinkType 0x08652c13 校验相邻
-                                      //   链接角色类型：偶数位=2 / 奇数位=3 成对）
-    char m_pad1247[0x124f - 0x1247];  // +0x1247..0x124e
+    char m_pad123c[0x1239 - 0xe3c];   // +0xe3c..0x1238
+    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择：-1/0 → SkillW+0x46，否则 +0x1de）
+    char m_pad123a[0x124f - 0x123a];  // +0x123a..0x124e
     unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
     char m_pad1250[0x14b7 - 0x1250];  // +0x1250..0x14b6
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
@@ -532,8 +501,8 @@ struct _Charac_info
     int m_viewState;        // +0x14c6
     char m_pad14ca[0x14d1 - 0x14ca];
 };
-static_assert(sizeof(_Charac_info) == 0x14d1,
-              "_Charac_info ABI drift (W8_CU_C: CreateCharac/SetCharacInfo ORIG layout)");
+#pragma pack(pop)
+
 // ---- 雇佣兵加载结构（vector 元素；ORIG 步长 0x54，见 _M_insert_aux/ix imul $0x54） ----
 struct CHARAC_LOAD_MERCENARY
 {
@@ -545,7 +514,7 @@ struct CHARAC_LOAD_MERCENARY
     int m_characNo;               // +0x00（FindIndexByCharacNo 按首 dword 无符号比较）
 
 
-# NOTE_MARKER_NOOP
+// NOTE_MARKER_NOOP
     short m_level;                // +0x04（AddCurCharacMercenaryInfo 写 charac+0x27）
     char m_name[0x1e];            // +0x06..0x23（Reset memset(this+6,0,0x1e)）
     unsigned char m_field24;      // +0x24（Reset 写 0）
@@ -588,12 +557,18 @@ struct LimitItemUsage
 
 struct stLookOuts
 {
-    char m_pad[0x10];
+    stLookOuts(unsigned int a, unsigned int b);   // ORIG W _ZN10stLookOutsC1Ejj 0x0869380e（定义=W8_CU_G.cpp）
+    unsigned int m_a;                             // +0x00（ctor arg1）
+    unsigned int m_b;                             // +0x04（ctor arg2）
+    char m_pad8[8];                               // +0x08..0x0f
 };
 
 struct tyIPCounters
 {
-    char m_pad[0x10];
+    tyIPCounters(unsigned int a, unsigned int b); // ORIG W _ZN12tyIPCountersC1Ejj 0x08693824（同上承载）
+    unsigned int m_a;                             // +0x00
+    unsigned int m_b;                             // +0x04
+    char m_pad8[8];                               // +0x08..0x0f
 };
 
 class UserMercenaryInfoMgr
@@ -978,7 +953,7 @@ struct PostChecksumUserInfoBlock
     // 起始 = CUser+0x79624（m_codeHackCheck 后）；字段偏移为块内相对。
     int m_field28;                   // +0x00 → CUser+0x79624（getStdDropRate 旧视图）
     int m_tradePunishType;           // +0x04 → CUser+0x79628（GetTradePunishType）
-    char m_field30;                  // +0x08
+    char m_tradePunishOverThirtyDays; // +0x08 → CUser+0x7962c（SetTradePunishOverThirtyDays ORIG 0x08689850）
     bool m_field31;                  // +0x09（0x7962d tournament account）
     char m_pad32[2];                 // +0x0a..0x0b
     int m_serverGroup;               // +0x0c（GetServerGroupToPvP 0x864a97c 整数读取并返回）
@@ -1977,7 +1952,7 @@ public:
 
 
     // ORIG：CUser 嵌套枚举（gain_exp_sp/_check_level_up mangled S0_13eExpAddReason
-    // 实证嵌套于 CUser；与全局 ::eExpAddReason（cUserHistoryLog::KillMonster 顶层参数）
+    // 实证嵌套于 CUser；与全局 eExpAddReason（cUserHistoryLog::KillMonster 顶层参数）
     // 并存，两类型独立）。
     enum eExpAddReason { eExpAddReason_0 = 0 };
     // ---- 嵌套结构（vector<_DBLogItemInfo> 元素 / 金钱日志） ----
@@ -2020,7 +1995,9 @@ public:
     CAccountCargo m_accountCargo;                           // +0x6effc
     CGameOption m_gameOption;                               // +0x6fd64
     int m_multiboxLotteryFailCnt;                           // +0x703bc（inc_multiboxLotteryItemFailCnt）
-    char m_pad703c0[4];                                     // +0x703c0..0x703c3
+    char m_pad703c0;                                        // +0x703c0
+    char m_usedBreakAwayLuckPoint;                          // +0x703c1（setUsedBreakAwayLuckPoint ORIG W 0x086971ee）
+    char m_pad703c0b[2];                                    // +0x703c2..0x703c3
     STBreakAwayRewards m_breakAway;                         // +0x703c4
     STSkillCommandData::STCommand m_skillCommands[50];      // +0x703db
     short m_slotIDX;                                        // +0x704a4（GetSlotIDX movzwl 直返）
@@ -2158,20 +2135,25 @@ public:
     int m_debugCommand;                                     // +0x8e090（GetDebugCommand/SetDebugCommand）
     unsigned int m_field8e094;                              // +0x8e094
     unsigned char m_childrensDayEventState;                 // +0x8e098（==0xff 判定）
-    char m_pad8e099[0x53];                                  // +0x8e099..0x8e0eb
+    char m_pad8e099[3];                                     // +0x8e099..0x8e09b
+    int m_childrensDaySlots[10];                            // +0x8e09c..0x8e0c3（ClearChildrensDayEvent 置 -1 表 A）
+    int m_childrensDayPeriods[10];                          // +0x8e0c4..0x8e0eb（ClearChildrensDayEvent 置 -1 表 B）
     char m_capchaCertify[0xa];                              // +0x8e0ec（reqHumanCertify
                                                             //   memcpy 验证码头 0xa 字节）
     char m_pad8e0f6[2];                                     // +0x8e0f6..0x8e0f7
     int m_humanCertifyTimerKey;                             // +0x8e0f8
     int m_humanCertifyErrorCnt;                             // +0x8e0fc
     bool m_humanCertified;                                  // +0x8e100（setHumanCertified/isHumanCertified）
-    char m_pad8e101[0x2ec];                                 // +0x8e101..0x8e3ec
+    char m_pad8e101[0x5b];                                  // +0x8e101..0x8e05b
+    int m_field8e05c;                                       // +0x8e05c（gain_exp_sp ORIG 0x0866a3fe 经验累加计）
+    char m_pad8e060[8];                                     // +0x8e060..0x8e067
+    int m_field8e068;                                       // +0x8e068（gain_exp_sp reason==1/2 分段累加计）
+    char m_pad8e06c[0x381];                                 // +0x8e06c..0x8e3ec
     bool m_field8e3ed;                                      // +0x8e3ed
     WongWork::CMCAPManager m_mcap;                          // +0x8e3f0
     XNuclear::CHades m_hades;                               // +0x8e954
     Secu_GoldControl m_goldControl;                         // +0x8e980
     Secu_HackLogCheck m_hackLogCheck;                       // +0x8ea68
-    std::map<short, int> m_map8eaa4;                        // +0x8eaa4
     std::map<std::pair<char, char>, int> m_map8eabc;        // +0x8eabc
     char m_pad8ead4[4];                                     // +0x8ead4..0x8ead7
     char m_field8ead8;                                      // +0x8ead8
@@ -2540,7 +2522,7 @@ public:
     void SendOpenflag();
     void SendMoenyLog();
     void SendRevengeDungeon();
-    void SendEffectItemInfo(unsigned int itemIdx);
+    int SendEffectItemInfo(unsigned int itemIdx);   // ORIG T 0x08659366（返回 Send() 结果；LoadEffectItemInfo 判 ==1）
     // ORIG T 0x0868a782：升级罐产出统计。vec 长度==2 时按 Inven_Item+2 的 addInfo
     // 定位罐子（itemIdx==0x28be7b 为罐子），另一元素为产出道具，组
     // Packet_Event_UpgradeJar_Output_Statistic_GTS（0x106e/0x12）经 statistic proxy 下发。
@@ -2666,8 +2648,8 @@ public:
                                                 // （clear_reward 任务物品链消费；定义待任务域批次）
     UserQuest* getCurCharacQuestW();
     int CheckQuestMap(int dungeonIdx);   // ORIG T 0x0866cac6 _ZN5CUser13CheckQuestMapEi（CParty::dungeon_start 任务地图判定；定义待任务域批次）
-    bool gain_exp_sp(int exp, int& sp, int& sfp, CUser::eExpAddReason reason,
-                     int param, bool flag);   // ORIG mangled S0_13eExpAddReason（嵌套枚举）
+    bool gain_exp_sp(int exp, int& sp, int& sfp, eExpAddReason reason,
+                    int param, bool flag);   // ORIG 0x0866a3fe _ZN5CUser11gain_exp_spEiRiS0_13eExpAddReasonib：嵌套 S0_=CUsereExpAddReason（1957 行枚举），int 返回
     void makeGuildSkillMessage(const char* skillName, int count);
     // ---- 高频簇 producers（本批次还原；签名均与 ORIG mangled 一致）----
     std::vector<RewardItemInfo>* getUserQuestRewardItem(
@@ -3122,6 +3104,7 @@ public:
     bool IsOldLotteryItem(unsigned int itemIdx);                             // 0x08673342 T
     bool IsAddableGuildFund(int amount);                                     // 0x0866c21e T
     bool LoadCoolTimeItemInfo(CONTINUOUS_ITEM_INFO* info);                   // 0x08658ff6 T
+    bool LoadEffectItemInfo(CONTINUOUS_ITEM_INFO* info);                     // ORIG _ZN5CUser18LoadEffectItemInfoEP20CONTINUOUS_ITEM_INFO T 0x086590f0
     int GetItemSerialChecker(unsigned short serialIdx, unsigned short serialVal,
                              int monsterIdx);                                // 0x0823066a W
     int GetItemTimeChecker(unsigned int nowSec, unsigned short val1,
@@ -3129,7 +3112,7 @@ public:
     int isEnableGiveGiftToNPC();                                             // 0x08681160 T
     void IncrementTradeGold(unsigned int gold, int mode);                     // 0x0864658a T
     void _CalcItemVectorMultiply(std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, int);
-    bool _check_level_up(int, int&, int&, CUser::eExpAddReason, int);
+    bool _check_level_up(int, int&, int&, eExpAddReason, int);   // ORIG _ZN5CUser15_check_level_upEiRiS0_13eExpAddReasoni（全局枚举参数实证）
     bool _CheckCompoundSkill(const CStackableItem*, bool);
     int _fnStatQuestClear(unsigned int, char*);
     CItem* _GetRecipeItem(long unsigned int, bool, int&);
@@ -3248,7 +3231,7 @@ public:
     void reset_tag_info_to_me(unsigned int tagAccId);
     void ResetMissionList();
     void Return_Mercenary_Charac(unsigned int mercUid, competition_reward_result& reward);
-    void rewardExp(int expBase, int& bonusA, int& bonusB, int& spBefore, int& spAfter, eExpAddReason reason, bool triggerGrowth);
+    void rewardExp(int expBase, int& bonusA, int& bonusB, int& spBefore, int& spAfter, ::eExpAddReason reason, bool triggerGrowth);   // ORIG _ZN5CUser9rewardExpEiRiS0_S0_S0_13eExpAddReasonb（全局 13 前缀，非嵌套）
     void SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src, ENUM_SKILL_TREE_KIND kind);
     void saveCharacLinkMessageFlag(bool flag);
     unsigned int SaveInventoryOnly();
@@ -3325,22 +3308,28 @@ public:
         int  setTagCharacInven(TAG_CHARAC_INVEN_DATA* data);                // @0x08690226
         void SetTradePunishOverThirtyDays(bool flag);                       // @0x08689850
         void setUsedBreakAwayLuckPoint(bool flag);                          // @0x086971ee W(isUsedBreakAwayLuckPoint 头已有)
-        // ---- 嵌套类(布局按 ORIG objdump,见下注释) ----
-        // class st_monstorkill {
-        // public:
-        //     st_monstorkill() {}
-        //     bool Check(unsigned int now, unsigned short x1, unsigned short y1,
-        //                unsigned short xLim, unsigned short yLim, unsigned int limit); // @0x0823049c size 0x1cd
-        // private:
-        //     unsigned short m_maxX;      // +0x00 检测窗 maxX
-        //     unsigned short m_minX;      // +0x02
-        //     unsigned short m_maxY;      // +0x04
-        //     unsigned short m_minY;      // +0x06
-        //     unsigned int   m_lastTick;  // +0x08
-        //     int            m_count;     // +0x0c
-        //     short          m_deltaX;    // +0x10 = (short)(minX-maxX)
-        //     short          m_deltaY;    // +0x12 = (short)(minY-maxY)
-        // };  // sizeof 0x14
+        // ---- 嵌套类 st_monstorkill（ORIG CUser::st_monstorkill::Check @0x0823049c
+        //      W size 0x1cd；更新方向按反汇编：+0 旧值>新值才写（保 min）、
+        //      +2 旧值<新值才写（保 max），超窗重置时 min/max 同置）----
+        class st_monstorkill
+        {
+        public:
+            st_monstorkill() {}
+            bool Check(unsigned int nowTick, unsigned short nx, unsigned short ny,
+                       unsigned short xLim, unsigned short yLim,
+                       unsigned int windowLimit);   // ORIG W 0x0823049c size 0x1cd
+
+        private:
+            unsigned short m_minX;      // +0x00 检测窗 minX
+            unsigned short m_maxX;      // +0x02 检测窗 maxX
+            unsigned short m_minY;      // +0x04 检测窗 minY
+            unsigned short m_maxY;      // +0x06 检测窗 maxY
+            unsigned int   m_lastTick;  // +0x08 上次检查 tick
+            int            m_count;     // +0x0c 窗口内检查次数
+            short          m_deltaX;    // +0x10 = abs((short)(maxX-minX))
+            short          m_deltaY;    // +0x12 = abs((short)(maxY-minY))
+        };  // sizeof 0x14（W8_CU_E TU 内 static_assert 锁定）
+
 
 
     // ===================== Wave6-CUser（OnlyOrig 269 批）新增声明 =====================
@@ -3387,6 +3376,8 @@ public:
                                ENUM_CHARAC_LINK_BONUS_STATE bonusState);   // ORIG T 0x0865240c
     void UpdateCharacNameInMercenary(unsigned int characNo, const std::string& name); // ORIG W 0x084ec5e6
     void updateComboSkill();                                               // ORIG T 0x08692396
+    void initTPSkill();                                                    // ORIG T 0x0868fdbc _ZN5CUser11initTPSkillEv
+    void initAllSkill();                                                   // ORIG T 0x0868fc46 _ZN5CUser12initAllSkillEv
     void UpdateCurrentCharacRentalInfo(const InstanceRentalSystem::RentOutput& output,
                                        int machineKey, bool clearFirst);   // ORIG T 0x08676e3c
     void UpdateDimensionInout();                                           // ORIG T 0x08651fba

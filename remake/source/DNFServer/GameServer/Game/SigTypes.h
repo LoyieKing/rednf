@@ -363,6 +363,9 @@ struct SIG_COMBO_SKILL
     int m_job;                       // +0x06
     comoboSkillData m_tree1Data[6];  // +0x0a
     comoboSkillData m_tree2Data[6];  // +0x5e
+
+    void reset();                    // ORIG W 0x08694d04：characNo=0、两 count=0、
+                                     //   m_job=0xb、memset 两树数据各 0x54（W8_CU_E.cpp 定义）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_COMBO_SKILL) == 0xb2, "SIG_COMBO_SKILL ABI drift");
@@ -598,7 +601,8 @@ struct SIG_FORBID_USER_TO_PLAY
 
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO
 {
-    char m_pad[0x4];
+    unsigned int m_characNo;   // requestCubePremiumInfoIfContracted 0x086467ee
+                               // 写 getCurCharacR() 首字段整型（characNo）
 };
 
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES
@@ -1127,7 +1131,11 @@ static_assert(offsetof(SIG_LOAD_TICKET, m_tickets) == 0x00c, "SIG_LOAD_TICKET m_
 
 struct SIG_LOGIN_DATA
 {
-    char m_pad[0x4358];
+    char m_pad[0x4138];                // +0x0000..0x4137
+    char m_bingoWinFlag;               // +0x4138（SetBingoData 0x0869126e 读 byte!=0 → BingoData.m_isWin）
+    char m_pad4139[3];                 // +0x4139..0x413b
+    unsigned int m_bingoEventId;       // +0x413c（SetBingoData 0x0869126e 整型读 → BingoData.m_eventId）
+    char m_pad4140[0x4358 - 0x4140];   // +0x4140..0x4357（总 sizeof 0x4358 不变）
 };
 
 struct SIG_MAILBOX_CHECK_RECEIVER
@@ -1267,6 +1275,7 @@ struct SIG_PURCHASE_CASHITEM_BONUS
 struct SIG_QUERY_CHARAC_INFO
 {
     char m_pad[0x30];
+#pragma pack(push, 1)
 };
 // ORIG 布局（CQuestShop::getData 0x85ef868 / _saveData 0x85efb66 /
 // loadData 0x85efa2c 反汇编实证；单实例 0xaa，SIG_LOAD_ETC 内双实例区
@@ -1281,6 +1290,7 @@ struct SIG_QUEST_SHOP_DATA
 };
 static_assert(sizeof(SIG_QUEST_SHOP_DATA) == 0xaa,
               "SIG_QUEST_SHOP_DATA ABI drift");
+#pragma pack(pop)
 
 struct SIG_REDEEMINFO_LIST_TO_DB
 {
@@ -1505,10 +1515,17 @@ struct SIG_SAVE_LOGGAMECHANNEL
 };
 #pragma pack(pop)
 
+// 真实布局：DB_SavePcRoomPlayTimeEvent::makeRequest（ORIG 0x08447bd0）sig 写
+// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段。
 struct SIG_SAVE_PC_ROOM_PLAY_TIME
 {
-    char m_pad[0x9];
+    unsigned int m_accId;        // +0x00 ←get_acc_id()
+    unsigned int m_totalTime;    // +0x04 ←totalPcRoomPlayTime
+    unsigned char m_rewardCnt;   // +0x08 ←pcRoomPlayTimeRewardCnt
+    char m_pad09[3];             // +0x09（自然对齐填充，无访问证据）
 };
+static_assert(sizeof(SIG_SAVE_PC_ROOM_PLAY_TIME) == 0xc,
+              "SIG_SAVE_PC_ROOM_PLAY_TIME ABI drift");
 
 struct SIG_SAVE_PROXY_LOG
 {
