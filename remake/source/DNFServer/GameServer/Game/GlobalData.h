@@ -242,4 +242,57 @@ extern random_option::CRandomOptionItemHandle* g_randomOptionHandle; // 0941f820
 extern void* s_pAvatarRoulette;                              // 0941f824
 }
 
+// ---- W6_SecMiscDeps 批追加（仅 append，不改既有布局）----
+#include "CRijndael.h"          // CSecurityCardCenter 基类（ORIG +0x0 子对象 0x47c）
+#include <list>
+
+namespace WongWork
+{
+// WongWork::CSecurityCardCenter —— 安全卡服务中心。ORIG 布局：CRijndael@0x0
+// sizeof 0x47c、list<unsigned char> m_characterSet @0x47c、ushort m_timeCount
+// @0x484。ctor 0x082a6654 / init 0x085fe05e；其余方法定义 W6_SecMiscDeps.cpp。
+class CSecurityCardCenter : public CRijndael
+{
+public:
+    CSecurityCardCenter();
+    void init();                                          // ORIG T 0x085fe05e
+    char* encryptString(char const* src, char* out);      // ORIG T 0x085fe2e2
+    char* generateCertKey(char* out);                     // ORIG T 0x085fe17e
+    void _updateTimeCount();                              // ORIG T 0x085fe026
+    char* generateServerKey(char* out);                   // ORIG T 0x085fe0ec
+    bool checkPhoneNumber(char const* phone) const;       // ORIG T 0x085fe444
+    char* generateCardData(char* out) const;              // ORIG T 0x085fe1ba
+
+private:
+    std::list<unsigned char> m_characterSet;   // +0x47c（init push_back 42 字符）
+public:
+    unsigned short m_timeCount;                // +0x484（_updateTimeCount；init 置 1）
+};
+
+// WongWork::CWebEvent —— Web 事件静态服务（m_strEventName D 0x093ace60，
+// 10 槽×0x12；m_strEventIPGCode D 0x093acf20，10 槽×0xb）。
+class CWebEvent
+{
+public:
+    static unsigned int RecvInfoFromDB(CUser* user, unsigned int itemId,     // ORIG T 0x086c121e
+                                       unsigned int count, unsigned int eventIdx,
+                                       unsigned int extra);
+    static unsigned int RecvInfoFromWeb(unsigned int p1, unsigned int p2,    // ORIG T 0x086c11d0
+                                        unsigned int p3, unsigned int p4,
+                                        unsigned int p5, unsigned int p6);
+    static bool ReqSaveEventItem(unsigned int p1, unsigned int p2,           // ORIG T 0x086c1910
+                                 unsigned int p3, unsigned int p4,
+                                 unsigned int p5, unsigned int p6, bool last);
+    static int GetItemType(int eventKind, int itemNo);                       // ORIG T 0x086c1aba（定义 LinkClosureB_Misc.cpp）
+    static int _GetATIAvatarAbility(int itemIdx);                            // ORIG T 0x086c1a2e
+    static char const* _GetEventString(int idx);                             // ORIG T 0x086c1ba8
+    static char const* _GetEventIPGCode(int idx);                            // ORIG T 0x086c1bd4
+
+    static char m_strEventName[10][0x12];        // _ZN8WongWork9CWebEvent14m_strEventNameE
+    static char m_strEventIPGCode[10][0xb];      // _ZN8WongWork9CWebEvent17m_strEventIPGCodeE
+};
+
+} // namespace WongWork
+
 #endif  // GAME_GLOBALDATA_H_
+

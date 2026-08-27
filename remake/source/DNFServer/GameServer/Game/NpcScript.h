@@ -78,32 +78,6 @@ struct PresentResponceScriptEvent
     std::string m_str;  // +0x04
 };
 
-// [reward item]/[favor]：单个奖励元素（3 int，ORIG push 12 字节）—「推断」
-struct stRewardItemElement_t
-{
-    int m_a;  // +0x00（local_210）
-    int m_b;  // +0x04（local_20c）
-    int m_w;  // +0x08（local_4c，权重增量）
-};
-
-// [favor level reward mail] 条目（ORIG stLevelRewardInfo：level,flag0,flag1,name,desc）
-struct stLevelRewardInfo_t
-{
-    unsigned short m_level;   // +0x00
-    unsigned int   m_flag0;   // +0x04
-    unsigned int   m_flag1;   // +0x08
-    std::string    m_name;    // +0x0c
-    std::string    m_desc;    // +0x10
-};
-
-// [favor_duration_reward_buff] 条目（2×ushort + int）
-struct stBuffRewardInfo_t
-{
-    unsigned short m_a;   // +0x00
-    unsigned short m_b;   // +0x02
-    unsigned int   m_c;   // +0x04
-};
-
 // [prefer item] 等的礼物信息（解析顺序：int, int, short）—「推断」
 struct stGiftItemInfo_t
 {
@@ -112,32 +86,100 @@ struct stGiftItemInfo_t
     short          m_c;   // +0x08
 };
 
-// 好感礼物表：ORIG 每张占 0x78（0x198/0x210/0x288/0x300 等距），头部为
-// map<unsigned long, stGiftItemInfo_t>，尾部 0x78-sizeof(map) 用途未还原 —「推断」。
+// [prefer item] 等的礼物表：ORIG 每张 0x78 = 5 个相邻
+// std::map<unsigned long, stGiftItemInfo_t>（旧 libstdc++ sizeof(map)=0x18；
+// stride 见 ORIG clear() 的 +l*0x18 + {0x28, 0xa0, 0x118, 0x190}），按 slot 索引取表。
 struct stGiftTable_t
 {
-    std::map<unsigned long, stGiftItemInfo_t> m_map;
-    char m_pad[0x78 - sizeof(std::map<unsigned long, stGiftItemInfo_t>)];
+    std::map<unsigned long, stGiftItemInfo_t> m_maps[5];
 };
+static_assert(sizeof(stGiftTable_t) == 0x78, "stGiftTable_t size mismatch");
 
-// [reward item] 每 (favorLevel, mood) 槽：3 个方向 vector + 3 个权重计数。
-// ORIG：vector 槽 = 0x378 + dir*0xc + mood*0x30 + level*0x90；
-//       计数   = 0x39c + dir*4   + mood*0x30 + level*0x90。
-// 即每槽 0x30 = 3×12(vector) + 3×4(int)，与该打包完全一致。
-struct stRewardSlot_t
-{
-    std::vector<stRewardItemElement_t> m_byDir[3];
-    int m_weight[3];
-};
 
 // stFavorableRelationShip_t —— 内嵌于 NpcScript +0x170，总大小 0x514
 // （+0x170 .. +0x684）。偏移为相对本结构的偏移。
+// 嵌套类型名/生命周期按 ORIG mangled（_ZN25stFavorableRelationShip_t*）权威建模：
+//   stRewardItemElement_t D1/D2 @0x08a06f28、stBuffRewardInfo C1 @0x085818f0 / D1 @0x08a073d4、
+//   stLevelRewardInfo C1/C2ERKS @0x0858188a / 0x08a04160、operator= @0x08a04268、D1 @0x085823c6、
+//   stPeriodRewardInfo C1 @0x08a00c70 / D1 @0x085819e4、stRewardItemInfo_t C1 @0x08a00d58 /
+//   D1 @0x08581a80 / clear T @0x089fb4c0、stRewardItem_t C1 @0x08a00dcc / D1 @0x08581aae /
+//   clear T @0x089fb508。
 class stFavorableRelationShip_t
 {
 public:
     stFavorableRelationShip_t() {}
     ~stFavorableRelationShip_t() {}
     void clear();  // ORIG 0x089fb56c T（本 TU 提供）
+
+    // [reward item]/[favor]：单个奖励元素（3 int）。ORIG 析构为空体 ret。
+    struct stRewardItemElement_t
+    {
+        int m_a;  // +0x00
+        int m_b;  // +0x04
+        int m_w;  // +0x08
+        ~stRewardItemElement_t();
+    };
+
+    // [reward item] 每 (favorLevel, mood) 槽：3 个方向 vector + 3 个权重计数，sizeof=0x30。
+    // ORIG vector 槽 = 0x378 + dir*0xc + mood*0x30 + level*0x90；
+    //      计数     = 0x39c + dir*4   + mood*0x30 + level*0x90。
+    struct stRewardItemInfo_t
+    {
+        std::vector<stRewardItemElement_t> m_byDir[3];
+        unsigned int m_weight[3];
+        stRewardItemInfo_t();
+        ~stRewardItemInfo_t();
+        void clear();
+    };
+
+    // [reward item] 全表：5 个奖励等级 × 3 个 mood，sizeof=5×0x90=0x2d0。
+    struct stRewardItem_t
+    {
+        stRewardItemInfo_t m_slots[5][3];  // [level][mood]
+        stRewardItem_t();
+        ~stRewardItem_t();
+        void clear();
+    };
+
+    // [favor level reward mail] 条目，sizeof=0x14（旧 libstdc++ std::string 大小为 4）。
+    struct stLevelRewardInfo
+    {
+        unsigned short m_level;   // +0x00
+        unsigned int   m_flag0;   // +0x04
+        unsigned int   m_flag1;   // +0x08
+        std::string    m_name;    // +0x0c
+        std::string    m_desc;    // +0x10
+        stLevelRewardInfo();
+        stLevelRewardInfo(const stLevelRewardInfo&);
+        ~stLevelRewardInfo();
+        stLevelRewardInfo& operator=(const stLevelRewardInfo&);
+    };
+
+    // [favor_duration_reward_buff] 条目（2×ushort + int），平凡析构。
+    struct stBuffRewardInfo
+    {
+        unsigned short m_a;   // +0x00
+        unsigned short m_b;   // +0x02
+        unsigned int   m_c;   // +0x04
+        stBuffRewardInfo();
+        ~stBuffRewardInfo();
+    };
+
+    // 周期奖励条目，sizeof=0x18：
+    // ORIG C1 顺序 = 三 string 默认构造(+0x4/+0x10/+0x14) → 标量清零(word@0,int@8,int@0xc)
+    //              → 三个 string 赋空串；D1 逆序析构(0x14→0x10→0x4)。
+    struct stPeriodRewardInfo
+    {
+        unsigned short m_type;        // +0x00
+        std::string    m_name;        // +0x04
+        int            m_a;           // +0x08
+        int            m_b;           // +0x0c
+        std::string    m_desc;        // +0x10
+        std::string    m_param;       // +0x14
+        stPeriodRewardInfo();
+        ~stPeriodRewardInfo();
+    };
+
 
     bool m_enabled;                                   // +0x000（abs 0x170）
     int  m_defaultFavor;                              // +0x004（abs 0x174）
@@ -151,12 +193,12 @@ public:
     stGiftTable_t m_preferItemGroups;                 // +0x0a0（abs 0x210）
     stGiftTable_t m_unpreferItems;                    // +0x118（abs 0x288）
     stGiftTable_t m_unpreferItemGroups;               // +0x190（abs 0x300）
-    stRewardSlot_t m_rewards[5][3];                   // +0x208（abs 0x378）[level][mood]
+    stRewardItem_t m_rewardItems;                     // +0x208（abs 0x378）[level][mood] 全表
     float m_favorRate0;                               // +0x4d8（abs 0x648）
     float m_favorRate1;                               // +0x4dc（abs 0x64c）
     float m_favorRate2;                               // +0x4e0（abs 0x650）
-    std::vector<stLevelRewardInfo_t> m_levelRewards;  // +0x4e4（abs 0x654）
-    std::vector<stBuffRewardInfo_t>  m_buffRewards;   // +0x4f0（abs 0x660）
+    std::vector<stLevelRewardInfo> m_levelRewards;    // +0x4e4（abs 0x654）
+    std::vector<stBuffRewardInfo>  m_buffRewards;     // +0x4f0（abs 0x660）
     unsigned short m_durationRewardType;              // +0x4fc（abs 0x66c）
     std::string m_durationRewardName;                 // +0x500（abs 0x670）
     int m_durationRewardA;                            // +0x504（abs 0x674）

@@ -589,7 +589,7 @@ void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 // ================================ _generateIPGNo ============================
 
 // ORIG T 0x08333df6（const）。"C%02d%02d%02d%02d%010d" 五元组。
-char* CCompoundAvatar::_generateIPGNo(const CUser* user, int curSec,
+char* CCompoundAvatar::_generateIPGNo(const CUser* user, long curSec,
                                       char* buf) const
 {
     time_t t = static_cast<time_t>(curSec);

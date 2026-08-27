@@ -11,6 +11,7 @@
 
 #include "CBattle_Field.h"
 #include "CDungeon.h"
+#include "GameWorld.h"   // send_party_info_to_all / G_GameWorld
 
 
 // CGameManager.h 目前与 CBattle_Field.h 组合存在重定义冲突（其它批次修复中），
@@ -23,6 +24,8 @@ public:
     QuickParty::CQuickParty* GetQuickParty(int index);
     QuickParty::CQuickPartyRewardManager* GetQuickPartyRewardManager();
     CParty* GetParty(int partyIndex);   // ORIG _ZN12CGameManager8GetPartyEi
+    QuickParty::CQuickParty* GetQuickParty();                 // ORIG _ZN12CGameManager13GetQuickPartyEv（取池空槽）
+    QuickParty::CQuickPartySystemManager* GetQuickPartySystemManager();  // ORIG _ZN12CGameManager26GetQuickPartySystemManagerEv
     void PutQuickParty(QuickParty::CQuickParty* qp);  // ORIG _ZN12CGameManager14PutQuickPartyEPN10QuickParty11CQuickPartyE
 };
 CGameManager* G_CGameManager();   // CDungeon.h 同声明
@@ -450,6 +453,553 @@ bool CQuickPartySystemManager::push_quick_party_in_pool(
     qp->send_matching_update_quick_party(static_cast<char>(count), masterUid,
                                          changed);
     return true;
+}
+
+}  // namespace QuickParty
+
+// ===================== TailB 批：CQuickParty 访问器 + 系统管理器匹配/开局链 =====================
+// 报告：docs/class_func_reports/QuickParty__CQuickParty{,SystemManager}/ 各同名 md。
+
+namespace QuickParty
+{
+
+// ---- get_timer_key @0x08269668：读 timer key 计数数组槽（与 gen_timer_key 同址）----
+int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
+{
+    return *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(this) + 0x0c +
+        (static_cast<int>(msg) - 0x9d + 4) * 4);
+}
+
+// ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
+bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
+{
+    return *reinterpret_cast<int*>(
+               reinterpret_cast<char*>(this) + 0x0c +
+               (static_cast<int>(msg) - 0x9d + 4) * 4) == key;
+}
+
+// ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
+void CQuickParty::set_party_index(int partyIdx)
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        if (m_partyIndex[i] == -1)
+        {
+            m_partyIndex[i] = partyIdx;
+            return;
+        }
+    }
+}
+
+// ---- set_party_index @0x082697c8：定位写，idx∈[0,3] 才生效 ----
+void CQuickParty::set_party_index(int idx, int partyIdx)
+{
+    if (idx >= 0 && idx < 4)
+        m_partyIndex[idx] = partyIdx;
+}
+
+// ---- get_party_object() @0x0826972c：返回首个登记且仍存在的成员 party ----
+CParty* CQuickParty::get_party_object()
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (m_partyIndex[i] == -1)
+            continue;
+        CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
+        if (party != 0)
+            return party;
+    }
+    return 0;
+}
+
+// ---- delete_party_index() @0x08269856：全部槽位清 -1 ----
+void CQuickParty::delete_party_index()
+{
+    for (int i = 0; i < 4; ++i)
+        m_partyIndex[i] = -1;
+}
+
+// ---- is_empty_quick_party @0x08269884：所有槽均为 -1 即为空 ----
+bool CQuickParty::is_empty_quick_party()
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (m_partyIndex[i] != -1)
+            return false;
+    }
+    return true;
+}
+
+// ---- set_first_matching_cnt @0x0826b75a（W 内联）：直写 +0x14 字节 ----
+void CQuickParty::set_first_matching_cnt(char cnt)
+{
+    m_firstMatchingCnt = static_cast<unsigned char>(cnt);
+}
+
+// ---- find_quick_party_in_pool @0x0826a9fe：
+// 从档位 list 逐个弹出 index 取 CQuickParty；取不到的记 trace 继续弹。----
+CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
+    std::list<int>& pool)
+{
+    while (!pool.empty())
+    {
+        int qpIndex = pool.front();
+        pool.pop_front();
+        CQuickParty* qp = G_CGameManager()->GetQuickParty(qpIndex);
+        if (qp != 0)
+            return qp;
+        cMyTrace trace(
+            "QuickParty::CQuickParty* QuickParty::CQuickPartySystemManager::find_quick_party_in_pool(QuickParty::LIST_QUICK_PARTY&)",
+            0x29c, 5);
+        trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
+    }
+    return 0;
+}
+
+// ---- pop_quick_party_in_pool @0x0826ae64：
+// 档位 0 直接领新池对象；其余档位先从池 list 弹已有 quick party，
+// 弹空则回退为领新池对象并按 firstMatchingCnt 复位计数。----
+CQuickParty* CQuickPartySystemManager::pop_quick_party_in_pool(
+    int& outCount, STQuickPartyPoolMap_Data& data, int slotIdx,
+    int partyIdx, int firstMatchingCnt)
+{
+    if (slotIdx > 3 || slotIdx < 0)
+        return 0;
+
+    CQuickParty* qp = 0;
+    if (slotIdx == 0)
+    {
+        qp = G_CGameManager()->GetQuickParty();
+        if (qp == 0)
+            return 0;
+        qp->set_party_index(partyIdx);
+        outCount = firstMatchingCnt;
+        qp->set_first_matching_cnt(static_cast<char>(firstMatchingCnt));
+        return qp;
+    }
+
+    qp = find_quick_party_in_pool(data.m_lists[slotIdx]);
+    if (qp == 0)
+    {
+        cMyTrace trace(
+            "QuickParty::CQuickParty* QuickParty::CQuickPartySystemManager::pop_quick_party_in_pool(int&, QuickParty::STQuickPartyPoolMap_Data&, int, int, int)",
+            0x352, 5);
+        trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
+        qp = G_CGameManager()->GetQuickParty();
+        if (qp == 0)
+            return 0;
+        qp->set_party_index(partyIdx);
+        outCount = firstMatchingCnt;
+        qp->set_first_matching_cnt(static_cast<char>(firstMatchingCnt));
+        return qp;
+    }
+
+    qp->set_party_index(partyIdx);
+    outCount = qp->get_quick_party_count();
+    return qp;
+}
+
+// ---- regist_quick_party @0x0826adb6：弹池→压池闭环 ----
+bool CQuickPartySystemManager::regist_quick_party(
+    const STQuickPartyPoolMap_Key& key, STQuickPartyPoolMap_Data& data,
+    int slotIdx, CParty* party, int firstMatchingCnt)
+{
+    if (party == 0)
+        return false;
+
+    int outCount = 0;
+    CQuickParty* qp = pop_quick_party_in_pool(outCount, data, slotIdx,
+                                              party->GetPartyIndex(),
+                                              firstMatchingCnt);
+    if (qp == 0)
+        return false;
+    return push_quick_party_in_pool(key, data, party, outCount, qp, true);
+}
+
+// ---- check_match_proper_party @0x08269e34：匹配前置校验，返回 ENUM_ERROR ----
+int CQuickPartySystemManager::check_match_proper_party(
+    const STQuickPartyPoolMap_Key& key, CParty* party)
+{
+    if (party == 0)
+        return 1;
+    int members = party->get_member_count();
+    if (members <= 0 || members > 3)
+        return 1;
+
+    short dungeonIdx = static_cast<short>(key.m_dungeonIndex);
+    if (dungeonIdx < 0)
+    {
+        LogManager::logFormat(
+            1, "QuickParty.cpp",
+            "ENUM_ERROR QuickParty::CQuickPartySystemManager::check_match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*)",
+            0x16e, "QUICK_PARTY_LOG : DUNGEON INDEX ERROR!! (%d)",
+            static_cast<int>(dungeonIdx));
+    }
+
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+    if (dungeon == 0)
+        return 1;
+
+    // 血色副本按人数上限直接放行；否则走常规出入副本条件检查。
+    bool bloodPass =
+        static_cast<int>(
+            static_cast<signed char>(dungeon->get_blood_dungeon_type())) == 2 &&
+        static_cast<int>(dungeon->get_limit_party_count()) <= members;
+    if (bloodPass)
+        return 1;
+    return party->checkInoutConditionDungeon(dungeon,
+                                             static_cast<ENUM_DUNGEON_MODE>(0),
+                                             static_cast<ENUM_CMDPACKET>(0x1bc));
+}
+
+// ---- check_quick_party_min_count @0x0826ab9e：开局最低人数校验 ----
+bool CQuickPartySystemManager::check_quick_party_min_count(
+    const STQuickPartyPoolMap_Key& key, int count)
+{
+    int dungeonIdx = static_cast<int>(static_cast<short>(key.m_dungeonIndex));
+    signed char diff =
+        static_cast<signed char>(key.m_dungeonDiff);   // ORIG movsbl 实证
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+    if (dungeon == 0)
+        return false;
+
+    if (dungeon->get_blood_dungeon_type() == 2)
+    {
+        if (static_cast<int>(dungeon->get_limit_party_count()) != count)
+            return false;
+    }
+    else if (dungeon->get_dimension_possible() < 1)
+    {
+        // 次元属性关闭：查 QuickParty.etc 的 minCount 表
+        //（表键 = dungeon+0x89c 入场限制组合位非零 ? 1 : 0）。
+        int requireMin = -1;
+        int tableRow = dungeon->m_89c != 0 ? 1 : 0;
+        CQuickPartyRewardManager* rewardMgr =
+            G_CGameManager()->GetQuickPartyRewardManager();
+        if (rewardMgr != 0)
+            requireMin =
+                rewardMgr->getRequireQuickPartyMinCount(tableRow,
+                                                        static_cast<int>(diff));
+        if (requireMin != -1 && count < requireMin)
+            return false;
+        if (count < 2)
+            return false;
+    }
+    else
+    {
+        // 次元可入副本：允许维度最低人数 + 1。
+        if (count <
+            static_cast<int>(
+                static_cast<signed char>(dungeon->get_dimension_min_partymem())) +
+                1)
+            return false;
+    }
+    return true;
+}
+
+// ---- match_proper_party @0x08269f3c：为新 party 匹配同图快速队伍 ----
+int CQuickPartySystemManager::match_proper_party(
+    const STQuickPartyPoolMap_Key& key, CParty* party, CUser* user)
+{
+    bool abnormal =
+        (party == 0) || (party->get_quick_party_index() != -1);
+    if (abnormal)
+    {
+        if (party == 0 && user != 0)
+        {
+            LogManager::logFormat(
+                1, "QuickParty.cpp",
+                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                0x186, "QUICK_PARTY_LOG : PARTY IS NULL!! (%d)",
+                reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacNo());
+        }
+        else
+        {
+            LogManager::logFormat(
+                1, "QuickParty.cpp",
+                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                0x188, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY INDEX (%d)!!",
+                party ? party->get_quick_party_index() : 0);
+        }
+        return 0x12;
+    }
+
+    int err = check_match_proper_party(key, party);
+    if (err != 0)
+        return err;
+
+    int memberCount = party->get_member_count();
+    CDungeon* dungeon =
+        G_CDataManager()->find_dungeon(static_cast<int>(key.m_dungeonIndex));
+    if (dungeon == 0)
+        return 1;
+
+    int maxMembers = 4;
+    if (dungeon->get_blood_dungeon_type() == 2)
+        maxMembers = static_cast<int>(dungeon->get_limit_party_count());
+
+    std::map<STQuickPartyPoolMap_Key, STQuickPartyPoolMap_Data>::iterator it =
+        m_poolMap.find(key);
+    if (it == m_poolMap.end())
+    {
+        cMyTrace trace(
+            "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+            0x1d6, 5);
+        trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
+        return 1;
+    }
+    STQuickPartyPoolMap_Data& data = it->second;
+
+    // 从"还差 memberCount 人即可开团"的档位向下尝试归并。
+    for (int need = maxMembers - memberCount; need > 0; --need)
+    {
+        if (data.m_lists[need].empty())
+            continue;
+
+        if (need + memberCount != maxMembers)
+        {
+            // 尚不足开局人数：并入现有等待队列（注册新组合）。
+            if (!regist_quick_party(key, data, need, party, memberCount))
+                return 1;
+            return 0;
+        }
+
+        // 正好补齐：弹出该档 quick party 并立即尝试开局。
+        CQuickParty* qp = find_quick_party_in_pool(data.m_lists[need]);
+        if (qp == 0)
+            continue;
+
+        qp->set_party_index(party->GetPartyIndex());
+        int total = qp->get_quick_party_count();
+        if (total == maxMembers)
+        {
+            start_game(qp);
+            return 0;
+        }
+
+        unsigned int qpIndex =
+            static_cast<unsigned int>(qp->get_quick_party_index());
+        cMyTrace trace(
+            "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+            0x1b4, 0);
+        trace("QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
+              qpIndex, total);
+        if (!push_quick_party_in_pool(key, data, party, total, qp, true))
+        {
+            LogManager::logFormat(
+                1, "QuickParty.cpp",
+                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
+            return 1;
+        }
+        return 0;
+    }
+
+    // 无可归并组合：以空队首领新池对象挂起等待。
+    if (!regist_quick_party(key, data, 0, party, memberCount))
+        return 1;
+    return 0;
+}
+
+// ---- make_quick_party @0x0826b222：把池内 quick party 合并成一个真实 party ----
+CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
+{
+    std::list<CUser*> detached;
+    if (qp == 0)
+        return 0;
+
+    // 选 host：优先 EPLP 等待态>1 的队伍，否则任一 quick party 属性队伍。
+    CParty* host = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        int partyIdx = qp->get_party_index(i);
+        CParty* member = G_CGameManager()->GetParty(partyIdx);
+        if (member == 0)
+            continue;
+        if (member->GetEPLPState() > 1)
+        {
+            host = member;
+            break;
+        }
+        if (member->is_quick_party())
+            host = member;
+    }
+    if (host == 0)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            host = G_CGameManager()->GetParty(qp->get_party_index(i));
+            if (host != 0)
+                break;
+        }
+        if (host == 0)
+        {
+            qp->destroy();
+            LogManager::logFormat(
+                1, "QuickParty.cpp",
+                "CParty* QuickParty::CQuickPartySystemManager::make_quick_party(QuickParty::CQuickParty*)",
+                0x3d0, "QUICK_PARTY_LOG : PARTY IS NULL!!");
+            return 0;
+        }
+    }
+
+    host->set_state(1);
+    host->set_quick_party(true);
+    host->setDungIndex(1);
+    host->setDungDiffi(0);
+    if (host->IsAutoCreated())
+    {
+        host->SetSinglePlay(false);
+        host->SetAutoCreated(false);
+        G_GameWorld()->send_party_info_to_all(host, 0);
+    }
+
+    // 其余成员队伍解散，把用户依次收拢（记录进 detached）。
+    for (int i = 0; i < 4; ++i)
+    {
+        int partyIdx = qp->get_party_index(i);
+        if (partyIdx == -1)
+            continue;
+        CParty* member = G_CGameManager()->GetParty(partyIdx);
+        if (member == 0 || member == host)
+            continue;
+        for (int slot = 0; slot < 4; ++slot)
+        {
+            if (!member->checkValidUser(slot))
+                continue;
+            CUser* user = member->get_user(slot);
+            member->delete_party_for_quick_party(user, detached);
+        }
+    }
+
+    for (std::list<CUser*>::iterator it = detached.begin();
+         it != detached.end(); ++it)
+    {
+        host->join_user(*it);
+    }
+
+    qp->destroy();
+    host->init_quick_party_data();
+    return host;
+}
+
+// ---- insert_timer_waiting_start_game @0x0826ad50：
+// InsertTimer(objType=1, partyIdx, msg=0x2d, period=0x5a, key, msg)。 ----
+void CQuickPartySystemManager::insert_timer_waiting_start_game(CParty* party)
+{
+    unsigned int key =
+        static_cast<unsigned int>(party->gen_timer_key((TIMER_MESSAGE)0x2d));
+    int partyIdx = party->GetPartyIndex();
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, partyIdx,
+                                (TIMER_MESSAGE)0x2d, 0x5a, key,
+                                static_cast<TIMER_MESSAGE>(0x2d));
+}
+
+// ---- start_game @0x0826b58a：合并成团并广播、计时器等待后真正开局 ----
+void CQuickPartySystemManager::start_game(CQuickParty* qp)
+{
+    if (qp == 0)
+    {
+        LogManager::logFormat(
+            1, "QuickParty.cpp",
+            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            0x40c, "QUICK_PARTY_LOG : QUICK PARTY IS NULL!!");
+        return;
+    }
+    if (qp->get_quick_party_count() <= 1)
+    {
+        LogManager::logFormat(
+            1, "QuickParty.cpp",
+            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            0x412,
+            "QUICK_PARTY_LOG : NO START!! BECAUSE OF QUICK PARTY COUNT 1 !!");
+        return;
+    }
+
+    CParty* merged = make_quick_party(qp);
+    if (merged == 0)
+    {
+        LogManager::logFormat(
+            1, "QuickParty.cpp",
+            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            0x41e, "QUICK_PARTY_LOG : NO EXIST PARTY!!");
+        return;
+    }
+
+    insert_timer_waiting_start_game(merged);
+    merged->send_party_realtime_info();
+    merged->send_party_ipinfo();
+    G_GameWorld()->send_party_info_to_all(merged, 2);
+    merged->send_quick_party_matching_result(true, 0);
+    if (merged->GetEPLPState() <= 1)
+    {
+        merged->game_start(merged->getManager());
+    }
+}
+
+// ---- start_game @0x0826a972：带 key 版（先校验人数再出池）。----
+bool CQuickPartySystemManager::start_game(CQuickParty* qp,
+                                          const STQuickPartyPoolMap_Key& key)
+{
+    if (qp == 0)
+        return false;
+    if (!check_quick_party_min_count(key, qp->get_quick_party_count()))
+        return false;
+    if (!G_CGameManager()->GetQuickPartySystemManager()
+             ->remove_quick_party_in_pool(qp, key))
+        return false;
+    start_game(qp);
+    return true;
+}
+
+// ---- direct_entrance_quick_party @0x0826a762：队长请求直接入场 ----
+int CQuickPartySystemManager::direct_entrance_quick_party(CUser* user)
+{
+    if (user == 0)
+        return 1;
+    CParty* party = static_cast<CParty*>(user->GetParty());
+    if (party == 0)
+        return 1;
+
+    CQuickParty* qp =
+        G_CGameManager()->GetQuickParty(party->get_quick_party_index());
+    if (qp == 0)
+        return 1;
+
+    int count = qp->get_quick_party_count();
+    signed char firstMatchingCnt = 0;
+    {
+        char raw = qp->get_first_matching_cnt();
+        firstMatchingCnt = static_cast<signed char>(raw);
+    }
+    // 队伍未满且正好等于首次匹配人数：直接拒绝入场。
+    if (count < 2 && firstMatchingCnt == count)
+        return 0xf5;
+
+    // 已到匹配目标人数且无人数变动：解除队列并通知散队。
+    if (firstMatchingCnt >= count && !qp->is_change_quick_party_count())
+    {
+        CParty* target = qp->get_party_object();
+        if (target == 0)
+            return 1;
+        if (G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(
+                target, true, 0))
+        {
+            PacketGuard packet;
+            packet.clear();
+            packet.put_header(0, 0x17f);
+            packet.finalize(true);
+            target->send_to_party(packet);
+            return 1;
+        }
+    }
+
+    STQuickPartyPoolMap_Key key;
+    key.m_dungeonIndex = qp->get_dungeon_index();
+    key.m_dungeonDiff = static_cast<unsigned char>(qp->get_dungeon_diff());
+    G_CGameManager()->GetQuickPartySystemManager()->start_game(qp, key);
+    return 0;
 }
 
 }  // namespace QuickParty

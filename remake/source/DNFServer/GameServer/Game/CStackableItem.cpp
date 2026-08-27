@@ -8,6 +8,7 @@
 #include "CStackableItem.h"
 
 #include "PvPTypes.h"   // 权威 CMTRand 完整类型（new CMTRand(seed) 需要；原局部 stub 已删除）
+#include "AradRabbitBox.h"  // +0x19c 兔盒元素类型（W6_ARAD_ItemBonus 收敛）
 
 #include <algorithm>
 #include <string>
@@ -468,7 +469,7 @@ public:
     std::string m_str188;                // +0x188
     int m_field18c;                      // +0x18c
     std::vector<int> m_vec190;           // +0x190
-    std::vector<char> m_vec19c;          // +0x19c
+    std::vector<CRabbitBox> m_vec19c;    // +0x19c（ORIG vector<CRabbitBox>，secret_shop_event_item 实证）
     char m_pad1a8[4];                    // +0x1a8
     int m_field1ac;                      // +0x1ac
     int m_field1b0;                      // +0x1b0

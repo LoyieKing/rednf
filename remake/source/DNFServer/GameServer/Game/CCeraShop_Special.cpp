@@ -1718,7 +1718,7 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
 //   2) 对每个 stack-buyable 商品，按 restrictCode 校验限制购买仍为可重复。
 //   返回 true=通过；其间任何限制冲突返回 false。
 // ============================================================================
-bool CCeraShop::_CheckValidCount(const CCeraShopGoods* const* goodsList)
+bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
 {
     int typeCount[15];
     std::memset(typeCount, 0, sizeof(typeCount));
@@ -1870,7 +1870,7 @@ int CCeraShop::getOriginalItem()
 // Is2010ChuseokPacket —— ORIG 0x083280dc (T)
 // 2010 秋夕（Chuseok）包商品判定：itemIdx ∈ (0x2896d3, 0x2896ef]。
 // ============================================================================
-bool CCeraShop::Is2010ChuseokPacket(unsigned long itemIdx)
+bool CCeraShop::Is2010ChuseokPacket(unsigned int itemIdx)
 {
     return itemIdx > 0x2896d3 && itemIdx <= 0x2896ef;
 }

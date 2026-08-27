@@ -1,0 +1,866 @@
+extern int DEFAULT_MAX_FATIGUE;   // ORIG 全局（声明见 CUserCharacInfo.h:285）
+// ============================================================================
+// df_game_r 还原 —— DB_CreateCharac 实现（26 ORIG 符号）
+// 逐符号转写自 docs/class_func_reports/DB_CreateCharac/（汇编+反编译 C 全文）。
+// SQL 字符串、执行顺序、错误码（SIG_CREATE_CHARAC::m_resultCode @+0x5344）
+// 与 ORIG 指令一一对应；未建模 blob 区以显式偏移取址（原始偏移已注释），
+// 不造任何 SQL 结果假值。
+// 唯一 owner：本 TU。ORIG 地址核对（nm --defined-only df_game_r）：
+//   C1/C2 0x08400cc2 | D1 0x08400cde | D0 0x08400d0e | dispatch 0x08400d2c
+//   _createCharacNPCRelationship 0x0840103e | _createCharacQuest 0x08401094
+//   _createCharacDungeon 0x084010fc | _checkCharacName 0x084011d4
+//   _checkCreateEventCharacter 0x084013b2 | _updateCreateEventCharacter 0x08401428
+//   CheckLimit 0x08401504/0x08401922 | InsertLimit 0x084016ae/0x08401b9a
+//   makeRequestResetLimitCreateMid 0x08401864 | CreateNewCharac 0x08401dcc
+//   _CreateNewCharacStat 0x0840215e | CreateInventory 0x08402230
+//   CreateEquip 0x084023ac | CreateSkill 0x084024e6 | CreatePvP 0x084026ec
+//   GetCharacNo 0x0840275c | SendResult 0x084027b0 | MakeInsertCharacInfo 0x080ec2a0
+// ============================================================================
+
+#include "DB_CreateCharac.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+
+#include "MySQL.h"
+#include "DBMgr.h"
+#include "CEventMgr.h"             // WongWork::CEventMgr::GetCoinCharacCreate
+#include "GlobalData.h"             // s_db_mgr/s_pGMAccounts_/s_systemTime_/
+                                    // s_stream_pool/s_big_stream_pool/s_msgq_mgr
+#include "SigTypes.h"
+#include "CGuildServerProxy.h"      // WongWork::CGMAccounts::isGM
+#include "CEnvironment.h"           // G_CEnvironment/m_dbConnInfo/m_serverEnvir
+#include "APSystemTypes.h"          // compress_zip
+#include "StreamPool.h"
+#include "CStreamGuard.h"
+#include "MsgQueueMgr.h"
+#include "Arad_InternalDispatcher.h"
+#include "GameTypes.h"              // cMyTrace
+
+namespace WongWork { namespace DBCommon {
+unsigned int GetIdentity(MySQL* db);   // ORIG T 0x083f9ad4（LinkClosureB_Misc.cpp 唯一 owner）
+} }
+
+char* NumberToString(unsigned int value, int radix);   // ORIG T 0x0810904b
+
+namespace {
+
+unsigned int rd32(const unsigned char* p)   // MakeInsertCharacInfo blob 区读取
+{
+    unsigned int v;
+    memcpy(&v, p, 4);
+    return v;
+}
+int rdu16(const unsigned char* p)           // movzwl → 零扩展
+{
+    unsigned short v;
+    memcpy(&v, p, 2);
+    return v;
+}
+int rds16(const unsigned char* p)           // cwtl → 符号扩展
+{
+    short v;
+    memcpy(&v, p, 2);
+    return v;
+}
+
+}  // namespace
+
+// ===========================================================================
+// C1/C2 — DB_CreateCharac.md @0x08400cc2：基类 ctor + 设 vptr。
+// D1/D2/D0 — ~.md @0x08400cde/@0x08400d0e：设 vptr + 基类析构；D0 另 delete。
+// 非 inline 定义发射全套生命周期符号。
+// ===========================================================================
+DB_CreateCharac::DB_CreateCharac() : DBDispatcher()
+{
+}
+
+DB_CreateCharac::~DB_CreateCharac()
+{
+}
+
+// ===========================================================================
+// dispatch — dispatch.md T @0x08400d2c
+// ===========================================================================
+bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
+{
+    if (!DBDispatcher::dispatch(userIdx, slot, stream))
+    {
+        return false;
+    }
+
+    SIG_CREATE_CHARAC* sig = stream->GetOutBuffer<SIG_CREATE_CHARAC>();
+    if (sig == NULL)
+    {
+        return false;
+    }
+
+    sig->m_resultCode = 0;
+
+    bool ok = CheckLimitCreateNewCharac(sig, true);         // call 08401922
+    if (ok)
+    {
+        if (CreateNewCharac(sig))                           // call 08401dcc
+        {
+            if (GetCharacNo(sig))                           // call 0840275c
+            {
+                if (_CreateNewCharacStat(sig))              // call 0840215e
+                {
+                    bool invOk;                             // -0xd(%ebp)
+                    if (sig->m_giftFindOk != 0)             // byte +0x533f
+                    {
+                        invOk = CreateInventory(sig->m_characNo,
+                                                reinterpret_cast<Inven_Item*>(
+                                                    reinterpret_cast<char*>(sig) + 0x3a9));
+                    }
+                    else
+                    {
+                        invOk = CreateInventory(sig->m_characNo, NULL);
+                    }
+                    if (sig->m_equipFindOk != 0)            // byte +0x5340
+                    {
+                        // ORIG lea 0x4e01(%eax)：&m_giftItem 起点，压缩长度 0x2dc。
+                        invOk = CreateEquip(sig->m_characNo, &sig->m_giftItem);
+                    }
+                    if (!invOk)
+                    {
+                        sig->m_resultCode = 2;
+                    }
+                    if (!CreateSkill(sig))
+                    {
+                        sig->m_resultCode = 2;
+                    }
+                    if (!CreatePvP(sig->m_characNo))
+                    {
+                        sig->m_resultCode = 2;
+                    }
+                    if (!_createCharacDungeon(sig->m_accId))
+                    {
+                        sig->m_resultCode = 2;
+                    }
+                    else if (_createCharacQuest(sig->m_characNo))
+                    {
+                        if (!_createCharacNPCRelationship(sig->m_characNo))
+                        {
+                            sig->m_resultCode = 2;
+                        }
+                        InsertLimitCreateNewCharac(sig, true);
+                    }
+                    else
+                    {
+                        sig->m_resultCode = 2;
+                    }
+                }
+                else
+                {
+                    sig->m_resultCode = 2;
+                }
+            }
+            else
+            {
+                sig->m_resultCode = 2;
+            }
+        }
+    }
+
+    return SendResult(userIdx, slot, sig) != 0;
+}
+
+// ===========================================================================
+// _createCharacNPCRelationship — 报告 @0x0840103e
+// seLect/inSert charac_npc 一条；尾部 exec 返回值即调用方判定值。
+// ===========================================================================
+bool DB_CreateCharac::_createCharacNPCRelationship(unsigned int characNo)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query(
+        "inSert into charac_npc(charac_no,npc_cnt,npc_data) values(%d,0,'')",
+        characNo);
+    return db->exec(true);
+}
+
+// ===========================================================================
+// _createCharacQuest — 报告 @0x08401094
+// ===========================================================================
+bool DB_CreateCharac::_createCharacQuest(unsigned int characNo)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query("inSert into new_charac_quest(charac_no, clear_quest) values(%u,'')",
+                  characNo);
+    return db->exec(true);
+}
+
+// ===========================================================================
+// _createCharacDungeon — 报告 @0x084010fc：无行则补插空 member_dungeon 行。
+// ===========================================================================
+bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+
+    db->set_query("seLect * from member_dungeon where m_id=%s",
+                  NumberToString(accId, 0));
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    if (db->get_n_rows() == 0)
+    {
+        db->set_query("inSert into member_dungeon (m_id,dungeon) values (%s,'')",
+                      NumberToString(accId, 0));
+    }
+    return db->exec(true);
+}
+
+// ===========================================================================
+// CheckLimitCreateNewCharac(SIG*) — 报告 @0x08401504
+// 当日（本地零点起）已建 >1 角色拒建（rc=5）；exec 失败 rc=2。
+// ===========================================================================
+bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
+{
+    if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
+    {
+        return true;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                  E_SERVER_GROUP_NONE);
+    time_t nowSec = GlobalData::s_systemTime_.getCurSec();
+    struct tm localTime;
+    localtime_r(&nowSec, &localTime);
+    localTime.tm_hour = 0;
+    localTime.tm_min = 0;
+    localTime.tm_sec = 0;
+    time_t dayStart = mktime(&localTime);
+
+    unsigned int createTime = 0;
+    db->set_query(
+        "seLect unix_timestamp(create_time) from limit_create_character where m_id=%s",
+        NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+
+    int nRows = db->get_n_rows();
+    if (nRows == 0)
+    {
+        return true;
+    }
+    int todayCount = 0;
+    for (int i = 0; i < nRows; ++i)
+    {
+        if (!db->fetch())
+        {
+            break;
+        }
+        if (!db->get_uint(0, createTime))
+        {
+            break;
+        }
+        if ((time_t)createTime >= dayStart && ++todayCount > 1)
+        {
+            sig->m_resultCode = 5;
+            return false;
+        }
+    }
+    return true;
+}
+
+// ===========================================================================
+// CheckLimitCreateNewCharac(SIG*, bool) — 报告 @0x08401922
+// count>1 拒建并 trace [LIMIT NEW CHARAC MID]；bool 参不影响路径（ORIG 仅
+// 存栈未读）。
+// ===========================================================================
+bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
+                                                bool traceFlag)
+{
+    (void)traceFlag;
+
+    if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
+    {
+        return true;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                  E_SERVER_GROUP_NONE);
+    time_t nowSec = GlobalData::s_systemTime_.getCurSec();
+    struct tm localTime;
+    localtime_r(&nowSec, &localTime);
+    localTime.tm_hour = 0;
+    localTime.tm_min = 0;
+    localTime.tm_sec = 0;
+    time_t dayStart = mktime(&localTime);
+
+    unsigned int count = 0;
+    unsigned int lastAccessTime = 0;
+    db->set_query(
+        "seLect count, unix_timestamp(last_access_time) from limit_create_character where m_id=%s",
+        NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+
+    int nRows = db->get_n_rows();
+    if (nRows == 0)
+    {
+        return true;
+    }
+    for (int i = 0; i < nRows; ++i)
+    {
+        if (!db->fetch() || !db->get_uint(0, count) ||
+            !db->get_uint(1, lastAccessTime))
+        {
+            break;
+        }
+        if (count > 1)
+        {
+            sig->m_resultCode = 5;
+            cMyTrace trace(
+                "bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC*, bool)",
+                0xf25, 0);
+            trace("[LIMIT NEW CHARAC MID] %s,%d,%d,%d",
+                  NumberToString(sig->m_accId, 0),
+                  sig->m_characNo, lastAccessTime,
+                  G_CEnvironment()->get_server_group());
+            return false;
+        }
+    }
+    return true;
+}
+
+// ===========================================================================
+// makeRequestResetLimitCreateMid — 报告 @0x08401864
+// channel_no==1 时经内部包请求重置中端限建表。
+// ===========================================================================
+void DB_CreateCharac::makeRequestResetLimitCreateMid()
+{
+    if (G_CEnvironment()->get_channel_no() != 1)
+    {
+        return;
+    }
+    Stream* stream =
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xee3);
+    CStreamGuard guard(stream, true);
+    ARAD::DISPATCHER::make_internal_stream_jpn(guard,
+                                               ARAD::ENUM_INTERNALPACKET_JPN(0x37),
+                                               -1);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}
+
+// ===========================================================================
+// _checkCharacName — 报告 @0x084011d4
+// 重名/delete_flag 判定；gc_no==1010(0x3f2) 且恰与基准名相同时追查 query 日志。
+// ===========================================================================
+bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
+                                       SIG_CREATE_CHARAC* sig)
+{
+    db->set_query("seLect delete_flag from %s.charac_info where charac_name='%s'",
+                  dbTable, sig->m_name);
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+
+    int deleted = 0;
+    int nRows = db->get_n_rows();
+    if (nRows == 0)
+    {
+        return true;
+    }
+    sig->m_resultCode = 2;
+    bool badFetch = !db->fetch() || !db->get_int(0, deleted);
+    if (!badFetch)
+    {
+        if (deleted == 0)
+        {
+            if (G_CEnvironment()->get_gc_no() == 0x3f2)
+            {
+                cMyTrace trace(
+                    "bool DB_CreateCharac::_checkCharacName(MySQL*, const char*, SIG_CREATE_CHARAC*)",
+                    0xd6a, 5);
+                trace("already charac_name(%s) row(%d)", sig->m_name, nRows);
+                // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
+                static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
+                if (strcmp(sig->m_name, BASELINE_NAME) == 0)
+                {
+                    cMyTrace queryTrace(
+                        "bool DB_CreateCharac::_checkCharacName(MySQL*, const char*, SIG_CREATE_CHARAC*)",
+                        0xd6d, 5);
+                    queryTrace("already charac_name query(%s)",
+                               db->GetQueryString());
+                }
+            }
+            sig->m_resultCode = 1;
+        }
+        else
+        {
+            sig->m_resultCode = 3;
+        }
+    }
+    return false;
+}
+
+// ===========================================================================
+// _checkCreateEventCharacter — 报告 @0x084013b2
+// 硬编码 2009-11-20..2010-01-03(+1s) 事件窗；窗内要求非事件角色标志为 0。
+// ===========================================================================
+bool DB_CreateCharac::_checkCreateEventCharacter(SIG_CREATE_CHARAC* sig)
+{
+    int nowSec = GlobalData::s_systemTime_.getCurSec();
+    bool inWindow = (nowSec > (int)0x4b055d6f && nowSec <= (int)0x4b3bbf50);
+
+    if (inWindow)
+    {
+        if (sig->m_eventCharacFlag != 0)
+        {
+            sig->m_resultCode = 4;
+            return false;
+        }
+        return true;
+    }
+    sig->m_resultCode = 4;
+    return false;
+}
+
+// ===========================================================================
+// _updateCreateEventCharacter — 报告 @0x08401428
+// 同事件窗内置 member_login.event_charac_flag=1 并回写角色标志。
+// ===========================================================================
+bool DB_CreateCharac::_updateCreateEventCharacter(SIG_CREATE_CHARAC* sig)
+{
+    int nowSec = GlobalData::s_systemTime_.getCurSec();
+    bool inWindow = (nowSec > (int)0x4b055d6f && nowSec <= (int)0x4b3bbf50);
+
+    if (!inWindow)
+    {
+        sig->m_resultCode = 4;
+        return false;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query("upDate member_login set event_charac_flag = 1 where m_id = %s",
+                  NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+    sig->m_eventCharacFlag = 1;
+    return true;
+}
+
+// ===========================================================================
+// InsertLimitCreateNewCharac(SIG*) — 报告 @0x084016ae：新行插入 + trace。
+// ===========================================================================
+bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
+{
+    if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
+    {
+        return true;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query(
+        "inSert into limit_create_character(m_id, create_time) values(%s, now() )",
+        NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 5;
+        return false;
+    }
+
+    time_t nowSec = GlobalData::s_systemTime_.getCurSec();
+    struct tm localTime;
+    struct tm* lt = localtime_r(&nowSec, &localTime);
+    char dateBuf[256];
+    sprintf(dateBuf, "%04d-%02d-%02d %02d:%02d:%02d",
+            lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+            lt->tm_hour, lt->tm_min, lt->tm_sec);
+
+    cMyTrace trace(
+        "bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC*)",
+        0xe76, 0);
+    trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
+          NumberToString(sig->m_accId, 0),
+          sig->m_characNo, dateBuf,
+          G_CEnvironment()->get_server_group());
+    return true;
+}
+
+// ===========================================================================
+// InsertLimitCreateNewCharac(SIG*, bool) — 报告 @0x08401b9a
+// count=count+1（无行插入 1），trace 行号 0xf61。
+// ===========================================================================
+bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
+                                                 bool traceFlag)
+{
+    (void)traceFlag;
+
+    if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
+    {
+        return true;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query(
+        "upDate limit_create_character set count=count+1, last_access_time=now() where m_id=%s",
+        NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+    if (db->getAffectedRowCount() == 0ULL)
+    {
+        db->set_query(
+            "inSert into limit_create_character(m_id, count, last_access_time) values(%s, 1, now() )",
+            NumberToString(sig->m_accId, 0));
+        if (!db->exec(true))
+        {
+            sig->m_resultCode = 2;
+            return false;
+        }
+    }
+
+    time_t nowSec = GlobalData::s_systemTime_.getCurSec();
+    struct tm localTime;
+    struct tm* lt = localtime_r(&nowSec, &localTime);
+    char dateBuf[256];
+    sprintf(dateBuf, "%04d-%02d-%02d %02d:%02d:%02d",
+            lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+            lt->tm_hour, lt->tm_min, lt->tm_sec);
+
+    cMyTrace trace(
+        "bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC*, bool)",
+        0xf61, 0);
+    trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
+          NumberToString(sig->m_accId, 0),
+          sig->m_characNo, dateBuf,
+          G_CEnvironment()->get_server_group());
+    return true;
+}
+
+// ===========================================================================
+// CreateNewCharac — 报告 @0x08401dcc
+// ===========================================================================
+bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+
+    db->set_query("seLect count(*) from charac_info where m_id=%s and delete_flag=0",
+                  NumberToString(sig->m_accId, 0));
+    if (!db->exec(true))
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+    int liveCount = 0;
+    if (!db->fetch() || !db->get_int(0, liveCount) || liveCount >= 0x24)
+    {
+        sig->m_resultCode = 2;
+        return false;
+    }
+
+    // G_CEnvironment()->m_dbConnInfo[DB_HANDLE_2].m_db —— ORIG map::operator[]
+    // 于 env+0x68、STDBConnInfo m_db 在 +0x42。m_dbConnInfo 为 private，按
+    // TaiwanCash.cpp InitBillingCash 既有裸偏移先例访问。
+    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
+    DbConnMap& connMap = *reinterpret_cast<DbConnMap*>(
+        reinterpret_cast<char*>(G_CEnvironment()) + 0x68);
+    ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;       // 栈上局部初始值 2
+    STDBConnInfo& connInfo = connMap[connIdx];
+    if (!_checkCharacName(db, connInfo.m_db, sig))
+    {
+        return false;
+    }
+
+    sig->m_pad534d[0] = 0;                          // byte +0x534d
+
+    // serverGroup==10 && now<0x478e7051 的临时通道：追加老号数量检查，
+    // 若该账号从无角色则记 m_pad534d[0]=1。
+    if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 10 &&
+        GlobalData::s_systemTime_.getCurSec() < (unsigned int)0x478e7051)
+    {
+        db->set_query("seLect count(*) from charac_info where m_id=%s",
+                      NumberToString(sig->m_accId, 0));
+        if (!db->exec(true))
+        {
+            sig->m_resultCode = 2;
+            return false;
+        }
+        int totalCount = 0;
+        if (!db->fetch() || !db->get_int(0, totalCount))
+        {
+            sig->m_resultCode = 2;
+            return false;
+        }
+        if (totalCount == 0)
+        {
+            sig->m_pad534d[0] = 1;
+        }
+    }
+
+    char escapedName[60];
+    memset(escapedName, 0, sizeof(escapedName));
+    db->escape_string(escapedName, sig->m_name);
+
+    if ((signed char)sig->m_field23 >= 1)
+    {
+        if (!_checkCreateEventCharacter(sig))
+        {
+            return false;
+        }
+        _updateCreateEventCharacter(sig);
+    }
+    else if ((signed char)sig->m_field23 < 0)
+    {
+        sig->m_resultCode = 4;
+        return false;
+    }
+
+    MakeInsertCharacInfo(db, sig, escapedName);
+    if (!db->exec(true))
+    {
+        cMyTrace trace("bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC*)",
+                       0x10e2, 5);
+        trace("DB_CreateCharac::CreateNewCharac, exec() ERROR m_id=%s",
+              NumberToString(sig->m_accId, 0));
+        sig->m_resultCode = 1;
+        return false;
+    }
+    return true;
+}
+
+// ===========================================================================
+// _CreateNewCharacStat — 报告 @0x0840215e
+// ===========================================================================
+bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query(
+        "inSert into charac_stat (charac_no,HP, forbidden_to_play, forbidden_due_to) values(%d,100,0,0)",
+        sig->m_characNo);
+    if (!db->exec(true))
+    {
+        cMyTrace trace("bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC*)",
+                       0x10fb, 5);
+        trace("DB_CreateCharac::_CreateNewCharacStat, exec() ERROR m_id=%s",
+              NumberToString(sig->m_accId, 0));
+        sig->m_resultCode = 2;
+        return false;
+    }
+    return true;
+}
+
+// ===========================================================================
+// CreateInventory — 报告 @0x08402230
+// item==NULL 仅写 coin；否则将 item 起点 0x3b55 字节 zip 后入库 + 空背包扩容表。
+// ===========================================================================
+bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
+{
+    char zipped[0x473e];
+    memset(zipped, 0, sizeof(zipped));
+    unsigned int zippedLen = 0x473e;
+    if (item != NULL &&
+        !compress_zip(zipped, zippedLen, reinterpret_cast<char*>(item), 0x3b55))
+    {
+        return false;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+                                                  E_SERVER_GROUP_NONE);
+    if (item == NULL)
+    {
+        int coinOnCreate = WongWork::CEventMgr::GetCoinCharacCreate();
+        db->set_query("inSert into inventory (charac_no, coin) values(%u, %d)",
+                      characNo, coinOnCreate);
+    }
+    else
+    {
+        int coinOnCreate = WongWork::CEventMgr::GetCoinCharacCreate();
+        db->set_query("inSert into inventory (charac_no, inventory,coin) values(%u, '%s',%d)",
+                      characNo, db->blob_to_str(0, zipped, zippedLen),
+                      coinOnCreate);
+    }
+    if (!db->exec(true))
+    {
+        return false;
+    }
+
+    db->set_query(
+        "inSert into charac_inven_expand(charac_no,cargo,cargo_capacity,jewel) values(%u,'',0,'')",
+        characNo);
+    return db->exec(true);
+}
+
+// ===========================================================================
+// CreateEquip — 报告 @0x084023ac
+// item==NULL 直接成功；否则 zip(item, 0x2dc) upDate equipslot 列。
+// ===========================================================================
+bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
+{
+    if (item == NULL)
+    {
+        return true;
+    }
+
+    char zipped[0x37a];
+    memset(zipped, 0, sizeof(zipped));
+    unsigned int zippedLen = 0x37a;
+    if (!compress_zip(zipped, zippedLen, reinterpret_cast<char*>(item), 0x2dc))
+    {
+        return false;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query("upDate inventory set equipslot='%s' where charac_no = %u",
+                  db->blob_to_str(0, zipped, zippedLen), characNo);
+    return db->exec(true);
+}
+
+// ===========================================================================
+// CreateSkill — 报告 @0x084024e6
+// m_masteredSkillA/B 各 0x198 zip 后入 skill 表两 slot blob。
+// ===========================================================================
+bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
+{
+    char bufSlot[1002];            // 帧 -0x402 区（skillB 压缩输出）
+    char bufSecond[1002];          // 帧 -0x20d 区（skillA 压缩输出）
+    memset(bufSlot, 0, sizeof(bufSlot));
+    memset(bufSecond, 0, sizeof(bufSecond));
+    unsigned int lenSlot = 0x1f5;     // -0x18
+    unsigned int lenSecond = 0x1f5;   // -0x14
+
+    // ORIG 第一次调用 @0x84025bd：dst=-0x20d、lenPtr=-0x14、src=sig+0x79(skillA)。
+    if (!compress_zip(bufSecond, lenSecond,
+                      reinterpret_cast<const char*>(sig->m_masteredSkillA), 0x198))
+    {
+        return false;
+    }
+    // ORIG 第二次调用 @0x84025f7：dst=-0x402、lenPtr=-0x18、src=sig+0x211(skillB)。
+    if (!compress_zip(bufSlot, lenSlot,
+                      reinterpret_cast<const char*>(sig->m_masteredSkillB), 0x198))
+    {
+        return false;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+                                                  E_SERVER_GROUP_NONE);
+    // blob 序：skill_slot ← blob(col=0,-0x20d,len-0x14)；skill_slot_2nd ← blob(col=1,-0x402,len-0x18)。
+    db->set_query(
+        "inSert into skill (charac_no, remain_sp ,skill_slot, skill_slot_2nd) values(%u,%u, '%s', '%s')",
+        sig->m_characNo, sig->m_spAtLevelUp,
+        db->blob_to_str(0, bufSecond, lenSecond),
+        db->blob_to_str(1, bufSlot, lenSlot));
+    return db->exec(true);
+}
+
+// ===========================================================================
+// CreatePvP — 报告 @0x084026ec
+// ===========================================================================
+bool DB_CreateCharac::CreatePvP(unsigned int characNo)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+    db->set_query("inSert into pvp_result (charac_no) values(%u)", characNo);
+    return db->exec(true);
+}
+
+// ===========================================================================
+// GetCharacNo — 报告 @0x0840275c：@@identity → sig->m_characNo。
+// ===========================================================================
+bool DB_CreateCharac::GetCharacNo(SIG_CREATE_CHARAC* sig)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
+                                                  E_SERVER_GROUP_NONE);
+    unsigned int identity = WongWork::DBCommon::GetIdentity(db);
+    if (identity == 0)
+    {
+        return false;
+    }
+    sig->m_characNo = identity;
+    return true;
+}
+
+// ===========================================================================
+// SendResult — 报告 @0x084027b0
+// 大流包：userIdx、slot、SIG 全量 0x5354 二进制 → DISPATCH_Q。
+// ===========================================================================
+int DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
+{
+    Stream* stream =
+        GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x11db);
+    CStreamGuard guard(stream, true);
+    guard << userIdx;
+    guard << slot;
+    guard.put_binary(sig, 0x5354);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    return 1;
+}
+
+// ===========================================================================
+// MakeInsertCharacInfo — 报告 @0x080ec2a0
+// charac_info 一行 INSERT；job 数据区（+0x26..+0x74 尚未建模字段）按原始
+// movzwl/cwtl/movl 语义以 helper 读取，参数顺序与格式串逐项对应。
+// ===========================================================================
+void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
+                                           char const* escapedName)
+{
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(sig);
+    int eventCharacLevel = (signed char)sig->m_field23;   // +0x23 列 event_charac_level
+    int sex = (signed char)sig->m_ssnCheckFail;           // +0x534c ← ORIG %esi（sex 列位）
+    int fatigueMax = DEFAULT_MAX_FATIGUE;
+
+    unsigned int expertJob   = rd32(p + 0x74);            // expert_job 列
+    int jumpValue            = rds16(p + 0x72);           // jump
+    int hitRecovery          = rds16(p + 0x70);           // hit_recovery
+    unsigned int castSpeed   = (unsigned int)rdu16(p + 0x6e);  // cast_speed
+    unsigned int attackSpeed = (unsigned int)rdu16(p + 0x6c);  // attack_speed
+    unsigned int moveSpeed   = rd32(p + 0x68);            // move_speed
+    int mpRegenShort         = rds16(p + 0x66);           // mp_regen
+    int hpRegenShort         = rds16(p + 0x64);           // hp_regen
+    unsigned int invenWeight = rd32(p + 0x60);            // inven_weight
+    // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
+    char const* elementResistBlob =
+        db->blob_to_str(0, const_cast<unsigned char*>(p + 0x36), 8);
+    // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'
+    char const* specPropertyBlob =
+        db->blob_to_str(1, const_cast<unsigned char*>(p + 0x3e), 0x22);
+    unsigned int magDefense = (unsigned int)rdu16(p + 0x34);
+    unsigned int magAttack  = (unsigned int)rdu16(p + 0x32);
+    unsigned int phyDefense = (unsigned int)rdu16(p + 0x30);
+    unsigned int phyAttack  = (unsigned int)rdu16(p + 0x2e);
+    unsigned int maxMP      = rd32(p + 0x2a);
+    unsigned int maxHP      = rd32(p + 0x26);
+
+    db->set_query(
+        "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"
+        "phy_defense,mag_attack,mag_defense,element_resist,spec_property,"
+        "inven_weight,hp_regen,mp_regen,move_speed,attack_speed,cast_speed,"
+        "hit_recovery,jump,charac_weight,max_fatigue,create_time,expert_job,"
+        "event_charac_level) values(%s,'%s',%d,%d,%d,%u,%d,%d,%d,%d,'%s','%s',"
+        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,NOW(),%d,%d)",
+        NumberToString(sig->m_accId, 0), escapedName,
+        (int)(signed char)sig->m_slot,     // job 列 ← sig+0x22（ORIG %ebx）
+        sex,                               // sex 列 ← sig+0x534c（ORIG %esi）
+        maxHP, maxMP, phyAttack, phyDefense, magAttack, magDefense,
+        elementResistBlob, specPropertyBlob,
+        invenWeight, hpRegenShort, mpRegenShort, moveSpeed, attackSpeed,
+        castSpeed, hitRecovery, jumpValue, expertJob, fatigueMax,
+        (int)(signed char)sig->m_pad25,    // expert_job 列 ← sig+0x25（ORIG edi）
+        eventCharacLevel);                 // event_charac_level ← sig+0x23
+}

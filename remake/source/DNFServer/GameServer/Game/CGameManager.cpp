@@ -368,7 +368,6 @@ void WongWork::CMailBox::SetPackageLoadLack(const unsigned int* arr, int count,
 }
 void WongWork::CMailBox::SetLoadedLetterCount(int) {}
 void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
-int WongWork::CMailBox::getMailLoadCount() { return 0; }
 WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
 {
     // ORIG 0x0855236a：迭代器指向 m_mailMap；未到 end 则返回 second 并前移，

@@ -1,0 +1,660 @@
+// ============================================================================
+// df_game_r 还原 —— ARAD 登录安全域（Wave6 ARAD 批次独占 TU）
+//
+// 覆盖 ORIG 符号清单（nm -S df_game_r 逐一核对 mangled）：
+//   _ZN4ARAD26Arad_Dispatcher_Login_ImplC1Ev/C2Ev   0x0818eed0
+//   _ZN4ARAD26Arad_Dispatcher_Login_ImplD1Ev/D2Ev   0x0818eef4 / D0 0x0818ef24
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl11db_dispatchEiiP6Stream 0x0818ef4c
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl14inter_dispatchEP5CUserPci 0x0818ef42
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl17punish_user_checkEP14SIG_LOGIN_DATA
+//     0x0818f970
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl22account_password_checkEP14SIG_LOGIN_
+//     DATAPc 0x0818f746
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl23pad_certifiaction_checkEP14SIG_LOGIN_
+//     DATA 0x0818f4a6
+//   _ZN4ARAD26Arad_Dispatcher_Login_Impl16premium_info_setE...(vector,int)
+//     0x0818f1ca
+//   _ZN4ARAD12PUNISH_CHECK19punish_check_by_ARS/HUB/RES/SYS/WEBE... 0x08196d1a..
+//     0x08196dbf
+//   _ZN4ARAD11PVP_CHANNEL{17,18,20,23,24,25}... 0x0819763c..0x081977b5
+//   _ZN4ARAD16AradWhiteAccountC1Ev/C2Ev          0x081ab518
+//   _ZN4ARAD16AradWhiteAccountD1Ev/D2Ev          0x081ab55a
+//   _ZN4ARAD16AradWhiteAccount4LoadEv            0x081ab5f8
+//   _ZN4ARAD16AradWhiteAccount14IsWhiteAccountEj 0x081ab59c
+//
+// SIG_LOGIN_DATA 字段访问说明：SigTypes.h 中该结构当前为 char m_pad[0x4358]
+// pad 占位（共享头按纪律禁改）。本 TU 以私有 ABI 镜像 accessor（模板 SGF）按
+// ORIG 偏移访问；已向 Main/W6_ARAD 上报字段化需求（见批次报告）。
+// ============================================================================
+
+#include "ARAD_LoginSecurity.h"
+
+#include <cstring>
+#include <time.h>
+
+#include "CDataManager.h"      // G_CDataManager / PvPChannel 等级接口（W 符号）
+#include "CGM_Manager.h"
+#include "CSimpleSSO.h"
+#include "CRijndael.h"
+#include "DB_Login.h"          // DB_Login::tagDNFEventEntry 完整类型
+#include "DBMgr.h"
+#include "GlobalData.h"
+#include "GameWorld.h"
+#include "LogManager.h"
+#include "PacketBuf.h"         // G_GameWorld（与 GameWorld.h 同源声明）
+#include "Stream.h"
+#include "StreamDeps.h"        // G_CEnvironment
+
+namespace {
+
+// ---- SIG_LOGIN_DATA 私有 ABI 镜像 accessor ----------------------------------
+// SigTypes.h 现状：struct SIG_LOGIN_DATA { char m_pad[0x4358]; }。
+template <class T>
+inline T& SGF(SIG_LOGIN_DATA* p, unsigned int off)
+{
+    return *reinterpret_cast<T*>(reinterpret_cast<char*>(p) + off);
+}
+
+}  // namespace
+
+// ---- TU 依赖声明（定义在其它已登记/待登记 TU；本 TU 仅按 ORIG 契约调用）----
+bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
+                            long lCurTime);          // GameUtils.cpp @0x0846c0a8
+
+// 注：WongWork::CUserPremium::IsRestrictedPremium 使用 CUser.h 权威声明
+// （premium_info_set 直接调用）。
+namespace ARAD
+{
+
+// ============================================================================
+// ARAD::PUNISH_CHECK —— 处罚检查表驱动
+// ============================================================================
+
+// punish_check_by_HUB @ 0x08196dbf（size 0xf）
+void PUNISH_CHECK::punish_check_by_HUB(SIG_LOGIN_DATA* data, int /*type*/)
+{
+    SGF<char>(data, 0x3a20) = 1;
+}
+
+// punish_check_by_RES @ 0x08196dce（ORIG 纯 ret）
+void PUNISH_CHECK::punish_check_by_RES(SIG_LOGIN_DATA* /*data*/, int /*type*/)
+{
+}
+
+
+// punish_check_by_WEB @ 0x08196d1a（arg==0 → 0x3e9）
+int PUNISH_CHECK::punish_check_by_WEB(SIG_LOGIN_DATA* data, long arg, int flag)
+{
+    if (flag != 1)
+    {
+        return 1;
+    }
+    SGF<int>(data, 0xb8) = 4;
+    if (arg == 0)
+    {
+        SGF<int>(data, 0xb8) = 0x3e9;
+    }
+    return 0;
+}
+
+// punish_check_by_SYS @ 0x08196d88（arg==0 → 0x3ea）
+int PUNISH_CHECK::punish_check_by_SYS(SIG_LOGIN_DATA* data, long arg, int flag)
+{
+    if (flag != 1)
+    {
+        return 1;
+    }
+    SGF<int>(data, 0xb8) = 4;
+    if (arg == 0)
+    {
+        SGF<int>(data, 0xb8) = 0x3ea;
+    }
+    return 0;
+}
+
+// punish_check_by_ARS @ 0x08196d51（arg==0 → 0x3eb）
+int PUNISH_CHECK::punish_check_by_ARS(SIG_LOGIN_DATA* data, long arg, int flag)
+{
+    if (flag != 1)
+    {
+        return 1;
+    }
+    SGF<int>(data, 0xb8) = 4;
+    if (arg == 0)
+    {
+        SGF<int>(data, 0xb8) = 0x3eb;
+    }
+    return 0;
+}
+
+// ============================================================================
+// ARAD::PVP_CHANNEL —— 渠道类型判定
+// ============================================================================
+
+// is_integrated_pvp_channel @ 0x0819763c：
+// channelType < 0x11 && (1 << channelType) & 0x1e700
+int PVP_CHANNEL::is_integrated_pvp_channel()
+{
+    int channelType = G_GameWorld()->GetChannelType();
+    if (channelType < 0x11 &&
+        ((1 << (channelType & 0x1f)) & 0x1e700U) != 0U)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+// is_broadcast_channel @ 0x08197684（与 is_all_pvp_channel 同语义实现）
+int PVP_CHANNEL::is_broadcast_channel()
+{
+    bool integrated = is_integrated_pvp_channel() != 0;
+    int channelType = G_GameWorld()->GetChannelType();
+    if (!integrated && channelType != 7)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+// is_all_pvp_channel @ 0x081976c7
+int PVP_CHANNEL::is_all_pvp_channel()
+{
+    bool integrated = is_integrated_pvp_channel() != 0;
+    int channelType = G_GameWorld()->GetChannelType();
+    if (!integrated && channelType != 7)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+// is_winpoint_pvp_channel @ 0x0819770a：channelType ∈ {4, 8}
+int PVP_CHANNEL::is_winpoint_pvp_channel()
+{
+    int channelType = G_GameWorld()->GetChannelType();
+    if (channelType == 4 || channelType == 8)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+// is_common_channel @ 0x0819773b：非综合 pvp 且渠道号 != 7
+int PVP_CHANNEL::is_common_channel()
+{
+    bool integrated = is_integrated_pvp_channel() != 0;
+    int channelType = G_GameWorld()->GetChannelType();
+    if (integrated || channelType == 7)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+// check_Login_server_group @ 0x08197781
+int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
+{
+    G_GameWorld()->GetChannelType();  // ORIG 读取后丢弃
+    bool allPvp = is_all_pvp_channel() != 0;
+    if (!allPvp)
+    {
+        SGF<unsigned short>(data, 0x3a38) = 0;
+    }
+    return 1;
+}
+
+// ============================================================================
+// ARAD::pvp_grade_check ——【objdump】ORIG 0x0819ebde（无独立报告）
+// bool pvp_grade_check(CUser*)
+//   channelType ∉ {8,13} → 直接 true；
+//   否则 level 不在 [minLevelPvP, maxLevelPvP) → trace(fmt@0x8ba8d3c)+false；
+//   否则 IsAvailablePvPChannel(get_pvp_grade()) 为真 → true，
+//        否则 trace(fmt@0x8ba8d7c)+false。
+// ============================================================================
+
+bool pvp_grade_check(CUser* user)
+{
+    static const char kFunc[] =
+        "bool ARAD::pvp_grade_check(CUser*)";
+
+    bool channelTargeted = false;
+    {
+        int channelType = G_GameWorld()->GetChannelType();
+        channelTargeted = (channelType == 8 || channelType == 13);
+    }
+    if (!channelTargeted)
+    {
+        return true;
+    }
+
+    int level = user->get_charac_level();
+    CDataManager* mgr = G_CDataManager();
+    if (level < mgr->GetMinLevelPvPChannel() ||
+        level >= mgr->GetMaxLevelPvPChannel())
+    {
+        int minLevel = G_CDataManager()->GetMinLevelPvPChannel();
+        int maxLevel = G_CDataManager()->GetMaxLevelPvPChannel();
+        int characNo = user->get_charac_no(-1);
+        cMyTrace trace(kFunc, 0x12b, 5);
+        trace("User Level charac_no[%d] charac_level[%d] pvpchannelLev[%d][%d]",
+              characNo, level, minLevel, maxLevel);
+        return false;
+    }
+
+    int grade = user->get_pvp_grade();
+    if (G_CDataManager()->IsAvailablePvPChannel(grade))
+    {
+        return true;
+    }
+
+    int characNo = user->get_charac_no(-1);
+    cMyTrace trace(kFunc, 0x135, 5);
+    trace("User grade Error charac_no[%d] charac_pvp_grade[%d]",
+          characNo, grade);
+    return false;
+}
+
+// ============================================================================
+// ARAD::AradWhiteAccount —— 登录白名单账号集合
+// ============================================================================
+
+// ctor @ 0x081ab518：std::set 构造后立即 Load()
+AradWhiteAccount::AradWhiteAccount()
+{
+    Load();
+}
+
+// dtor @ 0x081ab55a：~set 链条自动完成（基类析构覆盖 clear+析构）
+AradWhiteAccount::~AradWhiteAccount()
+{
+}
+
+// Load @ 0x081ab5f8：固定三条白名单账号（非文件解析）。
+int AradWhiteAccount::Load()
+{
+    insert(0x27fa70);
+    insert(0x27fa74);
+    insert(0x27fa63);
+    return true;  // ORIG 返回 undefined4 = 1
+}
+bool AradWhiteAccount::IsWhiteAccount(unsigned int accId)
+{
+    const_iterator it = find(accId);                 // std::set::find（const 重载经由 this）
+    return it != end();
+}
+
+// ============================================================================
+// ARAD::Arad_Dispatcher_Login_Impl —— 登录库分派器（code=1）
+// ============================================================================
+
+// ctor @ 0x0818eed0：base(1)，随后写派生 vptr（编译器生成）
+Arad_Dispatcher_Login_Impl::Arad_Dispatcher_Login_Impl()
+    : Arad_Dispatcher(1)
+{
+}
+
+// dtor @ 0x0818eef4；D0 0x0818ef24 条件 operator delete 由编译器生成
+Arad_Dispatcher_Login_Impl::~Arad_Dispatcher_Login_Impl()
+{
+}
+
+// inter_dispatch @ 0x0818ef42 —— ORIG 纯 ret 恒返 0（忠实空体，非占位）
+int Arad_Dispatcher_Login_Impl::inter_dispatch(CUser* /*user*/,
+                                               char* /*body*/, int /*len*/)
+{
+    return 0;
+}
+
+// account_password_check @ 0x0818f746（0x229 指令）。
+// 流程：
+//   out = stOutputData_t()
+//   sso.getGameStartTime(uid=+0xc0, loginTime, expireTime, out) 失败 →
+//       trace "get game start time error : user_idx[%d]" 返 -1
+//   s_GM_Manager->IsGm(uid):
+//     GM 分支：strncmp(clientPwd, data+0x18, 0x84)==0 → 0；否则
+//              trace "gm user password error user_id[%d]" 返 -1
+//     普通分支：把 out 各字段搬入 data 的 SSO 槽位 +
+//               CheckDailyScheduleTime 命中则清 +0x395c +
+//               strncpy(data+0x3a3a, out.m_loginIp, 0x10)；返 0
+int Arad_Dispatcher_Login_Impl::account_password_check(
+    SIG_LOGIN_DATA* data, char* clientPwd)
+{
+    static const char kFunc[] =
+        "int ARAD::Arad_Dispatcher_Login_Impl::account_password_check("
+        "SIG_LOGIN_DATA*, char*)";
+
+    unsigned int userIdx = SGF<unsigned int>(data, 0xc0);
+
+    WongWork::CSimpleSSO::stOutputData_t out;
+    long loginTime = 0;
+    long expireTime = 0;
+    // ORIG 调 getGameStartTime(0x086031f6)；其为 _getGameStartTime 的薄转发，
+    // 成败由 bool 返回承载 —— 此处直接调用真实 bool 符号 _getGameStartTime。
+    bool ok = GlobalData::s_psimpleSSO->_getGameStartTime(
+        userIdx, loginTime, expireTime, out);
+    if (!ok)
+    {
+        cMyTrace trace(kFunc, 0x16a, 5);
+        trace("get game start time error : user_idx[%d]", userIdx);
+        return -1;
+    }
+
+    if (GlobalData::s_GM_Manager->IsGm(userIdx))
+    {
+        // GM 口令核对：SIG_LOGIN_DATA+0x18 起 0x84 字节为服务端 GM 口令串槽。
+        const char* serverPwd = reinterpret_cast<const char*>(
+            reinterpret_cast<char*>(data) + 0x18);
+        if (strncmp(clientPwd, serverPwd, 0x84) == 0)
+        {
+            return 0;
+        }
+        cMyTrace trace(kFunc, 0x176, 5);
+        trace("gm user password error user_id[%d]", userIdx);
+        return -1;
+    }
+
+    // 普通登录：out（sizeof 0x48）各字段落位到 SIG_LOGIN_DATA 固定 SSO 槽。
+    SGF<int>(data, 0x3950) = out.m_accountFail;             // -0x78 (+0x04)
+    SGF<int>(data, 0x3954) = out.m_totalAccountFail;        // -0x74 (+0x08)
+    SGF<int>(data, 0x3958) = out.m_lastPlayTime;            // -0x7c (+0x00)
+    SGF<int>(data, 0x3960) = out.m_reportCnt;               // -0x70 (+0x0c)
+    SGF<char>(data, 0x3964) = out.m_reliableFlag;           // byte (-0x6c/+0x10)
+    SGF<unsigned int>(data, 0x3968) = out.m_tradeGoldDaily; // -0x68 (+0x14)
+    SGF<unsigned char>(data, 0x39a2) = out.m_tutorialSkipable;  // byte (-0x40/+0x3c)
+    SGF<unsigned char>(data, 0x39dc) = out.m_securityFlag;      // byte (-0x50/+0x2c)
+    SGF<int>(data, 0x395c) = static_cast<int>(out.m_dungeonGainGold);  // -0x4c/+0x30
+
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+    int fatigueSchedule = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
+    if (CheckDailyScheduleTime(fatigueSchedule, out.m_lastPlayTime, curSec))
+    {
+        SGF<int>(data, 0x395c) = 0;
+    }
+
+    // strncpy 到 data+0x3a3a，长度 0x10（客户端 IP 槽）
+    strncpy(reinterpret_cast<char*>(data) + 0x3a3a, out.m_loginIp, 0x10);
+    return 0;
+}
+
+// pad_certifiaction_check @ 0x0818f4a6（0x29f 指令，static 成员）。
+// data+0x38e0(byte)/+0x38e1[0x24]/+0x3905[0x24]/+0x390c(byte)/+0x3914(int)/
+// +0x3918、Goblin 检查窗口格式 "%Y-%m-%d 06:00:00"（+0x15180=当日 06:00 对齐秒偏移）。
+int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
+{
+    static const char kFunc[] =
+        "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
+        "SIG_LOGIN_DATA*)";
+
+    char encryptedPwd[36];         // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
+
+    if (SGF<unsigned char>(data, 0x390c) == 2)
+    {
+        // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
+        char day[0x14];
+        for (unsigned int i = 0; i < sizeof(day); ++i)
+        {
+            day[i] = 0;
+        }
+
+        time_t nowSec = GlobalData::s_systemTime_.getCurSec();
+        struct tm brokTm;
+        localtime_r(&nowSec, &brokTm);
+
+        int shift = 0;
+        if (brokTm.tm_hour < 6)
+        {
+            shift = 0x15180;   // 回退到前一日 06:00（86400 秒）
+        }
+
+        time_t targetSec = GlobalData::s_systemTime_.getCurSec();
+        targetSec -= shift;
+        localtime_r(&targetSec, &brokTm);
+
+        strftime(day, sizeof(day), "%Y-%m-%d 06:00:00", &brokTm);
+
+        cMyTrace trace(kFunc, 0x11a, 0);
+        trace("[Goblin Check Time(%s)]]", day);
+
+        return DATABASE::LOGIN_QUERY::arad_sp_check_goblin_reward(data, day);
+    }
+
+    // 二级口令校验主流程
+    SGF<unsigned char>(data, 0x390c) = 1;
+
+    char inputPadPwd[0x24];        // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
+    for (unsigned int i = 0; i < sizeof(encryptedPwd); ++i)
+    {
+        encryptedPwd[i] = 0;
+    }
+
+    strncpy(inputPadPwd,
+            reinterpret_cast<const char*>(data) + 0x3905, 0x24);
+
+    ARAD_CRYPT::encryptAES(GlobalData::s_pcryptRijndael_MousePassword_,
+                           inputPadPwd, encryptedPwd);
+
+    const char* savedHash = reinterpret_cast<const char*>(
+        reinterpret_cast<char*>(data) + 0x38e1);
+    if (strncmp(savedHash, encryptedPwd, 0x24) == 0)
+    {
+        SGF<int>(data, 0x3914) = 0;
+        SGF<int>(data, 0x3918) = 0;
+        if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
+        {
+            SGF<int>(data, 0xb8) = 6;
+            return 1;
+        }
+        if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
+        {
+            SGF<int>(data, 0xb8) = 6;
+            return 1;
+        }
+        SGF<unsigned char>(data, 0x38e0) = 0;
+        return 0;
+    }
+
+    SGF<int>(data, 0x3914) = SGF<int>(data, 0x3914) + 1;
+    DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
+    if (SGF<int>(data, 0x3914) <= 9)
+    {
+        SGF<int>(data, 0xb8) = 5;
+        return 0x48;
+    }
+    SGF<int>(data, 0xb8) = 6;
+    return 0x49;
+}
+
+// premium_info_set @ 0x0818f1ca（0x2db 指令）。
+// entries 事件入账遍历：eventIdx∈[50000..89999] 有效。
+//   [70000..89999] 或受限 premium → 压栈到 data+(count+0xa4c)*4+0xc 并 count++（ushort@+0x293a）；
+//   [0xa029..0xa02b] → arad_sp_select_member_brodcast(p, entry, serverGroup)；
+//   其余 → arad_sp_select_member_premium(p, entry, dstA(空), copy(dstB))。
+int Arad_Dispatcher_Login_Impl::premium_info_set(
+    SIG_LOGIN_DATA* data,
+    std::vector<DB_Login::tagDNFEventEntry>& entries,
+    int serverGroup)
+{
+    unsigned short pushCount = 0;
+
+    SGF<int>(data, 0x2294) = 0;
+    SGF<unsigned short>(data, 0x293a) = 0;
+    SGF<int>(data, 0x394c) = 0;
+
+    std::vector<int> vecA;                       // select_member_premium 目标 A
+    std::vector<int> vecB;                       // 每次 copy 为临时实参 B
+
+    typedef std::vector<DB_Login::tagDNFEventEntry>::iterator It;
+    for (It it = entries.begin(); it != entries.end(); ++it)
+    {
+        DB_Login::tagDNFEventEntry& entry = *it;
+
+        bool skipFirst = !(entry.m_eventId >= 50000 && entry.m_eventId <= 89999);
+        if (skipFirst)
+        {
+            continue;
+        }
+
+        bool isBroadcastKind =
+            (entry.m_eventId >= 70000 && entry.m_eventId <= 89999);
+        if (isBroadcastKind)
+        {
+            SGF<unsigned int>(
+                data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
+                static_cast<unsigned int>(entry.m_eventId);
+            SGF<unsigned short>(data, 0x293a) = pushCount + 1;
+            pushCount = SGF<unsigned short>(data, 0x293a);
+            continue;
+        }
+
+        if (WongWork::CUserPremium::IsRestrictedPremium(entry.m_eventId))
+        {
+            SGF<unsigned int>(
+                data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
+                static_cast<unsigned int>(entry.m_eventId);
+            SGF<unsigned short>(data, 0x293a) = pushCount + 1;
+            pushCount = SGF<unsigned short>(data, 0x293a);
+            continue;
+        }
+
+        if (entry.m_eventId >= 0xa029 && entry.m_eventId <= 0xa02b)
+        {
+            DATABASE::LOGIN_QUERY::arad_sp_select_member_brodcast(
+                data, entry, serverGroup);
+        }
+        else
+        {
+            vecB = vecA;
+            DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(
+                data, entry, vecA, vecB);
+        }
+    }
+
+    SGF<int>(data, 0x2294) = pushCount;
+    return 0;
+}
+
+// db_dispatch @ 0x0818ef4c（0x27d 指令）
+int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
+                                            Stream* stream)
+{
+    static const char kFunc[] =
+        "virtual int ARAD::Arad_Dispatcher_Login_Impl::db_dispatch(int, int, "
+        "Stream*)";
+
+    SIG_LOGIN_DATA* loginData = stream->GetOutBuffer<SIG_LOGIN_DATA>();
+    if (loginData == 0)
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_Dispatcher_Login_Impl.cpp", kFunc, 0x39,
+            "%s", "recv stream buffer null!!");
+        return -1;
+    }
+
+    SGF<int>(loginData, 0xb8) = 0;
+
+    int channelType = G_GameWorld()->GetChannelType();
+    if (channelType == 8)
+    {
+        DBMgr::stUserDBInfo_t info;
+        info.m_userDBIdx = 0;
+        info.m_userDBType = 0;
+        info.m_serverGroup =
+            static_cast<int>(SGF<unsigned short>(loginData, 0x3a38));
+        GlobalData::s_db_mgr->addUserDBInfo(userIdx, info);
+        GlobalData::s_db_mgr->setUserIdx(userIdx);
+    }
+
+    char pwdBuf[0x84];
+    for (unsigned int i = 0; i < sizeof(pwdBuf); ++i)
+    {
+        pwdBuf[i] = 0;
+    }
+
+    if (DATABASE::LOGIN_QUERY::arad_sp_select_account_info(loginData, pwdBuf)
+        != 0)
+    {
+        SGF<int>(loginData, 0xb8) = 4;
+    }
+
+    if (account_password_check(loginData, pwdBuf) != 0)
+    {
+        SGF<int>(loginData, 0xb8) = 1;
+    }
+
+    if (SGF<int>(loginData, 0x3950) > 2 || SGF<int>(loginData, 0x3954) > 9)
+    {
+        SGF<int>(loginData, 0xb8) = 7;
+    }
+
+    if (DATABASE::LOGIN_QUERY::arad_sp_select_punish_user_info(loginData) != 0)
+    {
+        SGF<int>(loginData, 0xb8) = 0xf;
+    }
+
+    DATABASE::LOGIN_QUERY::arad_sp_select_punish_second_user(loginData);
+
+    punish_user_check(loginData);
+
+    DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(loginData);
+    pad_certifiaction_check(loginData);
+
+    std::vector<DB_Login::tagDNFEventEntry> entries;
+    DATABASE::LOGIN_QUERY::arad_sp_load_event_entry(loginData, entries);
+    premium_info_set(loginData, entries, userIdx);
+
+    int secondCheckType = G_GameWorld()->GetChannelType();
+    if (secondCheckType == 7 &&
+        (SGF<int>(loginData, 0x39ac) == 0 ||
+         SGF<int>(loginData, 0x39a8) == 0))
+    {
+        SGF<int>(loginData, 0xb8) = 8;
+    }
+
+    return 0;
+}
+
+// punish_user_check @ 0x0818f970：entries 表 i*0x18 步长——time@+0x3a68、
+// type@+0x3a54；cur≤time 才做 WEB→SYS→ARS 三段判定，命中即截断 count。
+int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
+{
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+
+    int index = 0;
+    while (true)
+    {
+        if (SGF<int>(data, 0x3a50) <= index)
+        {
+            return 1;
+        }
+        long punishEnd = SGF<int>(data, index * 0x18 + 0x3a68);
+        int punishType = SGF<int>(data, index * 0x18 + 0x3a54);
+
+        PUNISH_CHECK::punish_check_by_HUB(data, punishType);
+        PUNISH_CHECK::punish_check_by_RES(data, punishType);
+
+        if (curSec <= punishEnd)
+        {
+            if (PUNISH_CHECK::punish_check_by_WEB(data, punishEnd,
+                                                  punishType) == 0)
+            {
+                SGF<int>(data, 0x3a50) = index;
+                return 0;
+            }
+            if (PUNISH_CHECK::punish_check_by_SYS(data, punishEnd,
+                                                  punishType) == 0)
+            {
+                SGF<int>(data, 0x3a50) = index;
+                return 0;
+            }
+            if (PUNISH_CHECK::punish_check_by_ARS(data, punishEnd,
+                                                  punishType) == 0)
+            {
+                SGF<int>(data, 0x3a50) = index;
+                return 0;
+            }
+        }
+        ++index;
+    }
+}
+
+}  // namespace ARAD

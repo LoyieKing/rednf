@@ -66,6 +66,16 @@ public:
     char get_first_matching_cnt();                    // W @0x0826b75a (+0x14)
     bool is_change_quick_party_count();               // W @0x0826b7e4 (+0x24)
     CParty* get_party_object(int idx);                // T @0x082696d0
+    // ---- 本批（TailB）补齐的 ORIG-only 访问器 ----
+    int get_timer_key(TIMER_MESSAGE msg);             // T @0x08269668
+    bool check_timer_key(TIMER_MESSAGE msg, int key); // T @0x082696b0
+    void set_party_index(int partyIdx);               // T @0x0826978c（首个空槽写入）
+    void set_party_index(int idx, int partyIdx);      // T @0x082697c8（定位写）
+    CParty* get_party_object();                       // T @0x0826972c（无参：首个有效成员 party）
+    void delete_party_index();                        // T @0x08269856（无参：全部置 -1）
+    bool is_empty_quick_party();                      // T @0x08269884
+    void set_first_matching_cnt(char cnt);            // W @0x0826b75a
+
     unsigned short get_matching_quick_party_master_unique_id();  // T @0x08269936
     int gen_timer_key(TIMER_MESSAGE msg);             // T @0x08269680（计数数组 +0x1c 起）
     void send_matching_update_quick_party(char poolIdx,
@@ -99,6 +109,27 @@ private:
 
 class CQuickPartySystemManager
 {
+    // ---- 本批（TailB）补齐的匹配/开局内部链（ORIG 均为类成员） ----
+    CQuickParty* find_quick_party_in_pool(std::list<int>& pool);   // T @0x0826a9fe
+    CQuickParty* pop_quick_party_in_pool(int& outCount,            // T @0x0826ae64
+                                         STQuickPartyPoolMap_Data& data,
+                                         int slotIdx, int partyIdx,
+                                         int firstMatchingCnt);
+    bool regist_quick_party(const STQuickPartyPoolMap_Key& key,    // T @0x0826adb6
+                            STQuickPartyPoolMap_Data& data, int slotIdx,
+                            CParty* party, int firstMatchingCnt);
+    int check_match_proper_party(const STQuickPartyPoolMap_Key& key,  // T @0x08269e34
+                                 CParty* party);                      // ENUM_ERROR
+    bool check_quick_party_min_count(const STQuickPartyPoolMap_Key& key,  // T @0x0826ab9e
+                                     int count);
+    int match_proper_party(const STQuickPartyPoolMap_Key& key,     // T @0x08269f3c
+                           CParty* party, CUser* user);            // ENUM_ERROR
+    CParty* make_quick_party(CQuickParty* qp);                     // T @0x0826b222
+    void start_game(CQuickParty* qp);                              // T @0x0826b58a
+    bool start_game(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);  // T @0x0826a972
+    void insert_timer_waiting_start_game(CParty* party);           // T @0x0826ad50
+    int direct_entrance_quick_party(CUser* user);                  // T @0x0826a762（ENUM_ERROR）
+
 public:
     CQuickPartySystemManager();
     ~CQuickPartySystemManager();

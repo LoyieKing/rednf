@@ -30,11 +30,6 @@ namespace DBCommon
 {
 unsigned int GetIdentity(MySQL* db);                          // _ZN8WongWork8DBCommon11GetIdentityEP5MySQL
 }
-class CWebEvent                                               // 仅调用视图（本批不定义）
-{
-public:
-    static int GetItemType(int eventKind, int itemNo);
-};
 
 // SIG_LOAD_EVENTITEM 字段视图（SigTypes.h 当前为 char m_pad[0x5c]，布局等价）。
 struct SigLoadEventItemView

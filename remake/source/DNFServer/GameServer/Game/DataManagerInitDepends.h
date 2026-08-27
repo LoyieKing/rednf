@@ -340,6 +340,8 @@ public:
     void SetChallengeInfo(stUnlimitChallengeInfo& info);         // ORIG 0x08687828
     bool IsOn();                                      // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp）
     bool IsChallengingJob(char job);                  // ORIG T 0x08687792（定义 CUserDepsB.cpp）
+    bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
+    bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）
     CLevelRewardTable* GetProperLevelRewardTableR() const;  // ORIG T 0x08687e62（返回 m_table；定义 CUserDepsB.cpp）
     static CLevelRewardTableMgr* levelRewardTableMgr;            // ORIG B 0x09473978
 

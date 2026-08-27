@@ -97,6 +97,8 @@ dnf_service(game
         ${SVC_DIR}/VendingMachine.cpp
         ${SVC_DIR}/TaiwanCash.cpp
         ${SVC_DIR}/TaiwanQueries.cpp
+        ${SVC_DIR}/nexon_cash.cpp
+        ${SVC_DIR}/nexon_packet.cpp
         ${SVC_DIR}/WongWorkSecurityCard_A.cpp
         ${SVC_DIR}/WongWorkDrop_A.cpp
         ${SVC_DIR}/WongWorkSSO_A.cpp
@@ -113,6 +115,8 @@ dnf_service(game
         ${SVC_DIR}/APSystemOnlyOrig.cpp
         ${SVC_DIR}/STExpertJobOnlyOrig.cpp
         ${SVC_DIR}/CPartyOnlyOrig.cpp
+        ${SVC_DIR}/CUserOnlyOrig.cpp
+        ${SVC_DIR}/CodeHackChecksum.cpp
         ${SVC_DIR}/advancealtar_misc.cpp
         ${SVC_DIR}/StringResource.cpp
         ${SVC_DIR}/advancealtar_DB.cpp
@@ -131,6 +135,17 @@ dnf_service(game
         ${SVC_DIR}/CompoundDeathLCB.cpp
         ${SVC_DIR}/MouseRegisterEJ.cpp
         ${SVC_DIR}/CmdPacketStructCtors.cpp
+        ${SVC_DIR}/W6_IPGDeps.cpp
+        ${SVC_DIR}/LinkFinalDeps.cpp
+        ${SVC_DIR}/W6_AssaultMgrDeps.cpp
+        ${SVC_DIR}/W6_RankMailDeps.cpp
+        ${SVC_DIR}/W6_SecMiscDeps.cpp
+        ${SVC_DIR}/W6_CeraShopDeps.cpp
+        ${SVC_DIR}/CDataManagerTailB.cpp
+        ${SVC_DIR}/W6_HackPunishDeps.cpp
+        ${SVC_DIR}/W6_ItemGenDeps.cpp
+        ${SVC_DIR}/W6_AssaultPlaceDepsA.cpp
+        ${SVC_DIR}/W6_AssaultPlaceDepsB.cpp
         ${SVC_DIR}/ExchangeServer_Session.cpp
         ${SVC_DIR}/ExchangeServer_Exchange.cpp
         ${SVC_DIR}/ExchangeServer_Infra.cpp
@@ -440,6 +455,11 @@ dnf_service(game
         ${SVC_DIR}/Arad_InternalDispatcher.cpp
         ${SVC_DIR}/Arad_ServerStateManager.cpp
         ${SVC_DIR}/Arad_InternalDispatcher_INTER.cpp
+        ${SVC_DIR}/Arad_Singletons.cpp
+        ${SVC_DIR}/RestrictGeolocation.cpp
+        ${SVC_DIR}/Arad_Misc.cpp
+        ${SVC_DIR}/Arad_GMCommand.cpp
+        ${SVC_DIR}/ARAD_LoginSecurity.cpp
         ${SVC_DIR}/BuffInfo.cpp
         ${SVC_DIR}/TileIndexInfo.cpp
         ${SVC_DIR}/CActionPointManager.cpp
@@ -570,6 +590,15 @@ dnf_service(game
         ${SVC_DIR}/BattleMonsterTailC3B.cpp
         ${SVC_DIR}/TournamentTailC3C.cpp
         ${SVC_DIR}/TournamentFinalC3.cpp
+        ${SVC_DIR}/W7_LinkTailDbs.cpp
+        ${SVC_DIR}/W7_LinkTailGrowth.cpp
+        ${SVC_DIR}/W7_UserLinkTail.cpp
+        ${SVC_DIR}/W7_UserOnlyC.cpp
+        ${SVC_DIR}/ShaSupport.cpp
+        ${SVC_DIR}/ARAD_Database.cpp
+        ${SVC_DIR}/DB_UpdateGiftCount.cpp
+        ${SVC_DIR}/Divide_C_ClassIP_EndIP.cpp
+        ${SVC_DIR}/FavorableRelationDeps.cpp
         ${SVC_DIR}/CCreature.cpp
         ${SVC_DIR}/Arad_Function_Set.cpp
         ${SVC_DIR}/BingoEventLink4.cpp
@@ -579,6 +608,7 @@ dnf_service(game
         ${SVC_DIR}/DispDebugJoint4.cpp
         ${SVC_DIR}/HeroMissionLink4.cpp
         ${SVC_DIR}/LinkMisc4_Data.cpp
+        ${SVC_DIR}/DisPatcher_DebugCommand_cmds.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

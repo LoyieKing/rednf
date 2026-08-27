@@ -179,7 +179,7 @@ public:
     // ORIG T 0x08333df6 _ZNK8WongWork15CCompoundAvatar14_generateIPGNoEPK5CUserlPc
     // （定义 CompoundDeathLCB.cpp）：snprintf(buf,0x14,"C%02d%02d%02d%02d%010d",
     //   G_CEnvironment()+0x1b0,(year+1900)%2000,mon+1,mday,characNo)。
-    char* _generateIPGNo(const CUser* user, int curSec, char* buf) const;
+    char* _generateIPGNo(const CUser* user, long curSec, char* buf) const;
     int _ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                           tagCompoundAvatarTable* table);                     // T 0x08332ee8
     void _SendDisjointAvatarStatistic(tagCompoundInfo& info);                 // T 0x08333ecc

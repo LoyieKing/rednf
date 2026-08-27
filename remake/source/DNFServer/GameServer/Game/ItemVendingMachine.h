@@ -24,9 +24,11 @@ namespace ARAD
 struct PurcahseBonus
 {
     PurcahseBonus() : m_flag(0), m_field4(0), m_field8(0) {}
-    unsigned char m_flag;  // +0x00
-    int m_field4;          // +0x04
-    short m_field8;        // +0x08
+    // ORIG _ZNK4ARAD13PurcahseBonuseqERKS0_ W @0x088b66ce：仅比较 +0x00 字节。
+    bool operator==(const PurcahseBonus& other) const { return m_flag == other.m_flag; }
+    unsigned char m_flag;  // +0x00（购买次数门槛）
+    int m_field4;          // +0x04（1=代币 5=里程券 其它=itemIdx）
+    short m_field8;        // +0x08（数量）
 };
 
 // ORIG CeraShopPurcahseCountBonus ctor/dtor 0x854c5b6/0x854c5ca：
@@ -36,7 +38,25 @@ class CeraShopPurcahseCountBonus
 public:
     CeraShopPurcahseCountBonus() {}
     ~CeraShopPurcahseCountBonus() {}
+
+    // ---- W6_ARAD_ItemBonus 批次实现（Game/Arad_ItemBonus.cpp）----
+    // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus10LoadScriptEv T @0x081abf14
+    bool LoadScript();
+    // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus13GiveBonusItemEP5CUsermit T @0x081abf44
+    void GiveBonusItem(CUser* user, unsigned long itemIdx, int count,
+                       unsigned short threshold);
+    // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus14CheckBonusItemEi T @0x081abff0
+    bool CheckBonusItem(int key);
 private:
+    // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus14_findBonusItemERKSt6vectorINS_13PurcahseBonusESaIS2_EERS2_t
+    // T @0x081ac04c —— 取 vector 中 m_flag <= threshold 的最后一个元素拷入 out。
+    static bool _findBonusItem(const std::vector<PurcahseBonus>& list,
+                               PurcahseBonus& out, unsigned short threshold);
+    // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus17_processBonusItemEP5CUseriRKNS_13PurcahseBonusE
+    // T @0x081ac13e —— bonus 发放主逻辑（代币/里程券/物品三通道）。
+    static void _processBonusItem(CUser* user, int goodsIdx,
+                                  const PurcahseBonus& bonus);
+
     std::map<int, std::vector<PurcahseBonus> > m_bonusMap;  // +0x00
 };
 }  // namespace ARAD

@@ -2,6 +2,7 @@
 #define DNF_GAME_DISPATCHERS_H_
 
 #include "PacketDispatcher.h"
+#include "Arad_InternalDispatcher.h" // ARAD::DISPATCHER 六派发器权威声明（沉降）
 #include "PacketTypes.h"
 
 // ---- CMDPacketStruct 权威头（Exchange 批归口 2026-08-27）：STBaseRequest/
@@ -3469,15 +3470,6 @@ public:
 
 namespace ARAD {
 namespace DISPATCHER {
-class Dispatcher_AvartarRoulette : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AvartarRoulette();
-    virtual ~Dispatcher_AvartarRoulette();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
 
 class Dispatcher_AvartarCoinCount : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
@@ -3490,46 +3482,10 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-class Dispatcher_AradAvatarConvert : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AradAvatarConvert();
-    virtual ~Dispatcher_AradAvatarConvert();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
-
-class Dispatcher_AradEmblemCompound : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AradEmblemCompound();
-    virtual ~Dispatcher_AradEmblemCompound();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
-
-class Dispatcher_AradJumpingCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AradJumpingCharacter();
-    virtual ~Dispatcher_AradJumpingCharacter();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
-
-class Dispatcher_AradUseAvatarRecharge : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AradUseAvatarRecharge();
-    virtual ~Dispatcher_AradUseAvatarRecharge();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
-
+// —— Dispatcher_AvartarRoulette/AradAvatarConvert/AradEmblemCompound/
+//    AradJumpingCharacter/AradUseAvatarRecharge/AvartarHiddenOptionChange
+//    六类完整声明已收敛至权威头 Arad_InternalDispatcher.h（Main 仲裁，
+//    LinkFinal 沉降；本头不再重复定义）——
 class Dispatcher_EventCreateDnfRequest : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
@@ -3540,15 +3496,6 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-class Dispatcher_AvartarHiddenOptionChange : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Dispatcher_AvartarHiddenOptionChange();
-    virtual ~Dispatcher_AvartarHiddenOptionChange();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-};
 
 class Dispatcher_RequestPrcoomDayilyReward : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {

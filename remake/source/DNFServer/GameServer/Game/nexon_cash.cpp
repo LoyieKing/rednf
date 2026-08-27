@@ -26,11 +26,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+// ORIG 0x0807e190/0x0807e8e0 为 PLT 死引用：_ZN10Encryption7Adler32EPcj 与
+// _ZN10Encryption21EncodeDressStringWideEPKwPwm 在 df_game_r 中仅是 GLOBAL UND
+//（无任何 T/W 定义、无重定位解析目标），chargeCash 调用分支从未可执行。
 namespace Encryption
 {
-unsigned int Adler32(unsigned char* data, int length);                      // _ZN10Encryption7Adler32EPcj
+unsigned int Adler32(char* data, unsigned int length);                      // _ZN10Encryption7Adler32EPcj
 void EncodeDressStringWide(const wchar_t* in, wchar_t* out,
-                           unsigned int param);                             // _ZN10Encryption21EncodeDressStringWideEPKwPwm
+                           unsigned long param);                            // _ZN10Encryption21EncodeDressStringWideEPKwPwm
+
+__attribute__((weak)) unsigned int Adler32(char*, unsigned int) { return 0; }
+__attribute__((weak)) void EncodeDressStringWide(const wchar_t*, wchar_t*,
+                                                 unsigned long) {}
 }  // namespace Encryption
 
 namespace nexon {
@@ -1597,8 +1604,8 @@ int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
 
     size_t wlen = wcslen(bufs.wideData_);
     unsigned int adler = Encryption::Adler32(
-        reinterpret_cast<unsigned char*>(bufs.wideData_),
-        static_cast<int>(wlen * 2));
+        reinterpret_cast<char*>(bufs.wideData_),
+        static_cast<unsigned int>(wlen * 2));
 
     Encryption::EncodeDressStringWide(bufs.wideData_, bufs.encData_,
                                       0x1b1bde64u);

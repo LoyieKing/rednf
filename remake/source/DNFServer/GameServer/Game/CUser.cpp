@@ -133,7 +133,7 @@ public:
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 extern unsigned char _NS_PI_2ND_GetDefaultRandomHashKey();
 
-extern void GetPacketName(unsigned char area, unsigned short packetId);
+extern char* GetPacketName(unsigned char area, unsigned short packetId);
 
 extern char IsLightServer();   // ORIG 0x0822ad44 W
 extern void _postCheckForceChangeGrowType(CUser* user, int firstGrow, int secondGrow);  // 0x08668823 T
@@ -143,7 +143,7 @@ namespace ARAD
 {
 namespace DISPATCHER
 {
-void make_cmd_packetheader_jpn(PacketGuard& packet, int cmd, int param);
+void make_cmd_packetheader_jpn(PacketGuard& packet, ENUM_CMDPACKET cmd, bool flag);
 }
 }
 
@@ -154,8 +154,7 @@ namespace item_lock
 
 // ---- G1-3 临时外部桩（对应 TU 翻译后移除） ----
 unsigned char _NS_PI_2ND_GetDefaultRandomHashKey() { return 0; }
-void GetPacketName(unsigned char, unsigned short) {}
-void ARAD::DISPATCHER::make_cmd_packetheader_jpn(PacketGuard&, int, int) {}
+char* GetPacketName(unsigned char, unsigned short) { return "UNKNOWN"; }   // ORIG T 0x082a2112 _Z13GetPacketName16ENUM_PACKETCLASSt
 void WongWork::CMCAPManager::resetExposedCount() {}
 // 0x0864809c：antibot 校验/加密发送主链路（依据 AntibotSend.md 反编译；
 // s_antibotChecker_ vtable +0x34 校验 / +0x28 加密，ORIG 栈缓冲此处以 vector 等价）。
@@ -357,8 +356,6 @@ bool UserMercenaryInfoMgr::IsReturnCharac(unsigned int characNo) const
     return false;
 }
 
-CodeHackCheckStorage::CodeHackCheckStorage() {}
-CodeHackCheckStorage::~CodeHackCheckStorage() {}
 charac_expand::CDataMgr::CDataMgr() {}
 charac_expand::CDataMgr::~CDataMgr() {}
 advancealtar::CharacAdvanceAltarManager::CharacAdvanceAltarManager() : m_field0(0), m_data() {}
@@ -391,7 +388,6 @@ CExpandEquipslot* charac_expand::CDataMgr::GetDataR(ENUM_CHARAC_EXPAND_TYPE& typ
 {
     return 0;
 }
-void CodeHackCheckStorage::reset() {}
 void charac_expand::CDataMgr::reset() {}
 
 // ORIG 0x0832ade8：对 20 个成员（+0x00..+0x4c，各为 charac_expand::CData*）
@@ -476,7 +472,7 @@ CUser::CUser()
     setClientVersion(0);
     m_mcap.m_serialHitCount = 0;
     m_mcap.m_field90 = 0;
-    m_codeHackCheck.m_field54 = 0;
+    m_postChecksumData.m_field54 = 0;
     m_field796f8 = 0;
     reset();
     m_historyLog.SetUser(this);
@@ -497,7 +493,7 @@ CUser::CUser()
     m_rentalFlag2 = 0;
     m_rentalInfo.clear();
     m_field8cfcc = (UserSpace::T)0;
-    m_codeHackCheck.m_field30 = 0;
+    m_postChecksumData.m_field30 = 0;
     m_advanceAltarIdx = 0xffff;
     m_field8eba8 = 0;
     m_field8ebac = 0;
@@ -554,25 +550,25 @@ void CUser::reset()
     setAntibotKey(-1);
     setClientVersion(0);
     m_dungeonGainedGold.reset();
-    m_codeHackCheck.m_field44 = 0;
+    m_postChecksumData.m_field44 = 0;
     m_character.m_f44 = 0;
     m_field8cfc0 = 0xffffffff;
-    m_codeHackCheck.m_totalFatigueUsed = 0;
+    m_postChecksumData.m_totalFatigueUsed = 0;
     m_levelupEvents.clear();
     m_characExpand.reset();
     m_premium.m_field98c = 0;
     m_limitItemUsage.clear();
     m_quest.m_field761c = 0;
     m_accId = 0;
-    m_codeHackCheck.m_field59 = 0;
+    m_postChecksumData.m_field59 = 0;
     m_accountCargo.Clear();
-    m_codeHackCheck.m_field5c = 0;
-    m_codeHackCheck.m_field62 = 0;
-    m_codeHackCheck.m_field64 = 0;
+    m_postChecksumData.m_field5c = 0;
+    m_postChecksumData.m_field62 = 0;
+    m_postChecksumData.m_field64 = 0;
     m_str79664[0].clear();
     m_str79664[1].clear();
-    m_codeHackCheck.m_field5a = 0;
-    m_codeHackCheck.m_field60 = 0;
+    m_postChecksumData.m_field5a = 0;
+    m_postChecksumData.m_field60 = 0;
     ResetUsedCoinInDungeon();
     DBUpdateDBLogItem();
     ResetDBLogItem();
@@ -659,8 +655,8 @@ void CUser::ResetCurCharac()
     m_guildAgitDB.m_pad[2] = 0;
     m_playingDungeonIdx = 0xffffffff;
     m_clientSpec.m_field608 = 0;
-    m_codeHackCheck.m_field48 = 0;
-    m_codeHackCheck.m_field4c = 0;
+    m_postChecksumData.m_field48 = 0;
+    m_postChecksumData.m_field4c = 0;
     if (m_premium.m_mailBox != 0)
         ((WongWork::CMailBox*)m_premium.m_mailBox)->Init();
     set_guildwar_point_per_pvpplay(0);
@@ -1808,7 +1804,7 @@ int CUser::GetAccountLastPlayTime()
 
 ENUM_SERVER_GROUP CUser::GetServerGroup() const
 {
-    return *(ENUM_SERVER_GROUP*)((char*)&m_codeHackCheck.m_serverGroup);
+    return *(ENUM_SERVER_GROUP*)((char*)&m_postChecksumData.m_serverGroup);
 }
 
 CExpandEquipslot* CUser::GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE type) const
@@ -2493,7 +2489,7 @@ int CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)
 int CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)
 {
     PacketGuard packet;
-    ARAD::DISPATCHER::make_cmd_packetheader_jpn(packet, (int)cmd, 0);
+    ARAD::DISPATCHER::make_cmd_packetheader_jpn(packet, cmd, false);
     ((InterfacePacketBuf*)&packet)->put_short(error & 0xffff);
     ((InterfacePacketBuf*)&packet)->finalize(true);
     return Send(packet);
@@ -2912,137 +2908,137 @@ int CUser::SetETC(short key, int value)
 
 void CUser::setTournamentAccount(bool flag)
 {
-    m_codeHackCheck.m_field31 = flag;
+    m_postChecksumData.m_field31 = flag;
 }
 
 unsigned char CUser::isTournamentAccount()
 {
-    return m_codeHackCheck.m_field31;
+    return m_postChecksumData.m_field31;
 }
 
 void CUser::setJoinedSchoolPointEvent(bool flag)
 {
-    m_codeHackCheck.m_field44 = flag;
+    m_postChecksumData.m_field44 = flag;
 }
 
 void CUser::setOnlinePreliminaryServerGroup(ENUM_SERVER_GROUP group)
 {
-    m_codeHackCheck.m_onlineServerGroup = group;
+    m_postChecksumData.m_onlineServerGroup = group;
 }
 
 void CUser::setOnlinePreliminaryCharacNo(unsigned int characNo)
 {
-    m_codeHackCheck.m_onlineCharacNo = characNo;
+    m_postChecksumData.m_onlineCharacNo = characNo;
 }
 
 void CUser::setOnlinePreliminaryPlayType(int playType)
 {
-    m_codeHackCheck.m_onlinePlayType = playType;
+    m_postChecksumData.m_onlinePlayType = playType;
 }
 
 int CUser::getOnlinePreliminaryPlayType()
 {
-    return m_codeHackCheck.m_onlinePlayType;
+    return m_postChecksumData.m_onlinePlayType;
 }
 
 unsigned int CUser::getOnlinePreliminaryCharacNo()
 {
-    return m_codeHackCheck.m_onlineCharacNo;
+    return m_postChecksumData.m_onlineCharacNo;
 }
 
 void CUser::SetPCRoomNo(unsigned int no)
 {
-    m_codeHackCheck.m_field54 = no;
+    m_postChecksumData.m_field54 = no;
 }
 
 void CUser::SetFirstLogin()
 {
-    m_codeHackCheck.m_firstLogin = 1;
+    m_postChecksumData.m_firstLogin = 1;
 }
 
 void CUser::SetReturnUser()
 {
-    m_codeHackCheck.m_field59 = 1;
+    m_postChecksumData.m_field59 = 1;
 }
 
 void CUser::ResetReturnUser()
 {
-    m_codeHackCheck.m_field59 = 0;
+    m_postChecksumData.m_field59 = 0;
 }
 
 unsigned char CUser::IsReturnUser()
 {
-    return m_codeHackCheck.m_field59;
+    return m_postChecksumData.m_field59;
 }
 
 void CUser::SetReturnUserFirstUserLogin(bool flag)
 {
-    m_codeHackCheck.m_field5a = flag;
+    m_postChecksumData.m_field5a = flag;
 }
 
 unsigned char CUser::IsReturnUserFirstLogin()
 {
-    return m_codeHackCheck.m_field5a;
+    return m_postChecksumData.m_field5a;
 }
 
 int CUser::GetReturnUserExpireTime()
 {
-    return m_codeHackCheck.m_field5c;
+    return m_postChecksumData.m_field5c;
 }
 
 void CUser::SetReturnUserExpireTime(int time)
 {
-    m_codeHackCheck.m_field5c = time;
+    m_postChecksumData.m_field5c = time;
 }
 
 void CUser::EnableSaveMemberBonusFatigue()
 {
-    m_codeHackCheck.m_field60 = 1;
+    m_postChecksumData.m_field60 = 1;
 }
 
 void CUser::incAccountMemberBonusFatigue(short value)
 {
-    m_codeHackCheck.m_field62 = (short)(m_codeHackCheck.m_field62 + value);
+    m_postChecksumData.m_field62 = (short)(m_postChecksumData.m_field62 + value);
 }
 
 void CUser::resetAccountMemberBonusFatigue()
 {
-    m_codeHackCheck.m_field62 = 0;
+    m_postChecksumData.m_field62 = 0;
 }
 
 short CUser::getAccountMemberBonusFatigue()
 {
-    return (short)(unsigned short)m_codeHackCheck.m_field62;
+    return (short)(unsigned short)m_postChecksumData.m_field62;
 }
 
 void CUser::resetAccountUsedFatigue()
 {
-    m_codeHackCheck.m_totalFatigueUsed = 0;
+    m_postChecksumData.m_totalFatigueUsed = 0;
 }
 
 void CUser::incChattingMessageCount(int count)
 {
-    m_codeHackCheck.m_field64 += count;
+    m_postChecksumData.m_field64 += count;
 }
 
 void CUser::setChattingMessageCount(int count)
 {
-    m_codeHackCheck.m_field64 = count;
+    m_postChecksumData.m_field64 = count;
 }
 
 int CUser::getChattingMessageCount()
 {
-    return m_codeHackCheck.m_field64;
+    return m_postChecksumData.m_field64;
 }
 
 void CUser::SetGameMasterCharacter(CGameMasterCharacter* pCharac)
 {
-    m_codeHackCheck.m_gameMasterCharac = pCharac;
+    m_postChecksumData.m_gameMasterCharac = pCharac;
 }
 
 int CUser::getStdDropRate()
 {
-    return m_codeHackCheck.m_field28;
+    return m_postChecksumData.m_field28;
 }
 
 Secu_AccountHacking* CUser::getAcccountHackInfo()
@@ -4030,7 +4026,7 @@ int CUser::GetMileage()
 
 int CUser::GetPCRoomNo()
 {
-    return m_codeHackCheck.m_field54;
+    return m_postChecksumData.m_field54;
 }
 
 unsigned int CUser::GetCeraPoint()
@@ -4069,7 +4065,7 @@ int CUser::GetDebugCommand()
 
 int CUser::GetTradePunishType()
 {
-    return m_codeHackCheck.m_tradePunishType;
+    return m_postChecksumData.m_tradePunishType;
 }
 
 int CUser::getLastLotteryTime()
@@ -4129,7 +4125,7 @@ long CUser::GetResumeChecksumTime()
 
 CGameMasterCharacter* CUser::GetGameMasterCharacter()
 {
-    return *(CGameMasterCharacter**)((char*)&m_codeHackCheck.m_gameMasterCharac);
+    return *(CGameMasterCharacter**)((char*)&m_postChecksumData.m_gameMasterCharac);
 }
 
 int CUser::getBreakAwayAccureCera()
@@ -4192,7 +4188,7 @@ void CUser::SetBuyingGold(bool flag)
 
 bool CUser::GetFirstLogin()
 {
-    return *(unsigned char*)((char*)&m_codeHackCheck.m_firstLogin) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_firstLogin) != 0;
 }
 
 void CUser::SetProgLogout()
@@ -4222,17 +4218,17 @@ bool CUser::isUsedBreakAwayLuckPoint()
 
 bool CUser::isJoinedSchoolPointEvent()
 {
-    return *(unsigned char*)((char*)&m_codeHackCheck.m_field44) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_field44) != 0;
 }
 
 void CUser::DisableSaveMemberBonusFatigue()
 {
-    *(char*)((char*)&m_codeHackCheck.m_field60) = 0;
+    *(char*)((char*)&m_postChecksumData.m_field60) = 0;
 }
 
 bool CUser::IsEnableSaveMemberBonusFatigue()
 {
-    return *(unsigned char*)((char*)&m_codeHackCheck.m_field60) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_field60) != 0;
 }
 
 void CUser::SetProperLevelDungeonUser()
@@ -4399,12 +4395,12 @@ void CUser::GiveMeBoxReward()
 }
 
 // ORIG _ZN5CUser18SetTradePunishTypeEi T 0x08689890：printf 日志后
-// m_codeHackCheck.m_tradePunishType |= type。
+// m_postChecksumData.m_tradePunishType |= type。
 void CUser::SetTradePunishType(int type)
 {
     printf("CUser::SetTradePunishType(%d) \n", type);
-    m_codeHackCheck.m_tradePunishType =
-        m_codeHackCheck.m_tradePunishType | type;
+    m_postChecksumData.m_tradePunishType =
+        m_postChecksumData.m_tradePunishType | type;
 }
 
 // ORIG _ZN5CUser10SetMileageEi T 0x086509c6：LogHistory 记录新旧值后写 m_mileage。
@@ -4764,7 +4760,7 @@ int CUser::get_charac_count()
 
 bool CUser::isTradePunishOverThirtyDays()
 {
-    return *(unsigned char*)((char*)&m_codeHackCheck.m_field30) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_field30) != 0;
 }
 
 
@@ -5726,7 +5722,7 @@ void CUser::UpdateLogout(bool param)
         *(unsigned int*)(sig + 0x17) = *(unsigned int*)((char*)this + 0x8d10c);
         *(unsigned int*)(sig + 0x1b) = m_gameOption.m_playExpAdd;   // ORIG this+0x703a4 = m_gameOption+0x640
         *(unsigned short*)(sig + 0x1f) =
-            (unsigned short)m_codeHackCheck.m_totalFatigueUsed;   // ORIG this+0x79642 实证
+            (unsigned short)m_postChecksumData.m_totalFatigueUsed;   // ORIG this+0x79642 实证
         *(unsigned char*)(sig + 0x21) = GetPuUser();
         SetUserManagerToolIP(this, reinterpret_cast<SIG_UPDATE_LOGOUT*>(sig));  // ORIG 0x865569e 实证传结构基址
 
@@ -6524,8 +6520,8 @@ void CUser::FatigueUp(int v)
     // 依赖未建模，待事件域批次接线。
 
     // ARAD::Singleton<AvatarRechargeServer>::CalcDurability(this,v) 待特化实例化（推断）
-    m_codeHackCheck.m_totalFatigueUsed =
-        (short)(m_codeHackCheck.m_totalFatigueUsed + (short)v);   // ORIG this+0x79642 实证
+    m_postChecksumData.m_totalFatigueUsed =
+        (short)(m_postChecksumData.m_totalFatigueUsed + (short)v);   // ORIG this+0x79642 实证
     if (get_charac_level() != 0)
     {
         // 推断：GuildParameterScript::getGuildExpWeight(G_CDataManager()+0xa50c)
@@ -7689,19 +7685,8 @@ bool CUser::isSecurityServiceUsed()
 // ORIG W 0x0863bea2：return m_premium(+0x7121c).GetTotalPremiumCount() != 0
 // （scout 报告误关联 0x867cd20 = _UpdateUserInfo4Guild，已按真实符号核实）。
 
-// ORIG T 0x0864fc3e（docs/class_func_reports/CUser/CheckLimitMiniumAge.md）：
-// (age-1u) < minAge，或 age-1 == minAge 且未过生日 → *out=unique_id 低16 位、
-// 返回 0（年龄不足拦截）；否则返回 1。
-bool CUser::CheckLimitMiniumAge(int minAge, int& out)
-{
-    unsigned int age = static_cast<unsigned int>(GetAge());
-    if (age - 1U < static_cast<unsigned int>(minAge))
-        return false;
-    if (age - 1U == static_cast<unsigned int>(minAge) && !IsOverBirthDay())
-        return false;
-    return true;
-}
-
+// ORIG T 0x0864fc3e CheckLimitMiniumAge：唯一 owner 为 CUserOnlyOrig.cpp
+// （W7_BuildHarmonize 去重：该版含 outUnique=unique_id 低16位写出，更忠实）。
 bool CUser::IsPremiumUser() const
 {
     return m_premium.GetTotalPremiumCount() != 0;
@@ -9507,7 +9492,7 @@ void CUser::onUpdateHackCount(WongWork::ENUM_HACKTYPE type, int count,
 // *(int*)(this+0x79624) = rate，即 m_codeHackCheck(+0x795fc).m_field28。
 void CUser::setStdDropRate(int rate)
 {
-    m_codeHackCheck.m_field28 = rate;
+    m_postChecksumData.m_field28 = rate;
 }
 
 // ============================================================================
@@ -9869,9 +9854,9 @@ int WongWork::CSecurityCard::getFailCnt()
 // ============================================================================
 bool CUser::isTradePunishType(int type)
 {
-    if (type == 0 && m_codeHackCheck.m_tradePunishType != 0)
+    if (type == 0 && m_postChecksumData.m_tradePunishType != 0)
         return 1;
-    if ((type & m_codeHackCheck.m_tradePunishType) == 0)
+    if ((type & m_postChecksumData.m_tradePunishType) == 0)
         return 0;
     return 1;
 }

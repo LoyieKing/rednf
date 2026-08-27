@@ -12,8 +12,6 @@
 //   +0x000 std::map<unsigned int,int>   （acc_id → 包计数，24B）
 //   +0x018 char m_logPath[0x100]        （ctor: sprintf("./log/%s/%s", a, b)）
 //   +0x118 unsigned int m_totalCount
-// 注：本头按验收约定以 const char* 声明 ctor（符号 C1EPKcS2_）；ORIG 二进制为
-// char*（C1EPcS1_），语义一致。
 // ============================================================================
 
 #include <map>
@@ -24,7 +22,7 @@ namespace message_counter
 class CUserPacketCounter
 {
 public:
-    CUserPacketCounter(const char* dir, const char* name);
+    CUserPacketCounter(char* dir, char* name);
     ~CUserPacketCounter();
 
     void IncreasePacket(unsigned int accId);   // accId 命中 ++value，否则 insert(accId,1)；最后 ++total

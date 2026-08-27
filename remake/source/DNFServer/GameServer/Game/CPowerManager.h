@@ -5,6 +5,46 @@ class CUser;
 struct SIG_LOAD_POWER_WAR_STATUE_INFO;
 enum ENUM_POWER_SIDE_TYPE { ENUM_POWER_SIDE_TYPE_DUMMY = 0 };
 
+// =====================================================================
+// CPowerWarLog —— Power War 统计日志 POD（ORIG 全局类 _ZN12CPowerWarLog…）。
+// Reset ORIG T 0x08480232：逐一清 int@+0x00..+0x38（sizeof=0x3c）。
+// 各 Inc* W 内联自增偏移实证：见字段注释；定义由 W6_AssaultMgrDeps.cpp 转写。
+// =====================================================================
+class CPowerWarLog
+{
+public:
+    CPowerWarLog();                       // ORIG T 0x0848021e
+    void Reset();                         // ORIG T 0x08480232
+
+    void IncAssaultAttemptCount();        // ORIG W 0x82f082a（++m_attemptCount）
+    void IncAssaultAttemptFailureCount(); // ORIG W 0x82f0850（++m_failureCount）
+    void IncAssaultAttemptSuccessCount(); // ORIG W 0x82f083c（++m_successCount）
+    void IncLoadingTimeOutCountSecede();  // ORIG W 0x82f0864（+++0x10）
+    void IncP2PTimeOutCountSecede();      // ORIG W 0x82f0878（+++0x18）
+    void IncP2PBadCountFailure();         // ORIG W 0x82f088c（+++0x1c）
+    void IncP2PBadCountSecede();          // ORIG W 0x82f08a0（+++0x20）
+    void IncStartSuccessCount();          // ORIG W 0x82f08c8（+++0x24）
+    void IncStartFailureCount();          // ORIG W 0x82f08b4（+++0x28）
+    void IncTotalJoinAssaultUser(int n);  // ORIG W 0x82f08dc（m_totalJoinAssaultUser += n）
+    void IncTotalLeaveAssaultUser();      // ORIG W 0x82f08f2（+++0x38）
+    void PrintPowerWarAssultReport();     // ORIG T 0x084802cc
+
+    int m_attemptCount;             // +0x00
+    int m_successCount;             // +0x04
+    int m_failureCount;             // +0x08
+    int m_field0c;                  // +0x0c（Reset 清零，无独立 Inc 符号）
+    int m_loadingTimeoutSecede;     // +0x10
+    int m_field14;                  // +0x14（Reset 清零）
+    int m_p2pTimeoutSecede;         // +0x18
+    int m_p2pBadFailure;            // +0x1c
+    int m_p2pBadSecede;             // +0x20
+    int m_startSuccess;             // +0x24
+    int m_startFailure;             // +0x28
+    int m_field2c[2];               // +0x2c..+0x30（Reset 清零）
+    int m_totalJoinAssaultUser;     // +0x34
+    int m_totalLeaveAssaultUser;    // +0x38
+};                                  // sizeof == 0x3c
+
 class CPowerManager
 {
 public:
@@ -74,8 +114,14 @@ public:
         int m_equipment[11];            // +0x58（0x80 起，11 槽）
     };
     RankerEntry m_rankings[3];
-    char m_pad1b4[0x54];                // +0x1b4（CPowerWarLog 0x1b4 / CPowerWarPacketLog 0x1f0 占位）
+    CPowerWarLog m_powerWarLog;         // +0x1b4（sizeof 0x3c；ORIG 嵌入对象，GetPowerWarLog 返回此址）
+    char m_pad1f0[0x18];                // +0x1f0..+0x207（原 pad 尾段；CPowerWarPacketLog 区待建模）
 
+
+public:
+    CPowerWarLog* GetPowerWarLog();     // ORIG W 0x82f0906：返回 this+0x1b4 cast
 };
+
+
 
 #endif

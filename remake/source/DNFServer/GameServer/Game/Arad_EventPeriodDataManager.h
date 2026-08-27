@@ -43,6 +43,13 @@ struct SEventPeriodData
     unsigned int m_eventCode;
     unsigned int m_beginTime;
     unsigned int m_endTime;
+    // ORIG W 0x088b4368：C1(i,j,j) 三字段直存。【objdump】
+    SEventPeriodData(int eventCode, unsigned int beginTime, unsigned int endTime);
+
+    // ORIG W 0x088b558a：空体 dtor（显式声明产出 D1/D2 弱符号）。【objdump】
+    ~SEventPeriodData();
+    // 【objdump】ORIG W 0x088b4388：仅比 +0x00；非常量成员（mangled 无 K）。
+    bool operator==(SEventPeriodData const& other);
 };
 
 // ARAD::SCRIPT::SRewardPeriodData —— +0x18 vector 元素类型。
@@ -58,13 +65,33 @@ struct SRewardPeriodData
 {
     SRewardPeriodData(int eventCode, unsigned long f4, short f8,
                       unsigned int beginTime, unsigned int endTime);
+    // ORIG W 0x088b5764：空体 dtor（显式声明产出 D1/D2 弱符号）。【objdump】
+    ~SRewardPeriodData();
 
     int           m_eventCode;    // +0x00
     unsigned int  m_field4;       // +0x04
     short         m_field8;       // +0x08（对齐 pad +0x0a..+0x0b）
     unsigned int  m_beginTime;    // +0x0c
     unsigned int  m_endTime;      // +0x10
+    // 【objdump】ORIG W 0x088b43da：仅比 +0x00；非常量成员。
+    bool operator==(SRewardPeriodData const& other);
 };
+
+
+// ORIG T 0x088b3970：连读 4 个 short（"start year/month/day/time"，ScanInt(bool*)），
+// 任一失败 logFormat(line 0x27) 后返回 false。【报告 ARAD__SCRIPT/readTime.md】
+bool readTime(short* out);
+
+// ORIG T 0x088b3b4b：以当前时间 localtime 基底改 y/m/d/h(min/sec=0) 后 mktime，
+// 返回值即 mktime 结果。【报告 ARAD__SCRIPT/uint32Time.md】
+unsigned int uint32Time(short* t);
+
+// ORIG T 0x088b3bd8：清空两容器后解析 "Etc/AradEventPeroid.etc"
+// （"[event period]" / "[reward period]" 段；find 判重失败抛 const char*
+// 异常，catch 后 logFormat(line 0x99) 返回 false）。
+// 【报告 ARAD__SCRIPT/importAradEventScript.md】
+bool importAradEventScript(std::vector<SEventPeriodData>& eventList,
+                           std::vector<SRewardPeriodData>& rewardList);
 
 }  // namespace SCRIPT
 

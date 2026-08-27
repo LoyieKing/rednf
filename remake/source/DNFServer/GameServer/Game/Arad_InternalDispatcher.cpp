@@ -2,10 +2,23 @@
 // 依据 docs/class_func_reports/ARAD__DISPATCHER__*/ 各报告 + ORIG nm/objdump。
 #include "Arad_InternalDispatcher.h"
 #include "CStreamGuard.h"
+#include "PacketGuard.h"
+#include "GameEnums.h"
 #include <algorithm>
 #include "GlobalData.h"
-#include "DBMgr.h"
+#include "ServiceRestrictManager.h"
+#include "AvatarConvertServer.h"
+#include "EmblemCompoundServer.h"
+#include "AvatarRechargeServer.h"
+#include "AvatarFixedHiddenOptionServer.h"
+#include "Arad_DataManager.h"       // ARAD::Singleton<T>::Get
 #include "MySQL.h"
+#include "AvatarCoin.h"
+#include "DBMgr.h"
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CInventory.h"
+#include "Inven_Item.h"
 #include "LogManager.h"
 #include "Stream.h"
 #include "MoreTypes.h"      // arad::Sig* 线格式结构
@@ -46,6 +59,26 @@ void make_internal_stream_jpn(CStreamGuard& guard, ENUM_INTERNALPACKET_JPN code,
     guard.operator*()->operator<<((int)0x2dc);
     guard.operator*()->operator<<((int)param);
     guard.operator*()->operator<<((int)code);
+}
+
+// ============================================================================
+// packetheader_jpn 【objdump】ORIG make_cmd_packetheader_jpn 0x08197812 T /
+// make_noti_packetheader_jpn 0x08197862 T（无独立 md 报告，直接反汇编转写）：
+//   bool 归一化(0/1) 后 put_header((int)code, typeFlag) + put_byte(normalized)；
+//   cmd 流 typeFlag=1，noti 流 typeFlag=0。
+// ============================================================================
+void make_cmd_packetheader_jpn(PacketGuard& guard, ENUM_CMDPACKET code, bool flag)
+{
+    signed char normalized = (flag != false) ? (signed char)1 : (signed char)0;
+    guard.put_header((int)code, 1);
+    guard.put_byte((int)normalized);
+}
+
+void make_noti_packetheader_jpn(PacketGuard& guard, ENUM_NOTIPACKET code, bool flag)
+{
+    signed char normalized = (flag != false) ? (signed char)1 : (signed char)0;
+    guard.put_header((int)code, 0);
+    guard.put_byte((int)normalized);
 }
 
 // ============================================================================
@@ -165,6 +198,142 @@ void Arad_InternalDispatcher::DeleteDispatcher::operator()(
     std::pair<const ENUM_INTERNALPACKET_JPN, Arad_IInterDispatcher*>& p)
 {
     delete p.second;
+}
+
+// ============================================================================
+// Init —— ORIG Arad_DatabaseDispatcher::Init 0x08184d40 T
+//   （ARAD__DISPATCHER__Arad_DatabaseDispatcher/Init.md）：
+//   顺序 new 9 个 DB 流派发器并注册 get_code()；任一步 new 失败或注册冲突即
+//   return false（ORIG 未对失败对象做清理），全部成功返回 true。
+// ============================================================================
+bool Arad_DatabaseDispatcher::Init()
+{
+    {
+        // ORIG new@08184d55 + ctor 0x8186836（code=K_ARAD_EVENT_ITEM_LOG）
+        Arad_DB_kAradEventItemLog* d = new Arad_DB_kAradEventItemLog();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x81868a8（code=K_SET_CHARAC_CREATE_TIME）
+        Arad_DB_kSetCharacCreateTime* d = new Arad_DB_kSetCharacCreateTime();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x818691a（code=K_LOAD_REWARD_EVENT_ITEM）
+        Arad_DB_kLoadRewardEventItem* d = new Arad_DB_kLoadRewardEventItem();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x818698c（code=K_SAVE_REWARD_EVENT_ITEM）
+        Arad_DB_kSaveRewardEventItem* d = new Arad_DB_kSaveRewardEventItem();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x81869fe（code=K_SAVE_SERVER_STATE）
+        Arad_DB_kSaveServerState* d = new Arad_DB_kSaveServerState();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x8186a70（code=K_LOAD_SERVER_STATE）
+        Arad_DB_kLoadServerState* d = new Arad_DB_kLoadServerState();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x8186ae2（code=K_DB_AVATAR_HIDDEN_OPTION_SAVE）
+        Arad_DB_kAvatarHiddenOptionSave* d = new Arad_DB_kAvatarHiddenOptionSave();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x8186b54（code=K_DB_AVATAR_ENDURANCE_SAVE）
+        Arad_DB_kAvatarEnduranceSave* d = new Arad_DB_kAvatarEnduranceSave();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x8186bc6（code=K_RESET_LIMITED_CREATE_CHARAC_PER_MID）
+        Arad_DB_kResetLimitedCreateCharacPerMid* d =
+            new Arad_DB_kResetLimitedCreateCharacPerMid();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    return true;
+}
+
+// ============================================================================
+// Init —— ORIG Arad_InternalDispatcher::Init 0x08198598 T
+//   （ARAD__DISPATCHER__Arad_InternalDispatcher/Init.md）：同构，10 个 INTER 流。
+// ============================================================================
+bool Arad_InternalDispatcher::Init()
+{
+    {
+        // ORIG new@081985ad + ctor 0x819a46e（code=K_LOAD_REWARD_EVENT_ITEM）
+        Arad_INTER_kLoadRewardEventItem* d = new Arad_INTER_kLoadRewardEventItem();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a4e0（code=K_SAVE_SERVER_STATE）
+        Arad_INTER_kSaveServerState* d = new Arad_INTER_kSaveServerState();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a552（code=K_LOAD_SERVER_STATE）
+        Arad_INTER_kLoadServerState* d = new Arad_INTER_kLoadServerState();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a5c4（code=K_DELETE_SERVER_STATE）
+        Arad_INTER_kDeleteServerState* d = new Arad_INTER_kDeleteServerState();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a3fc（code=K_AVATAR_ROULETTE）
+        Arad_INTER_kAvatarRoulette* d = new Arad_INTER_kAvatarRoulette();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a636（code=K_ARAD_JUMPING_CHARACTER）
+        Arad_INTER_kAradJumpingCharacter* d = new Arad_INTER_kAradJumpingCharacter();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a6a8（code=K_AVATAR_HIDDEN_OPTION_CHANGE）
+        Arad_INTER_kAvatarHiddenOptionChange* d =
+            new Arad_INTER_kAvatarHiddenOptionChange();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a71a（code=K_USE_AVATAR_RECHARGE）
+        Arad_INTER_kUseAvatarRecharge* d = new Arad_INTER_kUseAvatarRecharge();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a78c（code=K_EMBLEM_COMPOUND）
+        Arad_INTER_kEmblemCompound* d = new Arad_INTER_kEmblemCompound();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    {
+        // ORIG ctor 0x819a7fe（code=K_AVATAR_CONVERT）
+        Arad_INTER_kAvatarConvert* d = new Arad_INTER_kAvatarConvert();
+        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+            return false;
+    }
+    return true;
 }
 
 
@@ -432,5 +601,190 @@ Arad_INTER_kEmblemCompound::~Arad_INTER_kEmblemCompound() {}
 ARAD_INTER_DISPATCHER_CTOR(Arad_INTER_kAvatarConvert, 0x33)
 Arad_INTER_kAvatarConvert::~Arad_INTER_kAvatarConvert() {}
 
+// ============================================================================
+// cmd 流业务派发器 checkWorkState —— ORIG 各 W 函数逐条转写。
+//   依赖：GlobalData::s_pSecuProtectionField、ARAD::Singleton<T>::Get、
+//         各 Server::CheckCondition / AvatarRechargeServer::
+//         CheckConditionUseRecharge（定义见各 Server 权威 TU）。
+// ============================================================================
+#include "ServiceRestrictManager.h"
+#include "AvatarConvertServer.h"
+#include "EmblemCompoundServer.h"
+#include "AvatarRechargeServer.h"
+#include "AvatarFixedHiddenOptionServer.h"
+#include "Arad_DataManager.h"       // ARAD::Singleton<T>::Get
+
+// ORIG Dispatcher_AradAvatarConvert::checkWorkState 0x081a003e W：
+//   Secu Check(user,0x2a) 非 0 → SendCmdErrorPacket(0x24f,err) 返回 false；
+//   否则 Singleton<AvatarConvertServer>::Get()->CheckCondition(user,&sig)。
+bool Dispatcher_AradAvatarConvert::checkWorkState(CUser* user,
+                                                  ::arad::SigAradAvatarConvert& sig)
+{
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, (unsigned char)secuErr);
+        return false;
+    }
+    return Singleton<AvatarConvertServer>::Get()->CheckCondition(user, &sig);
+}
+
+// ORIG Dispatcher_AradEmblemCompound::checkWorkState 0x0819fcb4 W：
+//   ServiceRestrictManager::isRestricted(user,Enum_1,0x15) → 错误 0xd1；
+//   Secu Check(user,0x2a)；最后 EmblemCompoundServer::CheckCondition。
+bool Dispatcher_AradEmblemCompound::checkWorkState(CUser* user,
+                                                   ::arad::SigAradEmblemCompound& sig)
+{
+    if (Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            user, RestrictCategory::Enum_1, 0x15))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd1);
+        return false;
+    }
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, (unsigned char)secuErr);
+        return false;
+    }
+    return Singleton<EmblemCompoundServer>::Get()->CheckCondition(user, &sig);
+}
+
+// ORIG Dispatcher_AradUseAvatarRecharge::checkWorkState 0x0819f9d6 W。
+bool Dispatcher_AradUseAvatarRecharge::checkWorkState(CUser* user,
+                                                      ::arad::SigAradUseAvatarRecharge& sig)
+{
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, (unsigned char)secuErr);
+        return false;
+    }
+    return Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, &sig);
+}
+
+// ORIG Dispatcher_AvartarHiddenOptionChange::checkWorkState 0x0819f956 W。
+bool Dispatcher_AvartarHiddenOptionChange::checkWorkState(CUser* user,
+                                                          ::arad::SigAvatarHiddenOptionChange& sig)
+{
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, (unsigned char)secuErr);
+        return false;
+    }
+    return Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, &sig);
+}
+
+// ORIG Dispatcher_AvartarRoulette::checkWorkState 0x0819ee6c W：
+//   Secu Check(user,0x45) → err 透传；AvatarCoin(+0x658 ABI 镜像) 不可用 →
+//   错误 0x16；GetRemainCapacity(INVEN 2, ITEM_TYPE_0)<=0 → 错误 4。
+bool Dispatcher_AvartarRoulette::checkWorkState(CUser* user,
+                                                ::arad::SigAvatarRoulette& sig)
+{
+    (void)sig;   // ORIG 不读 Sig 字段
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x45);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, (unsigned char)secuErr);
+        return false;
+    }
+    // AvatarCoin 位于 Inven 数组尾部固定偏移 +0x658【ABI 镜像】（同
+    // Arad_InternalDispatcher_INTER.cpp kAvatarRoulette 段惯例）。
+    const AvatarCoin* coin =
+        (const AvatarCoin*)(user->getCurCharacInvenR() + 0x658);
+    if (!coin->IsUsable())
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 0x16);
+        return false;
+    }
+    if (user->getCurCharacInvenR()->GetRemainCapacity(
+            (INVEN_TYPE)2, Inven_Item::ITEM_TYPE_0) <= 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 4);
+        return false;
+    }
+    return true;
+}
+
+// ORIG Dispatcher_AradJumpingCharacter::checkWorkState 0x0819f44c W：
+//   Secu Check(user,0x2a)；eventKind==2 时要求存在 m_level>0x3b 的角色，
+//   否则错误 8；当前角色 level>0x11 → 错误 0x12；取 (INVEN 1,
+//   sig.m_itemIndex 槽) 物品：空 → 错误 0x11；eventKind==1 须 item idx
+//   ==0x28d468、eventKind==2 须 ==0x28d469，否则错误 0x11；其余 eventKind
+//   → 错误 0x11。全部通过返回 true。
+bool Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user,
+                                                     ::arad::SigAradJumpingCharacter& sig)
+{
+    unsigned char jumpKind = (unsigned char)sig.m_eventKind;      // ORIG movzbl +9
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x2a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, (unsigned char)secuErr);
+        return false;
+    }
+
+    bool hasLevelOver0x3b = false;                                // ORIG -0x15
+    if (jumpKind == 2)
+    {
+        for (std::size_t i = 0; i < user->m_characList.size(); ++i)
+        {
+            if (user->m_characList[i].m_level > 0x3b)             // elem +0x27 word
+            {
+                hasLevelOver0x3b = true;
+                break;
+            }
+        }
+        if (!hasLevelOver0x3b)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 8);
+            return false;
+        }
+    }
+
+    // 当前角色等级门（ORIG cmp $0x11 / setg：level>0x11 报错 0x12）。
+    if (user->get_charac_level() > 0x11)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x12);
+        return false;
+    }
+
+    CInventory* inv = user->getCurCharacInvenW();
+    Inven_Item item = inv->GetInvenSlot(1, (int)(unsigned short)sig.m_itemIndex);
+    if (!item.isEmpty())
+    {
+        if (jumpKind == 1)
+        {
+            if (item.m_addInfo != 0x28d468)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+                return false;
+            }
+        }
+        else
+        {
+            if (jumpKind != 2)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+                return false;
+            }
+            if (item.m_addInfo != 0x28d469)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+                return false;
+            }
+        }
+        return true;
+    }
+    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+    return false;
+}
 }  // namespace DISPATCHER
 }  // namespace ARAD
+

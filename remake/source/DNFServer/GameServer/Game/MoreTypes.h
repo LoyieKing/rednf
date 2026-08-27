@@ -299,7 +299,38 @@ struct SigAvatarHiddenOptionChange
     short          m_avatarSlot;     // +0x02（avatar 槽 INVEN 2）
     unsigned short m_hiddenOption;   // +0x04（ChangeHiddenOption 写回 GetSkillIndex 结果）
 };                                   // sizeof = 0x8
-}
+
+// SigAvatarRoulette —— Arad_INTER_kAvatarRoulette::dispatch_sig 0x08198a9a /
+// Dispatcher_AvartarRoulette::checkWorkState 消费证据（ORIG 只读 +0x00/+0x01
+// 两字节作为 AvatarRouletteServer::Pickup 实参）。成员名【命名推断】。
+struct SigAvatarRoulette
+{
+    void init() { m_type = 0; m_slotIdx = 0; }
+    unsigned char m_type;      // +0x00（Pickup 第2参 dword 扩展）
+    unsigned char m_slotIdx;   // +0x01（Pickup 第3参）
+};                                   // sizeof = 0x2
+
+// SigAradJumpingCharacter —— Arad_INTER_kAradJumpingCharacter::dispatch_sig
+// 0x08199a24 区消费证据：+0x09 char（==2 觉醒转职分支）、+0x0a uchar
+// （ChangeGrowType_GM growType）、+0x0b ushort（delete_item 的 item index）。
+struct SigAradJumpingCharacter
+{
+    void init()
+    {
+        std::memset(m_head, 0, sizeof(m_head));
+        m_eventKind = 0;
+        m_growType = 0;
+        m_itemIndex = 0;
+        std::memset(m_tail, 0, sizeof(m_tail));
+    }
+    char          m_head[9];       // +0x00..+0x08（ORIG 未读字段区【推断】）
+    char          m_eventKind;     // +0x09（==2 → 满级 0x37 分支）
+    unsigned char m_growType;      // +0x0a
+    unsigned short m_itemIndex;    // +0x0b
+    char          m_tail[5];       // +0x0d 尾部填充（sizeof = 0x12）
+};
+
+}  // namespace arad
 
 #include "APSystemTypes.h"
 
@@ -319,5 +350,4 @@ struct _SIG_UPDATE_REWARD_MEDAL
     char m_occDate[0xb];       // +0x04
 };                              // sizeof 0x10（尾部对齐）
 }
-
 #endif  // DNF_GAME_MORE_TYPES_H_

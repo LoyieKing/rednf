@@ -88,11 +88,12 @@ NpcScript::~NpcScript()
 {
 }
 
-// ----------------------------------------------------------------------------
-// stFavorableRelationShip_t::clear —— ORIG 0x089fb56c（按字段归零语义）—「推断」：
-// ORIG 报告未含该函数体，按 NpcScript::clear 对其成员的容器 clear/标量置零
-// 惯例实现。
-// ----------------------------------------------------------------------------
+// stFavorableRelationShip_t::clear —— ORIG 0x089fb56c T（忠实转写）：
+//   标量区清零（word@0 / dword@4 / word@8,0xa,0xc）
+//   → moodChanges(+0x10)/keyItems(+0x1c) 两个 vector clear
+//   → 四张礼物表 ×5 个 map（stride 0x18）clear
+//   → favorRate×3 置 1.0f（0x3f800000，+0x4d8/4dc/4e0）
+//   → m_rewardItems(+0x208).clear()。
 void stFavorableRelationShip_t::clear()
 {
     m_enabled = false;
@@ -102,32 +103,22 @@ void stFavorableRelationShip_t::clear()
     m_dialogDayGap2 = 0;
     m_moodChanges.clear();
     m_keyItems.clear();
-    m_preferItems.m_map.clear();
-    m_preferItemGroups.m_map.clear();
-    m_unpreferItems.m_map.clear();
-    m_unpreferItemGroups.m_map.clear();
     for (int l = 0; l < 5; ++l)
     {
-        for (int m = 0; m < 3; ++m)
+        for (int i = 0; i < 5; ++i)
         {
-            for (int d = 0; d < 3; ++d)
-            {
-                m_rewards[l][m].m_byDir[d].clear();
-                m_rewards[l][m].m_weight[d] = 0;
-            }
+            m_preferItems.m_maps[l].clear();
+            m_unpreferItems.m_maps[l].clear();
+            m_preferItemGroups.m_maps[l].clear();
+            m_unpreferItemGroups.m_maps[l].clear();
         }
     }
-    m_favorRate0 = 0.0f;
-    m_favorRate1 = 0.0f;
-    m_favorRate2 = 0.0f;
-    m_levelRewards.clear();
-    m_buffRewards.clear();
-    m_durationRewardType = 0;
-    m_durationRewardName = "";
-    m_durationRewardA = 0;
-    m_durationRewardB = 0;
-    m_durationRewardStr1 = "";
-    m_durationRewardStr2 = "";
+    // ORIG：三档 favorRate 写入常量 1.0f（非清零）。
+    static const float one = 1.0f;
+    m_favorRate0 = one;
+    m_favorRate1 = one;
+    m_favorRate2 = one;
+    m_rewardItems.clear();
 }
 
 namespace {
@@ -576,7 +567,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 unsigned long key =
                                     (static_cast<unsigned long>(slot) << 32) |
                                     static_cast<unsigned long>(info.m_a);
-                                table.m_map.insert(
+                                table.m_maps[slot].insert(
                                     std::make_pair(key, info));
                             }
                             continue;
@@ -614,7 +605,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 unsigned long key =
                                     (static_cast<unsigned long>(slot) << 32) |
                                     static_cast<unsigned long>(groupIdx);
-                                table.m_map.insert(std::make_pair(key, info));
+                                table.m_maps[slot].insert(std::make_pair(key, info));
                             }
                             continue;
                         }
@@ -687,13 +678,14 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 bool ok = false;
                                 for (int a = ScanInt(&ok); ok; a = ScanInt(&ok))
                                 {
-                                    stRewardItemElement_t elem;
+                                    stFavorableRelationShip_t::stRewardItemElement_t elem;
                                     elem.m_a = a;
                                     elem.m_b = ScanInt(&ok);
                                     if (!ok) { return IMPORT_FAIL; }
                                     elem.m_w = ScanInt(&ok);
                                     if (!ok) { return IMPORT_FAIL; }
-                                    stRewardSlot_t& rs = fav.m_rewards[level][mood];
+                                    stFavorableRelationShip_t::stRewardItemInfo_t& rs =
+                                        fav.m_rewardItems.m_slots[level][mood];
                                     elem.m_w += rs.m_weight[dir];  // ORIG: 第三字段=旧计数+delta
                                     rs.m_byDir[dir].push_back(elem);
                                     rs.m_weight[dir] = elem.m_w;
@@ -709,7 +701,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                     for (;;)
                     {
                         bool ok = false;
-                        stLevelRewardInfo_t info;
+                        stFavorableRelationShip_t::stLevelRewardInfo info;
                         info.m_level = static_cast<unsigned short>(ScanInt(&ok));
                         if (!ok) { break; }
                         info.m_flag0 = static_cast<unsigned int>(ScanInt(&ok));
@@ -731,7 +723,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                     bool ok = false;
                     unsigned short a = static_cast<unsigned short>(ScanInt(&ok));
                     if (!ok) { continue; }  // ORIG: 失败回到主循环
-                    stBuffRewardInfo_t info;
+                    stFavorableRelationShip_t::stBuffRewardInfo info;
                     info.m_a = a;
                     info.m_b = static_cast<unsigned short>(ScanInt(&ok));
                     if (!ok) { continue; }
@@ -844,7 +836,7 @@ bool CNPCScript::isExistRole(ENUM_NPC_ROLE role) const
 // ORIG 0x8580fd0: 遍历奖励等级表（CNPCScript+0x658 = NpcScript+0x654）。
 bool CNPCScript::isRewardLevel(unsigned short level) const
 {
-    for (std::vector<stLevelRewardInfo_t>::const_iterator it =
+    for (std::vector<stFavorableRelationShip_t::stLevelRewardInfo>::const_iterator it =
              m_npcScript.m_favorableRelationShip.m_levelRewards.begin();
          it != m_npcScript.m_favorableRelationShip.m_levelRewards.end(); ++it)
     {

@@ -26,6 +26,7 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     void incExposedCount();                    // ORIG W 0x08695038：m_point += 1
     bool isSaveCleanPadPoint() const;          // ORIG T 0x0822eede：读 +0x14
     void disableCleanPadPoint();               // ORIG T 0x0822eeea：写 +0x14=0
+    unsigned int getExposedCount() const;      // ORIG W 0x0869504c：读 +0x10（m_point）
 
     char m_pad00[0x10];      // +0x00..0x0f
     unsigned int m_point;    // +0x10（getPoint 原始点数；0x8e400）

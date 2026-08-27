@@ -21,17 +21,16 @@
 // （ORIG 同一二进制类型，禁止镜像重复定义）。
 #include "CStackableItem.h"
 
+// CRabbitBox 权威定义收敛到 AradRabbitBox.h（多态兔盒，W6_ARAD_ItemBonus 批次），
+// 本头仅保留 m_rabbit19c 容器成员（@+0x19c）。
+#include "AradRabbitBox.h"
+
 struct STStackablePackageData
 {
     int m_field0;   // +0x00
     int m_field4;   // +0x04
 };
 
-
-struct CRabbitBox
-{
-    int m_field0;   // +0x00
-};
 
 struct STPassiveObjectInStackable
 {

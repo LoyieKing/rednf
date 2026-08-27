@@ -57,6 +57,13 @@ public:
     CItemGeneratorMgr();             // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev W 0x08374ef4
     ~CItemGeneratorMgr();            // 定义于 CDataManagerScripts.cpp（仅析构 common）
     void setDropRatio(float ratio);  // 定义于 CDataManagerScripts.cpp（逐生成器虚调用）
+    // ORIG T 0x08534322 _ZN8WongWork17CItemGeneratorMgr12onTimerEventEi
+    //   timer==0x6b 时：以 G_CEnvironment()+0x1b0 为首参对三组统计区
+    //   (+0x18/+0x30/+0x48/+0x60)、(+0x90/+0xa8/+0xc0/+0xd8)、
+    //   (+0x108/+0x120/+0x138/+0x150) 各调一次
+    //   DB_UpdateItemDropStatistics::makeRequest(int,int,uint*,uint*,uint*,uint*)，
+    //   然后 memset(this,0,0x3c0)（m_head 区整体清零）。定义 W6_ItemGenDeps.cpp。
+    void onTimerEvent(int timer);
     bool initialize();               // ORIG T 0x08533bc8（init 调用；定义 CtorProducers_2C.cpp）
 
     char m_head[0x3c0];              // +0x000（头部区域未建模）

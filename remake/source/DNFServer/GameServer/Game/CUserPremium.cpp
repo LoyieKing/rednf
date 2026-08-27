@@ -816,7 +816,7 @@ int CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData&
     return 1;
 }
 
-bool CUserPremium::IsRestrictedPremium(int type)
+bool CUserPremium::IsRestrictedPremium(int type)  // static（ORIG 0x086af7c4 无 this）
 {
     return (type >= 60000 && type <= 69999);
 }

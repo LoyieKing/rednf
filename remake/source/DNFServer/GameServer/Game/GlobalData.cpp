@@ -5,6 +5,7 @@
 
 #include "GlobalData.h"
 #include "OnlinePreliminary.h"   // online_preliminary 域权威声明（本 TU 持有 s_onlinePreliminaryTeamMgr 构造）
+#include "RestrictGeolocation.h"   // RestrictGeolocation 权威（原局部镜像删除，实现迁 RestrictGeolocation.cpp）
 #include "CCapchaDataManager.h"
 #include "CExpertJob.h"      // expert_job::CExpertJobMgr/CExpertJobFactory 权威   // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威
 #include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
@@ -43,7 +44,6 @@
 #include "CUser.h"    // StackableAction proc_* 需要 CUser 完整类型
 #include "CSimpleSSO.h"  // WongWork::CSimpleSSO 权威定义（原局部类已收敛）
 #include "CItem.h"    // StackableAction proc_* 需要 CItem 完整类型
-#include "CLogGameChannel.h"  // WongWork::CLogGameChannel 权威定义
 #include "CCeraShop.h"        // WongWork::CCeraShop 权威声明
 #include "SigTypes.h"         // MSG_BUY_CERASHOP_ITEM（BuyItem/ProcessBuyRequestEx 形参 const 引用）
 #include "InstanceRentalSystem.h"  // InstanceRentalSystem 权威定义（§7 合并）
@@ -82,6 +82,8 @@
 #include "ServiceRestrictManager.h"  // 权威定义（本地类已迁移）
 #include "CGuildServerProxy.h"
 #include "CMonitorServerProxy.h"
+#include "W6_HackPunishDeps.h"   // WongWork::CAutoPunishRule* 权威完整类定义
+#include "CLogGameChannel.h"   // WongWork::CLogGameChannel 完整定义（s_logGameChannel 初始化）
 #include "CServerProxyMgr.h"
 #include "CItemAmplifier.h"
 #include "CPowerManager.h"   // 权威 CPowerManager 类（替代下方本地 stub，解除 ODR）
@@ -512,109 +514,26 @@ bool CmmChannelProxy::SendCheckChannelScript()
 // 权威声明见 SpecialItemHandler.h（dispatch 表 ctor 0x0827bcec / execute 0x0827be0a），
 // 实现见 CCeraShop_Special.cpp。此处仅需其完整类型以支持 new/delete。
 
-namespace WongWork
-{
 // CLogGameChannel 权威定义见 CLogGameChannel.h（§7 合并）。
 
-class CAutoPunishRuleBlackIPMgr
-{
-public:
-    CAutoPunishRuleBlackIPMgr();
-    void reset();
-
-    // ORIG 嵌套类型（reset/C1 的 multimap 符号实证）。
-    struct stIPInfo_t { char m_pad[0x18]; };
-
-private:
-    std::multimap<unsigned long, stIPInfo_t> m_map;  // +0x00
-};
-// ---- 反挂机/反作弊规则表相关类型（ORIG namespace WongWork）----
-#ifndef DNF_GAME_WONGWORK_HACKTYPE_TYPES
-#define DNF_GAME_WONGWORK_HACKTYPE_TYPES
-struct HackTypeInfo_t { char m_pad[0x10]; };  // 仅容器实例化（布局待细化）
-// 与 CUser.h 258 行一致（本 TU 不 include CUser.h，故本地定义防 ODR 冲突）。
-struct HackIPCounter_t
-{
-    unsigned short m_a;    // +0x00
-    unsigned short m_b;    // +0x02
-    char m_ip[0xd];        // +0x04（ctor: memset 0xd + strncpy）
-    unsigned int m_cnt;    // +0x14
-};                         // sizeof 0x18
-struct HackFullIPCounter_t { char m_pad[0x18]; };  // 仅容器实例化（布局待细化）
-struct stHacktypeExceptionInfo_t
-{
-    unsigned short m_cnt;   // +0x00（ctor 第一参数）
-    unsigned short m_flag;  // +0x02（ctor 第二参数）
-    stHacktypeExceptionInfo_t(short cnt, short flag)
-        : m_cnt(cnt), m_flag(flag)
-    {
-    }
-};  // 4 字节
-
-#endif
-
-class CAutoPunishRuleHackTypeMgr
-{
-public:
-    CAutoPunishRuleHackTypeMgr();
-    void reset();
-private:
-    // ORIG 布局（ctor 反汇编 0x82a5b1a）：四个 STL 容器，总 sizeof 0x70
-    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t> m_hackTypeMap;         // +0x00
-    int m_field18;                                                      // +0x18
-    int m_field1c;                                                      // +0x1c
-    int m_field20;                                                      // +0x20
-    std::multimap<unsigned short, HackIPCounter_t> m_ipCounterMap;      // +0x24
-    std::multimap<unsigned short, HackFullIPCounter_t> m_fullIPCounterMap;  // +0x40
-    std::map<int, stHacktypeExceptionInfo_t> m_exceptionMap;            // +0x58
-};
+// CAutoPunishRuleBlackIPMgr / CAutoPunishRuleHackTypeMgr / Hack*IPCounter_t /
+// ctor/reset 成员函数定义）。
 
 // WongWork::CSimpleSSO 权威定义已收敛到 CSimpleSSO.h（顶部 include）；
 // 成员函数 ctor/dtor/init 在本 TU，其余方法在 WongWorkSSO_A.cpp。
 
-class CSecurityCardCenter
-{
-public:
-    CSecurityCardCenter();
-    void init();
-private:
-    char m_pad[0x488];
-};
+// WongWork::CSecurityCardCenter 权威类定义已收敛到 GlobalData.h（W6_SecMiscDeps
+// 批），ctor/init/其余方法定义在 W6_SecMiscDeps.cpp。
 
 // CIPGHelper 保留本 TU（ORIG 方法集属 GlobalData 域）；基类 IIPGHelperInterface
 // 与成员 CIPGMgr 用 TaiwanCash.h 权威定义（WongWork::IPG，include 见文件头部）。
+
 namespace IPG
 {
 
-class CIPGHelper : public IIPGHelperInterface
-{
-public:
-    CIPGHelper();
-    ~CIPGHelper();
-    int Initialize(unsigned int a, unsigned int b);
-    void Finalize();  // ORIG T 0x08100c92（Initialize 复位用）
-private:
-    // ORIG 布局：+0x00 vptr；+0x04 CIPGMgr*；+0x08..0x20 常量；+0x24 服务器名。
-    CIPGMgr* m_mgr;        // +0x04
-    unsigned int m_c8;     // +0x08
-    unsigned int m_cc;     // +0x0c
-    unsigned int m_c10;    // +0x10
-    unsigned int m_c14;    // +0x14
-    unsigned int m_c18;    // +0x18
-    unsigned int m_c1c;    // +0x1c
-    unsigned int m_c20;    // +0x20
-    char m_serverName[0x14];  // +0x24
-    unsigned int m_c38;    // +0x38
-    unsigned int m_c3c;    // +0x3c
-    unsigned int m_c40;    // +0x40
-    unsigned int m_c44;    // +0x44
-    unsigned int m_c48;    // +0x48
-    unsigned int m_c4c;    // +0x4c
-    unsigned int m_c50;    // +0x50
-};
+// [dedup] CIPGHelper 权威定义见 TaiwanCash.h（Wave6 IPG 16 槽接口重建）；
+// 本 TU 仅保留 out-of-line 方法定义（Initialize/Finalize 等），成员布局以权威头为准。
 }
-}
-
 // ItemVendingMachine 权威声明 + ARAD::PurcahseBonus / CeraShopPurcahseCountBonus
 // 见 ItemVendingMachine.h；此处不再重复定义（避免 ODR）。
 #include "ItemVendingMachine.h"
@@ -968,21 +887,6 @@ void* GetRandomOption();  // ORIG T 0x085f0eb0：&G_CDataManager()->+0x148
 }
 
 
-class RestrictGeolocation
-{
-public:
-    bool initGeolocation();
-    void clearAllowCountry();  // ORIG T 0x08170b16（支撑）
-    bool loadData();           // ORIG T 0x08170fec（支撑）
-    RestrictGeolocation();   // ORIG T 0x0817097c
-    ~RestrictGeolocation();  // ORIG T 0x081709fe
-    void closeGeolocation(); // ORIG T 0x08170a88
-private:
-    void* m_geoip;                     // +0x00 GeoIP*
-    // ORIG 成员为 boost::unordered_set<std::string>（addAllowCountry/clearAllowCountry）；
-    // 此处以 std::set 做语义等价（推断）。
-    std::set<std::string> m_allowCountry;
-};
 class CHumanCertifier
 {
 public:
@@ -1633,13 +1537,12 @@ void WongWork::CAutoPunishRuleHackTypeMgr::reset()
 {
     // ORIG 0x82a5a9c：m_hackTypeMap.clear(); +0x18/+0x1c/+0x20 清零。
     m_hackTypeMap.clear();
-    m_field18 = 0;
-    m_field1c = 0;
-    m_field20 = 0;
+    m_totalTradeType = 0;
+    m_totalTradeValue = 0;
 }
+// ORIG 0x82a6526：仅构造 multimap 成员（无其它标量初始化）。
 WongWork::CBlackIPMonitor::CBlackIPMonitor()
 {
-    // ORIG 0x82a6526：构造 std::multimap<unsigned int, stBlackIPMonitorEntry_t>（成员隐式）。
 }
 void WongWork::CBlackIPMonitor::reset()
 {
@@ -1757,81 +1660,15 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
         }
     }
 }
-WongWork::CSecurityCardCenter::CSecurityCardCenter()
-{
-    // ORIG 0x082a6654：构造 CRijndael @0x0（0x47c 块）+ list<uchar> @0x47c。
-    // 当前 CRijndael 为 0x4a0（ctor 越界写 m_temp3 区），故对 0x47c 块做
-    // 等价清零（推断）；list 必须真实构造（push_back 依赖其自环节点）。
-    memset(m_pad, 0, 0x47c);
-    new (m_pad + 0x47c) std::list<unsigned char>();
-}
 
-void WongWork::CSecurityCardCenter::init()
-{
-    // ORIG 0x085fe05e：以固定密钥初始化本对象头部 CRijndael；把 42 字符
-    // characterSet 全部 push 进 +0x47c 的 list<uchar>；+0x484 置 1。
-    static const unsigned char characterSet[] =
-        "+<>?@#$&ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";  // ORIG .data 0x93ac1e0（42 字符+'\0'）
-    reinterpret_cast<CRijndael*>(m_pad)->Initialize(
-        "n6;fw;vjfs0fuguf", 0x10, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
-    std::list<unsigned char>& charList =
-        *reinterpret_cast<std::list<unsigned char>*>(m_pad + 0x47c);
-    for (int i = 0; i < 42; ++i)
-    {
-        charList.push_back(characterSet[i]);
-    }
-    *reinterpret_cast<unsigned short*>(m_pad + 0x484) = 1;
-}
-
-void WongWork::IPG::CIPGHelper::Finalize()
-{
-    // ORIG 0x08100c92：释放 CIPGMgr（推断：delete + 置空）。
-    if (m_mgr)
-    {
-        delete m_mgr;
-        m_mgr = 0;
-    }
-}
-
-int WongWork::IPG::CIPGHelper::Initialize(unsigned int a, unsigned int b)
-{
-    // ORIG 0x08100b3e：已初始化则先 Finalize；写入常量表；取环境服务器名
-    // （CEnvironment+0x2b8，空串→-1）strncpy 0x14；再写常量组；new CIPGMgr
-    // 并转发 Initialize(a,b)。
-    if (m_mgr)
-    {
-        Finalize();
-    }
-    m_c8 = 0x2b0;
-    m_cc = 0x1cb;
-    m_c10 = 0x1fc;
-    m_c14 = 0x1d4;
-    m_c18 = 0x99;
-    m_c1c = 0x1d4;
-    m_c20 = 0x90;
-    const char* envName = reinterpret_cast<const char*>(
-        reinterpret_cast<char*>(G_CEnvironment()) + 0x2b8);  // 未建模字段（推断）
-    if (envName[0] == 0)
-    {
-        return -1;
-    }
-    strncpy(m_serverName, envName, sizeof(m_serverName));
-    m_serverName[sizeof(m_serverName) - 1] = 0;
-    m_c38 = 0x5a3c;
-    m_c3c = 0x5aa0;
-    m_c40 = 0x5b04;
-    m_c44 = 0x5b68;
-    m_c48 = 0x5bcc;
-    m_c4c = 0x232e;
-    m_c50 = 0;
-    m_mgr = new CIPGMgr(this);
-    return m_mgr->Initialize(a, b);
-}
+// W7_BuildHarmonize 去重：CIPGHelper::{Initialize,Finalize} 唯一 owner 为
+// W6_IPGDeps.cpp（ORIG 0x08100b3e/0x08100c92 完整转写，Finalize 先转发
+// m_mgr->Finalize()）。此处原重复定义已移除。
 WongWork::IPG::CIPGHelper::CIPGHelper()
 {
     // ORIG 0x082a7190：IIPGHelperInterface 基类（vptr 自动）。
     m_mgr = 0;
-    memset(m_serverName, 0, sizeof(m_serverName));
+    memset(m_str24, 0, sizeof(m_str24));
 }
 WongWork::IPG::CIPGHelper::~CIPGHelper()
 {
@@ -2094,7 +1931,7 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
     }
 
     // ---- 总校验 ----
-    if (!m_ceraShop._CheckValidCount(goods))
+    if (!m_ceraShop._CheckValidCount((const CCeraShopGoods**)goods))
     {
         m_ceraShop.ProcessError(user, 1, -1, *(const int*)(body + 0x39), 1, 1,
                                 (char)body[0xf]);
@@ -3384,70 +3221,6 @@ random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
     // ORIG 0x085f0e46（推断）：释放 CMTRand 数组。
     delete[] m_rand;
     m_rand = 0;
-}
-
-// ---- 限制服务/地理/人证 ----
-RestrictGeolocation::RestrictGeolocation()
-{
-    // ORIG 0x0817097c：ARAD::Singleton 基类构造；m_geoip=0；unordered_set 构造
-    // （此处以 std::set 语义等价，成员自动构造）。
-    m_geoip = 0;
-}
-
-RestrictGeolocation::~RestrictGeolocation()
-{
-    // ORIG 0x081709fe：closeGeolocation() + 集合析构（成员自动）。
-    closeGeolocation();
-}
-
-void RestrictGeolocation::closeGeolocation()
-{
-    // ORIG 0x08170a88：GeoIP_delete(m_geoip)。工程未链 libGeoIP，经 dlsym
-    // 动态查找（与 initGeolocation 的 GeoIP_new 同模式，推断）。
-    typedef void (*GeoIPDeleteFn)(void*);
-    GeoIPDeleteFn geoipDelete = (GeoIPDeleteFn)dlsym(RTLD_DEFAULT, "GeoIP_delete");
-    if (geoipDelete)
-    {
-        geoipDelete(m_geoip);
-    }
-    m_geoip = 0;
-}
-
-bool RestrictGeolocation::initGeolocation()
-{
-    // ORIG 0x08170a46：m_geoip 为空则 GeoIP_new(0)；失败返回 0；随后 loadData()。
-    if (m_geoip == 0)
-    {
-        // ORIG 直接链接 libGeoIP 的 GeoIP_new；工程未链 GeoIP，故经 dlsym 动态
-        // 查找（推断：运行时行为与 ORIG 一致——无 GeoIP 时返回 0）。
-        typedef void* (*GeoIPNewFn)(int);
-        GeoIPNewFn geoipNew = (GeoIPNewFn)dlsym(RTLD_DEFAULT, "GeoIP_new");
-        m_geoip = geoipNew ? geoipNew(0) : 0;
-        if (m_geoip == 0)
-        {
-            return 0;
-        }
-    }
-    loadData();
-    return 1;
-}
-
-void RestrictGeolocation::clearAllowCountry()
-{
-    // ORIG 0x08170b16：清空 boost::unordered_set<string>（推断：set 等价）。
-    m_allowCountry.clear();
-}
-
-bool RestrictGeolocation::loadData()
-{
-    // ORIG 0x08170fec：Acquire 流 → internal_stream(1, 0xffffffff) → clearAllowCountry
-    // → 入 DB 队列。internal_stream 包类型按 loadPolicy 同型推断为 1。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-                           "ServiceRestrictManager.cpp", 0x1c5), true);
-    Taiwan::internal_stream(guard, TaiwanInternalPack::T(1), 0xffffffff);
-    clearAllowCountry();
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return true;
 }
 
 void CHumanCertifier::init()

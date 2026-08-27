@@ -1067,7 +1067,7 @@ void CAssaultPlace::Reset()
     m_teamFlag[0] = 0;
     m_teamFlag[1] = 0;
     m_winTeam = 0;
-    m_pad134[0] = 0;
+    m_checkUser = 0;   // ORIG *(int*)(this+0x134)=0：该槽用户指针清零
     m_abuseSec = 0;
 }
 

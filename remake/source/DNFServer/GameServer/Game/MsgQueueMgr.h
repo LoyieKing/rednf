@@ -26,7 +26,7 @@ public:
     ~MsgQueueMgr();
 
     bool put(QUEUE_IDX queue_idx, Stream* stream);
-    void put(QUEUE_IDX queue_idx, CStreamGuard& guard);
+    bool put(QUEUE_IDX queue_idx, CStreamGuard& guard);   // ORIG 0x8570fde T：转发 Stream* 版返回值
     Stream* get(QUEUE_IDX queue_idx);
     bool empty(QUEUE_IDX queue_idx);
     size_t remain(QUEUE_IDX queue_idx);

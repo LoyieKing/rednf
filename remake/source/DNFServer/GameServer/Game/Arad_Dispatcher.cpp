@@ -349,4 +349,12 @@ int DATABASE::ITEM_QUERY::arad_sp_buy_item_check(ARAD_DATAS::BuyItemInfo& info)
     return 0;
 }
 
+
+int Arad_Dispatcher::dispathc_code()
+{
+    // ORIG 0x0818e898 T：return *(int*)(this+4)（非虚）。
+    return m_code;
+}
+
 }  // namespace ARAD
+

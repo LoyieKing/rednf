@@ -79,7 +79,7 @@ void CItemGenRateTable::set_disable_drop_random_option_item()
     m_optHandle.set_disable_drop();
 }
 
-bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item) const
+bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
 {
     // 报告 _itemTypeVerify.md 逐分支转写（T 0x08534906）。
     if (item->is_stackable())
@@ -183,8 +183,7 @@ void CSecialIMonsterDropItemGenRateTable::destroy()
     }
 }
 
-bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type,
-                                                          const CItem* item) const
+bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
 {
     // 报告 WongWork__CSecialIMonsterDropItemGenRateTable/_itemTypeVerify.md：
     // 与 CItemGenRateTable 版逐分支一致。

@@ -24,6 +24,8 @@
 
 #include "CItem.h"
 
+#include "AradRabbitBox.h"  // +0x168 兔盒列表元素类型（W6_ARAD_ItemBonus 收敛）
+
 class CMTRand;
 class CUser;
 
@@ -197,6 +199,7 @@ struct RecipeInfo
     ~RecipeInfo();
     void additionalInfo(STStackableScript& script);
     void clear();
+    void changeOutput(std::vector<std::pair<int, int> >& out);  // ORIG W 0x08693a78 _ZN10RecipeInfo12changeOutputERSt6vectorISt4pairIiiESaIS4_E
 
     // ORIG C1 0x8513c6a / clear 0x8513bf2 / D1 0x85144f4，sizeof 0x4c：
     // +0x00/+0x0c/+0x18/+0x28/+0x40 vector<pair<int,int>>
@@ -231,6 +234,7 @@ public:
     virtual ~CStackableItem();
     virtual void make_item(Inven_Item& item) const;
     virtual int GetItemType() const;
+    int GetMonsterCardId();   // ORIG W 0x0849f530 _ZN14CStackableItem16GetMonsterCardIdEv（非 const；读 +0x2b8）
     virtual bool IsAvatarItem() const;
     virtual bool IsCreatureItem() const;
     virtual bool IsClearAvatar() const;
@@ -316,7 +320,7 @@ public:
     std::string m_str154;                 // +0x154
     std::string m_str158;                 // +0x158
     std::vector<int> m_vec15c;            // +0x15c
-    std::vector<char> m_vec168;           // +0x168
+    std::vector<CRabbitBox> m_vec168;     // +0x168（ORIG secret_shop_event_item 分支：vector<CRabbitBox>）
     RecipeInfo m_recipe174;               // +0x174
     LotteryInfo m_lotto;                  // +0x1c0
     CMTRand* m_pRand;                     // +0x1e0

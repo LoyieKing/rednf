@@ -21,6 +21,10 @@
 //     insert     0x081bb690：is_exist 不命中才插入；make_pair(key,d) 入 map；key 入 deque
 //     is_exist   0x081bb73c：m_map.find(key) != m_map.end()
 //     delete_mark 0x081bb7bc：find 命中则置 value.mark=1，返回 true；否则 false
+//     ~CRewardUserList()  0x081bbffc（D1/D2）：成员反序析构 deque→map
+//     clear      0x081bc042：先 m_map.clear() 再 m_index.clear()
+//     get_index_size 0x081bc064：m_index.size()
+//   友邻 TU 访问接口（COnTimeEvent 等遍历 map/deque）：get_map() / get_index()
 // ============================================================================
 
 #include <map>
@@ -44,6 +48,12 @@ public:
     bool insert(unsigned int key, int a, int b);  // ORIG 0x081bb690
     bool is_exist(unsigned int key);              // ORIG 0x081bb73c
     bool delete_mark(unsigned int key);           // ORIG 0x081bb7bc
+    ~CRewardUserList();  // 析构（ORIG D1/D2 0x081bbffc：成员反序析构 deque→map）
+
+    void clear();                          // ORIG 0x081bc042：先 map.clear 再 deque.clear
+    unsigned int get_index_size() const;   // ORIG 0x081bc064：deque.size()
+    std::map<unsigned int, RewardUserData>& get_map();    // 友邻 TU 访问（COnTimeEvent 遍历）
+    std::deque<unsigned int>& get_index();                // 友邻 TU 访问
 
 private:
     std::map<unsigned int, RewardUserData> m_map;  // +0x00

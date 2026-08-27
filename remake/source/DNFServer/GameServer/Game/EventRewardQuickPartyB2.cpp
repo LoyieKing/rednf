@@ -209,9 +209,9 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
 //                            +0x24 BasicReward.m_hellDatas（LevelDataHell）
 //   [reward]               → +0x38 m_randomRewards map insert（键=buff 类型）
 //   [random reward prob]   → +0x50 m_probs[type][i]（i<7；type≤10 才写）
-//   [require party num]    → +0x68*4 起 m_field1a0 基址第 slot 个 int
-//                            （slot=dungeonType*4+diff，可溢出至 +0x1c0，
-//                            与 ORIG 寻址完全一致）
+//   [require party num]    → m_minCounts[dungeonType][diff]
+//                            （QuickPartyData +0x1a0 区，行 stride 0x10；
+//                            ORIG 寻址 (type*4+diff+0x68)*4 完全一致）
 bool importQuickPartyScript(const char* path, QuickPartyData* data)
 {
     static std::map<const char*, int, less_TCHAR> s_lookup;
@@ -395,7 +395,7 @@ bool importQuickPartyScript(const char* path, QuickPartyData* data)
                 // ORIG 双边界检查（js/jg 实证）：type∈{0,1}、diff∈{0..4}
                 if (dungeonType >= 0 && dungeonType <= 1 && diff >= 0 && diff <= 4)
                 {
-                    (&data->m_field1a0[0][0])[dungeonType * 4 + diff] = requireNum;
+                    data->m_minCounts[dungeonType][diff] = requireNum;
                 }
             }
             break;

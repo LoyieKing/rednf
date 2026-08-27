@@ -10,7 +10,9 @@
 //   sizeof = 0x6b58。
 // 静态入口（getTitle/putTitle/putTitleOnly/checkError）供 CAchievement 等调用。
 
+#include <deque>
 #include <map>
+#include <stack>
 #include <string>
 #include <utility>
 #include <vector>
@@ -186,6 +188,16 @@ struct stAdjust
     unsigned int m_achievementIdx; // +0x08
 };
 
+// ---- 物品锁 DB 值类型（ORIG 全局作用域：ctor _ZN14stItemLockInfoC1Ev
+//      W 0x0844d406 / DoItemLock 与 PushItemLock mangled 参数 P14stItemLockInfo）----
+struct stItemLockInfo
+{
+    char m_pad0[4];           // +0x00
+    int m_unlockSec;          // +0x04（解锁请求时刻；完成时刻 = +3 天）
+    unsigned char m_state;    // +0x08（1=已锁定，2=解锁倒计时中）
+    char m_pad9[3];
+};
+
 // ---- 物品锁引用（4 字节） ----
 namespace item_lock
 {
@@ -196,20 +208,41 @@ struct stItemLockRef
     short m_slot;          // +0x02
 };
 
-// CItemLock：ORIG 布局（GetItemLockInfo 0x854261e / SendItemLockList 0x85427a0 /
-// MakeItemLockPacket 0x85426a6 反汇编）：+0x08 map<uchar,stItemLockInfo>，
-// +0x48 vector<stItemLockRef>。对象由角色扩展数据区承载（跨 TU reinterpret_cast）。
-struct stItemLockInfo
-{
-    char m_pad0[4];           // +0x00
-    int m_unlockSec;          // +0x04（解锁完成时刻）
-    unsigned char m_state;    // +0x08（2=解锁倒计时中）
-    char m_pad9[3];
-};
-
-class CItemLock
+// ---- 物品锁解锁计时器（ORIG W 符号全部内联于 0x854301e 全局初始化段；
+//      方法地址：IncreaseItemLockTimer 0x854147c / DecreaseItemLockTimer
+//      0x85414f0 / NextItemLockTimer 0x8541502 / GetTimerCount 0x854303a /
+//      ctor 0x8543044（m_count=0）/ Reset 0x8543052（m_count=0））----
+class CItemLockTimer
 {
 public:
+    CItemLockTimer();                                       // ORIG 0x8543044：m_count = 0
+    void Reset();                                           // ORIG 0x8543052：m_count = 0
+    int GetTimerCount();                                    // ORIG 0x854303a（非 const）
+    void IncreaseItemLockTimer(CUser* user);                // ORIG 0x854147c
+    void DecreaseItemLockTimer();                           // ORIG 0x85414f0
+    void NextItemLockTimer(CUser* user);                    // ORIG 0x8541502
+
+    int m_count;  // +0x00：处于倒计时中的物品数
+};
+
+// CItemLock：ORIG 布局（ctor 0x854156a / ~0x8541644 / _reset 0x8541a3e）：
+//   charac_expand::CData 基类（vptr +0x00 / m_bIsSave +0x04）
+//   +0x08 std::map<unsigned char, stItemLockInfo>
+//   +0x20 std::stack<unsigned char, std::deque<unsigned char> >（空闲 lock 号池）
+//   +0x48 std::vector<stItemLockRef>（SendItemLockList 待发列表）
+//   +0x54 CItemLockTimer。
+// 对象由角色扩展数据区承载（跨 TU reinterpret_cast）；STL 容器随 GCC4.4 自然布局。
+
+class CItemLock : public charac_expand::CData
+{
+public:
+    CItemLock();                                            // ORIG C1/C2 0x854156a
+    virtual bool loadData(CUser* pUser, char* pData);       // ORIG 0x8541714
+    virtual void getData(char* pData) const;                // ORIG 0x8541958
+    virtual bool _saveData(CUser* pUser);                   // ORIG 0x854176e
+    virtual void _reset();                                  // ORIG 0x8541a3e
+    virtual ~CItemLock();                                   // ORIG D1/D2 0x8541644 / D0 0x85416f6
+
     std::vector<stItemLockRef>& GetItemLockRefVec();
     void SendItemLockList(CUser* user);                    // ORIG 0x85427a0
     bool CheckItemLock(unsigned char b) const;             // ORIG 0x8541a96
@@ -218,9 +251,30 @@ public:
     unsigned char GetItemLockInfo(unsigned char lock, int& outSec) const;  // ORIG 0x854261e
     void UpdateItem(CUser* user, Inven_Item* item);        // ORIG 0x8541e4e
 
-    char m_pad00[8];                                       // +0x00
-    std::map<unsigned char, stItemLockInfo> m_lockMap;     // +0x08
-    std::vector<stItemLockRef> m_lockList;                 // +0x48
+    // ---- 锁 / 解锁业务（ORIG 报告 docs/class_func_reports/item_lock__CItemLock/）----
+    int IsAbleItemLock(unsigned char lock) const;                       // ORIG 0x8541afe：栈空→0x16 否则 0
+    int IsAbleItemUnlock(unsigned char lock, int& outSec) const;        // ORIG 0x8541b2a：命中且 state==1→0 否则 0x13
+    int IsAbleItemUnlockCancel(unsigned char lock) const;               // ORIG 0x8541bb0：命中且 state==2→0 否则 0x13
+    int DoItemLock(CUser* user, int space, int slot);                   // ORIG 0x8542192
+    int DoItemUnlock(CUser* user, int space, int slot);                 // ORIG 0x854231a
+    int DoItemUnlockCancel(CUser* user, int space, int slot);           // ORIG 0x85424c2
+    int OnItemUnlockWaitTimeout(CUser* user);                           // ORIG 0x8542a6a
+    void PopItemLock(CUser* user);                                      // ORIG 0x8542b80
+    void PushItemLock(CUser* user, unsigned char lock, stItemLockInfo* info);  // ORIG 0x8542a8a
+    void VerifyItemLock(CUser* user);                                   // ORIG 0x8542e98
+    int _findItem(unsigned char lock);                                  // ORIG 0x8542e12
+
+    void SendItemUnlock(CUser* user, int space, int slot);              // ORIG 0x85420e0
+    void SendRequestItemLock(CUser* user, int space, int slot);         // ORIG 0x8541ea0
+    void SendRequestItemUnlock(CUser* user, int space, int slot, int remainSec);  // ORIG 0x8541f5a
+    void SendRequestItemUnlockCancel(CUser* user, int space, int slot); // ORIG 0x8542026
+    void UpdateCreatereItem(CUser* user, Inven_Item* item);             // ORIG 0x8541c36
+    void UpdateAvatarItem(CUser* user, Inven_Item* item);               // ORIG 0x8541d42
+
+    std::map<unsigned char, stItemLockInfo> m_lockMap;     // ORIG +0x08
+    std::stack<unsigned char, std::deque<unsigned char> > m_lockStack;  // ORIG +0x20（空闲 lock 号池）
+    std::vector<stItemLockRef> m_lockList;                 // ORIG +0x48
+    CItemLockTimer m_lockTimer;                            // ORIG +0x54
 };
 }
 

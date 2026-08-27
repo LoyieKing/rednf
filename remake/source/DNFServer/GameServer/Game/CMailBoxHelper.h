@@ -53,8 +53,12 @@ namespace WongWork
 class CMailBox
 {
 public:
-    struct stAddNewMailInput { char m_pad[0x100]; };
-
+    struct stAddNewMailInput
+    {
+        // ORIG W 0x085578ae（C1/C2）：清零前 0x28 字节。定义在 W6_RankMailDeps.cpp。
+        stAddNewMailInput();
+        char m_pad[0x100];
+    };
     CMailBox();
     ~CMailBox();
 
@@ -76,6 +80,8 @@ public:
         bool isAvatarPackage() const;                     // 0x0855759c (W)
         bool isCreaturePackage() const;                   // 0x085575ae (W)
         void ResetPackage();                              // 0x085519fe (T)
+        void Init();                                  // ORIG T 0x085519e2（mailIndex=0 后调 ResetPackage）
+        unsigned int getMailIdx() const;              // ORIG W 0x0869782e（返回 m_mailIndex）
         void MakePacket(PacketGuard* packet, long nowSec,
                         CUser const* user) const;         // 0x08551a36 (T)
 
@@ -118,7 +124,7 @@ public:
     void SetLoadedLetterCount(int);
     void SetNotLoadedMailCount(int);
     void SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&);
-    int getMailLoadCount();
+    int getMailLoadCount() const;   // ORIG _ZNK8WongWork8CMailBox16getMailLoadCountEv W 0x084ed216
     CMail* getNextMail();
     void incMailLoadCount();
     void reset();
@@ -130,7 +136,7 @@ private:
     bool m_bInit;                   // +0x00（Init 判 1 清理后置 0）
     unsigned int m_lastLoadIdx;     // +0x04（GetLastLoadIdx/SetLoadState 写时间）
     int m_notLoadedMailCount;       // +0x08（Get/SetNotLoadedMailCount）
-    char m_pad0c[4];                // +0x0c
+    int m_mailLoadCount;            // +0x0c（getMailLoadCount ORIG 直读此 dword）
     StaticPool<CMail, 20> m_mailPool;               // +0x10（sizeof 0x30）
     std::map<unsigned int, CMail*> m_mailMap;       // +0x40
     std::list<Stream*> m_streamList;                // +0x58

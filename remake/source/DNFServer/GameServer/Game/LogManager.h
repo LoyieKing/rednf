@@ -8,7 +8,7 @@
 // （ORIG vtable[2] = __cxa_pure_virtual）。
 // ============================================================================
 
-#include <memory>
+#include <tr1/memory>
 
 class LogWriter
 {
@@ -26,8 +26,9 @@ public:
                           int line, const char* fmt, ...);      // 0x08ad3c0a
     static void logString(int level, const char* file, const char* func,
                           int line, const char* msg);           // 0x08ad3da2
-    static std::shared_ptr<LogWriter> getLogWriter(int index);  // 0x08ad3f24
-    static void setLogWriter(int index, std::shared_ptr<LogWriter> writer); // 0x08ad3f64
+// 统一 std::tr1::shared_ptr（gcc 4.4.6/4.4.7 全工具链可用；避免 -std 差异分裂）
+    static std::tr1::shared_ptr<LogWriter> getLogWriter(int index);              // 0x08ad3f24
+    static void setLogWriter(int index, std::tr1::shared_ptr<LogWriter> writer); // 0x08ad3f64
     static void pushIndent();       // 0x08ad3ef6
     static void popIndent();        // 0x08ad3f08
 };

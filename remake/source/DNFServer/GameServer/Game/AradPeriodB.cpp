@@ -364,7 +364,7 @@ template bool ARAD::Arad_EventPeriodDataManager::eventReward<ARAD::FnRewardMomoj
 bool ARAD::SCRIPT::AradJumping_Script::getCurRewardItem(int job, int growValue,
                                                         unsigned long& out) const
 {
-    for (std::vector<_AradJumpingRewardItem>::const_iterator it =
+    for (std::vector<ARAD::SCRIPT::_AradJumpingRewardItem>::const_iterator it =
              m_rewardItems.begin();
          it != m_rewardItems.end(); ++it)
     {

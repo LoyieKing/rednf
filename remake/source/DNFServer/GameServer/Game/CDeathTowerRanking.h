@@ -21,14 +21,24 @@
 class PacketGuard;   // makeMyBestRecordPacket/makeTopRankerRecordPacket 参数（真实定义
                      //   在 PacketGuard.h，class；此处必须同为 class 以免 tag 冲突）
 
+// W6_RankMailDeps 需要（registRanker/registBestRecord 参数；真实布局仅按
+// ORIG 字节序引用，见 W6_RankMailDeps.cpp 注释）：
+struct stDeathTowerRecordMemberInfo_t;
+
 namespace WongWork
 {
+
 class CDeathTowerRanking
 {
 public:
     // 死亡之塔排名层数/塔数（getVirtualRank 层扫描上界 <200，塔 stride = 200*0x18）。
     static const unsigned int kRankStageCount = 200;
     static const unsigned int kRankTowerCount = 5;
+
+    typedef __gnu_cxx::hash_map<unsigned int, unsigned int,
+                                __gnu_cxx::hash<unsigned int>,
+                                std::equal_to<unsigned int>,
+                                std::allocator<unsigned int> > RankTable;
 
     // ORIG 0x082a774c W（_ZN8WongWork18CDeathTowerRanking12getRankTableEj）：
     // 返回 3 张排行榜表（0x941f8c0 起，每表 0x70f4）中 type 对应表指针；
@@ -65,8 +75,25 @@ public:
     // 把该塔榜首记录序列化进 packet。
     void makeTopRankerRecordPacket(unsigned int towerIdx, PacketGuard& packet);
 
+    // ---- W6_RankMailDeps 补齐（2026-08-27，报告 WongWork__CDeathTowerRanking/*）----
+    // ORIG T 0x08468614（_ZN8WongWork18CDeathTowerRanking12registRankerEjjPK30stDeathTowerRecordMemberInfo_tjj）：
+    // 塔记录槽登记（members 为成员信息数组，stride 0x17）。
+    void registRanker(unsigned int towerIdx, unsigned int slotIdx,
+                      const stDeathTowerRecordMemberInfo_t* members,
+                      unsigned int stageVal, unsigned int playTime);
+    // ORIG T 0x08468594：清空全部排行榜/best/层 rank map。
+    void resetRanking();
+    // ORIG T 0x084683da：key→rank 插入（已存在则改写），并同步 best 记录存故名次。
+    void registRanking(unsigned int tableIdx, unsigned int key, unsigned int rank);
+    // ORIG T 0x084684ce：仅排名表部分。
+    void updateRanking(unsigned int tableIdx, unsigned int key, unsigned int rank);
+    // ORIG T 0x08468914：个人最优纪录登记（record +0 存 key）。
+    void registBestRecord(unsigned int towerIdx, unsigned int key,
+                          const stDeathTowerRecordMemberInfo_t* members,
+                          unsigned int stageVal, unsigned int playTime);
+
     // ---- stBestRecord_t（尺寸 0x98；ctor 0x082a76c0 / operator> 0x08469ce4 /
-    // operator== 0x08469d30）----
+    // operator== 0x08469d30；ORIG 两运算符均为非 const 成员——已按 nm 对齐）----
     struct stBestRecord_t
     {
         stBestRecord_t()
@@ -79,20 +106,20 @@ public:
             m_flag90 = 0;
             m_field94 = -1;
         }
-        bool operator>(const stBestRecord_t& other) const
+        bool operator>(stBestRecord_t& other)
         {
             if (m_stage != other.m_stage)
                 return m_stage > other.m_stage;
             return m_playTime < other.m_playTime;
         }
-        bool operator==(const stBestRecord_t& other) const
+        bool operator==(stBestRecord_t& other)
         {
             return m_stage == other.m_stage && m_playTime == other.m_playTime;
         }
 
-        char m_pad0[4];              // +0x00
+        char m_pad0[4];              // +0x00（registBestRecord 用作 key dword）
         char m_memberData[4][30];    // +0x04（ctor 循环清零）
-        char m_pad7c[12];            // +0x7c
+        char m_pad7c[12];            // +0x7c（+0x7c/80/84 三条 byte lane 起点）
         unsigned int m_stage;        // +0x88
         unsigned int m_playTime;     // +0x8c
         unsigned char m_flag90;      // +0x90（ctor 置 0；塔榜首槽此位=“有纪录”）
@@ -105,7 +132,12 @@ public:
     // 每层排行榜：键=通关时间，值=该层名次（getVirtualRank 用其插值算虚拟名次）。
     typedef std::map<unsigned int, unsigned int> RankMap;
 
-    // 每塔纪录块（0x390 = 0x98 前缀 + 5 槽；槽 0 为塔当前榜首，见 checkRenewTopRecord）。
+    // ORIG W 0x08469d90 / 0x08469dae：表内子表寻址（stride 0x14，具名数组直取）。
+    RankTable* _getRankingTable(unsigned int idx);
+    BestMap*   _getBestRecordTable(unsigned int idx);
+
+    // 每塔纪录块（ORIG 线性寻址见 W6_RankMailDeps.cpp；槽 0 为塔当前榜首，
+    // 见 checkRenewTopRecord）。
     struct stTowerBlock
     {
         char m_pad0[0x98];           // +0x00 前缀
@@ -118,16 +150,8 @@ public:
 
 private:
     stTowerBlock m_towers[kRankTowerCount];               // +0x0000（0x11d0）
-    __gnu_cxx::hash_map<unsigned int, unsigned int,
-                        __gnu_cxx::hash<unsigned int>,
-                        std::equal_to<unsigned int>,
-                        std::allocator<unsigned int> >
-        m_rankingTables[5];                               // +0x11d0
-    __gnu_cxx::hash_map<unsigned int, stBestRecord_t,
-                        __gnu_cxx::hash<unsigned int>,
-                        std::equal_to<unsigned int>,
-                        std::allocator<stBestRecord_t> >
-        m_bestTables[5];                                  // +0x1234
+    RankTable m_rankingTables[5];                         // +0x11d0
+    BestMap   m_bestTables[5];                            // +0x1234
     RankMap m_rankMap[kRankTowerCount][kRankStageCount];  // +0x1298（0x5dc0）
     stBestRecord_t m_tableBest;                           // +0x7058（0x98）
     unsigned int m_tableType;                             // +0x70f0

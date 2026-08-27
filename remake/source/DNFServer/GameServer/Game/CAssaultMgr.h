@@ -8,6 +8,9 @@
 #include <vector>
 
 #include "StaticPool.h"
+#include "GameEnums.h"   // ENUM_USERINFO（W6_AssaultPlaceA：_MakeUserInfo 签名）
+// W6_AssaultPlaceA：ENUM_POWER_SIDE_TYPE 权威定义在 CPowerManager.h（无反向 include，安全）。
+#include "CPowerManager.h"
 
 class CUser;
 class CParty;
@@ -311,11 +314,14 @@ public:
     Point2d m_pos;                  // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
     char m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP flag 按 team 读）
     int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
-    char m_pad125[7];               // +0x125..+0x12b
+    char m_pad125[3];               // +0x125..+0x127
+    char m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
+    char m_pad12a[2];               // +0x12a..+0x12b
     PartyInfo m_parties[2];         // +0x12c
-    char m_pad134[8];               // +0x134..+0x13b
     int m_abuseSec;                 // +0x13c（AbuseUser 节流时间戳）
-
+    CUser* m_checkUser;             // +0x134（EvadeAssaultPlace/_AvailableAssault
+                                    //   与请求用户指针比较；ORIG 无 setter [推断]）
+    char m_pad138[4];               // +0x138..+0x13b
     void Reset();                                   // 报告 Reset.md
     bool CheckPlayable();                           // ORIG W 0x82f06ea
     int GetState();                                 // ORIG W 0x82f06fe（读 +0x10c）
@@ -335,6 +341,39 @@ public:
     void _GetTeamCount(int* counts);                // ORIG T 0x82e7232（STATE 版签名）
     int _GetUserIndex(CUser* user, bool strict);    // ORIG T 0x82e849a
 
+
+    // ---- W6_AssaultPlaceA（Wave6 前半 30 符号）----
+    void ConnectP2P(CUser* user, char* ip, int len);        // ORIG T 0x82eb956
+    void EndAssault();                                      // ORIG T 0x82e99a2
+    static void RevivalUser(CUser* user, int& result);      // ORIG T 0x82ed43e（ORIG 实证无 this 使用）
+    void CompleteLoad(CUser* user);                         // ORIG T 0x82eb774
+    bool StartAssault();                                    // ORIG T 0x82e9502（返回 0/1）
+    int _GetTeamCount(ENUM_ASSAULT_TEAM team);              // ORIG T 0x82e7162
+    void _GetTeamCount(int* counts, ENUM_ASSAULT_STATE state); // ORIG T 0x82e7288
+    void _MakeChangeHp(PacketGuard* p, int index, int hp);  // ORIG T 0x82e90a0
+    void _MakeUserInfo(PacketGuard* p, ENUM_USERINFO type); // ORIG T 0x82e8b66
+    void _ProcessChaos(int killer, int victim);             // ORIG T 0x82ebb9c
+    void _SendUserInfo();                                   // ORIG T 0x82e7918
+    void _SeparateTeam(CUser* leader1, CUser* leader2);     // ORIG T 0x82e8098
+    int _VictoryBonus(CUser* user, char side);              // ORIG T 0x82ec89c
+    void _MakeGiveAlarm(PacketGuard* p);                    // ORIG T 0x82e910c
+    void _SendGiveAlarm();                                  // ORIG T 0x82e7ac4
+    void _SetReadyState();                                  // ORIG T 0x82e82a2
+    void ClearBadP2PUser();                                 // ORIG T 0x82e949c
+    void _ChangeDieState(int index);                        // ORIG T 0x82ebaf8
+    bool _IsProcsssChaos();                                 // ORIG T 0x82ebd64
+    void _MakeEndAssault(PacketGuard* p);                   // ORIG T 0x82e88a0
+    void _BackupPartyInfo(CParty* party, ENUM_ASSAULT_TEAM team); // ORIG T 0x82e804a
+    void _DispositionUser(CUser** users);                   // ORIG T 0x82e7bbc
+    void _SendHoldVictory(CUser* userA, CUser* userB, int winTeam); // ORIG T 0x82ecaee
+    void EvadeAssaultPlace(CUser* user);                    // ORIG T 0x82eb49c
+    char TimeoutConnectP2P();                               // ORIG T 0x82ea716（改签名：ORIG 有 char 返回）
+    void TimeoutEndAssault();                               // ORIG T 0x82ea004
+    void _AvailableAssault(CUser* user, int& result);       // ORIG T 0x82e75ca
+    bool _CheckAssaultable();                               // ORIG T 0x82e919a
+    bool _IsChangeDieState();                               // ORIG T 0x82ebaee（恒 1）
+    void DoConnectP2P();                                    // ORIG T 0x82e91fa
+    static void _MakeRevivalAssaultPlayer(PacketGuard* p, int uid); // ORIG T 0x82e8978（ORIG asm 栈式调用实证为 static；RevivalUser 调用方）
     // ---- LeaveAssaultPlace 链私有 helper（既有还原保留）----
     bool _IsGiveupPanalty(bool flag);                     // ORIG T 0x82eacf4
     void _MakeUserState(PacketGuard* p);                  // ORIG T 0x82e8c5a（包 0x03 全场状态）
@@ -350,10 +389,43 @@ public:
     void _MakeUserState(PacketGuard* p, CUser* user);     // ORIG T 0x82e8d60
     int  _SendCloseAssault(CUser* user, int tick);        // ORIG T 0x82e7b2a
 
-    void TimeoutConnectP2P();
-    void TimeoutEndAssault();
     void TimeoutCloseAssault();
     void TimeoutCompleteLoad();
+    // ---- W6_AssaultPlaceB（Wave6 后半 30 符号；TimeoutCompleteLoad 已在上）----
+    void _MakeCompleteLoad(PacketGuard* p, int idx);          // ORIG T 0x82e8810
+    void _MakeStartAssault(PacketGuard* p);                   // ORIG T 0x82e886a
+    void _MoveAssaultPlace();                                 // ORIG T 0x82e8300
+    void _SendPacketToVill(PacketGuard& packet);              // ORIG T 0x82e6d92
+    void _SendUserMiniInfo();                                 // ORIG T 0x82e7986
+    void _SendVictoryBonus(CUser* user, int a, int b, int c, int d); // ORIG T 0x82ecdbc
+    void _MakeUserUdpIpPort(PacketGuard* p);                  // ORIG T 0x82e8de2
+    void _SendUserUdpIpPort();                                // ORIG T 0x82e7a5e
+    int  _GetConnectP2PPoint(int idx);                        // ORIG T 0x82e93bc
+    int  _IsCannotConnectP2P(int a, int b);                   // ORIG T 0x82e927e
+    void _MakeDieAssaultPlayer(PacketGuard* p, int idx);      // ORIG T 0x82e891e
+    void _MakeMoveAssaultPlace(PacketGuard* p);               // ORIG T 0x82e852e
+    bool _CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
+                                ENUM_POWER_WAR_WINNER_OR_LOSER winner,
+                                int& winCnt, int& loseCnt, int& aliveCnt); // ORIG T 0x82e7362
+    void _GetTeamCountAliveUser(int* counts);                 // ORIG T 0x82e71c4
+    void _SendStraightVictories(CUser* user);                 // ORIG T 0x82ec558
+    void _PowerWarAssaultCheckIn();                           // ORIG T 0x82e72fa
+    int  _ClearConnectP2PAbsolute(int idx);                   // ORIG T 0x82e92c6
+    void _GetConnectP2PMaxMinPoint(int& maxPt, int& minPt);   // ORIG T 0x82e9412（1 参 init0→max、2 参 init8→min）
+    void _ClearConnectP2PRelative(int idx);                   // ORIG T 0x82e9358
+    // _MakeRevivalAssaultPlayer ORIG asm 0x82ed59a 调用为纯栈式两参（无 this/ecx）→ 实证 static；
+    // 与 W6_AssaultPlaceA 块 374 行的静态声明统一为一处。见 374 行声明（不在此重复）。
+    void _SendPowerWarPointToGuildServer(CUser* user,
+                                ENUM_POWER_WAR_WINNER_OR_LOSER winner,
+                                int winCnt, int loseCnt, int winAliveCnt); // ORIG T 0x82eceb2
+    void _SendPowerWarAssaultResultToUser(CUser* user, int point); // ORIG T 0x82ec808
+    void DieUser(CUser* user, int killerIdx, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ed3fe
+    void DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ebda6
+    void ChangeHp(CUser* user, int hp);                       // ORIG T 0x82ed752
+    void MakeTeam(CUser* user1, CUser* user2, int& outIdx);   // ORIG T 0x82e7d0a
+    void _AddTeam(CUser* user, ENUM_ASSAULT_TEAM team);       // ORIG T 0x82e70c8
+    void _AddUser(CUser* user, ENUM_ASSAULT_TEAM team);       // ORIG T 0x82e7018
+    void _MoveUser(pvp_assault::CDisposition* disp, int x, int y); // ORIG T 0x82e782a
     // ---- 访问器（worklist 符号）----
     int GetAuthenValue();                           // ORIG 0x82f06a0（读 +0x108）
     int GetAssaultPlaceId();                        // ORIG 0x82f0680（读 +0x104）
@@ -363,6 +435,7 @@ public:
     void AbuseUser(CUser* user);                    // ORIG T 0x82eb5e2
 
 };
+
 // =====================================================================
 // CAssaultMgr —— 攻击区管理器（保持既有布局与 API）。
 // ORIG ctor 0x8235084：map 默认构造 + 首字节清零；
@@ -389,10 +462,32 @@ public:
     void OnTimeoutConnectP2PAfterAssault(unsigned int a, int b);   // ORIG 0x82ef9d8
     void OnTimeoutCompleteLoadAfterAssault(unsigned int a, int b); // ORIG 0x82ef86e
     void FreeAssaultPlace(int id, CAssaultPlace* place);          // ORIG T 0x82edb6a
+    // ---- W6_AssaultMgr 批（本批 23 符号 + 链接依赖）----
+    CAssaultPlace* _GetAssaultPlace(unsigned int id, int authenValue); // ORIG T 0x82eda94
+    unsigned int _GetNextAssaultPlaceId();               // ORIG T 0x82ed976
+    void Reset();                                        // ORIG T 0x82ed966
+    void FrocedCloseAssaults();                          // ORIG T 0x82ed5f4
+    int GetRequestAssaultNeedMoney(CUser* attacker, CUser* target);   // ORIG T 0x82edc86
+    int OnRequestAssault(CUser* attacker, CUser* target, int* result); // ORIG T 0x82edfba
+    void AvailableAssault(CUser* user, CUser const* source);
+                                                         // ORIG T 0x82f0022（校验失败以 ENUM_ERROR 异常上抛）
+    int OnChangeHp(CUser* user, int hp);                 // ORIG T 0x82ef570
+    int OnAbuseUser(CUser* user);                        // ORIG T 0x82efc54
+    int OnConnectP2P(CUser* user, char* ip, int len);    // ORIG T 0x82ef27a
+    int OnRevivalUser(CUser* user);                      // ORIG T 0x82ef464
+    int OnCompleteLoad(CUser* user);                     // ORIG T 0x82ef1e2
+    int OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be
+    int OnEvadeAssaultPlace(CUser* user);                // ORIG T 0x82efbf6
+    void _SendVictoryInfo(CUser* userA, CUser* userB);   // ORIG T 0x82efcb2
+    int OnConnectP2PAfterAssault(CUser* user, char* ip, int len);     // ORIG T 0x82ef320
+    int check_party_teleport_user(char slotno, CUser* src,
+                                  CUser* dest, bool notifyErr);       // ORIG T 0x82efe14
                                                                   // （map 摘除 + Reset + 归还池）
 
     bool m_bAssaultChannel;                              // +0x00
-    char m_pad01[7];                                     // +0x01..+0x07
+    char m_pad01[3];                                     // +0x01..+0x03
+    unsigned int m_nextAssaultPlaceId;                   // +0x04（ORIG Reset 0x82ed966 写 this+4=0；
+                                                         //   _GetNextAssaultPlaceId 0x82ed976 自增该字段）
     std::map<unsigned int, CAssaultPlace*> m_places;     // +0x08
 };
 // =====================================================================

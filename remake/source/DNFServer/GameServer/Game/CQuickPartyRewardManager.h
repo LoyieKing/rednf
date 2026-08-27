@@ -109,14 +109,20 @@ struct RewardData_Result
 };                     // sizeof = 0x1c
 
 // ---- LevelData 族（布局：process 内 vector 元素 +0/+4 访问实证；各 0x8 字节）----
+// ORIG C1 为显式非平凡构造（W）：两 int 字段全置 -1；D1 空（W 0x8a6fcb8/0x8a6fefa）。
+// 头内联定义产出弱符号与 ORIG 一致。
 struct LevelData
 {
+    LevelData();   // ORIG W 0x08a6ef72（外联定义 → 同弱符号）
+
     int m_field0;    // +0x00
     int m_value4;    // +0x04（比率基值，各 process 以 /100.0f 使用）
 };
 
 struct LevelDataHell
 {
+    LevelDataHell();   // ORIG W 0x08a6ef8a
+
     int m_field0;    // +0x00（写入 result.m_value04）
     int m_value4;    // +0x04（写入 result.m_value00）
 };
@@ -125,6 +131,7 @@ struct LevelDataHell
 // vector<LevelData> 默认+clear（ORIG W 0x8a6efa2 逐指令）。头内联 → 弱符号同 ORIG。
 class LevelDataRandomReward
 {
+
 public:
     LevelDataRandomReward()
         : m_field0(0xb)
@@ -176,8 +183,9 @@ public:
     unsigned char m_padAfterMap[0x50 - 0x38 -
         sizeof(std::map<RandomBuffType, LevelDataRandomReward>)];
     int m_probs[12][7];                      // +0x50..0x19f（行 0..10 明细，行 11 总和）
-    int m_field1a0[2][2];                    // +0x1a0..0x1af（ctor 置 -1）
-    unsigned char m_pad1b0[0x10];            // +0x1b0..0x1bf（未还原）
+    int m_minCounts[2][4];                   // +0x1a0..0x1bf（ctor 置前 [2][2]=-1；
+                                             //  getRequireQuickPartyMinCount 按
+                                             //  行 stride 0x10 / 列 stride 4 寻址实证）
     class IRewardType* m_rewards[2][13];     // +0x1c0..0x227（奖励对象表）
 };                                           // sizeof = 0x228
 
@@ -258,6 +266,20 @@ public:
     ReturnAncientDungeonTicket(RandomBuffType type, QuickPartyData& data);  // W 0x0826dd26
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d598
 };
+class QuestItemDropRate : public IRandomwReward
+{
+public:
+    // ORIG 无独立 C1 符号（实例从未创建）；仅 T @0x0826d398 process。
+    virtual void process(RewardData_Param param, RewardData_Result& result);
+};
+
+class DimensionInoutCount : public IRandomwReward
+{
+public:
+    // ORIG 无独立 C1 符号；仅 T @0x0826d5ac process。
+    virtual void process(RewardData_Param param, RewardData_Result& result);
+};
+
 
 // importQuickPartyScript（ORIG T 0x08a6e282）：脚本导入器本体待脚本导入域批次
 // （报告 docs/class_func_reports/QuickParty/importQuickPartyScript.md）。
@@ -290,6 +312,10 @@ public:
             return m_rewards[(int)type][idx];
         return 0;
     }
+
+    // ORIG T 0x0826d8a2：type∈[0,1]、diff∈[0,3] 时查 m_minCounts[type][diff]，
+    // 否则 -1。（报告 getRequireQuickPartyMinCount.md）
+    int getRequireQuickPartyMinCount(int type, int dungeonDiff);
 };
 
 }  // namespace QuickParty

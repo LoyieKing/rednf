@@ -93,6 +93,7 @@ public:
     ~PvpResultType();
     void Clear();
     void AddNewResult(const PvpResultType& other);
+    void Set(const PvpResultType& other);  // ORIG T 0x085d58e6 _ZN13PvpResultType3SetERKS_
     int GetTotalScore() const;   // ORIG _ZNK13PvpResultType13GetTotalScoreEv 0x85d5efe
 
     int m_totalWinCount;        // +0x00（add_pvp_result 胜场递增，ORIG 0x865c678）
@@ -153,6 +154,11 @@ public:
     int m_value0;   // +0x00
     int m_value1;   // +0x04
     int m_value2;   // +0x08
+
+    // ORIG W _ZN18stAuraAvatarOption5resetEv @0x844d616：memset(this,0,0xc)。
+    // （DB_LoadEtc::LoadAuraAvatarOption 0x844d616 调用点忠实转写；内联定义
+    //   与 ORIG 弱符号同语义，无布局变化。）
+    void reset() { memset(this, 0, 0xc); }
 };
 
 class CharacterOption

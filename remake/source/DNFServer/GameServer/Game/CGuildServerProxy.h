@@ -188,9 +188,11 @@ struct stGMInfo_t
     stGMInfo_t() : mid(0), type(0) {}
     stGMInfo_t(unsigned int m, unsigned int t) : mid(m), type(t) {}
 
+    // ORIG W 0x08109610 _ZNK8WongWork11CGMAccounts10stGMInfo_teqERKS1_
+    // (size 0x14)：仅比较 mid（+0x00），不比较 type。
     bool operator==(const stGMInfo_t& o) const
     {
-        return mid == o.mid && type == o.type;
+        return mid == o.mid;
     }
 };
 
@@ -207,6 +209,9 @@ public:
     int loadGMAccounts(char const* path);                // ORIG T 0x0810933c _ZN8WongWork11CGMAccounts14loadGMAccountsEPKc
     int appendGM(unsigned int mid, unsigned int type);   // ORIG T 0x081093ee _ZN8WongWork11CGMAccounts8appendGMEjj
     void AppendGM_Sys(unsigned int mid, char type);      // ORIG T 0x08109524 _ZN8WongWork11CGMAccounts12AppendGM_SysEjc
+    // ORIG 0x0810940a _ZNK8WongWork11CGMAccounts9getGMInfoEj：sret；{mid,type=3}
+    // std::find 命中返回该元素，否则返回 {mid,3}（定义 W6_SecMiscDeps.cpp）。
+    stGMInfo_t getGMInfo(unsigned int mid) const;
 private:
     std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };

@@ -189,6 +189,7 @@ enum PVP_BATTLE_MODE
 enum DISCONN_SIG
 {
     DISCONN_SIG_0 = 0,
+    DISCONN_SIG_4 = 4,      // DisConnSig(0x086489f4) 解析失败路径实测值
     DISCONN_SIG_5 = 5,
     DISCONN_SIG_0x30 = 0x30,
     DISCONN_SIG_0x31 = 0x31,

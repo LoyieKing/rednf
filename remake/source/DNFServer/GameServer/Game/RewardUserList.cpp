@@ -7,18 +7,16 @@
 //   delete_mark 0x081bb7bc：find 命中置 mark=1，返回 true
 // ============================================================================
 
-#include "RewardUserList.h"
+CRewardUserList::CRewardUserList()
+{
+    // map(+0x00) 与 deque(+0x18) 由成员默认构造（ORIG ctor 0x081bbfb6 显式构造二者）
+}
 
 RewardUserData::RewardUserData()
 {
     a = 0;
     b = 0;
     mark = false;
-}
-
-CRewardUserList::CRewardUserList()
-{
-    // map(+0x00) 与 deque(+0x18) 由成员默认构造（ORIG ctor 0x081bbfb6 显式构造二者）
 }
 
 bool CRewardUserList::insert(unsigned int key, int a, int b)
@@ -48,4 +46,30 @@ bool CRewardUserList::delete_mark(unsigned int key)
         return true;
     }
     return false;
+}
+
+CRewardUserList::~CRewardUserList()
+{
+    // 成员按声明反序自动析构：deque(+0x18) → map(+0x00)（ORIG D1/D2 0x081bbffc 同序）
+}
+
+void CRewardUserList::clear()
+{
+    m_map.clear();     // ORIG 先 map（0x081bc04e）
+    m_index.clear();   // 后 deque（0x081bc05c）
+}
+
+unsigned int CRewardUserList::get_index_size() const
+{
+    return (unsigned int)m_index.size();   // ORIG 0x081bc064
+}
+
+std::map<unsigned int, RewardUserData>& CRewardUserList::get_map()
+{
+    return m_map;
+}
+
+std::deque<unsigned int>& CRewardUserList::get_index()
+{
+    return m_index;
 }

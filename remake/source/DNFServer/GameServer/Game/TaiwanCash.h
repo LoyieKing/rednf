@@ -32,6 +32,8 @@
 #include "GameTypes.h"  // Mutex（+0x42094 成员；processBilling 的 Guard<Mutex>）/ DynamicPool
 #include "ThreadInterface.h"  // CIPGWorker 基类（ORIG CIPGWorkerC1 仅调 ThreadInterface 基类构造）
 
+
+class CUser;  // WongWork::IPG::CIPGHelper 声明所需（完整类型见 CUser.h）
 namespace Taiwan
 {
 
@@ -169,12 +171,70 @@ private:
 
 namespace WongWork { namespace IPG {
 
-// ---- WongWork::IPG::IIPGHelperInterface —— 接口基类（ORIG W ctor 0x082a7182；
-//      vtable _ZTV 0x48 共 12 槽，其余虚函数属 CIPGHelper 批次，此处最小视图）。----
+
+// ---- WongWork::IPG::IPG_DATA_TYPE —— _SetIPGData / IPGRequest 类型键 ----
+// 数值实证：IPGInput→0、IPGInputCancel→1、IPGOutput(Simulation)→2、
+// IPGOutputCancel→3、IPGQuery→4、IPGOutputConfirm→5、Input/OutputPoint→6。
+// 枚举器名【推断】；数值以各调用点汇编为准（ORIG 宽度=int）。
+enum IPG_DATA_TYPE
+{
+    IPG_TYPE_INPUT          = 0,
+    IPG_TYPE_INPUT_CANCEL   = 1,
+    IPG_TYPE_OUTPUT         = 2,
+    IPG_TYPE_OUTPUT_CANCEL  = 3,
+    IPG_TYPE_QUERY          = 4,
+    IPG_TYPE_OUTPUT_CONFIRM = 5,
+    IPG_TYPE_POINT          = 6
+};
+
+// ---- stIPGStatus_t —— getIPGStatus 出参 ----
+// ORIG：ctor W 0x080ee3de 清零 +0/+4/+8；CIPGMgr::getIPGStatus W 0x081010ae
+// 依次写 pool Remain→+0、pool Size→+4、reqQueue size→+8。
+// 字段名【推断】，偏移/写序实证；sizeof 仅建模可证实的 0xc。
+struct stIPGStatus_t
+{
+    unsigned int m_field00;  // +0x00（pool Remain）
+    unsigned int m_field04;  // +0x04（pool Size）
+    unsigned int m_field08;  // +0x08（reqQueue size）
+
+    stIPGStatus_t();         // ORIG W 0x080ee3de（C1=C2 同址）
+};
+
+// ---- WongWork::IPG::IIPGHelperInterface —— IPG 回调纯虚接口 ----
+// ORIG 实证：_ZTV 0x48 = [otop,typeinfo] + 16 槽全 __cxa_pure_virtual（无 dtor 槽）；
+// CIPGHelper vtable(0x08b420a0) 反查逐槽符号得到下方槽序（vptr 相对）。
+// dispatch 的 +0x34 调用即 vptr+0x34 → slot11 IPGResult(req,res)。
+struct SIPGData;   // 前置：IIPGHelperInterface 槽参仅用指针（完整定义见下）
+class CIPGMgr;     // 前置：slot15 GetIPGMgr 返回类型（完整定义见下）
 class IIPGHelperInterface
 {
 public:
-    virtual ~IIPGHelperInterface() {}
+    virtual void IPGInput(CUser*, const char*, const char*, const char*,          // slot0 T 0x080ffb0a
+                          const char*, const char*, void*) = 0;
+    virtual void IPGInput(CUser*, unsigned char, unsigned int, const char*,       // slot1 T 0x080ffca4
+                          const char*, const char*, const char*, const char*, void*) = 0;
+    virtual void IPGInputCancel(CUser*, const char*, const char*, const char*,    // slot2 T 0x080ffea8
+                                const char*, const char*, const char*, void*) = 0;
+    virtual void IPGInputPoint(CUser*, unsigned int, char, char, void*) = 0;      // slot3 T 0x080fffc0
+    virtual void IPGOutputPoint(CUser*, const char*, const char*, const char*,    // slot4 T 0x081000f6
+                                const char*, const char*, void*) = 0;
+    virtual void IPGOutput(CUser*, const char*, const char*, const char*,         // slot5 T 0x0810022e
+                           const char*, const char*, void*) = 0;
+    virtual SIPGData* IPGOutputSimulation(CUser*, const char*, const char*,       // slot6 T 0x0810034e
+                                          const char*, const char*, const char*, void*) = 0;
+    virtual void IPGOutputCancel(CUser*, const char*, const char*, const char*,   // slot7 T 0x081004de
+                                 const char*, const char*, const char*, void*,
+                                 Taiwan::BillTransaction*) = 0;
+    virtual void IPGOutputConfirm(CUser*, const char*, const char*, const char*,  // slot8 T 0x08100cd2
+                                  const char*, const char*, const char*, void*,
+                                  Taiwan::BillTransaction*) = 0;
+    virtual void IPGOutputCancel(SIPGData*, SIPGData*) = 0;                       // slot9  T 0x08100616
+    virtual void IPGOutputConfirm(SIPGData*, SIPGData*) = 0;                      // slot10 T 0x08100e0a
+    virtual void IPGResult(SIPGData*, SIPGData*) = 0;                             // slot11(+0x34) T 0x0810085e
+    virtual void IPGQuery(CUser*) = 0;                                            // slot12 T 0x08100790
+    virtual void IPGRequest(SIPGData*) = 0;                                       // slot13 T 0x081007e8
+    virtual void getIPGStatus(stIPGStatus_t&) = 0;                                // slot14 T 0x080ffae0
+    virtual CIPGMgr* GetIPGMgr() = 0;                                             // slot15 W 0x081010a2
 };
 
 // ---- WongWork::IPG::SIPGData —— IPG 请求数据（0x2dc）----
@@ -183,6 +243,55 @@ public:
 struct SIPGData
 {
     char m_pad[0x2dc];
+};
+
+
+class CIPGMgr;   // 前置：CIPGHelper 成员/返回类型引用（完整定义见下）
+// ---- WongWork::IPG::CIPGHelper —— IPG 计费门面（ORIG W C1 0x082a7190 / D1 0x082a71b6，
+//      定义属其它批次，此处仅声明成员与布局，不给假生命周期）----
+class CIPGHelper : public IIPGHelperInterface
+{
+public:
+    // 生命周期声明（未还原定义；勿在本批给空体冒充 ORIG 符号）。
+    CIPGHelper();    // ORIG W 0x082a7190
+    ~CIPGHelper();   // ORIG W 0x082a71b6（D1=D2 同址）
+
+    int Initialize(unsigned int param1, unsigned int param2);          // ORIG T 0x08100b3e
+    void Finalize();                                                   // ORIG T 0x08100c92
+    void getIPGStatus(stIPGStatus_t& status);                          // ORIG T 0x080ffae0
+    CIPGMgr* GetIPGMgr();                                              // ORIG W 0x081010a2
+    SIPGData* _SetIPGData(CUser* user, IPG_DATA_TYPE type, bool flag); // ORIG T 0x08100a2e
+    void IPGRequest(SIPGData* data);                                   // ORIG T 0x081007e8
+    void IPGQuery(CUser* user);                                        // ORIG T 0x08100790
+    void IPGInput(CUser*, const char*, const char*, const char*,       // ORIG T 0x080ffb0a
+                  const char*, const char*, void*);
+    void IPGInput(CUser*, unsigned char serviceType, unsigned int price,// ORIG T 0x080ffca4
+                  const char*, const char*, const char*, const char*, const char*, void*);
+    void IPGInputCancel(CUser*, const char*, const char*, const char*, // ORIG T 0x080ffea8
+                        const char*, const char*, const char*, void*);
+    void IPGInputPoint(CUser*, unsigned int point, char a, char b, void*); // ORIG T 0x080fffc0
+    void IPGOutput(CUser*, const char*, const char*, const char*,      // ORIG T 0x0810022e
+                   const char*, const char*, void*);
+    void IPGOutputPoint(CUser*, const char*, const char*, const char*, // ORIG T 0x081000f6
+                        const char*, const char*, void*);
+    SIPGData* IPGOutputSimulation(CUser*, const char*, const char*,    // ORIG T 0x0810034e
+                                  const char*, const char*, const char*, void*);
+    void IPGOutputCancel(CUser*, const char*, const char*, const char*,// ORIG T 0x081004de
+                         const char*, const char*, const char*, void*,
+                         Taiwan::BillTransaction*);
+    void IPGOutputCancel(SIPGData* req, SIPGData* res);                // ORIG T 0x08100616
+    void IPGOutputConfirm(CUser*, const char*, const char*, const char*,// ORIG T 0x08100cd2
+                          const char*, const char*, const char*, void*,
+                          Taiwan::BillTransaction*);
+    void IPGOutputConfirm(SIPGData* req, SIPGData* res);               // ORIG T 0x08100e0a
+    void IPGResult(SIPGData* req, SIPGData* res);                      // ORIG T 0x0810085e
+
+private:
+    // 布局实证（Initialize/IPGRequest/_SetIPGData 访问序）；字段名【推断】。
+    CIPGMgr* m_mgr;                // +0x04
+    unsigned int m_dataTableA[7];  // +0x08..+0x23（Initialize 写常量表）
+    char m_str24[0x14];            // +0x24（Initialize 自 environment+0x2b8 复制）
+    unsigned int m_dataTableB[7];  // +0x38..+0x53（Initialize 写常量表，含 +0x50=0）
 };
 
 // ---- WongWork::IPG::CIPGMgr —— ORIG 权威布局（0xf0 字节）----
@@ -196,13 +305,24 @@ class CIPGMgr
 public:
     // ---- CIPGWorker（0x10；Initialize 数组步长实证）----
     // ORIG CIPGWorkerC1 0x081053e2 仅调 ThreadInterface 基类构造；
-    // SetIPGMgr 0x081053d4 写 *(this+0xc)。线程体 dispatch（ORIG T 0x08105276）
-    // 属 WongWork__IPG__CIPGMgr__CIPGWorker 后续批次，当前回落 ThreadInterface
-    // 空默认体（ThreadInterface.h 既定模式，非本批次范围）。
+    // SetIPGMgr 0x081053d4 写 *(this+0xc)。
     class CIPGWorker : public ThreadInterface
     {
     public:
-        void SetIPGMgr(CIPGMgr* mgr) { m_mgr = mgr; }
+        void SetIPGMgr(CIPGMgr* mgr) { m_mgr = mgr; }   // ORIG W 0x081053d4
+        virtual void dispatch(void* arg);               // ORIG T 0x08105276（线程体）
+        SIPGData* ProcIPGSync(SIPGData* data);          // ORIG T 0x08105258
+        SIPGData* ProcIPGSyncForChina(SIPGData* data);  // ORIG T 0x081048b4
+        SIPGData* ProcIPGSyncForTaiwan(SIPGData* data); // ORIG T 0x081048c6
+
+        // CIPGNetwork：ORIG 仅见 ConnectTo（T 0x081043e0，socket+connect）。
+        class CIPGNetwork
+        {
+        public:
+            int ConnectTo(const char* ip, unsigned short port);
+            int m_sock;   // +0x00（ConnectTo 写入 socket fd）
+        };
+
         CIPGMgr* m_mgr;   // +0x0c
     };
 
@@ -211,6 +331,12 @@ public:
     int Initialize(unsigned int workerCount, unsigned int param2);  // ORIG T 0x08104494
     Taiwan::TaiwanCash* getBillingCash();   // ORIG W 0x0817a2ee：return *(this+0xec)
     IIPGHelperInterface* GetIPGHelper() { return m_helper; }        // ORIG W 0x081053c6
+    void Finalize();                               // ORIG T 0x08104600
+    SIPGData* AllocIPGData();                      // ORIG T 0x0810466c
+    void FreeIPGData(SIPGData* data);              // ORIG T 0x081046f0
+    SIPGData* PutIPGRequest(SIPGData* data, bool queued);  // ORIG T 0x08104754
+    SIPGData* _GetIPGRequest();                    // ORIG T 0x081047ea
+    void getIPGStatus(stIPGStatus_t& status);      // ORIG W 0x081010ae
 
 private:
     CIPGWorker* m_workers;              // +0x000

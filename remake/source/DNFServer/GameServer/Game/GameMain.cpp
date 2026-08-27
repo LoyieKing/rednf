@@ -552,7 +552,8 @@ bool Init(int argc, char** argv)
     for (int idx = GlobalData::s_statistic_proxy_mgr->GetStartIndex(); ; )
     {
         G_CDataManager()->InitLoginState(
-            G_CEnvironment()->get_gc_no_hardcode(E_SERVER_GROUP_NONE),
+            static_cast<ENUM_SERVER_GROUP>(
+                G_CEnvironment()->get_gc_no_hardcode(E_SERVER_GROUP_NONE)),
             G_CEnvironment()->get_channel_no());
         if (idx >= GlobalData::s_statistic_proxy_mgr->GetEndIndex())  // GetNextIndex(&idx) 推断形态
             break;

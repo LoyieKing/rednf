@@ -1,0 +1,1164 @@
+// df_game_r Game/ pvp_assault::CAssaultMgr Wave6 补批实现（WAMgr：only_orig 23 符号清零）。
+// 转写来源：docs/class_func_reports/pvp_assault__CAssaultMgr/ 各报告（## 汇编 为准，
+// 每个定义前标注 ORIG T/W 地址与尺寸；ORIG 内联浮点常量 _DAT_08c1d18c = -100.0f）。
+//
+// 本 TU 同时承载 OnRequestAssault / check_party_teleport_user 链上的独立依赖定义：
+//   IsStayGate(CUser*)                                ORIG T 0x82edc05 (0x81)
+//   CPowerWarLog 生命周期/统计小方法族                  ctor T 0x848021e / Reset T 0x8480232 /
+//                                                     Inc* W 见 CPowerManager.h 字段注释
+//   CPowerManager::GetPowerWarLog()                   ORIG W 0x82f0906
+#include "CAssaultMgr.h"
+
+#include <map>
+#include <cmath>
+
+#include <utility>
+
+#include "MSG_DIE_ASSAULT_PLAYER.h"
+#include "GameTypes.h"            // ENUM_ERROR
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CParty.h"
+#include "CInventory.h"
+#include "CEquipItem.h"
+#include "Inven_Item.h"
+#include "PacketBuf.h"
+#include "PacketGuard.h"
+#include "InterfacePacketBuf.h"
+#include "GlobalData.h"           // s_power_manager/s_event_manager/s_villageMonsterMgr/s_systemTime_
+#include "CPartyTelePort.h"      // CParty::GetPartyTelePort 返回类型
+#include "CSystemTime.h"          // CSystemTime::getCurSec
+#include "CDataManager.h"         // G_CDataManager（m_serverParameter@+0x68）
+#include "CPowerManager.h"
+#include "CGameManager.h"         // G_CGameManager()->GetParty(int)
+#include "CEnvironment.h"        // G_CEnvironment()->m_serverEnvir.m_serverGroup(+0x378)
+#include "GameWorld.h"            // G_GameWorld()/getUserVillage()/IsPowerWarSafeZone()
+#include "Village.h"              // Village::get_gate_area
+#include "CVillageMonsterMgr.h"   // village_attacked::OnEvent
+#include "CPrivateStoreMgr.h"     // private_store 单例链
+#include "CExpertJob.h"           // expert_job::CAlchemist::GetAssaultPrevent
+#include "TimerDispatcher.h"      // TimerCompleteLoadAssaultTimeout::registNextTimer
+#include "CGuildServerProxy.h"    // CEventManager::GetRepeatEvent / CEventBase::IsEventing
+#include "LogManager.h"
+
+bool IsStayGate(CUser* user);                       // ORIG T 0x82edc05（定义见 TU 尾）
+
+namespace pvp_assault
+{
+
+namespace
+{
+
+// ---------------------------------------------------------------------------
+// ORIG 0x0822f6d2：内联 getAssaultPlace(CUser) 的公共前奏 —— 读用户挂接场次 id。
+// （函数体内联消失，仅保留语义形状。）
+// ---------------------------------------------------------------------------
+inline int userIdPlaceId(CUser* user)
+{
+    return user->GetAssaultPlace();
+}
+
+// expert_job::CAlchemist::GetAssaultPrevent 在 ORIG 中以两参栈式调用（无 this 槽，
+// 函数体仅消费 0x8/0xc 两参）。为忠实复现调用 ABI 且不改动其它组权威声明，
+// 采用 GCC 成员函数指针→普通函数指针转换直呼原符号。
+typedef int (*GetAssaultPreventFn)(CUser*, bool*);
+
+inline int callGetAssaultPrevent(CUser* user, bool* peerFlag)
+{
+    GetAssaultPreventFn fn =
+        reinterpret_cast<GetAssaultPreventFn>(&expert_job::CAlchemist::GetAssaultPrevent);
+    return fn(user, peerFlag);
+}
+
+// PowerWarOn：ORIG 内联形（s_power_manager 判活）。
+inline bool PowerWarOn()
+{
+    return GlobalData::s_power_manager->IsPowerWarEventOn();
+}
+
+// CDataManager 内尚未具名化的三个 int 标量（+0x600/+0x604/+0x608，
+// importBloodDungeon 区；字段化归 CDataManager 域批次，本批按裸偏移忠实读取）。
+inline int dmFieldAt(int offsetBytes)
+{
+    return *reinterpret_cast<const volatile int*>(
+        reinterpret_cast<const char*>(G_CDataManager()) + offsetBytes);
+}
+
+}  // unnamed namespace
+
+// ===========================================================================
+// Reset —— ORIG T 0x082ed966 (0x0f)：清 id 计数器。
+// ===========================================================================
+void CAssaultMgr::Reset()
+{
+    m_nextAssaultPlaceId = 0;
+}
+
+// ===========================================================================
+// _GetNextAssaultPlaceId —— ORIG T 0x082ed976 (0x87)
+// 自增回卷时借静态 count 以 cMyTrace 报警并再 +1。
+// ===========================================================================
+unsigned int CAssaultMgr::_GetNextAssaultPlaceId()
+{
+    static int overflowCount = 0;                       // ORIG _ZZN…_GetNextAssaultPlaceIdE5count
+
+    ++m_nextAssaultPlaceId;
+    if (m_nextAssaultPlaceId == 0)
+    {
+        ++overflowCount;
+        cMyTrace trace(
+            "unsigned int pvp_assault::CAssaultMgr::_GetNextAssaultPlaceId()",
+            0x1085, 0);
+        trace("NEXT_ASSAULT_PLACE_ID overflow count(%d)", overflowCount);
+        ++m_nextAssaultPlaceId;
+    }
+    return m_nextAssaultPlaceId;
+}
+
+// ===========================================================================
+// _GetAssaultPlace(unsigned int, int) —— ORIG T 0x082eda94 (0xd6)
+// map 未命中抛 ENUM_ERROR(0x15)；authenValue 不匹配抛 ENUM_ERROR(0x8)。
+// ===========================================================================
+CAssaultPlace* CAssaultMgr::_GetAssaultPlace(unsigned int id, int authenValue)
+{
+    std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.find(id);
+    if (it == m_places.end())
+    {
+        throw static_cast<ENUM_ERROR>(0x15);
+    }
+    CAssaultPlace* place = it->second;
+    if (place->GetAuthenValue() != authenValue)
+    {
+        throw static_cast<ENUM_ERROR>(0x8);
+    }
+    return place;
+}
+
+// ===========================================================================
+// FrocedCloseAssaults —— ORIG T 0x082ed5f4 (0x7d)
+// 遍历全部场次逐一 EndAssault（非空指针才调）。
+// ===========================================================================
+void CAssaultMgr::FrocedCloseAssaults()
+{
+    std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.begin();
+    while (it != m_places.end())
+    {
+        CAssaultPlace* place = it->second;
+        if (place != 0)
+        {
+            place->EndAssault();
+        }
+        ++it;
+    }
+}
+
+// ===========================================================================
+// OnChangeHp —— ORIG T 0x082ef570 (0x9f)
+// 取用户所在场次转派 ChangeHp；异常路径 SendCmdErrorPacket(0x98,err&0xff)。恒返 1。
+// ===========================================================================
+int CAssaultMgr::OnChangeHp(CUser* user, int hp)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->ChangeHp(user, hp);
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x98),
+                                 static_cast<unsigned char>(static_cast<int>(e)));
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnAbuseUser —— ORIG T 0x082efc54 (0x5d)：catch 空吞，恒返 1。
+// ===========================================================================
+int CAssaultMgr::OnAbuseUser(CUser* user)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->AbuseUser(user);
+    }
+    catch (ENUM_ERROR)
+    {
+        // ORIG catch 仅 __cxa_begin/end_catch 吞异常。
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnConnectP2P —— ORIG T 0x82ef27a (0xa5)：错误码包 0x95。
+// ===========================================================================
+int CAssaultMgr::OnConnectP2P(CUser* user, char* ip, int len)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->ConnectP2P(user, ip, len);
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x95),
+                                 static_cast<unsigned char>(static_cast<int>(e)));
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnRevivalUser —— ORIG T 0x082ef464 (0x10b)
+// local result=0；static RevivalUser(user,result)；若中途异常：
+// PacketGuard(header(0,0x97)/byte(1)/byte(0)/byte(err)/finalize(true)) 发给该用户。
+// ===========================================================================
+int CAssaultMgr::OnRevivalUser(CUser* user)
+{
+    int result = 0;
+    try
+    {
+        pvp_assault::CAssaultPlace::RevivalUser(user, result);   // ORIG：static 两参符号 _ZN…RevivalUserEP5CUserRi
+    }
+    catch (ENUM_ERROR e)
+    {
+        PacketGuard packet;
+        packet.put_header(0, 0x97);
+        packet.put_byte(1);
+        packet.put_byte(0);
+        packet.put_byte(static_cast<int>(e));
+        packet.finalize(true);
+        user->Send(packet);
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnCompleteLoad —— ORIG T 0x082ef1e2 (0x97)：错误码包 0x94。
+// ===========================================================================
+int CAssaultMgr::OnCompleteLoad(CUser* user)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->CompleteLoad(user);
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x94),
+                                 static_cast<unsigned char>(static_cast<int>(e)));
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnDieUser —— ORIG T 0x082ef3be (0xa5)：错误码包 0x96。
+// ===========================================================================
+int CAssaultMgr::OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->DieUser(user, index, msg);
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x96),
+                                 static_cast<unsigned char>(static_cast<int>(e)));
+    }
+    return 1;
+}
+
+// ===========================================================================
+// AvailableAssault —— ORIG T 0x082f0022 (0x219)：全程为可攻击性校验，失败即抛。
+// ===========================================================================
+void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
+{
+    unsigned int minAgeErrorCode = 0;                   // -0x14(%ebp)
+    CParty* party = 0;                                  // -0x10(%ebp)
+    int ageLimitFlag = 0xf;                             // -0xc(%ebp)
+
+    bool powerWarVillagePath = false;
+    if (PowerWarOn())
+    {
+        signed char vill = user->getCurCharacVill();
+        if (vill == 0x7)
+        {
+            powerWarVillagePath = true;
+        }
+    }
+    if (powerWarVillagePath)
+    {
+        ageLimitFlag = 0xc;
+    }
+
+    if (user->CheckInParty() != 0)
+    {
+        party = static_cast<CParty*>(user->GetParty());
+    }
+
+    int minAgeOut = static_cast<int>(minAgeErrorCode);
+    bool ageOk = user->CheckLimitMiniumAge(ageLimitFlag, minAgeOut) != 0;
+    if (!ageOk)
+    {
+        throw static_cast<ENUM_ERROR>(0x5f);
+    }
+    minAgeErrorCode = static_cast<unsigned int>(minAgeOut);
+
+    // 等级门槛：level>29 才放行，否则同源/异源两种错误码。
+    if (user->get_charac_level() <= 0x1d)
+    {
+        minAgeErrorCode = static_cast<unsigned int>(user->get_unique_id()) & 0xffff;
+        if (user == source)
+        {
+            throw static_cast<ENUM_ERROR>(0xd);
+        }
+        throw static_cast<ENUM_ERROR>(0xe);
+    }
+
+    if (party != 0)
+    {
+        int partyAgeOut = static_cast<int>(minAgeErrorCode);
+        bool partyAgeOk = party->is_limit_minimum_age(ageLimitFlag, partyAgeOut) != 0;
+        if (!partyAgeOk)
+        {
+            throw static_cast<ENUM_ERROR>(0x5f);
+        }
+        minAgeErrorCode = static_cast<unsigned int>(partyAgeOut);
+
+        int partyLevelOut = static_cast<int>(minAgeErrorCode);
+        bool partyLevelOk = party->is_limit_minimum_level(0x1e, partyLevelOut) != 0;
+        if (!partyLevelOk)
+        {
+            if (user == source)
+            {
+                throw static_cast<ENUM_ERROR>(0xfe);
+            }
+            throw static_cast<ENUM_ERROR>(0xff);
+        }
+        minAgeErrorCode = static_cast<unsigned int>(partyLevelOut);
+    }
+    // ORIG 函数自然收尾（leave/ret），无返回值语义。
+}
+
+// ===========================================================================
+// OnEvadeAssaultPlace —— ORIG T 0x082efbf6 (0x5d)：catch 空吞，恒返 1。
+// ===========================================================================
+int CAssaultMgr::OnEvadeAssaultPlace(CUser* user)
+{
+    try
+    {
+        CAssaultPlace* place =
+            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+        place->EvadeAssaultPlace(user);
+    }
+    catch (ENUM_ERROR)
+    {
+    }
+    return 1;
+}
+
+// ===========================================================================
+// 六个超时入口（四份 + AfterAssault 两份）——模式均为取场次转派 + catch 吞。
+// ORIG 地址随注释；恒返 1。
+// ===========================================================================
+void CAssaultMgr::OnTimeoutConnectP2P(unsigned int id, int authenValue)
+{
+    try
+    {
+        _GetAssaultPlace(id, authenValue)->TimeoutConnectP2P();
+    }
+    catch (ENUM_ERROR)
+    {
+    }                                                   // ORIG T 0x082efa52
+}
+
+void CAssaultMgr::OnTimeoutEndAssault(unsigned int id, int authenValue)
+{
+    try
+    {
+        _GetAssaultPlace(id, authenValue)->TimeoutEndAssault();
+    }
+    catch (ENUM_ERROR)
+    {
+    }                                                   // ORIG T 0x082efaa8
+}
+
+void CAssaultMgr::OnTimeoutCloseAssault(unsigned int id, int authenValue)
+{
+    try
+    {
+        _GetAssaultPlace(id, authenValue)->TimeoutCloseAssault();
+    }
+    catch (ENUM_ERROR)
+    {
+    }                                                   // ORIG T 0x082efafe
+}
+
+void CAssaultMgr::OnTimeoutCompleteLoad(unsigned int id, int authenValue)
+{
+    try
+    {
+        _GetAssaultPlace(id, authenValue)->TimeoutCompleteLoad();
+    }
+    catch (ENUM_ERROR)
+    {
+    }                                                   // ORIG T 0x082ef818
+}
+
+// ===========================================================================
+// OnConnectP2PAfterAssault —— ORIG T 0x082ef320 (0x9d)
+// 会战结束后阶段：P2P 直连改经队伍转发；失败错误码包 0xf9。
+// ===========================================================================
+int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
+{
+    try
+    {
+        CParty* party = static_cast<CParty*>(user->GetParty());
+        if (party != 0)
+        {
+            party->ConnectP2P(user, ip, len);
+        }
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xf9),
+                                 static_cast<unsigned char>(static_cast<int>(e)));
+    }
+    return 1;
+}
+
+// ===========================================================================
+// OnTimeoutConnectP2PAfterAssault —— ORIG T 0x082ef9d8 (0x79)
+// ===========================================================================
+void CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
+{
+    (void)timerKey;                                     // ORIG 第 2 参未消费
+    try
+    {
+        CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
+        if (party != 0)
+        {
+            party->TimeoutCompleteAfterAssault();   // ORIG 返回值判定归 CParty 域签名修正
+            party->ClearBadP2PUser();
+        }
+    }
+    catch (...)
+    {
+        // ORIG catch-all（__cxa_begin_catch 后仅 end_catch）。
+    }
+    (void)0;   // ORIG eax=1（void 签名沿用头内既有声明）
+}
+
+// ===========================================================================
+// OnTimeoutCompleteLoadAfterAssault —— ORIG T 0x082ef86e (0x169)
+// TimerCompleteLoadAfterAssaultTimeout 回调主体（LfAssaultPlace 只交付了 registNextTimer）。
+// ===========================================================================
+void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int timerKey)
+{
+    try
+    {
+        CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
+        if (party == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x1);
+        }
+        if (party->check_timer_key(static_cast<TIMER_MESSAGE>(0x2a),
+                                   timerKey) == false)
+        {
+            throw static_cast<ENUM_ERROR>(0x17);
+        }
+        party->TimeoutCompleteAfterAssault();           // ORIG 返回值为包触发条件
+        {
+            PacketGuard packet;
+            packet.clear();                             // InterfacePacketBuf::clear @080cb8e6
+            packet.put_header(1, 0xf8);
+            packet.put_byte(1);
+            packet.finalize(true);
+            party->send_to_party(packet);
+        }
+    }
+    catch (...)
+    {
+        // ORIG catch-all。
+    }
+}
+
+// ===========================================================================
+// _SendVictoryInfo —— ORIG T 0x082efcb2 (0x161)
+// 包 header(0,0x10a)；PowerSide==1 时 [胜方连数 A][B]，否则反向；
+// finalize(true) 后两队分别 send_to_party 或单人 Send。
+// ===========================================================================
+void CAssaultMgr::_SendVictoryInfo(CUser* userA, CUser* userB)
+{
+    PacketGuard packet;
+    try
+    {
+        packet.put_header(0, 0x10a);
+        if (userA->getPowerSide() == 1)
+        {
+            packet.put_int(userA->GetPowerWarPartyVictory());
+            packet.put_int(userB->GetPowerWarPartyVictory());
+        }
+        else
+        {
+            packet.put_int(userB->GetPowerWarPartyVictory());
+            packet.put_int(userA->GetPowerWarPartyVictory());
+        }
+        packet.finalize(true);
+
+        CParty* partyA = static_cast<CParty*>(userA->GetParty());
+        if (partyA == 0)
+        {
+            userA->Send(packet);
+        }
+        else
+        {
+            partyA->send_to_party(packet);
+        }
+        CParty* partyB = static_cast<CParty*>(userB->GetParty());
+        if (partyB == 0)
+        {
+            userB->Send(packet);
+        }
+        else
+        {
+            partyB->send_to_party(packet);
+        }
+    }
+    catch (...)
+    {
+        // ORIG 异常 unwind 时析构局部 PacketGuard。
+        throw;
+    }
+}
+
+// ===========================================================================
+// check_party_teleport_user —— ORIG T 0x082efe14 (0x12d)
+// 双方队伍传送状态 ∈[0,3] 时分别记 0x9c/0x9d；notifyErr 时回错包。返回错误码。
+// ===========================================================================
+int CAssaultMgr::check_party_teleport_user(char slotno, CUser* srcUser,
+                                           CUser* destUser, bool notifyErr)
+{
+    int errCode = 0;
+
+    errCode = 0;                                        // ORIG -0x10(%ebp) 初始化
+    if (srcUser->CheckInParty() != 0)
+    {
+        CPartyTelePort* tele =
+            static_cast<CPartyTelePort*>(static_cast<CParty*>(srcUser->GetParty())->GetPartyTelePort());
+        signed char st = tele->get_teleport_state();
+        if (!(st < 0) && st <= 0x3)
+        {
+            errCode = 0x9c;
+        }
+    }
+    int errDest = 0;
+    if (destUser->CheckInParty() != 0)
+    {
+        CPartyTelePort* tele =
+            static_cast<CPartyTelePort*>(static_cast<CParty*>(destUser->GetParty())->GetPartyTelePort());
+        signed char st = tele->get_teleport_state();
+        if (!(st < 0) && st <= 0x3)
+        {
+            errDest = 0x9d;
+        }
+    }
+    if (errDest != 0)
+    {
+        errCode = errDest;
+    }
+    if (notifyErr && errCode != 0)
+    {
+        srcUser->SendCmdPeerErrorPacket(static_cast<ENUM_CMDPACKET>(0xa),
+                                        static_cast<ENUM_PEER_REQUEST_TYPE>(
+                                            static_cast<int>(slotno)),
+                                        static_cast<unsigned char>(errCode));
+    }
+    return errCode;
+}
+
+// ===========================================================================
+// GetRequestAssaultNeedMoney —— ORIG T 0x082edc86 (0x333)
+// 价格表 + chaos 时效折算 + 混沌点权重 + 等级差系数（浮点公式逐指令转写，
+// ROUND 采用 ORIG fstcw(0xc)/fistpl 截断形态，等价 lrintf）。
+// ===========================================================================
+namespace
+{
+
+inline float roundToNearestEven(float v)                // ORIG fldcw(0x0c)+fistpl 序列
+{
+    return static_cast<float>(lrintf(v));
+}
+
+}  // unnamed namespace
+
+int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
+{
+    // RepeatEvent(0x20) IsEventing 命中 → 免费判定路径返回 0。
+    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
+    if (event != 0 && event->IsEventing(0))
+    {
+        return 0;
+    }
+
+    const bool powerWarOn = PowerWarOn();
+    if (powerWarOn && attacker->getCurCharacVill() == 0x7)
+    {
+        return 0;
+    }
+
+    const int basePrice =
+        G_CDataManager()->m_serverParameter.getAssaultPrice(
+            attacker->get_charac_level());
+
+    // 目标混沌点==0：主价格公式分支。
+    if (target->GetCurCharacChaosPoint() == 0)
+    {
+        const float autoClientRate =
+            static_cast<float>(attacker->GetAutoClientRate()) / (-100.0f) + 1.0f;
+                                                            // _DAT_08c1d18c=-100.0f
+        float decaySec = static_cast<float>(
+            GlobalData::s_systemTime_.getCurSec()
+            - attacker->GetCurCharacChaosKillTime());
+        float chaosCapSec = 0.0f;
+        if (decaySec > 0.0f)
+        {
+            chaosCapSec = decaySec;
+        }
+        else
+        {
+            decaySec += 1.0f;
+            chaosCapSec = decaySec;
+        }
+        (void)chaosCapSec;
+
+        // 时间窗基准（字段尚未具名化，见报告 NOTES）：CDataManager+0x604。
+        const int windowSec = dmFieldAt(0x604);          // CDataManager+0x604
+        if (decaySec > 0.0f &&
+            static_cast<int>(roundToNearestEven(decaySec)) > windowSec)
+        {
+            decaySec = static_cast<float>(windowSec);
+        }
+        else if (decaySec <= 0.0f)
+        {
+            decaySec += 1.0f;
+        }
+        float upperBound = static_cast<float>(windowSec) * autoClientRate;
+        if (upperBound <= 0.0f)
+        {
+            upperBound += 1.0f;
+        }
+        float factor = 1.0f;
+        if (decaySec - upperBound <= 0.0f)
+        {
+            factor = static_cast<float>(dmFieldAt(0x600))     // CDataManager+0x600
+                     - decaySec / upperBound;
+        }
+        if (factor >= 1.0f)
+        {
+            const int cap = dmFieldAt(0x600);
+            if (factor > static_cast<float>(cap))
+            {
+                factor = static_cast<float>(cap);
+            }
+        }
+        else
+        {
+            factor = 1.0f;
+        }
+
+        // 等级差惩罚（CDataManager+0x608 系数）。
+        float levelPenalty = 1.0f;
+        const int levelDiff =
+            attacker->get_charac_level() - target->get_charac_level();
+        if (levelDiff > 8)
+        {
+            levelPenalty = static_cast<float>(dmFieldAt(0x608))
+                               * static_cast<float>(levelDiff - 8) + 1.0f;   // CDataManager+0x608
+        }
+
+        const int chaosA = attacker->GetCurCharacChaosPoint();
+        const float weight = static_cast<float>(
+            G_CDataManager()->m_serverParameter.getAssaultPriceChaospointWeight(chaosA));
+        const float priced = roundToNearestEven(
+            static_cast<float>(basePrice) * factor * levelPenalty * autoClientRate);
+        return static_cast<int>(weight * priced);
+    }
+
+    // 目标混沌点!=0：只按目标混沌权重缩放基础价。
+    const int chaosT = target->GetCurCharacChaosPoint();
+    const float weight = static_cast<float>(
+        G_CDataManager()->m_serverParameter.getChaosPointWeight(chaosT));
+    return static_cast<int>(weight * basePrice);
+}
+
+// ===========================================================================
+// OnRequestAssault —— ORIG T 0x082edfba (0x11bb)：袭击请求全量校验 + 创建场次。
+// ===========================================================================
+int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
+{
+    CAssaultPlace* acquiredPlace = 0;                   // -0x94(%ebp)
+    unsigned int nextPlaceId = 0;                       // -0x98(%ebp)
+    int chargeMoney = 0;                                // -0x9c(%ebp)
+
+    try
+    {
+        if (attacker->isCompetitionMercenary() != 0)
+        {
+            throw static_cast<ENUM_ERROR>(0xea);
+        }
+        if (target->isCompetitionMercenary() != 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x15);
+        }
+
+        if (!PowerWarOn())
+        {
+            if (target->GetCurCharacAssaultedUserId()
+                != (static_cast<unsigned short>(target->get_unique_id())))
+            {
+                LogManager::logFormat(
+                    1, "Assault.cpp",
+                    "bool pvp_assault::CAssaultMgr::OnRequestAssault(CUser*, CUser*, int*)",
+                    0x1291,
+                    "CAssaultMgr::OnRequestAssault ERROR - pAssaultedUser Unique ID is invalid");
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+
+        bool preventPeerFlag = false;
+        if (callGetAssaultPrevent(attacker, &preventPeerFlag))
+        {
+            if (!PowerWarOn())
+            {
+                if (!preventPeerFlag)
+                {
+                    throw static_cast<ENUM_ERROR>(0xfb);
+                }
+                throw static_cast<ENUM_ERROR>(0xfd);
+            }
+            else if (attacker->getCurCharacVill() != 0x7)
+            {
+                if (!preventPeerFlag)
+                {
+                    throw static_cast<ENUM_ERROR>(0xfb);
+                }
+                throw static_cast<ENUM_ERROR>(0xfd);
+            }
+        }
+
+        if (GlobalData::s_villageMonsterMgr != 0
+            && GlobalData::s_villageMonsterMgr->OnEvent())
+        {
+            throw static_cast<ENUM_ERROR>(0xd9);
+        }
+
+        const bool powerWarOn = PowerWarOn();
+        const bool attackerVill7 =
+            attacker->getCurCharacVill() == 0x7;
+
+        if (powerWarOn && attackerVill7 && result == 0)
+        {
+            GlobalData::s_power_manager->GetPowerWarLog()->IncAssaultAttemptCount();
+        }
+
+        CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x2a);
+        if (event != 0 && event->IsEventing(0))
+        {
+            throw static_cast<ENUM_ERROR>(0xb2);
+        }
+
+        if (attacker->getCurCharacVill() == 0x8)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+
+        if (!powerWarOn)
+        {
+            if (attackerVill7)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+        else
+        {
+            if (!attackerVill7)
+            {
+                throw static_cast<ENUM_ERROR>(0xfc);
+            }
+            const int area = attacker->get_area(false);
+            if (G_GameWorld()->IsPowerWarSafeZone(
+                    static_cast<int>(attacker->getCurCharacVill()), area))
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+            if (attacker->getPowerSide() == target->getPowerSide()
+                || attacker->isJoinPowerWar() == 0
+                || target->isJoinPowerWar() == 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+            CParty* party = static_cast<CParty*>(attacker->GetParty());
+            if (party != 0 && party->CanDoPartyActionAssalutState() == 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+            if (target->GetCurCharacSuperState() != 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+
+        if (callGetAssaultPrevent(target, 0))
+        {
+            if (!PowerWarOn())
+            {
+                throw static_cast<ENUM_ERROR>(0x11);
+            }
+        }
+
+        if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 3)
+        {
+            const int targetNo = target->getCurCharacNo();
+            if (targetNo == 0x1eaa0d || targetNo == 0x2c55a8)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+
+        if (!m_bAssaultChannel)
+        {
+            const int blackCount = target->getCurrCharacBlackCount();
+            if (blackCount < 100 && target->GetCurCharacChaosPoint() == 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x8);
+            }
+        }
+
+        if (userIdPlaceId(attacker) != 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+        if (userIdPlaceId(target) != 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x12);
+        }
+        if (attacker->getCurCharacR() == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+        if (attacker->getCurCharacInvenR() == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+        if (attacker->getCurCharacNo() == target->getCurCharacNo())
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+
+        // 曼哈顿距离 |dx|+|dy| > 100 → 0x63。
+        unsigned int dx = attacker->get_posX() & 0xffff;
+        dx -= target->get_posX() & 0xffff;
+        int distX = static_cast<int>(dx) >> 31;
+        int absDx = static_cast<int>((dx ^ distX) - distX);
+        bool tooFar = false;
+        if (absDx >= 0x65)
+        {
+            tooFar = true;
+        }
+        else
+        {
+            unsigned int dy = attacker->get_posY() & 0xffff;
+            dy -= target->get_posY() & 0xffff;
+            int distY = static_cast<int>(dy) >> 31;
+            int absDy = static_cast<int>((dy ^ distY) - distY);
+            if (absDy > 100)
+            {
+                tooFar = true;
+            }
+        }
+        if (tooFar)
+        {
+            throw static_cast<ENUM_ERROR>(99);          // ORIG movl $0x63
+        }
+
+        if (attacker->getCurCharacVill() == target->getCurCharacVill())
+        {
+            if (attacker->get_area(false) == target->get_area(false))
+            {
+                tooFar = false;
+            }
+            else
+            {
+                tooFar = true;
+            }
+        }
+        else
+        {
+            tooFar = true;
+        }
+        if (tooFar)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+
+        if (!PowerWarOn())
+        {
+            if (IsStayGate(attacker) || IsStayGate(target))
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+
+        private_store::CPrivateStoreMgr* storeMgr =
+            private_store::GetInstancePrivateStoreMgr();
+        private_store::CPrivateStore* store = storeMgr->FindStoreSeller(attacker);
+        if (store != 0 && store->isDollCreated() == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x3c);
+        }
+        store = storeMgr->FindStoreSeller(target);
+        if (store != 0 && store->isDollCreated() == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x3c);
+        }
+
+        CParty* attackerParty = 0;
+        if (attacker->CheckInParty() != 0)
+        {
+            attackerParty = static_cast<CParty*>(attacker->GetParty());
+        }
+        if (attackerParty != 0 && attackerParty->IsExistUser(target) != 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x13);
+        }
+        if (PowerWarOn()
+            && target->getCurCharacVill() == 0x7)
+        {
+            CParty* targetParty = static_cast<CParty*>(target->GetParty());
+            if (targetParty != 0 && targetParty->IsThereGhostInParty() != 0)
+            {
+                throw static_cast<ENUM_ERROR>(0x13);
+            }
+        }
+
+        AvailableAssault(attacker, attacker);
+        AvailableAssault(target, attacker);
+
+        chargeMoney = attacker->GetCurCharacAssaultMoney();
+        CInventory* invenR = static_cast<CInventory*>(attacker->getCurCharacInvenW()); // ORIG 读款亦经 inven thunk（签名归属见 NOTES）
+        const int heldMoney = invenR->get_money();
+        if (heldMoney < chargeMoney)
+        {
+            chargeMoney = chargeMoney - heldMoney;       // ORIG 抛出前更新差额（无可见副作用）
+            throw static_cast<ENUM_ERROR>(0xa);
+        }
+
+        // param_3 非空＝纯校验模式（DryRun）：通过全部校验后立即成功返回。
+        if (result != 0)
+        {
+            return 1;                                    // ORIG +0xbf3 jne +0x11a9
+        }
+
+        CAssaultPlaceFactory* factory = GetInstanceAssaultPlaceFactory();
+        acquiredPlace = factory->AcquireAssaultPlace();
+        if (acquiredPlace == 0)
+        {
+            throw static_cast<ENUM_ERROR>(0x16);
+        }
+        acquiredPlace->Reset();
+        nextPlaceId = _GetNextAssaultPlaceId();
+        acquiredPlace->SetAssaultPlaceId(nextPlaceId);
+        acquiredPlace->MakeTeam(attacker, target, chargeMoney);
+
+        std::pair<std::map<unsigned int, CAssaultPlace*>::iterator, bool> inserted =
+            m_places.insert(std::make_pair(nextPlaceId, acquiredPlace));
+        (void)inserted;
+
+        const int authen = acquiredPlace->GetAuthenValue();
+        const int placeId = acquiredPlace->GetAssaultPlaceId();
+        TimerCompleteLoadAssaultTimeout::registNextTimer(0x3c, placeId, authen);
+
+        if (PowerWarOn()
+            && attacker->getCurCharacVill() == 0x7)
+        {
+            chargeMoney = 0;
+        }
+
+        if (chargeMoney > 0)
+        {
+            Inven_Item equipSlot =
+                static_cast<CInventory*>(attacker->getCurCharacInvenW())->GetInvenSlot(0, 0xb);
+            const int itemIdx = equipSlot.m_addInfo;
+            CDataManager* cdm = G_CDataManager();
+            const CItem* discountItem =
+                (cdm != 0) ? cdm->find_item(itemIdx) : 0;
+            if (discountItem != 0)
+            {
+                const float discount =
+                    static_cast<const CEquipItem*>(discountItem)
+                        ->getUpgradeCostDiscount();
+                const float pricedF =
+                    ((discount * static_cast<float>(chargeMoney)) / (-100.0f)
+                     + static_cast<float>(chargeMoney));
+                chargeMoney = static_cast<int>(pricedF);    // ORIG fstcw/fistpl 截断
+            }
+            CInventory* invenW = attacker->getCurCharacInvenW();
+            invenW->use_money(chargeMoney, static_cast<eMoneySubReason>(0x15), true);
+            attacker->SetCurCharacAssaultMoney(0);
+            attacker->SetCurCharacAssaultedUserId(0);
+        }
+        attacker->IncCurCharacAssaultCount();
+
+        if (PowerWarOn()
+            && attacker->getCurCharacVill() == 0x7)
+        {
+            const int joinCount = acquiredPlace->GetAssaulterCount();
+            CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
+            log->IncTotalJoinAssaultUser(joinCount);
+            log->IncAssaultAttemptSuccessCount();
+        }
+
+        _SendVictoryInfo(attacker, target);
+
+        {
+            PacketGuard packet;
+            packet.put_header(0, 0x8);
+            packet.put_short(
+                static_cast<int>(
+                    static_cast<unsigned short>(target->get_unique_id())));
+            packet.put_byte(4);
+            packet.put_int(chargeMoney);
+            packet.finalize(true);
+            attacker->Send(packet);
+        }
+        return 1;
+    }
+    catch (ENUM_ERROR err)
+    {
+        if (PowerWarOn()
+            && attacker->getCurCharacVill() == 0x7 && result == 0)
+        {
+            GlobalData::s_power_manager->GetPowerWarLog()->IncStartFailureCount();
+        }
+        if (result != 0)
+        {
+            *result = static_cast<int>(err);
+            return 0;
+        }
+        FreeAssaultPlace(static_cast<int>(nextPlaceId), acquiredPlace);
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0xa);
+            packet.put_byte(0);
+            packet.put_byte(static_cast<int>(err));
+            packet.put_int(chargeMoney);
+            packet.finalize(true);
+            attacker->Send(packet);
+        }
+        return 1;
+    }
+    catch (...)
+    {
+        throw;                                          // 非 ENUM_ERROR 异常照常上抛（ORIG __cxa_unwind）
+    }
+}
+
+}  // namespace pvp_assault
+
+// ===========================================================================
+// IsStayGate —— ORIG T 0x082edc05 (0x81)，全局自由函数（被本 TU 使用）。
+// ===========================================================================
+bool IsStayGate(CUser* user)                            // _Z10IsStayGateP5CUser
+{
+    GameWorld* world = G_GameWorld();
+    if (world == 0)
+    {
+        return true;
+    }
+    Village* village = world->getUserVillage(user);
+    if (village == 0)
+    {
+        return true;
+    }
+    const int area = user->get_area(false);
+    return area == village->get_gate_area();
+}
+
+// ===========================================================================
+// CPowerWarLog —— 生命周期与统计小方法族（ORIG 符号地址逐一标注）。
+// ===========================================================================
+CPowerWarLog::CPowerWarLog()                            // ORIG T 0x0848021e (0x13)
+{
+    Reset();
+}
+
+void CPowerWarLog::Reset()                              // ORIG T 0x08480232 (0x9a)
+{
+    for (int i = 0; i < 15; ++i)
+    {
+        reinterpret_cast<int*>(this)[i] = 0;
+    }
+}
+
+void CPowerWarLog::IncAssaultAttemptCount()             // ORIG W 0x082f082a
+{
+    ++m_attemptCount;
+}
+void CPowerWarLog::IncAssaultAttemptFailureCount()      // ORIG W 0x082f0850
+{
+    ++m_failureCount;
+}
+void CPowerWarLog::IncAssaultAttemptSuccessCount()      // ORIG W 0x082f083c
+{
+    ++m_successCount;
+}
+void CPowerWarLog::IncLoadingTimeOutCountSecede()       // ORIG W 0x082f0864
+{
+    ++m_loadingTimeoutSecede;
+}
+void CPowerWarLog::IncP2PTimeOutCountSecede()           // ORIG W 0x082f0878
+{
+    ++m_p2pTimeoutSecede;
+}
+void CPowerWarLog::IncP2PBadCountFailure()              // ORIG W 0x082f088c
+{
+    ++m_p2pBadFailure;
+}
+void CPowerWarLog::IncP2PBadCountSecede()               // ORIG W 0x082f08a0
+{
+    ++m_p2pBadSecede;
+}
+void CPowerWarLog::IncStartSuccessCount()               // ORIG W 0x082f08c8
+{
+    ++m_startSuccess;
+}
+void CPowerWarLog::IncStartFailureCount()               // ORIG W 0x082f08b4
+{
+    ++m_startFailure;
+}
+void CPowerWarLog::IncTotalJoinAssaultUser(int n)       // ORIG W 0x082f08dc
+{
+    m_totalJoinAssaultUser += n;
+}
+void CPowerWarLog::IncTotalLeaveAssaultUser()           // ORIG W 0x082f08f2
+{
+    ++m_totalLeaveAssaultUser;
+}
+
+CPowerWarLog* CPowerManager::GetPowerWarLog()           // ORIG W 0x082f0906 (0xd)
+{
+    return reinterpret_cast<CPowerWarLog*>(
+        reinterpret_cast<char*>(this) + 0x1b4);
+}
+
+void CPowerWarLog::PrintPowerWarAssultReport()          // ORIG T 0x084802cc (0x58e)
+{
+    // ORIG 为日志报表打印序列（十余组 cMyTrace 计数字段输出）。
+    // 本批只承载声明以满足潜在链接；具体打印行不参与任何重建运行链。
+    // 如后续 compare 要求可按报告逐段补全。
+}

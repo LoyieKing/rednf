@@ -58,6 +58,7 @@
 
 #include "Inven_Item.h"
 #include "PvPTypes.h"   // CMTRand（0x9c8 字节随机源）
+#include "CItemAmplifier.h"   // upgrade_table_t（CItemUpgradeTable 基类完整类型）
 
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
 class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
@@ -374,6 +375,22 @@ enum ENUM_ITEM_DROP_DUNGEON_TYPE
 
 namespace WongWork
 {
+// ---- CItemUpgradeTable（WongWork::CItemUpgrade 的表区子对象；upgrade_table_t
+//      非虚包装，sizeof == sizeof(upgrade_table_t) = 0x4e4。ORIG CItemUpgrade
+//      双基布局实证：IItemUpgrade@+0x00（多态主基）、表区@+0x04..0x4e7。） ----
+class CItemUpgradeTable : public upgrade_table_t
+{
+public:
+    CItemUpgradeTable();              // W 0x0854b496（尾调 upgrade_table_t::C1）
+    ~CItemUpgradeTable();             // D1/D2 W 0x0854b4aa（尾调 upgrade_table_tD1）
+
+    // ORIG W 0x0854b382：仅返回 this（表视图自引用；消费方按 upgrade_table_t* 使用）。
+    const upgrade_table_t* getUpgradeInfoTable() const;
+
+    // ORIG W 0x0854b38a：importUpgradeTable(path, this)，透传错误行号（0=成功）。
+    int loadUpgradeScript(const char* path);
+};
+
 // ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----
 enum eItemDropType_t
 {
@@ -397,7 +414,7 @@ public:
     // type*0x7110+rarity*0x12d8+level*24 槽位 map：empty→-1；roll=randInt(maxKey)；
     // lower_bound(roll)==end 回退 --it；返回 it->second。
     int chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int level);
-    bool _itemTypeVerify(int type, const CItem* item) const;                  // T 0x08534906
+    bool _itemTypeVerify(int type, const CItem* item);                        // T 0x08534906
     void set_disable_drop_random_option_item();  // W 0x08539e4e
 
 private:
@@ -415,7 +432,7 @@ public:
     void init();                                 // T 0x08534c1a
     void destroy();
     void generateTable(stGenItemRange_t* range);          // T 0x08534cd0
-    bool _itemTypeVerify(int type, const CItem* item) const;
+    bool _itemTypeVerify(int type, const CItem* item);
     // ORIG T 0x08534fce _ZN8WongWork35CSecialIMonsterDropItemGenRateTable10choose
     // ItemENS_15eItemDropType_tE11ENUM_RARITYi23ENUM_DUNGEON_DIFFICULTY27ENUM_ITEM_
     // DROP_DUNGEON_TYPE（WongWorkDrop_B._generateRandomItem 消费）。

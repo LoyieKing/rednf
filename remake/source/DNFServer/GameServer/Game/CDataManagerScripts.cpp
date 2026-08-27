@@ -1621,6 +1621,45 @@ PowerParameterScript::~PowerParameterScript()
     // ORIG D1：逆序析构 7 个容器成员（+0xc8/+0xbc/+0xac/+0x9c/+0x70/+0x38/+0x20）
 }
 
+// ---- PowerParameterScript 查询（ORIG T 0x08a59c6e / 0x08a59d58）----
+// GetPenalty：遍历 m_vecBC（+0xbc），取首个 m_field4 >= victory 的条目按值返回；
+// 无匹配时返回最后一条（ORIG memmove(&vec[size-1], 0x10)）；空表未定义。
+stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
+{
+    stVictoryPenalty result;
+    for (std::vector<stVictoryPenalty>::iterator it = m_vecBC.begin();
+         it != m_vecBC.end(); ++it)
+    {
+        const stVictoryPenalty& entry = *it;
+        if (entry.m_field4 >= victory)
+        {
+            result.m_field0 = entry.m_field0;
+            result.m_field4 = entry.m_field4;
+            result.m_field8 = entry.m_field8;
+            result.m_fieldC = entry.m_fieldC;
+            return result;
+        }
+    }
+    if (!m_vecBC.empty())
+    {
+        const stVictoryPenalty& last = m_vecBC[m_vecBC.size() - 1];
+        result.m_field0 = last.m_field0;
+        result.m_field4 = last.m_field4;
+        result.m_field8 = last.m_field8;
+        result.m_fieldC = last.m_fieldC;
+    }
+    return result;
+}
+
+// GetBreakBonus：m_vecC8（+0xc8 连破奖励表）；winCount 越界取末元素。
+int PowerParameterScript::GetBreakBonus(int winCount)
+{
+    const int count = static_cast<int>(m_vecC8.size());
+    if (winCount >= count)
+        winCount = count - 1;
+    return m_vecC8[static_cast<unsigned int>(winCount)];
+}
+
 // ---- SecretShopScript（成员默认构造）----
 SecretShopScript::SecretShopScript() {}
 SecretShopScript::~SecretShopScript() {}
@@ -1655,12 +1694,8 @@ ImageCommunicationData::ImageCommunicationData()
 }
 
 // ---- ARAD::SCRIPT::AradJumping_Script----
-ARAD::SCRIPT::AradJumping_Script::AradJumping_Script()
-{
-    // LinkClosureB.AradServers：m_pad 已字段化为 vector<_AradJumpingRewardItem>，
-    // 默认构造即与 ORIG 空容器一致。
-}
-ARAD::SCRIPT::AradJumping_Script::~AradJumping_Script() {}
+// W7_BuildHarmonize 去重：生命周期唯一 owner 为 Arad_Script.cpp
+// （同文件含 getRDARScriptData/importScript 等同类方法）。
 
 // ---- EventEtcScript（ORIG C1 0x8372e66 / clear 0x8372ece / D1 0x837dda0）----
 EventEtcScript::EventEtcScript() : m_vec0(), m_mapC()
@@ -1923,4 +1958,34 @@ double GuildParameterScript::getExpWeight(int guildLevel)
             return m_vecE4[i].second;
     }
     return m_vecE4[0].second;
+}
+
+// ---- GuildParameterScript::getGuildLevelUpParam（ORIG T 0x08979648）----
+// level∈[1,16] 返回 m_levelUpCost+(level-1)*8 的地址（按 int 口径），否则 0。
+int GuildParameterScript::getGuildLevelUpParam(int level)
+{
+    if (level <= 0 || 0x10 < level)
+        return 0;
+    return reinterpret_cast<int>(
+        reinterpret_cast<const char*>(&m_levelUpCost[0]) + (level - 1) * 8);
+}
+
+// ---- GuildParameterScript::getLevelupPrice（ORIG T 0x089797a4）----
+// 自高向低扫 m_vecF0，首个 first>=memberCnt（members 阈值）的
+// second[level]；全不命中取 [0].second[level]；结果 ×10000。
+int GuildParameterScript::getLevelupPrice(int level, int memberCnt)
+{
+    const std::vector<std::pair<int, std::vector<int> > >& tbl = m_vecF0;
+    int priceVecIdx = -1;
+    for (unsigned int i = tbl.size(); i-- > 0;)
+    {
+        if (memberCnt <= tbl[i].first)
+        {
+            priceVecIdx = static_cast<int>(i);
+            break;
+        }
+    }
+    if (priceVecIdx >= 0)
+        return tbl[priceVecIdx].second[level] * 10000;
+    return tbl[0].second[level] * 10000;
 }

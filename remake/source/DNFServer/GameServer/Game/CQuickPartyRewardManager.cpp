@@ -18,6 +18,13 @@
 namespace QuickParty
 {
 
+// ---- LevelData / LevelDataHell ctor（ORIG W 0x08a6ef72 / 0x08a6ef8a：
+// 两 int 全置 -1、dtor 空）。此处强定义供 EventRewardQuickPartyB2 等
+// TU 以外部引用解析（W 与 T 链接可共存，语义一致）。----
+LevelData::LevelData() : m_field0(-1), m_value4(-1) {}
+
+LevelDataHell::LevelDataHell() : m_field0(-1), m_value4(-1) {}
+
 // ============================ QuickPartyData ============================
 
 // ORIG 0x826dad4：两 vector<int> C1、BasicReward C1、map C1、三容器 clear、
@@ -30,7 +37,7 @@ QuickPartyData::QuickPartyData()
 
     for (int i = 0; i < 2; ++i)
         for (int j = 0; j < 2; ++j)
-            m_field1a0[i][j] = -1;
+            m_minCounts[i][j] = -1;
 }
 
 // ORIG 0x826dd52：逆序析构 map → BasicReward → 两 vector<int>（成员自动）。
@@ -144,6 +151,48 @@ void ReturnAncientDungeonTicket::process(RewardData_Param param,
 {
     param.m_party->increase_ancient_dungeon_ticket();
 }
+// ---- QuestItemDropRate（T 0x0826d398）----
+// map[m_type] 命中且 (成员数-2) 为有效档位时，result.m_flag18 按
+// flag * (1 + levels[idx].m_value4 / 100.0f) 就近偶舍入放大。
+void QuestItemDropRate::process(RewardData_Param param,
+                                RewardData_Result& result)
+{
+    std::map<RandomBuffType, LevelDataRandomReward>::const_iterator it =
+        m_data.m_randomRewards.find(m_type);
+    if (it == m_data.m_randomRewards.end())
+        return;
+
+    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    int idx = param.m_party->get_member_count() - 2;
+    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
+    {
+        float rate =
+            1.0f + static_cast<float>(levels[idx].m_value4) / 100.0f;
+        result.m_flag18 = static_cast<int>(
+            lrintf(static_cast<float>(result.m_flag18) * rate));
+    }
+}
+
+// ---- DimensionInoutCount（T 0x0826d5ac）----
+// 命中档位后把 levels[idx].m_value4 写入 result.m_value00，
+// 并将该值计入 party 的次元进出计数。
+void DimensionInoutCount::process(RewardData_Param param,
+                                  RewardData_Result& result)
+{
+    std::map<RandomBuffType, LevelDataRandomReward>::const_iterator it =
+        m_data.m_randomRewards.find(m_type);
+    if (it == m_data.m_randomRewards.end())
+        return;
+
+    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    int idx = param.m_party->get_member_count() - 2;
+    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
+    {
+        result.m_value00 = levels[idx].m_value4;
+        param.m_party->increase_dimension_inout_count(result.m_value00);
+    }
+}
+
 
 // ---- 具体类 ctor（W，type 仅 RandomwReward 族存储于 +0x08）----
 
@@ -226,6 +275,19 @@ void CQuickPartyRewardManager::set_rand_buff_total_prob()
         m_probs[11][col] = total;
     }
 }
+// ORIG T 0x0826d8a2（报告 getRequireQuickPartyMinCount.md）：
+// type∈[0,1]、diff∈[0,3] 越界返回 -1；命中查 m_minCounts[type][diff]
+// （寻址 +0x1a0 + type*0x10 + diff*4）。
+int CQuickPartyRewardManager::getRequireQuickPartyMinCount(int type,
+                                                           int dungeonDiff)
+{
+    if (type < 0 || type > 1)
+        return -1;
+    if (dungeonDiff < 0 || dungeonDiff > 3)
+        return -1;
+    return m_minCounts[type][dungeonDiff];
+}
+
 
 // ORIG T 0x0826d860（报告 get_random_buff_prob.md）：type∈[0,11] 且
 // dungeon∈[0,6] 时返回 m_probs[type][dungeon]，否则返回 0。

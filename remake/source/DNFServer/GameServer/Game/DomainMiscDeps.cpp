@@ -56,15 +56,10 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                                          const char* path);
 
 // ===========================================================================
-// OS_API::Sleep —— ORIG 0x0858c4e0：usleep(ms*1000)。（uSleep 0x0858c4fa 本批无调用方）
+// OS_API::Sleep —— ORIG 0x0858c4e0：usleep(ms*1000)。
+// W7_BuildHarmonize：唯一 owner 为 LinkFinalDeps.cpp（同 ORIG 符号），此处
+// 原本并发批次撞车重复定义已移除，仅保留注释说明。
 // ===========================================================================
-namespace OS_API
-{
-void Sleep(int ms)
-{
-    usleep(ms * 1000);
-}
-}  // namespace OS_API
 
 // ===========================================================================
 // DNFFLib::Make_Dir —— 唯一定义在 ServerCommon/DNFFunctionLib.cpp

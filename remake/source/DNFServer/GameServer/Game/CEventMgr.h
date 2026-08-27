@@ -30,6 +30,19 @@ public:
 
     // ORIG 0x0848f078 _ZN8WongWork9CEventMgr22GetPremiumServiceBonusEv
     static int GetPremiumServiceBonus();
+    // ORIG 0x0848f140 _ZN8WongWork9CEventMgr22IsChildrensDayEventingEv
+    static bool IsChildrensDayEventing();   // W6_CeraShopDeps 消费
+    // ORIG 0x0848eff8 _ZN8WongWork9CEventMgr13GetCoinPerDayEv
+    static int GetCoinPerDay();             // ORIG 恒返 1
+    // ORIG 0x0848f06e _ZN8WongWork9CEventMgr20GetMoneyCharacCreateEv
+    static int GetMoneyCharacCreate();      // ORIG 恒返 0
+    // ORIG 0x0848f0dc _ZN8WongWork9CEventMgr16IsPCRoomEventingEv
+    static bool IsPCRoomEventing();         // ORIG 2006-01-24 00 ~ 2006-02-07 06
+
+    // ORIG T 0x0848f002：新角色初始送币（GetRepeatEvent(5)->IsEventing 命中时
+    // 取 CCoinEventOnCharCreate::GetCoinNoOnCreateCharac，默认 5）。
+    // 调用方 arad_sp_create_inven；定义在 ARAD_Database.cpp（W6_ARAD 批次）。
+    static int GetCoinCharacCreate();
 };
 
 } // namespace WongWork

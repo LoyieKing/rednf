@@ -51,7 +51,7 @@ public:
     // vtable 槽3（ORIG 基类实现直接返回 0）
     virtual int inter_dispatch(CUser* user, char* body, int len);
 
-    int dispathc_code() const { return m_code; }  // 0x0818e898
+    int dispathc_code();                          // 0x0818e898 T（ORIG 非 const 强符号）
 
     void register_dispatcher(Arad_Dispatcher* d); // 0x0818e860
     void unregister_dispatcher(int code);         // 0x0818e87c
@@ -125,7 +125,63 @@ namespace DATABASE { namespace ITEM_QUERY {
 int arad_sp_buy_item_check(ARAD_DATAS::BuyItemInfo& info);
 
 }}  // namespace DATABASE::ITEM_QUERY
+}  // namespace ARAD
+
+#include <string>
+
+namespace ARAD
+{
+
+// ---------------------------------------------------------------------------
+// ARAD 邮件数据族（localjapan/Arad_Function_Set.cpp 域）。
+// ORIG 证据（objdump ctor 0x081a3fc2 / 0x081a3ff2、GetItemAttr 0x08197e12）：
+//   AradMailItemInfo（sizeof 0x18【推断：0x15 字段区对齐到 4】）
+//     +0x00 uchar            （send_mail → sig+0x2a）
+//     +0x04 uint             （→ sig+0x2f）
+//     +0x0a ushort           （→ sig+0x34）
+//     +0x0c uint             （→ sig+0x2b）
+//     +0x10 uint             （→ sig+0x36）
+//     +0x14 uchar attr       （GetItemAttr 返回值，→ sig+0x33）
+//   AradMailInfo（ctor 清零 +0x00..+0x1d 后于 +0x20 构造 ItemInfo；send_mail 参数）
+struct AradMailItemInfo
+{
+    unsigned char flag;          // +0x00
+    char m_pad01_03[3];
+    unsigned int field04;        // +0x04
+    char m_pad08_09[2];
+    unsigned short field0a;      // +0x0a
+    unsigned int field0c;        // +0x0c
+    unsigned int field10;        // +0x10
+    unsigned char itemAttr;      // +0x14
+    char m_pad15_17[3];
+
+    unsigned char GetItemAttr() const { return itemAttr; }  // 0x08197e12 W const
+};
+
+struct AradMailInfo
+{
+    unsigned char mailType;      // +0x00（send_mail → sig+0x15f 低字节）
+    unsigned int field04;        // +0x04 （→ sig+0x26）
+    unsigned int field08;        // +0x08 （→ sig+0x15b）
+    unsigned int field0c;        // +0x0c （→ sig+0x22）
+    unsigned int field10;        // +0x10 （→ sig+0x1e）
+    short field14;               // +0x14 （→ sig+0x59）
+    char m_pad16_17[2];
+    char* titleText;             // +0x18（非空时 strncpy 到 sig+0x5b）
+    char* senderName;            // +0x1c（strncpy(sig,..,0x1d)）
+    AradMailItemInfo item;       // +0x20
+
+    AradMailInfo();
+private:
+    AradMailInfo(const AradMailInfo&);            // -wcopy（ORIG 未用拷贝语义建模）
+    AradMailInfo& operator=(const AradMailInfo&);
+};
+
+// ORIG T 0x08196b03：Acquire stream → CStreamGuard → 写 SIG_MAILBOX_SEND_NEW_MAIL
+// （msgcode 0x80/uid -1），MsgQueueMgr::put(QUEUE_MAIL=2) 投递邮件队列。
+int send_mail(AradMailInfo& info);
 
 }  // namespace ARAD
+
 
 #endif  // DNF_GAME_ARAD_DISPATCHER_H_

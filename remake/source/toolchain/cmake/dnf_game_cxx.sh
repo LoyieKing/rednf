@@ -8,6 +8,11 @@ C6="${ROOT}/c6root/usr/bin/g++"
 TOOLDIR="$(cd "$(dirname "$0")" && pwd)"
 C6446R="$TOOLDIR/dnf_c6446r_gxx.sh"
 C6444R="$TOOLDIR/dnf_c6444r_gxx.sh"
+# W7_BuildHarmonize：项目共享头使用 C++0x static_assert；下方被指令级对齐
+# 强制 -std=gnu++98 的 TU 需 -include 注入 C++03 兼容展开（static_assert_compat.h），
+# 否则 make 全量失败（单 TU 检查链统一 gnu++0x 故不复现该差异）。
+SA_COMPAT="-include"
+SA_HDR="$TOOLDIR/static_assert_compat.h"
 
 export LD_LIBRARY_PATH="${ROOT}/c6root/usr/lib64:${ROOT}/c6root/usr/lib"
 
@@ -64,26 +69,27 @@ case "$(basename "$src" .cpp)" in
                 exec "$C6446R" "$@" ;;
             *Game/DNFLexWrapper.cpp)
                 # ORIG wrapper getters are -O2 (pop-ebp-before-load, tail-call tok_str).
-                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/DNFLexWrapperStream.cpp)
-                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/DNFLexWrapperLoadStream.cpp)
-                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/CompiledDNFLexCore.cpp)
-                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/Arad_Script.cpp)
                 # ORIG Arad_Script is -O0 (reload this from 0x8(%ebp) each
                 # field access). -O2 made every getter DIFF.
-                exec "$C6446R" "$@" -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -std=gnu++98 ;;
             *Game/ScriptExtras.cpp)
                 exec "$C6446R" "$@" ;;
             *Game/RDARScriptStringManager.cpp)
                 exec "$C6446R" "$@" ;;
             *Game/ScriptStringManager.cpp)
                 # ORIG ctor inlines empty vector/map (vptr+zeros+header).
-                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/DNFLexCore.cpp)
-                exec "$C6446R" "$@" ;;
+                # SRC_OPTS 强制 -O2 -std=gnu++98（见 game/CMakeLists.txt），同样注入兼容头
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" ;;
             *ServerLab/ServerLib/*)
                 # nsl 基础库：ORIG 为 Red Hat GCC 4.4.6-3（cc1plus446bin）编译
                 # （E/D/C 组独立验证：4.4.6 下虚调用/寄存器分配与 point ORIG 逐操作数一致）

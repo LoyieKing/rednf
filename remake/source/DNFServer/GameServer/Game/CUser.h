@@ -73,8 +73,25 @@ struct STGuildProxy;   // 仅指针引用（LoadCoolTimeItemInfo）；完整定�
 #include "STExpReward.h"    // STExpReward 完整类型（叶子头；CDataManager 经重入环不可靠）
 #include "CDungeonGainedGold.h"  // CDungeonGainedGold 完整类型（值成员 m_dungeonGainedGold@+0x8cf64；叶子头）
 #include "Arad_DataManager.h"  // ARAD::ScriptInterface（CerashopAddRestrict::Manager 基类；叶子头无环）
+#include "CodeHackChecksum.h"  // CodeHackCheckStorage 权威布局（唯一 owner；ORIG 仅 queue，0x28）
 #include "HistoryLogEnums.h"  // cUserHistoryLog 域全局枚举（TaiwanLog 批次；叶子头）
-#include "LevelupSupportEventManger.h"  // LevelupSupportEventManger::EventInfo 完整类型
+#include "LevelupSupportEventManger.h"
+// ---- Wave6-CUser：ORIG 全局枚举（mangled E28ENUM_... 前缀无 scope 实证）----
+#ifndef DNF_ENUM_BREAK_AWAY_REWARD_ORDER_DEFINED
+#define DNF_ENUM_BREAK_AWAY_REWARD_ORDER_DEFINED
+// setBreakAwayRewardOrder(ORIG W 0x0831d4de) 仅透传 int 写 this+0x703b8；
+// 成员名不可由二进制观察，以下按仓库具名约定取单值占位【枚举成员集推断】。
+enum ENUM_BREAK_AWAY_REWARD_ORDER { ENUM_BREAK_AWAY_REWARD_ORDER_0 = 0 };
+#endif
+
+#ifndef DNF_ENUM_CHARAC_LINK_BONUS_STATE_DEFINED
+#define DNF_ENUM_CHARAC_LINK_BONUS_STATE_DEFINED
+// UpdateCharacLinkBonus(ORIG T 0x0865240c) 将 bonusState cast uint 写流；
+// 单值占位【枚举成员集推断】。
+enum ENUM_CHARAC_LINK_BONUS_STATE { ENUM_CHARAC_LINK_BONUS_STATE_0 = 0 };
+#endif
+
+  // LevelupSupportEventManger::EventInfo 完整类型
                                         // （4 字节；替代旧 namespace 占位 m_pad[0x10]）
 #include "QuestClear.h"   // WongWork::CQuestClear 完整类型（UserQuest::m_cleared；叶子头）
 #include "CCharacter.h"   // _Additioal_info 完整类型（CUserPremium::GetAdditionalInfo 返回值；
@@ -175,10 +192,13 @@ enum INVEN_TYPE
 };
 #endif
 
+#ifndef DNF_ENUM_BADGE_TYPE_DEFINED
+#define DNF_ENUM_BADGE_TYPE_DEFINED
 enum ENUM_BADGE_TYPE
 {
     ENUM_BADGE_TYPE_0 = 0
 };
+#endif
 
 #ifndef DNF_ENUM_EITEMADDREASON_DEFINED
 #define DNF_ENUM_EITEMADDREASON_DEFINED
@@ -517,6 +537,8 @@ static_assert(sizeof(CHARAC_LOAD_MERCENARY) == 0x54,
 // 序列化到 SIG_LOAD_ETC (i+0x263)*0x10。元素尺寸 ≥ 0x1d。
 struct LimitItemUsage
 {
+    LimitItemUsage();   // ORIG W C1/C2 0x08695ef0
+    ~LimitItemUsage();  // ORIG W D1/D2/D0 0x086a6480
     char             m_pad0[0xc];  // +0x00
     int              m_fieldc;     // +0x0c
     unsigned char    m_field10;    // +0x10
@@ -524,6 +546,10 @@ struct LimitItemUsage
     int              m_field15;    // +0x15
     int              m_field19;    // +0x19
     char             m_pad1d[0x20 - 0x1d];
+    // ---- Wave6-CUser 补声明（ORIG T/W 符号实证；定义 owner=对应域批次）----
+    bool isUsable();   // ORIG W 0x08695f68 _ZN14LimitItemUsage8isUsableEv
+    bool useIt();      // ORIG W 0x08695f28 _ZN14LimitItemUsage5useItEv
+    bool isAnotherDay(); // ORIG W 0x08688fba _ZN14LimitItemUsage12isAnotherDayEv
 };
 
 struct stLookOuts
@@ -548,6 +574,9 @@ public:
     unsigned int FindIndexByCharacNo(unsigned int characNo) const;  // ORIG T 0x081b42ae
     bool CheckCharacIndex(unsigned char index) const;               // ORIG T 0x081b4262
     bool IsCompetition(unsigned int characNo) const;
+    void CompetitionCharac(CUser* user, unsigned int slot, char modeA, char modeB);  // ORIG T 0x081b4536
+    bool IsWaitingStateCharac(unsigned int characNo);                                // ORIG T 0x081b45ce（非 const）
+    void UpdateCharacName(unsigned int characNo, std::string const& name);           // ORIG T 0x081b462e
     bool IsReturnCharac(unsigned int characNo) const;
 
     std::vector<CHARAC_LOAD_MERCENARY> m_characs;  // +0x00（ORIG C1/D1 = vector C1/D1）
@@ -699,13 +728,62 @@ public:
     int m_seedFromDate;     // +0xc0c（0x711e8）
 };
 
+// ORIG _header —— 网络包头（13 字节，0x8647a54 memcpy 实证）：
+struct _header
+{
+    unsigned char m_class;     // +0x00（ENUM_PACKETCLASS）
+    unsigned short m_id;       // +0x01
+    unsigned short m_size;     // +0x03（13..0x578）
+    unsigned short m_field05;  // +0x05
+    unsigned int m_checksum;   // +0x07
+    unsigned short m_seq;      // +0x0b（client sequence）
+};
+
+// ORIG W 0x8696d5c/0x8696d74/0x8696dd8；sizeof 0x8。
+class CPacketTimeChecker
+{
+public:
+    CPacketTimeChecker() {}
+    ~CPacketTimeChecker() {}
+
+    void reset();              // ORIG W（count/last 清零）
+    bool check();              // ORIG W（节流：窗口内超 count 返回 false）
+
+    static int validCount_E;   // D 0x093ace48 = 100
+    static int validSecond_E;  // D 0x093ace4c = 1
+
+private:
+    int m_count;               // +0x00
+    long m_lastTime;           // +0x04
+};
+
+// ORIG ctor/dtor 0x8696fe0/0x8697002、Init 0x8696de4、UpdatePacket 0x8696e58、
+// GetSequence 0x8696e48；sizeof 0x28（+0x20 为 CPacketTimeChecker）。
 class CPacketVerifier
 {
 public:
-    CPacketVerifier() {}
+    CPacketVerifier();
     ~CPacketVerifier() {}
 
-    char m_pad[0x28];  // +0x00
+    void Init();               // ORIG W：全部字段清零 + checker.reset()
+    int UpdatePacket(const _header& hdr);  // ORIG W：重复包检测，返回错误码
+    unsigned short GetSequence();          // ORIG W：读 +0x14
+
+    static int m_nVaridCount;        // D 0x093ace38 = 5
+    static int m_nVaridSecond;       // D 0x093ace3c = 1
+    static int m_nAuctionVaridCount; // D 0x093ace40 = 6
+    static int m_nAuctionVaridSecond;// D 0x093ace44 = 1
+
+private:
+    int m_lastClass;           // +0x00
+    int m_lastId;              // +0x04
+    int m_lastChecksum;        // +0x08
+    int m_sameCount;           // +0x0c
+    long m_sameTime;           // +0x10
+    unsigned short m_sequence; // +0x14
+    int m_auctionCount;        // +0x18
+    long m_auctionTime;        // +0x1c
+    CPacketTimeChecker m_checker; // +0x20
 };
 
 namespace WongWork
@@ -748,6 +826,7 @@ public:
                                             //   type∈[0,0x69]→g_SPremiumInfo[type].m_field44，否则 0（定义 CUserPremium.cpp）
     bool isAffectedUnlimitFatigue() const;  // ORIG 存在（推断实现，见 CUser.cpp）
     _Additioal_info GetAdditionalInfo() const;  // ORIG W 0x8694a88：memcpy(this+0x90f, 0x52)
+    unsigned short getCeraShopDiscountRate() const;  // ORIG W 0x08328100：movzwl +0x860（W6_CeraShopDeps 消费）
     // ORIG _ZN8WongWork12CUserPremium15LoadPremiumInfoEPKc（静态：ORIG 调用点
     // +0x2638 仅压 path 一参；CDataManager::init 调用，返回出错行码
     // 0x15c/0x1bc/0x1c4，0=成功；实现见 CUserPremium.cpp）
@@ -769,9 +848,14 @@ public:
     SUserPremiumInfo* GetPremiumInfo(int type) const;
     SUserPremiumInfo CheckPremiumTimeout() const;
     void GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) const;
+    // ORIG T 0x086ade9c _ZNK8WongWork12CUserPremium18GetPremiumInfoListEi（sret
+    // 按值返回版；与上方 out-ref 重载并存。定义 W6_SecMiscDeps.cpp）。
+    std::vector<SUserPremiumInfo> GetPremiumInfoList(int type) const;
     int GetReturnItemRate(int type) const;
     bool CheckPremium(int type) const;
-    bool IsRestrictedPremium(int type);
+    // ORIG _ZN8WongWork12CUserPremium19IsRestrictedPremiumEi：mangled 无 this
+    //（调用点 cdecl 单参），故为 static（W6_ARAD.LoginSecurity 收口确认）。
+    static bool IsRestrictedPremium(int type);
     bool IsNeedCheckEveryday();                // ORIG W 0x086b086c：返回 field862 字节
     std::vector<std::pair<int, int> > GetAdvantageItem(int type);
     // ORIG W 0x0830ed48：type∈[1,4] 且 (int)level∈[0,0x69] 时返回
@@ -830,6 +914,9 @@ public:
                              int certCnt, int certFlag, int cancelCnt,
                              char* answers);   // ORIG T 0x085fde9c
     void setRequestState(ENUM_REQUEST_STATE state);  // ORIG W 0x0822ef64（枚举重载，写 +0x44）
+    // ORIG 0x085fdf6a _ZNK8WongWork13CSecurityCard11checkAnswerEhh：四问全 0
+    // 返回 false；否则比较答案表 this+8[m_question3d*10+m_question3c] 等两元组。
+    bool checkAnswer(unsigned char ansA, unsigned char ansB) const;   // 定义 W6_SecMiscDeps.cpp
 
     char m_pad[0x2f];               // +0x00..0x2e
     unsigned char m_activate2f;     // +0x2f（isActivate）
@@ -848,40 +935,39 @@ public:
 }
 
 
-class CodeHackCheckStorage
+// CodeHackCheckStorage 唯一 owner 已收敛到 CodeHackChecksum.h：
+// ORIG ctor 0x08575c22 仅构造 std::queue<CodeHackChecksumEx>（sizeof 0x28）；
+// 原 +0x28..+0x64「具名字段」实为紧随校验队列的服务器/惩罚数据区（历史误并），
+// 现以下方兄弟块承载（总大小/偏移与原视图一致：0x28+0x40=0x68）。
+struct PostChecksumUserInfoBlock
 {
-public:
-    CodeHackCheckStorage();
-    ~CodeHackCheckStorage();
+    // 起始 = CUser+0x79624（m_codeHackCheck 后）；字段偏移为块内相对。
+    int m_field28;                   // +0x00 → CUser+0x79624（getStdDropRate 旧视图）
+    int m_tradePunishType;           // +0x04 → CUser+0x79628（GetTradePunishType）
+    char m_field30;                  // +0x08
+    bool m_field31;                  // +0x09（0x7962d tournament account）
+    char m_pad32[2];                 // +0x0a..0x0b
+    int m_serverGroup;               // +0x0c（GetServerGroupToPvP 0x864a97c 整数读取并返回）
+    ENUM_SERVER_GROUP m_onlineServerGroup;  // +0x10（0x79634）
+    unsigned int m_onlineCharacNo;   // +0x14（0x79638）
+    int m_onlinePlayType;            // +0x18（0x7963c）
+    bool m_field44;                  // +0x1c
+    char m_pad45;                    // +0x1d
+    short m_totalFatigueUsed;        // +0x1e
+    int m_field48;                   // +0x20
+    int m_field4c;                   // +0x24
+    CGameMasterCharacter* m_gameMasterCharac;  // +0x28（0x7964c）
+    unsigned int m_field54;          // +0x2c
+    bool m_firstLogin;               // +0x30（0x79654）
+    bool m_field59;                  // +0x31
+    bool m_field5a;                  // +0x32
+    char m_pad5b;                    // +0x33
+    int m_field5c;                   // +0x34
+    bool m_field60;                  // +0x38
+    char m_pad61;                    // +0x39
+    short m_field62;                 // +0x3a
+    int m_field64;                   // +0x3c
 
-    void reset();
-
-    char m_pad[0x28];    // +0x00..0x27
-    int m_field28;       // +0x28（0x79624 getStdDropRate）
-    int m_tradePunishType;  // +0x2c（0x79628 GetTradePunishType）
-    char m_field30;      // +0x30
-    bool m_field31;      // +0x31（0x7962d tournament account）
-    char m_pad32[2];     // +0x32..0x33
-    int m_serverGroup;   // +0x34（GetServerGroupToPvP 0x864a97c 整数读取并返回；PvP 统合频道覆盖值）
-    ENUM_SERVER_GROUP m_onlineServerGroup;  // +0x38（0x79634）
-    unsigned int m_onlineCharacNo;  // +0x3c（0x79638）
-    int m_onlinePlayType;       // +0x40（0x7963c）
-    bool m_field44;      // +0x44
-    char m_pad45;        // +0x45
-    short m_totalFatigueUsed;     // +0x46
-    int m_field48;       // +0x48
-    int m_field4c;       // +0x4c
-    CGameMasterCharacter* m_gameMasterCharac;  // +0x50（0x7964c）
-    unsigned int m_field54;  // +0x54
-    bool m_firstLogin;   // +0x58（0x79654）
-    bool m_field59;      // +0x59
-    bool m_field5a;      // +0x5a
-    char m_pad5b;        // +0x5b
-    int m_field5c;       // +0x5c
-    bool m_field60;      // +0x60
-    char m_pad61;        // +0x61
-    short m_field62;     // +0x62
-    int m_field64;       // +0x64
 };
 
 class CCharacterView
@@ -982,6 +1068,14 @@ public:
     // ORIG _ZNK9UserQuest19get_mail_quest_infoERSt4listIiSaIiEERK18stSelectQuestParam
     // 0x086abd7a（UserQuest.cpp 实现；_onLevelUp 调用点 test %al 实证返回 bool）
     int get_rescue_questmap(int mapIdx) const;  // ORIG T 0x086aca16 _ZNK9UserQuest19get_rescue_questmapEi（UserQuest.cpp 实现）
+    // ---- Wave6-CUser 补声明（ORIG T 实证；定义 owner=UserQuest.cpp 批）----
+    int accept_quest(int questIdx, char* buf, int& out);        // T 0x086abf38 _ZN9UserQuest12accept_questEiPcRi
+    bool check_cond_clear(int questIdx) const;                  // T 0x086acad0
+    void finish_quest(int questIdx);                            // T 0x086ac854
+    void giveup_quest(int questIdx);                            // T 0x086ac532
+    int set_trigger(int questIdx, char val, bool flag);         // T 0x086ac6ac
+    int item_reward_quest(int questIdx) const;                  // T 0x086ac954
+    void ResetUrgentQuestWaitingList();                         // T 0x086ad178
 
 
     WongWork::CQuestClear m_cleared;  // +0x0004（0x7530；save-flag 在 +0x7534 裸偏移）
@@ -1415,7 +1509,10 @@ public:
     PIReceiverManager();
     ~PIReceiverManager();
 
-    char m_pad[8];  // +0x00
+    bool CheckHashReceived(unsigned char* data, unsigned int len,
+                           unsigned int key, bool bNewKey);  // ORIG T 0x0808bf7e
+
+    char m_pad[8];  // +0x00（+0x04 接收 hash key 字节）
 };
 
 class PISenderManager
@@ -1440,7 +1537,11 @@ struct BingoData
 
     void clear();
 
-    char m_pad[8];  // +0x00
+    unsigned int m_eventId;   // +0x00（updateBingoData ORIG 0x86914cc 整型读实证）
+    char m_pad4;              // +0x04
+    bool m_isWin;             // +0x05（movzbl 0x5(%eax)）
+    bool m_needSave;          // +0x06（movzbl 0x6(%eax)）
+    char m_pad7;              // +0x07
 };
 
 struct GrowthWeaponEvent
@@ -1886,6 +1987,7 @@ public:
     WongWork::CHackAnalyzer m_hackAnalyzer;                 // +0x71bac
     Secu_AccountHacking m_accHacking;                       // +0x795e8
     CodeHackCheckStorage m_codeHackCheck;                   // +0x795fc
+    PostChecksumUserInfoBlock m_postChecksumData;           // +0x79624（0x40；tradePunish/serverGroup/gameMasterCharac 数据区，CodeHackCheckStorage 后继块）
     std::string m_str79664[2];                              // +0x79664
     char m_pad7966c[4];                                     // +0x7966c..0x7966f
     int m_field79670;                                       // +0x79670
@@ -2361,6 +2463,7 @@ public:
     int SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param);
     void SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param);
     int SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot);   // ORIG T 0x867c2d8 返回 int
+    void AddMileage(int mileage, eCoinAddReason reason);                      // ORIG T 0x08650954（W6_ARAD_ItemBonus 补）
     int SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot);
     int SendCmdOkPacket(ENUM_CMDPACKET cmd);
     int SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error);
@@ -2458,8 +2561,11 @@ public:
     int SelectCharac(int slot, int param);
     int CreateCharac(SIG_CREATE_CHARAC* data);
     int DeleteCharac(unsigned int characNo);
+    void GiveItemsReturnUser();         // ORIG T 0x08692000
+    void GiveEquipItemsReturnUser();    // ORIG T 0x08692140
     int ChangeCharacSlot(unsigned int a, unsigned int b);
     int checkSelectCharac(int slot);
+    int getCharacSlotCountDefaultInfo();  // ORIG _ZN5CUser29getCharacSlotCountDefaultInfoEv W 0x0868b4fc
     void ReturnToSelectCharacList(bool param);
     void LogoutCachedCharacter(unsigned char param);
     void SetCharacInfo(int slot, char* data);
@@ -2474,8 +2580,8 @@ public:
     void UpdateCurCharacVisibleToCharacViewMemory();
     void UpdateLogout(bool param);
     void OnDisconnect();
-    void Recv();
-    void Parsing(int param);
+    bool Recv();   // ORIG 尾部 mov $0/$1,%eax 实证 bool 返回（0x08648057/805e）
+    bool Parsing(int param);
 
     // ---- 基础访问器（GameStubs 桩替换） ----
     void DecreaseGuildPowerWarPoint(unsigned int point);
@@ -2817,11 +2923,13 @@ public:
     static void SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actionKind);   // ORIG 0x8676826 静态 ABI（报告证实无 this 实参）
     // ORIG 0x0868f6bc (T)：find_item(itemIdx)→verifyStackableItemProcess
     int verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx);
+    int verifyStackableItemActionPlace(StackableAction::Type type, const CItem* item);  // ORIG W 0x0868f69a
     // ORIG 0x0868f60e (T)：is_stackable→verifyStackableAction→verifyUsablePlace→verifyUsableServerType
     int verifyStackableItemProcess(StackableAction::Type type, const CItem* item);
     void set_ontime_last_recv_idx(int idx);
     int get_ontime_last_recv_idx() const;
     void set_update_ontime_last_recv_idx();
+    void InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount);  // ORIG T 0x08681c30（W6_TailB 追加）
     void setCheckPickUpRandomOptionItem(bool flag);
     unsigned char getCheckPickUpRandomOptionItem();
     void set_cera_item_order_no(unsigned int no);
@@ -3184,6 +3292,67 @@ public:
         //     short          m_deltaY;    // +0x12 = (short)(minY-maxY)
         // };  // sizeof 0x14
 
+
+    // ===================== Wave6-CUser（OnlyOrig 269 批）新增声明 =====================
+    // 签名与 ORIG mangled 一致；定义落 CUserOnlyOrig.cpp（本批新 TU）。
+    void apply_elixir_item(_Additioal_info& ai, std::pair<int,int>& pr);   // ORIG T 0x08665274
+    void calc_quest_stat(_Additioal_info& ai);                             // ORIG T 0x08664c50
+    bool CalLevelUpItemCheck(unsigned long itemId);                        // ORIG T 0x08689d06
+    bool CalLevelUpItemState(char& state, int& needExp, int fromLevel, int toLevel); // ORIG T 0x08689d74
+    int ChangeGrowType_Item(int newFirst, short slotNo);                   // ORIG T 0x0867b196
+    int check_insert_lottery_reward(const CItem* opener,
+                                    std::vector<std::pair<Inven_Item,bool> >& rewards,
+                                    std::vector<std::pair<Inven_Item,bool> >& leftover);   // ORIG T 0x08676296
+    int check_locked_multibox_error(const CItem* opener, int openedCnt, bool doubleMode);  // ORIG T 0x08675fd2
+    int check_multibox_error(int requiredEmptySlots);                      // ORIG T 0x08675edc
+    int check_unlocked_multibox_error(const CItem* stack, int addInfo);    // ORIG T 0x086761e0
+    bool checkCharacLinkType(char linkPos, int slot);                      // ORIG T 0x08652b90
+    bool checkCodeChecksum(const CodeHackChecksum& ck, char* dumpOut);     // ORIG T 0x0867ebba
+    bool checkCodeChecksumRange(const CodeHackChecksumEx& ckEx, const CodeHackCheckRangeEx& rangeEx); // ORIG T 0x0867ea5c
+    bool CheckDeleteCharacTime(int slot);                                  // ORIG T 0x0864a830
+    bool CheckDungeonClear(int questId);                                   // ORIG T 0x0866d934
+    unsigned int CheckGuildLevelUp(unsigned int& priceOut);                // ORIG T 0x0866c27e
+    bool checkHumanCertify(int len, unsigned short* answer);               // ORIG T 0x0867f4c8
+    bool checkInformNoticeFlag(unsigned int bitIdx, unsigned int byteIdx); // ORIG T 0x0868f9e8
+    bool CheckItemLockSlotSpace(int spaceType, int spaceIdx) const;        // ORIG W 0x086469f0
+    bool CheckPossibleRequestRenameState(int slot) const;                  // ORIG W 0x0822ff62
+    bool CheckTicket(int ticketIdx);                                       // ORIG T 0x086785f4
+    void ClearChildrensDayEvent();                                         // ORIG W 0x0832815a
+    void ClearMission(short missionId);                                    // ORIG T 0x08662606
+    void ClearMissionKind(short kind);                                     // ORIG T 0x086626a0
+    bool ClearSkills();                                                    // ORIG T 0x0867b4c4
+    void collectPcRoomPlayTime();                                          // ORIG T 0x0868f7ba
+    void ResetDailyMission();                                              // ORIG T 0x0866263c
+    void setBreakAwayRewardOrder(ENUM_BREAK_AWAY_REWARD_ORDER order);      // ORIG W 0x0831d4de
+    void StartRecvEventWaiting();                                          // ORIG T 0x0867f1fe
+    void Update_ComboMission(int comboIdx, short count);                   // ORIG T 0x0866280a
+    void update_ingame_event_history(int eventKey);                        // ORIG T 0x0868d72c
+    int update_record(GameResultType& result);                             // ORIG T 0x08676876
+    void updateBingoData();                                                // ORIG T 0x086914cc
+    void UpdateBloodRecord();                                              // ORIG T 0x08651de6
+    void updateBlueMarbleEnterCount();                                     // ORIG T 0x0869106c
+    void UpdateBreakAwayDungeonClearCnt();                                 // ORIG T 0x086522ea
+    void UpdateBreakAwayLuckPoint();                                       // ORIG T 0x086521ec
+    void UpdateCharacLinkBonus(unsigned int exp, unsigned int gold, unsigned int state,
+                               ENUM_CHARAC_LINK_BONUS_STATE bonusState);   // ORIG T 0x0865240c
+    void UpdateCharacNameInMercenary(unsigned int characNo, const std::string& name); // ORIG W 0x084ec5e6
+    void updateComboSkill();                                               // ORIG T 0x08692396
+    void UpdateCurrentCharacRentalInfo(const InstanceRentalSystem::RentOutput& output,
+                                       int machineKey, bool clearFirst);   // ORIG T 0x08676e3c
+    void UpdateDimensionInout();                                           // ORIG T 0x08651fba
+    int UpdateEquipslotFlag(char flag);                                    // ORIG T 0x0868aa54
+    void UpdateMissionCondition(std::vector<short>& kinds, std::vector<int>& values); // ORIG T 0x086625c8
+    void updatePcRoomPlayTime();                                           // ORIG T 0x0868f726
+    void use_equipment(int slot);                                          // ORIG T 0x0865ede0
+    void use_multibox_statistic(unsigned int itemIdx);                     // ORIG T 0x086767d2
+    bool use_stackable(short slotNo, int space, int param3, int param4);   // ORIG T 0x0865e0ae
+    unsigned int UseCeraPoint(unsigned int amount);                        // ORIG T 0x08692b16
+    unsigned char UseLimitItem(int itemIdx, bool sendNoti);                // ORIG T 0x08688ae6
+    void UseMileage(int cost);                                             // ORIG T 0x08650a10
+    void UseQuestItem(int itemIdx);                                        // ORIG T 0x08668d1a
+    void ValidateStrikerInfo();                                            // ORIG T 0x08690be6
+    bool VerifyCleanPadVeriData(unsigned int value);                       // ORIG T 0x08649b44
+    void verifyDoingQuest();                                               // ORIG T 0x0868d144
 
 };
 

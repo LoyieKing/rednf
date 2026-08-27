@@ -285,8 +285,8 @@ int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
     // UpdateData/GetUID 为 CUser 成员（CUser 继承 CUserCharacInfo），保持 CUser*。
     const int elapsedHours =
         (GlobalData::s_systemTime_.getCurSec() - user->GetLoginTick()) / 0xe10;
-    APSystem::_ActionGroupIndex group23 = { 0x23 };
-    APSystem::_ActionGroupIndex group24 = { 0x24 };
+    APSystem::_ActionGroupIndex group23(0x23);
+    APSystem::_ActionGroupIndex group24(0x24);
     if (elapsedHours == 1)
     {
         APSystem::CUserProc::ClearActionAndSendtoUser(user, group23, 0,
@@ -1398,6 +1398,37 @@ TimerCloseAssault::~TimerCloseAssault() {}
 int TimerCloseAssault::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     return 0;  // TODO(ORIG 0x863767c)：函数体未还原
+}
+
+// ---- pvp_assault 超时定时器注册（ORIG T，四函数同构，仅 TIMER_MESSAGE 不同）----
+// objdump 0x863755a/0x86375ca/0x863763a/0x86376aa：
+//   G_TimerQueue()->InsertTimer(OBJ_TYPE_2, p1, msg, (int)sec, p2, 0)
+void TimerCompleteLoadAssaultTimeout::registNextTimer(long sec, int p1, int p2)
+{
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
+                                (TIMER_MESSAGE)0x6e, static_cast<int>(sec),
+                                p2, 0);
+}
+
+void TimerConnectP2PAssaultTimeout::registNextTimer(long sec, int p1, int p2)
+{
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
+                                (TIMER_MESSAGE)0x6f, static_cast<int>(sec),
+                                p2, 0);
+}
+
+void TimerEndAssault::registNextTimer(long sec, int p1, int p2)
+{
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
+                                (TIMER_MESSAGE)0x70, static_cast<int>(sec),
+                                p2, 0);
+}
+
+void TimerCloseAssault::registNextTimer(long sec, int p1, int p2)
+{
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
+                                (TIMER_MESSAGE)0x71, static_cast<int>(sec),
+                                p2, 0);
 }
 
 TimerCompleteLoadAfterAssaultTimeout::TimerCompleteLoadAfterAssaultTimeout() {}

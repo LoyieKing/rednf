@@ -72,11 +72,8 @@ unsigned int DBCommon::GetIdentity(MySQL* db)
 // ---------------------------------------------------------------------------
 namespace WongWork {
 
-class CWebEvent
-{
-public:
-    static int GetItemType(int eventKind, int itemNo);  // ORIG T 0x086c1aba
-};
+// CWebEvent 权威声明已收敛至 GlobalData.h:274(Main 沉降仲裁,含 GetItemType);
+// 本 TU 的局部 class 视图已删除,仅保留 ORIG T 定义。
 
 int CWebEvent::GetItemType(int eventKind, int itemNo)
 {

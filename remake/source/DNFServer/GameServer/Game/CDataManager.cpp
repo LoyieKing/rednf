@@ -900,7 +900,7 @@ bool CDataManager::invalidAniDecoItem(int idx, int value)
     return false;
 }
 
-unsigned int CDataManager::getChoiceItem() const
+unsigned int CDataManager::getChoiceItem()
 {
     return m_choiceItem.m_choice;
 }
@@ -911,7 +911,7 @@ void CDataManager::setChoiceItem(bool flag, unsigned int idx)
     m_choiceItem.m_choice = idx;
 }
 
-bool CDataManager::checkChoiceItem() const
+bool CDataManager::checkChoiceItem()
 {
     return m_choiceItem.m_checked;
 }
@@ -1056,7 +1056,7 @@ int CDataManager::GetUpgradeRevisionPvPChannel()
     return m_pvpChannel.m_upgradeRevision;
 }
 
-float CDataManager::getUpgradeItemRepairCostRate(int idx, bool flag) const
+float CDataManager::getUpgradeItemRepairCostRate(int idx, bool flag)
 {
     return m_itemUpgrade->getUpgradeItemRepairCostRate(idx, flag);
 }
@@ -1122,7 +1122,7 @@ void* CDataManager::GetItemMakingSkill() const
     return (void*)&m_itemMakingSkill;
 }
 
-void* CDataManager::GetImageCommnicationData() const
+void* CDataManager::GetImageCommnicationData()
 {
     return (void*)&m_imageCommData;
 }
@@ -1976,7 +1976,7 @@ std::vector<stRefillItemInfo::RefillItem>* CDataManager::GetRefillItemInfo() con
 // operation_type==1 且 env+0x1b0==1 → 不带 channel 清；否则直接成功。
 // env+0x1b0 字段未建模，保留裸偏移（推断）。
 // ---------------------------------------------------------------------------
-bool CDataManager::InitLoginState(int serverGroup, int channelNo)
+bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 {
     MySQL* hdb = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
                                                    (ENUM_SERVER_GROUP)0);

@@ -12,6 +12,7 @@
 #include "Inven_Item.h"
 #include "WarField.h"      // MapInfo / map_item / map_monster
 #include "PacketGuard.h"   // CPacketHandler : public PacketGuard
+#include "CDungeon.h"   // stDungeonAssignItem_t 完整定义（:114；CDungeonMgr::getSpecialPassiveObjectItems 返回 vector<T>* 需完整类型，Main 裁定方案①）
 
 struct MSG_MONSTER_DIE;
 class CDungeon;
@@ -66,7 +67,10 @@ namespace WongWork
             CDungeon* getDungeon() const;
             CMap* getStageMap(unsigned int stage);  // ORIG 0x84605ee
             int getEndStage();                  // ORIG W 0x8469ab4
-
+            // W6_RankMailDeps（ORIG W 0x08469ac0/0x08469ad6/0x08469aec）：
+            int getStandardLevel() const;                                              // 转发 CDungeon::get_standard_level
+            std::vector<std::pair<int, int> >* getObjectDropItems() const;             // 转发 CDungeon::getObjectDropItems
+            std::vector<stDungeonAssignItem_t>* getSpecialPassiveObjectItems() const;  // 转发 CDungeon::getSpecialPassiveObjectItems
             CDungeon* m_pDungeon;   // +0x00
             int m_endStage;         // +0x04（getDeathTowerMaxStage 写入）
         };

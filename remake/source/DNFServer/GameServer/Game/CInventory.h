@@ -201,7 +201,12 @@ namespace OS_API
 {
 int GetDateTimeTick();
 int snprintf(char* buf, unsigned int n, const char* fmt, ...);
+void Sleep(int ms);            // ORIG T 0x0858c4e0 usleep(ms*1000)(定义 LinkFinalDeps.cpp)
 }
+
+// ORIG T 0x08109098:_Z14NumberToStringyi(64 位版;u32 版声明见下行;
+// 两版本定义 LinkFinalDeps.cpp,槽位=gNumberToStringBuffer[radix*0x40])
+char* NumberToString(unsigned long long value, int radix);
 
 namespace user_creature
 {
@@ -484,6 +489,20 @@ private:
 
 struct stEquipCondition
 {
+    // ORIG 布局（Wave6-CUser.FieldMapScout objdump 证据：ctor 0x86937d6 清
+    // +0..+3/+4w/+7、置 +6=1；getCompoundUpgrade 0x8682082 读 +1<<7 步进、+2 选组；
+    // _ProcCompoundCore 按值传参 t16 → sizeof 0x10）。除 ctor/getCompoundUpgrade
+    // 用例外的字段语义为【推断】。
+    unsigned char m_upgrade;        // +0x00（强化等级）
+    unsigned char m_tableIdx;       // +0x01（升级表行选择 <<7）
+    unsigned char m_amplifySelect;  // +0x02（0=Upgrade 表 / 非0=Table2nd）
+    unsigned char m_pad3;
+    unsigned short m_field4;        // +0x04（ctor 清零 word）
+    unsigned char m_flag6;          // +0x06（ctor 置 1）
+    unsigned char m_pad7;           // +0x07（ctor 清零）
+    unsigned int m_field8;          // +0x08
+
+    stEquipCondition() { memset(this, 0, sizeof(*this)); }
 };
 
 // stEquipConditionForChronicle —— ORIG 输出布局（0xc 字节）。

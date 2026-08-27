@@ -418,7 +418,7 @@ int CUser::getCurCharacSkillCheckSum() const
 int CUser::GetServerGroupToPvP() const
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
-        return m_codeHackCheck.m_serverGroup;
+        return m_postChecksumData.m_serverGroup;
     return G_CEnvironment()->m_serverEnvir.m_serverGroup;
 }
 
@@ -541,6 +541,40 @@ bool CLevelRewardTableMgr::IsChallengingJob(char job)
 CLevelRewardTable* CLevelRewardTableMgr::GetProperLevelRewardTableR() const
 {
     return m_table;
+}
+
+// ORIG T 0x08687d18 sz 0x54：遍历 m_table 指针数组（0x46 项），
+// 元素为 0 → 空槽终止返回 false；元素 ==1 → 有起始奖励。
+bool CLevelRewardTableMgr::IsHaveStartLevelReward()
+{
+    for (int i = 0; i <= 0x45; ++i)
+    {
+        const int entry =
+            *reinterpret_cast<const int*>(
+                *reinterpret_cast<char**>(reinterpret_cast<char*>(this) + 4) +
+                i * 4);
+        if (entry == 0)
+            break;
+        if (entry == 1)
+            return true;
+    }
+    return false;
+}
+
+// ORIG T 0x08687d6c：size()==1 或 v[0]==0 ⇒ 全服生效；否则遍历含 serverIdx 才 true。
+bool CLevelRewardTableMgr::IsOnServer(int serverIdx)
+{
+    if (m_vec8.size() == 1 || (m_vec8.size() != 0 && m_vec8[0] == 0))
+        return true;
+    if (m_vec8.empty())
+        return false;
+    for (std::vector<int>::const_iterator it = m_vec8.begin();
+         it != m_vec8.end(); ++it)
+    {
+        if (*it == serverIdx)
+            return true;
+    }
+    return false;
 }
 
 // ---- NewAccountLevelUpEventToJob ----

@@ -398,7 +398,10 @@ struct SIG_CREATE_CHARAC
     unsigned char m_pad4f32[0x533f - 0x4f32]; // +0x4f32
     unsigned char m_giftFindOk;        // +0x533f（makeGift：赠礼 find_item 命中 1/失败 0）
     unsigned char m_equipFindOk;       // +0x5340（makeGift：武器/衣服 find_item 均命中 1/否则 0）
-    unsigned char m_pad5341[0xb];      // +0x5341..+0x534b（至 m_ssnCheckFail@+0x534c）
+    unsigned char m_pad5341[3];        // +0x5341..+0x5343
+    unsigned int m_resultCode;         // +0x5344（DB_CreateCharac::dispatch 各步骤错误码，
+                                       //       DB_CreateCharac.md 反汇编实证）
+    unsigned int m_characNo;           // +0x5348（GetCharacNo ← WongWork::DBCommon::GetIdentity）
     unsigned char m_ssnCheckFail;      // +0x534c（SsnString 长度/第7位检查→1/0）
     unsigned char m_pad534d[3];        // +0x534d（ORIG +0x534c 字节与 +0x5350 字之间间隙）
     unsigned int m_spAtLevelUp;        // +0x5350（CDataManager::GetSpAtLevelUp(1)）
@@ -1322,7 +1325,9 @@ struct SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO
 
 struct SIG_SAVE_BLOOD_CLEAR_COUNT
 {
-    char m_pad[0x8];
+    unsigned int m_dungeonIdx;   // +0x00（_saveProperDungeonClearCount ORIG 写序实证）
+    short m_subNo;               // +0x04
+    short m_pad6;
 };
 
 struct SIG_SAVE_CHARAC
@@ -1347,7 +1352,9 @@ struct SIG_SAVE_CLIENT_HACK_LOG
 
 struct SIG_SAVE_CONDITION_EVENT
 {
-    char m_pad[0x8];
+    unsigned int m_value;        // +0x00（_saveConditionEventInfo ORIG 写序实证）
+    short m_a2;                  // +0x04
+    short m_a3;                  // +0x06
 };
 
 struct SIG_SAVE_CRAZY_LEVELUP_EVENT
@@ -1360,10 +1367,20 @@ struct SIG_SAVE_DUNGEON_CLEAR
     char m_pad[0x180c];
 };
 
+#pragma pack(push, 1)   // 尺寸 0x19（非对齐尾字段 +0x18）；具名化批次缺 pack 致断言漂移
 struct SIG_SAVE_EVENTITEM
 {
-    char m_pad[0x19];
+    // 0x086c1910 写入序具名化（语义未证实处保持字段名推断）。
+    unsigned int m_field00;   // +0x00 ←param_1
+    unsigned int m_field04;   // +0x04 ←param_2
+    unsigned int m_field08;   // +0x08 ←param_5
+    unsigned int m_field0c;   // +0x0c ←param_3
+    unsigned int m_field10;   // +0x10 ←param_4
+    unsigned int m_field14;   // +0x14 ←param_6
+    unsigned char m_field18;  // +0x18（bool 尾参）
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_EVENTITEM) == 0x19, "SIG_SAVE_EVENTITEM ABI drift");
 
 struct SIG_SAVE_GAME_OPTION_1
 {

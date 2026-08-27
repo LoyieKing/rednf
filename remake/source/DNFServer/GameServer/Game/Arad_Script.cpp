@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 
+// [moved] include 区统一收敛到文件头（中部 include 在 lsd44 链下会污染后续标准头）
+
 Arad_Script::Arad_Script()
 {
 }
@@ -422,3 +424,281 @@ bool Arad_Script::Load(const char* path)
     std::fclose(fp);
     return ok;
 }
+
+// ============================================================================
+// W6_ARAD.ScriptPods —— ORID df_game_r 的 ARAD::SCRIPT 域残余真实现清零批。
+//
+// 覆盖 ORIG 符号（nm -S 实证，全部弱/T）：
+//   _ZN4ARAD6SCRIPT16SEventPeriodDataC1Eijj    W 0x088b4368（【objdump】三字段直存）
+//   _ZN4ARAD6SCRIPT16SEventPeriodDataD1Ev      W 0x088b558a（5B 空体【objdump】）
+//   _ZN4ARAD6SCRIPT16SEventPeriodDataeqERKS1_  W 0x088b4388（仅比 +0x00【objdump】）
+//   _ZN4ARAD6SCRIPT17SRewardPeriodDataD1Ev     W 0x088b5764（5B 空体【objdump】）
+//   _ZN4ARAD6SCRIPT17SRewardPeriodDataeqERKS1_ W 0x088b43da（仅比 +0x00【objdump】）
+//   _ZN4ARAD6SCRIPT22_AradJumpingRewardItemD1Ev W 0x088b597e（5B 空体【objdump】）
+//   _ZN4ARAD6SCRIPT21AradJumpingScriptDataC1Ev W 0x0837170a / D1Ev W 0x0837171e
+//   _ZN4ARAD6SCRIPT18AradJumping_ScriptC1Ev    W 0x08371732 / D1Ev W 0x08371746
+//   _ZN4ARAD6SCRIPT18AradJumping_Script17getRDARScriptDataEv W 0x088b43ee
+//   _ZN4ARAD6SCRIPT18AradJumping_Script12importScriptEPcRS1_ T 0x088b4128
+//   _ZN4ARAD6SCRIPT8readTimeEPs                T 0x088b3970（报告 ARAD__SCRIPT/readTime.md）
+//   _ZN4ARAD6SCRIPT10uint32TimeEPs             T 0x088b3b4b（报告 ARAD__SCRIPT/uint32Time.md）
+//   _ZN4ARAD6SCRIPT21importAradEventScriptE... T 0x088b3bd8（报告 importAradEventScript.md）
+// getCurRewardItem(T 0x088b424a) 已由 AradPeriodB.cpp 批次提供，此处不重复定义。
+//
+// Ctor/Dtor 族说明：ORIG AradJumpingScriptData C1 仅调用 vector<_AradJumpingRewardItem>
+// 默认构造；AradJumping_Script C1/D1 直接转发基类 —— 空体定义 + vector 成员即忠实对应。
+// ============================================================================
+#include <algorithm>
+#include "CDataManager.h"               // ARAD::SCRIPT::AradJumping*（m_aradJumping 权威段）
+#include <ctime>
+
+#include "DNFLexWrapper.h"               // loadRDARScriptFile / ScanType / ScanInt(bool*)
+#include "LogManager.h"                  // LogManager::logFormat(int, file, func, line, fmt, ...)
+#include "Arad_EventPeriodDataManager.h" // SEventPeriodData / SRewardPeriodData / readTime 声明
+
+namespace ARAD {
+namespace SCRIPT {
+
+namespace {
+char const* const kRDAREtcParamFile = "../localjapan/Arad_RDARScriptEtcParameter.cpp";
+}
+
+// ---- SEventPeriodData -------------------------------------------------------
+// 【objdump】C1：m_eventCode/m_beginTime/m_endTime 三字段直存（无其它副作用）。
+SEventPeriodData::SEventPeriodData(int eventCode, unsigned int beginTime,
+                                   unsigned int endTime)
+{
+    m_eventCode = eventCode;
+    m_beginTime = beginTime;
+    m_endTime   = endTime;
+}
+
+// 【objdump】D1：空体。
+SEventPeriodData::~SEventPeriodData()
+{
+}
+
+
+bool SEventPeriodData::operator==(SEventPeriodData const& other)
+{
+    return m_eventCode == other.m_eventCode;   // 【objdump】仅比 +0x00
+}
+
+// ---- readTime ---------------------------------------------------------------
+// 报告 ARAD__SCRIPT/readTime.md 全文转写：连读 4 个 short；任一 ScanInt(bool*)
+// 失败抛出该字段名常量，catch 后 logFormat(line=0x27) 并返回 false。
+bool readTime(short* out)
+{
+    int idx = 0;
+    bool ok = false;
+    try
+    {
+        out[idx] = (short)ScanInt(&ok);
+        idx += 1;
+        if (!ok)
+            throw "start year";
+        out[idx] = (short)ScanInt(&ok);
+        idx += 1;
+        if (!ok)
+            throw "start month";
+        out[idx] = (short)ScanInt(&ok);
+        idx += 1;
+        if (!ok)
+            throw "start day";
+        out[idx] = (short)ScanInt(&ok);
+        idx += 1;
+        if (!ok)
+            throw "start time";
+        return true;
+    }
+    catch (char const* tag)
+    {
+        LogManager::logFormat(
+            1, kRDAREtcParamFile, "readTime", 0x27,
+            "[ARAD SCRIPT] Load fail. AradEventPeroid.etc %s", tag);
+        return false;
+    }
+}
+
+// 【objdump】D1：空体。
+SRewardPeriodData::~SRewardPeriodData()
+{
+}
+
+bool SRewardPeriodData::operator==(SRewardPeriodData const& other)
+{
+    return m_eventCode == other.m_eventCode;   // 【objdump】仅比 +0x00
+}
+
+// ---- uint32Time -------------------------------------------------------------
+// 报告 ARAD__SCRIPT/uint32Time.md 全文转写：
+//   time(NULL) → localtime → 改 y(-1900)/m(-1)/d/h（min/sec=0）→ mktime，
+//   返回值沿用 mktime 返回（ORIG eax 直通）。年/月加载后 cwtl/movswl 符号扩展。
+unsigned int uint32Time(short* t)
+{
+    time_t now = ::time(0);
+    tm* lt = ::localtime(&now);
+    lt->tm_year = (int)*t + -1900;       // lea -0x76c(%eax)
+    lt->tm_mon  = (int)t[1] + -1;        // lea -0x1(%eax)
+    lt->tm_mday = (int)t[2];             // movswl
+    lt->tm_hour = (int)t[3];             // movswl
+    lt->tm_min  = 0;
+    lt->tm_sec  = 0;
+    return (unsigned int)::mktime(lt);
+}
+
+}  // namespace SCRIPT
+
+// ============================================================================
+// AradJumping 族生命周期（见 CDataManager.h 中声明段注释的 ORIG 地址清单）。
+// ============================================================================
+namespace SCRIPT {
+
+_AradJumpingRewardItem::~_AradJumpingRewardItem()
+{
+}   // 【objdump】W 0x088b597e：5 字节空体。
+
+AradJumpingScriptData::AradJumpingScriptData()
+{
+    // 【objdump】W 0x0837170a：仅调 std::vector<_AradJumpingRewardItem>::C1Ev。
+}
+
+AradJumpingScriptData::~AradJumpingScriptData()
+{
+    // 【objdump】W 0x0837171e：仅调 std::vector<_AradJumpingRewardItem>::D1Ev。
+}
+
+AradJumping_Script::AradJumping_Script()
+{
+    // 【objdump】W 0x08371732：直接转发 AradJumpingScriptData C1。
+}
+
+AradJumping_Script::~AradJumping_Script()
+{
+    // 【objdump】W 0x08371746：直接转发 AradJumpingScriptData D1。
+}
+
+std::vector<_AradJumpingRewardItem>* AradJumping_Script::getRDARScriptData()
+{
+    return &m_rewardItems;   // 【objdump】W 0x088b43ee：mov %eax,%eax … 返回 this+0。
+}
+
+bool AradJumping_Script::importScript(char* path, AradJumping_Script& target)
+{
+    // 报告 ARAD__SCRIPT__AradJumping_Script/importScript.md 全文转写（T 0x088b4128）。
+    // ORIG 返回约定：loadRDARScriptFile 失败 → 1；"[Jumping Gift]" 三元组
+    // 解析完毕 → 0。条目循环内每个 ScanInt 失败直接回到 ScanType 主循环。
+    std::string token;
+    bool ok = false;
+    if (!loadRDARScriptFile("", path))
+        return true;
+
+    // getRDARScriptData(target) 在解析循环前取一次（ORIG +0x41 存 -0xc(%ebp)）。
+    std::vector<_AradJumpingRewardItem>* items = target.getRDARScriptData();
+
+    while (ScanType(token, true))
+    {
+        if (token == "[Jumping Gift]")
+        {
+            _AradJumpingRewardItem item;
+            for (;;)
+            {
+                item.m_job = ScanInt(&ok);
+                if (!ok)
+                    break;
+                item.m_growValue = ScanInt(&ok);
+                if (!ok)
+                    break;
+                item.m_money = (unsigned long)(unsigned int)ScanInt(&ok);
+                if (!ok)
+                    break;
+                items->push_back(item);
+            }
+        }
+    }
+    return false;
+}
+bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
+                                   std::vector<SCRIPT::SRewardPeriodData>& rewardList)
+{
+    eventList.clear();    // ORIG +0x0e：vector<SEventPeriodData>::clear()
+    rewardList.clear();   // ORIG +0x1b：vector<SRewardPeriodData>::clear()
+
+    try
+    {
+        if (!loadRDARScriptFile("", "Etc/AradEventPeroid.etc"))
+            return false;
+
+        std::string token;
+        bool ok = false;
+        while (ScanType(token, true))
+        {
+            if (token == "[event period]")
+            {
+                short startShorts[4];
+                short endShorts[4];
+                for (;;)
+                {
+                    int eventCode = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    if (!SCRIPT::readTime(startShorts))
+                        throw "start time";
+                    if (!SCRIPT::readTime(endShorts))
+                        throw "end time";
+
+                    SEventPeriodData data(eventCode,
+                                          SCRIPT::uint32Time(startShorts),
+                                          SCRIPT::uint32Time(endShorts));
+                    if (std::find(eventList.begin(), eventList.end(), data)
+                            != eventList.end())
+                        throw "already exist";          // ORIG find != end 分支
+                    eventList.push_back(data);
+                }
+            }
+            else if (token == "[reward period]")
+            {
+                short startShorts[4];
+                short endShorts[4];
+                for (;;)
+                {
+                    int eventCode = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    if (!SCRIPT::readTime(startShorts))
+                        throw "start time";
+                    if (!SCRIPT::readTime(endShorts))
+                        throw "end time";
+
+                    int itemIndex = ScanInt(&ok);
+                    if (!ok)
+                        throw "item index";
+                    short itemCount = (short)ScanInt(&ok);
+                    if (!ok)
+                        throw "item count";
+
+                    SRewardPeriodData data(eventCode,
+                                           (unsigned long)(unsigned int)itemIndex,
+                                           itemCount,
+                                           SCRIPT::uint32Time(startShorts),
+                                           SCRIPT::uint32Time(endShorts));
+                    if (std::find(rewardList.begin(), rewardList.end(), data)
+                            != rewardList.end())
+                        throw "already exist";
+                    rewardList.push_back(data);
+                }
+            }
+        }
+        return true;    // ORIG 扫描完成 ebx=1。
+    }
+    catch (char const* msg)
+    {
+        LogManager::logFormat(
+            1, "../localjapan/Arad_RDARScriptEtcParameter.cpp",
+            "importAradEventScript", 0x99,
+            "[ARAD SCRIPT] Load fail. AradEventPeroid.etc %s", msg);
+        return false;
+    }
+}
+
+}  // namespace SCRIPT
+}  // namespace ARAD

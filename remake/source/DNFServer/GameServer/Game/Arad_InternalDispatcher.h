@@ -50,10 +50,25 @@
 // ============================================================================
 
 #include <map>
+#include "GameEnums.h"
+#include "PacketDispatcher.h"      // IPacketDispatcher<MSG_BASE,ParamBase,ch_state0>
+
+// line-format Sig 缓冲（权威定义见 MoreTypes.h）；此处仅前置声明供
+// Dispatcher_*::checkWorkState 参数引用。
+namespace arad
+{
+struct SigAvatarRoulette;
+struct SigAradAvatarConvert;
+struct SigAradEmblemCompound;
+struct SigAradJumpingCharacter;
+struct SigAradUseAvatarRecharge;
+struct SigAvatarHiddenOptionChange;
+}
 
 class CUser;
 class Stream;
 class CStreamGuard;
+class PacketGuard;
 
 namespace ARAD
 {
@@ -327,7 +342,84 @@ class Arad_INTER_kAvatarConvert : public Arad_IInterDispatcher
 public:
     Arad_INTER_kAvatarConvert();                     // 0x0819a7fe
     ~Arad_INTER_kAvatarConvert();
+
     virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+// ---------------------------------------------------------------------------
+// 包头构造 helpers（ORIG 0x08197812 T / 0x08197862 T）
+// ---------------------------------------------------------------------------
+void make_cmd_packetheader_jpn(PacketGuard& guard, ENUM_CMDPACKET code, bool flag);
+void make_noti_packetheader_jpn(PacketGuard& guard, ENUM_NOTIPACKET code, bool flag);
+
+// ---------------------------------------------------------------------------
+// cmd 流业务派发器 —— 完整 IPacketDispatcher 派生形态（ORIG 六类各具
+// C1/C2、D0/D1、dispatch_sig 0x0819ef54 等 T/W、process/read W 槽与
+// checkWorkState T 的全套符号，nm 实证）。
+class Dispatcher_AvartarRoulette : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AvartarRoulette();
+    virtual ~Dispatcher_AvartarRoulette();
+    int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819ef54
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAvatarRoulette& sig);        // 0x0819ee6c
+};
+
+class Dispatcher_AradAvatarConvert : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AradAvatarConvert();
+    virtual ~Dispatcher_AradAvatarConvert();
+    int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x081a00be
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAradAvatarConvert& sig);     // 0x081a003e
+};
+
+class Dispatcher_AradEmblemCompound : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AradEmblemCompound();
+    virtual ~Dispatcher_AradEmblemCompound();
+    int dispatch_sig(CUser* user, PacketBuf& packet);
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAradEmblemCompound& sig);
+};
+
+class Dispatcher_AradJumpingCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AradJumpingCharacter();
+    virtual ~Dispatcher_AradJumpingCharacter();
+    int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819f1ec
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAradJumpingCharacter& sig);  // 0x0819f44c
+};
+
+class Dispatcher_AradUseAvatarRecharge : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AradUseAvatarRecharge();
+    virtual ~Dispatcher_AradUseAvatarRecharge();
+    int dispatch_sig(CUser* user, PacketBuf& packet);
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAradUseAvatarRecharge& sig);
+};
+
+class Dispatcher_AvartarHiddenOptionChange : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+{
+public:
+    Dispatcher_AvartarHiddenOptionChange();
+    virtual ~Dispatcher_AvartarHiddenOptionChange();
+    int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819f6f8
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int read(PacketBuf& packet, MSG_BASE& msg);
+    bool checkWorkState(CUser* user, ::arad::SigAvatarHiddenOptionChange& sig);  // 0x0819f956
 };
 
 }  // namespace DISPATCHER

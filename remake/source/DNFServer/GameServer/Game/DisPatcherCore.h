@@ -677,6 +677,8 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
+struct MSG_DEBUG_COMMAND;  // 前向（ORIG R17MSG_DEBUG_COMMAND；完整布局见
+                           // DisPatcher_DebugCommand_cmds.cpp）
 class DisPatcher_DebugCommand : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
@@ -686,6 +688,36 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     char _debugCommandSetLevel(CUser* user, int level);  // ORIG T 0x0858efde _ZN23DisPatcher_DebugCommand21_debugCommandSetLevelEP5CUseri
+    // ---- ORIG T _debugCommand* 家族（0x0858e724..0x085908d6；各报告见
+    // docs/class_func_reports/DisPatcher_DebugCommand/；定义于
+    // DisPatcher_DebugCommand_cmds.cpp）----
+    bool _debugCommandOn(CUser* user, MSG_DEBUG_COMMAND& msg);            // 0x0858e724
+    bool _debugCommandOff(CUser* user, MSG_DEBUG_COMMAND& msg);           // 0x0858e918
+    bool _debugCommandAddItem(CUser* user, unsigned long itemIdxOnlyServer, int count);  // 0x0858ec9c
+    bool _debugCommandVisible(CUser* user, MSG_DEBUG_COMMAND& msg);       // 0x085906ac
+    bool _debugCommandSetSkill(CUser* user, int skillIdx, int level);     // 0x0858eab8
+    bool _debugCommandAddAvatar(CUser* user, MSG_DEBUG_COMMAND& msg);     // 0x0858f7b6
+    bool _debugCommandInvisible(CUser* user, MSG_DEBUG_COMMAND& msg);     // 0x0859058a
+    bool _debugCommandPowerUpOn(CUser* user, MSG_DEBUG_COMMAND& msg);     // 0x0858ffee
+    bool _debugCommandUserRepel(CUser* user, MSG_DEBUG_COMMAND& msg);     // 0x0859048e
+    bool _debugCommandClearInven(CUser* user, MSG_DEBUG_COMMAND& msg);    // 0x0859019e
+    bool _debugCommandClearSkill(CUser* user, MSG_DEBUG_COMMAND& msg);    // 0x0858e9c4
+    bool _debugCommandPVPRankSet(CUser* user, MSG_DEBUG_COMMAND& msg);    // 0x0858faba
+    bool _debugCommandRequestMid(CUser* user, MSG_DEBUG_COMMAND& msg);    // 0x08590506
+    bool _debugCommandSetEnchant(CUser* user, MSG_DEBUG_COMMAND& msg);    // 0x0858fb4e
+    bool _debugCommandLevelUpDown(CUser* user, int levelDelta);           // 0x0858f3ba
+    bool _debugCommandPowerWarEnd(CUser* user);                           // 0x0859044e
+    bool _debugCommandSetGrowType(CUser* user, int kind, int value);      // 0x0858ee54
+    bool _debugCommandGuildLevelUp(CUser* user);                          // 0x0858f64c
+    bool _debugCommandCargoCapacity(CUser* user, MSG_DEBUG_COMMAND& msg); // 0x0858fdc8
+    bool _debugCommandClearAvtInven(CUser* user, MSG_DEBUG_COMMAND& msg); // 0x08590254
+    bool _debugCommandPowerWarStart(CUser* user);                         // 0x0859040e
+    bool _debugCommandSetBlackCount(CUser* user, MSG_DEBUG_COMMAND& msg); // 0x0858fcc4
+    bool _debugCommandSetUserDefine(CUser* user, PacketBuf& packet);      // 0x085908ba
+    bool _debugCommandMasterNewSkill(CUser* user, int skillIdx, int level);  // 0x0858ebcc
+    bool _debugCommandPowerwarPointUp(CUser* user, MSG_DEBUG_COMMAND& msg);  // 0x0858fe62
+    bool _debugCommandUserPowerwarPointUp(CUser* user, MSG_DEBUG_COMMAND& msg);  // 0x0858fee8
+    bool _debugCommandInitUserPowerwarPoint(CUser* user, MSG_DEBUG_COMMAND& msg);  // 0x08590092
 };
 
 class DisPatcher_AddFriend : public IPacketDispatcher<MSG_ADD_FRIEND, stAddFriendParam, (ch_state)3>

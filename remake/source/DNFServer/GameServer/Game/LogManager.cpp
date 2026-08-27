@@ -4,6 +4,8 @@
 //   s_indent 0x09501e64  static int
 // 全部 LogManager 方法为静态成员；prepareData 为文件内 static。
 #include "LogManager.h"
+#include <tr1/memory>
+#define LOG_WRITER_SP std::tr1::shared_ptr
 
 #include <array>
 #include <cstdarg>
@@ -13,7 +15,7 @@
 
 struct LogManagerData
 {
-    std::array<std::shared_ptr<LogWriter>, 64> data;
+    std::array<LOG_WRITER_SP<LogWriter>, 64> data;
 };
 
 static LogManagerData* s_data = 0;
@@ -89,13 +91,13 @@ void LogManager::logString(int level, const char* file, const char* func,
     }
 }
 
-std::shared_ptr<LogWriter> LogManager::getLogWriter(int index)
+LOG_WRITER_SP<LogWriter> LogManager::getLogWriter(int index)
 {
     prepareData();
     return s_data->data[index];
 }
 
-void LogManager::setLogWriter(int index, std::shared_ptr<LogWriter> writer)
+void LogManager::setLogWriter(int index, LOG_WRITER_SP<LogWriter> writer)
 {
     prepareData();
     s_data->data[index] = writer;

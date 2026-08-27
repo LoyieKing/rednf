@@ -11,10 +11,16 @@
 #include <vector>
 #include <cstring>
 
+#include "Inven_Item.h"   // gift 族按值传 Inven_Item，需完整类型
+
 class CUser;      // 前向（参数指针；完整定义在 CUser.h）
-class Inven_Item; // 前向（容器元素；完整定义在 Inven_Item.h）
+class Stream;     // 前向（ProcessIPGUserData 形参）
 class CCeraShopGoods;  // 前向（_CheckBuyingCondition/_CheckValidCount 形参；完整定义在 CItemList.h）
 class CItem;      // 前向（autoUnsealItem 形参；完整定义在 CItem.h）
+struct MSG_BUY_CERASHOP_ITEM;          // 前向（ProcessBuyRequest const& 形参；完整定义在 SigTypes.h）
+namespace WongWork { namespace IPG { struct SIPGData; } }  // 前向（ProcessIPGUserData 形参）
+class STSpecailItem_Param;   // 全局类；完整定义见 CCeraShop_Special.cpp 局部视图
+class STSpecailItem_Result;
 
 // ORIG SpecialItemHandler 为全局类（mangled _ZN18SpecialItemHandler…，非 WongWork 前缀）。
 // 仅 CCeraShop 持有指针；权威声明见 SpecialItemHandler.h，实现见 CCeraShop_Special.cpp。
@@ -68,13 +74,14 @@ public:
     bool _CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
                                unsigned int param3, unsigned char param4,
                                unsigned short param5, char param6, int& outCode);  // 0x08324810
-    bool _CheckValidCount(const CCeraShopGoods* const* goodsList);                 // 0x08323af4
     int checkBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
                              unsigned int b, unsigned short c, unsigned char d,
                              unsigned short e);                                 // 0x08323f2a
-    int _CheckBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
-                              unsigned int b, unsigned short c, unsigned char d,
-                              unsigned short e);                                // 0x08323f86
+    // 六参重载（ORIG mangled jmjtht；实现在 CCeraShop_Special.cpp）。
+    int _CheckBuyingCondition(CUser* user, unsigned int goodsNo, unsigned long itemIdx,
+                              unsigned int stackCount, unsigned short expiry,
+                              unsigned char selByte, unsigned short selSlot);   // 0x08323f86
+    bool _CheckValidCount(CCeraShopGoods const** goodsList);                       // 0x08323af4
     int _CheckConditionPutonAvatar(CUser* user);                               // 0x08324966
     bool ProcessSpecialItem(CUser* user, int itemIdx, int count, int& restrictCode,
                             long curSec, bool flag,
@@ -107,7 +114,7 @@ public:
                                 stCeraShopItemParam_t& param,
                                 unsigned char flag);                              // 0x083267a2
     // ---- 特殊商品子流程（本 TU 实现；签名与 ORIG mangled 一致）----
-    bool Is2010ChuseokPacket(unsigned long itemIdx);                           // 0x083280dc
+    bool Is2010ChuseokPacket(unsigned int itemIdx);                            // 0x083280dc（ORIG mangled …Ej）
     void _processCoin(CUser* user, unsigned short value, bool flag);            // 0x08325a88
     void autoUnsealItem(const CItem* item, Inven_Item& invItem);                // 0x08327f10
     int _processItem(CUser* user, Inven_Item item, int count, int& restrictCode,
@@ -118,9 +125,41 @@ public:
                          int& outFlag, bool flag, int usablePeriod,
                          int expirationDate);                                    // 0x08325d66
 
+    // ---- W6_CeraShopDeps 批次补齐（声明 append，ORIG mangled 核实于 df_game_r nm）----
+    // 错误日志输入视图（LogError 0x0832033a 消费；字段语义未全还原，标注【推断】）。
+    struct stErrorLogInput_t
+    {
+        int m_field0;            // +0x00（→ SIG_CERASHOP_ERROR_LOG +0x00）
+        int m_field4;            // +0x04（→ +0x04）
+        int m_field8;            // +0x08（→ +0x14）
+        int m_fieldc;            // +0x0c（→ +0x18）
+        unsigned short m_field10;// +0x10（→ +0x10）
+    };
+    void LogError(const stErrorLogInput_t& input) const;                           // 0x0832033a
+    void CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
+                                STSpecailItem_Result& result);                     // 0x08325854
+    void _ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
+                          IPG::SIPGData* resData, unsigned char errCodeA,
+                          int errCodeB, unsigned int productNo, int subCode,
+                          int code2, char flag);                                   // 0x083237f6
+    int ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);          // 0x832047a
+    void ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
+                            IPG::SIPGData* resData, Stream* stream);               // 0x8321d2e
+    void _processCoinGift(CUser* user, unsigned short currencyType,
+                          unsigned int buyIdx, int cost);                          // 0x0832619c
+    void _processCoinGift(CUser* user, unsigned short currencyType,
+                          unsigned int buyIdx, int cost, int count);               // 0x08326332
+    void _processItemGift(CUser* user, Inven_Item item,
+                          unsigned int buyIdx, int giftKind);                      // 0x083264d6
+    void _processAvatarGift(CUser* user, int slot, int periodDays, char c1, char c2,
+                            char const* name, unsigned int buyIdx, int cost);      // 0x08326036
+    void _processCreatureGift(CUser* user, Inven_Item item, unsigned int buyIdx,
+                              int a4, int a5, int a6);                             // 0x083265e8
 private:
     SpecialItemHandler* m_handler;  // +0x00
+
     int m_originalItemIdx;          // +0x04（setOriginalItem 写入 / getOriginalItem 读取）
+
 };
 
 }  // namespace WongWork

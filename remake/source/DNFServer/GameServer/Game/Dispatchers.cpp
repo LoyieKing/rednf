@@ -7430,11 +7430,8 @@ int Dispatcher_RequestPrcoomDayilyReward::read(PacketBuf& packet, MSG_BASE& msg)
 }
 }
 namespace ARAD {
-// Arad_Dispatcher_Login_Impl 生命周期占位保留原状（真实 db_dispatch 0x27d +
-// premium_info_set/punish_user_check/account_password_check/pad_certifiaction_check
-// 待独立批次建模；本票范围仅 Manager/BuyItemCheck_Impl，见 Arad_Dispatcher.cpp）。
-Arad_Dispatcher_Login_Impl::Arad_Dispatcher_Login_Impl() {}
-Arad_Dispatcher_Login_Impl::~Arad_Dispatcher_Login_Impl() {}
+// W7_BuildHarmonize 去重：Arad_Dispatcher_Login_Impl 生命周期唯一 owner 为
+// ARAD_LoginSecurity.cpp（含 base(1) 初始化）。
 }  // namespace ARAD
 
 

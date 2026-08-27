@@ -109,7 +109,10 @@ template <class T>
 class Singleton
 {
 public:
+    Singleton() {}                       // ORIG W C1（如 _ZN4ARAD9SingletonI16HeroMissionEventE9SingletonEv
+                                         //   0x0816858c，5 字节空体）
     static T* Get();
+    static T* GetPtr();                  // ORIG W（0x0811c9c1：尾调 Get()）
 };
 
 template <class T>
@@ -117,6 +120,12 @@ T* Singleton<T>::Get()
 {
     static T instance;
     return &instance;
+}
+
+template <class T>
+T* Singleton<T>::GetPtr()
+{
+    return Get();
 }
 
 int notifyOpenMessageDialog(CUser* user, int a, int b,

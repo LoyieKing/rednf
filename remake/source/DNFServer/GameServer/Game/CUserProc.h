@@ -20,6 +20,8 @@ namespace APSystem
 class _ActionGroupIndex
 {
 public:
+    _ActionGroupIndex() {}
+    explicit _ActionGroupIndex(int v) : m_value(v) {}  // ORIG 调用点以整型组号直传（压栈形态）
     int m_value;  // +0x00
 };
 

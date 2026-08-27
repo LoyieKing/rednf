@@ -73,10 +73,12 @@ public:
     int get_index() const;
     int GetCashPrice() const;             // ORIG W 0x822c856：读 this+0x10
     int getAdvanceAltarNeedGage() const;  // ORIG W 0x081347ca：读 this+0x68（altar 槽物品需耗 gage；OnlyOrig_Altar.AltarMgr 收口批声明，定义归 CItem 域）
+    bool isCerashopPackageItem() const;   // ORIG W 0x08179fb4（W6_CeraShopDeps 消费）
     int GetMedalPrice() const;            // ORIG W 0x822c862：读 this+0x14（勋章价）
     int get_grade() const;
     int getItemGroupName() const;
     int getUsableLevel() const;
+    int GetNeedLevel() const;              // ORIG W 0x08545fda _ZNK5CItem12GetNeedLevelEv
     int get_rarity() const;
     int get_gen_rate() const;                             // ORIG W 0x832e02a：返回 m_field50
     bool isSpecialMonsterDropItem();                      // ORIG W 0x8539e00：m_drop.m_enable
