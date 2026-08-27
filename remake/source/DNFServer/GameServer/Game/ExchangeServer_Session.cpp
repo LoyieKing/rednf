@@ -108,7 +108,8 @@ int CSession::Parsing(int recvLen)
     parsingLength = (int)m_recvOffset + recvLen;
 
     tick = get_ms_tick();
-    m_field04 = tick;                       // 64 位整体存 +0x04/+0x08
+    m_lastRecvTick = (unsigned int)tick;                 // +0x04（ORIG 64 位整写，tick 低 4 字节）
+    m_recvGapTick = (unsigned int)(tick >> 32);          // +0x08
 
     if (parsingLength <= 12)
     {

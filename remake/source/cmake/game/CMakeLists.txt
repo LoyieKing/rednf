@@ -606,6 +606,15 @@ dnf_service(game
         ${SVC_DIR}/W7_LinkTailGrowth.cpp
         ${SVC_DIR}/W7_UserLinkTail.cpp
         ${SVC_DIR}/W7_UserOnlyC.cpp
+        ${SVC_DIR}/W8_CU_MAIN.cpp
+        ${SVC_DIR}/W8_CU_A.cpp
+        ${SVC_DIR}/W8_CU_B.cpp
+        ${SVC_DIR}/W8_CU_C.cpp
+        ${SVC_DIR}/W8_CU_D.cpp
+        ${SVC_DIR}/W8_CU_E.cpp
+        ${SVC_DIR}/W8_CU_F.cpp
+        ${SVC_DIR}/W8_CU_G.cpp
+        ${SVC_DIR}/W8_CU_H.cpp
         ${SVC_DIR}/ShaSupport.cpp
         ${SVC_DIR}/ARAD_Database.cpp
         ${SVC_DIR}/DB_UpdateGiftCount.cpp

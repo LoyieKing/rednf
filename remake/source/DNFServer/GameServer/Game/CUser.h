@@ -485,13 +485,45 @@ struct _Charac_info
     char m_field29;         // +0x29（MakeTagCharacInfo put_byte(movsbl)）
     char m_pad2a[0x75 - 0x2a];  // +0x2a..0x74
     unsigned char m_stamina;    // +0x75（疲劳值；SelectCharac 恢复/make_charac_stat 序列化）
-    char m_pad76[0xdbe - 0x76];       // +0x76..0xdbd
+    char m_pad2a[0x82 - 0x2a];  // +0x2a..0x81
+    unsigned char m_field83;          // +0x83（CreateCharac 0x0864a312 清零）
+    unsigned int m_field84;           // +0x84（CreateCharac 0x0864a2fe 清零）
+    unsigned char m_skillData[0x52];  // +0x88..0xd9（CreateCharac 0x0864a21b 起自
+                                      //   *(G_CDataManager()+0x14)+(schar)job*0x7dc 复制 0x52；
+                                      //   SetCharacInfo 不触碰）
+    char m_padda[0xdbe - 0xda];       // +0xda..0xdbd
     int m_guildId;                    // +0xdbe（GetGuildIdBeforeDeleteCharacter 读取）
     char m_paddc2[0xe3b - 0xdc2];     // +0xdc2..0xe3a
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 置 1）
-    char m_pad123c[0x1239 - 0xe3c];   // +0xe3c..0x1238
-    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择：-1/0 → SkillW+0x46，否则 +0x1de）
-    char m_pad123a[0x124f - 0x123a];  // +0x123a..0x124e
+    char m_pade3c[0xe40 - 0xe3c];     // +0xe3c..0xe3f
+    unsigned char m_restrictFlags;    // +0xe40 bit0=创建后强制置1(SetCharacInfo src[0x1c]&1
+                                      //   /CreateCharac 死代码)，bit1=(src[0x1c]>>4)&1；
+                                      //   CHARAC_LOGIN_DATA 注记 bit4 引用同源
+    char m_pade41[0xe5d - 0xe41];     // +0xe41..0xe5c
+    int m_fieldE5D;                   // +0xe5d（SetCharacInfo ← DB src+0x8c @0x08649eeb）
+    char m_pade61[0xe66 - 0xe61];     // +0xe61..0xe65
+    unsigned char m_expireFlag;       // +0xe66（SetCharacInfo curSec<src+0x90 @0x08649ebd）
+    char m_pade67[0xf8 - 0xe67];      // +0xe67..0xf7
+    struct CharacLinkMark             // SetCharacInfo 循环1 @0x08649d5c：每角色 12 槽，
+    {                                 //   仅槽首 dword 被写（src+(i+4)*8+8）
+        unsigned int m_markValue;     // 块内 +0x00
+        char m_gap1[0x3c];            // 块内 +0x04..0x3c（ORIG stride 0x3d 未建模区）
+    };
+    CharacLinkMark m_linkMarks[12];   // +0xf8..0x3db
+    char m_pad3dc[0x75e - 0x3dc];     // +0x3dc..0x75d
+    CHARAC_LOGIN_DATA::AvatarSlot m_avatarSlots[12]; // +0x75e..0x7bd（SetCharacInfo 循环2
+                                     //   @0x08649d9f：itemIdx/+0xc/+0xe 三连写）
+    char m_pad7be[0x12ad - 0x7be];    // +0x7be..0x12ac
+    int m_field12AD;                  // +0x12ad（SetCharacInfo ← DB src+0x90 @0x08649edf）
+    char m_pad12b1[0x1239 - 0x12b1];  // +0x12b1..0x1238
+    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择；CreateCharac 置 0xff）
+    char m_pad123a[0x1240 - 0x123a];  // +0x123a..0x123f
+    unsigned char m_restrictPlay;     // +0x1240（CreateCharac 0x0864a32c ← sig+0x24!=0；
+                                      //   CHARAC_LOGIN_DATA m_flags bit0 注记引用）
+    char m_pad1241[0x1246 - 0x1241];  // +0x1241..0x1245
+    unsigned char m_linkPairType;     // +0x1246（checkCharacLinkType 0x08652c13 校验相邻
+                                      //   链接角色类型：偶数位=2 / 奇数位=3 成对）
+    char m_pad1247[0x124f - 0x1247];  // +0x1247..0x124e
     unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
     char m_pad1250[0x14b7 - 0x1250];  // +0x1250..0x14b6
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
@@ -500,8 +532,8 @@ struct _Charac_info
     int m_viewState;        // +0x14c6
     char m_pad14ca[0x14d1 - 0x14ca];
 };
-#pragma pack(pop)
-
+static_assert(sizeof(_Charac_info) == 0x14d1,
+              "_Charac_info ABI drift (W8_CU_C: CreateCharac/SetCharacInfo ORIG layout)");
 // ---- 雇佣兵加载结构（vector 元素；ORIG 步长 0x54，见 _M_insert_aux/ix imul $0x54） ----
 struct CHARAC_LOAD_MERCENARY
 {
@@ -511,6 +543,9 @@ struct CHARAC_LOAD_MERCENARY
     int GetCompetitionState() const;  // ORIG T 0x081b2e86（定义 CUser.cpp）
 
     int m_characNo;               // +0x00（FindIndexByCharacNo 按首 dword 无符号比较）
+
+
+# NOTE_MARKER_NOOP
     short m_level;                // +0x04（AddCurCharacMercenaryInfo 写 charac+0x27）
     char m_name[0x1e];            // +0x06..0x23（Reset memset(this+6,0,0x1e)）
     unsigned char m_field24;      // +0x24（Reset 写 0）
@@ -1557,10 +1592,21 @@ struct GrowthWeaponEvent
 
 struct GrowthCreatureEvent
 {
+    // 真实布局 stride 0x2c（GiveGrowCreatureEvent 写入/比较侧 ORIG 实证；
+    // vector 字节数不变 → sizeof(CUser)/sizeof(GrowthCreatureEvent) 不变）。
     struct eventCharacInfo
     {
-        char m_pad[0x10];
+        unsigned short m_serverGroup;   // +0x00
+        int m_characNo;                 // +0x04
+        int m_job;                      // +0x08
+        char m_name[30];                // +0x0c..0x29
+
+        eventCharacInfo() : m_serverGroup(0), m_characNo(0), m_job(0)
+        {
+            m_name[0] = '\0';
+        }
     };
+    static_assert(sizeof(eventCharacInfo) == 0x2c, "GrowthCreatureEvent::eventCharacInfo size");
 
     GrowthCreatureEvent();
     ~GrowthCreatureEvent() {}

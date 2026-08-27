@@ -215,8 +215,8 @@ int CDeathTowerRanking::checkRenewMyRecord(unsigned int towerIdx,
     stBestRecord_t tmp;
     tmp.m_stage = stage;
     tmp.m_playTime = playTime;
-    BestMap::iterator it = m_bestTables[towerIdx].find(key);
-    if (it == m_bestTables[towerIdx].end())
+    BestMap::const_iterator it(m_bestTables[towerIdx].find(key));
+    if (it == BestMap::const_iterator(m_bestTables[towerIdx].end()))
         return -1;
     return tmp > it->second ? 1 : 0;  // ORIG: stBestRecord_t::operator>(tmp, existing)
 }

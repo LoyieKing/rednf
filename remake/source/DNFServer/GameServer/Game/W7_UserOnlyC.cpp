@@ -304,7 +304,8 @@ bool CUser::Parsing(int received)
     int remain = static_cast<int>(net.m_recvOffset) + received;
     const long long nowTick = GlobalData::s_systemTime_.getCurTickCount();
 
-    net.m_field04 = nowTick;       // CUser+0xe4（8 字节整写）
+    net.m_lastRecvTick = (unsigned int)nowTick;   // CUser+0xe4（ORIG 64 位整写拆两 int，tick 在低 4 字节）
+    net.m_recvGapTick = 0;                        // CUser+0xe8
 
     if (remain <= 0xc)
     {
@@ -315,7 +316,7 @@ bool CUser::Parsing(int received)
           reinterpret_cast<unsigned int>(net.m_recvBuf),
           reinterpret_cast<unsigned int>(net.m_recv), net.m_recvOffset,
           received);
-        net.m_field29 = 1;                            // bufoffset 标记 +0x109
+        net.m_bBufOffsetTrace = 1;                    // bufoffset 标记 +0x109
         return true;
     }
 
@@ -324,7 +325,7 @@ bool CUser::Parsing(int received)
         if (net.m_recvOffset != 0)
             net.m_recvBuf -= net.m_recvOffset;
 
-        if (net.m_field29 != 0)
+        if (net.m_bBufOffsetTrace != 0)
         {
             cMyTrace t("bool CUser::Parsing(int)", 0x6b2, 0);
             t("[BUFOFFSET TRACE](offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
@@ -406,7 +407,7 @@ bool CUser::Parsing(int received)
             guard << static_cast<int>(GetUID());
             guard.put_binary(reinterpret_cast<void*>(net.m_recvBuf), hdr.m_size);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-            net.m_field29 = 0;
+            net.m_bBufOffsetTrace = 0;
         }
 
         remain -= hdr.m_size;
@@ -420,7 +421,7 @@ bool CUser::Parsing(int received)
         }
     } while (remain > 0xc);
 
-    net.m_field29 = 0;
+    net.m_bBufOffsetTrace = 0;
 
     if (remain > 0)
     {

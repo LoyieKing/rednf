@@ -55,6 +55,8 @@ public:
     int process_action_send_mail(CUser* user, Action_SendMail& mail, bool flag);  // 0x0810cf32 T
     int process_coin_send(CUser* user, Action_SendMail& mail, Inven_Item& item);   // 0x0810d4ae
     int process_gold_mail_send(CUser* user, Action_SendMail& mail);                // 0x0810d83c
+    int getResultItemFromLottery(unsigned int lotteryId,
+                                 std::vector<std::pair<int, int> >& out);  // 0x0810dc5a
     int process_avatar_send(CUser* user, Inven_Item& item, CItem const* citem);    // 0x0810d70c
     int process_mail_send(CUser* user, Action_SendMail& mail, Inven_Item& item,
                           CItem const* citem);                                     // 0x0810da1c

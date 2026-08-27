@@ -35,8 +35,14 @@ struct STResultItemCnt
 
 struct ItemAuraInfo
 {
-    int m_field0;   // +0x00
-};
+    int m_field0;            // +0x00
+    unsigned char m_field4;  // +0x04（ORIG CStringMaker::operator()(ItemAuraInfo)
+                             //   @0x08627066：movzbl v+0x10(ebp)=v+4 零扩展）
+    float m_float8;          // +0x08（同函数 flds v+8 → double 提升）
+    int m_fieldc;            // +0x0c（同函数读 v+c）
+};                           // sizeof 0x10
+
+static_assert(sizeof(ItemAuraInfo) == 0x10, "ItemAuraInfo size mismatch");
 
 // ORIG 布局依 importSkillDataUp（0x88c049c）反编译：元素按偏移
 //   +0x00 job / +0x04 value / +0x08 value / +0x0c percent / +0x10 value /

@@ -50,6 +50,8 @@ public:
     // ORIG _ZN16HeroMissionValue14setStringTokenESs T 0x08164d68（按值收 token 串，
     // 解析 "mission,cur,max,flag" 形式；定义归 HeroMission 域批次）
     void setStringToken(std::string token);
+    // ORIG _ZN16HeroMissionValue5resetEv T 0x08164bb2（resetMissionForGm 依赖）。
+    void reset();
 };
 
 // ---- BaseHeroMissionCondition（ORIG vtable 0x08b7f0d8：虚析构 + 2 纯虚槽）----
@@ -79,6 +81,25 @@ public:
                         unsigned int param);   // ORIG 0x081672be
     bool findMissionValue(CUser* user, HeroMissionCondition::MissionNo::T mission,
                           HeroMissionValue*& out);   // ORIG 0x08168010
+    // ---- W8_LongTail Batch07_VendingHero 批次（Game/W8LT_VendingHero.cpp）----
+    // Word_Param 定义见 CGuildServerProxy.h（ORIG StartEvent(Word_Param) 参数类型）。
+    bool loadScript();                                            // ORIG 0x08167ac8
+    void StartEvent();                                            // ORIG 0x0816664a
+    // ORIG 0x081666e6：仅经 vptr+0x08 调用自身 StartEvent()（thunk 形态）。
+    void StartEvent(Word_Param param);
+    void EndEvent();                                              // ORIG 0x08166700
+    ~HeroMissionEvent();                                          // ORIG D0 0x0816662c
+    void saveEventData(CUser* user, bool removeData);             // ORIG 0x08166d38
+    void loadEventData(CUser* user);                              // ORIG 0x0816709e
+    bool rewardMission(CUser* user,
+                       HeroMissionCondition::MissionNo::T mission); // ORIG 0x0816748e
+    // ORIG 0x08166d0e：std::string::c_str 后转 char const* 重载。
+    void setEventData(CUser* user, const std::string& data);
+
+    void resetMissionForGm(CUser* user,
+                           HeroMissionCondition::MissionNo::T mission);          // ORIG 0x08167a3a
+    void setMissionForGm(CUser* user, HeroMissionCondition::MissionNo::T mission,
+                         unsigned int value);                                    // ORIG 0x081679ac
 
 private:
     // ORIG 布局镜像（CEventBase 基类）

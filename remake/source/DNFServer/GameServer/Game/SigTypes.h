@@ -1190,8 +1190,14 @@ struct SIG_NAT_TYPE_USER
 
 struct SIG_OBJECT_BRING_UP
 {
-    char m_pad[0x10];
-};
+    unsigned int   m_accId;        // +0x00 sendBringUpReward←CUser::get_acc_id
+    unsigned int   m_characNo;     // +0x04 ←CUserCharacInfo::getCurCharacNo
+    unsigned char  m_serverGroup;  // +0x08 ←*(G_CEnvironment()+0x378)
+    unsigned char  m_pad09[3];     // +0x09..+0x0b（无访问证据）
+    unsigned char  m_usedMaterialCnt; // +0x0c ←getCurUseBringUpMaterialCount
+    unsigned char  m_rewardFlag;      // +0x0d ←getBringUpRewardFlag
+    unsigned char  m_pad0e[2];        // +0x0e..+0x0f
+};                                 // sizeof = 0x10
 
 struct SIG_ONLINE_PRELIMINARY_MEMBER
 {
@@ -1262,11 +1268,19 @@ struct SIG_QUERY_CHARAC_INFO
 {
     char m_pad[0x30];
 };
-
+// ORIG 布局（CQuestShop::getData 0x85ef868 / _saveData 0x85efb66 /
+// loadData 0x85efa2c 反汇编实证；单实例 0xaa，SIG_LOAD_ETC 内双实例区
+// [0xd5a7,0xd651)=0xaa 与 loadData 0x154 flag 对齐）。
 struct SIG_QUEST_SHOP_DATA
 {
-    char m_pad[0x155];
+    unsigned int m_characNo;               // +0x000（_saveData 写 get_charac_no(-1)）
+    unsigned int m_qp;                     // +0x004
+    unsigned int m_initCount;              // +0x008
+    unsigned short m_statusCounts[0x4d];   // +0x00c..0x0a5（status i 已购计数）
+    unsigned int m_questPiece;             // +0x0a6
 };
+static_assert(sizeof(SIG_QUEST_SHOP_DATA) == 0xaa,
+              "SIG_QUEST_SHOP_DATA ABI drift");
 
 struct SIG_REDEEMINFO_LIST_TO_DB
 {

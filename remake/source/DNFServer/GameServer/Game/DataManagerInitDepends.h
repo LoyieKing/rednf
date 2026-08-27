@@ -297,6 +297,9 @@ public:
     void IncreaseEnterCount();
     // ORIG T 0x0864390e（本批次定义 CPartyDepsD2.cpp）：层推进+脏标记+清层时间。
     void ClearLayer();
+    // ORIG T 0x086438fc _ZN13TOD_UserState13setEnterLayerERK9TOD_Layer：
+    // 写 lastEnterLayer(+0x16)/当日层（oldGmRoutine "wjfakd" GM 命令调用）。
+    void setEnterLayer(const TOD_Layer& layer);
 
     char m_pad0[0xc];               // +0x00..+0x0b（未建模区）
     int m_firstEnterTime;           // +0x0c（当日首次进入时间；IncreaseEnterCount 写）

@@ -127,8 +127,8 @@ int CDataManager::Verify() const
     {
         __gnu_cxx::hash_map<int, CSkill*>* map =
             m_skillList->getSkillList(job);
-        for (__gnu_cxx::hash_map<int, CSkill*>::iterator it = map->begin();
-             it != map->end(); ++it)
+        for (__gnu_cxx::hash_map<int, CSkill*>::const_iterator
+                 it(map->begin()), e(map->end()); it != e; ++it)
         {
             CSkill* skill = it->second;
             // 【ORIG asm 08360f15: mov 0xc8(%eax),%eax】required level range tag
@@ -155,9 +155,9 @@ int CDataManager::Verify() const
     {
         // asm 0836103b: this+0x04 → hash_map 直接作用于该对象首部
         // （CMapList::m_mainMap +0x00）
-        for (__gnu_cxx::hash_map<int, CMap*>::iterator it =
-                 m_mapList->m_mainMap.begin();
-             it != m_mapList->m_mainMap.end(); ++it)
+        for (__gnu_cxx::hash_map<int, CMap*>::const_iterator
+                 it(m_mapList->m_mainMap.begin()),
+                 e(m_mapList->m_mainMap.end()); it != e; ++it)
         {
             // ORIG 形态：VerifyMap 返回值 xor 1 存入标志位，逐张覆盖不提前 break
             mapFail = ((VerifyMap(*it->second, -1) ^ 1) & 0xff) != 0;
@@ -170,9 +170,9 @@ int CDataManager::Verify() const
 
     // [ORIG +0x0363..+0x03f8] 全副本 VerifyDungeon（this+0x00 直接作用 =
     // CDungeonList::m_dungeonMap +0x00）
-    for (__gnu_cxx::hash_map<int, CDungeon*>::iterator it =
-             m_dungeonList->m_dungeonMap.begin();
-         it != m_dungeonList->m_dungeonMap.end(); ++it)
+    for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator
+             it(m_dungeonList->m_dungeonMap.begin()),
+             e(m_dungeonList->m_dungeonMap.end()); it != e; ++it)
     {
         VerifyDungeon(*it->second);
     }
@@ -181,9 +181,9 @@ int CDataManager::Verify() const
     bool itemFail = false;
     {
         // asm 083611c8: this+0x0c(m_itemList) + lea 0x4 → CItemList::m_itemMap
-        for (__gnu_cxx::hash_map<int, CItem*>::iterator it =
-                 m_itemList->m_itemMap.begin();
-             it != m_itemList->m_itemMap.end(); ++it)
+        for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
+                 it(m_itemList->m_itemMap.begin()),
+                 e(m_itemList->m_itemMap.end()); it != e; ++it)
         {
             CItem* item = it->second;
             if (!item->is_stackable())
@@ -282,9 +282,9 @@ int CDataManager::Verify() const
     {
         // [ORIG +0x0994..+0x1149] Quest 表奖励引用检查
         bool questFail = false;
-        for (__gnu_cxx::hash_map<int, Quest*>::iterator qit =
-                 m_questList->m_questMap.begin();
-             qit != m_questList->m_questMap.end(); ++qit)
+        for (__gnu_cxx::hash_map<int, Quest*>::const_iterator
+                 qit(m_questList->m_questMap.begin()),
+                 qe(m_questList->m_questMap.end()); qit != qe; ++qit)
         {
             Quest* quest = qit->second;
             const char* qp = (const char*)quest;

@@ -11,6 +11,7 @@
 // ProcessBuyRequestEx（0x081769f6，115KB 报告）是真实业务依赖，定义在 GlobalData.cpp。
 // ---------------------------------------------------------------------------
 
+#include "GameEnums.h"  // INVEN_TYPE（_CheckEnableInventoryCondition/_GetInvenSlotInfo 形参）
 #include <map>
 #include <vector>
 
@@ -98,6 +99,43 @@ public:
     bool _CheckEnableStateCondition(const CCeraShopGoods* goods, CUser* user);           // 0x081768b0
     bool _CheckEnableAvatarCondition(const CCeraShopGoods* goods, char c,
                                      unsigned char uc, stAvatarTypeSelect_t& out);       // 0x08176794
+    // ---- W8_LongTail Batch07_VendingHero 批次（Game/W8LT_VendingHero.cpp）----
+    // ORIG 0x08179eae：委托 m_bonus.LoadScript()。
+    bool LoadPurcahseBonusScript();
+    // ORIG 0x08179ed8：委托 m_bonus.CheckBonusItem((int)itemIdx)。
+    bool CheckPurcahseBonusItem(unsigned long itemIdx);
+    // ORIG 0x08179f08：委托 m_bonus.GiveBonusItem(user, itemIdx, count, threshold)。
+    void ProcessPurcahseBonusItem(CUser* user, unsigned long itemIdx, int count,
+                                  unsigned short threshold);
+    // ORIG 0x0854c470：(int)(CItemList::GetVendingBonusRate() *
+    // CCeraShopGoods::GetBonusWeight())。
+    int GetFinalProbability(int goodsIdx);
+    // ORIG 0x081768ba：库存余量 + 白名单 itemIdx(200/0xcb/0xcc/0xcd/5/6/7) 判定。
+    bool _CheckEnableInventoryCondition(CUser* user, const CItem* item,
+                                        INVEN_TYPE invenType,
+                                        Inven_Item::ITEM_TYPE itemType);
+    // ORIG 0x08176348：static Inven_Item temp; reset 后经 GetRelatedItem 的
+    // vtable+0x08 拷贝；返回 temp.m_field1（ITEM_TYPE）。
+    unsigned char _GetItemType(const CCeraShopGoods* goods);
+    // ORIG 0x081763be：按 groupIdx 映射 (INVEN_TYPE, ITEM_TYPE) 输出对。
+    bool _GetInvenSlotInfo(const CCeraShopGoods* goods, INVEN_TYPE& invenType,
+                           Inven_Item::ITEM_TYPE& itemType);
+
+    // ---- IPG 计费应答族（形参 = user / SIPGData* req / SIPGData* res / Stream*）----
+    void ProcessIPGUserData(CUser* user, WongWork::IPG::SIPGData* reqData,
+                            WongWork::IPG::SIPGData* resData, Stream* stream);       // 0x0854c4f6
+    void ProcessIPGUserDataJpnEx(CUser* user, WongWork::IPG::SIPGData* reqData,
+                                 WongWork::IPG::SIPGData* resData, Stream* stream);  // 0x081783ea
+    void ProcessIPG_ResultInput(CUser* user, WongWork::IPG::SIPGData* reqData,
+                                WongWork::IPG::SIPGData* resData, Stream* stream);   // 0x0817866c
+    void ProcessIPG_ResultOutput(CUser* user, WongWork::IPG::SIPGData* reqData,
+                                 WongWork::IPG::SIPGData* resData, Stream* stream);  // 0x08178676
+    void ProcessIPG_ResultQuery(CUser* user, WongWork::IPG::SIPGData* reqData,
+                                WongWork::IPG::SIPGData* resData, Stream* stream);   // 0x081784d4
+    // ---- 台湾计费记录 ORIG 0x0817991e ----
+    void BillingRecord(CUser* user, int a3, int a4, int a5,
+                       const char* itemName, const char* accName, int priceType,
+                       unsigned long long uid, char payFlag);
     void _GetItemString(const CCeraShopGoods* goods, char* buf, unsigned int len);       // 0x0817645a
 private:
     // ORIG ctor 0x854c3e4 / dtor 0x854c42a：CCeraShop@+0 +

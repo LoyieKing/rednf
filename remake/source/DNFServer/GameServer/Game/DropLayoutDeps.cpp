@@ -121,9 +121,9 @@ void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOp
                     int target = level + offset;
                     if (target > 200)                 // cmp $0xc8 jg → 终止整行
                         break;
-                    __gnu_cxx::hash_map<int, CItem*>& bucket = grades[target];
-                    for (__gnu_cxx::hash_map<int, CItem*>::iterator it = bucket.begin();
-                         it != bucket.end(); ++it)
+                    const __gnu_cxx::hash_map<int, CItem*>& bucket = grades[target];
+                    for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
+                             it(bucket.begin()), e(bucket.end()); it != e; ++it)
                     {
                         CItem* item = it->second;
                         if (item->get_gen_rate() == 0)

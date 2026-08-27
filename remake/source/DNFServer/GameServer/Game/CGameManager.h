@@ -554,6 +554,9 @@ public:
     CAuctionAveragePrice* GetAuctionAveragePriceManager();
     CraneMinigameManager* GetCraneMinigameManager();
 
+    // ORIG QuickParty::CQuickParty::destroy(0x082695ca) 直读两计数的具名访问器
+    int GetActiveQuickPartyCnt() const;      // m_quickPartyMap.size()
+    int GetOccupiedQuickPartyPoolCnt();      // StaticPool Size()-Remain()
     bool IsNoGameGuardApplingUser(std::string& name, char* addr);
 
     // ---- FindUserByUnique（getUserByUnique 的局部谓词，ORIG 有独立 ctor 符号）----

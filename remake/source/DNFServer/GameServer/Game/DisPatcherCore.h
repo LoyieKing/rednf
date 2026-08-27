@@ -677,8 +677,37 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-struct MSG_DEBUG_COMMAND;  // 前向（ORIG R17MSG_DEBUG_COMMAND；完整布局见
-                           // DisPatcher_DebugCommand_cmds.cpp）
+#pragma pack(push, 1)
+// ORIG R17MSG_DEBUG_COMMAND —— DebugCommand 系 GM 命令参数包（原定义位于
+// DisPatcher_DebugCommand_cmds.cpp，现提升为权威共享定义；布局口径不变）：
+//   +0x00..0x0c    包头原始区（dispatch 不消费）
+//   +0x0d byte     命令号（dispatch_sig switch 0..0x30）
+//   +0x0e int      命令主参数（int 口径）
+//   AddAvatar 口径：+0x12 char 槽位 / +0x13 u8 天数 / +0x14 u16 数量
+//   SetEnchant 口径：+0x12 int 槽位 / +0x16 int 强化值
+//   RequestMid/UserRepel 口径：+0x12 起为名称缓冲（长度取 +0x0e，≤0x1d）
+struct MSG_DEBUG_COMMAND
+{
+    unsigned char m_head[0xd];       // +0x00..0x0c
+    unsigned char m_command;         // +0x0d
+    int m_arg;                       // +0x0e
+    union                            // +0x12 起（按命令互斥）
+    {
+        struct {
+            signed char slotByte;            // AddAvatar：+0x12 槽位（sbyte 口径）
+            unsigned char periodKind;        // AddAvatar：+0x13 天数（0=取物品表、
+                                             //            0x63 视作 0）
+            unsigned short count;            // AddAvatar：+0x14 数量
+        } avatar;
+        struct {
+            int slotInt;                     // SetEnchant：+0x12 槽位（int 口径）
+            int enchantVal;                  // SetEnchant：+0x16 强化值
+        } ench;
+        char nameBuf[0x2c];                  // RequestMid/UserRepel：名称缓冲起点
+    } payload;                               // 尺寸 0x2c → 总 sizeof = 0x3e
+};
+#pragma pack(pop)
+typedef char MSG_DEBUG_COMMAND_size_check[(sizeof(MSG_DEBUG_COMMAND) == 0x3e) ? 1 : -1];
 class DisPatcher_DebugCommand : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:

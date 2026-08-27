@@ -403,6 +403,8 @@ public:
     void setPatchTime(unsigned int t)     { wr32(0x16, t); }
     void setMobileAuth(unsigned char c)   { m_buf[0x1a] = c; }
     void setGcaType(unsigned char c)      { m_buf[0x1b] = c; }
+    void setUid(unsigned int v)           { wr32(0x0a, v); }
+    void setAccId(unsigned int v)         { wr32(0x0e, v); }
 
 private:
     unsigned short rd16(int off) const;

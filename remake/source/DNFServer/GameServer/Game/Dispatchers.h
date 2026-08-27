@@ -2225,6 +2225,11 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // ORIG T 0x0820bf2c _ZN30Dispatcher_New_Gmdebug_Command12oldGmRoutineEP5CUserR9PacketBufRSt6vectorISsSaISsEE
+    // （报告 docs/class_func_reports/Dispatcher_New_Gmdebug_Command/oldGmRoutine.md；
+    //   定义 W8LT_GmdebugOld.cpp）：新 GM 命令系统未注册时的旧式 GM 调试命令
+    //   解释器（空格分隔命令字 → 分支分发）。
+    int oldGmRoutine(CUser* user, PacketBuf& packet, std::vector<std::string>& args);
 };
 
 class Dispatcher_PowerWarProcessInfo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>

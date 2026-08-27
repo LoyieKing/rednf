@@ -339,8 +339,10 @@ int CNPCScriptList::find(unsigned int idx) const
 // 再 clear()。
 void CNPCScriptList::_destroy()
 {
-    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::iterator it = m_npcMap.begin();
-    while (it != m_npcMap.end())
+    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator
+        it(m_npcMap.begin());
+    while (it != __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator(
+                       m_npcMap.end()))
     {
         CNPCScript* script = it->second;
         if (script != 0)

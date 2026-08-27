@@ -79,7 +79,7 @@ void Arad_ServerStateManager::insertState(arad::SigServerState* sig)
     Guard<Mutex> guard(&m_lock);
     for (int i = 0; i < sig->m_count; ++i)
     {
-        const arad::SigServerState_tagData& tag = sig->m_data[i];
+        const arad::SigServerState::tagData& tag = sig->m_data[i];
         insertStateNoSync((ENUM_GLOBAL_EFFECT_ARAD)tag.m_code, tag.m_msg);
     }
 }

@@ -16,8 +16,11 @@
 #include "InGameEventScripts.h"   // 具体事件脚本类型（PurchaseCashItemBonusScript 等）
 
 class CUser;
+class CUser;
 class PacketGuard;
 class InGameEventScript;
+class CItem;
+class Inven_Item;
 struct stCeraShopIPGRequest_t;
 
 // ---- InGameEventInfo / InGameEventInfoList：ORIG 为全局作用域类型
@@ -249,6 +252,17 @@ public:
     CExchangeRandomItemReward();                     // 0x08110ff8
     virtual ~CExchangeRandomItemReward();            // D1 0x08114b48 / D0 0x08114b78
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810eb06
+    int  getRewardItem(std::vector<std::pair<int, int> >& out);   // 0x0810ee40
+    int  verifyMaterialItemByRule(CUser* user,
+                                  std::vector<int>& slots,
+                                  std::vector<std::pair<int, int> >& materials);  // 0x0810eb30
+    int  deleteUsedMaterialItem(CUser* user,
+                                std::vector<std::pair<int, int> >& materials,
+                                std::vector<std::pair<int, int> >& returnItems);  // 0x0810eede
+    int  sendRandomItemReward(CUser* user,
+                              std::vector<std::pair<int, int> >& rewards,
+                              std::vector<int>& recordVec,
+                              unsigned char& flag);             // 0x0810f26e
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -260,6 +274,17 @@ public:
     CAvatarDisjointRandomReward();                   // 0x08111014
     virtual ~CAvatarDisjointRandomReward();          // D1 0x08114afa / D0 0x08114b2a
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f37a
+    int  getRewardItem(CItem const* item,
+                       std::vector<std::pair<int, int> >& out);       // 0x0810f694
+    int  checkAvatarDisjointError(CUser* user, unsigned short slot,
+                                  Inven_Item& item, CItem const* citem);  // 0x0810f3a4
+    int  deleteAvatarItem(CUser* user, unsigned short slot,
+                          Inven_Item& item, CItem const* citem);      // 0x0810f4e2
+    void SendDisjointAvatarStatistic(CItem const* citem);             // 0x0810f5f4
+    void SendCreateEmblemStatistic(
+        std::vector<std::pair<int, int> >& rewards);                  // 0x0810f742
+    int  sendRandomItemReward(CUser* user,
+                              std::vector<std::pair<int, int> >& rewards);  // 0x0810f88c
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -273,6 +298,11 @@ public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810fcb2
     virtual char* get_db_table_name();               // slot 8 0x810fcdc：m_script+8
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x8110386
+    bool  verifyGiveBringUpReward(ObjectBringUpScript::ObjectBringUpRule& rule,
+                                  int count);                       // 0x0810fe1a
+    bool  verifyMaterialItemByRule(CUser* user, unsigned int itemIdx);  // 0x0810fcea
+    bool  sendBringUpReward(CUser* user, std::vector<int>& rewardVec,
+                            unsigned char& flag);                   // 0x0810fe90
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -312,6 +342,8 @@ public:
     CEventScriptMng();                              // ORIG 0x810b136 T
     ~CEventScriptMng();
     bool is_eventing(int key);                      // ORIG 0x810ba36 T
+    void send_event_init_record_data(CUser* user);      // ORIG 0x0810cb2c T
+    void process_update_ingame_history(CUser* user);    // ORIG 0x0810c82e T
     void send_event_init_data(CUser* user, bool flag);   // ORIG 0x810c40e T
     void process_level_up_reward(CUser* user, bool flag);   // ORIG 0x0810bf56（CUser::_onLevelUp 尾调用；声明先行）
     void process_add_item_count_db(CUser* user, int itemId, int count);   // ORIG T 0x0810bea8（事件 0x193 拾取计数）

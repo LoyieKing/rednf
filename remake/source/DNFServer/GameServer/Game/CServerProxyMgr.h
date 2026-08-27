@@ -31,6 +31,7 @@ public:
     int GetNextIndex(int& idx);
     T* GetServerProxy(ENUM_SERVER_GROUP group);
     T* GetServerProxyArrayAt(int idx);
+    int GetServerProxyArraySize();
     T* createServerProxy(int count, int index, ENUM_SERVER_GROUP group,
                          char* ip, int tcpPort, int udpPort);
 
@@ -145,6 +146,14 @@ T* CServerProxyMgr<T>::GetServerProxyArrayAt(int idx)
         return 0;
     }
     return (T*)((char*)m_pProxyArray + idx * (sizeof(T) - 0x10));
+}
+
+// ORIG _ZN15CServerProxyMgrI19CMonitorServerProxyE23GetServerProxyArraySizeEv
+// W 0x0857f8c2：读 m_count（MonitorTcpThread::dispatch 轮询用，按需实例化）。
+template <class T>
+int CServerProxyMgr<T>::GetServerProxyArraySize()
+{
+    return m_count;
 }
 
 template <class T>

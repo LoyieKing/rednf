@@ -115,10 +115,10 @@ public:
     bool insert_artifact_info_to_db(STEquipmentScript* script);
 
     // ---- G5 剩余方法（本 TU 实现） ----
-    bool GetType(std::string name, int job, int idx, int& out1, int& out2,
-                 bool flag);
+    bool GetType(std::string name, ENUM_CHARACTERJOB job, int idx, int& out1,
+                 int& out2, bool flag);
     const char* GetURL(const char* str, int len, int idx);
-    const char* GetUserJob(int job);
+    const char* GetUserJob(ENUM_CHARACTERJOB job);
     const char* GetAttachType(int type);
     const char* GetAttackElement(EquipmentParameterInfo* param);
     void GetLevelUpSkill(STEquipmentScript* script,
@@ -188,6 +188,9 @@ public:
 
     struct SWEAPONTYPE
     {
+        // ORIG C1/C2：_ZN...SWEAPONTYPEC1E17ENUM_CHARACTERJOBi，双成员初始化。
+        SWEAPONTYPE() : m_job(0), m_idx(0) {}
+        SWEAPONTYPE(ENUM_CHARACTERJOB job, int idx) : m_job(job), m_idx(idx) {}
         int m_job;    // +0x00
         int m_idx;    // +0x04
         bool operator<(const SWEAPONTYPE& o) const
@@ -206,6 +209,12 @@ public:
 
     struct SARMORTYPE
     {
+        // ORIG C1/C2 _ZN...SARMORTYPEC1EhSs：(unsigned char, std::string)。
+        SARMORTYPE() : m_field0(0), m_str4("") {}
+        SARMORTYPE(unsigned char f0, std::string name)
+            : m_field0(f0), m_str4(name)
+        {
+        }
         unsigned char m_field0;  // +0x00
         std::string m_str4;      // +0x04
         bool operator<(const SARMORTYPE& o) const
@@ -233,6 +242,35 @@ public:
     std::map<unsigned char, std::string> m_map7c;    // +0x7c
     std::map<unsigned int, STEquipmentStatInfo> m_oldEquipMap;  // +0x94
 };
+
+// ---- CStringMaker（ORIG 全部为 W 内联符号；类体单 std::string 成员） ----
+// operator()(int)@0x08375f6c / (float)@0x08626cd0 / (SkillUseItem)@0x08626d98 /
+// (EquipmentSkillDataUp)@0x08626e6e / (LevelUpSkill)@0x08626f7a /
+// (ItemAuraInfo)@0x08627066 / (vector<float>&)@0x08627146 / c_str@0x08376034 /
+// op std::string@0x086272c0 / C1@0x08375f58 / copy C1@0x0837f594 / D1@0x0837f580
+class CStringMaker
+{
+public:
+    CStringMaker();
+    CStringMaker(const CStringMaker&);
+    ~CStringMaker();
+
+    void operator()(int v);
+    void operator()(float v);
+    void operator()(const SkillUseItem& v);
+    void operator()(EquipmentSkillDataUp v);
+    void operator()(LevelUpSkill v);
+    void operator()(ItemAuraInfo v);
+    void operator()(const std::vector<float>& values);
+
+    const char* c_str();
+    operator std::string();
+
+    std::string m_str;   // ORIG +0x00 单 string 成员
+};
+
+
+
 
 CSyncScript* GetInstanceSyncScript();
 

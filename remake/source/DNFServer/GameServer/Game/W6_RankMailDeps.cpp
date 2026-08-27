@@ -166,8 +166,8 @@ void WongWork::CDeathTowerRanking::registBestRecord(
     // ctor 初值 -1。
     {
         RankTable& rt = *_getRankingTable(towerIdx);
-        RankTable::iterator ri = rt.find(key);
-        if (ri != rt.end())
+        RankTable::const_iterator ri(rt.find(key));
+        if (ri != RankTable::const_iterator(rt.end()))
             rec.m_field94 = static_cast<int>(ri->second);
     }
     // asm +0x199..+0x238: best 子表 insert(pair(key,record))，重复键整块拷贝

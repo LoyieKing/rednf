@@ -170,6 +170,9 @@ public:
     void destroy();
     CItem* find_item(int idx);
     CItem* find_item(const char* name);
+    // ORIG _ZNK9CItemList19GetVendingBonusRateEv W 0x0854c596：读 +0x4c（弱内联，
+    // GetFinalProbability 消费；W8LT_VendingHero 批次补声明）。
+    int GetVendingBonusRate() const { return m_field4c; }
     int GetRestrictCode(int itemIdx);                 // ORIG 0x0817a10c (W)
     CCeraShopGoods* FindGoods(int goodsIdx);
     BonusItem* GetProperBonusItem(unsigned int bonusIdx);

@@ -75,7 +75,8 @@ public:
 
     // ---- 对象布局（全部 public，ORIG 直访成员）----
     int m_sock;               // +0x00
-    long long m_field04;      // +0x04（8 字节，disconnect 整体清零）
+    unsigned int m_lastRecvTick; // +0x04（Parsing 记录最后收包 tick；ORIG CUser+0xe4）
+    unsigned int m_recvGapTick;  // +0x08（recvGap；ORIG CUser+0xe8；disconnect 清零原为 8 字节整清，两 int 分别清等价）
     int m_field0c;            // +0x0c
     int m_field10;            // +0x10（ctor 清零）
     char m_field14;           // +0x14（ctor 清零）
@@ -84,7 +85,7 @@ public:
     int m_field20;            // +0x20
     int m_field24;            // +0x24
     char m_field28;           // +0x28
-    char m_field29;           // +0x29（ctor/recv 清零）
+    char m_bBufOffsetTrace;   // +0x29（ctor/recv 清零；Parsing BUFOFFSET TRACE 标志）
     char m_pad[2];            // +0x2a
     char* m_recvBuf;          // +0x2c -> m_recv
     char m_recv[N1];          // +0x30
@@ -103,7 +104,7 @@ public:
 
 template <int N1, int N2>
 CNetwork<N1, N2>::CNetwork()
-    : m_sock(-1), m_field10(0), m_field14(0), m_recvOffset(0), m_field29(0),
+    : m_sock(-1), m_field10(0), m_field14(0), m_recvOffset(0), m_bBufOffsetTrace(0),
       m_sendSize(0), m_natType(0), m_ip(0), m_port(0), m_innerIp(0), m_mutex()
 {
     m_recvBuf = m_recv;
@@ -124,7 +125,8 @@ int CNetwork<N1, N2>::get_socket()
 template <int N1, int N2>
 void CNetwork<N1, N2>::disconnect()
 {
-    m_field04 = 0;
+    m_lastRecvTick = 0;
+    m_recvGapTick = 0;
     shutdown(m_sock, 0);
     close(m_sock);
     m_sock = -1;
@@ -194,7 +196,7 @@ int CNetwork<N1, N2>::recv_packet()
         m_recvBuf = m_recv;
         m_recvOffset = 0;
         remain = N1;
-        m_field29 = 0;
+        m_bBufOffsetTrace = 0;
     }
 
     int ret;

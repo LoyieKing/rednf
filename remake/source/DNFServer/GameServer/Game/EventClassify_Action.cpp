@@ -15,6 +15,7 @@
 #include "CMailBoxHelper.h"          // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail
 #include "CDataManager.h"            // G_CDataManager / find_item
 #include "CUser.h"                   // Send/SendCoin/SaveMoneyCoin/m_historyLog
+#include "CStackableItem.h"         // getBoosterItem / stStackableBoosterItemInfo_t
 #include "GlobalData.h"              // s_systemTime_
 #include "CSystemTime.h"             // getCurSec
 #include "Inven_Item.h"
@@ -284,6 +285,52 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
             user->GetServerGroup(), false, false);
     }
     // avatar 分支：ORIG 仅清零 0x18 字节局部缓冲后返回 0（无 DB 请求）。
+    return 0;
+}
+
+// ============================================================================
+// getResultItemFromLottery（ORIG 0x0810dc5a）
+// 按 lotterycard/booster 两类物品展开为 <idx,count> 列表：
+//   GetItemType()==6  → find_item + get_lotto_item → push(m_addInfo,m_addInfo2)
+//   GetItemType()==16 → getBoosterItem(list) → 逐条 push(m_itemIdx,m_addInfo)
+// 其它类型返回 0x17；find 失败或空结果返回 0x11。
+// ============================================================================
+int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
+                                              std::vector<std::pair<int, int> >& out)
+{
+    CItem* citem = G_CDataManager()->find_item((int)lotteryId);
+    if (citem == 0)
+        return 0x11;
+
+    const int itemType = citem->GetItemType();   // ORIG vtable slot +0x0c
+    if (itemType == 6)
+    {
+        Inven_Item item;
+        G_CDataManager()->getItemList()->get_lotto_item(
+            citem->get_index(), reinterpret_cast<char*>(&item));
+        if (item.m_addInfo == 0 || item.m_addInfo == -1)
+            return 0x11;
+        out.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+    }
+    else if (itemType == 16)
+    {
+        std::vector<stStackableBoosterItemInfo_t> boosters;
+        static_cast<CStackableItem*>(citem)->getBoosterItem(boosters);
+        for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it =
+                 boosters.begin();
+             it != boosters.end(); ++it)
+        {
+            if (it->m_itemIdx == 0)
+                return 0x11;
+            out.push_back(std::make_pair(
+                (int)(unsigned int)it->m_itemIdx,
+                (int)(unsigned short)it->m_addInfo));
+        }
+    }
+    else
+    {
+        return 0x17;
+    }
     return 0;
 }
 

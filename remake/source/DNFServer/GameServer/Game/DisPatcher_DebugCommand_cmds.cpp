@@ -64,37 +64,10 @@ namespace OS_API { int snprintf(char* buf, unsigned int n, const char* fmt, ...)
 
 // ---------------------------------------------------------------------------
 // MSG_DEBUG_COMMAND —— 全局作用域 POD（ORIG mangled R17MSG_DEBUG_COMMAND；
-// Arad_GMCommand.cpp 此前仅有前向声明）。完整布局依据各 _debugCommand 报告的
-// 真实字段访问口径建立；互斥 union 对应不同命令的参数区：
-//   +0x00..0x0c    包头原始区（本批函数不消费）
-//   +0x0d byte     命令号（dispatch_sig switch 0..0x30）
-//   +0x0e int      命令主参数（int 口径）
-//   AddAvatar 口径：+0x12 char 槽位 / +0x13 u8 天数 / +0x14 u16 数量
-//   SetEnchant 口径：+0x12 int 槽位 / +0x16 int 强化值
-//   RequestMid/UserRepel 口径：+0x12 起为名称缓冲（长度取 +0x0e，≤0x1d）
 // ---------------------------------------------------------------------------
-#pragma pack(push, 1)
-struct MSG_DEBUG_COMMAND
-{
-    unsigned char m_head[0xd];       // +0x00..0x0c
-    unsigned char m_command;         // +0x0d
-    int m_arg;                       // +0x0e
-    union                            // +0x12 起（按命令互斥，见上表）
-    {
-        struct {
-            signed char slotByte;            // AddAvatar：+0x12 槽位（sbyte 口径）
-            unsigned char periodKind;        // AddAvatar：+0x13 天数（0=取物品表、
-                                             //            0x63 视作 0）
-            unsigned short count;            // AddAvatar：+0x14 数量
-        } avatar;
-        struct {
-            int slotInt;                     // SetEnchant：+0x12 槽位（int 口径）
-            int enchantVal;                  // SetEnchant：+0x16 强化值
-        } ench;
-        char nameBuf[0x2c];                  // RequestMid/UserRepel：名称缓冲起点
-    } payload;                               // 尺寸 0x2c → 总 sizeof = 0x3e
-};
-#pragma pack(pop)
+// MSG_DEBUG_COMMAND —— 权威定义已提升至 DisPatcherCore.h（本 TU 直接使用头
+// 内唯一共享定义，布局口径不变，消除跨 TU 重复定义风险）。
+// ---------------------------------------------------------------------------
 
 // stBuySkillInfo 完整定义（与 CUser.cpp / CEventCharacterHandler.cpp 同布局；
 // CUser.h 仅前向声明）。MasterNewSkill 需构造三字节入参。
