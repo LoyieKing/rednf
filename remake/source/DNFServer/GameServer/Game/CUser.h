@@ -138,7 +138,6 @@ enum ENUM_QUEST_ENEMY_TYPE { ENUM_QUEST_ENEMY_TYPE_0 = 0 };
 #endif
 
 
-
 #ifndef DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 #define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
@@ -1093,7 +1092,9 @@ struct STGuildDBInfoOnly
     STGuildDBInfoOnly() {}
     char m_pad[0x1b];          // +0x00..0x1a
     unsigned char m_fundLevel; // +0x1b（0x8d03b；IsCompleteGuildFund >0xf 判定）
-    char m_pad1c[0x95 - 0x1c]; // +0x1c..0x94
+    char m_pad1c[0x29 - 0x1c]; // +0x1c..0x29
+    unsigned int m_fundExp;    // +0x29（increase_status 0x0866662f 公会升级基金门槛读）
+    char m_pad2d[0x95 - 0x2d]; // +0x2d..0x95
     char m_field95;            // +0x95（0x8d0b5 getPowerSide）
     char m_pad96[0x9a - 0x96]; // +0x96..0x99
     int m_powerWarPoint;       // +0x9a
@@ -1145,6 +1146,7 @@ public:
     int GetKeyIdx(int idx);           // ORIG T 0x08599872（读密钥管理器表）
     // ORIG _ZN8Sanicova4CPad12setCheckTimeEl W 0x084ebe20：写 +0x30（m_lastGenTime30）。
     void setCheckTime(long t);
+    void init();                      // ORIG T 0x0859957c _ZN8Sanicova4CPad4initEv
 
     char m_pad[0x24];               // +0x00..0x23（setPassword memset 区）
     unsigned char m_activate24;     // +0x24（isActivate/setActivate/init 清零）
@@ -1355,6 +1357,7 @@ public:
                                       // ORIG W 0x084b949a（GoldTracking.md；G6 接线）
     void GetIP(char* out);        // ORIG 0x084b9774（peer IP + PC房 IP 回退）
     void Send_UserStatus();       // ORIG 0x084b97fe
+    void Init(CUser* user);       // ORIG T 0x084b91e8 _ZN8XNuclear6CHades4InitEP5CUser（m_user/user 挂接 + m_useFatigueCnt 清零）
 
     char m_pad00[0x1c];              // +0x00..0x1b
     unsigned int m_useFatigueCnt;    // +0x1c（UseFatigue 计数，ORIG jbe 无符号比较实证）
@@ -1485,7 +1488,8 @@ public:
     unsigned short m_field1a;   // +0x1a（Reset 检查 ==1）
     char m_pad1c[0x26 - 0x1c];  // +0x1c..0x25
     unsigned short m_field26;   // +0x26（Reset 检查 ==1）
-    char m_pad28[0x38 - 0x28];  // +0x28..0x37（SetMonsterInfo 区）
+    char m_pad28[0xc];          // +0x28..0x33（SetMonsterInfo 写区）
+    CUser* m_user34;            // +0x34（Secu_HackLogCheck::Init 写入）
 };  // sizeof 0x38
 
 class Secu_HackLogCheck : public Secu_MonsterCheck
@@ -3354,6 +3358,9 @@ public:
     bool VerifyCleanPadVeriData(unsigned int value);                       // ORIG T 0x08649b44
     void verifyDoingQuest();                                               // ORIG T 0x0868d144
 
+    // ---- W7-BigThree（increase_status / init_skill_tree / InitOnAccept 专项）----
+    void init_skill_tree(ENUM_SKILL_TREE_KIND kind);                      // ORIG T 0x0866bce8 _ZN5CUser15init_skill_treeE20ENUM_SKILL_TREE_KIND
+    void increase_status(short slotNo);                                   // ORIG T 0x086657fc _ZN5CUser15increase_statusEs
 };
 
 #endif  // GAME_CUSER_H_

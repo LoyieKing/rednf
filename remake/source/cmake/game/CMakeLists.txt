@@ -171,6 +171,7 @@ dnf_service(game
         ${SVC_DIR}/Dispatcher_BuyCeraShopLimitItem_impl.cpp
         ${SVC_DIR}/Dispatcher_UseLimitCube_impl.cpp
         ${SVC_DIR}/StringTypes.cpp
+        ${SVC_DIR}/StringOperators.cpp
         ${SVC_DIR}/PacketBuf.cpp
         ${SVC_DIR}/InterfacePacketBuf.cpp
         ${SVC_DIR}/CEnvironment.cpp

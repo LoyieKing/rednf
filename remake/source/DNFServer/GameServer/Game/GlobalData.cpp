@@ -5233,3 +5233,13 @@ bool InstanceRentalSystem::CheckRentableItem(int type, unsigned int itemIdx)
         return true;
     return machine->CheckRentableItem(itemIdx);
 }
+
+// ORIG _Z18get_seed_from_datev T 0x086b1d25：year*365 + yday*30 + mday
+// （ORIG 以 yday*32-yday 形态实现 *30；sar 规范化非目标）。
+int get_seed_from_date()
+{
+    time_t t = GlobalData::s_systemTime_.getCurSec();
+    struct tm v;
+    localtime_r(&t, &v);
+    return v.tm_year * 365 + v.tm_yday * 30 + v.tm_mday;
+}

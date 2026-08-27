@@ -1901,7 +1901,7 @@ public:
     // ---- Wave6-CUser 补声明（ORIG T 实证；定义 owner=guild 脚本批次）----
     int getGuildLevelUpParam(int level);                     // T 0x08979648 _ZN20GuildParameterScript20getGuildLevelUpParamEi
     int getLevelupPrice(int level, int memberCnt);           // T 0x089797a4 _ZN20GuildParameterScript15getLevelupPriceEii
-
+    int getGuildExpBook(int key);                            // T 0x08979672 _ZN20GuildParameterScript15getGuildExpBookEi（m_map10 find→second/0）
     // ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542，sizeof 0x11c：
     // +0x00 int +0x04 int +0x08 char +0x0c int +0x10 map<int,int>
     // +0x28 int +0x2c vector<STAgitUpgradeInfo> +0x38

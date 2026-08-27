@@ -7609,3 +7609,1253 @@ int CUser::verifyStackableItemActionPlace(StackableAction::Type type, const CIte
 //     由 FixAradEventPeriodMethods/JoyousDolphin 批次提供)。
 //  8. TimerQueue InsertTimer 形态按 TimerDispatcher 头最终签名;TIMER_MESSAGE/OBJ_TYPE cast。
 // ============================================================================
+
+// ============================================================================
+// ================== W7-BigThree 专项（increase_status / init_skill_tree /====
+// ================== InitOnAccept，ORIG-only 清零 Wave7）=====================
+// 每函数逐份完整读取 docs/class_func_reports/CUser/<Func>.md（## 汇编 + ##
+// 反编译 C）。被调 ORIG 符号经 nm -C 核实；具名字段取自 CUser.h/CDataManager.h
+// 权威布局；init_skill_tree 相关依赖落点：addSkillOnCreateCharacter/growtype_skill
+// /CSkillChanger::SkillInitialize → SkillSlot.cpp；get_give_skill → CCharacter.cpp。
+// ============================================================================
+
+#include "STExpertJobScript.h"   // STExpertJobScript::m_growSkillVec（+0x0c vector<pair<int,int>>）
+
+// ----------------------------------------------------------------------------
+// CUser::init_skill_tree —— ORIG T 0x0866bce8 _ZN5CUser15init_skill_treeE20ENUM_SKILL_TREE_KIND
+// 报告 docs/class_func_reports/CUser/init_skill_tree.md 全文转写：
+//   getCurCharacR==0 → return；
+//   clear_all_skills(kind) → set_parent(this)；
+//   kind==-1/0 → addSkillOnCreateCharacter(skillW+0x46, job)，否则 skillW+0x1de；
+//   get_give_skill(first,second,giveVec,0) 成功→ growtype_skill×giveVec；
+//     expert: GetExpertJobScript(GetCurCharacExpertJobType()) 非空→对 m_growSkillVec
+//     每个 (skillIdx) 以 GetCurExpertJobLevel(Exp) 作 level 调 growtype_skill 两树；
+//     CSkillChanger SkillInitialize(this, kind==-1/0?1:2, false)；
+//   失败→ LogManager::logFormat(1,"user.cpp",PRETTY,0x5328,"User %s - ...")。
+// ----------------------------------------------------------------------------
+void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
+{
+    if (getCurCharacR() == 0)
+        return;
+
+    ((SkillSlot*)getCurCharacSkillW())->clear_all_skills(kind);
+    ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+
+    // asm 0822f140=getCurCharacSkillW / 080fdf20=get_charac_job（nm 实证 thunk 序），
+    // 反编译为两分支各 addSkillOnCreateCharacter((_Mastered_skill*)(skillW+{0x46|0x1de}), job)。
+    if ((int)kind == -1 || (int)kind == 0)
+    {
+        addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+                                  get_charac_job());
+    }
+    else
+    {
+        addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+                                  get_charac_job());
+    }
+
+    std::vector<std::pair<int,int> > giveVec;
+    char secondGrow = getCurCharSecondGrowType();
+    char firstGrow = getCurCharFirstGrowType();
+    int job = get_charac_job();
+    // ORIG：*(int*)(mgr+0x14)+job*0x7dc —— mgr->m_characList（CCharacList*）->m_characs[job]
+    bool got = G_CDataManager()->m_characList->m_characs[job].
+                   get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
+    if (!got)
+    {
+        LogManager::logFormat(1, "user.cpp",
+            "void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND)", 0x5328,
+            "User %s - CUser::init_skill_tree", getCurCharacName());
+        return;
+    }
+
+    for (unsigned int i = 0; i < giveVec.size(); ++i)
+    {
+        // ORIG 循环体顺序：先 get_charac_job、再 getCurCharacSkillW，
+        // slot->growtype_skill(job, pair.first, pair.second, kind)。
+        int j = get_charac_job();
+        std::pair<int,int>& pr = giveVec[i];
+        ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second, kind);
+    }
+
+    // Expert job 补技能树：GetExpertJobScript(0x0822b5f2 W _ZN12CDataManager18GetExpertJobScriptEi)
+    // 返回 STExpertJobScript*（+0x0c = m_growSkillVec）。
+    STExpertJobScript* expert =
+        (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
+    if (expert != 0)
+    {
+        for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
+        {
+            int exp = GetCurCharacExpertJobExp();
+            int lvl = GetCurExpertJobLevel(exp);
+            int j = get_charac_job();
+            std::pair<int,int>& pr = expert->m_growSkillVec[i];
+            ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
+                                                               (ENUM_SKILL_TREE_KIND)1);
+        }
+    }
+
+    WongWork::CSkillChanger changer;
+    changer.SkillInitialize(this, ((int)kind == -1 || (int)kind == 0) ? 1 : 2, false);
+}
+
+#include "GlobalData.h"        // GlobalData::s_systemTime_ / s_pSecuProtectionField 等
+#include "CEnvironment.h"      // G_CEnvironment / Server_Envir 字段
+#include "Cipher.h"            // G_Cipher
+#include "CMailBoxHelper.h"    // WongWork::CMailBoxHelper::AssignMailBox / CMailBox::Init
+#include "GameMasterCmd.h"     // CGameMasterCharacter（InitOnAccept static local）
+#include "CPremiumLetheManager.h" // CPremiumLetheManager 完整类型（increase_status lethe 链）
+
+unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_datev
+// cSecuUserAction —— ORIG 0x086978ba C1(空体)/0x0827b3f4 Init(+0 清零)。
+// ORIG 侧仅 sizeof=4 的状态对象；InitOnAccept 0x086493c8 +0x4a1 处 new。
+// 唯一声明点暂落本 TU（建议后续由 secu 域批次收敛到独立头）。
+class cSecuUserAction
+{
+public:
+    cSecuUserAction() {}                        // ORIG W 0x086978ba：空体
+    void Init() { m_state = 0; }                // ORIG T 0x0827b3f4：+0x00 = 0
+
+private:
+    int m_state;   // +0x00（IsSecurityStateOff ==1 判定）
+};
+
+// ----------------------------------------------------------------------------
+// CUser::InitOnAccept —— ORIG T 0x086493c8 _ZN5CUser12InitOnAcceptEi
+// 报告 docs/class_func_reports/CUser/InitOnAccept.md 全文转写：
+//   socket 挂接/标志清零 → PacketVerifier::Init → mailBox 分配&Init →
+//   密钥握手包(Cipher 原始钥) → seed/随机数/stun 列表包 → Send/
+//   StartRecvEventWaiting/setStdDropRate(100) → secu 系列子对象初始化 →
+//   GM 调试角色指针(static local gameMasterCharacter, guard 版式与 ORIG 一致)。
+// ----------------------------------------------------------------------------
+int CUser::InitOnAccept(int socketFd)
+{
+    m_network.set_socket(socketFd, false);
+    m_chState = 1;
+    m_winPointBuffer = 0;
+    m_packetVerifier.Init();
+    m_network.initNetworkBuffer();
+    m_tradeCount = 0;
+
+    // game option 尾部区逐字节清零（ORIG 0x70390..0x703b8；CGameOption +0x62c..+0x657）。
+    m_gameOption.m_gmQuestFlag = 0;
+    m_gameOption.m_forceDropFlag = 0;
+    m_gameOption.m_playExpAdd = 0;                     // +0x703a4（movl 直接 dword 写）
+    m_gameOption.m_pad644[0] = 0;                      // +0x703a8（movb 单字节写）
+    m_gameOption.m_breakAwayDungeonClearCnt = 0;       // +0x703ac
+    memset(m_gameOption.m_pad64c, 0, sizeof(m_gameOption.m_pad64c));  // +0x703b0
+    m_gameOption.m_breakAwayQuestTime = 0;             // +0x703b4
+    memset(m_gameOption.m_pad654b, 0, 4);              // +0x703b8（int 宽写）
+
+    m_multiboxLotteryFailCnt = 0;                      // +0x703bc
+    m_breakAway.clear();                               // STBreakAwayRewards::clear W 0x0831d454
+    m_pad703c0[0] = 0;                                 // +0x703c0/b（两个 movb）
+    m_pad703c0[1] = 0;
+
+    memset(m_skillCommands, 0, sizeof(m_skillCommands));  // ORIG memset(this+0x703db,0,200)
+                                                          // （50×STCommand pack(1)=200B）
+
+    m_premium.m_mailBox = (void*)WongWork::CMailBoxHelper::AssignMailBox();
+    if (m_premium.m_mailBox != 0)
+    {
+        // asm 直接以 *(this+0x71b98) 为 this 调 WongWork::CMailBox::Init()
+        ((WongWork::CMailBox*)m_premium.m_mailBox)->Init();
+    }
+
+    PacketGuard packet;                                // -0x20
+    {
+        packet.put_header(0, 1);                       // try 区起点 0864954b
+        unsigned char origKey[1024];                   // -0x420（local_424，1024B）
+        G_Cipher()->GetOriginalKey(origKey);
+        int totalKeyLen = G_Cipher()->GetTotalKeyLength();
+        packet.put_binary((char*)origKey, totalKeyLen);
+
+        int nameLen = strlen(G_CEnvironment()->get_channel_name());
+        packet.put_int(nameLen);
+        packet.put_str(G_CEnvironment()->get_channel_name(), nameLen);
+
+        m_clientSpec.m_seedFromDate = get_seed_from_date();    // +0x711e8（Client_Spec +0xc0c）
+        packet.put_int(m_clientSpec.m_seedFromDate);
+
+        m_checkSumSeed = get_rand_int(0);                      // +0x796e0
+        packet.put_int(m_checkSumSeed);
+
+        packet.put_byte(G_CEnvironment()->m_serverEnvir.m_serverGroup);      // env+0x378
+        packet.put_byte(G_CEnvironment()->m_serverEnvir.m_channelNo);        // env+0x1b0
+        packet.put_byte(G_CEnvironment()->m_serverEnvir.m_processSequence);  // env+0x1a8
+
+        packet.put_int(GlobalData::s_systemTime_.getCurSec());
+
+        int stunCnt = (int)G_CEnvironment()->m_serverEnvir.m_stunIP.size();  // env+0x360
+        packet.put_int((int)G_CEnvironment()->m_serverEnvir.m_stunIP.size());
+        if (stunCnt != 0)
+        {
+            for (unsigned int i = 0; i < G_CEnvironment()->m_serverEnvir.m_stunIP.size(); ++i)
+            {
+                char* ip = G_CEnvironment()->m_serverEnvir.m_stunIP[i].m_ip;
+                packet.put_int((int)strlen(ip));
+                packet.put_str(ip, 0x10);                      // 固定 16 字节宽
+            }
+            packet.put_int(G_CEnvironment()->m_serverEnvir.m_stunPort[0]);   // env+0x36c
+            packet.put_int(G_CEnvironment()->m_serverEnvir.m_stunPort[1]);
+        }
+        packet.put_int(0x25e);
+        packet.put_int(0x232);
+        packet.finalize(true);
+    }
+    Send(packet);
+
+    StartRecvEventWaiting();
+    setStdDropRate(100);
+
+    m_postChecksumData.m_tradePunishType = 0;          // +0x79628
+    m_humanCertifyTimerKey = 0;                        // +0x8e0f8
+    m_humanCertifyErrorCnt = -1;                       // +0x8e0fc
+    m_humanCertified = false;                          // +0x8e100
+
+    m_mcap.m_secuUserAction = new cSecuUserAction();
+    m_mcap.m_secuUserAction->Init();
+
+    m_pad8e101[0x2eb] = 0;                             // ORIG movb $0x0,0x8e3ec（pad 末字节）
+    m_field8e3ed = true;                               // +0x8e3ed
+    memset(m_pad8e101, 0, 0x145);                      // memset(this+0x8e101,0,0x145)
+    memset(m_pad8e101 + 0x145, 0, 0x1a6);              // memset(this+0x8e246,0,0x1a6)
+    m_mcap.reset();                                    // WongWork::CMCAPManager::reset W 0x08694fa0
+    m_postChecksumData.m_field31 = false;              // +0x7962d
+
+    getSecurityCard()->init();                         // thunk 0x0822fd20/WongWork::CSecurityCard::init 0x085fdd68
+    getPad()->init();                                  // Sanicova::CPad::init 0x0859957c
+    m_mcap.m_field1c = 0;                              // +0x8e40c（GetAutoClientRate 清零）
+
+    // gm 调试角色（函数级 static，guard/data 名与 ORIG _ZGVZN5CUser12InitOnAcceptEiE…同版式）
+    static CGameMasterCharacter gameMasterCharacter;
+    m_postChecksumData.m_gameMasterCharac = &gameMasterCharacter;   // +0x7964c
+
+    m_mcap.m_capchaReqTick = 0;                        // +0x8e94c
+    m_mcap.m_field544 = false;                         // +0x8e934
+    m_mcap.m_pad560[0] = 0;                            // +0x8e950
+    m_mcap.m_field561 = false;                         // +0x8e951
+
+    m_hades.m_secuReward = false;                      // +0x8e97c
+    m_hades.m_secuType = 0;                            // +0x8e97d
+    m_hades.Init(this);                                // XNuclear::CHades::Init T 0x084b91e8
+    m_goldControl.Init(this);                          // Secu_GoldControl::Init T 0x08287230
+    m_hackLogCheck.Init(this);                         // Secu_HackLogCheck::Init T 0x0827a7d0
+    m_mcap.m_field546 = 0;                             // +0x8e936（short）
+    m_mcap.m_lastLotteryTime = 0;                      // +0x8e938
+    m_mcap.m_pad554[0] = 0;                            // +0x8e944
+    m_piSender.m_nonClientFlag = 0;                    // +0x8eaf4
+    m_piSender.m_nonClientRandInt = 0;                 // +0x8eaf8
+    m_debugCommand = 0;                                // +0x8e090
+    m_ceraUserInfo.m_updateOntime = false;             // +0x8d24c（UserInfo+0x68 bool）
+    m_accHacking.init(this);                           // Secu_AccountHacking::init T 0x08278a98
+    m_gameOption.m_forceDropFlag = 0;                  // +0x70391（第二处 movb $0x0）
+    memset(m_pad6ef92, 0, sizeof(m_pad6ef92));         // ORIG memset(this+0x6ef92,0,0x68)
+
+    return 1;                                          // asm mov $0x1,%ebx → %eax 返回 1
+}
+
+// ---- W7-BigThree 补：被 InitOnAccept 调用的两 W/T 小方法（声明见 CUser.h；
+//      owner 建议：CHades 归 CHades.cpp、CPad 归 Sanicova.cpp，后续收敛迁移）----
+
+// ORIG T 0x084b91e8：m_user(+0x20) 挂接 user；m_useFatigueCnt(+0x1c) 清零。
+void XNuclear::CHades::Init(CUser* user)
+{
+    m_user = user;
+    m_useFatigueCnt = 0;
+}
+
+// ORIG T 0x0859957c _ZN8Sanicova4CPad4initEv：
+// activate/certified 清零 → memset(this,0,0x24) → failCnt/requestState/cancelCnt
+// 清零 → +0x2c/+0x26/+0x2d 字节清零 → lastGenTime=getCurSec() → advide/changedPwd
+// 清零 → GenerateRandomKeyIdx → GenerateRandomShakeData。
+void Sanicova::CPad::init()
+{
+    m_activate24 = 0;
+    m_certified25 = 0;
+    memset(m_pad, 0, sizeof(m_pad));           // ORIG memset(this,0,0x24)
+    m_failCnt38 = 0;                           // +0x38（dword）
+    m_requestState40 = 0;                      // +0x40
+    m_cancelCnt44 = 0;                         // +0x44
+    m_pad2a[2] = 0;                            // +0x2c（字节）
+    m_version26 = 0;                           // +0x26
+    m_pad2a[3] = 0;                            // +0x2d（字节）
+    m_lastGenTime30 = (int)GlobalData::s_systemTime_.getCurSec();
+    m_advidePwd = 0;                           // +0x3c
+    m_changedPwd = 0;                          // +0x3d
+    GenerateRandomKeyIdx();
+    GenerateRandomShakeData();
+}
+
+// ----------------------------------------------------------------------------
+// CUser::increase_status —— ORIG T 0x086657fc _ZN5CUser15increase_statusEs
+// 报告 docs/class_func_reports/CUser/increase_status.md 全文转写（汇编+C）：
+//   GetInvenSlot 取槽物品 → itemIdx 判定表设定 (type,value) → 公共门槛段 →
+//   find_item/GetUsablePvPRank/GetItemType/delete_item → switch(type) 动作 →
+//   公共回包 + m_chState 5/8 队伍战房广播。
+// ----------------------------------------------------------------------------
+void CUser::increase_status(short slotNo)
+{
+    PacketGuard packet;
+
+    if (CheckInTrade() != 0)
+    {
+        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+        return;                                              // L086686d4
+    }
+
+    Inven_Item slotItem;
+    GetInvenSlot(&slotItem, (CInventory*)getCurCharacInvenR(), 1, slotNo);
+    const unsigned int itemIdx = (unsigned int)slotItem.m_addInfo;
+
+    char type = -1;                                          // -0xd1
+    unsigned int value = 0;                                  // -0xd8
+
+    // ---- itemIdx → (type,value) 判定表（ORIG 0866589d..086668f0 比较树序）----
+    if (itemIdx == 0x4b5)
+    {
+        type = 0x11; value = 5;
+    }
+    else if (itemIdx < 0x4b6)
+    {
+        if (itemIdx == 0x40c)
+        {
+            type = 1; value = 10000;
+        }
+        else if (itemIdx < 0x40d)
+        {
+            if (itemIdx == 0xc9) goto L08665e38;
+            if (itemIdx > 0xc9)
+            {
+                if (itemIdx != 0x3c3)
+                {
+                    if (itemIdx > 0x3c3)
+                    {
+                        if (itemIdx == 0x40a) { type = 1; value = 100; }
+                        else if (itemIdx < 0x40b)
+                        {
+                            if (itemIdx != 0x407) goto L08666751;
+                            type = 0; value = 5;
+                        }
+                        else { type = 1; value = 1000; }     // 0x40b..0x40c
+                    }
+                    else
+                    {
+                        if ((itemIdx != 0x394) && (itemIdx != 0x3c0)) goto L08666751;
+                        goto L0866607b;
+                    }
+                    goto L08666990;
+                }
+                goto L0866607b;                              // 0x3c3
+            }
+            if (itemIdx == 0x2a) { type = 0x15; value = 1; goto L08666990; }  // L086665ed
+            if (itemIdx < 0x2b)
+            {
+                if ((itemIdx == 3) || (itemIdx == 0x1c))
+                {
+L0866607b:
+                    if (GlobalData::s_pSecuProtectionField->Check(
+                            this, (SECURITY_PROTCTION)0x2c) != 0)
+                    {
+                        unsigned char errSecu =
+                            (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                                this, (SECURITY_PROTCTION)0x2c);
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                        return;                              // L086686d4
+                    }
+                    if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
+                    {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+                        return;
+                    }
+                    if (CheckItemLock(1, (int)slotNo) != 0)
+                    {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd5, packet);
+                        return;
+                    }
+                    if (!WongWork::CSkillChanger::CheckCondition(this))
+                    {
+                        setCurCharacExp(G_CDataManager()->get_level_exp(get_charac_level()));
+                    }
+                    if ((itemIdx == 0x4b6) || (itemIdx == 0x4e5))
+                    {
+                        if (get_charac_level() < 0x32) return;    // asm 直跳 L086686d4
+                        if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                        {
+                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
+                            return;
+                        }
+                        value = 1; type = 0x12;
+                    }
+                    else if (itemIdx == 0x394) { value = 1; type = 0xa; }
+                    else if (itemIdx == 0x3c0)
+                    {
+                        value = 1; type = 0x18;
+                        CQuestShop* questShop = (CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb);
+                        if (questShop != 0)
+                        {
+                            questShop->clearQP(this);
+                            questShop->sendCharacQp(this, '\0');
+                        }
+                    }
+                    else if (itemIdx == 0x3c3) { value = 1; type = 0xa; }
+                    else if (itemIdx == 0x28982c) { value = 1; type = 0xa; }
+                    else { value = 0; type = 0xa; }
+                    goto L08666990;
+                }
+            }
+            else if ((itemIdx == 0x6d) ||
+                     ((itemIdx > 0x6c) && ((itemIdx - 0xa1) < 2)))
+            {
+                goto L0866607b;
+            }
+            goto L08666751;
+        }
+        if (itemIdx == 0x413) { type = 2; value = 0xfa; }
+        else if (itemIdx < 0x414)
+        {
+            if (itemIdx == 0x40f) { type = 4; value = 0x32; }
+            else if (itemIdx < 0x410)
+            {
+                if (itemIdx == 0x40d) { type = 1; value = 100000; }
+                else
+                {
+                    if (itemIdx != 0x40e) goto L08666751;
+                    type = 0; value = 0x14;
+                }
+            }
+            else if (itemIdx == 0x411) { type = 5; value = 0x32; }
+            else if (itemIdx < 0x412) { type = 6; value = 0x32; }
+            else { type = 7; value = 0x32; }
+        }
+        else if (itemIdx == 0x416) { type = 9; value = 10; }
+        else
+        {
+            if (itemIdx > 0x416)
+            {
+                if (itemIdx > 0x4af)
+                {
+                    if (itemIdx < 0x4b3) goto L0866662f;     // 0x4b0..0x4b2
+                    if (itemIdx == 0x4b4) { type = 0x11; value = 1; goto L08666990; }
+                }
+                goto L08666751;
+            }
+            if (itemIdx == 0x414) { type = 3; value = 0xfa; }
+            else
+            {
+                if (itemIdx != 0x415) goto L08666751;
+                type = 8; value = 10;
+            }
+        }
+    }
+    else if (itemIdx < 0x204d)
+    {
+        if (itemIdx < 0x204b)
+        {
+            if (itemIdx == 0x1bbd)
+            {
+                if (get_state() != 3)
+                {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+                    return;
+                }
+                type = 0xd; value = 8;
+            }
+            else if (itemIdx < 0x1bbe)
+            {
+                if (itemIdx == 0x4d0) { type = 1; value = 10000000; }
+                else if (itemIdx < 0x4d1)
+                {
+                    if (itemIdx == 0x4b6) goto L0866607b;
+                    if (itemIdx != 0x4cf) goto L08666751;
+                    type = 1; value = 1000000;
+                }
+                else
+                {
+                    if (itemIdx == 0x4e5) goto L0866607b;
+                    if (itemIdx == 0xc84)
+                    {
+                        if (get_charac_guildkey() == 0)
+                        {
+                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
+                            return;
+                        }
+                        type = 0xb; value = 10;
+                    }
+                    else
+                    {
+                        if (itemIdx != 0x4df) goto L08666751;
+                        type = 0x13; value = 10;
+                    }
+                }
+            }
+            else if (itemIdx == 0x1c0d) { type = 0xd; value = 5; }
+            else if (itemIdx < 0x1c0e)
+            {
+                if (itemIdx == 0x1bc1)
+                {
+                    if (get_charac_guildkey() == 0)
+                    {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
+                        return;
+                    }
+                    type = 0xb; value = 0x32;
+                }
+                else
+                {
+                    if (itemIdx != 0x1c0c) goto L08666751;
+                    type = 0xd; value = 1;
+                }
+            }
+            else if (itemIdx == 0x1f16) { type = 0x14; value = 0; }
+            else
+            {
+                if (itemIdx == 0x1f71) goto L08665c97;
+                if (itemIdx != 0x1c82) goto L08666751;
+                if (get_state() != 3)
+                {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+                    return;
+                }
+                type = 0xd; value = 2;
+            }
+        }
+        else
+        {
+L08665c97:
+            bool reject = false;
+            if (!CalLevelUpItemCheck(itemIdx))
+            {
+                reject = false;                              // asm: 不报错，走公共段
+            }
+            else
+            {
+                int valueTmp = (int)value;
+                reject = (CalLevelUpItemState(type, valueTmp, 0x13, 0x3b) != 1);
+                value = (unsigned int)valueTmp;
+            }
+            if (reject)
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+                return;
+            }
+        }
+    }
+    else if (itemIdx == 0x28bdb8)
+    {
+L08665e38:
+        CEventBase* repeatEvent = GlobalData::s_event_manager->GetRepeatEvent(0xf);
+        if ((repeatEvent == 0) || (!repeatEvent->IsEventing(0)))
+        {
+            packet.clear();
+            packet.put_header(1, 0x20);
+            packet.put_byte(0);
+            packet.put_byte(0x13);
+            packet.finalize(true);
+            Send(packet);
+            return;
+        }
+        short totalFatigue = (short)getCurCharacTotalFatigue();
+        if (totalFatigue == 0)
+        {
+            packet.clear();
+            packet.put_header(1, 0x20);
+            packet.put_byte(0);
+            packet.put_byte(0x43);
+            packet.finalize(true);
+            Send(packet);
+            return;
+        }
+        type = 0x0e; value = 0;
+    }
+    else if (itemIdx < 0x28bdb9)
+    {
+        if (itemIdx == 0x28974b)
+        {
+L08666320:
+            if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+                return;
+            }
+            if (GlobalData::s_pSecuProtectionField->Check(
+                    this, (SECURITY_PROTCTION)0x2c) != 0)
+            {
+                unsigned char errSecu =
+                    (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                        this, (SECURITY_PROTCTION)0x2c);
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                return;
+            }
+            if (!WongWork::CSkillChanger::CheckCondition(this))
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 1, packet);
+                return;
+            }
+            value = 0; type = 0x16;
+            if (itemIdx == 0x289788) value = 1;
+        }
+        else
+        {
+            if (itemIdx < 0x28974c)
+            {
+                if ((itemIdx - 0x204e) < 2) goto L08665c97;
+                goto L08666751;
+            }
+            else
+            {
+                if (itemIdx == 0x289788) goto L08666320;
+                if (itemIdx == 0x28982c) goto L0866607b;
+                if (itemIdx != 0x28974c) goto L08666751;
+                if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
+                {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+                    return;
+                }
+                if (GlobalData::s_pSecuProtectionField->Check(
+                        this, (SECURITY_PROTCTION)0x2c) != 0)
+                {
+                    unsigned char errSecu =
+                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                            this, (SECURITY_PROTCTION)0x2c);
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                    return;
+                }
+                if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
+                    return;
+                }
+                value = 0; type = 0x17;
+                goto L08666990;
+            }
+        }
+        
+    }
+    else if (itemIdx == 0x989a13)
+    {
+L08665d24:
+        int valueTmp = (int)value;
+        bool ok54 = (CalLevelUpItemState(type, valueTmp, 1, 0x54) == 1);
+        value = (unsigned int)valueTmp;
+        if (!ok54)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+        goto L08666990;
+    }
+    else
+    {
+        if (itemIdx < 0x989a14)
+        {
+            if (itemIdx == 0x28d14d) { type = 0x15; value = 1; goto L08666990; }
+            if (itemIdx == 0x28d2bc) goto L08665c97;
+            goto L08666751;
+        }
+        if (itemIdx == 0x2920915c)
+        {
+L0866662f:
+            if (!IsGuildMaster())
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xdb, packet);
+                return;
+            }
+            STGuildDBInfoOnly* guildDB = (STGuildDBInfoOnly*)GetGuildDBInfo();
+            int needFund =
+                G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
+            if (needFund == 0)
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
+                return;
+            }
+            if ((unsigned int)needFund <= guildDB->m_fundExp)      // +0x29 无符号比较
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
+                return;
+            }
+            type = 0x10;
+            value = G_CDataManager()->m_guildParameter.getGuildExpBook(guildDB->m_fundLevel + 1);
+            goto L08666990;
+        }
+        if (itemIdx != 0x292091ad)
+        {
+            if (itemIdx == 0x292090e1) goto L08665d24;
+            goto L08666751;
+        }
+        type = 0x19; value = 1;
+        goto L08666990;
+    }
+
+L08666751:
+    // 默认路径：查 CDataManager::m_field50cc 命中或 GetIncreaseStatus 描述
+    {
+        CDataManager* mgr = G_CDataManager();
+        if (itemIdx == (unsigned int)mgr->m_growthCapsule.m_capsuleId)
+        {
+            CItem* itemA = mgr->find_item(mgr->m_growthCapsule.m_capsuleId);
+            if (itemA == 0)
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+                return;
+            }
+            if (!itemA->is_stackable())
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+                return;
+            }
+            if (get_charac_level() < itemA->getUsableLevel())
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+                return;
+            }
+            if (get_charac_level() > 0x47)
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+                return;
+            }
+            type = 1; value = 0;
+            int vtmp = 0;
+            if (!itemA->GetIncreaseStatusIntData(0, vtmp))
+            {
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+                return;
+            }
+            value = (unsigned int)vtmp;
+        }
+        else
+        {
+            CItem* itemB = mgr->find_item(itemIdx);
+            if ((itemB != 0) && (itemB->GetIncreaseStatusType() != 0) &&
+                (itemB->GetIncreaseStatusType() == 1))
+            {
+                int vtmp = 0;
+                itemB->GetIncreaseStatusIntData(0, vtmp);
+                value = (unsigned int)vtmp;
+                type = 1;
+            }
+        }
+    }
+
+L08666990:
+    if (type == -1)
+    {
+        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+        return;                                              // L086686d4
+    }
+    if (type == 0x0f)
+    {
+        if (get_state() != 3)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+        if ((int)(getCurCharacFatigue() & 0xffff) < (int)value)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x5f, packet);
+            return;
+        }
+    }
+    if (((int)type == 0) || ((int)type == 0x11) || ((int)type == 1))
+    {
+        if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+    }
+
+    CItem* actionItem = G_CDataManager()->find_item(itemIdx);
+    if (actionItem == 0) return;                             // L086686d4
+    if (actionItem->GetUsablePvPRank() > get_pvp_grade())
+    {
+        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 1, packet);
+        return;
+    }
+    if (actionItem->GetItemType() != 0x15)
+    {
+        CInventory* invenW = getCurCharacInvenW();
+        if (!invenW->delete_item((INVEN_TYPE)1, slotNo, 1, (eItemDelReason)10, true))
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
+            return;
+        }
+    }
+
+    switch ((unsigned char)type)
+    {
+    case 0:                                                  // SP（asm +0x1435）
+    {
+        gain_sp(value);
+        history_log_sp(-1, value, (eSPAddReason)1);
+        packet.clear();
+        packet.put_header(1, 0x20);
+        packet.put_byte(1);
+        packet.put_short(slotNo);
+        packet.put_byte(type);
+        packet.put_int(value);
+        packet.put_short(0);
+        packet.put_short(0);
+        packet.finalize(true);
+        Send(packet);
+        return;                                              // asm jmp L086686d4
+    }
+    case 1:                                                  // EXP 类（asm +0x167f）
+    {
+        int bonusA = 0;                                      // -0xdc
+        int bonusB = 0;                                      // -0xe0
+        int spBefore = 0;                                    // -0xe4
+        int spAfter = 0;                                     // -0xe8
+        if (get_charac_level() > 0x54) value = 0;
+        if (itemIdx == (unsigned int)G_CDataManager()->m_growthCapsule.m_capsuleId)
+            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (eExpAddReason)3, true);
+        else
+            rewardExp(value, bonusA, bonusB, spBefore, spAfter, (eExpAddReason)0, true);
+        packet.clear();
+        packet.put_header(1, 0x20);
+        packet.put_byte(1);
+        packet.put_short(slotNo);
+        packet.put_byte(type);
+        packet.put_int(value);
+        packet.put_short(spAfter - spBefore);
+        packet.put_short(bonusB);
+        packet.finalize(true);
+        Send(packet);
+        return;
+    }
+    case 2:                                                  // AddInfoRef +0x00（int）
+    {
+        *(int*)((char*)getCurCharacAddInfoRefW()) += value;
+        break;
+    }
+    case 3:                                                  // +0x04（int）
+    {
+        *(int*)((char*)getCurCharacAddInfoRefW() + 4) += value;
+        break;
+    }
+    case 4:                                                  // +0x08（short）
+    {
+        *(short*)((char*)getCurCharacAddInfoRefW() + 8) += (short)value;
+        break;
+    }
+    case 5:                                                  // +0x0a
+    {
+        *(short*)((char*)getCurCharacAddInfoRefW() + 10) += (short)value;
+        break;
+    }
+    case 6:                                                  // +0x0c
+    {
+        *(short*)((char*)getCurCharacAddInfoRefW() + 12) += (short)value;
+        break;
+    }
+    case 7:                                                  // +0x0e
+    {
+        *(short*)((char*)getCurCharacAddInfoRefW() + 14) += (short)value;
+        break;
+    }
+    case 8:                                                  // +0x42（int）
+    {
+        *(int*)((char*)getCurCharacAddInfoRefW() + 0x42) += value;
+        break;
+    }
+    case 9:                                                  // 四属性循环 (+8)*2
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            *(short*)((char*)getCurCharacAddInfoRefW() + (i + 8) * 2) += (short)value;
+        }
+        break;
+    }
+    case 0xa:
+    case 0x18:                                               // 转职/成长洗点重建技能树
+    {
+        bool ok = false;
+        std::vector<std::pair<int,int> > giveVec;
+        if (value == 1)
+        {
+            SkillSlot* skillSlot = (SkillSlot*)getCurCharacSkillW();
+            skillSlot->clear_all_skills_both();
+            skillSlot = (SkillSlot*)getCurCharacSkillW();
+            skillSlot->set_parent(this);
+            addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+                                      get_charac_job());
+            addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+                                      get_charac_job());
+            char secondGrow = getCurCharSecondGrowType();
+            char firstGrow = getCurCharFirstGrowType();
+            int job2 = get_charac_job();
+            bool got = G_CDataManager()->m_characList->m_characs[job2].
+                           get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
+            if (got)
+            {
+                for (unsigned int i = 0; i < giveVec.size(); ++i)
+                {
+                    int j = get_charac_job();
+                    std::pair<int,int>& pr = giveVec[i];
+                    ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second,
+                                                                       (ENUM_SKILL_TREE_KIND)0);
+                    j = get_charac_job();
+                    pr = giveVec[i];
+                    ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second,
+                                                                       (ENUM_SKILL_TREE_KIND)1);
+                }
+                STExpertJobScript* expert = (STExpertJobScript*)
+                    G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
+                if (expert != 0)
+                {
+                    for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
+                    {
+                        int lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
+                        int j = get_charac_job();
+                        std::pair<int,int>& pr = expert->m_growSkillVec[i];
+                        ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
+                                                                           (ENUM_SKILL_TREE_KIND)0);
+                        lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
+                        j = get_charac_job();
+                        pr = expert->m_growSkillVec[i];
+                        ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
+                                                                           (ENUM_SKILL_TREE_KIND)1);
+                    }
+                }
+                WongWork::CSkillChanger changer;
+                changer.SkillInitialize(this, 0, false);
+                send_skill_info();
+                CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+                if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                {
+                    if (lethe != 0)
+                    {
+                        lethe->UpdateBackupSkillFlag(this, (ENUM_SKILL_TREE_KIND)0);
+                        lethe->UpdateBackupSkillFlag(this, (ENUM_SKILL_TREE_KIND)1);
+                    }
+                }
+                else if ((lethe != 0) && isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                {
+                    lethe->InitLetheSkill(this, (ENUM_SKILL_TREE_KIND)0);
+                    lethe->InitLetheSkill(this, (ENUM_SKILL_TREE_KIND)1);
+                }
+                ok = true;
+            }
+            else
+            {
+                LogManager::logFormat(
+                    1, "user.cpp", "void CUser::increase_status(short int)", 0x4aee,
+                    "User %s - CUser::set_grow_type %d", getCurCharacName(), (int)type);
+                ok = false;
+            }
+        }
+        else
+        {
+            ENUM_SKILL_TREE_KIND treeKind =
+                (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();
+            ((SkillSlot*)getCurCharacSkillW())->clear_all_skills(treeKind);
+            ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+            bool firstTree = ((GetCurCharacSkillTreeIndex() == -1) ||
+                              (GetCurCharacSkillTreeIndex() == 0));
+            if (firstTree)
+            {
+                addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+                                          get_charac_job());
+            }
+            else
+            {
+                addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+                                          get_charac_job());
+            }
+            char secondGrow = getCurCharSecondGrowType();
+            char firstGrow = getCurCharFirstGrowType();
+            int job2 = get_charac_job();
+            bool got = G_CDataManager()->m_characList->m_characs[job2].
+                           get_give_skill((int)firstGrow, (int)secondGrow, giveVec, 0);
+            if (got)
+            {
+                for (unsigned int i = 0; i < giveVec.size(); ++i)
+                {
+                    ENUM_SKILL_TREE_KIND kindI =
+                        (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();
+                    int j = get_charac_job();
+                    std::pair<int,int>& pr = giveVec[i];
+                    ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second, kindI);
+                }
+                STExpertJobScript* expert = (STExpertJobScript*)
+                    G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
+                if (expert != 0)
+                {
+                    for (unsigned int i = 0; i < expert->m_growSkillVec.size(); ++i)
+                    {
+                        int lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
+                        int j = get_charac_job();
+                        std::pair<int,int>& pr = expert->m_growSkillVec[i];
+                        ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
+                                                                           (ENUM_SKILL_TREE_KIND)0);
+                        lvl = GetCurExpertJobLevel(GetCurCharacExpertJobExp());
+                        j = get_charac_job();
+                        pr = expert->m_growSkillVec[i];
+                        ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, lvl,
+                                                                           (ENUM_SKILL_TREE_KIND)1);
+                    }
+                }
+                WongWork::CSkillChanger changer;
+                int initKind = ((GetCurCharacSkillTreeIndex() == -1) ||
+                                (GetCurCharacSkillTreeIndex() == 0)) ? 1 : 2;
+                changer.SkillInitialize(this, initKind, false);
+                send_skill_info();
+                CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+                if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                {
+                    if (lethe != 0)
+                    {
+                        lethe->UpdateBackupSkillFlag(
+                            this, (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+                    }
+                }
+                else if ((lethe != 0) && isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+                {
+                    lethe->InitLetheSkill(
+                        this, (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+                }
+                ok = true;
+            }
+            else
+            {
+                LogManager::logFormat(
+                    1, "user.cpp", "void CUser::increase_status(short int)", 0x4b48,
+                    "User %s - CUser::set_grow_type %d", getCurCharacName(), (int)type);
+                ok = false;
+            }
+        }
+        if (!ok) return;                                     // 失败：仅析构 packet 返回
+        break;
+    }
+    case 0xb:                                                // 公会经验（+0xc92）
+    {
+        if (get_charac_guildkey() != 0) add_guild_exp(value);
+        break;
+    }
+    case 0xc:                                                // stamina（+0xcb3）
+    {
+        setCurCharacStamina((unsigned char)value);
+        break;
+    }
+    case 0xd:                                                // event coin（+0xcd9）
+    {
+        int coinNow = getCurCharacInvenR()->GetEventCoin();
+        getCurCharacInvenW()->SetEventCoin(coinNow + value);
+        m_historyLog.EventCoinAdd(getCurCharacInvenR()->GetEventCoin(), value,
+                                  (eCoinAddReason)2);
+        SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 1);
+        break;
+    }
+    case 0x0e:                                               // fatigue 回复（+0xd43）
+    {
+        RecoverFatigue(value);
+        SendFatigue();
+        break;
+    }
+    case 0x0f:                                               // fatigue 扣减（+0xd55）
+    {
+        int remain = (int)(getCurCharacFatigue() & 0xffff) - (int)value;
+        if (remain < 0) remain = 0;                          // ORIG max(int) 内联形态
+        setCurCharacFatigue(remain);
+        SendFatigue();
+        break;
+    }
+    case 0x10:                                               // 公会经验上报（+0xdd8）
+    {
+        if (get_charac_guildkey() != 0)
+        {
+            unsigned int characNo = get_charac_no(-1);
+            CGuildServerProxy* proxy =
+                GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
+            proxy->SendIncreaseGuildExp((unsigned int)get_charac_guildkey(), characNo,
+                                        value, 1);
+        }
+        break;
+    }
+    case 0x11:                                               // SFP（+0xe64）
+    {
+        gain_sfp(value);
+        history_log_sfp(-1, value, (eSPAddReason)1);
+        packet.clear();
+        packet.put_header(1, 0x20);
+        packet.put_byte(1);
+        packet.put_short(slotNo);
+        packet.put_byte(type);
+        packet.put_int(value);
+        packet.put_short(0);
+        packet.put_short(0);
+        packet.finalize(true);
+        Send(packet);
+        return;
+    }
+    case 0x12:                                               // SFP 技能树重建（+0xf12 区）
+    {
+        int initKind = ((GetCurCharacSkillTreeIndex() == -1) ||
+                        (GetCurCharacSkillTreeIndex() == 0)) ? 3 : 4;
+        ((SkillSlot*)getCurCharacSkillW())->clear_sfp_skills(
+            (char)get_charac_job(),
+            (ENUM_SKILL_TREE_KIND)((GetCurCharacSkillTreeIndex() == -1) ? 0 : 0));
+        WongWork::CSkillChanger changer;
+        changer.SkillInitialize(this, initKind, false);
+        send_skill_info();
+        break;
+    }
+    case 0x13:                                               // power war point（+0x1180）
+    {
+        IncreasePowerWarPoint((short)value);
+        break;
+    }
+    case 0x14:                                               // GM 状态校正（+0x119c）
+    {
+        adjust_charac_stat();
+        if (m_chState == 3)
+        {
+            packet.clear();
+            packet.put_header(0, 2);
+            packet.put_byte(1);
+            packet.put_short(1);
+            make_basic_info((char*)&packet, (char)1);
+            packet.finalize(true);
+            Send(packet);
+        }
+        break;
+    }
+    case 0x15:                                               // coin（+0x125b）
+    {
+        int coinNow = getCurCharacInvenR()->GetCoin();
+        getCurCharacInvenW()->SetCoin(coinNow + value);
+        m_historyLog.CoinAdd(getCurCharacInvenR()->GetCoin(), value, (eCoinAddReason)3);
+        SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 1);
+        break;
+    }
+    case 0x16:                                               // PvP 技能树（+0x1303）
+    {
+        if (value == 1)
+        {
+            ((SkillSlot*)getCurCharacSkillW())->clear_all_skills_both();
+            ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+            givePvPSkillTree(0, true, 3);
+            int pvpGrade = get_pvp_grade();
+            char secondGrow = getCurCharSecondGrowType();
+            char firstGrow = getCurCharFirstGrowType();
+            int point = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
+                get_charac_job(), (int)firstGrow, (int)secondGrow, pvpGrade, false);
+            ((SkillSlot*)getCurCharacSkillW())->set_remain_sp_at_index(point,
+                                                                       (ENUM_SKILL_TREE_KIND)0);
+            ((SkillSlot*)getCurCharacSkillW())->set_remain_sp_at_index(point,
+                                                                       (ENUM_SKILL_TREE_KIND)1);
+            send_skill_info();
+            CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+            if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+            {
+                if (lethe != 0)
+                {
+                    lethe->UpdateBackupSkillFlag(this, (ENUM_SKILL_TREE_KIND)0);
+                    lethe->UpdateBackupSkillFlag(this, (ENUM_SKILL_TREE_KIND)1);
+                }
+            }
+            else if ((lethe != 0) && isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+            {
+                lethe->InitLetheSkill(this, (ENUM_SKILL_TREE_KIND)0);
+                lethe->InitLetheSkill(this, (ENUM_SKILL_TREE_KIND)1);
+            }
+        }
+        else
+        {
+            ENUM_SKILL_TREE_KIND treeKind =
+                (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();
+            ((SkillSlot*)getCurCharacSkillW())->clear_all_skills(treeKind);
+            ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+            int initKind = ((GetCurCharacSkillTreeIndex() == -1) ||
+                            (GetCurCharacSkillTreeIndex() == 0)) ? 1 : 2;
+            givePvPSkillTree(0, true, initKind);
+            int pvpGrade = get_pvp_grade();
+            char secondGrow = getCurCharSecondGrowType();
+            char firstGrow = getCurCharFirstGrowType();
+            int point = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
+                get_charac_job(), (int)firstGrow, (int)secondGrow, pvpGrade, false);
+            ((SkillSlot*)getCurCharacSkillW())->set_remain_sp_at_index(
+                point, (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+            send_skill_info();
+            CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+            if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+            {
+                if (lethe != 0)
+                {
+                    lethe->UpdateBackupSkillFlag(
+                        this, (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+                }
+            }
+            else if ((lethe != 0) && isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+            {
+                lethe->InitLetheSkill(
+                    this, (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+            }
+        }
+        break;
+    }
+    case 0x17:                                               // one day lethe（+0x1800）
+    {
+        cMyTrace trace("void CUser::increase_status(short int)", 0x4c0a, 0);
+        trace("ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
+              getCurCharacName(), getCurCharacNo(), GetCurCharacSkillTreeIndex());
+        CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+        if (lethe != 0) lethe->ConfirmSkillReq(this);
+        break;
+    }
+    default:
+        break;
+    case 0x19:                                               // avatar coin（+0x13e1）
+    {
+        AvatarCoin* avatarCoin =
+            (AvatarCoin*)((char*)getCurCharacInvenW() + 0x658);   // CInventory::m_avatarCoin
+        avatarCoin->Add(value);
+        AvatarCoin::SaveToDB(this);
+        AvatarCoin::SendSyncPacket(this);
+        AvatarCoin::HistoryLog::AddLog(this, value);
+        break;
+    }
+    }
+
+L_common_tail_6751_end_return:
+    // ---- 公共回包与队伍/战房广播（ORIG +0x2c39 尾段）----
+    packet.clear();
+    packet.put_header(1, 0x20);
+    packet.put_byte(1);
+    packet.put_short(slotNo);
+    packet.put_byte(type);
+    packet.put_int(value);
+    packet.put_short(0);
+    packet.put_short(0);
+    packet.finalize(true);
+    Send(packet);
+
+    if (m_chState == 5)
+    {
+        CParty* party = (CParty*)GetParty();
+        if (party != 0)
+        {
+            packet.clear();
+            packet.put_header(0, 2);
+            packet.put_byte(1);
+            packet.put_short(1);
+            make_basic_info((char*)&packet, (char)1);
+            packet.finalize(true);
+            party->send_to_party(packet);
+        }
+    }
+    else if (m_chState == 8)
+    {
+        WarRoom* warRoom = (WarRoom*)GetWarRoom();
+        if (warRoom != 0)
+        {
+            packet.clear();
+            packet.put_header(0, 2);
+            packet.put_byte(1);
+            packet.put_short(1);
+            make_basic_info((char*)&packet, (char)1);
+            packet.finalize(true);
+            warRoom->SendToRoom(packet);
+        }
+    }
+}

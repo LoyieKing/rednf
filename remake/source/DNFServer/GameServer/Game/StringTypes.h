@@ -259,6 +259,55 @@ WideString mid(const WideString& str, int start);
 WideString mid(const WideString& str, int start, int length);
 WideString right(const WideString& str, int length);
 
+// ---- CharString / WideString 自由运算符（ORIG 0x8ad959a..0x8ad997c /
+// 0x08adc690..0x08adca62，仅 ORIG 符号缺实现时的 out-of-line 强符号）----
+bool operator==(const CharString& src1, const char* src2);
+bool operator==(char const* src1, const CharString& src2);
+bool operator==(const CharString& src1, const CharString& src2);
+bool operator!=(const CharString& src1, const char* src2);
+bool operator!=(char const* src1, const CharString& src2);
+bool operator!=(const CharString& src1, const CharString& src2);
+bool operator<(const CharString& src1, const char* src2);
+bool operator<(char const* src1, const CharString& src2);
+bool operator<(const CharString& src1, const CharString& src2);
+bool operator<=(const CharString& src1, const char* src2);
+bool operator<=(char const* src1, const CharString& src2);
+bool operator<=(const CharString& src1, const CharString& src2);
+bool operator>(const CharString& src1, const char* src2);
+bool operator>(char const* src1, const CharString& src2);
+bool operator>(const CharString& src1, const CharString& src2);
+bool operator>=(const CharString& src1, const char* src2);
+bool operator>=(char const* src1, const CharString& src2);
+bool operator>=(const CharString& src1, const CharString& src2);
+CharString operator+(const CharString& src1, const char* src2);
+CharString operator+(const CharString& src1, const CharString& src2);
+CharString operator+(const CharString& src1, char ch);
+CharString operator+(const char* src1, const CharString& src2);
+CharString operator+(char ch, const CharString& src2);
+bool operator==(const WideString& src1, const wchar_t* src2);
+bool operator==(wchar_t const* src1, const WideString& src2);
+bool operator==(const WideString& src1, const WideString& src2);
+bool operator!=(const WideString& src1, const wchar_t* src2);
+bool operator!=(wchar_t const* src1, const WideString& src2);
+bool operator!=(const WideString& src1, const WideString& src2);
+bool operator<(const WideString& src1, const wchar_t* src2);
+bool operator<(wchar_t const* src1, const WideString& src2);
+bool operator<(const WideString& src1, const WideString& src2);
+bool operator<=(const WideString& src1, const wchar_t* src2);
+bool operator<=(wchar_t const* src1, const WideString& src2);
+bool operator<=(const WideString& src1, const WideString& src2);
+bool operator>(const WideString& src1, const wchar_t* src2);
+bool operator>(wchar_t const* src1, const WideString& src2);
+bool operator>(const WideString& src1, const WideString& src2);
+bool operator>=(const WideString& src1, const wchar_t* src2);
+bool operator>=(wchar_t const* src1, const WideString& src2);
+bool operator>=(const WideString& src1, const WideString& src2);
+WideString operator+(const WideString& src1, const wchar_t* src2);
+WideString operator+(const WideString& src1, const WideString& src2);
+WideString operator+(const WideString& src1, wchar_t ch);
+WideString operator+(const wchar_t* src1, const WideString& src2);
+WideString operator+(wchar_t ch, const WideString& src2);
+
 // ORIG _Z11ss_vsprintfPcjPKcS_ / _Z12ss_vswprintfPwjPKwPc（i386 上 va_list 即 char*）
 int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList);
 int ss_vswprintf(wchar_t* buffer, size_t count, const wchar_t* format, char* argList);

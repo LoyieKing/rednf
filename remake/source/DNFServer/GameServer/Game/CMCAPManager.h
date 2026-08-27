@@ -2,6 +2,7 @@
 #define DNF_GAME_CMCAP_MANAGER_H_
 
 #include "CHackAnalyzer.h"   // WongWork::ENUM_HACKTYPE（getPointPerHackType 形参）
+class cSecuUserAction;   // 全局命名空间（ORIG _ZN15cSecuUserAction…）；定义暂在 CUserOnlyOrig.cpp
 namespace WongWork
 {
 // WongWork::CMCAPManager —— 唯一声明点（自 CUser.h 收敛；ORIG reset() 弱符号
@@ -64,7 +65,8 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     unsigned char m_cleanPadVeriB;      // +0x550（randInt(6)）
     char m_pad551[1];                   // +0x551
     unsigned short m_cleanPadVeriC;     // +0x552（randInt(0xffff)+1）
-    char m_pad554[8];                   // +0x554..0x55b
+    char m_pad554[4];                   // +0x554..0x558
+    ::cSecuUserAction* m_secuUserAction; // +0x558（0x8e948；InitOnAccept 0x086493c8 new 后挂接并 Init()）
     unsigned int m_capchaReqTick;       // +0x55c（reqHumanCertify 写 getCurTickCount）
     char m_pad560[1];                   // +0x560
     bool m_field561;   // +0x561（0x8e951 isARSUserKick）

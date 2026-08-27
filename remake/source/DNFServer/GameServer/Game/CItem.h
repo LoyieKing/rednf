@@ -79,6 +79,10 @@ public:
     int getItemGroupName() const;
     int getUsableLevel() const;
     int GetNeedLevel() const;              // ORIG W 0x08545fda _ZNK5CItem12GetNeedLevelEv
+    // ---- W7-BigThree 批（increase_status 链用；W 内联，定义落 CUserOnlyOrig.cpp）----
+    int GetUsablePvPRank() const;          // ORIG W 0x086946c4 _ZNK5CItem16GetUsablePvPRankEv：返回 +0xec
+    int GetIncreaseStatusType() const;     // ORIG W 0x086946b6 _ZNK5CItem21GetIncreaseStatusTypeEv：返回 +0x8c
+    bool GetIncreaseStatusIntData(int idx, int& out) const;  // ORIG W 0x08694658 _ZNK5CItem24GetIncreaseStatusIntDataEiRi
     int get_rarity() const;
     int get_gen_rate() const;                             // ORIG W 0x832e02a：返回 m_field50
     bool isSpecialMonsterDropItem();                      // ORIG W 0x8539e00：m_drop.m_enable
@@ -155,7 +159,9 @@ public:
     bool m_impossibleGift;                // +0x87
     bool m_impossibleCharacCargo;         // +0x88
     bool m_possibleKiriProtection;        // +0x89
-    char m_pad8a[6];                      // +0x8a..0x90
+    char m_pad8a[2];                      // +0x8a..0x8c
+    int m_increaseStatusType;             // +0x8c（ORIG GetIncreaseStatusType W 0x086946b6 直读）
+    char m_pad8e[2];                      // +0x8e..0x90
     std::vector<int> m_vec90;             // +0x90
     DyeInfo m_dyeInfo9c;                  // +0x9c（DyeInfo，16 字节）
     int m_periodAfterUnsealing;           // +0xac

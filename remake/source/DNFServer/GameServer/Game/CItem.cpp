@@ -312,3 +312,22 @@ int CItem::getFootControlRateLimit() const  // ORIG 0850d286
 {
     return m_int5c;
 }
+
+int CItem::GetUsablePvPRank() const  // ORIG W 0x086946c4
+{
+    return m_intEC;
+}
+
+int CItem::GetIncreaseStatusType() const  // ORIG W 0x086946b6
+{
+    return m_increaseStatusType;
+}
+
+bool CItem::GetIncreaseStatusIntData(int idx, int& out) const
+    // ORIG W 0x08694658：idx<0 或 idx>=size → false；否则 out=at(idx) → true
+{
+    if (idx < 0 || static_cast<std::vector<int>::size_type>(idx) >= m_vec90.size())
+        return false;
+    out = m_vec90.at(idx);
+    return true;
+}

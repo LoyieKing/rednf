@@ -129,7 +129,9 @@ public:
     int GetCurCharacTotalSP(const CUser* user, bool flag);
     int _GetBaseSkillPoint(const CUser* user) const;
     int _GetQuestSkillPoint(const CUser* user);
-    bool CheckCondition(const CUser* user);                            // ORIG T 0x08609d10 _ZN8WongWork13CSkillChanger14CheckConditionEPK5CUser
+    // ORIG T 0x08609d10：mangled 与成员形态一致，但调用/被调双方均为单参 cdecl
+    // （increase_status 0x08666162 等实证；函数体不消费隐式 this）→ 实为静态。
+    static bool CheckCondition(const CUser* user);
     void CountElixer(CUser* user);                                     // ORIG T 0x08609d9c _ZN8WongWork13CSkillChanger11CountElixerEP5CUser
     int* GetElixerCount();                                             // ORIG W 0x0869780e _ZN8WongWork13CSkillChanger14GetElixerCountEv（返回 this，即第一组计数数组）
     int* GetNeedElixerCount();                                         // ORIG W 0x08697816 _ZN8WongWork13CSkillChanger18GetNeedElixerCountEv（返回 this+0x48）
