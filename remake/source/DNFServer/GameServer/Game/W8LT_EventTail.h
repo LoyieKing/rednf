@@ -22,6 +22,8 @@ bool isObjectType(int objectType, int code);
 // ENUM_ACTIVESTATUS（ORIG mangled 宽度 17）。数值 = ACTIVESTATUS_* 表下标；
 // 0..16 名称对应 ACTIVESTATUS_TAG[17]（ScriptDepsA.cpp .rodata 解析实证），
 // 17 由 makeEtcParameters case 使用但无表项 [推断] 仅给占位名。
+#ifndef DNF_ENUM_ACTIVESTATUS_DEFINED
+#define DNF_ENUM_ACTIVESTATUS_DEFINED
 enum ENUM_ACTIVESTATUS
 {
     ACTIVE_STATUS_SLOW = 0,
@@ -43,6 +45,7 @@ enum ENUM_ACTIVESTATUS
     ACTIVE_STATUS_ARMOR_BREAK = 16,
     ACTIVE_STATUS_17 = 17   // [推断] makeEtcParameters case 0x11；语义待考证
 };
+#endif  // DNF_ENUM_ACTIVESTATUS_DEFINED
 
 // ---- ORIG 投递日志扩长消息视图 [推断名；questClearLog/buyItemLog 实证] ----
 // delivery(DeliveryMsg&) 收到的真实对象为事件日志扩长消息：基 DeliveryMsg 之外

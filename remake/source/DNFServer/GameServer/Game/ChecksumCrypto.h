@@ -40,9 +40,10 @@ struct AES_ALG_INFO
     unsigned long   rk[60];
 };
 
-#if defined(__GNUC__)
-// 32 位基线布局校验（unsigned long == 4）
-static_assert(sizeof(AES_ALG_INFO) == 0x40 + 240, "AES_ALG_INFO layout");
+#if defined(__ELF__) && defined(__i386__)
+// 32 位基线布局校验（unsigned long == 4；ORIG 为 i386 ELF）
+static_assert(sizeof(AES_ALG_INFO) == 0x40u + 60u * sizeof(unsigned long),
+              "AES_ALG_INFO layout");
 #endif
 
 // ORIG public AES 接口（签名与 mangled 逐字对应）
@@ -76,7 +77,18 @@ struct SHA256_ALG_INFO
     unsigned int   total[2];    // +0x20 lo/+0x24 hi 已处理字节数
     unsigned char  buffer[64];  // +0x28
 };
-struct SHA512_ALG_INFO   // 供 Sha384/Sha512 共用内核（state 为 8×u64，大端语义）
+
+
+struct SHA512_ALG_INFO   // Sha384/Sha512 共用内核（state 为 8×u64）
+{
+    unsigned long long state[8];    // +0x00
+    unsigned long long total[2];    // +0x40 lo/+0x48 hi
+    unsigned char      buffer[128]; // +0x50
+};
+
+// ORIG SHA384 与 SHA512 布局相同（SHA384_Init @0x080c03a1 同构），
+// 独立 struct 定义以匹配 ChecksumAlgo.h 的前置声明与 mangled。
+struct SHA384_ALG_INFO
 {
     unsigned long long state[8];    // +0x00
     unsigned long long total[2];    // +0x40 lo/+0x48 hi
@@ -94,6 +106,25 @@ void SHA384_Final(SHA384_ALG_INFO* ctx, unsigned char* out);                // 0
 void SHA512_Init(SHA512_ALG_INFO* ctx);                                     // 0x080c27f1
 void SHA512_Update(SHA512_ALG_INFO* ctx, unsigned char* in,
                    unsigned long len);                                      // 0x080c28b9
-void SHA512_Final(SHA512_ALG_INFO* ctx, unsigned char* out);                // 0x080c2a7e
+
+// ---- CRijndael_fake（ORIG 0x080b824c..0x080b851c）----
+// 布局：vptr@0x00、m_ctxObf@0x04（new 指针与 m_salt 异或混淆）、m_salt@0x08。
+class CRijndael_fake
+{
+public:
+    CRijndael_fake();
+    virtual ~CRijndael_fake();
+
+    int  Initialize(char const* key, int keyLen, char const* chain,
+                    int chainLen, int blockSize, int mode, int padding);
+    int  Encrypt(char const* in, char* out, unsigned int len);
+    int  Decrypt(char const* in, char* out, unsigned int len);
+    unsigned int Pad(char* buffer, int pos, unsigned int* pLen);
+    int  GetBlockSize() const;
+
+private:
+    void*        m_ctxObf;   // +0x04
+    unsigned int m_salt;     // +0x08
+};
 
 #endif  // DNF_GAME_CHECKSUMCRYPTO_H_

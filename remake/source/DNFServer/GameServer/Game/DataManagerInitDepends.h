@@ -438,11 +438,92 @@ public:
 
 // ORIG SDCActiveStatusSyncCommon：Server 基类（ctor W 0x08234870 / dtor W
 // 0x08234876，均空体 ret）。定义：CtorProducers_2.cpp。
+class STSDCActiveStatusSyncDataSend;   // 布局见下方 packed 定义
+class IRDActiveObject;                 // 仅前置（getActiveStatusDurationClient 不解引用）
+
+namespace _SDC
+{
+bool isObjectType(int objectType, int code);   // T 0x080950e8（定义 W9_SDCCommon.cpp）
+}
+
+float GetUniformVelocityFloatSDC(float v0, float v1, int cur, int max);
+                                                // _Z26GetUniformVelocityFloatSDCffii T 0x088924c1
+
+// ORIG 布局按 operator=(0x808d18c) 字节映射重构 [推断字段名]；packed，
+// sizeof 0x35。damage 侧访问语义实证：+3 baseDamage、+7 tick、
+// +0xb attacker 类型(==10)、+0xc PvP 标志、+0x1d HP 百分比。
+#pragma pack(push, 1)
+struct STSDCActiveStatusSyncDataSend
+{
+    unsigned char m_field00;      // +0x00
+    unsigned char m_field01;      // +0x01
+    unsigned char m_field02;      // +0x02
+    int m_baseDamage;             // +0x03
+    int m_durationTick;           // +0x07
+    unsigned char m_attackerType; // +0x0b（getBurn/… ==10 判定）
+    unsigned char m_isPvp;        // +0x0c（!=0 → ×userToUserRate）
+    int m_field0d;                // +0x0d
+    int m_field11;                // +0x11
+    int m_field15;                // +0x15
+    int m_field19;                // +0x19
+    int m_hpPercent;              // +0x1d（<100 才产出伤害）
+    int m_field21;                // +0x21
+    int m_field25;                // +0x25
+    int m_field29;                // +0x29
+    int m_field2d;                // +0x2d
+    int m_field31;                // +0x31
+};                                // sizeof = 0x35
+static_assert(sizeof(STSDCActiveStatusSyncDataSend) == 0x35,
+              "STSDCActiveStatusSyncDataSend ABI drift");
+#pragma pack(pop)
+
+#ifndef DNF_ENUM_ACTIVESTATUS_DEFINED
+#define DNF_ENUM_ACTIVESTATUS_DEFINED
+enum ENUM_ACTIVESTATUS
+{
+    ACTIVE_STATUS_SLOW = 0, ACTIVE_STATUS_FREEZE = 1, ACTIVE_STATUS_POISON = 2,
+    ACTIVE_STATUS_STUN = 3, ACTIVE_STATUS_CURSE = 4,   ACTIVE_STATUS_BLIND = 5,
+    ACTIVE_STATUS_LIGHTNING = 6, ACTIVE_STATUS_STONE = 7, ACTIVE_STATUS_SLEEP = 8,
+    ACTIVE_STATUS_BURN = 9, ACTIVE_STATUS_WEAPON_BREAK = 10,
+    ACTIVE_STATUS_BLEEDING = 11, ACTIVE_STATUS_PIERCING = 12,
+    ACTIVE_STATUS_STUCK = 13, ACTIVE_STATUS_CONFUSE = 14,
+    ACTIVE_STATUS_HOLD = 15, ACTIVE_STATUS_ARMOR_BREAK = 16,
+    ACTIVE_STATUS_17 = 17   // [推断]
+};
+#endif  // DNF_ENUM_ACTIVESTATUS_DEFINED
+
 class SDCActiveStatusSyncCommon
 {
 public:
     SDCActiveStatusSyncCommon();
     ~SDCActiveStatusSyncCommon();
+
+    // 全部非虚；ORIG 地址注释逐方法标注。
+    void getDuration(ENUM_ACTIVESTATUS status, int level, void* param);  // 0x0808dc7a
+    bool getBurnDamage(bool& flag, STSDCActiveStatusSyncDataSend* d,
+                       void* obj, int t);                          // 0x0808de08
+    int getPoisonDamage(STSDCActiveStatusSyncDataSend* d, void* obj,
+                        int t);                                    // 0x0808dcc4
+    int getDiseaseDamage(STSDCActiveStatusSyncDataSend* d, int t); // 0x0808dd5c
+    void makeEtcParameters(ENUM_ACTIVESTATUS status, int level, void* param,
+                           std::vector<int>* out, int* outPtr);    // 0x0808d4b4
+    void makeEtcParameters(ENUM_ACTIVESTATUS status, int level,
+                           std::vector<int>& out);                 // 0x0808d50e
+    float getActiveStatusPower1(int idx, int level);               // 0x0808d37a
+    float getActiveStatusPower2(int idx, int level);               // 0x0808d3dc
+    int getBleedingDamageClient(STSDCActiveStatusSyncDataSend* d,
+                                bool flag, void* obj);             // 0x0808de9e
+    int getBleedingDamageServer(STSDCActiveStatusSyncDataSend* d); // 0x0808df1a
+    float getUserToUserDamageRate(bool deathTower);                // 0x0808df5c
+    float getActiveStatusEtcParameter(int idx, int level, int j);  // 0x0808d43e
+    int getActiveStatusDurationClient(int idx, int level,
+                                      IRDActiveObject* obj);       // 0x0808d268（纯 ret 0）
+    int getActiveStatusDurationServer(int status, int level,
+                                      int objectType, int a4,
+                                      int hpPenalty);              // 0x0808d272
+    void getActiveStatusDamageDurationForSDC(
+        char attackType, int status, int* outA, int* outB,
+        STSDCActiveStatusSyncDataSend* d, void* obj);              // 0x0808df82
 };
 
 // ORIG SDCActiveStatusSyncServer：栈局部对象（ctor W 0x0823487c / dtor W

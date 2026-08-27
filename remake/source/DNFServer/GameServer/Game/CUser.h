@@ -491,8 +491,10 @@ struct _Charac_info
     char m_paddc2[0xe3b - 0xdc2];     // +0xdc2..0xe3a
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 置 1）
     char m_pad123c[0x1239 - 0xe3c];   // +0xe3c..0x1238
-    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择：-1/0 → SkillW+0x46，否则 +0x1de）
-    char m_pad123a[0x124f - 0x123a];  // +0x123a..0x124e
+    unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择）
+    char m_pad123a[0x1246 - 0x123a];  // +0x123a..0x1245
+    unsigned char m_characLinkType;   // +0x1246（checkCharacLinkType 读；相邻 +0x124f 为 linkBonusSetting）
+    char m_pad1247[0x124f - 0x1247];  // +0x1247..0x124e
     unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
     char m_pad1250[0x14b7 - 0x1250];  // +0x1250..0x14b6
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
@@ -2154,6 +2156,8 @@ public:
     XNuclear::CHades m_hades;                               // +0x8e954
     Secu_GoldControl m_goldControl;                         // +0x8e980
     Secu_HackLogCheck m_hackLogCheck;                       // +0x8ea68
+    std::map<short, int> m_mapEtc;                          // +0x8eaa4（GetETC 0x08697474 / SetETC 0x080f9968；占 0x8ea68+sizeof(Secu_HackLogCheck 后空隙至 +0x8eabc）
+    char m_padAfterMapEtc[0x18];                            // 对齐占位：m_mapEtc(0x18)+本 pad 保持 m_map8eabc @+0x8eabc
     std::map<std::pair<char, char>, int> m_map8eabc;        // +0x8eabc
     char m_pad8ead4[4];                                     // +0x8ead4..0x8ead7
     char m_field8ead8;                                      // +0x8ead8

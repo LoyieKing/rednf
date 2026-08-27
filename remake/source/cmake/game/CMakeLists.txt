@@ -162,6 +162,7 @@ dnf_service(game
         ${SVC_DIR}/W8_EventClassifyB.cpp
         ${SVC_DIR}/W8LT_EventTail.cpp
         ${SVC_DIR}/W9_EventSmall.cpp
+        ${SVC_DIR}/W9_SDCCommon.cpp
         ${SVC_DIR}/CDataManagerTailB.cpp
         ${SVC_DIR}/W6_HackPunishDeps.cpp
         ${SVC_DIR}/W6_ItemGenDeps.cpp
@@ -189,6 +190,7 @@ dnf_service(game
         ${SVC_DIR}/Cipher.cpp
         ${SVC_DIR}/CNCrypto.cpp
         ${SVC_DIR}/CNCryptoAlgo.cpp
+        ${SVC_DIR}/ChecksumCrypto.cpp
         ${SVC_DIR}/Encryption.cpp
         ${SVC_DIR}/MsgQueueMgr.cpp
         ${SVC_DIR}/TimerQueue.cpp
@@ -219,6 +221,7 @@ dnf_service(game
         ${SVC_DIR}/CRijndael.cpp
         ${SVC_DIR}/CNCrypto.cpp
         ${SVC_DIR}/CNCryptoAlgo.cpp
+        ${SVC_DIR}/ChecksumCrypto.cpp
         ${SVC_DIR}/Encryption.cpp
         ${SVC_DIR}/CUdpHandler.cpp
         ${SVC_DIR}/STItemScript.cpp
