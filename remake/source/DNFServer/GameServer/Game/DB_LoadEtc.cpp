@@ -106,6 +106,86 @@ int DB_LoadEtc::GetUserPvpBase(SIG_LOAD_ETC* sig)
 }
 
 // ============================================================================
+// DB_LoadEtc::GetUserPvp @0x08407dc2。
+// 26 列 pvp_result 读取入 sig+0x340 PvpResultType；随后按本地当日零点重算
+// m_nextResetTime(+0x68)，若晚于 last_play_time(col22) 清 +0x60；
+// 若 pvp_grade_ext_update_time(col25)+86400 < 当前秒清 +0x5c。返 0=OK
+// 1=无行 -1=DB/取值错误。
+// ============================================================================
+int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+                                                  (ENUM_SERVER_GROUP)0);
+    db->set_query("seLect win,lose,pvp_point,pvp_grade,avg_kill_count,"
+                  "avg_buf_count,avg_debuf_count,avg_heal_count,"
+                  "avg_counter_count,avg_back_atk_count,avg_union_hit_count,"
+                  "avg_overkill_count,avg_combo_count,avg_aerial_count,"
+                  "avg_attacked_count,avg_deal_damage,avg_technic,avg_style,"
+                  "avg_hit_penalty,pvp_count,win_point,pvp_grade_ext,"
+                  "unix_timestamp(last_play_time),play_count,play_time,"
+                  "unix_timestamp(pvp_grade_ext_update_time) "
+                  "from pvp_result where charac_no=%u",
+                  sig->m_characNo);
+    if (!db->exec(true))
+        return -1;
+    if (!db->fetch())
+        return 1;
+
+    // sig+0x340 起为 PvpResultType（本 TU 内按 ORIG 偏移访问；权威字段布局
+    // 见 PvpResultType.h，+0x0c/+0x10 两列 DB 不读）。
+    static const unsigned int kPvpBase = 0x340;
+    int v;
+    for (int col = 0; col <= 2; ++col)              // win/lose/pvp_point
+    {
+        if (!db->get_int(col, v))
+            return -1;
+        SGF<int>(sig, kPvpBase + col * 4) = v;
+    }
+    if (!db->get_int(3, SGF<int>(sig, kPvpBase + 0x14)))   // pvp_grade（跳过 +0x0c/+0x10）
+        return -1;
+    for (int i = 0; i < 15; ++i)                    // col4..18 → avg[15](+0x18..+0x50)
+    {
+        if (!db->get_int(4 + i, SGF<int>(sig, kPvpBase + 0x18 + i * 4)))
+            return -1;
+    }
+    if (!db->get_int(19, SGF<int>(sig, kPvpBase + 0x54)))  // pvp_count
+        return -1;
+    if (!db->get_int(20, SGF<int>(sig, kPvpBase + 0x58)))  // win_point
+        return -1;
+    if (!db->get_int(21, SGF<int>(sig, kPvpBase + 0x5c)))  // pvp_grade_ext
+        return -1;
+
+    int lastPlaySec = 0;
+    if (!db->get_int(22, lastPlaySec))              // unix(last_play_time)→局部
+        return -1;
+    unsigned int u;
+    if (!db->get_uint(23, u))                       // play_count→+0x64
+        return -1;
+    SGF<unsigned int>(sig, kPvpBase + 0x64) = u;
+    if (!db->get_uint(24, u))                       // play_time→+0x60
+        return -1;
+    SGF<unsigned int>(sig, kPvpBase + 0x60) = u;
+
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm tmv;
+    localtime_r(&now, &tmv);
+    tmv.tm_sec = 0;
+    tmv.tm_min = 0;
+    tmv.tm_hour = 0;
+    int nextReset = (int)mktime(&tmv);
+    SGF<int>(sig, kPvpBase + 0x68) = nextReset;
+    if (nextReset > lastPlaySec)
+        SGF<int>(sig, kPvpBase + 0x60) = 0;
+
+    int gradeExtUpdateSec = 0;
+    if (!db->get_int(25, gradeExtUpdateSec))        // unix(pvp_grade_ext_update_time)
+        return -1;
+    if (gradeExtUpdateSec + 0x15180 < (int)GlobalData::s_systemTime_.getCurSec())
+        SGF<int>(sig, kPvpBase + 0x5c) = 0;
+
+    return 0;
+}
+// ============================================================================
 // DB_LoadEtc::LoadLitmitItem @0x08405c60：sub $0x30 后直接 ret 1（如实空体）。
 // ============================================================================
 bool DB_LoadEtc::LoadLitmitItem(SIG_LOAD_ETC* sig)
@@ -1929,4 +2009,26 @@ bool DB_LoadEtc::LoadEventServerMessageInfo(SIG_LOAD_ETC* sig)
 
     SGF<unsigned char>(sig, 0x2d38) = (unsigned char)nRows;  // 条目计数（截断）
     return true;
+}
+
+// ============================================================================
+// get_skill_table_name @0x083fbdc6：PvP 技能树频道或显式第二表 →
+// "skill_fair_pvp.skill"，否则 "skill.skill"。
+// ============================================================================
+char const* get_skill_table_name(bool use2nd)
+{
+    if (G_GameWorld()->IsPvPSkilTreeChannel() || use2nd)
+        return "skill_fair_pvp.skill";
+    return "skill.skill";
+}
+
+// ============================================================================
+// getComboSkillTableName @0x0844a38b：kind==1 → "combo_skill2"，
+// 其余（含 0）→ "combo_skill"。
+// ============================================================================
+char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind)
+{
+    if (kind == 1)
+        return "combo_skill2";
+    return "combo_skill";
 }

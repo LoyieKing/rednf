@@ -7,6 +7,12 @@ Tick::Tick() : m_value(0) {}
 
 Tick::Tick(unsigned int v) : m_value(v) {}
 
+// ORIG @0x08ade844（sret）：*sret = Tick(nowAsInternalValue())。
+Tick Tick::now()
+{
+    return Tick(nowAsInternalValue());
+}
+
 void Tick::setNow()
 {
     m_value = nowAsInternalValue();

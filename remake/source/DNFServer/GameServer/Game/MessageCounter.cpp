@@ -55,6 +55,21 @@ MessageKey::MessageKey(int id, unsigned char type, unsigned short size)
     : m_id(id), m_type(type), m_size(size)
 {
 }
+
+// ORIG @0x08570192：先比 id（signed，< 返 1）；相等再比 type（unsigned char，
+// jae→0 / < 返 1）；相等再比 size（unsigned short，同上），否则返 0。
+bool MessageKey::operator<(const MessageKey& rhs) const
+{
+    if (m_id < rhs.m_id)
+        return true;
+    if (m_id != rhs.m_id)
+        return false;
+    unsigned int t = (unsigned char)m_type;
+    unsigned int r = (unsigned char)rhs.m_type;
+    if (t < r)
+        return true;
+    return m_size < rhs.m_size;
+}
 // ===================== CTimeInterval（基类） =====================
 
 // ORIG @0x085702c6：仅设 vptr。

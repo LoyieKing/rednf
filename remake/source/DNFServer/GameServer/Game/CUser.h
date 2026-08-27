@@ -2929,7 +2929,7 @@ public:
     void set_ontime_last_recv_idx(int idx);
     int get_ontime_last_recv_idx() const;
     void set_update_ontime_last_recv_idx();
-    void InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount);  // ORIG T 0x08681c30（W6_TailB 追加）
+    int InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount);  // ORIG T 0x08681c30（返 0/1）
     void setCheckPickUpRandomOptionItem(bool flag);
     unsigned char getCheckPickUpRandomOptionItem();
     void set_cera_item_order_no(unsigned int no);
@@ -3154,7 +3154,7 @@ public:
                                stEquipCondition cond) const;        // 0x08682082 T
         // ---- Inventory ref / cache ----
         void EnableCharacInfo(CACHE_SECTION section);               // 0x081253f4 W
-        short GetDailyBadge(short* out /*实为 ENUM_BADGE_TYPE 变体共用*/); // 0x8568e0c EPs；另有 0x8568e48 E15ENUM_BADGE_TYPE
+        void GetDailyBadge(short* out /*实为 ENUM_BADGE_TYPE 变体共用*/); // 0x8568e0c EPs（无返回值语义）；另有 0x8568e48 E15ENUM_BADGE_TYPE
         int GetETC(short key);                                      // 0x08697474 W
         // ---- Black list / trade punish ----
         int deleteToBlackList(unsigned int id);                     // 0x0867f040 T

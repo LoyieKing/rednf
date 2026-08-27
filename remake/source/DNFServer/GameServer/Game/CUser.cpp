@@ -39,6 +39,7 @@
 #include "LogManager.h"
 #include "CStatisticServerProxy.h"
 #include "RDARScriptStringManager.h"   // g_scriptStringManager_.findString
+#include "CMyFileLog.h"   // InsertOnTimeEventReward OnTimeEvent 日志
 #include "CItemAmplifier.h"
 #include "CMonitorServerProxy.h"
 #include "CServerProxyMgr.h"
@@ -4751,6 +4752,92 @@ bool CUser::IsExistGuildAgit()
 short CUser::GetDailyBadge(ENUM_BADGE_TYPE type)
 {
     return m_dailyBadge[type];
+}
+
+// ORIG @0x08568e0c（W）：out[i]=m_dailyBadge[i]，i=0..2
+// （ORIG 寻址 (i+0x47040)*2+4 即 m_dailyBadge 逐字读）。
+void CUser::GetDailyBadge(short* out)
+{
+    for (int i = 0; i <= 2; ++i)
+        out[i] = m_dailyBadge[i];
+}
+
+// ORIG @0x08681c30。On Time Event 奖励发放：
+// 双日志 ./log/%s/OnTimeEvent → itemNo==0 短路返 0 → 包头(1,0x120)+byte1+
+// get_index(记录未用)+byte1 → find_item(itemNo)（无表项返 0）→
+// create_item(NONE,item,count)→有效性(m_addInfo||m_addInfo2)→插背包
+// （reason 0xd；失败系统邮件 msg_132/133 + item.reset，成功 SendUpdateItem）
+// → put_int/put_short → finalize 发送，返 1。
+int CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
+{
+    char logDir[256];
+    memset(logDir, 0, sizeof(logDir));
+    sprintf(logDir, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
+
+    unsigned int characNo = get_charac_no(-1);
+    char* accStr = NumberToString(get_acc_id(), 0);
+    {
+        CMyFileLog log(
+            "bool CUser::InsertOnTimeEventReward(unsigned int, unsigned int)",
+            0x869f);
+        log(logDir, "On Time Event:InsertOnTimeEventReward(%s, %u)",
+            accStr, characNo);
+    }
+
+    if (itemNo == 0)
+        return 0;
+
+    PacketGuard packet;
+    packet.put_header(1, 0x120);
+    packet.put_byte(1);
+    int pktIndex = packet.get_index();   // ORIG 记录后未再使用
+    (void)pktIndex;
+    packet.put_byte(1);
+
+    {
+        Inven_Item item;                 // 默认构造（ORIG ctor 0x080cb854）
+        item.m_addInfo = (int)itemNo;    // +0x02 预填 item index（ORIG -0x88 写）
+        G_CDataManager()->getItemList()->create_item(
+            (ENUM_ITEM_CREATE_TYPE)0, item, (int)itemCount);
+
+        bool give =
+            (item.m_addInfo != 0) || (item.get_add_info() != 0);
+        if (give)
+        {
+            int slot = getCurCharacInvenW()->insertItemIntoInventory(
+                item, (eItemAddReason)0xd, true, true);
+            if (slot < 0)
+            {
+                char title[20];          // strncpy(src, 0x14)，不补零
+                const char* sTitle = g_scriptStringManager_.findString(
+                    4, "game_server_msg_132", (bool*)0);
+                strncpy(title, sTitle ? sTitle : "", 0x14);
+
+                char msg[256];
+                const char* sMsg = g_scriptStringManager_.findString(
+                    4, "game_server_msg_133", (bool*)0);
+                memset(msg, 0, sizeof(msg));
+                strncpy(msg, sMsg ? sMsg : "", 0xff);
+
+                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                    title, item, 0, (unsigned int)getCurCharacNo(),
+                    msg, (int)strlen(msg), 0, GetServerGroup(), false, false);
+
+                item.reset();
+            }
+            else
+            {
+                SendUpdateItem(eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
+            }
+
+            packet.put_int((int)itemNo);
+            packet.put_short((short)itemCount);
+        }
+    }
+
+    packet.finalize(true);
+    Send(packet);
+    return 1;
 }
 
 int CUser::get_charac_count()

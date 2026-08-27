@@ -121,6 +121,17 @@ dnf_service(game
         ${SVC_DIR}/StringResource.cpp
         ${SVC_DIR}/advancealtar_DB.cpp
         ${SVC_DIR}/DB_Login.cpp
+        ${SVC_DIR}/CLeagueMatch.cpp
+        ${SVC_DIR}/DB_LoadEtc.cpp
+        ${SVC_DIR}/PackSet.cpp
+        ${SVC_DIR}/Tick.cpp
+        ${SVC_DIR}/TutorialData.cpp
+        ${SVC_DIR}/DB_CreateCharac.cpp
+        ${SVC_DIR}/COnTimeEvent.cpp
+        ${SVC_DIR}/DbmwClient.cpp
+        ${SVC_DIR}/MessageCounter.cpp
+        ${SVC_DIR}/RewardUserList.cpp
+        ${SVC_DIR}/DB_InsertOnTimeRewardUserLog.cpp
         ${SVC_DIR}/CFairMatch.cpp
         ${SVC_DIR}/CFairMatchRooms.cpp
         ${SVC_DIR}/OnlinePreliminaryMatch.cpp
