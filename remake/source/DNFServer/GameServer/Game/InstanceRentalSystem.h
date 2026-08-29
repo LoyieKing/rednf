@@ -91,7 +91,7 @@ public:
     void registerRentalMachine(int idx, IRentalMachine* m);  // ORIG T 0x08270320
     IRentalMachine* getMachine(int idx);                     // ORIG T 0x08270348
     bool Ready();                                            // ORIG T 0x082701dc
-    bool Rent(CUser&, const RentInput&, RentOutput&);        // ORIG T 0x08270288
+    int Rent(CUser&, const RentInput&, RentOutput&);         // ORIG T 0x08270288
     bool CheckRentableItem(int type, unsigned int itemIdx);   // ORIG T 0x082702dc（EJEnchanter 调用；定义 InstanceRentalSystem.cpp）
 
 
@@ -113,8 +113,8 @@ class IRentalMachine
 public:
     virtual ~IRentalMachine() {}
 
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output) = 0;   // 槽2
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                     InstanceRentalSystem::RentOutput& output) = 0;   // 槽2
     virtual bool Ready() = 0;                                          // 槽3
     virtual bool CheckRentableItem(unsigned int itemIdx) = 0;          // 槽4
 };

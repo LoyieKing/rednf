@@ -4,7 +4,7 @@
 #include "Packet_Guild_Attendance_Info.h"
 
 Packet_Guild_Attendance_Info::Packet_Guild_Attendance_Info()
-    : PacketHeader(0x13, 0x1bc6)   // ORIG _ZN12PacketHeaderC1Ett
+    : PacketHeader(0x1bc6, 0x13),   // ORIG _ZN12PacketHeaderC1Ett
+      m_fieldA(0), m_fieldB(0), m_fieldC(0)
 {
-    memset(m_data + 0, 0, 0x9);   // ORIG memset(this+0xa, 0, 0x9)
 }

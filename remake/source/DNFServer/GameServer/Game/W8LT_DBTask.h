@@ -153,5 +153,30 @@ public:
                        comoboSkillData* data,
                        ENUM_SKILL_TREE_KIND kind);                  // ORIG 0x0844aa4c
 };
+// DB_UpdateSchoolPoint —— 权威声明点（FixCall_D RecoverFatigue 消费）：
+// DB_UpdateSchoolPoint —— 权威声明点（FixCall_D RecoverFatigue 消费）：
+// ORIG T _ZN20DB_UpdateSchoolPoint11makeRequestEjii @0x0842f0f0、
+// _ZN20DB_UpdateSchoolPoint8dispatchEiiP6Stream @0x0842f05e。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册。
+class DB_UpdateSchoolPoint : public DBDispatcher
+{
+public:
+    DB_UpdateSchoolPoint() {}   // ORIG C1 0x844eb7e (sz 0x4: base ctor+vptr only)
+    static void makeRequest(unsigned int mId, int point, int flag); // ORIG 0x0842f0f0
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0842f05e
+};
+
+// DB_UpdateRevengeData —— 权威声明点（FixCond_D ReturnToSelectCharacList 消费）：
+// ORIG T _ZN20DB_UpdateRevengeData11makeRequestEjhh @0x0843f232、
+// _ZN20DB_UpdateRevengeData8dispatchEiiP6Stream @0x0843f34c。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册。
+class DB_UpdateRevengeData : public DBDispatcher
+{
+public:
+    DB_UpdateRevengeData() {}   // ORIG C1 0x844f68a (sz 0x4: base ctor+vptr only)
+    static void makeRequest(unsigned int characNo, unsigned char attack,
+                            unsigned char revenge); // ORIG 0x0843f232
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0843f34c
+};
 
 #endif  // DNF_GAME_W8LT_DBTASK_H_

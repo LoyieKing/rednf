@@ -804,7 +804,9 @@ void CStackableItem::getBoosterItem(
          it != m_booster.m_elements.end(); ++it)
     {
         int i = 0;
-        while (i < it->m_count)
+        // ORIG 0x850f75e：m_count/m_prob 均按无符号比较（seta/setb）。
+        while (static_cast<unsigned int>(i)
+               < static_cast<unsigned int>(it->m_count))
         {
             int rand = get_rand_int(it->m_prob);
             for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it2 =
@@ -812,7 +814,8 @@ void CStackableItem::getBoosterItem(
                  it2 != it->m_items.end(); ++it2)
             {
                 int idx = it2->m_itemIdx;
-                if (rand < it2->m_prob)
+                if (static_cast<unsigned int>(rand)
+                    < static_cast<unsigned int>(it2->m_prob))
                 {
                     out.push_back(*it2);
                     break;
@@ -1658,7 +1661,7 @@ const std::vector<stGlobalEffect_t>& CStackableItem::getGlobalEffectData() const
 // ORIG 0x8694736：返回 this+0x2e7 字节非零（movzbl 0x2e7(%eax); ret）
 bool CStackableItem::IsExpAffect()
 {
-    return m_char2e7 != 0;
+    return m_char2e7 != 0;;
 }
 
 // ORIG 0x086946d2 (W 非 const，按值返回)：读 +0x2d8(+0x2da)，cooltime 时长(秒)/标志
@@ -1678,24 +1681,20 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
-    opt.sec  = (unsigned short)((unsigned char)m_char2e4 |
-                                ((unsigned char)m_char2e5 << 8));
+    opt.sec  = *reinterpret_cast<unsigned short*>(&m_char2e4);
     opt.flag = m_char2e6;
     return opt;
 }
 
-// ORIG 0x08694716 (W 非 const)：读 +0x2dc(4B)+0x2e0(4B)：
+// ORIG 0x08694716 (W 非 const)：无 ctor 调用，直接 8 字节拷贝
 //   mov 0x2e0(%eax),%edx; mov 0x2dc(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx)
 // +0x2dc 头部建模为 m_int2dc；+0x2e0 起头部以 m_char2e0/m_char2e1 两字节建模
 // （+0x2e2/+0x2e3 隐式填充），故 flag 按低两字节拼出（高 2 字节为 0）。
 // 调用方(_processEffectItem)按 ORIG 只测 flag 的低 16 位。
 StatChangeInfo CStackableItem::GetStatChangeInfo()
 {
-    StatChangeInfo info;
-    info.sec = m_int2dc;
-    info.m_flagLo = m_char2e0;
-    info.m_flagHi = m_char2e1;
-    return info;
+    // 直接 reinterpret 拷贝：不调用 StatChangeInfo ctor，生成 ORIG 的 8 字节整拷。
+    return *reinterpret_cast<StatChangeInfo*>(&m_int2dc);
 }
 
 // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)

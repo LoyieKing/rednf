@@ -19,9 +19,10 @@ namespace QuickParty
 {
 
 // ---- LevelData / LevelDataHell ctor（ORIG W 0x08a6ef72 / 0x08a6ef8a：
-// 两 int 全置 -1、dtor 空）。此处强定义供 EventRewardQuickPartyB2 等
-// TU 以外部引用解析（W 与 T 链接可共存，语义一致）。----
-LevelData::LevelData() : m_field0(-1), m_value4(-1) {}
+// LevelData：m_field0=0、m_value4=-1；LevelDataHell：两 int 全置 -1；
+// dtor 空）。此处强定义供 EventRewardQuickPartyB2 等 TU 以外部引用解析
+// （W 与 T 链接可共存，语义一致）。----
+LevelData::LevelData() : m_field0(0), m_value4(-1) {}
 
 LevelDataHell::LevelDataHell() : m_field0(-1), m_value4(-1) {}
 
@@ -162,14 +163,19 @@ void QuestItemDropRate::process(RewardData_Param param,
     if (it == m_data.m_randomRewards.end())
         return;
 
-    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    int sz = static_cast<int>(it->second.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
     {
-        float rate =
-            1.0f + static_cast<float>(levels[idx].m_value4) / 100.0f;
+        float rate = 1.0f;
+        rate = rate +
+               static_cast<float>(it->second.m_levelDatas[idx].m_value4) /
+                   100.0f;
         result.m_flag18 = static_cast<int>(
-            lrintf(static_cast<float>(result.m_flag18) * rate));
+            static_cast<float>(result.m_flag18) * rate);
     }
 }
 
@@ -184,11 +190,14 @@ void DimensionInoutCount::process(RewardData_Param param,
     if (it == m_data.m_randomRewards.end())
         return;
 
-    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    int sz = static_cast<int>(it->second.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
     {
-        result.m_value00 = levels[idx].m_value4;
+        result.m_value00 = it->second.m_levelDatas[idx].m_value4;
         param.m_party->increase_dimension_inout_count(result.m_value00);
     }
 }

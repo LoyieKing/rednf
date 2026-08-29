@@ -137,14 +137,14 @@ struct SIG_SAVE_LOGGAMECHANNEL
 };
 #pragma pack(pop)
 
-// 真实布局：DB_SavePcRoomPlayTimeEvent::makeRequest（ORIG 0x08447bd0）sig 写
-// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段。
+// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段；
+// ORIG GetInBuffer 传 sizeof=9 → pack(1)。
+#pragma pack(push, 1)
 struct SIG_SAVE_PC_ROOM_PLAY_TIME
 {
     unsigned int m_accId;        // +0x00 ←get_acc_id()
     unsigned int m_totalTime;    // +0x04 ←totalPcRoomPlayTime
     unsigned char m_rewardCnt;   // +0x08 ←pcRoomPlayTimeRewardCnt
-    char m_pad09[3];             // +0x09（自然对齐填充，无访问证据）
 
     // ORIG W 0x0848fb64：movl 0→+0 / movl 0→+4 / movb 0→+8。
     SIG_SAVE_PC_ROOM_PLAY_TIME()
@@ -154,9 +154,9 @@ struct SIG_SAVE_PC_ROOM_PLAY_TIME
         m_rewardCnt = 0;
     }
 };
-static_assert(sizeof(SIG_SAVE_PC_ROOM_PLAY_TIME) == 0xc,
-              "SIG_SAVE_PC_ROOM_PLAY_TIME ABI drift");
+#pragma pack(pop)
 
+// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段。
 #pragma pack(push, 1)
 struct SIG_SAVE_PROXY_LOG
 {
@@ -381,10 +381,7 @@ struct SIG_UPDATE_LOGIN
     char m_pad[0x20];
 };
 
-// SIG_UPDATE_LOGOUT（总 0x8b；布局证据：CUser::UpdateLogout 0x086554aa 与
-// SetUserManagerToolIP 0x08655327 实证）。字段：+0x00 accId(u32)、+0x08 gcNo、
-// +0x0e serverId、+0x12 状态标志、+0x13 playTime、+0x1f u16 fatigue、
-// +0x21 PuUser；本批按 SetUserManagerToolIP 拆出尾部字段。
+#pragma pack(push, 1)
 struct SIG_UPDATE_LOGOUT
 {
     char m_pad[0x22];            // +0x00..0x21（头部字段区，见上）
@@ -395,6 +392,7 @@ struct SIG_UPDATE_LOGOUT
     char m_ipSuffix[4];          // +0x43 IP 后段（≤4 字节实证）
     char m_pad47[0x8b - 0x47];   // +0x47..0x8a 保留
 };
+#pragma pack(pop)
 
 struct SIG_UPDATE_QUEST
 {

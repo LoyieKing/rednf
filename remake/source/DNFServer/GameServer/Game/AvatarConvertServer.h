@@ -99,7 +99,7 @@ public:
     ~AvatarConvertServer();   // ORIG 0x081921ec：vtable + 脚本基 dtor
 
     virtual bool Load();      // ORIG 0x081930ba：cMyTrace + return loadScript()==0
-    virtual void Destroy();   // ORIG 0x0819312c：return 1（基类约定 void）
+    virtual int Destroy();   // ORIG 0x0819312c：return 1（基类约定 void）
     void Test();              // ORIG 0x0819220c：空（非虚，vtable 仅 Load/Destroy 两槽）
 
     // ORIG 0x08192212 CheckCondition / 0x081926de Convert

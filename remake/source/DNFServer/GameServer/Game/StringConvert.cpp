@@ -31,6 +31,11 @@
 // convertToWideString(PKc) 以内存读取传入（AE 口径下与 ORIG 形态一致）。
 static unsigned int gCodePage;
 
+// ORIG 0x08adf57f 定义于 StringResource.cpp；本 TU 显式声明，确保
+// convertToCharString(const WideString&, uint) 转发到 PKwj 重载
+// （否则 WideString(const wchar_t*) 隐式转换会选 RK10WideStringj 自递归）。
+CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
+
 // ---------------------------------------------------------------------------
 // getMbcsBuffer / getUnicodeBuffer / getTCharBuffer —— ORIG 0x08adea35/54/73
 // （UnicodeConvert.cpp 域）：TLS 环形缓冲当前槽指针（shl 12/14 槽步长实证）。

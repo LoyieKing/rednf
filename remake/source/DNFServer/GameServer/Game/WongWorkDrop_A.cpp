@@ -149,7 +149,7 @@ void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
     WorldDropInfo* slot;
     int roll = m_random.generateNumber(0, 100000);     // CGenerateRandomNumber(this+8)
 
-    if (u8_at(ref, 0x35) > 200)                        // movzbl cmp $0xc7 ja
+    if (u8_at(ref, 0x35) > 199)                        // ORIG movzbl cmp $0xc7 ja
         return;
 
     if (u8_at(ref, 0x34) == 1)                         // warArea 分支

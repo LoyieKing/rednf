@@ -55,7 +55,11 @@ public:
     CraneItemInfo* getItem(short idx);
 };
 
-class CraneMinigameManager
+// ORIG C1 0x080ebc32 仅调 CraneMinigameScriptC1（构造 m_items/m_sendMail/
+// m_needMaterials）+ m_selectIdx=0；D1 仅调 CraneMinigameScriptD1。故
+// Manager 与 Script 同一对象布局，Manager 公开继承 Script（成员全部来自
+// 基类），仅新增 m_selectIdx(+0x68)。
+class CraneMinigameManager : public CraneMinigameScript
 {
 public:
     CraneMinigameManager();
@@ -69,23 +73,13 @@ public:
     bool isPickSuccess(short slot, int pickIdx);   // ORIG T 0x080ebce0 _ZN20CraneMinigameManager13isPickSuccessEsi
     int sendItem(CUser* user, int slot);           // ORIG T 0x080ebd7a _ZN20CraneMinigameManager8sendItemEP5CUseri
     // ORIG T 0x080ebe06（d_aa_body.cpp objdump 转写；定义 StubS3A_deps.cpp）：
-    // 校验 m_field10 与 slot 物品 m_addInfo 一致、(short)m_pad14 低 16 位 ≤
+    // 校验 m_material(+0x10) 与 slot 物品 m_addInfo 一致、(short)+0x14 低 16 位 ≤
     // item.m_addInfo2 后 delete_item(1,slot,count,0x34,true)。
     // 返回 0x11=材料不符、0x16=数量/删除失败、0=成功。
     int startUseMaterial(CUser* user, int slot);
 
-    // NOTE（OffsetCleanup7）：ORIG 中 Manager 与 Script 为同一对象布局，
-    // getItemCnt/isPickSuccess/sendItem 均以 (CraneMinigameScript*)this 调
-    // getItem / 访问 +0x18 内嵌 Action_SendMail；本头 m_sendMail 原为指针
-    // 建模（推断误差），已按 ORIG 改为内嵌对象（0x44 字节，布局不变）。
-
 private:
-    char m_pad[0x10];                              // +0x00
-    int m_field10;                                 // +0x10
-    char m_pad14[4];                               // +0x14
-    Action_SendMail m_sendMail;                    // +0x18（ORIG 内嵌对象，0x44 字节）
-    std::vector<std::pair<int, int> > m_materials; // +0x5c
-    unsigned char m_selectIdx;                     // +0x68
+    unsigned char m_selectIdx;                     // +0x68（Script 无此成员）
 };
 
 #endif  // DNF_GAME_CRANE_MINIGAME_MANAGER_H_

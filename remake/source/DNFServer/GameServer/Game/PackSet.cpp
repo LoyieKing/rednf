@@ -335,9 +335,8 @@ int _correct_filename(char const* src, char* dst, unsigned int dst_size,
 // IndexEntry（ORIG 0x08ac3de2..0x08ac5b4x）
 // ---------------------------------------------------------------------------
 IndexEntry::IndexEntry()
-    : type_(ENTRY_PACK), name_(), size_(0), aligned_size_(0),
-      crc_(0), offset_(0), content_(0)
 {
+    clear();
 }
 
 // ORIG W @0x08ac7a50：隐式逐成员拷贝
@@ -654,12 +653,9 @@ unsigned char* IPackFileProcess::getCommonBuffer(unsigned int needSize)  // @0x0
 // ---------------------------------------------------------------------------
 
 PackSet::PackSet()      // C1/C2 @0x08ac47f4：ctor vectors 与 clear()
-    : m_packFile(0), m_revision(0), m_headerSize(0), m_type(PACK_LOAD_FULL),
-      m_indexes(), m_addeds(), m_bUseEncryptedFile(false)
+    : m_indexes(), m_addeds()
 {
     // 对齐 ORIG：构造两个空 vector 后调 clear() 重置全部字段
-    m_indexes.clear();
-    m_addeds.clear();
     clear();
 }
 

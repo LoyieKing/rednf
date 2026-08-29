@@ -7,6 +7,8 @@
 #include "AvatarRechargeServer.h"            // #2 注册项
 #include "EmblemCompoundServer.h"            // #3 注册项（FixAradEmblemConvert 新建 TU）
 #include "AvatarConvertServer.h"             // #4 注册项（FixAradEmblemConvert 新建 TU）
+#include "LevelupSupportEventManger.h"      // #6 注册项
+#include "CreateDnfEventSciprt.h"           // #8 注册项
 #include "ARAD_FN_DeleteGameScript.h"   // FN_DeleteGameScript 唯一类声明（Arad_DataManager.h 不含）
 #include "Arad_Script.h"
 #include "Arad_Script.h"
@@ -30,13 +32,22 @@ namespace ARAD
 // ============================================================================
 bool ScriptManager::LoadScript()
 {
-    // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，否则 cMyTrace "Fail" 返回 0。
+    // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，
+    // 否则 cMyTrace "Fail" 返回 0；每次成功也记 "Success"。
     Init();
     for (std::set<ScriptInterface*>::const_iterator it = m_scripts.begin();
          it != m_scripts.end(); ++it)
     {
         if (!(*it)->Load())
+        {
+            // ORIG 0x81a1276：失败记 cMyTrace(pretty, 0x12, 9, true, true) + "Fail"。
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x12, 9, true, true);
+            trace("Fail");
             return false;
+        }
+        // ORIG 0x81a12f4：每次成功记 cMyTrace(pretty, 0x15, 9, true, false) + "Success"。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15, 9, true, false);
+        trace("Success");
     }
     return true;
 }
@@ -68,10 +79,10 @@ void ScriptManager::Init()
     RegistScript(Singleton<EmblemCompoundServer>::Get(), 0x13);   // #3（ORIG 次序）
     RegistScript(Singleton<AvatarConvertServer>::Get(), 0x13);    // #4（ORIG 次序）
     RegistScript(Singleton<CerashopAddRestrict::Manager>::Get(), 0x13);
+    RegistScript(Singleton<LevelupSupportEventManger>::Get(), 0x13);    // #6（ORIG 次序）
     RegistScript(Singleton<Arad_DataManager>::Get(), 0x13);
-    // 剩余注册项按 ORIG 次序待各自批次建模后补入：
-    // #6 LevelupSupportEventManger / #8 CreateDnfEventSciprtServer /
-    // #9 LevelupSupport2ndEventManger（LevelupSupport/CreateDnf 批次）。
+    RegistScript(Singleton<CreateDnfEventSciprtServer>::Get(), 0x13);   // #8（ORIG 次序）
+    RegistScript(Singleton<LevelupSupport2ndEventManger>::Get(), 0x13); // #9（ORIG 次序）
 }
 
 Arad_InterfaceGameScript::Arad_InterfaceGameScript(std::string name)
@@ -223,7 +234,7 @@ int Arad_Mileage_Data::parsing(char* data)
 int Arad_Mileage_Data::find(int ipgNo)
 {
     // ORIG 0x81a3668：按 ipgNo 找 Data，命中返回 percent，未命中返回 -1。
-    for (std::vector<Data>::const_iterator it = m_mileageList.begin();
+    for (std::vector<Data>::iterator it = m_mileageList.begin();
          it != m_mileageList.end(); ++it)
         if (it->ipgNo == ipgNo)
             return it->percent;
@@ -367,10 +378,11 @@ bool Arad_DataManager::Load()
     return initAradData();
 }
 
-void Arad_DataManager::Destroy()
+int Arad_DataManager::Destroy()
 {
     // ORIG 0x81882e0：转发 destroyAradData()，返回 true（vtable 槽1）。
     destroyAradData();
+    return 1;
 }
 
 bool Arad_DataManager::initAradData()

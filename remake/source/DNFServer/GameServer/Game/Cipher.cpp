@@ -49,30 +49,27 @@ int ICryptoGraph::GetApiType() const
 Cipher::Cipher()
     : m_totalKeyLength(0)
 {
-    std::memset(m_keyBuf, 0, sizeof(m_keyBuf));
     m_graphs.reserve(CRYPTO_GRAPH_MAX);
     for (int i = 0; i < CRYPTO_GRAPH_MAX; ++i)
     {
         ICryptoGraph* graph = CreateCryptoGraph((CRYPTO_GRAPH_TYPE)i);
         m_graphs.push_back(graph);
-        if (graph)
-            m_totalKeyLength += graph->GetKeySize();
+        m_totalKeyLength += graph->GetKeySize();
     }
 }
 
 Cipher::~Cipher()
 {
-    for (size_t i = 0; i < m_graphs.size(); ++i)
+    for (int i = 0; i <= 0xd; ++i)
     {
         DestroyCryptoGraph(m_graphs[i]);
+        m_graphs[i] = 0;
     }
     m_graphs.clear();
 }
 
 Cipher::Cipher(const Cipher& other)
-    : m_totalKeyLength(0)
 {
-    std::memset(m_keyBuf, 0, sizeof(m_keyBuf));
 }
 
 Cipher& Cipher::operator=(const Cipher& other)

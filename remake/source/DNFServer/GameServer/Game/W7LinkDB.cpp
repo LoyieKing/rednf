@@ -90,33 +90,33 @@ void put_db_request(CStreamGuard& guard)
 // → GetInBuffer<SIG_SECOND_USER_DATA>()（0x14 字节）清零后填：
 //   +0x00 = accId, +0x04..0x0b = gold(8B), +0x0c = uid, +0x10 = who
 // → put(DB_Q)。
-// SIG_SECOND_USER_DATA 目前为 m_pad[0x14] 占位（SigTypes.h:1538），按报告偏移手写。
-// ----------------------------------------------------------------------------
 void DB_AutoPunishedSecondUserData::makeRequest(unsigned int accId, unsigned long long gold,
                                                 unsigned int uid, unsigned int who)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8912);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8912), true);
 
-    guard << 0x1ca;                     // SIG opcode（op<<(int)）
-    guard << uid;                       // op<<(unsigned int)，ORIG ebx=arg+0xc
+    **guard << 0x1ca;                   // SIG opcode（op<<(int)）
+    **guard << static_cast<int>(uid);   // op<<(int)，ORIG 080c8c56
 
     // GetInBuffer<SIG_SECOND_USER_DATA>：ORIG memset(payload, 0, 0x14)
     {
-        unsigned char* p =
-            reinterpret_cast<unsigned char*>(guard.GetInBuffer<SIG_SECOND_USER_DATA>());
-        for (int i = 0; i < 0x14; ++i)
-            p[i] = 0;
-        *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
-        *reinterpret_cast<unsigned int*>(p + 0x04) =
-            static_cast<unsigned int>(gold & 0xffffffffULL);          // low
-        *reinterpret_cast<unsigned int*>(p + 0x08) =
-            static_cast<unsigned int>(gold >> 32);                    // high
-        *reinterpret_cast<unsigned int*>(p + 0x0c) = uid;
-        *reinterpret_cast<unsigned int*>(p + 0x10) = who;
+        struct SecondUserDataView   // SIG_SECOND_USER_DATA 载荷视图
+        {
+            unsigned int m_accId;        // +0x00
+            unsigned long long m_gold;   // +0x04
+            unsigned int m_uid;          // +0x0c
+            unsigned int m_who;          // +0x10
+        };
+        SecondUserDataView* v =
+            reinterpret_cast<SecondUserDataView*>(guard->GetInBuffer<SIG_SECOND_USER_DATA>());
+        memset(v, 0, 0x14);
+        v->m_accId = accId;
+        v->m_gold = gold;
+        v->m_uid = uid;
+        v->m_who = who;
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -126,65 +126,68 @@ void DB_AutoPunishedSecondUserData::makeRequest(unsigned int accId, unsigned lon
 // Acquire("DBThread.cpp", 0x723e) → << 0x10a | << -1 →
 // GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>()（0x2c 字节，无 memset）填：
 //   +0x00 = accId；strncpy(+0x04, ip, 0x10)；+0x14..+0x20 = a3..a6；
-//   +0x24(u16) = a7；+0x28 = a8。→ put(DB_Q)。
-// ----------------------------------------------------------------------------
 void DB_InsertAutoPunishFirstUser::makeRequest(unsigned int accId, char const* ip,
                                                unsigned int a3, unsigned int a4,
                                                unsigned int a5, unsigned int a6,
                                                unsigned short a7, unsigned int a8)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x723e);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x723e), true);
 
-    guard << 0x10a;
-    guard << -1;
+    **guard << 0x10a;
+    **guard << -1;
 
     {
-        unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard.GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
-        *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
-        strncpy(reinterpret_cast<char*>(p + 0x04), ip, 0x10);
-        *reinterpret_cast<unsigned int*>(p + 0x14) = a3;
-        *reinterpret_cast<unsigned int*>(p + 0x18) = a4;
-        *reinterpret_cast<unsigned int*>(p + 0x1c) = a5;
-        *reinterpret_cast<unsigned int*>(p + 0x20) = a6;
-        *reinterpret_cast<unsigned short*>(p + 0x24) = a7;
-        *reinterpret_cast<unsigned int*>(p + 0x28) = a8;
+        struct InsertAutoPunishFirstView   // SIG_INSERT_AUTO_PUNISH_FIRST_USER 载荷视图
+        {
+            unsigned int m_accId;        // +0x00
+            char m_ip[0x10];             // +0x04
+            unsigned int m_a3;           // +0x14
+            unsigned int m_a4;           // +0x18
+            unsigned int m_a5;           // +0x1c
+            unsigned int m_a6;           // +0x20
+            unsigned short m_a7;         // +0x24
+            unsigned int m_a8;           // +0x28
+        };
+        InsertAutoPunishFirstView* v = reinterpret_cast<InsertAutoPunishFirstView*>(
+            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
+        v->m_accId = accId;
+        strncpy(v->m_ip, ip, 0x10);
+        v->m_a3 = a3;
+        v->m_a4 = a4;
+        v->m_a5 = a5;
+        v->m_a6 = a6;
+        v->m_a7 = a7;
+        v->m_a8 = a8;
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ----------------------------------------------------------------------------
-// DB_InsertAutoPunishSecondUser::makeRequest(uint accId, uint who, ull gold, bool punish)
-// ORIG @ 0x0842e34e（报告 DB_InsertAutoPunishSecondUser/makeRequest.md）：
-// Acquire("DBThread.cpp", 0x72f4) → << 0x10b | << -1 →
-// GetInBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>()（0x14 字节，无 memset）填：
-//   +0x00 = accId, +0x04 = who, +0x08..0x0f = gold(8B), +0x10(byte) = punish
-// → put(DB_Q)。
-// ----------------------------------------------------------------------------
 void DB_InsertAutoPunishSecondUser::makeRequest(unsigned int accId, unsigned int who,
                                                 unsigned long long gold, bool punish)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x72f4);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x72f4), true);
 
-    guard << 0x10b;
-    guard << -1;
+    **guard << 0x10b;
+    **guard << -1;
 
     {
-        unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard.GetInBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>());
-        *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
-        *reinterpret_cast<unsigned int*>(p + 0x04) = who;
-        *reinterpret_cast<unsigned int*>(p + 0x08) =
-            static_cast<unsigned int>(gold & 0xffffffffULL);
-        *reinterpret_cast<unsigned int*>(p + 0x0c) =
-            static_cast<unsigned int>(gold >> 32);
-        *(p + 0x10) = (punish ? 1u : 0u);
+        struct InsertAutoPunishSecondView   // SIG_INSERT_AUTO_PUNISH_SECOND_USER 载荷视图
+        {
+            unsigned int m_accId;        // +0x00
+            unsigned int m_who;          // +0x04
+            unsigned long long m_gold;   // +0x08
+            unsigned char m_punish;      // +0x10
+        };
+        InsertAutoPunishSecondView* v = reinterpret_cast<InsertAutoPunishSecondView*>(
+            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>());
+        v->m_accId = accId;
+        v->m_who = who;
+        v->m_gold = gold;
+        v->m_punish = punish;            // ORIG 直接存 bool（movzbl/mov %dl）
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -196,15 +199,14 @@ void DB_InsertAutoPunishSecondUser::makeRequest(unsigned int accId, unsigned int
 // ----------------------------------------------------------------------------
 void DB_SaveGiveAvengerTitleFlag::makeRequest(int uid, unsigned int accId, unsigned int characNo)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa276);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa276), true);
 
-    guard << 0x28d;                                       // op<<(int)
-    guard << static_cast<unsigned int>(uid);              // op<<(uint)
-    guard << accId;
-    guard << characNo;
+    **guard << 0x28d;                   // op<<(int)
+    **guard << uid;                     // op<<(int)（ORIG 080c8c56）
+    **guard << accId;                   // op<<(uint)
+    **guard << characNo;                // op<<(uint)
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -219,11 +221,10 @@ void DB_SaveGiveAvengerTitleFlag::makeRequest(int uid, unsigned int accId, unsig
 void DB_HackIPSave::makeRequest(char const* startIp, char const* rawIp,
                                 unsigned int a3, unsigned int a4)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x82be);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x82be), true);
 
-    guard << 400;
-    guard << -1;
+    **guard << 400;
+    **guard << -1;
 
     if (startIp != 0)
     {
@@ -232,15 +233,23 @@ void DB_HackIPSave::makeRequest(char const* startIp, char const* rawIp,
     }
 
     {
-        unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard.GetInBuffer<SIG_HACK_IP_SAVE>());
-        strncpy(reinterpret_cast<char*>(p + 0x00), startIp, 0xd);
-        *reinterpret_cast<unsigned int*>(p + 0x20) = a3;
-        *reinterpret_cast<unsigned int*>(p + 0x24) = a4;
-        strncpy(reinterpret_cast<char*>(p + 0x0d), rawIp, 0x10);
+        struct HackIpSaveView   // SIG_HACK_IP_SAVE 载荷视图
+        {
+            char m_startIp[0xd];     // +0x00
+            char m_rawIp[0x10];      // +0x0d
+            char m_pad[3];           // +0x1d
+            unsigned int m_a3;       // +0x20
+            unsigned int m_a4;       // +0x24
+        };
+        HackIpSaveView* v = reinterpret_cast<HackIpSaveView*>(
+            guard->GetInBuffer<SIG_HACK_IP_SAVE>());
+        strncpy(v->m_startIp, startIp, 0xd);
+        v->m_a3 = a3;
+        v->m_a4 = a4;
+        strncpy(v->m_rawIp, rawIp, 0x10);
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -251,15 +260,14 @@ void DB_HackIPSave::makeRequest(char const* startIp, char const* rawIp,
 // ----------------------------------------------------------------------------
 void DB_ForceSaveSimpleSSO::makeRequest(unsigned int accId, int errCnt)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69b1);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69b1), true);
 
-    guard << 0xcf;
-    guard << -1;
-    guard << accId;
-    guard << errCnt;
+    **guard << 0xcf;
+    **guard << -1;
+    **guard << accId;
+    **guard << errCnt;
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -270,12 +278,11 @@ void DB_ForceSaveSimpleSSO::makeRequest(unsigned int accId, int errCnt)
 // ----------------------------------------------------------------------------
 void DB_CountOfHumanCertify::makeRequest(unsigned int accId)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69d6);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x69d6), true);
 
-    guard << 0x111;
-    guard << -1;
-    guard << accId;
+    **guard << 0x111;
+    **guard << -1;
+    **guard << accId;
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

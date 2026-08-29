@@ -19,6 +19,7 @@
 //   ContentsType::getType / importSkillDataUp
 #include "DisJoint.h"
 #include "StrikerScript.h"
+#include "NpcScript.h"          // STScriptFileList 完整定义（create 用）
 #include "CharacManageScript.h"
 #include "CItemUpgrade_Separate.h"
 #include "STStackableScript.h"        // ENUM_MODULE_TYPE（DataManagerInitDepends 前置要求）
@@ -134,12 +135,6 @@ bool DisJoint::LoadDisJoint()
 // ============================ StrikerScript ============================
 
 
-// ORIG STScriptFileList 完整模型（0x18；与 STScriptFileList.cpp 权威布局一致）。
-struct StrikerFileListX
-{
-    std::map<int, std::string> m_fileMap;        // +0x00
-};
-
 // ORIG 静态成员单例指针（nm B 数据；getInsance 懒加载落点）。
 StrikerScript* StrikerScript::instance_ = 0;              // _ZN13StrikerScript9instance_E B 0x09500978
 CharacManageScript* CharacManageScript::instance_ = 0;    // _ZN18CharacManageScript9instance_E B 0x094f6b98
@@ -179,7 +174,7 @@ void StrikerScript::clear()
 void StrikerScript::create()
 {
     // ORIG 0x08a9dc70：new STScriptFileList(0x18) → +0x90。
-    m_fileList = new StrikerFileListX();
+    m_fileList = new STScriptFileList();
 }
 
 void StrikerScript::destory()

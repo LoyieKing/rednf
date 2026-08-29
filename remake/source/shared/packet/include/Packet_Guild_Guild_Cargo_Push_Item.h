@@ -17,11 +17,9 @@ public:
     char m_item[0x35];             // +0x1b（DnfItemInfo）
     unsigned char m_e;             // +0x50
     unsigned short m_f;            // +0x51
-    Packet_Guild_Guild_Cargo_Push_Item() : PacketHeader(0x70d, 0x53),
-        m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0), m_e(0), m_f(0)
-    {
-
-    };
+    // ORIG ctor 0x084e9434（定义见 InterDispatcher.cpp，需完整 DnfItemInfo 构造；
+    // 与 Guild 域同名类冲突故外置，placement-new 显式构造 m_item）。
+    Packet_Guild_Guild_Cargo_Push_Item();
 } __attribute__((packed));
 
 

@@ -110,17 +110,17 @@ SpecialItemHandler::SpecialItemHandler(WongWork::CCeraShop* owner)
         m_entries[i].fn = 0;
         m_entries[i].offset = 0;
     }
-    m_entries[1].fn = &SpecialItemHandler::respond_special_item_cargo;
-    m_entries[2].fn = &SpecialItemHandler::respond_special_item_premium;
-    m_entries[5].fn = &SpecialItemHandler::respond_special_item_package;
-    m_entries[6].fn = &SpecialItemHandler::respond_special_item_booster;
-    m_entries[7].fn = &SpecialItemHandler::respond_special_item_cargo_abs;
-    m_entries[8].fn = &SpecialItemHandler::respond_special_item_charac_slot_extend;
-    m_entries[9].fn = &SpecialItemHandler::respond_special_item_skill_confirm;
-    m_entries[10].fn = &SpecialItemHandler::respond_special_item_skill_tree_style;
-    m_entries[11].fn = &SpecialItemHandler::respond_special_item_inventory_upgrade;
-    m_entries[12].fn = &SpecialItemHandler::respond_special_item_booster_selection;
-    m_entries[13].fn = &SpecialItemHandler::respond_special_item_cerapoint_giftcard;
+    m_entries[1].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo);
+    m_entries[2].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_premium);
+    m_entries[5].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_package);
+    m_entries[6].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster);
+    m_entries[7].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo_abs);
+    m_entries[8].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_charac_slot_extend);
+    m_entries[9].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_confirm);
+    m_entries[10].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_tree_style);
+    m_entries[11].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_inventory_upgrade);
+    m_entries[12].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster_selection);
+    m_entries[13].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cerapoint_giftcard);
 }
 
 // ---- SpecialItemHandler::execute —— ORIG 0x0827be0a ----
@@ -135,7 +135,7 @@ bool SpecialItemHandler::execute(int type, const STSpecailItem_Param& param,
     Entry& e = m_entries[type];
     SpecialItemHandler* self =
         reinterpret_cast<SpecialItemHandler*>(reinterpret_cast<char*>(this) + e.offset);
-    (self->*(e.fn))(type, param, result);
+    e.fn(self, type, param, result);
     return true;
 }
 
@@ -808,16 +808,17 @@ int premium_helper_function::get_target_server(int type)
 void premium_helper_function::send_db(CUser* user, int type, long start, long end,
                                       int flag)
 {
+    // ORIG 0x0827d0f5：acc_id/target_server 按无符号(lsEj)、start/end 按 long(lsEl) 写。
     Stream* stream = GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x295);
     CStreamGuard guard(stream, true);
     guard.operator*()->operator<<((int)0x54);
     guard.operator*()->operator<<((int)user->GetUID());
-    guard.operator*()->operator<<((int)user->get_acc_id());
+    guard.operator*()->operator<<((unsigned int)user->get_acc_id());
     guard.operator*()->operator<<((int)type);
-    guard.operator*()->operator<<((int)start);
-    guard.operator*()->operator<<((int)end);
+    guard.operator*()->operator<<(start);
+    guard.operator*()->operator<<(end);
     guard.operator*()->operator<<((int)flag);
-    guard.operator*()->operator<<((int)get_target_server(type));
+    guard.operator*()->operator<<((unsigned int)get_target_server(type));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -1296,6 +1297,13 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         flag = true;
         return true;
 
+    case 50:
+    case 2660235:
+    case 2660236:
+        outType = 7;
+        outValue = 0x10;
+        return true;
+
     case 68:
         outType = 1;
         outValue = 0x48;
@@ -1419,6 +1427,11 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         flag = true;
         return true;
 
+    case 2660239:
+        outType = 8;
+        outValue = 1;
+        return true;
+
     case 2660290:
         outType = 2;
         outValue = 0x21;
@@ -1428,6 +1441,12 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
     case 2660358:
         outType = 2;
         outValue = 0x21;
+        flag = true;
+        return true;
+
+    case 2660401:
+        outType = 2;
+        outValue = 0x23;
         flag = true;
         return true;
 
@@ -1806,9 +1825,6 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
 void CCeraShop::ProcessError(CUser* user, unsigned short a, int b, unsigned int c,
                              int d, int e, char f)
 {
-    if (user == 0)
-        return;
-
     PacketGuard packet;
     packet.put_header(1, 0x43);
     packet.put_byte(0);

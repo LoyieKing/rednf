@@ -1,4 +1,5 @@
 #include "GameRand.h"
+#include "CShutdowManager.h"   // GetInstanceShutdowManager 完整类型（SendLastMsgDBQueue 调用）
 // df_game_r CGameManager（G2 单例对象池/房间管理器）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/CGameManager.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -1825,8 +1826,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     cMyTrace tr0(__PRETTY_FUNCTION__, 0x306f, 0);
     tr0("WarRoomCountManage Start");
     int current[10];
-    for (int i = 0; i < 10; ++i)
-        current[i] = 0;
+    memset(current, 0, 10);  // ORIG：仅清 10 字节
     int total = 0;
     for (int area = 0; area < 10; ++area)
     {
@@ -1837,8 +1837,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
             if (need <= n)
                 break;
-            total = total + 1;
-            WarRoom* room = GetWarRoom();
+            WarRoom* room = GetWarRoom(total++);
             if (room == 0)
             {
                 LogManager::logFormat(1, "App.cpp",
@@ -1901,8 +1900,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             int lastIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountLastIndex(area);
             while (need != 0)
             {
-                lastIdx = lastIdx - 1;
-                WarRoom* room = G_CGameManager()->GetWarRoom();
+                WarRoom* room = G_CGameManager()->GetWarRoom(lastIdx--);
                 if (room == 0)
                     break;
                 if (room == 0 || room->GetState() == -1)
@@ -1923,8 +1921,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             int firstIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
             while (need != 0)
             {
-                firstIdx = firstIdx + 1;
-                WarRoom* room = G_CGameManager()->GetWarRoom();
+                WarRoom* room = G_CGameManager()->GetWarRoom(firstIdx++);
                 if (room == 0)
                     break;
                 if (room == 0 || room->GetState() != -1)
@@ -1945,8 +1942,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
 void CGameManager::WarRoomCountManageTest(int hourIndex)
 {
     int current[10];
-    for (int i = 0; i < 10; ++i)
-        current[i] = 0;
+    memset(current, 0, 10);  // ORIG：仅清 10 字节
     int total = 0;
     for (int area = 0; area < 10; ++area)
     {
@@ -1957,8 +1953,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
             int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
             if (need <= n)
                 break;
-            total = total + 1;
-            WarRoom* room = GetWarRoom();
+            WarRoom* room = GetWarRoom(total++);
             if (room == 0)
             {
                 LogManager::logFormat(1, "App.cpp",
@@ -1992,8 +1987,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
             int lastIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountLastIndex(area);
             while (need != 0)
             {
-                lastIdx = lastIdx - 1;
-                WarRoom* room = G_CGameManager()->GetWarRoom();
+                WarRoom* room = G_CGameManager()->GetWarRoom(lastIdx--);
                 if (room == 0 || room->GetState() == -1)
                 ;
                 else
@@ -2012,8 +2006,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
             int firstIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
             while (need != 0)
             {
-                firstIdx = firstIdx + 1;
-                WarRoom* room = G_CGameManager()->GetWarRoom();
+                WarRoom* room = G_CGameManager()->GetWarRoom(firstIdx++);
                 if (room == 0 || room->GetState() != -1)
                 ;
                 else
@@ -2588,6 +2581,8 @@ void CGameManager::user_disconnect(CUser* user)
             user->LogoutCachedCharacter(0);
             user->UpdateLogout(true);
             returnUserPool(user);
+            // ORIG 0x8298d30：returnUserPool 后 SendLastMsgDBQueue(user)
+            GetInstanceShutdowManager()->SendLastMsgDBQueue(user);
         }
         else
         {
@@ -2738,5 +2733,5 @@ int CGameManager::GetActiveQuickPartyCnt() const
 
 int CGameManager::GetOccupiedQuickPartyPoolCnt()
 {
-    return StaticPool<QuickParty::CQuickParty, 300>::Size() - m_quickPartyPool.Remain();
+    return m_quickPartyPool.Size() - m_quickPartyPool.Remain();
 }

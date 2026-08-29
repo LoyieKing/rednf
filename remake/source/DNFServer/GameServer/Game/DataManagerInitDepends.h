@@ -360,7 +360,7 @@ public:
     ~CLevelRewardTableMgr();   // ORIG 0x0868777c
     static CLevelRewardTableMgr* GetInstance();                  // ORIG W 0x0837505b
     void SetChallengeInfo(stUnlimitChallengeInfo& info);         // ORIG 0x08687828
-    bool IsOn();                                      // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp）
+    unsigned char IsOn();                             // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp）
     bool IsChallengingJob(char job);                  // ORIG T 0x08687792（定义 CUserDepsB.cpp）
     bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
     bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）
@@ -368,7 +368,7 @@ public:
     CLevelRewardTable* GetProperLevelRewardTableR(int) const; // ORIG T 0x08687e6e（恒返 0；定义 CUserDepsB.cpp）
     static CLevelRewardTableMgr* levelRewardTableMgr;            // ORIG B 0x09473978
 
-    char m_flag;                          // +0x00
+    unsigned char m_flag;                 // +0x00
     CLevelRewardTable* m_table;           // +0x04
     std::vector<int> m_vec8;              // +0x08
 };  // sizeof 0x14
@@ -515,8 +515,8 @@ public:
 
     // 全部非虚；ORIG 地址注释逐方法标注。
     void getDuration(ENUM_ACTIVESTATUS status, int level, void* param);  // 0x0808dc7a
-    bool getBurnDamage(bool& flag, STSDCActiveStatusSyncDataSend* d,
-                       void* obj, int t);                          // 0x0808de08
+    int getBurnDamage(bool& flag, STSDCActiveStatusSyncDataSend* d,
+                      void* obj, int t);                          // 0x0808de08
     int getPoisonDamage(STSDCActiveStatusSyncDataSend* d, void* obj,
                         int t);                                    // 0x0808dcc4
     int getDiseaseDamage(STSDCActiveStatusSyncDataSend* d, int t); // 0x0808dd5c

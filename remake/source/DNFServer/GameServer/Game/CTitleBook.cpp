@@ -147,20 +147,21 @@ static std::map<int, std::vector<stTitleElement> >& GetTitleElements(
 {
     return ((CTitleBookInfoRaw*)((char*)mgr + 0xa788))->m_elements;
 }
-
-// 称号簿 DB 存档（stTitleBook_Save，0x6b3e 字节）
+// 称号簿 DB 存档（stTitleBook_Save，0x6b3e 字节；ORIG 未对齐写 +0x6b3a → pack(1)）
+#pragma pack(push, 1)
 struct stTitleBook_Save
 {
     char m_data[0x6b3a];   // +0x00
     int m_characNo;        // +0x6b3a
 };
-
+#pragma pack(pop)
 // ============================================================================
 // stTitleBook
 // ============================================================================
 
 stTitleBook::stTitleBook()
 {
+    clear();
 }
 
 void stTitleBook::clear()
@@ -828,7 +829,7 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
     count = _getCategoryItemCount(category);
     if (extra != 0)
     {
-        ENUM_TITLE_BOOK_CATEGORY ownerCategory;
+        ENUM_TITLE_BOOK_CATEGORY ownerCategory = (ENUM_TITLE_BOOK_CATEGORY)4;
         if (_getOwnerTitleInfo(ownerCategory, ownerSlot, &ownerItem) &&
             (category == ownerCategory))
         {
@@ -862,12 +863,14 @@ void CTitleBook::_putItemData(PacketGuard& packet, short slot,
     packet.put_byte((int)GetIntegratedPvPItemAttr(item) & 0xff);
     packet.put_short((int)item.m_fieldb);
     packet.put_byte((int)item.m_field0);
-    int fieldD = item.m_fieldd;
     if (G_GameWorld()->IsEnchantRevisionChannel())
     {
-        fieldD = 0;
+        packet.put_int(0);
     }
-    packet.put_int(fieldD);
+    else
+    {
+        packet.put_int(item.m_fieldd);
+    }
     packet.put_byte((int)item.m_amp.getAbilityType() & 0xff);
     packet.put_short((int)item.m_amp.getAbilityValue() & 0xffff);
 }

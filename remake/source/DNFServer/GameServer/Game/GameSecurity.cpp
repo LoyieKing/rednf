@@ -343,7 +343,7 @@ int HP_GetHackType(unsigned char type)
 {
     switch (type)
     {
-        case 0:   return 0x384;
+        // case 0 与 default 合并（ORIG 跳转表槽 0 直指 default 标签，单处 0x384）
         case 1:   return 0x385;
         case 2:   return 0x386;
         case 3:   return 0x387;
@@ -384,6 +384,7 @@ int HP_GetHackType(unsigned char type)
         case 38:  return 0x594;
         case 39:  return 0x595;
         case 40:  return 0x596;
+        case 41:  return 0x597;
         default:  return 0x384;
     }
 }
@@ -419,12 +420,12 @@ int HIP_GetHackType(unsigned char type)
 }
 
 // ===========================================================================
-// MI_GetHackType  ORIG T 0x8274ad7：value = (signed char)c + 0x6a4，
+// MI_GetHackType  ORIG T 0x8274ad7：value = (unsigned char)c + 0x6a4，
 // 上限 0x707（jle 保持）。
 // ===========================================================================
 int MI_GetHackType(char c)
 {
-    int v = static_cast<int>(static_cast<signed char>(c)) + 0x6a4;
+    int v = (c & 0xff) + 0x6a4;
     if (v > 0x707)
         v = 0x707;
     return v;

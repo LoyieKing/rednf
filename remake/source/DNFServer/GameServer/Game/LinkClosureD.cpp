@@ -49,8 +49,10 @@ void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig,
 
 namespace {
 
-inline bool collectLock(const stAmplifyOption_t& amp, unsigned char space,
-                        short slot, std::vector<item_lock::stItemLockRef>& out)
+// ORIG 段内联展开（无独立符号）：O0 下需 always_inline 强制内联对齐。
+inline __attribute__((always_inline))
+bool collectLock(const stAmplifyOption_t& amp, unsigned char space,
+                 short slot, std::vector<item_lock::stItemLockRef>& out)
 {
     const unsigned char lock = amp.GetLock();
     if (lock == 0)
@@ -95,7 +97,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
     {
         Inven_Item* item = &sig->m_expandEquip.m_items[i];
         collectLock(item->m_amp, 0x12, static_cast<short>(i + 0xa), lockRefs);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_0, false, true, user);
+        int err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -111,7 +113,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         // ORIG *(int*)(item+0xb)：m_fieldb(+0x0b)+m_fieldd(+0x0d) 4 字节槽非零判定
         if (item->m_fieldb != 0 || item->m_fieldd != 0)
             meterial_item_change(i, sig, item);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_1, false, true, user);
+        int err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -126,7 +128,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         collectLock(item->m_amp, 0x00, static_cast<short>(i), lockRefs);
         if (item->m_fieldb != 0 || item->m_fieldd != 0)
             meterial_item_change(i, sig, item);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_1, true, false, user);
+        int err = _verifyItem(i, item, INVENTORY_TYPE_1, false, false, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(

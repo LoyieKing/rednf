@@ -18,7 +18,7 @@
 CCoinRefillEvent::CCoinRefillEvent()
 {
     // ORIG 0x0832bdf4：vptr 由编译器写；memset(this+0xc, -1, 0x14)。
-    memset(&m_timeCount, 0xff, 0x14);
+    memset(&m_timeCount, -1, 0x14);
 }
 
 CCoinRefillEvent::~CCoinRefillEvent()
@@ -35,12 +35,12 @@ void CCoinRefillEvent::StartEvent(Word_Param param)
 {
     // ORIG 0x0832be82。
     SetEventFlag(true);
-    memset(&m_timeCount, 0xff, 0x14);
+    memset(&m_timeCount, -1, 0x14);
     m_times[0] = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c 当前小时槽
     m_times[1] = param.m_duration;               // 低 ushort
     m_times[2] = param.m_field2;                 // 高 ushort
     m_timeCount = 0;
-    while (m_timeCount < 4)
+    while ((unsigned int)m_timeCount <= 3u)
     {
         if (m_times[m_timeCount] > 0x17)
         {
@@ -77,7 +77,7 @@ void CCoinRefillEvent::EndEvent()
 {
     // ORIG 0x0832c048。
     SetEventFlag(false);
-    memset(&m_timeCount, 0xff, 0x14);
+    memset(&m_timeCount, -1, 0x14);
     cMyTrace trace(__PRETTY_FUNCTION__, 0x4f, 0);
     trace("Coin Refill Event End");
 }

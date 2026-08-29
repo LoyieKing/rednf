@@ -28,8 +28,8 @@ public:
     virtual ~RentalMachineDimension(); // ORIG D0 @0x0826ec04 / D1 @0x0826eba2
 
     // 槽2 Rent：ORIG T @0x0826ec22
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output);
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                     InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG T @0x0826ee94 = checkAllRentalItemScript() 尾调
     virtual bool Ready();
     // 槽4 CheckRentableItem：ORIG T @0x0826eea8 = m_impl->m_set.find(idx)!=end

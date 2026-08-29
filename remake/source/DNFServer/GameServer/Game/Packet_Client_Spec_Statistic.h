@@ -18,8 +18,7 @@ public:
     char   m_padA;           // +0x0a（ctor 未写）
     char   m_flagB;          // +0x0b（ctor 置 0）
     char   m_padC[6];        // +0x0c..+0x11
-    HWSpec m_specs[0xfe];    // +0x12..+0xc01（stride 0xc）
-    char   m_tail[0xc];       // +0xbfa..+0xc05（ORIG ctor 未写）
+        HWSpec m_specs[0xff];    // +0x12..+0xc05（stride 0xc）
 };
 
 #pragma pack(pop)

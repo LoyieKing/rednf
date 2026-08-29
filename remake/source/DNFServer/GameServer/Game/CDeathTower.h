@@ -248,8 +248,9 @@ private:
     CStage m_stage;         // +0x14
     CPlayData m_playData;   // +0x110（尺寸 0xa2c，至 +0xb3c）
     int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..)
-    char m_pad_end[0x18];   // +0xb64
-};
+    // 布局修正（Layout_D 2026-08-30）：ORIG StaticPool<CDeathTower,600>::CNodeC1
+    // 实证 bUse@0xb68 → sizeof(CDeathTower)=0xb64；原 m_pad_end[0x18] 尾垫多余。
+};                                                  // sizeof 0xb64
 
 // CBossTower 类声明见 CBossTower.h（唯一声明点）
 }

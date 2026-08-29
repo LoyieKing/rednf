@@ -65,6 +65,10 @@ void RandomOptionScript::clear()
     m_costVec10c.clear();
     m_map118.clear();
     m_map130.clear();
+    // ORIG 0x08372648/0x083726a2：+0x130 clear 后、+0x160 clear 前，
+    // 依序 set(&+0x90,&+0xcc) / set(&+0x118,&+0x130)。
+    m_providerNormal148.set(&m_map90, &m_mapcc);
+    m_providerModified154.set(&m_map118, &m_map130);
     m_map160.clear();
     m_map178.clear();
     m_map190.clear();

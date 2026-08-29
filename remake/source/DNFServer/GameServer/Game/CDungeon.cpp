@@ -58,12 +58,12 @@ unsigned char CDungeon::getQuestNpcDungeon() const
     return m_questNpcDungeon;
 }
 
-unsigned char CDungeon::get_limit_party_count() const
+char CDungeon::get_limit_party_count() const
 {
     return m_limitPartyCount;
 }
 
-unsigned char CDungeon::get_limit_Inout_count() const
+char CDungeon::get_limit_Inout_count() const
 {
     return m_limitInoutCount;
 }
@@ -494,7 +494,8 @@ void TOD_UserState::IncreaseEnterCount()
     ((charac_expand::CData*)this)->alter();
 }
 
-// TowerOfDespairStatistic_Key（ORIG ctor 0x8374ca2：两个 dword 清零）。
+// 注：保持 POD（无 user ctor）——GCC 4.4 __attribute__((packed)) 对含非 POD
+// 成员的外层 struct 不生效，会致 Key 偏移 4 对齐（0xc）而非 ORIG 0xa。
 struct TowerOfDespairStatistic_Key
 {
     unsigned int m_0;   // +0x00（packet+0xe，当日层写入口）
@@ -511,6 +512,10 @@ TowerOfDespairStatistic_Key::TowerOfDespairStatistic_Key()
 
 // Packet_TowerOfDespair_Statistic_GTS（ORIG ctor 0x08374cba W，总尺寸 0x17）：
 // PacketHeader(0x271c,0x17)[10] + Key[8] + byte flag + uint accId。
+// 注：用 #pragma pack（而非 __attribute__((packed))）——GCC 4.4 的 attribute
+// packed 对含非 POD 成员（Key 有 user ctor）的外层 struct 不生效，会致 Key
+// 偏移 4 对齐（0xc）而非 ORIG 0xa。
+#pragma pack(push, 1)
 struct Packet_TowerOfDespair_Statistic_GTS
 {
     PacketHeader m_header;   // +0x00（packed 0xa 字节）
@@ -519,7 +524,8 @@ struct Packet_TowerOfDespair_Statistic_GTS
     unsigned int m_accId;    // +0x13
 
     Packet_TowerOfDespair_Statistic_GTS();
-} __attribute__((packed));
+};
+#pragma pack(pop)
 
 Packet_TowerOfDespair_Statistic_GTS::Packet_TowerOfDespair_Statistic_GTS()
     : m_header(0x271c, 0x17)   // 成员序：header → key(默认构造) → flag/accId

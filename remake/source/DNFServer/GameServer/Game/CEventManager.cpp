@@ -539,17 +539,21 @@ bool CEventTable::InsertEventTable(std::vector<int>& ids)
         return true;
 
     std::string sql;
-    for (std::vector<int>::const_iterator it = ids.begin(); it != ids.end(); ++it)
+    // ORIG 0x811a4d4：begin() 非 const → std::vector<int>::iterator。
+    for (std::vector<int>::iterator it = ids.begin(); it != ids.end(); ++it)
     {
         const int idx = *it;
         const EventTableEntry& e = events[idx];
-        const char* explain = e.explain ? e.explain : "";
-        const char* resolved = g_scriptStringManager_.findString(4, explain, 0);
-        char buf[0x100];
-        std::snprintf(buf, sizeof(buf), "(%d,%d,'%s','%s')",
-                      e.id, e.apply_type, e.name ? e.name : "", resolved ? resolved : "");
+        // ORIG：explain/name 字段直接使用（无空指针 fallback），
+        // 仅 explain 经 findString(4, explain, 0) 解析后使用。
+        const char* resolved = g_scriptStringManager_.findString(4, e.explain, 0);
+        char buf[0xff];                                    // ORIG 缓冲 0xff 字节
+        std::memset(buf, 0, sizeof(buf));                  // ORIG 清 0xff 字节
+        std::sprintf(buf, "(%d,%d,'%s','%s')", e.id, e.apply_type, e.name,
+                     resolved);
         sql += buf;
-        sql += ",";
+        if (it + 1 != ids.end())                           // ORIG 末位元素不加逗号
+            sql += ",";
     }
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);

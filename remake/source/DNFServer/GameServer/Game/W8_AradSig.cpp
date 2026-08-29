@@ -97,15 +97,8 @@ SigAradEmblemCompound::SigAradEmblemCompound()
 void SigAradEmblemCompound::init()
 {
     m_selectIdx = 0;
-    // 外层两 materialInfo 实例分别位于 m_slot0/m_grade0/m_itemId0 与
-    // m_slot1/m_grade1/m_itemId1（ORIG ctor init(this)/init(this+8) 实证），
-    // 此处按具名字段逐一等价清零。
-    m_slot0 = 0;
-    m_grade0 = 0;
-    m_itemId0 = 0;
-    m_slot1 = 0;
-    m_grade1 = 0;
-    m_itemId1 = 0;
+    reinterpret_cast<materialInfo*>(this)->init();
+    reinterpret_cast<materialInfo*>((char*)this + 8)->init();
 }
 
 // ---------------------------------------------------------------------------
@@ -178,8 +171,9 @@ SigAradJumpingCharacter::SigAradJumpingCharacter()
 
 void SigAradJumpingCharacter::init()
 {
-    static const char kZeroHead[9] = { 0 };
-    std::memcpy(m_head, kZeroHead, sizeof(m_head));
+    m_head[0] = 0;
+    *reinterpret_cast<unsigned int*>(m_head + 1) = 0;
+    *reinterpret_cast<unsigned int*>(m_head + 5) = 0;
 }
 
 // ---------------------------------------------------------------------------

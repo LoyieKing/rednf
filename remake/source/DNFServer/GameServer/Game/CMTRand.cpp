@@ -160,7 +160,7 @@ int CMTRand::randInt(const unsigned long& range)
     do
     {
         v = (unsigned long)randInt() & mask;
-    } while (v >= range);
+        } while (v > range);   // ORIG cmp/setb：v<=range 时退出
     return (int)v;
 }
 

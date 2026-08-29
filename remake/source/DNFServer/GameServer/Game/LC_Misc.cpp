@@ -369,7 +369,7 @@ char Secu_MonsterCheck::Check225()
     if (m_active225 != 0)
     {
         int dt = m_setTick - m_field20;
-        if (dt <= 2000)
+        if (dt <= 1999)
         {
             m_field24 += 1;
             if (m_field24 > 4)

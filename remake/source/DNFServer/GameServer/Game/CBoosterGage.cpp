@@ -197,7 +197,8 @@ int CBoosterGage::get_booster_point(unsigned long dwItemIdx)
 void CBoosterGage::make_postar(CUser* pUser, const Inven_Item& item,
                                const char* pAgency, int nPeriod)
 {
-    char szPost[0x100] = {0};
+    char szPost[0x100];
+    memset(szPost, 0, sizeof(szPost));  // ORIG：memset 0x100（gcc4.4 `= {0}` 仅清 0x40）
     char szTitle[0x14];
     std::string strTitle = g_ServerString_.GetServerString(0x436, NULL);
     strncpy(szTitle, strTitle.c_str(), 0x14);

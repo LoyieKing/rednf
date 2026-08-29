@@ -801,7 +801,7 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
 void Inter_LoadEtc::processGrowthWeaponEvent(CUser& user)
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(100);
-    if (ev == 0 || !ev->IsEventing(0))
+    if (!ev->IsEventing(0))
         return;
     GrowthEquipEvent* growth = static_cast<GrowthEquipEvent*>(
         GlobalData::s_event_manager->GetRepeatEvent(100));
@@ -814,7 +814,7 @@ void Inter_LoadEtc::processGrowthWeaponEvent(CUser& user)
 void Inter_LoadEtc::processGrowthCreatureEvent(CUser& user)
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    if (ev == 0 || !ev->IsEventing(0))
+    if (!ev->IsEventing(0))
         return;
     GiveGrowCreatureEvent* growth = static_cast<GiveGrowCreatureEvent*>(
         GlobalData::s_event_manager->GetRepeatEvent(0x67));
@@ -1196,8 +1196,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             char* tagSkillBuf = user->getTagCharacSkillW();
             SkillSlot* skillW = reinterpret_cast<SkillSlot*>(tagSkillBuf);
             (void)skillW;
-            skillW->set_skill_slot(sig->m_tagSkillSlot,
-                                   sig->m_tagSkillCombo, 0x198);
+            			skillW->set_skill_slot((char*)&sig->m_tagEtc.m_rows[0],
+			                       (char*)&sig->m_tagEtc.m_rows[1], 0x198);
         }
         if (tagIdx == -1)
             sig->m_mixedRegion[0xd3b] = 0;

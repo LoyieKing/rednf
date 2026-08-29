@@ -175,9 +175,7 @@ int CEquipItem::getGrowthRepairCost(int level) const
 // ============================================================================
 float CEquipItem::getUpgradeCostDiscount() const
 {
-    float v = 0.0f;
-    memcpy(&v, &m_field1cc, sizeof(v));
-    return v;
+    return m_field1cc;   // ORIG flds 0x1cc 位读直返
 }
 
 WpBonusPointData* CEquipItem::getWpBonusPoint() const

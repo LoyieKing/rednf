@@ -21,6 +21,8 @@
 #include <new>
 #include <string.h>
 #include <wchar.h>
+#include <limits>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -43,20 +45,12 @@ __attribute__((weak)) void EncodeDressStringWide(const wchar_t*, wchar_t*,
 namespace nexon {
 namespace cash {
 
-// ===========================================================================
-// TCPSocket
-// ===========================================================================
-
-// ORIG 0x081af4cc (sz 0x42)：m_socket=-1; m_sendRetryCount=0;
-// memset(&m_peerAdrs,0,4); m_peerPort=0。
 TCPSocket::TCPSocket()
     : m_socket(INVALID_SOCKET), m_sendRetryCount(0)
 {
-    memset(&m_pad04, 0, sizeof(m_pad04));
-    m_peerAdrs = 0;
+    memset(&m_peerAdrs, 0, sizeof(m_peerAdrs));   // ORIG memset(this+0x14,0,4)
     m_peerPort = 0;
 }
-
 // ORIG 0x081af50e (sz 0x0f)：反汇编体仅把参数 port 存入栈局部并返回，
 // 不触及 this、无任何字段写入（弱符号内联残留形态）。忠实保留为空操作。
 TCPSocket::TCPSocket(const char* host, unsigned short port)
@@ -207,9 +201,9 @@ int TCPSocket::getHandle() const
 void TCPSocket::shutdown(int how)
 {
     // 忠实转写：ORIG 本函数未发起 shutdown 系统调用（内联裁剪后的残体）。
+    // ORIG：mov m_socket; cmp $0xffffffff; 裸比较无 sete（结果丢弃）。
     (void)how;
-    const bool unusedCheck = (m_socket == INVALID_SOCKET);
-    (void)unusedCheck;
+    (void)(m_socket == INVALID_SOCKET);
 }
 
 // ORIG 0x081af80c：
@@ -257,12 +251,12 @@ bool TCPSocket::setOptLinger(bool on)
     return true;
 }
 
-// ORIG 0x081af990：setsockopt(IPPROTO_TCP=6, TCP_NODELAY=1, &(on?1:0), 4)；
-// 返回 setsockopt()==0。
+// 返回 setsockopt()==0。ORIG 反汇编：结果先存栈变量再 cmpl+sete 返回。
 bool TCPSocket::setOptNagle(bool on)
 {
     int flag = on ? 1 : 0;
-    return ::setsockopt(m_socket, 6, 1, &flag, sizeof(flag)) == 0;
+    int ret = ::setsockopt(m_socket, 6, 1, &flag, sizeof(flag));
+    return ret == 0;
 }
 
 // ORIG 0x081af9ea：本地 sockaddr_in{AF_INET,inet_addr(host),htons(port)}；
@@ -699,26 +693,37 @@ unsigned int ByteBuffer::length() const
 // 内联通用形态：cap 校验通过则逐字节大端写入，推进 write 游标；
 // 空间不足时静默丢弃（游标不动），ORIG 无返回错误通道。
 
-// ORIG 0x081acba0：写 C 字符串含结尾 '\0'（strlen(buf)+1 字节，无容量预检、
-// 无上限——直接循环写入直到 NUL，之后 ++writePtr 收尾）。
+// ORIG 0x081acba0：strlen → 超 ushort::max 抛 invalid_argument("string length
+// too long: must shorter than max(unsigned short)")；length()+len 不超容量时
+// 写 ushort 长度前缀（大端）+ strncpy(len 字节，不含 NUL）+ 游标前进 strlen。
 ByteBuffer& ByteBuffer::operator<<(const char* value)
 {
-    // 忠实转写：ORIG 用 strlen 一次性拷贝（无空间校验，见汇编 cmp 分支仅对
-    // 迭代计数）。实现保持逐字节语义等价。
-    size_t len = strlen(value) + 1;
-    for (size_t i = 0; i < len; ++i)
-        *m_writePtr++ = value[i];
+    int len = strlen(value);
+    if (len > (int)std::numeric_limits<unsigned short>::max())
+        throw std::invalid_argument("string length too long: must shorter than max(unsigned short)");
+    if (length() + len <= m_capacity)
+    {
+        *this << (unsigned short)len;
+        strncpy(m_writePtr, value, len);
+        m_writePtr += strlen(value);
+    }
     return *this;
 }
 
-// ORIG 0x081acd1e：wchar_t 版本按宿主宽字符逐个写出（转写为字节级截取，
-// 与 ORIG 在 Linux wchar_t=4B 平台上的原始双字拷贝一致）。
+// ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
+// 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。
 ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
 {
-    size_t len = wcslen(value) + 1;
-    const char* raw = reinterpret_cast<const char*>(value);
-    for (size_t i = 0; i < len * sizeof(wchar_t); ++i)
-        *m_writePtr++ = raw[i];
+    size_t len = wcslen(value);
+    size_t bytes = len * 2;
+    if (bytes > (size_t)std::numeric_limits<unsigned short>::max())
+        throw std::invalid_argument("string too long");
+    if (static_cast<unsigned int>(length() + bytes) <= m_capacity)
+    {
+        *this << static_cast<unsigned short>(bytes);
+        wcsncpy(reinterpret_cast<wchar_t*>(m_writePtr), value, len);
+        m_writePtr += bytes;
+    }
     return *this;
 }
 
@@ -1128,23 +1133,18 @@ inline void traceRecvError(int errCode, const char* plain)
 // ORIG 0x081acfdc：子对象构造顺序与字段初始化见头注释。
 NCashImpl::NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
                      unsigned short fieldC, short fieldD)
-    : m_paramB(paramB), m_pad01(0), m_fieldC(fieldC), m_fieldD(fieldD),
-      m_requestID(0), m_connected(false), m_serverAdrs(), m_port(port),
-      m_socket(), m_inMsg()
+    : m_socket(), m_inMsg(), m_outMsg()
 {
-    m_socket.~TCPSocket();
-    new (&m_socket) TCPSocket();
-
-    m_inMsg.~NCashMessage();
-    new (&m_inMsg) NCashMessage();
-
-    // outMsg 子对象 @+0x248（原始布局区间内就地构造）
-    new (reinterpret_cast<char*>(this) + 0x248) NCashMessage();
-
+    // ORIG 0x081acfdc：子对象构造（m_socket@+0x20、m_inMsg@+0x40、m_outMsg@+0x248）
+    // 后依次写 m_requestID=0、m_paramB、m_fieldC、m_fieldD、m_connected=0、
+    // strcpy(m_serverAdrs, serverAdrs)（无 NULL 检查/预清零）、m_port。
     m_requestID = 0;
-    memset(m_serverAdrs, 0, sizeof(m_serverAdrs));
-    if (serverAdrs != 0)
-        strcpy(m_serverAdrs, serverAdrs);
+    m_paramB = paramB;
+    m_fieldC = fieldC;
+    m_fieldD = fieldD;
+    m_connected = false;
+    strcpy(m_serverAdrs, serverAdrs);
+    m_port = port;
 }
 
 void NCashImpl::_increaseRequestID()                 // ORIG 0x081aea32

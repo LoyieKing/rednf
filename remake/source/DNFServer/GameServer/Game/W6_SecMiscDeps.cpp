@@ -91,8 +91,8 @@ char* WongWork::CSecurityCardCenter::encryptString(char const* src, char* out)
     // '\0'。异常路径返回 NULL（ORIG catch 吞掉后 ebx=0）。
     char plain[0x100];
     unsigned char cipher[0x100];
-    memset(plain, 0, sizeof(plain));
-    memset(cipher, 0, sizeof(cipher));
+    memset(plain, 0, 0x40);      // ORIG：rep stos 仅清 0x40 字节（两块）
+    memset(cipher, 0, 0x40);
     strncpy(plain, src, 0x100);
     size_t length = strlen(plain);
     char* result = out;
@@ -395,9 +395,10 @@ bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
     // → guard 析构 → return 1。
     Stream* stream = s_stream_pool->Acquire("WebEvent.cpp", 0xa0);
     CStreamGuard guard(stream, true);
-    guard << 0x4c;
-    guard << -1;
-    SIG_SAVE_EVENTITEM* sig = guard.GetInBuffer<SIG_SAVE_EVENTITEM>();
+    guard.operator*()->operator<<(0x4c);
+    guard.operator*()->operator<<(-1);
+    SIG_SAVE_EVENTITEM* sig =
+        guard.operator->()->GetInBuffer<SIG_SAVE_EVENTITEM>();
     sig->m_field00 = p1;
     sig->m_field04 = p2;
     sig->m_field0c = p3;

@@ -6,5 +6,8 @@
 Packet_Approve_Join_Guild::Packet_Approve_Join_Guild()
     : PacketHeader(0x16, 0x1bc2)   // ORIG _ZN12PacketHeaderC1Ett
 {
-    memset(m_data + 0, 0, 0xc);   // ORIG memset(this+0xa, 0, 0xc)
+    // ORIG 0x0822c342：三个独立 movl $0,0xa/0xe/0x12（非 memset 调用）。
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0xa) = 0;
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0xe) = 0;
+    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x12) = 0;
 }

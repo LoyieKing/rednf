@@ -308,9 +308,6 @@ int CParty::getDungeonTypeKind(CDungeon const* dungeon)
 // ============================================================================
 bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
 {
-    if (m_member[slot].m_pUser == 0)
-        return false;
-
     const short uniqueId =
         static_cast<short>(m_member[slot].m_pUser->get_unique_id());
     const int dungeonIdx = *reinterpret_cast<int*>(
@@ -326,27 +323,27 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
         const int usedCount = *reinterpret_cast<int*>(record + 4);
         if (kind == 1)
         {
-            if (param >= static_cast<int>(*reinterpret_cast<
+            if (param < static_cast<int>(*reinterpret_cast<
                     unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
                     + 0x512e))
                 || usedCount > 0x1e || m_member[slot].m_field14 != 0)
-                return false;
+                                continue;
         }
         else if (kind == 2)
         {
-            if (param >= static_cast<int>(*reinterpret_cast<
+            if (param < static_cast<int>(*reinterpret_cast<
                     unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
                     + 0x512e))
                 || usedCount > 0x32 || m_member[slot].m_field14 != 0)
-                return false;
+                                continue;
         }
         else if (kind == 0)
         {
-            if (param >= static_cast<int>(*reinterpret_cast<
+            if (param < static_cast<int>(*reinterpret_cast<
                     unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
                     + 0x512c))
                 || usedCount > 10 || m_member[slot].m_field14 != 0)
-                return false;
+                                continue;
         }
         else
         {

@@ -2,7 +2,8 @@
 #define DNF_GAME_CPVPLIVEEVENTDATA_H_
 
 // df_game_r 还原 —— CPvPLiveEventData。
-// ORIG：charac_expand::CData 派生，+0x08 播放计数 int。
+// ORIG：charac_expand::CData 派生，+0x08 播放计数 int，对象 0xc
+//   （charac_expand::CDataMgr::C1 new(0xc) 实证）。
 #include "CBoosterGage.h"
 
 class CPvPLiveEventData : public charac_expand::CData
@@ -17,7 +18,6 @@ public:
     void IncreasePlayCount(class CUser* user);
 
     int m_playCount;      // +0x08
-    char m_pad0c[0x34];   // 补足 ORIG 对象 0x40 视图
 };
 
 #endif

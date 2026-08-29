@@ -262,16 +262,17 @@ class CAlchemist : public CExpertJob
 public:
     CAlchemist();
     ~CAlchemist();
-    int OnTeleportCharacter(CUser* user, int vill, int area, int x, int y,
-                            bool flag);   // ORIG T 0x085d1424
+    // ORIG T 0x085d1424：反汇编参数自 0x8 起（无 this 槽），静态成员语义。
+    static int OnTeleportCharacter(CUser* user, int vill, int area, int x, int y,
+                                   bool flag);   // ORIG T 0x085d1424
 
     // ---- OnlyOrig_CreatureJob 批追加（定义 ExpertJobOnlyMgr.cpp）----
     static void UseDelilah(CUser* user);                     // ORIG T 0x085d18ae（体内无 this）
     static void UseRevivalItem(CUser* user);                 // ORIG T 0x085d1694（同上）
-    int GetAssaultPrevent(CUser* user, bool* flag);   // ORIG T 0x085d137c
+    static int GetAssaultPrevent(CUser* user, bool* flag);   // ORIG T 0x085d137c（ORIG 无 this 槽）
     static int OnUseStackableItem(CUser* user, unsigned long uid,
                                   const CItem* item);        // ORIG T 0x085d1712（LinkClosureA-2 改 static：ORIG 调用点 0x865e42e 无 ecx 设置、mangled 无 this 编码实证）
-    int GetQuestItemDropRate(CUser* user, int itemIdx);   // ORIG T 0x085d12ee
+    static int GetQuestItemDropRate(CUser* user, int itemIdx);   // ORIG T 0x085d12ee（ORIG 无 this 槽）
     static int CheckUsableStackableItem(CUser* user, const CItem* item);   // ORIG T 0x085d18e2（同上 static 实证）
     // ORIG T 0x085d121e——实现由 ItemUpgradeVtableB2.cpp 提供（同名局部类待收敛）
     static bool IsExistContinuousEffectItem(CUser* user, int itemIdx);

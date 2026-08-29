@@ -284,8 +284,8 @@ struct MailMsgSendV
 {
     char m_pad0[0x11];
     char m_receiverName[0x1d];   // +0x11（收件角色名）
-    char m_pad2e[0x2e - 0x2e];
     int m_money;                 // +0x2e
+    unsigned int m_guildKey;     // +0x32（公会邮键；ORIG read 写 0 处）
     unsigned char m_type;        // +0x36
     unsigned short m_slot;       // +0x37
     int m_itemIdx;               // +0x39
@@ -598,9 +598,10 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
 {
     // ORIG 0x08556772
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x8ce), true);
-    guard << 0x81;
-    guard << (int)user->GetUID();
-    SIG_MAILBOX_DEL_MAIL* p = guard->GetInBuffer<SIG_MAILBOX_DEL_MAIL>();
+    guard.operator*()->operator<<(0x81);
+    guard.operator*()->operator<<((int)user->GetUID());
+    SIG_MAILBOX_DEL_MAIL* p =
+        guard.operator->()->GetInBuffer<SIG_MAILBOX_DEL_MAIL>();
     MailBoxDelMailV* v = reinterpret_cast<MailBoxDelMailV*>(p);
     v->m_count = mailIdx[0];
     for (unsigned int i = 1; i <= mailIdx[0]; ++i)
@@ -1330,9 +1331,10 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
 {
     // ORIG 0x08555916
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x59b), false);
-    guard << 0x80;
-    guard << (int)user->GetUID();
-    SIG_MAILBOX_SEND_NEW_MAIL* msg = guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
+    guard.operator*()->operator<<(0x80);
+    guard.operator*()->operator<<((int)user->GetUID());
+    SIG_MAILBOX_SEND_NEW_MAIL* msg =
+        guard.operator->()->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     std::memset(msg, 0, 0x168);
     _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(), item,
                       nDestCharacNo, nAmount, pTitle, nTitleLen, 0, nType);
@@ -1553,9 +1555,10 @@ int CMailBoxHelper::ReqDBSendNewSystemMail(const char* pSender, Inven_Item const
 {
     // ORIG 0x085555e8
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x54f), true);
-    guard << 0x80;
-    guard << -1;
-    SIG_MAILBOX_SEND_NEW_MAIL* msg = guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
+    guard.operator*()->operator<<(0x80);
+    guard.operator*()->operator<<(-1);
+    SIG_MAILBOX_SEND_NEW_MAIL* msg =
+        guard.operator->()->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     std::memset(msg, 0, 0x168);
     _makeSendMailData(msg, pSender, 0, item, nA, nCharacNo, pTitle, nTitleLen, nB, 0);
     MailBoxSendNewMailV* m = reinterpret_cast<MailBoxSendNewMailV*>(msg);
@@ -1635,8 +1638,8 @@ void CMailBoxHelper::ReqDBSendNewAvatarMail(CUser* user, int nCharacNo, int nIte
 {
     // ORIG 0x085561b0
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x7dd), true);
-    guard << 0xc5;
-    guard << (int)user->GetUID();
+    guard.operator*()->operator<<(0xc5);
+    guard.operator*()->operator<<((int)user->GetUID());
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
     MailBoxSendNewMailAvatarV* m =
@@ -1674,8 +1677,8 @@ void CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(CUser* user, int nCharacNo,
 {
     // ORIG 0x08556f16：与 AvatarMail 相同，仅 +0x1a2 置 1 且初始化 +0x7b expansion
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x976), true);
-    guard << 0xc5;
-    guard << (int)user->GetUID();
+    guard.operator*()->operator<<(0xc5);
+    guard.operator*()->operator<<((int)user->GetUID());
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
     MailBoxSendNewMailAvatarV* m =
@@ -1715,8 +1718,8 @@ void CMailBoxHelper::ReqDBSendNewCreatureMail(CUser* user, int nCharacNo,
 {
     // ORIG 0x08556422
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x83f), true);
-    guard << 0xc5;
-    guard << (int)user->GetUID();
+    guard.operator*()->operator<<(0xc5);
+    guard.operator*()->operator<<((int)user->GetUID());
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
     MailBoxSendNewMailCreatureV* m =
@@ -1758,8 +1761,8 @@ void CMailBoxHelper::ReqDBSendNewCreatureMailCashShop(CUser* user, int nCharacNo
 {
     // ORIG 0x085571a0：同 CreatureMail，另 +0x1a2=1
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x99c), true);
-    guard << 0xc5;
-    guard << (int)user->GetUID();
+    guard.operator*()->operator<<(0xc5);
+    guard.operator*()->operator<<((int)user->GetUID());
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
     MailBoxSendNewMailCreatureV* m =

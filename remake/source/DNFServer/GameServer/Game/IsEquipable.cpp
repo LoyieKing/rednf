@@ -19,7 +19,12 @@ int _S_CHARAC_JOB_MASTARY[0xC0] = {
 
 int IsEquipable(CUser* user, const CItem* item, int slot)
 {
-    if (!item->getUsableItemType(slot) && item->GetItemType() != slot) return 0x11;
+    // ORIG 0x85003be：虚表槽5 IsCreatureItem()（无参）判定，非 getUsableItemType(slot)。
+    // ORIG 两个独立 if 各自提前返回 0x11。
+    if (!item->IsCreatureItem())
+        return 0x11;
+    if (item->GetItemType() != slot)
+        return 0x11;
     int foot = item->getFootControlRateLimit();
     if (foot >= 0) {
         unsigned int ratio = user->getCurCharacHelpAbuseComputedRatio();

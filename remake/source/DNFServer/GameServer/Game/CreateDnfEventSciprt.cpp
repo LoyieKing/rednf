@@ -164,13 +164,16 @@ bool CreateDnfEventSciprtServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0xd0, 9, true, false);
     trace("\t- Loading EventCreateDnf script - ");
-    return m_script.loadScript() == 0;
+    if (m_script.loadScript())
+        return false;
+    return true;
 }
 
 // ORIG Destroy @0x08164590：mov $0x1,%eax; ret（undefined4 返 1；接口 void 化沿用
 // AvatarFixedHiddenOptionServer 先例，见 ScriptInterface vtable 两槽契约）。
-void CreateDnfEventSciprtServer::Destroy()
+int CreateDnfEventSciprtServer::Destroy()
 {
+    return 1;
 }
 
 // ============================================================================

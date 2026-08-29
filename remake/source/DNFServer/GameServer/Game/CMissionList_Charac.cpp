@@ -242,43 +242,42 @@ void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
 void CMissionList_Charac::Update_Kill_event(
     CUser& user, const MissionClearCondition_Parameter& param)
 {
-    if (G_GameWorld()->GetChannelType() == 0xf)
-    {
-        alter();
-        std::vector<int> out;
-        check_mission_kind(5, user, param, out);
-        check_mission_kind(0xf, user, param, out);
-        check_mission_kind(0x19, user, param, out);
-        Send_Cleared_Mission_List(user, out);
-    }
+    if (G_GameWorld()->GetChannelType() != 0xf)
+        return;
+    alter();
+    std::vector<int> out;
+    check_mission_kind(5, user, param, out);
+    check_mission_kind(0xf, user, param, out);
+    check_mission_kind(0x19, user, param, out);
+    Send_Cleared_Mission_List(user, out);
 }
 
 void CMissionList_Charac::Update_Win_event(
     CUser& user, const MissionClearCondition_Parameter& param,
     bool& outClear)
 {
-    if (G_GameWorld()->GetChannelType() == 0xf)
-    {
-        Update_Within_Mission_event(user, param, outClear);
-        alter();
-        if ((outClear == false) && (getIndex_byKind(0x1b) == 0))
-        {
-            std::vector<int> out;
-            check_mission_kind(2, user, param, out);
-            check_mission_kind(4, user, param, out);
-            check_mission_kind(9, user, param, out);
-            check_mission_kind(10, user, param, out);
-            check_mission_kind(0xc, user, param, out);
-            check_mission_kind(0xe, user, param, out);
-            check_mission_kind(0x11, user, param, out);
-            check_mission_kind(0x13, user, param, out);
-            check_mission_kind(0x14, user, param, out);
-            check_mission_kind(0x16, user, param, out);
-            check_mission_kind(0x18, user, param, out);
-            check_mission_kind(0x1a, user, param, out);
-            Send_Cleared_Mission_List(user, out);
-        }
-    }
+    if (G_GameWorld()->GetChannelType() != 0xf)
+        return;
+    Update_Within_Mission_event(user, param, outClear);
+    alter();
+    if (outClear == true)
+        return;
+    if (getIndex_byKind(0x1b) != 0)
+        return;
+    std::vector<int> out;
+    check_mission_kind(2, user, param, out);
+    check_mission_kind(4, user, param, out);
+    check_mission_kind(9, user, param, out);
+    check_mission_kind(10, user, param, out);
+    check_mission_kind(0xc, user, param, out);
+    check_mission_kind(0xe, user, param, out);
+    check_mission_kind(0x11, user, param, out);
+    check_mission_kind(0x13, user, param, out);
+    check_mission_kind(0x14, user, param, out);
+    check_mission_kind(0x16, user, param, out);
+    check_mission_kind(0x18, user, param, out);
+    check_mission_kind(0x1a, user, param, out);
+    Send_Cleared_Mission_List(user, out);
 }
 
 void CMissionList_Charac::Update_Revenge_event(CUser& user,
@@ -327,30 +326,35 @@ void CMissionList_Charac::Update_GameOver_event(
 void CMissionList_Charac::Update_RecvPacket_event(
     CUser& user, std::vector<short>& kinds, std::vector<int>& values)
 {
-    if ((G_GameWorld()->GetChannelType() == 0xf) &&
-        (getIndex_byKind(0x1b) == 0))
+    if (G_GameWorld()->GetChannelType() != 0xf)
+        return;
+    if (getIndex_byKind(0x1b) != 0)
+        return;
+    alter();
+    PvP_Room* room = (PvP_Room*)user.GetPVPRoom();
+    if (room)
     {
-        alter();
-        PvP_Room* room = (PvP_Room*)user.GetPVPRoom();
-        if (room)
+        MissionClearCondition_Parameter param(
+            (PVP_BATTLE_MODE)room->get_pvp_battle_mode());
+        for (unsigned int i = 0; i < kinds.size(); ++i)
         {
-            MissionClearCondition_Parameter param(
-                (PVP_BATTLE_MODE)room->get_pvp_battle_mode());
-            for (unsigned int i = 0; i < kinds.size(); ++i)
-            {
-                CMission* mission =
-                    (CMission*)G_CDataManager()->find_mission(kinds[i]);
-                if (mission)
+            CMission* mission =
+                (CMission*)G_CDataManager()->find_mission(kinds[i]);
+                            if (mission)
                 {
                     int kind = mission->GetMissionKind();
-                    // ORIG 0x85e5caa: 只对 kind 6/0x15（偷窃技能任务）执行 check_mission_kind；
-                    // 其它 kind 记 HackUser 日志（本实现省略该 trace 副作用，不影响核心逻辑）
+                    // ORIG 0x85e5caa：kind 6/0x15 执行 check_mission_kind，
+                    // 其它 kind 记 HackUser 日志。
                     if ((kind == 6) || (kind == 0x15))
                     {
                         check_mission_kind(kind, user, param, values);
                     }
+                    else
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x704, 5);
+                        trace("[@missionSystem] HackUser! send [%d kind]\n", kind);
+                    }
                 }
-            }
         }
     }
 }
@@ -580,6 +584,9 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
         (CMission*)G_CDataManager()->find_mission((int)index);
     if (!mission)
     {
+        // ORIG 0x85e6441：mission 缺失记日志（cMyTrace 5/0x797）后返回。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x797, 5);
+        trace("[@missionSystem] InvalidIndex: <index : %d>", (int)index);
         return;
     }
     int kind = mission->GetMissionKind();
@@ -597,6 +604,13 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
         {
             MakeMissionList_forOldUser(user);
         }
+    }
+    else
+    {
+        // ORIG 0x85e64e1：m_index 不匹配记日志（cMyTrace 5/0x7a5）后返回。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x7a5, 5);
+        trace("[@missionSystem] NotMatchIndex: <valid index:%d invalid index:%d>",
+              (int)m_missionList[kind].m_index, (int)index);
     }
 }
 

@@ -777,12 +777,12 @@ void CParty::SetEPLPState(char state)
     m_eplpState = state;
     if (state == 2)
     {
-        if (m_dungeon != 0)
-        {
-            for (int i = 0; i <= 3; ++i)
-            {
-                if (_checkValidUser(i) != 1)
-                    continue;
+        		if (m_dungeon != 0)
+		{
+			for (int i = 0; i <= 3; ++i)
+			{
+				if (!_checkValidUser(i))
+					continue;
                 int idx = m_dungeon->get_index();
                 GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(idx, false);
             }
@@ -1064,15 +1064,12 @@ int CParty::change_manager(CUser* user, int slot)
 // CParty::IsExistInvisible @ 0x85b6410 —— 任一有效成员当前角色不可见则 true。
 bool CParty::IsExistInvisible()
 {
-    int i = 0;
-    while (true)
+    for (int i = 0; i <= 3; ++i)
     {
-        if (i > 3)
-            return false;
-        if (_checkValidUser(i) && m_member[i].m_pUser->IsCurCharacVisible() != 1)
+        if (_checkValidUser(i) && !m_member[i].m_pUser->IsCurCharacVisible())
             return true;
-        ++i;
     }
+    return false;
 }
 
 // CParty::battle_data_reset @ 0x859aec2 —— 副本战斗数据与快捷队伍状态复位。
@@ -1182,19 +1179,7 @@ void CParty::send_quick_party_matching_result(bool flag, CUser* user)
         send_to_party(packet);
 }
 
-// CParty::GetUserPosition @ 0x85b9e20 —— 返回 user 所在成员槽位，找不到返回 -1。
-int CParty::GetUserPosition(CUser* user)
-{
-    int i = 0;
-    while (true)
-    {
-        if (i > 3)
-            return -1;
-        if (_checkValidUser(i) && m_member[i].m_pUser == user)
-            return i;
-        ++i;
-    }
-}
+// ORIG 反汇编为 for(i=0; i<=3; ++i) 结构（初始化后直接 jmp 到尾部条件测试）。
 
 // CParty::CheckEnterEventDungeon @ 0x859ee66 —— 事件地下城条件（必备/奖励材料）。
 bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag,
@@ -1810,20 +1795,32 @@ int CParty::get_member_count()
     }
     return count;
 }
-int CParty::getMemberNames(char* buf) { return (int)_getMemberNames(buf); }
-char* CParty::_getMemberNames(char* buf)
+// ORIG W 0x08145882：getMemberNames = 转发 _getMemberNames（call 0x85b4bde）。
+char* CParty::getMemberNames(char* buf)
+{
+    return _getMemberNames(buf);
+}
+
+// ORIG T 0x085b9e20：循环 i=0..3 读 (this+0x78+i*0x18) 的 CUser* 与 user 比较，
+// 命中返回 i，否则 -1。
+int CParty::GetUserPosition(CUser* user)
+{
+    for (int i = 0; i <= 3; ++i)
+    {
+        if (*reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) +
+                                       0x78 + i * 0x18) == user)
+            return i;
+    }
+    return -1;
+}
+
+ char* CParty::_getMemberNames(char* buf)
 {
     char nameBuf[34];
-    const char* name;
-    if (m_manager == 0)
-    {
-        name = "NoMember";
-    }
-    else
-    {
-        name = m_manager->getCurCharacName();
-    }
-    sprintf(buf, "\"%s\",", name);
+    // ORIG 反汇编：m_manager==0 与 getCurCharacName() 结果直接作 sprintf 实参
+    // （无中间变量，je/jmp 合并后 eax 直接进 0x8(%esp)）→ 用三元内联。
+    sprintf(buf, "\"%s\",",
+            (m_manager == 0) ? "NoMember" : m_manager->getCurCharacName());
     for (int i = 0; i <= 3; ++i)
     {
         if (i == 3)
@@ -3302,7 +3299,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         mu->setPlayingDungeonIndex(dungeonIdx);
         mu->m_character.Reset();              // PlayInfo::Reset @ user+0x8e034
         mu->m_character.m_f20 = startCount;   // user+0x8e054
-        mu->m_character.m_f40 = 0;            // user+0x8e074
+        mu->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 
         int stdLvl = m_dungeon->get_standard_level();
         int muLvl = mu->get_charac_level();
@@ -6679,8 +6676,8 @@ void CParty::clear_reward(int param)
         {
             float premiumDeduction;   // ORIG quirk: flds -0x2cc has no writer
             int deduction = static_cast<int>(premiumDeduction + 0.5f);
-            user->m_field8e05c -= deduction;
-            user->m_field8e068 -= deduction;
+            user->m_character.m_f28 -= deduction;
+            user->m_character.m_f34 -= deduction;
         }
 
         questItemList.clear();

@@ -366,7 +366,7 @@ public:
     int delete_party_for_quick_party(CUser* user,
                                      std::list<CUser*>& list);   // ORIG 0x859b52c
     int get_member_count();
-    int getMemberNames(char* buf);
+    char* getMemberNames(char* buf);   // ORIG W 0x08145882（转发 _getMemberNames）
     int get_live_count();
     int get_live_count_enter_map();
     int get_party_seatno(CUser* user);
@@ -396,7 +396,7 @@ public:
     void changeBattleDataOnMoveMap(bool flag);   // ORIG T 0x085a8ee0（move_map 调用）
     bool move_map(MSG_MOVE_MAP& info);   // ORIG T 0x085a8f4e 返回 eax=0/1
                                          // （原 void 声明与 ORIG 返回不符）
-    void switchPostion(char a, char b);
+    int switchPostion(char a, char b);   // ORIG T 0x085ba680 返回 1
     void useItem(CUser* user, Inven_Item const& item);
     void use_skill(CUser* user, int skillIdx, int param);
     bool isCheckUseSkill(int skillIdx, int param);
@@ -409,7 +409,7 @@ public:
     void send_loadingcheck_msg();
     void resetFinishLoadingVar();
     bool CanDoPartyActionAssalutState();
-    void TimeoutCompleteAfterAssault();
+    int TimeoutCompleteAfterAssault();
     void SelectEPLPCommand(int cmd);   // ORIG 0x85a22a8：SetEPLPState(3)+
                                        // InsertTimer(1,idx,0x14,cmd,key,0)
     bool check_timer_key(TIMER_MESSAGE msg, int param);
@@ -421,7 +421,7 @@ public:
     // ---- 连接管理 ----
     void ConnectP2P(CUser* user, char* ip, int port);
     void _ClearConnectP2PAbsolute(int slot);
-    void _ClearConnectP2PRelative(int slot);
+    int _ClearConnectP2PRelative(int slot);
     bool _IsCannotConnectP2P(int a, int b);
     int _GetConnectP2PPoint(int slot);
     void _GetConnectP2PMaxMinPoint(int& max, int& min);

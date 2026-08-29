@@ -23,6 +23,8 @@ public:
     std::map<unsigned char, short>   m_levelMap;             // +0x00
     std::map<unsigned char, unsigned char> m_disjointerBigWinRate;  // +0x18
 
+    // ORIG C1 0x0849f438：构造两 map 后调 Clear()。
+    STExpertJobEtcScript();
     void Clear();
 
     // ORIG W 0x0849f47c：遍历 m_levelMap，任一 mapped short == level 返回 true。

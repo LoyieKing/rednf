@@ -89,8 +89,11 @@ Avatar_Item::~Avatar_Item() {}
 // CAvatarItemMgr — ORIG _ZN8WongWork14CAvatarItemMgrC1ERKS0_ W 0x0869937c：
 //   合成式逐成员拷贝（map×2 copy、counter、emblemInfo、map<int,int>×2），
 //   附异常清理路径，由编译器生成等价物。
-// ORIG W 0x0822d22c：三 map 隐式默认构造（空用户体）。
-CAvatarItemMgr::CAvatarItemMgr() {}
+// ORIG W 0x0822d22c：三 map 隐式默认构造 + Reset（ORIG 汇编 0x822d26f call Reset）。
+CAvatarItemMgr::CAvatarItemMgr()
+{
+    Reset();
+}
 
 CAvatarItemMgr::CAvatarItemMgr(const CAvatarItemMgr& other)
     : m_registeredItems(other.m_registeredItems),
@@ -108,8 +111,8 @@ CAvatarItemMgr::CAvatarItemMgr(const CAvatarItemMgr& other)
 // handleSetUserPremium(type,0,0,0,true) 重设（链路收尾重算）。
 void CHandlePremium::handleReturn2CharacView(CUser* user)
 {
-    std::vector<SUserPremiumInfo> list;
-    user->GetPremiumInfo()->GetPremiumInfoList(list, 0x270f);
+    std::vector<SUserPremiumInfo> list =
+        user->GetPremiumInfo()->GetPremiumInfoList(0x270f);
     for (std::size_t i = 0; i < list.size(); ++i)
     {
         if (list[i].m_type != 0 && list[i].m_state == 3)

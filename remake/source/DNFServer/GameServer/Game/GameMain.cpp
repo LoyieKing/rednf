@@ -56,6 +56,7 @@
 #include <csignal>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <iostream>
@@ -65,6 +66,8 @@
 // 定时器注册实现依赖（ORIG G_TimerQueue 0x80f647c / CSystemTime::getCurSec
 // 0x80cbc9e / get_rand_int 0x86b1b87 均为 ORIG 真实符号）
 #include "PacketTracer.h"   // CPacketTracer / CPacketTracerInstance（signal_handler 依赖）
+#include "TaiwanCash.h"      // stIPGStatus_t / CIPGHelper（ProcessServerStatusLog 依赖）
+#include "CAvatarItemMgr.h"   // WongWork::CAvatarItemMgr::m_AvatarItemPool（ProcessServerStatusLog 依赖）
 #include "TimerQueue.h"
 
 // 三大分发器权威类型（本 TU 仅用其生命周期 CREATE_/DESTROY_ 与定时器静态成员）
@@ -636,58 +639,86 @@ bool Init(int argc, char** argv)
 }
 
 // ---------------------------------------------------------------------------
-// MainLoop() —— ORIG 0x829fa2b（0x305）：主循环每秒一轮——
-// UpdateChannelUser → 心跳（monitor/guild proxy 遍历）→ CmmChannelProxy 上报 →
-// 向 NETWORK_Q 投递心跳流包 → sleep_ext(1,0) → ProcessAntiBotInputWrapper。
+// MainLoop() —— ORIG 0x829fa2b（0x305）：主循环每秒一轮。ORIG 局部为
+// 周期/计数器组：-0x34 每 30 轮 UpdateChannelUser+状态日志；-0x40 每 10 轮
+// 心跳（monitor/guild proxy 遍历，GetServerProxy(组号)）；-0x24 每 2 轮
+// 翻转 CmmChannelProxy 上报；-0x1c 每 0x12c 轮向 NETWORK_Q 投递心跳流包
+// （Acquire("App.cpp", 0x2728) + << 0x30a << -1）。退出条件
+// !GlobalData::s_server_stop（@0x940bd64），返回 1。
 // ---------------------------------------------------------------------------
 void MainLoop()
 {
-    for (;;)
+    int cnt30 = 0;        // -0x34
+    int cnt10 = 0;        // -0x40
+    int flip24 = 0;       // -0x24
+    int cnt300 = 0;       // -0x1c
+    int lastUserCount = 0; // -0x30
+    int lastRemain = 0;    // -0x2c
+
+    while (!GlobalData::s_server_stop)
     {
-        G_GameWorld()->UpdateChannelUser();
-
-        if (G_GameWorld()->get_UserCount_InWorld() != 0
-            || G_CGameManager()->userPoolRemain() != StaticPool<CUser, 600>::Size())
+        if (cnt30 == 30)
         {
-            ProcessServerStatusLog();
+            G_GameWorld()->UpdateChannelUser();
+            int curUser = G_GameWorld()->get_UserCount_InWorld();
+            int remain =
+                G_CGameManager()->userPoolSize() - G_CGameManager()->userPoolRemain();
+            if (lastUserCount != curUser || remain != lastRemain)
+            {
+                ProcessServerStatusLog();
+                lastUserCount = curUser;
+                lastRemain = remain;
+            }
+            cnt30 = 0;
         }
 
-        // monitor 心跳
-        for (int mi = GlobalData::s_monitor_proxy_mgr->GetStartIndex(); ; )
+        if (cnt10 > 9)
         {
-            CMonitorServerProxy* mp =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE /*推断*/);
-            if (mp)
+            for (int mi = GlobalData::s_monitor_proxy_mgr->GetStartIndex(); ; )
+            {
+                CMonitorServerProxy* mp =
+                    GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)mi);
                 mp->SendHeartBeat(G_CEnvironment()->get_channel_no());
-            if (mi >= GlobalData::s_monitor_proxy_mgr->GetEndIndex())
-                break;
-            GlobalData::s_monitor_proxy_mgr->GetNextIndex(mi);
-        }
-        // guild 心跳
-        for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
-        {
-            CGuildServerProxy* gp =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE /*推断*/);
-            if (gp)
+                mi = GlobalData::s_monitor_proxy_mgr->GetNextIndex(mi);
+                if (mi >= GlobalData::s_monitor_proxy_mgr->GetEndIndex())
+                    break;
+            }
+            for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
+            {
+                CGuildServerProxy* gp =
+                    GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)gi);
                 gp->SendHeartBeat(G_CEnvironment()->get_channel_no());
-            if (gi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
-                break;
-            GlobalData::s_guild_proxy_mgr->GetNextIndex(gi);
+                gi = GlobalData::s_guild_proxy_mgr->GetNextIndex(gi);
+                if (gi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
+                    break;
+            }
+            cnt10 = 0;
         }
+        ++cnt10;
 
-        if (IsLightServer())  // 「推断」SendChannelInfo 的条件谓词（ORIG jne 分支）
-            GlobalData::s_channel_proxy->SendChannelInfo();
-
-        // 构造心跳 Stream 包投递到 NETWORK_Q（两个 int 字段，「推断」载荷语义）
+        if (flip24 == 1)
         {
-            Stream* s = GlobalData::s_small_stream_pool->Acquire(__FILE__, __LINE__);
-            CStreamGuard guard(s, true);
-            guard << G_CEnvironment()->get_channel_no();
-            guard << G_GameWorld()->get_UserCount_InWorld();
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::NETWORK_Q, guard);
+            GlobalData::s_channel_proxy->SendChannelInfo();
+            flip24 = 0;
         }
+        else
+        {
+            flip24 = 1;
+        }
+
+        if (cnt300 == 300)
+        {
+            Stream* s = GlobalData::s_small_stream_pool->Acquire("App.cpp", 0x2728);
+            CStreamGuard guard(s, true);
+            guard << 0x30a;
+            guard << -1;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::NETWORK_Q, guard);
+            cnt300 = 0;
+        }
+        ++cnt300;
 
         sleep_ext(1, 0);
+        ++cnt30;
         ProcessAntiBotInputWrapper();
     }
 }
@@ -768,7 +799,7 @@ void DESTROY_TimerDispatcher()  { GlobalInstance<TimerDispatcher>::destroy(); }
 
 // ---------------------------------------------------------------------------
 // regist_signal(int, void(*)(int)) —— ORIG 0x829f1fc（逐指令转写）：
-// sigaction；sa_flags = sig==15 ? 0x20000000 : 0x10000000；
+// sigaction；sa_flags = sig==14(SIGALRM) ? 0x20000000 : 0x10000000（ORIG 实证 cmpl $0xe）；
 // 失败 printf 后返回 0，成功返回 1。
 // ---------------------------------------------------------------------------
 int regist_signal(int sig, void (*handler)(int))
@@ -777,7 +808,7 @@ int regist_signal(int sig, void (*handler)(int))
     std::memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = (sig == 15) ? 0x20000000 : 0x10000000;
+    sa.sa_flags = (sig == 14) ? 0x20000000 : 0x10000000;
     if (sigaction(sig, &sa, NULL) < 0)
     {
         std::printf("%d signal register failed\n", sig);  // ORIG 文案为韩文「推断」
@@ -861,14 +892,29 @@ void signal_handler(int sig)
         omll_dump_core_file();
         break;
     }
-    case 4:
+    case 5:
+	case 9:
+	case 13:
+	case 14:
+	case 17:
+	case 18:
+	case 19:
+	case 20:
+	case 21:
+	case 22:
+	case 26:
+	case 27:
+	case 28:
+		break;
+	case 4:
     case 7:
     case 16:
     case 23:
     case 24:
     case 25:
+    case 29:
+    case 30:
     case 31:
-    default:
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__,
                               0x2486,
                               "Recv %d signal --> process is terminated abnormaly.",
@@ -944,12 +990,12 @@ void regist_signals()
     regist_signal(31, signal_handler);
 }
 
-// make_dir(char*) —— ORIG _Z8make_dirPc 0x829ee83：「推断」骨架：mkdir 忽略已存在。
+// make_dir(char*) —— ORIG _Z8make_dirPc 0x829ee83：opendir 探测，不存在则 mkdir 0777。
 void make_dir(char* path)
 {
-    if (mkdir(path, 0755) != 0 && errno != EEXIST)
+    if (opendir(path) == 0)
     {
-        // ORIG 失败分支未逐指令转写 —「推断」：静默忽略
+        mkdir(path, 0777);
     }
 }
 
@@ -967,7 +1013,7 @@ bool check_cfg_file()
 {
     char path[0x104];
     std::memset(path, 0, sizeof(path));
-    std::snprintf(path, sizeof(path), "./cfg/%s",
+    std::snprintf(path, sizeof(path), "./cfg/%s.cfg",
                   G_CEnvironment()->get_file_name());
     std::printf("cfg path: %s\n", path);
     return access(path, F_OK) == 0;
@@ -992,45 +1038,98 @@ bool check_pid_file()
 // 目标地址 htonl(0)=0.0.0.0 为 ORIG 原样（推断实际由配置决定回环地址）。
 int send_chat_msg(char* msg, int len)
 {
-    int fd = socket(2, 2, 0);  // AF_INET, SOCK_DGRAM（与 ORIG 立即数一致）
-    if (fd < 0)
-        return -1;
+    // ORIG 0x829f6ff 逐指令转写：UDP socket → sockaddr{AF_INET,
+    // htons(get_udp_port()), htonl(0)}（其余字段不初始化，无 memset）；
+    // len>0x4f 返回 -1；包 = {0x03, msg[:0x50]} 共 0x52 字节发送；无 close、无 fd 检查。
+    char buf[0x52];
     sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
+    int fd = socket(2, 2, 0);  // AF_INET, SOCK_DGRAM（与 ORIG 立即数一致）
     addr.sin_family = 2;
+    addr.sin_addr.s_addr = htonl(0);
     addr.sin_port = htons(static_cast<unsigned short>(
         G_CEnvironment()->get_udp_port()));
-    addr.sin_addr.s_addr = htonl(0);
-    int sent = sendto(fd, msg, len, 0,
-                      reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-    close(fd);  // ORIG 是否显式 close 未确认 —「推断」补齐防泄漏
+    if (len > 0x4f)
+        return -1;
+    buf[0] = 0x3;
+    strncpy(buf + 1, msg, 0x50);
+    int sent = sendto(fd, buf, 0x52, 0,
+                      reinterpret_cast<sockaddr*>(&addr), 0x10);
     return sent;
 }
 
 // send_suspend_signal() —— ORIG 0x829e6f5（0x116 字节）：
-// 向本机 UDP 口投递 "suspend" 控制串 —「推断」骨架（报文细节未转写）。
+// 读进程 pid 文件（pid/%s.pid，%s = get_file_name()），向 pid 发 SIGUSR1(10)。
 void send_suspend_signal()
 {
-    char msg[] = "suspend";
-    send_chat_msg(msg, static_cast<int>(sizeof(msg) - 1));
+    char buf[0x1e];
+    int pid;
+    int r;
+    FILE* f;
+    memset(buf, 0, sizeof(buf));
+    sprintf(buf, "pid/%s.pid", G_CEnvironment()->get_file_name());
+    f = fopen(buf, "r");
+    if (f == 0)
+    {
+        printf("%s process id file open ½ÇÆÐ\n", buf);
+        return;
+    }
+    fscanf(f, "%d", &pid);
+    if (pid <= 0)
+    {
+        fclose(f);
+        printf("%d¹øÀÇ Àß¸øµÈ process id\n", pid);
+        return;
+    }
+    r = kill(pid, 10);
+    if (r < 0)
+    {
+        fclose(f);
+        printf("%d¹ø process·Î Á¾·á signal ¼Û½Å ½ÇÆÐ", pid);
+        return;
+    }
+    printf("SEND SUSPEND SIGNAL TO %d\n", pid);
+    fclose(f);
 }
 
 // printGameServerInfo(bool) —— ORIG 0x829ea4c（0xe 字节，极小尾调）：
 // 「推断」骨架：打印服务器基本信息。
 void printGameServerInfo(bool /*detail*/)
 {
-    cMyTrace trace("printGameServerInfo(bool)", 0, 0);
-    trace("%s ch=%d", G_CEnvironment()->get_channel_name(),
-          G_CEnvironment()->get_channel_no());
+    // ORIG 0x829ea4c：空函数（0xe 字节：保存参数后直接返回）。
 }
 
-// CShutdowManager::SendShutdownSignal() —— ORIG 0x82a35a6（0x116 字节）。
-// 内部线程通知链未建模 —「推断」骨架：记录日志并置停止标记。
+// CShutdowManager::SendShutdownSignal() —— ORIG 0x82a35a6（0x116 字节）：
+// 与 send_suspend_signal 同构，向 pid 文件记录的进程发 SIGTERM(12)。
 void CShutdowManager::SendShutdownSignal()
 {
-    GlobalData::s_server_stop = true;
-    cMyTrace trace("CShutdowManager::SendShutdownSignal", 0, 0);
-    trace("shutdown signal requested");
+    char buf[0x1e];
+    int pid;
+    int r;
+    FILE* f;
+    memset(buf, 0, sizeof(buf));
+    sprintf(buf, "pid/%s.pid", G_CEnvironment()->get_file_name());
+    f = fopen(buf, "r");
+    if (f == 0)
+    {
+        printf("%s process id file open ½ÇÆÐ\n", buf);
+        return;
+    }
+    fscanf(f, "%d", &pid);
+    if (pid <= 0)
+    {
+        fclose(f);
+        printf("%d¹øÀÇ Àß¸øµÈ process id\n", pid);
+        return;
+    }
+    r = kill(pid, 12);
+    if (r < 0)
+    {
+        fclose(f);
+        printf("%d¹ø process·Î Á¾·á signal ¼Û½Å ½ÇÆÐ", pid);
+        return;
+    }
+    printf("SEND SHUTDOWN SIGNAL TO %d\n", pid);
+    fclose(f);
 }
 
 // check_argv(int, char**) —— ORIG 0x829ea5a（0x420 字节，逐指令转写）。
@@ -1180,17 +1279,46 @@ int create_thread()
     return 1;
 }
 
-// SelectKeyString(int*, int*) —— ORIG 0x82a002a（0x230 字节）：
+// SelectKeyString(int*, int*) —— ORIG 0x82a002a（0x230 字节，逐指令转写）：
 // get_rand_int(5) 选表（五张脚本文件列表 map<int,string>：0x94fdc00 /
 // 0x94fac00 / 0x94ff260 / 0x9500480 / 0x94ff3a0），表内 get_rand_int(容量)
-// 定位条目，返回该条目字符串指针并经出参回写键/值。五张权威表所属全局变量
-// 尚未在重建域登记 —「推断」骨架：静态空表占位，返回固定密钥串。
+// 定位条目，返回该条目字符串指针并经出参回写键/值。
+// 五张表 = g_stStackableScriptFileList / g_stEquipmentScriptFileList /
+// g_stMonsterScriptFileList / g_questScriptFileList / g_stPassiveObjectScriptFileList。
+extern std::map<int, std::string> g_stStackableScriptFileList;    // ORIG B 0x94fdc00
+extern STScriptFileList g_stEquipmentScriptFileList;              // ORIG B 0x94fac00
+extern std::map<int, std::string> g_stMonsterScriptFileList;      // ORIG B 0x94ff260
+extern std::map<int, std::string> g_questScriptFileList;        // ORIG B 0x9500480
+extern std::map<int, std::string> g_stPassiveObjectScriptFileList;// ORIG B 0x94ff3a0
 char* SelectKeyString(int* outKey, int* outValue)
 {
     static char s_fallbackKey[] = "DNF_SERVER_KEY_STRING";
-    if (outKey) *outKey = 0;
-    if (outValue) *outValue = 0;
-    return s_fallbackKey;
+    int r = get_rand_int(5);
+    std::map<int, std::string>* tbl = 0;
+    int n = 0;
+    switch (r)
+    {
+    case 0: tbl = &g_stStackableScriptFileList;    n = get_rand_int(0x7d0); break;
+    case 1: tbl = &g_stEquipmentScriptFileList.m_fileMap; n = get_rand_int(0x1388); break;
+    case 2: tbl = &g_stMonsterScriptFileList;      n = get_rand_int(0x1f4); break;
+    case 3: tbl = &g_questScriptFileList;          n = get_rand_int(0x3e8); break;
+    case 4: tbl = &g_stPassiveObjectScriptFileList; n = get_rand_int(0x3e8); break;
+    default: tbl = &g_questScriptFileList;         n = 0; break;
+    }
+    std::map<int, std::string>::iterator it = tbl->begin();
+    std::map<int, std::string>::iterator e = tbl->end();
+    for (int i = 0; i < n; ++i)
+    {
+        ++it;
+        if (it == e)
+        {
+            --it;
+            break;
+        }
+    }
+    if (outKey) *outKey = r;
+    if (outValue) *outValue = it->first;
+    return const_cast<char*>(it->second.c_str());
 }
 
 // InitCipherKeyString() —— ORIG 0x82a025a（0x1ff 字节，逐指令转写）：
@@ -1258,21 +1386,110 @@ void ProcessAntiBotInputWrapper()
     long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;
     if (ms > 500)
     {
-        LogManager::logFormat(42, "localchina/localchina_App.cpp",
-                              __PRETTY_FUNCTION__, ms,
-                              "Delay notice, ProcessAntiBotInputWrapper()",
-                              t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
+        LogManager::logFormat(1, "localchina/localchina_App.cpp",
+                              __PRETTY_FUNCTION__, 42,
+                              "Delay notice, ProcessAntiBotInput : %d, %ld, %ld, %ld, %ld",
+                              ms, t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
     }
 }
 
-// ProcessServerStatusLog() —— ORIG 0x80ede91（0x4ce 字节）：聚合
-// user/party/warroom/deathtower/pvp_room/trade 池占用、消息队列/流池余量、
-// creature/avatar 池等十余项指标后统一 logFormat。多数池成员位于
-// CGameManager 私有偏移且部分池模板未建模 —「推断」骨架：输出在线用户数。
+// user_creature 全局池尺寸包装（定义于 CreatureOnlySimple.cpp，无独立头）。
+namespace user_creature {
+int GetCreatureEggPoolSize();
+int GetCreaturePoolSize();
+int GetCreatureEggPoolRemainSize();
+int GetCreaturePoolRemainSize();
+}
+
+// ProcessServerStatusLog() —— ORIG 0x80ede91（0x4ce 字节，逐指令转写）：
+// 聚合 user/party/warroom/deathtower/pvp_room/trade 池占用、消息队列/流池余量、
+// IPG 状态、creature/avatar/egg 池等指标后统一 cMyTrace 输出，随后按用户数
+// 低于 party/pvp/trade 池占用打印三条 SESSION ERROR 日志。
 void ProcessServerStatusLog()
 {
-    int userCount = G_GameWorld()->get_UserCount_InWorld();
-    LogManager::logFormat(0, "localchina/localchina_App.cpp",
-                          __PRETTY_FUNCTION__, userCount,
-                          "users_in_world=%d");
+    int userCount = G_GameWorld()->get_UserCount_InWorld();          // -0x6c
+    int userUsed = G_CGameManager()->m_userPool.Size() -
+                   G_CGameManager()->m_userPool.Remain();            // -0x68
+    int partyUsed = G_CGameManager()->m_partyPool.Size() -
+                    G_CGameManager()->m_partyPool.Remain();          // -0x64
+    int warRoomUsed = G_CGameManager()->m_warRoomPool.Size() -
+                      G_CGameManager()->m_warRoomPool.Remain();      // -0x60
+    int deathTowerUsed = G_CGameManager()->m_deathTowerPool.Size() -
+                         G_CGameManager()->m_deathTowerPool.Remain();// -0x5c
+    int pvpUsed = G_CGameManager()->m_pvpRoomPool.Size() -
+                  G_CGameManager()->m_pvpRoomPool.Remain();          // -0x58
+    int tradeUsed = G_CGameManager()->m_tradeSpacePool.Size() -
+                    G_CGameManager()->m_tradeSpacePool.Remain();     // -0x54
+    int msgq1 = static_cast<int>(GlobalData::s_msgq_mgr->remain(
+        MsgQueueMgr::QUEUE_IDX::DISPATCH_Q));                      // -0x50
+    int msgq2 = static_cast<int>(GlobalData::s_msgq_mgr->remain(
+        MsgQueueMgr::QUEUE_IDX::DB_Q));                              // -0x4c
+    int streamRemain = GlobalData::s_stream_pool->Remain();          // -0x48
+    int streamSize = GlobalData::s_stream_pool->Size();              // -0x44
+    int smallRemain = GlobalData::s_small_stream_pool->Remain();     // -0x40
+    int smallSize = GlobalData::s_small_stream_pool->Size();         // -0x3c
+    int bigRemain = GlobalData::s_big_stream_pool->Remain();         // -0x38
+    int bigSize = GlobalData::s_big_stream_pool->Size();             // -0x34
+
+    WongWork::IPG::stIPGStatus_t status;                             // -0x88
+    GlobalData::s_pIPGHelper->getIPGStatus(status);
+
+    int avatarRemain = WongWork::CAvatarItemMgr::m_AvatarItemPool.Remain();    // -0x30
+    int avatarSize = WongWork::CAvatarItemMgr::m_AvatarItemPool.Size();        // -0x2c
+    int creatureRemain = user_creature::GetCreaturePoolRemainSize(); // -0x28
+    int creatureSize = user_creature::GetCreaturePoolSize();         // -0x24
+    int eggRemain = user_creature::GetCreatureEggPoolRemainSize();   // -0x20
+    int eggSize = user_creature::GetCreatureEggPoolSize();           // -0x1c
+
+    int tradeSize = G_CGameManager()->m_tradeSpacePool.Size();       // ebx
+    int pvpSize = G_CGameManager()->m_pvpRoomPool.Size();            // esi
+    int deathTowerSize = G_CGameManager()->m_deathTowerPool.Size();  // -0xa4
+    int warRoomSize = G_CGameManager()->m_warRoomPool.Size();        // -0xa0
+    int partySize = G_CGameManager()->m_partyPool.Size();            // -0x9c
+    int userSize = G_CGameManager()->m_userPool.Size();              // -0x98
+    int userSize2 = G_CGameManager()->m_userPool.Size();             // -0x94
+
+    {
+        cMyTrace trace("void ProcessServerStatusLog()", 0x5c, 0);    // -0x7c
+        trace(
+            "\n[DISPATCHER_Q (%3d) DB_Q (%3d) IPGQueue_Size (%3d)]\n"
+            "[Small_Pool (%3d/%3d) Default_Pool (%3d/%3d) Big_Pool (%3d/%3d) "
+            "IPGPool_Size(%3d/%3d)]\n"
+            "[AvatarPool_Size(%3d/%3d), CreaturePoolSize(%3d/%3d), "
+            "CreatureEggPoolSize(%3d/%3d)]\n"
+            "[Sessions (%3d/%3d) Users (%3d/%3d) Parties (%3d/%3d) "
+            "WarRooms (%3d/%3d) DeathTowers (%3d/%3d) PVPs (%3d/%3d) "
+            "Trades (%3d/%3d)]",
+            msgq1, msgq2, status.m_field08,
+            smallSize, smallRemain, streamSize, streamRemain,
+            bigSize, bigRemain, status.m_field04, status.m_field00,
+            avatarSize, avatarRemain, creatureSize, creatureRemain,
+            eggSize, eggRemain,
+            userUsed, userSize2, userCount, userSize,
+            partyUsed, partySize, warRoomUsed, warRoomSize,
+            deathTowerUsed, deathTowerSize, pvpUsed, pvpSize,
+            tradeUsed, tradeSize);
+    }
+
+    if (userCount < partyUsed)
+    {
+        LogManager::logFormat(1, "localchina/localchina_App.cpp",
+                              "void ProcessServerStatusLog()", 0x77,
+                              "[SESSION ERROR] CurrentUserCount(%d) < CurrentPartyCount(%d)",
+                              userCount, partyUsed);
+    }
+    if (userCount < pvpUsed)
+    {
+        LogManager::logFormat(1, "localchina/localchina_App.cpp",
+                              "void ProcessServerStatusLog()", 0x79,
+                              "[SESSION ERROR] CurrentUserCount(%d) < CurrentPVPCount(%d)",
+                              userCount, pvpUsed);
+    }
+    if (userCount < tradeUsed)
+    {
+        LogManager::logFormat(1, "localchina/localchina_App.cpp",
+                              "void ProcessServerStatusLog()", 0x7b,
+                              "[SESSION ERROR] CurrentUserCount(%d) < CurrentTraceSpaceCount(%d)",
+                              userCount, tradeUsed);
+    }
 }

@@ -96,12 +96,13 @@ bool LevelupSupportEventManger::Load()
 // clearScript（释放堆上 vector）→ 清 m_stepIndexMap → 清 m_events。返回 void
 // 见文件头说明。
 // ============================================================================
-void LevelupSupportEventManger::Destroy()
+int LevelupSupportEventManger::Destroy()
 {
-    m_script.clearScript();
-    m_stepIndexMap.clear();
+	m_script.clearScript();
+	m_stepIndexMap.clear();
 
-    m_events.clear();
+	m_events.clear();
+	return 1;
 }
 // ============================================================================
 // LevelupSupportEventManger::GetDefaultEventInfo —— 报告 GetDefaultEventInfo.md
@@ -128,16 +129,19 @@ bool LevelupSupport2ndEventManger::Load()
     trace("\t- Loading Level Up Support 2nd Event script - ");
 
     m_script.m_stepItems.clear();
-    return m_script.loadScript() == 0;
+    if (m_script.loadScript())
+        return false;
+    return true;
 }
 
 // ============================================================================
 // LevelupSupport2ndEventManger::Destroy —— 报告 Destroy.md @0x08147864。
 // 仅 clearScript。
 // ============================================================================
-void LevelupSupport2ndEventManger::Destroy()
+int LevelupSupport2ndEventManger::Destroy()
 {
     m_script.clearScript();
+    return 1;
 }
 
 // ============================================================================

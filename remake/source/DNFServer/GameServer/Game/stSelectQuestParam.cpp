@@ -17,15 +17,15 @@ struct stSelectQuestParam
 
     int  m_field00;   // +0x00
     int  m_field04;   // +0x04
-    char m_field08;   // +0x08
-    char m_field0c;   // +0x0c
+    int  m_field08;   // +0x08
+    int  m_field0c;   // +0x0c
     int  m_field10;   // +0x10
     char m_field14;   // +0x14
-    char m_pad18[4];  // +0x18..0x1b
+    char m_pad15[3];  // +0x15..0x17
+    int  m_field18;   // +0x18
     int  m_field1c;   // +0x1c
     int  m_field20;   // +0x20
     int  m_field24;   // +0x24
-    char m_pad28[0x2c];  // +0x28..0x53
 };
 
 stSelectQuestParam::stSelectQuestParam(CUser* user)

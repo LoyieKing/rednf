@@ -84,8 +84,9 @@ namespace online_preliminary
 struct PlayCountInfo
 {
     PlayCountInfo() : m_count(0), m_flag(0) {}
+    // ORIG ctor 0x86ca0e4：bool 直存（mov %dl,0x4），无三目规范化。
     PlayCountInfo(unsigned int count, bool flag)
-        : m_count(count), m_flag(flag ? 1 : 0) {}
+        : m_count(count), m_flag(flag) {}
 
     unsigned int  m_count;  // +0x00
     unsigned char m_flag;   // +0x04（对方本日已交手标记）
@@ -102,7 +103,7 @@ struct CharacterInServer
 
     bool operator<(const CharacterInServer& rhs) const;
 
-    int           m_serverId;  // +0x00
+    short         m_serverId;  // +0x00（ORIG ctor 0x858691e 以 mov %dx 16 位写）
     unsigned int  m_uniqueId;  // +0x04
 };
 
@@ -110,8 +111,9 @@ struct CharacterInServer
 struct PlayCountInfoEx
 {
     PlayCountInfoEx() : m_count(0), m_flag(0) {}
+    // ORIG ctor 0x86ca141：bool 直存（mov %dl,0x4），无三目规范化。
     PlayCountInfoEx(unsigned int count, bool flag)
-        : m_count(count), m_flag(flag ? 1 : 0) {}
+        : m_count(count), m_flag(flag) {}
 
     unsigned int   m_count;  // +0x00
     unsigned char  m_flag;   // +0x04
@@ -248,7 +250,7 @@ public:
     virtual void OnCompleteLoad(CUser* user);
     virtual void OnConnectP2PTimeout(PvP_Room* room);
     virtual void OnConnectP2P(CUser* user, PvP_Room* room, char* addr, int port);
-    virtual void OnGiveup(CUser* user);
+    virtual int OnGiveup(CUser* user);
     virtual int  CheckJoinable(PvP_Room* room, CUser* user);
     virtual int  CheckSeat(int a);
     virtual bool CheckMatchable(IMatch* other);
@@ -257,7 +259,7 @@ public:
     virtual void RequestMap(short& mapNo, PVP_BATTLE_MODE& mode);
     virtual float GetGap(IMatch* other);   // 0x8561a0e
 
-    int  _GetRating(ENUM_SCHOOL_MATCH_TEAM team);
+    float _GetRating(ENUM_SCHOOL_MATCH_TEAM team);   // ORIG 0x08560342：flds 返回 float
     int  _GetRating(CUser* user);
     void _SetRating(ENUM_SCHOOL_MATCH_TEAM team, float v);
     void _SetRating(CUser* user, float v);

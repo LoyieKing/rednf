@@ -170,7 +170,8 @@ CStringMaker::~CStringMaker() {}                      // D1 0x0837f580
 
 void CStringMaker::operator()(int v)                  // 0x08375f6c "%d"
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     sprintf(num, "%d", v);
     if (!m_str.empty())
     {
@@ -181,7 +182,8 @@ void CStringMaker::operator()(int v)                  // 0x08375f6c "%d"
 
 void CStringMaker::operator()(float v)                // 0x08626cd0 "%f"
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     sprintf(num, "%f", v);
     if (!m_str.empty())
     {
@@ -192,7 +194,8 @@ void CStringMaker::operator()(float v)                // 0x08626cd0 "%f"
 
 void CStringMaker::operator()(SkillUseItem v)         // 0x08626d98 "%d,%d,%d"
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     sprintf(num, "%d,%d,%d", v.m_index, v.m_useLevel[0], v.m_useLevel[1]);
     if (!m_str.empty())
     {
@@ -203,7 +206,8 @@ void CStringMaker::operator()(SkillUseItem v)         // 0x08626d98 "%d,%d,%d"
 
 void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     sprintf(num, "%d,%d,%d,%d,%d,%d,%d", v.m_job, v.m_v4, v.m_v8,
             v.m_percent, v.m_v10, v.m_key, v.m_module);
     if (!m_str.empty())
@@ -215,7 +219,8 @@ void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
 
 void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→99
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     int job = (v.m_job == 0xb) ? 0x63 : v.m_job;
     sprintf(num, "%d,%d,%d", job, v.m_field4, v.m_field8);
     if (!m_str.empty())
@@ -227,7 +232,8 @@ void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→9
 
 void CStringMaker::operator()(ItemAuraInfo v)         // 0x08627066 "%d,%d,%d,%d"
 {
-    char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
     // ORIG 参数栈：v+0 int / (uchar)v+4 / float v+8（vararg 提升 double）/
     // v+c int，fmt "%d,%d,%d,%d"。
     sprintf(num, "%d,%d,%d,%d", v.m_field0, (int)v.m_field4, v.m_float8,
@@ -256,7 +262,8 @@ void CStringMaker::operator()(std::vector<float>& values)  // 0x08627146
         {
             m_str += ",";   // 元素间 ORIG 逗号 @0x8ce2dec
         }
-        char num[0x100] = {0};
+    char num[0xff];   // ORIG 缓冲 0xff 字节
+    std::memset(num, 0, sizeof(num));
         sprintf(num, "%f", *it);
         m_str += num;
     }
@@ -575,11 +582,16 @@ bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
-    char name[0x100];
+    char name[0xff];
     memset(name, 0, sizeof(name));
-    char escaped[0x300];
+    char escaped[0xbf];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script->m_str4.c_str(), name);
+    if (!CodePage::script2Database((char*)script->m_str4.c_str(), name))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x6e0, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), name, __PRETTY_FUNCTION__, 0x6e0);
+    }
     db->escape_string(escaped, name);
     db->set_query("inSert into skill_index(job, skill_idx, skill_name) values(%d, %d, '%s')",
                   job, script->m_field0, escaped);
@@ -784,11 +796,17 @@ bool CSyncScript::insert_quest_category(QuestScript* script)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
-    char name[0x100];
+    char name[0x40];
     memset(name, 0, sizeof(name));
-    char escaped[0x100];
+    char escaped[0x40];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script->m_name.c_str(), name);
+    if (!CodePage::script2Database((char*)script->m_name.c_str(), name))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x6a4, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script->m_name.c_str(),
+            __PRETTY_FUNCTION__, 0x6a4);
+    }
     db->escape_string(escaped, name);
     db->set_query("inSert into quest_category(quest_idx, quest_name) values(%d, '%s')",
                   script->m_index, escaped);
@@ -928,10 +946,17 @@ bool CSyncScript::insert_aicharacter_info_to_db(int idx,
     memset(aicharacter_info_name, 0, sizeof(aicharacter_info_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_str4.c_str(), aicharacter_info_name);
-    db->escape_string(escaped, aicharacter_info_name);
+    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+    if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xb95, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script.m_str4.c_str(),
+            __PRETTY_FUNCTION__, 0xb95);
+    }
+    db->escape_string(aicharacter_info_name, escaped);
     db->set_query("inSert into dnf_aicharacter_info(idx, ai_name_kr) values(%d, '%s')",
-                  idx, escaped);
+                  idx, aicharacter_info_name);
     return db->exec(true);
 }
 
@@ -970,10 +995,17 @@ bool CSyncScript::insert_town_info_to_db(const TownScript& script)
     memset(town_name, 0, sizeof(town_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_str4.c_str(), town_name);
-    db->escape_string(escaped, town_name);
+    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+    if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xbc2, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script.m_str4.c_str(),
+            __PRETTY_FUNCTION__, 0xbc2);
+    }
+    db->escape_string(town_name, escaped);
     db->set_query("inSert into dnf_town_info(idx, town_name_kr) values(%d, '%s')",
-                  script.m_field0, escaped);
+                  script.m_field0, town_name);
     return db->exec(true);
 }
 
@@ -1012,10 +1044,17 @@ bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
     memset(monster_name, 0, sizeof(monster_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_name.c_str(), monster_name);
-    db->escape_string(escaped, monster_name);
+    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+    if (!CodePage::script2Database((char*)script.m_name.c_str(), escaped))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xb63, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script.m_name.c_str(),
+            __PRETTY_FUNCTION__, 0xb63);
+    }
+    db->escape_string(monster_name, escaped);
     db->set_query("inSert into dnf_monster_info(idx, mon_name_kr) values(%d, '%s')",
-                  script.m_index, escaped);
+                  script.m_index, monster_name);
     return db->exec(true);
 }
 
@@ -1054,12 +1093,10 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     // 低字节存 (v+'0')&0xff；缓冲 movl$0 预清零即 NUL 结尾）。
     char artifactSlot[4];
     memset(artifactSlot, 0, sizeof(artifactSlot));
-    const int slotValues[3] = {script->m_artifactSlotRed,
-                               script->m_artifactSlotBlue,
-                               script->m_artifactSlotGreen};
+    // ORIG：直接按 +0x50+i*4 读三槽标志（无中间数组）。
     for (int i = 0; i < 3; ++i)
     {
-        artifactSlot[i] = (char)(slotValues[i] + '0');
+        artifactSlot[i] = (char)((&script->m_artifactSlotRed)[i] + '0');
     }
     // ORIG：CStringMaker(vector<int>) → "a,b,c"（无尾逗号，空向量→空串）。
     const std::string piercingStr =
@@ -1072,11 +1109,9 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
                    script->m_overSkillLevelValues.end()).c_str();
     static const int BUFSIZE = 0x100;  // ORIG _ZZN11sync_script11CSyncScript26insert_creature_info_to_db…E7BUFSIZE
     char escaped[11][BUFSIZE];
-    for (int i = 0; i < 11; ++i)
-    {
-        memset(escaped[i], 0, BUFSIZE);
-    }
+    memset(escaped, 0, 0x2c0);  // ORIG：一次 memset 0x2c0（11*0x40）
     const char* values[11];
+    memset(values, 0, 0xb);     // ORIG：values 区 memset 0xb
     values[0] = script->m_name.c_str();
     values[1] = artifactSlot;
     values[2] = param3;
@@ -1145,7 +1180,7 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
     names[0] = toMbcs(name);
     names[1] = toMbcs(explain);
     char escaped[2][BUFSIZE];
-    memset(escaped, 0, sizeof(escaped));
+    memset(escaped, 0, 0x32);  // ORIG：仅清 0x32
     for (int i = 0; i < 2; ++i)
     {
         GetEscapeString(db, names[i], escaped[i]);
@@ -1171,6 +1206,8 @@ bool CSyncScript::insert_item_info_master_to_db()
     {
         char name[0x100];
         char full[0x100];
+        memset(full, 0, 0x19);   // ORIG：memset 0x19（先 full 后 name）
+        memset(name, 0, 0x19);
         sprintf(name, "%s%s", m_map7c[it->second.m_field2].c_str(),
                 it->second.m_str8.c_str());
         sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(), name);
@@ -1185,6 +1222,8 @@ bool CSyncScript::insert_item_info_master_to_db()
     {
         char name[0x100];
         char full[0x100];
+        memset(full, 0, 0x19);   // ORIG：memset 0x19（先 full 后 name）
+        memset(name, 0, 0x19);
         sprintf(name, "%s%s", m_map7c[it->second.m_field2].c_str(),
                 it->second.m_str8.c_str());
         sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(), name);

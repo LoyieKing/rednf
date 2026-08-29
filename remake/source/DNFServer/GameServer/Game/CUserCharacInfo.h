@@ -630,7 +630,7 @@ public:
     // ---- 背包 / 技能 / 仓库 / 附加信息 ----
     CInventory* getCurCharacInvenW();
     const CInventory* getCurCharacInvenR() const;
-    Inven_Item* getCurCharacInvenRefW();
+    CInventory* getCurCharacInvenRefW();   // ORIG 返回 m_inven（CInventory* 口径）
     const Inven_Item* getCurCharacInvenRefR() const;
     char* getCurCharacSkillW();
     const char* getCurCharacSkillR() const;

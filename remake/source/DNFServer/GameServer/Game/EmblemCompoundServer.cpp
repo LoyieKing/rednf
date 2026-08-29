@@ -180,13 +180,16 @@ bool EmblemCompoundServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0x1c7, 9, true, false);
     trace("\t- Loading Emblem Compound script - ");
-    return loadScript() == 0;
+    if (loadScript())
+        return false;
+    return true;
 }
 
 // Destroy —— ORIG T 0x0819162c：return 1。基类 ScriptInterface 槽1 为 void
 // （仓库权威约定），可观察行为一致。
-void EmblemCompoundServer::Destroy()
+int EmblemCompoundServer::Destroy()
 {
+    return 1;
 }
 
 // Test —— ORIG T 0x081915b4：空（非虚成员）。

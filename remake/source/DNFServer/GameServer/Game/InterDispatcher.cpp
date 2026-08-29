@@ -1,4 +1,6 @@
 #include "InterDispatcher.h"
+#include "Inter_DispatcherAradOnly.h"  // Inter_DispatcherAradOnly（槽 732）
+#include "Inter_DispatcherTaiwan.h"  // Inter_DispatcherTaiwan（槽 846）
 
 // ORIG 各 TU 一份 _ZL26GUILD_ADDRESS_DOUBLE_CHECK（r 0x2）：公会地址重复检查通过标志。
 static const int GUILD_ADDRESS_DOUBLE_CHECK = 4;
@@ -100,9 +102,13 @@ public:
 #include "CHackAnalyzer.h"           // ENUM_HACKTYPE（SetARSInfo）
 #include "CCirculationStatistic.h"   // GetInstanceCirculationStatistic/CIRCULATION_STATISTIC_FIELD
 #include "Packet_No_Cache.h"         // shared/packet（GuildExpBookDelete 等）
-#include "Packet_Monitor_Server_Message_Info.h"  // shared/packet（UpdateServerMessage）
 #include "Packet_TOD_DoRandomSelect.h"          // shared/packet 权威包
 #include "Packet_Guild_Guild_Cargo_Push_Item.h" // shared/packet 权威包
+#include "DnfItemInfo.h"         // Packet_Guild_Guild_Cargo_Push_Item ctor（m_item +0x1b 完整构造）
+#include "GameServerDemonManager.h"  // GameserverDemonManagerInstance（EmergencyPatchMessage）
+#include "Packet_Guild_Guild_Cargo_Push_Item.h" // shared/packet 权威包
+#include "DnfItemInfo.h"         // Packet_Guild_Guild_Cargo_Push_Item ctor（m_item +0x1b 完整构造）
+#include "DnfItemInfo.h"         // Packet_Guild_Guild_Cargo_Push_Item ctor（m_item +0x1b 完整构造）
 #include "GameServerDemonManager.h"  // GameserverDemonManagerInstance（EmergencyPatchMessage）
 #include "Packet_Monitor_Add_Buddy.h"             // shared/packet 权威包（CheckAddFriend）
 #include "Packet_Monitor_Find_Factory_Hub_User.h" // shared/packet 权威包（FindFactoryHub）
@@ -125,7 +131,8 @@ public:
 
 // ======== 主分发器（逐指令转写自 docs/class_func_reports/InterDispatcher/）=====
 
-// ORIG 0x84bbafa：清零槽 0..0x353 后逐项 new 并按 ORIG 顺序写入槽位。
+// 注：ORIG 整函数仅 3 处 _Unwind_Resume（共享 EH 清理），我们 g++ 4.4.7 每-new 生成
+// cleanup 块（编译器 EH 生成差异，语义等价，无法源码复现）；throw() 无效已回滚。
 InterDispatcher::InterDispatcher()
 {
     for (int i = 0; i <= 0x353; ++i)
@@ -426,7 +433,8 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[712] = new Inter_NpcLimitBuyItemInfoRenew();  // slot +0xb20
     m_dispatchers[718] = new Inter_MonitorReplyCharacInfo();  // slot +0xb38
     m_dispatchers[729] = new Inter_CeraShopPurchaseCount();  // slot +0xb64
-    m_dispatchers[730] = new Inter_OwnerisVIP();  // slot +0xb68
+    m_dispatchers[732] = new Inter_DispatcherAradOnly();  // slot +0xb70（ORIG new 0x1c）
+    m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
     m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
     m_dispatchers[762] = new Inter_CollectItemsResult();  // slot +0xbe8
     m_dispatchers[763] = new Inter_CollectItemsReward();  // slot +0xbec
@@ -440,7 +448,8 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[815] = new Inter_UpdateMiniCraneSeed();  // slot +0xcbc
     m_dispatchers[818] = new Inter_GetPremiumSelectedCubeInfo();  // slot +0xcc8
     m_dispatchers[830] = new Inter_CheckAddFriend();  // slot +0xcf8
-    m_dispatchers[833] = new Inter_LoadCerashopAddRestrictType();  // slot +0xd04
+    m_dispatchers[846] = new Inter_DispatcherTaiwan();  // slot +0xd38（ORIG new 0x1c）
+    m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40
     m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40
     m_dispatchers[850] = new Inter_SelectAllowProxyUser();  // slot +0xd48
 }
@@ -10149,8 +10158,6 @@ Inter_GuildCargoCheckPushItem::~Inter_GuildCargoCheckPushItem() {}
 // 背包物品并把物品内容打包转发给公会服务器代理。
 // 报告 docs/class_func_reports/Inter_GuildCargoCheckPushItem/dispatch_sig.md 全文转写。
 // 依赖 Packet_Guild_Guild_Cargo_Push_Item（NEEDS_DECL，见同目录 meta）。
-// ORIG DnfItemInfo 最小视图（权威 Guild/GuildCargo.h 与 Inven_Item.h 结构
-// 重定义冲突，本 TU 按 0x35 布局本地视图——InterWave1 批，0x33 物品区）
 class DnfItemInfoView
 {
 public:
@@ -10165,6 +10172,18 @@ public:
     RandomOption m_opt;
     UpgradeSeparateInfo m_up;
 };
+
+// ORIG ctor 0x084e9434：PacketHeader(0x70d,0x53) → 字段清零 → DnfItemInfo(+0x1b) 构造
+// → m_e/m_f 清零。m_item 为字节区（Guild 域同名类冲突），placement-new 显式构造
+// （多一次 operator new 调用，形态残留；语义与 ORIG 一致）。
+Packet_Guild_Guild_Cargo_Push_Item::Packet_Guild_Guild_Cargo_Push_Item()
+    : PacketHeader(0x70d, 0x53),
+      m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0)
+{
+    new (&m_item) DnfItemInfo;
+    m_e = 0;
+    m_f = 0;
+}
 
 int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -12637,7 +12656,7 @@ CUserTeen::CUserTeen() {}
 char CUserTeen::IsRight(CUser* user)
 {
     int dummy = 0;
-    return static_cast<char>(user->CheckLimitMiniumAge(0xf, dummy) ^ 1);
+    return static_cast<char>(user->CheckLimitMiniumAge(0xf, dummy) );
 }
 
 int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)

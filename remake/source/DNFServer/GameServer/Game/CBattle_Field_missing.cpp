@@ -86,9 +86,6 @@ CBattle_Field::~CBattle_Field()
 int CBattle_Field::pickup_item(int uid)
 {
     MapInfo* mi = GetCurrentMapInfo();
-    if (mi == NULL)
-        return 0x15;
-
     std::map<int, map_item>::iterator it = mi->m_itemMap.find(uid);
     if (it == mi->m_itemMap.end())
         return 0x15;

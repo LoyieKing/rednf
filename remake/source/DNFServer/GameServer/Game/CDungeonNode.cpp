@@ -19,9 +19,10 @@
 
 MySQL* GetMySqLInstance()
 {
-    return GlobalData::s_db_mgr->GetDBHandle(
-        static_cast<ENUM_DB_HANDLE_IDX>(1),
+    MySQL* sql = GlobalData::s_db_mgr->GetDBHandle(
+        static_cast<ENUM_DB_HANDLE_IDX>(4),
         static_cast<ENUM_SERVER_GROUP>(0));
+    return sql;
 }
 
 // ============================================================================

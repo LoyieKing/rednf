@@ -36,32 +36,32 @@
 // ============================================================================
 void GrowthEquipEvent::SelectGrowthWeapon(CUser& user, int itemId, int addInfo)
 {
-    // 非本活动道具直接返回（ORIG +0x1b je 跳过全部逻辑）。
-    if (G_CDataManager()->m_growthWeapon.m_giftBox != itemId)
-        return;
+    // ORIG +0x1b sete：仅本活动道具（== itemId）进入主体。
+    if (G_CDataManager()->m_growthWeapon.m_giftBox == itemId)
+    {
+        // 用户活动数据块（CUser::getGrowthWeaponEventdata 返回 void*，内部布局：
+        // +0x00 状态字节 / +0x04 已选角色 charac_no / +0x08 已选道具 idx /
+        // +0x0c 礼包已领取标志 / +0x10 short 沙漏相关 / +0x12 short serverGroup）。
+        char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
 
-    // 用户活动数据块（CUser::getGrowthWeaponEventdata 返回 void*，内部布局：
-    // +0x00 状态字节 / +0x04 已选角色 charac_no / +0x08 已选道具 idx /
-    // +0x0c 礼包已领取标志 / +0x10 short 沙漏相关 / +0x12 short serverGroup）。
-    char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
+        *(int*)(data + 0x04) = user.get_charac_no(-1);  // +0x2c get_charac_no(-1)
+        *(int*)(data + 0x08) = addInfo;
 
-    *(int*)(data + 0x04) = user.get_charac_no(-1);      // +0x2c get_charac_no(-1)
-    *(int*)(data + 0x08) = addInfo;
+        // 渠道组：整合 PvP 基础渠道用用户所属 server group，否则取环境
+        // m_serverEnvir.m_serverGroup（+0x378，经 get_server_group()）
+        int serverGroup;
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+            serverGroup = (int)user.GetServerGroup();
+        else
+            serverGroup = G_CEnvironment()->get_server_group();
+        *(short*)(data + 0x12) = (short)serverGroup;
 
-    // 渠道组：整合 PvP 基础渠道用用户所属 server group，否则取环境
-    // m_serverEnvir.m_serverGroup（+0x378，经 get_server_group()）
-    int serverGroup;
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = G_CEnvironment()->get_server_group();
-    else
-        serverGroup = (int)user.GetServerGroup();
-    *(short*)(data + 0x12) = (short)serverGroup;
+        DB_EventUpdateGrowthWeaponCharac::makeRequest(
+            user.get_acc_id(), (unsigned int)user.get_charac_no(-1),
+            addInfo, (short)serverGroup);
 
-    DB_EventUpdateGrowthWeaponCharac::makeRequest(
-        user.get_acc_id(), (unsigned int)user.get_charac_no(-1),
-        addInfo, (short)serverGroup);
-
-    SendGrowthWeaponEventInfo(user);
+        SendGrowthWeaponEventInfo(user);
+    }
 }
 
 // ============================================================================

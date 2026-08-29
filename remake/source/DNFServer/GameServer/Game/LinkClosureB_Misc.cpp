@@ -52,8 +52,6 @@ public:
 
 unsigned int DBCommon::GetIdentity(MySQL* db)
 {
-    if (db == 0)
-        return 0;
     unsigned int identity = 0;
     db->set_query("seLect @@identity");
     if (!db->exec(true))
@@ -100,9 +98,11 @@ int CWebEvent::GetItemType(int eventKind, int itemNo)
     {
         if (itemNo == 8)
             type = 2;
-        else if (itemNo == 1)
+        else if (itemNo == 0x659e)
             type = 1;
     }
+    if (eventKind == 3 && itemNo == 1)
+        type = 1;
     return type;
 }
 
@@ -214,7 +214,7 @@ void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
     int scanned = 0;
     while (scanned < db->get_n_rows() && db->fetch())
     {
-        int rowId = 0; int cera = 0; int ceraCheck = 0; int itemNo = 0;
+        unsigned int rowId = 0; int cera = 0; int ceraCheck = 0; int itemNo = 0;
         int itemServerId = 0; int itemCharacNo = 0; int itemCheck = 0;
         int avataNo1 = 0; int avataNo2 = 0; int avataServerId = 0;
         int avataCharacNo = 0; int avataCheck1 = 0; int avataCheck2 = 0;
@@ -336,7 +336,7 @@ void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
     int scanned = 0;
     while (scanned < db->get_n_rows() && db->fetch())
     {
-        int rowId = 0; int itemServerId = 0; int itemCharacNo = 0;
+        unsigned int rowId = 0; int itemServerId = 0; int itemCharacNo = 0;
         int itemNo = 0; int itemCheck = 0; int itemCnt = 0;
         db->get_int(0, rowId);
         db->get_int(1, itemServerId);
@@ -385,12 +385,13 @@ void AvatarCoin::HistoryLog::SubLog(CUser* user, unsigned int amount)
 
 // ---------------------------------------------------------------------------
 // TOD_UserState::getLastEnterLayer —— ORIG T 0x08643942 (const, sret)
-// sret 构造 TOD_Layer(m_lastEnterLayer@+0x16)。头内字段已具名
-// （DataManagerInitDepends.h TOD_UserState）。
+// ORIG 汇编：add $0x14 → TOD_Layer(TOD_Layer const&) 拷贝 ⇒ 读 +0x14
+//（m_todayLayer，TOD_Layer 仅 ushort 字段，拷贝构造与 ushort 构造等价）。
+// 头内字段已具名（DataManagerInitDepends.h TOD_UserState）。
 // ---------------------------------------------------------------------------
 TOD_Layer TOD_UserState::getLastEnterLayer() const
 {
-    return TOD_Layer(m_lastEnterLayer);
+    return *(const TOD_Layer*)((const char*)this + 0x14);
 }
 
 // ---------------------------------------------------------------------------

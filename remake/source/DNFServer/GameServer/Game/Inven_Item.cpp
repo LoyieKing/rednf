@@ -27,16 +27,18 @@ bool stAmplifyOption_t::hasAbility() const
     return m_abilityType != 0;
 }
 
-void stAmplifyOption_t::identify()
+// ORIG W 0x0822b3d8：返回 bool = !isIdentified()（已识别→false 不改动）。
+bool stAmplifyOption_t::identify()
 {
     if (isIdentified())
     {
-        return;
+        return false;
     }
     m_abilityType &= 0x7f;
+    return true;
 }
 
-char stAmplifyOption_t::getAbilityType() const
+unsigned char stAmplifyOption_t::getAbilityType() const
 {
     if (!hasAbility())
     {
@@ -44,9 +46,9 @@ char stAmplifyOption_t::getAbilityType() const
     }
     if (!isIdentified())
     {
-        return (char)0x80;
+        return 0x80;
     }
-    return (char)m_abilityType;
+    return m_abilityType;
 }
 
 unsigned short stAmplifyOption_t::getAbilityValue() const
@@ -96,7 +98,8 @@ void stAmplifyOption_t::getValues(unsigned char& type,
 
 void STEnchantedSkillOption::reset()
 {
-    m_field = 0;
+    // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 仅清 bit0/1/3-7，保留 bit2
+    m_field = (unsigned char)(m_field & 0x4);
 }
 
 void RandomOptionField::reset()
@@ -142,7 +145,8 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 
 void UpgradeSeparateInfo::reset()
 {
-    m_field = 0;
+    // ORIG 0x84e9081：三次位清（&0xffffffe0, &0xffffffdf, &0x3f）→ 仅清低 7 位，保留 bit7
+    m_field = (unsigned char)(m_field & 0x80);
 }
 
 unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const

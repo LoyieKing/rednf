@@ -354,6 +354,7 @@ public:
     int m_int2dc;                         // +0x2dc
     char m_char2e0;                       // +0x2e0
     char m_char2e1;                       // +0x2e1
+    char m_pad2e2[2];                     // +0x2e2..+0x2e3（ORIG 布局空洞）
     char m_char2e4;                       // +0x2e4
     char m_char2e5;                       // +0x2e5
     char m_char2e6;                       // +0x2e6

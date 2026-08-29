@@ -185,7 +185,7 @@ void CMessageCounter::WriteLog()
     MsgQueueMgr& queueMgr = *GlobalData::s_msgq_mgr;
 
     Stream* stream = pool.Acquire("MessageCounter.cpp", 99);
-    CStreamGuard guard(stream);
+    CStreamGuard guard(stream, false);
 
     guard << 0x26c;
     guard << -1;

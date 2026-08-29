@@ -2491,10 +2491,7 @@ int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x
     {
         return 0;
     }
-    if ((int)outRarity < 0 || (int)outRarity > 3)
-    {
-        return 0;
-    }
+    typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
     // ORIG 绝对偏移 this+0x30（= &m_data + 0x2c）；头注释与绝对值差 4，
     // 按 objdump 实证偏移访问。
     typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
@@ -2523,9 +2520,10 @@ int CCompound_ExtreamDun_Item::_FindRandomItem(                     // ORIG T 0x
         return 0;
     }
     typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
-    // ORIG 绝对偏移 this+0xb40（= &m_data + 0xb3c），同上按实证偏移。
+    // ORIG 绝对偏移 this+0xb44（= &m_data + 0xb40 = m_resultItems，实证：
+    // _AddItem push_back 目标亦为 +0xb44）。旧值 0xb3c 偏 4，已按 ORIG 修正。
     const ItemVec& table = *reinterpret_cast<const ItemVec*>(
-        reinterpret_cast<const char*>(&m_data) + 0xb3c +
+        reinterpret_cast<const char*>(&m_data) + 0xb40 +
         12u * (unsigned int)outRarity);
     OUTPUT_ITEM_STR lowKey((int)range.first, 0);
     ItemVec::const_iterator lo = std::lower_bound(

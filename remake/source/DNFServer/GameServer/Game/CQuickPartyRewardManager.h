@@ -204,7 +204,7 @@ public:
     virtual void process(RewardData_Param param, RewardData_Result& result) = 0;  // 槽1
 
 protected:
-    QuickPartyData& m_data;                  // +0x04
+    const QuickPartyData& m_data;            // +0x04（ORIG process 走 const find）
 };
 
 class IBasicReward : public IRewardType

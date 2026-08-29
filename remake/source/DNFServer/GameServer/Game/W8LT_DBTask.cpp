@@ -1,4 +1,5 @@
 #include "W8LT_DBTask.h"
+#include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
 #include "DBDispatcher.h"
 #include "Stream.h"
 #include "StreamPool.h"
@@ -41,7 +42,7 @@ static const int GUILD_NAME_DOUBLE_CHECK = 2;
 //
 // ORIG T GetCurrentResetBaseTime(long, int) @0x0810912a（LinkClosureA_Misc.cpp
 // 定义；DB_Login.cpp/DB_LoadEtc.cpp 同款局部声明）。
-long GetCurrentResetBaseTime(int t, int hour);
+long GetCurrentResetBaseTime(long t, int hour);
 // ORIG T _Z22getComboSkillTableName20ENUM_SKILL_TREE_KIND @0x0844a38b
 // （定义 DB_LoadEtc.cpp:2029；DB_UpdateComboSkill::setComboSkill 消费）。
 char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind);
@@ -1684,15 +1685,6 @@ public:
     // ORIG T 0x0842ecf4 _ZN20DB_LoadCleanPadPoint8dispatchEiiP6Stream（虚覆盖，本文件实现）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
-class DB_UpdateSchoolPoint : public DBDispatcher
-{
-public:
-    DB_UpdateSchoolPoint() {}   // ORIG C1 0x844eb7e (sz 0x4: base ctor+vptr only)
-    // ORIG T 0x0842f0f0 _ZN20DB_UpdateSchoolPoint11makeRequestEjii
-    static void makeRequest(unsigned int mId, int point, int flag);
-    // ORIG T 0x0842f05e（虚覆盖）
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);
-};
 class DB_GoblinPadUpdateValidityTime : public DBDispatcher
 {
 public:
@@ -2321,16 +2313,8 @@ public:
 };
 // DB_LogBuyItem —— 权威声明见 DB_LogBuyItem.h（P104 统一；C1 0x844f66e /
 // dispatch 0x0812859a 定义见本 TU，makeRequest 0x0812887e 定义见 CUser.cpp）。
-class DB_UpdateRevengeData : public DBDispatcher
-{
-public:
-    DB_UpdateRevengeData() {}   // ORIG C1 0x844f68a (sz 0x4: base ctor+vptr only)
-    // ORIG T 0x0843f232 _ZN20DB_UpdateRevengeData11makeRequestEjhh
-    static void makeRequest(unsigned int characNo, unsigned char attack,
-                            unsigned char revenge);
-    // ORIG T 0x0843f34c（虚覆盖）
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);
-};
+// DB_UpdateRevengeData 权威声明见 W8LT_DBTask.h（FixCond_D 统一）；本 TU 仅提供
+// makeRequest/dispatch 定义。
 class DB_UpdateGoblinPadAdvicePwdRewardTime : public DBDispatcher
 {
 public:
@@ -2527,12 +2511,7 @@ public:
 };
 // DB_UpdateInventoryCapacity 权威声明已迁入 DB_UpdateInventoryCapacity.h（ORIG C1 0x844fa0a，
 // sz 0x4；makeRequest 0x08444d12 + dispatch 0x08444bea）。本地占位类删除避免 ODR 重复。
-class DB_UpdateAuraAvatarOption : public DBDispatcher
-{
-public:
-    DB_UpdateAuraAvatarOption() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844b000
-};   // ORIG C1 0x844fa26 (sz 0x4: base ctor+vptr only)
+// DB_UpdateAuraAvatarOption 权威声明在 GameBasicsScripts.h（含 makeRequest/dispatch）。
 class DB_InsertCeraItemHistory : public DBDispatcher { public: DB_InsertCeraItemHistory() {} };   // ORIG C1 0x844fa42 (sz 0x4: base ctor+vptr only)
 class DB_UpdateAvatarHistory : public DBDispatcher
 {
@@ -3001,7 +2980,7 @@ void DBSelectCreateDnfUserInfo::makeRequest(int userIdx, unsigned int accId)
     else
     {
         // ORIG：*(uint*)msg = accId（MSG +0x00 account id 字段）
-        *reinterpret_cast<unsigned int*>(msg->m_pad) = accId;
+        msg->m_id = accId;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -3031,7 +3010,7 @@ void DBSelectPcroomDailyReward::makeRequest(CUser* user)
     else
     {
         // ORIG：*(uint*)msg = accId（MSG +0x00 account id 字段）
-        *reinterpret_cast<unsigned int*>(msg->m_pad) = user->get_acc_id();
+        msg->m_id = user->get_acc_id();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -4721,7 +4700,7 @@ void DB_UpdateCompoundEmblemStatics::makeRequest(
     guard.operator*()->operator<<((int)0x1c4);
     guard.operator*()->operator<<((int)-1);
     SIG_UPDATE_COMPOUND_EMBLEM_STATISTIC* sig =
-        guard.GetInBuffer<SIG_UPDATE_COMPOUND_EMBLEM_STATISTIC>();
+        guard.operator->()->GetInBuffer<SIG_UPDATE_COMPOUND_EMBLEM_STATISTIC>();
     sig->m_userIdx = userIdx;
     sig->m_values[0] = param2;
     sig->m_values[1] = param3;
@@ -4919,7 +4898,7 @@ void DB_SecuServiceUpdateValidityTime::makeRequest(unsigned int accId,
     guard.operator*()->operator<<((int)0x1c9);
     guard.operator*()->operator<<((int)-1);
     SIG_SECURITY_CARD_SERVICE_VALIDITYTIME* sig =
-        guard.GetInBuffer<SIG_SECURITY_CARD_SERVICE_VALIDITYTIME>();
+        guard.operator->()->GetInBuffer<SIG_SECURITY_CARD_SERVICE_VALIDITYTIME>();
     *(unsigned int*)&sig->m_pad[0] = accId;
     *(unsigned int*)&sig->m_pad[0x4] = type;
     *(unsigned short*)&sig->m_pad[0x8] = flag;
@@ -7410,6 +7389,7 @@ bool DB_LoadPowerWarStatueInfo::GetCharacInfo(
     db->set_query(
         "seLect charac_name,job,lev,grow_type,guild_id from charac_info where charac_no=%d and delete_flag!=1",
         characNo);
+    db->exec(true);
     if (!db->exec(true) || !db->fetch())
         return 0;
     if (db->get_n_rows() != 1)
@@ -9082,10 +9062,10 @@ bool DB_UpdateAvatarJewelSlot::dispatch(int userIdx, int slot, Stream* stream)
 bool DB_UpdateCreatureItemLock::dispatch(int userIdx, int slot, Stream* stream)
 {
     static const int handleIdx = 3;
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
-    int uiId = 0;
-    int itemLockKey = 0;
+    int uiId;
+    int itemLockKey;
     *stream >> uiId;
     *stream >> itemLockKey;
     db->set_query(
@@ -11742,7 +11722,7 @@ bool DB_LoadAutoMarketConditionsControl::dispatch(int userIdx, int slot,
             guard.operator*()->operator<<((int)0x15a);
             guard.operator*()->operator<<((int)-1);
             SIG_AUTO_MARKET_CONDITIONS_CONTROL* outSig =
-                guard.operator*()->GetInBuffer<SIG_AUTO_MARKET_CONDITIONS_CONTROL>();
+                guard.operator->()->GetInBuffer<SIG_AUTO_MARKET_CONDITIONS_CONTROL>();
             memcpy(outSig, &sig, 0x6c);
             outSig->m_pad[0x68] = flag ? 1 : 0;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -12474,7 +12454,10 @@ bool DB_UpdateFatigueAttendance::dispatch(int /*userIdx*/, int /*slot*/,
     CDataManager* dm = G_CDataManager();
     EventClassify::CEventScriptMng* sm =
         static_cast<EventClassify::CEventScriptMng*>(dm->get_event_script_mng());
-    std::string tableStr(sm->get_db_table_name(0x56));
+    // ORIG 0x08444616：get_db_table_name(int) 返回 char*（entity 的 string 视图），
+    // 拷贝构造源为 reinterpret_cast<std::string*>（_ZNSsC1ERKSs，非 char* 构造）。
+    std::string tableStr(
+        *reinterpret_cast<std::string*>(sm->get_db_table_name(0x56)));
     const char* tableName = toTString(tableStr);
     for (std::map<unsigned char, short>::iterator it = fatigueMap.begin();
          it != fatigueMap.end(); ++it)
@@ -12993,9 +12976,6 @@ bool DB_TimerStatisticsLog::dispatch(int userIdx, int slot, Stream* stream)
     static DB_StatUseShusiaService stat_use_shusia_service;
     stat_use_shusia_service.dispatch(userIdx, slot, stream);
 
-    static bool count = false;  // ORIG _ZZN21DB_TimerStatisticsLog8dispatch…E5count
-    if (count)
-        count = false;
     GetInstanceClientCrashDownLogStatistic()->CarryClientCrashDown();
     return 1;
 }
@@ -13853,6 +13833,13 @@ bool DB_AvatarExtendPeriod::ExtendPeriod(SIG_AVATAR_RENEW& renew)
     bool ok;      // -0xd（exec 结果落槽，P102）
     MySQL* db;    // -0xc
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+    // ORIG 0x83ffbb4：set_query("upDate user_items set expire_date =
+    // adddate(expire_date, interval %d day) where charac_no=%u and slot=%d",
+    // days, charac_no, slot) 后 exec(true)
+    db->set_query(
+        "upDate user_items set expire_date = adddate(expire_date, "
+        "interval %d day) where charac_no=%u and slot=%d",
+        renew.m_days, renew.m_characNo, renew.m_slot);
     ok = db->exec(true);
     if (ok != 1)
         return 0;
@@ -14480,19 +14467,19 @@ bool DB_InsertValueStatistic::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "inSert into log_value_stat(channel_no,occ_time ,level,uv,drop_gold,drop_item,result_card_gold,result_card_item,gold_card_item,store_item_buy,jar_item,disjoint_create,upgrade_faild_forced_disjoint,quest_reward,deathtower_card_gold,deathtower_card_item,consume_store_item_buy,consume_upgrade_attempt,consume_upgrade_faild,consume_stamina_recovery,consume_quest_consume,consume_auction_commision,consume_item_disjoint,consume_item_repair,consume_item_use,consume_item_drop,consume_gold_drop,consume_gold_card_price) values(%d,from_unixtime(%d),%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u)",
         channelNo, *(unsigned int*)&sig->m_pad[0],
-        *(unsigned int*)&sig->m_pad[0x4], *(unsigned int*)&sig->m_pad[0x4],
-        *(unsigned int*)&sig->m_pad[0xc], *(unsigned int*)&sig->m_pad[0xc],
-        *(unsigned int*)&sig->m_pad[0x14], *(unsigned int*)&sig->m_pad[0x14],
-        *(unsigned int*)&sig->m_pad[0x1c], *(unsigned int*)&sig->m_pad[0x1c],
-        *(unsigned int*)&sig->m_pad[0x24], *(unsigned int*)&sig->m_pad[0x24],
-        *(unsigned int*)&sig->m_pad[0x2c], *(unsigned int*)&sig->m_pad[0x2c],
-        *(unsigned int*)&sig->m_pad[0x34], *(unsigned int*)&sig->m_pad[0x34],
-        *(unsigned int*)&sig->m_pad[0x3c], *(unsigned int*)&sig->m_pad[0x3c],
-        *(unsigned int*)&sig->m_pad[0x44], *(unsigned int*)&sig->m_pad[0x44],
-        *(unsigned int*)&sig->m_pad[0x4c], *(unsigned int*)&sig->m_pad[0x4c],
-        *(unsigned int*)&sig->m_pad[0x54], *(unsigned int*)&sig->m_pad[0x54],
-        *(unsigned int*)&sig->m_pad[0x5c], *(unsigned int*)&sig->m_pad[0x5c],
-        *(unsigned int*)&sig->m_pad[0x64], *(unsigned int*)&sig->m_pad[0x64]);
+        *(unsigned int*)&sig->m_pad[0x4], *(unsigned int*)&sig->m_pad[0x8],
+        *(unsigned int*)&sig->m_pad[0xc], *(unsigned int*)&sig->m_pad[0x10],
+        *(unsigned int*)&sig->m_pad[0x14], *(unsigned int*)&sig->m_pad[0x18],
+        *(unsigned int*)&sig->m_pad[0x1c], *(unsigned int*)&sig->m_pad[0x20],
+        *(unsigned int*)&sig->m_pad[0x24], *(unsigned int*)&sig->m_pad[0x28],
+        *(unsigned int*)&sig->m_pad[0x2c], *(unsigned int*)&sig->m_pad[0x30],
+        *(unsigned int*)&sig->m_pad[0x34], *(unsigned int*)&sig->m_pad[0x38],
+        *(unsigned int*)&sig->m_pad[0x3c], *(unsigned int*)&sig->m_pad[0x40],
+        *(unsigned int*)&sig->m_pad[0x44], *(unsigned int*)&sig->m_pad[0x48],
+        *(unsigned int*)&sig->m_pad[0x4c], *(unsigned int*)&sig->m_pad[0x50],
+        *(unsigned int*)&sig->m_pad[0x54], *(unsigned int*)&sig->m_pad[0x58],
+        *(unsigned int*)&sig->m_pad[0x5c], *(unsigned int*)&sig->m_pad[0x60],
+        *(unsigned int*)&sig->m_pad[0x64], *(unsigned int*)&sig->m_pad[0x68]);
     return db->exec(true) == 1;
 }
 
@@ -15706,7 +15693,7 @@ bool DB_SaveItemDictionaryFlag::dispatch(int /*userIdx*/, int /*slot*/,
 bool DB_UpdateClientCrashDownLog::dispatch(int /*userIdx*/, int /*slot*/,
                                            Stream* stream)
 {
-    int reason = 0;
+    int reason;
     *stream >> reason;
     GetInstanceClientCrashDownLogStatistic()->RegisterClientCrashDown(reason);
     return 1;
@@ -15815,7 +15802,7 @@ void DB_UpdateDeathTowerBestRecord::makeRequest(
     sig->m_accId = accId;
     sig->m_towerIndex = static_cast<unsigned short>(characNo);
     sig->m_memberCount = static_cast<unsigned short>(memberCount & 0xff);
-    memcpy(sig->m_members, members, (memberCount & 0xff) * 0x17);
+    memcpy(sig->m_members, members, memberCount * 0x17);   // ORIG imul 直接用原值
     sig->m_stage = stage;
     sig->m_playTime = playTime;
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -16821,6 +16808,25 @@ bool DB_TOD_Random_Select_UserAPC::dispatch(int userIdx, int slot,
                                             Stream* stream)
 {
     return 1;
+}
+
+// ============================================================================
+// DB_UpdateAuraAvatarOption::makeRequest —— ORIG 0x0844f26：
+// 发 0x2af、-1、uid、characNo、idx、value 到 DB_Q。
+// ============================================================================
+void DB_UpdateAuraAvatarOption::makeRequest(int uid, unsigned int characNo,
+                                            int idx, int value)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xabf6), true);
+    // ORIG 0x0844f26：写 0x2af、-1、characNo(无符号)、idx、value 五字段；
+    // uid 参数存在（符号 4 参）但 ORIG 不写入包。
+    guard.operator*()->operator<<((int)0x2af);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(characNo);
+    guard.operator*()->operator<<(idx);
+    guard.operator*()->operator<<(value);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ============================================================================
@@ -17927,7 +17933,18 @@ bool DB_InsertRandomOptionItemInform::dispatch(int userIdx, int slot,
         "inSert into check_pick_up_random_option_item(m_id, check_count) values(%s, %u)",
         NumberToString(m_id, 0), (unsigned int)checkCount);
     if (!db->exec(true))
+    {
+        // ORIG 0x08442d42：cMyTrace(__PRETTY_FUNCTION__, 0xa47e, 5) + trace 日志。
+        char* idStr = NumberToString(m_id, 0);
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0xa47e, 5);
+            trace("InSert check_pick_up_random_option_item fail(m_id:%s)",
+                  idStr);
+        }
         return 0;
+    }
     return 1;
 }
 

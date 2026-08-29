@@ -60,15 +60,16 @@ private:
     void respond_special_item_cerapoint_giftcard(int type, const STSpecailItem_Param& param,
                                                  STSpecailItem_Result& result);          // 0x0827de4e
 
-    // dispatch 表项：respond 函数指针 + 子处理器相对 this 的偏移（ORIG 全为 0）。
-    typedef void (SpecialItemHandler::*RespondFn)(int, const STSpecailItem_Param&,
-                                                  STSpecailItem_Result&);
+    // ORIG fn 为普通函数指针（4 字节，ctor 直接存 respond_* 地址；成员指针 8 字节
+    // 会使 Entry=12、sizeof=0xac，与 ORIG 0x74 不符）→ 用显式 this 的自由函数形态。
+    typedef void (*RespondFn)(SpecialItemHandler* self, int type,
+                              const STSpecailItem_Param& param,
+                              STSpecailItem_Result& result);
     struct Entry
     {
         RespondFn fn;      // +0
         int offset;        // +4
     };
-
     WongWork::CCeraShop* m_owner;  // +0x00
     Entry m_entries[14];           // +0x04（14 * 8 = 0x70）
 };

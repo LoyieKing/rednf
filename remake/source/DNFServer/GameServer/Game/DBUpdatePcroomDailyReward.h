@@ -11,12 +11,11 @@ class Stream;
 class DBUpdatePcroomDailyReward : public TaiwanInterfaceDBDispatcher
 {
 public:
-    // ORIG 布局：+0 m_id、+4 剩余次数字节（dispatch movzbl 0x4 读）。
+    // ORIG 布局：+0 m_id、+4 剩余次数字节（dispatch movzbl 0x4 读）；sizeof=8。
     struct MSG
     {
         unsigned int m_id;   // +0x00
         char m_remain;       // +0x04
-        char m_pad[0xfb];    // +0x05
     };
 
     DBUpdatePcroomDailyReward() throw();

@@ -108,6 +108,11 @@ void STExpertJobEtcScript::Clear()
     m_levelMap.clear();
     m_disjointerBigWinRate.clear();
 }
+// ORIG C1 0x0849f438：构造两个 map 后调 Clear()。
+STExpertJobEtcScript::STExpertJobEtcScript()
+{
+    Clear();
+}
 
 // ============================================================================
 // ImportExpertJobScript（ORIG 0x896b0e4）。

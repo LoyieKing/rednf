@@ -368,9 +368,8 @@ public:  // 成员偏移由 ORIG 使用点固定，暴露便于 TU 内访问器�
     unsigned short  m_port;       // +0x1e
     TCPSocket       m_socket;     // +0x20
     NCashMessage    m_inMsg;      // +0x40 （0x208 区间含接收缓冲）
-    // +0x248 outMsg 起始偏移由独立成员表达（见下）。
-private:
-    char m_inBodyPad[0x201];      // 补足 inMsg 实体至 +0x248（见注①）
+    char m_inBodyPad[0x200];      // +0x48..+0x248 补足 inMsg 实体（见注①）
+    NCashMessage m_outMsg;        // +0x248..+0x450 outMsg 实体（ORIG 总 size 0x450）
 };
 
 // 注①：m_inMsg 的 raw 缓冲在 ORIG 中一并占据 +0x47..+0x248 区域；

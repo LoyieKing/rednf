@@ -537,10 +537,10 @@ bool CCreature::IsNoCharge()
     return m_noCharge != 0;
 }
 
-// ORIG SetNoCharge @ 0x833f0b2：写 +0x14 字节。
+// ORIG SetNoCharge @ 0x833f0b2：bool 直存（mov %dl,0x14），无三目规范化。
 void CCreature::SetNoCharge(bool flag)
 {
-    m_noCharge = flag ? 1 : 0;
+    m_noCharge = flag;
 }
 
 // ORIG IsGrowCreature @ 0x833f0ca：movzbl +0x4c 后 xor $1 —— 即 +0x4c==0 返回
@@ -827,8 +827,9 @@ int CCreatureMgr::GetEquipedCreatureLevel() const
     if (m_equippedCreature == 0)
         return 0;
     // ORIG 委托 CCreature::GetLevel（读取 +0x2c 等级域，同 isMaxLevel 用途）。
-    return m_equippedCreature->m_level;
+    return m_equippedCreature->GetLevel();
 }
+
 
 // ORIG _ZN13user_creature12CCreatureMgr11GetArtifactEi T 0x833be56（GetArtifact.md）：
 // idx=slot-0x17，仅上界检查（>3 → 0）；返回 &m_artifacts[idx]
@@ -1720,7 +1721,7 @@ bool CDBMsgSender::RenameCreatureItem(int uid, const char* name)
     if (buf == 0)
         return false;
     memset(buf, 0, 0x74);
-    buf->m_hdr |= 0x200;
+    buf->m_hdr |= 0x1;
     buf->m_addInfo2 = uid;                            // +0x30
     char* dst = reinterpret_cast<char*>(buf->m_item); // +0x04
     strncpy(dst, name != 0 ? name : "", 0x27);
@@ -1812,11 +1813,10 @@ void Inven_Item_Compatible::setCopy(const Inven_Item& item)
     m_endurance = item.m_fieldb;
     m_fieldd = item.m_fieldd;
     const unsigned char* src = (const unsigned char*)&item.m_amp;
-    memcpy(&m_amp0, src, 4);                    // ← item+0x11（4B）
-    memcpy(&m_rand0, src + 4, 8);               // ← item+0x15/+0x19
-    unsigned short tail;
-    memcpy(&tail, src + 12, 2);                 // ← item+0x1d
-    m_rand8 = tail;
+    m_amp0 = *(const int*)src;                          // ← item+0x11（4B）
+    m_rand0 = *(const int*)(src + 4);                   // ← item+0x15
+    m_rand4 = *(const int*)(src + 8);                   // ← item+0x19
+    m_rand8 = *(const unsigned short*)(src + 12);       // ← item+0x1d
 }
 
 // ORIG _ZN21Inven_Item_Compatible13makeInvenItemER10Inven_Item W 0x833f418。
@@ -1830,9 +1830,10 @@ void Inven_Item_Compatible::makeInvenItem(Inven_Item& item)
     item.SetItemAttr(m_attr);
     item.m_fieldd = m_fieldd;
     unsigned char* dst = (unsigned char*)&item.m_amp;
-    memcpy(dst, &m_amp0, 4);
-    memcpy(dst + 4, &m_rand0, 8);
-    memcpy(dst + 12, &m_rand8, 2);
+    *(int*)dst = m_amp0;                                 // → item+0x11（4B）
+    *(int*)(dst + 4) = m_rand0;                          // → item+0x15
+    *(int*)(dst + 8) = m_rand4;                          // → item+0x19
+    *(unsigned short*)(dst + 12) = m_rand8;              // → item+0x1d
 }
 
 // ============================================================================
@@ -1882,13 +1883,12 @@ bool user_creature::CCreatureItemFactory::FreeCreatureItem(user_creature::CCreat
     return m_creaturePool.Free(reinterpret_cast<user_creature::CCreature*>(item));
 }
 
-// ORIG guard 单例（guard var 0x943c070 / instance 0x943c080）。
+// ORIG guard 单例（guard var 0x943c070 / instance 0x943c080）：__cxa_guard
+// 双检锁 + atexit 注册。
 user_creature::CCreatureItemFactory* user_creature::GetInstanceCreatureItemFactory()
 {
-    static user_creature::CCreatureItemFactory* s_instance;
-    if (s_instance == 0)
-        s_instance = new user_creature::CCreatureItemFactory();
-    return s_instance;
+    static user_creature::CCreatureItemFactory s_instance;
+    return &s_instance;
 }
 
 // ============================================================================

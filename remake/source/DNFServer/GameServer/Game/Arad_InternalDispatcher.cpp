@@ -66,20 +66,20 @@ void make_internal_stream_jpn(CStreamGuard& guard, ENUM_INTERNALPACKET_JPN code,
 // ============================================================================
 // packetheader_jpn 【objdump】ORIG make_cmd_packetheader_jpn 0x08197812 T /
 // make_noti_packetheader_jpn 0x08197862 T（无独立 md 报告，直接反汇编转写）：
-//   bool 归一化(0/1) 后 put_header((int)code, typeFlag) + put_byte(normalized)；
+//   bool 归一化(0/1) 后 put_header(typeFlag, (int)code) + put_byte(normalized)；
 //   cmd 流 typeFlag=1，noti 流 typeFlag=0。
 // ============================================================================
 void make_cmd_packetheader_jpn(PacketGuard& guard, ENUM_CMDPACKET code, bool flag)
 {
     signed char normalized = (flag != false) ? (signed char)1 : (signed char)0;
-    guard.put_header((int)code, 1);
+    guard.put_header(1, (int)code);
     guard.put_byte((int)normalized);
 }
 
 void make_noti_packetheader_jpn(PacketGuard& guard, ENUM_NOTIPACKET code, bool flag)
 {
     signed char normalized = (flag != false) ? (signed char)1 : (signed char)0;
-    guard.put_header((int)code, 0);
+    guard.put_header(0, (int)code);
     guard.put_byte((int)normalized);
 }
 
@@ -863,8 +863,9 @@ bool Dispatcher_AvartarRoulette::checkWorkState(CUser* user,
     }
     // AvatarCoin 位于 Inven 数组尾部固定偏移 +0x658【ABI 镜像】（同
     // Arad_InternalDispatcher_INTER.cpp kAvatarRoulette 段惯例）。
+    // 注意：ORIG add $0x658 为字节偏移，须经 char* 强转（CInventory* 元素偏移会差 0x7b8 倍）。
     const AvatarCoin* coin =
-        (const AvatarCoin*)(user->getCurCharacInvenR() + 0x658);
+        (const AvatarCoin*)((char*)user->getCurCharacInvenR() + 0x658);
     if (!coin->IsUsable())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 0x16);

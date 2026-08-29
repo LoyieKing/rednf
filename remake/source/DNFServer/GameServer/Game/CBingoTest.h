@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <boost/shared_ptr.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 class CMTRand;   // PvPTypes.h（MT19937，0x9c8；shared_ptr 成员仅需前置声明）
 struct BingoData;  // CUser.h（resetUserData 引用参数）

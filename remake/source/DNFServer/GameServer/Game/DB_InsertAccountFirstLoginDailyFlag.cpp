@@ -12,6 +12,7 @@
 #include "MySQL.h"
 #include "CDataManager.h"
 #include "CEventScriptMng.h"
+#include "SyncScriptDeps.h"         // toTString(const std::string&)
 #include "CInventory.h"
 #include "Stream.h"
 
@@ -59,9 +60,11 @@ int DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*param1*/, int /*serverGr
     if (ent == 0)
         return 0;
 
+    // ORIG 0x0843e99c/0x0843ea12：toTString(const std::string&) 转换表名。
     char* tableName = ent->get_db_table_name();
+    const char* tableNameStr = toTString(*reinterpret_cast<const std::string*>(tableName));
     db->set_query("upDate %s set charac_no=%u, occ_date=now() where m_id=%u",
-                  tableName, local_24, local_20);
+                  tableNameStr, local_24, local_20);
     if (!db->exec(true))
         return 0;
 
@@ -69,7 +72,7 @@ int DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*param1*/, int /*serverGr
     {
         db->set_query("inSert into %s(m_id, charac_no, occ_date) "
                       "values(%u, %u, now())",
-                      tableName, local_20, local_24);
+                      tableNameStr, local_20, local_24);
         if (!db->exec(true))
             return 0;
     }

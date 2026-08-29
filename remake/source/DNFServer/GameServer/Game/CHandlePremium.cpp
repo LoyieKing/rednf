@@ -101,6 +101,7 @@ void CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
         else
         {
             handlePremiumEffect(user, (ENUM_PREMIUM_TYPE)0xc);
+            user->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
         }
     }
     PacketGuard packet;
@@ -120,8 +121,7 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
     if (!user->IsPremiumUser())
         return;
 
-    std::vector<SUserPremiumInfo> infoList;
-    premium->GetPremiumInfoList(infoList, 0x270f);  // ORIG GetPremiumInfoList(int)
+    std::vector<SUserPremiumInfo> infoList = premium->GetPremiumInfoList(0x270f);  // ORIG sret
 
     for (size_t i = 0; i < infoList.size(); ++i)
     {

@@ -94,7 +94,7 @@ void CAlchemist::UseRevivalItem(CUser* user)
     int curSec = GlobalData::s_systemTime_.getCurSec();
     user->SetRevivalTime(curSec + 0x4b0);
     long revivalTime = user->GetRevivalTime();
-    unsigned int uid = static_cast<unsigned int>(user->get_unique_id());
+    unsigned int uid = user->GetUID();
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, uid, (TIMER_MESSAGE)0x82,
                                 0x4b0, revivalTime, 0);
 }
@@ -102,11 +102,9 @@ void CAlchemist::UseRevivalItem(CUser* user)
 // ---- GetQuestItemDropRate（报告，ORIG T 0x085d12ee sz 0x71）----
 int CAlchemist::GetQuestItemDropRate(CUser* user, int rate)
 {
-    bool boosted = IsExistContinuousEffectItem(user, 0x27ac52);
-    if (!boosted)
-    {
-        boosted = IsExistContinuousEffectItem(user, 0x1f8e);
-    }
+    // ORIG 0x085d12ee：A || B 短路合并赋值（jne→mov $1 / je→mov $0 + test）。
+    bool boosted = IsExistContinuousEffectItem(user, 0x27ac52) ||
+                   IsExistContinuousEffectItem(user, 0x1f8e);
     if (boosted)
     {
         int infoPlus = g_alchemistInfo[1];
@@ -248,20 +246,25 @@ int CDisjointer::OnEnterDisjointStore(CUser* user)
 // 换算可修值并回写现价。新耐久 <1 → 错误 0x16。
 int CDisjointer::OnRepairDisjointMachine(CUser* user)
 {
-    int grade = GetSelfExpand(user)->get_disjoint_machine_grade();
-    int endurance = GetSelfExpand(user)->get_disjoint_machine_endurance();
+    int newEndurance = 0;
+    int endurance =
+        ((CCharacExpertJob*)user->GetCharacExpandData(
+             (ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_endurance();
+    int grade =
+        ((CCharacExpertJob*)user->GetCharacExpandData(
+             (ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_grade();
     int currentPrice =
         GetScript()->GetDisjointMachineRepairCost(grade + 1, endurance);
-    int newEndurance = 0;
 
     if (user->getCurCharacMoney() < currentPrice)
     {
         // 现金不足：以全部金钱换算，返回基础值 + 当前耐久（出参回写现价）。
         newEndurance =
             GetScript()->GetDisjointMachineRepair(
-                GetSelfExpand(user)->get_disjoint_machine_grade() + 1,
-                user->getCurCharacMoney(), currentPrice) +
-            GetSelfExpand(user)->get_disjoint_machine_endurance();
+                grade + 1, user->getCurCharacMoney(), currentPrice) +
+            endurance;
     }
     else
     {
@@ -279,13 +282,17 @@ int CDisjointer::OnRepairDisjointMachine(CUser* user)
     }
 
     user->getCurCharacInvenW()->use_money(currentPrice, (eMoneySubReason)0x20, true);
-    GetSelfExpand(user)->set_disjoint_machine_endurance(newEndurance);
+    ((CCharacExpertJob*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+        ->set_disjoint_machine_endurance(newEndurance);
 
     PacketGuard packet;
     packet.put_header(1, 0xf0);
     packet.put_byte(1);
     packet.put_int(user->getCurCharacMoney());
-    packet.put_int(GetSelfExpand(user)->get_disjoint_machine_endurance());
+    packet.put_int(
+        ((CCharacExpertJob*)user->GetCharacExpandData(
+             (ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_endurance());
     packet.finalize(true);
     user->Send(packet);
     return 0;

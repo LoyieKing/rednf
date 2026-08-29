@@ -69,8 +69,8 @@ bool isDbcsLead(char c)
 void LexerOutput(const char* buf, int size)
 {
     (void)size;
-    LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x12f, "%s",
-                          toTString(buf));
+    LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x12f, "%s - %s",
+                          __FUNCTION__, toTString(buf));
 }
 
 // ORIG T _Z10LexerErrorPKc 0x88bb3c7：词法错误走 LogManager 日志。
@@ -91,9 +91,8 @@ bool InitRDARScript(const char* dir, bool compiled, const char* file, int* err)
     g_dnfLex.SetHandler(&isDbcsLead, &LexerOutput, &LexerError,
                         compiled ? LoadStreamFromPack : LoadStreamFromPlain);
 
-    std::strncpy(g_szScriptFileBaseDirectory, dir ? dir : "",
-                 sizeof(g_szScriptFileBaseDirectory) - 1);
-    g_szScriptFileBaseDirectory[sizeof(g_szScriptFileBaseDirectory) - 1] = 0;
+    std::strncpy(g_szScriptFileBaseDirectory, dir,
+                 sizeof(g_szScriptFileBaseDirectory));
     unsigned int len = static_cast<unsigned int>(
         std::strlen(g_szScriptFileBaseDirectory));
     if (len == 0)

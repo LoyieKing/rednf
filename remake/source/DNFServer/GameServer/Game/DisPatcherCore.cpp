@@ -270,6 +270,7 @@ int checkSpecialCharName(char* name);
 
 // MSG_RES_PVP_RANK（ORIG C1 0x08235378/D1 0x0823538e：仅构造/析构 +0xd PvpResultType，
 // sizeof 0x91 实证）。wave1 最小建模（当前全仓无定义；待迁 PacketTypes.h 权威区）。
+#pragma pack(push, 1)
 struct MSG_RES_PVP_RANK
 {
     MSG_RES_PVP_RANK() {}
@@ -277,12 +278,15 @@ struct MSG_RES_PVP_RANK
     char m_pad0[0xd];        // +0x00..0x0c（MSG_BASE 头区）
     PvpResultType m_result;  // +0x0d..0x90
 };                           // sizeof = 0x91
+#pragma pack(pop)
 
 
 // MSG_MAKE_PVP_ROOM（ORIG 真实类型 _ZTV/_ZTI 域存在；dispatch_sig memset 0x3d 实证）。
 // wave1 最小建模（当前全仓无定义；待迁 PacketTypes.h 权威区）：
 // +0x0d char 门类型（<0 失败）、+0x0e char 房名[0x1e]、+0x2c short、+0x2e byte 模式门、
 // +0x2f int 密码长（<=8）、+0x33 char 密码/校验缓冲、+0x3c byte battleMode。
+// （int m_field2f 需 pack(1) 才落在 +0x2f；ORIG ExtractPacket 0x081f81ba 实证。）
+#pragma pack(push, 1)
 struct MSG_MAKE_PVP_ROOM
 {
     char m_pad0[0xd];        // +0x00..0x0c
@@ -294,6 +298,7 @@ struct MSG_MAKE_PVP_ROOM
     char m_field33[9];       // +0x33..0x3b
     char m_battleMode;       // +0x3c
 };                          // sizeof = 0x3d
+#pragma pack(pop)
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
 // m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
@@ -1218,18 +1223,17 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
 // +0=get_charac_no(msg.m_slot)) → 有效登录 put Q5 否则 Q2。
 int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "PacketDispatcher_Impl_1.cpp", 0x17db);
-    CStreamGuard guard(stream, true);
-    guard << 0xb;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "PacketDispatcher_Impl_1.cpp", 0x17db), true);
+    **guard << 0xb;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo((CACHE_SECTION)4);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_TICKET* sig = guard.GetInBuffer<SIG_LOAD_TICKET>();
+    SIG_LOAD_TICKET* sig = guard->GetInBuffer<SIG_LOAD_TICKET>();
     memset(sig, 0, sizeof(SIG_LOAD_TICKET));
     *reinterpret_cast<unsigned int*>(sig) = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1261,18 +1265,17 @@ int DisPatcher_SelectCharac::RegistTimerSchedules(CUser* user)
 // ORIG T 0x081c79f2（RequestBlackCount.md）：SIG 0xb3 → CACHE_BLACK_COUNT；memset 0x10。
 int DisPatcher_SelectCharac::RequestBlackCount(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1862);
-    CStreamGuard guard(stream, true);
-    guard << 0xb3;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1862), true);
+    **guard << 0xb3;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_BLACK_COUNT);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_REQ_BLACK_COUNT* sig = guard.GetInBuffer<SIG_REQ_BLACK_COUNT>();
+    SIG_REQ_BLACK_COUNT* sig = guard->GetInBuffer<SIG_REQ_BLACK_COUNT>();
     memset(sig, 0, sizeof(SIG_REQ_BLACK_COUNT));
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1299,18 +1302,17 @@ void DisPatcher_SelectCharac::RequestDBInventory(CUser* user, MSG_CHARAC_SELECT&
 void DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
                                                           MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x18af);
-    CStreamGuard guard(stream, true);
-    guard << 8;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x18af), true);
+    **guard << 8;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_INVENTORY);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_INVENTORY* sig = guard.GetInBuffer<SIG_LOAD_INVENTORY>();
+    SIG_LOAD_INVENTORY* sig = guard->GetInBuffer<SIG_LOAD_INVENTORY>();
     memset(sig, 0, sizeof(SIG_LOAD_INVENTORY));
     sig->m_accId = user->get_acc_id();
     sig->m_characNo = static_cast<unsigned int>(
@@ -1331,18 +1333,17 @@ void DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
 // memset 0x7608 后仅写 characNo。
 int DisPatcher_SelectCharac::RequestDBQuest(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17bd);
-    CStreamGuard guard(stream, true);
-    guard << 10;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17bd), true);
+    **guard << 10;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_QUEST);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_QUEST* sig = guard.GetInBuffer<SIG_LOAD_QUEST>();
+    SIG_LOAD_QUEST* sig = guard->GetInBuffer<SIG_LOAD_QUEST>();
     memset(sig, 0, sizeof(SIG_LOAD_QUEST));
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1361,18 +1362,17 @@ int DisPatcher_SelectCharac::RequestDBQuest(CUser* user, MSG_CHARAC_SELECT& msg)
 // StreamPool；memset 0x1810 后 characNo@0 / accId@4。
 int DisPatcher_SelectCharac::RequestDBDungeonClear(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17f8);
-    CStreamGuard guard(stream, true);
-    guard << 12;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17f8), true);
+    **guard << 12;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_DUNGEON_CLEAR);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_DUNGEON_CLEAR* sig = guard.GetInBuffer<SIG_LOAD_DUNGEON_CLEAR>();
+    SIG_LOAD_DUNGEON_CLEAR* sig = guard->GetInBuffer<SIG_LOAD_DUNGEON_CLEAR>();
     memset(sig, 0, sizeof(SIG_LOAD_DUNGEON_CLEAR));
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1393,19 +1393,18 @@ int DisPatcher_SelectCharac::RequestDBDungeonClear(CUser* user, MSG_CHARAC_SELEC
 int DisPatcher_SelectCharac::RequestDBKillMonsterInfo(CUser* user,
                                                       MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1843);
-    CStreamGuard guard(stream, true);
-    guard << 0x282;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1843), true);
+    **guard << 0x282;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_KILL_MONSTER);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
     SIG_LOAD_KILL_MONSTER_INFO* sig =
-        guard.GetInBuffer<SIG_LOAD_KILL_MONSTER_INFO>();
+        guard->GetInBuffer<SIG_LOAD_KILL_MONSTER_INFO>();
     memset(sig, 0, sizeof(SIG_LOAD_KILL_MONSTER_INFO));
     sig->m_characNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1425,18 +1424,17 @@ int DisPatcher_SelectCharac::RequestDBKillMonsterInfo(CUser* user,
 // job 预写 combo 视图 m_job（SIG 内绝对偏移 +0x14ab0）。
 int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1814);
-    CStreamGuard guard(stream, true);
-    guard << 0x20;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x1814), true);
+    **guard << 0x20;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_ETC);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_ETC* sig = guard.GetInBuffer<SIG_LOAD_ETC>();
+    SIG_LOAD_ETC* sig = guard->GetInBuffer<SIG_LOAD_ETC>();
     memset(sig, 0, sizeof(SIG_LOAD_ETC));
     sig->m_accId = user->get_acc_id();
     sig->m_characNo = static_cast<unsigned int>(
@@ -1445,7 +1443,7 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
         G_CEnvironment()->m_serverEnvir.m_serverGroup;      // ORIG 读 ENV+0x378
     sig->m_channelNo = G_CEnvironment()->get_channel_no();
     sig->m_fieldC = msg.m_0e;
-    reinterpret_cast<TAG_CHARAC_ETC_DATA*>(sig->m_tagSkillSlot)->clear();
+    sig->m_tagEtc.clear();
     reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job =
         user->GetCharacJob(static_cast<int>(static_cast<signed char>(msg.m_slot)));
     if (user->IsValidLastLoginCharac())
@@ -1464,18 +1462,17 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 // memset 0x414 后仅写 characNo@0；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17a1);
-    CStreamGuard guard(stream, true);
-    guard << 9;
-    guard << static_cast<int>(user->GetUID());
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17a1), true);
+    **guard << 9;
+    **guard << static_cast<int>(user->GetUID());
     user->DisableCharacInfo(CACHE_SKILL);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        **guard << user->GetLastLoginChannelNo();
+        **guard << user->GetLastLoginCharacNo();
     }
-    SIG_LOAD_SKILL* sig = guard.GetInBuffer<SIG_LOAD_SKILL>();
+    SIG_LOAD_SKILL* sig = guard->GetInBuffer<SIG_LOAD_SKILL>();
     memset(sig, 0, sizeof(SIG_LOAD_SKILL));
     *reinterpret_cast<unsigned int*>(sig) = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
@@ -1575,56 +1572,62 @@ DisPatcher_CreateCharac::~DisPatcher_CreateCharac() {}
 int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081c0830 T（报告 DisPatcher_CreateCharac/check_error.md 全文转写）。
-    if (user->get_state() == 2)
+    // ORIG +0x26：state != 2 → 0x7fffffff（非 0x13）。
+    if (user->get_state() != 2)
     {
-        if (user->isLockedDeleteCharac() || user->isLocked4DataLoad())
-        {
-            return 0x13;
-        }
-        if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
-                user, (RestrictCategory::Enum)1, 0x20))
-        {
-            return 0xd1;
-        }
-        CRestrictCharacCreationEvent* restrictEvt =
-            reinterpret_cast<CRestrictCharacCreationEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0x31));
-        bool eventing = false;
-        if (restrictEvt != 0)
-        {
-            // ORIG vtable+0x34 槽直调（Ghidra C 原样；事件域虚表槽位归属见 FixEventVtable 批）
-            eventing = (*(int (**)(void*, int))(*(char**)restrictEvt + 0x34))(
-                           (void*)restrictEvt, 0) != 0;
-        }
-        if (eventing)
-        {
-            int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
-            if (limit != 0)
-            {
-                return limit;
-            }
-        }
-        if (user->get_charac_count() >= (int)user->getCharacSlotLimit())
-        {
-            return 4;
-        }
-        if (user->get_charac_count() == 0x24)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x8a0, 5);
-            trace("DisPatcher_CreateCharac pUser->get_charac_count() == MAX_CHARAC_SLOT false");
-            return 4;
-        }
-        MSG_CREATE_CHARACTER& req = *reinterpret_cast<MSG_CREATE_CHARACTER*>(&msg);
-        if (!restrict_inputting_name::isUtf8StrInUnicodeRange(req.m_name))
-        {
-            return 0x9f;
-        }
-        if (checkSpecialChar(req.m_name) || checkSpecialCharName(req.m_name))
-        {
-            return 0x9f;
-        }
-        return 0;
+        return 0x7fffffff;
     }
-    return 0x13;    // ORIG +0x1e3 处统一返回 0x13
+    if (user->isLockedDeleteCharac())
+    {
+        return 0x13;
+    }
+    if (user->isLocked4DataLoad())
+    {
+        return 0x13;
+    }
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            user, (RestrictCategory::Enum)1, 0x20))
+    {
+        return 0xd1;
+    }
+    CRestrictCharacCreationEvent* restrictEvt =
+        reinterpret_cast<CRestrictCharacCreationEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x31));
+    bool eventing = false;
+    if (restrictEvt != 0)
+    {
+        // ORIG vtable+0x34 槽直调（Ghidra C 原样；事件域虚表槽位归属见 FixEventVtable 批）
+        eventing = (*(int (**)(void*, int))(*(char**)restrictEvt + 0x34))(
+                       (void*)restrictEvt, 0) != 0;
+    }
+    if (eventing)
+    {
+        int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
+        if (limit != 0)
+        {
+            return limit;
+        }
+    }
+    if (user->get_charac_count() >= (int)user->getCharacSlotLimit())
+    {
+        return 4;
+    }
+    if (user->get_charac_count() == 0x24)
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x8a0, 5);
+        trace("DisPatcher_CreateCharac pUser->get_charac_count() == MAX_CHARAC_SLOT false");
+        return 4;
+    }
+    MSG_CREATE_CHARACTER& req = *reinterpret_cast<MSG_CREATE_CHARACTER*>(&msg);
+    if (!restrict_inputting_name::isUtf8StrInUnicodeRange(req.m_name))
+    {
+        return 0x9f;
+    }
+    if (checkSpecialChar(req.m_name) || checkSpecialCharName(req.m_name))
+    {
+        return 0x9f;
+    }
+    return 0;
 }
 int DisPatcher_CreateCharac::check_state(CUser* user, PacketBuf& /*packet*/)
 {
@@ -6131,7 +6134,7 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
     const MSG_CHANGE_SKILLSLOT& req =
         *reinterpret_cast<const MSG_CHANGE_SKILLSLOT*>(&msg);
     const int treeIdx = user->GetCurCharacSkillTreeIndex();
-    const unsigned char treeKind = req.m_head[0xc];       // +0x0d（m_head 末字节）
+    const unsigned char treeKind = req.m_head[0xd];       // +0x0d（m_head 末字节）
     if (treeIdx == -1 || treeIdx == 0)
     {
         if (treeKind == 1)
@@ -6148,7 +6151,7 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
 int DisPatcher_ChangeSkill::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_CHANGE_SKILLSLOT* req = reinterpret_cast<MSG_CHANGE_SKILLSLOT*>(&msg);
-    if (!packet.get_byte(req->m_head[0xc]))               // +0x0d（m_head 末字节）
+    if (!packet.get_byte(req->m_head[0xd]))               // +0x0d（m_head 末字节）
     {
         return LineFunc(0x6f4,
                         __PRETTY_FUNCTION__,
@@ -6898,10 +6901,10 @@ DisPatcher_SetPos::DisPatcher_SetPos() {}
 DisPatcher_SetPos::~DisPatcher_SetPos() {}
 int DisPatcher_SetPos::check_error(CUser* user, MSG_BASE& msg)
 {
-    // ORIG 0x081c9994：get_state(user)==3 → 0，否则 0x13。
-    if (user->get_state() == 3)
-        return 0;
-    return 0x13;
+    // ORIG 0x081c9994：get_state(user)==3 → 0，否则 0x13（setne 形式）。
+    if (user->get_state() != 3)
+        return 0x13;
+    return 0;
 }
 int DisPatcher_SetPos::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -8551,7 +8554,7 @@ DisPatcher_UseStack::~DisPatcher_UseStack() {}
 // ============================================================================
 int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    unsigned short slotNo = 0;                   // ORIG local_6e
+    short slotNo = 0;                            // ORIG local_6e（get_short(short&)/movswl 实证）
     if (!packet.get_short(slotNo))
         return LineFunc(0x8315,
                         __PRETTY_FUNCTION__,
@@ -8623,8 +8626,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
     int secuErr = GlobalData::s_pSecuProtectionField->CheckItem(
-        user, static_cast<SECURITY_PROTCTION>(0x2a),
-        reinterpret_cast<unsigned long>(pItem));
+        user, static_cast<SECURITY_PROTCTION>(0x2a), pItem);
     if (secuErr != 0)
     {
         PacketGuard pgSecu;
@@ -9666,26 +9668,19 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         out.m_8 = req.m_11;
         return 0;
     }
-    if (out.m_errNo < 0)
-    {
-        return LineFunc(0xdcc,
-                        __PRETTY_FUNCTION__,
-                        out.m_errNo, user->get_acc_id());
-    }
     int state = user->get_state();
     if (state == 5)
     {
-        // ORIG thunk 0x822fe4e=GetPartyIndex、0x80cc18e=G_CGameManager、0x8294f32=GetParty(int)
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party != 0)
         {
-            // [BLOCKED 依赖缺失] CParty::drop_item（ORIG T 0x085a63f4
-            // _ZN6CParty9drop_itemEP5CUseriicii，参 (user,(int)m_0d,(int)m_0f,
-            // (char)m_11,(int)m_12,m_14) 返回 int）无任何 TU 定义（头文件现声明为
-            // void，需按 ORIG 改 int）。补齐后此处：
-            //   int ret = party->drop_item(user, req.m_0d, req.m_0f, (char)req.m_11,
-            //                              req.m_12, req.m_14);
-            //   if (ret > 0) { out.m_errNo = ret; out.m_8 = req.m_11; }
+            int ret = party->drop_item(user, req.m_0d, req.m_0f, (char)req.m_11,
+                                       req.m_12, req.m_14);
+            if (ret > 0)
+            {
+                out.m_errNo = ret;
+                out.m_8 = req.m_11;
+            }
         }
         return 0;
     }

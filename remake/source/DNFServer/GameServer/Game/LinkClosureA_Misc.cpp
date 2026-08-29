@@ -70,31 +70,9 @@ char* GetUserName(IMatch* match, char* out)
 // ---- GetCurrentResetBaseTime（报告全文已读，见头注路径）-------------------
 // ORIG：t2 = t-0x15180；localtime_r(&t) 与 localtime_r(&t2) 双视图；按当前
 // 小时与入参比较把命中视图的时/分/秒改写后 mktime 规范化（无返回值写出）。
-int GetCurrentResetBaseTime(int t, int hour)
-{
-    const time_t now = t;
-    long prevDay = t - 0x15180;                             // [or sub $kNow 全天秒]
-
-    struct tm cur;
-    struct tm* pCur = localtime_r(&now, &cur);
-    struct tm prev;
-    struct tm* pPrev = localtime_r(&prevDay, &prev);
-
-    if (pCur->tm_hour < 0 || hour <= pCur->tm_hour)         // [js / jge 分支]
-    {
-        pCur->tm_hour = hour;
-        pCur->tm_min = 0;
-        pCur->tm_sec = 0;
-        mktime(pCur);
-    }
-    else
-    {
-        pPrev->tm_hour = hour;
-        pPrev->tm_min = 0;
-        pPrev->tm_sec = 0;
-        mktime(pPrev);
-    }
-}
+// 定义由 DNFFunctionLib.cpp 提供（void GetCurrentResetBaseTime(long,int)，
+// mangled _Z23GetCurrentResetBaseTimeli 与 ORIG 一致）；本 TU 不再重复定义，
+// 避免生成 ORIG 不存在的 _Z23GetCurrentResetBaseTimeii 冗余符号。
 
 namespace advancealtar
 {

@@ -57,7 +57,7 @@ static_assert(sizeof(SIG_GIVE_GROWTH_CREATURE_EVENT) == 0x1e4,
 
 namespace ARAD {
 namespace INTERNAL_PACKET {
-struct PURCHASE_COUNT_CHECK { char m_pad[0x100]; };
+struct PURCHASE_COUNT_CHECK { char m_pad[0x3f85]; };
 }
 }
 
@@ -70,7 +70,7 @@ namespace Taiwan {
 // 0x816c14a 的 enable_in/in_ptr 两处 size 立即数均为 $0x4（CEventStayTime
 // dailyresetData 消费；共享协议布局修正 2026-08-29 EventStayTimeWave2）。
 struct SigResetStayTimeEvent { unsigned int m_field0; };
-struct SigStayTimeEvent { void init(); void set(unsigned int accId); unsigned int m_accId; char m_pad[0x1c]; };
+struct SigStayTimeEvent { void init(); void set(unsigned int accId); unsigned int m_accId; };
 }
 
 #include "AradServerStateMessage.h"  // 必须在 namespace 外包含，保证全局 :: 版本完整
@@ -161,7 +161,18 @@ struct __attribute__((packed)) SigLoadRewardEventItem
 // 字段语义从 DB_kSaveRewardEventItem::dispatch 0x08185b3 set_query 实参取证：
 //   %d←+0x00、%u←+0x04、%u←+0x08、%u←+0x10、from_unixtime(%u)←+0x14（word）。
 // set 的 ulong d 按栈槽 (低32@ebp+0x18、高16低位@ebp+0x1c) 分拆写入 +0x10/+0x14
-// 【推断：GCC ia32 64bit 标量分槽传参，ORIG 直接消费两个半片】；f 未落地为 ORIG 形态。
+struct _SIG_LOAD_REWARD_MEDAL
+{
+    unsigned int m_characNo;   // +0x00（where charac_no）
+    unsigned int m_apSum;      // +0x04（select ap_sum）
+    char m_occDate[0xb];       // +0x08（occ_date，无 NUL 保证）
+};                              // sizeof 0x13
+struct _SIG_UPDATE_REWARD_MEDAL
+{
+    unsigned int m_characNo;   // +0x00（where charac_no）
+    char m_occDate[0xb];       // +0x04
+};                              // sizeof 0xf
+#pragma pack(pop)
 struct SigSaveRewardEventItem
 {
     SigSaveRewardEventItem();   // ORIG W C1/C2 0x08195cd4：调 init()；定义在 Game/W8_AradSig.cpp
@@ -175,7 +186,7 @@ struct SigSaveRewardEventItem
     unsigned int  m_field10;   // +0x10（d 低 32 位）
     short         m_field14;   // +0x14（d 高半低 16 位 → from_unixtime(%u)）
 };
-// ORIG W C1 0x0822ee3c -> init() 0x0822ee50 -> set(0,0) 0x0822ee74；
+#pragma pack(pop)
 // set(a,b)：+0x00=a、+0x04=b（两个 dword 直写）；GetOutBuffer 实例 size 立即数 $0x8
 // （ORIG _ZN6Stream12GetOutBufferIN4arad22SigSetCharacCreateTimeEEEPT_v @0x8186f28）
 // → 真实 sizeof = 8。

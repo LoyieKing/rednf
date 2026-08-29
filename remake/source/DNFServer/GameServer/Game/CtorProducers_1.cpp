@@ -73,7 +73,7 @@ const char* STFileListMapMirror::GetFileName(int idx) const
 extern STFileListMapMirror g_stCharacterScriptFileList;   // B 0x94fe940
 extern STScriptFileList g_worldMapScriptFileList;         // B 0x9501000（NpcScript.h 类型；方法解析 ORIG 符号）
 extern STFileListMapMirror g_aiCharacterScriptFileList;    // B 0x94f6a20
-extern STFileListMapMirror g_stEquipmentScriptFileList;    // B 0x94fac00
+extern STScriptFileList g_stEquipmentScriptFileList;       // B 0x94fac00（ORIG 类型，GetFileName 解析 0x088bad4e）
 extern char g_worldMapScriptBaseDirectory[0x104];      // B（InitScripts_5 定义域）
 
 // ============================================================================
@@ -340,10 +340,10 @@ bool AvatarRouletteServer::InitAddCharacSkill()
                 {
                     LevelUpSkill skill;
                     STAvatarAbilityVariation& var = eq.m_param1c0.m_avatar264[idx];
-                    skill.m_job = var.m_skill.m_job;        // 元素 +0xc
-                    skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10（内层 map 键）
+                    skill.m_job = var.m_skill.m_job;        // 元素 +0xc（内层 map 键，ORIG 0x0817f55d find 用 +0）
+                    skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10
                     skill.m_field8 = var.m_skill.m_field8;  // 元素 +0x14
-                    skillMap[skill.m_field4].push_back(skill);
+                    skillMap[skill.m_job].push_back(skill);
                 }
                 m_addCharacSkillMap[itemNo] = skillMap;
             }
@@ -599,13 +599,14 @@ int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
 
 CLevelRewardTable::CLevelRewardTable()
 {
-    // ORIG：i∈[0,0x45] 清 levelKeys[i] 并置名字(+0x14c8+21i)/留言(+0x1a86+21i)
-    // 槽首字节 0；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
+    // ORIG 0x086975fe：i∈[0,0x45] 清 levelKeys[i]，名字槽(+0x14c8+21i)/留言槽
+    // (+0x1a86+0x100i) 首字节 memcpy '1'（0x31，来自 rodata "127.0.0.1" 首字符，
+    // 非 '\0'）；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
     for (int i = 0; i <= 0x45; ++i)
     {
         m_levelKeys[i] = 0;
-        m_nameStrings[21 * i] = '\0';
-        m_messages[21 * i] = '\0';
+        m_nameStrings[21 * i] = '1';
+        m_messages[0x100 * i] = '1';
     }
     for (int j = 0; j < 9; ++j)
         for (int l = 0; l <= 0x45; ++l)
@@ -655,15 +656,15 @@ CLevelRewardTableMgr* CLevelRewardTableMgr::levelRewardTableMgr = 0;
 
 CLevelRewardTableMgr::CLevelRewardTableMgr()
 {
-    // ORIG 0x08687710：vec@+0x08 自动构造；flag=0；table=new(0x6088)。
+    // ORIG 0x08687710：vec@+0x08 自动构造；flag=0；m_table 先置 0 再 new(0x6088)。
     m_flag = 0;
+    m_table = 0;
     m_table = new CLevelRewardTable;
 }
 
 CLevelRewardTableMgr::~CLevelRewardTableMgr()
 {
-    delete m_table;
-    m_table = 0;
+    // ORIG 0x0868777c：仅析构 vec@+0x08，不 delete m_table
 }
 
 CLevelRewardTableMgr* CLevelRewardTableMgr::GetInstance()

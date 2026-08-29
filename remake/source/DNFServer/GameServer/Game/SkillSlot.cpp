@@ -2967,8 +2967,11 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
 
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        int kindArg = 1;
-        if (kind != -1 && kind != 0)
+        // ORIG：movl $0x0 初值；kind==-1→0、kind==0→1、其他→2。
+        int kindArg = 0;
+        if (kind == 0)
+            kindArg = 1;
+        else if (kind != -1)
             kindArg = 2;
         m_parent->givePvPSkillTree(0, true, kindArg);
         int pvpGrade = m_parent->get_pvp_grade();
@@ -3034,8 +3037,11 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     }
 
     WongWork::CSkillChanger changer;
-    int changerKind = 1;
-    if (kind != -1 && kind != 0)
+    // ORIG：movl $0x0 初值；kind==-1→0、kind==0→1、其他→2（同 kindArg 模式）。
+    int changerKind = 0;
+    if (kind == 0)
+        changerKind = 1;
+    else if (kind != -1)
         changerKind = 2;
     changer.SkillInitialize(m_parent, changerKind, false);
     if (sendFlag)
@@ -3091,9 +3097,8 @@ int CSkillChanger::_GetUserItemCount(const CUser* user)
 {
     for (int i = 3; i < 0x69; i++)
     {
-        Inven_Item item;
         CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-        inven->GetInvenSlotByRef(1, i, item);
+        Inven_Item item = inven->GetInvenSlot(1, i);
         _CountSkillBook(item);
     }
     for (int i = 0; i < 0x98; i++)

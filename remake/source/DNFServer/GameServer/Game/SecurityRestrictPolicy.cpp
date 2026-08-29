@@ -171,8 +171,8 @@ char const* SecurityRestrict::enumToString(Enum e)
 
 char const* MobileRestrict::enumToString(Enum e)
 {
-    unsigned idx = static_cast<unsigned>(e);
-    return (idx < 35u) ? enumStringMobiles[idx] : "";
+    // ORIG 0x0816d463：无边界检查，直接按 Enum 查表（表 35 项）。
+    return enumStringMobiles[e];
 }
 
 char const* CharacterRestrict::enumToString(Enum e)

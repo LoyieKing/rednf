@@ -68,7 +68,7 @@ public:
     void lock();
     void unlock();
     unsigned int gen_timer_key(TIMER_MESSAGE msg);
-    unsigned int get_timer_key(TIMER_MESSAGE msg);
+    int get_timer_key(TIMER_MESSAGE msg);
     bool CheckTimerKey(TIMER_MESSAGE msg, int key);
 
     // ---- 房间流程 ----

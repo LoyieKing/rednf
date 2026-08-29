@@ -85,8 +85,9 @@ bool CFairMatch::CheckUnusableEquipmentInUser(CUser* /*user*/)
 }
 
 // OnGiveup ORIG T 0x08564de0 报告 OnGiveup.md —— 恒返 1
-void CFairMatch::OnGiveup(CUser* /*user*/)
+int CFairMatch::OnGiveup(CUser* /*user*/)
 {
+    return 1;
 }
 
 // OnWaitRematch ORIG T 0x0856649a 报告 OnWaitRematch.md —— 空 body
@@ -446,8 +447,7 @@ void CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
             static_cast<unsigned char>(err & 0xff));
         return;
     }
-    if (m_field04 != 2)
-        _RegisterWaitingRoom(reinterpret_cast<PvP_Room*>(this)); // ORIG 实传 this（参数被忽略，README mangled 带 EP8PvP_Room）
+        _RegisterWaitingRoom(room); // ORIG 0x8563c5f 实传 room（第三参数）
     m_field04 = 1;
     TimerStartMatching::registNextTimer(10, room->get_index(),
                                         m_matchNotifyId);

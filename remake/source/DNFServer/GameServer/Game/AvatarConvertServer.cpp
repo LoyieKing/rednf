@@ -153,17 +153,20 @@ AvatarConvertServer::~AvatarConvertServer()
 }
 
 // Load —— ORIG T 0x081930ba：cMyTrace(pretty,0x37f,9,true,false) +
-// operator()("\t- Loading Avatar Convert script - ") + loadScript()==0。
+// operator()("\t- Loading Avatar Convert script - ")；loadScript() 非0 → 0。
 bool AvatarConvertServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0x37f, 9, true, false);
     trace("\t- Loading Avatar Convert script - ");
-    return loadScript() == 0;
+    if (loadScript())
+        return false;
+    return true;
 }
 
 // Destroy —— ORIG T 0x0819312c：return 1（基类槽1 void 约定）。
-void AvatarConvertServer::Destroy()
+int AvatarConvertServer::Destroy()
 {
+    return 1;
 }
 
 // Test —— ORIG T 0x0819220c：空（非虚成员）。

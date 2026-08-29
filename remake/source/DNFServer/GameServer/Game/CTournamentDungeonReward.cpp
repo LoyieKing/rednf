@@ -20,8 +20,10 @@ static int RoundGoldRate(float v)
 // 其余成员（MakeSelectPacket/_MakeRewardPacket/MakeRewardPacket 等）在头为 G2
 // 占位布局时未声明成员，故不在此定义，属后续批次。
 CTournamentDungeonReward::CTournamentDungeonReward()
-    : m_field04(0), m_rewards()
+    : m_rewards()
 {
+    // ORIG 0x8284770：构造 2x2 m_rewards 后调 ResetReward()（各 Clear + m_field04=0）
+    ResetReward();
 }
 
 CTournamentDungeonReward::~CTournamentDungeonReward() {}

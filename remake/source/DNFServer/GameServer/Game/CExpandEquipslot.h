@@ -9,7 +9,7 @@
 //     Inven_Item m_equipSlot[12]        @ +0x05
 //     Inven_Item m_expandEquipSlot[12]  @ +0x2e1
 //     Inven_Item m_expandAvatarSlot[12] @ +0x5bd
-//   sizeof = 0x899（pack(1)）。
+//   sizeof = 0x89c（成员 pack(1) 排列 0x899 + 尾 3B 类对齐；CDataMgr::C1 new 0x89c 实证）。
 // 虚表 0x8c7b208 槽位：ResetDailyMidnight @0 / loadData @1 / getData @2 /
 //   ResetDaily @3 / ~CExpandEquipslot @4,5 / _saveData @6 / _reset @7。
 // 依赖 CUser/CInventory/CDataManager 等暂无权威头，本头仅声明符号形态。
@@ -74,7 +74,7 @@ enum SECURITY_PROTCTION
 };
 #endif
 
-// ---- CExpandEquipslot（0x899 字节，pack(1)）----
+// ---- CExpandEquipslot（0x89c 字节，pack(1) + 尾对齐）----
 #pragma pack(push, 1)
 
 class CExpandEquipslot : public charac_expand::CData
@@ -108,6 +108,7 @@ public:
     Inven_Item m_equipSlot[12];        // +0x05
     Inven_Item m_expandEquipSlot[12];  // +0x2e1
     Inven_Item m_expandAvatarSlot[12]; // +0x5bd
+    char m_tail[3];                    // 尾对齐（sizeof 0x89c，ORIG CDataMgr new 实证）
 };
 
 #pragma pack(pop)

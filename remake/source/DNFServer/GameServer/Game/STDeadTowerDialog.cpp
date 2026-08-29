@@ -10,7 +10,8 @@
 // 0x18e6/0x18f6/0x1906，ScanStr 失败返 0x18ea/0x18fa/0x190a；成功返 0。
 int importDeadTowerDialogScript(const char* path, STDeadTowerFullDialog& out)
 {
-    if (!loadRDARScriptFile(path, ""))
+    // ORIG 0x8908d64：loadRDARScriptFile("", path) —— dir 空串，path 即文件路径。
+    if (!loadRDARScriptFile("", path))
         return 0x18d9;
     std::string token;
     for (;;)

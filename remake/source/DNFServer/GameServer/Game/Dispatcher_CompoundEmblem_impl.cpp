@@ -66,32 +66,31 @@ void Dispatcher_CompoundEmblem::SendCreateEmblemInfo(
 {
     Packet_Emblem_Create_Statistic packet;
 
-    if (created.size() < 6)
+    // ORIG 0x08221dfb seta：size()>5 直接返回。
+    if (created.size() > 5)
+        return;
+    int count = 0;
+    std::vector<std::pair<int, int> >::const_iterator it = created.begin();
+    std::vector<std::pair<int, int> >::const_iterator end = created.end();
+    while (it != end)
     {
-        int count = 0;
-        std::vector<std::pair<int, int> >::const_iterator it = created.begin();
-        std::vector<std::pair<int, int> >::const_iterator end = created.end();
-        while (it != end)
-        {
-            const CItem* item = G_CDataManager()->find_item(it->first);
-            if (item == 0)
-                return;                       // ORIG 中途 return
-            packet.m_slots[count + 1] = item->get_grade();
-            packet.m_slots[count + 6] = it->second;
-            ++count;
-            if (count > 5)
-                break;
-            ++it;
-        }
-        if (count == (int)created.size())
-        {
-            packet.m_slots[0] = count;
-            CStatisticServerProxy* proxy =
-                GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-            if (proxy)
-                proxy->SendPacket(reinterpret_cast<char*>(&packet), 0x36);
-        }
+        const CItem* item = G_CDataManager()->find_item(it->first);
+        if (item == 0)
+            return;                       // ORIG 中途 return
+        packet.m_slots[count + 1] = item->get_grade();
+        packet.m_slots[count + 6] = it->second;
+        ++count;
+        if (count > 5)
+            break;
+        ++it;
     }
+    // ORIG 0x08221ef4 setne：count != size 时返回。
+    if (count != (int)created.size())
+        return;
+    packet.m_slots[0] = count;
+    CStatisticServerProxy* proxy =
+        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
+    proxy->SendPacket(reinterpret_cast<char*>(&packet), 0x36);
 }
 int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
 {

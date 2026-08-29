@@ -415,10 +415,11 @@ bool CCharacExpertJob::loadData(CUser* pUser, char* pData)
 // （DB wire 格式，结构定义见 SigTypes.h），MsgQueueMgr::put(DB_Q)。
 bool CCharacExpertJob::_saveData(CUser* pUser)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("CharacExpertJob.cpp", 0x16);
-    CStreamGuard guard(s, true);
-    guard << 0x181;
-    guard << (int)pUser->GetUID();
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("CharacExpertJob.cpp", 0x16),
+        true);
+    **guard << 0x181;
+    **guard << (int)pUser->GetUID();
     SIG_EXPERT_JOB* buf = guard->GetInBuffer<SIG_EXPERT_JOB>();
     memset(buf, 0, sizeof(SIG_EXPERT_JOB));   // wire 载荷整体清零（含 pad）
     buf->m_characNo = (int)pUser->getCurCharacNo();

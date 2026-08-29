@@ -25,6 +25,9 @@
 #include "CItemLimitEdition.h"
 #include "CEnvironment.h"   // G_CEnvironment()（GetCalcDay 读 env+0x37c）
 #include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
+// DNFLexWrapper.h 与本文件 include 链冲突，ScanTypeOrInt 用本地声明
+//（定义见 DNFLexWrapperHelpers.cpp，ORIG 0x088bceaf）。
+int ScanTypeOrInt(bool& isType, std::string& s, bool& isInt, bool consume);
 
 // DB 商城限购请求类（权威定义见 DB_CerashopAddRestrict.cpp，ORIG T @ 0x080e1ff6/0x080e17ba）。
 class DB_LoadCerashopAddRestrictType
@@ -76,27 +79,41 @@ int ScriptLoader::LoadScript()
 
 int ScriptLoader::LoadScriptDaily(RestrictType::T type)
 {
-
+    // ORIG 0x08abf4de：首 token 用 ScanTypeOrInt(isType, s, ok, true) 解析
+    // （支持类型名/整数），isType 或 !ok 即整函数返回 0；
+    // 字段顺序 ipgNo, fieldA, fieldB, t1, t2, fieldC（fieldA/fieldB 在时间前）；
+    // readTime 失败 → 返回 -1；find 命中（重复 ipgNo）→ printf + 返回 -1；
+    // 末尾 m_infoMap.insert(make_pair(ipgNo, info))。
+    bool isType = false;
+    std::string str;
     bool ok = false;
     while (true) {
-        int v0 = ScanInt(&ok);
+        int v0 = ScanTypeOrInt(isType, str, ok, true);
+        if (isType)
+            return 0;
         if (!ok)
-            break;
-        // ORIG 0x08abf4de：new InfoDaily + 7 参 ctor（无默认 ctor 符号）。
+            return 0;
         unsigned int ipgNo = (unsigned int)v0;
-        int field8 = ScanInt(&ok);
-        short timeBuf[8];
+        int fieldA = ScanInt((bool*)0);
+        int fieldB = ScanInt((bool*)0);
+        short t1[8], t2[8];
         extern int readTime(short* buf);
-        readTime(timeBuf);
+        if (!readTime(t1))
+            return -1;
+        if (!readTime(t2))
+            return -1;
         extern unsigned int uint32Time(short* buf);
-        int start = (int)uint32Time(timeBuf);
-        readTime(timeBuf);
-        int end = (int)uint32Time(timeBuf);
-        int limit = ScanInt(&ok);
-        int field18 = ScanInt(&ok);
-        InfoDaily* info = new InfoDaily(type, ipgNo, (unsigned int)field8,
-                                        start, end, limit, field18);
-        m_infoMap[info->m_ipgNo] = info;
+        int start = (int)uint32Time(t1);
+        int end = (int)uint32Time(t2);
+        int fieldC = ScanInt((bool*)0);
+        if (m_infoMap.find(ipgNo) != m_infoMap.end())
+        {
+            printf("[character restrict]already registered ipg_no:%u\n", ipgNo);
+            return -1;
+        }
+        InfoDaily* info = new InfoDaily(type, ipgNo, (unsigned int)fieldA,
+                                        start, end, fieldB, fieldC);
+        m_infoMap.insert(std::make_pair(ipgNo, info));
     }
     return 0;
 }
@@ -122,20 +139,21 @@ bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 // ---- readTime / uint32Time ----
 int readTime(short* out)
 {
-
     bool ok = false;
     int n = 0;
     out[n++] = (short)ScanInt(&ok);
     if (!ok)
-        return n;
+        return 0;
     out[n++] = (short)ScanInt(&ok);
     if (!ok)
-        return n;
+        return 0;
     out[n++] = (short)ScanInt(&ok);
     if (!ok)
-        return n;
+        return 0;
     out[n++] = (short)ScanInt(&ok);
-    return n;
+    if (!ok)
+        return 0;
+    return 1;
 }
 
 unsigned int uint32Time(short* buf)
@@ -258,10 +276,11 @@ bool Manager::Load()
     return m_loader.LoadScript() == 0;
 }
 
-void Manager::Destroy()
+int Manager::Destroy()
 {
     // ORIG 0x080e0e40：返回 1；经 ScriptInterface 虚槽调用时返回值被忽略，
     // 槽签名 void（Arad_DataManager.h ScriptInterface）。
+    return 1;
 }
 
 bool Manager::FindIpgNo(unsigned int ipgNo)

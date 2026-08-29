@@ -1028,6 +1028,11 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_blockUseActiveSkill = 0;              // byte(param_1+0xdb)=0
     m_blockUseStackableItem = 0;            // byte(0x36d)=0
     m_fixChampion = 0;                      // byte(0x36e)=0
+    // ORIG Clear 0x0836c688：movb $0,0x248（m_pvpByPartySlot）+
+    // 循环 movb $0,0x249+i（m_keepStateAxisX/Y/Z 三 byte）——布局修正补漏。
+    m_pvpByPartySlot = 0;
+    for (int i = 0; i < 3; ++i)
+        (&m_keepStateAxisX)[i] = 0;
     m_str370.clear();                       // Ss::clear(+0xdc)
     m_visibleMinimap = 1;                   // param_1[0xdd]=1
     m_visibleTownMinimap = 1;               // param_1[0xde]=1

@@ -479,7 +479,7 @@ public:
         int m_values[0x47][0x1e];  // +0x00 [level][field]（0x47×0x1e int）
         void reset();
     };
-    void AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user, unsigned int value);
+    bool AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user, unsigned int value);
     int InsertValueStatistic();
 private:
     std::map<ENUM_SERVER_GROUP, stValueStatistic> m_data;
@@ -503,7 +503,7 @@ struct stEquipCondition
     unsigned char m_pad7;           // +0x07（ctor 清零）
     unsigned int m_field8;          // +0x08
 
-    stEquipCondition() { memset(this, 0, sizeof(*this)); }
+    stEquipCondition() { memset(this, 0, 8); m_flag6 = 1; }
 };
 
 // stEquipConditionForChronicle —— ORIG 输出布局（0xc 字节）。
@@ -602,7 +602,7 @@ public:
     int check_empty_count(Inven_Item::ITEM_TYPE type, int count) const;
     int check_item_exist(int itemIdx) const;
     int possible_to_insert(int itemIdx) const;
-    bool isEquipmentPlaceableAtInventory(int slot);
+    static bool isEquipmentPlaceableAtInventory(int slot);
     int CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const;
     int doesExistEquipItem(int itemIdx, int slot);
     int getExistEquipItem(int itemIdx, int slot, int count);

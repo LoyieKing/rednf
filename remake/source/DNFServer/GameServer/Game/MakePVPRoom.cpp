@@ -24,7 +24,7 @@
 
 // MSG_MAKE_PVP_ROOM：权威定义当前在 DisPatcherCore.cpp wave1 声明区（sizeof 0x3d，
 // dispatch_sig memset 0x3d 实证；DisPatcherCore.h 仅前置声明）。此处按同一布局
-// 重声明（TU 内类型，无链接符号，mangled 参数名一致即得 ORIG 符号）。
+#pragma pack(push, 1)
 struct MSG_MAKE_PVP_ROOM
 {
     char m_pad0[0xd];        // +0x00..0x0c
@@ -36,6 +36,7 @@ struct MSG_MAKE_PVP_ROOM
     char m_field33[9];       // +0x33..0x3b 密码/校验缓冲
     char m_battleMode;       // +0x3c battleMode
 };
+#pragma pack(pop)
 
 // 共用错误应答：put_byte(0), put_byte(err), finalize(1), Send —— ORIG 各失败段
 // 0x820..0x813/0x7ac8..0x7b0e/0x7b31../0x7b9b../0x7c06.. 共形（仅 err 码不同）。
@@ -50,7 +51,7 @@ static void SendMakePVPRoomError(CUser* user, PacketGuard& packet, int errCode)
 bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BATTLE_MODE mode)
 {
     PacketGuard packet;                                  // -0x40
-    packet.put_header((int)cmd, 1);                      // 0x81f7968
+    packet.put_header(1, (int)cmd);                      // 0x81f7968
 
     // 最高段位频道的段位上限门（ORIG 0x81f796d..0x81f7a1d：ch==0xf || ch==0x10）
     int chType = G_GameWorld()->GetChannelType();
@@ -148,7 +149,7 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
     if ((int)cmd == 0x65)
     {
         PacketGuard failPacket;                          // -0x4c
-        failPacket.put_header(0x65, 1);
+        failPacket.put_header(1, 0x65);
         failPacket.put_byte(1);
         failPacket.finalize(1);
         user->Send(failPacket);

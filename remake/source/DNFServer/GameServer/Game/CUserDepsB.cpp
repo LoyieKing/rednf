@@ -526,9 +526,9 @@ bool CLevelRewardTable::GetJobAffection()
 }
 
 // ORIG W 0x08697792 sz 0xc：movzbl (this) —— 读 m_flag。
-bool CLevelRewardTableMgr::IsOn()
+unsigned char CLevelRewardTableMgr::IsOn()
 {
-    return m_flag != 0;
+    return m_flag;
 }
 
 // ORIG T 0x08687792 sz 0x96：表缺失或 job∉[0,10] 返回 0；否则以 (job+1, 0) 查
@@ -678,7 +678,8 @@ void LevelupSupport2ndEventManger::Process(CUser* user)
         4, m_script.m_mailContent.c_str(), (bool*)0);
     for (unsigned int i = 0; i < items->size(); ++i)
     {
-        int itemIdx = (*items)[i].m_itemIndex;     // at(i).+0
+        // ORIG 用 vector::at(i)（_ZNKSt6vector…2atEj，边界检查）。
+        int itemIdx = items->at(i).m_itemIndex;
         CItem* script = G_CDataManager()->find_item(itemIdx);
         if (script == 0)
             continue;
@@ -686,7 +687,7 @@ void LevelupSupport2ndEventManger::Process(CUser* user)
         item.m_addInfo = script->get_index();      // -0x67（get_index 先于虚调用）
         script->make_item(item);                   // vtable+8
         item.set_add_info(
-            static_cast<short>((*items)[i].m_itemCount));  // (short)cwtl
+            static_cast<short>(items->at(i).m_itemCount));  // (short)cwtl
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             mailTitle, item, 0, user->getCurCharacNo(), mailContent,
             static_cast<int>(strlen(mailContent)), 0xf, user->GetServerGroup(),
@@ -727,4 +728,5 @@ void DB_EventAccountCharacterLevelUpOnceGift::makeRequest(unsigned int accId,
     **guard << characNo;
     **guard << job;
     **guard << level;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

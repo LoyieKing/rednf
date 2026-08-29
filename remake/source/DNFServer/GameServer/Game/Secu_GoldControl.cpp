@@ -73,7 +73,7 @@ void Secu_GoldControl::resetRangeMoney(user_gold_info& cur, user_gold_info& copy
     {
         if (cur64[i] > 0x00000000fffffffeULL)
         {
-            copy64[i] = 0xffffffffffffffffULL;
+            copy64[i] = 0x00000000ffffffffULL;
             cur64[i] -= 0x00000000ffffffffULL;
         }
         else

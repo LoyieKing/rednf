@@ -62,7 +62,7 @@ public:
     virtual void OnWalkOut(PvP_Room* room, int a)
     { (void)room; (void)a; }                                    // +0x44
     virtual bool OnReady(CUser* user, bool ready)
-    { (void)user; (void)ready; return false; }                  // +0x48（ORIG set_ready_state 0x85d82cb call 后 xor $1 取反，P22）
+    { (void)user; (void)ready; return true; }                   // +0x48（ORIG set_ready_state 0x85d82cb call 后 xor $1 取反，P22）
     virtual void OnReward(PvP_Room* room, int a, bool b)
     { (void)room; (void)a; (void)b; }                           // +0x4c
     virtual void OnEndPvP(PvP_Room* room) { (void)room; }       // +0x50
@@ -72,7 +72,7 @@ public:
     virtual void OnConnectP2P(CUser* user, PvP_Room* room,
                               char* addr, int port)
     { (void)user; (void)room; (void)addr; (void)port; }         // +0x5c
-    virtual void OnGiveup(CUser* user) { (void)user; }          // +0x60
+    virtual int OnGiveup(CUser* user) { (void)user; return 1; }  // +0x60
     virtual void OnRematchTimeout(PvP_Room* room) { (void)room; }  // +0x64
     virtual void OnAskRematch(CUser* user, int a)
     { (void)user; (void)a; }                                    // +0x68

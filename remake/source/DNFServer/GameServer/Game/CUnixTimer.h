@@ -6,15 +6,17 @@
 
 #include "MySQL.h"
 
+#pragma pack(push, 1)
 class CUnixTimer : public CDnFTimer
 {
 public:
-    CUnixTimer();
+    CUnixTimer() throw();
     double GetNowTime();
     virtual void SetLastTime();
     virtual double GetTimeInterval();
     double m_lastTime;  // +4（ORIG：vptr@0 + double@4，总大小 0xc）
 };
+#pragma pack(pop)
 
 
 #endif // DNF_GAME_CUNIXTIMER_H_

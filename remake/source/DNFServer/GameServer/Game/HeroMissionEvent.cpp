@@ -251,7 +251,7 @@ void HeroMissionEvent::EndEvent()
 }
 
 TotalMission::TotalMission()
-    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_3)
+    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_6)
 {
 }
 TotalMission::~TotalMission() {}
@@ -418,7 +418,7 @@ bool UseFatigueMission::rewardMission(CUser* user, HeroMissionValue& value)
 }
 
 UseCubeMission::UseCubeMission()
-    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_4)
+    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_3)
 {
 }
 UseCubeMission::~UseCubeMission() {}
@@ -429,9 +429,9 @@ UseCubeMission::~UseCubeMission() {}
 void UseCubeMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                     unsigned int amount)
 {
-    if (value.m_field4 < m_condition.m_extra[0])
+    if (value.m_field4 <= m_condition.m_extra[0])
     {
-        if (value.m_field4 + amount < m_condition.m_extra[0])
+        if (value.m_field4 + amount <= m_condition.m_extra[0])
         {
             value.m_field4 = value.m_field4 + static_cast<unsigned short>(amount);
         }
@@ -479,7 +479,7 @@ bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
 }
 
 LevelUpMission::LevelUpMission()
-    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_5)
+    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_4)
 {
 }
 LevelUpMission::~LevelUpMission() {}
@@ -553,7 +553,7 @@ bool LevelUpMission::rewardMission(CUser* /*user*/, HeroMissionValue& /*value*/)
 }
 
 AttendanceMission::AttendanceMission()
-    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_6)
+    : BaseHeroMissionCondition(HeroMissionCondition::MissionNo::T_5)
 {
 }
 AttendanceMission::~AttendanceMission() {}

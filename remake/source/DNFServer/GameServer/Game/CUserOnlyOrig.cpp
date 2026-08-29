@@ -809,9 +809,10 @@ void CUser::_saveProperDungeonClearCount(unsigned int dungeonIdx, short subNo)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x85cd);
     CStreamGuard guard(s, true);
-    guard << 0x1d4;
-    guard << (int)GetUID();
-    SIG_SAVE_BLOOD_CLEAR_COUNT* bloodBody = guard.GetInBuffer<SIG_SAVE_BLOOD_CLEAR_COUNT>();
+    guard.operator*()->operator<<(0x1d4);
+    guard.operator*()->operator<<((int)GetUID());
+    SIG_SAVE_BLOOD_CLEAR_COUNT* bloodBody =
+        guard.operator->()->GetInBuffer<SIG_SAVE_BLOOD_CLEAR_COUNT>();
     bloodBody->m_dungeonIdx = dungeonIdx;           // +0x00
     bloodBody->m_subNo = subNo;                     // +0x04
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -825,8 +826,8 @@ void CUser::_updateSaveOption()
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1d0d);
     CStreamGuard guard(s, true);
-    guard << 0x2b5;
-    guard << (int)GetUID();
+    guard.operator*()->operator<<(0x2b5);
+    guard.operator*()->operator<<((int)GetUID());
     // SIG_CHARACTER_OPTION 协议视图：+0x00 characNo + 0x04 CharacterOption(0x200)。
     struct SIG_CHARACTER_OPTION_VIEW
     {
@@ -835,7 +836,7 @@ void CUser::_updateSaveOption()
     };
     SIG_CHARACTER_OPTION_VIEW* body =
         reinterpret_cast<SIG_CHARACTER_OPTION_VIEW*>(
-            guard.GetInBuffer<CharacterOption>());
+            guard.operator->()->GetInBuffer<CharacterOption>());
     memset(body, 0, 0x204);
     body->m_characNo = getCurCharacNo();
     GetCurCharacOption(body->m_option);
@@ -944,8 +945,10 @@ bool CUser::alonePlay_Mode()
 bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
 {
     CGameOption* opt = GetGameOptionRef();
-    if ((signed char)*(const unsigned char*)((const char*)&req + 0xf) > 3)
-        return false;                                  // byte>3 unsigned-jbe 判定
+    // ORIG 0x0868dcbc：movzbl+movsbl 符号扩展后 jbe（无符号）——0x80+ 字节按
+    // 大数处理即恒 >3 → 拒绝。等价无符号判定（unsigned char 比较）。
+    if ((unsigned char)*(const unsigned char*)((const char*)&req + 0xf) > 3)
+        return false;
     return opt->get_etc_option((ENUM_OPTION_ETC)0x1b) == 1;
 }
 
@@ -1559,7 +1562,7 @@ void CUser::ClearMissionKind(short kind)
 // ---------------------------------------------------------------------------
 bool CUser::ClearSkills()
 {
-    bool block = (m_clientSpec.m_gmUserFlag == 0) && (getCurCharacR() != 0);   // Client_Spec+0xbfc → CUser+0x711d8
+    bool block = (m_clientSpec.m_gmUserFlag != 0) && (getCurCharacR() != 0);   // Client_Spec+0xbfc → CUser+0x711d8
     if (!block)
     {
         ((SkillSlot*)getCurCharacSkillW())->debugCommandResetSkill();
@@ -3400,9 +3403,9 @@ void CUser::LoadMileage()
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x18f2);
     CStreamGuard guard(s, true);
-    guard << (int)0x1fd;                       // 流类型
-    guard << (int)GetUID();
-    char* sig = (char*)guard.GetInBuffer<SIG_MILEAGE_STRUCT>();
+    guard.operator*()->operator<<((int)0x1fd); // 流类型
+    guard.operator*()->operator<<((int)GetUID());
+    char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();
     *(unsigned int*)(sig + 0) = get_acc_id();
     *(unsigned int*)(sig + 4) = getCurCharacNo();
     *(unsigned int*)(sig + 8) = 0;             // mileage 由 DB 侧维护
@@ -4031,7 +4034,7 @@ void CUser::onSelectCharacter()
     m_mcap.decIncRate(rareCount * 100);
 
     int spareCount = 0;                                    // -0x1c(second loop)
-    for (int j = 10; j <= 0x16; ++j) {                     // P2 有符号
+    for (int j = 10; j <= 0x15; ++j) {                     // P2 有符号
         if (j != 0xb) {
             Inven_Item t2;                                 // -0x9a
             t2 = getCurCharacInvenR()->GetInvenSlot(0, j);
@@ -5364,10 +5367,10 @@ void CUser::saveCharacLinkMessageFlag(bool flag)
     setCharacLinkMessageFlag(flag);
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c66);
     CStreamGuard guard(s, true);
-    guard << (int)0x1e4;
-    guard << (int)-1;
-    guard << (int)get_acc_id();
-    guard << (unsigned char)(flag ? 1 : 0);
+    guard.operator*()->operator<<((int)0x1e4);
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<(get_acc_id());
+    guard.operator*()->operator<<(flag);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
@@ -6795,10 +6798,10 @@ void CUser::UpdateBreakAwayDungeonClearCnt()
 
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c01);
     CStreamGuard guard(stream, true);
-    guard << 0x145;
-    guard << GetUID();
-    guard << get_acc_id();
-    guard << getBreakAwayDungeonClearCnt();
+    guard.operator*()->operator<<(0x145);
+    guard.operator*()->operator<<(GetUID());
+    guard.operator*()->operator<<(get_acc_id());
+    guard.operator*()->operator<<(getBreakAwayDungeonClearCnt());
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
 }
 
@@ -6811,9 +6814,9 @@ void CUser::UpdateBreakAwayLuckPoint()
 
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bf2);
     CStreamGuard guard(stream, true);
-    guard << 0x149;
-    guard << GetUID();
-    guard << get_acc_id();
+    guard.operator*()->operator<<(0x149);
+    guard.operator*()->operator<<(GetUID());
+    guard.operator*()->operator<<(get_acc_id());
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
 }
 
@@ -6925,8 +6928,8 @@ void CUser::UpdateDimensionInout()
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bd0);
     CStreamGuard guard(stream, true);
-    guard << 0x14f;
-    guard << GetUID();
+    guard.operator*()->operator<<(0x14f);
+    guard.operator*()->operator<<(GetUID());
 
     SIG_UPDATE_DIMENSION* sig = guard->GetInBuffer<SIG_UPDATE_DIMENSION>();
     memset(sig, 0, 0x10);
@@ -9020,7 +9023,7 @@ class CBingo
 public:
     int calBoradMatchLine(int board);        // ORIG T 0x080cab5a（定义 BingoEventLink4.cpp）
 
-    void initUserData(BingoData& data);      // ORIG T 0x080cadd4（本 TU 定义）
+    int initUserData(BingoData& data);       // ORIG T 0x080cadd4（本 TU 定义；ORIG 返回 1）
 };
 
 class BingoEvent   // LinkClosureD：原 BingoEventLocalView（_ZN19... mangled 无 ORIG 对应）
@@ -9029,13 +9032,14 @@ public:
     void* getBingoSystem();                  // ORIG T 0x080c9fea（定义 BingoEventLink4.cpp）
 };
 
-void CBingo::initUserData(BingoData& data)
+int CBingo::initUserData(BingoData& data)
 {
-    // initUserData.md：calBoradMatchLine(*((int*)&data)) 结果写 data.m_isWin(+0x04)；
+    // initUserData.md：calBoradMatchLine(*((int*)&data)) 结果写 data+0x04（char 截断），
     // 返回 1。
-    data.m_isWin = (calBoradMatchLine(
-                        *reinterpret_cast<int*>(reinterpret_cast<void*>(&data)))
-                    != 0);
+    *reinterpret_cast<char*>(reinterpret_cast<char*>(&data) + 0x04) =
+        static_cast<char>(calBoradMatchLine(
+            *reinterpret_cast<int*>(reinterpret_cast<void*>(&data))));
+    return 1;
 }
 
 // ============================================================================
@@ -9510,29 +9514,24 @@ void CUser::SendTagCharacInfo()
 }
 
 // ---------------------------------------------------------------------------
-// CUser::requestCubePremiumInfoIfContracted() T 0x086467ee sz0x124
-// 报告：docs/class_func_reports/CUser/requestCubePremiumInfoIfContracted.md
-// getCurCharacR 非空且 isAffectedPremium(0x5c)：Acquire 流→guard(stream,true)
-// →<<(0x332)→<<(GetUID)→GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO>
-// 写 m_characNo（getCurCharacR 首字段）→MsgQueueMgr::put(DB_Q,guard)。
-// ---------------------------------------------------------------------------
+// ORIG 反汇编：getCurCharacR()==0 时 sete+test+jne 早退；Acquire 结果直接
+// 作为 CStreamGuard 构造实参（无中间栈变量）。
 void CUser::requestCubePremiumInfoIfContracted()
 {
-    if (getCurCharacR() != 0) {
-        if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x5c)) {
-            Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x475);
-            CStreamGuard guard(stream, true);
-            guard.operator*()->operator<<(0x332);
-            guard.operator*()->operator<<(static_cast<int>(GetUID()));
-            SIG_GET_PREMIUM_SELECTED_CUBE_INFO* sig =
-                guard->GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO>();
-            sig->m_characNo = static_cast<unsigned int>(getCurCharacR()->m_characNo);
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        }
-    }
+    if (getCurCharacR() == 0)
+        return;
+    if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x5c))
+        return;
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("user.cpp", 0x475), true);
+    guard.operator*()->operator<<(0x332);
+    guard.operator*()->operator<<(static_cast<int>(GetUID()));
+    SIG_GET_PREMIUM_SELECTED_CUBE_INFO* sig =
+        guard->GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO>();
+    sig->m_characNo = static_cast<unsigned int>(getCurCharacR()->m_characNo);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-
-// ---------------------------------------------------------------------------
+ // ---------------------------------------------------------------------------
 // CUser::setCharacSlotLimit(unsigned char limit) W 0x0869755c sz0x1b
 // 报告缺失（nm 0x0869755c 定址后 objdump 忠实转写）：
 //   mov %al,-0x4; mov 0xc(%ebp)→eax? 实参经 -0x4 截断回读 movzbl 后写
@@ -10621,14 +10620,14 @@ struct SIG_LOAD_PREMIUM_LETHE
 
 SIG_LOAD_PREMIUM_LETHE::SIG_LOAD_PREMIUM_LETHE()
 {
-    for (int i = 0; i < 0xcb; ++i) {   // ORIG：esi=0xcb 递减循环、ebx 步进 2
-        new (&m_skills[i]) _Mastered_skill();   // call _Mastered_skill::_Mastered_skill
-    }
+    // ORIG 0x0848ff7c：esi=0xcb 递减单循环直接构造（数组成员默认构造模式）。
+    // placement new 循环在 gcc 4.4.7 O0 下会生成双循环（多一次 _ZnwjPv 重建），
+    // 故用空体让数组成员自动逐元素构造（实验证实与 ORIG 一致）。
 }
 
 CharacterOption::CharacterOption()
 {
-    memset(this, 0xff, 0x200);   // ORIG 0x0822abec：memset(this,0xffffffff,0x200)
+    memset(this, -1, 0x200);     // ORIG 0x0822abec：memset(this,0xffffffff,0x200)
 }
 
 // ORIG 0x08695ca4 _ZN19ExpBonusPointResultC1Ev/C2Ev：sub $0x18 后 call clear。
@@ -11559,31 +11558,24 @@ bool CUser::is_recipe_items_avatar_type(
     return false;
 }
 
-// ORIG T _ZN5CUser30SendHasNoGoWithApcQuestInPartyEPK5Quest @0x0866d972
-// （报告 SendHasNoGoWithApcQuestInParty.md）：get_state 5/10 且 quest 触发型
-// （m_triggerType==3 且 m_triggerSubType==0）时，组队内无人可携 APC → 包
-// 0xa8（quest m_index）广播全队。
+// ORIG 反汇编对 get_state() 短路求值两次调用（==5 或 ==10 分支），不做缓存。
 void CUser::SendHasNoGoWithApcQuestInParty(Quest const* quest)
 {
-    const int state = get_state();
-    bool needCheck = false;
-    if (state == 5 || state == 10)
+    if (get_state() == 5 ||
+        (get_state() == 10 && quest->m_triggerType == 3 &&
+         quest->m_triggerSubType == 0))
     {
-        if (quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
-            needCheck = true;
+        CParty* party = reinterpret_cast<CParty*>(GetParty());
+        if (party == 0)
+            return;
+        if (!party->HasNoQuestGoWithApcInParty(quest))
+            return;
+        PacketGuard packet;
+        packet.put_header(0, 0xa8);
+        packet.put_int(quest->m_index);
+        packet.finalize(true);
+        party->send_to_party(packet);
     }
-    if (!needCheck)
-        return;
-    CParty* party = reinterpret_cast<CParty*>(GetParty());
-    if (party == 0)
-        return;
-    if (!party->HasNoQuestGoWithApcInParty(quest))
-        return;
-    PacketGuard packet;
-    packet.put_header(0, 0xa8);
-    packet.put_int(quest->m_index);
-    packet.finalize(true);
-    party->send_to_party(packet);
 }
 
 // ---------------------------------------------------------------------------

@@ -307,7 +307,7 @@ void CUser::quest_basic_reward(Quest* quest, int& expOut, int& goldOut,
     expOut = compute_quest_basic_reward_exp(quest);        // [0x866e7c1]
     goldOut = compute_quest_basic_reward_gold(quest);      // [0x866e7d8]
 
-    unsigned int ratio =                                   // [-0xc uint 除法]
+    int ratio =                                            // [-0xc uint 除法，比较有符号 jle]
         getCurCharacHelpAbuseComputedRatio() / 10000u;     // [mul 0xd1b71759 shr 0xd]
     if (ratio > 100)                                       // [cmpl $0x64 jle]
     {

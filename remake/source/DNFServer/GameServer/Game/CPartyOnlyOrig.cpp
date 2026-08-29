@@ -113,7 +113,7 @@ void CParty::_ClearConnectP2PAbsolute(int slot)
 
 // ORIG T 0x0859a6dc（_ClearConnectP2PRelative.md）：仅扫描槽位 2..3，
 // 与 param 的 P2P 点数相等者离队；恒返回 1。
-void CParty::_ClearConnectP2PRelative(int slot)
+int CParty::_ClearConnectP2PRelative(int slot)
 {
     for (int i = 2; i < 4; i++)
     {
@@ -123,6 +123,7 @@ void CParty::_ClearConnectP2PRelative(int slot)
                        static_cast<ENUM_PARTY_INFO_TYPE>(2));
         }
     }
+    return 1;
 }
 
 // ORIG T 0x0859a7a2（_GetConnectP2PMaxMinPoint.md）：max=0/min=4 初值后，
@@ -434,11 +435,12 @@ void* CParty::GetUserSecretShop(CUser* user)
 
 // ORIG T 0x085ba680（switchPostion.md）：整个 cMember 槽（0x18 字节含
 // m_pUser）对调。
-void CParty::switchPostion(char a, char b)
+int CParty::switchPostion(char a, char b)
 {
     cMember tmp = m_member[a];
     m_member[a] = m_member[b];
     m_member[b] = tmp;
+    return 1;
 }
 
 // ORIG T 0x0859b2b6（join_user.md）：空指针日志 -1；满员且 state==2 特判
@@ -631,9 +633,10 @@ bool CParty::CheckRecvFromAllMember(CUser* user)
     return true;
 }
 
-// ORIG T 0x0859a34e（TimeoutCompleteAfterAssault.md）：首次进入时翻转
-// +0x118 守卫返回 0；否则按未回包成员逐个踢出（trace 后 leave_user type2）。
-void CParty::TimeoutCompleteAfterAssault()
+// ORIG T 0x0859a34e（TimeoutCompleteAfterAssault.md）：+0x118 守卫非 0 时
+// 复位并返回 0；为 0 时按未回包成员逐个踢出（trace 后 leave_user type2），
+// 返回 1（ORIG 主路径不写 +0x118；调用方 CAssaultMgr 两处均 test %al 消费返回值）。
+int CParty::TimeoutCompleteAfterAssault()
 {
     if (!m_recvResultFlag)
     {
@@ -661,12 +664,10 @@ void CParty::TimeoutCompleteAfterAssault()
                 }
             }
         }
-        m_recvResultFlag = true;
+        return 1;
     }
-    else
-    {
-        m_recvResultFlag = false;
-    }
+    m_recvResultFlag = false;
+    return 0;
 }
 
 // ORIG T 0x085a82d2（IsClearedQuest.md）：任一有效成员未清任务即 false。
@@ -966,11 +967,11 @@ void CParty::RestartDungeon()
 {
     int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
                          ->get_dungeon_index();
-    char diff = static_cast<char>(
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
-            ->get_dungeon_diff());
+    // ORIG：mov %eax,-0xc（int 槽），dungeon_start 前 movsbl %al 扩符号。
+    int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                   ->get_dungeon_diff();
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
-    dungeon_start(dungeonIdx, diff, static_cast<ENUM_DUNGEON_TYPE>(0));
+    dungeon_start(dungeonIdx, (char)diff, static_cast<ENUM_DUNGEON_TYPE>(0));
 }
 
 // ORIG T 0x085a7786（isMonsterDrop_item.md）：场上存在该掉落且数量非 0 才算 0。

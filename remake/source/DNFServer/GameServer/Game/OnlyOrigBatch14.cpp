@@ -462,34 +462,39 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
     for (;;)
     {
         int token = g_dnfLex.getToken();
-        switch (token)
+        // ORIG if 链布局（非 switch 表）；case 9 成功时 ORIG 将 token 置 7，
+        // 使后续循环 break 检查（2/3/4/7/5/0）命中，避免继续循环。
+        if (token == 2)   // decimal
         {
-        case 2:   // decimal
             value = g_dnfLex.getDecimal();
             type = 1;
             got = true;
-            break;
-        case 3:   // hex
+        }
+        else if (token == 3)   // hex
+        {
             value = g_dnfLex.getHexDecimal();
             type = 1;
             got = true;
-            break;
-        case 4:   // float
+        }
+        else if (token == 4)   // float
+        {
             value = (int)g_dnfLex.getFloat();
             type = 1;
             got = true;
-            break;
-        case 7:   // string
+        }
+        else if (token == 7)   // string
+        {
             str = toTString(g_dnfLex.getString());
             got = true;
             type = 0;
-            break;
-        case 5:   // type
+        }
+        else if (token == 5)   // type
+        {
             str = toTString(g_dnfLex.getType());
             got = true;
             type = 2;
-            break;
-        case 9:   // pair int
+        }
+        else if (token == 9)   // pair int
         {
             int key = g_dnfLex.getPairInt();
             if (g_dnfLex.getToken() == 0xa)
@@ -499,13 +504,13 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
                                                         0);
                 type = 0;
                 got = true;
+                token = 7;   // ORIG 0x88bdcb8 movl $0x7,-0x14(%ebp)
             }
-            break;
         }
-        default:
+        else
+        {
             got = false;
             type = 3;
-            break;
         }
         if (token == 2 || token == 3 || token == 4 || token == 7 ||
             token == 5 || token == 0)
@@ -990,33 +995,24 @@ void importActiveStatus(STActiveStatus& st, bool flag)
         st.m_flagC = ScanInt((bool*)0) != 0;
     }
     st.m_value10 = ScanInt((bool*)0);
-    switch (type)
+    // ORIG if 链布局（非 switch 位掩码）：5/0/0xc 各 2 值，
+    // 7/0xf/0x11/0xa/2/6/0xb 各 1 值，9/0xd/4 各循环 4 值。
+    if (type == 5 || type == 0 || type == 0xc)
     {
-    case 5:
-    case 0:
-    case 0xc:
         st.m_list14.push_back(ScanInt((bool*)0));
         st.m_list14.push_back(ScanInt((bool*)0));
-        break;
-    case 7:
-    case 0xf:
-    case 0x11:
-    case 0xa:
-    case 2:
-    case 6:
-    case 0xb:
+    }
+    else if (type == 7 || type == 0xf || type == 0x11 ||
+             type == 0xa || type == 2 || type == 6 || type == 0xb)
+    {
         st.m_list14.push_back(ScanInt((bool*)0));
-        break;
-    case 9:
-    case 0xd:
-    case 4:
+    }
+    else if (type == 9 || type == 0xd || type == 4)
+    {
         for (int i = 0; i <= 3; ++i)
         {
             st.m_list14.push_back(ScanInt((bool*)0));
         }
-        break;
-    default:
-        break;
     }
 }
 
@@ -1255,6 +1251,11 @@ void FAIR_PVP_SKILL_TREE_SKILL_PER_POINT::clear()
     m_removeSkills.clear();
     m_giveSkills.clear();
     m_pointCost = 0;
+}
+// ORIG C1 0x08a5e7e6：构造成员后调 clear()。
+FAIR_PVP_SKILL_TREE_SKILL_PER_POINT::FAIR_PVP_SKILL_TREE_SKILL_PER_POINT()
+{
+    clear();
 }
 
 // ============================================================================

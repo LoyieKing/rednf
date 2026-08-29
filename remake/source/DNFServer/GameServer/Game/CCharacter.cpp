@@ -23,12 +23,16 @@ STSecondGrowTypeInfo::~STSecondGrowTypeInfo()
 CCharacter::CCharacter()
     : m_baseInfo(), m_giveSkillList(), m_secondGrowTypes()
 {
+    // ORIG 0x834828c：各成员构造完成后调 clear()。
+    clear();
 }
 
 // ORIG ~CCharacter @ 0x834842a：destroy → 逆序析构 STSecondGrowTypeInfo[7]、
 // vector[7]（成员析构由编译器按声明逆序生成，语义一致）。
 CCharacter::~CCharacter()
 {
+    // ORIG ~CCharacter @ 0x834842a：先调 destroy()（→clear()）再析构成员。
+    destroy();
 }
 
 // ORIG get_give_skill_firstGrowtype @ 0x83485d8。

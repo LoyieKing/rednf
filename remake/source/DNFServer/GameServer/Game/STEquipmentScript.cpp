@@ -178,7 +178,7 @@ void stAvatarTypeSelect_t::init()  // ORIG 0x0898d1fc
 
 GrowthEquipmentInfo::GrowthEquipmentInfo()
 {
-    m_str14 = "";   // ORIG：先构造 +0x14 string 再调 clear()
+    // ORIG 0x089c2fc4：仅成员 string 构造 + 调 clear()，无字符串赋值。
     clear();
 }
 
@@ -2822,8 +2822,8 @@ int getAvatarEmblemType(const char* name)
     if (strncmp(name, "[S socket]", 10) == 0)
         return 0x10;
     if (strncmp(name, "[M socket]", 10) == 0)
-        return -17;    // 0xffef
+        return 0xffef;    // ORIG mov $0xffef (65519)
     if (strncmp(name, "[All socket]", 12) == 0)
-        return -1;     // 0xffff
+        return 0xffff;     // ORIG mov $0xffff (65535)
     return 0;
 }

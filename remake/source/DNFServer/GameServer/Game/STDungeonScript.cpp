@@ -82,7 +82,7 @@ void STDungeonScript::Clear()
     m_316 = 0;
     m_317 = 0;
     m_dailySchedule.clear();
-    m_324 = 0;
+    m_324 = 4;   // ORIG movb $0x4,0x324(%eax)：默认队伍人数上限
     m_325 = 0;
     m_338 = 0;
     m_33c = 0;
@@ -258,23 +258,23 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                                   const char* path)
 {
     (void)path;  // ORIG 未使用该参数
+    bool ok = false;   // ORIG 0x088f20ac：函数序言即初始化（-0x15）
     if (str == "[defense dungeon]")
     {
-        // ScanInt(bool*) 返回值非 0 → m_2ab 置 true
-        bool ok = false;
-        script->m_2ab = (ScanInt(&ok) != 0);
+        // ORIG 0x088f20c7：ScanInt(NULL)（movl $0x0,(%esp)）
+        script->m_2ab = (ScanInt((bool*)0) != 0);
     }
     else if (str == "[advance altar type]")
     {
         std::string token;
         if (!ScanStr(&token))
         {
-            return false;
+            return true;   // ORIG 0x088f211e：解析失败仍返回 1（结束解析）
         }
         advancealtar::StageType::T type;
         if (!advancealtar::StageType::getStageType(token, type))
         {
-            return false;
+            return true;   // ORIG 0x088f2148：同上
         }
         script->m_2ac = static_cast<int>(type);
     }
@@ -294,7 +294,6 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
             {
                 return false;
             }
-            bool ok = false;
             script->m_2b0[diff] = ScanInt(&ok);
             if (!ok)
             {

@@ -36,14 +36,15 @@
 //   CParty::do_after_dungeon_start(...)   —— 报告 do_after_dungeon_start.md 已就绪
 //
 // 头文件类型分歧注记（已同步 Main/战场域批次）：
-//   CBattle_Field+0x94：ORIG 按 int 消费（DungeonPermission.md 传入 AddDungeonClear、
-//     本 TU check_allmember_loading 与 0x35 比较）；现权威头建模为 Mutex 首字。
 //   CBattle_Field+0x1e8/+0x1ec：ORIG reset_hell_party_value(0x0830a57c) 以整数 mov
 //     写入、send/sub_hellparty_value 以 int/fildl 消费，实为 int；现头声明 float。
-//   两处本 TU 以 reinterpret 访问并注释，待权威头修正后改具名字段。
+//   本 TU 以 reinterpret 访问并注释，待权威头修正后改具名字段。
+//   （原 +0x94 注记经 ORIG 反汇编复核为误标：check_allmember_loading 比较的是
+//     CParty+0xcb8 = CBattle_Field+0x194（m_dungeonIndex），已改 cbfField94。）
 // ============================================================================
 
 #include <string.h>
+#include "TowerOfDespairStatistic_Key.h"  // 权威 Key（CDungeon.cpp 定义 ctor）
 #include <vector>
 
 // ORIG T 0x08484a51（InitEnvHelpers.cpp 定义，无权威头声明）
@@ -108,10 +109,12 @@ inline CUser* memberUser(CParty* p, int i)
     return p->m_member[i].m_pUser;
 }
 
-// CBattle_Field+0x94：ORIG 以 int 读取（见文件头注记）。
+// CBattle_Field+0x194：ORIG 以 int 读取并与 0x35 比较（check_allmember_loading
+// 0x085b17a4 反汇编：mov 0xcb8(%eax),%eax；cmp $0x35 —— 0xcb8-0xb24=0x194，
+// 即权威头 m_dungeonIndex）。文件头注记的 +0x94 系误标，已按 ORIG 修正。
 inline int cbfField94(CBattle_Field& field)
 {
-    return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&field) + 0x94);
+    return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&field) + 0x194);
 }
 
 // CBattle_Field+0x1ec（ORIG int 最小地狱值）：见文件头注记。
@@ -126,8 +129,10 @@ inline int cbfHellPartyDenom(CBattle_Field& field)
     return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&field) + 0x1e8);
 }
 
-// FISTP 取整惯例（同 CBossPlay.cpp ROUND 宏）：ORIG fldcw 后 fistpl 最近值取整。
-#define D2_ROUND(x) ((int)((x) + 0.5f))
+// FISTP 取整惯例：ORIG 汇编为 fldcw 0xC（RC=11，truncate 向零截断）后 fistpl，
+// 无 +0.5f 的 fadd（实测 checkHackAverageHitCount/sub_hellparty_value/
+// send_hellParty_value 三处 ORIG 均为纯截断）。旧定义 +0.5f 系误解，修正。
+#define D2_ROUND(x) ((int)(x))
 
 // ---- CCharacBloodDungeon 只读视图（类未建模，同 CPartyDepsC2.cpp 惯例）----
 // GetEnterCount W 0x085bfe88 = *(int*)(this+0x18)（loadData 报告证实计数区）。
@@ -237,10 +242,9 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& f
 {
     bool allowed = true;                                 // movb $1,-0xd
 
-    DimensionPartyCount count;
-    count.m_0 = (char)m_partyType;                       // ctor 第 1 参（ORIG +0xcd8）
-    count.m_1 = mode;                                    // ctor 第 2 参
-    count.m_2 = (char)-1;                                // ctor 第 3 参
+    // ORIG 以 3 参构造 DimensionPartyCount((char)m_partyType, mode, -1)
+    // （ctor W 0x085beabe），非默认构造+赋值
+    DimensionPartyCount count((char)m_partyType, mode, (char)-1);
 
     if (dungeon->get_dimension_member_count(count))      // T 0x0834d220
     {   // (signed char)count.m_2 <= memberCount → 不可入场
@@ -828,12 +832,13 @@ void CParty::check_allmember_loading(bool flag)
     m_pad119 = 1;                                        // +0x119 装载检查标志
     bf(this).onStartMap();                               // T 0x0830dc74
 
-    // 电梯副本收尾（BF+0x94==0x35 且 BF+0x13b 标志）
-    if (cbfField94(bf(this)) == 0x35 && bf(this).m_pad13b != 0)
+    // 电梯副本收尾（BF+0x194==0x35 即 m_dungeonIndex==53 且 BF+0x13a 标志；
+    // ORIG mov 0xcb8(%eax),%eax; cmp $0x35 / movzbl 0xc5e）
+    if (cbfField94(bf(this)) == 0x35 && bf(this).m_elevatorFlag != 0)
     {
         bf(this).m_elevatorTimer = 0;                    // +0x139
         bf(this).m_elevatorState = 2;                    // +0x138
-        bf(this).m_pad13b = 0;                           // +0x13b
+        bf(this).m_elevatorFlag = 0;                     // +0x13a
         const int key = gen_timer_key((TIMER_MESSAGE)0x28);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                     (TIMER_MESSAGE)0x28, 0xf, key, 0);
@@ -919,7 +924,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
             return 0xf7;
 
         const int members = get_member_count();
-        if (members < dungeon->get_limit_party_count())
+        if (dungeon->get_limit_party_count() < members)
             return 0xf3;
 
         for (int i = 0; i < 4; ++i)
@@ -948,7 +953,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
     }
 
     // 普通副本：仅人数上限
-    if (get_member_count() < dungeon->get_limit_party_count())
+    if (dungeon->get_limit_party_count() < get_member_count())
         return 0xf3;
     return 0;
 }
@@ -975,12 +980,13 @@ bool CParty::getDungeonDropTestFlag()
 // send_dungeon_fail_msg —— ORIG T 0x085b35f4
 // 报告：docs/class_func_reports/CParty/send_dungeon_fail_msg.md
 // 插入 TIMER_MESSAGE 0xe 定时器：+0xc4c（BF+0x128 槽）short 非 0 → 3 秒，
-// 否则 10 秒。
+// 否则 10 秒。ORIG 直读 this+0xc4c（无 bf() 调用）。
 // ---------------------------------------------------------------------------
 void CParty::send_dungeon_fail_msg()
 {
     int seconds = 10;
-    if (bf(this).m_villageMonsterId != 0)
+    if (*reinterpret_cast<unsigned short*>(
+            reinterpret_cast<char*>(this) + 0xc4c) != 0)
         seconds = 3;
 
     const int key = gen_timer_key((TIMER_MESSAGE)0xe);
@@ -1057,9 +1063,11 @@ void CParty::send_hellParty_value()
     packet.put_header(0, 0xcf);
 
     const float kScale = 100.0f;                         // flds 0x08cbbbcc
-    BattleData& d = bd(this);
-    const float denom = static_cast<float>(cbfHellPartyDenom(bf(this)));
-    const int out = D2_ROUND((kScale * d.m_hellPartyValueTotal) / denom);
+    // ORIG：flds 0xb0c（hellValue）* 100.0f / fildl *(int*)(this+0xd0c)。
+    const float denom =
+        static_cast<float>(*(int*)((char*)this + 0xd0c));
+    const int out =
+        D2_ROUND((kScale * *(float*)((char*)this + 0xb0c)) / denom);
     packet.put_int(out);
     packet.finalize(true);
     send_to_party(packet);
@@ -1495,9 +1503,9 @@ void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberC
     if (m_dungeon == 0 || m_dungeon->m_89c != 1)
         baseValue = 0.0f;
     float value = (*(float*)(base + 0xd34 + dungeonDiff * 4) + 1.0f +
-                   baseValue + *(float*)(base + 0xd54 + memberCount * 4)) *
+                   baseValue + *(float*)(base + 0xd48 + memberCount * 4)) *
                   (float)*(int*)(base + 0xd18) *
-                  *(float*)(base + 0xd2c + rateLevelDiff * 4) +
+                  *(float*)(base + 0xd24 + rateLevelDiff * 4) +
                   *(float*)(base + 0xb0c);
     *(float*)(base + 0xb0c) = value;
     if (*(int*)(base + 0xd0c) < (int)value)
@@ -1590,14 +1598,9 @@ void cUserHistoryLog::BloodRoundClear(int round, unsigned int clearTime,
                            (unsigned int)clearTime, memberNames);
 }
 
-
-// Packet_TowerOfDespair_Statistic_GTS（与 CDungeon.cpp 内定义一致，ODR 相同）：
-// PacketHeader(0x271c,0x17)[10] + Key[8] + byte flag + uint accId。
-struct TowerOfDespairStatistic_Key
-{
-    int m_0;
-    int m_4;
-};
+// 注：用 #pragma pack（而非 __attribute__((packed))）——GCC 4.4 的 attribute
+// packed 对含非 POD 成员（Key 有 user ctor）的外层 struct 不生效。
+#pragma pack(push, 1)
 struct Packet_TowerOfDespair_Statistic_GTS
 {
     PacketHeader m_header;   // +0x00（packed 0xa 字节）
@@ -1608,12 +1611,11 @@ struct Packet_TowerOfDespair_Statistic_GTS
     Packet_TowerOfDespair_Statistic_GTS()
         : m_header(0x271c, 0x17)
     {
-        m_key.m_0 = 0;
-        m_key.m_4 = 0;
         m_flag = 0;
         m_accId = 0;
     }
-} __attribute__((packed));
+};
+#pragma pack(pop)
 
 // ---------------------------------------------------------------------------
 // CParty::ClearDungeon —— ORIG T 0x085a9330（报告 ClearDungeon.md 逐段转写）：

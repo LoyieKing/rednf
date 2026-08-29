@@ -301,13 +301,13 @@ void CCacheCharacterMgr::FreeCharacter(CACHE_CHARACTER_TYPE* mem)
 {
     Guard<Mutex> g(&m_mutex);
     m_pool.Free(mem);
-    int used = StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size() - m_pool.Remain();
+    int used = m_pool.Size() - m_pool.Remain();
     if (used != static_cast<int>(m_map.size()))
     {
         cMyTrace tr("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0);
         tr("map size(%d), pool remain(%d), max(%d)",
            static_cast<int>(m_map.size()), m_pool.Remain(),
-           StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size());
+           m_pool.Size());
     }
 }
 

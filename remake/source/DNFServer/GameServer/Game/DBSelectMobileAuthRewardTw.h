@@ -11,11 +11,10 @@ class Stream;
 class DBSelectMobileAuthRewardTw : public TaiwanInterfaceDBDispatcher
 {
 public:
-    // ORIG 布局：+0x00 m_id（dispatch/makeRequest 读写首字段）。
+    // ORIG 布局：+0x00 m_id（dispatch/makeRequest 读写首字段）；sizeof=4。
     struct MSG
     {
         unsigned int m_id;   // +0x00
-        char m_pad[0xfc];    // +0x04
     };
 
     DBSelectMobileAuthRewardTw() throw();

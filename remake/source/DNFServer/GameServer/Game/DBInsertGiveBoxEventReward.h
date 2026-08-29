@@ -16,12 +16,11 @@ class DBInsertGiveBoxEventReward : public TaiwanInterfaceDBDispatcher
 {
 public:
     // ORIG 布局（makeRequest 反汇编）：+0 acc_id（get_acc_id）、+4 charac_no
-    // （get_charac_no(-1)），总尺寸 0x100（网络缓冲）。
+    // （get_charac_no(-1)），总尺寸 0x8（GetInBuffer 传 sizeof=8）。
     struct MSG
     {
         unsigned int m_accId;   // +0x00
         int m_characNo;         // +0x04
-        char m_pad08[0xf8];     // +0x08..+0xff
     };
 
     DBInsertGiveBoxEventReward() throw();          // ORIG W 0x0815e550

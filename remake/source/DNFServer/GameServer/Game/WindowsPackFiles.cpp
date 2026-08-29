@@ -34,12 +34,10 @@ bool LoadClientFile(unsigned long* outSize, void** outBuf, const char* path)
     fseek(fp, 0, SEEK_SET);
     unsigned char* buf = new unsigned char[*outSize];
     *outBuf = buf;
-    std::size_t n = (*outSize != 0)
-                        ? fread(*outBuf, *outSize, 1, fp)
-                        : 1;               // ORIG fread(size,1)：size==0 走成功链
-    if (n != 1 && *outSize != 0)
+    std::size_t n = fread(*outBuf, *outSize, 1, fp);
+    if (n != 1)
     {
-        delete[] buf;
+        delete buf;          // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样）
         *outBuf = 0;
         fclose(fp);
         return false;
@@ -726,15 +724,15 @@ bool WindowsDataFileFamily::IsScanningAddressReset()   // 0x08575444
 // ===========================================================================
 // WindowsExeFileFamily —— 0x0857446a..
 // ===========================================================================
-WindowsExeFileFamily::WindowsExeFileFamily()                 // 0x0857446a
+WindowsExeFileFamily::WindowsExeFileFamily()
     : IntervalSet(),
-      m_exeFiles(),
-      m_curSectionIndex(0),
-      m_curOffset(0),
-      m_randMin(0),
-      m_randMax(0)
+      m_exeFiles()
 {
     memset(m_name, 0, sizeof(m_name));
+    m_curSectionIndex = 0;
+    m_curOffset = 0;
+    m_randMin = 0;
+    m_randMax = 0;
 }
 
 WindowsExeFileFamily::~WindowsExeFileFamily()                // 0x08574500

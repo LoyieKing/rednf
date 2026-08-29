@@ -400,11 +400,15 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
                 "seLect reward_flag from event_stay_time_charac where m_id=%s",
                 NumberToString(sig->m_accId, 0)))
             throw "select_exec";
+        if (!db->exec(true))                 // ORIG 0x0815b424：set_query 后 exec(true)
+            throw "select_exec";
         if (db->get_n_rows() == 0)
         {
             if (!db->set_query(
                     "inSert into event_stay_time_charac values('%s', 1, 1, now())",
                     NumberToString(sig->m_accId, 0)))
+                throw "insert_exec";
+            if (!db->exec(true))             // ORIG 0x0815b4ac：insert 后 exec(true)
                 throw "insert_exec";
             sendStayTimeData(uid);
         }
@@ -420,6 +424,8 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
             if (!db->set_query(
                     "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
                     NumberToString(sig->m_accId, 0)))
+                throw "update_exec";
+            if (!db->exec(true))             // ORIG：update 后 exec(true)
                 throw "update_exec";
             sendStayTimeData(uid);
         }
@@ -444,8 +450,8 @@ void CheckStayTimeEvent::sendStayTimeData(int uid)
         "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192);
     CStreamGuard guard(stream, true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x5, uid);
-    TaiwanSigStayTimeEventView* sig =
-        guard.operator->()->GetInBuffer<TaiwanSigStayTimeEventView>();
+    Taiwan::SigStayTimeEvent* sig =
+        guard.operator->()->GetInBuffer<Taiwan::SigStayTimeEvent>();
     if (sig != 0)
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -493,6 +499,8 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
             throw "handle null";
         if (!db->set_query(
                 "seLect rate, HOUR(CURTIME()), event_day FROM event_create_dnf_info WHERE occ_time=DATE_ADD(CURDATE(), INTERVAL HOUR(CURTIME()) HOUR)"))
+            throw "select_exec";
+        if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
             throw "get_n_rows=0";
@@ -546,6 +554,8 @@ bool DBSelectCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
         if (!db->set_query(
                 "seLect m_id from event_create_dnf_user where occ_date=CURDATE() and m_id=%s",
                 NumberToString(sig->m_id, 0)))
+            throw "select_exec";
+        if (!db->exec(1))
             throw "select_exec";
         bool received = false;
         if (db->get_n_rows() != 0)
@@ -618,11 +628,7 @@ bool DBInsertCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        int serverGroup = G_CEnvironment()->get_server_group();
-        if (!db->set_query(
-                "inSert into event_create_dnf_user(occ_date,m_id,server_id,occ_time) VALUES(CURDATE(),%s,%d,CURTIME())",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-                serverGroup))
+        if (!db->exec(1))
             throw "insert_exec";
         cMyTrace t(__PRETTY_FUNCTION__, 0x281, 0);
         t("[Taiwan, Event] insert event_create_dnf_user. m_id:%d",
@@ -688,11 +694,15 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
         if (!db->set_query("seLect m_id from mobile_auth_reward_tw where m_id=%s",
                            NumberToString(mId, 0)))
             throw "select_exec";
+        if (!db->exec(1))
+            throw "select_exec";
         if (db->get_n_rows() == 0)
         {
             if (!db->set_query(
                     "inSert into mobile_auth_reward_tw(m_id,occ_date) VALUES(%s,now())",
                     NumberToString(mId, 0)))
+                throw "insert_exec";
+            if (!db->exec(1))
                 throw "insert_exec";
             ok = false;
             cMyTrace t(__PRETTY_FUNCTION__, 0x2be, 0);
@@ -750,6 +760,8 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                 "seLect m_id, remain_reward_count, unix_timestamp(occ_date) FROM pcroom_daily_reward_tw WHERE m_id=%s",
                 NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
                 fatigueTime))
+            throw "select_exec";
+        if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
@@ -821,11 +833,15 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                 "seLect m_id from pcroom_daily_reward_tw where m_id=%s",
                 NumberToString(sig->m_id, 0)))
             throw "select_exec";
+        if (!db->exec(1))
+            throw "select_exec";
         if (db->get_n_rows() == 0)
         {
             if (!db->set_query(
                     "inSert into pcroom_daily_reward_tw(m_id, occ_date, remain_reward_count) values('%s', now(), %d)",
                     NumberToString(sig->m_id, 0), (int)remain))
+                throw "insert_exec";
+            if (!db->exec(1))
                 throw "insert_exec";
         }
         else
@@ -833,6 +849,8 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
             if (!db->set_query(
                     "upDate pcroom_daily_reward_tw set occ_date=now(), remain_reward_count=%d where m_id = %s",
                     NumberToString(sig->m_id, 0), (int)remain))
+                throw "update_exec";
+            if (!db->exec(1))
                 throw "update_exec";
         }
         return 1;
@@ -882,11 +900,15 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
                 "seLect m_id from event_1306_account_reward_2nd where m_id=%s and occ_date > FROM_UNIXTIME(%d)",
                 NumberToString(sig->m_accId, 0), (int)now))
             throw "select_exec";
+        if (!db->exec(1))
+            throw "select_exec";
         if (db->get_n_rows() == 0)
         {
             if (!db->set_query(
                     "inSert into event_1306_account_reward_2nd (m_id , charac_no , occ_date ) values (%s , %u , now())",
                     NumberToString(sig->m_accId, 0), (unsigned int)sig->m_characNo))
+                throw "insert_exec";
+            if (!db->exec(1))
                 throw "insert_exec";
             Stream* out = GlobalData::s_stream_pool->Acquire(
                 "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3a5);
@@ -942,6 +964,8 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
                 "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
                 serverGroup, characNo))
             throw "exec_select";
+        if (!db->exec(1))
+            throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
         data.init();
         reinterpret_cast<SigHeroMissionDataView*>(&data)->m_field0 = characNo;
@@ -950,6 +974,8 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
             if (!db->set_query(
                     "inSert into event_hero_mission_data values(%d,%u,'',now())",
                     serverGroup, characNo))
+                throw "exec_insert";
+            if (!db->exec(1))
                 throw "exec_insert";
             memset(reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0, 0x100);
         }
@@ -1006,6 +1032,8 @@ bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         if (!db->set_query(
                 "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
                 blob, serverGroup, characNo))
+            throw "exec_update";
+        if (!db->exec(1))
             throw "exec_update";
         return 1;
     }

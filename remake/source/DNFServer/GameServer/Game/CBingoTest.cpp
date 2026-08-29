@@ -50,17 +50,18 @@ CBingo::~CBingo()
 
 // getIndexTodayBoard @ 0x080caafa（docs/class_func_reports/CBingo/getIndexTodayBoard.md）：
 // 在今日棋盘索引表（m_boards）中查找 value 的下标。
-int CBingo::getIndexTodayBoard(int value)
+ int CBingo::getIndexTodayBoard(int value)
 {
     if (value < 0)
     {
         return -1;
     }
-    for (std::size_t i = 0; i < m_boards.size(); ++i)
+    // ORIG：i 为 int，size() 与 i 作有符号比较（setg）。
+    for (int i = 0; i < static_cast<int>(m_boards.size()); ++i)
     {
         if (m_boards[i] == value)
         {
-            return static_cast<int>(i);
+            return i;
         }
     }
     return -1;
@@ -170,9 +171,7 @@ int CBingo::getToday(long sec, int hourLimit)
     return m_today;
 }
 
-// resetBoard @ 0x080ca9b8（docs/class_func_reports/CBingo/resetBoard.md）：
-// 按日取 stBingoScript.m_map18（CDataManager+0xb580，map<int,vector<int>>）当日棋盘
-// 索引表，装入 m_boards。day 越界/无配置返回 0。
+ // ORIG 反汇编：if (day>0 && day<=0x1f) 短路布局（jg/jle 同跳 body）。
 int CBingo::resetBoard(int day)
 {
     if (!(day > 0 && day <= 0x1f))
@@ -181,15 +180,19 @@ int CBingo::resetBoard(int day)
     }
     std::map<int, std::vector<int> >& boardMap = G_CDataManager()->m_bingo.m_map18;
     std::map<int, std::vector<int> >::iterator it = boardMap.find(day);
-    if (it == boardMap.end())
+    if (it != boardMap.end())
     {
-        return 0;
+        m_boards.clear();
+        m_boards = it->second;
+        return 1;
     }
-    m_boards.clear();
-    m_boards = it->second;
-    return 1;
+    return 0;
 }
 
+// resetQuiz @ 0x080caa64（docs/class_func_reports/CBingo/resetQuiz.md）：
+// 按日取 stBingoScript.m_map0（CDataManager+0xb568，map<int,int>）当日 quiz 值写入
+// +0x0c（m_fieldC）。day 越界/无配置返回 0。
+ // ORIG 反汇编：if (day>0 && day<=0x1f) 短路布局（jg/jle 同跳 body）。
 int CBingo::resetQuiz(int day)
 {
     if (!(day > 0 && day <= 0x1f))
@@ -198,12 +201,12 @@ int CBingo::resetQuiz(int day)
     }
     std::map<int, int>& quizMap = G_CDataManager()->m_bingo.m_map0;
     std::map<int, int>::iterator it = quizMap.find(day);
-    if (it == quizMap.end())
+    if (it != quizMap.end())
     {
-        return 0;
+        m_fieldC = it->second;
+        return 1;
     }
-    m_fieldC = it->second;
-    return 1;
+    return 0;
 }
 
 int CBingo::getBingoRandomVaule(int param_1)
@@ -267,16 +270,8 @@ void CBingoTest::getToday()
 
 void CBingoTest::getTimeFromString(std::string s)
 {
-    std::tm t;
-    std::memset(&t, 0, sizeof(t));
-    int y = 0, mo = 0, d = 0, h = 0, mi = 0, se = 0;
-    std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi, &se);
-    t.tm_year = y - 1900;
-    t.tm_mon = mo - 1;
-    t.tm_mday = d;
-    t.tm_hour = h;
-    t.tm_min = mi;
-    t.tm_sec = se;
+    boost::posix_time::ptime pt = boost::posix_time::time_from_string(s);
+    std::tm t = boost::posix_time::to_tm(pt);
     std::mktime(&t);
 }
 

@@ -141,7 +141,7 @@ int getToleranceActiveStatus(ENUM_ACTIVEPROPERTY prop)
     case 8: return 0x08;
     case 9: return 0x09;
     case 10: return 0x0a;
-    case 11: return 0x11;
+    case 11: return 0x0b;
     case 12: return 0x12;   // 调用方以此值跳过该属性
     case 13: return 0x12;
     case 14: return 0x0f;
@@ -477,38 +477,38 @@ void upgradeAbilityByDifficultyOfDungeon(
 // ---------------------------------------------------------------------------
 void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info)
 {
-    const float* bonus = &DIFFICULTY_OF_DUNGEON_BONUS[0][0];
-
+    // ORIG 0x88b8c37：全局表直接索引（无 bonus 指针变量）。
     // +0x04 m_hpBase = trunc(hpBase*BONUS[d+0x14])
-    info->m_hpBase =
-        static_cast<int>(static_cast<float>(info->m_hpBase) * bonus[diff + 0x14]);
+    info->m_hpBase = static_cast<int>(
+        static_cast<float>(info->m_hpBase) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x14]);
     // +0xac attr17Base[13] += BONUS[d+0x0f]
-    info->m_attr17Base[13] += static_cast<int>(bonus[diff + 0x0f]);
+    info->m_attr17Base[13] += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x0f]);
     // +0x130 statBase6 += BONUS[d+0x32]
-    info->m_statBase6 += static_cast<int>(bonus[diff + 0x32]);
-    // +0x78+i*4 attr17Base[i] +=（i=0..16；容错映射 0x12 跳过）
+    info->m_statBase6 += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x32]);
+    // +0x78+i*4 attr17Base[i] +=（i=0..16；容错映射 0x12 跳过；
+    // ORIG 0x88b8c37 用 setne+je 形式，即 if (x != 0x12) 正写）
     for (int i = 0; i <= 0x10; ++i)
     {
-        if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) == 0x12)
-            continue;
-        info->m_attr17Base[i] += static_cast<int>(bonus[diff + 0x23]);
+        if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) != 0x12)
+            info->m_attr17Base[i] +=
+                static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x23]);
     }
     // +0x120 statBase4 = trunc(statBase4*BONUS[d+0x19])
-    info->m_statBase4 =
-        static_cast<int>(static_cast<float>(info->m_statBase4) * bonus[diff + 0x19]);
+    info->m_statBase4 = static_cast<int>(
+        static_cast<float>(info->m_statBase4) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x19]);
     // +0x118 statBase3 += （非零守卫）
     if (info->m_statBase3 != 0)
-        info->m_statBase3 += static_cast<int>(bonus[diff + 0x1e]);
+        info->m_statBase3 += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x1e]);
     // +0x158/+0x168 statBase11/13 = trunc(*BONUS[d+0x28])
-    info->m_statBase11 =
-        static_cast<int>(static_cast<float>(info->m_statBase11) * bonus[diff + 0x28]);
-    info->m_statBase13 =
-        static_cast<int>(static_cast<float>(info->m_statBase13) * bonus[diff + 0x28]);
+    info->m_statBase11 = static_cast<int>(
+        static_cast<float>(info->m_statBase11) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28]);
+    info->m_statBase13 = static_cast<int>(
+        static_cast<float>(info->m_statBase13) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28]);
     // +0x160/+0x170 statBase12/14 = trunc(*BONUS[d+0x2d])
-    info->m_statBase12 =
-        static_cast<int>(static_cast<float>(info->m_statBase12) * bonus[diff + 0x2d]);
-    info->m_statBase14 =
-        static_cast<int>(static_cast<float>(info->m_statBase14) * bonus[diff + 0x2d]);
+    info->m_statBase12 = static_cast<int>(
+        static_cast<float>(info->m_statBase12) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d]);
+    info->m_statBase14 = static_cast<int>(
+        static_cast<float>(info->m_statBase14) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d]);
 }
 
 // ---------------------------------------------------------------------------
@@ -520,46 +520,69 @@ extern std::vector<std::vector<float> > MONSTER_DIFFICULTY_BONUS[5];
 void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
                                          int level)
 {
-    const float* bonus = &DIFFICULTY_OF_DUNGEON_BONUS[0][0];
-
+    // ORIG 0x88b85cf：全局表直接索引（无 bonus 指针变量）。
     if (MONSTER_DIFFICULTY_BONUS[diff].size() >= static_cast<unsigned int>(level))
     {
         const std::vector<float>& row =
             MONSTER_DIFFICULTY_BONUS[diff].at(level - 1);
 
         info->m_hpBase = static_cast<int>(
-            static_cast<float>(info->m_hpBase) * bonus[diff + 0x14] *
-            row.at(4));
-        info->m_attr17Base[13] += static_cast<int>(bonus[diff + 0x0f] * row.at(3));
-        info->m_statBase6 += static_cast<int>(bonus[diff + 0x32] * row.at(10));
+            static_cast<float>(info->m_hpBase) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x14] * row.at(4));
+        info->m_attr17Base[13] += static_cast<int>(
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x0f] * row.at(3));
+        info->m_statBase6 += static_cast<int>(
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x32] * row.at(10));
         for (int i = 0; i <= 0x10; ++i)
         {
-            if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) == 0x12)
-                continue;
-            info->m_attr17Base[i] +=
-                static_cast<int>(bonus[diff + 0x23] * row.at(7));
+            if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) != 0x12)
+                info->m_attr17Base[i] += static_cast<int>(
+                    DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x23] * row.at(7));
         }
         info->m_statBase4 = static_cast<int>(
-            static_cast<float>(info->m_statBase4) * bonus[diff + 0x19] *
-            row.at(5));
+            static_cast<float>(info->m_statBase4) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x19] * row.at(5));
         if (info->m_statBase3 != 0)
-            info->m_statBase3 += static_cast<int>(bonus[diff + 0x1e] * row.at(6));
+            info->m_statBase3 += static_cast<int>(
+                DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x1e] * row.at(6));
         info->m_statBase11 = static_cast<int>(
-            static_cast<float>(info->m_statBase11) * bonus[diff + 0x28] *
-            row.at(8));
+            static_cast<float>(info->m_statBase11) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28] * row.at(8));
         info->m_statBase13 = static_cast<int>(
-            static_cast<float>(info->m_statBase13) * bonus[diff + 0x28] *
-            row.at(8));
+            static_cast<float>(info->m_statBase13) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28] * row.at(8));
         info->m_statBase12 = static_cast<int>(
-            static_cast<float>(info->m_statBase12) * bonus[diff + 0x2d] *
-            row.at(9));
+            static_cast<float>(info->m_statBase12) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d] * row.at(9));
         info->m_statBase14 = static_cast<int>(
-            static_cast<float>(info->m_statBase14) * bonus[diff + 0x2d] *
-            row.at(9));
+            static_cast<float>(info->m_statBase14) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d] * row.at(9));
         return;
     }
 
-    upgradeAbilityByDifficultyOfDungeon(diff, info);
+    // ORIG 0x88b85cf：size<level 时 ORIG 内联展开 2 参版逻辑（非调用）。
+    info->m_hpBase = static_cast<int>(
+        static_cast<float>(info->m_hpBase) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x14]);
+    info->m_attr17Base[13] += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x0f]);
+    info->m_statBase6 += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x32]);
+    for (int i = 0; i <= 0x10; ++i)
+    {
+        if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) != 0x12)
+            info->m_attr17Base[i] +=
+                static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x23]);
+    }
+    info->m_statBase4 = static_cast<int>(
+        static_cast<float>(info->m_statBase4) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x19]);
+    if (info->m_statBase3 != 0)
+        info->m_statBase3 += static_cast<int>(DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x1e]);
+    info->m_statBase11 = static_cast<int>(
+        static_cast<float>(info->m_statBase11) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28]);
+    info->m_statBase13 = static_cast<int>(
+        static_cast<float>(info->m_statBase13) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28]);
+    info->m_statBase12 = static_cast<int>(
+        static_cast<float>(info->m_statBase12) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d]);
+    info->m_statBase14 = static_cast<int>(
+        static_cast<float>(info->m_statBase14) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d]);
 }
 
 // ---------------------------------------------------------------------------
@@ -642,62 +665,56 @@ struct DungeonPartyBalance
 };
 extern std::vector<DungeonPartyBalance> DUNGEON_PARTY_BALANCE_TABLE;
 
-// +0x1c 起 17 个 int 属性槽（ORIG 以 int 数组访问）。
-static int& asiSlot(ActiveStaticInfo* info, int slot)
-{
-    return reinterpret_cast<int*>(reinterpret_cast<char*>(info) + 0x1c)[slot];
-}
-
 // upgradeAbilityBloodSystem —— ORIG 0x088b917b
 void upgradeAbilityBloodSystem(int idx, ActiveStaticInfo* info)
 {
-    const float* tbl = &BLOOD_SYSTEM_BONUS[0][0];
+    // ORIG 0x088b917b：全局表直接索引（无 tbl 指针变量）。
     info->m_hpBase = static_cast<int>(static_cast<float>(info->m_hpBase) *
-                                      tbl[idx + 0x14]);
-    info->m_attr17Base[13] += static_cast<int>(tbl[idx + 0xf]);
-    info->m_statBase6 += static_cast<int>(tbl[idx + 0x32]);
+                                      BLOOD_SYSTEM_BONUS[0][idx + 0x14]);
+    info->m_attr17Base[13] += static_cast<int>(BLOOD_SYSTEM_BONUS[0][idx + 0xf]);
+    info->m_statBase6 += static_cast<int>(BLOOD_SYSTEM_BONUS[0][idx + 0x32]);
     for (int i = 0; i <= 0x10; ++i)
     {
         if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) != 0x12)
-            asiSlot(info, i) += static_cast<int>(tbl[idx + 0x23]);
+            info->m_attr17Base[i] += static_cast<int>(BLOOD_SYSTEM_BONUS[0][idx + 0x23]);
     }
     info->m_statBase4 = static_cast<int>(static_cast<float>(info->m_statBase4) *
-                                         tbl[idx + 0x19]);
-    info->m_statBase3 += static_cast<int>(tbl[idx + 0x1e]);
+                                         BLOOD_SYSTEM_BONUS[0][idx + 0x19]);
+    info->m_statBase3 += static_cast<int>(BLOOD_SYSTEM_BONUS[0][idx + 0x1e]);
     info->m_statBase11 = static_cast<int>(static_cast<float>(info->m_statBase11) *
-                                          tbl[idx + 0x28]);
+                                          BLOOD_SYSTEM_BONUS[0][idx + 0x28]);
     info->m_statBase13 = static_cast<int>(static_cast<float>(info->m_statBase13) *
-                                          tbl[idx + 0x28]);
+                                          BLOOD_SYSTEM_BONUS[0][idx + 0x28]);
     info->m_statBase12 = static_cast<int>(static_cast<float>(info->m_statBase12) *
-                                          tbl[idx + 0x2d]);
+                                          BLOOD_SYSTEM_BONUS[0][idx + 0x2d]);
     info->m_statBase14 = static_cast<int>(static_cast<float>(info->m_statBase14) *
-                                          tbl[idx + 0x2d]);
+                                          BLOOD_SYSTEM_BONUS[0][idx + 0x2d]);
 }
 
 // upgradeAbilityDeathTower —— ORIG 0x088b93bf
 void upgradeAbilityDeathTower(int idx, ActiveStaticInfo* info)
 {
-    const float* tbl = &DEATH_TOWER_BONUS[0][0];
+    // ORIG 0x088b93bf：全局表直接索引（无 tbl 指针变量）。
     info->m_hpBase = static_cast<int>(static_cast<float>(info->m_hpBase) *
-                                      tbl[idx + 0x10]);
-    info->m_attr17Base[13] += static_cast<int>(tbl[idx + 0xc]);
-    info->m_statBase6 += static_cast<int>(tbl[idx + 0x28]);
+                                      DEATH_TOWER_BONUS[0][idx + 0x10]);
+    info->m_attr17Base[13] += static_cast<int>(DEATH_TOWER_BONUS[0][idx + 0xc]);
+    info->m_statBase6 += static_cast<int>(DEATH_TOWER_BONUS[0][idx + 0x28]);
     for (int i = 0; i <= 0x10; ++i)
     {
         if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) != 0x12)
-            asiSlot(info, i) += static_cast<int>(tbl[idx + 0x1c]);
+            info->m_attr17Base[i] += static_cast<int>(DEATH_TOWER_BONUS[0][idx + 0x1c]);
     }
     info->m_statBase4 = static_cast<int>(static_cast<float>(info->m_statBase4) *
-                                         tbl[idx + 0x14]);
-    info->m_statBase3 += static_cast<int>(tbl[idx + 0x18]);
+                                         DEATH_TOWER_BONUS[0][idx + 0x14]);
+    info->m_statBase3 += static_cast<int>(DEATH_TOWER_BONUS[0][idx + 0x18]);
     info->m_statBase11 = static_cast<int>(static_cast<float>(info->m_statBase11) *
-                                          tbl[idx + 0x20]);
+                                          DEATH_TOWER_BONUS[0][idx + 0x20]);
     info->m_statBase13 = static_cast<int>(static_cast<float>(info->m_statBase13) *
-                                          tbl[idx + 0x20]);
+                                          DEATH_TOWER_BONUS[0][idx + 0x20]);
     info->m_statBase12 = static_cast<int>(static_cast<float>(info->m_statBase12) *
-                                          tbl[idx + 0x24]);
+                                          DEATH_TOWER_BONUS[0][idx + 0x24]);
     info->m_statBase14 = static_cast<int>(static_cast<float>(info->m_statBase14) *
-                                          tbl[idx + 0x24]);
+                                          DEATH_TOWER_BONUS[0][idx + 0x24]);
 }
 
 // upgradeAbilityByParty —— ORIG 0x088b8e88：job 0..3 截断；首个满足
@@ -726,7 +743,7 @@ void upgradeAbilityByParty(int job, ActiveStaticInfo* info, int level)
         for (int k = 0; k <= 0x10; ++k)
         {
             if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(k)) != 0x12)
-                asiSlot(info, k) += static_cast<int>(b[job + 0x1c]);
+                info->m_attr17Base[k] += static_cast<int>(b[job + 0x1c]);
         }
         info->m_statBase4 = static_cast<int>(static_cast<float>(info->m_statBase4) *
                                              b[job + 0x14]);

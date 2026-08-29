@@ -213,8 +213,7 @@ struct SIG_LOAD_ETC
     int      m_field8;                                 // +0x008（GetEtcInfo 先清零）
     unsigned int m_fieldC;                             // +0x00c（RequestDBETC ← MSG_CHARAC_SELECT.m_0e，
                                                        //       同 SIG_LOAD_CHARAC.m_tagCharacNo 数据源）
-    char     m_tagSkillSlot[0x198];                  // +0x010（get_skill_slot out1）
-    char     m_tagSkillCombo[0x198];                 // +0x1a8（get_skill_slot out2）
+    TAG_CHARAC_ETC_DATA m_tagEtc;                    // +0x010（ORIG C1 构造：2 行 × _Mastered_skill[0xcb]）
     PvpResultType m_pvpResult;                       // +0x340（0x84）
     int      m_recordCount;                          // +0x3c4
     GameResultType m_records[0x64];                  // +0x3c8（0x64×0x50 = 0x1f40）
@@ -296,12 +295,12 @@ struct SIG_SAVE_PC_ROOM_RENT_INFO
 };
 struct SIG_SAVE_PC_ROOM_RENT_ITEM
 {
-    SIG_SAVE_PC_ROOM_RENT_INFO m_entry[2];
-    SIG_SAVE_PC_ROOM_RENT_ITEM() {}               // ORIG W 0x8491cbe（隐式逐元素构造 entry[0..1]）
+    SIG_SAVE_PC_ROOM_RENT_INFO m_entry[1];
+    SIG_SAVE_PC_ROOM_RENT_ITEM();                 // ORIG W 0x8491cbe（定义 SigTypes.cpp，生成导出符号）
     void clear();                                 // ORIG W 0x08694c9a
 };
 #pragma pack(pop)
-static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_ITEM) == 0x18, "SIG_SAVE_PC_ROOM_RENT_ITEM ABI drift");
+static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_ITEM) == 0xc, "SIG_SAVE_PC_ROOM_RENT_ITEM ABI drift");
 static_assert(sizeof(SIG_SAVE_PC_ROOM_RENT_INFO) == 0xc, "SIG_SAVE_PC_ROOM_RENT_INFO ABI drift");
 
 // ORIG SIG_SAVE_DIMENSION_RENT_ITEM（CUser::GetDimensionRentInfo @0x8676bec 填充）：
@@ -322,12 +321,12 @@ struct SIG_SAVE_DIMENSION_RENT_INFO
 };
 struct SIG_SAVE_DIMENSION_RENT_ITEM
 {
-    SIG_SAVE_DIMENSION_RENT_INFO m_entry[12];
-    SIG_SAVE_DIMENSION_RENT_ITEM() {}             // ORIG W 0x8491cf2（隐式逐元素构造 entry[0..11]）
+    SIG_SAVE_DIMENSION_RENT_INFO m_entry[11];
+    SIG_SAVE_DIMENSION_RENT_ITEM();               // ORIG W 0x8491cf2（定义 SigTypes.cpp，生成导出符号）
     void clear();                                 // ORIG W 0x08694cd2
 };
 #pragma pack(pop)
-static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_ITEM) == 0x60, "SIG_SAVE_DIMENSION_RENT_ITEM ABI drift");
+static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_ITEM) == 0x58, "SIG_SAVE_DIMENSION_RENT_ITEM ABI drift");
 static_assert(sizeof(SIG_SAVE_DIMENSION_RENT_INFO) == 8, "SIG_SAVE_DIMENSION_RENT_INFO ABI drift");
 
 // ORIG sizeof = 0x1544c（CACHE_CHARACTER_TYPE@+0x703 → +0x15b4f）。
@@ -378,8 +377,8 @@ struct SIG_LOAD_INVENTORY
     int      m_inventoryCapacity;                 // +0x1533c（get_inventory_capacity）
     int      m_creatureCount2;                    // +0x15340（GetCreatureItem 第二区计数）
     SIG_POSTAL_CREATURE_TEMP_PERIOD m_tempPeriods[0x14];  // +0x15344（0x14×8 = 0xa0 → +0x153e4）
-    char     m_rentPcRoom[0xc];                   // +0x153e4（SIG_SAVE_PC_ROOM_RENT_ITEM）
-    char     m_rentDimension[0x15448 - 0x153f0];  // +0x153f0（SIG_SAVE_DIMENSION_RENT_ITEM）
+    SIG_SAVE_PC_ROOM_RENT_ITEM m_rentPcRoom;      // +0x153e4（ORIG C1 0x8491cbe 构造）
+    SIG_SAVE_DIMENSION_RENT_ITEM m_rentDimension; // +0x153f0（0x58 → +0x15448；ORIG C1 0x8491cf2）
     int      m_maxEquipLevel;                     // +0x15448
 
     SIG_LOAD_INVENTORY() {}                       // ORIG W 0x08491d26（数组成员隐式构造）
@@ -416,6 +415,7 @@ struct stMonsterInfo_t
     unsigned int  mobIdx;   // +0x00
     unsigned char diff;     // +0x04
 };
+
 struct SIG_LOAD_KILL_MONSTER_INFO
 {
     stMonsterInfo_t m_boss[0x5dc];      // +0x000（0x1d4c）
@@ -423,7 +423,15 @@ struct SIG_LOAD_KILL_MONSTER_INFO
     stMonsterInfo_t m_apc[0x5dc];       // +0x927c（0x1d4c → +0xafc8）
     unsigned int m_characNo;            // +0xafc8
 
-    SIG_LOAD_KILL_MONSTER_INFO() {}     // ORIG W 0x0848fc8e（数组成员隐式构造）
+    // ORIG W 0x0848fc8e：数组成员隐式构造后，ctor 体 memset 三块数组清零并
+    // m_characNo=0（ORIG 848fd0c/848fd27/848fd47/848fd67）。
+    SIG_LOAD_KILL_MONSTER_INFO()
+    {
+        memset(m_boss, 0, sizeof(m_boss));
+        memset(m_named, 0, sizeof(m_named));
+        memset(m_apc, 0, sizeof(m_apc));
+        m_characNo = 0;
+    }
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_LOAD_KILL_MONSTER_INFO) == 0xafcc, "SIG_LOAD_KILL_MONSTER_INFO ABI drift");
@@ -594,7 +602,7 @@ struct SIG_GIVE_GROWTH_CREATURE_EVENT
 
         eventCharacInfo() : m_serverGroup(0), m_characNo(0), m_job(0)
         {
-            m_name[0] = '\0';
+            memset(m_name, 0, sizeof(m_name));   // ORIG memset(this+0xc, 0, 0x1e)
         }
     };
     static_assert(sizeof(eventCharacInfo) == 0x2c, "eventCharacInfo size");

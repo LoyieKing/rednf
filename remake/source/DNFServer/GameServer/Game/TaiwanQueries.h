@@ -346,7 +346,7 @@ public:
 
 private:
     int m_count;                                        // +0x00 已写入条目数
-    char m_countries[(0x2d0 - 4) / 0x10][0x10];         // +0x04（720=45×16）
+    char m_countries[(0x2d4 - 4) / 0x10][0x10];         // +0x04（720=45×16）
 };
 
 class SigLoadRestrictPolicy

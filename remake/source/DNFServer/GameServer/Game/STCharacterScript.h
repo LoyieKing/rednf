@@ -100,6 +100,7 @@ public:
 class _ComboInfo
 {
 public:
+    _ComboInfo();                        // ORIG C1（W）调 clear()
     void clear();                        // ORIG _ZN10_ComboInfo5clearEv W 0x0836785c
 
     std::map<int, int> m_mapA;           // +0x00

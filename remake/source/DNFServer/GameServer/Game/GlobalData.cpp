@@ -266,6 +266,7 @@ private:
     int m_port;             // +0x04
     char m_pad8[8];         // +0x08
     CUdpHandler m_udp;      // +0x10
+    char m_pad18[4];        // +0x18（ORIG 空隙，InitEv 不触碰）
     int m_field1c;          // +0x1c
     char m_buf[0x80000];    // +0x20
 };
@@ -652,7 +653,7 @@ public:
 
     // 槽2 Rent：ORIG T 0x082704e6（0x258 字节 pc_room 租赁事务链，本体待
     // pc_room 域批次 —— 报告 RentalMachinePcRoom/Rent.md）。声明占位保 vtable 序。
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
                       InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG 0x0827073e = checkAllRentalItemScript() 尾调。
     virtual bool Ready();
@@ -688,7 +689,7 @@ public:
     virtual ~RentalMachineDimension() {}
 
     // 槽2 Rent：ORIG T 0x0826ec22（与 PcRoom 同构，本体待 pc_room 域批次）。
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
                       InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG 0x0826ee94 = checkAllRentalItemScript() 尾调。
     virtual bool Ready();
@@ -2435,7 +2436,7 @@ void AcceptThread::dispatch(void* arg)
                                         m_acceptFlag = false;
                                     }
                                 }
-                                int used = StaticPool<CUser, 600>::Size() -
+                                int used = G_CGameManager()->userPoolSize() -
                                            G_CGameManager()->userPoolRemain();
                                 if (m_acceptFlag || used >= env->m_serverEnvir.m_maxUserNum)
                                 {
@@ -2860,14 +2861,13 @@ char WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
     {
         if (static_cast<unsigned int>(it->second.m_punishType) == type)
         {
-            m_monitorMap.erase(it++);
+            // ORIG 0x84ebace：命中即 erase 并返回 1，未命中返回 0。
+            m_monitorMap.erase(it);
+            return 1;
         }
-        else
-        {
-            ++it;
-        }
+        ++it;
     }
-    return 1;
+    return 0;
 }
 unsigned int WongWork::CBlackIPMonitor::getPunishType(char const* ipStr)
 {
@@ -3466,8 +3466,9 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     memset(ssnPart, 0, sizeof(ssnPart));
     if (ssn != 0)
         strncpy(ssnPart, ssn, 0xe);
-    char yy[2], mm[2], dd[2];
-    memset(yy, 0, 2); memset(mm, 0, 2); memset(dd, 0, 2);
+    // ORIG 汇编：yy/mm/dd 为 char[3]（memset 3 字节保证 %s 终止符），cent 为 char[2]。
+    char yy[3], mm[3], dd[3];
+    memset(yy, 0, 3); memset(mm, 0, 3); memset(dd, 0, 3);
     // 汇编 strncpy 布局：yy←ssn+0(2)、mm←ssn+2(2)、dd←ssn+4(2)、cent←ssn+6(1)
     memcpy(yy, ssnPart + 0, 2);
     memcpy(mm, ssnPart + 2, 2);
@@ -4510,8 +4511,8 @@ bool InstanceRentalSystem::Ready()
 
 // Rent 分发（ORIG T 0x08270288）：按 RentInput.m_machineKey 取机器并经槽2
 // 调用；无机器时 ORIG 直接返回 1。
-bool InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
-                                RentOutput& output)
+int InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
+                               RentOutput& output)
 {
     IRentalMachine* machine = getMachine(input.m_machineKey);
     if (machine == 0)
@@ -4665,7 +4666,7 @@ void CBusinessImpl::ProcessProtectMsg(tagTSafeModePkg* pkg)
 void DB_ReloadAutoPunishRuleBackIP::makeRequest()
 {
     // ORIG 0x08432e80 同型（DBThread.cpp 0x7a8e）；本函数 msgId=0x108（报告 makeRequest.md）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x73d8), true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7077), true);
     **guard << 0x108;
     **guard << -1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -4674,7 +4675,7 @@ void DB_ReloadAutoPunishRuleBackIP::makeRequest()
 void DB_ReloadAutoPunishRuleHackType::makeRequest()
 {
     // msgId=0x109（报告 makeRequest.md）。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x73d8), true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x70e2), true);
     **guard << 0x109;
     **guard << -1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -4709,7 +4710,7 @@ int StackableAction::Action::proc_bingo(input_param& p)
     // ORIG 0x0827fb14：BingoEvent(0x6a) IsEventing(0) 检查后转发 reqBingoMark；
     // 未开启返回 0x13。
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (ev == 0 || !ev->IsEventing(0))
+    if (!ev->IsEventing(0))
     {
         return 0x13;
     }
@@ -4785,8 +4786,8 @@ expert_extraction::CExtraction::CExtraction()
 }
 expert_extraction::CExtraction::~CExtraction()
 {
+    // ORIG 0x084a2938：仅 delete m_rand（判空），不置零。
     delete m_rand;
-    m_rand = 0;
 }
 expert_extraction::CAlchemistExtraction::CAlchemistExtraction() {}
 expert_extraction::CAlchemistExtraction::~CAlchemistExtraction() {}
@@ -5113,8 +5114,8 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     m_disabled = 0;
     m_field10 = 0;
     // ORIG 0x85f0e2d..0x85f0e3b：m_optionSet = GetRandomOption() + 0x148
-    // （m_randomOption 内嵌 provider 对象基址 m_providerPad148；虚槽0/1 见 RandomOptionScript.h）。
-    m_optionSet = G_CDataManager()->m_randomOption.m_providerPad148;
+    // （m_randomOption 内嵌 provider 对象基址 m_providerNormal148；虚槽0/1 见 RandomOptionScript.h）。
+    m_optionSet = &G_CDataManager()->m_randomOption.m_providerNormal148;
 }
 random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 {
@@ -5147,7 +5148,7 @@ void* CreateAntiServerObj(const char* path)
     // ORIG W 0x082a6539：path + "libantisvrimport.so" → dlopen(2) →
     // dlsym("GetAntiBotInterfaceAll") → 无参调用并返回结果。
     char buf[0x118];
-    memset(buf, 0, sizeof(buf));
+    memset(buf, 0, 0x41);   // ORIG 0x082a654f：仅清前 0x41 字节
     strncat(buf, path, strlen(path));
     strncat(buf, "libantisvrimport.so", 0x14);
     void* handle = dlopen(buf, RTLD_NOW);
@@ -7146,25 +7147,25 @@ int RentalMachineDimension::CheckupAllRentalItems(
 }
 
 // ---- PcRoom::Rent —— T 0x082704e6（Rent.md 全文转写）------------------------
-bool RentalMachinePcRoom::Rent(CUser& user,
-                               const InstanceRentalSystem::RentInput& input,
-                               InstanceRentalSystem::RentOutput& output)
+int RentalMachinePcRoom::Rent(CUser& user,
+                              const InstanceRentalSystem::RentInput& input,
+                              InstanceRentalSystem::RentOutput& output)
 {
     // ORIG: (!IsPcRoomUser || input+0x11 字节==1) → 7。RentInput 建模中 +0x10
     // 为 m_logFlag，+0x11 为其填充位（未具名）；按报告条件组合转写。
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&input);
     if (!pc_room::IsPcRoomUser(user) || raw[0x11] == 1)
     {
-        return true;   // ENUM_ERROR 7
+        return 7;   // ENUM_ERROR 7
     }
     if (!pc_room::CheckRentableEnvironment(user))
     {
-        return true;   // ENUM_ERROR 7
+        return 7;   // ENUM_ERROR 7
     }
     int err = CheckupAllRentalItems(user, input);
     if (err != 0)
     {
-        return err != 0;
+        return err;
     }
 
     pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
@@ -7186,7 +7187,7 @@ bool RentalMachinePcRoom::Rent(CUser& user,
                 "scriptSectionIndex(%d), scriptSeqIndex(%d)",
                 (int)(signed char)elem.m_sectionIdx,
                 (int)(signed char)elem.m_itemIdx);
-            return true;   // ENUM_ERROR 1
+            return 1;   // ENUM_ERROR 1
         }
         if (elem.m_bEquip == 0)
         {
@@ -7201,31 +7202,31 @@ bool RentalMachinePcRoom::Rent(CUser& user,
             log(user, info.m_field0);
         }
     }
-    return false;   // 0=成功
+    return 0;   // 0=成功
 }
 
 // ---- Dimension::Rent —— T 0x0826ec22（Rent.md 全文转写）---------------------
-bool RentalMachineDimension::Rent(CUser& user,
-                                  const InstanceRentalSystem::RentInput& input,
-                                  InstanceRentalSystem::RentOutput& output)
+int RentalMachineDimension::Rent(CUser& user,
+                                 const InstanceRentalSystem::RentInput& input,
+                                 InstanceRentalSystem::RentOutput& output)
 {
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&input);
     if (!pc_room::CheckRentableEnvironmentAtChannelType(user))
     {
-        return true;   // ENUM_ERROR 7
+        return 7;   // ENUM_ERROR 7
     }
     if (!checkRentalLevel(user.get_charac_level()))
     {
-        return false;  // ENUM_ERROR 0xe（14）
+        return 14;  // ENUM_ERROR 0xe（14）
     }
     if (!checkRentalGrowJob((int)(signed char)user.getCurCharFirstGrowType()))
     {
-        return true;   // ENUM_ERROR 0xfe（254）
+        return 254;   // ENUM_ERROR 0xfe（254）
     }
     int err = CheckupAllRentalItems(user, input);
     if (err != 0)
     {
-        return err != 0;
+        return err;
     }
 
     pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
@@ -7246,7 +7247,7 @@ bool RentalMachineDimension::Rent(CUser& user,
                 "scriptSectionIndex(%d), scriptSeqIndex(%d)",
                 (int)(signed char)elem.m_sectionIdx,
                 (int)(signed char)elem.m_itemIdx);
-            return true;   // ENUM_ERROR 1
+            return 1;   // ENUM_ERROR 1
         }
         if (elem.m_bEquip == 0)
         {
@@ -7261,7 +7262,7 @@ bool RentalMachineDimension::Rent(CUser& user,
             log(user, info.m_field0);
         }
     }
-    return false;   // 0=成功
+    return 0;   // 0=成功
 }
 
 // ORIG _ZN20InstanceRentalSystem17CheckRentableItemEij T 0x082702dc【objdump】：

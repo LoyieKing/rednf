@@ -396,22 +396,29 @@ int ServerParameterScript::GetPriceAverage(int idx)
     return m_bloodReward794.m_vecc[idx].first;
 }
 
+// ORIG 0x082f03bc：idx∈[1,200]，取 m_vec588(+0x588)[idx-1]。
 int ServerParameterScript::getAssaultPrice(int idx)
 {
-    if (idx < 0 || idx > 200)
+    if (idx > 200 || idx <= 0)
     {
         return 0;
     }
-    return m_arr868[idx][0];
+    return m_vec588[idx - 1];
 }
 
+// ORIG 0x082f0410：idx<=0 → 0；idx>size 时 clamp 到 size；返回 v[idx-1]。
 float ServerParameterScript::getChaosPointWeight(int idx)
 {
-    if (idx < 0 || idx >= (int)m_float5a4.size())
+    if (idx <= 0)
     {
         return 0.0f;
     }
-    return m_float5a4[idx];
+    unsigned int size = m_float5a4.size();
+    if (idx > (int)size)
+    {
+        idx = (int)size;
+    }
+    return m_float5a4[idx - 1];
 }
 
 int ServerParameterScript::GetAdmissionIncrease(int idx)
@@ -453,11 +460,18 @@ int ServerParameterScript::GetPvPChannelGradePenalty(int grade) const
         return 0;
     }
     std::map<int, int>::const_iterator it = m_map497c.find(grade);
-    if (it == m_map497c.end())
+    if (it != m_map497c.end())
+    {
+        return it->second;
+    }
+    // ORIG：未命中且 size>2 时回退到最大 key 的 value（end 前一个）
+    if ((int)m_map497c.size() <= 2)
     {
         return 0;
     }
-    return it->second;
+    std::map<int, int>::const_iterator last = m_map497c.end();
+    --last;
+    return last->second;
 }
 
 bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_TYPE type, int idx)
@@ -528,11 +542,18 @@ int ServerParameterScript::GetTraningSealGive(int idx) const
         return 0;
     }
     std::map<int, int>::const_iterator it = m_map4994.find(idx);
-    if (it == m_map4994.end())
+    if (it != m_map4994.end())
+    {
+        return it->second;
+    }
+    // ORIG：未命中且 map 非空时回退到最大 key 的 value（end 前一个）
+    if (m_map4994.empty())
     {
         return 0;
     }
-    return it->second;
+    std::map<int, int>::const_iterator last = m_map4994.end();
+    --last;
+    return last->second;
 }
 
 bool ServerParameterScript::CheckTraningFirstGive() const

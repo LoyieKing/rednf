@@ -302,7 +302,7 @@ int CPrivateStore::GetSellerIndex()
 // 逐项调用 PrivateStoreItem::Reset（m_items 恒为 14 项，ctor resize(0xe)）。
 void CPrivateStore::ResetItems()
 {
-    for (std::vector<PrivateStoreItem>::size_type i = 0; i < m_items.size(); ++i)
+    for (int i = 0; i < (int)m_items.size(); ++i)
         m_items[i].Reset();
 }
 
@@ -870,7 +870,7 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
             LogManager::logFormat(
                 1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x559,
                 "CPrivateStore::AddItem ERROR : shop_doll_item_index(%d)",
-                (int)dollInfo->m_index);
+                (int)static_cast<CStackableItem*>(dollInfo)->m_int32c);
             return false;
         }
         if (maxSlot <= (int)item.m_field44)
@@ -878,7 +878,7 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
             LogManager::logFormat(
                 1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x55f,
                 "CPrivateStore::AddItem ERROR : slot_no(%d), shop_doll_item_index(%d), maxSlot(%d)",
-                (int)item.m_field44, (int)dollInfo->m_index, maxSlot);
+                (int)item.m_field44, (int)static_cast<CStackableItem*>(dollInfo)->m_int32c, maxSlot);
             return false;
         }
     }
@@ -1061,7 +1061,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     int buyResult = -1;                          // ORIG local_2c
     int outSlot = 0;                             // ORIG local_4c
     if ((int)copyItem.m_field1 == 8)             // avatar：数量实参替换为 avatar uid
-        useCount = (int)storeItem.m_item.m_fieldd;
+        useCount = (int)storeItem.m_item.m_addInfo2;
 
     if (IsTradeLimitAttachTypeItem(copyItem))
     {
@@ -1075,7 +1075,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     {
         int commission = GetCommissionPercent() * price / 100;
         SellItem(slot, copyItem, price, commission, useCount,
-                 (int)storeItem.m_item.m_fieldd);
+                 (int)storeItem.m_item.m_addInfo2);
         SubtractItemCount(itemInfo, storeItem, count);
         SavePrivateStore();
         m_pSeller->UpdateData();
@@ -1252,7 +1252,7 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
     {
         packet.put_int(
             m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(
-                (int)storeItem.m_item.m_fieldd, nowTick));
+                (int)storeItem.m_item.m_addInfo2, nowTick));
     }
     else
     {
@@ -1268,11 +1268,11 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         packet.put_int(0x1e);
         packet.put_binary(
             (char const*)m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
-                (int)storeItem.m_item.m_fieldd),
+                (int)storeItem.m_item.m_addInfo2),
             0x1e);
         void* expansion =
             m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpansionInfo(
-                (int)storeItem.m_item.m_fieldd);
+                (int)storeItem.m_item.m_addInfo2);
         packet.put_int(4);
         if (expansion == 0)
         {
@@ -1610,35 +1610,35 @@ bool CPrivateStore::GetItemInfo(CUser* user, PrivateStoreItem& item)
     case 0:
     {
         Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (int)item.m_field48);
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (short)item.m_field48);
         item.m_item.setCopy(slotData);
         break;
     }
     case 1:
     {
         Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)2, (int)item.m_field48);
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)2, (short)item.m_field48);
         item.m_item.setCopy(slotData);
         break;
     }
     case 2:
     {
         Inven_Item slotData =
-            user->getCurCharacCargoR()->get_cargo_slot((int)item.m_field48);
+            user->getCurCharacCargoR()->get_cargo_slot((short)item.m_field48);
         item.m_item.setCopy(slotData);
         break;
     }
     case 3:
     {
         Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, (int)item.m_field48);
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, (short)item.m_field48);
         item.m_item.setCopy(slotData);
         break;
     }
     case 7:
     {
         Inven_Item slotData =
-            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, (int)item.m_field48);
+            user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, (short)item.m_field48);
         item.m_item.setCopy(slotData);
         break;
     }
@@ -1722,15 +1722,15 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
     switch ((signed char)item.m_field46)
     {
     case 1:
-        return CheckValidItem((INVEN_TYPE)2, (int)item.m_field48,
+        return CheckValidItem((INVEN_TYPE)1, (short)item.m_field48,
                               (int)item.m_item.m_addInfo2);
     case 0:
-        return CheckValidItem((INVEN_TYPE)1, (int)item.m_field48,
-                              (int)item.m_item.m_addInfo2);
+        return CheckValidItem((INVEN_TYPE)0, (short)item.m_field48, 1);
     case 2:
-        return CheckValidItem((int)item.m_field48, (int)item.m_item.m_addInfo2);
+        return CheckValidItem((short)item.m_field48, (int)item.m_item.m_addInfo2);
     case 3:
-        return CheckValidItem((INVEN_TYPE)0, (int)item.m_field48, 1);
+        return CheckValidItem((INVEN_TYPE)2, (short)item.m_field48,
+                              (int)item.m_item.m_addInfo2);
     default:
         return false;
     }
@@ -1740,7 +1740,7 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
 // 槽位有效且非空；type==1 校验装备外数量余量；type==2 仅 avatar 且非临时键、未过期。
 bool CPrivateStore::CheckValidItem(INVEN_TYPE type, int slot, int count)
 {
-    CInventory* inventory = m_pSeller->getCurCharacInvenW();  // 非 const：IsTempKey ORIG 非 const
+    const CInventory* inventory = m_pSeller->getCurCharacInvenR();  // ORIG 读路径（InvenR）
     if (!inventory->CheckValidSlot((int)type, slot))
         return false;
 
@@ -1757,7 +1757,7 @@ bool CPrivateStore::CheckValidItem(INVEN_TYPE type, int slot, int count)
     {
         if ((int)item.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
             return false;
-        WongWork::CAvatarItemMgr* mgr = inventory->GetAvatarItemMgrW();
+        const WongWork::CAvatarItemMgr* mgr = inventory->GetAvatarItemMgrR();
         if (mgr->IsTempKey((int)item.m_addInfo2))
             return false;
         if (mgr->GetExpireDate((int)item.m_addInfo2) != 0)

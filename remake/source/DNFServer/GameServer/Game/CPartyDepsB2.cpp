@@ -144,30 +144,30 @@ void CParty::die_user(CUser* user)
     }
 }
 
-// ============================================================================
+ // ============================================================================
 // CParty::finish_loading —— ORIG 0x085b15e0
 // ============================================================================
 void CParty::finish_loading(CUser* user)
 {
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
     for (int i = 0; i <= 3; ++i)                        // -0xc
     {
         if (m_member[i].m_pUser != user)
             continue;
-        if (m_finishLoadingFlag[i] != 0)                // +0x37c[i]
-            return;
+        if (m_finishLoadingFlag[i] != 0)        // ORIG: movzbl 0x37c; test; jne 循环尾
+            continue;
         m_finishLoadingFlag[i] = 1;
-        // BattleData::m_arr7e4[slot]（CParty +0xb10；装载完成标志：
-        // OnStartMapFinishLoading 成功后置 1）
-        if (bd.m_arr7e4[i] != 1)
+        // +0xb10 装载完成标志（ORIG 直取 this+0xb10，不建 BattleData 引用基址）
+        if (!reinterpret_cast<unsigned char*>(this)[0xb10 + i])
         {
             if (OnStartMapFinishLoading(user))
-                bd.m_arr7e4[i] = 1;
+                reinterpret_cast<unsigned char*>(this)[0xb10 + i] = 1;
         }
     }
 
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
-    CDungeon* dungeon = bf.GetDungeon();                // -0x10
+    // ORIG 两次独立 this+0xb24 计算（GetDungeon / IsFirstEnterDungeon），
+    // 不保存 CBattle_Field 引用。
+    CDungeon* dungeon =
+        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->GetDungeon();  // -0x10
     int enterEachMap = 0;
     if (dungeon != 0)
     {
@@ -177,7 +177,7 @@ void CParty::finish_loading(CUser* user)
 
     if (enterEachMap)
     {
-        if (bf.IsFirstEnterDungeon())
+        if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->IsFirstEnterDungeon())
             check_allmember_loading(false);
         else
             check_allmember_loading(true);

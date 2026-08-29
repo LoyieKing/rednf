@@ -895,7 +895,7 @@ void CParty::OnDungeonClear(CUser* user, bool success)
     if (IsCollectDungeonStatistic() && m_partyType != 1)
     {
         if (user != 0 && user->getCurCharacR() != 0 &&
-            user->m_character.m_f40 != 0 && m_dungeon != 0)
+            user->m_field8e074 != 0 && m_dungeon != 0)   // 旧 m_character.m_f40（+0x40）——布局修正后为 CUser 直属 +0x8e074
         {
             SendDungeonCharacInfo(user, success);
         }

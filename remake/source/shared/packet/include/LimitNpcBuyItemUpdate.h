@@ -17,7 +17,9 @@ public:
     unsigned int m_characNo;   // +0x0e
     unsigned int m_itemIdx;    // +0x12
     unsigned int m_count;      // +0x16
-    LimitNpcBuyItemUpdate(): PacketHeader(0x27dd, 0x1a) {};
+    // ORIG C1 0x084e9570：PacketHeader 后连清 +0xa/+0xe/+0x12/+0x16 四 dword
+    LimitNpcBuyItemUpdate(): PacketHeader(0x27dd, 0x1a),
+        m_error(0), m_characNo(0), m_itemIdx(0), m_count(0) {};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(LimitNpcBuyItemUpdate, 0x1a);

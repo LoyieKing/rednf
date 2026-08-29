@@ -10,12 +10,11 @@
 class InterSelectMobileAuthReward : public TaiwanInterfaceInterDispatcher
 {
 public:
-    // ORIG makeRequest 0x081615ae 写 +0x0(uint m_id)/+0x4(bool rewarded)。
+    // ORIG makeRequest 0x081615ae 写 +0x0(uint m_id)/+0x4(bool rewarded)；sizeof=8。
     struct Msg
     {
         unsigned int m_id;       // +0x00
         bool m_rewarded;         // +0x04
-        char m_pad08[0x100 - 8];
     };
 
     // ORIG 0x81620fe _ZN27InterSelectMobileAuthRewardC1Ev (size 0x00000024)  报告: docs/class_func_reports/InterSelectMobileAuthReward

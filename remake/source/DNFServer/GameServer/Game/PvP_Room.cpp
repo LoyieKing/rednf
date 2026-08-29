@@ -224,7 +224,7 @@ unsigned int PvP_Room::gen_timer_key(TIMER_MESSAGE msg)
     return ++P_TIMER_KEY(msg);
 }
 
-unsigned int PvP_Room::get_timer_key(TIMER_MESSAGE msg)
+int PvP_Room::get_timer_key(TIMER_MESSAGE msg)
 {
     return P_TIMER_KEY(msg);
 }
@@ -1442,18 +1442,16 @@ int PvP_Room::Disconnect(CUser* user)
         }
         if ((P_SEATS(local_10) != 0) && (P_SEATS(local_10) == user))
         {
-            break;
+            ((IMatch*)m_matching)->OnWalkOut(this, local_10);
+            if (!WalkOut(P_SEATS(local_10), local_10, ENUM_SEAT_STATE_0xfe,
+                         (ENUM_WALKOUT_TYPE)3))
+            {
+                ClearPvPRoom(user);
+                return 1;
+            }
         }
         local_10 = local_10 + 1;
     }
-    ((IMatch*)m_matching)->OnWalkOut(this, local_10);
-    int ret = WalkOut(P_SEATS(local_10), local_10, ENUM_SEAT_STATE_0xfe,
-                      (ENUM_WALKOUT_TYPE)3);
-    if (ret != 1)
-    {
-        ClearPvPRoom(user);
-    }
-    return 1;
 }
 
 int PvP_Room::SendWalkOut(int seat, ENUM_WALKOUT_TYPE walkoutType)
@@ -2670,6 +2668,8 @@ int PvP_Room::reset()
     m_relayMgr.SetParent(this);
     m_deathMatch.Reset();
     m_deathMatch.SetParent(this);
+    m_battleEndFlag = 0;
+    m_rankRequested = 0;
     m_isInsertTimerRecvPvpRank = 0;
     m_isEndPvpBattle = 0;
     unlock();

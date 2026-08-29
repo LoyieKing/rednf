@@ -1,11 +1,10 @@
-#include <algorithm>
-#include <new>
+ #include <algorithm>
+ #include <new>
 
-// cElection<int,V,C> 的唯一实现归属地图/选举 TU（声明点 PvPTypes.h，ORIG 布局）。
-// cParty.cpp 的 cElection<int,4,4>（m_padElection@+0xd8）与 PvP_Room.cpp 的
-// cElection<int,8,8>（+0x12c）经本 TU 提供真实符号。
-#include "PvPTypes.h"
-
+ // cElection<int,V,C> 的唯一实现归属地图/选举 TU（声明点 PvPTypes.h，ORIG 布局）。
+ // cParty.cpp 的 cElection<int,4,4>（m_padElection@+0xd8）与 PvP_Room.cpp 的
+ // cElection<int,8,8>（+0x12c）经本 TU 提供真实符号。
+ #include "PvPTypes.h"
 // GetElected 共同语义（ORIG 0x85dff78 / 0x85c03a8）：对票矩阵按列求和，
 // 返回票数最大列下标；全零票返回 -1。以宏展开避免提前隐式实例化。
 #define CELECTION_GET_ELECTED(V, C)                                          \
@@ -113,12 +112,11 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 {
     CELECTION_GET_ELECTED(4, 4);
 }
-
-// df_game_r Game/ CMap 实现（G2 地图链）。
-// 逻辑依据 docs/class_func_reports/CMap.md；成员访问统一使用语义字段。
-#include <cstring>
-#include "CMap.h"
-
+ // df_game_r Game/ CMap 实现（G2 地图链）。
+ // 逻辑依据 docs/class_func_reports/CMap.md；成员访问统一使用语义字段。
+ #include <cstring>
+ #include "CMap.h"
+ #include "CDataManager.h"   // G_CDataManager()->m_stageTimeLine（set_map）
 // isInArea / makePathArea / isInPathArea —— ORIG 全局函数（mangled _Z8isInAreaiiP7MapArea
 // _Z12makePathAreaP7MapAreaPA2_KiS3_ _Z12isInPathAreaiiPA2_KiS1_）。
 // 语义（报告 08891c18 / 0889203b / 08891f20）：
@@ -174,33 +172,6 @@ int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2])
             return 1;
     }
     return 0;
-}
-namespace
-{
-int monsterLevel(const STAssignMonster& monster)
-{
-    return monster.m_14 / 10;
-}
-
-void makeMapMonster(_mapMonster& out, const STAssignMonster& in)
-{
-    // ORIG insert_monster 0834e9d4 / insert_condition_monster 0834ead4：
-    // 字段映射（非直译字段名，与 STAssignMonster 偏移对应）：
-    //   +0x0c m_spawnType ← m_20；+0x10 m_levelAdd ← m_1c；+0x14 m_field14 ← m_18；
-    //   +0x18 m_roleType ← m_24；+0x24 m_level ← m_14/10。
-    out.m_mobId = in.m_0;
-    out.m_flag04 = in.m_4;
-    out.m_field08 = in.m_8;
-    out.m_spawnType = in.m_20;
-    out.m_levelAdd = in.m_1c;
-    out.m_field14 = in.m_18;
-    out.m_roleType = in.m_24;
-    out.m_level = monsterLevel(in);
-    out.m_hpPct = in.m_4c;
-    out.m_orderIdx = in.m_50;
-    out.m_flag30 = in.m_54;
-    out.m_mobList = in.m_vec28;
-}
 }
 // _mapItem / _mapMonster 生命周期 —— 唯一定义点（声明见 CMap.h）。
 // ============================================================================
@@ -303,12 +274,27 @@ int CMap::insert_item(int idx, int level, int prob, int cond)
 
 int CMap::insert_monster(STAssignMonster monster, int area)
 {
+    // ORIG 0x0834e9d4：逐字段拷贝（顺序：mobId/flag04/field08/spawnType(m_20)/
+    // levelAdd(m_1c)/field14(m_18)/roleType(m_24)/level(m_14/10)/orderIdx(m_50)/
+    // hpPct(m_4c)/flag30(m_54)/mobList(m_vec28)）；area!=-1 时 m_champion=1,
+    // m_posX=area（0834ea80/0834ea84）。
     _mapMonster item;
-    makeMapMonster(item, monster);
+    item.m_mobId = monster.m_0;
+    item.m_flag04 = monster.m_4;
+    item.m_field08 = monster.m_8;
+    item.m_spawnType = monster.m_20;
+    item.m_levelAdd = monster.m_1c;
+    item.m_field14 = monster.m_18;
+    item.m_roleType = monster.m_24;
+    item.m_level = monster.m_14 / 10;
+    item.m_orderIdx = monster.m_50;
+    item.m_hpPct = monster.m_4c;
+    item.m_flag30 = monster.m_54;
+    item.m_mobList = monster.m_vec28;
     if (area != -1)
     {
         item.m_champion = 1;
-        item.m_posX = area;      // ORIG 0834ea80/0834ea84：area!=-1 时 m_champion=1, m_posX=area
+        item.m_posX = area;
     }
     m_monsterList.push_back(item);
     return 1;
@@ -327,7 +313,7 @@ void CMap::insert_condition_monster(STAssignMonster monster)
     item.m_levelAdd = monster.m_1c;
     item.m_field14 = monster.m_18;
     item.m_roleType = monster.m_24;
-    item.m_level = monsterLevel(monster);
+    item.m_level = monster.m_14 / 10;
     item.m_orderIdx = monster.m_50;
     m_conditionMonsterList.push_back(item);
 }
@@ -425,6 +411,10 @@ int CMap::set_map(STMapScript script)
     m_f0 = script.m_328;
     m_timeLine = script.m_timeLine;
     m_110 = script.m_178;
+    // ORIG 0x081e1a2a：G_CDataManager()->m_stageTimeLine.checkAndSetActionDefine(
+    //   m_timeLine, m_stageTimeLine.m_actionMap)；返回值未使用。
+    G_CDataManager()->m_stageTimeLine.checkAndSetActionDefine(
+        m_timeLine, G_CDataManager()->m_stageTimeLine.m_actionMap);
     m_tournamentMap = script.m_tournamentMonsters;
     m_12c = script.m_fixChampion;
     return 1;

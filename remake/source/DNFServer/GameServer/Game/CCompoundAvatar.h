@@ -133,9 +133,8 @@ public:
 
     // ---- G7 miscB 纯追加 ----
     // 合成请求上下文（ORIG clear 0x0833424a / C1 0x08334344 / D1 0x08334388；
-    // pack(1)：Inven_Item(0x3d)@+0x0a/+0x4a/+0x92、CItem*@+0x88/+0x8c、
-    // vector<int>@+0xdc；sizeof == 0xe8）。
-#pragma pack(push, 1)
+    // 默认对齐（align 4，非 pack）：Inven_Item(0x3d)@+0x0a/+0x4a/+0x92 后各有
+    // 1 字节对齐 pad（0x47/0x87/0xcf），CItem*@+0x88/+0x8c、vector<int>@+0xdc）。
     struct tagCompoundInfo
     {
         tagCompoundInfo();                        // 仅构造三个 Inven_Item 与 vector
@@ -161,8 +160,7 @@ public:
         unsigned char m_type;                     // +0xe8（msg->+0x22 合成类型；ORIG
                                                   //   _MakeCompoundInfo +0x6d9 mov %dl,0xe8 实证；
                                                   //   分派 m_tailA/B/C/m_cube.m_vec 匹配）
-    };                                            // sizeof == 0xe9（pack(1)）
-#pragma pack(pop)
+    };                                            // sizeof == 0xec（默认对齐）
 
     // ORIG T 0x083338c2 _ZN8WongWork15CCompoundAvatar12ProcCompoundEP5CUserPK19MSG_COMPOUND_AVATAR
     // （定义 WongWorkMiscB_A.cpp）：Make→Check→Core，ENUM_ERROR 抛出转 _SendError。

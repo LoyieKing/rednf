@@ -19,6 +19,7 @@ public:
     }
 
     int m_count;  // +0xa（ORIG movl $0 清零）
+    int m_shopIdx;  // +0xe（ORIG SendSecretShopStatistic 循环索引 0..2；shared 版同包字段）
     SECRET_SHOP_STATISTIC_DATA m_items[200];  // +0x12，每元素 0x14
 } __attribute__((packed));
 

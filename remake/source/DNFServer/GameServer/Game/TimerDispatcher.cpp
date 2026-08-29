@@ -30,6 +30,8 @@
 #include "CDungeonEntranceLog.h"
 #include "CLevelDungeonPlayStatistic.h"
 #include "CCirculationStatistic.h"
+#include "CDungeonExpStatistic.h"
+#include "CExpertJob.h"      // UpdateExpertJob / GetInstanceExpertJobStatistic
 #include "CInventory.h"
 #include "CUserProc.h"
 #include "MsgQueueMgr.h"
@@ -382,8 +384,12 @@ int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
 
 int TimerPvpRankRes::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    PvP_Room* room = G_CGameManager()->GetPvp(p2, 0, 0x32);
-    if (room == 0 || room->get_timer_key((TIMER_MESSAGE)0x32) != p3)
+    PvP_Room* room = G_CGameManager()->GetPvp(p1, 0, 0x32);
+    if (room == 0)
+    {
+        return 0;
+    }
+    if (room->get_timer_key((TIMER_MESSAGE)0x32) != p2)
     {
         return 0;
     }
@@ -395,83 +401,109 @@ TimerMapLoading::TimerMapLoading() {}
 TimerMapLoading::~TimerMapLoading() {}
 int TimerMapLoading::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0xb, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        party->map_load_forced_finish();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0xb, p2))
+    {
+        return 0;
+    }
+    party->map_load_forced_finish();
+    return 1;
 }
 
 TimerSetResult::TimerSetResult() {}
 TimerSetResult::~TimerSetResult() {}
 int TimerSetResult::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0xc, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        party->forced_set_play_result();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0xc, p2))
+    {
+        return 0;
+    }
+    party->forced_set_play_result();
+    return 1;
 }
 
 TimerDungeonClear::TimerDungeonClear() {}
 TimerDungeonClear::~TimerDungeonClear() {}
 int TimerDungeonClear::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0xd, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        party->dungeon_clear();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0xd, p2))
+    {
+        return 0;
+    }
+    party->dungeon_clear();
+    return 1;
 }
 
 TimerDungeonFail::TimerDungeonFail() {}
 TimerDungeonFail::~TimerDungeonFail() {}
 int TimerDungeonFail::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0xe, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        party->party_dungeon_fail();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0xe, p2))
+    {
+        return 0;
+    }
+    party->party_dungeon_fail();
+    return 1;
 }
 
 TimerPartyWalkOutLackUser::TimerPartyWalkOutLackUser() {}
 TimerPartyWalkOutLackUser::~TimerPartyWalkOutLackUser() {}
 int TimerPartyWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0xf, p3))
+    // ORIG 0x08633e7a：GetParty(p1) 按定时器 party index 取队伍（非无参重载）。
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        // ORIG 透传 OnTimerWalkOutLackUser 的返回值；CParty.h 当前声明为 void，
-        // 返回值缺口记入报告。此处调用后按 ORIG 主路径返回 1。
-        party->OnTimerWalkOutLackUser();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0xf, p2))
+    {
+        return 0;
+    }
+    if (!party->OnTimerWalkOutLackUser())
+    {
+        return 0;
+    }
+    return 1;
 }
 
 TimerPVPWalkOutLackUser::TimerPVPWalkOutLackUser() {}
 TimerPVPWalkOutLackUser::~TimerPVPWalkOutLackUser() {}
 int TimerPVPWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CGameManager* manager = G_CGameManager();
-    PvP_Room* room = manager->GetPvp(p2, 0, 0x31);
-    if (room == 0 || room->get_timer_key((TIMER_MESSAGE)0x31) != p3)
+    // ORIG 0x08633e86：GetPvp(p1, 0, 0x31)；timer_key 与 p2 比较（非 p3）。
+    PvP_Room* room = G_CGameManager()->GetPvp(p1, 0, 0x31);
+    if (room == 0)
+    {
+        return 0;
+    }
+    if (room->get_timer_key((TIMER_MESSAGE)0x31) != p2)
     {
         return 0;
     }
     if (!room->OnTimerWalkOutLackUser())
     {
         room->reset();
-        manager->PutPvp(room);
+        G_CGameManager()->PutPvp(room);
     }
     return 1;
 }
@@ -511,24 +543,11 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
     G_GameWorld()->resetDailyData();
     G_GameWorld()->ResetEntireReliablePerson();
 
-    GetInstanceDungeonEntranceLog()->InsertDungeonEntrance();
-    GetInstanceCommonStatisticsMgr()->InsertDatabase();
-
-    // ⚠ MISSING_DECL ×2（统计域 producer 未落地；补齐后取消下面注释）：
-    //   _ZN26CLevelDungeonPlayStatistic14InsertDatabaseEv T 0x0860edf4
-    //   （需在 CLevelDungeonPlayStatistic.h 补 `void InsertDatabase();`）
-    // CLevelDungeonPlayStatistic::InsertDatabase(GlobalData::s_statisticMgr);
-    //
-    //   _ZN20CDungeonExpStatistic14InsertDatabaseEv T 0x0860f110
-    //   （CDungeonExpStatistic 类型未建模；ORIG 以 GlobalData::s_statisticMgr+0x18 为 this。
-    //    建议在 CStatisticMgr.h 补子对象视图：class CDungeonExpStatistic{public:void InsertDatabase();}
-    //    并于 CStatisticMgr 加 `char m_pad1c[0x18];`→m_dungeonExp @+0x18 的具名成员布局）
-    // (*reinterpret_cast<CDungeonExpStatistic*>(
-    //      reinterpret_cast<char*>(GlobalData::s_statisticMgr) + 0x18)).InsertDatabase();
-
-    // ⚠ MISSING_DECL（类有声明缺方法）：CExpertJob.h CExpertJobStatistic 补
-    //   `void UpdateExpertJob();`（_ZN19CExpertJobStatistic15UpdateExpertJobEv T 0x0860faca）
-    // GetInstanceExpertJobStatistic()->UpdateExpertJob();
+    // ORIG：三个统计域上报（CLevelDungeonPlayStatistic@+0x0、CDungeonExpStatistic@+0x18、
+    // CExpertJobStatistic 单例），与上面两个 InsertDatabase 同批落库。
+    ((CLevelDungeonPlayStatistic*)GlobalData::s_statisticMgr)->InsertDatabase();
+    ((CDungeonExpStatistic*)((char*)GlobalData::s_statisticMgr + 0x18))->InsertDatabase();
+    GetInstanceExpertJobStatistic()->UpdateExpertJob();
 
     advancealtar::HistoryLog::updateStatistics();   // 已声明，定义未链接 → UNLINKED_CALLEE
 
@@ -608,10 +627,11 @@ void TimerAvatarExpire::RegistTimer(CUser* user)
     // 内联实参保持 ORIG 求值序（getCurCharacNo → get_unique_id → env → GetSlotIDX → G_TimerQueue）。
     G_TimerQueue()->InsertTimer(
         TimerEntry::OBJ_TYPE_0,
-        static_cast<int>(user->GetSlotIDX()),
+        // ORIG movswl %ax：GetSlotIDX 返回值按 signed short 符号扩展（0x8632b32）。
+        static_cast<int>(static_cast<short>(user->GetSlotIDX())),
         (TIMER_MESSAGE)0x51,
         G_CEnvironment()->m_serverEnvir.m_avatarTime * 0x3c,
-        static_cast<unsigned int>(user->get_unique_id()),
+        static_cast<unsigned short>(user->get_unique_id()),   // ORIG movzwl %ax
         static_cast<unsigned int>(user->getCurCharacNo()));
 }
 
@@ -680,22 +700,31 @@ TimerCardSelect::TimerCardSelect() {}
 TimerCardSelect::~TimerCardSelect() {}
 int TimerCardSelect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x10, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
         return 0;
     }
-    const char state = party->get_dungeon_clear_state();
-    if (state != 0 && state != 5)
+    if (!party->check_timer_key((TIMER_MESSAGE)0x10, p2))
     {
-        if (!party->IsCompleteCardSelectOfMembers(eClearRewardCardType_t_0))
-        {
-            party->CompleteCardSelect();
-            party->SendEachCardInfo();
-        }
-        party->set_dungeon_clear_state(5);
-        party->dungeon_clear();
+        return 0;
     }
+    // ORIG：两次独立 get_dungeon_clear_state 调用（==0 / ==5 均提前返回）。
+    if (party->get_dungeon_clear_state() == 0)
+    {
+        return 1;
+    }
+    if (party->get_dungeon_clear_state() == 5)
+    {
+        return 1;
+    }
+    if (!party->IsCompleteCardSelectOfMembers(eClearRewardCardType_t_0))
+    {
+        party->CompleteCardSelect();
+        party->SendEachCardInfo();
+    }
+    party->set_dungeon_clear_state(5);
+    party->dungeon_clear();
     return 1;
 }
 
@@ -703,8 +732,12 @@ TimerClearDungeonReward::TimerClearDungeonReward() {}
 TimerClearDungeonReward::~TimerClearDungeonReward() {}
 int TimerClearDungeonReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x11, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
+    {
+        return 0;
+    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x11, p2))
     {
         return 0;
     }
@@ -726,8 +759,9 @@ TimerClearDungeonScoreScoll::TimerClearDungeonScoreScoll() {}
 TimerClearDungeonScoreScoll::~TimerClearDungeonScoreScoll() {}
 int TimerClearDungeonScoreScoll::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x12, p3) ||
+    // ORIG 0x086345f2：GetParty(p1) + check_timer_key(0x12, p2)。
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x12, p2) ||
         party->get_dungeon_clear_state() != 3)
     {
         return 0;
@@ -760,8 +794,9 @@ TimerClearDungeonCardSelectRight::TimerClearDungeonCardSelectRight() {}
 TimerClearDungeonCardSelectRight::~TimerClearDungeonCardSelectRight() {}
 int TimerClearDungeonCardSelectRight::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x13, p3))
+    // ORIG 0x086347e2：GetParty(p1) + check_timer_key(0x13, p2)。
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x13, p2))
     {
         return 0;
     }
@@ -777,7 +812,7 @@ TimerPremiumServiceOver::TimerPremiumServiceOver() {}
 TimerPremiumServiceOver::~TimerPremiumServiceOver() {}
 int TimerPremiumServiceOver::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 5);   // ORIG 第二实参为常量 5
     if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3 ||
         !user->IsPremiumUser())
     {
@@ -791,7 +826,7 @@ TimerPremiumServiceUpdate::TimerPremiumServiceUpdate() {}
 TimerPremiumServiceUpdate::~TimerPremiumServiceUpdate() {}
 int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
     if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3 ||
         !user->IsPremiumUser())
     {
@@ -805,7 +840,8 @@ int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
         user->SendFatigue();
     }
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
-    tm midnight = *localtime(&now);
+    tm midnight;
+    localtime_r(&now, &midnight);   // ORIG 0x086349ae：localtime_r（线程安全）
     midnight.tm_hour = 0;
     midnight.tm_min = 0;
     midnight.tm_sec = 0;
@@ -819,7 +855,7 @@ TimerPremiumServiceStart::TimerPremiumServiceStart() {}
 TimerPremiumServiceStart::~TimerPremiumServiceStart() {}
 int TimerPremiumServiceStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
     if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3)
     {
         return 0;
@@ -850,7 +886,7 @@ TimerCheckPaidPCRoomTerm::TimerCheckPaidPCRoomTerm() {}
 TimerCheckPaidPCRoomTerm::~TimerCheckPaidPCRoomTerm() {}
 int TimerCheckPaidPCRoomTerm::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
     if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3)
     {
         return 0;
@@ -870,21 +906,29 @@ TimerEPLPReturnVillage::TimerEPLPReturnVillage() {}
 TimerEPLPReturnVillage::~TimerEPLPReturnVillage() {}
 int TimerEPLPReturnVillage::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0x14, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
     {
-        party->ReturnToVillage();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)0x14, p2))
+    {
+        return 0;
+    }
+    party->ReturnToVillage();
+    return 1;
 }
 
 TimerEPLPCommandWait::TimerEPLPCommandWait() {}
 TimerEPLPCommandWait::~TimerEPLPCommandWait() {}
 int TimerEPLPCommandWait::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x15, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
+    {
+        return 0;
+    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x15, p2))
     {
         return 0;
     }
@@ -903,21 +947,26 @@ TimerWarRoomWaitCount::TimerWarRoomWaitCount() {}
 TimerWarRoomWaitCount::~TimerWarRoomWaitCount() {}
 int TimerWarRoomWaitCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x41, p3))
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room == 0)
     {
-        room->ChangeState(WARROOM_STATE_2);
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x41, p2))
+    {
+        return 0;
+    }
+    room->ChangeState(WARROOM_STATE_2);
+    return 1;
 }
 
 TimerWarRoomReadyLockCount::TimerWarRoomReadyLockCount() {}
 TimerWarRoomReadyLockCount::~TimerWarRoomReadyLockCount() {}
 int TimerWarRoomReadyLockCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x42, p3))
+    // ORIG 0x08634d86：GetWarRoom(p1) + CheckTimerKey(0x42, p2)。
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x42, p2))
     {
         room->ChangeState(WARROOM_STATE_3);
         return 1;
@@ -929,8 +978,9 @@ TimerWarRoomBattlePauseCount::TimerWarRoomBattlePauseCount() {}
 TimerWarRoomBattlePauseCount::~TimerWarRoomBattlePauseCount() {}
 int TimerWarRoomBattlePauseCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x43, p3))
+    // ORIG 0x08634df6：GetWarRoom(p1) + CheckTimerKey(0x43, p2)。
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x43, p2))
     {
         room->ChangeState(WARROOM_STATE_3);
         return 1;
@@ -942,60 +992,77 @@ TimerWarRoomResultCount::TimerWarRoomResultCount() {}
 TimerWarRoomResultCount::~TimerWarRoomResultCount() {}
 int TimerWarRoomResultCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x44, p3))
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room == 0)
     {
-        room->HandleTimerResultCount();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x44, p2))
+    {
+        return 0;
+    }
+    room->HandleTimerResultCount();
+    return 1;
 }
 
 TImerWarRoomTimeBomb::TImerWarRoomTimeBomb() {}
 TImerWarRoomTimeBomb::~TImerWarRoomTimeBomb() {}
 int TImerWarRoomTimeBomb::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x45, p3))
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room == 0)
     {
-        room->HandleTimerTimeBomb();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x45, p2))
+    {
+        return 0;
+    }
+    room->HandleTimerTimeBomb();
+    return 1;
 }
 
 TimerWarRoomCheckFail::TimerWarRoomCheckFail() {}
 TimerWarRoomCheckFail::~TimerWarRoomCheckFail() {}
 int TimerWarRoomCheckFail::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x46, p3))
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room == 0)
     {
-        room->WarRoomFail();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x46, p2))
+    {
+        return 0;
+    }
+    room->WarRoomFail();
+    return 1;
 }
 
 TimerWarRoomChangeHost::TimerWarRoomChangeHost() {}
 TimerWarRoomChangeHost::~TimerWarRoomChangeHost() {}
 int TimerWarRoomChangeHost::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WarRoom* room = G_CGameManager()->GetWarRoom();
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x47, p3))
+    WarRoom* room = G_CGameManager()->GetWarRoom(p1);
+    if (room == 0)
     {
-        room->CheckHostChange();
-        return 1;
+        return 0;
     }
-    return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x47, p2))
+    {
+        return 0;
+    }
+    room->CheckHostChange();
+    return 1;
 }
 
 TimerBloodSmallRoundRegister::TimerBloodSmallRoundRegister() {}
 TimerBloodSmallRoundRegister::~TimerBloodSmallRoundRegister() {}
 int TimerBloodSmallRoundRegister::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x16, p3))
+    // ORIG 0x08634fee：GetParty(p1) + check_timer_key(0x16, p2)。
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x16, p2))
     {
         return 0;
     }
@@ -1008,8 +1075,8 @@ TimerBloodPhaseRegister0::TimerBloodPhaseRegister0() {}
 TimerBloodPhaseRegister0::~TimerBloodPhaseRegister0() {}
 int TimerBloodPhaseRegister0::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x17, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x17, p2))
     {
         return 0;
     }
@@ -1024,8 +1091,8 @@ TimerBloodPhaseRegister1::TimerBloodPhaseRegister1() {}
 TimerBloodPhaseRegister1::~TimerBloodPhaseRegister1() {}
 int TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x18, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x18, p2))
     {
         return 0;
     }
@@ -1040,8 +1107,8 @@ TimerBloodPhaseRegister2::TimerBloodPhaseRegister2() {}
 TimerBloodPhaseRegister2::~TimerBloodPhaseRegister2() {}
 int TimerBloodPhaseRegister2::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x19, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x19, p2))
     {
         return 0;
     }
@@ -1056,8 +1123,8 @@ TimerBloodPhaseRegister3::TimerBloodPhaseRegister3() {}
 TimerBloodPhaseRegister3::~TimerBloodPhaseRegister3() {}
 int TimerBloodPhaseRegister3::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1a, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1a, p2))
     {
         return 0;
     }
@@ -1072,8 +1139,8 @@ TimerBloodPhaseRegister4::TimerBloodPhaseRegister4() {}
 TimerBloodPhaseRegister4::~TimerBloodPhaseRegister4() {}
 int TimerBloodPhaseRegister4::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1b, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1b, p2))
     {
         return 0;
     }
@@ -1088,8 +1155,8 @@ TimerBloodPhaseRegister5::TimerBloodPhaseRegister5() {}
 TimerBloodPhaseRegister5::~TimerBloodPhaseRegister5() {}
 int TimerBloodPhaseRegister5::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1c, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1c, p2))
     {
         return 0;
     }
@@ -1104,8 +1171,8 @@ TimerBloodPhaseRegister6::TimerBloodPhaseRegister6() {}
 TimerBloodPhaseRegister6::~TimerBloodPhaseRegister6() {}
 int TimerBloodPhaseRegister6::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1d, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1d, p2))
     {
         return 0;
     }
@@ -1120,8 +1187,8 @@ TimerBloodPhaseRegister7::TimerBloodPhaseRegister7() {}
 TimerBloodPhaseRegister7::~TimerBloodPhaseRegister7() {}
 int TimerBloodPhaseRegister7::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1e, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1e, p2))
     {
         return 0;
     }
@@ -1136,8 +1203,8 @@ TimerBloodPhaseRegister8::TimerBloodPhaseRegister8() {}
 TimerBloodPhaseRegister8::~TimerBloodPhaseRegister8() {}
 int TimerBloodPhaseRegister8::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1f, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1f, p2))
     {
         return 0;
     }
@@ -1152,8 +1219,8 @@ TimerBloodPhaseRegister9::TimerBloodPhaseRegister9() {}
 TimerBloodPhaseRegister9::~TimerBloodPhaseRegister9() {}
 int TimerBloodPhaseRegister9::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x20, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x20, p2))
     {
         return 0;
     }
@@ -1168,8 +1235,12 @@ TimerBloodCrazyMonster::TimerBloodCrazyMonster() {}
 TimerBloodCrazyMonster::~TimerBloodCrazyMonster() {}
 int TimerBloodCrazyMonster::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x21, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
+    {
+        return 0;
+    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x21, p2))
     {
         return 0;
     }
@@ -1182,7 +1253,8 @@ TimerBloodDungeonClearReward::TimerBloodDungeonClearReward() {}
 TimerBloodDungeonClearReward::~TimerBloodDungeonClearReward() {}
 int TimerBloodDungeonClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
+    // ORIG 0x08638cd0：GetParty(p1)；check_timer_key 以 p3 为 msg、p2 为 param。
+    CParty* party = G_CGameManager()->GetParty(p1);
     if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)p3, p2))
     {
         return 0;
@@ -1194,19 +1266,31 @@ TimerUltimateNextRoundStart::TimerUltimateNextRoundStart() {}
 TimerUltimateNextRoundStart::~TimerUltimateNextRoundStart() {}
 int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x26, p3))
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)p3, p2))
+    {
+        return 0;
+    }
+    if (party->m_dungeon == 0 ||
+        party->m_dungeon->get_blood_dungeon_type() != 2)
     {
         return 0;
     }
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    const char difficulty = field->getUltimateDifficylty();
-    field->sendUltimateRandomDifficulty(p2, static_cast<int>(difficulty));
-    field->setUltimateDifficulty(difficulty);
+    if (field->getUltimateDifficylty() != 0)
+    {
+        return 0;
+    }
+    const int diff = field->getNextRoundRandomDifficulty();
+    field->setUltimateDifficulty(static_cast<char>(diff));
+    const int roundOrder = static_cast<int>(field->m_bloodRound.getBloodRoundOrder());
+    if (roundOrder != field->getBloodMaxRound() - 1)
+    {
+        field->sendUltimateRandomDifficulty(roundOrder, diff);
+    }
     field->startUltimateRound();
     return 1;
 }
-
 TimerEventChristmas::TimerEventChristmas() {}
 TimerEventChristmas::~TimerEventChristmas() {}
 int TimerEventChristmas::dispatch_sig(int p1, int p2, unsigned int p3)
@@ -1360,7 +1444,7 @@ TimerCheckMailTimeOut::TimerCheckMailTimeOut() {}
 TimerCheckMailTimeOut::~TimerCheckMailTimeOut() {}
 int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 7);   // ORIG 第二实参为常量 7
     if (user == 0 || user->get_state() < 2 || user->GetLoginTick() != p2 ||
         static_cast<unsigned int>(user->getCurCharacNo()) != p3)
     {
@@ -1407,12 +1491,24 @@ TimerForbidChat::TimerForbidChat() {}
 TimerForbidChat::~TimerForbidChat() {}
 int TimerForbidChat::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 0xa);   // ORIG 第二实参常量 0xa
     if (user == 0)
-    {
         return 0;
+    const char* name = user->get_charac_name_by_charac_no(p3);
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa52, 0);
+        trace("TimerForbidChat %s", name);
     }
-    G_GameWorld()->EnableChat(user->get_charac_name_by_charac_no(p3));
+    if (G_GameWorld()->EnableChat(user->get_charac_name_by_charac_no(p3)))
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa56, 0);
+        trace("Enabled to chat for: %s", user->get_charac_name_by_charac_no(p3));
+    }
+    else
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa54, 0);
+        trace("Failed to enable to chat for: %s", user->get_charac_name_by_charac_no(p3));
+    }
     return 1;
 }
 
@@ -1420,12 +1516,24 @@ TimerForbidMove::TimerForbidMove() {}
 TimerForbidMove::~TimerForbidMove() {}
 int TimerForbidMove::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 0xb);   // ORIG 第二实参常量 0xb
     if (user == 0)
-    {
         return 0;
+    const char* name = user->get_charac_name_by_charac_no(p3);
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa64, 0);
+        trace("TimerForbidMove %s", name);
     }
-    G_GameWorld()->EnableMove(user->get_charac_name_by_charac_no(p3));
+    if (G_GameWorld()->EnableMove(user->get_charac_name_by_charac_no(p3)))
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa68, 0);
+        trace("Enabled to move for: %s", user->get_charac_name_by_charac_no(p3));
+    }
+    else
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa66, 0);
+        trace("Failed to enable to move for: %s", user->get_charac_name_by_charac_no(p3));
+    }
     return 1;
 }
 
@@ -1433,7 +1541,7 @@ TimerScheduleFiveMinPerUser::TimerScheduleFiveMinPerUser() {}
 TimerScheduleFiveMinPerUser::~TimerScheduleFiveMinPerUser() {}
 int TimerScheduleFiveMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
     if (user == 0 || user->GetLoginTick() != p2 ||
         (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
     {
@@ -1451,7 +1559,7 @@ TimerScheduleTenMinPerUser::TimerScheduleTenMinPerUser() {}
 TimerScheduleTenMinPerUser::~TimerScheduleTenMinPerUser() {}
 int TimerScheduleTenMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
     if (user == 0 || user->GetLoginTick() != p2 ||
         (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
     {
@@ -1585,44 +1693,45 @@ TimerSetPlayResult::TimerSetPlayResult() {}
 TimerSetPlayResult::~TimerSetPlayResult() {}
 int TimerSetPlayResult::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CParty* party = G_CGameManager()->GetParty();
-    if (party != 0 && party->check_timer_key((TIMER_MESSAGE)0x29, p3))
-    {
-        party->SetPlayResult(party->getManager());
-        return 1;
-    }
-    return 0;
-}
-
-TimerStartRelayBattle::TimerStartRelayBattle() {}
-TimerStartRelayBattle::~TimerStartRelayBattle() {}
-int TimerStartRelayBattle::dispatch_sig(int /*p1*/, int p2, unsigned int p3)
-{
-    // ORIG 0x0863640c：GetPvp(p2, 0, 99) → relay(=room+0x620) 计时键比对 → OnFight。
-    PvP_Room* room = G_CGameManager()->GetPvp(p2, 0, 99);
-    if (room == 0)
-    {
-        return 0;
-    }
-    CRelayBattleMgr& relay = room->m_relayMgr;   // ORIG room+0x620
-    if (relay.GetTimerKey() != p3)
-    {
-        return 0;
-    }
-    relay.OnFight();
-    return 1;
-}
-int TimerBossDieTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
-{
-    CParty* party = G_CGameManager()->GetParty();
+    CParty* party = G_CGameManager()->GetParty(p1);
     if (party == 0)
     {
         return 0;
     }
-    // ORIG 透传 OnTimeoutBossDie 返回值；CParty.h 声明为 void（缺口记报告），
-    // 此处调用后按 ORIG 主路径返回 1。
-    party->OnTimeoutBossDie(p2, p3);
+    if (!party->check_timer_key((TIMER_MESSAGE)0x29, p2))
+    {
+        return 0;
+    }
+    party->SetPlayResult(party->getManager());
     return 1;
+}
+
+TimerStartRelayBattle::TimerStartRelayBattle() {}
+TimerStartRelayBattle::~TimerStartRelayBattle() {}
+int TimerStartRelayBattle::dispatch_sig(int p1, int p2, unsigned int p3)
+{
+    // ORIG 0x0863640c：GetPvp(p1, 0, 99) → relay(=room+0x620) 计时键比对(p2) → OnFight。
+    PvP_Room* room = G_CGameManager()->GetPvp(p1, 0, 99);
+    if (room == 0)
+    {
+        return 0;
+    }
+    if (room->m_relayMgr.GetTimerKey() != p2)   // ORIG room+0x620
+    {
+        return 0;
+    }
+    room->m_relayMgr.OnFight();
+    return 1;
+}
+int TimerBossDieTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
+{
+    CParty* party = G_CGameManager()->GetParty(p1);
+    if (party == 0)
+    {
+        return 0;
+    }
+    // ORIG 0x08636426：直接透传 OnTimeoutBossDie 返回值（CParty.h 声明 int）。
+    return party->OnTimeoutBossDie(p2, p3);
 }
 
 TimerEventCoinRefill::TimerEventCoinRefill() {}
@@ -1633,7 +1742,7 @@ int TimerEventCoinRefill::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3
     // → GameWorld::ResetAllCoins() → trace → registNextRefillTimer()。
     CCoinRefillEvent* event =
         static_cast<CCoinRefillEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0xd));
-    if (event != 0 && event->IsEventing(0))
+    if (event->IsEventing(0))   // ORIG 0x086364c4：无 event!=0 检查，直接解引用
     {
         G_GameWorld()->ResetAllCoins();
         cMyTrace trace(
@@ -1650,7 +1759,6 @@ TimerPvPDieUserRevive0::~TimerPvPDieUserRevive0() {}
 int TimerPvPDieUserRevive0::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 0);
-    return 1;
 }
 
 TimerPvPDieUserRevive1::TimerPvPDieUserRevive1() {}
@@ -1658,7 +1766,6 @@ TimerPvPDieUserRevive1::~TimerPvPDieUserRevive1() {}
 int TimerPvPDieUserRevive1::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 1);
-    return 1;
 }
 
 TimerPvPDieUserRevive2::TimerPvPDieUserRevive2() {}
@@ -1666,7 +1773,6 @@ TimerPvPDieUserRevive2::~TimerPvPDieUserRevive2() {}
 int TimerPvPDieUserRevive2::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 2);
-    return 1;
 }
 
 TimerPvPDieUserRevive3::TimerPvPDieUserRevive3() {}
@@ -1674,7 +1780,6 @@ TimerPvPDieUserRevive3::~TimerPvPDieUserRevive3() {}
 int TimerPvPDieUserRevive3::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 3);
-    return 1;
 }
 
 TimerPvPDieUserRevive4::TimerPvPDieUserRevive4() {}
@@ -1682,7 +1787,6 @@ TimerPvPDieUserRevive4::~TimerPvPDieUserRevive4() {}
 int TimerPvPDieUserRevive4::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 4);
-    return 1;
 }
 
 TimerPvPDieUserRevive5::TimerPvPDieUserRevive5() {}
@@ -1690,7 +1794,6 @@ TimerPvPDieUserRevive5::~TimerPvPDieUserRevive5() {}
 int TimerPvPDieUserRevive5::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 5);
-    return 1;
 }
 
 TimerPvPDieUserRevive6::TimerPvPDieUserRevive6() {}
@@ -1698,7 +1801,6 @@ TimerPvPDieUserRevive6::~TimerPvPDieUserRevive6() {}
 int TimerPvPDieUserRevive6::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 6);
-    return 1;
 }
 
 TimerPvPDieUserRevive7::TimerPvPDieUserRevive7() {}
@@ -1706,7 +1808,6 @@ TimerPvPDieUserRevive7::~TimerPvPDieUserRevive7() {}
 int TimerPvPDieUserRevive7::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 7);
-    return 1;
 }
 
 TimerDungeonDataStatistic::TimerDungeonDataStatistic() {}
@@ -1761,10 +1862,10 @@ TimerNotResponseUserTimeout::~TimerNotResponseUserTimeout() {}
 // ORIG T 0x0863695a (_ZN27TimerNotResponseUserTimeout12dispatch_sigEiij)
 int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p2, 0xc);
+    CUser* user = G_CGameManager()->getUser(p1, 0xc);
     if (user == NULL)
         return 0;
-    if ((unsigned short)user->get_unique_id() != p3)
+    if ((unsigned short)user->get_unique_id() != p2)
         return 0;
     if (user->IsRecvEvent() != 1)
     {
@@ -1793,7 +1894,7 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0xb73, 0);
-        trace("Not response user timeout: idx(%d), IP(%s)", p2, ipStr);
+        trace("Not response user timeout: idx(%d), IP(%s)", p1, ipStr);
     }
     return 1;
 }
@@ -2706,7 +2807,7 @@ TimerSetPunishUser::TimerSetPunishUser() {}
 TimerSetPunishUser::~TimerSetPunishUser() {}
 int TimerSetPunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
     if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) != p3)
     {
         return 0;
@@ -2724,7 +2825,7 @@ TimerSetTradePunishUser::TimerSetTradePunishUser() {}
 TimerSetTradePunishUser::~TimerSetTradePunishUser() {}
 int TimerSetTradePunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p2, p1);
+    CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
     if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) != p3)
     {
         return 0;
@@ -2737,8 +2838,9 @@ TimerRevivalCharac::TimerRevivalCharac() {}
 TimerRevivalCharac::~TimerRevivalCharac() {}
 int TimerRevivalCharac::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
-    if (user == 0 || static_cast<unsigned int>(user->GetRevivalTime()) != p3)
+    CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
+    if (user == 0 || user->getCurCharacR() == 0 ||
+        static_cast<unsigned int>(user->GetRevivalTime()) != p3)
     {
         return 0;
     }
@@ -2753,7 +2855,7 @@ TimerRequestExit::TimerRequestExit() {}
 TimerRequestExit::~TimerRequestExit() {}
 int TimerRequestExit::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
     if (user == 0 || user->getCurCharacR() == 0 ||
         static_cast<unsigned int>(user->getCurCharacNo()) != p3)
     {
@@ -2901,7 +3003,6 @@ int Timer_Security_NonClient_CheckResponse::dispatch_sig(int p1, int p2, unsigne
 {
     // ORIG 0x86394f0：call _NS_NonClient_CheckResponse(p1,p2,p3) 后 leave/ret（eax 未定）。
     _NS_NonClient_CheckResponse(p1, p2, static_cast<int>(p3));
-    return 0;
 }
 
 Timer_Midnight::Timer_Midnight() {}
@@ -2951,19 +3052,23 @@ int TimerEndPowerWarVictoriousReward::dispatch_sig(int p1, int p2, unsigned int 
 
 Timer_TenMinuteSchedule::Timer_TenMinuteSchedule() {}
 Timer_TenMinuteSchedule::~Timer_TenMinuteSchedule() {}
-int Timer_TenMinuteSchedule::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3)
+int Timer_TenMinuteSchedule::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/)
 {
-    // ORIG 0x8639668：p3==0 → InsertValueStatistic + RegistNextTimer(1)；
-    // p3==1 → InsertCirculationStatistic + RegistNextTimer(0)；返回 RegistNextTimer 结果。
-    if (p3 == 0)
+    // ORIG 0x8639668：检查第二参数（0x10(%ebp)）：==0 → InsertValueStatistic +
+    // RegistNextTimer(1)；==1 → InsertCirculationStatistic + RegistNextTimer(0)；
+    // 其他值两分支都不执行。RegistNextTimer 恒返回 1，ORIG 返回 !regResult，
+    // 即执行分支返回 1、未执行返回 0。
+    if (p2 == 0)
     {
         GetInstanceValueStatistic()->InsertValueStatistic();
         RegistNextTimer(1);
+        return 1;
     }
-    else
+    if (p2 == 1)
     {
         GetInstanceCirculationStatistic()->InsertCirculationStatistic();
         RegistNextTimer(0);
+        return 1;
     }
     return 0;
 }
@@ -2972,13 +3077,16 @@ Timer_UpdateOnlinePreliminaryTeam::Timer_UpdateOnlinePreliminaryTeam() {}
 Timer_UpdateOnlinePreliminaryTeam::~Timer_UpdateOnlinePreliminaryTeam() {}
 int Timer_UpdateOnlinePreliminaryTeam::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // ORIG 0x08639700：FindTeam/RegistNextTimer 均用 p2（0x10(%ebp)），非 p3。
+    (void)p1;
+    (void)p3;
     online_preliminary::COnlinePreliminaryTeam* team =
-        GlobalData::s_onlinePreliminaryTeamMgr->FindTeam(static_cast<int>(p3));
+        GlobalData::s_onlinePreliminaryTeamMgr->FindTeam(p2);
     if (team == NULL) {
         return 0;
     }
     team->saveData();
-    const bool registered = RegistNextTimer(static_cast<int>(p3));
+    const bool registered = RegistNextTimer(p2);
     if (!registered) {
         return 0;
     }
@@ -3283,7 +3391,7 @@ int Timer_ReturnUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     if (user == 0)
         return 0;
 
-    if ((static_cast<unsigned int>(user->get_unique_id()) & 0xffff) != p3)
+    if ((unsigned short)user->get_unique_id() != p2)
         return 0;
 
     user->ResetReturnUser();
@@ -3677,12 +3785,13 @@ Timer_TournametDungeonClearStateSelect::Timer_TournametDungeonClearStateSelect()
 Timer_TournametDungeonClearStateSelect::~Timer_TournametDungeonClearStateSelect() {}
 int Timer_TournametDungeonClearStateSelect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    (void)p3;   // ORIG 0x0863b68c：check_timer_key 用 p2（0x10(%ebp)），非 p3
     CParty* party = G_CGameManager()->GetParty(p1);
     if (party == 0)
         return 0;
-    if (!party->check_timer_key((TIMER_MESSAGE)0x2f, p3))
+    if (!party->check_timer_key((TIMER_MESSAGE)0x2f, p2))
         return 0;
-    if (party->GetTournamentDungeonClearState() == 'x02')
+    if (party->GetTournamentDungeonClearState() == 2)
     {
         PacketGuard packet;
         packet.clear();
@@ -3697,7 +3806,7 @@ int Timer_TournametDungeonClearStateSelect::dispatch_sig(int p1, int p2, unsigne
         reward.MakeSelectPacket(&packet);
         packet.finalize(true);
         party->send_to_party(packet);
-        party->SetTournamentDungeonClearState('x03');
+        party->SetTournamentDungeonClearState(3);
         party->TournamentDungeonClear(victory);
     }
     return 1;
@@ -3922,13 +4031,13 @@ void DBSelectCreateDnfEventInfo::makeRequest()
 }
 
 
-const unsigned int advancealtar::Timer_MainTick::kMainTickMs = 1000;  // ORIG R 0x8b6c5e4
-// ORIG R 0x8b6c5e8..0x8b6c5fc（外部链接类静态成员，值实测）
-const unsigned int advancealtar::Timer_StageControl::kFailEPLPMs = 1000;           // 0x8b6c5f4
-const unsigned int advancealtar::Timer_StageControl::kClearEPLPMs = 1000;          // 0x8b6c5f0
-const unsigned int advancealtar::Timer_StageControl::kCheckFinishMs = 5000;        // 0x8b6c5e8
-const unsigned int advancealtar::Timer_StageControl::kClearRewardMs = 3000;        // 0x8b6c5ec
-const unsigned int advancealtar::Timer_StageControl::kEPLPReturnVillageMs = 50000; // 0x8b6c5f8
+// 类内已初始化（TimerDispatcher.h）；此处仅保留类外定义以维持 ORIG R 符号。
+const unsigned int advancealtar::Timer_MainTick::kMainTickMs = 1000;  // ORIG R 0x8b6c5e4（头文件无类内初始化）
+const unsigned int advancealtar::Timer_StageControl::kFailEPLPMs;   // ORIG R 0x8b6c5f4
+const unsigned int advancealtar::Timer_StageControl::kClearEPLPMs;  // ORIG R 0x8b6c5f0
+const unsigned int advancealtar::Timer_StageControl::kCheckFinishMs;// ORIG R 0x8b6c5e8
+const unsigned int advancealtar::Timer_StageControl::kClearRewardMs;// ORIG R 0x8b6c5ec
+const unsigned int advancealtar::Timer_StageControl::kEPLPReturnVillageMs; // ORIG R 0x8b6c5f8
 
 // ---------------------------------------------------------------------------
 // LinkClosureB-2 追加：三个 RegistNextTimer（报告全文已读，逐指令转写）

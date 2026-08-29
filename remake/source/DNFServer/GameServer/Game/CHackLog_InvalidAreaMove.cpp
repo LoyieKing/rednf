@@ -140,6 +140,7 @@ char CHackLog_InvalidAreaMove::IsInvalidMovableArea(int a, int b, int c, int d)
 //   (4,1,4,0,1,3) (4,0,1,3,1,0) (3,6,6,0,6,1)
 char CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e, int f)
 {
+    char result = 0;
     if ((a == 3 && b == 2 && c == 3 && d == 0 && e == 2 && f == 0) ||
         (a == 3 && b == 1 && c == 3 && d == 0 && e == 2 && f == 0) ||
         (a == 2 && b == 0 && c == 3 && d == 0 && e == 3 && f == 1) ||
@@ -155,8 +156,8 @@ char CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e,
         (a == 4 && b == 1 && c == 4 && d == 0 && e == 1 && f == 3) ||
         (a == 4 && b == 0 && c == 1 && d == 3 && e == 1 && f == 0) ||
         (a == 3 && b == 6 && c == 6 && d == 0 && e == 6 && f == 1))
-        return 1;
-    return 0;
+        result = 1;
+    return result;
 }
 
 // ORIG 0x0828630c

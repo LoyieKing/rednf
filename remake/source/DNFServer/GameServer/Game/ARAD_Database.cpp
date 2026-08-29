@@ -40,11 +40,6 @@ inline unsigned int& create_result_code(SIG_CREATE_CHARAC* sig)
 {
     return sig->m_resultCode;    // +0x5344（W6TB_DbCreateCharac 已具名化）
 }
-inline unsigned int& create_charac_no(SIG_CREATE_CHARAC* sig)
-{
-    return sig->m_characNo;      // +0x5348
-}
-
 // 【ABI 镜像】POD 区未建模单值字段直访（SIG_LOGIN_DATA 在 SigTypes.h 仅 char m_pad[0x4358]；
 // SIG_CREATE_CHARAC 内散列属性同样适用）
 template <typename T, typename P>
@@ -117,7 +112,7 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
             0x47, "%s", "select @@identity error");
         return -1;
     }
-    if (!db->get_uint(0, create_charac_no(sig)))
+    if (!db->get_uint(0, sig->m_characNo))
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -125,7 +120,7 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
             0x4c, "%s", "Parsing Error of Selected Field");
         return -1;
     }
-    if (create_charac_no(sig) == 0)
+    if (sig->m_characNo == 0)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -245,7 +240,7 @@ int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)
     if (db->insert(
             "inSert into charac_stat  (charac_no,HP, forbidden_to_play, "
             "forbidden_due_to)  values(%d,100,0,0) ",
-            create_charac_no(sig)) != 0)
+            sig->m_characNo) != 0)
     {
         create_result_code(sig) = 2;
         return -1;
@@ -262,7 +257,7 @@ int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
     {
         if (db->insert(
                 "inSert into inventory  (charac_no, coin, money)  values(%u, %d) ",
-                create_charac_no(sig)) != 0)
+                sig->m_characNo) != 0)
         {
             return -1;
         }
@@ -290,7 +285,7 @@ int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
     char* invenZip = db->blob_to_str(0, zipBuf, static_cast<int>(zipLen));
     if (db->insert("inSert into inventory (charac_no, inventory,coin) "
                    "values(%u, '%s',%d)",
-                   create_charac_no(sig), invenZip, invenRaw, coin) != 0)
+                   sig->m_characNo, invenZip, invenRaw, coin) != 0)
     {
         return -1;
     }
@@ -302,7 +297,7 @@ int CREATE_QUERY::arad_sp_create_expand_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     if (db->insert(" inSert into charac_inven_expand  "
                    "(charac_no,cargo,cargo_capacity, jewel)  values(%u,'',0,'')",
-                   create_charac_no(sig)) != 0)
+                   sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -330,7 +325,7 @@ int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 
     char* equipZip = db->blob_to_str(0, zipBuf, static_cast<int>(zipLen));
     if (db->update(" upDate inventory set equipslot='%s' where charac_no = %u ",
-                   equipZip, create_charac_no(sig)) != 0)
+                   equipZip, sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -343,7 +338,7 @@ int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
     char* skillBlob =
         db->blob_to_str(0, sig->m_masteredSkillA, 0x198);   // +0x79 技能树 blob
     if (db->insert("inSert into skill (charac_no, skill_slot) values(%u, '%s')",
-                   create_charac_no(sig), skillBlob) != 0)
+                   sig->m_characNo, skillBlob) != 0)
     {
         return -1;
     }
@@ -354,7 +349,7 @@ int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
 int CREATE_QUERY::arad_sp_create_pvp(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     if (db->insert("inSert into pvp_result (charac_no) values(%u)",
-                   create_charac_no(sig)) != 0)
+                   sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -371,7 +366,7 @@ int CREATE_QUERY::arad_sp_create_dungeon_point(MySQL*, SIG_CREATE_CHARAC*)
 int CREATE_QUERY::arad_sp_create_charac_dungeon(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     if (db->insert("inSert into charac_dungeon(charac_no, dungeon) values(%d, '')",
-                   create_charac_no(sig)) != 0)
+                   sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -388,7 +383,7 @@ int CREATE_QUERY::arad_sp_create_charac_quest(MySQL* db, SIG_CREATE_CHARAC* sig)
             "play_5,play_5_trigger,play_6,play_6_trigger,play_7,play_7_trigger,"
             "play_8,play_8_trigger,play_9,play_9_trigger,play_10,play_10_trigger) "
             "values(%d,'','','','','','','','','',0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)",
-            create_charac_no(sig)) != 0)
+            sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -399,7 +394,7 @@ int CREATE_QUERY::arad_sp_create_charac_quest(MySQL* db, SIG_CREATE_CHARAC* sig)
 int CREATE_QUERY::arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     if (db->insert("inSert into charac_npc(charac_no,npc_cnt,npc_data) values(%d,0,'')",
-                   create_charac_no(sig)) != 0)
+                   sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -1117,7 +1112,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_stat(SIG_CREATE_CHARAC* sig)
             0x67, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_charac_stat(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_charac_stat(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_inventory(SIG_CREATE_CHARAC* sig)
@@ -1155,12 +1154,16 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_equip(SIG_CREATE_CHARAC* sig)
             0x95, "%s", "Database null!!");
         return -1;
     }
-    // ORIG 荒诞哨兵比较照抄（指针与整型常量相等即跳过写库）
-    if (sig == reinterpret_cast<SIG_CREATE_CHARAC*>(static_cast<unsigned int>(0xffffb1ff)))
+    // ORIG 荒诞哨兵比较照抄：(char*)sig + 0x4e01 == 0（即 sig==0xffffb1ff 时跳过写库）
+    if ((char*)sig + 0x4e01 == 0)
     {
         return 0;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_equip(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_equip(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_skill(SIG_CREATE_CHARAC* sig)
@@ -1175,7 +1178,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_skill(SIG_CREATE_CHARAC* sig)
             0xb0, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_skill(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_skill(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_pvp(SIG_CREATE_CHARAC* sig)
@@ -1190,7 +1197,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_pvp(SIG_CREATE_CHARAC* sig)
             0xbf, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_pvp(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_pvp(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_charac_dungeon(SIG_CREATE_CHARAC* sig)
@@ -1205,7 +1216,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_dungeon(SIG_CREATE_CHARAC* si
             0xcd, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_charac_dungeon(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_charac_dungeon(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_charac_quest(SIG_CREATE_CHARAC* sig)
@@ -1220,7 +1235,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_quest(SIG_CREATE_CHARAC* sig)
             0xdb, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_charac_quest(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_charac_quest(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int ARAD::Arad_DB_Charac_Dispatcher::create_charac_npc_relationship(
@@ -1236,7 +1255,11 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_npc_relationship(
             0xe9, "%s", "Database null!!");
         return -1;
     }
-    return DATABASE::CREATE_QUERY::arad_sp_create_npc_relationship(db, sig);
+    if (DATABASE::CREATE_QUERY::arad_sp_create_npc_relationship(db, sig) != 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 } // namespace ARAD

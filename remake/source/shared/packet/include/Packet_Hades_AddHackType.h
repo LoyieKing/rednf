@@ -14,8 +14,7 @@ public:
     unsigned short m_count;    // +0x10（param_2：hack 次数）
     unsigned int m_field12;    // +0x12（param_3 原样落包；语义无内部证据，待定）
     unsigned int m_field16;    // +0x16（param_4 原样落包；语义无内部证据，待定）
-    Packet_Hades_AddHackType() : PacketHeader(0xfd7, 0x1a),
-        m_accId(0), m_hackType(0), m_count(0), m_field12(0), m_field16(0){};
+    Packet_Hades_AddHackType() : PacketHeader(0xfd7, 0x1a) {}
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Hades_AddHackType, 0x1a);

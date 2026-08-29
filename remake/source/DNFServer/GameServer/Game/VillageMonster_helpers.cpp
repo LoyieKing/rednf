@@ -145,7 +145,7 @@ struct Packet_VillageMonsterFightResult
     unsigned int m_uids[4];     // +0x0a
     unsigned int m_characNos[4];// +0x1a
     unsigned char m_flag;       // +0x2a
-};
+} __attribute__((packed));      // ORIG ctor 0x86b4b84 紧凑 0x2b 布局（无 packed 会插 2B padding）
 
 // ============================================================================
 // CVillageMonster::SendVillageMonsterFightResult(CUser*,bool)

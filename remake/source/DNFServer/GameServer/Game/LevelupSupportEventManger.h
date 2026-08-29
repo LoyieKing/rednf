@@ -143,7 +143,7 @@ public:
     ~LevelupSupportEventManger();   // _ZN25LevelupSupportEventMangerD1Ev @0x08146dc0
 
     virtual bool Load();    // vtable 槽0（ORIG 槽值 0x08146e3c）
-    virtual void Destroy(); // vtable 槽1（ORIG 槽值 0x08146fda）
+    virtual int Destroy(); // vtable 槽1（ORIG 槽值 0x08146fda）
     // 以下三方法 ORIG 直调依赖（CUser::processLevelUpEvent 域；定义 CUserDepsB.cpp）。
     bool CheckNewStep(int level);                     // ORIG T 0x08147164
     void UpdateEventInfo(CUser* user);                // ORIG T 0x081471c6
@@ -172,7 +172,7 @@ public:
     ~LevelupSupport2ndEventManger();   // _ZN28LevelupSupport2ndEventMangerD1Ev @0x081477c4
 
     virtual bool Load();    // vtable 槽0（ORIG 槽值 0x081477e4）
-    virtual void Destroy(); // vtable 槽1（ORIG 槽值 0x08147864）
+    virtual int Destroy(); // vtable 槽1（ORIG 槽值 0x08147864）
     void Process(CUser* user);   // ORIG T 0x08147880（定义 CUserDepsB.cpp）
 
     LevelupSupport2ndScript m_script;   // +0x04

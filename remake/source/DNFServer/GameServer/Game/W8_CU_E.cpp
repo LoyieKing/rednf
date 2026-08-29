@@ -203,7 +203,9 @@ void CUser::initTPSkill()
 // 6. void CUser::initAllSkill() @0x0868fc46
 void CUser::initAllSkill()
 {
-    if ((int)getCurCharacLastPlayTick() < (int)0x50c79ed0)
+    // ORIG 0x0868fc46：直接读 getCurCharacR()->m_field7b(+0x7b) 与
+    // 0x50c79ed0 比较（setl），不经 getCurCharacLastPlayTick 转发。
+    if (getCurCharacR()->m_field7b < (int)0x50c79ed0)
     {
         SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
         slot->clear_all_skills((ENUM_SKILL_TREE_KIND)0);

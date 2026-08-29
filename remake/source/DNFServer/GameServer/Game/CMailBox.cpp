@@ -246,9 +246,9 @@ bool CMailBox::IsLoaded() { return sig_at<bool>(this, OFF_LOADED); }
 // ORIG 0x08557950 (W)：写加载状态；置 true 时同时写 lastLoadIdx ← nowSec
 void CMailBox::SetLoadState(bool loaded, long nowSec)
 {
-    sig_at<bool>(this, OFF_LOADED) = loaded;
+    *(bool*)((char*)this + OFF_LOADED) = loaded;   // ORIG mov %dl,(%eax) 直写
     if (loaded)
-        sig_at<unsigned int>(this, OFF_LASTLOADIDX) = (unsigned int)nowSec;
+        *(unsigned int*)((char*)this + OFF_LASTLOADIDX) = (unsigned int)nowSec;   // ORIG mov %edx,0x4(%eax)
 }
 
 // ORIG 0x085577ac (W)：id==0 → false；否则在 loadLack 列表中查找

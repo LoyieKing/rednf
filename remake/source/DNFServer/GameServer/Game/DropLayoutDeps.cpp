@@ -1009,19 +1009,19 @@ int CItem::get_gen_rate() const
     return m_field50;                       // ORIG 0x832e02a：mov 0x50(%eax),%eax
 }
 
-bool CItem::isSpecialMonsterDropItem()
+unsigned char CItem::isSpecialMonsterDropItem()
 {
-    return m_drop.m_enable != 0;            // ORIG 0x8539e00：movzbl 0xb4(%eax)
+    return m_drop.m_enable;                 // ORIG 0x8539e00：movzbl 0xb4(%eax)
 }
 
-bool CItem::isDropItemDungeonDifficulty(int idx)
+unsigned char CItem::isDropItemDungeonDifficulty(int idx)
 {
-    return m_drop.m_difficulty[idx] != 0;   // ORIG 0x8539e10：movzbl 0xb5(%edx,%eax)
+    return m_drop.m_difficulty[idx];        // ORIG 0x8539e10：movzbl 0xb5(%edx,%eax)
 }
 
-bool CItem::isDropItemDungeonType(int idx)
+unsigned char CItem::isDropItemDungeonType(int idx)
 {
-    return m_drop.m_dungeonType[idx] != 0;  // ORIG 0x8539e24：movzbl 0xba(%edx,%eax)
+    return m_drop.m_dungeonType[idx];       // ORIG 0x8539e24：movzbl 0xba(%edx,%eax)
 }
 
 // ============================================================================

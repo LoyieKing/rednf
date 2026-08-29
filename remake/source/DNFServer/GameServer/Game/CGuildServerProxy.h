@@ -203,7 +203,8 @@ public:
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346
     void removeGM(unsigned int mid, unsigned int param);  // 0x081093fc
-    std::list<stGMInfo_t> GetGMList() const { return m_gmList; }  // ORIG 0x082a7388 W
+    // ORIG 0x082a7388 W：mov this→eax 直返 ⇒ 返回 m_gmList（+0x00）引用，非拷贝
+    const std::list<stGMInfo_t>& GetGMList() const { return m_gmList; }
     void LoadGmList(unsigned int mid, int level);   // ORIG 0x081094ea T（Gm_List.cpp）
     void clearGmList();                             // ORIG 0x08109510 T（Gm_List.cpp）
     int loadGMAccounts(char const* path);                // ORIG T 0x0810933c _ZN8WongWork11CGMAccounts14loadGMAccountsEPKc

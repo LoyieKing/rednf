@@ -32,7 +32,7 @@ struct EVENT_SERVER_MESSAGE
 struct SIG_EVENT_SERVER_MESSAGE
 {
     unsigned char m_count;
-    stSERVER_MESSAGE m_msg[0x64];
+    stSERVER_MESSAGE m_msg[0x32];
 };
 
 
@@ -65,7 +65,7 @@ public:
     void UpdateServerMessage(CUser*, int, char*, char*, int);
     void UpdateServerMessageByBroadcast(int, char*, char*, int);
     void LoadServerMessageFromDB();
-    bool IsSetServerMessage() { return m_isSet != 0; }
+    unsigned char IsSetServerMessage() { return m_isSet; }
     EVENT_SERVER_MESSAGE* GetCurServerMessage() { return &m_event; }
     void setLoadingComplete() { m_isSet = 1; }
 

@@ -121,10 +121,8 @@ int stMapMonsterKillChecker_t::dieMonster(unsigned int tick, unsigned int limit)
 
 void stMapMonsterKillChecker_t::initMonsterInfo()
 {
-    m_useSkillMaterialTime = 0;
-    m_lastMobDieTime = 0;
+    // ORIG 0x830e71c：仅清零 +0x08
     m_uncontinuallyMobDieCnt = 0;
-    m_dieCnt = 0;
 }
 
 class TimerQueue;
@@ -186,9 +184,10 @@ unsigned int CDeathTowerRanking::makeDungeonIdx2TowerIdx(unsigned int dungeonIdx
 
 void* CDeathTowerRanking::getRankTable(unsigned int type)
 {
-    // ORIG 082a774c W：3 张静态表（BSS 0x941f8c0，每表 0x70f4）懒构造
-    // （__cxa_guard + 逐表 C1）；type==0 返回首表，否则 (type-1)*0x70f4 偏移。
-    static CDeathTowerRanking s_tables[3];  // 静态初始化由编译器 guard 保护
+    // ORIG 082a774c W：4 张静态表（BSS 0x941f8c0，每表 0x70f4；Init 循环
+    // type=1..4 调 getRankTable）懒构造（__cxa_guard + 逐表 C1）；
+    // type==0 返回首表，否则 (type-1)*0x70f4 偏移。
+    static CDeathTowerRanking s_tables[4];  // 静态初始化由编译器 guard 保护
     if (type == 0)
         return &s_tables[0];
     return &s_tables[type - 1];
@@ -572,6 +571,15 @@ int CDeathTower::onLeaveUser(CUser* user)
     inven->RemoveFPItem();
     char memberNames[0x100];
     memset(memberNames, 0, sizeof(memberNames));
+
+    if (m_party)
+    {
+        // ORIG 0x084636f2：m_party 存在时记 LeaveDungeon 历史（state=m_party+0xcd8 字节）。
+        char state = *(const char*)((const char*)m_party + 0xcd8);
+        m_party->getMemberNames(memberNames);   // char* 返回（ORIG W 转发 _getMemberNames）
+        const char* dungeonName = m_dungeonMgr.getDungeon()->GetDungeonName();
+        user->m_historyLog.LeaveDungeon(dungeonName, 0, memberNames, state);
+    }
 
     if (m_party)
     {
@@ -1060,30 +1068,30 @@ void CDeathTower::_onPrepareFinishTower()
 
 void CDeathTower::_onStartDeathTower()
 {
-    char memberNames[0x100];
-    memset(memberNames, 0, sizeof(memberNames));
-    m_party->getMemberNames(memberNames);
+    char memberNames[0x40];
+    memset(memberNames, 0, sizeof(memberNames));   // ORIG rep stos 0x40
 
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i))
-        {
-            CUser* user = m_party->get_user(i);
-            int state = m_party->get_party_type();
-            CDungeon* dungeon = m_dungeonMgr.getDungeon();
-            const char* dungeonName = dungeon->GetDungeonName();
-            // CUser +0x79700：cUserHistoryLog 子对象（同 _onClear）【推断】
-            cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
-            log->EnterDungeon(dungeonName, state);
+        CUser* user = m_party->get_user(i);
+        if (user == 0)
+            continue;
+        if (!m_party->checkValidUser(i))
+            continue;
+        CDungeon* dungeon = m_dungeonMgr.getDungeon();
+        const char* dungeonName = dungeon->GetDungeonName();
+        // CUser +0x79700：cUserHistoryLog 子对象（同 _onClear）【推断】
+        cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
+        // ORIG：EnterDungeon(dungeonName, 0, memberNames, m_party->m_partyType)
+        log->EnterDungeon(dungeonName, 0, memberNames, m_party->get_party_type());
 
-            UserQuest* quest = user->getCurCharacQuestW();
-            // UserQuest +0x75d8：_Quest_Authen_Data 内嵌子对象（UserQuest 未建模）【推断】
-            _Quest_Authen_Data* authData = (_Quest_Authen_Data*)((char*)quest + 0x75d8);
-            authData->reset();
+        UserQuest* quest = user->getCurCharacQuestW();
+        // UserQuest +0x75d8：_Quest_Authen_Data 内嵌子对象（UserQuest 未建模）【推断】
+        _Quest_Authen_Data* authData = (_Quest_Authen_Data*)((char*)quest + 0x75d8);
+        authData->reset();
 
-            int dungeonIdx = dungeon->get_index();
-            quest->set_authen_data((QUEST_CONDITION)0, dungeonIdx, -1);
-        }
+        int dungeonIdx = dungeon->get_index();
+        quest->set_authen_data((QUEST_CONDITION)0, dungeonIdx, -1);
     }
 }
 
@@ -1138,6 +1146,7 @@ int CDeathTower::CStage::getCurrentStage()
 {
     return m_currentStage;
 }
+
 int CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& item, int* money1, int* money2)
 {
     int money = item.m_item.get_add_info();
@@ -1145,17 +1154,35 @@ int CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& it
     int remainder = money % memberCnt;
     int total = base + remainder;
 
-    for (int i = 0; i < memberCnt; ++i)
+    for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
         if (!member || !m_party->checkValidUser(i))
             continue;
 
         int amount = (member == user) ? total : base;
+        int taxed = amount;                                // ORIG -0xc（可能翻倍）
+        if (item.m_count != 0)
+        {
+            money2[i] = member->getCurCharacInvenR()
+                            ->GetCreatureMgrR()->GetExtraGold(amount);
+            taxed = amount * 2;
+        }
 
-        CInventory* invenW = (CInventory*)member->getCurCharacInvenW();
-        money2[i] = invenW->gain_money(amount, (eMoneyAddReason)4, true, 1);
-        money1[i] = amount;
+        money1[i] = member->getCurCharacInvenW()->gain_money(
+            taxed, (eMoneyAddReason)4, true, 0);
+        if (item.m_count != 0)
+            member->saveTaxMoneyForUpperMember(taxed);
+        if (money1[i] < taxed)
+        {
+            if (money1[i] < 0)
+                money1[i] = 0;
+            member->SendMoneyFullReason(ENUM_MONEY_FULL_REASON_0,
+                                        (unsigned long)taxed,
+                                        (unsigned long)money1[i]);
+        }
+        GetInstanceValueStatistic()->AddValueStatistic(
+            (VALUE_STATISTIC_FIELD)1, member, (unsigned int)money1[i]);
     }
 
     return 0;
@@ -1328,9 +1355,9 @@ int CDeathTower::_checkStartGameCondition(unsigned char& flag)
         dungeon = m_dungeonMgr.getDungeon();
         if (m_party->UseAncientDungeonItems(dungeon, items, params))
         {
-            return 0;
+            return 0;0;
         }
-        return 1;
+        return 1;1;
     }
     return 0x11;
 }

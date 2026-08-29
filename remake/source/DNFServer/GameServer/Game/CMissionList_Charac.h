@@ -6,8 +6,9 @@
 // CDataMgr::CDataMgr new 尺寸 0x158 与 ORIG getIssue_all/getIssue_mode/
 // isClearMission 字段偏移（m_field148@0x148 / m_field14c@0x14c）：
 //   charac_expand::CData 基类（pack(1)：vptr +0x00 / m_bIsSave +0x04，sizeof 5）
-//   char m_pad0[3]                    +0x05（CData 基类子对象按 vptr 对齐补齐到 8）
-//   MissionInfo m_missionList[36]     +0x08（步长 8，kind 0..0x23）
+//   MissionInfo m_missionList[36]     +0x05（步长 8，kind 0..0x23；ORIG _reset
+//                                      memset 0x120 起 +0x5 实证）
+//   char m_pad125[3]                  +0x125
 //   std::bitset<256> m_clearedFlags   +0x128（32 字节）
 //   short m_field148                  +0x148
 //   short m_field14a                  +0x14a
@@ -90,8 +91,8 @@ public:
     bool isClearStealingSkillMission() const;
 
     // ---- 成员 ----
-    char m_pad0[3];               // +0x05
-    MissionInfo m_missionList[36];       // +0x08
+    MissionInfo m_missionList[36];       // +0x05
+    char m_pad125[3];             // +0x125（ORIG memset 0x120 起 +0x5；bitset 对齐 0x128）
     std::bitset<256> m_clearedFlags;     // +0x128
     unsigned short m_field148;                 // +0x148
     unsigned short m_field14a;           // +0x14a

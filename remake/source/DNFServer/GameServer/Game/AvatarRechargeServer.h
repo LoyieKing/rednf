@@ -73,7 +73,7 @@ public:
     ~AvatarRechargeServer();
 
     virtual bool Load();      // vtable 槽0（ORIG 0x0819026c）
-    virtual void Destroy();   // vtable 槽1（ORIG 0x081902de 返 1；接口 void 化同 Manager 先例）
+    virtual int Destroy();   // vtable 槽1（ORIG 0x081902de 返 1；接口 void 化同 Manager 先例）
 
     void Test();              // ORIG 0x08190266：纯 ret
 

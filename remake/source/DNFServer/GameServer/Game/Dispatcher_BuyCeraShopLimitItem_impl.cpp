@@ -132,7 +132,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     // 第一条记录：每条 { unsigned long itemIdx; unsigned char cnt }（ORIG 栈数组，上限 0x23）。
     struct RawEntry1 { unsigned long itemIdx; unsigned char cnt; };
     RawEntry1 rec1[0x24];
-    for (unsigned int i = 0; i < entryCnt1; ++i) {
+    for (int i = 0; i < entryCnt1; ++i) {
         if (!packet.get_item_idx(rec1[i].itemIdx))
             return LineFunc(0xd894,
                             __PRETTY_FUNCTION__,
@@ -152,7 +152,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
                         0, 0);
     struct RawEntry2 { unsigned long itemIdx; unsigned short v1; unsigned short v2; };
     RawEntry2 rec2[0x24];
-    for (unsigned int i = 0; i < entryCnt2; ++i) {
+    for (int i = 0; i < entryCnt2; ++i) {
         if (!packet.get_item_idx(rec2[i].itemIdx))
             return LineFunc(0xd8a1,
                             __PRETTY_FUNCTION__,
@@ -166,8 +166,8 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
                             __PRETTY_FUNCTION__,
                             0, 0);
     }
-    for (unsigned int i = 0; i < (unsigned int)entryCnt2; ++i) {
-        for (unsigned int j = i + 1; j < (unsigned int)entryCnt2; ++j) {
+    for (int i = 0; i < entryCnt2; ++i) {
+        for (int j = i + 1; j < entryCnt2; ++j) {
             if (rec2[i].itemIdx == rec2[j].itemIdx && rec2[i].v1 == rec2[j].v1)
                 return LineFunc(0xd8ac,
                                 __PRETTY_FUNCTION__,
@@ -200,11 +200,14 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         if (user->getCurCharacInvenR()->get_money() < edition->getPriceGold()) throw 0xa;
         if ((unsigned int)user->GetWinPoint() < (unsigned int)edition->getPriceWinPoint()) throw 0xc;
 
-        if (_checkBuyCondition(user, edition) != 0) throw 7;
+        // ORIG 0x082200be：ret=_checkBuyCondition(...)，ret!=0 时 throw ret（异常码=返回值）。
+        int condRet = _checkBuyCondition(user, edition);
+        if (condRet != 0) throw condRet;
 
         // ---- avatar 类型选取 ----
         unsigned short avatarTypeSel = (unsigned short)edition->getAvatarTypeSelect();
-        if (relatedItem != 0) {
+        // ORIG 0x08220132：先 relatedItem->IsCreatureItem()（vtable+0x10 虚调用）通过后才 dynamic_cast。
+        if (relatedItem != 0 && relatedItem->IsCreatureItem()) {
             CEquipItem* equip = dynamic_cast<CEquipItem*>(relatedItem);
             if (equip != 0 && edition->getAvatarTypeSelect() == (unsigned char)0xff) {
                 // 遍历 relatedItem 的 m_avatarSelect，跳过 m_field10(小孔数)<=0 的项，
@@ -224,7 +227,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
             user, ipgNo, (unsigned long)edition->getRelateditem(),
             (unsigned int)edition->getRelatedItemCnt(),
             (unsigned short)avatarTypeSel, subCount, (unsigned short)avatarTypeSel);
-        if (ok != 1) throw 7;
+        if (!ok) throw 7;
 
         // ---- 限制/特供道具 ----
         // ORIG：local_2c(=restrictCode) 初始化为 featuredIdx；featuredIdx==0 时 IsSpecialItem

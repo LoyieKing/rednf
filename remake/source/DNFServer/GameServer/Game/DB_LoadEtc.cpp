@@ -1038,25 +1038,30 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
         return true;
     }
 
-    // 树条目计数写回：kind0→+0x14aae（tree1Count）、kind1→+0x14aaf。
+    // 树条目计数写回：kind0→+0x14aae（tree1Count）、kind1→+0x14aaf；
+    // ORIG 对两 kind 各自独立调用 getComboSkill（0x844a5b2 / 0x844a614）。
     SIG_COMBO_SKILL* cs = reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill);
-    comoboSkillData* dst =
-        (kindVal == 0) ? cs->m_tree1Data : cs->m_tree2Data;   // +0x14ab4 / +0x14b08
     if (kindVal == 0)
     {
         cs->m_tree1Count = (unsigned char)nRows;
+        if (!getComboSkill(db, sig->m_accId, nRows, cs->m_tree1Data))
+        {
+            cMyTrace trace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
+                           " ENUM_SKILL_TREE_KIND)", 0xbae7, 5);
+            trace("DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
+                  sig->m_characNo);
+        }
     }
-    else
+    if (kindVal == 1)
     {
         cs->m_tree2Count = (unsigned char)nRows;
-    }
-    if (!getComboSkill(db, sig->m_accId, nRows, dst))
-    {
-        cMyTrace trace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
-                       " ENUM_SKILL_TREE_KIND)",
-                       (kindVal == 0) ? 0xbae7 : 0xbaef, 5);
-        trace("DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
-              sig->m_characNo);
+        if (!getComboSkill(db, sig->m_accId, nRows, cs->m_tree2Data))
+        {
+            cMyTrace trace("bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC*,"
+                           " ENUM_SKILL_TREE_KIND)", 0xbaef, 5);
+            trace("DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
+                  sig->m_characNo);
+        }
     }
     return true;
 }

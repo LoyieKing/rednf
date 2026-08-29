@@ -21,6 +21,9 @@
 #include "CGuildServerProxy.h"    // CEventBase / CEventManager::GetRepeatEvent（_IsGiveupPanalty）
 #include "CInventory.h"           // user_creature::CCreatureMgr::TurnStomach（DetachUser）
 #include "GameWorld.h"            // G_GameWorld / send_all（SendUserState）
+#include "Packet_Broadcast_Msg.h" // _BroadcastRunaway 公告包
+#include "CServerProxyMgr.h"      // CMonitorServerProxy（_BroadcastRunaway）
+#include "CMonitorServerProxy.h"  // _BroadcastRunaway 完整类型
 
 // 全局依赖前置（3 参版定义见本文件尾；6 参版 owner=CVillageMonsterMgr.cpp）
 bool IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y);
@@ -123,10 +126,10 @@ CUser* CAssaulter::GetUser()
     return m_user;
 }
 
+// ORIG W 0x82f055c：call IsAttachAble（0x82f054c）。
 bool CAssaulter::Empty()
 {
-    // ORIG W 0x82f055c（= IsAttachAble 0x82f054c）：user==0
-    return m_user == 0;
+    return IsAttachAble();
 }
 
 ENUM_ASSAULT_TEAM CAssaulter::GetTeam()
@@ -309,16 +312,8 @@ int CAssaulter::GetHp()
 // ORIG T 0x82e6812：卸下 creature（TurnStomach false）+ 清 user/team 槽位。
 void CAssaulter::DetachUser()
 {
-    CUser* user = m_user;
-    if (user != 0)
-    {
-        CInventory* inven = user->getCurCharacInvenW();
-        if (inven != 0)
-        {
-            user_creature::CCreatureMgr* mgr = inven->GetCreatureMgrW();
-            mgr->TurnStomach(false);
-        }
-    }
+    if (m_user->getCurCharacR() != 0)
+        m_user->getCurCharacInvenW()->GetCreatureMgrW()->TurnStomach(false);
     m_user = 0;
     m_team = 0;
 }
@@ -390,16 +385,28 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
     return false;
 }
 
-// ORIG T 0x82eab7a：_BroadcastRunaway(CUser*, int) —— 向玩家广播逃跑消息（包 0x85）。
+// ORIG T 0x82eab7a：_BroadcastRunaway(CUser*, int) —— 经 monitor server
+// 广播逃跑公告（ServerParameter 的 notice 模板 + 双方角色名）。
 void CAssaultPlace::_BroadcastRunaway(CUser* user, int index)
 {
-    // ORIG：构造 packet（header 0x85）+ unique_id + 逃跑索引，发给 user。
-    PacketGuard packet;
-    packet.put_header(0, 0x85);
-    packet.put_short(user->get_unique_id() & 0xffff);
-    packet.put_byte(index);
-    packet.finalize(true);
-    user->Send(packet);
+    char buf[0x400] = {0};
+    const char* name = GetAnotherTeamCharacName(index);
+    const char* curName = user->getCurCharacName();
+    const char* notice =
+        G_CDataManager()->m_serverParameter.getAssaultUserRunawayNotice();
+    sprintf(buf, notice, curName, name);
+
+    Packet_Broadcast_Msg msg;
+    msg.m_padA = 0;
+    unsigned char len = static_cast<unsigned char>(strlen(buf));
+    memset(msg.m_text, 0, 0xff);
+    strncpy(msg.m_text, buf, len);
+    unsigned short len2 =
+        static_cast<unsigned short>(len + 0xf);
+    int packetSize = len2;
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+        user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&msg), packetSize);
 }
 
 // ORIG T 0x82e9046：_MakeLeaveUser —— 包 0x87 + 玩家 unique_id。
@@ -666,16 +673,11 @@ bool CAssaulter::IsAttachAble()        // ORIG W 0x82f054c
 
 void CAssaulter::_PrepareAssault(CUser* user)     // ORIG T 0x82e6780
 {
-    if (user->getCurCharacR() == 0)
-        return;
-    m_hp = (unsigned char)user->getCurCharacStamina();
-    user->SetCurCharacLeaveTimeout(false);
-    CInventory* inven = user->getCurCharacInvenW();
-    if (inven != 0)
+    if (user->getCurCharacR() != 0)
     {
-        user_creature::CCreatureMgr* mgr = inven->GetCreatureMgrW();
-        if (mgr != 0)
-            mgr->TurnStomach(true);
+        m_hp = (unsigned char)user->getCurCharacStamina();
+        user->SetCurCharacLeaveTimeout(false);
+        user->getCurCharacInvenW()->GetCreatureMgrW()->TurnStomach(true);
     }
 }
 
@@ -891,7 +893,7 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
 {
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
     int diff = (int)(curSec - (unsigned int)m_abuseSec);
-    if (diff <= 20)
+    if (diff <= 19)  // ORIG 0x82eb5e2：cmp $0x13 setle
     {
         int characNo = user->getCurCharacNo();
         cMyTrace trace(__PRETTY_FUNCTION__,

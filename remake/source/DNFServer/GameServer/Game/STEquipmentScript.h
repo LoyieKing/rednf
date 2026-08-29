@@ -95,6 +95,11 @@ struct stBonusPointData_t
 {
     int m_type;    // +0x00
     int m_value;   // +0x04
+
+    // ORIG WpBonusPointData::clear（0x8513a82）/ExpBonusPointData::clear 同型：
+    // type=2、value=0。ORIG C1 0x0898d25e 构造子对象时置位，STEquipmentScript::Clear
+    // 不清 +0x81c/+0x824，故必须随构造初始化。
+    stBonusPointData_t() : m_type(2), m_value(0) {}
 };
 #endif
 

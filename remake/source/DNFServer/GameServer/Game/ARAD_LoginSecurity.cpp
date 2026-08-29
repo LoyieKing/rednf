@@ -133,14 +133,14 @@ int PUNISH_CHECK::punish_check_by_ARS(SIG_LOGIN_DATA* data, long arg, int flag)
 
 // is_integrated_pvp_channel @ 0x0819763c：
 // channelType < 0x11 && (1 << channelType) & 0x1e700
+// ORIG 0x08197653: cmpl $0x10; ja → 0（无符号 > 0x10）；0x08197665: shl 无掩码
 int PVP_CHANNEL::is_integrated_pvp_channel()
 {
     int channelType = G_GameWorld()->GetChannelType();
-    if (channelType < 0x11 &&
-        ((1 << (channelType & 0x1f)) & 0x1e700U) != 0U)
-    {
+    if ((unsigned int)channelType > 0x10)
+        return 0;
+    if (((1 << channelType) & 0x1e700U) != 0U)
         return 1;
-    }
     return 0;
 }
 

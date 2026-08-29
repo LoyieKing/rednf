@@ -255,7 +255,7 @@ void DB_UpdateHappyBeanInfo::makeRequest(unsigned int uid, unsigned int accId,
     guard.operator*()->operator<<(uid);
     guard.operator*()->operator<<(accId);
     guard.operator*()->operator<<(characNo);
-    guard.operator*()->operator<<(name);
+    guard.operator*()->operator<<((char*)name);   // ORIG ls(Pc)：const char* 直接绑 bool 重载
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
@@ -279,7 +279,7 @@ Stream* DB_Insert0712WinterEventCoupon::_makeRequest(ENUM_INTERNALPACKET op,
     v->m_characNo = characNo;
     v->m_count = count;
 
-    return guard.operator->()->Get();
+    return guard.Get();
 }
 
 // ---- DB_Insert0712WinterEventCoupon::makeRequest ORIG @ 0x0842e648 ----

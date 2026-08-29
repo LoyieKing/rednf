@@ -109,24 +109,6 @@ struct stBuyCeraDump
     char          pad[3];
 };
 
-// ============================================================================
-// useCountDownCoinInFreeCoinDungeon_inline —— ORIG 0x081fe4b8（内联，见头部注释）
-// ============================================================================
-static bool useCountDownCoinInFreeCoinDungeon_inline(CUser* user, unsigned char itemCount,
-                                                     unsigned int productNo0)
-{
-    if (user == 0) return false;
-    if (itemCount != 1) return false;
-    CCeraShopGoods* goods = (CCeraShopGoods*)G_CDataManager()->FindGoods((int)productNo0);
-    if (goods == 0) return false;
-    if (goods->GetItemIdx() != 1) return false;
-    CParty* party = (CParty*)user->GetParty();
-    if (party == 0) return false;
-    CDungeon* dungeon = *(CDungeon**)((char*)party + 0xcac);
-    if (dungeon == 0) return false;
-    return party->checkFreeRevivalCondition(dungeon) ? true : false;
-}
-
 int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     static const char kPretty[] = "virtual int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser*, PacketBuf&)";
@@ -311,13 +293,6 @@ int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    // ---- useCountDownCoinInFreeCoinDungeon（内联）----
-    if (useCountDownCoinInFreeCoinDungeon_inline(user, itemCount, firstProduct))
-    {
-        GlobalData::s_pCeraShop->ProcessError(user, 0x13, 0, 0, 1, 1, (char)0);
-        return 0;
-    }
-
     // ---- 结算：buytype==1（邮件赠送）或普通购买 ----
     // 构造 MSG_BUY_CERASHOP_ITEM（0x100 opque）：条目字节区按报告偏移填入。
     MSG_BUY_CERASHOP_ITEM buyMsg;
@@ -327,6 +302,14 @@ int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet)
     for (int n = 0; n < (int)itemCount; ++n)
     {
         *(int*)(body + 0x39 + n * 0x1cf) = (int)entries[n].productNo;
+    }
+
+    // ---- useCountDownCoinInFreeCoinDungeon（成员函数，ORIG 0x081fe4b8；
+    //      Dispatchers.h 已声明，替代原内联版本）----
+    if (useCountDownCoinInFreeCoinDungeon(user, buyMsg))
+    {
+        GlobalData::s_pCeraShop->ProcessError(user, 0x13, 0, 0, 1, 1, (char)0);
+        return 0;
     }
 
     if (buytype == 1)

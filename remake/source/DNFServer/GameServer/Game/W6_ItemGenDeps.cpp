@@ -64,7 +64,7 @@ void DB_UpdateItemDropStatistics::makeRequest(int serverId, int typeId,
     for (int i = 0; i <= 5; ++i)
         guard.operator*()->operator<<(counts3[i]);
 
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
 // ============================================================================

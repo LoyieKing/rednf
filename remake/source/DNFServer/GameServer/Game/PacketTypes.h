@@ -198,6 +198,7 @@ public:
 // ORIG 布局（ctor 0x0822e0cc 直写实证 + Dispatcher_AvatarOptionChange/read.md）：
 // +0x0d short 消耗品槽位 / +0x0f int 消耗品 itemIdx / +0x13 short 目标 avatar 槽位 /
 // +0x15 int 目标装备 itemIdx / +0x19 byte option 值；总长 0x10d（MSG_BASE 0xd）。
+#pragma pack(push, 1)
 class MSG_CHANGE_AVATAR_OPTION : public MSG_BASE
 {
 public:
@@ -209,6 +210,7 @@ public:
     unsigned char m_option;         // +0x19（ctor 0xff）
     char m_pad1a[0x10d - 0x1a];     // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_CHANGE_EMOTION : public MSG_BASE
@@ -256,8 +258,8 @@ public:
 class MSG_CHANGE_SKILLSLOT
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    // ORIG DisPatcher_ChangeSkill::process：param+4/5 ← msg[0xe]/msg[0xf]
+    char m_head[0xe];         // +0x0..+0xd 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
+    // ORIG read/check_error 读 msg+0xd；process：param+4/5 ← msg[0xe]/msg[0xf]
     unsigned char m_curSlot;   // +0x0e（原技能槽）
     unsigned char m_newSlot;   // +0x0f（目标技能槽）
 };
@@ -286,6 +288,7 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_CLIENT_SPEC_STATISTIC : public MSG_BASE
 {
 public:
@@ -295,6 +298,7 @@ public:
     char m_padD;               // +0x0d
     Client_Spec m_spec;        // +0xe（sizeof 0xc10；类总长随真实布局扩大）
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_COLLECT_ITEMS : public MSG_BASE
@@ -552,6 +556,7 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_FATIGUE_ATTENDANCE : public MSG_BASE
 {
 public:
@@ -560,6 +565,7 @@ public:
     int m_0d;                 // +0x0d
     char m_pad11[0xfc];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_FINISH_LOADING
@@ -616,6 +622,7 @@ public:
 #pragma pack(pop)
 static_assert(sizeof(MSG_GOLD_TAKE_INCREASING_AMOUNT) == 0x10d, "MSG_GOLD_TAKE_INCREASING_AMOUNT size");
 
+#pragma pack(push, 1)
 class MSG_GROWTH_EQUIPMENT : public MSG_BASE
 {
 public:
@@ -625,6 +632,7 @@ public:
     int m_11;                 // +0x11
     char m_pad15[0xf8];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 class MSG_GROWTH_POWER : public MSG_BASE
 {
@@ -741,6 +749,7 @@ public:
 #pragma pack(pop)
 static_assert(sizeof(MSG_HATCH_CREATURE) == 0x10d, "MSG_HATCH_CREATURE size");
 
+#pragma pack(push, 1)
 class MSG_INFORM_NOTICE : public MSG_BASE
 {
 public:
@@ -750,7 +759,9 @@ public:
                               //  get_int@msg+0xd；process handleInformNoticeFlag）
     char m_pad11[0xfc];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_INFORM_NOTICE_2ND : public MSG_BASE
 {
 public:
@@ -760,6 +771,7 @@ public:
                               //  get_int@msg+0xd；process CCharacInformNotice::handleInformNoticeFlag）
     char m_pad11[0xfc];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 class MSG_ITEM_DICTIONARY : public MSG_BASE
 {
@@ -878,6 +890,7 @@ public:
 #pragma pack(pop)
 static_assert(sizeof(MSG_MEMBER_SECEDE) == 0x10d, "MSG_MEMBER_SECEDE size");
 
+#pragma pack(push, 1)
 class MSG_MONSTERCARD_BIND : public MSG_BASE
 {
 public:
@@ -888,6 +901,7 @@ public:
     unsigned short m_11;      // +0x11（ctor = 0）
     char m_pad13[0xfa];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_MOTION_HACK : public MSG_BASE
@@ -971,17 +985,17 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE : public MSG_BASE
 {
 public:
     MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE();
-    // ORIG C1：+0xd byte、+0xe int 清零
+    // ORIG C1：+0xd byte、+0xe int、+0x12 int 清零；GetInBuffer 传 sizeof=0x16
     unsigned char m_0d;       // +0x0d
     int m_0e;                 // +0x0e（pack 后紧贴；ORIG 单指令 movl 写入）
-    char m_pad12[0xfb];       // 保持占位总长 0x10d
+    int m_12;                 // +0x12（read get_int 第三字段）
 };
-
-#pragma pack(push, 1)
+#pragma pack(pop)
 class MSG_P2P_STATISTICS : public MSG_BASE
 {
 public:
@@ -1006,7 +1020,6 @@ public:
     int m_38;             // +0x38
     int m_3c;             // +0x3c
 };
-#pragma pack(pop)
 
 // ORIG 布局（SetPartyInfoUI 0x0859b234 读取实证）：+0x0d titleIndex、
 // +0x12 title[0x20]、+0x32 userMax、+0x33 dungIndex(ushort)、+0x35 dungDiffi。
@@ -1126,6 +1139,7 @@ public:
     char m_pad11[0xfc];       // 保持占位总长 0x10d
 };
 
+#pragma pack(push, 1)
 class MSG_REFUND_SKILL : public MSG_BASE
 {
 public:
@@ -1137,6 +1151,7 @@ public:
     unsigned char m_13;       // +0x13
     char m_pad14[0xf9];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_REGENERATION_RANDOM_OPTION
@@ -1330,7 +1345,7 @@ public:
 };
 #pragma pack(pop)
 static_assert(sizeof(MSG_SAVE_GAME_OPTION_2) == 0x59, "MSG_SAVE_GAME_OPTION_2 size");
-
+#pragma pack(push, 1)
 class MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON : public MSG_BASE
 {
 public:
@@ -1353,6 +1368,7 @@ public:
     std::vector<_slot_String> m_slots;   // +0xf
 
 };
+#pragma pack(pop)
 #pragma pack(push, 1)
 class MSG_SAVE_QUEST_NOTIFY : public MSG_BASE
 {
@@ -1746,6 +1762,7 @@ class MSG_USE_SKILL
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
+    char m_gapD;              // +0x0d（ORIG read 首读 get_byte@+0xd，未消费）
     // ORIG DisPatcher_UseSkill::process：技能槽 u8@0xe；目标 u16@0xf（use_skill 第 3 参）
     unsigned char m_slot;        // +0x0e
     unsigned short m_targetId;   // +0x0f（SKILL_USING_VALIDATE_INFO 槽位 / CParty::use_skill 目标）
@@ -1806,6 +1823,8 @@ public:
     char m_pad[0x100];
 };
 
+#pragma pack(push, 1)
+#pragma pack(push, 1)
 class MsgRequestAssaultPrice : public MSG_BASE
 {
 public:
@@ -1814,6 +1833,8 @@ public:
     short m_0d;               // +0x0d（ctor = -1）
     char m_pad0f[0xfe];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
+#pragma pack(pop)
 
 class MsgTournamentRewardSelect : public MSG_BASE
 {
@@ -2576,9 +2597,9 @@ class stMemberEnterReplyParam : public ParamBase
 {
 public:
     stMemberEnterReplyParam();
-    char m_pad[0x40];
+    int m_4;                 // +0x04 ORIG C1：清零
+    char m_pad[0x3c];
 };
-
 class stMemberSecedeParam : public ParamBase
 {
 public:
@@ -2817,9 +2838,9 @@ class stRequestBlackListParam : public ParamBase
 {
 public:
     stRequestBlackListParam();
-    char m_pad[0x40];
+    int m_4;                 // +0x04 ORIG C1：清零
+    char m_pad[0x3c];
 };
-
 class stRequestCharacSkillInfo : public ParamBase
 {
 public:

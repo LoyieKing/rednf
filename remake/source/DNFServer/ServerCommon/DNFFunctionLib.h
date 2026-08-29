@@ -37,7 +37,7 @@ char* NumberToString(unsigned long long value, int index);
 void PrintBackTrace();
 unsigned long StringToNumber(char const* str);
 char checkTimeToday(long t, int hour);
-void GetCurrentResetBaseTime(long t, int hour);
+long GetCurrentResetBaseTime(long t, int hour);  // T 0x0810912a（_Z23GetCurrentResetBaseTimeli）
 void Char2Hex(unsigned char c, char* out);
 bool Hex2Char(char const* hex, unsigned char& out);  // 原始：bool 返回（调用处 xor 惯用法）
 #ifndef DF_NO_CODEPAGE

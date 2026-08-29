@@ -63,7 +63,7 @@ bool CPad::isTimeAttackSeccess()
 
 int CPad::getCancelCnt() { return m_cancelCnt44; }        // ORIG W 0x0822efb4
 
-void CPad::incCancelCnt() { m_cancelCnt44 += 1; }         // ORIG W 0x0822ef9a
+int CPad::incCancelCnt() { m_cancelCnt44 += 1; return m_cancelCnt44; }   // ORIG W 0x0822ef9a
 
 void CPad::setCancelCnt(int count) { m_cancelCnt44 = count; }  // ORIG W 0x084ebdfa
 
@@ -76,11 +76,11 @@ void CPad::setRequestState(ENUM_REQUEST_STATE state)      // ORIG W 0x0822efcc
 
 bool CPad::isActivate() const { return m_activate24 != 0; }   // ORIG W 0x0822efda
 
-void CPad::setActivate(bool flag) { m_activate24 = flag ? 1 : 0; }  // ORIG W 0x084ebe08
+void CPad::setActivate(bool flag) { m_activate24 = flag ; }  // ORIG W 0x084ebe08
 
 bool CPad::isCertified() const { return m_certified25 != 0; } // ORIG W 0x0822efe6
 
-void CPad::setCertified(bool flag) { m_certified25 = flag ? 1 : 0; }  // ORIG W 0x0826530e
+void CPad::setCertified(bool flag) { m_certified25 = flag ; }  // ORIG W 0x0826530e
 
 int CPad::getFailCnt() { return m_failCnt38; }            // ORIG W 0x0822ef8e
 
@@ -99,7 +99,7 @@ unsigned char CPad::getAdvideChangePwd()
 // ORIG W 0x084ebdb2：写 +0x3c 字节。
 void CPad::setAdvideChangePwd(bool flag)
 {
-    m_advidePwd = flag ? 1 : 0;
+    m_advidePwd = flag ;
 }
 
 // ORIG W 0x084ebdca：movzbl 0x3d(%eax) 直返 +0x3d 字节。
@@ -144,7 +144,7 @@ void CPad::GenerateRandomData()
 unsigned short CPad::GetSelectedCipherIdx()
 {
     unsigned short limit = 0x1387;
-    return m_keyIdx2e < limit ? m_keyIdx2e : limit;
+    return std::min(m_keyIdx2e, limit);
 }
 
 // ORIG T 0x08599872：按 +0x2e 索引读全局密钥管理器表（0x940be80 基址，
@@ -165,7 +165,7 @@ char CPad::GetShakeData(int idx)
 
 void CPad::setChangedPwd(bool flag)  // ORIG W 0x085999e8：写 +0x3d
 {
-    m_changedPwd = flag ? 1 : 0;
+    m_changedPwd = flag ;
 }
 
 

@@ -10,18 +10,22 @@
 #include "Inven_Item.h"        // Inven_Item（0x3d, pack1）
 #include "CUser.h"             // CUser::get_state()/CheckItemLock/Send/SendCmdErrorPacket, m_historyLog
 
+// ORIG 自由函数 LineFunc(int, const char*, int, unsigned int) @0x085908d7 T；
+// 定义由 CompoundEmblemDeps.cpp 提供（见 CompoundEmblemDeps.h）。
+extern int LineFunc(int, const char*, int, unsigned int);
+
 // ORIG 0x082194f4（约 883 指令）：强化投资（增幅强化投点）。
 // 恢复链路：解析装备槽/材料槽/强化类型 → 校验 → 消耗材料 → CItemAmplifier 强化 +
 // CItemUpgrade 随机强化（investType==2）→ 写回装备槽 → 回复包 header 0xd0。
-// 所有校验/解析失败走 LineFunc 断言路径（Dispatchers.cpp 约定：返回 0，不调用 LineFunc）。
+// 所有校验/解析失败走 LineFunc 断言路径，并返回 LineFunc 的返回值（ORIG 0x08219534 起）。
 // 业务校验失败按 ORIG 抛 ENUM_ERROR（整型码）；第 5 项之后随机强化失败走
 // SendCmdErrorPacket(0xd0, code) 后返回 0。
 int Dispatcher_InvestItemAmplifyOption::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // ORIG ±0x012：get_state() != 3 → LineFunc(0xcc82) 返回 0
+    // ORIG ±0x012：get_state() != 3 → return LineFunc(0xcc82, ...)
     if (user->get_state() != 3)
     {
-        return 0;
+        return LineFunc(0xcc82, __PRETTY_FUNCTION__, 0, 0);
     }
 
     // ---- 解析 packet ----
@@ -31,24 +35,24 @@ int Dispatcher_InvestItemAmplifyOption::dispatch_sig(CUser* user, PacketBuf& pac
     unsigned short materialSlot = 0;      // local_3e
     unsigned long materialItemIdx = 0;    // local_44（get_item_idx）
 
-    if (!packet.get_byte(investType)) return 0;             // LineFunc 0xcc89
-    if (!packet.get_short(equipSlot)) return 0;             // LineFunc 0xcc8a
-    if (!packet.get_item_idx(equipItemIdx)) return 0;       // LineFunc 0xcc8b
-    if (!packet.get_short(materialSlot)) return 0;          // LineFunc 0xcc8c
-    if (!packet.get_item_idx(materialItemIdx)) return 0;    // LineFunc 0xcc8d
+    if (!packet.get_byte(investType)) return LineFunc(0xcc89, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_short(equipSlot)) return LineFunc(0xcc8a, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_item_idx(equipItemIdx)) return LineFunc(0xcc8b, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_short(materialSlot)) return LineFunc(0xcc8c, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_item_idx(materialItemIdx)) return LineFunc(0xcc8d, __PRETTY_FUNCTION__, 0, 0);
 
     char strBuf[0x81] = { 0 };            // local_15f（随机强化名字串）
     unsigned int strLen = 0;              // local_48
     unsigned char count = 0;              // local_49（额外尝试次数 / 强化量）
 
-    if (!packet.get_byte(count)) return 0;                 // LineFunc 0xcc97
-    if (count > 4) return 0;                               // LineFunc 0xcc99
+    if (!packet.get_byte(count)) return LineFunc(0xcc97, __PRETTY_FUNCTION__, 0, 0);
+    if (count > 4) return LineFunc(0xcc99, __PRETTY_FUNCTION__, 0, 0);
     if (investType == 2)                                   // 随机强化带名字串
     {
-        if (!packet.get_int(strLen)) return 0;             // LineFunc 0xcca0
-        if (!packet.get_str(strBuf, 0x81, (int)strLen)) return 0;  // LineFunc 0xcca1
+        if (!packet.get_int(strLen)) return LineFunc(0xcca0, __PRETTY_FUNCTION__, 0, 0);
+        if (!packet.get_str(strBuf, 0x81, (int)strLen)) return LineFunc(0xcca1, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (investType > 2) return 0;                          // LineFunc 0xcca6
+    if (investType > 2) return LineFunc(0xcca6, __PRETTY_FUNCTION__, 0, 0);
 
     // ---- 读装备/材料项 ----
     Inven_Item equipInven;                 // local_a1

@@ -138,17 +138,16 @@ public:
     };
     // 绑定信息（GetCommonBindInfo→this+0x84 / GetSpecialBindInfo→this+0xc4 各一；
     // Clear 于 +0x84/+0xc4 各调一次 clear() 实证）。
-    // ctor 0x0896dc80：构造 3×vector<stMonsterCardBindResult>@+0x10 后调 clear；
-    // clear 0x0896dc38：i=0..3 { cnt[i]=0; vec[i].clear() }。
-    // sizeof 0x40（cnt[4]+vec[3]+尾随 12B 未建模区衔接下一 BindInfo @+0xc4）。
+    // ctor 0x0896dc80：构造 4×vector<stMonsterCardBindResult>@+0x10（mov $0x3 循环
+    // 4 次实证）后调 clear；clear 0x0896dc38：i=0..3 { cnt[i]=0; vec[i].clear() }。
+    // sizeof 0x40 = cnt[4]+vec[4]（步长 0xc；衔接下一 BindInfo @+0xc4，0xc4-0x84=0x40）。
     struct stMonsterCardBindInfo
     {
         stMonsterCardBindInfo();     // ORIG C1/C2 @0x0896dc80
-        ~stMonsterCardBindInfo();    // ORIG D1/D2 @0x0896e218（析构 3 vector）
+        ~stMonsterCardBindInfo();    // ORIG D1/D2 @0x0896e218（析构 4 vector）
         void clear();                // ORIG 0x0896dc38
         int                                  m_count[4];  // +0x00..0x0f
-        std::vector<stMonsterCardBindResult> m_vec[3];    // +0x10..0x33
-        char                                 m_tailPad[0xc]; // +0x34..0x3f（ctor/clear/D1 不触）
+        std::vector<stMonsterCardBindResult> m_vec[4];    // +0x10..0x3f
     };
     // 炼金提取结果信息（this+0x14c）。cnt[3]@0 + vec<BindResult>[3]@0xc。sizeof 0x30。
     struct stAlchemistExtractionResultInfo

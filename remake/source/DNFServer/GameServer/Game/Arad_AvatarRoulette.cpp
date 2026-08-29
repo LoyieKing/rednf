@@ -124,6 +124,7 @@ int AvatarCoin::SendSyncPacket(CUser* user)
 
     PacketGuard packet;
     packet.put_header(1, 0x24b);
+    packet.put_byte(1);   // ORIG 0x0817ffe4 头部后追加 1 字节
     int coin = coinOf(const_cast<char*>(
                   reinterpret_cast<const char*>(user->getCurCharacInvenR())))
                   ->Get();

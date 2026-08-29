@@ -36,7 +36,37 @@ class AradServerStateMessage;
 namespace ARAD
 {
 
+// Singleton<T>::Get() —— Meyers 单例（ORIG _ZN4ARAD9SingletonIT_E...Get 模式，guard 变量见
+// ORIG nm "guard variable for ARAD::Singleton<ARAD::Arad_DataManager>::Get()::obj"）。
+// 模板定义唯一，各 TU 显式/隐式实例化；ARAD.cpp/CCeraShopAddRestrict.cpp 不得再定义。
+// 前置到 ScriptManager 之前（ScriptManager 继承 Singleton<ScriptManager>，ORIG C1
+// 0x08197d2e 先调 Singleton 基类构造再构造 m_scripts）。
 // ============================================================================
+template <class T>
+class Singleton
+{
+public:
+    Singleton() {}                       // ORIG W C1（如 _ZN4ARAD9SingletonI16HeroMissionEventE9SingletonEv
+                                         //   0x0816858c，5 字节空体）
+    static T* Get();
+    static T* GetPtr();                  // ORIG W（0x0811c9c1：尾调 Get()）
+};
+
+template <class T>
+T* Singleton<T>::Get()
+{
+    static T instance;
+    return &instance;
+}
+
+template <class T>
+T* Singleton<T>::GetPtr()
+{
+    return Get();
+}
+
+// ============================================================================
+// ScriptInterface —— Arad_DataManager / 各脚本服务类的虚基接口。
 // ScriptInterface —— Arad_DataManager / 各脚本服务类的虚基接口。
 // ORIG ctor _ZN4ARAD15ScriptInterfaceC1Ev @0x080e2454（仅写 vptr @0x8b2db78）；
 // 槽0=Load（虚，返回 bool）、槽1=Destroy（虚）。Arad_DataManager 从本类派生。
@@ -51,7 +81,7 @@ public:
     // ORIG nm 无 _ZN4ARAD15ScriptInterfaceD*Ev：析构为隐式平凡（勿声明/定义，
     // 否则各派生类 dtor 会多出 ORIG 没有的基析构调用）。
     virtual bool Load() = 0;          // vtable 槽 0（Arad_DataManager::Load -> initAradData）
-    virtual void Destroy() = 0;       // vtable 槽 1（Arad_DataManager::Destroy -> destroyAradData）
+    virtual int Destroy() = 0;       // vtable 槽 1（Arad_DataManager::Destroy -> destroyAradData）
 };
 
 // ============================================================================
@@ -59,7 +89,7 @@ public:
 // DestroyScript 0x81a12f8 / RegistScript 0x81a136c / Init 0x81a13f6）。
 // 持有 set<ScriptInterface*>；LoadScript 依次调用各脚本 Load()，全成功返回 1。
 // ============================================================================
-class ScriptManager
+class ScriptManager : public Singleton<ScriptManager>
 {
 public:
     ScriptManager() {}
@@ -104,29 +134,6 @@ private:
 // ORIG nm "guard variable for ARAD::Singleton<ARAD::Arad_DataManager>::Get()::obj"）。
 // 模板定义唯一，各 TU 显式/隐式实例化；ARAD.cpp/CCeraShopAddRestrict.cpp 不得再定义。
 // ============================================================================
-template <class T>
-class Singleton
-{
-public:
-    Singleton() {}                       // ORIG W C1（如 _ZN4ARAD9SingletonI16HeroMissionEventE9SingletonEv
-                                         //   0x0816858c，5 字节空体）
-    static T* Get();
-    static T* GetPtr();                  // ORIG W（0x0811c9c1：尾调 Get()）
-};
-
-template <class T>
-T* Singleton<T>::Get()
-{
-    static T instance;
-    return &instance;
-}
-
-template <class T>
-T* Singleton<T>::GetPtr()
-{
-    return Get();
-}
-
 int notifyOpenMessageDialog(CUser* user, int a, int b,
                             const AradServerStateMessage& msg);  // ORIG 0x81978dd
 
@@ -380,7 +387,7 @@ public:
     // ORIG 0x081882cc 槽0 Load：转发 initAradData()。
     virtual bool Load();
     // ORIG 0x081882e0 槽1 Destroy：转发 destroyAradData()，返回 true。
-    virtual void Destroy();
+    virtual int Destroy();
 
     // ORIG 0x081882f8：加载"Event Period Script"、"Statistics Item List"、"NexonFolder Script"。
     // 在内部 new 各脚本单例并 __insertGameScript，成功后逐子对象 Arad_ScriptLoader::open。

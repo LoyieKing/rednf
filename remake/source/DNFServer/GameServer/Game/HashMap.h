@@ -18,10 +18,15 @@ struct CharStringHashTrait
 {
     struct HashKey
     {
+        // ORIG W 0x080802a6：h = (h<<6)+(h<<16)-h+c（即 h*65599+c，字符符号扩展）。
         size_t operator()(const char* s) const
         {
             size_t h = 0;
-            while (*s) h = h * 131 + *s++;
+            while (*s)
+            {
+                const char c = *s++;
+                h = (h << 6) + (h << 16) - h + c;
+            }
             return h;
         }
     };
@@ -68,10 +73,14 @@ public:
 
     void insert(const char* key, const ValueType& value)
     {
+        // ORIG：find 命中则保持原值不覆盖；未命中才构造插入。
+        typename MapType::iterator it = m_map.find(key);
+        if (it != m_map.end())
+            return;
         ValueEx v;
         v.m_key = key;
         v.m_value = value;
-        m_map[key] = v;
+        m_map.insert(std::make_pair(key, v));
     }
 
     ValueType* get(const char* key)

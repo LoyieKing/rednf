@@ -70,8 +70,8 @@ public:
 
     // ---- 弱（inline）helper（ORIG W）----
     int isMemberAlive(int idx) { return m_memberAlive[idx]; }   // 0x08145682（movzbl 直返）
-    void setMemberAlive(int idx, bool alive) { m_memberAlive[idx] = alive ? 1 : 0; } // 0x0814a7e4
-    void setMemberReady(int idx, bool ready) { m_memberReady[idx] = ready ? 1 : 0; } // 0x08145692
+    void setMemberAlive(int idx, bool alive) { m_memberAlive[idx] = alive ; } // 0x0814a7e4
+    void setMemberReady(int idx, bool ready) { m_memberReady[idx] = ready ; } // 0x08145692
 
     CParty* getParty() const { return m_party; }
 

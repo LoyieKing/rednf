@@ -49,8 +49,7 @@ public:
 
     int m_count;                                   // +0x00
     std::vector<std::pair<int, int> > m_pairs;     // +0x04
-    std::vector<int> m_dayProb[365];               // +0x10
-    char m_pad112c[0xc];                           // +0x112c..+0x1137
+    std::vector<int> m_dayProb[366];               // +0x10..+0x1138（ORIG 构造循环 0x16d 计数=366 个）
 };
 
 // ---- 每日训练任务脚本（0x1490 字节） ----

@@ -124,7 +124,7 @@ bool CItemLimitEdition::isSellComplete() const
     // ORIG 0x0822cac8：若 totalSellNum == -1 返回 false；否则 curSellNum >= totalSellNum。
     if (m_totalSellNum == -1)
         return false;
-    return m_curSellNum >= m_totalSellNum;
+    return getCurSellNum() >= m_totalSellNum;   // ORIG call getCurSellNum
 }
 
 int CItemLimitEdition::getCondCharacJob() const

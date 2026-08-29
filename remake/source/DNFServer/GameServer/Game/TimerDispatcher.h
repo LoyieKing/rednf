@@ -147,7 +147,7 @@ public:
     TimerAvatarExpire();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerAvatarExpire();
-    static void RegistTimer(CUser* user);
+    void RegistTimer(CUser* user);                // ORIG 0x08632b32 非静态（this 未用）
     static int CheckExpiredAvatar(CUser* user);   // ORIG T 0x08632a82
 
 private:
@@ -1752,11 +1752,11 @@ public:
     static void RegistTimerEPLPReturnVillage(int stage);
 
     // ORIG R 0x8b6c5e8..0x8b6c5fc（外部链接类静态成员，类外定义 TimerDispatcher.cpp）
-    static const unsigned int kFailEPLPMs;           // 0x8b6c5f4 = 1000
-    static const unsigned int kClearEPLPMs;          // 0x8b6c5f0 = 1000
-    static const unsigned int kCheckFinishMs;        // 0x8b6c5e8 = 5000
-    static const unsigned int kClearRewardMs;        // 0x8b6c5ec = 3000
-    static const unsigned int kEPLPReturnVillageMs;  // 0x8b6c5f8 = 50000
+    static const unsigned int kFailEPLPMs = 1000;    // 0x8b6c5f4（in-class 常量，ORIG 使用处折叠为立即数）
+    static const unsigned int kClearEPLPMs = 1000;   // 0x8b6c5f0
+    static const unsigned int kCheckFinishMs = 5000; // 0x8b6c5e8
+    static const unsigned int kClearRewardMs = 3000; // 0x8b6c5ec
+    static const unsigned int kEPLPReturnVillageMs = 50000; // 0x8b6c5f8
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

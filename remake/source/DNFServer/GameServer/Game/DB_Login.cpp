@@ -103,7 +103,7 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
                             long lCurTime);                          // T 0x0846c0a8（GameUtils/独立批次）
 long getPrevScheduleTime(int hour, long time);                       // T 0x0846c2e9（GameUtils.cpp）
 int getDailyInitializeTime(int hour, int min, int sec);              // T 0x086b1f5a（GameUtils.cpp）
-long GetCurrentResetBaseTime(int t, int hour);                       // T 0x0810912a（_Z23GetCurrentResetBaseTimeli）
+long GetCurrentResetBaseTime(long t, int hour);                      // T 0x0810912a（_Z23GetCurrentResetBaseTimeli）
 
 bool uncompress_zip(char* dst, unsigned int& dstLen,
                     const char* src, unsigned int srcLen);           // 归属 APSystemOnlyOrig 批（Main 协调）
@@ -166,6 +166,8 @@ public:
     {
         memset(m_data, 0, m_cap);
     }
+    // 权威实现见 WindowsPackFiles.cpp:1196（同 8B 布局 m_buf@0/m_size@4 ↔ m_data/m_cap）。
+    bool uncompress(MySQL* db, int fieldIdx, char* dst, int dstLen, int align);
 
     char* m_data;                                    // +0x00
     int m_cap;                                       // +0x04
@@ -173,12 +175,13 @@ public:
 // ============================================================================
 // SIG_LOGIN_DATA 字段访问 helper（本 TU 局部；共享头字段化后可整体替换）
 // ============================================================================
+// O0 下 inline 不生效；ORIG 为直接 lea 字段访问，必须 always_inline 强制展开。
 template <typename T>
-inline T& SGF(void* sig, unsigned int off)
+inline __attribute__((always_inline)) T& SGF(void* sig, unsigned int off)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<char*>(sig) + off);
 }
-inline char* SGB(SIG_LOGIN_DATA* sig, unsigned int off)
+inline __attribute__((always_inline)) char* SGB(SIG_LOGIN_DATA* sig, unsigned int off)
 {
     return reinterpret_cast<char*>(sig) + off;
 }
@@ -774,8 +777,8 @@ bool DB_Login::_isAutoPunishedFirstUser(unsigned int mid)
     db->set_query("seLect punish_flag from auto_punish_first_user where m_id=%s and punish_flag=1",
                   NumberToString(mid, 0));
     bool execOk = db->exec(true);
-    bool hasRows = (execOk && db->get_n_rows() != 0);
-    return hasRows;
+    // ORIG 0x8411091：exec 失败或 rows==0 时返回 true（取反语义）
+    return (!execOk || db->get_n_rows() == 0);
 }
 
 // ============================================================================
@@ -980,28 +983,23 @@ int DB_Login::_getPassPadInfo(SIG_LOGIN_DATA* sig)
 // dispatch 以 0x48/0xa6 分支消费）；此处按该语义透传。
 // ============================================================================
 
+// ORIG T 0x08411af0：lea 0x390d/0x3910/0x3905/0x3914/0x390c/0x3918/0x38e0/
+// 0x38e1/0x390e/0x3a3a 直取地址压栈调 convertPassPadInfo，尾部无回写。
+// mousepass 实参为 m_passPadPassword+0x24（0x3905），ip 实参为 m_passPadPassword。
 int DB_Login::_convertPassPadInfo(SIG_LOGIN_DATA* sig)
 {
-    bool useMousepass = SGF<char>(sig, OFF_PASPPAD_ENABLE) != 0;
-    bool flagCancel   = SGF<char>(sig, OFF_MPASS_CANCEL) != 0;
-    bool flagPadOk    = SGF<char>(sig, OFF_MPASS_PAD_OK) != 0;
-    long validityTime = static_cast<long>(SGF<long long>(sig, OFF_MPASS_TIME));
-    int ret = DB_MouseRegister::convertPassPadInfo(
-        SGF<unsigned int>(sig, OFF_MEMBER_M_ID),
-        SGB(sig, OFF_MOUSEPASS),                       // mousepass[0x24]
-        SGF<int>(sig, OFF_MPASS_FAILCNT2),             // fail_cnt(int&)
-        SGF<char>(sig, OFF_MPASS_FAILCNT),             // cancel_cnt(char&)
-        SGF<int>(sig, OFF_MPASS_CANCEL2),              // cancel_cnt(int&)
-        useMousepass,                                  // validity expired 标志(bool&)
-        SGB(sig, OFF_LOGIN_IP),                        // ip +0x38e1
-        flagCancel,                                    // +0x390e (bool&)
-        SGB(sig, OFF_SSO_LOGINIP),                     // buf3 +0x3a3a
-        validityTime,                                  // validity_time(long&)
-        flagPadOk);                                    // +0x390d (bool&)
-    SGF<char>(sig, OFF_PASPPAD_ENABLE) = useMousepass ? 1 : 0;
-    SGF<char>(sig, OFF_MPASS_CANCEL)   = flagCancel ? 1 : 0;
-    SGF<char>(sig, OFF_MPASS_PAD_OK)   = flagPadOk ? 1 : 0;
-    return ret;
+    return DB_MouseRegister::convertPassPadInfo(
+        sig->m_accId,                                  // mid
+        sig->m_passPadPassword + 0x24,                 // mousepass（0x3905）
+        sig->m_passPadFailCnt,                         // fail_cnt(int&)
+        sig->m_passPadVersion,                         // cancel_cnt(char&)
+        sig->m_passPadCancelCnt,                       // cancel_cnt2(int&)
+        sig->m_passPadEnable,                          // validityExpired(bool&)
+        sig->m_passPadPassword,                        // ip（0x38e1）
+        sig->m_passPadCertified,                       // flag2(bool&)
+        sig->m_webAddress,                             // buf3（0x3a3a）
+        sig->m_passPadCheckTime,                       // validity_time(long&)
+        sig->m_passPadAdvideChangePwd);                // flag3(bool&)
 }
 
 // ============================================================================
@@ -1961,8 +1959,9 @@ bool CCompressedBlobUncompress(CCompressedBlob& blob, MySQL* db, int col,
 int get_compressed_blob_data(MySQL* db, int col, char* out, int outCap, int recordSize)
 {
     static CCompressedBlob compressed_blob;   // ORIG _ZZ24get_compressed_blob_dataP5MySQLiPciiE15compressed_blob 0x0943d24c
-    return CCompressedBlobUncompress(compressed_blob, db, col, out, outCap,
-                                     recordSize) ? 1 : 0;
+    // ORIG 0x083fbc79 直接调成员 uncompress（容量公式 outCap + outCap/10 + 0xc，
+    // 见 WindowsPackFiles.cpp），不经过 CCompressedBlobUncompress（/6 公式）。
+    return compressed_blob.uncompress(db, col, out, outCap, recordSize) ? 1 : 0;
 }
 
 // ============================================================================
@@ -2038,9 +2037,9 @@ int DB_Login::SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig)
 {
     Stream* stream = GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x3c49);
     CStreamGuard guard(stream, true);
-    (*guard.operator->()) << userDbIdx;
-    (*guard.operator->()) << code;
-    guard.put_binary(sig, 0x4358);              // SIG_LOGIN_DATA 全量回传
+    guard.operator*()->operator<<(userDbIdx);
+    guard.operator*()->operator<<(code);
+    guard.operator->()->put_binary(sig, 0x4358);  // SIG_LOGIN_DATA 全量回传
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -2049,9 +2048,10 @@ int DB_Login::UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig)
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x3c5d);
     CStreamGuard guard(stream, true);
-    (*guard.operator->()) << 0x2b;                            // 包 id（SIG_UPDATE_LOGIN 上报）
-    (*guard.operator->()) << userDbIdx;
-    SIG_UPDATE_LOGIN* pkt = guard.GetInBuffer<SIG_UPDATE_LOGIN>();
+    guard.operator*()->operator<<(0x2b);                      // 包 id（SIG_UPDATE_LOGIN 上报）
+    guard.operator*()->operator<<(userDbIdx);
+    SIG_UPDATE_LOGIN* pkt =
+        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>();
     *reinterpret_cast<unsigned int*>(pkt) = SGF<unsigned int>(sig, OFF_MEMBER_M_ID);
     *reinterpret_cast<int*>(reinterpret_cast<char*>(pkt) + 8) =
         (int)SGF<short>(sig, 0x3a38);           // serverGroup(short→int)
@@ -2481,14 +2481,14 @@ int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
             const unsigned int rowOff = i * 0x2c + OFF_GROWTH_CREATURE;
             short serverId = 0;
             int characNo = 0;
-            short jobType = 0;
+            int jobType = 0;    // ORIG get_shortEiRi（int& 目标）直写
             if (!db->get_short(0, serverId)) return 0;
             if (!db->get_int(1, characNo)) return 0;
             if (!db->get_short(2, jobType)) return 0;
             if (!db->get_str(3, SGB(sig, rowOff + 0xc), 0x1d)) return 0;
             SGF<short>(sig, rowOff) = serverId;
             SGF<int>(sig, rowOff + 4) = characNo;
-            SGF<int>(sig, rowOff + 8) = jobType;     // ORIG get_short(int&) 写入
+            SGF<int>(sig, rowOff + 8) = jobType;
         }
     }
     return 1;

@@ -682,6 +682,12 @@ void SIG_SAVE_DIMENSION_RENT_INFO::clear()
     m_field7 = 0;
 }
 
+// C1 类外定义（头文件仅声明）：生成 ORIG 导出符号
+// _ZN26SIG_SAVE_PC_ROOM_RENT_ITEMC1Ev（0x8491cbe，仅构造 entry[0]）/
+// _ZN28SIG_SAVE_DIMENSION_RENT_ITEMC1Ev（0x8491cf2，构造 entry[0..10]）。
+SIG_SAVE_PC_ROOM_RENT_ITEM::SIG_SAVE_PC_ROOM_RENT_ITEM() {}
+SIG_SAVE_DIMENSION_RENT_ITEM::SIG_SAVE_DIMENSION_RENT_ITEM() {}
+
 void SIG_SAVE_PC_ROOM_RENT_ITEM::clear()      // ORIG W 0x8694c9a
 {
     for (int i = 0; i <= 0; ++i)

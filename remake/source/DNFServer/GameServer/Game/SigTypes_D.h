@@ -76,11 +76,11 @@ struct SIG_LOGIN_DATA
     short          m_punishTradeAlertType;  // +0x38de 0xd→0xe7 / 0xe→0xe8 / 其它→0
     bool           m_passPadEnable;         // +0x38e0 GoblinPad 启用标志
     char           m_passPadPassword[0x2b]; // +0x38e1 CPad::setPassword 缓冲
-    unsigned char  m_passPadVersion;        // +0x390c CPad::setVersionInfo
+    char           m_passPadVersion;        // +0x390c CPad::setVersionInfo（char，直取地址 lea 形态）
     bool           m_passPadAdvideChangePwd;// +0x390d setAdvideChangePwd
     bool           m_passPadCertified;      // +0x390e setCertified 数据源
     char           m_pad390f[1];            // +0x390f
-    unsigned int   m_passPadCheckTime;      // +0x3910 setCheckTime（32 位 long）
+    long           m_passPadCheckTime;      // +0x3910 setCheckTime（32 位 long，long& 直取地址 lea 形态）
     int            m_passPadFailCnt;        // +0x3914 setFailCnt / E_AUTH_MOUSE put_byte
     int            m_passPadCancelCnt;      // +0x3918 setCancelCnt
     char           m_pad391c[0x3950 - 0x391c]; // +0x391c

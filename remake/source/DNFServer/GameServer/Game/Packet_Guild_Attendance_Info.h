@@ -3,7 +3,7 @@
 
 // LinkHelper 核销批次（/tmp/undef_r21.txt）：ORIG ctor W @0x0822c384
 // _ZN28Packet_Guild_Attendance_InfoC1Ev，objdump 逐指令转写。
-// 布局：PacketHeader(0xa) + m_data，sizeof=0x13。
+// 布局：PacketHeader(0xa) + m_fieldA/m_fieldB/m_fieldC，sizeof=0x13。
 #include <string.h>
 
 #include "PacketHeader.h"
@@ -15,7 +15,9 @@ class Packet_Guild_Attendance_Info : public PacketHeader
 public:
     Packet_Guild_Attendance_Info();   // ORIG W @0x0822c384
 
-    char m_data[0x13 - 0xa];   // +0x0a 起
+    unsigned int m_fieldA;     // +0x0a（ORIG ctor movl 清零）
+    unsigned int m_fieldB;     // +0x0e（ORIG ctor movl 清零）
+    unsigned char m_fieldC;    // +0x12（ORIG ctor movb 清零）
 };
 
 #pragma pack(pop)

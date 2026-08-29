@@ -22,10 +22,10 @@ long long CAdvanceAltarLog::makeKey(unsigned short itemType,
            static_cast<long long>(itemIndex);
 }
 
-// ORIG getType @0x081572ea：返回 key 低 32 位的高 16 位（符号扩展位型扩展）。
+// ORIG getType @0x081572ea：返回 key 高 32 位的高 16 位（= key>>48，符号扩展位型扩展）。
 long long CAdvanceAltarLog::getType(long long key)
 {
-    return static_cast<int>(static_cast<int>(key >> 0x10));
+    return static_cast<int>(key >> 0x30);
 }
 
 // ORIG getIndex @0x0815730e：空函数（ORIG 汇编仅 ret）。

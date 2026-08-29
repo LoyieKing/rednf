@@ -245,9 +245,10 @@ void CBloodMonsterListCmd::execute()
     memset(buf, 0, sizeof(buf));
 
     // CBattle_Field 为 CParty+0xb24 嵌入子对象（CParty.h 占位，全项目同口径视图）。
+    // ORIG 0x84a9e??：GetMapInfo() 返回 MapInfo*，取其 +0x0c m_monsterMap。
     CBattle_Field* battleField =
         reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
-    std::map<int, map_monster>* monsters = battleField->GetMonsterMap();
+    std::map<int, map_monster>* monsters = &battleField->GetMapInfo()->m_monsterMap;
 
     for (std::map<int, map_monster>::iterator it = monsters->begin();
          it != monsters->end(); ++it)
@@ -1099,30 +1100,32 @@ void CBingoGmTest::reqValue()
         return;
     }
 
-    BingoData* data = static_cast<BingoData*>(user->getBingoData());
-    signed char lines = static_cast<signed char>(data->m_pad4);
+    signed char lines = static_cast<signed char>(
+        static_cast<BingoData*>(user->getBingoData())->m_pad4);
     if (lines > 2)
     {
         return;
     }
 
-    int oldBoard = *reinterpret_cast<int*>(data);
+    int oldBoard = *reinterpret_cast<int*>(user->getBingoData());
     void* sharedBoard = event->getBingoSystem();          // boost::shared_ptr<CBingo>*
     CBingo* bingo = *reinterpret_cast<CBingo**>(sharedBoard);
     unsigned int board = static_cast<unsigned int>(oldBoard);
     int newValue = bingo->calNewValue(board, cmd_int0(this));
 
-    if (*reinterpret_cast<int*>(data) != oldBoard)
+    if (*reinterpret_cast<int*>(user->getBingoData()) != oldBoard)
     {
-        data->m_needSave = true;
-        int gained = newValue - static_cast<int>(data->m_pad4);
+        static_cast<BingoData*>(user->getBingoData())->m_needSave = true;
+        int gained = newValue - static_cast<int>(
+            static_cast<BingoData*>(user->getBingoData())->m_pad4);
         if (gained > 0)
         {
             if (gained > 3)
             {
                 gained = 3;
             }
-            data->m_pad4 = static_cast<char>(newValue);
+            static_cast<BingoData*>(user->getBingoData())->m_pad4 =
+                static_cast<char>(newValue);
             for (int i = 0; i < gained; ++i)
             {
                 event->sendOneMatchLineReward(*user);
@@ -1134,7 +1137,7 @@ void CBingoGmTest::reqValue()
     packet.clear();
     packet.put_header(0, 0x1c3);
     packet.put_byte(cmd_int0(this));
-    packet.put_int(*reinterpret_cast<int*>(data));
+    packet.put_int(*reinterpret_cast<int*>(user->getBingoData()));
     packet.finalize(true);
     user->Send(packet);
 }

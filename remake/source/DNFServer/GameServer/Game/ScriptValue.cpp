@@ -44,29 +44,26 @@ ScriptValue& ScriptValue::operator=(const ScriptValue& other)
 }
 
 // ORIG 0x088bd381
+// ORIG 0x088bd381：switch(tok) 树（cmp $0x3 为根；DECIMAL=2/FLOAT=4/STRING=7）。
 bool scanScriptValue(ScriptValue& v)
 {
     DNFLEX_TOKEN tok = static_cast<DNFLEX_TOKEN>(g_dnfLex.getToken());
-    if (tok == DNF_TOK_HEXADECIMAL)
+    switch (tok)
     {
+    case DNF_TOK_HEXADECIMAL:
         v.type = 0;
         v.value[0] = static_cast<float>(g_dnfLex.getHexDecimal());
         return true;
-    }
-    if (tok == DNF_TOK_DECIMAL)
-    {
+    case DNF_TOK_DECIMAL:
         v.type = 0;
         v.value[0] = static_cast<float>(g_dnfLex.getDecimal());
         return true;
-    }
-    if (tok == DNF_TOK_FLOAT)
-    {
+    case DNF_TOK_FLOAT:
         v.type = 0;
         v.value[0] = g_dnfLex.getFloat();
         return true;
-    }
-    if (tok == DNF_TOK_STRING)
-    {
+    case DNF_TOK_STRING:
+        {
         std::string key = toTString(g_dnfLex.getString());
         // ORIG：静态 __lookup（关键字→id，map<const char*,int,less_TCHAR>）+
         // __init_lock（SpinLock）+ __inited 标志。首次进入在锁内填充两张表项
@@ -102,7 +99,9 @@ bool scanScriptValue(ScriptValue& v)
             v.type = 2;
             if (ScanStr(&key))
             {
-                v.value[0] = static_cast<float>(getTargetToEnumValue(key));
+                // ORIG：fildll（8 字节）→ fstps：int 经 long long 中转
+                v.value[0] = static_cast<float>(
+                    static_cast<long long>(getTargetToEnumValue(key)));
                 if (ScanFloat(&v.value[1]))
                 {
                     if (ScanStr(&key))
@@ -116,8 +115,10 @@ bool scanScriptValue(ScriptValue& v)
             return false;
         }
         return false;
+        }
+    default:
+        return false;
     }
-    return false;
 }
 
 // ORIG 0x088bd8e6：默认构造 ScriptValue → scanScriptValue → 成功则 pushScriptValue。

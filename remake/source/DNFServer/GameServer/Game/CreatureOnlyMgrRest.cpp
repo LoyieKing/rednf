@@ -474,9 +474,8 @@ bool CCreatureMgr::LoadCreatureTempPeriod(
 // set_add_info(value) 返 1；否则 0。
 bool CCreatureMgr::SetCreatureItemAddInfo(int slot, int value)
 {
-    // ORIG：getCurCharacInvenRefW(user) → GetInvenRef(inv,3,slot)；repo 两口径
-    // 同返背包基址，按 AvatarRechargeC2 先例使用类型化 W 口径。
-    CInventory* inv = m_user->getCurCharacInvenW();
+    // ORIG：getCurCharacInvenRefW(user) → GetInvenRef(inv,3,slot)。
+    CInventory* inv = m_user->getCurCharacInvenRefW();
     Inven_Item* item = inv->GetInvenRef(3, slot);
     if (item == 0)
         return false;

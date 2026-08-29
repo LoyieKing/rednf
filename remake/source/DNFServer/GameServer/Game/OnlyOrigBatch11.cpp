@@ -473,9 +473,8 @@ static const char s_base64_chars[] =
 void base64_encode(const unsigned char* data, unsigned int len,
                    std::string& out)
 {
-    out.clear();
+    // ORIG 0x0807ea2e 无 out.clear()（直接 operator+= 追加），保持字节一致。
     int i = 0;
-    int written = 0;
     unsigned char b3[3];
     while (len != 0)
     {
@@ -511,10 +510,57 @@ void base64_encode(const unsigned char* data, unsigned int len,
     }
 }
 
-// ORIG T 0x0807ebf4：解码（语义同 Taiwan::base64_decode）。
+// ORIG T 0x0807ebf4：解码（内联实现，含尾部补 0 解码；Taiwan 版不处理尾部）。
+static const std::string s_base64_decode_table =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static bool is_base64(unsigned char c)
+{
+    return isalnum(c) || (c == '+') || (c == '/');
+}
+
 void base64_decode(std::string const& in, std::vector<unsigned char>& out)
 {
-    Taiwan::base64_decode(in, out);
+    int in_len = static_cast<int>(in.size());
+    int i = 0;
+    int in_ = 0;
+    unsigned char c4[4];
+    unsigned char c3[3];
+    while (in_len-- != 0)
+    {
+        char ch = in[in_++];
+        if (ch == '=')
+            break;
+        if (!is_base64(static_cast<unsigned char>(ch)))
+            break;
+        c4[i++] = static_cast<unsigned char>(ch);
+        if (i == 4)
+        {
+            for (i = 0; i < 4; i++)
+                c4[i] = static_cast<unsigned char>(
+                    s_base64_decode_table.find(static_cast<char>(c4[i]), 0));
+            c3[0] = static_cast<unsigned char>((c4[0] << 2) + ((c4[1] & 0x30) >> 4));
+            c3[1] = static_cast<unsigned char>((c4[1] << 4) + ((c4[2] & 0x3c) >> 2));
+            c3[2] = static_cast<unsigned char>((c4[2] << 6) + c4[3]);
+            for (i = 0; i < 3; i++)
+                out.push_back(c3[i]);
+            i = 0;
+        }
+    }
+    if (i != 0)
+    {
+        int j;
+        for (j = i; j <= 3; j++)
+            c4[j] = 0;
+        for (j = 0; j < 4; j++)
+            c4[j] = static_cast<unsigned char>(
+                s_base64_decode_table.find(static_cast<char>(c4[j]), 0));
+        c3[0] = static_cast<unsigned char>((c4[0] << 2) + ((c4[1] & 0x30) >> 4));
+        c3[1] = static_cast<unsigned char>((c4[1] << 4) + ((c4[2] & 0x3c) >> 2));
+        c3[2] = static_cast<unsigned char>((c4[2] << 6) + c4[3]);
+        for (j = 0; j < i - 1; j++)
+            out.push_back(c3[j]);
+    }
 }
 
 // ============================================================================

@@ -84,6 +84,7 @@ using WongWork::stGenerateResult_t;
 class CLuckPoint
 {
 public:
+    CLuckPoint();   // ORIG T 0x08550884（定义 CClearReward.cpp：m_users.clear()）
     static bool UseLuckPoint(CUser* user, int itemType, int rarity, int grade);
     void AddUser(CUser* user);   // ORIG T 0x08550932：user 非空时 push_back（
                                  //   CParty::GetLuckPoint 奖励收集；ORIG AddUser 反汇编实证）

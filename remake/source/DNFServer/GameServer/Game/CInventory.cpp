@@ -1901,14 +1901,11 @@ bool CInventory::isAnyExpiredAvatarItem() const
 
 bool CInventory::isEquipmentPlaceableAtInventory(int slot)
 {
-    if ((slot < 3) || (8 < slot))
-    {
-        if ((slot < 9) || (0x38 < slot))
-        {
-            return false;
-        }
-    }
-    return true;
+    if (slot > 2 && slot <= 8)
+        return true;
+    if (slot > 8 && slot <= 0x38)
+        return true;
+    return false;
 }
 
 // ===================== 背包插入 / 堆叠（第九批 I2 重点） =====================
@@ -5112,11 +5109,17 @@ void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
     // ORIG 逐字段：7 dword（+0x00..0x18）+ 1 word（+0x1c），写入 this+0x2d 起
     const char* src = reinterpret_cast<const char*>(&emblem);
     char* dst = reinterpret_cast<char*>(m_data) + 0x2d;
-    for (int i = 0; i < 7; ++i)
-    {
-        std::memcpy(dst + i * 4, src + i * 4, 4);
-    }
-    std::memcpy(dst + 0x1c, src + 0x1c, 2);
+    // ORIG 逐字段展开：7 dword（+0x00..0x18）+ 1 word（+0x1c）mov 直拷，
+    // 写入 this+0x2d 起（无 memcpy/循环，匹配 0x850d44c）。
+    *reinterpret_cast<int*>(dst + 0x00) = *reinterpret_cast<const int*>(src + 0x00);
+    *reinterpret_cast<int*>(dst + 0x04) = *reinterpret_cast<const int*>(src + 0x04);
+    *reinterpret_cast<int*>(dst + 0x08) = *reinterpret_cast<const int*>(src + 0x08);
+    *reinterpret_cast<int*>(dst + 0x0c) = *reinterpret_cast<const int*>(src + 0x0c);
+    *reinterpret_cast<int*>(dst + 0x10) = *reinterpret_cast<const int*>(src + 0x10);
+    *reinterpret_cast<int*>(dst + 0x14) = *reinterpret_cast<const int*>(src + 0x14);
+    *reinterpret_cast<int*>(dst + 0x18) = *reinterpret_cast<const int*>(src + 0x18);
+    *reinterpret_cast<unsigned short*>(dst + 0x1c) =
+        *reinterpret_cast<const unsigned short*>(src + 0x1c);
 }
 
 // ============================================================================

@@ -171,11 +171,6 @@ struct DimensionPartyCount
         m_1 = b;
         m_2 = c;
     }
-
-    ~DimensionPartyCount()
-    {
-    }
-
     bool operator==(const DimensionPartyCount& other) const
     {
         return m_0 == other.m_0 && m_1 == other.m_1;
@@ -625,8 +620,8 @@ public:
     const char* GetDungeonName() const;
     int getDungeonKind() const;
     float get_exp_weight() const;
-    unsigned char get_limit_party_count() const;   // ORIG 单 movzbl（822b4ba）
-    unsigned char get_limit_Inout_count() const;
+    char get_limit_party_count() const;   // ORIG 调用方全 movsbl（signed char 实证）
+    char get_limit_Inout_count() const;
     unsigned char get_blood_dungeon_type() const;  // ORIG 单 movzbl（826b92e）
     unsigned char get_dimension_possible() const;  // ORIG 单 movzbl（826b93x）
     unsigned char get_dimension_min_partymem() const;

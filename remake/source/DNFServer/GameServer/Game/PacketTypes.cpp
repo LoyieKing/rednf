@@ -51,7 +51,8 @@ MSG_CHANGE_AVATAR_OPTION::MSG_CHANGE_AVATAR_OPTION()
 MSG_CHANGE_EMOTION::MSG_CHANGE_EMOTION() {}
 MSG_CHANGE_HOST_WARROOM::MSG_CHANGE_HOST_WARROOM() {}
 MSG_CHANGE_LETTER_STAT::MSG_CHANGE_LETTER_STAT() {}
-MSG_CHANGE_RANDOM_OPTION::MSG_CHANGE_RANDOM_OPTION() {}
+MSG_CHANGE_RANDOM_OPTION::MSG_CHANGE_RANDOM_OPTION() : m_0e(0), m_10(0), m_12(0) {}
+  // ORIG C1：+0xe/+0x10 word、+0x12 byte 清零
 MSG_CHARAC_SELECT::MSG_CHARAC_SELECT() : m_slot(-1), m_0e(0), m_12(0) {}
 // MSG_CHECK_GUILD_JOIN ORIG 0x0822dd7c：+0xd int=0；+0x11 起 memset 0x17。
 MSG_CHECK_GUILD_JOIN::MSG_CHECK_GUILD_JOIN()
@@ -487,7 +488,8 @@ stChangeEmotionParam::stChangeEmotionParam()
 }
 stChangeHostWarRoom::stChangeHostWarRoom() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
-stChangeLetterStatParam::stChangeLetterStatParam() {}
+stChangeLetterStatParam::stChangeLetterStatParam() : m_result(0) {}
+  // ORIG C1：+0x04 int 清零
 stCharacSlotExtendEffect::stCharacSlotExtendEffect()
 {  // ORIG C1：+4 int、+8/+9 byte
     m_4 = 0;
@@ -605,7 +607,8 @@ stMailboxOpenParam::stMailboxOpenParam()
 }
 stMailboxSendParam::stMailboxSendParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
-stMemberEnterReplyParam::stMemberEnterReplyParam() {}
+stMemberEnterReplyParam::stMemberEnterReplyParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stMemberSecedeParam::stMemberSecedeParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
 stMonstercardBind::stMonstercardBind()
@@ -657,7 +660,8 @@ stRepairDisjointMachineParam::stRepairDisjointMachineParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
 stRepairEquipParam::stRepairEquipParam() : m_errNo(0), m_8(0), m_a(0), m_c(0) {}
 stRequestAssaultPrice::stRequestAssaultPrice() {}
-stRequestBlackListParam::stRequestBlackListParam() {}
+stRequestBlackListParam::stRequestBlackListParam() : m_4(0) {}
+  // ORIG C1：+0x04 int 清零
 stRequestCharacSkillInfo::stRequestCharacSkillInfo() {}
 stRequestDisjointItemParam::stRequestDisjointItemParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零

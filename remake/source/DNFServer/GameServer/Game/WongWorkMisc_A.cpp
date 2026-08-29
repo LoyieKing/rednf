@@ -564,10 +564,10 @@ void CMCAPManager::setPoint(unsigned short point)
 }
 
 // ORIG W 0x084eb53e _ZN8WongWork12CMCAPManager8incPointEi
-// point(+0) += rate(+4)*value/100（魔数除法即有符号整除 100、向零取整）。
+// point(+0) += rate(+4)*value/1000（ORIG 魔数 0x10624dd3; sar 6 = 有符号整除 1000）。
 void CMCAPManager::incPoint(int value)
 {
-    m_point = m_point + m_rate * value / 100;
+    m_point = m_point + m_rate * value / 1000;
     m_saveCleanPadPoint = true;
 }
 

@@ -247,9 +247,8 @@ int CSession::OnSend()
             GetSocket(), strerror(errno));
         return -1;
     }
-    // ORIG 尾部读 this+0x18(m_recvOffset) 后丢弃；返回 0（eax=0）。
-    (void)m_recvOffset;
-    return 0;
+    // ORIG 尾部读 this+0x18(m_recvOffset) 作为返回值（unsigned int → int）。
+    return m_recvOffset;
 }
 // OnError — ORIG 0x84903ee size 0x70
 // ---------------------------------------------------------------------------
@@ -309,10 +308,10 @@ bool CSession::OnConnect()
         guard.put_int(GetServerChannelNo());
         guard.put_int((int)inet_addr(GetServerIP()));
         guard.put_short((int)GetServerPORT());
-        Send(guard);
-        return true;
+        guard.finalize(false);          // ORIG 0x8490681：Send 前 finalize，否则 Send 判定未封包不发
+        return Send(guard) != 0;        // ORIG 0x8490693：mov %eax,%ebx（Send 返回值）
     }
-    return false;
+    return true;                        // ORIG 0x84906c2：mov $1,%ebx
 }
 
 // ---------------------------------------------------------------------------

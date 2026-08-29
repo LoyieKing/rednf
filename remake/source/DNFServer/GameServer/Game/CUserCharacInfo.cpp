@@ -1693,10 +1693,10 @@ CInventory* CUserCharacInfo::getCurCharacInvenW()
     return (CInventory*)CUR->m_inven;
 }
 
-Inven_Item* CUserCharacInfo::getCurCharacInvenRefW()
+CInventory* CUserCharacInfo::getCurCharacInvenRefW()
 {
     enableSaveInven();
-    return (Inven_Item*)CUR->m_inven;
+    return (CInventory*)CUR->m_inven;
 }
 
 const Inven_Item* CUserCharacInfo::getCurCharacInvenRefR() const

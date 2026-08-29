@@ -442,17 +442,26 @@ bool COnlinePreliminary::CheckMatchable(IMatch* other)
 {
     CUser* otherUser = 0;
     CUser* selfUser = 0;
-    for (unsigned int i = 0; i <= 3 && (otherUser = other->GetUser(i)) == 0; )
-        ++i;
+    for (int i = 0; i <= 3; ++i)
+    {
+        otherUser = other->GetUser(i);
+        if (otherUser != 0)
+            break;
+    }
     if (otherUser == 0)
         return false;
-    for (unsigned int i = 0; i <= 3 && (selfUser = GetUser(i)) == 0; )
-        ++i;
+    for (int i = 0; i <= 3; ++i)
+    {
+        selfUser = GetUser(i);
+        if (selfUser != 0)
+            break;
+    }
     if (selfUser == 0)
         return false;
 
+    // ORIG 0x085624c3 有符号 setge 比较（count >= limit → false）。
     unsigned int played = _GetEachOtherPlayCount(selfUser, otherUser);
-    if (played >= (unsigned int)G_CDataManager()->m_serverParameter.GetDailyMatchCount())
+    if ((int)played >= G_CDataManager()->m_serverParameter.GetDailyMatchCount())
         return false;
     return true;
 }
@@ -461,13 +470,9 @@ bool COnlinePreliminary::CheckMatchable(IMatch* other)
 // rating 记录家族
 // ---------------------------------------------------------------------------
 
-/* ORIG T 0x08560342 */
-int COnlinePreliminary::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
+float COnlinePreliminary::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
 {
-    float v = m_teams[(int)team].m_rating;
-    int bits;
-    memcpy(&bits, &v, sizeof(bits));
-    return bits;
+    return m_teams[(int)team].m_rating;
 }
 
 /* ORIG T 0x08560082 */
@@ -517,20 +522,16 @@ void COnlinePreliminary::_UpdateRating(int winOrLose, ENUM_ELO_RATING_SYSTEM sys
 
     if (winOrLose == 1)
     {
-        int bits0 = _GetRating((ENUM_SCHOOL_MATCH_TEAM)0);
-        memcpy(&selfRating,  &bits0, 4);
-        int bits1 = _GetRating((ENUM_SCHOOL_MATCH_TEAM)1);
-        memcpy(&otherRating, &bits1, 4);
+        selfRating = _GetRating((ENUM_SCHOOL_MATCH_TEAM)0);
+        otherRating = _GetRating((ENUM_SCHOOL_MATCH_TEAM)1);
         CEloRating::calc(selfRating, otherRating, sys,
                          PvPGlobalEnvironmentVariable::school_match_elo_k_);
         selfTeam = SCHOOL_MATCH_TEAM_0;
     }
     else
     {
-        int bits1 = _GetRating((ENUM_SCHOOL_MATCH_TEAM)1);
-        memcpy(&selfRating,  &bits1, 4);
-        int bits0 = _GetRating((ENUM_SCHOOL_MATCH_TEAM)0);
-        memcpy(&otherRating, &bits0, 4);
+        selfRating = _GetRating((ENUM_SCHOOL_MATCH_TEAM)1);
+        otherRating = _GetRating((ENUM_SCHOOL_MATCH_TEAM)0);
         CEloRating::calc(selfRating, otherRating, sys,
                          PvPGlobalEnvironmentVariable::school_match_elo_k_);
         selfTeam = SCHOOL_MATCH_TEAM_1;
@@ -539,11 +540,6 @@ void COnlinePreliminary::_UpdateRating(int winOrLose, ENUM_ELO_RATING_SYSTEM sys
     _SetRating(selfTeam, out);
 }
 
-// ---------------------------------------------------------------------------
-// 胜负计数家族
-// ---------------------------------------------------------------------------
-
-/* ORIG T 0x0856015e */
 void COnlinePreliminary::_IncreaseWinCount(CUser* user)
 {
     if ((char)GetPlayCountPerOneTeam() == 1)
@@ -1050,8 +1046,9 @@ void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
 }
 
 /* ORIG T 0x08561e36：纯返 1 */
-void COnlinePreliminary::OnGiveup(CUser* /*user*/)
+int COnlinePreliminary::OnGiveup(CUser* /*user*/)
 {
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1062,9 +1059,11 @@ void COnlinePreliminary::OnGiveup(CUser* /*user*/)
  * 本类静态寻址（非虚）实证。 */
 float COnlinePreliminary::GetGap(IMatch* other)
 {
-    COnlinePreliminary* o = static_cast<COnlinePreliminary*>(other);
-    float d = m_teams[0].m_rating - o->m_teams[0].m_rating;
-    return (d < 0.0f) ? -d : d;
+    // ORIG 0x08561a0e：经 _GetRating(0) 取双方 rating（fsubrs + fabs）。
+    const float mine = _GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
+    const float theirs = static_cast<COnlinePreliminary*>(other)->_GetRating(
+        static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
+    return fabsf(mine - theirs);
 }
 
 /* ORIG T 0x085620c8：仅 team0 前四席视图，占用且 state==1 才有效 */

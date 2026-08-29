@@ -23,7 +23,7 @@ ROI_Category::ROI_Category()
 //               if(k0>k1){swap k0,k1 & m0,m1}
 void ROI_Category::_sort()
 {
-    if (m_keys[0] > m_keys[1])
+    if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
     {
         unsigned short tmpKey = m_keys[0];       // -0x4(%ebp)
         m_keys[0] = m_keys[1];
@@ -32,7 +32,7 @@ void ROI_Category::_sort()
         m_marks[0] = m_marks[1];
         m_marks[1] = tmpMark;
     }
-    if (m_keys[1] > m_keys[2])
+    if (static_cast<short>(m_keys[1]) > static_cast<short>(m_keys[2])) // ORIG jle 有符号比较
     {
         unsigned short tmpKey = m_keys[1];       // -0x4(%ebp)
         m_keys[1] = m_keys[2];
@@ -41,7 +41,7 @@ void ROI_Category::_sort()
         m_marks[1] = m_marks[2];
         m_marks[2] = tmpMark;
     }
-    if (m_keys[0] > m_keys[1])
+    if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
     {
         unsigned short tmpKey = m_keys[0];       // -0x4(%ebp)
         m_keys[0] = m_keys[1];

@@ -6,7 +6,7 @@
 #include "Packet_Stat_Lag_Statistics.h"
 
 Packet_Stat_Lag_Statistics::Packet_Stat_Lag_Statistics()
-    : PacketHeader(0x14c, 0x17b9)   // ORIG PacketHeader(0x14c, 0x17b9)
+    : PacketHeader(0x17b9, 0x14c)   // ORIG PacketHeader(0x17b9, 0x14c)（arg1=0x17b9）
     , m_flagA(0)                    // movb $0x0,0xa(%eax)
     , m_flagB(0)                    // movb $0x0,0x5b(%eax)
 {

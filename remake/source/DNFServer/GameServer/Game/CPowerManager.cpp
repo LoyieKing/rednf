@@ -459,12 +459,12 @@ void CPowerManager::SendPowerWarUserStatueInfo(CUser* user)
     pkt.put_byte((int)(char)count);
     for (int i = 0; i < count; ++i)
     {
-        pkt.put_short(strlen(m_rankings[i].m_name));
+        pkt.put_int((int)strlen(m_rankings[i].m_name));
         pkt.put_str(m_rankings[i].m_name, strlen(m_rankings[i].m_name));
         pkt.put_byte((int)(char)m_rankings[i].m_job);
         pkt.put_byte((int)(char)m_rankings[i].m_level);
         pkt.put_byte((int)(char)m_rankings[i].m_grow);
-        pkt.put_short(strlen(m_rankings[i].m_guildName));
+        pkt.put_int((int)strlen(m_rankings[i].m_guildName));
         pkt.put_str(m_rankings[i].m_guildName, strlen(m_rankings[i].m_guildName));
         pkt.put_int(m_rankings[i].m_guildId);
         for (int j = 0; j < 0xb; ++j)

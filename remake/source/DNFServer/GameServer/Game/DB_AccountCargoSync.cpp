@@ -136,7 +136,7 @@ void DB_InsertRandomOptionItemInform::makeRequest(int param_1,
     guard.operator*()->operator<<(0x299);                 // SIG_INSERT_RANDOM_OPTION_ITEM_INFORM
     guard.operator*()->operator<<(param_1);
     guard.operator*()->operator<<(param_2);
-    guard.operator*()->operator<<((unsigned int)param_3);  // 反编译 movzbl 零扩展
+    guard.operator*()->operator<<(param_3);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -208,23 +208,7 @@ void DB_SecurityCardUpdateCancelCnt::makeRequest(unsigned int param_1,
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ============================================================================
-// DB_UpdateAuraAvatarOption::makeRequest ORIG @ 0x08444f26
-//   opcode 0x2af | -1 | param_2(uint characNo) | param_3(int idx) | param_4(int value)
-// ============================================================================
-void DB_UpdateAuraAvatarOption::makeRequest(int param_1, unsigned int param_2,
-                                            int param_3, int param_4)
-{
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xabf6);
-    CStreamGuard guard(stream, true);
-    guard.operator*()->operator<<(0x2af);                 // SIG_UPDATE_AURA_AVATAR_OPTION
-    guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(param_2);
-    guard.operator*()->operator<<(param_3);
-    guard.operator*()->operator<<(param_4);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
+// DB_UpdateAuraAvatarOption::makeRequest 权威实现见 W8LT_DBTask.cpp（FixCall_D 统一）。
 
 namespace APSystem
 {

@@ -134,7 +134,7 @@ public:
     ~AvatarFixedHiddenOptionServer();
 
     virtual bool Load();      // vtable 槽0（ORIG 0x0817e154）
-    virtual void Destroy();   // vtable 槽1（ORIG 0x0817e1e2 返 1；接口 void 化同 Manager 先例）
+    virtual int Destroy();   // vtable 槽1（ORIG 0x0817e1e2 返 1；接口 void 化同 Manager 先例）
 
     // ORIG 0x0817e3e8：对 6 个桶跳过下标 0 的种子元素，把 m_nRate 累加写入
     // m_cumulativeRate[i]（reserve(count-1)，与 ORIG 一致依赖 clearScript 的种子保证非空）。

@@ -32,9 +32,9 @@ bool DB_LoadAutoMarketConditionsControl::makeRequest(bool flag)
     // ORIG T 0x08433ada _ZN34DB_LoadAutoMarketConditionsControl11makeRequestEb
     Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7c43);
     CStreamGuard guard(stream, true);
-    guard << 0x15a;
-    guard << -1;
-    guard << flag;
+    guard.operator*()->operator<<(0x15a);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(flag);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }
@@ -92,11 +92,9 @@ void CFatigueBuffEvent::EndEvent()           // ORIG 0x0811bcc0
     trace("CFatigueBuffEvent Event End!");
 }
 
-void CFatigueBuffEvent::StartEvent(Word_Param)  // ORIG 0x0811bca6（同构）
+void CFatigueBuffEvent::StartEvent(Word_Param)  // ORIG 0x0811bca6：虚调用 slot2（StartEvent()）
 {
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x19, 0);
-    trace("CFatigueBuffEvent Event Start!");
+    StartEvent();
 }
 
 // ---- CWeekendBonusEvent ----
@@ -117,11 +115,9 @@ void CWeekendBonusEvent::EndEvent()          // ORIG 0x08117626
     trace("CWeekendBonusEvent Event End!");
 }
 
-void CWeekendBonusEvent::StartEvent(Word_Param)  // ORIG 0x0811760c（同构）
+void CWeekendBonusEvent::StartEvent(Word_Param)  // ORIG 0x0811760c：虚调用 slot2（StartEvent()）
 {
-    SetEventFlag(true);
-    cMyTrace trace(__FUNCTION__, 0x19, 0);
-    trace("CWeekendBonusEvent Event Start!");
+    StartEvent();
 }
 
 // ---- CAutoMarketConditionsControlEvent ----

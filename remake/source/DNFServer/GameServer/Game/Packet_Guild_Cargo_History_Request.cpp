@@ -4,7 +4,7 @@
 #include "Packet_Guild_Cargo_History_Request.h"
 
 Packet_Guild_Cargo_History_Request::Packet_Guild_Cargo_History_Request()
-    : PacketHeader(0x12, 0x70b)   // ORIG _ZN12PacketHeaderC1Ett
+    : PacketHeader(0x70b, 0x12)   // ORIG _ZN12PacketHeaderC1Ett
 {
     memset(m_data + 0, 0, 0x8);   // ORIG memset(this+0xa, 0, 0x8)
 }

@@ -59,7 +59,7 @@ public:
     virtual ~RentalMachineDimension(); // ORIG D1 @0x0826eba2 / D0 @0x0826ec04
 
     // 槽2 Rent / 槽3 Ready / 槽4 CheckRentableItem：ORIG T（本体 GlobalData.cpp）
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
                       InstanceRentalSystem::RentOutput& output);
     virtual bool Ready();
     virtual bool CheckRentableItem(unsigned int itemIdx);

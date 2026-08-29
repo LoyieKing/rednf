@@ -658,7 +658,7 @@ bool LimitItemUsage::isUsable()
     const unsigned char state = m_field10;
     if (state == 2)
     {
-        if ((unsigned int)m_field19 >= *reinterpret_cast<const unsigned int*>(m_pad11))
+        if (m_field19 >= *reinterpret_cast<const int*>(m_pad11))
             return false;
         return true;
     }
@@ -666,7 +666,7 @@ bool LimitItemUsage::isUsable()
     {
         if (isAnotherDay())
             m_field19 = 0;
-        if ((unsigned int)m_field19 >= *reinterpret_cast<const unsigned int*>(m_pad11))
+        if (m_field19 >= *reinterpret_cast<const int*>(m_pad11))
             return false;
     }
     return true;

@@ -384,7 +384,7 @@ public:
     bool m_addGravityInAerial;                     // +0xff4（clear=false）
     char m_padff5[3];
     float m_gravityAerialA;                        // +0xff8（clear=20.0f）
-    float m_gravityAerialB;                        // +0xffc（clear=-310.0f）
+    float m_gravityAerialB;                        // +0xffc（clear=-300.0f）
     int m_noCooltime;                              // +0x1000（clear=0）
     bool m_checkAccountItem;                       // +0x1004（clear=true）
     char m_pad1005[3];
@@ -550,7 +550,7 @@ void STAICharacterCommonScript::clear()
     m_leaveBody = true;                  // byte +0xfa8 = 1
     m_addGravityInAerial = false;        // byte +0xff4 = 0
     m_gravityAerialA = 20.0f;            // +0xff8 = 0x41a00000
-    m_gravityAerialB = -310.0f;          // +0xffc = 0xc3960000
+    m_gravityAerialB = -300.0f;          // +0xffc = 0xc3960000（-300.0）
     m_noCooltime = 0;                    // +0x1000
     m_checkAccountItem = true;           // byte +0x1004 = 1
     for (int i = 0; i < 8; ++i)          // STAIInfoScript 尾部 POD 绝对 +0x2b0..+0x2cc

@@ -166,10 +166,11 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user, unsigned char spac
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)space);
 
     // +0x028：invenR = CUserCharacInfo::getCurCharacInvenR(user)（ORIG W 0x080da27e）
-    CInventory* invenR = (CInventory*)user->getCurCharacInvenR();
+    // ORIG 调用 const 版 GetInvenRef（_ZNK10CInventory11GetInvenRefEii），保持 const。
+    const CInventory* invenR = user->getCurCharacInvenR();
 
     // +0x03e：ref = CInventory::GetInvenRef(invenType, slot) const（ORIG T 0x084fc1de）
-    Inven_Item* ref = invenR->GetInvenRef(invenType, (int)slot);
+    const Inven_Item* ref = invenR->GetInvenRef(invenType, (int)slot);
     if (ref == 0)
     {
         return 4;

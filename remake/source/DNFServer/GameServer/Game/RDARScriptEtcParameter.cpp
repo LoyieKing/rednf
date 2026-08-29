@@ -93,11 +93,8 @@ struct InvalidCharData::stRangeElement<unsigned short>
 // ============================================================================
 int importGoldLimitByLevel(unsigned int* out)
 {
-    if (!out)
-        return 0;
-
     // 清前 0x190（400）字节（与汇编 movl $0x190 一致；m_moneyLimit 数组更大，
-    // 但 ORIG 仅清零 400 字节）。
+    // 但 ORIG 仅清零 400 字节）。ORIG 0x088fdb69 无空指针检查（0x8fdb71 直接 memset）。
     std::memset(out, 0, 0x190);
 
     if (!loadRDARScriptFile("", "Etc/GoldLimitByLevel.etc"))

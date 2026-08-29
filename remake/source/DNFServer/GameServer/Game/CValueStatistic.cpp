@@ -30,20 +30,20 @@ void CValueStatistic::stValueStatistic::reset()
     memset(m_values, 0, sizeof(m_values));
 }
 
-void CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user,
+bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user,
                                         unsigned int value)
 {
     int fieldIdx = (int)field;
-    // 校验 field 范围 [0, 0x1d] 且 level > 0 且 level < 0x47
-    if (fieldIdx < 0 || fieldIdx >= 0x1e)
+    // ORIG 0x0860d682：校验 field [0,0x1d] 且 level∈(0,0x47)；非法记日志并返 false。
+    if (fieldIdx < 0 || fieldIdx >= 0x1e ||
+        user->get_charac_level() <= 0 || user->get_charac_level() >= 0x47)
     {
-        return;
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x306, false);
+        trace("VALUE_STATISTIC wrong index (%d,%d)",
+              user->get_charac_level(), fieldIdx);
+        return false;
     }
     int level = user->get_charac_level();
-    if (level <= 0 || level >= 0x47)
-    {
-        return;
-    }
 
     ENUM_SERVER_GROUP group = user->GetServerGroup();
     std::map<ENUM_SERVER_GROUP, stValueStatistic>::iterator it = m_data.find(group);
@@ -58,6 +58,7 @@ void CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user
     {
         it->second.m_values[level][fieldIdx] += value;
     }
+    return true;
 }
 
 int CValueStatistic::InsertValueStatistic()

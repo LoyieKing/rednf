@@ -28,7 +28,10 @@ namespace WongWork
 // ============================================================================
 // CLuckPoint —— ORIG ctor：vector<CUser*> @+0x00 → map<int,int> @+0x0c
 // ============================================================================
-CLuckPoint::CLuckPoint() {}
+CLuckPoint::CLuckPoint()
+{
+    m_users.clear();
+}
 CLuckPoint::~CLuckPoint() {}
 
 // ============================================================================

@@ -202,7 +202,7 @@ int getCharacterJob(const char* name)
 // strcmp，命中返回 1；与 getCharacterJob 共用同一张表。
 int checkValiedJobName(const char* name)
 {
-    static const char* const kJobTable[11] = {
+    static const char* const kJobTable[12] = {
         "[swordman]",        // 0
         "[fighter]",         // 1
         "[gunner]",          // 2
@@ -213,9 +213,10 @@ int checkValiedJobName(const char* name)
         "[at fighter]",      // 7
         "[at mage]",         // 8
         "[demonic swordman]",// 9
-        "[creator mage]"     // 10
+        "[creator mage]",    // 10
+        "[all]"              // 11
     };
-    for (int i = 0; i <= 0xa; ++i)
+    for (int i = 0; i <= 0xb; ++i)
     {
         if (strcmp(name, kJobTable[i]) == 0)
         {

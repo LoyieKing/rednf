@@ -236,7 +236,8 @@ void StageControl::onEplp(StageEndType::T endType)
 // ORIG T 0x08130692（onEplpReturnVillage.md 全文）：ProcStage::getState()==6 → leaveUser()。
 void StageControl::onEplpReturnVillage()
 {
-    if (getProcStage()->m_state == ProcStage::State::S_N6)
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getState() ==
+        ProcStage::State::S_N6)
     {
         leaveUser();
     }
@@ -285,6 +286,7 @@ void StageControl::onTimer(TIMER_MESSAGE msg, StageEndType::T endType)
 //   byte direction, byte visible_values} Send → clear →
 //   包2 3{byte 1, short uid, byte 1} Send + send_all(guard, user) → set_state(0xd)。
 // ----------------------------------------------------------------------------
+// 头声明 static（ORIG 无 this）；类外定义不带 static。
 void StageControl::gotoStage(CUser* user)
 {
     Village* vill = G_GameWorld()->getUserVillage(user);

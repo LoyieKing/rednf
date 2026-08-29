@@ -65,14 +65,14 @@ int CItemUpgrade::LoadUpgradeScript(const char* path)
     // ORIG 0x0854919a：尾调 WongWork::CItemUpgradeTable::loadUpgradeScript(this+0x04,
     // path)（W 0x0854b38a，内部即 importUpgradeTable(path, table) 并透传 eax）。
     // 基类纯虚槽1 返回 int，尾透传 import 错误行号（0=成功）。
-    return importUpgradeTable(path, static_cast<upgrade_table_t*>(this));
+    return static_cast<CItemUpgradeTable*>(this)->loadUpgradeScript(path);
 }
 
 int CItemUpgrade::Load3rdChronicleUpgradeScript(const char* path)
 {
     // ORIG 0x085491b8：与 LoadUpgradeScript 同体（同一尾调用目标 0x0854b38a），
     // 仅符号不同；chronicle.etc 表与 Upgrade.etc 表共用表类型。
-    return importUpgradeTable(path, static_cast<upgrade_table_t*>(this));
+    return static_cast<CItemUpgradeTable*>(this)->loadUpgradeScript(path);
 }
 
 }  // namespace WongWork

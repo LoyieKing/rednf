@@ -65,11 +65,12 @@ bool Event_Upgrade_Jar::check_requiredRecipe(const Inven_Item& item) const
     return item.m_addInfo == 0x28be7d && item.m_addInfo2 > 0;
 }
 
-// ORIG 0x080f4be0。Fortune 分支：在 m_materialIndices 中查 materialIdx，命中则在对应的
+ // ORIG 0x080f4be0。Fortune 分支：在 m_materialIndices 中查 materialIdx，命中则在对应的
 // m_failRateByFortune[i] 段中按 upgrade 取概率；越界/未命中返回 100000。
 unsigned int Event_Upgrade_Jar::_getFailProb_Fortune(int materialIdx, unsigned int upgrade) const
 {
-    for (unsigned int i = 0; i < m_materialIndices.size(); ++i)
+    // ORIG：i 为 int（size() 与 i 有符号 setg 比较）。
+    for (int i = 0; i < static_cast<int>(m_materialIndices.size()); ++i)
     {
         if (materialIdx == (int)m_materialIndices[i])
         {

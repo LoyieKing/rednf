@@ -323,15 +323,15 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
     }
     if (type == (BlueMarbleBuffType::T)1)
     {
-        return getGoldBuff(seat);
+        return getExpBuff(seat);
     }
     else if (type == (BlueMarbleBuffType::T)2)
     {
-        return getDropBuff(seat);
+        return getGoldBuff(seat);
     }
     else if (type == (BlueMarbleBuffType::T)0)
     {
-        return getExpBuff(seat);
+        return getDropBuff(seat);
     }
     else
     {

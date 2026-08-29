@@ -47,8 +47,8 @@ public:
     void reset();
     bool isIdentified() const;
     bool hasAbility() const;
-    void identify();
-    char getAbilityType() const;
+    bool identify();
+    unsigned char getAbilityType() const;
     unsigned short getAbilityValue() const;
     void _setAbility(unsigned char type, unsigned short value, bool identified);
     void assign(unsigned char type, unsigned short value);

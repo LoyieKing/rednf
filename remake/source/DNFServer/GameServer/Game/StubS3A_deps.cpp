@@ -131,7 +131,8 @@ int CraneMinigameManager::startUseMaterial(CUser* user, int slot)
 {
     const CInventory* inven = user->getCurCharacInvenR();   // ORIG 0x080da27e
     Inven_Item item = inven->GetInvenSlot(1, slot);
-    if (item.m_addInfo != m_field10)                        // this+0x10
+    if (item.m_addInfo !=
+        *(int*)((char*)this + 0x10))                        // this+0x10（类改继承 Script 后无命名成员）
         return 0x11;
     const int needCnt =
         (int)(short)*(const unsigned short*)(const void*)((const char*)this + 0x14);

@@ -135,6 +135,8 @@ CSecretShopStatistic::CSecretShopStatistic()
 
 CSecretShopStatistic::~CSecretShopStatistic()
 {
+    for (int i = 0; i < 3; ++i)
+        m_pos[i].clear();
 }
 
 void CSecretShopStatistic::Clear()
@@ -324,7 +326,10 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
     unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x42);
     if (err != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x129, static_cast<char>(err));
         return 0;
+    }
     if (sale == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x129, 0x11);
         return 0;
@@ -371,7 +376,10 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
     unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x43);
     if (err != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x129, static_cast<char>(err));
         return 0;
+    }
     if (sale == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x129, 0x11);
         return 0;
@@ -426,10 +434,11 @@ CSecretShop::~CSecretShop()
     // ORIG 顺序：先 ::operator delete(m_pRand)（_ZdlPv），再遍历 map 用
     // ::operator delete 释放每个无 virtual 析构的 IBuyRule 指针，
     // m_rules/m_statistic 的析构由成员声明顺序自动完成。
-    ::operator delete(m_pRand);
+    delete m_pRand;
     for (std::map<eBuyRule, IBuyRule*>::iterator it = m_rules.begin();
          it != m_rules.end(); ++it)
         ::operator delete(it->second);
+    m_rules.clear();
 }
 
 IBuyRule* CSecretShop::GetRule(eBuyRule rule)
@@ -443,12 +452,13 @@ IBuyRule* CSecretShop::GetRule(eBuyRule rule)
 
 int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 {
-    int randomSeed = 10000;
-    int randVal = m_pRand->randInt((const unsigned long&)randomSeed);
+    unsigned long randomSeed = 10000;
+    int randVal = m_pRand->randInt(randomSeed);
     int npcIdx = 1000;
-    SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
-    if (!script->GetNpcByDungeonIdx(npcIdx, randVal, level))
-        script->GetNpcByDungeonLev(npcIdx, randVal, level);
+    if (!((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
+             ->GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx))
+        ((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
+            ->GetNpcByDungeonLev(npcIdx, randVal, level);
     if (npcIdx != 0 && npcIdx != 1000)
         m_statistic.RecordShow(npcIdx, dungeonIdx, price);
     return npcIdx;
@@ -565,6 +575,9 @@ void CSecretShop::SendSecretShopItemList(CUser* user, std::vector<SALE_INFO>& li
         ((InterfacePacketBuf*)&packet)->put_byte(list[i].m_rule);
         ((InterfacePacketBuf*)&packet)->put_int(list[i].m_price);
         ((InterfacePacketBuf*)&packet)->put_int(list[i].m_limit);
+        ((InterfacePacketBuf*)&packet)->put_int(list[i].m_material);
+        ((InterfacePacketBuf*)&packet)->put_int(list[i].m_materialCount);
+        ((InterfacePacketBuf*)&packet)->put_byte(list[i].m_field18);
     }
     ((InterfacePacketBuf*)&packet)->finalize(true);
     user->Send(packet);
@@ -610,8 +623,8 @@ char SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
         return 0;
     int levelIdx = GetLevelIdx(level);
     std::map<int, stDungeonSales>::iterator dunIt =
-        npcIt->second.m_dungeonSales.find(levelIdx);
-    if (dunIt == npcIt->second.m_dungeonSales.end())
+        npcIt->second.m_eventSales.find(levelIdx);
+    if (dunIt == npcIt->second.m_eventSales.end())
         return 0;
     if (GetItems(rand, out, dunIt->second)) {
         if (event)
@@ -867,8 +880,12 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
                         sale.m_rate = ScanInt((bool*)0);
                         ds.m_sales.insert(std::make_pair(sale.m_itemIdx, sale));
                     }
-                    sales.m_dungeonSales.insert(
-                        std::make_pair(ds.m_field0, ds));
+                    if (sub == "[dungeon]")
+                        sales.m_dungeonSales.insert(
+                            std::make_pair(ds.m_field0, ds));
+                    else
+                        sales.m_eventSales.insert(
+                            std::make_pair(ds.m_field0, ds));
                 }
                 // "[dungeon cash item]" 及未知 token：无操作继续内层循环
             }

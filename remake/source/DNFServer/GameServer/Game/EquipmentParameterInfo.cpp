@@ -458,10 +458,11 @@ int GetApplyStatusInRange(std::vector<float>* v)
     float st = (float)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
-    int v1 = 0;
-    if (!ScanInt(&v1)) return 0;
-    int v2 = 0;
-    if (!ScanInt(&v2)) return 0;
+    // ORIG 0x089912c8：ScanInt(bool*) 形式，失败不中止（值取 0 继续）。
+    bool ok1 = false;
+    int v1 = ScanInt(&ok1);
+    bool ok2 = false;
+    int v2 = ScanInt(&ok2);
     v->push_back(st);
     v->push_back(pct);
     v->push_back((float)v1);

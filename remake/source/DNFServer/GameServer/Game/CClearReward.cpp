@@ -102,15 +102,13 @@ int CClearReward::_getGenItemProbIdx(int value, eClearRewardDropProb_t drop)
 void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
                                       stGenerateResult_t& result)
 {
-    int roll = m_random.generateNumber(1, 10000);
-    if (roll < m_dropKindProb[0])
+    if (m_random.generateNumber(1, 10000) < m_dropKindProb[0])
     {
         _generateRandomItem(*reinterpret_cast<stGenerateRefClearReward_t const*>(
                                 reinterpret_cast<char const*>(&ref) + 0x34),
                             *reinterpret_cast<int const*>(&ref),
                             result,
-                            *reinterpret_cast<float const*>(
-                                reinterpret_cast<char const*>(&ref) + 0x38));
+                            *reinterpret_cast<float const*>(&ref.m_field04));
     }
     else
     {
@@ -467,12 +465,9 @@ int CLuckPoint::GetLuckPoint()
     return sum / static_cast<int>(m_users.size());
 }
 
-
 int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
 {
-    int acc[6];
-    for (int i = 0; i < 6; ++i)
-        acc[i] = 0;
+    int acc[6] = {0};
 
     if (dropType == 2 && !m_users.empty())
     {
@@ -500,8 +495,8 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         if (unique != 0)
         {
             int v = static_cast<int>(
-                roundFloat(static_cast<float>(table[3] - table[2]) * 0.01f *
-                           static_cast<float>(unique)));
+                static_cast<float>(table[3] - table[2]) *
+                           static_cast<float>(unique) * 0.01f);
             acc[2] -= v;
             if (table[3] > 999999)
                 acc[2] = 0;
@@ -509,8 +504,8 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         if (rare != 0)
         {
             int v = static_cast<int>(
-                roundFloat(static_cast<float>(table[2] - table[1]) * 0.01f *
-                           static_cast<float>(rare)));
+                static_cast<float>(table[2] - table[1]) *
+                           static_cast<float>(rare) * 0.01f);
             neg -= v;
         }
         if (table[1] != 0)
@@ -523,6 +518,12 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
             return i;
     }
     return 0;
+}
+
+// 全局 ::CLuckPoint ctor —— ORIG T 0x08550884 含 m_users.clear()。
+CLuckPoint::CLuckPoint()
+{
+    m_users.clear();
 }
 
 // 全局 ::roundFloat（ORIG W 0x0853abe5 = C round 转 float）

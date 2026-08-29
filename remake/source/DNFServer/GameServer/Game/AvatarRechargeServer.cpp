@@ -423,12 +423,15 @@ bool AvatarRechargeServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0x22, 9, true, false);
     trace("\t- Loading Avatar Recharge script - ");
-    return m_script.loadScript() == 0;
+    if (m_script.loadScript())
+        return false;
+    return true;
 }
 
 // ORIG 0x081902de：恒返回 1（接口 void 化同 CerashopAddRestrict::Manager 先例）。
-void AvatarRechargeServer::Destroy()
+int AvatarRechargeServer::Destroy()
 {
+    return 1;
 }
 
 // ORIG 0x08190266：纯 ret。

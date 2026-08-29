@@ -52,11 +52,9 @@ public:
     ~Packet_Stat_Lag_Statistics();  // ORIG W @0x082354ec
 
     char              m_flagA;        // +0x0a（ctor 置 0）
-    stModuleLagInfo   m_modules[7];   // +0x0b..+0x50
-    char              m_padMid[0xa];  // +0x51..+0x5a（ORIG ctor 未写）
+    stModuleLagInfo   m_modules[8];   // +0x0b..+0x5a
     char              m_flagB;        // +0x5b（ctor 置 0）
-    stDunGeonLagInfo  m_dungeons[9];  // +0x5c..+0x133
-    char              m_tail[0x18];   // +0x134..+0x14b
+    stDunGeonLagInfo  m_dungeons[10];  // +0x5c..+0x14b
 };
 
 #pragma pack(pop)

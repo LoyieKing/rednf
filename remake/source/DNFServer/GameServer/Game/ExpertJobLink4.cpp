@@ -158,7 +158,8 @@ int CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
     if (useGate)
     {
         area = G_GameWorld()->get_gate_area(vill);
-        if (area < 0)
+        // ORIG 0x085d1453：shr $0x1f; test; je 形式（符号位检查）。
+        if (((unsigned int)area >> 31) != 0)
             return 0;
 
         if (!G_GameWorld()->get_area_center_point(vill, area, x, y))
@@ -171,11 +172,9 @@ int CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
         }
     }
 
-    bool needMove =
-        ((char)user->getCurCharacVill() != vill ||
-         user->get_area(false) != area);
-
-    if (needMove)
+    // ORIG 0x085d14d7：直接 if 判断（无 needMove 中间变量）。
+    if ((char)user->getCurCharacVill() != vill ||
+        user->get_area(false) != area)
     {
         if (!G_GameWorld()->move_area(user, vill, area, x, y, 0, false, 0, 0, 0))
             return 0;
@@ -514,9 +513,12 @@ void CDisjointer::send_error(CUser* user, int err)
 // check_disjoint_endurance（报告 check_disjoint_endurance.md，ORIG T 0x085d1f24）
 bool CDisjointer::check_disjoint_endurance()
 {
-    CUser* owner = m_machine.get_user();
-    return ((CCharacExpertJob*)owner->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_endurance() > 0;
+    if (((CCharacExpertJob*)m_machine.get_user()->GetCharacExpandData(
+             (ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_endurance() <= 0)
+        return false;
+    else
+        return true;
 }
 
 // get_disjoint_machine_grade（ORIG T 0x85d1f0a：movsbl m_machine.get_grade()）

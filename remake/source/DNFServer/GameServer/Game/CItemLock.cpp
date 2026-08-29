@@ -145,8 +145,7 @@ CItemLock::~CItemLock()
 
 std::vector<stItemLockRef>& CItemLock::GetItemLockRefVec()
 {
-    static std::vector<stItemLockRef> s;
-    return s;
+    return m_lockList;
 }
 
 // ORIG 0x854261e：map 查找；命中返回 state 并写解锁时刻，未命中返回 0。

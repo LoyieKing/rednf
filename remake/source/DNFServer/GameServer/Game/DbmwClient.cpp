@@ -153,9 +153,14 @@ unsigned int DbmwClient::Connect()
     {
         if (errno != EISCONN)
             return (unsigned int)-97;          // 0xffffff9f
+        if (!Regist())
+            return (unsigned int)-95;          // 0xffffffa1
     }
-    if (!Regist())
-        return (unsigned int)-95;              // 0xffffffa1
+    else
+    {
+        if (!Regist())
+            return (unsigned int)-95;          // 0xffffffa1
+    }
 
     m_connected = true;
     return 0;
@@ -334,7 +339,21 @@ int DbmwClient::exec()
         return 0;
 
     if (!DoQuery())
+    {
+        needReconnect = !(IsInitialized() && IsConnected());
+        if (needReconnect)
+        {
+            LogManager::logFormat(1, "localchina/DbmwClient.cpp", __FUNCTION__,
+                                  0x2f4,
+                                  "AccountDBMW exec() reconnect fail Query(%s)",
+                                  m_query);
+            if (!Reconnect())
+                return -1;
+            if (!DoQuery())
+                return -1;
+        }
         return 0;
+    }
 
     int received = DoReceive();
     if (received == 0)
@@ -346,8 +365,8 @@ int DbmwClient::exec()
                                   0x306,
                                   "AccountDBMW exec() reconnect fail Query(%s)",
                                   m_query);
-            Reconnect();
-            return 0;
+            if (!Reconnect())
+                return 0;
         }
     }
     return received;

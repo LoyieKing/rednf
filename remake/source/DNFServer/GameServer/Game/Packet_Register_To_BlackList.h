@@ -20,6 +20,6 @@ public:
     PacketHeader m_header;    // +0x00
     unsigned int m_accId;     // +0x0a
     char m_name[0x1e];        // +0x0e
-};  // sizeof == 0x2c
+} __attribute__((packed));  // sizeof == 0x2c
 
 #endif  // DNF_GAME_PACKET_REGISTER_TO_BLACKLIST_H_

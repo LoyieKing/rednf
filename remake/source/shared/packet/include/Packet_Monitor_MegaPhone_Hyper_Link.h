@@ -34,6 +34,7 @@ public:
         m_sg(0), m_channel(0), m_uniqueId(0), m_itemCount(0), m_msgLen(0)
     {
     memset(m_items, 0, sizeof(m_items));
+    m_name[0] = 0;   // ORIG movb $0x0,0xf(%eax)
     m_msg[0] = 0;
     }
 } __attribute__((packed));

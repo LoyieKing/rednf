@@ -30,9 +30,9 @@ void GameServerDemonManager::SetUserProhibitFlag(bool flag)   // T 0x080f6222
     m_prohibitFlag = static_cast<unsigned char>(flag);
 }
 
-bool GameServerDemonManager::IsProhibitConnectState()         // W 0x084ed404
+unsigned char GameServerDemonManager::IsProhibitConnectState()  // W 0x084ed404
 {
-    return m_prohibitFlag != 0;
+    return m_prohibitFlag;
 }
 
 void GameServerDemonManager::SetNoticeMessage(unsigned char len, char* msg)  // T 0x080f6280

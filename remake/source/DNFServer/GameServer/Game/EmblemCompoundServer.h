@@ -88,7 +88,7 @@ public:
     ~EmblemCompoundServer();  // ORIG 0x08191594：vtable + 脚本基 dtor
 
     virtual bool Load();      // ORIG 0x081915ba：cMyTrace + return loadScript()==0
-    virtual void Destroy();   // ORIG 0x0819162c：return 1（基类约定 void）
+    virtual int Destroy();   // ORIG 0x0819162c：return 1（基类约定 void）
     void Test();              // ORIG 0x081915b4：空（非虚，vtable 仅 Load/Destroy 两槽）
 
     // ORIG 0x08191636 CheckCondition / 0x08191afa Process

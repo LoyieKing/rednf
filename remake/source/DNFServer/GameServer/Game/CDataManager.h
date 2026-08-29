@@ -251,6 +251,7 @@ struct STGuildStorageUpgradeInfo
 // {convertTabTypeStringToEnum 结果, ScanInt, ScanStr}，sizeof 0x14。
 struct stCustomConditionMsg
 {
+    stCustomConditionMsg();   // ORIG C1 0x8aa9928：两 int 置 -1
     int m_tabType;        // +0x00（ctor 置 -1）
     int m_value;          // +0x04（ctor 置 -1）
     std::string m_msg;    // +0x08
@@ -346,11 +347,13 @@ struct PvPSkillTreeValue
     std::vector<std::pair<int, int> > m_vec00;   // +0x00（[skill] 段填充）
     std::vector<std::pair<int, int> > m_vec0c;   // +0x0c（[static basic skill] 段）
 };                                   // sizeof 0x18
+// ORIG C1：构造成员后调 clear()。
 struct FAIR_PVP_SKILL_TREE_SKILL_PER_POINT
 {
     // ORIG ctor 0x08a5e7e6 / clear 0x08a5e874：map<int,int> @+0x00、
     // map<int,int> @+0x18、vector<pair<int,int>> @+0x30、int @+0x3c 置 0
     // （sizeof 0x40）。
+    FAIR_PVP_SKILL_TREE_SKILL_PER_POINT();
     void clear();                        // ORIG W 0x08a5e874
     std::map<int, int> m_addSkills;                    // +0x00（加技能→等级表）
     std::map<int, int> m_removeSkills;                 // +0x18（减技能→等级表）
@@ -657,11 +660,18 @@ struct LevelUpRewardItemTableKey
     }
     // ORIG W 0x081b8896 C2Eiii：(+0)=level 截断 ushort、(+2)=job 字节、(+3)=grow 字节。
     LevelUpRewardItemTableKey(int level, int job, int grow);   // 定义 CUserDepsB.cpp
+    // ORIG W 0x081b8830 逐字段 setl（有符号）比较；字段本身无符号加载。
     bool operator<(const LevelUpRewardItemTableKey& o) const
     {
-        if (m_job != o.m_job) return m_job < o.m_job;
-        if (m_grow != o.m_grow) return m_grow < o.m_grow;
-        return m_lv < o.m_lv;
+        if (static_cast<int>(static_cast<signed char>(m_job))
+            != static_cast<int>(static_cast<signed char>(o.m_job)))
+            return static_cast<signed char>(m_job)
+                   < static_cast<signed char>(o.m_job);
+        if (static_cast<int>(static_cast<signed char>(m_grow))
+            != static_cast<int>(static_cast<signed char>(o.m_grow)))
+            return static_cast<signed char>(m_grow)
+                   < static_cast<signed char>(o.m_grow);
+        return static_cast<short>(m_lv) < static_cast<short>(o.m_lv);
     }
 };
 
@@ -1087,10 +1097,10 @@ struct stNPCFavorAndRewardInfo
     int m_rewardB;                             // +0x10（AddRewardItemInfo 第二值）
 };
 
-// ORIG C1 0x891c946（new 0x48 实证）：favor[2] @+0x00/+0x14 + vector<int> @+0x3c。
+// ORIG C1 0x891c946（new 0x48 实证）：favor[3] @+0x00/+0x14/+0x28 + vector<int> @+0x3c。
 struct stNPCRelationEventInfo
 {
-    stNPCFavorAndRewardInfo m_favor[2];   // +0x00/+0x14
+    stNPCFavorAndRewardInfo m_favor[3];   // +0x00/+0x14
     std::vector<int> m_dislikeItems;      // +0x3c（[can not give item] push_back）
     stNPCRelationEventInfo();
 };
@@ -1157,6 +1167,7 @@ struct stOneEmotionData
     stOneEmotionData();
     ~stOneEmotionData();
     void clear();
+    stOneEmotionData& operator=(const stOneEmotionData& rhs);
     int m_0;              // +0x00
     int m_4;              // +0x04
     std::string m_8;      // +0x08
@@ -1404,8 +1415,7 @@ public:
     void set_data(int step, StackableItemData& data);  // ORIG W 0x0891bd0e（LoadRewardDataByNoType 调用）
 
     std::map<int, std::vector<StackableItemData> > m_map0;  // +0x00
-    char m_pad18[0xc];                                      // +0x18
-};
+};  // sizeof 0x18（ORIG C1 0x83714c6/D1 0x837151c 仅构造/析构该 map）
 
 class stGrowthCapsuleScript
 {
@@ -2017,7 +2027,7 @@ public:
     // 直访偏移实证：+0x000 counterTable[24] +0x060 timeHourList[24] +0x0c0 doorFee[10]
     //   +0x0e8 curHourIdx +0x0ec banInterval +0x0f0 kickPoint +0x0f4 readyCount
     //   +0x0f8 warAreaDungeon[10] +0x120 wpPerMonsterHp map(greater) +0x138 wpPenalty
-    //   +0x13c monsterExpConst(float) +0x140 num +0x144 warRoomCount[10][10]。
+    //   +0x13c monsterExpConst(float) +0x140 num +0x144 warRoomCount[24][10]。
     int m_counterTable[24];        // +0x000（[counter] 段写入）
     int m_timeHourList[24];        // +0x060..+0xbf（[time table] 段）
     int m_doorFee[10];             // +0x0c0..+0xe7（[door fee] 段）
@@ -2030,8 +2040,8 @@ public:
     int m_wpPenalty;               // +0x138（[wp penalty]）
     float m_monsterExpConst;       // +0x13c（[monster exp const]，ScanFloat）
     int m_num;                     // +0x140（时段数）
-    int m_warRoomCount[10][10];    // +0x144..+0x2d3（[curHourIdx][idx] 目标房间数）
-    char m_pad_2d4[0x504 - 0x144 - 100 * 4]; // +0x2d4..+0x503（补齐 sizeof 0x504）
+    int m_warRoomCount[24][10];    // +0x144..+0x503（[curHourIdx][idx] 目标房间数，
+                                   //  ORIG clear memset 0x3c0 = 24×10 int）
 };
 
 class QuestParameterScript
@@ -2649,9 +2659,8 @@ public:
     bool isNeedMoney(unsigned int money) const;
     void add_lottery_needMoney(unsigned int money, unsigned int cost);
 private:
-    std::map<unsigned int, unsigned int> m_needMoneyMap;  // +0x00（ORIG 0x8365162；sizeof 0xc）
-    char m_pad[0xc];   // +0x0c..0x18（保持 0x18 总大小，避免 CDataManager 内后续成员偏移漂移）
-};
+    std::map<unsigned int, unsigned int> m_needMoneyMap;  // +0x00（ORIG 0x8365162；GCC4.4 map sizeof 0x18）
+};   // sizeof 0x18
 
 namespace EventClassify { class CEventScriptMng; }   // 权威定义见 CEventScriptMng.h
 
@@ -2663,10 +2672,9 @@ struct live_server_info_t
     // （GetPvPChannelGrade 按此宿主查找/填充）。+0xb504 处为 m_eventScriptMng
     // （init() new CEventScriptMng 写入、get_event_script_mng 读取），
     // 故基址 +0xb4ec 后 map 占 0xc、pad 补到 +0x18；类型语义化为指针（尺寸不变）。
-    std::map<int, std::vector<pvp_channel_info_t> > m_pvpChannelMap;  // +0x00
-    char m_padC[0xc];                       // +0x0c
+    std::map<int, std::vector<pvp_channel_info_t> > m_pvpChannelMap;  // +0x00（GCC4.4 map sizeof 0x18）
     EventClassify::CEventScriptMng* m_eventScriptMng;  // +0x18
-};
+};   // sizeof 0x1c
 
 // EventAvatarListScript 权威定义：EventAvatarListScript.h（set<int> m_avatars，
 // ORIG C1 0x8372e10 / clear 0x8372e52；与 importEventAvatarListScript 0x895e1ed
@@ -3024,6 +3032,7 @@ namespace WongWork { class CItemUpgrade_Separate; }  // ORIG _ZN8WongWork21CItem
 class ChattingEmoticonBase
 {
 public:
+    ChattingEmoticonBase() : m_index(0) {}   // ORIG Base::C1 0x80e5c2a 含 m_index=0
     virtual ~ChattingEmoticonBase() {}
     virtual bool isUsable(const CUser& user) const = 0;        // vtable+0x08
     virtual int GetStartArrayIndex() const = 0;                // vtable+0x0c

@@ -32,8 +32,9 @@ struct stServerIndex
     int m_field4;   // +0x04
     bool operator<(const stServerIndex& o) const
     {
-        return m_field0 < o.m_field0 ||
-               (m_field0 == o.m_field0 && m_field4 < o.m_field4);
+        // ORIG 0x08a8cbce：先比 +0x04（m_field4），相等再比 +0x00（m_field0）。
+        return m_field4 < o.m_field4 ||
+               (m_field4 == o.m_field4 && m_field0 < o.m_field0);
     }
 };
 

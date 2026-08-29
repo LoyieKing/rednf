@@ -35,7 +35,7 @@ public:
     PacketHeader m_header;    // +0x00
     unsigned int m_accId;     // +0x0a
     char m_name[0x1e];        // +0x0e
-};
+} __attribute__((packed));
 
 // ---------------------------------------------------------------------------
 // ORIG 0x08263224（报告 Dispatcher_MouseRegister/process.md）：

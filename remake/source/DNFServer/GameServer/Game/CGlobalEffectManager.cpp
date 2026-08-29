@@ -22,14 +22,13 @@ static const float kValueScale = 10000.0f;
 // CGlobalEffect（0x2c）
 // ============================================================================
 
-// ORIG 0x084b800a：type@+0、value@+4、name@+8（strncpy 0x1e）、endTime@+0x28。
+// ORIG 0x084b800a：type@+0、value@+4、name@+8（无条件 strncpy 0x1e、无尾 0）、endTime@+0x28。
 CGlobalEffect::CGlobalEffect(unsigned int type, float value, const char* name,
                              long endTime)
-    : m_type(type), m_value(value), m_endTime(endTime)
+    : m_type(type), m_value(value)
 {
-    if (name)
-        strncpy(m_name, name, sizeof(m_name) - 1);
-    m_name[sizeof(m_name) - 1] = '\0';
+    strncpy(m_name, name, sizeof(m_name) - 2);  // 0x1e，匹配 ORIG
+    m_endTime = endTime;
 }
 
 // ORIG 0x082a7214：trivial dtor（仅 ret）。
@@ -55,13 +54,12 @@ bool CGlobalEffect::isTimeout(long curSec) const
     return m_endTime <= curSec;
 }
 
-// ORIG 0x084b7880：put_int(type) / put_int(round(value*10000.0f)) /
+// ORIG 0x084b7880：put_int(type) / put_int((int)(value*10000.0f) 截断) /
 //               put_int(strlen(name)) / put_str(name,len) / put_int(endTime)。
 void CGlobalEffect::makeNotifyInfo(PacketGuard& packet) const
 {
     packet.put_int( static_cast<int>(m_type));
-    packet.put_int(
-        static_cast<int>(floorf(m_value * kValueScale + 0.5f)));
+    packet.put_int(static_cast<int>(m_value * kValueScale));
     size_t len = strlen(m_name);
     packet.put_int( static_cast<int>(len));
     packet.put_str( m_name, static_cast<int>(len));

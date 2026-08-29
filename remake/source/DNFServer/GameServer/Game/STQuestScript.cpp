@@ -24,13 +24,14 @@
 #include <time.h>
 
 #include "Quest.h"
+#include "MyRandom.h"          // suffleTrainingQuests 的 random_shuffle 随机数器
 
 #include "DNFLexWrapper.h"
 
 // loadRDARScriptListFile 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77，
 // mangled _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE）。
 // STScriptFileList 无权威头，此处仅前置声明 + 正常 C++ 自由函数声明（非 asm 桥）。
-class STScriptFileList;
+// STScriptFileList 权威定义见 NpcScript.h（经 Quest.h include 链可见）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* map);
 
@@ -38,11 +39,14 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 // g_questScriptBaseDirectory 定义见下（ORIG B 0x9500380，供 EpisodeScript 等
 // loadRDARScriptFile 首参，另一处 0x580 行已定义）；此处仅 town 目录定义。
 char g_townScriptBaseDirectory[0x100];    // ORIG B 0x9500da0
+extern std::map<int, std::string> g_townScriptFileList;  // 定义于 GameWorld.cpp（ORIG B 0x9500ea0）
+// g_questScriptFileList 权威定义见 InitScriptProducers_4.cpp（extern 声明 + loadRDARScriptListFile 填充）。
+        // ORIG B 0x9500480（initQuestScript 填充）
 
 namespace
 {
-// 目录补齐：末尾非 '\' 且非 '/' 时补 "/"。
-void AppendDirSlash(char* dir)
+// 目录补齐：末尾非 '\' 且非 '/' 时补 "\\"（ORIG Init*/init* 族共用该字符）。
+void AppendDirSeparator(char* dir)
 {
     size_t len = strlen(dir);
     if (len == 0)
@@ -52,7 +56,7 @@ void AppendDirSlash(char* dir)
     char last = dir[len - 1];
     if (last != '\\' && last != '/')
     {
-        dir[len] = '/';
+        dir[len] = '\\';
         dir[len + 1] = '\0';
     }
 }
@@ -256,10 +260,7 @@ void TownScript::clear()
 ST_TrainingQuest_Select_Prob::ST_TrainingQuest_Select_Prob()
 {
     m_count = 0;
-    for (int i = 0; i < 365; ++i)
-    {
-        m_dayProb[i].clear();
-    }
+    m_pairs.clear();   // ORIG 正常路径仅 m_count=0 + m_pairs.clear()；数组由隐式构造初始化
 }
 
 ST_TrainingQuest_Select_Prob::~ST_TrainingQuest_Select_Prob()
@@ -309,12 +310,13 @@ void TrainingQuestScript::suffleTrainingQuests()
 {
     int day = computeDayIndex();
     int count = m_selectProb.m_dayProb[day].at(0);
-    (void)count;
+    // ORIG 0x08aafcbc：MyRandom(count) 作随机数器（3 参 random_shuffle）。
+    MyRandom rnd(count);
     for (int i = 0; i <= 0x45; ++i)
     {
         if (!m_questProb[i].empty())
         {
-            std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end());
+            std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end(), rnd);
         }
     }
 }
@@ -391,11 +393,15 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 
 // ===================== 脚本导入 =====================
 
+// 权威定义见 InitScriptProducers_4.cpp（g_questScriptFileList B 0x9500480）。
+extern std::map<int, std::string> g_questScriptFileList;
+
 int initQuestScript(const char* dir, const char* list)
 {
     strncpy(g_questScriptBaseDirectory, dir, 0x100);
-    AppendDirSlash(g_questScriptBaseDirectory);
-    if (!loadRDARScriptListFile(0, g_questScriptBaseDirectory, list, 0))
+    AppendDirSeparator(g_questScriptBaseDirectory);
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_questScriptFileList),
+                                g_questScriptBaseDirectory, list, 0))
     {
         return 0;
     }
@@ -502,8 +508,9 @@ int importQuestScript(QuestScript* script, const char* path)
 int initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptBaseDirectory, dir, 0x100);
-    AppendDirSlash(g_townScriptBaseDirectory);
-    if (!loadRDARScriptListFile(0, g_townScriptBaseDirectory, list, 0))
+    AppendDirSeparator(g_townScriptBaseDirectory);
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_townScriptFileList),
+                                g_townScriptBaseDirectory, list, 0))
     {
         return 0;
     }
@@ -512,67 +519,261 @@ int initTownScript(char* dir, char* list)
 
 bool importTownScript(TownScript* script, const char* path)
 {
+    // ORIG T 0x8aada90（382 条）逐指令转写：完整键值解析器。
     if (!loadRDARScriptFile("Script/TownScript", path))
     {
         return false;
     }
     script->clear();
 
+    // ORIG：getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory)
+    getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory);
+
     std::string line;
-    if (!ScanType(line, true))
-    {
-        return false;
-    }
-    script->m_field0 = 0;
-    if (!ScanType(line, true))
-    {
-        return false;
-    }
-    script->m_str4 = line;
-    if (!ScanType(line, true))
-    {
-        return false;
-    }
-    script->m_str8 = line;
+    std::string sub;
     int value = 0;
-    if (!ScanInt(&value))
+    for (;;)
     {
-        return false;
+        if (!ScanType(line, true))
+        {
+            return false;
+        }
+        if (line == "[name]")
+        {
+            if (!ScanStr(&script->m_str4))
+                return false;
+            continue;
+        }
+        if (line == "[entering title]")
+        {
+            if (!ScanStr(&script->m_str8))
+                return false;
+            continue;
+        }
+        if (line == "[entering title next]")
+        {
+            if (!ScanStr(&script->m_str10))
+                return false;
+            continue;
+        }
+        if (line == "[cutscene image]")
+        {
+            if (!ScanStr(&script->m_strc))
+                return false;
+            if (!ScanInt(&script->m_14))
+                return false;
+            continue;
+        }
+        if (line == "[dungeon what must be cleared]")
+        {
+            if (!ScanInt(&script->m_18))
+                return false;
+            continue;
+        }
+        if (line == "[only server parsing dungeon what must be cleared]")
+        {
+            if (!ScanInt(&script->m_1c))
+                return false;
+            continue;
+        }
+        if (line == "[area]")
+        {
+            TownAreaScript area;
+            area.clear();
+            if (!ScanInt(&area.m_areaIndex))
+                return false;
+            if (!ScanStr(&area.m_mapName))
+                return false;
+            // [minimap rect]：4 个 int，按 ORIG 顺序 m_00/m_08/m_04/m_0c 填 T_Rect
+            if (!ScanType(sub, true))
+                return false;
+            if (sub == "[minimap rect]")
+            {
+                T_Rect r;
+                int v = 0;
+                int i = 0;
+                for (;;)
+                {
+                    if (!ScanInt(&v))
+                        return false;
+                    if (i == 0)
+                        r.m_00 = v;
+                    else if (i == 1)
+                        r.m_08 = v;
+                    else if (i == 2)
+                        r.m_04 = v;
+                    else
+                        r.m_0c = v;
+                    if (i >= 3)
+                        break;
+                    ++i;
+                }
+                area.m_rects.push_back(r);
+                if (!ScanType(sub, true))
+                    return false;
+            }
+            else
+            {
+                line = sub;
+            }
+            // [use private store] → m_field24
+            if (line == "[use private store]")
+            {
+                if (!ScanInt(&value))
+                    return false;
+                area.m_field24 = (value != 0) ? 1 : 0;
+                if (!ScanType(line, true))
+                    return false;
+            }
+            // 区域类型：normal/gate/fishing place/pub/dungeon gate/
+            //          safe zone against a / safe zone against b
+            if (line == "[normal]")
+                area.m_areaType = 0;
+            else if (line == "[gate]")
+                area.m_areaType = 1;
+            else if (line == "[fishing place]")
+                area.m_areaType = 2;
+            else if (line == "[pub]")
+                area.m_areaType = 3;
+            else if (line == "[dungeon gate]")
+                area.m_areaType = 4;
+            else if (line == "[safe zone against a]")
+                area.m_areaType = 5;
+            else if (line == "[safe zone against b]")
+                area.m_areaType = 6;
+            else
+            {
+                area.m_areaType = 0;
+            }
+            if (!ScanInt(&value))
+                return false;
+            area.m_field18.push_back(value);
+            script->m_areas[area.m_areaIndex] = area;
+            continue;
+        }
+        if (line == "[limit level]")
+        {
+            if (!ScanInt(&script->m_3c))
+                return false;
+            continue;
+        }
+        if (line == "[need quest]")
+        {
+            if (!ScanInt(&script->m_40))
+                return false;
+            continue;
+        }
+        // 未知键：忽略（回到循环读下一行）
     }
-    script->m_14 = value;
+    // ORIG 尾部：script->m_field0 = g_townScriptFileList.FindIndexByFullScan(path)
+    script->m_field0 = reinterpret_cast<STScriptFileList*>(&g_townScriptFileList)
+                           ->FindIndexByFullScan(path);
     return true;
 }
 
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 {
-    if (!loadRDARScriptFile("Script/TrainingQuestScript", path))
+    // ORIG T 0x8aaf542（258 条）逐指令转写：键值解析器。
+    // 键：[select prob] count+pairs；[rand value] dayProb[366]；
+    // [level] 递增序号段 → m_questProb[prev]，否则（含 -100）→ m_sameApplyQuest；
+    // [training quest end] 终止。
+    if (!loadRDARScriptFile("", path))
     {
         return 0;
     }
     script->clear();
 
     std::string line;
-    int value = 0;
-    if (!ScanType(line, true))
-    {
-        return 0;
-    }
-    if (!ScanInt(&value))
-    {
-        return 0;
-    }
-    script->m_selectProb.m_count = value;
-    for (int i = 0; i < script->m_selectProb.m_count && i < 365; ++i)
+    std::string sub;
+    int prev = 0;
+    for (;;)
     {
         if (!ScanType(line, true))
         {
             return 0;
         }
-        if (!ScanInt(&value))
+        if (line == "[select prob]")
         {
-            return 0;
+            if (!ScanInt(&script->m_selectProb.m_count))
+                return 0;
+            for (;;)
+            {
+                int a = 0, b = 0;
+                if (!ScanInt(&a))
+                    break;
+                if (!ScanInt(&b))
+                    break;
+                script->m_selectProb.m_pairs.push_back(std::make_pair(a, b));
+                if (!ScanType(sub, true))
+                    break;
+                if (sub == "[/select prob]")
+                    break;
+            }
+            continue;
         }
-        script->m_selectProb.m_dayProb[i].push_back(value);
+        if (line == "[rand value]")
+        {
+            for (int i = 0; i <= 0x16d; ++i)
+            {
+                int j = 0;
+                for (;;)
+                {
+                    int v = 0;
+                    if (!ScanInt(&v))
+                        break;
+                    script->m_selectProb.m_dayProb[i].push_back(v);
+                    ++j;
+                    if (j >= script->m_selectProb.m_count)
+                        break;
+                }
+                if (!ScanType(sub, true))
+                    break;
+                if (sub == "[/rand value]")
+                    break;
+            }
+            continue;
+        }
+        if (line == "[level]")
+        {
+            int v = 0;
+            if (!ScanInt(&v))
+                return 0;
+            if (v != -100 && v == prev + 1)
+            {
+                // 递增序号：值进 m_questProb[prev]
+                for (;;)
+                {
+                    int x = 0;
+                    if (!ScanInt(&x))
+                        break;
+                    script->m_questProb[prev].push_back(x);
+                    if (!ScanType(sub, true))
+                        break;
+                    if (sub == "[/level]")
+                        break;
+                }
+                prev = v;
+            }
+            else
+            {
+                // 非递增（含 -100）：值进 m_sameApplyQuest
+                for (;;)
+                {
+                    int x = 0;
+                    if (!ScanInt(&x))
+                        break;
+                    script->m_sameApplyQuest.push_back(x);
+                    if (!ScanType(sub, true))
+                        break;
+                    if (sub == "[/level]")
+                        break;
+                }
+            }
+            continue;
+        }
+        if (line == "[training quest end]")
+            break;
+        // 未知键：忽略（回循环读下一行）
     }
     return 1;
 }

@@ -494,7 +494,7 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
 }
 
 
-// ---------------------------------------------------------------------------
+ // ---------------------------------------------------------------------------
 // _getGenItemProbIdx —— ORIG T 0x08535a88（Hell）/ T 0x0853736e（Special），
 // objdump 逐指令转写：遍历 m_probs(+0x24)，命中条件 v[0]<=value && v[1]>=value
 // （cmp (elem),value jg 跳过；cmp elem1,value jge 命中）；i>=size 返回 -1。
@@ -503,28 +503,30 @@ int CMonsterDrop_Hell::_getGenItemProbIdx(int value)
 {
     std::vector<stGenItemProb_t>& probs = m_probsSub;   // +0x24
     int i = 0;
-    while (static_cast<int>(probs.size()) > i)
+    // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
+    while (probs.size() > i)
     {
         stGenItemProb_t& e = probs[i];
         if (e.v[0] <= value && e.v[1] >= value)
             return i;
         ++i;
     }
-    return (static_cast<int>(probs.size()) <= i) ? -1 : i;
+    return (probs.size() <= i) ? -1 : i;
 }
 
 int CSpecialMonsterDrop::_getGenItemProbIdx(int value)
 {
     std::vector<stGenItemProb_t>& probs = m_probsSub;   // +0x24
     int i = 0;
-    while (static_cast<int>(probs.size()) > i)
+    // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
+    while (probs.size() > i)
     {
         stGenItemProb_t& e = probs[i];
         if (e.v[0] <= value && e.v[1] >= value)
             return i;
         ++i;
     }
-    return (static_cast<int>(probs.size()) <= i) ? -1 : i;
+    return (probs.size() <= i) ? -1 : i;
 }
 
 }  // namespace WongWork

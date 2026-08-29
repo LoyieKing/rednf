@@ -89,9 +89,12 @@ void CDungeonClear::AradfromString(CUser* pUser, const char* str)
                 unsigned int questId = pDungeon->getHeroesRequiredQuest();
                 if (questId != 0)
                 {
-                    // Check if quest is cleared
-                    // CQuestClear is at CUser + offset + 4 from getCurCharacQuestR
-                    // This is a simplified implementation
+                    // CQuestClear 位于 UserQuest 内嵌 +4 处（CListTables.cpp 同型声明）
+                    unsigned char questCleared =
+                        ((WongWork::CQuestClear*)((char*)pUser->getCurCharacQuestR() + 4))
+                            ->isClearedQuest(questId);
+                    if (questCleared != 0)
+                        diff = 3;   // ORIG 0x8484169：quest 已清 → 强制 diff=3
                 }
             }
         }
@@ -176,7 +179,7 @@ void CDungeonClear::toString(char* buf, unsigned int bufSize) const
         }
         else
         {
-            written = snprintf(buf + offset, bufSize - offset, ";%d|%d", (int)it->first, (int)it->second);
+            written = snprintf(buf + offset, bufSize - offset, ",%d|%d", (int)it->first, (int)it->second);
         }
 
         if (written < 0)
@@ -206,7 +209,7 @@ void CDungeonClear::toString(std::string& out, int nUnknown) const
         }
         else
         {
-            snprintf(buf, sizeof(buf), ";%d|%d", (int)it->first, (int)it->second);
+            snprintf(buf, sizeof(buf), ",%d|%d", (int)it->first, (int)it->second);
         }
         out += buf;
     }

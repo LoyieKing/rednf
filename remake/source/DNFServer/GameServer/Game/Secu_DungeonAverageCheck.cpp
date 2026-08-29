@@ -31,7 +31,8 @@ void Secu_DungeonAverageCheck::SetPartyPtr(CParty* party)
 
 void Secu_DungeonAverageCheck::startDungeon()
 {
-    m_killInfos.clear();
+    // ORIG 0x8279490：调用 reset()（reset 内部即 clear）
+    reset();
 }
 
 std::vector<SecKillMonsterInfo>::iterator

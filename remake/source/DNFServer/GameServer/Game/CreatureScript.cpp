@@ -13,6 +13,7 @@
 #include "GameScriptEnumHelpers.h"
 #include "LogManager.h"
 #include "NpcScript.h"
+#include "STComputeDamageVariable.h"
 
 // ---- 全局（ORIG 属 RDARScriptObject.cpp/RDARScriptAttackInfo.cpp）----
 char g_creatureScriptBaseDirectory[0x104];
@@ -32,22 +33,24 @@ selectiveGrowCreatureInfo::selectiveGrowCreatureInfo()
 
 void selectiveGrowCreatureInfo::clear()
 {
+    // ORIG 0x833df64：growLevel/AType/BTypeItem/AType/BTypeCreature 置 -1，growItemCount 置 1。
     m_usingExpItem = 0;
-    m_growLevel = 0;
-    m_growATypeCreature = 0;
-    m_growBTypeCreature = 0;
-    m_growATypeItem = 0;
-    m_growBTypeItem = 0;
-    m_growItemCount = 0;
+    m_growLevel = -1;
+    m_growATypeItem = -1;
+    m_growBTypeItem = -1;
+    m_growATypeCreature = -1;
+    m_growBTypeCreature = -1;
+    m_growItemCount = 1;
 }
 
 void CreatureScriptSkillInfo::clear()
 {
+    // ORIG 0x833dff0：m_fieldc=1、m_field10=-1，string 从 +0x14 起 5 个
     m_str0.clear();
     m_str4.clear();
     m_field8 = 0;
-    m_fieldc = 0;
-    m_str10.clear();
+    m_fieldc = 1;
+    m_field10 = -1;
     m_str14.clear();
     m_str18.clear();
     m_str1c.clear();
@@ -102,63 +105,58 @@ void CreatureScript::clear()
     m_field8 = 0;
     m_fieldc = 0;
     m_field10 = 0;
-    m_layer = 0;
-    m_field18 = 0;
+    m_layer = 1;
+    m_field18 = (int)0xffffffce;
     m_field1c = 0;
     m_field20 = 0;
-    m_directionCorrect = 0;
-    for (int i = 0; i < 5; ++i)
-    {
-        m_moveSpeed[i] = 0;
-    }
-    m_gravity = 0;
-    m_startLevel = 0;
-    m_permissionLevel = 0;
-    m_maxLevel = 0;
-    m_parentMaxLevel = 0;
-    m_artifactSlotRed = 0;
-    m_artifactSlotBlue = 0;
-    m_artifactSlotGreen = 0;
-    m_learnOverSkillLevel = 0;
+    m_directionCorrect = 1;
+    m_moveSpeed[4] = 0;      // ORIG 仅清 +0x38（moveSpeed[4]），[0..3] 保留
+    m_gravity = 1500;
+    m_startLevel = 1;
+    m_permissionLevel = 1;
+    m_maxLevel = 1;
+    m_parentMaxLevel = 1;
+    // ORIG clear 不复位 m_artifactSlotRed/Blue/Green（+0x50..+0x58）
+    m_learnOverSkillLevel = 1;
     m_skillMP = 0;
     m_overSkillMP = 0;
     m_skillType = 0;
     m_overSkillType = 0;
-    m_basicMotion.clear();
-    m_walkMotion.clear();
-    m_runMotion.clear();
-    m_flyMotion.clear();
-    m_getExpMotion.clear();
-    m_getExpOverMotion.clear();
-    m_getExpUnderMotion.clear();
-    m_skillMotion.clear();
-    m_overSkillMotion.clear();
-    m_responseMotion.clear();
-    m_specialMotion.clear();
-    m_equipMotion.clear();
-    m_equipOverMotion.clear();
-    m_equipUnderMotion.clear();
-    m_basicOverEffect.clear();
-    m_walkOverEffect.clear();
-    m_runOverEffect.clear();
-    m_skillOverEffect.clear();
-    m_overSkillOverEffect.clear();
-    m_responseOverEffect.clear();
-    m_specialOverEffect.clear();
-    m_basicUnderEffect.clear();
-    m_walkUnderEffect.clear();
-    m_runUnderEffect.clear();
-    m_skillUnderEffect.clear();
-    m_overSkillUnderEffect.clear();
-    m_responseUnderEffect.clear();
-    m_specialUnderEffect.clear();
-    m_defaultUnderEffect.clear();
+    m_basicMotion = "";
+    m_walkMotion = "";
+    m_runMotion = "";
+    // ORIG clear 不复位 m_flyMotion（+0x7c）
+    m_getExpMotion = "";
+    m_getExpOverMotion = "";
+    m_getExpUnderMotion = "";
+    m_skillMotion = "";
+    m_overSkillMotion = "";
+    m_responseMotion = "";
+    m_specialMotion = "";
+    m_equipMotion = "";
+    m_equipOverMotion = "";
+    m_equipUnderMotion = "";
+    m_basicOverEffect = "";
+    m_walkOverEffect = "";
+    // ORIG clear 不复位 m_runOverEffect（+0xb4）
+    m_skillOverEffect = "";
+    m_overSkillOverEffect = "";
+    m_responseOverEffect = "";
+    m_specialOverEffect = "";
+    m_basicUnderEffect = "";
+    m_walkUnderEffect = "";
+    m_runUnderEffect = "";
+    // ORIG clear 不复位 m_skillUnderEffect（+0xd4）
+    m_overSkillUnderEffect = "";
+    m_responseUnderEffect = "";
+    m_specialUnderEffect = "";
+    m_defaultUnderEffect = "";
     m_additionalAnimations.clear();
-    m_defaultParticle.clear();
-    m_responseSoundTag.clear();
-    m_wingSoundTag.clear();
-    m_walkSoundTag.clear();
-    m_runSoundTag.clear();
+    m_defaultParticle = "";
+    m_responseSoundTag = "";
+    m_wingSoundTag = "";
+    m_walkSoundTag = "";
+    m_runSoundTag = "";
     m_revisionX = 0;
     m_revisionY = 0;
     m_etcMotion.clear();
@@ -169,7 +167,7 @@ void CreatureScript::clear()
     m_piercing.clear();
     m_intData.clear();
     m_stringData.clear();
-    m_directory.clear();
+    m_directory = "";
     m_evolutionQuestId = 0;
     m_evolutionCreatureId = 0;
     m_evolutionLevel = 0;
@@ -190,22 +188,10 @@ void CreatureScript::clear()
 // ---- AttackInfo 生命周期与方法 ----
 
 // ORIG 0x889037c：构造 string/set/向量 后调 clear()。
+// ORIG 0x0889037c：只构造成员容器（string/set/vector<int>[3]/vector<CatchObjectInfo>）
+// 后调 clear()，标量值全部由 clear() 设定（ctor 不预置 0）。
 AttackInfo::AttackInfo()
-    : m_damage(0.0f), m_damageIncreaseRate(0.0f), m_absoluteDamage(0),
-      m_damageBonus(0), m_attackType(0), m_weaponDamageApply(0),
-      m_humanActiveStatusRate(0.0f), m_damageReaction(0), m_pushAside(0),
-      m_liftUp(0), m_criticalHit(0.0f), m_stuck(0.0f), m_stuckProbIncrease(0),
-      m_knuckBack(0), m_knuckBackAngle(0), m_weakness(0.0f), m_weakness2(0.0f),
-      m_bounce(0), m_ignoreDefense(0), m_hitWav(), m_attackDirection(0),
-      m_hitInfo(0), m_blood(0), m_field5c(0), m_field60(0.0f),
-      m_isUseWeaponHitDelayRate(0), m_hitDirection(0), m_ignoreSuperArmor(0),
-      m_ignoreWeight(0), m_forceHitStunTime(0), m_hpDrain(0), m_mpDrain(0),
-      m_field80(0), m_field84(0.0f), m_isHitNumberIncreasing(0), m_moduleTag(0),
-      m_ignoreDiehard(0), m_hitCheckByScreenPos(0), m_maxTargetHitNumber(0),
-      m_attackMyself(0), m_attackFriend(0), m_attackEnemy(0), m_elements(),
-      m_activeStatusVectors(), m_activeStatusType(), m_activeStatusValue(),
-      m_activeStatusInt(), m_activeStatusInt2(), m_activeStatusInt3(),
-      m_damageRate(), m_catchObjects()
+    : m_hitWav(), m_elements(), m_activeStatusVectors(), m_catchObjects()
 {
     clear();
 }
@@ -218,7 +204,6 @@ AttackInfo::~AttackInfo()
 void AttackInfo::clear()
 {
     m_damage = 0.0f;
-    m_damageIncreaseRate = 0.0f;
     m_absoluteDamage = 0;
     m_damageBonus = 0;
     m_attackType = 0;
@@ -246,40 +231,31 @@ void AttackInfo::clear()
     m_hitDirection = 0;
     m_ignoreSuperArmor = 0;
     m_ignoreWeight = 0;
-    m_forceHitStunTime = 0;
     m_hpDrain = 0;
     m_mpDrain = 0;
-    m_field80 = 0;
-    m_field84 = 100.0f;
     m_isHitNumberIncreasing = 1;
+    m_forceHitStunTime = 0;
     m_moduleTag = 3;
     m_ignoreDiehard = 0;
     m_hitCheckByScreenPos = 0;
-    m_maxTargetHitNumber = -1;
-    m_attackMyself = 0;
-    m_attackFriend = 0;
-    m_attackEnemy = 1;
+    // ORIG 循环1（0x98+i*4 = (i==2)：m_attackFlags[0..2]）
+    for (int i = 0; i < 3; ++i)
+        m_attackFlags[i] = (i == 2);
     m_elements.clear();
-    m_activeStatusType[0] = 0x12;
-    m_activeStatusType[1] = 0x12;
-    m_activeStatusType[2] = 0x12;
-    m_activeStatusValue[0] = 0.0f;
-    m_activeStatusValue[1] = 0.0f;
-    m_activeStatusValue[2] = 0.0f;
-    m_activeStatusInt[0] = 0;
-    m_activeStatusInt[1] = 0;
-    m_activeStatusInt[2] = 0;
-    m_activeStatusInt2[0] = 0;
-    m_activeStatusInt2[1] = 0;
-    m_activeStatusInt2[2] = 0;
-    m_activeStatusInt3[0] = 0;
-    m_activeStatusInt3[1] = 0;
-    m_activeStatusInt3[2] = 0;
+    // ORIG 循环2：type/value/int/int2/int3 + vector 清空
     for (int i = 0; i < 3; ++i)
     {
+        m_activeStatusType[i] = 0x12;
+        m_activeStatusValue[i] = 0.0f;
+        m_activeStatusInt[i] = 0;
+        m_activeStatusInt2[i] = 0;
+        m_activeStatusInt3[i] = 0;
         m_activeStatusVectors[i].clear();
-        m_damageRate[i] = 100.0f;
     }
+    // ORIG 循环3：damageRate = 100.0f
+    for (int i = 0; i < 3; ++i)
+        m_damageRate[i] = 100.0f;
+    m_maxTargetHitNumber = -1;
     m_catchObjects.clear();
 }
 
@@ -307,19 +283,23 @@ void AttackInfo::setElement(ENUM_ELEMENT element)
     }
 }
 
-// ORIG 0x88907fe：对集合中每个元素（除 4）置 is-valid 标记，调用 isValidAttackInfoElement。
+// ORIG 0x809576e：SDC 元素合法性（STComputeDamageVariable* 版本，定义于 SDCLink.cpp）。
+int isValidAttackInfoElement(STComputeDamageVariable* v, int elem);
+
+// ORIG 0x88907fe：对集合中每个元素（除 4）在 STComputeDamageVariable::m_elemEnable
+// 置 is-valid 标记，调用 isValidAttackInfoElement(STComputeDamageVariable*, int)。
 bool AttackInfo::isValidElement(ENUM_ELEMENT element)
 {
-    char flags[4] = {0, 0, 0, 0};
+    STComputeDamageVariable v;
     for (std::set<ENUM_ELEMENT>::const_iterator it = m_elements.begin();
-         it != m_elements.end(); ++it)
+         it != m_elements.end(); it++)
     {
-        if (*it != ENUM_ELEMENT_NONE && *it >= 0 && *it < 4)
-        {
-            flags[*it] = 1;
-        }
+        ENUM_ELEMENT e = *it;
+        if (e == ENUM_ELEMENT_NONE)
+            continue;
+        v.m_elemEnable[e] = 1;
     }
-    return isValidAttackInfoElement(flags, element);
+    return isValidAttackInfoElement(&v, element);
 }
 
 // ORIG 0x88908b8：m_attackType(+0x10) = type。
@@ -886,7 +866,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                         }
                         else if (sub == "[skill mp]")
                         {
-                            info.m_str10 = "";
+                            info.m_field10 = 0;   // 新结构 +0x10 为 int（原 m_str10 字符串已改型）
                             info.m_field8 = ScanInt((bool*)0);
                         }
                         else if (sub == "[skill motion]")
@@ -1011,15 +991,15 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
         }
         else if (tag == "[attack myself]")
         {
-            info->m_attackMyself = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            info->m_attackFlags[0] = (ScanInt((bool*)0) != 0) ? 1 : 0;
         }
         else if (tag == "[attack friend]")
         {
-            info->m_attackFriend = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            info->m_attackFlags[1] = (ScanInt((bool*)0) != 0) ? 1 : 0;
         }
         else if (tag == "[attack enemy]")
         {
-            info->m_attackEnemy = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            info->m_attackFlags[2] = (ScanInt((bool*)0) != 0) ? 1 : 0;
         }
         else if (tag == "[elemental property]")
         {
@@ -1277,16 +1257,18 @@ CCreatureScript::~CCreatureScript()
 }
 
 // ORIG 0x833c8e8：从原生 CreatureScript* 拷贝字段。
+// ORIG 0x833c8e8：从原生 CreatureScript* 拷贝字段。
+// ORIG 无 src==0 检查（0x833c8e8 直接 _Znaj 后访问 src）；flags 以 0x833c90b
+// 循环读（mov 0xc(%ebp),%eax; mov i,%ecx; add $0x14,%ecx; mov (%eax,%ecx,4),%eax
+// = src + 4*(i+0x14) = src+0x50+4i，即 m_artifactSlotRed/Blue/Green 组）。
 void CCreatureScript::Set(CreatureScript* src)
 {
-    if (src == 0)
-    {
-        return;
-    }
     m_artifactSlotFlags = new char[3];
-    m_artifactSlotFlags[0] = (src->m_artifactSlotRed != 0) ? 1 : 0;
-    m_artifactSlotFlags[1] = (src->m_artifactSlotBlue != 0) ? 1 : 0;
-    m_artifactSlotFlags[2] = (src->m_artifactSlotGreen != 0) ? 1 : 0;
+    for (int i = 0; i < 3; ++i)
+    {
+        m_artifactSlotFlags[i] =
+            reinterpret_cast<const int*>(src)[0x14 + i] != 0;
+    }
 
     m_field0 = src->m_evolutionQuestId;
     m_field4 = src->m_evolutionCreatureId;

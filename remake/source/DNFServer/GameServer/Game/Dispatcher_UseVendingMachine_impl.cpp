@@ -1,4 +1,9 @@
+
 #include "Dispatchers.h"
+
+// ORIG 自由函数 LineFunc(int, const char*, int, unsigned int) @0x085908d7 T；
+// 定义由 CompoundEmblemDeps.cpp 提供（见 CompoundEmblemDeps.h）。
+extern int LineFunc(int, const char*, int, unsigned int);
 
 // ---------------------------------------------------------------------------
 // Dispatcher_UseVendingMachine::dispatch_sig —— 自动售货机（扫地机/道具售货机）
@@ -354,18 +359,18 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     short        pos       = -1;
 
     if (!packet.get_int(machineId))
-        return 0;   // ORIG LineFunc(0xd029) 断言路径
+        return LineFunc(0xd029, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(slotId))
-        return 0;   // ORIG LineFunc(0xd02a) 断言路径
+        return LineFunc(0xd02a, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(pos))
-        return 0;   // ORIG LineFunc(0xd02b) 断言路径
+        return LineFunc(0xd02b, __PRETTY_FUNCTION__, 0, 0);
 
     const stVendingMachine_t* vm = _getVendingMachine(machineId);
     if (vm == 0)
-        return 0;   // ORIG LineFunc(0xd02f) 断言路径
+        return LineFunc(0xd02f, __PRETTY_FUNCTION__, 0, 0);
     const stVendingMachineInfo_t* info = _getVendingMachineInfo(vm, slotId);
     if (info == 0)
-        return 0;   // ORIG LineFunc(0xd033) 断言路径
+        return LineFunc(0xd033, __PRETTY_FUNCTION__, 0, 0);
 
     // 随机源：ORIG ctor 以 time 种子构造 this->m_rand（Dispatchers.cpp ctor 已 new）。
     // 给/赏物品数组（两槽：槽 0 给物品、槽 1 赏物品）。

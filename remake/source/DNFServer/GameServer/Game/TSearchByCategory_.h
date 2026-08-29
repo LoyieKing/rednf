@@ -6,11 +6,13 @@
 // 隐式 ctor 由 m_roi 成员声明自动产生，mangled 与 ORIG 一致。
 #include "ROI_Category.h"
 
+#pragma pack(push, 1)
 class TSearchByCategory_
 {
 public:
     char m_pad0[0xb];        // +0..+0xa
     ROI_Category m_roi;      // +0xb..+0x16（ctor 在 this+0xb 调 ROI_Category ctor）
 };
+#pragma pack(pop)
 
 #endif  // DNF_GAME_TSEARCHBYCATEGORY__H_

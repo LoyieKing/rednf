@@ -94,7 +94,9 @@ unsigned int TutorialData::getDialogSize(unsigned int key)
 }
 
 // ORIG _ZN12TutorialData12getDialogStrEjj @0x08ab852e
-char const* TutorialData::getDialogStr(unsigned int key, unsigned int idx)
+// ORIG 反汇编：map.find(0x10=param2)、vector.at(0xc=param1)、
+// 越界比较 param1 < size —— 即 param1 为 vector 索引、param2 为 map key。
+char const* TutorialData::getDialogStr(unsigned int idx, unsigned int key)
 {
     DialogMap::iterator it = m_dialogs.find(static_cast<int>(key));
     if (it == m_dialogs.end()) {
@@ -106,8 +108,8 @@ char const* TutorialData::getDialogStr(unsigned int key, unsigned int idx)
     return it->second.at(idx)->m_str.c_str();
 }
 
-// ORIG _ZN12TutorialData12getFaceIndexEjj @0x08ab85de
-int TutorialData::getFaceIndex(unsigned int key, unsigned int idx)
+// ORIG _ZN12TutorialData12getFaceIndexEjj @0x08ab85de（参数语义同 getDialogStr）。
+int TutorialData::getFaceIndex(unsigned int idx, unsigned int key)
 {
     DialogMap::iterator it = m_dialogs.find(static_cast<int>(key));
     if (it == m_dialogs.end()) {

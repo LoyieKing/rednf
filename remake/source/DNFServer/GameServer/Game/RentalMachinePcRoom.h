@@ -17,8 +17,8 @@ public:
     virtual ~RentalMachinePcRoom() {}                       // ORIG T @0x08270466 / W @0x082704c8
 
     // 槽2 Rent：ORIG T 0x082704e6（0x258 字节 pc_room 租赁事务链，报告 RentalMachinePcRoom/Rent.md）。
-    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output);
+    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                     InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG 0x0827073e = checkAllRentalItemScript() 尾调。
     virtual bool Ready();
     // 槽4 CheckRentableItem：ORIG 0x08270752 = m_impl->m_set.find(idx)!=end。

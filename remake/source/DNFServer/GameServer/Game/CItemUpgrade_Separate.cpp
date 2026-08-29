@@ -537,8 +537,7 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
     bool boardReady = false;
     if (success && newLevel > 5)
     {
-        char msgBuf[256];
-        std::memset(msgBuf, 0, sizeof(msgBuf));
+        char msgBuf[255];
         std::strncpy(msgBuf,
                      g_scriptStringManager_.findString(4, "game_server_msg_248",
                                                        static_cast<bool*>(0)),
@@ -579,8 +578,7 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
             return;
         }
 
-        char msgBuf[256];
-        std::memset(msgBuf, 0, sizeof(msgBuf));
+        char msgBuf[255];
         std::strncpy(msgBuf,
                      g_scriptStringManager_.findString(4, "game_server_msg_249",
                                                        static_cast<bool*>(0)),

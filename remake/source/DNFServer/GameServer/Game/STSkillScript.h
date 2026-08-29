@@ -167,6 +167,7 @@ public:
     std::vector<STPassiveFeatureData> m_passive268;  // +0x268
     std::string m_str274;                 // +0x274
     std::string m_str278;                 // +0x278
+    std::string m_str27c;                 // +0x27c（ORIG D1 0x837a174 析构实证）
     char m_280;                           // +0x280（1）
     std::vector<int> m_vec284;            // +0x284
     char m_290;                           // +0x290

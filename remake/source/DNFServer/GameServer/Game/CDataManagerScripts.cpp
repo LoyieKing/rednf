@@ -1057,7 +1057,7 @@ stDeathTower_t::stDeathTower_t()
     m_apcExpWeight = 0.0f;        // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
     m_monsterExpWeight = 0.0f;    // float 语义（[monster exp weight] fstps）
     m_rewardGoldWeight = 1.0f;
-    for (int i = 0; i < 200; ++i)
+    for (unsigned int i = 0; i < 200; ++i)
     {
         m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4
         m_rewardCardNum[i] = 0;               // this+0x324+i*4
@@ -2179,10 +2179,28 @@ stOneEmotionData::stOneEmotionData() : m_8(), m_c(), m_14(), m_18()
 {
     clear();
 }
+// ORIG 0x891b640（stOneEmotionData::operator=）：逐成员复制
+// 0x00/0x04 int、0x08/0x0c/0x14 string、0x10/0x11/0x12 char、0x18 vector。
+// 注意：+0x13 为 padding（m_pad13），ORIG 不复制；镜像布局须显式定义以
+// 覆盖编译器隐式逐成员赋值（隐式版会复制 m_pad13）。
+stOneEmotionData& stOneEmotionData::operator=(const stOneEmotionData& rhs)
+{
+    m_0 = rhs.m_0;
+    m_4 = rhs.m_4;
+    m_8 = rhs.m_8;
+    m_c = rhs.m_c;
+    m_10 = rhs.m_10;
+    m_11 = rhs.m_11;
+    m_12 = rhs.m_12;
+    m_14 = rhs.m_14;
+    m_18 = rhs.m_18;
+    return *this;
+}
+// ORIG W 0x8370bb0（0x9b 字节）：成员自动析构，标量无操作。
 stOneEmotionData::~stOneEmotionData() {}
+// ORIG W 0x891b61a：clear —— 清零标量 + 清空容器。
 void stOneEmotionData::clear()
 {
-    // ORIG 0x891b61a
     m_0 = 0;
     m_4 = 0;
     m_8.clear();
@@ -2190,10 +2208,10 @@ void stOneEmotionData::clear()
     m_10 = 0;
     m_11 = 0;
     m_12 = 0;
+    m_pad13 = 0;
     m_14.clear();
     m_18.clear();
 }
-
 // ORIG 0x8370c4c：构造两个 vector 后 clear
 stEmotionTypeTagsInfo::stEmotionTypeTagsInfo() : m_tags(), m_data()
 {

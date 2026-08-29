@@ -686,23 +686,25 @@ const char* CDataManager::get_server_name(int idx) const
 {
     switch (idx)
     {
-    case 1:  return "\xc4\xab\xc0\xce";                      // 카인      8c3327b
-    case 2:  return "\xb5\xf0\xb7\xb9\xc1\xf6\xbf\xa1";      // 디레지에  8c33280
-    case 3:  return "\xbd\xc3\xb7\xce\xc4\xda";              // 시로코    8c33289
-    case 4:  return "\xc7\xc1\xb7\xb9\xc0\xcc";              // 프레이    8c33290
-    case 5:  return "\xc4\xab\xbd\xc3\xbe\xdf\xbd\xba";      // 카시야스  8c33297
-    case 6:  return "\xc8\xfa\xb4\xf5";                      // 힐더      8c332a0
-    case 7:  return "\xb7\xe7\xc5\xa9";                      // 루크      8c332a5
-    case 8:  return "\xbc\xbc\xb8\xae\xbe\xc6";              // 세리아    8c332aa
-    case 9:  return "\xbe\xc8\xc5\xe6";                      // 안톤      8c332b1
-    case 10: return "\xb7\xcf\xbd\xc3";                      // 록시      8c332b6
-    case 11: return "\xb9\xd9\xc4\xae";                      // 바칼      8c332bb
-    case 12: return "\xbf\xc0\xc1\xee\xb8\xb6";              // 오즈마    8c332c0
-    case 13: return "\xc4\xab\xc0\xdc";                      // 카잔      8c332c7
-    case 14: return "\xc0\xcc\xba\xa5\xc6\xae""1";           // 이벤트1   8c332cc
-    case 15: return "\xc0\xcc\xba\xa5\xc6\xae""2";           // 이벤트2   8c332d4
-    case 16: return "\xc0\xcc\xba\xa5\xc6\xae""3";           // 이벤트3   8c332dc
-    case 17: return "\xbd\xba\xc5\xb8\xc6\xae";              // 스타트    8c332e4
+    case 0:  return "\xc4\xab\xc0\xce";                      // 카인      8c3327b
+    case 1:  return "\xb5\xf0\xb7\xb9\xc1\xf6\xbf\xa1";      // 디레지에  8c33280
+    case 2:  return "\xbd\xc3\xb7\xce\xc4\xda";              // 시로코    8c33289
+    case 3:  return "\xc7\xc1\xb7\xb9\xc0\xcc";              // 프레이    8c33290
+    case 4:  return "\xc4\xab\xbd\xc3\xbe\xdf\xbd\xba";      // 카시야스  8c33297
+    case 5:  return "\xc8\xfa\xb4\xf5";                      // 힐더      8c332a0
+    case 6:  return "\xb7\xe7\xc5\xa9";                      // 루크      8c332a5
+    case 7:  return "\xbc\xbc\xb8\xae\xbe\xc6";              // 세리아    8c332aa
+    case 8:  return "\xbe\xc8\xc5\xe6";                      // 안톤      8c332b1
+    case 9:  return "\xb7\xcf\xbd\xc3";                      // 록시      8c332b6
+    case 10: return "\xb9\xd9\xc4\xae";                      // 바칼      8c332bb
+    case 11: return "\xbf\xc0\xc1\xee\xb8\xb6";              // 오즈마    8c332c0
+    case 12: return "\xc4\xab\xc0\xdc";                      // 카잔      8c332c7
+    case 13: return "\xc0\xcc\xba\xa5\xc6\xae""1";           // 이벤트1   8c332cc
+    case 14: return "\xc0\xcc\xba\xa5\xc6\xae""2";           // 이벤트2   8c332d4
+    case 15: return "\xc0\xcc\xba\xa5\xc6\xae""3";           // 이벤트3   8c332dc
+    case 16: return "\xbd\xba\xc5\xb8\xc6\xae";              // 스타트    8c332e4
+    case 17: return "\xc6\xdb\xbc\xb7""1";                   // 퍼섭1     8c332eb
+    case 18: return "\xc6\xdb\xbc\xb7""2";                   // 퍼섭2     8c332f1
     default:
         break;
     }

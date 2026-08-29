@@ -61,6 +61,7 @@ struct STGuildProxy;   // 仅指针引用（LoadCoolTimeItemInfo）；完整定�
 #include <time.h>
 
 #include "CUserCharacInfo.h"
+#include "IData.h"          // Character 空基类（ORIG C1 0x0848683c 先调 IData C1）
 #include "InstanceRentalSystem.h"
 #include "SigTypes.h"        // SIG_LOAD_CHARAC/INVENTORY/TICKET + SIG_SAVE_PC_ROOM_RENT_ITEM 等完整布局
 #include "CNetwork.h"
@@ -504,8 +505,10 @@ struct _Charac_info
     ~_Charac_info();                        // ORIG W 0x08697982
     void Reset();                           // ORIG T 0x086822b8（_Charac_info.cpp 归属域批次实现）
     int m_characNo;         // +0x00
-    char m_name[0x1d];      // +0x04
-    char m_pad21;                     // +0x21
+    // ORIG m_name 30 字节（+0x04..+0x21）：拷贝构造 0x08699863 以 movzwl 0x20
+    // 覆盖末 2 字节（7×int(0x04..0x1f)+short(0x20..0x21)）；CHackAnalyzer
+    // strncmp(m_name, name, 0x1e)==0 亦为 0x1e=30。原 0x1d+pad21 系误标。
+    char m_name[0x1e];      // +0x04..0x21
     unsigned char m_field22;          // +0x22 growType 规整位（setCharacInfoDetail 0x0864ac1a）
     unsigned char m_field23;          // +0x23 报告固定写 2
     unsigned char m_field24;          // +0x24 特例写 7
@@ -698,10 +701,11 @@ public:
     void SetDBData(CUser* user, Inven_Item* items, unsigned int money,
                    unsigned int capacity);
     void ResetSlot(int slot);
-    void CreateAccountCargo(CUser* user);
-    void UpgradeAccountCargo(CUser* user);
+    // ORIG 0x0828ad72/0x0828b0b2：静态成员（仅用第一实参 CUser*，无 this 访问）。
+    static void CreateAccountCargo(CUser* user);
+    static void UpgradeAccountCargo(CUser* user);
     void DeleteAccountCargo(CUser* user);
-    void SendNotifyRecipe(CUser* user, int slot, bool flag);
+    static void SendNotifyRecipe(CUser* user, int slot, bool flag);  // ORIG 无 this（0x828b3d0 参数自 +8 起）
 
     // ---- 槽位 / 物品 ----
     Inven_Item GetSlot(int slot);
@@ -764,14 +768,12 @@ public:
 class Client_Spec
 {
 public:
-    // ORIG C1 W 0x0822b8b0：对 +0x04 起的 0xfe 个 HWSpec（stride 0xc）逐个构造。
+    // ORIG C1 W 0x0822b8b0：对 +0x04 起的 0xff 个 HWSpec（stride 0xc）逐个构造。
     // +0x00..+0x03 ORIG ctor 不触碰。
     Client_Spec() {}
 
     char m_pad0[4];         // +0x00..0x03（ctor 不触碰区）
-    HWSpec m_specs[254];    // +0x04..0xbeb（ORIG ctor 0x0822b8b0 循环构造，0xfe × 0xc = 0xbe8）
-    char m_padbec[0xc];     // +0xbec..0xbf7（ORIG 0x711c0..0x711d0 零引用实证；Main 批准 2026-08-29
-                            //   收敛原臆造 m_field5fc/m_field608——ORIG ResetCurCharac 不写此区）
+    HWSpec m_specs[255];    // +0x04..0xbf7（ORIG ctor 0x0822b8b0 循环构造，0xff × 0xc = 0xbf4）
     char m_birthDay;        // +0xbf8（0x711d4 IsOverBirthDay）
     char m_birthMonth;      // +0xbf9（0x711d5 IsOverBirthDay）
     char m_padbfa[2];       // +0xbfa..0xbfb
@@ -1227,7 +1229,7 @@ public:
     void setCertified(bool flag);     // ORIG W 0x0826530e：写 +0x25
     void setActivate(bool flag);      // ORIG W 0x084ebe08
     int getCancelCnt();               // ORIG W 0x0822efb4：读 +0x44
-    void incCancelCnt();              // ORIG W 0x0822ef9a：+0x44 自增
+    int incCancelCnt();               // ORIG W 0x0822ef9a：+0x44 自增并返回新值
     void setCancelCnt(int count);     // ORIG W 0x084ebdfa：写 +0x44
     int getRequestState() const;      // ORIG W 0x0822efc0：读 +0x40（_ZNK…15getRequestStateEv）
     enum ENUM_REQUEST_STATE
@@ -1361,7 +1363,7 @@ public:
     ~Manager();
 
     virtual bool Load();
-    virtual void Destroy();
+    virtual int Destroy();
     bool FindIpgNo(unsigned int ipgNo);
     int CheckBuyableProduct(CUser* user, unsigned int ipgNo,
                             unsigned int itemIdx, int type);
@@ -1451,7 +1453,7 @@ public:
         int m_weekday;                // +0x04（SetTodayAction 的 DAT_09370090）
     };
 
-    CActionPointManager() {}
+    CActionPointManager() : m_flag00(0), m_prevApSum(0) {}
     ~CActionPointManager() {}
 
     void Reset();                              // ORIG W 0x08122af4（CActionPointManager.cpp）
@@ -1753,7 +1755,7 @@ struct GrowthCreatureEvent
 
         eventCharacInfo() : m_serverGroup(0), m_characNo(0), m_job(0)
         {
-            m_name[0] = '\0';
+            memset(m_name, 0, 0x1e);   // ORIG C1 0x0817ac4c：memset(+0xc,0,0x1e)
         }
     };
     static_assert(sizeof(eventCharacInfo) == 0x2c, "GrowthCreatureEvent::eventCharacInfo size");
@@ -1793,18 +1795,18 @@ public:
     int m_f1c;          // +0x1c
     int m_f20;          // +0x20
     int m_f24;          // +0x24
-    int m_f28;          // +0x28
+    int m_f28;          // +0x28（CUser::gain_exp_sp 经验累计；ORIG this+0x8e05c）
     char m_f2c;         // +0x2c
     char m_pad2d[3];
     int m_f30;          // +0x30
-    int m_f34;          // +0x34
+    int m_f34;          // +0x34（CUser::gain_exp_sp reason==1/2 分段累计；ORIG this+0x8e068）
     char m_f38;         // +0x38
     char m_pad39[3];    // +0x39..0x3b
     int m_f3c;          // +0x3c（Party::Reset 清零 / CDungeonSuccessNode::UpdateCharacter 自增）
 };
 static_assert(sizeof(PlayInfo) == 0x40, "PlayInfo size");
 
-class Character : public PlayInfo
+class Character : public IData, public PlayInfo
 {
 public:
     Character();   // ORIG C1 0x0848683c：IData C1 + PlayInfo C1 + Character::Reset()（CUser.cpp 外联）
@@ -1812,13 +1814,12 @@ public:
 
     void Reset();                                  // ORIG W 0x08486818（PlayInfo::Reset + m_f3c=0）
     Character& operator+=(const Character& other); // ORIG W 0x084867ee（PlayInfo::+= + m_f3c++）
-
-    char m_f40;                  // +0x40（CUser+0x8e074）
-    char m_pad41[3];
-    float m_f44;                 // +0x44（SetRating）
-    unsigned int m_schoolNo;     // +0x48（0x8e07c）
+    // 布局修正（Layout_D 2026-08-30）：ORIG 中 +0x40/+0x44/+0x48 是 CUser 直属字段
+    // （0x8e074 reset 清零 byte / 0x8e078 rating / 0x8e07c schoolNo），非 Character 成员；
+    // 已移回 CUser（见 CUser 类 m_field8e074/m_rating/m_schoolNo）。ORIG Character 大小 0x40
+    // （Character::Reset 只写 0x3c）。
 };
-static_assert(sizeof(Character) == 0x4c, "Character size");
+static_assert(sizeof(Character) == 0x40, "Character size");
 
 // ---- 用户行为日志门面（CUser +0x79700，0x44 字节） ----
 #ifndef DNF_ENUM_ETRADEENDREASON_DEFINED
@@ -2316,7 +2317,14 @@ public:
     STExpReward m_expReward;                                // +0x8d24d
     APSystem::CActionPointManager m_actionPoint;            // +0x8d264
     advancealtar::CharacAdvanceAltarManager m_advanceAltar; // +0x8df60
-    Character m_character;                                  // +0x8e034
+    Character m_character;                                  // +0x8e034（ORIG 大小 0x40 → 0x8e074）
+    // 布局修正（Layout_D 2026-08-30）：0x8e074/0x8e078/0x8e07c 为 CUser 直属字段
+    // （ORIG reset movb $0x0,0x8e074 / GetRating/SetRating / GetSchoolNo/SetSchoolNo），
+    // 自 Character 移回（见 Character 类注释）。
+    char m_field8e074;                                      // +0x8e074（reset 清零状态字节）
+    char m_pad8e075[3];                                     // +0x8e075..0x8e077
+    float m_rating;                                         // +0x8e078（GetRating/SetRating）
+    unsigned int m_schoolNo;                                // +0x8e07c（GetSchoolNo/SetSchoolNo）
     std::string m_str8e080;                                 // +0x8e080
     short m_dailyBadge[3];                                  // +0x8e084..0x8e089
     unsigned char m_tutorialSkipable;                       // +0x8e08a
@@ -2334,18 +2342,13 @@ public:
     int m_humanCertifyTimerKey;                             // +0x8e0f8
     int m_humanCertifyErrorCnt;                             // +0x8e0fc
     bool m_humanCertified;                                  // +0x8e100（setHumanCertified/isHumanCertified）
-    char m_pad8e101[0x5b];                                  // +0x8e101..0x8e05b
-    int m_field8e05c;                                       // +0x8e05c（gain_exp_sp ORIG 0x0866a3fe 经验累加计）
-    char m_pad8e060[8];                                     // +0x8e060..0x8e067
-    int m_field8e068;                                       // +0x8e068（gain_exp_sp reason==1/2 分段累加计）
-    char m_pad8e06c[0x381];                                 // +0x8e06c..0x8e3ec
+    char m_pad8e101[0x2ec];                                 // +0x8e101..0x8e3ec
     bool m_field8e3ed;                                      // +0x8e3ed
     WongWork::CMCAPManager m_mcap;                          // +0x8e3f0
     XNuclear::CHades m_hades;                               // +0x8e954
     Secu_GoldControl m_goldControl;                         // +0x8e980
     Secu_HackLogCheck m_hackLogCheck;                       // +0x8ea68
     std::map<short, int> m_mapEtc;                          // +0x8eaa4（GetETC 0x08697474 / SetETC 0x080f9968；占 0x8ea68+sizeof(Secu_HackLogCheck 后空隙至 +0x8eabc）
-    char m_padAfterMapEtc[0x18];                            // 对齐占位：m_mapEtc(0x18)+本 pad 保持 m_map8eabc @+0x8eabc
     std::map<std::pair<char, char>, int> m_map8eabc;        // +0x8eabc
     char m_pad8ead4[4];                                     // +0x8ead4..0x8ead7
     char m_field8ead8;                                      // +0x8ead8

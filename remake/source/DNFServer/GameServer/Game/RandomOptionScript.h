@@ -245,6 +245,62 @@ struct ResetValues
     int m_count;                       // +0x0c（randInt 上界-1 来源；pair+0x10 实证）
 };  // sizeof 0x10
 
+// ---- 脚本内嵌 provider 抽象（script+0x148 对象的静态视图）------------------
+// vtable 槽序按 _get_option_type(槽0)/_choose_option_group(槽1) 报告实证：
+//   槽0 返回 map<RandomApplicationKey, map<int, RandomOptionGive>>& —— 即
+//     _get_option_type 的 find/end 宿主；槽1 返回 u64→OptionGroupChoiceValue 表。
+// 注意：ORIG 槽0/槽1 即业务虚函数，无虚析构前置，勿调整顺序。
+// 派生类 CRandomOptionGiveNormal(+0x148)/CModifiedRandomOptionGive(+0x154)
+// 布局均为 vptr+双指针（ORIG W ctor/getter 0x08372550..0x08372640 objdump）。
+class CRandomOptionGive
+{
+public:
+    virtual std::map<RandomApplicationKey,
+                     std::map<int, RandomOptionGive> >& get_option_type() = 0;        // 槽0
+    virtual std::map<unsigned long long, OptionGroupChoiceValue>&
+                                     get_option_group_choice() = 0;                    // 槽1
+protected:
+    ~CRandomOptionGive() {}
+};
+
+// ---- 派生 provider（原 CRandomOptionGiveNormal.h/CModifiedRandomOptionGive.h 定义移入本头，
+//      打破二者 include RandomOptionScript.h 的循环；独立头改为仅 include 本头）----
+class CRandomOptionGiveNormal : public CRandomOptionGive
+{
+public:
+    CRandomOptionGiveNormal();
+    virtual std::map<RandomApplicationKey,
+                     std::map<int, RandomOptionGive> >& get_option_type();
+    virtual std::map<unsigned long long, OptionGroupChoiceValue>&
+                                     get_option_group_choice();
+    void set(std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >*,
+             std::map<unsigned long long, OptionGroupChoiceValue>*);
+
+private:
+    std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >* m_pMapType4;    // +0x04
+    std::map<unsigned long long, OptionGroupChoiceValue>* m_pMapChoice8;              // +0x08
+};
+
+class CModifiedRandomOptionGive : public CRandomOptionGive
+{
+public:
+    CModifiedRandomOptionGive();
+    virtual std::map<RandomApplicationKey,
+                     std::map<int, RandomOptionGive> >& get_option_type();
+    virtual std::map<unsigned long long, OptionGroupChoiceValue>&
+                                     get_option_group_choice();
+    void set(std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >*,
+             std::map<unsigned long long, OptionGroupChoiceValue>*);
+
+private:
+    std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >* m_pMapType4;    // +0x04
+    std::map<unsigned long long, OptionGroupChoiceValue>* m_pMapChoice8;              // +0x08
+};
+
+// 派生 provider 完整类型（RandomOptionScript.h 定义基类后引入；
+// 二者 include-guard 幂等，无环）。RandomOptionScript 成员
+// m_providerNormal148(+0x148)/m_providerModified154(+0x154) 需要完整类型。
+
 class RandomOptionScript
 {
 public:
@@ -266,7 +322,7 @@ public:
     std::map<BaseItemKey, std::map<int, BaseItemValue> > m_baseItems60;  // +0x60
     std::map<unsigned long, int> m_map78;                             // +0x78
     std::map<RandomApplicationKey,
-             std::vector<std::pair<int, struct RandomOptionGive> > > m_map90;  // +0x90
+             std::map<int, struct RandomOptionGive> > m_map90;  // +0x90（ORIG mangled S_Ii16RandomOptionGive）
     std::vector<QuantityRatio> m_veca8;                               // +0xa8
     std::map<int, OptionQuantityValue> m_mapb4;                       // +0xb4
     std::map<unsigned long long, OptionGroupChoiceValue> m_mapcc;     // +0xcc
@@ -274,12 +330,13 @@ public:
     std::map<short, DifferentWeightValue> m_mapf4;                    // +0xf4
     std::vector<OPTION_MODIFICATION_COST> m_costVec10c;               // +0x10c
     std::map<RandomApplicationKey,
-             std::vector<std::pair<int, struct RandomOptionGive> > > m_map118;  // +0x118
+             std::map<int, struct RandomOptionGive> > m_map118;  // +0x118（ORIG mangled S_Ii16RandomOptionGive）
     std::map<unsigned long long, OptionGroupChoiceValue> m_map130;    // +0x130
     // +0x148：ORIG 多态 provider 对象（CRandomOptionGive 派生，vptr+双槽，
-    //   sizeof 0x18；由 importRandomOptionScript 批次建模构造）。本批仅保留
-    //   偏移占位，保证 m_map160 及其后成员偏移不变。
-    unsigned char m_providerPad148[0x18];                             // +0x148
+    //   sizeof 0x18）。clear() 依 ORIG 序 set(&m_map90,&m_mapcc) /
+    //   set(&m_map118,&m_map130)。
+    CRandomOptionGiveNormal m_providerNormal148;                      // +0x148
+    CModifiedRandomOptionGive m_providerModified154;                  // +0x154
     std::map<int, OptionGroupValue> m_map160;                         // +0x160
     std::map<int, int> m_map178;                                      // +0x178
     std::map<int, int> m_map190;                                      // +0x190
@@ -294,24 +351,5 @@ public:
 
 bool importRandomOptionScript(RandomOptionScript& script, const char* path);
 
-// ---- 脚本内嵌 provider 抽象（script+0x148 对象的静态视图）------------------
-// vtable 槽序按 _get_option_type(槽0)/_choose_option_group(槽1) 报告实证：
-//   槽0 返回 map<RandomApplicationKey, map<int, RandomOptionGive>>& —— 即
-//     _get_option_type 的 find/end 宿主；槽1 返回 u64→OptionGroupChoiceValue 表。
-// 注意：ORIG 槽0/槽1 即业务虚函数，无虚析构前置，勿调整顺序。
-// 纯虚名按 ORIG mangled（_ZN23CRandomOptionGiveNormal15get_option_typeEv 等
-// 派生 override 实证）改回 get_option_type/get_option_group_choice；
-// 派生类 CRandomOptionGiveNormal(+0x148)/CModifiedRandomOptionGive(+0x154)
-// 布局均为 vptr+双指针（ORIG W ctor/getter 0x08372550..0x08372640 objdump）。
-class CRandomOptionGive
-{
-public:
-    virtual std::map<RandomApplicationKey,
-                     std::map<int, RandomOptionGive> >& get_option_type() = 0;        // 槽0
-    virtual std::map<unsigned long long, OptionGroupChoiceValue>&
-                                     get_option_group_choice() = 0;                    // 槽1
-protected:
-    ~CRandomOptionGive() {}
-};
 
 #endif  // GAME_RANDOMOPTIONSCRIPT_H_

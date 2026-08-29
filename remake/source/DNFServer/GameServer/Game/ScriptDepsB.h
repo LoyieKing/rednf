@@ -68,9 +68,9 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table);
 bool importTitleSection(stTitleSection* section, int idx);
     // _Z18importTitleSectionP14stTitleSectioni（[/section]=false 结束）
 
-void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token);
+int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token);
     // _Z13importRewardsPSt6vectorIP18stTitleRewardBasisSaIS1_EESs
-    // （ORIG eax 恒流出 1；调用方均忽略返回值，符号不含返回类型）
+    // （ORIG 恒返回 1；调用方均忽略返回值，符号不含返回类型）
 
 std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab);
     // _Z18getTitleCollectionP15stTitleBookInfoi（未命中返回 0）

@@ -488,7 +488,7 @@ bool CQuestShop::_saveData(CUser* user)
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QuestShop.cpp", 0x21b),
                        true);                       // ORIG ctor(stream,1)
     (*guard)->operator<<(0x279);                    // ORIG de→ls（P132 operator* 链）
-    (*guard)->operator<<(user->GetUID());
+    (*guard)->operator<<(static_cast<int>(user->GetUID()));
     // ORIG GetInBuffer<SIG_QUEST_SHOP_DATA> size 0x155；SIG_QUEST_SHOP_DATA
     // 即 0x155 双实例结构（SigTypes_D.h），_saveData 直接装载。
     SigQuestShopLoadBlock* sig =

@@ -58,6 +58,7 @@ ARAD::SCRIPT::AvatarFixedHiddenOption::AvatarFixedHiddenOption()
 // ORIG D1 0x088aed5e：clearScript 后逆序析构 6 个 vector（成员析构自动完成）。
 ARAD::SCRIPT::AvatarFixedHiddenOption::~AvatarFixedHiddenOption()
 {
+    clearScript();
 }
 
 // ORIG 0x088b00e0：clear 每桶并 push_back 一个全 0 默认元素（种子保证 Init 的
@@ -310,8 +311,9 @@ bool AvatarFixedHiddenOptionServer::Load()
 }
 
 // ORIG 0x0817e1e2：恒返回 1（接口 void 化同 CerashopAddRestrict::Manager 先例）。
-void AvatarFixedHiddenOptionServer::Destroy()
+int AvatarFixedHiddenOptionServer::Destroy()
 {
+    return 1;
 }
 
 // ORIG 0x0817e3e8：6 个桶各自把下标 1..count-1 的 m_nRate（元素 +0x10）累加成前缀和

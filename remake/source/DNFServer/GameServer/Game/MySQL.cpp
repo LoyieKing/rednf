@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "CQueryCounter.h"
+#include "CUnixTimer.h"
 #include "GameBase.h"
 
 // ---- cMyTraceNoop（禁用追踪，ORIG 0x822ad5a/0x822ad60，属日志族 TU）----
@@ -20,7 +21,7 @@ public:
 // ---- CDnFTimer / CDnFTimerFactory（G7 计时族，ORIG 弱符号；算法正确即可）----
 void CDnFTimer::SetLastTime() {}
 double CDnFTimer::GetTimeInterval() { return 0.0; }
-CDnFTimer* CDnFTimerFactory::CreateDnFTimer() { return new CDnFTimer; }
+CDnFTimer* CDnFTimerFactory::CreateDnFTimer() { return new CUnixTimer; }
 void CDnFTimerFactory::DestroyDnFTimer(CDnFTimer* timer) { delete timer; }
 
 
@@ -457,24 +458,19 @@ int MySQL::exec_query()
 // GetIdentityFromDB（ORIG 0x83fbc66 T）
 // 包装 WongWork::DBCommon::GetIdentity（0x83f9ad4）：查询 @@identity（上次
 // INSERT 的自增 ID），供 CQueryCounter::insertCounter 取 q_id 使用。
-// ORIG 流程：set_query("seLect @@identity") → exec(true) → fetch() →
-// get_uint(0, &out)；任一步失败返回 0。
+// ORIG：call WongWork::DBCommon::GetIdentity → leave/ret。
 // ============================================================================
+namespace WongWork {
+
+class DBCommon
+{
+public:
+    static unsigned int GetIdentity(MySQL* db);  // ORIG T 0x083f9ad4
+};
+
+}  // namespace WongWork
+
 int GetIdentityFromDB(MySQL* mysql)
 {
-    mysql->set_query("seLect @@identity");
-    if (mysql->exec(true) == false)
-    {
-        return 0;
-    }
-    if (mysql->fetch() == false)
-    {
-        return 0;
-    }
-    unsigned int identity = 0;
-    if (mysql->get_uint(0, identity) == false)
-    {
-        return 0;
-    }
-    return (int)identity;
+    return (int)WongWork::DBCommon::GetIdentity(mysql);
 }

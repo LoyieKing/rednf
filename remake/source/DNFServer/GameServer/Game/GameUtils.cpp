@@ -98,10 +98,10 @@ void cMyTrace::operator()(const char* fmt, ...)
         case 3: log->logConsole(buf); break;
         case 4: log->logMoney(buf); break;
         case 5: log->logCritical(buf); break;
-        case 8:
-            log->logSnapShot(buf);
-            log->logInit(m_field_c != 0, m_field_d != 0, buf);
-            break;
+        		case 8:
+			log->logSnapShot(buf);
+			log->logInit(m_field_d != 0, m_field_c != 0, buf);  // ORIG 0x854f520：第一参 m_field_d
+			break;
         default:  // 6/7/9：ORIG 跳表指向收尾，无日志输出
             break;
         }
@@ -109,13 +109,21 @@ void cMyTrace::operator()(const char* fmt, ...)
 }
 
 // ---- CheckDailyScheduleTime（每日调度时间检查，ORIG _Z22CheckDailyScheduleTimeill）----
+// ORIG：localtime_r 拆 lCurTime，复制 tm 后置 nScheduleTime:00:00，mktime；
+// 若原时刻小时 < nScheduleTime 则回退一天；返回 lLastPlayTime <= 该时刻。
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime)
 {
-    if (nScheduleTime <= 0)
-        return false;
-    long lastDay = lLastPlayTime / nScheduleTime;
-    long curDay = lCurTime / nScheduleTime;
-    return curDay > lastDay;
+    time_t cur = lCurTime;
+    struct tm tmv;
+    localtime_r(&cur, &tmv);
+    struct tm t2 = tmv;
+    t2.tm_hour = nScheduleTime;
+    t2.tm_min = 0;
+    t2.tm_sec = 0;
+    time_t t = mktime(&t2);
+    if (tmv.tm_hour < nScheduleTime)
+        t -= 86400;
+    return lLastPlayTime <= t;
 }
 
 // ============================================================================
@@ -137,13 +145,16 @@ void sleep_ext(int sec, int usec)
 // 返回 time 当日 hour 时刻的时间戳（未到 hour 则属前一天）。
 long getPrevScheduleTime(int hour, long time)
 {
-    long t = time - (long)hour * 3600;
+    const int oneHour = 3600;
+    long tmp = (long)hour * oneHour;
+    long t = time - tmp;
     struct tm tmv;
     localtime_r(&t, &tmv);
     tmv.tm_hour = hour;
     tmv.tm_min = 0;
     tmv.tm_sec = 0;
-    return (long)mktime(&tmv);
+    t = mktime(&tmv);
+    return t;
 }
 
 // ---- getDailyInitializeTime（ORIG _Z22getDailyInitializeTimeiii，0x86b1f5a，0x66 字节）----

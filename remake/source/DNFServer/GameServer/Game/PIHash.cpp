@@ -61,10 +61,50 @@ int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
     return 1;
 }
 
-// ORIG W 0x0808c174：unsigned char* 重载（与 char* 版同实现）。
+// ORIG W 0x0808c174：unsigned char* 重载（ORIG 中与 char* 版同为独立展开）。
 int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
 {
-    return DoSuperFastHash(reinterpret_cast<char*>(data), len, hash);
+    hash = 0;
+    unsigned int rem = len;
+    if (len == 0 || data == 0)
+        return 0;
+
+    unsigned int h = len;
+    unsigned int tmp = len & 3;
+    for (unsigned int i = len >> 2; i != 0; --i)
+    {
+        h = (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
+            (static_cast<unsigned int>(*reinterpret_cast<unsigned short*>(data + 2)) << 11) ^
+            (h + *reinterpret_cast<unsigned short*>(data));
+        data += 4;
+        h = h + (h >> 11);
+    }
+    if (tmp == 2)
+    {
+        h = h + *reinterpret_cast<unsigned short*>(data) ^
+            (h + *reinterpret_cast<unsigned short*>(data)) * 0x800;
+        h = h + (h >> 17);
+    }
+    else if (tmp == 3)
+    {
+        h = h + *reinterpret_cast<unsigned short*>(data) ^
+            (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
+            (static_cast<unsigned int>(static_cast<signed char>(data[2])) << 18);
+        h = h + (h >> 11);
+    }
+    else if (tmp == 1)
+    {
+        h = h + static_cast<int>(static_cast<signed char>(*data)) ^
+            (h + static_cast<int>(static_cast<signed char>(*data))) * 0x400;
+        h = h + (h >> 1);
+    }
+    h = h ^ (h << 3);
+    h = h + (h >> 5);
+    h = h ^ (h * 0x10);
+    h = h + (h >> 17);
+    h = h ^ (h * 0x2000000);
+    hash = h + (h >> 6);
+    return 1;
 }
 
 // ---- MakeHash ORIG @ 0x0808c311 ----
@@ -72,7 +112,7 @@ int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
 unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed)
 {
     unsigned int hash = 0;
-    DoSuperFastHash(reinterpret_cast<char*>(data), len, hash);
+    DoSuperFastHash(data, len, hash);
     unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
     return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
                                       digest[3] ^ seed);

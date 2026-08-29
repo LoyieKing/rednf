@@ -418,12 +418,11 @@ int CIPGHelper::Initialize(unsigned int param1, unsigned int param2)
     m_dataTableA[5] = 0x1d4;
     m_dataTableA[6] = 0x90;
 
-    CEnvironment* env = G_CEnvironment();
-    if (*((char*)env + 0x2b8) == '\0')   // env+0x2b8（未建模字段，偏移实证）
+    if (*((char*)G_CEnvironment() + 0x2b8) == '\0')   // env+0x2b8（未建模字段，偏移实证；ORIG 未缓存 env，两次独立调用）
     {
         return -1;
     }
-    strncpy(m_str24, (char*)env + 0x2b8, 0x14);
+    strncpy(m_str24, (char*)G_CEnvironment() + 0x2b8, 0x14);
     m_dataTableB[0] = 0x5a3c;
     m_dataTableB[1] = 0x5aa0;
     m_dataTableB[2] = 0x5b04;
@@ -476,7 +475,7 @@ SIPGData* CIPGHelper::_SetIPGData(CUser* user, IPG_DATA_TYPE type, bool flag)
     *(unsigned short*)(d + 0x18) = (unsigned short)m_dataTableB[type];
     *(unsigned int*)(d + 0x20) = user->GetUID();
     *(unsigned int*)(d + 0x1c) = (unsigned int)type;
-    d[0x24] = flag ? 1 : 0;
+    d[0x24] = flag;   // ORIG mov %dl,0x24 直存参数字节
     return data;
 }
 
@@ -783,11 +782,11 @@ void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
     Stream* stream = GlobalData::s_stream_pool->Acquire("IPGHelper.cpp", 0x196);
     CStreamGuard guard(stream, true);
 
-    guard << 0x48;
-    guard << -1;
+    guard.operator*()->operator<<(0x48);
+    guard.operator*()->operator<<(-1);
     if (res == 0)
     {
-        guard << '\0';
+        guard.operator*()->operator<<('\0');
         guard->put_binary(req, 0x2dc);
     }
     else
@@ -798,7 +797,7 @@ void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
         *(unsigned int*)(r + 0x20) = *(unsigned int*)(q + 0x20);
         *(unsigned int*)(r + 0x2d8) = *(unsigned int*)(q + 0x2d8);
         *(unsigned int*)(r + 0x1c) = *(unsigned int*)(q + 0x1c);
-        guard << '\x01';
+        guard.operator*()->operator<<('\x01');
         guard->put_binary(res, 0x2dc);
         guard->put_binary(req, 0x2dc);
     }

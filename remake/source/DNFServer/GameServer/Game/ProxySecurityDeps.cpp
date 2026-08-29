@@ -27,9 +27,13 @@ bool checkDenyIP(const char* innerIp, const char* peerIp)
         return false;
     std::string a = cutIPdclass(innerIp);
     std::string b = cutIPdclass(peerIp);
-    if (a == b)                                   // gnu_cxx operator==(string,string)
+    if (a == b)                                   // ORIG 0x081f4556 eq(string,string)
         return false;
-    if (a == "0")                                 // eq(string,const char*) 常量 "0"
+    // ORIG 0x081f457f..0x081f45e6：a/b 各再做 find('.',0)+erase(pos,npos)
+    // （取到第一个 '.'，即仅保留首段）。
+    a.erase(a.find('.'), std::string::npos);
+    b.erase(b.find('.'), std::string::npos);
+    if (a == "0")                                 // ORIG 0x081f45f9 eq(string,"0")
         return false;
     return b == "0";
 }

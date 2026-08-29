@@ -89,7 +89,7 @@ public:
     ~CreateDnfEventSciprtServer();   // ORIG D1 0x081648e2（非虚）
 
     virtual bool Load();             // vtable 槽0（ORIG 0x0816451e）
-    virtual void Destroy();          // vtable 槽1（ORIG 0x08164590 返 1；接口 void 化同
+    virtual int Destroy();          // vtable 槽1（ORIG 0x08164590 返 1；接口 void 化同
                                      // AvatarFixedHiddenOptionServer 先例）
 
     CreateDnfEventSciprt m_script;   // +0x04

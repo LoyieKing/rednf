@@ -141,14 +141,13 @@ int CCargo::GetCargoData(int itemIdx, Inven_Item& out) const
     return -1;
 }
 
-// ---- 插入 ----
+ // ---- 插入 ----
 int CCargo::insert_item(const Inven_Item& item)
 {
     int slot = 0;
     if (!item.isEquipableItemType()) {
         for (; slot < 0x98; ++slot) {
-            int ret = _AddStackItem(item, slot);
-            if (ret >= 0)
+            if (_AddStackItem(item, slot) >= 0)
                 return slot;
         }
     }
@@ -310,17 +309,16 @@ void CCargo::_ResetSlot(int idx, eItemDelReason reason)
 
 int CCargo::move_item(int from, int to)
 {
-    if (IsOperatorable(from) && IsOperatorable(to)) {
-        if (m_pItems[from].m_addInfo == 0 && m_pItems[to].m_addInfo == 0)
-            return 0;
-        Inven_Item tmp;
-        memcpy(&tmp, &m_pItems[from], sizeof(Inven_Item));
-        memcpy(&m_pItems[from], &m_pItems[to], sizeof(Inven_Item));
-        memcpy(&m_pItems[to], &tmp, sizeof(Inven_Item));
-        m_sorted = 0;
-        return 1;
-    }
-    return 0;
+    if (!(IsOperatorable(from) && IsOperatorable(to)))
+        return 0;
+    if (m_pItems[from].m_addInfo == 0 && m_pItems[to].m_addInfo == 0)
+        return 0;
+    Inven_Item tmp;
+    tmp = m_pItems[from];
+    m_pItems[from] = m_pItems[to];
+    m_pItems[to] = tmp;
+    m_sorted = 0;
+    return 1;
 }
 
 void CCargo::update_item(int idx, const Inven_Item& item)
@@ -399,39 +397,39 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
     return 1;
 }
 
-// ---- 扩容 / 排序 ----
+// ORIG 0x850c64c：m_capacity==0 时仍允许升级（仅当 m_capacity>capacity 才拒绝）。
 int CCargo::UpgradeCargo(int capacity)
 {
-    if (m_capacity == 0 || capacity < m_capacity) {
+    if (m_capacity != 0 && m_capacity > capacity)
         return 0;
-    } else if (m_capacity < capacity) {
+    if (m_capacity < capacity)
+    {
         m_capacity = capacity;
         return 1;
-    } else {
-        return 0;
     }
+    return 0;
 }
 
+// ORIG 0x850c698：同上判定，capacity<=0x98 才可升。
 int CCargo::isUpgradable(int capacity) const
 {
-    if (m_capacity == 0 || capacity < m_capacity) {
+    if (m_capacity != 0 && m_capacity > capacity)
         return 0;
-    } else if (m_capacity < capacity) {
-        return capacity < 0x99 ? 1 : 0;
-    } else {
-        return 0;
-    }
+    if (m_capacity < capacity)
+        return capacity <= 0x98 ? 1 : 0;
+    return 0;
 }
 
 int CCargo::_CompareSlot(const void* a, const void* b)
 {
     const Inven_Item* ia = (const Inven_Item*)a;
     const Inven_Item* ib = (const Inven_Item*)b;
-    unsigned int ta = ia->m_addInfo == 0 ? 9999 : (unsigned int)ia->m_field1;
-    unsigned int tb = ib->m_addInfo == 0 ? 9999 : (unsigned int)ib->m_field1;
+    // ORIG 反汇编：ta/tb 用 jge/jle（有符号 int）；m_addInfo 用 jae（无符号）。
+    int ta = ia->m_addInfo == 0 ? 9999 : (int)ia->m_field1;
+    int tb = ib->m_addInfo == 0 ? 9999 : (int)ib->m_field1;
     if (ta < tb)
         return -1;
-    if (tb < ta)
+    if (ta > tb)
         return 1;
     if (ta == 9999)
         return 0;

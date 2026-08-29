@@ -1,3 +1,4 @@
+#include "CEventScriptMng.h"   // EventClassify::CEventScriptMng（FatigueUp/set_server_fatigue_count）
 #include "GameRand.h"
 // ============================================================================
 // df_game_r 还原 —— CUser（G1-3 批次，在线用户会话聚合根）
@@ -7,7 +8,11 @@
 
 #include <string.h>
 #include <cstdarg>
-#include <cstdio>
+#include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
+#include "cHistoryTrace.h" // CUser::LogHistory 日志输出
+#include "CSwitchLog.h"   // CUser::SetPvpIndex（ORIG 0x08669ee8 pvp@log）
+#include "CUser.h"
+#include "CUser.h"
 
 #include "CUser.h"
 #include "MoneyLogPacket.h"   // CUser::SendMoenyLog（ORIG 0x0868f472 载荷 0x1e）
@@ -30,7 +35,6 @@
 #include "SyncScriptDeps.h"   // toTString（RewardItem2DeleteInvalidItem 字符串表翻译）
 #include "PacketBuf.h"
 #include "GameTypes.h"
-#include "CEventScriptMng.h"   // EventClassify::CEventScriptMng（set_server_fatigue_count 当日键）
 #include "CCapchaDataManager.h"  // WongWork::CCapchaDataManager（GlobalData::s_capchaDataManager）
 #include "CDungeon.h"          // CDungeon::m_89e（exceptedStateMoneyLog 搬运副本标记）
 #include "DBInsertGiveBoxEventReward.h"  // GiveMeBoxReward 转发（ORIG 0x08693758）
@@ -52,6 +56,9 @@
 #include "CAchievement.h"            // CAchievement
 #include "CItemDictionary.h"         // CItemDictionary
 #include "CBoosterGage.h"            // CBoosterGage
+#include "CBurningFatigueEvent.h"     // FatigueUp 燃烧疲劳 getRefillFatigue（ORIG 0x810a166）
+#include "CCharacterDayEvent.h"       // FatigueUp 角色日事件 GetEventJob（ORIG 0x8697886）
+#include "AvatarRechargeServer.h"     // FatigueUp CalcDurability（ORIG 0x819049a）
 #include "BestClearTime.h"           // BestClearTime
 #include "CCharacInformNotice.h"     // CCharacInformNotice
 #include "CItemMakingSkill.h"        // CItemMakingSkill（若存在）
@@ -71,6 +78,7 @@
 #include "TaiwanCash.h"             // WongWork::IPG::CIPGHelper 虚接口（DoGetCeraPointItem）
 #include "CExpertJob.h"          // expert_job::CExpertJobMgr::OnLeaveUser
 #include "CHandlePremium.h"      // WongWork::CHandlePremium（handleReturn2CharacView）
+#include "W8LT_DBTask.h"        // DB_UpdateSchoolPoint（RecoverFatigue 学校点落库）
 #include "CPowerManager.h"    // s_power_manager 完整类型（make_basic_info 排名查询）
 #include "AuctionProxy.h"    // CAuctionServerProxy/CCeraAuctionServerProxy 完整类型（IsRunning）
 #include "CDeathTowerRanking.h"
@@ -751,7 +759,7 @@ void CUser::reset()
     m_field8d0f0 = 0;
     m_field8d0f1 = 0;
     m_field8d0f2 = 0;
-    m_character.m_f40 = 0;
+    m_field8e074 = 0;
     m_character.Reset();
     m_field8d0f8 = 0;
     m_field8d0f4 = 0;
@@ -760,7 +768,7 @@ void CUser::reset()
     setClientVersion(0);
     m_dungeonGainedGold.reset();
     m_postChecksumData.m_field44 = 0;
-    m_character.m_f44 = 0;
+    m_rating = 0;
     m_field8cfc0 = 0xffffffff;
     m_postChecksumData.m_totalFatigueUsed = 0;
     m_levelupEvents.clear();
@@ -1741,8 +1749,18 @@ int CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot
     ((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
     ((InterfacePacketBuf*)&packet)->put_byte((int)space);
     ((InterfacePacketBuf*)&packet)->put_short(1);
-    getCurCharacInvenR()->MakeItemPacket(static_cast<INVEN_TYPE>(space), slot,
-                                         packet);
+    // ORIG 0x0867c65a：空间→INVEN_TYPE 映射（1→2、7→3、3→0、其余→1）；
+    // 失败返回 0（不发包），成功 finalize + SendPacket 返回 1。
+    INVEN_TYPE type;
+    switch (space)
+    {
+    case 1: type = (INVEN_TYPE)2; break;
+    case 7: type = (INVEN_TYPE)3; break;
+    case 3: type = (INVEN_TYPE)0; break;
+    default: type = (INVEN_TYPE)1; break;
+    }
+    if (getCurCharacInvenR()->MakeItemPacket(type, slot, packet) == 0)
+        return 0;
     ((InterfacePacketBuf*)&packet)->finalize(true);
     return SendPacket(target, packet);
 }
@@ -1783,7 +1801,12 @@ int CUser::GetCurExpertJobLevel(int exp)
 
 bool CUser::is_clear_stealingSkillMission() const
 {
-    return mission_list_is_clear(GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8));
+    // ORIG：GetCharacExpandData(8) 结果暂存 -0xc(%ebp) 后调
+    // CMissionList_Charac::isClearStealingSkillMission
+    //（mission_list_is_clear 为 stub 返回 false，禁用）
+    void* data = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    return reinterpret_cast<CMissionList_Charac*>(data)
+        ->isClearStealingSkillMission();
 }
 
 // ORIG T 0x08679736：公会技能公告。文案 = ServerString(0x3ea) + "%d "(count) +
@@ -2111,17 +2134,16 @@ WongWork::CUserPremium* CUser::GetPremiumInfo() const
     return (WongWork::CUserPremium*)&m_premium;
 }
 
-// 推断：ORIG 无独立报告。每日币事件加成，按 premium type 0xc 生效状态返回加成量；
-// 无字段证据，无 premium 优势时返回 0（与 ORIG 无加成路径一致）。
+// ORIG W 0x0864f8e0：mov 0x854(%eax),%eax 直读 +0x854（outPremiumCount）。
 int WongWork::CUserPremium::GetAdvantageCoin() const
 {
-    return 0;   // 推断：premium 币加成数据字段未建模
+    return *(const int*)&m_pad[0x854];
 }
 
-// 推断：ORIG 无独立报告。无限疲劳 premium 判定。
+// ORIG 0x08694a54：movzbl 0x85c(%eax),%eax 直读 +0x85c（overEquipFlag byte）。
 bool WongWork::CUserPremium::isAffectedUnlimitFatigue() const
 {
-    return false;   // 推断：无 premium 时 ORIG 为 false
+    return m_pad[0x85c] != 0;
 }
 
 UserQuest* CUser::getCurCharacQuestR() const
@@ -2303,21 +2325,142 @@ char CUser::IsPermissionPrivateStore()
     return isAffectedPremium((ENUM_PREMIUM_TYPE)8);
 }
 
+// CMaxFatigueFactorEvent：ORIG 仅 GetMaxFatigueFactor（W 0x0812ce54）被消费，
+// 权威类未建模；本文件以最小类声明 + reinterpret_cast 视图消费（GetRepeatEvent(2)
+// 返回的 CEventBase* 实际指向该事件对象）。
+class CMaxFatigueFactorEvent
+{
+public:
+    int GetMaxFatigueFactor();   // ORIG W _ZN22CMaxFatigueFactorEvent19GetMaxFatigueFactorEv
+};
+
+// 0x08657ada
 void CUser::RecoverFatigue(int value)
 {
-    if (!getCurCharacR())
-        return;
-    setCurCharacPremiumFatigue((unsigned short)value);
-    setCurCharacFatigue(value);
+    // ORIG 0x08657ada：学校点非零 → DB 上报并清零
+    if (getCurCharacSchoolPoint() != 0)
+    {
+        DB_UpdateSchoolPoint::makeRequest(get_acc_id(),
+                                          getCurCharacSchoolPoint(), GetUID());
+        resetCurCharacSchoolPoint();
+    }
+
+    // ORIG：事件 2（CMaxFatigueFactorEvent）活跃 → m_maxFatigue = factor*DEFAULT/100，
+    // 否则 DEFAULT_MAX_FATIGUE。
+    CEventBase* ev2 = GlobalData::s_event_manager->GetRepeatEvent(2);
+    _Charac_info* cur = getCurCharacW();
+    if (cur != 0)
+    {
+        bool ev2On = (ev2 != 0) && ev2->IsEventing((CUser*)0);
+        if (ev2On)
+        {
+            int factor =
+                reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)->GetMaxFatigueFactor();
+            cur->m_field35 =
+                (unsigned short)(factor * DEFAULT_MAX_FATIGUE / 100);
+        }
+        else
+        {
+            cur->m_field35 = (unsigned short)DEFAULT_MAX_FATIGUE;
+        }
+        if (IsHavePremiumAdvantage())
+        {
+            WongWork::CUserPremium* premium = GetPremiumInfoW();
+            if (ev2On)
+            {
+                // base = (short)(factor*DEFAULT/100) - (short)DEFAULT
+                int factor2 =
+                    reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)->GetMaxFatigueFactor();
+                short base = (short)(factor2 * DEFAULT_MAX_FATIGUE / 100)
+                           - (short)DEFAULT_MAX_FATIGUE;
+                unsigned int rate =
+                    (unsigned short)premium->GetAdvantageFatigueRate();
+                int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100)
+                      + (int)((unsigned short)base * rate / 100);
+                setCurCharacMaxPremiumFatigue((unsigned short)v);
+            }
+            else
+            {
+                unsigned int mf = getCurCharacMaxFatigue();
+                unsigned int rate =
+                    (unsigned short)premium->GetAdvantageFatigueRate();
+                int v = (int)(mf * rate / 100);
+                setCurCharacMaxPremiumFatigue((unsigned short)v);
+            }
+        }
+    }
+
+    // ORIG：事件 0x57 活跃（ORIG 无空检查）→ m_maxFatigue += DataManager 0x51c；
+    // rate!=0 且 PC 房 → premium = rate*DEFAULT/100 + 0x51c，否则 rate*DEFAULT/100。
+    CEventBase* ev57 = GlobalData::s_event_manager->GetRepeatEvent(0x57);
+    if (ev57->IsEventing((CUser*)0))
+    {
+        _Charac_info* curW = getCurCharacW();
+        unsigned short base = curW->m_field35;
+        base += *reinterpret_cast<const unsigned short*>(
+            reinterpret_cast<const char*>(G_CDataManager()) + 0x51c);
+        curW->m_field35 = base;
+        WongWork::CUserPremium* premium = GetPremiumInfoW();
+        if (premium->GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0)
+        {
+            unsigned int rate =
+                (unsigned short)premium->GetAdvantageFatigueRate();
+            int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100)
+                  + *reinterpret_cast<const unsigned short*>(
+                        reinterpret_cast<const char*>(G_CDataManager()) + 0x51c);
+            setCurCharacMaxPremiumFatigue((unsigned short)v);
+        }
+        else
+        {
+            unsigned int rate =
+                (unsigned short)premium->GetAdvantageFatigueRate();
+            int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100);
+            setCurCharacMaxPremiumFatigue((unsigned short)v);
+        }
+    }
+    else
+    {
+        if (IsHavePremiumAdvantage())
+        {
+            WongWork::CUserPremium* premium = GetPremiumInfoW();
+            unsigned int mf = getCurCharacMaxFatigue();
+            unsigned int rate =
+                (unsigned short)premium->GetAdvantageFatigueRate();
+            int v = (int)(mf * rate / 100);
+            setCurCharacMaxPremiumFatigue((unsigned short)v);
+        }
+    }
+    resetCurCharacUsedFatigue();
 }
 
 void CUser::LogHistory(const char* fmt, ...)
 {
+    // ORIG 0x0867c8d8：日志前缀（Hangame 服 'X' 否则 'D'）+ 固定头（账号/角色/
+    // 时间/成长/职业/等级/IP/端口/频道）+ 变参 fmt 追加，经 cHistoryTrace 输出。
     char buf[1024];
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    char prefix = isHangameUser() ? 'X' : 'D';
+    TimeLog_ timeLog;
+    timeLog.setTime();
+    char accIdBuf[8];
+    memset(accIdBuf, 0, 4);
+    strcpy(accIdBuf, NumberToString(get_acc_id(), 7));
+    const char* name = getCurCharacR() ? getCurCharacName() : "127.0.0.1";
+    sprintf(buf,
+        "\"%s\",%s,%c,%02d%02d%02d,\"%s\",%d,%d,%d,%d,%s,%s,%d,%d, ",
+        m_accName, NumberToString(get_acc_id(), 0), prefix,
+        timeLog.m_hour, timeLog.m_min, timeLog.m_sec,
+        name, getCurCharacNo(), get_charac_level(), get_charac_job(),
+        (int)getCurCharFirstGrowType(),
+        getWebAddress(),
+        m_network.GetPeerIP2(reinterpret_cast<char*>(this) + 0x6eef0, 0x10),
+        (int)m_network.get_port(),
+        G_CEnvironment()->m_serverEnvir.m_channelNo);
+    vsprintf(buf + strlen(buf), fmt, ap);
     va_end(ap);
+    cHistoryTrace history;
+    history(buf);
 }
 
 bool CUser::isBlackUser(unsigned int accId)
@@ -3523,17 +3666,17 @@ void CUser::SetPowerUp(bool flag)
 
 void CUser::SetRating(float rating)
 {
-    m_character.m_f44 = rating;
+    m_rating = rating;
 }
 
 void CUser::SetSchoolNo(unsigned int no)
 {
-    m_character.m_schoolNo = no;
+    m_schoolNo = no;
 }
 
 unsigned int CUser::GetSchoolNo()
 {
-    return m_character.m_schoolNo;
+    return m_schoolNo;
 }
 
 void CUser::SetSchoolName(const char* name)
@@ -4042,7 +4185,8 @@ int CUser::getCharacLevelByCharacNo(int characNo) const
 
 const char* CUser::get_charac_name_by_charac_no(int characNo) const
 {
-    for (unsigned int i = 0; i < m_characList.size(); ++i)
+    // ORIG 0x0863bece：循环下标 int，size 有符号比较（setg）。
+    for (int i = 0; i < static_cast<int>(m_characList.size()); ++i)
     {
         if (m_characList[i].m_characNo == characNo)
             return m_characList[i].m_name;
@@ -4943,7 +5087,7 @@ void CUser::incTradeCount()
 
 float CUser::GetRating()
 {
-    return m_character.m_f44;
+    return m_rating;
 }
 
 void CUser::backupSeed()
@@ -5304,8 +5448,12 @@ void CUser::ResetTrainingQuest()
 
 void CUser::SetPvpIndex(short idx)
 {
+    // ORIG 0x08669ee8：CSwitchLog("SetPvpIndex",0x2339,0,0) 记
+    // "pvp@log %s,%s,room(%d)"（acc_name/charac_name/idx）后加锁写 m_pvpRoomIdx。
+    CSwitchLog log("SetPvpIndex", 0x2339, 0, 0);
+    log("pvp@log %s,%s,room(%d)", get_acc_name(), getCurCharacName(), (int)idx);
     lock();
-    *(short*)((char*)this + 0x8d006) = idx;
+    m_pvpRoomIdx = idx;
     unlock();
 }
 
@@ -6761,15 +6909,24 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
 // 0x08655c60
 void CUser::FatigueUp(int v)
 {
-    // 0x08655c60 主分支（FatigueUp.md）：v==0→1；Hades+GoldControl 双扣减；
-    // state==5 时混沌点扣减与累计(+0x8e064)；+0x8e08c=v；prev 疲劳逢 20 上报
-    // hack 0x263；0x9c/0x32/0x64 清动作组 0x16/0x28/0x2a；事件脚本 inc/gift/
-    // bring_up；学园点；英雄任务 MissionNo=2；repeat 事件 0x29/0x2b；
-    // AvatarRechargeServer 计耐久；+0x79642 累计；公会 temp exp。
+    // 0x08655c60 主分支（FatigueUp.md）：v==0→1；BreakAway 幸运点先结算；
+    // Hades+GoldControl 双扣减；state==5 时混沌点扣减与累计(+0x8e064)；
+    // +0x8e08c=v；prev 疲劳逢 50 上报 hack 0x263；0x9c/0x32/0x64 清动作组
+    // 0x16/0x28/0x2a；事件脚本 inc/gift/bring_up(0x19b)/process_add_fatigue；
+    // 学园点；英雄任务 MissionNo=2；repeat 事件 0x29(角色日)/0x2b(疲劳buff)；
+    // AvatarRechargeServer 计耐久；+0x79642 累计；公会 temp exp；上限/燃烧/
+    // premium 分支（详见 docs/class_func_reports/CUser/FatigueUp.md）。
     if (v == 0)
         v = 1;
     unsigned short prevFatigue =
         (unsigned short)getCurCharacUsedFatigue();
+
+    if (getCurCharacR() != 0 && getUserBreakAwayRewardLuckPoint() > 0)
+    {
+        IncCurCharacLuckPoint(getUserBreakAwayRewardLuckPoint());
+        setUserBreakAwayRewardLuckPoint(0);
+        setUsedBreakAwayLuckPoint(true);
+    }
 
     // XNuclear::CHades::UseFatigue（ORIG T 0x084b9552；权威定义见 CHades.cpp）
     ((XNuclear::CHades*)getHades())->UseFatigue((unsigned int)v);
@@ -6782,51 +6939,162 @@ void CUser::FatigueUp(int v)
         {
             SubCurCharacChaosPoint(1);
             SetCurCharacAssaultFatigueCount(0);
-            *(int*)((char*)this + 0x8e064) += v;   // 推断：混沌疲劳累计
+            *(int*)((char*)this + 0x8e064) += v;   // ORIG 混沌疲劳累计
         }
     }
-    m_fatigueGain = v;
+    m_fatigueGain = v;                             // +0x8e08c
     incCurCharacUsedFatigue((unsigned short)v);
-    if ((short)(prevFatigue + (unsigned short)v) % 20 == 0)
+    unsigned short nowFatigue = (unsigned short)getCurCharacUsedFatigue();
+    // ORIG imul $0x147b（除以 25 魔术数）：nowFatigue % 50 == 0
+    if ((short)((short)nowFatigue + (short)((nowFatigue >> 1 & 0x7fff) / 0x19) * -0x32) == 0)
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x263, 1, 0, 0);
 
-    unsigned short nowFatigue = (unsigned short)getCurCharacUsedFatigue();
-    int actionGroup = 0;
-    if (nowFatigue == 0x9c)
-        actionGroup = 0x16;
-    else if (nowFatigue == 0x32)
-        actionGroup = 0x28;
-    else if (nowFatigue == 100)
-        actionGroup = 0x2a;
-    if (actionGroup != 0)
+    if ((short)getCurCharacUsedFatigue() == 0x9c)
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            this, APSystem::_ActionGroupIndex(0x16), 0, (ENUM_PACKETCLASS)0);
+    if ((short)getCurCharacUsedFatigue() == 0x32)
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            this, APSystem::_ActionGroupIndex(0x28), 0, (ENUM_PACKETCLASS)0);
+    else if ((short)getCurCharacUsedFatigue() == 100)
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            this, APSystem::_ActionGroupIndex(0x2a), 0, (ENUM_PACKETCLASS)0);
+
+    // ---- 事件脚本（EventClassify::CEventScriptMng）----
+    EventClassify::CEventScriptMng* esm = static_cast<
+        EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng());
+    esm->inc_user_fatigue(this, (unsigned int)v);
+    esm = static_cast<EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng());
+    esm->send_gift_fatigue_item(this, (unsigned int)v);
+    esm = static_cast<EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng());
+    if (esm->is_eventing(0x19b))
     {
-        APSystem::_ActionGroupIndex ag;
-        ag.m_value = actionGroup;
-        APSystem::CUserProc::ClearActionAndSendtoUser(this, ag, 0,
-                                                      (ENUM_PACKETCLASS)0);
+        esm = static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng());
+        esm->send_bring_up_item_fatigue(this, v);
     }
 
-    // 推断：EventClassify::CEventScriptMng inc_user_fatigue/send_gift_fatigue_item/
-    // send_bring_up_item_fatigue(0x19b) 待该域声明后接线。
     if (isJoinedSchoolPointEvent())
         calcCurCharacSchoolPoint(prevFatigue);
 
     ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
         this, (HeroMissionCondition::MissionNo::T)2, (unsigned int)v);
 
-    // 推断：repeat 事件 0x29（角色日，按 job 匹配 GetEventJob）→
-    // _processCharacterDayEvent；0x2b → _processFatigueBuffEvent；
-    // 依赖未建模，待事件域批次接线。
+    // ---- repeat 事件 0x29：角色日（job 匹配）----
+    CEventBase* dayEvent =
+        GlobalData::s_event_manager->GetRepeatEvent(0x29);
+    if (dayEvent != 0 && dayEvent->IsEventing((CUser*)0))
+    {
+        if (get_charac_job() ==
+            static_cast<CCharacterDayEvent*>(dayEvent)->GetEventJob())
+        {
+            _processCharacterDayEvent(prevFatigue, (unsigned int)v);
+        }
+    }
+    // ---- repeat 事件 0x2b：疲劳 buff ----
+    CEventBase* buffEvent =
+        GlobalData::s_event_manager->GetRepeatEvent(0x2b);
+    if (buffEvent != 0 && buffEvent->IsEventing((CUser*)0))
+    {
+        _processFatigueBuffEvent(prevFatigue, (unsigned int)v);
+    }
 
-    // ARAD::Singleton<AvatarRechargeServer>::CalcDurability(this,v) 待特化实例化（推断）
+    ARAD::Singleton<AvatarRechargeServer>::Get()->CalcDurability(this, v);
     m_postChecksumData.m_totalFatigueUsed =
-        (short)(m_postChecksumData.m_totalFatigueUsed + (short)v);   // ORIG this+0x79642 实证
+        (short)(m_postChecksumData.m_totalFatigueUsed + (short)v);   // +0x79642
     if (get_charac_level() != 0)
     {
-        // 推断：GuildParameterScript::getGuildExpWeight(G_CDataManager()+0xa50c)
-        // 权重 * v / 100 计入 add_guild_temp_exp。
-        add_guild_temp_exp(v / 100);
+        int weight =
+            G_CDataManager()->m_guildParameter.getGuildExpWeight(get_charac_level());
+        add_guild_temp_exp((weight * v) / 100);
     }
+    decCurCharacFatigueGrownUpBuff((unsigned int)v);
+    if ((unsigned char)(*(char*)((char*)this + 0x8d03b) + 1) > 0x10)
+        reset_guild_temp_exp();
+    processFatigueCharac(v);
+
+    // ---- premium 无限疲劳：直接返回总疲劳 ----
+    if (m_premium.isAffectedUnlimitFatigue())
+    {
+        getCurCharacTotalFatigue();
+        return;
+    }
+    // ---- repeat 事件 1：幸运点 * v ----
+    CEventBase* ev1 = GlobalData::s_event_manager->GetRepeatEvent(1);
+    if (ev1 != 0 && ev1->IsEventing((CUser*)0))
+    {
+        IncCurCharacLuckPoint(
+            *(int*)((char*)G_CDataManager() + 0xe4) * v);   // 布局待 Layout 对齐
+        getCurCharacTotalFatigue();
+        return;
+    }
+    // ---- repeat 事件 10：非活跃时走常规上限/燃烧/premium 结算 ----
+    CEventBase* ev10 = GlobalData::s_event_manager->GetRepeatEvent(10);
+    if (ev10 == 0 || !ev10->IsEventing(this))
+    {
+        if ((short)getCurCharacFatigue() == -1)
+        {
+            getCurCharacFatigue();
+            return;
+        }
+        if (get_charac_memberkey() != 0 && is_connect_upper_member())
+            add_member_pay_tex_fatigue_to_upper(v);
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())
+            ->process_add_fatigue_count(this, v);
+
+        unsigned short refill = 0;
+        CEventBase* burn =
+            GlobalData::s_event_manager->GetRepeatEvent(0xf);
+        if (burn != 0 && burn->IsEventing((CUser*)0))
+        {
+            refill = static_cast<CBurningFatigueEvent*>(burn)->getRefillFatigue(
+                getCurCharacUsedFatigue(), (unsigned short)v);
+        }
+        if (IsHavePremiumAdvantage())
+        {
+            unsigned short prem = getCurCharacPremiumFatigue();
+            unsigned int maxPrem = getCurCharacMaxPremiumFatigue() & 0xffff;
+            if ((int)((unsigned int)prem + v) <= (int)maxPrem)
+            {
+                setCurCharacPremiumFatigue((unsigned short)(prem + v));
+                if (refill != 0)
+                {
+                    gainCurCharacFatigue((unsigned int)refill);
+                    SendFatigue();
+                }
+                IncCurCharacLuckPoint(
+                    *(int*)((char*)G_CDataManager() + 0xe4) * v);  // 布局待对齐
+                getCurCharacTotalFatigue();
+                return;
+            }
+            if (getCurCharacPremiumFatigue() <
+                (unsigned short)getCurCharacMaxPremiumFatigue())
+            {
+                setCurCharacPremiumFatigue(
+                    (unsigned short)getCurCharacMaxPremiumFatigue());
+                v = ((unsigned int)prem + v) -
+                    (getCurCharacMaxPremiumFatigue() & 0xffff);
+            }
+        }
+        unsigned int curFatigue = (unsigned int)getCurCharacFatigue() & 0xffff;
+        unsigned int maxFatigue = getCurCharacMaxFatigue() & 0xffff;
+        unsigned int newFatigue =
+            (int)(curFatigue + v) > (int)maxFatigue ? maxFatigue : curFatigue + v;
+        setCurCharacFatigue((int)newFatigue);
+        IncCurCharacLuckPoint(
+            (newFatigue - curFatigue) * *(int*)((char*)G_CDataManager() + 0xe0));  // 布局待对齐
+        if (refill != 0)
+        {
+            gainCurCharacFatigue((unsigned int)refill);
+            SendFatigue();
+        }
+        getCurCharacFatigue();
+        return;
+    }
+    getCurCharacTotalFatigue();
 }
 
 // 0x0867ba5c（SendNotiPacket.md）：header(0,cmd)；cmd==2 → byte+short(1)+
@@ -8971,7 +9239,10 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // tag 角色技能槽（+0x10/+0x1a8）
     if (getTagCharacR() != 0)
     {
-        ((SkillSlot*)getTagCharacSkillR())->get_skill_slot(sig->m_tagSkillSlot, sig->m_tagSkillCombo, 0x198);
+        // SIG_LOAD_ETC 新结构：tag 区为 TAG_CHARAC_ETC_DATA（2 行 × 0x198）。
+        ((SkillSlot*)getTagCharacSkillR())->get_skill_slot(
+            reinterpret_cast<char*>(sig->m_tagEtc.m_rows[0].m_skills),
+            reinterpret_cast<char*>(sig->m_tagEtc.m_rows[1].m_skills), 0x198);
     }
 
     // aura（+0xd730）/ character option（+0xeac8）在混合区内
@@ -9748,9 +10019,9 @@ void CUser::SendClientCrashDownLogToLogDB(int reason)
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x8ac);
     CStreamGuard guard(stream, true);
-    guard << 0xcc;
-    guard << -1;
-    guard << reason;
+    guard.operator*()->operator<<(0xcc);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(reason);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
@@ -10013,10 +10284,10 @@ void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2cb8);
     CStreamGuard guard(s, true);
-    guard << (int)0x132;
-    guard << (int)GetUID();
-    char* sig =
-        (char*)guard.GetInBuffer<SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
+    guard.operator*()->operator<<((int)0x132);
+    guard.operator*()->operator<<((int)GetUID());
+    char* sig = (char*)guard.operator->()->GetInBuffer<
+        SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
     memset(sig, 0, 0x198);
     *(unsigned int*)(sig + 0x0) = (unsigned int)getCurCharacNo();
     std::vector<ContinuousItemInfo>* cool =
@@ -10048,10 +10319,10 @@ void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb);
     CStreamGuard guard(s, true);
-    guard << (int)0x137;
-    guard << (int)GetUID();
-    char* sig =
-        (char*)guard.GetInBuffer<SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
+    guard.operator*()->operator<<((int)0x132);
+    guard.operator*()->operator<<((int)GetUID());
+    char* sig = (char*)guard.operator->()->GetInBuffer<
+        SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
     memset(sig, 0, 0x198);
     *(unsigned int*)(sig + 0x0) = (unsigned int)getCurCharacNo();
     std::vector<ContinuousItemInfo>* effect =
@@ -10144,7 +10415,7 @@ void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xb9c7);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, ARAD::K_ARAD_EVENT_ITEM_LOG, (int)GetUID());
-    guard.put_binary(&sig, 0x10);
+    guard.operator->()->put_binary(&sig, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
@@ -10347,7 +10618,10 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
 // ============================================================================
 void CUser::SetUserMaxLevel(int level)
 {
-    if (level > 0)
+    // ORIG 0x0868fec8：>85 clamp 到 85；>0 取 level；否则 1。
+    if (level > 85)
+        m_field8ebd8 = 85;
+    else if (level > 0)
         m_field8ebd8 = level;
     else
         m_field8ebd8 = 1;

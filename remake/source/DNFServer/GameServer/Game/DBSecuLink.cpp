@@ -181,18 +181,17 @@ void put_db_request(CStreamGuard& guard)
 // ----------------------------------------------------------------------------
 void DB_CheckJoinGuild::makeRequest(int uid, SIG_CHECK_JOIN_GUILD* sig)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x911a);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x911a), true);
 
-    guard << 0x216;                     // op<<(int)
-    guard << uid;                       // op<<(int)
+    **guard << 0x216;                   // op<<(int)
+    **guard << uid;                     // op<<(int)
 
     {
-        SIG_CHECK_JOIN_GUILD* p = guard.GetInBuffer<SIG_CHECK_JOIN_GUILD>();
+        SIG_CHECK_JOIN_GUILD* p = guard->GetInBuffer<SIG_CHECK_JOIN_GUILD>();
         memcpy(p, sig, 0x1c);           // sizeof(SIG_CHECK_JOIN_GUILD) == 0x1c
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -224,15 +223,14 @@ void DB_DenyJoinGuild::makeRequest(int uid, unsigned int guildKey,
 void DB_GuildJoinList::makeRequest(int uid, unsigned int guildKey,
                                    ENUM_SERVER_GROUP group)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9299);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9299), true);
 
-    guard << 0x21a;                     // op<<(int)
-    guard << uid;                       // op<<(int)
-    guard << guildKey;                  // op<<(unsigned int)
-    guard << static_cast<int>(group);   // op<<(int)
+    **guard << 0x21a;                   // op<<(int)
+    **guard << uid;                     // op<<(int)
+    **guard << guildKey;                // op<<(unsigned int)
+    **guard << static_cast<int>(group); // op<<(int)
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -251,15 +249,14 @@ void DB_SecurityCardIssue::makeRequest(int uid, unsigned int accId,
                                        char const* phone, char const* sha1Hex,
                                        char const* cardData)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e0a);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e0a), true);
 
-    guard << 0xfd;                      // op<<(int)
-    guard << uid;                       // op<<(int)
+    **guard << 0xfd;                    // op<<(int)
+    **guard << uid;                     // op<<(int)
 
     {
         unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard.GetInBuffer<SIG_SECURITY_CARD_ISSUE>());
+            guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>());
         *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
         strncpy(reinterpret_cast<char*>(p + 0x31), certKey, 6);
         strncpy(reinterpret_cast<char*>(p + 0x04), serverKey, 0x21);
@@ -268,7 +265,7 @@ void DB_SecurityCardIssue::makeRequest(int uid, unsigned int accId,
         strncpy(reinterpret_cast<char*>(p + 0x63), sha1Hex, 0x29);
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------
@@ -282,20 +279,19 @@ void DB_SecurityCardIssue::makeRequest(int uid, unsigned int accId,
 void DB_SecurityCardActivate::makeRequest(int uid, unsigned int accId,
                                           char const* certKey, bool activated)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e99);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e99), true);
 
-    guard << 0xff;                      // op<<(int)
-    guard << uid;                       // op<<(int)
+    **guard << 0xff;                    // op<<(int)
+    **guard << uid;                     // op<<(int)
     {
         unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard.GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>());
+            guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>());
         *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
         strncpy(reinterpret_cast<char*>(p + 0x04), certKey, 6);
-        p[0x0b] = static_cast<unsigned char>(activated ? 1 : 0);
+        *reinterpret_cast<char*>(p + 0x0b) = activated;   // ORIG 直接存 bool（movzbl/mov %dl）
     }
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------

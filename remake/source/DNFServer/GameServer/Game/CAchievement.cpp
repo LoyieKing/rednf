@@ -12,6 +12,7 @@
 #include "CAchievement.h"
 
 #include "CDataManager.h"
+#include "QuestClear.h"      // WongWork::CQuestClear（+4 偏移访问）
 #include "CItem.h"
 #include "CMissionList_Charac.h"
 #include "CStreamGuard.h"
@@ -490,14 +491,17 @@ void CAchievement::_verifyAchievement(unsigned int self)
             }
             bool special =
                 (quest->m_type == 7) && (quest->m_triggerType == 0xc) &&
-                (!quest->m_triggerData.empty());
+                (quest->m_triggerData.empty());
             if (special)
             {
                 continue;
             }
             unsigned int clearQuestIdx = (unsigned int)quest->m_triggerData[0];
-            if (ach->m_user->getCurCharacQuestR()->isClearQuest(
-                    (int)clearQuestIdx))
+            // ORIG 0x0828d1ca：getCurCharacQuestR() + 4 为 WongWork::CQuestClear
+            // 子对象（UserQuest 容器 +0 m_user / +4 CQuestClear），调 isClearedQuest。
+            WongWork::CQuestClear* cleared =
+                (WongWork::CQuestClear*)((char*)ach->m_user->getCurCharacQuestR() + 4);
+            if (cleared->isClearedQuest(clearQuestIdx))
             {
                 ach->_forceClear(achievementIdx);
             }

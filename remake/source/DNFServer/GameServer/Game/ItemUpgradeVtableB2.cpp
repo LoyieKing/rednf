@@ -536,10 +536,9 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
     bool rollWin = false;
     if (prob != 0)
     {
-        unsigned long boundStorage;
-        const unsigned int roll =
-            (unsigned int)upgradeRand(this)->randInt(
-                randIntBound(this, boundStorage));
+        // ORIG：mov 0x4ec（m_randMax）存栈 → mov 0x4e8（m_rand）→ randInt(&bound)。
+        unsigned long boundStorage = (unsigned long)m_randMax;
+        const unsigned int roll = (unsigned int)m_rand->randInt(boundStorage);
         rollWin = roll < prob;
     }
     if (!rollWin)

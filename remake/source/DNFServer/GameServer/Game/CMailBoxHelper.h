@@ -147,13 +147,14 @@ private:
     unsigned int m_lastLoadLetterIdx;               // +0x7c（Get/SetLastLoadLetterIdx）
     int m_loadedLetterCount;                        // +0x80（Get/SetLoadedLetterCount）
     std::vector<unsigned int> m_loadLackList;       // +0x84
-    std::map<unsigned int, SIG_LETTER_INFO> m_letterInfo;   // +0x90
-    char m_padTail[0x100 - 0xa8];   // 尾垫至 ORIG 总尺寸 0x100
-};
+    std::map<unsigned int, SIG_LETTER_INFO> m_letterInfo;   // +0x90（0x18 → 0xa8）
+};                                                  // sizeof 0xa8
 
 // ---- 布局守 ABI 断言（成员自然偏移依赖下列尺寸；漂移即编译失败） ----
 static_assert(sizeof(SIG_LETTER_INFO) == 0x12b, "SIG_LETTER_INFO ABI drift");
-static_assert(sizeof(WongWork::CMailBox) == 0x100, "CMailBox ABI drift (ORIG 0x100)");
+// 布局修正（Layout_D 2026-08-30）：ORIG StaticPool<CMailBox,600>::CNodeC1 实证
+// bUse@0xac → sizeof(CMailBox)=0xa8（原 m_padTail 臆造 0x58 多余；与 ORIG 不符）。
+static_assert(sizeof(WongWork::CMailBox) == 0xa8, "CMailBox ABI drift (ORIG 0xa8)");
 
 // SIG_MAILBOX_* 完整定义见 SigTypes.h（全局作用域）
 class CMailBoxHelper

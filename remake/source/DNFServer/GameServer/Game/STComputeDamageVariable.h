@@ -29,6 +29,10 @@ enum ENUM_CONVERT_TABLE_TYPE
 #define DNF_ENUM_CONVERT_TABLE_TYPE_DEFINED 1
 #endif
 
+// 布局修正（Layout_D 2026-08-30）：ORIG 为 pack(1) 紧凑布局——ctor 实证 float
+// m_f006@0x006（非 4 对齐）、critMatrix float@0x0d6、double m_d1AA@0x1aa（非 8 对齐），
+// 无 pack 时自然对齐会把 m_f006 推到 0x008 致后续全错位 +2。
+#pragma pack(push, 1)
 class STComputeDamageVariable
 {
 public:
@@ -215,5 +219,6 @@ public:
     /* 0x1F4 */ float  m_f1F4;              // ctor: 0；dmg += m_f1F4
     /* 0x1F8 */ float  m_f1F8;              // ctor: 0；dmg += dmg*m_f1F8/100.0f
 };
+#pragma pack(pop)
 
 #endif  // DNF_GAME_STCOMPUTEDAMAGEVARIABLE_H_

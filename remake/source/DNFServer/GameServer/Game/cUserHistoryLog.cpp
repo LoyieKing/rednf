@@ -1114,13 +1114,14 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 }
 
 // ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
-//   仅当 reasonIdx>0xc 或 (1<<reasonIdx)&0x1892==0 时记录（排除常规来源）。
+//   仅当 reason>0xc 或 (1<<reason)&0x1892==0 时记录（排除常规来源）；
+//   日志第三参数与判断均用 reason（reasonIdx 未参与）。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
-    if ((0xc < (unsigned)reasonIdx) ||
-        (((1u << ((unsigned char)reasonIdx & 0x1f)) & 0x1892U) == 0))
+    if ((0xc < (unsigned)reason) ||
+        (((1u << ((unsigned char)reason & 0x1f)) & 0x1892U) == 0))
     {
-        m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reasonIdx);
+        m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
     }
 }
 
@@ -1438,7 +1439,7 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
     int rareCount = 0;                           // local_4c（rarity 0/1 计数）
     int petCount = 0;                            // local_48（invenType=2 计数）
 
-    CInventory* invenR = m_user->getCurCharacInvenW();  // ORIG InvenR 读路径；W 视图等价（只读槽位）
+    const CInventory* invenR = m_user->getCurCharacInvenR();  // ORIG 读路径（InvenR）
     int money = reinterpret_cast<CInventory*>(
                     reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
                     + 0xda)->get_money();

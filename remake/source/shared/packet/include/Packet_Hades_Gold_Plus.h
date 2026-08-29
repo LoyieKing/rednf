@@ -12,8 +12,8 @@ public:
     unsigned int m_accId;   // +0x0a（GoldPlus @84b93fa：CUser::get_acc_id）
     unsigned int m_gold;    // +0x0e（param_1：金币增量）
     unsigned short m_reason;// +0x12（param_3：ENUM_GOLD_CONTROL_REASON，0=普通/1=导入/2=拍卖）
-    Packet_Hades_Gold_Plus() : PacketHeader(0xfda, 0x14),
-        m_accId(0), m_gold(0), m_reason(0){};
+    // ORIG C1 0x84b99b2：仅调 PacketHeader(0xfda,0x14)，不初始化 +0xa/+0xe/+0x12
+    Packet_Hades_Gold_Plus() : PacketHeader(0xfda, 0x14){};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Hades_Gold_Plus, 0x14);

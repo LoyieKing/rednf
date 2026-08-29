@@ -420,7 +420,8 @@ void GameWorld::UpdateStatistic4ChannelUserLev()
     CStreamGuard guard(stream, true);
     **guard << 0x6b;
     **guard << -1;
-    SIG_UPDATE_STATISTIC4LEV* sig = guard.GetInBuffer<SIG_UPDATE_STATISTIC4LEV>();
+    SIG_UPDATE_STATISTIC4LEV* sig =
+        guard.operator->()->GetInBuffer<SIG_UPDATE_STATISTIC4LEV>();
     memset(sig, 0, 0x124);
     sig->m_gcNo = *(int*)((char*)G_CEnvironment() + 0x1b0);
     sig->m_time = GlobalData::s_systemTime_.getCurSec();
@@ -2827,7 +2828,7 @@ void GameWorld::ResetAllFatigue()
                 ::new (msg) AradServerStateMessage();
                 ARAD::notifyOpenMessageDialog(user, 0, 0x8e, *(AradServerStateMessage*)msg);
             }
-            *(int*)((char*)user + 0x8ec32) = 4;
+            user->m_field8ec32 = 4;
             InterSelectPcroomDailyReward::SendPacket(user);
             ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
                 user, (HeroMissionCondition::MissionNo::T)5, 0);
@@ -3017,7 +3018,8 @@ void GameWorld::ResetCraneItemNeedMaterial(int param)
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            G_CGameManager()->GetCraneMinigameManager()->updateCraneItemNeedMaterial((int)user);
+            // ORIG 0x086d13ba：state>2 时调 SendCraneItemNeedMaterial(user)
+            G_CGameManager()->GetCraneMinigameManager()->SendCraneItemNeedMaterial(user);
         }
     }
 }
@@ -3419,11 +3421,12 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
     }
     else if (!GlobalData::s_pGMAccounts_->isGM(to->get_acc_id()))
     {
-        send_peerTypemsg_sameWorldUser(from, to, type, 0, 1, msg, len);
+        // ORIG 0x086cab92：!isGM → send(to, from, 0, 1)；isGM → send(from, to, 0x5a, 0x20)
+        send_peerTypemsg_sameWorldUser(to, from, type, 0, 1, msg, len);
     }
     else
     {
-        send_peerTypemsg_sameWorldUser(to, from, type, 0x5a, 0x20, msg, len);
+        send_peerTypemsg_sameWorldUser(from, to, type, 0x5a, 0x20, msg, len);
     }
 }
 

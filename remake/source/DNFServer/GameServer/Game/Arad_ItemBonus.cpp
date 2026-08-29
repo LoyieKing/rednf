@@ -191,8 +191,11 @@ int importCashShopPurcahseBonusItemList(
 // ---------------------------------------------------------------------------
 bool CeraShopPurcahseCountBonus::LoadScript()
 {
-    return importCashShopPurcahseBonusItemList(
-               "CashShop/PurcahseBonusItem.shp", m_bonusMap) < 1;
+    // ORIG 0x081abf2f setg：import(...) > 0 → false，否则 true。
+    if (importCashShopPurcahseBonusItemList(
+            "CashShop/PurcahseBonusItem.shp", m_bonusMap) > 0)
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

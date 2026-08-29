@@ -511,20 +511,120 @@ std::bitset<32> PvP_MissionSystem::get_daily_mission_kind() const
     return m_dailyMissionKind;
 }
 
+// ORIG 0x85e2e74：越界时 cMyTrace 记录 InvalidRank 并返回 0。
 int PvP_MissionSystem::get_BaseMissionExp_byRank(unsigned short rank) const
 {
-    return rank < m_baseMissionExp.size() ? static_cast<int>(m_baseMissionExp[rank]) : 0;
+    if (rank >= m_baseMissionExp.size())
+    {
+        cMyTrace(
+            "unsigned int PvP_MissionSystem::get_BaseMissionExp_byRank(short unsigned int) const",
+            0x162, 5)
+            ("[@missionSystem] <InvalidRank : %d>", rank);
+        return 0;
+    }
+    return static_cast<int>(m_baseMissionExp[rank]);
 }
 
 void PvP_MissionSystem::get_New_DailyMission(
     std::vector<std::pair<unsigned int, unsigned int> >& out)
 {
+    // ORIG 0x85e26dc 逐指令转写：三段——①dailyMissionIndices→map 查 mission
+    // 推 {kind,idx}；②按 m_dailyMissionList 加权随机补 m_field30 个；③bitset
+    // 校验 kind 范围/重复，越界或重复打印 cMyTrace 并清空 out。
     out.clear();
     for (std::vector<unsigned int>::size_type i = 0;
-         i < m_dailyMissionIndices.size(); ++i) {
+         i < m_dailyMissionIndices.size(); ++i)
+    {
         const unsigned int id = m_dailyMissionIndices[i];
-        if (find_mission(static_cast<int>(id)))
-            out.push_back(std::make_pair(id, static_cast<unsigned int>(i)));
+        std::map<int, CMission*>::iterator it =
+            m_missionMap.find(static_cast<int>(id));
+        if (it == m_missionMap.end())
+            continue;
+        CMission* mission = it->second;
+        if (mission == 0)
+            continue;
+        out.push_back(std::make_pair(
+            static_cast<unsigned int>(mission->GetMissionKind()),
+            static_cast<unsigned int>(mission->GetMissionIndex())));
+    }
+    for (int j = 0; j < m_field30; ++j)
+    {
+        std::list<std::pair<unsigned int, unsigned int> > tmp(m_dailyMissionList);
+        int weight = m_field3c;
+        int r = static_cast<CMTRand*>(m_trand)->randInt() % weight;
+        int sum = 0;
+        for (std::list<std::pair<unsigned int, unsigned int> >::iterator li =
+                 tmp.begin(); li != tmp.end(); ++li)
+        {
+            sum += static_cast<int>(li->first);
+            if (r < sum)
+            {
+                const unsigned int missionIdx = li->second;
+                std::map<int, CMission*>::iterator mi =
+                    m_missionMap.find(static_cast<int>(missionIdx));
+                if (mi != m_missionMap.end() && mi->second != 0)
+                {
+                    CMission* m = mi->second;
+                    out.push_back(std::make_pair(
+                        static_cast<unsigned int>(m->GetMissionKind()),
+                        static_cast<unsigned int>(m->GetMissionIndex())));
+                }
+                weight -= static_cast<int>(li->first);
+                tmp.erase(li);
+                break;
+            }
+        }
+        if (weight <= 0)
+        {
+            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x123, 5)
+                ("InvalidMaxDice %d", weight);
+        }
+    }
+    std::bitset<32> dailyKind(0);
+    for (std::vector<std::pair<unsigned int, unsigned int> >::size_type k = 0;
+         k < out.size(); ++k)
+    {
+        const unsigned int kind = out[k].first;
+        if (kind == 0)
+            continue;
+        if (kind > 0x20)
+        {
+            std::string s;
+            for (std::vector<std::pair<unsigned int, unsigned int> >::size_type
+                     m = 0; m < out.size(); ++m)
+            {
+                char buf[0x110];
+                sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
+                s += buf;
+            }
+            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x139, 5)
+                ("[@missionSystem] OverKind: <Invalid mission kind : %d> "
+                 "<mission index : %d> <Created DailyMission Size : %d> "
+                 "<List : %s >",
+                 kind, out[k].second, out.size(), s.c_str());
+            out.clear();
+        }
+        else if (dailyKind[kind])
+        {
+            std::string s;
+            for (std::vector<std::pair<unsigned int, unsigned int> >::size_type
+                     m = 0; m < out.size(); ++m)
+            {
+                char buf[0x110];
+                sprintf(buf, "<K:%d, I:%d>", out[m].first, out[m].second);
+                s += buf;
+            }
+            cMyTrace("void PvP_MissionSystem::get_New_DailyMission", 0x14d, 5)
+                ("[@missionSystem] OverlappedKind: <Invalid mission kind : %d> "
+                 "<mission index : %d> <Created DailyMission Size : %d> "
+                 "<List : %s >",
+                 kind, out[k].second, out.size(), s.c_str());
+            out.clear();
+        }
+        else
+        {
+            dailyKind[kind] = true;
+        }
     }
 }
 

@@ -216,11 +216,6 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
     }
 
     static char errStr[256];
-    if (table < 0 || table >= static_cast<int>(dictionaries_.size()))
-    {
-        return "RDARScriptStringManager::ERROR::requested fileIndex isn't in string table";
-    }
-
     std::string k = rdarToTString(key);
     const char* result = dictionaries_[table]->get(k.c_str());
     if (flag != 0)
@@ -236,7 +231,7 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
 int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
 {
     // ORIG 0x8aa5cba
-    if (key != 0 && table >= 0 && (static_cast<unsigned>(table) < dictionaries_.size()))
+    if (key != 0)
     {
         StringDictionary* d = dictionaries_[table];
         int n = d->getCount();

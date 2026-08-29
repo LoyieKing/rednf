@@ -28,6 +28,7 @@
 #include <ext/hash_map>
 
 #include <map>
+#include <cstring>
 #include <queue>
 #include <set>
 #include <string>
@@ -112,11 +113,9 @@ struct MSG_CHECK_MAIL_RECEIVER
     template <enum ENUM_MAILBOX_CHECKTYPE TYPE, class MSG_T>
     void set(MSG_T const& msg)
     {
+        // ORIG 0x8236e06 起：*(int*)this=TYPE; memcpy(this+4, &msg, sizeof(T))。
         *(int*)this = (int)TYPE;
-        const char* src = reinterpret_cast<const char*>(&msg);
-        char* dst = reinterpret_cast<char*>(this) + 4;
-        for (unsigned int i = 0; i < sizeof(MSG_T); ++i)
-            dst[i] = src[i];
+        std::memcpy(reinterpret_cast<char*>(this) + 4, &msg, sizeof(MSG_T));
     }
 
     char m_pad[0x3f88 - 4];   // 载荷区（+4 起），总大小 0x3f88=16264
@@ -565,6 +564,8 @@ public:
         short m_uniqueId;
     };
     int userPoolRemain() { return m_userPool.Remain(); }  // MainLoop 心跳条件用
+    int userPoolSize() { return m_userPool.Size(); }      // MainLoop 心跳条件用（ORIG 实例调用）
+    friend void ProcessServerStatusLog();  // ORIG 0x80ede91 访问私有池（GameMain.cpp 定义）
 
 private:
     Mutex m_mutex;                       // +0x000（0x18）

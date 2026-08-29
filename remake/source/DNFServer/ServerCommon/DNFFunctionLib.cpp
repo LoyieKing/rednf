@@ -98,7 +98,8 @@ void PrintBackTrace() {
         // coserver ORIG 实测（0x8054328）：__FUNCTION__ 符号 + 0x186。
         CMyFileLog log(__FUNCTION__, 0x186);
 #else
-        CMyFileLog log("PrintBackTrace", 0x186);
+        // df_game_r（未定义 DNF_SVC_* 宏的构建）ORIG 实测：__FUNCTION__ + 0x1d1。
+        CMyFileLog log(__FUNCTION__, 0x1d1);
 #endif
         log("./log/BackTrace", s);
     }
@@ -129,7 +130,8 @@ char checkTimeToday(long t, int hour) {
     return result;
 }
 
-void GetCurrentResetBaseTime(long t, int hour) {
+// ORIG T 0x0810912a _Z23GetCurrentResetBaseTimeli（返回 reset 时间戳 long）。
+long GetCurrentResetBaseTime(long t, int hour) {
     long yester_time = t - 86400;
     tm now;
     tm yday;
@@ -144,12 +146,12 @@ void GetCurrentResetBaseTime(long t, int hour) {
         tm_ptr_yester->tm_hour = day;
         tm_ptr_yester->tm_min = 0;
         tm_ptr_yester->tm_sec = 0;
-        mktime(tm_ptr_yester);
+        return mktime(tm_ptr_yester);
     } else {
         tm_ptr->tm_hour = day;
         tm_ptr->tm_min = 0;
         tm_ptr->tm_sec = 0;
-        mktime(tm_ptr);
+        return mktime(tm_ptr);
     }
 }
 
@@ -280,7 +282,39 @@ unsigned int DNFFLib::get_rand_int(int divide) {
     return result;
 }
 
-int get_rand_int(int range) { return static_cast<int>(DNFFLib::get_rand_int(range)); }
+// ORIG 中自由函数 get_rand_int 与 DNFFLib::get_rand_int 为同字节的独立复制体
+// （73 条指令逐条一致），并非包装调用；此处保持与成员版本相同的完整实现。
+__attribute__((target("arch=i586")))
+int get_rand_int(int range) {
+    if (range < 0) {
+        return 0;
+    }
+    switch (range) {
+    case 0:
+        return rand();
+    default:
+        break;
+    }
+    int r = rand();
+    if (r > range) {
+        return rand() % range;
+    }
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    unsigned int result = (r / 65536) & 0x7ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    if (result > (unsigned int)range) {
+        return result % range;
+    }
+    return result;
+}
 
 int DNFFLib::ExplodeString(char* str, char* delims, char** out, int maxCount) {
     // ORIG DWARF 局部：iTokenCnt(158)/pToken(159)/pLast(160)/pTail(160)。

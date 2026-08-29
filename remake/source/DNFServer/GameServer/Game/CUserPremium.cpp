@@ -844,7 +844,7 @@ void CUserPremium::ReCalcAdvantage()
 
 void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
-    Entries(this)[(int)type].m_state = (int)state;
+    reinterpret_cast<SUserPremiumInfo*>(m_pad)[(int)type].m_state = (int)state;
 }
 
 bool CUserPremium::_CheckApply(int type, tm t)
@@ -854,7 +854,8 @@ bool CUserPremium::_CheckApply(int type, tm t)
         return true;
     for (int i = 0; i < 7; ++i)
     {
-        if (def->m_applyDayMask[i] == t.tm_yday)
+        // ORIG：cmp 0x28(%ebp)（= tm+0x18 = tm_wday）→ 按星期匹配。
+        if (def->m_applyDayMask[i] == t.tm_wday)
             return true;
     }
     return false;
@@ -1034,10 +1035,10 @@ int CUserPremium::GetAddExpBonus(int type) const
 std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 {
     std::vector<std::pair<int, int> > items;
-    SUserPremiumInfo* entry = Entries(this);
+    SUserPremiumInfo* entry = reinterpret_cast<SUserPremiumInfo*>(m_pad);
     if (entry[type].m_type == 0 || entry[type].m_type >= 0x6a)
         return items;
-    const SPremiumInfo* def = GetPremiumDefinition(entry[type].m_type);
+    const SPremiumInfo* def = &g_SPremiumInfo[entry[type].m_type];
     if (def->m_kind != 1)
         return items;
     for (int i = 0; i < 5; ++i)

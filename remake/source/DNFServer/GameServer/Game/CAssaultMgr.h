@@ -312,14 +312,13 @@ public:
     Point2d m_pos;                  // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
     char m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP flag 按 team 读）
     int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
-    char m_pad125[3];               // +0x125..+0x127
     char m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
     char m_pad12a[2];               // +0x12a..+0x12b
     PartyInfo m_parties[2];         // +0x12c
-    int m_abuseSec;                 // +0x13c（AbuseUser 节流时间戳）
     CUser* m_checkUser;             // +0x134（EvadeAssaultPlace/_AvailableAssault
                                     //   与请求用户指针比较；ORIG 无 setter [推断]）
     char m_pad138[4];               // +0x138..+0x13b
+    int m_abuseSec;                 // +0x13c（AbuseUser 节流时间戳）
     void Reset();                                   // 报告 Reset.md
     bool CheckPlayable();                           // ORIG W 0x82f06ea
     int GetState();                                 // ORIG W 0x82f06fe（读 +0x10c）
@@ -411,7 +410,7 @@ public:
     void _PowerWarAssaultCheckIn();                           // ORIG T 0x82e72fa
     int  _ClearConnectP2PAbsolute(int idx);                   // ORIG T 0x82e92c6
     void _GetConnectP2PMaxMinPoint(int& maxPt, int& minPt);   // ORIG T 0x82e9412（1 参 init0→max、2 参 init8→min）
-    void _ClearConnectP2PRelative(int idx);                   // ORIG T 0x82e9358
+    int  _ClearConnectP2PRelative(int idx);                   // ORIG T 0x82e9358（恒返回 1）
     // _MakeRevivalAssaultPlayer ORIG asm 0x82ed59a 调用为纯栈式两参（无 this/ecx）→ 实证 static；
     // 与 W6_AssaultPlaceA 块 374 行的静态声明统一为一处。见 374 行声明（不在此重复）。
     void _SendPowerWarPointToGuildServer(CUser* user,

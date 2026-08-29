@@ -401,10 +401,10 @@ int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
 // ============ CAccountFirstLogin（0x191/0x192 → AccountFirstLoginScript）============
 
 CAccountFirstLogin::CAccountFirstLogin()
-    : CEventEntity(), m_script1c(0)
+    : CEventEntity()
 {
-    // 显式保留（entitiesB 的 CAccountFirstLoginDaily 需可调用基类 ctor）。
-    // ORIG ctor 为 W 隐式且工厂先整块清零；此处补 m_script1c=0 复现清零终态。
+    // Fix6：ORIG 0x810e168 隐式 ctor 不清 +0x1c（工厂 new 后整块清零），
+    // m_script1c 保持垃圾值以字节一致。
 }
 
 void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)

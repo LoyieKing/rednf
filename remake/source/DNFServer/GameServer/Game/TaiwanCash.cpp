@@ -19,7 +19,7 @@ namespace Taiwan
 // ---- BillTransaction::init —— ORIG 0x08175540：movb $0,(%eax); movl $0,4/8(%eax)。----
 void BillTransaction::init()
 {
-    m_field0 = 0;
+    *(char*)this = 0;
     m_tranNo = 0;
 }
 
@@ -217,6 +217,8 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 {
     CEnvironment* env = G_CEnvironment();
     unsigned char type = static_cast<unsigned char>(env->m_serverEnvir.m_serverGroup);
+
+    cash = new Taiwan::TaiwanCash(type, 1);
 
     // CEnvironment::m_dbConnInfo 权威布局 +0x68（ORIG lea 0x68(%eax)
     // @0x081465e4）；经 get_db_conn_info() 访问（CEnvironment.h 的 inline

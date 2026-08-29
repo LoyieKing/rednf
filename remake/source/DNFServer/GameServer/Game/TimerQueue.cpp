@@ -138,10 +138,13 @@ void TimerQueue::write_timer_queue_log() throw()
         sprintf(buf, "(%d %d) ", it->first, it->second);
         log += buf;
 
-        // P23：ORIG 先求值 c_str 暂存寄存器，再构造 cMyTrace、再 operator()。
-        const char* str = log.c_str();
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x101, 0);
-        trace("TIMER_QUEUE_LOG : %s", str);
+        // P23：ORIG 仅当 log 长度 > 0x800 才构造 cMyTrace 并输出。
+        if (log.length() > 0x800)
+        {
+            const char* str = log.c_str();
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x101, 0);
+            trace("TIMER_QUEUE_LOG : %s", str);
+        }
         log.clear();
     }
 

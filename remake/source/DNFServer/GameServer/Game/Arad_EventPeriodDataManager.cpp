@@ -58,9 +58,9 @@ bool Arad_EventPeriodDataManager::isApplied(ENUM_REPEAT_EVENT_CODE eventCode, un
 
 bool Arad_EventPeriodDataManager::isRunning(ENUM_REPEAT_EVENT_CODE eventCode)
 {
-    // ORIG isRunning@0x08195686 以 GlobalData::s_systemTime_ 的当前 tick 作为 time
-    // 转发给 isApplied。此处保留转发语义；GlobalData 依赖由宿主接线。
-    return isApplied(eventCode, 0);
+    // ORIG isRunning@0x08195686：以 s_systemTime_（0x941f714）的当前 tick 作为
+    // time 转发给 isApplied（getCurTickCount@0x081458ac 返回 m_curTickCount）。
+    return isApplied(eventCode, GlobalData::s_systemTime_.getCurTickCount());
 }
 
 // ORIG 0x08195994：遍历 SigLoadRewardEventItem 条目（count=+0x04 short），

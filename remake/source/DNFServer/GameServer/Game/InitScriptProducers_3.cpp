@@ -40,7 +40,7 @@
 // ---- 外部依赖声明（ORIG T 符号，定义归属各自批次；此处仅引用）----
 
 // _Z13importRewardsPSt6vectorIP18stTitleRewardBasisSaIS1_EESs 0x08aa8b79
-void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token);
+int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token);
 // _Z19importTitleSectionP14stTitleSectioni 0x08aa8d65（返回 bool）
 bool importTitleSection(stTitleSection* section, int idx);
 // _Z18getTitleCollectionP15stTitleBookInfoi 0x08aa94e1
@@ -1147,4 +1147,12 @@ int importItmeGroupTable(const char* dir, const char* file,
         table.insert(std::make_pair(name, id));
     }
     return 0;
+}
+
+// stCustomConditionMsg::stCustomConditionMsg —— ORIG C1 0x8aa9928：string 成员
+// 默认构造后两 int 置 -1（importTitleBookEtcScript [custom condition message]）。
+stCustomConditionMsg::stCustomConditionMsg()
+{
+    m_tabType = -1;
+    m_value = -1;
 }

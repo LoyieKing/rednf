@@ -117,8 +117,6 @@ void ScriptStringManager::clear()
 // outputString==NULL 亦为 ORIG UB，护栏返回 false。
 bool ScriptStringManager::getString(int index, std::string* outputString) const
 {
-    if (outputString == 0)
-        return false;
     outputString->clear();  // ORIG: _M_mutate(0, length, 0)
     if (index < 0 || static_cast<std::size_t>(index) >= strings_.size())
         return false;       // ORIG 死代码路径（DWARF 意图：越界失败）

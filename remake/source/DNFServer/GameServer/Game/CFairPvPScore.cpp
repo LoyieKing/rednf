@@ -103,7 +103,8 @@ bool CFairPvPScore::_saveData(CUser* pUser)
     **guard << 0x261;                       // SIG_FAIR_PVP_SCORE 头
     **guard << (int)pUser->GetUID();
 
-    SIG_FAIR_PVP_SCORE* sig = guard.GetInBuffer<SIG_FAIR_PVP_SCORE>();
+    SIG_FAIR_PVP_SCORE* sig =
+        guard.operator->()->GetInBuffer<SIG_FAIR_PVP_SCORE>();
     memset(sig, 0, sizeof(SIG_FAIR_PVP_SCORE));          // 0x688
     *(int*)sig = pUser->get_charac_no(-1);               // ORIG *(int*)local_10
     this->getData(reinterpret_cast<char*>(sig));         // ORIG vtable+8 (getData)；线格式序列化

@@ -66,7 +66,7 @@ struct CreatureScriptSkillInfo
     std::string m_str4;   // +0x04
     int m_field8;         // +0x08
     int m_fieldc;         // +0x0c
-    std::string m_str10;  // +0x10
+    int m_field10;        // +0x10（ORIG clear 0x833e000 写 -1，非 string）
     std::string m_str14;  // +0x14
     std::string m_str18;  // +0x18
     std::string m_str1c;  // +0x1c
@@ -111,6 +111,7 @@ public:
     std::string m_walkMotion;       // +0x74
     std::string m_runMotion;        // +0x78
     std::string m_flyMotion;        // +0x7c
+    char m_pad80[4];                // +0x80（ORIG 布局空洞：无析构/clear/import 访问证据）
     std::string m_getExpMotion;     // +0x84
     std::string m_getExpOverMotion; // +0x88
     std::string m_getExpUnderMotion;// +0x8c
@@ -241,7 +242,7 @@ public:
     int m_forceHitStunTime;            // +0x74
     int m_hpDrain;                     // +0x78
     int m_mpDrain;                     // +0x7c
-    int m_field80;                     // +0x80
+    float m_field80;                   // +0x80（ORIG clear mov $0x0,%edx 中转 → float）
     float m_field84;                   // +0x84
     unsigned char m_isHitNumberIncreasing;  // +0x88
     char m_pad89[0x8c - 0x89];         // +0x89
@@ -250,18 +251,17 @@ public:
     unsigned char m_hitCheckByScreenPos;  // +0x91
     char m_pad92[0x94 - 0x92];         // +0x92
     int m_maxTargetHitNumber;          // +0x94
-    unsigned char m_attackMyself;      // +0x98
-    unsigned char m_attackFriend;      // +0x9c
-    unsigned char m_attackEnemy;       // +0xa0
-    char m_pada1[0xa4 - 0xa1];         // +0xa1
-    std::set<ENUM_ELEMENT> m_elements;   // +0xa4
-    // 3 个活动状态组（+0xf8/0x104/0x110 各 12B vector<int>）+ 标量区
-    std::vector<int> m_activeStatusVectors[3];   // +0xf8, +0x104, +0x110
+    int m_attackFlags[3];              // +0x98（[0]=myself [1]=friend [2]=enemy；
+                                       //  ORIG clear 循环 0x98+i*4=(i==2) 实证）
+    std::set<ENUM_ELEMENT> m_elements;   // +0xa4（0x18）
+    // 布局修正（Layout_D 2026-08-30）：ORIG C1 0x088903c3 实证 vector 数组在
+    // 0xf8（set+0x54），标量区 0xbc..0xf8 在前——按 ORIG 声明序排列。
     int m_activeStatusType[3];       // +0xbc
     float m_activeStatusValue[3];    // +0xc8
     int m_activeStatusInt[3];        // +0xd4
     int m_activeStatusInt2[3];       // +0xe0
     int m_activeStatusInt3[3];       // +0xec
+    std::vector<int> m_activeStatusVectors[3];   // +0xf8, +0x104, +0x110
     float m_damageRate[3];           // +0x11c, +0x120, +0x124
     std::vector<CatchObjectInfo> m_catchObjects;  // +0x128
 };

@@ -289,12 +289,13 @@ int CAssaultPlace::_ClearConnectP2PAbsolute(int idx)
 }
 
 // ORIG T 0x82e9358 _ClearConnectP2PRelative(int)
-void CAssaultPlace::_ClearConnectP2PRelative(int idx)   // 头声明 void（WAMgr 终态）
+int CAssaultPlace::_ClearConnectP2PRelative(int idx)
 {
     for (int i = 2; i <= 7; ++i) {
         if (_GetConnectP2PPoint(i) == idx)
             LeaveAssaultPlace(i, true, false);
     }
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -819,29 +820,26 @@ void CAssaultPlace::DieUser(CUser* user, int killerIdx, MSG_DIE_ASSAULT_PLAYER& 
 // ORIG T 0x82e7d0a MakeTeam(CUser*, CUser*, int&)
 void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
 {
-    // ORIG：param_2 的 vill/area 写入 +0x118/+0x11c（即 m_pos 两分量）；
-    // param_2 存 +0x134、param_3（int& 地址）存 +0x138——与既有头字段一一对应。
-    m_pos.m_x = user2->getCurCharacVill();
-    m_pos.m_y = user2->get_area(false);
+    // param_2 存 +0x134、param_3 存 +0x138——与既有头字段一一对应。
+    m_pos.m_x = user1->getCurCharacVill();
+    m_pos.m_y = user1->get_area(false);
     if (m_pos.m_x == 0 && m_pos.m_y == 0)
         throw (ENUM_ERROR)0x15;
-    m_checkUser = user2;                                        // +0x134
-    *reinterpret_cast<int**>(reinterpret_cast<char*>(this) + 0x138) = &outIdx;  // pad 槽
+    m_checkUser = user1;                                        // +0x134
+    *reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x138) = user2;  // +0x138
 
-    // posX 比较：ORIG 对 param_2 与 param_3（按 CUser* 解引用，Ghidra 同形）取
-    // get_posX；随后 _SeparateTeam 两参顺序随比较翻转，+0x124 记 0/1。
-    unsigned int px1 = user2->get_posX();
-    unsigned int px2 =
-        reinterpret_cast<CUser*>(&outIdx)->get_posX();
+    // posX 比较：ORIG 对 param_2 与 param_3 取 get_posX；随后 _SeparateTeam 两参顺序随比较翻转，+0x124 记 0/1。
+    unsigned int px1 = user1->get_posX();
+    unsigned int px2 = user2->get_posX();
     if (px1 < px2) {
-        _SeparateTeam(user2, reinterpret_cast<CUser*>(&outIdx));
+        _SeparateTeam(user2, user1);
         m_winTeam = 0;                                          // +0x124
     } else {
-        _SeparateTeam(reinterpret_cast<CUser*>(&outIdx), user2);
+        _SeparateTeam(user1, user2);
         m_winTeam = 1;                                          // +0x124
     }
 
-    m_authenValue = GlobalData::s_systemTime_.getCurSec();   // +0x108 = getCurSec
+    m_authenValue = GlobalData::s_systemTime_.getCurSec();       // +0x108 = getCurSec
     _SetReadyState();
 
     if ((reinterpret_cast<CParty*>(m_parties[0].Get())) != 0)

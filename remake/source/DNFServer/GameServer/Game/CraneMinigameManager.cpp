@@ -124,8 +124,10 @@ CraneMinigameScript::~CraneMinigameScript()
 }
 
 CraneMinigameManager::CraneMinigameManager()
-    : m_field10(0), m_materials(), m_selectIdx(0)
+    : m_selectIdx(0)
 {
+    // ORIG 0x080ebc32：仅调 CraneMinigameScriptC1（构造 m_items/m_sendMail/
+    // m_needMaterials）+ m_selectIdx=0；m_material(+0x10) 不初始化。
 }
 
 CraneMinigameManager::~CraneMinigameManager() {}
@@ -133,10 +135,7 @@ CraneMinigameManager::~CraneMinigameManager() {}
 // ORIG 0x080ebc6e：reset Action_SendMail 后导入脚本表；失败 trace 并返回 false。
 bool CraneMinigameManager::init()
 {
-    Action_SendMail* mail = &m_sendMail;   // +0x18 内嵌对象直位复位
-    mail->m_jobMap.clear();
-    mail->m_itemIdx = 0;
-    mail->m_addInfo = 0;
+    m_sendMail.reset();   // ORIG 0x080ebc6e：call Action_SendMail::reset（0x080ec026）
 
     if (!importCraneMinigameScript(
             reinterpret_cast<CraneMinigameScript*>(this),
@@ -149,15 +148,15 @@ bool CraneMinigameManager::init()
     return true;
 }
 
-// ORIG 0x080ebebc：m_selectIdx = count % m_materials.size()；
-// 取对应 pair 调 NeedMaterialDataManager::setNeedMaterialInfo(m_field10, pair)。
+// ORIG 0x080ebebc：m_selectIdx = count % m_needMaterials.size()；
+// 取对应 pair 调 NeedMaterialDataManager::setNeedMaterialInfo(m_material, pair)。
 void CraneMinigameManager::updateCraneItemNeedMaterial(int count)
 {
-    unsigned int size = m_materials.size();
+    unsigned int size = m_needMaterials.size();
     m_selectIdx = static_cast<unsigned char>(
         static_cast<unsigned int>(count) % size);
-    const std::pair<int, int>& info = m_materials[m_selectIdx];
-    NeedMaterialDataManager::getInstance()->setNeedMaterialInfo(m_field10, info);
+    const std::pair<int, int>& info = m_needMaterials.at(m_selectIdx);  // ORIG at
+    NeedMaterialDataManager::getInstance()->setNeedMaterialInfo(m_material, info);
 }
 
 // ORIG 0x080ebf2e（报告 CraneMinigameManager/SendCraneItemNeedMaterial.md）：

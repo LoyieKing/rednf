@@ -100,7 +100,7 @@ public:
     virtual void OnCompleteLoad(CUser* user);                 // 0x8564962
     virtual void OnConnectP2PTimeout(PvP_Room* room);        // 0x8564d3a
     virtual void OnConnectP2P(CUser* user, PvP_Room* room, char* addr, int port);  // 0x8564a8e
-    virtual void OnGiveup(CUser* user);                       // 0x8564de0
+    virtual int OnGiveup(CUser* user);                        // 0x8564de0
     virtual void OnRematchTimeout(PvP_Room* room);           // 0x85665f92?
     virtual void OnAskRematch(CUser* user, int a);           // 0x856664a0
     virtual void OnWaitRematch(CUser* user, PvP_Room* room); // 0x8566649a

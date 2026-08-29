@@ -344,10 +344,10 @@ void EventEverland::ArrangeEverlandEventItem(unsigned int mid, unsigned int serv
         int charac_no = 0;                 // col2
         unsigned int coin = 0;             // col3
         int coin_check = 0;                // col4
-        db->get_int(0, (int&)id);
-        db->get_int(1, (int&)srv);
+        db->get_int(0, id);
+        db->get_int(1, srv);
         db->get_int(2, charac_no);
-        db->get_int(3, (int&)coin);
+        db->get_int(3, coin);
         db->get_int(4, coin_check);
 
         if (coin_check == 0 && srv == serverId && outCount < MAX_ENTRIES)
@@ -428,12 +428,12 @@ void EventFCCombo::ArrangeFCComboEventItem(unsigned int mid, unsigned int server
         unsigned int item_no = 0;          // col3
         int item_check = 0;                // col4
         unsigned int item_cnt = 0;         // col5
-        db->get_int(0, (int&)id);
-        db->get_int(1, (int&)srv);
+        db->get_int(0, id);
+        db->get_int(1, srv);
         db->get_int(2, charac_no);
-        db->get_int(3, (int&)item_no);
+        db->get_int(3, item_no);
         db->get_int(4, item_check);
-        db->get_int(5, (int&)item_cnt);
+        db->get_int(5, item_cnt);
 
         if (item_check == 0 && srv == serverId && outCount < MAX_ENTRIES)
         {

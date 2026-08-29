@@ -1361,6 +1361,12 @@ STRDCharacterStatusClient& STRDCharacterStatusClient::operator=(
     return *this;
 }
 
+// ORIG _ComboInfo C1（W）：逐成员构造后调 clear()。
+_ComboInfo::_ComboInfo()
+{
+    clear();
+}
+
 // ORIG _ComboInfo::clear W 0x0836785c（objdump 转写）。
 void _ComboInfo::clear()
 {

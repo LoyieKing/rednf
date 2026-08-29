@@ -586,9 +586,9 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
     const int reasonVal = static_cast<int>(reason);
     if (reasonVal == 1 || reasonVal == 2)
     {
-        m_field8e068 += exp;
+        m_character.m_f34 += exp;
     }
-    m_field8e05c += exp;
+    m_character.m_f28 += exp;
     incPlayExpAdd(exp);
 
     bool levelUp = false;

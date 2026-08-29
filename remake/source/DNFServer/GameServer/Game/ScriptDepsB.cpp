@@ -195,7 +195,7 @@ std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab)
 // 扫描顺序逐条对齐汇编：change=status 先存 appendage 再 Str/ValueType/Float；
 // postal 先两个 int(+0x18/+0x1c) 后三个 string(+0xc/+0x10/+0x14)。
 // ============================================================================
-void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
+int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
 {
     const int appendage = loadAppendageType(token);
     if (appendage != -1)
@@ -207,7 +207,7 @@ void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
         reward->m_valueType = loadValueType(typeText);      // +0x10
         reward->m_value = ScanFloat((bool*)0);              // +0x14（fstps）
         out->push_back(reward);
-        return;
+        return 1;
     }
 
     if (token == "[give emotion]")
@@ -215,7 +215,7 @@ void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
         stRewardGiveEmotion* reward = new stRewardGiveEmotion();
         reward->m_emotionId = ScanInt((bool*)0);            // +0x0c
         out->push_back(reward);
-        return;
+        return 1;
     }
 
     if (token == "[send postal]")
@@ -228,6 +228,7 @@ void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
         ScanStr(&reward->m_message);                        // +0x14
         out->push_back(reward);
     }
+    return 1;
 }
 
 // ============================================================================

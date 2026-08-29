@@ -15,6 +15,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #include "CUser.h"
 #include "CInventory.h"
@@ -80,7 +81,7 @@ CTradeSpace::CTradeSpace()
     for (int t = 1; t != -1; --t) {
         char* slot = row;
         for (int s = 0x1a; s != -1; --s) {
-            ((TradeSlot*)slot)->Reset();
+            ::new (slot) TradeSlot();
             slot += 0x48;
         }
         row += 0x798;

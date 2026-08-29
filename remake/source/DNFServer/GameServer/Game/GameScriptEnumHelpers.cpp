@@ -30,31 +30,27 @@ int getStateToEnumValue(std::string& /*s*/)
 // ---------------------------------------------------------------------------
 int getActiveStatusToEnumValue(std::string& s)
 {
-    static const char* names[20] = {
-        "slow",        // 0
-        "freeze",      // 1
-        "poison",      // 2
-        "stun",        // 3
-        "curse",       // 4
-        "blind",       // 5
-        "lightning",   // 6
-        "stone",       // 7
-        "sleep",       // 8
-        "burn",        // 9
-        "weapon break",// 10
-        "bleeding",    // 11
-        "haste",       // 12
-        "bless",       // 13
-        "element",     // 14
-        "confuse",     // 15
-        "hold",        // 16
-        "armor break", // 17
-        "any",         // 18
-        "all",         // 19
-    };
-    for (int i = 0; i < 20; ++i)
-        if (s == names[i])
-            return i;
+    // ORIG 0x88c29a2：20 个 if 链 strcmp 分支 → 0..19，默认 -1（非循环查表）。
+    if (s == "slow")        return 0;
+    if (s == "freeze")      return 1;
+    if (s == "poison")      return 2;
+    if (s == "stun")        return 3;
+    if (s == "curse")       return 4;
+    if (s == "blind")       return 5;
+    if (s == "lightning")   return 6;
+    if (s == "stone")       return 7;
+    if (s == "sleep")       return 8;
+    if (s == "burn")        return 9;
+    if (s == "weapon break") return 10;
+    if (s == "bleeding")    return 11;
+    if (s == "haste")       return 12;
+    if (s == "bless")       return 13;
+    if (s == "element")     return 14;
+    if (s == "confuse")     return 15;
+    if (s == "hold")        return 16;
+    if (s == "armor break") return 17;
+    if (s == "any")         return 18;
+    if (s == "all")         return 19;
     return -1;
 }
 
@@ -62,23 +58,29 @@ int getActiveStatusToEnumValue(std::string& s)
 // getTargetToEnumValue — ORIG @ 0x88c2c34，10 个分支 → 0..9，
 // 全部未命中时 ORIG 尾部 mov $0xa,%eax：默认返回 10。
 // ---------------------------------------------------------------------------
+// ORIG @ 0x88c2c34：10 个 if 链（s == 字面量），非查表循环。
 int getTargetToEnumValue(std::string& s)
 {
-    static const char* names[10] = {
-        "myself",        // 0
-        "enemy",         // 1
-        "party",         // 2
-        "random party",  // 3
-        "all enemy",     // 4
-        "enemy hp max",  // 5
-        "enemy hp min",  // 6
-        "enemy near",    // 7
-        "enemy far",     // 8
-        "random enemy",  // 9
-    };
-    for (int i = 0; i < 10; ++i)
-        if (s == names[i])
-            return i;
+    if (s == "myself")
+        return 0;
+    if (s == "enemy")
+        return 1;
+    if (s == "party")
+        return 2;
+    if (s == "random party")
+        return 3;
+    if (s == "all enemy")
+        return 4;
+    if (s == "enemy hp max")
+        return 5;
+    if (s == "enemy hp min")
+        return 6;
+    if (s == "enemy near")
+        return 7;
+    if (s == "enemy far")
+        return 8;
+    if (s == "random enemy")
+        return 9;
     return 10; // ORIG 默认分支
 }
 
@@ -312,11 +314,9 @@ int getNpcRoleByString(std::string name)
 // ---------------------------------------------------------------------------
 int getNpcMoodFromString(const char* name)
 {
-    if (!name)
-        return 3; // 防御性；ORIG 不判空【推断】
-    if (std::strncmp(name, "good", 10) == 0)   return 2;
-    if (std::strncmp(name, "normal", 10) == 0) return 1;
-    if (std::strncmp(name, "bad", 10) == 0)    return 0;
+    if (std::strncmp("good", name, 10) == 0)   return 2;
+    if (std::strncmp("normal", name, 10) == 0) return 1;
+    if (std::strncmp("bad", name, 10) == 0)    return 0;
     return 3;
 }
 

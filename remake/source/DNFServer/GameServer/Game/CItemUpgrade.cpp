@@ -101,9 +101,9 @@ int CItemUpgrade::enableAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
                                              Inven_Item& ticket,
                                              int& outCount)
 {
-    int ticketIdx = ticket.m_addInfo;
+    int itemIdx = item.m_addInfo;   // ORIG 0x854af38：mov 0x10(%ebp); mov 0x2(%eax) 取 item
     CDataManager* dm = G_CDataManager();
-    CItem* itemScript = dm->find_item(ticketIdx);
+    CItem* itemScript = dm->find_item(itemIdx);
     if (itemScript == 0)
         return 4;
 
