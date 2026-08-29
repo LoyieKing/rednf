@@ -133,7 +133,7 @@ void Manager::dieCharac(CUser* user)
 
     if (procStage->getStageType() == 1)
     {
-        // ORIG procStage->clearStageAndReward();
+        procStage->clearStageAndReward();
         procStage->setState(ProcStage::State::S_N5);
         Timer_StageControl::RegistTimerClearReward(control->getIndex(),
                                                    StageEndType::END_N1);

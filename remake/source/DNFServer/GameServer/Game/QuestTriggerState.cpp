@@ -10,6 +10,8 @@
 //   operator= 由 int 解包三字段；getTrigger 打包三字段为 int；
 //   incTirggerState 按 v 的位（0x10/0x20/0x40）选字段自增；
 //   subTriggerState v==0 对字段0 裸自减，否则按位选字段自减（mod 512）。
+//   ORIG 对每字段写回时保留高 7 位（movzwl 旧值 and 0xfe00；or 新低 9 位后写回），
+//   重建需保持同款位保留语义。
 
 class stQuestTriggerState_t
 {
@@ -23,23 +25,26 @@ public:
     short m_trigger0;  // +0x00
     short m_trigger1;  // +0x02
     short m_trigger2;  // +0x04
+    short m_trigger3;  // +0x06（保留；ORIG 8 字节对象，int* 清零不越界）
 };
 
 stQuestTriggerState_t::stQuestTriggerState_t()
 {
-    m_trigger0 = 0;
-    m_trigger1 = 0;
-    m_trigger2 = 0;
+    // ORIG：movl $0x0,(%eax); movl $0x0,0x4(%eax) —— 按 8 字节（2×int）整块清零
+    int* p = reinterpret_cast<int*>(this);
+    p[0] = 0;
+    p[1] = 0;
 }
 
 stQuestTriggerState_t& stQuestTriggerState_t::operator=(int const& v)
 {
-    m_trigger0 = 0;
-    m_trigger1 = 0;
-    m_trigger2 = 0;
-    m_trigger0 = (short)(v & 0x1ff);
-    m_trigger1 = (short)((v >> 9) & 0x1ff);
-    m_trigger2 = (short)((v >> 18) & 0x1ff);
+    // ORIG：先 movl $0,(%eax); movl $0,0x4(%eax) 清 8 字节再写三字段（全重置语义）
+    int* p = reinterpret_cast<int*>(this);
+    p[0] = 0;
+    p[1] = 0;
+    m_trigger0 = (short)(((unsigned short)m_trigger0 & 0xfe00) | (v & 0x1ff));
+    m_trigger1 = (short)(((unsigned short)m_trigger1 & 0xfe00) | ((v >> 9) & 0x1ff));
+    m_trigger2 = (short)(((unsigned short)m_trigger2 & 0xfe00) | ((v >> 18) & 0x1ff));
     return *this;
 }
 
@@ -49,19 +54,19 @@ void stQuestTriggerState_t::incTirggerState(char v)
     {
         short cur = (short)((unsigned short)m_trigger0 & 0x1ff);
         if (cur <= 0x3fe)
-            m_trigger0 = (short)((cur + 1) & 0x1ff);
+            m_trigger0 = (short)(((unsigned short)m_trigger0 & 0xfe00) | ((cur + 1) & 0x1ff));
     }
     if (v & 0x20)
     {
         short cur = (short)((unsigned short)m_trigger1 & 0x1ff);
         if (cur <= 0x3fe)
-            m_trigger1 = (short)((cur + 1) & 0x1ff);
+            m_trigger1 = (short)(((unsigned short)m_trigger1 & 0xfe00) | ((cur + 1) & 0x1ff));
     }
     if (v & 0x40)
     {
         short cur = (short)((unsigned short)m_trigger2 & 0x1ff);
         if (cur <= 0x3fe)
-            m_trigger2 = (short)((cur + 1) & 0x1ff);
+            m_trigger2 = (short)(((unsigned short)m_trigger2 & 0xfe00) | ((cur + 1) & 0x1ff));
     }
 }
 
@@ -79,19 +84,19 @@ void stQuestTriggerState_t::subTriggerState(char v)
     {
         short cur = (short)((unsigned short)m_trigger0 & 0x1ff);
         if (cur > 0)
-            m_trigger0 = (short)((cur + 0x1ff) & 0x1ff);
+            m_trigger0 = (short)(((unsigned short)m_trigger0 & 0xfe00) | ((cur + 0x1ff) & 0x1ff));
     }
     if (v & 0x20)
     {
         short cur = (short)((unsigned short)m_trigger1 & 0x1ff);
         if (cur > 0)
-            m_trigger1 = (short)((cur + 0x1ff) & 0x1ff);
+            m_trigger1 = (short)(((unsigned short)m_trigger1 & 0xfe00) | ((cur + 0x1ff) & 0x1ff));
     }
     if (v & 0x40)
     {
         short cur = (short)((unsigned short)m_trigger2 & 0x1ff);
         if (cur > 0)
-            m_trigger2 = (short)((cur + 0x1ff) & 0x1ff);
+            m_trigger2 = (short)(((unsigned short)m_trigger2 & 0xfe00) | ((cur + 0x1ff) & 0x1ff));
     }
 }
 

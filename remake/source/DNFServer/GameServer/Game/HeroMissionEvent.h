@@ -1,12 +1,10 @@
 #ifndef GAME_HEROMISSIONEVENT_H_
 #define GAME_HEROMISSIONEVENT_H_
 
+// 2026-08-30 Fix8_E：由布局镜像改为真实继承（ORIG ctor 0x08166522 先调
+// ARAD::Singleton<HeroMissionEvent>::Singleton() 再 CEventBase::CEventBase()
+// 并写 vptr；镜像字段无法生成 vtable 与基类构造调用）。
 // ============================================================================
-// df_game_r 还原 —— HeroMissionEvent（台湾 Hero Mission 事件）。
-// 布局依据 ORIG ctor 0x08166522 / findMissionValue 0x08168010 反汇编推导：
-//   基类 CEventBase（+0x00 vptr / +0x04 stADDINFO / +0x08 m_isEventing）
-//   +0x0c map<MissionNo::T, BaseHeroMissionCondition*> m_conditions
-//   +0x24 map<unsigned int, vector<HeroMissionValue>> m_values（按 charac_no）
 // 本头不继承 CEventBase（避免引入 CGuildServerProxy.h 大依赖链），以布局
 // 镜像字段保持 ORIG ABI；判活读 +0x08 标志，等价 ORIG IsEventing(NULL)
 // （ORIG vptr+0x34 = CEventBase::IsEventing，实现即 movzbl +0x08）。
@@ -48,10 +46,15 @@ public:
 // ============================================================================
 // HeroMissionEvent
 // ============================================================================
-class HeroMissionEvent
+class HeroMissionEvent : public ARAD::Singleton<HeroMissionEvent>,
+                         public CEventBase
 {
 public:
     HeroMissionEvent();
+    virtual ~HeroMissionEvent();
+    virtual void StartEvent();              // ORIG 0x0816664a（vtable slot 2）
+    virtual void EndEvent();                // ORIG 0x08166700（vtable slot 3）
+    virtual void StartEvent(Word_Param param);  // ORIG 0x081666e6（vtable slot 4）
     void sendMissionData(CUser* user);                    // ORIG 0x0816770e
     void setEventData(CUser* user, char const* data);     // ORIG 0x08166752
     // （另有 std::string const& 重载 ORIG 0x08166d0e，不在本批）
@@ -63,11 +66,6 @@ public:
     // ---- W8_LongTail Batch07_VendingHero 批次（Game/W8LT_VendingHero.cpp）----
     // Word_Param 定义见 CGuildServerProxy.h（ORIG StartEvent(Word_Param) 参数类型）。
     bool loadScript();                                            // ORIG 0x08167ac8
-    void StartEvent();                                            // ORIG 0x0816664a
-    // ORIG 0x081666e6：仅经 vptr+0x08 调用自身 StartEvent()（thunk 形态）。
-    void StartEvent(Word_Param param);
-    void EndEvent();                                              // ORIG 0x08166700
-    ~HeroMissionEvent();                                          // ORIG D0 0x0816662c
     void saveEventData(CUser* user, bool removeData);             // ORIG 0x08166d38
     void loadEventData(CUser* user);                              // ORIG 0x0816709e
     bool rewardMission(CUser* user,
@@ -85,12 +83,6 @@ public:
                          unsigned int value);
 
 private:
-    // ORIG 布局镜像（CEventBase 基类）
-    char m_vptr[4];            // +0x00
-    unsigned short m_addInfo0; // +0x04（stADDINFO）
-    unsigned short m_addInfo1; // +0x06（stADDINFO）
-    char m_isEventing;         // +0x08
-    char m_pad09[3];           // +0x09..+0x0b
     std::map<HeroMissionCondition::MissionNo::T, BaseHeroMissionCondition*>
         m_conditions;          // +0x0c
     std::map<unsigned int, std::vector<HeroMissionValue> >

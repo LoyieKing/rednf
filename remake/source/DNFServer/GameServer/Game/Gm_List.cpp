@@ -109,10 +109,15 @@ void WongWork::CGMAccounts::clearGmList()
 void Gm_List::LoadGmListFromDb()
 {
     bool ok = false;
-    std::string idLog;
     m_db->set_query("seLect m_id, level from gm_manifest");
-    if (m_db->exec(true))
+    if (!m_db->exec(true))
     {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15d4, 9, true, true);
+        trace("Failed to get GM list from DB.");
+    }
+    else
+    {
+        std::string idLog;   // ORIG：exec 成功分支内构造（0x08109a4c 区）
         WongWork::CGMAccounts* accounts = GlobalData::s_pGMAccounts_;
         accounts->clearGmList();
         int rows = m_db->get_n_rows();
@@ -143,11 +148,6 @@ void Gm_List::LoadGmListFromDb()
         trace("\t- GM m_id: %s", idLog.c_str());
         if (G_CEnvironment()->get_channel_no() == 1)
             SendGMList_To_UpperServer(0);
-    }
-    else
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x15d4, 9, true, true);
-        trace("Failed to get GM list from DB.");
     }
     (void)ok;
 }

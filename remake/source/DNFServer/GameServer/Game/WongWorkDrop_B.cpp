@@ -463,9 +463,10 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
 
 // ---- CSecialIMonsterDropItemGenRateTable::chooseItem — ORIG T 0x08534fce ---
 // type==2（random_option 槽）先试 m_optHandle.choose_item(rarity,level)，命中
-// 即返；否则按 diff/ddt 选块 m_blocks[diff][ddt].m_slots[type][rarity][level]
-// （槽址 type*0x7110+rarity*0x12d8+level*24）：empty→-1；
-// roll=m_rand(+0x211fb0)->randInt(maxKey)；lower_bound==end 回退 --it 返 second。
+// 即返；否则按 diff/ddt 选块（ORIG 槽址 = type*0x7110+rarity*0x12d8+level*24，
+// type 调用方传 1..4 ⇒ m_slots[type-1]，m_slots 自块 +0x7110 起）：
+// empty→-1；roll=m_rand(+0x211fb0)->randInt(maxKey)；
+// lower_bound==end 回退 --it 返 second。
 int CSecialIMonsterDropItemGenRateTable::chooseItem(
     eItemDropType_t type, ENUM_RARITY rarity, int level,
     ENUM_DUNGEON_DIFFICULTY dungeonDiff,
@@ -483,17 +484,17 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
             if (randomOptionIdx != -1)
                 return randomOptionIdx;
         }
-        if (m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].empty())
+        if (m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].empty())
             return -1;
         std::map<unsigned int, int>::iterator lastIter =
-            m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].end();
+            m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].end();
         --lastIter;
         unsigned long maxKey = lastIter->first;
         unsigned long roll = static_cast<unsigned long>(
             m_rand->randInt(maxKey));
         std::map<unsigned int, int>::iterator lb =
-            m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].lower_bound(roll);
-        if (lb == m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].end())
+            m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].lower_bound(roll);
+        if (lb == m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].end())
             --lb;
         result = lb->second;
     }

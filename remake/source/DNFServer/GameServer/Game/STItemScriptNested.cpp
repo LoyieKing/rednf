@@ -47,6 +47,11 @@ void STSpecialMonsterDrop::clear()
 }
 
 // ---- STItemScript::SEXPERTJOB（ORIG 0x89c36aa 族）----
-STItemScript::SEXPERTJOB::SEXPERTJOB() {}
+// ORIG C1 0x089c36aa：stExpertCompoundResultVariation@+0 → stExpertJobAdditionalExp@+8
+// → vector<SUSABLE>@+0x20（m_field10..m_field1c 不显式初始化，O0 保持 ORIG 原样）。
+STItemScript::SEXPERTJOB::SEXPERTJOB()
+    : m_field0(0.0f), m_field4(0.0f), m_field8(0.0f), m_fieldc(0), m_usable()
+{
+}
 STItemScript::SEXPERTJOB::~SEXPERTJOB() {}
 

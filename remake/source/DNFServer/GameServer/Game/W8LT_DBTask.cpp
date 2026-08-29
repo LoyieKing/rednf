@@ -4351,13 +4351,9 @@ bool DBTask::UnregistDispatcher()
 {
     for (int i = 0; i <= DISPATCHER_COUNT - 1; ++i)
     {
-        DBDispatcher* p = m_dispatchers[i];
-        if (p != 0)
+        if (m_dispatchers[i] != 0)
         {
-            if (p != 0)
-            {
-                delete p;                       // ORIG call *(vptr+0x08)
-            }
+            delete m_dispatchers[i];            // ORIG 判空×2：if + delete 隐式判空
             m_dispatchers[i] = 0;
         }
     }
@@ -13176,7 +13172,7 @@ void DB_UpdateSchoolPoint::makeRequest(unsigned int mId, int point, int flag)
             1, "DBThread.cpp",
             __PRETTY_FUNCTION__,
             0x742d, "School event point error (m_id: %s)(point: %d)",
-            NumberToString(mId, 0), 100);
+            NumberToString(mId, 0), point);
     }
     SIG_UPDATE_SCHOOL_POINT* sig =
         guard.GetInBuffer<SIG_UPDATE_SCHOOL_POINT>();
@@ -13721,8 +13717,9 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
                                                   E_SERVER_GROUP_NONE);
     SIG_OBJECT_BRING_UP* sig = stream->GetOutBuffer<SIG_OBJECT_BRING_UP>();
     std::string tableStr(
-        static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19b));
+        *reinterpret_cast<std::string*>(
+            static_cast<EventClassify::CEventScriptMng*>(
+                G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19b)));
     if (sig->m_rewardFlag == 0)
     {
         db->set_query(
@@ -14104,7 +14101,7 @@ bool DB_LoadBloodBestRecord::dispatch(int userIdx, int slot, Stream* stream)
         trace("Not exist data charac_blood_best_record. [charac_no:%d]", characNo);
         return 1;
     }
-    for (int i = 0; i < db->get_n_rows(); ++i)
+    for (unsigned int i = 0; i < db->get_n_rows(); ++i)
     {
         if (!db->get_int(0, bestRound))
             return 0;
@@ -14479,12 +14476,12 @@ bool DB_SaveGoldZeroTradeLog::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "inSert into dnf_zeromoney_log(to_m_id,to_nat_ip,to_peer_ip,to_nat_type,from_m_id,from_nat_ip,from_peer_ip,from_nat_type,occ_time,injury_money,to_mac_addr,from_mac_addr) values(%s,'%s','%s',%d,%s,'%s','%s',%d,now(),%d,'%s','%s')",
         NumberToString(*(unsigned int*)&sig->m_pad[0], 0),
-        &sig->m_pad[0x72], &sig->m_pad[0x72],
+        &sig->m_pad[0x72], &sig->m_pad[0x86],
         (int)*(unsigned char*)&sig->m_pad[0x9a],
         NumberToString(*(unsigned int*)&sig->m_pad[0x4], 1),
-        &sig->m_pad[0x8], &sig->m_pad[0x8],
+        &sig->m_pad[0x8], &sig->m_pad[0x1c],
         (int)*(unsigned char*)&sig->m_pad[0x30],
-        *(unsigned int*)&sig->m_pad[0xdc], &sig->m_pad[0xdc],
+        *(unsigned int*)&sig->m_pad[0xdc], &sig->m_pad[0x9b],
         &sig->m_pad[0x31]);
     return db->exec(true) == 1;
 }
@@ -16692,8 +16689,9 @@ bool DB_SelectLevelUpReward::dispatch(int userIdx, int slot, Stream* stream)
     *stream >> characNo;
     *stream >> rewardIdx;
     std::string tableStr(
-        static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x194));
+        *reinterpret_cast<std::string*>(
+            static_cast<EventClassify::CEventScriptMng*>(
+                G_CDataManager()->get_event_script_mng())->get_db_table_name(0x194)));
 
     db->set_query("seLect  recv_level from %s where charac_no = %u",
                   toTString(tableStr), characNo);

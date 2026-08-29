@@ -194,7 +194,7 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
     {
         // creature slot
         CInventory* inven = user->getCurCharacInvenW();
-        inven->GetInvenSlotByRef(INVEN_TYPE_CREATURE, slot, item);
+        inven->GetInvenSlotByRef((INVEN_TYPE)0, slot, item);   // ORIG: 消息 3 → type 0
         pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
         itemCount = item.get_add_info();
     }
@@ -202,7 +202,7 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
     {
         // avatar slot
         CInventory* inven = user->getCurCharacInvenW();
-        inven->GetInvenSlotByRef(INVEN_TYPE_AVATAR, slot, item);
+        inven->GetInvenSlotByRef((INVEN_TYPE)3, slot, item);   // ORIG: 消息 7 → type 3
         pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
         itemCount = item.get_add_info();
     }
@@ -362,7 +362,7 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
     if (invenType == 0)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        if (!inven->delete_item(INVEN_TYPE_INVEN, slot, count, eItemDelReason_0, true))
+        if (!inven->delete_item((INVEN_TYPE)1, slot, count, eItemDelReason_0, true)   )   // ORIG: 消息 0 → type 1
         {
             cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
                         0x136, 5);
@@ -386,7 +386,7 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
     else if (invenType == 3)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        if (!inven->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0, true))
+        if (!inven->delete_item((INVEN_TYPE)0, slot, 1, eItemDelReason_0, true)   )   // ORIG: 消息 3 → type 0
         {
             cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
                         0x14d, 5);
@@ -399,7 +399,7 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
     else if (invenType == 7)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        if (!inven->delete_item(INVEN_TYPE_AVATAR, slot, count, eItemDelReason_0, true))
+        if (!inven->delete_item((INVEN_TYPE)3, slot, count, eItemDelReason_0, true)   )   // ORIG: 消息 7 → type 3
         {
             cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
                         0x167, 5);

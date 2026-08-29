@@ -661,10 +661,11 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
 
     RandomOptionScript* script =
         reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-    std::map<BaseItemKey, std::map<int, BaseItemValue> >& table =
+    // ORIG：外层 map<int,...> 键 = BaseItemKey 小端 int 打包
+    std::map<int, std::map<int, BaseItemValue> >& table =
         script->m_baseItems60;
-    std::map<BaseItemKey, std::map<int, BaseItemValue> >::const_iterator outer =
-        table.find(key);
+    std::map<int, std::map<int, BaseItemValue> >::const_iterator outer =
+        table.find(*(int*)&key);
 
     if (outer == table.end())
     {
@@ -1407,8 +1408,9 @@ unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
                             (unsigned short)partType);
             RandomOptionScript* table =
                 reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-            std::map<BaseItemKey, std::map<int, BaseItemValue> >::iterator it =
-                table->m_baseItems60.find(key);
+            // ORIG：外层 map<int,...> 键 = BaseItemKey 小端 int 打包
+            std::map<int, std::map<int, BaseItemValue> >::iterator it =
+                table->m_baseItems60.find(*(int*)&key);
             if (it == table->m_baseItems60.end())
             {
                 rarity = static_cast<ENUM_RARITY>(0);

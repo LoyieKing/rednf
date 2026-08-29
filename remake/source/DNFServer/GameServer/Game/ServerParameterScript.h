@@ -116,7 +116,9 @@ struct stAssaultChaosPointGhostPanalty
 struct stUnusableEquipmentInfo
 {
     ~stUnusableEquipmentInfo() {}   // ORIG D1 W 0x08a928da：空体
-    int m_field0;   // +0x00
+    int m_field0;   // +0x00（装备类型枚举 2..11，import 0x8a8a28c 实证）
+    int m_field4;   // +0x04（ScanInt 首值）
+    int m_field8;   // +0x08（ScanInt 次值）
 };
 
 // ---- stLightServerNotice_t（ORIG C1 W 0x08a8ce10：仅构造 +0x08 std::string；

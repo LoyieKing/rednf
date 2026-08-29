@@ -341,7 +341,9 @@ void AvatarRechargeServer::GmChangeEnduranceReduceRate(CUser* user, bool enable,
 {
     if (!user->isGMUser())
         return;
-    this->GmSetEnduranceReduceRate(user, enable, rate);
+    // ORIG 0x08191318：静态（无 this），经 Singleton::Get 取实例后转发
+    ARAD::Singleton<AvatarRechargeServer>::Get()->GmSetEnduranceReduceRate(
+        user, enable, rate);
 }
 
 // ============================================================================
@@ -362,16 +364,16 @@ void AvatarRechargeServer::GmSetEnduranceReduceRate(CUser* user, bool enable,
             rate = 1000;
         m_enduranceReduceRate = rate;
 
-        char message[] =
-            "succ avatar Endurance reduce rate mode on! change rate";
-        ARAD::notifySystemMessage(user, message);
+        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a544）
+        ARAD::notifySystemMessage(
+            user, (char*)"succ avatar Endurance reduce rate mode on! change rate");
     }
     else
     {
         m_enduranceReduceRate = 0;
 
-        char message[] = "avatar Endurance reduce rate mode off";
-        ARAD::notifySystemMessage(user, message);
+        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a57c）
+        ARAD::notifySystemMessage(user, (char*)"avatar Endurance reduce rate mode off");
     }
 }
 

@@ -16,9 +16,11 @@ class DBDispatcher
 {
 public:
     DBDispatcher() {}
-    virtual ~DBDispatcher() {}
 
     // ORIG T @0x83fbf7c [objdump]：slot(第2参)==-1 直接通过；否则要求
     // G_CGameManager()->getUser(slot, userIdx+0x7d0) 非空。
+    // 虚函数声明顺序（dispatch 在前）与 ORIG vtable 一致：
+    // vtable [offtop][typeinfo][dispatch][~D1][~D0]。
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    virtual ~DBDispatcher() {}
 };

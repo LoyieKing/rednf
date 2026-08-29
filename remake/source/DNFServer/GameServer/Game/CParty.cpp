@@ -1341,8 +1341,9 @@ int CParty::CheckMemberFatigue()
     // ORIG 0x859d5e8：遍历 4 成员，返回"有效且未疲劳"的第一个槽位+1，否则 0。
     for (int i = 0; i <= 3; ++i)
     {
-        if (_checkValidUser(i) && m_member[i].m_pUser &&
-            !m_member[i].m_pUser->CheckFatigue())
+        if (!_checkValidUser(i))
+            continue;
+        if (!m_member[i].m_pUser->CheckFatigue())
             return i + 1;
     }
     return 0;
@@ -1365,12 +1366,12 @@ int CParty::checkDugeonInoutTime(int dungeonIndex)
 {
     for (int i = 0; i <= 3; ++i)
     {
-        if (_checkValidUser(i) && m_member[i].m_pUser &&
-            m_member[i].m_pUser->isGMUser())
+        if (!_checkValidUser(i))
+            continue;
+        if (m_member[i].m_pUser->isGMUser())
             return 1;
     }
-    ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
-    return sps->isDungeonOpen(dungeonIndex) ? 1 : 0;
+    return G_CDataManager()->m_serverParameter.isDungeonOpen(dungeonIndex);
 }
 
 // ORIG 0x859f75e：进入血腥地下城入场费 = lottoCost + price + (inc * price) / 100。
@@ -5440,23 +5441,24 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
 {
     CUser* user = get_user(slot);                       // -0x1c
     unsigned int exp = 0;                               // -0x20
-    char* dmBase = (char*)G_CDataManager();
-    if (*(char*)(*(int**)&m_dungeon + 0x89f) == 2)      // 最终轮（CDungeon 域待具名）
+    if (*(char*)((char*)m_dungeon + 0x89f) == 2)        // 最终轮（CDungeon 域待具名）
     {
-        long long raw = (long long)round * (long long)baseExp;
-        float weight = *(float*)(dmBase + ((round + 0x178c) * 4));   // 轮权重表（待具名）
-        double prod = 10.0f * weight * (double)raw;     // ORIG _DAT_08cbbbf8=10.0
-        exp = (unsigned int)(long long)(prod + 0.5);
+        // ORIG 0x85b7ea2：round*baseExp 32 位无符号乘法（零扩展 64 位）→
+        // fraw 先转 float（fildll/fstps），weight 后取（flds），
+        // weight*fraw*10.0f 栈上相乘 → fistpll 截断（无 +0.5）。
+        long long raw = (long long)(round * baseExp);
+        float fraw = (float)raw;
+        exp = (unsigned int)(long long)(
+            G_CDataManager()->m_bloodDungeon.m_rate[round] * fraw * 10.0f);
     }
     else
     {
-        long long raw = (long long)round * (long long)baseExp;
-        float weight = *(float*)(dmBase + ((round + 0x178c) * 4));
-        // 进出次数权重 vector<float>（CDataManager 域字段待具名）
-        float inoutWeight =
-            *(float*)(*(char**)(dmBase + 0x6164) + (int)inoutCnt * 4);
-        double prod = (double)(inoutWeight * (float)raw * weight);
-        exp = (unsigned int)(long long)(prod + 0.5);
+        long long raw = (long long)(round * baseExp);
+        float fraw = (float)raw;
+        // ORIG：weight*fraw 先算落栈（fstps），再乘 inoutWeight（fmuls）。
+        float w1 = G_CDataManager()->m_bloodDungeon.m_rate[round] * fraw;
+        exp = (unsigned int)(long long)(w1 *
+            G_CDataManager()->m_bloodDungeon.m_vec334[(unsigned int)inoutCnt]);
     }
     if (1000000 < exp)
     {
@@ -5468,8 +5470,8 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
             "EXP_WEIGHT(%f), EXP_INOUT_WEIGHT(%f), LAST_ROUND(%d), "
             "INOUT_CNT(%d)\n",
             exp, baseExp,
-            *(float*)(dmBase + ((round + 0x178c) * 4)),
-            *(float*)(*(char**)(dmBase + 0x6164) + (int)inoutCnt * 4),
+            G_CDataManager()->m_bloodDungeon.m_rate[round],
+            G_CDataManager()->m_bloodDungeon.m_vec334[(unsigned int)inoutCnt],
             round, (int)inoutCnt);
     }
 

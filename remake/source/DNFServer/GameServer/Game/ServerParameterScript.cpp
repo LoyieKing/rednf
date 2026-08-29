@@ -7,6 +7,7 @@
 #include "ServerParameterScript.h"
 
 #include <string.h>
+#include <algorithm>
 
 #include "DNFLexWrapper.h"
 
@@ -113,6 +114,7 @@ void ServerParameterScript::clear()
     m_dungeonInoutc8.clear();
     m_dungeonOpenE0.clear();
     m_bloodReward794.m_vecc.clear();
+    m_bloodReward794.m_vec0.clear();
     m_bloodReward794.m_vec18.clear();
     m_7b8 = 0;
     m_7bc = 0;
@@ -137,10 +139,15 @@ void ServerParameterScript::clear()
     m_4964 = 1;
     m_4968 = 0;
     m_496c = 0;
-    for (int i = 0; i < 8; ++i)
-    {
-        m_schoolMatchSeal[i] = 0;
-    }
+    // ORIG 0x836f8f4：0x4970..0x4977 八个独立 movb（非循环）
+    m_schoolMatchSeal[0] = 0;
+    m_schoolMatchSeal[1] = 0;
+    m_schoolMatchSeal[2] = 0;
+    m_schoolMatchSeal[3] = 0;
+    m_schoolMatchSeal[4] = 0;
+    m_schoolMatchSeal[5] = 0;
+    m_schoolMatchSeal[6] = 0;
+    m_schoolMatchSeal[7] = 0;
     m_schoolMatchDailyPlayLimit = 0;
     m_map497c.clear();
     m_map4994.clear();
@@ -150,17 +157,10 @@ void ServerParameterScript::clear()
     m_chaosWeight4e4.clear();
     m_ghostLevel4f0.clear();
     m_ghostChaos4fc.clear();
-    m_genRefs0.clear();
-    m_genRefs1.clear();
-    m_ticket468.clear();
-    m_auction480.clear();
-    m_revenge498.clear();
-    m_fatigue4a8.clear();
-    m_farming4c0.clear();
-    m_vec4d8.clear();
-    m_light3c.clear();
-    m_vec18.clear();
-    m_map24.clear();
+    // ORIG 0x836f9cd：clear 末尾 memset(this+0x4bc, 0, 4)
+    // （+0x3c0/+0x400/+0x468/+0x480/+0x498/+0x4a8/+0x4c0/+0x4d8/
+    //  +0x3c/+0x18/+0x24 在 ORIG clear 中不处理，故不调用其 clear）
+    memset(reinterpret_cast<char*>(this) + 0x4bc, 0, 4);
 }
 
 float ServerParameterScript::GetExpBonusWeight(eRankBonusIndex idx) const
@@ -175,15 +175,16 @@ float ServerParameterScript::GetExpBonusWeight(eRankBonusIndex idx) const
 bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
                                                                int channelNo)
 {
+    bool result = false;
     stServerIndex key;
     key.m_field0 = serverGroup;
     key.m_field4 = channelNo;
-    std::map<stServerIndex, bool>::const_iterator it = m_map0.find(key);
+    std::map<stServerIndex, bool>::iterator it = m_map0.find(key);
     if (it != m_map0.end())
     {
-        return it->second;
+        result = it->second;
     }
-    return false;
+    return result;
 }
 
 // ORIG stFatigueEventParam_t::stFatigueEventParam_t() 0x08a8ccc4
@@ -209,8 +210,8 @@ stLevelCond4PremiumGoldCard::stLevelCond4PremiumGoldCard()
 
 bool ServerParameterScript::CheckLightServer(int serverIdx)
 {
-    std::map<int, bool>::const_iterator it = m_map24.find(serverIdx);
     bool result = false;
+    std::map<int, bool>::iterator it = m_map24.find(serverIdx);
     if (it != m_map24.end())
     {
         result = it->second;
@@ -233,10 +234,12 @@ std::vector<std::pair<int, int> >* ServerParameterScript::GetEscaladeTutorialRew
 
 bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 {
-    for (std::vector<std::pair<int, int> >::iterator it = m_veca0.begin();
-         it != m_veca0.end(); ++it)
+    std::pair<int, int> p;
+    for (std::vector<std::pair<int, int> >::iterator it = m_vec18.begin();
+         it != m_vec18.end(); ++it)
     {
-        if (it->first == serverGroup && it->second == channelNo)
+        p = *it;
+        if (p.first == serverGroup && p.second == channelNo)
         {
             return true;
         }
@@ -251,46 +254,60 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
     {
         return 0xb4;
     }
-    unsigned int time = 0;
-    for (std::vector<stAssaultLevelGhostPanalty>::iterator it =
-             m_ghostLevel4f0.begin();
-         it != m_ghostLevel4f0.end(); ++it)
+    std::vector<stAssaultLevelGhostPanalty>::iterator it =
+        m_ghostLevel4f0.begin();
+    stAssaultLevelGhostPanalty g;
+    for (; it != m_ghostLevel4f0.end(); it++)
     {
         if (level >= it->m_min && level <= it->m_max)
         {
-            time = it->m_t0 +
-                   (level - it->m_min) *
-                       ((it->m_t1 - it->m_t0) / (unsigned int)(it->m_max - it->m_min));
+            g = *it;
             break;
         }
     }
-    if (time < m_ghostLevel4f0[0].m_t0)
+    unsigned int time = 0;
+    time = g.m_t0 + (level - g.m_min) *
+                        ((g.m_t1 - g.m_t0) / (unsigned int)(g.m_max - g.m_min));
+    if (time < g.m_t0)
     {
-        time = m_ghostLevel4f0[0].m_t0;
+        time = g.m_t0;
     }
-    if (!m_ghostChaos4fc.empty())
+    if (time > g.m_t1)
     {
-        if (chaosPoint > 1000)
-        {
-            chaosPoint = 1000;
-        }
-        float rate = 1.0f;
-        for (std::vector<stAssaultChaosPointGhostPanalty>::iterator it =
-                 m_ghostChaos4fc.begin();
-             it != m_ghostChaos4fc.end(); ++it)
-        {
-            if (chaosPoint >= it->m_min && chaosPoint <= it->m_max)
-            {
-                rate = (float)(chaosPoint - it->m_min) *
-                           ((it->m_r1 - it->m_r0) /
-                            (float)(it->m_max - it->m_min)) +
-                       it->m_r0;
-                break;
-            }
-        }
-        time = (unsigned int)((float)time * rate);
+        time = g.m_t1;
+    }
+    if (m_ghostChaos4fc.empty())
+    {
         return time / 1000;
     }
+    if (chaosPoint > 1000)
+    {
+        chaosPoint = 1000;
+    }
+    float rate = 1.0f;
+    std::vector<stAssaultChaosPointGhostPanalty>::iterator cit =
+        m_ghostChaos4fc.begin();
+    stAssaultChaosPointGhostPanalty cp;
+    for (; cit != m_ghostChaos4fc.end(); cit++)
+    {
+        if (chaosPoint >= cit->m_min && chaosPoint <= cit->m_max)
+        {
+            cp = *cit;
+            break;
+        }
+    }
+    rate = ((cp.m_r1 - cp.m_r0) / (float)(cp.m_max - cp.m_min)) *
+               (float)(chaosPoint - cp.m_min) +
+           cp.m_r0;
+    if (rate > cp.m_r0)
+    {
+        rate = cp.m_r0;
+    }
+    if (rate < cp.m_r1)
+    {
+        rate = cp.m_r1;
+    }
+    time = (unsigned int)((double)time * rate);
     return time / 1000;
 }
 
@@ -304,19 +321,32 @@ float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
     {
         chaosPoint = 1000;
     }
-    float weight = 1.0f;
-    for (std::vector<stAssaultChaosPointWeight>::iterator it =
-             m_chaosWeight4e4.begin();
-         it != m_chaosWeight4e4.end(); ++it)
+    std::vector<stAssaultChaosPointWeight>::iterator it =
+        m_chaosWeight4e4.begin();
+    stAssaultChaosPointWeight w;
+    for (; it != m_chaosWeight4e4.end(); it++)
     {
         if (chaosPoint >= it->m_min && chaosPoint <= it->m_max)
         {
-            weight = (float)(chaosPoint - it->m_min) *
-                         ((it->m_w1 - it->m_w0) /
-                          (float)(it->m_max - it->m_min)) +
-                     it->m_w0;
+            w = *it;
             break;
         }
+    }
+    if (w.m_w0 == 0.0f)
+    {
+        return 1.0f;
+    }
+    float weight = 1.0f;
+    weight = ((w.m_w1 - w.m_w0) / (float)(w.m_max - w.m_min)) *
+                 (float)(chaosPoint - w.m_min) +
+             w.m_w0;
+    if (weight > w.m_w0)
+    {
+        return w.m_w0;
+    }
+    if (weight < w.m_w1)
+    {
+        return w.m_w1;
     }
     return weight;
 }
@@ -348,15 +378,15 @@ int ServerParameterScript::getLuckPointDeductionRate(int level, int grade)
         if (level <= m_luckDed54[i].m_field0)
         {
             int j = 0;
-            for (;;)
+            while (j <= 2)
             {
-                if (j > 2)
-                    return m_luckDed54[i].m_levels[3];
                 if (m_vec6c[j] <= grade)
-                    break;
+                {
+                    return m_luckDed54[i].m_levels[j];
+                }
                 ++j;
             }
-            return m_luckDed54[i].m_levels[j];
+            return m_luckDed54[i].m_levels[3];
         }
         ++i;
     }
@@ -376,24 +406,36 @@ int ServerParameterScript::GetLottePoint(int idx)
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_bloodReward794.m_vec18.size())
+    std::vector<std::pair<int, int> >::iterator it =
+        m_bloodReward794.m_vec18.begin();
+    for (; it != m_bloodReward794.m_vec18.end(); ++it)
     {
-        return 0;
+        if (it->first > idx)
+        {
+            return it->second;
+        }
     }
-    return m_bloodReward794.m_vec18[idx].first;
+    --it;
+    return it->second;
 }
 
 int ServerParameterScript::GetPriceAverage(int idx)
 {
-    if (m_bloodReward794.m_vecc.empty())
+    if (m_bloodReward794.m_vec0.empty())
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_bloodReward794.m_vecc.size())
+    std::vector<std::pair<int, int> >::iterator it =
+        m_bloodReward794.m_vec0.begin();
+    for (; it != m_bloodReward794.m_vec0.end(); ++it)
     {
-        return 0;
+        if (it->first >= idx)
+        {
+            return it->second;
+        }
     }
-    return m_bloodReward794.m_vecc[idx].first;
+    --it;
+    return it->second;
 }
 
 // ORIG 0x082f03bc：idx∈[1,200]，取 m_vec588(+0x588)[idx-1]。
@@ -427,11 +469,17 @@ int ServerParameterScript::GetAdmissionIncrease(int idx)
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_bloodReward794.m_vecc.size())
+    std::vector<std::pair<int, int> >::iterator it =
+        m_bloodReward794.m_vecc.begin();
+    for (; it != m_bloodReward794.m_vecc.end(); ++it)
     {
-        return 0;
+        if (it->first > idx)
+        {
+            return it->second;
+        }
     }
-    return m_bloodReward794.m_vecc[idx].second;
+    --it;
+    return it->second;
 }
 
 float ServerParameterScript::GetPvPPenaltyRevision(int grade)
@@ -444,13 +492,11 @@ float ServerParameterScript::GetPvPPenaltyRevision(int grade)
     return (float)it->second;
 }
 
-int ServerParameterScript::getRecoverStaminaPrice(int idx, int price)
+int ServerParameterScript::getRecoverStaminaPrice(int stamina, int price)
 {
-    if (idx < 0 || idx >= (int)m_vec588.size())
-    {
-        return 0;
-    }
-    return m_vec588[idx] + price;
+    int n = std::min((int)m_vec57c.size(), stamina) - 1;
+    int v = m_vec57c[n];
+    return ((100 - price) * v) / 100;
 }
 
 int ServerParameterScript::GetPvPChannelGradePenalty(int grade) const
@@ -480,12 +526,33 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
              m_unusableEC.begin();
          it != m_unusableEC.end(); ++it)
     {
-        if (it->m_field0 == type)
+        stUnusableEquipmentInfo* p = &*it;
+        if (p->m_field0 == type)
         {
+            if (p->m_field4 != 0)
+            {
+                if (p->m_field8 >= idx)
+                {
+                    return false;
+                }
+                return true;
+            }
+            if (p->m_field8 == 0)
+            {
+                return false;
+            }
+            if (p->m_field4 > idx)
+            {
+                return true;
+            }
+            if (p->m_field8 >= idx)
+            {
+                return false;
+            }
             return true;
         }
     }
-    return false;
+    return true;
 }
 
 bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
@@ -496,28 +563,35 @@ bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
 
 int ServerParameterScript::get_pvp_item_give(int idx)
 {
-    if (idx < 0 || idx >= (int)m_vec49dc.size())
+    int ret = -1;
+    for (std::vector<int>::const_iterator it = m_vec49dc.begin();
+         it != m_vec49dc.end(); ++it)
     {
-        return -1;
+        if (*it > idx)
+        {
+            return ret;
+        }
+        ret = *it;
     }
-    return m_vec49dc[idx];
+    return ret;
 }
 
 int ServerParameterScript::GetCleanChattingCount(int level)
 {
-    if (m_vec4880.empty())
+    if (m_vec4954.empty())
     {
         return 0;
     }
-    for (std::vector<std::pair<int, int> >::iterator it = m_vec4880.begin();
-         it != m_vec4880.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator it = m_vec4954.begin();
+    for (; it != m_vec4954.end(); ++it)
     {
-        if (level >= it->first && level <= it->second)
+        if (it->first >= level)
         {
-            return it->first;
+            return it->second;
         }
     }
-    return 0;
+    --it;
+    return it->second;
 }
 
 int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
@@ -527,8 +601,8 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
     // c=key 并跳出；未找到（it==end）回退到最大 key 并把 c=key。② 以 (a,b,c)
     // 构造 PvPPlayerKey 查 m_pvp49ac；未命中返 0。③ 命中把 vector 整段 insert
     // 到 out 末尾，返 1。
-    std::map<int, int>::iterator it = m_map49c4.begin();
-    std::map<int, int>::iterator e = m_map49c4.end();
+    std::map<int, int>::const_iterator it = m_map49c4.begin();
+    std::map<int, int>::const_iterator e = m_map49c4.end();
     for (; it != e; ++it)
     {
         if (it->first >= c)
@@ -543,8 +617,8 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
         c = it->first;
     }
     PvPPlayerKey key((unsigned char)a, (unsigned char)b, (unsigned char)c);
-    std::map<PvPPlayerKey, std::vector<std::pair<int, int> > >::iterator found =
-        m_pvp49ac.find(key);
+    std::map<PvPPlayerKey, std::vector<std::pair<int, int> > >::const_iterator
+        found = m_pvp49ac.find(key);
     if (found == m_pvp49ac.end())
     {
         return 0;
@@ -599,34 +673,36 @@ bool ServerParameterScript::CheckTraningFirstGive() const
 
 bool ServerParameterScript::isDungeonOpen(int dungeonIdx)
 {
-    for (std::vector<int>::iterator it = m_dungeonOpenE0.begin();
-         it != m_dungeonOpenE0.end(); ++it)
+    std::vector<int>::iterator it =
+        std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
+    if (it != m_dungeonOpenE0.end())
     {
-        if (*it == dungeonIdx)
-        {
-            return true;
-        }
+        return true;
     }
-    return false;
+    return true;
 }
 
 void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 {
-    for (std::vector<int>::iterator it = m_dungeonOpenE0.begin();
-         it != m_dungeonOpenE0.end(); ++it)
+    if (open == 1)
     {
-        if (*it == dungeonIdx)
+        std::vector<int>::iterator it =
+            std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
+                      dungeonIdx);
+        if (it != m_dungeonOpenE0.end())
         {
-            if (!open)
-            {
-                m_dungeonOpenE0.erase(it);
-            }
-            return;
+            m_dungeonOpenE0.erase(it);
         }
     }
-    if (open)
+    else
     {
-        m_dungeonOpenE0.push_back(dungeonIdx);
+        std::vector<int>::iterator it =
+            std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
+                      dungeonIdx);
+        if (it == m_dungeonOpenE0.end())
+        {
+            m_dungeonOpenE0.push_back(dungeonIdx);
+        }
     }
 }
 

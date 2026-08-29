@@ -3,6 +3,7 @@
 
 #include <list>
 #include <map>
+#include <cstring>
 
 struct STHellPartyGroupRate
 {
@@ -14,6 +15,11 @@ struct STHellPartyGroupRate
 
 struct STHellPartyGroupOrder
 {
+    // ORIG C1Ev 0x89e8712：list 构造于 +0xc 后 memset(this,0,0xc)（前 0xc 字节清零）。
+    STHellPartyGroupOrder()
+    {
+        memset(this, 0, 0xc);
+    }
     // ORIG C1Ev 0x89e8712 / 拷贝 C1ERKS_ 0x89e9dfc 实证：
     //   memset(this,0,0xc) + list 构造于 +0xc（拷贝为三个 dword 复制 + list），
     //   sizeof == 0x14；add_hell_party_monster 083071ba 读 u16@second+2i、

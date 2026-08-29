@@ -21,9 +21,7 @@ stInvestAmplifyOption_t::stInvestAmplifyOption_t()
 
 stAmplifyItemScript_t::stAmplifyItemScript_t()
 {
-    memset(m_rarityRate, 0, sizeof(m_rarityRate));
-    m_field3c = 0;
-    memset(m_rarityProb, 0, sizeof(m_rarityProb));
+    // ORIG 0x82aa510：仅构造 map/vector/hash_map 容器，数据区不初始化
 }
 
 // ORIG 0x089000ca：按偏移初始化概率/等级混合表。

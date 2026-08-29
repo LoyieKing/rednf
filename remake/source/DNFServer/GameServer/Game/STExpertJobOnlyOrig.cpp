@@ -216,7 +216,7 @@ int STExpertJobScript::GetUpgradeCost(unsigned int index)
 bool STExpertJobScript::GetMonsterCardBindRate(int key,
                                                stMonsterCardBindRate& out)
 {
-    std::map<int, stMonsterCardBindRate>::const_iterator it =
+    std::map<int, stMonsterCardBindRate>::iterator it =
         m_monsterCardBindRateMap.find(key);
     if (it == m_monsterCardBindRateMap.end())
     {
@@ -293,7 +293,8 @@ int STExpertJobScript::GetDisjointMachineRepair(int grade, int endurance,
 // 不抽 helper 以保持函数体形态）：
 int STExpertJobScript::GetUnsealScrollPossibleLevel(int level)
 {
-    std::map<int, unsigned short>::const_iterator it = m_unsealScrollMap.find(level);
+    // ORIG：非 const iterator（_Rb_tree_iterator 直用，无 const 转换）。
+    std::map<int, unsigned short>::iterator it = m_unsealScrollMap.find(level);
     if (it == m_unsealScrollMap.end())
         return -1;
     return static_cast<int>(it->second);
@@ -301,7 +302,7 @@ int STExpertJobScript::GetUnsealScrollPossibleLevel(int level)
 
 int STExpertJobScript::GetAlchemistExtractionPossibleLevel(int level)
 {
-    std::map<int, unsigned short>::const_iterator it =
+    std::map<int, unsigned short>::iterator it =
         m_alchemistExtractInfo.find(level);
     if (it == m_alchemistExtractInfo.end())
         return -1;
@@ -310,7 +311,7 @@ int STExpertJobScript::GetAlchemistExtractionPossibleLevel(int level)
 
 int STExpertJobScript::GetEnchanterExtractionPossibleLevel(int level)
 {
-    std::map<int, unsigned short>::const_iterator it =
+    std::map<int, unsigned short>::iterator it =
         m_enchanterExtractInfo.find(level);
     if (it == m_enchanterExtractInfo.end())
         return -1;
@@ -319,7 +320,7 @@ int STExpertJobScript::GetEnchanterExtractionPossibleLevel(int level)
 
 int STExpertJobScript::GetDollControllerExtractionPossibleLevel(int level)
 {
-    std::map<int, unsigned short>::const_iterator it = m_dollExtractInfo.find(level);
+    std::map<int, unsigned short>::iterator it = m_dollExtractInfo.find(level);
     if (it == m_dollExtractInfo.end())
         return -1;
     return static_cast<int>(it->second);

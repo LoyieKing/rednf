@@ -38,7 +38,10 @@ struct stLogin
 };   // sizeof == 0x20e
 #pragma pack(pop)
 
-// ---- stHeader: magic@+0x00='AA', length(u16,网络序)@+0x01, cmd@+0x03 ----
+// ORIG 中 sizeof==4（m_body 紧随 +0x04，见 stLoginPacket ctor 反汇编 add $0x4）。
+// u8+u16+u8 默认对齐会变成 6 字节（u16 对齐 2），导致 m_body@+0x05 与 ORIG 不符，
+// 故显式 packed。
+#pragma pack(push, 1)
 struct stHeader
 {
     stHeader();                                        // ORIG 0x086941cc
@@ -50,6 +53,7 @@ struct stHeader
     unsigned short m_length;   // +0x01 htons 存储
     unsigned char  m_cmd;      // +0x03（login 包构造中置 0x27）
 };  // sizeof == 4
+#pragma pack(pop)
 
 struct CPacketHelper
 {

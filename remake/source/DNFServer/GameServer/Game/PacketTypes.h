@@ -357,9 +357,9 @@ public:
 class MSG_CREATE_CHARACTER
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_padE[4];          // +0xe..+0x11（ORIG name 前间隙）
+    char m_head[0xd];     // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_slot;    // +0xd
+    char m_padE[4];          // +0xe..+0x11（ORIG name 前间隙）
     char m_name[0x1e];       // +0x12..0x2f（ORIG strncpy 长 0x1e；末字节即 +0x2f 标志位）
     char m_padTail[8];        // +0x30..+0x37（帧推导总长 0x38）
 };
@@ -1022,7 +1022,7 @@ public:
 };
 
 // ORIG 布局（SetPartyInfoUI 0x0859b234 读取实证）：+0x0d titleIndex、
-// +0x12 title[0x20]、+0x32 userMax、+0x33 dungIndex(ushort)、+0x35 dungDiffi。
+#pragma pack(push, 1)
 class MSG_PARTY_SET_INFO
 {
 public:
@@ -1035,6 +1035,7 @@ public:
     unsigned char m_dungDiffi;    // +0x35
     char m_padTail[8];        // +0x36..+0x3d（帧推导总长 0x3e）
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_PARTY_TELEPORT : public MSG_BASE
@@ -2704,7 +2705,7 @@ class stOnSortItemParam : public ParamBase
 {
 public:
     stOnSortItemParam();
-    unsigned char m_invenType;        // +0x04（回显 msg+0xd，ORIG process 写入并回读分支）
+    char m_invenType;                 // +0x04（回显 msg+0xd；ORIG movsbl 符号扩展）
     unsigned char m_gap5[3];          // +0x05..+0x07
     int m_result;                     // +0x08（sort 返回值；ctor 清零）
 };

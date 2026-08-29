@@ -6,7 +6,7 @@
 #include "Teleport.h"            // Teleport/STCheckRuleData（Dispatcher_SoloTeleport check_error/send）
 #include "CUserProc.h"             // APSystem::CUserProc（ClearAction/GetTodayReward dispatch_sig）
 #include "CCharacInformNotice.h"   // CCharacInformNotice::handleInformNoticeFlag
-#include "PacketHeader.h"          // LimitNpcBuyItemInfo 包头（ORIG C1 0x08110b70）
+#include "Packet_Monitor_Other_Channel_Chat_Hyper_Link.h"  // ItemHyperLinkMessage process +0x26 跨服转发
 #include "Packet_Approve_Join_Guild.h"  // 8924 行使用（局部栈对象）
 #include "LogManager.h"            // LogManager::logFormat（RequestCharacSkillInfo read）
 // ORIG 域常量（nm：_ZN15InformNotice2ndL6kIndexE / L4kBitE，r 段内部链接；
@@ -1934,7 +1934,8 @@ int Dispatcher_DieMobAll::dispatch_sig(CUser* user, PacketBuf& packet)
                 user, static_cast<WongWork::ENUM_HACKTYPE>(0xcc), 1, 0, 0);
             return 0;
         }
-        if (party->m_dungeon->get_index() == 0x2afe)
+        if (static_cast<CParty*>(user->GetParty())->m_dungeon->get_index()
+            == 0x2afe)
         {
             user->getHackAnalyzer()->addServerHackCnt(
                 user, static_cast<WongWork::ENUM_HACKTYPE>(0xcc), 1, 2, 0);
@@ -2297,13 +2298,13 @@ Dispatcher_ChangeHost::~Dispatcher_ChangeHost() {}
 int Dispatcher_ChangeHost::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x8204c1e：state>=3 才处理；teleport_state 在 [0,3) 反走城错误 0x9e
-    if (user == 0 || user->get_state() < 3)
+    if (user->get_state() <= 2)
     {
         return LineFunc(0x9cbf,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned char slot = 0;
+    char slot;
     if (!packet.get_byte(slot))
     {
         return LineFunc(0x9cc2,
@@ -2316,19 +2317,21 @@ int Dispatcher_ChangeHost::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x7c, 0x13);
         return 0;
     }
-    CPartyTelePort* teleport = (CPartyTelePort*)party->GetPartyTelePort();
-    if (teleport != 0)
+    if (static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->get_teleport_state()
+            >= 0
+        && static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->get_teleport_state()
+            <= 3)
     {
-        int ts = teleport->get_teleport_state();
-        if (ts >= 0 && ts < 4)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x7c, 0x9e);
-            return 0;
-        }
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x7c, 0x9e);
+        return 0;
     }
-    // ORIG 汇编在 change_manager 后取 eax 判 >0，但 CParty.h 权威声明为 void，
-    // 无法取返回值 —— 按权威头调用，保留成功路径。
-    party->change_manager(user, (int)slot);
+    int ret = party->change_manager(user, (int)slot);
+    if (ret > 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x7c, (unsigned char)ret);
+    }
     return 0;
 }
 int Dispatcher_ChangeHost::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -2981,7 +2984,9 @@ Dispatcher_MoveToGate::Dispatcher_MoveToGate() {}
 Dispatcher_MoveToGate::~Dispatcher_MoveToGate() {}
 int Dispatcher_MoveToGate::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0 || user->get_state() != 3 || user->getCurCharacR() == 0)
+    // ORIG 0x8203350：state!=3 或 getCurCharacR()==0 时 LineFunc(0x9a0d)；
+    // 无 user==0/manager==0/seller==0 防御检查（ORIG 直接调用）。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
     {
         return LineFunc(0x9a0d,
                         __PRETTY_FUNCTION__,
@@ -2990,14 +2995,8 @@ int Dispatcher_MoveToGate::dispatch_sig(CUser* user, PacketBuf& packet)
     private_store::CPrivateStoreMgr* manager =
         private_store::GetInstancePrivateStoreMgr();
     private_store::ISeller* seller = 0;
-    if (manager != 0)
-    {
-        manager->GetStoreSeller(&seller, user);
-    }
-    if (seller != 0)
-    {
-        seller->MoveToGate();
-    }
+    manager->GetStoreSeller(&seller, user);
+    seller->MoveToGate();
     return 0;
 }
 int Dispatcher_MoveToGate::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -4121,37 +4120,28 @@ int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
     return 0;
 }
 
-// process 依赖（清单外）。TU 内完整类型定义（全仓此前无定义/声明）：
-// PacketHeader 视图(type 0x27e6 / size 0x39) + accId/itemIdx/characNo/
-// nameLen/name，总长 0x39；ctor 清 accId(+0xe)/itemIdx(+0x12)/characNo(+0x16)/
-// nameLen(+0x1a) 并 memset name(+0x1b,0x1e)（ORIG 0x0822c75a 汇编实证；
-// 类须 packed 使字段紧排，与网络发送 0x39 字节一致）。
-class Packet_CollectItems
+// process 依赖（清单外）。ORIG 0x0822c75a 实证：继承 PacketHeader（先调
+// PacketHeaderC1Ett(0x27e6,0x39)），再清 itemIdx(+0x12)/characNo(+0x16)/
+// accId(+0xe)/nameLen(+0x1a)，最后 memset name(+0x1b, 0x1e)；总长 0x39。
+class Packet_CollectItems : public PacketHeader
 {
 public:
     Packet_CollectItems();  // ORIG W 0x0822c75a
 
-    unsigned short m_type;    // +0x00（header type 0x27e6）
-    unsigned short m_size;    // +0x02（header size 0x39）
-    unsigned short m_field4;  // +0x04
-    int m_field6;             // +0x06
-    char m_padA[4];           // +0x0a..+0x0d
-    unsigned int m_accId;     // +0x0e
-    unsigned int m_itemIdx;   // +0x12
-    int m_characNo;           // +0x16
-    char m_nameLen;           // +0x1a
-    char m_name[0x1d];        // +0x1b..+0x37
-} __attribute__((packed));    // 总长 0x39
+    unsigned int m_idByChannel;  // +0x0a
+    unsigned int m_accId;        // +0x0e
+    int m_itemIdx;             // +0x12
+    unsigned int m_characNo;     // +0x16
+    unsigned char m_nameLen;     // +0x1a
+    char m_name[0x1e];           // +0x1b..+0x38
+} __attribute__((packed));       // 总长 0x39
 
-Packet_CollectItems::Packet_CollectItems()
+Packet_CollectItems::Packet_CollectItems() : PacketHeader(0x27e6, 0x39)
 {
-    m_type = 0x27e6;
-    m_size = 0x39;
-    m_field4 = 0;
-    m_field6 = 0;
-    m_accId = 0;
+    // ORIG 存储顺序 +0x12→+0x16→+0xe→+0x1a（函数体赋值序，非成员声明序）
     m_itemIdx = 0;
     m_characNo = 0;
+    m_accId = 0;
     m_nameLen = 0;
     memset(m_name, 0, sizeof(m_name));
 }
@@ -6299,6 +6289,8 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
         *reinterpret_cast<int*>(sig->m_pad) = entry.m_characNo;   // sig+0x00 = entry 首字段
         *reinterpret_cast<char*>(sig->m_pad + 0x4) =
             m.m_0e;
+        // ORIG 0x081e402d: s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard)
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         return 0;
     }
     user->setCurCharacTagCharacNo(entry.m_characNo);
@@ -7616,12 +7608,8 @@ int Dispatcher_RenameCreature::check_error(CUser* user, MSG_BASE& msg)
 
     std::string name(pMsg + 0x14);
 
-    // BLOCKED(restrict_inputting_name::isUtf8StrInUnicodeRange(char const*)
-    //         _ZN23restrict_inputting_name23isUtf8StrInUnicodeRangeEPKc @0x08ac2d6c)
-    // 仓库未建模该符号。ORIG：返回非 1（非法 UTF-8 范围）→ 错误 0x9f。
-    // 占位：视为合法（true），使后续低俗语/特殊字符检查保持可达。
-    bool inUnicodeRange = true; // 占位
-    if (!inUnicodeRange)
+    // ORIG 0x081cf7xx: !isUtf8StrInUnicodeRange(name.c_str()) → 错误 0x9f
+    if (!restrict_inputting_name::isUtf8StrInUnicodeRange(name.c_str()))
     {
         return 0x9f;
     }
@@ -15298,10 +15286,24 @@ int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
 
     if (m.m_typeD == 0x26)
     {
-        // 跨服频道转发（ Packet_Monitor_Other_Channel_Chat_Hyper_Link，
-        // ORIG W C1 0x0822c3e6；该包类布局仓库尚无权威建模 → BLOCKED 单点依赖。
-        // 依赖就绪后此处按 process 报告 +0x26 分支补跨服转发：
-        //   community ctor/字段拷贝 text/name/links、SendTcpPacket(s_community_proxy,...)）
+        // 跨服频道转发（Packet_Monitor_Other_Channel_Chat_Hyper_Link，
+        // ORIG 0x081d9eaf 区；ctor W 0x0822c3e6）。
+        Packet_Monitor_Other_Channel_Chat_Hyper_Link pkt;
+        pkt.m_chatType = 1;
+        pkt.m_id = user->get_acc_id();
+        pkt.m_characNo = user->getCurCharacNo();
+        pkt.server_id = m.m_field13a;
+        pkt.m_recverCharId = m.m_slot10;
+        pkt.m_buddyNameLen = (char)m.m_nameLen118;
+        pkt.m_msgLen = (unsigned char)m.m_textLen14;
+        memcpy(pkt.buddy_n_user_id_what, m.m_name11c, m.m_nameLen118);
+        memcpy(pkt.m_msg, m.m_text18, m.m_textLen14);
+        pkt.m_itemCount = m.m_linkCount13b;
+        for (int i = 0; i < m.m_linkCount13b; i++)
+            memcpy(pkt.m_items[i] + 0xb, m.m_links13c[i] + 0xc, 0x68);
+        pkt.packetSize = (unsigned short)(0x174 + m.m_textLen14);
+        GlobalData::s_community_proxy->SendTcpPacket(
+            reinterpret_cast<char*>(&pkt), pkt.packetSize);
         return 0;
     }
 
@@ -22236,15 +22238,12 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
     // ---- 附带金币时先走客户端确认回执（certify）路径 ----
     bool needCertify = false;
     if (mbGold(msg) != 0) {
-        /* BLOCKED: _ZN5CUser18reqSendMailCertifyEv @0x0868a51a
-           ORIG: needCertify = user->reqSendMailCertify();
-           仓库暂无该真实声明，占位保持 false 与其余逻辑一致。 */
-        needCertify = false;
+        // ORIG 0x081cca92: needCertify = user->reqSendMailCertify();
+        needCertify = user->reqSendMailCertify() != 0;
     }
     if (needCertify) {
-        /* BLOCKED: _ZN5CUser15set_MailMsgDataEP16MSG_MAILBOX_SEND @0x0868a4b6
-           ORIG: user->set_MailMsgData(static_cast<MSG_MAILBOX_SEND*>(&msg));
-           仓库暂无该真实声明；恢复后在此保存消息等待回执再继续。 */
+        // ORIG 0x081ccaa6: user->set_MailMsgData(&msg) 后返回 0（等待回执）
+        user->set_MailMsgData(static_cast<MSG_MAILBOX_SEND*>(&msg));
         return 0;
     }
 
@@ -22272,11 +22271,8 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
         }
         if (mbItemId(msg) == 0)
             specialMark = 1;
-        /* BLOCKED: _ZN5CUser18IncrementTradeGoldEji @0x0864658a
-           ORIG: user->IncrementTradeGold(mbGold(msg), specialMark);
-           仓库仅有 CReliablePerson::IncrementTradeGold(unsigned int)，
-           CUser 两参版本缺声明，占位保持其余逻辑。 */
-        (void)specialMark;
+        // ORIG 0x081ccc26: user->IncrementTradeGold(mbGold(msg), specialMark);
+        user->IncrementTradeGold(mbGold(msg), static_cast<int>(specialMark));
     }
 
     // ---- 邮件金币上限统计（SIG_FIND_FACTORY_HUB 入 NETWORK 统计队列）----
@@ -23172,24 +23168,24 @@ void Dispatcher_PcRoomRentItem::giveDimensionItems(CUser* user,
     int growType = static_cast<int>(user->getCurCharFirstGrowType());   // W 0x08110c94
     int job = user->get_charac_job();                                    // W 0x080fdf20
 
-    /* BLOCKED: _ZN29DimensionActivationRewardData18getRewardGiveItemsEiii @0x08915f9a
-       —— 仓库无该符号声明/定义（CDataManager.h DimensionActivationRewardData 仅有
-       getSectionData/getRewardSelectItemList/getRewardGiveItemList）。ORIG 后续逻辑：
-           DimensionActivationRewardData* rewardData =
-               reinterpret_cast<DimensionActivationRewardData*>(
-                   reinterpret_cast<char*>(G_CDataManager()) + 0x4b34);   // +0x4b34 推断
-           std::vector<EventRewardItemInfo>* items =
-               rewardData->getRewardGiveItems(selectionIdx, job, growType);
-           if (items != 0)
-               for (int i = 0; i < (int)items->size(); ++i)
-               {
-                   InstanceRentalSystem::RentInElem elem;
-                   elem.m_sectionIdx = selectionIdx;
-                   elem.m_itemIdx = i;
-                   elem.m_type = 1;                       // GiveList 路径标记
-                   input.m_elems.push_back(elem);
-               }
-       依赖补齐后恢复上方循环。 */
+    // ORIG 0x081e58c3: rewardData->getRewardGiveItems(selectionIdx, job, growType)，
+    // 非空则逐项组装 RentInElem 入 input.m_elems（m_type=1 GiveList 标记）
+    DimensionActivationRewardData* rewardData =
+        reinterpret_cast<DimensionActivationRewardData*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x4b34);
+    std::vector<EventRewardItemInfo>* items =
+        rewardData->getRewardGiveItems(selectionIdx, job, growType);
+    if (items != 0)
+    {
+        for (int i = 0; i < static_cast<int>(items->size()); ++i)
+        {
+            InstanceRentalSystem::RentInput::RentInElem elem;
+            elem.m_sectionIdx = static_cast<unsigned char>(selectionIdx);
+            elem.m_itemIdx = static_cast<unsigned char>(i);
+            elem.m_type = 1;                             // GiveList 路径标记
+            input.m_elems.push_back(elem);
+        }
+    }
 }
 
 // ==== Dispatcher_PcRoomRentItem::send (ORIG 0x081e542e) ====
@@ -25154,11 +25150,8 @@ int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
         return 0;
     }
 
-    bool materialOk = true;
-    /* BLOCKED: _ZN13EventClassify14CObjectBringUp24verifyMaterialItemByRuleEP5CUserj @0x0810fcea
-       ORIG: materialOk = entity->verifyMaterialItemByRule(user, itemIdx);
-       ORIG 符号真实（报告 verifyMaterialItemByRule.md 全文在手）但仓库无声明定义；
-       占位保持 true 使后续扣料/发奖逻辑可达；恢复后由其写回（false → out.m_4=0x17）。 */
+    // ORIG 0x081e15e4: materialOk = entity->verifyMaterialItemByRule(user, itemIdx)
+    const bool materialOk = entity->verifyMaterialItemByRule(user, itemIdx);
     if (!materialOk)
     {
         out.m_4 = 0x17;
@@ -25175,12 +25168,8 @@ int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
     std::vector<int>& rewards =
         *reinterpret_cast<std::vector<int>*>(
             reinterpret_cast<char*>(&out) + 0xc);
-    bool rewardOk = true;
-    /* BLOCKED: _ZN13EventClassify14CObjectBringUp17sendBringUpRewardEP5CUserRSt6vectorIiSaIiEERh @0x0810fe90
-       ORIG: rewardOk = entity->sendBringUpReward(user, rewards, out.m_b);
-       ORIG 符号真实（报告 sendBringUpReward.md 在手）但仓库无声明定义；
-       占位保持 true 使成功回写（m_8=slot）可达；恢复后由其写回（false → out.m_4=1）。 */
-    (void)rewards;
+    // ORIG 0x081e1660: rewardOk = entity->sendBringUpReward(user, rewards, out.m_b)
+    const bool rewardOk = entity->sendBringUpReward(user, rewards, out.m_b);
 
     if (!rewardOk)
     {
@@ -26158,18 +26147,13 @@ int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& para
     req.m_44 = (int)(req.m_34 != -1 ? &GlobalData::g_pTeleport[0]
                                     : &GlobalData::g_pTeleport[1]);
 
-    /* BLOCKED: 经 g_pTeleport 槽所指对象的虚表槽 +0xc 调
-       set_teleport_data(STTeleportData const&):
-         NPC_Teleport::_ZN12NPC_Teleport17set_teleport_dataERK14STTeleportData
-           @0x08284124(转发 Teleport::set_party_teleport 0x08283d98);
-         User_Teleport::_ZN13User_Teleport17set_teleport_dataERK14STTeleportData
-           @0x082842b8(GameWorld::find_from_world 链)。
-       vtable 证据:_ZTV12NPC_Teleport(vptr=0x08c0b230) fn[3]=0x08284124;
-                   _ZTV13User_Teleport(vptr=0x08c0b218) fn[3]=0x082842b8。
-       ORIG:构造 STTeleportData data(memset field00=0 后:
-             data.m_field00=req.m_30;data.m_tp=req.m_tp),
-             再 (*reinterpret_cast<Teleport**>(req.m_44))->set_teleport_data(data)。
-       producer 落地后恢复上述调用。 */
+    // ORIG 0x081e1dc7: STTeleportData data; data.m_field00=req.m_30;
+    //   data.m_tp 前 10 字节 = req.m_tp(state..posy 按 4B/4B/2B 三段展开拷贝);
+    //   (*Teleport**)(req.m_44)->set_teleport_data(data)（vtable 槽3 间接调用）
+    STTeleportData data;
+    data.m_field00 = req.m_30;
+    data.m_tp = req.m_tp;
+    (*reinterpret_cast<Teleport**>(req.m_44))->set_teleport_data(data);
 
     const int err = check_error(user, msg, param);
     if (err > 0)
@@ -26183,11 +26167,8 @@ int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
     if (err == 0)
     {
-        /* BLOCKED: Teleport::set_end_cool_time(Teleport*, CUser*)
-           _ZN8Teleport17set_end_cool_timeEP5CUser @0x08283dc2
-           (取 aura avatar option idx=2 与 CSystemTime::getCurSec 差值写入
-            this+0x10)。producer 落地后恢复:
-             (*reinterpret_cast<Teleport**>(req.m_44))->set_end_cool_time(user); */
+        // ORIG 0x081e1e7b: (*Teleport**)(req.m_44)->set_end_cool_time(user)
+        (*reinterpret_cast<Teleport**>(req.m_44))->set_end_cool_time(user);
         res.m_8 = req.m_30;   // ORIG:param+8 = msg+0x30(err==0 时)
     }
 

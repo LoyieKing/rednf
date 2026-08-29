@@ -10,16 +10,36 @@
 
 void CDungeonEntranceLog::IncrementDungeonEntrance(int dungeonIdx, bool isParty)
 {
-    STDungeonInoutCnt& cnt = m_inoutMap[dungeonIdx];
-    if (isParty)
+    // ORIG 0x860e1ee：存在路径 isParty 仅 ++m_partyEnter（不加 total/curInside）；
+    // 插入路径 isParty 时 ++m_partyEnter 且 ++m_total/++m_curInside（不对称，忠实复刻）。
+    std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.find(dungeonIdx);
+    if (it != m_inoutMap.end())
     {
-        cnt.m_partyEnter += 1;   // ORIG +0x8（节点）+4（value）
+        if (isParty)
+        {
+            it->second.m_partyEnter += 1;
+        }
+        else
+        {
+            it->second.m_enter += 1;
+            it->second.m_total += 1;
+            it->second.m_curInside += 1;
+        }
     }
     else
     {
-        cnt.m_enter += 1;        // ORIG 节点 +0x4
-        cnt.m_total += 1;        // ORIG 节点 +0xc
-        cnt.m_curInside += 1;    // ORIG 节点 +0x10
+        STDungeonInoutCnt cnt;
+        if (isParty)
+        {
+            cnt.m_partyEnter += 1;
+        }
+        else
+        {
+            cnt.m_enter += 1;
+        }
+        cnt.m_total += 1;
+        cnt.m_curInside += 1;
+        m_inoutMap.insert(std::make_pair(dungeonIdx, cnt));
     }
 }
 

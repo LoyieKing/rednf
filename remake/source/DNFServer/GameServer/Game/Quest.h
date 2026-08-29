@@ -232,6 +232,7 @@ struct stQuestTriggerState_t
     short m_trigger0;  // +0x00
     short m_trigger1;  // +0x02
     short m_trigger2;  // +0x04
+    short m_trigger3;  // +0x06（保留；ORIG C1/operator= 2×movl 清 8 字节实证）
 };
 
 // ---- 任务选择参数（QuestList / check_possible 共用） ----

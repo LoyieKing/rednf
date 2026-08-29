@@ -4,6 +4,7 @@
 // （注：上游单例 GetInstanceShutdowManager 由 CGameManager.cpp TU 提供。）
 
 #include "CShutdowManager.h"
+#include "ThreadInterface.h"
 
 #include <cstdio>
 
@@ -47,18 +48,31 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
     return 1;
 }
 
-// ORIG _ZN15CShutdowManager19WaitUntilExitThreadEv（0x82a396e，0xec 字节）：
-// printf("WaitUntilExitThread (%d)\n", (int)m_pad[0])；m_pad[0]!=0 直接返回 true；
-// 否则 join 8 个线程全局（0x940bdb0..0x940bdc8：db/udp/monitor/tcp/db/logdb/
-// accept/net thread），每次 join 后 puts 对应 "xxx thread join"。
-// 【阻塞】ThreadInterface 与 8 个线程全局尚未在重建中建模，join 序列待线程域
-// 还原后补齐；当前仅实现标志检查路径。
 bool CShutdowManager::WaitUntilExitThread()
 {
     std::printf("WaitUntilExitThread (%d)\n", (int)(unsigned char)m_flag);
     if ((unsigned char)m_flag != 0)
         return true;
-    return true;  // join 序列阻塞（见上）
+    // ORIG 0x82a396e 逐条转写：按地址序 join 7 个线程全局（s_dispatch_thr →
+    // s_udp_thr → s_monitor_tcp_thr → s_db_thr → s_db_thr_for_logDB →
+    // s_accept_thr → s_net_thr），每次 join 后 puts 对应描述串。
+    // ORIG 直接 call ThreadInterface::join（非虚）；线程全局在 ORIG 以
+    // ThreadInterface* 使用，重建声明为派生指针，此处 reinterpret 保持 this 值。
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_dispatch_thr)->join();
+    std::puts("dispatch thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_udp_thr)->join();
+    std::puts("udp thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_monitor_tcp_thr)->join();
+    std::puts("monitor tcp thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr)->join();
+    std::puts("db thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr_for_logDB)->join();
+    std::puts("log db thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_accept_thr)->join();
+    std::puts("accept thread join");
+    reinterpret_cast<ThreadInterface*>(GlobalData::s_net_thr)->join();
+    std::puts("net thread join");
+    return true;
 }
 
 CShutdowManager* GetInstanceShutdowManager()

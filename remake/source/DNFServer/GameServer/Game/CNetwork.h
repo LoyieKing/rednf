@@ -460,7 +460,7 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
 
     if (remain > 0)
     {
-        if ((unsigned int)remain > (unsigned int)sizeof(m_recv))
+        if ((unsigned int)remain > (unsigned int)N2)
         {
             return 0;
         }
@@ -532,7 +532,7 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
 
     if (remain > 0)
     {
-        if ((unsigned int)remain > (unsigned int)sizeof(m_recv))
+        if ((unsigned int)remain > (unsigned int)N2)
         {
             return 0;
         }

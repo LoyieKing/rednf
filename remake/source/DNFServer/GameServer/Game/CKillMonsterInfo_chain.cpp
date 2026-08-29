@@ -28,6 +28,7 @@
 
 #include <map>
 #include "CKillMonsterInfo.h"
+#include "../../../shared/packet/include/Packet_HellParty_Statistic_Item.h"
 #include <string.h>
 
 #include "CBoosterGage.h"          // charac_expand::CData（alter）
@@ -204,26 +205,11 @@ bool KmiRegisterAPCBossKillShim(void* self, unsigned int mobIdx,
 // CHellPartyItemStatistic 域
 // ============================================================================
 
-namespace
-{
-
-#pragma pack(push, 1)
-// ORIG Packet_HellParty_Statistic_Item：header 0xa + payload 0x20 = 0x2a。
-class HellPartyStatisticItemPacket : public PacketHeader
-{
-public:
-    HellPartyStatisticItemPacket() : PacketHeader(0xc31, 0x2a) {}
-
-    unsigned char m_hellpartyType;   // +0xa（调用点传 random 标志）
-    unsigned int m_dungeonIndex;     // +0xb
-    unsigned char m_dungeonDiff;     // +0xf
-    unsigned char m_partyCount;      // +0x10（调用点传 dieReason）
-    char m_hellpartyDiff;            // +0x11（调用点传 hellPartyScriptIdx）
-    int m_data[6];                   // +0x12..+0x29（m_hellItemStatistic[6]）
-};
-#pragma pack(pop)
-
-}  // namespace
+// ORIG 包类 Packet_HellParty_Statistic_Item（ctor 0x0860ff9e = PacketHeader
+// (0xc31, 0x2a)）：权威定义见 shared/packet/include/Packet_HellParty_Statistic_Item.h
+//（布局：+0xa bool type / +0xb int dungeonIndex / +0xf char diff /
+//  +0x10 char partyCount / +0x11 char hellpartyDiff / +0x12 int data[6]，
+//  与 ORIG mangled _ZN31Packet_HellParty_Statistic_ItemC1Ev 一致）。
 
 // ---- SendHellPartyItemStatistic —— ORIG T 0x0860fcc0 -----------------------
 // dungeonDiff>4 或 scriptIdx==0 → false；否则组包经统计代理（组 0）发送 0x2a 字节。
@@ -240,7 +226,7 @@ bool HellPartySendItemStatisticShim(void* /*self*/, bool random, int dungeonIdx,
     if (scriptIdx == 0)
         return false;
 
-    HellPartyStatisticItemPacket packet;
+    Packet_HellParty_Statistic_Item packet;
     packet.m_hellpartyType = random ? 1u : 0u;
     packet.m_dungeonIndex = static_cast<unsigned int>(dungeonIdx);
     packet.m_dungeonDiff = static_cast<unsigned char>(diff);

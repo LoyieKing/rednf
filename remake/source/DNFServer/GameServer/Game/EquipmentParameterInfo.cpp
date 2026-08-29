@@ -294,7 +294,7 @@ int EquipmentParameterInfo::addString(std::string str)
                     b = 0;
                 }
             }
-            ++it;
+            it++;
         }
     }
     if (key == -1)

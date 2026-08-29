@@ -24,6 +24,7 @@
 #include "Arad_DataManager.h"
 #include "CItemLimitEdition.h"
 #include "CEnvironment.h"   // G_CEnvironment()（GetCalcDay 读 env+0x37c）
+#include "LogManager.h"
 #include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
 // DNFLexWrapper.h 与本文件 include 链冲突，ScanTypeOrInt 用本地声明
 //（定义见 DNFLexWrapperHelpers.cpp，ORIG 0x088bceaf）。
@@ -120,7 +121,6 @@ int ScriptLoader::LoadScriptDaily(RestrictType::T type)
 
 void ScriptLoader::ClearScript()
 {
-    m_infoMap.clear();
 }
 
 InfoDaily* ScriptLoader::GetRestrictInfo(unsigned int ipgNo)
@@ -141,18 +141,27 @@ int readTime(short* out)
 {
     bool ok = false;
     int n = 0;
-    out[n++] = (short)ScanInt(&ok);
-    if (!ok)
+    try
+    {
+        out[n++] = (short)ScanInt(&ok);
+        if (!ok)
+            throw "start year";
+        out[n++] = (short)ScanInt(&ok);
+        if (!ok)
+            throw "start month";
+        out[n++] = (short)ScanInt(&ok);
+        if (!ok)
+            throw "start day";
+        out[n++] = (short)ScanInt(&ok);
+        if (!ok)
+            throw "start time";
+    }
+    catch (const char* msg)
+    {
+        LogManager::logFormat(1, "../RDARScriptCeraShopAddRestrictType.cpp", "readTime",
+                              37, "readTime() Load fail. %s", msg);
         return 0;
-    out[n++] = (short)ScanInt(&ok);
-    if (!ok)
-        return 0;
-    out[n++] = (short)ScanInt(&ok);
-    if (!ok)
-        return 0;
-    out[n++] = (short)ScanInt(&ok);
-    if (!ok)
-        return 0;
+    }
     return 1;
 }
 

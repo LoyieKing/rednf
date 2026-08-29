@@ -29,8 +29,9 @@ int UsedFatigueRewardItem::parsing(char* path)
         return 0xa4;
 
     m_enable = false;
-    std::string flag(script.GetString(0, "flag"));
-    if (flag == "true")
+    std::string flag(script.GetString(0, "flag"),
+                     std::allocator<char>());   // ORIG SaIcC1+SsC1(ptr,alloc)
+    if (flag == std::string("true"))            // ORIG string==string（构造临时）
         m_enable = true;
 
     if (!script.Load(path, "item_reward"))
@@ -59,7 +60,7 @@ int UsedFatigueRewardItem::find(int low, int high, Data& out)
 {
     for (std::vector<Data>::iterator it = m_data.begin(); it != m_data.end(); ++it)
     {
-        if (it->m_begin >= low && it->m_end < high)
+        if (it->m_begin >= low && it->m_begin < high)   // ORIG 两次 movzwl (%eax)：low/high 均对 m_begin
         {
             out.m_begin = it->m_begin;
             out.m_id = it->m_id;

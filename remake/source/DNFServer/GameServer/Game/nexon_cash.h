@@ -197,9 +197,8 @@ private:
     unsigned char  m_magic;       // +0x00
     unsigned char  m_pad01;       // +0x01（ctor 不初始化）
     unsigned short m_bodyLength;  // +0x02 主机序
-    unsigned char  m_raw[3];      // +0x04 报文头原始区（data() 视图起点）
-    // 注意：实际对象尺寸由 NCashImpl 内嵌区间推得为 0x208（+0x40→+0x248 下一个子对象），
-    // 余下空间即接收缓冲本体（自 +0x07 起）。
+    unsigned char  m_raw[0x204];  // +0x04 报文原始区（data() 视图起点）+ 接收缓冲本体
+    // sizeof = 0x208（+0x40→+0x248 下一个子对象，NCashImpl 内嵌两实例总 0x450）
 };
 
 // ---------------------------------------------------------------------------
@@ -367,13 +366,9 @@ public:  // 成员偏移由 ORIG 使用点固定，暴露便于 TU 内访问器�
     char            m_serverAdrs[17]; // +0x0d..+0x1d
     unsigned short  m_port;       // +0x1e
     TCPSocket       m_socket;     // +0x20
-    NCashMessage    m_inMsg;      // +0x40 （0x208 区间含接收缓冲）
-    char m_inBodyPad[0x200];      // +0x48..+0x248 补足 inMsg 实体（见注①）
-    NCashMessage m_outMsg;        // +0x248..+0x450 outMsg 实体（ORIG 总 size 0x450）
+    NCashMessage    m_inMsg;      // +0x40（0x208 区间含接收缓冲）
+    NCashMessage    m_outMsg;     // +0x248..+0x450 outMsg 实体（ORIG 总 size 0x450）
 };
-
-// 注①：m_inMsg 的 raw 缓冲在 ORIG 中一并占据 +0x47..+0x248 区域；
-// 本重建用独立 pad 表达总量 0x450，语义与布局一致。
 
 // ---------------------------------------------------------------------------
 // NexonCash —— NCashImpl 薄包装。唯一成员 NCashImpl* @+0。

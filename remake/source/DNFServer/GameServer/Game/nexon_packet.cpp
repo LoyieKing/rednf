@@ -125,8 +125,6 @@ int stPacket::GetLength()
 //   m_cmd = 0x27;
 stLoginPacket::stLoginPacket(stLogin& login)
 {
-    stPacket();
-
     CPacketHelper helper(m_body, MaxBodySize, 0);
 
     helper.padding(reinterpret_cast<unsigned char*>(&login.m_type), 1);
@@ -147,32 +145,34 @@ stLoginPacket::stLoginPacket(stLogin& login)
     m_cmd = 0x27;
 }
 
-// ORIG 0x086943af (sz 0x131)：与 ctor 对称的读取路径。
+// ORIG 0x086943af (sz 0x131)：与 ctor 对称的读取路径。ORIG 将 m_body 内容
+// scan 回 **packet 参数** 指向的缓冲（全部目标 = packet+偏移；out 参数未用，
+// 见 CUser::SendLoginToPCRoomServer 桥接调用 (ReadPacketFn)(packet, reply)）。
 //   CPacketHelper helper(this->m_body, 0x1000, 0);
-//   helper.scan(&out.m_type, 1);
-//   helper.scan(&out.m_accLen, 1);
-//   helper.scan(out.m_account, out.m_accLen);
-//   helper.scan(&out.m_charLen, 1);
-//   helper.scan(out.m_characName, out.m_charLen);
-//   helper.scan(&out.m_ip, 4);
-//   helper.scan(&out.m_canTry, 1);
-//   helper.scan(&out.m_userIdx, 8);
+//   helper.scan((unsigned char*)packet,      1);        // m_type
+//   helper.scan((unsigned char*)packet+1,    1);        // m_accLen
+//   helper.scan((unsigned char*)packet+2,    packet[1]); // m_account
+//   helper.scan((unsigned char*)packet+0x101,1);        // m_charLen
+//   helper.scan((unsigned char*)packet+0x102,packet[0x101]);
+//   helper.scan((unsigned char*)packet+0x201,4);        // m_ip
+//   helper.scan((unsigned char*)packet+0x205,1);        // m_canTry
+//   helper.scan((unsigned char*)packet+0x206,8);        // m_userIdx+m_accId
 void stLoginPacket::ReadPacket(const char* packet, stLogin& out)
 {
-    (void)packet;  // ORIG 未使用该参数（this 即已解码缓冲）
+    (void)out;  // ORIG 未使用该参数（解码目标为 packet 缓冲）
 
     CPacketHelper helper(m_body, MaxBodySize, 0);
 
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_type), 1);
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_accLen), 1);
-    helper.scan(reinterpret_cast<unsigned char*>(out.m_account),
-                static_cast<int>(static_cast<unsigned char>(out.m_accLen)));
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_charLen), 1);
-    helper.scan(reinterpret_cast<unsigned char*>(out.m_characName),
-                static_cast<int>(static_cast<unsigned char>(out.m_charLen)));
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_ip), 4);
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_canTry), 1);
-    helper.scan(reinterpret_cast<unsigned char*>(&out.m_userIdx), 8);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 1, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 2,
+                static_cast<int>(static_cast<unsigned char>(packet[1])));
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x101, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x102,
+                static_cast<int>(static_cast<unsigned char>(packet[0x101])));
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x201, 4);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x205, 1);
+    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x206, 8);
 }
 
 }  // namespace nexon_packet

@@ -2,6 +2,8 @@
 #include <cstring>
 
 #include "CUser.h"   // 经 SigTypes.h 提供权威 SIG_ITEM_DICTIONARY_FLAG（0x138c）
+#include "CDataManager.h"  // G_CDataManager / find_item / m_mapA928/m_mapA940
+#include "CItem.h"         // CItem::is_stackable
 #include "CStreamGuard.h"
 #include "GlobalData.h"
 #include "LogManager.h"
@@ -14,7 +16,6 @@ static const unsigned char kItemDictionaryBit = 8;
 
 namespace {
 const unsigned int kBinaryLength = 5000;
-inline bool valid(unsigned int item) { return item < kBinaryLength * kItemDictionaryBit; }
 }
 
 // ORIG 0x0811d5d4：仅 CDataC1（置基类 vptr）+ 编译器置派生 vptr，不调用 _reset。
@@ -46,11 +47,21 @@ int CItemDictionary::getGainItemCount() const {
         for (unsigned int bit = 0; bit < kItemDictionaryBit; ++bit) count += (m_data[i] >> bit) & 1;
     return count;
 }
+// ORIG 0x0811dba6（ret $0x4 克隆；逐条转写）：遍历位图（+0x5 起），置位处
+// itemIdx=i*8+bit 经 G_CDataManager()->m_mapA940（+0xa940）翻译后
+// push_back(map[itemIdx])；map 无此键则跳过。
 std::vector<int>& CItemDictionary::getGainItemList() {
     m_gainItemList.clear();
     for (unsigned int i = 0; i < kBinaryLength; ++i)
         for (unsigned int bit = 0; bit < kItemDictionaryBit; ++bit)
-            if ((m_data[i] >> bit) & 1) m_gainItemList.push_back(static_cast<int>(i * kItemDictionaryBit + bit));
+            if ((m_data[i] >> bit) & 1)
+            {
+                const int itemIdx = static_cast<int>(i * kItemDictionaryBit + bit);
+                std::map<int, int>::iterator it =
+                    G_CDataManager()->m_mapA940.find(itemIdx);
+                if (it != G_CDataManager()->m_mapA940.end())
+                    m_gainItemList.push_back(it->second);
+            }
     return m_gainItemList;
 }
 // ORIG 0x0811da32：index=flag>>3、bit=flag&7 越界（index∉[0,0x1387] 或 bit∉[0,7]）
@@ -117,7 +128,21 @@ void CItemDictionary::sendItemDictionaryInfoTotal(CUser* user)
     guard.finalize(true);
     user->Send(guard);
 }
-void CItemDictionary::setGainItemFlag(CUser*, unsigned int item) { if (valid(item)) m_data[item / kItemDictionaryBit] |= static_cast<unsigned char>(1u << (item & 7)); }
+// ORIG 0x0811d80e：user==0 返回；item 存在（find_item）且 is_stackable → 返回
+// （仅"存在且非堆叠"继续）；m_mapA928.find(item) 命中则
+// setItemCheckFlag(user, item, map[item])。
+void CItemDictionary::setGainItemFlag(CUser* user, unsigned int item)
+{
+    if (user == 0)
+        return;
+    CItem* ci = G_CDataManager()->find_item(static_cast<int>(item));
+    if (ci != 0 && ci->is_stackable())
+        return;
+    std::map<int, int>::iterator it =
+        G_CDataManager()->m_mapA928.find(static_cast<int>(item));
+    if (it != G_CDataManager()->m_mapA928.end())
+        setItemCheckFlag(user, item, static_cast<unsigned int>(it->second));
+}
 // ORIG 0x0811d9d7：user==0 直接返回；index=flag>>3、bit=flag&7 越界（
 // index∉[0,0x1387] 或 bit∉[0,7]）→ logFormat 后返回；getItemCheckFlag(-1,flag)
 // 已置位则跳过；否则 m_data[index] += (1<<bit)（加法非 or），

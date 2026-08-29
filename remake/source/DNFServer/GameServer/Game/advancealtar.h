@@ -80,9 +80,11 @@ struct _Reward {
 };  // 5 字节
 #pragma pack(pop)
 struct _BuyItem {
-    // ORIG W C1/C2 @0x08134476：memset(this,0,12)；另有 trivial D1/D2 @0x813b4cc（W，随用点发射）。
+    // ORIG W C1/C2 @0x08134476：memset(this,0,12)；无用户析构（ORIG D1 仅
+    // @0x813b4cc 空体且只被 allocator destroy 引用；删显式 ~_BuyItem 使
+    // _AdvanceAltarDbData/_CharacAdvanceAltarDbData/CACHE_CHARACTER_TYPE
+    // 析构链 trivial，对齐 ORIG 不析构 m_altar 的行为）。
     _BuyItem() { std::memset(this, 0, sizeof(*this)); }
-    ~_BuyItem() {}   // ORIG W D1/D2 @0x0813b4cc（空体；随使用点发射弱符号）
     int m_field0; int m_field4; short m_short8; short m_short10;            // 12 字节
 };  // 12 字节
 

@@ -161,7 +161,7 @@ public:
     std::vector<std::string> m_priorityScriptDir;  // +0x164
     char m_scriptpacks;                // +0x170
     int m_channelType;                 // +0x174
-    char m_validateScript;             // +0x178
+    bool m_validateScript;             // +0x178（bool：ORIG movzbl 0x310(%eax)+test+je 形态）
     std::string m_garenaPublickey;     // +0x17c
     char m_llsKey[0x2d];               // +0x180
     char m_relayIP[0x10];              // +0x1ad

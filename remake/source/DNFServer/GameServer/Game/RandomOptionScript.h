@@ -317,9 +317,11 @@ public:
     std::map<RandomApplicationKey, LevelLimitDecisionValue> m_map18;  // +0x18
     std::map<int, PartSelectonValue> m_map30;                         // +0x30
     std::map<RandomApplicationKey, BaseItemSelectionValue> m_map48;   // +0x48
-    // ORIG RegenVer_choose_item 报告实证：+0x60 为 map<BaseItemKey,
-    // map<int,BaseItemValue>>（键=u8 rarity/u8 level/u16 partType）。
-    std::map<BaseItemKey, std::map<int, BaseItemValue> > m_baseItems60;  // +0x60
+    // ORIG 实证（choose_item/RegenVer_choose_item mangled）：+0x60 为
+    // map<int, map<int, BaseItemValue>>——键 = BaseItemKey 4 字节按小端
+    // int 打包（rarity|level<<8|partType<<16）；插入端 CItemList::insert_item
+    // 用 *(int*)&key 写同一表（CDataManager +0x4e70 别名视图）。
+    std::map<int, std::map<int, BaseItemValue> > m_baseItems60;  // +0x60
     std::map<unsigned long, int> m_map78;                             // +0x78
     std::map<RandomApplicationKey,
              std::map<int, struct RandomOptionGive> > m_map90;  // +0x90（ORIG mangled S_Ii16RandomOptionGive）

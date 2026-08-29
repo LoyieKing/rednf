@@ -5106,20 +5106,24 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
 // 与 stAvatarEmblemInfo_t(pack(1), 5×(u16+u32)=0x1e) 完整镜像。
 void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 {
-    // ORIG 逐字段：7 dword（+0x00..0x18）+ 1 word（+0x1c），写入 this+0x2d 起
-    const char* src = reinterpret_cast<const char*>(&emblem);
-    char* dst = reinterpret_cast<char*>(m_data) + 0x2d;
-    // ORIG 逐字段展开：7 dword（+0x00..0x18）+ 1 word（+0x1c）mov 直拷，
-    // 写入 this+0x2d 起（无 memcpy/循环，匹配 0x850d44c）。
-    *reinterpret_cast<int*>(dst + 0x00) = *reinterpret_cast<const int*>(src + 0x00);
-    *reinterpret_cast<int*>(dst + 0x04) = *reinterpret_cast<const int*>(src + 0x04);
-    *reinterpret_cast<int*>(dst + 0x08) = *reinterpret_cast<const int*>(src + 0x08);
-    *reinterpret_cast<int*>(dst + 0x0c) = *reinterpret_cast<const int*>(src + 0x0c);
-    *reinterpret_cast<int*>(dst + 0x10) = *reinterpret_cast<const int*>(src + 0x10);
-    *reinterpret_cast<int*>(dst + 0x14) = *reinterpret_cast<const int*>(src + 0x14);
-    *reinterpret_cast<int*>(dst + 0x18) = *reinterpret_cast<const int*>(src + 0x18);
-    *reinterpret_cast<unsigned short*>(dst + 0x1c) =
-        *reinterpret_cast<const unsigned short*>(src + 0x1c);
+    // ORIG 0x850d44c：8 条直拷（7 dword + 1 word）写入 this+0x2d 起；
+    // 每语句独立以 this/emblem 直接寻址（O0 无局部指针中转，匹配 mov 形态）。
+    *reinterpret_cast<int*>((char*)this + 0x2d) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x00);
+    *reinterpret_cast<int*>((char*)this + 0x31) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x04);
+    *reinterpret_cast<int*>((char*)this + 0x35) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x08);
+    *reinterpret_cast<int*>((char*)this + 0x39) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x0c);
+    *reinterpret_cast<int*>((char*)this + 0x3d) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x10);
+    *reinterpret_cast<int*>((char*)this + 0x41) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x14);
+    *reinterpret_cast<int*>((char*)this + 0x45) =
+        *reinterpret_cast<const int*>((const char*)&emblem + 0x18);
+    *reinterpret_cast<unsigned short*>((char*)this + 0x49) =
+        *reinterpret_cast<const unsigned short*>((const char*)&emblem + 0x1c);
 }
 
 // ============================================================================

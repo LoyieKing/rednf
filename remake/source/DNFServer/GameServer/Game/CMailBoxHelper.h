@@ -118,7 +118,7 @@ public:
     int GetRemainSize();
     void IncNotLoadedMailCount();
     void Init();
-    void InsertLetterKeepCount(unsigned int);
+    bool InsertLetterKeepCount(unsigned int);   // ORIG 返回 map.insert 的 second
     bool IsLoaded();
     int RemoveMail(unsigned int);
     void SetLastLoadLetterIdx(unsigned int);

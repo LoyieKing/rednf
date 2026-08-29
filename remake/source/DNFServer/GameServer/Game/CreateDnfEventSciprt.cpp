@@ -84,9 +84,9 @@ int CreateDnfEventSciprt::loadScript()
         }
         std::vector<ItemInfo>* staged = new std::vector<ItemInfo>();  // operator new(0xc)
         staged->swap(items);
-        m_itemMap.insert(std::make_pair(curDayLevel, *staged));
-        // 注【ORIG 原样】：staged 本体未 delete——ORIG 经 pair(const int&, vector&)
-        // 引用把内容拷入节点后即离开作用域；staged 由 clearScript 的指针式回收承接。
+        m_itemMap.insert(std::pair<const int, std::vector<ItemInfo>*>(curDayLevel, staged));
+        // 注【ORIG 原样】：staged 指针直接入 map（value 为 vector*），本体由
+        // clearScript 的指针式回收（析构 + delete）承接。
     }
 
     unloadRDARScriptFile();                             // 08ac02c8 收尾路径
@@ -97,12 +97,11 @@ int CreateDnfEventSciprt::loadScript()
 // 循环体内无迭代器自增，且把 mapped value 首 4 字节当堆指针做显式析构 + delete。
 void CreateDnfEventSciprt::clearScript()
 {
-    std::map<int, std::vector<ItemInfo> >::iterator it = m_itemMap.begin();
-    for (; it != m_itemMap.end() /* 无 ++it，ORIG 原样 */; )
+    std::map<int, std::vector<ItemInfo>* >::iterator it = m_itemMap.begin();
+    std::map<int, std::vector<ItemInfo>* >::iterator itEnd = m_itemMap.end();  // ORIG：begin 后即缓存
+    for (; it != itEnd /* 无 ++it，ORIG 原样 */; )
     {
-        std::vector<ItemInfo>* victim =
-            reinterpret_cast<std::vector<ItemInfo>*>(
-                *reinterpret_cast<void**>(&it->second));        // 读 second 前 4 字节
+        register std::vector<ItemInfo>* victim = it->second;   // ORIG：victim 驻留 ebx
         if (victim != NULL)                                     // 08ac036b
         {
             victim->~ItemInfoVector();                          // 显式 ~vector（08ac06fa）
@@ -115,14 +114,17 @@ void CreateDnfEventSciprt::clearScript()
 // ORIG GetItemInfo(vector&) @0x08ac04a4（0x13d 字节）：合并所有 day 组的全部元素。
 void CreateDnfEventSciprt::GetItemInfo(std::vector<std::pair<int, int> >& out)
 {
+    std::map<int, std::vector<ItemInfo>* >::iterator tmp = m_itemMap.begin();  // ORIG 冗余 begin（结果未用）
+    std::map<int, std::vector<ItemInfo>* >::iterator itEnd = m_itemMap.end();
     out.clear();
-    std::map<int, std::vector<ItemInfo> >::iterator it = m_itemMap.begin();
-    for (; it != m_itemMap.end(); ++it)
+    for (std::map<int, std::vector<ItemInfo>* >::iterator it = m_itemMap.begin(); it != itEnd; it++)  // ORIG：后缀 ++
     {
-        std::vector<ItemInfo>& vec = it->second;
-        for (unsigned int i = 0; i < vec.size(); ++i)   // unsigned long/short → pair<int,int>
+        unsigned int i = 0;                // ORIG：i 在外层循环体入口初始化
+        unsigned int n = it->second->size();   // ORIG：外层不存 vec，链式取 size
+        for (; i < n; ++i)
         {
-            out.push_back(std::make_pair(vec.at(i).m_itemIndex, vec.at(i).m_count));
+            std::vector<ItemInfo>* vec = it->second;   // ORIG：vec 在内层才存入槽
+            out.push_back(std::make_pair(vec->at(i).m_itemIndex, vec->at(i).m_count));
         }
     }
 }
@@ -131,14 +133,17 @@ void CreateDnfEventSciprt::GetItemInfo(std::vector<std::pair<int, int> >& out)
 // find 未命中时不动 out（ORIG 同）。
 void CreateDnfEventSciprt::GetItemInfo(std::vector<std::pair<int, int> >& out, int dayLevel)
 {
-    std::map<int, std::vector<ItemInfo> >::iterator it = m_itemMap.find(dayLevel);
-    if (it == m_itemMap.end())
-        return;
-    out.clear();
-    std::vector<ItemInfo>& vec = it->second;
-    for (unsigned int i = 0; i < vec.size(); ++i)
+    std::map<int, std::vector<ItemInfo>* >::iterator it = m_itemMap.find(dayLevel);
+    if (it != m_itemMap.end())   // ORIG 结构：ne; je 跳过（命中才处理）
     {
-        out.push_back(std::make_pair(vec.at(i).m_itemIndex, vec.at(i).m_count));
+        out.clear();
+        std::vector<ItemInfo>* vec = it->second;
+        unsigned int i = 0;                // ORIG：i 声明在 n 之前
+        unsigned int n = vec->size();      // ORIG：size 只取一次并缓存
+        for (; i < n; ++i)
+        {
+            out.push_back(std::make_pair(vec->at(i).m_itemIndex, vec->at(i).m_count));
+        }
     }
 }
 

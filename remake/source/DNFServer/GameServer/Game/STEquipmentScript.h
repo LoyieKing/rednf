@@ -191,8 +191,9 @@ struct STEnchantSystemData
         m_b = 0;
         m_c = 0;
     }
-
-    ~STEnchantSystemData() {}
+    // 无用户析构：ORIG STEnchantSystemDataD1Ev 仅被 allocator::destroy 引用 1 次；
+    // 派生 STEnchantSystemMapKey 空析构（13 调用点）不调基类析构 ⇒ 基类析构
+    // 必须 trivial。用户 ~STEnchantSystemData() {} 会令 MapKeyD1Ev 多调一次 D1。
 };
 
 // ---- [setback img] 条目（ORIG ctor 0x0898f?? 三连 int 扫描） ----

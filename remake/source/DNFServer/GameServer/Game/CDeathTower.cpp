@@ -626,7 +626,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         int key = _genTimerKey((TIMER_MESSAGE)0x4d);
         int mgrIdx = m_idx;
         G_TimerQueue()->InsertTimer(
-            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4d, 0x3c, key, 0);
+            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4d, 0x3c, key, 0x4d);
 
         PacketGuard pkt;
         pkt.put_header(0, 0xfe);
@@ -640,7 +640,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         int key = _genTimerKey((TIMER_MESSAGE)0x4b);
         int mgrIdx = m_idx;
         G_TimerQueue()->InsertTimer(
-            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4b, 1, key, 0);
+            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4b, 1, key, 0x4b);
     }
 
     int curStage = m_stage.getCurrentStage();

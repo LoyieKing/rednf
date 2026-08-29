@@ -346,23 +346,40 @@ int CClearReward::generatePcRoomCardBlankItem(Inven_Item& item)
 // ---- 依赖：CItemGenRateTable::chooseItem（ORIG T 0x085349a4）----
 int CItemGenRateTable::chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int level)
 {
-    if (rarity == RARITY_RARE)
+    // ORIG 0x085349a4：try 块覆盖表查询；catch(...) 打 cMyTrace 日志后返回 -1
+    // （__cxa_begin_catch → cMyTrace("int WongWork::CItemGenRateTable::chooseItem"
+    // "(WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279, 5) →
+    // operator()("[%s][%d].", name, 0x279) → end_catch → return -1）。
+    try
     {
-        int itemIdx = static_cast<int>(m_optHandle.choose_item(rarity, level));
-        if (itemIdx != -1)
-            return itemIdx;
+        if (rarity == RARITY_RARE)
+        {
+            int itemIdx = static_cast<int>(m_optHandle.choose_item(rarity, level));
+            if (itemIdx != -1)
+                return itemIdx;
+        }
+        // ORIG 槽址 = type*0x7110+rarity*0x12d8+level*24（type 调用方传 1..4），
+        // 等价 m_slots[type-1]（m_slots 从 block+0x7110 起）。
+        std::map<unsigned int, int>& slot = m_block.m_slots[type - 1][rarity][level];
+        if (slot.empty())
+            return -1;
+        std::map<unsigned int, int>::iterator it = slot.end();
+        --it;
+        unsigned long maxKey = it->first;
+        unsigned long roll = static_cast<unsigned long>(m_rand->randInt(maxKey));
+        std::map<unsigned int, int>::iterator lb = slot.lower_bound(roll);
+        if (lb == slot.end())
+            --lb;
+        return lb->second;
     }
-    std::map<unsigned int, int>& slot = m_block.m_slots[type][rarity][level];
-    if (slot.empty())
+    catch (...)
+    {
+        cMyTrace trace("int WongWork::CItemGenRateTable::chooseItem("
+                       "WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279, 5);
+        trace("[%s][%d].", "int WongWork::CItemGenRateTable::chooseItem("
+              "WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279);
         return -1;
-    std::map<unsigned int, int>::iterator it = slot.end();
-    --it;
-    unsigned long maxKey = it->first;
-    unsigned long roll = static_cast<unsigned long>(m_rand->randInt(maxKey));
-    std::map<unsigned int, int>::iterator lb = slot.lower_bound(roll);
-    if (lb == slot.end())
-        --lb;
-    return lb->second;
+    }
 }
 
 // ---- 依赖：CItemGeneratorMgr::onTryGenerateRandomItem（ORIG T 0x085342c6）----
@@ -512,12 +529,16 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
             acc[0] = table[0] * neg / table[1];
         acc[1] = neg;
     }
+    int ret = 0;
     for (int i = 0; i <= 5; ++i)
     {
-        if (roll < table[i] + acc[i])
-            return i;
+        if (roll <= table[i] + acc[i])
+        {
+            ret = i;
+            break;
+        }
     }
-    return 0;
+    return ret;
 }
 
 // 全局 ::CLuckPoint ctor —— ORIG T 0x08550884 含 m_users.clear()。

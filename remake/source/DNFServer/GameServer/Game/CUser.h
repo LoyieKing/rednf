@@ -937,7 +937,8 @@ public:
     unsigned char m_field862;           // +0x862（startPremium 依 def.m_applyDayMask 置位）
     char m_pad862[0x90f - 0x863];       // +0x863..+0x90e
     _Additioal_info m_additionalInfo;  // +0x90f（GetAdditionalInfo 0x8694a88 memcpy 源）
-    char m_pad961[0x97c - 0x90f - 0x52];  // +0x961..0x97b
+    char m_pad961[0x964 - 0x961];      // +0x961..0x963
+    std::map<int, int> m_returnItemMap;  // +0x964..0x97b（ORIG 真实成员；C1/D1 自动构造/析构）
     void* m_mailBox;        // +0x97c
     char m_pad980[4];       // +0x980..0x983
     int m_lastPlayTime;     // +0x984
@@ -1560,63 +1561,12 @@ public:
     void UseFatigue(int count);
 
     CUser* m_pUser;                                // +0x00
-    // 总金币统计（ORIG user_gold_info @ +0x04）
-    unsigned int m_totalGoldLow;                   // +0x04
-    unsigned int m_totalGoldHigh;                  // +0x08
-    unsigned int m_totalImportGoldLow;             // +0x0c
-    unsigned int m_totalImportGoldHigh;            // +0x10
-    unsigned int m_totalSubGoldLow;                // +0x14
-    unsigned int m_totalSubGoldHigh;               // +0x18
-    unsigned int m_totalImportSubLow;              // +0x1c
-    unsigned int m_totalImportSubHigh;             // +0x20
-    unsigned int m_totalAuctionAddLow;             // +0x24
-    unsigned int m_totalAuctionAddHigh;            // +0x28
-    unsigned int m_totalAuctionSubLow;             // +0x2c
-    unsigned int m_totalAuctionSubHigh;            // +0x30
-    unsigned short m_counter34;                    // +0x34
-    unsigned short m_counter36;                    // +0x36
-    unsigned short m_counter38;                    // +0x38
-    unsigned short m_counter3a;                    // +0x3a
-    unsigned short m_counter3c;                    // +0x3c
-    unsigned short m_counter3e;                    // +0x3e
-    // 当前金币统计（ORIG user_gold_info @ +0x40）
-    unsigned int m_goldLow;                        // +0x40
-    unsigned int m_goldHigh;                       // +0x44
-    unsigned int m_importGoldLow;                  // +0x48
-    unsigned int m_importGoldHigh;                 // +0x4c
-    unsigned int m_subGoldLow;                     // +0x50
-    unsigned int m_subGoldHigh;                    // +0x54
-    unsigned int m_importSubLow;                   // +0x58
-    unsigned int m_importSubHigh;                  // +0x5c
-    unsigned int m_auctionAddLow;                  // +0x60
-    unsigned int m_auctionAddHigh;                 // +0x64
-    unsigned int m_auctionSubLow;                  // +0x68
-    unsigned int m_auctionSubHigh;                 // +0x6c
-    unsigned short m_counter70;                    // +0x70
-    unsigned short m_counter72;                    // +0x72
-    unsigned short m_counter74;                    // +0x74
-    unsigned short m_counter76;                    // +0x76
-    unsigned short m_counter78;                    // +0x78
-    unsigned short m_counter7a;                    // +0x7a
-    // 备份金币统计（ORIG user_gold_info @ +0x7c..0xb8）
-    unsigned int m_backupGoldLow;                  // +0x7c
-    unsigned int m_backupGoldHigh;                 // +0x80
-    unsigned int m_backupImportLow;                // +0x84
-    unsigned int m_backupImportHigh;               // +0x88
-    unsigned int m_backupSubLow;                   // +0x8c
-    unsigned int m_backupSubHigh;                  // +0x90
-    unsigned int m_backupImportSubLow;             // +0x94
-    unsigned int m_backupImportSubHigh;            // +0x98
-    unsigned int m_backupAuctionAddLow;            // +0x9c
-    unsigned int m_backupAuctionAddHigh;           // +0xa0
-    unsigned int m_backupAuctionSubLow;            // +0xa4
-    unsigned int m_backupAuctionSubHigh;           // +0xa8
-    unsigned short m_counterac;                    // +0xac
-    unsigned short m_counterae;                    // +0xae
-    unsigned short m_counterb0;                    // +0xb0
-    unsigned short m_counterb2;                    // +0xb2
-    unsigned short m_counterb4;                    // +0xb4
-    unsigned short m_counterb6;                    // +0xb6
+    // 2026-08-30 Fix8_E：ORIG 为 3×user_gold_info 成员（ctor 0x08694f68 仅
+    // 构造 +0x04/+0x40/+0x7c 三子对象；AddMoney 等 64 位运算直读相邻字段，
+    // 无组合 or 序列）。原展开 uint 字段已折叠为 user_gold_info。
+    user_gold_info m_total;        // +0x04
+    user_gold_info m_cur;          // +0x40
+    user_gold_info m_backup;       // +0x7c
     int m_fieldb8;                                 // +0xb8
     int m_fieldbc;                                 // +0xbc
     unsigned int m_dateFlag;                       // +0xc0

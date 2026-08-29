@@ -62,6 +62,8 @@ struct selectiveGrowCreatureInfo
 struct CreatureScriptSkillInfo
 {
     void clear();
+    // ORIG C1 0x8a3dd26：7 string 构造后调用 clear()（m_fieldc=1/m_field10=-1 等）
+    CreatureScriptSkillInfo() { clear(); }
     std::string m_str0;   // +0x00
     std::string m_str4;   // +0x04
     int m_field8;         // +0x08

@@ -98,8 +98,10 @@ void stAmplifyOption_t::getValues(unsigned char& type,
 
 void STEnchantedSkillOption::reset()
 {
-    // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 仅清 bit0/1/3-7，保留 bit2
-    m_field = (unsigned char)(m_field & 0x4);
+    // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 全字节清零
+    m_field = (unsigned char)(m_field & 0xfffffffe);
+    m_field = (unsigned char)(m_field & 0xfffffff9);
+    m_field = (unsigned char)(m_field & 0x7);
 }
 
 void RandomOptionField::reset()

@@ -14,11 +14,12 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* unused);
 
 #include "BlueMarbleScriptManager.h"
-// ORIG 0x88d614a：ctor 顺序构造两个 STScriptFileList（+0x00/+0x18）、
-// BlueMarbleInfoScript（+0x30）、m_tiles/m_maps 两 map（成员默认构造即等价）。
+// BlueMarbleInfoScript（+0x30）、m_tiles/m_maps 两 map（成员默认构造即等价）；
+// 全部成员构造后调用 clear()（0x88d622c，清两文件列表与两 map）。
 BlueMarbleScriptManager::BlueMarbleScriptManager()
     : m_mapFileList(), m_tileFileList(), m_info(), m_tiles(), m_maps()
 {
+    clear();
 }
 
 // ORIG 0x88d622c T：清两个文件列表 map 与 m_tiles/m_maps（不删指针、不触

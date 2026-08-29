@@ -898,17 +898,20 @@ short STExpertJobScript::GetPortableDisjointPossibleLevel(int level)
 int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
                                                     CUser* targetUser)
 {
+    // ORIG 0x081fa0fd..0x081fa12d：item.m_amp(+0x11).isIdentified()==false
+    // 且 targetUser==0 → 0xae（未鉴定且无目标用户不可分解）
+    if (!item.m_amp.isIdentified() && targetUser == 0)
+        return 0xae;
+
     CItem* itemObj = G_CDataManager()->find_item(item.m_addInfo);
     if (itemObj == 0)
         return 0x11;
 
-    if (!itemObj->IsImpossibleCharacCargo())
-    {
-        if (itemObj->GetAttachType() == 2)
-            return 0x11;
-        return 0;
-    }
-    return 0x13;
+    if (itemObj->IsImpossibleCharacCargo())
+        return 0x13;
+    if (itemObj->GetAttachType() == 2)
+        return 0x11;
+    return 0;
 }
 
 // ---- _check_disjoint_need_slot（报告 _check_disjoint_need_slot.md，

@@ -27,6 +27,7 @@
 // ============================================================================
 
 #include <queue>
+#include <string.h>   // memset（SIPGData 清零构造）
 
 #include "MySQL.h"
 #include "GameTypes.h"  // Mutex（+0x42094 成员；processBilling 的 Guard<Mutex>）/ DynamicPool
@@ -242,6 +243,9 @@ public:
 // （0x081019c2），CNode = SIPGData + m_type(4) + m_inUse(1) → sizeof=0x2dc。
 struct SIPGData
 {
+    // ORIG DynamicPool<SIPGData>::CNode::C1（0x081019xx）以 rep stos 清零
+    // 整个 0x2dc 节点体——SIPGData 为 POD 无构造，由 CNode 构造补 memset。
+    SIPGData() { memset(this, 0, sizeof(*this)); }
     char m_pad[0x2dc];
 };
 

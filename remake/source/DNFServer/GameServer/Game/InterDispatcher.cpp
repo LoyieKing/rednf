@@ -2491,18 +2491,19 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (G_GameWorld()->GetChannelType() == 8 &&
         characNoMsg == 0 && channelNoMsg == 0)
     {   // 战场频道异常空载追踪
-        NumberToString(*reinterpret_cast<unsigned int*>(data + 0xe), 0);
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x2075, 0);
         trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
-              "", (int)characNoMsg, (int)channelNoMsg);
+              NumberToString(*reinterpret_cast<unsigned int*>(data + 0xe), 0),
+              (int)characNoMsg, (int)channelNoMsg);
         return 0x2076;
     }
 
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x207a, 0);
     trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
-          "", (int)characNoMsg, (int)channelNoMsg);
+          NumberToString(*reinterpret_cast<unsigned int*>(data + 0xe), 0),
+          (int)characNoMsg, (int)channelNoMsg);
 
     PacketGuard packet;
     packet.put_header(1, 1);
@@ -2515,6 +2516,11 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.finalize(true);
         user->Send(packet);
         user->DisConnSig((DISCONN_SIG)0xc, true, 0);
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__, 0x2088, 0);
+            trace("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
+        }
         return 0;
     case '\x03':                                       // 封停账号断开
         packet.put_byte(0);
@@ -2522,6 +2528,11 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.finalize(true);
         user->Send(packet);
         user->DisConnSig((DISCONN_SIG)0x15, true, 0);
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__, 0x2095, 0);
+            trace("info.err_code == SIG_LOGIN_DATA::ERROR_ALREADY");
+        }
         return 0;
     case '\x01':                                       // 正常登录分支
         break;
@@ -2637,6 +2648,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_short(GlobalData::s_timeGate_->getNpcIndex());
     packet.finalize(true);
     user->Send(packet);
+    user->m_field796f8 = 0;                    // ORIG 0x84c8854 Send 后清零
     {   // ORIG vtable+0x2c 两参槽：真身类未建模（同 AntibotSend 先例按槽指针调用）
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;
@@ -5687,6 +5699,7 @@ int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_int(nameLen);
         packet.put_str(data + 0x12, nameLen);
         packet.finalize(true);
+        user->Send(packet);
     }
     else
     {
@@ -5696,8 +5709,8 @@ int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_byte(                             // msg+0x30 char（movsbl）
             static_cast<int>(*reinterpret_cast<signed char*>(data + 0x30)));
         packet.finalize(true);
+        user->Send(packet);
     }
-    user->Send(packet);
     return 0;
 }
 
@@ -5719,25 +5732,24 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
         (short)*reinterpret_cast<unsigned short*>(data + 0x8);
     if (stat == 3)
     {
-        WongWork::CMailBox* box =
-            static_cast<WongWork::CMailBox*>(user->GetMailBox());
-        if (box != 0)
+        if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
-            box->InsertLetterKeepCount(
-                (unsigned int)*reinterpret_cast<int*>(data + 0x4));
-            box->DecLoadedLetterCount();
+            static_cast<WongWork::CMailBox*>(user->GetMailBox())
+                ->InsertLetterKeepCount(
+                    (unsigned int)*reinterpret_cast<int*>(data + 0x4));
+            static_cast<WongWork::CMailBox*>(user->GetMailBox())
+                ->DecLoadedLetterCount();
         }
     }
     else if (stat == 0)
     {
-        WongWork::CMailBox* box =
-            static_cast<WongWork::CMailBox*>(user->GetMailBox());
-        if (box != 0)
+        if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
-            const int removed = box->DeleteLetterKeepCount(
-                (unsigned int)*reinterpret_cast<int*>(data + 0x4));
-            if (removed != 1)
-                box->DecLoadedLetterCount();
+            if (static_cast<WongWork::CMailBox*>(user->GetMailBox())
+                    ->DeleteLetterKeepCount(
+                        (unsigned int)*reinterpret_cast<int*>(data + 0x4)) != 1)
+                static_cast<WongWork::CMailBox*>(user->GetMailBox())
+                    ->DecLoadedLetterCount();
         }
     }
 
@@ -6434,7 +6446,14 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 
     PacketGuard packet;
     packet.put_header(1, 0x9c);
-    if (*reinterpret_cast<int*>(data + 0x18) == 0)
+    if (*reinterpret_cast<int*>(data + 0x18) != 0)
+    {   // 退会失败（原因码）
+        packet.put_byte(0);
+        packet.put_byte(*reinterpret_cast<int*>(data + 0x18));
+        packet.finalize(true);
+        user->Send(packet);
+    }
+    else
     {   // 退会成功
         packet.put_byte(1);
         packet.put_byte(*reinterpret_cast<signed char*>(data + 0x1c));
@@ -6453,13 +6472,6 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
             *reinterpret_cast<signed char*>(data + 0x1c),
             static_cast<unsigned short>(
                 *reinterpret_cast<short*>(data + 0xe) - 1));
-    }
-    else
-    {   // 退会失败（原因码）
-        packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0x18));
-        packet.finalize(true);
-        user->Send(packet);
     }
 
     user->getCurCharacInvenR()->SendItemLockListInven();
@@ -7007,9 +7019,11 @@ int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
     user->Send(packet);
 
     {   // STGuildProxy(GetGuildDBInfo(), 名随写字节+0x1b, msg+0x16)
+        const char* guildDbInfo =
+            static_cast<const char*>(user->GetGuildDBInfo());
         STGuildProxy proxy(
-            static_cast<const char*>(user->GetGuildDBInfo()),
-            *(reinterpret_cast<const unsigned char*>(user->GetGuildDBInfo()) + 0x1b),
+            guildDbInfo,
+            *(reinterpret_cast<const unsigned char*>(guildDbInfo) + 0x1b),
             *reinterpret_cast<unsigned char*>(data + 0x16));
         CGuildServerProxy* proxySrv =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
@@ -8397,13 +8411,14 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     int* msg = reinterpret_cast<int*>(data);   // ORIG 写回 msg+(i+1)*0x10+0x10，须非 const
     if (user->getCurCharacR() == 0 ||                // asm 双失败归并 true
-        user->getCurCharacNo() != msg[2])            // msg+0x0a 角色号
+        user->getCurCharacNo() !=
+            *reinterpret_cast<int*>(data + 0xa))     // msg+0x0a 角色号
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0xc6);
     packet.put_byte(1);
-    packet.put_int(msg[4]);                          // msg+0x12
+    packet.put_int(*reinterpret_cast<int*>(data + 0x12));  // msg+0x12
     const unsigned int channelCnt =                  // msg+0x17 频道数
         static_cast<unsigned int>(*reinterpret_cast<unsigned char*>(data + 0x17));
     packet.put_byte(static_cast<int>(channelCnt));
@@ -9133,10 +9148,12 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(0, 0xc5);
-    packet.put_int(strlen(data + 0x12));               // memo 串 1
-    packet.put_str(data + 0x12, strlen(data + 0x12));
-    packet.put_int(strlen(data + 0x30));               // memo 串 2
-    packet.put_str(data + 0x30, strlen(data + 0x30));
+    const size_t memo1Len = strlen(data + 0x12);       // memo 串 1
+    packet.put_int(memo1Len);
+    packet.put_str(data + 0x12, memo1Len);
+    const size_t memo2Len = strlen(data + 0x30);       // memo 串 2
+    packet.put_int(memo2Len);
+    packet.put_str(data + 0x30, memo2Len);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -9418,8 +9435,9 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
         char msg[0x401] = { '\0' };                    // -0x45d（ORIG 内联清零）
         const char* str = g_scriptStringManager_.findString(4, msgStr, 0);
         strncpy(msg, str, 0x400);
-        packet.put_int((int)strlen(msg));
-        packet.put_str(msg, strlen(msg));
+        const int msgLen = (int)strlen(msg);
+        packet.put_int(msgLen);
+        packet.put_str(msg, msgLen);
         packet.put_byte((int)showMsg);
         packet.finalize(true);
         user->Send(packet);
@@ -10491,7 +10509,8 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
             *reinterpret_cast<unsigned short*>(data + 0x20),
             *reinterpret_cast<int*>(data + 0x22),
             *reinterpret_cast<unsigned char*>(data + 0x1b),
-            *reinterpret_cast<unsigned char*>(data + 0x41));
+            (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
+                .GetUpgradeSeparate());
     }
     else
     {
@@ -10519,7 +10538,8 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
                 *reinterpret_cast<unsigned short*>(data + 0x20),
                 *reinterpret_cast<int*>(data + 0x22),
                 *reinterpret_cast<unsigned char*>(data + 0x1b),
-                *reinterpret_cast<unsigned char*>(data + 0x41));
+                (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
+                    .GetUpgradeSeparate());
         }
     }
 
@@ -10641,10 +10661,9 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
             else
                 packet.put_byte(0);
 
-            const size_t textLen =                     // +0x9f 留言文本
-                strlen(data + i * 0xa5 + 0x9f);
-            packet.put_int((int)textLen);
-            packet.put_str(data + i * 0xa5 + 0x9f, (int)textLen);
+            packet.put_int((int)strlen(data + i * 0xa5 + 0x9f));  // +0x9f 留言文本
+            packet.put_str(data + i * 0xa5 + 0x9f,
+                           (int)strlen(data + i * 0xa5 + 0x9f));
             packet.put_int(*reinterpret_cast<int*>(data + i * 0xa5 + 0x94));
 
             int remainSec =                            // -0x1c
@@ -10654,10 +10673,9 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
                 remainSec = 0;
             packet.put_int(remainSec);
 
-            const size_t titleLen =                    // +0x18 标题
-                strlen(data + i * 0xa5 + 0x18);
-            packet.put_int((int)titleLen);
-            packet.put_str(data + i * 0xa5 + 0x18, (int)titleLen);
+            packet.put_int((int)strlen(data + i * 0xa5 + 0x18));  // +0x18 标题
+            packet.put_str(data + i * 0xa5 + 0x18,
+                           (int)strlen(data + i * 0xa5 + 0x18));
         }
 
         cMyTrace trace(
@@ -11372,8 +11390,7 @@ Inter_ReqAddPvPBuddy::~Inter_ReqAddPvPBuddy() {}
 // 报告 docs/class_func_reports/Inter_ReqAddPvPBuddy/dispatch_sig.md 全文转写。
 int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    const int state = user->get_state();
-    if (state < 3 || state == 7)
+    if (user->get_state() <= 2 || user->get_state() == 7)
         return 0;
 
     const unsigned int charIdMsg =                     // recv charId @ msg+0xa
@@ -12305,11 +12322,7 @@ int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(0, 0x130);
-    if (*reinterpret_cast<int*>(data + 0x16) == 0)
-    {
-        packet.put_byte(0);
-    }
-    else
+    if (*reinterpret_cast<int*>(data + 0x16) != 0)
     {
         packet.put_byte(1);
         const size_t msgLen = strlen(data + 0x1a);
@@ -12320,6 +12333,10 @@ int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3a));
         packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3c));
         packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3b));
+    }
+    else
+    {
+        packet.put_byte(0);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -12447,15 +12464,15 @@ int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(1, 0x15f);
-    if (errCode == 0)
+    if (errCode != 0)
     {
-        packet.put_byte(1);
+        packet.put_byte(0);
+        packet.put_byte((int)errCode);
         packet.put_int(*reinterpret_cast<int*>(data + 0x16));
     }
     else
     {
-        packet.put_byte(0);
-        packet.put_byte((int)errCode);
+        packet.put_byte(1);
         packet.put_int(*reinterpret_cast<int*>(data + 0x16));
     }
     packet.finalize(true);

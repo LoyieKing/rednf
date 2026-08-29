@@ -49,7 +49,7 @@ void Secu_GoldControl::Init(CUser* user)
 
 void Secu_GoldControl::SetInfo(user_gold_info& info)
 {
-    info.toCopy(*(user_gold_info*)((char*)this + 4));
+    info.toCopy(m_total);
 }
 
 void Secu_GoldControl::SetMailCharName(const char* name)
@@ -190,19 +190,12 @@ void Secu_GoldControl::SubGold(unsigned int value, eMoneySubReason reason)
 
 void Secu_GoldControl::AddMoney(unsigned int value)
 {
-    // 64-bit gold at +0x40
-    unsigned long long gold = ((unsigned long long)m_goldHigh << 32) | m_goldLow;
-    gold += value;
-    m_goldLow = (int)(gold & 0xffffffff);
-    m_goldHigh = (int)(gold >> 32);
-    m_counter74++;
-
-    // 64-bit total gold at +0x04
-    unsigned long long total = ((unsigned long long)m_totalGoldHigh << 32) | m_totalGoldLow;
-    total += value;
-    m_totalGoldLow = (int)(total & 0xffffffff);
-    m_totalGoldHigh = (int)(total >> 32);
-    m_counter38++;
+    // ORIG：m_cur(+0x40).m_gold += value；m_cur.m_count[2]++；
+    // m_total(+0x04).m_gold += value；m_total.m_count[2]++；hades GoldPlus。
+    m_cur.m_gold += value;
+    m_cur.m_count[2]++;
+    m_total.m_gold += value;
+    m_total.m_count[2]++;
 
     void* hades = m_pUser->getHades();
     typedef void (*GoldPlusFn)(void*, unsigned int, int);
@@ -212,19 +205,10 @@ void Secu_GoldControl::AddMoney(unsigned int value)
 
 void Secu_GoldControl::SubMoney(unsigned int value)
 {
-    // 64-bit sub gold at +0x50
-    unsigned long long subGold = ((unsigned long long)m_subGoldHigh << 32) | m_subGoldLow;
-    subGold += value;
-    m_subGoldLow = (int)(subGold & 0xffffffff);
-    m_subGoldHigh = (int)(subGold >> 32);
-    m_counter78++;
-
-    // 64-bit total sub gold at +0x14
-    unsigned long long totalSub = ((unsigned long long)m_totalSubGoldHigh << 32) | m_totalSubGoldLow;
-    totalSub += value;
-    m_totalSubGoldLow = (int)(totalSub & 0xffffffff);
-    m_totalSubGoldHigh = (int)(totalSub >> 32);
-    m_counter3c++;
+    m_cur.m_sub += value;
+    m_cur.m_count[4]++;
+    m_total.m_sub += value;
+    m_total.m_count[4]++;
 
     void* hades = m_pUser->getHades();
     typedef void (*GoldMinusFn)(void*, unsigned int, int);
@@ -234,17 +218,10 @@ void Secu_GoldControl::SubMoney(unsigned int value)
 
 void Secu_GoldControl::AddImportMoney(unsigned int value)
 {
-    unsigned long long importGold = ((unsigned long long)m_importGoldHigh << 32) | m_importGoldLow;
-    importGold += value;
-    m_importGoldLow = (int)(importGold & 0xffffffff);
-    m_importGoldHigh = (int)(importGold >> 32);
-    m_counter76++;
-
-    unsigned long long totalImport = ((unsigned long long)m_totalImportGoldHigh << 32) | m_totalImportGoldLow;
-    totalImport += value;
-    m_totalImportGoldLow = (int)(totalImport & 0xffffffff);
-    m_totalImportGoldHigh = (int)(totalImport >> 32);
-    m_counter3a++;
+    m_cur.m_import += value;
+    m_cur.m_count[3]++;
+    m_total.m_import += value;
+    m_total.m_count[3]++;
 
     void* hades = m_pUser->getHades();
     typedef void (*GoldPlusFn)(void*, unsigned int, int);
@@ -254,17 +231,10 @@ void Secu_GoldControl::AddImportMoney(unsigned int value)
 
 void Secu_GoldControl::SubImportMoney(unsigned int value)
 {
-    unsigned long long importSub = ((unsigned long long)m_importSubHigh << 32) | m_importSubLow;
-    importSub += value;
-    m_importSubLow = (int)(importSub & 0xffffffff);
-    m_importSubHigh = (int)(importSub >> 32);
-    m_counter7a++;
-
-    unsigned long long totalImportSub = ((unsigned long long)m_totalImportSubHigh << 32) | m_totalImportSubLow;
-    totalImportSub += value;
-    m_totalImportSubLow = (int)(totalImportSub & 0xffffffff);
-    m_totalImportSubHigh = (int)(totalImportSub >> 32);
-    m_counter3e++;
+    m_cur.m_importSub += value;
+    m_cur.m_count[5]++;
+    m_total.m_importSub += value;
+    m_total.m_count[5]++;
 
     void* hades = m_pUser->getHades();
     typedef void (*GoldMinusFn)(void*, unsigned int, int);
@@ -275,17 +245,10 @@ void Secu_GoldControl::AddAuctionMoney(unsigned int value)
 {
     if (value > 4999)
     {
-        unsigned long long auctionAdd = ((unsigned long long)m_auctionAddHigh << 32) | m_auctionAddLow;
-        auctionAdd += value;
-        m_auctionAddLow = (int)(auctionAdd & 0xffffffff);
-        m_auctionAddHigh = (int)(auctionAdd >> 32);
-        m_counter70++;
-
-        unsigned long long totalAuctionAdd = ((unsigned long long)m_totalAuctionAddHigh << 32) | m_totalAuctionAddLow;
-        totalAuctionAdd += value;
-        m_totalAuctionAddLow = (int)(totalAuctionAdd & 0xffffffff);
-        m_totalAuctionAddHigh = (int)(totalAuctionAdd >> 32);
-        m_counter34++;
+        m_cur.m_auctionAdd += value;
+        m_cur.m_count[0]++;
+        m_total.m_auctionAdd += value;
+        m_total.m_count[0]++;
 
         void* hades = m_pUser->getHades();
         typedef void (*GoldPlusFn)(void*, unsigned int, int);
@@ -336,16 +299,9 @@ void Secu_GoldControl::SubAuctionMoney(unsigned int value)
 {
     if (value > 4999)
     {
-        unsigned long long auctionSub = ((unsigned long long)m_auctionSubHigh << 32) | m_auctionSubLow;
-        auctionSub += value;
-        m_auctionSubLow = (int)(auctionSub & 0xffffffff);
-        m_auctionSubHigh = (int)(auctionSub >> 32);
-
-        unsigned long long totalAuctionSub = ((unsigned long long)m_totalAuctionSubHigh << 32) | m_totalAuctionSubLow;
-        totalAuctionSub += value;
-        m_totalAuctionSubLow = (int)(totalAuctionSub & 0xffffffff);
-        m_totalAuctionSubHigh = (int)(totalAuctionSub >> 32);
-        m_counter36++;
+        m_cur.m_auctionSub += value;
+        m_total.m_auctionSub += value;
+        m_total.m_count[1]++;
 
         void* hades = m_pUser->getHades();
         typedef void (*GoldMinusFn)(void*, unsigned int, int);
@@ -368,7 +324,7 @@ void Secu_GoldControl::MailSameMid()
 
 void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
 {
-    if (a && (m_counter74 != 0 || m_counter78 != 0 || m_fieldb8 != 0))
+    if (a && (m_cur.m_count[2] != 0 || m_cur.m_count[4] != 0 || m_fieldb8 != 0))
     {
         char ipBuf[16] = {0};
         ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
@@ -380,18 +336,18 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
         if (c)
         {
             user_gold_info tmp;
-            resetRangeMoney(((SecuGoldView*)this)->m_cur, tmp);
+            resetRangeMoney(m_cur, tmp);
         }
         else
         {
-            ((SecuGoldView*)this)->m_cur.reset();
+            m_cur.reset();
         }
         m_fieldb8 = 0;
     }
 
     if (b)
     {
-        if (m_counterb0 != 0 || m_counterb4 != 0 || m_fieldbc != 0)
+        if (m_backup.m_count[2] != 0 || m_backup.m_count[4] != 0 || m_fieldbc != 0)
         {
             char ipBuf[16] = {0};
             ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
@@ -399,7 +355,7 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
             char macBuf[65] = {0};
             strncpy(macBuf, m_pUser->m_network.get_mac_addr(), 0x41);
 
-            ((SecuGoldView*)this)->m_backup.reset();
+            m_backup.reset();
             m_fieldbc = 0;
         }
     }
@@ -407,14 +363,18 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
 
 void Secu_GoldControl::CheckMoneyRange()
 {
-    if ((m_goldHigh != 0 || m_goldLow == -1) || (m_subGoldHigh != 0 || m_subGoldLow == -1))
+    // ORIG：(high!=0 || low==-1) 逐项比较，勿折叠成 64 位单比较。
+    unsigned int* gold = (unsigned int*)&m_cur.m_gold;
+    unsigned int* sub = (unsigned int*)&m_cur.m_sub;
+    if ((gold[1] != 0 || gold[0] == 0xffffffffu) ||
+        (sub[1] != 0 || sub[0] == 0xffffffffu))
     {
         SavetoDB(true, false, true);
     }
 }
 void* Secu_GoldControl::GetGoldInfo()
 {
-    return &m_totalGoldLow;
+    return &m_total;
 }
 
 void Secu_GoldControl::CheckDate()
@@ -423,11 +383,11 @@ void Secu_GoldControl::CheckDate()
     {
         m_dateFlag = GlobalData::g_GoldControlDateFlag;
         // Copy current gold info (+0x40) to backup (+0x7c)
-        ((SecuGoldView*)this)->m_cur.toCopy(((SecuGoldView*)this)->m_backup);
+        m_cur.toCopy(m_backup);
         // Reset total gold info (+0x04)
-        ((SecuGoldView*)this)->m_total.reset();
+        m_total.reset();
         // Reset current gold info (+0x40)
-        ((SecuGoldView*)this)->m_cur.reset();
+        m_cur.reset();
         // Copy m_fieldb8 to m_fieldbc, reset m_fieldb8
         m_fieldbc = m_fieldb8;
         m_fieldb8 = 0;

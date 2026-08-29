@@ -75,7 +75,7 @@ public:
     void GetItemInfo(std::vector<std::pair<int, int> >& out);                 // ORIG 0x08ac04a4
     void GetItemInfo(std::vector<std::pair<int, int> >& out, int dayLevel);   // ORIG 0x08ac03a6
 
-    std::map<int, std::vector<ItemInfo> > m_itemMap;   // +0x00（脚本按 day 级分组）
+    std::map<int, std::vector<ItemInfo>* > m_itemMap;  // +0x00（ORIG：value 为堆 vector 指针）
 };
 
 // ----------------------------------------------------------------------------

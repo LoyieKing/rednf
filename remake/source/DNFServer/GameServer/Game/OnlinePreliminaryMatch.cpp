@@ -203,7 +203,7 @@ COnlinePreliminary::~COnlinePreliminary()
  * GetPvPTeamCount 声明在 CDataManager.h（producer 归 CDataManager 域批次）。*/
 unsigned int COnlinePreliminary::GetPlayCountPerOneTeam()
 {
-    return (unsigned char)G_CDataManager()->GetPvPTeamCount();
+    return G_CDataManager()->GetPvPTeamCount();
 }
 
 /* ORIG T 0x085608d4：纯 ret（ORIG 即空实现） */

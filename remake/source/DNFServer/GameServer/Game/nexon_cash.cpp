@@ -1164,7 +1164,7 @@ int NCashImpl::recv_msg()
     unsigned char* buf = m_inMsg.data();
     int fd = m_socket.getHandle();
 
-    ssize_t n = ::recv(fd, buf, 0x100, 0x100);
+    ssize_t n = ::recv(fd, buf, 3, 0x100);   // ORIG: 预读 3 字节头
     if (n == 0)
     {
         printf("[%s] connection lost: %s\n", __FUNCTION__,

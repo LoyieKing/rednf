@@ -35,8 +35,7 @@ bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
                                                 std::vector<int>& rates)
 {
     // ORIG 调用序：getCurCharacInvenRefW(user) → GetInvenRef(inven, 0, equipSlot)。
-    // repo 中 Ref/W 两口径同返背包基址（均 enableSaveInven），按类型化 W 口径调用。
-    CInventory* inven = user->getCurCharacInvenW();
+    CInventory* inven = user->getCurCharacInvenRefW();
     Inven_Item* item = inven->GetInvenRef(0, equipSlot);
     if (item->isEmpty() || item->m_fieldSplit.m_avatarEndur == 0)
         return false;

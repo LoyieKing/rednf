@@ -234,10 +234,12 @@ void CMailBox::ClearLetterKeepCount()
     sig_at<unsigned int>(this, OFF_LASTLETTER) = 0;
 }
 
-// ORIG 0x084ed222 (W)：keep map[key] = true
-void CMailBox::InsertLetterKeepCount(unsigned int letterId)
+// ORIG 0x084ed222 (W)：map.insert(make_pair(letterId,true))，返回 insert 的 bool
+//（新插入 true / 已存在 false；ORIG movzbl insert 返回 pair.second）。
+bool CMailBox::InsertLetterKeepCount(unsigned int letterId)
 {
-    sig_at<KeepMap>(this, OFF_KEEP)[(int)letterId] = true;
+    return sig_at<KeepMap>(this, OFF_KEEP)
+        .insert(std::make_pair((int)letterId, true)).second;
 }
 
 // ORIG 0x08557938 (W)

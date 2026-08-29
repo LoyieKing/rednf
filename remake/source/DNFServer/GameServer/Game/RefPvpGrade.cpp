@@ -11,10 +11,6 @@
 
 // ORIG ctor 0x85d46e6：构造 vector@+0x140（成员自动），随后 Clear()。
 RefPvpGrade::RefPvpGrade()
-    : m_lastGrade(0),
-      m_pvpExpLoss1(0),
-      m_pvpExpLoss2(0),
-      m_rankRateGrade(0)
 {
     Clear();
 }

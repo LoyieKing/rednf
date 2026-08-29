@@ -575,33 +575,8 @@ Secu_HackLogCheck::Secu_HackLogCheck()
 // ORIG C1 0x08694f68：构造 3 个 user_gold_info 子对象（+0x04/+0x40/+0x7c）。
 Secu_GoldControl::Secu_GoldControl()
 {
-    m_totalGoldLow = 0; m_totalGoldHigh = 0;
-    m_totalImportGoldLow = 0; m_totalImportGoldHigh = 0;
-    m_totalSubGoldLow = 0; m_totalSubGoldHigh = 0;
-    m_totalImportSubLow = 0; m_totalImportSubHigh = 0;
-    m_totalAuctionAddLow = 0; m_totalAuctionAddHigh = 0;
-    m_totalAuctionSubLow = 0; m_totalAuctionSubHigh = 0;
-    m_counter34 = 0; m_counter36 = 0; m_counter38 = 0;
-    m_counter3a = 0; m_counter3c = 0; m_counter3e = 0;
-    m_goldLow = 0; m_goldHigh = 0;
-    m_importGoldLow = 0; m_importGoldHigh = 0;
-    m_subGoldLow = 0; m_subGoldHigh = 0;
-    m_importSubLow = 0; m_importSubHigh = 0;
-    m_auctionAddLow = 0; m_auctionAddHigh = 0;
-    m_auctionSubLow = 0; m_auctionSubHigh = 0;
-    m_counter70 = 0; m_counter72 = 0; m_counter74 = 0;
-    m_counter76 = 0; m_counter78 = 0; m_counter7a = 0;
-    m_backupGoldLow = 0; m_backupGoldHigh = 0;
-    m_backupImportLow = 0; m_backupImportHigh = 0;
-    m_backupSubLow = 0; m_backupSubHigh = 0;
-    m_backupImportSubLow = 0; m_backupImportSubHigh = 0;
-    m_backupAuctionAddLow = 0; m_backupAuctionAddHigh = 0;
-    m_backupAuctionSubLow = 0; m_backupAuctionSubHigh = 0;
-    m_counterac = 0; m_counterae = 0; m_counterb0 = 0;
-    m_counterb2 = 0; m_counterb4 = 0; m_counterb6 = 0;
-    m_fieldb8 = 0; m_fieldbc = 0;
-    m_dateFlag = 0; m_mailGold = 0;
-    m_fielde6 = 0;
+    // ORIG C1 0x08694f68：m_total/m_cur/m_backup 三个 user_gold_info 成员
+    // 默认构造（编译器自动插入，各调 user_gold_info::C1，与 ORIG 同形）。
 }
 // ORIG C1 0x0848683c：IData C1 + PlayInfo C1（基类）+ Character::Reset()（0x08486818
 // = PlayInfo::Reset() + movl $0,0x3c）。ORIG 不初始化 Character 自身字段。
@@ -6886,15 +6861,17 @@ void CUser::send_skill_info()
 
 bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
 {
-    // 0x0866cb04 主分支（CheckQuestMonster.md）：遍历进行中任务表 this+0x7538+i*4，
-    // 逐任务 CheckKillMonster 掷掉落：rate = 基础(+0x18) + 背包 add_info 加成 +
-    // premium；掷 tryCount(+0x14) 次 rand(100)；入包 0xe（新槽插入 / 已有槽累加封顶）。
-    // 任务表/地图 idx 等偏移按 ORIG（推断标注）。
-    for (int i = 0;; ++i)
+    // 0x0866cb04 主分支（CheckQuestMonster.md）：遍历进行中任务表 this+0x7538+i*4
+    // （questIdx<=0 跳过；0x13 上限），m_field8==3/4 或 this+0x7588 触发位；
+    // CheckKillMonster(a, short@+0x75da, b, type) 掷掉落：rate = 炼金/背包
+    // GetQuestItemDropBouns/队伍倍率/premium 加成；掷 tryCount 次 rand(100)；
+    // 入包 0xe（新槽 insert / 已有槽累加封顶；needCount<=已有则删掉落项重掷）。
+    extern Inven_Item g_emptySlot;   // ORIG 全局（0x943ddc0）
+    for (int i = 0; i <= 0x13; ++i)
     {
         int questIdx = *(int*)((char*)this + 0x7538 + i * 4);
         if (questIdx <= 0)
-            return true;
+            continue;
         Quest* quest = G_CDataManager()->find_quest(questIdx);
         if (quest == 0)
         {
@@ -6903,91 +6880,215 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
                 0x54f7, "G_CDataManager()->find_quest(%d) fail", questIdx);
             continue;
         }
+        if (*(int*)((char*)quest + 8) != 4 && *(int*)((char*)quest + 8) != 3 &&
+            *(int*)((char*)this + 0x7588 + i * 4) == 0)
+            continue;
 
         std::vector<MonsterKillItem> kills;
-        if (!quest->CheckKillMonster(*(short*)((char*)this + 0x75da), a, b,
-                                     type, kills))
-            return false;
-        if (kills.empty())
-            return true;
-
-        int r = get_rand_int((int)kills.size());
-        if (r < 0 || r >= (int)kills.size())
-            return true;
-        const MonsterKillItem& drop = kills[r];
-        const int itemIdx = drop.m_field10;    // 推断：掉落道具 idx
-        const int needCount = drop.m_field1c;  // 推断：需要数量
-        const int dropRate = drop.m_field18;   // 推断：基础掉率
-        const int tryCount = drop.m_field14;   // 推断：掷骰次数
-
-        int rate = dropRate;
-        for (int s = 0; s <= 0x19; ++s)
-        {
-            Inven_Item* it =
-                ((CInventory*)getCurCharacInvenR())->GetInvenRef((INVEN_TYPE)0, s);
-            if (it != 0 && it->m_addInfo != 0)
-                rate += dropRate * it->m_addInfo / 100;
-        }
-
-        int gained = 0;
-        for (int t = 0; t < tryCount; ++t)
-            if (get_rand_int(100) < rate)
-                ++gained;
-        if (gained == 0)
+        if (quest->CheckKillMonster(a, *(short*)((char*)this + 0x75da), b,
+                                    type, kills) != 1)
             continue;
 
-        Inven_Item item;
-        CItem* ci = G_CDataManager()->find_item(itemIdx);
-        if (ci == 0)
-            continue;
-        ci->make_item(item);
-        item.set_add_info(gained > 999 ? 1000 : gained);
+        bool again = true;
+        while (again)
+        {
+            again = false;
+            if (kills.empty())
+                break;
+            int pick = get_rand_int((int)kills.size());
+            if (pick < 0 || pick >= (int)kills.size())
+                break;
+            const MonsterKillItem& drop = kills[pick];
+            const int itemIdx = drop.m_field10;    // 掉落道具 idx
+            const int tryCount = drop.m_field14;   // 掷骰次数
+            const int dropRate = drop.m_field18;   // 基础掉率
+            const int needCount = drop.m_field1c;  // 需要数量（-1=无限）
 
-        PacketGuard packet;
-        InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
-        pkt->put_header(0, 0xe);
-        pkt->put_byte(0);
-        pkt->put_short(1);
-        int slot = -1;
-        for (int t2 = 0; t2 <= 0x19; ++t2)
-        {
-            Inven_Item cur = getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, t2);
-            if (cur.m_addInfo == itemIdx) { slot = t2; item = cur; break; }
-        }
-        if (slot < 0)
-        {
-            int newSlot = getCurCharacInvenW()->insertItemIntoInventory(
-                item, (eItemAddReason)8, true, true);
-            if (newSlot > 0)
+            int bonus = 0;
+            for (int s = 0; s < 0x1a; ++s)
             {
-                pkt->put_short(newSlot);
+                Inven_Item* it =
+                    const_cast<CInventory*>(getCurCharacInvenR())->GetInvenRef((INVEN_TYPE)0, s);
+                if (it != 0 && it->m_addInfo != 0)
+                    bonus += dropRate *
+                             G_CDataManager()->getItemList()
+                                 ->GetQuestItemDropBouns(
+                                     reinterpret_cast<unsigned long&>(
+                                         it->m_addInfo)) /
+                             100;
+            }
+            int rate = expert_job::CAlchemist::GetQuestItemDropRate(
+                           this, dropRate) +
+                       bonus;
+            if (*(int*)((char*)G_CEnvironment() + 0x1a8) == 2)
+            {
+                CParty* party = (CParty*)GetParty();
+                if (party != 0)
+                {
+                    int count = party->get_member_count();
+                    float mult;
+                    if (count < 1)
+                        mult = 1.0f;
+                    else
+                        mult = *(float*)((char*)G_CDataManager() + 0x10 +
+                                         (count + 0xf7) * 4);
+                    rate = (int)((float)rate * mult);
+                }
+            }
+            if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x4f))
+            {
+                unsigned int p =
+                    getAddQuestItemDropRateFromPremium(
+                        (ENUM_PREMIUM_TYPE)0x4f);
+                rate = dropRate * (int)(p / 100) + rate;
+            }
+
+            int gained = 0;
+            for (int t = 0; t < tryCount; ++t)
+                if (get_rand_int(100) < rate)
+                    ++gained;
+            if (gained == 0)
+                break;
+
+            Inven_Item item;
+            CItem* ci = G_CDataManager()->find_item(itemIdx);
+            ci->make_item(item);
+            item.set_add_info(gained);
+            if (gained > 999)
+            {
+                cMyTrace tr("bool CUser::CheckQuestMonster(int, int, "
+                            "ENUM_QUEST_ENEMY_TYPE)",
+                            0x5579, 5);
+                tr("CUser::CheckQuestMonster, mon_item.item.set_add_info , "
+                   "ITEM #%d, %d , QUEST#%d",
+                   itemIdx, gained, questIdx);
+                item.set_add_info(1000);
+            }
+
+            PacketGuard packet;
+            InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
+            pkt->put_header(0, 0xe);
+            pkt->put_byte(0);
+            pkt->put_short(1);
+
+            Inven_Item existItem;
+            int slot = getCurCharacInvenR()->GetInvenData(itemIdx, existItem);
+            if (slot < 0)
+            {
+                int newSlot = getCurCharacInvenW()->insertItemIntoInventory(
+                    item, (eItemAddReason)8, true, true);
+                if (newSlot > 0)
+                {
+                    pkt->put_short(newSlot);
+                    pkt->put_int(itemIdx);
+                    pkt->put_int(item.get_add_info());
+                    pkt->put_byte(item.GetItemAttr());
+                    pkt->put_short(item.m_fieldb);
+                    pkt->put_byte(item.m_field0);
+                    pkt->put_int(item.m_fieldd);
+                    pkt->put_byte(item.m_amp.getAbilityType());
+                    pkt->put_short(item.m_amp.getAbilityValue());
+                    if (item.isAvatarItemType())
+                    {
+                        pkt->put_int(0x1e);
+                        const WongWork::CAvatarItemMgr* mgr =
+                            getCurCharacInvenR()->GetAvatarItemMgrR();
+                        const char* socketData =
+                            mgr->getJewelSocketData(item.get_add_info());
+                        pkt->put_binary(socketData, 0x1e);
+                        char* expansion = (char*)mgr->GetExpansionInfo(
+                            item.get_add_info());
+                        pkt->put_int(4);
+                        if (expansion == 0)
+                        {
+                            stAvatarExpansionInfo_t init4;
+                            init4.init();
+                            pkt->put_binary((char*)&init4, 4);
+                        }
+                        else
+                        {
+                            pkt->put_binary(expansion, 4);
+                        }
+                    }
+                    pkt->put_byte(0);
+                    pkt->put_packet(g_emptySlot);
+                    pkt->finalize(true);
+                    Send(packet);
+                }
+            }
+            else
+            {
+                if (needCount == -1)
+                {
+                    existItem.set_add_info(existItem.get_add_info() +
+                                           item.get_add_info());
+                }
+                else if (needCount <= existItem.get_add_info())
+                {
+                    for (std::vector<MonsterKillItem>::iterator it =
+                             kills.begin();
+                         it != kills.end(); ++it)
+                    {
+                        if (memcmp(&drop, &*it, 0x20) == 0)
+                        {
+                            kills.erase(it);
+                            break;
+                        }
+                    }
+                    again = true;
+                }
+                else
+                {
+                    int cur = existItem.get_add_info();
+                    if (cur + item.get_add_info() < needCount)
+                        existItem.set_add_info(cur + item.get_add_info());
+                    else
+                        existItem.set_add_info(needCount);
+                }
+                getCurCharacInvenW()->update_item((INVEN_TYPE)1, slot,
+                                                  existItem);
+                pkt->put_short(slot);
                 pkt->put_int(itemIdx);
-                pkt->put_int(item.get_add_info());
+                pkt->put_int(existItem.get_add_info());
+                pkt->put_byte(0);
+                pkt->put_short(0);
+                pkt->put_byte(0);
+                pkt->put_int(0);
+                pkt->put_byte(existItem.m_amp.getAbilityType());
+                pkt->put_short(existItem.m_amp.getAbilityValue());
+                if (existItem.isAvatarItemType())
+                {
+                    pkt->put_int(0x1e);
+                    const WongWork::CAvatarItemMgr* mgr =
+                        getCurCharacInvenR()->GetAvatarItemMgrR();
+                    const char* socketData =
+                        mgr->getJewelSocketData(existItem.get_add_info());
+                    pkt->put_binary(socketData, 0x1e);
+                    char* expansion = (char*)mgr->GetExpansionInfo(
+                        existItem.get_add_info());
+                    pkt->put_int(4);
+                    if (expansion == 0)
+                    {
+                        stAvatarExpansionInfo_t init4;
+                        init4.init();
+                        pkt->put_binary((char*)&init4, 4);
+                    }
+                    else
+                    {
+                        pkt->put_binary(expansion, 4);
+                    }
+                }
+                pkt->put_byte(0);
+                pkt->put_packet(existItem);
                 pkt->finalize(true);
                 Send(packet);
             }
         }
-        else
-        {
-            int cur = item.get_add_info();
-            int nv = (needCount > 0 && cur + gained >= needCount)
-                         ? needCount : cur + gained;
-            item.set_add_info(nv);
-            getCurCharacInvenW()->update_item((INVEN_TYPE)1, slot, item);
-            pkt->put_short(slot);
-            pkt->put_int(itemIdx);
-            pkt->put_int(item.get_add_info());
-            pkt->put_packet(item);
-            pkt->finalize(true);
-            Send(packet);
-        }
     }
 }
-
-// 0x08655c60
+    // 0x08655c60 主分支（FatigueUp.md）：v==0→1；BreakAway 幸运点先结算；
 void CUser::FatigueUp(int v)
 {
-    // 0x08655c60 主分支（FatigueUp.md）：v==0→1；BreakAway 幸运点先结算；
     // Hades+GoldControl 双扣减；state==5 时混沌点扣减与累计(+0x8e064)；
     // +0x8e08c=v；prev 疲劳逢 50 上报 hack 0x263；0x9c/0x32/0x64 清动作组
     // 0x16/0x28/0x2a；事件脚本 inc/gift/bring_up(0x19b)/process_add_fatigue；
@@ -10438,6 +10539,7 @@ void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
     *(unsigned int*)(sig + 0x0) = (unsigned int)getCurCharacNo();
     std::vector<ContinuousItemInfo>* cool =
         GetCurCharacCoolTimeItemList();
+    if (cool->size() > 0x32) return;   // ORIG: 超过 0x32 条不发送
     unsigned int count = 0;
     for (unsigned int i = 0; i < cool->size(); ++i)
     {
@@ -10465,7 +10567,7 @@ void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb);
     CStreamGuard guard(s, true);
-    guard.operator*()->operator<<((int)0x132);
+    guard.operator*()->operator<<((int)0x137);
     guard.operator*()->operator<<((int)GetUID());
     char* sig = (char*)guard.operator->()->GetInBuffer<
         SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
@@ -10473,6 +10575,7 @@ void CUser::UpdateEffectItemInfo(unsigned int expireTime)
     *(unsigned int*)(sig + 0x0) = (unsigned int)getCurCharacNo();
     std::vector<ContinuousItemInfo>* effect =
         GetCurCharacEffectItemList();
+    if (effect->size() > 0x32) return;   // ORIG: 超过 0x32 条不发送
     unsigned int count = 0;
     for (unsigned int i = 0; i < effect->size(); ++i)
     {

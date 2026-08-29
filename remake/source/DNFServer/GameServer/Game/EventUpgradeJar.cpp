@@ -16,15 +16,9 @@
 // EventUpgradeJarInfo 生命周期
 // ============================================================================
 
-// ORIG 0x080f50a4（W）。ctor 依次构造：map<ulong,short>(+0x04)、
-// map<pair<int,int>,ulong>(+0x1c)、vector<ulong>(+0x34)、4 个 vector<uint>(+0x40, 步长 0x0c)、
-// vector<ST_...>(+0x74)。工作状态 m_materialKind/m_materialIdx（+0x84/+0x88）不初始化。
+// vector<ST_...>(+0x74)。标量成员（m_npcCount/m_discountRate/m_upgradeMax/
+// m_materialKind/m_materialIdx）ORIG 一律不初始化（工作状态运行时才写）。
 EventUpgradeJarInfo::EventUpgradeJarInfo()
-    : m_npcCount(0),
-      m_discountRate(0.0f),
-      m_upgradeMax(0),
-      m_materialKind(0),
-      m_materialIdx(0)
 {
 }
 

@@ -628,6 +628,16 @@ bool DBInsertCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
+        // ORIG 0x0815c480: set_query("inSert into event_create_dnf_user(occ_date,
+        //   m_id,server_id,occ_time) VALUES(CURDATE(),%s,%d,CURTIME())",
+        //   NumberToString(sig->m_id,0), G_CEnvironment()->+0x378)
+        const int serverGroup = *reinterpret_cast<int*>(
+            reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
+        db->set_query(
+            "inSert into event_create_dnf_user(occ_date,m_id,server_id,occ_time) "
+            "VALUES(CURDATE(),%s,%d,CURTIME())",
+            NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
+            serverGroup);
         if (!db->exec(1))
             throw "insert_exec";
         cMyTrace t(__PRETTY_FUNCTION__, 0x281, 0);

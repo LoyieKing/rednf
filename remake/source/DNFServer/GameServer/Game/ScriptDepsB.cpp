@@ -461,9 +461,9 @@ bool importGenuineUpgradeTable(const char* path,
                 GenuineDamageUpgradeMaterialInfo material;
                 if (!ScanInt(&key))
                     break;
-                if (!ScanInt(&material.m_pad00))
-                    break;
                 if (!ScanInt(&material.m_materialItemIdx))
+                    break;
+                if (!ScanInt(&material.m_materialCount))
                     break;
                 table->m_materials.insert(
                     std::make_pair(key, material));

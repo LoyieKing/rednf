@@ -8,6 +8,7 @@
 #include "RestrictGeolocation.h"   // RestrictGeolocation 权威（原局部镜像删除，实现迁 RestrictGeolocation.cpp）
 #include "CDailyScheduleManager.h"  // _DailySchedule / CDailyScheduleManager 权威（原本地镜像删除，ODR 收敛）
 #include "CCapchaDataManager.h"  // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威（显式，防间接 include 漂移）
+#include "Tick.h"                // Tick::nowAsInternalValue（CaptchaGen 播种源，对齐 ORIG）
 #include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
 #include "CItemList.h"             // get_rand_int
 #include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
@@ -1114,7 +1115,7 @@ CaptchaGen::ImageOption::ImageOption()
 CaptchaGen::CaptchaGen()
 {
     m_library = 0;
-    m_rng.seed((unsigned int)time(0));
+    m_rng.seed(Tick::nowAsInternalValue());
 }
 
 CaptchaGen::~CaptchaGen()
@@ -2949,12 +2950,10 @@ WongWork::IPG::CIPGHelper::CIPGHelper()
 {
     // ORIG 0x082a7190：IIPGHelperInterface 基类（vptr 自动）。
     m_mgr = 0;
-    memset(m_str24, 0, sizeof(m_str24));
 }
 WongWork::IPG::CIPGHelper::~CIPGHelper()
 {
-    delete m_mgr;
-    m_mgr = 0;
+    // ORIG 0x082a71b6：仅设 vptr，不释放 m_mgr（非拥有指针）。
 }
 
 // ---- 全局业务对象 ----
@@ -3104,6 +3103,7 @@ void ItemVendingMachine::ProcessIPG_ResultInput(CUser* user,
                                                 WongWork::IPG::SIPGData* resData,
                                                 Stream* stream)
 {
+    (void)(user == 0);
 }
 
 // ----------------------------------------------------------------------------
@@ -5092,10 +5092,9 @@ void User_Teleport::set_teleport_data(STTeleportData const& data)
     CUser* target = G_GameWorld()->find_from_world((unsigned short)data.m_field00);
     if (target != 0)
     {
+        // ORIG 0x082842b8：局部 stPartyTelePort 不 reset（未设字段为栈垃圾），
+        // 仅填 5 字段后 set_party_teleport——保持 ORIG 原样，不额外清零。
         stPartyTelePort tp;
-        tp.m_state = data.m_field00 >> 16;                 /* 【推断】ORIG 未回读该字段 */
-        (void)tp.m_state;
-        tp.reset();
         tp.m_village = (unsigned char)target->getCurCharacVill();
         tp.m_areaIndex = (unsigned char)target->get_area(false);
         tp.m_posx = (short)target->get_posX();

@@ -34,8 +34,8 @@ struct _APCInfo
     int m_growType;                        // +0x2c
     char m_guildName[0x18];                // +0x30
     int m_pvpGrade;                        // +0x48
-    int m_abilities[22];                   // +0x4c..+0xa3（Set_APC_Info 循环 22 项，
-                                           //   末项读 info+0xa0，紧贴 creature_name）
+    unsigned int m_abilities[22];          // +0x4c..+0xa3（ORIG GetAPCUserInfo 0x8440cb6
+                                           //   调 get_intEiRj=unsigned&；末项读 info+0xa0）
     char m_creatureName[0x10];             // +0xa4
     int m_creatureId;                      // +0xb4
     char m_padB8[4];                       // +0xb8..+0xbb（set_data/memcpy 0xbc 尾部）

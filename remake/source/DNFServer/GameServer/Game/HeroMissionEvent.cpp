@@ -46,11 +46,8 @@ template HeroMissionEvent* Singleton<HeroMissionEvent>::Get();
 
 HeroMissionEvent::HeroMissionEvent()
 {
-    // CEventBase::CEventBase()（0x0810ae2c）：stADDINFO ctor 置 0xffff，flag 置 0
-    m_addInfo0 = 0xffff;
-    m_addInfo1 = 0xffff;
-    m_isEventing = 0;
-    // m_conditions / m_values 默认构造（ORIG ctor 0x08166552 / 0x08166560）
+    // ORIG ctor 0x08166522：Singleton 基类 + CEventBase 基类（stADDINFO 置
+    // 0xffff、flag 置 0）自动构造；m_conditions / m_values 默认构造。
 }
 
 // ============================================================================

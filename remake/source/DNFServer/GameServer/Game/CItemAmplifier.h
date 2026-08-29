@@ -102,7 +102,7 @@ class stAmplifyItemScript_t
 public:
     stAmplifyItemScript_t();
 
-    char m_pad0[0x18];                            // +0x00
+    std::map<std::string, ENUM_AMPLIFY_TYPE> m_amplifyTypeMap;    // +0x00（ORIG ctor 0x82aa510 构造）
     std::vector<stAmplifyOptionInfo_t> m_options; // +0x18
     float m_rarityRate[6];                        // +0x24
     int m_field3c;                                // +0x3c

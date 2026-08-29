@@ -1053,8 +1053,8 @@ void AES_Decrypt(void* pNumArea, unsigned char* block)
     for (unsigned long r = 1; r < nr; ++r) {
         aesInvSubBytes(state);
         aesInvShiftRows(state);
-        aesAddRoundKey(state, dk + r * 4);       // dk 已做 InvMixColumn 预变换
-        aesInvMixColumnsBlk(state);
+        aesInvMixColumnsBlk(state);              // dk 已做 InvMixColumn 预变换，逆列混合须先于加轮密钥
+        aesAddRoundKey(state, dk + r * 4);
     }
     aesInvSubBytes(state);
     aesInvShiftRows(state);

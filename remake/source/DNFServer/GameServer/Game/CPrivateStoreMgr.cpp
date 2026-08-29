@@ -2697,7 +2697,7 @@ int CItem::GetCashPrice() const
 // m_shopDollMap.find(index) 命中返 mapped 值，未命中哨兵 -1；唯一调用点 AddItem 0x85c6dfc。
 short STExpertJobScript::GetShopDollSlot(int index)
 {
-    std::map<int, unsigned char>::const_iterator it = m_shopDollMap.find(index);
+    std::map<int, unsigned char>::iterator it = m_shopDollMap.find(index);
     if (it != m_shopDollMap.end())
         return (short)(*it).second;   // +0x04 mapped value（movzbl 零扩展）
     return -1;

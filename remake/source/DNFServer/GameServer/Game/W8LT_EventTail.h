@@ -57,7 +57,7 @@ struct EventStageLogDeliveryMsg : public DeliveryMsg
     const unsigned char* m_payloadPtr;                 // +0x14（+2 起 \0 结尾文本）
     int m_field18;                                     // +0x18（未使用）
     int m_field1c;                                     // +0x1c（未使用）
-    const std::vector<std::pair<int, int> >* m_progressList;  // +0x20
+    std::vector<std::pair<int, int> >* m_progressList;        // +0x20（ORIG：BOOST_FOREACH 非 const 实例）
 };
 
 // ---- 依赖的 DB request 类（权威声明；makeRequest 定义属 W8LT_EventTail.cpp，

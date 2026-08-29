@@ -601,7 +601,7 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
         if (ret == 0x13) {
             CBoosterGage* gageFail =
                 reinterpret_cast<CBoosterGage*>(GetCharacExpandData(
-                    (ENUM_CHARAC_EXPAND_TYPE)11));
+                    (ENUM_CHARAC_EXPAND_TYPE)17));
             gageFail->send_error_state_packet(this, boxItemId);
             return -1;
         }
@@ -609,7 +609,7 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
     }
 
     CBoosterGage* gage =
-        reinterpret_cast<CBoosterGage*>(GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)11));
+        reinterpret_cast<CBoosterGage*>(GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17));
     const bool isFirst = CBoosterGage::cal_booster_gage(boxItemId, this) != 0;
     if (isFirst) {
         gage->log_booster_gage_bonus_reward(this, results);

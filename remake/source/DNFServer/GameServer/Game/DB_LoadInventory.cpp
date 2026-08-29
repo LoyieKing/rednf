@@ -41,13 +41,9 @@ bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap,
 
 extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 
-namespace   // SIG_LOAD_INVENTORY 文档化偏移访问 helper（同 CUser/DB_LoadEtc 约定）
-{
-inline char* MIX(void* sig, unsigned int off)
-{
-    return reinterpret_cast<char*>(sig) + off;
-}
-}  // namespace
+// SIG_LOAD_INVENTORY 文档化偏移访问宏（ORIG 无 MIX 符号：反汇编为直接
+// lea 偏移寻址；inline 函数在 O0 下生成 call，2026-08-30 Fix8_E 改宏）。
+#define MIX(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
 // ============================================================================
 // DB_LoadInventory::DB_LoadInventory @0x0840a604（C1/C2 同址）
@@ -1125,7 +1121,12 @@ bool DB_LoadInventory::_GetEquipMaxItemLevel(SIG_LOAD_INVENTORY* sig)
     {
         return 0;
     }
-    return db->get_int(0, *(int*)&sig->m_maxEquipLevel);
+    // ORIG：get_int 失败（==0）返回 0，否则返回 1（勿直接返回 get_int）。
+    if (!db->get_int(0, *(int*)&sig->m_maxEquipLevel))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================

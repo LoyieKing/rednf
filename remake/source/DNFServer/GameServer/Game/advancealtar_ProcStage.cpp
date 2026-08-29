@@ -585,7 +585,7 @@ void ProcStage::reset(StageType::T type)
     m_fieldc = 0;
     m_field10 = 0;
     m_difficulty = -1;
-    m_survivalRound = 0;
+    m_map = 0;                    // ORIG +0x74 总是清零
     m_summonObjectMs.reset();
 
     if (type != StageType::STAGE_SURVIVAL)
@@ -594,6 +594,7 @@ void ProcStage::reset(StageType::T type)
         m_field14 = 0;
         m_createdMapMonsters.clear();
         m_survivalFirst = 1;
+        m_survivalRound = 0;      // ORIG +0x7c 仅非生存分支清零
         m_roundMaps.clear();
     }
 }
@@ -1309,12 +1310,13 @@ void HistoryLog::leaveDungeon(CUser& user, const ProcStage& procStage)
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x08133d56（starAdd.md 全文）：LogHistory("star+,%d,%d,%d")+
- // incrementEntranceData(advanceAltarstatistics_, idx,0,0,cnt)
- // [CAdvanceAltarLog 未建模，跳过；同 enterDungeon 先例]。
+// incrementEntranceData(advanceAltarstatistics_, idx,0,0,cnt)。
 // ----------------------------------------------------------------------------
 void HistoryLog::starAdd(CUser& user, AddStarType::T type, int stageIndex,
                          int count)
 {
+    user.LogHistory("star+,%d,%d,%d", static_cast<int>(type), stageIndex,
+                    count);
     HistoryLog::advanceAltarstatistics_.incrementEntranceData(
         static_cast<unsigned int>(stageIndex), 0, 0,
         static_cast<unsigned int>(count));

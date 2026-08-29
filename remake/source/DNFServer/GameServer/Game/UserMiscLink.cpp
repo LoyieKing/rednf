@@ -299,11 +299,13 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
 // ===========================================================================
 STGuildStorageUpgradeInfo* GuildParameterScript::getGuildCargoUpradeInfo(int capacity)
 {
-    for (std::size_t i = 0; i < m_vec38.size(); ++i)
+    for (std::vector<STGuildStorageUpgradeInfo>::iterator it = m_vec38.begin();
+         it != m_vec38.end(); ++it)
     {
-        if (m_vec38[i].m_field0 == capacity)
+        STGuildStorageUpgradeInfo* v = &*it;   // ORIG：de 结果存局部
+        if (v->m_field0 == capacity)
         {
-            return &m_vec38[i];
+            return v;
         }
     }
     return 0;

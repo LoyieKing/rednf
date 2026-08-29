@@ -291,6 +291,8 @@ bool CPowerManager::Init()
     m_field20 = 0;
     memset(m_powerWarStartTime, 0, sizeof(m_powerWarStartTime));
     memset(m_rankings, 0, sizeof(m_rankings));
+    m_powerWarLog.Reset();
+    m_powerWarPacketLog.Reset();
     return 1;
 }
 

@@ -45,9 +45,10 @@ class CMTRand;  // PvPTypes.h（0x9c8 MT19937）
 // 报告写入点与 getMaterialCnt/getGenuineUpgradeDamage 汇编读取点双向实证）----
 struct GenuineDamageUpgradeMaterialInfo
 {
-    int m_pad00;             // +0x00（import 写入；本域无读者）
-    int m_materialItemIdx;   // +0x04（getMaterialCnt 经 pair+8 即 value+4 读作
-                             //      材料数基数，fildl × factor）
+    int m_materialItemIdx;   // +0x00（_CheckCondition 与 matItem.m_addInfo 比较；
+                             //      import 第 1 值；ORIG pair+4 读取实证）
+    int m_materialCount;     // +0x04（getMaterialCnt 读作数量基数，fildl × factor；
+                             //      ORIG pair+8 读取实证）
 };  // sizeof == 0x8
 
 static_assert(sizeof(GenuineDamageUpgradeMaterialInfo) == 0x8,

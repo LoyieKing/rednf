@@ -99,22 +99,14 @@ void CUser::decide_growth_power_reward_system()
 // ============================================================================
 bool stSeriaBlessingScript::get_value(int lv, Value& out)
 {
-    for (std::map<int, Value>::const_iterator it = m_map0.begin();
-         it != m_map0.end(); ++it)
-    {
-        const Value& v = it->second;
-        if ((v.m_minLv == v.m_maxLv && v.m_minLv == lv) ||
-            (v.m_minLv <= lv && lv < v.m_maxLv))
-        {
-            out.m_minLv  = v.m_minLv;
-            out.m_maxLv  = v.m_maxLv;
-            out.m_field8 = v.m_field8;
-            out.m_fieldC = v.m_fieldC;
-            out.m_field10 = v.m_field10;
-            return true;
-        }
-    }
-    return false;
+    FindOneByLv pred(lv);                     // ORIG：谓词在入口即构造
+    std::map<int, Value>::iterator it = m_map0.begin();
+    std::map<int, Value>::iterator itEnd = m_map0.end();
+    std::map<int, Value>::iterator found = std::find_if(it, itEnd, pred);  // ORIG：返回值独立变量
+    if (found == m_map0.end())   // ORIG：if 条件中再次调用 end()
+        return false;
+    out = found->second;         // ORIG：Value 整体赋值（五 int 逐字段展开）
+    return true;
 }
 
 // ============================================================================

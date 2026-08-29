@@ -120,7 +120,7 @@ public:
 
     // ORIG T 0x08191318 / 0x08191364：GM 开关耐久减免率模式。
     // GmSet：enable 写 +0x58；rate<0→0 / ≤100→×10 / >100→1000 写 +0x54。
-    void GmChangeEnduranceReduceRate(CUser* user, bool enable, int rate);
+    static void GmChangeEnduranceReduceRate(CUser* user, bool enable, int rate);
     void GmSetEnduranceReduceRate(CUser* user, bool enable, int rate);
 
     // ORIG T 0x081913f6 _ZN...21UpdateAvatarEnduranceEN5CUser11eSendTargetEPS0_s：

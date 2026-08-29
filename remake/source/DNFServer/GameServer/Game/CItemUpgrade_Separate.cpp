@@ -184,7 +184,7 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
     }
 
     const float scaled =
-        static_cast<float>(mit->second.m_materialItemIdx) * factor;
+        static_cast<float>(mit->second.m_materialCount) * factor;
     const long long wide = static_cast<long long>(scaled);   // ORIG fistpll
     int count = static_cast<int>(wide);                      // 取低 dword
     if (count == 0)

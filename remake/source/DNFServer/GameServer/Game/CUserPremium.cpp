@@ -131,16 +131,35 @@ stPremiumTable_t::~stPremiumTable_t() {}
 
 void stPremiumTable_t::clean()
 {
-    // ORIG 0x891ae68：yday 掩码全部 -1；kind/checkTerm/expireTime/
-    // overSkill/discount/useTargetServer 清零（顺序照抄）。
+    // ORIG 0x891ae68：清零顺序照抄（循环 applyDayMask=-1 在前，随后
+    // kind/checkTerm/overSkillLevel/cerashopDiscountRate/useTargetServer/
+    // expireTime/unlimitFatigue/fatigueRate/coin/expRate/advantageItems/
+    // goldBonus/overEquipCount/overEquipPairs/returnItemCount/returnItemPairs/
+    // hpMax..field118/bonusExp/questItemDropRate/dropRates/targetItemKey/premiumItems）。
     for (int i = 0; i <= 6; ++i)
         m_applyDayMask[i] = -1;
     m_kind = 0;
     m_checkTerm = 0;
-    m_expireTime = 0;
     m_overSkillLevel = 0;
     m_cerashopDiscountRate = 0;
     m_useTargetServer = 0;
+    m_expireTime = 0;
+    m_unlimitFatigue = 0;
+    m_fatigueRate = 0;
+    m_coin = 0;
+    m_expRate = 0;
+    memset(m_advantageItems, 0, sizeof(m_advantageItems));
+    m_goldBonus = 0;
+    m_overEquipCount = 0;
+    memset(m_overEquipPairs, 0, sizeof(m_overEquipPairs));
+    m_returnItemCount = 0;
+    memset(m_returnItemPairs, 0, sizeof(m_returnItemPairs));
+    memset(&m_hpMax, 0, 0x54);
+    m_bonusExp = 0;
+    m_questItemDropRate = 0;
+    m_independentDropRates.clear();
+    m_targetItemKey = 0;
+    m_premiumItems.clear();
 }
 
 // ORIG 全局容器（变量名不 mangle，符号与 B 0x0948b180/0x0948b18c 一致）
@@ -607,10 +626,6 @@ int importPremiumList(const char* path,
 namespace WongWork
 {
 
-// ---- 文件级容器近似（ORIG 中 returnItemMap 为 CUserPremium+0x964 的 std::map，
-//      premiumItemDataMap 即全局 g_map_premium_item_data（定义见文件头）；
-//      LoadPremiumInfo 未实现，容器按空处理，仅保证编译与安全访问）----
-static std::map<int, int> s_returnItemMap;
 // ---------------------------------------------------------------------------
 // g_SPremiumInfo 权威元素类型见 SPremiumInfo.h（stride 0x120、0x6a 元素）；
 // 本 TU 经 g_SPremiumInfo[type] 具名字段访问。
@@ -626,7 +641,7 @@ static const SPremiumInfo* GetPremiumDefinition(int type)
 //   0x850 outFatigueRate  0x854 outPremiumCount  0x858 outExpRate
 //   0x85c overEquipFlag   0x85e overSkillLevel   0x860 field860   0x862 field862
 //   0x864 additionalInfo[0x58]  0x8bc field8bc   0x8bd additionalBase   0x90f additionalOut
-//   0x964 returnItemMap（ORIG 为 std::map<int,int>；本 TU 用文件级 map 近似）
+//   0x964 m_returnItemMap（ORIG 为 std::map<int,int>；真实成员，C1/D1 自动管理）
 // ---------------------------------------------------------------------------
 static SUserPremiumInfo* Entries(CUserPremium* self)
 {
@@ -681,7 +696,7 @@ void CUserPremium::InitPremium()
     memset(&m_additionalInfo, 0, sizeof(_Additioal_info));  // additionalOut（+0x90f）
     m_pad[0x8bc] = 0;                        // field8bc
     memset(&m_pad862[0x5a], 0, 0x52);        // additionalBase（+0x8bd 起；0x58→0x52 对齐 _Additioal_info）
-    s_returnItemMap.clear();                 // returnItemMap
+    m_returnItemMap.clear();                 // returnItemMap
 }
 
 void CUserPremium::AddPremium(int type, int start, int end, int flag)
@@ -757,7 +772,7 @@ void CUserPremium::ReCalcAdvantage()
     memset(&m_additionalInfo, 0, sizeof(_Additioal_info));   // +0x90f 具名成员
     *(short*)&m_pad[0x85e] = 0;   // overSkillLevel
     m_ceraDiscountRate = 0;       // field860
-    s_returnItemMap.clear();
+    m_returnItemMap.clear();
 
     int now = GlobalData::s_systemTime_.getCurSec();
     tm localTm;
@@ -828,9 +843,9 @@ void CUserPremium::ReCalcAdvantage()
             for (int inner = 0; inner < ri.m_count; ++inner)
             {
                 int itemIdx = ri.m_items[inner];
-                std::map<int, int>::iterator it = s_returnItemMap.find(itemIdx);
-                if (it == s_returnItemMap.end())
-                    s_returnItemMap.insert(std::make_pair(itemIdx, val));
+                std::map<int, int>::iterator it = m_returnItemMap.find(itemIdx);
+                if (it == m_returnItemMap.end())
+                    m_returnItemMap.insert(std::make_pair(itemIdx, val));
                 else
                     it->second += val;
             }
@@ -1001,8 +1016,8 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 
 int CUserPremium::GetReturnItemRate(int type) const
 {
-    std::map<int, int>::const_iterator it = s_returnItemMap.find(type);
-    if (it == s_returnItemMap.end())
+    std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
+    if (it == m_returnItemMap.end())
         return 0;
     return it->second;
 }

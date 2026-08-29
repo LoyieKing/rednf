@@ -851,12 +851,12 @@ bool DisPatcher_DebugCommand::_debugCommandPowerWarEnd(CUser* user)
 }
 
 // ===========================================================================
-// 27. _debugCommandSetUserDefine —— 0x085908ba：user==0 → 返回 0；非空 → 1。
+// 27. _debugCommandSetUserDefine —— 0x085908ba：ORIG je → 返回 1（user==0 → 1；非空 → 0）。
 // ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandSetUserDefine(CUser* user,
                                                          PacketBuf& /*packet*/)
 {
-    return user != 0;
+    return user == 0;
 }
 
 // ===========================================================================

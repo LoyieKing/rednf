@@ -4219,7 +4219,7 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
         }
     }
 
-    const bool skip = (party->GetPartyType() == 1) &&
+    const bool skip = (party->m_partyType == 1) &&
                       (user->get_state() == 5 || limitNotOne);
     if (!skip)
     {
@@ -5561,8 +5561,7 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
         return 0xffffffff;
     }
     int state = user->get_state();
-    if ((unsigned int)state > 0xc ||
-        ((1 << (state & 0x1f)) & 0x15e8) == 0)
+    if ((unsigned int)state > 0xc || ((1 << state) & 0x15e8) == 0)
     {
         return 0x13;
     }
@@ -8277,11 +8276,11 @@ DisPatcher_GiveUpGame::DisPatcher_GiveUpGame() {}
 DisPatcher_GiveUpGame::~DisPatcher_GiveUpGame() {}
 // ORIG 0x081c41e8 T _ZN21DisPatcher_GiveUpGame11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_GiveUpGame/check_error.md 逐块映射）：state ∈
-// {5,10,12,13} → 0；其余 → 0x13。
+// {5,10,12,13} → 0；其余 → 0x13（ORIG 每次比较前调 get_state，勿缓存）。
 int DisPatcher_GiveUpGame::check_error(CUser* user, MSG_BASE& msg)
 {
-    int state = user->get_state();
-    if (state != 5 && state != 10 && state != 0xc && state != 0xd)
+    if (user->get_state() != 5 && user->get_state() != 10
+        && user->get_state() != 0xc && user->get_state() != 0xd)
     {
         return 0x13;
     }
@@ -8315,8 +8314,8 @@ int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return LineFunc(0xff7, kPretty, 0, user->get_acc_id());
     }
 
-    const int state = user->get_state();
-    if (state == 10)
+    // ORIG 每个 state 分支前独立调 get_state（勿缓存）。
+    if (user->get_state() == 10)
     {
         WongWork::CDeathTower* tower = user->getDeathTower();
         if (tower != 0)
@@ -8324,11 +8323,11 @@ int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             tower->handleLeaveUser(user);
         }
     }
-    else if (state == 0xc)
+    else if (user->get_state() == 0xc)
     {
         Global::CBossTowerFunc::GiveUpGame(user);
     }
-    else if (state == 0xd)
+    else if (user->get_state() == 0xd)
     {
         advancealtar::Manager::giveUpGame(user);
     }
@@ -8564,8 +8563,8 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0x8318,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    unsigned int itemAddInfo = 0;                // ORIG local_80
-    unsigned int param2 = 0;                     // ORIG local_84
+    int itemAddInfo = 0;                         // ORIG local_80
+    int param2 = 0;                              // ORIG local_84
     if (!packet.get_int(itemAddInfo))
         return LineFunc(0x831d,
                         __PRETTY_FUNCTION__,
@@ -8575,10 +8574,11 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
 
-    int st = user->get_state();
     bool stateOk =
-        (st == 5) || (st == 7) || (st == 8) || (st == 3) || (st == 6) ||
-        (st == 10) || (st == 12);
+        (user->get_state() == 5) || (user->get_state() == 7) ||
+        (user->get_state() == 8) || (user->get_state() == 3) ||
+        (user->get_state() == 6) || (user->get_state() == 10) ||
+        (user->get_state() == 12);
     // ---- 状态拒绝包形态：header(1,0x2f)/byte0/byte(code)/byte(space)/
     //      int(itemAddInfo)/int(param2)/finalize(true) ----
 #define USESTACK_ERR(pg_, code_)                                               \
@@ -8600,7 +8600,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         USESTACK_ERR(pgState, 0x13);
         return 0;
     }
-    unsigned int invenCheckSum = 0;              // ORIG local_88
+    int invenCheckSum = 0;                       // ORIG local_88
     if (!packet.get_int(invenCheckSum))
         return LineFunc(0x8338,
                         __PRETTY_FUNCTION__,
@@ -8641,7 +8641,8 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    if (user->GetAssaultPlace() == 0 && (st == 3 || st == 6))
+    if (user->GetAssaultPlace() == 0 &&
+        (user->get_state() == 3 || user->get_state() == 6))
     {
         CInventory* invR = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
             reinterpret_cast<const CUserCharacInfo*>(user)
@@ -8731,7 +8732,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
-    if (st == 10)
+    if (user->get_state() == 10)
     {
         WongWork::CDeathTower* tower = user->getDeathTower();
         if (tower == 0)
@@ -8753,7 +8754,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
     if (party != 0)
     {
         WongWork::CDeathTower* tower = 0;
-        if (st == 10)
+        if (user->get_state() == 10)
             tower = user->getDeathTower();
         if (tower == 0)
         {
@@ -10313,10 +10314,17 @@ bool DisPatcher_ResPvpRank::ExtractPacket(MSG_RES_PVP_RANK& msg, PacketBuf& pack
     msg.m_result.Clear();
     // 字段名按 PvpResultType.h 权威版（HdrFieldG ODR 收敛后；视图偏移 = PvpResultType 内偏移）。
     short s[11];
-    for (int i = 0; i < 11; ++i)
-    {
-        packet.get_short(s[i]);             // ORIG 无失败分支（恒返 1）
-    }
+    packet.get_short(s[0]);
+    packet.get_short(s[1]);
+    packet.get_short(s[2]);
+    packet.get_short(s[3]);
+    packet.get_short(s[4]);
+    packet.get_short(s[5]);
+    packet.get_short(s[6]);
+    packet.get_short(s[7]);
+    packet.get_short(s[8]);
+    packet.get_short(s[9]);
+    packet.get_short(s[10]);             // ORIG 无失败分支（恒返 1）
     packet.get_int(msg.m_result.m_avg[11]);     // +0x44
     packet.get_int(msg.m_result.m_field6c);     // +0x6c
     packet.get_int(msg.m_result.m_field70);     // +0x70

@@ -139,7 +139,8 @@ public:
 
     void clear()
     {
-        for (int i = 0; i <= 0x17; ++i)
+        // ORIG 0x80e5f12：cmp $0x17; setbe ⇒ 循环变量无符号
+        for (unsigned int i = 0; i <= 0x17; ++i)
             m_Row[i].clear();
     }
 

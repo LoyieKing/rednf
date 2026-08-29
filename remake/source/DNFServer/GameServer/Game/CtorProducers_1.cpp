@@ -159,17 +159,6 @@ inline bool IsBlockWorldMapMark(const CDungeon* d)
 }  // namespace ctors1
 
 
-// ---- CEnvironment +0x310 字节（AvatarRouletteServer Init/InitAddCharacSkill
-//      报告实证的环境开关；CEnvironment.h 尚未建模该字段——字段化收口归
-//      CEnvironment 批次，本 TU 集中一处访问便于替换）----
-namespace ctors1
-{
-inline bool IsEnableAvatarRoulette()
-{
-    return *(reinterpret_cast<const char*>(G_CEnvironment()) + 0x310) != 0;
-}
-}  // namespace ctors1
-
 // ---- STAICharacterCommonScript 权威视图（sizeof 0x1010；ORIG 同名类型，
 //      sync_script.h 的 8 字节占位与本视图冲突故本 TU 不含该头）----
 struct STAICharScriptView
@@ -217,9 +206,10 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
     // ORIG 0x0817f706。
     m_pRoulette = new AvatarRoulette;
     m_pRoulette->swap(roulette);
-    m_totalCount = m_pRoulette->m_rareAvatarRate + m_pRoulette->m_upperAvatarRate;
+    m_totalCount = m_pRoulette->m_upperAvatarRate + m_pRoulette->m_normalAvatarRate;
 
-    if (ctors1::IsEnableAvatarRoulette())
+    bool result = true;   // ORIG movb $0x1,-0x45；失败路径写 0，最终返回常量 true
+    if (G_CEnvironment()->m_serverEnvir.m_validateScript)
     {
         for (int job = 0; job < 0xb; ++job)
         {
@@ -239,7 +229,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             1, "localjapan/Arad_AvatarRoulette.cpp",
                             __PRETTY_FUNCTION__, 0x80,
                             "AvatarRouletteServer not exist item_no(%d)", itemNo);
-                        continue;
+                        result = false;   // ORIG movb $0x0,-0x45（无 continue）
                     }
                     if (!item->IsAvatarItem())
                     {
@@ -248,6 +238,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             __PRETTY_FUNCTION__, 0x86,
                             "AvatarRouletteServer no avatar item_no(%d)", itemNo);
                     }
+                    result = false;   // ORIG movb $0x0,-0x45
                     if (!item->check_job_type(static_cast<char>(job)))
                     {
                         LogManager::logFormat(
@@ -256,6 +247,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             "AvatarRouletteServer item_no(%d) check_job_type(%d)==false",
                             itemNo, job);
                     }
+                    result = false;   // ORIG movb $0x0,-0x45
                     unsigned int itemType = item->GetItemType();
                     if (itemType != static_cast<unsigned int>(type))
                     {
@@ -265,6 +257,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             "AvatarRouletteServer item_no(%d) GetItemType(%d)!=%d",
                             itemNo, itemType, type);
                     }
+                    result = false;   // ORIG movb $0x0,-0x45
                     if (type != 8)
                     {
                         int grade = item->get_grade();
@@ -275,6 +268,8 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                                 __PRETTY_FUNCTION__, 0xa3,
                                 "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
                                 itemNo, grade, 2, static_cast<int>(li));
+                        
+                            result = false;   // ORIG movb $0x0,-0x45
                         }
                         else if (li > 1 && grade != 1)
                         {
@@ -284,6 +279,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                                 "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
                                 itemNo, grade, 1, static_cast<int>(li));
                         }
+                        result = false;   // ORIG movb $0x0,-0x45
                     }
                 }
             }
@@ -303,8 +299,8 @@ bool AvatarRouletteServer::isAvatarPottery(unsigned long itemIdx)
 bool AvatarRouletteServer::InitAddCharacSkill()
 {
     // ORIG 0x0817f386。
-    if (!ctors1::IsEnableAvatarRoulette())
-        return true;
+    if (G_CEnvironment()->m_serverEnvir.m_validateScript)
+    {
 
     for (int job = 0; job < 0xb; ++job)
     {
@@ -318,9 +314,9 @@ bool AvatarRouletteServer::InitAddCharacSkill()
             {
                 if (!(type == 3 && (job == 9 || job == 0)))
                     continue;
-                unsigned long itemNo = inner[type].first;
                 const char* fileName =
-                    g_stEquipmentScriptFileList.GetFileName(static_cast<int>(itemNo));
+                    g_stEquipmentScriptFileList.GetFileName(
+                        static_cast<int>(inner[type].first));
                 if (fileName == 0)
                     continue;
 
@@ -335,19 +331,31 @@ bool AvatarRouletteServer::InitAddCharacSkill()
                     return false;
                 }
                 std::map<int, std::vector<LevelUpSkill> > skillMap;
-                size_t count = eq.m_param1c0.m_avatar264.size();
-                for (size_t idx = 0; idx < count; ++idx)
+                int count = static_cast<int>(eq.m_param1c0.m_avatar264.size());
+                for (int idx = 0; idx < count; ++idx)
                 {
                     LevelUpSkill skill;
                     STAvatarAbilityVariation& var = eq.m_param1c0.m_avatar264[idx];
                     skill.m_job = var.m_skill.m_job;        // 元素 +0xc（内层 map 键，ORIG 0x0817f55d find 用 +0）
                     skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10
                     skill.m_field8 = var.m_skill.m_field8;  // 元素 +0x14
+                    // ORIG：先取 end() 再 find(job)（0x0817f548/0x0817f577），
+                    // find==end 时先插入空 vector，再 push_back。
+                    std::map<int, std::vector<LevelUpSkill> >::iterator itEnd =
+                        skillMap.end();
+                    std::map<int, std::vector<LevelUpSkill> >::iterator it =
+                        skillMap.find(skill.m_job);
+                    if (it == itEnd)
+                    {
+                        std::vector<LevelUpSkill> empty;
+                        skillMap[skill.m_job] = empty;
+                    }
                     skillMap[skill.m_job].push_back(skill);
                 }
-                m_addCharacSkillMap[itemNo] = skillMap;
+                m_addCharacSkillMap[inner[type].first] = skillMap;
             }
         }
+    }
     }
     return true;
 }
@@ -680,7 +688,7 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
     // ORIG 0x08687828：flag←info 首字节；vec8=info.vec4；SetJobAffection(true)；
     // levelKeys←vec10；rewards 写 primary/secondary 两块；messages 经
     // findString 写名字/留言区。
-    m_flag = static_cast<char>(info.m_field0);
+    m_flag = *reinterpret_cast<const char*>(&info.m_field0);   // ORIG movzbl (%eax) 读 1 字节
     m_vec8 = info.m_vec4;
     m_table->SetJobAffection(true);
 

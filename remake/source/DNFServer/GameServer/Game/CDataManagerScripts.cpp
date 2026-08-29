@@ -328,20 +328,11 @@ stSeriaBlessingScript::~stSeriaBlessingScript() {}
 // （0x822aecc）：min==max → lv==min；否则 min<=lv<max。
 bool stSeriaBlessingScript::is_possible_lv(int lv)
 {
-    for (std::map<int, Value>::const_iterator it = m_map0.begin();
-         it != m_map0.end(); ++it)
-    {
-        if (it->second.m_minLv == it->second.m_maxLv)
-        {
-            if (lv == it->second.m_minLv)
-                return true;
-        }
-        else if (it->second.m_minLv <= lv && lv < it->second.m_maxLv)
-        {
-            return true;
-        }
-    }
-    return false;
+    FindOneByLv pred(lv);                     // ORIG：谓词在入口即构造
+    std::map<int, Value>::iterator it = m_map0.begin();
+    std::map<int, Value>::iterator itEnd = m_map0.end();
+    std::map<int, Value>::iterator found = std::find_if(it, itEnd, pred);  // ORIG：返回值独立变量
+    return found != m_map0.end();
 }
 
 // ORIG C1 0x83724f0 / FindCharacStat 0x8693c66：map.find(CharacterKind(job,grow))，
