@@ -536,6 +536,9 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
         GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp",
                                                0x6972),
         true);                                    // -0xa4
+    // ORIG 0x81e9811..0x81e9843：guard << 0x3；guard << GetUID()（消息号+账号ID头）
+    streamGuard << 0x3;
+    streamGuard << static_cast<int>(user->GetUID());
     // 【ABI 镜像】SIG_LOGIN_DATA 偏移字段（SigTypes_D.h 待具名化区：+0x18/+0x84/
     // +0x9c/+0xa0/+0x3905/+0x3a30；+0xa1=m_blackIpCheckBuf、+0x3a34=m_clientVersion、
     // +0x3a38=m_channelRestrictField 已具名可用）
@@ -8427,11 +8430,8 @@ void DisPatcher_GetItem::send(CUser* user, ParamBase& param)
         }
     }
 }
-// ORIG 0x081c35c0 T _ZN18DisPatcher_GetItem7processEP5CUserR8MSG_BASER9ParamBase
-// m_errNo=check_error；>=1 返回 0；<0 LineFunc(0xe5c,pretty,err,acc_id) 返回其值；
-// ==0：反外挂前置（msg.m_17!=1 计 0x3bb；m_15%7!=0 计 0x12f 带 m_11/m_13）→
-// state==5 队伍拾取 / 10 死塔 handlePickupItem / 0xc CBossTowerFunc::GetItem /
-// 8 WarRoom::HandleGetItem / 其它 m_errNo=0x13；未完成路径置 m_errNo=0x7fffffff。
+// ORIG T 0x0889209d（定义 OnlyOrigBatch11.cpp:141）：奇偶门，返回 1=通过 0=失败。
+int checkGetItemPacket(int a, int b, int c);
 int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stGetItemParam& out = static_cast<stGetItemParam&>(param);
@@ -8460,34 +8460,79 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // _ZN15cUserHistoryLog12SetItemXYPosEtt）无头文件声明且全仓无定义：
     // 待补齐后于 addServerHackCnt(0x12f) 之后调用
     // user->m_historyLog.SetItemXYPos(req.m_1a, req.m_1c)。
+    user->m_historyLog.SetItemXYPos(req.m_1a, req.m_1c);   // ORIG 0x81c3731
     int state = user->get_state();
     if (state == 5)
     {
         CParty* party = (CParty*)user->GetParty();
         if (party != 0)
         {
-            if (party->IsAutoCreated())  // thunk 0x822d88c = CParty::IsAutoCreated（nm 实证，非 IsRoutingState）
+            // ORIG 0x81c3782..0x81c3804：GetItemTimeChecker(now, m_1a, m_1c, 0x5dc)
+            // 非 0 且双通道 diff（+0x8e444/+0x8e446）任一 >500 → 计 0x130
+            const unsigned int nowTick =
+                GlobalData::s_systemTime_.getCurTickCount();
+            if (user->GetItemTimeChecker(nowTick, req.m_1a, req.m_1c, 0x5dc) != 0 &&
+                (*reinterpret_cast<unsigned short*>((char*)user + 0x8e444) > 0x1f4 ||
+                 *reinterpret_cast<unsigned short*>((char*)user + 0x8e446) > 0x1f4))
+            {
+                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x130, 1, 0, 0);
+            }
+            // ORIG 0x81c3809..0x81c387d：GetItemSerialChecker(m_1a, m_1c, m_0d)==2 → 计 0x131
+            if (user->GetItemSerialChecker(req.m_1a, req.m_1c, req.m_0d) == 2)
+            {
+                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x131, 1, 0, 0);
+            }
+            // ORIG 0x81c3882..0x81c38a0：IsRoutingState → m_errNo=0xd8
+            if (party->IsRoutingState())
             {
                 out.m_errNo = 0xd8;
                 return 0;
             }
-            // [BLOCKED 依赖缺失] 反外挂三门前置（ORIG asm +0x18f..+0x2bd）：
-            //  1. CUser::GetItemTimeChecker（_ZN5CUser18GetItemTimeCheckerEjttj W 0x082302ac）
-            //     + CUser +0x8e444/+0x8e446 两 short 字段（>500 判定）→ 命中计 0x130；
-            //  2. CUser::GetItemSerialChecker（_ZN5CUser20GetItemSerialCheckerEtti W 0x0823066a，
-            //     参 (m_1a,m_1c,m_0d)==2 → 计 0x131；
-            //  三者均无头文件声明/全仓定义，字段未建模。补齐后依次位于 get_item 之前。
-            // [BLOCKED 依赖缺失] 核心分配链（ORIG asm +0x2e5..+0x56b）：
-            //  CParty::get_item（_ZN6CParty8get_itemEP5CUseribcRiRhRb T 0x85a3b98，
-            //  参 (user,(int)m_0d,m_0f==1,(char)m_10,int&,uchar&,bool&) 返回 bool）
-            //  无任何 TU 定义。其后为：checkGetItemPacket 门（_Z18checkGetItemPacketiii
-            //  T 0x889209d 亦无定义；命中计 0x12e）、CBattle_Field(party+0xb24)::
-            //  get_dungeon_index → G_CDataManager()->find_dungeon(idx) 判空 logFormat
-            //  ("...find_dungeon(%d) fail", 0xf14)、dungeon->m_entryRestrictFlag && pos∈{2,3,4} &&
-            //  出参 bool 为假时 PacketGuard put_header(0,0x56)/put_byte(5)/put_short(
-            //  get_unique_id&0xffff)/put_int(itemId)/finalize(true) 后 GameWorld::
-            //  send_all 广播；结束 m_errNo=0。
-            out.m_errNo = 0x7fffffff;  // get_item 失败路径同款状态码（asm +0x715）
+            int outIdx = 0;
+            unsigned char outH = 0;
+            bool outB = false;
+            if (!party->get_item(user, req.m_0d, req.m_0f == 1, (char)req.m_10,
+                                 outIdx, outH, outB))
+            {
+                out.m_errNo = 0x7fffffff;   // ORIG 0x81c3cd2
+                return 0;
+            }
+            // ORIG 0x81c3912..0x81c39ac：IsAutoCreated || member_count==1 →
+            // checkGetItemPacket(seed, m_11, m_13)==0 → 计 0x12e
+            if (party->IsAutoCreated() || party->get_member_count() == 1)
+            {
+                if (checkGetItemPacket(user->getBackupSeed(),
+                                       req.m_11, req.m_13) == 0)
+                {
+                    hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12e, 1, 0, 0);
+                }
+            }
+            // ORIG 0x81c39b1..0x81c3b2b：CBattle_Field(party+0xb24).get_dungeon_index()
+            // → find_dungeon；null 或 outIdx==-1 → logFormat 0xf14；否则
+            // m_entryRestrictFlag && m_10∈{2,3,4} && !outB → 0x56 包 send_all 广播
+            CBattle_Field* bf =
+                reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+            const int dungeonIdx = bf->get_dungeon_index();
+            CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+            if (dungeon == 0 || outIdx == -1)
+            {
+                LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
+                                      __PRETTY_FUNCTION__, 0xf14,
+                                      "find_dungeon(%d) fail", dungeonIdx);
+            }
+            else if (dungeon->m_entryRestrictFlag != 0 &&
+                     (req.m_10 == 2 || req.m_10 == 3 || req.m_10 == 4) &&
+                     !outB)
+            {
+                PacketGuard packet;
+                packet.put_header(0, 0x56);
+                packet.put_byte(5);
+                packet.put_short((int)(user->get_unique_id() & 0xffff));
+                packet.put_int(outIdx);
+                packet.finalize(true);
+                G_GameWorld()->send_all(packet);
+            }
+            out.m_errNo = 0;
             return 0;
         }
         out.m_errNo = 0x7fffffff;
@@ -8512,9 +8557,10 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (state == 0xc)
     {
-        // [BLOCKED 依赖缺失] Global::CBossTowerFunc::GetItem（ORIG T 0x08146994
-        // _ZN6Global14CBossTowerFunc7GetItemEP5CUseribc，参 (user,m_0d,m_0f==1,(char)m_10)）
-        // 类与函数均未声明、全仓无定义。补齐后调用并按 asm +0x659 置 m_errNo=0x7fffffff。
+        // ORIG 0x81c3bdf..0x81c3c19：CBossTowerFunc::GetItem(user, m_0d, m_0f==1,
+        // (char)m_10)，随后无条件置 m_errNo=0x7fffffff（asm +0x659）
+        Global::CBossTowerFunc::GetItem(user, req.m_0d,
+                                        req.m_0f == 1, (char)req.m_10);
         out.m_errNo = 0x7fffffff;
         return 0;
     }
@@ -9668,6 +9714,12 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         out.m_8 = req.m_11;
         return 0;
+    }
+    if (out.m_errNo < 0)
+    {
+        // ORIG 81c2ffc：LineFunc(0xdcc, pretty, errNo, acc_id) 并返回其值。
+        return LineFunc(0xdcc, __PRETTY_FUNCTION__, out.m_errNo,
+                        user->get_acc_id());
     }
     int state = user->get_state();
     if (state == 5)

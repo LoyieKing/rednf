@@ -242,7 +242,7 @@ bool CMission_winning_count::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_winning_count::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_winCount + 10;
+    return (int)info.m_count >= m_winCount + 10;
 }
 
 bool CMission_winning_count::isSeriesMission() const
@@ -295,7 +295,7 @@ bool CMission_winning_streak::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_winning_streak::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_clear + 10;
+    return (int)info.m_count >= m_clear + 10;
 }
 
 bool CMission_winning_streak::isSeriesMission() const
@@ -362,7 +362,7 @@ bool CMission_join::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_join::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_joinCount + 10;
+    return (int)info.m_count >= m_joinCount + 10;
 }
 
 bool CMission_join::isSeriesMission() const
@@ -417,7 +417,7 @@ bool CMission_kill_count::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_kill_count::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_killCount + 10;
+    return (int)info.m_count >= m_killCount + 10;
 }
 
 bool CMission_kill_count::isSeriesMission() const
@@ -457,7 +457,7 @@ bool CMission_hereafter_join::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_hereafter_join::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_joinCount + 10;
+    return (int)info.m_count >= m_joinCount + 10;
 }
 
 bool CMission_hereafter_join::isSeriesMission() const
@@ -506,7 +506,7 @@ bool CMission_hereafter_winning_count::isClearable(MissionInfo& info,
 bool CMission_hereafter_winning_count::verifyMission(
     const MissionInfo& info) const
 {
-    return (int)info.m_count < m_winCount + 10;
+    return (int)info.m_count >= m_winCount + 10;
 }
 
 bool CMission_hereafter_winning_count::isSeriesMission() const
@@ -547,7 +547,7 @@ bool CMission_remain_hp::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_remain_hp::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_clear + 10;
+    return (int)info.m_count >= m_clear + 10;
 }
 
 bool CMission_remain_hp::isSeriesMission() const
@@ -586,7 +586,7 @@ bool CMission_revenge::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_revenge::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_revengeCount + 10;
+    return (int)info.m_count >= m_revengeCount + 10;
 }
 
 bool CMission_revenge::isSeriesMission() const
@@ -647,7 +647,7 @@ bool CMission_hereafter_kill_count::isClearable(MissionInfo& info,
 bool CMission_hereafter_kill_count::verifyMission(
     const MissionInfo& info) const
 {
-    return (int)info.m_count < m_killCount + 10;
+    return (int)info.m_count >= m_killCount + 10;
 }
 
 bool CMission_hereafter_kill_count::isSeriesMission() const
@@ -693,7 +693,7 @@ bool CMission_kill::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_kill::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_clear + 10;
+    return (int)info.m_count >= m_clear + 10;
 }
 
 bool CMission_kill::isSeriesMission() const
@@ -820,7 +820,7 @@ bool CMission_remains_hp::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_remains_hp::verifyMission(const MissionInfo& info) const
 {
-    return (int)info.m_count < m_clear + 10;
+    return (int)info.m_count >= m_clear + 10;
 }
 
 bool CMission_remains_hp::isSeriesMission() const

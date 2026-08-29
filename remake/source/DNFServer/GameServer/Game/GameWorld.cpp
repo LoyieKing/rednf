@@ -360,14 +360,13 @@ void GameWorld::updateDetailChannelServiceInfo()
             int count = 0;
             switch (user->get_state())
             {
-            case 3:
+            case 0:                    // ORIG 跳转表 case 0 → countMap[0]
                 countMap[0]++;
                 break;
-            case 5:
+            case 1:                    // ORIG case 1 → countMap[1]
                 countMap[1]++;
                 break;
-            case 6:
-            case 7:
+            case 2:                    // ORIG case 2：channel 检查 → 9 / 2
                 if (G_GameWorld()->GetChannelType() == 0xf ||
                     G_GameWorld()->GetChannelType() == 0x10)
                 {
@@ -378,10 +377,10 @@ void GameWorld::updateDetailChannelServiceInfo()
                     countMap[2]++;
                 }
                 break;
-            case 8:
+            case 6:                    // ORIG case 6 → countMap[6]
                 countMap[6]++;
                 break;
-            case 10:
+            case 8:                    // ORIG case 8 → countMap[8]
                 countMap[8]++;
                 break;
             }

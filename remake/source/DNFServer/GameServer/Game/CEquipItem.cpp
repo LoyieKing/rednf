@@ -479,7 +479,7 @@ void CEquipItem::set_item(STEquipmentScript& script)
         // ORIG 依字节偏移读 STEquipmentScript +0x604/+0x608/+0x60c
         //（位于 m_param1c0 对象内，权威头未单独建模）。
         const char* base = (const char*)&script.m_param1c0;
-        m_field1cc = *(const int*)(base + 0x444);
+        m_field1cc = *(const float*)(base + 0x444);
         m_field1d0 = (int)*(const float*)(base + 0x448);
         m_field1d4 = *(const int*)(base + 0x44c);
     }

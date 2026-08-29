@@ -75,9 +75,9 @@ void DB_SaveCerashopAddRestrictType::makeRequest(
         CStreamGuard guard(stream, true);
         guard.operator*()->operator<<(0x340);
         guard.operator*()->operator<<(-1);
-        guard.operator*()->operator<<(info->m_type);
+        guard.operator*()->operator<<((unsigned int)info->m_type);
         guard.operator*()->operator<<(info->m_ipgNo);
-        guard.operator*()->operator<<(head->m_count);
+        guard.operator*()->operator<<((unsigned int)head->m_count);
         guard.operator*()->operator<<((long)head->m_nextDate);
         guard.operator*()->operator<<((long)info->m_end);
         guard.operator*()->operator<<(user->get_acc_id());
@@ -90,9 +90,9 @@ void DB_SaveCerashopAddRestrictType::makeRequest(
         CStreamGuard guard(stream, true);
         guard.operator*()->operator<<(0x340);
         guard.operator*()->operator<<(-1);
-        guard.operator*()->operator<<(info->m_type);
+        guard.operator*()->operator<<((unsigned int)info->m_type);
         guard.operator*()->operator<<(info->m_ipgNo);
-        guard.operator*()->operator<<(head->m_count);
+        guard.operator*()->operator<<((unsigned int)head->m_count);
         guard.operator*()->operator<<((long)head->m_nextDate);
         guard.operator*()->operator<<((long)info->m_end);
         guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());

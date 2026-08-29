@@ -702,17 +702,18 @@ CExpertJobList::~CExpertJobList() {}
 bool CExpertJobList::init()
 {
     // ORIG 0x896d8ec：无空指针检查，直接遍历 g_expertJobScriptFileList 对象。
+    const char* path = 0;   // ORIG -0x1c(%ebp)：循环内最后 path，ETC 失败时作 %s 参数
     for (std::map<int, std::string>::const_iterator it =
              g_expertJobScriptFileList.m_fileMap.begin();
          it != g_expertJobScriptFileList.m_fileMap.end(); ++it)
     {
-        const char* path = it->second.c_str();
+        path = it->second.c_str();
         if (path == 0)
             break;
         STExpertJobScript* script = new STExpertJobScript();
         if (!ImportExpertJobScript(script, path))
         {
-            printf("expert job Script Error: %s\n", path);
+            printf("expert job Script Error: %s", path);
             delete script;
             return false;
         }
@@ -720,7 +721,7 @@ bool CExpertJobList::init()
     }
     if (!ImportExpertJobEtcScript(m_etc, "expertjob.etc"))
     {
-        printf("ExpertJob ETC Script Error\n");
+        printf("ExpertJob ETC Script Error : %s", path);
         return false;
     }
     return true;

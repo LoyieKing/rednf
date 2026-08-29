@@ -191,7 +191,7 @@ public:
     int m_avatarOptionSize;                // +0x1c4
     bool m_randomOption;                   // +0x1c8
     char m_randomGrade;                    // +0x1c9
-    int m_field1cc;                        // +0x1cc
+    float m_field1cc;                      // +0x1cc (ORIG flds 位读)
     int m_field1d0;                        // +0x1d0
     int m_field1d4;                        // +0x1d4
     char m_auraOptionType;                 // +0x1d8

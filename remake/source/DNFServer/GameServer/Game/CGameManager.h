@@ -352,7 +352,7 @@ public:
     int m_creatureItemType;         // +0x08（Reset=1；列表包过滤要求 ==1）
     int m_uid;                      // +0x0c（CCreatureItem::GetUid）
     int m_slotNo;                   // +0x10
-    unsigned char m_noCharge;       // +0x14（Reset=0；IsNoCharge/SetNoCharge）
+    bool m_noCharge;                // +0x14（Reset=0；IsNoCharge/SetNoCharge，ORIG bool 直返）
     unsigned char m_stat;           // +0x15
     char m_pad16[2];                // +0x16
     int m_expireTime;               // +0x18（CCreatureItem::getExpireTime）
@@ -362,11 +362,11 @@ public:
     int m_exp;                      // +0x30（原 m_field30；CalculateExp/包序列化）
     CStomach m_stomach;             // +0x34
     int m_state;                    // +0x3c（原 m_field3c；Reset=2；GetState/SetState）
-    unsigned char m_saveFlag;       // +0x40（原 m_field40；SetState/GainExpCreature=1；IsSave）
+    bool m_saveFlag;                // +0x40（原 m_field40；SetState/GainExpCreature=1；IsSave，ORIG bool 直返）
     unsigned char m_pad41[3];       // +0x41
     CCreatureScript* m_script;     // +0x44（Reset=0）
     int m_creatureId;               // +0x48（原 m_field48；Reset=0；GetCreatureId）
-    unsigned char m_isGrow;        // +0x4c（Reset=1；语义见类注释）
+    bool m_isGrow;                 // +0x4c（Reset=1；ORIG bool 类型，GetStomachValue 直传）
     unsigned char m_field4d;       // +0x4d（Reset=5）
     unsigned char m_pad4e[2];      // +0x4e
     COverSkillTime m_overSkill;    // +0x50

@@ -22,6 +22,35 @@
 #include "CDeathTowerWinPointEvent.h"
 #include "Secu_HackLogCheckByParty.h"   // MSG_MONSTER_DIE 完整定义
 #include "CStatisticServerProxy.h"    // statistc_proxy::add（handlePickupItem 随机选项统计）
+#include "CMonitorServerProxy.h"      // updateTowerRank（_beginTowerClearProcess）
+#include "GlobalData.h"               // s_monitor_proxy_mgr
+#include "CServerProxyMgr.h"          // GetServerProxy 完整定义
+#include "CDeathTowerPlayDataStatistic.h"  // SendDeathTowerPlayInfo
+
+// ---- 死亡塔统计/记录接口（定义见 Store.cpp / OnlyOrigBatch14.cpp / W8LT_DBTask.cpp）----
+enum DEATHTOWER_VALUE_STATISTIC_FIELD
+{
+    DEATHTOWER_VALUE_STATISTIC_FIELD_0 = 0,
+    DEATHTOWER_VALUE_STATISTIC_FIELD_1 = 1,
+    DEATHTOWER_VALUE_STATISTIC_FIELD_9 = 9
+};
+class CDeathTowerValueStatistic
+{
+public:
+    void SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
+                                      char a, char b, unsigned int c);
+};
+extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic();
+class CDeathTowerPlayDataStatistic;
+extern CDeathTowerPlayDataStatistic* GetInstanceDeathTowerPlaydataStatistic();
+class DB_UpdateDeathTowerBestRecord
+{
+public:
+    static void makeRequest(unsigned int characNo, unsigned int accId,
+                            unsigned int memberCount,
+                            const stDeathTowerRecordMemberInfo_t* members,
+                            unsigned int stage, unsigned int playTime);
+};
 
 // ---- CAICharacter / CAICharacterList ----
 // 布局依据 ORIG set 0x0834a066 / ctor 0x08373a9a / 各访问器：
@@ -256,11 +285,8 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
                                        unsigned int stage,
                                        unsigned int playTime)
 {
-    // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查；
-    // 但排行榜表仅 5 座塔（makeDungeonIdx2TowerIdx 对 0x2afd 会得 5，超出 m_towers/
-    // m_rankMap 数组），此处按 checkRenewMyRecord 同款防御返回 -1（【推断】越界保护）。
-    if (towerIdx >= kRankTowerCount)
-        return -1;
+    // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查。
+    // 调用方（rankTable 槽位）保证 towerIdx 在 [0,4]，与 ORIG 保持一致不加防御。
 
     stBestRecord_t newRec;
     newRec.m_stage = stage;
@@ -609,7 +635,7 @@ int CDeathTower::onLeaveUser(CUser* user)
 
 void CDeathTower::_beginTowerClearProcess(bool isLast)
 {
-    if (!(getTowerState() > 2))
+    if (getTowerState() > 2)
         return;
 
     unsigned int memberCnt = m_playData.getStartMemberCnt();
@@ -617,7 +643,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
 
     _onClear(isLast);
 
-    int partyState = m_party->get_party_type();
+    int partyState = m_party->m_partyType;
     if (partyState == 1)
     {
         setTowerState((ENUM_TOWER_STATE)5);
@@ -682,15 +708,71 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         int virtualRank = ((WongWork::CDeathTowerRanking*)rankTable)->getVirtualRank(
             towerIdx, curStage, playTime);
 
-        // Construct result packet (simplified)
-        PacketGuard pkt;
-        pkt.put_header(0, 0x8f);
-        pkt.put_byte(isNewRecord);
-        pkt.put_int(virtualRank);
-        pkt.put_int(curStage);
-        pkt.put_int(playTime);
-        pkt.finalize(true);
-        user->Send(pkt);
+        // ORIG 0x08463f5：notTower = (dungeonIdx != 11000)；随后统计/记录上报
+        char notTower = (char)(dungeonIdx != 0x2af8);
+        GetInstanceDeathTowerPlaydataStatistic()->SendDeathTowerPlayInfo(
+            i, notTower,
+            (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
+            curStage, memberCnt);
+
+        int level = user->get_charac_level();
+        GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+            (DEATHTOWER_VALUE_STATISTIC_FIELD)1, notTower, (char)level, curStage);
+        GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+            (DEATHTOWER_VALUE_STATISTIC_FIELD)0, notTower, (char)level, 1);
+
+        if (result != 0)
+        {
+            DB_UpdateDeathTowerBestRecord::makeRequest(
+                towerIdx, characNo, memberCnt,
+                (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
+                curStage, playTime);
+            if (virtualRank > 0)
+            {
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                    (ENUM_SERVER_GROUP)0)->updateTowerRank(
+                        characNo, towerIdx, memberCnt, virtualRank);
+                ((WongWork::CDeathTowerRanking*)rankTable)->updateRanking(
+                    towerIdx, characNo, virtualRank);
+            }
+            ((WongWork::CDeathTowerRanking*)rankTable)->registBestRecord(
+                towerIdx, (unsigned int)characNo,
+                (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
+                (unsigned int)curStage, playTime);
+        }
+
+        CPacketHandler handler;
+        handler.makeDisplayRangking(
+            memberCnt, characNo, curStage, playTime, (result == 1), dungeonIdx,
+            virtualRank);
+        user->Send(handler);
+
+        // 奖励数量：ORIG 0x08466f5 两套表（limitOfStackableItemInTower 决定）
+        // G_CDataManager + ((0x152c + curStage)*4 + 0xc) / ((0x16bc + curStage)*4 + 0xc)
+        int rewardNumBase;
+        if (m_dungeonMgr.getDungeon()->limitOfStackableItemInTower())
+            rewardNumBase = *(int*)((char*)G_CDataManager() + ((0x152c + curStage) * 4 + 0xc));
+        else
+            rewardNumBase = *(int*)((char*)G_CDataManager() + ((0x16bc + curStage) * 4 + 0xc));
+        int rewardItemNum = rewardNumBase + isNewRecord;
+        int maxReward = m_dungeonMgr.getDungeon()->getTowerMaxClearRewardItemNum();
+        rewardItemNum = std::min(rewardItemNum, maxReward);
+        rewardItemNum = std::min(rewardItemNum, 10);
+
+        int level2 = user->get_charac_level();
+        m_playData.generateRewardItem(i, rewardItemNum, m_dungeonMgr, level2,
+                                      std::min(curStage, 10), m_party);
+
+        unsigned int mobReward = 0;
+        G_CDataManager()->get_mob_reward(level2, mobReward);
+        QuickParty::RewardData_Param rewardParam(m_party);
+        QuickParty::RewardData_Result rewardResult;
+        rewardResult.m_value00 = mobReward;
+        m_party->set_random_reward((QuickParty::RandomBuffType)0, rewardParam,
+                                   rewardResult);
+        mobReward = rewardResult.m_value00;
+
+        m_playData.generateRewardExp(i, curStage, mobReward, m_party, m_dungeonMgr);
     }
 }
 int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsigned short a3, const MSG_MONSTER_DIE& msg, int* a5)

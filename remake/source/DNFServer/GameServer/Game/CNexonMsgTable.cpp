@@ -58,15 +58,15 @@ CNexonMsgTable g_nexonMsgTable;   // ORIG B @0x0945b8e4
 CNexonMsgTable::CNexonMsgTable()   // ORIG T 0x0858001c
 {
     for (int i = 0; i < 0x1c; ++i)
-        m_messages.insert(std::make_pair(msgs[i].key, std::string(msgs[i].str)));
+        m_messages.insert(std::make_pair(msgs[i].key, msgs[i].str));
 }
 
 const char* CNexonMsgTable::GetMessageString(int idx)   // ORIG T 0x0858010c
 {
-    std::map<int, std::string>::const_iterator it = m_messages.find(idx);
-    if (it == m_messages.end())
-        return "";                        // ORIG "" @0x08ca9390
-    return it->second.c_str();
+    std::map<int, std::string>::iterator it = m_messages.find(idx);
+    if (it != m_messages.end())
+        return it->second.c_str();
+    return "";                            // ORIG "" @0x08ca9390
 }
 
 CNexonMsgTable::~CNexonMsgTable()   // ORIG D1/D2 T 0x085800f8（map 成员逆序析构）

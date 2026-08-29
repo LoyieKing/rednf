@@ -3008,7 +3008,7 @@ public:
     Dispatcher_SecurityCardAuthCancel();
     virtual ~Dispatcher_SecurityCardAuthCancel();
     int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user);   // DspD1Fix: ORIG T 0x0820a580 重载（AuthCancel 专用）
+    static int process(CUser* user);   // DspD1Fix: ORIG T 0x0820a580 重载（AuthCancel 专用；ORIG 反汇编只压 user 一参 → static）
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };

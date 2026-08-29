@@ -111,7 +111,7 @@ bool CCreature::SaveCreatureItem(Inven_Item* item,
     item->m_addInfo = m_itemId;                    // *(int*)(item+2)（ORIG mov %edx,0x2(%eax)）
     info->m_slotNo = m_slotNo;                     // GetSlotNo（W 0x833efca）
     info->m_creatureItemType = (unsigned char)m_creatureItemType;  // 低字节 +0x08
-    memcpy(info->m_name, m_name, 0xc);             // ← +0x1c，12B（call memcpy PLT）
+    strncpy(info->m_name, m_name, 0xc);            // ← +0x1c，12B（ORIG call strncpy PLT）
     info->m_noCharge = m_noCharge;                 // +0x14 byte → +0x26
     info->m_stat = m_stat;                         // +0x15 byte → +0x27
     return true;
@@ -138,7 +138,7 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     m_slotNo = info->m_slotNo;                     // → +0x10
     m_creatureItemType = (int)(char)info->m_creatureItemType;  // movsbl 符号扩展
     m_stomach.SetStomachValue((float)info->m_stomachValue);
-    memcpy(m_name, info->m_name, 0xc);             // → +0x1c，12B
+    strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
     if (m_isGrow == 1)
     {
         m_level = GetExpLevel(m_exp);              // 全量 m_exp 参与查级

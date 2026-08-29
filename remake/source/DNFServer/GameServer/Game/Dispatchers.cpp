@@ -30,6 +30,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include <utility>             // std::pair<int,int>
 #include <vector>
 #include "CDataManager.h"            // G_CDataManager / find_item
+#include "../../../shared/packet/include/Packet_P2P_Statistics.h"  // shared 权威（ORIG ctor @0x0822c696）
 #include "CDataManager.h"       // G_CDataManager / find_skill
 #include "CGameManager.h"            // MSG_CHECK_MAIL_RECEIVER（set<type,T> 模板）
 #include "CGuildServerProxy.h"       // CGuildServerProxy::SendGuildMail
@@ -7341,34 +7342,6 @@ public:
         m_count(0), m_type(0) {}
 } __attribute__((packed));
 
-class P2P_Statistics_PacketView : public PacketHeader
-{
-public:
-    int m_p2pNum;              // +0x0a = (signed char)msg+0x0d - (signed char)msg+0x0e
-    int m_relayNum;            // +0x0e = (signed char)msg+0x0e
-    unsigned char m_group;     // +0x12 = CUser::GetServerGroup
-    short m_p2pMin;            // +0x13 ← msg+0x10
-    short m_p2pMax;            // +0x15 ← msg+0x12
-    short m_p2pAvg;            // +0x17 ← msg+0x14
-    int m_p2p100;              // +0x19 ← msg+0x18
-    int m_p2p200;              // +0x1d ← msg+0x1c
-    int m_p2p300;              // +0x21 ← msg+0x20
-    int m_p2p400;              // +0x25 ← msg+0x24
-    short m_relayMin;          // +0x29 ← msg+0x28
-    short m_relayMax;          // +0x2b ← msg+0x2a
-    short m_relayAvg;          // +0x2d ← msg+0x2c
-    int m_relay100;            // +0x2f ← msg+0x30
-    int m_relay200;            // +0x33 ← msg+0x34
-    int m_relay300;            // +0x37 ← msg+0x38
-    int m_relay400;            // +0x3b ← msg+0x3c
-    P2P_Statistics_PacketView() : PacketHeader(0x27e1, 0x3f),
-        m_p2pNum(0), m_relayNum(0), m_group(0),
-        m_p2pMin(0), m_p2pMax(0), m_p2pAvg(0),
-        m_p2p100(0), m_p2p200(0), m_p2p300(0), m_p2p400(0),
-        m_relayMin(0), m_relayMax(0), m_relayAvg(0),
-        m_relay100(0), m_relay200(0), m_relay300(0), m_relay400(0) {}
-} __attribute__((packed));
-
 // ===== Dispatcher_GuildCargoPopItem::process ===== ORIG 0x081d15b2 (0x195)
 // 报告 Dispatcher_GuildCargoPopItem/process.md 全文转写。
 int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -7376,24 +7349,24 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     (void)param;                                                // ORIG 不读写 param
     MSG_P2P_STATISTICS& req = static_cast<MSG_P2P_STATISTICS&>(msg);
 
-    P2P_Statistics_PacketView pkt;
-    pkt.m_p2pNum = (int)(signed char)req.m_0d - (int)(signed char)req.m_0e;  // +0x0a
-    pkt.m_relayNum = (int)(signed char)req.m_0e;                // +0x0e
-    pkt.m_group = (unsigned char)user->GetServerGroup();        // +0x12（GetServerGroup @0x080cbc90）
-    pkt.m_p2pMin = req.m_10;                                    // +0x13 ← msg+0x10
-    pkt.m_p2pMax = req.m_12;                                    // +0x15 ← msg+0x12
-    pkt.m_p2pAvg = req.m_14;                                    // +0x17 ← msg+0x14
-    pkt.m_p2p100 = req.m_18;                                    // +0x19 ← msg+0x18
-    pkt.m_p2p200 = req.m_1c;                                    // +0x1d ← msg+0x1c
-    pkt.m_p2p300 = req.m_20;                                    // +0x21 ← msg+0x20
-    pkt.m_p2p400 = req.m_24;                                    // +0x25 ← msg+0x24
-    pkt.m_relayMin = req.m_28;                                  // +0x29 ← msg+0x28
-    pkt.m_relayMax = req.m_2a;                                  // +0x2b ← msg+0x2a
-    pkt.m_relayAvg = req.m_2c;                                  // +0x2d ← msg+0x2c
-    pkt.m_relay100 = req.m_30;                                  // +0x2f ← msg+0x30
-    pkt.m_relay200 = req.m_34;                                  // +0x33 ← msg+0x34
-    pkt.m_relay300 = req.m_38;                                  // +0x37 ← msg+0x38
-    pkt.m_relay400 = req.m_3c;                                  // +0x3b ← msg+0x3c
+    Packet_P2P_Statistics pkt;
+    pkt.m_p2pUser = (int)(signed char)req.m_0d - (int)(signed char)req.m_0e;  // +0x0a
+    pkt.m_relayUser = (int)(signed char)req.m_0e;               // +0x0e
+    pkt.m_serverGroup = (unsigned char)user->GetServerGroup();  // +0x12（GetServerGroup @0x080cbc90）
+    pkt.m_p2pMinPing = req.m_10;                                // +0x13 ← msg+0x10
+    pkt.m_p2pMaxPing = req.m_12;                                // +0x15 ← msg+0x12
+    pkt.m_p2pAvgPing = req.m_14;                                // +0x17 ← msg+0x14
+    pkt.m_p2pOverPing100 = req.m_18;                            // +0x19 ← msg+0x18
+    pkt.m_p2pOverPing200 = req.m_1c;                            // +0x1d ← msg+0x1c
+    pkt.m_p2pOverPing300 = req.m_20;                            // +0x21 ← msg+0x20
+    pkt.m_p2pOverPing400 = req.m_24;                            // +0x25 ← msg+0x24
+    pkt.m_relayMinPing = req.m_28;                              // +0x29 ← msg+0x28
+    pkt.m_relayMaxPing = req.m_2a;                              // +0x2b ← msg+0x2a
+    pkt.m_relayAvgPing = req.m_2c;                              // +0x2d ← msg+0x2c
+    pkt.m_relayOverPing100 = req.m_30;                          // +0x2f ← msg+0x30
+    pkt.m_relayOverPing200 = req.m_34;                          // +0x33 ← msg+0x34
+    pkt.m_relayOverPing300 = req.m_38;                          // +0x37 ← msg+0x38
+    pkt.m_relayOverPing400 = req.m_3c;                          // +0x3b ← msg+0x3c
 
     cMyTrace trace1(__PRETTY_FUNCTION__,
                     0x5953, 0);
@@ -7402,12 +7375,12 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     cMyTrace trace2(__PRETTY_FUNCTION__,
                     0x5954, 0);
     trace2("num(%d) min(%d) max(%d), avg(%d), 100(%u), 200(%u), 300(%u), 400(%u)",
-           (int)pkt.m_p2pNum,                                   // num=diff（ORIG ebx=-0x91）
-           (int)pkt.m_p2pMin,                                   // min（movswl 符号扩展）
-           (int)pkt.m_p2pMax,                                   // max
-           (int)pkt.m_p2pAvg,                                   // avg
-           (unsigned int)pkt.m_p2p100, (unsigned int)pkt.m_p2p200,
-           (unsigned int)pkt.m_p2p300, (unsigned int)pkt.m_p2p400);
+           (int)pkt.m_p2pUser,                                  // num=diff（ORIG ebx=-0x91）
+           (int)pkt.m_p2pMinPing,                               // min（movswl 符号扩展）
+           (int)pkt.m_p2pMaxPing,                               // max
+           (int)pkt.m_p2pAvgPing,                               // avg
+           (unsigned int)pkt.m_p2pOverPing100, (unsigned int)pkt.m_p2pOverPing200,
+           (unsigned int)pkt.m_p2pOverPing300, (unsigned int)pkt.m_p2pOverPing400);
 
     cMyTrace trace3(__PRETTY_FUNCTION__,
                     0x595e, 0);
@@ -7416,10 +7389,10 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     cMyTrace trace4(__PRETTY_FUNCTION__,
                     0x595f, 0);
     trace4("num(%d) min(%d) max(%d), avg(%d), 100(%u), 200(%u), 300(%u), 400(%u)",
-           (int)pkt.m_relayNum,                                 // num（ORIG ebx=-0x8d=(char)msg+0x0e）
-           (int)pkt.m_relayMin, (int)pkt.m_relayMax, (int)pkt.m_relayAvg,
-           (unsigned int)pkt.m_relay100, (unsigned int)pkt.m_relay200,
-           (unsigned int)pkt.m_relay300, (unsigned int)pkt.m_relay400);
+           (int)pkt.m_relayUser,                                // num（ORIG ebx=-0x8d=(char)msg+0x0e）
+           (int)pkt.m_relayMinPing, (int)pkt.m_relayMaxPing, (int)pkt.m_relayAvgPing,
+           (unsigned int)pkt.m_relayOverPing100, (unsigned int)pkt.m_relayOverPing200,
+           (unsigned int)pkt.m_relayOverPing300, (unsigned int)pkt.m_relayOverPing400);
 
     CStatisticServerProxy* proxy = GlobalData::s_statistic_proxy_mgr->GetServerProxy(
         (ENUM_SERVER_GROUP)0);                                  // ORIG GetServerProxy(mgr,0)
@@ -12918,13 +12891,13 @@ int Dispatcher_ValidateScriptHash::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_ValidateScriptHash::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_SCRIPT_HASH& req = static_cast<MSG_SCRIPT_HASH&>(msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(&req.m_field0d)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field0d)))
     {
         return LineFunc(0x37d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(&req.m_field0e)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field0e)))
     {
         return LineFunc(0x382,
                         __PRETTY_FUNCTION__,
@@ -13657,9 +13630,9 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->CheckInTrade())
         return 0;
 
-    short slotA = 0;                       // 目标装备槽位
-    unsigned short paySlot = 0;            // 支付槽位（0xffff=金币）
-    if (!packet.get_short((unsigned short&)slotA))
+    short slotA = 0;                       // 目标装备槽位（ORIG get_short(short&)）
+    unsigned short paySlot = 0;            // 支付槽位（0xffff=金币，ORIG get_short(unsigned short&)）
+    if (!packet.get_short(slotA))
         return LineFunc(0xe67c,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -21044,31 +21017,32 @@ int Dispatcher_AvartarRoulette::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 7);
         return 0;
     }
-    unsigned char buf[3];
-    memset(buf, 0, sizeof(buf));
-    if (packet.get_byte(buf[0]) != 1)
+    arad::SigAvatarRoulette sig;      // ORIG 栈 -0xb，C1 清 3 字节
+    if (packet.get_byte(sig.m_type) != 1)
     {
         return 0x32f;
     }
-    if (packet.get_byte(buf[1]) != 1)
+    if (packet.get_byte(sig.m_slotIdx) != 1)
     {
         return 0x331;
     }
-    if (buf[0] >= 0xb)
+    if (sig.m_type > 0xa)
     {
         return 0x334;
     }
-    if (buf[1] >= 10)
+    if (sig.m_slotIdx > 9)
     {
         return 0x337;
     }
-    // [推断] checkWorkState（ServiceRestrictManager::isRestricted /
-    // CSecu_ProtectionField::Check / EmblemCompoundServer 等未建模）暂按通过。
+    if (!checkWorkState(user, sig))
+    {
+        return 0;
+    }
     Stream* stream = GlobalData::s_stream_pool->Acquire(
         "localjapan/Arad_PacketDispatcher.cpp", 0x347);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2c, (int)user->GetUID());
-    guard.put_binary(buf, 3);
+    guard.put_binary((void*)&sig, 3);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21121,8 +21095,7 @@ int Dispatcher_AradAvatarConvert::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    if (user->get_state() <= 2 || user->get_state() > 4)
     {
         return 0;
     }
@@ -21136,32 +21109,36 @@ int Dispatcher_AradAvatarConvert::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 7);
         return 0;
     }
-    // [推断] CUser::isEnableAvatarSocketAction 未建模，按 0（允许）处理。
-    unsigned char buf[0xe];
-    memset(buf, 0, sizeof(buf));
-    short s0 = 0, s1 = 0;
-    if (packet.get_short(s0) != 1)
+    const int avatarSocketErr = user->isEnableAvatarSocketAction();
+    if (avatarSocketErr != 0)
+    {
+        user->SendCmdErrorPacket(
+            (ENUM_CMDPACKET)0x24f,
+            (unsigned char)(avatarSocketErr & 0xff));
+        return 0;
+    }
+    arad::SigAradAvatarConvert sig;      // ORIG 栈 -0x1a，C1 清 0x10
+    if (packet.get_short(sig.m_selectNo) != 1)
     {
         return 0x76d;
     }
-    if (packet.get_short(s1) != 1)
+    if (packet.get_short(*reinterpret_cast<unsigned short*>(&sig.m_slot)) != 1)
     {
         return 0x771;
     }
-    int i0 = 0;
-    if (packet.get_int(i0) != 1)
+    if (packet.get_int(*reinterpret_cast<unsigned long*>(&sig.m_itemId)) != 1)
     {
         return 0x775;
     }
-    *(short*)&buf[0] = s0;
-    *(short*)&buf[2] = s1;
-    *(int*)&buf[4] = i0;
-    // [推断] checkWorkState 安全检查（未建模）暂按通过。
+    if (!checkWorkState(user, sig))
+    {
+        return 0;
+    }
     Stream* stream = GlobalData::s_stream_pool->Acquire(
         "localjapan/Arad_PacketDispatcher.cpp", 0x780);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x33, (int)user->GetUID());
-    guard.put_binary(buf, 0xe);
+    guard.put_binary((void*)&sig, 0xe);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21190,8 +21167,7 @@ int Dispatcher_AradEmblemCompound::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    if (user->get_state() <= 2 || user->get_state() > 4)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 7);
         return 0;
@@ -21206,33 +21182,36 @@ int Dispatcher_AradEmblemCompound::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 7);
         return 0;
     }
-    // [推断] CUser::isEnableAvatarSocketAction 未建模，按 0（允许）处理。
-    unsigned char buf[0x16];
-    memset(buf, 0, sizeof(buf));
-    short s0 = 0, s1 = 0, s2 = 0;
-    if (packet.get_short(s0) != 1)
+    const int avatarSocketErr = user->isEnableAvatarSocketAction();
+    if (avatarSocketErr != 0)
+    {
+        user->SendCmdErrorPacket(
+            (ENUM_CMDPACKET)0x24e,
+            (unsigned char)(avatarSocketErr & 0xff));
+        return 0;
+    }
+    arad::SigAradEmblemCompound sig;     // ORIG 栈 -0x22，C1 清 0x18
+    if (packet.get_short(sig.m_slot0) != 1)
     {
         return 0x713;
     }
-    if (packet.get_short(s1) != 1)
+    if (packet.get_short(sig.m_slot1) != 1)
     {
         return 0x717;
     }
-    if (packet.get_short(s2) != 1)
+    if (packet.get_short(sig.m_selectIdx) != 1)
     {
         return 0x71b;
     }
-    *(short*)&buf[0] = s0;
-    *(short*)&buf[2] = s1;
-    *(short*)&buf[4] = s2;
-    // [推断] checkWorkState（ServiceRestrictManager::isRestricted /
-    // CSecu_ProtectionField::Check / EmblemCompoundServer::CheckCondition 未建模）
-    // 暂按通过。
+    if (!checkWorkState(user, sig))
+    {
+        return 0;
+    }
     Stream* stream = GlobalData::s_stream_pool->Acquire(
         "localjapan/Arad_PacketDispatcher.cpp", 0x723);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x32, (int)user->GetUID());
-    guard.put_binary(buf, 0x16);
+    guard.put_binary((void*)&sig, 0x16);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21336,8 +21315,7 @@ int Dispatcher_AradUseAvatarRecharge::dispatch_sig(CUser* user, PacketBuf& packe
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    if (user->get_state() <= 2 || user->get_state() > 4)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 7);
         return 0;
@@ -21352,25 +21330,25 @@ int Dispatcher_AradUseAvatarRecharge::dispatch_sig(CUser* user, PacketBuf& packe
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 7);
         return 0;
     }
-    unsigned char buf[0x10];
-    memset(buf, 0, sizeof(buf));
-    short s0 = 0, s1 = 0;
-    if (packet.get_short(s0) != 1)
+    arad::SigAradUseAvatarRecharge sig;  // ORIG 栈 -0x18，C1 清 0x10
+    // ORIG 读序：先 sig+0x02（stoneSlot），后 sig+0x00（avatarSlot）。
+    if (packet.get_short(sig.stoneSlot) != 1)
     {
         return 0x6b6;
     }
-    if (packet.get_short(s1) != 1)
+    if (packet.get_short(sig.avatarSlot) != 1)
     {
         return 0x6ba;
     }
-    *(short*)&buf[0] = s0;
-    *(short*)&buf[2] = s1;
-    // [推断] checkWorkState（未建模）暂按通过。
+    if (!checkWorkState(user, sig))
+    {
+        return 0;
+    }
     Stream* stream = GlobalData::s_stream_pool->Acquire(
         "localjapan/Arad_PacketDispatcher.cpp", 0x6c2);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x30, (int)user->GetUID());
-    guard.put_binary(buf, 0x10);
+    guard.put_binary((void*)&sig, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21440,8 +21418,7 @@ int Dispatcher_AvartarHiddenOptionChange::dispatch_sig(CUser* user, PacketBuf& p
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    if (user->get_state() <= 2 || user->get_state() > 4)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 7);
         return 0;
@@ -21456,25 +21433,24 @@ int Dispatcher_AvartarHiddenOptionChange::dispatch_sig(CUser* user, PacketBuf& p
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 7);
         return 0;
     }
-    unsigned char buf[6];
-    memset(buf, 0, sizeof(buf));
-    short s0 = 0, s1 = 0;
-    if (packet.get_short(s0) != 1)
+    arad::SigAvatarHiddenOptionChange sig;  // ORIG 栈 -0xe，C1 清 6 字节
+    if (packet.get_short(sig.m_materialSlot) != 1)
     {
         return 0x64d;
     }
-    if (packet.get_short(s1) != 1)
+    if (packet.get_short(sig.m_avatarSlot) != 1)
     {
         return 0x651;
     }
-    *(short*)&buf[0] = s0;
-    *(short*)&buf[2] = s1;
-    // [推断] checkWorkState（未建模）暂按通过。
+    if (!checkWorkState(user, sig))
+    {
+        return 0;
+    }
     Stream* stream = GlobalData::s_stream_pool->Acquire(
         "localjapan/Arad_PacketDispatcher.cpp", 0x659);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2e, (int)user->GetUID());
-    guard.put_binary(buf, 6);
+    guard.put_binary((void*)&sig, 6);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -23200,8 +23176,8 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
     {
         packet.put_byte(1);
         packet.put_byte(static_cast<int>(out.m_output.m_deleted.size()));
-        std::vector<InstanceRentalSystem::DeletedRentItem>::iterator it;
-        for (it = out.m_output.m_deleted.begin();
+        for (std::vector<InstanceRentalSystem::DeletedRentItem>::iterator it =
+                 out.m_output.m_deleted.begin();
              it != out.m_output.m_deleted.end(); ++it)
         {
             short slot = static_cast<short>(it->m_slot);              // +0x02
@@ -23234,8 +23210,8 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
         infoPacket.put_header(0, 0xe);                   // class=0 cmd=0xe 租借列表刷新
         infoPacket.put_byte(0);
         infoPacket.put_short(static_cast<int>(out.m_output.m_infos.size()));
-        std::vector<InstanceRentalSystem::RentalInfo>::iterator it;
-        for (it = out.m_output.m_infos.begin();
+        for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it =
+                 out.m_output.m_infos.begin();
              it != out.m_output.m_infos.end(); ++it)
         {
             const CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
@@ -24340,14 +24316,15 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     packet.finalize(true);
     user->Send(packet);
 
-    user->getCurCharacInvenW()->SendAvatarEvent(
-        0x31a, targetItem.m_addInfo, dye.m_vec4[0].first, 0, 0);
-
-    /* BLOCKED: cUserHistoryLog::UseDye _ZN15cUserHistoryLog6UseDyeEiiRKSsii @0x08686cba
-       —— HistoryLog.h 无该声明。ORIG 实参：
-       ((cUserHistoryLog*)((char*)user + 0x79700))->UseDye(
-           dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
-           std::string(avatar->GetIPGAgencyNo()), req.m_10); */
+    /* ORIG 0x81e6fed..0x81e7062：GetAvatarInfo(targetItem.m_addInfo) →
+       UseDye(dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
+       string(GetIPGAgencyNo()), req.m_10)（cUserHistoryLog @ user+0x79700）。 */
+    WongWork::Avatar_Item* avatar =
+        user->getCurCharacInvenW()->GetAvatarItemMgrR()->GetAvatarInfo(
+            targetItem.m_addInfo);
+    user->m_historyLog.UseDye(
+        dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
+        std::string(avatar->GetIPGAgencyNo()), req.m_10);
     return 0;
 }
 

@@ -11,6 +11,10 @@
 
 #include "DNFLexWrapper.h"
 
+#include <stdio.h>
+
+#include "LogManager.h"
+
 // SetLightServerFlag（ORIG 0x8a8cba5，_Z18SetLightServerFlagb）定义于
 // CDataManagerScripts.cpp；此处仅声明供本 TU 真实调用。
 void SetLightServerFlag(bool flag);
@@ -783,13 +787,21 @@ void anchorServerParameterScriptWMembers()
     (void)g_spsVecGetter;
 }
 // ============================================================================
-// importServerParameterScript —— ORIG T 0x08a870b7（0x51d4 字节大函数，
-// 逐节 [xxx] 分派 + ScanInt 装载；完整逐指令还原超出本批可达报告范围）。
-// 本实现为真实 RDAR 脚本装载（loadRDARScriptFile/ScanType/ScanInt 真实
-// helper，非 asm 桥；DNFLexWrapperHelpers.cpp 提供），节分派与成员写入
-// 依历史批次（OrigServerParam 简化版，2026-08 曾以 extern "C" asm 桥实现，
-// 桥清零后由本版本替代）恢复；[lotto]/[exp bonus] 节保持真实语义。
 // ============================================================================
+// importServerParameterScript —— ORIG T 0x08a870b7（0x51d4 字节，4616 insn）。
+// 按 docs/class_func_reports/_lt_global_gt_/importServerParameterScript.md
+// （Ghidra 伪 C + 汇编）逐节 [xxx] 分派完整转写。分支名与写入偏移以 ORIG
+// 汇编为准（Ghidra 伪 C 在 [training seal give]/[pvp channel grade penalty]/
+// [training first give] 三节错位，已按汇编 0x8a8af11/0x8a8b004/0x8a8b115 修正：
+// seal give→m_map4994 2-int 循环、grade penalty→m_map497c 2-int 循环、
+// first give→PvPPlayerKey 复杂结构 + m_map49c4 计数）。
+// 未命名偏移区（0x34c/0x350、0x5b0..0x5bc、0x5c0 疲劳电池表、0x764..0x768、
+// 0x4898/0x493c..0x4950 等）按 ORIG 裸偏移写入，注释标注对应节名。
+// ============================================================================
+unsigned int g_new_scriptVersion;   // ORIG B 0x0949b298（仅本函数写入）
+
+int GetEquipmentTypeStringToEnum(std::string& type);   // CStackableItem.cpp
+
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
@@ -800,37 +812,1794 @@ bool importServerParameterScript(ServerParameterScript* script,
     script->clear();
     std::string line;
     bool ok = false;
-    int value = 0;
+    bool missed = false;
+    char* base = reinterpret_cast<char*>(script);
     while (ScanType(line, true))
     {
-        if (line == "[lotto]")
+        missed = false;
+        if (line == "[nation code]")
         {
-            ok = false;
-            value = ScanInt(&ok);
-            if (ok)
+            ScanInt((bool*)0);
+        }
+        else if (line == "[script version]")
+        {
+            script->m_358 = (unsigned int)ScanInt((bool*)0);
+            g_new_scriptVersion = script->m_358;
+        }
+        else if (line == "[version]")
+        {
+            for (int i = 0; i < 4; ++i)
             {
-                script->m_7b8 = value;
-            }
-            ok = false;
-            value = ScanInt(&ok);
-            if (ok)
-            {
-                script->m_7bc = value;
+                script->m_versionBytes[i] = (unsigned char)ScanInt((bool*)0);
             }
         }
-        else if (line == "[exp bonus]")
+        else if (line == "[clear exp bonusrate]")
+        {
+            script->m_expRate360[0] = ScanFloat((bool*)0);
+        }
+        else if (line == "[monster exp bonusrate]")
+        {
+            script->m_expRate360[1] = ScanFloat((bool*)0);
+        }
+        else if (line == "[party user number exp bonusrate]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_expGroup368[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[party user number exp bonusrate starter server]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_expGroup378[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[quest item drop bonus starter server]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_expGroup388[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[dungeon difficulty exp bonusrate]")
         {
             for (int i = 0; i < 5; ++i)
             {
+                script->m_monsterExpTable398[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[clear rank exp bonusrate]")
+        {
+            for (int i = 0; i < 5; ++i)
+            {
+                script->m_expBonusWeight3ac[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[drop prob number]")
+        {
+            script->m_genRefs0.resize((unsigned int)ScanInt((bool*)0));
+        }
+        else if (line == "[drop prob]")
+        {
+            for (int i = 0; i < (int)script->m_genRefs0.size(); ++i)
+            {
+                sItemGenRef& r = script->m_genRefs0[i];
+                r.m_field0 = ScanInt((bool*)0);
+                r.m_field4 = ScanInt((bool*)0);
+                r.m_field8 = ScanInt((bool*)0);
+                r.m_fieldc = ScanInt((bool*)0);
+                r.m_dropRate = 1000;
+            }
+        }
+        else if (line == "[dungeon difficulty drop bonusrate]")
+        {
+            for (int i = 0; i < 5; ++i)
+            {
+                script->m_floatPool3cc[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[party user number drop bonusrate]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_floatPool3e0[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[drop bonusrate of monster kind]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_flagExpRate3f0[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[result reward prob number]")
+        {
+            script->m_genRefs1.resize((unsigned int)ScanInt((bool*)0));
+        }
+        else if (line == "[result reward prob]")
+        {
+            for (int i = 0; i < (int)script->m_genRefs1.size(); ++i)
+            {
+                sItemGenRef& r = script->m_genRefs1[i];
+                r.m_field0 = ScanInt((bool*)0);
+                r.m_field4 = ScanInt((bool*)0);
+                r.m_field8 = 0;
+                r.m_fieldc = ScanInt((bool*)0);
+                r.m_dropRate = 1000;
+            }
+        }
+        else if (line == "[dungeon difficulty reward bonusrate]")
+        {
+            for (int i = 0; i < 5; ++i)
+            {
+                script->m_floatPool40c[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[party user number reward bonusrate]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_floatPool420[i] = ScanFloat((bool*)0);
+            }
+        }
+        else if (line == "[basis of item dicision]")
+        {
+            script->m_430 = ScanInt((bool*)0);
+        }
+        else if (line == "[basis of equipment rarity dicision]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_ints434[i] = ScanInt((bool*)0);
+            }
+        }
+        else if (line == "[basis of stackable rarity dicision]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                script->m_ints444[i] = ScanInt((bool*)0);
+            }
+        }
+        else if (line == "[stamina recovery cost]")
+        {
+            script->m_vec57c.clear();
+            while (true)
+            {
                 ok = false;
-                value = ScanInt(&ok);
+                int v = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                script->m_expBonusWeight3ac[i] = (float)value;
+                script->m_vec57c.push_back(v);
             }
         }
+        else if (line == "[increase abuse point]")
+        {
+            *(int*)(base + 0x5b0) = ScanInt(&ok);
+        }
+        else if (line == "[decrease abuse point]")
+        {
+            *(int*)(base + 0x5b4) = ScanInt(&ok);
+        }
+        else if (line == "[abuse point penalty]")
+        {
+            *(int*)(base + 0x5b8) = ScanInt(&ok);
+        }
+        else if (line == "[decrease experience point]")
+        {
+            *(int*)(base + 0x5bc) = ScanInt(&ok);
+        }
+        else if (line == "[upgrade with legacy]")
+        {
+            script->m_508[8] = ScanInt((bool*)0);
+            script->m_508[9] = ScanInt((bool*)0);
+            script->m_508[10] = ScanInt((bool*)0);
+            script->m_508[11] = (script->m_508[9] - script->m_508[8]) * 1000 + 999;
+            script->m_508[12] = ScanInt((bool*)0);
+            script->m_508[13] = ScanInt((bool*)0);
+            script->m_508[14] = ScanInt((bool*)0);
+            script->m_508[15] = (script->m_508[13] - script->m_508[12]) * 1000 + 999;
+            script->m_508[16] = ScanInt((bool*)0);
+            script->m_508[17] = ScanInt((bool*)0);
+            script->m_508[18] = ScanInt((bool*)0);
+            script->m_508[19] = (script->m_508[17] - script->m_508[16]) * 1000 + 999;
+        }
+        else if (line == "[notice legacy with rarity]")
+        {
+            ok = false;
+            int v = ScanInt(&ok);
+            if (!ok)
+            {
+                LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
+                                      "importServerParameterScript", 400,
+                                      "importUpgradeTable - invalid notice legacy with rarity tag");
+            }
+            script->m_558 = v;
+        }
+        else if (line == "[notice legacy with type]")
+        {
+            memset(base + 0x55c, 0, 0x1a);
+            std::string s;
+            while (ScanStr(&s))
+            {
+                int idx = GetEquipmentTypeStringToEnum(s);
+                base[0x55c + idx] = 1;
+            }
+        }
+        else if (line == "[notice legacy with upgrade]")
+        {
+            ok = false;
+            int v = ScanInt(&ok);
+            if (!ok)
+            {
+                LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
+                                      "importServerParameterScript", 0x1a7,
+                                      "importUpgradeTable - invalid notice legacy with upgrade tag");
+            }
+            script->m_578 = v;
+        }
+        else if (line == "[collect dungeon statistic server]")
+        {
+            while (true)
+            {
+                stServerIndex key;
+                ok = false;
+                key.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                key.m_field4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map0[key] = true;
+            }
+        }
+        else if (line == "[light server no]")
+        {
+            while (true)
+            {
+                ok = false;
+                int v = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_map24[v] = true;
+            }
+        }
+        else if (line == "[burning fatigue event param]")
+        {
+            while (true)
+            {
+                stBurningFatigueParam_t p;
+                ok = false;
+                p.m_level = (unsigned short)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                p.m_bonusExpRate = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_refillFatigue = (unsigned short)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field0c = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field10 = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field14 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field18[0] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field18[1] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field18[2] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field18[3] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_burning48c.push_back(p);
+            }
+        }
+        else if (line == "[fatigue event param]")
+        {
+            while (true)
+            {
+                stFatigueEventParam_t p;
+                ok = false;
+                p.m_field0 = (unsigned short)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                p.m_field4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field8 = (unsigned char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_field9 = (unsigned char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_fielda = (unsigned char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                p.m_fieldb = (unsigned char)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_fatigue4a8.push_back(p);
+            }
+        }
+        else if (line == "[light server notice]")
+        {
+            while (true)
+            {
+                stLightServerNotice_t n;
+                ok = false;
+                n.m_hour = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                n.m_min = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                if (!ScanStr(&n.m_message))
+                {
+                    return 0;
+                }
+                script->m_light3c.push_back(n);
+            }
+        }
+        else if (line == "[assault cost]")
+        {
+            script->m_vec588.clear();
+            while (true)
+            {
+                ok = false;
+                int v = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_vec588.push_back(v);
+            }
+        }
+        else if (line == "[assault channel]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_vec18.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[assault user runaway notice]")
+        {
+            ok = false;
+            if (!ScanStr(&script->m_str594))
+            {
+                return 0;
+            }
+        }
+        else if (line == "[assault term panalty]")
+        {
+            script->m_598 = ScanInt((bool*)0);
+        }
+        else if (line == "[assault term panalty keep up time]")
+        {
+            script->m_59c = ScanInt((bool*)0);
+        }
+        else if (line == "[assault level panalty]")
+        {
+            *(float*)(base + 0x5a0) = ScanFloat((bool*)0);
+        }
+        else if (line == "[assault chaos point weight]")
+        {
+            script->m_float5a4.clear();
+            while (true)
+            {
+                ok = false;
+                float v = ScanFloat(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                if (script->m_float5a4.size() == 0)
+                {
+                    for (int i = 0; i < 2; ++i)
+                    {
+                        script->m_float5a4.push_back(v);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < 5; ++i)
+                    {
+                        script->m_float5a4.push_back(v);
+                        if (script->m_float5a4.size() > 99)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else if (line == "[luck point]")
+        {
+            while (true)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                if (!ok)
+                {
+                    break;
+                }
+                stLuckPoint_t p;
+                ok = false;
+                p.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                p.m_field1 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_luck48.push_back(p);
+            }
+        }
+        else if (line == "[luck point deduction rare]")
+        {
+            while (true)
+            {
+                stLuckPointDeduction_t p;
+                ok = false;
+                int level = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                p.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                p.m_levels.reserve(4);
+                for (int i = 0; i < 4; ++i)
+                {
+                    ok = false;
+                    int v = ScanInt(&ok);
+                    p.m_levels.push_back(v);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                }
+                (void)level;
+                script->m_luckDed54.push_back(p);
+            }
+        }
+        else if (line == "[luck point deduction unique]")
+        {
+            while (true)
+            {
+                stLuckPointDeduction_t p;
+                ok = false;
+                int level = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                p.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                p.m_levels.reserve(4);
+                for (int i = 0; i < 4; ++i)
+                {
+                    ok = false;
+                    int v = ScanInt(&ok);
+                    p.m_levels.push_back(v);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                }
+                (void)level;
+                script->m_luckDed60.push_back(p);
+            }
+        }
+        else if (line == "[luck point deduction gap]")
+        {
+            script->m_vec6c.reserve(4);
+            for (int i = 0; i < 3; ++i)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int v = ScanInt(&ok);
+                script->m_vec6c.push_back(v);
+                if (!ok)
+                {
+                    return 0;
+                }
+            }
+            ok = false;
+            int unused2 = ScanInt(&ok);
+            (void)unused2;
+            if (!ok)
+            {
+                return 0;
+            }
+            ok = false;
+            int unused3 = ScanInt(&ok);
+            (void)unused3;
+            if (!ok)
+            {
+                return 0;
+            }
+        }
+        else if (line == "[point per fatigue]")
+        {
+            script->m_78 = ScanInt((bool*)0);
+        }
+        else if (line == "[event point per fatigue]")
+        {
+            script->m_7c = ScanInt((bool*)0);
+        }
+        else if (line == "[point per play time]")
+        {
+            script->m_80 = ScanInt((bool*)0);
+            script->m_84 = ScanInt((bool*)0);
+        }
+        else if (line == "[black list help parameter]")
+        {
+            *(int*)(base + 0x34c) = ScanInt((bool*)0);
+            *(int*)(base + 0x350) = ScanInt((bool*)0);
+        }
+        else if (line == "[unify server prefix]")
+        {
+            script->m_preventPrefixCount = ScanInt((bool*)0);
+            for (int i = 0; i < script->m_preventPrefixCount; ++i)
+            {
+                ScanStr(script->m_preventPrefixEntries + i * 0x1e, 0x1e);
+            }
+        }
+        else if (line == "[damaged equipment ratio]")
+        {
+            script->m_49e8 = ScanInt((bool*)0);
+        }
+        else if (line == "[limit fatigue battery charging amount]")
+        {
+            *(unsigned short*)(base + 0x5c0) = (unsigned short)ScanInt((bool*)0);
+        }
+        else if (line == "[end level fatigue battery weight]")
+        {
+            *(float*)(base + 0x5c4) = ScanFloat((bool*)0);
+        }
+        else if (line == "[character level fatigue battery constance]")
+        {
+            *(char*)(base + 0x5c8) = (char)ScanInt((bool*)0);
+        }
+        else if (line == "[limit fatigue battery level]")
+        {
+            *(char*)(base + 0x5c9) = (char)ScanInt((bool*)0);
+        }
+        else if (line == "[fatigue battery money amount]")
+        {
+            *(int*)(base + 0x5cc) = ScanInt((bool*)0);
+        }
+        else if (line == "[fatigue battery level for money active]")
+        {
+            *(char*)(base + 0x5d0) = (char)ScanInt((bool*)0);
+        }
+        else if (line == "[min fatigue battery per buff active]")
+        {
+            *(unsigned short*)(base + 0x768) = (unsigned short)ScanInt((bool*)0);
+        }
+        else if (line == "[limit grownup buff cnt fatigue battery]")
+        {
+            int i = 0;
+            while (true)
+            {
+                ok = false;
+                int v = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                *(short*)(base + (i + 0x2e8) * 2 + 2) = (short)v;
+                ++i;
+            }
+        }
+        else if (line == "[fatigue battery per grownup buff active]")
+        {
+            *(unsigned short*)(base + 0x764) = (unsigned short)ScanInt((bool*)0);
+        }
+        else if (line == "[grownup buff per fatigue battery active]")
+        {
+            *(unsigned short*)(base + 0x766) = (unsigned short)ScanInt((bool*)0);
+        }
+        else if (line == "[pc room party exp bonus rate]")
+        {
+            ok = false;
+            float v = ScanFloat(&ok);
+            if (!ok)
+            {
+                return 0;
+            }
+            *(float*)(base + 0x76c) = v;
+        }
+        else if (line == "[escalade tutorial reward]")
+        {
+            while (true)
+            {
+                ok = false;
+                int key = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map88[key].push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[server message index onoff]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                if (b == 1)
+                {
+                    script->m_shared770.m_vecIndex.push_back(a);
+                }
+            }
+        }
+        else if (line == "[server message index kind]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_shared770.m_vecMapped.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[server message event kind]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_shared770.m_vecShareKind.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[price average]")
+        {
+            while (true)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_bloodReward794.m_vec0.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[lotto cost]")
+        {
+            script->m_7b8 = ScanInt((bool*)0);
+        }
+        else if (line == "[jackpot]")
+        {
+            script->m_7bc = ScanInt((bool*)0);
+        }
+        else if (line == "[admission increase]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_bloodReward794.m_vecc.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[lotto point]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_bloodReward794.m_vec18.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[emblem compound info]")
+        {
+            while (true)
+            {
+                ok = false;
+                int idx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                script->m_emblemCompound[idx].m_cost = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                for (int j = 0; j < 5; ++j)
+                {
+                    ok = false;
+                    script->m_emblemCompound[idx].m_result[j] = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+        else if (line == "[recipe upgrade table]")
+        {
+            for (int i = 0; i < 0x20; ++i)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                for (int j = 0; j < 0x20; ++j)
+                {
+                    ok = false;
+                    script->m_arr868[i][j] = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                }
+            }
+            ScanType(line, true);
+        }
+        else if (line == "[recipe amplify table]")
+        {
+            for (int i = 0; i < 0x20; ++i)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                for (int j = 0; j < 0x20; ++j)
+                {
+                    ok = false;
+                    script->m_arr1868[i][j] = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                }
+            }
+            ScanType(line, true);
+        }
+        else if (line == "[recipe upgrade table 2nd]")
+        {
+            for (int i = 0; i < 0x20; ++i)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                for (int j = 0; j < 0x20; ++j)
+                {
+                    ok = false;
+                    *(int*)(base + (i * 0x20 + j + 0xa18) * 4 + 8) = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                }
+            }
+            ScanType(line, true);
+        }
+        else if (line == "[recipe amplify table 2nd]")
+        {
+            for (int i = 0; i < 0x20; ++i)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                for (int j = 0; j < 0x20; ++j)
+                {
+                    ok = false;
+                    *(int*)(base + (i * 0x20 + j + 0xe18) * 4 + 8) = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                }
+            }
+            ScanType(line, true);
+        }
+        else if (line == "[upper bind cube rate bonus]")
+        {
+            script->m_49ec = ScanInt(&ok);
+        }
+        else if (line == "[lower bind cube rate bonus]")
+        {
+            script->m_49f0 = ScanInt(&ok);
+        }
+        else if (line == "[full level reward]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map4868[a] = (unsigned int)b;
+            }
+        }
+        else if (line == "[ontime event reward]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                unsigned short b = (unsigned short)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_vec4880.push_back(std::make_pair(a, (int)b));
+            }
+        }
+        else if (line == "[pvp live event play count]")
+        {
+            script->m_ac = ScanInt(&ok);
+        }
+        else if (line == "[pvp live event reward]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_veca0.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[pvp exp penalty revision]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_mapb0[a] = b;
+            }
+        }
+        else if (line == "[unusable equipment info]")
+        {
+            while (true)
+            {
+                std::string s;
+                ok = false;
+                if (!ScanStr(&s))
+                {
+                    break;
+                }
+                int type = 0;
+                if (s == "relic")
+                {
+                    type = 2;
+                }
+                else if (s == "unique")
+                {
+                    type = 3;
+                }
+                else if (s == "choronicle")
+                {
+                    type = 4;
+                }
+                else if (s == "epic")
+                {
+                    type = 5;
+                }
+                else if (s == "rare_avatar")
+                {
+                    type = 6;
+                }
+                else if (s == "common")
+                {
+                    type = 7;
+                }
+                else if (s == "uncommon")
+                {
+                    type = 8;
+                }
+                else if (s == "rare")
+                {
+                    type = 9;
+                }
+                else if (s == "rare_creature")
+                {
+                    type = 10;
+                }
+                else if (s == "real_rare")
+                {
+                    type = 1;
+                }
+                else
+                {
+                    return 0;
+                }
+                stUnusableEquipmentInfo info;
+                info.m_field0 = type;
+                ok = false;
+                info.m_field4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                info.m_field8 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_unusableEC.push_back(info);
+            }
+        }
+        else if (line == "[daily match count]")
+        {
+            script->m_f8 = ScanInt(&ok);
+        }
+        else if (line == "[unusable items]")
+        {
+            while (true)
+            {
+                ok = false;
+                int v = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_unusableItemFC.insert((unsigned long)v);
+            }
+        }
+        else if (line == "[usable items]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map114[(ENUM_EQUIPMENTTYPE)a].insert((unsigned long)b);
+            }
+        }
+        else if (line == "[dungeon inout time]")
+        {
+            while (true)
+            {
+                ok = false;
+                int key = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                STDungeonInoutTime t;
+                t.m_startHour = ScanInt((bool*)0);
+                t.m_endHour = ScanInt((bool*)0);
+                t.m_startMin = ScanInt((bool*)0);
+                t.m_endMin = ScanInt((bool*)0);
+                if (t.m_endHour < t.m_startHour || t.m_endMin < t.m_startMin ||
+                    t.m_endHour == 0x18 || t.m_endMin == 0x3c)
+                {
+                    return 0;
+                }
+                script->m_dungeonInoutc8[key] = t;
+            }
+        }
+        else if (line == "[member bonus fatigue limit]")
+        {
+            ok = false;
+            script->m_488c = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_4890 = ScanInt(&ok);
+        }
+        else if (line == "[premiun card cost]")
+        {
+            *(float*)(base + 0x4894) = ScanFloat((bool*)0);
+        }
+        else if (line == "[premium card drop]")
+        {
+            int i = 0;
+            while (true)
+            {
+                ok = false;
+                *(int*)(base + (i + 0x489) * 0x10 + 0xc) = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                *(int*)(base + (i + 0x489) * 0x10 + 0x10) = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                *(int*)(base + (i + 0x489) * 0x10 + 0x14) = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                *(int*)(base + (i + 0x489) * 0x10 + 0x18) = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ++i;
+                if (9 < i)
+                {
+                    break;
+                }
+            }
+            *(short*)(base + 0x4898) = (short)i;
+        }
+        else if (line == "[premium rarity dicision]")
+        {
+            ok = false;
+            *(int*)(base + 0x493c) = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            *(int*)(base + 0x4940) = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            *(int*)(base + 0x4944) = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            *(int*)(base + 0x4948) = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            *(int*)(base + 0x494c) = ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            *(int*)(base + 0x4950) = ScanInt(&ok);
+        }
+        else if (line == "[max clean chatting count]")
+        {
+            script->m_4960 = ScanInt(&ok);
+        }
+        else if (line == "[clean chatting count]")
+        {
+            while (true)
+            {
+                ok = false;
+                int unused = ScanInt(&ok);
+                (void)unused;
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_vec4954.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[clean chatting duplication]")
+        {
+            script->m_4964 = ScanInt(&ok);
+        }
+        else if (line == "[max monster drop per map]")
+        {
+            script->m_4968 = ScanInt(&ok);
+        }
+        else if (line == "[max monster count per map]")
+        {
+            script->m_496c = ScanInt(&ok);
+        }
+        else if (line == "[private training seal gain count]")
+        {
+            ok = false;
+            script->m_schoolMatchSeal[0] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[1] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[2] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[3] = (unsigned char)ScanInt(&ok);
+        }
+        else if (line == "[relay battle training seal gain count]")
+        {
+            ok = false;
+            script->m_schoolMatchSeal[4] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[5] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[6] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                break;
+            }
+            script->m_schoolMatchSeal[7] = (unsigned char)ScanInt(&ok);
+        }
+        else if (line == "[training seal bonus count]")
+        {
+            *(unsigned short*)(base + 0x4978) = (unsigned short)ScanInt(&ok);
+        }
+        else if (line == "[training seal give]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map4994[a] = b;
+            }
+        }
+        else if (line == "[pvp channel grade penalty]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_map497c[a] = b;
+            }
+        }
+        else if (line == "[training first give]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                int c = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                int n = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                std::vector<std::pair<int, int> > vec;
+                for (int i = 0; i < n; ++i)
+                {
+                    ok = false;
+                    int x = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    ok = false;
+                    int y = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    vec.push_back(std::make_pair(x, y));
+                }
+                ServerParameterScript::PvPPlayerKey key((unsigned char)a,
+                                                       (unsigned char)b,
+                                                       (unsigned char)c);
+                script->m_pvp49ac[key] = vec;
+                std::map<int, int>::iterator it = script->m_map49c4.find(a);
+                if (it == script->m_map49c4.end())
+                {
+                    script->m_map49c4[a] = 1;
+                }
+                else
+                {
+                    ++it->second;
+                }
+            }
+        }
+        else if (line == "[pvp item give]")
+        {
+            while (true)
+            {
+                ok = false;
+                int v = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_vec49dc.push_back(v);
+            }
+        }
+        else if (line == "[bring up event]")
+        {
+            if (ScanType(line, true))
+            {
+                if (line == "[get eventitem fatigue]")
+                {
+                    while (true)
+                    {
+                        ok = false;
+                        int v = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            break;
+                        }
+                        script->m_eventIdolBringUp454.m_vec8.push_back(v);
+                    }
+                }
+                if (ScanType(line, true))
+                {
+                    if (line == "[get reward count]")
+                    {
+                        ok = false;
+                        script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
+                        if (ok)
+                        {
+                            script->m_eventIdolBringUp454.m_field4 =
+                                ScanInt(&ok);
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        else if (line == "[protect of upgrade down jpn]")
+        {
+            while (true)
+            {
+                ok = false;
+                unsigned int key = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                stUpgradeItemTicketParam_t p;
+                char* pb = reinterpret_cast<char*>(&p);
+                ok = false;
+                p.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                pb[1] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                pb[2] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int f4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                if (0 < f4)
+                {
+                    pb[3] = 1;
+                }
+                script->m_ticket468[key] = p;
+            }
+        }
+        else if (line == "[protect of upgrade down]")
+        {
+            while (true)
+            {
+                ok = false;
+                unsigned int key = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                stUpgradeItemTicketParam_t p;
+                char* pb = reinterpret_cast<char*>(&p);
+                ok = false;
+                p.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                pb[1] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                pb[2] = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                int f4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                if (0 < f4)
+                {
+                    pb[3] = 1;
+                }
+                script->m_ticket468[key] = p;
+            }
+        }
+        else if (line == "[weekend bonus fatigue]")
+        {
+            script->m_weekendBouns4b4.m_bonusFatiguePercent =
+                (unsigned short)ScanInt(&ok);
+        }
+        else if (line == "[weekend bonus exp]")
+        {
+            script->m_weekendBouns4b4.m_bonusExpPercent = ScanInt(&ok);
+        }
+        else if (line == "[drop routin by party]")
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                ok = false;
+                *(char*)(base + 0x4bc + i) = (char)ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+            }
+        }
+        else if (line == "[drop upgrade rarity]")
+        {
+            while (true)
+            {
+                std::string s;
+                ok = false;
+                if (!ScanStr(&s))
+                {
+                    break;
+                }
+                int rarity = 6;
+                if (s == "[common]")
+                {
+                    rarity = 0;
+                }
+                else if (s == "[uncommon]")
+                {
+                    rarity = 1;
+                }
+                else if (s == "[rare]")
+                {
+                    rarity = 2;
+                }
+                else if (s == "[unique]")
+                {
+                    rarity = 3;
+                }
+                else if (s == "[epic]")
+                {
+                    rarity = 4;
+                }
+                else if (s == "[chronicle]")
+                {
+                    rarity = 5;
+                }
+                ItemFarmingData data;
+                while (true)
+                {
+                    ok = false;
+                    int itemId = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    ok = false;
+                    int weight = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    data.m_active += weight;
+                    data.m_vecWeight.push_back(std::make_pair(itemId, weight));
+                }
+                script->m_farming4c0[rarity] = data;
+            }
+        }
+        else if (line == "[drop bonus of dungeon level increase]")
+        {
+            while (true)
+            {
+                ok = false;
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                float b = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_vec4d8.push_back(std::make_pair(a, b));
+            }
+        }
+        else if (line == "[auction register item limit]")
+        {
+            while (true)
+            {
+                stAuctionLimitItemParam_t p;
+                ok = false;
+                p.m_itemId = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                p.m_startSec = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                p.m_endSec = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                script->m_auction480.push_back(p);
+            }
+        }
+        else if (line == "[my assault chaos point weight]")
+        {
+            while (true)
+            {
+                stAssaultChaosPointWeight w;
+                ok = false;
+                w.m_min = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                w.m_max = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                w.m_w0 = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                w.m_w1 = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_chaosWeight4e4.push_back(w);
+            }
+        }
+        else if (line == "[assault level ghost panalty]")
+        {
+            while (true)
+            {
+                stAssaultLevelGhostPanalty g;
+                ok = false;
+                g.m_min = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                g.m_max = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                g.m_t0 = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                g.m_t1 = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_ghostLevel4f0.push_back(g);
+            }
+        }
+        else if (line == "[assault chaos point ghost panalty]")
+        {
+            while (true)
+            {
+                stAssaultChaosPointGhostPanalty g;
+                ok = false;
+                g.m_min = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ok = false;
+                g.m_max = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                g.m_r0 = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                ok = false;
+                g.m_r1 = ScanFloat(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                script->m_ghostChaos4fc.push_back(g);
+            }
+        }
+        else
+        {
+            missed = true;
+        }
+        if (missed)
+        {
+            printf("MISSED SCRIPT TAG [%s] %s\n", path, line.c_str());
+        }
     }
-    return true;
+    return script->m_558 != -1;
 }
+

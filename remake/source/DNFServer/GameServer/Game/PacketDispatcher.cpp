@@ -422,6 +422,7 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[217] = new Dispatcher_RequestPCRoomPlayerCount();  // slot +0x364
     m_dispatchers[221] = new Dispatcher_UpdateServerMessage();  // slot +0x374
     m_dispatchers[222] = new Dispatcher_CheckEnableServerMessage();  // slot +0x378
+    m_dispatchers[218] = new Dispatcher_UseVendingMachine();  // slot +0x368
     m_dispatchers[219] = new Dispatcher_AssertManager();  // slot +0x36c
     m_dispatchers[225] = new Dispatcher_GiveGiftToNPC();  // slot +0x384
     m_dispatchers[220] = new Dispatcher_Overflow_Info();  // slot +0x370
@@ -551,6 +552,7 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[413] = new Dispatcher_TitleBookGet();  // slot +0x674
     m_dispatchers[424] = new Dispatcher_TitleBookOtherUser();  // slot +0x6a0
     m_dispatchers[417] = new Dispatcher_AchievementTrigger();  // slot +0x684
+    m_dispatchers[414] = new Dispatcher_MonstercardBind();  // slot +0x678
     m_dispatchers[415] = new Dispatcher_CharacSlotExtendEffect();  // slot +0x67c
     m_dispatchers[425] = new Dispatcher_ItemHyperLinkMessage();  // slot +0x6a4
     m_dispatchers[426] = new Dispatcher_UserHistoryLog();  // slot +0x6a8

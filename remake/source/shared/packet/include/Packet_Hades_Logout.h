@@ -10,8 +10,7 @@
 class Packet_Hades_Logout : public PacketHeader {
 public:
     unsigned int m_accId;   // +0x0a（Send_Logout @84b92ea：CUser::get_acc_id）
-    Packet_Hades_Logout() : PacketHeader(0xfd3, 0xe),
-        m_accId(0){};
+    Packet_Hades_Logout() : PacketHeader(0xfd3, 0xe){};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Hades_Logout, 0xe);

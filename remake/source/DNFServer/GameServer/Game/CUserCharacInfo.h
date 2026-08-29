@@ -98,9 +98,11 @@ class CommonTime
 {
 public:
     void SetCreateTime(long t);
+    void SetCreateTime(char* src);   // ORIG T 0x082a40dc（定义 CommonTime.cpp；setCharacInfoDetail 消费）
     void SetCurTime();   // ORIG _ZN10CommonTime10SetCurTimeEv（0x082a4224，ShowLogo 使用）
     operator long() const;
     void clear();   // ORIG W 0x086947d8 _ZN10CommonTime5clearEv（_Charac_info::Reset 消费；定义 owner 待分派）
+    void GetCreateTime(char* buf) const;   // ORIG T 0x082a41e0（定义 CommonTime.cpp；getCharacInfoDetail 消费）
 
     char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
 };

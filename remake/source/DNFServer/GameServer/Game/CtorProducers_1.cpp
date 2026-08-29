@@ -105,7 +105,7 @@ struct STAICharacterCommonScriptView
     int m_da8;                                      // +0xda8（set 读）
     char m_padDac[0xf2c - 0xdac];                   // +0xdac..
     std::vector<stMonsterIndependentDrop_t> m_f2c;  // +0xf2c（set assign）
-    char m_padF38[0xf50 - 0xf3c];                   // +0xf3c..
+    char m_padF38[0xf50 - 0xf38];                   // +0xf3c..
     char m_avatarDrops[0x100c - 0xf50];             // +0xf50（stEnamyDropAvatarInfo_t 区，本 TU 不访问成员）
     unsigned char m_rarityByte;                     // +0x100c（set 读）
     char m_pad100d[3];
@@ -175,7 +175,7 @@ struct STAICharScriptView
     int m_da8;                                      // +0xda8
     char m_padDac[0xf2c - 0xdac];
     std::vector<stMonsterIndependentDrop_t> m_f2c;  // +0xf2c
-    char m_padF38[0xf50 - 0xf3c];
+    char m_padF38[0xf50 - 0xf38];
     char m_f50[0x100c - 0xf50];                     // stEnamyDropAvatarInfo_t 区
     unsigned char m_rarityByte;                     // +0x100c
     char m_pad100d[3];

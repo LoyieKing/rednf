@@ -574,7 +574,16 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
     G_GameWorld()->ResetAllPassPadFailCount();
     G_GameWorld()->AddDailyItem();
     G_GameWorld()->resetDailyData();
-    G_GameWorld()->ResetEntireReliablePerson();
+    // ORIG：ResetEntireReliablePerson 后先落两个统计域（入口日志/通用统计），
+    // 再落 LevelDungeonPlay/Exp/ExpertJob 三域（ORIG 0x863380b..0x863384a 实证）。
+    GetInstanceDungeonEntranceLog()->InsertDungeonEntrance();
+    GetInstanceCommonStatisticsMgr()->InsertDatabase();
+
+    // ORIG：三个统计域上报（CLevelDungeonPlayStatistic@+0x0、CDungeonExpStatistic@+0x18、
+    // CExpertJobStatistic 单例），与上面两个 InsertDatabase 同批落库。
+    ((CLevelDungeonPlayStatistic*)GlobalData::s_statisticMgr)->InsertDatabase();
+    ((CDungeonExpStatistic*)((char*)GlobalData::s_statisticMgr + 0x18))->InsertDatabase();
+    GetInstanceExpertJobStatistic()->UpdateExpertJob();
 
     // ORIG：三个统计域上报（CLevelDungeonPlayStatistic@+0x0、CDungeonExpStatistic@+0x18、
     // CExpertJobStatistic 单例），与上面两个 InsertDatabase 同批落库。

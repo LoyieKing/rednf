@@ -383,7 +383,7 @@ bool CKillMonsterInfo::_saveData(CUser* pUser)
         true);
     
     guard.operator*()->operator<<(0x281);
-    guard.operator*()->operator<<(pUser->GetUID());
+    guard.operator*()->operator<<((int)pUser->GetUID());
 
     SIG_LOAD_KILL_MONSTER_INFO* pSig =
         guard->GetInBuffer<SIG_LOAD_KILL_MONSTER_INFO>();

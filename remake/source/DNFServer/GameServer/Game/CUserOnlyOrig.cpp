@@ -10291,7 +10291,7 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
         *reinterpret_cast<unsigned int*>(dst + 0xe22) = *reinterpret_cast<const unsigned int*>(s);
     }
     reinterpret_cast<CommonTime*>(dst + 0x39)->SetCreateTime(
-        *reinterpret_cast<const long*>(s + 0x34));
+        const_cast<char*>(s + 0x34));
     *reinterpret_cast<unsigned short*>(dst + 0x4d) = *reinterpret_cast<const unsigned short*>(s + 0xb3);
     *reinterpret_cast<unsigned int*>(dst + 0x51) = *reinterpret_cast<const unsigned int*>(s + 0xb5);
     memcpy(dst + 0x55, s + 0xb9, 0x10);

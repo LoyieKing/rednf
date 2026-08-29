@@ -819,7 +819,9 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
     int ownerSlot = 0;
     int category2 = 0;
     Inven_Item ownerItem;
+    ownerItem.reset();
     char hasOwner = 0;
+    ENUM_TITLE_BOOK_CATEGORY ownerCategory = (ENUM_TITLE_BOOK_CATEGORY)4;
 
     PacketGuard packet;
     packet.put_header(0, 0x165);
@@ -829,7 +831,6 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
     count = _getCategoryItemCount(category);
     if (extra != 0)
     {
-        ENUM_TITLE_BOOK_CATEGORY ownerCategory = (ENUM_TITLE_BOOK_CATEGORY)4;
         if (_getOwnerTitleInfo(ownerCategory, ownerSlot, &ownerItem) &&
             (category == ownerCategory))
         {

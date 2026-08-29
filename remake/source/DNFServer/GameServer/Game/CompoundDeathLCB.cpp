@@ -464,6 +464,15 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
     if (resultIdx != 0 && G_CDataManager()->find_item(resultIdx) != 0)
     {
         // ---- 成功路径：删两件材料 ----
+        CItem* item = G_CDataManager()->find_item(resultIdx);
+        if (!item->IsCreatureItem())          // ORIG vtable+0x10（IsCreatureItem）
+            return 1;
+        // ORIG 0x083330ec：槽位由目标 item 的 avatar option size 随机重选，
+        // 且 >0x63(99) 时清零（覆盖客户端传入 slot）。
+        info.m_slot = static_cast<unsigned short>(get_rand_int(
+            reinterpret_cast<CEquipItem*>(item)->getAvatarOptionSize()));
+        if (info.m_slot > 99)
+            info.m_slot = 0;
         if (inv->delete_item((INVEN_TYPE)2,
                              static_cast<int>(info.m_field08), 1,
                              static_cast<eItemDelReason>(3), true) == 1 &&

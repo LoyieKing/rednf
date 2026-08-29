@@ -1056,13 +1056,13 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
     const SPremiumInfo* def = &g_SPremiumInfo[entry[type].m_type];
     if (def->m_kind != 1)
         return items;
+    // ORIG：遍历到 first==0 即 return（0x9483a4c 表按序填充，空槽即终止）。
     for (int i = 0; i < 5; ++i)
     {
-        if (def->m_advantageItems[i].first != 0)
-        {
-            items.push_back(std::make_pair(def->m_advantageItems[i].first,
-                                           def->m_advantageItems[i].second));
-        }
+        if (def->m_advantageItems[i].first == 0)
+            break;
+        items.push_back(std::make_pair(def->m_advantageItems[i].first,
+                                       def->m_advantageItems[i].second));
     }
     return items;
 }

@@ -274,7 +274,7 @@ char CPartyTelePort::process_teleport()
                 dir, true, 0);
             if (m_party->getManager() == user)
             {
-                moveResult = user->get_aura_avatar_option_value(0);
+                moveResult = user->is_equip_aura_avatar(0, auraAvatarTime);
             }
             if (moveResult > 0)
             {
@@ -337,7 +337,7 @@ char CPartyTelePort::process_teleport()
             int newTime = curSec + auraAvatarTime;
             manager->set_aura_avatar_option_value(0,newTime);
             int optValue = manager->get_aura_avatar_option_value(0);
-            manager->send_aura_avatar_option();
+            manager->UpdateAuraAvatarOption(0, optValue);
             int charNo = manager->getCurCharacNo();
             cMyTrace tr(__PRETTY_FUNCTION__,
                             0x4419, 0);

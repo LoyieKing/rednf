@@ -915,11 +915,11 @@ bool ProcStage::dieMob(unsigned short mobSeq, unsigned short param,
     }
     std::map<short, _MapMonsterSummary>::iterator it =
         m_createdMapMonsters.find(static_cast<short>(mobSeq));
-    if (it == m_createdMapMonsters.end() || it->second.m_posX == 1)
+    if (it == m_createdMapMonsters.end() || it->second.m_padC == 1)
     {
         return false;
     }
-    it->second.m_posX = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9]
+    it->second.m_padC = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9 读 pair+0xe=m_padC]
     return true;
 }
 
@@ -939,7 +939,7 @@ bool ProcStage::isEndStage(StageEndType::T& endType) const
                 &it->second.m_seq)) ==
                 *reinterpret_cast<const unsigned*>(
                     reinterpret_cast<const char*>(m_map) + 0x110) &&
-            it->second.m_posX != 1)
+            it->second.m_padC != 1)
         {
             ++aliveOnMap;
         }

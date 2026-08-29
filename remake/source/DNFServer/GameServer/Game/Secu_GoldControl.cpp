@@ -197,10 +197,8 @@ void Secu_GoldControl::AddMoney(unsigned int value)
     m_total.m_gold += value;
     m_total.m_count[2]++;
 
-    void* hades = m_pUser->getHades();
-    typedef void (*GoldPlusFn)(void*, unsigned int, int);
-    GoldPlusFn fn = (GoldPlusFn)0x084b93fa;
-    fn(hades, value, 0);
+    ((XNuclear::CHades*)m_pUser->getHades())->GoldPlus(
+        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)0);
 }
 
 void Secu_GoldControl::SubMoney(unsigned int value)
@@ -210,10 +208,8 @@ void Secu_GoldControl::SubMoney(unsigned int value)
     m_total.m_sub += value;
     m_total.m_count[4]++;
 
-    void* hades = m_pUser->getHades();
-    typedef void (*GoldMinusFn)(void*, unsigned int, int);
-    GoldMinusFn fn = (GoldMinusFn)0x084b944a;
-    fn(hades, value, 0);
+    ((XNuclear::CHades*)m_pUser->getHades())->GoldMinus(
+        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)0);
 }
 
 void Secu_GoldControl::AddImportMoney(unsigned int value)
@@ -223,10 +219,8 @@ void Secu_GoldControl::AddImportMoney(unsigned int value)
     m_total.m_import += value;
     m_total.m_count[3]++;
 
-    void* hades = m_pUser->getHades();
-    typedef void (*GoldPlusFn)(void*, unsigned int, int);
-    GoldPlusFn fn = (GoldPlusFn)0x084b93fa;
-    fn(hades, value, 1);
+    ((XNuclear::CHades*)m_pUser->getHades())->GoldPlus(
+        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)1);
 }
 
 void Secu_GoldControl::SubImportMoney(unsigned int value)
@@ -236,10 +230,8 @@ void Secu_GoldControl::SubImportMoney(unsigned int value)
     m_total.m_importSub += value;
     m_total.m_count[5]++;
 
-    void* hades = m_pUser->getHades();
-    typedef void (*GoldMinusFn)(void*, unsigned int, int);
-    GoldMinusFn fn = (GoldMinusFn)0x084b944a;
-    fn(hades, value, 1);
+    ((XNuclear::CHades*)m_pUser->getHades())->GoldMinus(
+        value, (XNuclear::ENUM_GOLD_CONTROL_REASON)1);
 }
 void Secu_GoldControl::AddAuctionMoney(unsigned int value)
 {
@@ -250,22 +242,33 @@ void Secu_GoldControl::AddAuctionMoney(unsigned int value)
         m_total.m_auctionAdd += value;
         m_total.m_count[0]++;
 
-        void* hades = m_pUser->getHades();
-        typedef void (*GoldPlusFn)(void*, unsigned int, int);
-        GoldPlusFn fn = (GoldPlusFn)0x084b93fa;
-        fn(hades, value, 2);
+        XNuclear::CHades* hades = (XNuclear::CHades*)m_pUser->getHades();
+        hades->GoldPlus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
         // GoldTracking
         char ipBuf[16];
-        typedef void (*GetIPFn)(void*, char*);
-        GetIPFn getIP = (GetIPFn)0x084b9774;
-        getIP(hades, ipBuf);
+        hades->GetIP(ipBuf);
 
         unsigned short fatigue = m_pUser->getCurCharacUsedFatigue();
         unsigned int accId = m_pUser->get_acc_id();
 
-        typedef void (*GoldTrackingFn)(void*, int, const char*, unsigned int, unsigned int, unsigned short);
-        GoldTrackingFn track = (GoldTrackingFn)0x084b949a;
-        track(hades, 4, ipBuf, accId, value, fatigue);
+        // ORIG 0x828793f..0x828794a：GoldTracking(type=4, money=accId, ip=ipBuf,
+        // param4=value, fatigue=fatigue)
+        hades->GoldTracking(4, accId, ipBuf, value, fatigue);
+    }
+}
+
+// ORIG 0x0828795a：value>4999 时 m_cur/m_total.m_auctionSub += value、
+// m_total.m_count[1]++，再 GoldMinus(value, 2)（无 GoldTracking）。
+void Secu_GoldControl::SubAuctionMoney(unsigned int value)
+{
+    if (value > 4999)
+    {
+        m_cur.m_auctionSub += value;
+        m_total.m_auctionSub += value;
+        m_total.m_count[1]++;
+
+        XNuclear::CHades* hades = (XNuclear::CHades*)m_pUser->getHades();
+        hades->GoldMinus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
     }
 }
 
@@ -293,20 +296,6 @@ void Secu_GoldControl::TradeComplete(int subValue, int addValue)
     if (addValue > 0)
     {
         AddMoney(addValue);
-    }
-}
-void Secu_GoldControl::SubAuctionMoney(unsigned int value)
-{
-    if (value > 4999)
-    {
-        m_cur.m_auctionSub += value;
-        m_total.m_auctionSub += value;
-        m_total.m_count[1]++;
-
-        void* hades = m_pUser->getHades();
-        typedef void (*GoldMinusFn)(void*, unsigned int, int);
-        GoldMinusFn fn = (GoldMinusFn)0x084b944a;
-        fn(hades, value, 2);
     }
 }
 

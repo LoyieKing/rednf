@@ -29,6 +29,7 @@
 #include "ScriptValue.h"     // ScriptValue
 #include "StringResource.h"  // CStringManager::getStr（getAvatarRentDayString）
 #include "Quest.h"           // ENUM_CHARACTERJOB
+#include "LogManager.h"     // convert_string_to_time catch 日志
 #include "STStackableScript.h"   // ENUM_MODULE_TYPE（DataManagerInitDepends.h 依赖）
 #include "DataManagerInitDepends.h"  // ENUM_ACTIVESTATUS / RandomOptionScript 视图
 #include "CDataManager.h"    // G_CDataManager + m_randomOption（_GetRandomOption）
@@ -405,9 +406,22 @@ int getEquipmentEventTiming(const std::string& s)
 void convert_string_to_time(const char* str, int& out)
 {
     std::string s(str);
-    boost::posix_time::ptime pt = boost::posix_time::time_from_string(s);
-    struct tm tmv = boost::posix_time::to_tm(pt);
-    out = static_cast<int>(mktime(&tmv));
+    try
+    {
+        boost::posix_time::ptime pt =
+            boost::posix_time::time_from_string(s);
+        struct tm tmv = boost::posix_time::to_tm(pt);
+        out = static_cast<int>(mktime(&tmv));
+    }
+    catch (const std::exception& e)
+    {
+        // ORIG catch 块：what() → logFormat(1, "data_manager.cpp",
+        // "void convert_string_to_time(const char*, int&)", 0x1920,
+        // "Exception: %s")
+        LogManager::logFormat(1, "data_manager.cpp",
+                              "void convert_string_to_time(const char*, int&)",
+                              0x1920, "Exception: %s", e.what());
+    }
 }
 
 // ORIG T 0x08adf6e7：宽字符数组按 UTF-8 编码宽度累计（<=0x7f → 1 字节、

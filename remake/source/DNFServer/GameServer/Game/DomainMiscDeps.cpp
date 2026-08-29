@@ -129,7 +129,7 @@ bool IndependentDropParameterScript::importIndependentDropParameterScript(
                 return false;                      // 报告 0x0897c296 路径
             }
             acc += rate;
-            info.m_list04.push_back(std::make_pair(itemId, acc));
+            info.m_list04.push_back(std::pair<int, int>(itemId, acc));
         }
     }
     int count = static_cast<int>(m_vec0.size());
@@ -142,11 +142,15 @@ bool IndependentDropParameterScript::importIndependentDropParameterScript(
 // 逐文件 importIndependentDropParameterScript；失败按行号 0x30 记日志返回 0。
 bool IndependentDropParameterScript::load_independent_drop_list()
 {
-    std::map<int, std::string>::const_iterator it =
-        g_independentDropScriptFileList.m_fileMap.begin();
+    std::map<int, std::string>::iterator it;
+    it = g_independentDropScriptFileList.m_fileMap.begin();
     for (; it != g_independentDropScriptFileList.m_fileMap.end(); ++it)
     {
         const char* name = it->second.c_str();
+        if (!name)
+        {
+            return true;                       // ORIG 0897c1bd：空名直接成功返回
+        }
         if (!importIndependentDropParameterScript(name))
         {
             LogManager::logFormat(
@@ -260,7 +264,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                             }
                             info.m_drop.m_rate[9] += rate;
                             info.m_drop.m_pairList.push_back(
-                                std::make_pair(
+                                std::pair<int, int>(
                                     itemId, info.m_drop.m_rate[9]));
                         }
                     }
@@ -277,14 +281,15 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                 break;             // 结束本段明细（ORIG 0897c83a）
                             }
                             bool found = false;
-                            for (size_t e = 0; e < m_vec0.size(); ++e)
+                            for (int e = 0; e < (int)m_vec0.size(); ++e)
                             {
                                 if (m_vec0[e].m_field0 != idx)
                                 {
                                     continue;
                                 }
-                                for (size_t p = 0;
-                                     p < m_vec0[e].m_list04.size(); ++p)
+                                for (int p = 0;
+                                     p < (int)m_vec0[e].m_list04.size();
+                                     ++p)
                                 {
                                     int itemId =
                                         m_vec0[e].m_list04[p].first;
@@ -292,7 +297,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                                         m_vec0[e].m_list04[p].second;
                                     info.m_drop.m_rate[9] += rate;
                                     info.m_drop.m_pairList.push_back(
-                                        std::make_pair(
+                                        std::pair<int, int>(
                                             itemId,
                                             info.m_drop.m_rate[9]));
                                 }

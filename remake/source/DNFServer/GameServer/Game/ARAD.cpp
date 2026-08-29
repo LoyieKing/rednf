@@ -296,19 +296,21 @@ int Arad_OnePlusCardEvent_ItemList::parsing(char* data)
         return 0;
     for (int r = 0; r < script.GetRowNum(); ++r)
     {
-        Data d((unsigned short)script.GetInt(r, "web_id"),
-               (unsigned long)script.GetInt(r, "item_index"));
-        if (find_item(d.webId))
+        const unsigned short webId =
+            (unsigned short)script.GetInt(r, "web_id");
+        const unsigned long itemIndex =
+            (unsigned long)script.GetInt(r, "item_index");
+        if (find_item(webId))
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_Script_Loader.cpp",
                 "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
                 0x1ea,
                 "[ERROR] already exist data id OnePlusCardEvent(id:%d, item:%u)",
-                (int)d.webId, (unsigned int)d.itemIndex);
+                (int)webId, (unsigned int)itemIndex);
             return 0x1eb;
         }
-        m_cardList.push_back(d);
+        m_cardList.push_back(Data(webId, itemIndex));
     }
     if (!script.Load(data, "limited_map"))
         return 0x1f3;
@@ -353,10 +355,13 @@ bool Arad_OnePlusCardEvent_ItemList::find_item(unsigned short webId)
 
 bool Arad_OnePlusCardEvent_ItemList::is_limited_map(unsigned int mapIndex)
 {
-    for (std::vector<unsigned int>::const_iterator it = m_limitedMap.begin();
-         it != m_limitedMap.end(); ++it)
-        if (*it == mapIndex) return true;
-    return false;
+    std::vector<unsigned int>::iterator it = std::find(
+        m_limitedMap.begin(), m_limitedMap.end(), mapIndex);
+    if (it == m_limitedMap.end())
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================

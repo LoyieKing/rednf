@@ -7,18 +7,24 @@
 
 #include <cstring>
 
+#include <cstdio>
+
 #include "BaseServerProxy.h"
 #include "CNetwork.h"
 #include "CStreamGuard.h"
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
 #include "GlobalData.h"
+#include "CVillageMonsterMgr.h"
 #include "CEnvironment.h"
 #include "PacketDesign.h"
 #include "SigTypes.h"     // SIG_AUCTION_* 权威布局（本 TU GetInBuffer 实例化）
 #include "TimerDispatcher.h"  // TimerSig / Timer_CheckAuctionReady 权威声明（独占本 TU 实现）
 #include "LogManager.h"   // LogManager::logFormat
 #include "LogManager.h"   // LogManager::logFormat
+#include "Arad_InternalDispatcher.h"  // ARAD::DISPATCHER::make_internal_stream_jpn
+#include "RestrictGeolocation.h"      // 0x27fe case：initGeolocation
+#include "ServiceRestrictManager.h"   // 0x27ff case：loadPolicy
 
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
 struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
@@ -534,7 +540,6 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     {
         guard << 230;
         guard << -1;
-        guard->put_binary(data, 0);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         else if (sig == 0x514)
@@ -702,7 +707,6 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     {
         guard << 341;
         guard << -1;
-        guard->put_binary(data, 0);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         else if (sig == 0xb58)
@@ -987,10 +991,9 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0x2713)
     {
-        guard << 608;
-        guard << -1;
-        guard->put_binary(data, 270);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG je 847a35c：cMyTrace(0xdcc,5) "TOD: bug reload" 后直返。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xdcc, 5);
+        trace("TOD: bug reload");
     }
         else if (sig == 0x2717)
     {
@@ -1069,9 +1072,475 @@ int CDispatchServerPacket::dispatchPacket(char* data)
         guard->put_binary(data, *(unsigned short*)(data + 2));
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
+        else if (sig == 0x27f9)
+    {
+        // ORIG je 84797de：make_internal_stream_jpn(guard, 0x2a, -1) + put_binary(dyn)。
+        ARAD::DISPATCHER::make_internal_stream_jpn(
+            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2a, -1);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
         else if (sig == 0x27fa)
     {
-        guard << 0;
+        // ORIG je 847985a：make_internal_stream_jpn(guard, 0x2b, -1) + put_binary(dyn)。
+        ARAD::DISPATCHER::make_internal_stream_jpn(
+            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2b, -1);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27fe)
+    {
+        // ORIG je 847ab96：initGeolocation 失败 → logFormat(1,...,0x1143,"GEO IPRELOAD FAIL")，恒返 1。
+        if (!ARAD::Singleton<RestrictGeolocation>::Get()->initGeolocation())
+        {
+            LogManager::logFormat(1, "DispatchServerPacket.cpp", __PRETTY_FUNCTION__,
+                                  0x1143, "GEO IPRELOAD FAIL");
+        }
+    }
+        else if (sig == 0x27ff)
+    {
+        // ORIG je 847abd8：ServiceRestrictManager::loadPolicy()，恒返 1。
+        ARAD::Singleton<ServiceRestrictManager>::Get()->loadPolicy();
+    }
+        else if (sig == 0x1)
+    {
+        guard << 389;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2)
+    {
+        guard << 389;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3e8)
+    {
+        guard << 65;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 51);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3ef)
+    {
+        guard << 68;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3f7)
+    {
+        guard << 206;
+        guard << -1;
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3fc)
+    {
+        guard << 89;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3ff)
+    {
+        guard << 88;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x406)
+    {
+        guard << 92;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 9023);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x40b)
+    {
+        guard << 97;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x414)
+    {
+        guard << 153;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 348);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x428)
+    {
+        guard << 200;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x42f)
+    {
+        guard << 100;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x432)
+    {
+        guard << 218;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 19);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x436)
+    {
+        guard << 221;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x43b)
+    {
+        guard << 232;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x43f)
+    {
+        guard << 237;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x446)
+    {
+        guard << 292;
+        guard << *(int*)(data + 18);
+        guard->put_binary(data, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x44d)
+    {
+        guard << 74;
+        guard << -1;
+        guard->put_binary(data, 34);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x450)
+    {
+        guard << 134;
+        guard << -1;
+        guard->put_binary(data, 14);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4b8)
+    {
+        guard << 110;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 50);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4bb)
+    {
+        guard << 113;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4be)
+    {
+        guard << 117;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 481);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4c1)
+    {
+        guard << 122;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4d2)
+    {
+        guard << 374;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x5dc)
+    {
+        guard << 172;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x5e2)
+    {
+        guard << 174;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 59);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x674)
+    {
+        guard << 189;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6b2)
+    {
+        guard << 408;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 23);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6de)
+    {
+        guard << 370;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6e5)
+    {
+        guard << 398;
+        guard << -1;
+        guard->put_binary(data, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70b)
+    {
+        guard << 428;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70e)
+    {
+        guard << 431;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x713)
+    {
+        guard << 434;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x9dc)
+    {
+        guard << 146;
+        guard << -1;
+        guard->put_binary(data, 267);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x9e0)
+    {
+        guard << 183;
+        guard << -1;
+        guard->put_binary(data, 266);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb55)
+    {
+        guard << 294;
+        guard << -1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb5e)
+    {
+        guard << 381;
+        guard << -1;
+        guard->put_binary(data, 1213);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb61)
+    {
+        guard << 461;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xc1c)
+    {
+        guard << 239;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 38);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfa5)
+    {
+        guard << 309;
+        guard << -1;
+        guard->put_binary(data, 128);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfad)
+    {
+        guard << 354;
+        guard << *(int*)(data + 11);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfe6)
+    {
+        guard << 694;
+        if (*(int*)(data + 0xe) != 0)
+            guard << *(int*)(data + 0xe);
+        else
+            guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1005)
+    {
+        guard << 390;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x100f)
+    {
+        guard << 416;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1773)
+    {
+        guard << 441;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1776)
+    {
+        guard << 443;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x177a)
+    {
+        guard << 447;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x17c2)
+    {
+        guard << 465;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b5f)
+    {
+        guard << 472;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b63)
+    {
+        guard << 475;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b66)
+    {
+        guard << 202;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 351);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b6d)
+    {
+        guard << 522;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1bc3)
+    {
+        guard << 539;
+        guard << *(int*)(data + 18);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f40)
+    {
+        guard << 503;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f4a)
+    {
+        guard << 528;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2328)
+    {
+        guard << 435;
+        guard << *(int*)(data + 15);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2711)
+    {
+        guard << 608;
+        guard << -1;
+        guard->put_binary(data, 270);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2712)
+    {
+        // ORIG je 847a31b：cMyTrace(0xdbf,5) "TOD: bug random select" 后直返。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xdbf, 5);
+        trace("TOD: bug random select");
+    }
+        else if (sig == 0x2718)
+    {
+        guard << 677;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x271b)
+    {
+        guard << 680;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27db)
+    {
+        guard << 711;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27e2)
+    {
+        guard << 759;
+        guard << -1;
+        guard->put_binary(data, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27e9)
+    {
+        guard << 764;
+        guard << -1;
         guard->put_binary(data, *(unsigned short*)(data + 2));
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }

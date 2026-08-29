@@ -134,14 +134,14 @@ int CCreature::GetState()
 // GetStomachValue(m_state, m_isGrow) <= 1.0f。
 bool CCreature::IsDieCreature()
 {
-    return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow != 0) <= 1.0f;
+    return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow) <= 1.0f;
 }
 
 // ORIG _ZN13user_creature9CCreature8SetStateEP5CUserNS_14CREATURE_STATEE T 0x0833715a
 // （docs/class_func_reports/user_creature__CCreature/SetState.md）。
 void CCreature::SetState(CUser* user, CREATURE_STATE state)
 {
-    float stomachValue = m_stomach.GetStomachValue(state, m_isGrow != 0);
+    float stomachValue = m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow);
     if (m_state == (int)state || (int)state != 1 || m_isGrow == 0)
     {
         // 进入 state 3 且非同值切换：死亡宠复活流程（ORIG 0x08337269 起）。
@@ -502,7 +502,7 @@ bool CCreature::GainItemExpCreature(int exp, CUser* user)
 // ORIG IsSave @ 0x833f04c：movzbl +0x40。
 bool CCreature::IsSave()
 {
-    return m_saveFlag != 0;
+    return m_saveFlag;
 }
 
 // ORIG GetName @ 0x833f058：返回 this+0x1c。
@@ -516,7 +516,7 @@ const char* CCreature::GetName()
 int CCreature::GetStomach()
 {
     return (int)m_stomach.GetStomachValue((CREATURE_STATE)m_state,
-                                          m_isGrow != 0);
+                                          m_isGrow);
 }
 
 // ORIG GetExp @ 0x833f08e：+0x30。
@@ -534,7 +534,7 @@ int CCreature::GetLevel()
 // ORIG IsNoCharge @ 0x833f0a6：movzbl +0x14。
 bool CCreature::IsNoCharge()
 {
-    return m_noCharge != 0;
+    return m_noCharge;
 }
 
 // ORIG SetNoCharge @ 0x833f0b2：bool 直存（mov %dl,0x14），无三目规范化。
@@ -613,9 +613,9 @@ void CCreatureMgr::Reset()
     m_equippedCreature = 0;            // +0x18
     m_user = 0;                        // +0x1c
     m_tempExpireDelta = -1;            // +0x2c = -1
-    if (!m_field30.empty())            // +0x30 map clear
+    if (m_field30.size() != 0)         // +0x30 map clear
         m_field30.clear();
-    if (!m_creatureItems.empty())      // this+0x00 map<int,CCreatorItem*>
+    if (m_creatureItems.size() != 0)   // this+0x00 map<int,CCreatorItem*>
     {
         for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();
              it != m_creatureItems.end(); ++it)
@@ -623,9 +623,12 @@ void CCreatureMgr::Reset()
             CCreatureItem* creatureItem = it->second;
             if (creatureItem != 0)
             {
-                // BLOCKED: GetInstanceCreatureItemFactory()/FreeCreatureItem 未建模
-                //（原实现失败时 LogManager::logFormat(1,"Creature.cpp",
-                // "...Reset()",0xb50,"FreeCreatureItem() error")）。
+                if (!GetInstanceCreatureItemFactory()->FreeCreatureItem(creatureItem))
+                {
+                    LogManager::logFormat(1, "Creature.cpp",
+                                          "void user_creature::CCreatureMgr::Reset()",
+                                          0xb50, "FreeCreatureItem() error");
+                }
             }
         }
         m_creatureItems.clear();
@@ -980,8 +983,7 @@ bool CCreatureMgr::UnregisterCreatureItem(int uid)
     std::map<int, CCreatureItem*>::iterator it = m_creatureItems.find(uid);
     if (it != m_creatureItems.end())
     {
-        // BLOCKED: GetInstanceCreatureItemFactory()/FreeCreatureItem 未建模
-        //（原实现 FreeCreatureItem(it->second) 释放宠物项后再 erase）。
+        GetInstanceCreatureItemFactory()->FreeCreatureItem(it->second);
         m_creatureItems.erase(it);
         return true;
     }
@@ -1974,7 +1976,7 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
         return false;
     }
     newItem->Set(it->second);
-    newItem->SetItemId(creatureItemId);
+    reinterpret_cast<CCreature*>(newItem)->SetItemId(creatureItemId);
     newItem->SetCreatureItemType(user_creature::CREATURE_ITME_TYPE_CREATURE);
     reinterpret_cast<CCreature*>(newItem)->SetStomach(100);
 

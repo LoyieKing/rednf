@@ -22,6 +22,7 @@
 #include "CShutdowManager.h"
 #include "GameTypes.h"
 #include "GlobalData.h"
+#include "Arad_ServerStateManager.h"   // RegistServerSchedule 尾部 checkContinus/loadServerState
 #include "ThreadInterface.h"
 #include "CMonitorServerProxy.h"
 #include "CGuildServerProxy.h"
@@ -397,11 +398,12 @@ void RegistServerSchedule()
                                     (TIMER_MESSAGE)0x8e, delay, 0, 0);
     }
 
-    // 0x9a：固定 0 秒
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x9a, 0, 0, 0);
-
-    // TODO(G2)：尾部调用 ARAD::Arad_ServerStateManager::{checkContinus,
-    // loadServerState}（全局槽 0x941f7f0）；该类未建模，暂缺。
+    // ORIG 0x82a08cf：尾部 checkContinus + loadServerState（全局 0x941f7f0）
+    if (GlobalData::s_serverStateManager_ != 0)
+    {
+        GlobalData::s_serverStateManager_->checkContinus();
+        GlobalData::s_serverStateManager_->loadServerState();
+    }
 }
 
 

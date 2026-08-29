@@ -63,7 +63,12 @@ public:
     StatisticsToObserveCrash();
     ~StatisticsToObserveCrash();
     void reset();
-    int getAbnormalDownUserCount();   // ORIG T 0x0860bb0d（定义 StatisticsToObserveCrash.cpp）
+    void setAbnormalDownUserCount(int count);   // ORIG T 0x0860bb40
+    void incAbnormalDownUserCount();            // ORIG T 0x0860bb52（定义 StatisticsToObserveCrash.cpp）
+    int getAbnormalDownUserCount();              // ORIG T 0x0860bb0d（定义 StatisticsToObserveCrash.cpp）
+    void incUserLastCrashPacketID(int userIdx);  // ORIG T 0x0860bb88
+    void incUserLastCrashDungeonID(int userIdx); // ORIG T 0x0860bd2e
+    void incUserLastCrashPlayStatus(int userIdx);// ORIG T 0x0860bed4
     void lock();    // ORIG W 0x0844d4d0（Mutex::lock 转发，定义 W8LT_DBTask.cpp）
     void unlock();  // ORIG W 0x0844d4e6（Mutex::unlock 转发，定义 W8LT_DBTask.cpp）
     // +0x00 int 计数（ctor 置 0 / reset 清 0；getAbnormalDownUserCount 0x0860bb0d 读 (this+0)）

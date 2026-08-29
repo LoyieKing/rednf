@@ -22,7 +22,7 @@ enum eRidableObjectState { eRidableObjectState_0 = 0 };
 struct DungeonRidableObject
 {
     DungeonRidableObject() : m_x(-1), m_y(-1), m_field0c(-1), m_field10(-1),
-                             m_field14(-1), m_field18(-1), m_state(0) {}
+                             m_field14(-1), m_field18(0xc8), m_state(0) {}
 
     DungeonRidableObject& operator=(RidableObject other);  // ORIG 0x830e9d8
 

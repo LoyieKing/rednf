@@ -115,6 +115,15 @@
 // ORIG T 0x08655327（自由函数）
 void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig);
 #include "CDoubleConnCheckServerProxy.h"
+// DisConnSig / prepareDisconnect 统计与退出落库依赖
+#include "CSystemTime.h"                    // GlobalData::s_systemTime_::getCurSec
+#include "Packet_User_Ting_TimeCheck_Statistic_Add.h"  // DisConnSig Ting 时段统计包
+#include "Packet_Client_Spec_Statistic.h"   // DisConnSig HWSpec 统计包
+#include "DBUpdateExitTime.h"               // prepareDisconnect 退出时间落库
+#include "TaiwanQueries.h"                  // prepareDisconnect GarenaAuthData::getTimeStamp
+#include "CEnvironment.h"                   // prepareDisconnect getProcessSequence
+#include "Dispatchers.h"                    // prepareDisconnect Dispatcher_SecurityCardAuthCancel
+class DB_ForceSaveSimpleSSO { public: static void makeRequest(unsigned int, int); };  // ORIG T 0x084281ae（定义 W7LinkDB.cpp）
 
 // stBuySkillInfo 完整定义（与 CEventCharacterHandler.cpp 一致；CUser.h 仅前向声明）
 struct stBuySkillInfo
@@ -6677,9 +6686,10 @@ void CUser::log_out()
 // 0x086487ea
 void CUser::prepareDisconnect()
 {
-    // 0x086487ea 主分支（prepareDisconnect.md）：state<2 早退；非人证用户记
-    // hack 0x3b9 并 DB 强存 SSO；安全卡/密保请求态取消认证；antibotChecker
-    // vtable +0x08/+0x24 注销客户端；DBUpdateExitTime。
+    // 0x086487ea 主分支（prepareDisconnect.md 反编译 C 全文转写）：state<2 早退；
+    // 非人证用户记 hack 0x3b9、SSO 强存计数 + DB_ForceSaveSimpleSSO；安全卡/密保
+    // 请求态为 1 时 Dispatcher_SecurityCardAuthCancel::process(this)；antibotChecker
+    // vtable +0x08 四参注销 / +0x24 两参注销；DBUpdateExitTime(accId, uid, ts)。
     if (get_state() < 2)
         return;
     if (!isHumanCertified())
@@ -6687,23 +6697,33 @@ void CUser::prepareDisconnect()
         setHumanCertified(true);
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x3b9, 1, 0, 0);
         m_humanCertifyErrorCnt += 1;   // ORIG this+0x8e0fc 实证：SSO 强制保存计数
-        // 推断：DB_ForceSaveSimpleSSO::makeRequest(accId, cnt) 待 DB 域接线。
+        DB_ForceSaveSimpleSSO::makeRequest((unsigned int)get_acc_id(), m_humanCertifyErrorCnt);
     }
-    // 推断：trace "[Taiwan, Antibot] Delete client. (sequence:%d, mid:%u)"
-    // （CEnvironment::getProcessSequence 待声明）。
-    if (GlobalData::s_antibotChecker_)
-    {
-        void* checker = GlobalData::s_antibotChecker_;
-        void** vtbl = *(void***)checker;
-        typedef void (*Fn3)(void*, int, int, unsigned int);   // vptr+0x08
-        typedef void (*Fn1)(void*, unsigned int);             // vptr+0x24
-        ((Fn3)vtbl[2])(checker, 0, 0, get_acc_id());   // 推断：sequence 待 CEnvironment 声明
-        ((Fn1)vtbl[9])(checker, get_acc_id());
-    }
-    // 推断：GarenaAuthData::getTimeStamp 读对象首 4 字节（类型未建模）
-    unsigned int ts = *(unsigned int*)getGarenaAuthData();   // 推断
-    (void)ts;
-    // 推断：DBUpdateExitTime::makeRequest(accId, uid&0xffff, ts) 待 DB 域接线。
+    bool cancelAuth = false;
+    if (getSecurityCard()->getRequestState() == 1)
+        cancelAuth = true;
+    else if (getPad()->getRequestState() == 1)
+        cancelAuth = true;
+    if (cancelAuth)
+        Dispatcher_SecurityCardAuthCancel::process(this);
+
+    cMyTrace t("void CUser::prepareDisconnect()", 0x8ed, 0);
+    t("[Taiwan, Antibot] Delete client. (sequence:%d, mid:%u)",
+      G_CEnvironment()->getProcessSequence(), (unsigned int)get_acc_id());
+
+    void* checker = GlobalData::s_antibotChecker_;
+    void** vtbl = *(void***)checker;
+    typedef void (*Fn3)(void*, int, int, unsigned int);   // vptr+0x08
+    typedef void (*Fn1)(void*, unsigned int);             // vptr+0x24
+    ((Fn3)vtbl[2])(checker, G_CEnvironment()->getProcessSequence(), 0,
+                   (unsigned int)get_acc_id());
+    ((Fn1)vtbl[9])(checker, (unsigned int)get_acc_id());
+
+    unsigned int ts = reinterpret_cast<Taiwan::GarenaAuthData*>(getGarenaAuthData())
+                          ->getTimeStamp();
+    DBUpdateExitTime::makeRequest(
+        (unsigned int)get_acc_id(),
+        (unsigned int)(unsigned short)get_unique_id(), ts);
 }
 
 // 0x0865db6c
@@ -9196,7 +9216,7 @@ int CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* 
     *(unsigned short*)(d + 0x2e) = *(const unsigned short*)(s + 0x35);
     *(unsigned short*)(d + 0x30) = *(const unsigned short*)(s + 0x37);
     *(unsigned short*)(d + 0x32) = *(const unsigned short*)(s + 0x4f);
-    memcpy(d + 0x34, s + 0x39, 0x14);  // CommonTime::GetCreateTime
+    ((const CommonTime*)(s + 0x39))->GetCreateTime(d + 0x34);
     *(int*)(d + 0x4d) = *(const int*)(s + 0x7b);
     *(int*)(d + 0x56) = *(const int*)(s + 0xdbe);
     *(unsigned char*)(d + 0x5a) = *(const unsigned char*)(s + 0xdc2);
@@ -9208,9 +9228,9 @@ int CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* 
     *(unsigned short*)(d + 0xb3) = *(const unsigned short*)(s + 0x4d);
     *(unsigned int*)(d + 0xb5) = *(const unsigned int*)(s + 0x51);
     memcpy(d + 0xb9, s + 0x55, 0x10);
-    *(int*)(d + 0xc9) = *(const int*)(s + 0x65);
-    *(int*)(d + 0xcd) = *(const int*)(s + 0x69);
-    *(int*)(d + 0xd1) = *(const int*)(s + 0x6d);
+    *(int*)(d + 0xc9) = ((const CReliablePerson*)(s + 0x65))->GetTradeGoldTotal();
+    *(int*)(d + 0xcd) = ((const CReliablePerson*)(s + 0x69))->GetTradeGoldTotalBillion();
+    *(int*)(d + 0xd1) = ((const CReliablePerson*)(s + 0x6d))->GetTradeGoldDaily();
     *(int*)(d + 0xd5) = *(const int*)(s + 0xe49);
     *(int*)(d + 0xd9) = *(const int*)(s + 0xe4d);
     *(int*)(d + 0xdd) = *(const int*)(s + 0xe51);

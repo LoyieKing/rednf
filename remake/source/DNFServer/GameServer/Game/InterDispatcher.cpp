@@ -1668,8 +1668,8 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetGuildInfoProxy(proxy);
         }
     }
-    user->setCurCharacHelpAbuseComputedRatio(
-        user->calc_disp_help_abuse_ratio(0));
+    user->EnableCharacInfo(CACHE_CHARAC);          // ORIG 0x84c386b（calc 后、ReqDBLoadMail 前）
+    WongWork::CMailBoxHelper::ReqDBLoadMail(user, reqCharacNo);
     WongWork::CMailBoxHelper::ReqDBLoadMail(user, reqCharacNo);
     if (!G_GameWorld()->InsertUserToIDMap(data + 0x10,
                                           (unsigned int)user->get_acc_id()))
@@ -1690,20 +1690,24 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     const int todayMon = pToday->tm_mon;
     const int todayMday = pToday->tm_mday;
 
-    if ((long)nowSec < user->GetCurCharacChaosResponTime())
+    if ((long)nowSec >= user->GetCurCharacChaosResponTime())
     {
-        user->SetCurCharacGhost(true);
-        const int responLeft =
-            user->GetCurCharacChaosResponTime() - nowSec;
-        const int dieLeft =
-            user->GetCurCharacChaosResponTime() -
-            user->GetCurCharacChaosDieTime();
-    }
-    else
-    {
+        // ORIG 0x84c3963：responTime <= now → ghost=false 并清零计时。
         user->SetCurCharacGhost(false);
         user->SetCurCharacChaosDieTime(0);
         user->SetCurCharacChaosResponTime(0);
+    }
+    else
+    {
+        // ORIG 0x84c39b2：ghost=true；dieLeft=responTime-dieTime、
+        // responLeft=responTime-now，NotifyGhostTime(user, dieLeft, responLeft)。
+        user->SetCurCharacGhost(true);
+        const int dieLeft = static_cast<int>(
+            user->GetCurCharacChaosResponTime() -
+            user->GetCurCharacChaosDieTime());
+        const int responLeft = static_cast<int>(
+            user->GetCurCharacChaosResponTime() - nowSec);
+        pvp_assault::CAssaultMgr::NotifyGhostTime(user, dieLeft, responLeft);
     }
     user->SetCurCharacLeaveTimeout(false);
 
@@ -5779,7 +5783,7 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
 {
     const unsigned int accId = *reinterpret_cast<unsigned int*>(data);
     CUser* target = G_CGameManager()->getUser(
-        static_cast<int>(G_GameWorld()->find_session(accId)), 3);
+        static_cast<int>(G_GameWorld()->find_session(accId)), 0x30cd);
     if (target == 0)
         return 0;
 

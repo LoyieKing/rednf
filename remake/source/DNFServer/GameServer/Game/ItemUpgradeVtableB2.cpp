@@ -189,7 +189,7 @@ DisJointResult::DisJointResult()
     for (int i = 0; i <= 4; ++i)
     {
         m_f[i] = 0;
-        m_f[i + 1] = 0;
+        m_f[i + 5] = 0;
     }
 }
 

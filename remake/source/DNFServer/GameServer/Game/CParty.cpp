@@ -3449,20 +3449,20 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     if (addInfo == 0 || addInfo == 0x4af)
     {
         bool goldGen = (addInfo == 0x4af);
-        int liveCount = get_live_count_enter_map();                  // -0xc8
-        if (liveCount < 1)
-        {
-            packet.put_header(1, 0x2e);
-            packet.put_byte(0);
-            packet.put_byte(0x15);
-            packet.finalize(true);
-            user->Send(packet);
-            return 0;
-        }
-
-        int base;                                    // 金币基数
         if (!goldGen)
         {
+            int liveCount = get_live_count_enter_map();                  // -0xc8
+            if (liveCount < 1)
+            {
+                packet.put_header(1, 0x2e);
+                packet.put_byte(0);
+                packet.put_byte(0x15);
+                packet.finalize(true);
+                user->Send(packet);
+                return 0;
+            }
+
+            int base;                                    // 金币基数
             int money = mi.m_item.get_add_info();
             if (money > 499999)
             {
@@ -3476,34 +3476,22 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
             int share = mi.m_item.get_add_info() / liveCount;   // -0xc0
             int rem = mi.m_item.get_add_info() % liveCount;     // -0xbc
             base = share + rem;                                 // -0xb8
-        }
-        else
-        {
-            WongWork::CItemGeneratorMgr* mgr = G_CDataManager()->getItemGenerator();
-            WongWork::CItemGenerator* gen =
-                mgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2);
-            int lvl0 = m_member[0].m_pUser->get_charac_level();   // 占位：逐成员内取
-            (void)lvl0;
-            base = 0;
-        }
 
-        packet.put_header(0, 0x27);
-        packet.put_short(itemIdx);
-        packet.put_short(user->get_unique_id() & 0xffff);
+            packet.put_header(0, 0x27);
+            packet.put_short(itemIdx);
+            packet.put_short(user->get_unique_id() & 0xffff);
 
-        for (int i = 0; i <= 3; ++i)
-        {
-            int gain;
-            if (!_checkValidUser(i))
+            for (int i = 0; i <= 3; ++i)
             {
-                packet.put_byte(0);
-                packet.put_int(0);
-                continue;
-            }
-            packet.put_byte(1);
+                int gain;
+                if (!_checkValidUser(i))
+                {
+                    packet.put_byte(0);
+                    packet.put_int(0);
+                    continue;
+                }
+                packet.put_byte(1);
 
-            if (!goldGen)
-            {
                 gain = (m_member[i].m_pUser == user) ? base : base - (mi.m_item.get_add_info() % liveCount);
                 if (base > 499999)
                 {
@@ -3517,9 +3505,133 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 }
                 if (m_enterMapFlag[i] != 1)
                     gain = 0;
+
+                const int gainBase = gain;             // -0xa4（ORIG：bonusGold/guildFund 均基于初始 gain）
+                int bonusGold = 0;                   // 展示加成合计
+                int guildFund = 0;
+                if (mi.m_count != 0)
+                {
+                    const user_creature::CCreatureMgr* cm =
+                        m_member[i].m_pUser->getCurCharacInvenR()->GetCreatureMgrR();
+                    bonusGold += cm->GetExtraGold(gainBase);
+                    gain += cm->GetExtraGold(gainBase);
+                    bonusGold += cm->GetOverSkillExtraGold(gainBase);
+                    gain += cm->GetOverSkillExtraGold(gainBase);
+
+                    Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
+                    int pct = 0;
+                    switch (pet1.m_addInfo)
+                    {
+                    case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
+                        pct = 3; break;
+                    case 0x6622: case 0x66e6: case 0x6803: case 0x68a2:
+                        pct = 4; break;
+                    case 0x28e4a8:
+                        pct = 5; break;
+                    default:
+                        pct = 0; break;
+                    }
+                    if (pct != 0)
+                    {
+                        int extra = (gainBase * pct) / 100;
+                        bonusGold += extra;
+                        gain += extra;
+                    }
+
+                    Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
+                    if (pet2.m_addInfo == 0x5e7f)
+                    {
+                        int extra = (int)(2.5 * (double)gainBase);
+                        bonusGold += extra;
+                        gain += extra;
+                    }
+                }
+                if (mi.m_count != 0)
+                {
+                    float mb = CalcurateManageBonus((ManageBonusType::T)1,
+                                                    m_member[i].m_pUser,
+                                                    (unsigned int)gainBase);
+                    int manage = (int)(long double)mb;
+                    bonusGold += manage;
+                    gain += manage;
+                    GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                        (CIRCULATION_STATISTIC_FIELD)0x11, m_member[i].m_pUser,
+                        (unsigned int)manage);
+                }
+                if (mi.m_count != 0 &&
+                    m_member[i].m_pUser->get_charac_guildkey() != 0 &&
+                    m_member[i].m_pUser->IsCompleteGuildFund() == 0)
+                {
+                    bool fixedBand =
+                        (G_CDataManager()->m_guildParameter.m_field104 <= gainBase) &&
+                        (G_CDataManager()->m_guildParameter.m_field108 >= gain);
+                    if (fixedBand)
+                    {
+                        guildFund = G_CDataManager()->m_guildParameter.m_field10c;
+                    }
+                    else if (G_CDataManager()->m_guildParameter.m_field108 < gainBase)
+                    {
+                        guildFund = (int)((long double)G_CDataManager()->m_guildParameter.m_field110 * (double)gainBase);
+                    }
+                    if (guildFund <= gain && guildFund > 0)
+                    {
+                        gain -= guildFund;
+                        GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                            (CIRCULATION_STATISTIC_FIELD)0x2a, m_member[i].m_pUser,
+                            (unsigned int)guildFund);
+                    }
+                    if (guildFund > 0)
+                    {
+                        CGuildServerProxy* proxy =
+                            GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                                m_member[i].m_pUser->GetServerGroup());
+                        proxy->SendAddGuildFund(
+                            m_member[i].m_pUser->get_charac_no(-1),
+                            m_member[i].m_pUser->get_charac_guildkey(), guildFund,
+                            (Packet_Add_Guild_Fund::eFundType)0);
+                    }
+                }
+
+                CInventory* invenW = m_member[i].m_pUser->getCurCharacInvenW();
+                int gained = invenW->gain_money(
+                    gain, (eMoneyAddReason)4, true, bonusGold);
+                if (mi.m_count != 0)
+                    m_member[i].m_pUser->saveTaxMoneyForUpperMember(gain);
+                if (gained < gain)
+                {
+                    if (gained < 0)
+                        gained = 0;
+                    m_member[i].m_pUser->SendMoneyFullReason(
+                        (ENUM_MONEY_FULL_REASON)0, (unsigned long)gain,
+                        (unsigned long)gained);
+                }
+                GetInstanceValueStatistic()->AddValueStatistic(
+                    (VALUE_STATISTIC_FIELD)1, m_member[i].m_pUser,
+                    (unsigned int)gain);
+
+                packet.put_int(gained);
+                packet.put_byte(1);
+                packet.put_int(bonusGold);
+                packet.put_int(guildFund);
             }
-            else
+        }
+        else
+        {
+            packet.put_header(0, 0x27);
+            packet.put_short(itemIdx);
+            packet.put_short(user->get_unique_id() & 0xffff);
+
+            for (int i = 0; i <= 3; ++i)
             {
+                int gain;
+                if (!_checkValidUser(i))
+                {
+                    packet.put_byte(0);
+                    packet.put_int(0);
+                    continue;
+                }
+                packet.put_byte(1);
+
                 WongWork::CItemGeneratorMgr* mgr = G_CDataManager()->getItemGenerator();
                 WongWork::CItemGenerator* gen =
                     mgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2);
@@ -3539,115 +3651,115 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 }
                 if (m_enterMapFlag[i] != 1)
                     gain = 0;
-            }
 
-            int bonusGold = 0;                   // 展示加成合计
-            int guildFund = 0;
-            if (mi.m_count != 0)
-            {
-                const user_creature::CCreatureMgr* cm =
-                    m_member[i].m_pUser->getCurCharacInvenR()->GetCreatureMgrR();
-                bonusGold += cm->GetExtraGold(gain);
-                gain += cm->GetExtraGold(gain);
-                bonusGold += cm->GetOverSkillExtraGold(gain);
-                gain += cm->GetOverSkillExtraGold(gain);
+                const int gainBase = gain;             // -0x68（ORIG：bonusGold/guildFund 均基于初始 gain）
+                int bonusGold = 0;                   // 展示加成合计
+                int guildFund = 0;
+                if (mi.m_count != 0)
+                {
+                    const user_creature::CCreatureMgr* cm =
+                        m_member[i].m_pUser->getCurCharacInvenR()->GetCreatureMgrR();
+                    bonusGold += cm->GetExtraGold(gainBase);
+                    gain += cm->GetExtraGold(gainBase);
+                    bonusGold += cm->GetOverSkillExtraGold(gainBase);
+                    gain += cm->GetOverSkillExtraGold(gainBase);
 
-                Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
-                int pct = 0;
-                switch (pet1.m_addInfo)
-                {
-                case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
-                    pct = 3; break;
-                case 0x6622: case 0x66e6: case 0x6803: case 0x68a2:
-                    pct = 4; break;
-                case 0x28e4a8:
-                    pct = 5; break;
-                default:
-                    pct = 0; break;
-                }
-                if (pct != 0)
-                {
-                    int extra = (gain * pct) / 100;
-                    bonusGold += extra;
-                    gain += extra;
-                }
+                    Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
+                    int pct = 0;
+                    switch (pet1.m_addInfo)
+                    {
+                    case 0x6603: case 0x66e5: case 0x6802: case 0x28e4a3: case 0x28e4a6:
+                        pct = 3; break;
+                    case 0x6622: case 0x66e6: case 0x6803: case 0x68a2:
+                        pct = 4; break;
+                    case 0x28e4a8:
+                        pct = 5; break;
+                    default:
+                        pct = 0; break;
+                    }
+                    if (pct != 0)
+                    {
+                        int extra = (gainBase * pct) / 100;
+                        bonusGold += extra;
+                        gain += extra;
+                    }
 
-                Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
-                if (pet2.m_addInfo == 0x5e7f)
-                {
-                    int extra = (int)(2.5 * (double)gain);
-                    bonusGold += extra;
-                    gain += extra;
+                    Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
+                    if (pet2.m_addInfo == 0x5e7f)
+                    {
+                        int extra = (int)(2.5 * (double)gainBase);
+                        bonusGold += extra;
+                        gain += extra;
+                    }
                 }
-            }
-            if (mi.m_count != 0)
-            {
-                float mb = CalcurateManageBonus((ManageBonusType::T)1,
-                                                m_member[i].m_pUser,
-                                                (unsigned int)gain);
-                int manage = (int)(long double)mb;
-                bonusGold += manage;
-                gain += manage;
-                GetInstanceCirculationStatistic()->AddCirculationStatistic(
-                    (CIRCULATION_STATISTIC_FIELD)0x11, m_member[i].m_pUser,
-                    (unsigned int)manage);
-            }
-            if (mi.m_count != 0 &&
-                m_member[i].m_pUser->get_charac_guildkey() != 0 &&
-                m_member[i].m_pUser->IsCompleteGuildFund() == 0)
-            {
-                GuildParameterScript& gp = G_CDataManager()->m_guildParameter;
-                bool fixedBand =
-                    (gp.m_field104 <= base) && (gp.m_field108 >= gain);
-                if (fixedBand)
+                if (mi.m_count != 0)
                 {
-                    guildFund = gp.m_field10c;
-                }
-                else if (gp.m_field108 < base)
-                {
-                    guildFund = (int)((long double)gp.m_field110 * (double)base);
-                }
-                if (guildFund <= gain && guildFund > 0)
-                {
-                    gain -= guildFund;
+                    float mb = CalcurateManageBonus((ManageBonusType::T)1,
+                                                    m_member[i].m_pUser,
+                                                    (unsigned int)gainBase);
+                    int manage = (int)(long double)mb;
+                    bonusGold += manage;
+                    gain += manage;
                     GetInstanceCirculationStatistic()->AddCirculationStatistic(
-                        (CIRCULATION_STATISTIC_FIELD)0x2a, m_member[i].m_pUser,
-                        (unsigned int)guildFund);
+                        (CIRCULATION_STATISTIC_FIELD)0x11, m_member[i].m_pUser,
+                        (unsigned int)manage);
                 }
-                if (guildFund > 0)
+                if (mi.m_count != 0 &&
+                    m_member[i].m_pUser->get_charac_guildkey() != 0 &&
+                    m_member[i].m_pUser->IsCompleteGuildFund() == 0)
                 {
-                    CGuildServerProxy* proxy =
-                        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                            m_member[i].m_pUser->GetServerGroup());
-                    proxy->SendAddGuildFund(
-                        m_member[i].m_pUser->get_charac_no(-1),
-                        m_member[i].m_pUser->get_charac_guildkey(), guildFund,
-                        (Packet_Add_Guild_Fund::eFundType)0);
+                    bool fixedBand =
+                        (G_CDataManager()->m_guildParameter.m_field104 <= gainBase) &&
+                        (G_CDataManager()->m_guildParameter.m_field108 >= gainBase);
+                    if (fixedBand)
+                    {
+                        guildFund = G_CDataManager()->m_guildParameter.m_field10c;
+                    }
+                    else if (G_CDataManager()->m_guildParameter.m_field108 < gainBase)
+                    {
+                        guildFund = (int)((long double)G_CDataManager()->m_guildParameter.m_field110 * (double)gainBase);
+                    }
+                    if (guildFund <= gain && guildFund > 0)
+                    {
+                        gain -= guildFund;
+                        GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                            (CIRCULATION_STATISTIC_FIELD)0x2a, m_member[i].m_pUser,
+                            (unsigned int)guildFund);
+                    }
+                    if (guildFund > 0)
+                    {
+                        CGuildServerProxy* proxy =
+                            GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                                m_member[i].m_pUser->GetServerGroup());
+                        proxy->SendAddGuildFund(
+                            m_member[i].m_pUser->get_charac_no(-1),
+                            m_member[i].m_pUser->get_charac_guildkey(), guildFund,
+                            (Packet_Add_Guild_Fund::eFundType)0);
+                    }
                 }
-            }
 
-            CInventory* invenW = m_member[i].m_pUser->getCurCharacInvenW();
-            int gained = invenW->gain_money(
-                gain, goldGen ? (eMoneyAddReason)0x1a : (eMoneyAddReason)4, true,
-                bonusGold);
-            if (mi.m_count != 0)
-                m_member[i].m_pUser->saveTaxMoneyForUpperMember(gain);
-            if (gained < gain)
-            {
-                if (gained < 0)
-                    gained = 0;
-                m_member[i].m_pUser->SendMoneyFullReason(
-                    (ENUM_MONEY_FULL_REASON)0, (unsigned long)gain,
-                    (unsigned long)gained);
-            }
-            GetInstanceValueStatistic()->AddValueStatistic(
-                (VALUE_STATISTIC_FIELD)1, m_member[i].m_pUser,
-                (unsigned int)gain);
+                CInventory* invenW = m_member[i].m_pUser->getCurCharacInvenW();
+                int gained = invenW->gain_money(
+                    gain, (eMoneyAddReason)0x1a, true, bonusGold);
+                if (mi.m_count != 0)
+                    m_member[i].m_pUser->saveTaxMoneyForUpperMember(gain);
+                if (gained < gain)
+                {
+                    if (gained < 0)
+                        gained = 0;
+                    m_member[i].m_pUser->SendMoneyFullReason(
+                        (ENUM_MONEY_FULL_REASON)0, (unsigned long)gain,
+                        (unsigned long)gained);
+                }
+                GetInstanceValueStatistic()->AddValueStatistic(
+                    (VALUE_STATISTIC_FIELD)1, m_member[i].m_pUser,
+                    (unsigned int)gain);
 
-            packet.put_int(gained);
-            packet.put_byte(1);
-            packet.put_int(bonusGold);
-            packet.put_int(guildFund);
+                packet.put_int(gained);
+                packet.put_byte(1);
+                packet.put_int(bonusGold);
+                packet.put_int(guildFund);
+            }
         }
 
         packet.finalize(true);
@@ -3711,68 +3823,75 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 
         if (routingEligible != 0)
         {
-            int diceNext = m_routingDice + 1;                 // -0x34
-            if (diceNext >= get_member_count())
-                diceNext = 0;
-            int seq = 0;                                   // -0x30
-            int ownerBias = 0;                             // -0x2c
-            if (mi.m_ownerId != 0)
+            if (item->check_item_routing() || item->IsAvatarItem())
             {
-                ownerBias = get_rand_int(0xb) + 0x59;
-            }
-            for (int i = 0; i <= 3; ++i)
-            {
-                if (!_checkValidUser(i))
-                    continue;
-                if (m_liveFlag[i] == 1)
-                    continue;
-                const CInventory* invR = m_member[i].m_pUser->getCurCharacInvenR();
-                int w = invR->tryInsertItemIntoInventory(mi.m_item);
-                if (w == -1)
-                    continue;
-                weights[i] += 1;
-                if (seq == diceNext)
-                {
-                    weights[i] += 0x28;
-                    m_routingDice = seq;
-                }
-                bool jobBonus;
-                if (item->is_stackable())
-                    jobBonus = false;
-                else if (item->GetItemType() != 10)
-                    jobBonus = false;
-                else
-                    jobBonus = item->check_job_type(
-                        m_member[i].m_pUser->get_charac_job()) != 0;
-                if (jobBonus)
-                    weights[i] += 0x1e;
-                weights[i] += get_rand_int(100 - weights[i]);
+                int diceNext = m_routingDice + 1;                 // -0x34
+                if (diceNext >= get_member_count())
+                    diceNext = 0;
+                int seq = 0;                                   // -0x30
+                int ownerBias = 0;                             // -0x2c
                 if (mi.m_ownerId != 0)
                 {
-                    if (m_member[i].m_pUser == (CUser*)mi.m_ownerId)
-                        weights[i] = ownerBias;
-                    else if (weights[i] >= ownerBias)
-                        weights[i] = ownerBias - 1;
+                    ownerBias = get_rand_int(0xb) + 0x59;
                 }
-                ++seq;
+                for (int i = 0; i <= 3; ++i)
+                {
+                    if (!_checkValidUser(i))
+                        continue;
+                    if (m_liveFlag[i] == 1)
+                        continue;
+                    const CInventory* invR = m_member[i].m_pUser->getCurCharacInvenR();
+                    int w = invR->tryInsertItemIntoInventory(mi.m_item);
+                    if (w == -1)
+                        continue;
+                    weights[i] += 1;
+                    if (seq == diceNext)
+                    {
+                        weights[i] += 0x28;
+                        m_routingDice = seq;
+                    }
+                    bool jobBonus;
+                    if (item->is_stackable())
+                        jobBonus = false;
+                    else if (item->GetItemType() != 10)
+                        jobBonus = false;
+                    else
+                        jobBonus = item->check_job_type(
+                            m_member[i].m_pUser->get_charac_job()) != 0;
+                    if (jobBonus)
+                        weights[i] += 0x1e;
+                    weights[i] += get_rand_int(100 - weights[i]);
+                    if (mi.m_ownerId != 0)
+                    {
+                        if (m_member[i].m_pUser == (CUser*)mi.m_ownerId)
+                            weights[i] = ownerBias;
+                        else if (weights[i] >= ownerBias)
+                            weights[i] = ownerBias - 1;
+                    }
+                    ++seq;
+                }
+    
+                int best = 0;                                  // -0x28
+                for (int i = 0; i <= 3; ++i)
+                {
+                    if (!_checkValidUser(i))
+                        continue;
+                    if (m_liveFlag[i] == 1)
+                        continue;
+                    if (weights[i] > best)
+                    {
+                        best = weights[i];
+                        winner = m_member[i].m_pUser;
+                    }
+                    else if (weights[i] == best && weights[i] > 0)
+                    {
+                        weights[i] -= 1;
+                    }
+                }
             }
-
-            int best = 0;                                  // -0x28
-            for (int i = 0; i <= 3; ++i)
+            else
             {
-                if (!_checkValidUser(i))
-                    continue;
-                if (m_liveFlag[i] == 1)
-                    continue;
-                if (weights[i] > best)
-                {
-                    best = weights[i];
-                    winner = m_member[i].m_pUser;
-                }
-                else if (weights[i] == best && weights[i] > 0)
-                {
-                    weights[i] -= 1;
-                }
+                winner = user;
             }
         }
         else

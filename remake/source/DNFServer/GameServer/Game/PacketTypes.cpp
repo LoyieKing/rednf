@@ -232,10 +232,8 @@ MSG_QUEST_SHOP::MSG_QUEST_SHOP()
     m_0d = 0;
     m_0e = 0;
 }
-MSG_QUICK_CHAT::MSG_QUICK_CHAT()
-{  // ORIG C1：m_quick 自动构造于 +0x12；此处清零标量
-    m_0d = 0;
-    m_11 = 0;
+MSG_QUICK_CHAT::MSG_QUICK_CHAT() : m_0d(0), m_11(0)
+{  // ORIG C1：标量初始化列表先于 m_quick 构造（声明序）
 }
 MSG_QUICK_PARTY::MSG_QUICK_PARTY()
 {

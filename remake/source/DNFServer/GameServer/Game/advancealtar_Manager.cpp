@@ -847,9 +847,9 @@ int CharacAdvanceAltarManager::resetStar(CUser* user, CMDPacketStruct::ResetStar
         {
             continue;
         }
-        setUnlockBuyItem(AdvanceAltarShopType::T_0, it->second.m_field4, 0);
-        setUnlockBuyItem(AdvanceAltarShopType::T_1, it->second.m_field4, 0);
-        setUnlockBuyItem(AdvanceAltarShopType::T_2, it->second.m_field4, 0);
+        setUnlockBuyItem(AdvanceAltarShopType::T_0, it->second.m_field0, 0);
+        setUnlockBuyItem(AdvanceAltarShopType::T_1, it->second.m_field0, 0);
+        setUnlockBuyItem(AdvanceAltarShopType::T_2, it->second.m_field0, 0);
     }
 
     const int delta = (cur->m_curStar + cur->m_starPoolBase) - cur->m_starPoint;

@@ -6487,9 +6487,12 @@ DimensionActivationRewardData::getRewardSelectItemList(int packageKey)
 std::vector<std::vector<EventRewardItemInfo> >*
 DimensionActivationRewardData::getRewardGiveItemList(int job, int growType)
 {
+    std::pair<int, int> key;
+    key.first = job;
+    key.second = growType;
     std::map<std::pair<int, int>,
              std::vector<std::vector<EventRewardItemInfo> > >::iterator it =
-        m_map24.find(std::make_pair(job, growType));
+        m_map24.find(key);
     if (it == m_map24.end())
     {
         return 0;

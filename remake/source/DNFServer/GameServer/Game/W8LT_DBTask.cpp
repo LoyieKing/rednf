@@ -4833,11 +4833,12 @@ void DB_HadesPunish::makeRequest(unsigned int a, unsigned int b,
     guard.operator*()->operator<<((int)0x2b6);
     guard.operator*()->operator<<((int)-1);
     SIG_HADES_PUNISH* sig = guard.GetInBuffer<SIG_HADES_PUNISH>();
-    *(unsigned int*)&sig->m_pad[0] = a;
-    *(unsigned int*)&sig->m_pad[0x4] = b;
-    *(unsigned int*)&sig->m_pad[0x8] = c;
-    *(unsigned int*)&sig->m_pad[0xc] = d;
-    *(unsigned int*)&sig->m_pad[0x10] = e;
+    unsigned int* p = reinterpret_cast<unsigned int*>(&sig->m_pad[0]);
+    p[0] = a;
+    p[1] = b;
+    p[2] = c;
+    p[3] = d;
+    p[4] = e;
     if (msg != 0)
         strcpy(&sig->m_pad[0x14], msg);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -17840,7 +17841,7 @@ bool DB_InsertDungeonEntrance_hour::dispatch(int userIdx, int slot,
         *stream >> exerciseCount;
         if (enterCount == 0)
             continue;
-        if (!s.empty())
+        if (s.size() != 0)
         {
             sprintf(buf, ",(%d,from_unixtime(%d),%d,%d,%d)", channelNo,
                     occDate, dungeonIndex, enterCount, exerciseCount);
@@ -17852,7 +17853,7 @@ bool DB_InsertDungeonEntrance_hour::dispatch(int userIdx, int slot,
         }
         s += buf;
     }
-    if (!s.empty())
+    if (s.size() != 0)
     {
         db->set_query(
             "inSert into log_dungeon_entrance_hour(channel_no,occ_date,dungeon_index,hour_enter_count, cnt_enter_count) values %s",

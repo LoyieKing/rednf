@@ -391,7 +391,11 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
     {
         if (b2)
             return 0x1582;
-        unsigned int t = (unsigned int)item->m_field1;
+        // ORIG 0x84efec2：movzbl 0x1(%item) → t；t>0xa || (1<<t & 0x69c)==0
+        // → 0x158f（0x69c = 位 2,3,4,7,9,10 允许集；t 检查先于 limit 检查）
+        unsigned int t = (unsigned char)item->m_field1;
+        if (t > 0xa || (0x69c & (1u << t)) == 0)
+            return 0x158f;
         const CStackableItem* stackDef =
             static_cast<const CStackableItem*>(def);
         if (item->m_addInfo2 > stackDef->getStackableLimit() ||
