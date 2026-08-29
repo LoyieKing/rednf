@@ -2,12 +2,12 @@
 #define DNF_GAME_CTOURNAMENTDUNGEONREWARD_H_
 
 #include <map>
+#include <vector>
 
 class TournamentRewardRate;              // CDungeon.h 权威定义
 class TournamentRewardItemRate;
 struct TournamentRewardItem;
 class PacketGuard;
-class InterfacePacketBuf;
 namespace WongWork
 {
 struct stGenerateResult_t;
@@ -21,12 +21,16 @@ class Inven_Item;
 enum ENUM_TOURNAMENT_REWARD_CARD_TYPE
 {
     ENUM_TOURNAMENT_REWARD_CARD_TYPE_0 = 0,
-    ENUM_TOURNAMENT_REWARD_CARD_TYPE_1 = 1
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE_1 = 1,
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE_2 = 2   // isCardSelectComplete cmp $2 实证（双卡型）
 };
 
 class TournamentRewardType
 {
 public:
+    // ORIG C1/C2 W 0x08285546：仅 call Clear。
+    TournamentRewardType() { Clear(); }
+
     void Clear()
     {
         m_id = -1;
@@ -49,19 +53,35 @@ public:
     void MakeReward(const std::map<int, TournamentRewardRate>* rates,
                     const TournamentRewardItemRate* itemRate, int round,
                     bool victory);   // ORIG 0x8284890
-    void SetRewardGold(const WongWork::stGenerateResult_t& result,
-                       float goldRate);   // ORIG 0x8284b8e
+    void SetRewardGold(WongWork::stGenerateResult_t& result,
+                       float goldRate);   // ORIG 0x8284b8e（非 const 引用，mangled ERN8）
     void MakeRewardPacket(PacketGuard* packet, bool flag);   // ORIG 0x8284caa
 private:
     void DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE card,
-                            const TournamentRewardRate& rate,
-                            const TournamentRewardItemRate* itemRate);   // ORIG 0x8284a24
+                            TournamentRewardRate& rate,
+                            const TournamentRewardItemRate* itemRate);   // ORIG 0x8284a24（非 const 引用，mangled R20）
     void _MakeRewardPacket(ENUM_TOURNAMENT_REWARD_CARD_TYPE type,
-                           InterfacePacketBuf* packet);   // ORIG 0x82852e4
+                           PacketGuard* packet);   // ORIG 0x082852e4（mangled P11PacketGuard）
+    // ORIG T 0x08285284（isCardSelectComplete/_ForceSelectCard 消费）
+    bool isMemberSelectCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo);
+    // ORIG T 0x082853b8（ForceSelectCard 逐卡型包装）
+    void _ForceSelectCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE type,
+                          const std::vector<int>& members);
 
 public:
     int GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo,
                         Inven_Item* items, unsigned int maxItems);   // ORIG 0x828502e
+    // ORIG T 0x08284d08（_ZN24...20isCardSelectCompleteE32ENUM_..RKSt6vectorIiSaIiEE，
+    // 非 const 成员）。
+    bool isCardSelectComplete(ENUM_TOURNAMENT_REWARD_CARD_TYPE type,
+                              const std::vector<int>& members);
+    // ORIG T 0x08284ee4（_ZN24CTournamentDungeonReward10SelectCardEicc，
+    // 卡选落槽：槽位 slotNo 写入 m_rewards[cardA][cardB] 未选槽）。
+    bool SelectCard(int slotNo, char cardA, char cardB);
+    // ORIG T 0x0828523c（参数为非 const vector&）。
+    void ForceSelectCard(std::vector<int>& members, bool victory);
+    // ORIG T 0x08284fa4。
+    void MakeSelectPacket(PacketGuard* packet);
 
 private:
     int m_field04;                       // +0x04（ResetReward 清零）

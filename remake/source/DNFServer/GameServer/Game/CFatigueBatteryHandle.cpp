@@ -129,7 +129,7 @@ short CFatigueBatteryHandle::ChargingFatigueBattery(CUser* user, int v)
         static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging()));
     int charNo = user->getCurCharacNo();
 
-    cMyTrace trace("short int CFatigueBatteryHandle::ChargingFatigueBattery(CUser*, int)",
+    cMyTrace trace(__PRETTY_FUNCTION__,
                    0x32, 0);
     trace("FATIGUE BATTERY : char no(%d), alreadyFatigue(%d), remainFatigue(%d), "
           "level(%d), endLevelCnt(%d), thatDayUsedFatigue(%d)",
@@ -212,7 +212,7 @@ short CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser* user)
         static_cast<short>(result))
     {
         cMyTrace trace(
-            "short int CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser*)",
+            __PRETTY_FUNCTION__,
             0x77, 0);
         trace("FATIGUE BATTERY ACTIVE ERR : char no(%d), usedFatigue(%d)",
               user->getCurCharacNo(), result);

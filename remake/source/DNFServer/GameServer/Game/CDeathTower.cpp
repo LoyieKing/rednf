@@ -73,17 +73,10 @@ private:
     char m_pad24[0x70 - 0x24];                      // +0x24..+0x6f（独立掉/头像/名字区，本 TU 未用）
 };
 
-// ORIG 0x0834a9d2 _ZN16CAICharacterList3getEj（成员 this=CAICharacterList）：
-// m_charMap.find(idx)；未找到返回 0，否则返回 it->second。
-// 工程头以 `static CAICharacter* get(void*, unsigned int)` 形式声明（重建桥接），
-// 本实现按该桥接签名提供，内部转为 map 查找。
-CAICharacter* CAICharacterList::get(void* list, unsigned int idx)
+CAICharacter* CAICharacterList::get(unsigned int idx)
 {
-    CAICharacterList* self = static_cast<CAICharacterList*>(list);
-    if (self == 0)
-        return 0;
-    std::map<int, CAICharacter*>::iterator it = self->m_charMap.find((int)idx);
-    if (it == self->m_charMap.end())
+    std::map<int, CAICharacter*>::iterator it = m_charMap.find((int)idx);
+    if (it == m_charMap.end())
         return 0;
     return it->second;
 }
@@ -109,7 +102,7 @@ void CAICharacterList::destroy()
 // 权威定义见 WarField.h（经 CGameManager.h → PvP_Room.h → PvP_deps.h 链包含），
 // 本地重复定义已删除（§7 单声明点）。方法定义保留在下方（归属 WarField.h 声明）。
 
-unsigned int stMapMonsterKillChecker_t::getUseSkillMaterialTime() const { return m_useSkillMaterialTime; }
+unsigned int stMapMonsterKillChecker_t::getUseSkillMaterialTime() { return m_useSkillMaterialTime; }
 
 int stMapMonsterKillChecker_t::dieMonster(unsigned int tick, unsigned int limit)
 {
@@ -136,8 +129,6 @@ void stMapMonsterKillChecker_t::initMonsterInfo()
 
 class TimerQueue;
 TimerQueue* G_TimerQueue();
-
-int GetInvenTypeFromItemSpace(int space) { return space; }
 
 // CDungeonEntranceLog（CDungeonEntranceLog.h 权威声明）/ WongWork::CDeathTowerRanking
 // （CDeathTowerRanking.h 权威声明）直接调用。
@@ -787,7 +778,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         CAICharacter* aiChar = 0;
         if (aiCharList)
         {
-            aiChar = CAICharacterList::get(aiCharList, monster.m_mobIndex);
+            aiChar = aiCharList->get(monster.m_mobIndex);
         }
         if (aiChar)
         {
@@ -1910,7 +1901,7 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
         for (size_t i = 0; i < aiChars->size(); i++)
         {
             const STAICharacterMapArrangeData& data = (*aiChars)[i];
-            CAICharacter* aiChar = (CAICharacter*)aiList->get(aiList, data.m_type);
+            CAICharacter* aiChar = aiList->get(data.m_type);
             if (!aiChar)
             {
                 return false;
@@ -1958,7 +1949,7 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
 int CDeathTower::handleUseStackable(CUser* user, ENUM_ITEMSPACE itemSpace, unsigned short slot)
 {
-    int invenType = GetInvenTypeFromItemSpace((int)itemSpace);
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace);
     CInventory* inven = (CInventory*)user->getCurCharacInvenR();
     Inven_Item* item = inven->GetInvenRef(invenType, slot);
     if (!item)

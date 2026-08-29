@@ -226,7 +226,7 @@ public:
     virtual void parse();                            // ORIG T 0x084a921a
     virtual void execute();                          // ORIG T 0x084a9252
 
-    std::string m_str0;                              // +0x08
+    unsigned int m_flag;                             // +0x08（ORIG parse atoi）
 };
 class CViewTutorialFlagCmd : public CCommand
 {
@@ -268,7 +268,7 @@ public:
     virtual void parse();                            // ORIG T 0x084a98c8
     virtual void execute();                          // ORIG T 0x084a9900
 
-    std::string m_str0;                              // +0x08
+    int m_jobType;                                   // +0x08
 };
 class CChangeExpertJobExpCmd : public CCommand
 {
@@ -277,7 +277,7 @@ public:
     virtual void parse();                            // ORIG T 0x084a9b98
     virtual void execute();                          // ORIG T 0x084a9bd0
 
-    std::string m_str0;                              // +0x08
+    int m_exp;                                       // +0x08
 };
 class CStartMacroCmd : public CCommand
 {
@@ -316,7 +316,7 @@ public:
     virtual void parse();                            // ORIG T 0x084a9db0
     virtual void execute();                          // ORIG T 0x084a9de8
 
-    std::string m_str0;                              // +0x08
+    int m_duration;                                  // +0x08（时长秒；atoi(args)）
 };
 class CBloodMonsterListCmd : public CCommand
 {
@@ -370,7 +370,8 @@ public:
     virtual void parse();                            // ORIG T 0x084aacb8
     virtual void execute();                          // ORIG T 0x084aadd2
 
-    std::string m_str0;                              // +0x08
+    int m_npcId;                                     // +0x08
+    int m_maxDay;                                    // +0x0c
 };
 class CChangeNPCFavorCmd : public CCommand
 {
@@ -379,7 +380,8 @@ public:
     virtual void parse();                            // ORIG T 0x084aadd8
     virtual void execute();                          // ORIG T 0x084aaef2
 
-    std::string m_str0;                              // +0x08
+    int m_npcId;                                     // +0x08
+    int m_favor;                                     // +0x0c
 };
 class CClearInventoryCmd : public CCommand
 {
@@ -418,7 +420,8 @@ public:
     virtual void parse();                            // ORIG T 0x084ab202
     virtual void execute();                          // ORIG T 0x084ab23e
 
-    std::string m_str0;                              // +0x08
+    short m_straight;                                // +0x08
+    char m_pad[2];
 };
 class CDeleteGuild : public CCommand
 {
@@ -433,7 +436,8 @@ public:
     virtual void parse();                            // ORIG T 0x084aa73a
     virtual void execute();                          // ORIG T 0x084aa858
 
-    std::string m_str0;                              // +0x08
+    int m_slot;                                      // +0x08
+    unsigned short m_endurance;                      // +0x0c
 };
 class CChangeCharacName : public CCommand
 {
@@ -450,10 +454,12 @@ public:
     CStartEvent();                   // ORIG W 0x082a8442（sizeof=0x14）
     virtual void parse();                            // ORIG T 0x084ab5b6
     virtual void execute();                          // ORIG T 0x084ab886
-    void getParam();                                       // 辅助（ORIG T 0x084ab64e，签名见报告）
+    void getParam(std::string param);                // ORIG T 0x084ab64e
 
-    std::string m_str0;                              // +0x08
-    unsigned int m_f1;                               // +0x10（字段语义见报告）
+    int m_eventCount;                                // +0x08
+    int m_eventId;                                   // +0x0c
+    unsigned short m_param1;                         // +0x10
+    unsigned short m_param2;                         // +0x12
 };
 class CEndEvent : public CCommand
 {
@@ -462,7 +468,7 @@ public:
     virtual void parse();                            // ORIG T 0x084ab914
     virtual void execute();                          // ORIG T 0x084ab94c
 
-    std::string m_str0;                              // +0x08
+    int m_eventCode;                                 // +0x08
 };
 class CSecretShopCheckLottery : public CCommand
 {
@@ -543,7 +549,8 @@ public:
     virtual void parse();                            // ORIG T 0x084ac720
     virtual void execute();                          // ORIG T 0x084ac76c
 
-    std::string m_str0;                              // +0x08
+    int m_param1;                                    // +0x08
+    int m_param2;                                    // +0x0c
     unsigned int m_f1;                               // +0x10（字段语义见报告）
 };
 class CDropItem : public CCommand
@@ -568,7 +575,8 @@ public:
     virtual void parse();                            // ORIG T 0x084ac84c
     virtual void execute();                          // ORIG T 0x084ac966
 
-    std::string m_str0;                              // +0x08
+    int m_param1;                                    // +0x08
+    int m_param2;                                    // +0x0c
 };
 class CRefund : public CCommand
 {
@@ -577,7 +585,8 @@ public:
     virtual void parse();                            // ORIG T 0x084ac96c
     virtual void execute();                          // ORIG T 0x084aca86
 
-    std::string m_str0;                              // +0x08
+    int m_param1;                                    // +0x08
+    int m_param2;                                    // +0x0c
 };
 class CMonsterDropTest : public CCommand
 {
@@ -597,7 +606,8 @@ public:
     void processKillMonster();                                       // 辅助（ORIG T 0x084add20，签名见报告）
     void singleMapMonsterKill();                                       // 辅助（ORIG T 0x084ad93a，签名见报告）
 
-    std::string m_str0;                              // +0x08
+    int m_mode;                                      // +0x08（0=single/1=passed 保存/2=passed 统计/3=gold 统计）
+    int m_count;                                     // +0x0c（统计次数，0 视作 10000）
 };
 class CBoosterTest : public CCommand
 {
@@ -617,8 +627,8 @@ public:
     void is_gold_lottery_item();                                       // 辅助（ORIG T 0x084afccc，签名见报告）
     void makeFileContents();                                       // 辅助（ORIG T 0x084af504，签名见报告）
     void make_file_gold_contents();                                       // 辅助（ORIG T 0x084af7fc，签名见报告）
-    void printClient();                                       // 辅助（ORIG T 0x084aebf2，签名见报告）
-    void printServer();                                       // 辅助（ORIG T 0x084aebae，签名见报告）
+    static void printClient(CUser* user, bool more, char const* name, char const* contents);
+    static void printServer(char const* path, char const* contents);
 
     std::string m_str0;                              // +0x08
 };
@@ -634,7 +644,8 @@ public:
     void getVendingMachineItem();                                       // 辅助（ORIG T 0x084b02e6，签名见报告）
     void processVendingMachineItemLottery();                                       // 辅助（ORIG T 0x084b0550，签名见报告）
 
-    std::string m_str0;                              // +0x08
+    int m_mode;                                      // +0x08
+    int m_count;                                     // +0x0c
 };
 class CBindCubeTest : public CCommand
 {
@@ -724,7 +735,7 @@ public:
     virtual void parse();                            // ORIG T 0x084b0a34
     virtual void execute();                          // ORIG T 0x084b0a6e
 
-    std::string m_str0;                              // +0x08
+    int m_itemIdx;                                   // +0x08
 };
 class CIndependentDrop : public CCommand
 {
@@ -783,7 +794,8 @@ public:
     virtual void parse();                            // ORIG T 0x084b2110
     virtual void execute();                          // ORIG T 0x084b2152
 
-    std::string m_str0;                              // +0x08
+    unsigned char m_difficulty;                      // +0x08
+    char m_pad[3];
 };
 class BlueMarbleSet : public CCommand
 {
@@ -809,7 +821,9 @@ public:
     virtual void parse();                            // ORIG T 0x084b28d6
     virtual void execute();                          // ORIG T 0x084b293c
 
-    std::string m_str0;                              // +0x08
+    unsigned char m_resetFlag;                       // +0x08
+    char m_pad[3];
+    int m_timepiece;                                 // +0x0c
 };
 class CClearRewardTest : public CCommand
 {
@@ -817,7 +831,7 @@ public:
     CClearRewardTest();              // ORIG W 0x082a8902（sizeof=0x8）
     virtual void parse();                            // ORIG T 0x084b2a02
     virtual void execute();                          // ORIG T 0x084b2a08
-    void printClient();                                       // 辅助（ORIG T 0x084b3398，签名见报告）
+    void printClient(CUser* user, char const* fileName, char const* content);
 };
 class CBingoGmTest : public CCommand
 {
@@ -858,7 +872,7 @@ public:
     virtual void parse();                            // ORIG T 0x084b399a
     virtual void execute();                          // ORIG T 0x084b3a34
 
-    std::string m_str0;                              // +0x08
+    int m_result;                                    // +0x08（1=success/2=fail/0=auto）
 };
 class CBillingRechargeCommand : public CCommand
 {
@@ -876,7 +890,8 @@ public:
     virtual void parse();                            // ORIG T 0x084b3bdc
     virtual void execute();                          // ORIG T 0x084b3c60
 
-    std::string m_str0;                              // +0x08
+    std::string m_str0;                              // +0x08（目标限制域："mobile"/"character"）
+    unsigned int m_restrictSwitch;                   // +0x0c
 };
 class CPcroomRewardReset : public CCommand
 {

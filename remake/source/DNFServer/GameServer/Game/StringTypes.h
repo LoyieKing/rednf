@@ -308,8 +308,61 @@ WideString operator+(const WideString& src1, wchar_t ch);
 WideString operator+(const wchar_t* src1, const WideString& src2);
 WideString operator+(wchar_t ch, const WideString& src2);
 
-// ORIG _Z11ss_vsprintfPcjPKcS_ / _Z12ss_vswprintfPwjPKwPc（i386 上 va_list 即 char*）
-int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList);
-int ss_vswprintf(wchar_t* buffer, size_t count, const wchar_t* format, char* argList);
+// ---- CharString / WideString 自由 insert/replace（G4 域，StringConvert.cpp；
+//      ORIG 0x08ad76ce..0x08adae9d，sret 返回）----
+CharString insert(const CharString& str, int pos, const char* src);
+CharString insert(const CharString& str, int pos, const char* src, int srcLength);
+CharString insert(const CharString& str, int pos, const CharString& src);
+CharString insert(const CharString& str, int pos, char src);
+WideString insert(const WideString& str, int pos, const wchar_t* src);
+WideString insert(const WideString& str, int pos, const wchar_t* src, int srcLength);
+WideString insert(const WideString& str, int pos, const WideString& src);
+WideString insert(const WideString& str, int pos, wchar_t src);
+CharString replace(const CharString& str, const char* pat, const char* target);
+CharString replace(const CharString& str, const char* pat, int patLength,
+                   const char* target, int targetLength);
+CharString replace(const CharString& str, const CharString& pat, const CharString& target);
+CharString replace(const CharString& str, char pat, char target);
+WideString replace(const WideString& str, const wchar_t* pat, const wchar_t* target);
+WideString replace(const WideString& str, const wchar_t* pat, int patLength,
+                   const wchar_t* target, int targetLength);
+WideString replace(const WideString& str, const WideString& pat, const WideString& target);
+WideString replace(const WideString& str, wchar_t pat, wchar_t target);
+
+// ---- 宽字符转换自由函数（G4 域；toUnicode 返回 TLS 环形缓冲槽指针）----
+const wchar_t* toUnicode(const char* src);
+const wchar_t* toUnicode(const wchar_t* src);
+const wchar_t* toUnicode(const std::string& src);
+const wchar_t* toUnicode(const std::wstring& src);
+void toUnicode(const char* src, std::wstring& dst);
+void toUnicode(const wchar_t* src, std::wstring& dst);
+void toUnicode(const std::string& src, std::wstring& dst);
+void toUnicode(const std::wstring& src, std::wstring& dst);
+
+WideString convertToWideString(const char* src);
+WideString convertToWideString(const char* src, unsigned int codePage);
+// ---- 大小写/裁剪/反转/删除自由函数（OnlyOrigBatch7；实现 StringCaseTools.cpp）----
+CharString lower(const CharString& str);
+WideString lower(const WideString& str);
+CharString upper(const CharString& str);
+WideString upper(const WideString& str);
+CharString reverse(const CharString& str);
+WideString reverse(const WideString& str);
+CharString remove(const CharString& str, int pos, int removeLength);
+WideString remove(const WideString& str, int pos, int removeLength);
+CharString trim(const CharString& str);
+WideString trim(const WideString& str);
+CharString trimLeft(const CharString& str);
+WideString trimLeft(const WideString& str);
+CharString trimRight(const CharString& str);
+WideString trimRight(const WideString& str);
+
+// ---- 缓冲读取（2 字节长度前缀；实现 StringCaseTools.cpp）----
+void readStringFromBuffer(char* dst, int maxLen, char*& buf);
+void readStringFromBuffer(std::string& str, char*& buf);
+
+// ORIG T 0x08ad457c / 0x08ad45f3（mangled 第 4 参为 char*，ABI 上 va_list 即 char*）。
+int ss_vsprintf(char* buffer, unsigned int count, const char* format, char* ap);
+int ss_vswprintf(wchar_t* buffer, unsigned int count, const wchar_t* format, char* ap);
 
 #endif  // DNF_GAME_STRING_TYPES_H_

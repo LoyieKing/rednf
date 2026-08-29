@@ -145,7 +145,7 @@ void CharacAdvanceAltarManager::getCharacAdvanceAltarDbData(_CharacAdvanceAltarD
     // ORIG 循环 local_10 <= 0（一次）
     for (int local_10 = 0; local_10 < 1; ++local_10)
     {
-        m_data.get(*reinterpret_cast<_AdvanceAltarDbData*>(
+        m_data[0].get(*reinterpret_cast<_AdvanceAltarDbData*>(
             reinterpret_cast<char*>(&out) + local_10 * 0x518 + 4));
     }
 }
@@ -185,10 +185,10 @@ void CharacAdvanceAltarManager::refillTicketFree()
 {
     for (int i = 0; i < 1; ++i)
     {
-        if (isValidRidableId(static_cast<advancealtar::RidableId::T>(m_data.m_ridableId)))
+        if (isValidRidableId(static_cast<advancealtar::RidableId::T>(m_data[0].m_ridableId)))
         {
-            m_data.m_ticket = G_CDataManager()->m_altarConfig.m_0;
-            m_data.m_update = 1;
+            m_data[0].m_ticket = G_CDataManager()->m_altarConfig.m_0;
+            m_data[0].m_update = 1;
         }
     }
 }
@@ -421,6 +421,17 @@ void __GetCurrentDNFDate(struct tm& out);
 namespace advancealtar
 {
 
+// ---- ORIG namespace 内 static 常量副本（本 TU 使用处引用；各 TU 独立发射
+//      _ZN12advancealtarL...E，与 ORIG 多副本形态一致）----
+static const int kMaxStrBuffer = 2048;          // 0x08b6d3d0
+static const int kMaxZipBuffer = 2048;          // 0x08b6d3cc
+static const char* const kDelimterItem = "|";   // 0x08b6d3d8 指针 → '|'(0x7c)
+static const char* const kDelimterField = ",";  // 0x08b6d3dc 指针 → ','(0x2c)
+static const int kMaxStageCount = 50;          // 0x08af2e6c
+static const int kMaxSlotCount = 12;           // 0x08af2e70
+static const int kMaxBuyItemCount = 50;        // 0x08af2e74
+static const int kMaxRewardCount = 30;         // 0x08af2e78
+
 // ---- 8 个全局扁平缓冲区（ORIG B 符号，各 0x800 字节）----
 char g_ZipStageBuffer[0x800];     // 0x09400380
 char g_StrStageBuffer[0x800];     // 0x09400b80
@@ -523,7 +534,7 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         if (!isValidRidableId(static_cast<RidableId::T>(ridableId)))
         {
             LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp",
-                                  "bool advancealtar::DB_Load::Select(advancealtar::CharacAdvanceAltarDbData&)",
+                                  __PRETTY_FUNCTION__,
                                   0xb1, "invalid RidableId=%d", ridableId);
             return false;
         }
@@ -548,27 +559,27 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
             return false;
         *(db + 0x20) = (unlockFlag >= 1) ? 1 : 0;
 
-        std::memset(g_StrStageBuffer, 0, 0x800);
-        std::memset(g_StrSlotBuffer, 0, 0x800);
-        std::memset(g_StrBuyItemBuffer, 0, 0x800);
-        std::memset(g_StrRewardBuffer, 0, 0x800);
+        std::memset(g_StrStageBuffer, 0, kMaxStrBuffer);
+        std::memset(g_StrSlotBuffer, 0, kMaxStrBuffer);
+        std::memset(g_StrBuyItemBuffer, 0, kMaxStrBuffer);
+        std::memset(g_StrRewardBuffer, 0, kMaxStrBuffer);
 
-        if (!convertZipToString(mysql, col++, g_ZipStageBuffer, 0x800, g_StrStageBuffer, 0x800))
+        if (!convertZipToString(mysql, col++, g_ZipStageBuffer, kMaxZipBuffer, g_StrStageBuffer, kMaxStrBuffer))
             return false;
-        if (!convertZipToString(mysql, col++, g_ZipSlotBuffer, 0x800, g_StrSlotBuffer, 0x800))
+        if (!convertZipToString(mysql, col++, g_ZipSlotBuffer, kMaxZipBuffer, g_StrSlotBuffer, kMaxStrBuffer))
             return false;
-        if (!convertZipToString(mysql, col++, g_ZipBuyItemBuffer, 0x800, g_StrBuyItemBuffer, 0x800))
+        if (!convertZipToString(mysql, col++, g_ZipBuyItemBuffer, kMaxZipBuffer, g_StrBuyItemBuffer, kMaxStrBuffer))
             return false;
-        if (!convertZipToString(mysql, col++, g_ZipRewardBuffer, 0x800, g_StrRewardBuffer, 0x800))
+        if (!convertZipToString(mysql, col++, g_ZipRewardBuffer, kMaxZipBuffer, g_StrRewardBuffer, kMaxStrBuffer))
             return false;
 
-        if (!parseStage(g_StrStageBuffer, reinterpret_cast<_Stage*>(base + 0x25), 0x32))
+        if (!parseStage(g_StrStageBuffer, reinterpret_cast<_Stage*>(base + 0x25), kMaxStageCount))
             return false;
-        if (!parseSlot(g_StrSlotBuffer, reinterpret_cast<_Slot*>(base + 0x1b5), 0xc))
+        if (!parseSlot(g_StrSlotBuffer, reinterpret_cast<_Slot*>(base + 0x1b5), kMaxSlotCount))
             return false;
-        if (!parseBuyItem(g_StrBuyItemBuffer, reinterpret_cast<_BuyItem*>(base + 0x22d), 0x32))
+        if (!parseBuyItem(g_StrBuyItemBuffer, reinterpret_cast<_BuyItem*>(base + 0x22d), kMaxBuyItemCount))
             return false;
-        if (!parseReward(g_StrRewardBuffer, reinterpret_cast<_Reward*>(base + 0x485), 0x1e))
+        if (!parseReward(g_StrRewardBuffer, reinterpret_cast<_Reward*>(base + 0x485), kMaxRewardCount))
             return false;
     }
     return true;
@@ -716,7 +727,8 @@ void DB_Update::makeStageString(std::string& out, const _Stage* arr, int count) 
     {
         if (arr[i].m_field0 != 0 || arr[i].m_field4 != 0)
         {
-            std::sprintf(buf, "%d,%d|", arr[i].m_field0, arr[i].m_field4);   // ORIG 经 DAT ","/"|"
+            std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, kDelimterField,
+                         arr[i].m_field4, kDelimterItem);   // ORIG 经 DAT ","/"|"
             out += buf;
         }
     }

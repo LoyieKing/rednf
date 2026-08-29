@@ -12,6 +12,7 @@
 #include "Secu_HackLogCheckByParty.h"  // MSG_MONSTER_DIE 完整定义（KillMonster）
 #include "CInventory.h"      // GetInvenRef / get_money（Login 实际使用完整类型）
 #include "STExpertJobScript.h"  // STExpertJobScript::GetLevel（Login 专家职业等级）
+#include "PacketTypes.h"     // MSG_MAILBOX_SEND 完整定义（SendMail 具名访问）
 
 
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
@@ -81,7 +82,7 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 {
     if (reason == static_cast<eAvatarItemAddReason>(1) || reason == static_cast<eAvatarItemAddReason>(3)
         || reason == static_cast<eAvatarItemAddReason>(4)) {
-        if (*(const char*)((const char*)this + 0x22) != 0)
+        if (m_traderCharac[0] != 0)
             m_user->LogHistory("Avatar+,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
                                static_cast<int>(reason), m_traderCharac, m_traderAccount);
     } else {
@@ -99,12 +100,12 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     if ((int)reason == 1 || (int)reason == 2)
     {
-        if (*(const char*)((const char*)this + 0x22) != 0)
+        if (m_traderCharac[0] != 0)
         {
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
             CItemGloballyUniqueIdentifierPrint print;
             const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -119,14 +120,12 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                 reseal & 0xff, guid);
         }
         // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
-        cUserHistoryLog* posSrc =
-            reinterpret_cast<cUserHistoryLog*>(
-                *reinterpret_cast<char* const*>(this) + 0x79700);
+        cUserHistoryLog* posSrc = &m_user->m_historyLog;
         unsigned short xPos = posSrc->getItemXPos();
         unsigned short yPos = posSrc->getItemYPos();
         CItemGloballyUniqueIdentifierPrint print;
         const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -135,7 +134,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             (int)invenType, item.m_addInfo, a3, a4, (int)reason,
             xPos & 0xffff, yPos & 0xffff,
             item.m_addInfo2, item.m_fieldd,
-            (unsigned)raw[0x11], (unsigned)(*reinterpret_cast<const unsigned short*>(raw + 0x12)),
+            (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
             upgrade & 0xff, (unsigned)item.m_fieldb,
             raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
             raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
@@ -152,12 +151,12 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     if ((int)reason == 1 || (int)reason == 2)
     {
-        if (*(const char*)((const char*)this + 0x22) != 0)
+        if (m_traderCharac[0] != 0)
         {
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
             CItemGloballyUniqueIdentifierPrint print;
             const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -176,7 +175,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
     {
         CItemGloballyUniqueIdentifierPrint print;
         const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -184,7 +183,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
             (int)invenType, item.m_addInfo, a3, a4, (int)reason,
             item.m_addInfo2, item.m_fieldd,
-            (unsigned)raw[0x11], (unsigned)(*reinterpret_cast<const unsigned short*>(raw + 0x12)),
+            (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
             upgrade & 0xff, (unsigned)item.m_fieldb,
             raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
             raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
@@ -212,7 +211,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
 void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agency, eAvatarItemDelReason reason)
 {
     if (reason == static_cast<eAvatarItemDelReason>(0) || reason == static_cast<eAvatarItemDelReason>(1)) {
-        if (*(const char*)((const char*)this + 0x22) != 0)
+        if (m_traderCharac[0] != 0)
             m_user->LogHistory("Avatar-,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
                                static_cast<int>(reason), m_traderCharac, m_traderAccount);
     } else {
@@ -224,7 +223,7 @@ void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int cou
 {
     if (type == 5) {
         if (reason == static_cast<eItemDelReason>(0x14) || reason == static_cast<eItemDelReason>(0x15)) {
-            if (*(const char*)((const char*)this + 0x22) != 0)
+            if (m_traderCharac[0] != 0)
                 m_user->LogHistory("CTItem-,%d,%d,%d,%d,\"%s\",\"%s\"", itemIdx, count, addInfo,
                                    static_cast<int>(reason), m_traderCharac, m_traderAccount);
         } else {
@@ -240,14 +239,14 @@ void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int cou
 
 void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
 {
-    if (*(const char*)((const char*)this + 0x22) != 0)
+    if (m_traderCharac[0] != 0)
         m_user->LogHistory("Money+,%d,%d,%d,%s(%s)", money, add, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
 }
 
 void cUserHistoryLog::MoneySubTrade(int money, int sub, eMoneySubReason reason)
 {
-    if (*(const char*)((const char*)this + 0x22) != 0)
+    if (m_traderCharac[0] != 0)
         m_user->LogHistory("Money-,%d,%d,%d,%s(%s)", money, sub, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
 }
@@ -369,7 +368,7 @@ void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int cou
     if (type == 5) {
         if (reason == static_cast<eItemAddReason>(0x1a) || reason == static_cast<eItemAddReason>(0x1c)
             || reason == static_cast<eItemAddReason>(0x1d)) {
-            if (*(const char*)((const char*)this + 0x22) != 0)
+            if (m_traderCharac[0] != 0)
                 m_user->LogHistory("CTItem+,%d,%d,%d,%d,\"%s\",\"%s\")", itemIdx, count, addInfo,
                                    static_cast<int>(reason), m_traderCharac, m_traderAccount);
         } else {
@@ -604,17 +603,16 @@ void cUserHistoryLog::QPAdd(int before, int questIdx, int add)
 // +0x45 附言）。条件为 mail 非空 且 &mail[0x11] 非空。
 void cUserHistoryLog::SendMail(MSG_MAILBOX_SEND* mail, unsigned int a)
 {
-    const char* p = reinterpret_cast<const char*>(mail);
-    if (mail != 0 && (p + 0x11) != 0) {
+    if (mail != 0 && (mail->m_pad + 4) != 0) {
         char* nstr = NumberToString(a, 0);
-        const char* mailBody = p + 0x45;                              // ORIG local：&mail[0x45] → -0x24
-        int f3d = *reinterpret_cast<const int*>(p + 0x3d);            // -0x20
-        int f39 = *reinterpret_cast<const int*>(p + 0x39);            // -0x1c
-        unsigned short f37 = *reinterpret_cast<const unsigned short*>(p + 0x37);
-        unsigned char f36 = static_cast<unsigned char>(p[0x36]);
-        int f2e = *reinterpret_cast<const int*>(p + 0x2e);
+        const char* mailBody = mail->m_pad + 0x38;                    // ORIG local：&mail[0x45] → -0x24
+        int f3d = *reinterpret_cast<const int*>(&mail->m_pad[0x30]);  // -0x20
+        int f39 = *reinterpret_cast<const int*>(&mail->m_pad[0x2c]);  // -0x1c
+        unsigned short f37 = *reinterpret_cast<const unsigned short*>(&mail->m_pad[0x2a]);
+        unsigned char f36 = static_cast<unsigned char>(mail->m_pad[0x29]);
+        int f2e = *reinterpret_cast<const int*>(&mail->m_pad[0x21]);
         m_user->LogHistory("MailS,%s,%d,%d,%d,%d,%d,\"%s\",%s",
-                           p + 0x11, f2e, static_cast<int>(f36), static_cast<int>(f37),
+                           mail->m_pad + 4, f2e, static_cast<int>(f36), static_cast<int>(f37),
                            f39, f3d, mailBody, nstr);
     }
 }
@@ -652,20 +650,20 @@ void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int
 
 void cUserHistoryLog::TradeBegin()
 {
-    if (*(const char*)((const char*)this + 0x22) != 0)
+    if (m_traderCharac[0] != 0)
         m_user->LogHistory("Trade+,\"%s\",\"%s\"", m_traderCharac, m_traderAccount);
 }
 
 void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
 {
-    if (*(const char*)((const char*)this + 0x22) != 0) {
+    if (m_traderCharac[0] != 0) {
+        static const int ILLEGAL_FACTOR = 10;   // ORIG _ZZN15cUserHistoryLog8TradeEndE15eTradeEndReasoniiiiE14ILLEGAL_FACTOR @0x8cf2690（=10）
         int sum1 = a + b;
         int sum2 = c + d;
         char flag = 0;
-        if (sum1 * 10 < sum2)
+        if (sum1 * ILLEGAL_FACTOR < sum2)
             flag = 1;
-
-        else if (sum2 * 10 < sum1)
+        else if (sum2 * ILLEGAL_FACTOR < sum1)
             flag = 2;
         m_user->LogHistory("Trade-,\"%s\",\"%s\",%d, %d, %d, %d",
                            m_traderCharac, m_traderAccount, static_cast<int>(reason), sum1, sum2,
@@ -851,7 +849,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -878,7 +876,7 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)(raw + 0x15));
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -1081,6 +1079,16 @@ void cUserHistoryLog::DiePvP(ENUM_PVP_HISTORY_REASON reason, unsigned int a, uns
 {
     m_user->LogHistory("PVP,%d,%u,%u,%d,%d,%d,%d,\"%s\"",
                        (int)reason, a, b, c, d, e, f, name);
+}
+
+// ORIG _ZN15cUserHistoryLog23Enchant3rdChronicleItemEbiiii @0x08684c28
+void cUserHistoryLog::Enchant3rdChronicleItem(bool isEnchant, int itemIdx, int materialIdx,
+                                              int equipType, int count)
+{
+    if (isEnchant)
+        m_user->LogHistory("3rdEnchant+,%d,%d,%d,%d", itemIdx, materialIdx, equipType, count);
+    else
+        m_user->LogHistory("3rdEnchant-,%d,%d,%d,%d", itemIdx, materialIdx, equipType, count);
 }
 
 // ORIG _ZN15cUserHistoryLog11EnchantItemEiiibPKcS1_ @0x08684d74

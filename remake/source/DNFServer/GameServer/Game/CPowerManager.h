@@ -1,6 +1,9 @@
 #ifndef DNF_GAME_POWER_MANAGER_H_
 #define DNF_GAME_POWER_MANAGER_H_
 
+#include "STPowerWarStatueRankerInfo.h"
+#include "CPowerWarPacketLog.h"
+
 class CUser;
 struct SIG_LOAD_POWER_WAR_STATUE_INFO;
 enum ENUM_POWER_SIDE_TYPE { ENUM_POWER_SIDE_TYPE_DUMMY = 0 };
@@ -32,15 +35,16 @@ public:
     int m_attemptCount;             // +0x00
     int m_successCount;             // +0x04
     int m_failureCount;             // +0x08
-    int m_field0c;                  // +0x0c（Reset 清零，无独立 Inc 符号）
+    int m_loadingTimeout;           // +0x0c（报告 1 节 LOADING TIMEOUT；Reset 清零）
     int m_loadingTimeoutSecede;     // +0x10
-    int m_field14;                  // +0x14（Reset 清零）
+    int m_p2pTimeoutFailure;        // +0x14（报告 P2P TIMEOUT failure 侧）
     int m_p2pTimeoutSecede;         // +0x18
     int m_p2pBadFailure;            // +0x1c
     int m_p2pBadSecede;             // +0x20
     int m_startSuccess;             // +0x24
     int m_startFailure;             // +0x28
-    int m_field2c[2];               // +0x2c..+0x30（Reset 清零）
+    int m_startSuccessCount;        // +0x2c（报告 4 节 SUCCESS COUNT）
+    int m_field30;                  // +0x30（Reset 清零）
     int m_totalJoinAssaultUser;     // +0x34
     int m_totalLeaveAssaultUser;    // +0x38
 };                                  // sizeof == 0x3c
@@ -73,7 +77,8 @@ public:
     int GetPowerWarPoint(ENUM_POWER_SIDE_TYPE side);
     int GetPowerWarPointInChannel(char side);
     int GetRankingByCharacNo(unsigned int charNo);
-    char GetWinnerSide();
+    void SetPowerWarPoint(int sideIdx, int point);   // ORIG T（Inter_NoticePowerWarRank 消费；InterWave1 批；ORIG 地址见 meta）
+    char GetWinnerSide();                            // ORIG W 0x0837501a（Inter_PowerWarEndInfo 消费；InterWave1 批）
     bool IsWinerSide(char side);
     // PowerUp 定时器四件套：ORIG 均为 inline 弱符号，+0x1c/+0x20 即下方
     // m_field1c/m_field20（GetPowerUpRemainTime 读 +0x1c、GetPowerUpTimerPeriod
@@ -96,26 +101,10 @@ public:
     int m_field20;              // +0x20（Init 置 0）
     unsigned char m_powerWarStartTime[4]; // +0x24（SetPowerWarStartTime 写 0x24..0x27）
 
-    // STPowerWarStatueRankerInfo：雕像排行条目，3 条，+0x28 起，entry 0x84。
-    // 布局依据 ORIG GetRankingByCharacNo(+0x2c 读 characNo) / CheckCompleteDBLoadStatueInfo
-    // (+0x28 读 flag) / SendPowerWarUserStatueInfo(+0x30 name, +0x4e job, +0x4f level,
-    // +0x50 grow, +0x51 guildName, +0x7c guildId, +0x80..equipment[11]) 推导。
-    struct RankerEntry
-    {
-        unsigned char m_flag;           // +0x00 (1=已加载)
-        char m_pad01[3];
-        unsigned int m_characNo;        // +0x04
-        char m_name[0x1e];              // +0x08（30B）
-        char m_job;                     // +0x26
-        char m_level;                   // +0x27
-        char m_grow;                    // +0x28
-        char m_guildName[0x28];         // +0x29（40B）
-        int m_guildId;                  // +0x51（对齐到 +0x54）
-        int m_equipment[11];            // +0x58（0x80 起，11 槽）
-    };
-    RankerEntry m_rankings[3];
+    // 类型/ctor 见 STPowerWarStatueRankerInfo.h（ORIG C1 0x08480f9e 弱符号 W）。
+    STPowerWarStatueRankerInfo m_rankings[3];   // +0x28..+0x1b3（ctor 循环调 C1 ×3）
     CPowerWarLog m_powerWarLog;         // +0x1b4（sizeof 0x3c；ORIG 嵌入对象，GetPowerWarLog 返回此址）
-    char m_pad1f0[0x18];                // +0x1f0..+0x207（原 pad 尾段；CPowerWarPacketLog 区待建模）
+    CPowerWarPacketLog m_powerWarPacketLog; // +0x1f0（sizeof 0x18；ORIG ctor 调 C1/Reset）
 
 
 public:

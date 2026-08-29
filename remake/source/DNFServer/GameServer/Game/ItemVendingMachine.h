@@ -115,8 +115,9 @@ public:
                                         INVEN_TYPE invenType,
                                         Inven_Item::ITEM_TYPE itemType);
     // ORIG 0x08176348：static Inven_Item temp; reset 后经 GetRelatedItem 的
-    // vtable+0x08 拷贝；返回 temp.m_field1（ITEM_TYPE）。
-    unsigned char _GetItemType(const CCeraShopGoods* goods);
+    // vtable+0x08 拷贝；返回 temp.m_field1（ITEM_TYPE）。ORIG 返回 int
+    //（调用点 4 字节直存；尾部 movzbl %al 扩展）。
+    int _GetItemType(const CCeraShopGoods* goods);
     // ORIG 0x081763be：按 groupIdx 映射 (INVEN_TYPE, ITEM_TYPE) 输出对。
     bool _GetInvenSlotInfo(const CCeraShopGoods* goods, INVEN_TYPE& invenType,
                            Inven_Item::ITEM_TYPE& itemType);

@@ -40,8 +40,8 @@ bool MySQL::set_compress_option()
 {
     if (mysql_options(m_dbHandle, MYSQL_OPT_COMPRESS, 0) != 0)
     {
-        cMyTrace trace("bool MySQL::set_compress_option()", 0x40, 5);
-        trace("[%s][%d]", "bool MySQL::set_compress_option()", 0x40);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x40, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x40);
         return false;
     }
     return true;
@@ -51,8 +51,8 @@ bool MySQL::set_read_default_grp_option()
 {
     if (mysql_options(m_dbHandle, MYSQL_READ_DEFAULT_GROUP, "UseSQL") != 0)
     {
-        cMyTrace trace("bool MySQL::set_read_default_grp_option()", 0x4f, 5);
-        trace("[%s][%d]", "bool MySQL::set_read_default_grp_option()", 0x4f);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x4f, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x4f);
         return false;
     }
     return true;
@@ -72,15 +72,15 @@ bool MySQL::init_db_handle()
 {
     if (m_dbHandle != 0)
     {
-        cMyTrace trace("bool MySQL::init_db_handle()", 0x81, 5);
-        trace("[%s][%d]", "bool MySQL::init_db_handle()", 0x81);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x81, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x81);
         return false;
     }
     m_dbHandle = mysql_init(0);
     if (m_dbHandle == 0)
     {
-        cMyTrace trace("bool MySQL::init_db_handle()", 0x8c, 5);
-        trace("[%s][%d]", "bool MySQL::init_db_handle()", 0x8c);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x8c, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x8c);
         return false;
     }
     return true;
@@ -144,11 +144,11 @@ bool MySQL::open(char* host, char* db, char* user, char* passwd)
     if (mysql_real_connect(m_dbHandle, host, user, passwd, db, 0xcea, 0, 0x400) == 0)
     {
         int err = mysql_errno(m_dbHandle);
-        cMyTrace trace("bool MySQL::open(char*, char*, char*, char*)", 0x10a, 9, true, true);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x10a, 9, true, true);
         trace("\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
               host, 0xcea, db, user, err);
-        cMyTrace trace2("bool MySQL::open(char*, char*, char*, char*)", 0x10e, 5);
-        trace2("[%s][%d]", "bool MySQL::open(char*, char*, char*, char*)", 0x10e);
+        cMyTrace trace2(__PRETTY_FUNCTION__, 0x10e, 5);
+        trace2("[%s][%d]", __PRETTY_FUNCTION__, 0x10e);
         return false;
     }
     return true;
@@ -168,11 +168,11 @@ bool MySQL::open(char* host, unsigned int port, char* db, char* user, char* pass
     if (mysql_real_connect(m_dbHandle, host, user, passwd, db, port, 0, 0) == 0)
     {
         int err = mysql_errno(m_dbHandle);
-        cMyTrace trace("bool MySQL::open(char*, unsigned int, char*, char*, char*)", 0x138, 9, true, true);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x138, 9, true, true);
         trace("\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
               host, port, db, user, err);
-        cMyTrace trace2("bool MySQL::open(char*, unsigned int, char*, char*, char*)", 0x13c, 5);
-        trace2("[%s][%d]", "bool MySQL::open(char*, unsigned int, char*, char*, char*)", 0x13c);
+        cMyTrace trace2(__PRETTY_FUNCTION__, 0x13c, 5);
+        trace2("[%s][%d]", __PRETTY_FUNCTION__, 0x13c);
         return false;
     }
     return true;
@@ -197,8 +197,8 @@ bool MySQL::set_query(const char* fmt, ...)
     int len = strlen(m_query);
     if (len > 0x5fff)
     {
-        cMyTrace trace("bool MySQL::set_query(const char*, ...)", 0x169, 5);
-        trace("[%s][%d]", "bool MySQL::set_query(const char*, ...)", 0x169);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x169, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x169);
         return false;
     }
     m_queryLen = len;
@@ -254,7 +254,7 @@ bool MySQL::exec(bool bLog)
     }
     if (bLog)
     {
-        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec(bool)", 0x244,
+        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x244,
                               "Database query error. The last query('%s') has been lost.(%d)",
                               m_query, m_dbError);
     }
@@ -285,8 +285,8 @@ char* MySQL::blob_to_str(int idx, void* data, int len)
 {
     if (idx < 0 || idx > 9 || data == 0 || len > 0x5fff)
     {
-        cMyTrace trace("char* MySQL::blob_to_str(int, void*, int)", 0x267, 5);
-        trace("[%s][%d]", "char* MySQL::blob_to_str(int, void*, int)", 0x267);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x267, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x267);
     }
     m_blob[idx][0] = 0;
     if (len > 0)
@@ -379,17 +379,17 @@ bool MySQL::set_query()
     int len = strlen(m_query);
     if (len > 0x5fff)
     {
-        LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::set_query()", 0x2d1,
-                              "[%s][%d]", "bool MySQL::set_query()", 0x2d1);
+        LogManager::logFormat(1, "DBMgr.cpp", __PRETTY_FUNCTION__, 0x2d1,
+                              "[%s][%d]", __PRETTY_FUNCTION__, 0x2d1);
         return false;
     }
     m_queryLen = len;
     return true;
 }
 
-void MySQL::escape_string(char* dst, const char* src)
+unsigned long MySQL::escape_string(char* dst, const char* src)
 {
-    mysql_real_escape_string(m_dbHandle, dst, src, strlen(src));
+    return mysql_real_escape_string(m_dbHandle, dst, src, strlen(src));
 }
 
 void MySQL::clear_result_set()

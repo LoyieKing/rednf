@@ -34,11 +34,30 @@ struct CatchItemInfo
     int m_field8;   // +0x08
 };  // sizeof == 0xc
 
-// STThrowAttack：clear W 0x08a3cf40 / C1 W 0x08a3cfda。
+// STThrowAttack：clear W 0x08a3cf40 / C1 W 0x08a3cfda（ORIG 无 D1/D2 → 不加用户析构）。
 struct STThrowAttack
 {
+    void clear()
+    {
+        m_field0c = 0;   // ORIG 先写 +0x0c = 0
+        m_field10 = -1;
+        m_field14 = -1;
+        m_field18.clear();
+        m_field24.clear();
+        m_field30.clear();
+        m_field3c = -1;
+        m_field44 = -1;
+        m_field48 = -1;
+        m_field50 = -1;
+        m_field54 = 0;
+        m_field58.clear();
+        m_field4c = 0;   // ORIG 最后写 +0x4c
+    }
+
+    STThrowAttack() { clear(); }   // ORIG C1：成员默认构造后调 clear
+
     std::vector<std::string> m_field00;   // +0x00（C1 首成员 vector<string>）
-    int m_field0c;                        // +0x0c（clear =-1）
+    int m_field0c;                        // +0x0c（clear =0）
     int m_field10;                        // +0x10（clear =-1）
     int m_field14;                        // +0x14（clear =-1）
     std::vector<int> m_field18;           // +0x18
@@ -54,9 +73,22 @@ struct STThrowAttack
     std::vector<int> m_field58;           // +0x58
 };  // sizeof == 0x64
 
-// STCounterAttack：clear W 0x08a3d0de / C1 W 0x08a3d118。
+// STCounterAttack：clear W 0x08a3d0de / C1 W 0x08a3d118 / D1 W 0x08a4c4e2（全 W → 头内联）。
 struct STCounterAttack
 {
+    void clear()
+    {
+        m_field00 = -1;
+        m_field04 = -1;
+        m_field08 = -1;
+        m_field0c = 0;
+        m_field10 = 0;
+        m_field0d = 0;   // ORIG 最后写 +0x0d
+    }
+
+    STCounterAttack() { clear(); }
+    ~STCounterAttack() {}   // ORIG D1 W 0x08a4c4e2（空体）
+
     int m_field00;      // +0x00（clear =-1）
     int m_field04;      // +0x04（clear =-1）
     int m_field08;      // +0x08（clear =-1）
@@ -65,7 +97,7 @@ struct STCounterAttack
     int m_field10;      // +0x10（clear =0）
 };  // sizeof == 0x14
 
-// STJumpAttack：clear W 0x08a3d12c / C1 W 0x08a3d1a0。
+// STJumpAttack：clear W 0x08a3d12c / C1 W 0x08a3d1a0 / D1 W 0x08a4c6f2。
 struct STJumpAttack
 {
     int m_field00;      // +0x00（=-1）
@@ -79,20 +111,66 @@ struct STJumpAttack
     int m_field20;      // +0x20
     int m_field24;      // +0x24
     int m_field28;      // +0x28
+
+    void clear()
+    {
+        m_field00 = -1;
+        m_field04 = -1;
+        m_field08 = -1;
+        m_field0c = -1;
+        m_field10 = 1.0f;
+        m_field14 = -1;
+        m_field1c = 1;
+        m_field20 = 0;
+        m_field24 = 0;
+        m_field28 = 0;
+        m_field18 = 0;   // ORIG 最后写 +0x18
+    }
+
+    STJumpAttack() { clear(); }
+    ~STJumpAttack() {}   // ORIG D1 W 0x08a4c6f2（空体）
 };  // sizeof == 0x2c
 
-// STSummonInfo：clear W 0x08a3d248 / C1 W 0x08a3d274。
+// STSummonInfo：clear W 0x08a3d248 / C1 W 0x08a3d274 / D1 W 0x08a4c900。
 struct STSummonInfo
 {
     int m_field00;   // +0x00
     int m_field04;   // +0x04
     int m_field08;   // +0x08
     int m_field0c;   // +0x0c
+
+    void clear()
+    {
+        m_field00 = 0;
+        m_field04 = 0;
+        m_field08 = 0;
+        m_field0c = 0;
+    }
+
+    STSummonInfo() { clear(); }
+    ~STSummonInfo() {}   // ORIG D1 W 0x08a4c900（空体）
 };  // sizeof == 0x10
 
-// STSummon：clear W 0x08a3d288 / C1 W 0x08a3d2f8 / copy C1 W 0x083d4336。
+// STSummon：clear W 0x08a3d288 / C1 W 0x08a3d2f8 / copy C1 W 0x083d4336
+// （copy C1 为编译器合成浅拷贝：标量逐字段 + vector 拷贝，P74 隐式生成即可）。
 struct STSummon
 {
+    void clear()   // ORIG W 0x08a3d288（逐字段转写）
+    {
+        m_field00 = 0;
+        m_field04 = -1;
+        m_field08 = 0;
+        m_field0c = 0;
+        m_infos.clear();
+        m_field1c = 0;
+        m_field20 = 0;
+        m_field24 = 0;
+        m_field28 = 0;
+        m_field2c = 0;
+    }
+
+    STSummon() { clear(); }   // ORIG C1 W 0x08a3d2f8：vector 构造后调 clear
+
     int m_field00;                            // +0x00（=0）
     int m_field04;                            // +0x04（=-1）
     int m_field08;                            // +0x08
@@ -105,9 +183,26 @@ struct STSummon
     int m_field2c;                            // +0x2c
 };  // sizeof == 0x30
 
-// STDash：clear W 0x08a3d340 / C1 W 0x08a3d3a8。
+// STDash：clear W 0x08a3d340 / C1 W 0x08a3d3a8 / D1 W 0x08a4ccfe（全 W → 头内联）。
 struct STDash
 {
+    void clear()
+    {
+        m_field00 = 0;
+        m_field04 = -1;
+        m_field08 = 0;
+        m_field0c = 0;
+        m_field10 = 0;
+        m_field14 = 0;
+        m_field18 = 0;
+        m_field1c = 0;
+        m_field20 = 0;
+        m_field24 = 0;
+    }
+
+    STDash() { clear(); }
+    ~STDash() {}   // ORIG D1 W 0x08a4ccfe（空体）
+
     int m_field00;   // +0x00（=0）
     int m_field04;   // +0x04（=-1）
     int m_field08;   // +0x08
@@ -120,9 +215,25 @@ struct STDash
     int m_field24;   // +0x24
 };  // sizeof == 0x28
 
-// STHold：clear W 0x08a3d3bc / C1 W 0x08a3d41a。
+// STHold：clear W 0x08a3d3bc / C1 W 0x08a3d41a / D1 W 0x08a4cf02（全 W → 头内联）。
 struct STHold
 {
+    void clear()
+    {
+        m_field04 = 0;
+        m_field08 = 0;
+        m_field00 = 0;   // ORIG 第三个写 +0x00
+        m_field0c = 0;
+        m_field10 = 0;
+        m_field14 = 0;
+        m_field18 = 0;
+        m_field1c = 0;
+        m_field20 = 0;
+    }
+
+    STHold() { clear(); }
+    ~STHold() {}   // ORIG D1 W 0x08a4cf02（空体）
+
     int m_field00;   // +0x00
     int m_field04;   // +0x04
     int m_field08;   // +0x08
@@ -134,9 +245,25 @@ struct STHold
     int m_field20;   // +0x20
 };  // sizeof == 0x24
 
-// STWarp：clear W 0x08a3d42e / C1 W 0x08a3d48c。
+// STWarp：clear W 0x08a3d42e / C1 W 0x08a3d48c / D1 W 0x08a4d106（全 W → 头内联）。
 struct STWarp
 {
+    void clear()
+    {
+        m_field00 = -1;
+        m_field04 = -1;
+        m_field08 = -1;
+        m_field0c = -1;
+        m_field10 = -1;
+        m_field14 = -1;
+        m_field18 = -1;
+        m_field1c = -1;
+        m_field20 = 0x2c;
+    }
+
+    STWarp() { clear(); }
+    ~STWarp() {}   // ORIG D1 W 0x08a4d106（空体）
+
     int m_field00;   // +0x00（=-1）
     int m_field04;   // +0x04（=-1）
     int m_field08;   // +0x08（=-1）
@@ -148,14 +275,23 @@ struct STWarp
     int m_field20;   // +0x20（clear =0x2c）
 };  // sizeof == 0x24
 
-// STDifficulty：clear W 0x08a3d4a0 / C1 W 0x08a3d4b8。
+// STDifficulty：clear W 0x08a3d4a0 / C1 W 0x08a3d4b8 / D1 W 0x08a4d8ce。
 struct STDifficulty
 {
     int m_field00;   // +0x00
     int m_field04;   // +0x04
+
+    void clear()
+    {
+        m_field00 = 0;
+        m_field04 = 0;
+    }
+
+    STDifficulty() { clear(); }
+    ~STDifficulty() {}   // ORIG D1 W 0x08a4d8ce（空体）
 };  // sizeof == 8
 
-// STEventSuper：clear W 0x08a3d4cc / C1 W 0x08a3d52e。
+// STEventSuper：clear W 0x08a3d4cc / C1 W 0x08a3d52e / D1 W 0x08a4d310。
 struct STEventSuper
 {
     int m_field00;            // +0x00（=-1）
@@ -168,9 +304,26 @@ struct STEventSuper
     int m_field1c;            // +0x1c（=-1）
     int m_field20;            // +0x20（=-1）
     unsigned char m_field24;  // +0x24（byte =0）
+
+    void clear()
+    {
+        m_field00 = -1;
+        m_field04 = -1;
+        m_field08 = -1;
+        m_field0c = 0;
+        m_field10 = 0;
+        m_field14 = -1;
+        m_field18 = -1;
+        m_field1c = -1;
+        m_field20 = -1;
+        m_field24 = 0;
+    }
+
+    STEventSuper() { clear(); }
+    ~STEventSuper() {}   // ORIG D1 W 0x08a4d310（空体）
 };  // sizeof == 0x28
 
-// STAtkSuper：clear W 0x08a3d542 / C1 W 0x08a3d582。
+// STAtkSuper：clear W 0x08a3d542 / C1 W 0x08a3d582 / D1 W 0x08a4d502。
 struct STAtkSuper
 {
     int m_field00;   // +0x00（=-1）
@@ -179,11 +332,32 @@ struct STAtkSuper
     int m_field0c;   // +0x0c（=-1）
     int m_field10;   // +0x10（=-1）
     int m_field14;   // +0x14（=-1）
+
+    void clear()
+    {
+        m_field00 = -1;
+        m_field04 = -1;
+        m_field08 = -1;
+        m_field0c = -1;
+        m_field10 = -1;
+        m_field14 = -1;
+    }
+
+    STAtkSuper() { clear(); }
+    ~STAtkSuper() {}   // ORIG D1 W 0x08a4d502（空体）
 };  // sizeof == 0x18
 
-// STCoolTime：clear W 0x08a3d596 / C1 W 0x08a3d5b6。
+// STCoolTime：clear W 0x08a3d596 / C1 W 0x08a3d5b6（ORIG 无 D1/D2 → 不加用户析构）。
 struct STCoolTime
 {
+    void clear()
+    {
+        m_field00 = 0;       // ORIG 先写 +0x00 = 0
+        m_field04.clear();   // +0x04 vector<int>::clear
+    }
+
+    STCoolTime() { clear(); }   // ORIG C1：vector<int> 构造后调 clear
+
     int m_field00;             // +0x00
     std::vector<int> m_field04;  // +0x04
 };  // sizeof == 0x10
@@ -225,9 +399,30 @@ struct STGuard
     int m_field[7];
 };  // sizeof == 0x1c
 
-// STAttackMethod：clear W 0x08a3d5fe / C1 W 0x08a3d690。
+// STAttackMethod：clear W 0x08a3d5fe / C1 W 0x08a3d690 / D1 W 0x08a4bed8（全 W → 头内联）。
+// clear（ORIG 0x08a3d5fe 逐指令）：+0x00=0；+0x18=0 → +0x14=+0x18；+0x20=0 → +0x1c=+0x20；
+// +0x28=0 → +0x24=+0x28；+0x30=0 → +0x2c=+0x30；+0x04/+0x08/+0x0c/+0x10=0。
 struct STAttackMethod
 {
+    STAttackMethod() { clear(); }   // ORIG C1 仅调 clear()
+    ~STAttackMethod() {}            // ORIG D1 空体
+    void clear()
+    {
+        m_field00 = 0;
+        m_field18 = 0;
+        m_field14 = m_field18;
+        m_field20 = 0;
+        m_field1c = m_field20;
+        m_field28 = 0;
+        m_field24 = m_field28;
+        m_field30 = 0;
+        m_field2c = m_field30;
+        m_field04 = 0;
+        m_field08 = 0;
+        m_field0c = 0;
+        m_field10 = 0;
+    }
+
     int m_field00;   // +0x00（=0）
     int m_field04;   // +0x04
     int m_field08;   // +0x08
@@ -243,9 +438,11 @@ struct STAttackMethod
     int m_field30;   // +0x30
 };  // sizeof == 0x34
 
-// STRidableSkillExplain：C1 W 0x08a3d6a4（4×string + int@0x10）。
+// STRidableSkillExplain：C1 W 0x08a3d6a4（4×string 构造后 +0x10=0）。
 struct STRidableSkillExplain
 {
+    STRidableSkillExplain() { m_field10 = 0; }   // ORIG C1：4×string 构造后置 0
+
     std::string m_field00;   // +0x00
     std::string m_field04;   // +0x04
     std::string m_field08;   // +0x08
@@ -253,9 +450,24 @@ struct STRidableSkillExplain
     int m_field10;           // +0x10（=0）
 };  // sizeof == 0x14
 
-// STRidableSkill：C1 W 0x08a3d73e（string@4、8×vector<int>@0x28、四组 8×int）。
+// STRidableSkill：C1 W 0x08a3d73e（string@4、8×vector<int>@0x28、五组 8×int
+// 初值：+0x08=-1 / +0x88=6 / +0xa8=-1 / +0xc8=-1 / +0xe8=-1）。
 struct STRidableSkill
 {
+    STRidableSkill()   // ORIG C1：成员构造后 m_field00=0、m_name.clear()、数组循环赋初值
+    {
+        m_field00 = 0;
+        m_name.clear();
+        for (int i = 0; i < 8; ++i)
+        {
+            m_field08[i] = -1;
+            m_field88[i] = 6;
+            m_fielda8[i] = -1;
+            m_fieldc8[i] = -1;
+            m_fielde8[i] = -1;
+        }
+    }
+
     int m_field00;                       // +0x00（=0）
     std::string m_name;                  // +0x04（C1 后 Ss::clear）
     int m_field08[8];                    // +0x08..+0x24（C1 全 =-1）
@@ -266,9 +478,16 @@ struct STRidableSkill
     int m_fielde8[8];                    // +0xe8..+0x104（=-1）
 };  // sizeof == 0x108
 
-// STInitialTarget：C1 W 0x08a3d892（string@4、-1@0、-1@8、true@0xc）。
+// STInitialTarget：C1 W 0x08a3d892（string@4 构造后、-1@0、-1@8、true@0xc）。
 struct STInitialTarget
 {
+    STInitialTarget()   // ORIG C1：string 构造后置标量初值
+    {
+        m_field00 = -1;
+        m_field08 = -1;
+        m_field0c = true;
+    }
+
     int m_field00;           // +0x00（=-1）
     std::string m_field04;   // +0x04
     int m_field08;           // +0x08（=-1）
@@ -285,9 +504,18 @@ struct STMonsterEquipment
     void clear();
 };  // sizeof == 0xc
 
-// STMosterAttackReady：clear W 0x08a3d1b4 / C1 W 0x08a3d1e0。
+// STMosterAttackReady：clear W 0x08a3d1b4 / C1 W 0x08a3d1e0（逐字段转写）。
 struct STMosterAttackReady
 {
+    void clear()   // ORIG W 0x08a3d1b4：+0x0c=-1 → string vector clear → int vector clear
+    {
+        m_field0c = -1;
+        m_field10.clear();
+        m_field00.clear();
+    }
+
+    STMosterAttackReady() { clear(); }   // ORIG C1 W 0x08a3d1e0：两 vector 构造后调 clear
+
     std::vector<int> m_field00;          // +0x00
     int m_field0c;                       // +0x0c（clear =-1）
     std::vector<std::string> m_field10;  // +0x10
@@ -316,19 +544,61 @@ struct stEnamyDropAvatarInfo_t
     std::vector<stEnamyDropAvatarElement_t> m_elements;  // +0x30
 };  // sizeof == 0x3c
 
-// STMonsterAIInfo：怪物域 AI 脚本子对象（ORIG 符号族 _ZN14STAIInfoScript*
-// W 0x08366f48/C1、D1 0x083671a4、clear 0x083673d4、destroy 0x0836753a）。
-// 本域实例占 +0x138..+0x33f 共 0x208 字节（ctor 下一个成员 deque@0x340 实证），
-// 比 CharacterAIA2.cpp 域版本少尾部 POD 区；成员集至 +0x204 两域一致
-// （copy-ctor 报告 STAIInfoScript/STAIInfoScript.md 权威转写）。该 TU 不包含
-// 本头，两处定义互不影响。
-class STMonsterAIInfo
+// （copy-ctor 报告 STAIInfoScript/STAIInfoScript.md 权威转写）。ORIG 为 ODR
+// 违规双定义（本域 0x208 / CharacterAIA 域 0x224，弱符号合并），两域各自正确：
+// 本域 +0x204 flag 由外层 STMonsterScript::Clear 置位，CharacterAIA 域尾部
+// POD 由外层 STAICharacterCommonScript::clear 清零。本头方法内联（W 弱，
+// 与 CharacterAIA2.cpp 强符号链接合并无冲突）。
+class STAIInfoScript
 {
 public:
-    STMonsterAIInfo();
-    virtual ~STMonsterAIInfo();         // 发 D1/D0/vtable，匹配 ORIG 符号集
-    void clear();                       // ORIG W 0x083673d4
-    void destroy();                     // ORIG W 0x0836753a
+    STAIInfoScript() { clear(); }           // ORIG C1 W 0x08366f48：vptr+成员构造+clear
+    virtual ~STAIInfoScript() {}            // 发 D1/D0/vtable，匹配 ORIG 符号集
+    void clear()                            // ORIG W 0x083673d4
+    {
+        m_thinkTerm = 0x3e8;
+        m_destinationChangeTerm = 0x3e8;
+        m_keepRange[0].clear();   // ORIG：5 次展开 call（+0x1b0/1bc/1c8/1d4/1e0）
+        m_keepRange[1].clear();
+        m_keepRange[2].clear();
+        m_keepRange[3].clear();
+        m_keepRange[4].clear();
+        m_dir.clear();
+        for (int i = 0; i < 5; ++i)
+            m_patterns[i].clear();
+        for (int i = 0; i <= 21; ++i)
+        {
+            if (i == 0)
+                m_targetingBonus[i] = 0x32;   // ORIG：if/else 双 store（非三目选值）
+            else
+                m_targetingBonus[i] = 0;
+            m_targetingBonusStr[i].clear();
+        }
+        m_keepDistance = 0x64;      // +0x1ac
+        m_intelligence = 0x64;      // +0x1ec
+        m_field1f0 = 0x64;          // +0x1f0
+        m_field1f4 = 0x1388;        // +0x1f4
+        m_vision = 0x5dc;           // +0x1f8
+        m_backVision = 0x5dc;       // +0x1fc
+        m_noChangeTarget = 1;       // +0x200
+    }
+    void destroy()                          // ORIG W 0x0836753a
+    {
+        for (int i = 0; i < 5; ++i)
+        {
+            for (unsigned int j = 0; j < m_patterns[i].size(); ++j)
+            {
+                delete m_patterns[i][j];
+                m_patterns[i][j] = 0;
+            }
+            m_patterns[i].clear();
+        }
+        for (int i = 0; i <= 21; ++i)
+            m_targetingBonusStr[i].clear();
+        for (int i = 0; i < 5; ++i)
+            m_keepRange[i].clear();
+        m_dir.clear();
+    }
 
     int m_thinkTerm;                    // +0x04
     int m_destinationChangeTerm;        // +0x08
@@ -349,13 +619,20 @@ public:
     char m_pad205[3];                   // +0x205..0x207
 };  // sizeof == 0x208
 
-typedef char assert_monster_ai_info_size[(sizeof(STMonsterAIInfo) == 0x208) ? 1 : -1];
-
 // STMonsterParameterCategory：vector 元素（+0x7c），大小 0xc；
 // getValueInt/getValueFloat 为 ORIG W 0x88ba480 / W 0x88ba4a2 同名方法
-// （实现见 MonsterAbilityLeafC3.cpp）。
+// （实现见 MonsterAbilityLeafC3.cpp）。C1 W 0x08a3cd6c（+0x00=0xe、其余 0，
+// 内联赋值无 clear）/ D1 W 0x08a4bcbc（空体，全 W → 头内联）；无 clear 符号。
 struct STMonsterParameterCategory
 {
+    STMonsterParameterCategory()
+    {
+        m_field0 = 14;
+        m_field4 = 0;
+        m_field8 = 0;
+    }
+    ~STMonsterParameterCategory() {}   // ORIG D1 W 0x08a4bcbc（空体）
+
     int m_field0;   // +0x00（类别 id，upgradeAbilityByMonsterParameterCategory 分派）
     int m_field4;   // +0x04（0=int 加成，非 0=float 倍率）
     int m_field8;   // +0x08（数值）
@@ -407,7 +684,7 @@ public:
     std::vector<STCoolTime> m_coolTimes;               // +0x114
     std::vector<int> m_field120;                       // +0x120
     std::vector<MonsterBaseParameter> m_baseParameters;  // +0x12c
-    STMonsterAIInfo m_aiInfo;                          // +0x138（0x208，止于 0x340）
+    STAIInfoScript m_aiInfo;                           // +0x138（0x208，止于 0x340）
     std::deque<STInitialTarget> m_initialTargets;      // +0x340
     bool m_flag368;                      // +0x368（Clear=1）
     char m_pad369[3];                    // +0x369..0x36b

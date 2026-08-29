@@ -152,10 +152,6 @@ SECRET_SHOP_STATISTIC_DATA::SECRET_SHOP_STATISTIC_DATA()
     m_data[3] = 0;
     m_data[4] = 0;
 }
-Packet_Secret_Shop_Statistic::Packet_Secret_Shop_Statistic()
-    : PacketHeader(0x1b69, 0xfb2), m_count(0)
-{
-}
 GoldCardEventStatistic::GoldCardEventStatistic()
 {
     m_level = 0;

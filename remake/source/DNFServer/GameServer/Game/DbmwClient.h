@@ -59,11 +59,11 @@ public:
     bool RegistToMiddleware();
     bool Regist();
 
-    bool IsConnected() const;               // 读 +0x02
-    bool IsInitialized() const;             // 读 +0x01
+    bool IsConnected() { return m_connected; }       // 头内联 → W（ORIG W @0x08121428，读 +0x02）
+    bool IsInitialized() { return m_initialized; }   // 头内联 → W（ORIG W @0x0812141c，读 +0x01）
 
     int  exec();
-    void getAffectedRowCount() const;       // ORIG W：空函数直接 ret
+    long long getAffectedRowCount();        // cpp 定义 → T（ORIG T @0x08120dac：读 +0x30，sar 符号扩展返 64 位）
 
     void Error(int level, int useErrno, char* fmt, ...);
 
@@ -78,7 +78,7 @@ private:
     timeval       m_timeout;         // +0x14
     sockaddr_in   m_addr;            // +0x1c
     char*         m_recvBuf;         // +0x2c
-    unsigned int  m_affectedRow;     // +0x30
+    int  m_affectedRow;              // +0x30（ORIG getAffectedRowCount 以 sar 符号扩展返回 → signed）
     char          m_query[0x1001];   // +0x34
     unsigned long m_queryLen;        // +0x1038
 };

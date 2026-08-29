@@ -545,14 +545,11 @@ _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
 // ============================================================================
 
 // ORIG W 0x0822eea4 _ZN8WongWork12CMCAPManager8getPointEv（非 const）
-// max(0u, min(10000u, *(uint*)this))——ORIG 以 this 直接作 min 引用实参。
+// ORIG W 0x0822eea4：max(0u, min(10000u, m_point))——ORIG 以 this 直作 min 引用实参。
 unsigned int CMCAPManager::getPoint()
 {
     return std::max<unsigned int>(
-        0u, std::min<unsigned int>(
-                0x2710u,
-                *reinterpret_cast<unsigned int*>(
-                    static_cast<char*>(m_pad00))));
+        0u, std::min<unsigned int>(0x2710u, m_point));
 }
 
 // ORIG W 0x082870de _ZN8WongWork12CMCAPManager8setPointEt
@@ -562,18 +559,15 @@ void CMCAPManager::setPoint(unsigned short point)
     const unsigned short cap = 0x2710;
     unsigned short clamped = std::min(cap, point);
     clamped = std::max<unsigned short>(0, clamped);
-    *reinterpret_cast<int*>(static_cast<char*>(m_pad00)) =
-        static_cast<int>(clamped);           // movzwl %ax,%edx → mov %edx,(%eax)
-    m_saveCleanPadPoint = true;              // movb $0x1,+0x14
+    m_point = static_cast<unsigned int>(clamped);   // movzwl %ax,%edx → mov %edx,(%eax)
+    m_saveCleanPadPoint = true;                     // movb $0x1,+0x14
 }
 
 // ORIG W 0x084eb53e _ZN8WongWork12CMCAPManager8incPointEi
-// point(+0) += incRate(+4)*value/100（魔数除法即有符号整除 100、向零取整）。
+// point(+0) += rate(+4)*value/100（魔数除法即有符号整除 100、向零取整）。
 void CMCAPManager::incPoint(int value)
 {
-    int& point = *reinterpret_cast<int*>(static_cast<char*>(m_pad00));
-    point += *reinterpret_cast<int*>(static_cast<char*>(m_pad00) + 4) *
-             value / 100;
+    m_point = m_point + m_rate * value / 100;
     m_saveCleanPadPoint = true;
 }
 
@@ -581,14 +575,13 @@ void CMCAPManager::incPoint(int value)
 // rate(+4) = max(0, rate - value)（_ZSt3maxIiERKT_S2_S2_ 实证调用）。
 void CMCAPManager::decIncRate(int value)
 {
-    int& rate = *reinterpret_cast<int*>(static_cast<char*>(m_pad00) + 4);
-    rate = std::max(0, rate - value);
+    m_rate = std::max(0, m_rate - value);
 }
 
 // ORIG W 0x08694fe0 _ZN8WongWork12CMCAPManager12resetIncRateEv：rate=1000。
 void CMCAPManager::resetIncRate()
 {
-    *reinterpret_cast<int*>(static_cast<char*>(m_pad00) + 4) = 0x3e8;
+    m_rate = 0x3e8;
 }
 
 // ORIG W 0x0822eede _ZN8WongWork12CMCAPManager19IsSaveCleanPadPointEv（非 const）

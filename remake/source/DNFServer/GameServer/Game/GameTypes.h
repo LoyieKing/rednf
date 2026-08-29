@@ -117,6 +117,8 @@ public:
     };
 
     DynamicPool(int poolSize);
+    // ORIG W 0x082fa3fc（C2 同址）：(baseSize, maxSize) 双参。
+    DynamicPool(int baseSize, int maxSize);
     ~DynamicPool();
     T* Acquire();
     bool IsValidPtr(T* p);
@@ -151,6 +153,21 @@ DynamicPool<T>::DynamicPool(int poolSize)
     m_baseSize = (unsigned short)poolSize;
     m_maxSize = m_baseSize;
     MoreAlloc(poolSize);
+    m_errorCode = 0;
+    m_pCheckCallback = 0;
+}
+
+// ORIG W 0x082fa3fc：m_baseSize=arg1、m_maxSize=arg2、MoreAlloc(arg1)；
+// 其余与 1 参版一致（deque/queue/list/map 成员构造 + m_size/m_used 清零）。
+template <class T>
+DynamicPool<T>::DynamicPool(int baseSize, int maxSize)
+    : m_queue(), m_list(), m_size(0), m_map()
+{
+    m_used = 0;
+    m_list.clear();
+    m_baseSize = (unsigned short)baseSize;
+    m_maxSize = (unsigned short)maxSize;
+    MoreAlloc(baseSize);
     m_errorCode = 0;
     m_pCheckCallback = 0;
 }

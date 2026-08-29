@@ -51,6 +51,16 @@ void HeroMissionValue::clear()
 }
 
 // ---------------------------------------------------------------------------
+// ORIG _ZN16HeroMissionValue5resetEv T 0x08164bb2（0x17，LinkFinal2 核销）：
+// 仅 +0x04/+0x06 两个 ushort 清零（objdump 逐指令转写）。
+// ---------------------------------------------------------------------------
+void HeroMissionValue::reset()
+{
+    m_field4 = 0;   // ORIG movw $0x0,+0x04
+    m_field6 = 0;   // ORIG movw $0x0,+0x06
+}
+
+// ---------------------------------------------------------------------------
 // HeroMissionEvent::sendMissionData @ 0x0816770e
 // ---------------------------------------------------------------------------
 void HeroMissionEvent::sendMissionData(CUser* user)
@@ -65,7 +75,7 @@ void HeroMissionEvent::sendMissionData(CUser* user)
     {
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
-            "void HeroMissionEvent::sendMissionData(CUser*)", 0x307,
+            __PRETTY_FUNCTION__, 0x307,
             "[HeroMission] Invalid user pointer. (processMission)");
         return;
     }
@@ -77,8 +87,9 @@ void HeroMissionEvent::sendMissionData(CUser* user)
     {
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
-            "void HeroMissionEvent::sendMissionData(CUser*)", 0x30e,
-            "[HeroMission] Not exist hero mission value. (charac:%u)", characNo);
+            __PRETTY_FUNCTION__, 0x30e,
+            "[HeroMission] Not exist hero mission value. (charac:%u)",
+            (unsigned int)user->get_charac_no(-1));
         return;
     }
 
@@ -98,80 +109,6 @@ void HeroMissionEvent::sendMissionData(CUser* user)
     user->Send(packet);
 }
 
-// ---------------------------------------------------------------------------
-// HeroMissionEvent::setEventData @ 0x08166752
-// ---------------------------------------------------------------------------
-void HeroMissionEvent::setEventData(CUser* user, char const* data)
-{
-    if (m_isEventing == 0)      // ORIG: 虚 IsEventing(0)==1 才继续
-    {
-        return;
-    }
-    if (user->get_charac_no(-1) == 0)
-    {
-        return;
-    }
-
-    std::vector<HeroMissionValue> values;
-    std::string scriptData(data);
-
-    if (scriptData.length() == 0)
-    {
-        // 空数据：按条件表生成初始值单（满级 70 时任务 4/6 直接置完成态）
-        for (std::map<HeroMissionCondition::MissionNo::T,
-                      BaseHeroMissionCondition*>::iterator cit =
-                 m_conditions.begin();
-             cit != m_conditions.end(); ++cit)
-        {
-            HeroMissionValue value;
-            value.clear();
-            value.m_mission = cit->first;
-            if (cit->first == HeroMissionCondition::MissionNo::T_4 &&
-                user->get_charac_level() == 70)
-            {
-                value.m_field4 = 1;
-                value.m_field6 = 1;
-                value.m_field8 = 70;
-                value.m_fieldA = 1;
-            }
-            if (cit->first == HeroMissionCondition::MissionNo::T_6 &&
-                user->get_charac_level() == 70)
-            {
-                value.m_field4 = 1;
-            }
-            values.push_back(value);
-        }
-    }
-    else
-    {
-        // ORIG: boost::char_separator(",") 切分，逐 token setStringToken
-        boost::char_separator<char> separator(",");
-        boost::tokenizer<boost::char_separator<char> > tokens(scriptData,
-                                                              separator);
-        for (boost::tokenizer<boost::char_separator<char> >::iterator tit =
-                 tokens.begin();
-             tit != tokens.end(); ++tit)
-        {
-            HeroMissionValue value;     // ORIG 不 clear，由 setStringToken 填充
-            value.setStringToken(*tit);
-            values.push_back(value);
-        }
-    }
-
-    unsigned int characNo = (unsigned int)user->get_charac_no(-1);
-    std::map<unsigned int, std::vector<HeroMissionValue> >::iterator it =
-        m_values.find(characNo);
-    if (it != m_values.end())
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Event/EventHeroMission.cpp",
-            "void HeroMissionEvent::setEventData(CUser*, const char*)", 0x24b,
-            "[HeroMission] Already exist character data. (charac:%u)",
-            characNo);
-        m_values.erase(characNo);
-    }
-    m_values.insert(std::make_pair(characNo, values));
-}
 
 // ---------------------------------------------------------------------------
 // EventClassify::CEventScriptMng::test_process_change_day @ 0x0810cc70
@@ -186,21 +123,20 @@ void EventClassify::CEventScriptMng::test_process_change_day(int timeVal)
     m_todayTime = timeVal;                          // +0x48
     m_todayTimeDay = (unsigned char)(timeVal % 100);  // +0x4c
 
-    GameWorld* world = G_GameWorld();               // +0x134 m_UserInWorld
-    std::map<unsigned short, CUser*>::iterator it = world->m_UserInWorld.begin();
-    while (it != world->m_UserInWorld.end())
+    std::map<unsigned short, CUser*>::iterator it =
+        G_GameWorld()->m_UserInWorld.begin();       // +0x134 m_UserInWorld
+    while (it != G_GameWorld()->m_UserInWorld.end())
     {
         CUser* user = it->second;
         if (user != 0 && user->get_state() >= 3)
         {
             user->RecoverFatigue(0);
             user->SendFatigue();
-            EventClassify::CEventScriptMng* scriptMng =
-                static_cast<EventClassify::CEventScriptMng*>(
-                    G_CDataManager()->get_event_script_mng());
-            scriptMng->send_event_init_data(user, true);
+            static_cast<EventClassify::CEventScriptMng*>(
+                G_CDataManager()->get_event_script_mng())
+                ->send_event_init_data(user, true);
         }
-        ++it;
+        it++;
     }
 }
 

@@ -179,6 +179,10 @@ public:
 };
 
 // ---- CSHA1：经典 SHA-1 类 ----
+// LinkHelper 核销批次修正：GetHexHash ORIG 为非 const（_ZN5CSHA110GetHexHashEPc）、
+// Transform ORIG 为成员函数（_ZN5CSHA19TransformEPjPKh，经 m_blockPtr 使用 this）。
+// 布局补证（报告 CSHA1.md）：m_blockPtr@0xc0 存 this+0x80，
+// 即 0x80..0xc0 为 64 字节工作块区，补 m_pad74/m_work 具名字段（sizeof 0xc4 不变）。
 class CSHA1
 {
 public:
@@ -188,9 +192,9 @@ public:
     void Reset();
     void Update(unsigned char const* data, unsigned int len);
     void Final();
-    int  GetHash(unsigned char* out) const;       // memcpy digest[20] -> out
-    int  GetHexHash(char* out) const;             // 40 个 %02x 字符
-    static void Transform(unsigned int* state, unsigned char const* block);
+    int  GetHash(unsigned char* out) const;       // ORIG _ZNK5CSHA17GetHashEPh
+    int  GetHexHash(char* out);                   // ORIG _ZN5CSHA110GetHexHashEPc
+    void Transform(unsigned int* state, unsigned char const* block);
 
 private:
     unsigned int    m_state[5];    // @0x00
@@ -198,7 +202,9 @@ private:
     unsigned int    m_countHi;     // @0x18 高字
     unsigned char   m_buffer[64];  // @0x20
     unsigned char   m_digest[20];  // @0x60
-    unsigned char*  m_blockPtr;    // @0xc0（ORIG 存 this+0x80，保留语义）
+    unsigned char   m_pad74[0xc];  // @0x74..0x7f（ORIG 未使用区）
+    unsigned char   m_work[64];    // @0x80（m_blockPtr 指向区，Transform 展开块）
+    unsigned char*  m_blockPtr;    // @0xc0（ORIG ctor 存 this+0x80）
 };
 
 // 全局工厂（ORIG 自由函数）

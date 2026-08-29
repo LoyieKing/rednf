@@ -327,7 +327,7 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
                 if (!invW->delete_item((INVEN_TYPE)1, slot, needCount,
                                        (eItemDelReason)0x17, true))
                 {
-                    cMyTrace trace("bool CParty::UseSealDoorItems(IntVector&)",
+                    cMyTrace trace(__PRETTY_FUNCTION__,
                                    0x1d22, 5);
                     trace("CParty::UseSealDoorItems, delete_item failed , "
                           "User ch =%d , %d %d",
@@ -452,7 +452,7 @@ int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
         CUser* manager = m_manager;   // ORIG this+0x74
         if (manager == 0)
         {
-            cMyTrace trace("int CParty::GetDungeonIndex_isTOD(int&, int&)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x41bb, 5);
             trace("TOD no Dungeon Manager!");
             return 0x13;

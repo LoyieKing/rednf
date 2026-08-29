@@ -16,7 +16,8 @@
 #include "CEnvironment.h"
 #include "PacketDesign.h"
 #include "SigTypes.h"     // SIG_AUCTION_* 权威布局（本 TU GetInBuffer 实例化）
-#include "TimerQueue.h"   // G_TimerQueue / TimerEntry::OBJ_TYPE / TIMER_MESSAGE
+#include "TimerDispatcher.h"  // TimerSig / Timer_CheckAuctionReady 权威声明（独占本 TU 实现）
+#include "LogManager.h"   // LogManager::logFormat
 #include "LogManager.h"   // LogManager::logFormat
 
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
@@ -53,10 +54,10 @@ public:
     void SendPacket(nsl::PACKET_HEADER* packet);
     void SendRegistPacket();
     void SendCheckAuctionReadyPacket();
-    unsigned char IsRunning();
+    bool IsRunning();
     void SetRunning(bool flag);
 
-    char m_running;   // +0x30e0c
+    bool m_running;   // +0x30e0c
 };
 
 CAuctionServerProxy::CAuctionServerProxy(char* ip, int port, char* name)
@@ -103,7 +104,7 @@ void CAuctionServerProxy::SendCheckAuctionReadyPacket()
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
 
-unsigned char CAuctionServerProxy::IsRunning()
+bool CAuctionServerProxy::IsRunning()
 {
     return m_running;
 }
@@ -129,10 +130,10 @@ public:
     void SendPacket(nsl::PACKET_HEADER* packet);
     void SendRegistPacket();
     void SendCheckCeraAuctionReadyPacket();
-    unsigned char IsRunning();
+    bool IsRunning();
     void SetRunning(bool flag);
 
-    char m_running;   // +0x30e0c
+    bool m_running;   // +0x30e0c
 };
 
 CCeraAuctionServerProxy::CCeraAuctionServerProxy(char* ip, int port, char* name)
@@ -179,7 +180,7 @@ void CCeraAuctionServerProxy::SendCheckCeraAuctionReadyPacket()
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
 
-unsigned char CCeraAuctionServerProxy::IsRunning()
+bool CCeraAuctionServerProxy::IsRunning()
 {
     return m_running;
 }
@@ -193,25 +194,33 @@ void CCeraAuctionServerProxy::SetRunning(bool flag)
 // CDispatchServerPacket（拍卖/点券服务器回包分发，ORIG 0x8473660/0x847ac3c/0x847c1fe）
 // 语义：从拍卖/点券代理收包，按 packetID 组 SIG 流转投 DISPATCH_Q。
 // ============================================================================
+// ORIG：dispatch_sig T 0x863a808、RegistNextTimer T 0x863a858、
+//   D1/D2 W 0x863e8ce、D0 W 0x863e8fe；无 C1（类从未被构造）。
+// 类声明见 TimerDispatcher.h（TimerSig 派生，对象尺寸 4：仅 vptr）。
+// dispatch_sig：两代理 IsRunning()==false 时分别补发就绪检查包，恒返 1。
 // ---------------------------------------------------------------------------
-// Timer_CheckAuctionReady —— 拍卖服务就绪检查定时（拍卖域归属本 TU）。
-// ORIG：RegistNextTimer T 0x863a858（报告 Timer_CheckAuctionReady/RegistNextTimer.md）
-//   → G_TimerQueue()->InsertTimer(OBJ_TYPE 2, 0, msg 0x98, 60, 0, 0)。
-// 静态成员（无 this 传递实证）；dispatch_sig(ORIG 0x863a808)/析构属后续批次。
-// ---------------------------------------------------------------------------
-class Timer_CheckAuctionReady
-{
-public:
-    static void RegistNextTimer();
-};
-
 void Timer_CheckAuctionReady::RegistNextTimer()
 {
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                 static_cast<TIMER_MESSAGE>(0x98), 0x3c, 0, 0);
 }
 
-void CDispatchServerPacket::dispatchPacket(char* data)
+int Timer_CheckAuctionReady::dispatch_sig(int p1, int p2, unsigned int p3)
+{
+    if (!GlobalData::s_auction_proxy->IsRunning())
+    {
+        GlobalData::s_auction_proxy->SendCheckAuctionReadyPacket();
+    }
+    if (!GlobalData::s_cera_auction_proxy->IsRunning())
+    {
+        GlobalData::s_cera_auction_proxy->SendCheckCeraAuctionReadyPacket();
+    }
+    return 1;
+}
+
+Timer_CheckAuctionReady::~Timer_CheckAuctionReady() {}
+
+int CDispatchServerPacket::dispatchPacket(char* data)
 {
     // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。
     unsigned short payloadLen =
@@ -1066,6 +1075,8 @@ void CDispatchServerPacket::dispatchPacket(char* data)
         guard->put_binary(data, *(unsigned short*)(data + 2));
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
+    // ORIG 末尾 mov $1,%ebx → 恒返 1（_processUDPData 调用侧 test %al 判成功）。
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1109,14 +1120,14 @@ int CDispatchServerPacket::dispatchAuctionPacket(char* data)
         {
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x12a3, "AUCTION REGIST SERVER ID DUPLICATE");
         }
         else
         {
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x12a7, "AUCTION REGIST UNHANDLED ERROR");
         }
         break;
@@ -1241,7 +1252,7 @@ int CDispatchServerPacket::dispatchAuctionPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x1390, "onAUCTION_ITEM_LIST_AG, resize failed.");
         }
         else
@@ -1272,7 +1283,7 @@ int CDispatchServerPacket::dispatchAuctionPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x13bb, "onAUCTION_MY_REGISTED_ITEM_INFO_AG, resize failed.");
         }
         else
@@ -1303,7 +1314,7 @@ int CDispatchServerPacket::dispatchAuctionPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x13e6, "onAUCTION_MY_BIDDING_INFO_AG, resize failed.");
         }
         else
@@ -1390,7 +1401,7 @@ int CDispatchServerPacket::dispatchAuctionPacket(char* data)
     default:
         LogManager::logFormat(
             1, "DispatchServerPacket.cpp",
-            "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+            __PRETTY_FUNCTION__,
             0x149c, "[AUCTION PACKET ERROR] not exist packet id (%d)", packetId);
         break;
     }
@@ -1440,13 +1451,13 @@ int CDispatchServerPacket::dispatchPointPacket(char* data)
         {
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x14c8, "AUCTION REGIST SERVER ID DUPLICATE");
             return 1;
         }
         LogManager::logFormat(
             1, "DispatchServerPacket.cpp",
-            "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+            __PRETTY_FUNCTION__,
             0x14cc, "AUCTION REGIST UNHANDLED ERROR");
         return 1;
     }
@@ -1568,7 +1579,7 @@ int CDispatchServerPacket::dispatchPointPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x1579, "onAUCTION_ITEM_LIST_PG, resize failed.");
         }
         else
@@ -1599,7 +1610,7 @@ int CDispatchServerPacket::dispatchPointPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x159b, "onAUCTION_MY_REGISTED_ITEM_INFO_PG, resize failed.");
         }
         else
@@ -1629,7 +1640,7 @@ int CDispatchServerPacket::dispatchPointPacket(char* data)
             guard << 0;
             LogManager::logFormat(
                 1, "DispatchServerPacket.cpp",
-                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                __PRETTY_FUNCTION__,
                 0x15bd, "onAUCTION_MY_BIDDING_INFO_PG, resize failed.");
         }
         else
@@ -1758,7 +1769,7 @@ int CDispatchServerPacket::dispatchPointPacket(char* data)
     default:
         LogManager::logFormat(
             1, "DispatchServerPacket.cpp",
-            "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+            __PRETTY_FUNCTION__,
             0x166f, "[AUCTION PACKET ERROR] not exist packet id (%d)", packetId);
         break;
     }

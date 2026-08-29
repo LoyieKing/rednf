@@ -62,6 +62,14 @@ CharacData::~CharacData()
 {
 }
 
+// ORIG T 0x0812d246：m_user 非空时经其 CharacAdvanceAltarManager（CUser +0x8df60）
+//   getSlotItem 同步 m_slotItems（map<uchar,_SlotItem>）。
+void CharacData::setSlotItem()
+{
+    if (m_user != 0)
+        m_user->m_advanceAltar.getSlotItem(m_slotItems);
+}
+
 // ORIG T 0x0812d078（reset.md 全文）：m_gageLevel/m_user/m_gage/m_field0 清零 +
 //   m_slotItems clear。
 void CharacData::reset()
@@ -113,21 +121,6 @@ void CharacData::setUser(CUser* user)
 CUser* CharacData::getUser() const
 {
     return m_user;
-}
-
-// ----------------------------------------------------------------------------
-// ORIG T 0x0812d246（setSlotItem.md 全文）：m_user 非空时经
-// CharacAdvanceAltarManager::getSlotItem(0x08132638) 以用户祭坛管理器数据填充
-// 本对象 +0x10 的 std::map<unsigned char,_SlotItem>。
-// [未建模批次] getSlotItem 及 _SlotItem/BuyUpgradeData 子树未建模；本批仅保留
-// 判空守卫，槽位表填充留待该批次。
-// ----------------------------------------------------------------------------
-void CharacData::setSlotItem()
-{
-    if (m_user != 0)
-    {
-        // ORIG: getSlotItem(m_user->m_advanceAltar, /*map&*/ *this + 0x10);
-    }
 }
 
 // ----------------------------------------------------------------------------
@@ -246,7 +239,7 @@ void ProcStage::ProcSummonObjectMs::summonObjectAndSendPacket()
 
                 NOTIPacketStruct::_NotiAdvanceAltarSpawnUnit body;
                 body.m_spawnIndex = static_cast<unsigned short>(so->m_seq);
-                std::memcpy(body.m_summon, so->m_summon, 0x24);
+                std::memcpy(&body.m_summon, so->m_summon, 0x24);
 
                 PacketGuard guard;
                 guard.put_header(0, 0x20b);
@@ -270,7 +263,7 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
 {
     {
         cMyTrace trace(
-            "void advancealtar::ProcStage::ProcSummonObjectMs::debugLog() const",
+            __PRETTY_FUNCTION__,
             0x140, 0);
         for (std::vector<_SummonObjectMs*>::const_iterator it = m_summons.begin();
              it != m_summons.end(); ++it)
@@ -286,7 +279,7 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
     }
     {
         cMyTrace trace(
-            "void advancealtar::ProcStage::ProcSummonObjectMs::debugLog() const",
+            __PRETTY_FUNCTION__,
             0x14d, 0);
         for (std::map<short, _SummonObjectMs*>::const_iterator it = m_summonMap.begin();
              it != m_summonMap.end(); ++it)
@@ -731,47 +724,6 @@ void ProcStage::addCreatedMapMonster(_MapMonsterSummary& summary)
     m_createdMapMonsters.insert(std::make_pair(summary.m_seq, summary));
 }
 
-// ==== Timer_StageControl ====================================================
-
-// ----------------------------------------------------------------------------
-// ORIG T 0x0812f89c（RegistTimerClearReward.md 全文）：
-// InsertTimerInMilisecond(OBJ_TYPE 8, index, msg 0xa8, 3000ms, key 0xa8, endType)。
-// ----------------------------------------------------------------------------
-void Timer_StageControl::RegistTimerClearReward(int index, StageEndType::T endType)
-{
-    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)8, index,
-                                            (TIMER_MESSAGE)0xa8, 3000LL,
-                                            0xa8, (unsigned int)endType);
-}
-
-// ----------------------------------------------------------------------------
-// ORIG T 0x0812f8ec（RegistTimerEPLP.md 全文）：interval 恒 1000ms（param_2==3
-// 分支同值，ORIG 即冗余）；InsertTimerInMilisecond(OBJ_TYPE 8, index, msg 0xa9,
-// 1000ms, key 0xa9, endType)。
-// ----------------------------------------------------------------------------
-void Timer_StageControl::RegistTimerEPLP(int index, StageEndType::T endType)
-{
-    int intervalMs = 1000;                       // ebp-0x1c 初值 0x3e8
-    if (static_cast<int>(endType) == 3)
-    {
-        intervalMs = 1000;                       // ORIG 同值分支，忠实保留
-    }
-    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)8, index,
-                                            (TIMER_MESSAGE)0xa9, intervalMs,
-                                            0xa9, (unsigned int)endType);
-}
-
-// ----------------------------------------------------------------------------
-// ORIG T 0x0812f956（RegistTimerEPLPReturnVillage.md 全文）：
-// InsertTimerInMilisecond(OBJ_TYPE 8, index, msg 0xaa, 50000ms, param2 0, param3 0xaa)。
-// ----------------------------------------------------------------------------
-void Timer_StageControl::RegistTimerEPLPReturnVillage(int index)
-{
-    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)8, index,
-                                            (TIMER_MESSAGE)0xaa, 50000LL,
-                                            0, (unsigned int)0xaa);
-}
-
 // ==== HistoryLog ============================================================
 
 // ----------------------------------------------------------------------------
@@ -823,8 +775,7 @@ void HistoryLog::dungeonClearInfo(CUser& user, StageControl& control, bool isLas
     const int stageIndex = procStage->getStageIndex();
     const int ridableData = control.getCharacData()->m_field0;
 
-    cUserHistoryLog* hist =
-        reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(&user) + 0x79700);
+    cUserHistoryLog* hist = &user.m_historyLog;
     hist->DungeonClearInfo(static_cast<int>(isLast), playSec, stageIndex,
                            0, 1, ENUM_DUNGEON_MODE_0, memberNames, ridableData);
 
@@ -852,8 +803,7 @@ void HistoryLog::enterDungeon(CUser& user, const ProcStage& procStage)
     const int difficulty = procStage.getStageDifficulty();
     const int stageIndex = procStage.getStageIndex();
 
-    cUserHistoryLog* hist =
-        reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(&user) + 0x79700);
+    cUserHistoryLog* hist = &user.m_historyLog;
     hist->EnterDungeon(stageIndex, difficulty, 1, memberNames, 2, 0);
 
     // [未建模批次] ORIG CAdvanceAltarLog::incrementEntranceData(
@@ -1307,7 +1257,7 @@ void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
     body.m_clearFlag = clearFlag ? 1 : 0;
     {
         int stageFields[2] = { getStageIndex(), m_difficulty };
-        std::memcpy(body.m_stage, stageFields, sizeof(stageFields));
+        std::memcpy(&body.m_stage, stageFields, sizeof(stageFields));
     }
     body.m_starCount = starCount;
 
@@ -1336,19 +1286,6 @@ void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
     user->Send(guard);
 }
 
-// ---- Timer_StageControl ----------------------------------------------------
-
-// ----------------------------------------------------------------------------
-// ORIG T 0x0812f850（RegistTimerCheckFinsh.md 全文）：InsertTimerInMilisecond
-// (OBJ_TYPE 8, index, msg 0xa7, 5000ms, key 0xa7, param 0)。
-// ----------------------------------------------------------------------------
-void Timer_StageControl::RegistTimerCheckFinsh(int index)
-{
-    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)8, index,
-                                            (TIMER_MESSAGE)0xa7, 5000LL,
-                                            0xa7, 0);
-}
-
 // ---- HistoryLog ------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
@@ -1366,8 +1303,7 @@ void HistoryLog::leaveDungeon(CUser& user, const ProcStage& procStage)
 
     const int difficulty = procStage.getStageDifficulty();
     const int stageIndex = procStage.getStageIndex();
-    cUserHistoryLog* hist = reinterpret_cast<cUserHistoryLog*>(
-        reinterpret_cast<char*>(&user) + 0x79700);
+    cUserHistoryLog* hist = &user.m_historyLog;
     hist->LeaveDungeon(stageIndex, difficulty, memberNames, 0);
 }
 
@@ -1379,7 +1315,7 @@ void HistoryLog::leaveDungeon(CUser& user, const ProcStage& procStage)
 void HistoryLog::starAdd(CUser& user, AddStarType::T type, int stageIndex,
                          int count)
 {
-    advanceAltarstatistics_.incrementEntranceData(
+    HistoryLog::advanceAltarstatistics_.incrementEntranceData(
         static_cast<unsigned int>(stageIndex), 0, 0,
         static_cast<unsigned int>(count));
 }
@@ -1396,7 +1332,7 @@ void HistoryLog::starSub(CUser& user, SubStarType::T type, int value)
 // ----------------------------------------------------------------------------
 void HistoryLog::updateStatistics()
 {
-    advanceAltarstatistics_.updateDatabase();
+    HistoryLog::advanceAltarstatistics_.updateDatabase();
 }
 
 // ----------------------------------------------------------------------------
@@ -1407,7 +1343,7 @@ void HistoryLog::updateStatistics()
 void HistoryLog::buyItem(AdvanceAltarShopType::T shopType, int a, short b,
                          short c, int d)
 {
-    advanceAltarstatistics_.incrementLayerStatData(
+    HistoryLog::advanceAltarstatistics_.incrementLayerStatData(
         static_cast<unsigned short>(shopType), static_cast<unsigned int>(a),
         static_cast<unsigned short>(c),
         static_cast<unsigned short>(1) /* useCountDelta 固定 1 */,

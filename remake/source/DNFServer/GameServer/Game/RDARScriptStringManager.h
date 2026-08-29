@@ -7,27 +7,33 @@
 #include "StringDictionary.h"
 #include <wchar.h>
 
-// ORIG 布局（nm W _ZN8ErrorLogC1Ev 0x88c424c / D1 0x88c4298 / aSERKS_ 0x88c5192）：
-//   +0x00 int m_code（如 0x80000003）/ +0x04 std::string m_message。总大小 8。
+// ORIG 布局（objdump 逐段实测）：C1 0x88c424c W 仅构造两个 string（+0x04/+0x08，
+//   各 _ZNSsC1Ev）；aSERKS_ 0x88c5192 W 依次拷贝 *(int*)other→this、SsaSERKSs ×2、
+//   other+0xc int→this+0xc；D1 0x88c4298 W 仅逆序析构两 string。
+//   ⇒ 4 字段：+0x00 int / +0x04 string / +0x08 string / +0x0c int，sizeof 0x10。
 
 // ============================================================================
 class ErrorLog
 {
 public:
-    ErrorLog() : m_code(0), m_message() {}
+    ErrorLog() {}                       // 两 string 默认构造；两 int 保持未初始化（ORIG 如此）
     ErrorLog(const ErrorLog& other)
-        : m_code(other.m_code), m_message(other.m_message) {}
-    ~ErrorLog() {}
+        : m_code(other.m_code), m_message(other.m_message),
+          m_detail(other.m_detail), m_flag(other.m_flag) {}
     ErrorLog& operator=(const ErrorLog& other)
     {
         m_code = other.m_code;
         m_message = other.m_message;
+        m_detail = other.m_detail;
+        m_flag = other.m_flag;
         return *this;
     }
 
-    int m_code;             // +0x00
-    std::string m_message;  // +0x04
-};
+    int         m_code;      // +0x00 错误码（如 0x80000003）
+    std::string m_message;   // +0x04 主消息（文件名等）
+    std::string m_detail;    // +0x08 追加信息【推断命名】
+    int         m_flag;      // +0x0c 辅助整型【推断命名】
+};                           // sizeof 0x10
 
 class RDARScriptStringManager
 {

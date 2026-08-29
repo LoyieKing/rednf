@@ -1,4 +1,8 @@
 // df_dbmw_r - PacketCounter (ORIG PacketCounter.cpp)
+// 注：DBMWTypes.h 的 "Thread.h" 在 check_tu_game_orig.sh 的 -I 顺序下解析到
+// basic_header/Thread.h（无 CMutex），故本 TU 先显式包含 ServerCommon/Thread.h。
+#include "../../ServerCommon/Thread.h"
+#include "DBMWCommon.h"
 #include "DBMWCommon.h"
 
 #include <errno.h>
@@ -47,7 +51,7 @@ CPacketCounter<Lo, Hi>::~CPacketCounter()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::Reset()
 {
-    for (int i = 0; i < 0x2418; i++)
+    for (int i = 0; i <= 0x2417; i++)
     {
         m_a1[i] = 0;
         m_a2[i] = 0;
@@ -67,7 +71,7 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
         return;
     if (!m_flag)
     {
-        if ((unsigned int)m_a1[id - 1000] >= 0xb)
+        if ((unsigned int)m_a1[id - 1000] > 0xa)
             return;
     }
     m_a1[id - 1000]++;

@@ -84,6 +84,7 @@ class CInventory
 {
 public:
     Inven_Item* GetInvenRef(int invenType, int slot);
+    Inven_Item GetInvenSlot(int invenType, int slot) const;   // ORIG _ZNK10CInventory12GetInvenSlotEii
     int tryInsertItemIntoInventory(Inven_Item item) const;
     int tryInsertItemIntoEquipment(Inven_Item item) const;
     int insertItemIntoInventory(Inven_Item item, eItemAddReason reason,
@@ -94,18 +95,7 @@ public:
                     eItemDelReason reason, bool bLog);
 };
 
-int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot);
 
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // CUserCharacInfo::getCurCharacInvenW/R 实际返回 CInventory*（头文件占位为
 // Inven_Item*，按 ORIG ABI 使用）
@@ -511,7 +501,7 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
     }
 
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    int invenType = GetInvenTypeFromItemSpace(space);
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
     Inven_Item title = *book->_getTitle(category, slot);
     if ((itemIdx != 0) && (title.m_addInfo != itemIdx))
     {
@@ -588,10 +578,10 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
         space = (ENUM_ITEMSPACE)3;
     }
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    int invenType = GetInvenTypeFromItemSpace(space);
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
 
     Inven_Item invenItem;
-    GetInvenSlot(&invenItem, inven, invenType, slot);
+    invenItem = inven->GetInvenSlot(invenType, slot);
     if ((itemIdx != 0) && (invenItem.m_addInfo != itemIdx))
     {
         return 2;
@@ -782,7 +772,7 @@ bool CTitleBook::_getOwnerTitleInfo(ENUM_TITLE_BOOK_CATEGORY& category,
     const CInventory* inven =
         (const CInventory*)m_user->getCurCharacInvenR();
     Inven_Item item;
-    GetInvenSlot(&item, (CInventory*)inven, 0, 0xb);
+    item = inven->GetInvenSlot(0, 0xb);
     *out = item;
     if ((out->m_addInfo != 0) &&
         _getFitSlot(out->m_addInfo, category, slot))

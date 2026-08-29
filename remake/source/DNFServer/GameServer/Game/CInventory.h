@@ -250,9 +250,8 @@ public:
     void SetCreatureItemType(CREATURE_ITME_TYPE type);   // ORIG W 0x833efe2（外联 CreatureOnlySimple.cpp；ORIG 无 int 版符号）
     int GetUid() { return m_uid; }                              // W 0x833efbe
     int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
-    /// ORIG W 0x833eff0（movzbl）
-    unsigned char GetNoCharge() { return m_noCharge; }   // W 0x833efd6（movzbl +0x14）
-    unsigned char GetStat() { return m_stat; }                  // W 0x833eff0（movzbl）
+    unsigned char GetNoCharge();   // ORIG W 0x833efd6（movzbl +0x14）；外联定义 CreatureOnlySimple.cpp
+    unsigned char GetStat();       // ORIG W 0x833eff0（movzbl +0x15）
     void SetExpireTime(int expireTime) { m_expireTime = expireTime; }  // W 0x833effc
     int getExpireTime() const { return m_expireTime; }          // W 0x833f00a（_ZNK）
     void SetSlotNo(int slotNo);                                 // ORIG T 0x08337050（写 +0x10）
@@ -284,6 +283,7 @@ class CCreatureMgr
 {
 public:
     CCreatureMgr();   // ORIG T 0x08339196（map/CArtifact[3] 隐式成员构造）
+    CCreatureMgr(const CCreatureMgr& src);  // ORIG W C1 0x86992cc
     void Reset();
     bool CheckDiedCreature();   // ORIG T _ZN13user_creature12CCreatureMgr17CheckDiedCreatureEv 0x08339acc（TimerCreature 调用；定义缺口记报告）
     void SetUser(CUser* user);
@@ -336,6 +336,7 @@ public:
     // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
     void RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
     bool Hatch(int addInfo);                                           // ORIG _ZN13user_creature12CCreatureMgr5HatchEi 0x08339fa0
+    bool Evolute(int a, int b, bool flag);                             // ORIG T 0x0833beb4 _ZN13user_creature12CCreatureMgr7EvoluteEiib
 
     // ---- OnlyOrig_CreatureJob 批追加（定义 CreatureOnlyMgrRest.cpp）----
     void SetStomach(int stomachValue);                                 // ORIG T 0x08339ee0
@@ -361,8 +362,8 @@ public:
     bool SetCreatureItemAddInfo(int slot, int value);                  // ORIG T 0x0833b620
     bool InsertCreatureItemResult(SIG_CREATURE_ITEM* sig);             // ORIG T 0x0833b38c
     bool UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig);             // ORIG T 0x0833b592
-    bool Evolute(int creatureId, int minLevel, bool force);            // ORIG T 0x083beb4（W）
-    CCreatureMgr(const CCreatureMgr& src);                             // ORIG W C1/C2 0x86992cc【objdump】
+    ~CCreatureMgr();                                                   // ORIG T D1/D2 0x08339226（~CCreatureMgr.md）
+    CCreatureMgr& operator=(const CCreatureMgr& src);                  // ORIG W 0x869d614【objdump】
     int getExpireDate(int uid) const;                                  // ORIG T 0x0833d758
     int GetCreatureItemSize() const;                                   // ORIG W 0x8531fbe【objdump】
     bool IsExistedCreatureItem(int slot) const;                        // ORIG T 0x0833a942
@@ -394,7 +395,7 @@ class CSecu_ProtectionField;
 
 extern Store* G_Store();
 extern CValueStatistic* GetInstanceValueStatistic();
-extern CSlotBoundChecker* g_slotBoundChecker;
+extern CSlotBoundChecker g_slotBoundChecker;  // ORIG object (addr-taken at 0x8500384)
 
 class CSecu_ProtectionField
 {
@@ -434,13 +435,19 @@ namespace GlobalData
 extern CSecu_ProtectionField* s_pSecuProtectionField;
 }
 
+// ORIG C1 0x837355a = map C1 + init; D1 0x837388e = map D1 (both W).
+// sole member map<SlotBoundKey,SlotBound> (sizeof 0x18; defs in CDataManager.h).
 class CSlotBoundChecker
 {
 public:
+    CSlotBoundChecker() { init(); }
+    ~CSlotBoundChecker() {}
     void init();
     void insert(int slot, int capacity, Inven_Item::ITEM_TYPE type, bool a, bool b);
     bool get_slot_bound(Inven_Item::ITEM_TYPE type, int capacity, int& start, int& end) const;
     bool get_item_type(int slot, int capacity, Inven_Item::ITEM_TYPE& outType) const;
+private:
+    std::map<SlotBoundKey, SlotBound> m_map;
 };
 
 
@@ -529,7 +536,7 @@ bool isGainedGoldFromDungeonReason(eMoneyAddReason reason);
 extern int _CompareSlot(const void* a, const void* b);
 extern int _S_CHARAC_JOB_MASTARY[];
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);  // ORIG 返回 int（INVEN_TYPE），非 const char*
-int GetInvenTypeFromItemSpace(int space);
+int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);   // ORIG W 0x080f7845（switch 映射；定义 CTitleBook.cpp）
 // ORIG T 0x0865f1e1 _Z17_checkItemMovablePK5CUser14ENUM_ITEMSPACEimS2_im：
 // exchange_interspace(_expand) 前置校验（定义由后续物品域批次补，声明先行）。
 bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot,
@@ -616,7 +623,7 @@ public:
     void ShowAllExistItemsForErrorCheck() const;
     void checkEquipmentState(int invenType, int slot, int& a, int& b, int& c,
                             int& d, int& e, int& f);
-    bool CheckEquipmentItemCondition(
+    int CheckEquipmentItemCondition(   // ORIG 0x08507f1a：返回错误码 0/1/0x11/0x12/0x13/0xd5/0xd8（bool 会截断，LinkF1 修正）
         const std::vector<std::pair<int, int> >& items, stEquipCondition& cond,
         Inven_Item& outItem) const;
     int MakeItemList(INVEN_TYPE invenType, void* out) const;

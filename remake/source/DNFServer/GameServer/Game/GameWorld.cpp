@@ -20,6 +20,7 @@
 #include "CUser.h"
 #include "CUserCharacInfo.h"
 #include "CInventory.h"   // 权威 CInventory/PacketGuard（本文件原本地 PacketGuard 已删除）
+#include "InterSelectCreateDnfEventInfo.h"   // Reward 权威定义（本地局部类已删除，§4.4 合并）
 #include "CItemList.h"
 #include "Inven_Item.h"
 #include "CDataManager.h"
@@ -67,7 +68,13 @@
 #include "HeroMissionEvent.h"   // ARAD::Singleton<HeroMissionEvent>
 #include "AradServerStateMessage.h"
 #include "InterSelectPcroomDailyReward.h"
+#include "PacketTypes.h"         // MSG_ITEM_HYPER_LINK_MESSAGE 权威定义（原 TU 局部 struct 已删除）
 #include "DB_AccountCargoSync.h" // DB_PassPadUpdateFailCnt / APSystem::DB_UpdateActionPoint
+#include "CEventStayTime.h"      // CEventStayTime::RewardGoGoFighter 权威（原局部视图 ODR 清理）
+#include "Packet_Monitor_Guild_Chat_Hyper_Link.h"    // case 6 超链接公会消息
+#include "Packet_Monitor_Member_Chat_Hyper_Link.h"   // case 8 超链接会员消息
+#include "Packet_Monitor_MegaPhone_Hyper_Link.h"     // case 0xb/0xc/0xe/0x23 超链接喇叭消息（set 声明，定义已报 Main）
+#include "Packet_Monitor_Other_Channel_Chat_Hyper_Link.h"  // case 1 超链接跨服消息
 
 // ============================================================================
 // CStreamGuard::GetInBuffer 模板实参（全局类型：C++98 不允许局部类型作为模板
@@ -209,7 +216,7 @@ bool GameWorld::init()
         }
         if (!importTownScript(&tempTown, fileName))
         {
-            LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3d4,
+            LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x3d4,
                                   "importTownScript() fail - filename(%s)", fileName);
             return false;
         }
@@ -220,14 +227,14 @@ bool GameWorld::init()
         }
         if (m_iVillCount < tempTown.m_field0)
         {
-            LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3e3,
+            LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x3e3,
                                   "tempTown.townIndex_(%d) > m_iVillCount(%d) - file(%s)",
                                   tempTown.m_field0, m_iVillCount, fileName);
             return false;
         }
         if (!m_pVill[tempTown.m_field0].set_village(tempTown))
         {
-            LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3e9,
+            LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x3e9,
                                   "m_pVill[tempTown.townIndex_].set_village() fail - file(%s)",
                                   fileName);
             return false;
@@ -314,7 +321,7 @@ void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
     guard->put_binary(&buf, 0xc);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
-    cMyTrace trace("void GameWorld::DeleteChannel(int, ENUM_SERVER_GROUP)", 0x11c7, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x11c7, 0);
     trace("put db message to db thread DeleteChannel()");
 }
 
@@ -693,7 +700,7 @@ bool GameWorld::reach_game_world(CUser* user)
     if (user == NULL)
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::reach_game_world(CUser*)", 0x509,
+                              __PRETTY_FUNCTION__, 0x509,
                               "param pUser is null");
         return false;
     }
@@ -704,7 +711,7 @@ bool GameWorld::reach_game_world(CUser* user)
     if (userIt != m_UserInWorld.end())
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::reach_game_world(CUser*)", 0x515,
+                              __PRETTY_FUNCTION__, 0x515,
                               "m_UserInWorld.find() fail. uid(%u)",
                               (unsigned short)user->get_unique_id());
         return false;
@@ -715,7 +722,7 @@ bool GameWorld::reach_game_world(CUser* user)
     if (sessionIt != m_sessionList.end())
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::reach_game_world(CUser*)", 0x51d,
+                              __PRETTY_FUNCTION__, 0x51d,
                               "session_list.find() fail accid(%s)",
                               NumberToString(user->get_acc_id(), 0));
         return false;
@@ -738,7 +745,7 @@ bool GameWorld::reach_game_world(CUser* user)
     }
     else
     {
-        cMyTrace trace("bool GameWorld::reach_game_world(CUser*)", 0x538, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x538, 5);
         trace("getUserVillage %d", (int)user->getCurCharacVill());
     }
 
@@ -778,7 +785,7 @@ bool GameWorld::leave_game_world(CUser* user)
     if (userIt == m_UserInWorld.end())
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::leave_game_world(CUser*)", 0x56a,
+                              __PRETTY_FUNCTION__, 0x56a,
                               "m_UsersInWorld.find(%d)",
                               (unsigned short)user->get_unique_id());
         return false;
@@ -810,7 +817,7 @@ bool GameWorld::leave_game_world(CUser* user)
     if (sessionIt == m_sessionList.end())
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::leave_game_world(CUser*)", 0x588,
+                              __PRETTY_FUNCTION__, 0x588,
                               "session_list.find(%s)",
                               NumberToString(user->get_acc_id(), 0));
         return false;
@@ -880,7 +887,7 @@ CUser* GameWorld::find_user_from_world_byaccid(unsigned int accId)
     {
         LogManager::logFormat(
             1, "world.cpp",
-            "CUser* GameWorld::find_user_from_world_byaccid(memberIdentificationNumber_t)",
+            __PRETTY_FUNCTION__,
             0x4f2, "session_list.find() fail accid(%s)",
             NumberToString(accId, 0));
     }
@@ -889,7 +896,7 @@ CUser* GameWorld::find_user_from_world_byaccid(unsigned int accId)
     {
         LogManager::logFormat(
             1, "world.cpp",
-            "CUser* GameWorld::find_user_from_world_byaccid(memberIdentificationNumber_t)",
+            __PRETTY_FUNCTION__,
             0x4f5, "m_UserInWorld.find() fail uid(%d)", session);
     }
     return user;
@@ -933,7 +940,7 @@ void GameWorld::arrange_users()
         CUser* user = it->second;
         if (user != NULL)
         {
-            cMyTrace trace("void GameWorld::arrange_users()", 0x10a6, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x10a6, 0);
             trace("GameWorld::arrange_users ACCID: %s",
                   NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)7, 1, 0);
@@ -1224,7 +1231,7 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
     if (memberCount < 1)
     {
         LogManager::logFormat(
-            1, "world.cpp", "void GameWorld::send_party_info_to_all(CParty*, int)",
+            1, "world.cpp", __PRETTY_FUNCTION__,
             0xc37, "GameWorld::send_party_info_to_all get_member_count() is %d",
             memberCount);
         return;
@@ -1341,7 +1348,7 @@ void GameWorld::send_AllBasicInfo(CUser* user)
             CUserCharacInfo* info = it->second;
             if (info == NULL)
             {
-                cMyTrace trace("void GameWorld::send_AllBasicInfo(CUser*)", 0xbf6, 5);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0xbf6, 5);
                 trace("[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbf6);
             }
             else if (info->IsCurCharacVisible())
@@ -1349,7 +1356,7 @@ void GameWorld::send_AllBasicInfo(CUser* user)
                 int index = packet.get_index();
                 if (((CUser*)info)->make_basic_info((char*)&packet, 0) != 1)
                 {
-                    cMyTrace trace("void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3, 5);
+                    cMyTrace trace(__PRETTY_FUNCTION__, 0xbe3, 5);
                     trace("[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3);
                 }
                 if (packet.getLastError() != 0)
@@ -1501,7 +1508,7 @@ bool GameWorld::check_valid_area(int vill, int area)
     if (vill < 1 || m_iVillCount < vill)
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::check_valid_area(int, int)", 0x4a2,
+                              __PRETTY_FUNCTION__, 0x4a2,
                               "[GameWorld::check_valid_area] invalid village : %d, m_iVillCount : %d",
                               vill, m_iVillCount);
         return false;
@@ -1509,7 +1516,7 @@ bool GameWorld::check_valid_area(int vill, int area)
     if (m_pVill[vill].m_areaCount == 0)
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::check_valid_area(int, int)", 0x4aa,
+                              __PRETTY_FUNCTION__, 0x4aa,
                               "[GameWorld::check_valid_area] invalid area count : %d",
                               m_pVill[vill].m_areaCount);
         return false;
@@ -1517,7 +1524,7 @@ bool GameWorld::check_valid_area(int vill, int area)
     if (area < 0 || m_pVill[vill].m_areaCount <= area)
     {
         LogManager::logFormat(1, "world.cpp",
-                              "bool GameWorld::check_valid_area(int, int)", 0x4b2,
+                              __PRETTY_FUNCTION__, 0x4b2,
                               "[GameWorld::check_valid_area] invalid area : %d", area);
         return false;
     }
@@ -1529,7 +1536,7 @@ bool GameWorld::isDungeonEntranceArea(CUser* user)
     Village* village = getUserVillage(user);
     if (village == NULL)
     {
-        cMyTrace trace("bool GameWorld::isDungeonEntranceArea(CUser*)", 0x1685, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1685, 5);
         trace("getUserVillage call failed");
         return false;
     }
@@ -1537,7 +1544,7 @@ bool GameWorld::isDungeonEntranceArea(CUser* user)
     Area* area = village->getArea(areaNo);
     if (area == NULL)
     {
-        cMyTrace trace("bool GameWorld::isDungeonEntranceArea(CUser*)", 0x168c, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x168c, 5);
         trace("getArea call failed (area no:%d)", areaNo);
         return false;
     }
@@ -1663,7 +1670,7 @@ void GameWorld::move_position(CUser* user, int x, int y, int z,
             if (village == NULL)
             {
                 cMyTrace trace(
-                    "void GameWorld::move_position(CUser*, int, int, int, short unsigned int)",
+                    __PRETTY_FUNCTION__,
                     0x5ec, 5);
                 trace("%d %d", vill, area);
             }
@@ -1724,7 +1731,7 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
     bool powerWarSafe = false;
     if (!user->isGMUser())
     {
-        if (IsPowerWarSafeZone(vill, area, user->getPowerSide()))
+        if (IsPowerWarSafeZone(vill, area, (ENUM_POWER_SIDE_TYPE)user->getPowerSide()))
         {
             powerWarSafe = true;
         }
@@ -1810,7 +1817,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         return false;
     }
     if (!user->isGMUser() &&
-        IsPowerWarSafeZone(vill, area, user->getPowerSide()))
+        IsPowerWarSafeZone(vill, area, (ENUM_POWER_SIDE_TYPE)user->getPowerSide()))
     {
         errorPacket.clear();
         errorPacket.put_header(1, 0x26);
@@ -1945,7 +1952,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             unsigned int guildKey = user->get_charac_guildkey();
             destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(guildKey, area);
             cMyTrace trace(
-                "bool GameWorld::move_area(CUser*, int, int, int, int, int, bool, int, int, int)",
+                __PRETTY_FUNCTION__,
                 0x88e, 0);
             trace("Move Guild Agit Area User(%d) Guild(%d) dest area(%d), virtual area(%d) ",
                   user->getCurCharacNo(), guildKey, area, destArea);
@@ -1984,14 +1991,14 @@ void GameWorld::goto_dungeon(CUser* user)
         Village* village = getUserVillage(user);
         if (village == NULL)
         {
-            cMyTrace trace("void GameWorld::goto_dungeon(CUser*)", 0x8d1, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8d1, 5);
             trace("%d", (int)user->getCurCharacVill());
             return;
         }
         Area* area = village->getArea(user->get_area(false));
         if (area == NULL)
         {
-            cMyTrace trace("void GameWorld::goto_dungeon(CUser*)", 0x8d8, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8d8, 5);
             trace("%d", user->get_area(false));
             return;
         }
@@ -2054,7 +2061,7 @@ void GameWorld::out_from_dungeon(CUser* user)
         else
         {
             LogManager::logFormat(
-                1, "world.cpp", "void GameWorld::out_from_dungeon(CUser*)", 0x926,
+                1, "world.cpp", __PRETTY_FUNCTION__, 0x926,
                 "user %s - check_valid_area() fail", user->getCurCharacName());
         }
     }
@@ -2064,7 +2071,7 @@ void GameWorld::goto_pvp(CUser* user)
 {
     if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
-        LogManager::logFormat(1, "world.cpp", "void GameWorld::goto_pvp(CUser*)",
+        LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__,
                               0x998, "user %s - check_valid_area() fail",
                               user->getCurCharacName());
         return;
@@ -2103,7 +2110,7 @@ void GameWorld::out_from_pvp(CUser* user)
 {
     if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
-        cMyTrace trace("void GameWorld::out_from_pvp(CUser*)", 0x9ce, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x9ce, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
         return;
@@ -2131,7 +2138,7 @@ void GameWorld::goto_warroom(CUser* user)
 {
     if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
-        LogManager::logFormat(1, "world.cpp", "void GameWorld::goto_warroom(CUser*)",
+        LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__,
                               0x9f3, "user %s - check_valid_area() fail",
                               user->getCurCharacName());
         return;
@@ -2170,7 +2177,7 @@ void GameWorld::out_from_warroom(CUser* user)
 {
     if (!check_valid_area((int)user->getCurCharacVill(), user->get_area(false)))
     {
-        cMyTrace trace("void GameWorld::out_from_warroom(CUser*)", 0xa29, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa29, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
         return;
@@ -2202,7 +2209,7 @@ void GameWorld::gotoBlueMarble(CUser* user)
                           user->get_area(false)))
     {
         LogManager::logFormat(1, "world.cpp",
-                              "void GameWorld::gotoBlueMarble(CUser*)", 0xa54,
+                              __PRETTY_FUNCTION__, 0xa54,
                               "user %s - check_valid_area() fail",
                               user->getCurCharacName());
         return;
@@ -2243,7 +2250,7 @@ void GameWorld::outFromBlueMarble(CUser* user)
     if (!check_valid_area((int)user->getCurCharacVill(),
                           user->get_area(false)))
     {
-        cMyTrace trace("void GameWorld::outFromBlueMarble(CUser*)", 0xa7f, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa7f, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
         return;
@@ -2331,13 +2338,13 @@ void GameWorld::fishing(CUser* user)
     }
     else
     {
-        cMyTrace trace("void GameWorld::fishing(CUser*)", 0xafd, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xafd, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
         user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
-bool GameWorld::IsPowerWarSafeZone(int vill, int area, int side)
+bool GameWorld::IsPowerWarSafeZone(int vill, int area, ENUM_POWER_SIDE_TYPE side)
 {
     if (vill == 7 && GlobalData::s_power_manager->IsPowerWarEventOn())
     {
@@ -2406,14 +2413,14 @@ bool GameWorld::EnableChat(const char* name)
             info2.m_chatBan = 0;
             SimpleInfo& info3 = m_idMap[str];
             info3.m_chatEndTick = 0;
-            cMyTrace trace("bool GameWorld::EnableChat(const char*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x156c, 0);
             trace("%s is able to chat now\n", name);
             return true;
         }
         else
         {
-            cMyTrace trace("bool GameWorld::EnableChat(const char*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1571, 0);
             trace("%s is already able to chat!\n", str.c_str());
             return true;
@@ -2436,13 +2443,13 @@ bool GameWorld::EnableMove(const char* name)
     SimpleInfo& info = m_idMap[str];
     if (info.m_moveBan == 0)
     {
-        cMyTrace trace("bool GameWorld::EnableMove(const char*)", 0x1589, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1589, 0);
         trace("%s is already able to move!\n", str.c_str());
         return true;
     }
     info.m_moveBan = 0;
     info.m_moveEndTick = 0;
-    cMyTrace trace("bool GameWorld::EnableMove(const char*)", 0x1584, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1584, 0);
     trace("%s is able to move now\n", name);
     return true;
 }
@@ -2461,13 +2468,13 @@ bool GameWorld::DisableChat(const char* name, int secs)
     SimpleInfo& info = m_idMap[str];
     if (info.m_chatBan == 1)
     {
-        cMyTrace trace("bool GameWorld::DisableChat(const char*, int)", 0x15a7, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15a7, 0);
         trace("%s is already not able to chat!\n", str.c_str());
         return true;
     }
     info.m_chatBan = 1;
     info.m_chatEndTick = secs * 1000 + GlobalData::s_systemTime_.getCurSec() * 1000;
-    cMyTrace trace("bool GameWorld::DisableChat(const char*, int)", 0x15a2, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x15a2, 0);
     trace("%s is not able to chat now for %d secs\n", name, secs);
     return true;
 }
@@ -2486,13 +2493,13 @@ bool GameWorld::DisableMove(const char* name, int secs)
     SimpleInfo& info = m_idMap[str];
     if (info.m_moveBan == 1)
     {
-        cMyTrace trace("bool GameWorld::DisableMove(const char*, int)", 0x15c5, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15c5, 0);
         trace("%s is already not able to move!\n", str.c_str());
         return true;
     }
     info.m_moveBan = 1;
     info.m_moveEndTick = secs * 1000 + GlobalData::s_systemTime_.getCurSec() * 1000;
-    cMyTrace trace("bool GameWorld::DisableMove(const char*, int)", 0x15c0, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x15c0, 0);
     trace("%s is not able to move now for %d secs\n", name, secs);
     return true;
 }
@@ -2518,7 +2525,7 @@ bool GameWorld::IsForbiddenChat(const char* name)
         EnableChat(name);
         return false;
     }
-    cMyTrace trace("bool GameWorld::IsForbiddenChat(const char*)", 0x153d, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x153d, 0);
     trace("%s is forbidden to chat\n", name);
     return true;
 }
@@ -2544,7 +2551,7 @@ bool GameWorld::IsForbiddenMove(const char* name)
         EnableMove(name);
         return false;
     }
-    cMyTrace trace("bool GameWorld::IsForbiddenMove(const char*)", 0x1557, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1557, 0);
     trace("%s is forbidden to move\n", name);
     return true;
 }
@@ -2591,7 +2598,7 @@ unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
 {
     if (name == 0 || strlen(name) >= 31)
     {
-        cMyTrace trace("DWORD GameWorld::GetLeftTimeOfForbiddenChat(const char*)", 0x15f2, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15f2, 0);
         trace("GetLeftTimeOfForbiddenChat return 1\n");
         return 0;
     }
@@ -2616,7 +2623,7 @@ unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
         }
         return diff;
     }
-    cMyTrace trace("DWORD GameWorld::GetLeftTimeOfForbiddenChat(const char*)", 0x15fa, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x15fa, 0);
     trace("GetLeftTimeOfForbiddenChat return 2\n");
     return 0;
 }
@@ -2709,7 +2716,7 @@ void GameWorld::ResetAllCleadpadPoint()
             continue;
         user->m_mcap.reset();
     }
-    cMyTrace trace("void GameWorld::ResetAllCleadpadPoint()", 0x1385, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1385, 0);
     trace("RESET ALL USER CLEANPAD POINT OK!!!!");
 }
 
@@ -2738,7 +2745,7 @@ void GameWorld::ResetAllPassPadFailCount()
             }
         }
     }
-    cMyTrace trace("void GameWorld::ResetAllPassPadFailCount()", 0x139d, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x139d, 0);
     trace("RESET %d USERS GOBLIN PAD RESETT OK!!!!", resetCount);
 }
 
@@ -2767,7 +2774,7 @@ void GameWorld::ResetAllFatigue()
             if (active != 0)
             {
                 user->DecFatigueBatteryCharging(active);
-                cMyTrace trace("void GameWorld::ResetAllFatigue()", 0x1286, 0);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x1286, 0);
                 trace("FATIGUE BATTERY ACTIVE: charno(%d) , descFatigueAmount(%d), cur charging(%d)",
                       user->getCurCharacNo(), active, user->GetFatigueBatteryCharging());
             }
@@ -2944,7 +2951,7 @@ void GameWorld::SetWeekendBounsEvent()
 
 void GameWorld::DeleteDailyItem()
 {
-    cMyTrace trace1("void GameWorld::DeleteDailyItem()", 0x13da, 0);
+    cMyTrace trace1(__PRETTY_FUNCTION__, 0x13da, 0);
     trace1("DeleteDailyItem size(%d) start tick(%u)", (int)m_UserInWorld.size(),
            GlobalData::s_systemTime_.getCurTickCount());
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -2957,7 +2964,7 @@ void GameWorld::DeleteDailyItem()
         }
     }
     GlobalData::s_systemTime_.update();
-    cMyTrace trace2("void GameWorld::DeleteDailyItem()", 0x13e6, 0);
+    cMyTrace trace2(__PRETTY_FUNCTION__, 0x13e6, 0);
     trace2("DeleteDailyItem end tick(%u)", GlobalData::s_systemTime_.getCurTickCount());
 }
 
@@ -3015,13 +3022,17 @@ void GameWorld::ResetCraneItemNeedMaterial(int param)
     }
 }
 
+// ORIG 全局自由函数 @0x086cbc85（定义于 CUserOnlyOrig.cpp）
+int deleteSpecificItems(CUser* user,
+                        const std::vector<std::pair<int, int> >* list);
+
 void GameWorld::deleteSpecificItems(const std::vector<std::pair<int, int> >* list)
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
          it != m_UserInWorld.end(); ++it)
     {
         CUser* user = it->second;
-        user->deleteSpecificItems(list);
+        ::deleteSpecificItems(user, list);
     }
 }
 
@@ -3049,7 +3060,7 @@ void GameWorld::UpdateServerSnapShot()
             char timeStr[16];
             strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &local);
             strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &local);
-            cMyTrace trace("void GameWorld::UpdateServerSnapShot()", 0x1b61, 8);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1b61, 8);
             trace("%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
                   user->get_acc_id(),
                   G_CEnvironment()->get_server_group(),
@@ -3137,7 +3148,7 @@ void GameWorld::CancelPowerUp()
             list.push_back(user);
         }
     }
-    SendPowerUpList(0, list);
+    SendPowerUpList((ENUM_POWER_UP_ACTIVATE_TYPE)0, list);
 }
 
 void GameWorld::GetPowerUpDomain(std::vector<CUser*>& listA, std::vector<CUser*>& listB)
@@ -3170,7 +3181,7 @@ void GameWorld::GetPowerUpDomain(std::vector<CUser*>& listA, std::vector<CUser*>
     }
 }
 
-void GameWorld::SendPowerUpList(int activateType, std::vector<CUser*>& list)
+void GameWorld::SendPowerUpList(ENUM_POWER_UP_ACTIVATE_TYPE activateType, std::vector<CUser*>& list)
 {
     PacketGuard packet;
     packet.put_header(0, 0xd8);
@@ -3231,7 +3242,7 @@ void GameWorld::OnBanAbuserFromPowerWar()
                 packet.put_header(0, 0xe2);
                 packet.finalize(true);
                 user->Send(packet);
-                cMyTrace trace("void GameWorld::OnBanAbuserFromPowerWar()", 0x178e, 0);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x178e, 0);
                 trace("[PowerWar] POWER WAR BAN USER (USER:%s(%d), LAST:%d, CURR:%d)",
                       user->getCurCharacName(), user->getCurCharacNo(), last, now);
             }
@@ -3273,7 +3284,7 @@ void GameWorld::get_user_info(CUser* user, int targetId, int type)
     if (target == 0)
     {
         LogManager::logFormat(1, "world.cpp",
-            "void GameWorld::get_user_info(CUser*, int, int)", 0x107e,
+            __PRETTY_FUNCTION__, 0x107e,
             "[GameWorld::get_user_info] can't find user in world");
         return;
     }
@@ -3306,25 +3317,6 @@ void GameWorld::get_user_info(CUser* user, int targetId, int type)
     }
 }
 
-// ============================================================================
-// 聊天族（ORIG 86c954c..86d0f9e；逻辑来自 Ghidra C + 反汇编）
-// ============================================================================
-
-// MSG_ITEM_HYPER_LINK_MESSAGE（本 TU 布局；packet 域权威头未翻译）
-struct MSG_ITEM_HYPER_LINK_MESSAGE
-{
-    char m_pad0[0xd];
-    char m_type;              // +0x0d
-    unsigned short m_target;  // +0x0e
-    unsigned int m_param;     // +0x10
-    int m_msgLen;             // +0x14
-    char m_msg[0x100];        // +0x18
-    int m_nickLen;            // +0x118
-    char m_nick[0x20];        // +0x11c
-    char m_pad13b;            // +0x13b
-    char m_items[1][0x68];    // +0x13c
-};
-
 void GameWorld::make_packet_chat_msg(PacketGuard& packet, CUser* user, char* msg, int len,
                                      char type, ENUM_NOTIPACKET notify)
 {
@@ -3347,12 +3339,13 @@ void GameWorld::make_packet_chat_msg(PacketGuard& packet, CUser* user, char* msg
 }
 
 void GameWorld::make_packet_chat_msg_hyper_link(PacketGuard& packet, CUser* user,
-                                                void* linkMsg, ENUM_NOTIPACKET notify)
+                                                MSG_ITEM_HYPER_LINK_MESSAGE& linkMsg,
+                                                ENUM_NOTIPACKET notify)
 {
-    MSG_ITEM_HYPER_LINK_MESSAGE* msg = (MSG_ITEM_HYPER_LINK_MESSAGE*)linkMsg;
+    MSG_ITEM_HYPER_LINK_MESSAGE& msg = linkMsg;
     packet.clear();
     packet.put_header(0, (int)notify);
-    packet.put_byte(msg->m_type);
+    packet.put_byte(msg.m_typeD);
     if (user == 0)
     {
         packet.put_short(0);
@@ -3363,12 +3356,12 @@ void GameWorld::make_packet_chat_msg_hyper_link(PacketGuard& packet, CUser* user
         packet.put_short(user->get_unique_id());
         packet.put_byte(user->GetServerGroup());
     }
-    packet.put_int(msg->m_msgLen);
-    packet.put_str(msg->m_msg, msg->m_msgLen);
-    packet.put_byte(msg->m_pad13b);
-    for (int i = 0; i < (unsigned char)msg->m_pad13b; i++)
+    packet.put_int(msg.m_textLen14);
+    packet.put_str(msg.m_text18, msg.m_textLen14);
+    packet.put_byte(msg.m_linkCount13b);
+    for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
     {
-        packet.put_binary(msg->m_items[i], 0x68);
+        packet.put_binary((char*)msg.m_links13c[i], 0x68);
     }
     packet.finalize(true);
 }
@@ -3381,7 +3374,7 @@ void GameWorld::WriteLogChatMsg(CUser* user, char type, char* msg)
         memset(path, 0, sizeof(path));
         sprintf(path, "./log/%s/GuildWarChat",
                 G_CEnvironment()->get_file_name());
-        CMyFileLog log("void GameWorld::WriteLogChatMsg(CUser*, char, char*)", 0xd6d);
+        CMyFileLog log(__PRETTY_FUNCTION__, 0xd6d);
         log(path,
             "T:%d\tMsg:%s\tC_Name:%s\tG_Key:%d\tR_Idx:%d\tState:%d",
             (int)type, msg, user->getCurCharacName(), user->get_charac_guildkey(),
@@ -3471,7 +3464,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
                 err.put_header(0, 0xc);
                 err.put_byte(10);
                 err.put_short(0);
-                cMyTrace trace("void GameWorld::send_chat_msg(CUser*, char, short unsigned int, unsigned int, char*, int, char*, int, ENUM_NOTIPACKET)", 0xdf3, 0);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0xdf3, 0);
                 trace("%s is forbidden to chat for %d msec.\n",
                       from->getCurCharacName(), left);
                 err.put_int(left / 60000);
@@ -3590,7 +3583,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         Village* village = getUserVillage(from);
         if (village == 0)
         {
-            cMyTrace trace("void GameWorld::send_chat_msg(CUser*, char, short unsigned int, unsigned int, char*, int, char*, int, ENUM_NOTIPACKET)", 0xf1d, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xf1d, 5);
             trace("getUserVillage() call failed");
             break;
         }
@@ -3668,7 +3661,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         else
         {
             LogManager::logFormat(1, "world.cpp",
-                "void GameWorld::send_chat_msg(CUser*, char, short unsigned int, unsigned int, char*, int, char*, int, ENUM_NOTIPACKET)",
+                __PRETTY_FUNCTION__,
                 0xf8c, "GUILD_CHAT_ERROR : charac no == %d || guild key == %d ",
                 from->getCurCharacNo(), from->get_charac_guildkey());
         }
@@ -3688,7 +3681,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         else
         {
             LogManager::logFormat(1, "world.cpp",
-                "void GameWorld::send_chat_msg(CUser*, char, short unsigned int, unsigned int, char*, int, char*, int, ENUM_NOTIPACKET)",
+                __PRETTY_FUNCTION__,
                 0xfa3, "MEMBER_CHAT_ERROR : member key == %d ",
                 (int)from->get_charac_memberkey());
         }
@@ -3761,21 +3754,23 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     }
 }
 
-void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPACKET notify)
+void GameWorld::send_chat_msg_hyper_link(CUser* from,
+                                        MSG_ITEM_HYPER_LINK_MESSAGE& linkMsg,
+                                        ENUM_NOTIPACKET notify)
 {
-    MSG_ITEM_HYPER_LINK_MESSAGE* msg = (MSG_ITEM_HYPER_LINK_MESSAGE*)linkMsg;
-    if (msg->m_type < 0x1f && ((1 << (msg->m_type & 0x1f)) & 0x7fff0411U) != 0 &&
+    MSG_ITEM_HYPER_LINK_MESSAGE& msg = linkMsg;
+    if (msg.m_typeD < 0x1f && ((1 << (msg.m_typeD & 0x1f)) & 0x7fff0411U) != 0 &&
         from != 0)
     {
         from->DisConnSig((DISCONN_SIG)0x18, 1, 0);
         return;
     }
-    if (msg->m_type != 0)
+    if (msg.m_typeD != 0)
     {
-        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg->m_msg));
+        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg.m_text18));
         if (filtered.size() != 0)
         {
-            strncpy(msg->m_msg, filtered.c_str(), filtered.size());
+            strncpy(msg.m_text18, filtered.c_str(), filtered.size());
         }
         else
         {
@@ -3783,8 +3778,8 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
         }
     }
     PacketGuard packet;
-    WriteLogChatMsg(from, msg->m_type, msg->m_msg);
-    switch (msg->m_type)
+    WriteLogChatMsg(from, msg.m_typeD, msg.m_text18);
+    switch (msg.m_typeD)
     {
     case 0:
     case 7:
@@ -3813,25 +3808,25 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
         break;
     case 1:
     {
-        CUser* to = find_from_world(msg->m_target);
+        CUser* to = find_from_world(msg.m_itemSpaceE);
         if (to == 0)
         {
             char buf[0x12c + 0x100];
             memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = msg->m_type;
-            *(unsigned int*)(buf + 0x08) = msg->m_param;
-            *(char*)(buf + 0x0c) = (char)msg->m_msgLen;
-            memcpy(buf + 0x0d, msg->m_nick, msg->m_nickLen);
-            *(char*)(buf + 0x0d + 0x20) = (char)msg->m_msgLen;
-            memcpy(buf + 0x2c, msg->m_msg, msg->m_msgLen);
-            *(char*)(buf + 0x2c + msg->m_msgLen) = msg->m_pad13b;
-            for (int i = 0; i < (unsigned char)msg->m_pad13b; i++)
+            *(int*)(buf + 0x04) = msg.m_typeD;
+            *(unsigned int*)(buf + 0x08) = msg.m_slot10;
+            *(char*)(buf + 0x0c) = (char)msg.m_textLen14;
+            memcpy(buf + 0x0d, msg.m_name11c, msg.m_nameLen118);
+            *(char*)(buf + 0x0d + 0x20) = (char)msg.m_textLen14;
+            memcpy(buf + 0x2c, msg.m_text18, msg.m_textLen14);
+            *(char*)(buf + 0x2c + msg.m_textLen14) = msg.m_linkCount13b;
+            for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                memcpy(buf + 0x2c + msg->m_msgLen + 1 + i * 0x68,
-                       msg->m_items[i], 0x68);
+                memcpy(buf + 0x2c + msg.m_textLen14 + 1 + i * 0x68,
+                       msg.m_links13c[i], 0x68);
             }
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket(buf, msg->m_msgLen + 0x174);
+                ->SendPacket(buf, msg.m_textLen14 + 0x174);
             break;
         }
         PacketGuard pm;
@@ -3840,18 +3835,18 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
         if (black)
         {
             pm.put_header(0, 0x173);
-            pm.put_byte(msg->m_type);
+            pm.put_byte(msg.m_typeD);
             pm.put_byte(0x4d);
             int nameLen = (int)strlen(to->getCurCharacName());
             pm.put_int(nameLen);
             pm.put_str(to->getCurCharacName(), nameLen);
             pm.put_byte(0);
-            pm.put_int(msg->m_msgLen);
-            pm.put_str(msg->m_msg, msg->m_msgLen);
-            pm.put_byte(msg->m_pad13b);
-            for (int i = 0; i < (unsigned char)msg->m_pad13b; i++)
+            pm.put_int(msg.m_textLen14);
+            pm.put_str(msg.m_text18, msg.m_textLen14);
+            pm.put_byte(msg.m_linkCount13b);
+            for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                pm.put_binary(msg->m_items[i], 0x68);
+                pm.put_binary((char*)msg.m_links13c[i], 0x68);
             }
             pm.finalize(true);
             from->Send(pm);
@@ -3874,19 +3869,19 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
                 code = 0;
             }
             pm.put_header(0, 0x173);
-            pm.put_byte(msg->m_type);
+            pm.put_byte(msg.m_typeD);
             pm.put_byte(code);
             int nameLen = (int)strlen(
                 code == 0 ? from->getCurCharacName() : to->getCurCharacName());
             pm.put_int(nameLen);
             pm.put_str(code == 0 ? from->getCurCharacName() : to->getCurCharacName(), nameLen);
             pm.put_byte(0);
-            pm.put_int(msg->m_msgLen);
-            pm.put_str(msg->m_msg, msg->m_msgLen);
-            pm.put_byte(msg->m_pad13b);
-            for (int i = 0; i < (unsigned char)msg->m_pad13b; i++)
+            pm.put_int(msg.m_textLen14);
+            pm.put_str(msg.m_text18, msg.m_textLen14);
+            pm.put_byte(msg.m_linkCount13b);
+            for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                pm.put_binary(msg->m_items[i], 0x68);
+                pm.put_binary((char*)msg.m_links13c[i], 0x68);
             }
             pm.finalize(true);
             if (code == 0)
@@ -3900,6 +3895,199 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
         }
         break;
     }
+    case 2:
+        if (from != 0)
+        {
+            make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+            CParty* party = (CParty*)from->GetParty();
+            if (party != 0)
+            {
+                party->send_to_party(packet);
+            }
+        }
+        break;
+    case 3:
+    case 0x27:
+    {
+        Village* village = getUserVillage(from);
+        if (village == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1934, 5);
+            trace("getUserVillage() call failed");
+            break;
+        }
+        bool needClean = false;
+        if (village->get_gate_area() != from->get_area(false) &&
+            from->getCurCharacVill() != 8 && (int)notify != 0x72)
+        {
+            needClean = true;
+        }
+        if (needClean)
+        {
+            int cleanCount =
+                G_CDataManager()->m_serverParameter.GetCleanChattingCount(
+                    from->get_charac_level());
+            std::string smsg(msg.m_text18);
+            int add = from->isDuplicationMessage(smsg) != 0
+                          ? G_CDataManager()->m_serverParameter.GetPaneltyDupMessage()
+                          : 1;
+            from->incChattingMessageCount(add * cleanCount);
+            if (from->getChattingMessageCount() >
+                G_CDataManager()->m_serverParameter.GetMaxCleanChattingCount())
+            {
+                from->setChattingMessageCount(0);
+                from->reqHumanCertify4ClearMap(false);
+                break;
+            }
+        }
+    }
+    case 0x22:
+        if (from != 0)
+        {
+            make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+            send_to_area(from->getCurCharacVill(), from->get_area(false), packet);
+        }
+        break;
+    case 4:
+        make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+        send_all(packet);
+        break;
+    case 5:
+        if (from != 0)
+        {
+            make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+            if (from->GetAssaultPlace() == 0)
+            {
+                PvP_Room* room = G_CGameManager() != 0
+                    ? G_CGameManager()->GetPvp(
+                          (int)from->GetPvpIndex(), from, 0)
+                    : 0;
+                if (room != 0)
+                {
+                    room->send_to_pvp(packet);
+                }
+            }
+            else
+            {
+                pvp_assault::GetInstanceAssaultMgr()->SendPacket(from, false, &packet);
+            }
+        }
+        break;
+    case 6:
+        if (from->getCurCharacNo() != 0 && from->get_charac_guildkey() != 0)
+        {
+            Packet_Monitor_Guild_Chat_Hyper_Link pkt;
+            pkt.m_charNo = from->getCurCharacNo();
+            pkt.m_guildKey = from->get_charac_guildkey();
+            pkt.m_itemCount = msg.m_linkCount13b;
+            for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
+            {
+                memcpy(pkt.m_items + i * 0x68, msg.m_links13c[i], 0x68);
+            }
+            pkt.m_msgLen = (unsigned char)msg.m_textLen14;
+            memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(from->GetServerGroup())
+                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x14c);
+        }
+        else
+        {
+            LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x19b8,
+                "GUILD_CHAT_HYPER_LINK_ERROR : charac no == %d || guild key == %d ",
+                from->getCurCharacNo(), from->get_charac_guildkey());
+        }
+        break;
+    case 8:
+        if (from->getCurCharacNo() != 0 &&
+            from->get_charac_memberkey() != 0)
+        {
+            Packet_Monitor_Member_Chat_Hyper_Link pkt;
+            pkt.m_memberId = from->get_charac_memberkey();
+            pkt.m_itemCount = msg.m_linkCount13b;
+            for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
+            {
+                memcpy(pkt.m_items[i], msg.m_links13c[i], 0x68);
+            }
+            pkt.m_msgLen = (unsigned char)msg.m_textLen14;
+            memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
+                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x148);
+        }
+        else
+        {
+            LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x19d6,
+                "MEMBER_CHAT_HYPER_LINK_ERROR : member key == %d ",
+                (int)from->get_charac_memberkey());
+        }
+        break;
+    case 9:
+        if (from != 0)
+        {
+            make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+            if (from->GetAssaultPlace() == 0)
+            {
+                PvP_Room* room = G_CGameManager() != 0
+                    ? G_CGameManager()->GetPvp(
+                          (int)from->GetPvpIndex(), from, 0)
+                    : 0;
+                if (room != 0)
+                {
+                    room->send_to_pvp_team(packet, from);
+                }
+            }
+            else
+            {
+                pvp_assault::GetInstanceAssaultMgr()->SendPacket(from, true, &packet);
+            }
+        }
+        break;
+    case 0xb:
+    case 0xc:
+    case 0xe:
+    case 0x23:
+        if (from->getCurrCharacBlackCount() < 0x12d)
+        {
+            Packet_Monitor_MegaPhone_Hyper_Link pkt;
+            pkt.set(G_CEnvironment()->get_channel_no(), from->get_unique_id(),
+                    from->getCurCharacName(), (unsigned char)msg.m_textLen14,
+                    msg.m_text18, msg.m_typeD, msg.m_linkCount13b,
+                    (const hyperlink_item_info*)msg.m_links13c[0]);
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
+                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x167);
+        }
+        break;
+    case 0xd:
+    case 0xf:
+    {
+        PacketGuard pm;
+        pm.put_header(0, 0x174);
+        pm.put_byte((int)msg.m_typeD);
+        pm.put_byte(G_CEnvironment()->get_channel_no());
+        pm.put_short(from->get_unique_id());
+        int nameLen = (int)strlen(from->getCurCharacName());
+        pm.put_int(nameLen);
+        pm.put_str(from->getCurCharacName(), nameLen);
+        pm.put_int(msg.m_textLen14);
+        pm.put_str(msg.m_text18, msg.m_textLen14);
+        pm.put_byte(msg.m_linkCount13b);
+        for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
+        {
+            pm.put_binary((char*)msg.m_links13c[i], 0x68);
+        }
+        pm.finalize(true);
+        send_all(pm);
+        break;
+    }
+    case 0x28:
+        if (from != 0)
+        {
+            make_packet_chat_msg_hyper_link(packet, from, msg, notify);
+            BlueMarble* bm = (BlueMarble*)from->getBlueMarble();
+            if (bm != 0)
+            {
+                bm->sendToBlueMarble(packet);
+            }
+        }
+        break;
     default:
         break;
     }
@@ -3909,28 +4097,8 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
 // ProcessAllUsers 模板（ORIG 实例 0863d3bc / 0816270c）
 // ============================================================================
 
-class CEventStayTime
-{
-public:
-    class RewardGoGoFighter
-    {
-    public:
-        void operator()(CUser* user);
-        int m_0;
-        int m_4;
-    };
-};
-
-namespace InterSelectCreateDnfEventInfo
-{
-class Reward
-{
-public:
-    void operator()(CUser* user);
-    unsigned short m_0;
-    char m_2;
-};
-}
+// CEventStayTime::RewardGoGoFighter 权威声明已提升至 CEventStayTime.h
+// （此前的局部遮蔽视图按 ODR 清理移除）。
 
 void CEventStayTime::RewardGoGoFighter::operator()(CUser* user)
 {
@@ -3949,23 +4117,12 @@ void CEventStayTime::RewardGoGoFighter::operator()(CUser* user)
     Taiwan::SigStayTimeEvent* evt = guard.GetInBuffer<Taiwan::SigStayTimeEvent>();
     if (evt != 0)
     {
-        cMyTrace trace("CEventStayTime::RewardGoGoFighter::operator()", 0x24, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x24, 0);
         trace("%d", user->get_acc_id());
         evt->init();
         evt->set(user->get_acc_id());
         ((MsgQueueMgr*)0x940bd68)->put(MsgQueueMgr::QUEUE_IDX(2), guard);
     }
-}
-
-void InterSelectCreateDnfEventInfo::Reward::operator()(CUser* user)
-{
-    PacketGuard packet;
-    packet.put_header(0, 0x22d);
-    packet.put_short(m_0);
-    bool reward = user->GetEventCreateDnfReward() == 0 && m_2 != 0;
-    packet.put_byte(reward ? 1 : 0);
-    packet.finalize(true);
-    user->Send(packet);
 }
 
 template <typename T>

@@ -4,8 +4,8 @@
 //   s_indent 0x09501e64  static int
 // 全部 LogManager 方法为静态成员；prepareData 为文件内 static。
 #include "LogManager.h"
-#include <tr1/memory>
-#define LOG_WRITER_SP std::tr1::shared_ptr
+#include <memory>
+#define LOG_WRITER_SP std::shared_ptr
 
 #include <array>
 #include <cstdarg>
@@ -28,6 +28,18 @@ static void prepareData()
         s_data = new LogManagerData();
     }
 }
+
+// ORIG 0x8ad40b8：_ZN23_LogManagerData_createrC1Ev / C2Ev（各 0xd 字节）
+//   构造器仅调用 prepareData()；全局实例使 s_data 在静态初始化期完成分配
+//   （ORIG 生命周期：启动即建，非懒初始化）。ORIG 无该类的 D1/D0 符号，
+//   故无用户析构（trivial）。
+class _LogManagerData_creater
+{
+public:
+    _LogManagerData_creater() { prepareData(); }
+};
+
+static _LogManagerData_creater _LogManagerData_creater_instance;   // ORIG _ZL32_LogManagerData_creater_instance 0x09501e68
 
 LogWriter::LogWriter()
 {
@@ -59,11 +71,11 @@ void LogManager::logFormat(int level, const char* file, const char* func,
                 str += "\t";
             }
             str += buf;
-            s_data->data[level]->writeLog(file, func, line, str.c_str());
+            s_data->data[level]->log(file, func, line, str.c_str());
         }
         else
         {
-            s_data->data[level]->writeLog(file, func, line, buf);
+            s_data->data[level]->log(file, func, line, buf);
         }
     }
 }
@@ -82,11 +94,11 @@ void LogManager::logString(int level, const char* file, const char* func,
                 str += "\t";
             }
             str += msg;
-            s_data->data[level]->writeLog(file, func, line, str.c_str());
+            s_data->data[level]->log(file, func, line, str.c_str());
         }
         else
         {
-            s_data->data[level]->writeLog(file, func, line, msg);
+            s_data->data[level]->log(file, func, line, msg);
         }
     }
 }

@@ -41,25 +41,23 @@
 #include "GrowthEquipEvent.h"
 
 // ============================================================================
-// 本地静态辅助：_onBoosterItemUseResult / _onBoosterItemUseResult_OnlyOne /
-// sendBroadCastItems（对应本类三个辅助方法，行为忠实 ORIG；未写成类成员系因
-// Dispatchers.h 无这些声明且不可改。）
+// 本类三个辅助方法（Dispatchers.h 已声明；行为忠实 ORIG）。
 // ============================================================================
 
 // sendBroadCastItems(CUser*, Inven_Item const&, int) —— ORIG 0x08209b0e
-static void helper_sendBroadCastItems(CUser* user, const Inven_Item& item, int itemId)
+void Dispatcher_UseBoosterItem::sendBroadCastItems(CUser* user, const Inven_Item& item, int itemId)
 {
     if (user == 0)
         return;
 
     char flag = 0;
-    CDataManager* dm = G_CDataManager();
-    stBroadCastItemScript& script = dm->m_broadCastItem;
 
-    if (script.isUnCommonItem(itemId))          // isUnCommonItem(itemId)
-        flag = script.checkUnCommonNestedItem(itemId, item.m_addInfo);
+    // ORIG：isUnCommonItem/checkUnCommonNestedItem/checkCommonItem 三次分别
+    // 重新调用 G_CDataManager()（P48 O0 无 CSE），结果直接 +0xb5bc 使用，不落槽。
+    if (G_CDataManager()->m_broadCastItem.isUnCommonItem(itemId))
+        flag = G_CDataManager()->m_broadCastItem.checkUnCommonNestedItem(itemId, item.m_addInfo);
     else
-        flag = script.checkCommonItem(item.m_addInfo);
+        flag = G_CDataManager()->m_broadCastItem.checkCommonItem(item.m_addInfo);
 
     if (flag)
     {
@@ -76,32 +74,32 @@ static void helper_sendBroadCastItems(CUser* user, const Inven_Item& item, int i
 }
 
 // _onBoosterItemUseResult(CUser*, vector<Inven_Item>&, int) —— ORIG 0x082099bc
-static void helper_onBoosterItemUseResult(CUser* user, std::vector<Inven_Item>& items, int itemId)
+void Dispatcher_UseBoosterItem::_onBoosterItemUseResult(CUser* user, std::vector<Inven_Item>& items, int itemId)
 {
-    for (std::vector<Inven_Item>::const_iterator it = items.begin(); it != items.end(); ++it)
-        helper_sendBroadCastItems(user, *it, itemId);
+    // ORIG：begin/end 迭代器各构造一次（P13 end 缓存；P50 for 内直构），
+    // 循环体调 sendBroadCastItems(this, user, *it, itemId)。
+    for (std::vector<Inven_Item>::const_iterator it = items.begin(), e = items.end();
+         it != e; ++it)
+        sendBroadCastItems(user, *it, itemId);
 }
 
 // _onBoosterItemUseResult_OnlyOne(CUser*, vector<Inven_Item>&, int) —— ORIG 0x08209a5e
-static void helper_onBoosterItemUseResult_OnlyOne(CUser* user, std::vector<Inven_Item>& items, int itemId)
+void Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne(CUser* user, std::vector<Inven_Item>& items, int itemId)
 {
     if (items.size() != 1)
         return;
 
-    CEventBase* evt0 = GlobalData::s_event_manager->GetRepeatEvent(100);
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(100);
+    std::vector<Inven_Item>::iterator it = items.begin();
 
-    // ORIG：经 vptr+0x34（GrowthEquipEvent::IsEventing）判活，实参为 0。
-    GrowthEquipEvent* g = static_cast<GrowthEquipEvent*>(evt0);
-    if (g != 0 && g->IsEventing(0))
+    // ORIG：GetRepeatEvent(100) 结果直接虚调 vtable+0x34（IsEventing(0)），无判空；
+    // 命中后才二次 GetRepeatEvent(100)（存 -0xc 槽）并判空。
+    if (static_cast<GrowthEquipEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(100))->IsEventing(0))
     {
-        if (evt != 0)
-        {
-            const Inven_Item& first = items.front();
-            // ORIG 0x8209ae8：arg2 = Inven_Item+0x02（m_addInfo，道具 idx），
-            // arg3 = 本函数第 4 参（包内 addInfo）。
-            static_cast<GrowthEquipEvent*>(evt)->SelectGrowthWeapon(*user, first.m_addInfo, itemId);
-        }
+        CEventBase* evt2 = GlobalData::s_event_manager->GetRepeatEvent(100);
+        if (evt2 != 0)
+            static_cast<GrowthEquipEvent*>(evt2)->SelectGrowthWeapon(
+                *user, itemId, it->m_addInfo);
     }
 }
 
@@ -281,8 +279,8 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 }
 
 
-                helper_onBoosterItemUseResult(user, resultItems, itemId);
-                helper_onBoosterItemUseResult_OnlyOne(user, resultItems, itemId);
+                _onBoosterItemUseResult(user, resultItems, itemId);
+                _onBoosterItemUseResult_OnlyOne(user, resultItems, itemId);
 
                 if (itemId == 0x28d1b3)
                     user->SendEventJarOutputItemStatistics(resultItems);

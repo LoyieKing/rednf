@@ -1,4 +1,9 @@
 #include "LogManager.h"
+#include "FunctionGuildMember.h"
+#include "Packet_Monitor_Call_Guild_Members_ToChannel.h"  // ST_Guild_Mem_Info 完整布局
+#include "PacketGuard.h"                                  // PacketGuard 完整类型（put_* 调用）
+#include "CMyFileLog.h"
+#include "CEnvironment.h"
 // df_game_r 还原 —— CGuildServerProxy（公会服务器客户端代理）实现。
 // 参照 docs/class_func_reports/CGuildServerProxy.md；单 TU 编译后经
 // check_tu_game_orig.sh 与 df_game_r ORIG 对比（AE 口径）。
@@ -57,32 +62,8 @@
 
 #include "DNFFunctionLib.h"
 
-// ORIG DF_GuildServerProxy.cpp 对 CNetwork<100000,100000>::CreateConnectionSocket
-// 的调用只传 this+ip+port 三个栈槽（声明为 3 参 int&+ip+port，调用点按 2 参
-// 使用——原样复刻）。本视图类以 2 参成员复现调用点形态；定义转发到真实 3 参
-// 成员（int& 实参丢弃），保证最终链接可解析。
-namespace
-{
-// CEnvironment+0x378 视图（m_serverEnvir.m_serverGroup，私有成员；ORIG 直访）
-struct CEnvView
-{
-    char m_pad[0x378];
-    int m_serverGroup;    // +0x378
-};
-
-class CGuildNetView
-{
-public:
-    int CreateConnectionSocket(const char* ip, int port);
-};
-
-int CGuildNetView::CreateConnectionSocket(const char* ip, int port)
-{
-    int sock = 0;
-    return ((CNetwork<100000, 100000>*)this)->CreateConnectionSocket(sock, ip, port);
-}
-}
-
+// （static 3 参 int&+ip+port）的调用以 m_tcp 自身地址作 int& 实参（ORIG
+// 0846d9be 三槽 this+0x24/c_str()/m_tcpPort 实证）。
 // ---- 生命周期 ----
 
 // ---- STGuildProxy（ORIG 弱符号 0x082344de / 0x084ed19a）----
@@ -132,7 +113,7 @@ bool CGuildServerProxy::InitUdp()
     if (m_udp.InitClientSocket() == -1)
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "bool CGuildServerProxy::InitUdp()", 0x4d4,
+                              __PRETTY_FUNCTION__, 0x4d4,
                               "[CGuildServerProxy::Init] Can\'t init udp client socket\n");
         return 0;
     }
@@ -141,25 +122,23 @@ bool CGuildServerProxy::InitUdp()
 
 bool CGuildServerProxy::InitTcp()
 {
-    int ret;
     if (m_udpPort == 0)
     {
         return 1;
     }
     if (m_tcp.m_sock < 0)
     {
-        ret = ((CGuildNetView*)&m_tcp)
-                  ->CreateConnectionSocket(m_ip.c_str(), m_tcpPort);
+        int ret = m_tcp.CreateConnectionSocket((int&)m_tcp, m_ip.c_str(),
+                                               m_tcpPort);
         if (ret != 0)
-
         {
-            cMyTrace("bool CGuildServerProxy::InitTcp()", 0x4ea, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x4ea, 0)
                 ("CGuildServerProxy CreateConnectionSocket() error(%d:%d:%s)",
                  ret, errno, strerror(errno));
             return 0;
         }
     }
-    cMyTrace("bool CGuildServerProxy::InitTcp()", 0x4ef, 9, true, true)
+    cMyTrace(__PRETTY_FUNCTION__, 0x4ef, 9, true, true)
         ("[!] Connect To Guild Server ...");
     return 1;
 }
@@ -206,7 +185,7 @@ int CGuildServerProxy::OnTcpRecv()
     if (n < 0)
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "bool CGuildServerProxy::OnTcpRecv()", 0x71f,
+                              __PRETTY_FUNCTION__, 0x71f,
                               "Guild Server maybe Die!!!");
         Disconnect();
         return 0;
@@ -218,7 +197,7 @@ int CGuildServerProxy::OnTcpSend()
 {
     if (m_tcp.send_packet() < 0)
     {
-        cMyTrace("int CGuildServerProxy::OnTcpSend()", 0x733, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x733, 0)
             ("OnSend() Socket[%d] Error(%s)", GetTcpHandler()->get_socket(),
              strerror(errno));
         Disconnect();
@@ -231,7 +210,7 @@ bool CGuildServerProxy::OnTcpError()
 {
     if (errno != 0)
     {
-        cMyTrace("bool CGuildServerProxy::OnTcpError()", 0x745, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x745, 0)
             ("GuildServer OnError() Socket[%d] Error(%s)",
              GetTcpHandler()->get_socket(), strerror(errno));
         return 0;
@@ -279,7 +258,7 @@ void CGuildServerProxy::SendLogin(int guildKey, unsigned int dbid, int channel,
     {
         LogManager::logFormat(
             1, "DF_GuildServerProxy.cpp",
-            "void CGuildServerProxy::SendLogin(int, memberIdentificationNumber_t, int, char*, unsigned char, char*)",
+            __PRETTY_FUNCTION__,
             0x533, "CGuildServerProxy::SendLogin! DB ID(%s)", NumberToString(dbid, 0));
     }
     pkt.m_sex = sex;
@@ -504,12 +483,15 @@ void CGuildServerProxy::SendGuildCreate(unsigned int charNo, char* guildName,
 {
     Packet_Request_Guild_Create pkt;
     pkt.m_charNo = charNo;
-    memcpy(pkt.m_guildName, guildName, 0x16);
-    memset((char*)&pkt + 0x25, 0, 0xd);
+    // ORIG @846e323：memcpy 源是第三参 masterName
+    memcpy(pkt.m_guildName, masterName, 0x16);
+    memset(&pkt.m_extra[0], 0, 0xd);   // m_extra@+0x25（线格式 0xd 清尾）
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
 
-void CGuildServerProxy::SendGuildNameChange(unsigned int guildKey, unsigned int charNo,
+// ORIG @846e387：param_1 → m_charNo(+0xe)、param_2 → m_guildKey(+0xa)
+// （调用点 Dispatchers.cpp:7786 传 (curNo, guildkey)）。
+void CGuildServerProxy::SendGuildNameChange(unsigned int charNo, unsigned int guildKey,
                                             char* name)
 {
     Packet_Change_Guild_Name pkt;
@@ -572,7 +554,7 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
     if (group == E_SERVER_GROUP_NONE)
     {
-        group = (ENUM_SERVER_GROUP)((CEnvView*)G_CEnvironment())->m_serverGroup;
+        group = (ENUM_SERVER_GROUP)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
     db->set_query("seLect guild_id, guild_name, lev , power_side, guild_agit_flag "
                   "from guild_info where expire_flag = 0 and server_id = %d", group);
@@ -627,30 +609,35 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
 bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy& info)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
-    if (it == m_guildInfoMap.end())
+    std::map<unsigned int, STGuildProxy>::iterator endIt = m_guildInfoMap.end();
+    if (it == endIt)
     {
-        LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int, STGuildProxy&)",
-                              0x852, "Find fail from guild info proxy(guild_id:%d)", guildId);
+        LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x852,
+                              "Find fail from guild info proxy(guild_id:%d)", guildId);
         return false;
     }
-    it->second = info;
-    return true;
+    else
+    {
+        it->second = info;
+        return true;
+    }
 }
 
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
-    if (it == m_guildInfoMap.end())
+    std::map<unsigned int, STGuildProxy>::iterator endIt = m_guildInfoMap.end();
+    if (it == endIt)
     {
-        LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int, char*)",
-                              0x860, "Find fail from guild info proxy(guild_id:%d)", guildId);
-        return;
+        LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x860,
+                              "Find fail from guild info proxy(guild_id:%d)", guildId);
     }
-    STGuildProxy* pGuild = &it->second;
-    memset(pGuild, 0, 0x17);
-    memcpy(pGuild, name, 0x16);
+    else
+    {
+        STGuildProxy* pGuild = &it->second;
+        memset(pGuild, 0, 0x17);
+        memcpy(pGuild, name, 0x16);
+    }
 }
 
 void CGuildServerProxy::ChangeGuildAgitFlagInProxy(unsigned int guildId,
@@ -660,7 +647,7 @@ void CGuildServerProxy::ChangeGuildAgitFlagInProxy(unsigned int guildId,
     if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "void CGuildServerProxy::ChangeGuildAgitFlagInProxy(unsigned int, unsigned char)",
+                              __PRETTY_FUNCTION__,
                               0x86e, "Find fail from guild info proxy(guild_id:%d)", guildId);
         return;
     }
@@ -676,7 +663,7 @@ bool CGuildServerProxy::GetGuildInfoProxy(unsigned int guildId, STGuildProxy& ou
     if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp",
-                              "bool CGuildServerProxy::GetGuildInfoProxy(unsigned int, STGuildProxy&)",
+                              __PRETTY_FUNCTION__,
                               0x87d, "Find fail from guild info proxy(guild_id:%d)", guildId);
         return false;
     }
@@ -772,14 +759,14 @@ void CGuildServerProxy::SendApplyOriginalPowerSide(unsigned int charNo,
 void CGuildServerProxy::OnBuyItem(CUser* user, CItem const* item,
                                   unsigned int powerWarPoint, unsigned int pp)
 {
-    if ((*(int (**)(CItem*))(*(int*)item + 0x28))((CItem*)item) != 0)
+    if (item->GetGuildPowerWarPoint() != 0)   // vtable+0x28（槽 10）
     {
         user->DecreaseGuildPowerWarPoint(powerWarPoint);
         SendIncreaseDecreasePowerWarPoint(user->get_charac_guildkey(),
                                           user->get_charac_no(-1),
                                           -(int)powerWarPoint);
     }
-    if ((*(int (**)(CItem*))(*(int*)item + 0x2c))((CItem*)item) != 0)
+    if (item->GetUserPowerWarPoint() != 0)    // vtable+0x2c（槽 11）
     {
         user->DecreasePowerWarPoint((short)pp);
     }
@@ -827,7 +814,7 @@ void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
     pkt.m_channel = channel;
     pkt.m_type = 1;
     pkt.m_port = port;
-    strncpy(pkt.m_name, name, 0x10);
+    strncpy(pkt.m_name, name, 0x10);  // ORIG lea 0xd(eax),edx vs 我方 add——gcc 伪影，语义等价
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
 
@@ -848,4 +835,74 @@ void CGuildServerProxy::SendAddGuildFund(unsigned int charNo, unsigned int guild
     pkt.m_fund = fund;
     pkt.m_mode = (unsigned char)type;
     SendTcpPacket((char*)&pkt, pkt.packetSize);
+}
+
+// ---- FunctionGuildMember（ORIG 静态成员，公会成员包构造/日志辅助）----
+
+// ORIG 0x084ca37a T _ZN19FunctionGuildMember26MakePacketGuildMembersInfoER11PacketGuardiP17ST_Guild_Mem_Info
+// 报告 docs/class_func_reports/FunctionGuildMember/MakePacketGuildMembersInfo.md：
+// put_byte(count) → 每成员：name(0x04)/guildMemDBInfo(0x22) int+len、
+// level、job/growthType/char 渠道/性别/黑名单/MG、pad 秒差。
+void FunctionGuildMember::MakePacketGuildMembersInfo(PacketGuard& packet,
+                                                     int count,
+                                                     ST_Guild_Mem_Info* members)
+{
+    packet.put_byte(count);
+    int nameLen = 0;
+    int infoLen = 0;
+    const long long curSec = GlobalData::s_systemTime_.getCurSec();
+    while (count-- != 0)
+    {
+        nameLen = (int)strlen(members->f.m_name);
+        packet.put_int(nameLen);
+        packet.put_str(&members->f.m_name[0], nameLen);
+        infoLen = (int)strlen(members->f.m_guildMemDBInfo);
+        packet.put_int(infoLen);
+        packet.put_str(&members->f.m_guildMemDBInfo[0], infoLen);
+        packet.put_short((int)members->f.m_level);
+        packet.put_byte((int)members->f.m_job);
+        packet.put_byte((int)members->f.m_growthType);
+        packet.put_byte((int)(unsigned char)members->f.m_channel);
+        packet.put_byte((int)members->f.m_sex);
+        packet.put_byte((int)members->f.m_blackUser);
+        packet.put_byte((int)(unsigned char)members->f.m_grade);
+        // ORIG +0x3b（f.m_pad3b，P1 单 disp）：0 或 curSec<secs → 0，否则差
+        if (members->f.m_pad3b == 0 ||
+            curSec < members->f.m_pad3b)
+            packet.put_int(0);
+        else
+            packet.put_int((int)(curSec - members->f.m_pad3b));
+        members = (members + 1);
+    }
+}
+
+// ORIG 0x084ca55a T _ZN19FunctionGuildMember23LogMakeGuildMembersInfoEjiP17ST_Guild_Mem_Info
+// 报告 LogMakeGuildMembersInfo.md：拼成员文本 → ./log/<file>/GuildModi 文件日志。
+void FunctionGuildMember::LogMakeGuildMembersInfo(unsigned int guildKey,
+                                                  int count,
+                                                  ST_Guild_Mem_Info* members)
+{
+    char buf[0x1000] = { '\0' };   // P4：O0 内联 rep stos，与 ORIG 同形
+    sprintf(buf, "gKey(%d) Cnt(%d)", guildKey, count);
+    while (count-- != 0)
+    {
+        sprintf(buf, "%s %s", buf, members->f.m_name);
+        sprintf(buf, "%s l(%d)", buf, (int)members->f.m_level);
+        sprintf(buf, "%s j(%d)", buf, (int)members->f.m_job);
+        sprintf(buf, "%s g(%d)", buf, (int)members->f.m_growthType);
+        sprintf(buf, "%s Ch(%d)", buf, (int)(unsigned char)members->f.m_channel);
+        sprintf(buf, "%s S(%d)", buf, (int)members->f.m_sex);
+        sprintf(buf, "%s B(%d)", buf, (int)members->f.m_blackUser);
+        sprintf(buf, "%s MG(%d)", buf, (int)(unsigned char)members->f.m_grade);
+        sprintf(buf, "%s\n", buf);
+        if (strlen(buf) > 0xfff)
+            break;
+        members = (members + 1);
+    }
+    char path[0x100] = { '\0' };   // P4：O0 内联 rep stos，与 ORIG 同形
+    sprintf(path, "./log/%s/GuildModi", G_CEnvironment()->get_file_name());
+    CMyFileLog log(
+        __PRETTY_FUNCTION__,
+        0x24ac);
+    log(path, "%s", buf);
 }

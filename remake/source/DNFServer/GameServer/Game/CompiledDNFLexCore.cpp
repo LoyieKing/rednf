@@ -53,7 +53,7 @@ const unsigned int STREAM_NODE_ELEMS = 0x1f4 / sizeof(CompiledDNFLex::stream_t);
 // ORIG `_ZZ17readIntFromBufferRPcE9intBuffer` / `_ZZ18readCharFromBufferRPcE10charBuffer`
 // / `_ZZ19readFloatFromBufferRPcE11floatBuffer`：外部链接、函数内 static，-O2 内联进
 // getInt/getStr/getToken/getFloat。
-int readIntFromBuffer(char*& offset)
+static int readIntFromBuffer(char*& offset)
 {
     static int intBuffer;
     intBuffer = *reinterpret_cast<int*>(offset);

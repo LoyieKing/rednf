@@ -41,10 +41,10 @@ bool CEnchanter::IsUseOtherUserMonsterCard()
 // ---------------------------------------------------------------------------
 int CEnchanter::IsRightMaterial()
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i <= 1; ++i)
     {
-        int right = m_materials[i].IsRight();
-        if (right != 0)
+        int right = 0;
+        if ((right = m_materials[i].IsRight()) != 0)
             return right;
     }
     return 0;
@@ -54,14 +54,13 @@ int CEnchanter::IsRightMaterial()
 // IsRecipeRight（报告 IsRecipeRight.md，ORIG T 0x849ca06 sz 0x63）：
 // m_field40 非空、非 stackable、虚槽 vtable+0xc（GetItemType）== 3 才为真。
 // ---------------------------------------------------------------------------
-int CEnchanter::IsRecipeRight()
+bool CEnchanter::IsRecipeRight()
 {
-    CItem* recipe = reinterpret_cast<CItem*>(m_field40);
-    if (recipe == 0)
+    if (reinterpret_cast<CItem*>(m_field40) == 0)
         return 0;
-    if (!recipe->is_stackable())
+    if (!reinterpret_cast<CItem*>(m_field40)->is_stackable())
         return 0;
-    if (recipe->GetItemType() != 3)   // ORIG 虚调用 *(vt+0xc)，与常量 3 比较
+    if (reinterpret_cast<CItem*>(m_field40)->GetItemType() != 3)
         return 0;
     return 1;
 }
@@ -70,14 +69,14 @@ int CEnchanter::IsRecipeRight()
 // IsEqualMonsterCad（报告 IsEqualMonsterCad.md，ORIG T 0x849ca6a sz 0x5b）：
 // FindMonsterCard(m_field40) 结果的 get_index 与 m_field3c 的 get_index 相等。
 // ---------------------------------------------------------------------------
-int CEnchanter::IsEqualMonsterCad()
+bool CEnchanter::IsEqualMonsterCad()
 {
     CItem* card = FindMonsterCard(reinterpret_cast<CItem*>(m_field40));
     if (card == 0)
         return 0;
-    if (card->get_index() == reinterpret_cast<CItem*>(m_field3c)->get_index())
-        return 1;
-    return 0;
+    if (card->get_index() != reinterpret_cast<CItem*>(m_field3c)->get_index())
+        return 0;
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,15 +86,16 @@ int CEnchanter::IsEqualMonsterCad()
 bool CEnchanter::_DrawEnchant()
 {
     int resultExp = 0;
-    bool success = IsSuccess(m_user,
-                             static_cast<CStackableItem const*>(
-                                 reinterpret_cast<CStackableItem*>(m_field40)),
-                             resultExp);
-    if (!success)
-        return false;
-    int curExp = m_user->GetCurCharacExpertJobExp();
-    IncreaseExpertJobExp(m_user, curExp + resultExp);
-    return true;
+    if (IsSuccess(m_user,
+                  static_cast<CStackableItem const*>(
+                      reinterpret_cast<CStackableItem*>(m_field40)),
+                  resultExp))
+    {
+        IncreaseExpertJobExp(m_user, m_user->GetCurCharacExpertJobExp() +
+                                         resultExp);
+        return true;
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,9 +103,9 @@ bool CEnchanter::_DrawEnchant()
 // ---------------------------------------------------------------------------
 int CEnchanter::_TryEnchantMine(CUser* user, stItemPos_t* pos)
 {
-    int ret = m_materials[0].SetData(user, (unsigned short)pos->m_itemSpace,
-                                     pos->m_slot);
-    if (ret != 0)
+    int ret = 0;
+    if ((ret = m_materials[0].SetData(user, (unsigned short)pos->m_itemSpace,
+                                      pos->m_slot)) != 0)
         return ret;
 
     CItem* card = FindMonsterCard(reinterpret_cast<CItem*>(m_field40));
@@ -114,39 +114,36 @@ int CEnchanter::_TryEnchantMine(CUser* user, stItemPos_t* pos)
 
     Inven_Item invenItem;
     int slot = -1;
-    slot = user->getCurCharacInvenR()->GetInvenData(card->get_index(), invenItem);
-    if (slot == -1)
+    if ((slot = user->getCurCharacInvenR()->GetInvenData(card->get_index(),
+                                                         invenItem)) == -1)
         return 0x11;
 
-    ret = m_materials[1].SetData(user, 0, (unsigned short)slot);
-    if (ret != 0)
+    if ((ret = m_materials[1].SetData(user, 0, (unsigned short)slot)) != 0)
         return ret;
 
-    if (IsRecipeRight() != 1)
+    if (!IsRecipeRight())
         return 0x11;
 
-    if (IsLearnRecipe(user,
-                      static_cast<CStackableItem const*>(
-                          reinterpret_cast<CStackableItem*>(m_field40))) != true)
+    if (!IsLearnRecipe(
+            user, static_cast<CStackableItem const*>(
+                      reinterpret_cast<CStackableItem*>(m_field40))))
         return 0x11;
 
-    ret = m_materials[0].CheckType(false, 0);
-    if (ret != 0)
+    if ((ret = m_materials[0].CheckType(false, 0)) != 0)
         return ret;
 
-    ret = m_materials[1].CheckType(true, 2);
-    if (ret != 0)
+    if ((ret = m_materials[1].CheckType(true, 2)) != 0)
         return ret;
 
     m_field3c = m_materials[1].m_item;
     if (reinterpret_cast<CItem*>(m_field3c) == 0)
         return 0x11;
 
-    if (IsEqualMonsterCad() != 1)
+    if (!IsEqualMonsterCad())
         return 0x11;
 
     if (!::EnableWorld(reinterpret_cast<CItem*>(m_materials[0].m_item),
-                     reinterpret_cast<CItem*>(m_field40)))
+                       reinterpret_cast<CItem*>(m_field40)))
         return 0x11;
 
     // ORIG 虚链：target 卡对象 vtable+0x20 槽（getUsableItemType(int)），实参取
@@ -155,8 +152,7 @@ int CEnchanter::_TryEnchantMine(CUser* user, stItemPos_t* pos)
             reinterpret_cast<CItem*>(m_materials[0].m_item)->GetItemType()))
         return 0x17;
 
-    ret = _DoEnchant(ENUM_TRY_ENCHANT_TYPE_0);
-    if (ret != 0)
+    if ((ret = _DoEnchant(ENUM_TRY_ENCHANT_TYPE_0)) != 0)
         return ret;
     return 0;
 }
@@ -234,52 +230,60 @@ int CEnchanter::_PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos,
     if (user->getCurCharacR() == 0)
         return 3;
 
-    if (user->get_unique_id() != m_peer->get_unique_id())
+    // ORIG 全部 unique_id 比较为 16 位（cmp %ax）；allowed 不落栈（寄存器物化）
+    if ((unsigned short)user->get_unique_id() !=
+        (unsigned short)m_peer->get_unique_id())
     {
-        bool allowed = false;
-        if (kind == 2 && IsUseOtherUserMonsterCard() != true)
-            allowed = true;
+        bool allowed =
+            (kind == 2 && IsUseOtherUserMonsterCard() != true);  // ORIG bVar1
         if (!allowed)
             return 3;
-        if (user->get_unique_id() != m_user->get_unique_id())
+        if ((unsigned short)user->get_unique_id() !=
+            (unsigned short)m_user->get_unique_id())
             return 3;
     }
 
-    if (kind == 2)
+    // ORIG kind 分发：mov type→eax + cmp $1/je、cmp $2/je、test/jne → switch
+    // （叶块排放序 0、1、2，P46）
+    switch (kind)
     {
-        if (m_materials[1].Empty())
-            return 0x14;
-        int err = m_materials[1].SetData(user, (unsigned short)pos->m_itemSpace,
-                                         pos->m_slot);
-        if (err != 0)
-            return err;
-        int chk = m_materials[1].CheckType(true, 2);
-        if (chk != 0)
-            return chk;
-    }
-    else if (kind == 1)
-    {
-        if (m_materials[0].Empty())
-            return 0x14;
-        int err = m_materials[0].SetData(user, (unsigned short)pos->m_itemSpace,
-                                         pos->m_slot);
-        if (err != 0)
-            return err;
-        int chk = m_materials[0].CheckType(false, 0);
-        if (chk != 0)
-            return chk;
-    }
-    else if (kind == 0)
-    {
+    case 0:
         if (money < 0)
             return 0x5f;
         if (m_field38 > 0)
             return 0x14;
-        if (m_user->CheckMoney(money) != 1)
+        if (!m_user->CheckMoney(money))
             return 0x5f;
         if (user->getCurCharacInvenR()->get_money() < money)
             return 0x16;
         m_field38 = money;
+        break;
+    case 1:
+        if (!m_materials[0].Empty())
+            return 0x14;
+        {
+            int err = 0;
+            if ((err = m_materials[0].SetData(user, pos->m_itemSpace,
+                                              pos->m_slot)) != 0)
+                return err;
+            if ((err = m_materials[0].CheckType(false, 0)) != 0)
+                return err;
+        }
+        break;
+    case 2:
+        if (!m_materials[1].Empty())
+            return 0x14;
+        {
+            int err = 0;
+            if ((err = m_materials[1].SetData(user, pos->m_itemSpace,
+                                              pos->m_slot)) != 0)
+                return err;
+            if ((err = m_materials[1].CheckType(true, 2)) != 0)
+                return err;
+        }
+        break;
+    default:
+        break;
     }
 
     if (!(m_user != 0 && m_user->getCurCharacR() != 0))
@@ -288,22 +292,31 @@ int CEnchanter::_PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos,
     PacketGuard packet;
     packet.put_header(0, 0x9d);
     packet.put_byte(kind);
-    if (kind == 2)
-        packet.put_int((int)m_materials[1].m_itemIndex);
-    else if (kind == 1)
-        packet.put_int((int)m_materials[0].m_itemIndex);
-    else if (kind == 0)
+    switch (kind)
+    {
+    case 0:
         packet.put_int(m_field38);
+        break;
+    case 1:
+        packet.put_int((int)m_materials[0].m_itemIndex);
+        break;
+    case 2:
+        packet.put_int((int)m_materials[1].m_itemIndex);
+        break;
+    default:
+        break;
+    }
     packet.finalize(true);
 
-    bool notified = false;
-    int result = 0;
-    if (user->get_unique_id() == m_user->get_unique_id())
+    register int result = 0;     // ORIG unaff_EBX（先声明 → ebx）
+    register int notified = 0;   // ORIG esi（后声明 → esi）
+    if ((unsigned short)user->get_unique_id() ==
+        (unsigned short)m_user->get_unique_id())
     {
         if (m_peer != 0 && m_peer->getCurCharacR() != 0)
         {
             m_peer->Send(packet);
-            notified = true;
+            notified = 1;
         }
         else
         {
@@ -313,7 +326,7 @@ int CEnchanter::_PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos,
     else
     {
         m_user->Send(packet);
-        notified = true;
+        notified = 1;
     }
     return notified ? 0 : result;
 }
@@ -324,11 +337,11 @@ int CEnchanter::_PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos,
 // ---------------------------------------------------------------------------
 void CEnchanter::OnPutItemForEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 {
-    int err =
-        _PutItemForEnchant(user, (int)(unsigned char)msg->m_type0d,
-                           reinterpret_cast<stItemPos_t*>(&msg->m_value0e),
-                           msg->m_value0e);
-    if (err != 0)
+    int err = 0;
+    if ((err = _PutItemForEnchant(
+             user, (int)(unsigned char)msg->m_type0d,
+             reinterpret_cast<stItemPos_t*>((char*)msg + 0xe),
+             msg->m_value0e)) != 0)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xad,
                                  (unsigned char)(err & 0xff));
 }
@@ -340,20 +353,20 @@ void CEnchanter::OnTryEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 {
     m_field40 = (int)G_CDataManager()->find_item(msg->m_value0e);
 
-    int err = _TryEnchant(user,
-                          reinterpret_cast<stItemPos_t*>(&msg->m_value0e),
-                          (ENUM_TRY_ENCHANT_TYPE)(unsigned char)msg->m_type0d);
-    if (err != 0)
+    int err = 0;
+    if ((err = _TryEnchant(
+             user, reinterpret_cast<stItemPos_t*>((char*)msg + 0x13),
+             (ENUM_TRY_ENCHANT_TYPE)(unsigned char)msg->m_type0d)) != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xac,
                                  (unsigned char)(err & 0xff));
-        return;
     }
-
-    APSystem::_ActionGroupIndex ag;
-    ag.m_value = 0x1f;
-    APSystem::CUserProc::ClearActionAndSendtoUser(user, ag, 0,
-                                                  (ENUM_PACKETCLASS)0);
+    if (err == 0)
+    {
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            user, APSystem::_ActionGroupIndex(0x1f), 0,
+            (ENUM_PACKETCLASS)0);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -361,22 +374,16 @@ void CEnchanter::OnTryEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 // ---------------------------------------------------------------------------
 int CEnchanter::_AgreeEnchant(CUser* user, ENUM_AGREE_ENCHANT_TYPE type)
 {
-    if (user->get_unique_id() != m_peer->get_unique_id())
+    int ret = 0;   // -0xc：ORIG movl $0 开头
+    if ((unsigned short)user->get_unique_id() !=
+        (unsigned short)m_peer->get_unique_id())   // ORIG cmp %ax,%bx（16 位）
         return 3;
 
-    if (type == ENUM_AGREE_ENCHANT_TYPE_1)
+    // ORIG 汇编：type 加载一次入 eax 后 cmp $1/je、cmp $2/je、test/jne
+    // （线性比较链）→ switch，case 书写序 = 叶块排放序（P46）。
+    switch (type)
     {
-        int ret = _DoEnchant(ENUM_TRY_ENCHANT_TYPE_1);
-        OnCloseMission(user, ENUM_CLOSE_MISSION_TYPE_0);
-        return ret;
-    }
-    else if (type == ENUM_AGREE_ENCHANT_TYPE_2)
-    {
-        OnCloseMission(user, ENUM_CLOSE_MISSION_TYPE_2);
-        return 0;
-    }
-    else if (type == ENUM_AGREE_ENCHANT_TYPE_0)
-    {
+    case ENUM_AGREE_ENCHANT_TYPE_0:
         if (m_materials[1].Empty())
             return 0x15;
         m_materials[1].Reset();
@@ -391,7 +398,16 @@ int CEnchanter::_AgreeEnchant(CUser* user, ENUM_AGREE_ENCHANT_TYPE type)
             packet.finalize(true);
             m_user->Send(packet);
         }
-        return 0;
+        break;
+    case ENUM_AGREE_ENCHANT_TYPE_1:
+        ret = _DoEnchant(ENUM_TRY_ENCHANT_TYPE_1);
+        OnCloseMission(user, ENUM_CLOSE_MISSION_TYPE_0);
+        return ret;
+    case ENUM_AGREE_ENCHANT_TYPE_2:
+        OnCloseMission(user, ENUM_CLOSE_MISSION_TYPE_2);
+        break;
+    default:
+        break;
     }
     return 0;
 }
@@ -401,9 +417,10 @@ int CEnchanter::_AgreeEnchant(CUser* user, ENUM_AGREE_ENCHANT_TYPE type)
 // ---------------------------------------------------------------------------
 void CEnchanter::OnAgreeEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 {
-    int err = _AgreeEnchant(
-        user, (ENUM_AGREE_ENCHANT_TYPE)(unsigned char)msg->m_type0d);
-    if (err != 0)
+    int err = 0;
+    if ((err = _AgreeEnchant(
+             user,
+             (ENUM_AGREE_ENCHANT_TYPE)(unsigned char)msg->m_type0d)) != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xab,
                                  (unsigned char)(err & 0xff));
@@ -568,7 +585,7 @@ int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
             if (!delOk)
             {
                 cMyTrace trace(
-                    "int expert_job::CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE)",
+                    __PRETTY_FUNCTION__,
                     0x3d9, 5);
                 trace("CUser::compound_item, getCurCharacInvenW()->delete_item failed , %d %d",
                       m_peer->getCurCharacNo(), (int)slot1);

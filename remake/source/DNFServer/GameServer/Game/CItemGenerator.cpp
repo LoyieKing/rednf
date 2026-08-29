@@ -8,14 +8,19 @@
 //   _ZN8WongWork21CGenerateRandomNumberC1Ei / D1Ev 0x085334ea / 0x085335d0
 //   _ZN8WongWork21CGenerateRandomNumber14generateNumberEii 0x085334a4
 //   _ZN8WongWork21GenerateRandomUpgradeC1Ev / D1Ev 0x085335ee / 0x0853364e
-//   _ZN8WongWork14CItemGeneratorC1Ei / D1Ev        0x08533b3e / 0x08533b9a
 #include "CItemGenerator.h"
 
 #include "CDataManager.h"
 #include "ServerParameterScript.h"
 #include "CUser.h"
+#include "CItemUpgrade_Separate.h"   // GenuineDamageUpgradeTable 完整类型 +
+                                     //   importGenuineUpgradeTable 声明
 
 #include "GameRand.h"   // get_rand_int（ORIG 0x086b1b87）
+
+#include <new>          // placement new / operator new（getGenuineUpgradeTable）
+#include <string.h>     // memset
+#include <time.h>       // time(0)（CGenerateRandomNumber/GenerateRandomUpgrade 播种）
 
 namespace WongWork
 {
@@ -62,24 +67,31 @@ stGenerateResult_t::~stGenerateResult_t() {}
 
 // ============================================================================
 // CGenerateRandomNumber —— ORIG ctor 0x085334ea：
-//   m_count=count；count!=0 时 new CMTRand[count]（逐元素默认构造）。
-//   （ORIG 在 count==0 时跳过分配、表指针保持未初始化；此处防御性置 0，
-//     与 dtor 的判空 delete[] 行为一致。）
-// dtor 0x085335d0：表非空则 operator delete[]。
+//   m_count=count；count!=0 时 new CMTRand[count]（逐元素默认构造）；
+//   随后第二循环逐元素播种：seed = time(0) + seedIncValue + i（函数局部
+//   static seedIncValue，bss 符号 _ZZN8WongWork21CGenerateRandomNumberC1EiE
+//   12seedIncValue 与 ORIG 同名），末尾 seedIncValue += count。
+// dtor 0x085335d0：裸 delete []（delete[] 内置空检；ORIG 仅一次 test/je）。
 // generateNumber 0x085334a4：idx 超界走 get_rand_int(range)；否则对元素
 //   m_table[idx]（CMTRand，0x9c8 字节）调 randInt((unsigned long)range)。
 // ============================================================================
 CGenerateRandomNumber::CGenerateRandomNumber(int count)
-    : m_table(0), m_count(count)
+    : m_count(count)
 {
-    if (m_count != 0)
+    if (count != 0)
+    {
         m_table = new CMTRand[m_count];
+        static int seedIncValue = 0;
+        int i = 0;
+        for (i = 0; i < m_count; ++i)
+            m_table[i].seed(time(0) + seedIncValue + i);
+        seedIncValue += i;
+    }
 }
 
 CGenerateRandomNumber::~CGenerateRandomNumber()
 {
-    if (m_table)
-        delete[] m_table;
+    delete [] m_table;
 }
 
 int CGenerateRandomNumber::generateNumber(int idx, int range)
@@ -91,11 +103,12 @@ int CGenerateRandomNumber::generateNumber(int idx, int range)
 
 // ============================================================================
 // GenerateRandomUpgrade —— ORIG ctor 0x085335ee：
-//   time(0) 取种子 → operator new(0x9c8)（即一个 CMTRand）→ 以种子做一次
-//   初始化调用（0x080cba2a 未具名符号，按 CMTRand 播种处理 [INFERENCE]）。
+//   time(0) 取种子（存局部）→ operator new(0x9c8)（一个 CMTRand）→
+//   CMTRand::CMTRand(this, &seed)（带种子构造，const unsigned long&）。
+// dtor 0x0853364e：m_rand 非空则 operator delete，随后置 0。
 // ============================================================================
 GenerateRandomUpgrade::GenerateRandomUpgrade()
-    : m_rand(new CMTRand)
+    : m_rand(new CMTRand(static_cast<unsigned long>(time(0))))
 {
 }
 
@@ -103,6 +116,7 @@ GenerateRandomUpgrade::~GenerateRandomUpgrade()
 {
     if (m_rand)
         delete m_rand;
+    m_rand = 0;
 }
 
 // ============================================================================
@@ -166,10 +180,37 @@ int CItemGenerator::getGeneratorType()
 }  // namespace WongWork
 
 // ============================================================================
+// ::getGenuineUpgradeTable —— ORIG T 0x0891229d 逐指令转写：
+//   函数局部 static 指针（bss 符号 _ZZ22getGenuineUpgradeTablevE
+//   25genuineDamageUpgradeTable 与 ORIG 同名）；首次为 0 时：
+//     operator new(0x188) → 清零（ORIG gcc4.1 的 value-init 内联 rep stos；
+//     gcc4.4 对 new T() 不再生成清零，故显式 memset 保持语义）→
+//     placement 构造 GenuineDamageUpgradeTable（仅三 map）→
+//     importGenuineUpgradeTable("Etc/Upgrade_Separate.etc", t) 失败返回 0
+//     （static 保留，与 ORIG 一致：失败仅本次返回 0）。
+// ============================================================================
+GenuineDamageUpgradeTable* getGenuineUpgradeTable()
+{
+    static GenuineDamageUpgradeTable* genuineDamageUpgradeTable = 0;
+    if (genuineDamageUpgradeTable == 0)
+    {
+        void* mem = operator new(0x188);
+        memset(mem, 0, 0x188);
+        genuineDamageUpgradeTable = new (mem) GenuineDamageUpgradeTable();
+        if (!importGenuineUpgradeTable("Etc/Upgrade_Separate.etc",
+                                       genuineDamageUpgradeTable))
+            return 0;
+    }
+    return genuineDamageUpgradeTable;
+}
+
+// ============================================================================
 // ::CLuckPoint::UseLuckPoint —— ORIG T 0x08550a84 逐指令转写：
 //   user 为空 / itemType!=1 / rarity!=2 → 返回 0；
-//   rate = G_CDataManager()->m_serverParameter.getLuckPointDeductionRate(
-//             user->get_charac_level(), grade)（ORIG add $0x68 实证）；
+//   level = user->get_charac_level()（第一次）；diff = grade - level；
+//   rate = G_CDataManager()->m_serverParameter（+0x68 实证）
+//   .getLuckPointDeductionRate(第二次 get_charac_level（P48 无 CSE）,
+//                              abs(diff)（sar $0x1f/xor/sub 惯用法，内联实参）)；
 //   user->DecCurCharacLuckPoint(rate)；返回 1。
 // ============================================================================
 bool CLuckPoint::UseLuckPoint(CUser* user, int itemType, int rarity, int grade)
@@ -181,8 +222,9 @@ bool CLuckPoint::UseLuckPoint(CUser* user, int itemType, int rarity, int grade)
     if (rarity != 2)
         return false;
     int level = user->get_charac_level();
+    int diff = grade - level;
     int rate = G_CDataManager()->m_serverParameter.getLuckPointDeductionRate(
-        level, grade);
+        user->get_charac_level(), (diff ^ (diff >> 31)) - (diff >> 31));
     user->DecCurCharacLuckPoint(rate);
     return true;
 }

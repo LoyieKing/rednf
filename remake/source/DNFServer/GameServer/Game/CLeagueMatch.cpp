@@ -79,13 +79,13 @@ bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c9
 
 void TeamInfo::reset()      // ORIG T 0x0855cb16
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i <= 3; ++i)
         m_players[i].reset();
 }
 
 void TeamInfo::refresh()    // ORIG T 0x0855c9ae
 {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i <= 3; ++i) {
         PlayerInfo& pi = m_players[i];
         if (pi.m_flag != 0) {
             pi.m_accId = pi.m_user->get_acc_id();
@@ -98,7 +98,7 @@ void TeamInfo::refresh()    // ORIG T 0x0855c9ae
 
 int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
 {
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i <= 3; ++i) {
         PlayerInfo& pi = m_players[i];
         if (pi.m_flag != 0)
             continue;
@@ -115,10 +115,9 @@ int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
 
 int TeamInfo::del(CUser* user)   // ORIG T 0x0855cc9c
 {
-    for (int i = 0; i < 4; ++i) {
-        PlayerInfo& pi = m_players[i];
-        if (pi.m_flag != 0 && pi.m_user == user) {
-            pi.m_flag = 0;
+    for (int i = 0; i <= 3; ++i) {
+        if (m_players[i].m_flag != 0 && m_players[i].m_user == user) {
+            m_players[i].m_flag = 0;
             return 1;
         }
     }
@@ -128,7 +127,7 @@ int TeamInfo::del(CUser* user)   // ORIG T 0x0855cc9c
 int TeamInfo::size() const       // ORIG T 0x0855cd26
 {
     int n = 0;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i <= 3; ++i)
         if (m_players[i].m_flag != 0)
             ++n;
     return n;
@@ -164,12 +163,16 @@ float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
 {
     float gap = 0.0f;
     for (unsigned int i = 0; i < (unsigned int)nPlayerCountPerOneTeam_; ++i) {
-        PlayerInfo const& mine = m_teamA.m_players[i];
+        CUser* mine = m_teamA.m_players[i].m_user;
         CUser* theirs = other->GetUser(i);
-        if (mine.m_flag == 0 || mine.m_user == 0 || theirs == 0)
+        if (m_teamA.m_players[i].m_flag == 0)
             continue;
-        float a = g_RankingIncr[i] * mine.m_user->GetRating();   // fabs 前 GCC 弱化调用
-        float b = g_RankingIncr[i] * theirs->GetRating();
+        if (mine == 0)
+            continue;
+        if (theirs == 0)
+            continue;
+        float a = mine->GetRating() * g_RankingIncr[i];
+        float b = theirs->GetRating() * g_RankingIncr[i];
         gap += __builtin_fabsf(a - b);
     }
     return gap;
@@ -177,17 +180,16 @@ float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
 
 CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
 {
-    if (idx < 4) {
-        PlayerInfo const& pi = m_teamA.m_players[idx];
-        if (pi.m_flag == 1)
-            return pi.m_user;
-    }
-    return 0;
+    if (idx > 3)
+        return 0;
+    if (m_teamA.m_players[idx].m_flag == 0)
+        return 0;
+    return m_teamA.m_players[idx].m_user;
 }
 
-void CLeagueMatch::GetUserList(void* out)     // ORIG T 0x0855e642（拷贝第一队 0x70 字节）
+void CLeagueMatch::GetUserList(void* out)     // ORIG T 0x0855e642（拷贝第一队 0x70 字节，P83 rep movsl）
 {
-    memcpy(out, &m_teamA, sizeof(TeamInfo));
+    *reinterpret_cast<TeamInfo*>(out) = m_teamA;
 }
 
 void CLeagueMatch::RequestMap(short& mapNo, PVP_BATTLE_MODE& mode)  // ORIG T 0x0855d096
@@ -200,13 +202,14 @@ void CLeagueMatch::RequestMap(short& mapNo, PVP_BATTLE_MODE& mode)  // ORIG T 0x
 int CLeagueMatch::GetExtraWinPoint(int extra)   // ORIG T 0x0855d0bc
 {
     // 活动期窗口（0x4911b4f0, 0x492429ef]，期内返回额外分否则 0。
-    int nowSec = GlobalData::s_systemTime_.getCurSec();
-    bool active = nowSec > static_cast<int>(0x4911b4f0) &&
-                  nowSec <= static_cast<int>(0x492429ef);
-    return active ? extra : 0;
+    // ORIG 两次调用 getCurSec（P48：O0 无 CSE，条件双臂各调一次）。
+    if (GlobalData::s_systemTime_.getCurSec() > static_cast<int>(0x4911b4f0) &&
+        GlobalData::s_systemTime_.getCurSec() <= static_cast<int>(0x492429ef))
+        return extra;
+    return 0;
 }
 
-void CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
+int CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
 {
     nextAuthValue_ += 1;
     m_authValue = nextAuthValue_;
@@ -214,6 +217,7 @@ void CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
     m_teamB.reset();
     m_teamA.reset();
     m_teamA.add(user);
+    return 0;
 }
 
 void CLeagueMatch::OnDestroyRoom(CUser* /*user*/)   // ORIG T 0x0855d168
@@ -307,7 +311,7 @@ void CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
 {
     if (m_authValue != authValue) {
-        cMyTrace trace("virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)", 0x295, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x295, 0);
         trace("OnMatchRoom timeout");
         return;
     }
@@ -324,7 +328,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
 
     CUser* leader = opponent->GetUser(0);
     if (leader == 0) {
-        cMyTrace trace("virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)", 0x2b0, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2b0, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b0);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
@@ -333,7 +337,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
 
     PvP_Room* theirRoom = reinterpret_cast<PvP_Room*>(leader->GetPVPRoom());
     if (theirRoom == 0) {
-        cMyTrace trace("virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)", 0x2b9, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2b9, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b9);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
@@ -341,7 +345,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
     }
 
     if (theirRoom->get_player_count() > (int)nPlayerCountPerOneTeam_) {
-        cMyTrace trace("virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)", 0x2c2, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2c2, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2c2);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
@@ -352,7 +356,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         ((int)nPlayerCountPerOneTeam_ < m_teamA.size()) ||
         ((int)nPlayerCountPerOneTeam_ < theirRoom->get_player_count());
     if (badSize) {
-        cMyTrace trace("virtual bool CLeagueMatch::OnMatchRoom(PvP_Room*, int)", 0x2ca, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2ca, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2ca);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
@@ -393,7 +397,7 @@ void CLeagueMatch::OnEndFight(PvP_Room* room)
     m_state = 0;
     _ReturnTeam(room, managerTeam, 0);
     if (managerTeam != 1)
-        memcpy(&m_teamA, &m_teamB, sizeof(TeamInfo));   // rep movsl 0x1c dwords
+        m_teamA = m_teamB;   // ORIG rep movsl 0x1c dwords（P83 结构整体赋值）
     m_teamA.refresh();
     m_teamB.reset();
 }
@@ -406,9 +410,12 @@ void CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
     OnLeaveRoom(user, room, team, seat);                // vtable+0x2c 四参形态
 }
 
-// ORIG T 0x0855e52a。IMatch 虚槽 void；ORIG 返回 bool（!ready && state==4 → 0）【推断】。
-void CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
+// ORIG T 0x0855e52a。ORIG 返回 bool（!ready && state==4 → 0）。
+bool CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
 {
+    if (!ready && m_state == 4)
+        return false;
+    return true;
 }
 
 // ORIG T 0x0855eb22（结算奖励全流程）
@@ -502,8 +509,7 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
                     PlayerInfo& pi = ti.m_players[i];
                     if (pi.m_flag == 1 && pi.m_user != 0 &&
                         pi.m_user->getCurCharacR() != 0) {
-                        char textBuf[0x100];
-                        memset(textBuf, 0, sizeof(textBuf));
+                        char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
                         const char* fmt = g_scriptStringManager_.findString(
                             4, "school_green_badge_msg", (bool*)0);
                         OS_API::snprintf(textBuf, 0xff, fmt, 1);
@@ -614,7 +620,8 @@ int CLeagueMatch::CheckJoinable(PvP_Room* room, CUser* user)   // ORIG T 0x0855c
 
 int CLeagueMatch::CheckSeat(int seat)        // ORIG T 0x0855d058
 {
-    return seat != 2 ? 1 : 0;
+    if (seat == 2) return 0;
+    return 1;
 }
 
 bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
@@ -696,9 +703,9 @@ int CLeagueMatch::GetIndentification()
     return GetSchoolNo();
 }
 
-int CLeagueMatch::GetBattleMode()            // ORIG W 0x084ed387：读全局字节 nBattleMode_
+unsigned char CLeagueMatch::GetBattleMode()  // ORIG W 0x084ed387：movzbl 直返全局字节 nBattleMode_
 {
-    return static_cast<int>(nBattleMode_);
+    return nBattleMode_;
 }
 
 void CLeagueMatch::SetBattleMode(int mode)   // ORIG W 0x082743a0：写全局字节 nBattleMode_
@@ -706,9 +713,9 @@ void CLeagueMatch::SetBattleMode(int mode)   // ORIG W 0x082743a0：写全局字
     nBattleMode_ = static_cast<unsigned char>(mode);
 }
 
-int CLeagueMatch::GetPlayCountPerOneTeam()   // ORIG W 0x084ed37b：读全局字节 nPlayerCountPerOneTeam_
+unsigned char CLeagueMatch::GetPlayCountPerOneTeam()  // ORIG W 0x084ed37b：movzbl 直返全局字节
 {
-    return static_cast<int>(nPlayerCountPerOneTeam_);
+    return nPlayerCountPerOneTeam_;
 }
 
 PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
@@ -738,7 +745,7 @@ PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
         user->Send(pkt);
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "PvP_Room* CLeagueMatch::_MakeRoom(CUser*)", 0x1fe,
+            __PRETTY_FUNCTION__, 0x1fe,
             "create_room fail: PVP슬롯반환 ID[%d]\n", pvp->get_index());
         G_CGameManager()->PutPvp(pvp);
         return 0;
@@ -815,7 +822,7 @@ int CLeagueMatch::_CheckMatchable(PvP_Room* room) const   // ORIG T 0x0855da56
         if (school == 0) {
             LogManager::logFormat(
                 1, "MatchingSystem.cpp",
-                "int CLeagueMatch::_CheckMatchable(PvP_Room*) const", 599,
+                __PRETTY_FUNCTION__, 599,
                 "(%d) found a different school no(%d)", 0, user->GetSchoolNo());
             return 0x16;
         }
@@ -884,11 +891,10 @@ void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x085
     pkt.put_byte(state);
     pkt.finalize(true);
     for (int t = 0; t < teams; ++t) {
-        TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
         for (int i = 0; i <= 3; ++i) {
-            PlayerInfo const& pi = ti.m_players[i];
-            if (pi.m_flag != 0 && pi.m_user != 0)
-                pi.m_user->Send(pkt);
+            TeamInfo const& ti = (t == 0) ? m_teamA : m_teamB;
+            if (ti.m_players[i].m_flag != 0 && ti.m_players[i].m_user != 0)
+                ti.m_players[i].m_user->Send(pkt);
         }
     }
 }
@@ -905,11 +911,13 @@ int CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
     return 0;
 }
 
-int CLeagueMatch::_GetOppositeTeam(int team)    // ORIG T 0x0855e49e
+int CLeagueMatch::_GetOppositeTeam(register int team)  // ORIG T 0x0855e49e（P85 寄存器物化）
 {
-    if (team == 1) return 2;
-    if (team == 2) return 1;
-    return team;
+    if (team != 1) {
+        if (team != 2) return team;
+        return 1;
+    }
+    return 2;
 }
 
 int CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)   // ORIG T 0x0855cef8
@@ -949,8 +957,7 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
         *msgFlag = 1;
         int count = (*msgFlag) + (extra ? 1 : 0);
 
-        char textBuf[0x100];
-        memset(textBuf, 0, sizeof(textBuf));
+        char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
         const char* key = (badgeType == 1) ? "school_red_badge_msg"
                         : (badgeType == 2) ? "school_blue_badge_msg"
                                            : "school_green_badge_msg";

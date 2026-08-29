@@ -62,11 +62,17 @@
 
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
 class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
+class CRandomOptionGive;  // set_random_option_give 参数（UserMiscLink 批）
 class CDungeon;  // stGenerateRefData_t::m_dungeon（+0x40 指针，仅前置声明）
 class CMonster;                    // _generateMonseterSpecificItem 参数（ORIG
                                    //   拼写如此；仅指针引用）
 // （stGenerateRefClearReward_t 前向声明见 namespace WongWork 内 CClearReward
 //  之后；ORIG mangled 属 WongWork::，勿在此全局区声明以免 ODR 分裂）
+class GenuineDamageUpgradeTable;  // CItemUpgrade_Separate.h 完整类型（0x188）
+// ORIG T 0x0891229d _Z22getGenuineUpgradeTablev：函数局部 static 惰性单例，
+// operator new(0x188)→清零→构造→importGenuineUpgradeTable 失败返回 0。
+// 定义 CItemGenerator.cpp（本头为唯一声明点）。
+GenuineDamageUpgradeTable* getGenuineUpgradeTable();
 
 // 全局可见别名（OnlyOrig_CreatureJob 修复插入）：CObjectDrop 等全局作用域类的
 // generateRandomItem/generateSpecificItem 以非限定名引用两结构；权威定义在
@@ -321,9 +327,10 @@ public:
     // ORIG T 0x085f1560：随机选项槽按稀有度选 item（CItemGenRateTable::chooseItem
     // rarity==2 分支；定义置 CRandomOptionItemHandle 域）。
     unsigned int choose_item(ENUM_RARITY& rarity, int level);
-    int RegenVer_get_option_quantity(ENUM_RARITY rarity, int grade,
-                                     unsigned char optType, int level,
-                                     int& outQuantity, RegenerationROI*); // ORIG T 0x085f1a62
+    // UserMiscLink 批补（ORIG 实证）：
+    void set_random_option_give(CRandomOptionGive* give);                // ORIG T 0x085f0ea2（写 m_optionSet）
+    bool change_option(unsigned long itemIdx, ENUM_RARITY rarity, int level,
+                       int grade, int group, int slot, RandomOption* opts); // ORIG T 0x085f3340
 
 private:
     static bool give_option_core(CRandomOptionItemHandle*, unsigned long,
@@ -337,11 +344,13 @@ private:
     int _random_application(ENUM_RARITY rarity, int level);              // T 0x085f0ec2
     int _get_option_type(unsigned long itemIdx, ENUM_RARITY rarity,
                          int level, int group, unsigned char& outType);  // T 0x085f2338
-    int _get_option_quantity(ENUM_RARITY rarity, int grade,
-                             unsigned char optType, int level,
-                             int& outQuantity);                      // T 0x085f25b0
+    int RegenVer_get_option_quantity(ENUM_RARITY rarity, int level,
+                                     int grade, int optType, int& outQuantity,
+                                     RegenerationROI*); // ORIG T 0x085f1a62
+    int _get_option_quantity(ENUM_RARITY rarity, int level, int grade,
+                             int optType, int& outQuantity);         // T 0x085f25b0
     int _choose_option_group(ENUM_RARITY rarity, int level, int grade,
-                             unsigned char optType, int group, int& outGroup); // T 0x085f2882
+                             int optType, int group, int& outGroup); // T 0x085f2882
     int _get_option_value(int minV, int maxV);                           // T 0x085f2b02
 
 private:

@@ -176,7 +176,7 @@ void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) c
 
 // ORIG 0x080f4f62。条件：m_materialIndices.size()>1 且 [1]==upgrade 且 item.GetUpgrade()>=m_upgradeMax
 // → 返回 false；否则 true。
-bool Event_Upgrade_Jar::CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade) const
+bool Event_Upgrade_Jar::CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade)
 {
     if (m_materialIndices.size() > 1 &&
         m_materialIndices[1] == upgrade &&

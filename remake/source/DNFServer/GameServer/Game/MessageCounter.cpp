@@ -14,6 +14,10 @@
 namespace message_counter
 {
 
+// ---- ORIG 域常量 _ZN15message_counterL13UPDATE_PERIODE（r 0x08c5a78c = 600）----
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+static const int UPDATE_PERIOD = 600;
+
 // SIG_INSERT_RESPONSE_TIME（0x7d8）访问视图：
 //   +0x00 int  baseSec；+0x04 int count；
 //   entries[100] 每 0x14 @+8 + j*0x14：
@@ -190,7 +194,7 @@ void CMessageCounter::WriteLog()
         guard.GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
 
     int nowSec = GlobalData::s_systemTime_.getCurSec();
-    int baseSec = nowSec - nowSec % 600;
+    int baseSec = nowSec - nowSec % UPDATE_PERIOD;
     sig_init_head(sig, baseSec);
 
     for (std::map<MessageKey, MessageValue>::iterator it = m_map.begin();

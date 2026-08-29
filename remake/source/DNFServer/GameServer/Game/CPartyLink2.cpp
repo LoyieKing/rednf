@@ -211,7 +211,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             member->get_charac_level(), member->get_acc_name());
         if (limit < 1)
         {
-            cMyTrace trace("bool CParty::kill_monster(CUser*, int, short unsigned int, const MSG_MONSTER_DIE&, int*)", 0x1414, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1414, 5);
             trace("WarField::HandleMonsterKill limitMoney(%d) is under 0", limit);
         }
         else
@@ -237,7 +237,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     data.m_field08 = avgMoneyPercent;
     data.m_field0c = minStdDropRate;
     data.m_flag10 = (char)(dieInfo.m_fieldA22 != 0);
-    data.m_flag11 = (char)(dieInfo.m_pad23[0] != 0);
+    data.m_flag11 = (char)(dieInfo.m_fieldA23 != 0);
 
     QuickParty::RewardData_Param randParam(this);
     QuickParty::RewardData_Result randResult;
@@ -381,8 +381,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     int winPoint = 0;
     if (mob.m_roleType > 4 && G_CDataManager()->m_aiCharacterList != 0)
     {
-        CAICharacter* aiChar = CAICharacterList::get(
-            G_CDataManager()->m_aiCharacterList, reward);
+        CAICharacter* aiChar = G_CDataManager()->m_aiCharacterList->get(reward);
         if (aiChar != 0 &&
             (mob.m_dropCnt == 100 || mob.m_dropCnt == 200))
         {
@@ -399,7 +398,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
         // 未进入地图且非维度绕行 → 0 经验包
         if (m_enterMapFlag[i] != 1 && m_dungeon != 0 &&
-            *(unsigned char*)((char*)m_dungeon + 0x89f) == 0)
+            m_dungeon->m_bloodDungeonType == 0)   // +0x89f
         {
             member->SendZeroExpPacket();
             continue;
@@ -408,7 +407,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         unsigned int exp = 0;
         // 维度未启用进入限制的完整单人份额计算
         if (m_dungeon != 0 &&
-            (*(unsigned char*)((char*)m_dungeon + 0x89e) == 0 &&
+            (m_dungeon->m_89e == 0 &&                     // +0x89e
              *(unsigned short*)((char*)this + 0xc4c) == 0))
         {
             if (m_dungeon->get_index() == 100)
@@ -417,7 +416,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                 G_CDataManager()->get_mob_reward(member->get_charac_level(), mobReward);
                 unsigned int total = getMonsterTotalExp(
                     mobReward, roleType,
-                    *(int*)((char*)this + 0xcc4),
+                    *reinterpret_cast<int*>(&this->m_fieldCC4),   // +0xcc4（char 首字节起 4 字节块）
                     m_dungeon->get_exp_weight(), expRate, false);
                 exp = total / (unsigned int)memberCount;
             }
@@ -457,15 +456,15 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
         // 帮助滥用比例（维度均未启用）
         if (m_dungeon != 0 &&
-            *(unsigned char*)((char*)m_dungeon + 0x89e) != 1 &&
+            m_dungeon->m_89e != 1 &&                    // +0x89e
             *(unsigned short*)((char*)this + 0xc4c) == 0)
         {
             member->calcHelpAbuseRatio(exp, isHelpAbuseParty(member));
         }
 
         // 维度绕行：跳过蓝宝石倍率与经验发放
-        if (m_dungeon != 0 && *(unsigned char*)((char*)m_dungeon + 0x89f) != 0)
-            continue;
+        if (m_dungeon != 0 && m_dungeon->m_bloodDungeonType != 0)
+            continue;                                    // +0x89f
 
         // ---- 蓝宝石/迷宫倍率 ----
         if (member->getMoveSpace() == (UserSpace::T)1)

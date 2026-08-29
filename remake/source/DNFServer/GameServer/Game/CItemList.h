@@ -20,6 +20,7 @@
 #include "ServerParameterScript.h"  // ENUM_UNUSABLE_EQUIPMENT_TYPE（CCompound 私有转换函数参数）
 
 #include "STStackableScript.h"
+#include "Arad_ScriptLoader.h"   // Arad_GiftItem_Set 虚基类（vptr@+0x00）
 
 // ============================================================================
 // STCeraShopItem（商城 DB 条目，G4 商城/交易域批次，ORIG 尺寸 0x88）
@@ -127,7 +128,6 @@ public:
     char m_giftDisallow;              // +0x34
     char m_ceraPointDisallow;         // +0x35
     char m_stackBuyable;              // +0x36
-    char m_pad37;                     // +0x37
     CItem* m_pItem;                   // +0x38
 };
 
@@ -136,16 +136,29 @@ struct stCeraShopBonusItemInfo_t
     ~stCeraShopBonusItemInfo_t();    // ORIG W 0x089363da：空体
     int m_field0;                    // +0x00
     unsigned short m_field4;         // +0x04
-    char m_pad6[2];                  // +0x06
     int m_field8;                    // +0x08
 };
 
+// ---- stCeraShopBonusInfo_t（ORIG C1 W 0x0891be5c：仅 vector ctor；
+//      C1ERKS W 0x08924c00 / D1 W 0x08525f3c / op= W 0x08924cba，全 W → 头内联）----
 struct stCeraShopBonusInfo_t
 {
+    stCeraShopBonusInfo_t() : m_items() {}
+    stCeraShopBonusInfo_t(const stCeraShopBonusInfo_t& o)
+        : m_field0(o.m_field0), m_field4(o.m_field4), m_items(o.m_items) {}
+    ~stCeraShopBonusInfo_t() {}
+    stCeraShopBonusInfo_t& operator=(const stCeraShopBonusInfo_t& o)
+    {
+        m_field0 = o.m_field0;
+        m_field4 = o.m_field4;
+        m_items = o.m_items;
+        return *this;
+    }
+
     int m_field0;                                     // +0x00
     int m_field4;                                     // +0x04
     std::vector<stCeraShopBonusItemInfo_t> m_items;   // +0x08
-};
+};   // sizeof 0x14（_M_insert_aux 步进实证）
 
 struct BonusItem
 {
@@ -174,6 +187,10 @@ public:
     // ORIG _ZNK9CItemList19GetVendingBonusRateEv W 0x0854c596：读 +0x4c（弱内联，
     // GetFinalProbability 消费；W8LT_VendingHero 批次补声明）。
     int GetVendingBonusRate() const { return m_field4c; }
+    // ORIG W 0x0869476e _ZNK9CItemList21GetQuestItemDropBounsERKm：
+    // m_lottoCount(+0x5c, std::map<unsigned long,int>).find(key)；
+    // 命中返 second（mov 0x4 偏移），未命中返 0。
+    int GetQuestItemDropBouns(const unsigned long& key) const;
     int GetRestrictCode(int itemIdx);                 // ORIG 0x0817a10c (W)
     CCeraShopGoods* FindGoods(int goodsIdx);
     BonusItem* GetProperBonusItem(unsigned int bonusIdx);
@@ -217,7 +234,6 @@ class BaseItemKey
 public:
     // ORIG C1 0x08513f82（W）：写 +0/+1 字节与 +2 short；op< 无独立符号（内联），
     // 按字典序 [推断]（RandomRentalA2 批次按 choose_item 报告补全字段名）。
-    BaseItemKey();
     BaseItemKey(unsigned char rarity, unsigned char usableLevel,
                 unsigned short groupName);
 
@@ -249,18 +265,21 @@ bool importCashShopItemList(char* path,
                             std::map<int, std::vector<std::vector<int> > >* c,
                             std::vector<int>* d);
 
-class Arad_GiftItem_Set
+class Arad_GiftItem_Set : public Arad_ScriptLoader
 {
 public:
     struct Data;   // 前置声明：find 返回 Data*，完整定义在下方
 
     Arad_GiftItem_Set();   // ORIG 0x081a2a68：填 +0x1c 的 ST_EVENT_GIFT_ITEM*→kind 表
+    ~Arad_GiftItem_Set();  // ORIG T 0x081a2dea：析构 +0x04/+0x1c 两个 map（无虚析构）
     int open(STStackableScript* script);
     // ORIG 0x081a311e：按 64 位 key=(kind<<32)|(job<<16)+usableLevel 查 m_map。
     // 命中返回 &it->second（Data*，send_mail 依此读取 item_id/两个 string），否则 0。
     Data* find(int kind, int job, int usableLevel);
     int str_to_enum(const char* name);                      // ORIG 0x081a2e3e
     int level_check(CUser* user, const CStackableItem* item); // ORIG 0x081a31c4
+    // ORIG T _ZN17Arad_GiftItem_Set9send_mailEP5CUseriiii 0x081a329e（LinkClosureD 补）
+    int send_mail(CUser* user, int p2, int p3, int p4, int giftIdx);
 
     // ORIG Arad_GiftItem_Set::Data（open 插入/ find 返回的对象）：
     //   +0x00 item_id；+0x04/+0x08 两个 std::string（脚本 +0x184/+0x188）。
@@ -272,7 +291,7 @@ public:
         std::string m_str8;  // +0x08
     };
 
-    // ORIG this+0x04：map<long long, Data>。
+    // ORIG this+0x04：map<long long, Data>（vptr@+0x00 后）。
     // key = ((long long)kind << 32) | ((uint)field5c + ((uint)slot << 16))。
     std::map<long long, Data> m_map;
 
@@ -322,6 +341,11 @@ struct OUTPUT_ITEM_STR
     int m_usableLevel;   // +0x00
     int m_index;         // +0x04
 };
+
+// ORIG _ZN14ExtreamDungeon19BindTable_PredicateERKNS_15OUTPUT_ITEM_STRES2_
+// T 0x832c3cc：ExtreamDungeon 命名空间级排序谓词（lower_bound/upper_bound 比较器，
+// 非 CCompound 成员——mangled 无类前缀）。
+bool BindTable_Predicate(const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b);
 
 // ── ORIG BindCube_ScriptData（ctor 0x832e058 / dtor 0x832e220，尺寸 0xb88，
 //    作为 CCompound 的 +0x04 子对象；偏移均为相对本对象）──
@@ -381,12 +405,12 @@ private:
     std::pair<unsigned int, unsigned int> _determine_level_bonus(
         ENUM_INPUTITEMS_RARITY inRarity, unsigned int baseLevel,
         ENUM_OUTPUTITEMS_RARITY outRarity, eBindSphereType bind) const;                   // T 0x832cadc（sret）
-    unsigned int _determine_level_bonus_index(unsigned int baseLevel,
-                                              ENUM_INPUTITEMS_RARITY inRarity,
-                                              eBindSphereType bind) const;                // T 0x832cc02
+    unsigned int _determine_level_bonus_index(
+        unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
+        eBindSphereType bind) const;                                                      // T 0x832cc02
     int _exception_Rare(const CEquipItem** refs, char select,
-                        ENUM_OUTPUTITEMS_RARITY outRarity, unsigned int baseLevel) const; // T 0x832cffe
-    static bool BindTable_Predicate(const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b);  // T 0x832c3cc
+                        ENUM_OUTPUTITEMS_RARITY outRarity,
+                        unsigned int baseLevel) const;                                    // T 0x832cffe
     int _FindSelectItem(unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
                         const std::pair<unsigned int, unsigned int>& range) const;        // T 0x832d15e
     int _FindRandomItem(ENUM_OUTPUTITEMS_RARITY outRarity,

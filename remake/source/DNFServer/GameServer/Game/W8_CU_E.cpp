@@ -72,7 +72,7 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
     __gnu_cxx::hash_map<int, CSkill*>::iterator sit = list->find(skillId);
     if (sit == list->end())
     {
-        cMyTrace trace("bool CUser::findSkillCommandData(int, STSkillCommandData&)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x2113, 5);
         trace("SKILL_COMMAND_LOG : KEY INDEX DUPLICATE!!");
         return false;
@@ -84,7 +84,7 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
     {
         if (n != 0)
         {
-            cMyTrace trace("bool CUser::findSkillCommandData(int, STSkillCommandData&)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x2102, 5);
             trace("SKILL_COMMAND_LOG : ABNOMAL COMMAND CNT!! (%d) (%d)",
                   (int)sit->first, (int)n);

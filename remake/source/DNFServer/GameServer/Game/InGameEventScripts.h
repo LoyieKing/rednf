@@ -246,9 +246,11 @@ public:
     // sendPurchaseBonusReward.md 汇编双证：+0x00 与购买数比较
     // （>count 则不发）、+0x04 上限（非 0 且 < count 不发）、
     // +0x08 步进（(count-start)%step!=0 不发）；
-    // sendPurchaseBonusReward 中 pair.first 尺寸 0xc（mail 位于 pair+0xc）。
     struct PurchaseBonusRule
     {
+        PurchaseBonusRule();          // ORIG W 0x08985ce6：调 reset()
+        void reset();                 // ORIG T 0x08985cfa：三 int 全写 -1
+
         int m_purchaseStartCount;     // +0x00（[purchase start count]）
         int m_purchaseEndCount;       // +0x04（[purchase end count]）
         int m_purchaseMutipleNumber;  // +0x08（[purchase mutiple number]）

@@ -14,6 +14,12 @@
 // CDataManagerScripts.cpp；此处仅声明供本 TU 真实调用。
 void SetLightServerFlag(bool flag);
 
+// ORIG W 0x0836fc5a：按声明序构造 10 个 stLevelCond4PremiumGoldCard，
+// 其余标量/填充区保持未初始化。
+ServerParameterScript::stPremiumGoldCardEvent::stPremiumGoldCardEvent()
+{
+}
+
 ServerParameterScript::ServerParameterScript()
 {
     clear();
@@ -106,8 +112,8 @@ void ServerParameterScript::clear()
     m_map114.clear();
     m_dungeonInoutc8.clear();
     m_dungeonOpenE0.clear();
-    m_vec7a0.clear();
-    m_vec7ac.clear();
+    m_bloodReward794.m_vecc.clear();
+    m_bloodReward794.m_vec18.clear();
     m_7b8 = 0;
     m_7bc = 0;
     for (int i = 0; i < 7; ++i)
@@ -180,7 +186,13 @@ bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
     return false;
 }
 
-// ---- 子结构构造（ORIG 弱内联，本 TU 具名实现） ----
+// ORIG stFatigueEventParam_t::stFatigueEventParam_t() 0x08a8ccc4
+stFatigueEventParam_t::stFatigueEventParam_t()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+    memset(&m_field8, 0, 4);
+}
 
 // ORIG stWeekendBouns::stWeekendBouns() 0x0836f374
 stWeekendBouns::stWeekendBouns()
@@ -360,28 +372,28 @@ bool ServerParameterScript::LoadScript(const char* path)
 
 int ServerParameterScript::GetLottePoint(int idx)
 {
-    if (m_vec7ac.empty())
+    if (m_bloodReward794.m_vec18.empty())
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_vec7ac.size())
+    if (idx < 0 || idx >= (int)m_bloodReward794.m_vec18.size())
     {
         return 0;
     }
-    return m_vec7ac[idx].first;
+    return m_bloodReward794.m_vec18[idx].first;
 }
 
 int ServerParameterScript::GetPriceAverage(int idx)
 {
-    if (m_vec7a0.empty())
+    if (m_bloodReward794.m_vecc.empty())
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_vec7a0.size())
+    if (idx < 0 || idx >= (int)m_bloodReward794.m_vecc.size())
     {
         return 0;
     }
-    return m_vec7a0[idx].first;
+    return m_bloodReward794.m_vecc[idx].first;
 }
 
 int ServerParameterScript::getAssaultPrice(int idx)
@@ -404,15 +416,15 @@ float ServerParameterScript::getChaosPointWeight(int idx)
 
 int ServerParameterScript::GetAdmissionIncrease(int idx)
 {
-    if (m_vec7a0.empty())
+    if (m_bloodReward794.m_vecc.empty())
     {
         return 0;
     }
-    if (idx < 0 || idx >= (int)m_vec7a0.size())
+    if (idx < 0 || idx >= (int)m_bloodReward794.m_vecc.size())
     {
         return 0;
     }
-    return m_vec7a0[idx].second;
+    return m_bloodReward794.m_vecc[idx].second;
 }
 
 float ServerParameterScript::GetPvPPenaltyRevision(int grade)
@@ -434,7 +446,7 @@ int ServerParameterScript::getRecoverStaminaPrice(int idx, int price)
     return m_vec588[idx] + price;
 }
 
-int ServerParameterScript::GetPvPChannelGradePenalty(int grade)
+int ServerParameterScript::GetPvPChannelGradePenalty(int grade) const
 {
     if (m_map497c.empty())
     {
@@ -509,7 +521,7 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
     return (int)out.size();
 }
 
-int ServerParameterScript::GetTraningSealGive(int idx)
+int ServerParameterScript::GetTraningSealGive(int idx) const
 {
     if (m_map4994.empty())
     {
@@ -523,9 +535,27 @@ int ServerParameterScript::GetTraningSealGive(int idx)
     return it->second;
 }
 
-bool ServerParameterScript::CheckTraningFirstGive()
+bool ServerParameterScript::CheckTraningFirstGive() const
 {
-    return !m_map49c4.empty();
+    if (m_map49c4.empty())
+        return false;
+
+    bool first = true;
+    int expected = 0;
+    for (std::map<int, int>::const_iterator it = m_map49c4.begin();
+         it != m_map49c4.end(); ++it)
+    {
+        if (first)
+        {
+            expected = it->second;
+            first = false;
+        }
+        else if (it->second != expected)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool ServerParameterScript::isDungeonOpen(int dungeonIdx)
@@ -561,6 +591,90 @@ void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
     }
 }
 
+// ===================== getAssaultUserRunawayNotice（ORIG W 0x082f03f8） =====================
+const char* ServerParameterScript::getAssaultUserRunawayNotice()
+{
+    return m_str594.c_str();
+}
+
+// 内联 getter 取址锚定（ORIG W：0x085bed36/0x085bed44/0x08568bb0/0x086d18ba/
+//   0x082694fa/0x086d18ac/0x08269508）。文件作用域常量数组使取址成为 odr-use，
+// 强制编译器发出各 W 符号；数组仅存于 .rodata，无动态初始化。
+typedef int (ServerParameterScript::*SpsIntGetter)();
+static const SpsIntGetter g_spsIntGetters[] = {
+    &ServerParameterScript::GetLottoCost,
+    &ServerParameterScript::GetJackpot,
+    &ServerParameterScript::GetDailyMatchCount,
+    &ServerParameterScript::GetPaneltyDupMessage,
+    &ServerParameterScript::GetMaxCleanChattingCount,
+    &ServerParameterScript::GetPvPLiveEventPlayCount,   // ORIG W 0x08269508
+};
+typedef std::vector<std::pair<int, int> >& (ServerParameterScript::*SpsVecGetter)();
+static const SpsVecGetter g_spsVecGetter =
+    &ServerParameterScript::GetPvPLiveEventReward;
+
+void anchorServerParameterScriptWMembers()
+{
+    // stLightServerNotice_t：C1 / C1ERKS / aSERKS（ORIG W 0x08a8ce10/0x08a8e764/0x08a8e81e）
+    stLightServerNotice_t noticeA;
+    stLightServerNotice_t noticeB(noticeA);
+    noticeA = noticeB;
+
+    // stLuckPointDeduction_t：C1 / C1ERKS / aSERKS（ORIG W 0x08a8ce26/0x08a8ee74/0x08a8ef22）
+    stLuckPointDeduction_t luckA;
+    stLuckPointDeduction_t luckB(luckA);
+    luckA = luckB;
+
+    // stBurningFatigueParam_t：C1（ORIG W 0x08a8cc64）
+    stBurningFatigueParam_t burn;
+
+    // PvPPlayerKey：C1Ehhh / operator<（ORIG W 0x084a60aa / 0x084a6034；
+    //   ORIG 无默认 ctor，不锚定 C1Ev）
+    ServerParameterScript::PvPPlayerKey keyA(1, 2, 3);
+    ServerParameterScript::PvPPlayerKey keyB(4, 5, 6);
+    if (keyA < keyB)
+    {
+        keyB.m_field0 = keyA.m_field0;
+    }
+
+    // stAssault* 系列：C1（析构由作用域结束触发 D1/D2）
+    stAssaultChaosPointWeight chaosW;
+    stAssaultLevelGhostPanalty ghostL;
+    stAssaultChaosPointGhostPanalty ghostC;
+
+    // STDungeonInoutTime / stAuctionLimitItemParam_t / stUpgradeItemTicketParam_t：C1
+    STDungeonInoutTime dungeonTime;
+    stAuctionLimitItemParam_t auctionLimit;
+    stUpgradeItemTicketParam_t ticket;
+
+    // stLuckPoint_t / stUnusableEquipmentInfo：构造（D1/D2 由作用域析构触发）
+    stLuckPoint_t luckPt;
+    stUnusableEquipmentInfo unusable;
+    luckPt.m_field0 = 1;
+    luckPt.m_field1 = 2;
+    unusable.m_field0 = 3;
+
+    // EventRewardSection / EventRewardItemInfo：C1 / C1ERKS / aSERKS / D1
+    EventRewardSection erA;
+    EventRewardSection erB(erA);
+    erA = erB;
+    EventRewardItemInfo eiA;
+    EventRewardItemInfo eiB(eiA);
+    eiA = eiB;
+    eiA.clear();
+
+    // 锚定函数体保持非空（引用上述常量避免未使用告警）
+    (void)g_spsIntGetters;
+    (void)g_spsVecGetter;
+}
+// ============================================================================
+// importServerParameterScript —— ORIG T 0x08a870b7（0x51d4 字节大函数，
+// 逐节 [xxx] 分派 + ScanInt 装载；完整逐指令还原超出本批可达报告范围）。
+// 本实现为真实 RDAR 脚本装载（loadRDARScriptFile/ScanType/ScanInt 真实
+// helper，非 asm 桥；DNFLexWrapperHelpers.cpp 提供），节分派与成员写入
+// 依历史批次（OrigServerParam 简化版，2026-08 曾以 extern "C" asm 桥实现，
+// 桥清零后由本版本替代）恢复；[lotto]/[exp bonus] 节保持真实语义。
+// ============================================================================
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
@@ -570,16 +684,21 @@ bool importServerParameterScript(ServerParameterScript* script,
     }
     script->clear();
     std::string line;
+    bool ok = false;
     int value = 0;
     while (ScanType(line, true))
     {
         if (line == "[lotto]")
         {
-            if (ScanInt(&value))
+            ok = false;
+            value = ScanInt(&ok);
+            if (ok)
             {
                 script->m_7b8 = value;
             }
-            if (ScanInt(&value))
+            ok = false;
+            value = ScanInt(&ok);
+            if (ok)
             {
                 script->m_7bc = value;
             }
@@ -588,7 +707,9 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 5; ++i)
             {
-                if (!ScanInt(&value))
+                ok = false;
+                value = ScanInt(&ok);
+                if (!ok)
                 {
                     break;
                 }

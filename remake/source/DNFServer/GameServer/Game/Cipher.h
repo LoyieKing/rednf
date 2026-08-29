@@ -69,12 +69,12 @@ public:
 
     int GetTotalKeyLength() const;
     int Initialize(const unsigned char* key, int keyLen);
-    void GetOriginalKey(unsigned char* dst) const;
+    void GetOriginalKey(unsigned char* dst);
     void AdjustDataSize(int key, int* size) const;
     int Encrypt(int key, const unsigned char* src, int srcLen,
-                unsigned char* dst, int* dstLen) const;
+                unsigned char* dst, int* dstLen);
     int Decrypt(int key, const unsigned char* src, int srcLen,
-                unsigned char* dst, int* dstLen) const;
+                unsigned char* dst, int* dstLen);
 
 private:
     int m_totalKeyLength;                 // +0x00

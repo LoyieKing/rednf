@@ -47,9 +47,9 @@
 #include "SkillSlot.h"      // SkillSlot::delete_skill
 #include "GameWorld.h"      // G_GameWorld / send_all
 
-// ItemUpgradeVtableB2.cpp 定义的专家炼金信息表（B 0x094f7778，8 字节；
-// 本 TU 仅读 +0x04 半区 _DAT_094f777c【该半区尚无具名定义，BLOCKED】）。
-extern int g_alchemistInfo;
+// CExpertJobList.cpp 定义的专家炼金信息表（B 0x094f7778，8 字节；
+// [1] 即 ORIG 高半区 _DAT_094f777c）。
+extern int g_alchemistInfo[2];
 
 namespace expert_job
 {
@@ -109,8 +109,7 @@ int CAlchemist::GetQuestItemDropRate(CUser* user, int rate)
     }
     if (boosted)
     {
-        int infoPlus = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(&g_alchemistInfo) + 4);
+        int infoPlus = g_alchemistInfo[1];
         rate = (infoPlus + 10000) * rate / 10000;
     }
     return rate;
@@ -119,28 +118,26 @@ int CAlchemist::GetQuestItemDropRate(CUser* user, int rate)
 // ---- CheckUsableStackableItem（报告，ORIG T 0x085d18e2 sz 0x96）----
 int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
 {
-    // 【BLOCKED】ORIG 以 CStackableItem::get_sub_type()==2（W 0x0822c9d2）判
-    // APC 强力药水；头暂缺该声明，恢复后取消注释启用主体：
-    //
-    // const CStackableItem* stacked = (const CStackableItem*)item;
-    // if (stacked->get_sub_type() == 2)
-    // {
-    //     CParty* party = static_cast<CParty*>(user->GetParty());
-    //     if (party != 0)
-    //     {
-    //         for (int i = 0; i < 4; ++i)
-    //         {
-    //             CUser* member = party->get_user(i);
-    //             if (member != 0 && member->GetUseAPCPotionTime() >
-    //                 GlobalData::s_systemTime_.getCurSec())
-    //             {
-    //                 return 0;
-    //             }
-    //         }
-    //     }
-    // }
-    // return 1;
-    (void)item; (void)user;
+    // ORIG：CStackableItem::get_sub_type()==2（APC 强力药水）时检查全队
+    // GetUseAPCPotionTime 未到者存在则禁用；其余放行。
+    const CStackableItem* stacked = static_cast<const CStackableItem*>(item);
+    if (stacked->get_sub_type() == 2)
+    {
+        CParty* party = static_cast<CParty*>(user->GetParty());
+        if (party != 0)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                CUser* member = party->get_user(i);
+                if (member != 0 &&
+                    member->GetUseAPCPotionTime() >
+                        GlobalData::s_systemTime_.getCurSec())
+                {
+                    return 0;
+                }
+            }
+        }
+    }
     return 1;
 }
 

@@ -44,6 +44,9 @@ class PvPGlobalEnvironmentVariable
 public:
     static int school_match_elo_k_;   // ORIG D 0x093abb6c
     static int school_match_elo_k2_;  // ORIG D 0x093abb70
+    static int school_match_daily_point_;                  // ORIG D 0x093abb60（初值 1）
+    static int school_match_daily_point_weekends_;         // ORIG D 0x093abb64（初值 2）
+    static int school_match_fight_count_for_gain_point_;   // ORIG D 0x093abb68（初值 5）
 };
 
 // ---- PlayerInfoSecond / TeamInfoSecond（ORIG 全局类） ----
@@ -136,7 +139,7 @@ public:
     void IncreaseCurrentUserCount();
     void DecreaseCurrentUserCount();
     void SetCurrentUserCount(int n);
-    int  GetCurrentUserCount() const;
+    int  GetCurrentUserCount();   // ORIG _ZN…GetCurrentUserCountEv（非 const，W 0x08588d7e）
     void IncreaseEachOtherTeamPlayCount(int teamId);
     int  GetEachOtherTeamPlayCount(int teamId) const;
     void saveData();
@@ -231,7 +234,7 @@ public:
     COnlinePreliminary();                             // 0x855fefe
     ~COnlinePreliminary();
 
-    virtual void OnCreateRoom(CUser* user);
+    virtual int OnCreateRoom(CUser* user);        // ORIG 0x08560ae4：失败 0x13 / 成功 0（IMatch 基类 int 同步）
     virtual void OnDestroyRoom(CUser* user);
     virtual void OnJoinRoom(CUser* user);
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);
@@ -240,7 +243,7 @@ public:
     virtual void OnStartFight();
     virtual void OnEndFight(PvP_Room* room);
     virtual void OnWalkOut(PvP_Room* room, int a);
-    virtual void OnReady(CUser* user, bool ready);
+    virtual bool OnReady(CUser* user, bool ready);
     virtual void OnReward(PvP_Room* room, int a, bool b);
     virtual void OnCompleteLoad(CUser* user);
     virtual void OnConnectP2PTimeout(PvP_Room* room);
@@ -262,8 +265,8 @@ public:
     void _PullOutRoom(CUser* user, PvP_Room* room, int seat);
     void _ReturnTeam(PvP_Room* room, int team, CUser* user);
     void _UpdateRating(int diff, ENUM_ELO_RATING_SYSTEM sys);
-    int  _CheckObserver(PvP_Room* room, CUser* user) const;
-    int  _CheckSameTeam(PvP_Room* room, CUser* user) const;
+    int  _CheckObserver(PvP_Room* room, CUser* user);
+    int  _CheckSameTeam(PvP_Room* room, CUser* user);
     int  _CheckMatchable(PvP_Room* room) const;
     int  _GetOppositeTeam(int team);
     void _IncreaseWinCount(ENUM_SCHOOL_MATCH_TEAM team);

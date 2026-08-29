@@ -11,15 +11,65 @@
 namespace Sanicova
 {
 
+// ORIG T 0x0859957c _ZN8Sanicova4CPad4initEv：
+// activate/certified 清零 → memset(this,0,0x24) → failCnt/requestState/cancelCnt
+// 清零 → +0x2c/+0x26/+0x2d 字节清零 → lastGenTime=getCurSec() → advide/changedPwd
+// 清零 → GenerateRandomKeyIdx → GenerateRandomShakeData。
+void CPad::init()
+{
+    m_activate24 = 0;
+    m_certified25 = 0;
+    memset(m_pad, 0, sizeof(m_pad));           // ORIG memset(this,0,0x24)
+    m_failCnt38 = 0;                           // +0x38（dword）
+    m_requestState40 = 0;                      // +0x40
+    m_cancelCnt44 = 0;                         // +0x44
+    m_pad2c[0] = 0;                            // +0x2c（字节）
+    m_version26 = 0;                           // +0x26
+    m_pad2c[1] = 0;                            // +0x2d（字节）
+    m_lastGenTime30 = (int)GlobalData::s_systemTime_.getCurSec();
+    m_advidePwd = 0;                           // +0x3c
+    m_changedPwd = 0;                          // +0x3d
+    GenerateRandomKeyIdx();
+    GenerateRandomShakeData();
+}
+
+// ORIG T 0x08599616 _ZN8Sanicova4CPad5resetEv：已认证时读取 +0x28 认证时间戳，
+// 有效期 0xb4（180s）：checkTime+0xb4 < 当前秒则 setCertified(false)；前后各打
+// cMyTrace 日志（[Before]/[After]Goblin Certified，line 65/74）。
+void CPad::reset()
+{
+    if (isCertified())
+    {
+        int checkTime = (int)(m_checkTime28 + 0xb4);
+        int curTime = (int)time(0);
+        cMyTrace trace1(__PRETTY_FUNCTION__, 65, 0);
+        trace1("[Before]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
+               checkTime, curTime, m_certified25);
+        if (checkTime < curTime)
+            setCertified(false);
+        cMyTrace trace2(__PRETTY_FUNCTION__, 74, 0);
+        trace2("[After]Goblin Certified check_time(%d), cur_time(%d), Certified(%d)",
+               checkTime, curTime, m_certified25);
+    }
+}
+
+// ORIG T 0x0859979c _ZN8Sanicova4CPad19isTimeAttackSeccessEv：取全局当前秒
+// （结果存局部未参与判定），恒返回 true。
+bool CPad::isTimeAttackSeccess()
+{
+    int curTime = (int)GlobalData::s_systemTime_.getCurSec();
+    return true;
+}
+
 int CPad::getCancelCnt() { return m_cancelCnt44; }        // ORIG W 0x0822efb4
 
 void CPad::incCancelCnt() { m_cancelCnt44 += 1; }         // ORIG W 0x0822ef9a
 
 void CPad::setCancelCnt(int count) { m_cancelCnt44 = count; }  // ORIG W 0x084ebdfa
 
-int CPad::getRequestState() { return m_requestState40; }  // ORIG W 0x0822efc0
+int CPad::getRequestState() const { return m_requestState40; }  // ORIG W 0x0822efc0（const）
 
-void CPad::setRequestState(int state)                     // ORIG W 0x0822efcc
+void CPad::setRequestState(ENUM_REQUEST_STATE state)      // ORIG W 0x0822efcc
 {
     m_requestState40 = state;
 }
@@ -52,10 +102,10 @@ void CPad::setAdvideChangePwd(bool flag)
     m_advidePwd = flag ? 1 : 0;
 }
 
-// ORIG W 0x085999e8：写 +0x3d 字节。
-void CPad::setChangedPwd(bool flag)
+// ORIG W 0x084ebdca：movzbl 0x3d(%eax) 直返 +0x3d 字节。
+unsigned char CPad::getChangedPwd()
 {
-    m_changedPwd = flag ? 1 : 0;
+    return m_changedPwd;
 }
 
 // ORIG T 0x085998a6：当前秒距上次生成 >20s 判有效并刷新时间戳。
@@ -113,6 +163,12 @@ char CPad::GetShakeData(int idx)
     return m_shake34[idx];
 }
 
+void CPad::setChangedPwd(bool flag)  // ORIG W 0x085999e8：写 +0x3d
+{
+    m_changedPwd = flag ? 1 : 0;
+}
+
+
 // ORIG T 0x085997b8：建议改密时复位建议并触发发奖（无角色则仅置密改标记）。
 void CPad::SendChagePwdReward(CUser* user)
 {
@@ -139,22 +195,10 @@ void CPad::SendChagePwdRewardMail(CUser* user)
 // WongWork::CSecurityCard 补充方法（LinkMisc5）
 // ===========================================================================
 
-// ORIG W 0x086959b8：读 +0x31（movzbl）。
-char WongWork::CSecurityCard::getCertFlag()
-{
-    return (char)m_certFlag31;
-}
-
 // ORIG W 0x0822ef58：读 +0x44。
 int WongWork::CSecurityCard::getRequestState()
 {
     return m_requestState44;
-}
-
-// ORIG W 0x0822ef64：写 +0x44。
-void WongWork::CSecurityCard::setRequestState(int state)
-{
-    m_requestState44 = state;
 }
 
 // ORIG T 0x085fddb2：问题四元组合法性检查后导出（越界/全零则重置为 0,0,1,1）。
@@ -249,12 +293,12 @@ void CUser::sendBackSecurityAuthRequest()
     card = getSecurityCard();
     if (card->isActivate())
     {
-        card->setRequestState(1);
+        card->setRequestState(WongWork::CSecurityCard::eRequestStateAuth);
     }
     else
     {
         pad = getPad();
         if (pad->isActivate())
-            pad->setRequestState(1);
+            pad->setRequestState(Sanicova::CPad::eRequestStateAuth);
     }
 }

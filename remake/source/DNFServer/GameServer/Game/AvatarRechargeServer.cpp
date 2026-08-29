@@ -323,7 +323,7 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
         newEndur = maxEndurance;
     item->m_fieldSplit.m_avatarEndur = (unsigned short)newEndur;
 
-    UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);
+    this->UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);
     SaveAvatarEnduranceUnit(item->m_addInfo2,
                             (int)(unsigned short)item->m_fieldSplit.m_avatarEndur);
 
@@ -341,7 +341,7 @@ void AvatarRechargeServer::GmChangeEnduranceReduceRate(CUser* user, bool enable,
 {
     if (!user->isGMUser())
         return;
-    GmSetEnduranceReduceRate(user, enable, rate);
+    this->GmSetEnduranceReduceRate(user, enable, rate);
 }
 
 // ============================================================================
@@ -421,7 +421,7 @@ AvatarRechargeServer::~AvatarRechargeServer()
 // "\t- Loading Avatar Recharge script - "；loadScript()==0 即成功。
 bool AvatarRechargeServer::Load()
 {
-    cMyTrace trace("virtual bool AvatarRechargeServer::Load()", 0x22, 9, true, false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x22, 9, true, false);
     trace("\t- Loading Avatar Recharge script - ");
     return m_script.loadScript() == 0;
 }

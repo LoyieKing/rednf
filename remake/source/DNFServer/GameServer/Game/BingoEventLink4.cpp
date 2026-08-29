@@ -1,18 +1,25 @@
 // ============================================================================
-// BingoEventLink4.cpp —— Bingo 域四符号链接批次（LinkMisc4）
+// BingoEventLink4.cpp —— Bingo 域实现批次（OrigBingoEvt）
 //
-//   _ZN10BingoEvent15getBingoSystemEv            T 0x080c9fea
-//   _ZN10BingoEvent22sendOneMatchLineRewardER5CUser  T 0x080ca3d4
-//   _ZN6CBingo11calNewValueERji                  T 0x080cad4c
-//   _ZN5CUser13sendBingoDataEv                   T 0x0869134e
+// BingoEvent 权威声明：BingoEvent.h（继承 CEventBase，成员
+//   boost::shared_ptr<CBingo> m_bingo @ +0x0c；ORIG ctor 0x080c9984 new
+//   CBingo(0x1c) 后挂到该槽，getBingoSystem 0x080c9fea 返回其地址）。
+// CBingo 唯一类定义：CBingoTest.h/.cpp（Main 属主收敛；C1/D1/
+//   getBingoRandomVaule/calNewValue/getIndexTodayBoard/calBoradMatchLine/
+//   getToday×2/resetBoard/resetQuiz）。
+// 本 TU 提供：BingoEvent C1/D1/D0/StartEvent×2/EndEvent/StartAction/
+//   dailyresetData/reqBingoMark/getBingoSystem/sendOneMatchLineReward，
+//   CUser::sendBingoData，以及 ORIG 全局位工具 isSetBit_Uint/setBit_Uint。
 //
-// 报告：docs/class_func_reports/{BingoEvent,CBingo,CUser}/。
-// BingoEvent / CBingo 为 ORIG 全局命名空间类；GmCmds_A.cpp 持同名最小声明，
-// 本 TU 提供唯一定义。CBingo 局部布局按 ORIG ctor 0x080ca82c 建模：
-//   +0x00 vector<int>（今日棋盘索引）+0x0c int +0x10 shared_ptr<CMTRand>(8B)
-//   +0x18 int m_today；BingoEvent : CEventBase，+0x0c 为 boost::shared_ptr<CBingo>
-//   （ORIG ctor 0x080c9984：new CBingo(0x1c) 后挂到 this+0xc）。
+// 报告：docs/class_func_reports/{BingoEvent,CBingo,CUser}/（全文已读）。
 // ============================================================================
+
+#include "BingoEvent.h"
+#include "CBingoTest.h"
+#include "CEnvironment.h"
+#include "CSystemTime.h"
+#include "CGameManager.h"
+#include "Action.h"
 
 #include "GlobalData.h"
 #include "CGuildServerProxy.h"
@@ -20,6 +27,7 @@
 #include "CUser.h"
 #include "Inven_Item.h"
 #include "CItem.h"
+#include "CStackableItem.h"   // m_vec3a0（+0x3a0 标记号 vector 具名起点）
 #include "CMailBoxHelper.h"
 #include "RDARScriptStringManager.h"
 #include "LogManager.h"
@@ -28,6 +36,8 @@
 #include <bitset>
 #include <map>
 #include <vector>
+#include <time.h>
+#include <string.h>
 
 // ---------------------------------------------------------------------------
 // ORIG 全局位工具（source 无既有 producer，objdump 直转）：
@@ -52,133 +62,168 @@ void setBit_Uint(unsigned int& value, bool set, int bit)
 }
 
 // ---------------------------------------------------------------------------
-class CBingo
-{
-public:
-    // ORIG 布局（ctor 0x080ca82c）：本 TU 内部使用；无外部构造点。
-    std::vector<int> m_boards;  // +0x00 今日棋盘索引表
-    int m_fieldC;               // +0x0c（ORIG ctor 清零）
-    void* m_randPtr;            // +0x10 boost::shared_ptr<CMTRand>.px
-    void* m_randCtrl;           // +0x14 boost::shared_ptr<CMTRand>.pn
-    int m_today;                // +0x18
-
-    int calNewValue(unsigned int& board, int idx);      // ORIG T 0x080cad4c
-    int getIndexTodayBoard(int value);                  // ORIG T 0x080caafa
-    int calBoradMatchLine(int board);                   // ORIG T 0x080cab5a
-    int getToday();                                     // ORIG T 0x080ca936（非 const）
-};
-
-// getIndexTodayBoard @ 0x080caafa：在今日棋盘索引表中查找 value 的下标。
-int CBingo::getIndexTodayBoard(int value)
-{
-    if (value < 0)
-    {
-        return -1;
-    }
-    for (std::size_t i = 0; i < m_boards.size(); ++i)
-    {
-        if (m_boards[i] == value)
-        {
-            return static_cast<int>(i);
-        }
-    }
-    return -1;
-}
-
-// calBoradMatchLine @ 0x080cab5a：统计 25 位棋盘的连线数
-// （5 行 + 5 列 + 2 对角线；对角线1 = bit[r*6]，对角线2 = bit[(r+1)*4]）。
-int CBingo::calBoradMatchLine(int board)
-{
-    std::bitset<25> bits(static_cast<unsigned long>(board));
-    int lines = 0;
-    int diag1 = 0;
-    int diag2 = 0;
-    for (int r = 0; r < 5; ++r)
-    {
-        int rowCount = 0;
-        int colCount = 0;
-        for (int c = 0; c < 5; ++c)
-        {
-            if (bits[5 * r + c])
-            {
-                ++rowCount;
-            }
-            if (bits[5 * c + r])
-            {
-                ++colCount;
-            }
-            if (rowCount < c + 1 && colCount < c + 1)
-            {
-                break;  // ORIG 早退：行列均已不可能凑满
-            }
-        }
-        if (rowCount == 5)
-        {
-            ++lines;
-        }
-        if (colCount == 5)
-        {
-            ++lines;
-        }
-        if (bits[6 * r])
-        {
-            ++diag1;
-        }
-        if (bits[4 * (r + 1)])
-        {
-            ++diag2;
-        }
-    }
-    if (diag1 == 5)
-    {
-        ++lines;
-    }
-    if (diag2 == 5)
-    {
-        ++lines;
-    }
-    return lines;
-}
-
-// calNewValue @ 0x080cad4c：idx 在当日棋盘上首次标记并返回新连线数。
-int CBingo::calNewValue(unsigned int& board, int idx)
-{
-    int index = getIndexTodayBoard(idx);
-    if (index == -1)
-    {
-        return 0;
-    }
-    if (index > 24)  // ORIG：cmp $0x18 / jle
-    {
-        return -1;
-    }
-    if (isSetBit_Uint(board, index))
-    {
-        return 0;
-    }
-    setBit_Uint(board, true, index);
-    return calBoradMatchLine(static_cast<int>(board));
-}
-
-// getToday @ 0x080ca936：返回 this+0x18。
-int CBingo::getToday()
-{
-    return m_today;
-}
-
+// BingoEvent 方法（docs/class_func_reports/BingoEvent/ 13 报告全文已读）。
 // ---------------------------------------------------------------------------
-class BingoEvent
+
+// C1 @ 0x080c9984：CEventBase() + vptr + new CBingo(0x1c) 包 shared_ptr<CBingo>
+// 挂到 this+0xc。初始化列表 m_bingo(new CBingo()) 顺序与 ORIG 一致。
+BingoEvent::BingoEvent()
+    : m_bingo(new CBingo())
 {
-public:
-    void* getBingoSystem();                     // ORIG T 0x080c9fea
-    void sendOneMatchLineReward(CUser& user);   // ORIG T 0x080ca3d4
-};
+}
+
+// D1 @ 0x080c9a06：vptr + shared_ptr<CBingo> 析构 + CEventBase 析构（编译器按
+// 声明逆序生成：m_bingo 先于 CEventBase）。D0 @ 0x080c9a68 由编译器生成。
+BingoEvent::~BingoEvent()
+{
+}
 
 // getBingoSystem @ 0x080c9fea：返回 this+0xc —— 成员 boost::shared_ptr<CBingo>
 // 实例地址（ORIG ctor 将 new CBingo(0x1c) 挂到该槽；调用方经 operator-> 解引用）。
 void* BingoEvent::getBingoSystem()
 {
-    return reinterpret_cast<char*>(this) + 0xc;
+    return &m_bingo;   // +0x0c boost::shared_ptr<CBingo> 实例地址
+}
+
+// StartEvent @ 0x080c9a86：置事件标志；按当前秒与疲劳小时槽（G_CEnvironment
+// +0x37c）取日号，1..31 内重置棋盘与 quiz，打日志。
+void BingoEvent::StartEvent()
+{
+    SetEventFlag(true);
+    int hourLimit = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+    int day = m_bingo->getToday(curSec, hourLimit);
+    if (day > 0 && day < 0x20)
+    {
+        m_bingo->resetBoard(day);
+        m_bingo->resetQuiz(day);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2a, 0);
+        trace("BingoEvent Day(%d)", day);
+    }
+}
+
+// StartEvent(Word_Param) @ 0x080c9b68：经 vptr+0x8（slot 2）调无参 StartEvent()，
+// 打日志。param 未参与计算（ORIG 如此）。
+void BingoEvent::StartEvent(Word_Param param)
+{
+    StartEvent();
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x30, 0);
+    trace("BingoEvent Event Start!");
+}
+
+// StartAction @ 0x080c9bb8：遍历 CGameManager+0x22c（accId→CUser* map），
+// 对每个在线用户发 bingo 数据包。
+void BingoEvent::StartAction()
+{
+    std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
+    for (std::map<unsigned int, CUser*>::iterator it = users.begin();
+         it != users.end(); ++it)
+    {
+        CUser* user = it->second;
+        if (user != 0)
+        {
+            user->sendBingoData();
+        }
+    }
+}
+
+// EndEvent @ 0x080c9d30：置事件标志 + 日志。
+void BingoEvent::EndEvent()
+{
+    SetEventFlag(false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x3f, 0);
+    trace("BingoEvent Event End!");
+}
+
+// dailyresetData @ 0x080c9d82：按日重置棋盘/quiz；随后遍历在线用户，清
+// BingoData、重发数据包并刷新装饰物计数。
+void BingoEvent::dailyresetData()
+{
+    int hourLimit = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+    int day = m_bingo->getToday(curSec, hourLimit);
+    if (day > 0 && day < 0x20)
+    {
+        m_bingo->resetBoard(day);
+        m_bingo->resetQuiz(day);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x50, 0);
+        trace("BingoEvent Day(%d)", day);
+    }
+
+    std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
+    for (std::map<unsigned int, CUser*>::iterator it = users.begin();
+         it != users.end(); ++it)
+    {
+        CUser* user = it->second;
+        if (user != 0)
+        {
+            BingoData* data = static_cast<BingoData*>(user->getBingoData());
+            data->clear();
+            user->sendBingoData();
+            user->sendDecorationObjectCnt(0);
+        }
+    }
+}
+
+// reqBingoMark @ 0x080c9ff6（docs/class_func_reports/BingoEvent/reqBingoMark.md）：
+// user/item 判空 → 0x13；已标记 3+ 次 → 0x7；物品请求号越界 → 0x17；随机值
+// 无效 → 0x13；标记成功且新增连线时逐线发奖励，回 0x1c3 包，返回 0。
+int BingoEvent::reqBingoMark(StackableAction::input_param& param)
+{
+    if (param.m_user == 0)
+    {
+        return 0x13;
+    }
+    if (param.m_item == 0)
+    {
+        return 0x13;
+    }
+    BingoData* data = static_cast<BingoData*>(param.m_user->getBingoData());
+    // +0x04（连线数，signed char）> 2 即已达 3 次标记上限。
+    if (static_cast<signed char>(data->m_pad4) > 2)
+    {
+        return 0x7;
+    }
+    // CStackableItem +0x3a0 = m_vec3a0（vector<int>），第 0 项为请求标记号（推断）。
+    std::vector<int>* itemVec =
+        &reinterpret_cast<CStackableItem*>(param.m_item)->m_vec3a0;
+    int markNo = (*itemVec)[0];
+    if (markNo < 1 || markNo > 0x32)
+    {
+        return 0x17;
+    }
+    int randValue = m_bingo->getBingoRandomVaule(markNo);
+    if (randValue == 0)
+    {
+        return 0x13;
+    }
+    unsigned int oldBoard = data->m_eventId;
+    int newLines = m_bingo->calNewValue(data->m_eventId, randValue);
+    if (data->m_eventId != oldBoard)
+    {
+        data->m_needSave = true;                       // +0x06
+        int diff = newLines - static_cast<signed char>(data->m_pad4);
+        if (diff > 0)
+        {
+            if (diff > 3)
+            {
+                diff = 3;
+            }
+            data->m_pad4 = static_cast<char>(newLines);
+            for (int i = 0; i < diff; ++i)
+            {
+                sendOneMatchLineReward(*param.m_user);
+            }
+        }
+    }
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0x1c3);
+    packet.put_byte(randValue);
+    packet.put_int(static_cast<int>(data->m_eventId));
+    packet.finalize(true);
+    param.m_user->Send(packet);
+    return 0;
 }
 
 // sendOneMatchLineReward @ 0x080ca3d4：读 m_bingo.m_map30[CDataManager+0xb568+0x30
@@ -191,7 +236,7 @@ void BingoEvent::sendOneMatchLineReward(CUser& user)
     if (it == rewardMap.end())
     {
         LogManager::logFormat(1, "BingoEvent.cpp",
-                              "void BingoEvent::sendOneMatchLineReward(CUser&)", 0xc0,
+                              __PRETTY_FUNCTION__, 0xc0,
                               "bingo script error");
         return;
     }
@@ -258,10 +303,9 @@ void CUser::sendBingoData()
     packet.clear();
     packet.put_header(0, 0x1c2);
     packet.put_byte(static_cast<int>(static_cast<char>(today)));
-    packet.put_int(*reinterpret_cast<int*>(getBingoData()));
-    packet.put_byte(
-        *reinterpret_cast<unsigned char*>(
-            reinterpret_cast<char*>(getBingoData()) + 5));
+    packet.put_int(static_cast<int>(
+        static_cast<BingoData*>(getBingoData())->m_eventId));
+    packet.put_byte(static_cast<BingoData*>(getBingoData())->m_isWin ? 1 : 0);
     packet.finalize(true);
     Send(packet);
 }

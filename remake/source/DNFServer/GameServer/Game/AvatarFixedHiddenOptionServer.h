@@ -146,6 +146,10 @@ public:
     // AvatarFixedHiddenOptionServer TU 批次提供。
     bool CheckCondition(CUser* user, arad::SigAvatarHiddenOptionChange* sig);
     bool ChangeHiddenOption(CUser* user, arad::SigAvatarHiddenOptionChange* sig);
+        // ORIG 0x0817ecd8（static 成员，mangled _ZN29AvatarFixedHiddenOptionServer8UnitTestEPS_）：
+    // 非空 server 时跑 6 组 GetSkillIndex(rarity=3, input) 用例，由文件内 static
+    // Test1（0x0817ec67）printf 比对。
+    static void UnitTest(AvatarFixedHiddenOptionServer* server);
     // ---- ORIG T（ChangeHiddenOption 依赖；LinkClosureB.AradServers 定义归
     //      AvatarFixedHiddenOptionServer.cpp）----
     // ORIG _ZN29AvatarFixedHiddenOptionServer13GetSkillIndexE11ENUM_RARITY @0x0817e1ec

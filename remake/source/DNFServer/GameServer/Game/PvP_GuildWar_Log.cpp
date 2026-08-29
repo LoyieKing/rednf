@@ -129,7 +129,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
     {
         LogManager::logFormat(
             1, "pvp.cpp",
-            "void PvP_GuildWar_Log::WriteGuildWarPvPLog(int, char, CUser**)",
+            __PRETTY_FUNCTION__,
             0x12cc,
             "PvP_GuildWar_Log::WriteGuildWarPvPLog() m_guildCnt(%d) > MAX_PVP_PLAYER(8) ",
             (unsigned char)m_guildCnt);

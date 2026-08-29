@@ -50,6 +50,13 @@ bool STPacketLog::Compare(const STPacketLog* a, const STPacketLog* b)
 
 TOD_UserState::~TOD_UserState() {}
 
+// ORIG T 0x086438fc _ZN13TOD_UserState13setEnterLayerERK9TOD_Layer（0x12，
+// LinkFinal2 核销）：仅写当日层 +0x14 = layer.m_layer（objdump 逐指令转写）。
+void TOD_UserState::setEnterLayer(const TOD_Layer& layer)
+{
+    m_todayLayer = layer.m_layer;   // ORIG movzwl (%edx); mov %dx,0x14(%eax)
+}
+
 // ORIG T 0x08643624：enterCount=0 + CData::alter()
 void TOD_UserState::ResetDaily()
 {
@@ -107,7 +114,7 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
     m_field8 = in.m_characNo;               // ORIG *(this+8)=*(param_2)
     m_firstEnterTime = in.m_firstEnterTime;
     m_enterCount = in.m_enterCount;
-    m_todayLayer = in.m_todayLayer;
+    m_todayLayer = in.m_todayLayer.GetLayer();
     m_lastEnterLayer = in.m_lastEnterLayer;
     m_lastEnterTime = in.m_lastEnterTime;
     m_lastClearTime = in.m_lastClearTime;

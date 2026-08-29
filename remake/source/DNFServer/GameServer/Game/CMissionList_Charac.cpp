@@ -19,6 +19,7 @@
 #include "MsgQueueMgr.h"
 #include "InterfacePacketBuf.h"
 #include "GlobalData.h"
+#include "PacketGuard.h"
 
 // PvP_Room 最小声明（PvP_Room.h 引入 PvP_deps.h 的重复 PVP_BATTLE_MODE，
 // 本 TU 只需 get_pvp_battle_mode）
@@ -43,15 +44,27 @@ void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
         for (int j = 0; j < 8; ++j)
             bitset[i * 8 + j] = (data[i] >> j) & 1;
 }
-// ORIG 0x8a5a90a：bitset → 32 字节
+// ORIG 0x8a5a90a：bitset → 32 字节（ORIG mangled 第二参为 std::string&）
+void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
+{
+    out.resize(0x20);
+    for (int i = 0; i < 32; ++i)
+    {
+        unsigned char byte = 0;
+        for (int j = 0; j < 8; ++j)
+            byte += (unsigned char)(bitset[i * 8 + j] << j);
+        out[i] = (char)byte;
+    }
+}
+
+// ORIG 0x8a5a90a（另一重载 _Z11BitsetToStrRKSt6bitsetILj256EEPh，输出 unsigned char*）
 void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
 {
     for (int i = 0; i < 32; ++i)
     {
         unsigned char byte = 0;
         for (int j = 0; j < 8; ++j)
-            if (bitset[i * 8 + j])
-                byte |= (1 << j);
+            byte += (unsigned char)(bitset[i * 8 + j] << j);
         out[i] = byte;
     }
 }
@@ -60,27 +73,12 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
 
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；与 CInventory.h
 // 的占位版本不同，本 TU 使用真实形态）
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // CEnvironment +0x37c 的每日任务排程时间（ORIG 布局）
 static int GetDailyScheduleTime(CEnvironment* env)
 {
     return *(int*)((char*)env + 0x37c);
-}
-
-// 任务槽清空（等价 ORIG MissionInfo::clear，避免跨 TU 依赖）
-static void ClearMissionInfoSlot(MissionInfo& info)
-{
-    std::memset(&info, 0, sizeof(info));
 }
 
 // ============================================================================
@@ -164,7 +162,11 @@ void CMissionList_Charac::getData(char* pData) const
         *(short*)(pData + kind * 8 + 8) = m_missionList[kind].m_count;
         *(short*)(pData + kind * 8 + 10) = m_missionList[kind].m_streak;
     }
-    BitsetToStr(m_clearedFlags, (unsigned char*)(pData + 0x124));
+    {
+        std::string clearedStr;
+        BitsetToStr(m_clearedFlags, clearedStr);
+        std::memcpy(pData + 0x124, clearedStr.data(), 0x20);
+    }
     *(short*)(pData + 0x144) = m_field148;
     *(short*)(pData + 0x146) = m_field14a;
     *(short*)(pData + 0x148) = m_field14c;
@@ -196,7 +198,11 @@ bool CMissionList_Charac::_saveData(CUser* pUser)
         pData->m_missionList[kind].m_streak =
             m_missionList[kind].m_streak;
     }
-    BitsetToStr(m_clearedFlags, pData->m_cleared);
+    {
+        std::string clearedStr;
+        BitsetToStr(m_clearedFlags, clearedStr);
+        std::memcpy(pData->m_cleared, clearedStr.data(), 0x20);
+    }
     pData->m_field144 = m_field148;
     pData->m_field146 = m_field14a;
     pData->m_field148 = m_field14c;
@@ -430,8 +436,8 @@ void CMissionList_Charac::check_mission_kind(
         outClearList.push_back(index);
         if (kind == 0x1b)
         {
-            ClearMissionInfoSlot(m_missionList[7]);
-            ClearMissionInfoSlot(m_missionList[0x1e]);
+            m_missionList[7].clear();
+            m_missionList[0x1e].clear();
         }
         ClearMission(user, (short)index);
     }
@@ -563,7 +569,7 @@ void CMissionList_Charac::Remove_Mission(int kind)
                 (int)m_missionList[kind].m_kind,
                 (int)m_missionList[kind].m_index);
         }
-        ClearMissionInfoSlot(m_missionList[kind]);
+        m_missionList[kind].clear();
         alter();
     }
 }
@@ -585,7 +591,7 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
     {
         alter();
         m_clearedFlags[(int)index] = true;
-        ClearMissionInfoSlot(m_missionList[kind]);
+        m_missionList[kind].clear();
         mission->Reward(user);
         if (mission->GetMissionGrade() != 2)
         {
@@ -620,7 +626,7 @@ void CMissionList_Charac::Reset_DailyMission()
     {
         if (daily[i])
         {
-            ClearMissionInfoSlot(m_missionList[i]);
+            m_missionList[i].clear();
             m_missionList[i].m_kind = (short)i;
         }
     }
@@ -699,7 +705,7 @@ void CMissionList_Charac::Send_MissionList(CUser& user)
                 (CMission*)G_CDataManager()->find_mission(missionIdx);
             if (!mission)
             {
-                ClearMissionInfoSlot(m_missionList[kind]);
+                m_missionList[kind].clear();
             }
             else
             {
@@ -716,7 +722,7 @@ void CMissionList_Charac::Send_MissionList(CUser& user)
         }
     }
     packet.put_byte(index, count);
-    unsigned char buf[32];
+    std::string buf;
     BitsetToStr(m_clearedFlags, buf);
     for (int i = 0; i < 0x20; ++i)
     {

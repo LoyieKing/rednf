@@ -14,12 +14,19 @@
 
 class CUser;
 class LimitNpcBuyItemInfo;  // game_master::NpcLimitBuyItem 脚本域类型（checkError 参数）
+class SkillSlot;
+struct _Mastered_skill;
+class CSkillTreeParam;      // Inter_LoadEtc friend（SetSkillTree 0x84ef55c 调用 private 辅助）
 
 #include <utility>          // std::pair（Inter_NpcLimitBuyItemInfo 成员）
 #include "Inven_Item.h"     // Inven_Item（pack(1)，成员对齐 1）
+#include "SigTypes.h"       // SIG_LOAD_ETC / SIG_ATTENDANCE_EVENT（Inter_LoadEct 方法声明）
+
+// ORIG _Z7getUserj T @0x084bb9cf（全局自由函数；定义属主未落地，U 引用合规）
+CUser* getUser(unsigned int uid);
+#include "CUserCharacInfo.h" // seriaRoom_AniDeco（按值参数需完整类型）
 
 // ORIG dispatch() 经 vtable[0] 调用 dispatch_sig（0x84be970 处 call *%edx 无位移），
-// 故 dispatch_sig 声明必须位于虚析构之前（Itanium ABI 槽位=声明顺序）。
 class ISigDispatcher
 {
 public:
@@ -68,6 +75,9 @@ public:
     virtual ~Inter_CreateCharac();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
+    void process_event(CUser* user, struct SIG_CREATE_CHARAC* sig);          // ORIG T 0x084bf4ac
+    void process_createGift(CUser* user, struct SIG_CREATE_CHARAC* sig);     // ORIG T 0x084bf4ce
+
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
@@ -102,6 +112,12 @@ public:
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
 private:
+    // ORIG T 私有辅助（符号 _ZN15Inter_LoadInven 前缀；Main 已批准，实现落
+    // InterDispatcher.cpp）：
+    void _CheckOverEquipItem(CUser* user);                                        // 0x084c4d38
+    void _CheckUsableExpertJobEquipment(CUser* user);                             // 0x084c4b38
+    void _UpdateRentalItems(CUser* user, SIG_LOAD_INVENTORY* sig);                // 0x084c455c
+    void _UpdateDimensionRentalItems(CUser* user, SIG_LOAD_INVENTORY* sig);       // 0x084c4858
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
@@ -152,12 +168,31 @@ private:
 class Inter_LoadEtc : public ISigDispatcher
 {
 public:
+    // ORIG T 0x084d8e68（ORIG 调用点无 this 压栈 → static；外部调用方
+    // break_away_prevent::CBreakAwayPreventSystem::giveBreakAwayDungeonClearReward）
+    static void giveBreakAwayReward(CUser* user);
     Inter_LoadEtc();
     virtual ~Inter_LoadEtc();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
 private:
-    // ORIG 对象尺寸 4：仅 vptr，无数据成员。
+    friend class CSkillTreeParam;   // ORIG SetSkillTree 0x84ef55c 普通成员调用 private 辅助
+    // ---- ORIG 辅助方法（docs/class_func_reports/Inter_LoadEtc）----
+    bool ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err);
+    bool ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err);
+    bool RequestDBEventArad(CUser* user);                    // ORIG T 0x084c266e
+    bool SendResult(CUser* user);                            // ORIG T 0x084c2b82
+    bool SetFatigue(CUser* user);                            // ORIG T 0x084c311a
+    bool SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig);       // ORIG T 0x084c2964
+    bool SetRankRecord(CUser* user, SIG_LOAD_ETC* sig);      // ORIG T 0x084c2a98
+    void _checkUserDisadvantage(CUser* user);                // ORIG T 0x084c2760
+    int  _fnEnumQuestClear(unsigned int questIdx, char* ctx);// ORIG T 0x084c2b08
+    void processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& user);  // ORIG T 0x084e807e
+    void processCheckInvalidExpPerLevel(CUser& user);        // ORIG T 0x084e84f6
+    void processGrowthCreatureEvent(CUser& user);            // ORIG T 0x084e83c2
+    void processGrowthWeaponEvent(CUser& user);              // ORIG T 0x084e834a
+    void processSeriaRoomAniDecoEvent(seriaRoom_AniDeco info, CUser& user); // ORIG T 0x084e8428
+    void verifyCharacVillage(CUser* user);                   // ORIG T 0x084e866c
 };
 
 class Inter_DeleteChannel : public ISigDispatcher
@@ -842,6 +877,10 @@ public:
     virtual ~Inter_MailBox_Req_CheckReceiver();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
+    // ORIG T 0x084cff18 / 0x084d008a（InterWave1 批；定义属主未落地，U 引用合规）
+    int SendDBThread_forchina(CUser* user, SIG_MAILBOX_CHECK_RECEIVER* sig);
+    void SendErrorPacket(CUser* user, ENUM_CMDPACKET cmd, unsigned short err);
+
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
@@ -918,10 +957,16 @@ public:
     Inter_MonitorGuildPointDel();
     virtual ~Inter_MonitorGuildPointDel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
-    // getLastDeleteTime/g_lastDeleteTime 唯一声明点：Inter_MonitorGuildPointDel.h
-    // （定义 Inter_MonitorGuildPointDel.cpp；ORIG W 0x82a5a4c / B 0x943dd88）。
+    // ORIG 静态成员（与 dispatch 域同类：nm 同 mangled 类名实证）：
+    //   getLastDeleteTime W 0x82a5a4c / setLastDeleteTime W 0x084eb100 /
+    //   g_lastDeleteTime B 0x943dd88（定义 Inter_MonitorGuildPointDel.cpp）。
+    static int getLastDeleteTime();
+    static void setLastDeleteTime();
+    static int g_lastDeleteTime;
 
 private:
+    // ORIG T 0x084ce6d2：_makeDefaultTime（月初 05:00 基准时间，7 月特例 6 日）。
+    time_t _makeDefaultTime();
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
@@ -1613,6 +1658,9 @@ public:
     Inter_AuctionResultBidding();
     virtual ~Inter_AuctionResultBidding();
     virtual int dispatch_sig(CUser* user, char* data, int len);
+    // ORIG T 0x084d6cda _ZN26Inter_AuctionResultBidding19dispatch_sig_taiwanEP5CUserPci
+    //   （台湾平台实现体归台湾批；声明 InterWave1 批）
+    int dispatch_sig_taiwan(CUser* user, char* data, int len);
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -2064,6 +2112,7 @@ public:
     Inter_PcroomResponse();
     virtual ~Inter_PcroomResponse();
     virtual int dispatch_sig(CUser* user, char* data, int len);
+    bool IsShutdonTimeOverLogin();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -2427,6 +2476,10 @@ public:
     Inter_VillageAttackedReward();
     virtual ~Inter_VillageAttackedReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
+
+    // ORIG T 0x084e0390 _ZN27Inter_VillageAttackedReward17_send_reward_itemEP5CUsermii
+    //   （m=itemIdx，i1=count→create_item param，i2=win/rank；InterWave1 W0 批）
+    void _send_reward_item(CUser* user, unsigned long itemIdx, int count, int rank);
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -3132,6 +3185,9 @@ public:
     virtual ~Inter_HadesAction();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
+    // ORIG W 0x084e5e62 _ZN17Inter_HadesAction10send_alertEP5CUserj（InterWave1 W5 批）
+    void send_alert(CUser* user, unsigned int code);
+
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
@@ -3172,7 +3228,7 @@ public:
     Inter_NpcLimitBuyItemInfo();
     virtual ~Inter_NpcLimitBuyItemInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
-    void checkError(CUser* user, LimitNpcBuyItemInfo* info);
+    int checkError(CUser* user, LimitNpcBuyItemInfo* info);   // ORIG 返回 int 被 dispatch 消费
     void reset();
     void sendPacket(CUser* user);
 
@@ -3304,6 +3360,11 @@ public:
     Inter_RequestCharacSkillInfo();
     virtual ~Inter_RequestCharacSkillInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
+
+    // ORIG T 0x084e7820 _ZN28Inter_RequestCharacSkillInfo21_PutSkillInfoToCharacEcPK15_Mastered_skillP9SkillSlot
+    //   （InterWave1 W5 批）
+    void _PutSkillInfoToCharac(char slotFlag, const _Mastered_skill* skill,
+                               SkillSlot* skillSlot);
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

@@ -62,7 +62,7 @@ public:
     int getRandomDungeon(int seat, BlueMarbleTileScript::Type type) const;
 
     // ---- 房间流程 ----
-    int checkJoin();
+    bool checkJoin();
     int join(CUser* user);
     int leaveUser(CUser* user);
     int setScript(BlueMarbleScriptManager* script);
@@ -73,16 +73,16 @@ public:
     int checkUserConditionEnterBlueMarble(CUser* user);
     void checkBlueMarbleUserConfirm(CUser* user);
     int enterBlueMarble(CUser* user);
-    int checkStartBlueMarble();
+    bool checkStartBlueMarble();
     int startBlueMarble();
-    int checkThrowDice(int seat);
+    bool checkThrowDice(int seat);
     int throwDice(int seat);
     int userThrowDice(CUser* user);
     int movePosition(CUser* user, int pos);
-    int checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type);
+    bool checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type);
     int tileType(int seat);
     int intoBoardZone(int zone);
-    int checkLastZoneDungeonClear(int seat);
+    bool checkLastZoneDungeonClear(int seat);
     int enterDungeon(CUser* user);
     int exitDungeon(CUser* user);
     int clearDungeon(CUser* user);

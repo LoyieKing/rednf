@@ -443,18 +443,18 @@ void CParty::switchPostion(char a, char b)
 
 // ORIG T 0x0859b2b6（join_user.md）：空指针日志 -1；满员且 state==2 特判
 // -2；找到空槽写入成员/userUid、回写 PartyIndex、清连击胜场并返回 1。
-void CParty::join_user(CUser* user)
+int CParty::join_user(CUser* user)
 {
     if (user == 0)
     {
         LogManager::logFormat(1, "party.cpp",
-                              "int CParty::join_user(CUser*)", 0x419,
+                              __PRETTY_FUNCTION__, 0x419,
                               "Null user");
-        return;
+        return -1;
     }
     if (m_state == 2)
     {
-        return;
+        return -2;
     }
     if (get_member_count() < static_cast<int>(m_userMax))
     {
@@ -467,10 +467,11 @@ void CParty::join_user(CUser* user)
                 user->SetPartyIndex(static_cast<short>(m_partyIndex));
                 reinterpret_cast<CUserCharacInfo*>(user)
                     ->resetStraightVictories();
-                return;
+                return 1;
             }
         }
     }
+    return -1;
 }
 
 // ORIG T 0x0859b404（change_manager_for_quick_party.md）：manager 本人以
@@ -499,7 +500,7 @@ int CParty::change_manager_for_quick_party()
         }
     }
     LogManager::logFormat(
-        1, "party.cpp", "bool CParty::change_manager_for_quick_party()", 0x45d,
+        1, "party.cpp", __PRETTY_FUNCTION__, 0x45d,
         "there is no manager(party empty)");
     return 0;
 }
@@ -513,7 +514,7 @@ int CParty::delete_party_for_quick_party(CUser* user,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "int CParty::delete_party_for_quick_party(CUser*, std::list<CUser*, std::allocator<CUser*> >&)",
+            __PRETTY_FUNCTION__,
             0x465, "QUICK_PARTY_LOG : NO EXIST USER!!");
         return 1;
     }
@@ -522,7 +523,7 @@ int CParty::delete_party_for_quick_party(CUser* user,
         short partyIdx = user->GetPartyIndex();
         int userState = user->get_state();
         char* idStr = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace("int CParty::delete_party_for_quick_party(CUser*, std::list<CUser*, std::allocator<CUser*> >&)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x46c, 0);
         trace("<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
               idStr, userState, static_cast<int>(partyIdx));
@@ -652,7 +653,7 @@ void CParty::TimeoutCompleteAfterAssault()
                             ->getCurCharacName();
                     int partyIdx = GetPartyIndex();
                     cMyTrace trace(
-                        "bool CParty::TimeoutCompleteAfterAssault()", 0x1fa, 0);
+                        __PRETTY_FUNCTION__, 0x1fa, 0);
                     trace("CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
                           partyIdx, name);
                     leave_user(get_user(i),
@@ -871,7 +872,7 @@ int CParty::is_limit_minimum_level(int level, int& param)
 
 // ORIG T 0x085bcab6（CheckMemberLastTryAssaultTime.md）：任一成员 600 秒内
 // 有混沌击杀时间记录即 1（禁止立即组队袭击）。
-void CParty::CheckMemberLastTryAssaultTime()
+int CParty::CheckMemberLastTryAssaultTime()
 {
     for (int i = 0; i <= 3; i++)
     {
@@ -885,9 +886,10 @@ void CParty::CheckMemberLastTryAssaultTime()
                 ->GetCurCharacChaosKillTime();
         if (curSec < lastKillTime + 600)
         {
-            return;
+            return 1;
         }
     }
+    return 0;
 }
 
 // ORIG T 0x0859bfe2（increase_dimension_inout_count.md）：副本允许维度进出时，
@@ -1009,10 +1011,10 @@ unsigned char CParty::DestroyPassiveObject(int param)
     return destroyed;
 }
 
-// ORIG T 0x085b9f28（SetRidableObjectState.md）：坐骑状态转发战场层。
-void CParty::SetRidableObjectState(int state, eRidableObjectState type)
+// ORIG T 0x085b9f28（SetRidableObjectState.md）：坐骑状态转发战场层（返回值穿透）。
+int CParty::SetRidableObjectState(int state, eRidableObjectState type)
 {
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
         ->SetRidableObjectState(state, type);
 }
 

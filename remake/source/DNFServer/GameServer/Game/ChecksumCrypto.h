@@ -103,9 +103,88 @@ void SHA384_Init(SHA384_ALG_INFO* ctx);                                     // 0
 void SHA384_Update(SHA384_ALG_INFO* ctx, unsigned char* in,
                    unsigned long len);                                      // 0x080c0469
 void SHA384_Final(SHA384_ALG_INFO* ctx, unsigned char* out);                // 0x080c062e
-void SHA512_Init(SHA512_ALG_INFO* ctx);                                     // 0x080c27f1
-void SHA512_Update(SHA512_ALG_INFO* ctx, unsigned char* in,
-                   unsigned long len);                                      // 0x080c28b9
+// ---- DES / 3DES（ORIG 0x080abcbc..0x080b14a0 / 0x080addf8..0x080afa08）----
+// 布局实证（DES_SetAlgInfo/DES_EncInit/DES3_EncInit/DES_KeySchedule 反汇编）：
+//   +0x00 mode     1=ECB 2=CBC 3=OFB 4=CFB（同 AES）
+//   +0x04 padding  1=NONE 2=PKCS7
+//   +0x08 vec[8]    SetAlgInfo 拷入的初始向量备份（DES 块 8 字节）
+//   +0x10 chain[8]  当前链值（EncInit 时由 vec 初始化）
+//   +0x18 buf[8]    Update 阶段部分块缓存
+//   +0x20 buffered  buf 中缓存字节数
+//   +0x24 rk[]      16 轮 × 8 字节子密钥（每轮 6 字节有效 + 2 字节 0）；
+//                   DES3 为 3 × 0x80 = 0x180 字节（K1 加密序 | K2 | K3）
+struct DES_ALG_INFO
+{
+    unsigned long   mode;
+    unsigned long   padding;
+    unsigned char   vec[8];
+    unsigned char   chain[8];
+    unsigned char   buf[8];
+    unsigned long   buffered;
+    unsigned char   rk[0x80];
+};
+
+struct DES3_ALG_INFO
+{
+    unsigned long   mode;
+    unsigned long   padding;
+    unsigned char   vec[8];
+    unsigned char   chain[8];
+    unsigned char   buf[8];
+    unsigned long   buffered;
+    unsigned char   rk[0x180];
+};
+
+#if defined(__ELF__) && defined(__i386__)
+static_assert(sizeof(DES_ALG_INFO) == 0x24u + 0x80u, "DES_ALG_INFO layout");
+static_assert(sizeof(DES3_ALG_INFO) == 0x24u + 0x180u, "DES3_ALG_INFO layout");
+#endif
+
+// ORIG public DES 接口（签名与 mangled 逐字对应）
+void DES_SetAlgInfo(unsigned long mode, unsigned long padding,
+                    unsigned char* vec, DES_ALG_INFO* alg);                 // 0x080afaa4
+int  DES_KeySchedule(unsigned char* key, unsigned long keyLen,
+                     DES_ALG_INFO* alg);                                    // 0x080abcbc 返回错误码（DES3_KeySchedule 检查）
+void DES_EncInit(DES_ALG_INFO* alg);                                        // 0x080afbf0
+void DES_DecInit(DES_ALG_INFO* alg);                                        // 0x080b07ca
+void DES_Encrypt(void* rkArea, unsigned char* block);                       // 0x080ac0ba 单块加密（rkArea=&alg->rk）
+void DES_Decrypt(void* rkArea, unsigned char* block);                       // 0x080acf59 单块解密
+int  DES_EncUpdate(DES_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                   unsigned char* out, unsigned long* outLen);              // 0x080b0393
+int  DES_DecUpdate(DES_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                   unsigned char* out, unsigned long* outLen);              // 0x080b10a7
+int  DES_EncFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b072f
+int  DES_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b14a0
+
+// ORIG public DES 四模式解密 Final
+int  ECB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b1187
+int  CBC_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b1255
+int  OFB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b137d
+int  CFB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080b1403
+
+// ORIG public 3DES 接口（0x080addf8..0x080afa08）
+void DES3_SetAlgInfo(unsigned long mode, unsigned long padding,
+                     unsigned char* vec, DES3_ALG_INFO* alg);               // 0x080ae00c
+int  DES3_KeySchedule(unsigned char* key, unsigned long keyLen,
+                      DES3_ALG_INFO* alg);                                  // 0x080addf8 返回错误码
+void DES3_EncInit(DES3_ALG_INFO* alg);                                      // 0x080ae158
+void DES3_DecInit(DES3_ALG_INFO* alg);                                      // 0x080aed32
+void DES3_Encrypt(void* rkArea, unsigned char* block);                      // 0x080adf6c EDE
+void DES3_Decrypt(void* rkArea, unsigned char* block);                      // 0x080adfbc
+int  DES3_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                    unsigned char* out, unsigned long* outLen);             // 0x080ae8fb
+int  DES3_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                    unsigned char* out, unsigned long* outLen);             // 0x080af60f
+int  DES3_EncFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080aec97
+int  DES3_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080afa08
+
+// ORIG public 3DES 四模式解密 Final
+int  ECB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080af6ef
+int  CBC_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080af7bd
+int  OFB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080af8e5
+int  CFB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen); // 0x080af96b
+
+// ---- CRijndael_fake（ORIG 0x080b824c..0x080b851c）----
 
 // ---- CRijndael_fake（ORIG 0x080b824c..0x080b851c）----
 // 布局：vptr@0x00、m_ctxObf@0x04（new 指针与 m_salt 异或混淆）、m_salt@0x08。

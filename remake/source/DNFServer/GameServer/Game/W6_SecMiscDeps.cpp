@@ -158,11 +158,9 @@ char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
     const unsigned short timeCount = m_timeCount;
     // CEnvironment 服务器标识字段尚未具名化（域外批次负责），按既有口径偏移读。
     const int serverIdB =
-        *reinterpret_cast<const volatile int*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);
+                G_CEnvironment()->m_serverEnvir.m_serverGroup;   // +0x378（%02d 第 1 槽）
     const int serverIdA =
-        *reinterpret_cast<const volatile int*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x1b0);
+                G_CEnvironment()->m_serverEnvir.m_channelNo;     // +0x1b0（%02d 第 2 槽）
     OS_API::snprintf(out, 0x21, "%02d%02d%010d%05d%05d",
                      serverIdB, serverIdA, curSec, timeCount, random5);
     return out;
@@ -255,7 +253,7 @@ bool WongWork::CSecurityCard::checkAnswer(unsigned char ansA, unsigned char ansB
 
 // ============================ WongWork::CGMAccounts =========================
 
-WongWork::stGMInfo_t WongWork::CGMAccounts::getGMInfo(unsigned int mid) const
+WongWork::CGMAccounts::stGMInfo_t WongWork::CGMAccounts::getGMInfo(unsigned int mid) const
 {
     // ORIG T 0x0810940a (size 0xdd)：std::find(m_gmList.begin(), end(), key)
     // key={mid,3}；命中取该元素，未命中返回 {0,3}（局部 -0x1c/-0x18 初值）。
@@ -286,8 +284,8 @@ unsigned int WongWork::CMCAPManager::getExposedCount() const
 
 unsigned short WongWork::CUserPremium::getCeraShopDiscountRate() const
 {
-    // ORIG W 0x08328100 (size 0xf)：movzwl +0x860（折扣率半字）。
-    return *reinterpret_cast<const unsigned short*>(&m_pad[0x860]);
+        // ORIG W 0x08328100 (size 0xf)：movzwl +0x860（折扣率半字）。
+    return m_ceraDiscountRate;
 }
 
 std::vector<WongWork::SUserPremiumInfo> WongWork::CUserPremium::GetPremiumInfoList(

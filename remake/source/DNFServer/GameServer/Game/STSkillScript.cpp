@@ -26,7 +26,7 @@
 //   已分别内联到主循环注册分支与尾部修正，禁止以函数形式编造。）
 
 bool importCommand(STKeyCommand* command);                          // T 0x088c167a
-bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
+bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag);                      // T 0x08a97637
 
 class STScriptFileListMirror
@@ -1067,7 +1067,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                 // processModuleTagSet(int&,int&,string*,type,bool)：_Z19processModuleTagSetRiS_PSsib
                 int moduleA = -1;                    // -0x628
                 int moduleB = -1;                    // -0x62c
-                processModuleTagSet(&moduleA, &moduleB, &token,
+                processModuleTagSet(moduleA, moduleB, &token,
                                     static_cast<int>(job), true);
                 if (moduleA != -1)
                     script->m_228[moduleA] = 1;      // +0x228+a（8a9abf0）

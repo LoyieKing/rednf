@@ -6,13 +6,13 @@
 // （AE 口径：调用目标/全局地址归一，指令形态逐条一致）。
 
 #include "CItemList.h"
+#include "STEquipmentScript.h"   // EquipmentAniInfoScript / STEquipmentAniScript（insert ani 段真实类型）
 
 #include "CUserCharacInfo.h"   // get_charac_level / get_charac_job（Arad_GiftItem_Set::level_check 依赖）
 
 #include <algorithm>
 #include <new>        // placement new
-#include <stdio.h>
-#include <string.h>
+#include <stdarg.h>
 #include <utility>
 #include <ctime>      // time()
 
@@ -28,11 +28,9 @@
 #include "MySQL.h"
 #include "DBMgr.h"
 #include "DNFFunctionLib.h"
-
-namespace sync_script
-{
-class CSyncScript;
-}
+#include "CFieldLengthChecker.h"   // 权威 AddField（ORIG W，替代本地 FieldChecker 桩）
+#include "EquipmentParameterInfo.h"  // ItemAuraInfo/LevelUpSkill/EquipmentSkillDataUp
+                                    // 及 GetAttackElement 实参类型
 
 // ============================================================================
 // sync_script 域辅助类型（TU 私有；ORIG 对应符号属后续批次，调用目标在 AE
@@ -53,39 +51,6 @@ public:
 
     char m_buf[0xa000];   // +0x00
 };
-
-// ORIG CFieldLengthChecker：12 字节对象（ctor/AddField/dtor）。
-class FieldChecker
-{
-public:
-    FieldChecker() {}
-    void AddField(char* query);
-    ~FieldChecker() {}
-    char m_pad[12];       // +0x00
-};
-
-// ORIG sync_script::CStringMaker：for_each 累加器（ctor/()/c_str/dtor）。
-class StringMaker
-{
-public:
-    StringMaker() {}
-    template <class T> void operator()(const T& v) {}
-    const char* c_str() const { return m_str; }
-    ~StringMaker() {}
-    const char* m_str;   // +0x00
-    char m_pad[12];      // +0x04
-};
-
-char* EscapeDB(MySQL* db, const char* src, char* dst);
-char* URLString(sync_script::CSyncScript* self, const char* str, int len,
-                int idx);
-char* UsableCharString(sync_script::CSyncScript* self, const void* script);
-char* AttachTypeString(sync_script::CSyncScript* self, int type);
-char* AttackElementString(sync_script::CSyncScript* self, const void* param);
-char SocketTypeChar(unsigned short type);
-bool StackableGetType(sync_script::CSyncScript* self, std::string& name,
-                      int job, int idx, int& out1, int& out2, bool flag);
-void InsertArtifact(sync_script::CSyncScript* self, void* script);
 
 MyStream& MyStream::operator<<(const char* s)
 {
@@ -117,51 +82,88 @@ MyStream& MyStream::operator<<(float v)
     return *this;
 }
 
-void FieldChecker::AddField(char* query)
+
+// ORIG sync_script::CStringMaker 语义的 TU 局部镜像（匿名命名空间，符号不导出）：
+// for_each 累加器，int/float 项以 ',' 分隔，结构项以 ';' 分隔（与权威实现一致）。
+class StringMaker
 {
+public:
+    StringMaker() {}
+    void operator()(int v)
+    {
+        appendInt("%d", v);
+    }
+    void operator()(ItemAuraInfo v)
+    {
+        appendStruct("%d,%d,%d,%d", v.m_field0, (int)v.m_field4, v.m_float8,
+                     v.m_fieldc);
+    }
+    void operator()(LevelUpSkill v)
+    {
+        int job = (v.m_job == 0xb) ? 0x63 : v.m_job;
+        appendStruct("%d,%d,%d", job, v.m_field4, v.m_field8);
+    }
+    void operator()(EquipmentSkillDataUp v)
+    {
+        appendStruct("%d,%d,%d,%d,%d,%d,%d", v.m_job, v.m_v4, v.m_v8,
+                     v.m_percent, v.m_v10, v.m_key, v.m_module);
+    }
+    const char* c_str() const
+    {
+        return m_str.c_str();
+    }
+private:
+    void appendInt(const char* fmt, int v)
+    {
+        char num[0x100] = {0};
+        sprintf(num, fmt, v);
+        if (!m_str.empty())
+        {
+            m_str += ",";
+        }
+        m_str += num;
+    }
+    void appendStruct(const char* fmt, ...)
+    {
+        char num[0x100] = {0};
+        va_list ap;
+        va_start(ap, fmt);
+        vsprintf(num, fmt, ap);
+        va_end(ap);
+        if (!m_str.empty())
+        {
+            m_str += ";";
+        }
+        m_str += num;
+    }
+    std::string m_str;
+};
+}  // namespace（TU 私有辅助）
+// ORIG T 0x0861ca1b：socket 类型 → 字符。1→'1' 2→'2' 4→'3' 8→'4'
+// 0x10→'5' 0xffef→'6' 0xffff→'7'，其余 0（决策树见 ORIG 反汇编）。
+int GetSocketTypeCharacter(unsigned short type)
+{
+    switch (type)
+    {
+    case 1:
+        return '1';
+    case 2:
+        return '2';
+    case 4:
+        return '3';
+    case 8:
+        return '4';
+    case 0x10:
+        return '5';
+    case 0xffef:
+        return '6';
+    case 0xffff:
+        return '7';
+    default:
+        return 0;
+    }
 }
 
-char* EscapeDB(MySQL* db, const char* src, char* dst)
-{
-    strcpy(dst, src);
-    return dst;
-}
-
-char* URLString(sync_script::CSyncScript* self, const char* str, int len,
-                int idx)
-{
-    return (char*)str;
-}
-
-char* UsableCharString(sync_script::CSyncScript* self, const void* script)
-{
-    return (char*)"";
-}
-
-char* AttachTypeString(sync_script::CSyncScript* self, int type)
-{
-    return (char*)"";
-}
-
-char* AttackElementString(sync_script::CSyncScript* self, const void* param)
-{
-    return (char*)"";
-}
-
-char SocketTypeChar(unsigned short type)
-{
-    return (char)type;
-}
-
-bool StackableGetType(sync_script::CSyncScript* self, std::string& name,
-                      int job, int idx, int& out1, int& out2, bool flag)
-{
-    return true;
-}
-
-void InsertArtifact(sync_script::CSyncScript* self, void* script)
-{
-}
 
 // ORIG STStackableScript 字段镜像（insert_stackable_item_to_db 访问位）。
 struct StackScriptFull
@@ -300,18 +302,6 @@ struct stAvatarTypeSelectFull
 // 动画帧号（+0x0c/+0x10/+0x30/+0x34，格式化为 "%02d%02d"）。注意 setEquipmentAniScriptLay
 // （ORIG 0x89c1cb9）对同一区段（+0xc..+0x40）写入 std::string；两函数对该区的解读不同
 // 【推断】——此处镜像以 insert 函数读法具名，保持既有 int 读行为可审计。
-struct LocalAniScriptMirror
-{
-    char m_pad0[0xc];        // +0x00
-    int m_aniFrame0c;        // +0x0c（insert 读取帧号 a）
-    int m_aniFrame10;        // +0x10（insert 读取帧号 a+1）
-    char m_pad14[0x1c];      // +0x14 .. +0x30
-    int m_aniFrame30;        // +0x30（insert 读取帧号 b）
-    int m_aniFrame34;        // +0x34（insert 读取帧号 b+1）
-    char m_pad38[0x28];      // +0x38 .. +0x60
-    std::string m_str60;     // +0x60
-};
-
 // ORIG STEquipmentScript 字段镜像（insert_equiptment_item_to_db 访问位）。
 struct EquipScriptFull
 {
@@ -361,13 +351,7 @@ struct EquipScriptFull
     std::map<int, EquipParamInfo> m_map678;
 };
 
-std::vector<LocalAniScriptMirror>* AniInfoVector(void* script, int job)
-{
-    static std::vector<LocalAniScriptMirror> dummy;
-    return &dummy;
-}
-}
-
+ 
 // ===================== 外部依赖（其它 TU 提供，仅声明） =====================
 
 namespace sync_script
@@ -426,6 +410,16 @@ public:
                                   const char* name, const char* iconName);
     bool truncate_artifact_info_table();
 
+    // ---- 以下成员实现在 sync_script.cpp（权威 TU），此处仅声明供本文件调用 ----
+    bool insert_artifact_info_to_db(STEquipmentScript* script);
+    bool GetType(std::string name, ENUM_CHARACTERJOB job, int idx, int& out1,
+                 int& out2, bool flag);
+    const char* GetURL(const char* str, int len, int idx);
+    const char* GetAttachType(int type);
+    const char* GetAttackElement(EquipmentParameterInfo* param);
+    const char* GetUsableCharacter(STEquipmentScript* script);
+    const char* GetUsableCharacter(STStackableScript* script);
+
     bool m_field0;                                   // +0x00
     std::vector<unsigned char> m_vec1;               // +0x04
     std::vector<unsigned char> m_vec2;               // +0x10
@@ -436,8 +430,9 @@ public:
     std::map<unsigned char, std::string> m_map7c;    // +0x7c
 };
 
-std::map<int, std::string> g_equipItemInfoTable;      // ORIG 0x94fac00
-std::map<int, std::string> g_stackableItemInfoTable;  // ORIG 0x94fdc00
+// 权威定义在 InitScriptProducers_4.cpp（loadRDARScriptListFile 填充）。
+extern "C" std::map<int, std::string> g_stEquipmentScriptFileList;  // ORIG 0x94fac00
+extern "C" std::map<int, std::string> g_stStackableScriptFileList;  // ORIG 0x94fdc00
 
 namespace
 {
@@ -449,8 +444,8 @@ std::vector<unsigned int> g_fieldLengths;
 
 CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
 {
-    static CSyncScript inst;
-    return &inst;
+    static CSyncScript instance;
+    return &instance;
 }
 
 void DisplayMaxLength()                               // ORIG 0x861ca94
@@ -591,7 +586,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     else if (mode == 0)
     {
         std::string typeName = es->m_strbc;
-        if (!StackableGetType(this, typeName, foundAni, es->m_field1b8,
+        if (!GetType(typeName, (ENUM_CHARACTERJOB)foundAni, es->m_field1b8,
                               (int&)local_154, local_158, true))
         {
             return false;
@@ -619,7 +614,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         for (std::vector<unsigned short>::iterator vit = es->m_vec6cc.begin();
              vit != es->m_vec6cc.end() && socketCount <= 4; ++vit)
         {
-            local_162[socketCount + 5] = SocketTypeChar(*vit);
+            local_162[socketCount + 5] = GetSocketTypeCharacter(*vit);
             ++socketCount;
         }
     }
@@ -635,7 +630,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
                      ++socketCount)
                 {
                     local_162[socketCount + 5] =
-                        SocketTypeChar(ait->m_ushort14[8 + k]);
+                        GetSocketTypeCharacter(ait->m_ushort14[8 + k]);
                     ++k;
                 }
             }
@@ -673,15 +668,24 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         {
             continue;
         }
-        std::vector<LocalAniScriptMirror>* anis = AniInfoVector(script, i);
-        if (anis->empty())
+        // ORIG 0x861df29：script->getAniInfo((ENUM_CHARACTERJOB)i) 返回
+        // EquipmentAniInfoScript*；读 m_30/m_34/m_c/m_10 帧号字段与 m_ani0/m_ani18
+        // 动画序列（逐指令转写，见 insert_equiptment_item_to_db 反汇编）。
+        EquipmentAniInfoScript* aniInfo =
+            script->getAniInfo((ENUM_CHARACTERJOB)i);
+        if (aniInfo == 0)
         {
             continue;
         }
-        int f30 = (*anis)[0].m_aniFrame30;
-        int f34 = (*anis)[0].m_aniFrame34;
-        int fc_ = (*anis)[0].m_aniFrame0c;
-        int f10 = (*anis)[0].m_aniFrame10;
+        if (aniInfo->m_30 == -1 && aniInfo->m_34 == -1 &&
+            aniInfo->m_c == -1 && aniInfo->m_10 == -1)
+        {
+            continue;
+        }
+        int f30 = aniInfo->m_30;
+        int f34 = aniInfo->m_34;
+        int fc_ = aniInfo->m_c;
+        int f10 = aniInfo->m_10;
         if ((f30 != -1 || f34 != -1) && (fc_ == -1 && f10 == -1))
         {
             char tmp[256] = {0};
@@ -689,15 +693,15 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             if (local_69 != 0)
             {
                 char t2[8] = {0};
-                sprintf(t2, "*%d", (int)anis->size());
+                sprintf(t2, "*%d", (int)aniInfo->m_ani0.size());
                 strcat(tmp, t2);
             }
             char t3[8] = {0};
-            sprintf(t3, "*%d", (int)anis->size());
+            sprintf(t3, "*%d", (int)aniInfo->m_ani0.size());
             strcat(tmp, t3);
-            for (std::vector<LocalAniScriptMirror>::iterator ait =
-                     anis->begin();
-                 ait != anis->end(); ++ait)
+            for (std::vector<STEquipmentAniScript>::iterator ait =
+                     aniInfo->m_ani0.begin();
+                 ait != aniInfo->m_ani0.end(); ++ait)
             {
                 strcat(tmp, "*");
                 char clean[256] = {0};
@@ -730,20 +734,15 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             if (local_69 != 0)
             {
                 char t2[8] = {0};
-                sprintf(t2, "*%d", 0);
+                sprintf(t2, "*%d", i);
                 strcat(tmp, t2);
             }
             char t3[8] = {0};
-            sprintf(t3, "*%d", 0);
+            sprintf(t3, "*%d", (int)aniInfo->m_ani18.size());
             strcat(tmp, t3);
-            // anis 实际指向 EquipmentAniInfoScript（ORIG 0x898d03e 布局：+0x00 与
-            // +0x18 各一个 vector<STEquipmentAniScript>）；+0x18 为第二动画 vector。
-            // 局部镜像未建模双 vector 外层，故保留地址形式，锚定偏移【推断】。
-            std::vector<LocalAniScriptMirror>* sub =
-                (std::vector<LocalAniScriptMirror>*)((char*)anis + 0x18);
-            for (std::vector<LocalAniScriptMirror>::iterator ait =
-                     sub->begin();
-                 ait != sub->end(); ++ait)
+            for (std::vector<STEquipmentAniScript>::iterator ait =
+                     aniInfo->m_ani18.begin();
+                 ait != aniInfo->m_ani18.end(); ++ait)
             {
                 strcat(tmp, "*");
                 char clean[256] = {0};
@@ -800,7 +799,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     if (!CodePage::script2Database((char*)es->m_str6ac.c_str(), local_9fc))
     {
         cMyTrace(
-            "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
+            __PRETTY_FUNCTION__,
             0x398, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(), es->m_str6ac.c_str(),
                       "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
@@ -811,7 +810,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     if (!CodePage::script2Database((char*)local_168.c_str(), local_1290))
     {
         cMyTrace(
-            "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
+            __PRETTY_FUNCTION__,
             0x39f, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(), es->m_strb4.c_str(),
                       "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
@@ -820,14 +819,14 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     }
     MyStream buf;
     buf << param_2;
-    buf << ", '" << EscapeDB(db, local_9fc, local_3e90) << "'";
+    buf << ", '" << GetEscapeString(db, local_9fc, local_3e90) << "'";
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6b0.c_str(), local_3e90 + 0x400)
+        << GetEscapeString(db, (char*)es->m_str6b0.c_str(), local_3e90 + 0x400)
         << "'";
-    buf << ", '" << EscapeDB(db, local_1290, local_3e90 + 0x800) << "'";
+    buf << ", '" << GetEscapeString(db, local_1290, local_3e90 + 0x800) << "'";
     buf << ", " << local_158;
     buf << ", " << local_154;
-    buf << ", '" << UsableCharString(this, script) << "'";
+    buf << ", '" << this->GetUsableCharacter(script) << "'";
     buf << ", " << es->m_field4;
     buf << ", " << es->m_field5c;
     buf << ", " << es->m_field184;
@@ -902,12 +901,12 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     int iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
         << "'";
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6b8.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str6b8.c_str(), local_3e90 + iVar)
         << "'";
     buf << ", " << es->m_field440;
     buf << ", " << es->m_field24;
@@ -936,7 +935,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str668.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str668.c_str(), local_3e90 + iVar)
         << "'";
     buf << ", '"
         << std::for_each(es->m_vec66c.begin(), es->m_vec66c.end(),
@@ -945,17 +944,17 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6b0.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str6b0.c_str(), local_3e90 + iVar)
         << "'";
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6b4.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str6b4.c_str(), local_3e90 + iVar)
         << "'";
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << EscapeDB(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
         << "'";
     buf << ", " << es->m_field798;
     buf << ", '" << local_1fc << "'";
@@ -969,7 +968,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         << "'";
     buf << ", " << es->m_field434;
     buf << ", '"
-        << URLString(this, (char*)es->m_str6ac.c_str(),
+        << this->GetURL((char*)es->m_str6ac.c_str(),
                      (int)es->m_str6ac.length(), es->m_field70)
         << "'";
     buf << ", " << es->m_fieldc4;
@@ -1004,7 +1003,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         "room_list_move_speed_rate, url, icon_mark_number, "
         "extra_icon_idx_list, hp_max_rate, mp_max_rate) values(%s)",
         buf.c_str());
-    FieldChecker fc;
+    CFieldLengthChecker fc;
     fc.AddField(db->GetQueryString());
     if (!db->exec(true))
     {
@@ -1055,7 +1054,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     }
     if (isArtifact)
     {
-        InsertArtifact(this, script);
+        this->insert_artifact_info_to_db(script);
     }
     return true;
 }
@@ -1075,7 +1074,7 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     std::string typeName = ((StackScriptFull*)script)->m_flavorText;
     int out2;
     int out1;
-    if (!StackableGetType(this, typeName, 0, 0, out1, out2, false))
+    if (!GetType(typeName, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
     {
         return false;
     }
@@ -1090,7 +1089,7 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
             (char*)((StackScriptFull*)script)->m_name.c_str(), local_474))
     {
         cMyTrace(
-            "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
+            __PRETTY_FUNCTION__,
             0x523, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(),
                       ((StackScriptFull*)script)->m_name.c_str(),
@@ -1102,7 +1101,7 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
             (char*)((StackScriptFull*)script)->m_explain.c_str(), local_874))
     {
         cMyTrace(
-            "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
+            __PRETTY_FUNCTION__,
             0x52a, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
                       CodePage::database(),
                       ((StackScriptFull*)script)->m_explain.c_str(),
@@ -1111,18 +1110,18 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         return false;
     }
     buf << ((StackScriptFull*)script)->m_itNo;
-    buf << ", '" << EscapeDB(db, local_474, local_1874) << "'";
+    buf << ", '" << GetEscapeString(db, local_474, local_1874) << "'";
     buf << ", '"
-        << EscapeDB(db, (char*)((StackScriptFull*)script)->m_engName.c_str(),
+        << GetEscapeString(db, (char*)((StackScriptFull*)script)->m_engName.c_str(),
                     local_1474)
         << "'";
-    buf << ", '" << EscapeDB(db, local_874, acStack_1074) << "'";
+    buf << ", '" << GetEscapeString(db, local_874, acStack_1074) << "'";
     buf << ", " << out1;
     buf << ", " << out2;
-    buf << ", '" << UsableCharString(this, script) << "'";
+    buf << ", '" << this->GetUsableCharacter(script) << "'";
     buf << ", " << ((StackScriptFull*)script)->m_class;
     buf << ", '"
-        << AttachTypeString(this, ((StackScriptFull*)script)->m_revertType)
+        << this->GetAttachType(((StackScriptFull*)script)->m_revertType)
         << "'";
     buf << ", " << ((StackScriptFull*)script)->m_level;
     buf << ", " << 0;
@@ -1205,7 +1204,7 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         buf << ", " << e2->m_quest;
         buf << ", " << e2->m_hitRecovery;
         buf << ", " << e2->m_jump;
-        buf << ", '" << AttackElementString(this, e2) << "'";
+        buf << ", '" << this->GetAttackElement((EquipmentParameterInfo*)e2) << "'";
         buf << ", " << e2->m_attActiveStatus;
         buf << ", " << e2->m_attActiveStatusRatio;
         buf << ", " << e2->m_attActiveStatusPow;
@@ -1241,15 +1240,15 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     }
     buf << ", 0";
     buf << ", '"
-        << EscapeDB(db,
-                    URLString(this,
+        << GetEscapeString(db,
+                    this->GetURL(
                               (char*)((StackScriptFull*)script)->m_url.c_str(),
                               (int)((StackScriptFull*)script)->m_url.length(),
                               ((StackScriptFull*)script)->m_urlLen),
                     local_c74)
         << "'";
     buf << ", " << ((StackScriptFull*)script)->m_iconMarkNumber;
-    FieldChecker fc;
+    CFieldLengthChecker fc;
     db->set_query(
         "inSert into dnf_item_info(it_no, it_name, it_eng_name, it_explain, "
         "master_type, sub_type, job, class, revert, level, skill, "
@@ -1488,7 +1487,7 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
     if (!pItem)
     {
         LogManager::logFormat(1, "item.cpp",
-            "void CItemList::create_item(ENUM_ITEM_CREATE_TYPE, Inven_Item&, int)",
+            __PRETTY_FUNCTION__,
             0x98f, "find_item(%d)", item.m_addInfo);
         item.m_addInfo = -1;
         item.set_add_info(0);
@@ -1507,7 +1506,7 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
         if (item.get_add_info() > 999)
         {
             cMyTrace(
-                "void CItemList::create_item(ENUM_ITEM_CREATE_TYPE, Inven_Item&, int)",
+                __PRETTY_FUNCTION__,
                 0x9a1, 5)(
                 "CItemList::create_item, add_info >= STACK_LIMIT_ERROR , %d ITEM #%d",
                 item.get_add_info(), item.m_addInfo);
@@ -1582,7 +1581,7 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
         return true;
     }
     LogManager::logFormat(1, "item.cpp",
-        "bool CItemList::insert_item(int, int, CItem*)", 0x81f,
+        __PRETTY_FUNCTION__, 0x81f,
         "Insert Fail Item Group[%d] Index: %d", group, idx);
     return false;
 }
@@ -1594,13 +1593,13 @@ bool CItemList::init()
                         std::allocator<CItem*> >[0xc9];
     if (!m_gradeItemList)
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x78c,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x78c,
             "m_pGradeItemList = new ITEM_LIST[ITEM_GRADE_COUNT] fail");
         return false;
     }
     if (!load_item_files())
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x792,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x792,
             "load_item_files() fail");
         return false;
     }
@@ -1608,25 +1607,25 @@ bool CItemList::init()
         GlobalData::s_pCompoundBindCube)->after_addItem();
     if (!Load_Goods_File(G_CDataManager()->GetCeraShopGoodsName()))
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x7a5,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x7a5,
             "Load_Goods_File() of ItemVendingMachine fail ");
         return false;
     }
     if (!Load_Goods_File(G_CDataManager()->SuddenShopFileName1()))
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x7c8,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x7c8,
             "SuddenShopFileName1() of ItemVendingMachine fail ");
         return false;
     }
     if (!Load_Goods_File(G_CDataManager()->SuddenShopFileName2()))
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x7ce,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x7ce,
             "SuddenShopFileName2() of ItemVendingMachine fail ");
         return false;
     }
     if (!Load_Goods_File(G_CDataManager()->SuddenShopFileName3()))
     {
-        LogManager::logFormat(1, "item.cpp", "bool CItemList::init()", 0x7d4,
+        LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__, 0x7d4,
             "SuddenShopFileName3() of ItemVendingMachine fail ");
         return false;
     }
@@ -1645,8 +1644,8 @@ bool CItemList::load_item_files()
 
     sync_script::GetInstanceSyncScript()->truncate_dnf_item_info_table();
 
-    it = sync_script::g_equipItemInfoTable.begin();
-    while (it != sync_script::g_equipItemInfoTable.end())
+    it = sync_script::g_stEquipmentScriptFileList.begin();
+    while (it != sync_script::g_stEquipmentScriptFileList.end())
     {
         STEquipmentScript eqScript;
         path = it->second.c_str();
@@ -1657,7 +1656,7 @@ bool CItemList::load_item_files()
         if (!ImportEquipmentScript(&eqScript, path, false, 0, it->first))
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x8e8,
+                __PRETTY_FUNCTION__, 0x8e8,
                 "ImportEquipmentScript() fail file - %s", path);
             return false;
         }
@@ -1672,7 +1671,7 @@ bool CItemList::load_item_files()
         if (pEquip == 0)
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x903,
+                __PRETTY_FUNCTION__, 0x903,
                 "new CEquipItem error");
             return false;
         }
@@ -1680,7 +1679,7 @@ bool CItemList::load_item_files()
         if (!pEquip->verify())
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x90a,
+                __PRETTY_FUNCTION__, 0x90a,
                 "Equip item verify fail. [%s]", path);
             return false;
         }
@@ -1690,8 +1689,8 @@ bool CItemList::load_item_files()
         ++it;
     }
 
-    it = sync_script::g_stackableItemInfoTable.begin();
-    while (it != sync_script::g_stackableItemInfoTable.end())
+    it = sync_script::g_stStackableScriptFileList.begin();
+    while (it != sync_script::g_stStackableScriptFileList.end())
     {
         path = it->second.c_str();
         if (!path)
@@ -1702,14 +1701,14 @@ bool CItemList::load_item_files()
         if (!ImportStackableScript(&stackScript, path, false, it->first))
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x926,
+                __PRETTY_FUNCTION__, 0x926,
                 "importStackableScript fail file - %s", path);
             return false;
         }
         if (GlobalInstance<Arad_GiftItem_Set>::inst()->open(&stackScript))
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x931,
+                __PRETTY_FUNCTION__, 0x931,
                 "[ERROR] Arad GiftItem Setting!! [item_idx:%d][levelt:%d]",
                 stackScript.m_field0, stackScript.m_field5c);
             return false;
@@ -1723,7 +1722,7 @@ bool CItemList::load_item_files()
         if (pStack == 0)
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x941,
+                __PRETTY_FUNCTION__, 0x941,
                 "ptemp_stack_data is null");
             return false;
         }
@@ -1731,21 +1730,21 @@ bool CItemList::load_item_files()
         if (!pStack->verify())
         {
             LogManager::logFormat(1, "item.cpp",
-                "bool CItemList::load_item_files()", 0x948,
+                __PRETTY_FUNCTION__, 0x948,
                 "Stackable item verify fail. [%s]", path);
             return false;
         }
         if (pStack->GetItemType() == 7 &&
             pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
         {
-            cMyTrace trace("bool CItemList::load_item_files()", 0x94f, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x94f, 5);
             trace("Stackable item set_item fail (file [%s])", path);
             return false;
         }
         if (pStack->GetItemType() == 0xd &&
             pStack->m_lotto.m_items.size() != pStack->m_lotto.m_counts.size())
         {
-            cMyTrace trace("bool CItemList::load_item_files()", 0x957, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x957, 5);
             trace("Stackable item set_item fail 2 (file [%s])", path);
             return false;
         }
@@ -1765,7 +1764,7 @@ bool CItemList::Load_Goods_File(const char* path)
     if (!importCashShopItemList((char*)path, shopList, m_bonusList, 0, 0, 0, 0))
     {
         LogManager::logFormat(1, "item.cpp",
-            "bool CItemList::Load_Goods_File(const char*)", 0xa76,
+            __PRETTY_FUNCTION__, 0xa76,
             "importCashShopItemList() fail file - %s", path);
         return false;
     }
@@ -1813,7 +1812,7 @@ bool CItemList::Load_Goods_File(const char* path)
                     {
                         LogManager::logFormat(
                             1, "item.cpp",
-                            "bool CItemList::Load_Goods_File(const char*)",
+                            __PRETTY_FUNCTION__,
                             0xb01, "insertCeraShopItemIntoDB() fail IPG - %d",
                             item.m_field8);
                         return false;
@@ -1843,7 +1842,10 @@ bool CItemList::Load_Goods_File(const char* path)
 // 语义：填 +0x1c 的 map<string,int>：ST_EVENT_GIFT_ITEM{,2..6} → kind 1..6。
 //（依据 ctor 报告逐条 make_pair→insert 转写。）
 // ============================================================================
+// ORIG T 0x081a2a68（247 insn）：基类 Arad_ScriptLoader + vptr + 两 map 构造后，
+// 6 条 "ST_EVENT_GIFT_ITEM"[2..6] → kind 1..6 登记（ctor 报告逐条实证）。
 Arad_GiftItem_Set::Arad_GiftItem_Set()
+    : m_map(), m_kindMap()
 {
     m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM"), 1));
     m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM2"), 2));
@@ -1851,6 +1853,12 @@ Arad_GiftItem_Set::Arad_GiftItem_Set()
     m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM4"), 4));
     m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM5"), 5));
     m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM6"), 6));
+}
+
+// ORIG T 0x081a2dea：先写 vptr（基类 Arad_ScriptLoader vtable），再逆序析构
+// +0x1c map<string,int> 与 +0x04 map<long long,Data>（无虚析构，按值析构）。
+Arad_GiftItem_Set::~Arad_GiftItem_Set()
+{
 }
 
 int Arad_GiftItem_Set::open(STStackableScript* script)
@@ -1894,7 +1902,7 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
         }
     }
 
-    cMyTrace("int Arad_GiftItem_Set::open(STStackableScript*)", 0x127, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x127, 0)(
         "[!] Arad GiftItem Loding Sucess!! Item:%d", itemId);
     return 0;
 }
@@ -1956,7 +1964,7 @@ int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
     if (userLevel < ulv)
     {
         LogManager::logFormat(1, "localjapan/Arad_Script_Loader.cpp",
-                              "bool Arad_GiftItem_Set::level_check(CUser*, const CStackableItem*)",
+                              __PRETTY_FUNCTION__,
                               0x14b, "[ERROR] user level limit charac_no(%d)", userLevel);
         return 0;
     }
@@ -1973,6 +1981,14 @@ int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
 // ============================================================================
 namespace ExtreamDungeon
 {
+
+// ---- ORIG 域常量（nm：_ZN14ExtreamDungeonL…E，r 段；值自 ORIG rodata 读取）----
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+static const int GROUP_NUM_MAX = 59;          // 0x08bc4390 (0x3b)
+static const int RARITY_RATIO_MAX = 10000;    // 0x08bc438c (0x2710)
+static const int BIND_SPHERE_INDEX = 1251;    // 0x08bc4380 (0x4e3)
+static const int GOLD_BIND_SPHERE_INDEX = 1252;    // 0x08bc4384 (0x4e4)
+static const int SILVER__BIND_SPHERE_INDEX = 2670287;  // 0x08bc4388 (0x28becf)
 
 forceRule_ResultItem::forceRule_ResultItem(bool flag, int value)   // ORIG 0x832e00a
 {
@@ -2023,7 +2039,7 @@ CCompound_ExtreamDun_Item::~CCompound_ExtreamDun_Item()
 
 void CCompound_ExtreamDun_Item::after_addItem()                     // ORIG 0x832de18
 {
-    for (int i = 1; i < 0x3b; ++i)
+    for (int i = 1; i < GROUP_NUM_MAX; ++i)
     {
         for (int j = 0; j < 4; ++j)
         {
@@ -2129,27 +2145,44 @@ void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(        // ORIG 0x83
 int CCompound_ExtreamDun_Item::_convertOutputItem(                  // ORIG 0x832c5ac
     ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
 {
-    switch (eqType)
+    // docs/class_func_reports/ExtreamDungeon__CCompound_ExtreamDun_Item/_convertOutputItem.md
+    // ORIG 为二分 cmp 决策树（==2 先、>2 分支、<=2 只查 ==1），有符号 jg。
+    if ((int)eqType == 2)
+        return 2;
+    if ((int)eqType > 2)
     {
-    case 2: return 2;
-    case 1: return 1;
-    case 3: return 3;
-    case 9: return 0;
-    default: return 4;
+        if ((int)eqType == 3)
+            return 3;
+        if ((int)eqType == 9)
+            return 0;
     }
+    else
+    {
+        if ((int)eqType == 1)
+            return 1;
+    }
+    return 4;
 }
 
 int CCompound_ExtreamDun_Item::_convertInputItem(                   // ORIG 0x832c620
     ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
 {
-    switch (eqType)
+    // 同型决策树；映射：1→0, 2→1, 3→2, 9→0, 其余→3。
+    if ((int)eqType == 2)
+        return 1;
+    if ((int)eqType > 2)
     {
-    case 2: return 1;
-    case 1: return 0;
-    case 3: return 2;
-    case 9: return 0;
-    default: return 3;
+        if ((int)eqType == 3)
+            return 2;
+        if ((int)eqType == 9)
+            return 0;
     }
+    else
+    {
+        if ((int)eqType == 1)
+            return 0;
+    }
+    return 3;
 }
 
 int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x832d7d6
@@ -2440,7 +2473,7 @@ int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x
     return found;
 }
 
-bool CCompound_ExtreamDun_Item::BindTable_Predicate(                // ORIG T 0x832c3cc
+bool BindTable_Predicate(                                           // ORIG T 0x832c3cc
     const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b)
 {
     if (a.m_usableLevel != b.m_usableLevel)
@@ -2648,8 +2681,6 @@ int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
 
 }
 
-// ORIG _ZN9CItemList15GetRestrictCodeEi @ 0x0817a10c (W)：
-// hash_map(this+0x2c = m_lottoMap).find(itemIdx)；未命中返回 0，否则 value。
 int CItemList::GetRestrictCode(int itemIdx)
 {
     __gnu_cxx::hash_map<unsigned int, int, __gnu_cxx::hash<unsigned int>,
@@ -2657,6 +2688,17 @@ int CItemList::GetRestrictCode(int itemIdx)
                         std::allocator<int> >::iterator it =
         m_lottoMap.find((unsigned int)itemIdx);
     if (it == m_lottoMap.end())
+        return 0;
+    return it->second;
+}
+
+// ORIG W 0x0869476e _ZNK9CItemList21GetQuestItemDropBounsERKm：
+// m_lottoCount(+0x5c, std::map<unsigned long,int>).find(key)；
+// 命中返 second（mov 0x4 偏移），未命中返 0。
+int CItemList::GetQuestItemDropBouns(const unsigned long& key) const
+{
+    std::map<unsigned long, int>::const_iterator it = m_lottoCount.find(key);
+    if (it == m_lottoCount.end())
         return 0;
     return it->second;
 }

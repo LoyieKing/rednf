@@ -188,8 +188,7 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         {
             if (mobPtr->m_hellPartyGroupIdx != 0)
             {
-                if (CAICharacterList::get(G_CDataManager()->m_aiCharacterList,
-                                          (unsigned int)mobPtr->m_mobIndex) == NULL)
+                if (G_CDataManager()->m_aiCharacterList->get((unsigned int)mobPtr->m_mobIndex) == NULL)
                 {
                     LogManager::logFormat(
                         1, "battle_field.cpp", s_bfkm_pretty, 0x1bed,
@@ -210,8 +209,7 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
     }
     else if ((signed char)mobPtr->m_roleType <= 8)
     {
-        if (CAICharacterList::get(G_CDataManager()->m_aiCharacterList,
-                                  (unsigned int)mobPtr->m_mobIndex) == NULL)
+        if (G_CDataManager()->m_aiCharacterList->get((unsigned int)mobPtr->m_mobIndex) == NULL)
         {
             LogManager::logFormat(
                 1, "battle_field.cpp", s_bfkm_pretty, 0x1bfd,

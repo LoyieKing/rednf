@@ -22,6 +22,7 @@
 #include <set>
 
 #include "PacketBuf.h"
+#include "TODLayer.h"      // TOD_Layer（原本头定义，抽出供 SigTypes_D.h 共用）
 
 // ---- _APCInfo：TOD APC 数据块（POD，sizeof 0xbc，ORIG 无独立符号）--------
 struct _APCInfo
@@ -42,31 +43,13 @@ struct _APCInfo
 
 class CUser;
 
-class TOD_Layer
-{
-public:
-    TOD_Layer(unsigned short layer);       // ORIG T 0x085fe7b4（C1/C2 同址）
-    void increaseLayer();                 // ORIG T 0x085fe824：m_layer+1（TOD_UserState::ClearLayer 用）
-
-    unsigned short GetLayer() const;       // ORIG W 0x0822ec40（定义 PartyDepsA2.cpp）
-    void resetLayer() { m_layer = 1; }     // ORIG 0x085fe852
-    TOD_Layer operator+(int n) const;      // ORIG T 0x086439c8（定义 PartyDepsA2.cpp）
-
-    bool operator<(TOD_Layer const& rhs) const   // ORIG W 0x085ff114（map key 序）
-    {
-        return m_layer < rhs.m_layer;
-    }
-
-    unsigned short m_layer;                // +0x00
-};
-
 class SendingAPC_Info
 {
 public:
     SendingAPC_Info();                     // ORIG T 0x085fe860
     ~SendingAPC_Info();                    // ORIG T 0x085fe8ca
-
     void Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info);  // ORIG T 0x085fe906
+    void set_data(_APCInfo const& info);   // ORIG T 0x085fe8e0：memcpy(this+0x17338, &info, 0xbc)
     void Send_APC_Info(TOD_Layer const& layer, CUser* user);          // ORIG T 0x085febca
 
     int get_user_charac_no()               // ORIG W 0x085ff12c：*(int*)this
@@ -89,7 +72,9 @@ public:
     TowerOfDespair_APC_Mgr();     // 定义 CtorProducers_1.cpp
     ~TowerOfDespair_APC_Mgr();    // 定义 CtorProducers_1.cpp
     void Send_APC_Info(TOD_Layer const& layer, CUser* user);          // ORIG T 0x085feee4
-    const char* Get_APC_Name_byIndex(const TOD_Layer& layer);          // ORIG T 0x085ff020
+    void Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info);  // ORIG T 0x085fed2e
+    void Reset_APC_Info();                                            // ORIG T 0x085feed0
+    const char* Get_APC_Name_byIndex(TOD_Layer const& layer);         // ORIG T 0x085ff020（LinkE2 补）
 
     std::map<TOD_Layer, SendingAPC_Info> m_APCInfoMap;   // +0x00（ORIG 唯一成员）
 };
@@ -99,6 +84,10 @@ class CDungeon;
 class TowerOfDespairMgr
 {
 public:
+public:
+    void ResetAPCInfo();   // ORIG T 0x0864431e（InterWave1 W7 批）
+    void SetAPCInfo(unsigned int idx, const struct _APCInfo& info);  // ORIG T 0x086442ca
+    bool IsTowerOfDespairDungeon_ByIndex(int idx) const;  // ORIG T 0x08644272
     TowerOfDespairMgr();                              // ORIG 0x08643ac4
     ~TowerOfDespairMgr();                             // ORIG 0x08643be2
     int LoadScript(const char* dir, const char* path); // ORIG 0x08643e7e（0=成功）
@@ -114,6 +103,8 @@ public:
     const char* Get_APCNameByLayer(const TOD_Layer& layer);     // ORIG T 0x08643e4a
     void SendAPCInfo(TOD_Layer const& layer, CUser* user);      // ORIG T 0x08644338
     static void SendMessageToCUser(CUser* user, char* msg);     // ORIG T 0x08644366
+    void Reload_APC_Info();   // ORIG T 0x08644360（空函数：仅 prologue/epilogue）
+    void _layerInfo(CUser* user);   // ORIG T 0x08644470（空函数：仅 prologue/epilogue）
     unsigned short GetMinLv() { return m_minLevel; }   // ORIG W 0x08643a1e：movzwl +0x34e
 
     CDungeon* m_layerDungeons[101];                    // +0x000

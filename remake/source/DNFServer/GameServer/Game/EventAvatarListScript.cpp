@@ -14,7 +14,12 @@ void EventAvatarListScript::clear()
     m_avatars.clear();
 }
 
-bool EventAvatarListScript::isfindEventAvatar(int avatar_id) const
+bool EventAvatarListScript::isfindEventAvatar(int avatar_id)
 {
-    return !m_avatars.empty() && m_avatars.find(avatar_id) != m_avatars.end();
+    if (m_avatars.empty())
+        return false;
+    std::set<int>::const_iterator it = m_avatars.find(avatar_id);
+    if (it != m_avatars.end())
+        return true;
+    return false;
 }

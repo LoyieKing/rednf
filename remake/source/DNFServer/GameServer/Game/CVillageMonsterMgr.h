@@ -54,23 +54,35 @@ struct MapArea
     // ORIG T 0x82f0298：矩形包含判定（m_x<=x<=m_x+m_w 且 m_y<=y<=m_y+m_h）。
     int include(int x, int y);
 };
+// ORIG 枚举 tag：_ZN16village_attacked18CVillageMonsterMgr23OnDestroyVillageMonsterE28ENUM_VILLAGE_ATTACKED_REWARD
+// （OnDestroyVillageMonster/SetRewardType 参数，写入 m_field20；ORIG mangled 用
+//   非限定 E28ENUM_VILLAGE_ATTACKED_REWARD，故枚举必须位于全局作用域）
+enum ENUM_VILLAGE_ATTACKED_REWARD
+{
+    ENUM_VILLAGE_ATTACKED_REWARD_DEFAULT = 0,
+    ENUM_VILLAGE_ATTACKED_REWARD_1 = 1
+};
+
 namespace village_attacked
 {
-
 // ---- Zone（ORIG ctor 0x86b4b3c：两个 unsigned char；map key） ----
 struct Zone
 {
     Zone(unsigned char a, unsigned char b) : m_a(a), m_b(b) {}
+
+    // ORIG W 0x086b4af2：const 成员 operator<（mangled ZNK...ZoneltERKS0_）。
+    bool operator<(const Zone& o) const
+    {
+        if (m_a < o.m_a)
+            return true;
+        if (m_a == o.m_a && m_b < o.m_b)
+            return true;
+        return false;
+    }
+
     unsigned char m_a;
     unsigned char m_b;
 };
-
-inline bool operator<(const Zone& x, const Zone& y)
-{
-    if (x.m_a != y.m_a)
-        return x.m_a < y.m_a;
-    return x.m_b < y.m_b;
-}
 
 // ORIG 枚举 tag：_ZN16village_attacked26ENUM_VILLAGE_MONSTER_STATEE
 enum ENUM_VILLAGE_MONSTER_STATE
@@ -78,14 +90,6 @@ enum ENUM_VILLAGE_MONSTER_STATE
     ENUM_VILLAGE_MONSTER_STATE_0 = 0,
     ENUM_VILLAGE_MONSTER_STATE_1 = 1,
     ENUM_VILLAGE_MONSTER_STATE_2 = 2
-};
-
-// ORIG 枚举 tag：_ZN16village_attacked18CVillageMonsterMgr23OnDestroyVillageMonsterE28ENUM_VILLAGE_ATTACKED_REWARD
-// （OnDestroyVillageMonster 参数；写入 m_field20，SetRewardType/GetRewardType 使用）。
-enum ENUM_VILLAGE_ATTACKED_REWARD
-{
-    ENUM_VILLAGE_ATTACKED_REWARD_DEFAULT = 0,
-    ENUM_VILLAGE_ATTACKED_REWARD_1 = 1
 };
 
 class CVillageMonsterArea;
@@ -173,6 +177,7 @@ public:
     int OnKillVillageMonster(CUser* user, bool flag);
                                                       // _ZN16village_attacked18CVillageMonsterMgr20OnKillVillageMonsterEP5CUserb (0x86b4866)
     int GetRewardType();
+    void SetRewardType(ENUM_VILLAGE_ATTACKED_REWARD reward);  // ORIG W 0x0847dd44
                                                       // _ZN16village_attacked18CVillageMonsterMgr13GetRewardTypeEv
     void OnMoveArea(CUser* user);                    // _ZN16village_attacked18CVillageMonsterMgr10OnMoveAreaEP5CUser (0x86b45bc)
     bool OnEvent();                                   // _ZN16village_attacked18CVillageMonsterMgr7OnEventEv (0x82f0f44)

@@ -108,33 +108,33 @@ bool WongWork::CSimpleSSO::_getGameStartTime(unsigned int mId, long& loginTime,
         return false;
     if (!m_mysql->get_uint(col++, reinterpret_cast<unsigned int&>(expireValue)))
         return false;
-    if (!m_mysql->get_int(col++, *reinterpret_cast<int*>(reinterpret_cast<char*>(&out) + 0xc)))  // report_cnt +0x0c
+    if (!m_mysql->get_int(col++, out.m_reportCnt))  // report_cnt +0x0c
         return false;
     {
         col++;
-        if (!m_mysql->get_int(col++, *(int*)&out))                       // last_play_time +0x00
+        if (!m_mysql->get_int(col++, out.m_lastPlayTime))                       // last_play_time +0x00
             return false;
-        if (!m_mysql->get_int(col++, *reinterpret_cast<int*>(reinterpret_cast<char*>(&out) + 4)))  // account_fail +0x04
+        if (!m_mysql->get_int(col++, out.m_accountFail))  // account_fail +0x04
             return false;
-        if (!m_mysql->get_int(col++, *reinterpret_cast<int*>(reinterpret_cast<char*>(&out) + 8)))  // total_account_fail +0x08
+        if (!m_mysql->get_int(col++, out.m_totalAccountFail))  // total_account_fail +0x08
             return false;
-        if (!m_mysql->get_byte(col++, *reinterpret_cast<char*>(reinterpret_cast<char*>(&out) + 0x10)))  // reliable_flag
+        if (!m_mysql->get_byte(col++, out.m_reliableFlag))  // reliable_flag
             return false;
-        if (!m_mysql->get_uint(col++, *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&out) + 0x14)))  // trade_gold_daily
+        if (!m_mysql->get_uint(col++, out.m_tradeGoldDaily))  // trade_gold_daily
             return false;
-        if (!m_mysql->get_str(col++, reinterpret_cast<char*>(&out) + 0x18, 0x14))  // login_ip +0x18
+        if (!m_mysql->get_str(col++, out.m_loginIp, 0x14))  // login_ip +0x18
             return false;
-        if (!m_mysql->get_byte(col++, *reinterpret_cast<char*>(reinterpret_cast<char*>(&out) + 0x2c)))  // security_flag
+        if (!m_mysql->get_byte(col++, out.m_securityFlag))  // security_flag
             return false;
-        if (!m_mysql->get_uint(col++, *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&out) + 0x30)))  // dungeon_gain_gold
+        if (!m_mysql->get_uint(col++, out.m_dungeonGainGold))  // dungeon_gain_gold
             return false;
-        if (!m_mysql->get_int(col++, *reinterpret_cast<int*>(reinterpret_cast<char*>(&out) + 0x34)))  // school_id
+        if (!m_mysql->get_int(col++, out.m_schoolId))  // school_id
             return false;
-        if (!m_mysql->get_float(col++, *reinterpret_cast<float*>(reinterpret_cast<char*>(&out) + 0x38)))  // rating
+        if (!m_mysql->get_float(col++, out.m_rating))  // rating
             return false;
-        if (!m_mysql->get_ubyte(col++, *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(&out) + 0x3c)))  // tutorial_skipable
+        if (!m_mysql->get_ubyte(col++, out.m_tutorialSkipable))  // tutorial_skipable
             return false;
-        if (!m_mysql->get_ubyte(col++, *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(&out) + 0x3d)))  // event_charac_flag
+        if (!m_mysql->get_ubyte(col++, out.m_eventCharacFlag))  // event_charac_flag
             return false;
     }
     // ORIG 尾部：*param_2=t1; *param_3=t2; +0x40=t1; +0x44=t2

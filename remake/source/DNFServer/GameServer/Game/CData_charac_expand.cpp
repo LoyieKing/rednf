@@ -19,9 +19,9 @@ void CData::alter()
     m_bIsSave = 1;
 }
 
-bool CData::isSave() const
+char CData::isSave()
 {
-    return m_bIsSave != 0;
+    return m_bIsSave;
 }
 
 bool CData::saveData(CUser* pUser)

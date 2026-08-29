@@ -18,11 +18,13 @@ public:
         int m_playCount;   // +0x04（+= playCount）
         stDungeonPlayInfo() : m_userCount(0), m_playCount(0) {}
     };
+    void IncreaseLevelDungeonPlay(int level, int playCount);  // ORIG T 0x0860ecc6
 
-    // ORIG 0x0860ecc6：level ∉ [1,200] 仅 trace；否则 find(level)，
-    // 命中 → m_playCount += playCount、++m_userCount；未命中 → insert 新节点
-    // （m_userCount=1，m_playCount=playCount）。
-    void IncreaseLevelDungeonPlay(int level, int playCount);
+    // ORIG 0x0860edf4 T（_ZN26CLevelDungeonPlayStatistic14InsertDatabaseEv）：
+    // 统计表空直接返回；否则 s_stream_pool 取流（Statistics.cpp:0x569），
+    // 写消息头 0x107、-1、表 size，遍历每节点输出 (level, m_userCount,
+    // m_playCount) 三字段，put(LOGDB_Q) 入库后 clear 统计表。
+    void InsertDatabase();
 
     std::map<int, stDungeonPlayInfo> m_levelPlayMap;   // +0x00（sizeof(map)==0x18）
 };

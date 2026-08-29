@@ -2,8 +2,11 @@
 // df_game_r 还原 —— CerashopAddRestrict / CItemLimitEdition / CeraShop 事件
 // （G4 商城/交易批次）
 // 参照 docs/class_func_reports/CerashopAddRestrict*.md、CItemLimitEdition*.md、
-// CCeraShopBonusItemEvent.md、CEventCeraShopRewardPoint.md + ORIG 反汇编。
+// CCeraShopBonusItemEvent.md + ORIG 反汇编。
 // 用户限购数据位于 CUser +0x8d1e4（4 张 map）。
+// CEventCeraShopRewardPoint 已拆分至 CEventCeraShopRewardPoint.h/cpp
+// （CEventBase 权威声明见 CGuildServerProxy.h，本文件内仅保留
+//  CCeraShopBonusItemEvent 及其局部基类）。
 // ============================================================================
 
 #include <ctime>
@@ -20,6 +23,8 @@
 #include "InterfacePacketBuf.h"
 #include "Arad_DataManager.h"
 #include "CItemLimitEdition.h"
+#include "CEnvironment.h"   // G_CEnvironment()（GetCalcDay 读 env+0x37c）
+#include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
 
 // DB 商城限购请求类（权威定义见 DB_CerashopAddRestrict.cpp，ORIG T @ 0x080e1ff6/0x080e17ba）。
 class DB_LoadCerashopAddRestrictType
@@ -59,17 +64,17 @@ int ScriptLoader::LoadScript()
     std::string section;
     while (ScanType(section, true)) {
         if (section == "[account restrict]") {
-            if (LoadScriptDaily(RestrictType_Account) < 0)
+            if (LoadScriptDaily(RestrictType::RestrictType_Account) < 0)
                 return -1;
         } else if (section == "[character restrict]") {
-            if (LoadScriptDaily(RestrictType_Charac) < 0)
+            if (LoadScriptDaily(RestrictType::RestrictType_Charac) < 0)
                 return -1;
         }
     }
     return 0;
 }
 
-int ScriptLoader::LoadScriptDaily(RestrictType type)
+int ScriptLoader::LoadScriptDaily(RestrictType::T type)
 {
 
     bool ok = false;
@@ -77,19 +82,20 @@ int ScriptLoader::LoadScriptDaily(RestrictType type)
         int v0 = ScanInt(&ok);
         if (!ok)
             break;
-        InfoDaily* info = new InfoDaily;
-        info->m_type = type;
-        info->m_ipgNo = (unsigned int)v0;
-        info->m_field8 = ScanInt(&ok);
+        // ORIG 0x08abf4de：new InfoDaily + 7 参 ctor（无默认 ctor 符号）。
+        unsigned int ipgNo = (unsigned int)v0;
+        int field8 = ScanInt(&ok);
         short timeBuf[8];
         extern int readTime(short* buf);
         readTime(timeBuf);
         extern unsigned int uint32Time(short* buf);
-        info->m_start = (int)uint32Time(timeBuf);
+        int start = (int)uint32Time(timeBuf);
         readTime(timeBuf);
-        info->m_end = (int)uint32Time(timeBuf);
-        info->m_limit = ScanInt(&ok);
-        info->m_field18 = ScanInt(&ok);
+        int end = (int)uint32Time(timeBuf);
+        int limit = ScanInt(&ok);
+        int field18 = ScanInt(&ok);
+        InfoDaily* info = new InfoDaily(type, ipgNo, (unsigned int)field8,
+                                        start, end, limit, field18);
         m_infoMap[info->m_ipgNo] = info;
     }
     return 0;
@@ -113,7 +119,7 @@ bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
     return m_infoMap.find(ipgNo) != m_infoMap.end();
 }
 
-// ---- readTime / uint32Time / GetCalcDay ----
+// ---- readTime / uint32Time ----
 int readTime(short* out)
 {
 
@@ -145,10 +151,90 @@ unsigned int uint32Time(short* buf)
     return (unsigned int)mktime(tm);
 }
 
-// 用户侧地图（CUser::m_ceraUserInfo @ +0x8d1e4）
-static UserInfo& UserCeraInfo(CUser* u)
+// ---- 命名空间级辅助（ORIG 报告 CerashopAddRestrict/*.md）----
+
+// ORIG 0x080e0a43（static，L mangled；FindUserInfoDetail.md 全文转写）：
+//   idxMap.find(key)：未命中 insert(key,0) 取返回迭代器；it->second += add；
+//   dailyMap.find(key)：命中 → now<nextDate 时 (count+idx)<=field8 → 1 否则 0；
+//     超期 → count=0，idx<=field8 → 1 否则 0；未命中 → field8<idx → 0 否则 1。
+static int FindUserInfoDetail(
+    std::map<unsigned int, unsigned int>& idxMap,
+    std::map<unsigned int, paramDaily*>& dailyMap,
+    unsigned int key, InfoDaily* info, unsigned int add)
 {
-    return u->m_ceraUserInfo;
+    std::map<unsigned int, unsigned int>::iterator it = idxMap.find(key);
+    if (it == idxMap.end()) {
+        it = idxMap.insert(
+                 std::map<unsigned int, unsigned int>::value_type(key, 0)).first;
+    }
+    it->second += add;
+
+    std::map<unsigned int, paramDaily*>::iterator it2 = dailyMap.find(key);
+    if (it2 != dailyMap.end()) {
+        paramDaily* daily = it2->second;
+        time_t now = time(0);
+        if (now < daily->m_nextDate) {
+            if ((unsigned int)(daily->m_count + it->second) <=
+                (unsigned int)info->m_field8)
+                return 1;
+        } else {
+            daily->m_count = 0;
+            if ((unsigned int)it->second <= (unsigned int)info->m_field8)
+                return 1;
+        }
+        return 0;
+    }
+    if ((unsigned int)info->m_field8 < (unsigned int)it->second)
+        return 0;
+    return 1;
+}
+
+// ORIG 0x080e10d7（static，L mangled；GetCalcDay.md 全文转写）：
+//   days=(m_end-m_start)/0x15180+1；m_limit>0 → days=m_limit；t=m_start，
+//   循环 t+=days*0x15180 至 t>now；localtime_r 置 tm_hour=G_CEnvironment()+0x37c、
+//   min/sec=0，mktime 返回。
+static int GetCalcDay(const InfoDaily* info)
+{
+    int days = (info->m_end - info->m_start) / 0x15180 + 1;
+    if (info->m_limit > 0)
+        days = info->m_limit;
+    time_t t = (time_t)info->m_start;
+    time_t now = time(0);
+    while (t <= now)
+        t += days * 0x15180;
+    struct tm local44;
+    localtime_r(&t, &local44);
+    local44.tm_hour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c
+    local44.tm_min = 0;
+    local44.tm_sec = 0;
+    return (int)mktime(&local44);
+}
+
+// ORIG 0x080e1196（命名空间级，T mangled；InputBuyInfoDetail.md 全文转写）：
+//   m.find(key)：命中 → m_count += count；未命中 → new paramDaily 清零、
+//   m_count=count、m_ipgNo=key 后 insert；尾 m_nextDate=GetCalcDay(info)，返回 pd。
+paramDaily* InputBuyInfoDetail(
+    std::map<unsigned int, paramDaily*>& m,
+    const InfoDaily* info, unsigned int key, unsigned int count)
+{
+    paramDaily* result = 0;
+    std::map<unsigned int, paramDaily*>::iterator it = m.find(key);
+    if (it != m.end()) {
+        result = it->second;
+        result->m_count += (int)count;
+    } else {
+        paramDaily* pd = new paramDaily;
+        pd->m_ipgNo = 0;
+        pd->m_count = 0;
+        pd->m_nextDate = 0;
+        pd->m_count = (int)count;
+        pd->m_ipgNo = key;
+        std::pair<unsigned int, paramDaily*> p(key, pd);
+        m.insert(p);
+        result = pd;
+    }
+    result->m_nextDate = GetCalcDay(info);
+    return result;
 }
 
 // ORIG 0x080e09bc：基类 ARAD::ScriptInterface 仅置 vptr（4 字节），随后清
@@ -166,6 +252,9 @@ Manager::~Manager()
 
 bool Manager::Load()
 {
+    // ORIG 0x080e0e08：printf("[!] Loading CeraShop Add Restrict Script ...") 后
+    // 调 ScriptLoader::LoadScript()；非 0 返回 0，否则 1。
+    printf("[!] Loading CeraShop Add Restrict Type script - \n");  // ORIG 串无 \n，仅尾随空格
     return m_loader.LoadScript() == 0;
 }
 
@@ -180,65 +269,49 @@ bool Manager::FindIpgNo(unsigned int ipgNo)
     return m_loader.FindIpgNo(ipgNo);
 }
 
+// ORIG 0x080e0bee（报告 CheckBuyableProduct.md 全文转写）：
+//   type==0 → 清 m_field30/m_field48；GetRestrictInfo 未命中 → 1；
+//   info->m_end < time(0) → 0；m_type==0/1 → FindUserInfoDetail(...)；否则 0。
 int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
                                  unsigned int itemIdx, int type)
 {
+    UserInfo& ui = user->m_ceraUserInfo;
     if (type == 0) {
-        UserCeraInfo(user).m_field30.clear();
-        UserCeraInfo(user).m_field48.clear();
+        ui.m_field30.clear();
+        ui.m_field48.clear();
     }
     InfoDaily* info = m_loader.GetRestrictInfo(ipgNo);
     if (info == 0)
         return 1;
-    if (info->m_type == 0) {
-        // 账号级：检查/登记账号限购记录
-        std::map<unsigned int, paramDaily*>& m = UserCeraInfo(user).m_accountDaily;
-        std::map<unsigned int, paramDaily*>::iterator it = m.find(itemIdx);
-        paramDaily* daily;
-        if (it == m.end()) {
-            daily = new paramDaily;
-            daily->m_ipgNo = itemIdx;
-            daily->m_count = 0;
-            daily->m_nextDate = 0;
-            m[itemIdx] = daily;
-        } else {
-            daily = it->second;
-        }
-        UserCeraInfo(user).m_field30[itemIdx] =
-            daily ? (unsigned int)daily->m_count : 0;
-    } else {
-        std::map<unsigned int, paramDaily*>& m = UserCeraInfo(user).m_characDaily;
-        std::map<unsigned int, paramDaily*>::iterator it = m.find(itemIdx);
-        paramDaily* daily;
-        if (it == m.end()) {
-            daily = new paramDaily;
-            daily->m_ipgNo = itemIdx;
-            daily->m_count = 0;
-            daily->m_nextDate = 0;
-            m[itemIdx] = daily;
-        } else {
-            daily = it->second;
-        }
-        UserCeraInfo(user).m_field48[itemIdx] =
-            daily ? (unsigned int)daily->m_count : 0;
-    }
-    return 1;
+    if (info->m_end < (int)time(0))
+        return 0;
+    if (info->m_type == 0)
+        return FindUserInfoDetail(ui.m_field30, ui.m_accountDaily,
+                                  ipgNo, info, itemIdx);
+    if (info->m_type == 1)
+        return FindUserInfoDetail(ui.m_field48, ui.m_characDaily,
+                                  ipgNo, info, itemIdx);
+    return 0;
 }
 
+// ORIG T 0x080e0d14（LinkE2.JpnExImpl 批次修正）：static 成员；定义体内经
+// ARAD::Singleton<Manager>::Get() 调 FindIpgNo/InputBuyInfo/SendSyncPacket。
 void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                         unsigned int itemIdx)
 {
-    // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
+    if (!ARAD::Singleton<Manager>::Get()->FindIpgNo(ipgNo))
+        return;
     DBInputData data;
-    if (InputBuyInfo(user, ipgNo, itemIdx, data) != 0) {
+    if (ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data) != 0) {
+        // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
         DB_SaveCerashopAddRestrictType::makeRequest(user, data);
-        SendSyncPacket(user);
+        ARAD::Singleton<Manager>::Get()->SendSyncPacket(user);
     }
 }
 
 void Manager::ClearBuyRestrictItem(CUser* user)
 {
-    UserInfo& info = UserCeraInfo(user);
+    UserInfo& info = user->m_ceraUserInfo;
     info.m_accountDaily.clear();
     info.m_characDaily.clear();
     info.m_field30.clear();
@@ -250,6 +323,7 @@ void Manager::LoadRequestBuyRestrictItem(CUser* user)
     // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e1ff6）。
     DB_LoadCerashopAddRestrictType::makeRequest(user);
 }
+
 void Manager::SendSyncPacket(CUser* user)
 {
     // ORIG：ARAD::Singleton<CerashopAddRestrict::Manager>::Get()->makeSyncPacket(user)
@@ -257,22 +331,59 @@ void Manager::SendSyncPacket(CUser* user)
     ARAD::Singleton<CerashopAddRestrict::Manager>::Get()->makeSyncPacket(user);
 }
 
-void Manager::makeSyncPacket(CUser* user)
+// ORIG 0x080e0e68（报告 GetItemListForPacket.md 全文转写）：
+//   遍历 m（begin/end 各求值一次，while 循环后缀 ++）：
+//   GetRestrictInfo(it->first) 命中且 info->m_field8 <= it->second->m_count
+//   （无符号比较 setbe）时 out.push_back(it->first)。
+void Manager::GetItemListForPacket(
+    std::vector<unsigned int, std::allocator<unsigned int> >& out,
+    std::map<unsigned int, paramDaily*,
+             std::less<unsigned int>,
+             std::allocator<std::pair<unsigned int const, paramDaily*> > >& m)
 {
-    PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0x122);
-    std::map<unsigned int, paramDaily*>& m = UserCeraInfo(user).m_accountDaily;
-    buf->put_short((int)m.size());
-    for (std::map<unsigned int, paramDaily*>::iterator it = m.begin();
-         it != m.end(); ++it) {
-        buf->put_int(it->first);
-        buf->put_int(it->second ? it->second->m_count : 0);
+    std::map<unsigned int, paramDaily*>::iterator it = m.begin();
+    std::map<unsigned int, paramDaily*>::iterator end = m.end();
+    while (it != end) {
+        InfoDaily* info = m_loader.GetRestrictInfo(it->first);
+        if (info != 0) {
+            if ((unsigned int)info->m_field8 <= (unsigned int)it->second->m_count)
+                out.push_back(it->first);
+        }
+        it++;
     }
-    buf->finalize(true);
-    user->Send(packet);
 }
 
+// ORIG 0x080e0f3a（报告 makeSyncPacket.md 全文转写）：
+//   m_accountDaily.size()+m_characDaily.size() 非零时，vector 收集两表
+//   GetItemListForPacket 结果；非空则 PacketGuard 组 0x222 头：
+//   put_int(size) + 逐项 put_int，finalize(true) 后 CUser::Send。
+void Manager::makeSyncPacket(CUser* user)
+{
+    UserInfo& info = user->m_ceraUserInfo;
+    int total = (int)info.m_accountDaily.size() + (int)info.m_characDaily.size();
+    if (total != 0) {
+        std::vector<unsigned int> list;
+        GetItemListForPacket(list, info.m_accountDaily);
+        GetItemListForPacket(list, info.m_characDaily);
+        if (!list.empty()) {
+            PacketGuard packet;
+            InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
+            buf->clear();
+            buf->put_header(0, 0x222);
+            buf->put_int((int)list.size());
+            for (unsigned int i = 0; i < list.size(); ++i)
+                buf->put_int((int)list[i]);
+            buf->finalize(true);
+            user->Send(packet);
+        }
+    }
+}
+
+// ORIG 0x080e129a（报告 InputBuyInfo.md 全文转写）：
+//   GetRestrictInfo 未命中 → 0；out.m_pInfo=info；m_type==0/1 时先在
+//   m_field30/m_field48 中 find(ipgNo) 命中则 erase，再
+//   InputBuyInfoDetail(...) 并把返回值写入 out.m_result；
+//   尾判 out.m_result==0 → 0，否则 1；其它 m_type → 0。
 int Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
                           DBInputData& out)
 {
@@ -280,21 +391,24 @@ int Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
     if (info == 0)
         return 0;
     out.m_pInfo = info;
-    std::map<unsigned int, paramDaily*>& m =
-        info->m_type == 0 ? UserCeraInfo(user).m_accountDaily
-                          : UserCeraInfo(user).m_characDaily;
-    std::map<unsigned int, paramDaily*>::iterator it = m.find(itemIdx);
-    paramDaily* daily;
-    if (it == m.end()) {
-        daily = new paramDaily;
-        daily->m_ipgNo = itemIdx;
-        daily->m_count = 1;
-        daily->m_nextDate = 0;
-        m[itemIdx] = daily;
+    UserInfo& ui = user->m_ceraUserInfo;
+    if (info->m_type == 0) {
+        std::map<unsigned int, unsigned int>::iterator it = ui.m_field30.find(ipgNo);
+        if (it != ui.m_field30.end())
+            ui.m_field30.erase(it);
+        out.m_result = (int)InputBuyInfoDetail(ui.m_accountDaily, info,
+                                               ipgNo, itemIdx);
+    } else if (info->m_type == 1) {
+        std::map<unsigned int, unsigned int>::iterator it = ui.m_field48.find(ipgNo);
+        if (it != ui.m_field48.end())
+            ui.m_field48.erase(it);
+        out.m_result = (int)InputBuyInfoDetail(ui.m_characDaily, info,
+                                               ipgNo, itemIdx);
     } else {
-        daily = it->second;
-        daily->m_count += 1;
+        return 0;
     }
+    if (out.m_result == 0)
+        return 0;
     return 1;
 }
 
@@ -309,35 +423,46 @@ int Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
         ->CheckBuyableProduct(user, ipgNo, itemIdx, type);
 }
 
+// ORIG 0x080e142a sz 0xcb（_ZN19CerashopAddRestrict7Manager11LoadProcessE
+// RSt3mapIjjSt4lessIjESaISt4pairIKjjEEERS1_IjPNS_10paramDailyES3_SaIS4_IS5_SB_EEEP35SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE；
+// objdump 转写，无独立报告）：idxMap.clear()；循环 i=0..sig+0x00 的 count
+// （unsigned 比较）：new paramDaily（+0x00/+0x04/+0x08 清零），从 sig+0x08
+// 起以 0xc 步长取第 i 元素的 3 个 uint 依序填入
+// pd->{m_ipgNo,m_count,m_nextDate}，再 dailyMap.insert(pair(elem[0], pd))。
+// idxMap 仅被 clear（ORIG 无其它访问）。
+void CerashopAddRestrict::Manager::LoadProcess(
+    std::map<unsigned int, unsigned int>& idxMap,
+    std::map<unsigned int, CerashopAddRestrict::paramDaily*>& dailyMap,
+    SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig)
+{
+    idxMap.clear();
+    for (unsigned int i = 0; *(unsigned int*)sig > i; ++i)
+    {
+        paramDaily* pd = new paramDaily;
+        pd->m_ipgNo = 0;
+        pd->m_count = 0;
+        pd->m_nextDate = 0;
+        unsigned int* elem = reinterpret_cast<unsigned int*>(
+            reinterpret_cast<char*>(sig) + 8 + i * 0xc);
+        pd->m_ipgNo = elem[0];
+        pd->m_count = elem[1];
+        pd->m_nextDate = elem[2];
+        dailyMap.insert(
+            std::map<unsigned int, paramDaily*>::value_type(elem[0], pd));
+    }
+}
+
 }  // namespace CerashopAddRestrict
 // ============================================================================
 // CCeraShopBonusItemEvent / CEventCeraShopRewardPoint（商城事件）
 // ============================================================================
-class CEventBase
-{
-public:
-    CEventBase() {}
-    ~CEventBase() {}
-    void SetEventFlag(bool flag) { m_flag = flag; }
-    char m_flag;
-};
+// 类声明见 CCeraShopBonusItemEvent.h（权威，继承 CGuildServerProxy.h 的
+// CEventBase；vtable 序 / +0x0c m_rate 布局依 ORIG 报告）。方法定义如下。
 
-class CCeraShopBonusItemEvent : public CEventBase
-{
-public:
-    CCeraShopBonusItemEvent();
-    ~CCeraShopBonusItemEvent();
-    void StartEvent();
-    void StartEvent(unsigned short bonusRate);
-    void EndEvent();
-    int getBonusRate();
-    char m_padC[4];   // +0x0c（bonusRate）
-};
-
+// ORIG C1 0x0810a2dc：仅 CEventBase::CEventBase() + 本类 vptr，无成员初始化
+// （InitEventManager new 0x10；m_rate 由 StartEvent(Word_Param) 延迟写入）。
 CCeraShopBonusItemEvent::CCeraShopBonusItemEvent()
 {
-    m_flag = 0;
-    m_padC[0] = 0;
 }
 
 CCeraShopBonusItemEvent::~CCeraShopBonusItemEvent()
@@ -348,16 +473,18 @@ void CCeraShopBonusItemEvent::StartEvent()
 {
 }
 
-void CCeraShopBonusItemEvent::StartEvent(unsigned short bonusRate)
+// ORIG StartEvent(Word_Param) 0x0810a34c：SetEventFlag(true)；参数低 ushort
+// （m_duration）为 0 或 >1000 → 日志且不写 m_rate；否则写 +0x0c 并记日志。
+void CCeraShopBonusItemEvent::StartEvent(Word_Param param)
 {
     SetEventFlag(true);
-    if (bonusRate == 0 || 1000 < bonusRate) {
-        cMyTrace tr("StartEvent", 0x1a, 0);
+    if (param.m_duration == 0 || 1000 < param.m_duration) {
+        cMyTrace tr(__FUNCTION__, 0x1a, 0);
         tr("Can not start Cera shop bonus item event. Bonus rate is too big(%d)",
-           (unsigned int)bonusRate);
+           (unsigned int)param.m_duration);
     } else {
-        *(unsigned int*)m_padC = (unsigned int)bonusRate;
-        cMyTrace tr("StartEvent", 0x20, 0);
+        m_rate = (unsigned int)param.m_duration;
+        cMyTrace tr(__FUNCTION__, 0x20, 0);
         tr("Cera shop bonus item event Start");
     }
 }
@@ -365,85 +492,12 @@ void CCeraShopBonusItemEvent::StartEvent(unsigned short bonusRate)
 void CCeraShopBonusItemEvent::EndEvent()
 {
     SetEventFlag(false);
-    cMyTrace tr("EndEvent", 0x26, 0);
+    cMyTrace tr(__FUNCTION__, 0x26, 0);
     tr("Cera shop bonus item event End");
 }
-
-int CCeraShopBonusItemEvent::getBonusRate()
+// getBonusRate（ORIG W 0x0817a2e2）：直返 +0x0c bonusRate（mov 0xc(%eax),%eax;
+// ret；P9 直返形态，StartEvent(unsigned short) 以 4 字节写入同一字段）。
+int CCeraShopBonusItemEvent::getBonusRate() const
 {
-    return *(int*)m_padC;
-}
-
-class CEventCeraShopRewardPoint : public CEventBase
-{
-public:
-    CEventCeraShopRewardPoint();
-    ~CEventCeraShopRewardPoint();
-    void StartEvent();
-    void StartEvent(unsigned int param);
-    void EndEvent();
-    void SendReward(CUser* user);
-
-    int m_fieldC;    // +0x0c（ceraPoint）
-    int m_field10;   // +0x10（timing）
-};
-
-CEventCeraShopRewardPoint::CEventCeraShopRewardPoint()
-{
-    m_field10 = 0;
-    m_fieldC = 0;
-}
-
-CEventCeraShopRewardPoint::~CEventCeraShopRewardPoint()
-{
-}
-
-void CEventCeraShopRewardPoint::StartEvent()
-{
-    SetEventFlag(true);
-    cMyTrace tr("virtual void CEventCeraShopRewardPoint::StartEvent()", 0x13a, 0);
-    tr("[Taiwan, CeraShopRewardPoint] Start event. Timing:%d, CeraPoint:%d ",
-       m_field10, m_fieldC);
-}
-
-void CEventCeraShopRewardPoint::StartEvent(unsigned int param)
-{
-    m_field10 = param & 0xffff;
-    m_fieldC = (int)(param >> 0x10);
-    StartEvent();
-}
-
-void CEventCeraShopRewardPoint::EndEvent()
-{
-    m_field10 = 0;
-    m_fieldC = 0;
-    SetEventFlag(false);
-}
-
-// ORIG 0x0816471e：RDAR 字符串取标题/正文，附道具（idx 0x28ec3d，
-// add_info = m_fieldC）经 ReqDBSendNewSystemMail 发系统邮件。
-void CEventCeraShopRewardPoint::SendReward(CUser* user)
-{
-    if (user == 0)
-        return;
-
-    const char* title = g_scriptStringManager_.findString(
-        4, "tw_shop_open_title", (bool*)0);
-    char titleBuf[30];
-    strncpy(titleBuf, title, 0x1d);
-
-    const char* content = g_scriptStringManager_.findString(
-        4, "tw_shop_open_content", (bool*)0);
-    char contentBuf[256];
-    strncpy(contentBuf, content, 0xff);
-
-    Inven_Item item;
-    *(int*)((char*)&item + 2) = 0x28ec3d;   // item idx @+0x02
-    *(int*)((char*)&item + 7) = m_fieldC;   // add_info @+0x07
-    unsigned int serverGroup = user->GetServerGroup();
-    int characNo = user->get_charac_no(-1);
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        titleBuf, item, (unsigned int)m_fieldC, (unsigned int)characNo,
-        contentBuf, (int)strlen(contentBuf), 0,
-        (ENUM_SERVER_GROUP)serverGroup, false, false);
+    return (int)m_rate;
 }

@@ -418,7 +418,7 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
                 // ORIG 两分支日志行不同：0x1746(0xd3) / 0x17d2(0x183)
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "void CBattle_Field::MakePacket(int, void*)",
+                    __PRETTY_FUNCTION__,
                     packetId == 0xd3 ? 0x1746 : 0x17d2,
                     "Find Map[%d] Error(In Map Maker)(%d/%d)",
                     mapInfo->m_mapIndex, m_curX, m_curY);

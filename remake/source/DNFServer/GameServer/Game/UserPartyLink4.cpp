@@ -90,7 +90,7 @@ void CUser::adjust_charac_stat()
 
     const _Additioal_info* before =
         static_cast<const _Additioal_info*>(getCurCharacAddInfoRefR());
-    cMyTrace("void CUser::adjust_charac_stat()", 0x44d1, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x44d1, 0)(
         "before adjust stat(%s(%d) : %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
         getCurCharacName(), getCurCharacNo(),
         before->m_field00, before->m_field04,
@@ -104,7 +104,7 @@ void CUser::adjust_charac_stat()
         static_cast<_Additioal_info*>(getCurCharacAddInfoRefW());
     memcpy(current, &calc, 0x52);  // sizeof(_Additioal_info)，ORIG 立即数 0x52
 
-    cMyTrace("void CUser::adjust_charac_stat()", 0x44d7, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x44d7, 0)(
         "after adjust stat(%s(%d) : %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
         getCurCharacName(), getCurCharacNo(),
         current->m_field00, current->m_field04,
@@ -135,7 +135,7 @@ void CUser::deleteGuildExpBook()
     if (send_itemspace((int)ENUM_ITEMSPACE_0) != 1)
     {
         LogManager::logFormat(
-            1, "user.cpp", "void CUser::deleteGuildExpBook()", 0x7c57,
+            1, "user.cpp", __PRETTY_FUNCTION__, 0x7c57,
             "deleteGuildExpBook, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
             NumberToString(get_acc_id(), 0));
         return;
@@ -143,7 +143,7 @@ void CUser::deleteGuildExpBook()
     if (send_itemspace(2) != 1)  // ENUM_ITEMSPACE_CARGO
     {
         LogManager::logFormat(
-            1, "user.cpp", "void CUser::deleteGuildExpBook()", 0x7c5c,
+            1, "user.cpp", __PRETTY_FUNCTION__, 0x7c5c,
             "deleteGuildExpBook, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_CARGO ) return FAILED",
             NumberToString(get_acc_id(), 0));
         return;

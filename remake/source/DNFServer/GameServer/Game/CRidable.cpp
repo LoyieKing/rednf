@@ -25,44 +25,60 @@ void CRidable::SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d
     p->put_int(d);
 }
 
-void CRidable::SetRidableObjectState(int idx, eRidableObjectState state)
+int CRidable::SetRidableObjectState(int idx, eRidableObjectState state)
 {
-    // ORIG 0x82feb5e：未找到返回 false；当前状态 ∈ {0,3,4,>4} 视为不可改，
-    // 否则写入新状态并返回 true。
+    // ORIG 0x82feb5e：find != end 门（==end 返回 false）；状态 0/4/3/>4 均
+    // 不改写直接返回 true，否则写状态返回 true。
     std::map<int, DungeonRidableObject>::iterator it = m_objects.find(idx);
     if (it == m_objects.end())
-        return;
-    int cur = it->second.m_state;
-    bool blocked = (cur == 0 || cur == 4 || cur == 3 || cur > 4);
-    if (!blocked)
+        return 0;
+    if (!(it->second.m_state == 0 || it->second.m_state == 4 ||
+          it->second.m_state == 3 || it->second.m_state > 4))
+    {
         it->second.m_state = (int)state;
+    }
+    return 1;
 }
 
-void CRidable::CheckAppearRidableObject(CParty* /*party*/, int x, int y, PacketGuard* p)
+// ORIG 0x82fec2c：遍历对象表，依次 push (m_x, m_y)。
+// ORIG 汇编为 pair<int,int>::pair<int&,int&> 模板构造（左值引用实例，非
+// make_pair 值传递），故此处用局部左值 + 直接 pair 构造对齐符号集。
+void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 {
-    // ORIG 0x82fe9c8：遍历对象表，坐标命中且状态允许（4，或 3 且 +0x18 标志非零）
-    // 时置状态 1、计数并发送出生信息。
-    int countIdx = p->get_index();
-    int count = 0;
+    for (std::map<int, DungeonRidableObject>::const_iterator it = m_objects.begin();
+         it != m_objects.end(); ++it)
+    {
+        int x = it->second.m_x;
+        int y = it->second.m_y;
+        out.push_back(std::pair<int, int>(x, y));
+    }
+}
+// ORIG 0x82fe9c8：遍历 m_objects；坐标 (m_x,m_y)==(a,b) 且 state==4 或
+// (state==3 && m_flag18) 的对象置 state=1、计数并发送生成包；循环后
+// p->put_byte(idx, 计数) 收尾。party 形参 ORIG 未使用（保留签名）。
+// 成员偏移按 CRidable.h：pair.second 起 +4 → m_x@+4/m_y@+8/m_field0c@+0xc/
+// m_field10@+0x10/m_field14@+0x14/m_field18@+0x18/m_state@+0x1c。
+void CRidable::CheckAppearRidableObject(CParty*, int a, int b, PacketGuard* p)
+{
+    int counter = 0;
+    int idx = p->get_index();
     p->put_byte(0);
     for (std::map<int, DungeonRidableObject>::iterator it = m_objects.begin();
          it != m_objects.end(); ++it)
     {
-        DungeonRidableObject& obj = it->second;
-        bool match = (obj.m_x == x && obj.m_y == y);
-        if (!match)
-            continue;
-        bool appear = false;
-        if (obj.m_state == 4)
-            appear = true;
-        else if (obj.m_state == 3 && m_flag18 != 0)
-            appear = true;
-        if (!appear)
-            continue;
-        obj.m_state = 1;
-        count += 1;
-        SendSpawnRidableObject(p, obj.m_field10, obj.m_field14,
-                               obj.m_field0c, obj.m_field18);
+        if (it->second.m_x == a && it->second.m_y == b)
+        {
+            if (it->second.m_state == 4 ||
+                (it->second.m_state == 3 && m_flag18 != 0))
+            {
+                it->second.m_state = 1;
+                ++counter;
+                SendSpawnRidableObject(p, it->second.m_field10,
+                                       it->second.m_field14,
+                                       it->second.m_field0c,
+                                       it->second.m_field18);
+            }
+        }
     }
-    p->put_byte(countIdx, count);
+    p->put_byte(idx, counter);
 }

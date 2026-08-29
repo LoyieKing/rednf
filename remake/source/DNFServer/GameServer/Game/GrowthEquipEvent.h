@@ -30,8 +30,8 @@ public:
     // 以下两个方法已有完整报告但尚未还原（依赖 RDAR 字符串/邮件/DB 链）；
     // 声明占位以维持权威头完整，勿在无定义前 ODR-use。
     void GiftGrowthWeaponBox(CUser& user) const;                       // T 0x080f7050
-    void SendInfinityGrowthWeapon(CUser* user, const Inven_Item* item,
-                                  int a, int b) const;                 // T 0x080f74b2
+    int SendInfinityGrowthWeapon(CUser* user, const Inven_Item* item,
+                                 int a, int b) const;                  // T 0x080f74b2（返回错误码 0/0x11/0x17，Dispatcher 0x081e7f17 写 param+4）
 };
 
 #endif  // DNF_GROWTHEQUIPEVENT_H

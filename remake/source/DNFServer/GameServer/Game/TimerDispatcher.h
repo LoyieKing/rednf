@@ -10,14 +10,17 @@
 
 #include "TimerQueue.h"   // TimerEntry / TIMER_MESSAGE 权威定义复用
 #include <vector>
+#include "advancealtar.h"  // advancealtar::StageEndType（RegistTimer* 静态参数）
 
 class CUser;
-
+namespace QuickParty { class CQuickParty; }
 class TimerSig
 {
 public:
     virtual int dispatch_sig(int p1, int p2, unsigned int p3) = 0;
-    virtual ~TimerSig();
+    // ORIG 无 TimerSig 独立符号（各 Timer 类 vtable/D1 自含基类析构内联）——
+    // 基类析构 inline 避免产生 key function 弱符号（与 ORIG nm 一致）。
+    virtual ~TimerSig() {}
 };
 
 class TimerCheckConn : public TimerSig
@@ -131,7 +134,8 @@ public:
     TimerFatigueReset();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerFatigueReset();
-    static bool RegistNextTimer();
+    static int RegistNextTimer();
+    int updateAbnormalClientCount();     // ORIG T 0x086339fa（定义 TimerDispatcher.cpp）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -144,6 +148,7 @@ public:
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerAvatarExpire();
     static void RegistTimer(CUser* user);
+    static int CheckExpiredAvatar(CUser* user);   // ORIG T 0x08632a82
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -823,7 +828,7 @@ public:
     TimerDungeonDataStatistic();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerDungeonDataStatistic();
-    static void RegistNextTimer();
+    static int RegistNextTimer();  // ORIG T 0x8636856，eax=1
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -846,7 +851,7 @@ public:
     TimerLightServerNotice();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerLightServerNotice();
-    static void RegistNextTimer(int count);
+    static bool RegistNextTimer(int count);   // ORIG T 0x08636c14（恒返 1，al）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -858,7 +863,7 @@ public:
     TimerInsertUserPlayTime();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerInsertUserPlayTime();
-    static void RegistNextTimer();
+    static bool RegistNextTimer();            // ORIG T 0x08636d44（恒返 1，al）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1062,8 +1067,9 @@ public:
     virtual ~TimerFinishItemEffect();
 
 private:
-    // ORIG 对象尺寸 4：仅 vptr，无数据成员。
+    void _processSepecialEffectContinuousItem(CUser* user, unsigned int param);  // ORIG T 0x08637d64
 };
+
 
 class TimerStartMatching : public TimerSig
 {
@@ -1195,7 +1201,8 @@ public:
     TimerGeneratePowerUpNotiTime();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerGeneratePowerUpNotiTime();
-
+    static void registNextTimer(long sec);  // ORIG T 0x0863847e，无 this
+    void send_noti_time(int sec);           // ORIG T 0x086384c2，thiscall
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
@@ -1317,7 +1324,7 @@ public:
     TimerUpdateCompoundEmblemStatics();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerUpdateCompoundEmblemStatics();
-    static void registNextTimer();
+    static int registNextTimer();  // ORIG T 0x0863939a，eax=1
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1574,6 +1581,7 @@ public:
     Timer_QuickPartyWaitingPartyMatching();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~Timer_QuickPartyWaitingPartyMatching();
+    bool cancel_quick_party(QuickParty::CQuickParty* qp);  // ORIG T 0x863ad96
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1656,7 +1664,9 @@ public:
     static void RegistNextTimer();
 
 private:
-    // ORIG 对象尺寸 4：仅 vptr，无数据成员。
+    // ORIG 对象尺寸 0x8：vptr + 剩余公告次数（ctor 0x0863bc2e objdump 实证
+    // movl $0xa,0x4(%eax)；dispatch_sig 0x0863b7c2 读 this+0x04 递减）
+    int m_remainingNotiCount;   // +0x04
 };
 
 class Timer_DungeonStatisticEntrance_Hour : public TimerSig
@@ -1734,6 +1744,19 @@ public:
     Timer_StageControl();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~Timer_StageControl();
+
+    // ORIG T 0x812f850 / 0x812f89c / 0x812f8ec / 0x0812f956（无 this 静态）。
+    static void RegistTimerCheckFinsh(int stage);
+    static void RegistTimerClearReward(int stage, advancealtar::StageEndType::T endType);
+    static void RegistTimerEPLP(int stage, advancealtar::StageEndType::T endType);
+    static void RegistTimerEPLPReturnVillage(int stage);
+
+    // ORIG R 0x8b6c5e8..0x8b6c5fc（外部链接类静态成员，类外定义 TimerDispatcher.cpp）
+    static const unsigned int kFailEPLPMs;           // 0x8b6c5f4 = 1000
+    static const unsigned int kClearEPLPMs;          // 0x8b6c5f0 = 1000
+    static const unsigned int kCheckFinishMs;        // 0x8b6c5e8 = 5000
+    static const unsigned int kClearRewardMs;        // 0x8b6c5ec = 3000
+    static const unsigned int kEPLPReturnVillageMs;  // 0x8b6c5f8 = 50000
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

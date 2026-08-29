@@ -6,14 +6,16 @@
 #include "GlobalData.h"
 #include "OnlinePreliminary.h"   // online_preliminary 域权威声明（本 TU 持有 s_onlinePreliminaryTeamMgr 构造）
 #include "RestrictGeolocation.h"   // RestrictGeolocation 权威（原局部镜像删除，实现迁 RestrictGeolocation.cpp）
-#include "CCapchaDataManager.h"
-#include "CExpertJob.h"      // expert_job::CExpertJobMgr/CExpertJobFactory 权威   // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威
+#include "CDailyScheduleManager.h"  // _DailySchedule / CDailyScheduleManager 权威（原本地镜像删除，ODR 收敛）
+#include "CCapchaDataManager.h"  // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威（显式，防间接 include 漂移）
 #include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
 #include "CItemList.h"             // get_rand_int
+#include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
 
 #include <iostream>
 #include <new>
 #include <stdio.h>
+#include <memory>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -40,6 +42,7 @@
 #include "Arad_ServerStateManager.h"  // ARAD::Arad_ServerStateManager 权威定义（原局部镜像已删除）
 #include "Arad_DataManager.h"  // ARAD::Singleton 唯一权威定义
 #include "CInventory.h"              // CSecu_ProtectionField 权威定义（CInventory.h）
+#include "BaseServerProxy.h"         // ENUM_SOCKET_STATE（CPCRoomServerProxy socketState）
 #include "CMyFileLog.h"              // 租赁 log（RandomRentalA2 批次）
 #include "CUser.h"    // StackableAction proc_* 需要 CUser 完整类型
 #include "CSimpleSSO.h"  // WongWork::CSimpleSSO 权威定义（原局部类已收敛）
@@ -60,17 +63,27 @@
 #include "CTimeGate.h"        // CTimeGate : village_object::IObject 权威定义（ORIG ctor 0x8284512）
 #include "CVillageObjectMgr.h" // village_object::{IObject,CVillageObjectMgr} 权威定义（本地镜像已移除）
 #include "TaiwanCash.h"  // WongWork::IPG::{IIPGHelperInterface,CIPGMgr} 权威定义（局部 mirror 已删除）
+#include "CountryCode.h"   // CountryCode 权威定义（原 TU-local struct 已删除，实现迁 CountryCode.cpp）
 
 #include "CCommunityServerProxy.h"
 #include "CSchoolServerProxy.h"
 
 // StaticPool/expert_job::CEnchanter/CDisjointer 权威声明已迁 CExpertJob.h
 //（含 CExpertJobFactory/CExpertJobMgr），本 TU 经 include 获取。
+#include "CExpertJob.h"
 
 #include "CEnvironment.h"
 #include "GameTypes.h"
 // PacketGuard 完整类型经 CInventory.h（权威定义点）；此处不再重复 include。
 #include "CRijndael.h"
+// expert_extraction 域权威声明（原局部类定义已删，ODR 收敛；实现 ExpertExtraction.cpp）
+#include "CExtraction.h"
+#include "CAlchemistExtraction.h"
+#include "CEnchanterExtraction.h"
+#include "CDollControllerExtraction.h"
+#include "CExtractionMgr.h"
+#include "PvPTypes.h"      // CMTRand 完整类型（CExtraction::m_rand）
+namespace DNFFLib { int Binary2Hex(unsigned char const*, int, char*); }   // _ZN7DNFFLib10Binary2HexEPKhiPc，定义见 DNFFLib 权威 TU
 #include "Cipher.h"
 #include "BaseServerProxy.h"
 #include "CHadesServerProxy.h"
@@ -80,13 +93,33 @@
 #include "DBMgr.h"
 #include "MsgQueueMgr.h"
 #include "ServiceRestrictManager.h"  // 权威定义（本地类已迁移）
-#include "CGuildServerProxy.h"
+#include "BingoEvent.h"
 #include "CMonitorServerProxy.h"
 #include "W6_HackPunishDeps.h"   // WongWork::CAutoPunishRule* 权威完整类定义
 #include "CLogGameChannel.h"   // WongWork::CLogGameChannel 完整定义（s_logGameChannel 初始化）
 #include "CServerProxyMgr.h"
 #include "CItemAmplifier.h"
 #include "CPowerManager.h"   // 权威 CPowerManager 类（替代下方本地 stub，解除 ODR）
+#include "CItemLimitEdition.h"       // ProcessIPG_ResultOutput case 10（限购展示位）
+#include "Arad_IPGProcess.h"         // static IPGProcess（ORIG W ctor 0x0817a2ba）
+#include "Arad_MileageProcess.h"     // static mMileageProcess（ORIG W ctor 0x0817a2ce）
+#include "HeroMissionEvent.h"        // setMissionValue（case 7 任务计数）
+#include "PacketTracer.h"            // CPacketTracer::AddUdpLog / CPacketTracerInstance（UdpThread::_processUDPData）
+#include "EncryptTool.h"             // GlobalInstance<EncryptTool> 显式实例化（ORIG W 0x848e1d3/0x848e1e5）
+#include "InterDispatcher.h"         // InterDispatcher 权威类（GlobalInstance<InterDispatcher> 实例化）
+#include "TimerDispatcher.h"         // TimerDispatcher 权威类（GlobalInstance<TimerDispatcher> 实例化）
+#include "PacketDispatcher.h"       // PacketDispatcher / G_PacketDispatcher / pUserPacketCounter_
+#include "GameServerDemonManager.h" // GameserverDemonManagerInstance / IsProhibitConnectState
+#include "GameWorld.h"               // GameWorld 权威类（GlobalInstance<GameWorld> 实例化）
+#include "CDataManager.h"            // CDataManager 权威类（GlobalInstance<CDataManager> 实例化）
+#include "AuctionProxy.h"           // CAuctionServerProxy/CCeraAuctionServerProxy 权威类（MonitorTcpThread::dispatch）
+#include "CGameManager.h"           // CGameManager/StaticPool<CUser,600> 完整类型（AcceptThread::dispatch）
+#include "PacketGuard.h"            // PacketGuard 完整类型（AcceptThread::dispatch 栈对象）
+#include "EpollHandler.h"          // EpollHandler 完整类型（NetworkThread::dispatch）
+#include "W8LT_DBTask.h"          // DBTask 完整类型（DBThread::dispatch）
+#include "MessageCounter.h"       // message_counter::{CTimeInterval,CMessageCounter}（DB/DispatchThread）
+#include "UserPacketCounter.h"    // message_counter::CUserPacketCounter（DispatchThread::dispatch）
+#include "OS_API.h"               // OS_API::{Exit,Sleep,uSleep}（线程 dispatch）
 
 // ============================================================================
 // 依赖类最小 stub（符号/布局属后续批次；本 TU 只用于还原 GlobalData 函数）
@@ -99,12 +132,24 @@ typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
 
 class PacketPool;
 
+// ORIG W 0x0857f5d6（_Z13G_EpollHandlerv）：GlobalInstance<EpollHandler>::inst_ptr()。
+// 与 CUser.cpp 同形态的本地声明（EpollHandler.h 权威头未收录，避免共享头改动）。
+EpollHandler* G_EpollHandler();
+
+// ORIG W：G_TimerDispatcher 0x0847e8a4 / G_InterDispatcher 0x0847e8b7；
+// GlobalInstance 单例访问器，定义见本文件尾部（同 G_TimerQueue 形态）。
+class TimerDispatcher;
+class InterDispatcher;
+TimerDispatcher* G_TimerDispatcher();
+InterDispatcher* G_InterDispatcher();
+
 class DBThread : public ThreadInterface
 {
 public:
     DBThread();
     void setLogDB(bool isLogDB);
     bool isLogDB();  // ORIG T 0x083ff77a：读 +0x0c
+    virtual void dispatch(void* arg);          // ORIG T 0x083ff786（线程体：DB 事件循环）
 private:
     // ORIG 布局（objdump 0x083ff5f2）：ThreadInterface 基类 0x00..0x0b
     // （vptr +0 / m_tid +4 / m_tidCopy +8）；+0x0c bool m_bLogDB；
@@ -117,36 +162,43 @@ class DispatchThread : public ThreadInterface
 {
 public:
     DispatchThread();
+    virtual void dispatch(void* arg);          // ORIG T 0x0847e2d2（线程体：主分发循环）
 };
 
 class NetworkThread : public ThreadInterface
 {
 public:
     NetworkThread();
+    virtual void dispatch(void* arg);          // ORIG T 0x0857d5be（线程体：epoll 收包）
 };
 
 class UdpThread : public ThreadInterface
 {
 public:
     UdpThread();
+    virtual void dispatch(void* arg);          // ORIG 0x0857c9de（线程体：bind + select/recv 循环）
+private:
+    int _bindUDPSocket(unsigned short port);   // ORIG 0x0857c3be
+    void _processUDPData(char* data, int len); // ORIG 0x0857c5a4
 };
 
 class MonitorTcpThread : public ThreadInterface
 {
 public:
     MonitorTcpThread();
+    virtual void dispatch(void* arg);          // ORIG T 0x0857d95a（线程体：代理 select 轮询）
 };
 
+template <class T> class CServerProxyMgr;
 class AcceptThread : public ThreadInterface
 {
 public:
     AcceptThread();
+    virtual void dispatch(void* arg);          // ORIG T 0x0857cc5a（线程体：listen/accept 循环）
 private:
     // ORIG ctor 0x0857cbe8：置 +0x0c 字节为 0 → 基类 0xc 之后一个 bool，总 0x10。
     bool m_acceptFlag;  // +0x0c
 };
-
-template <class T> class CServerProxyMgr;
 
 class CDoubleConnCheckServerProxy
 {
@@ -162,33 +214,29 @@ private:
 class CPCRoomServerProxy
 {
 public:
-    CPCRoomServerProxy(char* ip, int port);
+    CPCRoomServerProxy(char* ip, int port);   // ORIG T 0x084717dc
+    ~CPCRoomServerProxy();                    // ORIG T 0x08471874
+    bool Init();                              // ORIG T 0x084718bc（!InitTcp() 取反）
+    bool InitTcp();                           // ORIG T 0x084718e2
+    void Disconnect();                        // ORIG T 0x084719de
+    void SendTcpPacket(char* data, int len);  // ORIG T 0x08471a32
+    bool OnTcpRecv();                         // ORIG T 0x08471a9a
+    int OnTcpSend();                          // ORIG T 0x08471b32
+    bool OnTcpError();                        // ORIG T 0x08471bd0
+    bool Parsing(int recvLen);                // ORIG T 0x08471c5a（转发 Parsing_ServerPacket）
+    // ORIG W 0x0857f444/0x0857f456：socketState 直写/直读（P119 外联定义发射 W 符号）。
+    void SetSocketState(ENUM_SOCKET_STATE state);
+    int GetSocketState();
+    // ORIG W 0x08471e08：getter 直返 this（m_tcp @+0x00 → &m_tcp == this）（P119 外联）。
+    CNetwork<100000, 100000>* GetTcpHandler();
 private:
-    // ORIG ctor 0x084717dc：CNetwork@+0x00 + string@+0x30df8。
-    CNetwork<100000, 100000> m_tcp;  // +0x00
-    std::string m_ip;                // +0x30df8
+    // ORIG ctor 0x084717dc：CNetwork@+0x00 + string@+0x30df8 +
+    // m_tcpPort@+0x30dfc + socketState@+0x30e00（sizeof 0x30e04）。
+    CNetwork<100000, 100000> m_tcp;   // +0x00
+    std::string m_ip;                 // +0x30df8
+    int m_tcpPort;                    // +0x30dfc
+    ENUM_SOCKET_STATE m_socketState;  // +0x30e00
 };
-
-
-
-class CAuctionServerProxy
-{
-public:
-    CAuctionServerProxy(char* ip, int port, char* name);
-    ~CAuctionServerProxy();
-private:
-    char m_pad[0x30e10];
-};
-
-class CCeraAuctionServerProxy
-{
-public:
-    CCeraAuctionServerProxy(char* ip, int port, char* name);
-    ~CCeraAuctionServerProxy();
-private:
-    char m_pad[0x30e10];
-};
-
 
 namespace secretshop
 {
@@ -234,19 +282,17 @@ void CmmChannelProxy::SendChannelInfo()
 
     CEnvironment* env = G_CEnvironment();
     *reinterpret_cast<int*>(pkt + 0x0b) =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x198);
+        env->m_serverEnvir.m_gcNo;
     *reinterpret_cast<int*>(pkt + 0x0f) = env->get_server_group();
     *reinterpret_cast<int*>(pkt + 0x13) =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1b0); // Server_Envir.m_channelNo（推断）
+        env->m_serverEnvir.m_channelNo; // Server_Envir.m_channelNo（推断）
     *reinterpret_cast<int*>(pkt + 0x17) =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x3c0);
+        env->m_serverEnvir.m_maxUserNum;
     *reinterpret_cast<int*>(pkt + 0x1b) = static_cast<int>(
-        reinterpret_cast<std::map<unsigned short, CUser*>*>(
-            reinterpret_cast<char*>(G_GameWorld()) + 0x134)
-            ->size());                                 // m_UserInWorld
-    std::strcpy(pkt + 0x1f, reinterpret_cast<char*>(env) + 0x1b4); // Server_Envir.m_serverIP
+        G_GameWorld()->m_UserInWorld.size());         // m_UserInWorld
+    std::strcpy(pkt + 0x1f, env->m_serverEnvir.m_serverIP); // Server_Envir.m_serverIP
     *reinterpret_cast<int*>(pkt + 0x2f) =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1c8);
+        env->m_serverEnvir.m_tcpPort;
 
     m_udp.SendToServer(pkt,
                        *reinterpret_cast<unsigned short*>(pkt + 0x02),
@@ -348,7 +394,7 @@ int CmmChannelProxy::SendPacket(char* buf, int len)
         {
             return 0;
         }
-        cMyTrace trace("int CmmChannelProxy::SendPacket(char*, int)", 200, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 200, 0);
         trace("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
               fd, e, strerror(e));
         return -1;
@@ -384,14 +430,14 @@ int CmmChannelProxy::RecvPacket()
         {
             return 0;
         }
-        cMyTrace trace("int CmmChannelProxy::RecvPacket()", 0x114, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x114, 0);
         trace("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
               fd, e, strerror(e));
         return -1;
     }
     if (n == 0)
     {
-        cMyTrace trace("int CmmChannelProxy::RecvPacket()", 0x11a, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x11a, 0);
         trace("Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
               errno, strerror(errno), 0x80000, 0);
         return -1;
@@ -426,7 +472,7 @@ bool CmmChannelProxy::SendCheckChannelScript()
     if (fp == 0)
     {
         cMyTrace trace(
-            "bool CmmChannelProxy::SendCheckChannelScript()", 0x143, 9,
+            __PRETTY_FUNCTION__, 0x143, 9,
             true, true);
         trace("\t- [ERROR] : cannt open channel_script_version file\n");
         return false;
@@ -470,7 +516,7 @@ bool CmmChannelProxy::SendCheckChannelScript()
     if (fp == 0)
     {
         cMyTrace trace(
-            "bool CmmChannelProxy::SendCheckChannelScript()", 0x188, 9,
+            __PRETTY_FUNCTION__, 0x188, 9,
             true, true);
         trace("\t- [ERROR] : cannt open channel_script_version file\n");
         return false;
@@ -542,6 +588,8 @@ class Secu_DataControl
 {
 public:
     Secu_DataControl();
+    void UpdateSecurityServiceState(CUser* user, unsigned char service,
+                                    unsigned char flag, char* msg);  // ORIG T 0x08286e40
 private:
     char m_pad[1];
 };
@@ -560,6 +608,8 @@ public:
     bool OpenMaster();  // ORIG T 0x080ec67c（支撑）
     bool Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
               STDBConnInfo& info);  // ORIG T 0x080ec6da（支撑）
+    void Close();      // ORIG T 0x080ec668
+    void CloseMaster();  // ORIG T 0x080ec6bc
 private:
     DBMgr* m_dbMgr;            // +0x00
     STDBConnInfo m_connInfo;   // +0x04（0x168 字节）
@@ -581,90 +631,19 @@ private:
 
 class CGM_Manager;  // 完整定义见 CGM_Manager.h（真实布局）
 
-namespace break_away_prevent
-{
-// SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER 基类（ORIG ctor 0x0831d2b0：置字段）。
-struct STRewardDataKey
-{
-    char m_data[3];
-    bool operator<(const STRewardDataKey& o) const
-    {
-        return memcmp(m_data, o.m_data, 3) < 0;
-    }
-};
-// 奖励条目（loadDbData/selectReward：+0x00..+0x10 五个 4 字节字段，stride 0x18）。
-struct STRewardData
-{
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04
-    int m_field8;   // +0x08
-    int m_fieldc;   // +0x0c
-    int m_field10;  // +0x10
-};
-struct STRewardDataList
-{
-    std::list<STRewardData> m_list;
-};
+#include "BreakAwayPreventSystem.h"   // break_away_prevent 唯一权威声明点
 
-class CBreakAwayPreventSystem
-{
-public:
-    CBreakAwayPreventSystem();
-    ~CBreakAwayPreventSystem();
-    // ORIG T 0x0831c49e：拷贝基类区（0x2e4）后按条目填充
-    // m_rewardMap（key=+0x10..+0x12 三字节 / value=5×int）与 m_keys[]。
-    void loadDbData(SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data);
-private:
-    // ORIG：基类区 0x2e4 + map + 5×STRewardDataKey(+0x2fc) + memset(+0x30b,0x1f)。
-    char m_base[0x2e4];
-    std::map<STRewardDataKey, STRewardDataList> m_rewardMap;  // +0x2e4
-    STRewardDataKey m_keys[5];                                 // +0x2fc
-    char m_tail[0x1f];                                         // +0x30b
-};
-}
 
 // CExpertJobFactory/CExpertJobMgr 权威声明已迁 CExpertJob.h（含 StaticPool 双池），
 // 本 TU 仅保留其成员函数定义（下方）。
-
-namespace village_attacked
-{
-// 本地最小视图（权威布局见 CVillageMonsterMgr.h；本 TU 仅需 C1/D1 的容器
-// 实例化形态，Zone/CVillageMonsterArea 以同布局本地类型参与 map 模板实例）。
-struct Zone
-{
-    unsigned char m_a;
-    unsigned char m_b;
-};
-inline bool operator<(const Zone& x, const Zone& y)
-{
-    if (x.m_a != y.m_a)
-        return x.m_a < y.m_a;
-    return x.m_b < y.m_b;
-}
-struct CVillageMonsterArea { char m_pad[0x3c]; };  // ORIG sizeof 0x3c
-
-class CVillageMonsterMgr
-{
-public:
-    CVillageMonsterMgr();
-    ~CVillageMonsterMgr();
-private:
-    int m_field00;                                 // +0x00（ctor 体清零）
-    int m_field04;                                 // +0x04（ctor 体清零）
-    std::map<Zone, CVillageMonsterArea> m_areas;   // +0x08（0x18）
-    int m_field20;                                 // +0x20（ctor 体清零）
-};
-
-}
+// village_attacked::{Zone,CVillageMonsterArea,CVillageMonsterMgr} 权威定义见
+// CVillageMonsterMgr.h（经 GameWorld.h→CUser.h→Area.h 链引入，原本地镜像已删除，
+// ODR 收敛）；ctor/dtor 由 CVillageMonsterMgr.cpp 提供。
 
 // RentalMachinePcRoomImpl（ORIG ctor 0x8271a80：set<unsigned>@0x104 构造 +
-// memset 前 0x104；总 0x11c）。
-struct RentalMachinePcRoomImpl
-{
-    RentalMachinePcRoomImpl() { memset(m_data, 0, sizeof(m_data)); }
-    char m_data[0x104];            // +0x00（日志路径等，未还原字段区）
-    std::set<unsigned int> m_set;  // +0x104
-};  // 0x11c
+// memset 前 0x104；总 0x11c；D1 0x8271d50 仅析构 set）。嵌套于
+// RentalMachinePcRoom（mangled _ZN19RentalMachinePcRoom23RentalMachinePcRoomImpl…，
+// 与 ORIG 4 符号 C1/C2/D1/D2 一致）。
 class RentalMachinePcRoom : public IRentalMachine
 {
 public:
@@ -681,12 +660,19 @@ public:
     virtual bool CheckRentableItem(unsigned int itemIdx);
 
 private:
+    struct RentalMachinePcRoomImpl
+    {
+        RentalMachinePcRoomImpl() { memset(m_data, 0, sizeof(m_data)); }
+        ~RentalMachinePcRoomImpl() {}   // ORIG D1 @0x08271d50：仅析构 set
+        char m_data[0x104];            // +0x00（日志路径等，未还原字段区）
+        std::set<unsigned int> m_set;  // +0x104
+    };  // 0x11c
     bool checkAllRentalItemScript();   // ORIG T 0x082708cc（本批实现）
     void initLoggingEnvironment();     // ORIG T 0x8270886
     int CheckupAllRentalItems(CUser& user,
                               const InstanceRentalSystem::RentInput& input); // T 0x08270d1e
     void log(CUser& user, int itemId);                                      // T 0x082707c0
-    RentalMachinePcRoomImpl* m_impl;   // +0x04（ORIG auto_ptr）
+    std::auto_ptr<RentalMachinePcRoomImpl> m_impl;  // +0x04（ORIG auto_ptr）
 };
 // RentalMachineDimensionImpl（ORIG ctor 0x826fa6c：与 PcRoom 同构，推断）。
 struct RentalMachineDimensionImpl
@@ -727,37 +713,8 @@ private:
 };
 
 
-// _DailySchedule 本地布局副本（权威定义 CDailyScheduleManager.h，0x24 字节；
-// 本 TU 不 include 该头，仅按同布局参与 vector 模板实例化）。
-struct _DailySchedule
-{
-    int m_eventId;              // +0x00
-    int m_type;                 // +0x04
-    int m_idx;                  // +0x08
-    int m_startSec;             // +0x0c
-    int m_endSec;               // +0x10
-    int m_wday;                 // +0x14
-    unsigned char m_startHour;  // +0x18
-    unsigned char m_startMin;   // +0x19
-    unsigned char m_startSec2;  // +0x1a
-    unsigned char m_endHour;    // +0x1b
-    unsigned char m_endMin;     // +0x1c
-    unsigned char m_endSec2;    // +0x1d
-    short m_pad1e;              // +0x1e
-    int m_state;                // +0x20
-};  // 0x24
-
-class CDailyScheduleManager
-{
-public:
-    CDailyScheduleManager();
-    ~CDailyScheduleManager();
-private:
-    // 权威布局见 CDailyScheduleManager.h；本 TU 镜像仅供 C1/D1 产出
-    // vector<_DailySchedule> 构造/析构调用（+0xd8）。
-    _DailySchedule m_pad024[6];               // +0x000..0x0d7（6×0x24）
-    std::vector<_DailySchedule> m_schedules;  // +0xd8
-};
+// _DailySchedule / CDailyScheduleManager 权威定义见 CDailyScheduleManager.h
+// （include 引入；本 TU 的 C1/D1 定义保留于下方实现区）。
 
 // online_preliminary 域（CTeamFactory/COnlinePreliminaryTeamMgr）权威声明已迁
 // OnlinePreliminary.h（OnlyOrig_OnlinePvp 批）；本 TU 构造/析构/OnLoadTeamInfo
@@ -765,17 +722,6 @@ private:
 
 // game_master 命令体系完整声明见 GameMasterCmd.h（GmCore/GmRegister 等 TU 实现）。
 
-class TimerUpdatePvPGrade
-{
-public:
-    static void registNextTimer(long long sec);
-};
-
-class Timer_GenerateCaptchaData
-{
-public:
-    static void RegistNextTimer(int sec);
-};
 
 class DB_ReloadAutoPunishRuleBackIP
 {
@@ -837,55 +783,11 @@ public:
 }
 
 
-namespace expert_extraction
-{
-// ORIG 0x084a2938：vptr + CMTRand*（new 0x9c8 + seed(time)）。
-class CExtraction
-{
-public:
-    CExtraction();
-    virtual ~CExtraction();
-    CMTRand* m_rand;  // +0x04
-};
-
-class CAlchemistExtraction : public CExtraction
-{
-public:
-    CAlchemistExtraction();
-    virtual ~CAlchemistExtraction();
-};
-class CEnchanterExtraction : public CExtraction
-{
-public:
-    CEnchanterExtraction();
-    virtual ~CEnchanterExtraction();
-};
-
-class CDollControllerExtraction : public CExtraction
-{
-public:
-    CDollControllerExtraction();
-    virtual ~CDollControllerExtraction();
-};
-
-class CExtractionMgr
-{
-public:
-    CExtractionMgr();
-    ~CExtractionMgr();
-private:
-    // ORIG D1 0x84a311a 以 (CExtraction**) 索引循环析构 → 成员为数组。
-    CExtraction* m_slots[3];                  // +0x00/+0x04/+0x08
-};
-}
-
-
 namespace random_option
 {
 void* GetRandomOption();  // ORIG T 0x085f0eb0：&G_CDataManager()->+0x148
 
 }
-
 
 class CHumanCertifier
 {
@@ -894,64 +796,21 @@ public:
     // ORIG B 0x93f5758：map<string, vector<int>> 人证类型表。
     static std::map<std::string, std::vector<int> > humanCertifyTable_;
 };
-class CParty
-{
-public:
-    void* GetPartyTelePort();   // ORIG T（权威 CParty.h:317）
-};
-
-class GameWorld
-{
-public:
-    bool IsPVPChannel() const;                       // 权威 GameWorld.h:121
-    bool IsPvPSkilTreeChannel() const;               // 权威 GameWorld.h:125
-    int GetChannelType() const;
-    bool IsIntegratedPvPBaseChannel() const;
-    CUser* find_from_world(unsigned short uniqueId);   // ORIG T 0x086c4b9c（权威 GameWorld.h:145）
-    void send_to_area(int vill, int area, PacketGuard& packet);  // 权威 GameWorld.h:163
-    bool move_area(CUser* user, int vill, int area, int x, int y, int z,
-                   bool flag, int param, int prevVill, int prevArea);  // 权威 GameWorld.h:197
-};
-
-GameWorld* G_GameWorld();
 
 class CDBEnviroment : public CEnvironment
 {
 public:
     CDBEnviroment();
     ~CDBEnviroment();
+    bool parse(char* buf);   // ORIG T 0x0829d8e8（覆盖 CEnvironment::parse）
 private:
-    char m_pad[8];   // ORIG：CEnvironment + 0x3e0 处成员/填充（0x3e8）
+    // ORIG 布局：CEnvironment(+0x3dc 止) 之后 +0x3e0 为 db_type 枚举（parse 写
+    // 1..0xd/0x63/0x64/0x11；G_CEnvironment() 的 m_serverGroupMap 按此键归类）。
+    ENUM_SERVER_GROUP m_dbType;   // +0x3e0
+    char m_pad[4];                // +0x3e4（总 0x3e8）
 };
 
 // ---- Captcha ----
-struct CountryCode
-{
-    unsigned char idx_;           // +0x00（1 字节）
-    static const CountryCode none;    // 09501a20
-    static const CountryCode global;  // 09501a21
-    static const CountryCode korea;   // 09501a22
-    static const CountryCode japan;   // 09501a23
-    static const CountryCode china;   // 09501a24
-    static const CountryCode taiwan;  // 09501a25
-    static const CountryCode usa;     // 09501a26
-
-    bool operator==(CountryCode other) const;   // 0x08ad332e（按值，ORIG mangling eqES_）
-};
-
-const CountryCode CountryCode::none   = {0};
-const CountryCode CountryCode::global = {1};
-const CountryCode CountryCode::korea  = {2};
-const CountryCode CountryCode::japan  = {3};
-const CountryCode CountryCode::china  = {4};
-const CountryCode CountryCode::taiwan = {5};
-const CountryCode CountryCode::usa    = {6};
-
-bool CountryCode::operator==(CountryCode other) const
-{
-    return idx_ == other.idx_;
-}
-
 // ---- XorRand4（ORIG 0x08adfa90；m_counter + 4 张字节替换表）----
 class XorRand4
 {
@@ -963,12 +822,16 @@ public:
         // ORIG 0x8adfa90：后缀自增取旧值；再以字节指针逐字节查 4 张表异或。
         unsigned int v = m_counter++;
         const unsigned char* p = (const unsigned char*)&v;
-        return kXorRandMsTable0[p[0]] ^ kXorRandMsTable1[p[1]] ^
-               kXorRandMsTable2[p[2]] ^ kXorRandMsTable3[p[3]];
+        return ms_table0[p[0]] ^ ms_table1[p[1]] ^
+               ms_table2[p[2]] ^ ms_table3[p[3]];
     }
     unsigned int operator()() { return getUInt32(); }
 private:
     unsigned int m_counter;
+    static const unsigned int ms_table0[256];  // VA 0x08e32cc0（定义在 XorRand.cpp）
+    static const unsigned int ms_table1[256];  // VA 0x08e330c0
+    static const unsigned int ms_table2[256];  // VA 0x08e334c0
+    static const unsigned int ms_table3[256];  // VA 0x08e338c0
 };
 
 class GreyImage
@@ -1113,12 +976,121 @@ public:
     void generateText(CountryCode code, int len, unsigned short* out);
     void generateImage(int width, int height, const unsigned short* text, int len,
                        const ImageOption& opt, GreyImage* image);
+    // ---- generateText 字符集（ORIG 原表；类静态成员，定义见类后）----
+    static const unsigned short kKoreanGeneral[978];   // VA 0x08b2bca0
+    static const unsigned short kJapaneseHirakana[72]; // VA 0x08b2c460
+    static const unsigned short kTaiwanAlphabet[26];   // VA 0x08b2c500
+    static const unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
+    static const unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
+    static const unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
     static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）
     std::vector<void*> m_faces;  // +0x04
     XorRand4 m_rng;              // +0x10
 };
+
+// ---- CaptchaGen 字符集（ORIG .rodata；类静态成员定义，见 CaptchaGen.h）----
+const unsigned short CaptchaGen::kKoreanGeneral[978] = {
+    0xac00, 0xac01, 0xac04, 0xac07, 0xac08, 0xac10, 0xac11, 0xac12, 0xac13, 0xac15, 0xac16, 0xac19,
+    0xac1a, 0xac1b, 0xac1c, 0xac1d, 0xac40, 0xac54, 0xac70, 0xac71, 0xac74, 0xac77, 0xac78, 0xac80,
+    0xac81, 0xac83, 0xac89, 0xac8c, 0xaca8, 0xaca9, 0xacaa, 0xacac, 0xacb0, 0xacb9, 0xacbd, 0xacc1,
+    0xacc4, 0xace0, 0xace1, 0xace4, 0xace7, 0xace8, 0xacf0, 0xacf1, 0xacf3, 0xacf5, 0xacfc, 0xad00,
+    0xad11, 0xad1c, 0xad34, 0xad49, 0xad50, 0xad6c, 0xad6d, 0xad70, 0xad73, 0xad74, 0xad75, 0xad76,
+    0xad7d, 0xad81, 0xad8c, 0xadc0, 0xadd3, 0xaddc, 0xade0, 0xade4, 0xadf8, 0xadf9, 0xadfc, 0xae00,
+    0xae01, 0xae08, 0xae09, 0xae0b, 0xae0d, 0xae30, 0xae34, 0xae38, 0xae40, 0xae45, 0xae4a, 0xae4c,
+    0xae4d, 0xae4e, 0xae50, 0xae54, 0xae5c, 0xae5d, 0xae61, 0xae65, 0xae68, 0xaebc, 0xaebe, 0xaecc,
+    0xaecd, 0xaecf, 0xaed1, 0xaed8, 0xaef4, 0xaf2c, 0xaf2d, 0xaf34, 0xaf3c, 0xaf3d, 0xaf42, 0xaf43,
+    0xaf49, 0xaf64, 0xafb8, 0xafbc, 0xafc0, 0xafc8, 0xb00c, 0xb044, 0xb048, 0xb04a, 0xb04c, 0xb053,
+    0xb054, 0xb057, 0xb05d, 0xb07c, 0xb08c, 0xb098, 0xb099, 0xb09a, 0xb09c, 0xb0a0, 0xb0a1, 0xb0a8,
+    0xb0a9, 0xb0ab, 0xb0ad, 0xb0ae, 0xb0af, 0xb0b1, 0xb0b3, 0xb0b4, 0xb0bc, 0xb0c4, 0xb0c7, 0xb0c9,
+    0xb0d0, 0xb0e5, 0xb108, 0xb109, 0xb10c, 0xb110, 0xb113, 0xb118, 0xb123, 0xb124, 0xb125, 0xb137,
+    0xb140, 0xb141, 0xb144, 0xb150, 0xb155, 0xb178, 0xb179, 0xb17c, 0xb180, 0xb188, 0xb18d, 0xb192,
+    0xb193, 0xb194, 0xb1cc, 0xb1e8, 0xb204, 0xb208, 0xb215, 0xb258, 0xb274, 0xb284, 0xb290, 0xb291,
+    0xb294, 0xb298, 0xb299, 0xb2a5, 0xb2a6, 0xb2ac, 0xb2c8, 0xb2d0, 0xb2d8, 0xb2e4, 0xb2e5, 0xb2e6,
+    0xb2e8, 0xb2eb, 0xb2ec, 0xb2ed, 0xb2ee, 0xb2f4, 0xb2f5, 0xb2f7, 0xb2f9, 0xb2ff, 0xb300, 0xb301,
+    0xb310, 0xb313, 0xb354, 0xb355, 0xb358, 0xb35c, 0xb35f, 0xb364, 0xb365, 0xb367, 0xb369, 0xb36e,
+    0xb370, 0xb378, 0xb3c4, 0xb3c5, 0xb3c8, 0xb3cc, 0xb3d5, 0xb3d7, 0xb3d9, 0xb3fc, 0xb418, 0xb41c,
+    0xb450, 0xb451, 0xb458, 0xb460, 0xb461, 0xb465, 0xb4a4, 0xb4b7, 0xb4dc, 0xb4dd, 0xb4e0, 0xb4e3,
+    0xb4e4, 0xb4ec, 0xb4ed, 0xb4ef, 0xb4f1, 0xb514, 0xb529, 0xb52a, 0xb530, 0xb531, 0xb534, 0xb538,
+    0xb540, 0xb545, 0xb54c, 0xb55c, 0xb5a0, 0xb5a1, 0xb5a4, 0xb5a8, 0xb5bb, 0xb5bc, 0xb610, 0xb611,
+    0xb69c, 0xb6ab, 0xb6b1, 0xb6f0, 0xb728, 0xb729, 0xb72f, 0xb730, 0xb73b, 0xb744, 0xb77c, 0xb77d,
+    0xb780, 0xb78c, 0xb78d, 0xb791, 0xb797, 0xb798, 0xb79c, 0xb7a8, 0xb7ab, 0xb7b5, 0xb7c9, 0xb7ec,
+    0xb7ed, 0xb7f0, 0xb7f4, 0xb7fc, 0xb7fd, 0xb7ff, 0xb801, 0xb807, 0xb808, 0xb809, 0xb80c, 0xb824,
+    0xb825, 0xb828, 0xb82c, 0xb835, 0xb839, 0xb840, 0xb85c, 0xb85d, 0xb860, 0xb86c, 0xb86d, 0xb86f,
+    0xb8cc, 0xb8e8, 0xb8e9, 0xb8f9, 0xb8fb, 0xb904, 0xb958, 0xb959, 0xb960, 0xb96d, 0xb974, 0xb978,
+    0xb97c, 0xb984, 0xb987, 0xb98e, 0xb9ac, 0xb9ad, 0xb9b0, 0xb9bc, 0xb9bd, 0xb9bf, 0xb9c1, 0xb9c8,
+    0xb9c9, 0xb9cc, 0xb9ce, 0xb9d0, 0xb9d1, 0xb9d8, 0xb9d9, 0xb9db, 0xb9dd, 0xb9de, 0xb9e1, 0xb9e3,
+    0xb9e4, 0xb9e5, 0xb9e8, 0xb9f5, 0xb9fa, 0xba38, 0xba39, 0xba3c, 0xba40, 0xba48, 0xba4b, 0xba4d,
+    0xba4e, 0xba54, 0xba58, 0xba69, 0xba70, 0xba74, 0xba78, 0xba85, 0xba87, 0xbaa8, 0xbaa9, 0xbaac,
+    0xbab0, 0xbab8, 0xbab9, 0xbabb, 0xbabd, 0xbb18, 0xbb34, 0xbb35, 0xbb36, 0xbb38, 0xbb3b, 0xbb3c,
+    0xbb44, 0xbb47, 0xbb50, 0xbb58, 0xbb63, 0xbbc0, 0xbbf8, 0xbbfc, 0xbbff, 0xbc00, 0xbc09, 0xbc0c,
+    0xbc0f, 0xbc11, 0xbc14, 0xbc15, 0xbc16, 0xbc18, 0xbc1b, 0xbc1c, 0xbc1d, 0xbc1f, 0xbc24, 0xbc25,
+    0xbc29, 0xbc2d, 0xbc30, 0xbc31, 0xbc40, 0xbc43, 0xbc49, 0xbc84, 0xbc88, 0xbc8c, 0xbc94, 0xbc95,
+    0xbc97, 0xbca0, 0xbca4, 0xbca8, 0xbcbc, 0xbcbd, 0xbcc0, 0xbcc4, 0xbccd, 0xbcd1, 0xbcd5, 0xbcf4,
+    0xbcf5, 0xbcf6, 0xbcf8, 0xbcfc, 0xbd04, 0xbd07, 0xbd09, 0xbd48, 0xbd59, 0xbd80, 0xbd81, 0xbd84,
+    0xbd88, 0xbd89, 0xbd90, 0xbd93, 0xbd95, 0xbd99, 0xbdf0, 0xbe0c, 0xbe10, 0xbe14, 0xbe44, 0xbe4c,
+    0xbe54, 0xbe57, 0xbe5a, 0xbe5b, 0xbe60, 0xbe61, 0xbe68, 0xbe75, 0xbe7c, 0xbe8f, 0xbea8, 0xbed0,
+    0xbed4, 0xbed7, 0xbf08, 0xbf09, 0xbf51, 0xbfcc, 0xbfd0, 0xc058, 0xc068, 0xc0ac, 0xc0ad, 0xc0b0,
+    0xc0b4, 0xc0b6, 0xc0bc, 0xc0bf, 0xc0c1, 0xc0c8, 0xc0c9, 0xc0cc, 0xc0dd, 0xc0e4, 0xc11c, 0xc11d,
+    0xc11e, 0xc120, 0xc124, 0xc12c, 0xc12d, 0xc12f, 0xc131, 0xc138, 0xc139, 0xc13c, 0xc148, 0xc14b,
+    0xc154, 0xc158, 0xc168, 0xc18c, 0xc18d, 0xc190, 0xc194, 0xc19c, 0xc19f, 0xc1a1, 0xc1a5, 0xc1c4,
+    0xc1e0, 0xc1fc, 0xc218, 0xc219, 0xc21c, 0xc21f, 0xc220, 0xc228, 0xc22b, 0xc22d, 0xc232, 0xc26c,
+    0xc270, 0xc27d, 0xc288, 0xc2a4, 0xc2a8, 0xc2ac, 0xc2b4, 0xc2b5, 0xc2b7, 0xc2b9, 0xc2dc, 0xc2dd,
+    0xc2e0, 0xc2e3, 0xc2e4, 0xc2eb, 0xc2ec, 0xc2ed, 0xc2ef, 0xc2f1, 0xc2f6, 0xc2f8, 0xc2f9, 0xc2fc,
+    0xc300, 0xc30d, 0xc313, 0xc368, 0xc369, 0xc370, 0xc379, 0xc384, 0xc3d8, 0xc3df, 0xc464, 0xc4f0,
+    0xc4f4, 0xc4f8, 0xc500, 0xc50c, 0xc528, 0xc529, 0xc52c, 0xc539, 0xc53b, 0xc544, 0xc545, 0xc548,
+    0xc549, 0xc54a, 0xc54c, 0xc553, 0xc554, 0xc555, 0xc557, 0xc559, 0xc55e, 0xc560, 0xc561, 0xc568,
+    0xc57c, 0xc57d, 0xc580, 0xc584, 0xc587, 0xc591, 0xc595, 0xc597, 0xc598, 0xc5b4, 0xc5b5, 0xc5b8,
+    0xc5b9, 0xc5bb, 0xc5bc, 0xc5c4, 0xc5c5, 0xc5c6, 0xc5c7, 0xc5c9, 0xc5ca, 0xc5cc, 0xc5ce, 0xc5d0,
+    0xc5d4, 0xc5d8, 0xc5ec, 0xc5ed, 0xc5f0, 0xc5f4, 0xc5f7, 0xc5fc, 0xc5fd, 0xc5ff, 0xc601, 0xc606,
+    0xc608, 0xc61b, 0xc624, 0xc625, 0xc628, 0xc62c, 0xc62e, 0xc633, 0xc637, 0xc639, 0xc640, 0xc644,
+    0xc655, 0xc65c, 0xc660, 0xc678, 0xc67c, 0xc694, 0xc695, 0xc6a9, 0xc6b0, 0xc6b1, 0xc6b4, 0xc6b8,
+    0xc6c0, 0xc6c3, 0xc6c5, 0xc6cc, 0xc6d0, 0xc6d4, 0xc6e8, 0xc6ec, 0xc704, 0xc717, 0xc720, 0xc721,
+    0xc728, 0xc73c, 0xc73d, 0xc740, 0xc744, 0xc74c, 0xc751, 0xc758, 0xc774, 0xc775, 0xc778, 0xc77c,
+    0xc77d, 0xc783, 0xc784, 0xc785, 0xc787, 0xc788, 0xc78a, 0xc78e, 0xc790, 0xc791, 0xc794, 0xc796,
+    0xc798, 0xc7a0, 0xc7a1, 0xc7a3, 0xc7a5, 0xc7a6, 0xc7ac, 0xc7c1, 0xc7e4, 0xc800, 0xc801, 0xc804,
+    0xc808, 0xc80a, 0xc810, 0xc811, 0xc813, 0xc815, 0xc816, 0xc81c, 0xc820, 0xc82f, 0xc838, 0xc870,
+    0xc871, 0xc874, 0xc878, 0xc880, 0xc881, 0xc885, 0xc88b, 0xc88c, 0xc8c4, 0xc8fc, 0xc8fd, 0xc900,
+    0xc904, 0xc90c, 0xc90d, 0xc911, 0xc950, 0xc988, 0xc989, 0xc98c, 0xc990, 0xc998, 0xc99d, 0xc9c0,
+    0xc9c1, 0xc9c4, 0xc9c8, 0xc9d0, 0xc9d1, 0xc9d3, 0xc9d5, 0xc9d9, 0xc9da, 0xc9dc, 0xc9dd, 0xc9e0,
+    0xc9e2, 0xc9e7, 0xc9f8, 0xca0c, 0xca4c, 0xca4d, 0xca50, 0xca54, 0xca5c, 0xcabd, 0xcad3, 0xcb48,
+    0xcb49, 0xcc0c, 0xcc0d, 0xcc22, 0xcc28, 0xcc29, 0xcc2c, 0xcc2e, 0xcc30, 0xcc38, 0xcc3b, 0xcc3d,
+    0xcc3e, 0xcc44, 0xcc45, 0xcc54, 0xcc59, 0xcc98, 0xcc99, 0xcc9c, 0xcca0, 0xcca9, 0xccab, 0xccad,
+    0xccb4, 0xccd0, 0xcd08, 0xcd09, 0xcd0c, 0xcd1b, 0xcd1d, 0xcd2c, 0xcd5c, 0xcd94, 0xcd95, 0xcd98,
+    0xcd9c, 0xcda4, 0xcda5, 0xcda7, 0xcda9, 0xcde8, 0xce20, 0xce21, 0xce30, 0xce35, 0xce58, 0xce59,
+    0xce5c, 0xce60, 0xce68, 0xce6b, 0xce6d, 0xce74, 0xce78, 0xce7c, 0xce84, 0xce90, 0xcea0, 0xcee4,
+    0xcee8, 0xceec, 0xcef4, 0xcef5, 0xcef7, 0xcf00, 0xcf13, 0xcf1c, 0xcf54, 0xcf58, 0xcf5c, 0xcf64,
+    0xcf69, 0xcf8c, 0xcfc4, 0xcfe0, 0xd034, 0xd06c, 0xd070, 0xd074, 0xd07c, 0xd0a4, 0xd0ac, 0xd0c0,
+    0xd0c1, 0xd0c4, 0xd0c8, 0xd0d1, 0xd0d3, 0xd0d5, 0xd0dc, 0xd0dd, 0xd0e4, 0xd130, 0xd131, 0xd134,
+    0xd138, 0xd145, 0xd14c, 0xd14d, 0xd154, 0xd15c, 0xd1a0, 0xd1a4, 0xd1a8, 0xd1b1, 0xd1b5, 0xd1f4,
+    0xd22c, 0xd234, 0xd23c, 0xd241, 0xd280, 0xd29c, 0xd2b8, 0xd2b9, 0xd2bc, 0xd2bf, 0xd2c0, 0xd2c8,
+    0xd2f0, 0xd2f1, 0xd300, 0xd305, 0xd30c, 0xd30e, 0xd310, 0xd314, 0xd31d, 0xd328, 0xd329, 0xd32c,
+    0xd33d, 0xd37c, 0xd37d, 0xd398, 0xd39c, 0xd3b4, 0xd3b8, 0xd3bc, 0xd3c9, 0xd3d0, 0xd3ec, 0xd3ed,
+    0xd3f0, 0xd45c, 0xd478, 0xd479, 0xd480, 0xd488, 0xd48d, 0xd4e8, 0xd504, 0xd50c, 0xd514, 0xd53c,
+    0xd53d, 0xd544, 0xd54f, 0xd551, 0xd558, 0xd559, 0xd55c, 0xd560, 0xd568, 0xd569, 0xd56d, 0xd574,
+    0xd575, 0xd578, 0xd584, 0xd587, 0xd589, 0xd5a5, 0xd5c8, 0xd5cc, 0xd5d8, 0xd5e4, 0xd5ec, 0xd600,
+    0xd604, 0xd608, 0xd611, 0xd615, 0xd61c, 0xd638, 0xd639, 0xd63c, 0xd640, 0xd648, 0xd649, 0xd64d,
+    0xd654, 0xd655, 0xd658, 0xd65c, 0xd669, 0xd68c, 0xd68d, 0xd69f, 0xd6a1, 0xd6a8, 0xd6c4, 0xd6c8,
+    0xd6cc, 0xd6d4, 0xd6e8, 0xd718, 0xd734, 0xd749, 0xd750, 0xd751, 0xd754, 0xd758, 0xd759, 0xd761,
+    0xd765, 0xd769, 0xd76c, 0xd770, 0xd788, 0xd798,
+};
+const unsigned short CaptchaGen::kJapaneseHirakana[72] = {
+    0x3042, 0x3044, 0x3046, 0x3048, 0x304a, 0x304b, 0x304c, 0x304d, 0x304e, 0x304f, 0x3050, 0x3051,
+    0x3052, 0x3053, 0x3054, 0x3055, 0x3056, 0x3057, 0x3058, 0x3059, 0x305a, 0x305b, 0x305c, 0x305d,
+    0x305e, 0x305f, 0x3060, 0x3061, 0x3062, 0x3064, 0x3065, 0x3066, 0x3067, 0x3068, 0x3069, 0x306a,
+    0x306b, 0x306c, 0x306d, 0x306e, 0x306f, 0x3070, 0x3071, 0x3072, 0x3073, 0x3074, 0x3075, 0x3076,
+    0x3077, 0x3078, 0x3079, 0x307a, 0x307b, 0x307c, 0x307d, 0x307e, 0x307f, 0x3080, 0x3081, 0x3082,
+    0x3084, 0x3086, 0x3088, 0x3089, 0x308a, 0x308b, 0x308c, 0x308d, 0x308f, 0x3090, 0x3092, 0x3093,
+};
+const unsigned short CaptchaGen::kTaiwanAlphabet[26] = {
+    0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046, 0x0047, 0x0048, 0x0049, 0x004a, 0x004b, 0x004c,
+    0x004d, 0x004e, 0x004f, 0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057, 0x0058,
+    0x0059, 0x005a,
+};
+const unsigned int CaptchaGen::kKoreanGeneralCount = 978;    // VA 0x08b2c444
+const unsigned int CaptchaGen::kTaiwanAlphabetCount = 26;    // VA 0x08b2c534
+const unsigned int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 
 // CaptchaGen 实现（G7 验证码；ORIG 走 FreeType，本环境无 FreeType，按算法等价实现）
 CaptchaGen::ImageOption::ImageOption()
@@ -1376,27 +1348,1191 @@ bool DBThread::isLogDB()
 {
     return m_bLogDB;
 }
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG T 0x083ff786：new DBTask（0xd54）后进入 DB 事件循环；
+// HandleEvents 处理 DB_Q/LOGDB_Q（isLogDB 决定 2/4），CMessageCounter(20000)
+// 按 600s 周期 WriteLog；循环条件 !GlobalData::s_server_stop。
+// ---------------------------------------------------------------------------
+void DBThread::dispatch(void* arg)
+{
+    (void)arg;
+    DBTask* task = new DBTask;
+    if (task == 0)
+    {
+        std::cerr << "[DBThread::dispatch] Memory allocation fail!" << std::endl;
+        OS_API::Exit(0);
+    }
+
+    int queueIdx = 2;
+    if (isLogDB())
+    {
+        queueIdx = 4;
+    }
+
+    message_counter::CMessageCounter msgCounter(20000);
+    int curSec = 0;
+    int lastWriteSec = 0;
+    message_counter::CTimeInterval* interval =
+        message_counter::CTimeInterval::Create();
+    int signal = 0;
+
+    while (!GlobalData::s_server_stop)
+    {
+        curSec = GlobalData::s_systemTime_.getCurSec();
+        interval->SetLastTime();
+        signal = 0;
+        if (!task->HandleEvents((MsgQueueMgr::QUEUE_IDX)queueIdx, signal))
+        {
+            break;
+        }
+        if (signal != 0)
+        {
+            msgCounter.IncreaseMessage(
+                (unsigned int)signal, (unsigned char)0, 0,
+                interval->GetTimeInterval());
+            if (curSec - lastWriteSec > 600)
+            {
+                lastWriteSec = curSec;
+                msgCounter.WriteLog();
+            }
+        }
+    }
+    message_counter::CTimeInterval::Destory(interval);
+    delete task;
+}
 DispatchThread::DispatchThread() {}  // 基类 ThreadInterface 隐式构造（ORIG 0x847e268）
 NetworkThread::NetworkThread() {}    // ORIG 0x857d554
 UdpThread::UdpThread() {}            // ORIG 0x857c354
+// g_bUdp_TH_start —— ORIG BSS 0x943e240；dispatch 置 1 标记 UDP 线程已启动。
+bool g_bUdp_TH_start = false;
+
+// ---------------------------------------------------------------------------
+// CPacketCounter<1000,10240> —— ORIG 由本 TU（NetworkThread.cpp）实例化
+// （C1 0x0857f4dc / D1 0x0857f55a / IncrementPacketCount 0x0857f560 /
+// Reset 0x0857f92e，均为 W 弱符号；布局按 Reset/C1 反汇编偏移恢复）。
+// ---------------------------------------------------------------------------
+template<int Lo, int Hi>
+class CPacketCounter
+{
+public:
+    CPacketCounter(char* dir, char* name);
+    ~CPacketCounter();
+    void Reset();
+    void IncrementPacketCount(int id);
+    int m_totalCount;                 // +0x00
+    int m_startTime;                  // +0x04
+    unsigned int m_packetCount[0x2418];  // +0x08（id 域 0x3e8..0x27ff）
+    int m_packetTime[0x2418];         // +0x9068
+    char m_packetFlag[0x2418];        // +0x120c8
+    int m_packetTotal[0x2418];        // +0x144e8
+    char m_path[0x100];               // +0x1d548
+    bool m_flagInit;                  // +0x1d648
+    char m_flag2;                     // +0x1d649
+};
+
+template<int Lo, int Hi>
+CPacketCounter<Lo, Hi>::CPacketCounter(char* dir, char* name)
+{
+    Reset();
+    m_startTime = (int)time(0);
+    if (dir)
+    {
+        sprintf(m_path, "./log/%s/%s", dir, name);
+    }
+    else
+    {
+        sprintf(m_path, "./log/%s", name);
+    }
+    m_flagInit = true;
+}
+
+template<int Lo, int Hi>
+CPacketCounter<Lo, Hi>::~CPacketCounter() {}
+
+template<int Lo, int Hi>
+void CPacketCounter<Lo, Hi>::Reset()
+{
+    for (int i = 0; i <= 0x2417; ++i)
+    {
+        m_packetCount[i] = 0;
+        m_packetTotal[i] = 0;
+        m_packetTime[i] = 0;
+        m_packetFlag[i] = 0;
+    }
+    m_totalCount = 0;
+    m_flag2 = 0;
+}
+
+template<int Lo, int Hi>
+void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
+{
+    if (id > 0x27ff) return;
+    if (id < 0x3e8) return;
+    if (!m_flagInit && m_packetCount[id - 0x3e8] > 10) return;
+    ++m_packetCount[id - 0x3e8];
+}
+
+// ---------------------------------------------------------------------------
+// _bindUDPSocket —— ORIG 0x0857c3be：socket/bind/SetNonBlock，失败日志后 exit。
+// ---------------------------------------------------------------------------
+int UdpThread::_bindUDPSocket(unsigned short port)
+{
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr addr;
+    memset(&addr, 0, 0x10);
+    addr.sa_family = AF_INET;
+    *(unsigned short*)&addr.sa_data[0] = htons(port);
+    *(unsigned int*)&addr.sa_data[2] = htonl(0);
+    if (bind(fd, &addr, 0x10) < 0)
+    {
+        LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x84,
+                              "[ERROR]UDP Thread Socket Binding ERROR");
+        int err = *__errno_location();
+        if (err == 0x62)
+        {
+            LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x9e,
+                                  "Port %d for receiving UDP is in use\n",
+                                  (int)(unsigned short)htons(port));
+        }
+        else if (err == 0x63)
+        {
+            LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0xa2,
+                                  "Cannot assign requested address\n");
+        }
+        else if (err != 0)
+        {
+            LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0xa6,
+                                  "Could not bind UDP receive port. Error= %d , strerror = %s\n",
+                                  err, strerror(err));
+        }
+        exit(-1);
+    }
+    if (!CNetwork<4096, 450000>::SetNonBlock(fd))
+    {
+        LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0xb0,
+                              "Fail to SetNonBlock UdpThread.");
+        exit(-1);
+    }
+    return fd;
+}
+
+// ---------------------------------------------------------------------------
+// _processUDPData —— ORIG 0x0857c5a4：AddUdpLog → 静态计数 → dispatchPacket；
+// 未识别包按首字节分流（0 互斥数据 / 1 换装队列 / 2 忽略 / 3 拍卖停止）。
+// ---------------------------------------------------------------------------
+void UdpThread::_processUDPData(char* data, int len)
+{
+    unsigned short uVar1 = *(unsigned short*)data;
+    CPacketTracer* tracer = CPacketTracerInstance();
+    tracer->AddUdpLog(3, (int)uVar1);
+
+    static CPacketCounter<1000, 10240> packet_counter(
+        G_CEnvironment()->get_file_name(), "InterDispatcher");
+    packet_counter.IncrementPacketCount((int)*(unsigned short*)data);
+
+    if (!CDispatchServerPacket::dispatchPacket(data))
+    {
+        char cVar2 = *data;
+        if (cVar2 == '\x01')
+        {
+            Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xf8);
+            CStreamGuard guard(stream, true);
+            **guard << 0x9f;
+            **guard << -1;
+            guard->put_binary(data + 2, len);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        }
+        else if (cVar2 < '\x02')
+        {
+            if (cVar2 == '\0')
+            {
+                char* local_24 = data;
+                Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0xe8);
+                CStreamGuard guard(stream, true);
+                **guard << 0x3d;
+                **guard << -1;
+                guard->put_binary(local_24, 0x52);
+                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+                return;
+            }
+        }
+        else
+        {
+            if (cVar2 == '\x02')
+            {
+                return;
+            }
+            if (cVar2 == '\x03')
+            {
+                GlobalData::s_auction_proxy->SetRunning(false);
+                GlobalData::s_cera_auction_proxy->SetRunning(false);
+                char* local_20 = data;
+                Stream* stream = GlobalData::s_stream_pool->Acquire("NetworkThread.cpp", 0x126);
+                CStreamGuard guard(stream, true);
+                **guard << 0x3d;
+                **guard << -1;
+                guard->put_binary(local_20, 0x52);
+                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+                return;
+            }
+        }
+        if (*(unsigned short*)data < 1000)
+        {
+            LogManager::logFormat(1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x112,
+                                  "ABNORMAL UDP PACKET [%d]", (int)*data);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG 0x0857c9de：bind UDP 口后 select 轮询 recv，转入
+// _processUDPData；循环条件 !GlobalData::s_server_stop（0x940bd64）。
+// ---------------------------------------------------------------------------
+void UdpThread::dispatch(void* arg)
+{
+    (void)arg;
+    int i;
+    char buf[0x1800];
+    fd_set readfds;
+    int maxfd;
+    struct timeval timeout;
+    int sockets[1];
+    int recvLen;
+    int nfds;
+
+    sockets[0] = _bindUDPSocket((unsigned short)G_CEnvironment()->get_udp_port());
+    g_bUdp_TH_start = true;
+    while (!GlobalData::s_server_stop)
+    {
+        memset(buf, 0, sizeof(buf));
+        FD_ZERO(&readfds);
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 0;
+        maxfd = 0;
+        for (i = 0; i <= 0; ++i)
+        {
+            FD_SET(sockets[i], &readfds);
+            maxfd = std::max(maxfd, sockets[i]);
+        }
+        maxfd += 1;
+        nfds = select(maxfd, &readfds, NULL, NULL, &timeout);
+        if (nfds < 0)
+        {
+            continue;
+        }
+        for (i = 0; i <= 0; ++i)
+        {
+            if (FD_ISSET(sockets[i], &readfds))
+            {
+                recvLen = recv(sockets[i], buf, sizeof(buf), 0);
+                if (recvLen > 0)
+                {
+                    _processUDPData(buf, recvLen);
+                }
+            }
+        }
+    }
+}
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG T 0x0847e2d2：主分发循环。TimerEntry 取定时器消息 →
+// TimerDispatcher::dispatch；DISPATCH_Q 取 Stream → 按流头 code 分流
+// PacketDispatcher（客户端包）/ InterDispatcher（服务器互连包）；池归还按
+// stream->m_poolType（0/1/2 = 默认/小/大流池）。CMessageCounter(10000) 与
+// CUserPacketCounter 600s 周期落盘。pUserPacketCounter_ 指向本栈实例。
+// ---------------------------------------------------------------------------
+void DispatchThread::dispatch(void* arg)
+{
+    (void)arg;
+    TimerEntry entry;
+    unsigned char typeByte = 0;      // 首字节（客户端包分流码）
+    unsigned short sizeWord = 0;     // +1 起的 ushort
+    message_counter::CMessageCounter msgCounter(10000);
+    int lastWriteSec = 0;
+    int curSec = 0;
+    message_counter::CUserPacketCounter userCounter(
+        G_CEnvironment()->get_file_name(), "UserPacketCounter");
+    PacketDispatcher::pUserPacketCounter_ = &userCounter;
+    message_counter::CTimeInterval* interval =
+        message_counter::CTimeInterval::Create();
+    int code = 0;   // 流头读出的分发码
+    int idx = 0;    // 流头读出的用户 id
+
+    while (!GlobalData::s_server_stop)
+    {
+        GlobalData::s_systemTime_.update();
+        if (G_TimerQueue()->GetTimerMess(entry))
+        {
+            interval->SetLastTime();
+            G_TimerDispatcher()->dispatch(entry);
+            msgCounter.IncreaseMessage(
+                0, (unsigned char)0,
+                (unsigned short)((short)entry.msg + 30000),
+                interval->GetTimeInterval());
+        }
+
+        Stream* stream = GlobalData::s_msgq_mgr->get(MsgQueueMgr::DISPATCH_Q);
+        if (stream == 0)
+        {
+            OS_API::uSleep(100);
+            continue;
+        }
+        int length = stream->length();
+        int streamType = stream->m_poolType;
+        *stream >> code;
+        *stream >> idx;
+        curSec = GlobalData::s_systemTime_.getCurSec();
+        interval->SetLastTime();
+        if (code == 0)
+        {
+            typeByte = (unsigned char)*stream->get_buffer();
+            sizeWord = *(unsigned short*)(stream->get_buffer() + 1);
+            G_PacketDispatcher()->dispatch(
+                idx, stream->get_buffer(), stream->length());
+        }
+        else
+        {
+            typeByte = 0;
+            sizeWord = 0;
+            G_InterDispatcher()->dispatch(
+                code, idx, stream->get_buffer(), stream->length());
+        }
+        msgCounter.IncreaseMessage(
+            (unsigned int)code, typeByte, sizeWord,
+            interval->GetTimeInterval());
+        if (curSec - lastWriteSec > 600)
+        {
+            lastWriteSec = curSec;
+            msgCounter.WriteLog();
+            userCounter.WriteLog();
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8f, 5);
+            trace("timer_queue_count(%u)", G_TimerQueue()->GetQueueSize());
+            G_TimerQueue()->write_timer_queue_log();
+        }
+        switch (streamType)
+        {
+        case 1:
+            if (0xfff < length)
+            {
+                cMyTrace t(__PRETTY_FUNCTION__, 0x9e, 5);
+                t("Small Stream Size over code(%d), idx(%d), size(%u)",
+                  code, idx, length);
+            }
+            GlobalData::s_small_stream_pool->Free(stream);
+            break;
+        case 2:
+            if (0x3ffff < length)
+            {
+                cMyTrace t(__PRETTY_FUNCTION__, 0xb2, 5);
+                t("Big Stream Size over code(%d), idx(%d), size(%u)",
+                  code, idx, length);
+            }
+            GlobalData::s_big_stream_pool->Free(stream);
+            break;
+        default:
+            if (0x3fff < length)
+            {
+                cMyTrace t(__PRETTY_FUNCTION__, 0xa8, 5);
+                t("Default Stream Size over code(%d), idx(%d), size(%u)",
+                  code, idx, length);
+            }
+            GlobalData::s_stream_pool->Free(stream);
+            break;
+        }
+    }
+    message_counter::CTimeInterval::Destory(interval);
+}
+
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG T 0x0857d5be：网络收包线程。消费 AcceptThread 入队的
+// s_accept_que（加锁逐个 SetEpoll），随后 epoll_wait(600, 100ms) 处理
+// EPOLLIN(1)/EPOLLOUT(4)/错误掩码(0x18)；sendSize>0x6ddd0(450000) 判定
+// 发送缓冲过大 → DisConnSig(6)。
+// ---------------------------------------------------------------------------
+void NetworkThread::dispatch(void* arg)
+{
+    (void)arg;
+    EpollHandler* epoll = G_EpollHandler();
+    epoll_event* events = epoll->GetEpollEvents();
+    int epollfd = G_EpollHandler()->GetEpollFD();
+
+    while (true)
+    {
+        if (GlobalData::s_server_stop)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2fe, 0);
+            trace("RecvThread Terminate");
+            return;
+        }
+        *__errno_location() = 0;
+        OS_API::Sleep(10);
+
+        if (!GlobalData::s_accept_que.empty())
+        {
+            GlobalData::s_accept_lock.lock();
+            while (!GlobalData::s_accept_que.empty())
+            {
+                CUser* user = GlobalData::s_accept_que.front();
+                int err = G_EpollHandler()->SetEpoll(
+                    user, user->m_network.get_socket(), false);
+                if (err != 0)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x2c4,
+                        "(m_id: %s) G_EpollHandler()->SetEpoll(pUser->get_socket(%d)) %d(%s)",
+                        NumberToString(user->get_acc_id(), 0),
+                        user->m_network.get_socket(), err, strerror(err));
+                }
+                GlobalData::s_accept_que.pop();
+            }
+            GlobalData::s_accept_lock.unlock();
+        }
+
+        int nfds = epoll_wait(epollfd, events, 600, 100);
+        if (nfds == 0)
+        {
+            continue;
+        }
+        if (nfds < 0 && errno != EINTR && errno != 0)
+        {
+            return;
+        }
+        for (int i = 0; i < nfds; ++i)
+        {
+            CUser* user = (CUser*)events[i].data.ptr;
+            if (user == 0)
+            {
+                continue;
+            }
+            if (events[i].events & 1)
+            {
+                user->Recv();
+            }
+            if (user->m_network.m_sendSize != 0 && (events[i].events & 4))
+            {
+                if (user->m_network.m_sendSize <= 0x6ddd0)
+                {
+                    user->m_network.send_packet();
+                }
+                else
+                {
+                    user->DisConnSig((DISCONN_SIG)6, false, 0);
+                }
+            }
+            if (events[i].events & 0x18)
+            {
+                user->DisConnSig((DISCONN_SIG)9, false, 0);
+            }
+        }
+    }
+}
 MonitorTcpThread::MonitorTcpThread() {}  // ORIG 0x857d8f0
 AcceptThread::AcceptThread()
 {
     // ORIG 0x0857cbe8：置 +0x0c 标志为 false。
     m_acceptFlag = false;
 }
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG T 0x0857d95a：监控代理线程。monitor/guild 代理数组 +
+// pcroom/community/auction/cera/hades 五个代理 socket 构建 fd_set，
+// select(1s) 轮询 OnTcpRecv/OnTcpSend；断线按 60s 周期重连（auction 系
+// InitTcp(true) + 虚 Disconnect + SendRegistPacket；community 仅整合 PvP
+// 频道时处理）。
+// ---------------------------------------------------------------------------
+void MonitorTcpThread::dispatch(void* arg)
+{
+    (void)arg;
+    fd_set readfds;
+    fd_set writefds;
+    socklen_t soLen[4];
+    struct timeval timeout;
+    int soError = 0;
+    int ret = 0;
+    int lastReconnectPcroom = 0;
+    int lastReconnectCommunity = 0;
+    int lastReconnectAuction = 0;
+    int lastReconnectCera = 0;
+    int pcroomSocket = 0;
+    int communitySocket = 0;
+    int auctionSocket = 0;
+    int ceraSocket = 0;
+    int hadesSocket = 0;
+    int proxyCount = 0;
+
+    while (true)
+    {
+        do
+        {
+            if (GlobalData::s_server_stop)
+            {
+                return;
+            }
+            OS_API::Sleep(1);
+            pcroomSocket =
+                GlobalData::s_pcroom_proxy->GetTcpHandler()->get_socket();
+            communitySocket =
+                GlobalData::s_community_proxy->GetTcpHandler()->get_socket();
+            auctionSocket =
+                GlobalData::s_auction_proxy->GetTcpHandler()->get_socket();
+            ceraSocket =
+                GlobalData::s_cera_auction_proxy->GetTcpHandler()->get_socket();
+            hadesSocket =
+                GlobalData::s_hades_proxy->GetTcpHandler()->get_socket();
+
+            FD_ZERO(&readfds);
+            FD_ZERO(&writefds);
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
+            int maxfd = 0;
+            proxyCount =
+                GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
+            for (int i = 0; i < proxyCount; ++i)
+            {
+                CMonitorServerProxy* mon =
+                    GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i);
+                int s = mon->GetTcpHandler()->get_socket();
+                if (s != -1)
+                {
+                    FD_SET(s, &readfds);
+                    FD_SET(s, &writefds);
+                    maxfd = std::max(maxfd, s);
+                }
+                CGuildServerProxy* guild =
+                    GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i);
+                s = guild->GetTcpHandler()->get_socket();
+                if (s != -1)
+                {
+                    FD_SET(s, &readfds);
+                    FD_SET(s, &writefds);
+                    maxfd = std::max(maxfd, s);
+                }
+            }
+            if (pcroomSocket != -1)
+            {
+                FD_SET(pcroomSocket, &readfds);
+                FD_SET(pcroomSocket, &writefds);
+                maxfd = std::max(maxfd, pcroomSocket);
+            }
+            if (communitySocket != -1)
+            {
+                FD_SET(communitySocket, &readfds);
+                FD_SET(communitySocket, &writefds);
+                maxfd = std::max(maxfd, communitySocket);
+            }
+            if (auctionSocket != -1)
+            {
+                FD_SET(auctionSocket, &readfds);
+                FD_SET(auctionSocket, &writefds);
+                maxfd = std::max(maxfd, auctionSocket);
+            }
+            if (ceraSocket != -1)
+            {
+                FD_SET(ceraSocket, &readfds);
+                FD_SET(ceraSocket, &writefds);
+                maxfd = std::max(maxfd, ceraSocket);
+            }
+            if (hadesSocket != -1)
+            {
+                FD_SET(hadesSocket, &readfds);
+                FD_SET(hadesSocket, &writefds);
+                maxfd = std::max(maxfd, hadesSocket);
+            }
+            maxfd += 1;
+            ret = select(maxfd, &readfds, &writefds, 0, &timeout);
+        } while (ret < 0);
+
+        proxyCount =
+            GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
+        for (int i = 0; i < proxyCount; ++i)
+        {
+            CMonitorServerProxy* mon =
+                GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i);
+            int s = mon->GetTcpHandler()->get_socket();
+            if (s != -1 && FD_ISSET(s, &readfds))
+            {
+                if (mon->OnTcpRecv() != 1)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x449,
+                        "Monitor::OnTcpRecv == false!!!");
+                    CStreamGuard guard(
+                        GlobalData::s_stream_pool->Acquire(
+                            "NetworkThread.cpp", 0x44c),
+                        true);
+                    **guard << 0x15f;
+                    **guard << -1;
+                    **guard << 0xc9;
+                    GlobalData::s_msgq_mgr->put(
+                        MsgQueueMgr::DISPATCH_Q, guard);
+                }
+            }
+            if (s != -1 && FD_ISSET(s, &writefds))
+            {
+                int sendRet = mon->OnTcpSend();
+                if (sendRet < 0)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x45e,
+                        "Monitor::OnTcpSend == false!!!remain_size(%d)",
+                        sendRet);
+                    CStreamGuard guard(
+                        GlobalData::s_stream_pool->Acquire(
+                            "NetworkThread.cpp", 0x460),
+                        true);
+                    **guard << 0x15f;
+                    **guard << -1;
+                    **guard << 0xc9;
+                    GlobalData::s_msgq_mgr->put(
+                        MsgQueueMgr::DISPATCH_Q, guard);
+                }
+            }
+            CGuildServerProxy* guild =
+                GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i);
+            s = guild->GetTcpHandler()->get_socket();
+            if (s != -1 && FD_ISSET(s, &readfds))
+            {
+                if (guild->OnTcpRecv() != 1)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x46f,
+                        "Guild::OnTcpRecv == false!!!");
+                    CStreamGuard guard(
+                        GlobalData::s_stream_pool->Acquire(
+                            "NetworkThread.cpp", 0x471),
+                        true);
+                    **guard << 0x15f;
+                    **guard << -1;
+                    **guard << 0xcb;
+                    GlobalData::s_msgq_mgr->put(
+                        MsgQueueMgr::DISPATCH_Q, guard);
+                }
+            }
+            if (s != -1 && FD_ISSET(s, &writefds))
+            {
+                int sendRet = guild->OnTcpSend();
+                if (sendRet < 0)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x480,
+                        "Guild::OnTcpSend == false!!!remain_size(%d)",
+                        sendRet);
+                    CStreamGuard guard(
+                        GlobalData::s_stream_pool->Acquire(
+                            "NetworkThread.cpp", 0x481),
+                        true);
+                    **guard << 0x15f;
+                    **guard << -1;
+                    **guard << 0xcb;
+                    GlobalData::s_msgq_mgr->put(
+                        MsgQueueMgr::DISPATCH_Q, guard);
+                }
+            }
+        }
+
+        // HADES 代理
+        if (hadesSocket != -1 &&
+            GlobalData::s_hades_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTED &&
+            FD_ISSET(hadesSocket, &readfds))
+        {
+            if (!GlobalData::s_hades_proxy->OnTcpRecv())
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x493,
+                    "HADES::OnTcpRecv == false!!!");
+            }
+        }
+        if (hadesSocket != -1 && FD_ISSET(hadesSocket, &writefds))
+        {
+            int sendRet = GlobalData::s_hades_proxy->OnTcpSend();
+            if (sendRet < 0)
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x49d,
+                    "HADES::OnTcpSend == false!!!remain_size(%d)", sendRet);
+            }
+        }
+
+        // PCROOM 代理
+        if (pcroomSocket != -1 &&
+            GlobalData::s_pcroom_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTED &&
+            FD_ISSET(pcroomSocket, &readfds))
+        {
+            if (!GlobalData::s_pcroom_proxy->OnTcpRecv())
+            {
+                lastReconnectPcroom =
+                    GlobalData::s_systemTime_.getCurSec();
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x4e0,
+                    "PCROOM::OnTcpRecv == false!!!");
+            }
+        }
+        if (pcroomSocket != -1 && FD_ISSET(pcroomSocket, &writefds))
+        {
+            if (GlobalData::s_pcroom_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTING)
+            {
+                soError = 0;
+                soLen[3] = 4;
+                ret = getsockopt(pcroomSocket, SOL_SOCKET, SO_ERROR,
+                                 &soError, &soLen[3]);
+                if (soError == 0 && ret == 0)
+                {
+                    GlobalData::s_pcroom_proxy->SetSocketState(
+                        ENUM_SOCKET_STATE_CONNECTED);
+                }
+            }
+            int sendRet = GlobalData::s_pcroom_proxy->OnTcpSend();
+            if (sendRet < 0)
+            {
+                lastReconnectPcroom =
+                    GlobalData::s_systemTime_.getCurSec();
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x4f9,
+                    "PCROOM::OnTcpSend == false!!!remain_size(%d)", sendRet);
+            }
+        }
+        int pcroomState = GlobalData::s_pcroom_proxy->GetSocketState();
+        if (pcroomState == ENUM_SOCKET_STATE_DISCONNECTED)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectPcroom >
+                0x3c)
+            {
+                GlobalData::s_pcroom_proxy->InitTcp();
+                GlobalData::s_pcroom_proxy->SetSocketState(
+                    ENUM_SOCKET_STATE_CONNECTING);
+                lastReconnectPcroom =
+                    GlobalData::s_systemTime_.getCurSec();
+            }
+        }
+        else if (pcroomState == ENUM_SOCKET_STATE_CONNECTING)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectPcroom >
+                0x3c)
+            {
+                lastReconnectPcroom =
+                    GlobalData::s_systemTime_.getCurSec();
+                GlobalData::s_pcroom_proxy->Disconnect();
+            }
+        }
+
+        // COMMUNITY 代理（仅整合 PvP 频道时处理）
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        {
+            if (communitySocket != -1 &&
+                GlobalData::s_community_proxy->GetSocketState() ==
+                    ENUM_SOCKET_STATE_CONNECTED &&
+                FD_ISSET(communitySocket, &readfds))
+            {
+                if (!GlobalData::s_community_proxy->OnTcpRecv())
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x521,
+                        "COMMUNITY::OnTcpRecv == false!!!");
+                }
+            }
+            if (communitySocket != -1 &&
+                FD_ISSET(communitySocket, &writefds))
+            {
+                if (GlobalData::s_community_proxy->GetSocketState() ==
+                    ENUM_SOCKET_STATE_CONNECTING)
+                {
+                    soError = 0;
+                    soLen[2] = 4;
+                    ret = getsockopt(communitySocket, SOL_SOCKET, SO_ERROR,
+                                     &soError, &soLen[2]);
+                    if (soError == 0 && ret == 0)
+                    {
+                        GlobalData::s_community_proxy->SetSocketState(
+                            ENUM_SOCKET_STATE_CONNECTED);
+                    }
+                }
+                int sendRet =
+                    GlobalData::s_community_proxy->OnTcpSend();
+                if (sendRet < 0)
+                {
+                    LogManager::logFormat(
+                        1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x537,
+                        "COMMUNITY::OnTcpSend == false!!!remain_size(%d)",
+                        sendRet);
+                }
+            }
+            int commState =
+                GlobalData::s_community_proxy->GetSocketState();
+            if (commState == ENUM_SOCKET_STATE_DISCONNECTED)
+            {
+                GlobalData::s_community_proxy->InitTcp();
+                GlobalData::s_community_proxy->SetSocketState(
+                    ENUM_SOCKET_STATE_CONNECTING);
+                lastReconnectCommunity =
+                    GlobalData::s_systemTime_.getCurSec();
+            }
+            else if (commState == ENUM_SOCKET_STATE_CONNECTING)
+            {
+                if (GlobalData::s_systemTime_.getCurSec() -
+                        lastReconnectCommunity >
+                    0x3c)
+                {
+                    lastReconnectCommunity =
+                        GlobalData::s_systemTime_.getCurSec();
+                    GlobalData::s_community_proxy->Disconnect();
+                }
+            }
+        }
+
+        // AUCTION 代理
+        if (auctionSocket != -1 &&
+            GlobalData::s_auction_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTED &&
+            FD_ISSET(auctionSocket, &readfds))
+        {
+            if (!GlobalData::s_auction_proxy->OnTcpRecv())
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x734,
+                    "AUCTION - OnTcpRecv == false!!!");
+            }
+        }
+        if (auctionSocket != -1 && FD_ISSET(auctionSocket, &writefds))
+        {
+            if (GlobalData::s_auction_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTING)
+            {
+                soError = 0;
+                soLen[1] = 4;
+                ret = getsockopt(auctionSocket, SOL_SOCKET, SO_ERROR,
+                                 &soError, &soLen[1]);
+                if (soError == 0 && ret == 0)
+                {
+                    GlobalData::s_auction_proxy->SetSocketState(
+                        ENUM_SOCKET_STATE_CONNECTED);
+                }
+                GlobalData::s_auction_proxy->SendRegistPacket();
+            }
+            int sendRet = GlobalData::s_auction_proxy->OnTcpSend();
+            if (sendRet < 0)
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x74c,
+                    "AUCTION - OnTcpSend == false!!!remain_size(%d)",
+                    sendRet);
+            }
+        }
+        int auctionState =
+            GlobalData::s_auction_proxy->GetSocketState();
+        if (auctionState == ENUM_SOCKET_STATE_DISCONNECTED)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectAuction >
+                0x3c)
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x754, 0);
+                trace("AUCTION - invoke InitTcp() by time out or disconnect");
+                GlobalData::s_auction_proxy->InitTcp(true);
+                GlobalData::s_auction_proxy->SetSocketState(
+                    ENUM_SOCKET_STATE_CONNECTING);
+                lastReconnectAuction =
+                    GlobalData::s_systemTime_.getCurSec();
+            }
+        }
+        else if (auctionState == ENUM_SOCKET_STATE_CONNECTING)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectAuction >
+                0x3c)
+            {
+                lastReconnectAuction =
+                    GlobalData::s_systemTime_.getCurSec();
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x761, 0);
+                trace("AUCTION - Disconnect to Auction Server(Timeout for connect trying)");
+                GlobalData::s_auction_proxy->Disconnect();
+            }
+        }
+
+        // CERA AUCTION 代理
+        if (ceraSocket != -1 &&
+            GlobalData::s_cera_auction_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTED &&
+            FD_ISSET(ceraSocket, &readfds))
+        {
+            if (!GlobalData::s_cera_auction_proxy->OnTcpRecv())
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x76c,
+                    "Cera AUCTION - OnTcpRecv == false!!!");
+            }
+        }
+        if (ceraSocket != -1 && FD_ISSET(ceraSocket, &writefds))
+        {
+            if (GlobalData::s_cera_auction_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_CONNECTING)
+            {
+                soError = 0;
+                soLen[0] = 4;
+                ret = getsockopt(ceraSocket, SOL_SOCKET, SO_ERROR,
+                                 &soError, &soLen[0]);
+                if (soError == 0 && ret == 0)
+                {
+                    GlobalData::s_cera_auction_proxy->SetSocketState(
+                        ENUM_SOCKET_STATE_CONNECTED);
+                }
+                GlobalData::s_cera_auction_proxy->SendRegistPacket();
+            }
+            int sendRet =
+                GlobalData::s_cera_auction_proxy->OnTcpSend();
+            if (sendRet < 0)
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x784,
+                    "Cera AUCTION - OnTcpSend == false!!!remain_size(%d)",
+                    sendRet);
+            }
+        }
+        int ceraState =
+            GlobalData::s_cera_auction_proxy->GetSocketState();
+        if (ceraState == ENUM_SOCKET_STATE_DISCONNECTED)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectCera >
+                0x3c)
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x78c, 0);
+                trace("Cera AUCTION - invoke InitTcp() by time out or disconnect");
+                GlobalData::s_cera_auction_proxy->InitTcp(true);
+                GlobalData::s_cera_auction_proxy->SetSocketState(
+                    ENUM_SOCKET_STATE_CONNECTING);
+                lastReconnectCera =
+                    GlobalData::s_systemTime_.getCurSec();
+            }
+        }
+        else if (ceraState == ENUM_SOCKET_STATE_CONNECTING)
+        {
+            if (GlobalData::s_systemTime_.getCurSec() -
+                    lastReconnectCera >
+                0x3c)
+            {
+                lastReconnectCera =
+                    GlobalData::s_systemTime_.getCurSec();
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x799, 0);
+                trace("Cera AUCTION - Disconnect to Cera Auction Server(Timeout for connect trying)");
+                GlobalData::s_cera_auction_proxy->Disconnect();
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// dispatch —— ORIG T 0x0857cc5a：accept 线程。socket/bind/listen/SetNonBlock
+// 后进入 select(1s) accept 循环：按队列余量（m_acceptFlag 水位）与
+// 用户池用量（Size-Remain、m_maxUserNum）拒绝/放行连接；放行时
+// CGameManager::createUser → InitOnAccept → s_accept_que 入队（NetworkThread
+// 消费）。IsProhibitConnectState / 监控 IP / LOCK STATE 分流拒绝包。
+// ---------------------------------------------------------------------------
+void AcceptThread::dispatch(void* arg)
+{
+    (void)arg;
+    int listenSocket = -1;
+    int sockOpt = 60000;
+    unsigned short port = (unsigned short)G_CEnvironment()->get_tcp_port();
+    listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenSocket < 0)
+    {
+        LogManager::logFormat(
+            1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x18e,
+            "[AcceptThread::dispatch] Fail to Create ListenSocket.");
+    }
+    else
+    {
+        struct sockaddr addr;
+        std::memset(&addr, 0, 0x10);
+        addr.sa_family = AF_INET;
+        *(unsigned short*)&addr.sa_data[0] = htons(port);
+        *(unsigned int*)&addr.sa_data[2] = htonl(0);
+        int setRet = setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
+                                &sockOpt, 4);
+        if (setRet < 0)
+        {
+            LogManager::logFormat(
+                1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x19b,
+                "[Error] listen socket setsockopt error");
+        }
+        else
+        {
+            if (bind(listenSocket, &addr, 0x10) < 0)
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x1a1,
+                    "Fail to bind Listen - %s", strerror(*__errno_location()));
+            }
+            else if (listen(listenSocket, 0x400) < 0)
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x1a7,
+                    "Fail to Create AcceptThread.");
+            }
+            else if (!CNetwork<4096, 450000>::SetNonBlock(listenSocket))
+            {
+                LogManager::logFormat(
+                    1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x1ae,
+                    "Fail to SetNonBlock AcceptThread.");
+            }
+            else
+            {
+                // ---- select/accept 循环 ----
+                while (true)
+                {
+                    if (G_CEnvironment()->get_suspend_state())
+                    {
+                        continue;
+                    }
+                    socklen_t addrLen = 0x10;
+                    fd_set readfds;
+                    FD_ZERO(&readfds);
+                    FD_SET(listenSocket, &readfds);
+                    struct timeval timeout;
+                    timeout.tv_sec = 1;
+                    timeout.tv_usec = 0;
+                    int selRet = select(listenSocket + 1, &readfds, 0, 0,
+                                        &timeout);
+                    if (selRet >= 0 &&
+                        FD_ISSET(listenSocket, &readfds))
+                    {
+                        struct sockaddr_in peerAddr;
+                        int conn = accept(listenSocket,
+                                          (struct sockaddr*)&peerAddr,
+                                          &addrLen);
+                        if (conn < 0)
+                        {
+                            LogManager::logFormat(
+                                1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x1d4,
+                                "Accept Socket[%d] Error(%s)", conn,
+                                strerror(*__errno_location()));
+                        }
+                        else
+                        {
+                            char* peerIp = inet_ntoa(peerAddr.sin_addr);
+                            if (strcmp(
+                                    G_CEnvironment()->get_system_monitoring_ip(),
+                                    peerIp) != 0)
+                            {
+                                CEnvironment* env = G_CEnvironment();
+                                if (env->m_serverEnvir.m_acceptLockDBQueueCount != 0)
+                                {
+                                    int remain = (int)GlobalData::s_msgq_mgr->remain(
+                                        MsgQueueMgr::DB_Q);
+                                    if (m_acceptFlag == 0 &&
+                                        remain >=
+                                            env->m_serverEnvir.m_acceptLockDBQueueCount)
+                                    {
+                                        m_acceptFlag = true;
+                                    }
+                                    else if (m_acceptFlag &&
+                                             remain <
+                                                 env->m_serverEnvir.m_acceptUnlockDBQueueCount)
+                                    {
+                                        m_acceptFlag = false;
+                                    }
+                                }
+                                int used = StaticPool<CUser, 600>::Size() -
+                                           G_CGameManager()->userPoolRemain();
+                                if (m_acceptFlag || used >= env->m_serverEnvir.m_maxUserNum)
+                                {
+                                    char* lockIp = inet_ntoa(peerAddr.sin_addr);
+                                    if (strcmp("192.168.30.146", lockIp) != 0 &&
+                                        env->m_serverEnvir.m_maxUserNum + 5 <= used)
+                                    {
+                                        PacketGuard guard;
+                                        guard.put_header(1, 1);
+                                        guard.put_byte(0);
+                                        guard.put_byte(4);
+                                        guard.finalize(true);
+                                        write(conn, guard.get_packet(0),
+                                              guard.get_len());
+                                        close(conn);
+                                        cMyTrace trace(__PRETTY_FUNCTION__, 0x211, 0);
+                                        trace("[ACCEPT] LOCK STATE(Curr Session : %d)",
+                                              used);
+                                        continue;
+                                    }
+                                    if (GameserverDemonManagerInstance()
+                                            ->IsProhibitConnectState())
+                                    {
+                                        PacketBuf pkt;
+                                        pkt.put_header(1, 1);
+                                        pkt.put_byte(0);
+                                        pkt.put_byte(4);
+                                        pkt.finalize(true);
+                                        write(conn, pkt.get_packet(0), pkt.get_len());
+                                        close(conn);
+                                        cMyTrace trace(__PRETTY_FUNCTION__, 0x230, 0);
+                                        trace("[ACCEPT DENY] ProhibitUserConnect Signal STATE(Curr Session : %d)",
+                                              used);
+                                    }
+                                    else
+                                    {
+                                        CUser* user = G_CGameManager()->createUser();
+                                        if (user == 0)
+                                        {
+                                            PacketGuard guard;
+                                            guard.put_header(1, 1);
+                                            guard.put_byte(0);
+                                            guard.put_byte(4);
+                                            guard.finalize(true);
+                                            write(conn, guard.get_packet(0),
+                                                  guard.get_len());
+                                            close(conn);
+                                            cMyTrace trace(__PRETTY_FUNCTION__, 0x277, 0);
+                                            trace("[ACCEPT] fail create user(Curr Session : %d)",
+                                                  used);
+                                        }
+                                        else
+                                        {
+                                            user->InitOnAccept(conn);
+                                            user->set_public_ip_address(
+                                                (int)peerAddr.sin_addr.s_addr);
+                                            GlobalData::s_accept_lock.lock();
+                                            GlobalData::s_accept_que.push(user);
+                                            GlobalData::s_accept_lock.unlock();
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                close(conn);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        close(listenSocket);
+    }
+}
 
 // ---- GlobalData::Init 直接 new 的基础对象 ----
 // CTimeGate ctor 现由 CTimeGate.cpp 提供（ORIG 0x8284512，继承 IObject）。
 // [dedup] Arad_ServerStateManager ctor 权威定义在 Arad_ServerStateManager.cpp
 
+// ORIG PacketPool::PacketPool() 0x0828fc76：DynamicPool(10)，容量与步长均为10，
+// 检查回调清零；这是 GlobalData::Init 使用的真实默认池，而非空构造。
 PacketPool::PacketPool()
 {
-    // ORIG 0x828fc76：先置 m_threadID=0；new DynamicPool(10)；SetPoolSize(10,10)；
-    // m_pCheckCallback=0。
     m_threadID = 0;
     m_pool = new DynamicPool<PacketBuf>(10);
     m_pool->SetPoolSize(10, 10);
+    m_pool->m_pCheckCallback = 0;
+}
+
+PacketPool::PacketPool(int poolSize, int allocSize)
+{
+    // ORIG 0x828fcfa：置 m_threadID=0；new DynamicPool(poolSize)；
+    // SetPoolSize(poolSize, allocSize)；m_pCheckCallback=0。
+    m_threadID = 0;
+    m_pool = new DynamicPool<PacketBuf>(poolSize);
+    m_pool->SetPoolSize(poolSize, allocSize);
     m_pool->m_pCheckCallback = 0;
 }
 PacketPool::~PacketPool()
@@ -1418,7 +2554,7 @@ PacketBuf* PacketPool::Acquire()
     if (packet == 0)
     {
         LogManager::logFormat(
-            1, "App.cpp", "PacketBuf* PacketPool::Acquire()", 0x275,
+            1, "App.cpp", __PRETTY_FUNCTION__, 0x275,
             "[PacketPool alloc fail] curthreadid(%08x), poolthreadid(%08x), alloc_cnt(%d), size(%d)",
             pthread_self(), getThreadID(), m_pool->Remain(), m_pool->Size());
         return 0;
@@ -1438,20 +2574,161 @@ void PacketPool::Free(PacketBuf* packet)
 // 字段清零 + Init；dtor 释放动态索引/代理数组）。CStatisticServerProxy 完整
 // 类型来自 CStatisticServerProxy.h（经 CServerProxyMgr.h 模板），不再显式特化。
 
-// CServerProxyMgr<CMonitorServerProxy> 的 GetStartIndex/GetEndIndex/GetNextIndex
-// 仅被 CGameManager.cpp 经 sub_CServerProxyMgrMonitor_* asm 桥接引用（ORIG
-// 符号 _ZN15CServerProxyMgrI19CMonitorServerProxyE13GetStartIndexEv 等），
-// 无法在调用 TU 隐式实例化，故在此显式实例化（对齐 CStatisticServerProxy.cpp 模式）。
-template int CServerProxyMgr<CMonitorServerProxy>::GetStartIndex();
-template int CServerProxyMgr<CMonitorServerProxy>::GetEndIndex();
-template int CServerProxyMgr<CMonitorServerProxy>::GetNextIndex(int&);
+// CServerProxyMgr 三特化的 GetServerProxyArraySize（仅 Monitor）与
+// GetServerProxyArrayAt（Monitor/Guild）在 ORIG 为弱符号实例（W 0x0857f8c2 /
+// 0x0857f8ce / 0x0857f8fe），重建无调用点无法隐式实例化，故在此显式实例化
+// 补齐（模板语义已与反汇编核对：ArraySize 读 m_count；ArrayAt 越界返 0，
+// 元素步长 = sizeof(T)，Monitor 0x30e0c / Guild 0x30e24）。GetStartIndex/
+// GetEndIndex/GetNextIndex 由 CGameManager.cpp 等消费 TU 直接成员调用隐式
+// 实例化（非 asm 桥，旧注释已过时）。
+template int CServerProxyMgr<CMonitorServerProxy>::GetServerProxyArraySize();
+template CMonitorServerProxy* CServerProxyMgr<CMonitorServerProxy>::GetServerProxyArrayAt(int);
+template CGuildServerProxy* CServerProxyMgr<CGuildServerProxy>::GetServerProxyArrayAt(int);
 
 
-// CPCRoomServerProxy 仅在本 TU 定义（无独立源文件），保留其唯一构造函数。
+// CPCRoomServerProxy 仅在本 TU 定义（无独立源文件）。ORIG T 0x084717dc：
+// CNetwork 基类构造 + string m_ip(ip)（初始化列表）；函数体写 m_tcpPort=port
+// 再清 m_socketState（汇编：string 构造后 mov port→0x30dfc、movl $0→0x30e00）。
 CPCRoomServerProxy::CPCRoomServerProxy(char* ip, int port)
-    : m_ip(ip ? ip : "")
+    : m_ip(ip)
 {
-    (void)port;
+    m_tcpPort = port;
+    m_socketState = ENUM_SOCKET_STATE_DISCONNECTED;
+}
+
+// ORIG T 0x08471874：成员自动析构（string D1 → CNetwork D1，声明反向序）。
+CPCRoomServerProxy::~CPCRoomServerProxy()
+{
+}
+
+// ORIG T 0x084718bc：!InitTcp() 返 0，否则返 1（P22 bool 取反形态）。
+bool CPCRoomServerProxy::Init()
+{
+    if (!InitTcp()) return 0;
+    return 1;
+}
+
+// ORIG T 0x084718e2：ip/port 有效且 m_sock<0 时 CreateConnectionSocket；
+// 失败 cMyTrace 报错返 0；m_sock>=0 跳过连接，尾部汇合 return 1。
+bool CPCRoomServerProxy::InitTcp()
+{
+    if (m_ip.length() == 0 || m_tcpPort == 0)
+    {
+        return 0;
+    }
+    if (m_tcp.m_sock < 0)
+    {
+        register int ret;
+        if ((ret = CNetwork<100000, 100000>::CreateConnectionSocket(
+                 m_tcp.m_sock, m_ip.c_str(), m_tcpPort)) != 0)
+        {
+            cMyTrace(__FUNCTION__, 0x116, 0)
+                ("CPCRoomServerProxy CreateConnectionSocket() error(%d:%d:%s)",
+                 ret, errno, strerror(errno));
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// ORIG T 0x084719de：连接有效（ip 非空且端口非 0）时 disconnect + 清 socketState。
+void CPCRoomServerProxy::Disconnect()
+{
+    if (m_ip.length() == 0 || m_tcpPort == 0)
+    {
+        return;
+    }
+    else
+    {
+        m_tcp.disconnect();
+        m_socketState = ENUM_SOCKET_STATE_DISCONNECTED;
+    }
+}
+
+// ORIG T 0x08471a32：socketState==CONNECTED(2) 时经 m_tcp.send_packet 下发；
+// 否则 cMyTrace 报 disconnected。
+void CPCRoomServerProxy::SendTcpPacket(char* data, int len)
+{
+    if (m_socketState != ENUM_SOCKET_STATE_CONNECTED)
+    {
+        cMyTrace trace(__FUNCTION__, 0x138, 0);
+        trace("cannot send packet because PCRoom Server is disconnected.");
+        return;
+    }
+    m_tcp.send_packet(data, len);
+}
+
+// ORIG T 0x08471a9a：recv_packet()>0 → Parsing 失败则 Disconnect 返 0；
+// <0 → logFormat 后 Disconnect 返 0。
+bool CPCRoomServerProxy::OnTcpRecv()
+{
+    int recvLen = m_tcp.recv_packet();
+    if (recvLen > 0)
+    {
+        if (!Parsing(recvLen))
+        {
+            Disconnect();
+            return 0;
+        }
+        return 1;
+    }
+    if (recvLen < 0)
+    {
+        LogManager::logFormat(1, "DF_PCRoomServerProxy.cpp",
+                              __FUNCTION__, 0x155,
+                              "PCRoom Server maybe Die!!!");
+        Disconnect();
+        return 0;
+    }
+    return 1;
+}
+
+// ORIG T 0x08471b32：m_tcp.send_packet()<0 → 报错+Disconnect 返 -1；
+// 否则返 m_recvOffset（+0x18）。
+int CPCRoomServerProxy::OnTcpSend()
+{
+    if (m_tcp.send_packet() < 0)
+    {
+        cMyTrace(__FUNCTION__, 0x16d, 0)
+            ("PCRoom OnSend() Socket[%d] Error(%s)",
+             GetTcpHandler()->get_socket(), strerror(errno));
+        Disconnect();
+        return -1;
+    }
+    return m_tcp.m_recvOffset;
+}
+
+// ORIG T 0x08471bd0：errno!=0 → 报错返 0；否则返 1。
+bool CPCRoomServerProxy::OnTcpError()
+{
+    if (errno != 0)
+    {
+        cMyTrace(__FUNCTION__, 0x17f, 0)
+            ("PCRoomServer OnError() Socket[%d] Error(%s)",
+             GetTcpHandler()->get_socket(), strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+// ORIG T 0x08471c5a：转发 Parsing_ServerPacket（返回 bool，OnTcpRecv 取反检验）。
+bool CPCRoomServerProxy::Parsing(int recvLen)
+{
+    return m_tcp.Parsing_ServerPacket(recvLen);
+}
+// P119：ORIG W 弱符号（0x0857f444/0x0857f456/0x08471e08），inline 内联不发射
+// 独立符号 → 本属主 TU 外联定义。GetSocketState 返回 int（ORIG mov 0x30e00,%eax）。
+void CPCRoomServerProxy::SetSocketState(ENUM_SOCKET_STATE state)
+{
+    m_socketState = state;
+}
+int CPCRoomServerProxy::GetSocketState()
+{
+    return m_socketState;
+}
+CNetwork<100000, 100000>* CPCRoomServerProxy::GetTcpHandler()
+{
+    return &m_tcp;
 }
 CmmChannelProxy::CmmChannelProxy(std::string ip, int port)
     : m_ip(ip), m_port(port)
@@ -1480,8 +2757,8 @@ WongWork::CGMAccounts::~CGMAccounts()
 }
 bool WongWork::CGMAccounts::isGM(unsigned int mid)
 {
-    WongWork::stGMInfo_t key(mid, 3);
-    std::list<WongWork::stGMInfo_t>::iterator it =
+    WongWork::CGMAccounts::stGMInfo_t key(mid, 3);
+    std::list<WongWork::CGMAccounts::stGMInfo_t>::iterator it =
         std::find(m_gmList.begin(), m_gmList.end(), key);
     return it != m_gmList.end();
 }
@@ -1568,12 +2845,12 @@ void WongWork::CBlackIPMonitor::insertNewIP(
     m_monitorMap.insert(std::make_pair(
         ip, stBlackIPMonitorEntry_t(type, idCnt, startTime, endTime)));
 }
-void WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
+char WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
 {
     // ORIG 0x84ebace：ip 为空返回 0；inet_addr 转 key；遍历 [lower_bound, upper_bound)
     // 删除 entry.m_punishType == type 的项。
     if (!ipStr)
-        return;
+        return 0;
     unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::iterator it =
         m_monitorMap.lower_bound(key);
@@ -1590,6 +2867,7 @@ void WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
             ++it;
         }
     }
+    return 1;
 }
 unsigned int WongWork::CBlackIPMonitor::getPunishType(char const* ipStr)
 {
@@ -1635,14 +2913,17 @@ long WongWork::CBlackIPMonitor::GetEndTime(
 
 WongWork::CSimpleSSO::CSimpleSSO()
 {
-    // ORIG 0x082a7260：31 行 × 24 列默认构造 CRijndael（清零 + 置位）；
-    // 尾部 +0xd0860 的 MySQL* 置 0。当前 CRijndael 在 0x47c 步长下 ctor
-    // 会写越界（m_temp3 区），故按 ORIG 语义做等价清零（推断）。
-    memset(m_keyData, 0, sizeof(m_keyData));
+    // ORIG 0x082a7260（81 insn）：m_keys[31][24] 数组成员自动构造
+    // （行主序 31×24 CRijndael，列步长 0x47c、行步长 0x6ba0，覆盖 0xd0860），
+    // 由编译器按 ORIG 同形生成（含异常清理 vtable 槽 0 虚析构）；尾部 m_mysql=0。
     m_mysql = 0;
 }
 
-WongWork::CSimpleSSO::~CSimpleSSO() {}  // ORIG 0x082a7352：逆序析构 744 个 CRijndael（dtor 为空）
+WongWork::CSimpleSSO::~CSimpleSSO()
+{
+    // ORIG 0x082a7352：数组成员自动析构（自表尾 0xd0860 逆序步进 0x47c，
+    // 共 744 个 CRijndael），由编译器生成，与 ORIG 同形。
+}
 
 void WongWork::CSimpleSSO::init(MySQL* mysql)
 {
@@ -1655,7 +2936,7 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
     {
         for (int col = 0; col < 24; ++col)
         {
-            CRijndael* r = reinterpret_cast<CRijndael*>(m_keyData + col * 0x47c + row * 0x6ba0);
+            CRijndael* r = &m_keys[row][col];
             r->Initialize(strKeyTable_[row * 24 + col], 0x20, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
     }
@@ -1693,6 +2974,567 @@ int ItemVendingMachine::BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
     return 1;
 }
 
+
+// ============================================================================
+// CheckPurcahseBonusItem —— ORIG 0x08179ed8 (T, sz 0x30)
+// _ZN18ItemVendingMachine22CheckPurcahseBonusItemEm
+// 报告 ItemVendingMachine/CheckPurcahseBonusItem.md：仅取 itemIdx 低 32 位作
+// key 查 m_bonus（this+0x08，ARAD::CeraShopPurcahseCountBonus）.CheckBonusItem，
+// 命中→true。Report C 体即 `CheckBonusItem((int)itemIdx)`。
+// ============================================================================
+bool ItemVendingMachine::CheckPurcahseBonusItem(unsigned long itemIdx)
+{
+    return m_bonus.CheckBonusItem((int)itemIdx);
+}
+
+// ============================================================================
+// ProcessPurcahseBonusItem —— ORIG 0x08179f08 (T)
+// _ZN18ItemVendingMachine24ProcessPurcahseBonusItemEP5CUsermit
+// 纯委托：m_bonus（ARAD::CeraShopPurcahseCountBonus，this+0x08）.
+// GiveBonusItem(user, itemIdx, count, threshold)（ORIG 0x081abf44，已定义
+// 于 Arad_ItemBonus.cpp）。报告 ProcessPurcahseBonusItem.md 全文转写。
+// ============================================================================
+void ItemVendingMachine::ProcessPurcahseBonusItem(CUser* user, unsigned long itemIdx,
+                                                  int count, unsigned short threshold)
+{
+    m_bonus.GiveBonusItem(user, itemIdx, count, threshold);
+}
+
+// ============================================================================
+// ProcessIPGUserData —— ORIG 0x0854c4f6 (T)
+// _ZN18ItemVendingMachine17ProcessIPGUserDataEP5CUserPN8WongWork3IPG8SIPGDataES6_P6Stream
+// 纯委托：按原参序转发 ProcessIPGUserDataJpnEx（ORIG 0x081783ea，同签名；
+// JpnEx 定义属 IPG 计费应答族后续批次）。报告 ProcessIPGUserData.md 全文转写。
+// ============================================================================
+void ItemVendingMachine::ProcessIPGUserData(CUser* user,
+                                            WongWork::IPG::SIPGData* reqData,
+                                            WongWork::IPG::SIPGData* resData,
+                                            Stream* stream)
+{
+    ProcessIPGUserDataJpnEx(user, reqData, resData, stream);
+}
+// DB 请求类最小声明（定义：DB_UpdateGiftCount.cpp / DB_UpdateCeraShopPurchaseCount.cpp；
+// mangled 与 ORIG 一致：makeRequestEji / makeRequestEjmii）。
+class DB_UpdateGiftCount
+{
+public:
+    static void makeRequest(unsigned int accId, int count);
+};
+class DB_UpdateCeraShopPurchaseCount
+{
+public:
+    static void makeRequest(unsigned int accId, unsigned long itemUid, int count, int param4);
+};
+class DB_SavePuUserCheck
+{
+public:
+    static void makeRequest(unsigned int accId);   // ORIG T 0x0844c098（W8LT_DBTask.cpp 定义）
+};
+
+// ============================================================================
+// IPG 计费应答族 —— LinkE2.JpnExImpl 批次（ORIG localjapan/AppendVendingMachine.cpp）。
+// 覆盖：ProcessIPGUserDataJpnEx(0x081783ea) / ProcessIPG_ResultInput(0x0817866c) /
+//   ProcessIPG_ResultQuery(0x081784d4) / ProcessIPG_ResultOutput(0x08178676)。
+// 报告：docs/class_func_reports/ItemVendingMachine/{同名}.md，逐指令转写。
+//
+// SIPGData（TaiwanCash.h，0x2dc pad 权威布局）字段偏移实证（ORIG 汇编）：
+//   +0x1c  应答状态 int（4=Query / 0=Input / 2=Output）
+//   +0x69/+0x75/+0x81/+0x8d/+0x99/+0xa5  cera 数值项（atoi 目标，char[0xc] 步进）
+//   +0xb1  返回码（atoi 目标）   +0xb5  cera point（atoi 目标）
+//   +0x28/+0x3c/+0x69/+0x177  trace/log 文本槽；+0x7d/+0x177  itemName/accName
+//   +0x173  结果返回码（atoi 目标）；+0x1e0/+0x1e4 计费 64 位 uid
+//   （TaiwanCash.h SIPGData 属主批次未具名化，本 TU 以偏移视图访问【ORIG 实证】。）
+// ============================================================================
+namespace
+{
+
+inline int& ipg_field1c(WongWork::IPG::SIPGData* d) { return *(int*)((char*)d + 0x1c); }
+inline char* ipg_str(WongWork::IPG::SIPGData* d, int off) { return (char*)d + off; }
+
+const char* const kPrettyJpnEx =
+    "void ItemVendingMachine::ProcessIPGUserDataJpnEx(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
+const char* const kPrettyResultQuery =
+    "void ItemVendingMachine::ProcessIPG_ResultQuery(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
+const char* const kPrettyResultOutput =
+    "void ItemVendingMachine::ProcessIPG_ResultOutput(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)";
+
+}  // namespace
+
+// 商城 bonus 事件：权威声明见 CCeraShopBonusItemEvent.h（ORIG C1 0x0810a2dc /
+// getBonusRate W 0x0817a2e2；定义归 CCeraShopAddRestrict.cpp）。
+
+// ----------------------------------------------------------------------------
+// ProcessIPGUserDataJpnEx —— ORIG 0x081783ea（0xe9 字节）。
+// user 判空后按 resData+0x1c 分发；未匹配状态走 LogManager 告警。
+// ----------------------------------------------------------------------------
+void ItemVendingMachine::ProcessIPGUserDataJpnEx(CUser* user,
+                                                 WongWork::IPG::SIPGData* reqData,
+                                                 WongWork::IPG::SIPGData* resData,
+                                                 Stream* stream)
+{
+    if (user == 0)
+        return;
+
+    int status = ipg_field1c(resData);
+    if (status == 4)
+    {
+        ProcessIPG_ResultQuery(user, reqData, resData, stream);
+    }
+    else if (status == 0)
+    {
+        ProcessIPG_ResultInput(user, reqData, resData, stream);
+    }
+    else if (status == 2)
+    {
+        ProcessIPG_ResultOutput(user, reqData, resData, stream);
+    }
+    else
+    {
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyJpnEx,
+                              0x482, "Unhandled reply from BModule is %d", status);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ProcessIPG_ResultInput —— ORIG 0x0817866c（0x9 字节：push/mov/cmp 0xc(%ebp)/pop/ret，
+// 判空无副作用，函数体忠实为空）。
+// ----------------------------------------------------------------------------
+void ItemVendingMachine::ProcessIPG_ResultInput(CUser* user,
+                                                WongWork::IPG::SIPGData* reqData,
+                                                WongWork::IPG::SIPGData* resData,
+                                                Stream* stream)
+{
+}
+
+// ----------------------------------------------------------------------------
+// ProcessIPG_ResultQuery —— ORIG 0x081784d4（报告全文转写）。
+// ret==0：六项 cera 求和 SetCera；+0xb5 SetCeraPoint；CeraPoint 日志；SendCashData(false)。
+// ret!=0：SendCashData(true) 后 IPG_QUERY 日志。
+// ----------------------------------------------------------------------------
+void ItemVendingMachine::ProcessIPG_ResultQuery(CUser* user,
+                                                WongWork::IPG::SIPGData* reqData,
+                                                WongWork::IPG::SIPGData* resData,
+                                                Stream* stream)
+{
+    if (user == 0)
+        return;
+
+    PacketGuard guard;
+    int retCode = atoi(ipg_str(resData, 0xb1));
+    if (retCode == 0)
+    {
+        int total = atoi(ipg_str(resData, 0x99)) + atoi(ipg_str(resData, 0xa5)) +
+                    atoi(ipg_str(resData, 0x81)) + atoi(ipg_str(resData, 0x75)) +
+                    atoi(ipg_str(resData, 0x8d)) + atoi(ipg_str(resData, 0x69));
+        user->SetCera((unsigned int)total);
+        unsigned int point = (unsigned int)atoi(ipg_str(resData, 0xb5));
+        user->SetCeraPoint(point);
+        // ORIG cUserHistoryLog@user+0x79700 ::CeraPoint(ENUM 0, total)
+                user->m_historyLog.CeraPoint((ENUM_CERAPOINT_LOG_TYPE)0,
+                                     (unsigned int)total);
+        user->SendCashData(false);
+    }
+    else
+    {
+        user->SendCashData(true);
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultQuery,
+                              0x4dd, "IPG_QUERY %d %d", user->get_acc_id(), retCode);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ProcessIPG_ResultOutput —— ORIG 0x08178676（0x12a8 字节，报告全文转写）。
+// ----------------------------------------------------------------------------
+void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
+                                                 WongWork::IPG::SIPGData* reqData,
+                                                 WongWork::IPG::SIPGData* resData,
+                                                 Stream* stream)
+{
+    // ORIG 函数内 static：__cxa_guard + Arad_IPGProcess(this)/Arad_MileageProcess(this)
+    static Arad_IPGProcess IPGProcess(this);
+    static Arad_MileageProcess mMileageProcess(this);
+
+    stCeraShopIPGRequest_t* req = stream->GetOutBuffer<stCeraShopIPGRequest_t>();
+
+    // ORIG 局部快照（-0x74..-0x38，全部来自 req 具名字段）
+    int groupIdx = req->m_groupIdx;              // local_78
+    int seq = req->m_seq;                        // local_74
+    int itemCount = req->m_itemCount;            // local_70
+    int featuredIdx = req->m_featuredIdx;        // local_6c
+    unsigned int avatarField = req->m_avatarField;   // local_68
+    unsigned int productNo = req->m_productNo;   // local_64（itemIdx 64 位读的低 32 位）
+    unsigned long itemIdx = (unsigned long)req->m_itemIdx;  // local_60（LP32 ulong 4B）
+    unsigned short stackCount = req->m_stackCount;   // local_5c
+    unsigned char avatarType0 = req->m_avatarType0;  // local_5a
+    unsigned char avatarType1 = req->m_avatarType1;  // local_59
+    unsigned int ceraPrice = req->m_ceraPrice;       // local_58
+    unsigned int winPoint = req->m_winPoint;         // local_54
+    unsigned int goldPrice = req->m_goldPrice;       // local_50
+    unsigned int curSec = req->m_curSec;             // local_4c
+    char buyFlag = (char)req->m_buyFlag;             // local_45
+    int characNo = req->m_characNo;                  // local_44
+    unsigned short buytype = req->m_buytype;         // local_3e
+    unsigned int accId = req->m_accId;               // local_3c
+
+    std::vector<Inven_Item> items;                   // local_c0
+    WongWork::CCeraShop::stCeraShopItemParam_t param;  // local_d8（ORIG ctor 0x0817a244）
+
+    for (int i = 0; i < (int)(unsigned int)(unsigned char)req->m_subCount; ++i)
+    {
+        int first;
+        unsigned char second;
+        memcpy(&first, &req->m_subEntries[i][0], 4);      // ORIG make_pair(buf+0x48+8i, ...)
+        memcpy(&second, &req->m_subEntries[i][4], 1);
+        param.m_pairs.push_back(std::make_pair(first, (int)second));
+    }
+    for (int i = 0; i < (int)(unsigned int)(unsigned char)req->m_optCount; ++i)
+    {
+        tagPackageItemSelection sel;
+        memcpy(&sel, &req->m_optEntries[i][0], 8);        // ORIG push_back(buf+0x164+8i)
+        param.m_sel.push_back(sel);
+    }
+
+    int extraInt = 0;   // local_dc：stream >> int（购买附加参数）
+    *stream >> extraInt;
+
+    int retCode = atoi(ipg_str(resData, 0x173));   // local_e0
+    if ((retCode != 0) || user == 0 || user->getCurCharacR() == 0)
+    {
+        // 错误路（ORIG 0x8178923..0x8178a5e）
+        if (user == 0 || user->getCurCharacR() == 0)
+        {
+            cMyTrace trace(kPrettyResultOutput, 0x59d, 5);
+            trace("There's abnormal transaction that the client doesn't exist, "
+                  "client would be %s(m_id: %d) and the Goodis is %d, ret_code = %d ret_msg = %s",
+                  ipg_str(resData, 0x3c), atoi(ipg_str(resData, 0x28)),
+                  atoi(ipg_str(resData, 0x69)), retCode, ipg_str(resData, 0x177));
+        }
+        m_ceraShop._ProcessIPGError(user, reqData, resData, (unsigned char)0x19, groupIdx,
+                                    productNo, seq, itemCount, buyFlag);
+        return;   // ORIG 0x81798d7 清理后 ret
+    }
+
+    // 成功路：retCode=0；creature 结果槽（local_e4）初值 -1；local_38 初值 -1
+    retCode = 0;
+    int creatureResult = -1;   // local_e4
+    int groupFinal = groupIdx; // local_78 复用（case 10 可能改写为 7）
+
+    switch (groupIdx)
+    {
+    case 0:
+        IPGProcess.CashShopModeAvatar(user, itemIdx, productNo, avatarField,
+                                      (char)req->m_avatarType0, (char)req->m_avatarType1,
+                                      ipg_str(reqData, 0x7d), retCode, accId, characNo,
+                                      buyFlag);
+        break;
+    case 1:
+        IPGProcess.CashShopModeCoin(user, stackCount, accId, characNo, buyFlag);
+        break;
+    case 2:
+    case 7:
+    case 9:
+        IPGProcess.CashShopModeItem(user, itemIdx, stackCount, featuredIdx, (long)curSec,
+                                    items, param, retCode, accId, characNo, buyFlag);
+        break;
+    case 3:
+        IPGProcess.CashShopModeCreature(user, itemIdx, stackCount, creatureResult, retCode,
+                                        accId, characNo, buyFlag);
+        break;
+    case 10:
+    {
+        m_ceraShop._processAdditionalItem(user, itemIdx, stackCount, avatarType0,
+                                          avatarType1, items, param, 0);
+        groupFinal = -1;
+        CItem* item = G_CDataManager()->find_item((int)itemIdx);
+        if (item != 0 && item->isCerashopPackageItem())
+            groupFinal = 7;
+        if (groupFinal != 7)
+            items.clear();
+
+        CItemLimitEditionMgr* mgr = G_CDataManager()->getItemLimitEditionMgr();
+        CItemLimitEdition* limit = mgr->getItemInfo(productNo);
+        if (limit == 0)
+            throw (ENUM_ERROR)0x11;   // ORIG __cxa_throw(0x11, ENUM_ERROR)
+
+        bool isSpecial = false;
+        int outA = 0, outB = 0;   // ORIG local_100[2]/local_100[1]
+        if (limit->getFeaturedIdx() == 0)
+        {
+            if (m_ceraShop.IsSpecialItem(limit->getRelateditem(), outA, outB, isSpecial))
+                isSpecial = true;
+        }
+        int restrictCode = 0;
+        if (isSpecial)
+            restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(
+                limit->getRelateditem());
+        if (restrictCode != 0)
+        {
+            m_ceraShop.SaveFeaturedIdx(user, limit->getFeaturedIdx(),
+                                       GlobalData::s_systemTime_.getCurSec(), 0);
+        }
+        // ORIG case 10 尾直接落入 default 的 Invalid Group Index 日志（0x8178f97 jmp
+        // 链与跳转表目标核对为 fall-through 前置 0x8179xxx 段）【按 Ghidra case 排列】。
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultOutput,
+                              0x653, "Invalid Group Index [%d]", groupFinal);
+        break;
+    }
+    case 0xb:
+    {
+        int failCode = mMileageProcess.BuyMileageItem(
+            user, productNo, itemIdx, stackCount, featuredIdx, (long)curSec, avatarField,
+            (char)req->m_avatarType0, (char)req->m_avatarType1, extraInt, itemCount, seq,
+            ipg_str(reqData, 0x7d), param);
+        if (failCode != 0)
+            mMileageProcess.BuyFail(user, (short)failCode, productNo, seq, itemCount);
+        return;   // ORIG LAB_081798d7 清理后 ret
+    }
+    default:
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyResultOutput,
+                              0x653, "Invalid Group Index [%d]", groupFinal);
+        break;
+    }
+
+    if (retCode != 0)
+    {
+        m_ceraShop._ProcessIPGError(user, reqData, resData, (unsigned char)retCode, groupFinal,
+                                    productNo, seq, itemCount, buyFlag);
+        cMyTrace trace(kPrettyResultOutput, 0x65b, 0);
+        trace("[%s][%d]", kPrettyResultOutput, 0x65b);
+        return;   // ORIG LAB_081798d7
+    }
+
+    if (groupFinal == 7)
+    {
+        ARAD::Singleton<HeroMissionEvent>::Get()->setMissionValue(
+            user, (HeroMissionCondition::MissionNo::T)1, 7);
+    }
+
+    CInventory* invenW = user->getCurCharacInvenW();
+    if (buytype == 1)
+    {
+        invenW->use_money((int)goldPrice, (eMoneySubReason)0, true);
+        user->UseWinPoint((int)winPoint, (eWPSubReason)2);
+        user->UseCeraPoint(ceraPrice);
+        user->m_historyLog.CeraPoint((ENUM_CERAPOINT_LOG_TYPE)3,
+                                     ceraPrice);
+    }
+    else if (buytype == 0)
+    {
+        GlobalData::s_pIPGHelper->IPGOutputConfirm(reqData, resData);   // ORIG vptr+0x28 slot10
+        invenW->use_money((int)goldPrice, (eMoneySubReason)0, true);
+        user->UseWinPoint((int)winPoint, (eWPSubReason)2);
+        user->UseCera(ceraPrice);
+        user->addUsedCera(ceraPrice);
+    }
+
+    mMileageProcess.GiveMileage(user, (int)productNo, (int)ceraPrice);
+
+    if (CheckPurcahseBonusItem(itemIdx))
+    {
+        DB_UpdateCeraShopPurchaseCount::makeRequest(user->get_acc_id(), itemIdx,
+                                                    productNo, user->GetUID());
+    }
+    CerashopAddRestrict::Manager::UpdateBuyableRestrictItem(user, productNo, 1);
+
+    if (featuredIdx != 0 && !user->IsRestrictedGoods(featuredIdx))
+    {
+        user->SetRestrictedGoods(featuredIdx);
+        m_ceraShop.SaveFeaturedIdx(user, featuredIdx, (int)curSec, 0);
+    }
+
+    unsigned long bonusItemIdx = (unsigned long)-1;   // local_100[0]（ORIG 低 4B 写 0xffffffff）
+    unsigned int bonusCount = 0;   // local_104
+
+    PacketGuard response;
+    response.put_header(1, 0x43);
+    response.put_byte(1);
+    response.put_byte((int)buyFlag);
+    response.put_int(groupFinal);
+    response.put_int((int)productNo);
+    response.put_int(seq);
+    response.put_int(itemCount);
+    response.put_int(creatureResult);
+    response.put_short((int)items.size());
+    for (std::vector<Inven_Item>::const_iterator it = items.begin(); it != items.end(); ++it)
+    {
+        response.put_int(it->m_addInfo);    // ORIG put_int(it+2)
+        response.put_int(it->m_addInfo2);   // ORIG put_int(it+7)
+    }
+    response.put_short(0);
+
+    if (buyFlag == (char)1 && accId != 0)
+    {
+        DB_UpdateGiftCount::makeRequest(accId, 1);
+    }
+
+    if (itemCount == seq)
+    {
+        user->SendCashData(false);
+        PacketGuard itemPacket;
+        itemPacket.clear();
+        itemPacket.put_header(0, 0xe);
+        itemPacket.put_byte(0);
+        itemPacket.put_short(2);
+        const CInventory* invenR = user->getCurCharacInvenR();
+        invenR->MakeItemPacket((INVEN_TYPE)1, 0, itemPacket);
+        invenR->MakeItemPacket((INVEN_TYPE)1, 2, itemPacket);
+        itemPacket.finalize(true);
+        user->Send(itemPacket);
+
+        CEventBase* bonusEvent = GlobalData::s_event_manager->GetRepeatEvent(0x11);
+        if (bonusEvent->IsEventing(0))
+        {
+            bonusEvent = GlobalData::s_event_manager->GetRepeatEvent(0x11);
+            int bonusRate = static_cast<CCeraShopBonusItemEvent*>(bonusEvent)->getBonusRate();
+            if (get_rand_int(1000) <= bonusRate)
+            {
+                unsigned int usedCera = user->getUsedCera();
+                G_CDataManager()->getItemList()->getCeraShopBonusItem((int)usedCera,
+                                                                      bonusItemIdx, bonusCount);
+                if ((int)bonusItemIdx != -1)
+                {
+                    std::vector<Inven_Item> bonusItems;
+                    m_ceraShop._processAdditionalItem(user, bonusItemIdx,
+                                                      (unsigned short)bonusCount, 0, 0xff,
+                                                      bonusItems, param, 0);
+                }
+            }
+        }
+    }
+
+    response.put_int(bonusItemIdx);
+    response.put_int((int)bonusCount);
+    response.finalize(true);
+    user->Send(response);
+
+    GlobalData::s_BreakAwaySys->updateUsedCera(user->get_acc_id(), ceraPrice);
+
+    unsigned long long billUid =
+        (unsigned long long)*(unsigned int*)((char*)resData + 0x1e0) |
+        ((unsigned long long)*(unsigned int*)((char*)resData + 0x1e4) << 32);
+    cUserHistoryLog* history = &user->m_historyLog;
+    if (buytype == 1)
+    {
+        BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
+                      ipg_str(resData, 0x7d), ipg_str(resData, 0x177), -1, billUid, buyFlag);
+        history->BuyCashShopItem(productNo, itemIdx, stackCount, ipg_str(resData, 0x7d),
+                                 buyFlag, (CeraShopPaymentType::T)1, billUid);
+    }
+    else
+    {
+        BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
+                      ipg_str(reqData, 0x7d), ipg_str(reqData, 0x177), -1, billUid, buyFlag);
+        history->BuyCashShopItem(productNo, itemIdx, stackCount, ipg_str(reqData, 0x7d),
+                                 buyFlag, (CeraShopPaymentType::T)0, billUid);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// BillingRecord —— ORIG 0x0817991e（0x58f 字节，报告 BillingRecord.md + objdump 转写）。
+// 打包 0x10e 字节计费记录（SIG 结构以文件内局部缓冲按 ORIG 偏移写入）后
+// put_binary/入 DB 队列；PuUser 标志异常时补 DB_SavePuUserCheck。
+// ----------------------------------------------------------------------------
+void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
+                                       const char* itemName, const char* accName,
+                                       int priceLabel, unsigned long long uid,
+                                       char payFlag)
+{
+    Stream* stream = GlobalData::s_stream_pool->Acquire("localjapan/AppendVendingMachine.cpp",
+                                                        0x730);
+    CStreamGuard guard(stream, true);
+    guard << (int)0xb0;              // SIG opcode
+    guard << user->GetUID();
+
+    // 0x10e 字节记录（B=基址；偏移为 ORIG 汇编实证）
+    char rec[0x10e];
+    memset(rec, 0, sizeof(rec));
+    strcpy(rec + 0x00, accName);                                  // B+0x00（strcpy 实证）
+    *(int*)(rec + 0x11) = 1;
+    *(const char**)(rec + 0x15) = itemName;
+    *(int*)(rec + 0x19) = 0;
+    *(int*)(rec + 0x1d) = 1;
+    *(int*)(rec + 0x21) = a3;
+    *(int*)(rec + 0x25) = a4;
+    *(unsigned int*)(rec + 0x29) = user->get_acc_id();
+    *(int*)(rec + 0x2d) = user->getCurCharacNo();
+    strcpy(rec + 0x31, user->get_acc_name());                     // B+0x31（char[0x19]）
+    *(int*)(rec + 0x4a) = user->get_charac_job();
+
+    // SSN 拆分 → 生日串（B+0x52 char[11]）与世纪类型（B+0x4e）
+    const char* ssn = user->GetSsnString();
+    char ssnPart[0xe];
+    memset(ssnPart, 0, sizeof(ssnPart));
+    if (ssn != 0)
+        strncpy(ssnPart, ssn, 0xe);
+    char yy[2], mm[2], dd[2];
+    memset(yy, 0, 2); memset(mm, 0, 2); memset(dd, 0, 2);
+    // 汇编 strncpy 布局：yy←ssn+0(2)、mm←ssn+2(2)、dd←ssn+4(2)、cent←ssn+6(1)
+    memcpy(yy, ssnPart + 0, 2);
+    memcpy(mm, ssnPart + 2, 2);
+    memcpy(dd, ssnPart + 4, 2);
+    char centBuf[2];
+    memset(centBuf, 0, 2);
+    centBuf[0] = ssnPart[6];
+    int cent = atoi(centBuf);
+    char birth[0xb];
+    memset(birth, 0, sizeof(birth));
+    if (cent == 2)
+    {
+        sprintf(birth, "19%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x4e) = 2;
+    }
+    else if (cent == 1)
+    {
+        sprintf(birth, "19%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x4e) = 1;
+    }
+    else if (cent == 3)
+    {
+        sprintf(birth, "20%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x4e) = 1;
+    }
+    else if (cent == 4)
+    {
+        sprintf(birth, "20%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x4e) = 2;
+    }
+
+    *(int*)(rec + 0x5d) = 1;
+    *(int*)(rec + 0x61) = 0;
+    *(int*)(rec + 0xc9) = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    *(int*)(rec + 0xcd) = user->getCurCharacGrowType();
+    *(int*)(rec + 0xd1) = user->get_charac_level();
+    *(int*)(rec + 0xd5) = *(int*)(rec + 0xc9);
+    *(int*)(rec + 0xd9) = 0;
+    *(int*)(rec + 0xdd) = 0;
+    *(int*)(rec + 0xe1) = *(int*)(rec + 0x19);
+    *(int*)(rec + 0xe5) = 0;
+    *(int*)(rec + 0xe9) = priceLabel;
+    // strcmp(accName,"mileage item"/"cera point")——ORIG 0x8179d49 源=0x20(%ebp) 实证
+    if (strcmp(accName, "mileage item") == 0)
+        *(int*)(rec + 0xed) = 2;
+    else if (strcmp(accName, "cera point") == 0)
+        *(int*)(rec + 0xed) = 3;
+    else
+        *(int*)(rec + 0xed) = 1;
+
+    char ip[0x10];
+    memset(ip, 0, sizeof(ip));
+    if (user->m_network.GetPeerIP2(ip, 0x10) == 0)
+        memcpy(ip, "NONE", 5);
+    memcpy(rec + 0xf1, ip, 0x10);
+    *(unsigned int*)(rec + 0x101) = (unsigned int)(uid >> 32);
+    *(unsigned int*)(rec + 0x105) = (unsigned int)uid;      // ORIG -0x150 = 0x28(%ebp)
+    *(unsigned int*)(rec + 0x109) = (unsigned int)(uid >> 32);  // ORIG -0x14c
+    rec[0x10d] = payFlag;                                    // ORIG -0x154
+
+    guard.put_binary(rec, 0x10e);
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
+
+    // PuUser 标志（ORIG xor 1 判定：GetPuUser()==1 时补存）
+    if (user->GetPuUser())
+        DB_SavePuUserCheck::makeRequest(user->get_acc_id());
+}
 // ============================================================================
 // ItemVendingMachine 私有校验/串化 helper —— ORIG 成员（mangled 见
 // docs/class_func_reports/ItemVendingMachine/README.md）
@@ -2138,6 +3980,72 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
 }
 Secu_DataControl::Secu_DataControl() {}  // ORIG 0x82aa6ba：空体（纯 ret，无成员初始化）
 
+// encryptAES_ 定义在 MouseRegisterEJ.cpp（保留方，0x148 更近 ORIG 0x14d）；此 TU 仅调用。
+char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
+
+// Secu_DataControl::UpdateSecurityServiceState —— ORIG T 0x08286e40
+// [0x08286e40,0x08287081]。service==0：SecurityCard 已激活→init；
+// service==1：CPad 已激活→若已认证则 flag=1，否则将 msg 截 8 字节 AES 加密后
+// setFailCnt(0)+setPassword；任一分支生效则发送 0x159 通知包（service/flag）。
+void Secu_DataControl::UpdateSecurityServiceState(CUser* user, unsigned char service,
+                                                  unsigned char flag, char* msg)
+{
+    if (user == 0)
+    {
+        return;
+    }
+    bool done = false;
+    if (service == 0)
+    {
+        WongWork::CSecurityCard* card = user->getSecurityCard();
+        if (card->isActivate())
+        {
+            card = user->getSecurityCard();
+            card->init();
+            done = true;
+        }
+    }
+    else if (service == 1)
+    {
+        Sanicova::CPad* pad = user->getPad();
+        if (pad->isActivate())
+        {
+            pad = user->getPad();
+            if (pad->isCertified())
+            {
+                flag = 1;
+            }
+            else
+            {
+                char plain[36];
+                char enc[36];
+                memset(plain, 0, sizeof(plain));
+                memset(enc, 0, sizeof(enc));
+                strncpy(plain, msg, 8);
+                cMyTrace trace(
+                    __PRETTY_FUNCTION__,
+                    0xa0, 0);
+                trace("[Secu_Web_Conn] (%s)  ", msg);
+                encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, plain, enc);
+                pad = user->getPad();
+                pad->setFailCnt(0);
+                pad = user->getPad();
+                pad->setPassword(enc);
+                done = true;
+            }
+        }
+    }
+    if (done)
+    {
+        PacketGuard guard;
+        guard.put_header(0, 0x159);
+        guard.put_byte(service);
+        guard.put_byte(flag);
+        guard.finalize(true);
+        user->Send(guard);
+    }
+}
+
 bool CDBConnector::GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap)
 {
     // ORIG 0x080ec9ca：遍历 groupMap，逐组 QueryConnInfo(idx, group, infoMap)；
@@ -2209,8 +4117,19 @@ bool CDBConnector::Init(STDBConnInfo& info)
 }
 bool CDBConnector::OpenMaster()
 {
-    // ORIG 0x080ec67c：Open(0, 0, this+4)。
-    return Open((ENUM_DB_HANDLE_IDX)0, (ENUM_SERVER_GROUP)0, m_connInfo);
+    // ORIG 0x080ec67c：Open((ENUM_DB_HANDLE_IDX)0, (ENUM_SERVER_GROUP)0, this+4)
+    // 结果取反返回。
+    return !Open((ENUM_DB_HANDLE_IDX)0, (ENUM_SERVER_GROUP)0, m_connInfo);
+}
+void CDBConnector::CloseMaster()
+{
+    // ORIG 0x080ec6bc：GlobalData::s_db_mgr->Close((ENUM_DB_HANDLE_IDX)0)。
+    GlobalData::s_db_mgr->Close((ENUM_DB_HANDLE_IDX)0);
+}
+void CDBConnector::Close()
+{
+    // ORIG 0x080ec668：转发 CloseMaster()。
+    CloseMaster();
 }
 bool CDBConnector::Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
                         STDBConnInfo& info)
@@ -2256,7 +4175,7 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
         return false;
     if (!db->get_str(3, info.m_user, 0x15))
         return false;
-    std::memset(reinterpret_cast<char*>(&info) + 0x2d, 0, 60);
+    std::memset(info.m_pass, 0, 60);
     if (!db->get_str(4, passCipher, 0x3c))
         return false;
     if (!G_CEnvironment()->DecryptValue(passCipher, passPlain))
@@ -2291,7 +4210,7 @@ bool CGM_Manager::LoadGmListFromDb()
     char ok = m_db->exec(true);
     if (ok != 1)
     {
-        cMyTrace t("bool CGM_Manager::LoadGmListFromDb()", 0x1579, 0);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1579, 0);
         t("Failed to get GM list from DB.");
         return false;
     }
@@ -2305,14 +4224,14 @@ bool CGM_Manager::LoadGmListFromDb()
         int level = 0;
         if (m_db->get_int(0, *(int*)&mId) != 1)
         {
-            cMyTrace t("bool CGM_Manager::LoadGmListFromDb()", 0x1588, 0);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1588, 0);
             t("Failed to get GM's m_id from DB.");
             result = 0;
             break;
         }
         if (m_db->get_int(1, level) != 1)
         {
-            cMyTrace t("bool CGM_Manager::LoadGmListFromDb()", 0x158e, 0);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x158e, 0);
             t("Failed to get GM's lv from DB.");
             result = 0;
             break;
@@ -2335,7 +4254,7 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
 {
     if (level < 1 || level > 200)
     {
-        cMyTrace tr("void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int, int)",
+        cMyTrace tr(__PRETTY_FUNCTION__,
                     0x550, 0);
         tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
         return;
@@ -2384,7 +4303,7 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     m_rewardMap.clear();
 
     int keyCount = 0;
-    int count = *(int*)((char*)data + 0x2e0);
+    int count = data->m_field2e0;
     for (int i = 0; i < count; ++i)
     {
         const char* entry = (const char*)(data) + i * 0x18;
@@ -2437,7 +4356,7 @@ expert_job::CExpertJobMgr::CExpertJobMgr()
     if (m_factory == 0)
     {
         printf("memory error func(%s) line(%d)",
-               "expert_job::CExpertJobMgr::CExpertJobMgr()", 0x57f);
+               __PRETTY_FUNCTION__, 0x57f);
     }
 }
 expert_job::CExpertJobMgr::~CExpertJobMgr()
@@ -2462,6 +4381,21 @@ bool village_attacked::CRevengeDungeon::IsOpenRevengeDungeon()  // ORIG 0x8234ff
 int village_attacked::CRevengeDungeon::GetCloseTime()  // ORIG W 0x085bff32
 {
     return m_field04;
+}
+void village_attacked::CRevengeDungeon::OpenRevengeDungeon()   // ORIG W 0x0847dd1e
+{
+    // movb $0x1,(%eax)：置 +0 字节为 1。
+    m_isOpen = true;
+}
+void village_attacked::CRevengeDungeon::CloseRevengeDungeon()  // ORIG W 0x0847dd2a
+{
+    // movb $0x0,(%eax)：置 +0 字节为 0。
+    m_isOpen = false;
+}
+void village_attacked::CRevengeDungeon::SetCloseTime(unsigned int sec)  // ORIG W 0x0847dd36
+{
+    // mov %edx,0x4(%eax)：arg 写 +0x04 int。
+    m_field04 = sec;
 }
 InstanceRentalSystem::InstanceRentalSystem()
 {
@@ -2493,17 +4427,16 @@ void InstanceRentalSystem::registerRentalMachine(int idx, IRentalMachine* m)
     }
 }
 
-RentalMachinePcRoom::RentalMachinePcRoom()
+RentalMachinePcRoom::RentalMachinePcRoom() : m_impl(new RentalMachinePcRoomImpl)
 {
     // ORIG 0x82703c0：IRentalMachine 基类 + vptr；new Impl(0x11c) 存 auto_ptr@+4；
     // initLoggingEnvironment()。
-    m_impl = new RentalMachinePcRoomImpl;
     initLoggingEnvironment();
 }
 void RentalMachinePcRoom::initLoggingEnvironment()
 {
     // ORIG 0x8270886：snprintf(impl, 0x103, "./log/%s/dw2_RentalItems", 文件名)。
-    if (m_impl == 0)
+    if (m_impl.get() == 0)
     {
         return;
     }
@@ -2511,12 +4444,6 @@ void RentalMachinePcRoom::initLoggingEnvironment()
              G_CEnvironment()->get_file_name());
 }
 
-RentalMachineDimension::RentalMachineDimension()
-{
-    // ORIG 0x826eafc：与 PcRoom 同构（vptr 表不同）。
-    m_impl = new RentalMachineDimensionImpl;
-    initLoggingEnvironment();
-}
 void RentalMachineDimension::initLoggingEnvironment()
 {
     // ORIG 0x826efdc：同 PcRoom 日志路径（.rodata 0x8bf90c2 同串）。
@@ -2613,7 +4540,7 @@ online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
     if (m_factory == 0)
     {
         LogManager::logFormat(1, "OnlinePreliminaryTeam.cpp",
-                              "online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()",
+                              __PRETTY_FUNCTION__,
                               0xd9, "memory error func(%s) line(%d)",
                               "online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()",
                               0xd9);
@@ -2734,15 +4661,6 @@ void CBusinessImpl::ProcessProtectMsg(tagTSafeModePkg* pkg)
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
 
-// ---- 定时器/DB 请求/反外挂 ----
-void TimerUpdatePvPGrade::registNextTimer(long long) {}  // TODO(后续批次)
-void Timer_GenerateCaptchaData::RegistNextTimer(int sec)
-{
-    // ORIG 0x863b2ba：G_TimerQueue()->InsertTimer((OBJ_TYPE)2, 0, (TIMER_MESSAGE)0xa1,
-    // sec, 0, 0)。
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0xa1,
-                                sec, 0, 0);
-}
 // ---- DB 请求（ORIG 模式：Acquire 流 → CStreamGuard → <<msgId → <<-1 → 入 DB 队列）----
 void DB_ReloadAutoPunishRuleBackIP::makeRequest()
 {
@@ -2795,37 +4713,15 @@ int StackableAction::Action::proc_bingo(input_param& p)
     {
         return 0x13;
     }
-    ev = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (ev == 0)
+    // BingoEvent 完整类型已建模（BingoEvent.h 权威头，OrigBingoEvt 批次）；
+    // ORIG 0x0827fb14 直调 _ZN10BingoEvent12reqBingoMarkERN15StackableAction11input_paramE。
+    BingoEvent* bingoEvent = static_cast<BingoEvent*>(
+        GlobalData::s_event_manager->GetRepeatEvent(0x6a));
+    if (bingoEvent == 0)
     {
         return 0x13;
     }
-    // BingoEvent 完整类型未建模（CBingo/shared_ptr 依赖缺失）。按 ORIG 0x080c9ff6
-    // （docs/class_func_reports/BingoEvent/reqBingoMark.md）内联还原可证实前缀检查；
-    // 随机标记路径依赖 CBingo::getBingoRandomVaule/calNewValue，未建模时按「无法标记」
-    // 返回 0x13（推断）。内联定义避免产生 ORIG 不存在的独立链接符号。
-    struct BingoEventView
-    {
-        int reqBingoMark(StackableAction::input_param& p)
-        {
-            if (p.m_user == 0 || p.m_item == 0)
-            {
-                return 0x13;
-            }
-            unsigned char* bd = (unsigned char*)p.m_user->getBingoData();
-            if ((int)(signed char)bd[4] >= 3)
-            {
-                return 7;
-            }
-            int no = (*(std::vector<int>*)((char*)p.m_item + 0x3a0))[0];
-            if (no < 1 || no > 0x32)
-            {
-                return 0x17;
-            }
-            return 0x13; // 推断：CBingo 标记链路未建模
-        }
-    };
-    return BingoEventView().reqBingoMark(p);
+    return bingoEvent->reqBingoMark(p);
 }
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
@@ -2839,8 +4735,8 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
     {
         return 0x13;
     }
-    std::vector<int>* costs = reinterpret_cast<std::vector<int>*>(
-        reinterpret_cast<char*>(p.m_item) + 0x3a0);  // CItem 未建模字段（推断）
+    // ORIG item+0x3a0 = CStackableItem::m_vec3a0（运行时 item 为 stackable）
+    std::vector<int>* costs = &static_cast<CStackableItem*>(p.m_item)->m_vec3a0;
     if (costs->empty())
     {
         return 4;
@@ -2919,7 +4815,11 @@ expert_extraction::CExtractionMgr::~CExtractionMgr()
 // ---- Teleport / NPC_Teleport / User_Teleport（报告 Teleport/、NPC_Teleport/、User_Teleport/）----
 
 STCheckRuleData::STCheckRuleData() {}
-STTeleportData::STTeleportData() {}
+// ORIG W 0x0822d78e：仅清零 +0x00 的 int（m_field00），不触碰 m_tp 子对象。
+STTeleportData::STTeleportData()
+{
+    m_field00 = 0;
+}
 
 Teleport::Teleport()
 {
@@ -2939,11 +4839,11 @@ int Teleport::check_rule(STCheckRuleData const& data)
 void Teleport::set_party_teleport(stPartyTelePort const& tp)
 {
     // ORIG 0x08283d98：拷贝 stPartyTelePort 前 10 字节（8 字节 + short）。
-    *reinterpret_cast<int*>(&m_tp) = *reinterpret_cast<const int*>(&tp);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_tp) + 4) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&tp) + 4);
-    *reinterpret_cast<short*>(reinterpret_cast<char*>(&m_tp) + 8) =
-        *reinterpret_cast<const short*>(reinterpret_cast<const char*>(&tp) + 8);
+    // 块拷贝视图：成员地址 + 宽度视图（含 pad 字节），无裸偏移。
+    *reinterpret_cast<int*>(&m_tp.m_state) = *reinterpret_cast<const int*>(&tp.m_state);
+    *reinterpret_cast<int*>(&m_tp.m_posx) = *reinterpret_cast<const int*>(&tp.m_posx);
+    *reinterpret_cast<short*>(&m_tp.m_direction) =
+        *reinterpret_cast<const short*>(&tp.m_direction);
 }
 stPartyTelePort& Teleport::get_party_teleport()
 {
@@ -3196,8 +5096,8 @@ void User_Teleport::set_teleport_data(STTeleportData const& data)
 }
 void* random_option::GetRandomOption()
 {
-    // ORIG T 0x085f0eb0：返回 G_CDataManager()->+0x148（RandomOptionScript 成员）。
-    return reinterpret_cast<char*>(G_CDataManager()) + 0x148;  // 推断：偏移直访
+    // ORIG T 0x085f0eb0：返回 &m_randomOption（CDataManager+0x4e10，objdump 实证）。
+    return &G_CDataManager()->m_randomOption;
 }
 random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
 {
@@ -3213,8 +5113,8 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     m_disabled = 0;
     m_field10 = 0;
     // ORIG 0x85f0e2d..0x85f0e3b：m_optionSet = GetRandomOption() + 0x148
-    // （script 内嵌 provider 对象基址；虚槽0/1 见 RandomOptionScript.h）。
-    m_optionSet = reinterpret_cast<char*>(GetRandomOption()) + 0x148;
+    // （m_randomOption 内嵌 provider 对象基址 m_providerPad148；虚槽0/1 见 RandomOptionScript.h）。
+    m_optionSet = G_CDataManager()->m_randomOption.m_providerPad148;
 }
 random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 {
@@ -3269,11 +5169,94 @@ void* CreateAntiServerObj(const char* path)
 }
 
 // ---- CDBEnviroment ----
-CDBEnviroment::CDBEnviroment() : CEnvironment()
+// ORIG W 0x082aa8e4：CEnvironment::CEnvironment() + m_dbType(+0x3e0)=0。
+CDBEnviroment::CDBEnviroment()
+    : m_dbType((ENUM_SERVER_GROUP)0)
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-CDBEnviroment::~CDBEnviroment() {}  // TODO(后续批次)
+}
+
+// ORIG W 0x082aa90e：vptr 复位 + CEnvironment::~CEnvironment()。
+CDBEnviroment::~CDBEnviroment()
+{
+}
+
+// ---- CDBEnviroment::parse ORIG @0x0829d8e8（GameDbType 环境脚本解析）----
+// strtok(buf, "=") 取两 token 并 trim；首 token 为 "game_db_type" 时按第二
+// token 文字映射 m_dbType（cain=1/diregie=2/siroco=3/prey=4/casillas=5/
+// hilder=6/ruke=7/seria=8/anton=9/roxy=0xa/bakal=0xb/ozma=0xc/khazan=0xd/
+// first1=0x63/first2=0x64/starter_server=0x11），并把空 map 存入
+// G_CEnvironment()->m_serverGroupMap[m_dbType]；未知值 cMyTrace(0x2032,5)
+// "Unknown value (%s)" 返 0。否则在 m_serverGroupMap[m_dbType] 中查找，
+// 命中则 make_pair(p1,p2) insert。恒返 1。
+// m_serverGroupMap 为 CEnvironment private，用 +0x50 偏移组件视图访问（P1）。
+struct CDBEnvServerGroupMapView
+{
+    char m_pad[0x50];
+    std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > m_map;
+};
+
+bool CDBEnviroment::parse(char* buf)
+{
+    const char* sep = "=";
+    char* p1 = strtok(buf, sep);
+    char* p2 = strtok(0, sep);
+    p1 = trim(p1);
+    p2 = trim(p2);
+    if (strcmp(p1, "game_db_type") == 0)
+    {
+        if (strcmp(p2, "cain") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)1;
+        else if (strcmp(p2, "diregie") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)2;
+        else if (strcmp(p2, "siroco") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)3;
+        else if (strcmp(p2, "prey") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)4;
+        else if (strcmp(p2, "casillas") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)5;
+        else if (strcmp(p2, "hilder") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)6;
+        else if (strcmp(p2, "ruke") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)7;
+        else if (strcmp(p2, "seria") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)8;
+        else if (strcmp(p2, "anton") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)9;
+        else if (strcmp(p2, "roxy") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0xa;
+        else if (strcmp(p2, "bakal") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0xb;
+        else if (strcmp(p2, "ozma") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0xc;
+        else if (strcmp(p2, "khazan") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0xd;
+        else if (strcmp(p2, "first1") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0x63;
+        else if (strcmp(p2, "first2") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0x64;
+        else if (strcmp(p2, "starter_server") == 0)
+            m_dbType = (ENUM_SERVER_GROUP)0x11;
+        else
+        {
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2032, 5);
+            t("Unknown value (%s)", p2);
+            return 0;
+        }
+        std::map<std::string, std::string> tmp;
+        ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map[m_dbType] = tmp;
+    }
+    else
+    {
+        CDBEnvServerGroupMapView* env = (CDBEnvServerGroupMapView*)G_CEnvironment();
+        std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> >::iterator it =
+            env->m_map.find(m_dbType);
+        if (it != env->m_map.end())
+        {
+            it->second.insert(std::make_pair(p1, p2));
+        }
+    }
+    return 1;
+}
 
 // ============================================================================
 // 静态成员定义（平凡/指针；对象型成员由全局 TU 定义，避免单 TU 静态初始化）
@@ -3301,6 +5284,10 @@ CServerProxyMgr<CGuildServerProxy>* GlobalData::s_guild_proxy_mgr = 0;
 CServerProxyMgr<CStatisticServerProxy>* GlobalData::s_statistic_proxy_mgr = 0;
 CHadesServerProxy* GlobalData::s_hades_proxy = 0;
 CDoubleConnCheckServerProxy* GlobalData::s_double_check_proxy = 0;
+// 对象型成员（ORIG 地址：s_accept_lock @0940bdcc (0x18)、s_accept_que @0940be00 (0x28)）；
+// 定义置于本 TU（GlobalData.h 注释的"全局 TU"即本文件，s_systemTime_/cg_ 同区）。
+Mutex GlobalData::s_accept_lock;
+std::queue<CUser*, std::deque<CUser*> > GlobalData::s_accept_que;
 CSchoolServerProxy* GlobalData::s_school_proxy = 0;
 CPCRoomServerProxy* GlobalData::s_pcroom_proxy = 0;
 CCommunityServerProxy* GlobalData::s_community_proxy = 0;
@@ -3316,7 +5303,7 @@ CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
 Cipher* GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
-SPremiumInfo GlobalData::g_SPremiumInfo[0x6a];   // 09483a40；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
+SPremiumInfo g_SPremiumInfo[0x6a];             // 09483a40；全局 C 名（无命名空间，ORIG B）；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
 WongWork::CSimpleSSO* GlobalData::s_psimpleSSO = 0;
 WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;
 WongWork::CGMAccounts* GlobalData::s_pGMAccounts_ = 0;
@@ -3355,7 +5342,7 @@ CItemAmplifier* GlobalData::s_itemAmplifier_ = 0;
 CGlobalEffectManager* GlobalData::s_globalEffectManager_ = 0;
 ARAD::Arad_ServerStateManager* GlobalData::s_serverStateManager_ = 0;
 CTimeGate* GlobalData::s_timeGate_ = 0;
-int GlobalData::g_GoldControlDateFlag = 0;
+unsigned int GlobalData::g_GoldControlDateFlag = 0;
 StackableAction::Action* GlobalData::g_Actions = 0;
 expert_extraction::CExtractionMgr* GlobalData::g_ExtractionMgr = 0;
 void* GlobalData::g_pTeleport[2] = {0, 0};
@@ -3554,7 +5541,9 @@ bool GlobalData::initTournamentDB(const char* fileName)
         }
         ++it;
     }
-    cMyTrace t("static bool GlobalData::initTournamentDB(const char*)", 0x20aa, 0);
+    // ORIG 0x829e040：cMyTrace 第一参即 __PRETTY_FUNCTION__
+    // （rodata _ZZN10GlobalData16initTournamentDBEPKcE19__PRETTY_FUNCTION__ @08c1b100）。
+    cMyTrace t(__PRETTY_FUNCTION__, 0x20aa, 0);
     t("This is Tournament PvP channel");
     s_db_mgr->activateGlobalDB();
     return true;
@@ -3888,7 +5877,7 @@ bool GlobalData::Init()
 
     DBInfoMap& masterDbInfo =
         *(DBInfoMap*)((char*)G_CEnvironment() + 0x68);
-    int serverGroup = *(int*)((char*)G_CEnvironment() + 0x378);
+    int serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
 
     {
         DBGroupMap groupMap;
@@ -3906,38 +5895,38 @@ bool GlobalData::Init()
         int idx4 = 0;
         STDBConnInfo& db4 = masterDbInfo[(ENUM_DB_HANDLE_IDX)idx4];
         (void)serverGroup;
-        cMyTrace t1("static bool GlobalData::Init()", 0x1b0c, 9);
+        cMyTrace t1(__PRETTY_FUNCTION__, 0x1b0c, 9);
         t1("\t- DBConnector Init(masterdb %s/%d/%s/%s) ", &db4, masterPort,
            (char*)&db2 + 0x18, (char*)&db1 + 0x42);
         int idx0 = 0;
         STDBConnInfo& db0 = masterDbInfo[(ENUM_DB_HANDLE_IDX)idx0];
         if (!s_db_connector->Init(db0))
         {
-            cMyTrace t2("static bool GlobalData::Init()", 0x1b0f, 9);
+            cMyTrace t2(__PRETTY_FUNCTION__, 0x1b0f, 9);
             t2("\t- DBConnector Init Fail");
             return false;
         }
-        cMyTrace t3("static bool GlobalData::Init()", 0x1b12, 9);
+        cMyTrace t3(__PRETTY_FUNCTION__, 0x1b12, 9);
         t3("Success");
-        cMyTrace t4("static bool GlobalData::Init()", 0x1b14, 9);
+        cMyTrace t4(__PRETTY_FUNCTION__, 0x1b14, 9);
         t4("\t- DBConnector Get Connection Info ");
         if (!s_db_connector->GetConnInfo(groupMap, masterDbInfo))
         {
-            cMyTrace t5("static bool GlobalData::Init()", 0x1b17, 9);
+            cMyTrace t5(__PRETTY_FUNCTION__, 0x1b17, 9);
             t5("\t- DBConnector Get Connection Info Fail");
             return false;
         }
-        cMyTrace t6("static bool GlobalData::Init()", 0x1b1a, 9);
+        cMyTrace t6(__PRETTY_FUNCTION__, 0x1b1a, 9);
         t6("Success");
-        cMyTrace t7("static bool GlobalData::Init()", 0x1b1c, 9);
+        cMyTrace t7(__PRETTY_FUNCTION__, 0x1b1c, 9);
         t7("\t- Open DB ... ");
         if (!s_db_connector->Connect(DBInfoMap(masterDbInfo)))
         {
-            cMyTrace t8("static bool GlobalData::Init()", 0x1b1f, 9);
+            cMyTrace t8(__PRETTY_FUNCTION__, 0x1b1f, 9);
             t8("\t- DBConnector Connect DB Fail");
             return false;
         }
-        cMyTrace t9("static bool GlobalData::Init()", 0x1b22, 9);
+        cMyTrace t9(__PRETTY_FUNCTION__, 0x1b22, 9);
         t9("\t- All DB Open Success");
     }
 
@@ -3960,23 +5949,23 @@ bool GlobalData::Init()
     s_pGMAccounts_ = new WongWork::CGMAccounts;
 
     {
-        cMyTrace t1("static bool GlobalData::Init()", 0x1d4d, 9);
+        cMyTrace t1(__PRETTY_FUNCTION__, 0x1d4d, 9);
         t1("\t- Init Query Table ");
         if (!s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0)
                  ->GetQueryCounter()->LoadQueryTable())
         {
-            cMyTrace t2("static bool GlobalData::Init()", 0x1d50, 9);
+            cMyTrace t2(__PRETTY_FUNCTION__, 0x1d50, 9);
             t2("\t- Init Query Table Fail");
             return false;
         }
         if (!s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)4, (ENUM_SERVER_GROUP)0)
                  ->GetQueryCounter()->LoadQueryTable())
         {
-            cMyTrace t3("static bool GlobalData::Init()", 0x1d55, 9);
+            cMyTrace t3(__PRETTY_FUNCTION__, 0x1d55, 9);
             t3("\t- Init Query Table Fail");
             return false;
         }
-        cMyTrace t4("static bool GlobalData::Init()", 0x1d58, 9);
+        cMyTrace t4(__PRETTY_FUNCTION__, 0x1d58, 9);
         t4("Success");
     }
 
@@ -4008,11 +5997,11 @@ bool GlobalData::Init()
                             (char*)&web3 + 0x42, (char*)&web2 + 0x18, (char*)&web1 + 0x2d,
                             (ENUM_SERVER_GROUP)0))
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1d8d, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1d8d, 9);
             t("\t- Failed to open web DB");
             return false;
         }
-        cMyTrace t("static bool GlobalData::Init()", 0x1d90, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1d90, 9);
         t("\t- Success WEB DB OPEN");
     }
 
@@ -4035,7 +6024,7 @@ bool GlobalData::Init()
 
     if (slangFail)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1d9f, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1d9f, 9);
         t("Failed to read slang list");
         return false;
     }
@@ -4043,17 +6032,17 @@ bool GlobalData::Init()
     s_event_manager = new (std::nothrow) CEventManager;
     if (!s_event_manager)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1da8, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1da8, 9);
         t("Can't allocate CEventManager memory");
         return false;
     }
 
-    cMyTrace t("static bool GlobalData::Init()", 0x1dc6, 9);
+    cMyTrace t(__PRETTY_FUNCTION__, 0x1dc6, 9);
     t("\t- Load GM List From DB");
     gmList = new (std::nothrow) Gm_List;
     if (!gmList)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1dcd, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1dcd, 9);
         t("\t- Can't allocate memory for a Gm_List");
         return false;
     }
@@ -4061,7 +6050,7 @@ bool GlobalData::Init()
     s_GM_Manager = new (std::nothrow) CGM_Manager;
     if (!s_GM_Manager)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1dd6, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1dd6, 9);
         t("Can't allocate memory for a CGM_Manager");
         return false;
     }
@@ -4091,7 +6080,7 @@ bool GlobalData::Init()
     s_statisticMgr = statMgr;
     if (!s_statisticMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1df7, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1df7, 9);
         t("Can't allocate memory for a CStatisticMgr");
         return false;
     }
@@ -4099,7 +6088,7 @@ bool GlobalData::Init()
     s_BreakAwaySys = new (std::nothrow) break_away_prevent::CBreakAwayPreventSystem;
     if (!s_BreakAwaySys)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1dfe, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1dfe, 9);
         t("Can't allocate memory for a s_BreakAwaySys");
         return false;
     }
@@ -4107,7 +6096,7 @@ bool GlobalData::Init()
     s_ExpertJobMgr = new (std::nothrow) expert_job::CExpertJobMgr;
     if (!s_ExpertJobMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e05, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e05, 9);
         t("Can't allocate memory for a CExpertJobMgr");
         return false;
     }
@@ -4115,7 +6104,7 @@ bool GlobalData::Init()
     s_villageObjectMgr = new (std::nothrow) village_object::CVillageObjectMgr;
     if (!s_villageObjectMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e0c, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e0c, 9);
         t("Can't allocate memory for a CVillageObjectMgr");
         return false;
     }
@@ -4123,7 +6112,7 @@ bool GlobalData::Init()
     s_villageMonsterMgr = new (std::nothrow) village_attacked::CVillageMonsterMgr;
     if (!s_villageMonsterMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e13, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e13, 9);
         t("Can't allocate memory for a CVillageMonsterMgr");
         return false;
     }
@@ -4131,7 +6120,7 @@ bool GlobalData::Init()
     s_rentalSystem = new (std::nothrow) InstanceRentalSystem;
     if (!s_rentalSystem)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e1b, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e1b, 9);
         t("an`t allocate memory for a InstanceRentalSystem");
         return false;
     }
@@ -4139,7 +6128,7 @@ bool GlobalData::Init()
     s_revengeDungeonMgr = new (std::nothrow) village_attacked::CRevengeDungeon;
     if (!s_revengeDungeonMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e24, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e24, 9);
         t("Can't allocate memory for a CRevengeDungeon");
         return false;
     }
@@ -4147,7 +6136,7 @@ bool GlobalData::Init()
     s_DailyScheduleManager = new (std::nothrow) CDailyScheduleManager;
     if (!s_DailyScheduleManager)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e2d, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e2d, 9);
         t("Can't allocate memory for a CDailyScheduleManager");
         return false;
     }
@@ -4155,7 +6144,7 @@ bool GlobalData::Init()
     s_onlinePreliminaryTeamMgr = new (std::nothrow) online_preliminary::COnlinePreliminaryTeamMgr;
     if (!s_onlinePreliminaryTeamMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e36, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e36, 9);
         t("Can't allocate memory for a COnlinePreliminaryTeamMgr");
         return false;
     }
@@ -4163,7 +6152,7 @@ bool GlobalData::Init()
     s_GameMasterMgr = new (std::nothrow) game_master::CGameMasterMgr;
     if (!s_GameMasterMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1e47, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1e47, 9);
         t("Can't allocate memory for a CGameMasterMgr");
         return false;
     }
@@ -4178,7 +6167,7 @@ bool GlobalData::Init()
     s_antibotChecker_ = CreateAntiServerObj("./");
     if (!s_antibotChecker_)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1eb0, 5);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1eb0, 5);
         t("AntiBot create fail");
         return false;
     }
@@ -4212,7 +6201,7 @@ bool GlobalData::Init()
     s_statisticMgr = statMgr2;
     if (!s_statisticMgr)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1ebf, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1ebf, 9);
         t("Can't allocate memory for a CStatisticMgr");
         return false;
     }
@@ -4220,7 +6209,7 @@ bool GlobalData::Init()
     g_Actions = new (std::nothrow) StackableAction::Action;
     if (!g_Actions)
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1ed9, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1ed9, 9);
         t("Can't allocate memory for a StackableAction::Action()");
         return false;
     }
@@ -4239,7 +6228,7 @@ bool GlobalData::Init()
         g_ExtractionMgr = new (std::nothrow) expert_extraction::CExtractionMgr;
         if (!g_ExtractionMgr)
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1ef5, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1ef5, 9);
             t("Can't allocate memory for a CExtractionMng");
             return false;
         }
@@ -4247,7 +6236,7 @@ bool GlobalData::Init()
         g_pTeleport[0] = new (std::nothrow) NPC_Teleport;
         if (!g_pTeleport[0])
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1f02, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1f02, 9);
             t("Can't allocate memory for a NPC_Teleport()");
             return false;
         }
@@ -4255,7 +6244,7 @@ bool GlobalData::Init()
         g_pTeleport[1] = new (std::nothrow) User_Teleport;
         if (!g_pTeleport[1])
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1f09, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1f09, 9);
             t("Can't allocate memory for a User_Teleport()");
             return false;
         }
@@ -4263,7 +6252,7 @@ bool GlobalData::Init()
         g_randomOptionHandle = new (std::nothrow) random_option::CRandomOptionItemHandle;
         if (!g_randomOptionHandle)
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1f12, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1f12, 9);
             t("Can't allocate memory for a CRandomOptionItemHandle");
             return false;
         }
@@ -4278,20 +6267,20 @@ bool GlobalData::Init()
             {
                 return true;
             }
-            cMyTrace t("static bool GlobalData::Init()", 0x1f2a, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1f2a, 9);
             t("Can't initialize GeoIP");
             return false;
         }
         else
         {
-            cMyTrace t("static bool GlobalData::Init()", 0x1f1f, 9);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1f1f, 9);
             t("Can't allocate memory for a ServiceRestrictManager");
             return false;
         }
     }
     else
     {
-        cMyTrace t("static bool GlobalData::Init()", 0x1eea, 9);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x1eea, 9);
         t("captcha data initialization failed");
         return false;
     }
@@ -4324,6 +6313,25 @@ InstanceRentalSystem::DeletedRentItem::DeletedRentItem()
     m_bEquip = 0;
     m_slot = 0;
     m_itemId = 0;
+}
+// ---- InstanceRentalSystem::RentInput::RentInElem C1 —— W 0x0822f02e ------
+// （objdump 直转：逐字节清 +0..+3，+4=-1；无帧无栈，每字段重读 this）
+InstanceRentalSystem::RentInput::RentInElem::RentInElem()
+{
+    m_sectionIdx = 0;
+    m_itemIdx = 0;
+    m_bEquip = 0;
+    m_type = 0;
+    m_rentItemId = -1;
+}
+
+// ---- InstanceRentalSystem::RentInput C1 —— W 0x0822f058 ------------------
+// （objdump 直转：vector C1 后清 +0xc int、+0x10/+0x11 两字节）
+InstanceRentalSystem::RentInput::RentInput()
+{
+    m_machineKey = 0;
+    m_logFlag = 0;
+    m_field11 = 0;
 }
 
 // ---- CUser::GetCurrentCharacRentalInfo —— T 0x08677166 --------------------
@@ -4494,6 +6502,41 @@ PcBangItemRentarData::getRewardSelectionList(int packageKey)
 
 namespace pc_room
 {
+
+// ---- GetRewardItemSelectionList —— T 0x082712da（同名报告全文转写）--------
+std::vector<std::vector<EventRewardItemInfo> >*
+GetRewardItemSelectionList(int packageKey, register int type)
+{
+    if (type == 1)
+    {
+        PcBangItemRentarData& rentar = G_CDataManager()->m_pcBangRentar;
+        return rentar.getRewardSelectionList(packageKey);
+    }
+    else if (type == 2)
+    {
+        DimensionActivationRewardData& reward =
+            G_CDataManager()->m_dimensionAct.m_rewardData;
+        return reward.getRewardSelectItemList(packageKey);
+    }
+    return 0;
+}
+
+// ---- GetRewardSection —— T 0x08271338（同名报告全文转写）------------------
+EventRewardSection* GetRewardSection(int idx, register int type)
+{
+    if (type == 1)
+    {
+        PcBangItemRentarData& rentar = G_CDataManager()->m_pcBangRentar;
+        return rentar.getSectionData(idx);
+    }
+    else if (type == 2)
+    {
+        DimensionActivationRewardData& reward =
+            G_CDataManager()->m_dimensionAct.m_rewardData;
+        return reward.getSectionData(idx);
+    }
+    return 0;
+}
 
 // ---- GetRentItemInfo —— T 0x08271396（同名报告全文转写）--------------------
 bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
@@ -4724,8 +6767,7 @@ void RentalMachinePcRoom::log(CUser& user, int itemId)
     }
     else
     {
-        serverInfo = (char)*reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);  // [裸偏移] CEnvironment+0x378（log 报告直转；具名字段待补）
+        serverInfo = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
     const int charNo = user.get_charac_no(-1);
     const unsigned int accId = user.get_acc_id();
@@ -4746,8 +6788,7 @@ void RentalMachineDimension::log(CUser& user, int itemId)
     }
     else
     {
-        serverInfo = (char)*reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);  // [裸偏移] CEnvironment+0x378（log 报告直转；具名字段待补）
+        serverInfo = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
     const int charNo = user.get_charac_no(-1);
     const unsigned int accId = user.get_acc_id();
@@ -5242,4 +7283,30 @@ int get_seed_from_date()
     struct tm v;
     localtime_r(&t, &v);
     return v.tm_year * 365 + v.tm_yday * 30 + v.tm_mday;
+}
+
+// ============================================================================
+// GlobalInstance 显式实例化（弱符号，COMDAT 合并；与 ORIG nm 的 W/V 一致）
+//   EncryptTool: inst_ptr 0x848e1d3 / create 0x848e1e5 / m_p V 0x943d9a0
+//   Cipher:      inst_ptr 0x82ab9da / create 0x82b6577 / m_p V 0x941f8a4
+//   CDataManager/InterDispatcher/TimerDispatcher/Store/GameWorld: inst_ptr 等
+//   ORIG 均 W/u（弱/外部引用），此处显式实例化补链接符号，不影响各权威 TU。
+// ============================================================================
+template class GlobalInstance<EncryptTool>;
+template class GlobalInstance<CDataManager>;
+template class GlobalInstance<InterDispatcher>;
+template class GlobalInstance<TimerDispatcher>;
+template class GlobalInstance<Store>;
+template class GlobalInstance<Cipher>;
+template class GlobalInstance<GameWorld>;
+// ---- 全局单例访问器（ORIG W：G_TimerDispatcher 0x0847e8a4 /
+// G_InterDispatcher 0x0847e8b7，GlobalInstance inst_ptr 形态，同 G_TimerQueue）----
+TimerDispatcher* G_TimerDispatcher()
+{
+    return GlobalInstance<TimerDispatcher>::inst_ptr();
+}
+
+InterDispatcher* G_InterDispatcher()
+{
+    return GlobalInstance<InterDispatcher>::inst_ptr();
 }

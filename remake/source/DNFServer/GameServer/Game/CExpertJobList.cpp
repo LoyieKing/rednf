@@ -18,15 +18,11 @@
 #include "DNFLexWrapper.h"   // loadRDARScriptFile / ScanType / ScanInt / ScanStr / ScanFloat
 #include "LogManager.h"      // LogManager::logFormat
 #include <stdio.h>
+#include "NpcScript.h"
 
 // ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp 同布局：
 //      +0x00 std::map<int,std::string>，大小 0x18）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp
-};
+
 
 // ORIG 全局（B g_expertJobScriptFileList 0x094f7760 = 0x18 STScriptFileList
 // 对象 / g_expertJobScriptBaseDirectory 0x094f7660[0x100]）。
@@ -34,11 +30,11 @@ public:
 STScriptFileList g_expertJobScriptFileList;
 char g_expertJobScriptBaseDirectory[0x100];
 
-// [potion info] 段读取并写出的两个全局炼金术值。
-// g_alchemistInfo 对应 ORIG g_alchemistInfo；g_alchemistInfo2 对应未命名
-// 全局 _DAT_094f777c（见 ImportExpertJobScript.md [potion info] 反编译）。
-static int g_alchemistInfo = 0;
-static int g_alchemistInfo2 = 0;
+// [potion info] 段读取并写出的炼金术值表。
+// ORIG 为单一全局 g_alchemistInfo（B 0x094f7778，nm 尺寸 8）；[0] 即低半区
+// g_alchemistInfo，[1] 即未命名全局 _DAT_094f777c（见 ImportExpertJobScript.md
+// [potion info] 反编译）。本 TU 为唯一定义/写点。
+int g_alchemistInfo[2];
 
 // ============================================================================
 // expert_job::get_disjoint_additional_items（ORIG 0x896d75d）。
@@ -338,13 +334,13 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     if (idx == 0x27ac52 || idx == 0x27ac59)
                     {
-                        g_alchemistInfo = val;
+                        g_alchemistInfo[0] = val;
                     }
                     else if (idx == 0x98981a || idx == 0x1f8e ||
                              idx == 0x98988d || idx == 0x2920913e ||
                              idx == 0x989885)
                     {
-                        g_alchemistInfo2 = val;
+                        g_alchemistInfo[1] = val;
                     }
                     else
                     {
@@ -375,7 +371,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x211,
+                            __FUNCTION__, 0x211,
                             "import expertjob script - [portable disjoint info] index duplicated");
                         return false;
                     }
@@ -401,7 +397,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x236,
+                            __FUNCTION__, 0x236,
                             "import expertjob script - [shop doll info] index duplicated");
                         return false;
                     }
@@ -418,7 +414,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x24b,
+                            __FUNCTION__, 0x24b,
                             "import expertjob script - [unseal scroll level limit info] index duplicated");
                         return false;
                     }
@@ -438,7 +434,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x266,
+                            __FUNCTION__, 0x266,
                             "import expertjob script - [monstercard bind info] index duplicated");
                         return false;
                     }
@@ -491,7 +487,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x2b1,
+                            __FUNCTION__, 0x2b1,
                             "import expertjob script - [alchemist extraction info] index duplicated");
                         return false;
                     }
@@ -508,7 +504,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x2c4,
+                            __FUNCTION__, 0x2c4,
                             "import expertjob script - [enchanter extraction info] index duplicated");
                         return false;
                     }
@@ -525,7 +521,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x2d7,
+                            __FUNCTION__, 0x2d7,
                             "import expertjob script - [doll_controller extraction info] index duplicated");
                         return false;
                     }
@@ -555,7 +551,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobScript", 0x2f9,
+                            __FUNCTION__, 0x2f9,
                             "import expertjob script - [alchemist extraction result item] result_type is invalid");
                         return false;
                     }
@@ -603,7 +599,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                             {
                                 LogManager::logFormat(
                                     0, "../RDARScriptExpertJob.cpp",
-                                    "ImportExpertJobScript", 0x33b,
+                                    __FUNCTION__, 0x33b,
                                     "import expertjob script - [doll_controller extraction result item] result_type is invalid");
                                 return false;
                             }
@@ -656,7 +652,7 @@ bool ImportExpertJobEtcScript(STExpertJobEtcScript& script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobEtcScript", 0x4a,
+                            __FUNCTION__, 0x4a,
                             "import expertjob etc script - [expertjob level limit] index duplicated");
                         return false;
                     }
@@ -675,7 +671,7 @@ bool ImportExpertJobEtcScript(STExpertJobEtcScript& script, const char* path)
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptExpertJob.cpp",
-                            "ImportExpertJobEtcScript", 0x60,
+                            __FUNCTION__, 0x60,
                             "import expertjob etc script - [disjointer big win rate] index duplicated");
                         return false;
                     }

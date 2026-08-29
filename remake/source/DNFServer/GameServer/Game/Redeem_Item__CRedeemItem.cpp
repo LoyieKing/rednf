@@ -13,7 +13,14 @@
 namespace Redeem_Item
 {
 
+// ORIG 命名空间内 static 常量（_ZN11Redeem_ItemL...E，r 段；值实测
+// 0x08cd21c8..）：MAX_COUNT=21 / THROW_FEE=1000 / BUY_FEE=1000。
+static const int MAX_COUNT = 21;
+static const int THROW_FEE = 1000;
+static const int BUY_FEE = 1000;
+
 // ORIG 0x085f7c04：itemId 在 (0x1963, 0x1b57] 区间 → true（"FP 物品"判定）。
+
 bool CRedeemItem::_isFPItem(const Inven_Item& item) const
 {
     int itemId = item.m_addInfo;
@@ -73,12 +80,25 @@ int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
     Inven_Item_Expand_RedeemInfo info;
     std::memcpy(&info.m_data, &item, 0x3c);
     info.m_byte3c = *((const unsigned char*)&item + 0x3c);
-    info.m_count40 = param3 ? (param2 + 1000) : 1000;
+    info.m_count40 = param3 ? (param2 + THROW_FEE) : BUY_FEE;
     alter();
     if (m_redeemList.size() > 0x14)
         m_redeemList.pop_front();
     m_redeemList.push_back(info);
     return 1;
+}
+
+// 未达 end()），逐项整体赋值 0x44 字节到 pData + i*0x44 + 8（ORIG 为
+// rep movsl 0x11，结构整体赋值即内联该复制）。
+void CRedeemItem::getData(char* pData) const
+{
+    char* dst = pData;
+    std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
+        m_redeemList.begin();
+    *(int*)(dst + 4) = (int)m_redeemList.size();
+    int i = 0;
+    for (; i <= 0x14 && it != m_redeemList.end(); ++it, ++i)
+        *(Inven_Item_Expand_RedeemInfo*)(dst + i * 0x44 + 8) = *it;
 }
 
 
@@ -95,7 +115,7 @@ int CRedeemItem::Send_RedeemList(CUser* user)
     int count = 0;
     for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
              m_redeemList.begin();
-         count < 0x15 && it != m_redeemList.end(); ++it, ++count)
+         count < MAX_COUNT && it != m_redeemList.end(); ++it, ++count)
     {
         const Inven_Item_Expand_RedeemInfo& entry = *it;
 

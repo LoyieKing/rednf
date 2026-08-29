@@ -10,10 +10,10 @@
 #include <string.h>
 
 #include <string>
-
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <stdlib.h>  // wcstombs（12 个宽字符转换重载的 TLS 环形缓冲）
 
 #include "advancealtar.h"   // AdvanceAltarData/_CharacAdvanceAltarDbData（CUser.h 依赖）
 #include "STExpReward.h"    // STExpReward 叶子头（CUser.h 按值成员依赖；先于
@@ -23,10 +23,9 @@
 #include "DBMgr.h"
 #include "DNFFunctionLib.h"  // CodePage::script2Database/script/database
 #include "GameTypes.h"       // cMyTrace
-#include "GlobalData.h"
-#include "MySQL.h"
 #include "SyncScriptDeps.h"
 
+// ==================== 全局工具 ====================
 // ==================== 全局工具 ====================
 
 // ORIG 0x08adee98 toMbcs(const char*)：仅返回 src（无需转换时恒等）。
@@ -51,6 +50,124 @@ const char* toTString(const std::string& src)
 const char* toTString(const char* pszSrc)
 {
     return pszSrc;
+}
+
+// ==================== 宽字符转换重载（TLS 环形缓冲） ====================
+
+// ==================== 宽字符转换重载（TLS 环形缓冲） ====================
+// ORIG 汇编（0x08adeea0/0x08adeac3 等）以 %gs 访问 10×0x1000 TLS 环形缓冲 +
+// wcstombs + 尾 0 + (idx+1)%10 递增；与 Library/Include/Core/UnicodeConvert.cpp
+// 的语义一致。UnicodeConvert.cpp 仅编入 auction/point 服务，game CMake 未收录，
+// 故在本属主 TU 用同名 static __thread 缓冲迁移（TU 局部，无跨 TU ODR 冲突；
+// getMbcsBuffer 等其余 Unicode 辅助符号仍归 Unicode TU，二者缓冲不共享，
+// 若未来将 UnicodeConvert.cpp 纳入 game 需合并此处缓冲）。
+static __thread char gMbcsBuffer[10][0x1000];
+static __thread int gMbcsBufferIndex;
+static __thread char gTCharBuffer[10][0x1000];
+static __thread int gTCharBufferIndex;
+
+// ORIG 0x08adf024：toMbcs(char const*, string&) = sDst = pszSrc。
+void toMbcs(const char* pszSrc, std::string& sDst)
+{
+    sDst = pszSrc;
+}
+
+// ORIG 0x08adef49：toMbcs(string const&, string&) = sDst = sSrc。
+void toMbcs(const std::string& sSrc, std::string& sDst)
+{
+    sDst = sSrc;
+}
+
+// ORIG 0x08adeea0：toMbcs(wchar_t const*)：wcstombs 到 TLS Mbcs 缓冲。
+const char* toMbcs(const wchar_t* pszSrc)
+{
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], pszSrc, 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+    return gMbcsBuffer[curIndex];
+}
+
+// ORIG 0x08adede6：toMbcs(wstring const&)：wcstombs 到 TLS Mbcs 缓冲。
+const char* toMbcs(const std::wstring& sSrc)
+{
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+    return gMbcsBuffer[curIndex];
+}
+
+// ORIG 0x08adf03e：toMbcs(wchar_t const*, string&)：wcstombs 后 sDst = buf。
+void toMbcs(const wchar_t* pszSrc, std::string& sDst)
+{
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], pszSrc, 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    sDst = gMbcsBuffer[curIndex];
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+}
+
+// ORIG 0x08adef63：toMbcs(wstring const&, string&)：wcstombs 后 sDst = buf。
+void toMbcs(const std::wstring& sSrc, std::string& sDst)
+{
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    sDst = gMbcsBuffer[curIndex];
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+}
+
+// ORIG 0x08aded01：toTString(char const*, string&) = sDst = pszSrc。
+void toTString(const char* pszSrc, std::string& sDst)
+{
+    sDst = pszSrc;
+}
+
+// ORIG 0x08adec26：toTString(string const&, string&) = sDst = sSrc。
+void toTString(const std::string& sSrc, std::string& sDst)
+{
+    sDst = sSrc;
+}
+
+// ORIG 0x08adeb7d：toTString(wchar_t const*)：wcstombs 到 TLS TChar 缓冲。
+const char* toTString(const wchar_t* pszSrc)
+{
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], pszSrc, 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
+    return gTCharBuffer[curIndex];
+}
+
+// ORIG 0x08adeac3：toTString(wstring const&)：wcstombs 到 TLS TChar 缓冲。
+const char* toTString(const std::wstring& sSrc)
+{
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
+    return gTCharBuffer[curIndex];
+}
+
+// ORIG 0x08aded1b：toTString(wchar_t const*, string&)：wcstombs 后 sDst = buf。
+void toTString(const wchar_t* pszSrc, std::string& sDst)
+{
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], pszSrc, 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    sDst = gTCharBuffer[curIndex];
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
+}
+
+// ORIG 0x08adec40：toTString(wstring const&, string&)：wcstombs 后 sDst = buf。
+void toTString(const std::wstring& sSrc, std::string& sDst)
+{
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    sDst = gTCharBuffer[curIndex];
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
 }
 
 // ORIG 0x088be57e getCharacterJob(const char*)：
@@ -190,7 +307,7 @@ bool APSystem::CSyncScript::InsertDescTable()
                 const_cast<char*>(ex->m_name.c_str()), name))
         {
             cMyTrace trace(
-                "static bool APSystem::CSyncScript::InsertDescTable()",
+                __PRETTY_FUNCTION__,
                 0x409, 5);
             trace("Error!!! %s->%s [%s][%s][%d]",
                   CodePage::script(), CodePage::database(),
@@ -306,13 +423,11 @@ bool SyncScript::insertItemDescTable()
         return false;
     }
 
-    // ORIG：数据源位于 CDataManager+0x631c（m_altarShop 占位对象 +0）。
-    // [推断] CDataManager.h 中 m_altarShop 为 pad[0x30] 占位；此处按 ORIG
-    // 偏移访问其 +0 的 map<int,BuyShopData>（importAdvanceAltarShopParameter
+    // ORIG：数据源位于 CDataManager+0x631c = m_altarShop（AdvanceAltarShopParameter）
+    // 的 +0 成员 m_buyShopMap（map<int,BuyShopData>，importAdvanceAltarShopParameter
     // 填充）。若该表未填充，循环体不会执行，返回 true（与 ORIG 空表行为一致）。
     typedef std::map<int, BuyShopData> BuyShopDataMap;
-    BuyShopDataMap* shopMap =
-        reinterpret_cast<BuyShopDataMap*>(reinterpret_cast<char*>(dm) + 0x631c);
+    BuyShopDataMap* shopMap = &dm->m_altarShop.m_buyShopMap;
 
     std::string query;
     std::string values;

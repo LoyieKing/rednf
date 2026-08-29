@@ -13,6 +13,7 @@
 #include "InterfacePacketBuf.h"
 #include "PvP_Room.h"
 #include "TimerQueue.h"
+#include "PacketGuard.h"
 
 // ============================================================================
 // GlobalData（CUserCharacInfo.h 已声明 namespace GlobalData；补缺失成员）
@@ -47,16 +48,7 @@ public:
 
 // ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
 //      构造/析构由 GameStubs 提供单例定义） ----
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ============================================================================
 // CRelayBattle（0xc，接力战单槽子对象；ORIG 0x085de01a）
@@ -258,7 +250,7 @@ void CRelayBattleMgr::IncreaseChangeSequenceCount(int team)
     if (m_changeSeqCount[team] > 3)
     {
         int v = m_changeSeqCount[team];
-        cMyTrace trace("void CRelayBattleMgr::IncreaseChangeSequenceCount(int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x13de, 0);
         trace("ERROR ChangeSequenceCount overflow (%d)", v);
         m_changeSeqCount[team] = 4;
@@ -275,7 +267,7 @@ void CRelayBattleMgr::DecreaseChangeSequenceCount(int team)
     if (m_changeSeqCount[team] < 0)
     {
         int v = m_changeSeqCount[team];
-        cMyTrace trace("void CRelayBattleMgr::DecreaseChangeSequenceCount(int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x13ea, 0);
         trace("ERROR ChangeSequenceCount underflow (%d)", v);
         m_changeSeqCount[team] = 0;

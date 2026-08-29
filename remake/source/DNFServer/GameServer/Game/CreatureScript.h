@@ -26,7 +26,7 @@ enum ENUM_ELEMENT
 };
 
 // 模块名表（MODULE_NAME_TAG，processModuleTagSet 使用；+8 步长 = 开/闭两 string）。
-extern std::string g_moduleNameTag[0x20];
+extern std::string g_moduleNameTag[0x22];
 
 // ---- 原生 CreatureScript 脚本结构（importCreatureScript 填充） ----
 struct st_crature_id_item_id
@@ -37,9 +37,12 @@ struct st_crature_id_item_id
 
 struct CreatureAdditionalAnimation
 {
-    std::string m_name;   // +0x00
+    // ORIG C1EiiPKc 0x08a3dcc2：+0x08 构造 string，this[0]=a、this[4]=b → 布局
+    // int@0 / int@4 / string@8（2026-08-29 OnlyOrigBatch3 修正原反序建模）。
+    CreatureAdditionalAnimation(int a, int b, const char* name);  // ORIG W 0x08a3dcc2
+    int m_field0;         // +0x00
     int m_field4;         // +0x04
-    int m_field8;         // +0x08
+    std::string m_name;   // +0x08
 };
 
 struct selectiveGrowCreatureInfo
@@ -168,12 +171,12 @@ public:
     unsigned char m_usingRandomSkill;         // +0x204
     char m_pad205[0x208 - 0x205];             // +0x205
     std::vector<int> m_eventEvlouteCreature;  // +0x208
-    // ORIG 静态成员：生物经验表（B _ZN14CreatureScript9ExpTable_E
+    // ORIG 静态成员：生物经验表（B _ZN14CreatureScript9ExpTable_E，成员名含尾下划线）
     // 0x094fefa0，readelf size 396 = 99*4）。initCreatureScript（ORIG
     // 0x08a35d37）以 ScanInt 循环 i=0..0x62 填充；消费方
     // CDataManager::get_creature_level_exp（level-2 下标）。定义于
     // InitScriptProducers_5.cpp。
-    static int ExpTable_E[0x63];
+    static int ExpTable_[0x63];
 
 };
 
@@ -274,11 +277,12 @@ extern char g_creatureScriptBaseDirectory[0x104];
 // ---- 解析函数（ORIG T）----
 bool importCreatureScript(CreatureScript* script, const char* path);
 bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3);
-bool InitAttackInfoScript(AttackInfo* info, const char* path, int param3);
+bool InitAttackInfoScript();                                   // ORIG 0x88d1450（无参）
+bool InitAttackInfoScript(AttackInfo* info, const char* path, int param3);  // 既有转发契约
 
 // ---- 辅助自由函数 ----
 int getElement(const char* s);                       // 0x88bfe5b
-const char* getElementName(int element);             // 0x88bfee0
+const char* getElementName(ENUM_ELEMENT element);    // 0x88bfee0
 int getActiveStatusType(const std::string& s);       // 0x88944fb
 int getDrawLayer(const char* s);                     // 0x88be12d
 void getDirectoryPath(std::string& out, const char* fmt, ...);  // NpcScript.h

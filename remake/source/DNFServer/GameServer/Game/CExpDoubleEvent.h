@@ -14,8 +14,8 @@ public:
     CExpDoubleEvent();                                   // 0x0849ac44
     virtual ~CExpDoubleEvent();                          // D1 0x0849ac6a / D0 0x0849ac9a
     virtual void StartEvent();                           // 0x0849acb8
-    virtual void StartEvent(Word_Param param);           // 0x0849ad14
     virtual void EndEvent();                             // 0x0849ad72
+    virtual void StartEvent(Word_Param param);           // 0x0849ad14
     int GetExpFactor();                                  // 0x0814aad8：return +0x0c
 
 private:

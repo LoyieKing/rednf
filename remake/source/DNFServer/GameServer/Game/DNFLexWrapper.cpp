@@ -35,6 +35,7 @@
 #include "DNFLexWrapper.h"
 #include "ScriptStringManager.h"
 #include "SyncScriptDeps.h"
+#include "RDARScriptStringManager.h"   // g_scriptStringManager_（ScanAll pair 分支）
 
 extern "C" double __strtod_internal(const char*, char**, int);
 extern "C" long __strtol_internal(const char*, char**, int, int);
@@ -338,4 +339,62 @@ DNFLexWrapper::DNFLexWrapper()
 DNFLexWrapper::~DNFLexWrapper()
 {
     // 成员析构自动完成（compiledDnfLex_ → dnfLex_）。
+}
+// ============================================================================
+// ScanAll —— 脚本全类型扫描（ORIG T 0x088bdea9 / 0x088bde5a）
+// token 码：2=dec、3=hex、4=float、5/6=type、7=string、9=pair(int,str)。
+// ============================================================================
+
+int ScanAll(int* intOut, float* floatOut, std::string* strOut)
+{
+    int token = g_dnfLex.getToken();
+    if (token == 2)
+    {
+        if (intOut != 0)
+            *intOut = g_dnfLex.getDecimal();
+    }
+    else if (token == 3)
+    {
+        if (intOut != 0)
+            *intOut = g_dnfLex.getHexDecimal();
+    }
+    else if (token == 4)
+    {
+        if (floatOut != 0)
+            *floatOut = g_dnfLex.getFloat();
+    }
+    else if (token == 7)
+    {
+        if (strOut != 0)
+            *strOut = toTString(g_dnfLex.getString());
+    }
+    else if (token == 5 || token == 6)
+    {
+        if (strOut != 0)
+            *strOut = toTString(g_dnfLex.getType());
+    }
+    else if (token == 9)
+    {
+        int pair = g_dnfLex.getPairInt();
+        if (g_dnfLex.getToken() == 0xa)
+        {
+            token = 7;
+            if (strOut != 0)
+                *strOut = g_scriptStringManager_.findString(
+                    pair, g_dnfLex.getPairStr(), 0);
+        }
+    }
+    return token;
+}
+
+int ScanAll(float* value, std::string* str)
+{
+    int v = 0;
+    int r = ScanAll(&v, value, str);
+    if (r == 2 || r == 3)
+    {
+        r = 4;
+        *value = (float)v;
+    }
+    return r;
 }

@@ -377,13 +377,19 @@ int scanModuleType()
 // （Library/Include/Core/UnicodeConvert.cpp 有同名语义实现，但 game 目标未编入，
 //   故按 ORIG 在此提供唯一定义。）
 // ---------------------------------------------------------------------------
-static int g_codePage = 0;
+static int gCodePage = 0;   // ORIG _ZL9gCodePage 0x09501e90
 
 int setCodePage(int nNewCodePage)
 {
-    const int old = g_codePage;
-    g_codePage = nNewCodePage;
+    const int old = gCodePage;
+    gCodePage = nNewCodePage;
     return old;
+}
+
+// getCodePage —— ORIG @ 0x8adea10：mov 0x9501e90,%eax 直返全局 codepage。
+int getCodePage()
+{
+    return gCodePage;
 }
 
 // setCodePageByLocal — ORIG @ 0x808ec64：setCodePage(950 /*0x3b6*/)。

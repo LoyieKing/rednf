@@ -31,6 +31,15 @@
 // → (put_int(len)+put_str(creature_name@+a4)) → put_int(creature_id@+b4)
 // → finalize(true) → cMyTrace 日志。
 // ---------------------------------------------------------------------------
+// SendingAPC_Info::SendingAPC_Info —— ORIG T 0x085fe860 [0x085fe860,0x085fe8c9]
+// 报告 SendingAPC_Info/SendingAPC_Info.md：构造 +0x04 PacketBuf → clear →
+// memset(m_apcInfo@+0x17338, 0, 0xbc)。
+SendingAPC_Info::SendingAPC_Info()
+{
+    m_buf.clear();
+    memset(&m_apcInfo, 0, 0xbc);
+}
+
 // SendingAPC_Info::~SendingAPC_Info —— ORIG T 0x085fe8ca [0x085fe8ca, 0x085fe8df]
 // 仅析构 +0x04 内嵌 PacketBuf（m_buf），成员自动析构等价。
 SendingAPC_Info::~SendingAPC_Info()
@@ -77,7 +86,7 @@ void SendingAPC_Info::Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info)
     int job = info.m_job;
     int lv = info.m_lv;
 
-    cMyTrace trace("void SendingAPC_Info::Set_APC_Info(const TOD_Layer&, const _APCInfo&)",
+    cMyTrace trace(__PRETTY_FUNCTION__,
                    0x68, 5);
     trace("@TOD : setting layer:%d, name:%s, lv:%d, job:%d, grow_type:%d, "
           "guild_name:%s, pvp_grade:%d, creature_name:%s, creature_id:%d",
@@ -159,7 +168,7 @@ void TowerOfDespair_APC_Mgr::Send_APC_Info(TOD_Layer const& layer, CUser* user)
     }
     else
     {
-        cMyTrace trace("void TowerOfDespair_APC_Mgr::Send_APC_Info(const TOD_Layer&, CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xa1, 5);
         trace("TOD:invalid layer %d", (unsigned int)(layer.GetLayer() & 0xffff));
     }

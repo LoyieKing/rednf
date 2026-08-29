@@ -513,7 +513,7 @@ bool readTime(short* out)
     catch (char const* tag)
     {
         LogManager::logFormat(
-            1, kRDAREtcParamFile, "readTime", 0x27,
+            1, kRDAREtcParamFile, __FUNCTION__, 0x27,
             "[ARAD SCRIPT] Load fail. AradEventPeroid.etc %s", tag);
         return false;
     }
@@ -623,22 +623,23 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
     eventList.clear();    // ORIG +0x0e：vector<SEventPeriodData>::clear()
     rewardList.clear();   // ORIG +0x1b：vector<SRewardPeriodData>::clear()
 
+    if (!loadRDARScriptFile("", "Etc/AradEventPeroid.etc"))
+        return false;      // ORIG：loadRDARScriptFile 在 try 外，失败直接返回
+
     try
     {
-        if (!loadRDARScriptFile("", "Etc/AradEventPeroid.etc"))
-            return false;
-
         std::string token;
         bool ok = false;
         while (ScanType(token, true))
         {
             if (token == "[event period]")
             {
-                short startShorts[4];
-                short endShorts[4];
+                int eventCode = 0;
+                short startShorts[4] = {0};   // ORIG 五个 movl $0 清零（-0x1c/-0x42/-0x3e/-0x4a/-0x46）
+                short endShorts[4] = {0};
                 for (;;)
                 {
-                    int eventCode = ScanInt(&ok);
+                    eventCode = ScanInt(&ok);
                     if (!ok)
                         break;
                     if (!SCRIPT::readTime(startShorts))
@@ -657,11 +658,14 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
             }
             else if (token == "[reward period]")
             {
-                short startShorts[4];
-                short endShorts[4];
+                int eventCode = 0;
+                short startShorts[4] = {0};   // ORIG 七个清零（-0x18/-0x64/-0x60/-0x6c/-0x68/-0x14/-0xe word）
+                short endShorts[4] = {0};
+                int itemIndex = 0;
+                short itemCount = 0;
                 for (;;)
                 {
-                    int eventCode = ScanInt(&ok);
+                    eventCode = ScanInt(&ok);
                     if (!ok)
                         break;
                     if (!SCRIPT::readTime(startShorts))
@@ -669,10 +673,10 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
                     if (!SCRIPT::readTime(endShorts))
                         throw "end time";
 
-                    int itemIndex = ScanInt(&ok);
+                    itemIndex = ScanInt(&ok);
                     if (!ok)
                         throw "item index";
-                    short itemCount = (short)ScanInt(&ok);
+                    itemCount = (short)ScanInt(&ok);
                     if (!ok)
                         throw "item count";
 
@@ -694,7 +698,7 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
     {
         LogManager::logFormat(
             1, "../localjapan/Arad_RDARScriptEtcParameter.cpp",
-            "importAradEventScript", 0x99,
+            __FUNCTION__, 0x99,
             "[ARAD SCRIPT] Load fail. AradEventPeroid.etc %s", msg);
         return false;
     }

@@ -740,15 +740,6 @@ int CInventory::GetInvenSlotByRef(int invenType, int slot, Inven_Item& item)
     return 1;
 }
 
-// ORIG 调用点怪癖：CTitleBook.cpp / CAchievement.cpp 以 4 参自由函数形态调用
-// GetInvenSlot（压栈 out,this,invenType,slot），隐藏返回指针指向成员
-// _ZNK10CInventory12GetInvenSlotEii。此桥接（非 ORIG 符号名）委托真实成员。
-int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot)
-{
-    if (out && self)
-        *out = self->GetInvenSlot(invenType, slot);
-    return out ? out->m_addInfo : 0;
-}
 
 void CInventory::GetInvenData(int invenType, void* out, int size) const
 {
@@ -850,7 +841,7 @@ void CInventory::ResetSlot(int invenType, int slot)
 
 void CInventory::StartEndPos(Inven_Item::ITEM_TYPE type, int& start, int& end) const
 {
-    if (!g_slotBoundChecker->get_slot_bound(type, m_inventoryCapacity, start, end))
+    if (!g_slotBoundChecker.get_slot_bound(type, m_inventoryCapacity, start, end))
     {
         start = 0;
         end = 0;
@@ -1087,7 +1078,7 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
     case 6:
         LogManager::logFormat(
             1, "inventory.cpp",
-            "int CInventory::GetRemainCapacity(INVEN_TYPE, Inven_Item::ITEM_TYPE) const",
+            __PRETTY_FUNCTION__,
             0x4c3, "Invalid inventory type");
         break;
     case 1:
@@ -1114,7 +1105,7 @@ int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE ty
         default:
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "int CInventory::GetRemainCapacity(INVEN_TYPE, Inven_Item::ITEM_TYPE) const",
+                __PRETTY_FUNCTION__,
                 0x493, "Invalid Item Type");
             break;
         case 10:
@@ -1211,7 +1202,7 @@ int CInventory::check_item_exist(int itemIdx) const
     if (type == 0)
     {
         LogManager::logFormat(1, "inventory.cpp",
-                              "int CInventory::check_item_exist(int) const", 0x1aa4,
+                              __PRETTY_FUNCTION__, 0x1aa4,
                               "Unknown Type %d", 0);
     }
     else
@@ -1254,7 +1245,7 @@ int CInventory::GetItemType(int itemIdx) const
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "Inven_Item::ITEM_TYPE CInventory::GetItemType(int) const", 0x13c2,
+                __PRETTY_FUNCTION__, 0x13c2,
                 "No Item %d", itemIdx);
         }
         return 0;
@@ -1301,7 +1292,7 @@ int CInventory::GetItemType(int itemIdx) const
 int CInventory::GetSlotItemType(int slot) const
 {
     Inven_Item::ITEM_TYPE type;
-    if (g_slotBoundChecker->get_item_type(slot, m_inventoryCapacity, type))
+    if (g_slotBoundChecker.get_item_type(slot, m_inventoryCapacity, type))
     {
         return type;
     }
@@ -1503,7 +1494,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
         }
         else
         {
-            cMyTrace local_3c("int CInventory::UseCoin(eCoinSubReason)", 0x28e, 5);
+            cMyTrace local_3c(__PRETTY_FUNCTION__, 0x28e, 5);
             local_3c("History ERROR, m_pParent NULL, CoinSub");
         }
     }
@@ -1518,7 +1509,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
             }
             else
             {
-                cMyTrace local_2c("int CInventory::UseCoin(eCoinSubReason)", 0x29d, 5);
+                cMyTrace local_2c(__PRETTY_FUNCTION__, 0x29d, 5);
                 local_2c("History ERROR, m_pParent NULL, EventCoinSub");
             }
         }
@@ -1533,7 +1524,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
                 }
                 else
                 {
-                    cMyTrace local_1c("int CInventory::UseCoin(eCoinSubReason)", 0x2ad, 5);
+                    cMyTrace local_1c(__PRETTY_FUNCTION__, 0x2ad, 5);
                     local_1c("History ERROR, m_pParent NULL, PayCoinSub");
                 }
             }
@@ -1605,7 +1596,7 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
         register int level2 = ((CUserCharacInfo*)m_pParent)->get_charac_level();
         register int characNo = m_pParent->get_charac_no(-1);
         register char* numStr = NumberToString(m_pParent->get_acc_id(), 0);
-        cMyTrace local_3c("int CInventory::gain_money(int, eMoneyAddReason, bool, int)", 0xef1, 4);
+        cMyTrace local_3c(__PRETTY_FUNCTION__, 0xef1, 4);
         local_3c("over money limit:m_id(%s),charac_no(%d),level(%d) gain_money inven(%d)+add(%d)",
                  numStr, characNo, level2, money, amount);
     }
@@ -1664,7 +1655,7 @@ int CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
     if (limit < m_money)
     {
         m_money = limit;
-        cMyTrace local_34("bool CInventory::use_money(int, eMoneySubReason, bool)", 0xf30, 4);
+        cMyTrace local_34(__PRETTY_FUNCTION__, 0xf30, 4);
         local_34("over money limit:m_id(%s),charac_no(%d),level(%d) use_money inven(%d)-sub(%d)",
                  NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
                  ((CUserCharacInfo*)m_pParent)->get_charac_level(), m_money, amount);
@@ -1939,17 +1930,17 @@ int CInventory::insertInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason rea
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
-                        "int CInventory::insertInvenItemIntoQuickSlot(Inven_Item, eItemAddReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x1528, "History ERROR, m_pParent NULL, ItemAdd ");
                 }
                 else if (item.m_field1 == 1)
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, 1, 1, item, reason);
                 }
                 else
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, reason);
                 }
@@ -1981,17 +1972,17 @@ int CInventory::insertInvenItemIntoCoresspondingSpace(Inven_Item item, eItemAddR
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
-                        "int CInventory::insertInvenItemIntoCoresspondingSpace(Inven_Item, eItemAddReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x155c, "History ERROR, m_pParent NULL, ItemAdd ");
                 }
                 else if (item.m_field1 == 1)
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, 1, 1, item, reason);
                 }
                 else
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, reason);
                 }
@@ -2021,7 +2012,7 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
                 int itemAddInfo = item.m_addInfo;
                 int itemInfo = item.get_add_info();
                 int slotInfo = m_pEquipSlot[i].get_add_info();
-                cMyTrace trace("int CInventory::stackInvenItemIntoQuickSlot(Inven_Item, eItemAddReason, bool)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x157c, 4);
                 trace("over stack limit:m_id(%s),charac_no(%d) Stack Item [%d]+[%d] item[%d]",
                       NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
@@ -2043,12 +2034,12 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
-                        "int CInventory::stackInvenItemIntoQuickSlot(Inven_Item, eItemAddReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x1597, "History ERROR, m_pParent NULL, ItemAdd ");
                 }
                 else
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, reason);
                 }
@@ -2082,7 +2073,7 @@ int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddRe
                 int itemAddInfo = item.m_addInfo;
                 int itemInfo = item.get_add_info();
                 int slotInfo = m_pEquipSlot[i].get_add_info();
-                cMyTrace trace("int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item, eItemAddReason, bool)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x15b7, 4);
                 trace("over stack limit:m_id(%s),charac_no(%d) Stack Item [%d]+[%d] item[%d]",
                       NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
@@ -2104,12 +2095,12 @@ int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddRe
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
-                        "int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item, eItemAddReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x15d2, "History ERROR, m_pParent NULL, ItemAdd ");
                 }
                 else
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         (INVEN_TYPE)1, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, reason);
                 }
@@ -2412,12 +2403,12 @@ int CInventory::insertItemIntoEquipment(Inven_Item item, eItemAddReason reason, 
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "int CInventory::insertItemIntoEquipment(Inven_Item, eItemAddReason, bool, bool)",
+                __PRETTY_FUNCTION__,
                 0x14f9, "History ERROR, m_pParent NULL, ItemAdd ");
         }
         else
         {
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+            m_pParent->m_historyLog.ItemAdd(
                 (INVEN_TYPE)1, 1, 1, item, reason);
         }
     }
@@ -2528,7 +2519,7 @@ int CInventory::insertItemIntoCreature(Inven_Item& item, eItemAddReason reason, 
     }
     LogManager::logFormat(
         1, "inventory.cpp",
-        "int CInventory::insertItemIntoCreature(Inven_Item&, eItemAddReason, bool, bool)",
+        __PRETTY_FUNCTION__,
         0x2549, "History ERROR, unknown inven_Item type, insertItemIntoCreature ");
     return -1;
 }
@@ -2560,12 +2551,12 @@ void CInventory::WriteCreatureLog(INVEN_TYPE invenType, int a, int b, int c, int
     {
         LogManager::logFormat(
             1, "inventory.cpp",
-            "void CInventory::WriteCreatureLog(INVEN_TYPE, int, int, int, int, eItemAddReason) const",
+            __PRETTY_FUNCTION__,
             0x24ce, "History ERROR, m_pParent NULL, ItemAdd ");
     }
     else
     {
-        ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->CreatureItemAdd(
+        m_pParent->m_historyLog.CreatureItemAdd(
             invenType, a, b, c, d, reason);
     }
 }
@@ -2586,7 +2577,7 @@ int CInventory::CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, boo
     {
         LogManager::logFormat(
             1, "inventory.cpp",
-            "bool CInventory::CheckExistItemInInventoryOrEquipment(int, int&, bool&) const",
+            __PRETTY_FUNCTION__,
             0x1ace, "Unknown Type %d", 0);
         return 0;
     }
@@ -2675,7 +2666,7 @@ int CInventory::removeDupliacteEquipItem()
         {
             int characNo = m_pParent != 0 ? ((CUserCharacInfo*)m_pParent)->getCurCharacNo() : 0;
             int itemIdx = m_pEquipSlot[i].m_addInfo;
-            cMyTrace trace("bool CInventory::removeDupliacteEquipItem()", 0x16d2, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x16d2, 5);
             trace("DUPLICATE ITEM REMOVED %d at %d of %d", itemIdx, i, characNo);
             m_pEquipSlot[i].reset();
             return 1;
@@ -2692,7 +2683,7 @@ void CInventory::ShowAllExistItemsForErrorCheck() const
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "void CInventory::ShowAllExistItemsForErrorCheck() const", 0x1af0,
+                __PRETTY_FUNCTION__, 0x1af0,
                 "Inventory(%d) : %d\n", i, m_pEquipSlot[i].m_addInfo);
         }
     }
@@ -2702,7 +2693,7 @@ void CInventory::ShowAllExistItemsForErrorCheck() const
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "void CInventory::ShowAllExistItemsForErrorCheck() const", 0x1af6,
+                __PRETTY_FUNCTION__, 0x1af6,
                 "Equip(%d) : %d\n", i, m_invenItem[i].m_addInfo);
         }
     }
@@ -2986,7 +2977,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
     int nowTick;
     char* expansion;
     int attr;
-    cMyTrace trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x758, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x758, 5);
 
     switch (invenType)
     {
@@ -3074,7 +3065,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         item = &m_pAvatarSlot[slot];
         if (item->m_addInfo == 0)
         {
-            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x7a0);
+            trace(__PRETTY_FUNCTION__, 0x7a0);
             return false;
         }
         buf.put_short(slot);
@@ -3109,7 +3100,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         item = &m_pCreatureSlot[slot];
         if (item->m_addInfo == 0)
         {
-            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x801);
+            trace(__PRETTY_FUNCTION__, 0x801);
             return false;
         }
         buf.put_short(slot);
@@ -3134,7 +3125,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         item = &m_invenItem[slot];
         if (item->m_addInfo == 0)
         {
-            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x884);
+            trace(__PRETTY_FUNCTION__, 0x884);
             return false;
         }
         buf.put_short(slot);
@@ -3263,7 +3254,7 @@ int CInventory::RemoveKCItem(Inven_Item* inven, Inven_Item* equip)
             {
                 LogManager::logFormat(
                     1, "inventory.cpp",
-                    "static void CInventory::RemoveKCItem(Inven_Item*, Inven_Item*)", 0x23fe,
+                    __PRETTY_FUNCTION__, 0x23fe,
                     "CInventory::RemoveKCItem No EquipItem(%d) Found loopcount(%d)",
                     inven[i].m_addInfo, i);
             }
@@ -3283,7 +3274,7 @@ int CInventory::RemoveKCItem(Inven_Item* inven, Inven_Item* equip)
             {
                 LogManager::logFormat(
                     1, "inventory.cpp",
-                    "static void CInventory::RemoveKCItem(Inven_Item*, Inven_Item*)", 0x2416,
+                    __PRETTY_FUNCTION__, 0x2416,
                     "CInventory::RemoveKCItem No InvenItem(%d) Found loopcount(%d)",
                     equip[i].m_addInfo, i);
             }
@@ -3403,7 +3394,7 @@ int CInventory::insertAvatarIntoInventory(Inven_Item item, eAvatarItemAddReason 
                 {
                     agency = "";
                 }
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->AvatarItemAdd(
+                m_pParent->m_historyLog.AvatarItemAdd(
                     item.m_addInfo, m_pAvatarSlot[i].get_add_info(), agency, reason);
             }
             return i;
@@ -3443,7 +3434,7 @@ int CInventory::insertAvatarIntoSpecificSlot(Inven_Item item, int slot,
             {
                 agency = "";
             }
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->AvatarItemAdd(
+            m_pParent->m_historyLog.AvatarItemAdd(
                 item.m_addInfo, m_pAvatarSlot[result].get_add_info(), agency, reason);
         }
     }
@@ -4008,7 +3999,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
             {
                 LogManager::logFormat(
                     1, "inventory.cpp",
-                    "int CInventory::delete_event_items(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, bool&, eMoneySubReason, eItemDelReason, bool)",
+                    __PRETTY_FUNCTION__,
                     0x1d3a, "NOT CRITICAL BUT FOR OBSERVING, No Event Item %d FOUND!", itemIdx);
                 return 0;
             }
@@ -4030,9 +4021,9 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
-                "int CInventory::insert_item_special_slot(Inven_Item, int, int, eMoneyAddReason, eItemAddReason)",
+                __PRETTY_FUNCTION__,
                 0x1742, "[%s][%d]",
-                "int CInventory::insert_item_special_slot(Inven_Item, int, int, eMoneyAddReason, eItemAddReason)",
+                __PRETTY_FUNCTION__,
                 0x1742);
             return -2;
         }
@@ -4046,7 +4037,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
             m_pEquipSlot[b].setCopy(item);
             if (m_pParent != 0)
             {
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                m_pParent->m_historyLog.ItemAdd(
                     INVEN_TYPE_EQUIP, 1, 1, item, itemReason);
             }
             return b;
@@ -4068,7 +4059,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
                 }
                 if (m_pParent != 0)
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         INVEN_TYPE_EQUIP, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, itemReason);
                 }
@@ -4092,7 +4083,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
                 }
                 if (m_pParent != 0)
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                    m_pParent->m_historyLog.ItemAdd(
                         INVEN_TYPE_EQUIP, m_pEquipSlot[i].get_add_info(), item.get_add_info(),
                         item, itemReason);
                 }
@@ -4104,7 +4095,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
             m_pEquipSlot[b].setCopy(item);
             if (m_pParent != 0)
             {
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemAdd(
+                m_pParent->m_historyLog.ItemAdd(
                     INVEN_TYPE_EQUIP, m_pEquipSlot[b].get_add_info(), item.get_add_info(), item,
                     itemReason);
             }
@@ -4159,7 +4150,7 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
     if (m_pParent == 0)
     {
         LogManager::logFormat(
-            1, "inventory.cpp", "void CInventory::SendAvatarEvent(int, int, int, int, int) const",
+            1, "inventory.cpp", __PRETTY_FUNCTION__,
             0x212a, "CInventory::SendAvatarEven ERROR, m_pParent NULL ");
         return;
     }
@@ -4643,7 +4634,7 @@ int CInventory::use_item(int slot, int count, int invenType)
 {
     if (count < 0)
     {
-        LogManager::logFormat(1, "inventory.cpp", "int CInventory::use_item(int, int, int)",
+        LogManager::logFormat(1, "inventory.cpp", __PRETTY_FUNCTION__,
                               0xf91, "count(%d) < 0", count);
         return 1;
     }
@@ -4674,7 +4665,7 @@ int CInventory::use_item(int slot, int count, int invenType)
             }
             if (m_pParent != 0)
             {
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemDel(
+                m_pParent->m_historyLog.ItemDel(
                     (INVEN_TYPE)3, 0, count, m_pCreatureSlot[slot], (eItemDelReason)3);
             }
             m_pCreatureSlot[slot].reset();
@@ -4685,7 +4676,7 @@ int CInventory::use_item(int slot, int count, int invenType)
             {
                 m_pCreatureSlot[slot].reset();
                 LogManager::logFormat(
-                    1, "inventory.cpp", "int CInventory::use_item(int, int, int)", 0xfd5,
+                    1, "inventory.cpp", __PRETTY_FUNCTION__, 0xfd5,
                     "%s - m_CreatureSlot[slot_no].add_info(%d) < count(%d)",
                     ((CUserCharacInfo*)m_pParent)->getCurCharacName(),
                     m_pCreatureSlot[slot].m_addInfo2, count);
@@ -4699,7 +4690,7 @@ int CInventory::use_item(int slot, int count, int invenType)
             m_pCreatureSlot[slot].m_addInfo2 -= count;
             if (m_pParent != 0)
             {
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemDel(
+                m_pParent->m_historyLog.ItemDel(
                     (INVEN_TYPE)3, m_pCreatureSlot[slot].m_addInfo2, count,
                     m_pCreatureSlot[slot], (eItemDelReason)3);
             }
@@ -4739,7 +4730,7 @@ int CInventory::use_item(int slot, int count, int invenType)
         }
         if (m_pParent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemDel(
+            m_pParent->m_historyLog.ItemDel(
                 (INVEN_TYPE)1, 0, count, m_pEquipSlot[slot], (eItemDelReason)3);
         }
         m_pEquipSlot[slot].reset();
@@ -4750,7 +4741,7 @@ int CInventory::use_item(int slot, int count, int invenType)
         {
             m_pEquipSlot[slot].reset();
             LogManager::logFormat(
-                1, "inventory.cpp", "int CInventory::use_item(int, int, int)", 0x1021,
+                1, "inventory.cpp", __PRETTY_FUNCTION__, 0x1021,
                 "%s - m_InvenSlot[slot_no].add_info(%d) < count(%d)",
                 ((CUserCharacInfo*)m_pParent)->getCurCharacName(),
                 m_pEquipSlot[slot].m_addInfo2, count);
@@ -4764,7 +4755,7 @@ int CInventory::use_item(int slot, int count, int invenType)
         m_pEquipSlot[slot].m_addInfo2 -= count;
         if (m_pParent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->ItemDel(
+            m_pParent->m_historyLog.ItemDel(
                 (INVEN_TYPE)1, m_pEquipSlot[slot].m_addInfo2, count, m_pEquipSlot[slot],
                 (eItemDelReason)3);
         }
@@ -4824,7 +4815,7 @@ int CInventory::insertCreatureIntoSpecificSlot(Inven_Item item, int slot,
     }
     if (result >= 0 && item.m_field1 != 5 && bLog)
     {
-        ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->CreatureItemAdd(
+        m_pParent->m_historyLog.CreatureItemAdd(
             (INVEN_TYPE)3, item.m_addInfo, m_pCreatureSlot[result].get_add_info(),
             item.get_add_info(), item.m_field1, reason);
     }
@@ -4865,7 +4856,7 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
             expansion.init();
             _SaveAvatarItem(i, m_avatarItemMgr.GetExpireDate(m_pAvatarSlot[i].m_addInfo2), b, c,
                             emblem, agency, m_pAvatarSlot[i].m_fieldd, expansion);
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->AvatarItemAdd(
+            m_pParent->m_historyLog.AvatarItemAdd(
                 itemIdx, 0xffffffff, agency, reason);
             return i;
         }
@@ -4913,7 +4904,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
             int moveResult = MoveItemToEmptySlotOfInventory(i, start, end);
             if (moveResult != 0)
             {
-                cMyTrace trace("int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE)", 0x194d, 5);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x194d, 5);
                 trace("MoveItemToEmptySlotOfInventory return %d ( index %d,s %d,e %d )",
                       moveResult, i, start, end);
                 return moveResult;
@@ -5102,9 +5093,8 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
     SIG_AVATAR_INSERT* sig = guard->GetInBuffer<SIG_AVATAR_INSERT>();
     unsigned int avatarUid = m_pAvatarSlot[slot].m_addInfo;
     int characNo = m_pParent->get_charac_no(-1);
-    SIG_AVATAR_INSERT::set(sig, characNo, avatarUid, slot + 10, expireDate, b, c,
-                           agency, 0, hidden);
-    SIG_AVATAR_INSERT::setJewelSocket(sig, emblem);
+    sig->set(characNo, avatarUid, slot + 10, expireDate, b, c, agency, 0, hidden);
+    sig->setJewelSocket(emblem);
     // ORIG：*(int*)(sig + 0x4f) = *(int*)&expansion（stAvatarExpansionInfo_t 前 4 字节，
     // 即 m_color[0..1]；超出 0x4c 镜像区按 ORIG 原样写流缓冲）。
     short* dstColor = reinterpret_cast<short*>(reinterpret_cast<char*>(sig) + 0x4f);
@@ -5112,6 +5102,21 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
     dstColor[1] = expansion.m_color[1];
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
+}
+
+// ---- SIG_AVATAR_INSERT 非静态成员（ORIG 0x850d44c，this=ins） ----
+// ORIG 反汇编逐字段：emblem(+0x00..0x1c) 7 组 dword + 1 word 写入 this+0x2d..+0x4a，
+// 与 stAvatarEmblemInfo_t(pack(1), 5×(u16+u32)=0x1e) 完整镜像。
+void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
+{
+    // ORIG 逐字段：7 dword（+0x00..0x18）+ 1 word（+0x1c），写入 this+0x2d 起
+    const char* src = reinterpret_cast<const char*>(&emblem);
+    char* dst = reinterpret_cast<char*>(m_data) + 0x2d;
+    for (int i = 0; i < 7; ++i)
+    {
+        std::memcpy(dst + i * 4, src + i * 4, 4);
+    }
+    std::memcpy(dst + 0x1c, src + 0x1c, 2);
 }
 
 // ============================================================================
@@ -5130,7 +5135,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
     if (!(CheckValidSlot((int)invenType, slot) == 1 &&
           CheckValidSlot((int)dstType, dstSlot) == 1))
     {
-        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x112c, 5);
         trace("CInventory::move_item move_item return false 0, %d,%d,%d,%d",
               (int)invenType, slot, (int)dstType, dstSlot);
@@ -5210,7 +5215,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             CItem* pItem = G_CDataManager()->find_item(tmp.m_addInfo);
             if (pItem == 0 || m_pParent == 0)
             {
-                cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x1276, 5);
                 trace("CInventory::move_item move_item return false 4,%d", tmp.m_addInfo);
                 return 0x11;
@@ -5254,7 +5259,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         {
             if ((int)dstType == 1)
             {
-                cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x1306, 5);
                 trace("CInventory::move_item move_item return false 8");
                 return 0x11;
@@ -5313,7 +5318,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         }
         if ((int)dstType == 1)
         {
-            cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x131c, 5);
             trace("CInventory::move_item move_item return false 9");
             return 0x11;
@@ -5424,7 +5429,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         {
             return 0;
         }
-        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)", 0x122a, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x122a, 5);
         trace("CInventory::move_item move_item return false 3");
         return 0x11;
     }
@@ -5434,7 +5439,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         {
             return 0;
         }
-        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)", 0x1224, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1224, 5);
         trace("CInventory::move_item move_item return false 10");
         return 0x11;
     }
@@ -5741,7 +5746,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 if (m_pParent == 0)
                 {
                     cMyTrace local_7c(
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x1831, 5);
                     local_7c("History ERROR, m_pParent NULL, ItemDel ");
                 }
@@ -5759,7 +5764,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 if (m_pParent == 0)
                 {
                     cMyTrace local_6c(
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x184d, 5);
                     local_6c("History ERROR, m_pParent NULL, ItemDel ");
                 }
@@ -5778,7 +5783,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
             {
                 LogManager::logFormat(
                     1, "inventory.cpp",
-                    "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                    __PRETTY_FUNCTION__,
                     0x186f, "%s - m_InvenSlot[slot_no].add_info(%d) < count(%d)",
                     ((CUserCharacInfo*)m_pParent)->getCurCharacName(), cur, count);
                 return 0;
@@ -5789,7 +5794,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 if (m_pParent == 0)
                 {
                     cMyTrace local_5c(
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x1868, 5);
                     local_5c("History ERROR, m_pParent NULL, ItemDel ");
                 }
@@ -5814,7 +5819,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 if (m_pParent == 0)
                 {
                     cMyTrace local_8c(
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x1811, 5);
                     local_8c("History ERROR, m_pParent NULL, ItemDel ");
                 }
@@ -5841,7 +5846,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
             if (m_pParent == 0)
             {
                 cMyTrace local_4c(
-                    "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                    __PRETTY_FUNCTION__,
                     0x187e, 5);
                 local_4c("History ERROR, m_pParent NULL, ItemDel ");
             }
@@ -5871,7 +5876,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                     if (m_pParent == 0)
                     {
                         cMyTrace local_2c(
-                            "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                            __PRETTY_FUNCTION__,
                             0x18bb, 5);
                         local_2c("History ERROR, m_pParent NULL, ItemDel ");
                     }
@@ -5892,7 +5897,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x18da, "%s - m_CreatureSlot[slot_no].add_info(%d) < count(%d)",
                         ((CUserCharacInfo*)m_pParent)->getCurCharacName(), cur, count);
                     return 0;
@@ -5903,7 +5908,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                     if (m_pParent == 0)
                     {
                         cMyTrace local_1c(
-                            "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                            __PRETTY_FUNCTION__,
                             0x18d2, 5);
                         local_1c("History ERROR, m_pParent NULL, ItemDel ");
                     }
@@ -5923,7 +5928,7 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 if (m_pParent == 0)
                 {
                     cMyTrace local_3c(
-                        "bool CInventory::delete_item(INVEN_TYPE, int, int, eItemDelReason, bool)",
+                        __PRETTY_FUNCTION__,
                         0x18a3, 5);
                     local_3c("History ERROR, m_pParent NULL, ItemDel ");
                 }
@@ -5981,7 +5986,7 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
             if (cnt > 499999 && m_pParent != 0)
             {
                 cMyTrace trace(
-                    "int CInventory::insert_event_items(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, eMoneyAddReason, eItemAddReason, bool, const char*, const char*)",
+                    __PRETTY_FUNCTION__,
                     0x1dc7, 4);
                 trace("Quest reward money(%d) mid(%s) characno(%d) reason(%d)", cnt,
                       NumberToString(m_pParent->get_acc_id(), 0),
@@ -6018,7 +6023,7 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
         if (pItem == 0)
         {
             cMyTrace trace(
-                "int CInventory::insert_event_items(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, eMoneyAddReason, eItemAddReason, bool, const char*, const char*)",
+                __PRETTY_FUNCTION__,
                 0x1e14, 5);
             trace("CInventory::insert_event_items, G_CDataManager()->find_item(%d)",
                   itemIdx);
@@ -6250,7 +6255,7 @@ int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     if (m_pParent == 0)
     {
         cMyTrace trace(
-            "bool CInventory::MakeItemList(INVEN_TYPE, void*) const", 0xa6b, 5);
+            __PRETTY_FUNCTION__, 0xa6b, 5);
         trace("inventory::MakeItemList m_pParent is NULL.");
         return 0;
     }

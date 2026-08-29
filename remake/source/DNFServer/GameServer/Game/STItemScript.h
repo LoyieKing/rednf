@@ -51,6 +51,7 @@ public:
     ~DyeInfo();
     void clear();
     DyeInfo& operator=(const DyeInfo& other);
+    int getDyeColorIndex();                 // ORIG 0x898d37c _ZN7DyeInfo16getDyeColorIndexEv
 private:
     int m_field0;                            // +0x00
     std::vector<std::pair<int, int> > m_vec4;  // +0x04（vector<pair<int,int>>）
@@ -122,7 +123,7 @@ public:
     int m_field24;                   // +0x24
     std::pair<int, int> m_pair28;    // +0x28
     char m_field30;                  // +0x30
-    char m_field31;                  // +0x31
+    bool m_field31;                  // +0x31（CEquipItem::set_item 直拷到 m_boolF8 实证 bool）
     int m_field34;                   // +0x34
     char m_usable[0xb];              // +0x38
     std::set<int> m_set44;           // +0x44

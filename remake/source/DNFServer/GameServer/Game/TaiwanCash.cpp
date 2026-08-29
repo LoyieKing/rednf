@@ -126,7 +126,7 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("purchase", 0x81, 0);
+        cMyTrace trace(__FUNCTION__, 0x81, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
               account, charac, pay, tranBuf);
     }
@@ -195,7 +195,7 @@ int CIPGMgr::Initialize(unsigned int workerCount, unsigned int param2)
     {
         LogManager::logFormat(
             1, "IPGMgr.cpp",
-            "int WongWork::IPG::CIPGMgr::Initialize(unsigned int, unsigned int)",
+            __PRETTY_FUNCTION__,
             0x98, "Global billing cash initialize failed.");
         return -1;
     }
@@ -218,11 +218,11 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
     CEnvironment* env = G_CEnvironment();
     unsigned char type = static_cast<unsigned char>(env->m_serverEnvir.m_serverGroup);
 
-    // CEnvironment::m_dbConnInfo 为 private（权威布局 +0x68，ORIG lea 0x68(%eax)
-    // @0x081465e4）；本 TU 非 CEnvironment 域，按工程既有裸偏移先例访问。
-    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
-    DbConnMap& connMap =
-        *reinterpret_cast<DbConnMap*>(reinterpret_cast<char*>(env) + 0x68);
+    // CEnvironment::m_dbConnInfo 权威布局 +0x68（ORIG lea 0x68(%eax)
+    // @0x081465e4）；经 get_db_conn_info() 访问（CEnvironment.h 的 inline
+    // accessor，不产生符号、不改变布局）。
+    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& connMap =
+        env->get_db_conn_info();
     STDBConnInfo& info = connMap[DB_HANDLE_E];
 
     if (cash == 0)
@@ -266,7 +266,7 @@ int TaiwanCash::getBalance(const char* account, int& balance)
 
     balance = query.m_balance;
     {
-        cMyTrace trace("getBalance", 0x46, 0);
+        cMyTrace trace(__FUNCTION__, 0x46, 0);
         trace("[Taiwan, Billing] BalanceQuery Balance:%d, Result:%d",
               balance, query.m_resultCode);
     }
@@ -286,7 +286,7 @@ int TaiwanCash::getBalance(const char* account, int& balance, int& point)
     balance = query.m_balance;
     point = query.m_point;
     {
-        cMyTrace trace("getBalance", 0x5a, 0);
+        cMyTrace trace(__FUNCTION__, 0x5a, 0);
         trace("[Taiwan, Billing] BalancePointQuery Balance:%d, Point:%d, Result:%d",
               balance, point, query.m_resultCode);
     }
@@ -306,7 +306,7 @@ int TaiwanCash::checkEntrance(const char* account, char& entrance)
         return query.m_resultCode;
 
     {
-        cMyTrace trace("checkEntrance", 0x34, 0);
+        cMyTrace trace(__FUNCTION__, 0x34, 0);
         trace("[Taiwan, Billing] EntranceQuery Entrance:%d", query.m_resultCode);
     }
     return 0;
@@ -339,7 +339,7 @@ int TaiwanCash::gift(unsigned long long uid, int price, int pay,
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("gift", 0x95, 0);
+        cMyTrace trace(__FUNCTION__, 0x95, 0);
         trace("[Taiwan, Billing] GiftQuery Account:%s, SendCharac:%s, RecvCharac:%s, Price:%d, Transaction:%s",
               account, sendCharac, recvCharac, pay, tranBuf);
     }
@@ -365,7 +365,7 @@ int TaiwanCash::cancel(const BillTransaction& trans)
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("cancel", 0xb9, 0);
+        cMyTrace trace(__FUNCTION__, 0xb9, 0);
         trace("[Taiwan, Billing] CancelQuery Transaction:%s", tranBuf);
     }
     return 0;
@@ -395,7 +395,7 @@ int TaiwanCash::charge(char* p1, unsigned char serviceType, unsigned char p3,
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("charge", 0xce, 0);
+        cMyTrace trace(__FUNCTION__, 0xce, 0);
         trace("[Taiwan, Billing] ChargeQuery Account:%s, Price:%d, Transaction:%s",
               p1, static_cast<int>(price), tranBuf);
     }
@@ -421,7 +421,7 @@ int TaiwanCash::confirm(const BillTransaction& trans)
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("confirm", 0xa7, 0);
+        cMyTrace trace(__FUNCTION__, 0xa7, 0);
         trace("[Taiwan, Billing] ConfirmQuery Transaction:%s", tranBuf);
     }
     return 0;
@@ -448,7 +448,7 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
         char tranBuf[32];
         std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
                       static_cast<unsigned long long>(trans.m_tranNo));
-        cMyTrace trace("purchase", 0x6e, 0);
+        cMyTrace trace(__FUNCTION__, 0x6e, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
               account, charac, pay, tranBuf);
     }
@@ -470,7 +470,7 @@ int TaiwanCash::ceraPoint(char* p1, char* p2, char command, char* p4, char* p5,
         return query.m_resultCode;
 
     {
-        cMyTrace trace("ceraPoint", 0xe0, 0);
+        cMyTrace trace(__FUNCTION__, 0xe0, 0);
         trace("[Taiwan, Billing] CeraPointQuery Command:%c, Price:%d",
               static_cast<int>(command), static_cast<int>(price));
     }

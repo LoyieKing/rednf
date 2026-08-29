@@ -86,9 +86,14 @@ static_assert(sizeof(HeroMissionCondition) == 0x2c,
 // ============================================================================
 // BaseHeroMissionCondition —— 各英雄任务条件派生类基类。
 // vtable 0x08b7f0d8 内容核实（objdump -s）：[offset/typeinfo]、D1 0x08164f3a、
-// D0 0x08164f6e、__cxa_pure_virtual 0x08724fe0 ×2 —— 仅虚析构 + 两个纯虚槽
-// （process / process2）；getter 与 setConditionData/rewardProcess 均非虚。
-// ============================================================================
+// D0 0x08164f6e、__cxa_pure_virtual 0x08724fe0 ×2 —— 仅虚析构 + 两个纯虚槽。
+// 纯虚名/签名按 ORIG 调用点与派生 override 实证修正（UserMiscLink 批；
+// 原推断名 process/process2 指针形与派生类 processMission/rewardMission 引用形
+// 不构成 override，会导致 vtable 错位且派生类停留抽象）：
+//   槽0（vptr+0x08）processMission(CUser*, HeroMissionValue&, unsigned int)
+//     —— HeroMissionEvent::processMission 槽调用与派生 processMission 实证；
+//   槽1（vptr+0x0c）rewardMission(CUser*, HeroMissionValue&)
+//     —— HeroMissionEvent::rewardMission 三槽调用 0x0816769a..0x081676c0 实证。
 class BaseHeroMissionCondition
 {
 public:
@@ -96,14 +101,13 @@ public:
         HeroMissionCondition::MissionNo::T no);      // T 0x08164f12 (C1/C2)
     virtual ~BaseHeroMissionCondition();             // D1/D2 0x08164f3a / D0 0x08164f6e
 
-    virtual void process(CUser* user, HeroMissionValue* value,
-                         unsigned int param) = 0;    // vptr+0x08（派生类实现）
-    virtual void process2(CUser* user, HeroMissionValue* value,
-                          unsigned int param) = 0;   // vptr+0x0c（派生类实现）
+    virtual void processMission(CUser* user, HeroMissionValue& value,
+                                unsigned int param) = 0;    // vptr+0x08（派生类实现）
+    virtual bool rewardMission(CUser* user, HeroMissionValue& value) = 0;  // vptr+0x0c（TotalMission::rewardMission 0x081663f4 返回 1）
 
     void setConditionData(HeroMissionCondition& data);   // T 0x08164f8c
     unsigned int getMissionCode();                       // T 0x08164faa（this+4）
-    unsigned int getMissionType();                       // T 0x08164fb6（condition+0）
+    unsigned int getMissionType();                       // T 0x08164fb6（mov 0xc(%eax)：this+0xc = condition+0x04 = m_field04，objdump 实证）
     char isRepeatMission();                              // T 0x08164fc2（this+0x10）
     char isResetState();                                 // T 0x08164fce（this+0x11）
     std::string getMailTitle();                          // T 0x08164fda（condition+0xc sret）

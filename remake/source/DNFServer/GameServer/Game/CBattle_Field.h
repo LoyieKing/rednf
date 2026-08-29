@@ -307,7 +307,7 @@ public:
     int GetHellPartyEventType(char diff);                     // 082ffb06
     int GetTotalSkillMaterial();                              // 0830de1c
     int GetTournamentCurRound();                              // 082fe6ae
-    void SetRidableObjectState(int idx, eRidableObjectState state);  // 085bf228
+    int SetRidableObjectState(int idx, eRidableObjectState state);  // 085bf228（转发 m_ridable 返回值）
     void SetTournamentCurRound(int round);                    // 082fe69c
     int getLayeredMapKeyValue(int idx);                       // 0830df56
     char getUltimateDifficylty();                             // 0822d02e
@@ -418,7 +418,10 @@ public:
     char m_pad111[3];                      // +0x111
     int m_curSeatNo;                       // +0x114（SetCurSeatNo 082a43cc / getCurPosXY 实证）
     std::vector<int> m_apcList;            // +0x118
-    int m_field124;                        // +0x124
+    int m_apcAllKilledSec;                 // +0x124（APC 全灭时刻兼超时 timer key：
+                                           //   Dispatchers APC 分支写 getCurSec()；
+                                           //   CParty/OnTimeoutBossDie.md CParty+0xc48==key；
+                                           //   reset_field 0x082f? 清 0）
     short m_villageMonsterId;              // +0x128
     char m_pad12a[2];                      // +0x12a
     int m_villageMonsterCount;             // +0x12c

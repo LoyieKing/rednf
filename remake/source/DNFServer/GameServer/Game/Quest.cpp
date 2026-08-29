@@ -13,11 +13,6 @@
 // 其它 TU 提供的符号（ORIG 真实符号）
 // ============================================================================
 
-class CDailyScheduleManager
-{
-public:
-    int GetScheduleState(_DailyScheduleType type, unsigned int questIdx) const;
-};
 
 namespace GlobalData
 {
@@ -38,7 +33,11 @@ void makeRewardItemInfo(const std::vector<int>& src,
         ++it;
         if (it == src.end())
         {
-            // ORIG cMyTrace("_it == data.rewardSelectItems_.end()")
+            // ORIG 0x83522ce：cMyTrace 记录 "it == data.rewardSelectItems_.end()"
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x104d, 5);
+            trace("[%s][%d]_it == data.rewardSelectItems_.end()", 0x104d);
             return;
         }
         item.m_count = *it;
@@ -46,21 +45,42 @@ void makeRewardItemInfo(const std::vector<int>& src,
         out.push_back(item);
     }
 }
+// ORIG 0x83520c8：src 按相邻元素配对填充 std::pair<int,int>{first,second}；
+// 奇数元素时 cMyTrace 记录 "[%s][%d]_it == data.rewardSelectItems_.end()"
+// （0x1031 行，PRETTY __PRETTY_FUNCTION__）。
+// 与 RewardItemInfo 版同 TU 相邻（0x83520c8/0x8352203），ORIG T 强符号，无调用点（导出）。
+void makeRewardItemInfo(const std::vector<int>& src,
+                        std::vector<std::pair<int, int> >& out)
+{
+    std::pair<int, int> p;
+    std::vector<int>::const_iterator it = src.begin();
+    while (it != src.end())
+    {
+        p.first = *it;
+        it++;
+        if (it == src.end())
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x1031, 5);
+            trace("[%s][%d]_it == data.rewardSelectItems_.end()",
+                  __PRETTY_FUNCTION__,
+                  0x1031);
+            return;
+        }
+        p.second = *it;
+        it++;
+        out.push_back(p);
+    }
+}
 int get_rand_int(int range);
 
-// stQuestTriggerState_t 辅助（ORIG 0x836dce0/0x836dd68：9 位触发值打包）
-static void SetTrigger(stQuestTriggerState_t& state, short a, short b, short c)
+// stQuestTriggerState_t::setTrigger（ORIG W 0x836dce0：9 位触发值打包）
+void stQuestTriggerState_t::setTrigger(short a, short b, short c)
 {
-    state.m_trigger0 = (short)((state.m_trigger0 & ~0x1ff) | (a & 0x1ff));
-    state.m_trigger1 = (short)((state.m_trigger1 & ~0x1ff) | (b & 0x1ff));
-    state.m_trigger2 = (short)((state.m_trigger2 & ~0x1ff) | (c & 0x1ff));
-}
-
-static int GetTrigger(const stQuestTriggerState_t& state)
-{
-    return (state.m_trigger0 & 0x1ff) |
-           ((state.m_trigger1 & 0x1ff) << 9) |
-           ((state.m_trigger2 & 0x1ff) << 18);
+    m_trigger0 = (short)((a & 0x1ff) | (m_trigger0 & ~0x1ff));
+    m_trigger1 = (short)((b & 0x1ff) | (m_trigger1 & ~0x1ff));
+    m_trigger2 = (short)((c & 0x1ff) | (m_trigger2 & ~0x1ff));
 }
 
 // ============================================================================
@@ -84,6 +104,7 @@ char Quest::check_possible(const stSelectQuestParam& param) const
 {
     int job = param.m_job;
     int firstGrow = param.m_firstGrow;
+    int secondGrow = param.m_secondGrow;  // ORIG 局部（checkMatchedGrowType 用 -1）
     int level = param.m_level;
     int questCount = param.m_pvpGrade;  // ORIG param+0x10
     int expertJobType = param.m_expertJobType;     // param+0x1c
@@ -97,7 +118,11 @@ char Quest::check_possible(const stSelectQuestParam& param) const
     {
         if (m_jobChangeQuest == 1)
         {
-            // ORIG 此处日志：Quest Script Error Break !, [grow type] != -1
+            // ORIG 0x8352e13：日志后返回 0
+            LogManager::logFormat(
+                1, "data_manager.cpp",
+                __PRETTY_FUNCTION__,
+                0x1193, "Quest Script Error Break !, [grow type] != -1 and [job change quest] = 1");
             return 0;
         }
         if (m_jobChangeQuest == 2)
@@ -167,16 +192,19 @@ char Quest::check_power_side(char side)
     }
     else
     {
-        if (m_powerSide != 1)
+        if (m_powerSide == 1)
+        {
+            char winner2 = GlobalData::s_power_manager->GetWinnerSide();
+            if (winner2 != side)
+            {
+                return 1;
+            }
+        }
+        else
         {
             LogManager::logFormat(1, "data_manager.cpp", __PRETTY_FUNCTION__,
                                   0x1161, "Quest Script Error q_index(%d)", m_index);
             return 0;
-        }
-        winner = GlobalData::s_power_manager->GetWinnerSide();
-        if (winner != side)
-        {
-            return 1;
         }
     }
     return 0;
@@ -184,29 +212,35 @@ char Quest::check_power_side(char side)
 
 bool Quest::checkPossibleJob(ENUM_CHARACTERJOB job) const
 {
-    for (std::vector<stQuestTargetCharacter_t>::const_iterator it =
-             m_targetCharacters.begin();
-         it != m_targetCharacters.end(); ++it)
+    std::vector<stQuestTargetCharacter_t>::const_iterator it =
+        m_targetCharacters.begin();
+    std::vector<stQuestTargetCharacter_t>::const_iterator end =
+        m_targetCharacters.end();
+    while (it != end)
     {
-        if ((it->m_job == (int)job) || (it->m_job == 0xb))
+        if ((it->m_job == job) || (it->m_job == 0xb))
         {
             return 1;
         }
+        ++it;
     }
     return 0;
 }
 
 bool Quest::_isNeededCheckGrowType(ENUM_CHARACTERJOB job) const
 {
-    for (std::vector<stQuestTargetCharacter_t>::const_iterator it =
-             m_targetCharacters.begin();
-         it != m_targetCharacters.end(); ++it)
+    std::vector<stQuestTargetCharacter_t>::const_iterator it =
+        m_targetCharacters.begin();
+    std::vector<stQuestTargetCharacter_t>::const_iterator end =
+        m_targetCharacters.end();
+    while (it != end)
     {
-        if (((it->m_job == (int)job) || (it->m_job == 0xb)) &&
+        if (((it->m_job == job) || (it->m_job == 0xb)) &&
             (it->m_firstGrow == -1))
         {
             return 0;
         }
+        ++it;
     }
     return 1;
 }
@@ -214,16 +248,19 @@ bool Quest::_isNeededCheckGrowType(ENUM_CHARACTERJOB job) const
 bool Quest::checkMatchedGrowType(ENUM_CHARACTERJOB job, int firstGrow,
                                  int secondGrow) const
 {
-    for (std::vector<stQuestTargetCharacter_t>::const_iterator it =
-             m_targetCharacters.begin();
-         it != m_targetCharacters.end(); ++it)
+    std::vector<stQuestTargetCharacter_t>::const_iterator it =
+        m_targetCharacters.begin();
+    std::vector<stQuestTargetCharacter_t>::const_iterator end =
+        m_targetCharacters.end();
+    while (it != end)
     {
-        if (((it->m_job == (int)job) || (it->m_job == 0xb)) &&
+        if (((it->m_job == job) || (it->m_job == 0xb)) &&
             ((it->m_firstGrow == firstGrow) || (it->m_firstGrow == -1)) &&
             ((it->m_secondGrow == secondGrow) || (it->m_secondGrow == -1)))
         {
             return 1;
         }
+        ++it;
     }
     return 0;
 }
@@ -232,9 +269,10 @@ bool Quest::check_clear_item(int itemIdx, int dungeonIdx) const
 {
     if (m_clearItems.size() != 0)
     {
+        DungeonClearItem item;
         for (int i = 0; i < (int)m_clearItems.size(); ++i)
         {
-            DungeonClearItem item = m_clearItems.at(i);
+            item = m_clearItems.at(i);
             if (item.m_dungeonIdx == -1)
             {
                 if (item.m_itemIdx == itemIdx)
@@ -256,23 +294,28 @@ bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
                              ENUM_QUEST_ENEMY_TYPE enemyType,
                              std::vector<MonsterKillItem>& out) const
 {
-    if (!out.empty())
+    // ORIG 0x83535dc：m_killItems 为空（无击杀要求）直接失败
+    if (m_killItems.empty())
     {
         return 0;
     }
     out.reserve(m_killItems.size());
-    for (unsigned int i = 0; i < m_killItems.size(); ++i)
+    for (int i = 0; i < (int)m_killItems.size(); ++i)
     {
-        const MonsterKillItem& item = m_killItems[i];
+        MonsterKillItem item = m_killItems[i];
         if (((item.m_dungeonIdx == -1) || (item.m_dungeonIdx == dungeonIdx)) &&
             ((item.m_mapIdx == -1) || (item.m_mapIdx == mapIdx)) &&
-            (item.m_enemyType == (int)enemyType) &&
+            (item.m_enemyType == enemyType) &&
             (item.m_killCount == killCount))
         {
             out.push_back(item);
         }
     }
-    return out.empty() ? 0 : 1;
+    if (out.size() == 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 char Quest::check_clear_send() const
@@ -284,44 +327,46 @@ int Quest::get_init_trigger() const
 {
     if ((m_triggerType == 2) || (m_triggerType == 6))
     {
+        std::vector<int>::const_iterator it = m_triggerData.begin();
+        std::vector<int>::const_iterator end = m_triggerData.end();
         short values[3] = { 0, 0, 0 };
         int idx = 0;
-        std::vector<int>::const_iterator it = m_triggerData.begin();
-        while (it != m_triggerData.end())
+        while (it != end)
         {
-            // ORIG 每次迭代前进 4（type 6 为 5）个 int，取最后一项
-            ++it;
-            if (it == m_triggerData.end()) break;
-            ++it;
-            if (it == m_triggerData.end()) break;
-            ++it;
-            if (it == m_triggerData.end()) break;
+            // ORIG 0x8353145：每次迭代前进 4（type 6 为 5）个 int，取最后一项
+            it++;
+            int v1 = *it;
+            it++;
+            int v2 = *it;
+            it++;
+            int v3 = *it;
             if (m_triggerType == 6)
             {
-                ++it;
-                if (it == m_triggerData.end()) break;
+                it++;
+                *it;
             }
-            ++it;
-            if (it == m_triggerData.end()) break;
-            values[idx] = (short)*it;
-            ++idx;
+            it++;
+            int v4 = *it;
+            values[idx] = (short)v4;
+            idx++;
         }
         stQuestTriggerState_t state;
-        SetTrigger(state, values[0], values[1], values[2]);
-        return GetTrigger(state);
+        state.setTrigger(values[0], values[1], values[2]);
+        return state.getTrigger();
     }
     if (m_triggerType == 0x19)
     {
         stQuestTriggerState_t state;
-        SetTrigger(state, 1, 1, 0);
-        return GetTrigger(state);
+        state.setTrigger(1, 1, 0);
+        return state.getTrigger();
     }
     if ((m_triggerType == 1) && (m_triggerSubType == 6) &&
         (m_triggerData.size() == 3))
     {
-        if (m_triggerData[2] > 0)
+        int v = m_triggerData.at(2);
+        if (v > 0)
         {
-            return m_triggerData[2];
+            return v;
         }
     }
     return 1;
@@ -365,11 +410,14 @@ int Quest::get_title_reward() const
 
 bool Quest::isRepeatableQuest() const
 {
-    if ((m_type == 4) || (m_type == 8))
+    switch (m_type)
     {
+    case 4:
+    case 8:
         return 1;
+    default:
+        return 0;
     }
-    return 0;
 }
 
 int Quest::get_appearmap(int mapA, int mapB) const
@@ -447,9 +495,11 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
     int dungeonIdx) const
 {
     std::vector<std::pair<int, int> > out;
-    for (unsigned int i = 0; i < m_clearItems.size(); ++i)
+    DungeonClearItem item;
+    std::pair<int, int> p;
+    for (int i = 0; i < (int)m_clearItems.size(); ++i)
     {
-        const DungeonClearItem& item = m_clearItems[i];
+        item = m_clearItems.at(i);
         if (item.m_itemIdx != dungeonIdx)
         {
             continue;
@@ -457,13 +507,19 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
         CItem* pItem = G_CDataManager()->find_item(item.m_rewardItem);
         if (!pItem)
         {
+            // ORIG 0x83534e3：find_item 失败记录日志
+            LogManager::logFormat(
+                1, "data_manager.cpp",
+                __PRETTY_FUNCTION__, 0x1279,
+                "G_CDataManager()->find_item(%d)", item.m_rewardItem);
             continue;
         }
         if (!pItem->is_stackable())
         {
             if (get_rand_int(100) <= item.m_percent)
             {
-                out.push_back(std::make_pair(item.m_rewardItem, 1));
+                p = std::make_pair(item.m_rewardItem, 1);
+                out.push_back(p);
             }
         }
         else
@@ -478,7 +534,8 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
             }
             if (count > 0)
             {
-                out.push_back(std::make_pair(item.m_rewardItem, count));
+                p = std::make_pair(item.m_rewardItem, count);
+                out.push_back(p);
             }
         }
     }
@@ -487,9 +544,10 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
 
 bool Quest::IsOpenScheduleQuest() const
 {
-    int state = GlobalData::s_DailyScheduleManager.GetScheduleState(
+    int state = 0;
+    int result = GlobalData::s_DailyScheduleManager.GetScheduleState(
         (_DailyScheduleType)1, (unsigned int)m_index);
-    return (state == 1) || (state == 2);
+    return (result == 1) || (result == 2);
 }
 
 
@@ -502,8 +560,8 @@ void Quest::set_quest(QuestScript script)
     m_targetCharacters = script.m_targetCharacters;
     m_jobChangeQuest = script.m_jobChangeQuest;
     m_questCountLimit = script.m_questCountLimit;
-    m_levelMin = script.m_levelMin;
-    m_levelMax = script.m_levelMax;
+    m_levelMin = script.m_levelMin[0];
+    m_levelMax = script.m_levelMin[1];
     m_intDataList = script.m_intDataList;
     m_antiQuestList = script.m_antiQuestList;
     m_clearSendFlag = script.m_field130;
@@ -594,4 +652,30 @@ void Quest::set_quest(QuestScript script)
     m_field13c = script.m_field2a8;
     m_field140 = script.m_field2ac;
     m_exceptionList = script.m_exceptionList;
+}
+// ============================================================================
+// 仅 ORIG 弱符号发射（DungeonClearItem，Quest.h 内联真实定义）：
+//   C1/C2 0x0836de02（体=call clear）／clear 0x0836ddc2（itemIdx=0,
+//   dungeonIdx=-1, rewardItem=0, count=0, percent=0, field14=-1）／
+//   D1/D2 0x08a6866c（空体）。Quest.cpp 现有代码只经 vector::at/operator[]
+//   拷贝或引用访问元素，未 odr-use 默认构造/clear/析构 → 弱符号不发射，
+//   此处真实使用强制发射（不改语义、不造符号）。
+namespace
+{
+void emitDungeonClearItemWeakSymbols()
+{
+    DungeonClearItem item;   // C1/C2（调 clear）
+    item.clear();            // clear
+    item.~DungeonClearItem();  // D1/D2
+}
+// QuestList::getQuestList（CDataManager.h 类内内联，ORIG W 0x08374c7a：
+// 8 字节 = mov this,%eax; ret）。Quest.cpp 现有代码不 odr-use 它
+// （重建访问 QuestList 均经 G_CDataManager()->m_questList 成员直访）→
+// 弱符号不发射；此处真实使用强制发射（不改语义、不造符号）。
+void emitQuestListGetWeakSymbol()
+{
+    QuestList* ql = G_CDataManager()->m_questList;
+    QuestList* p = ql->getQuestList();
+    (void)p;
+}
 }

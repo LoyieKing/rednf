@@ -54,12 +54,26 @@ struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，
 // (m_base)、type==1 → 加百分比附加值 (m_add)，value 为加数。
 struct WpBonusPointData
 {
+    // ORIG W ctor 0x08513a6e：调 clear()（+0x00=2、+0x04=0）。
+    WpBonusPointData() { clear(); }
+    void clear()
+    {
+        m_type = 2;
+        m_value = 0;
+    }
     int m_type;     // +0x00（0=基础 / 1=附加）
     int m_value;    // +0x04
 };
 
 struct ExpBonusPointData
 {
+    // ORIG W ctor 0x08513a9a：调 clear()（+0x00=2、+0x04=0）。
+    ExpBonusPointData() { clear(); }
+    void clear()
+    {
+        m_type = 2;
+        m_value = 0;
+    }
     int m_type;     // +0x00（0=基础 / 1=附加）
     int m_value;    // +0x04
 };
@@ -84,7 +98,6 @@ public:
     int m_field1c;                         // +0x1c
     int m_field20;                         // +0x20
     bool m_field24;                        // +0x24
-    char m_pad25[3];                       // +0x25
     int m_endurance;                       // +0x28
 };
 
@@ -116,9 +129,11 @@ public:
     virtual bool checkItemUpgradePossible() const;
     virtual void set_parent_booster_item_id(unsigned long id);
     virtual unsigned long get_parent_booster_item_id() const;
+    void set_item(STEquipmentScript& script);  // ORIG T 0x0850fd84
 
     void setAvatarOptionSize(int size);
     int getAvatarOptionSize() const;     // ORIG W 0x81803bc：返回 +0x1c4
+    void* getAvatarTypeSelect() const;    // ORIG W 0x08150f28，返回 m_avatarSelect 视图
     unsigned char IsAvatarColorVariation(int idx) const;
     bool IsAvatarOptionValid(char idx) const;
     int check_able_To_equip(char eType, int job, int level);
@@ -143,12 +158,22 @@ public:
     float get_experience_amount() const;
     // ORIG W 0x833eee8：返回 this+0x168（m_randomTable.m_field20）。
     int get_creature_minimum_level() const;
-    // ORIG _ZNK10CEquipItem20get_creature_speciesEv W 0x833eebe：返回 +0x15c
-    //（m_randomTable.m_field14，宠物种族/进化目标 id；GetCreatureId 依赖）。
+    // ORIG W 0x0833eebe：返回 m_randomTable.m_field14（+0x15c）。
     int get_creature_species() const;
+    // ORIG CEquipItem::get_hatch_item_id()（CEgg::Hatch @ 0x833912a 内联展开）：
+    // 返回 +0x164（m_randomTable.m_field1c，蛋孵化出的物品 id；set_item case 1 写入）。
+    int get_hatch_item_id() const;
+    // ORIG _ZNK10CEquipItem20getEnchantSystemDataEv W 0x0854b544：返回 +0x1b0（m_enchantVec）
+    const std::vector<STEnchantSystemData>& getEnchantSystemData() const;
     void getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const;  // ORIG W 0x08150f36
-    void* getAvatarTypeSelect() const;
-    void set_item(STEquipmentScript& script);
+    // ORIG _ZN10CEquipItem12IsEmancipateEv W 0x0822ca70：movzbl +0x194 直返（P9）
+    unsigned char IsEmancipate();
+    // ORIG _ZN10CEquipItem25GetEmancipateMaterialListEv W 0x0854b528：
+    //   push ebp; mov esp,ebp; mov 0x8(%ebp),%eax; add $0x198,%eax; pop; ret（直返 &m_vec198）
+    std::vector<std::pair<int, int> >& GetEmancipateMaterialList();
+    // ORIG _ZN10CEquipItem23GetEmancipateResultListEv W 0x0854b536：
+    //   同形 add $0x1a4（直返 &m_vec1a4）
+    std::vector<std::pair<int, int> >& GetEmancipateResultList();
     bool verify();
     int getAvatarPeriod(unsigned char a) const;  // ORIG W 0x08151120
 
@@ -158,7 +183,6 @@ public:
     int m_field18c;                        // +0x18c
     int m_repairCost;                      // +0x190
     char m_char194;                        // +0x194
-    char m_pad195[3];                      // +0x195
     std::vector<std::pair<int, int> > m_vec198;   // +0x198
     std::vector<std::pair<int, int> > m_vec1a4;   // +0x1a4
     std::vector<STEnchantSystemData> m_enchantVec;  // +0x1b0
@@ -167,12 +191,10 @@ public:
     int m_avatarOptionSize;                // +0x1c4
     bool m_randomOption;                   // +0x1c8
     char m_randomGrade;                    // +0x1c9
-    char m_pad1ca[2];                      // +0x1ca
     int m_field1cc;                        // +0x1cc
     int m_field1d0;                        // +0x1d0
     int m_field1d4;                        // +0x1d4
     char m_auraOptionType;                 // +0x1d8
-    char m_pad1d9[3];                      // +0x1d9
     int m_auraOptionValue;                 // +0x1dc
     int m_field1e0;                        // +0x1e0
     int m_field1e4;                        // +0x1e4
@@ -180,11 +202,9 @@ public:
     int m_field1ec;                        // +0x1ec
     std::vector<STAvatarAbilityVariation> m_avatarAbility;  // +0x1f0
     bool m_pollutionFlag;                  // +0x1fc
-    char m_pad1fd[3];                      // +0x1fd
     std::map<ItemUpgradeType::T, std::pair<int, int> > m_upgradeLevel;  // +0x200
     char m_avatarColor[2];                 // +0x218
     char m_growthFlag;                     // +0x21a
-    char m_pad21b[1];                      // +0x21b
     int m_growthA;                         // +0x21c
     int m_growthB;                         // +0x220
     int m_growthC;                         // +0x224

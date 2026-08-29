@@ -38,23 +38,9 @@
 namespace
 {
 
-// Ghidra 伪命名 ._140/.199 对应的双 vector 组合块（sizeof=0x18）。
-struct FavVecPairBlock
-{
-    std::vector<std::pair<int, unsigned int> > moodPairs;          // +0x00
-    std::vector<std::pair<unsigned long, unsigned int> > keyPairs; // +0x0c
-};
-
 const unsigned int NPC_FAVOR_REWARD_SLOTS = 3;
 
 }  // namespace
-
-// ---- stRewardItemElement_t ------------------------------------------------
-
-// ORIG 0x08a06f28：空体析构（三个 int 标量成员无子对象）。
-stFavorableRelationShip_t::stRewardItemElement_t::~stRewardItemElement_t()
-{
-}
 
 // ---- stRewardItemInfo_t ---------------------------------------------------
 
@@ -174,65 +160,9 @@ stFavorableRelationShip_t::stPeriodRewardInfo::stPeriodRewardInfo()
     m_param = kEmptyString;
 }
 
-// ORIG 0x085819e4：+0x14 → +0x10 → +0x4 逆序 string 析构（与隐式析构一致）。
+// ORIG 0x085819e4（W 0x73）：空体（三 string 成员按逆序 0x14→0x10→0x4 自动析构）。
 stFavorableRelationShip_t::stPeriodRewardInfo::~stPeriodRewardInfo()
 {
 }
 
-// ---- Ghidra 伪命名符号（extern "C" + asm 标签）----------------------------
-//
-// 两个包装生命周期体均为真实转写：
-//   ctor：先构造 this 处 MOOD-对 vector，再构造 this+0xc 处 ulong-对 vector；
-//   dtor：逆序（先 +0xc 后 this），并保留 _Unwind_Resume 清理路径由编译器展开等价。
 
-// ORIG ._140C1Ev @0x089fb8b6（wrapper(this)、wrapper(this+0xc) 顺序构造）。
-extern "C" void favDot140C1(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._140C1Ev");
-// C2 与 C1 同体别名语义（ORIG 亦同址）。
-extern "C" void favDot140C2(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._140C2Ev");
-
-extern "C" void favDot140C1(void* self)
-{
-    char* base = static_cast<char*>(self);
-    new (base) std::vector<std::pair<int, unsigned int> >();
-    new (base + 0xc)
-        std::vector<std::pair<unsigned long, unsigned int> >();
-}
-
-extern "C" void favDot140C2(void* self)
-{
-    favDot140C1(self);
-}
-
-// ORIG ._140D1Ev @0x089fb8fc / ._199D1Ev @0x0858046c：逆序析构（先 +0xc 后 this）。
-extern "C" void favDot140D1(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._140D1Ev");
-extern "C" void favDot140D2(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._140D2Ev");
-extern "C" void favDot199D1(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._199D1Ev");
-extern "C" void favDot199D2(void* self) __asm__(
-    "_ZN25stFavorableRelationShip_t5._199D2Ev");
-
-extern "C" void favDot140D1(void* self)
-{
-    FavVecPairBlock* block = static_cast<FavVecPairBlock*>(self);
-    block->keyPairs.~vector();
-    block->moodPairs.~vector();
-}
-
-extern "C" void favDot140D2(void* self)
-{
-    favDot140D1(self);
-}
-
-extern "C" void favDot199D1(void* self)
-{
-    favDot140D1(self);
-}
-
-extern "C" void favDot199D2(void* self)
-{
-    favDot140D1(self);
-}

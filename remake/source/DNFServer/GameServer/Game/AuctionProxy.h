@@ -29,7 +29,7 @@ public:
     bool IsRunning();
     void SetRunning(bool flag);
 
-    char m_running;   // +0x30e0c
+    bool m_running;   // +0x30e0c
 };
 
 class CCeraAuctionServerProxy : public BaseServerProxy
@@ -48,7 +48,7 @@ public:
     bool IsRunning();
     void SetRunning(bool flag);
 
-    char m_running;   // +0x30e0c
+    bool m_running;   // +0x30e0c
 };
 
 #endif  // GAME_AUCTIONPROXY_H_

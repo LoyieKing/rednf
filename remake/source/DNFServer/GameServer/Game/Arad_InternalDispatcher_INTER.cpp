@@ -313,7 +313,7 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
         unsigned int accId = (unsigned int)user->get_acc_id();
         LogManager::logFormat
             (1, "localjapan/Arad_InterDispatcher.cpp",
-             "bool ARAD::DISPATCHER::Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser*, byte, byte)",
+             __PRETTY_FUNCTION__,
              0x5d5,
              "JUMPING CHARACTER : REWARD ERROR - m_id:%u, charac_no:%u, tickettype:%d, job:%d, growValue:%d",
              accId, characNo, (unsigned int)ticketType, jobU, (unsigned int)rewardIndex);

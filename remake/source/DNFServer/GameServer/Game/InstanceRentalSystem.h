@@ -53,26 +53,33 @@ public:
         std::vector<RentalInfo> m_infos;        // +0x00
         std::vector<DeletedRentItem> m_deleted; // +0x0c
     };
-    // ORIG RentInElem（PcRoom/Dimension Rent 报告实证：elem+0/+1 为 signed char
-    // 下标、+2 非零走装备路径、RentInput 首成员即元素表 vector）。
-    struct RentInElem
-    {
-        unsigned char m_sectionIdx;   // +0x00 外层下标
-        unsigned char m_itemIdx;      // +0x01 内层下标
-        unsigned char m_bEquip;       // +0x02 非 0 → 装备区
-        unsigned char m_type;         // +0x03 Dimension::GetRentItemInfo ==1 走 GiveList
-        int m_rentItemId;             // +0x04 缺省 -1
-    };  // sizeof 8
-
-    // ORIG RentInput：首成员即 vector<RentInElem>（ORIG begin/end 直接作用于
-    // input+0）；InstanceRentalSystem::Rent 0x8270288 实证 +0x0c 取机器键；
-    // PcRoom::Rent 报告实证 +0x10 字节为 log 开关。
+    // ORIG RentInElem 嵌套于 RentInput（nm：_ZN20InstanceRentalSystem9RentInput10RentInElem
+    // C1Ev）；PcRoom/Dimension Rent 报告实证 elem+0/+1 下标、+2 非零走装备路径、
+    // RentInput 首成员即元素表 vector。
     struct RentInput
     {
+        // 元素：+0/+1 下标、+2 装备标志、+3 类型、+4 物品索引（缺省 -1）。
+        struct RentInElem
+        {
+            RentInElem();             // ORIG C1 W 0x0822f02e（清 4 字节，+4=-1）
+            unsigned char m_sectionIdx;   // +0x00 外层下标
+            unsigned char m_itemIdx;      // +0x01 内层下标
+            unsigned char m_bEquip;       // +0x02 非 0 → 装备区
+            unsigned char m_type;         // +0x03 Dimension::GetRentItemInfo ==1 走 GiveList
+            int m_rentItemId;             // +0x04 缺省 -1
+        };  // sizeof 8
+
+        // ORIG RentInput：首成员即 vector<RentInElem>（ORIG begin/end 直接作用于
+        // input+0）；InstanceRentalSystem::Rent 0x8270288 实证 +0x0c 取机器键；
+        // PcRoom::Rent 报告实证 +0x10 字节为 log 开关。
+        RentInput();                   // ORIG C1 W 0x0822f058
         std::vector<RentInElem> m_elems;   // +0x00
         int m_machineKey;                  // +0x0c（getMachine 键）
         unsigned char m_logFlag;           // +0x10（非 0 逐物品 log）
+        unsigned char m_field11;           // +0x11（ORIG C1 清零；PcRoom::Rent 读 ==1 判定）
     };
+
+    typedef RentInput::RentInElem RentInElem;  // 兼容既有调用处（别名不产生符号）
 
     struct RentalSystemImpl
     {

@@ -46,7 +46,7 @@ bool StreamPool::Free(Stream* s)
     s->m_inUse = 0;
     if (!m_pool->IsValidPtr(s))
     {
-        LogManager::logFormat(1, "App.cpp", "bool StreamPool::Free(Stream*)", 0x239,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x239,
                               "[StreamPool::Free] invalid ptr : %p", s);
         return false;
     }
@@ -115,7 +115,7 @@ bool SmallStreamPool::Free(Stream* s)
     Guard<Mutex> guard(&m_mutex);
     if (!m_pool->IsValidPtr(p))
     {
-        LogManager::logFormat(1, "App.cpp", "bool SmallStreamPool::Free(Stream*)", 0x2ae,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x2ae,
                               "[BigStreamPool::Free] invalid ptr : %p", p);
         return false;
     }
@@ -178,7 +178,7 @@ bool BigStreamPool::Free(Stream* s)
     Guard<Mutex> guard(&m_mutex);
     if (!m_pool->IsValidPtr(p))
     {
-        LogManager::logFormat(1, "App.cpp", "bool BigStreamPool::Free(Stream*)", 0x2fc,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x2fc,
                               "[BigStreamPool::Free] invalid ptr : %p", p);
         return false;
     }

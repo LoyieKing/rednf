@@ -2,13 +2,14 @@
 // ============================================================================
 // df_game_r UserQuest（G2-5 批次）逐函数还原
 // 语义依据：docs/class_func_reports/UserQuest.md（汇编为准）+ ORIG 反汇编直读。
-// 布局（由 ORIG ctor/dtor 推导，总大小 0x7620）：
+// 布局（由 ORIG ctor/dtor 推导，总大小 0x761d pack(1)）：
 //   +0x0000 CUser* m_user
 //   +0x0004 WongWork::CQuestClear m_cleared（0x7530）
 //   +0x7538 int m_quest[20]、+0x7588 int m_trigger[20]
-//   +0x75d8 _Quest_Authen_Data（0x48：characNo/characClass/…/urgentQuest/authen[]）
-// 跨类方法一律以 extern "C" asm 标签直调 ORIG 符号，本 TU 只定义 UserQuest
-// 自身的方法（构造/析构/23 个报告函数 + set_parent）。
+//   +0x75d8 _Quest_Authen_Data（0x44：characNo/characClass/…/urgentQuest/authen[]）
+//   +0x761c bool m_field761c（0x761d = CUser.h 的 m_pcRoomAuth 起点）
+// 本 TU 定义 UserQuest 全部方法（构造/析构/23 个报告函数 + set_parent），
+// 跨类调用均为真实类型 C++ 调用（无 asm 桥）。
 // ============================================================================
 
 #include <cstring>
@@ -18,7 +19,9 @@
 
 // ---- 权威头 ----
 #include "CDataManager.h"      // CDataManager / QuestList / ENUM_QUEST_GRADE
+#include "Quest.h"             // 全局 Quest（权威 0x150 布局；替代本 TU 旧局部视图）
 #include "CUserCharacInfo.h"   // CUserCharacInfo（CUser 基类）权威声明
+#include "CUser.h"              // 全局权威 CUser / UserQuest（本 TU 实现其方法）
 #include "QuestClear.h"        // WongWork::CQuestClear / STClearedQuest
 #include "InterfacePacketBuf.h"
 #include "CTimeGate.h"
@@ -32,97 +35,18 @@
 // CAchievement.cpp 同款模式；方法定义在权威 TU，mangled 与 ORIG 一致）
 // ============================================================================
 
-// ORIG 布局（C1Ev 0x8a60f78 / D1Ev 0x8a61164 / C1ERKS_ 0x8a6100e /
-// getNewDialog 0x8a615fe）：0x14 字节标量区 + std::string@+0x20 + int@+0x24 +
-// 11 个堆分配 std::string* @+0x28（getNewDialog(ENUM_CHARACTERJOB) 填充，
-// 析构逐个释放）。
-struct dungeonEventHanaseStruct
+
+
+
+// ---- ORIG 域常量（nm：_ZN21UrgentQuestLevelLimitL…E，r 段）----
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+namespace UrgentQuestLevelLimit
 {
-    int m_type;             // +0x00
-    int m_pad4;             // +0x04
-    int m_map;              // +0x08
-    int m_pad0c;            // +0x0c
-    unsigned char m_flag10; // +0x10
-    int m_pad14;            // +0x14
-    int m_pad18;            // +0x18
-    int m_pad1c;            // +0x1c
-    std::string m_str20;    // +0x20
-    int m_pad24;            // +0x24
-    std::string* m_dialogs[11];  // +0x28（i=0..10）
-
-    dungeonEventHanaseStruct()
-        : m_type(0), m_pad4(0), m_map(0), m_pad0c(0), m_flag10(0),
-          m_pad14(0), m_pad18(0), m_pad1c(0), m_str20(), m_pad24(0), m_dialogs()
-    {
-        for (int i = 0; i < 11; ++i)
-            m_dialogs[i] = 0;
-    }  // ORIG C1Ev 0x8a60f78
-
-    ~dungeonEventHanaseStruct()
-    {
-        // ORIG D1Ev 0x8a61164：i=0..10 逐个析构并 delete 非空 dialog 串后置空，
-        // 再析构 m_str20（成员自动）。
-        for (int i = 0; i < 11; ++i)
-        {
-            if (m_dialogs[i] != 0)
-            {
-                delete m_dialogs[i];
-                m_dialogs[i] = 0;
-            }
-        }
-    }
-};
-
-enum ENUM_QUEST_EXCEPTION_TYPE
-{
-    QUEST_EXCEPTION_NONE = 0,
-    QUEST_EXCEPTION_1 = 1
-};
-
-enum QUEST_CONDITION
-{
-    QUEST_CONDITION_0 = 0,
-    QUEST_CONDITION_1 = 1,
-    QUEST_CONDITION_2 = 2,
-    QUEST_CONDITION_3 = 3,
-    QUEST_CONDITION_4 = 4,
-    QUEST_CONDITION_5 = 5
-};
-
-namespace WongWork
-{
-
-enum ENUM_HACKTYPE
-{
-    ENUM_HACKTYPE_QUEST = 0x191
-};
-
-class CHackAnalyzer
-{
-public:
-    void addServerHackCnt(CUser* user, ENUM_HACKTYPE type, unsigned int count,
-                          unsigned int a, unsigned int b);  // _ZN8WongWork13CHackAnalyzer16addServerHackCntEP5CUserNS_13ENUM_HACKTYPEEjjj
-
-    char m_pad[4];   // +0x00
-};
-
-}  // namespace WongWork
+static const int kStartLvl = 27;   // 0x08ae5d64 (0x1b)
+static const int kEndLvl = 70;     // 0x08ae5d68 (0x46)
+}
 
 // ---- CUser 本地视图（继承 CUserCharacInfo.h 权威基类）----
-class UserQuest;
-
-class CUser : public CUserCharacInfo
-{
-public:
-    UserQuest* getCurCharacQuestR() const;  // _ZNK5CUser18getCurCharacQuestREv
-    bool IsGameMasterMode() const;          // _ZNK5CUser16IsGameMasterModeEv
-    WongWork::CHackAnalyzer* getHackAnalyzer();  // _ZN5CUser15getHackAnalyzerEv
-    int get_state();                        // _ZN5CUser9get_stateEv
-    void* GetParty();                       // _ZN5CUser8GetPartyEv
-    char getPowerSide();                    // _ZN5CUser12getPowerSideEv
-    bool getGmQuestFlag();                  // _ZN5CUser14getGmQuestFlagEv
-};
-
 class CInventory
 {
 public:
@@ -137,100 +61,27 @@ public:
                            eItemAddReason itemReason, bool bLog, const char* a,
                            const char* b);
 };
-
 class CBattle_Field
 {
 public:
     void* getMaze();  // _ZN13CBattle_Field7getMazeEv（权威见 CBattle_Field.h，因含 CUser.h 未引入）
 };
 
-// ---- stSelectQuestParam（0x2c：11 个 int；ctor _ZN18stSelectQuestParamC1EP5CUser
-//      定义在 stSelectQuestParam.cpp）----
-class stSelectQuestParam
+// getMaze() 返回迷宫对象 +0x50 处的 quest idx 字段视图（giveup_quest ORIG
+// 单指令 mov 0x50(%eax) 折叠需要组件视图）
+struct MazeQuestView
 {
-public:
-    stSelectQuestParam(CUser* user);
-
-    int m_data[11];   // +0x00（+0x24 = m_data[9] 为 select quest idx）
+    char m_pad[0x50];  // +0x00
+    int m_questIdx;    // +0x50
 };
 
 // ---- stQuestTriggerState_t（8 字节：3 个 9 位值；方法定义在 QuestTriggerState.cpp）----
-class stQuestTriggerState_t
-{
-public:
-    stQuestTriggerState_t();                          // _ZN21stQuestTriggerState_tC1Ev
-    stQuestTriggerState_t& operator=(int const& v);   // _ZN21stQuestTriggerState_taSERKi
-    void incTirggerState(char v);                     // _ZN21stQuestTriggerState_t15incTirggerStateEc
-    void subTriggerState(char v);                     // _ZN21stQuestTriggerState_t15subTriggerStateEc
-    int getTrigger();                                 // _ZN21stQuestTriggerState_t10getTriggerEv
 
-    short m_trigger0;  // +0x00
-    short m_trigger1;  // +0x02
-    short m_trigger2;  // +0x04
-};
 
-// ---- _Quest_Authen_Data（权威见 CUser.h，ctor 定义在 CUser.cpp；本视图 0x44
-//      覆盖 UserQuest +0x75d8 字段区，ctor 按 ORIG memset 0x48 含尾部两 bool）----
-class _Quest_Authen_Data
-{
-public:
-    _Quest_Authen_Data() throw();  // _ZN18_Quest_Authen_DataC1Ev（定义在 CUser.cpp；throw() 抑制 UserQuest ctor 的 EH 清理块，与 ORIG 一致）
-
-    short m_characNo;      // +0x00
-    short m_characClass;   // +0x02
-    short m_field4;        // +0x04
-    char m_pad6[2];        // +0x06
-    int m_field8;          // +0x08
-    char m_fieldc;         // +0x0c
-    char m_padd[3];        // +0x0d
-    int m_field10;         // +0x10
-    int m_field14;         // +0x14
-    int m_urgentQuest;     // +0x18
-    char m_authen[0x28];   // +0x1c
-};  // 0x44
-
-// ---- SIG_LOAD_QUEST 布局（get_quest/set_quest 推导）----
-struct SIG_LOAD_QUEST
-{
-    unsigned int m_characNo;    // +0x00
-    int m_field04;              // +0x04
-    char m_pad08[4];            // +0x08
-    int m_quest[20];            // +0x0c
-    int m_trigger[20];          // +0x5c
-    int m_urgentQuest;          // +0xac
-    char m_cleared[0x7530];     // +0xb0
-    char m_authen[0x28];        // +0x75e0
-};
-
-// ---- Quest 布局（仅本 TU 访问到的字段；方法定义在 Quest.cpp，ORIG _ZNK5Quest* 族）----
-struct Quest
-{
-    char exposeQuest() const;                                          // _ZNK5Quest11exposeQuestEv
-    char check_possible(const stSelectQuestParam& param) const;        // _ZNK5Quest14check_possibleERK18stSelectQuestParam
-    bool isRepeatableQuest() const;                                    // _ZNK5Quest17isRepeatableQuestEv
-    int get_init_trigger() const;                                      // _ZNK5Quest16get_init_triggerEv
-    int get_appearmap(int mapA, int mapB) const;                       // _ZNK5Quest13get_appearmapEii
-    bool check_clear_item(int itemIdx, int dungeonIdx) const;          // _ZNK5Quest16check_clear_itemEii
-
-    char m_pad00[4];                                  // +0x00
-    int m_index;                                      // +0x04
-    int m_type;                                       // +0x08
-    char m_pad0c[0x10];                               // +0x0c
-    int m_field1c;                                    // +0x1c
-    int m_field20;                                    // +0x20
-    int m_levelLimit;                                 // +0x24
-    char m_pad28[0x70 - 0x28];                        // +0x28
-    std::vector<std::pair<int, int> > m_rewardItems;  // +0x70
-    int m_questType;                                  // +0x7c
-    int m_questSubType;                               // +0x80
-    std::vector<int> m_params;                        // +0x84
-    char m_pad90[0x120 - 0x90];                       // +0x90
-    char m_field120;                                  // +0x120
-    char m_pad121[3];                                 // +0x121
-    std::vector<dungeonEventHanaseStruct> m_eventList;   // +0x124
-    char m_pad130[0x144 - 0x130];                     // +0x130
-    std::vector<ENUM_QUEST_EXCEPTION_TYPE> m_exceptions; // +0x144
-};
+// Quest 类型改用 Quest.h 全局权威类（0x150；本 TU 旧局部视图字段名映射：
+//   m_levelLimit→m_levelMax、m_rewardItems→m_rewardSelectList、m_questType→m_triggerType、
+//   m_questSubType→m_triggerSubType、m_params→m_triggerData、m_eventList→m_eventDialogs、
+//   m_exceptions→m_exceptionList——偏移逐一相同，2026-08-30 统一）。
 
 // ============================================================================
 // 跨类调用（全部真实类型调用；asm 桥已删除）
@@ -241,74 +92,39 @@ bool checkAcceptableQuest(const Quest* quest,
                           const stSelectQuestParam& param)
 {
     if (quest->m_index == 0x3f8) return true;
-    if (!quest->exposeQuest() || !quest->check_possible(param)) return false;
-    QuestList* list = G_CDataManager()->m_questList;
-    if (!quest->isRepeatableQuest() &&
-        !list->check_clear(quest->m_index, cleared)) return false;
-    return list->check_ahead_quest(quest->m_index, cleared) &&
-           list->check_anti_quest(quest->m_index, cleared);
+    if (!quest->exposeQuest()) return false;
+    if (!quest->check_possible(param)) return false;
+    if (!quest->isRepeatableQuest())
+    {
+        if (!G_CDataManager()->m_questList->check_clear(
+                quest->m_index, cleared))
+        {
+            return false;
+        }
+    }
+    if (!G_CDataManager()->m_questList->check_ahead_quest(
+            quest->m_index, cleared))
+    {
+        return false;
+    }
+    if (!G_CDataManager()->m_questList->check_anti_quest(
+            quest->m_index, cleared))
+    {
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
-// UserQuest（总大小 0x7620，布局见文件头）
+// UserQuest（总大小 0x761d pack(1)，布局见文件头；与 CUser.h 同步）
 // ============================================================================
 
-class UserQuest
-{
-public:
-    UserQuest();
-    ~UserQuest();
-
-    void set_parent(CUser* user);
-
-    void reset();
-    bool isClearQuest(int questIdx) const;
-    void resetClearQuest(int questIdx);
-    int set_quest(SIG_LOAD_QUEST const* sig);
-    int get_quest(SIG_LOAD_QUEST* sig) const;
-    void get_quest_info(char* buf) const;
-    bool get_mail_quest_info(std::list<int>& questList,
-                             stSelectQuestParam const& selectParam) const;  // ORIG 0x086abd7a（返回 bool，_onLevelUp 调用点 test %al 实证）
-    void set_authen_data(QUEST_CONDITION cond, int v1, int v2);
-    int accept_quest(int questIdx, char* buf, int& trigger);
-    int giveup_quest(int questIdx);
-    int set_trigger(int questIdx, char type, bool bIncrement);
-    int finish_quest(int questIdx);
-    int item_reward_quest(int mapIdx) const;
-    int get_rescue_questmap(int mapIdx) const;
-    int check_cond_clear(int questIdx) const;
-    int check_quest_subtype_condition(Quest* quest);
-    int check_quest_type_condition(Quest* quest);
-    int check_quest_condition(int questIdx);
-    int IsDoingQuest(int questIdx) const;
-    int CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const;
-    void ResetUrgentQuestWaitingList();
-    bool hasEpicQuest();
-    bool isDoingJobChangeQuest() const;
-
-    CUser* m_user;                    // +0x0000
-    WongWork::CQuestClear m_cleared;  // +0x0004（0x7530）
-    char m_pad7534[4];                // +0x7534
-    int m_quest[20];                  // +0x7538
-    int m_trigger[20];                // +0x7588
-    _Quest_Authen_Data m_authenData;  // +0x75d8（0x44，ctor 按 ORIG memset 0x48）
-    bool m_field761c;                 // +0x761c
-    bool m_field761d;                 // +0x761d
-};
+#pragma pack(push, 1)
+#pragma pack(pop)
 
 // ============================================================================
 // 构造 / 析构 / set_parent
 // ============================================================================
-
-UserQuest::UserQuest()
-{
-    // m_cleared / m_authenData 子对象 ctor 由编译器自动调用
-    // （ORIG：CQuestClear::CQuestClear() + _Quest_Authen_Data::_Quest_Authen_Data()）
-}
-
-UserQuest::~UserQuest()
-{
-}
 
 void UserQuest::set_parent(CUser* user)
 {
@@ -355,15 +171,15 @@ int UserQuest::set_quest(SIG_LOAD_QUEST const* sig)
         Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
         if (quest == 0 && m_quest[i] != 0)
         {
-            cMyTrace trace("bool UserQuest::set_quest(const SIG_LOAD_QUEST*)", 0x42, 0);
-            trace("VERIFY_QUEST : ABNOMAL QUEST INDEX (%d) : CHARAC_NO (%u)",
-                  m_quest[i], sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x42, 0)
+                ("VERIFY_QUEST : ABNOMAL QUEST INDEX (%d) : CHARAC_NO (%u)",
+                 m_quest[i], sig->m_characNo);
             m_quest[i] = 0;
             m_trigger[i] = 0;
         }
     }
     m_cleared.setClearedQuest(
-        reinterpret_cast<const WongWork::STClearedQuest*>(sig->m_cleared));
+        (const WongWork::STClearedQuest*)&sig->m_cleared[0]);
     m_authenData.m_urgentQuest = sig->m_urgentQuest;
     memcpy(m_authenData.m_authen, sig->m_authen, 0x28);
     return 1;
@@ -396,9 +212,9 @@ void UserQuest::get_quest_info(char* buf) const
 
     std::list<int> questList;
     G_CDataManager()->m_questList->select_quest(questList, selectParam, m_cleared);
-    if (selectParam.m_data[9] != -1)
+    if (selectParam.m_questCount != -1)
     {
-        questList.push_back(selectParam.m_data[9]);
+        questList.push_back(selectParam.m_questCount);
     }
 
     pb->put_byte(m_user->get_charac_level());
@@ -466,13 +282,13 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
     if (m_user == 0)
     {
         LogManager::logFormat(1, "user_quest.cpp",
-                                 "int UserQuest::accept_quest(int, char*, int&)", 0x1e8,
+                                 __PRETTY_FUNCTION__, 0x1e8,
                                  "user is null");
         return 1;
     }
     if (m_user->getCurCharacR() == 0)
     {
-        cMyTrace trace("int UserQuest::accept_quest(int, char*, int&)", 0x1ef, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1ef, 5);
         trace("UserQuest::accept_quest user->m_selected is null");
         return 1;
     }
@@ -481,7 +297,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
     if (quest == 0)
     {
         LogManager::logFormat(1, "user_quest.cpp",
-                                 "int UserQuest::accept_quest(int, char*, int&)", 0x1f8,
+                                 __PRETTY_FUNCTION__, 0x1f8,
                                  "G_CDataManager()->find_quest(%d)", questIdx);
         return 1;
     }
@@ -517,25 +333,27 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
 
     std::vector<std::pair<int, int> > rewardItems;
     std::vector<std::pair<int, int> > erasedItems;
-    rewardItems = quest->m_rewardItems;
+    rewardItems = quest->m_rewardSelectList;
 
     int erased = m_user->getCurCharacInvenW()->erase_repeated_item(
         rewardItems, erasedItems);
     if (erased > 0)
     {
+        // Quest.h 权威 stSelectQuestParam 为命名成员（无 m_data 数组）——按连续布局取指针。
+        int* pdata = &selectParam.m_level;
         for (int i = 0; i < 11; ++i)
         {
-            selectParam.m_data[i] = 0;
+            pdata[i] = 0;
         }
         const CInventory* invR = m_user->getCurCharacInvenR();
-        invR->CalNeedSlot(&selectParam.m_data[0], erasedItems);
+        invR->CalNeedSlot(&selectParam.m_level, erasedItems);
         int quick = invR->QuickEmptyCount();
         for (int i = 1; i <= 10; ++i)
         {
             int cnt = invR->InvenEmptycount((Inven_Item::ITEM_TYPE)i);
-            if (selectParam.m_data[i] > cnt)
+            if (pdata[i] > cnt)
             {
-                quick += cnt - selectParam.m_data[i];
+                quick += cnt - pdata[i];
                 if (quick < 0)
                 {
                     return 0x11;
@@ -585,57 +403,52 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
 
 int UserQuest::giveup_quest(int questIdx)
 {
-    int i;
-    for (i = 0; i <= 19; ++i)
+    for (int i = 0; i <= 19; ++i)
     {
         if (m_quest[i] == questIdx)
         {
-            break;
-        }
-    }
-    if (i > 19)
-    {
-        return 0x13;
-    }
-
-    Quest* quest = G_CDataManager()->find_quest(questIdx);
-    if (quest != 0)
-    {
-        if (quest->m_field120 == 1 || quest->m_field120 == 2)
-        {
-            if (m_trigger[i] == 0)
+            Quest* quest = G_CDataManager()->find_quest(questIdx);
+            if (quest != 0)
             {
-                return 0x12;
-            }
-            if (m_user->get_state() == 5)
-            {
-                void* party = m_user->GetParty();
-                if (party != 0)
+                if (quest->m_field120 == 1 || quest->m_field120 == 2)
                 {
-                    void* maze = reinterpret_cast<CBattle_Field*>((char*)party + 0xb24)->getMaze();
-                    if (maze != 0 && *(int*)((char*)maze + 0x50) == questIdx)
+                    if (m_trigger[i] == 0)
                     {
-                        return 0x14;
+                        return 0x12;
+                    }
+                    if (m_user->get_state() == 5)
+                    {
+                        void* party = m_user->GetParty();
+                        if (party != 0)
+                        {
+                            void* maze = reinterpret_cast<CBattle_Field*>((char*)party + 0xb24)->getMaze();
+                            if (maze != 0 &&
+                                reinterpret_cast<MazeQuestView*>(maze)->m_questIdx == questIdx)
+                            {
+                                return 0x14;
+                            }
+                        }
+                    }
+                }
+                if (quest->m_type == 8)
+                {
+                    if (m_user->get_charac_level() > quest->m_levelMax)
+                    {
+                        m_authenData.m_urgentQuest = -1;
+                    }
+                    if (hasEpicQuest())
+                    {
+                        m_authenData.m_urgentQuest = -1;
                     }
                 }
             }
-        }
-        if (quest->m_type == 8)
-        {
-            if (m_user->get_charac_level() > quest->m_levelLimit)
-            {
-                m_authenData.m_urgentQuest = -1;
-            }
-            if (hasEpicQuest())
-            {
-                m_authenData.m_urgentQuest = -1;
-            }
+
+            m_quest[i] = 0;
+            m_trigger[i] = 0;
+            return 0;
         }
     }
-
-    m_quest[i] = 0;
-    m_trigger[i] = 0;
-    return 0;
+    return 0x13;
 }
 
 // ============================================================================
@@ -644,50 +457,44 @@ int UserQuest::giveup_quest(int questIdx)
 
 int UserQuest::set_trigger(int questIdx, char type, bool bIncrement)
 {
-    int i;
-    for (i = 0; i <= 19; ++i)
+    for (int i = 0; i <= 19; ++i)
     {
         if (m_quest[i] == questIdx)
         {
-            break;
-        }
-    }
-    if (i > 19)
-    {
-        return -1;
-    }
+            if (m_user->getGmQuestFlag())
+            {
+                m_trigger[i] = 0;
+            }
 
-    if (m_user->getGmQuestFlag())
-    {
-        m_trigger[i] = 0;
-    }
-
-    if (type == 1)
-    {
-        m_trigger[i] = m_trigger[i] + 1;
-    }
-    else
-    {
-        if (!check_quest_condition(questIdx))
-        {
-            return -1;
-        }
-        if (bIncrement)
-        {
-            stQuestTriggerState_t state;
-            state = m_trigger[i];
-            state.incTirggerState(type);
-            m_trigger[i] = state.getTrigger();
-        }
-        else if (m_trigger[i] > 0)
-        {
-            stQuestTriggerState_t state;
-            state = m_trigger[i];
-            state.subTriggerState(type);
-            m_trigger[i] = state.getTrigger();
+            if (type == 1)
+            {
+                m_trigger[i] = m_trigger[i] + 1;
+            }
+            else
+            {
+                if (!check_quest_condition(questIdx))
+                {
+                    return -1;
+                }
+                if (bIncrement)
+                {
+                    stQuestTriggerState_t state;
+                    state = m_trigger[i];
+                    state.incTirggerState(type);
+                    m_trigger[i] = state.getTrigger();
+                }
+                else if (m_trigger[i] > 0)
+                {
+                    stQuestTriggerState_t state;
+                    state = m_trigger[i];
+                    state.subTriggerState(type);
+                    m_trigger[i] = state.getTrigger();
+                }
+            }
+            return m_trigger[i];
         }
     }
-    return m_trigger[i];
+    return -1;
 }
 
 // ============================================================================
@@ -700,23 +507,23 @@ int UserQuest::finish_quest(int questIdx)
     {
         if (m_quest[i] == questIdx)
         {
-            if (m_trigger[i] != 0)
+            if (m_trigger[i] == 0)
             {
-                return 0x16;
-            }
-            m_quest[i] = 0;
-            m_trigger[i] = 0;
+                m_quest[i] = 0;
+                m_trigger[i] = 0;
 
-            Quest* quest = G_CDataManager()->find_quest(questIdx);
-            if (quest != 0 && !quest->isRepeatableQuest())
-            {
-                m_cleared.setClearedQuest(questIdx);
+                Quest* quest = G_CDataManager()->find_quest(questIdx);
+                if (quest != 0 && !quest->isRepeatableQuest())
+                {
+                    m_cleared.setClearedQuest(questIdx);
+                }
+                if (quest->m_type == 8)
+                {
+                    m_authenData.m_urgentQuest = -1;
+                }
+                return 0;
             }
-            if (quest != 0 && quest->m_type == 8)
-            {
-                m_authenData.m_urgentQuest = -1;
-            }
-            return 0;
+            return 0x16;
         }
     }
     return 0x13;
@@ -767,7 +574,7 @@ int UserQuest::get_rescue_questmap(int mapIdx) const
     return 0;
 }
 
-int UserQuest::check_cond_clear(int questIdx) const
+bool UserQuest::check_cond_clear(int questIdx) const
 {
     for (int i = 0; i <= 19; ++i)
     {
@@ -791,38 +598,50 @@ int UserQuest::check_cond_clear(int questIdx) const
 // check_quest_subtype_condition
 // ============================================================================
 
-int UserQuest::check_quest_condition(int questIdx)
+bool UserQuest::check_quest_condition(int questIdx)
 {
     Quest* quest = G_CDataManager()->m_questList->find_quest(questIdx);
     if (quest == 0)
     {
         LogManager::logFormat(
-            1, "user_quest.cpp", "bool UserQuest::check_quest_condition(int)", 0x403,
+            1, "user_quest.cpp", __PRETTY_FUNCTION__, 0x403,
             "G_CDataManager()->m_pQuestList->find_quest(%d) fail", questIdx);
         return 0;
     }
     return check_quest_type_condition(quest);
 }
 
-int UserQuest::check_quest_type_condition(Quest* quest)
+bool UserQuest::check_quest_type_condition(Quest* quest)
 {
-    switch (quest->m_questType)
+    switch (quest->m_triggerType)
     {
-    case 3:
-        if (quest->m_params.at(0) == (int)(short)m_authenData.m_field4)
-        {
-            return 1;
-        }
-        return 0;
+    case 0:
+    case 1:
+    case 2:
+    case 4:
+    case 6:
+    case 0xf:
+    case 0x19:
+        return 1;
     case 5:
-    {
-        PvpResultType* pvp = m_user->getPVPResultR();
-        if (quest->m_params.at(0) <= pvp->m_pvpGrade)
+        if (quest->m_triggerData.at(0) <=
+            m_user->getPVPResultR()->m_pvpGrade)
         {
             return 1;
         }
         return 0;
-    }
+    case 3:
+        if (quest->m_triggerData.at(0) == (int)(short)m_authenData.m_field4)
+        {
+            return 1;
+        }
+        return 0;
+    case 8:
+        if (quest->m_triggerData.at(0) <= (int)(short)m_user->GetUserPowerWarPoint())
+        {
+            return 1;
+        }
+        return 0;
     case 7:
         if (GlobalData::s_power_manager->GetWinnerSide() ==
             m_user->getPowerSide())
@@ -830,30 +649,23 @@ int UserQuest::check_quest_type_condition(Quest* quest)
             return 1;
         }
         return 0;
-    case 8:
-        if (quest->m_params.at(0) <= (int)m_user->GetUserPowerWarPoint())
-        {
-            return 1;
-        }
-        return 0;
-    default:
-        if (quest->m_questType > 0x19)
-        {
-            return check_quest_subtype_condition(quest);
-        }
+    case 0x10:
+    case 0x13:
         return 1;
+    default:
+        return check_quest_subtype_condition(quest);
     }
 }
 
-int UserQuest::check_quest_subtype_condition(Quest* quest)
+bool UserQuest::check_quest_subtype_condition(Quest* quest)
 {
-    switch (quest->m_questSubType)
+    switch (quest->m_triggerSubType)
     {
     case 0:
     {
-        int at0 = quest->m_params.at(0);
-        int at1 = quest->m_params.at(1);
-        int at2 = quest->m_params.at(2);
+        int at0 = quest->m_triggerData.at(0);
+        int at1 = quest->m_triggerData.at(1);
+        int at2 = quest->m_triggerData.at(2);
         if (at1 != -1 && (int)m_authenData.m_characClass != at1)
         {
             return 0;
@@ -862,7 +674,7 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
         {
             return 0;
         }
-        if (m_authenData.m_field8 > at2 * 1000)
+        if (at2 * 1000 < m_authenData.m_field8)
         {
             return 0;
         }
@@ -875,8 +687,8 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
         return 1;
     case 4:
     {
-        int at0 = quest->m_params.at(0);
-        int at1 = quest->m_params.at(1);
+        int at0 = quest->m_triggerData.at(0);
+        int at1 = quest->m_triggerData.at(1);
         if (at1 != -1 && (int)m_authenData.m_characClass != at1)
         {
             return 0;
@@ -893,9 +705,9 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
     }
     case 5:
     {
-        int at0 = quest->m_params.at(0);
-        int at1 = quest->m_params.at(1);
-        int at2 = quest->m_params.at(2);
+        int at0 = quest->m_triggerData.at(0);
+        int at1 = quest->m_triggerData.at(1);
+        int at2 = quest->m_triggerData.at(2);
         if (at1 != -1 && (int)m_authenData.m_characClass < at1)
         {
             return 0;
@@ -916,9 +728,9 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
     }
     case 7:
     {
-        int at0 = quest->m_params.at(0);
-        int at1 = quest->m_params.at(1);
-        quest->m_params.at(2);
+        int at0 = quest->m_triggerData.at(0);
+        int at1 = quest->m_triggerData.at(1);
+        int at2 = quest->m_triggerData.at(2);
         if (at1 != -1 && (int)m_authenData.m_characClass != at1)
         {
             return 0;
@@ -927,7 +739,10 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
         {
             return 0;
         }
-        return 0;
+        if (m_authenData.m_field14 < at2)
+        {
+            return 0;
+        }
     }
     default:
         return 0;
@@ -938,7 +753,7 @@ int UserQuest::check_quest_subtype_condition(Quest* quest)
 // IsDoingQuest / CheckDungeonEventStoryPause / isDoingJobChangeQuest
 // ============================================================================
 
-int UserQuest::IsDoingQuest(int questIdx) const
+bool UserQuest::IsDoingQuest(int questIdx) const
 {
     for (int i = 0; i <= 19; ++i)
     {
@@ -963,22 +778,22 @@ int UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo
         {
             continue;
         }
-        for (unsigned int j = 0; j < quest->m_eventList.size(); ++j)
+        for (unsigned int j = 0; j < quest->m_eventDialogs.size(); ++j)
         {
-            dungeonEventHanaseStruct& ev = quest->m_eventList[j];
-            if (ev.m_type == 0)
+            switch (quest->m_eventDialogs[j].m_field0)
             {
-                if (ev.m_map == mapNo)
+            case 0:
+                if (quest->m_eventDialogs[j].m_field8 == fieldNo)
                 {
                     return 1;
                 }
-            }
-            else if (ev.m_type == 1)
-            {
-                if (ev.m_map == fieldNo)
+                break;
+            case 1:
+                if (quest->m_eventDialogs[j].m_field8 == dungeonNo)
                 {
                     return 1;
                 }
+                break;
             }
         }
     }
@@ -992,7 +807,7 @@ bool UserQuest::isDoingJobChangeQuest() const
         if (m_quest[i] != 0)
         {
             Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
-            if (quest != 0 && (quest->m_field1c == 1 || quest->m_field1c == 2))
+            if (quest != 0 && (quest->m_jobChangeQuest == 1 || quest->m_jobChangeQuest == 2))
             {
                 return true;
             }
@@ -1007,6 +822,7 @@ bool UserQuest::isDoingJobChangeQuest() const
 
 void UserQuest::ResetUrgentQuestWaitingList()
 {
+    Quest* quest2;
     for (int i = 0; i <= 19; ++i)
     {
         Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
@@ -1022,17 +838,17 @@ void UserQuest::ResetUrgentQuestWaitingList()
         return;
     }
 
-    Quest* quest = G_CDataManager()->find_quest(m_authenData.m_urgentQuest);
-    if (quest == 0)
+    quest2 = G_CDataManager()->find_quest(m_authenData.m_urgentQuest);
+    if (quest2 == 0)
     {
         m_authenData.m_urgentQuest = -1;
         return;
     }
 
-    int levelLimit = quest->m_levelLimit;
-    if (levelLimit > 0x46)
+    int levelLimit = quest2->m_levelMax;
+    if (levelLimit > UrgentQuestLevelLimit::kEndLvl)
     {
-        levelLimit = 0x46;
+        levelLimit = UrgentQuestLevelLimit::kEndLvl;
     }
     if (m_user->get_charac_level() + 1 > levelLimit)
     {
@@ -1053,9 +869,9 @@ bool UserQuest::hasEpicQuest()
     char cleared[0x7531];
     memcpy(cleared, &m_user->getCurCharacQuestR()->m_cleared, 0x7531);
 
-    QuestList* list = G_CDataManager()->m_questList;
-    std::multimap<int, int>* npcList = list->getQuestNPCList(ENUM_QUEST_GRADE_NONE);
-    list->allowable_questlist_as_npc(
+    std::multimap<int, int>* npcList =
+        G_CDataManager()->m_questList->getQuestNPCList(ENUM_QUEST_GRADE_NONE);
+    G_CDataManager()->m_questList->allowable_questlist_as_npc(
         questList, *npcList, selectParam,
         *reinterpret_cast<const WongWork::CQuestClear*>(cleared), false);
 
@@ -1068,16 +884,16 @@ bool UserQuest::hasEpicQuest()
             {
                 continue;
             }
-            bool bException = false;
-            for (unsigned int j = 0; j < quest->m_exceptions.size(); ++j)
+            char bException = 0;
+            for (unsigned int j = 0; j < quest->m_exceptionList.size(); ++j)
             {
-                if (quest->m_exceptions[j] == QUEST_EXCEPTION_NONE)
+                if (quest->m_exceptionList[j] == ENUM_QUEST_EXCEPTION_TYPE_0)
                 {
-                    bException = true;
+                    bException = 1;
                     break;
                 }
             }
-            if (!bException && selectParam.m_data[0] < quest->m_field20 + 0xc)
+            if (!bException && selectParam.m_level < quest->m_levelMin + 0xc)
             {
                 return true;
             }

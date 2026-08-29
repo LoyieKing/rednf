@@ -87,10 +87,20 @@ void CCreatureItem::SetCreatureItemType(user_creature::CREATURE_ITME_TYPE type)
     m_creatureItemType = type;
 }
 
-// 注：GetStat（ORIG W 0x0833eff0 movzbl +0x15、非 const 无参）与头内
-// `unsigned char GetStat() { return m_stat; }` mangled 完全一致
-// （_ZN13user_creature13CCreatureItem7GetStatEv），inline emission 即产生该
-// ORIG 符号——不在此重复定义（同一函数 inline 与外联并存将构成 ODR 冲突）。
+// ORIG _ZN13user_creature13CCreatureItem11GetNoChargeEv W 0x0833efd6（size 0x0e）：
+// movzbl 0x14(%eax),%eax 直返。P9：返回 unsigned char（bool 会生成 setne 规范化）。
+// 头内不再保留 inline 定义（无调用点则永不 emission → 仅 ORIG 缺口），外联产出符号。
+unsigned char CCreatureItem::GetNoCharge()
+{
+    return m_noCharge;
+}
+
+// ORIG _ZN13user_creature13CCreatureItem7GetStatEv W 0x0833eff0（size 0x0e）：
+// movzbl 0x15(%eax),%eax 直返。
+unsigned char CCreatureItem::GetStat()
+{
+    return m_stat;
+}
 
 // ============================================================================
 // CEgg（继承 CCreatureItem；布局替换 decl 见 txt）

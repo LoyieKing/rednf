@@ -64,13 +64,8 @@ typedef char df_game_vm_size_assert[sizeof(CVendingMachineStatistic) == 0x28 ? 1
 // 0x0860f8ad：函数内静态单例（__cxa_guard 构造-on-first-use + __cxa_atexit 析构）。
 CVendingMachineStatistic* GetInstanceVendingMachineStatistic();
 
-class TimerVendingMachineItemNotify
-{
-public:
-    // 0x08638074：static。仅转调 G_TimerQueue()->InsertTimer(OBJ_TYPE_0, uid,
-    // TIMER_MESSAGE(0xa), sec, param2, param3)。
-    static void registTimer(int uid, unsigned long itemIdx,
-                            unsigned int count, unsigned int type);
-};
+// TimerVendingMachineItemNotify 权威声明唯一在 TimerDispatcher.h（ORIG 继承
+// TimerSig，含 dispatch_sig 与 static registTimer）；此处 include 以保持旧消费方可见。
+#include "TimerDispatcher.h"
 
 #endif  // DNF_GAME_VENDING_MACHINE_H_

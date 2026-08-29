@@ -217,7 +217,7 @@ int CDataManager::initFairPVPSkillPoint()
                     if (found->second < 0)
                     {
                         cMyTrace trace(
-                            "bool CDataManager::initFairPVPSkillPoint()",
+                            __PRETTY_FUNCTION__,
                             0x2379, 0);
                         trace("skill point (-) error");
                         ok = false;
@@ -237,7 +237,7 @@ int CDataManager::initFairPVPSkillPoint()
                 {
                     running += sum - current;
                     cMyTrace trace(
-                        "bool CDataManager::initFairPVPSkillPoint()", 0x2390,
+                        __PRETTY_FUNCTION__, 0x2390,
                         0);
                     trace("skill point diff job(%d), skill(%d)",
                           (int)perIt->first.m_a, rem->first);
@@ -253,7 +253,7 @@ int CDataManager::initFairPVPSkillPoint()
             }
             if (grand != sum)
             {
-                cMyTrace trace("bool CDataManager::initFairPVPSkillPoint()",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x239f, 0);
                 trace("skill point diff");
                 ok = false;
@@ -313,7 +313,7 @@ int CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
             if (dungeon == 0)
             {
                 cMyTrace trace(
-                    "bool CDataManager::load_map_files(PVPMAP_VECTOR&)",
+                    __PRETTY_FUNCTION__,
                     0x254b, 5);
                 trace("[Load Map] Not exist dungeon. [Index:%d] filename : [%s]",
                       stageIdx, filename);

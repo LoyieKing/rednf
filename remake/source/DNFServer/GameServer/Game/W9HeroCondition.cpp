@@ -18,6 +18,8 @@
 
 #include "HeroMissionCondition.h"
 
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -79,10 +81,10 @@ HeroMissionCondition& HeroMissionCondition::operator=(
     m_isResetState = other.m_isResetState;
     m_mailTitle = other.m_mailTitle;
     m_mailContent = other.m_mailContent;
-
-    m_rewards.insert(m_rewards.end(), other.m_rewards.begin(),
-                     other.m_rewards.end());
-    m_extra.insert(m_extra.end(), other.m_extra.begin(), other.m_extra.end());
+    std::copy(other.m_rewards.begin(), other.m_rewards.end(),
+              std::back_inserter(m_rewards));
+    std::copy(other.m_extra.begin(), other.m_extra.end(),
+              std::back_inserter(m_extra));
     return *this;
 }
 
@@ -106,7 +108,7 @@ void HeroMissionCondition::clear()
 // HeroMissionCondition（默认构造）。
 BaseHeroMissionCondition::BaseHeroMissionCondition(
     HeroMissionCondition::MissionNo::T no)
-    : m_missionCode(static_cast<unsigned int>(no)), m_condition()
+    : m_condition(), m_missionCode(no)
 {
 }
 
@@ -128,10 +130,11 @@ unsigned int BaseHeroMissionCondition::getMissionCode()
     return m_missionCode;
 }
 
-// ORIG getMissionType 0x08164fb6：返回 *(int*)(this+0xc) = condition +0x00。
+// ORIG getMissionType 0x08164fb6：mov 0xc(%eax) → this+0xc = condition+0x04，
+// 即 m_field04（头注释原误标 +0x00，objdump 实证修正）。
 unsigned int BaseHeroMissionCondition::getMissionType()
 {
-    return static_cast<unsigned int>(m_condition.m_missionType);
+    return static_cast<unsigned int>(m_condition.m_field04);
 }
 
 // ORIG isRepeatMission 0x08164fc2：movzbl *(this+0x10) = condition 字节 +0x08。
@@ -164,41 +167,39 @@ std::string BaseHeroMissionCondition::getMailContent()
 // 成功 SendUpdateItem(1, 0, slot)；失败经 RDARScriptStringManager::findString
 // (table 4) 解析邮件标题/正文并发系统邮件。找不到物品则 trace 并整体 return false；
 // 循环正常结束返回 true。
+             
 bool BaseHeroMissionCondition::rewardProcess(CUser* user)
 {
     for (std::vector<HeroMissionCondition::RewardData>::iterator it =
-             m_condition.m_rewards.begin();
-         it != m_condition.m_rewards.end(); ++it)
+             m_condition.m_rewards.begin(),
+         end = m_condition.m_rewards.end();
+         it != end; ++it)
     {
-        const int rewardItem = it->m_itemIdx;
-
-        // ORIG 0x0816507e：G_CDataManager() + find_item(reward->m_itemIdx)。
-        CDataManager* dataMgr = G_CDataManager();
-        CItem* found = dataMgr == 0 ? 0 : dataMgr->find_item(rewardItem);
+        // ORIG 0x0816507e：pt() → ebx（跨 G_CDataManager 调用缓存，P52），
+        // G_CDataManager() 直返调用 find_item（无判空，P15 形态）。
+        CItem* found = G_CDataManager()->find_item(it.operator->()->m_itemIdx);
         if (found == 0)
         {
-            // ORIG 0x081650ad..0x08165109：cMyTrace(PRETTY, 0x6e, 5) +
-            // operator()("[HeroMission] Invalid item. (charac:%u, mission:%d,
-            // item:%u)", get_charac_no(-1), m_missionCode, rewardItem)。
-            char traceName[] =
-                "bool BaseHeroMissionCondition::rewardProcess(CUser*)";
-            cMyTrace trace(traceName, 0x6e, 5);
-            trace("[HeroMission] Invalid item. (charac:%u, mission:%d, item:%u)",
-                  static_cast<unsigned int>(user->get_charac_no(-1)),
-                  static_cast<int>(m_missionCode),
-                  static_cast<unsigned int>(rewardItem));
+            // ORIG 0x081650a3..0x08165109：临时链式 cMyTrace（P37/f2 探针实证：
+            // operator() 实参右→左先求值并 edi/esi/ebx 缓存，然后才构造临时）。
+            cMyTrace(__PRETTY_FUNCTION__,
+                     0x6e, 5)(
+                "[HeroMission] Invalid item. (charac:%u, mission:%d, item:%u)",
+                user->get_charac_no(-1), static_cast<int>(m_missionCode),
+                it->m_itemIdx);
             return false;
         }
 
         // ORIG 0x08165119..0x08165162：Inven_Item ctor → m_addInfo = reward 低 half
         // → make_item(vtable 槽) → set_add_info(ushort@reward+4)。
         Inven_Item item;
-        item.m_addInfo = rewardItem;
+        item.m_addInfo = it->m_itemIdx;
         found->make_item(item);
         item.set_add_info(static_cast<int>(it->m_addInfo));
 
         // ORIG 0x08165169..0x08165233。
-        short slot = static_cast<short>(
+        short slot = -1;
+        slot = static_cast<short>(
             user->getCurCharacInvenW()->insertItemIntoInventory(
                 item, eItemAddReason_0xd, true, true));
         if (slot >= 0)

@@ -51,21 +51,21 @@ CTrcOnOffEvent::~CTrcOnOffEvent() {}         // ORIG 0x08285a60（D0 编译器�
 void CTrcOnOffEvent::StartEvent()            // ORIG 0x08285aae
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x13, 0);
+    cMyTrace trace(__FUNCTION__, 0x13, 0);
     trace("Trc On Off Event Start!");
 }
 
 void CTrcOnOffEvent::EndEvent()              // ORIG 0x08285b52
 {
     SetEventFlag(false);
-    cMyTrace trace("EndEvent", 0x1f, 0);
+    cMyTrace trace(__FUNCTION__, 0x1f, 0);
     trace("Trc On Off Event Event End!");
 }
 
 void CTrcOnOffEvent::StartEvent(Word_Param)  // ORIG 0x08285b00
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x19, 0);
+    cMyTrace trace(__FUNCTION__, 0x19, 0);
     trace("Trc On Off Event Event Start!");
 }
 
@@ -81,21 +81,21 @@ CFatigueBuffEvent::~CFatigueBuffEvent() {}   // ORIG 0x0811bc06
 void CFatigueBuffEvent::StartEvent()         // ORIG 0x0811bc54
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x11, 0);
+    cMyTrace trace(__FUNCTION__, 0x11, 0);
     trace("CFatigueBuffEvent Event Start!");
 }
 
 void CFatigueBuffEvent::EndEvent()           // ORIG 0x0811bcc0
 {
     SetEventFlag(false);
-    cMyTrace trace("EndEvent", 0x1b, 0);
+    cMyTrace trace(__FUNCTION__, 0x1b, 0);
     trace("CFatigueBuffEvent Event End!");
 }
 
 void CFatigueBuffEvent::StartEvent(Word_Param)  // ORIG 0x0811bca6（同构）
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x19, 0);
+    cMyTrace trace(__FUNCTION__, 0x19, 0);
     trace("CFatigueBuffEvent Event Start!");
 }
 
@@ -106,21 +106,21 @@ CWeekendBonusEvent::~CWeekendBonusEvent() {} // ORIG 0x0811756c
 void CWeekendBonusEvent::StartEvent()        // ORIG 0x081175ba
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x12, 0);
+    cMyTrace trace(__FUNCTION__, 0x12, 0);
     trace("CWeekendBonusEvent Event Start!");
 }
 
 void CWeekendBonusEvent::EndEvent()          // ORIG 0x08117626
 {
     SetEventFlag(false);
-    cMyTrace trace("EndEvent", 0x1c, 0);
+    cMyTrace trace(__FUNCTION__, 0x1c, 0);
     trace("CWeekendBonusEvent Event End!");
 }
 
 void CWeekendBonusEvent::StartEvent(Word_Param)  // ORIG 0x0811760c（同构）
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x19, 0);
+    cMyTrace trace(__FUNCTION__, 0x19, 0);
     trace("CWeekendBonusEvent Event Start!");
 }
 
@@ -131,14 +131,14 @@ CAutoMarketConditionsControlEvent::~CAutoMarketConditionsControlEvent() {} // 0x
 void CAutoMarketConditionsControlEvent::StartEvent()  // ORIG 0x08109c7e
 {
     SetEventFlag(true);
-    cMyTrace trace("StartEvent", 0x13, 0);
+    cMyTrace trace(__FUNCTION__, 0x13, 0);
     trace("CAutoMarketConditionsControlEvent Start!");
 }
 
 void CAutoMarketConditionsControlEvent::EndEvent()    // ORIG 0x08109cf8
 {
     SetEventFlag(false);
-    cMyTrace trace("EndEvent", 0x1f, 0);
+    cMyTrace trace(__FUNCTION__, 0x1f, 0);
     trace("CAutoMarketConditionsControlEvent End!");
 }
 

@@ -12,6 +12,7 @@
 #include <map>
 #include <set>
 #include "CItemList.h"   // ::BaseItemKey / ::BaseItemValue 权威声明
+#include "CItemAmplifier.h"  // ENUM_RARITY（ORIG mangled Es11ENUM_RARITY；guard 幂等）
 #include <string>
 #include <utility>
 #include <vector>
@@ -53,10 +54,27 @@ struct PartSelectonField
 {
     int m_partType;   // +0x00
     int m_weight;     // +0x04
+
+    // ORIG W 0x08a787f8：D1/D2 空体 → 显式空析构（与 QuantityRatio/ResetValue 同型）。
+    ~PartSelectonField() {}
 };  // sizeof 8（_get_part_type / _get_part_type_by_ItemGroup 报告实证）
 
 struct PartSelectonValue
 {
+    // ORIG C1 W 0x08a73b8e（双 vector ctor + clear）/ C1ERKS W 0x08a741fc /
+    // D1 W 0x083ced2c（先 +0x10 后 +0x00 反序析构）/ clear W 0x08a73bf6，
+    // 全 W → 头内联。
+    PartSelectonValue() : m_vec0(), m_vec10() { clear(); }
+    PartSelectonValue(const PartSelectonValue& o)
+        : m_vec0(o.m_vec0), m_fieldC(o.m_fieldC), m_vec10(o.m_vec10) {}
+    ~PartSelectonValue() {}
+    void clear()
+    {
+        m_vec0.clear();
+        m_fieldC = 0;
+        m_vec10.clear();
+    }
+
     std::vector<PartSelectonField> m_vec0;   // +0x00（_get_part_type 权重表）
     int m_fieldC;                            // +0x0c（randInt 上界快照）
     std::vector<PartSelectonField> m_vec10;  // +0x10（_get_part_type_by_ItemGroup 权重表）
@@ -64,6 +82,18 @@ struct PartSelectonValue
 
 struct BaseItemSelectionValue
 {
+    // ORIG C1 W 0x08a73c22（vector ctor + clear）/ C1ERKS W 0x08a74308 /
+    // D1 W 0x083cee22（仅 vector dtor）/ clear W 0x08a73c64，全 W → 头内联。
+    BaseItemSelectionValue() : m_vec0() { clear(); }
+    BaseItemSelectionValue(const BaseItemSelectionValue& o)
+        : m_vec0(o.m_vec0), m_fieldC(o.m_fieldC) {}
+    ~BaseItemSelectionValue() {}
+    void clear()
+    {
+        m_vec0.clear();
+        m_fieldC = 0;
+    }
+
     std::vector<unsigned int> m_vec0;  // +0x00（_get_base_item 累积权重表）
     int m_fieldC;                      // +0x0c（randInt 上界；pair+0x10 实证）
 };  // sizeof 0x10
@@ -74,12 +104,20 @@ struct QuantityRatio
     int m_field0;             // +0x00
     unsigned int m_weight4;   // +0x04（_get_option_quantity 读 +4 为权重；
                               //   步长 8 系 OptionValueRatio 同构推断，标注[推断]）
+    // ORIG W 0x08a79264：D1/D2 空体（new_allocator<QuantityRatio>::destroy
+    //   调用 D1 实证非 trivial）→ 显式空析构。
+    ~QuantityRatio() {}
 };  // sizeof 8
 
 struct OptionValueRatio
 {
+    // ORIG C1 W 0x085f4176（三字清零）/ D1 W 0x08a799f8（空体用户析构），
+    // 无 C1ERKS 符号（隐式拷贝），全 W → 头内联。
+    OptionValueRatio() : m_scaleRange0(0), m_scaleBase4(0), m_weight8(0) {}
+    ~OptionValueRatio() {}
+
     float m_scaleRange0;       // +0x00（handle::_get_option_value 以 (max-min) 加权；
-                               //   W ctor 0x085f4176 三字清零，报告缺失 objdump 实证）
+                               //   W ctor 0x085f4176 三字清零）
     float m_scaleBase4;        // +0x04（ROI::RegenVer_get_option_value 以 min 加权）
     unsigned int m_weight8;    // +0x08（CRandomListEx 权重字）
 };  // sizeof 0xc
@@ -103,6 +141,20 @@ struct OptionQuantityValue
 
 struct OptionGroupChoiceValue
 {
+    // ORIG C1 W 0x08a73ce2（双 vector ctor + clear）/ C1ERKS W 0x08a746a6 /
+    // D1 W 0x083cf12a（先 +0xc 后 +0x00 反序析构）/ clear W 0x08a73d4a，
+    // 全 W → 头内联。
+    OptionGroupChoiceValue() : m_vec0(), m_vecC() { clear(); }
+    OptionGroupChoiceValue(const OptionGroupChoiceValue& o)
+        : m_vec0(o.m_vec0), m_vecC(o.m_vecC), m_field18(o.m_field18) {}
+    ~OptionGroupChoiceValue() {}
+    void clear()
+    {
+        m_vec0.clear();
+        m_vecC.clear();
+        m_field18 = 0;
+    }
+
     std::vector<int> m_vec0;                // +0x00（组 id 候选，at() 取值）
     std::vector<unsigned int> m_vecC;       // +0x0c（CRandomList<unsigned> 权重表）
     int m_field18;                          // +0x18（randInt 上界；pair+0x20 实证）
@@ -130,12 +182,25 @@ struct OptionGroup
 
 struct OptionGroupValue
 {
+    // ORIG C1 W 0x08a73d76（vector ctor + clear）/ C1ERKS W 0x08a74912 /
+    // D1 W 0x083cf30e（仅 vector dtor）/ clear W 0x08a73db8，全 W → 头内联。
+    OptionGroupValue() : m_vec0() { clear(); }
+    OptionGroupValue(const OptionGroupValue& o)
+        : m_vec0(o.m_vec0), m_fieldC(o.m_fieldC) {}
+    ~OptionGroupValue() {}
+    void clear()
+    {
+        m_vec0.clear();
+        m_fieldC = 0;
+    }
+
     std::vector<OptionGroup> m_vec0;  // +0x00（give_option 候选组表，拷贝后逐个 erase）
     int m_fieldC;                     // +0x0c（randInt 上界；pair+0x10 实证）
 };  // sizeof 0x10
 
 struct ChoosePrefix
 {
+    ChoosePrefix(int min, int max, int grade) : m_min(min), m_max(max), m_grade(grade) {}  // ORIG W 0x08a73dd6
     int m_min;      // +0x00
     int m_max;      // +0x04
     int m_grade;    // +0x08（grade + 1）
@@ -150,12 +215,32 @@ struct OPTION_MODIFICATION_COST
 
 struct ResetValue
 {
-    int m_min;   // +0x00（同时充当 CRandomList<ResetValue> 的权重字）
-    int m_max;   // +0x04
-};  // sizeof 8（reset_option 报告实证）
+    // 12 字节实证：ORIG _Vector_base<ResetValue>::~_Vector_base
+    //   (0x0839fe6a) 步长 sar$2+imul 0xaaaaaaab = /12；_M_insert_aux
+    //   (0x08a77b45) 异常清理 lea(%edx,%edx,2)+shl$2 亦 /12。
+    // ORIG W 0x08a7a958：D1/D2 空体；new_allocator<ResetValue>::destroy(0x08a7a95e)
+    //   call D1 实证非 trivial → 显式空析构（同 QuantityRatio/PartSelectonField 型）。
+    int m_min;      // +0x00（reset_option 报告：区间下限）
+    int m_max;      // +0x04（区间上限；pair 用 (m_max-m_min-1) 作 randInt 界）
+    int m_weight8;  // +0x08（CRandomList<unsigned>::operator()(ResetValue)
+                    //   0x085f5e9e 读 0x14(%ebp) 作权重累加）
+    ~ResetValue() {}
+};  // sizeof 0xc
 
 struct ResetValues
 {
+    // ORIG C1 W 0x08a73df6（vector ctor + clear）/ clear W 0x08a73e38 /
+    // C1ERKS W 0x08a74cda / D1 W 0x083cf4b4（仅 vector dtor），全 W → 头内联。
+    ResetValues() : m_values() { clear(); }
+    ResetValues(const ResetValues& o)
+        : m_values(o.m_values), m_count(o.m_count) {}
+    ~ResetValues() {}
+    void clear()
+    {
+        m_values.clear();
+        m_count = 0;
+    }
+
     std::vector<ResetValue> m_values;  // +0x00（reset_option 报告：vector::size/begin/end 于 pair+4）
     int m_count;                       // +0x0c（randInt 上界-1 来源；pair+0x10 实证）
 };  // sizeof 0x10
@@ -166,11 +251,10 @@ public:
     RandomOptionScript();
     ~RandomOptionScript();
     void clear();
-    int getPrefixGrade(int level) const;
-    std::string getPrefix(int prefix, bool flag);
+    int getPrefixGrade(int level);  // ORIG 0x08a73a80（非 const，_ZN mangled）
     std::string getPrefix(int prefix, int grade, bool flag);  // ORIG 0x08a73956
 
-    int getOptionModificationCost(short level, int rarity) const;
+    int getOptionModificationCost(short level, ENUM_RARITY rarity) const;
 
     // ---- 成员布局（0x230 字节） ----
     std::map<RandomApplicationKey, RandomApplicationValue> m_map0;    // +0x00
@@ -212,16 +296,20 @@ bool importRandomOptionScript(RandomOptionScript& script, const char* path);
 
 // ---- 脚本内嵌 provider 抽象（script+0x148 对象的静态视图）------------------
 // vtable 槽序按 _get_option_type(槽0)/_choose_option_group(槽1) 报告实证：
-//   槽0 返回 map<RandomApplicationKey, map<int, RandomOptionGain>>& —— 即
+//   槽0 返回 map<RandomApplicationKey, map<int, RandomOptionGive>>& —— 即
 //     _get_option_type 的 find/end 宿主；槽1 返回 u64→OptionGroupChoiceValue 表。
 // 注意：ORIG 槽0/槽1 即业务虚函数，无虚析构前置，勿调整顺序。
+// 纯虚名按 ORIG mangled（_ZN23CRandomOptionGiveNormal15get_option_typeEv 等
+// 派生 override 实证）改回 get_option_type/get_option_group_choice；
+// 派生类 CRandomOptionGiveNormal(+0x148)/CModifiedRandomOptionGive(+0x154)
+// 布局均为 vptr+双指针（ORIG W ctor/getter 0x08372550..0x08372640 objdump）。
 class CRandomOptionGive
 {
 public:
     virtual std::map<RandomApplicationKey,
-                     std::map<int, RandomOptionGive> >& getGiveMap() = 0;        // 槽0
+                     std::map<int, RandomOptionGive> >& get_option_type() = 0;        // 槽0
     virtual std::map<unsigned long long, OptionGroupChoiceValue>&
-                                                     getGroupChoiceMap() = 0;    // 槽1
+                                     get_option_group_choice() = 0;                    // 槽1
 protected:
     ~CRandomOptionGive() {}
 };

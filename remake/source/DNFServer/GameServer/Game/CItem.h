@@ -79,6 +79,10 @@ public:
     int getItemGroupName() const;
     int getUsableLevel() const;
     int GetNeedLevel() const;              // ORIG W 0x08545fda _ZNK5CItem12GetNeedLevelEv
+    int GetUpSkillType() const;            // ORIG W 0x08545fcc _ZNK5CItem13GetUpSkillTypeEv：返回 +0xf0
+   DyeInfo* GetDyeInfo() const;           // ORIG W 0x822c86e _ZNK5CItem10GetDyeInfoEv：返回 &m_dyeInfo9c（this+0x9c）
+   bool hasCategory(STItemScript::ENUM_ITEM_CATEGORY category) const;  // ORIG W 0x822c97a：m_set128 查询
+   unsigned char IsBanRedeemItem() const; // ORIG W 0x85f7be0 _ZNK5CItem15IsBanRedeemItemEv：返回 +0x144
     // ---- W7-BigThree 批（increase_status 链用；W 内联，定义落 CUserOnlyOrig.cpp）----
     int GetUsablePvPRank() const;          // ORIG W 0x086946c4 _ZNK5CItem16GetUsablePvPRankEv：返回 +0xec
     int GetIncreaseStatusType() const;     // ORIG W 0x086946b6 _ZNK5CItem21GetIncreaseStatusTypeEv：返回 +0x8c
@@ -95,7 +99,7 @@ public:
 
     CItem* GetNeedMaterial() const;
     bool check_item_routing() const;
-    unsigned char check_job_type(char job) const;
+    bool check_job_type(char job) const;
     bool isEpicRoutingItem() const;
     bool IsRoutingItem() const;           // ORIG 0x8150f18（返回 +0xbd 路由标志）
     bool IsPriorityJob(int job, int growType);   // ORIG W 0x085beec8（m_vecC0 路由优先职业匹配）
@@ -133,16 +137,13 @@ public:
     int m_attachType;                     // +0x34
     int m_rarity;                         // +0x38
     bool m_jobUsable[0xb];                // +0x3c（check_job_type）
-    char m_pad47[1];                      // +0x47
     int m_usableLevel;                    // +0x48
     int m_field4c;                        // +0x4c
     int m_field50;                        // +0x50
     bool m_stackable;                     // +0x54
-    char m_pad55[3];                      // +0x55
     int m_int58;                          // +0x58
     int m_int5c;                          // +0x5c
     char m_char60;                        // +0x60
-    char m_pad61[3];                      // +0x61
     int m_field64;                        // +0x64
     int m_field68;                        // +0x68
     int m_usablePeriod;                   // +0x6c
@@ -150,7 +151,6 @@ public:
     int m_itemGroupName;                  // +0x74
     char m_char78;                        // +0x78
     bool m_bool79;                        // +0x79（isEpicRoutingItem）
-    char m_pad7a[2];                      // +0x7a
     int m_int7c;                          // +0x7c
     int m_int80;                          // +0x80
     bool m_impossibleUpgrade;             // +0x84
@@ -159,25 +159,21 @@ public:
     bool m_impossibleGift;                // +0x87
     bool m_impossibleCharacCargo;         // +0x88
     bool m_possibleKiriProtection;        // +0x89
-    char m_pad8a[2];                      // +0x8a..0x8c
     int m_increaseStatusType;             // +0x8c（ORIG GetIncreaseStatusType W 0x086946b6 直读）
-    char m_pad8e[2];                      // +0x8e..0x90
     std::vector<int> m_vec90;             // +0x90
     DyeInfo m_dyeInfo9c;                  // +0x9c（DyeInfo，16 字节）
     int m_periodAfterUnsealing;           // +0xac
     std::string m_strb0;                  // +0xb0（GetItemIconName）
     STSpecialMonsterDrop m_drop;          // +0xb4（STSpecialMonsterDrop，9 字节）
     bool m_isRoutingItem;                 // +0xbd（IsRoutingItem，源自脚本 +0x10f）
-    char m_padBE[2];                      // +0xbe..0xc0
     std::vector<std::pair<int, int> > m_vecC0;  // +0xc0
     int m_questBonus;                     // +0xcc
-    char m_padD0[4];                      // +0xd0
+    bool m_boolD0;                        // +0xd0（IsUse2ndUpgradeTableRecipe 0x869475e：movzbl 0xd0 直返）
     std::set<int> m_setd4;                // +0xd4..0xec
     int m_intEC;                          // +0xec
     int m_intF0;                          // +0xf0
     int m_intF4;                          // +0xf4
     bool m_boolF8;                        // +0xf8（IsHiddenOption）
-    char m_padF9[3];                      // +0xf9..0xfc
     float m_floatFC;                      // +0xfc（GetExpertJobCompoundMaterialVariation）
     float m_float100;                     // +0x100（GetExpertJobCompoundRateVariation）
     std::vector<STItemScript::SEXPERTJOB::SUSABLE> m_vec104;  // +0x104..0x110
@@ -190,7 +186,10 @@ public:
     std::set<STItemScript::ENUM_ITEM_CATEGORY> m_set128;      // +0x128..0x140
     unsigned long m_parentBoosterItemId;  // +0x140（派生类 set/get_parent_booster_item_id）
     char m_char144;                       // +0x144
-    char m_pad145[3];                     // +0x145..0x148
 };
+
+// ORIG 0x08326739 T 全局：GetItemType() ∈ {0xe, 0xf, 0x10} 即包类商品
+//（CCeraShop_Special.cpp 的 file-static 同名版已移除，统一走本全局定义）。
+bool _isPackageItem(const CItem* item);
 
 #endif  // GAME_CITEM_H_

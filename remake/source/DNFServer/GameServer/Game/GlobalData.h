@@ -127,6 +127,9 @@ public:
     CRevengeDungeon();
     bool IsOpenRevengeDungeon();   // ORIG W 0x8234ff6（读 +0x0 字节）
     int GetCloseTime();            // ORIG _ZN16village_attacked15CRevengeDungeon11GetCloseTimeEv
+    void SetCloseTime(unsigned int sec);        // ORIG W 0x0847dd36（InterWave1 批）
+    void OpenRevengeDungeon();                  // ORIG W 0x0847dd1e
+    void CloseRevengeDungeon();                 // ORIG W 0x0847dd2a
     bool m_isOpen;                 // +0x00
     int m_field04;                 // +0x04
 };
@@ -198,7 +201,6 @@ extern CSystemTime s_systemTime_;                            // 0941f714 (0x14)
 extern XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
 extern CEventManager* s_event_manager;                       // 0941f730
 extern WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
-extern SPremiumInfo g_SPremiumInfo[0x6a];                    // 09483a40 (0x7740)
 extern InstanceRentalSystem* s_rentalSystem;                 // 0941f738
 extern RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
 extern WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740
@@ -233,14 +235,17 @@ extern CItemAmplifier* s_itemAmplifier_;                     // 0941f7e8
 extern CGlobalEffectManager* s_globalEffectManager_;         // 0941f7ec
 extern ARAD::Arad_ServerStateManager* s_serverStateManager_; // 0941f7f0
 extern CTimeGate* s_timeGate_;                               // 0941f7f4
-extern int g_GoldControlDateFlag;                            // 0941f7f8
+extern unsigned int g_GoldControlDateFlag;                   // 0941f7f8
 extern StackableAction::Action* g_Actions;                   // 0941f7fc
 extern expert_extraction::CExtractionMgr* g_ExtractionMgr;   // 0941f800
 extern CaptchaGen cg_;                                       // 0941f804 (0x14)
 extern void* g_pTeleport[2];                                 // 0941f818 (8)
 extern random_option::CRandomOptionItemHandle* g_randomOptionHandle; // 0941f820
 extern void* s_pAvatarRoulette;                              // 0941f824
-}
+} // namespace GlobalData
+
+// g_SPremiumInfo 为全局 C 名（ORIG B 0x09483a40；无命名空间），声明见 SPremiumInfo.h。
+extern SPremiumInfo g_SPremiumInfo[0x6a];                    // 09483a40 (0x7740)
 
 // ---- W6_SecMiscDeps 批追加（仅 append，不改既有布局）----
 #include "CRijndael.h"          // CSecurityCardCenter 基类（ORIG +0x0 子对象 0x47c）

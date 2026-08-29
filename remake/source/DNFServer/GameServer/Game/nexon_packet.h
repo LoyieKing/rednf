@@ -15,7 +15,12 @@
 namespace nexon_packet
 {
 
+// ORIG 域常量 _ZN12nexon_packetL11MaxBodySizeE（r 段 4 字节 = 0x1000，实测
+// 0x08af2de4）；stLoginPacket body 缓冲长度。
+static const int MaxBodySize = 4096;
+
 // PC 房登录载荷。ORIG 中按原始偏移逐字段操作（CUser.cpp SendLoginToPCRoom-
+
 // Server/Logout 亦按 +0/+1/+2/+0x101/+0x102/+0x201/+0x205/+0x206/+0x20a 填充），
 // 因此定义为 packed，保证 sizeof==0x20e 且各偏移与 ORIG 一致。
 #pragma pack(push, 1)
@@ -83,7 +88,7 @@ private:
     stLoginPacket& operator=(const stLoginPacket&);
 
 public:
-    unsigned char m_body[0x1000];  // +0x04
+    unsigned char m_body[MaxBodySize];  // +0x04
 };
 
 }  // namespace nexon_packet

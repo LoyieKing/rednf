@@ -35,8 +35,18 @@
 #include "DNFLexWrapper.h"            // loadRDARScriptFile/ScanType/ScanInt/ScanStr/ScanFloat
 #include "LogManager.h"               // LogManager::logFormat
 
-#include <cstring>
+// PVP_NORMAL_BATTLE_TIME / PVP_DM_BATTLE_TIME —— ORIG D 0x093f4ee0 / 0x093f4ee8
+// （各 [2] int，{0,0} 静态初始化）。ORIG 中与本 TU 的 g_equipmentPartSetMap_ /
+// characterEquipmentTypeTags 同源文件且为文件内首个具名对象，决定
+// `_GLOBAL__I_PVP_NORMAL_BATTLE_TIME` 静态初始化键名（c6root gcc4.4 探针验证）；
+// 因此定义必须置于本文件首个具名对象位置，PvP_Room.cpp 仅 extern 引用。
+// ============================================================================
+int PVP_NORMAL_BATTLE_TIME[2] = {0, 0};
+int PVP_DM_BATTLE_TIME[2] = {0, 0};
 
+// ============================================================================
+// characterEquipmentTypeTags —— ORIG D 0x093f4fc0（26 项 const char*）
+// 内容逐项提取自 ORIG .rodata 指针表（0x8e15e81..0x8e15fad）。
 // ============================================================================
 // characterEquipmentTypeTags —— ORIG D 0x093f4fc0（26 项 const char*）
 // 内容逐项提取自 ORIG .rodata 指针表（0x8e15e81..0x8e15fad）。
@@ -470,7 +480,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
     if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              "ImportWarAreaCounter", 0xdeb,
+                              __FUNCTION__, 0xdeb,
                               "CRITICAL ERROR : \xec\x9f\x81\xec\x97\xad "
                               "\xec\xb9\xb4\xec\x9a\xb4\xed\x84\xb0 "
                               "\xec\x8a\xa4\xed\x81\xac\xeb\xa6\xbd\xed\x8a\xb8 "
@@ -586,10 +596,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
                     const int v = ScanInt(&ok);
                     if (!ok)
                         return 0;
-                    if (j == 0)
-                        wp.m_0 = v;
-                    else
-                        wp.m_pts[j - 1] = v;
+                    wp.m_pts[j] = v;
                 }
                 out->m_wpPerMonsterHp.insert(
                     std::make_pair(key, wp));            // greater<int> 键序
@@ -818,7 +825,7 @@ bool ImportSecurityReward(SecurityReward* out)
     if (!loadRDARScriptFile("", "Etc/SecurityReward.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              "ImportSecurityReward", 0x2c36,
+                              __FUNCTION__, 0x2c36,
                               "CRITICAL ERROR : SecurityReward faild!");
         return false;
     }
@@ -859,7 +866,7 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              "importEquipmentPartSetInfo", 0x168b,
+                              __FUNCTION__, 0x168b,
                               "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 "
                               "\xec\xb0\xbe\xec\x9d\x84\xec\x88\x98 "
                               "\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88\xeb\x8b\xa4.",
@@ -917,7 +924,7 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
                                    moduleType, it->first))
         {
             LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                                  "importEquipmentPartSetInfo", 0x16c2,
+                                  __FUNCTION__, 0x16c2,
                                   "ERROR : \xec\x9e\xa5\xeb\xb9\x84\xeb\xb6\x80"
                                   "\xec\x9c\x84\xec\x85\x8b\xed\x8a\xb8 \xea\xb5"
                                   "\xac\xec\x84\xb1\xed\x92\x88 %s \xed\x8c\x8c"

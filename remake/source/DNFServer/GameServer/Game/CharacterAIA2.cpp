@@ -11,10 +11,13 @@
 //     （copy-ctor 报告 docs/class_func_reports/STAIInfoScript/STAIInfoScript.md
 //       完整转写成员集；默认 C1/D1/clear/destroy 报告缺失 → objdump 转写）
 //   CAICharacter C1 W 0x08373a9a / D1 W 0x08373b32（报告缺失 → objdump 转写）
-//   importAICharacterCommonScript T 0x088c9ccc
-//     （报告 _lt_global_gt_/importAICharacterCommonScript.md 完整转写）
-//   importAIInfoScript T 0x08a390db
-//     （报告 _lt_global_gt_/importAIInfoScript.md 完整转写）
+//   STAIInfoScript C1ERKS T 0x08a38bc6 / aSERKS_ T 0x08a38e34
+//     （报告 STAIInfoScript/STAIInfoScript.md 与 operator=.md 完整转写）
+//   isExistAiPattern T 0x08a2232f / exportAIPatternPath T 0x08a223b0
+//     （报告 _lt_global_gt_/isExistAiPattern.md 与 exportAIPatternPath.md 完整转写）
+//   getRandomChampionElement(STAICharacterCommonScript) T 0x088b9d54
+//     （报告 _lt_global_gt_/getRandomChampionElement_088b9d54.md 完整转写）
+//   CNPCDynamicInfo C1 W 0x0858191c（报告缺失 → objdump 转写）
 //   CNPCDynamicInfo C1 W 0x0858191c（报告缺失 → objdump 转写）
 //   PowerParameterScript::clear W 0x0837187a（报告缺失 → objdump 转写）
 //   isKeyFile T 0x088c9a4c / getFileName T 0x088c9a98 / makeKeyFullPath T 0x08a38b5d
@@ -24,11 +27,7 @@
 //     （ORIG .data 指针表逐项解引用 .rodata 字符串提取，NULL 终止实证）
 // ============================================================================
 
-#include <cstdio>
-#include <cstring>
-#include <map>
-#include <string>
-#include <vector>
+#include <cstdlib>
 
 #include "CDataManager.h"            // PowerParameterScript 完整声明 + stMonsterIndependentDrop_t
 #include "STCharacterScript.h"       // STRDCharacterStatus / ActiveActionFileSet 权威布局
@@ -178,7 +177,8 @@ struct APCSpeech
         m_lines.clear();
         m_probs.clear();
     }
-    void add(const std::string& line, int prob)
+    // ORIG W 0x088cc3b2 _ZN9APCSpeech3addERSsi：非 const std::string& 形参。
+    void add(std::string& line, int prob)
     {
         m_lines.push_back(line);
         m_probs.push_back(prob);
@@ -296,12 +296,13 @@ typedef char assert_enamy_info_size[(sizeof(stEnamyDropAvatarInfo_t) == 0x3c) ? 
 // STAIInfoScript（多态：ORIG _ZTV/_ZTI/_ZTS14STAIInfoScript 存在；sizeof 0x224）
 // copy-ctor 报告 STAIInfoScript/STAIInfoScript.md 完整转写成员集；
 // 默认 C1/D1/clear/destroy 报告缺失 → objdump 转写。
-// ============================================================================
 class STAIInfoScript
 {
 public:
     STAIInfoScript();
+    STAIInfoScript(const STAIInfoScript& other);      // ORIG T 0x08a38bc6（C1/C2 同址）
     virtual ~STAIInfoScript();          // 发 D1/D0/vtable，匹配 ORIG 符号集
+    STAIInfoScript& operator=(const STAIInfoScript& other);  // ORIG T 0x08a38e34
     void clear();                       // ORIG W 0x083673d4
     void destroy();                     // ORIG W 0x0836753a
 
@@ -397,9 +398,49 @@ typedef char assert_stai_script_size[
 
 // ---- 生命周期 ----
 
-STAIInfoScript::STAIInfoScript()
+STAIInfoScript::STAIInfoScript(const STAIInfoScript& other)
 {
+    // ORIG C1ERKS T 0x08a38bc6：vptr + 成员默认构造（编译器生成）→ clear() → operator=()。
     clear();
+    *this = other;
+}
+
+STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
+{
+    // ORIG T 0x08a38e34（objdump 逐条转写）：
+    // destroy() → m_thinkTerm/m_destinationChangeTerm → m_dir →
+    // m_patterns[5] 深拷贝（new string）→ m_targetingBonus[22] 与
+    // m_targetingBonusStr[22] → m_keepDistance → m_keepRange[5] →
+    // m_vision/m_backVision/m_intelligence/m_field1f0/m_field1f4 →
+    // m_noChangeTarget。【+0x204..+0x220 m_pod204 不触碰】（ORIG 固有）
+    destroy();
+    m_thinkTerm = other.m_thinkTerm;
+    m_destinationChangeTerm = other.m_destinationChangeTerm;
+    m_dir = other.m_dir;
+    for (int p = 0; p < 5; ++p)
+    {
+        for (std::size_t i = 0; i < other.m_patterns[p].size(); ++i)
+        {
+            std::string* elem = other.m_patterns[p][i];
+            std::string* created = new std::string(*elem);
+            m_patterns[p].push_back(created);
+        }
+    }
+    for (int i = 0; i <= 21; ++i)
+    {
+        m_targetingBonus[i] = other.m_targetingBonus[i];
+        m_targetingBonusStr[i] = other.m_targetingBonusStr[i];
+    }
+    m_keepDistance = other.m_keepDistance;
+    for (int i = 0; i < 5; ++i)
+        m_keepRange[i] = other.m_keepRange[i];
+    m_vision = other.m_vision;
+    m_backVision = other.m_backVision;
+    m_intelligence = other.m_intelligence;
+    m_field1f0 = other.m_field1f0;
+    m_field1f4 = other.m_field1f4;
+    m_noChangeTarget = other.m_noChangeTarget;
+    return *this;
 }
 
 STAIInfoScript::~STAIInfoScript()
@@ -1161,8 +1202,70 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
     }
     return true;
 }
+// ============================================================================
+// isExistAiPattern —— ORIG T 0x08a2232f
+// 报告 _lt_global_gt_/isExistAiPattern.md 完整转写。
+// bucket==-1 遍历 5 个难度桶；否则只查指定桶；任一非空返 1，否则 0。
+int isExistAiPattern(STAIInfoScript* info, int bucket)
+{
+    if (info != 0)
+    {
+        if (bucket != -1)
+        {
+            if (!info->m_patterns[bucket].empty())
+                return 1;
+        }
+        else
+        {
+            for (int i = 0; i < 5; ++i)
+            {
+                if (!info->m_patterns[i].empty())
+                    return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 // ============================================================================
+// exportAIPatternPath —— ORIG T 0x08a223b0
+// 报告 _lt_global_gt_/exportAIPatternPath.md 完整转写。
+// 遍历指定桶内模式名，截掉 m_dir 目录前缀后 fprintf 每行 "`%s`\n"。
+// ============================================================================
+void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket)
+{
+    std::vector<std::string*>::iterator it;
+    std::string out;
+    it = info->m_patterns[bucket].begin();
+    while (it != info->m_patterns[bucket].end())
+    {
+        out = (*it)->substr(info->m_dir.length(), (*it)->length());
+        fprintf(f, "`%s`\n", out.c_str());
+        ++it;
+    }
+}
+
+// ============================================================================
+// getRandomChampionElement —— ORIG T 0x088b9d54（STAICharacterCommonScript 版；
+// STMonsterScript 版在 STMonsterScript.cpp）。报告
+// _lt_global_gt_/getRandomChampionElement_088b9d54.md 完整转写。
+// m_championElements(+0xf20) 非空 → rand()%size 取元素；空 → rand()%4+1。
+// ============================================================================
+int getRandomChampionElement(const STAICharacterCommonScript* script, int seed)
+{
+    int result = 4;
+    const int size = (int)script->m_championElements.size();
+    srand(seed);
+    if (size == 0)
+    {
+        result = rand() % 4 + 1;
+    }
+    else
+    {
+        result = script->m_championElements[rand() % size];
+    }
+    return result;
+}
 // CNPCDynamicInfo —— C1 W 0x0858191c（报告缺失 → objdump 转写）：
 //   m_script = a; +0x04 = 3; +0x08 = 0x7fffffff; +0x0c = 0。
 // 完整类型归 NPC 动态域；本 TU 仅需产生该 ctor 符号
@@ -1212,8 +1315,8 @@ void PowerParameterScript::clear()
     m_powerUpAssaultVictoryRatio = 0;  // +0x50
     m_powerWarPointMultiple = 0;       // +0x54
     m_straightVictories = 0;           // +0x58
-    m_pad5c = 5;                       // +0x5c（ORIG clear 默认 5）
-    m_pad60 = 5;                       // +0x60（ORIG clear 默认 5）
+    m_timeAssaultSuperPowerStateOnJoin = 5;  // +0x5c（ORIG clear 默认 5）
+    m_timeAssaultSuperPowerStateAfter = 5;   // +0x60（ORIG clear 默认 5）
     m_vec70.clear();                   // +0x70
     m_basicPowerWarPoint = 0;          // +0x7c
     m_firstGradeBonusPoint = 0;        // +0x80
@@ -1223,7 +1326,7 @@ void PowerParameterScript::clear()
     m_requiredUserPoint4Dungeon = 0;   // +0x90
     m_powerWarDungeonInfo0 = 0;        // +0x94
     m_powerWarDungeonInfo1 = 0;        // +0x98
-    m_vec38.clear();                   // +0x38
+    m_vec38.clear();                    // +0x38
     m_pcRoomBonus = 0;                 // +0x44
     m_minEnterLevel = 0;               // +0x64
     m_minEnterAge = 0;                 // +0x68
@@ -1272,3 +1375,13 @@ CAICharacter::CAICharacter()
 CAICharacter::~CAICharacter()
 {
 }
+
+// ---- force 发射 APCSpeech::add（ORIG W 0x088cc3b2）----
+namespace {
+void forceApcSpeechAddEmission()
+{
+    APCSpeech sp;
+    std::string line;
+    sp.add(line, 0);
+}
+}  // namespace

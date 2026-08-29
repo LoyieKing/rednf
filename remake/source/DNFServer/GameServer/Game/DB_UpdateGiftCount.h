@@ -40,3 +40,14 @@ public:
     // _ZN29DB_UpdateBreakAwayAccruedCera11makeRequestEjj。
     static void makeRequest(unsigned int param_1, unsigned int param_2);
 };
+
+// DB_UpdateBreakAwayUvList（ORIG vtable @0x8c5ead0 / C1 W @0x0844ed76）：
+// makeRequest T @0x0843873a [报告缺失→objdump 转写]：Acquire("DBThread.cpp",
+// 0x8622) | opcode 0x147 | -1 | accId(u32) | GetInBuffer<SIG_BREAK_AWAY_UV_LIST>
+// ← strncpy(uvInfo,0x1f) | MsgQueueMgr::put(DB_Q)。无 this → 静态成员（同上先例）；
+// _ZN24DB_UpdateBreakAwayUvList11makeRequestEjPc。
+class DB_UpdateBreakAwayUvList
+{
+public:
+    static void makeRequest(unsigned int accId, char* uvInfo);
+};

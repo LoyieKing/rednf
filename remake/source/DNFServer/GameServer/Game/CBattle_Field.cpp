@@ -15,6 +15,7 @@
 #include "TimerQueue.h"
 #include "PacketGuard.h" // 权威 PacketGuard(0xc)
 #include "CQuickPartyRewardManager.h"
+#include "GameRand.h"  // get_rand_int
 
 // ============================================================================
 
@@ -327,7 +328,10 @@ int CBattle_Field::getBloodState()
 
 char* CBattle_Field::GetEnableHellDungeon()
 {
-    return (char*)0x93701ec;
+    // ORIG 0822cf26：mov $0x93701ec,%eax; ret（POD 无 guard 的函数局部
+    // static，V 符号 _ZZN13CBattle_Field20GetEnableHellDungeonEvE19enable_hell_dungeon）。
+    static char enable_hell_dungeon;
+    return &enable_hell_dungeon;
 }
 
 void CBattle_Field::SetEnableHellDungeon(bool flag)
@@ -431,9 +435,9 @@ unsigned char CBattle_Field::IsKilledAllHellGruoups()
     return m_killedAllHellGroups;
 }
 
-void CBattle_Field::SetRidableObjectState(int idx, eRidableObjectState state)
+int CBattle_Field::SetRidableObjectState(int idx, eRidableObjectState state)
 {
-    m_ridable.SetRidableObjectState(idx, state);
+    return m_ridable.SetRidableObjectState(idx, state);
 }
 
 void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
@@ -444,6 +448,24 @@ void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
     m_ridable.CheckAppearRidableObject(m_party, x, y, packet);
 }
 
+// CBattle_Field::GetFieldMob —— ORIG 0x0830a708（0x10a 字节）
+//   报告：docs/class_func_reports/CBattle_Field/GetFieldMob.md
+//   迭代器先默认构造（P28：it = find(...) 经临时中转拷贝）；两次独立
+//   GetCurrentMapInfo()（P48 无 CSE）；找到则经块作用域临时 map_monster
+//   拷贝给 out（tmp 析构先于 return true，对齐 ORIG 的 mov $1 在 dtor 后）。
+bool CBattle_Field::GetFieldMob(int uid, map_monster& out)
+{
+    std::map<int, map_monster>::iterator it;
+    it = GetCurrentMapInfo()->m_monsterMap.find(uid);
+    if (it == GetCurrentMapInfo()->m_monsterMap.end())
+        return false;
+    {
+        map_monster tmp(it->second);
+        out = tmp;
+    }
+    return true;
+}
+
 int CBattle_Field::getBloodMaxRound()
 {
     if (m_pDungeon != 0)
@@ -451,6 +473,39 @@ int CBattle_Field::getBloodMaxRound()
         return ((CDungeon_8a0_proxy*)m_pDungeon)->m_8a0;
     }
     return 0;
+}
+
+// CBattle_Field::BloodRoundMaxTimePacket —— ORIG 0x08305dc4（0xd8 字节）
+//   报告：docs/class_func_reports/CBattle_Field/BloodRoundMaxTimePacket.md
+//   header 0xd6 = 大轮+1、最大时间、秒数；经 m_party 广播。
+void CBattle_Field::BloodRoundMaxTimePacket(short round, int a, int b)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xd6);
+    packet.put_byte(0);
+    packet.put_byte((int)round + 1);
+    packet.put_int(a);
+    packet.put_int(b);
+    packet.finalize(true);
+    m_party->send_to_party(packet);
+}
+
+// CBattle_Field::getNextRoundRandomDifficulty —— ORIG 0x08306156（0x5f 字节）
+//   报告：docs/class_func_reports/CBattle_Field/getNextRoundRandomDifficulty.md
+//   大轮序==最大轮-1 → 1；否则掷 100，<=49 → 2，否则 1。
+int CBattle_Field::getNextRoundRandomDifficulty()
+{
+    if ((short)m_bloodRound.getBloodRoundOrder() == getBloodMaxRound() - 1)
+    {
+        return 1;
+    }
+    else
+    {
+        int r = get_rand_int(100);
+        if (r > 49)
+            return 1;
+        return 2;
+    }
 }
 
 // ============================================================================

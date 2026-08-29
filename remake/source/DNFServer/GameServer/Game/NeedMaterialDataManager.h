@@ -20,6 +20,7 @@ class NeedMaterialDataManager
 public:
     static NeedMaterialDataManager* getInstance();
     CItem* getNeedMaterial(const CItem* item) const;
+    CItem* getNeedMaterial(int index) const;   // ORIG T 0x081b5bf2：getNeedMaterial(G_CDataManager()->find_item(i))
     void setNeedMaterialInfo(int idx, const std::pair<int, int>& info);   // ORIG 0x081b5b46 T
 
 private:

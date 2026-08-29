@@ -12,11 +12,20 @@ struct QC_SaveFlagView
     unsigned char m_pad[0x7530];
     unsigned char m_saveFlag;   // +0x7530
 };
+// ORIG W 0x0848f768：movb $0,(%eax)（仅置首字节）。
+STClearedQuest::STClearedQuest()
+{
+    m_cleared = 0;
+}
 
 CQuestClear::CQuestClear()
 {
-    // ORIG 0x08694b92：循环 0x7530 次调用 STClearedQuest::C1Ev（每次将首字节=0）后调
-    // clear()。STClearedQuest 为 POD（C1Ev 仅置首字节 0），净效果即全部清零。
+    // ORIG W 0x08694b92 sz 0x3e（objdump 转写）：i=0x752f..0 循环 0x7530 次调用
+    // STClearedQuest::C1Ev（步长 1，每次置对象首字节 0）后调 clear()。
+    // STClearedQuest::C1Ev 仅置首字节 0（ORIG 0x0848f768：movb $0,(%eax)），
+    // 逐字节循环净效果与之一致（m_cleared 为 unsigned char[0x7530]）。
+    for (register int i = 0x752f; i != -1; --i)
+        m_cleared[i] = 0;
     clear();
 }
 

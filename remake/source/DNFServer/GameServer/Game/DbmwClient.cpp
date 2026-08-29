@@ -70,7 +70,8 @@ bool DbmwClient::SendHeader(char type, int bodyLen)
 
 bool DbmwClient::RegistToMiddleware()
 {
-    return SendHeader('\0', 0);
+    static const char REGIST_GO = 0;  // ORIG _ZZN10DbmwClient18RegistToMiddlewareEvE9REGIST_GO
+    return SendHeader(REGIST_GO, 0);
 }
 
 bool DbmwClient::ReceiveRegistAck()
@@ -88,7 +89,7 @@ bool DbmwClient::ReceiveRegistAck()
     if (ret < 1)
     {
         int errNo = errno;
-        cMyTrace trace("ReceiveRegistAck", 0xfd, 0);
+        cMyTrace trace(__FUNCTION__, 0xfd, 0);
         trace("AccountDBMW select error : %d(%s)", errNo, strerror(errNo));
         Close();
         return false;
@@ -100,18 +101,18 @@ bool DbmwClient::ReceiveRegistAck()
     {
         int msgNo = (int)(char)m_recvBuf[1];
         {
-            cMyTrace trace("ReceiveRegistAck", 0x117, 0);
+            cMyTrace trace(__FUNCTION__, 0x117, 0);
             trace("AccountDBMW read msg_no : %d", msgNo);
         }
         if (msgNo == 0)
         {
-            cMyTrace trace("ReceiveRegistAck", 0x11d, 0);
+            cMyTrace trace(__FUNCTION__, 0x11d, 0);
             trace("AccountDBMW regist Ok");
             return true;
         }
         Close();
         LogManager::logFormat(1, "localchina/DbmwClient.cpp",
-                              "ReceiveRegistAck", 0x123,
+                              __FUNCTION__, 0x123,
                               "AccountDBMW regist fail");
         return false;
     }
@@ -119,7 +120,7 @@ bool DbmwClient::ReceiveRegistAck()
     {
         if (got != -1)
         {
-            cMyTrace trace("ReceiveRegistAck", 0x110, 0);
+            cMyTrace trace(__FUNCTION__, 0x110, 0);
             trace("ReceiveRegistAck read size error : %d, expected : %d",
                   got, expected);
         }
@@ -189,7 +190,7 @@ int DbmwClient::ReadData(char* dst, int len)
                 continue;
             int errNo = errno;
             LogManager::logFormat(
-                1, "localchina/DbmwClient.cpp", "ReadData", 0x1dd,
+                1, "localchina/DbmwClient.cpp", __FUNCTION__, 0x1dd,
                 "AccountDBMW read error; recv result:%d, errno:%d:%s",
                 (int)got, errNo, strerror(errNo));
             return -1;
@@ -204,6 +205,7 @@ int DbmwClient::ReadData(char* dst, int len)
 
 bool DbmwClient::DoQuery()
 {
+    static const char UPDATE_QUERY_GO = 1;  // ORIG _ZZN10DbmwClient7DoQueryEvE15UPDATE_QUERY_GO
     // ORIG @0x08120cd0。
     m_affectedRow = 0;
     size_t qlen = strlen(m_query);
@@ -212,7 +214,7 @@ bool DbmwClient::DoQuery()
     if (m_queryLen != qlen)
         return false;
 
-    if (!SendHeader('\x01', (int)m_queryLen))
+    if (!SendHeader(UPDATE_QUERY_GO, (int)m_queryLen))
     {
         Close();
         return false;
@@ -243,7 +245,7 @@ int DbmwClient::DoReceive()
     if (ret < 1)
     {
         int errNo = errno;
-        cMyTrace trace("DoReceive", 0x25e, 0);
+        cMyTrace trace(__FUNCTION__, 0x25e, 0);
         trace("AccountDBMW select error : %d(%s)", errNo, strerror(errNo));
         Close();
         return 0;
@@ -255,7 +257,7 @@ int DbmwClient::DoReceive()
     {
         if (got != -1)
         {
-            cMyTrace trace("DoReceive", 0x271, 0);
+            cMyTrace trace(__FUNCTION__, 0x271, 0);
             trace("AccountDBMW header read size error : %d, expected : %d",
                   got, headerLen);
         }
@@ -265,7 +267,7 @@ int DbmwClient::DoReceive()
 
     int msgNo = (int)(char)m_recvBuf[1];
     {
-        cMyTrace trace("DoReceive", 0x278, 0);
+        cMyTrace trace(__FUNCTION__, 0x278, 0);
         trace("AccountDBMW read msg_no : %d", msgNo);
     }
     if (msgNo == 1)
@@ -279,7 +281,7 @@ int DbmwClient::DoReceive()
     if (payloadLen >= 0x1b)
     {
         Close();
-        LogManager::logFormat(1, "localchina/DbmwClient.cpp", "DoReceive",
+        LogManager::logFormat(1, "localchina/DbmwClient.cpp", __FUNCTION__,
                               0x284,
                               "AccountDBMW header packet size invalid!!");
         return 0;
@@ -291,7 +293,7 @@ int DbmwClient::DoReceive()
     {
         if (payloadGot != -1)
         {
-            cMyTrace trace("DoReceive", 0x290, 0);
+            cMyTrace trace(__FUNCTION__, 0x290, 0);
             trace("AccountDBMW payload read size error:%d", payloadGot);
         }
         Close();
@@ -299,7 +301,7 @@ int DbmwClient::DoReceive()
     }
 
     {
-        cMyTrace trace("DoReceive", 0x296, 0);
+        cMyTrace trace(__FUNCTION__, 0x296, 0);
         trace("AccountDBMW payload read ok");
     }
     memcpy(&m_affectedRow, m_recvBuf + 0x16, sizeof(unsigned int));
@@ -314,7 +316,7 @@ bool DbmwClient::Reconnect()
     if (!ok)
     {
         LogManager::logFormat(
-            1, "localchina/DbmwClient.cpp", "Reconnect", 0x2cd,
+            1, "localchina/DbmwClient.cpp", __FUNCTION__, 0x2cd,
             "AccountDBMW Reconnect() Error!! Query(%s)", m_query);
     }
     return ok;
@@ -340,7 +342,7 @@ int DbmwClient::exec()
         needReconnect = !(IsInitialized() && IsConnected());
         if (needReconnect)
         {
-            LogManager::logFormat(1, "localchina/DbmwClient.cpp", "exec",
+            LogManager::logFormat(1, "localchina/DbmwClient.cpp", __FUNCTION__,
                                   0x306,
                                   "AccountDBMW exec() reconnect fail Query(%s)",
                                   m_query);
@@ -351,13 +353,14 @@ int DbmwClient::exec()
     return received;
 }
 
-void DbmwClient::getAffectedRowCount() const
+long long DbmwClient::getAffectedRowCount()
 {
-    // ORIG @0x08120dac：空函数直接 ret（Ghidra 报告 void）。
+    // ORIG T @0x08120dac：mov 0x30(%eax),%eax; mov %eax,%edx; sar $0x1f,%edx; ret
+    // → 读 +0x30（m_affectedRow）符号扩展返 64 位。头声明 long long（非 const）。
+    return static_cast<long long>(static_cast<signed int>(m_affectedRow));
 }
 
-bool DbmwClient::IsInitialized() const { return m_initialized; }   // W 0x0812141c
-bool DbmwClient::IsConnected() const { return m_connected; }       // W 0x08121428
+// IsInitialized/IsConnected 头内联（W）——cpp 不再重复定义。
 
 void DbmwClient::Error(int level, int useErrno, char* fmt, ...)
 {

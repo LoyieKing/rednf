@@ -51,16 +51,11 @@ void PlayerInfoThird::reset()
 // fair_pvp::TeamInfoThird
 // ---------------------------------------------------------------------------
 
-// ORIG C1/C2 0x85668ff0（W）：仅循环对 4 个 PlayerInfoThird 子对象做默认
-// 构造；ORIG 子对象构造经 CharacterKind(+0x05) 将 job/growType 两字节清零
-// 【推断】，不动 m_field00/m_field04（由 reset 显式置值）。
+// ORIG C1/C2 0x85668ff0（W）：仅对 4 个 PlayerInfoThird 子对象做默认构造
+// （esi=3 递减循环 call PlayerInfoThird::C1）；不动 m_field00/m_field04
+// （由 reset 显式置值）。编译器自动为 m_players[4] 逐个调用 PlayerInfoThird()。
 TeamInfoThird::TeamInfoThird()
 {
-    for (int i = 0; i < 4; ++i)
-    {
-        m_players[i].m_job = 0;
-        m_players[i].m_growType = 0;
-    }
 }
 
 // ORIG reset 0x8562582：清玩家数组后 m_field00=0、m_field04=2。

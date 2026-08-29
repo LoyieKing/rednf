@@ -7,7 +7,7 @@
 // CTimeGate : village_object::IObject —— 时间之门（village 中的可视图标）
 // ----------------------------------------------------------------------------
 // ORIG 布局（继承 IObject，vptr @ +0x00）：
-//   +0x00  vptr（vtable for CTimeGate 0x8c0beb8；slot0=include/reset、slot1=put_object_info）
+//   +0x00  vptr（vtable for CTimeGate 0x8c0beb8；slot0=include、slot1=put_object_info）
 //   +0x04  unsigned char m_openState （SetLevel 写入 +0x04；isOpen 读 +0x04 == 0x64；
 //            put_object_info 以 movzbl 零扩展读取）
 //   +0x08  int  m_villageIndex     （getVillageIndex 0x84ed480：mov +0x08）
@@ -19,9 +19,8 @@
 // 虚函数：
 //   ctor 0x8284512：IObject 基类 ctor -> 置 CTimeGate vptr -> m_openState=0
 //   dtor 0x8284536：仅重设 vptr
-//   put_object_info 0x82844d8（vtable slot1，IObject 纯虚）：
-//       put_byte(2); put_byte(m_openState); return 1
-//   slot0（IObject 纯虚 reset；ORIG 该槽符号名为 include，返回 0）→ 空操作
+//   slot0（IObject 纯虚）→ include 0x82845a0（return 0）→ 碰撞检测回调，
+//   本类恒不碰撞。
 // ============================================================================
 
 class CTimeGate : public village_object::IObject
@@ -31,19 +30,19 @@ public:
     ~CTimeGate();                                  // ORIG 0x8284536
 
     // village_object::IObject 抽象方法实现
-    void reset();                                  // ORIG vtable slot0（空操作）
+    bool include(const village_object::IObject&) const;  // vtable slot0（ORIG W 0x82845a0：return 0）
     bool put_object_info(PacketGuard& p);          // ORIG 0x82844d8
 
     void SetTimeGate(int a, int b, int c, int d, int e);   // ORIG 0x86d2788
     bool setBlindTimeGateStateQuest(int questIdx);         // ORIG 0x8234e46
-    void SetLevel(int level) { m_openState = (unsigned char)level; } // ORIG 0x84ed4a4
-    char isOpen() const;                                   // ORIG 0x8234e1c
+    void SetLevel(int level);                              // ORIG W 0x84ed4a4
+    bool isOpen() const;                                   // ORIG 0x8234e1c（bool：P22 xor $1 取反形态）
 
-    int getVillageIndex() const { return m_villageIndex; } // ORIG 0x84ed480
-    int getAreaIndex() const { return m_areaIndex; }       // ORIG 0x84ed48c
-    int getNpcIndex() const { return m_npcIndex; }         // ORIG 0x84ed498
-    int getQuestIndex() const { return m_questIndex; }     // ORIG 0x8234e2e
-    int getOpenedQuestIndex() const { return m_openedQuestIndex; } // ORIG 0x8234e3a
+    int getVillageIndex() const;                           // ORIG W 0x84ed480
+    int getAreaIndex() const;                              // ORIG W 0x84ed48c
+    int getNpcIndex() const;                               // ORIG W 0x84ed498
+    int getQuestIndex() const;                             // ORIG W 0x8234e2e
+    int getOpenedQuestIndex() const;                       // ORIG W 0x8234e3a
 
 private:
     unsigned char m_openState;   // +0x04

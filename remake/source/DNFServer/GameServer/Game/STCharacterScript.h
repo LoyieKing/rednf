@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+class STRDCharacterStatusClient;  // 完整定义 STRDCharacterStatusClient.h
 // ============================================================================
 // df_game_r 还原 —— STCharacterScript 静态脚本表宿主类。
 // ORIG nm（df_game_r）证据：
@@ -38,7 +39,10 @@ class WeaponInfo;
 class STRDCharacterStatus
 {
 public:
+    STRDCharacterStatus() { Clear(); }   // ORIG C1/C2 W 0x0836773e：调 Clear 清零
     void Clear();                        // ORIG _ZN19STRDCharacterStatus5ClearEv W 0x08367642
+    // ORIG T 0x08a0c942：Client（0x98 展开块）→ 本 packed 块截断回填
+    STRDCharacterStatus& operator=(const STRDCharacterStatusClient&);
 
     int m_hpMax;                         // +0x00
     int m_mpMax;                         // +0x04
@@ -66,6 +70,7 @@ public:
 class CharacterEtcStats
 {
 public:
+    CharacterEtcStats();                 // ORIG C1Ev W 0x0836778c（vector C1 + clear）
     void clear();                        // ORIG _ZN17CharacterEtcStats5clearEv W 0x08367752
 
     std::vector<int> m_category;         // +0x00（[category]）

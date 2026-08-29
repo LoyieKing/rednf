@@ -61,7 +61,7 @@ public:
     void reset();                            // 0x82a6512
     void insertNewIP(unsigned int ip, ENUM_BLACKIPMONITOR_PUNISH_TYPE type,
                      unsigned int idCnt, long startTime, long endTime);  // 0x84eba54
-    void deleteIP(char const* ipStr, unsigned int type);                 // 0x84ebace
+    char deleteIP(char const* ipStr, unsigned int type);                  // 0x84ebace（ORIG test %al 返回单字节，W6 批）
     unsigned int getPunishType(char const* ipStr);                       // 0x84ebba6
     long GetEndTime(char const* ipStr, ENUM_BLACKIPMONITOR_PUNISH_TYPE type);  // 0x84ebc8c
 

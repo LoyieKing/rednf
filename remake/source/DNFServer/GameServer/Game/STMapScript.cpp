@@ -31,19 +31,28 @@
 #include <vector>
 
 #include "CMap.h"
+#include "STMapScript.h"    // ENUM_MAP_FOLLOW_TYPE/ENUM_PASSAGETYPE（权威头）
 #include "CVillageMonsterMgr.h"   // MapArea / STAttackedMonster（全局作用域权威头）
 #include "DNFLexWrapper.h"        // loadRDARScriptFile/ScanType/ScanInt/ScanStr...
-#include "LogManager.h"           // LogManager::logFormat
+#include "StringResource.h"       // CStringManager::getStr（getSkillCategoryName）
+#include "CDataManager.h"         // stHellParty_t 视图链头（DataManagerInitDepends 须在其后）
 #include "CDataManager.h"         // stHellParty_t 视图链头（DataManagerInitDepends 须在其后）
 #include "DataManagerInitDepends.h" // stHellParty_t / stHellPartyMonsterGroupList
 #include "HellPartyGroupOrder.h"  // STHellPartyGroupOrder/Rate + pool 单例声明
+#include "CreatureScript.h"      // ENUM_ELEMENT（getElementName 形参）
+#include "NpcScript.h"          // STScriptFileList（checkValidIndex 形参）
+#include "STCharacterScript.h"  // STCharacterScript / STRDCharacterStatus / CharacterEtcStats
 
 // ---- 跨 TU 符号（ORIG 地址随注；定义在各自所属批次 TU）----
 extern char g_szMapScriptBaseDirectory[0x100];                    // B 0x094fe2a0
+extern char g_szCharacterScriptBaseDirectory[0x100];             // B 0x094f7470（InitScriptProducers_4.cpp）
 extern std::map<int, std::string> g_stMapScriptFileList;          // B 0x094fe3a0
+void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st);            // T 0x08a0fb38（OnlyOrigBatch14.cpp）
+void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >* vec);  // T 0x08a0fff6
+void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats);          // T 0x08a100f3
 void getScriptFileFullPath(char* out, unsigned int size,
                            const char* dir, const char* name);    // T 0x088bba4e
-const char* getElementName(int element);                          // 0x088bfee0
+const char* getElementName(ENUM_ELEMENT element);                 // 0x088bfee0（CreatureScript.h）
 const char* getDrawLayerName(ENUM_DRAWLAYER drawLayer);          // T 0x088be212
 int getDrawLayer(const char* s);                                  // 0x088be12d
 int getElement(const char* s);                                    // 0x088bfe5b
@@ -77,8 +86,8 @@ static const char* const g_gridSymbols[16] = {
     "II", "JJ", "KK", "LL", "MM", "NN", "OO", "PP",
 };
 
-// ORIG CHAMPION_FEATURE_NAME @0x093f55a0（名称按特征值低字节索引）
-static const char* const CHAMPION_FEATURE_NAME[37] = {
+// ORIG CHAMPION_FEATURE_NAME @0x093f55a0（D 段全局，可写指针数组；指针非 const → 默认外部链接）
+const char* CHAMPION_FEATURE_NAME[37] = {
     "[Immune-Magic]", "[Immune-Physic]", "[Enhance-Physicaldefense]",
     "[Enhance-Magicaldefense]", "[Immune-Fire]", "[Immune-Water]",
     "[Immune-Light]", "[Immune-Dark]", "[Immune-ActiveStatus]",
@@ -105,9 +114,7 @@ static const int CHAMPION_FEATURE_LIST[37] = {
 };
 
 // ORIG 函数局部静态（b 段）：convertBinaryToText 缓冲 0x0949b4e0（0x5b400）、
-// getDrawLayerName 缓冲 0x0949b4d0（0x10）。
-static char s_convertToTextBuffer[0x5b400];
-static char s_drawLayerNameBuffer[0x10];
+// getDrawLayerName 缓冲 0x0949b4d0（0x10）——声明位于各自函数内。
 
 // ORIG rodata 层名表 @0x08e086b2..0x08e086fa（getDrawLayer/getDrawLayerName 共用）
 static const char* const DRAW_LAYER_NAMES[7] = {
@@ -136,7 +143,8 @@ void ScanChampionFeatures(int count, STAssignMonster& monster)
     }
 }
 
-static void WriteChampionFeatures(FILE* file, const STAssignMonster& monster)
+// ORIG T 0x089e6e94（全局符号；本 TU 内唯一调用点，去 static 以发射 T）。
+void WriteChampionFeatures(FILE* file, STAssignMonster& monster)
 {
     fprintf(file, "%d ", static_cast<int>(monster.m_vec28.size()));
     for (size_t i = 0; i < monster.m_vec28.size(); ++i)
@@ -230,22 +238,24 @@ static int importTimeLinePhases(advancealtar::TimeLine* timeline)
 
 const char* getDrawLayerName(ENUM_DRAWLAYER drawLayer)
 {
+    static char buffer[0x10];   // ORIG _ZZ16getDrawLayerName14ENUM_DRAWLAYERE6buffer 0x0949b4d0
     switch (drawLayer)
     {
-    case DRAWLAYER_CLOSE:       strncpy(s_drawLayerNameBuffer, "[close]", 0x10); break;
-    case DRAWLAYER_NORMAL:      strncpy(s_drawLayerNameBuffer, "[normal]", 0x10); break;
-    case DRAWLAYER_BOTTOM:      strncpy(s_drawLayerNameBuffer, "[bottom]", 0x10); break;
-    case DRAWLAYER_CLOSEBACK:   strncpy(s_drawLayerNameBuffer, "[closeback]", 0x10); break;
-    case DRAWLAYER_MIDDLEBACK:  strncpy(s_drawLayerNameBuffer, "[middleback]", 0x10); break;
-    case DRAWLAYER_DISTANTBACK: strncpy(s_drawLayerNameBuffer, "[distantback]", 0x10); break;
-    case DRAWLAYER_COVER:       strncpy(s_drawLayerNameBuffer, "[cover]", 0x10); break;
-    default:                    strncpy(s_drawLayerNameBuffer, "[normal]", 0x10); break; // ORIG 缺省 → "[normal]"
+    case DRAWLAYER_CLOSE:       strncpy(buffer, "[close]", 0x10); break;
+    case DRAWLAYER_NORMAL:      strncpy(buffer, "[normal]", 0x10); break;
+    case DRAWLAYER_BOTTOM:      strncpy(buffer, "[bottom]", 0x10); break;
+    case DRAWLAYER_CLOSEBACK:   strncpy(buffer, "[closeback]", 0x10); break;
+    case DRAWLAYER_MIDDLEBACK:  strncpy(buffer, "[middleback]", 0x10); break;
+    case DRAWLAYER_DISTANTBACK: strncpy(buffer, "[distantback]", 0x10); break;
+    case DRAWLAYER_COVER:       strncpy(buffer, "[cover]", 0x10); break;
+    default:                    strncpy(buffer, "[normal]", 0x10); break; // ORIG 缺省 → "[normal]"
     }
-    return s_drawLayerNameBuffer;
+    return buffer;
 }
 
 void convertBinaryToText(const char* path)
 {
+    static char buffer[0x5b400];   // ORIG _ZZ19convertBinaryToTextPKcE6buffer 0x0949b4e0
     int count = 0;                                        // -0x10(%ebp)
     FILE* fp = fopen(toMbcs(path), "rb");                 // 0x08e086ac
     for (int c = fgetc(fp); c != -1; c = fgetc(fp))       // -0xc(%ebp)
@@ -255,14 +265,14 @@ void convertBinaryToText(const char* path)
         if (c == '\n')
         {
             // 首字符或前一字符非 '\r' 时补 '\r'（\n 归一为 \r\n）
-            if (count == 0 || s_convertToTextBuffer[count - 1] != '\r')
-                s_convertToTextBuffer[count++] = '\r';
+            if (count == 0 || buffer[count - 1] != '\r')
+                buffer[count++] = '\r';
         }
-        s_convertToTextBuffer[count++] = static_cast<char>(c);
+        buffer[count++] = static_cast<char>(c);
     }
     fclose(fp);
     fp = fopen(toMbcs(path), "wb");                       // 0x08e086af
-    fwrite(s_convertToTextBuffer, 1, count, fp);
+    fwrite(buffer, 1, count, fp);
     fclose(fp);
 }
 
@@ -543,6 +553,12 @@ void STAssignDefensePhaseTime::Clear()      // ORIG 0x089e85a8
     m_spawnCnt = 0;                         // 无 +0x18 字节写（布局止于 +0x14）
 }
 
+// ORIG STAssignSpecialPassiveObj::C1Ev W 0x089e87a6：vector 默认构造后调 Clear()。
+STAssignSpecialPassiveObj::STAssignSpecialPassiveObj()
+{
+    Clear();
+}
+
 void STAssignSpecialPassiveObj::Clear()     // ORIG 0x089e875a
 {
     m_0 = -1;                               // +0x00 movl $-1
@@ -649,6 +665,19 @@ void STQuestAnimation::Clear()              // ORIG 0x089e83ae
 }
 
 STQuestAnimation::STQuestAnimation()        // ORIG 0x089e83d2
+{
+    Clear();
+}
+// ---- STAssignPassiveObject（ORIG C1 0x089e8440 / Clear 0x089e8414，W）----
+void STAssignPassiveObject::Clear()
+{
+    m_0 = -1;       // +0x00 movl $0xffffffff
+    m_4 = 0;        // +0x04
+    m_8 = 0;        // +0x08
+    m_c = 0;        // +0x0c
+}
+
+STAssignPassiveObject::STAssignPassiveObject()
 {
     Clear();
 }
@@ -2334,7 +2363,7 @@ bool ImportMapScript(STMapScript* script, const char* path)
 
 bool ExportMapScript(STMapScript* script, const char* path)
 {
-    char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
+    static char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
     getScriptFileFullPath(szSaveFileName, 0x100,
                           g_szMapScriptBaseDirectory, path);
     FILE* file = fopen(szSaveFileName, "wb");
@@ -2418,7 +2447,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
     }
     if (script->m_element != 4)                 // +0x6c != Clear 值
         fprintf(file, "[elemental property] `%s`\n",
-                getElementName(script->m_element));
+                getElementName(static_cast<ENUM_ELEMENT>(script->m_element)));
     if (script->m_sightScroll[0] != defaults.m_sightScroll[0])
         fprintf(file, "[far sight scroll] %d\n", script->m_sightScroll[0]);
     if (script->m_sightScroll[1] != defaults.m_sightScroll[1])
@@ -2564,7 +2593,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
                     typeTok.c_str(), roleTok.c_str(),
                     isChampion ? ' ' : '\n');
             if (isChampion)
-                WriteChampionFeatures(file, *it);
+                WriteChampionFeatures(file, const_cast<STAssignMonster&>(*it));
         }
         fwrite("[/monster]\n", 1, 11, file);
     }
@@ -2793,4 +2822,581 @@ bool ExportMapScript(STMapScript* script, const char* path)
     fclose(file);                               // func_0x0807dea0
     convertBinaryToText(szSaveFileName);
     return true;
+}
+
+// ===========================================================================
+// 脚本名表导出自由函数 —— ORIG 0x088be0xx-0x088c0xxx 段（脚本字符串/枚举
+// 名表导出域；getDrawLayerName/convertBinaryToText 同域已在本 TU 定义）。
+// 逐函数依据 docs/class_func_reports/_lt_global_gt_/*.md 转写。
+// ===========================================================================
+
+// ---- 全局枚举（ORIG mangled 名要求类型名与全局作用域一致；成员名不可考——
+//      ORIG 无 DWARF，按对应名字符串推断命名）----
+
+// ORIG 0x088be343：follow 类型 → 名字。命中 strncpy 到函数局部静态缓冲
+// （_ZZ..E6buffer，b 段 0x30）并返回；未命中返回 0。
+const char* getFollowTypeName(ENUM_MAP_FOLLOW_TYPE followType)
+{
+    static char buffer[0x30];
+    if (followType == MAP_FOLLOW_TYPE_PATH_GATE)
+        strncpy(buffer, "[path gate]", 0x30);
+    else if (followType == MAP_FOLLOW_TYPE_PARENT)
+        strncpy(buffer, "[parent]", 0x30);
+    else if (followType == MAP_FOLLOW_TYPE_FROM_PARENT)
+        strncpy(buffer, "[from parent]", 0x30);
+    else if (followType == MAP_FOLLOW_TYPE_KEEP_POSITION)
+        strncpy(buffer, "[keep position]", 0x30);
+    else
+        return 0;
+    return buffer;
+}
+
+// ORIG 0x088be3e7：passage 类型 → 名字（同 getFollowTypeName 缓冲模式）。
+const char* getPassageTypeName(ENUM_PASSAGETYPE passageType)
+{
+    static char buffer[0x30];
+    if (passageType == PASSAGETYPE_PASS_ALL)
+        strncpy(buffer, "[pass all]", 0x30);
+    else if (passageType == PASSAGETYPE_PASS_ONLY_FLOAT_TYPE)
+        strncpy(buffer, "[pass only float type]", 0x30);
+    else if (passageType == PASSAGETYPE_DO_NOT_PASS)
+        strncpy(buffer, "[do not pass]", 0x30);
+    else if (passageType == PASSAGETYPE_PASS_ONLY_RED_TEAM)
+        strncpy(buffer, "[pass only red team]", 0x30);
+    else if (passageType == PASSAGETYPE_PASS_ONLY_BLUE_TEAM)
+        strncpy(buffer, "[pass only blue team]", 0x30);
+    else if (passageType == PASSAGETYPE_PASS_ONLY_CHARACTER)
+        strncpy(buffer, "[pass only character]", 0x30);
+    else
+        return 0;
+    return buffer;
+}
+
+// ORIG 0x088be60e：职业枚举 → 职业标签名。strncpy 0x10 到函数局部静态缓冲
+// （_ZZ..E6buffer 0x10）。ORIG 表即 0x93f4d40 作业名表（getCharacterJob/
+// checkValiedJobName 共用）；此处以等价局部静态表建模，无边界检查照 ORIG。
+const char* getCharacterJobName(ENUM_CHARACTERJOB job)
+{
+    static char buffer[0x10];
+    static const char* const kJobTagNames[11] = {
+        "[swordman]",         // 0
+        "[fighter]",          // 1
+        "[gunner]",           // 2
+        "[mage]",             // 3
+        "[priest]",           // 4
+        "[at gunner]",        // 5
+        "[thief]",            // 6
+        "[at fighter]",       // 7
+        "[at mage]",          // 8
+        "[demonic swordman]", // 9
+        "[creator mage]"      // 10
+    };
+    strncpy(buffer, kJobTagNames[job], 0x10);
+    return buffer;
+}
+
+// ORIG 0x088be4d9：职业/技能类目 → 字符串资源 id（CStringManager::getStr）。
+// job>0xa 或 category>4 → 0；category==4 → getStr(0x522a)；否则按 job 基址
+// + category 查询（job 8..10 基址为 0，照 ORIG switch 无 default 的 local_10）。
+const char* getSkillCategoryName(ENUM_CHARACTERJOB job, int category)
+{
+    // ORIG：job>0xa 直接返回 0（jg）；category<=4（jbe 无符号）才进主体。
+    if (job > 0xa)
+        return 0;
+    else if ((unsigned int)category <= 4u)
+    {
+        if (category == 4)
+            return CStringManager::getStr(0x522a);
+        int base = 0;
+        switch (job)
+        {
+        case 0:  base = 0x5226; break;
+        case 1:  base = 0x522b; break;
+        case 2:  base = 0x522f; break;
+        case 3:  base = 0x5233; break;
+        case 4:  base = 0x5237; break;
+        case 5:  base = 0x522f; break;
+        case 6:  base = 0x3310; break;
+        case 7:  base = 0x522b; break;
+        default: break;
+        }
+        return CStringManager::getStr(base + category);
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+// ORIG 0x088c0144：字符串向量线性查找，命中返回下标，未命中 0xffffffff。
+unsigned int getIndexOfStringFromStringVector(const char* s,
+                                              std::vector<std::string>& vec)
+{
+    for (unsigned int i = 0; i < vec.size(); ++i)
+    {
+        if (vec[i] == s)
+            return i;
+    }
+    return 0xffffffff;
+}
+
+// ORIG 0x088c019d：下标 → 字符串（越界返回 0）。
+const char* getStringOfIndexFromStringVector(int index,
+                                             std::vector<std::string>& vec)
+{
+    if ((unsigned int)index < vec.size())
+        return vec[index].c_str();
+    return 0;
+}
+
+// ORIG 0x088c03d6：RDARScript 错误日志输出。
+void OutputErrorMessage(const char* msg)
+{
+    LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0xa26, msg);
+}
+
+// ORIG 0x088bf2b8：职业/成长类型 → 成长类型名。ORIG 在函数内构造
+// map<pair<job,grow>,const char*>（32 条）后 find；此处以等价静态表线性
+// 查找建模，未命中返回 "none"（ORIG &DAT_08e08840）。
+const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
+{
+    static const struct GrowTypeNameEntry
+    {
+        int m_job;
+        int m_grow;
+        const char* m_name;
+    } kGrowTypeNames[32] = {
+        { 1, 0, "weaponmaster" },     { 2, 0, "soulbringer" },
+        { 3, 0, "berserker" },        { 4, 0, "asura" },
+        { 1, 1, "nenmaster" },        { 2, 1, "striker" },
+        { 3, 1, "streetfighter" },    { 4, 1, "grappler" },
+        { 1, 2, "ranger" },           { 2, 2, "launcher" },
+        { 3, 2, "mechanic" },         { 4, 2, "spitfire" },
+        { 1, 3, "elementalmaster" },  { 2, 3, "summoner" },
+        { 3, 3, "battlemage" },       { 4, 3, "witch" },
+        { 1, 4, "crusader" },         { 2, 4, "infighter" },
+        { 3, 4, "exorcist" },         { 4, 4, "avenger" },
+        { 1, 5, "ranger" },           { 2, 5, "launcher" },
+        { 3, 5, "mechanic" },         { 4, 5, "spitfire" },
+        { 1, 6, "rogue" },            { 2, 6, "necromancer" },
+        { 1, 7, "nenmaster" },        { 2, 7, "striker" },
+        { 3, 7, "streetfighter" },    { 4, 7, "grappler" },
+        { 1, 8, "elementalbomber" },  { 2, 8, "glacialmaster" },
+    };
+    for (int i = 0; i < 32; ++i)
+    {
+        if (kGrowTypeNames[i].m_job == (int)job &&
+            kGrowTypeNames[i].m_grow == grow)
+            return kGrowTypeNames[i].m_name;
+    }
+    return "none";
+}
+
+
+// ============================================================================
+// OnlyOrigBatch11 追加：checkValidIndex —— ORIG T 0x089e6f33
+//（与 WriteChampionFeatures 同段；STScriptFileList::GetFileName 命中返回 1）
+// ============================================================================
+int checkValidIndex(int index, STScriptFileList& list)
+{
+    if (list.GetFileName(index) == 0)
+        return 0;
+    return 1;
+}
+
+// ===========================================================================
+// OnlyOrigBatch12 追加：procSpecialPassiveObjectVerifyError —— ORIG T
+// 0x089e6f62。动作验证状态机：j==0 读动作类型名（[monster]/[trap]/[item]/
+// [quest]/[hellparty]，未知记 CRITICAL_ERROR）；j==1 读索引并核对
+// （monster/trap 查 checkValidIndex，item 查 assignItems 未用标记 0xffff0001）；
+// j>=2 直接 ScanInt。[hellparty] 分支与 procSpecialPassiveObject 同构，
+// 处理完立即返回 hasError（ORIG 控制流）。
+// ===========================================================================
+bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
+                                         const char* path,
+                                         STScriptFileList& monsterList,
+                                         STScriptFileList& trapList,
+                                         std::list<STAssignItem>& assignItems,
+                                         STAssignSpecialPassiveObj& owner,
+                                         int fileIdx)
+{
+    bool hasError = false;                     // -0x35
+    std::string tok;                           // -0xd4
+    std::vector<int> heapVec;                  // -0xd0
+    std::priority_queue<int> groupQueue(std::less<int>(), heapVec);  // -0xe4
+    int fieldIdx = 0;                          // -0x2c
+    int slotIdx = 0;                           // -0x28
+    int curTop = 0;                            // -0x34
+    int lastTop = 0;                           // -0x30
+
+    for (int j = 0; j <= 5; ++j)               // -0x24
+    {
+        if (j == 0)
+        {
+            if (!ScanStr(&tok))
+                continue;
+            if (tok == "[monster]")            // 0x8e1ad7b
+            {
+                action.m_type = 0;
+                continue;
+            }
+            if (tok == "[trap]")               // 0x8e1c0de
+            {
+                action.m_type = 1;
+                continue;
+            }
+            if (tok == "[item]")               // 0x8e1c0e5
+            {
+                action.m_type = 2;
+                continue;
+            }
+            if (tok == "[quest]")              // 0x8e1c0ec
+            {
+                action.m_type = 3;
+                continue;
+            }
+            if (tok != "[hellparty]")          // 0x8e1c0f4
+            {
+                LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                      __FUNCTION__, 0xced,
+                                      "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 - \xbe\xf8\xb4\xc2 \xc4\xab\xc5\xd7\xb0\xed\xb8\xae - %s\n",
+                                      path);
+                hasError = true;
+                continue;
+            }
+
+            // ---- [hellparty] 分支（同 procSpecialPassiveObject，错误记 hasError）----
+            std::map<unsigned short, STHellPartyGroupOrder> localOrders;  // -0x100
+            for (;;)
+            {
+                bool ok = false;               // -0xe5
+                int tvIdx = ScanInt(&ok);      // -0x104
+                if (!ok)
+                    break;
+                groupQueue.push(tvIdx);
+
+                stHellParty_t* hellParty =
+                    reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t());
+                std::map<unsigned short, stHellPartyMonsterGroupList>::iterator git =
+                    hellParty->m_groupMap.find(static_cast<unsigned short>(tvIdx));
+
+                int rate = ScanInt(&ok);       // -0x1c（复用 ok）
+                if (!ok)
+                {
+                    hasError = true;
+                    break;
+                }
+                int cnt = ScanInt(&ok);        // -0x10c
+                if (!ok)
+                {
+                    hasError = true;
+                    break;
+                }
+                if (cnt <= 0 || cnt > 9)       // 0x89e71da
+                {
+                    LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                          __FUNCTION__, 0xca8,
+                                          "HELLPARTY_LOG : GROUP ORDER SCRIPT ERROR : %d\n",
+                                          cnt);
+                    hasError = true;
+                }
+
+                STHellPartyGroupRate orderRate;   // -0x118/-0x114
+                orderRate.m_groupIdx = tvIdx;
+                orderRate.m_rate = rate;
+
+                const unsigned char diffSlot = git->second.m_field54;
+
+                std::map<unsigned short, STHellPartyGroupOrder>::iterator mit =
+                    localOrders.find(static_cast<unsigned short>(cnt));
+                if (mit != localOrders.end())
+                {
+                    mit->second.m_rates.push_back(orderRate);
+                    mit->second.m_rateByDifficulty[diffSlot] =
+                        static_cast<unsigned short>(
+                            mit->second.m_rateByDifficulty[diffSlot] + rate);
+                }
+                else
+                {
+                    STHellPartyGroupOrder newOrder;
+                    newOrder.m_rates.push_back(orderRate);
+                    newOrder.m_rateByDifficulty[diffSlot] =
+                        static_cast<unsigned short>(
+                            newOrder.m_rateByDifficulty[diffSlot] + rate);
+                    localOrders.insert(std::make_pair(
+                        static_cast<unsigned short>(cnt), newOrder));
+                }
+            }
+            Get_instance_groupOrder_map_pool()->insert(
+                HellPartyGroupOrderMapPool::value_type(fileIdx, localOrders));
+
+            while (!groupQueue.empty())
+            {
+                curTop = groupQueue.top();
+                if (curTop == lastTop || curTop == 0)
+                {
+                    groupQueue.pop();
+                    continue;
+                }
+                lastTop = curTop;
+
+                stHellParty_t* hellParty =
+                    reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t());
+                std::map<unsigned short, stHellPartyMonsterGroupList>::iterator git2 =
+                    hellParty->m_groupMap.find(static_cast<unsigned short>(curTop));
+
+                fieldIdx = 0;
+                (&action.m_type)[fieldIdx++] = 5;
+                while (git2->second.m_monsterIdx[slotIdx] > 0)
+                {
+                    (&action.m_type)[fieldIdx++] =
+                        git2->second.m_monsterIdx[slotIdx];
+                    (&action.m_type)[fieldIdx++] = 1;
+                    (&action.m_type)[fieldIdx++] = 1;
+                    (&action.m_type)[fieldIdx++] = 1;
+                    (&action.m_type)[fieldIdx++] = -1;
+                    owner.m_vec10.push_back(action);
+                    fieldIdx = 1;
+                    ++slotIdx;
+                }
+                fieldIdx = 0;
+                slotIdx = 0;
+            }
+            return hasError;                   // 89e762c：hellparty 直接收尾
+        }
+        else if (j == 1)
+        {
+            (&action.m_type)[j] = ScanInt(static_cast<bool*>(0));
+            switch (action.m_type)
+            {
+            case 0:
+                if (!checkValidIndex((&action.m_type)[j], monsterList))   // 0x10(%ebp)
+                {
+                    LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                          __FUNCTION__, 0xcfc,
+                                          "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 `\xb8\xf3\xbd\xba\xc5\xcd` - %s\n",
+                                          path);
+                    hasError = true;
+                }
+                break;
+            case 1:
+                if (!checkValidIndex((&action.m_type)[j], trapList))      // 0x14(%ebp)
+                {
+                    LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                          __FUNCTION__, 0xd04,
+                                          "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 `\xc6\xae\xb7\xa6` - %s\n",
+                                          path);
+                    hasError = true;
+                }
+                break;
+            case 2:
+                if ((&action.m_type)[j] == -1)
+                    break;
+                if (assignItems.size() >
+                    static_cast<unsigned int>((&action.m_type)[j]))
+                {
+                    int target = (&action.m_type)[j];
+                    std::list<STAssignItem>::iterator it = assignItems.begin();
+                    for (int k = 0; k < target; ++k)
+                        ++it;
+                    if (it->m_field00 != 0xffff0001)
+                    {
+                        it->m_field00 = 0xffff0001;
+                    }
+                    else
+                    {
+                        hasError = true;
+                        LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                              __FUNCTION__, 0xd1d,
+                                              "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 `\xbe\xc6\xc0\xcc\xc5\xdb` - \xc0\xcc\xb9\xcc \xbb\xe7\xbf\xeb\xc7\xd1 \xbe\xc6\xc0\xcc\xc5\xdb\xb8\xae\xbd\xba\xc6\xae - %s\n",
+                                              path);
+                    }
+                }
+                else
+                {
+                    hasError = true;
+                    LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                          __FUNCTION__, 0xd23,
+                                          "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 `\xbe\xc6\xc0\xcc\xc5\xdb` - \xbe\xf8\xb4\xc2 \xbe\xc6\xc0\xcc\xc5\xdb\xb8\xae\xbd\xba\xc6\xae \xbb\xe7\xbf\xeb\xc7\xcf\xb7\xc1 \xc7\xd4- %s\n",
+                                          path);
+                }
+                break;
+            }
+        }
+        else
+        {
+            (&action.m_type)[j] = ScanInt(static_cast<bool*>(0));
+        }
+    }
+    return hasError;                           // 89e78f2
+}
+// ===========================================================================
+// exportCharacterScript —— ORIG T 0x08a102a4
+// （docs/class_func_reports/_lt_global_gt_/exportCharacterScript.md）
+// 导出 STCharacterScript 为中间文本（fopen "wb" + fprintf/fwrite），收尾
+// convertBinaryToText 转最终脚本；fopen 失败返 0，成功返 1。
+// 偏移经 objdump 复核：motions 段 +0xad4..+0xb30 与头成员一一对应，
+// throw 段顺序 11/21/31/41 再 12/22/32/42（+0xb04/+0xb08/+0xb0c/+0xb10/
+// +0xb14/+0xb18/+0xb1c/+0xb20）。
+// ===========================================================================
+int exportCharacterScript(STCharacterScript* script, const char* path)
+{
+    static char saveFileName[0x100];
+    getScriptFileFullPath(saveFileName, 0x100,
+                          g_szCharacterScriptBaseDirectory, path);
+    FILE* file = fopen(saveFileName, "wb");
+    if (!file)
+        return 0;
+
+    fprintf(file, "[job] `%s`\n", getCharacterJobName(ENUM_CHARACTERJOB(script->m_job)));
+    fwrite("[growtype name]", 1, 0xf, file);
+    for (int i = 0; i < 6; ++i)
+        fprintf(file, " `%s`", script->m_growtypeName[i].c_str());
+    fputc(10, file);
+    fprintf(file, "[width] %d %d\n", script->m_width, script->m_height);
+    fputc(10, file);
+    fprintf(file, "[jump speed] %d\n", script->m_jumpSpeed);
+    fputc(10, file);
+    fwrite("[initial value]\n", 1, 0x10, file);
+    exportCharacterStatusScript(file, &script->m_initialStatus);
+    exportCharacterGiveSkillScript(file, &script->m_skillList[0]);
+    exportCharacterEtcStatsScript(file, &script->m_etcStats[0]);
+    for (int i = 1; i < 7; ++i)
+    {
+        fprintf(file, "\n[\xbe\xd5\xd0\xd1\xbc\xbc%d]\n", i);  // ORIG "\n[觉醒技%d]\n"
+        exportCharacterStatusScript(file, &script->m_growStatus[i - 1]);
+        exportCharacterGiveSkillScript(file, &script->m_skillList[i]);
+        exportCharacterEtcStatsScript(file, &script->m_etcStats[i]);
+    }
+    fputc(10, file);
+
+    if (script->m_motionWaiting != "")
+        fprintf(file, "[waiting motion] `%s`\n", script->m_motionWaiting.c_str());
+    if (script->m_motionMove != "")
+        fprintf(file, "[move motion] `%s`\n", script->m_motionMove.c_str());
+    if (script->m_motionSit != "")
+        fprintf(file, "[sit motion] `%s`\n", script->m_motionSit.c_str());
+    if (script->m_motionDamage1 != "")
+        fprintf(file, "[damage motion 1] `%s`\n", script->m_motionDamage1.c_str());
+    if (script->m_motionDamage2 != "")
+        fprintf(file, "[damage motion 2] `%s`\n", script->m_motionDamage2.c_str());
+    if (script->m_motionDown != "")
+        fprintf(file, "[down motion] `%s`\n", script->m_motionDown.c_str());
+    if (script->m_motionOverturn != "")
+        fprintf(file, "[overturn motion] `%s`\n", script->m_motionOverturn.c_str());
+    if (script->m_motionJump != "")
+        fprintf(file, "[jump motion] `%s`\n", script->m_motionJump.c_str());
+    if (script->m_motionJumpattack != "")
+        fprintf(file, "[jumpattack motion] `%s`\n", script->m_motionJumpattack.c_str());
+    if (script->m_motionRest != "")
+        fprintf(file, "[rest motion] `%s`\n", script->m_motionRest.c_str());
+    if (script->m_throwMotion11 != "")
+        fprintf(file, "[throw motion 1-1] `%s`\n", script->m_throwMotion11.c_str());
+    if (script->m_throwMotion12 != "")
+        fprintf(file, "[throw motion 1-2] `%s`\n", script->m_throwMotion12.c_str());
+    if (script->m_throwMotion21 != "")
+        fprintf(file, "[throw motion 2-1] `%s`\n", script->m_throwMotion21.c_str());
+    if (script->m_throwMotion22 != "")
+        fprintf(file, "[throw motion 2-2] `%s`\n", script->m_throwMotion22.c_str());
+    if (script->m_throwMotion31 != "")
+        fprintf(file, "[throw motion 3-1] `%s`\n", script->m_throwMotion31.c_str());
+    if (script->m_throwMotion32 != "")
+        fprintf(file, "[throw motion 3-2] `%s`\n", script->m_throwMotion32.c_str());
+    if (script->m_throwMotion41 != "")
+        fprintf(file, "[throw motion 4-1] `%s`\n", script->m_throwMotion41.c_str());
+    if (script->m_throwMotion42 != "")
+        fprintf(file, "[throw motion 4-2] `%s`\n", script->m_throwMotion42.c_str());
+    if (script->m_motionDash != "")
+        fprintf(file, "[dash motion] `%s`\n", script->m_motionDash.c_str());
+    if (script->m_motionDashattack != "")
+        fprintf(file, "[dashattack motion] `%s`\n", script->m_motionDashattack.c_str());
+    if (script->m_motionGetitem != "")
+        fprintf(file, "[getitem motion] `%s`\n", script->m_motionGetitem.c_str());
+    if (script->m_motionBuff != "")
+        fprintf(file, "[buff motion] `%s`\n", script->m_motionBuff.c_str());
+
+    if (!script->m_attackMotion.empty())
+    {
+        fwrite("[attack motion]\n", 1, 0x10, file);
+        for (std::vector<std::string>::const_iterator it = script->m_attackMotion.begin();
+             it != script->m_attackMotion.end(); ++it)
+            fprintf(file, "`%s`\n", it->c_str());
+        fwrite("[/attack motion]\n", 1, 0x11, file);
+    }
+    if (!script->m_etcMotion.empty())
+    {
+        fwrite("[etc motion]\n", 1, 0xd, file);
+        for (std::vector<std::string>::const_iterator it = script->m_etcMotion.begin();
+             it != script->m_etcMotion.end(); ++it)
+            fprintf(file, "`%s`\n", it->c_str());
+        fwrite("[/etc motion]\n", 1, 0xe, file);
+    }
+    fputc(10, file);
+
+    if (script->m_jumpattackInfo != "")
+        fprintf(file, "[jumpattack info] `%s`\n", script->m_jumpattackInfo.c_str());
+    if (script->m_dashattackInfo != "")
+        fprintf(file, "[dashattack info] `%s`\n", script->m_dashattackInfo.c_str());
+    if (!script->m_attackInfo.empty())
+    {
+        fwrite("[attack info]\n", 1, 0xe, file);
+        for (std::vector<std::string>::const_iterator it = script->m_attackInfo.begin();
+             it != script->m_attackInfo.end(); ++it)
+            fprintf(file, "`%s`\n", it->c_str());
+        fwrite("[/attack info]\n", 1, 0xf, file);
+    }
+    if (!script->m_etcAttackInfo.empty())
+    {
+        fwrite("[etc attack info]\n", 1, 0x12, file);
+        for (std::vector<std::string>::const_iterator it = script->m_etcAttackInfo.begin();
+             it != script->m_etcAttackInfo.end(); ++it)
+            fprintf(file, "`%s`\n", it->c_str());
+        fwrite("[/etc attack info]\n", 1, 0x13, file);
+    }
+    fputc(10, file);
+
+    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    {
+        fwrite("[weapon wav]\n", 1, 0xd, file);
+        const std::vector<std::string>& wavs = script->m_weaponWav[w].m_wavs;
+        for (std::vector<std::string>::const_iterator it = wavs.begin();
+             it != wavs.end(); ++it)
+            fprintf(file, "`%s`\n", it->c_str());
+        fwrite("[/weapon wav]\n", 1, 0xe, file);
+    }
+    fputc(10, file);
+
+    fwrite("[weapon hit info]\n", 1, 0x12, file);
+    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    {
+        const WeaponInfo& info = script->m_weaponWav[w];
+        if (info.m_hitType == 0)
+            fwrite("`[blow]` ", 1, 9, file);
+        else if (info.m_hitType == 1)
+            fwrite("`[cut]` ", 1, 8, file);
+        else if (info.m_hitType == 2)
+            fwrite("`[burn]` ", 1, 9, file);
+        else if (info.m_hitType == 3)
+            fwrite("`[etc]` ", 1, 8, file);
+        if (info.m_blood == 0)
+            fwrite("`[no blood]` ", 1, 0xd, file);
+        else
+            fwrite("`[blood]` ", 1, 0xa, file);
+        fprintf(file, "%d %.2f\n", info.m_field14, info.m_rate18);
+    }
+    fwrite("[/weapon hit info]\n", 1, 0x13, file);
+
+    fwrite("[weapon skill info]\n", 1, 0x14, file);
+    for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
+    {
+        const WeaponInfo& info = script->m_weaponWav[w];
+        fprintf(file, "%.2f %.2f %.2f %.2f\n",
+                info.m_skillRates[0], info.m_skillRates[1],
+                info.m_skillRates[2], info.m_skillRates[3]);
+    }
+    fwrite("[/weapon skill info]\n", 1, 0x15, file);
+
+    fclose(file);
+    convertBinaryToText(saveFileName);
+    return 1;
 }

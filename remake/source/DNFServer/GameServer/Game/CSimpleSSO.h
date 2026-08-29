@@ -7,6 +7,7 @@
 
 class MySQL;
 class CRijndael;
+#include "CRijndael.h"   // m_keys[31][24] 数组成员需完整类型（CRijndael sizeof=0x47c，与 ORIG 一致）
 
 namespace WongWork
 {
@@ -74,9 +75,9 @@ public:
 
 private:
     // ORIG 布局：CRijndael m_keyTable[31][24]（每块 0x47c，共 0xd0860 字节）+
-    // MySQL* m_mysql（+0xd0860）。CRijndael 本实现为 0x4a0，故以字节区保留
-    // ORIG 步长；init/_checkValiedPassword 按调用方传入的 CRijndael& 访问。
-    char m_keyData[0xd0860];
+    // MySQL* m_mysql（+0xd0860）。2026-08-28 随 CRijndael sizeof 收至 0x47c，
+    // 由字节区还原为真实数组成员；ctor/dtor 由编译器按 ORIG 同形生成。
+    CRijndael m_keys[31][24];
     MySQL* m_mysql;
 };
 

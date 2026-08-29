@@ -322,7 +322,7 @@ bool CAssaultPlace::StartAssault()
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
         CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
         log->IncStartSuccessCount();
-        cMyTrace trace1("bool pvp_assault::CAssaultPlace::StartAssault()",
+        cMyTrace trace1(__PRETTY_FUNCTION__,
                         0x897, 0);
         trace1("POWER WAR START SUCCESS");
         for (int i = 0; i < 8; ++i) {
@@ -332,7 +332,7 @@ bool CAssaultPlace::StartAssault()
                         ((CUserCharacInfo*)m_assaulters[i].GetUser())
                             ->getCurCharacName();
                     cMyTrace traceB(
-                        "bool pvp_assault::CAssaultPlace::StartAssault()",
+                        __PRETTY_FUNCTION__,
                         0x89f, 0);
                     traceB("BLUE TEAM : %s", name);
                 } else {
@@ -340,7 +340,7 @@ bool CAssaultPlace::StartAssault()
                         ((CUserCharacInfo*)m_assaulters[i].GetUser())
                             ->getCurCharacName();
                     cMyTrace traceR(
-                        "bool pvp_assault::CAssaultPlace::StartAssault()",
+                        __PRETTY_FUNCTION__,
                         0x8a1, 0);
                     traceR("RED TEAM : %s", name);
                 }
@@ -386,7 +386,7 @@ void CAssaultPlace::EndAssault()
 // ---------------------------------------------------------------------------
 void CAssaultPlace::TimeoutEndAssault()
 {
-    cMyTrace trace("void pvp_assault::CAssaultPlace::TimeoutEndAssault()",
+    cMyTrace trace(__PRETTY_FUNCTION__,
                    0x9ce, 0);
     trace("TimeoutEndAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
           m_state,
@@ -492,7 +492,7 @@ char CAssaultPlace::TimeoutConnectP2P()
             if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
                 CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
                 log->IncP2PTimeOutCountSecede();
-                cMyTrace trace("bool pvp_assault::CAssaultPlace::TimeoutConnectP2P()",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0xa80, 0);
                 trace("POWER WAR P2P SECEDE");
                 for (int j = 0; j < 8; ++j) {
@@ -502,7 +502,7 @@ char CAssaultPlace::TimeoutConnectP2P()
                                 ((CUserCharacInfo*)m_assaulters[j].GetUser())
                                     ->getCurCharacName();
                             cMyTrace tB(
-                                "bool pvp_assault::CAssaultPlace::TimeoutConnectP2P()",
+                                __PRETTY_FUNCTION__,
                                 0xa88, 0);
                             tB("BLUE TEAM : %s", name);
                         } else {
@@ -510,7 +510,7 @@ char CAssaultPlace::TimeoutConnectP2P()
                                 ((CUserCharacInfo*)m_assaulters[j].GetUser())
                                     ->getCurCharacName();
                             cMyTrace tR(
-                                "bool pvp_assault::CAssaultPlace::TimeoutConnectP2P()",
+                                __PRETTY_FUNCTION__,
                                 0xa8a, 0);
                             tR("RED TEAM : %s", name);
                         }
@@ -519,7 +519,7 @@ char CAssaultPlace::TimeoutConnectP2P()
                 CUserCharacInfo* secedeUser =
                     (CUserCharacInfo*)m_assaulters[i].GetUser();
                 cMyTrace tS(
-                    "bool pvp_assault::CAssaultPlace::TimeoutConnectP2P()",
+                    __PRETTY_FUNCTION__,
                     0xa8d, 0);
                 tS("SECEDE : %s", secedeUser ? secedeUser->getCurCharacName()
                                              : "");

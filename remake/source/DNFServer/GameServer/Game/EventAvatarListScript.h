@@ -6,7 +6,7 @@ public:
     EventAvatarListScript();
     ~EventAvatarListScript();
     void clear();  // ORIG _ZN21EventAvatarListScript5clearEv W 0x8372e52
-    bool isfindEventAvatar(int avatar_id) const;
+    bool isfindEventAvatar(int avatar_id);  // ORIG _ZN21EventAvatarListScript17isfindEventAvatarEi T 0x895e17c（非 const 成员）
     std::set<int>& avatars() { return m_avatars; }
     const std::set<int>& avatars() const { return m_avatars; }
 private:

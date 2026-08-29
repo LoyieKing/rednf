@@ -41,10 +41,12 @@ class CUser;
 class CDailyScheduleManager
 {
 public:
+    CDailyScheduleManager();   // ORIG 0x08125c0c T（定义在 GlobalData.cpp）
+    ~CDailyScheduleManager();  // ORIG 0x08125c24 T（定义在 GlobalData.cpp）
     void AddDailSchedule(const std::vector<_DailySchedule>& schedule);   // ORIG 0x08125c3c T
     int GetScheduleState(_DailyScheduleType type, unsigned int idx) const;
     void CheckAndSendToAllUserSchedule();  // ORIG _ZN21CDailyScheduleManager29CheckAndSendToAllUserScheduleEv @0x8125c94
-    void CheckAndSendToOneUserSchedule(CUser* user); // ORIG 0x8125cb8
+    void CheckAndSendToOneUserSchedule(CUser& user); // ORIG 0x8125cb8（_ZN21CDailyScheduleManager29CheckAndSendToOneUserScheduleER5CUser）
 
     // GM 开关（自包含，遍历 m_schedules）：
     void GM_OpenSchedule(int idx, _DailyScheduleType type, _DailySchedule& out);   // ORIG 0x8126dc0
@@ -68,8 +70,11 @@ private:
 public:
 
 private:
-    char m_pad[0x24];                        // +0x000（前部未建模）
-    _DailySchedule m_southernDale;           // +0x024（GM_Open/CloseSouthernDale 参数）
+    // ORIG GM_Open/CloseSouthernDale（0x81267bc/0x8126ad2 实证）：第一目标
+    // (m_idx==100 && m_type==0) 的条目存于 this+0x0 的 _DailySchedule（GM_Close
+    // 读 this+0x8 判 m_idx、memcpy src=this）；第二目标存 m_southernDale(+0x24)。
+    _DailySchedule m_southernDaleA;          // +0x000（idx=100 / type 0）
+    _DailySchedule m_southernDale;           // +0x024（idx=0x5045 / type 1）
     _DailySchedule m_kingHorn;               // +0x048（GM_Open/CloseKingHorn 参数）
     _DailySchedule m_bossTowerA;             // +0x06c（0xdb1 / type 0）
     _DailySchedule m_bossTowerB;             // +0x090（0x505a / type 1）

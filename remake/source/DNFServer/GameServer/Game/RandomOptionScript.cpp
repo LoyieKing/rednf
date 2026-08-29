@@ -77,43 +77,21 @@ void RandomOptionScript::clear()
     m_set218.clear();
 }
 
-int RandomOptionScript::getPrefixGrade(int level) const
+// ORIG 0x08a73a80（非 const，_ZN mangled；循环前缓存 vector 指针，
+// 命中存 result 后 break 汇合返回——对齐 ORIG -O0 布局）。
+int RandomOptionScript::getPrefixGrade(int level)
 {
-    for (unsigned int i = 0; i < m_choosePrefix1d8.size(); ++i)
+    int result = 0;
+    std::vector<ChoosePrefix>& vec = m_choosePrefix1d8;
+    for (unsigned int i = 0; i < vec.size(); ++i)
     {
-        const ChoosePrefix& cp = m_choosePrefix1d8[i];
-        if (level >= cp.m_min && level < cp.m_max)
+        if (level >= vec[i].m_min && level < vec[i].m_max)
         {
-            return cp.m_grade - 1;
+            result = vec[i].m_grade - 1;
+            break;
         }
     }
-    return 0;
-}
-
-std::string RandomOptionScript::getPrefix(int prefix, bool flag)
-{
-    std::string out;
-    const std::map<int, std::vector<std::string> >& map =
-        flag ? m_prefixPremium : m_prefixNormal;
-    int grade = getPrefixGrade(prefix);
-    if (flag)
-    {
-        grade += 3;
-    }
-    std::map<int, std::vector<std::string> >::const_iterator it =
-        map.find(grade);
-    if (it != map.end())
-    {
-        for (unsigned int i = 0; i < it->second.size(); ++i)
-        {
-            if (grade == (int)i)
-            {
-                out = it->second[i];
-                return out;
-            }
-        }
-    }
-    return out;
+    return result;
 }
 
 // ORIG 0x08a73956 RandomOptionScript::getPrefix(int,int,bool)
@@ -139,7 +117,7 @@ std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
     return out;
 }
 
-int RandomOptionScript::getOptionModificationCost(short level, int rarity) const
+int RandomOptionScript::getOptionModificationCost(short level, ENUM_RARITY rarity) const
 {
     for (std::vector<OPTION_MODIFICATION_COST>::const_iterator it =
              m_costVec10c.begin();
@@ -147,11 +125,11 @@ int RandomOptionScript::getOptionModificationCost(short level, int rarity) const
     {
         if (level <= it->m_level)
         {
-            if (rarity == 2)
+            if (rarity == RARITY_RARE)
             {
                 return it->m_cost2;
             }
-            if (rarity == 3)
+            if (rarity == RARITY_UNIQUE)
             {
                 return it->m_cost3;
             }
@@ -198,7 +176,7 @@ bool importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[choose prefix]")
         {
-            ChoosePrefix cp;
+            ChoosePrefix cp(0, 0, 0);   // ORIG 仅 3 参 ctor（W 0x08a73dd6）；随后按扫描值回填
             if (!ScanInt(&value))
             {
                 break;

@@ -35,9 +35,9 @@ public:
     m_buddyNameLen = 0;
     m_itemCount = 0;
     m_msgLen = 0;
+    memset(m_msg, 0, sizeof(m_msg));
     memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     memset(m_items, 0, sizeof(m_items));
-    memset(m_msg, 0, sizeof(m_msg));
     };
 } __attribute__((packed));
 #pragma pack(pop)

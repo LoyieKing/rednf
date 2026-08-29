@@ -183,19 +183,33 @@ struct stTitleBook
 // ---- 成就调整表项（12 字节） ----
 struct stAdjust
 {
+    // ORIG C1/C2 0x08aa9906（W）：三个 int 清零。
+    stAdjust()
+    {
+        m_questIdx = 0;
+        m_field4 = 0;
+        m_achievementIdx = 0;
+    }
     unsigned int m_questIdx;       // +0x00
     int m_field4;                  // +0x04
     unsigned int m_achievementIdx; // +0x08
 };
 
-// ---- 物品锁 DB 值类型（ORIG 全局作用域：ctor _ZN14stItemLockInfoC1Ev
-//      W 0x0844d406 / DoItemLock 与 PushItemLock mangled 参数 P14stItemLockInfo）----
 struct stItemLockInfo
 {
-    char m_pad0[4];           // +0x00
-    int m_unlockSec;          // +0x04（解锁请求时刻；完成时刻 = +3 天）
-    unsigned char m_state;    // +0x08（1=已锁定，2=解锁倒计时中）
-    char m_pad9[3];
+    int m_unlockSec;          // +0x00（解锁请求时刻；完成时刻 = +3 天）
+    unsigned char m_state;    // +0x04（1=已锁定，2=解锁倒计时中）
+    char m_pad5[3];           // +0x05
+
+    // ORIG W ctor _ZN14stItemLockInfoC1Ev @0x844d406（清零 +0..+7 逐字节）。
+    stItemLockInfo()
+    {
+        m_unlockSec = 0;
+        m_state = 0;
+        m_pad5[0] = 0;
+        m_pad5[1] = 0;
+        m_pad5[2] = 0;
+    }
 };
 
 // ---- 物品锁引用（4 字节） ----

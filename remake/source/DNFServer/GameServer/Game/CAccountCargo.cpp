@@ -19,7 +19,7 @@
 #include "Arad_DataManager.h"
 
 extern unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
-Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），原 GameStubs.cpp 定义迁移
+extern Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），定义于 Inven_Item.cpp（ORIG Inven_Item TU）
 
 // ============================================================================
 // 构造 / 基础存取（ORIG 0x8289794 / 0x8289816 / 0x828986c / 0x82898c0）

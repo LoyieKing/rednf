@@ -263,22 +263,18 @@ int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
 
 
 CPowerManager::CPowerManager()
+    : m_winnerSide(0), m_side1Point(0), m_side2Point(0),
+      m_side1ChannelPoint(0), m_side2ChannelPoint(0),
+      m_side1UserCount(0), m_side2UserCount(0), m_field1c(0)
 {
-    // ORIG 0x0847e998：逐字清零 +0..+1c（不写 +0x20），构造 3 个
-    // STPowerWarStatueRankerInfo 子对象与 CPowerWarLog/CPowerWarPacketLog，
-    // 再 memset (+0x24,4) 与 (+0x28,0x18c)，最后 Reset 两个日志子对象。
-    m_winnerSide = 0;
-    m_side1Point = 0;
-    m_side2Point = 0;
-    m_side1ChannelPoint = 0;
-    m_side2ChannelPoint = 0;
-    m_side1UserCount = 0;
-    m_side2UserCount = 0;
-    m_field1c = 0;
-    // 子对象 ctor/Reset 不在本 TU（CPowerWarLog/CPowerWarPacketLog/STPowerWarStatueRankerInfo
-    // 未独立建模），以等价清零近似；无法严格 identical。
+    // ORIG 0x0847e998：初始化列表按声明序清 +0..+1c（不写 +0x20）；编译器按
+    // 声明序前置成员构造——m_rankings[3] 循环调 STPowerWarStatueRankerInfo::C1、
+    // CPowerWarLog::C1、CPowerWarPacketLog::C1（与 ORIG 顺序一致）；
+    // 函数体再 memset (+0x24,4)、memset (+0x28,0x18c)，最后 Reset 两日志子对象。
     memset(m_powerWarStartTime, 0, sizeof(m_powerWarStartTime));
     memset(m_rankings, 0, sizeof(m_rankings));
+    m_powerWarLog.Reset();
+    m_powerWarPacketLog.Reset();
 }
 
 bool CPowerManager::Init()
@@ -507,4 +503,12 @@ int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
         if (m_rankings[i].m_characNo == charNo)
             return (int)i + 1;
     return 0;
+}
+
+// ORIG 0x084ebe2e（_ZN14CPowerManager16SetPowerWarPointEii，W）：
+//   *(int*)(this+0x04) = arg1; *(int*)(this+0x08) = arg2; ret。
+void CPowerManager::SetPowerWarPoint(int sideIdx, int point)
+{
+    m_side1Point = sideIdx;
+    m_side2Point = point;
 }

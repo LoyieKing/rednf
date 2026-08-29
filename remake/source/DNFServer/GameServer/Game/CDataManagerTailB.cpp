@@ -501,15 +501,30 @@ void CDataManager::rewriteUsableEmoticon(const CUser& user, char* text)
 }
 
 // ---------------------------------------------------------------------------
-// hasPreventPrefixCharacName(char const*, int) —— ORIG T 0x0836360c
-//   前缀禁用名匹配：count @ CDataManager+0x194（= ServerParameterScript(基址
-//   +0x68)+0x12c）、条目 @ SPS+0x130 起、步长 0x1e（30 字节）。
-//   对每条 entry：以 strlen(entry) 截取 name 前缀入 21 字节栈缓存再 strcmp，
-//   相等即命中返回 1；扫完未中返回 0。（第二参数 int unused 在 ORIG 中亦未使用。）
-// 该表位于 ServerParameterScript.m_pad12c 未具名 pad 区且当前无 producer 填充，
-// 依任务纪律不拆共享头 —— 本函数保持 BLOCKED 由后续 importServerParameterScript
-// 收口批落地。此处仅保留文档注释，不产生 ORIG 符号定义以外的假实现。
+// hasPreventPrefixCharacName(char const*, int) —— ORIG T 0x0836360c sz 0x10a
+// （objdump 0x0836360c..0x08363716 逐指令转写；报告缺失标 [报告缺失]）。
+//   count = m_serverParameter.m_preventPrefixCount（CDM+0x194）；
+//   entry(i) = m_serverParameter.m_preventPrefixEntries + i*0x1e（CDM+0x190+8 起）。
+//   对每条：entryLen=strlen(entry)；21 字节栈缓存清零（P4 gcc 内建展开形态）
+//   → memcpy(prefix, name, entryLen) → strcmp(entry, prefix)；==0 → 返回 1。
+//   循环条件 count > i（setg）；扫完返回 0。第二参 unused ORIG 亦未读。
+//   依 §8.3 已将 ServerParameterScript.m_pad12c 头部拆具名（sizeof 0x49f4 不变）。
 // ---------------------------------------------------------------------------
+int CDataManager::hasPreventPrefixCharacName(const char* name, int /*unused*/)
+{
+    ServerParameterScript& sps = m_serverParameter;
+    for (int i = 0; sps.m_preventPrefixCount > i; ++i)
+    {
+        const char* entry = sps.m_preventPrefixEntries + i * 0x1e;
+        const size_t entryLen = strlen(entry);
+        char prefix[0x15] = { '\0' };
+        memcpy(prefix, name, entryLen);
+        if (strcmp(entry, prefix) == 0)
+            return 1;
+    }
+    return 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // hasSpecialCharacterExceptSpace(char const*) —— ORIG T 0x08362e0e
@@ -638,6 +653,28 @@ int CDataManager::get_useJobFatigueMatchGift(char job, int a, int b)
         return 0;
     }
     return u1->second;
+}
+
+// ---------------------------------------------------------------------------
+// get_useJobFatigueMatchGiftMsg(int, std::string&, std::string&) ——
+//   ORIG T 0x0836598e _ZN12CDataManager29get_useJobFatigueMatchGiftMsgEiRSsS0_
+//   （报告缺失，按 nm 定址 + objdump 转写）。
+//   反汇编逐条转写：
+//     it = m_useJobFatigue.m_giftMap.find(job)（map::find 直构 -0x10）；
+//     end = m_useJobFatigue.m_giftMap.end()（直构 -0xc，P13 缓存 end）；
+//     it != end 时 msg1 = it->second.m_msg1（pair+0x20 = value+0x1c）、
+//     msg2 = it->second.m_msg2（pair+0x24 = value+0x20）。
+// ---------------------------------------------------------------------------
+void CDataManager::get_useJobFatigueMatchGiftMsg(int job, std::string& msg1,
+                                                std::string& msg2)
+{
+    std::map<int, useCharacterJobFatigue::fatigueMatchGift>::iterator it =
+        m_useJobFatigue.m_giftMap.find(job);
+    if (it != m_useJobFatigue.m_giftMap.end())
+    {
+        msg1 = it->second.m_msg1;
+        msg2 = it->second.m_msg2;
+    }
 }
 
 // ---------------------------------------------------------------------------

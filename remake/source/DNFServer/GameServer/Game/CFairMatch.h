@@ -33,9 +33,17 @@ class Inven_Item;
 namespace fair_pvp
 {
 
+// ---- ORIG r 符号 fair_pvp::maxRematchCount_（internal linkage，每包含 TU 一份
+//      .rodata；值=3，objdump -s 0x8bbf830 实证）。CheckRematch/OnRematchTimeout
+//      以它作最大重赛局数。 ----
+static const int maxRematchCount_ = 3;
+
 // ---- PlayerInfoThird（单队员视图，stride 0x10；add/del/refresh 推导） ----
 struct PlayerInfoThird
 {
+    // ORIG W C1/C2 0x8568fda：仅构造 +0x05 的 CharacterKind（清零 job/growType
+    // 两字节，call _ZN13CharacterKindC1Ev @0x8568652）；其余字段不初始化。
+    PlayerInfoThird() { m_job = 0; m_growType = 0; }
     void reset();                                   // ORIG 经 TeamInfoThird::reset 调用
 
     CUser*        m_user;      // +0x00
@@ -76,7 +84,7 @@ public:
     virtual CUser* GetUser(unsigned int idx);                  // 0x8565140
     virtual void GetUserList(void* out);                       // 0x8565184（拷贝第一支队伍 0x48 字节）
     virtual void RequestMap(short& mapNo, PVP_BATTLE_MODE& mode);  // 0x8562bae
-    virtual void OnCreateRoom(CUser* user);                    // 0x8562d08
+    virtual int OnCreateRoom(CUser* user);                     // 0x8562d08（成功 0 / 装备不合规 0x13；IMatch 基类 int 同步）
     virtual void OnDestroyRoom(CUser* user);                   // 0x8562dc6
     virtual void OnJoinRoom(CUser* user);                      // 0x8562df6
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);  // 0x8562fbc
@@ -86,7 +94,7 @@ public:
     virtual void OnStartFight();                               // 0x8564952
     virtual void OnEndFight(PvP_Room* room);                  // 0x8565048
     virtual void OnWalkOut(PvP_Room* room, int a);            // 0x8564fb2
-    virtual void OnReady(CUser* user, bool ready);            // 0x8565018
+    virtual bool OnReady(CUser* user, bool ready);            // 0x8565018（!ready && state==4 → false；IMatch 基类 bool 同步）
     virtual void OnReward(PvP_Room* room, int a, bool b);    // 0x8565966
     virtual void OnEndPvP(PvP_Room* room);                   // 0x8565c4e
     virtual void OnCompleteLoad(CUser* user);                 // 0x8564962
@@ -111,9 +119,10 @@ public:
                      ENUM_SCHOOL_MATCH_TEAM team, int a, int b, int c);  // 0x8565700
     int  CheckRematch(PvP_Room* room);                       // 0x8565d04
     int  CheckUnusableEquipment(const Inven_Item* item);      // 0x8562bdc
-    int  CheckUnusableEquipmentInUser(CUser* user);           // 0x8562cfe
+    bool CheckUnusableEquipmentInUser(CUser* user);           // 0x8562cfe（恒返 1；CheckJoinable/OnCreateRoom 以 ! 取反 xor $1 实证）
     void GiveTrainingSeal(CUser* user, bool bonus);           // 0x85652c8
-    int GetPlayCountPerOneTeam();                             // 0x8562834（恒返 1；定义在 MatchRoomLCB.cpp，勿重定义）
+    static int GetPlayCountPerOneTeam();                      // 0x8562834（ORIG 恒返 1；调用点不传 this 实证 static；
+                                                              // 定义在 MatchRoomLCB.cpp，勿重定义）
     void SetPlayCountPerOneTeam(unsigned int n);              // 0x8562b90（ORIG 空体 ret）
     void _SetEnterCharacNo(int no);                            // 0x856（报告地址为准）
 
@@ -121,7 +130,7 @@ public:
     void _RegisterWaitingRoom(PvP_Room* room);               // 0x8563a32（静态化处理见 cpp）
     void _BackupRoomInfo(PvP_Room* room);                    // 0x8563674
     int  _CheckMatchable(PvP_Room* room) const;               // 0x8563a54
-    int  _CheckRematchable(PvP_Room* room) const;              // 0x8563b16
+    bool _CheckRematchable(PvP_Room* room) const;              // 0x8563b16（ORIG 返 bool：CheckRematch 以 ! 取反 xor $1）
     int  _CheckObserver(PvP_Room* room, CUser* user);        // 0x85629f2
     int  _CheckSameTeam(PvP_Room* room, CUser* user);        // 0x85629e8
     int  _CheckMovableRoom(IMatch* other, PvP_Room* room, PvP_Room** out);  // 0x8563ed8

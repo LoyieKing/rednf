@@ -102,22 +102,6 @@ struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _Z
     int makeRequest(int uid, unsigned int accId, unsigned int characNo);
 };
 
-// ---------------------------------------------------------------------------
-// CONTINUOUS_ITEM_INFO 权威完整定义（当前全仓库仅 CUser.h 前置声明；ORIG 报告
-// LoadCoolTimeItemInfo/LoadEffectItemInfo objdump 实证布局：ubyte count +
-// entries{int itemIdx; uint expireSec} stride 8，capcha 回传 SIG 尺寸 0x198=408）。
-// 独占 owner=本 TU；其它批需用时请 include 本文件对齐，勿重复定义。
-// ---------------------------------------------------------------------------
-struct CONTINUOUS_ITEM_INFO
-{
-    unsigned char m_count;                   // +0x00
-    char m_pad1[3];                          // +0x01..0x03
-    struct Entry
-    {
-        int m_itemIdx;                       // +0x04（each +8）
-        unsigned int m_expireSec;            // +0x08
-    } m_entries[50];                         // +0x04..0x19b（SIG_SAVE_AND_LOAD 尺寸锚定）
-};
 
 // ===========================================================================
 // 支撑小类 ctor（ORIG W，仅写前两个 uint；objdump 0x869380e/0x8693824 直转写）
@@ -288,7 +272,7 @@ void CUser::getHashCode(unsigned char* digestOut)
 bool CUser::checkHumanCertify(int len, unsigned short* answer)
 {
     {
-        cMyTrace trace("bool CUser::checkHumanCertify(int, short unsigned int*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x7e07, 0);
         char* idStr = NumberToString(get_acc_id(), 0);
         const unsigned short* orig =
@@ -509,7 +493,7 @@ char CUser::VerifyPresentAvengerTitle()
             static_cast<int>(GetUID()), get_acc_id(), getCurCharacNo());
 
         {
-            cMyTrace trace("bool CUser::VerifyPresentAvengerTitle()", 0xa6eb, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xa6eb, 0);
             char* idStr = NumberToString(get_acc_id(), 0);
             trace("avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
                   idStr, getCurCharacNo(),
@@ -669,7 +653,7 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
 
         if (!VerifyPresentAvengerTitle())
         {
-            cMyTrace trace("bool CUser::gain_exp_sp(int, int&, int&, eExpAddReason, int, bool)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x5046, 0);
             char* idStr = NumberToString(get_acc_id(), 0);
             trace("CUser::VerifyPresentAvengerTitle() m_id(%s), charac_no(%u)",
@@ -837,14 +821,14 @@ bool CUser::LoadEffectItemInfo(CONTINUOUS_ITEM_INFO* info)
     list->clear();
     for (int i = 0; i < static_cast<int>(static_cast<signed char>(info->m_count)); ++i)
     {
-        const CONTINUOUS_ITEM_INFO::Entry& entry = info->m_entries[i];
-        if (curSec < entry.m_expireSec &&
+        const CONT_ENTRY& entry = info->m_entries[i];
+        if (curSec < entry.m_expireTime &&
             static_cast<unsigned int>(entry.m_itemIdx) < 0x7fffffffu &&
-            entry.m_expireSec < 0x77359401u)
+            entry.m_expireTime < 0x77359401u)
         {
             ContinuousItemInfo ci;
             ci.m_itemIdx = entry.m_itemIdx;
-            ci.m_expireTime = entry.m_expireSec;
+            ci.m_expireTime = entry.m_expireTime;
             _processSpeicalContinuousTimeItem(static_cast<unsigned int>(ci.m_itemIdx));
             list->push_back(ci);
         }
@@ -861,17 +845,18 @@ bool CUser::LoadCoolTimeItemInfo(CONTINUOUS_ITEM_INFO* info)
     list->clear();
     for (int i = 0; i < static_cast<int>(static_cast<signed char>(info->m_count)); ++i)
     {
-        const CONTINUOUS_ITEM_INFO::Entry& entry = info->m_entries[i];
-        if (curSec < entry.m_expireSec &&
+        const CONT_ENTRY& entry = info->m_entries[i];
+        if (curSec < entry.m_expireTime &&
             static_cast<unsigned int>(entry.m_itemIdx) < 0x7fffffffu &&
-            entry.m_expireSec < 0x77359401u)
+            entry.m_expireTime < 0x77359401u)
         {
             ContinuousItemInfo ci;
             ci.m_itemIdx = entry.m_itemIdx;
-            ci.m_expireTime = entry.m_expireSec;
+            ci.m_expireTime = entry.m_expireTime;
             list->push_back(ci);
         }
     }
     ClearUselessCooltimeItem(curSec);
     return SendCoolTimeItemInfo(curSec) == 1;
 }
+

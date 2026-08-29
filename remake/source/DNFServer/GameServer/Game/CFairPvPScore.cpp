@@ -106,9 +106,8 @@ bool CFairPvPScore::_saveData(CUser* pUser)
     SIG_FAIR_PVP_SCORE* sig = guard.GetInBuffer<SIG_FAIR_PVP_SCORE>();
     memset(sig, 0, sizeof(SIG_FAIR_PVP_SCORE));          // 0x688
     *(int*)sig = pUser->get_charac_no(-1);               // ORIG *(int*)local_10
-    this->getData(reinterpret_cast<char*>(sig));         // ORIG vtable+8 (getData)
-    *(unsigned int*)(reinterpret_cast<char*>(sig) + 0x680) =
-        GlobalData::s_systemTime_.getCurSec();
+    this->getData(reinterpret_cast<char*>(sig));         // ORIG vtable+8 (getData)；线格式序列化
+    sig->m_lastPlayTime = GlobalData::s_systemTime_.getCurSec();   // +0x680
 
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     return true;                                          // ORIG mov $0x1,%ebx
@@ -353,7 +352,7 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
         {
             LogManager::logFormat(
                 1, "FairPvPScore.cpp",
-                "virtual bool fair_pvp::CFairPvPScore::loadData(CUser*, char*)",
+                __PRETTY_FUNCTION__,
                 0x20, "job_score_.insert error(%d,%d)",
                 (int)(unsigned char)pData[entry + 0x10],
                 (int)(unsigned char)pData[entry + 0x11]);

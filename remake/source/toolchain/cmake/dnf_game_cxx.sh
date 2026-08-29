@@ -79,7 +79,10 @@ case "$(basename "$src" .cpp)" in
             *Game/Arad_Script.cpp)
                 # ORIG Arad_Script is -O0 (reload this from 0x8(%ebp) each
                 # field access). -O2 made every getter DIFF.
-                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -std=gnu++98 ;;
+                # -std=gnu++0x：ORIG mangled `St10shared_ptr`（std::shared_ptr）
+                # 证明 ORIG 为 C++0x 模式；gnu++98 下 <memory> 无 std::shared_ptr，
+                # GameTypes.h→LogManager.h 编译失败。
+                exec "$C6446R" "$@" -std=gnu++0x ;;
             *Game/ScriptExtras.cpp)
                 exec "$C6446R" "$@" ;;
             *Game/RDARScriptStringManager.cpp)

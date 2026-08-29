@@ -55,21 +55,16 @@ using fair_pvp::PlayerInfoThird;
 #include "CGameManager.h"
 
 // SPS 训练印章配置块视图（m_serverParameter 位于 CDataManager+0x68；
-// ORIG 读 dm+0x49d8..0x49e0 = SPS+0x4970..0x497a）
-static inline ServerParameterScript& FM_SPS()
-{
-    return G_CDataManager()->m_serverParameter;
-}
+// ORIG 读 dm+0x49d8..0x49e0 = SPS+0x4970..0x497a；宏内联——P49）
+#define FM_SPS() (G_CDataManager()->m_serverParameter)
 // [dedup] moved to CFairMatch.cpp
 // [dedup] moved to CFairMatch.cpp
 int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // [dedup] moved to CFairMatch.cpp
 
-// TeamInfoThird 首字节视图（ORIG 以 *(char*)(this+team*0x48+0x1c) 判在座）
-static inline unsigned char FM_TeamByte0(TeamInfoThird& t)
-{
-    return *reinterpret_cast<unsigned char*>(&t);
-}
+// TeamInfoThird 首字节视图（ORIG 以 *(char*)(this+team*0x48+0x1c) 判在座；
+// 宏内联——P49：-O0 下 static inline helper 产真实 call 符号）
+#define FM_TeamByte0(t) (*(reinterpret_cast<unsigned char*>(&(t))))
 
 
 // ===================================================================== //
@@ -82,10 +77,11 @@ int CFairMatch::_CheckSameTeam(PvP_Room* /*room*/, CUser* /*user*/)
     return 1;
 }
 
-// CheckUnusableEquipmentInUser ORIG T 0x08562cfe 报告同名 md —— 恒返 1
-int CFairMatch::CheckUnusableEquipmentInUser(CUser* /*user*/)
+// CheckUnusableEquipmentInUser ORIG T 0x08562cfe 报告同名 md —— 恒返 1（bool 返回：
+// CheckJoinable +0x12/OnCreateRoom +0x11 均以 xor $1 取反，P22 实证）
+bool CFairMatch::CheckUnusableEquipmentInUser(CUser* /*user*/)
 {
-    return 1;
+    return true;
 }
 
 // OnGiveup ORIG T 0x08564de0 报告 OnGiveup.md —— 恒返 1
@@ -128,7 +124,8 @@ float CFairMatch::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
 // 检查组
 // ===================================================================== //
 
-// _CheckObserver ORIG T 0x085629f2 报告 _CheckObserver.md
+// ORIG：while 形循环 seat<=7（cmpl $0x7/setle）统计 room->get_team(seat)==3 观战者；
+// 末尾 size() 返回值以 ebx 缓存跨 call，cmp/setge 两分支：size-count >= playCount → 0，否则 1。
 int CFairMatch::_CheckObserver(PvP_Room* room, CUser* /*user*/)
 {
     int observerCnt = 0;
@@ -136,15 +133,18 @@ int CFairMatch::_CheckObserver(PvP_Room* room, CUser* /*user*/)
         if (room->get_team(seat) == 3)   // 队伍号 3 = 观战席
             ++observerCnt;
     }
-    const int cnt =
-        static_cast<int>(static_cast<unsigned>(m_teams[0].size()) - observerCnt);
-    return cnt < static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff);
+    // ORIG 尾部：size() 返回值 ebx 缓存，call 后 movzbl %al 收窄 playCount，
+    // cmp/setge 两分支：size-count >= playCount → 0，否则 → 1
+    if (static_cast<int>(m_teams[0].size()) - observerCnt
+        >= static_cast<int>(static_cast<unsigned char>(GetPlayCountPerOneTeam())))
+        return 0;
+    return 1;
 }
 
 // CheckJoinable ORIG T 0x08562a6e 报告 CheckJoinable.md
 int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
 {
-    if (CheckUnusableEquipmentInUser(user) != 1)
+    if (!CheckUnusableEquipmentInUser(user))
         return 1;
     if (!(room->get_player_count() <
           static_cast<int>((GetPlayCountPerOneTeam() & 0xff) * 2)))
@@ -170,9 +170,11 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
 }
 
 // OnReady ORIG T 0x08565018 报告 OnReady.md
-void CFairMatch::OnReady(CUser* /*user*/, bool ready)
+bool CFairMatch::OnReady(CUser* /*user*/, bool ready)
 {
-    // ORIG 返回 (ready||state!=4)；IMatch 槽签名 void，返回值在寄存器层丢弃
+    if (!ready && m_field04 == 4)
+        return false;
+    return true;
 }
 
 // _CheckMatchable(const) ORIG T 0x08563a54 报告 _CheckMatchable.md
@@ -196,7 +198,7 @@ int CFairMatch::_CheckMatchable(PvP_Room* room) const
 }
 
 // _CheckRematchable(const) ORIG T 0x08563b16 报告 _CheckRematchable.md
-int CFairMatch::_CheckRematchable(PvP_Room* room) const
+bool CFairMatch::_CheckRematchable(PvP_Room* room) const
 {
     int counts[3] = { 0, 0, 0 };   // [1]/[2] 计真实两队人数
     for (int seat = 0; seat <= 7; ++seat) {
@@ -205,10 +207,10 @@ int CFairMatch::_CheckRematchable(PvP_Room* room) const
             ++counts[team];
     }
     if (counts[1] != static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff))
-        return 0;
+        return false;
     if (counts[2] != static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff))
-        return 0;
-    return 1;
+        return false;
+    return true;
 }
 
 // CheckMatchable ORIG T 0x08565c54 报告 CheckMatchable.md
@@ -280,12 +282,11 @@ int CFairMatch::_FindTeam(CUser* user)
 
 // OnCreateRoom ORIG T 0x8562d08 报告 OnCreateRoom.md
 // 装备检查通过 → 自增授权号、复位双队与计数；失败返回错误码 0x13
-void CFairMatch::OnCreateRoom(CUser* user)
+// （ORIG +0x18 mov $0x13 / +0xb7 mov $0x0；IMatch 基类返回 int）
+int CFairMatch::OnCreateRoom(CUser* user)
 {
-    if (!CheckUnusableEquipmentInUser(user)) {
-        // ORIG 返回 0x13（寄存器层）；虚槽 void，无出参可携带。
-        return;
-    }
+    if (!CheckUnusableEquipmentInUser(user))
+        return 0x13;
     ++nextAuthValue_;
     m_matchNotifyId = nextAuthValue_;
     m_field04 = 0;
@@ -298,6 +299,7 @@ void CFairMatch::OnCreateRoom(CUser* user)
     m_fieldB8 = 0;
     m_fieldBC = 0;
     m_fieldC0 = 0;
+    return 0;
 }
 
 // OnDestroyRoom ORIG T 0x8562dc6 报告 OnDestroyRoom.md
@@ -383,7 +385,7 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
         if (myTeam == 2) {
             LogManager::logFormat(
                 1, "MatchingSystem.cpp",
-                "virtual void fair_pvp::CFairMatch::OnLeaveRoom(CUser*, PvP_Room*, int, int)",
+                __PRETTY_FUNCTION__,
                 0xb0b, "error _FindTeam");
             return;
         }
@@ -392,7 +394,7 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
         if (other == static_cast<ENUM_SCHOOL_MATCH_TEAM>(2)) {
             LogManager::logFormat(
                 1, "MatchingSystem.cpp",
-                "virtual void fair_pvp::CFairMatch::OnLeaveRoom(CUser*, PvP_Room*, int, int)",
+                __PRETTY_FUNCTION__,
                 0xb12, "error _GetOtherTeam");
             return;
         }
@@ -462,7 +464,7 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
 {
     if (other == 0) {
         cMyTrace trace(
-            "int fair_pvp::CFairMatch::_CheckMovableRoom(IMatch*, PvP_Room*, PvP_Room**)",
+            __PRETTY_FUNCTION__,
             0xc5d, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc5d);
         return 0;
@@ -474,7 +476,7 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
     }
     if (member == 0) {
         cMyTrace trace(
-            "int fair_pvp::CFairMatch::_CheckMovableRoom(IMatch*, PvP_Room*, PvP_Room**)",
+            __PRETTY_FUNCTION__,
             0xc5d, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc5d);
         return 0;
@@ -482,7 +484,7 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
     *out = reinterpret_cast<PvP_Room*>(member->GetPVPRoom());
     if (*out == 0) {
         cMyTrace trace(
-            "int fair_pvp::CFairMatch::_CheckMovableRoom(IMatch*, PvP_Room*, PvP_Room**)",
+            __PRETTY_FUNCTION__,
             0xc64, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc64);
         return 0;
@@ -610,7 +612,7 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
     user->Send(pkt);
     LogManager::logFormat(
         1, "MatchingSystem.cpp",
-        "PvP_Room* fair_pvp::CFairMatch::_MakeRoom(CUser*)", 0xba9,
+        __PRETTY_FUNCTION__, 0xba9,
         "create_room fail: PVP슬롯반환 ID[%d]\n", room->get_index());
     G_CGameManager()->PutPvp(room);
     return 0;
@@ -648,7 +650,7 @@ void CFairMatch::_MoveRoom(PvP_Room* to, PvP_Room* from, bool observerFlag)
 void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
 {
     if (m_matchNotifyId != notifyId) {
-        cMyTrace trace("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xc8b, 0);
         trace("OnMatchRoom timeout");
         return;
@@ -863,8 +865,8 @@ void CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 // CheckRematch ORIG T 0x85665d04 报告 CheckRematch.md
 int CFairMatch::CheckRematch(PvP_Room* room)
 {
-    if (m_fieldB0 >= 3) return 0;
-    if (_CheckRematchable(room) != 1) return 0;
+    if (m_fieldB0 >= fair_pvp::maxRematchCount_) return 0;
+    if (!_CheckRematchable(room)) return 0;
     // this[t*0x48+0x1c] 首字节须为 1（两队“可重赛”标记，TeamInfoThird 头）
     for (int t = 0; t < 2; ++t) {
         if (FM_TeamByte0(m_teams[t]) != 1) return 0;
@@ -956,9 +958,7 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                 room->get_index(), room->get_pvp_battle_mode(),
                 win, lose);
         }
-        CRelayBattleMgr& relay =
-            *reinterpret_cast<CRelayBattleMgr*>(
-                reinterpret_cast<char*>(room) + 0x620);
+        CRelayBattleMgr& relay = room->m_relayMgr;   // PvP_Room +0x620
         const int killCnt = relay.GetKillCount(seat);
         const unsigned playCount = GetPlayCountPerOneTeam() & 0xff;
         // ORIG asm：job=info+5 字节、subKey=info+6 低 nibble（info 为队长视图）
@@ -1063,8 +1063,7 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         for (int seat = 0; seat <= 7; ++seat) {
             if (room->get_user_seat(seat) != 0) {
                 CRelayBattleMgr& relay =
-                    *reinterpret_cast<CRelayBattleMgr*>(
-                        reinterpret_cast<char*>(room) + 0x620);
+                    room->m_relayMgr;
                 relay.OnReady(seat, true);
             }
         }
@@ -1126,7 +1125,7 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
     if (room == 0) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnAskRematch(CUser*, int)",
+            __PRETTY_FUNCTION__,
             0x1058, "error GetPVPRoom");
         return;
     }
@@ -1143,7 +1142,7 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
     if (myTeam == 2) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnAskRematch(CUser*, int)",
+            __PRETTY_FUNCTION__,
             0x1062, "error _FindTeam");
         return;
     }
@@ -1152,7 +1151,7 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
     if (other == static_cast<ENUM_SCHOOL_MATCH_TEAM>(2)) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnAskRematch(CUser*, int)",
+            __PRETTY_FUNCTION__,
             0x1069, "error _GetOtherTeam");
         return;
     }
@@ -1209,7 +1208,7 @@ void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
     if (seat == -1) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnEndPvPResult(PvP_Room*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x10b3, "error get_user_seat");
         return;
     }
@@ -1226,7 +1225,7 @@ void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
     if (teamOf == 0xfe) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnEndPvPResult(PvP_Room*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x10be, "error get_team");
         return;
     }
@@ -1234,7 +1233,7 @@ void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
     if (myTeam == 2) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnEndPvPResult(PvP_Room*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x10c5, "error _FindTeam");
         return;
     }
@@ -1246,7 +1245,7 @@ void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
     if (other == static_cast<ENUM_SCHOOL_MATCH_TEAM>(2)) {
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
-            "virtual void fair_pvp::CFairMatch::OnEndPvPResult(PvP_Room*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x10d2, "error _GetOtherTeam");
         return;
     }
@@ -1361,9 +1360,7 @@ void CFairMatch::OnConnectP2P(CUser* user, PvP_Room* room,
     room->battle_reset();
     for (int seat = 0; seat <= 7; ++seat) {
         if (room->get_user_seat(seat) != 0) {
-            CRelayBattleMgr& relay =
-                *reinterpret_cast<CRelayBattleMgr*>(
-                    reinterpret_cast<char*>(room) + 0x620);
+            CRelayBattleMgr& relay = room->m_relayMgr;   // PvP_Room +0x620
             relay.OnReady(seat, true);
         }
     }

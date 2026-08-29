@@ -18,6 +18,15 @@ namespace nexon
 namespace cash
 {
 
+// ORIG 死常量（头文件 static，逐 TU 一份；值已按 .rodata 实测）：
+static const int INVALID_SOCKET = -1;                 // _ZN5nexon4cashL14INVALID_SOCKETE r 0x4 (0xffffffff)
+static const unsigned int MAX_NEXON_ID_LENTH = 0x20;  // _ZN5nexon4cashL18MAX_NEXON_ID_LENTHE r 0x4 (=32)
+static const unsigned int _MAX_PATH = 0x104;          // _ZN5nexon4cashL9_MAX_PATHE r 0x4 (=260)
+static const unsigned short C_ARAD_PROD_TYPE = 0x2d;  // _ZN5nexon4cashL16C_ARAD_PROD_TYPEE r 0x2 (=45)
+
+// ---------------------------------------------------------------------------
+// TCPSocket —— BSD TCP 封装（独立类，非继承层级）
+
 // ---------------------------------------------------------------------------
 // TCPSocket —— BSD TCP 封装（独立类，非继承层级）
 // 布局（ctor 0x081af4cc）：

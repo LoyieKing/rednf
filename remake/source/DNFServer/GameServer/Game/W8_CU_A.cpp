@@ -243,9 +243,9 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
     bool hit = false;
     CParty* p = static_cast<CParty*>(GetParty());
     if (p != NULL && p->isMonsterDrop_item(monsterIdx)) {
-        // 见文件头 NEEDS_HEADER：战场子对象视图（仓库既有范式）
+        // 战场子对象视图（CParty+0xb24，占位期经 m_padBattleField1 访问）
         CBattle_Field& bf =
-            *reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(p) + 0xb24);
+            *reinterpret_cast<CBattle_Field*>(p->m_padBattleField1);
         hit = (bf.m_visitedGotoFlag == 0) || (bf.m_hellMapIdx != bf.get_cur_map());
     }
     if (hit) {
@@ -297,7 +297,7 @@ int CUser::lottery_item(int slot)
                                       get_acc_name());           // local_44
         if (limit < (invenR.get_money() + moneyGain)) {
             const char* accIdStr = NumberToString(get_acc_id(), 0);
-            cMyTrace trace("int CUser::lottery_item(int)", 0x61b9, 4);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x61b9, 4);
             trace("lottery_gold_item:m_id(%s), char_no(%d), money(%d)",
                   accIdStr, getCurCharacNo(), moneyGain);
             return 0x16;

@@ -19,6 +19,14 @@
 
 class CUser;
 
+// GetRankRange 返回值（ORIG sret 8 字节：{m_gradeMin, m_gradeMax}，
+// mangled _ZNK8CMission12GetRankRangeEv 无参）。
+struct MissionRankRange
+{
+    int gradeMin;   // +0x00
+    int gradeMax;   // +0x04
+};
+
 class CMission
 {
 public:
@@ -44,11 +52,7 @@ public:
     int GetMissionKind() const { return m_kind; }
     int GetPrevMissionIndex() const { return m_prevMissionIndex; }
     int GetMissionGrade() const { return m_grade; }
-    void GetRankRange(int* out) const
-    {
-        out[0] = m_gradeMin;
-        out[1] = m_gradeMax;
-    }
+    MissionRankRange GetRankRange() const;   // ORIG W 0x085e692a（sret {gradeMin,gradeMax}）
 
     // ---- 非虚入口 ----
     int isAcceptCondition(const CUser& user) const;
@@ -88,6 +92,10 @@ public:
     virtual int Update(MissionInfo& info,
                        const MissionClearCondition_Parameter& param) const;
     virtual int getClearCondition() const;
+
+    // ORIG 0x85e372c：rank 任务接受条件 = 用户 PvP 段位落在 [m_gradeMin, m_gradeMax)
+    // 区间内（两次独立 get_pvp_grade 调用，O0 无 CSE；基类同名入口不含 -1 特判）
+    bool isAcceptCondition(const CUser& user) const;
 
     int m_clearCount;  // +0x40
 };

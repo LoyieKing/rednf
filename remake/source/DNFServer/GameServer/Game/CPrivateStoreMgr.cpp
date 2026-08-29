@@ -1,4 +1,5 @@
 #include "CPrivateStoreMgr.h"
+#include "CErrorGeneratorPrivate.h"   // private_store::CErrorGeneratorPrivate / g_ErrorGenerator
 #include "MoreTypes.h"
 #include "GlobalData.h"
 #include "CStreamGuard.h"
@@ -112,8 +113,21 @@ CPrivateStoreMgr* GetInstancePrivateStoreMgr()
     return &instance;
 }
 
-// ---- PrivateStorePos（ORIG C1 0x85cb6f6 / 4参 C1 0x85cb72c / clear 0x85cb784）----
-PrivateStorePos::PrivateStorePos() : m_a(0), m_b(0), m_field2(0), m_field4(0) {}
+// ---- PrivateStoreZone（ORIG C1/C2(h,h) W 0x85cb6ce，out-of-line；派生
+//      PrivateStorePos 构造经 C2 初始化基类子对象）----
+PrivateStoreZone::PrivateStoreZone(unsigned char a, unsigned char b)
+    : m_a(a), m_b(b)
+{
+}
+
+PrivateStorePos::PrivateStorePos() : PrivateStoreZone(0, 0), m_field2(0), m_field4(0) {}
+
+// ORIG W 0x85cb72c：zone 基类构造后写 +0x2/+0x4。
+PrivateStorePos::PrivateStorePos(unsigned char a, unsigned char b,
+                                 short field2, short field4)
+    : PrivateStoreZone(a, b), m_field2(field2), m_field4(field4)
+{
+}
 
 void PrivateStorePos::clear()
 {
@@ -129,6 +143,7 @@ PrivateStoreItem::PrivateStoreItem()
     Reset();
 }
 
+// ORIG W 0x823459a：清空物品区与全部私有字段。
 void PrivateStoreItem::Reset()
 {
     m_item.reset();
@@ -137,6 +152,19 @@ void PrivateStoreItem::Reset()
     m_field44 = 0;
     m_field46 = 0;
     m_field48 = 0;
+}
+
+// ---- PrivateStoreItem::operator=（ORIG W 0x85cb66e，报告缺失，objdump 转写）----
+// Inven_Item::setCopy 拷物品区，随后逐字段直拷并返回 *this。
+PrivateStoreItem& PrivateStoreItem::operator=(PrivateStoreItem const& other)
+{
+    m_item.setCopy(other.m_item);
+    m_flag3d = other.m_flag3d;
+    m_field40 = other.m_field40;
+    m_field44 = other.m_field44;
+    m_field46 = other.m_field46;
+    m_field48 = other.m_field48;
+    return *this;
 }
 
 // ---- CPrivateStorePos（ORIG C1 0x85cb7c8 / 带参 C1 0x85cb7fc）----
@@ -152,8 +180,6 @@ CPrivateStorePos::CPrivateStorePos(CPrivateStore* store, int centerX, int center
     m_rect.m_width = 0xa0;
     m_rect.m_height = 0x64;
 }
-
-void CPrivateStorePos::reset() {}  // ORIG 内联空体（vtable+0，无独立符号）
 
 // ORIG T 0x85cadf6（报告 docs/class_func_reports/private_store__CPrivateStorePos/
 // put_object_info.md）：校验宿主 store 状态与卖家位置后序列化私商对象信息：
@@ -278,6 +304,21 @@ void CPrivateStore::ResetItems()
 {
     for (std::vector<PrivateStoreItem>::size_type i = 0; i < m_items.size(); ++i)
         m_items[i].Reset();
+}
+
+// ---- IsLimitedSpace（ORIG T 0x85c4ff2，报告 private_store__CPrivateStore/IsLimitedSpace.md 全文）----
+// 开店起点 m_pos 与目标 pos 区域(a/b)一致，且目标坐标落在
+// [m_field2-0x50, m_field2+0x50) × [m_field4-0x32, m_field4+0x32) 矩形内。
+// ORIG 为 && 短路链 + 单出口（mov $1/jmp/mov $0），按 P56 写 if 分支。
+bool CPrivateStore::IsLimitedSpace(PrivateStorePos const& pos)
+{
+    if (m_pos.m_a == pos.m_a && m_pos.m_b == pos.m_b &&
+        (int)(short)m_pos.m_field4 - 0x32 < (int)(short)pos.m_field4 &&
+        (int)(short)m_pos.m_field4 + 0x32 > (int)(short)pos.m_field4 &&
+        (int)(short)m_pos.m_field2 - 0x50 < (int)(short)pos.m_field2 &&
+        (int)(short)m_pos.m_field2 + 0x50 > (int)(short)pos.m_field2)
+        return true;
+    return false;
 }
 
 // ---- CopyItems（ORIG T 0x85c4f9c，报告 CopyItems.md）----
@@ -870,7 +911,7 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
         return false;
     }
 
-    int invenType = GetInvenTypeFromItemSpace((int)(char)item.m_field46);  // ORIG 返回 int
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)item.m_field46);  // ORIG 返回 int
     Inven_Item srcItem = inventory->GetInvenSlot((INVEN_TYPE)invenType, (int)item.m_field48);
     CItem* itemInfo = G_CDataManager()->find_item((int)srcItem.m_addInfo);
     if (itemInfo == 0)
@@ -1898,7 +1939,7 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
     char const* buyerName = m_pBuyer->getCurCharacName();
 
     cMyTrace trace(
-        "int private_store::CPrivateStore::BuyItem(int, Inven_Item&, int, int, int, int&)",
+        __PRETTY_FUNCTION__,
         0xa63, 0);
     trace("PrivateStore buy seller_charac_name(%s), buyer_charac_name(%s), "
           "item_id(%d), add_info(%d), upgrade(%d), reseal_count(%d), sell_price(%d)",
@@ -2075,6 +2116,16 @@ void CCharacterControllerPrivate::MoveCharacterStartPoint(CUser* user)
 
 // ORIG B _ZN13private_store21g_CharacterControllerE @0x09472de0（BSS size 6）
 CCharacterControllerPrivate g_CharacterController;
+
+// ---- CErrorGeneratorPrivate（ORIG C1 W 0x85d0fa4 / D1 W 0x85d0f7c，报告缺失，objdump 转写）----
+// 唯一成员 std::map<CUser*,int>：C1 调 map C1、D1 调 map D1（sizeof 0x18）。
+CErrorGeneratorPrivate::CErrorGeneratorPrivate() : m_errors() {}
+
+CErrorGeneratorPrivate::~CErrorGeneratorPrivate() {}
+
+// ORIG B _ZN13private_store16g_ErrorGeneratorE @0x09472de8（BSS size 0x18）；
+// 全局构造序列（_GLOBAL__I__...GetInstancePrivateStoreMgr）实证：C1 构造 + __cxa_atexit(D1)。
+CErrorGeneratorPrivate g_ErrorGenerator;
 
 // ---- CCharacterControllerPrivate（ORIG C1 W 0x85d0f90）----
 CCharacterControllerPrivate::CCharacterControllerPrivate() : m_startPos() {}

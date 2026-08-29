@@ -73,7 +73,7 @@ namespace ARAD
 // punish_check_by_HUB @ 0x08196dbf（size 0xf）
 void PUNISH_CHECK::punish_check_by_HUB(SIG_LOGIN_DATA* data, int /*type*/)
 {
-    SGF<char>(data, 0x3a20) = 1;
+    data->m_hubPunishFlag = 1;
 }
 
 // punish_check_by_RES @ 0x08196dce（ORIG 纯 ret）
@@ -89,10 +89,10 @@ int PUNISH_CHECK::punish_check_by_WEB(SIG_LOGIN_DATA* data, long arg, int flag)
     {
         return 1;
     }
-    SGF<int>(data, 0xb8) = 4;
+    data->m_errCode = 4;
     if (arg == 0)
     {
-        SGF<int>(data, 0xb8) = 0x3e9;
+        data->m_errCode = 0x3e9;
     }
     return 0;
 }
@@ -104,10 +104,10 @@ int PUNISH_CHECK::punish_check_by_SYS(SIG_LOGIN_DATA* data, long arg, int flag)
     {
         return 1;
     }
-    SGF<int>(data, 0xb8) = 4;
+    data->m_errCode = 4;
     if (arg == 0)
     {
-        SGF<int>(data, 0xb8) = 0x3ea;
+        data->m_errCode = 0x3ea;
     }
     return 0;
 }
@@ -119,10 +119,10 @@ int PUNISH_CHECK::punish_check_by_ARS(SIG_LOGIN_DATA* data, long arg, int flag)
     {
         return 1;
     }
-    SGF<int>(data, 0xb8) = 4;
+    data->m_errCode = 4;
     if (arg == 0)
     {
-        SGF<int>(data, 0xb8) = 0x3eb;
+        data->m_errCode = 0x3eb;
     }
     return 0;
 }
@@ -198,7 +198,7 @@ int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
     bool allPvp = is_all_pvp_channel() != 0;
     if (!allPvp)
     {
-        SGF<unsigned short>(data, 0x3a38) = 0;
+        data->m_channelRestrictField = 0;
     }
     return 1;
 }
@@ -264,9 +264,10 @@ AradWhiteAccount::AradWhiteAccount()
     Load();
 }
 
-// dtor @ 0x081ab55a：~set 链条自动完成（基类析构覆盖 clear+析构）
+// dtor @ 0x081ab55a：先 clear() 清空 set，再由编译器析构基类 std::set<unsigned int>。
 AradWhiteAccount::~AradWhiteAccount()
 {
+    clear();
 }
 
 // Load @ 0x081ab5f8：固定三条白名单账号（非文件解析）。
@@ -323,7 +324,7 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
         "int ARAD::Arad_Dispatcher_Login_Impl::account_password_check("
         "SIG_LOGIN_DATA*, char*)";
 
-    unsigned int userIdx = SGF<unsigned int>(data, 0xc0);
+    unsigned int userIdx = data->m_accId;
 
     WongWork::CSimpleSSO::stOutputData_t out;
     long loginTime = 0;
@@ -354,25 +355,25 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
     }
 
     // 普通登录：out（sizeof 0x48）各字段落位到 SIG_LOGIN_DATA 固定 SSO 槽。
-    SGF<int>(data, 0x3950) = out.m_accountFail;             // -0x78 (+0x04)
-    SGF<int>(data, 0x3954) = out.m_totalAccountFail;        // -0x74 (+0x08)
-    SGF<int>(data, 0x3958) = out.m_lastPlayTime;            // -0x7c (+0x00)
-    SGF<int>(data, 0x3960) = out.m_reportCnt;               // -0x70 (+0x0c)
-    SGF<char>(data, 0x3964) = out.m_reliableFlag;           // byte (-0x6c/+0x10)
-    SGF<unsigned int>(data, 0x3968) = out.m_tradeGoldDaily; // -0x68 (+0x14)
-    SGF<unsigned char>(data, 0x39a2) = out.m_tutorialSkipable;  // byte (-0x40/+0x3c)
+    data->m_accountFail = out.m_accountFail;             // -0x78 (+0x04)
+    data->m_totalAccountFail = out.m_totalAccountFail;        // -0x74 (+0x08)
+    data->m_lastPlayTime = out.m_lastPlayTime;            // -0x7c (+0x00)
+    data->m_reportMannerlessUserCount = out.m_reportCnt;               // -0x70 (+0x0c)
+    data->m_reliablePersonFlag = out.m_reliableFlag;           // byte (-0x6c/+0x10)
+    data->m_overTradeGoldCount = out.m_tradeGoldDaily; // -0x68 (+0x14)
+    data->m_tutorialSkipable = out.m_tutorialSkipable;  // byte (-0x40/+0x3c)
     SGF<unsigned char>(data, 0x39dc) = out.m_securityFlag;      // byte (-0x50/+0x2c)
-    SGF<int>(data, 0x395c) = static_cast<int>(out.m_dungeonGainGold);  // -0x4c/+0x30
+    data->m_dungeonGainedGold = static_cast<int>(out.m_dungeonGainGold);  // -0x4c/+0x30
 
     long curSec = GlobalData::s_systemTime_.getCurSec();
     int fatigueSchedule = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
     if (CheckDailyScheduleTime(fatigueSchedule, out.m_lastPlayTime, curSec))
     {
-        SGF<int>(data, 0x395c) = 0;
+        data->m_dungeonGainedGold = 0;
     }
 
-    // strncpy 到 data+0x3a3a，长度 0x10（客户端 IP 槽）
-    strncpy(reinterpret_cast<char*>(data) + 0x3a3a, out.m_loginIp, 0x10);
+    // strncpy 到 m_webAddress（+0x3a3a），长度 0x10（客户端 IP 槽）
+    strncpy(data->m_webAddress, out.m_loginIp, 0x10);
     return 0;
 }
 
@@ -387,7 +388,7 @@ int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
 
     char encryptedPwd[36];         // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
 
-    if (SGF<unsigned char>(data, 0x390c) == 2)
+    if (data->m_passPadVersion == 2)
     {
         // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
         char day[0x14];
@@ -419,7 +420,7 @@ int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
     }
 
     // 二级口令校验主流程
-    SGF<unsigned char>(data, 0x390c) = 1;
+    data->m_passPadVersion = 1;
 
     char inputPadPwd[0x24];        // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
     for (unsigned int i = 0; i < sizeof(encryptedPwd); ++i)
@@ -428,39 +429,38 @@ int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
     }
 
     strncpy(inputPadPwd,
-            reinterpret_cast<const char*>(data) + 0x3905, 0x24);
+            data->m_passPadPassword + 0x24, 0x24);   // +0x3905
 
     ARAD_CRYPT::encryptAES(GlobalData::s_pcryptRijndael_MousePassword_,
                            inputPadPwd, encryptedPwd);
 
-    const char* savedHash = reinterpret_cast<const char*>(
-        reinterpret_cast<char*>(data) + 0x38e1);
+    const char* savedHash = data->m_passPadPassword;   // +0x38e1
     if (strncmp(savedHash, encryptedPwd, 0x24) == 0)
     {
-        SGF<int>(data, 0x3914) = 0;
-        SGF<int>(data, 0x3918) = 0;
+        data->m_passPadFailCnt = 0;
+        data->m_passPadCancelCnt = 0;
         if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
         {
-            SGF<int>(data, 0xb8) = 6;
+            data->m_errCode = 6;
             return 1;
         }
         if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
         {
-            SGF<int>(data, 0xb8) = 6;
+            data->m_errCode = 6;
             return 1;
         }
-        SGF<unsigned char>(data, 0x38e0) = 0;
+        data->m_passPadEnable = 0;
         return 0;
     }
 
-    SGF<int>(data, 0x3914) = SGF<int>(data, 0x3914) + 1;
+    data->m_passPadFailCnt = data->m_passPadFailCnt + 1;
     DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
-    if (SGF<int>(data, 0x3914) <= 9)
+    if (data->m_passPadFailCnt <= 9)
     {
-        SGF<int>(data, 0xb8) = 5;
+        data->m_errCode = 5;
         return 0x48;
     }
-    SGF<int>(data, 0xb8) = 6;
+    data->m_errCode = 6;
     return 0x49;
 }
 
@@ -476,8 +476,8 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
 {
     unsigned short pushCount = 0;
 
-    SGF<int>(data, 0x2294) = 0;
-    SGF<unsigned short>(data, 0x293a) = 0;
+    data->m_premiumCount = 0;
+    data->m_restrictedGoodsCount = 0;
     SGF<int>(data, 0x394c) = 0;
 
     std::vector<int> vecA;                       // select_member_premium 目标 A
@@ -501,8 +501,8 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
             SGF<unsigned int>(
                 data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
                 static_cast<unsigned int>(entry.m_eventId);
-            SGF<unsigned short>(data, 0x293a) = pushCount + 1;
-            pushCount = SGF<unsigned short>(data, 0x293a);
+            data->m_restrictedGoodsCount = pushCount + 1;
+            pushCount = data->m_restrictedGoodsCount;
             continue;
         }
 
@@ -511,8 +511,8 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
             SGF<unsigned int>(
                 data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
                 static_cast<unsigned int>(entry.m_eventId);
-            SGF<unsigned short>(data, 0x293a) = pushCount + 1;
-            pushCount = SGF<unsigned short>(data, 0x293a);
+            data->m_restrictedGoodsCount = pushCount + 1;
+            pushCount = data->m_restrictedGoodsCount;
             continue;
         }
 
@@ -529,7 +529,7 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
         }
     }
 
-    SGF<int>(data, 0x2294) = pushCount;
+    data->m_premiumCount = pushCount;
     return 0;
 }
 
@@ -550,7 +550,7 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
         return -1;
     }
 
-    SGF<int>(loginData, 0xb8) = 0;
+    loginData->m_errCode = 0;
 
     int channelType = G_GameWorld()->GetChannelType();
     if (channelType == 8)
@@ -559,7 +559,7 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
         info.m_userDBIdx = 0;
         info.m_userDBType = 0;
         info.m_serverGroup =
-            static_cast<int>(SGF<unsigned short>(loginData, 0x3a38));
+            static_cast<int>(loginData->m_channelRestrictField);
         GlobalData::s_db_mgr->addUserDBInfo(userIdx, info);
         GlobalData::s_db_mgr->setUserIdx(userIdx);
     }
@@ -573,22 +573,22 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
     if (DATABASE::LOGIN_QUERY::arad_sp_select_account_info(loginData, pwdBuf)
         != 0)
     {
-        SGF<int>(loginData, 0xb8) = 4;
+        loginData->m_errCode = 4;
     }
 
     if (account_password_check(loginData, pwdBuf) != 0)
     {
-        SGF<int>(loginData, 0xb8) = 1;
+        loginData->m_errCode = 1;
     }
 
-    if (SGF<int>(loginData, 0x3950) > 2 || SGF<int>(loginData, 0x3954) > 9)
+    if (loginData->m_accountFail > 2 || loginData->m_totalAccountFail > 9)
     {
-        SGF<int>(loginData, 0xb8) = 7;
+        loginData->m_errCode = 7;
     }
 
     if (DATABASE::LOGIN_QUERY::arad_sp_select_punish_user_info(loginData) != 0)
     {
-        SGF<int>(loginData, 0xb8) = 0xf;
+        loginData->m_errCode = 0xf;
     }
 
     DATABASE::LOGIN_QUERY::arad_sp_select_punish_second_user(loginData);
@@ -604,10 +604,10 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
 
     int secondCheckType = G_GameWorld()->GetChannelType();
     if (secondCheckType == 7 &&
-        (SGF<int>(loginData, 0x39ac) == 0 ||
-         SGF<int>(loginData, 0x39a8) == 0))
+        (loginData->m_tournamentAccountFlag == 0 ||
+         loginData->m_tournamentServerGroup == 0))
     {
-        SGF<int>(loginData, 0xb8) = 8;
+        loginData->m_errCode = 8;
     }
 
     return 0;
@@ -622,12 +622,12 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
     int index = 0;
     while (true)
     {
-        if (SGF<int>(data, 0x3a50) <= index)
+        if (data->m_punishInfoCount <= index)
         {
             return 1;
         }
-        long punishEnd = SGF<int>(data, index * 0x18 + 0x3a68);
-        int punishType = SGF<int>(data, index * 0x18 + 0x3a54);
+        long punishEnd = data->m_punishInfos[index].m_endTime;   // +0x3a68
+        int punishType = data->m_punishInfos[index].m_type;      // +0x3a54
 
         PUNISH_CHECK::punish_check_by_HUB(data, punishType);
         PUNISH_CHECK::punish_check_by_RES(data, punishType);
@@ -637,19 +637,19 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
             if (PUNISH_CHECK::punish_check_by_WEB(data, punishEnd,
                                                   punishType) == 0)
             {
-                SGF<int>(data, 0x3a50) = index;
+                data->m_punishInfoCount = index;
                 return 0;
             }
             if (PUNISH_CHECK::punish_check_by_SYS(data, punishEnd,
                                                   punishType) == 0)
             {
-                SGF<int>(data, 0x3a50) = index;
+                data->m_punishInfoCount = index;
                 return 0;
             }
             if (PUNISH_CHECK::punish_check_by_ARS(data, punishEnd,
                                                   punishType) == 0)
             {
-                SGF<int>(data, 0x3a50) = index;
+                data->m_punishInfoCount = index;
                 return 0;
             }
         }

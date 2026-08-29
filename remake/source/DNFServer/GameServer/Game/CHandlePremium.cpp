@@ -170,16 +170,16 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
                 {
                     CInventory* invR = const_cast<CInventory*>(user->getCurCharacInvenR());
                     int coin = (int)invR->GetCoin()
-                             + GlobalData::g_SPremiumInfo[iType].m_premiumCount;
+                             + g_SPremiumInfo[iType].m_premiumCount;
                     user->getCurCharacInvenW()->SetCoin((unsigned int)coin);
                     int curCoin = (int)invR->GetCoin();
-                    int add = GlobalData::g_SPremiumInfo[iType].m_premiumCount;
+                    int add = g_SPremiumInfo[iType].m_premiumCount;
                     user->m_historyLog.CoinAdd(curCoin, add, (eCoinAddReason)4);
                 }
             }
 
             // 每日定时（仅在 premium 定义需每日检查时）。
-            if (GlobalData::g_SPremiumInfo[iType].m_checkTerm != 0 &&
+            if (g_SPremiumInfo[iType].m_checkTerm != 0 &&
                 info.m_end > curSec)
             {
                 G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)user->GetUID(),
@@ -242,9 +242,9 @@ void CHandlePremium::handlePremiumTimeout(CUser* user)
     {
         user->ProcPremiumFatigue();
         user->SendFatigue();
-        if (GlobalData::g_SPremiumInfo[timeoutType].m_kind == 1)
+        if (g_SPremiumInfo[timeoutType].m_kind == 1)
         {
-            if (GlobalData::g_SPremiumInfo[timeoutType].m_field64 > 0)
+            if (g_SPremiumInfo[timeoutType].m_field64 > 0)
                 user->SetNeedCheckOverEquipItem();
             user->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)2, 1);
         }

@@ -28,12 +28,13 @@ unsigned int Tick::nowAsInternalValue()
 void Tick::setInternalValue(unsigned int v) { m_value = v; }
 unsigned int Tick::getInternalValue() const { return m_value; }
 
-Tick& Tick::operator=(const Tick& rhs)
+// operator=：ORIG @0x08ade8e0（_ZN4TickaSES_ 按值参）：value_ = rhs.value_，返回 *this。
+Tick& Tick::operator=(Tick rhs)
 {
-    if (this != &rhs)
-        m_value = rhs.m_value;
+    m_value = rhs.m_value;
     return *this;
 }
+
 Tick& Tick::operator+=(int span) { m_value += span; return *this; }
 Tick& Tick::operator-=(int span) { m_value -= span; return *this; }
 Tick Tick::operator+(int span) const { return Tick(m_value + span); }

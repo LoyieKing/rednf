@@ -67,7 +67,8 @@ extern int itemPriceRates_[3];    // B 0x094f7bfc（InitScriptProducers_4.cpp �
 
 // B 0x094f7778（nm 尺寸 8）。源码此前无任何定义/写点；唯一读者
 // GetItemUpgradeSuccessRate 以 fildl 取低 32 位。按 int 定义并置零。
-int g_alchemistInfo = 0;
+extern int g_alchemistInfo[2];   // B 0x094f7778（定义于 CExpertJobList.cpp int[2]）
+
 
 namespace expert_job
 {
@@ -115,7 +116,7 @@ bool expert_job::CAlchemist::IsExistContinuousEffectItem(CUser* user,
 float expert_job::CAlchemist::GetItemUpgradeSuccessRate()
 {
     static const float divisor = 9840.0f;  // ORIG .rodata 0x08cbfa3c
-    return (float)g_alchemistInfo / divisor;
+    return (float)g_alchemistInfo[0] / divisor;   // 合并后 int[2]；低半区 [0] 为原标量
 }
 
 // ============================================================================
@@ -193,70 +194,7 @@ DisJointResult::DisJointResult()
 }
 
 // ============================================================================
-// DisJoint::_GetAdditionalItemInfo @ 0x08473224
-//   entry = this + (rarity+0x5c)*0x10；*(int*)(entry+8)==0 → 0；
-//   否则 idx = get_rand_int(*(int*)(entry+8)*1000)/1000，
-//   返回 vector<int>（entry+0xc 处对象）[idx]。
-//   【忠实转写】entry+8/+0xc 按原始字节偏移直访（与 DisJoint.h 中
-//   DisjointAdditionalEntry 建模并存，语义归属分解域批次复核）。
 // ============================================================================
-int DisJoint::_GetAdditionalItemInfo(int rarity)
-{
-    char* entry =
-        reinterpret_cast<char*>(this) +
-        static_cast<unsigned>(rarity + 0x5c) * 0x10;
-    if (*reinterpret_cast<int*>(entry + 8) == 0)
-    {
-        return 0;
-    }
-    const int bound = *reinterpret_cast<int*>(entry + 8) * 1000;
-    const int pick = get_rand_int(bound) / 1000;
-    std::vector<int>* items =
-        reinterpret_cast<std::vector<int>*>(entry + 0xc);
-    return (*items)[pick];
-}
-
-// ============================================================================
-// DisJoint::_GetAdditionalItem @ 0x084732b4
-//   outIdx = _GetAdditionalItemInfo(rarity)；非零时按 m_additionalConst 权重
-//   二选一分母浮点（m_additionalWeight / m_additionalRate[rarity]），
-//   outCount = ROUND(grade / denom)，最小 1。
-// ============================================================================
-void DisJoint::_GetAdditionalItem(const CItem* item, int* outIdx, int* outCount)
-{
-    const int rarity = item->get_rarity();
-    *outIdx = _GetAdditionalItemInfo(rarity);
-    if (*outIdx != 0)
-    {
-        // m_additionalConst[rarity].m_item（+0x56c+rarity*0xc）作权重。
-        const int weight = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(this) + rarity * 0xc + 0x56c);
-        float denom;
-        if (get_rand_int(10000) < weight * 100)
-        {
-            // (rarity+0x150)*4+0x10 = m_additionalWeight[rarity]
-            denom = *reinterpret_cast<const float*>(
-                reinterpret_cast<const char*>(this) +
-                static_cast<unsigned>(rarity + 0x150) * 4 + 0x10);
-        }
-        else
-        {
-            // (rarity+0x168)*4+0x10 = m_additionalRate[rarity]
-            denom = *reinterpret_cast<const float*>(
-                reinterpret_cast<const char*>(this) +
-                static_cast<unsigned>(rarity + 0x168) * 4 + 0x10);
-        }
-        // ORIG fistp 四舍五入。
-        int count =
-            (int)((float)item->get_grade() / denom + 0.5f);
-        if (count < 1)
-        {
-            count = 1;
-        }
-        *outCount = count;
-    }
-}
-
 // ============================================================================
 // DisJoint::GetResult @ 0x084733f6
 //   out.m_f[5] = m_cubeIndexVecs[4][0]；
@@ -272,7 +210,7 @@ int DisJoint::GetResult(int itemIdx, DisJointResult& out)
     if (script == 0)
     {
         LogManager::logFormat(1, "DisJoint.cpp",
-                              "int DisJoint::GetResult(int, DisJointResult&)",
+                              __PRETTY_FUNCTION__,
                               0x6e, "[DisJoint::GetResult] Null Item\n");
         return 0x11;
     }
@@ -295,7 +233,7 @@ int DisJoint::GetResult(int itemIdx, DisJointResult& out)
                              rate) / thousand + 0.5f);  // fistp 四舍五入
     out.m_f[0] = money < 1 ? 1 : money;
 
-    _GetAdditionalItem(script, &out.m_f[6], &out.m_f[1]);
+    _GetAdditionalItem(script, out.m_f[6], out.m_f[1]);
     return 0;
 }
 
@@ -496,6 +434,7 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
                                            const Inven_Item& target,
                                            upgrade_info_t& info) const
 {
+    static const int MaxPortableItemActionIntCount = 2;  // ORIG _ZZNK8WongWork12CItemUpgrade24_ProcPortableUpgradeItem…E29MaxPortableItemActionIntCount
     CItem* script = G_CDataManager()->find_item(material.m_addInfo);
     if (script == 0)
     {
@@ -511,7 +450,7 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
         return 0;
     }
     const std::vector<int>& levels = stack->m_vec3a0;
-    if (levels.size() != 2)
+    if (levels.size() != MaxPortableItemActionIntCount)
     {
         return 4;
     }

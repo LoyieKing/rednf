@@ -23,6 +23,30 @@ RefPvpGrade::RefPvpGrade()
 RefPvpGrade::~RefPvpGrade()
 {
 }
+// ORIG W 0x0844d54c：返回 this+0x134（m_pvpExpLoss1）。
+int RefPvpGrade::getPvPExpLossGrade()
+{
+    return m_pvpExpLoss1;
+}
+
+// ORIG W 0x0844d55a：返回 this+0x138（m_pvpExpLoss2）。
+int RefPvpGrade::getPvPExpLossExp()
+{
+    return m_pvpExpLoss2;
+}
+
+// ORIG W 0x0844d568：返回 this+0x13c（m_rankRateGrade）。
+int RefPvpGrade::getPvPRankRateGrade()
+{
+    return m_rankRateGrade;
+}
+
+// ORIG W 0x0844d576：mov 0x8(%ebp),%eax; add $0x140,%eax; ret
+// —— 返回 this+0x140（m_rankRate 对象地址），即 vector 引用。
+std::vector<int>& RefPvpGrade::getPvPRankRate()
+{
+    return m_rankRate;
+}
 
 // ORIG Clear 0x85d4722：this+0 = 0；循环 i=0..0x25：this+4+i*8=0、this+8+i*8=0。
 void RefPvpGrade::Clear()

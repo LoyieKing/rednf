@@ -36,11 +36,13 @@
 #include "ServerParameterScript.h"  // stLightServerNotice_t
 #include "CAuctionAveragePrice.h"
 #include "CGameManager.h"
+#include "CInGameAdvertisementManager.h"  // CInGameAdvertisementManager/InGameADManagerInstance（权威头）
 #include "GameWorld.h"
 #include "HistoryLog.h"
 #include "CDeathTowerRanking.h"
 #include "CDailyScheduleManager.h"
 #include "Arad_DataManager.h"  // ARAD::ScriptManager / Singleton（权威声明）
+#include "TaiwanQueries.h"     // Taiwan::AuthGarenaToken 权威（原 TU-local 定义删除）
 #include "CEventTable.h"  // CEventTable 权威声明（唯一；定义在 CEventManager.cpp）
 #include <cstdio>
 #include <cerrno>
@@ -62,6 +64,7 @@
 
 // 定时器注册实现依赖（ORIG G_TimerQueue 0x80f647c / CSystemTime::getCurSec
 // 0x80cbc9e / get_rand_int 0x86b1b87 均为 ORIG 真实符号）
+#include "PacketTracer.h"   // CPacketTracer / CPacketTracerInstance（signal_handler 依赖）
 #include "TimerQueue.h"
 
 // 三大分发器权威类型（本 TU 仅用其生命周期 CREATE_/DESTROY_ 与定时器静态成员）
@@ -96,8 +99,21 @@ void ProcessAntiBotInputWrapper();           // _Z26ProcessAntiBotInputWrapperv
 void ProcessServerStatusLog();               // _Z22ProcessServerStatusLogv
 
 // GetConfigFileString(map<string,string>&, const char*)  _Z19GetConfigFileStringRSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEEPKc
+// ORIG 0x0829d7b3：conf.find(key) 命中且 value 非空 → 返回 value.c_str()；
+// 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
+// "%s tag error", key) 后返回 ""。
 std::string GetConfigFileString(
-    std::map<std::string, std::string>& conf, const char* key);
+    std::map<std::string, std::string>& conf, const char* key)
+{
+    std::string keyStr(key);
+    std::map<std::string, std::string>::iterator it = conf.find(keyStr);
+    if (it != conf.end() && it->second.length() != 0)
+        return it->second.c_str();
+    LogManager::logFormat(1, "App.cpp",
+                          __PRETTY_FUNCTION__,
+                          0x1fc7, "%s tag error", key);
+    return "";
+}
 
 class CodePage
 {
@@ -105,14 +121,6 @@ public:
     static void initCodePage();              // _ZN8CodePage12initCodePageEv
 };
 
-namespace Taiwan
-{
-class AuthGarenaToken
-{
-public:
-    static void init(char const* path);      // _ZN6Taiwan15AuthGarenaToken4initEPKc
-};
-}  // namespace Taiwan
 
 
 // np_server_xml::CServerXml::StrLoading()（_ZN13np_server_xml10CServerXml10StrLoadingEv）
@@ -127,13 +135,9 @@ public:
 }  // namespace np_server_xml
 
 
-// CInGameAdvertisementManager（ORIG 无既有头；最小声明，字段未建模 —「推断」）
-class CInGameAdvertisementManager
-{
-public:
-    void LoadADExposeInfoAtApp();            // _ZN27CInGameAdvertisementManager21LoadADExposeInfoAtAppEv
-};
-CInGameAdvertisementManager* InGameADManagerInstance();  // _Z23InGameADManagerInstancev 0x080fc9e9
+// CInGameAdvertisementManager/InGameADManagerInstance 声明改用权威头
+// CInGameAdvertisementManager.h（StubS3B：queryADExposeInfo/LoadADExposeInfoAtApp/
+// InGameADManagerInstance 真实实现迁移至 CInGameAdvertisementManager.cpp）。
 
 // CmmChannelProxy（ORIG 真实类；头未建，最小声明 —「推断」）
 class CmmChannelProxy
@@ -142,36 +146,16 @@ public:
     void SendChannelInfo();                  // _ZN15CmmChannelProxy15SendChannelInfoEv
 };
 
-// InGameADManagerInstance —— ORIG 0x80fc9e9（__cxa_guard 静态单例，0x93fead0）。
-CInGameAdvertisementManager* InGameADManagerInstance()
-{
-    static CInGameAdvertisementManager s_instance;
-    return &s_instance;
-}
-
-// CInGameAdvertisementManager::LoadADExposeInfoAtApp —— ORIG 0x80fd83c：
-// memset 0x67b60 条件缓冲 → queryADExposeInfo(0x80fd19e) → 对 200 项
-// （每项 0x84c 字节）首字段 != -1 者调 InsertADExposeInfo(0x80fd8e4)。
-// query/Insert 及条件表结构未建模 —「推断」骨架：TODO(G2)。
-void CInGameAdvertisementManager::LoadADExposeInfoAtApp()
-{
-}
-
 // 定时器包装类：类型声明已迁至权威头 TimerDispatcher.h（Timer_* 分发器类，
 // 静态 RegistNextTimer/registNextTimer 成员与 ORIG nm 一致）；本 TU 仅保留
 // 其静态成员定义（下方，逐指令转写）。
 
 // ---------------------------------------------------------------------------
 // 定时器注册实现（ORIG 汇编逐条转写；均为 G_TimerQueue()->InsertTimer 包装，
-// OBJ_TYPE=2 表示全局对象定时器，param1/key 均为 0）
+// OBJ_TYPE=2 表示全局对象定时器，param1/key 均为 0）。
+// 注：Timer_SecretShopStatistic::RegistNextTimer 与 TimerDispatcher.cpp 重复，
+// 已删除（2026-08-29），保留 TimerDispatcher.cpp 权威实现。
 // ---------------------------------------------------------------------------
-void Timer_SecretShopStatistic::RegistNextTimer()
-{
-    // ORIG 0x86397ee：msg=0x90，间隔 60s
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x90, 0x3c, 0, 0);
-}
-
 void Timer_DailySchedule::RegistNextTimer()
 {
     // ORIG 0x812c940：msg=0x91，间隔 60s
@@ -730,7 +714,7 @@ int main(int argc, char** argv)
     // 删除 pid 文件：sprintf("./pid/%s.pid", G_CEnvironment()->get_file_name())
     // 后 remove；失败打印 "FAIL TO DELETE PID FILE ERROR: %s\n" + strerror(errno)。
     {
-        cMyTrace trace("int main(int, char**)", 0x25e6, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x25e6, 0);
         trace("GAME SERVER SHUTDOWN COMPLETE\n");
     }
     char pidFile[0x1e];
@@ -802,21 +786,139 @@ int regist_signal(int sig, void (*handler)(int))
     return 1;
 }
 
-// signal_handler(int) —— ORIG 0x829f28b（0x234 字节，switch 跳转表）：
-// 各信号分支依赖 rdar_terminate/CPacketTracer/CShutdowManager 全链路，
-// 其中多个符号尚未建模 —「推断」骨架：SIGTERM 打印后退出，其余忽略。
+void rdar_terminate();     // ORIG T 0x0829e80b（本文件尾部定义）
+void omll_dump_core_file(); // ORIG T 0x0829f6f4（本文件已有定义）
+void TerminateServers();    // ORIG T 0x082a21f9（本文件尾部定义）
+
 void signal_handler(int sig)
 {
-    if (sig == 15)
+    switch (sig)
+    {
+    case 15:
     {
         std::puts("RECV SIGTERM");
-        // ORIG：rdar_terminate → CPacketTracer::{AbsoluteTcp,Udp}WriteLog → …
-        // （依赖符号未建模，「推断」省略落盘步骤）
-        std::exit(0);
+        rdar_terminate();
+        CPacketTracer* tracer = CPacketTracerInstance();
+        tracer->AbsoluteTcpWriteLog();
+        tracer = CPacketTracerInstance();
+        tracer->AbsoluteUdpWriteLog();
+        break;
     }
-    // 其余信号分支（suspend/shutdown 状态迁移）—「推断」：ORIG 走
-    // set_suspend_state / GetInstanceShutdowManager()->EnableShutdown 等，
-    // 此处以最小安全路径处理。
+    case 10:
+    {
+        CEnvironment* env = G_CEnvironment();
+        std::printf("RDAR_SUSPEND pointer: %p\n", static_cast<void*>(env));
+        env = G_CEnvironment();
+        env->set_suspend_state(true);
+        break;
+    }
+    case 12:
+    {
+        std::puts("RECV SIGUSR2");
+        CEnvironment* env = G_CEnvironment();
+        std::printf("G_CEnvironment pointer: %p\n", static_cast<void*>(env));
+        env = G_CEnvironment();
+        env->set_suspend_state(true);
+        GetInstanceShutdowManager()->Reset();
+        GetInstanceShutdowManager()->EnableShutdown(true);
+        GameWorld* world = G_GameWorld();
+        const int userCount = world->get_UserCount_InWorld();
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2459, 0);
+            trace("current user count (%d)\n", userCount);
+        }
+        GameWorld* world2 = G_GameWorld();
+        if (world2->get_UserCount_InWorld() < 1)
+        {
+            GetInstanceShutdowManager()->OnAllUserLogout();
+        }
+        else
+        {
+            GameWorld* world3 = G_GameWorld();
+            world3->arrange_users();
+        }
+        break;
+    }
+    case 6:
+    case 11:
+    {
+        std::puts("Recv SIGSEGV signal --> make Dump Core file.");
+        CPacketTracer* tracer = CPacketTracerInstance();
+        tracer->AbsoluteTcpWriteLog();
+        tracer = CPacketTracerInstance();
+        tracer->AbsoluteUdpWriteLog();
+        omll_dump_core_file();
+        break;
+    }
+    case 8:
+    {
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__,
+                              0x2478, "Recv FPE signal");
+        CPacketTracer* tracer = CPacketTracerInstance();
+        tracer->AbsoluteTcpWriteLog();
+        tracer = CPacketTracerInstance();
+        tracer->AbsoluteUdpWriteLog();
+        omll_dump_core_file();
+        break;
+    }
+    case 4:
+    case 7:
+    case 16:
+    case 23:
+    case 24:
+    case 25:
+    case 31:
+    default:
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__,
+                              0x2486,
+                              "Recv %d signal --> process is terminated abnormaly.",
+                              sig);
+        CPacketTracer* tracer = CPacketTracerInstance();
+        tracer->AbsoluteTcpWriteLog();
+        tracer = CPacketTracerInstance();
+        tracer->AbsoluteUdpWriteLog();
+        omll_dump_core_file();
+        std::exit(-1);
+        break;
+    }
+}
+
+// ORIG 0x0829e80b（_Z14rdar_terminatev，T，87 条）：
+//   buf[30] 清零；sprintf("./pid/%s.pid", G_CEnvironment()->get_file_name())；
+//   printf("???%s\n")；remove 失败 → perror 风格 strerror 输出，
+//   成功 → puts RDAR TERMINATED；arrange_users；TerminateServers()。
+void rdar_terminate()
+{
+    char buf[30];
+    std::memset(buf, 0, sizeof(buf));
+    std::sprintf(buf, "./pid/%s.pid", G_CEnvironment()->get_file_name());
+    std::printf("???%s\n", buf);
+    if (std::remove(buf) == -1)
+    {
+        std::printf("FAIL TO DELETE PID FILE ERROR: %s\n",
+                    strerror(*__errno_location()));
+    }
+    else
+    {
+        std::puts("RDAR PROCESS IS TERMINATED.");
+    }
+    G_GameWorld()->arrange_users();
+    TerminateServers();
+}
+
+// ORIG 0x082a21f9（_Z16TerminateServersv，T，189 字节/91 条）：
+//   GlobalData::s_stream_pool->Acquire("App.cpp",0x2e2a) → CStreamGuard(s,true)
+//   << 0x3e << 0；s_msgq_mgr->put((QUEUE_IDX)1, guard)。
+void TerminateServers()
+{
+    Stream* s =
+        GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x2e2a);
+    {
+        CStreamGuard guard(s, true);
+        guard << 0x3e;
+        guard << 0;
+        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
+    }
 }
 
 // omll_dump_core_file() —— ORIG 0x829f6f4（逐指令一致）：abort();
@@ -882,12 +984,8 @@ bool check_pid_file()
     return access(path, F_OK) == 0;
 }
 
-// ncl_check_key(char*) —— ORIG 0x8572cb5（0x167 字节）license key 校验。
-// 校验算法未逐指令转写 —「推断」骨架：非空即通过。
-int ncl_check_key(char* key)
-{
-    return (key != 0 && key[0] != '\0') ? 1 : 0;
-}
+// ncl_check_key(char*) 真实实现（ORIG 0x8572cb5：decrypt → MAC/日期区间校验）
+// 已移至 NclKeyTools.cpp，本 TU 仅保留调用点。
 
 // send_chat_msg(char*, int) —— ORIG 0x829f6ff（0xc6 字节，逐指令转写主体）：
 // UDP socket → sockaddr{AF_INET, htons(env->get_udp_port()), htonl(0)} → sendto。
@@ -961,6 +1059,7 @@ int check_argv(int argc, char** argv)
     }
 
     // server_shells_key 校验（env+0x318 缓冲区，ORIG 原样裸偏移）
+    int ncl_check_key(char* key);  // NclKeyTools.cpp（ORIG 0x8572cb5）
     char* shellsKey =
         reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318);
     bool keyOk = ncl_check_key(shellsKey) != 0;
@@ -1110,7 +1209,7 @@ struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录
 void InitCipherKeyString()
 {
     int t0 = static_cast<int>(s_systemTime_.getCurSec());
-    static int g_totalKeyLen = 0;  // ORIG guard 变量 0x941f858 / 值 0x941f864
+    static int needed_key_length = 0;  // ORIG guard 变量 0x941f858 / 值 0x941f864
 
     for (int i = 0; i <= 0x1387; ++i)
     {
@@ -1118,20 +1217,20 @@ void InitCipherKeyString()
             reinterpret_cast<char*>(GlobalData::s_secu_cipher_keystring_manager_)
             + i * 0x10);
         rec->cipher = new Cipher;
-        if (g_totalKeyLen == 0)
-            g_totalKeyLen = rec->cipher->GetTotalKeyLength();
+        if (needed_key_length == 0)
+            needed_key_length = rec->cipher->GetTotalKeyLength();
 
         unsigned char buf[0x200];
         std::memset(buf, 0, sizeof(buf));
         char* keyStr = SelectKeyString(&rec->keyId, &rec->tblId);
         int keyLen = static_cast<int>(strlen(keyStr));
         int off = 0;
-        while (off < g_totalKeyLen && keyLen > 0)
+        while (off < needed_key_length && keyLen > 0)
         {
             memcpy(buf + off, keyStr, keyLen);
             off += keyLen;
         }
-        rec->cipher->Initialize(buf, g_totalKeyLen);
+        rec->cipher->Initialize(buf, needed_key_length);
     }
 
     int elapsed = static_cast<int>(s_systemTime_.getCurSec()) - t0;
@@ -1160,7 +1259,7 @@ void ProcessAntiBotInputWrapper()
     if (ms > 500)
     {
         LogManager::logFormat(42, "localchina/localchina_App.cpp",
-                              "void ProcessAntiBotInputWrapper()", ms,
+                              __PRETTY_FUNCTION__, ms,
                               "Delay notice, ProcessAntiBotInputWrapper()",
                               t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
     }
@@ -1174,6 +1273,6 @@ void ProcessServerStatusLog()
 {
     int userCount = G_GameWorld()->get_UserCount_InWorld();
     LogManager::logFormat(0, "localchina/localchina_App.cpp",
-                          "void ProcessServerStatusLog()", userCount,
+                          __PRETTY_FUNCTION__, userCount,
                           "users_in_world=%d");
 }

@@ -325,10 +325,10 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     if (0x10c8e0 < total)
     {
         LogManager::logFormat(1, "localglobal/global_PlayUser.cpp",
-            "virtual bool WongWork::CBossPlay::generateRewardExp(int, unsigned int, unsigned int, const CDungeon*)",
+            __PRETTY_FUNCTION__,
             0x159, "BOSS_LOG : EROOR BOSSTOWER CLEAR REWARD EXP(%u)\n", total);
         LogManager::logFormat(1, "localglobal/global_PlayUser.cpp",
-            "virtual bool WongWork::CBossPlay::generateRewardExp(int, unsigned int, unsigned int, const CDungeon*)",
+            __PRETTY_FUNCTION__,
             0x163, "BOSS_LOG : BOSSTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
             (double)avatarBonus, (double)creatureBonus, (double)pcrBurning, (double)expDouble,
             (double)channelRate, (double)premiumRate, (double)serverRate, burningRate);

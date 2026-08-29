@@ -17,18 +17,21 @@ void CDailyScheduleManager::AddDailSchedule(const std::vector<_DailySchedule>& s
         m_schedules.push_back(schedule[i]);
 }
 
-// ORIG 0x81266e2：线性扫描 m_schedules，找 (m_idx==idx && m_type==type) 且
-// m_state==1 的条目并返回其 state；未命中返回 0。
+// ORIG 0x81266e2：size() 缓存 + while 循环；命中条件 (m_idx==idx && type==m_type)
+// 且 m_state==1 时返回其 state；未命中返回 0。
 int CDailyScheduleManager::GetScheduleState(_DailyScheduleType type,
                                             unsigned int idx) const
 {
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+    const unsigned int count = m_schedules.size();
+    unsigned int i = 0;
+    while (i < count)
     {
-        const _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == static_cast<int>(idx) &&
-            entry.m_type == static_cast<int>(type) &&
-            entry.m_state == 1)
-            return entry.m_state;
+        if (m_schedules[i].m_idx == idx && type == m_schedules[i].m_type)
+        {
+            if (m_schedules[i].m_state == 1)
+                return m_schedules[i].m_state;
+        }
+        ++i;
     }
     return 0;
 }
@@ -39,72 +42,82 @@ int CDailyScheduleManager::GetScheduleState(_DailyScheduleType type,
 void CDailyScheduleManager::GM_OpenSchedule(int idx, _DailyScheduleType type,
                                             _DailySchedule& out)
 {
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+    unsigned char start[3] = { 0, 0, 0 };            // -0x17..-0x15
+    unsigned char end[3] = { 0x17, 0x32, 0x32 };     // -0x1a..-0x18
+
+    const unsigned int count = m_schedules.size();   // -0x14
+    unsigned int i = 0;                              // -0x10
+    while (i < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == idx && entry.m_type == static_cast<int>(type))
+        if (idx == m_schedules[i].m_idx && m_schedules[i].m_type == static_cast<int>(type))
         {
-            if (entry.m_idx != out.m_idx)
+            if (idx != out.m_idx)
             {
-                out = entry;
+                memcpy(&out, &m_schedules[i], sizeof(_DailySchedule));  // 0x24
                 out.m_state = 0;
             }
-            entry.m_wday = 7;                       // +0x14
-            entry.m_startHour = 0;                  // +0x18
-            entry.m_startMin = 0;                   // +0x19
-            entry.m_startSec2 = 0;                  // +0x1a
-            entry.m_endHour = 0x17;                 // +0x1b（23）
-            entry.m_endMin = 0x32;                  // +0x1c（50）
-            entry.m_endSec2 = 0x32;                 // +0x1d（50）
+            m_schedules[i].m_wday = 7;               // +0x14
+            memcpy(&m_schedules[i].m_startHour, start, 3);   // +0x18（0,0,0）
+            memcpy(&m_schedules[i].m_endHour, end, 3);       // +0x1b（23,50,50）
             break;
         }
+        ++i;
     }
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+
+    unsigned int j = 0;                              // -0xc
+    while (j < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == idx && entry.m_type == 1)
+        if (idx == m_schedules[j].m_idx && m_schedules[j].m_type == 1)
         {
-            if (entry.m_idx != out.m_idx)
+            if (idx != out.m_idx)
             {
-                out = entry;
+                memcpy(&out, &m_schedules[j], sizeof(_DailySchedule));
                 out.m_state = 0;
             }
-            entry.m_wday = 7;
-            entry.m_startHour = 0;
-            entry.m_startMin = 0;
-            entry.m_startSec2 = 0;
-            entry.m_endHour = 0x17;
-            entry.m_endMin = 0x32;
-            entry.m_endSec2 = 0x32;
+            m_schedules[j].m_wday = 7;
+            memcpy(&m_schedules[j].m_startHour, start, 3);
+            memcpy(&m_schedules[j].m_endHour, end, 3);
             break;
         }
+        ++j;
     }
 }
 
-// ORIG 0x812707c：找到 (m_idx==idx && m_type==type) 条目，按其当前 m_state 写 out.state
-// （进行中则 1，否则 0），memcpy 回条目；第二遍对 m_idx==idx 条目做 memcpy。
+// ORIG 0x812707c：找到 (m_idx==idx && m_type==type && idx==out.m_idx) 条目，按其当前
+// m_state 写 out.state（进行中则 1，否则 0），memcpy 回条目；第二遍对
+// (m_idx==idx && m_type==idx && idx==out.m_idx) 条目做 memcpy（ORIG 第二遍用 idx 比较
+// m_type，历史行为照抄）。
 void CDailyScheduleManager::GM_CloseSchedule(int idx, _DailyScheduleType type,
                                              _DailySchedule& out)
 {
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+    const unsigned int count = m_schedules.size();   // -0x14
+    unsigned int i = 0;                              // -0x10
+    while (i < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == idx && entry.m_type == static_cast<int>(type)
-            && entry.m_idx == out.m_idx)
+        if (idx == m_schedules[i].m_idx &&
+            m_schedules[i].m_type == static_cast<int>(type) &&
+            idx == out.m_idx)
         {
-            out.m_state = (entry.m_state == 1) ? 1 : 0;   // +0x20
-            entry = out;
+            if (m_schedules[i].m_state == 1)
+                out.m_state = 1;                     // +0x20
+            else
+                out.m_state = 0;
+            memcpy(&m_schedules[i], &out, sizeof(_DailySchedule));  // 0x24
             break;
         }
+        ++i;
     }
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+
+    unsigned int j = 0;                              // -0xc
+    while (j < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == idx && entry.m_type == idx && entry.m_idx == out.m_idx)
+        if (idx == m_schedules[j].m_idx &&
+            m_schedules[j].m_type == idx &&
+            idx == out.m_idx)
         {
-            entry = out;
-            break;
+            memcpy(&m_schedules[j], &out, sizeof(_DailySchedule));
         }
+        ++j;
     }
 }
 
@@ -129,56 +142,105 @@ void CDailyScheduleManager::GM_OpenAdvanceAltar() { GM_OpenSchedule(10, (_DailyS
 void CDailyScheduleManager::GM_CloseAdvanceAltar() { GM_CloseSchedule(10, (_DailyScheduleType)4, m_advanceAltar); }
 
 // ---- SouthernDale（GM_OpenSouthernDale 0x81267bc / GM_CloseSouthernDale 0x8126ad2）----
-// 打开：找 m_schedules 中 (m_idx==100 && m_type==0) 与 (m_idx==0x5045 && m_type==1) 两条，
-// 各回填到 m_southernDale（+0x24），并把条目时间窗设为当前时刻 + 当前+600s；
-// 关闭：把 m_southernDale 写回这两条（m_idx 匹配），并置 m_state。
+// 打开：第一目标 (m_idx==100 && m_type==0) 回填 this+0x0（m_southernDaleA），
+// 第二目标 (m_idx==0x5045 && m_type==1) 回填 m_southernDale(+0x24)；
+// 各自把条目 m_wday 置 7，起始 h/m/s = 当前时刻，结束 h/m/s = 当前+600s；
+// 关闭：把两目标各自写回 m_schedules 中匹配条目。
 void CDailyScheduleManager::GM_OpenSouthernDale()
 {
-    const std::time_t cur = GlobalData::s_systemTime_.getCurSec();
-    std::tm tmStart;
-    localtime_r(&cur, &tmStart);
-    std::time_t end = cur + 600;
-    std::tm tmEnd;
-    localtime_r(&end, &tmEnd);
+    unsigned int count;                              // -0x14
+    unsigned int i;                                  // -0x10
+    unsigned int j;                                  // -0xc
+    int target[2];                                   // -0x1c/-0x18（死局部，帧对齐）
+    std::time_t cur;                                 // -0x20
+    std::time_t endT;                                // -0x24
+    unsigned char start[3];                          // -0x27..-0x25
+    unsigned char end[3];                            // -0x2a..-0x28
+    std::tm tmStart;                                 // -0x58
+    std::tm tmEnd;                                   // -0x84
 
-    int matched[2] = { 0, 0 };
-    int target[2] = { 100, 0x5045 };
-    int idx = 0;
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+    target[0] = 100;
+    target[1] = 0x5045;
+    cur = GlobalData::s_systemTime_.getCurSec();
+    localtime_r(&cur, &tmStart);
+    endT = cur + 600;
+    localtime_r(&endT, &tmEnd);
+
+    start[0] = (unsigned char)tmStart.tm_hour;
+    start[1] = (unsigned char)tmStart.tm_min;
+    start[2] = (unsigned char)tmStart.tm_sec;
+    end[0] = (unsigned char)tmEnd.tm_hour;
+    end[1] = (unsigned char)tmEnd.tm_min;
+    end[2] = (unsigned char)tmEnd.tm_sec;
+
+    count = m_schedules.size();
+    i = 0;
+    while (i < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == target[idx] && (idx == 0 ? entry.m_type == 0 : entry.m_type == 1))
+        if (m_schedules[i].m_idx == 100 && m_schedules[i].m_type == 0)
         {
-            if (m_southernDale.m_idx != target[idx])
+            if (m_southernDaleA.m_idx != 100)
             {
-                m_southernDale = entry;
-                m_southernDale.m_state = 0;
+                memcpy(&m_southernDaleA, &m_schedules[i], sizeof(_DailySchedule));  // 0x24
+                m_southernDaleA.m_state = 0;
             }
-            entry.m_wday = 7;
-            entry.m_startHour = (unsigned char)tmStart.tm_hour;
-            entry.m_startMin = (unsigned char)tmStart.tm_min;
-            entry.m_startSec2 = (unsigned char)tmStart.tm_sec;
-            entry.m_endHour = (unsigned char)tmEnd.tm_hour;
-            entry.m_endMin = (unsigned char)tmEnd.tm_min;
-            entry.m_endSec2 = (unsigned char)tmEnd.tm_sec;
-            matched[idx] = 1;
-            if (idx == 0) { idx = 1; i = (unsigned int)-1; continue; }  // 重扫以找第二条
+            m_schedules[i].m_wday = 7;               // +0x14
+            memcpy(&m_schedules[i].m_startHour, start, 3);
+            memcpy(&m_schedules[i].m_endHour, end, 3);
             break;
         }
+        ++i;
     }
-    (void)matched;
+
+    j = 0;
+    while (j < count)
+    {
+        if (m_schedules[j].m_idx == 0x5045 && m_schedules[j].m_type == 1)
+        {
+            if (m_southernDale.m_idx != 0x5045)
+            {
+                memcpy(&m_southernDale, &m_schedules[j], sizeof(_DailySchedule));
+                m_southernDale.m_state = 0;
+            }
+            m_schedules[j].m_wday = 7;
+            memcpy(&m_schedules[j].m_startHour, start, 3);
+            memcpy(&m_schedules[j].m_endHour, end, 3);
+            break;
+        }
+        ++j;
+    }
 }
 
 void CDailyScheduleManager::GM_CloseSouthernDale()
 {
-    const int target[2] = { 100, 0x5045 };
-    for (unsigned int i = 0; i < m_schedules.size(); ++i)
+    int target[2];                                   // -0x1c/-0x18（死局部，帧对齐）
+    unsigned int count;                              // -0x14
+    unsigned int i;                                  // -0x10
+    unsigned int j;                                  // -0xc
+
+    target[0] = 100;
+    target[1] = 0x5045;
+    count = m_schedules.size();
+    i = 0;
+    while (i < count)
     {
-        _DailySchedule& entry = m_schedules[i];
-        if (entry.m_idx == target[0] || entry.m_idx == target[1])
+        if (m_schedules[i].m_idx == 100 && m_schedules[i].m_type == 0
+            && m_southernDaleA.m_idx == 100)
         {
-            entry = m_southernDale;
+            memcpy(&m_schedules[i], &m_southernDaleA, sizeof(_DailySchedule));
         }
+        ++i;
+    }
+
+    j = 0;
+    while (j < count)
+    {
+        if (m_schedules[j].m_idx == 0x5045 && m_schedules[j].m_type == 1
+            && m_southernDale.m_idx == 0x5045)
+        {
+            memcpy(&m_schedules[j], &m_southernDale, sizeof(_DailySchedule));
+        }
+        ++j;
     }
 }
 void CDailyScheduleManager::CheckAndSendToAllUserSchedule()
@@ -186,10 +248,10 @@ void CDailyScheduleManager::CheckAndSendToAllUserSchedule()
     CheckAndSendToUserSchedule(0, false);
 }
 
-// ORIG 0x8125cb8：CheckAndSendToUserSchedule(user, false)。
-void CDailyScheduleManager::CheckAndSendToOneUserSchedule(CUser* user)
+// ORIG 0x8125cb8：CheckAndSendToUserSchedule(&user, false)。
+void CDailyScheduleManager::CheckAndSendToOneUserSchedule(CUser& user)
 {
-    CheckAndSendToUserSchedule(user, false);
+    CheckAndSendToUserSchedule(&user, false);
 }
 
 // ORIG 0x8125ff4：按 _DailySchedule 时间窗与 CEventManager::GetRepeatEvent
@@ -199,9 +261,8 @@ int CDailyScheduleManager::CheckScheduleState(const _DailySchedule& entry,
 {
     (void)flag;
 
-    const std::time_t cur = GlobalData::s_systemTime_.getCurSec();
-
     std::tm tm;
+    const std::time_t cur = GlobalData::s_systemTime_.getCurSec();
     localtime_r(&cur, &tm);
     const int wday = tm.tm_wday;
 
@@ -209,15 +270,15 @@ int CDailyScheduleManager::CheckScheduleState(const _DailySchedule& entry,
 
     if (entry.m_eventId != 0)
     {
-        CEventBase* ev = 0;
-        if (GlobalData::s_event_manager != 0)
-            ev = GlobalData::s_event_manager->GetRepeatEvent(entry.m_eventId);
-        if (ev == 0)
+        // ORIG 0x812603b：事件管理器为空或 GetRepeatEvent 为空 → 物化布尔后
+        // out=0 返回 0；否则再调 GetRepeatEvent 经 vptr+0x34 判活（IsEventing）。
+        if (GlobalData::s_event_manager == 0 ||
+            GlobalData::s_event_manager->GetRepeatEvent(entry.m_eventId) == 0)
         {
             out = 0;
             return 0;
         }
-        if (!ev->IsEventing(0))
+        if (!GlobalData::s_event_manager->GetRepeatEvent(entry.m_eventId)->IsEventing(0))
         {
             out = 0;
             return 0;
@@ -256,128 +317,161 @@ bool CDailyScheduleManager::CheckContinueSchedule(const _DailySchedule& entry,
                                                   _DailySchedule** prev,
                                                   _DailySchedule** next)
 {
-    if (prev)
-        *prev = 0;
-    if (next)
-        *next = 0;
+    std::tm tmNow3;    // -0x10c（isNext 分支用）
+    std::tm tmNow2;    // -0xe0（isNext 分支用）
+    std::tm tmEnd;     // -0xb4（= tm 拷贝，写入 entry 结束 h/m/s 后 mktime+1s）
+    std::tm tmStart;   // -0x88（= tm 拷贝，写入 entry 起始 h/m/s 后 mktime-1s）
+    std::tm tm;        // -0x5c
+    std::time_t endT;  // -0x30
+    std::time_t startT;// -0x2c
+    std::time_t cur;   // -0x28
+    int wday;          // -0x24
+    unsigned int count;// -0x20
+    unsigned int i;    // -0x1c
+    bool isPrev;       // -0x16
+    bool isNext;       // -0x15
+    int wday2;         // -0x14
+    std::time_t s;     // -0x10
+    std::time_t e;     // -0xc
 
-    const std::time_t cur = GlobalData::s_systemTime_.getCurSec();
+    cur = GlobalData::s_systemTime_.getCurSec();
+    localtime_r(&cur, &tm);
+    wday = tm.tm_wday;
+    memcpy(&tmStart, &tm, sizeof(std::tm));   // 0x2c
+    memcpy(&tmEnd, &tm, sizeof(std::tm));     // 0x2c
 
-    std::tm tmNow;
-    localtime_r(&cur, &tmNow);
-    const int wday = tmNow.tm_wday;
-
-    // 输入条目当日起点/终点时刻，并分别退/进 1 秒得参考时/分/秒。
-    std::tm tmStart = tmNow;
     tmStart.tm_hour = entry.m_startHour;
     tmStart.tm_min = entry.m_startMin;
     tmStart.tm_sec = entry.m_startSec2;
-    const std::time_t start = mktime(&tmStart);
-    const std::time_t startPrev = start - 1;
-    std::tm tmStartPrev;
-    localtime_r(&startPrev, &tmStartPrev);
+    startT = mktime(&tmStart);
+    startT -= 1;
+    localtime_r(&startT, &tmStart);
 
-    std::tm tmEnd = tmNow;
     tmEnd.tm_hour = entry.m_endHour;
     tmEnd.tm_min = entry.m_endMin;
     tmEnd.tm_sec = entry.m_endSec2;
-    const std::time_t end = mktime(&tmEnd);
-    const std::time_t endNext = end + 1;
-    std::tm tmEndNext;
-    localtime_r(&endNext, &tmEndNext);
+    endT = mktime(&tmEnd);
+    endT += 1;
+    localtime_r(&endT, &tmEnd);
 
-    const unsigned int count = m_schedules.size();
-    for (unsigned int i = 0; i < count; ++i)
+    count = m_schedules.size();
+    i = 0;
+    while (i < count)
     {
-        _DailySchedule& other = m_schedules[i];
-        if (other.m_idx == entry.m_idx &&
-            other.m_type == entry.m_type && &other != &entry)
+        if (entry.m_idx != m_schedules[i].m_idx ||
+            entry.m_type != m_schedules[i].m_type) continue;
+        if (&m_schedules[i] == &entry) continue;
+
+        isPrev = false;
+        isNext = false;
+
+        if (entry.m_state == 0)
         {
-            bool isNext = false;  // local_19
-            bool isPrev = false;  // local_1a
+            // 本条起点 == 输入终点+1s 的分解 → 后一条。
+            if (m_schedules[i].m_startHour == tmEnd.tm_hour &&
+                m_schedules[i].m_startMin == tmEnd.tm_min &&
+                m_schedules[i].m_startSec2 == tmEnd.tm_sec)
+                isNext = true;
+        }
+        else if (entry.m_state == 1)
+        {
+            // 本条终点 == 输入起点-1s 的分解 → 前一条。
+            if (m_schedules[i].m_endHour == tmStart.tm_hour &&
+                m_schedules[i].m_endMin == tmStart.tm_min &&
+                m_schedules[i].m_endSec2 == tmStart.tm_sec)
+                isPrev = true;
+        }
 
-            if (entry.m_state == 0)
+        if (!isNext)
+        {
+            if (isPrev)
+                *prev = &m_schedules[i];
+        }
+        else
+        {
+            // 后一条：仅当其在当前时间窗内被活动。
+            localtime_r(&cur, &tmNow2);
+            localtime_r(&cur, &tmNow3);
+            wday2 = tmNow2.tm_wday;
+            if (m_schedules[i].m_wday == wday2 || m_schedules[i].m_wday == 7)
             {
-                // 本条起点 == 输入终点（退+1 秒参考）→ 后一条。
-                if (tmEndNext.tm_hour == other.m_startHour &&
-                    tmEndNext.tm_min == other.m_startMin &&
-                    tmEndNext.tm_sec == other.m_startSec2)
-                    isNext = true;
-            }
-            else if (entry.m_state == 1)
-            {
-                // 本条终点 == 输入起点（退-1 秒参考）→ 前一条。
-                if (tmStartPrev.tm_hour == other.m_endHour &&
-                    tmStartPrev.tm_min == other.m_endMin &&
-                    tmStartPrev.tm_sec == other.m_endSec2)
-                    isPrev = true;
-            }
-
-            if (!isNext)
-            {
-                if (isPrev && prev)
-                    *prev = &other;
-            }
-            else
-            {
-                // 后一条：仅当其在当前时间窗内被活动。
-                if (other.m_wday == wday || other.m_wday == 7)
-                {
-                    std::tm t = tmNow;
-                    t.tm_hour = other.m_startHour;
-                    t.tm_min = other.m_startMin;
-                    t.tm_sec = other.m_startSec2;
-                    const std::time_t s = mktime(&t);
-                    t.tm_hour = other.m_endHour;
-                    t.tm_min = other.m_endMin;
-                    t.tm_sec = other.m_endSec2;
-                    const std::time_t e = mktime(&t);
-                    if (s <= cur && cur <= e && next)
-                        *next = &other;
-                }
+                tmNow3.tm_hour = m_schedules[i].m_startHour;
+                tmNow3.tm_min = m_schedules[i].m_startMin;
+                tmNow3.tm_sec = m_schedules[i].m_startSec2;
+                s = mktime(&tmNow3);
+                tmNow3.tm_hour = m_schedules[i].m_endHour;
+                tmNow3.tm_min = m_schedules[i].m_endMin;
+                tmNow3.tm_sec = m_schedules[i].m_endSec2;
+                e = mktime(&tmNow3);
+                if (s <= cur && cur <= e)
+                    *next = &m_schedules[i];
             }
         }
+        ++i;
     }
 
-    return (*prev != 0 || *next != 0);
+    return (*next != 0 || *prev != 0);
 }
 
 // ORIG 0x8125cda 主循环，逐指令转写：
+//  - 仅 user==0（广播模式）时做 CheckScheduleState 状态翻转；
+//  - 翻转后经 CheckContinueSchedule 联动 prev/next 条目的 m_state；
+//  - changed → 广播 0x1ed {type,state,idx,out}；!changed 且条目进行中且 user!=0
+//    → 单播 0x1ed {type,2,idx,out}。
 void CDailyScheduleManager::CheckAndSendToUserSchedule(CUser* user, bool flag)
 {
-    const unsigned int count = m_schedules.size();
-    for (unsigned int i = 0; i < count; ++i)
+    std::tm tm;                    // -0x98（localtime 用）
+    int bodyU[4];                  // -0x68..-0x5c（单播 body）
+    int body[4];                   // -0x4c..-0x40（广播 body）
+    _DailySchedule* next;          // -0x30
+    _DailySchedule* prev;          // -0x2c
+    unsigned int out;              // -0x28
+    std::time_t cur;               // -0x24
+    unsigned int count;            // -0x20
+    int wday;                      // -0x1c
+    unsigned int i;                // -0x18
+    _DailySchedule* entry;         // -0x14
+    bool changed;                  // -0xd
+    int state;                     // -0xc
+
+    count = m_schedules.size();
+    cur = GlobalData::s_systemTime_.getCurSec();
+    localtime_r(&cur, &tm);
+    wday = tm.tm_wday;
+    i = 0;
+    while (i < count)
     {
-        _DailySchedule* entry = &m_schedules[i];
-        bool changed = false;
-
-        unsigned int out = 0;   // ORIG 局部 out（CheckScheduleState 第二参）
-        int state = CheckScheduleState(*entry, out, flag);
-
-        if (state == 1)
+        entry = &m_schedules[i];
+        out = 0;
+        changed = false;
+        if (user == 0)
         {
-            if (!entry->m_state)
+            state = CheckScheduleState(*entry, out, flag);
+            if (state == 1)
             {
-                entry->m_state = 1;
-                changed = true;
+                if (entry->m_state == 0)
+                {
+                    entry->m_state = 1;
+                    changed = true;
+                }
             }
-        }
-        else if (state == 0)
-        {
-            if (entry->m_state == 1)
+            else if (state == 0)
             {
-                entry->m_state = 0;
-                changed = true;
+                if (entry->m_state == 1)
+                {
+                    entry->m_state = 0;
+                    changed = true;
+                }
             }
         }
 
         if (changed)
         {
-            _DailySchedule* prev = 0;
-            _DailySchedule* next = 0;
+            prev = 0;
+            next = 0;
             if (CheckContinueSchedule(*entry, &prev, &next))
             {
-                if (!entry->m_state)
+                if (entry->m_state == 0)
                 {
                     if (next)
                         next->m_state = 1;   // ORIG 0x8125e15
@@ -394,31 +488,30 @@ void CDailyScheduleManager::CheckAndSendToUserSchedule(CUser* user, bool flag)
 
         if (changed)
         {
-            // 广播 0x1ed：{type(+4), state(+0x20), idx(+8), 序号} 各 4 字节。
+            // 广播 0x1ed：{type(+4), state(+0x20), idx(+8), out} 各 4 字节。
             PacketGuard packet;
             packet.put_header(0, 0x1ed);
-            int body[4];
             body[0] = entry->m_type;
             body[1] = entry->m_state;
             body[2] = entry->m_idx;
-            body[3] = (int)i;
+            body[3] = (int)out;
             packet.put_binary((char*)body, 0x10);
             packet.finalize(true);
             G_GameWorld()->send_all(packet);
         }
-        else if (entry->m_state == 1 && user != 0)
+        if (!changed && entry->m_state == 1 && user != 0)
         {
             // 单播：state 字段固定 2（ORIG 0x8125f58）。
             PacketGuard packet;
             packet.put_header(0, 0x1ed);
-            int body[4];
-            body[0] = entry->m_type;
-            body[1] = 2;
-            body[2] = entry->m_idx;
-            body[3] = (int)i;
-            packet.put_binary((char*)body, 0x10);
+            bodyU[0] = entry->m_type;
+            bodyU[1] = 2;
+            bodyU[2] = entry->m_idx;
+            bodyU[3] = (int)out;
+            packet.put_binary((char*)bodyU, 0x10);
             packet.finalize(true);
             user->Send(packet);
         }
+        ++i;
     }
 }

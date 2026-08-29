@@ -21,8 +21,8 @@ struct Packet_Value_Statistic
 
 CValueStatistic* GetInstanceValueStatistic()
 {
-    static CValueStatistic s;
-    return &s;
+    static CValueStatistic instance;
+    return &instance;
 }
 
 void CValueStatistic::stValueStatistic::reset()

@@ -6,11 +6,9 @@
 
 #include <stdlib.h>
 
-namespace {
-
 // ORIG t @0x08572eac _ZL22CompareIntervalForSortPKvS0_（文件内 static）：
 //   lhs.start < rhs.start → -1；相等 → 0；大于 → 1。
-int CompareIntervalForSort(const void* lhs, const void* rhs)
+static int CompareIntervalForSort(const void* lhs, const void* rhs)
 {
     const long ls = *static_cast<const long*>(lhs);
     const long rs = *static_cast<const long*>(rhs);
@@ -20,8 +18,6 @@ int CompareIntervalForSort(const void* lhs, const void* rhs)
         return 0;
     return 1;
 }
-
-} // namespace
 
 Interval::Interval()                                   // W @0x08575e58（空体）
 {

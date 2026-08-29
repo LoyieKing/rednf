@@ -23,6 +23,7 @@
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "Inven_Item.h"
+#include "CEquipItem.h"
 #include "LogManager.h"
 #include "GlobalData.h"
 #include "CGameManager.h"
@@ -244,7 +245,7 @@ void CCreature::SetItemId(int itemId)
     m_script = GetInstanceCreatureScriptMgr()->FindCreatureScript(creatureId);
     if (m_script == 0)
     {
-        cMyTrace trace("void user_creature::CCreature::SetItemId(int)", 0x56c, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x56c, 5);
         trace("cannot find  creature script memory\n");
         return;
     }
@@ -343,7 +344,7 @@ bool CCreature::Evolute(CUser* user)
 {
     if (m_script == 0)
     {
-        cMyTrace trace("bool user_creature::CCreature::Evolute(CUser*)", 0x743, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x743, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
               "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
         return false;
@@ -363,7 +364,7 @@ bool CCreature::Evolute(CUser* user)
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
     if (!sender.EvoluteCreature(m_uid, m_itemId))   // ORIG CCreatureItem::GetUid/GetItemId（镜像同址具名字段）
     {
-        cMyTrace trace("bool user_creature::CCreature::Evolute(CUser*)", 0x763, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x763, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
@@ -382,7 +383,7 @@ bool CCreature::SelectEvolute(CUser* user)
 {
     if (m_script == 0)
     {
-        cMyTrace trace("bool user_creature::CCreature::SelectEvolute(CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x6a2, 5);
         trace("cannot selectevolute because it haven't creature script uid(%d), "
               "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
@@ -407,7 +408,7 @@ bool CCreature::SelectEvolute(CUser* user)
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
     if (!sender.EvoluteCreature(m_uid, m_itemId))   // ORIG CCreatureItem::GetUid/GetItemId（镜像同址具名字段）
     {
-        cMyTrace trace("bool user_creature::CCreature::SelectEvolute(CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x6c9, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
@@ -582,9 +583,29 @@ bool CCreature::UseFeed(CUser* user, int& stomachValue)
     return pkt.Send() != 0;
 }
 
-// ============================================================================
-// CCreatureMgr
-// ============================================================================
+// ORIG ~CCreatureMgr @ 0x08339226（~CCreatureMgr.md）：
+// 成员逆序析构（先 m_field30 map<int,int>，再 m_creatureItems
+// map<int,CCreatureItem*>）；指针/标量成员无析构。用户定义使 D1/D2 为 T。
+CCreatureMgr::~CCreatureMgr()
+{
+}
+
+// ORIG operator= @ 0x869d614【objdump 逐条转写】：
+// map aSE → +0x18/+0x1c 指针 → +0x20/+0x24/+0x28 CArtifact 三条平铺 store →
+// +0x2c → map<int,int> aSE(+0x30) → movzbl +0x48 → 返回 this。
+CCreatureMgr& CCreatureMgr::operator=(const CCreatureMgr& src)
+{
+    m_creatureItems = src.m_creatureItems;
+    m_equippedCreature = src.m_equippedCreature;
+    m_user = src.m_user;
+    m_artifacts[0] = src.m_artifacts[0];
+    m_artifacts[1] = src.m_artifacts[1];
+    m_artifacts[2] = src.m_artifacts[2];
+    m_tempExpireDelta = src.m_tempExpireDelta;
+    m_field30 = src.m_field30;
+    m_isMaxLevelGrowCreature = src.m_isMaxLevelGrowCreature;
+    return *this;
+}
 
 // ORIG Reset @ 0x833a45a。
 void CCreatureMgr::Reset()
@@ -650,7 +671,7 @@ bool CCreatureMgr::UseFeed()
     if (!sender.UseFeedCreature(uid, stomachValue))
     {
         cMyTrace trace(
-            "bool user_creature::CCreatureMgr::UseFeed()", 0xab5, 5);
+            __PRETTY_FUNCTION__, 0xab5, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
     }
@@ -896,7 +917,7 @@ bool CCreatureMgr::RecvMail(Inven_Item* item, int slot, int reason)
     if (!sender.RecvMail(item, characNo, slot, reason, mapSize))
     {
         cMyTrace trace(
-            "bool user_creature::CCreatureMgr::RecvMail(Inven_Item*, int, int)",
+            __PRETTY_FUNCTION__,
             0xc09, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
@@ -928,7 +949,7 @@ bool CCreatureMgr::SendMail(Inven_Item* item, int slot, int reason)
     if (!sender.SendMail(item, characNo, slot, reason, mapSize))
     {
         cMyTrace trace(
-            "bool user_creature::CCreatureMgr::SendMail(Inven_Item*, int, int)",
+            __PRETTY_FUNCTION__,
             0xbed, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
@@ -964,7 +985,7 @@ bool CCreatureMgr::UnregisterCreatureItem(int uid)
         return true;
     }
     cMyTrace trace(
-        "bool user_creature::CCreatureMgr::UnregisterCreatureItem(int)",
+        __PRETTY_FUNCTION__,
         0xbc1, 5);
     trace("UnregisterCreatureItem failed. uid(%d), key(%d)\n",
           m_user->get_unique_id() & 0xffff, uid);
@@ -982,25 +1003,8 @@ CDBMsgSender::CDBMsgSender(ENUM_INTERNALPACKET type, CUser* user)
     Init(type, user);
 }
 
-// ORIG Init @ 0x833f7a8：0x89 走 BigStreamPool，其余走 StreamPool；随后
-// CStreamGuard(stream,false) 依次 << type、<< GetUID()。文件名/行号为池记录用。
-bool CDBMsgSender::Init(ENUM_INTERNALPACKET type, CUser* user)
-{
-    if ((int)type == ENUM_INTERNALPACKET_0x89)
-        m_stream = GlobalData::s_big_stream_pool->Acquire("creature_db_msg", 0xa7);
-    else
-        m_stream = GlobalData::s_stream_pool->Acquire("creature_db_msg", 0xa9);
-    if (m_stream == 0)
-        return false;
-    m_user = user;
-    {
-        CStreamGuard guard(m_stream, false);
-        // ORIG 经 operator*()（返回 this）后调用成员 operator<<。
-        guard << (int)type;
-        guard << (int)m_user->GetUID();
-    }
-    return true;
-}
+// Init 定义已迁移至 CCreature.cpp（ORIG W 0x833f7a8 逐条转写；本 TU 仅保留
+// C1 委托调用，避免两 TU 强符号冲突；全局 ::ENUM_INTERNALPACKET 见 CacheCharacterType.h）。
 
 // ORIG D1/D2 @ 0x833f8d8：按 stream 的 poolType 归还对象池后置空。
 CDBMsgSender::~CDBMsgSender()
@@ -1457,7 +1461,7 @@ bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
         if (!sender.UseKeepRight(uid, noCharge))
         {
             cMyTrace trace(
-                "bool user_creature::CCreatureMgr::SetKeepRightItem(CUser*, Inven_Item*)",
+                __PRETTY_FUNCTION__,
                 0xdf0, 5);
             trace("cannot write db uid(%d)\n",
                   user->get_unique_id() & 0xffff);
@@ -2024,7 +2028,7 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
     }
     else
     {
-        cMyTrace trace("bool user_creature::CCreatureMgr::Hatch(int)", 0xb1a, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xb1a, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         respondent.SetError(2);
     }

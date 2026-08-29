@@ -25,6 +25,8 @@
 
 #include <ctime>
 
+#include <algorithm>
+
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "CUserCharacInfo.h"
@@ -43,54 +45,13 @@
 #include "CGlobalEffectManager.h"
 #include "CUserProc.h"   // APSystem::CUserProc::ClearActionAndSendtoUser 权威声明
 
-namespace
-{
 /* =========================================================================
- * 权威数据结构（ORIG 布局；reinterpret 到重建未建模结构）
+ * ORIG 嵌套类型 stPutItemResult_t —— _putItemIntoUser/_notifyItemInfo 共用输出
+ * （0x10 字节；ORIG _putItemIntoUser 0x0821b71c 开头两 store +0x00/+0x04、
+ *  _notifyItemInfo 0x0821c17c 读 +0x00/+0x04 实证）。
+ * 声明见 Dispatchers.h（类内 struct stPutItemResult_t; 前向）。
  * ====================================================================== */
-
-// stVendingMachineOutput_t —— 售货机给/赏物品的加权描述（0xc 字节）。
-// ORIG：+0x00 int itemIdx；+0x04 uint rate；+0x08 uint count。
-struct VendingOutput
-{
-    int         m_itemIdx;   // +0x00
-    unsigned int m_rate;     // +0x04
-    unsigned int m_count;    // +0x08
-};
-
-// stVendingMachineInfo_t —— 售货机某一栏的完整信息（头部 + EquipmentParameterInfo）。
-// ORIG（dispatch_sig/_getGiveItem/_getBonusItem/_putItemIntoUser 逐字节）：
-//   +0x00 int m_field0（=栏位 id，_getVendingMachineInfo 匹配用）
-//   +0x04 int m_payType（0=金币 / 1=活动币 / 2=胜点 / else=物品）
-//   +0x08 int m_payAmount
-//   +0x0c int m_giveCount（_getGiveItem 权重范围-1）
-//   +0x10 std::vector<VendingOutput> m_vecGive
-//   +0x1c int m_bonusCount（_getBonusItem 权重范围-1）
-//   +0x20 std::vector<VendingOutput> m_vecBonus
-//   （其后为 EquipmentParameterInfo 其余字段，本流程不访问）
-struct VendingInfo
-{
-    int                      m_field0;   // +0x00
-    int                      m_payType;  // +0x04
-    int                      m_payAmount;// +0x08
-    int                      m_giveCount;// +0x0c
-    std::vector<VendingOutput> m_vecGive; // +0x10
-    int                      m_bonusCount;// +0x1c
-    std::vector<VendingOutput> m_vecBonus; // +0x20
-};
-
-// stVendingMachine_t —— +0x00 int m_id；+0x04 vector<VendingInfo>。
-// CDataManager.h 的 stVendingMachine_t 仅 char m_pad[0x10]，本视图 ABI 兼容。
-struct VendingMachineView
-{
-    int                    m_id;    // +0x00
-    std::vector<VendingInfo> m_vec; // +0x04
-};
-
-// _putItemIntoUser / dispatch_sig 共用输出结构（0x10 字节）。
-// +0x00 ulong m_itemIdx；+0x04 uint m_count；+0x08 int m_result；
-// +0x0c short m_slot；+0x0e byte m_success。
-struct PutItemResult
+struct Dispatcher_UseVendingMachine::stPutItemResult_t
 {
     unsigned long  m_itemIdx;   // +0x00
     unsigned int   m_count;     // +0x04
@@ -100,10 +61,18 @@ struct PutItemResult
 };
 
 /* =========================================================================
- * 辅助：从售货机表按 id 查找机器；按栏位 id 查找栏信息。
- * ==================================================================== */
+ * 售货机数据直接使用 CDataManager.h 权威结构（不再本地副本）：
+ *   stVendingMachine_t      +0x00 m_id；+0x04 m_infoList
+ *   stVendingMachineInfo_t  +0x00 m_groupNum；+0x04 m_payType；+0x08 m_payAmount；
+ *                           +0x0c m_giveCount；+0x10 m_vecGive；+0x1c m_bonusCount；
+ *                           +0x20 m_vecBonus；+0x2c m_lottery
+ *   stVendingMachineOutput_t +0x00 m_itemId；+0x04 m_cumWeight；+0x08 m_count
+ * ====================================================================== */
 
-const VendingInfo* get_vending_machine_info(unsigned int machineId, unsigned int slotId)
+// ORIG T 0x0821b60a _ZNK28Dispatcher_UseVendingMachine18_getVendingMachineEj
+//   遍历 G_CDataManager()->m_vendingMachine 按 m_id 匹配，返回机器指针（无则 0）。
+const stVendingMachine_t* Dispatcher_UseVendingMachine::_getVendingMachine(
+    unsigned int machineId) const
 {
     CDataManager* dm = G_CDataManager();
     if (dm == 0)
@@ -111,17 +80,22 @@ const VendingInfo* get_vending_machine_info(unsigned int machineId, unsigned int
     const std::vector<stVendingMachine_t>& table = dm->m_vendingMachine;
     for (size_t i = 0; i < table.size(); ++i)
     {
-        const VendingMachineView* vm = reinterpret_cast<const VendingMachineView*>(&table[i]);
-        if (vm->m_id == static_cast<int>(machineId))
-        {
-            const std::vector<VendingInfo>& infos = vm->m_vec;
-            for (size_t j = 0; j < infos.size(); ++j)
-            {
-                if (static_cast<unsigned int>(infos[j].m_field0) == slotId)
-                    return &infos[j];
-            }
-            return 0;
-        }
+        if (static_cast<unsigned int>(table[i].m_id) == machineId)
+            return &table[i];
+    }
+    return 0;
+}
+
+// ORIG T 0x0821b698 _ZNK28Dispatcher_UseVendingMachine22_getVendingMachineInfoEPK18stVendingMachine_tj
+//   在 vm->m_infoList 中按栏位 id（m_groupNum）匹配，返回栏信息（无则 0）。
+const stVendingMachineInfo_t* Dispatcher_UseVendingMachine::_getVendingMachineInfo(
+    const stVendingMachine_t* vm, unsigned int slotId) const
+{
+    const std::vector<stVendingMachineInfo_t>& infos = vm->m_infoList;
+    for (size_t j = 0; j < infos.size(); ++j)
+    {
+        if (static_cast<unsigned int>(infos[j].m_groupNum) == slotId)
+            return &infos[j];
     }
     return 0;
 }
@@ -130,65 +104,73 @@ const VendingInfo* get_vending_machine_info(unsigned int machineId, unsigned int
  * 辅助：按权重随机选一个给/赏物品，写入 out（Inven_Item）。
  * ==================================================================== */
 
-// ORIG _getGiveItem：依 m_giveCount 权重随机选 m_vecGive 中一个输出。
-static int pick_give_item(CMTRand* rng, const VendingInfo* info, Inven_Item& out)
+// ORIG T 0x0821bf82 _ZNK28Dispatcher_UseVendingMachine12_getGiveItemEPK22stVendingMachineInfo_t
+//   依 m_giveCount 权重（范围 = m_giveCount-1）经 this->m_rand 随机选 m_vecGive 中
+//   一个输出；命中写 m_itemId → m_addInfo(+0x02)、m_count → m_addInfo2(+0x07)。
+//   按值返回 Inven_Item（sret，0x3d 字节；ORIG 调用处逐字段拷贝实证）。
+Inven_Item Dispatcher_UseVendingMachine::_getGiveItem(
+    const stVendingMachineInfo_t* info) const
 {
-    out.reset();                  // ORIG：Inven_Item::Inven_Item(param_1)
+    Inven_Item out;               // ORIG：Inven_Item::Inven_Item(sret)
     out.m_addInfo = -1;           // 初始 idx = -1（“未选择”标记）
     int range = info->m_giveCount - 1;
     if (range < 0)
-        return -1;
+        return out;
     unsigned long r = (unsigned long)range;
-    int pick = rng->randInt(r);
-    const std::vector<VendingOutput>& vec = info->m_vecGive;
+    int pick = m_rand->randInt(r);
+    const std::vector<stVendingMachineOutput_t>& vec = info->m_vecGive;
     for (size_t i = 0; i < vec.size(); ++i)
     {
-        if (static_cast<unsigned int>(pick) < vec[i].m_rate)
+        if (static_cast<unsigned int>(pick) < vec[i].m_cumWeight)
         {
-            out.m_addInfo = vec[i].m_itemIdx;
+            out.m_addInfo = vec[i].m_itemId;
             out.m_addInfo2 = (int)vec[i].m_count;
-            return vec[i].m_itemIdx;
+            return out;
         }
     }
-    return -1;
+    return out;
 }
 
-// ORIG _getBonusItem：依 m_bonusCount 权重随机选 m_vecBonus 中一个输出。
-// 额外前置：GlobalData::s_event_manager->GetRepeatEvent(0x23) 的事件开启（vtable+0x34(0)）
-//   且 bonus 表非空才给赏。
-static int pick_bonus_item(CMTRand* rng, const VendingInfo* info, Inven_Item& out)
+// ORIG T 0x0821c058 _ZNK28Dispatcher_UseVendingMachine13_getBonusItemEPK22stVendingMachineInfo_t
+//   依 m_bonusCount 权重随机选 m_vecBonus 中一个输出（事件开启检查见上版推断注释）。
+//   命中写 m_itemId → m_addInfo(+0x02)、m_count → m_addInfo2(+0x07)。
+Inven_Item Dispatcher_UseVendingMachine::_getBonusItem(
+    const stVendingMachineInfo_t* info) const
 {
-    out.reset();                  // ORIG：Inven_Item::Inven_Item(param_1)
+    Inven_Item out;               // ORIG：Inven_Item::Inven_Item(sret)
     out.m_addInfo = -1;
     // ORIG：GetRepeatEvent(0x23) → 事件对象 vtable[+0x34] 未建模（仅 ret 或检查开启位）。
     // 该事件状态接口未在共享头落地，按报告以「事件开启」为默认真值（推断），
     // 仅依赖 bonus 表非空。若后续权威事件检查落地，替换为真实调用。
     bool eventOn = true;
     if ((!eventOn) || info->m_vecBonus.empty())
-        return -1;
+        return out;
     int range = info->m_bonusCount - 1;
     if (range < 0)
-        return -1;
+        return out;
     unsigned long r = (unsigned long)range;
-    int pick = rng->randInt(r);
-    const std::vector<VendingOutput>& vec = info->m_vecBonus;
+    int pick = m_rand->randInt(r);
+    const std::vector<stVendingMachineOutput_t>& vec = info->m_vecBonus;
     for (size_t i = 0; i < vec.size(); ++i)
     {
-        if (static_cast<unsigned int>(pick) < vec[i].m_rate)
+        if (static_cast<unsigned int>(pick) < vec[i].m_cumWeight)
         {
-            out.m_addInfo = vec[i].m_itemIdx;
+            out.m_addInfo = vec[i].m_itemId;
             out.m_addInfo2 = (int)vec[i].m_count;
-            return vec[i].m_itemIdx;
+            return out;
         }
     }
-    return -1;
+    return out;
 }
 
 /* =========================================================================
  * 辅助：把物品/货币/胜点交给用户，填充 result。
  * ==================================================================== */
-static void put_item_into_user(CUser* user, unsigned long itemIdx, unsigned int count,
-                               PutItemResult& result)
+// ORIG T 0x0821b71c _ZNK28Dispatcher_UseVendingMachine16_putItemIntoUserEP5CUsermjRNS_17stPutItemResult_tE
+//   把 itemIdx（0=金币/1=活动币/2=胜点/else=实物）交给用户，填充 result。
+void Dispatcher_UseVendingMachine::_putItemIntoUser(
+    CUser* user, unsigned long itemIdx, unsigned int count,
+    stPutItemResult_t& result) const
 {
     const int PAY_MONEY     = 0;   // 金币
     const int PAY_EVENTCOIN = 1;   // 活动币
@@ -337,18 +319,23 @@ static void put_item_into_user(CUser* user, unsigned long itemIdx, unsigned int 
 /* =========================================================================
  * 辅助：给用户发"物品已放入"计时通知（若该物品尚未出现在用户拥有的列表）。
  * ==================================================================== */
-static void notify_item_info(const VendingInfo* info, CUser* user,
-                             const PutItemResult& result)
+// ORIG T 0x0821c17c _ZNK28Dispatcher_UseVendingMachine15_notifyItemInfoEPK22stVendingMachineInfo_tP5CUserRKNS_17stPutItemResult_tE
+//   在 info->m_lottery（vector<pair<int,int>>）中查找 (itemIdx,count)；命中才
+//   registTimer 延迟发放（ORIG _notifyItemInfo 汇编：pair 构造 + find + operator==
+//   判等后跳 registTimer）。
+void Dispatcher_UseVendingMachine::_notifyItemInfo(
+    const stVendingMachineInfo_t* info, CUser* user,
+    const stPutItemResult_t& result) const
 {
-    // ORIG：在 GlobalData::s_globalEffectManager_ 的效果列表中查找 (result.m_itemIdx,
-    //   result.m_count) pair；若不存在则 registTimer。因 stGlobalEffect_t 表未建模，
-    //   ORIG std::find 语义按「表为空 → 总注册」近似（推断）。
-    unsigned int uid = user->GetUID();
-    TimerVendingMachineItemNotify::registTimer((int)uid, result.m_itemIdx,
-                                               result.m_count, 5);
+    std::pair<int, int> key((int)result.m_itemIdx, (int)result.m_count);
+    const std::vector<std::pair<int, int> >& lot = info->m_lottery;
+    if (std::find(lot.begin(), lot.end(), key) != lot.end())
+    {
+        unsigned int uid = user->GetUID();
+        TimerVendingMachineItemNotify::registTimer((int)uid, result.m_itemIdx,
+                                                   result.m_count, 5);
+    }
 }
-
-} // namespace
 
 /* =========================================================================
  * dispatch_sig —— 主入口。
@@ -373,14 +360,14 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     if (!packet.get_short(pos))
         return 0;   // ORIG LineFunc(0xd02b) 断言路径
 
-    const VendingInfo* info = get_vending_machine_info(machineId, slotId);
+    const stVendingMachine_t* vm = _getVendingMachine(machineId);
+    if (vm == 0)
+        return 0;   // ORIG LineFunc(0xd02f) 断言路径
+    const stVendingMachineInfo_t* info = _getVendingMachineInfo(vm, slotId);
     if (info == 0)
-        return 0;   // ORIG LineFunc(0xd02f/0xd033) 断言路径
+        return 0;   // ORIG LineFunc(0xd033) 断言路径
 
-    // 随机源：ORIG ctor 以 time 种子构造 this->m_rand。
-    CMTRand rng;
-    rng.seed((unsigned long)time(0));
-
+    // 随机源：ORIG ctor 以 time 种子构造 this->m_rand（Dispatchers.cpp ctor 已 new）。
     // 给/赏物品数组（两槽：槽 0 给物品、槽 1 赏物品）。
     Inven_Item give[2];
     give[0].reset();
@@ -394,8 +381,7 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
             // 选给物品；若非特殊有效则重选（最多 2 次，仍-1 则放弃该槽）
             for (int attempt = 0; attempt < 3; ++attempt)
             {
-                Inven_Item picked;
-                pick_give_item(&rng, info, picked);
+                Inven_Item picked = _getGiveItem(info);
                 give[slot] = picked;
                 if (give[slot].m_addInfo == -1)
                     break;
@@ -408,8 +394,7 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
         else
         {
             // 赏物品
-            Inven_Item picked;
-            pick_bonus_item(&rng, info, picked);
+            Inven_Item picked = _getBonusItem(info);
             give[slot] = picked;
         }
     }
@@ -491,14 +476,14 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
         vst->incUseCount();
 
     // 输出
-    PutItemResult result[2];
+    stPutItemResult_t result[2];
     for (int i = 0; i < 2; ++i)
-        put_item_into_user(user, give[i].m_addInfo, give[i].m_addInfo2, result[i]);
+        _putItemIntoUser(user, give[i].m_addInfo, give[i].m_addInfo2, result[i]);
 
     for (int i = 0; i < 2; ++i)
     {
         if (result[i].m_itemIdx != 0xffffffffUL && result[i].m_count != 0)
-            notify_item_info(info, user, result[i]);
+            _notifyItemInfo(info, user, result[i]);
     }
 
     // 回包：header 0xda

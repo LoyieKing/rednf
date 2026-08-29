@@ -522,14 +522,14 @@ void CExchangeServerThread::dispatch(void* arg)
 {
     (void)arg;
     cMyTrace trace(
-        "virtual void exchange_server::CExchangeServerThread::dispatch(void*)",
+        __PRETTY_FUNCTION__,
         0x451, 0);
     trace("Exchange Server Thread start! %d");
 
     if (!m_exchangeServer.PreparePassiveSocket())
     {
         cMyTrace traceErr(
-            "virtual void exchange_server::CExchangeServerThread::dispatch(void*)",
+            __PRETTY_FUNCTION__,
             0x459, 0);
         traceErr("\n\n\n\n\n\nExchange Server starting error!\n\n\n\n\n\nShudown~~");
         exit(-1);
@@ -538,7 +538,7 @@ void CExchangeServerThread::dispatch(void* arg)
     if (!m_exchangeServer.SendExchangeServerInfo())
     {
         cMyTrace traceInfo(
-            "virtual void exchange_server::CExchangeServerThread::dispatch(void*)",
+            __PRETTY_FUNCTION__,
             0x469, 0);
         traceInfo("SendExchangeServerInfo failed!");
         return;                       // ORIG jmp 尾部
@@ -559,7 +559,7 @@ void CExchangeServerThread::dispatch(void* arg)
     }
 
     cMyTrace traceEnd(
-        "virtual void exchange_server::CExchangeServerThread::dispatch(void*)",
+        __PRETTY_FUNCTION__,
         0x482, 0);
     traceEnd("Exchange Server Thread End!");
 }
@@ -589,20 +589,17 @@ unsigned long getExchangeServerThreadID()
 // B+) CACHE_CHARACTER_TYPE
 // ============================================================================
 
-// ORIG C1 0x8492262 非空体：依偏移依次调用 SIG_LOAD_CHARAC(@+0)/
-// SIG_LOAD_INVENTORY(@+0x703)/SIG_LOAD_QUEST(@+0x15b4f)/
-// APSystem::_SIG_LOAD_ACTION_POINT(@+0x1eb13)/
-// advancealtar::_CharacAdvanceAltarDbData(@+0x1f804)/SIG_LOAD_ETC(@+0x1fd20)/
-// SIG_LOAD_KILL_MONSTER_INFO(@+0x34884) 的构造。当前头以 char 数组承载各成员区
-// 且其中三处 SIG 类的构造符号在工作树尚无 producer，全部生产路径
-// （CCacheCharacterMgr::AcquireCharacter / GlobalData 池初始化）随后即 memset
-// 全量清零覆盖，子对象构造的可见状态被抹平。按 OnlyOrig_Exchange 协调指示以
-// 空体落盘承载符号（BLOCKED-noted：ORIG 0x8492262 七次子对象构造序列见上）。
+// ORIG C1 0x8492262 W（objdump 逐指令转写）：sub $0x18 帧内依次七次子对象构造
+//   +0x00000 SIG_LOAD_CHARAC / +0x00703 SIG_LOAD_INVENTORY / +0x15b4f SIG_LOAD_QUEST /
+//   +0x1eb13 APSystem::_SIG_LOAD_ACTION_POINT / +0x1f804 advancealtar::_CharacAdvanceAltarDbData /
+//   +0x1fd20 SIG_LOAD_ETC / +0x34884 SIG_LOAD_KILL_MONSTER_INFO——与头中成员
+//   类型化一一对应，编译器按序自动调用。
 CACHE_CHARACTER_TYPE::CACHE_CHARACTER_TYPE()
 {
 }
 
-// ORIG D1 0x84922d6：仅对 +0x1fd20 SIG_LOAD_ETC 调一次析构（同上空体承载理由）。
+// ORIG D1 0x84922d6 W：仅对 +0x1fd20 SIG_LOAD_ETC 调用一次析构；其余七个
+//   子对象/POD 区无用户析构 ⇒ 编译器析构序一致。
 CACHE_CHARACTER_TYPE::~CACHE_CHARACTER_TYPE()
 {
 }
@@ -622,15 +619,15 @@ int CACHE_CHARACTER_TYPE::GetMemberPosition(ENUM_INTERNALPACKET type,
     case 0x07:
         found = m_memberFlag[0] != 0;
         *size = static_cast<int>(sizeof(m_charac));
-        return reinterpret_cast<int>(&m_charac[0]);
+        return reinterpret_cast<int>(&m_charac);
     case 0x08:
         found = m_memberFlag[1] != 0;
         *size = static_cast<int>(sizeof(m_inventory));
-        return reinterpret_cast<int>(&m_inventory[0]);
+        return reinterpret_cast<int>(&m_inventory);
     case 0x0a:
         found = m_memberFlag[3] != 0;
         *size = static_cast<int>(sizeof(m_quest));
-        return reinterpret_cast<int>(&m_quest[0]);
+        return reinterpret_cast<int>(&m_quest);
     case 0x0b:
         found = m_memberFlag[4] != 0;
         *size = static_cast<int>(sizeof(m_ticket));
@@ -646,19 +643,19 @@ int CACHE_CHARACTER_TYPE::GetMemberPosition(ENUM_INTERNALPACKET type,
     case 0x11:
         found = m_memberFlag[8] != 0;
         *size = static_cast<int>(sizeof(m_actionPoint));
-        return reinterpret_cast<int>(&m_actionPoint[0]);
+        return reinterpret_cast<int>(&m_actionPoint);
     case 0x19:
         found = m_memberFlag[0xa] != 0;
         *size = static_cast<int>(sizeof(m_altar));
-        return reinterpret_cast<int>(&m_altar[0]);
+        return reinterpret_cast<int>(&m_altar);
     case 0x20:
         found = m_memberFlag[0xb] != 0;
         *size = static_cast<int>(sizeof(m_etc));
-        return reinterpret_cast<int>(&m_etc[0]);
+        return reinterpret_cast<int>(&m_etc);
     case 0x282:
         found = m_memberFlag[9] != 0;
         *size = static_cast<int>(sizeof(m_expand));
-        return reinterpret_cast<int>(&m_expand[0]);
+        return reinterpret_cast<int>(&m_expand);
     default:
         return 0;
     }

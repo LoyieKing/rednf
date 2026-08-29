@@ -2784,7 +2784,8 @@ int cast5_setup(const unsigned char *key, int keylen, int num_rounds, symmetric_
 }
 #endif
 
-#define FI cast5_FI
+// ORIG：CAST5/KASUMI 的 static FI 均为同名 2 字符（_ZL2FI mmm/jj 实证），
+// 靠参数数量重载共存于本 TU，不能用宏改名（会生成 _ZL11cast5_FI* 错位符号）。
 static LTC_INLINE ulong32 FI(ulong32 R, ulong32 Km, ulong32 Kr)
 {
    ulong32 I;
@@ -3020,10 +3021,11 @@ typedef unsigned u16;
 #define ROL16(x, y) ((((x)<<(y)) | ((x)>>(16-(y)))) & 0xFFFF)
 
 
-#define FI kasumi_FI
-static u16 FI( u16 in, u16 subkey )
+// ORIG _ZL2FIjj（0x080b153c）：参数与局部均为 32 位（unsigned int），无 u16 截断
+// （shr $7 / and $0x1ff / xor 全 32 位栈槽实证）；返回 (seven<<9)+nine。
+static unsigned int FI( unsigned int in, unsigned int subkey )
 {
-   u16 nine, seven;
+   unsigned int nine, seven;
    static const u16 S7[128] = {
       54, 50, 62, 56, 22, 34, 94, 96, 38, 6, 63, 93, 2, 18,123, 33,
       55,113, 39,114, 21, 67, 65, 12, 47, 73, 46, 27, 25,111,124, 81,
@@ -3074,13 +3076,13 @@ static u16 FI( u16 in, u16 subkey )
   seven = (u16)(in&0x7F);
 
   /* Now run the various operations */
-  nine   = (u16)(S9[nine] ^ seven);
-  seven  = (u16)(S7[seven] ^ (nine & 0x7F));
+  nine   = S9[nine] ^ seven;
+  seven  = S7[seven] ^ (nine & 0x7F);
   seven ^= (subkey>>9);
   nine  ^= (subkey&0x1FF);
-  nine   = (u16)(S9[nine] ^ seven);
-  seven  = (u16)(S7[seven] ^ (nine & 0x7F));
-  return (u16)(seven<<9) + nine;
+  nine   = S9[nine] ^ seven;
+  seven  = S7[seven] ^ (nine & 0x7F);
+  return (seven<<9) + nine;
 }
 
 static ulong32 FO( ulong32 in, int round_no, const symmetric_key *key)
@@ -4655,7 +4657,7 @@ int noekeon_keysize(int *keysize)
 #ifdef LTC_SKIPJACK
 
 
-#define sbox s_skipjack_sbox
+// ORIG 局部符号 _ZL4sbox（.rodata 0x08b23200，256B）——Skipjack S-box
 static const unsigned char sbox[256] = {
    0xa3,0xd7,0x09,0x83,0xf8,0x48,0xf6,0xf4,0xb3,0x21,0x15,0x78,0x99,0xb1,0xaf,0xf9,
    0xe7,0x2d,0x4d,0x8a,0xce,0x4c,0xca,0x2e,0x52,0x95,0xd9,0x1e,0x4e,0x38,0x44,0x28,

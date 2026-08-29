@@ -42,6 +42,22 @@ enum ENUM_BLOOD_STATE { ENUM_BLOOD_STATE_0 = 0 };
 //      +0xc int、+0x10/+0x11 char、+0x14 float） ----
 struct STKillMonsterData
 {
+    // ORIG C1/C2 W 0x085bf03a：m_field0c=0 → m_field08=m_field0c →
+    // m_dieReason=(char)m_field08 → m_mapIndex=(short)m_dieReason →
+    // m_monsterUid=m_mapIndex → m_flag11=0 → m_flag10=m_flag11 → m_field14=1.0f
+    // （链式逐字段，O0 生成同形 mov 序列）。
+    STKillMonsterData()
+    {
+        m_field0c = 0;
+        m_field08 = m_field0c;
+        m_dieReason = static_cast<char>(m_field08);
+        m_mapIndex = static_cast<short>(m_dieReason);
+        m_monsterUid = m_mapIndex;
+        m_flag11 = 0;
+        m_flag10 = m_flag11;
+        m_field14 = 1.0f;
+    }
+
     unsigned short m_monsterUid;  // +0x00
     unsigned short m_mapIndex;    // +0x02
     char m_dieReason;             // +0x04

@@ -336,7 +336,7 @@ int Dispatcher_AuctionRegistItem::dispatch_sig(CUser* user, PacketBuf& packet)
         }
 
         // ---- 物品锁定 / 价格范围 / 可堆叠乘积校验 ----
-        int invenType2 = GetInvenTypeFromItemSpace((int)invenType);
+        int invenType2 = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)invenType);
         if (user->CheckItemLock(invenType2, (int)slotNo))
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0xd5, (PAY_TYPE)0);

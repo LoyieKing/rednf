@@ -1,6 +1,10 @@
 // df_game_r 还原 —— CPvPLiveEventData::IncreasePlayCount（ORIG 0x826921c）。
-// 其余方法（ResetDailyMidnight/_reset/loadData/_saveData）仅声明不定义。
+// 其余方法在本 TU 复用真实成员布局；loadData 只恢复缓冲区首 dword。
 #include "CPvPLiveEventData.h"
+#include "GlobalData.h"
+#include "CStreamGuard.h"
+#include "MsgQueueMgr.h"
+#include "StreamPool.h"
 
 #include <string.h>
 #include <string>
@@ -62,4 +66,43 @@ void CPvPLiveEventData::IncreasePlayCount(CUser* user)
             title, item, 0, characNo, body, (int)strlen(body), 0, group, false, false);
         item.reset();
     }
+}
+
+
+CPvPLiveEventData::CPvPLiveEventData()
+{
+}
+
+bool CPvPLiveEventData::loadData(CUser* /*user*/, char* buffer)
+{
+    m_playCount = *reinterpret_cast<int*>(buffer);
+    return true;
+}
+void CPvPLiveEventData::_reset()
+{
+    m_playCount = 0;
+}
+
+void CPvPLiveEventData::ResetDailyMidnight()
+{
+    m_playCount = 0;
+}
+
+void CPvPLiveEventData::getData(char* pData) const
+{
+    // ORIG 0x08269206：函数体为空（仅 push/pop/ret）。
+    // 播放计数不在此序列化，由 _saveData 走 CStreamGuard 落库。
+}
+
+bool CPvPLiveEventData::_saveData(CUser* user)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PvPLiveEventData.cpp", 0x1e), true);
+    guard << 0x1e1;
+    guard << user->GetUID();
+    guard << user->GetServerGroup();
+    guard << user->getCurCharacNo();
+    guard << m_playCount;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return true;
 }

@@ -45,6 +45,7 @@
 #include "STCharacterScript.h"   // STCharacterScript::naExpTable / pvpPrices_
 #include "STEquipmentScript.h"   // STEquipmentScript::priceTable_ 声明
 #include "STStackableScript.h"   // STStackableScript::priceTable_ 声明
+#include "NpcScript.h"
 
 class STScriptFileList;
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
@@ -52,11 +53,7 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 
 // ---- STScriptFileList（布局权威：STScriptFileList.cpp 同名本地类，
 //      sizeof 0x18 = std::map<int,std::string>；ORIG ctor 0x088bacf8）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-};
+
 
 namespace
 {
@@ -95,8 +92,6 @@ bool InitMapScript(const char* dir, const char* list)
                                   g_szMapScriptBaseDirectory, list, 0) != 0;
 }
 
-// ===================== 被动对象脚本域（InitPassiveObjectScript）=====
-
 // ORIG B 0x94ff2a0 [0x100] / B 0x94ff3a0 [0x18]
 char g_szPassiveObjectScriptBaseDirectory[0x100];
 std::map<int, std::string> g_stPassiveObjectScriptFileList;   // 布局同 STScriptFileList（0x18，双视图）
@@ -111,11 +106,24 @@ bool InitPassiveObjectScript(const char* dir, const char* list)
                                   list, 0) != 0;
 }
 
+// ORIG 0x08a3c5c2（0xbb 字节）：与 2 参数版同构，仅把 map 透传
+// loadRDARScriptListFile 第 4 参（ORIG 0x8a3c646 mov 0x10(%ebp)，
+// 2 参数版同址为 movl $0）。
+bool InitPassiveObjectScript(const char* dir, const char* list, std::map<int, int>* map)
+{
+    strncpy(g_szPassiveObjectScriptBaseDirectory, dir, 0x100);
+    AppendDirSeparator(g_szPassiveObjectScriptBaseDirectory);
+    return loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList),
+                                  g_szPassiveObjectScriptBaseDirectory,
+                                  list, map) != 0;
+}
+
 // ===================== 地下城脚本域（InitDungeonScript）=============
 
-// ORIG B 0x94f6da0 [0x100] / B 0x94f6ea0 [0x18]
+// ORIG B 0x94f6da0 [0x100] / B 0x94f6ea0 [0x18] / B 0x9500480 [0x18]
 char g_szDungeonScriptBaseDirectory[0x100];
 std::map<int, std::string> g_stDungeonScriptFileList;   // 布局同 STScriptFileList（0x18，双视图）
+std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CListTables 引用）
 
 // ORIG 0x088e5e3c：签名 char*（调用点传字符串字面量，ORIG mangled PcS_）。
 bool InitDungeonScript(char* dir, char* list)
@@ -451,7 +459,7 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
     // 注意：apcBonus 用原始 dir 形参打开（ORIG 0x8a11757 直接压 0x8(%ebp)）。
     if (!loadRDARScriptFile(dir, apcBonus))
     {
-        LogManager::logFormat(0, "../RDARScriptObject.cpp", "InitMonsterScript",
+        LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
                               0x7e6, "error : MonsterApcDifficultyBonus.tbl is missing!!");
         return false;
     }
@@ -466,7 +474,7 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             if (!ok && c != 4 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", "InitMonsterScript", 0x7fc,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x7fc,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -484,7 +492,7 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             if (!ok && c != 3 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", "InitMonsterScript", 0x818,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x818,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -502,7 +510,7 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             if (!ok && c != 3 && r != 12)
             {
                 LogManager::logFormat(
-                    0, "../RDARScriptObject.cpp", "InitMonsterScript", 0x833,
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x833,
                     "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
                     r, c);
                 break;
@@ -614,6 +622,369 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             // ORIG 函数级静态：__lookup map<const char*,int,less_TCHAR>
             // （0x94fff80，guard 0x94ff648）+ __init_lock SpinLock
             // （0x94fff98，guard 0x94ff650）+ __inited（0x94fff9c）。
+            // 首次进入锁内插入四条 tag→id（id 为 ORIG 源内常量 0x932/0x935/
+            // 0x949/0x95d），置 inited 后重派发同一 token 进入真实解析分支。
+            static std::map<const char*, int, less_TCHAR> lookup;
+            static SpinLock lock;
+            static bool inited = false;
+
+            std::string sub;
+            for (;;)
+            {
+                if (!ScanType(sub, true))   // ORIG 0x8a12649
+                    break;                  // 段结束 → 下一主标签
+
+                if (!inited)
+                {
+                    lock.enter();                       // ORIG 0x8a122a2
+                    if (!inited)
+                    {
+                        // ORIG 插入链 0x8a12320/0x8a12386/0x8a1246a/0x8a1254e
+                        lookup.insert(std::make_pair("[/limit slowdown]", 0x932));
+                        lookup.insert(std::make_pair("[normal]", 0x935));
+                        lookup.insert(std::make_pair("[boss]", 0x949));
+                        lookup.insert(std::make_pair("[named]", 0x95d));
+                        lock.leave();                   // ORIG 0x8a1262a
+                        inited = true;
+                    }
+                    else
+                    {
+                        lock.leave();
+                    }
+                }
+
+                std::map<const char*, int, less_TCHAR>::const_iterator it =
+                    lookup.find(sub.c_str());           // ORIG 0x8a12218
+                const int id = (it != lookup.end()) ? it->second : -1;
+
+                if (id == 0 || id == 0x932)             // [/limit slowdown] 终止标记
+                    continue;
+                if (id == 0x935)                        // [normal]
+                {
+                    NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();   // 0x9494f8c
+                    for (int i = 0; i <= 199; ++i)
+                    {
+                        ScanInt((bool*)0);                     // 首列索引（弃）
+                        stLimitSlowDown e;
+                        e.m_a = ScanInt((bool*)0);
+                        e.m_b = ScanInt((bool*)0);
+                        NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                    }
+                    continue;
+                }
+                if (id == 0x949)                        // [boss]
+                {
+                    BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();     // 0x9494fa4
+                    for (int i = 0; i <= 199; ++i)
+                    {
+                        ScanInt((bool*)0);
+                        stLimitSlowDown e;
+                        e.m_a = ScanInt((bool*)0);
+                        e.m_b = ScanInt((bool*)0);
+                        BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                    }
+                    continue;
+                }
+                if (id == 0x95d)                        // [named]
+                {
+                    NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();    // 0x9494f98
+                    for (int i = 0; i <= 199; ++i)
+                    {
+                        ScanInt((bool*)0);
+                        stLimitSlowDown e;
+                        e.m_a = ScanInt((bool*)0);
+                        e.m_b = ScanInt((bool*)0);
+                        NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                    }
+                    continue;
+                }
+                // id==-1（未知子标签）：ORIG 直落 0x8a1261c 继续。
+            }
+            continue;
+        }
+        else if (token == "[adjust hp gauge]")              // 0x8e1eda7
+        {
+            // 注：ORIG 0x8a126cc 在段首构造了一个 DungeonHoldBalance 局部对象，
+            // 之后从未使用（纯编译产物），无可观行为，故不复刻。
+            std::string sub;
+            while (ScanType(sub, true))     // ORIG 0x8a1279a
+            {
+                if (sub == "[/adjust hp gauge]")                // 0x8e1edb9
+                    break;
+                if (sub == "[normal]")
+                {
+                    float v = ScanFloat((bool*)0);
+                    NORMAL_MONSTER_GAUGE_ADJUST = v;            // 0x93f4d10
+                }
+                else if (sub == "[boss]")
+                {
+                    float v = ScanFloat((bool*)0);
+                    BOSS_MONSTER_GAUGE_ADJUST = v;              // 0x93f4d18
+                }
+                else if (sub == "[named]")
+                {
+                    float v = ScanFloat((bool*)0);
+                    NAMED_MONSTER_GAUGE_ADJUST = v;             // 0x93f4d14
+                }
+            }
+            continue;
+        }
+        else
+        {
+            continue;                       // 未识别标签：ORIG 0x8a126b0 je
+        }
+
+        // ---- 难度组读取器（ORIG 0x8a11ba7）：每 consume 1 个弃置 float +
+        //      最多 13 个 float 为一组；组不满或读失败则该难度段结束。
+        for (;;)
+        {
+            ScanFloat(&ok);                 // 组头 float（fstp %st(0) 弃置）
+            if (!ok)
+                break;                      // → 下一主标签
+            std::vector<float> values;      // ORIG -0x168 局部向量
+            values.reserve(13);             // ORIG reserve 0xd
+            for (int i = 0; i <= 12; ++i)
+            {
+                float f = ScanFloat(&ok);
+                if (!ok)
+                    break;
+                values.push_back(f);
+            }
+            if (!ok)                        // 不完整组整体丢弃（ebx=0 路径）
+                break;
+            MONSTER_DIFFICULTY_BONUS[difficulty].push_back(values);
+        }
+    }
+}
+// ORIG 0x08a3b0ad（0x1515 字节）：带 map 形参重载
+// _Z17InitMonsterScriptPKcS0_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEES0_。
+// 与 3 参数版（0x08a11311）归一化 diff 仅一处逻辑差异：loadRDARScriptListFile
+// 第 4 参装载 0x10(%ebp)（map）而非 movl $0；其余指令序列、跳转结构、
+// 全局地址逐条相同（两版函数级 static __lookup/__init_lock/__inited 各自独立：
+// ORIG 0x94fff80/0x94fff98/0x94fff9c vs 0x94ff8a8/0x94ff8b8/0x94ff8d4）。
+bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* map,
+                       const char* apcBonus)
+{
+    if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
+    {
+        strncpy(g_szMonsterScriptBaseDirectory, dir, 0x100);
+        AppendDirSeparator(g_szMonsterScriptBaseDirectory);
+
+        if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stMonsterScriptFileList),
+                                    g_szMonsterScriptBaseDirectory, list, map))
+            return false;
+
+        // ORIG 0x8a113d9: 局部空向量 → resize(5, empty)（0x94ff278）。
+        {
+            std::vector<MonsterBaseParameter> empty;
+            g_monsterBaseParameters.resize(5, empty);
+        }
+
+        for (int tableIdx = 0; tableIdx <= 4; ++tableIdx)
+        {
+            // ORIG 0x93f54c4[tableIdx] 文件名，经全局基目录打开。
+            if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory,
+                                    MONSTER_BASIS_PARAMETER_TABLE_NAMES[tableIdx]))
+                return false;
+
+            bool ok = false;
+            for (int row = 0;; ++row)       // ORIG -0x74(%ebp)
+            {
+                MonsterBaseParameter param;             // ORIG -0x26c(%ebp)
+                param.m_value[0] = ScanInt(&ok);        // 首列驱动循环
+                if (!ok)                                // ORIG 0x8a114a8 jne
+                    break;
+                for (int k = 1; k <= 12; ++k)           // +0x04..+0x30
+                    param.m_value[k] = ScanInt((bool*)0);
+                for (int k = 13; k <= 16; ++k)          // +0x34..+0x40
+                    param.m_value[k] = ScanInt((bool*)0);
+                for (int k = 17; k <= 20; ++k)          // +0x44..+0x50
+                    param.m_value[k] = ScanInt((bool*)0);
+                param.m_value[21] = ScanInt((bool*)0);         // +0x54
+                param.m_value[22] = ScanInt((bool*)0);         // +0x58
+                param.m_value[23] = ScanInt((bool*)0);         // +0x5c
+
+                std::vector<MonsterBaseParameter>& vec =
+                    g_monsterBaseParameters[tableIdx];  // ORIG operator[]
+                if (row == static_cast<int>(vec.size()))
+                    vec.push_back(param);               // ORIG 0x8a11670
+                else if (row > static_cast<int>(vec.size()))
+                {
+                    // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
+                    MonsterBaseParameter def;
+                    vec.resize(row + 1, def);
+                }
+                vec[row] = param;                       // ORIG rep movsl 0x18
+            }
+        }
+    }
+
+    // 注意：apcBonus 用原始 dir 形参打开（ORIG 0x8a11757 直接压 0x8(%ebp)）。
+    if (!loadRDARScriptFile(dir, apcBonus))
+    {
+        LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
+                              0x7e6, "error : MonsterApcDifficultyBonus.tbl is missing!!");
+        return false;
+    }
+
+    bool ok = false;
+    // 难度加成主表：13 行 × 5 列（缺项报错行号 0x7fc，末行/末列豁免）。
+    for (int r = 0; r <= 12; ++r)
+    {
+        for (int c = 0; c <= 4; ++c)
+        {
+            DIFFICULTY_OF_DUNGEON_BONUS[r][c] = ScanFloat(&ok);
+            if (!ok && c != 4 && r != 12)
+            {
+                LogManager::logFormat(
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x7fc,
+                    "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
+                    r, c);
+                break;
+            }
+        }
+        if (!ok)
+            break;
+    }
+    // 死塔加成：13 行 × 4 列（行号 0x818）。
+    for (int r = 0; r <= 12; ++r)
+    {
+        for (int c = 0; c <= 3; ++c)
+        {
+            DEATH_TOWER_BONUS[r][c] = ScanFloat(&ok);
+            if (!ok && c != 3 && r != 12)
+            {
+                LogManager::logFormat(
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x818,
+                    "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
+                    r, c);
+                break;
+            }
+        }
+        if (!ok)
+            break;
+    }
+    // 血条系统加成：13 行 × 4 列写入 5 列数组前 4 列（行号 0x833）。
+    for (int r = 0; r <= 12; ++r)
+    {
+        for (int c = 0; c <= 3; ++c)
+        {
+            BLOOD_SYSTEM_BONUS[r][c] = ScanFloat(&ok);
+            if (!ok && c != 3 && r != 12)
+            {
+                LogManager::logFormat(
+                    0, "../RDARScriptObject.cpp", __FUNCTION__, 0x833,
+                    "error : MonsterApcDifficultyBonus.tbl is incorrect!! index %d i %d",
+                    r, c);
+                break;
+            }
+        }
+        if (!ok)
+            break;
+    }
+
+    for (int k = 0; k <= 4; ++k)            // ORIG 0x8a119fd clear 循环
+        MONSTER_DIFFICULTY_BONUS[k].clear();
+
+    // ---- 标签化段（[easy]..[hero]/[dungeon party balance]/... ）----
+    std::string token;
+    for (;;)                                // ORIG 0x8a11a39 主循环头
+    {
+        if (!ScanType(token, true))         // ORIG 0x8a127e6 → 成功返回
+            return true;
+
+        int difficulty = 0;
+        if (token == "[easy]")
+            difficulty = 0;                 // ORIG 0x8e1eceb
+        else if (token == "[medium]")
+            difficulty = 1;                 // 0x8e1ecf2
+        else if (token == "[hard]")
+            difficulty = 2;                 // 0x8e1ecfb
+        else if (token == "[ultimate]")
+            difficulty = 3;                 // 0x8e1ed02
+        else if (token == "[hero]")
+            difficulty = 4;                 // 0x8e1ed0d
+        else if (token == "[dungeon party balance]")    // 0x8e1ed14
+        {
+            DUNGEON_PARTY_BALANCE_TABLE.clear();
+            for (;;)                        // ORIG 0x8a11cf2
+            {
+                DungeonPartyBalance entry;  // ORIG 栈复用 -0x26c 缓冲
+                entry.m_a = static_cast<float>(ScanInt(&ok));
+                if (!ok)
+                    break;
+                entry.m_b = static_cast<float>(ScanInt(&ok));
+                if (!ok)
+                    break;
+                for (int r = 0; r <= 12; ++r)
+                {
+                    for (int c = 0; c <= 3; ++c)
+                    {
+                        entry.m_grid[r][c] = ScanFloat(&ok);
+                        if (!ok)
+                            break;
+                    }
+                    if (!ok)
+                        break;
+                }
+                if (!ok)                    // 不完整行丢弃 → 下一个标签
+                    break;
+                DUNGEON_PARTY_BALANCE_TABLE.push_back(entry);
+            }
+            continue;
+        }
+        else if (token == "[mesmerization damage balance]")  // 0x8e1ed2c
+        {
+            NORMAL_MONSTER_HOLD_BALANCE_TABLE.clear();       // ORIG 0x8a11e46
+            NAMED_MONSTER_HOLD_BALANCE_TABLE.clear();
+            BOSS_MONSTER_HOLD_BALANCE_TABLE.clear();
+            NORMAL_MONSTER_HOLD_BALANCE_TABLE.reserve(0xc8); // 各 reserve 200
+            NAMED_MONSTER_HOLD_BALANCE_TABLE.reserve(0xc8);
+            BOSS_MONSTER_HOLD_BALANCE_TABLE.reserve(0xc8);
+
+            std::string sub;
+            while (ScanType(sub, true))     // ORIG 0x8a12046
+            {
+                if (sub == "[/mesmerization damage balance]")   // 0x8e1ed4c
+                    break;
+                if (sub == "[normal]")      // 0x8e1ed6c
+                {
+                    for (int i = 0; i <= 199; ++i)          // cmpl $0xc7,setle
+                    {
+                        DungeonHoldBalance h;
+                        h.m_a = ScanInt((bool*)0);
+                        h.m_b = ScanInt((bool*)0);
+                        NORMAL_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
+                    }
+                }
+                else if (sub == "[boss]")   // 0x8e1ed75
+                {
+                    for (int i = 0; i <= 199; ++i)
+                    {
+                        DungeonHoldBalance h;
+                        h.m_a = ScanInt((bool*)0);
+                        h.m_b = ScanInt((bool*)0);
+                        BOSS_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
+                    }
+                }
+                else if (sub == "[named]")  // 0x8e1ed7c
+                {
+                    for (int i = 0; i <= 199; ++i)
+                    {
+                        DungeonHoldBalance h;
+                        h.m_a = ScanInt((bool*)0);
+                        h.m_b = ScanInt((bool*)0);
+                        NAMED_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
+                    }
+                }
+            }
+            continue;
+        }
+        else if (token == "[limit slowdown]")               // 0x8e1ed84
+        {
+            // ORIG 函数级静态：__lookup map<const char*,int,less_TCHAR>
+            // （0x94ff8a8，guard 0x94ff8b0）+ __init_lock SpinLock
+            // （0x94ff8b8，guard 0x94ff8b0 复用）+ __inited（0x94ff8d4）。
             // 首次进入锁内插入四条 tag→id（id 为 ORIG 源内常量 0x932/0x935/
             // 0x949/0x95d），置 inited 后重派发同一 token 进入真实解析分支。
             static std::map<const char*, int, less_TCHAR> lookup;

@@ -88,53 +88,48 @@ int Cipher::GetTotalKeyLength() const
 int Cipher::Initialize(const unsigned char* key, int keyLen)
 {
     std::memcpy(m_keyBuf, key, keyLen);
-    const unsigned char* p = key;
-    int remain = keyLen;
     for (int i = 0; i < CRYPTO_GRAPH_MAX; ++i)
     {
-        ICryptoGraph* graph = m_graphs[i];
-        if (!graph)
+        int ks = m_graphs[i]->GetKeySize();
+        if (keyLen < ks)
             return 0;
-        int ks = graph->GetKeySize();
-        if (remain < ks)
-            return 0;
-        graph->Initialize(p, ks);
-        p += ks;
-        remain -= ks;
+        m_graphs[i]->Initialize(key, ks);
+        key += ks;
+        keyLen -= ks;
     }
     return 1;
 }
 
-void Cipher::GetOriginalKey(unsigned char* dst) const
+void Cipher::GetOriginalKey(unsigned char* dst)
 {
     std::memcpy(dst, m_keyBuf, m_totalKeyLength);
 }
 
 void Cipher::AdjustDataSize(int key, int* size) const
 {
-    ICryptoGraph* graph = m_graphs[GetCryptoType(key)];
-    if (!graph)
-        return;
-    int bs = graph->GetBlockSize();
-    if (*size % bs != 0)
-        *size += bs - *size % bs;
+    int type = GetCryptoType(key);
+    int v = *size;
+    int bs = m_graphs[type]->GetBlockSize();
+    if (v % bs != 0)
+        v += bs - v % bs;
+    *size = v;
 }
 
 int Cipher::Encrypt(int key, const unsigned char* src, int srcLen,
-                    unsigned char* dst, int* dstLen) const
+                    unsigned char* dst, int* dstLen)
 {
     if (srcLen < 1)
     {
         *dstLen = 0;
         return 1;
     }
-    ICryptoGraph* graph = m_graphs[GetCryptoType(key)];
-    if (!graph)
-        return 0;
-    int bs = graph->GetBlockSize();
+    int type = GetCryptoType(key);
+    int outCap = *dstLen;   // ORIG 在选图前死读 *dstLen（-0x10 槽，后续未用）
+    (void)outCap;
+    int bs = m_graphs[type]->GetBlockSize();
     if (srcLen % bs != 0)
         srcLen += bs - srcLen % bs;
-    if (graph->Encrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
+    if (m_graphs[type]->Encrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
     {
         *dstLen = srcLen;
         return 1;
@@ -143,19 +138,17 @@ int Cipher::Encrypt(int key, const unsigned char* src, int srcLen,
 }
 
 int Cipher::Decrypt(int key, const unsigned char* src, int srcLen,
-                    unsigned char* dst, int* dstLen) const
+                    unsigned char* dst, int* dstLen)
 {
     if (srcLen < 1)
     {
         *dstLen = 0;
         return 1;
     }
-    ICryptoGraph* graph = m_graphs[GetCryptoType(key)];
-    if (!graph)
-        return 0;
-    int bs = graph->GetBlockSize();
-    (void)bs;   // ORIG Decrypt 不调整长度，直接调用
-    if (graph->Decrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
+    int type = GetCryptoType(key);
+    int bs = m_graphs[type]->GetBlockSize();
+    (void)bs;   // ORIG Decrypt 调 GetBlockSize 但不调整长度
+    if (m_graphs[type]->Decrypt(src, srcLen, dst, *dstLen) == 0x6fffffff)
     {
         *dstLen = srcLen;
         return 1;

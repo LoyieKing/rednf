@@ -140,7 +140,7 @@ void TimerQueue::write_timer_queue_log() throw()
 
         // P23：ORIG 先求值 c_str 暂存寄存器，再构造 cMyTrace、再 operator()。
         const char* str = log.c_str();
-        cMyTrace trace("void TimerQueue::write_timer_queue_log()", 0x101, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x101, 0);
         trace("TIMER_QUEUE_LOG : %s", str);
         log.clear();
     }
@@ -148,7 +148,7 @@ void TimerQueue::write_timer_queue_log() throw()
     if (log.length() != 0)
     {
         const char* str2 = log.c_str();
-        cMyTrace trace2("void TimerQueue::write_timer_queue_log()", 0x107, 0);
+        cMyTrace trace2(__PRETTY_FUNCTION__, 0x107, 0);
         trace2("TIMER_QUEUE_LOG : %s", str2);
     }
 }

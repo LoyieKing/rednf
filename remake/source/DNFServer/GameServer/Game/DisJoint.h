@@ -33,12 +33,8 @@ struct DisJointResult
 //      方法定义归属 CStackableItem.cpp）----
 #include "LotteryInfo.h"
 
-// ---- DisjointScript::_381（匿名结构；ctor 0x08348088 仅构造 +4 vector<int>）----
-struct DisjointAdditionalEntry
-{
-    int m_count;                 // +0x00（[additional result] 组计数）
-    std::vector<int> m_items;    // +0x04
-};  // sizeof == 0x10
+// ---- DisjointScript::._381（匿名结构；ctor 0x08348088 仅构造 +4 vector<int>；
+//      GCC 匿名嵌套命名，定义在 DisjointScript 类内 m_additional 处）----
 
 // ---- DisjointSkillScript（[skill info] 行元素；ctor W 0x084735fe 仅调 clear；
 //      clear W 0x084735d2 置 {0xb,0,0,4}；dtor W 0x088e5b32 平凡）----
@@ -78,15 +74,33 @@ public:
     float m_creationRate[6];                  // +0x538..0x54f（[cube creation const] 概率）
     // [additional result const] 区（importDisjointScript 0x088e4d88 写入实证）：
     float m_additionalWeight[6];              // +0x550（组 i 首浮点；非 0 时启用该组）
+    char m_pad568[0x56c - 0x568];             // +0x568..0x56b（ORIG 空洞）
     struct AdditionalConstEntry
     {
         int m_item;                           // +0x00
         int m_count;                          // +0x04
         int m_pad8;
     };  // sizeof == 0xc
-    AdditionalConstEntry m_additionalConst[6]; // +0x56c（步长 0xc）→ 止于 0x5b0
-    float m_additionalRate[6];                // +0x5b0（组 i 第二浮点）→ 止于 0x5c8
-    DisjointAdditionalEntry m_additional[6];  // +0x5c8（[additional result]，步长 0x10）
+    // ORIG 布局：const 表 @+0x56c（6 行×0xc）止于 0x5b4，而 m_additionalRate 表
+    // @+0x5b0 与第 6 行 m_pad8（0x5b0..0x5b4）重叠。标准 C++ 无法线性表达重叠区，
+    // 故用匿名 union：m_additionalConst[6]（+0x56c 步长 0xc）与
+    // { pad[0x44], m_additionalRate[6] @+0x5b0 } 共享同一 0x5c 字节区（ORIG 布局实证）。
+    union
+    {
+        AdditionalConstEntry m_additionalConst[6];
+        struct
+        {
+            char m_pad44[0x44];               // +0x56c..0x5b0（const 表 m_item/m_count 区）
+            float m_additionalRate[6];        // +0x5b0（组 i 第二浮点）→ 止于 0x5c8
+        };
+    };
+    struct
+    {
+        int m_count;                 // +0x00（[additional result] 组计数）
+        std::vector<int> m_items;    // +0x04
+    } m_additional[6];               // +0x5c8（[additional result]，步长 0x10；
+                                     //      匿名嵌套 → GCC 命名 DisjointScript::._381，
+                                     //      C1/D1 与 ORIG 0x08348088/0x0834809e 同形）
 };  // sizeof == 0x628
 
 class DisJoint : public DisjointScript
@@ -98,15 +112,21 @@ public:
 
     // 其余查询方法（GetPredictResult/GetResult 等）报告在案，定义待分解域批次。
 
-    // ORIG T 0x08473116 _ZN8DisJoint17GetPredictResultEi：返回 &m_resultVecs[rarity]
-    // （rarity 越界时返回基址；定义 ExpertJobLink4.cpp）
+    // ORIG T 0x08473116：rarity 表查找，越界回第 0 项。
     std::vector<int>* GetPredictResult(int rarity);
-    std::vector<int> m_resultVecs[6];          // +0x628（LoadDisJoint 聚合目标，步长 0xc）
+    int getPredictResultItemTypeCount(int rarity) const;  // ORIG T 0x08473148
 
-    // ---- 分解结果（定义 ItemUpgradeVtableB2.cpp）----
+    // ORIG T 0x08473184 _ZN8DisJoint17GetAddtionalSkillEiiRiS0_：
+    // [skill info] 行查表（定义 DisJoint.cpp）
+    void GetAddtionalSkill(int job, int level, int& outSkill, int& outLevel);
+
+    // ORIG ctor 0x0837e532：基类 0x628 后 6×vector<int> 结果表
+    std::vector<int> m_resultVecs[6];           // +0x628 → 止于 0x670？报告 0x658【推断】
+
+    // ---- 分解结果（定义 DisJoint.cpp）----
     int GetResult(int itemIdx, DisJointResult& out);            // T 0x084733f6
-    void _GetAdditionalItem(const CItem* item, int* outIdx,
-                            int* outCount);                     // T 0x084732b4
+    void _GetAdditionalItem(const CItem* item, int& outIdx,
+                            int& outCount);                     // T 0x084732b4
     int _GetAdditionalItemInfo(int rarity);                     // T 0x08473224
 };  // sizeof == 0x658
 

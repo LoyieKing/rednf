@@ -34,6 +34,11 @@ struct ScriptValue
 //   +0x04 int   percent  token=="%" ? 1 : 0（ctor 置 0）
 //   +0x08 float value    ScanInt 转 float（ctor 置 0）
 // 总大小 0xc。ChangeStatusData::ChangeStatusData() ORIG 0x089c2dd8。
+// 拷贝构造 _ZN16ChangeStatusDataC1ERKS_（0x08366190 W）与 operator=
+// （0x083661b8 W）均为编译器隐式生成的逐字段浅拷贝（0x08366190 反汇编
+// 依序 mov +0/+4/+8 三个 dword），不含任何用户逻辑；按 P74 不显式声明，
+// 保留隐式生成与 ORIG 弱符号同形。gcc4.4.7 在 trivial 拷贝处内联为
+// 3×mov（ORIG gcc4.1.2 为独立 call），语义等价，跨工具链结构差异豁免。
 struct ChangeStatusData
 {
     int   type;      // +0x00
@@ -41,6 +46,21 @@ struct ChangeStatusData
     float value;     // +0x08
 
     ChangeStatusData() : type(0x4d), percent(0), value(0.0f) {}
+    // ORIG W 0x08366190（C2 同址）：编译器隐式逐字段浅拷贝；为发射 W 符号显式声明
+    // （语义与隐式一致，gcc4.4.7 在 force 使用点仍内联 3×mov）。
+    ChangeStatusData(const ChangeStatusData& o)
+        : type(o.type), percent(o.percent), value(o.value)
+    {
+    }
+    // ORIG W 0x083661b8：隐式逐字段浅拷贝；为发射 W 符号显式声明
+    // （语义与隐式一致，gcc4.4.7 在 force 使用点仍内联 3×mov）。
+    ChangeStatusData& operator=(const ChangeStatusData& o)
+    {
+        type = o.type;
+        percent = o.percent;
+        value = o.value;
+        return *this;
+    }
 };
 static_assert(sizeof(ChangeStatusData) == 0xc, "ChangeStatusData size mismatch");
 

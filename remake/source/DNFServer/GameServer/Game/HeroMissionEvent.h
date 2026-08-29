@@ -37,6 +37,10 @@ public:
     // ORIG _ZN16HeroMissionValue14setStringTokenESs T 0x08164d68（按值收 token 串，
     // 解析 "mission,cur,max,flag" 形式；定义归 HeroMission 域批次）
     void setStringToken(std::string token);
+    // ORIG _ZN16HeroMissionValue14getStringTokenERSs T 0x08164bca（saveEventData
+    // 依赖：按 "mission f4 f6 fA f8" 空格分隔追加 token 串到 out，非空前置 ','）。
+    // 定义归本 TU（HeroMissionEvent.cpp，当前仓库唯一定义点）。
+    void getStringToken(std::string& out);
     // ORIG _ZN16HeroMissionValue5resetEv T 0x08164bb2（resetMissionForGm 依赖）。
     void reset();
 };
@@ -75,6 +79,10 @@ public:
                            HeroMissionCondition::MissionNo::T mission);          // ORIG 0x08167a3a
     void setMissionForGm(CUser* user, HeroMissionCondition::MissionNo::T mission,
                          unsigned int value);                                    // ORIG 0x081679ac
+    // ORIG T 0x08167216 _ZN16HeroMissionEvent15setMissionValueEP5CUserN20HeroMissionCondition9MissionNo1TEj
+    // （LinkE2.JpnExImpl 批次追加：ProcessIPG_ResultOutput case 7 调用）。
+    void setMissionValue(CUser* user, HeroMissionCondition::MissionNo::T mission,
+                         unsigned int value);
 
 private:
     // ORIG 布局镜像（CEventBase 基类）
@@ -85,7 +93,6 @@ private:
     char m_pad09[3];           // +0x09..+0x0b
     std::map<HeroMissionCondition::MissionNo::T, BaseHeroMissionCondition*>
         m_conditions;          // +0x0c
-    char m_pad14[0x10];        // +0x14..+0x23
     std::map<unsigned int, std::vector<HeroMissionValue> >
         m_values;              // +0x24
 };

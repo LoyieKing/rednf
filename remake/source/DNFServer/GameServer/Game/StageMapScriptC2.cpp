@@ -6,7 +6,6 @@
 //   stagemap::StageMapScript::~StageMapScript()          W 0x0837f782
 //   importStageMapScript(stagemap::StageMapScript*,    T 0x088a9f28
 //                         char const*)
-//   STScriptFileList::GetIndex(char const*)              T 0x088badba
 //
 // StageMapList::makeStageMapUniqueId(int,int,int), ORIG T 0x08364818, is
 // already provided by StrikerWorldDropB2.cpp and is intentionally not
@@ -24,16 +23,8 @@
 #include <vector>
 
 #include "DNFLexWrapper.h"
+#include "NpcScript.h"
 
-// STScriptFileList is defined in several existing TUs through compatible
-// layout views.  This view names the ORIG GetIndex member while retaining the
-// map at +0x00 (the global object is defined by InitScriptProducers_5.cpp).
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;  // +0x00, sizeof 0x18
-    int GetIndex(const char* path);        // ORIG T 0x088badba
-};
 
 extern char g_stageMapScriptBaseDirectory[0x100];
 extern STScriptFileList g_stageMapScriptFileList;
@@ -201,19 +192,6 @@ StageMapScript::~StageMapScript()
 }
 
 }  // namespace stagemap
-
-// ORIG T 0x088badba: iterate the +0x00 map and return the key whose value
-// equals path; return -1 when no file-list entry matches.
-int STScriptFileList::GetIndex(const char* path)
-{
-    for (std::map<int, std::string>::iterator it = m_fileMap.begin();
-         it != m_fileMap.end(); ++it)
-    {
-        if (it->second == path)
-            return it->first;
-    }
-    return -1;
-}
 
 // ORIG T 0x088a9f28.  This is a direct C++ transcription of the report's
 // ScanType/ScanInt state machine.  In particular, [stage] consumes rows of

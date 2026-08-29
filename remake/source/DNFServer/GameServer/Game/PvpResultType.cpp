@@ -2,7 +2,12 @@
 // df_game_r PvpResultType（G2-4 PvP 结果类型，0x84 字节）
 // 逐函数对照 docs/class_func_reports/PvpResultType.md 与 ORIG 反汇编实现；
 // AddNewResult 使用 AverageIncremental<int,long long>（ORIG 085dfec6）。
-// ============================================================================
+// 2026-08-28 HdrFieldG：删除本 TU 局部类定义，改用权威 PvpResultType.h
+// （原局部 m_fieldN 名 → 权威字段名映射：m_field0→m_totalWinCount、
+//  m_field4→m_totalLoseCount、m_field8→m_expPoint、m_fieldc→m_oldExpPoint、
+//  m_field14→m_pvpGrade、m_field5c→m_todayWinCount、m_field60→m_todayLoseCount、
+//  m_field64→m_todayPlayCount、m_field68→m_nextResetTime；其余同名）。
+#include "PvpResultType.h"
 
 // ---- AverageIncremental（mangling _Z18AverageIncrementalIixET_T0_S1_S1_）----
 template <typename T, typename T2>
@@ -10,38 +15,6 @@ T AverageIncremental(T2 a, T2 b, T2 count)
 {
     return (T)((a * count + b) / (count + 1));
 }
-
-class PvpResultType
-{
-public:
-    PvpResultType();
-    ~PvpResultType();
-    void Set(const PvpResultType& other);
-    void Get(PvpResultType& out) const;
-    void AddNewResult(const PvpResultType& other);
-    void Clear();
-    int GetTotalScore() const;
-
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04
-    int m_field8;   // +0x08
-    int m_fieldc;   // +0x0c
-    int m_field10;  // +0x10
-    int m_field14;  // +0x14
-    int m_avg[15];  // +0x18..0x50
-    int m_count;    // +0x54
-    int m_winPoint; // +0x58
-    int m_field5c;  // +0x5c
-    int m_field60;  // +0x60
-    int m_field64;  // +0x64
-    int m_field68;  // +0x68
-    int m_field6c;  // +0x6c
-    int m_field70;  // +0x70
-    int m_field74;  // +0x74
-    int m_field78;  // +0x78
-    int m_field7c;  // +0x7c
-    int m_field80;  // +0x80
-};
 
 PvpResultType::PvpResultType()
 {
@@ -54,10 +27,10 @@ PvpResultType::~PvpResultType()
 void PvpResultType::Set(const PvpResultType& other)
 {
     *this = other;
-    if (m_field8 < 0)
+    if (m_expPoint < 0)
     {
-        m_field8 = 0;
-        m_field14 = 0;
+        m_expPoint = 0;
+        m_pvpGrade = 0;
     }
 }
 
@@ -112,10 +85,10 @@ void PvpResultType::AddNewResult(const PvpResultType& other)
 
 void PvpResultType::Clear()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_field14 = 0;
+    m_totalWinCount = 0;
+    m_totalLoseCount = 0;
+    m_expPoint = 0;
+    m_pvpGrade = 0;
     m_field10 = -1;
     m_avg[0] = 0;
     m_avg[1] = 0;
@@ -134,13 +107,13 @@ void PvpResultType::Clear()
     m_avg[14] = 0;
     m_count = 0;
     m_winPoint = 0;
-    m_field5c = 0;
+    m_todayWinCount = 0;
     m_field6c = 0;
     m_field70 = 0;
     m_field74 = 0;
     m_field78 = 0;
-    m_field60 = 0;
-    m_field64 = 0;
+    m_todayLoseCount = 0;
+    m_todayPlayCount = 0;
     m_field7c = 0;
     m_field80 = 0;
 }

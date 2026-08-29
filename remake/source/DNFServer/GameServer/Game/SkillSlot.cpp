@@ -92,8 +92,8 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
                 end = 0xc6;
                 break;
             default:
-                cMyTrace trace("addSkillOnCreateCharacter", 0x549, 5);
-                trace("[%s][%d]", "addSkillOnCreateCharacter", group);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x549, 5);
+                trace("add skill no group %d", group);
                 break;
             }
         }
@@ -108,19 +108,38 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
         }
     }
 }
-// ORIG 0x88923f1：skill>0x95→0；否则 (level+flag)*skill*10/100
+// ORIG 0x88923f1：skill>0x95→0；否则 (level+flag)*(skill*10)/10
 int getSkillChecksum(int skill, int level, int flag)
 {
     if (skill > 0x95)
+    {
         return 0;
-    return (level + flag) * skill * 10 / 100;
+    }
+    int result = 0;
+    result = (level + flag) * (skill * 10) / 10;
+    return result;
 }
 // ORIG T 0x8892445
-int finishSkillChecksum(int* sum, int key) { return 0; }
+// ORIG T 0x8892445（0x26 字节，objdump 转写：报告缺失）
+// if (sum == 0) return 0; *sum ^= key; return *sum;
+int finishSkillChecksum(int* sum, int key)
+{
+    if (sum == 0)
+    {
+        return 0;
+    }
+    *sum = *sum ^ key;
+    return *sum;
+}
 // ORIG T _Z22getSkillSpendSPOnStealii（0x8a9afa2，0x53 字节）：
 // f = penalty / 100.0f（.rodata 0x8e2a180 = 0x42c80000）；r = (int)(sp * f)
 // （fistpl，控制字 chop 截断向零）；返回 std::max(1, r)。
-int getSkillSpendSPOnSteal(int sp, int penalty) { return std::max(1, (int)((float)sp * ((float)penalty / 100.0f))); }
+int getSkillSpendSPOnSteal(int sp, int penalty)
+{
+    float f = (float)penalty / 100.0f;
+    int r = (int)((float)sp * f);
+    return std::max(1, r);
+}
 
 _Mastered_skill::_Mastered_skill()
 {
@@ -378,7 +397,7 @@ int SkillSlot::getSkillSlotIndex(ENUM_SKILL_TREE_KIND kind, int slot) const
     if (kind > 1)
     {
         LogManager::logFormat(1, "skill_slot.cpp",
-                              "int SkillSlot::getSkillSlotIndex(ENUM_SKILL_TREE_KIND, int) const",
+                              __PRETTY_FUNCTION__,
                               0xd1f, "SkillSlot::getSkillSlotIndex kind(%d) error",
                               kind);
         return 0xffffffff;
@@ -401,7 +420,7 @@ int SkillSlot::get_remain_sp_at_index(ENUM_SKILL_TREE_KIND kind) const
         return m_remainSP2;
     }
     LogManager::logFormat(1, "skill_slot.cpp",
-                          "int SkillSlot::get_remain_sp_at_index(ENUM_SKILL_TREE_KIND) const",
+                          __PRETTY_FUNCTION__,
                           0x68, "Wrong Skill Tree Kind : %d", kind);
     return 0;
 }
@@ -417,7 +436,7 @@ int SkillSlot::get_remain_sfp_at_index(ENUM_SKILL_TREE_KIND kind) const
         return m_remainSFP2;
     }
     LogManager::logFormat(1, "skill_slot.cpp",
-                          "int SkillSlot::get_remain_sfp_at_index(ENUM_SKILL_TREE_KIND) const",
+                          __PRETTY_FUNCTION__,
                           0x81, "Wrong Skill Tree Kind : %d", kind);
     return 0;
 }
@@ -447,7 +466,7 @@ void SkillSlot::set_remain_sfp_at_index(int value, ENUM_SKILL_TREE_KIND kind)
     else
     {
         LogManager::logFormat(1, "skill_slot.cpp",
-                              "void SkillSlot::set_remain_sfp_at_index(int, ENUM_SKILL_TREE_KIND)",
+                              __PRETTY_FUNCTION__,
                               0x75, "Wrong Skill Tree Kind : %d", kind);
     }
 }
@@ -935,7 +954,7 @@ int SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
         {
             LogManager::logFormat(
                 1, "skill_slot.cpp",
-                "bool SkillSlot::clear_sfp_skills(char, ENUM_SKILL_TREE_KIND)",
+                __PRETTY_FUNCTION__,
                 0x49c, "SkillSlot::clear_sfp_skills error %d", kind);
         }
     }
@@ -1025,7 +1044,7 @@ int SkillSlot::growtype_skill(int job, int skillIdx, int level,
     {
         LogManager::logFormat(
             1, "skill_slot.cpp",
-            "int SkillSlot::growtype_skill(int, int, int, ENUM_SKILL_TREE_KIND)",
+            __PRETTY_FUNCTION__,
             0x20b, "G_CDataManager()->find_skill( %d, %d )", job, skillIdx);
         return -1;
     }
@@ -1050,7 +1069,7 @@ int SkillSlot::growtype_skill(int job, int skillIdx, int level,
         }
         if (m_parent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillDel(((CUserCharacInfo*)m_parent)->get_charac_job(),
                            ((CUserCharacInfo*)m_parent)
                                ->GetCurCharacSkillTreeIndex(),
@@ -1075,7 +1094,7 @@ int SkillSlot::growtype_skill(int job, int skillIdx, int level,
         }
         if (m_parent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillAdd(((CUserCharacInfo*)m_parent)->get_charac_job(),
                            ((CUserCharacInfo*)m_parent)
                                ->GetCurCharacSkillTreeIndex(),
@@ -1234,7 +1253,7 @@ int SkillSlot::check_skill_list(
             {
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "bool SkillSlot::check_skill_list(int, std::vector<std::pair<int, int> >, int) const",
+                    __PRETTY_FUNCTION__,
                     0x42b, "G_CDataManager()->find_skill( %d, %d )", job,
                     skillIdx);
                 return 0;
@@ -1387,7 +1406,7 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                 ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
             int job = ((CUserCharacInfo*)m_parent)->get_charac_job();
             dm = G_CDataManager();
-            ((PvPSkillTreeParameterScript*)((char*)dm + 0xa800))
+            (&dm->m_pvpSkillTree)
                 ->getGiveSkill(job, (int)firstGrow, (int)secondGrow,
                                giveList);
         }
@@ -1450,13 +1469,13 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
                     bool found = false;
                     std::vector<std::pair<int, int> >::const_iterator eit =
                         (*(std::vector<std::pair<int, int> >*)
-                             ((char*)expertScript + 0xc))
+                             ((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
                             .begin();
                     while (true)
                     {
                         std::vector<std::pair<int, int> >::const_iterator eend =
                             (*(std::vector<std::pair<int, int> >*)
-                                 ((char*)expertScript + 0xc))
+                                 ((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
                                 .end();
                         if (eit == eend)
                         {
@@ -1559,7 +1578,7 @@ int SkillSlot::get_give_skill(
         char firstGrow2 = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
         int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
         CDataManager* dm = G_CDataManager();
-        ((PvPSkillTreeParameterScript*)((char*)dm + 0xa800))
+        (&dm->m_pvpSkillTree)
             ->getGiveSkill(characJob, (int)firstGrow2, (int)secondGrow, out);
         return 1;
     }
@@ -1713,13 +1732,13 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
             addLevel);
         if (m_parent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillAdd(((CUserCharacInfo*)m_parent)->get_charac_job(),
                            (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                                ->GetCurCharacSkillTreeIndex(),
                            skillIdx, addLevel,
                            (eSkillAddReason)0);
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SPSub(
                     (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                         ->GetCurCharacSkillTreeIndex(),
@@ -1732,13 +1751,13 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
         *remain = *remain - needSP;
         if (m_parent != 0)
         {
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillAdd(((CUserCharacInfo*)m_parent)->get_charac_job(),
                            (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                                ->GetCurCharacSkillTreeIndex(),
                            skillIdx, targetLevel,
                            (eSkillAddReason)0);
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SPSub(
                     (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                         ->GetCurCharacSkillTreeIndex(),
@@ -1887,13 +1906,13 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
                                       int& learnCnt, short& needGSP,
                                       int guildLevel)
 {
-    if ((unsigned char)((char*)&guildInfo)[0x44] >= 0x10)
+    if ((unsigned char)guildInfo.m_skillLearnCnt >= 0x10)
     {
         LogManager::logFormat(
             1, "skill_slot.cpp",
-            "int SkillSlot::master_new_guild_skill(int, int, int, int, const STGuildDBInfoOnly&, int, int&, int&, short int&, int)",
+            __PRETTY_FUNCTION__,
             0x102, "BUY GUILD SKILL, GName(%s) , Learn Cnt(%d)", &guildInfo,
-            (unsigned char)((char*)&guildInfo)[0x44]);
+            (unsigned char)guildInfo.m_skillLearnCnt);
         return -2;
     }
     CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
@@ -1902,12 +1921,15 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
         return -1;
     }
     learnCnt = 1;
-    int count = (unsigned char)((char*)&guildInfo)[0x44];
+    int count = (unsigned char)guildInfo.m_skillLearnCnt;
+    // ORIG 0x0860387e..0x86038a6：i*5 步长（STGuildSkill packed 5B）；
+    // 原 i*20 步长有误，已修正。m_skills char 区按 5B 条目宽度视图访问。
+    const char* skills = guildInfo.m_skills;
     for (int i = 0; i < count; ++i)
     {
-        if (*(int*)((char*)&guildInfo + i * 20 + 0x45) == skillIdx)
+        if (*(const int*)(skills + i * 5) == skillIdx)
         {
-            learnCnt = (char)((char*)&guildInfo)[i * 20 + 0x49] + 1;
+            learnCnt = (char)skills[i * 5 + 4] + 1;
             break;
         }
     }
@@ -1933,7 +1955,7 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     }
     needGold = skill->get_guildSkillNeedGold(learnCnt);
     if (needGold < 0 ||
-        *(unsigned int*)((char*)&guildInfo + 0xa0) < (unsigned int)needGold)
+        guildInfo.m_fundMoney < (unsigned int)needGold)
     {
         return -5;
     }
@@ -1942,7 +1964,7 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     {
         return -2;
     }
-    if ((int)(unsigned char)((char*)&guildInfo)[0x1b] <
+    if ((int)(unsigned char)guildInfo.m_fundLevel <
         skill->get_needGuildLevel(learnCnt))
     {
         return -6;
@@ -1952,7 +1974,7 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
         int treeKind =
             ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
         int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
-        ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+        (&m_parent->m_historyLog)
             ->SkillAdd(characJob, treeKind, skillIdx, learnCnt,
                        (eSkillAddReason)0);
         m_parent->makeGuildSkillMessage(skill->getSkillName(), learnCnt);
@@ -2095,10 +2117,10 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
             int treeKind2 =
                 ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
             int characJob2 = ((CUserCharacInfo*)m_parent)->get_charac_job();
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillDel(characJob2, treeKind2, skillIdx, refundCount,
                            (eSkillDelReason)1);
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SFPAdd((int)kindChar, remain + returnSP, returnSP,
                          (eSPAddReason)2);
             if (0 < refundCount && 10 < returnSP / refundCount)
@@ -2109,7 +2131,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                 char* str = NumberToString(accId, 0);
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "int SkillSlot::refund_skill(int, int, int, int, int, int, int&)",
+                    __PRETTY_FUNCTION__,
                     0x93b,
                     "Wrong refund TP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
                     str, characNo, skillIdx, returnSP, refundCount);
@@ -2131,14 +2153,14 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                 (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                     ->GetCurCharacSkillTreeIndex();
             int characJob2 = ((CUserCharacInfo*)m_parent)->get_charac_job();
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SkillDel(characJob2, treeKind3, skillIdx, refundCount,
                            (eSkillDelReason)1);
             int newRemain = remain + returnSP;
             ENUM_SKILL_TREE_KIND treeKind4 =
                 (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
                     ->GetCurCharacSkillTreeIndex();
-            ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+            (&m_parent->m_historyLog)
                 ->SPAdd(treeKind4, newRemain, returnSP, (eSPAddReason)2);
             if (0 < refundCount && 1000 < returnSP / refundCount)
             {
@@ -2148,7 +2170,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                 char* str = NumberToString(accId, 0);
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "int SkillSlot::refund_skill(int, int, int, int, int, int, int&)",
+                    __PRETTY_FUNCTION__,
                     0x921,
                     "Wrong refund SP skill mId:%s char_no:%d rSkillIdx:%d rSp:%d rCount:%d",
                     str, characNo, skillIdx, returnSP, refundCount);
@@ -2301,7 +2323,7 @@ void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
         spKind = 1;
         sfpKind = 3;
     }
-    ((cUserHistoryLog*)((char*)m_parent + 0x79700))
+    (&m_parent->m_historyLog)
         ->InitSkill(spKind, ((CUserCharacInfo*)m_parent)->get_charac_level(),
                     get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)spKind),
                     get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)sfpKind),
@@ -2320,13 +2342,9 @@ void SkillSlot::SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind)
     guard.put_byte(1);
     guard.put_byte(characIdx);
     guard.put_byte(
-        (int)(char)(*(std::vector<_Charac_info>*)((char*)m_parent + 0x796e8))
-            [characIdx]
-                .m_field26);
+        (int)(char)m_parent->m_characList[characIdx].m_field26);
     guard.put_byte(
-        (int)((const _Charac_info_nibble_field*)&(
-            *(std::vector<_Charac_info>*)((char*)m_parent + 0x796e8))
-                  [characIdx])
+        (int)((const _Charac_info_nibble_field*)&m_parent->m_characList[characIdx])
             ->m_specialNibble);
     int index = guard.get_index();
     int count = 0;
@@ -2355,17 +2373,17 @@ void SkillSlot::SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind)
     m_parent->Send(guard);
 }
 
-int SkillSlot::checkskillSlotEmptyCount(int& out) const
+int SkillSlot::checkskillSlotEmptyCount(int& out)
 {
     if (m_parent == 0)
     {
         return 0;
     }
+    int total = 0;
     int charLevel = ((CUserCharacInfo*)m_parent)->get_charac_level();
-    ENUM_SKILL_TREE_KIND kind =
+    _Mastered_skill* buf = get_skillslot_buf(
         (ENUM_SKILL_TREE_KIND)((CUserCharacInfo*)m_parent)
-            ->GetCurCharacSkillTreeIndex();
-    _Mastered_skill* buf = get_skillslot_buf(kind);
+            ->GetCurCharacSkillTreeIndex());
     if (buf == 0)
     {
         return 0;
@@ -2378,7 +2396,6 @@ int SkillSlot::checkskillSlotEmptyCount(int& out) const
             emptyCount = emptyCount + 1;
         }
     }
-    int total = emptyCount;
     if (charLevel < 0x10)
     {
         emptyCount = emptyCount - 3;
@@ -2394,32 +2411,263 @@ int SkillSlot::checkskillSlotEmptyCount(int& out) const
         out = 3;
     }
     total = emptyCount;
-    if (0x2d < charLevel)
+    if (0x2d >= charLevel)
     {
-        emptyCount = 0;
-        for (int i = 0xc6; i < 0xcc; ++i)
+        return total;
+    }
+    emptyCount = 0;
+    for (int i = 0xc6; i < 0xcc; ++i)
+    {
+        if (buf[i].m_index == 0)
         {
-            if (buf[i].m_index == 0)
-            {
-                emptyCount = emptyCount + 1;
-            }
-        }
-        if (charLevel < 0x3d)
-        {
-            emptyCount = emptyCount - 3;
-            out = 4;
-        }
-        else
-        {
-            emptyCount = emptyCount - 2;
-            out = 5;
-        }
-        if (0 < emptyCount)
-        {
-            total = total + emptyCount;
+            emptyCount = emptyCount + 1;
         }
     }
+    if (charLevel < 0x3d)
+    {
+        emptyCount = emptyCount - 3;
+        out = 4;
+    }
+    else
+    {
+        emptyCount = emptyCount - 2;
+        out = 5;
+    }
+    if (0 < emptyCount)
+    {
+        total = total + emptyCount;
+    }
     return total;
+}
+
+// ==== SkillSlot::checkOverLevelSkill @ 0x08605d2a（报告 docs/class_func_reports/SkillSlot/checkOverLevelSkill.md）====
+// 检查超等级技能：对每槽技能计算当前等级可达到的最大技能等级（含偷学/超限加成），
+// 超出部分返回 SP/SFP 并写回；返回 1 表示有技能被降级/补发。
+char SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
+                                    ENUM_SKILL_TREE_KIND kind, int level)
+{
+    if (m_parent == 0 ||
+        ((CUserCharacInfo*)m_parent)->getCurCharacR() == 0)
+    {
+        return 0;
+    }
+    char result = 0;
+    _Mastered_skill* buf = get_skillslot_buf(kind);
+    int* remainSFP = 0;
+    if (kind == 0)
+    {
+        remainSFP = get_cur_remain_sp((ENUM_SKILL_TREE_KIND)2);
+    }
+    else if (kind == 1)
+    {
+        remainSFP = get_cur_remain_sp((ENUM_SKILL_TREE_KIND)3);
+    }
+    int* remainSP = get_cur_remain_sp(kind);
+    if (buf == 0 || remainSP == 0 || remainSFP == 0)
+    {
+        return 0;
+    }
+    int expertJobLevel = 0;
+    int expertSkillCount = 0;
+    void* expertScript = 0;
+    int i;
+    CSkill* skill;
+    bool isSteal;
+    int checkLevel;
+    int maxLevel;
+    int giveLevel;
+    char giveResult;
+    bool found;
+    unsigned int j;
+    int preIndex;
+    int preJobType;
+    int preGroup;
+    expertScript = G_CDataManager()->GetExpertJobScript(
+        ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
+    if (((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType() != 0)
+    {
+        expertJobLevel = m_parent->GetCurExpertJobLevel(
+            ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobExp());
+    }
+    for (i = 0; i < 0xcc; ++i)
+    {
+        if (buf[i].m_index != 0)
+        {
+            skill = 0;
+            skill = G_CDataManager()->find_skill(
+                ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                (unsigned char)buf[i].m_index);
+            if (skill == 0)
+            {
+                return 0;
+            }
+            isSteal = false;
+            checkLevel = level;
+            if (skill->IsStealable(
+                    (int)((CUserCharacInfo*)m_parent)
+                        ->getCurCharFirstGrowType(),
+                    (int)((CUserCharacInfo*)m_parent)
+                        ->getCurCharSecondGrowType()) != 0)
+            {
+                isSteal = true;
+                checkLevel = checkLevel - skill->GetStealLevelPenalty();
+            }
+            checkLevel = checkLevel +
+                         m_parent->GetPremiumInfo()->getOverSkillLevel();
+            maxLevel = skill->getMaxSkillLevel(
+                checkLevel,
+                (int)((CUserCharacInfo*)m_parent)
+                    ->getCurCharFirstGrowType(),
+                (int)((CUserCharacInfo*)m_parent)
+                    ->getCurCharSecondGrowType());
+            if (maxLevel == -1)
+            {
+                buf[i].m_index = 0;
+                buf[i].m_level = 0;
+                continue;
+            }
+            if (expertScript != 0)
+            {
+                found = false;
+                std::vector<std::pair<int, int> >::const_iterator eit =
+                    (*(std::vector<std::pair<int, int> >*)(
+                         (char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
+                        .begin();
+                while (eit !=
+                       (*(std::vector<std::pair<int, int> >*)(
+                            (char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
+                           .end())
+                {
+                    if (eit->first == (unsigned char)buf[i].m_index)
+                    {
+                        if ((char)buf[i].m_level == expertJobLevel)
+                        {
+                            expertSkillCount = expertSkillCount + 1;
+                        }
+                        found = true;
+                        break;
+                    }
+                    ++eit;
+                }
+                if (found)
+                {
+                    continue;
+                }
+            }
+            std::list<_pre_skill>::const_iterator pit;
+            pit = skill->m_preSkillList.begin();
+            while (pit != skill->m_preSkillList.end())
+            {
+                preIndex = pit->m_index;
+                preJobType = pit->m_jobType;
+                preGroup = pit->m_group;
+                if (check_skill_mastered(preIndex, preJobType, preGroup,
+                                         kind) != 1)
+                {
+                    maxLevel = 0;
+                    break;
+                }
+                pit++;
+            }
+            if (maxLevel < (char)buf[i].m_level)
+            {
+                giveLevel = 0;
+                std::vector<std::pair<int, int> > giveList(
+                    *(std::vector<std::pair<int, int> >*)(
+                        (char*)G_CDataManager()->m_characList +
+                        ((CUserCharacInfo*)m_parent)->get_charac_job() *
+                            0x7dc +
+                        0x240));
+                giveResult = 1;
+                if (((CUserCharacInfo*)m_parent)
+                        ->getCurCharSecondGrowType() == 0)
+                {
+                    giveResult = ((CCharacter*)((char*)G_CDataManager()
+                                                    ->m_characList +
+                                                ((CUserCharacInfo*)m_parent)
+                                                        ->get_charac_job() *
+                                                    0x7dc))
+                                     ->get_give_skill(
+                                         (int)((CUserCharacInfo*)m_parent)
+                                             ->getCurCharFirstGrowType(),
+                                         (int)((CUserCharacInfo*)m_parent)
+                                             ->getCurCharSecondGrowType(),
+                                         giveList, 1);
+                }
+                else
+                {
+                    giveResult = ((CCharacter*)((char*)G_CDataManager()
+                                                    ->m_characList +
+                                                ((CUserCharacInfo*)m_parent)
+                                                        ->get_charac_job() *
+                                                    0x7dc))
+                                     ->get_give_skill(
+                                         (int)((CUserCharacInfo*)m_parent)
+                                             ->getCurCharFirstGrowType(),
+                                         (int)((CUserCharacInfo*)m_parent)
+                                             ->getCurCharSecondGrowType(),
+                                         giveList, 0);
+                }
+                if (giveResult == 1)
+                {
+                    giveLevel = 0;
+                    std::vector<std::pair<int, int> >::const_iterator git =
+                        giveList.begin();
+                    while (git != giveList.end())
+                    {
+                        if (git->first == (unsigned char)buf[i].m_index)
+                        {
+                            giveLevel = git->second;
+                            break;
+                        }
+                        ++git;
+                    }
+                    maxLevel = maxLevel <= giveLevel ? giveLevel : maxLevel;
+                    if (maxLevel < (char)buf[i].m_level)
+                    {
+                        int retSP = 0;
+                        int retSFP = 0;
+                        calcReturnSpSfpPerOneSkill(
+                            retSP, retSFP, maxLevel, buf, i, skill,
+                            isSteal);
+                        out.push_back(stSPReturnInfo_t(
+                            (unsigned short)(unsigned char)buf[i].m_index,
+                            (unsigned short)((short)(char)buf[i].m_level -
+                                             (short)maxLevel),
+                            (unsigned int)retSP, (unsigned int)retSFP));
+                        *remainSFP = *remainSFP + retSFP;
+                        *remainSP = *remainSP + retSP;
+                        buf[i].m_level = (char)maxLevel;
+                        if (buf[i].m_level == 0)
+                        {
+                            buf[i].m_index = 0;
+                        }
+                        result = 1;
+                    }
+                }
+            }
+        }
+    }
+    if (expertScript != 0 &&
+        (*(std::vector<std::pair<int, int> >*)((char*)&reinterpret_cast<STExpertJobScript*>(expertScript)->m_growSkillVec))
+                .size() != expertSkillCount)
+    {
+        for (j = 0;
+             j < (*(std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                        0xc))
+                     .size();
+             ++j)
+        {
+            growtype_skill(
+                ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                (*(std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                       0xc))[j]
+                    .first,
+                expertJobLevel, kind);
+            result = 1;
+        }
+    }
+    return result;
 }
 
 void SkillSlot::debugCheckGrowTypeSkill(int level, int job, int firstGrow,
@@ -2435,7 +2683,7 @@ void SkillSlot::debugCheckGrowTypeSkill(int level, int job, int firstGrow,
             {
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "void SkillSlot::debugCheckGrowTypeSkill(int, int, int, int)",
+                    __PRETTY_FUNCTION__,
                     0x5a4, "G_CDataManager()->find_skill( %d, %d )", job,
                     (unsigned char)m_skillSlot[i].m_index);
                 return;
@@ -2455,7 +2703,7 @@ void SkillSlot::debugCheckGrowTypeSkill(int level, int job, int firstGrow,
             {
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "void SkillSlot::debugCheckGrowTypeSkill(int, int, int, int)",
+                    __PRETTY_FUNCTION__,
                     0x5b7, "G_CDataManager()->find_skill( %d, %d )", job,
                     (unsigned char)m_skillSlot2[i].m_index);
                 return;
@@ -2503,7 +2751,7 @@ void SkillSlot::loadComboSkill(SIG_COMBO_SKILL* data)
         if (!m_comboSkill.loadData(data))
         {
             LogManager::logFormat(
-                1, "skill_slot.cpp", "void SkillSlot::loadComboSkill(SIG_COMBO_SKILL*)",
+                1, "skill_slot.cpp", __PRETTY_FUNCTION__,
                 0xc75, "SkillSlot::loadComboSkill error");
         }
     }
@@ -2519,7 +2767,7 @@ void SkillSlot::getComboSkillSaveData(SIG_COMBO_SKILL* data) const
         {
             LogManager::logFormat(
                 1, "skill_slot.cpp",
-                "void SkillSlot::getComboSkillSaveData(SIG_COMBO_SKILL*) const",
+                __PRETTY_FUNCTION__,
                 0xc84, "SkillSlot::getComboSkillSaveData error");
         }
     }
@@ -2537,7 +2785,7 @@ void SkillSlot::setComboSkillInfo(ENUM_SKILL_TREE_KIND kind,
     {
         LogManager::logFormat(
             1, "skill_slot.cpp",
-            "void SkillSlot::setComboSkillInfo(ENUM_SKILL_TREE_KIND, ComboSkillMap&)",
+            __PRETTY_FUNCTION__,
             0xc92, "SkillSlot::setComboSkillInfo kind(%d) error", kind);
     }
     else
@@ -2551,7 +2799,7 @@ void SkillSlot::resetComboSkill(ENUM_SKILL_TREE_KIND kind)
     if (kind != -1 && kind != 0)
     {
         LogManager::logFormat(1, "skill_slot.cpp",
-                              "void SkillSlot::resetComboSkill(ENUM_SKILL_TREE_KIND)",
+                              __PRETTY_FUNCTION__,
                               0xcab, "SkillSlot::resetComboSkill kind(%d) error",
                               kind);
     }
@@ -2573,7 +2821,7 @@ void SkillSlot::verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind)
     {
         LogManager::logFormat(
             1, "skill_slot.cpp",
-            "void SkillSlot::verifyComboSkillTree(ENUM_SKILL_TREE_KIND)", 0xd33,
+            __PRETTY_FUNCTION__, 0xd33,
             "SkillSlot::verifyComboSkillTree kind(%d) error", kind);
     }
     else
@@ -2607,7 +2855,7 @@ void SkillSlot::eraseDuplicationComboSKillTree(ENUM_SKILL_TREE_KIND kind)
     {
         LogManager::logFormat(
             1, "skill_slot.cpp",
-            "void SkillSlot::eraseDuplicationComboSKillTree(ENUM_SKILL_TREE_KIND)",
+            __PRETTY_FUNCTION__,
             0xd0b, "SkillSlot::eraseDuplicationComboSKillTree kind(%d) error",
             kind);
     }
@@ -2656,7 +2904,7 @@ int SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
         {
             LogManager::logFormat(
                 1, "skill_slot.cpp",
-                "bool SkillSlot::moveComboSkillExtensionQuickSlot(int, int, ENUM_SKILL_TREE_KIND)",
+                __PRETTY_FUNCTION__,
                 0xcf9,
                 "moveComboSkillExtensionQuickSlot Error slot(%d) index(%d) level(%d)kind(%d) characNo(%d)",
                 slot, (unsigned char)buf[slot].m_index,
@@ -2696,7 +2944,7 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
             {
                 LogManager::logFormat(
                     1, "skill_slot.cpp",
-                    "void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND)",
+                    __PRETTY_FUNCTION__,
                     0xcd7,
                     "pullComboSkillExtensionQuickSlot Error slot(%d) index(%d) level(%d)kind(%d) characNo(%d)",
                     i, (unsigned char)buf[i].m_index,
@@ -2727,16 +2975,14 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
         char secondGrow = m_parent->getCurCharSecondGrowType();
         char firstGrow = m_parent->getCurCharFirstGrowType();
         int job = m_parent->get_charac_job();
-        int sp = reinterpret_cast<PvPSkillTreeParameterScript*>(
-                     reinterpret_cast<char*>(G_CDataManager()) + 0xa800)
-                     ->getPvPSkillPoint(job, firstGrow, secondGrow, pvpGrade,
-                                        false);
+        int sp = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
+                     job, firstGrow, secondGrow, pvpGrade, false);
         set_remain_sp_at_index(sp, kind);
         if (sendFlag)
         {
             m_parent->send_skill_info();
             cMyTrace trace(
-                "bool SkillSlot::InitSkill(bool, ENUM_SKILL_TREE_KIND)", 0xb47,
+                __PRETTY_FUNCTION__, 0xb47,
                 0);
             trace("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
                   m_parent->getCurCharacName());
@@ -2796,7 +3042,7 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     {
         m_parent->send_skill_info();
         cMyTrace trace2(
-            "bool SkillSlot::InitSkill(bool, ENUM_SKILL_TREE_KIND)", 0xb86, 0);
+            __PRETTY_FUNCTION__, 0xb86, 0);
         trace2("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
                m_parent->getCurCharacName());
     }
@@ -2804,12 +3050,12 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     return true;
 }
 
-// ==================== WongWork::CSkillChanger（从 GameStubs_remaining.cpp 迁移） ====================
-
 namespace WongWork
 {
-int g_nStatUpItemIdx[1] = {0};
-int g_nElixerAbility[1] = {0};
+// ORIG D 0x093acdc0：{8,0x40f,0x410,0x411,0x412,0x413,0x414,0x415,0x416}（[0]=计数）
+int CSkillChanger::g_nStatUpItemIdx[9] = {8, 0x40f, 0x410, 0x411, 0x412, 0x413, 0x414, 0x415, 0x416};
+// ORIG D 0x093ace00：{8,4,6,5,7,2,3,8,9}（[0]=计数，其余为对应能力值）
+int CSkillChanger::g_nElixerAbility[9] = {8, 4, 6, 5, 7, 2, 3, 8, 9};
 
 CSkillChanger::CSkillChanger() {}
 CSkillChanger::~CSkillChanger() {}
@@ -2906,8 +3152,8 @@ void CSkillChanger::_CountSkillBook(Inven_Item& item)
     {
         if (itemIdx == g_nStatUpItemIdx[i])
         {
-            m_data.m_skillBookCount[i] = count;
-            m_data.m_elixerAbility[i] = g_nElixerAbility[i];
+            m_data.m_elixerCount[i] = count;
+            m_data.m_skillBookCount[i] = g_nElixerAbility[i];
         }
     }
 }
@@ -2961,5 +3207,20 @@ void CSkillChanger::SkillInitialize(CUser* user, int kind, bool flag)
         _GetUserItemCount(user);
         _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
     }
+}
+}
+
+// ---- SkillSlot 拷贝构造/赋值（ORIG W 弱符号：拷贝构造 0x086996f6 /
+// operator= 0x0869d91e，均为编译器隐式生成形态——标量逐字段 movzbl +
+// ComboSkill C1ERKS/aSERKS + 三组 _Mastered_skill[204] 逐元素循环 + 尾部标量）。
+// 本 TU 无值语义调用点，GCC -O0 不实例化隐式成员 → 匿名命名空间 odr-use
+// 强制生成两个弱符号，保证真实成员拷贝可用（P74：ORIG 弱拷贝优先隐式生成）。
+namespace
+{
+void SkillSlotCopyForceUse()
+{
+    SkillSlot a;
+    SkillSlot b(a);
+    a = b;
 }
 }

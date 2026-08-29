@@ -27,21 +27,12 @@ void CUser::SetChildrensDayEventValue(int slot, int targetItem, int period)
 {
     if (slot > 9)
         return;
-    unsigned char state =
-        *reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(this) + 0x8e098);
+    unsigned char state = m_childrensDayEventState;   // +0x8e098
     state |= static_cast<unsigned char>(1u << slot);
-    *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x8e098)
-        = state;
+    m_childrensDayEventState = state;
 
-    // (slot + 0x23824)*4 + 0xc == 0x8e09c + slot*4
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this)
-                            + ((static_cast<unsigned int>(slot) + 0x23824u) << 2)
-                            + 0xc) = targetItem;
-    // (slot + 0x23830)*4 + 0x4 == 0x8e0c4 + slot*4
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this)
-                            + ((static_cast<unsigned int>(slot) + 0x23830u) << 2)
-                            + 0x4) = period;
+    m_childrensDaySlots[slot] = targetItem;    // +0x8e09c + slot*4
+    m_childrensDayPeriods[slot] = period;      // +0x8e0c4 + slot*4
 }
 
 // ---------------------------------------------------------------------------

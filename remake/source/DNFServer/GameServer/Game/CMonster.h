@@ -14,8 +14,7 @@ public:
     CMonster();
     ~CMonster();
     long deathTowerSpecifyItemDrop() const;
-    int get_index();
-    int get_index() const;
+    int get_index();   // ORIG 仅非 const 版本（W 0x083748ce）
     void* getMonsterScript() const;
     void generateIndependentItem(const WongWork::stGenerateRefData_t& ref,
                                  std::vector<Inven_Item>& out) const;  // ORIG 0x0834f876
@@ -28,7 +27,6 @@ public:
     void generateCatchMonsterItem(std::vector<Inven_Item>& out) const;
     void set_monster(STMonsterScript& script);
     unsigned char IsHellMonster() const;   // ORIG W 0x08539df4（m_deathTowerFlag@+0x54）
-    int get_weight() const;
     void drop_item_index(unsigned int index) const;
     void drop_item_index(unsigned int index, int randomValue) const;
     unsigned int get_specialItem_list_size(unsigned int index) const;
@@ -40,15 +38,14 @@ private:
     int m_specialItemWeight;
     std::vector<std::pair<int, int> > m_dropItems;
     std::vector<std::pair<int, int> > m_deathTowerItems;
-    unsigned char m_deathTowerFlag;
-    int m_independentDropCount;
-    int m_catchItemCount;
+    bool m_deathTowerFlag;            // +0x54（ORIG set_monster 0x0834f650 movzbl 0x3a8 → %dl 直存）
+    int m_independentDropCount;        // +0x58（ORIG set_monster ← script+0x3ec）
+    int m_catchItemCount;              // +0x5c（ORIG set_monster ← script+0x3f0）
     STMonsterScript m_script;          // 真实布局（sizeof 0x1cc4，本批次重建）
     // 脚本区之后到权重表的保留字节：脚本区起点 0x60、m_weight 固定 0x1d24，
     // 保留量随真实 STMonsterScript 尺寸收缩（原两段 reserved 合并）。
     char m_scriptReserved[0x1d24 - 0x60 - sizeof(STMonsterScript)];
-    int m_weight;               // +0x1d24
-    char m_tailEnd[4];
+    int m_weight;               // +0x1d24（ORIG new CMonster sizeof 0x1d28，无尾部成员）
 };
 
 #endif

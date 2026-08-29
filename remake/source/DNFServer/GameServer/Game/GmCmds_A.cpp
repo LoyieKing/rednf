@@ -133,12 +133,6 @@ char const* gmA_booster_getRarityStr(ENUM_RARITY rarity)
 void gmA_booster_SendChatMsg(CUser* user, char* msg)
     asm("_ZN11game_master12CBoosterTest11SendChatMsgEP5CUserPc");
 
-// CBoosterTest::printServer(char const*, char const*) —— T 0x084aebae（static 语义）
-void gmA_booster_printServer(char const* path, char const* contents);
-
-// CBoosterTest::printClient(CUser*, bool, char const*, char const*) —— T 0x084aebf2（static 语义）
-void gmA_booster_printClient(CUser* user, bool more, char const* name, char const* contents)
-    asm("_ZN11game_master12CBoosterTest11printClientEP5CUserbPKcS4_");
 
 // CBoosterTest::is_gold_lottery_item(int) —— T 0x084afccc（thiscall；this 未使用仍按 ABI 传递）
 bool gmA_booster_is_gold_lottery_item(CBoosterTest* self, int idx)
@@ -250,11 +244,10 @@ void CBloodMonsterListCmd::execute()
     char buf[0xff];
     memset(buf, 0, sizeof(buf));
 
-    // 怪物表位于 CBattle_Field(+0xb24 子对象) +0x0c（ORIG lea 0xc(%eax) 直取）。
+    // CBattle_Field 为 CParty+0xb24 嵌入子对象（CParty.h 占位，全项目同口径视图）。
     CBattle_Field* battleField =
         reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
-    std::map<int, map_monster>* monsters =
-        reinterpret_cast<std::map<int, map_monster>*>(reinterpret_cast<char*>(battleField) + 0xc);
+    std::map<int, map_monster>* monsters = battleField->GetMonsterMap();
 
     for (std::map<int, map_monster>::iterator it = monsters->begin();
          it != monsters->end(); ++it)
@@ -320,7 +313,7 @@ void CAddItemPollutionCmd::execute()
                              space, 0);
     if (slot >= 0)
     {
-        int invenType = GetInvenTypeFromItemSpace(space);
+        int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
         CInventory* inven = user->getCurCharacInvenW();
         Inven_Item* ref = inven->GetInvenRef(invenType, slot);
         if (ref != 0)
@@ -343,7 +336,7 @@ void CAddItemPollutionCmd::execute()
             if (slot >= 0)
             {
                 cMyTrace trace(
-                    "virtual void game_master::CAddItemPollutionCmd::execute()", 0x5b0, 0);
+                    __PRETTY_FUNCTION__, 0x5b0, 0);
                 trace("%s:'%s' GM Mode Add Item(%d).",
                       NumberToString(user->get_acc_id(), 0),
                       user->getCurCharacName(), slot);
@@ -567,7 +560,7 @@ void CBoosterTest::execute()
         {
             more = false;
         }
-        gmA_booster_printClient(user, more, fileName, fileBuf);
+        CBoosterTest::printClient(user, more, fileName, fileBuf);
         memset(fileBuf, 0, sizeof(fileBuf));
     }
 
@@ -603,22 +596,25 @@ void gmA_booster_SendChatMsg(CUser* user, char* msg)
 }
 
 // ORIG printServer 0x084aebae：fopen(path,"wt") + fputs + fclose。
-void gmA_booster_printServer(char const* path, char const* contents)
+void CBoosterTest::printServer(char const* path, char const* contents)
 {
     FILE* fp = fopen(path, "wt");
-    if (fp != 0)
+    if (fp == 0)
     {
-        fputs(contents, fp);
-        fclose(fp);
+        goto done;
     }
+    fputs(contents, fp);
+    fclose(fp);
+done:
+    return;
 }
 
 // ORIG printClient 0x084aebf2：0x13e 包（more 标志 + 双字符串）。
-void gmA_booster_printClient(CUser* user, bool more, char const* name, char const* contents)
+void CBoosterTest::printClient(CUser* user, bool more, char const* name, char const* contents)
 {
     PacketGuard packet;
     packet.put_header(0, 0x13e);
-    packet.put_byte(more ? 1 : 0);
+    packet.put_byte(more);
     packet.put_int(static_cast<int>(strlen(name)));
     packet.put_str(const_cast<char*>(name), static_cast<int>(strlen(name)));
     packet.put_int(static_cast<int>(strlen(contents)));
@@ -632,8 +628,8 @@ bool gmA_booster_is_gold_lottery_item(CBoosterTest* /*self*/, int idx)
 {
     Inven_Item lotto;
     G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
-    return *reinterpret_cast<int*>(reinterpret_cast<char*>(&lotto) + 2) == 0 &&
-           *reinterpret_cast<int*>(reinterpret_cast<char*>(&lotto) + 7) > 0;
+    return lotto.m_addInfo == 0 &&
+           lotto.m_addInfo2 > 0;
 }
 
 // ORIG getJarResult 0x084afba8：统计 lotto 表产出物品次数。
@@ -645,7 +641,7 @@ void gmA_booster_getJarResult(CBoosterTest* self, CItem const* item,
     {
         int idx = const_cast<CItem*>(item)->get_index();
         G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
-        int itemId = *reinterpret_cast<int*>(reinterpret_cast<char*>(&lotto) + 2);
+        int itemId = lotto.m_addInfo;
         std::map<int, int>::iterator pos = result.find(itemId);
         if (pos == result.end())
         {
@@ -667,7 +663,7 @@ void gmA_booster_get_gold_lottery_result(CBoosterTest* self, CItem const* item,
     {
         int idx = const_cast<CItem*>(item)->get_index();
         G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
-        int goldCount = *reinterpret_cast<int*>(reinterpret_cast<char*>(&lotto) + 7);
+        int goldCount = lotto.m_addInfo2;
         std::map<int, int>::iterator pos = result.find(goldCount);
         if (pos == result.end())
         {
@@ -719,7 +715,7 @@ void gmA_booster_getRandomboxResult(CBoosterTest* self, CItem const* item,
         for (unsigned int j = 0; j < drops.size(); ++j)
         {
             memcpy(&dropped, &drops[j].first, sizeof(Inven_Item));  // ORIG 逐字段浅拷贝
-            int itemId = *reinterpret_cast<int*>(reinterpret_cast<char*>(&dropped) + 2);
+            int itemId = dropped.m_addInfo;
             std::map<int, int>::iterator pos = result.find(itemId);
             if (pos == result.end())
             {
@@ -947,7 +943,7 @@ void CBindCubeTest::execute()
                         CHARACTER_JOB_NAMES[static_cast<int>(
                             static_cast<signed char>(cmd_byte0(this)))],
                         BIND_NAMES[bind], RECIPE_NAMES[recipe], EQUIP_NAMES[equip]);
-                gmA_booster_printClient(GetUser(), false, fileName, fileBuf);
+                CBoosterTest::printClient(GetUser(), false, fileName, fileBuf);
                 result.clear();
             }
         }
@@ -1104,7 +1100,7 @@ void CBingoGmTest::reqValue()
     }
 
     BingoData* data = static_cast<BingoData*>(user->getBingoData());
-    signed char lines = *reinterpret_cast<signed char*>(reinterpret_cast<char*>(data) + 4);
+    signed char lines = static_cast<signed char>(data->m_pad4);
     if (lines > 2)
     {
         return;
@@ -1118,18 +1114,15 @@ void CBingoGmTest::reqValue()
 
     if (*reinterpret_cast<int*>(data) != oldBoard)
     {
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(data) + 6) = 1;
-        int gained = newValue -
-                     static_cast<int>(*reinterpret_cast<signed char*>(
-                         reinterpret_cast<char*>(data) + 4));
+        data->m_needSave = true;
+        int gained = newValue - static_cast<int>(data->m_pad4);
         if (gained > 0)
         {
             if (gained > 3)
             {
                 gained = 3;
             }
-            *reinterpret_cast<signed char*>(reinterpret_cast<char*>(data) + 4) =
-                static_cast<signed char>(newValue);
+            data->m_pad4 = static_cast<char>(newValue);
             for (int i = 0; i < gained; ++i)
             {
                 event->sendOneMatchLineReward(*user);

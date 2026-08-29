@@ -33,17 +33,12 @@
 #include "CSystemTime.h"        // CSystemTime::getCurSec
 #include "TimerQueue.h"         // G_TimerQueue/TimerEntry::InsertTimer
 #include "TimerDispatcher.h"    // TimerNPCMoodChange/TimerUpdateItemGenerateStatistics
+#include "NpcScript.h"
 
 // ---- ORIG B 全局脚本文件列表（定义 InitScriptProducers_5.cpp；本 TU 引用）----
 // 本地 STScriptFileList 与 STScriptFileList.cpp / InitScriptProducers_5.cpp /
 // NpcScript.h 同布局（+0x00 std::map<int,std::string>, sizeof 0x18），方法调用
-// 统一解析到 ORIG 符号 _ZNK16STScriptFileList19FindIndexByFullScanEPKc。
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;             // +0x00
-    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp 提供
-};
+
 
 extern char g_independentDropScriptBaseDirectory[0x100];   // B 0x094f7840
 extern STScriptFileList g_independentDropScriptFileList;   // B 0x094f7940
@@ -68,28 +63,11 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
 // 定时器注册
 // ===========================================================================
 
-// ORIG 0x086381ec：push ebp/mov esp,ebp/pop ebp/ret —— 纯空实现。
+// ORIG 0x086381ec：真实空操作定时注册函数（仅 ret）。
 void TimerNPCMoodChange::registNextTimer(long /*sec*/)
 {
 }
 
-// ORIG 0x08637318（0xad 字节）逐分支转写：目标时刻=当日 23:00:00，
-// 延迟=max(目标-当前秒,1)，msg=0x6b、OBJ_TYPE=2 全局定时器。
-void TimerUpdateItemGenerateStatistics::registNextTimer(long sec)
-{
-    tm t;
-    time_t when = static_cast<time_t>(sec);
-    localtime_r(&when, &t);
-    t.tm_hour = 0x17;
-    t.tm_min = 0;
-    t.tm_sec = 0;
-    when = mktime(&t);
-    int delay = static_cast<int>(when) -
-                GlobalData::s_systemTime_.getCurSec();
-    delay = std::max(delay, 1);
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x6b, delay, 0, 0);
-}
 
 // ===========================================================================
 // RegenerationROI::_0_Load_RegenerationRandomOptionItem —— ORIG 0x085f963e
@@ -173,7 +151,7 @@ bool IndependentDropParameterScript::load_independent_drop_list()
         {
             LogManager::logFormat(
                 1, "../RDARScriptIndependentDrop.cpp",
-                "load_independent_drop_list", 0x30,
+                __FUNCTION__, 0x30,
                 "IndependentDropParameterScript File Script Error: %s\n",
                 name);
             return false;
@@ -254,7 +232,7 @@ int IndependentDropParameterScript::ImportIndependentDrop(const char* path)
                 {
                     LogManager::logFormat(
                         1, "../RDARScriptIndependentDrop.cpp",
-                        "ImportIndependentDrop", 0xca,
+                        __FUNCTION__, 0xca,
                         "flag wrong number(%d)", flag);
                     return 0xcb;
                 }
@@ -627,7 +605,7 @@ bool PvPSkillTreeParameterScript::load_pvp_skill_tree_list()
         {
             LogManager::logFormat(
                 1, "../RDARScriptPvPSkillTree.cpp",
-                "load_pvp_skill_tree_list", 0x45,
+                __FUNCTION__, 0x45,
                 "PvPSkillTreeParameterScript File Script Error: %s\n",
                 name);
             return false;

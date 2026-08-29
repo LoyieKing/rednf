@@ -77,11 +77,14 @@ public:
     int m_applyCount;                            // +0x148c
 };
 
-// ---- 脚本导入/初始化（ORIG 符号） ----
+// ORIG BSS 全局 0x9500380（定义于 STQuestScript.cpp；importEpicQuestScript 经
+// loadRDARScriptFile(g_questScriptBaseDirectory, path) 使用）。
+extern char g_questScriptBaseDirectory[0x100];
+
 int initQuestScript(const char* dir, const char* list);
-int importQuestScript(QuestScript* script, const char* path);
+int importTrainingQuestScript(TrainingQuestScript* script, const char* path);
 int initTownScript(char* dir, char* list);
 bool importTownScript(TownScript* script, const char* path);
-int importTrainingQuestScript(TrainingQuestScript* script, const char* path);
+int importQuestScript(QuestScript* script, const char* path);
 
 #endif  // GAME_STQUESTSCRIPT_H_

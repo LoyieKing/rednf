@@ -16,14 +16,43 @@
 #include "SigTypes.h"
 #include "LogManager.h"
 #include "PacketGuard.h"
+#include "CDataManager.h"             // DataManagerInitDepends.h 前置依赖
+#include "DataManagerInitDepends.h"   // AvatarRoulette 权威布局（成员声明）
 #include <cstring>
 
-// ORIG _ZN20AvatarRouletteServer15isAvatarPotteryEm（T 0x0817fb0a，定义
-// CtorProducers_1.cpp）；与 CMailBoxHelper.cpp 同款同名桥接声明。
-namespace AvatarRouletteServer
+// isAvatarPottery 为 AvatarRouletteServer 成员（ORIG T 0x0817fb0a，定义
+// CtorProducers_1.cpp；本 TU 经 DataManagerInitDepends.h 类声明调用）。
+
+// ---- AvatarRoulette::getAvatarList ORIG T 0x08911db0 ----
+// 汇编形状（range 0x4d）：*isOk = 0；job<0 或 job>10 直接返回；
+// 否则 out = m_avatars[job]（vector::operator=，PLT call）后 *isOk = 1。
+// 地址计算 = this + job*0xc + 0x14（P30 两步寻址：*3 shl$2 后 +0x10 再 +0x4）。
+void AvatarRoulette::getAvatarList(
+    bool& isOk, ENUM_CHARACTERJOB job,
+    std::vector<std::vector<std::pair<unsigned long, int> > >& out)
 {
-bool isAvatarPottery(unsigned long v);
-} // namespace AvatarRouletteServer
+    isOk = false;
+    if (job >= 0 && job <= 10)
+    {
+        out = m_avatars[job];
+        isOk = true;
+    }
+    return;
+}
+
+// ---- AvatarRoulette::getStikerList ORIG T 0x08911dfe ----
+// 同 getAvatarList 结构；out = m_stikers[job]（+0x90 再 +0x8 → +0x98）。
+void AvatarRoulette::getStikerList(bool& isOk, ENUM_CHARACTERJOB job,
+                                   std::vector<int>& out)
+{
+    isOk = false;
+    if (job >= 0 && job <= 10)
+    {
+        out = m_stikers[job];
+        isOk = true;
+    }
+    return;
+}
 
 unsigned int AvatarCoin::Use()
 {
@@ -127,7 +156,7 @@ int AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarRoulette.cpp",
-                "static bool AvatarCoin::GetPackage(CUser*, int, bool)", 0x1b0,
+                __PRETTY_FUNCTION__, 0x1b0,
                 "SaveAvatarCoin failed");
         }
         HistoryLog::AddLog(user, static_cast<unsigned int>(avatarUid));
@@ -146,8 +175,9 @@ bool AvatarCoin::BuyProcess(CUser* user, Inven_Item& item)
 {
     // register 绑定使 -O0 下分支条件直接 test %al（ORIG 形态，同 Use()）；
     // 成功体直落、失败跳转，与 ORIG je 布局一致。
-    register char pottery __asm__("al") = AvatarRouletteServer::isAvatarPottery(
-        static_cast<unsigned long>(item.m_addInfo));
+    register char pottery __asm__("al") =
+        reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
+            ->isAvatarPottery(static_cast<unsigned long>(item.m_addInfo));
     if (pottery != 0)
     {
         unsigned int amount = static_cast<unsigned int>(item.m_addInfo2);
@@ -157,7 +187,7 @@ bool AvatarCoin::BuyProcess(CUser* user, Inven_Item& item)
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarRoulette.cpp",
-                "static bool AvatarCoin::BuyProcess(CUser*, Inven_Item&)",
+                __PRETTY_FUNCTION__,
                 0x19d, "SaveAvatarCoin failed");
         }
         HistoryLog::AddLog(user,

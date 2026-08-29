@@ -10,6 +10,9 @@
 
 #include "AdvanceAltarField.h"  // _RewardItem/AchievementRewardData（sendAchievementReward 签名需要；幂等守卫叶子头）
 #include "DBDispatcher.h"  // 全局 ::DBDispatcher（DB_Update/DB_Load 等基类；dispatch bool @0x83fbf7c）
+class CAdvanceAltarLog;  // 全局类前向声明（HistoryLog::advanceAltarstatistics_ 静态成员；
+                        // 完整定义在 CAdvanceAltarLog.h，避免重入环不在此 include）
+
 // ORIG 枚举 advancealtar::AdvanceAltarShopType::T（mangled NS_20AdvanceAltarShopType1TE，
 // BuyItem dispatch req+0x14 传参）；枚举器名不可从二进制恢复【推断】，
 // 取值经 getBuyUpgradeDataVec(key, T) 按 0/1/2 分派。
@@ -327,7 +330,8 @@ public:
     void set(const _CharacAdvanceAltarDbData& db);                  // ORIG T 0x08131616：分派到 AdvanceAltarData::set
     void getSlotItem(std::map<unsigned char, _SlotItem>& out) const;   // ORIG T 0x08132638
     int m_field0;              // +0x00
-    AdvanceAltarData m_data;   // +0x04（0xd0）
+    AdvanceAltarData m_data[1];  // +0x04（0xd0；ORIG C1/D1 为成员数组自动构造/析构形态，
+                                 //   2026-08-28 EmptyStubs6 由单对象改单元素数组）
 };                             // sizeof 0xd4
 typedef char _assert_charac_manager_size[(sizeof(CharacAdvanceAltarManager) == 0xd4) ? 1 : -1];
 
@@ -453,79 +457,10 @@ private:
     unsigned char m_characData[0x28];    // +0x98 CharacData 槽（0xc0-0x98）
 };                                       // sizeof 0xc0
 
-// ---- NOTIPacketStruct::_NotiAdvanceAltar*（advancealtar 专属通知包体；
-// 自 shared/packet/include/NOTIPacketStruct.h 死草稿吸收（Main 裁决 2026-08-25），
-// 布局/ctor/memset 语义与 static_assert 原样保留。_SummonObject 引用改字节槽
-// （权威在 CDataManager.h，本头经其 +201 行 include 反向不可达）；_Stage 用本头
-// 权威定义。）----
-struct NOTIPacketStruct
-{
-    // header 0x20b, payload 0x28
-    struct _NotiAdvanceAltarSpawnUnit
-    {
-        unsigned short m_spawnIndex;      // +0x00（u16，= _SummonObjectMs+4 序号）
-        unsigned char m_pad[2];           // +0x02
-        unsigned char m_summon[0x24];     // +0x04 = _SummonObject（CDataManager.h 权威，
-                                          //   ORIG 为子对象 ctor 后 memcpy 整体）
-        _NotiAdvanceAltarSpawnUnit() { std::memset(this, 0, 0x28); }
-    } __attribute__((packed));
-    typedef char _assert_spawnunit_size[(sizeof(_NotiAdvanceAltarSpawnUnit) == 0x28) ? 1 : -1];
-
-    // header 0x209, payload 8
-    struct _NotiAdvanceAltarStageInfo
-    {
-        int m_stageIndex;       // +0x00 ProcStage::getStageIndex()
-        int m_stageDifficulty;  // +0x04 ProcStage::getStageDifficulty()
-        _NotiAdvanceAltarStageInfo() { std::memset(this, 0, 8); }
-    } __attribute__((packed));
-    typedef char _assert_stageinfo_size[(sizeof(_NotiAdvanceAltarStageInfo) == 8) ? 1 : -1];
-
-    // header 0x20a, payload 0x14
-    struct _NotiAdvanceAltarMapInfo
-    {
-        int m_stageType;               // +0x00 ProcStage::getStageType()
-        int m_currentSurvivalRoundNo;  // +0x04 getCurrentSurvivalRoundNo()
-        int m_mapIndex;                // +0x08 CMap::get_index()
-        int m_currentPhaseIndex;       // +0x0c TimeLineSummary 首字段（TimeLine+0xc）
-        int m_mapBasisLevel;           // +0x10 getMapBasisLevel()
-        _NotiAdvanceAltarMapInfo() { std::memset(this, 0, 0x14); }
-    } __attribute__((packed));
-    typedef char _assert_mapinfo_size[(sizeof(_NotiAdvanceAltarMapInfo) == 0x14) ? 1 : -1];
-
-    // header 0x20f, payload 0x1c
-    // 注意：_Stage 现为带 ctor 的非 POD，packed 内嵌会被 GCC 忽略 packed 警告并
-    // 引发填充 → 此处用 8B 字节槽保持 ORIG 扁平布局（_SummonObject 同先例）。
-    struct _NotiAdvanceAltarClearStage
-    {
-        int m_stageType;              // +0x00
-        int m_clearSurvivalRoundNo;   // +0x04
-        int m_ridableId;              // +0x08（u16 符号扩展）
-        char m_clearFlag;             // +0x0c
-        unsigned char m_stage[8];     // +0x0d = _Stage（8B {stageIndex, stageDifficulty}）
-        unsigned char m_pad[3];       // +0x15
-        int m_starCount;              // +0x18
-        _NotiAdvanceAltarClearStage() { std::memset(this, 0, 0x1c); }
-    } __attribute__((packed));
-    typedef char _assert_clearstage_size[(sizeof(_NotiAdvanceAltarClearStage) == 0x1c) ? 1 : -1];
-
-    // header 0x20e, payload 8
-    struct _NotiAdvanceAltarEplpState
-    {
-        int m_eplpType;                // +0x00 StageEndType::T
-        char m_isAvailableTicket;      // +0x04 isAvailableTciket()
-        unsigned char m_pad[3];        // +0x05
-        _NotiAdvanceAltarEplpState() { std::memset(this, 0, 8); }
-    } __attribute__((packed));
-    typedef char _assert_eplpstate_size[(sizeof(_NotiAdvanceAltarEplpState) == 8) ? 1 : -1];
-
-    // header 0x210, payload 1（标记包；发送方从不写字节）
-    struct _NotiAdvanceAltarUpdateRidable
-    {
-        unsigned char m_flag;          // +0x00 恒 0
-        _NotiAdvanceAltarUpdateRidable() { std::memset(this, 0, 1); }
-    } __attribute__((packed));
-    typedef char _assert_updateridable_size[(sizeof(_NotiAdvanceAltarUpdateRidable) == 1) ? 1 : -1];
-};  // struct NOTIPacketStruct
+// ORIG 12 符号独占头 Game/NOTIPacketStruct.h（OrigNOTIPkt 批自本头死草稿
+// 迁出；布局/ctor/memset/static_assert 原样保留，ctor 定义
+// NOTIPacketStructCtors.cpp）。本头不再 include 独占头（避免 CDataManager.h
+// 重入环），使用点（advancealtar_ProcStage.h / Dispatchers）自行 include。----
 
 // ---- HistoryLog（advancealtar__HistoryLog/README.md；定义归 advancealtar_ProcStage.cpp
 //      [跨片协调 AltarProc]）----
@@ -540,6 +475,9 @@ class AdvanceAltarData;
 class HistoryLog
 {
 public:
+    // ORIG B 0x09400300（外部链接类静态成员 _ZN12advancealtar10HistoryLog23advanceAltarstatistics_E；
+    // 定义归 LinkClosureB_Misc.cpp）
+    static CAdvanceAltarLog advanceAltarstatistics_;
     // ORIG T 0x08133db0：asm 不使用 this，按静态成员声明（mangled 一致）。
     // starSub(user, type, amount) → CUser::LogHistory("star-,%d,%d", type, amount)。
     static void starSub(CUser& user, SubStarType::T type, int amount);

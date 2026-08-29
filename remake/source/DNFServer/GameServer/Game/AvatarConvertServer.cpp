@@ -156,7 +156,7 @@ AvatarConvertServer::~AvatarConvertServer()
 // operator()("\t- Loading Avatar Convert script - ") + loadScript()==0。
 bool AvatarConvertServer::Load()
 {
-    cMyTrace trace("virtual bool AvatarConvertServer::Load()", 0x37f, 9, true, false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x37f, 9, true, false);
     trace("\t- Loading Avatar Convert script - ");
     return loadScript() == 0;
 }
@@ -284,7 +284,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x2b5,
             "AVATAR CONVERT : [item_id1:%d] [item_id2:%d] [charac_no:%d]",
             (int)ref->m_addInfo, sig->m_itemId,
@@ -296,7 +296,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0xd5);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             700,
             "AVATAR CONVERT : lock [item_id1:%d] [item_id2:%d] [charac_no:%d]",
             (int)ref->m_addInfo, sig->m_itemId,
@@ -315,7 +315,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x2d2,
             "AVATAR CONVERT : isEnableAvatarFunc(AVATAR_FUNC_FILTER_DISJOINT) fail "
             "[item_id:%d] [charac_no:%d]",
@@ -330,7 +330,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x2d9,
             "AVATAR CONVERT : GetExpireDate() fail [ui_id:%d] [charac_no:%d]",
             ref->m_addInfo2, (unsigned int)user->getCurCharacNo());
@@ -343,7 +343,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x2e2,
             "AVATAR CONVERT : getConvertResult() fail [item_id:%d] [charac_no:%d]",
             sig->m_itemId, (unsigned int)user->getCurCharacNo());
@@ -357,7 +357,7 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x17);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::CheckCondition(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x2e9,
             "AVATAR CONVERT : [isSelect:%d] [selectNo:%d] [item_id:%d] [charac_no:%d]",
             (unsigned int)result->m_field20, (unsigned int)sig->m_selectNo,
@@ -413,7 +413,7 @@ bool AvatarConvertServer::Convert(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x11);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::Convert(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x322,
             "AVATAR CONVERT : is_stackable() fail [item_id:%d] [charac_no:%d]",
             info.m_key, (unsigned int)user->getCurCharacNo());
@@ -428,7 +428,7 @@ bool AvatarConvertServer::Convert(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 4);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::Convert(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x329,
             "AVATAR CONVERT : tryInsertItemIntoInventory() fail [item_id:%d] [charac_no:%d]",
             info.m_key, (unsigned int)user->getCurCharacNo());
@@ -450,7 +450,7 @@ bool AvatarConvertServer::Convert(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, 0x16);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool AvatarConvertServer::Convert(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x33c,
             "AVATAR CONVERT : UnRegistItem() fail [ui_id:%d] [charac_no:%d]",
             uiId, (unsigned int)user->getCurCharacNo());
@@ -488,7 +488,7 @@ bool AvatarConvertServer::Convert(CUser* user,
         int extra = *s;
         packet.put_int(extra);
         cMyTrace trace(
-            "bool AvatarConvertServer::Convert(CUser*, arad::SigAradAvatarConvert*)",
+            __PRETTY_FUNCTION__,
             0x368, 0);
         trace("AVATAR CONVERT : success [slot:%d] [selectNo:%d] [resultIdx:%d] "
               "[charac_no:%d]",

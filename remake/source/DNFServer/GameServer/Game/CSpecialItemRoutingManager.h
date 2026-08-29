@@ -10,6 +10,7 @@ class CSpecialItemRoutingManager
 {
 public:
     CSpecialItemRoutingManager();
+    ~CSpecialItemRoutingManager();  // ORIG T 0x0860a9ce（空体，显式定义）
 
     // ORIG T 0x0860a9d4：状态/队伍/物品校验 → SetStartRouting/SetRoutingItem
     // → insertTimer → 广播 put_header(0,0x119)+put_int(item idx)。
@@ -33,6 +34,11 @@ public:
 
     // ORIG T 0x0860ac6a（blocked：定义待补；ProcessGiveUp 命中条件时调用）
     void processRouting(CParty* party);
+    int ProcessTimeOut(CParty* party);   // ORIG T 0x0860abde（Timer_RoutingItemWait 调用）
+    // ORIG T 0x0860ab2e（报告 CSpecialItemRoutingManager/ArriveMemberSelection.md）：
+    // 成员选卡到达。GetMemberRoutingState==0 时按 sel(0→1,1→2) SetMemberRoutingState，
+    // HasAllMemberSelection 则 cancelTimer+processRouting；返回 1=处理 0=已选过。
+    int ArriveMemberSelection(CUser* user, CParty* party, char sel);
 
 private:
     char m_pad[0x8];

@@ -39,9 +39,13 @@
 #include "RDARScriptStringManager.h" // g_scriptStringManager_/findString
 #include "Inven_Item.h"
 
-/* ORIG D 0x093abb6c / 0x093abb70（类静态成员定义） */
-int PvPGlobalEnvironmentVariable::school_match_elo_k_ = 0;
-int PvPGlobalEnvironmentVariable::school_match_elo_k2_ = 0;
+/* ORIG D 0x093abb60 / 0x093abb64 / 0x093abb68（.data 初值 1/2/5；
+ * 消费点 DB_UpdatePvPResult::dispatch @0x0843097e，OrigDBPvPResult20） */
+int PvPGlobalEnvironmentVariable::school_match_daily_point_ = 1;
+int PvPGlobalEnvironmentVariable::school_match_daily_point_weekends_ = 2;
+int PvPGlobalEnvironmentVariable::school_match_fight_count_for_gain_point_ = 5;
+int PvPGlobalEnvironmentVariable::school_match_elo_k_ = 3;
+int PvPGlobalEnvironmentVariable::school_match_elo_k2_ = 3;
 
 // ---------------------------------------------------------------------------
 // PlayerInfoSecond —— ORIG W 0x8568850
@@ -321,7 +325,7 @@ PvP_Room* COnlinePreliminary::_MakeRoom(CUser* user)
     pkt.finalize(true);
     user->Send(pkt);
     LogManager::logFormat(1, "MatchingSystem.cpp",
-                          "PvP_Room* online_preliminary::COnlinePreliminary::_MakeRoom(CUser*)",
+                          __PRETTY_FUNCTION__,
                           0x73c,
                           "create_room fail: PVP슬롯반환 ID[%d]\n",
                           pvp->get_index());
@@ -342,17 +346,17 @@ void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* room)
 
 /* ORIG T 0x08560082 前置的门禁函数 —— 见 _GetRating 家族段上方注释 */
 
-/* ORIG T 0x085606e0 */
-int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user) const
+/* ORIG T 0x085606e0（mangled 无 K → 非 const 成员） */
+int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
 {
     int teamId = user->GetCurCharacOnlinePreliminaryTeamId();
     if (teamId == -1)
         return 0;
-    return (teamId == const_cast<COnlinePreliminary*>(this)->GetTeamId()) ? 1 : 0;
+    return (teamId == GetTeamId()) ? 1 : 0;
 }
 
-/* ORIG T 0x08560736（第二参为 PvP_Room*，报告变量名 param_2 有误【推断修正】） */
-int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/) const
+/* ORIG T 0x08560736（mangled 无 K → 非 const 成员；第二参为 PvP_Room*，报告变量名 param_2 有误【推断修正】） */
+int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
 {
     int observers = 0;
     for (int i = 0; i <= 7; ++i)
@@ -360,7 +364,7 @@ int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/) const
         if (room->get_team(i) == 3)
             ++observers;
     }
-    return (m_teams[0].size() - observers < (int)(GetPlayCountPerOneTeam() & 0xff))
+    return (m_teams[0].size() - observers < (int)(unsigned char)GetPlayCountPerOneTeam())
                ? 1 : 0;
 }
 
@@ -386,7 +390,7 @@ int COnlinePreliminary::_CheckMatchable(PvP_Room* room) const
         {
             LogManager::logFormat(
                 1, "MatchingSystem.cpp",
-                "int online_preliminary::COnlinePreliminary::_CheckMatchable(PvP_Room*) const",
+                __PRETTY_FUNCTION__,
                 0x771, "(%d) found a different team_id(%d)", tid);
             return 0x16;
         }
@@ -725,10 +729,10 @@ int COnlinePreliminary::CheckUnusableEquipmentInUser(CUser* user)
 // ---------------------------------------------------------------------------
 
 /* ORIG T 0x08560ae4 */
-void COnlinePreliminary::OnCreateRoom(CUser* user)
+int COnlinePreliminary::OnCreateRoom(CUser* user)
 {
     if (!CheckUnusableEquipmentInUser(user))
-        return;                                   /* ORIG mov $0x13,eax（基类 void 槽忽略） */
+        return 0x13;                              /* ORIG mov $0x13,%eax（0x8560afc） */
 
     m_authValue = ++nextAuthValue_;               /* 全局自增令牌 0x943e144 */
     m_field04 = 0;
@@ -738,6 +742,7 @@ void COnlinePreliminary::OnCreateRoom(CUser* user)
     m_teams[0].m_teamId = user->GetCurCharacOnlinePreliminaryTeamId();
     int ratingBits = _GetRating(user);
     memcpy(&m_teams[0].m_rating, &ratingBits, 4);
+    return 0;                                     /* ORIG mov $0x0,%eax（0x8560b83） */
 }
 
 /* ORIG T 0x08560b8a */
@@ -932,10 +937,11 @@ void COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
 }
 
 /* ORIG T 0x08561ff2 */
-void COnlinePreliminary::OnReady(CUser* /*user*/, bool ready)
+bool COnlinePreliminary::OnReady(CUser* /*user*/, bool ready)
 {
     if (!ready && m_field04 == 4)
-        return;                                           /* al=0 */
+        return false;
+    return true;
 }
 
 /* ORIG T 0x08562250：param(b)=胜方标记，param(a)=失败方队伍标记【推断命名】 */
@@ -1071,10 +1077,23 @@ CUser* COnlinePreliminary::GetUser(unsigned int idx)
     return m_teams[0].m_seats[idx].m_user;
 }
 
-/* ORIG T 0x08562104：复制 teams[0] 整块 0x28 字节 */
+/* ORIG T 0x08562104（docs/class_func_reports/online_preliminary__COnlinePreliminary/
+ * GetUserList.md）：将 this+0x1c..+0x40 即 m_teams[0]（TeamInfoSecond，0x28 字节）
+ * 按 10 个 dword 展开逐字复制到出参。 */
 void COnlinePreliminary::GetUserList(void* out)
 {
-    memcpy(out, &m_teams[0].m_teamId, sizeof(TeamInfoSecond));
+    const unsigned int* src = reinterpret_cast<const unsigned int*>(&m_teams[0]);
+    unsigned int* dst = static_cast<unsigned int*>(out);
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
+    dst[4] = src[4];
+    dst[5] = src[5];
+    dst[6] = src[6];
+    dst[7] = src[7];
+    dst[8] = src[8];
+    dst[9] = src[9];
 }
 
 /* ORIG T 0x085623e0：teams[0].teamId */

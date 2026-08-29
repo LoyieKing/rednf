@@ -19,6 +19,7 @@
 #include <time.h>
 #include <list>
 #include "GameWorld.h"
+#include "LimitNpcBuyItemRequestInfo.h"
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -31,6 +32,7 @@
 #include "CBattle_Field.h"
 #include "CDataManager.h"
 #include "CGlobalEffectManager.h"
+#include "DBUpdatePcroomDailyReward.h"  // DBUpdatePcroomDailyReward::MSG（MoreTypes.h 占位已迁入类）
 #include "GlobalData.h"
 #include "PvPTypes.h"
 #include "Inven_Item.h"
@@ -92,23 +94,8 @@ CDataManager_getVendingMachineTable_Orig(const void* dm)
 __attribute__((weak)) std::vector<stVendingMachine_t>*
 CDataManager_getVendingMachineTable_Orig(const void* dm)
 {
-    return reinterpret_cast<std::vector<stVendingMachine_t>*>(
-        const_cast<char*>(reinterpret_cast<const char*>(dm) + 0xb424));
-}
-
-// ORIG W 0x084b41fe _ZN25LimitNpcBuyItemRequestInfoC1Ev
-//   PacketHeader(this, 0x27d8, 0x000a) 内联展开（PacketHeader 10 字节：
-//   +0 type ushort / +2 len ushort / +4 ushort 0 / +6 int 0，见
-//   ELF _ZN12PacketHeaderC1Ett @0x08110b70）。weak 定义防跨批冲突。
-__attribute__((weak)) void LimitNpcBuyItemRequestInfo_Ctor_Orig(void* self)
-    asm("_ZN25LimitNpcBuyItemRequestInfoC1Ev");
-__attribute__((weak)) void LimitNpcBuyItemRequestInfo_Ctor_Orig(void* self)
-{
-    unsigned char* p = static_cast<unsigned char*>(self);
-    *reinterpret_cast<unsigned short*>(p + 0) = 0x27d8;
-    *reinterpret_cast<unsigned short*>(p + 2) = 0x000a;
-    *reinterpret_cast<unsigned short*>(p + 4) = 0;
-    *reinterpret_cast<unsigned int*>(p + 6) = 0;
+    return &const_cast<CDataManager*>(
+        static_cast<const CDataManager*>(dm))->m_vendingMachine;
 }
 
 // ORIG T 0x0815cf06 _ZN25DBUpdatePcroomDailyReward11makeRequestEP5CUser
@@ -131,16 +118,14 @@ __attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(void* user
     if (msg == 0)
     {
         cMyTrace trace(
-            "static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
+            __PRETTY_FUNCTION__,
             0x32b, 0);
         trace("[Taiwan, Pcroom] msg is null");
     }
     else
     {
-        *reinterpret_cast<unsigned int*>(msg) =
-            reinterpret_cast<CUser*>(user)->get_acc_id();
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(msg) + 4) =
-            reinterpret_cast<CUser*>(user)->m_field8ec32;
+        msg->m_id = reinterpret_cast<CUser*>(user)->get_acc_id();
+        msg->m_remain = reinterpret_cast<CUser*>(user)->m_field8ec32;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -151,19 +136,10 @@ namespace game_master
 namespace
 {
 
-// 占位 std::string 槽（+0x08）按 ORIG 实际 int/short 语义别名访问。
-inline int& str_as_int(std::string& s)
-{
-    return *reinterpret_cast<int*>(&s);
-}
-inline int& str_as_int2(std::string& s)
-{
-    return *reinterpret_cast<int*>(reinterpret_cast<char*>(&s) + 4);
-}
-inline short& str_as_short(std::string& s)
-{
-    return *reinterpret_cast<short*>(&s);
-}
+// 注：历史版本以 std::string 占位 +0x08 槽并按 ORIG int/short 语义别名访问
+//（gcc4.4 旧 ABI string sizeof=4）；该批占位字段已全部具名化
+//（GameMasterCmd.h：m_duration/m_param1/m_param2/m_result/m_straight/
+// m_mode/m_count/m_restrictSwitch 等），本命名空间仅保留空壳。
 
 } // namespace
 
@@ -185,7 +161,7 @@ void CMobileRestrictCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
-        str_as_int2(m_str0) =
+        m_restrictSwitch =
             static_cast<unsigned int>(StringToNumber(m_parser->m_extra[2].c_str()) != 0);
     }
 }
@@ -198,9 +174,9 @@ void CMobileRestrictCommand::execute()
     if (m_str0 == "mobile")
     {
         char* auth = user->getGarenaAuthData();
-        *(auth + 0x2c) = static_cast<char>(str_as_int2(m_str0));
+        *(auth + 0x2c) = static_cast<char>(m_restrictSwitch);
         const char* yesNo;
-        if (str_as_int2(m_str0) == 1)
+        if (m_restrictSwitch == 1)
         {
             yesNo = "yes";
         }
@@ -209,7 +185,7 @@ void CMobileRestrictCommand::execute()
             yesNo = "no";
         }
         cMyTrace trace(
-            "virtual void game_master::CMobileRestrictCommand::execute()",
+            __PRETTY_FUNCTION__,
             0x183d, 0);
         trace("[GMCommand] Set mobile restricted. mobile auth:%s", yesNo);
     }
@@ -227,15 +203,14 @@ void CMobileRestrictCommand::execute()
 
 // ORIG ctor 0x082a861e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CMonsterDropTest::CMonsterDropTest()
-    : m_str0()
 {
 }
 
 // ORIG clear 0x084b4096：两 int 槽清零。
 void CMonsterDropTest::clear()
 {
-    str_as_int(m_str0) = 0;
-    str_as_int2(m_str0) = 0;
+    m_mode = 0;
+    m_count = 0;
 }
 
 // ORIG parse 0x084ace8a：clear；sscanf(args,"%d%d",&mode,&count)；随后按发起者
@@ -245,7 +220,7 @@ void CMonsterDropTest::parse()
 {
     clear();
     sscanf(m_parser->m_args.c_str(), "%d%d",
-           &str_as_int(m_str0), &str_as_int2(m_str0));
+           &m_mode, &m_count);
 
     CUser* user = GetUser();
     if (user != 0)
@@ -258,14 +233,13 @@ void CMonsterDropTest::parse()
         }
         else
         {
-            unsigned int mode = static_cast<unsigned int>(str_as_int(m_str0));
+            unsigned int mode = static_cast<unsigned int>(m_mode);
             if (mode == 1)
             {
                 std::vector<MapInfo>* passed =
                     static_cast<std::vector<MapInfo>*>(party->getPassedMapInfoList());
                 passed->clear();
-                CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(
-                    reinterpret_cast<char*>(party) + 0xb24);
+                CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
                 MapInfo* cur = bf->GetCurrentMapInfo();
                 passed->push_back(*cur);
                 party->setDungeonMapSaving(true);
@@ -321,9 +295,9 @@ const char* CMonsterDropTest_checkCommandExecuteError_Orig(
 const char* CMonsterDropTest_checkCommandExecuteError_Orig(
     void* self, CParty* party)
 {
-    char* base = reinterpret_cast<char*>(self);
-    int mode = *reinterpret_cast<int*>(base + 8);
-    unsigned int count = *reinterpret_cast<unsigned int*>(base + 0xc);
+    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
+    int mode = cmd->m_mode;
+    unsigned int count = static_cast<unsigned int>(cmd->m_count);
     if (party == 0)
     {
         return "Party가 없습니다";
@@ -347,14 +321,13 @@ const char* CMonsterDropTest_checkCommandExecuteError_Orig(
         }
     }
 
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(
-        reinterpret_cast<char*>(party) + 0xb24);
+    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
     int idx = bf->get_dungeon_index();
     if (G_CDataManager()->find_dungeon(idx) == 0)
     {
         return "Dungeon에서 사용가능하지 않습니다";
     }
-    if (*reinterpret_cast<int*>(reinterpret_cast<char*>(party) + 0xcd8) == 1)
+    if (party->m_partyType == 1)
     {
         return "연습모드 입니다";
     }
@@ -370,8 +343,8 @@ void CMonsterDropTest_processDungeonDrop_Orig(void* self, CParty* party,
                                               std::map<int, int>* drop,
                                               std::map<int, std::map<int, int> >* grade)
 {
-    char* base = reinterpret_cast<char*>(self);
-    int mode = *reinterpret_cast<int*>(base + 8);
+    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
+    int mode = cmd->m_mode;
     if (mode == 0)
     {
         CMonsterDropTest_singleMapMonsterKill_Orig(self, party, drop, grade);
@@ -431,9 +404,7 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
     {
         if (party->checkValidUser(i))
         {
-            void* members = party->GetMember();   // ORIG: *(CUser**)(members + i*0x18)
-            CUser* member = *reinterpret_cast<CUser**>(
-                reinterpret_cast<char*>(members) + i * 0x18);
+            CUser* member = party->GetMember()[i].m_pUser;
             if (member->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0x4f)))
             {
                 premCnt = premCnt + 1;
@@ -446,9 +417,7 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
         {
             if (party->checkValidUser(i))
             {
-                void* members = party->GetMember();
-                CUser* member = *reinterpret_cast<CUser**>(
-                    reinterpret_cast<char*>(members) + i * 0x18);
+                CUser* member = party->GetMember()[i].m_pUser;
                 premRate = static_cast<int>(
                     member->getAddIndependentDropRateFromPremium(
                         static_cast<ENUM_PREMIUM_TYPE>(0x4f), premCnt));
@@ -458,16 +427,14 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
     }
 
     bool hellKilledAll = false;
-    if (*reinterpret_cast<short*>(reinterpret_cast<char*>(mob) + 0x334) != 0)
+    if (mob->m_hellPartyGroupIdx != 0)
     {
-        CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(
-            reinterpret_cast<char*>(party) + 0xb24);
+        CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
         bf->KillHellPartyGroupMonsterCnt(*mapInfo, *mob, hellKilledAll);
     }
 
     int memberCount = party->get_member_count();
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(
-        reinterpret_cast<char*>(party) + 0xb24);
+    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
     bf->_MakeDropItems(*items, *mapInfo, *mob,
                        static_cast<unsigned short>(0), memberCount, 100, killCnt,
                        hellKilledAll, *flags, 1.0f, premRate);
@@ -488,12 +455,11 @@ void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
     flags.push_back(true);
     flags.push_back(true);
 
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(
-        reinterpret_cast<char*>(party) + 0xb24);
+    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
     MapInfo* cur = bf->GetCurrentMapInfo();
 
-    for (unsigned int round = 0; round < *reinterpret_cast<unsigned int*>(
-             reinterpret_cast<char*>(self) + 0xc); round++)
+    for (unsigned int round = 0; round < static_cast<unsigned int>(
+             static_cast<CMonsterDropTest*>(self)->m_count); round++)
     {
         for (std::map<int, map_monster>::iterator it = cur->m_monsterMap.begin();
              it != cur->m_monsterMap.end(); ++it)
@@ -527,8 +493,8 @@ void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
     std::vector<MapInfo>* passed =
         static_cast<std::vector<MapInfo>*>(party->getPassedMapInfoList());
 
-    for (unsigned int round = 0; round < *reinterpret_cast<unsigned int*>(
-             reinterpret_cast<char*>(self) + 0xc); round++)
+    for (unsigned int round = 0; round < static_cast<unsigned int>(
+             static_cast<CMonsterDropTest*>(self)->m_count); round++)
     {
         for (std::vector<MapInfo>::iterator mit = passed->begin();
              mit != passed->end(); ++mit)
@@ -560,8 +526,8 @@ void CMonsterDropTest_getDungeonDropResult_Orig(void* self,
                                                 std::map<int, int>* drop,
                                                 std::map<int, std::map<int, int> >* grade)
 {
-    char* base = reinterpret_cast<char*>(self);
-    int mode = *reinterpret_cast<int*>(base + 8);
+    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
+    int mode = cmd->m_mode;
     if (mode != 2)
     {
         if (mode == 3)
@@ -785,12 +751,12 @@ void CMonsterDropTest::execute()
     game_master_CBoosterTest_SendChatMsg_Orig(
         this, user, const_cast<char*>("Dungeon Monster Drop 결과체크를 시작합니다"));
 
-    if (str_as_int2(m_str0) == 0)
+    if (m_count == 0)
     {
-        str_as_int2(m_str0) = 10000;
+        m_count = 10000;
     }
     char cnt[21];
-    sprintf(cnt, "%d번 통계입니다", str_as_int2(m_str0));
+    sprintf(cnt, "%d번 통계입니다", m_count);
     game_master_CBoosterTest_SendChatMsg_Orig(this, user, cnt);
 
     char fileBuf[95000];
@@ -801,7 +767,7 @@ void CMonsterDropTest::execute()
     CMonsterDropTest_processDungeonDrop_Orig(this, party, &drop, &grade);
 
     bool loop = true;
-    int mode = str_as_int(m_str0);
+    int mode = m_mode;
     if (mode != 2)
     {
         if (mode == 3)
@@ -831,17 +797,17 @@ void CMonsterDropTest::execute()
         char fname[256];
         if (mode == 2)
         {
-            sprintf(fname, "passed_dungeon_drop_%d.txt", str_as_int2(m_str0));
+            sprintf(fname, "passed_dungeon_drop_%d.txt", m_count);
             game_master_CBoosterTest_makeFileContents_Orig(this, user, fileBuf, &drop);
         }
         else if (mode == 3)
         {
-            sprintf(fname, "gold_dungeon_drop_%d.txt", str_as_int2(m_str0));
+            sprintf(fname, "gold_dungeon_drop_%d.txt", m_count);
             CMonsterDropTest_makeFileGoldContents_Orig(this, user, fileBuf, &drop);
         }
         else if (mode == 0)
         {
-            sprintf(fname, "single_dungeon_drop_%d.txt", str_as_int2(m_str0));
+            sprintf(fname, "single_dungeon_drop_%d.txt", m_count);
             game_master_CBoosterTest_makeFileContents_Orig(this, user, fileBuf, &drop);
         }
 
@@ -912,15 +878,10 @@ void NpcLimitBuyItem::execute()
     CUser* user = GetUser();
     if (user != 0)
     {
-        union
-        {
-            char raw[16];
-            void* align_;
-        } req;
-        LimitNpcBuyItemRequestInfo_Ctor_Orig(req.raw);
+        LimitNpcBuyItemRequestInfo req;
         ENUM_SERVER_GROUP group = user->GetServerGroup();
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
-        proxy->SendPacket(req.raw, 10);
+        proxy->SendPacket((char*)&req, 10);
     }
 }
 
@@ -946,7 +907,6 @@ void COneADayItemShop::execute()
 
 // ORIG ctor 0x082a822e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CPcroomPremiumCmd::CPcroomPremiumCmd()
-    : m_str0()
 {
 }
 
@@ -954,7 +914,7 @@ CPcroomPremiumCmd::CPcroomPremiumCmd()
 void CPcroomPremiumCmd::parse()
 {
     trim(m_parser->m_args);
-    str_as_int(m_str0) = atoi(m_parser->m_args.c_str());
+    m_duration = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084a9de8：以当前系统秒为起点设置 PC 房 premium 区间
@@ -962,7 +922,7 @@ void CPcroomPremiumCmd::parse()
 void CPcroomPremiumCmd::execute()
 {
     int curSec = GlobalData::s_systemTime_.getCurSec();
-    int dur = str_as_int(m_str0);
+    int dur = m_duration;
     CUser* user = GetUser();
     WongWork::CHandlePremium::handleSetUserPCRoom(user, curSec,
                                                   static_cast<long>(dur) + curSec);
@@ -995,7 +955,7 @@ void CPcroomRewardReset::execute()
     DBUpdatePcroomDailyReward_makeRequest_Orig(user);
     InterSelectPcroomDailyReward::SendPacket(user);
     char* idStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace trace("virtual void game_master::CPcroomRewardReset::execute()",
+    cMyTrace trace(__PRETTY_FUNCTION__,
                    0x1852, 0);
     trace("[GMCommand] Pcroom daily reward reset m_id:%s", idStr);
 }
@@ -1009,7 +969,6 @@ void CPcroomRewardReset::execute()
 
 // ORIG ctor 0x082a85e6：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CPickup::CPickup()
-    : m_str0()
 {
 }
 
@@ -1020,8 +979,8 @@ void CPickup::parse()
     size_t pos = m_parser->m_args.find(" ", 0);
     std::string first = m_parser->m_args.substr(0, pos);
     std::string second = m_parser->m_args.substr(pos + 1);
-    str_as_int(m_str0) = atoi(first.c_str());
-    str_as_int2(m_str0) = atoi(second.c_str());
+    m_param1 = atoi(first.c_str());
+    m_param2 = atoi(second.c_str());
 }
 
 // ORIG execute 0x084ac966：空实现。
@@ -1036,7 +995,6 @@ void CPickup::execute()
 
 // ORIG ctor 0x082a83c4：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CPowerWarStraightVictory::CPowerWarStraightVictory()
-    : m_str0()
 {
 }
 
@@ -1044,7 +1002,7 @@ CPowerWarStraightVictory::CPowerWarStraightVictory()
 void CPowerWarStraightVictory::parse()
 {
     trim(m_parser->m_args);
-    str_as_short(m_str0) = static_cast<short>(atoi(m_parser->m_args.c_str()));
+    m_straight = static_cast<short>(atoi(m_parser->m_args.c_str()));
 }
 
 // ORIG execute 0x084ab23e：有队伍设队伍连胜，否则设个人（CUserCharacInfo）连胜。
@@ -1054,11 +1012,11 @@ void CPowerWarStraightVictory::execute()
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party == 0)
     {
-        user->setStraightVictories(str_as_short(m_str0));
+        user->setStraightVictories(m_straight);
     }
     else
     {
-        party->setStraightVictories(str_as_short(m_str0));
+        party->setStraightVictories(m_straight);
     }
 }
 
@@ -1070,15 +1028,14 @@ void CPowerWarStraightVictory::execute()
 
 // ORIG ctor 0x082a8656：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CRandomObjectTest::CRandomObjectTest()
-    : m_str0()
 {
 }
 
 // ORIG clear 0x084b40ca：两 int 槽清零。
 void CRandomObjectTest::clear()
 {
-    str_as_int(m_str0) = 0;
-    str_as_int2(m_str0) = 0;
+    m_mode = 0;
+    m_count = 0;
 }
 
 // ORIG parse 0x084b0032：clear；sscanf(args,"%d%d")。
@@ -1086,7 +1043,7 @@ void CRandomObjectTest::parse()
 {
     clear();
     sscanf(m_parser->m_args.c_str(), "%d%d",
-           &str_as_int(m_str0), &str_as_int2(m_str0));
+           &m_mode, &m_count);
 }
 void CRandomObjectTest_processVendingMachineItemLottery_Orig(
     void* self, CMTRand& rng, const stVendingMachineInfo_t* info, Inven_Item* item)
@@ -1099,7 +1056,7 @@ const char* CRandomObjectTest_checkCommandExecuteError_Orig(void* self)
     asm("_ZN11game_master17CRandomObjectTest24checkCommandExecuteErrorEv");
 const char* CRandomObjectTest_checkCommandExecuteError_Orig(void* self)
 {
-    int count = *reinterpret_cast<int*>(reinterpret_cast<char*>(self) + 0xc);
+    int count = static_cast<CRandomObjectTest*>(self)->m_count;
     if (count < 0x186a1 && count >= 0)
     {
         return 0;
@@ -1158,8 +1115,7 @@ void CRandomObjectTest_getVendingMachineItem_Orig(void* self,
         Inven_Item item;
         unsigned long seed = static_cast<unsigned long>(time(NULL));
         CMTRand rng(seed);
-        for (int i = 0; i < *reinterpret_cast<int*>(
-                 reinterpret_cast<char*>(self) + 0xc); i++)
+        for (int i = 0; i < static_cast<CRandomObjectTest*>(self)->m_count; i++)
         {
             item.m_addInfo = -1;
             CRandomObjectTest_processVendingMachineItemLottery_Orig(self, rng, info,
@@ -1197,9 +1153,8 @@ void CRandomObjectTest_processVendingMachineItemLottery_Orig(
     {
         if (static_cast<unsigned int>(it->m_cumWeight) > static_cast<unsigned int>(roll))
         {
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(item) + 2) = it->m_itemId;
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(item) + 7) =
-                static_cast<int>(it->m_count);
+            item->m_addInfo = it->m_itemId;
+            item->m_addInfo2 = static_cast<int>(it->m_count);
             return;
         }
     }
@@ -1222,16 +1177,16 @@ void CRandomObjectTest::execute()
         return;
     }
 
-    if (str_as_int2(m_str0) == 0)
+    if (m_count == 0)
     {
-        str_as_int2(m_str0) = 10000;
+        m_count = 10000;
     }
     char cnt[21];
-    sprintf(cnt, "%d번 통계입니다", str_as_int2(m_str0));
+    sprintf(cnt, "%d번 통계입니다", m_count);
     game_master_CBoosterTest_SendChatMsg_Orig(this, user, cnt);
 
     std::map<int, int> stat;
-    if (str_as_int(m_str0) == 1)
+    if (m_mode == 1)
     {
         game_master_CBoosterTest_SendChatMsg_Orig(
             this, user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
@@ -1246,7 +1201,7 @@ void CRandomObjectTest::execute()
         while (loop)
         {
             game_master_CBoosterTest_makeFileContents_Orig(this, user, fileBuf, &stat);
-            sprintf(fname, "etc_random_test_%d.txt", str_as_int2(m_str0));
+            sprintf(fname, "etc_random_test_%d.txt", m_count);
             if (stat.empty())
             {
                 loop = false;
@@ -1267,7 +1222,6 @@ void CRandomObjectTest::execute()
 
 // ORIG ctor 0x082a8972：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CRecipeSuccess::CRecipeSuccess()
-    : m_str0()
 {
 }
 
@@ -1279,15 +1233,15 @@ void CRecipeSuccess::parse()
         std::string& arg = m_parser->m_extra[1];
         if (arg == "success")
         {
-            str_as_int(m_str0) = 1;
+            m_result = 1;
         }
         else if (arg == "fail")
         {
-            str_as_int(m_str0) = 2;
+            m_result = 2;
         }
         else
         {
-            str_as_int(m_str0) = 0;
+            m_result = 0;
         }
     }
 }
@@ -1296,7 +1250,7 @@ void CRecipeSuccess::parse()
 void CRecipeSuccess::execute()
 {
     CUser* user = GetUser();
-    user->recipeForceProbability(str_as_int(m_str0));
+    user->recipeForceProbability(m_result);
 }
 
 // ===========================================================================
@@ -1306,7 +1260,6 @@ void CRecipeSuccess::execute()
 
 // ORIG ctor 0x082a8602：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CRefund::CRefund()
-    : m_str0()
 {
 }
 
@@ -1317,8 +1270,8 @@ void CRefund::parse()
     size_t pos = m_parser->m_args.find(" ", 0);
     std::string first = m_parser->m_args.substr(0, pos);
     std::string second = m_parser->m_args.substr(pos + 1);
-    str_as_int(m_str0) = atoi(first.c_str());
-    str_as_int2(m_str0) = atoi(second.c_str());
+    m_param1 = atoi(first.c_str());
+    m_param2 = atoi(second.c_str());
 }
 
 // ORIG execute 0x084aca86：空实现。

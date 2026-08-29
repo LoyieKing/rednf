@@ -21,7 +21,7 @@ char g_creatureScriptBaseDirectory[0x104];
 std::map<int, std::string> g_creatureScriptFileList;
 
 // 模块名表 MODULE_NAME_TAG（processModuleTagSet 用；+8 步长 = 开/闭 string）。
-std::string g_moduleNameTag[0x20];
+std::string g_moduleNameTag[0x22];   // ORIG MODULE_NAME_TAG B 0x88 字节（34 个 string）
 
 // ---- 原生类型生命周期 ----
 
@@ -631,12 +631,18 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[additional animation]")
         {
-            CreatureAdditionalAnimation anim;
-            ScanStr(&anim.m_name);
-            anim.m_field4 = ScanInt((bool*)0);
+            // ORIG 0x08a36991：ScanStr(局部) → ScanInt → ScanStr(丢弃) →
+            // C1EiiPKc(局部, a, b, name) → push_back（m_additionalAnimations）。
+            std::string animName;
+            int animField0 = -1;
+            ScanStr(&animName);
+            int animField4 = ScanInt((bool*)0);
             ScanStr(&token);
-            anim.m_field8 = 0;
-            script->m_additionalAnimations.push_back(anim);
+            if (animField0 != -1)
+            {
+                CreatureAdditionalAnimation anim(animField4, animField0, animName.c_str());
+                script->m_additionalAnimations.push_back(anim);
+            }
         }
         else if (tag == "[default particle]")
         {
@@ -810,7 +816,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
             int itemId = ScanInt(&ok);
             if (!ok)
             {
-                LogManager::logFormat(0, "../RDARScriptObject.cpp", "importCreatureScript",
+                LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
                                       0x259e,
                                       "creature script loading  %s, evolution_item_id_",
                                       path);
@@ -901,9 +907,22 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                         }
                     }
                     if (type == 0)
-                        script->m_skillList[key] = info;
+                    {
+                        // ORIG 弱实例：map::find + insert(make_pair)（0x8a40b0c 等）。
+                        std::map<int, CreatureScriptSkillInfo>::iterator it =
+                            script->m_skillList.find(key);
+                        if (it == script->m_skillList.end())
+                            script->m_skillList.insert(std::make_pair<int, CreatureScriptSkillInfo>(
+                                static_cast<int>(key), CreatureScriptSkillInfo(info)));
+                    }
                     else
-                        script->m_overSkillList[key] = info;
+                    {
+                        std::map<int, CreatureScriptSkillInfo>::iterator it =
+                            script->m_overSkillList.find(key);
+                        if (it == script->m_overSkillList.end())
+                            script->m_overSkillList.insert(std::make_pair<int, CreatureScriptSkillInfo>(
+                                static_cast<int>(key), CreatureScriptSkillInfo(info)));
+                    }
                 }
             }
         }
@@ -913,7 +932,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
             int v = ScanInt(&ok);
             if (!ok)
             {
-                LogManager::logFormat(0, "../RDARScriptObject.cpp", "importCreatureScript",
+                LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
                                       0x266c,
                                       "creature script loading  %s, evolution_item_id_",
                                       path);
@@ -923,7 +942,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else
         {
-            LogManager::logFormat(0, "../RDARScriptObject.cpp", "importCreatureScript", 0x2674,
+            LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2674,
                                   "creature script loading error : %s : %s",
                                   tag.c_str(), path);
             return false;
@@ -1199,7 +1218,7 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
         }
         else
         {
-            LogManager::logFormat(0, "../RDARScriptAttackInfo.cpp", "ImportAttackInfoScript",
+            LogManager::logFormat(0, "../RDARScriptAttackInfo.cpp", __FUNCTION__,
                                   0x9c, "attack info script loading error : %s : %s",
                                   tag.c_str(), path);
             return false;
@@ -1208,6 +1227,13 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
     return true;
 }
 
+// ORIG 0x88d1450：无参，直接返回 true（10 字节：push/mov/xor 后 mov $1）。
+bool InitAttackInfoScript()
+{
+    return true;
+}
+
+// 既有转发契约（非 ORIG 符号，保留供外部调用）。
 bool InitAttackInfoScript(AttackInfo* info, const char* path, int param3)
 {
     return ImportAttackInfoScript(info, path, param3);
@@ -1473,7 +1499,7 @@ int CCreatureScript::GET_BTypeCreature()
 }  // namespace user_creature
 
 // ORIG 0x88bfee0：ENUM_ELEMENT → 名称字符串（getElementName::buffer）。
-const char* getElementName(int element)
+const char* getElementName(ENUM_ELEMENT element)
 {
     static char buffer[0x10];
     switch (element)
@@ -1495,4 +1521,10 @@ const char* getElementName(int element)
         break;
     }
     return buffer;
+}
+
+// ---- OnlyOrigBatch3：CreatureAdditionalAnimation 3参构造（ORIG W 0x08a3dcc2）----
+CreatureAdditionalAnimation::CreatureAdditionalAnimation(int a, int b, const char* name)
+    : m_field0(a), m_field4(b), m_name(name)
+{
 }

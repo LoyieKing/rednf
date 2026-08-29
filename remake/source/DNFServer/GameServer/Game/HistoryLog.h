@@ -20,7 +20,7 @@ public:
     static void LogClose(FILE* file);
     static bool CheckFD(FILE* file);
 
-    static void WriteCreateCh(FILE* file, char* name, int job, int level, int growType);
+    static void WriteCreateCh(FILE* file, char* name, int job);   // ORIG T 0x084b9d70（3 参实证）
     static void WriteDeleteCh(FILE* file, char* name, int job, int level, int growType);
     static void WriteSelectCh(FILE* file, const char* name, int job, int level,
                               int growType);

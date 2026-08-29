@@ -82,7 +82,7 @@ public:
     virtual void GetUserList(void* out);                        // 0x0855e642
     virtual void RequestMap(short& mapNo, PVP_BATTLE_MODE& mode);  // 0x0855d096
     virtual int GetExtraWinPoint(int extra);                    // 0x0855d0bc
-    virtual void OnCreateRoom(CUser* user);                     // 0x0855d104
+    virtual int OnCreateRoom(CUser* user);                      // 0x0855d104
     virtual void OnDestroyRoom(CUser* user);                    // 0x0855d168
     virtual void OnJoinRoom(CUser* user);                       // 0x0855d198
     virtual void OnLeaveRoom(CUser*, PvP_Room*, int, int);      // 0x0855d1c0
@@ -91,7 +91,7 @@ public:
     virtual void OnStartFight();                                // 0x0855e21c
     virtual void OnEndFight(PvP_Room* room);                   // 0x0855e55a
     virtual void OnWalkOut(PvP_Room* room, int seat);          // 0x0855e4c4
-    virtual void OnReady(CUser*, bool ready);                   // 0x0855e52a
+    virtual bool OnReady(CUser*, bool ready);                   // 0x0855e52a
     virtual void OnReward(PvP_Room*, int winTeam, bool draw);  // 0x0855eb22
     virtual void OnCompleteLoad(CUser* user);                   // 0x0855e22c
     virtual int CheckJoinable(PvP_Room* room, CUser* user);    // 0x0855cf8c
@@ -100,14 +100,14 @@ public:
 
     // -- 非 IMatch 方法 --
     static void SetMatchAble(bool able);                        // 0x0855d07e
-    void SetPlayCountPerOneTeam(unsigned int n);                // 0x0855d070
+    static void SetPlayCountPerOneTeam(unsigned int n);         // 0x0855d070（ORIG 调用无 this）
     // ORIG vtable +0x90（第 37 槽，派生新增唯一虚函数）＝ CLeagueMatch::GetSchoolNo；
     // GetIndentification 覆盖体即虚调本槽。
     virtual int GetSchoolNo();                                  // 0x0855f9aa (T)
     virtual int GetIndentification();                           // 0x08568834 (W)
-    int GetBattleMode();                                        // 0x084ed387 (W)
-    void SetBattleMode(int mode);                               // 0x082743a0 (W)
-    int GetPlayCountPerOneTeam();                               // 0x084ed37b (W)
+    static unsigned char GetBattleMode();                       // 0x084ed387 (W，读全局 0x93abb75，静态实证；ORIG movzbl 直返单字节)
+    static void SetBattleMode(int mode);                        // 0x082743a0 (W，ORIG 调用无 this)
+    static unsigned char GetPlayCountPerOneTeam();              // 0x084ed37b (W，读全局 0x93abb74，静态实证；ORIG movzbl 直返单字节)
 
     PvP_Room* _MakeRoom(CUser* user);                           // 0x0855d572
     void _RegisterWaitingRoom(PvP_Room* room);                 // 0x0855d884

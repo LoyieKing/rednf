@@ -22,6 +22,8 @@
 #include "LogManager.h"
 #include "Stream.h"
 #include "MoreTypes.h"      // arad::Sig* 线格式结构
+#include "StreamPool.h"    // GlobalData::s_stream_pool->Acquire（LoadRewardEventItem/LoadServerState）
+#include "MsgQueueMgr.h"   // MsgQueueMgr::DISPATCH_Q / put（LoadRewardEventItem/LoadServerState）
 
 // ============================================================================
 // arad::SigSaveRewardEventItem 生命周期（置于全局作用域；MoreTypes.h namespace arad 声明）（声明于 MoreTypes.h；ORIG 见其注释）
@@ -436,7 +438,73 @@ bool Arad_DB_kSetCharacCreateTime::dispatch(int code, int uid, Stream* stream)
     }
     return false;
 }
-bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream) { return false; }
+// ORIG 0x08185574：select event_id, charac_no ... limit 10 →
+//   SigLoadRewardEventItem(count + eventId[10] + characNo[10]) →
+//   make_internal_stream_jpn(0x26, uid) + put_binary(0x56) →
+//   MsgQueueMgr::put(DISPATCH_Q)。返回值 = put 的返回值。
+bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
+{
+    // ORIG 0x08186f7c：GetOutBuffer<arad::SigLoadRewardEventItem> 模板实例。
+    arad::SigLoadRewardEventItem* sig = stream->GetOutBuffer<arad::SigLoadRewardEventItem>();
+    if (sig == 0)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
+                              0x796, "SigRewardEventItem is null.");
+        return false;
+    }
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle null";
+
+        int curSec = GlobalData::s_systemTime_.getCurSec();
+
+        if (!db->set_query(
+                " seLect event_id, charac_no from event_reward_item_arad "
+                " where (m_id = %u and end_date > from_unixtime(%u))  "
+                " order by occ_date desc limit 10 ",
+                sig->m_field0, curSec))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+
+        // 行循环：col0=event_id(int) → m_eventCodes[i]；
+        //         col1=charac_no(uint) → m_characNos[i]；每行 m_count++。
+        int i = 0;
+        arad::SigLoadRewardEventItem out;
+        while (db->fetch())
+        {
+            int eventId = 0;
+            if (!db->get_int(0, eventId))
+                throw "EventCode";
+            unsigned int characNo = 0;
+            if (!db->get_uint(1, characNo))
+                throw "Character";
+            out.m_eventCodes[i] = eventId;
+            out.m_characNos[i] = characNo;
+            ++i;
+            ++out.m_count;
+        }
+
+        Stream* acquired = GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_DatabaseDispatcher.cpp", 0x7b8);
+        CStreamGuard guard(acquired, true);
+        make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x26, uid);
+        guard.put_binary(&out, 0x56);
+
+        bool putRet = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return putRet;
+    }
+    catch (const char* e)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
+                              0x7c0,
+                              "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+    }
+    return false;
+}
 bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081858de：inSert into event_reward_item_arad values (%d,%u,%u,%u,from_unixtime(%u),now())。
@@ -468,7 +536,70 @@ bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
     }
     return false;
 }
-bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream) { return false; }
+// ORIG 0x08185d20：select category, code, state where end_time >= now() →
+//   SigServerState（m_flag/m_count + tagData[20]，逐行填 m_category/m_code/
+//   get_binary(msg,0xc)）→ make_internal_stream_jpn(0x29, -1) + put_binary(0x195)
+//   → DISPATCH_Q，成功返回 true。
+bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream)
+{
+    // ORIG 0x08187024：GetOutBuffer<arad::SigServerState> 模板实例。
+    arad::SigServerState* sig = stream->GetOutBuffer<arad::SigServerState>();
+    if (sig == 0)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
+                              0x81e, "SigServerState is null.");
+        return false;
+    }
+    (void)sig;   // 取出仅作非空校验（ORIG 同样不再读该缓冲字段）
+
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle null";
+
+        if (!db->set_query(
+                " seLect category, code, state from server_state_info where end_time >= now()"))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+
+        int i = 0;
+        arad::SigServerState out;
+        while (db->fetch())
+        {
+            int category = 0;
+            if (!db->get_int(0, category))
+                throw "category";
+            int stateCode = 0;
+            if (!db->get_int(1, stateCode))
+                throw "category";
+            out.m_data[i].m_category = category;
+            out.m_data[i].m_code = stateCode;
+            if (!db->get_binary(2, &out.m_data[i].m_msg, 0xc))
+                throw "state";
+            i = i + 1;
+        }
+
+        Stream* acquired = GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_DatabaseDispatcher.cpp", 0x83f);
+        CStreamGuard guard(acquired, true);
+
+        make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x29, -1);
+        guard.put_binary(&out, 0x195);
+
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return true;
+    }
+    catch (const char* e)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
+                              0x846,
+                              "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+    }
+    return false;
+}
 bool Arad_DB_kSaveServerState::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08185abe：flag==0 → deLete by category/code；否则 inSert(msg blob→str)。
@@ -541,7 +672,43 @@ bool Arad_DB_kAvatarHiddenOptionSave::dispatch(int code, int uid, Stream* stream
     }
     return false;
 }
-bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream) { return false; }
+bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream)
+{
+    (void)code;
+    (void)uid;
+    arad::SigAradAvatarEnduranceSave* sig =
+        stream->GetOutBuffer<arad::SigAradAvatarEnduranceSave>();
+    if (sig == 0)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp",
+                              __PRETTY_FUNCTION__, 0x876,
+                              "SigAradAvatarEnduranceSave is null.");
+        return false;
+    }
+    try
+    {
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+                                                      (ENUM_SERVER_GROUP)0);
+        if (db == 0)
+            throw "handle null";
+
+        // ORIG set_query(h, fmt, +0x04=emblem_endurance, +0x00=ui_id)
+        if (!db->set_query("upDate user_items set emblem_endurance=%d where ui_id=%d",
+                           sig->endurance, sig->uiId))
+            throw "set_query";
+        if (!db->exec(true))
+            throw "exec";
+        return true;
+    }
+    catch (const char* e)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp",
+                              __PRETTY_FUNCTION__, 0x88a,
+                              "[SigAradAvatarEnduranceSave] DB_DSP Error,  (error:%s)", e);
+    }
+    return false;
+}
+
 bool Arad_DB_kResetLimitedCreateCharacPerMid::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08186492：truncate limit_create_character。

@@ -35,13 +35,11 @@ public:
     std::string GetServerString(int nTextID, bool* pbResult) const;
     std::string GetEventString(int nTextID, _eStringType type, bool* pbResult) const;
     int GetEventRGBA(int nEventID) const;
-    std::string getAuctionString(int textNo, bool& result);
     void CharsetInit(TiXmlNode* pRootNode);
     void RGBALoad(int eventID, TiXmlNode* pRootNode);
     void EventLoad(TiXmlNode* pRootNode);
     void ProcessLoad(TiXmlNode* pRootNode);
     void StrPunish(int nTextID, const char* pText, _eStringType type);
-    void auctionStringLoad(TiXmlNode* rootNode);
 
 private:
     char m_cCharSet[5];
@@ -52,7 +50,6 @@ private:
     std::map<int, std::string> m_mapEventStartStr;
     std::map<int, std::string> m_mapEventEndStr;
     std::map<int, int> m_map_EventRGBA;
-    std::map<int, std::string> auctionString_;
 };
 
 } // namespace np_server_xml

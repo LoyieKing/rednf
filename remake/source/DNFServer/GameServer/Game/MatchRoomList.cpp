@@ -162,7 +162,7 @@ bool CMultiMatchRoomList::AddRoom(IMatch* room)
          it != m_roomMap.end(); ++it) {
         if (it->second.find(room)) {
             LogManager::logFormat(1, "MatchingSystem.cpp",
-                "virtual bool CMultiMatchRoomList::AddRoom(IMatch*)", 0x11f3,
+                __PRETTY_FUNCTION__, 0x11f3,
                 "error find line(%d)", 0x11f3);
             return false;
         }
@@ -171,7 +171,7 @@ bool CMultiMatchRoomList::AddRoom(IMatch* room)
     std::map<int, CWaitingRoomList>::iterator it = m_roomMap.find(playCount);
     if (it == m_roomMap.end()) {
         LogManager::logFormat(1, "MatchingSystem.cpp",
-            "virtual bool CMultiMatchRoomList::AddRoom(IMatch*)", 0x11ff,
+            __PRETTY_FUNCTION__, 0x11ff,
             "error find line(%d), playCount(%d)", 0x11ff,
             room->GetPlayerCount());
     }

@@ -100,7 +100,21 @@ void LevelupSupportEventManger::Destroy()
 {
     m_script.clearScript();
     m_stepIndexMap.clear();
+
     m_events.clear();
+}
+// ============================================================================
+// LevelupSupportEventManger::GetDefaultEventInfo —— 报告 GetDefaultEventInfo.md
+// @0x08147012（_ZNK25LevelupSupportEventManger19GetDefaultEventInfoEv，sz 0xb）：
+// 仅返回 &m_events（this+0x34）的 const 引用。ORIG 唯一调用点
+// Inter_LoadEventLevelupSupport::dispatch_sig @0x84e8d5f 把返回值直接作为
+// vector<EventInfo>::operator=(const vector&) 的源实参（0x84f16ae），实证
+// 引用返回 ABI；故头声明为 const std::vector<EventInfo>&（本次修正）。
+// ============================================================================
+const std::vector<LevelupSupportEventManger::EventInfo>&
+LevelupSupportEventManger::GetDefaultEventInfo() const
+{
+    return m_events;
 }
 
 // ============================================================================

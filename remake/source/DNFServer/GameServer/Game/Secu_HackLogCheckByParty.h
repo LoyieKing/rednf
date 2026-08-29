@@ -15,30 +15,34 @@ class map_monster;
 // +0xa1e 为耗时类、+0xa1a 为经验类累计）。
 struct __attribute__((packed)) MSG_MONSTER_DIE
 {
-    char m_pad[0xf];
-    short m_fieldF;   // +0x0f
-    char m_pad11[0xa1a - 0x11];
-    unsigned int m_killValue2;   // +0xa1a（经验类，推断）
-    unsigned int m_killValue1;   // +0xa1e（耗时类，推断）
-
-    // ---- 以下字段由 cUserHistoryLog::KillMonster（ORIG 0x086851ac）日志读取 ----
-    unsigned char m_fieldA22;    // +0xa22
-    char m_pad23[1];             // +0xa23
-    // CBossStage::handleKillMonster（ORIG 0x08150565/0x08150578 movzwl）读取后作为
-    // cUserHistoryLog::KillMonster 第 4/5 参，与 +0xa1e（耗时类）/+0xa1a（经验类）
-    // 在 "KillMob,…" 日志中成对输出；语义名不可恢复【推断】。
-    unsigned short m_killPairA24;  // +0xa24
-    unsigned short m_killPairA26;  // +0xa26
-    char m_pad28[1];             // +0xa28
-    short m_fieldA29;            // +0xa29
-    short m_fieldA2b;            // +0xa2b
-    int m_fieldA2d;              // +0xa2d
-    int m_fieldA31;              // +0xa31
-    short m_fieldA35;            // +0xa35
-    short m_fieldA37;            // +0xa37
-    short m_fieldA39;            // +0xa39
-    short m_fieldA3b;            // +0xa3b
-    short m_fieldA3d;            // +0xa3d
+    char m_pad0[0xd];                   // +0x00（msg 头部，dispatch_sig 不读）
+    // ORIG wire 布局按 DisPatcher_DieMob::dispatch_sig（0x081eb0c4）读取序
+    // 全量展开；数组容量/偏移由循环寻址精确复现（256 项、无重叠）。
+    unsigned short m_mobSeq;            // +0x0d（击杀的 mob 序号）
+    short m_fieldF;                     // +0x0f（==0xffff 标记；其余为 killer uid）
+    int m_field11;                      // +0x11
+    int m_field15;                      // +0x15
+    unsigned char m_mobCount;           // +0x19（四数组有效项数）
+    unsigned short m_skillList[256];    // +0x1a（per-mob 技能 id，命中 0x111 过伤害检查）【语义推断】
+    unsigned short m_attackerList[256]; // +0x21a（per-mob 造成伤害者 uniqueId）【语义推断】
+    unsigned int m_damageList[256];     // +0x41a（per-mob 累计伤害值）【语义推断】
+    unsigned short m_hitCountList[256]; // +0x81a（per-mob 攻击次数；0 时报 0x6e 并置 1）
+    unsigned int m_killValue2;          // +0xa1a（经验类累计【推断】，%10 联检）
+    unsigned int m_killValue1;          // +0xa1e（耗时类累计【推断】，>0x5dc 检查）
+    unsigned char m_fieldA22;           // +0xa22
+    unsigned char m_fieldA23;           // +0xa23（原 m_pad23）
+    unsigned short m_killPairA24;       // +0xa24（ValidateFixMobDiePos x）
+    unsigned short m_killPairA26;       // +0xa26（ValidateFixMobDiePos y）
+    char m_fieldA28;                    // +0xa28（原 m_pad28）
+    short m_fieldA29;                   // +0xa29
+    short m_fieldA2b;                   // +0xa2b
+    int m_fieldA2d;                     // +0xa2d
+    int m_fieldA31;                     // +0xa31
+    short m_fieldA35;                   // +0xa35
+    short m_fieldA37;                   // +0xa37
+    short m_fieldA39;                   // +0xa39
+    short m_fieldA3b;                   // +0xa3b
+    short m_fieldA3d;                   // +0xa3d
 };
 
 // SecKillMonsterInfo（0x18；ctor ORIG 随 push_back 内联，字段偏移实证）。
@@ -70,6 +74,7 @@ public:
     void startDungeon();
     void dungeonClear();
     void dungeonFail();
+    void CheckHackTypeEndDungeon();   // ORIG T 0x08279a12（平均等级 hack 上报）
     std::vector<SecKillMonsterInfo>::iterator
     findKillMonsterInfo(unsigned int monsterId);   // ORIG 0x827993c
     void setKillMonsterInfo(const MSG_MONSTER_DIE* msg, map_monster* mob);

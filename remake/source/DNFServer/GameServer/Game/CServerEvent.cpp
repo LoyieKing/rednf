@@ -27,7 +27,7 @@ int CServerEvent::SubExpRate(int rate)
     return m_nExpRate;
 }
 
-int CServerEvent::IsEventing(int idx)
+bool CServerEvent::IsEventing(int idx)
 {
     return m_nCurEvent[idx] == 1;
 }

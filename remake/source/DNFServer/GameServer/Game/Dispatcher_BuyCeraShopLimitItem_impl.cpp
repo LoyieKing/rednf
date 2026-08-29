@@ -38,61 +38,64 @@ extern int LineFunc(int, const char*, int, unsigned int);
 // SendCmdErrorPacket(0x100, err) 并 return 0。
 //
 // _checkUserState / _checkBuyCondition 是该类独立 ORIG 成员（_ZNK…15_checkUserState /
-// _ZNK…18_checkBuyCondition），未在只读头 Dispatchers.h 声明，故本 TU 无法产出这两个成员符号；
-// 依同域惯例以文件内 static 函数内联其逻辑供 dispatch_sig 调用。
+// _ZNK…18_checkBuyCondition），已在 Dispatchers.h 私有区声明（const 成员），本 TU 定义产出 T 强符号。
 // ============================================================================
 
-// _checkUserState_inline —— ORIG 0x0821f72a：CSecu Check(0x39)→IsBusyPrivateStore→CheckInTrade→
+// _checkUserState —— ORIG 0x0821f72a：CSecu Check(0x39)→IsBusyPrivateStore→CheckInTrade→
 //   getCurSec()-lastBuyTime<0x1e→9。返回 0=通过，否则错误码。
-static int checkUserState_inline(CUser* user)
+int Dispatcher_BuyCeraShopLimitItem::_checkUserState(CUser* user) const
 {
     int ret = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x39);
-    if (ret == 0) {
-        if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user)) {
-            ret = 0x13;
-        } else if (user->CheckInTrade()) {
-            ret = 0x13;
-        } else {
-            int curSec = GlobalData::s_systemTime_.getCurSec();
-            int lastBuy = user->getLastItemLimitEditionBuyTime();
-            ret = (curSec - lastBuy < 0x1e) ? 9 : 0;
-        }
-    }
-    return ret;
+    if (ret != 0)
+        return ret;
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
+        return 0x13;
+    if (user->CheckInTrade())
+        return 0x13;
+    register bool isInInterval = (GlobalData::s_systemTime_.getCurSec()
+                                  - user->getLastItemLimitEditionBuyTime() < 0x1e);
+    return isInInterval ? 9 : 0;
 }
 
-// _checkBuyCondition_inline —— ORIG 0x0821f7cc：逐条件校验职业/等级/建号时间/账号注册时间区间，
+// _checkBuyCondition —— ORIG 0x0821f7cc：逐条件校验职业/等级/建号时间/账号注册时间区间，
 //   任一不符返回 7，全过返回 0。
-static int checkBuyCondition_inline(CUser* user, const CItemLimitEdition* edition)
+int Dispatcher_BuyCeraShopLimitItem::_checkBuyCondition(CUser* user, const CItemLimitEdition* edition) const
 {
-    int job = edition->getCondCharacJob();
-    if (job < 0xb) {
-        if (user->get_charac_job() != job) return 7;
+    // 职业条件（ORIG：getCondCharacJob 两次独立调用——P48 无 CSE；<0xb 走 setle 物化，
+    // 内层 get_charac_job 先入 ebx 再与第二次 getCondCharacJob 比较）。
+    register bool bJob = (edition->getCondCharacJob() < 0xb);
+    if (bJob) {
+        if (user->get_charac_job() != edition->getCondCharacJob())
+            return 7;
     }
 
-    unsigned short lvBegin = edition->getCondCharacLevelBegin();
-    if (lvBegin != 0 && (unsigned short)lvBegin > (unsigned short)user->get_charac_level())
-        return 7;
+    // 等级区间（ORIG：begin/end 各两次调用；getter 结果入 ebx 跨另一 getter 调用存活，
+    // 比较在 int 域带符号，故方向按 ORIG 汇编右操作数先入 ebx 的求值序书写）。
+    register bool bLvB = (edition->getCondCharacLevelBegin() != 0
+                          && edition->getCondCharacLevelBegin() > user->get_charac_level());
+    if (bLvB) return 7;
 
-    unsigned short lvEnd = edition->getCondCharacLevelEnd();
-    if (lvEnd != 0 && (unsigned short)user->get_charac_level() > (unsigned short)lvEnd)
-        return 7;
+    register bool bLvE = (edition->getCondCharacLevelEnd() != 0
+                          && edition->getCondCharacLevelEnd() < user->get_charac_level());
+    if (bLvE) return 7;
 
-    int ctBegin = edition->getCondCharacCreateTimeBegin();
-    if (ctBegin != 0 && ctBegin > user->getCurCharacCreateTime())
-        return 7;
+    // 建号时间区间。
+    register bool bCtB = (edition->getCondCharacCreateTimeBegin() != 0
+                          && edition->getCondCharacCreateTimeBegin() > user->getCurCharacCreateTime());
+    if (bCtB) return 7;
 
-    int ctEnd = edition->getCondCharacCreateTimeEnd();
-    if (ctEnd != 0 && user->getCurCharacCreateTime() > ctEnd)
-        return 7;
+    register bool bCtE = (edition->getCondCharacCreateTimeEnd() != 0
+                          && edition->getCondCharacCreateTimeEnd() < user->getCurCharacCreateTime());
+    if (bCtE) return 7;
 
-    int atBegin = edition->getCondAccCreateTimeBegin();
-    if (atBegin != 0 && atBegin > user->getRegTime())
-        return 7;
+    // 账号注册时间区间。
+    register bool bAtB = (edition->getCondAccCreateTimeBegin() != 0
+                          && edition->getCondAccCreateTimeBegin() > user->getRegTime());
+    if (bAtB) return 7;
 
-    int atEnd = edition->getCondAccCreateTimeEnd();
-    if (atEnd != 0 && atEnd < user->getRegTime())
-        return 7;
+    register bool bAtE = (edition->getCondAccCreateTimeEnd() != 0
+                          && edition->getCondAccCreateTimeEnd() < user->getRegTime());
+    if (bAtE) return 7;
 
     return 0;
 }
@@ -105,7 +108,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     // 用户状态必须 >=3（ORIG: get_state < 3 → LineFunc(0xd887) 断言路径）。
     if (user->get_state() < 3)
         return LineFunc(0xd887,
-                        "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
 
     // ---------------- 报文解析（ORIG 依次读字段） ----------------
@@ -115,15 +118,15 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     unsigned char entryCnt1 = 0;     // 第一条记录数（<0x24）
     if (!packet.get_int(ipgNo))
         return LineFunc(0xd88c,
-                        "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     if (!packet.get_byte(subCount))
         return LineFunc(0xd88d,
-                        "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     if (!packet.get_byte(entryCnt1) || entryCnt1 >= 0x24)
         return LineFunc(0xd890,
-                        "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
 
     // 第一条记录：每条 { unsigned long itemIdx; unsigned char cnt }（ORIG 栈数组，上限 0x23）。
@@ -132,11 +135,11 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     for (unsigned int i = 0; i < entryCnt1; ++i) {
         if (!packet.get_item_idx(rec1[i].itemIdx))
             return LineFunc(0xd894,
-                            "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                            __PRETTY_FUNCTION__,
                             0, 0);
         if (!packet.get_byte(rec1[i].cnt))
             return LineFunc(0xd895,
-                            "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                            __PRETTY_FUNCTION__,
                             0, 0);
     }
 
@@ -145,29 +148,29 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     unsigned char entryCnt2 = 0;
     if (!packet.get_byte(entryCnt2) || entryCnt2 >= 0x24)
         return LineFunc(0xd89d,
-                        "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     struct RawEntry2 { unsigned long itemIdx; unsigned short v1; unsigned short v2; };
     RawEntry2 rec2[0x24];
     for (unsigned int i = 0; i < entryCnt2; ++i) {
         if (!packet.get_item_idx(rec2[i].itemIdx))
             return LineFunc(0xd8a1,
-                            "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                            __PRETTY_FUNCTION__,
                             0, 0);
         if (!packet.get_short(rec2[i].v1))
             return LineFunc(0xd8a2,
-                            "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                            __PRETTY_FUNCTION__,
                             0, 0);
         if (!packet.get_short(rec2[i].v2))
             return LineFunc(0xd8a3,
-                            "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                            __PRETTY_FUNCTION__,
                             0, 0);
     }
     for (unsigned int i = 0; i < (unsigned int)entryCnt2; ++i) {
         for (unsigned int j = i + 1; j < (unsigned int)entryCnt2; ++j) {
             if (rec2[i].itemIdx == rec2[j].itemIdx && rec2[i].v1 == rec2[j].v1)
                 return LineFunc(0xd8ac,
-                                "virtual int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser*, PacketBuf&)",
+                                __PRETTY_FUNCTION__,
                                 0, 0);
         }
     }
@@ -177,7 +180,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
     CItem* relatedItem = 0;      // relateditem!=1 时 find_item 得到的相关道具
     try
     {
-        int stateRet = checkUserState_inline(user);
+        int stateRet = _checkUserState(user);
         if (stateRet != 0) throw (int)stateRet;
 
         // ORIG 传参：getItemInfo 的 key 是首个 byte（subCount），见 ORIG 汇编 +0x4dd mov %ebx(=local_22a),0x4(%esp)。
@@ -197,7 +200,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         if (user->getCurCharacInvenR()->get_money() < edition->getPriceGold()) throw 0xa;
         if ((unsigned int)user->GetWinPoint() < (unsigned int)edition->getPriceWinPoint()) throw 0xc;
 
-        if (checkBuyCondition_inline(user, edition) != 0) throw 7;
+        if (_checkBuyCondition(user, edition) != 0) throw 7;
 
         // ---- avatar 类型选取 ----
         unsigned short avatarTypeSel = (unsigned short)edition->getAvatarTypeSelect();

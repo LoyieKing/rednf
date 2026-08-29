@@ -4,8 +4,8 @@
 // ORIG：
 //   C1    _ZN15CClearConditionC1Ev                    0x82a4342（vector 构造 + Clear）
 //   Clear _ZN15CClearCondition5ClearEv                0x82a438a
-//   Empty _ZNK15CClearCondition5EmptyEv               0x822cba8 → return m_vec.empty()
-//   IsC   _ZNK15CClearCondition16IsClearConditionEv   0x822cb92 → return m_flag <= m_count
+//   Empty _ZN15CClearCondition5EmptyEv               0x822cba8 → return m_vec.empty()
+//   IsC   _ZN15CClearCondition16IsClearConditionEv   0x822cb92 → return m_flag <= m_count
 //   ClearCondition _ZN15CClearCondition14ClearConditionE... 0x82fefce
 //     → type∈[0,4] 校验；遍历 (+0x14 的 vector<DungeonClearCondition>) 与
 //       m_vec 同步递增；结尾 return (m_flag <= m_count)。
@@ -37,12 +37,12 @@ void CClearCondition::Clear()
     m_unk14 = 0;
 }
 
-bool CClearCondition::Empty() const
+bool CClearCondition::Empty()
 {
     return m_vec.empty();
 }
 
-bool CClearCondition::IsClearCondition() const
+bool CClearCondition::IsClearCondition()
 {
     return m_flag <= m_count;
 }

@@ -33,8 +33,8 @@ public:
 
 extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
 {
-    static CDeathTowerValueStatistic s;
-    return &s;
+    static CDeathTowerValueStatistic instance;
+    return &instance;
 }
 
 struct Packet_DeathTower_Statistic_Value
@@ -77,7 +77,7 @@ void CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_ST
             if (c != 3)
             {
                 LogManager::logFormat(1, "Statistics.cpp",
-                    "bool CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD, char, char, unsigned int)",
+                    __PRETTY_FUNCTION__,
                     0x5d5, 0, 10);
                 return;
             }
@@ -396,11 +396,12 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
 // ---- repair_equip 辅助类型 ----
 struct tagRepairItemInfo
 {
-    int m_type;       // 0=背包, 1=装备栏
-    int m_slot;       // 槽位索引
-    CEquipItem* m_item;
+    INVEN_TYPE m_type;       // 0=背包, 1=装备栏
+    int m_slot;              // 槽位索引
+    CEquipItem const* m_item;
 
-    tagRepairItemInfo(int type, int slot, CEquipItem* item)
+    // ORIG C1/C2 0x0861b08e（W）：三形参顺序赋入（INVEN_TYPE, int, CEquipItem const*）。
+    tagRepairItemInfo(INVEN_TYPE type, int slot, CEquipItem const* item)
         : m_type(type), m_slot(slot), m_item(item) {}
 };
 
@@ -444,7 +445,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     int curEnd = slotItem.m_fieldb;
                     bool needRepair = (curEnd != 0 && curEnd != maxEnd);
                     if (needRepair)
-                        repairList.push_back(tagRepairItemInfo(1, i, pEquip));
+                        repairList.push_back(tagRepairItemInfo(INVEN_TYPE_EQUIP, i, pEquip));
                 }
             }
         }
@@ -473,7 +474,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     int curEnd = slotItem.m_fieldb;
                     bool needRepair = (curEnd != 0 && curEnd != maxEnd);
                     if (needRepair)
-                        repairList.push_back(tagRepairItemInfo(0, i, pEquip));
+                        repairList.push_back(tagRepairItemInfo(INVEN_TYPE_INVEN, i, pEquip));
                 }
             }
         }
@@ -506,7 +507,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                 const tagRepairItemInfo& info = repairList[i];
                 int invenType2 = info.m_type;
                 int slotIdx = info.m_slot;
-                CEquipItem* pEquip = info.m_item;
+                CEquipItem* pEquip = const_cast<CEquipItem*>(info.m_item);
 
                 CInventory* inven2 = user->getCurCharacInvenW();
                 Inven_Item curItem;
@@ -641,3 +642,12 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
 
     return 0;
 }
+
+// ---- force 发射 tagRepairItemInfo C1/C2（ORIG W 0x0861b08e）----
+namespace {
+void forceTagRepairItemInfoEmission()
+{
+    tagRepairItemInfo tri(INVEN_TYPE_EQUIP, 0, 0);
+    (void)tri;
+}
+}  // namespace

@@ -20,86 +20,190 @@
 #include <string>
 #include <vector>
 
-// ---- WarningDistance（ORIG ctor 0x08a3aeca / ctor(i,i,i) 0x08a3aeec；
+// ---- WarningDistance（ORIG C1/C1Eiii T 0x08a3aeca/0x08a3aeec；
 //      docs/class_func_reports/WarningDistance.md：三个 int 直赋）----
+
 class WarningDistance
 {
 public:
+    WarningDistance();                    // ORIG T 0x08a3aeca（cpp 定义）
+    WarningDistance(int a, int b, int c); // ORIG T 0x08a3aeec（cpp 定义）
+
     int m_a;   // +0x00
     int m_b;   // +0x04
     int m_c;   // +0x08
 };  // sizeof == 0xc（ORIG 相邻实例步进 0x1d4→0x1e0）
 
-// ---- SpeedCtrlPassiveObjInfo（ORIG ctor 0x08a3ad5a：+0=-1、+4 byte=0）----
+// ---- SpeedCtrlPassiveObjInfo（ORIG ctor T 0x08a3ad5a：+0=-1、+4 byte=0；
+//      D1/D2 W 0x08a4eab2 trivial——编译器隐式生成）----
 class SpeedCtrlPassiveObjInfo
 {
 public:
+    SpeedCtrlPassiveObjInfo();         // ORIG T 0x08a3ad5a（cpp 定义）
+
     int m_field0;         // +0x00（ctor 初始化 -1）
     unsigned char m_b4;   // +0x04（ctor 初始化 0）
 
 private:
-    char m_tail_[7];      // [推断] ORIG 元素尺寸下界 5，按容器 stride 推得 0xc
-
-public:
-    SpeedCtrlPassiveObjInfo() : m_field0(-1), m_b4(0) {}
+    char m_tail_[3];      // [实证] ORIG _Vector_base D1 `(end-start) sar $3` → stride 8
 };
 
 // ---- PassiveIObjSniperInfo（ORIG ctor 0x08a3af0c / clear 0x08a3afc0，
 //      docs/class_func_reports/PassiveIObjSniperInfo/：4 × vector<int> +
 //      int 标量区至 +0x74）----
+// ---- PassiveIObjSniperInfo（ORIG C1/clear T 0x08a3af0c/0x08a3afc0，
+//      D1/op= W 0x08a3e1c4/0x08a3e76a；
+//      docs/class_func_reports/PassiveIObjSniperInfo/：4 × vector<int> +
+//      int 标量区至 +0x7c；C1/clear 为 T 强符号 → cpp 定义）----
 class PassiveIObjSniperInfo
 {
 public:
-    void clear();                        // ORIG W 0x08a3afc0
-    PassiveIObjSniperInfo();             // ORIG W 0x08a3af0c
+    void clear();                        // ORIG T 0x08a3afc0（cpp 定义）
+    PassiveIObjSniperInfo();             // ORIG T 0x08a3af0c（cpp 定义）
+    ~PassiveIObjSniperInfo() {}          // ORIG W 0x08a3e1c4：4 × vector dtor
+    PassiveIObjSniperInfo& operator=(const PassiveIObjSniperInfo& o)
+    {
+        m_vecMinDist = o.m_vecMinDist;
+        m_vecMaxDist = o.m_vecMaxDist;
+        m_vecField18 = o.m_vecField18;
+        m_vecField24 = o.m_vecField24;
+        m_i30 = o.m_i30;
+        m_i34 = o.m_i34;
+        m_b38 = o.m_b38;
+        m_i3c = o.m_i3c;
+        m_b40 = o.m_b40;
+        m_ints44[0] = o.m_ints44[0];
+        m_ints44[1] = o.m_ints44[1];
+        m_ints44[2] = o.m_ints44[2];
+        m_ints44[3] = o.m_ints44[3];
+        m_ints44[4] = o.m_ints44[4];
+        m_ints44[5] = o.m_ints44[5];
+        m_i5c = o.m_i5c;
+        m_i60 = o.m_i60;
+        m_i64 = o.m_i64;
+        m_i68 = o.m_i68;
+        m_i6c = o.m_i6c;
+        m_i70 = o.m_i70;
+        m_ints74[0] = o.m_ints74[0];
+        m_ints74[1] = o.m_ints74[1];
+        m_ints74[2] = o.m_ints74[2];
+        return *this;
+    }
 
     std::vector<int> m_vecMinDist;       // +0x00
     std::vector<int> m_vecMaxDist;       // +0x0c
     std::vector<int> m_vecField18;       // +0x18
     std::vector<int> m_vecField24;       // +0x24
     int m_i30;                           // +0x30（clear 清零）
-    int m_i34;                           // +0x34
-    int m_i38;                           // +0x38（clear 循环 (i+0x10)*4+4 写段内含）
-    int m_i44;                           // +0x44
-    int m_i48;                           // +0x48
-    int m_i4c;                           // +0x4c
-    int m_i50;                           // +0x50
-    int m_i54;                           // +0x54
-    int m_i58;                           // +0x58
-    int m_i5c;                           // +0x5c
-
-    int m_i60;                           // +0x60
-    int m_i64;                           // +0x64
-    int m_i68;                           // +0x68
-    int m_i6c;                           // +0x6c
-    int m_i70;                           // +0x70
+    int m_i34;                           // +0x34（clear 清零）
+    unsigned char m_b38;                 // +0x38（clear movb 清零）
+    int m_i3c;                           // +0x3c（clear 清零）
+    unsigned char m_b40;                 // +0x40（clear movb 清零）
+    int m_ints44[6];                     // +0x44..+0x58（clear 循环 i=0..5 清零）
+    int m_i5c;                           // +0x5c（clear 清零）
+    int m_i60;                           // +0x60（clear 清零）
+    int m_i64;                           // +0x64（clear 清零）
+    int m_i68;                           // +0x68（clear 未清，op= 拷贝）
+    int m_i6c;                           // +0x6c（clear 清零）
+    int m_i70;                           // +0x70（clear 清零）
+    int m_ints74[3];                     // +0x74..+0x7c（clear 循环 i=0..2 清零）
 
 private:
-    char m_tail_[0x10];                  // [推断] 使 sizeof==0x84（主类下一个
-                                         // 成员 +0x270 int 紧随其后于 +0x270，
-                                         // 即本子对象占 0x1ec..0x270）
+    char m_tail_[4];                     // [推断] 主类下一个成员 +0x270 int 紧随
+                                         // 其后，即本子对象占 0x1ec..0x270（0x84）
 };
 
-// ---- PassiveObjGeneratorInfo（ORIG ctor 0x08a3e8ae；占 0x1b0..0x1d4=0x24）----
-// 内部含三个容器起点由主类 ctor 的 vector 构造序列给出（pattern/sequence/
-// object 三 vector 分别位于主类 +0x18c/+0x198/+0x1a4），此处仅承载
-// GeneratorInfo 自身标量。内部布局 [推断]（标量 + 两个 int）。
-class PassiveObjGeneratorPattern;
-class PassiveObjGeneratorSequence;
-class PassiveObjGeneratorObject;
+// ---- PassiveObjGeneratorObject（ORIG C1 T 0x08a3ae56 / C1ERKS_ W 0x08a47834 /
+//      D1 W 0x08a3e6f4 / aSERKS_ W 0x08a478ee；sizeof==0xc）----
+// 布局证据：ctor 逐字段清零 + string("") 构造；拷贝构造/operator= 为编译器
+// 隐式生成（int,float,string 声明序逐字段，D1 仅析构 string）——ORIG 三者为
+// 弱符号且形态与隐式生成一致，故不声明用户版本。
+class PassiveObjGeneratorObject
+{
+public:
+    PassiveObjGeneratorObject();         // ORIG T 0x08a3ae56
+    // ORIG W 0x08a478ee：+0/+4 直拷 + string@8 拷贝。
+    PassiveObjGeneratorObject& operator=(const PassiveObjGeneratorObject& o)
+    {
+        m_i00 = o.m_i00;
+        m_f04 = o.m_f04;
+        m_s08 = o.m_s08;
+        return *this;
+    }
 
+    int m_i00;                           // +0x00（ctor=0，movl 直写）
+    float m_f04;                         // +0x04（ctor=0.0f，mov $0,%edx 中转实证）
+    std::string m_s08;                   // +0x08（ctor=""）
+};  // sizeof == 0xc（vector<PassiveObjGeneratorObject> _M_insert_aux
+    // 步进 sub/lea $0xc 实证）
+static_assert(sizeof(PassiveObjGeneratorObject) == 0xc,
+              "PassiveObjGeneratorObject ABI drift (ORIG 0xc)");
+
+// ---- PassiveObjGeneratorPattern（ORIG C1 T 0x08a3ad70 / C1ERKS_ W 0x08a47c6c /
+//      D1 W 0x08a3e70a / aSERKS_ W 0x08a47d72；sizeof==0x1c）----
+// 布局证据：ctor 顺序 m_b00=1 → string 默认构造 → m_i08=0 → m_i0c=0 →
+// vector<unsigned char> 构造，函数体再 clear() 两个成员；隐式拷贝构造/赋值/
+// 析构按声明序与 ORIG 弱符号形态一致。
+class PassiveObjGeneratorPattern
+{
+public:
+    PassiveObjGeneratorPattern();        // ORIG T 0x08a3ad70
+    // ORIG W 0x08a47d72：byte@0 + string@4 + int@8 + int@0xc + vector<uchar>@0x10。
+    PassiveObjGeneratorPattern& operator=(const PassiveObjGeneratorPattern& o)
+    {
+        m_b00 = o.m_b00;
+        m_s04 = o.m_s04;
+        m_i08 = o.m_i08;
+        m_i0c = o.m_i0c;
+        m_v10 = o.m_v10;
+        return *this;
+    }
+
+    unsigned char m_b00;                 // +0x00（ctor=1，movb 实证）
+    std::string m_s04;                   // +0x04
+    int m_i08;                           // +0x08（ctor=0）
+    int m_i0c;                           // +0x0c（ctor=0）
+    std::vector<unsigned char> m_v10;    // +0x10
+};  // sizeof == 0x1c（new_allocator construct movl $0x1c 实证）
+static_assert(sizeof(PassiveObjGeneratorPattern) == 0x1c,
+              "PassiveObjGeneratorPattern ABI drift (ORIG 0x1c)");
+
+// ---- PassiveObjGeneratorSequence（ORIG C1 T 0x08a3ae0a / C1ERKS_ W 0x08a4812a /
+//      D1 W 0x08a3e756 / aSERKS_ W 0x08a481d4；sizeof==0x8）----
+// 布局证据：ctor 顺序 string 默认构造 → m_i04=0 → 函数体 string::clear；
+// 隐式拷贝构造/赋值/析构与 ORIG 弱符号形态一致。
+class PassiveObjGeneratorSequence
+{
+public:
+    PassiveObjGeneratorSequence();       // ORIG T 0x08a3ae0a
+    // ORIG W 0x08a481d4：string@0 拷贝 + int@4 直拷。
+    PassiveObjGeneratorSequence& operator=(const PassiveObjGeneratorSequence& o)
+    {
+        m_s00 = o.m_s00;
+        m_i04 = o.m_i04;
+        return *this;
+    }
+
+    std::string m_s00;                   // +0x00
+    int m_i04;                           // +0x04（ctor=0）
+};  // sizeof == 0x8（new_allocator construct movl $0x8 实证）
+static_assert(sizeof(PassiveObjGeneratorSequence) == 0x8,
+              "PassiveObjGeneratorSequence ABI drift (ORIG 0x8)");
+
+// ---- PassiveObjGeneratorInfo（ORIG C1/C2/D1/D2 全 W 弱符号
+//      0x08a3e8ae/0x08a3e156：编译器隐式生成——C1 按声明序构造
+//      pattern → sequence → object 三 vector（带 unwind 清理），
+//      D1 逆序析构 object → sequence → pattern）----
+// 布局证据：C1 objdump 依次 call vector<Pattern>C1(this+0x0) /
+// vector<Sequence>C1(this+0xc) / vector<Object>C1(this+0x18)；
+// 主类 m_genInfo 占 +0x1b0..+0x1d4（0x24）= 3 × vector 0xc。
 class PassiveObjGeneratorInfo
 {
 public:
-    PassiveObjGeneratorInfo();           // ORIG W 0x08a3e8ae
-
-private:
-    struct PatternStub { int m_v[3]; };  // 占位推导用 [推断]
-    PatternStub m_stub_;                 // [推断] 对齐 0x24 总尺寸
-
-public:
-    int m_i20;                           // +0x20
-};
+    std::vector<PassiveObjGeneratorPattern> m_patterns;    // +0x00
+    std::vector<PassiveObjGeneratorSequence> m_sequences;  // +0x0c
+    std::vector<PassiveObjGeneratorObject> m_objects;      // +0x18
+};  // sizeof == 0x24（ORIG C1 三 vector 构造实证）
 
 // ---- STPassiveObjectAdditionalParticleInfo（仅前向声明，动态分配）----
 struct STPassiveObjectAdditionalParticleInfo;
@@ -130,16 +234,30 @@ public:
 class STPassiveObjectAddEffect
 {
 public:
-    void clear() {}                      // ORIG W 0x08a3da06 空体（忠实转写）
+    void clear();                        // ORIG W 0x08a3da06 空体（cpp 定义）
     STPassiveObjectAddEffect();          // ORIG W 0x08a3da0c
+    ~STPassiveObjectAddEffect();         // ORIG W 0x08a3e110
 
     std::vector<std::string> m_strs00;   // +0x00
     std::vector<int> m_ints0c;           // +0x0c
 };  // sizeof == 0x18
 
-// ---- RandomItemFairy（ORIG vector<RandomItemFairy> ctor 0x08a41110；
-//      完整定义由 W8LT_PassiveObjectImport.cpp 承载，本头仅前置声明）----
-class RandomItemFairy;
+// ---- RandomItemFairy（ORIG C1/C2 W 0x8a3db5e：ctor 仅调 clear；
+//      clear W 0x8a3db72：+0 movl $0 直写 + 循环 i=0..2 清 +4+i*4；
+//      D1/D2 W 0x8a4f436 空体（push ebp/mov/pop ebp/ret 5 字节））----
+// 布局证据：clear 单指令清 +0、`0x4(%eax,%edx,4)` 索引寻址清 +4/+8/+c；
+// ImportPassiveObjectScript token 分支以 ScanInt 顺序填充 4 个 int
+// （local_d44 → iStack_d40/d3c/d38 实证，push_back 基址即 +0）。
+class RandomItemFairy
+{
+public:
+    RandomItemFairy();             // ORIG W 0x8a3db5e（cpp 定义；P69：ctor 内 call clear）
+    void clear();                  // ORIG W 0x8a3db72（cpp 定义）
+    ~RandomItemFairy() {}          // ORIG W 0x8a4f436 空体
+
+    int m_i00;                     // +0x00（clear movl $0 直写）
+    int m_ints04[3];               // +0x04..+0x0c（clear 循环 i=0..2 清零）
+};  // sizeof == 0x10
 
 // ---- STPassiveObjectScript 主类 ----
 // 字段语义待 Import/exportPassiveObjectScript token 分支进一步具名化；
@@ -148,6 +266,9 @@ class STPassiveObjectScript
 {
 public:
     STPassiveObjectScript();             // ORIG W 0x08a3a538
+    // ORIG D1/D2 W 0x08a3e25a：string(+0x284) → vector<RandomItemFairy>(+0x274) →
+    // PassiveIObjSniperInfo(+0x1ec) → … 成员析构链（用户空析构让编译器生成）。
+    ~STPassiveObjectScript() {}
     void clear();                        // ORIG W 0x08a3a9e6
 
     int m_idx;                                  // +0x000（clear=0）
@@ -184,12 +305,12 @@ public:
     unsigned char m_b9c;                        // +0x09c
     int m_ia0;                                  // +0x0a0（clear=1）
     int m_ia4;                                  // +0x0a4
-    int m_ia8;                                  // +0x0a8
-    int m_iac;                                  // +0x0ac
+    float m_fa8;                                // +0x0a8（clear 经 edx 中转 0.0f 实证）
+    float m_fac;                                // +0x0ac（clear 经 edx 中转 0.0f 实证）
     int m_ib0;                                  // +0x0b0（clear=500）
     unsigned char m_bb4;                        // +0x0b4
-    int m_ib8;                                  // +0x0b8
-    int m_ibc;                                  // +0x0bc
+    float m_fb8;                                // +0x0b8（clear 经 edx 中转 0.0f 实证）
+    float m_fbc;                                // +0x0bc（clear 经 edx 中转 0.0f 实证）
     float m_fc0;                                // +0x0c0（clear=180.0f）
     int m_ic4;                                  // +0x0c4
     int m_ic8;                                  // +0x0c8
@@ -211,7 +332,7 @@ public:
     int m_i15c;                                 // +0x15c
     std::vector<int> m_onAttackData;            // +0x160
     unsigned char m_b16c;                       // +0x16c
-    float m_f170;                               // +0x170（clear=1.0f）
+    float m_f170;                               // +0x170（clear=-1.0f：mov $0xbf800000,%edx 实证）
     int m_i174;                                 // +0x174
     int m_i178;                                 // +0x178
     std::string m_s17c;                         // +0x17c
@@ -227,6 +348,7 @@ public:
     std::vector<class RandomItemFairy> m_itemFairies;               // +0x274
     unsigned char m_b280;                       // +0x280
     std::string m_s284;                         // +0x284
+    int m_i288;                                 // +0x288（结构末 int；ORIG 0x8a35725 写入实证）
 };
 
 #endif  // W8LT_PASSIVE_OBJECT_SCRIPT_H_

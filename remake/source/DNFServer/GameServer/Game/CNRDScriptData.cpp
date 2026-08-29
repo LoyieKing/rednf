@@ -93,7 +93,7 @@ int CNRDScriptData::import(const char* path)
     if (!loadRDARScriptFile("Data/", path))
     {
         // ORIG import 失败分支（0x807fb4e 起）：logFormat 记录后返回 0。
-        LogManager::logFormat(0, "../../DNFShared/CNRDScriptData.cpp", "import", 0x33,
+        LogManager::logFormat(0, "../../DNFShared/CNRDScriptData.cpp", __FUNCTION__, 0x33,
                                  "CNRDScriptData::import: fail to load file - %s", path);
         return 0;
     }

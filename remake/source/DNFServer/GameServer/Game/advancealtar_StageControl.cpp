@@ -199,7 +199,7 @@ int StageControl::selectStage(CUser* user, int stageId,
 // ----------------------------------------------------------------------------
 // ORIG T 0x081306be（sendEplp.md 全文）：getUser 判空直接返回；
 //   available = user->m_advanceAltar.isAvailableTciket()（CUser+0x8df60）；
-//   NOTIPacketStruct::_NotiAdvanceAltarEplpState{int eplpType;
+//   char isAvailableTicket; pad[3]}（8B，权威定义 NOTIPacketStruct.h）；
 //   char isAvailableTicket; pad[3]}（8B，权威定义 advancealtar.h）；
 //   put_header(0,0x20e) + put_binary(8) + finalize(true) → Send。
 // ----------------------------------------------------------------------------
@@ -290,7 +290,7 @@ void StageControl::gotoStage(CUser* user)
     Village* vill = G_GameWorld()->getUserVillage(user);
     if (vill == 0)
     {
-        cMyTrace trace("static void advancealtar::StageControl::gotoStage(CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x585, 5);
         trace("%d", (int)user->getCurCharacVill());
         return;
@@ -299,7 +299,7 @@ void StageControl::gotoStage(CUser* user)
     Area* area = vill->getArea(areaId);
     if (area == 0)
     {
-        cMyTrace trace("static void advancealtar::StageControl::gotoStage(CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x58c, 5);
         trace("%d", areaId);
         return;

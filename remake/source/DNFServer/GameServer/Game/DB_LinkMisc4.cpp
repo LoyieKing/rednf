@@ -16,6 +16,10 @@
 #include "DB_EventUpdateGrowthWeaponTimepiece.h"
 #include "DB_ReqChangeCharacName.h"
 #include "DB_TestTradeRestrict.h"
+#include "DBDispatcher.h"
+#include "DBMgr.h"
+#include "MySQL.h"
+#include <map>
 
 // ============================================================================
 // DB_EventGrowthWeaponReset::makeRequest @ 0x08449980
@@ -55,10 +59,7 @@ void DB_EventUpdateGrowthWeaponTimepiece::makeRequest(
 // DB_ReqChangeCharacName::makeRequest @ 0x08426590
 // mangled _ZN22DB_ReqChangeCharacName11makeRequestEiiPKci
 // Acquire("DBThread.cpp", 0x64de)；<<0xc3(int) → <<accId(int) →
-// GetInBuffer<SIG_CHANGE_CHARAC_NAME> 直填 +0x00/+0x04(strncpy 0x1d)/+0x24/
-// +0x2c（渠道组低字节，ORIG mov 0x378(%eax),%eax; mov %dl,0x2c）。
-// SIG_CHANGE_CHARAC_NAME 当前权威布局为 char m_pad[0x30]（SigTypes.h），
-// 按报告偏移写入。
+// SIG_CHANGE_CHARAC_NAME 权威布局见 SigTypes_A.h（总 0x30），按报告偏移写入。
 // ============================================================================
 void DB_ReqChangeCharacName::makeRequest(int accId, int characIdx,
                                          char const* name, int flag)
@@ -68,23 +69,23 @@ void DB_ReqChangeCharacName::makeRequest(int accId, int characIdx,
     guard.operator*()->operator<<(0xc3);
     guard.operator*()->operator<<(accId);       // operator<<(int) 0x080c8c56
 
-    // ORIG 请求体具名视图（总 0x30，与 SIG_CHANGE_CHARAC_NAME 布局一致）：
-    // +0x00 characIdx / +0x04 name[0x20] / +0x24 flag / +0x2c 渠道组字节。
-    // 渠道组 = CEnvironment+0x378（m_serverEnvir.m_serverGroup）低字节。
-    struct ChangeCharacNameBody
+    // ORIG 请求体 = SIG_CHANGE_CHARAC_NAME（SigTypes_A.h，总 0x30）：
+    // +0x00 m_characNo ← characIdx / +0x04 m_name strncpy 0x1d /
+    // +0x24 m_arg24 ← flag / +0x2c m_arg2c 低字节 ← 渠道组
+    // （CEnvironment+0x378 = m_serverEnvir.m_serverGroup，ORIG mov %dl,0x2c）。
+    SIG_CHANGE_CHARAC_NAME* body =
+        guard.operator->()->GetInBuffer<SIG_CHANGE_CHARAC_NAME>();
+    *reinterpret_cast<int*>(body) = characIdx;
+    strncpy(body->m_name, name, 0x1d);
+    body->m_arg24 = flag;
+    // +0x2c 仅写低字节：ORIG 为 char 成员 disp 折叠（mov %dl,0x2c），
+    // 用局部尾部视图模拟（m_arg2c 在共享头为 uint，直写会变 32 位 store）。
+    struct ChangeCharacNameTail
     {
-        int characIdx;      // +0x00
-        char name[0x20];    // +0x04（strncpy 写 0x1d）
-        int flag;           // +0x24
-        char gap[4];        // +0x28（ORIG 保留区）
-        char group;         // +0x2c
+        char m_pad[0x2c];
+        char m_group;
     };
-    ChangeCharacNameBody* body = reinterpret_cast<ChangeCharacNameBody*>(
-        guard.operator->()->GetInBuffer<SIG_CHANGE_CHARAC_NAME>());
-    body->characIdx = characIdx;
-    strncpy(body->name, name, 0x1d);
-    body->flag = flag;
-    body->group =
+    reinterpret_cast<ChangeCharacNameTail*>(body)->m_group =
         static_cast<char>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -103,4 +104,182 @@ void DB_TestTradeRestrict::makeRequest(unsigned int accId)
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(accId);       // operator<<(unsigned int) 0x080e2292
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}
+
+// ============================================================================
+// DB_EventGrowthWeaponReset::dispatch @ 0x084498fe
+// mangled _ZN25DB_EventGrowthWeaponReset8dispatchEiiP6Stream
+// GetDBHandle(DB_HANDLE_9, 0) → Stream>>m_id(u32) →
+// set_query("deLete from event_1207_growthweapon where m_id = %u", m_id) →
+// exec(true) 成功返回 true。
+// ============================================================================
+bool DB_EventGrowthWeaponReset::dispatch(int userIdx, int slot, Stream* stream)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
+    unsigned int m_id = 0;
+    *stream >> m_id;
+    db->set_query("deLete from event_1207_growthweapon where m_id = %u", m_id);
+    if (!db->exec(true))
+        return false;
+    return true;
+}
+
+// ============================================================================
+// DB_EventUpdateGrowthWeaponTimepiece::dispatch @ 0x084496f4
+// mangled _ZN35DB_EventUpdateGrowthWeaponTimepiece8dispatchEiiP6Stream
+// GetDBHandle(DB_HANDLE_9, 0) → >>m_id(u32) → >>timepiece(short) →
+// >>infinityweapon_id(int)；id==0 时 UPDATE 不带 reward_occ_date，
+// 否则带 reward_occ_date = now()；exec 成功返回 true。
+// ============================================================================
+bool DB_EventUpdateGrowthWeaponTimepiece::dispatch(int userIdx, int slot, Stream* stream)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
+    unsigned int m_id = 0;
+    short timepiece = 0;
+    int infinityweapon_id = 0;
+    *stream >> m_id;
+    *stream >> timepiece;
+    *stream >> infinityweapon_id;
+    if (infinityweapon_id != 0)
+    {
+        db->set_query("upDate event_1207_growthweapon set  reward_occ_date = now(), "
+                      "timepiece = %d, infinityweapon_id = %d  where m_id = %u",
+                      (int)timepiece, infinityweapon_id, m_id);
+    }
+    else
+    {
+        db->set_query("upDate event_1207_growthweapon set  timepiece = %d, "
+                      "infinityweapon_id = %d  where m_id = %u",
+                      (int)timepiece, infinityweapon_id, m_id);
+    }
+    if (!db->exec(true))
+        return false;
+    return true;
+}
+
+// ============================================================================
+// DB_TestTradeRestrict::dispatch @ 0x0844a0be
+// mangled _ZN20DB_TestTradeRestrict8dispatchEiiP6Stream
+// GetDBHandle(DB_HANDLE_3, 0) → >>charac_no(u32) → UPDATE trade_restrict=1 →
+// exec 后恒返回 true。
+// ============================================================================
+bool DB_TestTradeRestrict::dispatch(int userIdx, int slot, Stream* stream)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, E_SERVER_GROUP_NONE);
+    unsigned int charac_no = 0;
+    *stream >> charac_no;
+    db->set_query("upDate user_items set trade_restrict = 1 where charac_no = %u", charac_no);
+    db->exec(true);
+    return true;
+}
+
+// ============================================================================
+// DB_ReqChangeCharacName::dispatch @ 0x084262ea
+// mangled _ZN22DB_ReqChangeCharacName8dispatchEiiP6Stream
+// 基类 DBDispatcher::dispatch 校验失败 → false；随后：
+// GetDBHandle(DB_HANDLE_2,0) → GetOutBuffer<SIG_CHANGE_CHARAC_NAME>() 读请求体 →
+// escape_string 名字 → env+0x68 m_dbConnInfo[DB_HANDLE_2].m_db(+0x42) 库名 →
+// _hasSameCharacName 重名检查（!=0 直接 _sendResult 返回）→
+// UPDATE charac_info；exec&&affected!=0 失败 → _sendResult(2) →
+// GetDBHandle(DB_HANDLE_8,0) 读 guild_member.guild_id（失败/无行清零 m_arg28）→
+// _sendResult(slot, 0)。
+// ============================================================================
+bool DB_ReqChangeCharacName::dispatch(int userIdx, int slot, Stream* stream)
+{
+    if (!DBDispatcher::dispatch(userIdx, slot, stream))
+        return false;
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
+    SIG_CHANGE_CHARAC_NAME* sig = stream->GetOutBuffer<SIG_CHANGE_CHARAC_NAME>();
+
+    char name_buf[60] = { '\0' };   // 转义缓冲区（ORIG rep stos 清零 60 字节）
+    db->escape_string(name_buf, sig->m_name);
+
+    // env+0x68 = m_dbConnInfo（经 get_db_conn_info accessor 具名访问）。
+    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
+    ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;   // ORIG 栈上局部初始值 2
+    int ret = _hasSameCharacName(
+        db,
+        G_CEnvironment()->get_db_conn_info()[connIdx].m_db,
+        name_buf);
+    if (ret != 0)
+    {
+        _sendResult(sig, slot, ret);
+        return true;
+    }
+
+    db->set_query("upDate charac_info set charac_name='%s' where charac_no=%d and delete_flag=0",
+                  name_buf, sig->m_characNo);
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        _sendResult(sig, slot, 2);
+        return true;
+    }
+
+    MySQL* guildDb = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
+    // ORIG movzbl 0x2c(%eax)（8 位读）；m_arg2c 为 uint 成员，用 P82 尾部视图折叠为单 disp。
+    struct ChangeCharacNameByteView
+    {
+        char m_pad[0x2c];
+        unsigned char m_serverId;
+    };
+    guildDb->set_query("seLect guild_id from guild_member where charac_no=%d and member_flag=1 "
+                       "and server_id=%d",
+                       sig->m_characNo,
+                       reinterpret_cast<ChangeCharacNameByteView*>(sig)->m_serverId);
+    sig->m_arg28 = 0;
+    if (!(guildDb->exec(true) && guildDb->fetch()))
+        sig->m_arg28 = 0;
+    if (guildDb->get_n_rows() == 0)
+        sig->m_arg28 = 0;
+    else if (!guildDb->get_uint(0, sig->m_arg28))
+        sig->m_arg28 = 0;
+    _sendResult(sig, slot, 0);
+    return true;
+}
+
+// ============================================================================
+// DB_ReqChangeCharacName::_hasSameCharacName @ 0x084267c2
+// mangled _ZN22DB_ReqChangeCharacName18_hasSameCharacNameEP5MySQLPKcS3_
+// set_query("seLect delete_flag from %s.charac_info where charac_name='%s'")；
+// exec 失败 → 2；无行 → 0；fetch/get_int 失败 → 2；
+// delete_flag==0 → 0x14，delete_flag!=0 → 0x18。
+// ============================================================================
+int DB_ReqChangeCharacName::_hasSameCharacName(MySQL* db, char const* table, char const* name)
+{
+    db->set_query("seLect delete_flag from %s.charac_info where charac_name='%s'", table, name);
+    if (!db->exec(true))
+        return 2;
+
+    	    int delete_flag = 0;
+    if (db->get_n_rows() != 0)
+    {
+        bool ok = db->fetch() && db->get_int(0, delete_flag);
+        if (ok)
+            return delete_flag == 0 ? 0x14 : 0x18;
+        return 2;
+    }
+    return 0;
+}
+
+// ============================================================================
+// DB_ReqChangeCharacName::_sendResult @ 0x084266a4
+// mangled _ZN22DB_ReqChangeCharacName11_sendResultEPK22SIG_CHANGE_CHARAC_NAMEii
+// Acquire("DBThread.cpp", 0x64f8) → <<0xc3 → <<slot →
+// GetInBuffer<SIG_CHANGE_CHARAC_NAME>() 回填请求体（+0x28←sig+0x24、+0x24←result、
+// +0x00←sig+0x00、+0x2c←sig+0x28、strncpy name 0x1d）→ put(DISPATCH_Q)。
+// ============================================================================
+void DB_ReqChangeCharacName::_sendResult(SIG_CHANGE_CHARAC_NAME const* sig, int slot, int result)
+{
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x64f8), true);
+    guard.operator*()->operator<<(0xc3);
+    guard.operator*()->operator<<(slot);
+    SIG_CHANGE_CHARAC_NAME* out = guard.operator->()->GetInBuffer<SIG_CHANGE_CHARAC_NAME>();
+    out->m_arg28 = sig->m_arg24;
+    out->m_arg24 = result;
+    out->m_characNo = sig->m_characNo;
+    out->m_arg2c = sig->m_arg28;
+    strncpy(out->m_name, sig->m_name, 0x1d);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }

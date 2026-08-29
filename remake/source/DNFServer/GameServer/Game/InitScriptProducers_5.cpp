@@ -44,14 +44,6 @@
                                      // （须在 CDataManager.h 后包含；本 TU 不使用
                                      //   其余重类型声明，仅借签名一致性）
 
-// ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp /
-//      PvP_MissionSystem.cpp 同布局：+0x00 std::map<int,std::string>，0x18）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;             // +0x00
-    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp 提供
-};
 // ORIG 0x088bbd77 _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii..
 // 定义 STScriptFileList.cpp（int：1=成功 / 0=失败；第 4 参未使用）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
@@ -95,7 +87,7 @@ void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table
 std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript = 0;  // B 0x094f7bf8
 
 // ORIG 静态成员定义（声明 CreatureScript.h）：B 0x094fefa0，396 字节。
-int CreatureScript::ExpTable_E[0x63];
+int CreatureScript::ExpTable_[0x63];
 
 // ============================================================================
 // 目录拷贝辅助（TU 内部 static；各 init* objdump 同构段合并，语义逐条对应：
@@ -239,7 +231,7 @@ bool initCreatureScript(const char* dir, const char* list, const char* expTable)
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, expTable))
         return false;
     for (int i = 0; i <= 0x62; ++i)
-        CreatureScript::ExpTable_E[i] = ScanInt((bool*)0);
+        CreatureScript::ExpTable_[i] = ScanInt((bool*)0);
     return loadRDARScriptListFile(
                reinterpret_cast<STScriptFileList*>(&g_creatureScriptFileList),
                g_creatureScriptBaseDirectory, list, 0) != 0;
@@ -257,47 +249,25 @@ void InitMapEquipmentAniScript(void)
 }
 
 // ============================================================================
-// WorldMapScript 静态图案表（ORIG nm 真实静态成员；此前 source 无类声明，
-// 本 TU 为首个定义点——后续如建权威 WorldMapScript.h 应迁移此块）。
+// WorldMapScript 静态图案表（ORIG nm 真实静态成员；权威声明见 WorldMapScript.h，
+// 本 TU 提供定义）。
 //
-// aWorldMapPatternTable_E（B 0x09501020，size 0x4b0）：[3][10] 条目，每条目
-// 0x28 = { std::string name@+0x00 ; int coord[3][2]@+0x08 }。
-//   证据（initWorldMapScript 0x8ab013b..0x8ab01ea）：字符串写地址 =
-//   base + i*0x190 + j*0x28；整数写地址 = base+8 + (k*2+l)*4 +
-//   (i*50+j*5+k)*8 ↔ 条目 [i][j].coord[k][l]。
-//
+// 0x28 = STWorldmapPattern（string + int + coord[3][2] 聚合@+0x08 + int + int）。
+// 0x28 = STWorldmapPattern（string + 9 int；coord[3][2] 落在 +0x08..+0x24）。
 // aWorldMapPatternTable2ND_E（B 0x095014e0）：[20] 条目，每条目 0x1c =
-// { int base@+0 ; int coord[3][2]@+4 }（loadWorldMapCoordPattern 0x8ab02c7..
-// 0x8ab033a：head 写 base+i*0x1c；坐标写 base+4+(j*2+i*7+k)*4）。
+// STWorldmapPattern2ND（{ int base@+0 ; int coord[3][2]@+4 }）。
 // ============================================================================
 // ---- 本 TU 下方定义的依赖（前置声明）----
 bool loadWorldMapCoordPattern(void);   // _Z24loadWorldMapCoordPatternv 0x08ab0234
 float ScanAbsOrRel(bool& isAbs, std::string& str, bool& gotValue, bool consume);
                                        // _Z12ScanAbsOrRelRbRSsS_b 0x088bcbef
 
-struct stWorldMapPatternEntry          // 0x28
-{
-    std::string m_name;                // +0x00（[name] ScanType 拷贝）
-    int m_coord[3][2];                 // +0x08（[map info] 3x2 ScanInt）
-};
+#include "WorldMapScript.h"
 
-struct stWorldMapPatternEntry2ND       // 0x1c
-{
-    int m_base;                        // +0x00（ScanAbsOrRel 返回值截断）
-    int m_coord[3][2];                 // +0x04
-};
+// 静态表定义（权威类型见 WorldMapScript.h；ORIG B 0x09501020 / 0x095014e0）。
+STWorldmapPattern WorldMapScript::aWorldMapPatternTable_[3][10];
+STWorldmapPattern2ND WorldMapScript::aWorldMapPatternTable2ND_[20];
 
-class WorldMapScript
-{
-public:
-    static stWorldMapPatternEntry aWorldMapPatternTable_E[3][10];      // _ZN14WorldMapScript22aWorldMapPatternTable_EE
-    static stWorldMapPatternEntry2ND aWorldMapPatternTable2ND_E[20];   // _ZN14WorldMapScript25aWorldMapPatternTable2ND_EE
-};
-
-stWorldMapPatternEntry WorldMapScript::aWorldMapPatternTable_E[3][10];
-stWorldMapPatternEntry2ND WorldMapScript::aWorldMapPatternTable2ND_E[20];
-
-// ============================================================================
 // initWorldMapScript —— ORIG 0x08ab000c（init.md:2555 +0x3314；失败路径直接
 // return false 由 init 终止）。四步：
 // ① 目录拷贝（0x9500f00，0x100）+ loadRDARScriptListFile(0x9501000)；
@@ -322,15 +292,17 @@ bool initWorldMapScript(char* dir, char* list)
     {
         if (!ScanType(token, true))
             break;                       // ORIG jne 0x8ab01f7 → 直达 ④
-        for (int j = 0; j <= 9; ++j)
+                for (int j = 0; j <= 9; ++j)
         {
-            WorldMapScript::aWorldMapPatternTable_E[i][j].m_name = token;
+            // ORIG 0x8ab013b/0x8ab017a：完整表达式逐次重算 i/j 偏移
+            // （(i*50+j*5+k)*2+l 复合索引），不缓存条目引用。
+            WorldMapScript::aWorldMapPatternTable_[i][j].m_str0 = token;
             for (int k = 0; k <= 2; ++k)
             {
                 for (int l = 0; l <= 1; ++l)
                 {
-                    WorldMapScript::aWorldMapPatternTable_E[i][j].m_coord[k][l] =
-                        ScanInt((bool*)0);
+                    WorldMapScript::aWorldMapPatternTable_[i][j]
+                        .m_coord.m_coord[k][l] = ScanInt((bool*)0);
                 }
             }
         }
@@ -363,12 +335,12 @@ bool loadWorldMapCoordPattern(void)
         int base = (int)ScanAbsOrRel(isAbs, token, gotValue, true);
         if (!gotValue)
             break;                       // test al,al; jne 0x8ab0351
-        WorldMapScript::aWorldMapPatternTable2ND_E[i].m_base = base;
+        WorldMapScript::aWorldMapPatternTable2ND_[i].m_base = base;
         for (int j = 0; j <= 2; ++j)
         {
             for (int k = 0; k <= 1; ++k)
             {
-                WorldMapScript::aWorldMapPatternTable2ND_E[i].m_coord[j][k] =
+                WorldMapScript::aWorldMapPatternTable2ND_[i].m_coord[j][k] =
                     ScanInt((bool*)0);
             }
         }
@@ -391,7 +363,7 @@ bool loadWorldMapCoordPattern(void)
 //     其余  → isAbs=true; got=false;
 //   尾判：tok∈{0,2,3,4,5} → return result；tok==1 时 consume 则告警日志后
 //   继续循环（LogManager::logFormat file="../RDARScript.cpp"(0x8e0851c),
-//   func="ScanAbsOrRel", line=1496, fmt="ERROR! %s - TYPE mismatch. %s:%d,
+//   func=__FUNCTION__, line=1496, fmt="ERROR! %s - TYPE mismatch. %s:%d,
 //   token = '%s'"(0x8e08658)，实参 func/streamName/lineNo/tokenData）。
 // ============================================================================
 const char* toTString(const char* pszSrc);   // SyncScriptDeps.h 权威声明（避免拖入其依赖）
@@ -446,7 +418,7 @@ float ScanAbsOrRel(bool& isAbs, std::string& str, bool& gotValue, bool consume)
             std::string streamName = g_dnfLex.getStreamName();
             std::string lastData = g_dnfLex.getLastTokenDataAsString();
             LogManager::logFormat(
-                0, "../RDARScript.cpp", "ScanAbsOrRel", 1496,
+                0, "../RDARScript.cpp", __FUNCTION__, 1496,
                 "ERROR! %s - TYPE mismatch. %s:%d, token = '%s'",
                 "ScanAbsOrRel", streamName.c_str(), g_dnfLex.getLastLineNo(),
                 lastData.c_str());

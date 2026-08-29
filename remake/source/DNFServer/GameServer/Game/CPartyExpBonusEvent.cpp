@@ -19,7 +19,7 @@ CPartyExpBonusEvent::~CPartyExpBonusEvent()
 void CPartyExpBonusEvent::StartEvent()
 {
     SetEventFlag(true);
-    cMyTrace trace("virtual void CPartyExpBonusEvent::StartEvent()", 0x10, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x10, 0);
     trace("Party Exp Bonus Event Start! (%x%%)", m_field0c);
 }
 
@@ -35,7 +35,7 @@ void CPartyExpBonusEvent::StartEvent(Word_Param param)
 void CPartyExpBonusEvent::EndEvent()
 {
     SetEventFlag(false);
-    cMyTrace trace("virtual void CPartyExpBonusEvent::EndEvent()", 0x1b, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1b, 0);
     trace("Party Exp Bonus Event End!");
 }
 

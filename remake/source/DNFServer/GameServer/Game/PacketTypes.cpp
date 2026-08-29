@@ -41,7 +41,13 @@ MSG_CHANGE_ANOTHER_SKILL_TREE::MSG_CHANGE_ANOTHER_SKILL_TREE()
 {
     m_0d = 0xff;  // ORIG C1：哨兵
 }
-MSG_CHANGE_AVATAR_OPTION::MSG_CHANGE_AVATAR_OPTION() {}
+MSG_CHANGE_AVATAR_OPTION::MSG_CHANGE_AVATAR_OPTION()
+    : m_consumeSlot(0xffff), m_consumeItemIdx(-1), m_avatarSlot(0xffff),
+      m_equipItemIdx(-1), m_option(0xff)
+{
+    // ORIG 0x0822e0cc：MSG_BASE C1 后 +0x0d word=-1/+0x0f dword=-1/+0x13
+    // word=-1/+0x15 dword=-1/+0x19 byte=0xff（初始列表序一致）。
+}
 MSG_CHANGE_EMOTION::MSG_CHANGE_EMOTION() {}
 MSG_CHANGE_HOST_WARROOM::MSG_CHANGE_HOST_WARROOM() {}
 MSG_CHANGE_LETTER_STAT::MSG_CHANGE_LETTER_STAT() {}
@@ -143,11 +149,11 @@ MSG_GUILD_CARGO_PUSH_ITEM::MSG_GUILD_CARGO_PUSH_ITEM() {}
 MSG_HATCH_CREATURE::MSG_HATCH_CREATURE() {}
 MSG_INFORM_NOTICE::MSG_INFORM_NOTICE()
 {
-    m_0d = 0x80;  // ORIG C1：notice 类型哨兵
+    m_noticeFlag = 0x80;  // ORIG C1：notice 类型哨兵（字段化改名，值语义不变）
 }
 MSG_INFORM_NOTICE_2ND::MSG_INFORM_NOTICE_2ND()
 {
-    m_0d = 0x80;  // ORIG C1
+    m_noticeFlag = 0x80;  // ORIG C1（字段化改名）
 }
 MSG_ITEM_DICTIONARY::MSG_ITEM_DICTIONARY() {}
 MSG_ITEM_HYPER_LINK_MESSAGE::MSG_ITEM_HYPER_LINK_MESSAGE() {}
@@ -198,15 +204,15 @@ MSG_P2P_STATISTICS::MSG_P2P_STATISTICS()
 MSG_PARTY_TELEPORT::MSG_PARTY_TELEPORT()
 {
     // ORIG C1：byte/byte/word/word/byte 全零
-    m_0d = 0;
-    m_0e = 0;
-    m_0f = 0;
-    m_11 = 0;
-    m_13 = 0;
+    m_field0d = 0;
+    m_field0e = 0;
+    m_field0f = 0;
+    m_field11 = 0;
+    m_field13 = 0;
 }
 MSG_PARTY_TELEPORT_CONFIRM::MSG_PARTY_TELEPORT_CONFIRM()
 {
-    m_0d = 0;  // ORIG C1
+    m_confirmFlag = 0;  // ORIG C1（字段化改名）
 }
 MSG_PURIFY_ITEM::MSG_PURIFY_ITEM()
 {
@@ -247,7 +253,7 @@ MSG_REFUND_SKILL::MSG_REFUND_SKILL()
 MSG_REGISTER_TO_BLACKLIST::MSG_REGISTER_TO_BLACKLIST() {}
 MSG_RENAME_CREATURE::MSG_RENAME_CREATURE()
 {
-    memset(m_14, 0, sizeof(m_14));  // ORIG C1：memset(this+0x14,0,0xd)
+    memset(m_name, 0, sizeof(m_name));  // ORIG C1：memset(this+0x14,0,0xd)（字段化改名）
 }
 MSG_RENT_ITEM::MSG_RENT_ITEM()
 {  // ORIG C1：+0xd/+0xe byte 清零、memset(this+0xf,0,2)
@@ -328,8 +334,8 @@ MSG_TITLEBOOK_OTHERUSER::MSG_TITLEBOOK_OTHERUSER() {}
 MSG_TITLEBOOK_PUT::MSG_TITLEBOOK_PUT() {}
 MSG_UPDATE_CONTRACT_OF_CUBE_INFO::MSG_UPDATE_CONTRACT_OF_CUBE_INFO()
 {
-    m_0d = 0;  // ORIG C1
-    m_0e = 0;
+    m_useFlag = 0;    // ORIG C1（字段化改名，值语义不变）
+    m_selectIdx = 0;
 }
 MSG_USER_HISTORY_LOG::MSG_USER_HISTORY_LOG()
 {
@@ -490,7 +496,7 @@ stCharacSlotExtendEffect::stCharacSlotExtendEffect()
 }
 stClientSpecStatisticParam::stClientSpecStatisticParam()
 {
-    m_4 = 0;  // ORIG C1：byte
+    m_spec = 0;  // ORIG C1：byte（字段化改名）
 }
 stCloseDisjointStoreParam::stCloseDisjointStoreParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
@@ -500,7 +506,7 @@ stCollectItems::stCollectItems()
     m_8 = 0;
     m_a = 0;
 }
-stComboSkill::stComboSkill() : m_4(0) {}
+stComboSkill::stComboSkill() : m_result(0) {}
   // ORIG C1：+0x04 int 清零
 stComboSkillExtensionQuickSlotReset::stComboSkillExtensionQuickSlotReset() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
@@ -535,7 +541,7 @@ stEnterDisjointStoreParam::stEnterDisjointStoreParam() : m_4(0) {}
   // ORIG C1：+0x04 int 清零
 stEquipslotSwitch::stEquipslotSwitch()
 {
-    m_4 = 0;  // ORIG C1：byte
+    m_result = 0;  // ORIG C1：byte（字段化改名）
 }
 stExchangeRandomItemReward::stExchangeRandomItemReward() : m_4(0), m_8(0), m_9(0) {}  // ORIG 0x823191e
 stExpandEquipslotFlagUpdate::stExpandEquipslotFlagUpdate()

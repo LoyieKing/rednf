@@ -37,6 +37,7 @@
 #include "Statistics.h"
 #include "CUserProc.h"
 #include "Packet_Server_Match_data.h"
+#include "MatchRoomList.h"     // IMatch（m_matching 虚表 36 槽权威声明）
 
 // ============================================================================
 // ============================================================================
@@ -51,19 +52,19 @@ public:
 private:
     char m_pad[0x10];
 };
-
 // ============================================================================
-// PvP 全局数据（ORIG 定义；从 GameStubs.cpp 迁移）：
+// PvP 全局数据（ORIG 定义）：
 //   PVP_NORMAL_BATTLE_TIME 0x93f4ee0 / PVP_DM_BATTLE_TIME 0x93f4ee8，各 [2] int
+//   —— ORIG 中与 g_equipmentPartSetMap_/characterEquipmentTypeTags 同 TU，
+//      定义归 InitScriptProducers_2.cpp（首个具名对象，键名 _GLOBAL__I_PVP_NORMAL_BATTLE_TIME）。
 //   PVPMAP_DEATHMATCH_MODE 0x94f70e0 / PVPMAP_ONLY_NORMAL_EXPOSURE 0x94f7108
 //   PVPMAP_ONLY_TOURNAMENT_RANDOM 0x94f711c，各 0x14 char（零初始化 BSS）
 // ============================================================================
-int PVP_NORMAL_BATTLE_TIME[2] = {0, 0};
-int PVP_DM_BATTLE_TIME[2] = {0, 0};
+extern int PVP_NORMAL_BATTLE_TIME[2];
+extern int PVP_DM_BATTLE_TIME[2];
 char PVPMAP_DEATHMATCH_MODE[0x14] = {0};
 char PVPMAP_ONLY_NORMAL_EXPOSURE[0x14] = {0};
 char PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14] = {0};
-
 // ============================================================================
 // 自由函数
 // ============================================================================
@@ -181,12 +182,12 @@ void PvP_Room::setReamtchable(bool flag)
 
 int PvP_Room::GetRequestedMapNo()
 {
-    return (int)m_field5c4;
+    return (int)m_requestedMapNo;
 }
 
 void PvP_Room::SetRequestedMapNo(short mapNo)
 {
-    m_field5c4 = mapNo;
+    m_requestedMapNo = mapNo;
 }
 
 int PvP_Room::GetTeamCount(int team)
@@ -209,16 +210,14 @@ void PvP_Room::lock()
 void PvP_Room::unlock()
 {
 }
-// TIMER_KEY 家族：ORIG 寻址形态（get_timer_key 0x863bcb4 / gen_timer_key 0x8568d90 /
-// CheckTimerKey 0x863bccc，报告缺失，objdump 取证）：计数数组位于 +0x16c，
-// 按 [msg-0x30+0x88] 索引，以 pad[0x220] 成员视图承载（P24 组范式）。
+// CheckTimerKey 0x863bccc，报告缺失，objdump 取证）：计数数组位于 +0x22c，
+// 按 [msg-0x30+0x88]*4+0xc 索引（与 m_field22c 区域重叠），以 pad[0x22c] 成员视图承载。
 struct TimerKeyView
 {
-    char m_pad[0x220];
+    char m_pad[0x22c];
     int m_keys[0x40];
 };
-
-#define P_TIMER_KEY(m)   (((TimerKeyView*)this)->m_keys[((int)(m)) - 0x30])
+#define P_TIMER_KEY(m)   (((TimerKeyView*)this)->m_keys[(m) - 0x30])
 
 unsigned int PvP_Room::gen_timer_key(TIMER_MESSAGE msg)
 {
@@ -236,17 +235,17 @@ bool PvP_Room::CheckTimerKey(TIMER_MESSAGE msg, int key)
 }
 unsigned char PvP_Room::IsExistPassword()
 {
-    return m_field604;
+    return m_isExistPassword;
 }
 
 unsigned char PvP_Room::IsEndPvpBattle()
 {
-    return m_field617;
+    return m_isEndPvpBattle;
 }
 
 unsigned char PvP_Room::IsInsertTimerRecvPvpRank()
 {
-    return m_field616;
+    return m_isInsertTimerRecvPvpRank;
 }
 
 // ----------------------------------------------------------------------------
@@ -294,7 +293,7 @@ int PvP_Room::CalculateVictoryPointOfSinglePlay(int rank, bool win, int score)
     }
     else
     {
-        cMyTrace local_20("int PvP_Room::CalculateVictoryPointOfSinglePlay(int, bool, int)",
+        cMyTrace local_20(__PRETTY_FUNCTION__,
                           0xb50, 5);
         local_20("invalid rank %d", rank);
     }
@@ -342,7 +341,7 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
                     }
                     if (local_28 == rankCount)
                     {
-                        cMyTrace local_54("void PvP_Room::CalcuateVictoryPoint(int*, int)", 0xb7c, 5);
+                        cMyTrace local_54(__PRETTY_FUNCTION__, 0xb7c, 5);
                         local_54("1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
                                  local_2c, rankCount);
                         goto LAB_085da583;
@@ -383,7 +382,7 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
                     }
                     if (local_1c == rankCount)
                     {
-                        cMyTrace local_44("void PvP_Room::CalcuateVictoryPoint(int*, int)", 0xb97, 5);
+                        cMyTrace local_44(__PRETTY_FUNCTION__, 0xb97, 5);
                         local_44("1 PvP_Room::CalcuateVictoryPoint Error, No Rank User Found i<%d> RankCount<%d>",
                                  local_24, rankCount);
                         goto LAB_085da583;
@@ -437,13 +436,13 @@ bool PvP_Room::CheckPassword(const char* password, int len)
 
 int PvP_Room::IsPvpObserver(int seat)
 {
-    if (seat <= 7)
+    if (seat > 7)
     {
-        if ((P_TEAMS(seat) == 3) || (P_TEAMS(seat) == 4))
-        {
-            return 1;
-        }
         return 0;
+    }
+    if ((m_teams[seat] == 3) || (m_teams[seat] == 4))
+    {
+        return 1;
     }
     return 0;
 }
@@ -453,34 +452,31 @@ int PvP_Room::check_joinable(CUser* user)
     int local_10;
     if (m_state == 1)
     {
-        local_10 = (*(int (**)(void*, void*, void*))(*(char**)m_matching + 0x70))(
-            (void*)m_matching, this, user);
-        if (local_10 != 0)
+        if ((local_10 = ((IMatch*)m_matching)->CheckJoinable(this, user)) != 0)
         {
             return local_10;
         }
         for (int local_f4 = 0; local_f4 < 8; local_f4 = local_f4 + 1)
         {
-            if ((P_SEATS(local_f4) == 0) && (P_TEAMS(local_f4) == 0xff))
+            if ((P_SEATS(local_f4) == 0) && (m_teams[local_f4] == 0xff))
             {
                 return 0;
             }
         }
-        local_10 = 4;
+        return 4;
     }
     else
     {
-        local_10 = 4;
+        return 4;
     }
-    return local_10;
 }
 
 int PvP_Room::IsQuickJoinablePVPRoom(CUser* user)
 {
+    // P24：ORIG 内联实参（0x085d6c1c），getCurCharacNo 结果直传不落栈槽
     if (check_joinable(user) == 0)
     {
-        unsigned characNo = m_seats[7]->getCurCharacNo();
-        if (user->find_pvp_masterid_walkingout_me(characNo) != 1)
+        if (user->find_pvp_masterid_walkingout_me(m_seats[7]->getCurCharacNo()) != 1)
         {
             return 1;
         }
@@ -719,7 +715,7 @@ int PvP_Room::count_pvp_user()
     {
         if (P_SEATS(local_8) != 0)
         {
-            local_c = local_c + 1;
+            local_c += 1;
         }
     }
     return local_c;
@@ -956,8 +952,7 @@ bool PvP_Room::is_last_win(int seat)
         return false;
     }
     int iVar1 = GetTeamIndex(P_SEATS(seat));
-    int iVar2 = m_userTable.GetWinTeam();
-    return iVar2 == iVar1;
+    return m_userTable.GetWinTeam() == iVar1;
 }
 
 bool PvP_Room::IsAllMoreThanGrade(int grade)
@@ -1065,7 +1060,7 @@ int PvP_Room::check_winner()
                 local_20 = local_20 + 1;
             }
         }
-        cMyTrace local_54("bool PvP_Room::check_winner()", 0xa3c, 0);
+        cMyTrace local_54(__PRETTY_FUNCTION__, 0xa3c, 0);
         local_54("PvP_Room::check_winner single : %d", local_20);
         if (m_deathMatch.checkGameOverForSinglePlay(local_20) != 0)
         {
@@ -1076,7 +1071,7 @@ int PvP_Room::check_winner()
     else if (m_pvpBattleMode == 5)
     {
         int uVar2 = get_pvp_team_cnt();
-        cMyTrace local_44("bool PvP_Room::check_winner()", 0xa46, 0);
+        cMyTrace local_44(__PRETTY_FUNCTION__, 0xa46, 0);
         local_44("PvP_Room::check_winner team  : %d", uVar2);
         int iVar3 = get_pvp_team_cnt();
         if (m_deathMatch.checkGameOverForTeamPlay(m_users, iVar3, m_teamWin) != 0)
@@ -1132,8 +1127,8 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
         return 0x13;
     }
     m_matching = (int)m_pMatchingSystem->GetMatchingSystem((ENUM_PVP_MATCHING_TYPE)GetMatchingType());
-    (*(int (**)(void*, short*, int*))(*(char**)m_matching + 0x18))(
-        (void*)m_matching, &m_field5c4, &m_pvpBattleMode);
+    ((IMatch*)m_matching)->RequestMap(m_requestedMapNo,
+                                      reinterpret_cast<PVP_BATTLE_MODE&>(m_pvpBattleMode));
     if (m_state != 0)
     {
         return 0x13;
@@ -1152,10 +1147,10 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     }
     user->SetPvpIndex((short)m_index);
     m_joinCount = 1;
-    m_field5c4 = local_44;
-    m_field5c6 = m_field5c4;
-    m_field604 = local_45 ? 1 : 0;
-    if (m_field604 != 0)
+    m_requestedMapNo = local_44;
+    m_playMapNo = m_requestedMapNo;
+    m_isExistPassword = local_45 ? 1 : 0;
+    if (m_isExistPassword != 0)
     {
         m_passwordLen = d;
         memset(m_password, 0, 9);
@@ -1164,9 +1159,8 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     m_relayMgr.OnCreateRoom(m_managerSeat);
     m_deathMatch.OnCreateRoom(m_managerSeat);
     m_pvpBattleMode = local_48;
-    int ret = (*(int (**)(void*, void*))(*(char**)m_matching + 0x20))(
-        (void*)m_matching, user);
-    if (ret != 0)
+    int ret = 0;
+    if ((ret = ((IMatch*)m_matching)->OnCreateRoom(user)) != 0)
     {
         return ret;
     }
@@ -1252,8 +1246,7 @@ LAB_085d6dde:
     local_64.finalize(true);
     local_70.finalize(true);
     lock();
-    int local_44 = (*(int (**)(void*, void*, void*))(*(char**)m_matching + 0x70))(
-        (void*)m_matching, this, user);
+    int local_44 = ((IMatch*)m_matching)->CheckJoinable(this, user);
     if (local_44 != 0)
     {
         unlock();
@@ -1361,7 +1354,7 @@ LAB_085d6dde:
     *(int*)((char*)user + 0x796fc) = 0;
     m_joinCount = m_joinCount + 1;
     m_relayMgr.OnJoinRoom(seat);
-    (*(int (**)(void*, void*))(*(char**)m_matching + 0x28))((void*)m_matching, user);
+    ((IMatch*)m_matching)->OnJoinRoom(user);
     return 0;
 }
 
@@ -1410,8 +1403,7 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
             }
         }
         m_relayMgr.OnLeaveRoom(local_24);
-        (*(int (**)(void*, void*, void*, int, int))(*(char**)m_matching + 0x2c))(
-            (void*)m_matching, user, this, local_20, local_24);
+        ((IMatch*)m_matching)->OnLeaveRoom(user, this, local_20, local_24);
     }
     return local_24;
 }
@@ -1454,8 +1446,7 @@ int PvP_Room::Disconnect(CUser* user)
         }
         local_10 = local_10 + 1;
     }
-    (*(int (**)(void*, void*, int))(*(char**)m_matching + 0x44))(
-        (void*)m_matching, this, local_10);
+    ((IMatch*)m_matching)->OnWalkOut(this, local_10);
     int ret = WalkOut(P_SEATS(local_10), local_10, ENUM_SEAT_STATE_0xfe,
                       (ENUM_WALKOUT_TYPE)3);
     if (ret != 1)
@@ -1490,15 +1481,14 @@ int PvP_Room::WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
     if ((get_waiter_count() == 0) && (local_27 != 1))
     {
         LogManager::logFormat(1, "pvp.cpp",
-                              "bool PvP_Room::WalkOut(CUser*, int, ENUM_SEAT_STATE, ENUM_WALKOUT_TYPE)",
+                              __PRETTY_FUNCTION__,
                               0x1210, "PvP Room(%d) is empty!!!", get_index());
     }
     if (local_10 == 0)
     {
         if (local_24 != 0)
         {
-            (*(int (**)(void*, void*, void*, int, int))(*(char**)m_matching + 0x2c))(
-                (void*)m_matching, local_24, this, local_14, seat);
+            ((IMatch*)m_matching)->OnLeaveRoom(local_24, this, local_14, seat);
             G_GameWorld()->out_from_pvp(local_24);
         }
         if (local_25 != 0)
@@ -1540,8 +1530,7 @@ int PvP_Room::OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
         local_14 = 8;
         goto LAB_085dd357;
     }
-    if ((*(int (**)(void*, int))(*(char**)m_matching + 0x74))(
-            (void*)m_matching, (int)state) != 1)
+    if (((IMatch*)m_matching)->CheckSeat((int)state) != 1)
     {
         local_14 = 8;
         goto LAB_085dd357;
@@ -1572,15 +1561,14 @@ int PvP_Room::OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
     if ((get_waiter_count() == 0) && (local_27 != 1))
     {
         LogManager::logFormat(1, "pvp.cpp",
-                              "bool PvP_Room::OnSetPVPSeatState(CUser*, int, ENUM_SEAT_STATE, ENUM_WALKOUT_TYPE)",
+                              __PRETTY_FUNCTION__,
                               0x11be, "PvP Room(%d) is empty!!!", get_index());
     }
     if (local_14 == 0)
     {
         if (local_24 != 0)
         {
-            (*(int (**)(void*, void*, void*, int, int))(*(char**)m_matching + 0x2c))(
-                (void*)m_matching, local_24, this, local_10, seat);
+            ((IMatch*)m_matching)->OnLeaveRoom(local_24, this, local_10, seat);
             G_GameWorld()->out_from_pvp(local_24);
             local_24->insert_pvp_masterid_walkingout_me((unsigned)user->getCurCharacNo());
         }
@@ -1654,8 +1642,7 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
             P_WIN(seat) = 0;
             unlock();
             m_relayMgr.OnLeaveRoom(seat);
-            (*(int (**)(void*, void*, void*, int, int))(*(char**)m_matching + 0x2c))(
-                (void*)m_matching, *out, this, local_24, seat);
+            ((IMatch*)m_matching)->OnLeaveRoom(*out, this, local_24, seat);
             if (get_waiter_count() == 0)
             {
                 reset();
@@ -1721,8 +1708,7 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
             P_SEATS(seat) = 0;
             m_joinCount = m_joinCount - 1;
             m_relayMgr.OnLeaveRoom(seat);
-            (*(int (**)(void*, void*, void*, int, int))(*(char**)m_matching + 0x2c))(
-                (void*)m_matching, *out, this, local_20, seat);
+            ((IMatch*)m_matching)->OnLeaveRoom(*out, this, local_20, seat);
             if (get_waiter_count() == 0)
             {
                 reset();
@@ -1759,8 +1745,7 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
 
 int PvP_Room::set_ready_state(CUser* user, bool ready)
 {
-    if ((*(int (**)(void*, void*, bool))(*(char**)m_matching + 0x48))(
-            (void*)m_matching, user, ready) != 1)
+    if (((IMatch*)m_matching)->OnReady(user, ready) != 1)
     {
         return 0;
     }
@@ -1833,7 +1818,7 @@ int PvP_Room::make_room_info(char* buf)
     }
     local_ec->put_byte(m_state);
     local_ec->put_byte(m_managerSeat);
-    local_ec->put_short((int)m_field5c4);
+    local_ec->put_short((int)m_requestedMapNo);
     local_ec->put_byte(m_pvpBattleMode);
     for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
@@ -1849,8 +1834,8 @@ int PvP_Room::make_room_info(char* buf)
             local_ec->put_byte((int)P_SEATS(local_10)->isAllowLocationGeoState());
         }
     }
-    local_ec->put_byte(m_field604);
-    local_ec->put_int((*(int (**)(void*))(*(char**)m_matching + 8))((void*)m_matching));
+    local_ec->put_byte(m_isExistPassword);
+    local_ec->put_int(((IMatch*)m_matching)->GetIndentification());
 }
 
 int PvP_Room::make_seat_info(char* buf, int seat)
@@ -1865,7 +1850,7 @@ int PvP_Room::make_seat_info(char* buf, int seat)
         local_18->put_byte(local_14);
         if (local_14 == 0)
         {
-            LogManager::logFormat(1, "pvp.cpp", "void PvP_Room::make_seat_info(char*, int)",
+            LogManager::logFormat(1, "pvp.cpp", __PRETTY_FUNCTION__,
                                   0xe66, "Send Member 0 PvpRoom %d State(%d)", m_index, m_state);
         }
         lock();
@@ -1877,7 +1862,7 @@ int PvP_Room::make_seat_info(char* buf, int seat)
                 local_18->put_byte(P_TEAMS(local_10));
                 local_18->put_short((int)P_SEATS(local_10)->get_unique_id() & 0xffff);
                 local_18->put_byte((int)P_SEATS(local_10)->isAllowLocationGeoState());
-                cMyTrace local_28("void PvP_Room::make_seat_info(char*, int)", 0xe74, 0);
+                cMyTrace local_28(__PRETTY_FUNCTION__, 0xe74, 0);
                 local_28("RELAY_BATTLE SeatInfo player(%d), team(%d), uid(%d)\n",
                          local_10, P_TEAMS(local_10),
                          (int)P_SEATS(local_10)->get_unique_id() & 0xffff);
@@ -1913,9 +1898,9 @@ int PvP_Room::make_state_info(char* buf)
     local_f4->put_short(m_index);
     local_f4->put_byte(m_state);
     local_f4->put_byte(m_managerSeat);
-    local_f4->put_short((int)m_field5c4);
+    local_f4->put_short((int)m_requestedMapNo);
     local_f4->put_byte(m_pvpBattleMode);
-    local_f4->put_int((*(int (**)(void*))(*(char**)m_matching + 8))((void*)m_matching));
+    local_f4->put_int(((IMatch*)m_matching)->GetIndentification());
     local_f4->finalize(true);
 }
 
@@ -1923,14 +1908,14 @@ void PvP_Room::get_room_info(PVP_ROOM_INFO* out)
 {
     out->title = m_roomName;
     out->byte4 = m_mode8;
-    out->short6 = m_field5c4;
-    out->byte8 = m_field604;
+    out->short6 = m_requestedMapNo;
+    out->byte8 = m_isExistPassword;
     out->passwd = m_password;
 }
 
 void PvP_Room::get_user_list(void* out)
 {
-    (*(void (**)(void*, void*))(*(char**)m_matching + 0x14))((void*)m_matching, out);
+    ((IMatch*)m_matching)->GetUserList(out);
 }
 
 void PvP_Room::send_to_pvp(PacketGuard& guard)
@@ -2094,7 +2079,7 @@ int PvP_Room::GiveOuterPenalty(CUser* user)
     int local_10 = GetTeamIndex(user);
     if (m_userTable.IsValidTeam(local_10) != 1)
     {
-        cMyTrace local_20("void PvP_Room::GiveOuterPenalty(CUser*)", 0x10f8, 5);
+        cMyTrace local_20(__PRETTY_FUNCTION__, 0x10f8, 5);
         local_20("Invalid Team(%d)", local_10);
         goto LAB_085dcd66;
     }
@@ -2132,7 +2117,7 @@ int PvP_Room::GiveOuterPenalty(CUser* user)
     {
         user->add_pvp_result(false, 0);
     }
-    (*(int (**)(void*, void*))(*(char**)m_matching + 0x60))((void*)m_matching, user);
+    ((IMatch*)m_matching)->OnGiveup(user);
 LAB_085dcd66:
     ;
 }
@@ -2141,26 +2126,28 @@ int PvP_Room::VoteLackUser(CUser* user, int vote)
 {
     if ((vote < 0) || (7 < vote))
     {
-        LogManager::logFormat(1, "pvp.cpp", "bool PvP_Room::VoteLackUser(CUser*, int)",
+        LogManager::logFormat(1, "pvp.cpp", __PRETTY_FUNCTION__,
                               0x116d, "VoteSlotNo(%d) < 0 || MAX_PVP_PLAYER < VoteSlotNo", vote);
         return 0;
     }
-    if ((P_SEATS(vote) == user) || (P_SEATS(vote) == 0))
+    CUser* u = P_SEATS(vote);
+    if ((u == user) || (u == 0))
     {
         return 0;
     }
     int iVar2 = get_user_seat(user);
     if ((iVar2 < 0) || (8 < iVar2))
     {
-        LogManager::logFormat(1, "pvp.cpp", "bool PvP_Room::VoteLackUser(CUser*, int)",
+        LogManager::logFormat(1, "pvp.cpp", __PRETTY_FUNCTION__,
                               0x117b, "UserSlotNo(%d) < 0 || MAX_PVP_PLAYER < UserSlotNo", iVar2);
         return 0;
     }
     m_election.Vote(iVar2, vote);
-    unsigned int key = gen_timer_key((TIMER_MESSAGE)0x31);
-    TimerQueue* tq = G_TimerQueue();
-    tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
-                                (TIMER_MESSAGE)0x31, 0x9c4LL, (int)key, 0);
+    // P24/P52：ORIG 链式内联实参（0x085dd01a），key 先物化 ebx、m_index 缓存 esi，
+    // G_TimerQueue() 置后，跨调用 callee-saved 存活
+    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
+                                            (TIMER_MESSAGE)0x31, 0x9c4LL,
+                                            (int)gen_timer_key((TIMER_MESSAGE)0x31), 0);
     return 1;
 }
 
@@ -2168,7 +2155,7 @@ int PvP_Room::OnConnectP2PPvPTimeout()
 {
     if (!check_start_state())
     {
-        (*(int (**)(void*, void*))(*(char**)m_matching + 0x58))((void*)m_matching, this);
+        ((IMatch*)m_matching)->OnConnectP2PTimeout(this);
     }
 }
 
@@ -2179,8 +2166,7 @@ int PvP_Room::OnTimerWalkOutLackUser()
     {
         m_election.CancelCandidate(local_10);
         m_election.CancelVoter(local_10);
-        (*(int (**)(void*, void*, int))(*(char**)m_matching + 0x44))(
-            (void*)m_matching, this, local_10);
+        ((IMatch*)m_matching)->OnWalkOut(this, local_10);
         if (OnSetPVPSeatState(P_SEATS(local_10), local_10, ENUM_SEAT_STATE_0xfe,
                               (ENUM_WALKOUT_TYPE)3) != 1)
         {
@@ -2208,17 +2194,27 @@ int PvP_Room::HandleTimerUserRevive(int seat)
 
 int PvP_Room::SkipLastRankResultTimer()
 {
+    // P31：ORIG 帧 0x18 vs gcc4.4 0x8，补 4 个未用局部对齐帧深（ORIG 0x085d9ba4）
+    int d1;
+    int d2;
+    int d3;
+    int d4;
     gen_timer_key((TIMER_MESSAGE)0x32);
 }
 
 int PvP_Room::CancelAllTimer()
 {
+    // P31：ORIG 帧 0x18 vs gcc4.4 0x8，补 4 个未用局部对齐帧深（ORIG 0x085d6c42）
+    int d1;
+    int d2;
+    int d3;
+    int d4;
     gen_timer_key((TIMER_MESSAGE)0x32);
 }
 
 int PvP_Room::end_pvp()
 {
-    (*(int (**)(void*, void*))(*(char**)m_matching + 0x40))((void*)m_matching, this);
+    ((IMatch*)m_matching)->OnEndFight(this);
 }
 
 int PvP_Room::end_pvp_result()
@@ -2237,7 +2233,7 @@ int PvP_Room::end_pvp_result()
 
 int PvP_Room::send_pvp_end()
 {
-    m_field617 = 1;
+    m_isEndPvpBattle = 1;
     if (G_GameWorld()->GetChannelType() != 6)
     {
         update_pvp_point();
@@ -2248,9 +2244,9 @@ int PvP_Room::send_pvp_end()
 
 int PvP_Room::pvp_request_pvp_rank()
 {
-    if (m_field615 == 0)
+    if (m_rankRequested == 0)
     {
-        m_field615 = 1;
+        m_rankRequested = 1;
         PacketGuard local_18;
         local_18.put_header(0, 0x31);
         local_18.finalize(true);
@@ -2261,7 +2257,7 @@ int PvP_Room::pvp_request_pvp_rank()
 
 int PvP_Room::request_fight(CUser* user)
 {
-    if ((unsigned char)m_field614 != 0)
+    if ((unsigned char)m_battleEndFlag != 0)
     {
         return 1;
     }
@@ -2323,7 +2319,7 @@ int PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
         return 1;
     }
     char cVar1 = (char)IsDeathMatchMap(mapNo, flag);
-    if ((cVar1 != 0) && (flag == false) && (m_pvpBattleMode == 4))
+    if ((cVar1 != 0) && (!flag) && (m_pvpBattleMode == 4))
     {
         return 1;
     }
@@ -2497,7 +2493,7 @@ int PvP_Room::GetCandidateMapIndexList(std::vector<int>& out)
 
 int PvP_Room::insert_timer_recv_pvp_rank()
 {
-    if (m_field616 != 0)
+    if (m_isInsertTimerRecvPvpRank != 0)
     {
         return 1;
     }
@@ -2505,14 +2501,14 @@ int PvP_Room::insert_timer_recv_pvp_rank()
     TimerQueue* tq = G_TimerQueue();
     tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
                                 (TIMER_MESSAGE)0x3c, 10000LL, (int)key, 0);
-    m_field616 = 1;
+    m_isInsertTimerRecvPvpRank = 1;
     return 1;
 }
 
 int PvP_Room::insert_timer_recv_pvp_end_result()
 {
     unsigned int key = gen_timer_key((TIMER_MESSAGE)0x3d);
-    int ms = (*(int (**)(void*))(*(char**)m_matching + 0x7c))((void*)m_matching);
+    int ms = ((IMatch*)m_matching)->GetEndPvPResultTimeout();
     TimerQueue* tq = G_TimerQueue();
     tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
                                 (TIMER_MESSAGE)0x3d, (long long)ms, (int)key, 0);
@@ -2610,7 +2606,7 @@ bool PvP_Room::IsThereSameGuildMember()
 
 int PvP_Room::get_extra_win_point(int team)
 {
-    return (*(int (**)(void*, int))(*(char**)m_matching + 0x1c))((void*)m_matching, team);
+    return ((IMatch*)m_matching)->GetExtraWinPoint(team);
 }
 
 int PvP_Room::battle_reset()
@@ -2635,10 +2631,10 @@ int PvP_Room::battle_reset()
     m_userTable.Clear();
     m_fieldC0 = 0;
     m_relayMgr.Reset();
-    m_field614 = 0;
-    m_field615 = 0;
-    m_field616 = 0;
-    m_field617 = 0;
+    m_battleEndFlag = 0;
+    m_rankRequested = 0;
+    m_isInsertTimerRecvPvpRank = 0;
+    m_isEndPvpBattle = 0;
     for (int local_10 = 0x31; local_10 < 0x3f; local_10 = local_10 + 1)
     {
         if (local_10 != 0x3e)
@@ -2674,8 +2670,8 @@ int PvP_Room::reset()
     m_relayMgr.SetParent(this);
     m_deathMatch.Reset();
     m_deathMatch.SetParent(this);
-    m_field616 = 0;
-    m_field617 = 0;
+    m_isInsertTimerRecvPvpRank = 0;
+    m_isEndPvpBattle = 0;
     unlock();
 }
 
@@ -2749,27 +2745,27 @@ int PvP_Room::start_pvp()
         goto LAB_085d91da;
     }
     {
-        (*(int (**)(void*, short*, int*))(*(char**)m_matching + 0x18))(
-            (void*)m_matching, &m_field5c4, &m_pvpBattleMode);
-        if ((m_field5c4 < 0) || (m_field5c4 > G_CDataManager()->m_mapList->GetPVPMapCount()))
+        ((IMatch*)m_matching)->RequestMap(m_requestedMapNo,
+                                          reinterpret_cast<PVP_BATTLE_MODE&>(m_pvpBattleMode));
+        if ((m_requestedMapNo < 0) || (m_requestedMapNo > G_CDataManager()->m_mapList->GetPVPMapCount()))
         {
-            cMyTrace local_48("void PvP_Room::start_pvp()", 0x880, 0);
-            local_48("START_PVP request_map_index(%d)", (int)m_field5c4);
-            m_field5c4 = 0;
+            cMyTrace local_48(__PRETTY_FUNCTION__, 0x880, 0);
+            local_48("START_PVP request_map_index(%d)", (int)m_requestedMapNo);
+            m_requestedMapNo = 0;
         }
-        if (m_field5c4 == 0)
+        if (m_requestedMapNo == 0)
         {
-            m_field5c6 = (short)SelectRandomMap();
-            if ((m_field5c6 < 0) ||
-                (m_field5c6 >= G_CDataManager()->m_mapList->GetPVPMapCount()))
+            m_playMapNo = (short)SelectRandomMap();
+            if ((m_playMapNo < 0) ||
+                (m_playMapNo >= G_CDataManager()->m_mapList->GetPVPMapCount()))
             {
-                cMyTrace local_38("void PvP_Room::start_pvp()", 0x88b, 0);
-                local_38("START_PVP select_map_index(%d)", (int)m_field5c6);
+                cMyTrace local_38(__PRETTY_FUNCTION__, 0x88b, 0);
+                local_38("START_PVP select_map_index(%d)", (int)m_playMapNo);
             }
         }
         else
         {
-            m_field5c6 = m_field5c4;
+            m_playMapNo = m_requestedMapNo;
         }
         if (G_GameWorld()->GetChannelType() == 6)
         {
@@ -2788,7 +2784,7 @@ int PvP_Room::start_pvp()
                 P_SEATS(local_10)->reset_pvp_masterid_walkingout_me();
                 local_54.clear();
                 local_54.put_header(0, 0x2d);
-                local_54.put_byte((int)m_field5c6);
+                local_54.put_byte((int)m_playMapNo);
                 local_54.put_byte(m_pvpBattleMode);
                 local_54.finalize(true);
                 P_SEATS(local_10)->Send(local_54);
@@ -2798,7 +2794,7 @@ int PvP_Room::start_pvp()
                     P_SEATS(local_10));
             }
         }
-        Statistics::PVPPlay2((int)m_field5c6, m_pvpBattleMode, local_18);
+        Statistics::PVPPlay2((int)m_playMapNo, m_pvpBattleMode, local_18);
         calculate_pvp_point();
         m_fieldBc = get_waiter_count();
         m_state = 2;
@@ -2810,7 +2806,7 @@ int PvP_Room::start_pvp()
         {
             m_deathMatch.OnStart();
         }
-        m_field618 = GlobalData::s_systemTime_.getCurSec();
+        m_battleStartSec = GlobalData::s_systemTime_.getCurSec();
         int local_14 = 0;
         switch (m_pvpBattleMode)
         {
@@ -2848,17 +2844,17 @@ int PvP_Room::start_pvp()
             break;
         }
         GetInstanceCommonStatisticsMgr()->IncreaseQuantity((CCommonStatisticsMgr::ENUM_STATISTIC_CONTAINER)1, local_14);
-        if ((m_field5c6 >= 0) &&
-            (m_field5c6 < G_CDataManager()->m_mapList->GetPVPMapCount()))
+        if ((m_playMapNo >= 0) &&
+            (m_playMapNo < G_CDataManager()->m_mapList->GetPVPMapCount()))
         {
-            GetInstanceCommonStatisticsMgr()->IncreaseQuantity((CCommonStatisticsMgr::ENUM_STATISTIC_CONTAINER)2, (int)m_field5c6);
+            GetInstanceCommonStatisticsMgr()->IncreaseQuantity((CCommonStatisticsMgr::ENUM_STATISTIC_CONTAINER)2, (int)m_playMapNo);
         }
         else
         {
-            cMyTrace local_28("void PvP_Room::start_pvp()", 0x942, 0);
-            local_28("START_PVP filter select_map_index(%d)", (int)m_field5c6);
+            cMyTrace local_28(__PRETTY_FUNCTION__, 0x942, 0);
+            local_28("START_PVP filter select_map_index(%d)", (int)m_playMapNo);
         }
-        (*(int (**)(void*))(*(char**)m_matching + 0x3c))((void*)m_matching);
+        ((IMatch*)m_matching)->OnStartFight();
     }
 LAB_085d91da:
     ;
@@ -2935,17 +2931,17 @@ int PvP_Room::die_charac(CUser* killer, CUser* victim)
 
 int PvP_Room::time_out(int* seats)
 {
-    if (m_field614 != 0)
+    if (m_battleEndFlag != 0)
     {
         return 0;
     }
-    m_field614 = 1;
+    m_battleEndFlag = 1;
     int local_4c = 0;
     if (G_GameWorld()->GetChannelType() == 7)
     {
         local_4c = 1;
     }
-    int local_48 = GlobalData::s_systemTime_.getCurSec() - m_field618;
+    int local_48 = GlobalData::s_systemTime_.getCurSec() - m_battleStartSec;
     int local_44 = 0;
     int iVar2 = m_pvpBattleMode;
     if (0 < iVar2)
@@ -2961,7 +2957,7 @@ int PvP_Room::time_out(int* seats)
     }
     if ((local_44 != local_48) && (local_44 - local_48 >= 0))
     {
-        cMyTrace local_5c("int PvP_Room::time_out(int*)", 0xa9a, 0);
+        cMyTrace local_5c(__PRETTY_FUNCTION__, 0xa9a, 0);
         local_5c("PVP_TIMEOUT_CHECK end_time(%d), play_time(%d)", local_44, local_48);
     }
     if (m_state != 2)
@@ -3108,8 +3104,7 @@ int PvP_Room::pvp_reward()
         }
     }
     char local_5d = (char)check_acquire_guild_point();
-    (*(int (**)(void*, void*, int, bool))(*(char**)m_matching + 0x4c))(
-        (void*)m_matching, this, get_team((int)local_65), local_66 == 1);
+    ((IMatch*)m_matching)->OnReward(this, get_team((int)local_65), local_66 == 1);
     int local_5c = 0;
     while (true)
     {
@@ -3119,7 +3114,7 @@ int PvP_Room::pvp_reward()
             {
                 m_guildWarLog.WriteGuildWarPvPLog(m_index, (char)m_pvpBattleMode, m_users);
             }
-            (*(int (**)(void*, void*))(*(char**)m_matching + 0x50))((void*)m_matching, this);
+            ((IMatch*)m_matching)->OnEndPvP(this);
             break;
         }
         CUser* local_58 = P_SEATS(local_5c);
@@ -3128,7 +3123,7 @@ int PvP_Room::pvp_reward()
             disconnect_detecter::GetInstanceDisconnectDetecter()->UnregisterUser(
                 P_SEATS(local_5c));
             local_58->add_pvp_play_info(
-                GlobalData::s_systemTime_.getCurSec() - m_field618, 1);
+                GlobalData::s_systemTime_.getCurSec() - m_battleStartSec, 1);
             bool bVar15;
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() != 0)
             {
@@ -3330,7 +3325,7 @@ int PvP_Room::pvp_reward()
                     local_94.put_int(local_28);
                     if ((m_pvpBattleMode == 4) || (m_pvpBattleMode == 5))
                     {
-                        cMyTrace local_80("void PvP_Room::pvp_reward()", 0xdab, 0);
+                        cMyTrace local_80(__PRETTY_FUNCTION__, 0xdab, 0);
                         local_80("<PVP_REWARD> Room(%d), iRank(%d), iRankMember(%d), Player(%s), mode(%d), KillCnt(%d), DeathCnt(%d)",
                                  get_index(), local_34, local_30,
                                  P_SEATS(local_30)->getCurCharacName(), m_pvpBattleMode,

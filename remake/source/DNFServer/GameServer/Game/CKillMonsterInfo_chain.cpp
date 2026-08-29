@@ -27,6 +27,7 @@
 // ============================================================================
 
 #include <map>
+#include "CKillMonsterInfo.h"
 #include <string.h>
 
 #include "CBoosterGage.h"          // charac_expand::CData（alter）
@@ -38,6 +39,9 @@
 #include "InterfacePacketBuf.h"    // PacketGuard 发送域接口
 #include "GlobalData.h"            // GlobalData::s_statistic_proxy_mgr
 #include "CStatisticServerProxy.h" // CStatisticServerProxy::SendPacket
+#include "CStreamGuard.h"         // CStreamGuard(Stream*,bool) / Stream
+#include "MsgQueueMgr.h"          // MsgQueueMgr::put(DB_Q, CStreamGuard&)
+#include "SigTypes_C.h"           // SIG_LOAD_KILL_MONSTER_INFO
 
 // ============================================================================
 // CKillMonsterInfo 域 —— 视图布局（ORIG ctor 0x0854c9b4 实证）
@@ -105,7 +109,7 @@ bool KmiRegisterMonsterKillShim(
 
     if (isAPC)
     {
-        if (CAICharacterList::get(G_CDataManager()->m_aiCharacterList, mobIdx)
+        if (G_CDataManager()->m_aiCharacterList->get(mobIdx)
             == 0)
             return false;
     }
@@ -259,4 +263,153 @@ void* GetInstanceHellPartyItemStatisticShim()
 {
     static unsigned char instance[0x24];
     return instance;
+}
+
+
+// ORIG C1 0x0854c9b4：CData 风格 vptr 后三 map 默认构造 + _reset()。
+CKillMonsterInfo::CKillMonsterInfo()
+{
+    _reset();
+}
+
+CKillMonsterInfo::~CKillMonsterInfo()
+{
+}
+
+// ORIG T 0x0854d0b8：三 map clear。
+void CKillMonsterInfo::_reset()
+{
+    m_bossKills.clear();
+    m_namedKills.clear();
+    m_apcBossKills.clear();
+}
+// ============================================================================
+// ORIG 数据序列化域 —— ConvertStructToMap / ConvertMapToStrcut / getData /
+// loadData / _saveData（OrigKillMob 批次；逐报告 ## 汇编 + ## 反编译 C 转写）
+// ============================================================================
+
+
+// ---- ConvertStructToMap —— ORIG T 0x0854cb42 ------------------------------
+// for 循环遍历 st 数组 count 项；mobIdx==0 提前返回 1。bAPC ? 经
+// CAICharacterList::get 校验 : CDataManager::find_monster 校验；失败 logFormat
+// 后 continue（ORIG jmp +0x158 循环增量实证）；通过则共用插入块
+// insert(make_pair(mobIdx, diff))（make_pair 实参序 = 0x4(%esp) mobIdx /
+// 0x8(%esp) diff 实证）。
+int CKillMonsterInfo::ConvertStructToMap(
+    stMonsterInfo_t* pInfo, unsigned int count,
+    std::map<unsigned int, unsigned char>& outMap, bool bAPC)
+{
+    unsigned int mobIdx;
+    unsigned char diff;
+    unsigned int i;
+    void* pMon;
+    void* pAI;
+    for (i = 0; i < count; ++i)
+    {
+        mobIdx = pInfo[i].mobIdx;
+        if (mobIdx == 0)
+            break;
+        if (!bAPC)
+        {
+            pMon = G_CDataManager()->find_monster(mobIdx);
+            if (pMon == 0)
+            {
+                LogManager::logFormat(
+                    1, "KillMonsterInfo.cpp", __PRETTY_FUNCTION__, 0x25,
+                    "ConvertStrToMap ERROR : mobIdx is not valid(%u)", mobIdx);
+                continue;
+            }
+        }
+        if (bAPC)
+        {
+            pAI = G_CDataManager()->m_aiCharacterList->get(mobIdx);
+            if (pAI == 0)
+            {
+                LogManager::logFormat(
+                    1, "KillMonsterInfo.cpp", __PRETTY_FUNCTION__, 0x2e,
+                    "ConvertStrToMap ERROR : mobIdx is not valid(%u)", mobIdx);
+                continue;
+            }
+        }
+        diff = pInfo[i].diff;
+        outMap.insert(std::make_pair(mobIdx, diff));
+    }
+    return 1;
+}
+
+// ---- ConvertMapToStrcut —— ORIG T 0x0854ccbc（const）----------------------
+// empty→1；size>count→0；const_iterator 默认构造后 = begin()（P28 临时中转），
+// while (it != end && i < count) 逐项回写 st[i]（i*5 步长、两次独立重算）。
+int CKillMonsterInfo::ConvertMapToStrcut(
+    const std::map<unsigned int, unsigned char>& inMap,
+    stMonsterInfo_t* pInfo, unsigned int count) const
+{
+    if (inMap.empty())
+        return 1;
+    if (inMap.size() > count)
+        return 0;
+    std::map<unsigned int, unsigned char>::const_iterator it;
+    it = inMap.begin();
+    unsigned int i = 0;
+    while (it != inMap.end() && i < count)
+    {
+        pInfo[i].mobIdx = it->first;
+        pInfo[i].diff = it->second;
+        it++;
+        i++;
+    }
+    return 1;
+}
+
+// ---- getData —— ORIG T 0x0854ce90（const，void）---------------------------
+// 三 map 顺序落盘：+0x0 / +0x1d4c / +0x927c（1500 / 6000 / 1500 项 × 5 字节）。
+void CKillMonsterInfo::getData(char* pData) const
+{
+    char* p = pData;
+    ConvertMapToStrcut(m_bossKills, (stMonsterInfo_t*)p, 0x5dc);
+    ConvertMapToStrcut(m_namedKills, (stMonsterInfo_t*)(p + 0x1d4c), 6000);
+    ConvertMapToStrcut(m_apcBossKills, (stMonsterInfo_t*)(p + 0x927c), 0x5dc);
+}
+
+// ---- loadData —— ORIG T 0x0854cddc ----------------------------------------
+// 开头虚调 vptr[+0x1c] = _reset()（ORIG vtable 槽 7 实证）；三块顺序加载，
+// APC 槽 bAPC=true（第三块）；返回 true。
+bool CKillMonsterInfo::loadData(CUser* pUser, char* pData)
+{
+    _reset();
+    char* p = pData;
+    ConvertStructToMap((stMonsterInfo_t*)p, 0x5dc, m_bossKills, false);
+    ConvertStructToMap((stMonsterInfo_t*)(p + 0x1d4c), 6000, m_namedKills,
+                       false);
+    ConvertStructToMap((stMonsterInfo_t*)(p + 0x927c), 0x5dc, m_apcBossKills,
+                       true);
+    return true;
+}
+
+// ---- _saveData —— ORIG T 0x0854cf16 ---------------------------------------
+// BigStreamPool::Acquire → CStreamGuard(stream,true) → <<0x281/<<UID →
+// GetInBuffer<SIG_LOAD_KILL_MONSTER_INFO>；非空则清零 0xafcc、写 characNo、
+// 三 map 落 SIG 缓冲，put(DB_Q, guard)；返回 pSig!=0。
+bool CKillMonsterInfo::_saveData(CUser* pUser)
+{
+    CStreamGuard guard(
+        GlobalData::s_big_stream_pool->Acquire("KillMonsterInfo.cpp", 0x6b),
+        true);
+    
+    guard.operator*()->operator<<(0x281);
+    guard.operator*()->operator<<(pUser->GetUID());
+
+    SIG_LOAD_KILL_MONSTER_INFO* pSig =
+        guard->GetInBuffer<SIG_LOAD_KILL_MONSTER_INFO>();
+    if (pSig == 0)
+        return false;
+    memset(pSig, 0, 0xafcc);
+    pSig->m_characNo = pUser->get_charac_no(-1);
+    ConvertMapToStrcut(m_bossKills, (stMonsterInfo_t*)pSig, 0x5dc);
+    ConvertMapToStrcut(m_namedKills,
+                       (stMonsterInfo_t*)((char*)pSig + 0x1d4c), 6000);
+    ConvertMapToStrcut(m_apcBossKills,
+                       (stMonsterInfo_t*)((char*)pSig + 0x927c), 0x5dc);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return true;
 }

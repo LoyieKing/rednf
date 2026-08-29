@@ -52,7 +52,7 @@ bool LoadClientFile(unsigned long* outSize, void** outBuf, const char* path)
 // CompareWindowsExeConstantSectionsForSort —— t @0x08572eef（qsort 比较器）
 // 比较 *(unsigned long*)*lhs 与 *(unsigned long*)*rhs。
 // ---------------------------------------------------------------------------
-int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void* rhs)
+static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void* rhs)
 {
     WindowsExeConstantSection* const* a =
         static_cast<WindowsExeConstantSection* const*>(lhs);
@@ -272,7 +272,32 @@ inline void shuffle2(CBitManager& bm, int initTail)
 
 int CObfuscator::Obfuscate2()                                // 0x08585be4
 {
-    shuffle2(*this, 6);
+    // ORIG 单函数 103 条指令（CObfuscator/Obfuscate2.md 报告）：
+    // 局部 i(this+8 区 size-1 倒序)、outIdx、tail 初值 6；
+    // 每轮 GetBit(idx,0,tail)<<（7-tail）与 GetBit(idx,tail+1,7)>>(tail+1)
+    // 合成字节写 m_buffer[size-1]，再搬到 m_buffer[outIdx]。
+    int outIdx = 0;
+    int tail = 6;
+    for (int idx = m_size - 1; idx >= 0; --idx)
+    {
+        unsigned char hi = static_cast<unsigned char>(
+            static_cast<unsigned int>(GetBit(idx, 0, tail)) <<
+                ((7 - tail) & 0x1f));
+        m_buffer[m_size - 1] = hi;
+        unsigned char lo = GetBit(idx, tail + 1, 7);
+        m_buffer[m_size - 1] |= static_cast<unsigned char>(
+            (static_cast<unsigned int>(lo) >> ((tail + 1) & 0x1f)));
+        m_buffer[outIdx] = m_buffer[m_size - 1];
+        ++outIdx;
+        if (tail == 0)
+        {
+            tail = 6;
+        }
+        else
+        {
+            --tail;
+        }
+    }
     return 0;
 }
 
@@ -585,6 +610,20 @@ WindowsDataFileFamily::~WindowsDataFileFamily()
     m_files.clear();
 }
 
+bool WindowsDataFileFamily::IsDifferentFileData(WindowsDataFile* f)    // 0x08575068（非 const）
+{
+    for (std::size_t i = 0; i < m_files.size(); ++i)
+    {
+        const WindowsDataFile& cur = *m_files[i];
+        if (cur.m_size == f->m_size &&
+            memcmp(cur.m_data, f->m_data, cur.m_size) == 0)
+        {
+            return false;                                    // 相同内容 → 非新文件
+        }
+    }
+    return true;
+}
+
 void WindowsDataFileFamily::SetCheckingOption(unsigned long minOff,
                                               unsigned long maxOff) // 0x0857511e
 {
@@ -616,20 +655,6 @@ bool WindowsDataFileFamily::LoadWindowsDataFile(const char* path,
     else
     {
         delete f;                                            // 内容重复仍返回 1
-    }
-    return true;
-}
-
-bool WindowsDataFileFamily::IsDifferentFileData(const WindowsDataFile* f) // 0x08575068
-{
-    for (std::size_t i = 0; i < m_files.size(); ++i)
-    {
-        const WindowsDataFile& cur = *m_files[i];
-        if (cur.m_size == f->m_size &&
-            memcmp(cur.m_data, f->m_data, cur.m_size) == 0)
-        {
-            return false;                                    // 相同内容 → 非新文件
-        }
     }
     return true;
 }
@@ -693,7 +718,7 @@ bool WindowsDataFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
     return true;
 }
 
-bool WindowsDataFileFamily::IsScanningAddressReset() const   // 0x08575444
+bool WindowsDataFileFamily::IsScanningAddressReset()   // 0x08575444
 {
     return m_scanOffset == 0;
 }
@@ -754,7 +779,7 @@ bool WindowsExeFileFamily::LoadWindowsExeFile(const char* path,
     return true;                                             // 重复内容视为成功
 }
 
-bool WindowsExeFileFamily::IsDifferentFileData(const WindowsExeFile* f) // 0x08574ace
+bool WindowsExeFileFamily::IsDifferentFileData(WindowsExeFile* f) // 0x08574ace
 {
     for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
     {

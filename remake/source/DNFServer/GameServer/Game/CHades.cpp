@@ -12,14 +12,100 @@
 
 #include "CEnvironment.h"
 #include "CHadesServerProxy.h"
+#include "DB_InterDeps.h"   // DB_HadesPunish::makeRequest（ORIG T 0x08445dd4）
 #include "GlobalData.h"
 #include "Packet_Hades_Login.h"
 #include "Packet_Hades_StdUpdate.h"
 #include "Packet_Hades_GoldTracking.h"
 #include "Packet_Hades_UserStatus.h"
+#include "Packet_Hades_Logout.h"
+#include "Packet_Hades_AddHackType.h"
+#include "Packet_Hades_Gold_Plus.h"
+#include "Packet_Hades_Gold_Minus.h"
 
 namespace XNuclear
 {
+
+// ORIG 0x084b91e8（Init.md）：挂接 user 指针，清零疲劳计数。
+void CHades::Init(CUser* user)
+{
+    m_user = user;
+    m_useFatigueCnt = 0;
+}
+
+// ORIG 0x084b92ea（Send_Logout.md）。Packet_Hades_Logout（ORIG C1 0x84b996a W，
+// 0xfd3/0xe）：+0x0a acc_id；经 proxy SendHadesTcpPacket 发送。
+void CHades::Send_Logout()
+{
+    Packet_Hades_Logout packet;
+    packet.m_accId = m_user->get_acc_id();
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+}
+
+// ORIG 0x084b9322（Send_HackType.md）：纯空函数（5 指令）。
+void CHades::Send_HackType()
+{
+}
+
+// ORIG 0x084b9328（AddHackTypeCnt.md）。Packet_Hades_AddHackType（ORIG C1
+// 0x84b998e W，0xfd7/0x1a）：+0x0a acc_id、+0x0e (u16)hackType、+0x10 (u16)count、
+// +0x12 param3、+0x16 param4；经 proxy 发送。
+void CHades::AddHackTypeCnt(unsigned long hackType, unsigned long count,
+                            unsigned long param3, unsigned long param4)
+{
+    needLogin();
+
+    Packet_Hades_AddHackType packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_hackType = (unsigned short)hackType;
+    packet.m_count = (unsigned short)count;
+    packet.m_field12 = param3;
+    packet.m_field16 = param4;
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+}
+
+// ORIG 0x084b95a8（ChangeSecurity.md）：仅转调 needLogin()，参数未参与逻辑。
+void CHades::ChangeSecurity(ENUM_HADES_SECURITY type, unsigned int value)
+{
+    (void)type;
+    (void)value;
+    needLogin();
+}
+
+// ORIG 0x084b93f4（Send_ChangeSecurity.md）：纯空函数（5 指令）。
+void CHades::Send_ChangeSecurity(ENUM_HADES_SECURITY type)
+{
+    (void)type;
+}
+
+// ORIG 0x084b93fa（GoldPlus.md）。Packet_Hades_Gold_Plus（ORIG C1 0x84b99b2 W，
+// 0xfda/0x14）：+0x0a acc_id、+0x0e gold、+0x12 (u16)reason；经 proxy 发送。
+void CHades::GoldPlus(unsigned int gold, ENUM_GOLD_CONTROL_REASON reason)
+{
+    needLogin();
+
+    Packet_Hades_Gold_Plus packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_gold = gold;
+    packet.m_reason = (unsigned short)reason;
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+}
+
+// ORIG 0x084b944a（GoldMinus.md）。Packet_Hades_Gold_Minus（ORIG C1 0x84b99d6 W，
+// 0xfdb/0x14）：+0x0a acc_id、+0x0e gold、+0x12 (u16)reason；经 proxy 发送。
+void CHades::GoldMinus(unsigned int gold, ENUM_GOLD_CONTROL_REASON reason)
+{
+    needLogin();
+
+    Packet_Hades_Gold_Minus packet;
+    packet.m_accId = m_user->get_acc_id();
+    packet.m_gold = gold;
+    packet.m_reason = (unsigned short)reason;
+
+    GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
+}
 
 void CHades::Send_ReturnToVillage()
 {
@@ -110,33 +196,19 @@ void CHades::Send_UserStatus()
     Packet_Hades_UserStatus packet;
     packet.m_accId = m_user->get_acc_id();
 
-    unsigned int status = 0;
+    packet.m_status = 0;
 
-    // ORIG 逐次调用 getSecuType（不缓存中间值）；guard 经 callee-saved 寄存器
-    // 承载三路判定结果（ORIG mov $1/$0 + jmp 汇合形态），register 诱导分配。
-    register bool hasSecuGuard;
-    if ((m_user->getSecuType() & 1) != 0)
-    {
-        hasSecuGuard = true;
-    }
-    else if ((m_user->getSecuType() & 2) != 0)
-    {
-        hasSecuGuard = true;
-    }
-    else if ((m_user->getSecuType() & 0x20) != 0)
-    {
-        hasSecuGuard = true;
-    }
-    if (hasSecuGuard)
-        status = status | 1;
+    // ORIG（Send_UserStatus.md）：三路逐次调用 getSecuType()，短路 || 汇聚后 |1。
+    if ((m_user->getSecuType() & 1) != 0 ||
+        (m_user->getSecuType() & 2) != 0 ||
+        (m_user->getSecuType() & 0x20) != 0)
+        packet.m_status = packet.m_status | 1;
 
     if ((m_user->getSecuType() & 8) != 0)
-        status = status | 2;
+        packet.m_status = packet.m_status | 2;
 
     if ((m_user->getSecuType() & 0x10) != 0)
-        status = status | 4;
-
-    packet.m_status = status;
+        packet.m_status = packet.m_status | 4;
 
     GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
 }
@@ -180,4 +252,62 @@ void CHades::GoldTracking(unsigned char type, unsigned int money, char* ip,
     GlobalData::s_hades_proxy->SendHadesTcpPacket((char*)&packet);
 }
 
+// ORIG 0x084b93ee（Send_ChangeGold.md）：纯空函数（push ebp/mov/pop/ret，5 指令）。
+void CHades::Send_ChangeGold()
+{
+}
+
+// ORIG 0x084b95bc（RunHadesAction.md）：Hades 行动分发。
+//  a1==0x40 跳过历史日志；a1&2 → 标记 hack + 交易惩罚 + DB 上报(2)；
+//  a1&1 且非 hack 计时中 → 标记 hack + 开计时 + DB 上报(1)；
+//  a1&4 → DisConnSig(0x39, true, 0)。
+void CHades::RunHadesAction(unsigned int a1, unsigned int a2, unsigned int a3,
+                            unsigned int a4, char* a5)
+{
+    register bool punish;
+
+    if (a1 != 0x40)
+        m_user->m_historyLog.HadesHistoryLog(a1, a2, a3, a4);
+
+    if ((a1 & 2) != 0)
+    {
+        m_user->setHackUserFlag();
+        m_user->SetTradePunishType(4);
+        DB_HadesPunish::makeRequest(m_user->get_acc_id(), 2, a2, a3, a4, a5);
+    }
+
+    punish = (a1 & 1) != 0 && !m_user->isHackUserTimer();
+    if (punish)
+    {
+        m_user->setHackUserFlag();
+        m_user->setHackUserTimer();
+        DB_HadesPunish::makeRequest(m_user->get_acc_id(), 1, a2, a3, a4, a5);
+    }
+
+    if ((a1 & 4) != 0)
+        m_user->DisConnSig((DISCONN_SIG)0x39, true, 0);
+}
+
+// ---- CHades_GameSvr（ORIG 空标记类型）----
+// ORIG C1/C2 @ 0x082a5a68、D1/D2 @ 0x082a5a6e（各 5 字节 = push ebp/mov esp/pop
+// ebp/ret 空体）。GameSvr 侧配置占位；无成员、无基类、无虚函数。
+// 全局对象 s_hades_（_ZN10GlobalData8s_hades_E @ 0941f728）ctor 由 ORIG
+// __static_initialization_and_destruction_0（0x082a3a5a）调用并注册 atexit。
+class CHades_GameSvr
+{
+public:
+    CHades_GameSvr();
+    ~CHades_GameSvr();
+};
+
+CHades_GameSvr::CHades_GameSvr()
+{
+}
+
+CHades_GameSvr::~CHades_GameSvr()
+{
+}
+
 }  // namespace XNuclear
+// GlobalData 静态成员（namespace 形态，见 GlobalData.h 注释）；完整类型见上。
+XNuclear::CHades_GameSvr GlobalData::s_hades_;

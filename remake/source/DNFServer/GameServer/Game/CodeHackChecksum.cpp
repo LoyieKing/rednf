@@ -127,7 +127,7 @@ void CodeHackChecksumData::AddCodeHackChecksum(const CodeHackChecksum& c)      /
     m_checksums.push_back(c);
 }
 
-bool CodeHackChecksumData::IsRightChecksum(const CodeHackChecksum* p) const    // T @0x0808a662
+bool CodeHackChecksumData::IsRightChecksum(const CodeHackChecksum* p) // T @0x0808a662
 {
     for (checksum_iterator it = const_cast<CodeHackChecksumData*>(this)->m_checksums.begin();
          it != const_cast<CodeHackChecksumData*>(this)->m_checksums.end(); ++it)
@@ -199,7 +199,7 @@ void CodeHackChecksumEx::setData(const char* serialized)
     }
 }
 
-bool CodeHackChecksumEx::IsRightChecksum(const CodeHackChecksum* p) const      // T @0x0808a8c8
+bool CodeHackChecksumEx::IsRightChecksum(const CodeHackChecksum* p) // T @0x0808a8c8
 {
     for (checksum_iterator it = const_cast<CodeHackChecksumEx*>(this)->m_checksums.begin();
          it != const_cast<CodeHackChecksumEx*>(this)->m_checksums.end(); ++it)

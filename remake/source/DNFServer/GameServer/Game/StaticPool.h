@@ -13,9 +13,20 @@ template <class T, int N>
 class StaticPool
 {
 public:
-    struct CNode
+    struct CNode : public T
     {
-        T data;        // +0x00（sizeof(T) 字节）
+        // ORIG 各池 CNodeC1（CUser/CEnchanter/CMail/CACHE_CHARACTER_TYPE/_IO_FILE
+        // 反汇编实证）：CNode 继承 T（多态，vptr 位于对象 +0，与 DynamicPool 同款
+        // 布局；CEnchanter 池实证 vptr@+0、magic@0x48=sizeof(T)、bUse@0x4c），
+        // T() 构造后 vptr 指向 CNode vtable（虚函数槽与 T 相同、dtor 槽为 CNode
+        // 自身），随后写 magic=0x8f21、bUse=0。缺此构造则 magic/bUse 为垃圾值，
+        // Acquire/Get/Free/GetIndex 的 magic==0x8f21 检查运行时失效。
+        CNode() : T(), magic(0x8f21), bUse(0) {}
+        // ORIG 各池 CNode D1/D2/D0 均为 W 符号（用户定义析构 → 非 trivial；
+        // 多态派生使 GCC 亦生成 D0 deleting dtor）；空体即可，编译器自动
+        // 展开基类 ~T() 析构链。
+        ~CNode() {}
+
         int magic;     // +sizeof(T)，恒 0x8f21
         char bUse;     // +sizeof(T)+4，引用计数
     };
@@ -27,7 +38,7 @@ public:
     T* Get(int index);
     void Free(T* p);
     int GetIndex(T* p);
-    int GetLastErrorCode() const { return m_nErrorCode; }
+    int GetLastErrorCode();   // ORIG 独立符号（非 inline 非 const）；定义见 CGameManager.cpp
     static int Size() { return N; }
     int Remain() { return (int)m_Queue.size(); }
 

@@ -150,7 +150,7 @@ void CObjectBringUp::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
                 if (sent != 0)
                 {
                     LogManager::logFormat(1, "EventClassify.cpp",
-                        "void EventClassify::CObjectBringUp::sendEventItemFromFatigue(CUser*, unsigned int)",
+                        __PRETTY_FUNCTION__,
                         0x803,
                         "CObjectBringUp::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
                         user->get_acc_id(), user->getCurCharacNo(),
@@ -198,7 +198,7 @@ void CPurchaseCashItemBonus::updateTargetGoodsCount(
     if (user == 0)
     {
         cMyTrace trace(
-            "void EventClassify::CPurchaseCashItemBonus::updateTargetGoodsCount(CUser*, unsigned int, stCeraShopIPGRequest_t*)",
+            __PRETTY_FUNCTION__,
             0x737, 0);
         trace("Purchase Error Not Found User(charac_no:%d)", characNo);
         return;
@@ -210,7 +210,7 @@ void CPurchaseCashItemBonus::updateTargetGoodsCount(
     {
         DB_UpdatePurchaseCashItemBonus::makeRequest(user->GetUID(), accId);
         cMyTrace trace(
-            "void EventClassify::CPurchaseCashItemBonus::updateTargetGoodsCount(CUser*, unsigned int, stCeraShopIPGRequest_t*)",
+            __PRETTY_FUNCTION__,
             0x742, 0);
         trace("CPurchaseCashItemBonus::updateTargetGoodsCount(%d)", accId);
     }
@@ -238,7 +238,7 @@ bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
     if (user == 0)
     {
         LogManager::logFormat(1, "EventClassify.cpp",
-            "bool EventClassify::CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser*, int)",
+            __PRETTY_FUNCTION__,
             0x755,
             "CPurchaseCashItemBonus::sendPurchaseBonusReward(pUser(NULL))");
         return false;
@@ -259,7 +259,7 @@ bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
             if (result != 0)
             {
                 LogManager::logFormat(1, "EventClassify.cpp",
-                    "bool EventClassify::CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser*, int)",
+                    __PRETTY_FUNCTION__,
                     0x763,
                     "CPurchaseCashItemBonus::sendPurchaseBonusReward(m_id:%d, charac_no:%d, reward:%d)",
                     user->get_acc_id(), user->getCurCharacNo(),

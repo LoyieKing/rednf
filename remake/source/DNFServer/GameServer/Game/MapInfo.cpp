@@ -30,25 +30,6 @@ map_item::map_item()
     : m_count(0), m_itemIndex(0), m_dropIndex(0), m_createTick(0),
       m_item(), m_ownerId(0) {}
 
-map_item::map_item(const map_item& other)
-    : m_count(other.m_count), m_itemIndex(other.m_itemIndex),
-      m_dropIndex(other.m_dropIndex), m_createTick(other.m_createTick),
-      m_item(other.m_item), m_ownerId(other.m_ownerId) {}
-
-map_item& map_item::operator=(const map_item& other)
-{
-    if (this != &other)
-    {
-        m_count = other.m_count;
-        m_itemIndex = other.m_itemIndex;
-        m_dropIndex = other.m_dropIndex;
-        m_createTick = other.m_createTick;
-        m_item = other.m_item;
-        m_ownerId = other.m_ownerId;
-    }
-    return *this;
-}
-
 map_monster::map_monster()
     : m_mobId(0), m_instId(0), m_roleType(0), m_mobIndex(0), m_level(0),
       m_field11(0), m_field13(0), m_field14(0), m_field15(0), m_field16(0),

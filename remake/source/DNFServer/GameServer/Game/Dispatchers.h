@@ -4,13 +4,35 @@
 #include "PacketDispatcher.h"
 #include "Arad_InternalDispatcher.h" // ARAD::DISPATCHER 六派发器权威声明（沉降）
 #include "PacketTypes.h"
+#include "NpcScript.h"  // ENUM_NPC_FAVOR_CHANGE_CONST（Dispatcher_GiveGiftToNPC 参数）
+#include "NPCDynamicInfo.h"  // CNPCDynamicInfo（_getResultFavor 参数）
+
+// 前向声明：_getResultFavor 引用参数类型（函数体不使用，布局无关；ORIG mangled
+// 需精确 19 字符类型名）。
+struct stNPCRelationship_t;
+// GroupE 声明补充（组 E 批次）：useCountDownCoinInFreeCoinDungeon / set_ReturnSendPacket
+// 的引用参数类型（完整定义分别见 SigTypes.h / PacketGuard.h）。
+struct MSG_BUY_CERASHOP_ITEM;
+class PacketGuard;
 
 // ---- CMDPacketStruct 权威头（Exchange 批归口 2026-08-27）：STBaseRequest/
 // STBaseResponse/_SetSlotData/ResetStarType 及 altar _Req/_Res 家族均在此；
 // 本文件不再保留局部 stub（消除与 BattleData.h include 链的 ODR 冲突）。
-// 注意：read_packet 各类读取长度不同（0xe/0x14/0x18/0x20/0x24/0x30），
-// 权威 STBaseRequest:MSG_BASE 布局承载整块 get_binary 读入。
 #include "CMDPacketStruct.h"
+// ENUM_RARITY（Dispatcher_MonstercardBind::calcurate_rarity/get_bind_result 参数；
+// CItemAmplifier.h 内 DNF_ENUM_RARITY_DEFINED guard 幂等）
+#include "CItemAmplifier.h"
+
+// DspD1Fix：Dispatcher_EPLPCommand 私有 _BroadCastPacket 引用参数（完整定义
+// 在 Dispatchers.cpp 声明区，ORIG 仅导出经 _BroadCastPacket 的引用用法）。
+struct MSG_EPLP_COMMAND;
+
+// DspD1Fix：Dispatcher_EPLPCommand 私有 _BroadCastPacket 引用参数（完整定义
+// 在 Dispatchers.cpp 声明区，ORIG 仅导出经 _BroadCastPacket 的引用用法）。
+struct MSG_EPLP_COMMAND;
+
+// Dispatcher_BuyCeraShopLimitItem::_checkBuyCondition 私有成员参数类型（ORIG 只经指针使用）。
+class CItemLimitEdition;
 
 namespace advancealtar {
 class Dispatcher_Pause : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -322,6 +344,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_Join_Power : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -356,10 +379,13 @@ public:
 class Dispatcher_PurifyItem : public IPacketDispatcher<MSG_PURIFY_ITEM, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_PurifyItem();
-    virtual ~Dispatcher_PurifyItem();
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
+    Dispatcher_PurifyItem();            // ORIG W 0x085968dc
+    virtual ~Dispatcher_PurifyItem();   // ORIG W 0x08241812/0x08241842
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x08218cb6
+    int read(PacketBuf& packet, MSG_BASE& msg);                  // ORIG T 0x08218b94
+    // ORIG T 0x082194b6：净化类型处理。type 0 → 鉴定强化选项（未鉴定清 bit7 返 1）；
+    // type 1 → reset 后返 1；其它 → 0。
+    int processPurifyType(int purifyType, Inven_Item& item);
 };
 
 class Dispatcher_RedeemList : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -441,16 +467,28 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    // DspD1Fix：ORIG 真实成员（Dispatchers.cpp 定义，nm -S 核实）
+    void _SendEPLPError(CParty* party, unsigned char subCmd, unsigned char errCode);   // ORIG T 0x081fed4c
+    void _BroadCastPacket(CParty* party, MSG_EPLP_COMMAND& msg);                       // ORIG T 0x081fee14
+    bool excludeEplpState(CUser* user);                                                // ORIG T 0x0825f760
+    bool isReTurnToVillage(CUser* user);                                               // ORIG T 0x0825f7f4
 };
 
-class Dispatcher_ModItemAttr : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+class Dispatcher_ModItemAttr
+    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_ModItemAttr();
-    virtual ~Dispatcher_ModItemAttr();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
+    Dispatcher_ModItemAttr();           // ORIG W 0x08595d28
+    virtual ~Dispatcher_ModItemAttr();  // ORIG W 0x08243246/0x08243276
+    int dispatch_sig(CUser* user, PacketBuf& packet);   // ORIG T 0x08200b08
+    int read(PacketBuf& packet, MSG_BASE& msg);         // ORIG W 0x082335d0
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG W 0x082335da
+    // ORIG T 0x08201938：修改装备属性结果回包（header(1,0x54)|byte(1)|short(matSlot)|
+    // int(matSlot 槽 get_add_info())|short(resultType)）+ SendUpdateItemList(1,0,equipSlot)。
+    void _SendResult(CUser* user, unsigned short resultType, unsigned short matSlot,
+                     unsigned short equipSlot);
 };
 
 class Dispatcher_RefundSkill : public IPacketDispatcher<MSG_REFUND_SKILL, stRefundSkill, ch_state0>
@@ -758,6 +796,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int isVaildEmotionValue(short value);   // ORIG T 0x081d1ebe（StubS3A）
 };
 
 class Dispatcher_Clear_Used_QP : public IPacketDispatcher<MSG_BASE, STQuestShopParam, ch_state0>
@@ -798,6 +837,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_GenCeraTicket : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -810,6 +850,7 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
+// ORIG W 0x0821e474 / 0x0821e486：好感度辅助方法（实现 Dispatchers.cpp）。
 class Dispatcher_GiveGiftToNPC : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
@@ -818,6 +859,15 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // ORIG W 0x0821e474：恒返 0（当前达到最高好感度等级的 NPC 计数）。
+    int _getMaxFavorLevelNPCCnt(CUser const* user) const;
+    // ORIG W 0x0821e486：返回 (unsigned short)(baseFavor + addFavor)。
+    unsigned short _getResultFavor(CUser const* user,
+                                   CNPCDynamicInfo const* npcInfo,
+                                   stNPCRelationship_t const& relation,
+                                   CItem const* item, unsigned int count,
+                                   short addFavor, unsigned short baseFavor,
+                                   ENUM_NPC_FAVOR_CHANGE_CONST& changeConst) const;
 };
 
 class Dispatcher_GuildJoinList : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -859,6 +909,11 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    // ORIG 真实符号（README Dispatcher_MouseRegister/ 8 函数全集）
+    static int checkValiedPassword(char const* pwd);                       // T 0x082632ca（ORIG 无 this，静态形态——DisPatcher_Login 0x082632ca 三参全栈传实证）
+    static bool decryptPassword(char const* in, char* out, unsigned int len); // T 0x0826333a（同上）
+    void doPassPadReplay(CUser* user, char* answer, char answerType, // T 0x082633c6
+                         bool& ok, unsigned char& errCode);
 };
 
 class Dispatcher_ObjectBringUp : public IPacketDispatcher<MSG_OBJECT_BRING_UP, stObjectBringUp, ch_state3>
@@ -991,6 +1046,13 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    // OrigEmblemDisp20：ORIG 真实成员（T 0x08220a60 / T 0x08221dde，nm -S 核实）
+    int _selectJewelTypeIndex(unsigned int count,
+                              const unsigned short* sockets) const;  // ORIG T 0x08220a60
+    void SendCreateEmblemInfo(
+        std::vector<std::pair<int, int> > const& created);           // ORIG T 0x08221dde
 };
 
 class Dispatcher_DisJointAvatar : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1001,6 +1063,15 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    // DspD1Fix：ORIG 真实成员（nm -S 核实）
+    int _selectJewelTypeIndex(stAvatarEmblemInfo_t const* jewelSocketData) const;   // ORIG T 0x08218598
+    int _getResultItems(CUser* user, CItem const* pItem, int jewelTypeIndex,
+                        std::vector<std::pair<int, int> >& results) const;          // ORIG T 0x0821873c
+    void SendDisjointAvatarInfo(CItem const* pItem);                                // ORIG T 0x08218996
+    void SendCreateEmblemInfo(std::vector<std::pair<int, int> > const& results);    // ORIG T 0x08218a36
+    int _getJewelTypeIndex(unsigned short type) const;                              // ORIG W 0x0821857c
 };
 
 class Dispatcher_DisguiseCancel : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1106,6 +1177,7 @@ public:
     void send(CUser* user, ParamBase& param);
 };
 
+// ORIG T 0x082099bc/0x08209a5e/0x08209b0e：辅助方法（实现 Dispatcher_UseBoosterItem_impl.cpp）。
 class Dispatcher_UseBoosterItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
@@ -1114,6 +1186,16 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // ORIG T 0x082099bc：遍历 resultItems 逐个 sendBroadCastItems。
+    void _onBoosterItemUseResult(CUser* user,
+                                 std::vector<Inven_Item>& resultItems,
+                                 int itemId);
+    // ORIG T 0x08209a5e：仅 1 件且 GrowthEquipEvent 生效时 SelectGrowthWeapon。
+    void _onBoosterItemUseResult_OnlyOne(CUser* user,
+                                         std::vector<Inven_Item>& resultItems,
+                                         int itemId);
+    // ORIG T 0x08209b0e：根据 itemId 广播道具（isUnCommonItem/嵌套/普通）。
+    void sendBroadCastItems(CUser* user, Inven_Item const& item, int itemId);
 };
 
 class Dispatcher_UserHistoryLog : public IPacketDispatcher<MSG_USER_HISTORY_LOG, ParamBase, ch_state0>
@@ -1125,14 +1207,18 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-class Dispatcher_BuyCeraShopItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+class Dispatcher_BuyCeraShopItem
+    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_BuyCeraShopItem();
-    virtual ~Dispatcher_BuyCeraShopItem();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
+    Dispatcher_BuyCeraShopItem();           // ORIG W 0x08595b4c
+    virtual ~Dispatcher_BuyCeraShopItem();  // ORIG W 0x0824368a/0x082436ba
+    int dispatch_sig(CUser* user, PacketBuf& packet);   // ORIG T 0x081fd396
+    int read(PacketBuf& packet, MSG_BASE& msg);         // ORIG W 0x082334b8
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG W 0x082334c2
+    // ORIG T 0x081fe4b8：免费硬币副本使用倒计时硬币判定（user/msg+0x36==1/
+    // FindGoods(msg+0x39)->GetItemIdx()==1/party+0xcac dungeon/checkFreeRevivalCondition）。
+    bool useCountDownCoinInFreeCoinDungeon(CUser* user, MSG_BUY_CERASHOP_ITEM const& msg);
 };
 
 class Dispatcher_CallGuildInvite : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1143,6 +1229,7 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    static void send_packet_guild_invite(CUser* user, unsigned char inviteType);  // ORIG T 0x08207852
 };
 
 class Dispatcher_CancelJoinGuild : public IPacketDispatcher<MSG_CANCEL_JOIN_GUILD, ParamBase, ch_state0>
@@ -1286,6 +1373,24 @@ public:
     void send(CUser* user, ParamBase& param);
 
 private:
+    // ORIG 嵌套枚举（mangled NS_27ENUM_MONSTER_CARD_BIND_TYPE）：
+    // _bind_process 第一参数；0=special(GetSpecialBindInfo)、1=common(GetCommonBindInfo)。
+    enum ENUM_MONSTER_CARD_BIND_TYPE
+    {
+        BIND_TYPE_SPECIAL = 0,
+        BIND_TYPE_COMMON = 1
+    };
+    // ORIG T 0x081d83c4：双区空槽检查（怪物卡区/普通区均无空槽 → 0）
+    int check_need_slot(CUser* user);
+    // ORIG T 0x081d842e：randInt(10000)<rate 时按稀有度升档（0→1/1→2/2,3→3/其它→0）
+    int calcurate_rarity(ENUM_RARITY rarity, unsigned short rate);
+    // ORIG T 0x081d84a0：主卡绑定率查表 → _bind_process 选表填充 results
+    int get_bind_result(CUser* user, short slot, ENUM_RARITY rarity,
+                        std::vector<std::pair<int, int> >& results);
+    // ORIG T 0x081d85fc：权重轮盘选条目填充 results（空表/计数非法报 cMyTrace）
+    int _bind_process(ENUM_MONSTER_CARD_BIND_TYPE type, ENUM_RARITY rarity,
+                      std::vector<std::pair<int, int> >& results);
+
     CMTRand* m_rand;   // +0x04（ORIG ctor W 0x08595348：new CMTRand(time(0))）
 };
 
@@ -1395,6 +1500,9 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    void send_packet_guild_levelup(CUser* user, unsigned char errCode);   // DspD1Fix: ORIG T 0x08200126
 };
 
 class Dispatcher_CallGuildMembers : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1738,6 +1846,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_GuildCargoPopItem : public IPacketDispatcher<MSG_GUILD_CARGO_POP_ITEM, stGuildCargoPopItemParam, ch_state0>
@@ -1747,6 +1856,7 @@ public:
     virtual ~Dispatcher_GuildCargoPopItem();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d14aa（StubS3A）
     void send(CUser* user, ParamBase& param);
 };
 
@@ -1798,6 +1908,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_SecurityCardIssue : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1830,6 +1941,11 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
+class CMTRand;  // PvPTypes.h（MT19937；仅指针使用）
+class Inven_Item;              // Inven_Item.h（_getGiveItem/_getBonusItem 按值返回）
+struct stVendingMachine_t;     // CDataManager.h（售货机；_getVendingMachine* 参数/返回）
+struct stVendingMachineInfo_t; // CDataManager.h（售货机栏；_getGiveItem 等参数）
+
 class Dispatcher_UseVendingMachine : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
@@ -1838,6 +1954,23 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    struct stPutItemResult_t;  // 嵌套；完整定义在 Dispatcher_UseVendingMachine_impl.cpp
+                              // （ORIG mangled RNS_17stPutItemResult_t）
+
+    const stVendingMachine_t* _getVendingMachine(unsigned int machineId) const;          // ORIG T 0x0821b60a
+    const stVendingMachineInfo_t* _getVendingMachineInfo(const stVendingMachine_t* vm,
+                                                         unsigned int slotId) const;     // ORIG T 0x0821b698
+    Inven_Item _getGiveItem(const stVendingMachineInfo_t* info) const;                   // ORIG T 0x0821bf82
+    Inven_Item _getBonusItem(const stVendingMachineInfo_t* info) const;                  // ORIG T 0x0821c058
+    void _putItemIntoUser(CUser* user, unsigned long itemIdx, unsigned int count,
+                          stPutItemResult_t& result) const;                              // ORIG T 0x0821b71c
+    void _notifyItemInfo(const stVendingMachineInfo_t* info, CUser* user,
+                         const stPutItemResult_t& result) const;                         // ORIG T 0x0821c17c
+
+    CMTRand* m_rand;           // +0x04（ctor new CMTRand(time(0))；ORIG D1 不 delete，忠实保留；
+                               //  CMTRand 为全局类，前向声明见文件头）
 };
 
 class Dispatcher_AchievementTrigger : public IPacketDispatcher<MSG_ACHIEVEMENT_TRIGGER, ParamBase, ch_state3>
@@ -1887,6 +2020,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_ChangeRandomOption : public IPacketDispatcher<MSG_CHANGE_RANDOM_OPTION, ParamBase, ch_state0>
@@ -1936,6 +2070,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_CompatibilityIndex : public IPacketDispatcher<MSG_COMPATIBILITY_INDEX, ParamBase, ch_state0>
@@ -1945,6 +2080,7 @@ public:
     virtual ~Dispatcher_CompatibilityIndex();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_CreateAccountCargo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1985,6 +2121,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_FrameLagStatistics : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2005,17 +2142,21 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d18dc（StubS3A）
 };
 
-class Dispatcher_GuildCargoPushItem : public IPacketDispatcher<MSG_GUILD_CARGO_PUSH_ITEM, stGuildCargoPushItemParam, ch_state0>
+class Dispatcher_GuildCargoPushItem
+    : public IPacketDispatcher<MSG_GUILD_CARGO_PUSH_ITEM, stGuildCargoPushItemParam,
+                               ch_state0>
 {
 public:
-    Dispatcher_GuildCargoPushItem();
+    Dispatcher_GuildCargoPushItem();          // 定义 Dispatchers.cpp
     virtual ~Dispatcher_GuildCargoPushItem();
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int check_error(CUser* user, MSG_BASE& msg);   // ORIG 0x081d0f64
+    // ORIG T 0x081d0f64（3 参数符号；字段自 param+0xd/0xe/0x10 读）。
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG T 0x081d10d4
 };
 
 class Dispatcher_RemovePrivateStore : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2067,6 +2208,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_Score_Scroll_State : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2116,6 +2258,8 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int _check_unseal_scroll_item(CUser* user, const Inven_Item* item,
+                                  unsigned short slot);   // ORIG T 0x08229644
 };
 
 class Dispatcher_ValidateScriptHash : public IPacketDispatcher<MSG_SCRIPT_HASH, ScriptHashParam, ch_state0>
@@ -2126,6 +2270,7 @@ public:
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    int get_hack_type(char type);
 };
 
 class Dispatcher_AuctionRegistCancel : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2176,6 +2321,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_CreatureSendMessage : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2281,6 +2427,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_ResponseAddPvPBuddy : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2311,6 +2458,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_SecurityCardAuthReq : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2441,6 +2589,9 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+private:
+    int _checkUserState(CUser* user) const;                                            // ORIG T 0x0821f72a
+    int _checkBuyCondition(CUser* user, const CItemLimitEdition* edition) const;       // ORIG T 0x0821f7cc
 };
 
 class Dispatcher_CallGuildCreateRight : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2451,6 +2602,9 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+
+private:
+    void send_packet_guildcreateright(CUser* user, unsigned char errCode);   // DspD1Fix: ORIG T 0x081ffbde
 };
 
 class Dispatcher_Check3rdPartyConcent : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2570,6 +2724,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // DspD1Fix: ORIG D3 body 三参检查
 };
 
 class Dispatcher_PvpMissionComboClear : public IPacketDispatcher<MSG_PVP_MISSION_COMBO_CLEAR, ParamBase, ch_state3>
@@ -2589,6 +2744,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_ReportMannerlessUser : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2701,6 +2857,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_AuctionAskAveragePrice : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2851,6 +3008,7 @@ public:
     Dispatcher_SecurityCardAuthCancel();
     virtual ~Dispatcher_SecurityCardAuthCancel();
     int dispatch_sig(CUser* user, PacketBuf& packet);
+    int process(CUser* user);   // DspD1Fix: ORIG T 0x0820a580 重载（AuthCancel 专用）
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -2884,6 +3042,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_VerifyPrivateStoreItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -3006,15 +3165,18 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-class Dispatcher_Enchant_3rdChronicleItem : public IPacketDispatcher<MSG_ENCHANT, stEnchantParam, ch_state0>
+class Dispatcher_Enchant_3rdChronicleItem
+    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_Enchant_3rdChronicleItem();
+    Dispatcher_Enchant_3rdChronicleItem();          // ORIG W 0x0859761e
     virtual ~Dispatcher_Enchant_3rdChronicleItem();
-    int check_error(CUser* user, MSG_BASE& msg);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
-    void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg);    // ORIG T 0x081d343a
+    // ORIG T 0x082328ec：state!=3/curCharac==0 → LineFunc(0x5f6)；CheckInTrade → LineFunc(0x5f9)。
+    int check_state(CUser* user, PacketBuf& packet);
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG T 0x081d375e
+    int read(PacketBuf& packet, MSG_BASE& msg);                 // ORIG T 0x081d35fe
+    void send(CUser* user, ParamBase& param);                   // ORIG T 0x081d387e
 };
 
 class Dispatcher_GoblinPadRequestCryptKey : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -3138,6 +3300,7 @@ public:
     Dispatcher_UseCreatureEvolutionItem();
     virtual ~Dispatcher_UseCreatureEvolutionItem();
     int dispatch_sig(CUser* user, PacketBuf& packet);
+    int process(CUser* user, unsigned char evolveSlot, short itemCount, int itemIdx);   // DspD1Fix: ORIG 重载
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -3245,6 +3408,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 };
 
 class Dispatcher_Exchange_Random_Item_Reward : public IPacketDispatcher<MSG_EXCHANGE_RANDOM_ITEM_REWARD, stExchangeRandomItemReward, ch_state0>
@@ -3400,14 +3564,18 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
-class Dispatcher_Compound_Equipment_Upgrade_Card : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+class Dispatcher_Compound_Equipment_Upgrade_Card
+    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_Compound_Equipment_Upgrade_Card();
+    Dispatcher_Compound_Equipment_Upgrade_Card();       // ORIG W 0x08597068
     virtual ~Dispatcher_Compound_Equipment_Upgrade_Card();
-    int dispatch_sig(CUser* user, PacketBuf& packet);
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
+    int dispatch_sig(CUser* user, PacketBuf& packet);   // ORIG T 0x08227e00
+    int read(PacketBuf& packet, MSG_BASE& msg);         // ORIG W 0x082342ee
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG W 0x082342f8
+    // ORIG T 0x08228a2e（const）：按 set_ReturnSendPacket 格式回包
+    // （put_byte(0); put_short(slot); put_int(quantity)）。
+    void set_ReturnSendPacket(PacketGuard& pg, unsigned short slot, int quantity) const;
 };
 
 class Dispatcher_GrowthWeaponEventChangeInfinity : public IPacketDispatcher<MSG_GROWTH_EQUIPMENT, stGrowthEquipment, ch_state3>
@@ -3442,13 +3610,16 @@ public:
     void send(CUser* user, ParamBase& param);
 };
 
-class Dispatcher_Select_3rdChronicleItem_ForEnchant : public IPacketDispatcher<MSG_BASE, stEnchantParam, ch_state0>
+class Dispatcher_Select_3rdChronicleItem_ForEnchant
+    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_Select_3rdChronicleItem_ForEnchant();
+    Dispatcher_Select_3rdChronicleItem_ForEnchant();   // ORIG W 0x08597602
     virtual ~Dispatcher_Select_3rdChronicleItem_ForEnchant();
-    int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int read(PacketBuf& packet, MSG_BASE& msg);
+    // ORIG T 0x08232854：state!=3/curCharac==0 → LineFunc(0x5e1)；CheckInTrade → LineFunc(0x5e4)。
+    int check_state(CUser* user, PacketBuf& packet);
+    int process(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG T 0x081d3420
+    int read(PacketBuf& packet, MSG_BASE& msg);                 // ORIG T 0x081d3416
 };
 
 class Dispatcher_GrowthCreatureChangeInfinityCreature : public IPacketDispatcher<MSG_BASE, stGrowthCreature, ch_state3>
@@ -3458,6 +3629,8 @@ public:
     virtual ~Dispatcher_GrowthCreatureChangeInfinityCreature();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int check_error_event(CUser* user);
+    int process_event(CUser* user);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };

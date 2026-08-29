@@ -66,13 +66,6 @@ int getCharacterJobToEnumValue(std::string& name);   // _Z26getCharacterJobToEnu
 int getDrawLayer(const char* name);                  // _Z12getDrawLayerPKc T 0x088be12d
 int importDeathTowerScript(const char* path, struct stDeathTower_t& out); // _Z22importDeathTowerScriptPKcR14stDeathTower_t T 0x089089f3（唯一定义 InitScriptProducers_6.cpp）
 
-// ---- STScriptFileList 本地镜像（布局权威：STScriptFileList.cpp 同名本地类，
-//      sizeof 0x18 = std::map<int,std::string>；ORIG ctor 0x088bacf8）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-};
 
 int loadRDARScriptListFile(class STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* unused);
@@ -118,7 +111,7 @@ bool importResealTable(const char* path, reseal_table_t* out)
                 if (!ok)
                 {
                     LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp", "importResealTable",
+                        0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                         0xa9d, "importResealTable - invalid rarity table");
                 }
                 out->m_arr1[i] = value;                       // ORIG 写 param_2+0xc+i*4
@@ -132,7 +125,7 @@ bool importResealTable(const char* path, reseal_table_t* out)
                 if (!ok)
                 {
                     LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp", "importResealTable",
+                        0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                         0xaaf,
                         "importResealTable - invalid extended rarity table");
                 }
@@ -158,7 +151,7 @@ int importUltimateDungeonList(const char* path, std::set<int>& out)
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
-            0, "../RDARScriptEtcParameter.cpp", "importUltimateDungeonList",
+            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
             0x3209,
             "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe"
             "\xec\x9d\x84\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
@@ -241,7 +234,7 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
-            0, "../RDARScriptEtcParameter.cpp", "loadPvpMapBasicDataScript",
+            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
             0x1c00,
             "error : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe"
             "\xec\x9d\x84 \xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
@@ -281,7 +274,7 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
             {
                 LogManager::logFormat(
                     0, "../RDARScriptEtcParameter.cpp",
-                    "loadPvpMapBasicDataScript", 0x1c2c,
+                    __FUNCTION__, 0x1c2c,
                     "ERROR : %d \xea\xb0\x9c \xec\x9d\xb4\xec\x83\x81\xec\x9d"
                     "\x98 pvp map \xec\x9d\x84 \xec\xb6\x94\xea\xb0\x80\xed"
                     "\x95\xa0\xec\x88\x98\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
@@ -348,7 +341,7 @@ int importVendingMachineInfoCore(const char* dir, const char* file,
                 break;
             LogManager::logFormat(
                 0, "../RDARScriptEtcParameter.cpp",
-                "importVendingMachineInfoCore", 0x1e66,
+                __FUNCTION__, 0x1e66,
                 "ERROR : Unknown tag error. %s", token.c_str());
         }
 
@@ -865,9 +858,9 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
     if (out == 0)
         return false;
 
-    static std::map<const char*, int, less_TCHAR> lookup;   // ORIG __lookup
-    static SpinLock initLock;                               // ORIG __init_lock
-    static bool inited = false;                             // ORIG __inited
+    static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup
+    static SpinLock __init_lock;                               // ORIG __init_lock
+    static bool __inited = false;                             // ORIG __inited
 
     std::string token;
     bool ok = false;
@@ -876,31 +869,31 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
 
     while (ScanType(token, true))
     {
-        if (!inited)
+        if (!__inited)
         {
-            initLock.enter();
-            if (!inited)
+            __init_lock.enter();
+            if (!__inited)
             {
                 // ORIG 插入链 0x895fc3c/0x895fca6/0x895fd18/0x895fa10/
                 //                 0x895fb70/0x895fe83
-                lookup.insert(std::make_pair("[/job fatigue]", 0x217));
-                lookup.insert(std::make_pair("[job type]", 0x21b));
-                lookup.insert(std::make_pair("[fatigue title]", 0x229));
-                lookup.insert(std::make_pair("[fatigue text]", 0x22d));
-                lookup.insert(std::make_pair("[reward list]", 0x231));
-                lookup.insert(std::make_pair("[/job type]", 0x252));
-                initLock.leave();
-                inited = true;
+                __lookup.insert(std::make_pair("[/job fatigue]", 0x217));
+                __lookup.insert(std::make_pair("[job type]", 0x21b));
+                __lookup.insert(std::make_pair("[fatigue title]", 0x229));
+                __lookup.insert(std::make_pair("[fatigue text]", 0x22d));
+                __lookup.insert(std::make_pair("[reward list]", 0x231));
+                __lookup.insert(std::make_pair("[/job type]", 0x252));
+                __init_lock.leave();
+                __inited = true;
             }
             else
             {
-                initLock.leave();
+                __init_lock.leave();
             }
         }
 
         std::map<const char*, int, less_TCHAR>::const_iterator found =
-            lookup.find(token.c_str());
-        const int id = (found != lookup.end()) ? found->second : -1;
+            __lookup.find(token.c_str());
+        const int id = (found != __lookup.end()) ? found->second : -1;
 
         if (id == 0x217)
         {
@@ -975,9 +968,9 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
     if (s == 0)
         return false;
 
-    static std::map<const char*, int, less_TCHAR> lookup;   // ORIG __lookup 0x94f75b8
-    static SpinLock initLock;                               // ORIG __init_lock 0x94f75d0
-    static bool inited = false;                             // ORIG __inited 0x94f75d4
+    static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup 0x94f75b8
+    static SpinLock __init_lock;                               // ORIG __init_lock 0x94f75d0
+    static bool __inited = false;                             // ORIG __inited 0x94f75d4
 
     std::string token;
     std::string layerName;
@@ -1058,25 +1051,25 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                 info.clear();
                 if (!ScanStr(&layerName))              // 层选择 token
                     break;                             // EOF → 回主循环（成功）
-                if (!inited)
+                if (!__inited)
                 {
-                    initLock.enter();
-                    if (!inited)
+                    __init_lock.enter();
+                    if (!__inited)
                     {
-                        lookup.insert(std::make_pair("[front]", 0x318));
-                        lookup.insert(std::make_pair("[back]", 0x31b));
-                        initLock.leave();
-                        inited = true;
+                        __lookup.insert(std::make_pair("[front]", 0x318));
+                        __lookup.insert(std::make_pair("[back]", 0x31b));
+                        __init_lock.leave();
+                        __inited = true;
                     }
                     else
                     {
-                        initLock.leave();
+                        __init_lock.leave();
                     }
                 }
                 std::map<const char*, int, less_TCHAR>::const_iterator found =
-                    lookup.find(layerName.c_str());
+                    __lookup.find(layerName.c_str());
                 int layerId;
-                if (found == lookup.end())
+                if (found == __lookup.end())
                     return false;                      // ORIG 未命中 → 失败
                 if (found->second == 0x318)
                     layerId = 0;                       // [front]

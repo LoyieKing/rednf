@@ -47,6 +47,7 @@
                                    // ScanStr/ScanTypeOrInt/ScanTypeOrStr/getDirectoryPath
 #include "LogManager.h"            // LogManager::logFormat
 #include "STCharacterScript.h"     // STCharacterScript 完整布局 + 子结构（本批次补全）
+#include "STRDCharacterStatusClient.h"  // STRDCharacterStatusClient（双向 operator=）
 #include "DisJoint.h"              // DisjointScript 完整布局
 #include "CCompoundAvatar.h"       // tagCompoundAvatar/tagCompoundAvatarTable
 #include "CItemAmplifier.h"        // stAmplifyItemScript_t/ENUM_RARITY/ENUM_AMPLIFY_TYPE
@@ -176,7 +177,7 @@ bool importActiveStatusTable(const char* path)
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
-            0, "../RDARScriptEtcParameter.cpp", "importActiveStatusTable", 0x162b,
+            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0x162b,
             "ERROR : %s \306\304\300\317\300\273\040\303\243\300\273\274\366\040"
             "\276\370\275\300\264\317\264\331.", path);   // EUC-KR 字面量（ORIG 0x08e103d8）
         return false;
@@ -315,16 +316,18 @@ bool importDisjointScript(DisjointScript* script, const char* path)
         {
             for (int g = 0; g < 6; ++g)
             {
-                DisjointAdditionalEntry& entry = script->m_additional[g];
-                entry.m_count = ScanInt(&ok);
+                // m_additional 为 DisjointScript 匿名嵌套结构（P146 保持 ._381 mangled），
+                // 不可具名引用，直接成员访问。
+                script->m_additional[g].m_count = ScanInt(&ok);
                 if (!ok)
                     break;
-                entry.m_items.clear();
-                entry.m_items.reserve(entry.m_count);
-                for (int j = 0; j < entry.m_count; ++j)
+                script->m_additional[g].m_items.clear();
+                script->m_additional[g].m_items.reserve(
+                    script->m_additional[g].m_count);
+                for (int j = 0; j < script->m_additional[g].m_count; ++j)
                 {
                     const int item = ScanInt(static_cast<bool*>(0));
-                    entry.m_items.push_back(item);
+                    script->m_additional[g].m_items.push_back(item);
                 }
             }
         }
@@ -404,7 +407,7 @@ int getCompoundAvatarPartsType(const std::string& name)
 }
 
 // ORIG getCompoundRareAvatarType T 0x08902f42（报告全文转写）：未命中 0x16。
-static int s_GetCompoundRareAvatarType(const std::string& token)
+int getCompoundRareAvatarType(const std::string& token)
 {
     if (token == "[hat rare avatar]") return 0;
     if (token == "[hair rare avatar]") return 1;
@@ -711,7 +714,7 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
                     if (!setCompoundRareAvatarData(
                             avatar,
                             static_cast<ENUM_EQUIPMENTTYPE>(
-                                s_GetCompoundRareAvatarType(token))))
+                                getCompoundRareAvatarType(token))))
                         return 0x105d;
                 }
             }
@@ -723,14 +726,6 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
 // loadRDARScriptListFile 取 11 个子文件名（≠11 → 0x106e），逐个 Core 导入
 // （失败 → 0x1075），全部成功 ret0。
 // ============================ 头像合成域（声明修正） ============================
-
-// STScriptFileList 本地镜像（与 STScriptFileList.cpp 定义同布局：map<int,string>@0）。
-class STScriptFileList
-{
-public:
-    STScriptFileList();                       // ORIG 0x088bacf8（定义 STScriptFileList.cpp）
-    std::map<int, std::string> m_fileMap;     // +0x00
-};
 
 // _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii... 0x088bbd77 T
 //（定义 STScriptFileList.cpp；第 4 参 ORIG 未使用）。
@@ -948,7 +943,7 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
         else
         {
             LogManager::logFormat(
-                0, "../RDARScriptObject.cpp", "importCreatureCommonScript", 0x2701,
+                0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2701,
                 "script loading failed. | file <%s> tag <%s>",
                 path, token.data());
             return false;
@@ -961,59 +956,11 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
 
 // ---- ENUM_CATEGORY / IgnoreCaseCompare / s_objCategoryString ----
 // 取值与内容自 initObjectCategory(0x08a0aed8) 立即数全量转写（44 条，默认 0x2c）。
-enum ENUM_CATEGORY
-{
-    ENUM_CATEGORY_HUMAN = 0,
-    ENUM_CATEGORY_BEAST = 1,
-    ENUM_CATEGORY_PLANT = 2,
-    ENUM_CATEGORY_INSECT = 3,
-    ENUM_CATEGORY_MACHINE = 4,
-    ENUM_CATEGORY_ORGANIC = 5,
-    ENUM_CATEGORY_HYBRID = 6,
-    ENUM_CATEGORY_UNDEAD = 7,
-    ENUM_CATEGORY_DEVIL = 8,
-    ENUM_CATEGORY_SPIRIT = 9,
-    ENUM_CATEGORY_DRAGON = 10,
-    ENUM_CATEGORY_ANGEL = 11,
-    ENUM_CATEGORY_MELEE_COMBAT = 12,
-    ENUM_CATEGORY_RANGE_COMBAT = 13,
-    ENUM_CATEGORY_CLOSE_PASSIVE = 14,
-    ENUM_CATEGORY_CLOSE_CAREFULLY = 15,
-    ENUM_CATEGORY_FULL_SUPERARMOR = 16,
-    ENUM_CATEGORY_CLOSE_TOUGH = 17,
-    ENUM_CATEGORY_CLOSE_MANACE = 18,
-    ENUM_CATEGORY_ONESIDE_MOVE = 19,
-    ENUM_CATEGORY_HUMAN_ARMOR = 20,
-    ENUM_CATEGORY_FORT_ARMOR = 21,
-    ENUM_CATEGORY_DIVINE_ARMOR = 22,
-    ENUM_CATEGORY_GOBLIN = 23,
-    ENUM_CATEGORY_TAU = 24,
-    ENUM_CATEGORY_LUGARU = 25,
-    ENUM_CATEGORY_FIXTURE = 26,
-    ENUM_CATEGORY_STAY = 27,
-    ENUM_CATEGORY_MELEE = 28,
-    ENUM_CATEGORY_MISSILE = 29,
-    ENUM_CATEGORY_ENERGY = 30,
-    ENUM_CATEGORY_PHYSICAL = 31,
-    ENUM_CATEGORY_MAGICAL = 32,
-    ENUM_CATEGORY_BULLET = 33,
-    ENUM_CATEGORY_CANNON = 34,
-    ENUM_CATEGORY_EXPLOSION = 35,
-    ENUM_CATEGORY_INFLAME = 36,
-    ENUM_CATEGORY_NON_INFLAME = 37,
-    ENUM_CATEGORY_LIGHT = 38,
-    ENUM_CATEGORY_DARK = 39,
-    ENUM_CATEGORY_WATER = 40,
-    ENUM_CATEGORY_FIRE = 41,
-    ENUM_CATEGORY_FORT = 42,
-    ENUM_CATEGORY_UNBEATABLE = 43,
-    ENUM_CATEGORY_NONE = 44,             // getObjectCategory 未命中返回 0x2c
-};
 
 // ORIG IgnoreCaseCompare::operator() W 0x08a3df2e：strcasecmp(a,b)>0。
 struct IgnoreCaseCompare
 {
-    bool operator()(const std::string& a, const std::string& b) const
+    bool operator()(const std::string& a, const std::string& b)
     {
         return strcasecmp(a.c_str(), b.c_str()) > 0;
     }
@@ -1133,7 +1080,7 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
             out.m_weightByLevel = ScanFloat(3, &ok);
             if (!ok)
                 LogManager::logFormat(
-                    0, "../RDARScriptEtcParameter.cpp", "importAmplifyItem",
+                    0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                     0x1d40, "ERROR [amplification weight by level]");
         }
         else if (token == "[amplification rate by rarity]")
@@ -1193,7 +1140,7 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
                 out.m_bonusWeightByEquipType[eq - 10] = ScanFloat(4, &ok);
                 if (!ok)
                     LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp", "importAmplifyItem",
+                        0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                         0x1d89, "ERROR : [bonus weight by equipment type]");
             }
         }
@@ -1342,6 +1289,13 @@ void STRDCharacterStatus::Clear()
     m_field53 = 0;
 }
 
+// ORIG C1 W 0x0836778c：vector C1 + clear()。
+CharacterEtcStats::CharacterEtcStats()
+    : m_category()
+{
+    clear();
+}
+
 // ORIG CharacterEtcStats::clear W 0x08367752（objdump 转写）：vector clear +
 // +0xc..+0x18 四个 int 清零；+0x4..+0xb 未触。
 void CharacterEtcStats::clear()
@@ -1349,6 +1303,62 @@ void CharacterEtcStats::clear()
     m_category.clear();
     for (int i = 0; i < 4; ++i)
         m_moduleDamageRate[i] = 0.0f;
+}
+
+// ORIG T 0x08a0c942：Client（0x98 展开块）→ 本 packed 块截断回填。
+STRDCharacterStatus& STRDCharacterStatus::operator=(
+    const STRDCharacterStatusClient& c)
+{
+    m_hpMax = c.m_hpMax;
+    m_mpMax = c.m_mpMax;
+    m_physAttack = (unsigned short)c.m_physAttack;
+    m_physDefense = (unsigned short)c.m_physDefense;
+    m_magAttack = (unsigned short)c.m_magAttack;
+    m_magDefense = (unsigned short)c.m_magDefense;
+    for (int i = 0; i < 4; ++i)
+        m_elemResist[i] = (unsigned short)c.m_elemResist[i];
+    for (int i = 0; i < 17; ++i)
+        m_activeResist[i] = (unsigned short)c.m_activeResist[i];
+    m_inventoryLimit = c.m_inventoryLimit;
+    m_hpRegen = (unsigned short)c.m_hpRegen;
+    m_mpRegen = (unsigned short)c.m_mpRegen;
+    m_moveSpeed = c.m_moveSpeed;
+    m_attackSpeed = (unsigned short)c.m_attackSpeed;
+    m_castSpeed = (unsigned short)c.m_castSpeed;
+    m_hitRecovery = (unsigned short)c.m_hitRecovery;
+    m_jumpPower = (unsigned short)c.m_jumpPower;
+    m_weight = c.m_weight;
+    m_field52 = (unsigned char)c.m_field52;
+    m_field53 = c.m_field53;
+    return *this;
+}
+
+// ORIG T 0x08a0cab8：packed 块 → Client 展开（符号/零扩展按 ORIG movswl/movzwl）。
+STRDCharacterStatusClient& STRDCharacterStatusClient::operator=(
+    const STRDCharacterStatus& s)
+{
+    m_hpMax = s.m_hpMax;
+    m_mpMax = s.m_mpMax;
+    m_physAttack = s.m_physAttack;
+    m_physDefense = s.m_physDefense;
+    m_magAttack = s.m_magAttack;
+    m_magDefense = s.m_magDefense;
+    for (int i = 0; i < 4; ++i)
+        m_elemResist[i] = s.m_elemResist[i];
+    for (int i = 0; i < 17; ++i)
+        m_activeResist[i] = s.m_activeResist[i];
+    m_inventoryLimit = s.m_inventoryLimit;
+    m_hpRegen = s.m_hpRegen;
+    m_mpRegen = s.m_mpRegen;
+    m_moveSpeed = s.m_moveSpeed;
+    m_attackSpeed = s.m_attackSpeed;
+    m_castSpeed = s.m_castSpeed;
+    m_hitRecovery = s.m_hitRecovery;
+    m_jumpPower = s.m_jumpPower;
+    m_weight = s.m_weight;
+    m_field52 = s.m_field52;
+    m_field53 = s.m_field53;
+    return *this;
 }
 
 // ORIG _ComboInfo::clear W 0x0836785c（objdump 转写）。
@@ -2034,7 +2044,7 @@ void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table
     if (!loadRDARScriptFile("", "Etc/equipmentAniScript.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptItem.cpp",
-                              "ImportEquipmentAniScript", 0x3116,
+                              __FUNCTION__, 0x3116,
                               "CRITICAL ERROR : EquipmentAniScript!");
         return;
     }
@@ -2128,3 +2138,43 @@ void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table
     }
 }
 
+
+// ============================================================================
+// OnlyOrigBatch11 追加：getObjectCategoryString / getBodyImagePath /
+// getUpgradeWeaponAttackPowerRate（ORIG 同属脚本域；依赖本 TU static 表）
+// ============================================================================
+
+// ORIG T 0x08a3ca81：遍历 s_objCategoryString（IgnoreCaseCompare map）找
+// value==cat 的首项返回 key；未命中返回空串（ORIG 0x8e1dc00）。
+std::string getObjectCategoryString(ENUM_CATEGORY cat)
+{
+    std::map<std::string, ENUM_CATEGORY, IgnoreCaseCompare>::iterator it =
+        s_objCategoryString.begin();
+    for (; it != s_objCategoryString.end(); ++it)
+    {
+        if (it->second == cat)
+            return it->first;
+    }
+    return std::string("");
+}
+
+// ORIG T 0x08a397f8：s_bodyImagePath.find(job)；命中返回 second.c_str()，
+// 未命中返回 0。
+const char* getBodyImagePath(ENUM_CHARACTERJOB job)
+{
+    std::map<ENUM_CHARACTERJOB, std::string>::iterator it =
+        s_bodyImagePath.find(job);
+    if (it != s_bodyImagePath.end())
+        return it->second.c_str();
+    return 0;
+}
+
+// ORIG T 0x08a39866：索引 = 12*job + 2*type + level（[job][type][level]）；
+// type>5 或 level>1 返回 0；否则返回表项 float。
+float getUpgradeWeaponAttackPowerRate(ENUM_CHARACTERJOB job, unsigned int type,
+                                      unsigned int level)
+{
+    if (type > 5 || level > 1)
+        return 0.0f;
+    return upgradeWeaponAttackPowerRate_[static_cast<int>(job)][type][level];
+}

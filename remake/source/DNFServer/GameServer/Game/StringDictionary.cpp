@@ -27,9 +27,6 @@
 
 namespace
 {
-// ORIG kBufSize 静态常量（0x8e2ca64 = 0x100）。
-const int kBufSize = 0x100;
-
 // ORIG getStringHashValue 为文件局部 static（0x8ab21f8，nm t）。
 //   hash = 0; for each non-null byte c: hash = hash*65599 + (signed char)c;
 //   return hash.
@@ -99,6 +96,8 @@ StringDictionary::~StringDictionary()
 // ----------------------------------------------------------------------------
 const char* StringDictionary::addString(const char* s)
 {
+    // ORIG 函数级 static（0x8e2ca64 = 0x10000；块分配默认容量）。
+    static const int kBufSize = 0x10000;
     const size_t len = strlen(s);
     const int need = static_cast<int>(len) + 1;
 

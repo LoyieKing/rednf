@@ -409,7 +409,7 @@ void CSharedServerMessageManager::UpdateServerMessage(CUser* pUser, int nIndex,
     {
         if (!m_adapter.IsOnIndex(nIndex))
         {
-            cMyTrace tr("void CSharedServerMessageManager::UpdateServerMessage(CUser*, int, char*, char*, int)",
+            cMyTrace tr(__PRETTY_FUNCTION__,
                         0x126, 0);
             tr("SERVER_MESSAGE : NOT EXIST INDEX and NOT EXIST DATA");
             return;
@@ -512,7 +512,7 @@ void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int nIndex,
     {
         if (!m_adapter.IsOnIndex(nIndex))
         {
-            cMyTrace tr("void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int, char*, char*, int)",
+            cMyTrace tr(__PRETTY_FUNCTION__,
                         0x1c6, 0);
             tr("SERVER_MESSAGE : NOT EXIST INDEX and NOT EXIST DATA");
             return;

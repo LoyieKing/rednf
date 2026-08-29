@@ -316,6 +316,144 @@ void CAutoPunishRuleHackTypeMgr::ResetFullIpCounterData()
 }
 
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// _checkApplyFlag —— ORIG W 0x0869550c。
+// 依据 objdump 逐分支恢复：
+//   m_value3 == 1/5  → 拷贝出参直接放行；
+//   m_value3 == 2/10 → 在 lookOutsA/lookOutsB 观察名单中命中 {m_type1,m_type2}
+//                      即拒绝；m_value3 == 3 → 在 ipCounters 名单中命中即拒绝；
+//   m_value3 == 4/9  → _findIPCount 超阈值记日志并拒绝，否则记日志继续；
+//   m_value3 == 0xb/0xc → _findFullIPCount 同型处理；
+//   其余 → 拷贝出参放行。
+// ----------------------------------------------------------------------------
+bool CAutoPunishRuleHackTypeMgr::_checkApplyFlag(
+    const HackTypeInfo_t& info, CHackAnalyzer* analyzer, HackTypeInfo_t& outInfo,
+    std::vector<stLookOuts>& lookOutsA, std::vector<tyIPCounters>& ipCounters,
+    std::vector<stLookOuts>& lookOutsB, char* ip)
+{
+    if (info.m_value3 == 1 || info.m_value3 == 5)
+    {
+        outInfo.CopyStruct(info);
+        return true;
+    }
+
+    int szA = (int)lookOutsA.size();
+    if (info.m_value3 == 2 && szA > 0)
+    {
+        for (int i = 0; i < szA; ++i)
+        {
+            if (info.m_type1 == lookOutsA[i].m_a &&
+                info.m_type2 == lookOutsA[i].m_b)
+            {
+                return false;
+            }
+        }
+    }
+
+    int szB = (int)lookOutsB.size();
+    if (info.m_value3 == 10 && szB > 0)
+    {
+        for (int i = 0; i < szB; ++i)
+        {
+            if (info.m_type1 == lookOutsB[i].m_a &&
+                info.m_type2 == lookOutsB[i].m_b)
+            {
+                return false;
+            }
+        }
+    }
+
+    int szC = (int)ipCounters.size();
+    if (info.m_value3 == 3 && szC > 0)
+    {
+        for (int i = 0; i < szC; ++i)
+        {
+            if (info.m_type1 == ipCounters[i].m_a &&
+                info.m_type2 == ipCounters[i].m_b)
+            {
+                return false;
+            }
+        }
+    }
+
+    if (info.m_value3 == 4 || info.m_value3 == 9)
+    {
+        int cnt = _findIPCount(info.m_type1, info.m_type2, ip);
+        if (info.m_value4 > (unsigned int)cnt)
+        {
+            WriteIPCounterLog(analyzer, 0, info.m_type1, info.m_type2,
+                              info.m_value4, cnt, ip);
+            return false;
+        }
+        WriteIPCounterLog(analyzer, 1, info.m_type1, info.m_type2,
+                          info.m_value4, cnt, ip);
+    }
+
+    if (info.m_value3 == 11 || info.m_value3 == 12)
+    {
+        int cnt = _findFullIPCount(info.m_type1, info.m_type2, ip);
+        if (info.m_value4 > (unsigned int)cnt)
+        {
+            WriteFullIPCounterLog(analyzer, 0, info.m_type1, info.m_type2,
+                                  info.m_value4, cnt, ip);
+            return false;
+        }
+        WriteFullIPCounterLog(analyzer, 1, info.m_type1, info.m_type2,
+                              info.m_value4, cnt, ip);
+    }
+
+    outInfo.CopyStruct(info);
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// checkMaxHackCntOver —— ORIG W 0x08695360。
+// 遍历 m_hackTypeMap 中 key == type 的 [lower_bound, upper_bound) 区间；
+// 规则条目按两个对称条件判断"累计计数超限"（条件成立即置 flag）：
+//   A: m_type1==type && m_value1<=param && getServerHackAccumulatedCnt(m_type2)>=m_value2
+//   B: m_type2==type && m_value2<=param && getServerHackAccumulatedCnt(m_type1)>=m_value1
+// flag 置位后交由 _checkApplyFlag 处置；返回 true 表示命中处置（调用方终止）。
+// ----------------------------------------------------------------------------
+bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
+    ENUM_HACKTYPE type, unsigned int param, CHackAnalyzer* analyzer,
+    HackTypeInfo_t& outInfo, std::vector<stLookOuts>& lookOutsA,
+    std::vector<tyIPCounters>& ipCounters, std::vector<stLookOuts>& lookOutsB,
+    char* ip)
+{
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::iterator lower =
+        m_hackTypeMap.lower_bound(type);
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator cit = lower;
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::iterator upper =
+        m_hackTypeMap.upper_bound(type);
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator citEnd = upper;
+
+    for (; cit != citEnd; ++cit)
+    {
+        HackTypeInfo_t info = cit->second;
+        bool flag = false;
+        if (info.m_type1 == (unsigned short)type &&
+            info.m_value1 <= param &&
+            analyzer->getServerHackAccumulatedCnt(
+                (ENUM_HACKTYPE)info.m_type2) >= info.m_value2)
+        {
+            flag = true;
+        }
+        if (info.m_type2 == (unsigned short)type &&
+            info.m_value2 <= param &&
+            analyzer->getServerHackAccumulatedCnt(
+                (ENUM_HACKTYPE)info.m_type1) >= info.m_value1)
+        {
+            flag = true;
+        }
+        if (flag && _checkApplyFlag(info, analyzer, outInfo, lookOutsA,
+                                    ipCounters, lookOutsB, ip))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // checkTotalTradeRuleOver —— ORIG W 0x08531fd2 (0x63) const：
 //  type==0 且 totalValue==0          -> false
 //  totalTradeType > tradeType        -> false

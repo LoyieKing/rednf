@@ -178,7 +178,7 @@ EmblemCompoundServer::~EmblemCompoundServer()
 // operator()("\t- Loading Emblem Compound script - ") + loadScript()==0。
 bool EmblemCompoundServer::Load()
 {
-    cMyTrace trace("virtual bool EmblemCompoundServer::Load()", 0x1c7, 9, true, false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1c7, 9, true, false);
     trace("\t- Loading Emblem Compound script - ");
     return loadScript() == 0;
 }
@@ -291,7 +291,7 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd8);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool EmblemCompoundServer::CheckCondition(CUser*, arad::SigAradEmblemCompound*)",
+            __PRETTY_FUNCTION__,
             0x1e8,
             "EMBLEM COMPOUND : [grade1:%d] [grade2:%d] [charac_no:%d]",
             (int)sig->m_grade0, (int)sig->m_grade1,
@@ -305,7 +305,7 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool EmblemCompoundServer::CheckCondition(CUser*, arad::SigAradEmblemCompound*)",
+            __PRETTY_FUNCTION__,
             0x1f0,
             "EMBLEM COMPOUND : [money:%d] [need:%d] [charac_no:%d]",
             money, m_cost[sig->m_grade0],
@@ -339,7 +339,7 @@ bool EmblemCompoundServer::Process(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
         LogManager::logFormat(
             1, "localjapan/Arad_EmblemReformServer.cpp",
-            "bool EmblemCompoundServer::Process(CUser*, arad::SigAradEmblemCompound*)",
+            __PRETTY_FUNCTION__,
             0x24e,
             "EMBLEM COMPOUND : [money:%d] [need:%d] [charac_no:%d]",
             user->getCurCharacInvenR()->get_money(), m_cost[sig->m_grade0],

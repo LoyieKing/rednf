@@ -8,8 +8,8 @@
 //   setBestClearTime 0x80c8928：find/insert 均基于 this+0x08 的 map。
 // SIG_BEST_CLEAR_TIME_DIFFICULTY：20 字节（5 x int，难度 0..4），ctor 全零
 //   （ORIG 0x80c8c72 memset(this, 0, 0x14)）。
-// 依赖：loadData(0x80c8776)/_saveData(0x80c8616)/getData(0x80c883c) 属后续批次，
-//   loadData/_saveData 暂留纯虚；getData 暂用基类默认（不覆盖）。
+// 依赖：loadData(0x80c8776)/_saveData(0x80c8616)/getData(0x80c883c) 已由
+//   BestClearTime.cpp 实现（StubS3A 批，ORIG 报告转写）。
 
 #include <cstring>
 #include <map>
@@ -24,7 +24,7 @@ struct SIG_BEST_CLEAR_TIME_DIFFICULTY
 
     SIG_BEST_CLEAR_TIME_DIFFICULTY()
     {
-        memset(this, 0, sizeof(*this));
+        memset(this, 0, 0x14);  // ORIG 0x80c8c72：memset(this, 0, 0x14)
     }
 };
 
@@ -34,9 +34,10 @@ public:
     BestClearTime();
     virtual ~BestClearTime();
 
-    // loadData/_saveData：ORIG 0x80c8776 / 0x80c8616，后续批次实现。
-    virtual bool loadData(CUser* pUser, char* pData) = 0;
-    virtual bool _saveData(CUser* pUser) = 0;
+    // ORIG 0x80c8776 / 0x80c8616 / 0x80c883c（StubS3A 批实现）。
+    virtual bool loadData(CUser* pUser, char* pData);
+    virtual bool _saveData(CUser* pUser);
+    virtual void getData(char* pData) const;
     virtual void _reset();
 
     // ORIG 0x80c8928：记录某副本某难度的最佳通关时间。

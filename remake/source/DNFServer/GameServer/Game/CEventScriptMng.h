@@ -46,7 +46,6 @@ class InGameEventInfoList
 {
 public:
     InGameEventInfoList();
-    ~InGameEventInfoList();
     void insertEventInfo(int id, InGameEventInfo& info);   // ORIG 0x0897eb30 T
 
     std::map<int, InGameEventInfo> m_info;   // +0x00，sizeof 0x18
@@ -57,7 +56,6 @@ class InGameEventScriptLoader
 {
 public:
     InGameEventScriptLoader();
-    ~InGameEventScriptLoader();
     // ORIG 0x08982f10 T：非空则 m_scripts[name] = script；返回 script。
     InGameEventScript* insertEventScript(const std::string& name, InGameEventScript* script);
 

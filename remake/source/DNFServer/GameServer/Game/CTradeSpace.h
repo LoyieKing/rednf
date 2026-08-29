@@ -13,6 +13,7 @@
 
 #include "CUser.h"       // CUser（CUser.h 已含 GameTypes.h/Inven_Item.h）
 #include "Inven_Item.h"  // Inven_Item（0x3d 字节）
+#include "GameTypes.h"   // Mutex（0x18；真实成员，C1 隐式构造同 ORIG）
 
 // ---- TradeSlot（0x48；Inven_Item 位于 +0x09）----
 #pragma pack(push, 1)
@@ -66,10 +67,10 @@ public:
     int get_index();
 
 private:
-    char m_mutex[0x18];       // +0x00
+    Mutex m_mutex;            // +0x00
     int m_index;              // +0x18
-    char m_bTrading;          // +0x1c
-    char m_bLocked;           // +0x1d
+    bool m_bTrading;          // +0x1c
+    bool m_bLocked;           // +0x1d
     CUser* m_pTraders[2];     // +0x20
     int m_nState[2];          // +0x28
     char m_slotsData[2 * 0x798];  // +0x30（行距 0x798 = 27 * 0x48；手写构造）

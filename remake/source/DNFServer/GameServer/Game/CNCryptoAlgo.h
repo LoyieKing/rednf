@@ -9,7 +9,9 @@
 
 #include <cstring>
 
-typedef unsigned int   ulong32;
+// ORIG 口径：ulong32 == unsigned long（_ZL2FImmm/_ZL2FOmiP13symmetric_key/
+// _ZL3FIImmm 的 m 编码实证；改为 unsigned int 会生成 j 编码错位符号）。
+typedef unsigned long  ulong32;
 typedef unsigned long long ulong64;
 
 // ---- LibTomCrypt 错误码（本批次用到部分）----

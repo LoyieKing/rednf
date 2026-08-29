@@ -201,10 +201,15 @@ struct STAICharScriptView
 // AvatarRouletteServer（报告 AvatarRouletteServer/*.md）
 // ============================================================================
 
-AvatarRouletteServer::AvatarRouletteServer()
+// ORIG T 0x0817f354：map ctor 后仅写 +0x18=0（m_pRoulette；+0x1c 总数由 Init 写）。
+AvatarRouletteServer::AvatarRouletteServer() : m_addCharacSkillMap()
 {
-    // ORIG 0x0817f354：map 成员自动构造；*(this+0x18)=0。
     m_pRoulette = 0;
+}
+
+// ORIG T 0x0817f372：仅析构 +0x00 的 map<unsigned long, map<int, vector<LevelUpSkill>>>。
+AvatarRouletteServer::~AvatarRouletteServer()
+{
 }
 
 bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
@@ -232,7 +237,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                     {
                         LogManager::logFormat(
                             1, "localjapan/Arad_AvatarRoulette.cpp",
-                            "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0x80,
+                            __PRETTY_FUNCTION__, 0x80,
                             "AvatarRouletteServer not exist item_no(%d)", itemNo);
                         continue;
                     }
@@ -240,14 +245,14 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                     {
                         LogManager::logFormat(
                             1, "localjapan/Arad_AvatarRoulette.cpp",
-                            "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0x86,
+                            __PRETTY_FUNCTION__, 0x86,
                             "AvatarRouletteServer no avatar item_no(%d)", itemNo);
                     }
                     if (!item->check_job_type(static_cast<char>(job)))
                     {
                         LogManager::logFormat(
                             1, "localjapan/Arad_AvatarRoulette.cpp",
-                            "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0x8d,
+                            __PRETTY_FUNCTION__, 0x8d,
                             "AvatarRouletteServer item_no(%d) check_job_type(%d)==false",
                             itemNo, job);
                     }
@@ -256,7 +261,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                     {
                         LogManager::logFormat(
                             1, "localjapan/Arad_AvatarRoulette.cpp",
-                            "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0x95,
+                            __PRETTY_FUNCTION__, 0x95,
                             "AvatarRouletteServer item_no(%d) GetItemType(%d)!=%d",
                             itemNo, itemType, type);
                     }
@@ -267,7 +272,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                         {
                             LogManager::logFormat(
                                 1, "localjapan/Arad_AvatarRoulette.cpp",
-                                "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0xa3,
+                                __PRETTY_FUNCTION__, 0xa3,
                                 "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
                                 itemNo, grade, 2, static_cast<int>(li));
                         }
@@ -275,7 +280,7 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                         {
                             LogManager::logFormat(
                                 1, "localjapan/Arad_AvatarRoulette.cpp",
-                                "bool AvatarRouletteServer::Init(AvatarRoulette*)", 0xa9,
+                                __PRETTY_FUNCTION__, 0xa9,
                                 "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
                                 itemNo, grade, 1, static_cast<int>(li));
                         }
@@ -324,7 +329,7 @@ bool AvatarRouletteServer::InitAddCharacSkill()
                 {
                     LogManager::logFormat(
                         1, "localjapan/Arad_AvatarRoulette.cpp",
-                        "bool AvatarRouletteServer::InitAddCharacSkill()", 0x39,
+                        __PRETTY_FUNCTION__, 0x39,
                         "InitAddCharacSkill() - ImportEquipmentScript() fail file - %s",
                         fileName);
                     return false;
@@ -922,7 +927,7 @@ bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "bool CWorldMapList::insert_world_map(CWorldMap*)", 0x2be9,
+            __PRETTY_FUNCTION__, 0x2be9,
             "Already registed world map index detected : %d", idx);
         return false;
     }
@@ -1097,7 +1102,7 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
             CNPCScript* npc = new CNPCScript;
             if (!npc->load(name))
             {
-                cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1b0, 5);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x1b0, 5);
                 trace("%s load failed\n", name);
                 return 0x1b4;
             }
@@ -1108,20 +1113,20 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
         }
         else
         {
-            cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1a9, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1a9, 5);
             trace("%s file not exists\n", name);
         }
     }
 
     if (loadNPCCommonData(m_npcCommon, common) != 0)
     {
-        cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1be, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1be, 5);
         trace("%s load failed\n", common);
         return 0x1bf;
     }
     if (m_npcCommon.m_favorableNpcList.size() > 0x32)
     {
-        cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1c3, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1c3, 5);
         trace("%s Favorable npc count over\n", common);
         return 0x1c4;
     }

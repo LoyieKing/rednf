@@ -1,7 +1,6 @@
 // df_game_r 还原 —— StringResource / CStringManager 实现（报告依据见 .h 文件头）。
 // 逐段转写自 ORIG objdump（地址见各函数注释）；static helper
-// parseStringLine（ORIG t _ZL15parseStringLinePcPiPS_ @0x08ad490f）与
-// toTString(char const*)（ORIG T _Z9toTStringPKc @0x08adeb75，= atoi 转发）同 TU。
+// parseStringLine（ORIG t _ZL15parseStringLinePcPiPS_ @0x08ad490f）同 TU。  
 
 #include "StringResource.h"
 
@@ -16,14 +15,6 @@
 // ---------------------------------------------------------------------------
 StringResource::StringResource() {}
 StringResource::~StringResource() {}
-
-// ---------------------------------------------------------------------------
-// toTString —— ORIG T _Z9toTStringPKc @0x08adeb75（size 0x08）：尾调用 atoi。
-// ---------------------------------------------------------------------------
-static int toTString(const char* s)
-{
-    return atoi(s);
-}
 
 // ---------------------------------------------------------------------------
 // parseStringLine —— ORIG t _ZL15parseStringLinePcPiPS_ @0x08ad490f。
@@ -202,6 +193,16 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
 }
 
 // ---------------------------------------------------------------------------
+// loadFromResource —— ORIG T 0x08ad4dfa（size 0x0a）：空函数（push ebp /
+// mov $0,%eax / pop ebp / ret）——真实 ORIG 即恒返 false（资源型装载入口
+// 在 ORIG 中未启用），转写为空实现。签名 (void*, int, CharString*)。
+// ---------------------------------------------------------------------------
+bool StringResource::loadFromResource(void*, int, CharString*)
+{
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // loadFromBinary —— ORIG T 0x08ad4e04。
 // 分支一（SC01）：magic "S","C","0","1"；origSize=*(data+4)；payload 取
 // round4(size+3) 字节 new[]；running-key XOR 解密（k 初值 0x5819af17，
@@ -212,7 +213,7 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
 // 默认分支：CharString(data, size)。之后统一
 // loadFromString(cs.c_str(), cs.length(), err)，透传结果。
 // ---------------------------------------------------------------------------
-bool StringResource::loadFromBinary(char* data, int size, CharString* error)
+bool StringResource::loadFromBinary(const unsigned char* data, int size, CharString* error)
 {
     CharString content;                              // -0x48
 
@@ -220,7 +221,7 @@ bool StringResource::loadFromBinary(char* data, int size, CharString* error)
         data[2] == '0' && data[3] == '1')
     {
         const int origSize =
-            *reinterpret_cast<int*>(data + 4);       // -0x2c ORIG data+4 dword
+            *reinterpret_cast<const int*>(data + 4);       // -0x2c ORIG data+4 dword
         const unsigned int payloadBytes =
             static_cast<unsigned int>((size + 3) & ~3);   // round4(size+3)
 
@@ -247,7 +248,7 @@ bool StringResource::loadFromBinary(char* data, int size, CharString* error)
              data[1] == '\xbb' && data[2] == '\xbf')
     {
         WideString ws;
-        if (!convertFromUtf8(data + 3, size - 3, &ws))
+        if (!convertFromUtf8(reinterpret_cast<const char*>(data + 3), size - 3, &ws))
             return false;
         content = convertToCharString(ws);
     }
@@ -267,7 +268,7 @@ bool StringResource::loadFromBinary(char* data, int size, CharString* error)
     }
     else
     {
-        content = CharString(data, size);
+        content = CharString(reinterpret_cast<const char*>(data), size);
     }
 
     const bool result =
@@ -305,7 +306,7 @@ bool StringResource::loadFromFile(const char* path, CharString* error)
     fread(buf, 1, static_cast<size_t>(size), fp);
     fclose(fp);
 
-    const bool result = loadFromBinary(buf, size, error);
+    const bool result = loadFromBinary(reinterpret_cast<const unsigned char*>(buf), size, error);
     delete[] buf;
     return result;
 }
@@ -324,15 +325,15 @@ StringResource* stringResource()
 
 }  // namespace app
 
-// g_STRING_FILE —— 对应 ORIG 单元内静态 _ZL11STRING_FILE（0x093f567c）。
-const char* g_STRING_FILE = 0;
+// STRING_FILE —— ORIG 单元内静态 _ZL11STRING_FILE（0x093f567c），恒 0。
+static const char* STRING_FILE = 0;
 
 // ---------------------------------------------------------------------------
 // loadString —— ORIG T 0x08ac35cc：stringResource()->loadFromFile(path,err)。
 // ---------------------------------------------------------------------------
 bool loadString(CharString* error)
 {
-    return app::stringResource()->loadFromFile(g_STRING_FILE, error);
+    return app::stringResource()->loadFromFile(STRING_FILE, error);
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +346,7 @@ bool loadString(CharString* error)
 // 静态哨兵长度上界，行为等价于以 NUL 定界求长）。
 // convertToCharString(RK10WideString) —— ORIG T 0x08adf624：sret，转发 c_str()。
 // ---------------------------------------------------------------------------
-CharString convertToCharString(const wchar_t* src, int srcLength)
+CharString convertToCharString(const wchar_t* src, unsigned int srcLength)
 {
     (void)srcLength;
     const std::size_t n = wcstombs(NULL, src, 0);
@@ -452,32 +453,44 @@ bool convertFromUtf8(const char* src, int srcLength, WideString* out)
 }
 
 // ---------------------------------------------------------------------------
+// app::getStr —— ORIG T 0x08ad54cc：get(id) 命中 → 返回表项拷贝；
+// 未命中 → CharString::format("getStr(%d) == none", id)。
+// ---------------------------------------------------------------------------
+CharString app::getStr(int id)
+{
+    const CharString* entry = 0;
+    if (app::stringResource()->get(id, &entry))
+        return *entry;
+    return CharString::format("getStr(%d) == none", id);
+}
+
+// ---------------------------------------------------------------------------
 // CStringManager::getStr —— ORIG T 0x08ac35f8。
 // is_sr_loaded（ORIG _ZL12is_sr_loaded @0x0950189a）未置位时先加载一次；
 // 加载失败返回 NULL（ORIG ebx=0 路径）；命中取表项 c_str()；未命中 sprintf
 // "getStr(%d) == none"（格式串 @0x8e2e793）到静态 errorMsg 缓冲并返回。
 // errorMsg 对应 ORIG getStr 内静态缓冲（bss 块 0x508）。
 // ---------------------------------------------------------------------------
-static bool s_isSrLoaded = false;
-static char s_getStrErrorMsg[0x50];
+static bool is_sr_loaded = false;
 
 char* CStringManager::getStr(int id)
 {
-    if (!s_isSrLoaded)
+    static char errorMsg[0x50];   // ORIG getStr 内局部静态 _ZZN14CStringManager6getStrEiE8errorMsg
+    if (!is_sr_loaded)
     {
         CharString err;
         const bool loaded = loadString(&err);
-        s_isSrLoaded = loaded;
+        is_sr_loaded = loaded;
     }
-    if (!s_isSrLoaded)
+    if (!is_sr_loaded)
         return 0;
 
     const CharString* entry = 0;
     if (app::stringResource()->get(id, &entry))
         return const_cast<char*>(entry->c_str());
 
-    sprintf(s_getStrErrorMsg, "getStr(%d) == none", id);
-    return s_getStrErrorMsg;
+    sprintf(errorMsg, "getStr(%d) == none", id);
+    return errorMsg;
 }
 
 // ---------------------------------------------------------------------------
@@ -485,5 +498,5 @@ char* CStringManager::getStr(int id)
 // ---------------------------------------------------------------------------
 void CStringManager::setStringResourceLoaded()
 {
-    s_isSrLoaded = true;
+    is_sr_loaded = true;
 }

@@ -107,7 +107,7 @@ bool RandomOptionField::empty() const
     return m_field0 == 0;  // W 0x811ed22：movzbl (%eax); test; sete
 }
 
-bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num) const
+bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num)
 {
     // W 0x85f4002：!m_fielda.empty() && (m_seedd & 3) == num
     if (m_fielda.empty())
@@ -171,48 +171,65 @@ public:
     {
     }
 
-    void operator()(unsigned int weight) { step(weight); }
-    void operator()(const ResetValue& rv) { step((unsigned int)rv.m_min); }
-    void operator()(const OptionGroup& og) { step((unsigned int)og.m_weight4); }
-
-    unsigned int get_value() const { return m_value; }
-
-private:
-    void step(unsigned int w)
+    // ORIG _ZN11CRandomListIjEclEj W @0x085f5b6a（36 条，报告缺失 objdump 直转）：
+    //   m_sum > m_n 直接结束；否则 (m_n-m_sum)<w 时记 m_value=m_count，
+    //   随后 m_sum+=w、++m_count。
+    void operator()(unsigned int weight)
     {
         if (m_sum > m_n)
         {
             return;
         }
-        if (m_n - m_sum < w)
+        if (m_n - m_sum < weight)
         {
             m_value = m_count;
         }
-        m_sum += w;
+        m_sum += weight;
         ++m_count;
     }
+    // ORIG _ZN11CRandomListIjEclE10ResetValue（W 0x085f5e9e）：
+    //   参数按值（12 字节 ResetValue，mangled 无 RK 前缀）；取 m_weight8 作权重。
+    // ORIG _ZN11CRandomListIjEclE11OptionGroup（W 0x085f58d2）：
+    //   参数按值（8 字节 OptionGroup）；取 m_weight4 作权重。
+    void operator()(ResetValue rv)
+    {
+        (*this)(static_cast<unsigned int>(rv.m_weight8));
+    }
+    void operator()(OptionGroup og)
+    {
+        (*this)(static_cast<unsigned int>(og.m_weight4));
+    }
 
+    // ORIG _ZN11CRandomListIjE9get_valueEv W @0x085f49a0（非 const）
+    unsigned int get_value() { return m_value; }
+
+private:
     unsigned int m_value;   // +0x00
     unsigned int m_n;       // +0x04
     unsigned int m_sum;     // +0x08
     unsigned int m_count;   // +0x0c
 };
 
+
 template class CRandomList<unsigned int>;
 
+// ORIG W 符号（objdump 0x85f4da6..0x85f4e7a 直转）：
+//   C1 0x85f4da6：先 call OptionValueRatio::C1（三字清零），再写 +0xc/+0x10/+0x14
+//     （m_n=n、m_sum=0、m_count=0；非 memset）。
+//   op()(OptionValueRatio) 0x85f5d04：参数按值（EclES0_）；m_sum>m_n 即返回；
+//     否则 (m_n-m_sum)<o.m_weight8 时整拷 o 三字入 m_sel；随后仅 m_sum+=o.m_weight8，
+//     无 ++m_count。
+//   get_value 0x85f4e5a：非 const（E9get_valueEv），直拷 12 字节，无局部帧。
 // ---------------------------------------------------------------------------
-// CRandomListEx<OptionValueRatio> —— 0x18 字节 functor（报告缺失，objdump 直转）
-// 与 CRandomList 同构，但选中时保存整个 OptionValueRatio（12 字节按值返回）。
-// ---------------------------------------------------------------------------
+template <typename T>
 class CRandomListEx
 {
 public:
-    explicit CRandomListEx(unsigned int n) : m_n(n), m_sum(0), m_count(0)
+    explicit CRandomListEx(unsigned int n) : m_sel(), m_n(n), m_sum(0), m_count(0)
     {
-        std::memset(&m_sel, 0, sizeof(m_sel));
     }
 
-    void operator()(const OptionValueRatio& o)
+    void operator()(T o)
     {
         if (m_sum > m_n)
         {
@@ -223,17 +240,18 @@ public:
             m_sel = o;
         }
         m_sum += o.m_weight8;
-        ++m_count;
     }
 
-    OptionValueRatio get_value() const { return m_sel; }
+    T get_value() { return m_sel; }
 
 private:
-    OptionValueRatio m_sel;   // +0x00
-    unsigned int m_n;         // +0x0c
-    unsigned int m_sum;       // +0x10
-    unsigned int m_count;     // +0x14
+    T m_sel;              // +0x00
+    unsigned int m_n;     // +0x0c
+    unsigned int m_sum;   // +0x10
+    unsigned int m_count; // +0x14
 };
+
+template class CRandomListEx<OptionValueRatio>;
 
 // ===========================================================================
 // random_option::CRandomOptionItemHandle 成员
@@ -247,6 +265,14 @@ namespace random_option
 {
 
 // ---- _get_level_limit —— T 0x085f0f9a（_get_level_limit.md 全文转写）------
+// ORIG 域常量（nm：_ZN13random_optionL13kMaxItemLevelE / L15KItemStartLevelE /
+// L18KItemLevelIntervalE / L15MAX_RANDOM_SEEDE / L16MAX_OPTION_VALUEE，r 段）
+static const int kMaxItemLevel = 80;
+static const int KItemStartLevel = 10;
+static const int KItemLevelInterval = 10;
+static const int MAX_RANDOM_SEED = 64;
+static const int MAX_OPTION_VALUE = 100;
+
 int CRandomOptionItemHandle::_get_level_limit(ENUM_RARITY rarity, int level)
 {
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
@@ -378,11 +404,9 @@ int CRandomOptionItemHandle::_get_option_type(unsigned long /*itemIdx*/,
 {
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
 
-    CRandomOptionGive* provider =
-        *reinterpret_cast<CRandomOptionGive**>(
-            reinterpret_cast<char*>(this) + 0x14);   // m_optionSet（+0x14）
+    CRandomOptionGive* provider = static_cast<CRandomOptionGive*>(m_optionSet);
     std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >& giveMap =
-        provider->getGiveMap();
+        provider->get_option_type();  // CRandomOptionGive 纯虚 ORIG 名（UserMiscLink 批改名）
 
     std::map<RandomApplicationKey,
              std::map<int, RandomOptionGive> >::const_iterator outer =
@@ -416,9 +440,9 @@ int CRandomOptionItemHandle::_get_option_type(unsigned long /*itemIdx*/,
 
 // ---- _get_option_quantity —— T 0x085f25b0（同名报告全文转写）-------------
 // 键 = int{b0=rarity, b1=ff|level, b2=grade, b3=optType}
-int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int grade,
-                                                  unsigned char optType,
-                                                  int level, int& outQuantity)
+int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
+                                                  int grade, int optType,
+                                                  int& outQuantity)
 {
     RandomOptionScript* script =
         reinterpret_cast<RandomOptionScript*>(GetRandomOption());
@@ -479,38 +503,32 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int grade,
 }
 
 // ---- _choose_option_group —— T 0x085f2882（同名报告全文转写）-------------
-// u64 键 = {rarity, ff|level, grade, optType, 0,0,0,0}；dword(group) 不入键
-// （报告 asm 仅写 4 字节键前缀 + local_58 dword 为独立参数槽——按 Ghidra C 的
-//  8 字节布局转写：+4..+7 未写即 0）。经 provider 虚槽1 取表。
+// u64 键 = {rarity, ff|level, grade, optType} 低 4 字节 + dword(group) 高 4 字节
+// （报告 asm +0x01f/+0x022：mov 0x1c(%ebp),%eax; mov %eax,-0x58(%ebp)，group 整体
+// 写入键区 +4..+7）。经 provider 虚槽1 取表。
 // 【运行期 blocked】同 _get_option_type 注。
 int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
-                                                  int grade,
-                                                  unsigned char optTypeByte,
+                                                  int grade, int optType,
                                                   int group, int& outGroup)
 {
-    (void)group;   // ORIG 函数体未将 group 计入查找键（Ghidra 一致）
     unsigned char keyBytes[8];
-    std::memset(keyBytes, 0, sizeof(keyBytes));
     keyBytes[0] = (unsigned char)rarity;
     keyBytes[1] = 0xff;
     keyBytes[2] = (unsigned char)grade;
-    keyBytes[3] = optTypeByte;
-    unsigned long long mapKey;
-    std::memcpy(&mapKey, keyBytes, 8);
+    keyBytes[3] = (unsigned char)optType;
+    *(unsigned int*)(keyBytes + 4) = (unsigned int)group;   // ORIG mov 0x1c(%ebp)→键区+4
 
-    CRandomOptionGive* provider =
-        *reinterpret_cast<CRandomOptionGive**>(
-            reinterpret_cast<char*>(this) + 0x14);   // m_optionSet（+0x14）
+    CRandomOptionGive* provider = static_cast<CRandomOptionGive*>(m_optionSet);
     std::map<unsigned long long, OptionGroupChoiceValue>& choiceMap =
-        provider->getGroupChoiceMap();
+        provider->get_option_group_choice();
 
+    // ORIG find 直传 &键区 8 字节引用（无中间 u64 拷贝）。
     std::map<unsigned long long, OptionGroupChoiceValue>::iterator it =
-        choiceMap.find(mapKey);
+        choiceMap.find(*reinterpret_cast<const unsigned long long*>(keyBytes));
     if (it == choiceMap.end())
     {
         keyBytes[1] = (unsigned char)level;
-        std::memcpy(&mapKey, keyBytes, 8);
-        it = choiceMap.find(mapKey);
+        it = choiceMap.find(*reinterpret_cast<const unsigned long long*>(keyBytes));
         if (it == choiceMap.end())
         {
             return 0x29e;
@@ -543,7 +561,7 @@ int CRandomOptionItemHandle::_get_option_value(int minV, int maxV)
     unsigned long bound = (unsigned long)script->m_ratioE4.m_c;
     int r1 = m_rand[7].randInt(bound);
 
-    CRandomListEx chooser((unsigned int)r1);
+    CRandomListEx<OptionValueRatio> chooser((unsigned int)r1);
     std::for_each(script->m_ratioE4.m_vec0.begin(),
                   script->m_ratioE4.m_vec0.end(), chooser);
 
@@ -607,9 +625,9 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
     unsigned long valueBound = (unsigned long)(range.m_max - range.m_min - 1);
     int rolled = m_rand[12].randInt(valueBound);
     int value = rolled + range.m_min;
-    if (100 < value)
+    if (MAX_OPTION_VALUE < value)
     {
-        value = 100;
+        value = MAX_OPTION_VALUE;
     }
 
     options->set_first_value(slot, (unsigned char)(value & 0xff));
@@ -635,10 +653,8 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
 
     int count = _get_base_item(rarity, limit);
 
-    BaseItemKey key;
-    key.m_rarity = (unsigned char)rarity;
-    key.m_level = (unsigned char)limit;
-    key.m_partType = (unsigned short)partType;
+    BaseItemKey key((unsigned char)rarity, (unsigned char)limit,
+                    (unsigned short)partType);
 
     RandomOptionScript* script =
         reinterpret_cast<RandomOptionScript*>(GetRandomOption());
@@ -718,7 +734,7 @@ bool CRandomOptionItemHandle::give_option_core(
     int quantity = 0;
     if (regenVer && optType == 0x65)
     {
-        err = self->RegenVer_get_option_quantity(rarity, grade, optType, level,
+        err = self->RegenVer_get_option_quantity(rarity, level, grade, optType,
                                                  quantity, roi);
         if (err != 0)
         {
@@ -735,7 +751,7 @@ bool CRandomOptionItemHandle::give_option_core(
     }
     else
     {
-        err = self->_get_option_quantity(rarity, grade, optType, level,
+        err = self->_get_option_quantity(rarity, level, grade, optType,
                                          quantity);
         if (err != 0)
         {
@@ -767,8 +783,8 @@ bool CRandomOptionItemHandle::give_option_core(
     }
 
     int groupId = 0;
-    err = self->_choose_option_group(rarity, level, grade, (unsigned char)optType,
-                                     group, groupId);
+    err = self->_choose_option_group(rarity, level, grade, optType, group,
+                                     groupId);
     if (err != 0)
     {
         if (regenVer)
@@ -898,7 +914,7 @@ bool CRandomOptionItemHandle::give_option_core(
     // seed 字节(+9)：低 2 位 = outGrade；高位 = 池[10](+0x61d0) 掷 0x40 后 <<2
     unsigned char* optBytes = reinterpret_cast<unsigned char*>(opts);
     optBytes[9] = (unsigned char)((optBytes[9] & 0xfc) | (outGrade & 3));
-    unsigned long seedBound = 0x40;
+    unsigned long seedBound = MAX_RANDOM_SEED;
     int seedRoll = self->m_rand[10].randInt(seedBound);
     optBytes[9] = (unsigned char)((optBytes[9] & 3) | ((seedRoll & 0x3f) << 2));
 
@@ -924,8 +940,8 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
 
 // ---- RegenVer_get_option_quantity —— T 0x085f1a62（同名报告全文转写）------
 int CRandomOptionItemHandle::RegenVer_get_option_quantity(
-    ENUM_RARITY rarity, int grade, unsigned char optType, int level,
-    int& outQuantity, RegenerationROI* roi)
+    ENUM_RARITY rarity, int level, int grade, int optType, int& outQuantity,
+    RegenerationROI* roi)
 {
     RandomOptionScript* script =
         reinterpret_cast<RandomOptionScript*>(GetRandomOption());
@@ -1318,19 +1334,19 @@ unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
 {
     if (m_disabled == 0)
     {
-        if (level > 9)
+        if (level >= KItemStartLevel)
         {
-            if (level < 0x50)
+            if (level < kMaxItemLevel)
             {
-                const int rem = level % 10;
+                const int rem = level % KItemLevelInterval;
                 level = level - rem;
             }
             else
             {
-                level = 0x50;
+                level = kMaxItemLevel;
             }
         }
-        if (level < 10 && rarity == 2)
+        if (level < KItemStartLevel && rarity == 2)
         {
             rarity = static_cast<ENUM_RARITY>(0);
             return 0xffffffff;
@@ -1377,3 +1393,18 @@ unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
 }
 
 }  // namespace random_option
+
+// ---- ORIG W 弱符号发射段（RandomOptionScript.h 头内联定义，本 TU 无 odr-use）----
+//   ResetValues C1/C2 @0x08a73df6（vector ctor + clear）、C1ERKS/C2ERKS @0x08a74cda、
+//   clear @0x08a73e38、D1/D2 @0x083cf4b4（仅 vector dtor）。
+// 真实构造/拷贝/析构强制发射，不引入导出符号。
+namespace
+{
+void emitResetValuesWeakSymbols()
+{
+    ResetValues a;             // C1/C2
+    ResetValues b(a);          // C1ERKS/C2ERKS
+    a.clear();                 // clear
+    (void)b;
+}
+}

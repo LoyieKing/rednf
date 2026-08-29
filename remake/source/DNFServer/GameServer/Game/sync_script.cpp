@@ -427,11 +427,11 @@ void CSyncScript::GetLevelUpSkill(
     std::vector<LevelUpSkill>* vec = 0;
     if (vectorIndex == EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX_0)
     {
-        vec = &script->m_param1c0.m_levelUpSkills24c;
+        vec = &script->m_param1c0.m_levelUpSkills[0];
     }
     else if (vectorIndex == EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX_1)
     {
-        vec = &script->m_param1c0.m_levelUpSkills258;
+        vec = &script->m_param1c0.m_levelUpSkills[1];
     }
     else
     {
@@ -924,12 +924,12 @@ bool CSyncScript::insert_aicharacter_info_to_db(int idx,
     {
         return true;
     }
-    char name[0xf0];
-    memset(name, 0, sizeof(name));
+    static char aicharacter_info_name[0xf0];
+    memset(aicharacter_info_name, 0, sizeof(aicharacter_info_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_str4.c_str(), name);
-    db->escape_string(escaped, name);
+    CodePage::script2Database((char*)script.m_str4.c_str(), aicharacter_info_name);
+    db->escape_string(escaped, aicharacter_info_name);
     db->set_query("inSert into dnf_aicharacter_info(idx, ai_name_kr) values(%d, '%s')",
                   idx, escaped);
     return db->exec(true);
@@ -966,12 +966,12 @@ bool CSyncScript::insert_town_info_to_db(const TownScript& script)
     {
         return true;
     }
-    char name[0xf0];
-    memset(name, 0, sizeof(name));
+    static char town_name[0xf0];
+    memset(town_name, 0, sizeof(town_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_str4.c_str(), name);
-    db->escape_string(escaped, name);
+    CodePage::script2Database((char*)script.m_str4.c_str(), town_name);
+    db->escape_string(escaped, town_name);
     db->set_query("inSert into dnf_town_info(idx, town_name_kr) values(%d, '%s')",
                   script.m_field0, escaped);
     return db->exec(true);
@@ -1008,12 +1008,12 @@ bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
     {
         return true;
     }
-    char name[0xf0];
-    memset(name, 0, sizeof(name));
+    static char monster_name[0xf0];
+    memset(monster_name, 0, sizeof(monster_name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    CodePage::script2Database((char*)script.m_name.c_str(), name);
-    db->escape_string(escaped, name);
+    CodePage::script2Database((char*)script.m_name.c_str(), monster_name);
+    db->escape_string(escaped, monster_name);
     db->set_query("inSert into dnf_monster_info(idx, mon_name_kr) values(%d, '%s')",
                   script.m_index, escaped);
     return db->exec(true);
@@ -1070,10 +1070,11 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     const std::string overSkillLevelValuesStr =
         makeString(script->m_overSkillLevelValues.begin(),
                    script->m_overSkillLevelValues.end()).c_str();
-    char escaped[11][0x100];
+    static const int BUFSIZE = 0x100;  // ORIG _ZZN11sync_script11CSyncScript26insert_creature_info_to_db…E7BUFSIZE
+    char escaped[11][BUFSIZE];
     for (int i = 0; i < 11; ++i)
     {
-        memset(escaped[i], 0, 0x100);
+        memset(escaped[i], 0, BUFSIZE);
     }
     const char* values[11];
     values[0] = script->m_name.c_str();
@@ -1137,12 +1138,13 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
                                               const char* name,
                                               const char* explain)
 {
+    static const int BUFSIZE = 0x64;  // ORIG _ZZN11sync_script11CSyncScript27insert_one_item_info_master…E7BUFSIZE
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     const char* names[2];
     names[0] = toMbcs(name);
     names[1] = toMbcs(explain);
-    char escaped[2][100];
+    char escaped[2][BUFSIZE];
     memset(escaped, 0, sizeof(escaped));
     for (int i = 0; i < 2; ++i)
     {
@@ -1159,6 +1161,7 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
 
 bool CSyncScript::insert_item_info_master_to_db()
 {
+    static const int BUFSIZE = 0x64;  // ORIG _ZZN11sync_script11CSyncScript29insert_item_info_master_to_dbEvE7BUFSIZE
     if (m_field0 != 1)
     {
         return true;

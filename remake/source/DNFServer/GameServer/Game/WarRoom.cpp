@@ -3,15 +3,7 @@
 // 逐函数对照 docs/class_func_reports/WarRoom.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
 // 跨类调用一律 include 权威头 + 真实类型调用（无 extern "C" asm 桥）。
-#include <string.h>
-
-#include <algorithm>
-#include <map>
-#include <stdio.h>
-#include <utility>
-#include <vector>
-
-#include "WarRoom.h"
+#include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
 #include "CItem.h"
 #include "CEquipItem.h"
 #include "CDataManager.h"
@@ -26,6 +18,41 @@
 #include "CBurningFatigueEvent.h"
 #include "CServerEvent.h"
 #include "DB_AccountCargoSync.h" // DB_InsertRandomOptionItemInform（静态 makeRequest）
+#include "CUser.h"               // get_state/SendCmdErrorPacket/CheckInParty/CheckInTrade/GetParty
+#include "CPrivateStoreMgr.h"    // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore
+#include "DNFLexWrapper.h"       // loadRDARScriptFile/ScanType/ScanInt
+#include "DisPatcher_MakeWarRoomTemp.h"  // 本批次实现（仅ORIG 符号落此 TU）
+#include "CItem.h"
+#include "CEquipItem.h"
+#include "CDataManager.h"
+#include "CDungeon.h"
+#include "CEnvironment.h"
+#include "CSystemTime.h"
+#include "GameWorld.h"
+#include "CInventory.h"          // 权威 CInventory / Store / user_creature::CCreatureMgr / 共享枚举
+#include "CDungeonEntranceLog.h"
+#include "GlobalData.h"          // 权威 GlobalData::s_systemTime_ / s_event_manager
+#include "CExpDoubleEvent.h"
+#include "CBurningFatigueEvent.h"
+#include "CServerEvent.h"
+#include "DB_AccountCargoSync.h" // DB_InsertRandomOptionItemInform（静态 makeRequest）
+#include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
+#include "CUser.h"               // get_state/SendCmdErrorPacket/CheckInParty/CheckInTrade/GetParty
+#include "CPrivateStoreMgr.h"    // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore
+#include "DNFLexWrapper.h"       // loadRDARScriptFile/ScanType/ScanInt
+#include "DisPatcher_MakeWarRoomTemp.h"  // 本批次实现（仅ORIG 符号落此 TU）
+
+#include "DB_AccountCargoSync.h" // DB_InsertRandomOptionItemInform（静态 makeRequest）
+#include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
+#include "CUser.h"               // get_state/SendCmdErrorPacket/CheckInParty/CheckInTrade/GetParty
+#include "CPrivateStoreMgr.h"    // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore
+#include "DNFLexWrapper.h"       // loadRDARScriptFile/ScanType/ScanInt
+#include "DisPatcher_MakeWarRoomTemp.h"  // 本批次实现（仅ORIG 符号落此 TU）
+#include "CUser.h"           // get_state/SendCmdErrorPacket/CheckInParty/CheckInTrade/GetParty
+#include "CGameManager.h"    // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
+#include "CPrivateStoreMgr.h" // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore
+#include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanInt
+#include "DisPatcher_MakeWarRoomTemp.h"  // 本批次实现（仅ORIG 符号落此 TU）
 
 // ---- 本地枚举（与 CInventory.h 同 guard，避免同时包含时重定义） ----
 #ifndef DNF_ENUM_INVEN_TYPE_DEFINED
@@ -314,7 +341,7 @@ void WarRoom::InvalidUserCheck()
         {
             if (((CUser*)m_slots[i])->getCurCharacR() == 0)
             {
-                cMyTrace("void WarRoom::InvalidUserCheck()", 0x236, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x236, 5)
                     ("WarRoom::InvalidUserCheck slot(%d) warRoomIndex(%d)",
                      i, ((CUser*)m_slots[i])->GetWarRoomIndex());
                 m_slotState[i] = 0xff;
@@ -381,7 +408,7 @@ int WarRoom::WalkOutUserBySlot(int slot)
     if (m_slots[slot] == 0)
     {
         LogManager::logFormat(1, "WarRoom.cpp",
-                              "int WarRoom::WalkOutUserBySlot(int)", 0x5cc,
+                              __PRETTY_FUNCTION__, 0x5cc,
                               "WarRoom::WalkOutUserBySlot no slot(%d)", slot);
         return 4;
     }
@@ -465,7 +492,7 @@ void WarRoom::Prepare()
     void* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (dungeon == 0)
     {
-        LogManager::logFormat(1, "WarRoom.cpp", "void WarRoom::Prepare()", 0x66e,
+        LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__, 0x66e,
                               "WARROOM G_CDataManager()->find_dungeon( %d) fail", 0);
     }
     else
@@ -475,7 +502,7 @@ void WarRoom::Prepare()
         void* map = G_CDataManager()->find_map(mapIdx);
         if (map == 0)
         {
-            LogManager::logFormat(1, "WarRoom.cpp", "void WarRoom::Prepare()", 0x678,
+            LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__, 0x678,
                                   "WARROOM Find Map[%d] Error",
                                   m_pDungeon->m_warRoomData.m_10);
         }
@@ -716,7 +743,7 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
         ((InterfacePacketBuf*)buf)->put_byte(count);
         if (count == 0)
         {
-            LogManager::logFormat(1, "WarRoom.cpp", "void WarRoom::MakeSlotInfo(char*, int)",
+            LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__,
                                   0x793, "Send Member 0 PvpRoom %d State(%d)", m_index,
                                   m_state);
         }
@@ -773,7 +800,7 @@ void WarRoom::OnLeaveState(WARROOM_STATE state)
                     ->use_money(min, (eMoneySubReason)0xf, 1);
                 if (((CUser*)m_slots[i])->GetFinishPointTotal() > 0)
                 {
-                    cMyTrace("void WarRoom::OnLeaveState(WARROOM_STATE)", 0x55b, 5)
+                    cMyTrace(__PRETTY_FUNCTION__, 0x55b, 5)
                         ("쟁역 FP누적됨 발생", ((CUser*)m_slots[i])->GetFinishPointTotal());
                     ((CUser*)m_slots[i])->InitFinishPoint();
                 }
@@ -1081,7 +1108,7 @@ void WarRoom::SendGuildFP()
         }
         if (bestSlot == -1)
         {
-            LogManager::logFormat(1, "WarRoom.cpp", "void WarRoom::SendGuildFP()", 0x430,
+            LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__, 0x430,
                                   "maxPlayer (%d)", 0xffffffff);
         }
         local_3a[bestSlot] = 1;
@@ -1334,7 +1361,7 @@ int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** 
     if (m_slots[seat] == 0)
     {
         cMyTrace trace(
-            "int WarRoom::SetSlotState(CUser*, int, ENUM_SEAT_STATE, CUser**, bool&, bool&, bool&)",
+            __PRETTY_FUNCTION__,
             0x590, 5);
         trace("WARAREA  WarRoom::SetSlotState players_[pos] is NULL pos(%d)", seat);
     }
@@ -1405,7 +1432,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
         return 0x12;
     if ((killerSlot != 0xff) && ((killerSlot < 0) || (killerSlot > 5)))
     {
-        cMyTrace trace("int WarRoom::HandleDieCharacer(CUser*, int)", 0x6d0, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x6d0, 5);
         trace("WarRoom::HandleDieCharacer killerSlotIndex Error(%d)", killerSlot);
         return 1;
     }
@@ -1414,7 +1441,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
     {
         if (m_slots[killerSlot] == 0)
         {
-            cMyTrace trace("int WarRoom::HandleDieCharacer(CUser*, int)", 0x6de, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x6de, 5);
             trace("WARAREA WarRoom::HandleDieCharacer player_[] is NULL killerSlotIndex(%d)",
                   killerSlot);
             killerUid = -1;
@@ -1707,7 +1734,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         CItem* item = G_CDataManager()->find_item(itemIdx);
         if (item == 0)
         {
-            LogManager::logFormat(1, "WarRoom.cpp", "bool WarRoom::HandleGetItem(CUser*, int)",
+            LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__,
                                   0x957, "G_CDataManager()->find_item(%d) fail", itemIdx);
             result = 0;
         }
@@ -1793,7 +1820,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                 }
                 else
                 {
-                    cMyTrace trace("bool WarRoom::HandleGetItem(CUser*, int)", 0x982, 5);
+                    cMyTrace trace(__PRETTY_FUNCTION__, 0x982, 5);
                     trace("fieldData_.PickupItem( %d/%d ) ", idx, itemIdx);
                     packet.put_header(1, 0x2e);
                     packet.put_byte(0);
@@ -1820,7 +1847,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         unsigned int accId = user->get_acc_id();
         NumberToString(accId, 0);
         LogManager::logFormat(1, "WarRoom.cpp",
-                              "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)",
+                              __PRETTY_FUNCTION__,
                               0xa1a, "user - accid[%s] %s : count<0");
         return 0x11;
     }
@@ -1866,7 +1893,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         {
             LogManager::logFormat(
                 1, "WarRoom.cpp",
-                "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xa4c,
+                __PRETTY_FUNCTION__, 0xa4c,
                 "[WarRoom::HandleDropItem] Null Item %d");
             return 0xffffffff;
         }
@@ -1929,7 +1956,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if (user->getCurCharacCargoW()->delete_item(d, e, (eItemDelReason)0x10) != 1)
         {
             cMyTrace trace(
-                "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xabf,
+                __PRETTY_FUNCTION__, 0xabf,
                 5);
             trace("CParty::drop_item , delete_item failed 2, User ch=%d , %d %d",
                   user->getCurCharacNo(), d, b);
@@ -1946,7 +1973,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                         ->use_money(e, (eMoneySubReason)6, 1) != 1)
                 {
                     cMyTrace trace(
-                        "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)",
+                        __PRETTY_FUNCTION__,
                         0xa9f, 5);
                     trace("CParty::drop_item , use_money failed, User ch=%d , %d %d",
                           user->getCurCharacNo(), d, e);
@@ -1960,7 +1987,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                 if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, d, e, (eItemDelReason)6, 1) != 1)
                 {
                     cMyTrace trace(
-                        "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)",
+                        __PRETTY_FUNCTION__,
                         0xaae, 5);
                     trace("CParty::drop_item , delete_item failed, User ch=%d , %d %d",
                           user->getCurCharacNo(), d, b);
@@ -1976,7 +2003,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)0, d, 1, (eItemDelReason)6, 1) != 1)
         {
             cMyTrace trace(
-                "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xaca,
+                __PRETTY_FUNCTION__, 0xaca,
                 5);
             trace("CParty::drop_item , delete_item failed 3, User ch=%d , %d",
                   user->getCurCharacNo(), d);
@@ -1990,7 +2017,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)3, d, 1, (eItemDelReason)6, 1) != 1)
         {
             cMyTrace trace(
-                "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xaed,
+                __PRETTY_FUNCTION__, 0xaed,
                 5);
             trace("CParty::drop_item , delete_item failed 4, User ch=%d , %d",
                   user->getCurCharacNo(), d);
@@ -2004,7 +2031,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if ((field.m_item.m_addInfo != 0) && (field.m_item.get_add_info() > 0x7d0))
         {
             cMyTrace trace(
-                "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xb00,
+                __PRETTY_FUNCTION__, 0xb00,
                 4);
             trace("war room drop item(%d) stack size over %d add_info(%d)",
                   field.m_item.m_addInfo, 0x7d0, field.m_item.get_add_info());
@@ -2060,12 +2087,256 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
             }
         }
     }
-    if (target == 0)
-        return 0x15;
     if (user->GetUsedCoinCount() >= m_pDungeon->m_87c)
         return 0x16;
     HistoryLog::WriteUseCoin((_IO_FILE*)user->m_field796f8,
                              target->getCurCharacName());
     SetCharacterLive(slot, target, true, true, 0, 0xff);
     return 0;
+}
+// ============================================================================
+// 仅ORIG 符号（本批 OrigWarRoom 转写，报告已完整阅读：
+// ============================================================================
+// 仅ORIG 符号（本批 OrigWarRoom 转写，报告已完整阅读：
+//   docs/class_func_reports/_lt_global_gt_/EnterWarRoom.md
+//   docs/class_func_reports/_lt_global_gt_/ImportWarRoomWPTable.md
+//   docs/class_func_reports/DisPatcher_MakeWarRoomTemp/dispatch_sig.md）
+// ============================================================================
+
+// ---- stBloodWarGrowTable（ImportWarRoomWPTable 形参类型，mangled P19stBloodWarGrowTable；
+//      派生自 vector<vector<pair<int,int>>> —— GCC 4.4 对 typedef 到模板实例会展开
+//      typedef 名，唯派生结构体才能产生 ORIG 的 P19stBloodWarGrowTable）----
+struct stBloodWarGrowTable
+    : public std::vector<std::vector<std::pair<int, int> > >
+{
+};
+
+// ============================================================================
+// EnterWarRoom —— ORIG 0x08201e7a（size 0x424，T）
+// 报告 _lt_global_gt_/EnterWarRoom.md 全文转写：战场房间入场入口。
+// 顺序：state!=3 → 错误包(0x13)；getCurCharacVill==7 → SendCmdErrorPacket(0x13)；
+// 私商忙 → 0x3c；Disjoint 店忙 → 0xbf；幽灵 → 0x13；交易中 → 0x13；
+// IsJoinable 非 0 → 错误包(码)；CheckInParty → send_invite_warroom + CheckOutParty；
+// Join>0 → 错误包(码)；cmd==0x65 → 广播本人 basic 包；MakeSlotInfo + send_all +
+// goto_warroom；人数>2 且 state==0 → Start；返回 1/0。
+// ============================================================================
+int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
+{
+    int seat;                 // -0x20（ORIG 声明序：seat, packet, ret, party）
+    PacketGuard packet;       // -0x1c
+    int ret;                  // -0x10（IsJoinable 与 Join 复用同一槽，ORIG 实证）
+    CParty* party;            // -0xc
+    if (user->get_state() != 3)
+    {
+        packet.put_header(1, cmd);
+        packet.put_byte(0);
+        packet.put_byte(0x13);
+        packet.finalize(true);
+        user->Send(packet);
+        return 0;
+    }
+    if (user->getCurCharacVill() == 7)
+    {
+        user->SendCmdErrorPacket(cmd, 0x13);
+        return 0;
+    }
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
+    {
+        user->SendCmdErrorPacket(cmd, 0x3c);
+        return 0;
+    }
+    if (user->IsBusyDisjointStore())
+    {
+        user->SendCmdErrorPacket(cmd, 0xbf);
+        return 0;
+    }
+    if (user->IsCurCharacGhost())
+    {
+        user->SendCmdErrorPacket(cmd, 0x13);
+        return 0;
+    }
+    if (user->CheckInTrade())
+    {
+        user->SendCmdErrorPacket(cmd, 0x13);
+        return 0;
+    }
+    ret = room->IsJoinable(user);
+    if (ret != 0)
+    {
+        packet.put_header(1, cmd);
+        packet.put_byte(0);
+        packet.put_byte(ret);
+        packet.finalize(true);
+        user->Send(packet);
+        return 0;
+    }
+    if (user->CheckInParty())
+    {
+        party = (CParty*)user->GetParty();
+        if (party != 0)
+        {
+            party->send_invite_warroom((unsigned short)user->get_unique_id());
+            G_CGameManager()->CheckOutParty(user, false);
+        }
+    }
+    seat = 0;
+    ret = room->Join(user, seat);
+    if (ret > 0)
+    {
+        packet.put_header(1, cmd);
+        packet.put_byte(0);
+        packet.put_byte(ret);
+        packet.finalize(true);
+        user->Send(packet);
+        return 0;
+    }
+    if (cmd == 0x65)
+    {
+        packet.put_header(1, 0x65);
+        packet.put_byte(1);
+        packet.finalize(true);
+        user->Send(packet);
+    }
+    room->MakeSlotInfo((char*)&packet, seat);
+    G_GameWorld()->send_all(packet);
+    G_GameWorld()->goto_warroom(user);
+    if (room->GetWaiterCount() > 2)
+    {
+        if (room->GetState() == 0)
+        {
+            room->Start();
+        }
+    }
+    return 1;
+}
+
+// ============================================================================
+// ImportWarRoomWPTable —— ORIG 0x08902543（size 0x1af，T）
+// 报告 _lt_global_gt_/ImportWarRoomWPTable.md 全文转写：载入 Etc/WarRoomWPTable.tbl。
+// 失败 → logFormat(0, __FUNCTION__) 返回 0；"[WP TABLE]" 段内每行解析 5 组
+// (key,val) pair，ok 时 push 到 table，继续下一行（do-while(ok)），失败回外层
+// ScanType；返回 1。韩文日志与 __FUNCTION__ 字符串按 ORIG 原样（CP949 源字节）。
+// ============================================================================
+int ImportWarRoomWPTable(stBloodWarGrowTable* table)
+{
+    if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
+    {
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
+                              "CRITICAL ERROR : 쟁역 카운터 스크립트 로드 실패!");
+        return 0;
+    }
+    std::string token;
+    bool ok = false;
+    bool again;
+    while (ScanType(token, true))
+    {
+        if (token == "[WP TABLE]")
+        {
+            do
+            {
+                std::vector<std::pair<int, int> > row;
+                for (int i = 0; i < 5; ++i)
+                {
+                    std::pair<int, int> p;
+                    p.first = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    p.second = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    row.push_back(p);
+                }
+                if (ok)
+                {
+                    if (table != 0)
+                        table->push_back(row);
+                    again = true;
+                }
+                else
+                {
+                    again = false;
+                }
+            } while (again);
+        }
+    }
+    return 1;
+}
+
+// ============================================================================
+// DisPatcher_MakeWarRoomTemp 族（ORIG vtable @0x8bd8cc8，8 槽）
+//   dispatch_sig 0x08201b32（报告 dispatch_sig.md 全文转写）
+//   read 0x082335f8 / process 0x08233602（objdump 转写：恒定返回 0）
+//   D1/D2 0x082431aa / D0 0x082431da（objdump 转写：vptr + 基类析构 + delete 守卫）
+// ============================================================================
+int DisPatcher_MakeWarRoomTemp::dispatch_sig(CUser* user, PacketBuf& packet)
+{
+    if (G_GameWorld()->IsPVPChannel())
+        return 0;
+    if (user->get_state() != 3)
+        return 0;
+    PacketGuard pg;
+    WarRoom* room = G_CGameManager()->GetWarRoom();
+    int createRet;
+    CParty* party;
+    pg.put_header(1, 0x5c);
+    if (room == 0)
+    {
+        pg.put_byte(0);
+        pg.put_byte(4);
+        pg.finalize(true);
+        user->Send(pg);
+        return 0;
+    }
+    if (user->CheckInParty())
+    {
+        party = (CParty*)user->GetParty();
+        if (party != 0)
+        {
+            party->send_invite_warroom((unsigned short)user->get_unique_id());
+            G_CGameManager()->CheckOutParty(user, false);
+        }
+    }
+    createRet = room->Create(user, (char*)"임시", 0x1770);
+    if (createRet > 0)
+    {
+        pg.put_byte(0);
+        pg.put_byte(createRet);
+        pg.finalize(true);
+        user->Send(pg);
+        LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__,
+                              0x976d, "create_room fail: 쟁역 방 생성 실패 ID[%d]\n",
+                              room->GetIndex());
+        G_CGameManager()->PutWarRoom(room);
+        return 0;
+    }
+    pg.clear();
+    pg.put_header(0, 2);
+    pg.put_byte(1);
+    pg.put_short(1);
+    user->make_basic_info((char*)&pg, 1);
+    pg.finalize(true);
+    user->Send(pg);
+    pg.clear();
+    pg.put_header(0, 0x57);
+    pg.put_short(1);
+    room->MakeRoomInfo((char*)&pg);
+    pg.finalize(true);
+    G_GameWorld()->send_all(pg);
+    G_GameWorld()->goto_warroom(user);
+    return 0;
+}
+
+int DisPatcher_MakeWarRoomTemp::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
+{
+    return 0;    // ORIG 0x082335f8：恒定返回 0
+}
+
+int DisPatcher_MakeWarRoomTemp::process(CUser* /*user*/, MSG_BASE& /*msg*/,
+                                        ParamBase& /*param*/)
+{
+    return 0;    // ORIG 0x08233602：恒定返回 0
+}
+
+DisPatcher_MakeWarRoomTemp::~DisPatcher_MakeWarRoomTemp()
+{
 }

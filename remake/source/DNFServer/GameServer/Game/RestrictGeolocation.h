@@ -15,9 +15,11 @@
 // ============================================================================
 
 #include <string>
-#include <set>
+#include <boost/unordered_set.hpp>
 
-class RestrictGeolocation
+#include "Arad_DataManager.h"   // ARAD::Singleton<T>（RestrictGeolocation 基类，ORIG C1 报告）
+
+class RestrictGeolocation : public ARAD::Singleton<RestrictGeolocation>
 {
 public:
     void loadData();                    // ORIG T 0x08170fec
@@ -35,9 +37,10 @@ public:
 
 private:
     void* m_geoip;                      // +0x00 GeoIP 实例指针（GeoIP_new 返回值）
-    // ORIG 成员为 boost::unordered_set<std::string>（+0x04，addAllowCountry/
-    // clearAllowCountry 报告）；重建以 std::set 做语义等价【推断】。
-    std::set<std::string> m_allowCountry;
+    // ORIG 成员为 boost::unordered_set<std::string>（+0x04；C1 0x0817097c 报告以
+    // hash=0xb 四参构造，D1 0x081709fe 报告逆序析构；addAllowCountry/
+    // clearAllowCountry 报告同证据）。
+    boost::unordered_set<std::string> m_allowCountry;
 };
 
 #endif  // DNF_GAME_RESTRICT_GEOLOCATION_H_

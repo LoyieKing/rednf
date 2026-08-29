@@ -1,0 +1,151 @@
+// CCoinRefillEvent —— 金币补充 repeat 事件实现。
+// 全部函数逐段对齐 docs/class_func_reports/CCoinRefillEvent/ 下报告：
+//   CCoinRefillEvent.md(0x0832bdf4) / ~CCoinRefillEvent.md(0x0832be2e) /
+//   StartEvent.md(0x0832be7c) / StartEvent_0832be82.md(0x0832be82) /
+//   EndEvent.md(0x0832c048) / getLastEventTime.md(0x0832c0b8) /
+//   getNextEventTime.md(0x0832c148) / registNextRefillTimer.md(0x0832c1fe)。
+#include "CCoinRefillEvent.h"
+
+#include <cstdio>
+#include <cstring>
+#include <ctime>
+
+#include "CEnvironment.h"   // G_CEnvironment() / m_serverEnvir.m_fatigueTime（env+0x37c）
+#include "CSystemTime.h"
+#include "GlobalData.h"     // s_systemTime_ / s_event_manager
+#include "TimerQueue.h"     // G_TimerQueue / InsertTimer
+
+CCoinRefillEvent::CCoinRefillEvent()
+{
+    // ORIG 0x0832bdf4：vptr 由编译器写；memset(this+0xc, -1, 0x14)。
+    memset(&m_timeCount, 0xff, 0x14);
+}
+
+CCoinRefillEvent::~CCoinRefillEvent()
+{
+    // ORIG 0x0832be2e：写 vptr 后调基类析构（编译器生成）。
+}
+
+void CCoinRefillEvent::StartEvent()
+{
+    // ORIG 0x0832be7c：纯 ret。
+}
+
+void CCoinRefillEvent::StartEvent(Word_Param param)
+{
+    // ORIG 0x0832be82。
+    SetEventFlag(true);
+    memset(&m_timeCount, 0xff, 0x14);
+    m_times[0] = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c 当前小时槽
+    m_times[1] = param.m_duration;               // 低 ushort
+    m_times[2] = param.m_field2;                 // 高 ushort
+    m_timeCount = 0;
+    while (m_timeCount < 4)
+    {
+        if (m_times[m_timeCount] > 0x17)
+        {
+            m_times[m_timeCount] = -1;
+        }
+        if (m_times[m_timeCount] == -1)
+        {
+            break;
+        }
+        m_timeCount = m_timeCount + 1;
+    }
+    for (int i = 1; i <= m_timeCount; i = i + 1)
+    {
+        int minVal = 0x19;
+        int minIdx = 5;
+        for (int j = i; j <= m_timeCount; j = j + 1)
+        {
+            if (m_times[j] < minVal)
+            {
+                minVal = m_times[j];
+                minIdx = j;
+            }
+        }
+        m_times[minIdx] = m_times[i];
+        m_times[i] = minVal;
+    }
+    registNextRefillTimer();
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x48, 0);
+    trace("Coin Refill Event Start! time(%d) time(%d) time(%d)",
+          m_times[0], m_times[1], m_times[2]);
+}
+
+void CCoinRefillEvent::EndEvent()
+{
+    // ORIG 0x0832c048。
+    SetEventFlag(false);
+    memset(&m_timeCount, 0xff, 0x14);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x4f, 0);
+    trace("Coin Refill Event End");
+}
+
+int CCoinRefillEvent::getLastEventTime() const
+{
+    // ORIG 0x0832c0b8。
+    int curSec = GlobalData::s_systemTime_.getCurSec();
+    tm cur;
+    localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
+    if (cur.tm_hour < m_times[0])
+    {
+        return m_times[m_timeCount];
+    }
+    for (int i = 2; i <= m_timeCount; i = i + 1)
+    {
+        if (cur.tm_hour < m_times[i])
+        {
+            return m_times[i - 1];
+        }
+    }
+    return m_times[m_timeCount];
+}
+
+int CCoinRefillEvent::getNextEventTime(tm const& cur) const
+{
+    // ORIG 0x0832c148：找第一个 != m_fatigueTime 且 > cur.tm_hour 的槽；
+    // 否则跳过 == m_fatigueTime 槽；全失败返回基准槽 m_times[0]。
+    for (int i = 1; i <= m_timeCount; i = i + 1)
+    {
+        if (m_times[i] != G_CEnvironment()->m_serverEnvir.m_fatigueTime &&
+            cur.tm_hour < m_times[i])
+        {
+            return m_times[i];
+        }
+    }
+    for (int i = 1; i <= m_timeCount; i = i + 1)
+    {
+        if (m_times[i] != G_CEnvironment()->m_serverEnvir.m_fatigueTime)
+        {
+            return m_times[i];
+        }
+    }
+    return m_times[0];
+}
+
+void CCoinRefillEvent::registNextRefillTimer() const
+{
+    // ORIG 0x0832c1fe。
+    int curSec = GlobalData::s_systemTime_.getCurSec();
+    tm cur;
+    localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
+    tm next = cur;
+    next.tm_hour = getNextEventTime(cur);
+    if (next.tm_hour < cur.tm_hour)
+    {
+        next.tm_mday = next.tm_mday + 1;
+    }
+    next.tm_min = 0;
+    next.tm_sec = 0;
+    time_t nextSec = mktime(&next);
+    if (nextSec - static_cast<time_t>(curSec) >= 0)
+    {
+        int delay = static_cast<int>(nextSec) - curSec;
+        G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2), 0,
+                                    static_cast<TIMER_MESSAGE>(0x65), delay, 0, 0);
+        char* timeStr = ctime(&nextSec);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x88, 0);
+        trace("Next coin refill time is %s", timeStr);
+    }
+}

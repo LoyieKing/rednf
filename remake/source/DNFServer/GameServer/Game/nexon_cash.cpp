@@ -50,7 +50,7 @@ namespace cash {
 // ORIG 0x081af4cc (sz 0x42)：m_socket=-1; m_sendRetryCount=0;
 // memset(&m_peerAdrs,0,4); m_peerPort=0。
 TCPSocket::TCPSocket()
-    : m_socket(-1), m_sendRetryCount(0)
+    : m_socket(INVALID_SOCKET), m_sendRetryCount(0)
 {
     memset(&m_pad04, 0, sizeof(m_pad04));
     m_peerAdrs = 0;
@@ -60,7 +60,7 @@ TCPSocket::TCPSocket()
 // ORIG 0x081af50e (sz 0x0f)：反汇编体仅把参数 port 存入栈局部并返回，
 // 不触及 this、无任何字段写入（弱符号内联残留形态）。忠实保留为空操作。
 TCPSocket::TCPSocket(const char* host, unsigned short port)
-    : m_socket(-1), m_sendRetryCount(0)
+    : m_socket(INVALID_SOCKET), m_sendRetryCount(0)
 {
     (void)host;
     (void)port;
@@ -80,7 +80,7 @@ TCPSocket::~TCPSocket()
 bool TCPSocket::open()
 {
     m_socket = ::socket(2, 1, 6);
-    if (m_socket == -1)
+    if (m_socket == INVALID_SOCKET)
     {
         int err = errno;
         printf("Could not create a TCP socket : %d\n", err);
@@ -156,7 +156,7 @@ int TCPSocket::send(char* buffer, unsigned int length)
     if (savedErrno == EAGAIN || savedErrno == EINTR || savedErrno == EAGAIN)
     {
         ++m_sendRetryCount;
-        if (static_cast<int>(m_sendRetryCount) > 0x64)  // MAX_SEND_RETRY
+        if (static_cast<int>(m_sendRetryCount) > static_cast<int>(TCPSocket::MAX_SEND_RETRY))  // MAX_SEND_RETRY
         {
             m_sendRetryCount = 0;
             return -100;
@@ -208,7 +208,7 @@ void TCPSocket::shutdown(int how)
 {
     // 忠实转写：ORIG 本函数未发起 shutdown 系统调用（内联裁剪后的残体）。
     (void)how;
-    const bool unusedCheck = (m_socket == -1);
+    const bool unusedCheck = (m_socket == INVALID_SOCKET);
     (void)unusedCheck;
 }
 
@@ -349,7 +349,7 @@ bool TCPSocket::accept(TCPSocket& peer)
     socklen_t len = sizeof(peer.m_pad04);  // 16 == sizeof(sockaddr_in)
     peer.m_socket = ::accept(m_socket, reinterpret_cast<struct sockaddr*>(
                                             peer.m_pad04), &len);
-    if (peer.m_socket < 0 || peer.m_socket == -1)
+    if (peer.m_socket < 0 || peer.m_socket == INVALID_SOCKET)
         return false;
 
     // ORIG: memcpy(dst=this+0x14(视图字段), src=adrs+0x08(sin_addr), 4)
@@ -437,15 +437,16 @@ bool TCPSocket::pollErrorEvent() const
 
 int TCPSocket::msRecvBufSize = 0;  // B 0x09407d68
 int TCPSocket::msSendBufSize = 0;  // B 0x09407d6c
+const unsigned int TCPSocket::MAX_SEND_RETRY;  // R 0x08bb49e0（类内 =0x64 的类外定义，发射 R 符号）
 
 
 // ===========================================================================
 // UDPSocket
 // ===========================================================================
 
-// ORIG 0x081aed2c：m_socket=-1; m_port=0。
+// ORIG 0x081aed2c：m_socket = INVALID_SOCKET; m_port=0。
 UDPSocket::UDPSocket()
-    : m_socket(-1), m_port(0)
+    : m_socket(INVALID_SOCKET), m_port(0)
 {
 }
 
@@ -462,10 +463,10 @@ UDPSocket::~UDPSocket()
 //   else true。字符串 @0x08bb49e4。
 bool UDPSocket::open()
 {
-    if (m_socket != -1)
+    if (m_socket != INVALID_SOCKET)
         return false;
     m_socket = ::socket(2, 2, 0);
-    if (m_socket == -1)
+    if (m_socket == INVALID_SOCKET)
     {
         int err = errno;
         printf("Could not create a UDP socket : %d\n", err);
@@ -595,13 +596,13 @@ int UDPSocket::getHandle()
     return m_socket;
 }
 
-// ORIG 0x081af184：if(m_socket==-1)return; close(); m_socket=-1; m_port=0;
+// ORIG 0x081af184：if (m_socket == INVALID_SOCKET)return; close(); m_socket=-1; m_port=0;
 void UDPSocket::close()
 {
     if (m_socket == -1)
         return;
     ::close(m_socket);
-    m_socket = -1;
+    m_socket = INVALID_SOCKET;
     m_port = 0;
 }
 
@@ -1113,7 +1114,7 @@ inline NCashMessage& outMsgOf(NCashImpl* self)
 
 inline void traceRecvError(int errCode, const char* plain)
 {
-    cMyTrace trace("chargeCash", 0x303, 0);
+    cMyTrace trace(__FUNCTION__, 0x303, 0);
     trace("NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
           errCode, plain);
 }
@@ -1166,7 +1167,7 @@ int NCashImpl::recv_msg()
     ssize_t n = ::recv(fd, buf, 0x100, 0x100);
     if (n == 0)
     {
-        printf("[%s] connection lost: %s\n", "recv_msg",
+        printf("[%s] connection lost: %s\n", __FUNCTION__,
                strerror(errno));
         m_connected = false;
         m_socket.close();
@@ -1174,7 +1175,7 @@ int NCashImpl::recv_msg()
     }
     if (n < 0)
     {
-        printf("[%s] recv error: %s\n", "recv_msg", strerror(errno));
+        printf("[%s] recv error: %s\n", __FUNCTION__, strerror(errno));
         m_connected = false;
         m_socket.close();
         return 2;
@@ -1194,14 +1195,14 @@ int NCashImpl::recv_body()
     ssize_t n = ::recv(fd, body, bodyLen, 0x100);
     if (n == 0)
     {
-        printf("[%s] connection lost: %s\n", "recv_body", strerror(errno));
+        printf("[%s] connection lost: %s\n", __FUNCTION__, strerror(errno));
         m_connected = false;
         m_socket.close();
         return 2;
     }
     if (n < 0)
     {
-        printf("[%s] recv error: %s\n", "recv_body", strerror(errno));
+        printf("[%s] recv error: %s\n", __FUNCTION__, strerror(errno));
         m_connected = false;
         m_socket.close();
         return 2;
@@ -1273,28 +1274,28 @@ int NCashImpl::handle_cash_error(int err)
     {
     case 0:
         result = 3;
-        printf("[%s] NO REMIN CASH\n", "handle_cash_error");
+        printf("[%s] NO REMIN CASH\n", __FUNCTION__);
         break;
     case 1:
         result = 4;
-        printf("[%s] DB error occur\n", "handle_cash_error");
+        printf("[%s] DB error occur\n", __FUNCTION__);
         break;
     case 3:
         result = 5;
-        printf("[%s] E_GIFT_LIMIT_OVER Remain cash\n", "handle_cash_error");
+        printf("[%s] E_GIFT_LIMIT_OVER Remain cash\n", __FUNCTION__);
         break;
     case 4:
         result = 6;
-        printf("[%s] E_GIFT_NOT_READY error\n", "handle_cash_error");
+        printf("[%s] E_GIFT_NOT_READY error\n", __FUNCTION__);
         break;
     case 5:
         result = 7;
-        printf("[%s] E_GIFT_UNDER_AGE error\n", "handle_cash_error");
+        printf("[%s] E_GIFT_UNDER_AGE error\n", __FUNCTION__);
         break;
     case 2:      // 与 default 同流（跳转表同项）
     default:
         result = 0x10;
-        printf("[%s] Undefined cash error: %u\n", "handle_cash_error",
+        printf("[%s] Undefined cash error: %u\n", __FUNCTION__,
                static_cast<unsigned>(err));
         break;
     }
@@ -1313,7 +1314,7 @@ int NCashImpl::handle_coupon_error(int err)
     case 3:
         break;
     default:
-        printf("[%s] Invalid coupon packet_id: %u\n", "handle_coupon_error",
+        printf("[%s] Invalid coupon packet_id: %u\n", __FUNCTION__,
                static_cast<unsigned>(err));
         break;
     }
@@ -1350,7 +1351,7 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
     in >> ackPid;
     in >> statusByte;
     outStatus = static_cast<char>(statusByte);
-    printf("[%s] CheckEntrace: %d\n", "checkEntrance",
+    printf("[%s] CheckEntrace: %d\n", __FUNCTION__,
            static_cast<int>(outStatus));  // ORIG 格式串 typo 忠实保留
     return 0;
 }
@@ -1381,7 +1382,7 @@ int NCashImpl::getBalance(const char* userId, int& balanceOut)
     ByteBuffer in(0, 0);
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> balanceOut;
-    printf("[%s] Remain cash: %d\n", "getBalance", balanceOut);
+    printf("[%s] Remain cash: %d\n", __FUNCTION__, balanceOut);
     return 0;
 }
 
@@ -1420,7 +1421,7 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
-    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "purchase",
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
            static_cast<unsigned>(trOut.m_type),
            trOut.m_id);
     return 0;
@@ -1466,7 +1467,7 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
-    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "purchase",
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
            static_cast<unsigned>(trOut.m_type),
            trOut.m_id);
     return 0;
@@ -1510,7 +1511,7 @@ int NCashImpl::gift(unsigned long long productSeq, int cashType,
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
-    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "gift",
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
            static_cast<unsigned>(trOut.m_type),
            trOut.m_id);
     return 0;
@@ -1540,7 +1541,7 @@ int NCashImpl::confirm(unsigned char trFlag, unsigned int trId)
     get_data_header(ackPid, errCode, reqId);
     if (errCode != 3)
         handle_cash_error(errCode);  // ORIG 忽略返回值
-    printf("[%s] E_PURCHASE_CONFIRM\n", "confirm");
+    printf("[%s] E_PURCHASE_CONFIRM\n", __FUNCTION__);
     return 0;
 }
 
@@ -1568,7 +1569,7 @@ int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
     get_data_header(ackPid, errCode, reqId);
     if (errCode != 3)
         handle_cash_error(errCode);  // ORIG 忽略返回值
-    printf("[%s] E_PURCHASE_CONFIRM\n", "cancel");  // 共用格式串
+    printf("[%s] E_PURCHASE_CONFIRM\n", __FUNCTION__);  // 共用格式串
     return 0;
 }
 
@@ -1638,7 +1639,7 @@ int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
-    printf("[%s] CHARGE_CASH OK, db_id: %u, transaction_id: %u\n", "chargeCash",
+    printf("[%s] CHARGE_CASH OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
            static_cast<unsigned>(trOut.m_type), trOut.m_id);
     return 0;
 }

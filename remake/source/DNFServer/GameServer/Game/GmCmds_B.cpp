@@ -49,11 +49,6 @@ public:
 namespace game_master
 {
 
-// 占位字段 m_str0(+0x08)/+0x0c 的 int 槽访问（见文件头说明）。
-// 用宏而非 inline 函数：O0 基线不内联，函数形态会引入 ORIG 没有的 call。
-#define CMD_INT0(cmd) (*reinterpret_cast<int*>(reinterpret_cast<char*>(cmd) + 0x08))
-#define CMD_INT1(cmd) (*reinterpret_cast<int*>(reinterpret_cast<char*>(cmd) + 0x0c))
-
 // ===========================================================================
 // CChangeCharacName — ORIG W ctor 0x082a8418：基类 vptr → 自身 vptr(0x8c81930)，
 // string@+0x08 默认构造（_ZNSsC1Ev）。
@@ -91,13 +86,13 @@ void CChangeExpertJobCmd::parse()
 {
     trim(m_parser->m_args);
     int parsed = atoi(m_parser->m_args.c_str());
-    CMD_INT0(this) = parsed;
+    m_jobType = parsed;
 }
 
 // ORIG execute 0x084a9900。
 void CChangeExpertJobCmd::execute()
 {
-    int jobType = CMD_INT0(this);
+    int jobType = m_jobType;
     GetUser()->SetCurCharacExpertJobType(jobType);
 
     STExpertJobScript* script =
@@ -151,13 +146,13 @@ void CChangeExpertJobExpCmd::parse()
 {
     trim(m_parser->m_args);
     int parsed = atoi(m_parser->m_args.c_str());
-    CMD_INT0(this) = parsed;
+    m_exp = parsed;
 }
 
 // ORIG execute 0x084a9bd0。
 void CChangeExpertJobExpCmd::execute()
 {
-    expert_job::CExpertJob::IncreaseExpertJobExp(GetUser(), CMD_INT0(this));
+    expert_job::CExpertJob::IncreaseExpertJobExp(GetUser(), m_exp);
 }
 
 // ===========================================================================
@@ -178,8 +173,8 @@ void CChangeNPCFavorCmd::parse()
     std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
     int v0 = atoi(first.c_str());
     int v1 = atoi(second.c_str());
-    CMD_INT0(this) = v0;
-    CMD_INT1(this) = v1;
+    m_npcId = v0;
+    m_favor = v1;
 }
 
 // ORIG execute 0x084aaef2：空实现（ret）。
@@ -204,8 +199,8 @@ void CChangeNPCMaxDayCmd::parse()
     std::string second = m_parser->m_args.substr(pos + 1, std::string::npos);
     int v0 = atoi(first.c_str());
     int v1 = atoi(second.c_str());
-    CMD_INT0(this) = v0;
-    CMD_INT1(this) = v1;
+    m_npcId = v0;
+    m_maxDay = v1;
 }
 
 // ORIG execute 0x084aadd2：空实现（ret）。
@@ -256,20 +251,20 @@ void CChoiceItem::parse()
 {
     trim(m_parser->m_args);
     int parsed = atoi(m_parser->m_args.c_str());
-    CMD_INT0(this) = parsed;
+    m_itemIdx = parsed;
 }
 
 // ORIG execute 0x084b0a6e。
 void CChoiceItem::execute()
 {
-    if (CMD_INT0(this) != 0)
+    if (m_itemIdx != 0)
     {
-        CItem* item = G_CDataManager()->find_item(CMD_INT0(this));
+        CItem* item = G_CDataManager()->find_item(m_itemIdx);
         if (item == 0 || item->is_stackable())
         {
             return;                                       // 可堆叠/未知物品不设置
         }
-        G_CDataManager()->setChoiceItem(true, (unsigned int)CMD_INT0(this));
+        G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
         return;
     }
     G_CDataManager()->setChoiceItem(false, 0xffffffffu);
@@ -308,7 +303,7 @@ void CClearInventoryCmd::execute()
         char* acc = NumberToString(user->get_acc_id(), 0);
         LogManager::logFormat(
             1, "GameMaster.cpp",
-            "virtual void game_master::CClearInventoryCmd::execute()", 0x63b,
+            __PRETTY_FUNCTION__, 0x63b,
             "CClearInventoryCmd::execute, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
             acc);
     }
@@ -341,7 +336,7 @@ void CClearAvatarInvenCmd::execute()
             char* acc = NumberToString(user->get_acc_id(), 0);
             LogManager::logFormat(
                 1, "GameMaster.cpp",
-                "virtual void game_master::CClearAvatarInvenCmd::execute()", 0x64d,
+                __PRETTY_FUNCTION__, 0x64d,
                 "CClearAvatarInvenCmd::execute, pUser(%s)->getCurCharacInvenW()->delete_item return FAILED",
                 acc);
             return;
@@ -353,7 +348,7 @@ void CClearAvatarInvenCmd::execute()
         char* acc = NumberToString(user->get_acc_id(), 0);
         LogManager::logFormat(
             1, "GameMaster.cpp",
-            "virtual void game_master::CClearAvatarInvenCmd::execute()", 0x656,
+            __PRETTY_FUNCTION__, 0x656,
             "CClearAvatarInvenCmd::execute, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
             acc);
     }
@@ -370,7 +365,6 @@ CClearRewardTest::CClearRewardTest()
 void CClearRewardTest::parse()
 {
 }
-void gmPrintClient(CUser* user, char const* fileName, char const* content);
 
 
 // ORIG execute 0x084b2a08。
@@ -388,9 +382,9 @@ void CClearRewardTest::execute()
     }
     CDungeon* dungeon = party->m_dungeon;
 
-    // CBattle_Field 子对象位于 CParty+0xb24（ORIG 直接偏移调用 get_dungeon_diff）。
+    // CBattle_Field 子对象位于 CParty+0xb24（占位期经 m_padBattleField1 视图访问）。
     CBattle_Field* battleField =
-        reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+        reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
     int diff = battleField->get_dungeon_diff();
 
     int standardLevel = 0;
@@ -461,7 +455,7 @@ void CClearRewardTest::execute()
                 out += line;
             }
         }
-        gmPrintClient(GetUser(), "cltr_normal.txt", out.c_str());
+        printClient(GetUser(), "cltr_normal.txt", out.c_str());
     }
 
     // ---- 第二轮：ref+0x3c 置 1（金币基数）→ 清空结果容器后重采样 ----
@@ -512,15 +506,14 @@ void CClearRewardTest::execute()
                 out += line;
             }
         }
-        gmPrintClient(GetUser(), "cltr_gold.txt", out.c_str());
+        printClient(GetUser(), "cltr_gold.txt", out.c_str());
     }
 }
 
 // ORIG printClient 0x084b3398
 // _ZN11game_master16CClearRewardTest11printClientEP5CUserPKcS4_：0x13e 包封装两段
-// 字符串（文件名 + 内容）发本人。GameMasterCmd.h 占位声明为无参 printClient()，
-// 本批次禁止改共享头，故以命名空间级同名逻辑函数等价转写（ORIG 为成员函数）。
-void gmPrintClient(CUser* user, char const* fileName, char const* content)
+// 字符串（文件名 + 内容）发本人。
+void CClearRewardTest::printClient(CUser* user, char const* fileName, char const* content)
 {
     PacketGuard packet;
     packet.put_header(0, 0x13e);

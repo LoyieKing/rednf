@@ -3,6 +3,11 @@
 
 #include "Inven_Item.h"
 
+// ORIG 全局（0x943ddc0）：空槽模板。定义于本 TU 顶部 —— ORIG 的
+// _GLOBAL__I_g_emptySlot @ 0x0850d0cb 位于 Inven_Item 内联函数群首部，
+// 供 CAccountCargo/CInventory 等 extern 引用。
+Inven_Item g_emptySlot;
+
 // ===================== stAmplifyOption_t（ORIG 0x80cb75c 族） =====================
 
 void stAmplifyOption_t::reset()
@@ -169,7 +174,6 @@ void ReservedCapacity::reset()
 }
 
 // ===================== Inven_Item =====================
-
 Inven_Item::Inven_Item()
 {
     reset();

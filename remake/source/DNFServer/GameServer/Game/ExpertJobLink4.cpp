@@ -444,19 +444,28 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
 int getItemSellPrice(int price, int curEndurance, int maxEndurance,
                      bool isRandomOption);
 
-// ---- CExpertJobMgr::AcquireExpertJob（报告 AcquireExpertJob.md，
-//      ORIG T 0x0849e1dc：纯转发工厂）。工厂实现（ORIG W 0x0849f5d2 objdump）：
-//      type==1 → Enchanter 池；type==3 → Disjointer 池；取到后虚调用 SetType。 ----
+// ---- CExpertJobMgr::AcquireExpertJob（ORIG T 0x0849e1dc：纯转发工厂）----
 CExpertJob* CExpertJobMgr::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
+{
+    return m_factory->AcquireExpertJob(type);
+}
+
+// ---- CExpertJobFactory::AcquireExpertJob（ORIG W 0x0849f5d2）：
+//      type==1 → Enchanter 池（this+0x00）；type==3 → Disjointer 池（this+0x30）；
+//      取到后先虚调用 Reset()（vtable+0xc 槽）再非虚 SetType(type)。 ----
+CExpertJob* CExpertJobFactory::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
 {
     CExpertJob* acquired = 0;
     if (type == (ENUM_EXPERT_JOB_TYPE)1)
-        acquired = m_factory->m_enchanterPool.Acquire();
+        acquired = m_enchanterPool.Acquire();
     else if (type == (ENUM_EXPERT_JOB_TYPE)3)
-        acquired = m_factory->m_disjointerPool.Acquire();
+        acquired = m_disjointerPool.Acquire();
 
     if (acquired != 0)
+    {
+        acquired->Reset();
         acquired->SetType(type);
+    }
     return acquired;
 }
 
@@ -845,10 +854,26 @@ std::vector<int>* GetPredictDisjointItems(CUser* user, CItem* item,
     return disjointer->GetPredictResult(user, item, &invenItem);
 }
 
-// ---- DisJoint::GetPredictResult（ORIG T 0x08473116）----
+// ---- DisJoint::getPredictResultItemTypeCount（ORIG T 0x08473148，
+//      docs/class_func_reports/DisJoint/getPredictResultItemTypeCount.md）：
+//      rarity ∉ [0,5] → 1；否则读 m_additional[rarity].m_count
+//      （this+0x5c8+rarity*0x10，P8：Ghidra 的 (param+0x5c)*0x10+8 即 entry
+//      起点 m_count，非 +8 字段），非 0 → 2，否则 → 1。 ----
+int DisJoint::getPredictResultItemTypeCount(int rarity) const
+{
+    if (rarity < 0 || rarity > 5)
+        return 1;
+    if (m_additional[rarity].m_count != 0)
+        return 2;
+    return 1;
+}
+
+// ---- DisJoint::GetPredictResult（报告 GetPredictResult.md，ORIG T 0x08473116）：
+//      rarity ∈ [0,5] → &m_resultVecs[rarity]（this+0x628+rarity*0xc）；
+//      越界 → &m_resultVecs[0]（this+0x628）。rarity 按有符号比较（js/jle）。 ----
 std::vector<int>* DisJoint::GetPredictResult(int rarity)
 {
-    if (rarity < 0 || rarity >= 6)
+    if (rarity < 0 || rarity > 5)
         return &m_resultVecs[0];
     return &m_resultVecs[rarity];
 }

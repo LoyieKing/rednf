@@ -15,7 +15,7 @@ bool CSchoolServerProxy::Init()
     const int result = m_udpHandler.InitClientSocket();
     if (result == -1) {
         LogManager::logFormat(1, "DF_SchoolServerProxy.cpp",
-                              "bool CSchoolServerProxy::Init()", 0x3c,
+                              __PRETTY_FUNCTION__, 0x3c,
                               "[CSchoolServerProxy::Init] Can't init udp client socket\n");
         return false;
     }

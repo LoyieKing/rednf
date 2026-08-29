@@ -15,16 +15,6 @@
 #include "CLog.h"
 #include "CSwitchLog.h"   // 权威声明（本 TU 唯一实现）
 
-class Mutex;
-
-template <class T>
-class Guard
-{
-public:
-    Guard(T* p);
-    ~Guard();
-};
-
 char CSwitchLog::log_write_[1];   // ORIG 0x0943df78，1 字节
 CSwitchLog::CSwitchLog(const char* name, int line, int level, int flagIndex)
 {

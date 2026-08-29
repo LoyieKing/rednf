@@ -21,23 +21,13 @@
 #include "MsgQueueMgr.h"
 #include "Stream.h"
 #include "StreamPool.h"
+#include "PacketGuard.h"
 
 // ============================================================================
 // 本 TU 需要而其它 TU 提供的符号
 // ============================================================================
 
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义 _ZN11PacketGuardC1/D1Ev）
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 class CExpandEquipslot;
 class CInventory;
@@ -84,12 +74,9 @@ class CInventory
 {
 public:
     Inven_Item* GetInvenRef(int invenType, int slot);
+    Inven_Item GetInvenSlot(int invenType, int slot) const;   // ORIG _ZNK10CInventory12GetInvenSlotEii
 };
 
-// ORIG 调用点怪癖：_forceClear 以 4 参自由函数形态调用 GetInvenSlot
-// （压栈 out,this,invenType,slot），符号指向成员 _ZNK10CInventory12GetInvenSlotEii；
-// 链接桩由主 agent 提供（同 CInventory.h 声明）。
-int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot);
 
 
 // cUserHistoryLog::AchievementComplete（CUser.h 权威 cUserHistoryLog 声明，
@@ -392,7 +379,7 @@ void CAchievement::_forceClear(unsigned int id)
             // ORIG 0x828cdcc 调 _ZNK15CUserCharacInfo18getCurCharacInvenREv（只读引用）
             const CInventory* inven = m_user->getCurCharacInvenR();
             Inven_Item invenItem;
-            GetInvenSlot(&invenItem, (CInventory*)inven, 0, 0xb);
+            invenItem = inven->GetInvenSlot(0, 0xb);
             if ((invenItem.m_addInfo == 0) ||
                 (invenItem.m_addInfo != titleIdx))
             {

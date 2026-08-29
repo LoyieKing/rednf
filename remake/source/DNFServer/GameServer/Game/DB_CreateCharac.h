@@ -43,7 +43,7 @@ public:
     bool CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig, bool traceFlag);  // T @0x08401922
     bool InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig);         // T @0x084016ae
     bool InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig, bool traceFlag); // T @0x08401b9a
-    void makeRequestResetLimitCreateMid();              // T @0x08401864
+    static void makeRequestResetLimitCreateMid();       // T @0x08401864（ORIG 无 this 直调）
 
     // ---- 事件角色/附属数据 ----
     bool _checkCreateEventCharacter(SIG_CREATE_CHARAC* sig);   // T @0x084013b2

@@ -225,7 +225,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "int CDungeon::ChooseRandomMap(int, int, int) const", 0x71b,
+            __PRETTY_FUNCTION__, 0x71b,
             "CDungeon::ChooseRandomMap [1](Dungeon Index(%d))(map_type(%d) < 0 || "
             "direction(%d) < 0 || entrance(%d) < 0)==false",
             m_index, mapType, direction, entrance);
@@ -246,7 +246,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x72c,
+                    __PRETTY_FUNCTION__, 0x72c,
                     "CDungeon::ChooseRandomMap "
                     "(boss_maplist_[direction].size()==0)(Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -264,7 +264,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x736,
+                    __PRETTY_FUNCTION__, 0x736,
                     "CDungeon::ChooseRandomMap "
                     "(p_map->get_index()==-1)[1](Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -283,7 +283,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x745,
+                    __PRETTY_FUNCTION__, 0x745,
                     "CDungeon::ChooseRandomMap "
                     "(dummy_maplist_[direction].size()==0)(Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -301,7 +301,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x74f,
+                    __PRETTY_FUNCTION__, 0x74f,
                     "CDungeon::ChooseRandomMap "
                     "(p_map->get_index()==-1)[1](Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -320,7 +320,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x75e,
+                    __PRETTY_FUNCTION__, 0x75e,
                     "CDungeon::ChooseRandomMap "
                     "(maplist_[direction].size()==0)(Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -338,7 +338,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "int CDungeon::ChooseRandomMap(int, int, int) const", 0x768,
+                    __PRETTY_FUNCTION__, 0x768,
                     "CDungeon::ChooseRandomMap "
                     "(p_map->get_index()==-1)[2](Dungeon Index(%d))"
                     "(map_type(%d),direction(%d),entrance(%d)",
@@ -354,7 +354,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "int CDungeon::ChooseRandomMap(int, int, int) const", 0x77b,
+            __PRETTY_FUNCTION__, 0x77b,
             "CDungeon::ChooseRandomMap "
             "(Key count is zero! : plz check map script)(Dungeon Index(%d))"
             "(map_type(%d),direction(%d),entrance(%d)",
@@ -370,7 +370,7 @@ int CDungeon::ChooseRandomMap(int mapType, int direction, int entrance) const
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "int CDungeon::ChooseRandomMap(int, int, int) const", 0x786,
+            __PRETTY_FUNCTION__, 0x786,
             "CDungeon::ChooseRandomMap "
             "(p_map->get_index()==-1)[3](Dungeon Index(%d))"
             "(map_type(%d),direction(%d),entrance(%d)",

@@ -35,7 +35,7 @@ int Dispatcher_Compound_Equipment_Upgrade_Card::dispatch_sig(CUser* user,
     if (G_GameWorld()->GetChannelType() == 7)
     {
         return LineFunc(0xe4c3,
-                        "virtual int Dispatcher_Compound_Equipment_Upgrade_Card::dispatch_sig(CUser*, PacketBuf&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     }
 

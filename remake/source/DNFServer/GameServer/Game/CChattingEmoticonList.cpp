@@ -11,15 +11,11 @@
 #include "CUser.h"
 #include "DNFLexWrapper.h"   // loadRDARScriptFile / ScanType / ScanInt
 #include <stdio.h>
+#include "NpcScript.h"
 
 // ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp 同布局：
 //      +0x00 std::map<int,std::string>，大小 0x18）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp
-};
+
 
 // ORIG 全局（B g_ChattingEmoticonScriptFileList 0x094f6cc0 = 0x18
 // STScriptFileList 对象 / g_ChattingEmoticonScriptBaseDirectory
@@ -37,7 +33,7 @@ bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
     // [依赖] ImportChattingEmoticon 完整逻辑属数据域 TU（可依 _lt_global_gt_ 报告）。
     if (!loadRDARScriptFile(g_ChattingEmoticonScriptBaseDirectory, path))
         return false;
-    script.m_index = 0;
+    script.m_index = EmoticonType::kInvalidChatEmoticon;
     script.m_type = 0;
     script.m_param = 0;
     bool ok = false;
@@ -105,6 +101,11 @@ bool ChattingEmoticon_byLevel::isCommonEmoticon(const CUser& user) const
 {
     (void)user;
     return 1;
+}
+
+// ORIG W 0x080e5fe0：空体（push ebp/mov esp,ebp/pop ebp/ret）。
+void ChattingEmoticon_byLevel::AddPremiumIndex(int /*idx*/)
+{
 }
 
 // ============================================================================

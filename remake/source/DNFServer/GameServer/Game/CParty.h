@@ -25,6 +25,7 @@
 #include "GameEnums.h"   // ENUM_DUNGEON_MODE / eCoinSubReason 权威定义（不依赖 CUser.h 传递）
 #include "Inven_Item.h"
 #include "CUser.h"
+#include "PvPTypes.h"   // cElection<int,4,4> 模板（m_election @+0x0d8，ORIG 0x40）
 #include "CPartyResultRecvFlag.h"
 #include "CTraceMobDieHack.h"
 #include "CDungeonClearTracer.h"   // +0xc7c 内嵌追踪器（ORIG giveup_game 0x85b2baa 实证）
@@ -345,7 +346,7 @@ public:
 
     // ---- 成员管理 ----
     int create_party(CUser* user);   // ORIG 返回 eax=1（0x859b1be）
-    void join_user(CUser* user);
+    int join_user(CUser* user);   // ORIG 0x0859b2b6：-1 空指针/满员，-2 state==2，成功 1
     int leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
     int walkout_member(CUser* user, int param);   // ORIG 0x859ca4a：8=非队长 4=槽位空 1=leave_user==1 0=成功
     int change_manager(CUser* user, int slot);   // ORIG T 0x0859c978：0 成功/8 非本人/18 已是/21 参数槽错
@@ -601,7 +602,7 @@ public:
     // ---- 技能 / 任务 ----
     void SetProperDungeonEvent(CUser* user, int param);
     void SetProperLevelDungeon(CUser* user);
-    void SetRidableObjectState(int state, eRidableObjectState type);
+    int SetRidableObjectState(int state, eRidableObjectState type);   // ORIG 0x085b9f28（转发战场层返回）
     unsigned char DestroyPassiveObject(int param);   // ORIG 返回 al（0x85b6540）
     void check_passive_skill();
     bool HasNoQuestGoWithApcInParty(Quest const* quest);
@@ -668,7 +669,7 @@ public:
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
     int CheckMemberFatigue();
-    void CheckMemberLastTryAssaultTime();
+    int CheckMemberLastTryAssaultTime();   // ORIG 0x085bcab6：0/1
     char GetFirstValidMemberState();   // ORIG 返回 al（ProcessGiveUp 比较 5/0xc）
     void GetValidPartyMember(std::vector<int>& list);
     void GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,
@@ -704,7 +705,7 @@ public:
 
     cMember m_member[4];     // +0x078
 
-    unsigned char m_padElection[0x40];  // +0x0d8 cElection<int,4,4>
+    cElection<int, 4, 4> m_election;    // +0x0d8（ORIG 布局 0x40；ctor 置零票；HdrFieldF）
     bool m_recvResultFlag;              // +0x118
     char m_pad119;                      // +0x119
     bool m_tournamentVictory;           // +0x11a
@@ -715,7 +716,9 @@ public:
     unsigned short m_dungIndex;         // +0x13e
     unsigned char m_dungDiffi;          // +0x140
     char m_pad141[3];                   // +0x141
-    int m_field144;                     // +0x144（game_start 写随机路由起始槽；get_item 路由骰子读改）
+    int m_routingDice;                  // +0x144（get_item 路由骰子：game_start 写
+                                        //   get_rand_int(成员数) @game_start.md:750；
+                                        //   get_item 递增回写 @get_item.md:3235/3261）
     int m_field148[37];                 // +0x148
     // ---- CPartyResultRecvFlag 区（+0x1dc，0x34 字节） ----
     unsigned char m_pad1dc[0x4];     // +0x1dc
@@ -772,7 +775,8 @@ public:
     int m_todRewardItemCnt;                     // +0x17b8（特殊奖励数量）
     CTournamentDungeonReward m_tournamentReward; // +0x17bc（0x38；MakeTournamentReward 实证）
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
-    unsigned char m_padMap[0x18];       // +0x1844 std::map<int,int>
+    std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
+                                           //   击杀计数 map，size 0x18 同位）
 
     int m_field185c;        // +0x185c
     int m_usedCoinCount;    // +0x1860

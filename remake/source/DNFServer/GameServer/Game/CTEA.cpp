@@ -1,6 +1,7 @@
 // df_game_r 还原 —— 全局命名空间 CTEA（G7 加密栈，算法正确即可，不要求 identical）。
 // 参照 docs/class_func_reports/（G7 报告：CTEA 为 TEA 分组密码，CBC chain+Signature）。
 #include <cstring>
+#include "ChecksumAlgo.h"   // CSHA（ORIG 全局类，AddData/FinalDigest）
 #include "CEnvironment.h"
 
 // ---- IMethod 抽象基类（G7 加密模式基类，算法正确即可）----
@@ -26,9 +27,21 @@ CTEA::~CTEA()
 {
 }
 
+// ORIG _ZN4CTEA9SignatureEPc T @0x080c35ec：
+//   char buf[23] 内建清零；strcpy "TEA"；接 m_key(m_keyLength)；sprintf "%d%d"
+//   拼 m_mode/m_padding；CSHA 摘要写出。
 void CTEA::Signature(char* szSignature)
 {
-    std::strcpy(szSignature, "TEA");
+    char buf[0x17];
+    std::memset(buf, 0, sizeof(buf));
+    std::strcpy(buf, "TEA");
+    const int headLen = static_cast<int>(std::strlen(buf));
+    std::memcpy(buf + headLen, m_key, m_keyLength);
+    std::sprintf(buf + headLen + m_keyLength, "%d%d", m_mode, m_padding);
+
+    CSHA sha;
+    sha.AddData(buf, static_cast<int>(std::strlen(buf)));
+    sha.FinalDigest(szSignature);
 }
 
 int CTEA::Encrypt(const char* szIn, char* szOut, size_t iLength)
@@ -96,9 +109,17 @@ int CTEA::Decrypt(const char* szIn, char* szOut, size_t iLength)
     return 0x6fffffff;
 }
 
-void CTEA::ResetChain()
+// ORIG _ZN4CTEA10ResetChainEv T @0x080c35a8：
+//   !m_bInit → 0x70000005；否则 chain(+0x38) 复制回 chain2(+0x40)，
+//   长度取 m_blockSize(this+0x08)，成功返 0x6fffffff。
+int CTEA::ResetChain()
 {
-    std::memset(m_chain, 0, sizeof(m_chain));
+    if (!m_bInit)
+    {
+        return 0x70000005;
+    }
+    std::memcpy(m_chain2, m_chain, m_blockSize);
+    return 0x6fffffff;
 }
 
 int CTEA::Initialize(const char* key, int keyLen, const char* iv, int ivLen, int mode)

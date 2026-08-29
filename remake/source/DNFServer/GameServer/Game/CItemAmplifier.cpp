@@ -59,7 +59,6 @@ upgrade_table_t::upgrade_table_t()
     intAt(0x258) = 0;
 
     m_floatMap.clear();
-    m_resultItems.clear();
     m_machineFrames.clear();
     m_machineFrames.resize(0xa);   // ORIG _Hashtable 桶数 0xa（C1 反汇编）
     memset(m_zero4b4, 0, sizeof(m_zero4b4));
@@ -188,6 +187,46 @@ void CItemAmplifier::_generateOption(const CItem* item,
         }
         ++it;
     }
+}
+
+
+// ===================== 净化材料查询（ORIG W 0x08234d20 / 0x08234cd4 / 0x08234cfa） =====================
+// 两行净化材料在 stAmplifyItemScript_t 中连续布局：
+//   type 0 = m_purifyMatItem(+0x9c)/m_purifyMatCount(+0xa4)（[purify material]）
+//   type 1 = m_purifyOnlyMatItem(+0xa0)/m_purifyOnlyMatCount(+0xa8)（[purify only material]）
+// 以具名字段首地址的连续视图访问，等价于 ORIG 的 *(int*)(amp + 0x9c + i*4) 表查找。
+
+// ORIG 0x08234d20：i∈[0,1]，表项 == itemIdx 则返回 i；否则 -1。
+int CItemAmplifier::getPurifyMaterialType(int itemIdx) const
+{
+    for (int i = 0; i <= 1; ++i)
+    {
+        if ((&m_script.m_purifyMatItem)[i] == itemIdx)  // +0x9c，与 m_purifyOnlyMatItem 连续
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// ORIG 0x08234cd4：type∈[0,1] → *(int*)(amp + 0x9c + type*4)；越界返回 0。
+int CItemAmplifier::getPurifyMaterialItemIdx(int type) const
+{
+    if (type >= 0 && type <= 1)
+    {
+        return (&m_script.m_purifyMatItem)[type];
+    }
+    return 0;
+}
+
+// ORIG 0x08234cfa：type∈[0,1] → *(int*)(amp + 0xa4 + type*4)；越界返回 0。
+int CItemAmplifier::getPurifyMaterialItemCount(int type) const
+{
+    if (type >= 0 && type <= 1)
+    {
+        return (&m_script.m_purifyMatCount)[type];
+    }
+    return 0;
 }
 
 // ===================== 强化投资（ORIG 0x08234d5e / 0x08234c3c / 0x08234b30） =====================

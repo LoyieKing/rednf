@@ -111,8 +111,7 @@ bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
                     if (sig->m_giftFindOk != 0)             // byte +0x533f
                     {
                         invOk = CreateInventory(sig->m_characNo,
-                                                reinterpret_cast<Inven_Item*>(
-                                                    reinterpret_cast<char*>(sig) + 0x3a9));
+                                                reinterpret_cast<Inven_Item*>(sig->m_pad3a9));
                     }
                     else
                     {
@@ -323,7 +322,7 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
         {
             sig->m_resultCode = 5;
             cMyTrace trace(
-                "bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC*, bool)",
+                __PRETTY_FUNCTION__,
                 0xf25, 0);
             trace("[LIMIT NEW CHARAC MID] %s,%d,%d,%d",
                   NumberToString(sig->m_accId, 0),
@@ -384,7 +383,7 @@ bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
             if (G_CEnvironment()->get_gc_no() == 0x3f2)
             {
                 cMyTrace trace(
-                    "bool DB_CreateCharac::_checkCharacName(MySQL*, const char*, SIG_CREATE_CHARAC*)",
+                    __PRETTY_FUNCTION__,
                     0xd6a, 5);
                 trace("already charac_name(%s) row(%d)", sig->m_name, nRows);
                 // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
@@ -392,7 +391,7 @@ bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
                 if (strcmp(sig->m_name, BASELINE_NAME) == 0)
                 {
                     cMyTrace queryTrace(
-                        "bool DB_CreateCharac::_checkCharacName(MySQL*, const char*, SIG_CREATE_CHARAC*)",
+                        __PRETTY_FUNCTION__,
                         0xd6d, 5);
                     queryTrace("already charac_name query(%s)",
                                db->GetQueryString());
@@ -488,7 +487,7 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
             lt->tm_hour, lt->tm_min, lt->tm_sec);
 
     cMyTrace trace(
-        "bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC*)",
+        __PRETTY_FUNCTION__,
         0xe76, 0);
     trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
           NumberToString(sig->m_accId, 0),
@@ -542,7 +541,7 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
             lt->tm_hour, lt->tm_min, lt->tm_sec);
 
     cMyTrace trace(
-        "bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC*, bool)",
+        __PRETTY_FUNCTION__,
         0xf61, 0);
     trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
           NumberToString(sig->m_accId, 0),
@@ -574,11 +573,10 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     }
 
     // G_CEnvironment()->m_dbConnInfo[DB_HANDLE_2].m_db —— ORIG map::operator[]
-    // 于 env+0x68、STDBConnInfo m_db 在 +0x42。m_dbConnInfo 为 private，按
-    // TaiwanCash.cpp InitBillingCash 既有裸偏移先例访问。
-    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
-    DbConnMap& connMap = *reinterpret_cast<DbConnMap*>(
-        reinterpret_cast<char*>(G_CEnvironment()) + 0x68);
+    // 于 env+0x68、STDBConnInfo m_db 在 +0x42；经 get_db_conn_info() 访问
+    //（CEnvironment.h OffsetCleanup2 添加的 inline accessor，不产生符号）。
+    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& connMap =
+        G_CEnvironment()->get_db_conn_info();
     ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;       // 栈上局部初始值 2
     STDBConnInfo& connInfo = connMap[connIdx];
     if (!_checkCharacName(db, connInfo.m_db, sig))
@@ -633,7 +631,7 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     MakeInsertCharacInfo(db, sig, escapedName);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x10e2, 5);
         trace("DB_CreateCharac::CreateNewCharac, exec() ERROR m_id=%s",
               NumberToString(sig->m_accId, 0));
@@ -655,7 +653,7 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
         sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x10fb, 5);
         trace("DB_CreateCharac::_CreateNewCharacStat, exec() ERROR m_id=%s",
               NumberToString(sig->m_accId, 0));
@@ -671,6 +669,7 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
 {
+    static const int handleIdx = 3;
     char zipped[0x473e];
     memset(zipped, 0, sizeof(zipped));
     unsigned int zippedLen = 0x473e;
@@ -680,7 +679,7 @@ bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
         return false;
     }
 
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     if (item == NULL)
     {
@@ -712,6 +711,7 @@ bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
 // ===========================================================================
 bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 {
+    static const int handleIdx = 3;
     if (item == NULL)
     {
         return true;
@@ -725,7 +725,7 @@ bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
         return false;
     }
 
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     db->set_query("upDate inventory set equipslot='%s' where charac_no = %u",
                   db->blob_to_str(0, zipped, zippedLen), characNo);
@@ -738,6 +738,7 @@ bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 // ===========================================================================
 bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 {
+    static const int handleIdx = 3;
     char bufSlot[1002];            // 帧 -0x402 区（skillB 压缩输出）
     char bufSecond[1002];          // 帧 -0x20d 区（skillA 压缩输出）
     memset(bufSlot, 0, sizeof(bufSlot));
@@ -758,7 +759,7 @@ bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
         return false;
     }
 
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3,
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     // blob 序：skill_slot ← blob(col=0,-0x20d,len-0x14)；skill_slot_2nd ← blob(col=1,-0x402,len-0x18)。
     db->set_query(
@@ -820,32 +821,35 @@ int DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
 void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
                                            char const* escapedName)
 {
-    const unsigned char* p = reinterpret_cast<const unsigned char*>(sig);
     int eventCharacLevel = (signed char)sig->m_field23;   // +0x23 列 event_charac_level
     int sex = (signed char)sig->m_ssnCheckFail;           // +0x534c ← ORIG %esi（sex 列位）
     int fatigueMax = DEFAULT_MAX_FATIGUE;
 
-    unsigned int expertJob   = rd32(p + 0x74);            // expert_job 列
-    int jumpValue            = rds16(p + 0x72);           // jump
-    int hitRecovery          = rds16(p + 0x70);           // hit_recovery
-    unsigned int castSpeed   = (unsigned int)rdu16(p + 0x6e);  // cast_speed
-    unsigned int attackSpeed = (unsigned int)rdu16(p + 0x6c);  // attack_speed
-    unsigned int moveSpeed   = rd32(p + 0x68);            // move_speed
-    int mpRegenShort         = rds16(p + 0x66);           // mp_regen
-    int hpRegenShort         = rds16(p + 0x64);           // hp_regen
-    unsigned int invenWeight = rd32(p + 0x60);            // inven_weight
+    // job 数据区（ORIG 原始偏移 +0x26..+0x74）现经 m_field26/m_jobData 具名
+    // 锚点读取，字节语义不变（m_jobData 即 "同表 +2..0x51" 的 80 字节区）。
+    unsigned int expertJob   = rd32(&sig->m_jobData[0x4c]);            // +0x74
+    int jumpValue            = rds16(&sig->m_jobData[0x4a]);           // +0x72
+    int hitRecovery          = rds16(&sig->m_jobData[0x48]);           // +0x70
+    unsigned int castSpeed   = (unsigned int)rdu16(&sig->m_jobData[0x46]);  // +0x6e
+    unsigned int attackSpeed = (unsigned int)rdu16(&sig->m_jobData[0x44]);  // +0x6c
+    unsigned int moveSpeed   = rd32(&sig->m_jobData[0x40]);            // +0x68
+    int mpRegenShort         = rds16(&sig->m_jobData[0x3e]);           // +0x66
+    int hpRegenShort         = rds16(&sig->m_jobData[0x3c]);           // +0x64
+    unsigned int invenWeight = rd32(&sig->m_jobData[0x38]);            // +0x60
     // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
     char const* elementResistBlob =
-        db->blob_to_str(0, const_cast<unsigned char*>(p + 0x36), 8);
+        db->blob_to_str(0, const_cast<unsigned char*>(&sig->m_jobData[0x0e]), 8);
     // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'
     char const* specPropertyBlob =
-        db->blob_to_str(1, const_cast<unsigned char*>(p + 0x3e), 0x22);
-    unsigned int magDefense = (unsigned int)rdu16(p + 0x34);
-    unsigned int magAttack  = (unsigned int)rdu16(p + 0x32);
-    unsigned int phyDefense = (unsigned int)rdu16(p + 0x30);
-    unsigned int phyAttack  = (unsigned int)rdu16(p + 0x2e);
-    unsigned int maxMP      = rd32(p + 0x2a);
-    unsigned int maxHP      = rd32(p + 0x26);
+        db->blob_to_str(1, const_cast<unsigned char*>(&sig->m_jobData[0x16]), 0x22);
+    unsigned int magDefense = (unsigned int)rdu16(&sig->m_jobData[0x0c]);   // +0x34
+    unsigned int magAttack  = (unsigned int)rdu16(&sig->m_jobData[0x0a]);   // +0x32
+    unsigned int phyDefense = (unsigned int)rdu16(&sig->m_jobData[0x08]);   // +0x30
+    unsigned int phyAttack  = (unsigned int)rdu16(&sig->m_jobData[0x06]);   // +0x2e
+    unsigned int maxMP      = rd32(&sig->m_jobData[0x02]);                  // +0x2a
+    // +0x26 的 4 字节读跨 m_field26(ushort) 与 m_jobData[0..1]，以 m_field26 锚点。
+    unsigned int maxHP      = rd32(
+        reinterpret_cast<const unsigned char*>(&sig->m_field26));
 
     db->set_query(
         "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"

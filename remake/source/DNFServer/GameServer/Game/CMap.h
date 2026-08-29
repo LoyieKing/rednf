@@ -13,6 +13,7 @@
 
 #include "advancealtar.h"   // advancealtar::TimeLine（STMapScript 成员）
 #include "CVillageMonsterMgr.h"   // MapArea / STAttackedMonster（全局作用域权威头）
+#include "SPOBJ_ACTION_DATAS.h" // SPOBJ_ACTION_DATAS（ctor/getActionType 见其 .cpp）
 
 class CDataManager;
 class CMap;
@@ -142,6 +143,9 @@ struct STAICharacterMapArrangeData
 
 struct STAssignBloodSystem
 {
+    // ORIG C1/C2 W 0x089e84bc：仅 call Clear。
+    STAssignBloodSystem() { Clear(); }
+
     int m_id;          // +0x00
     int m_field04;     // +0x04
     int m_phase;       // +0x08
@@ -158,6 +162,9 @@ struct STAssignBloodSystem
 
 struct STAssignBloodPhaseTime
 {
+    // ORIG C1/C2 W 0x089e8518：仅 call Clear。
+    STAssignBloodPhaseTime() { Clear(); }
+
     int m_smallRoundOrder;   // +0x00
     int m_phaseIdx;          // +0x04（-1 = 随机）
     int m_interval;          // +0x08
@@ -174,6 +181,9 @@ struct STAssignBloodPhaseTime
 //（ORIG STAssignDefenseSystem::Clear / STAssignDefensePhaseTime::Clear）。
 struct STAssignDefenseSystem
 {
+    // ORIG C1/C2 W 0x089e8594：仅 call Clear。
+    STAssignDefenseSystem() { Clear(); }
+
     int m_id;          // +0x00
     int m_field04;     // +0x04
     int m_phase;       // +0x08
@@ -190,6 +200,9 @@ struct STAssignDefenseSystem
 
 struct STAssignDefensePhaseTime
 {
+    // ORIG C1/C2 W 0x089e85ea：仅 call Clear。
+    STAssignDefensePhaseTime() { Clear(); }
+
     int m_smallRoundOrder;   // +0x00
     int m_phaseIdx;          // +0x04（-1 = 随机）
     int m_interval;          // +0x08
@@ -217,16 +230,6 @@ struct AssignNpc
     void clear();
 };
 
-struct SPOBJ_ACTION_DATAS
-{
-    int m_type;    // +0x00
-    int m_4;       // +0x04
-    int m_8;       // +0x08
-    int m_c;       // +0x0c
-    int m_10;      // +0x10
-    int m_14;      // +0x14
-};
-
 // Import [special passive object] 写 +0x00..0x0c 四个 int（id+3 参数），
 // action 表在 +0x10；Export 按 '%d %d %d %d' 读出。
 struct STAssignSpecialPassiveObj
@@ -238,6 +241,7 @@ struct STAssignSpecialPassiveObj
     std::vector<SPOBJ_ACTION_DATAS> m_vec10; // +0x10
     int m_1c;                                // +0x1c
 
+    STAssignSpecialPassiveObj();   // ORIG C1Ev W 0x089e87a6（vector 构造 + Clear()）
     void Clear();
 };
 
@@ -259,14 +263,18 @@ struct TownPath
     void clear();
 };
 
-// ORIG STAssignPassiveObject ctor 存在（Import [passive object] 写 4 个 int；
-// Export 按 '%d %d %d %d' 读出），sizeof 0x10。
+// ORIG STAssignPassiveObject ctor 0x089e8440 / Clear 0x089e8414（W）：
+// Clear 置 +0=-1、+4/+8/+c=0；ctor 调 Clear（定义见 STMapScript.cpp）。
+// Import [passive object] 写 4 个 int；Export 按 '%d %d %d %d' 读出。sizeof 0x10。
 struct STAssignPassiveObject
 {
     int m_0;     // +0x00
     int m_4;     // +0x04
     int m_8;     // +0x08
     int m_c;     // +0x0c
+
+    STAssignPassiveObject();
+    void Clear();
 };
 
 struct TournamentMonster

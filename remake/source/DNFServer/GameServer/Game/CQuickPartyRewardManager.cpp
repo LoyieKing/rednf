@@ -247,7 +247,7 @@ bool CQuickPartyRewardManager::init()
 {
     if (!importQuickPartyScript("Etc/QuickParty.etc", this))
     {
-        cMyTrace trace("bool QuickParty::CQuickPartyRewardManager::init()", 0x92, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x92, 0);
         trace("QUICK_PARTY_LOG : QuickParty.etc FILE LOAD FAIL!!");
         return false;
     }

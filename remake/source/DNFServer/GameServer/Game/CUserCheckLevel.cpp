@@ -64,7 +64,7 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
     if (getCurCharacR() == 0)                                 // +0x02c 空角色守卫
     {
         cMyTrace trace(
-            "bool CUser::_check_level_up(int, int&, int&, eExpAddReason, int)",
+            __PRETTY_FUNCTION__,
             0x401b, 5);
         trace("CUser::_check_level_up m_selected is NULL");
         return false;
@@ -72,7 +72,7 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
     if (get_charac_level() == 0)                              // +0x08d 零级守卫
     {
         cMyTrace trace(
-            "bool CUser::_check_level_up(int, int&, int&, eExpAddReason, int)",
+            __PRETTY_FUNCTION__,
             0x4022, 5);
         trace("CUser::_check_level_up m_selected->m_level is 0");
         return false;
@@ -88,7 +88,7 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
         if (exp < bottom || exp > top)                        // +0x110 区间不一致
         {
             cMyTrace trace(
-                "bool CUser::_check_level_up(int, int&, int&, eExpAddReason, int)",
+                __PRETTY_FUNCTION__,
                 0x403b, 5);
             trace("%s is Level(%d) and Exp(%d) Inconsistency(bottom(%d), top(%d))",
                   getCurCharacName(), get_charac_level(), exp, bottom, top);
@@ -98,7 +98,7 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
         if (top - bottom <= 0)                                // +0x1ca 表异常出口
         {
             cMyTrace trace(
-                "bool CUser::_check_level_up(int, int&, int&, eExpAddReason, int)",
+                __PRETTY_FUNCTION__,
                 0x4046, 5);
             trace("CUser::_check_level_up, LEVEL:%d TOP:%d BOTTOM:%d",
                   nextLevel, top, bottom);

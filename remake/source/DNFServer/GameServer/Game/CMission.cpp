@@ -185,10 +185,18 @@ int CMission_rank::Update(MissionInfo&, const MissionClearCondition_Parameter&) 
 {
     return 1;
 }
-
+// ORIG 0x85e6adc（W）：mov 0x40(%eax),%eax; ret —— 直返 m_clearCount。
 int CMission_rank::getClearCondition() const
 {
     return m_clearCount;
+}
+
+// ORIG 0x85e372c：段位区间判定；两次独立 get_pvp_grade（P48 无 CSE），
+// && 短路产生 jg/jge 直跳失败块 + 布尔返回归一。
+bool CMission_rank::isAcceptCondition(const CUser& user) const
+{
+    return user.get_pvp_grade() >= m_gradeMin &&
+           user.get_pvp_grade() < m_gradeMax;
 }
 
 // ============================================================================
@@ -1047,4 +1055,13 @@ int CMission_combo_clear::_Reward(CUser& user) const
                             outSlots[0]);
     }
     return 1;
+}
+
+// ORIG W 0x085e692a：sret 返回 {m_gradeMin, m_gradeMax}（8 字节）。
+MissionRankRange CMission::GetRankRange() const
+{
+    MissionRankRange r;
+    r.gradeMin = m_gradeMin;
+    r.gradeMax = m_gradeMax;
+    return r;
 }

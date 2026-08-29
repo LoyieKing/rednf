@@ -11,7 +11,8 @@ namespace WongWork
 class CMCAPManager
 {
 public:
-    CMCAPManager() {}
+    // ORIG W 0x08695068：m_point(+0)=1、m_rate(+4)=0x3e8。
+    CMCAPManager() : m_point(1), m_rate(0x3e8) {}
     ~CMCAPManager() {}
 
     // ORIG T 0x080f8be0 _ZN8WongWork12CMCAPManager19setPointPerHackTypeEPi
@@ -23,21 +24,25 @@ public:
 static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHackType_E
     void resetExposedCount();
     void reset();                  // ORIG W 0x8694fa0（定义见 CMCAPManager.cpp）
-    unsigned int getPoint() const;             // ORIG T 0x0822eea4：max(min(10000,+0x10),0)
-    void incExposedCount();                    // ORIG W 0x08695038：m_point += 1
+    unsigned int getExposedCount() const;      // ORIG W 0x0869504c：读 +0x10
+    void incExposedCount();                    // ORIG W 0x08695038：+0x10 += 1
     bool isSaveCleanPadPoint() const;          // ORIG T 0x0822eede：读 +0x14
     void disableCleanPadPoint();               // ORIG T 0x0822eeea：写 +0x14=0
-    unsigned int getExposedCount() const;      // ORIG W 0x0869504c：读 +0x10（m_point）
 
-    char m_pad00[0x10];      // +0x00..0x0f
-    unsigned int m_point;    // +0x10（getPoint 原始点数；0x8e400）
-    bool m_saveCleanPadPoint;  // +0x14（IsSaveCleanPadPoint；0x8e414）
+    unsigned int m_point;    // +0x00（getPoint 原始点数；reset 置 1；ORIG getPoint 0x0822eea4 以 this 直读）
+    int m_rate;              // +0x04（reset/resetIncRate 置 1000；decIncRate 递减；incPoint 乘数）
+    int m_field08;           // +0x08（reset 拷贝 +0x00）
+    int m_field0c;           // +0x0c（reset 置 1）
+    int m_field10;           // +0x10（reset 置 0）
+    bool m_saveCleanPadPoint;  // +0x14（IsSaveCleanPadPoint 读 / setPoint/incPoint 置 1）
     char m_pad15[3];         // +0x15..0x17
 
     bool m_recvEventWaiting; // +0x18（0x8e408；CUser::StartRecvEventWaiting ORIG 0x0867f1fe 清零启动等待）
     char m_pad19[3];    // +0x19..0x1b
     int m_field1c;      // +0x1c（0x8e40c GetAutoClientRate）
-    char m_pad20[8];         // +0x20..0x27
+    char m_pad20[4];         // +0x20..0x23
+    int m_field24;           // +0x24（0x8e414 登录时间戳槽：DisPatcher_Login::dispatch_sig
+                             //   ORIG 写 getCurSec；SetUserManagerToolIP 读——登录 IP 关联时间）
     char m_pcRoomIp[16];     // +0x28（0x8e418 PC房 IP 字符串；CHades::GetIP @0x84b9774 回退源实证）
     char m_pad38[4];                 // +0x38..0x3b（保持）
     unsigned int m_sellTimeChkBaseSec; // +0x3c（0x8e42c；CUser::SellItemTimeChecker
@@ -51,12 +56,20 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     int m_timeChkCount;          // +0x50（命中计数/重置清零）
     short m_timeChkDiffA;        // +0x54（|maxA-minA|）
     short m_timeChkDiffB;        // +0x56（|maxB-minB|）
-    char m_pad58[0x80 - 0x58];   // +0x58..0x7f
+    // +0x58（0x8e448）：ORIG CUser::st_monstorkill 实例所在区（CUser 直读
+    //   user+0x8e448 调 _ZN5CUser13st_monstorkill5CheckEjttttj）。类型保持
+    //   CUser 嵌套类避免拆类 ODR，本处按等尺寸字节域承载【推断归属 mcap】。
+    char m_monsterKillWindow[0x14];
+    char m_pad6c[0x80 - 0x6c];   // +0x6c..0x7f（原 m_pad58 余段）
     short m_serialLastIdx;       // +0x80（GetItemSerialChecker 序列基准 idx）
     short m_serialLastVal;       // +0x82（序列基准值）
     int m_serialHitCount;        // +0x84（连续命中计数）
-    char m_pad88[8];   // +0x88..0x8f
-    int m_field90;     // +0x90
+    unsigned int m_blackIpPunishMask;   // +0x88（CUser+0x8e478；Inter_LoginInfo::dispatch_sig
+                                        //   写入 CBlackIPMonitor::getPunishType 位标志，bit0/bit1 判定）
+    bool m_blackIpTradeLockFlag;        // +0x8c（CUser+0x8e47c；bit1 命中时的交易封锁标志）
+    char m_pad8d[3];                    // +0x8d..0x8f
+    int m_monsterDieHackCnt;     // +0x90（0x8e480；DieMob/MoveMap 连续
+                                 //   0xffff 击杀计数，>4 报 0xcd/0xce 并归零）
     char m_pad94[0x544 - 0x94];
     bool m_field544;   // +0x544（0x8e934 setRestingUserRestrict）
     char m_pad545[1];  // +0x545

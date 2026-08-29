@@ -1061,7 +1061,7 @@ int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
     if (logIt)
     {
         cMyTrace trace(
-            "int CAutoMarketConditionsControl::GetGoldDropAmountRate(int, int)", 0xce, 0);
+            __PRETTY_FUNCTION__, 0xce, 0);
         trace("goldDropAmountRate(%lf) gold(%d), baseGold(%d)", rate, result, gold);
     }
     return result;

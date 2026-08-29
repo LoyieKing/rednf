@@ -23,11 +23,11 @@ void Gm_List::SendGMList_To_UpperServer(int param)
         return;
 
     int serverGroup = G_CEnvironment()->get_server_group();
-    const std::list<WongWork::stGMInfo_t> gmList =
+    const std::list<WongWork::CGMAccounts::stGMInfo_t> gmList =
         GlobalData::s_pGMAccounts_->GetGMList();
 
     Packet_Sync_GM_List packet;
-    std::list<WongWork::stGMInfo_t>::const_iterator it = gmList.begin();
+    std::list<WongWork::CGMAccounts::stGMInfo_t>::const_iterator it = gmList.begin();
     int count = 0;
     while (it != gmList.end())
     {
@@ -122,12 +122,12 @@ void Gm_List::LoadGmListFromDb()
             int level = 0;
             if (!m_db->fetch() || !m_db->get_int(0, reinterpret_cast<int&>(mid)))
             {
-                cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15e5, 9, true, true);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x15e5, 9, true, true);
                 trace("Failed to get GM's m_id from DB.");
                 return;
             }
             {
-                cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15f2, 9, true, true);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x15f2, 9, true, true);
                 if (!m_db->get_int(1, level))
                 {
                     trace("Failed to get GM's lv from DB.");
@@ -139,14 +139,14 @@ void Gm_List::LoadGmListFromDb()
             idLog += ", ";
         }
         ok = true;
-        cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15f9, 9, true, true);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15f9, 9, true, true);
         trace("\t- GM m_id: %s", idLog.c_str());
         if (G_CEnvironment()->get_channel_no() == 1)
             SendGMList_To_UpperServer(0);
     }
     else
     {
-        cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15d4, 9, true, true);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15d4, 9, true, true);
         trace("Failed to get GM list from DB.");
     }
     (void)ok;

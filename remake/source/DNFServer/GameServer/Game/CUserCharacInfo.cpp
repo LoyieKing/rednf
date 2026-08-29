@@ -83,7 +83,7 @@ void CUserCharacInfo::set_uppermember_exp_level(unsigned char level)
         if (level != 0 && CUR->m_uppermemberExpLevel > level)
         {
             LogManager::logFormat(1, "user.cpp",
-                                  "void CUserCharacInfo::set_uppermember_exp_level(unsigned char)",
+                                  __PRETTY_FUNCTION__,
                                   0x2d2, "set member exp level error , name(%s) , level(%d), new level(%d)",
                                   (char*)CUR + 4, (unsigned int)CUR->m_uppermemberExpLevel,
                                   (unsigned int)level);
@@ -1371,10 +1371,10 @@ char* CUserCharacInfo::getTagCharacSkillW()
     return (char*)((CharacInfoFields*)m_tag)->m_skill;
 }
 
-const char* CUserCharacInfo::getTagCharacSkillR() const
+SkillSlot* CUserCharacInfo::getTagCharacSkillR() const
 {
     // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (const char*)((CharacInfoFields*)m_tag)->m_skill;
+    return (SkillSlot*)((CharacInfoFields*)m_tag)->m_skill;
 }
 
 const _Charac_info* CUserCharacInfo::getTagCharacR() const { return m_tag; }
@@ -1385,10 +1385,10 @@ Inven_Item* CUserCharacInfo::getTagCharacInvenW()
     return (Inven_Item*)((CharacInfoFields*)m_tag)->m_inven;
 }
 
-const Inven_Item* CUserCharacInfo::getTagCharacInvenR() const
+CInventory* CUserCharacInfo::getTagCharacInvenR() const
 {
     // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
-    return (const Inven_Item*)((CharacInfoFields*)m_tag)->m_inven;
+    return (CInventory*)((CharacInfoFields*)m_tag)->m_inven;
 }
 
 CCargo* CUserCharacInfo::getTagCharacCargoW()
@@ -1992,34 +1992,32 @@ void CUserCharacInfo::checkBonusPoint()
     if (!m_selected)
         return;
     resetBonusPoint();
-    Inven_Item* invenItem = 0;
-    for (int slot = 10; slot < 0x16; ++slot)
+    const Inven_Item* invenItem = 0;
+    for (int slot = 10; slot <= 0x15; ++slot)
     {
-        invenItem = ((CInventory*)(Inven_Item*)getCurCharacInvenR())->GetInvenRef(0, slot);
-        if (invenItem == 0)
+        if ((invenItem = getCurCharacInvenR()->GetInvenRef(0, slot)) == 0)
             continue;
         if (invenItem->m_addInfo == 0)
             continue;
         CItem* found = G_CDataManager()->find_item(invenItem->m_addInfo);
         if (found == 0)
             continue;
-        WpBonusPointData* wp = ((CEquipItem*)found)->getWpBonusPoint();
-        if (wp->m_type == 0)
+        CEquipItem* equip = (CEquipItem*)found;
+        if (equip->getWpBonusPoint()->m_type == 0)
         {
-            CUR->m_wpBonus.m_base += wp->m_value;
+            CUR->m_wpBonus.m_base += equip->getWpBonusPoint()->m_value;
         }
-        else if (wp->m_type == 1)
+        else if (equip->getWpBonusPoint()->m_type == 1)
         {
-            CUR->m_wpBonus.m_add += wp->m_value;
+            CUR->m_wpBonus.m_add += equip->getWpBonusPoint()->m_value;
         }
-        ExpBonusPointData* exp = ((CEquipItem*)found)->getExpBonusPoint();
-        if (exp->m_type == 0)
+        if (equip->getExpBonusPoint()->m_type == 0)
         {
-            CUR->m_expBonus.m_base += exp->m_value;
+            CUR->m_expBonus.m_base += equip->getExpBonusPoint()->m_value;
         }
-        else if (exp->m_type == 1)
+        else if (equip->getExpBonusPoint()->m_type == 1)
         {
-            CUR->m_expBonus.m_add += exp->m_value;
+            CUR->m_expBonus.m_add += equip->getExpBonusPoint()->m_value;
         }
     }
 }
@@ -2108,9 +2106,9 @@ void CUserCharacInfo::calcCurCharacSchoolPoint(int fatigue)
     };
     static const int pointSize = sizeof(point) / sizeof(point[0]);
     unsigned short used = getCurCharacUsedFatigue();
-    if (fatigue / 10 == used / 10)
+    if (fatigue / 10 == used / 10u)
         return;
-    unsigned int index = used / 10;
+    unsigned int index = used / 10u;
     if (index > 0x17)
         index = 0x17;
     CUR->m_reliablePerson.m_schoolPoint += point[index];
@@ -2168,7 +2166,6 @@ void CUserCharacInfo::addCurcharacStamina(unsigned char value)
 }
 
 
-
 void CUserCharacInfo::addCurCharacExp(int exp)
 {
     enableSaveCharacStat();
@@ -2183,12 +2180,12 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
 {
     if (!m_selected)
     {
-        cMyTrace trace("void CUserCharacInfo::WarAreaKill(int, int, float)", 0x284, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x284, 5);
         trace("WARAREA CUserCharacInfo::WarAreaKill() : m_selected is NULL");
         return;
     }
     ChangeFinishPoint(point);
-    CUR->m_warAreaKill[index] += kill;
+    *(float*)((char*)CUR + 0xe + (index + 0x380) * 4) += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
         index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
@@ -2216,7 +2213,7 @@ int CUserCharacInfo::UseFinishPoint(int point)
 {
     if (!m_selected)
     {
-        cMyTrace trace("unsigned int CUserCharacInfo::UseFinishPoint(int)", 0x220, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x220, 5);
         trace("WARAREA CUserCharacInfo::UseFinishPoint() : m_selected is NULL");
         return 0;
     }
@@ -2684,7 +2681,7 @@ bool CUserCharacInfo::IsAvailableCurCharacTradeGoldDaily(unsigned int gold)
     if (limit < CUR->m_reliablePerson.GetTradeGoldDaily() + gold)
     {
         cMyTrace trace(
-            "bool CUserCharacInfo::IsAvailableCurCharacTradeGoldDaily(unsigned int)",
+            __PRETTY_FUNCTION__,
             0x3f1, 0);
         trace("TRADE_RESTIRCTION charac_name(%s), charac_level(%d), limit_gold(%u), "
               "add_gold(%u), use_gold(%u)",
@@ -2940,7 +2937,7 @@ float CUserCharacInfo::GetWarAreaKillCountTotal()
 {
     if (!m_selected)
     {
-        cMyTrace trace("float CUserCharacInfo::GetWarAreaKillCountTotal()", 0x22f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x22f, 5);
         trace("WARAREA CUserCharacInfo::GetWarAreaKillCountTotal() : m_selected is NULL");
         return 0.0f;
     }
@@ -2955,7 +2952,7 @@ float CUserCharacInfo::GetWarAreaKillCount(int index)
 {
     if (!m_selected)
     {
-        cMyTrace trace("float CUserCharacInfo::GetWarAreaKillCount(int)", 0x260, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x260, 5);
         trace("WARAREA CUserCharacInfo::GetWarAreaKillCount() : m_selected is NULL");
         return 0.0f;
     }
@@ -2998,12 +2995,6 @@ long CUserCharacInfo::GetPowerWarLastPlayTime()
 {
     return m_selected ? CUR->m_powerWarLastPlayTime : 0;
 }
-
-unsigned short CUserCharacInfo::GetPowerWarHP()
-{
-    return m_selected ? CUR->m_powerWarHP : 0;
-}
-
 void CUserCharacInfo::SetIsInitSkillFlag(bool flag)
 {
     if (m_selected)
@@ -3068,7 +3059,7 @@ int CUserCharacInfo::GetFinishPointTotal()
 {
     if (!m_selected)
     {
-        cMyTrace trace("int CUserCharacInfo::GetFinishPointTotal()", 0x26a, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x26a, 5);
         trace("WARAREA CUserCharacInfo::GetFinishPointTotal() : m_selected is NULL");
         return 0;
     }
@@ -3081,7 +3072,7 @@ int CUserCharacInfo::GetFinishPoint()
 {
     if (m_selected)
         return CUR->m_finishPoint;
-    cMyTrace trace("int CUserCharacInfo::GetFinishPoint()", 0x244, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x244, 5);
     trace("WARAREA CUserCharacInfo::GetFinishPoint() : m_selected is NULL");
     return 0;
 }
@@ -3447,8 +3438,12 @@ void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
     CUR->m_chaosStateTime = GlobalData::s_systemTime_.getCurSec() - CUR->m_chaosDieTime;
     CUR->m_chaosDieTime = GlobalData::s_systemTime_.getCurSec() + responTime;
     int ghostTime = 0;
-    bool powerWar = GlobalData::s_power_manager->IsPowerWarEventOn() ||
-                    getCurCharacVill() == 7;
+    register bool powerWar;
+    if (GlobalData::s_power_manager->IsPowerWarEventOn() ||
+        getCurCharacVill() == 7)
+        powerWar = true;
+    else
+        powerWar = false;
     if (powerWar)
     {
         ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(
@@ -3461,7 +3456,12 @@ void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
                         ->getAssaultGhostTime(other->get_charac_level(),
                                               other->GetCurCharacChaosPoint());
     }
+    register bool needRespon;
     if (IsCurCharacGhost() && ghostTime != 0)
+        needRespon = true;
+    else
+        needRespon = false;
+    if (needRespon)
     {
         int now = GlobalData::s_systemTime_.getCurSec();
         SetCurCharacChaosDieTime(now);
@@ -3522,7 +3522,7 @@ void CUserCharacInfo::DecreaseWarPoint(int point)
 {
     if (!m_selected)
     {
-        cMyTrace trace("void CUserCharacInfo::DecreaseWarPoint(int)", 0x297, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x297, 5);
         trace("WARAREA CUserCharacInfo::DecreaseWarPoint() : m_selected is NULL");
         return;
     }
@@ -3696,7 +3696,7 @@ void CUserCharacInfo::ChangeFinishPoint(int point)
 {
     if (!m_selected)
     {
-        cMyTrace trace("void CUserCharacInfo::ChangeFinishPoint(int)", 0x24d, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x24d, 5);
         trace("WARAREA CUserCharacInfo::ChangeFinishPoint() : m_selected is NULL");
         return;
     }

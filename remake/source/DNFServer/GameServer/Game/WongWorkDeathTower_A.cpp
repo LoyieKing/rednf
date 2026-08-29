@@ -19,12 +19,6 @@ namespace WongWork { struct stGenerateRefClearReward_t; }
 
 #include "CDeathTower.h"
 
-// ORIG fistpll/fistpl 默认控制字（RC=00 就近舍入）。
-static long long roundFpuNearest(double x)
-{
-    return (long long)(x + (x >= 0.0 ? 0.5 : -0.5));
-}
-
 #include "CDungeon.h"
 #include "CMap.h"
 
@@ -89,14 +83,14 @@ unsigned int CDeathTower::stMapMonsterKillChecker_t::dieMonster(unsigned int tic
     // ORIG 0x08469c96：
     //   无符号比较 (tick - m_lastMobDieTime) <= limit → ++m_dieCnt；
     //   否则 m_dieCnt = 0; m_lastMobDieTime = tick；返回 m_dieCnt。
-    if ((unsigned int)(tick - m_lastMobDieTime) > limit)
+    if ((unsigned int)(tick - m_lastMobDieTime) <= limit)
     {
-        m_dieCnt = 0;
-        m_lastMobDieTime = tick;
+        ++m_dieCnt;
     }
     else
     {
-        ++m_dieCnt;
+        m_dieCnt = 0;
+        m_lastMobDieTime = tick;
     }
     return m_dieCnt;
 }
@@ -151,10 +145,8 @@ void CDeathTower::CPacketHandler::appendPickupMoney(int* moneyA, int* moneyB, CP
 {
     for (int i = 0; i <= 3; ++i)
     {
-        bool slotValid = false;
-        if (party->get_user(i) != 0 && party->checkValidUser(i))
-            slotValid = true;
-        if (!slotValid)
+        // ORIG：|| 短路判定（get_user==0 直接置 1，否则 !checkValidUser 取反）
+        if (party->get_user(i) == 0 || !party->checkValidUser(i))
         {
             put_byte(0);
             put_int(0);
@@ -324,17 +316,18 @@ void CDeathTower::CPacketHandler::makeDisplayEPLP(bool flag)
 }
 
 // ORIG T 0x0846050e：header(0,0xe)；byte(space)；short(1)；
-// inv.MakeItemPacket(GetInvenTypeFromItemSpace(space), slot, *this)；finalize(true)。
+// inv.MakeItemPacket(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space), slot, *this)；finalize(true)。
 void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE space,
                                                      int slot)
 {
     // GetInvenTypeFromItemSpace：ORIG 全局 _Z26GetInvenTypeFromItemSpace
     // ENUM_ITEMSPACE；权威声明见 CInventory.h（勿在 WongWork ns 内局部 extern，
-    CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
+    // ORIG 求值序：put_header→put_byte→put_short→GetInvenType→getCurCharacInvenR
     put_header(0, 0xe);
     put_byte((int)space);
     put_short(1);
-    inven->MakeItemPacket((INVEN_TYPE)::GetInvenTypeFromItemSpace(space), slot, *this);
+    user->getCurCharacInvenR()->MakeItemPacket(
+        (INVEN_TYPE)::GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space), slot, *this);
     finalize(true);
 }
 
@@ -353,16 +346,19 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     unsigned int reward = 0;
 
     const char limitFlag = dungeonMgr.getDungeon()->limitOfStackableItemInTower();
+    if (limitFlag != '\0')
     {
-        // DataManager 浮点权重表（tier：有限堆叠副本 0x1464，否则 0x15f4）
-        const unsigned int tier = (limitFlag != '\0') ? 0x1464u : 0x15f4u;
-        CDataManager* dm = G_CDataManager();
-        const float weight = *(float*)((char*)dm + 0xc +
-                                       ((unsigned int)stage + tier) * 4);
-        // ORIG fildll(stage*base)→float→fmuls weight→fistpll（就近舍入）
-        double scaled = (double)((float)((long long)stage * (long long)baseExp)) *
-                        (double)weight;
-        reward = (unsigned int)roundFpuNearest(scaled);
+        // ORIG 两分支重复代码：32 位乘积先物化、G_CDataManager 后取（求值序照 ORIG）
+        reward = (unsigned int)(long long)((float)(long long)(stage * baseExp) *
+            *(float*)((char*)G_CDataManager() + 0xc +
+                      ((unsigned int)stage + 0x1464) * 4));
+    }
+    else
+    {
+        // ORIG 非有限堆叠档（+0x15f4）
+        reward = (unsigned int)(long long)((float)(long long)(stage * baseExp) *
+            *(float*)((char*)G_CDataManager() + 0xc +
+                      ((unsigned int)stage + 0x15f4) * 4));
     }
 
     if (1100000 < reward)
@@ -459,11 +455,7 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
 {
     m_rewards[memberIdx].m_itemCnt = count;
 
-    CDataManager* dm = G_CDataManager();
-    const int rateHigh = *(int*)((char*)dm + 0x5e20);
-    const int rateLow = *(int*)((char*)dm + 0x5e24);
-    const float rateFactor = *(float*)((char*)dm + 0x5e2c);
-
+    // ORIG：rate 值在各自使用点内联 G_CDataManager() 读取（循环内每次）
     for (int i = 0; i < count; ++i)
     {
         stGenerateRefData_t ref;
@@ -474,12 +466,12 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             party->GetLuckPoint(&luck, false);
 
         const int roll = get_rand_int(1000);
-        const unsigned int boundHigh = (unsigned int)(rateHigh * (int)param5);
+        const unsigned int boundHigh = (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e20) * (int)param5);
         if ((roll > (int)boundHigh || boundHigh - (unsigned int)roll == 0))
         {
             // ---- 受控特定掉落分支（ORIG +0x2df：vtable+0x0c specific）----
-            if ((unsigned int)roll <= (unsigned int)(rateLow * (int)param5) &&
-                (unsigned int)(rateLow * (int)param5) - (unsigned int)roll != 0)
+            if ((unsigned int)roll <= (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e24) * (int)param5) &&
+                (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e24) * (int)param5) - (unsigned int)roll != 0)
             {
                 // ref 上下文区按 ORIG 084622bc..308 原始偏移写入
                 *(char*)((char*)&ref + 0x35) = 0;
@@ -501,7 +493,7 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
 
                     Inven_Item probe;                          // ORIG buf(-0xf5)：整块复核
                     probe.setCopy(result.m_dropItems.front());
-                    CItemList* itemList = dm->getItemList();   // dm+0xc 具名访问器
+                    CItemList* itemList = G_CDataManager()->getItemList();   // dm+0xc 具名访问器
                     CItem* found = itemList->find_item(probe.m_addInfo);
                     if (found != 0)
                     {
@@ -549,9 +541,8 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                 Inven_Item& dst = m_rewards[memberIdx].m_items[i];
                 dst.setCopy(randomResult.m_dropItems.front());
                 const int addInfo = dst.get_add_info();
-                // ORIG：fildl/flds 0x5e2c/fmuls/fistpl（就近舍入）
-                double boosted = (double)addInfo * (double)rateFactor;
-                dst.set_add_info((int)roundFpuNearest(boosted));
+                // ORIG：fildl addInfo/flds 0x5e2c/fmuls/fistpl（默认控制字就近舍入）
+                dst.set_add_info((int)((float)addInfo * *(float*)((char*)G_CDataManager() + 0x5e2c)));
             }
         }
     }

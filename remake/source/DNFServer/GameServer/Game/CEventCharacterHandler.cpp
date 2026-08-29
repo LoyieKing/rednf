@@ -173,7 +173,7 @@ bool CEventCharacterHandler::_checkMakeCommand(CUser* user, int level, int& cmdI
 
     if (level < 0x47)
     {
-        char growType = user->getCurCharacEventCharacterGrowtype();
+        int growType = user->getCurCharacEventCharacterGrowtype();
         if (growType < 7)
         {
             cmdIdx = user->get_charac_job() * 10 + growType;
@@ -190,38 +190,40 @@ void CEventCharacterHandler::_UpdateEventCharacInfo(CUser* user)
 
 void CEventCharacterHandler::_SetClearedQuest(CUser* user)
 {
-    switch (user->get_charac_job())
+    if (user->get_charac_job() == 0)
     {
-    case 0:
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x37f);
-        break;
-    case 1:
+    }
+    else if (user->get_charac_job() == 1)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x382);
-        break;
-    case 2:
+    }
+    else if (user->get_charac_job() == 2)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x380);
-        break;
-    case 3:
+    }
+    else if (user->get_charac_job() == 3)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x383);
-        break;
-    case 4:
+    }
+    else if (user->get_charac_job() == 4)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x381);
-        break;
-    case 5:
+    }
+    else if (user->get_charac_job() == 5)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x13f9);
-        break;
-    case 6:
+    }
+    else if (user->get_charac_job() == 6)
+    {
         ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
             ->setClearedQuest(0x384);
-        break;
-    default:
-        break;
     }
 }
 
@@ -268,12 +270,15 @@ bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int co
     }
 
     const CItem* item = G_CDataManager()->find_item((int)itemIdx);
-    if (item != 0 && item->is_stackable())
+    if (item != 0)
     {
-        const CStackableItem* stack = (const CStackableItem*)item;
-        if (stack->getStackableLimit() < count)
+        if (item->is_stackable())
         {
-            count = stack->getStackableLimit();
+            const CStackableItem* stack = (const CStackableItem*)item;
+            if (stack->getStackableLimit() < count)
+            {
+                count = stack->getStackableLimit();
+            }
         }
     }
 
@@ -287,7 +292,7 @@ bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int co
     const char* name = user->getCurCharacName();
     char* accStr = NumberToString(user->get_acc_id(), 0);
     cMyTrace tr(
-        "bool CEventCharacterHandler::_AddItem(CUser*, itemIndexOnlyServer_t, int, int)",
+        __PRETTY_FUNCTION__,
         0xda, 0);
     tr("%s:'%s' GM Mode Add Item(%d).", accStr, name, slot);
     user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)itemSpace, slot);
@@ -306,22 +311,22 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         bChanged = false;
     }
-    else if (diff < 0)
-    {
-        for (int i = 0; diff < i; --i)
-        {
-            int newLevel = user->get_charac_level() - 1;
-            int maxLevel = 0x46;
-            user->SetCharacLevel(std::min(newLevel, maxLevel));
-        }
-    }
-    else
+    else if (diff > 0)
     {
         for (int i = 0; i < diff; ++i)
         {
             int newLevel = user->get_charac_level() + 1;
             int maxLevel = 0x46;
-            user->SetCharacLevel(std::min(newLevel, maxLevel));
+            user->SetCharacLevel(std::min(maxLevel, newLevel));
+        }
+    }
+    else
+    {
+        for (int i = 0; i > diff; --i)
+        {
+            int newLevel = user->get_charac_level() - 1;
+            int maxLevel = 0x46;
+            user->SetCharacLevel(std::min(maxLevel, newLevel));
         }
     }
     return bChanged;
@@ -349,7 +354,11 @@ bool CEventCharacterHandler::_SetGrowType(CUser* user, int growTypeKind, int gro
         return false;
     }
 
-    return user->ChangeGrowType_GM(first, second);
+    if (user->ChangeGrowType_GM(first, second))
+    {
+        return true;
+    }
+    return false;
 }
 
 bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
@@ -362,7 +371,7 @@ bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
 
     const char* name = user->getCurCharacName();
     char* accStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace tr("bool CEventCharacterHandler::_makeEventCharacter(CUser*, int)", 0x2b, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x2b, 0);
     tr("%s:'%s' Make Event Character(%d) level(%d).", accStr, name, cmdIdx, level);
 
     STEventCharacterInfo info;
@@ -371,11 +380,7 @@ bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
         return false;
     }
 
-    if (level < 0xf)
-    {
-        _SetLevel(user, level);
-    }
-    else
+    if (level > 0xe)
     {
         _SetLevel(user, 0xf);
         if (info.m_growType != 0)
@@ -390,6 +395,10 @@ bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
                 _SetGrowType(user, 2, info.m_secondGrowType);
             }
         }
+    }
+    else
+    {
+        _SetLevel(user, level);
     }
 
     user->AddDungeonClear(2, 1);

@@ -7,12 +7,7 @@
 #include "CEnvironment.h"
 #include "InterfacePacketBuf.h"
 #include "CGuildServerProxy.h"
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-};
+
 #include <cstring>
 #include <cstdio>
 
@@ -22,6 +17,57 @@ public:
 #include <vector>
 #include "RDARScriptStringManager.h"   // g_scriptStringManager_/findString
 #include "CEventTable.h"              // CEventTable 权威声明（唯一）
+#include "PacketGuard.h"
+// InitEventManager 事件类声明（ORIG InitEventManager 0x08114dcc 槽位映射实证）。
+#include "CUnlimitFatigueEvent.h"
+#include "CMaxFatigueFactorEvent.h"
+#include "CExpDoubleEvent.h"
+#include "CCoinEventPerDay.h"
+#include "ARAD_Database.h"           // CCoinEventOnCharCreate
+#include "CLeadingChannelEvent.h"
+#include "CItemDropRatioEvent.h"
+#include "CPCRoomBurningEvent.h"
+#include "CGuildWarEvent.h"
+#include "CPCRoomFatigueEvent.h"
+#include "CReformingDanjinEvent.h"
+#include "CCoinRefillEvent.h"
+#include "CBurningFatigueEvent.h"
+#include "CClearRewardCardEvent.h"
+#include "CCeraShopBonusItemEvent.h"
+#include "CTournamentPvPEvent.h"
+#include "CGoldCardBlankItemEvent.h"
+#include "CPcRoomCardBlankItemEvent.h"
+#include "CPowerWarEvent.h"
+#include "CCollectArchieveEventLog.h"
+#include "CPCRoomWorldDropEvent.h"
+#include "CPartyExpBonusEvent.h"
+#include "CStabToDeathEvent.h"
+#include "CSchoolMatchEvent.h"
+#include "W9_EventSmall.h"           // CAutoMarketConditionsControlEvent / CWeekendBonusEvent
+#include "CVendingMachineBonusEvent.h"
+#include "CBurnigGoldMonsterEvent.h"
+#include "CNoNeedGoldOnGuildCreateEvent.h"
+#include "CDeathTowerWinPointEvent.h"
+#include "CNotApplyBalkeunEvent.h"
+#include "CCharacterDayEvent.h"
+#include "CRestrictCharacCreationEvent.h"
+#include "CReduceUpgradeItemPay.h"
+#include "COnTimeEvent.h"
+#include "CBreakAwayPreventEvent.h"
+#include "CPowerWarVictoriousEvent.h"
+#include "CSecretShopEvent.h"
+#include "CFatigueAttendance.h"
+#include "CConditionEvent.h"
+#include "CUXGameLogEvent.h"
+#include "BlueMarbleDungeonEvent.h"
+#include "CStopOverlabExpEvent.h"
+#include "CEventAdvanceAltarOpen.h"
+#include "CAradRyosikaEvent.h"
+#include "Arad_MomijiEvent.h"
+#include "LevelupSupportEvent.h"
+#include "CEventStayTime.h"
+#include "CEventCreateDnf.h"
+#include "EventGiveMeBox.h"
 
 CDelivery::CDelivery()
     : m_eventMap()
@@ -74,23 +120,15 @@ void CDelivery::notify(int type, DeliveryMsg& msg)
     }
 }
 
-namespace
-{
-    CDelivery* getDelivery(CEventManager* manager)
-    {
-        return *reinterpret_cast<CDelivery**>(
-            reinterpret_cast<char*>(manager) + 0x298);
-    }
-}
 
 
 CEventManager::CEventManager()
 {
-    std::memset(m_pad, 0, sizeof(m_pad));
+    std::memset(m_events, 0, sizeof(m_events));
     // ORIG 0x08114ce4：memset 0x298，operator new(0x18) 后调 CDelivery::CDelivery()
     // （0x08116386），存 CDelivery* 于 +0x298。此处用真实 CDelivery 构造。
     CDelivery* delivery = new CDelivery;
-    *reinterpret_cast<CDelivery**>(m_pad + 0x298) = delivery;
+    m_delivery = delivery;
 }
 
 
@@ -99,11 +137,11 @@ CEventManager::~CEventManager()
 {
     for (int i = 0; i <= 0xa5; ++i)
     {
-        CEventBase* event = reinterpret_cast<CEventBase**>(m_pad)[i];
+        CEventBase* event = m_events[i];
         if (event != 0)
             delete event;
     }
-    CDelivery* delivery = getDelivery(this);
+    CDelivery* delivery = m_delivery;
     if (delivery != 0)
     {
         delete delivery;
@@ -112,15 +150,15 @@ CEventManager::~CEventManager()
 
 int CEventManager::AddEvent(int type, CEventBase* event)
 {
-    reinterpret_cast<CEventBase**>(m_pad)[type] = event;
+    m_events[type] = event;
     return 1;
 }
 
 CEventBase* CEventManager::GetRepeatEvent(int type)
 {
-    if (type < 0 || type > 0xa5)
+    if (type > 0xa5)
         return 0;
-    return reinterpret_cast<CEventBase**>(m_pad)[type];
+    return m_events[type];
 }
 
 // ORIG T 0x08116212 _ZN13CEventManager30IsExistOverlappedExpBonusEventEv
@@ -139,7 +177,7 @@ void CEventManager::dailyresetData()
 {
     for (int i = 0; i <= 0xa5; ++i)
     {
-        CEventBase* event = reinterpret_cast<CEventBase**>(m_pad)[i];
+        CEventBase* event = m_events[i];
         if (event != 0 && event->IsEventing(0))
             event->dailyresetData();
     }
@@ -150,7 +188,7 @@ int filterEvent(int type)
     if (type == 2)
         return 0;
     GameWorld* world = G_GameWorld();
-    unsigned int channel = world != 0 ? (unsigned int)world->GetChannelType() : 0;
+    unsigned int channel = (unsigned int)world->GetChannelType();
     if (channel >= 0x11)
         return 0;
     unsigned int bit = 1U << channel;
@@ -191,14 +229,15 @@ void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
             continue;
         packet.put_short(id);
         ++activeCount;
-        int packed = event->GetAddInfo();
-        unsigned short info0 = (unsigned short)(packed & 0xffff);
+        // GetAddInfo 返回 stADDINFO（ORIG sret ABI，2026-08-28 OrigEventLeaf8f 修正）。
+        stADDINFO add = event->GetAddInfo();
+        unsigned short info0 = add.m_info0;
         if ((short)info0 >= 0)
         {
             EventAddInfo item;
             item.eventId = (unsigned short)id;
             item.info0 = info0;
-            item.info1 = (unsigned short)((unsigned int)packed >> 16);
+            item.info1 = add.m_info1;
             extra.push_back(item);
         }
     }
@@ -248,7 +287,7 @@ int CEventManager::TriggerEventStart(int idx, Word_Param param)
         return 0;
     event->StartEvent(param);
     BroadcastEventInfo();
-    event->deliveryStart(getDelivery(this));
+    event->deliveryStart(m_delivery);
     event->StartAction();
     return 1;
 }
@@ -260,37 +299,108 @@ int CEventManager::TriggerEventEnd(int idx)
     CEventBase* event = GetRepeatEvent(idx);
     if (event == 0)
         return 0;
-    event->deliveryEnd(getDelivery(this));
+    event->deliveryEnd(m_delivery);
     BroadcastEventInfo();
     event->EndEvent();
     return 1;
 }
 
+// ORIG 0x08114dcc（InitEventManager.md 反汇编逐槽核对）：按槽位映射堆构造 50
+// 个事件对象（new + C1 + 写槽），成功后调 LoadEventFromDB() 并透传其返回值；
+// 任何构造异常经 catch 直接返回 0（ORIG catch @0x08115965 只 begin/end_catch，
+// 不回收已构造对象）。GLOBAL 键控槽（21/24/35/36/39/50/58/86/87/91/102/119/
+// 158）在 ORIG 为静态单例 getter 返回指针，析构同样 delete——语义等价堆构造，
+// 统一 new。槽位 = 偏移/4，映射如下：
+//   1 CUnlimitFatigueEvent 2 CMaxFatigueFactorEvent 3 CExpDoubleEvent
+//   4 CCoinEventPerDay 5 CCoinEventOnCharCreate 6 CLeadingChannelEvent
+//   7 CItemDropRatioEvent 8 CPCRoomBurningEvent 33 CGuildWarEvent
+//   10 CPCRoomFatigueEvent 12 CReformingDanjinEvent 13 CCoinRefillEvent
+//   15 CBurningFatigueEvent 16 CClearRewardCardEvent 17 CCeraShopBonusItemEvent
+//   18 CTournamentPvPEvent 19 CGoldCardBlankItemEvent 29 CPcRoomCardBlankItemEvent
+//   30 CPowerWarEvent 21 CCollectArchieveEventLog 22 CPCRoomWorldDropEvent
+//   24 CPartyExpBonusEvent 32 CStabToDeathEvent 9 CSchoolMatchEvent
+//   34 CAutoMarketConditionsControlEvent 35 CVendingMachineBonusEvent
+//   36 CBurnigGoldMonsterEvent 38 CNoNeedGoldOnGuildCreateEvent
+//   39 CDeathTowerWinPointEvent 40 CNotApplyBalkeunEvent 41 CCharacterDayEvent
+//   49 CRestrictCharacCreationEvent 50 CReduceUpgradeItemPay 51 COnTimeEvent
+//   52 CBreakAwayPreventEvent 53 CPowerWarVictoriousEvent 58 CSecretShopEvent
+//   86 CFatigueAttendance 87 CWeekendBonusEvent 113 CConditionEvent
+//   91 CUXGameLogEvent 95 BlueMarbleDungeonEvent 102 CStopOverlabExpEvent
+//   119 CEventAdvanceAltarOpen 116 CAradRyosikaEvent 155 Arad_MomijiEvent
+//   158 LevelupSupportEvent 159 CEventStayTime 160 CEventCreateDnf
+//   165 EventGiveMeBox
 bool CEventManager::InitEventManager()
 {
-    // The original initializes the event table before loading persisted rows.
-    // Event constructors are not available in this TU, so an empty table must
-    // not be reported as successfully initialized.
-    for (int i = 0; i <= 0xa5; ++i)
+    try
     {
-        if (reinterpret_cast<CEventBase**>(m_pad)[i] != 0)
-            return LoadEventFromDB();
+        m_events[1]  = new CUnlimitFatigueEvent;
+        m_events[2]  = new CMaxFatigueFactorEvent;
+        m_events[3]  = new CExpDoubleEvent;
+        m_events[4]  = new CCoinEventPerDay;
+        m_events[5]  = new CCoinEventOnCharCreate;
+        m_events[6]  = new CLeadingChannelEvent;
+        m_events[7]  = new CItemDropRatioEvent;
+        m_events[8]  = new CPCRoomBurningEvent;
+        m_events[33] = new CGuildWarEvent;
+        m_events[10] = new CPCRoomFatigueEvent;
+        m_events[12] = new CReformingDanjinEvent;
+        m_events[13] = new CCoinRefillEvent;
+        m_events[15] = new CBurningFatigueEvent;
+        m_events[16] = new CClearRewardCardEvent;
+        m_events[17] = new CCeraShopBonusItemEvent;
+        m_events[18] = new CTournamentPvPEvent;
+        m_events[19] = new CGoldCardBlankItemEvent;
+        m_events[29] = new CPcRoomCardBlankItemEvent;
+        m_events[30] = new CPowerWarEvent;
+        m_events[21] = new CCollectArchieveEventLog;
+        m_events[22] = new CPCRoomWorldDropEvent;
+        m_events[24] = new CPartyExpBonusEvent;
+        m_events[32] = new CStabToDeathEvent;
+        m_events[9]  = new CSchoolMatchEvent;
+        m_events[34] = new CAutoMarketConditionsControlEvent;
+        m_events[35] = new CVendingMachineBonusEvent;
+        m_events[36] = new CBurnigGoldMonsterEvent;
+        m_events[38] = new CNoNeedGoldOnGuildCreateEvent;
+        m_events[39] = new CDeathTowerWinPointEvent;
+        m_events[40] = new CNotApplyBalkeunEvent;
+        m_events[41] = new CCharacterDayEvent;
+        m_events[49] = new CRestrictCharacCreationEvent;
+        m_events[50] = new CReduceUpgradeItemPay;
+        m_events[51] = new COnTimeEvent;
+        m_events[52] = new CBreakAwayPreventEvent;
+        m_events[53] = new CPowerWarVictoriousEvent;
+        m_events[58] = new CSecretShopEvent;
+        m_events[86] = new CFatigueAttendance;
+        m_events[87] = new CWeekendBonusEvent;
+        m_events[113] = new CConditionEvent;
+        m_events[91] = new CUXGameLogEvent;
+        m_events[95] = new BlueMarbleDungeonEvent;
+        m_events[102] = new CStopOverlabExpEvent;
+        m_events[119] = new CEventAdvanceAltarOpen;
+        m_events[116] = new CAradRyosikaEvent;
+        m_events[155] = new Arad_MomijiEvent;
+        m_events[158] = new LevelupSupportEvent;
+        m_events[159] = new CEventStayTime;
+        m_events[160] = new CEventCreateDnf;
+        m_events[165] = new EventGiveMeBox;
     }
-    return false;
+    catch (...)
+    {
+        return false;
+    }
+    return LoadEventFromDB();
 }
 
 bool CEventManager::LoadEventFromDB()
 {
-    if (GlobalData::s_db_mgr == 0)
-        return false;
-    CEnvironment* env = G_CEnvironment();
-    if (env == 0)
-        return false;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
-    if (db == 0 || !db->set_query(
-            "SELECT event_type, parameter1, parameter2 FROM dnf_event_log "
-            "WHERE end_time=0 AND server_id IN (0,%d) AND unix_timestamp()>=start_time "
-            "ORDER BY start_time", *reinterpret_cast<const int*>(reinterpret_cast<const char*>(env) + 0x378)) || !db->exec(true))
+    CEnvironment* env = G_CEnvironment();
+    db->set_query(
+        "SELECT event_type, parameter1, parameter2 FROM dnf_event_log "
+        "WHERE end_time=0 AND server_id IN (0,%d) AND unix_timestamp()>=start_time "
+        "ORDER BY start_time",
+        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(env) + 0x378));
+    if (!db->exec(true))
         return false;
     const int rows = db->get_n_rows();
     for (int i = 0; i < rows; ++i)
@@ -314,7 +424,7 @@ bool CEventManager::LoadEventFromDB()
 
 void CEventManager::eventDeliveryNotify(int type, DeliveryMsg& msg)
 {
-    CDelivery* delivery = getDelivery(this);
+    CDelivery* delivery = m_delivery;
     if (delivery != 0)
         delivery->notify(type, msg);
 }
@@ -333,10 +443,16 @@ struct EventTableEntry
     const char* name;    // +0x0c（event_name）
     const char* explain; // +0x10（event_explain key/string）
 };
-EventTableEntry g_event_table[0x4f];  // ORIG 0x936fa60（BSS 零初始化）
+extern "C"
+{
+EventTableEntry events[0x4f];  // ORIG 0x936fa60（BSS 零初始化）
+}
 }  // namespace
 
 CEventTable::CEventTable() {}
+
+// ORIG 0x0811a0ce：空析构（T D1/D2 同址）。
+CEventTable::~CEventTable() {}
 
 int CEventTable::GetEventTableCount()
 {
@@ -347,31 +463,27 @@ CEventBase* CEventTable::GetEventBase(int idx)
 {
     if (idx < 0 || GetEventTableCount() <= idx)
         return 0;
-    return g_event_table[idx].base;
+    return events[idx].base;
 }
 
 int CEventTable::GetEventId(int idx)
 {
     if (idx < 0 || GetEventTableCount() <= idx)
         return 0;
-    return g_event_table[idx].id;
+    return events[idx].id;
 }
 
-// ORIG 0x811a15d（_Z15_FindEventTableiPKcRb，131 字节）：在全局事件表中按
-// event_id 查找条目；命中后以 strncmp(entry.name, name, strlen(name)) 比名。
-// 名字匹配则直接返回索引；不匹配则置 *dup=true 仍返回该索引；未命中返回 -1。
-int _FindEventTable(int id, const char* name, bool* dup)
+int _FindEventTable(int id, const char* name, bool& dup)
 {
     for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
     {
-        if (g_event_table[i].id == id)
+        if (events[i].id == id)
         {
-            const char* tblName = g_event_table[i].name;
+            const char* tblName = events[i].name;
             const std::size_t n = name ? strlen(name) : 0;
             if (tblName != 0 && name != 0 && strncmp(tblName, name, n) == 0)
                 return i;
-            if (dup)
-                *dup = true;
+            dup = true;
             return i;
         }
     }
@@ -383,14 +495,8 @@ int _FindEventTable(int id, const char* name, bool* dup)
 // 的事件表索引记入集合，最后将「未在 DB 中」的事件表索引追加到 out，返回是否成功。
 bool CEventTable::VerifyEventTable(std::vector<int>& out)
 {
-    out.clear();
-    MySQL* db = GlobalData::s_db_mgr ?
-        GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE) : 0;
-    if (db == 0)
-        return false;
-
-    if (!db->set_query("seLect event_id, event_name from dnf_event_info"))
-        return false;
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
+    db->set_query("seLect event_id, event_name from dnf_event_info");
     if (!db->exec(true))
         return false;
 
@@ -407,7 +513,7 @@ bool CEventTable::VerifyEventTable(std::vector<int>& out)
         if (!db->get_str(1, name, 0xff))
             return false;
         bool dup = false;
-        int idx = _FindEventTable(id, name, &dup);
+        int idx = _FindEventTable(id, name, dup);
         if (idx < 0)
             continue;
         if (dup)
@@ -433,36 +539,48 @@ bool CEventTable::InsertEventTable(std::vector<int>& ids)
         return true;
 
     std::string sql;
-    std::string temp;
     for (std::vector<int>::const_iterator it = ids.begin(); it != ids.end(); ++it)
     {
         const int idx = *it;
-        if (idx < 0 || GetEventTableCount() <= idx)
-            continue;
-        const EventTableEntry& e = g_event_table[idx];
+        const EventTableEntry& e = events[idx];
         const char* explain = e.explain ? e.explain : "";
         const char* resolved = g_scriptStringManager_.findString(4, explain, 0);
         char buf[0x100];
         std::snprintf(buf, sizeof(buf), "(%d,%d,'%s','%s')",
                       e.id, e.apply_type, e.name ? e.name : "", resolved ? resolved : "");
         sql += buf;
-        if (it + 1 != ids.end())
-            sql += ",";
+        sql += ",";
     }
 
-    MySQL* db = GlobalData::s_db_mgr ?
-        GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE) : 0;
-    if (db == 0)
-        return false;
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
 
     std::string query = "inSert into dnf_event_info(event_id, apply_type, event_name, event_explain) values";
     query += sql;
-    if (!db->set_query("%s", query.c_str()))
-        return false;
+    db->set_query("%s", query.c_str());
     if (!db->exec(true))
     {
         (void)db->getDBError();
         return false;
     }
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// LinkClosureB-2 追加：changeCharacName（ORIG T 0x08116276 sz 0x98，
+// 报告 docs/class_func_reports/CEventManager/changeCharacName.md 全文已读）：
+// 遍历事件数组 0..0xa5：槽非空且 IsEventing(0)（ORIG vptr+0x34 槽）为真 →
+// 调该事件 vptr+0x20 槽（ORIG changeCharacName 槽，头内声明序与 ORIG vtable
+// 对位：_ZTV10CEventBase @0x08b4bae0 实测 +0x20=changeCharacName、
+// +0x34=IsEventing），实参 (user, key, name, flag)。
+void CEventManager::changeCharacName(CUser* user, int key, char* name, int flag)
+{
+    for (int i = 0; i <= 0xa5; ++i)
+    {
+        CEventBase* event = m_events[i];
+        if (event == 0)
+            continue;
+        if (!event->IsEventing(0))
+            continue;
+        event->changeCharacName(user, key, name, flag);
+    }
 }

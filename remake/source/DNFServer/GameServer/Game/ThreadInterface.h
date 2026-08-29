@@ -34,10 +34,10 @@ public:
     ThreadInterface() {}                   // 0x08630b38 仅 vptr；m_tid/m_tidCopy 未初始化
     virtual ~ThreadInterface() {}          // 0x08630b46 / 0x08630b6c
     virtual void stop() {}                 // 0x08630c14（槽0，空体）
-    virtual void dispatch(void* arg)       // 槽3 线程体（ORIG 纯虚；重建空默认体）
-    {
-        (void)arg;
-    }
+    // 槽3 线程体。ORIG 纯虚（nm 无 ThreadInterface::dispatch 符号）；六个派生
+    // 线程类（DBThread/DispatchThread/NetworkThread/UdpThread/MonitorTcpThread/
+    // AcceptThread）均已覆盖（ThreadDispatchers 批次，T 符号见各 dispatch 报告）。
+    virtual void dispatch(void* arg) = 0;
 
     bool begin()                           // 0x08630b8a 逐指令转写
     {
@@ -51,15 +51,10 @@ public:
         m_tidCopy = m_tid;                 // ORIG：*(this+8) = *(this+4)
         return true;
     }
-    int join()                             // 0x08630c46
-    {
-        int rc = pthread_join(m_tid, 0);
-        return rc != 0;
-    }
-    unsigned long getThreadID() const      // 0x082a4218（读 +8）
-    {
-        return m_tidCopy;
-    }
+    // 定义落 OnlyOrigBatch11.cpp（ORIG 独立符号：join T 0x08630c46 /
+    // getThreadID W 0x082a4218，非 const）。
+    int join();                            // 0x08630c46
+    unsigned long getThreadID();           // 0x082a4218（读 +8，非 const）
     static void* dispatch_proxy(void* p)   // 0x08630c1a（读虚表+0xc，以 (p,p) 调用）
     {
         static_cast<ThreadInterface*>(p)->dispatch(p);

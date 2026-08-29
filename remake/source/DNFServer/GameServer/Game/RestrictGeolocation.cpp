@@ -47,10 +47,11 @@ static GeoIPCountryByAddrFn get_geoip_country_by_addr()
 
 }  // namespace
 
-RestrictGeolocation::RestrictGeolocation()
+RestrictGeolocation::RestrictGeolocation() : m_geoip(0), m_allowCountry(0xb)
 {
-    // ORIG 0x0817097c：m_geoip=0；集合成员默认构造。
-    m_geoip = 0;
+    // ORIG 0x0817097c：编译器先调基类 ARAD::Singleton<RestrictGeolocation>::Singleton()
+    // （报告 call 081713a6）→ m_geoip=0 → unordered_set 以 hash=0xb 构造
+    // （报告 call 08171406，四参：this+4, 0xb, &equal_to, &allocator）。体为空。
 }
 
 RestrictGeolocation::~RestrictGeolocation()
@@ -130,7 +131,7 @@ void RestrictGeolocation::getCountryCode(char* out, unsigned int outLen, std::st
 {
     if (m_geoip == 0)
     {
-        cMyTrace trace("void RestrictGeolocation::getCountryCode(char*, unsigned int, std::string)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x7e, 5);
         trace("[Taiwan, GeoIP] Geo instance is null.");
     }
@@ -151,7 +152,7 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
     //  - 其余 → 记 SIG_SAVE_GEO_REJECT(0x11b,msg=-1) 入 DB 队列 → false。
     if (m_geoip == 0)
     {
-        cMyTrace trace("bool RestrictGeolocation::isAllow(std::string, std::string)", 0x44, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x44, 5);
         trace("[Taiwan, GeoIP] Geo instance is null.");
         return true;
     }
@@ -167,7 +168,7 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
 
     if (isAllowCountryCode(countryCode))
     {
-        cMyTrace okTrace("bool RestrictGeolocation::isAllow(std::string, std::string)", 0x4e, 0);
+        cMyTrace okTrace(__PRETTY_FUNCTION__, 0x4e, 0);
         okTrace("[Taiwan, GeoIP] Success Account:%s, IP:%s, CountryCode:%s",
                 account.c_str(), ip.c_str(), countryCode);
         return true;
@@ -176,14 +177,14 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
     if (G_CEnvironment()->get_server_group() == 3)
     {
         cMyTrace globalTrace(
-            "bool RestrictGeolocation::isAllow(std::string, std::string)", 0x55, 0);
+            __PRETTY_FUNCTION__, 0x55, 0);
         globalTrace("[Taiwan, GeoIP] Success Global server group. Account:%s, IP:%s, CountryCode:%s",
                     account.c_str(), ip.c_str(), countryCode);
         return true;
     }
 
     {
-        cMyTrace failTrace("bool RestrictGeolocation::isAllow(std::string, std::string)", 0x5a, 0);
+        cMyTrace failTrace(__PRETTY_FUNCTION__, 0x5a, 0);
         failTrace("[Taiwan, GeoIP] Fail Account:%s, IP:%s, CountryCode:%s",
                   account.c_str(), ip.c_str(), countryCode);
     }

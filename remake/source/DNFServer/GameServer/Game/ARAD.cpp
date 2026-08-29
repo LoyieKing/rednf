@@ -7,11 +7,13 @@
 #include "AvatarRechargeServer.h"            // #2 注册项
 #include "EmblemCompoundServer.h"            // #3 注册项（FixAradEmblemConvert 新建 TU）
 #include "AvatarConvertServer.h"             // #4 注册项（FixAradEmblemConvert 新建 TU）
-#include "Arad_DataManager.h"
+#include "ARAD_FN_DeleteGameScript.h"   // FN_DeleteGameScript 唯一类声明（Arad_DataManager.h 不含）
+#include "Arad_Script.h"
 #include "Arad_Script.h"
 #include "CUser.h"          // CerashopAddRestrict::Manager（Init 注册）
 #include "PacketGuard.h"    // notifyOpenMessageDialog 组包
-#include "CSystemTime.h"
+#include <algorithm>
+#include <cstring>
 #include <cstring>
 
 namespace ARAD
@@ -72,17 +74,14 @@ void ScriptManager::Init()
     // #9 LevelupSupport2ndEventManger（LevelupSupport/CreateDnf 批次）。
 }
 
-// ============================================================================
-// Arad_InterfaceGameScript（m_scriptMap 的 value 类型；ORIG ctor 0x8195c5c）
-// ============================================================================
-Arad_InterfaceGameScript::Arad_InterfaceGameScript(const std::string& name)
+Arad_InterfaceGameScript::Arad_InterfaceGameScript(std::string name)
     : m_scriptDataName(name)
 {
 }
 
 Arad_InterfaceGameScript::~Arad_InterfaceGameScript() {}
 
-std::string Arad_InterfaceGameScript::scriptDataName()
+std::string Arad_InterfaceGameScript::scriptDataName() const
 {
     // ORIG 0x8188b18：return m_scriptDataName
     return m_scriptDataName;
@@ -253,7 +252,7 @@ int Arad_OnePlusCardEvent_ItemList::parsing(char* data)
         int rows = script.GetRowNum();
         for (int r = 0; r < rows; ++r)
         {
-            Data d((unsigned short)script.GetInt(r, "web_id"), (unsigned int)script.GetInt(r, "item_index"));
+            Data d((unsigned short)script.GetInt(r, "web_id"), (unsigned long)script.GetInt(r, "item_index"));
             m_cardList.push_back(d);
         }
     }
@@ -268,18 +267,21 @@ int Arad_OnePlusCardEvent_ItemList::parsing(char* data)
 
 bool Arad_OnePlusCardEvent_ItemList::find_item(unsigned short webId, Data& out)
 {
-    for (std::vector<Data>::const_iterator it = m_cardList.begin();
-         it != m_cardList.end(); ++it)
-        if (it->webId == webId) { out = *it; return true; }
-    return false;
+    // ORIG 0x081a398e：Data(webId,0) + std::find → operator==（0x081a420a）按 webId 匹配。
+    Data tmp(webId, 0);
+    std::vector<Data>::iterator it = std::find(m_cardList.begin(), m_cardList.end(), tmp);
+    if (it == m_cardList.end())
+        return false;
+    out.webId = it->webId;
+    out.itemIndex = it->itemIndex;
+    return true;
 }
 
 bool Arad_OnePlusCardEvent_ItemList::find_item(unsigned short webId)
 {
-    for (std::vector<Data>::const_iterator it = m_cardList.begin();
-         it != m_cardList.end(); ++it)
-        if (it->webId == webId) return true;
-    return false;
+    // ORIG 0x081a3a6e：Data(0,0) 委托两参 find_item，返回值透传。
+    Data tmp(0, 0);
+    return find_item(webId, tmp);
 }
 
 bool Arad_OnePlusCardEvent_ItemList::is_limited_map(unsigned int mapIndex)
@@ -416,10 +418,10 @@ bool Arad_DataManager::initAradData()
 
 void Arad_DataManager::destroyAradData()
 {
-    // ORIG 0x8188952：遍历 m_scriptMap 逐项 delete，clear。
-    for (std::map<std::string, Arad_InterfaceGameScript*>::iterator it = m_scriptMap.begin();
-         it != m_scriptMap.end(); ++it)
-        delete it->second;
+    // ORIG 0x8188952：std::for_each(begin,end,FN_DeleteGameScript()) 逐项删除，clear。
+    // FN_DeleteGameScript::operator() 定义归 Arad_Verify.cpp（ORIG 0x8188c56），
+    // 类声明见 ARAD_FN_DeleteGameScript.h（唯一声明点）。
+    std::for_each(m_scriptMap.begin(), m_scriptMap.end(), FN_DeleteGameScript());
     m_scriptMap.clear();
 }
 

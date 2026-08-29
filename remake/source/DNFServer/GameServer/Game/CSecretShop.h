@@ -16,19 +16,17 @@
 
 #include "SECRET_SHOP_DATA.h"   // SALE_INFO / SECRET_SHOP_INFO（namespace secretshop）
 
-class CUser;
-class CMTRand;
-class Inven_Item;
 struct SECRET_SHOP_STATISTIC_DATA;   // 全局类型（GMAccounts.h 权威，26 前缀）
-namespace secretshop
-{
-
-// ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule） ----
+// ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule，非 namespace 内） ----
+// ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule，非 namespace 内） ----
 enum eBuyRule
 {
     eBuyRule_0 = 0,
     eBuyRule_1 = 1
 };
+
+namespace secretshop
+{
 
 // ---- CSecretShopStatistic（3×map<int,SECRET_SHOP_STATISTIC_DATA>，0x48） ----
 class CSecretShopStatistic

@@ -68,7 +68,7 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
     if (CheckInTrade())
         return 0x13;
 
-    // GetInvenSlot(out, curCharacInvenR(), GetInvenTypeFromItemSpace(space), position)
+    // GetInvenSlot(out, curCharacInvenR(), GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space), position)
     Inven_Item slotItem = getCurCharacInvenR()->GetInvenSlot(
         (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)itemSpace), position);
     if ((unsigned long)slotItem.m_addInfo != itemIdx)

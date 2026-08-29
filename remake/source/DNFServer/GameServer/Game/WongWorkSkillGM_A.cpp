@@ -23,23 +23,6 @@
 
 namespace WongWork
 {
-// 定义在 SkillSlot.cpp（占位 {0}，与 ORIG D 0x093acdc0/0x093ace00 初始数据待对齐）。
-extern int g_nStatUpItemIdx[];
-extern int g_nElixerAbility[];
-
-static inline int* needElixerCountPtr(CSkillChanger* self)   // this+0x48
-{
-    return reinterpret_cast<int*>(reinterpret_cast<char*>(self) + 0x48);
-}
-
-static inline int* needElixerAbilityPtr(CSkillChanger* self) // this+0x6c
-{
-    return reinterpret_cast<int*>(reinterpret_cast<char*>(self) + 0x6c);
-}
-}  // namespace WongWork
-
-namespace WongWork
-{
 
 // ============================================================================
 // ORIG T 0x08609d10 CheckCondition(CUser const*)
@@ -61,10 +44,10 @@ bool CSkillChanger::CheckCondition(const CUser* user)
 // ============================================================================
 void CSkillChanger::CountElixer(CUser* user)
 {
-    memset(reinterpret_cast<char*>(this) + 0x00, 0, 0x24);
-    memset(reinterpret_cast<char*>(this) + 0x24, 0, 0x24);
-    memset(reinterpret_cast<char*>(this) + 0x48, 0, 0x24);
-    memset(reinterpret_cast<char*>(this) + 0x6c, 0, 0x24);
+    memset(m_data.m_elixerCount, 0, 0x24);
+    memset(m_data.m_skillBookCount, 0, 0x24);
+    memset(m_data.m_needElixerCount, 0, 0x24);
+    memset(m_data.m_needElixerAbility, 0, 0x24);
     m_state.m_kindState0 = 8;
     m_state.m_kindState1 = 8;
     m_state.m_kindState2 = 8;
@@ -78,19 +61,19 @@ void CSkillChanger::CountElixer(CUser* user)
 // ORIG W 0x0869780e GetElixerCount()：返回第一组计数数组（即 this）。
 int* CSkillChanger::GetElixerCount()
 {
-    return reinterpret_cast<int*>(this);
+    return m_data.m_elixerCount;
 }
 
 // ORIG W 0x08697816 GetNeedElixerCount()：返回 this+0x48。
 int* CSkillChanger::GetNeedElixerCount()
 {
-    return needElixerCountPtr(this);
+    return m_data.m_needElixerCount;
 }
 
 // ORIG W 0x08697822 GetNeedElixerAbility()：返回 this+0x6c。
 int* CSkillChanger::GetNeedElixerAbility()
 {
-    return needElixerAbilityPtr(this);
+    return m_data.m_needElixerAbility;
 }
 
 // ============================================================================
@@ -111,14 +94,14 @@ void CSkillChanger::_addSPRelatedItem(int* a, int* b, int itemIdx, int count)
     }
     else if (m_state.m_initialized != 0)
     {
-        for (int i = 1; i <= g_nStatUpItemIdx[0]; i++)
+        for (int i = 1; i <= CSkillChanger::g_nStatUpItemIdx[0]; i++)
         {
-            if (g_nStatUpItemIdx[i] == itemIdx)
+            if (CSkillChanger::g_nStatUpItemIdx[i] == itemIdx)
             {
-                int* needCount = needElixerCountPtr(this);
+                int* needCount = m_data.m_needElixerCount;
                 needCount[i] = needCount[i] + count;
-                int* needAbility = needElixerAbilityPtr(this);
-                needAbility[i] = g_nElixerAbility[i];
+                int* needAbility = m_data.m_needElixerAbility;
+                needAbility[i] = CSkillChanger::g_nElixerAbility[i];
                 return;
             }
         }
@@ -184,8 +167,7 @@ void CSkillChanger::_CountQuestSPBook(const CUser* user, int& a, int& b,
                                       int& c, int& d)
 {
     UserQuest* quests = user->getCurCharacQuestR();
-    CQuestClear* cleared =
-        reinterpret_cast<CQuestClear*>(reinterpret_cast<char*>(quests) + 4);
+    CQuestClear* cleared = &quests->m_cleared;    // UserQuest+0x0004 子对象
     cleared->enumQuestClear(&_fnEnumQuestClear, &a, &b, &c, &d,
                             static_cast<CSkillChanger*>(this),
                             const_cast<CUser*>(user));
@@ -211,7 +193,7 @@ int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)
 // 并记 "./log/Init" 文件日志 "GM List Add mid:%s"。
 void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
 {
-    stGMInfo_t info(mid, static_cast<unsigned int>(static_cast<int>(type)));
+    CGMAccounts::stGMInfo_t info(mid, static_cast<unsigned int>(static_cast<int>(type)));
     m_gmList.push_back(info);
 
     char* midStr = NumberToString(mid, 0);   // ORIG radix 参数为 0

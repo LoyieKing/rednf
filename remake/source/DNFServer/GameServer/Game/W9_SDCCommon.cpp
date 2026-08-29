@@ -21,6 +21,7 @@
 #include "CharacManageScript.h"
 #include "CItemUpgrade_Separate.h"
 #include "DataManagerInitDepends.h"
+#include "STSDCActiveStatusSyncDataCLONG.h"  // CLONG 完整定义（双向 operator=）
 
 extern float ACTIVESTATUS_POWER1[36];       // B 0x093f5900（owner ScriptDepsA.cpp）
 extern float ACTIVESTATUS_POWER2[36];       // B 0x093f59a0
@@ -35,6 +36,55 @@ extern int ACTIVESTATUS_MAXLEVEL;                          // D 0x0936e484
 static inline int round_f(float v)
 {
     return static_cast<int>(v + (v >= 0.0f ? 0.5f : -0.5f));
+}
+
+// ORIG T 0x0808d0a6：Send（packed 0x35）→ CLONG（0x44 展开）逐字段；
+// +0/+4/+0x14/+0x18 符号扩展（movsbl），+0x8 零扩展（movzbl），余 dword。
+STSDCActiveStatusSyncDataCLONG& STSDCActiveStatusSyncDataCLONG::operator=(
+    const STSDCActiveStatusSyncDataSend& o)
+{
+    m_field00 = (int)(char)o.m_field00;
+    m_field04 = (int)(char)o.m_field01;
+    m_field08 = o.m_field02;
+    m_field0c = o.m_baseDamage;
+    m_field10 = o.m_durationTick;
+    m_field14 = (int)(char)o.m_attackerType;
+    m_field18 = (int)(char)o.m_isPvp;
+    m_field1c = o.m_field0d;
+    m_field20 = o.m_field11;
+    m_field24 = o.m_field15;
+    m_field28 = o.m_field19;
+    m_field2c = o.m_hpPercent;
+    m_field30 = o.m_field21;
+    m_field34 = o.m_field25;
+    m_field38 = o.m_field29;
+    m_field3c = o.m_field2d;
+    m_field40 = o.m_field31;
+    return *this;
+}
+
+// ORIG T 0x0808d18c：CLONG → Send 截断回填（packed 字节对齐）。
+STSDCActiveStatusSyncDataSend& STSDCActiveStatusSyncDataSend::operator=(
+    const STSDCActiveStatusSyncDataCLONG& o)
+{
+    m_field00 = (unsigned char)o.m_field00;
+    m_field01 = (unsigned char)o.m_field04;
+    m_field02 = (unsigned char)o.m_field08;
+    m_baseDamage = o.m_field0c;
+    m_durationTick = o.m_field10;
+    m_attackerType = (unsigned char)o.m_field14;
+    m_isPvp = (unsigned char)o.m_field18;
+    m_field0d = o.m_field1c;
+    m_field19 = o.m_field28;
+    m_field11 = o.m_field20;
+    m_field15 = o.m_field24;
+    m_hpPercent = o.m_field2c;
+    m_field21 = o.m_field30;
+    m_field25 = o.m_field34;
+    m_field29 = o.m_field38;
+    m_field2d = o.m_field3c;
+    m_field31 = o.m_field40;
+    return *this;
 }
 
 // _Z26GetUniformVelocityFloatSDCffii @0x088924c1
@@ -54,6 +104,14 @@ bool isObjectType(int objectType, int code)
 {
     unsigned int andv = (unsigned int)(code & objectType);
     return (andv >> 8 << 8) | (andv == (unsigned int)code ? 1u : 0u);
+}
+
+// ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。
+int isSyncActiveStatus(int type)
+{
+    if ((unsigned int)type < 0xc && ((1u << type) & 0xac4u) != 0)
+        return 1;
+    return 0;
 }
 }  // namespace _SDC
 

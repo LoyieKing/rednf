@@ -26,7 +26,7 @@ void CPCRoomBurningEvent::StartEvent()
 {
     SetEventFlag(true);
     m_factor = 100;
-    cMyTrace tr("StartEvent", 0x14, 0);
+    cMyTrace tr(__FUNCTION__, 0x14, 0);
     tr("PC Room Burning Event Start!");
 }
 
@@ -34,7 +34,7 @@ void CPCRoomBurningEvent::StartEvent(Word_Param param)
 {
     SetEventFlag(true);
     m_factor = (int)(unsigned int)param.m_duration;
-    cMyTrace tr("StartEvent", 0x1c, 0);
+    cMyTrace tr(__FUNCTION__, 0x1c, 0);
     tr("PC Room Burning Event Start!");
 }
 
@@ -42,7 +42,7 @@ void CPCRoomBurningEvent::EndEvent()
 {
     SetEventFlag(false);
     m_factor = 100;
-    cMyTrace tr("EndEvent", 0x24, 0);
+    cMyTrace tr(__FUNCTION__, 0x24, 0);
     tr("PC Room Burning Event End!");
 }
 

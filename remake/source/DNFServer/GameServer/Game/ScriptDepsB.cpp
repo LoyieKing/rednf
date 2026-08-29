@@ -243,9 +243,9 @@ void importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
 bool importTitleSection(stTitleSection* section, int idx)
 {
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
-    static LookupMap s_lookup;      // ORIG _ZZ18importTitleSection..8__lookup
-    static SpinLock s_initLock;     // ORIG ..11__init_lock
-    static bool s_inited = false;   // ORIG ..8__inited
+    static LookupMap __lookup;      // ORIG _ZZ18importTitleSection..8__lookup
+    static SpinLock __init_lock;     // ORIG ..11__init_lock
+    static bool __inited = false;   // ORIG ..8__inited
 
     std::string token;
 
@@ -258,39 +258,39 @@ bool importTitleSection(stTitleSection* section, int idx)
             return true;
 
         int id;
-        if (!s_inited)
+        if (!__inited)
         {
-            s_initLock.enter();
-            if (s_inited)
+            __init_lock.enter();
+            if (__inited)
             {
                 // 双检竞争失败方：解锁后按查表路径重新派发当前令牌。
-                s_initLock.leave();
-                LookupMap::iterator it = s_lookup.find(token.c_str());
-                id = (it != s_lookup.end()) ? it->second : -1;
+                __init_lock.leave();
+                LookupMap::iterator it = __lookup.find(token.c_str());
+                id = (it != __lookup.end()) ? it->second : -1;
             }
             else
             {
                 // 首遍级联登记（顺序与 ORIG 插入次序一致）。
-                s_lookup.insert(std::make_pair("[/section]", 0x155));
-                s_lookup.insert(std::make_pair("[/reward type]", 0x158));
-                s_lookup.insert(std::make_pair("[section name]", 0x15c));
-                s_lookup.insert(std::make_pair("[section icon]", 0x15f));
-                s_lookup.insert(std::make_pair("[frame type]", 0x166));
-                s_lookup.insert(std::make_pair("[lock message]", 0x169));
-                s_lookup.insert(std::make_pair("[name]", 0x16e));
-                s_lookup.insert(std::make_pair("[image path]", 0x172));
-                s_lookup.insert(std::make_pair("[effect path]", 0x179));
-                s_initLock.leave();
-                s_inited = true;
+                __lookup.insert(std::make_pair("[/section]", 0x155));
+                __lookup.insert(std::make_pair("[/reward type]", 0x158));
+                __lookup.insert(std::make_pair("[section name]", 0x15c));
+                __lookup.insert(std::make_pair("[section icon]", 0x15f));
+                __lookup.insert(std::make_pair("[frame type]", 0x166));
+                __lookup.insert(std::make_pair("[lock message]", 0x169));
+                __lookup.insert(std::make_pair("[name]", 0x16e));
+                __lookup.insert(std::make_pair("[image path]", 0x172));
+                __lookup.insert(std::make_pair("[effect path]", 0x179));
+                __init_lock.leave();
+                __inited = true;
                 // 以当前令牌重新走查表派发（ORIG jmp +0x72）。
-                LookupMap::iterator it = s_lookup.find(token.c_str());
-                id = (it != s_lookup.end()) ? it->second : -1;
+                LookupMap::iterator it = __lookup.find(token.c_str());
+                id = (it != __lookup.end()) ? it->second : -1;
             }
         }
         else
         {
-            LookupMap::iterator it = s_lookup.find(token.c_str());
-            id = (it != s_lookup.end()) ? it->second : -1;
+            LookupMap::iterator it = __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
         }
 
         switch (id)
@@ -434,7 +434,7 @@ bool importGenuineUpgradeTable(const char* path,
             {
                 LogManager::logFormat(
                     0, "../RDARScriptEtcParameter.cpp",
-                    "importGenuineUpgradeTable", 0x2f9e,
+                    __FUNCTION__, 0x2f9e,
                     "importGenuineUpgradeTable() - [separate_upgrade max] false");
             }
             continue;
@@ -446,7 +446,7 @@ bool importGenuineUpgradeTable(const char* path,
             {
                 LogManager::logFormat(
                     0, "../RDARScriptEtcParameter.cpp",
-                    "importGenuineUpgradeTable", 0x2fa5,
+                    __FUNCTION__, 0x2fa5,
                     "importGenuineUpgradeTable() - [level] false");
             }
             continue;
@@ -478,7 +478,7 @@ bool importGenuineUpgradeTable(const char* path,
                 {
                     LogManager::logFormat(
                         0, "../RDARScriptEtcParameter.cpp",
-                        "importGenuineUpgradeTable", 0x2fbe,
+                        __FUNCTION__, 0x2fbe,
                         "importGenuineUpgradeTable() - [item weights by rarity] false");
                 }
             }
@@ -493,7 +493,7 @@ bool importGenuineUpgradeTable(const char* path,
                 {
                     LogManager::logFormat(
                         0, "../RDARScriptEtcParameter.cpp",
-                        "importGenuineUpgradeTable", 0x2fc9,
+                        __FUNCTION__, 0x2fc9,
                         "importGenuineUpgradeTable() - [stat weights by rarity] false");
                 }
             }
@@ -510,7 +510,7 @@ bool importGenuineUpgradeTable(const char* path,
                     {
                         LogManager::logFormat(
                             0, "../RDARScriptEtcParameter.cpp",
-                            "importGenuineUpgradeTable", 0x2fd5,
+                            __FUNCTION__, 0x2fd5,
                             "importGenuineUpgradeTable() - [weapon weights] false");
                     }
                 }

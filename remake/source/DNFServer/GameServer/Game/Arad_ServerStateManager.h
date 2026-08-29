@@ -3,7 +3,7 @@
 //   +0x00 bool m_flag（ctor 写 0；其余方法不读）
 //   +0x04 Mutex m_lock（0x18，insertState/deleteState/sendState/checkContinus 加锁）
 //   +0x1c std::map<ENUM_GLOBAL_EFFECT_ARAD, AradServerStateMessage> m_stateMap
-//   sizeof = 0x28。
+//   sizeof = 0x34（+0x1c + map 0x18；typedef 断言）。
 #ifndef DNF_GAME_ARAD_SERVER_STATE_MANAGER_H_
 #define DNF_GAME_ARAD_SERVER_STATE_MANAGER_H_
 

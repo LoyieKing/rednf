@@ -11,14 +11,14 @@ class Packet_Guild_Guild_Cargo_Push_Item : public PacketHeader {
 public:
     unsigned int m_guildKey;       // +0xa
     unsigned int m_charNo;         // +0xe
-    int m_slot;                    // +0x12
-    int m_count;                   // +0x16
+    int m_b;                       // +0x12（result/dword 视图；InterWave1 W0）
+    int m_d;                       // +0x16
     unsigned char m_itemType;      // +0x1a
     char m_item[0x35];             // +0x1b（DnfItemInfo）
-    unsigned char m_fst;           // +0x50
-    unsigned short m_fsn;          // +0x51
+    unsigned char m_e;             // +0x50
+    unsigned short m_f;            // +0x51
     Packet_Guild_Guild_Cargo_Push_Item() : PacketHeader(0x70d, 0x53),
-        m_guildKey(0), m_charNo(0), m_slot(0), m_count(0), m_itemType(0), m_fst(0), m_fsn(0)
+        m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0), m_e(0), m_f(0)
     {
 
     };

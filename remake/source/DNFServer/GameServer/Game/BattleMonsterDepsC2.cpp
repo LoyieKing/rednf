@@ -86,15 +86,15 @@ using WongWork::CItemGenerator;
 // ORIG 0x0834aa60 _ZN16CAICharacterList10getByLevelEj（桥接签名 static (void*, uint)）：
 // idx=get_rand_int(10)+level-5；idx==0 或 (uint)idx>0x62 → 0；
 // m_byLevelList[idx] 空 → 0；否则 at(get_rand_int(size()))。
-CAICharacter* CAICharacterList::getByLevel(void* list, unsigned int level)
+// ORIG 0x0834aa60 _ZN16CAICharacterList10getByLevelEj（成员 this）：
+// idx=get_rand_int(10)+level-5；idx==0 或 (uint)idx>0x62 → 0；
+// m_byLevelList[idx] 空 → 0；否则 at(get_rand_int(size()))。
+CAICharacter* CAICharacterList::getByLevel(unsigned int level)
 {
-    CAICharacterList* self = static_cast<CAICharacterList*>(list);
-    if (self == 0)
-        return 0;
     const int idx = get_rand_int(10) + static_cast<int>(level) - 5;
     if (idx == 0 || static_cast<unsigned int>(idx) > 0x62)
         return 0;
-    std::vector<CAICharacter*>& bucket = self->m_byLevelList[idx];
+    std::vector<CAICharacter*>& bucket = m_byLevelList[idx];
     if (bucket.empty())
         return 0;
     return bucket.at(get_rand_int(static_cast<int>(bucket.size())));
@@ -111,7 +111,7 @@ CMap* CBattle_Field::getMap(int mapIndex)
     {
         MapInfo* info = GetCurrentMapInfo();
         LogManager::logFormat(
-            1, "battle_field.cpp", "const CMap* CBattle_Field::getMap(int)", 0x4a7,
+            1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x4a7,
             "Find Map[%d] Error(In Map Maker)(%d/%d) [Map Kind : %s]",
             GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY,
             info->m_layeredMap ? "layeredMap" : "generalMap");
@@ -125,7 +125,7 @@ CMap* CBattle_Field::getMap(int mapIndex)
         {
             MapInfo* info = GetCurrentMapInfo();
             LogManager::logFormat(
-                1, "battle_field.cpp", "const CMap* CBattle_Field::getMap(int)", 0x4c4,
+                1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x4c4,
                 "Find Map[%d] Error(In Map Maker)(%d/%d) [Map Kind : %s]",
                 GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY,
                 info->m_layeredMap ? "layeredMap" : "generalMap");
@@ -304,10 +304,10 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                 mob.m_mobIndex = ref.m_mobId;
             }
 
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x11) =
-                static_cast<char>(ref.m_levelAdd);                     // mob+0x11 ← ref+0x10
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x12) =
-                static_cast<char>(ref.m_field14);                      // mob+0x12 ← ref+0x14
+            // mob+0x11(低字节)←ref.m_levelAdd、+0x12(高字节)←ref.m_field14（ORIG 逐字节写）
+            mob.m_field11 = static_cast<short>(
+                static_cast<unsigned char>(ref.m_levelAdd)
+                | (static_cast<unsigned char>(ref.m_field14) << 8));
             mob.m_roleType = static_cast<char>(ref.m_roleType);        // mob+0x08 ← ref+0x18
             mob.m_instId = uid;
             uid = mob.m_instId + 1;
@@ -370,7 +370,7 @@ bool CBattle_Field::add_monster_blood(map_monster& mob, int& uid, int& seq)
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "bool CBattle_Field::add_monster_blood(map_monster&, int&, int&)",
+            __PRETTY_FUNCTION__,
             0x62b, "BLOOD_LOG : MONSTERS SETTING ERROR!!\n");
         return false;
     }
@@ -394,13 +394,12 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
          it != arranges->end(); ++it)
     {
         const STAICharacterMapArrangeData& arrange = *it;
-        CAICharacter* ai = CAICharacterList::get(G_CDataManager()->m_aiCharacterList,
-                                                 static_cast<unsigned int>(arrange.m_type));
+        CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(static_cast<unsigned int>(arrange.m_type));
         if (ai == NULL)
         {
             MapInfo* info = GetCurrentMapInfo();
             LogManager::logFormat(
-                1, "battle_field.cpp", "void CBattle_Field::add_monster_APC_AI(int&)",
+                1, "battle_field.cpp", __PRETTY_FUNCTION__,
                 0x649,
                 "Unknown APC Type(%d). In Dungeon(%d), Map(%d) [Map Kind : %s]",
                 arrange.m_type, m_pDungeon->get_index(), m_pMap->get_index(),
@@ -425,10 +424,10 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
                 ? static_cast<char>(ai->getLevel())
                 : static_cast<char>(m_hellPartyLevel);
         mob.m_dropCnt = arrange.m_camp;                                    // arrange+0x10 → +0x2c
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x11) =
-            arrange.m_posY;                                                // arrange+0x19
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x12) =
-            static_cast<char>(arrange.m_posX);                             // arrange+0x18
+        // mob+0x11(低)←posY、+0x12(高)←posX（ORIG 逐字节写）
+        mob.m_field11 = static_cast<short>(
+            static_cast<unsigned char>(arrange.m_posY)
+            | (static_cast<unsigned char>(arrange.m_posX) << 8));
 
         map_monster tmp(mob);
         GetCurrentMapInfo()->Add_Mob(tmp);
@@ -451,9 +450,8 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
         return;
 
     CAICharacter* ai =
-        CAICharacterList::getByLevel(G_CDataManager()->m_aiCharacterList,
-                                     static_cast<unsigned int>(
-                                         m_pDungeon->get_standard_level()));
+        G_CDataManager()->m_aiCharacterList->getByLevel(
+            static_cast<unsigned int>(m_pDungeon->get_standard_level()));
     if (ai == NULL)
         return;
 
@@ -468,8 +466,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
             ? static_cast<char>(ai->getLevel())
             : static_cast<char>(m_hellPartyLevel);
     mob.m_dropCnt = 100;
-    *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x11) = 0;
-    *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x12) = 0;
+    mob.m_field11 = 0;   // +0x11/+0x12 双字节清零
 
     map_monster tmp(mob);
     GetCurrentMapInfo()->Add_Mob(tmp);
@@ -529,10 +526,10 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
             mob.m_mobIndex = ev->m_eventIdx;
             mob.m_level = static_cast<char>(m_pDungeon->get_standard_level());
             mob.m_mobId = static_cast<int>(instBase);
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x11) =
-                static_cast<char>(ev->m_field14);
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&mob) + 0x12) =
-                static_cast<char>(ev->m_field10);
+            // mob+0x11(低)←ev.m_field14、+0x12(高)←ev.m_field10（ORIG 逐字节写）
+            mob.m_field11 = static_cast<short>(
+                static_cast<unsigned char>(ev->m_field14)
+                | (static_cast<unsigned char>(ev->m_field10) << 8));
             mob.m_roleType = 0;
             mob.m_field13 = 0;
             mob.m_field14 = 0;
@@ -659,9 +656,10 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
     stGenerateRefData_t refRandom;                                        // A @-0xc4
     stGenerateRefData_t refSpecific;                                      // B @-0x10c
     stGenerateRefData_t refDrop;                                          // C @-0x154
-    *reinterpret_cast<char*>(reinterpret_cast<char*>(&refRandom) + 0x35) =
-        static_cast<char>(get_dungeon_diff());
-    *reinterpret_cast<char*>(reinterpret_cast<char*>(&refRandom) + 0x36) = 1;
+    refRandom.m_field35 = static_cast<char>(get_dungeon_diff());
+    refRandom.m_rateSlot = 1;
+    // 【blob 指针槽】refDrop+0x34 区（m_field34..m_pad37 4 字节）按 ORIG 存
+    // ObjectDropItems 指针；跨 4 个 char 字段，无具名表达，保留 reinterpret_cast。
     *reinterpret_cast<char**>(reinterpret_cast<char*>(&refDrop) + 0x34) =
         reinterpret_cast<char*>(m_pDungeon->getObjectDropItems());
 
@@ -678,7 +676,7 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
         {
             LogManager::logFormat(
                 1, "battle_field.cpp",
-                "void CBattle_Field::add_item_curr_map(int&, int&)", 0x7a5,
+                __PRETTY_FUNCTION__, 0x7a5,
                 "Dungeon passive object index error! Map id:%d, DungeonAssignItem "
                 "size:%d, Passive object id:%d",
                 curMapIndex, static_cast<int>(specialItems->size()), passiveIdx);
@@ -688,10 +686,10 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
         stDungeonAssignItem_t& assign = specialItems->at(passiveIdx);
         if (assign.m_assignItemIdx != -1)
         {
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&refRandom) + 0x34) =
-                static_cast<char>(assign.m_assignItemIdx);
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&refSpecific) + 0x38) =
-                static_cast<char>(assign.m_assignItemIdx);
+            refRandom.m_field34 = static_cast<char>(assign.m_assignItemIdx);
+            // ORIG byte 写 +0x38 = m_rankBonusIndex 低字节（int 槽内字节写）
+            *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
+                static_cast<unsigned char>(assign.m_assignItemIdx);
         }
         else
         {
@@ -703,8 +701,9 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
                     lvl = static_cast<char>(m_pDungeon->get_standard_level());
                 else
                     lvl = static_cast<char>(m_hellPartyLevel);
-                *reinterpret_cast<char*>(reinterpret_cast<char*>(&refRandom) + 0x34) = lvl;
-                *reinterpret_cast<char*>(reinterpret_cast<char*>(&refSpecific) + 0x38) = lvl;
+                refRandom.m_field34 = lvl;
+                *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
+                    static_cast<unsigned char>(lvl);
             }
             else
             {
@@ -712,10 +711,13 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
             }
         }
 
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(&refSpecific) + 0x39) =
-            static_cast<char>(field04);
-        *reinterpret_cast<char*>(reinterpret_cast<char*>(&refRandom) + 0x37) =
-            static_cast<char>(field08);
+        // ORIG byte 写 +0x39 = m_rankBonusIndex 第 2 字节（保留 0/2/3 字节）
+        refSpecific.m_rankBonusIndex =
+            (refSpecific.m_rankBonusIndex & 0xffff00ffu)
+            | (static_cast<unsigned char>(field04) << 8);
+        refRandom.m_pad37 = static_cast<char>(field08);
+        // 【blob 指针槽】refSpecific+0x34 区（m_field34..m_pad37 4 字节）按 ORIG
+        // 存 assign.m_list 指针；跨 4 个 char 字段，无具名表达，保留 reinterpret_cast。
         *reinterpret_cast<char**>(reinterpret_cast<char*>(&refSpecific) + 0x34) =
             reinterpret_cast<char*>(&assign.m_list);                      // assign+0x04
 
@@ -751,7 +753,7 @@ void CBattle_Field::moveMap_1_Log(int x, int y)
 {
     MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
-        1, "battle_field.cpp", "void CBattle_Field::moveMap_1_Log(int, int)", 0x1126,
+        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1126,
         "TRY MoveMap [1][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
@@ -762,7 +764,7 @@ void CBattle_Field::moveMap_2_Log(int x, int y)
 {
     MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
-        1, "battle_field.cpp", "void CBattle_Field::moveMap_2_Log(int, int)", 0x1138,
+        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1138,
         "TRY MoveMap [2][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
@@ -773,7 +775,7 @@ void CBattle_Field::moveMap_3_Log(int x, int y)
 {
     MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
-        1, "battle_field.cpp", "void CBattle_Field::moveMap_3_Log(int, int)", 0x114a,
+        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x114a,
         "TRY MoveMap [3][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
@@ -789,7 +791,7 @@ void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)
     MapInfo* info = GetMapInfoFromPos(m_curX, m_curY, false);
     LogManager::logFormat(
         1, "battle_field.cpp",
-        "void CBattle_Field::moveMap_4_Log(int, int, const GridScript*)", 0x115b,
+        __PRETTY_FUNCTION__, 0x115b,
         "TRY MoveMap [4] Error(G_CDataManager()->find_dungeon( m_Dungeon )) "
         "Dungeon[%d] Pos(%d,%d), gs->mapIndex(%d) [Map Kind : %s], "
         "gs->layeredMapIndex(%d)\n",
@@ -812,7 +814,7 @@ int CBattle_Field::check_boss_map(int x, int y)
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp",
-                    "int CBattle_Field::check_boss_map(int, int)", 0x1181,
+                    __PRETTY_FUNCTION__, 0x1181,
                     "TRY MoveMap error condition [%d][%d]/[%d]", it->m_monsterIdx,
                     it->m_curKillCount, it->m_maxKillCount);
                 return 7;
@@ -837,7 +839,7 @@ int CBattle_Field::check_movemap_range(int x, int y)
 
     MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
-        1, "battle_field.cpp", "int CBattle_Field::check_movemap_range(int, int)",
+        1, "battle_field.cpp", __PRETTY_FUNCTION__,
         0x119f,
         "TRY MoveMap [3][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
@@ -1121,7 +1123,7 @@ int CBattle_Field::set_map_id(const GridScript* gs, int& mapId,
         MapInfo* info = GetMapInfoFromPos(m_curX, m_curY, false);
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "int CBattle_Field::set_map_id(const GridScript*, int&, INT_VECTOR&)",
+            __PRETTY_FUNCTION__,
             0x1363,
             "[CBattle_Field::MoveMap] Error Dungeon[%d] Pos(%d,%d), candidator(%d), "
             "gs->mapIndex(%d) [Map Kind : %s], gs->layeredMapIndex(%d)\n",

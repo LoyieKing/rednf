@@ -35,7 +35,7 @@ namespace ARAD
 // ----------------------------------------------------------------------------
 namespace ARAD_CRYPT
 {
-void encryptAES(CRijndael* cipher, char* plain, char* out);
+char* encryptAES(CRijndael* cipher, char* plain, char* out);  // ORIG T 0x08184abc（Ghidra C 返 char*）
 }  // namespace ARAD_CRYPT
 
 // ----------------------------------------------------------------------------

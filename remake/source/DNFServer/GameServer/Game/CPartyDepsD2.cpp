@@ -3,10 +3,6 @@
 //
 // 覆盖 26 个 ORIG 符号（除注明 objdump 转写者外，全部经
 // docs/class_func_reports/CParty/ 对应报告 ## 汇编 + ## 反编译 C 完整读取后转写）：
-//   CalcurateManageBonus              T 0x085ada30（CalcurateManageBonus.md）
-//   CharacManageScript::GetExpBonus   T 0x088e0f58（CharacManageScript/GetExpBonus.md）
-//   CharacManageScript::GetGoldBonus  T 0x088e0fce（CharacManageScript/GetGoldBonus.md）
-//   CheckEnterDimensionDungeon(Rhb)   T 0x0859f1ce（CheckEnterDimensionDungeon.md）
 //   CheckEnterDimensionDungeon(Rhc)   T 0x0859f36a（CheckEnterDimensionDungeon_0859f36a.md）
 //   CheckHackAverageHitCount          T 0x085bb0ac（CheckHackAverageHitCount.md）
 //   GetFirstValidMemberState          T 0x085ba574（GetFirstValidMemberState.md）
@@ -180,29 +176,6 @@ float CParty::CalcurateManageBonus(ManageBonusType::T type, CUser* user,
         return goldBonus * static_cast<float>(param);   // fmuls（fildll→fstps）
     }
     return 0.0f;
-}
-
-// ---------------------------------------------------------------------------
-// CharacManageScript::GetExpBonus —— ORIG T 0x088e0f58
-// 报告：docs/class_func_reports/CharacManageScript/GetExpBonus.md
-// m_expBonus(+0x18)[level] 命中 → fildl 值后 flds _DAT_08cbbc00(=0.1f，
-// rodata 8cbbc00: 3d cc cc cd) fdivrp → 值/0.1f；未命中 fldz。
-// （GetGoldBonus 同构，map 为 m_goldBonus +0x30。）
-// ---------------------------------------------------------------------------
-float CharacManageScript::GetExpBonus(int level)
-{
-    std::map<int, int>::const_iterator it = m_expBonus.find(level);
-    if (it == m_expBonus.end())
-        return 0.0f;
-    return static_cast<float>(it->second) / 0.1f;
-}
-
-float CharacManageScript::GetGoldBonus(int level)
-{
-    std::map<int, int>::const_iterator it = m_goldBonus.find(level);
-    if (it == m_goldBonus.end())
-        return 0.0f;
-    return static_cast<float>(it->second) / 0.1f;
 }
 
 // ---------------------------------------------------------------------------
@@ -647,9 +620,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         MapInfo* lastMap = bf(this).GetLastMapInfo();    // T 0x0830eac8
         // cUserHistoryLog::MapClear(ushort,int,int) T 0x08684b22
         // 首参 = user+0x79700 日志门面；第 3 参 = *(int*)(lastMap+4)=m_mapIndex
-        reinterpret_cast<cUserHistoryLog*>(
-            reinterpret_cast<char*>(memberUser(this, i)) + 0x79700)
-            ->MapClear(kill, (int)(playTime / 1000), lastMap->m_mapIndex);
+        memberUser(this, i)->m_historyLog.MapClear(kill, (int)(playTime / 1000), lastMap->m_mapIndex);
 
         if (kill == 0)
         {   // 击杀数为 0 却换图 → 0x19b
@@ -771,11 +742,11 @@ void CParty::check_allmember_loading(bool flag)
     const int memberCount = get_member_count();
     if (memberCount == 0)
     {
-        cMyTrace trace("void CParty::check_allmember_loading(bool)", 0x30e0, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x30e0, 0);
         trace("<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)", m_partyIndex);
         destroy();                                       // T 0x0859ad4c
         LogManager::logFormat(
-            1, "party.cpp", "void CParty::check_allmember_loading(bool)", 0x30e3,
+            1, "party.cpp", __PRETTY_FUNCTION__, 0x30e3,
             "CParty::check_allmember_loading : 1 Using: %d, Member = 0\n",
             (unsigned int)(unsigned char)m_field68);
         return;
@@ -838,7 +809,7 @@ void CParty::check_allmember_loading(bool flag)
         if (user->get_state() < 3 || user->getCurCharacR() == 0)   // thunk 0x080da38c
         {
             char* idStr = NumberToString(user->get_acc_id(), 0);   // T 0x0810904b
-            cMyTrace trace("void CParty::check_allmember_loading(bool)", 0x3123, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x3123, 5);
             trace("PCROOM : Dispatcher_RequestPCRoomPlayerCount => User State : %d, "
                   "m_id : %s",
                   user->get_state(), idStr);
@@ -1194,8 +1165,8 @@ int CParty::VoteLackUser(CUser* user, int victimIdx)
 {
     if (victimIdx < 0 || victimIdx > 3)
     {
-        cMyTrace trace("bool CParty::VoteLackUser(CUser*, int)", 0x3591, 5);
-        trace("[%s][%d]", "bool CParty::VoteLackUser(CUser*, int)", 0x3591);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3591, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x3591);
         return 0;
     }
     CUser* victim = get_user(victimIdx);
@@ -1204,13 +1175,11 @@ int CParty::VoteLackUser(CUser* user, int victimIdx)
     int voterSlot = (int)GetMemberSlotNo(user);
     if (voterSlot < 0 || voterSlot > 3)
     {
-        cMyTrace trace("bool CParty::VoteLackUser(CUser*, int)", 0x35a1, 5);
-        trace("[%s][%d]", "bool CParty::VoteLackUser(CUser*, int)", 0x35a1);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x35a1, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x35a1);
         return 0;
     }
-    cElection<int, 4, 4>* election =
-        reinterpret_cast<cElection<int, 4, 4>*>(&m_padElection);
-    election->Vote(voterSlot, victimIdx);
+    m_election.Vote(voterSlot, victimIdx);
     unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0xf);
     G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                             (TIMER_MESSAGE)0xf, (long long)0x9c4,
@@ -1224,25 +1193,23 @@ int CParty::VoteLackUser(CUser* user, int victimIdx)
 // ---------------------------------------------------------------------------
 int CParty::OnTimerWalkOutLackUser()
 {
-    cElection<int, 4, 4>* election =
-        reinterpret_cast<cElection<int, 4, 4>*>(&m_padElection);
-    int victimIdx = election->GetElected();
+    int victimIdx = m_election.GetElected();
     while (victimIdx >= 0)
     {
-        election->CancelCandidate(victimIdx);
-        election->CancelVoter(victimIdx);
+        m_election.CancelCandidate(victimIdx);
+        m_election.CancelVoter(victimIdx);
         CUser* victim = m_member[victimIdx].m_pUser;
         if (victim == 0)
         {
             LogManager::logFormat(1, "party.cpp",
-                                  "bool CParty::OnTimerWalkOutLackUser()", 0x35c6,
+                                  __PRETTY_FUNCTION__, 0x35c6,
                                   "pVictim is null");
             return 0;
         }
         SendWalkout(victimIdx, (ENUM_WALKOUT_TYPE)1);
         walkout_member(m_manager, victimIdx);
         G_GameWorld()->out_from_dungeon(victim);
-        victimIdx = election->GetElected();
+        victimIdx = m_election.GetElected();
     }
     return 1;
 }
@@ -1305,7 +1272,7 @@ int CParty::SetPlayResult(CUser* user)
         resultSet->m_field10 = (unsigned char)G_CDataManager()->getClearTimeBonusPoint(
             (int)G_CDataManager()->getDungeonClearAverageTime(
                 (int)bf(this).get_dungeon_index(), getStartGamePartyCount(),
-                bf(this).get_dungeon_diff()),
+                (ENUM_DUNGEON_DIFFICULTY)bf(this).get_dungeon_diff()),
             (int)bd(this).m_field0);                       // 奖励分（+0x10）
         int rankPoint = G_CDataManager()->calRankPoint(
             (int)resultSet->m_field10, (int)resultSet->m_field9);
@@ -1322,7 +1289,7 @@ int CParty::SetPlayResult(CUser* user)
         insert_time_clear_dungeon_reward_msg(0x1e);
         if (get_member_count() != GetSetPlayResultCount())
         {
-            cMyTrace trace("bool CParty::SetPlayResult(CUser*)", 0x3261, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x3261, 0);
             trace("DUNGEON_CLEAR_BUG_CHECK total(%d),recv(%d), (%s,%s,%s,%s)",
                   get_member_count(), GetSetPlayResultCount(),
                   GetNoSendSetPlayResultUser(3), GetNoSendSetPlayResultUser(2),
@@ -1392,11 +1359,11 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
 
 // ---------------------------------------------------------------------------
 // CParty::OnTimeoutBossDie —— ORIG T 0x085aa5d4（报告 OnTimeoutBossDie.md）：
-//   超时击杀当前 Boss（BF.m_field124）：遍历怪物→击杀→失败按队伍类型收尾。
+//   超时击杀当前 Boss（BF.m_apcAllKilledSec）：遍历怪物→击杀→失败按队伍类型收尾。
 // ---------------------------------------------------------------------------
 int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
 {
-    if (bf(this).m_field124 != monsterId)
+    if (bf(this).m_apcAllKilledSec != monsterId)
         return 0;
     CUser* user = GetMemberSlotNo(characNo);
     if (user == 0)
@@ -1422,7 +1389,7 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
         }
         if (kill_monster(user, mobIds[i], 0xffff, die, 0) != 1)
         {
-            cMyTrace trace("bool CParty::OnTimeoutBossDie(int, memberIdentificationNumber_t)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x22ce, 0);
             trace("KILLBOSS2 server - monster id(%d) failed", mobIds[i]);
             if (m_partyType == 1)
@@ -1509,8 +1476,7 @@ void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
     {
         if (get_user(slot) == 0 || !checkValidUser(slot))
             continue;
-        cUserHistoryLog* log = reinterpret_cast<cUserHistoryLog*>(
-            reinterpret_cast<char*>(get_user(slot)) + 0x79700);
+        cUserHistoryLog* log = &get_user(slot)->m_historyLog;
         log->BloodRoundClear(round, clearTime, playTime, dungeonName, memberNames);
     }
 }
@@ -1597,11 +1563,14 @@ const char* TowerOfDespairMgr::Get_APCNameByLayer(const TOD_Layer& layer)
 }
 
 // ---------------------------------------------------------------------------
-// TOD_Layer::increaseLayer() —— ORIG T 0x085fe824：m_layer + 1。
+// TOD_Layer::increaseLayer() —— ORIG T 0x085fe824：m_layer + 1；超过 100 时
+//   resetLayer()（m_layer 置 1）。
 // ---------------------------------------------------------------------------
 void TOD_Layer::increaseLayer()
 {
     ++m_layer;
+    if (m_layer > 100)
+        resetLayer();
 }
 
 

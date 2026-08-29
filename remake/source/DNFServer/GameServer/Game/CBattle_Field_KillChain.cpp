@@ -193,8 +193,9 @@ void CBattle_Field::checkKilledSpawnBloodMonsters(int monsterCount)
     // ORIG 经 m_party+0xddc 触达（= BF 子对象视图 +0x2b8，同一 m_bloodReward）。
     m_bloodReward.onFinishBloodRound(false, roundOrder, m_party, m_pDungeon);
 
+    // +0x89f（m_bloodDungeonType）按 signed char 读取（ORIG movsbl 口径）
     const signed char ultimateMode = *reinterpret_cast<signed char*>(
-        reinterpret_cast<char*>(m_pDungeon) + 0x89f);
+        &m_pDungeon->m_bloodDungeonType);
     if (ultimateMode == 2)
     {
         const int diff = getNextRoundDifficulty(
@@ -253,8 +254,7 @@ int CBattle_Field::getItemDropDungeonType()
         return 3;
     if (m_pDungeon->get_dimension_possible() >= 1)
         return 2;
-    if (*reinterpret_cast<char*>(reinterpret_cast<char*>(m_pDungeon) + 0x89c)
-        == 0)
+    if (m_pDungeon->m_89c == 0)   // +0x89c 脚本 boss 图标记
         return 0;
     return 1;
 }
@@ -273,9 +273,7 @@ void CBattle_Field::setPremiumDropRate(WongWork::stGenerateRefData_t& ref,
         if (getItemDropDungeonType() == 0)
         {
             if (!m_pDungeon->isTowerOfDespairDungeon()
-                && *reinterpret_cast<void**>(
-                       reinterpret_cast<char*>(&ref) + 0x40)
-                       == 0)
+                && ref.m_dungeon == 0)   // +0x40
             {
                 disable = false;
             }
@@ -422,8 +420,9 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
 
     // ---- 幸运点收集 + 蓝矿 buff 死存储（ORIG +0x136..+0x268） ----
     WongWork::stGenerateResult_t result;                             // -0x78
-    CLuckPoint* resultLuck =
-        reinterpret_cast<CLuckPoint*>(reinterpret_cast<char*>(&result) + 0xc);
+    // +0x0c 子对象（stGenerateResult_t::m_luckPoint 为 WongWork::CLuckPoint，
+    // 本函数按全局 CLuckPoint 语义使用，显式转换）
+    CLuckPoint* resultLuck = reinterpret_cast<CLuckPoint*>(&result.m_luckPoint);
     int blueBuff1 = 0;                                               // -0x38
     int blueBuff2 = 0;                                               // -0x34
     if (m_party != 0)
@@ -452,12 +451,11 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
     setPremiumDropRate(ref, premiumRate);
 
     // ---- 维度/绝望塔标志（ORIG +0x28d..+0x2cb） ----
+    // +0x89f/+0x89e（m_bloodDungeonType/m_89e）按 signed char 读取
     const bool ultFlag =
-        *reinterpret_cast<signed char*>(
-            reinterpret_cast<char*>(m_pDungeon) + 0x89f) > 0;         // -0x7c
+        *reinterpret_cast<signed char*>(&m_pDungeon->m_bloodDungeonType) > 0;
     const bool dimFlag =
-        *reinterpret_cast<signed char*>(
-            reinterpret_cast<char*>(m_pDungeon) + 0x89e) != 0;        // -0x7d
+        *reinterpret_cast<signed char*>(&m_pDungeon->m_89e) != 0;
     const bool notBoss = mob.m_isBoss != 1;
 
     WongWork::CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
@@ -509,9 +507,11 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
     {
         if (dieReason >= 1 && dieReason <= 4)
         {
+            // dm+0x524 = m_serverParameter.m_weekendBouns4b4.m_field8（+0x68+0x4b4+8）
             const signed char cnt = *reinterpret_cast<signed char*>(
-                reinterpret_cast<char*>(G_CDataManager()) + 0x524 + dieReason
-                - 1);
+                reinterpret_cast<char*>(
+                    &G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_field8)
+                + dieReason - 1);
             for (int i = 0; i < cnt; ++i)
             {
                 genMgr

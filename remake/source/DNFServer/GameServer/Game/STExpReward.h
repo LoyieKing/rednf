@@ -12,7 +12,8 @@
 #pragma pack(push, 1)
 struct STExpReward
 {
-    STExpReward() {}
+    // ORIG C1/C2 0x085bed52（W）：m_reward（+0 四字节）级联清零。
+    STExpReward() { m_reward = 0; }
 
     int m_reward;      // +0x00
     char m_field4;     // +0x04
@@ -20,7 +21,8 @@ struct STExpReward
     char m_powerUp;    // +0x06（SetPowerUp）
     int m_localIp;     // +0x07（0x8d254）
     int m_publicIp;    // +0x0b（0x8d258）
-    char m_padf[4];    // +0x0f..0x12
+    int m_padf;        // +0x0f..0x12（int 视图：CTradeSpace::set_traders 写 CUser+0x8d25c 需单 disp；
+                       //   pack(1) 布局不变，Main 批准 2026-08-29）
     bool m_hangameUser;  // +0x13（0x8d260）
     char m_pad14[0x17 - 0x14];  // +0x14..0x17
 };                                     // sizeof 0x17（pack(1)；CUser 内 +0x8d24d..+0x8d263）

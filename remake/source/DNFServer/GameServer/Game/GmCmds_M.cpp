@@ -147,7 +147,7 @@ void CMoveCharacCmd::execute()
         if (pRoom == 0)
         {
             LogManager::logFormat(1, "GameMaster.cpp",
-                "virtual void game_master::CPvPStartCmd::execute()", 0x169,
+                __PRETTY_FUNCTION__, 0x169,
                 "PVPRoom pRoom is NULL");
             return;
         }

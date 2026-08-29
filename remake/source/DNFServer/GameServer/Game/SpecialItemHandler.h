@@ -29,6 +29,7 @@ class SpecialItemHandler
 {
 public:
     SpecialItemHandler(WongWork::CCeraShop* owner);  // 0x0827bcec
+    ~SpecialItemHandler() {}   // ORIG D1/D2 W 0x08328284：空体（push/pop/ret）
     bool execute(int type, const STSpecailItem_Param& param,
                  STSpecailItem_Result& result);      // 0x0827be0a
 

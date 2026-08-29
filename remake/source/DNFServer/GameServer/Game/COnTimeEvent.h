@@ -16,7 +16,8 @@
 //   +0x00 CEventBase（sizeof 0x0c）
 //   +0x0c int   m_ontimeId      （ctor 置 0）
 //   +0x10 int   m_rewardState   （ctor 置 1）
-//   +0x14 CRewardUserList（sizeof 0x30：map 0x14、deque 0x2c）
+//   +0x44 自然对齐空洞（deque 尾至 +0x53，无成员声明，勿加显式 pad）
+//   +0x54 time_t m_rewardEndTime（set: time(0)+param）
 //   +0x44 char m_pad44[0x10]    （无访问证据的 POD 区间，保持偏移）
 //   +0x54 time_t m_rewardEndTime（set: time(0)+param）
 //   +0x58 int   m_itemNo        （set_ontime_reward_item 参1）
@@ -56,9 +57,10 @@ public:
     unsigned int get_ontime_reward_user_count();      // _ZN12COnTimeEvent28get_ontime_reward_user_countEv
                                               // （转发 CRewardUserList::get_index_size）
 
-private:
     void process_set_reward_start(int ontimeId, int itemNo, int itemCount,
                                   int endSpan);   // _ZN12COnTimeEvent24process_set_reward_startEiiii
+
+private:
 
     int           m_ontimeId;                  // +0x0c
     int           m_rewardState;               // +0x10

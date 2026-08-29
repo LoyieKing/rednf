@@ -71,11 +71,161 @@ dnf_service(game
         ${COMMON}/tinyxmlparser.cpp
         ${PACKET}/src/PacketHeader.cpp
         ${PACKET}/src/Packet_Item_Limit_Edition_Buyable_Query.cpp
+        ${PACKET}/src/STGameUserInfo.cpp
+        ${PACKET}/src/STPvPBuddyDBInfo.cpp
         # ---- Game 入口（最小桩，翻译 DNFApplication 时替换）----
         ${SVC_DIR}/GameMain.cpp
         ${SVC_DIR}/MissionTypes.cpp
         # ---- Game 底层类（第二层，2026-08-16）----
         ${SVC_DIR}/Stream.cpp
+        ${SVC_DIR}/RwLocks.cpp
+        ${SVC_DIR}/SimpleEncryption.cpp
+        ${SVC_DIR}/XorRand.cpp
+        ${SVC_DIR}/CSimpleLog.cpp
+        ${SVC_DIR}/CountryCode.cpp
+        ${SVC_DIR}/LwCallback.cpp
+        ${SVC_DIR}/LwConsole.cpp
+        ${SVC_DIR}/StringResourceDelayedItem.cpp
+        ${SVC_DIR}/CSourceVersionMgr.cpp
+        ${SVC_DIR}/CBingoTest.cpp
+        ${SVC_DIR}/SecurityRestrictPolicy.cpp
+        ${SVC_DIR}/CCharacterDayEvent.cpp
+        ${SVC_DIR}/CDungeonDataManager.cpp
+        ${SVC_DIR}/CPCRoomFatigueEvent.cpp
+        ${SVC_DIR}/CPCRoomPlayTimeEvent.cpp
+        ${SVC_DIR}/CSchoolMatchEvent.cpp
+        ${SVC_DIR}/CDungeonNode.cpp
+        ${SVC_DIR}/NOTIPacketStructCtors.cpp
+        ${SVC_DIR}/CStreamBuffer.cpp
+        ${SVC_DIR}/ExpertExtraction.cpp
+        ${SVC_DIR}/CClientCrashDownLogStatistic.cpp
+        ${SVC_DIR}/LevelupSupportEvent.cpp
+        ${SVC_DIR}/LevelupSupport2ndEvent.cpp
+        ${SVC_DIR}/CVendingMachineBonusEvent.cpp
+        ${SVC_DIR}/CUXGameLogEvent.cpp
+        ${SVC_DIR}/EventGiveMeBox.cpp
+        ${SVC_DIR}/CUnlimitFatigueEvent.cpp
+        ${SVC_DIR}/CTournamentPvPEvent.cpp
+        ${SVC_DIR}/TaiwanInternalDispatcher.cpp
+        ${SVC_DIR}/TaiwanDBDispatcher.cpp
+        ${SVC_DIR}/MultiBoxLotteryInfo.cpp
+        ${SVC_DIR}/InterSelectCreateDnfEventInfo.cpp
+        ${SVC_DIR}/STDeadTowerDialog.cpp
+        ${SVC_DIR}/EpisodeScript.cpp
+        ${SVC_DIR}/CStopOverlabExpEvent.cpp
+        ${SVC_DIR}/CStabToDeathEvent.cpp
+        ${SVC_DIR}/CSecretShopEvent.cpp
+        ${SVC_DIR}/CRestrictCharacCreationEvent.cpp
+        ${SVC_DIR}/CReformingDanjinEvent.cpp
+        ${SVC_DIR}/CReduceUpgradeItemPay.cpp
+        ${SVC_DIR}/CPvPLiveEvent.cpp
+        ${SVC_DIR}/CPvPExpPenaltyEvent.cpp
+        ${SVC_DIR}/CPremiumGoldCard.cpp
+        ${SVC_DIR}/CPowerWarVictoriousEvent.cpp
+        ${SVC_DIR}/CPcRoomCardBlankItemEvent.cpp
+        ${SVC_DIR}/CPCRoomWorldDropEvent.cpp
+        ${SVC_DIR}/CPCRoomWorldDropEvent2nd.cpp
+        ${SVC_DIR}/COnlinePreliminaryEvent.cpp
+        ${SVC_DIR}/CNotApplyBalkeunEvent.cpp
+        ${SVC_DIR}/CNoNeedGoldOnGuildCreateEvent.cpp
+        ${SVC_DIR}/CEventAdvanceAltarOpen.cpp
+        ${SVC_DIR}/CDoubleGoldCardEvent.cpp
+        ${SVC_DIR}/CDnFLeaguePromoteSecondEvent.cpp
+        ${SVC_DIR}/CDnFLeaguePromoteFirstEvent.cpp
+        ${SVC_DIR}/CConditionEvent.cpp
+        ${SVC_DIR}/CCollectArchieveEventLog.cpp
+        ${SVC_DIR}/CCoinEventPerDay.cpp
+        ${SVC_DIR}/CClearRewardCardEvent.cpp
+        ${SVC_DIR}/CMaxFatigueFactorEvent.cpp
+        ${SVC_DIR}/CLeadingChannelEvent.cpp
+        ${SVC_DIR}/CItemDropRatioEvent.cpp
+        ${SVC_DIR}/CIntegratedPvPServerMatchEvent.cpp
+        ${SVC_DIR}/CGoldCardBlankItemEvent.cpp
+        ${SVC_DIR}/CGmRegistEvent.cpp
+        ${SVC_DIR}/CFatigueGiveItemEvent.cpp
+        ${SVC_DIR}/CFatigueAttendance.cpp
+        ${SVC_DIR}/SkillShopGuideTextData.cpp
+        ${SVC_DIR}/CBurnigGoldMonsterEvent.cpp
+        ${SVC_DIR}/CBreakAwayPreventEvent.cpp
+        ${SVC_DIR}/CAssaultOnOffEvent.cpp
+        ${SVC_DIR}/CAradRyosikaEvent.cpp
+        ${SVC_DIR}/BlueMarbleDungeonEvent.cpp
+        ${SVC_DIR}/AttendanceEvent.cpp
+        ${SVC_DIR}/Arad_MomijiEvent.cpp
+        ${SVC_DIR}/StScriptImporters.cpp
+        ${SVC_DIR}/EventRewardWrite.cpp
+        ${SVC_DIR}/W8LT_PassiveObjectScript.cpp
+        ${SVC_DIR}/AvatarVariation.cpp
+        ${SVC_DIR}/AdditionalEffectData.cpp
+        ${SVC_DIR}/DB_LoadQuest.cpp
+        ${SVC_DIR}/DB_DeleteCharac.cpp
+        ${SVC_DIR}/SeriaRoomDecoObjectList.cpp
+        ${SVC_DIR}/StackablePackage.cpp
+        ${SVC_DIR}/QuestMovieInfo.cpp
+        ${SVC_DIR}/NpcMovieData.cpp
+        ${SVC_DIR}/OrigNpcVec.cpp
+        ${SVC_DIR}/Action.cpp
+        ${SVC_DIR}/WorldMapCoord.cpp
+        ${SVC_DIR}/DB_DispatcherTaiwan.cpp
+        ${SVC_DIR}/Inter_DispatcherTaiwan.cpp
+        ${SVC_DIR}/Inter_DispatcherAradOnly.cpp
+        ${SVC_DIR}/DB_AradDatabaseDispatcher.cpp
+        ${SVC_DIR}/UsedFatigueRewardItem.cpp
+        ${SVC_DIR}/randomMessageBalloonInfo.cpp
+        ${SVC_DIR}/AradRabbitBox.cpp
+        ${SVC_DIR}/TagRecommendNewbieOption_impl.cpp
+        ${SVC_DIR}/CRandomOptionGiveNormal.cpp
+        ${SVC_DIR}/CModifiedRandomOptionGive.cpp
+        ${SVC_DIR}/CUnixTimer.cpp
+        ${SVC_DIR}/CExceptLog.cpp
+        ${SVC_DIR}/StrikerScript.cpp
+        ${SVC_DIR}/EncryptTool.cpp
+        ${SVC_DIR}/CharacManageScript.cpp
+        ${SVC_DIR}/CFieldLengthChecker.cpp
+        ${SVC_DIR}/Inter_OnTimeEventAckReward.cpp
+        ${SVC_DIR}/CBlowFish.cpp
+        ${SVC_DIR}/Inter_SelectCharac.cpp
+        ${SVC_DIR}/NPCDynamicInfo.cpp
+        ${SVC_DIR}/DB_SaveInven.cpp
+        ${SVC_DIR}/DB_MailBox_Req_Send.cpp
+        ${SVC_DIR}/Inter_OnTimeEventRewardStartOnLogin.cpp
+        ${SVC_DIR}/DB_RequestCharacSkillInfo.cpp
+        ${SVC_DIR}/LevelUpBefore70LvEvent.cpp
+        ${SVC_DIR}/OrigHackLog.cpp
+        ${SVC_DIR}/RentalMachineDimensionLeaf.cpp
+        ${SVC_DIR}/DB_MailBox_Req_System_Multi_Mail.cpp
+        ${SVC_DIR}/DnfItemInfo.cpp
+        ${SVC_DIR}/NpcDialogue.cpp
+        ${SVC_DIR}/STRecovery.cpp
+        ${SVC_DIR}/CItemMakingSkill.cpp
+        ${SVC_DIR}/CWorldMap.cpp
+        ${SVC_DIR}/STAgitUpgradeInfo.cpp
+        ${SVC_DIR}/BitTools.cpp
+        ${SVC_DIR}/NclKeyTools.cpp
+        ${SVC_DIR}/ScanJobStr.cpp
+        ${SVC_DIR}/CEventCeraShopRewardPoint.cpp
+        ${SVC_DIR}/DB_MailBox_Dispatch.cpp
+        ${SVC_DIR}/Statuepredicate.cpp
+        ${SVC_DIR}/SPOBJ_ACTION_DATAS.cpp
+        ${SVC_DIR}/stClearTimeAverage.cpp
+        ${SVC_DIR}/stBonusPointValues.cpp
+        ${SVC_DIR}/CDungeonExpStatistic.cpp
+        ${SVC_DIR}/DB_MailBox_Req_List.cpp
+        ${SVC_DIR}/DB_MailBox_MailHelper.cpp
+        ${SVC_DIR}/CLevelDungeonPlayStatistic.cpp
+        ${SVC_DIR}/CDeathTowerPlayDataStatistic.cpp
+        ${SVC_DIR}/T_Rect.cpp
+        ${SVC_DIR}/STPassiveObjectAdditionalParticleInfo.cpp
+        ${SVC_DIR}/STGuildStorageUpgradeInfo.cpp
+        ${SVC_DIR}/Packet_Monitor_MegaPhone.cpp
+        ${SVC_DIR}/itemData.cpp
+        ${SVC_DIR}/HeroMissionEvent.cpp
+        ${SVC_DIR}/EventNewCharacterReward.cpp
+        ${SVC_DIR}/NewAccountLevelUpEventToJob.cpp
+        ${SVC_DIR}/CMemberExpRewardEvent.cpp
+        ${SVC_DIR}/CFirstServerOpenEvent.cpp
+        ${SVC_DIR}/CDeathTowerWinPointEvent.cpp
+        ${SVC_DIR}/CPowerWarEvent.cpp
         ${SVC_DIR}/StreamPool.cpp
         ${SVC_DIR}/CStreamGuard.cpp
         ${SVC_DIR}/PacketDispatcher.cpp
@@ -83,6 +233,7 @@ dnf_service(game
         ${SVC_DIR}/TimerDispatcher.cpp
         ${SVC_DIR}/PacketTracer.cpp
         ${SVC_DIR}/DisPatcherCore.cpp
+        ${SVC_DIR}/CHackLog_OverDamage.cpp
         ${SVC_DIR}/GameSecurity.cpp
         ${SVC_DIR}/CServerEvent.cpp
         ${SVC_DIR}/InitEnvHelpers.cpp
@@ -100,6 +251,9 @@ dnf_service(game
         ${SVC_DIR}/nexon_cash.cpp
         ${SVC_DIR}/nexon_packet.cpp
         ${SVC_DIR}/WongWorkSecurityCard_A.cpp
+        ${SVC_DIR}/Arad_Verify.cpp
+        ${SVC_DIR}/OrigDBInter20.cpp
+        ${SVC_DIR}/OrigDBInter19.cpp
         ${SVC_DIR}/WongWorkDrop_A.cpp
         ${SVC_DIR}/WongWorkSSO_A.cpp
         ${SVC_DIR}/WongWorkDeathTower_A.cpp
@@ -123,15 +277,20 @@ dnf_service(game
         ${SVC_DIR}/WindowsPackFiles.cpp # line 123: WindowsExe/DataFile/PackFile 校验族+CBitManager/CObfuscator/CCompressedBlob/LoadClientFile（W9_WinExe 批）
         ${SVC_DIR}/advancealtar_misc.cpp
         ${SVC_DIR}/StringResource.cpp
+        ${SVC_DIR}/StringTypes.cpp      # CharString/WideString 方法实现（HEAD 曾有登记，误删后补回）
         ${SVC_DIR}/advancealtar_DB.cpp
         ${SVC_DIR}/DB_Login.cpp
         ${SVC_DIR}/CLeagueMatch.cpp
         ${SVC_DIR}/DB_LoadEtc.cpp
+        ${SVC_DIR}/DB_LoadCharac.cpp
+        ${SVC_DIR}/DB_LoadInventory.cpp
+        ${SVC_DIR}/DB_SaveCharac.cpp
         ${SVC_DIR}/PackSet.cpp
         ${SVC_DIR}/Tick.cpp
         ${SVC_DIR}/TutorialData.cpp
         ${SVC_DIR}/DB_CreateCharac.cpp
         ${SVC_DIR}/COnTimeEvent.cpp
+        ${SVC_DIR}/CInGameAdvertisementManager.cpp
         ${SVC_DIR}/DbmwClient.cpp
         ${SVC_DIR}/MessageCounter.cpp
         ${SVC_DIR}/RewardUserList.cpp
@@ -156,6 +315,42 @@ dnf_service(game
         ${SVC_DIR}/W6_RankMailDeps.cpp
         ${SVC_DIR}/W6_SecMiscDeps.cpp
         ${SVC_DIR}/W6_CeraShopDeps.cpp
+        ${SVC_DIR}/BreakAwayPreventImpl.cpp
+        ${SVC_DIR}/Inter_LoadEtc_impl.cpp
+        ${SVC_DIR}/SanicovaPad.cpp
+        ${SVC_DIR}/RestrictNameDeps.cpp
+        ${SVC_DIR}/ProxySecurityDeps.cpp
+        ${SVC_DIR}/GameServerDemonManager.cpp
+        ${SVC_DIR}/LinkClosureD.cpp
+        ${SVC_DIR}/LinkClosureE.cpp
+        ${SVC_DIR}/CCoinRefillEvent.cpp
+        ${SVC_DIR}/CUserPlayTimeStatisticMgr.cpp
+        ${SVC_DIR}/DBSecuLink.cpp
+        ${SVC_DIR}/SDCLink.cpp
+        ${SVC_DIR}/EventBattleLink.cpp
+        ${SVC_DIR}/DispLinkA2.cpp
+        ${SVC_DIR}/UserMiscLink.cpp
+        ${SVC_DIR}/DispLinkA3.cpp
+        ${SVC_DIR}/DispLinkA1.cpp
+        ${SVC_DIR}/DispLinkA2.cpp
+        ${SVC_DIR}/ROI_Category.cpp
+        ${SVC_DIR}/Packet_Stat_Lag_Statistics.cpp
+        ${SVC_DIR}/Packet_Approve_Join_Guild.cpp
+        ${SVC_DIR}/Packet_Assert_Manager_Info.cpp
+        ${SVC_DIR}/Packet_Monitor_Member_Secede.cpp
+        ${SVC_DIR}/Packet_Overflow_Statistic_Add.cpp
+        ${SVC_DIR}/Packet_Stat_Compatibility_Index.cpp
+        ${SVC_DIR}/Packet_Monitor_Set_Sub_Guild_Master.cpp
+        ${SVC_DIR}/Packet_Delete_To_BlackList.cpp
+        ${SVC_DIR}/Packet_Guild_Attendance_Info.cpp
+        ${SVC_DIR}/Packet_Guild_Cargo_History_Request.cpp
+        ${SVC_DIR}/Packet_Guild_Cargo_Requst.cpp
+        ${SVC_DIR}/Packet_Loading_Time_Report_Statistics.cpp
+        ${SVC_DIR}/Packet_Monitor_Request_Member_Enter.cpp
+        ${SVC_DIR}/Packet_PvPChannelInfo.cpp
+        ${SVC_DIR}/Packet_Request_BlackList.cpp
+        ${SVC_DIR}/Packet_Monitor_Request_Charac_Info.cpp
+        ${SVC_DIR}/Packet_Client_Spec_Statistic.cpp
         ${SVC_DIR}/W8LT_DBTask.cpp
         ${SVC_DIR}/W7LinkDB.cpp
         ${SVC_DIR}/W8_AradSig.cpp
@@ -181,8 +376,21 @@ dnf_service(game
         ${SVC_DIR}/Dispatcher_Compound_Equipment_Upgrade_Card_impl.cpp
         ${SVC_DIR}/Dispatcher_BuyCeraShopLimitItem_impl.cpp
         ${SVC_DIR}/Dispatcher_UseLimitCube_impl.cpp
-        ${SVC_DIR}/StringTypes.cpp
-        ${SVC_DIR}/StringOperators.cpp
+        ${SVC_DIR}/StringConvert.cpp
+        ${SVC_DIR}/ValueCtors.cpp
+       ${SVC_DIR}/OnlyOrigBatch4_Force.cpp
+        ${SVC_DIR}/OnlyOrigBatch5_Force.cpp
+        ${SVC_DIR}/OnlyOrigBatch6_Force.cpp
+        ${SVC_DIR}/OnlyOrigBatch7_Force.cpp
+        ${SVC_DIR}/OnlyOrigBatch11.cpp
+        ${SVC_DIR}/OnlyOrigBatch12.cpp
+        ${SVC_DIR}/OnlyOrigBatch14.cpp
+        ${SVC_DIR}/AlignDeadConsts.cpp
+        ${SVC_DIR}/PerfMgr.cpp
+        ${SVC_DIR}/PacketNameTables.cpp
+        ${SVC_DIR}/StringCaseTools.cpp
+        ${SVC_DIR}/AradAppSystem.cpp
+        ${SVC_DIR}/RandGen.cpp
         ${SVC_DIR}/PacketBuf.cpp
         ${SVC_DIR}/InterfacePacketBuf.cpp
         ${SVC_DIR}/CEnvironment.cpp
@@ -192,6 +400,9 @@ dnf_service(game
         ${SVC_DIR}/CNCryptoAlgo.cpp
         ${SVC_DIR}/ChecksumCrypto.cpp
         ${SVC_DIR}/Encryption.cpp
+       ${SVC_DIR}/OrigInvitationHack.cpp
+       ${SVC_DIR}/MyRandom.cpp
+       ${SVC_DIR}/OS_API.cpp
         ${SVC_DIR}/MsgQueueMgr.cpp
         ${SVC_DIR}/TimerQueue.cpp
         ${SVC_DIR}/EpollHandler.cpp
@@ -201,6 +412,7 @@ dnf_service(game
         ${SVC_DIR}/CGlobalEffectManager.cpp
         ${SVC_DIR}/CSystemTime.cpp
         ${SVC_DIR}/CNetwork.cpp
+        ${SVC_DIR}/Arad_DevMgr_Server_Proxy.cpp
         ${SVC_DIR}/CCommunityServerProxy.cpp
         ${SVC_DIR}/CSchoolServerProxy.cpp
         ${SVC_DIR}/CDataManager.cpp
@@ -301,7 +513,9 @@ dnf_service(game
         ${SVC_DIR}/CPartyResultRecvFlag.cpp
         ${SVC_DIR}/CPartyTelePort.cpp
         ${SVC_DIR}/CSharedServerMessageManager.cpp
+        ${SVC_DIR}/LwServerWriter.cpp
         ${SVC_DIR}/CLog.cpp
+        ${SVC_DIR}/CPowerWarPacketLog.cpp
         ${SVC_DIR}/CSwitchLog.cpp
         ${SVC_DIR}/CTimeGate.cpp
         ${SVC_DIR}/CTraceMobDieHack.cpp
@@ -363,6 +577,15 @@ dnf_service(game
         ${SVC_DIR}/ServerParameterScript.cpp
         ${SVC_DIR}/CGameOption.cpp
         ${SVC_DIR}/CBoosterGage.cpp
+        ${SVC_DIR}/MakePVPRoom.cpp
+        ${SVC_DIR}/RentAvatarDeps.cpp
+        ${SVC_DIR}/CNexonMsgTable.cpp
+        ${SVC_DIR}/Arad_IPGProcess.cpp
+        ${SVC_DIR}/DB_UpdateCeraShopPurchaseCount.cpp
+        ${SVC_DIR}/Arad_ItemBonus.cpp
+        ${SVC_DIR}/CEventCreateDnf.cpp
+        ${SVC_DIR}/CreateDnfEventSciprt.cpp
+        ${SVC_DIR}/CCharacInformNotice.cpp
         ${SVC_DIR}/CListTables.cpp
         ${SVC_DIR}/AvatarCoin.cpp
         ${SVC_DIR}/Arad_AvatarRoulette.cpp
@@ -411,6 +634,7 @@ dnf_service(game
         ${SVC_DIR}/CUserPremium.cpp
         ${SVC_DIR}/CHandlePremium.cpp
         ${SVC_DIR}/CPowerManager.cpp
+        ${SVC_DIR}/CPrePayInfoMgr.cpp
         ${SVC_DIR}/Secu_GoldControl.cpp
         ${SVC_DIR}/CMailBoxHelper.cpp
         ${SVC_DIR}/CMailBox.cpp
@@ -425,8 +649,11 @@ dnf_service(game
         ${SVC_DIR}/CItemDictionary.cpp
         ${SVC_DIR}/STNameList.cpp
         ${SVC_DIR}/CEventStayTime.cpp
+        ${SVC_DIR}/OrigMiscStrong21.cpp
         ${SVC_DIR}/SpinLock.cpp
         ${SVC_DIR}/CRidable.cpp
+        ${SVC_DIR}/DisJoint.cpp
+        ${SVC_DIR}/NPCDynamicInfoManager.cpp
         ${SVC_DIR}/BlueMarbleScriptManager.cpp
         ${SVC_DIR}/BlueMarbleTileScript.cpp
         ${SVC_DIR}/STAssignMonster.cpp
@@ -443,7 +670,6 @@ dnf_service(game
         ${SVC_DIR}/LinkMiscSecuTimerSolo.cpp
         ${SVC_DIR}/CPvPLiveEventData.cpp
         ${SVC_DIR}/CShutdowManager.cpp
-        ${SVC_DIR}/CMyFileLog.cpp
         ${SVC_DIR}/CFairPvPScore.cpp
         ${SVC_DIR}/CSyncSlangFilter.cpp
         ${SVC_DIR}/CGM_Manager.cpp
@@ -541,6 +767,7 @@ dnf_service(game
         ${SVC_DIR}/ScriptExtras.cpp
         ${SVC_DIR}/ScriptValue.cpp
         ${SVC_DIR}/RDARScriptEtcParameter.cpp
+        ${SVC_DIR}/PremiumServiceData.cpp
         ${SVC_DIR}/DB_AccountCargoSync.cpp
         ${SVC_DIR}/md5.cpp
         ${SVC_DIR}/STItemScriptNested.cpp
@@ -567,6 +794,11 @@ dnf_service(game
         ${SVC_DIR}/CraneMinigameManager.cpp
         ${SVC_DIR}/Secu_DungeonAverageCheck.cpp
         ${SVC_DIR}/ServiceRestrictManager.cpp
+        ${SVC_DIR}/BattleFieldDeps3.cpp
+        ${SVC_DIR}/LC_Misc.cpp
+        ${SVC_DIR}/LC_Dispatchers.cpp
+        ${SVC_DIR}/LC_OnlineTeam.cpp
+        ${SVC_DIR}/AutoMarketDeps.cpp
         ${SVC_DIR}/cMyTraceNoop.cpp
         ${SVC_DIR}/IsEquipable.cpp
         ${SVC_DIR}/RealGameFunctions.cpp
@@ -642,6 +874,9 @@ dnf_service(game
         ${SVC_DIR}/HeroMissionLink4.cpp
         ${SVC_DIR}/LinkMisc4_Data.cpp
         ${SVC_DIR}/DisPatcher_DebugCommand_cmds.cpp
+        ${SVC_DIR}/GlobalScriptTutorial.cpp
+        ${SVC_DIR}/RandomOptionItemHandleTest.cpp
+        ${SVC_DIR}/StubS3A_deps.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
         "-I${AUCTION}/GameData" "-I${AUCTION}/GameData/auction"

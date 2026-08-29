@@ -140,8 +140,35 @@ namespace ARAD_CRYPT {
 
 char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
 {
-    // ORIG 与自由函数版为两份等价指令体，语义收敛同一实现。
-    return encryptAES_impl(cipher, inData, outHex);
+    // ORIG 0x08184abc（ARAD__ARAD_CRYPT/encryptAES.md）：与 ARAD::encryptAES
+    // 指令体相同，仅 logFormat 文案不同（localjapan/Arad_Crypt.cpp、"encryptAES"、
+    // 0x1f），按报告各自独立实现。
+    unsigned char enc[132];
+    size_t srcLen = strlen(inData);
+    size_t paddedLen;
+    int blockSize = cipher->IMethod::GetBlockSize(NULL);
+    if (blockSize < 0) {
+        paddedLen = srcLen;
+    } else if (static_cast<int>(srcLen) % blockSize == 0) {
+        paddedLen = srcLen;
+    } else {
+        paddedLen = (srcLen / blockSize + 1) * blockSize;
+    }
+    if (blockSize >= 0) {
+        cipher->IMethod::Pad(inData, static_cast<int>(srcLen), NULL);
+    }
+    int result = cipher->Encrypt(inData, reinterpret_cast<char*>(enc), paddedLen);
+    if (result == 0x6fffffff) {
+        size_t hexLen = paddedLen * 2 + 1;
+        DNFFLib::Binary2Hex(enc, static_cast<int>(paddedLen), outHex);
+        outHex[hexLen] = '\0';
+        return outHex;
+    }
+
+    LogManager::logFormat(
+        1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
+        "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
+    return NULL;
 }
 
 }  // namespace ARAD_CRYPT
@@ -155,7 +182,7 @@ void write_incorrect_item_info(unsigned int characNo, const Inven_Item& item,
     //   amp_opt=+0x11(stAmplifyOption_t 首 dword)。
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     cMyTrace trace(
-        "void ARAD::write_incorrect_item_info(unsigned int, const Inven_Item&, const char*, int, int)",
+        __PRETTY_FUNCTION__,
         0x106, 5);
     trace("charac_no[%u],Seal[%d],ItemType[%d],ItemID[%u],ItemAt[%d],add_info[%d],endurance[%d],extend_info[%u],amp_opt[%d] - inven_type[%s] slot_no(%d), error_line(%d) \n",
           characNo,
@@ -174,48 +201,5 @@ void write_incorrect_item_info(unsigned int characNo, const Inven_Item& item,
 
 
 namespace ARAD {
-
-int send_mail(ARAD_DATAS::AradMailInfo& info)
-{
-    // ORIG 0x08196b03：Acquire(stream)→CStreamGuard(true)→<<0x80(msgcode)/<<(uid=-1)；
-    // sig=GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>() 按字节偏移填充，异常路径由
-    // CStreamGuard 栈展开析构（对应 ORIG catch→D1→_Unwind_Resume 形态）。
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_Function_Set.cpp", 0x3a);
-    CStreamGuard guard(stream, true);
-    try {
-        guard << 0x80;
-        guard << -1;
-        SIG_MAILBOX_SEND_NEW_MAIL* sig =
-            guard.GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
-        char* base = reinterpret_cast<char*>(sig->m_data);
-        *(reinterpret_cast<unsigned int*>(base + 0x22)) = info.m_fieldC;
-        *(reinterpret_cast<unsigned int*>(base + 0x1e)) = info.m_field10;
-        *(base + 0x15f) = static_cast<unsigned char>(info.m_isSystemMail);
-        *(reinterpret_cast<unsigned int*>(base + 0x15b)) = info.m_field8;
-        *(reinterpret_cast<unsigned int*>(base + 0x26)) = info.m_field4;
-        *(reinterpret_cast<unsigned short*>(base + 0x59)) =
-            static_cast<unsigned short>(info.m_field14);
-        std::memset(base + 0x5b, 0, 0x100);
-        strncpy(base, info.m_name, 0x1d);
-        if (info.m_content != NULL) {
-            size_t len = strlen(info.m_content);
-            strncpy(base + 0x5b, info.m_content, len);
-        }
-        ARAD_DATAS::AradMailItemInfo* item = &info.m_item;
-        *(base + 0x2a) = static_cast<char>(item->m_flag);
-        *(reinterpret_cast<unsigned int*>(base + 0x2b)) = item->m_fieldC;
-        *(reinterpret_cast<unsigned int*>(base + 0x2f)) = item->m_field10;
-        *(reinterpret_cast<unsigned short*>(base + 0x34)) = item->m_fieldA;
-        *(base + 0x44) = '\0';
-        *(reinterpret_cast<unsigned short*>(base + 0x45)) = 0;
-        *(base + 0x58) = '\0';
-        *(base + 0x56) = '\0';
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    } catch (...) {
-        throw;
-    }
-    return 1;
-}
 
 }  // namespace ARAD

@@ -95,10 +95,7 @@ public:
 // sizeof == 0x120 编译期断言（C++98，类外完成型检查）。
 typedef char spremiuminfo_size_0x120[(sizeof(SPremiumInfo) == 0x120) ? 1 : -1];
 
-namespace GlobalData
-{
 // 元素数 0x6a（合法 type 下标 0..0x69，CheckPremiumTimeout 循环 1..0x69）。
-extern SPremiumInfo g_SPremiumInfo[0x6a];   // B 0x09483a40，共 0x7740 字节
-}
+extern SPremiumInfo g_SPremiumInfo[0x6a];   // B 0x09483a40；全局 C 名（无命名空间，ORIG B），共 0x7740 字节
 
 #endif  // DNF_GAME_SPREMIUMINFO_H_

@@ -155,7 +155,7 @@ int CDeathMatchBattleMgr::checkGameOverForTeamPlay(
             else
                 LogManager::logFormat(
                     1, "pvp.cpp",
-                    "bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(CUser**, int, unsigned char*)",
+                    __PRETTY_FUNCTION__,
                     0x157f,
                     "CDeathMatchBattleMgr::checkWinnerForTeamPlay , ERROR, bTeamState[%d] = %d",
                     i, (unsigned int)teamWin[i]);
@@ -211,7 +211,7 @@ void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
             else
                 LogManager::logFormat(
                     1, "pvp.cpp",
-                    "void CDeathMatchBattleMgr::checkWinnerForTeamPlay(CUser**, bool*, unsigned char*, PvpUserTable&)",
+                    __PRETTY_FUNCTION__,
                     0x1617,
                     "CDeathMatchBattleMgr::checkWinnerForTeamPlay , ERROR, bTeamState[%d] = %d",
                     i, (unsigned int)teamWin[i]);
@@ -275,7 +275,7 @@ int CDeathMatchBattleMgr::getRanking(CUser** users, int* out) const
     for (int j = 0; j < count; ++j)
     {
         out[j] = rank[j].first;
-        cMyTrace trace("int CDeathMatchBattleMgr::getRanking(CUser**, int*) const",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1695, 0);
         trace("CDeathMatchBattleMgr::getRanking => Room(%d), Idx(%d), Rank(%d)",
               m_pRoom->get_index(), j, out[j]);

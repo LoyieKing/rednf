@@ -130,7 +130,7 @@ static pack_ret_t _encrypt(unsigned int key, unsigned char* buffer, unsigned int
     if ((size & 3u) != 0u)
     {
         fprintf(stdout, "%s\n", "4byte align required");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5b, "_encrypt");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5b, __FUNCTION__);
         return PACK_ERROR;
     }
     if (XOR_KEY != 0u)
@@ -405,7 +405,7 @@ pack_ret_t IndexEntry::write_info(FILE* fp)   // @0x08ac4284
     if (fp == 0)
     {
         fprintf(stdout, "%s\n", "fp is NULL");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1d0, "write_info");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1d0, __FUNCTION__);
         return PACK_ERROR;
     }
     _fwrite_str(name_.c_str(), fp);
@@ -421,7 +421,7 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
 {
     if (owner == 0 || dst == 0 || content_size == 0)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x138, "get_content");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x138, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -434,13 +434,13 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
     FILE* fp = owner->pack_file();
     if (fp == 0)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x145, "get_content");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x145, __FUNCTION__);
         return PACK_ERROR;
     }
     if (dst_size < size_)
     {
         fprintf(stdout, "%s\n", "buffer size is too small");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x14b, "get_content");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x14b, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -449,7 +449,7 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
         if (type_ == ENTRY_FILE)
         {
             fprintf(stdout, "%s\n", "not implemented");
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x158, "get_content");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x158, __FUNCTION__);
             return PACK_ERROR;
         }
         if (type_ == ENTRY_PACK && aligned_size_ != 0)
@@ -459,7 +459,7 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
             if (fread(dst, aligned_size_, 1, owner->pack_file()) != 1)
             {
                 fprintf(stdout, "%s\n", "fread failed");
-                fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x163, "get_content");
+                fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x163, __FUNCTION__);
                 return PACK_ERROR;
             }
         }
@@ -473,7 +473,7 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
     if (_decrypt_N_crc32(code, crc_, crc_, dst, aligned_size_) == 0)
     {
         fprintf(stdout, "%s\n", "CRC failed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x16e, "get_content");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x16e, __FUNCTION__);
         return PACK_ERROR;
     }
     return PACK_OK;
@@ -508,13 +508,13 @@ pack_ret_t IndexEntry::update_content_from_memory(unsigned char* mem, PackSet* o
 {
     if (mem == 0)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1e0, "update_content_from_memory");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1e0, __FUNCTION__);
         return PACK_ERROR;
     }
     if (type_ == ENTRY_FILE)
     {
         fprintf(stdout, "%s\n", "not implemented");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1e6, "update_content_from_memory");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1e6, __FUNCTION__);
         return PACK_ERROR;
     }
     if (type_ == ENTRY_PACK)
@@ -536,7 +536,7 @@ pack_ret_t IndexEntry::update_content_from_file(char const* name, PackSet* owner
     if (fp == 0)
     {
         fprintf(stdout, "_tfopen failed %s", dir);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1fb, "update_content_from_file");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x1fb, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -570,7 +570,7 @@ pack_ret_t IndexEntry::update_content_from_file(char const* name, PackSet* owner
         if (fread(content_, size_, 1, fp) != 1)
         {
             fprintf(stdout, "fread failed %s", dir);
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x226, "update_content_from_file");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x226, __FUNCTION__);
             fclose(fp);
             return PACK_ERROR;
         }
@@ -598,7 +598,7 @@ pack_ret_t IndexEntry::update_content_from_file(char const* name, PackSet* owner
                         reinterpret_cast<char const*>(content_), aligned_size_);
     if (_encrypt(crc_, content_, aligned_size_) == PACK_ERROR)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x24e, "update_content_from_file");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x24e, __FUNCTION__);
         return PACK_ERROR;
     }
     return PACK_OK;
@@ -818,21 +818,21 @@ pack_ret_t PackSet::get(char const* name, unsigned char* buffer,
 {
     if (name == 0 || buffer == 0 || content_size == 0)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x312, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x312, __FUNCTION__);
         return PACK_ERROR;
     }
 
     index_vector_it it = find(name);
     if (it == m_indexes.end())
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x319, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x319, __FUNCTION__);
         return PACK_ERROR;
     }
 
     hash_t code = (*it).first;
     if ((*it).second.get_content(this, code, buffer, buffer_size, content_size) == PACK_ERROR)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 799, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 799, __FUNCTION__);
         return PACK_ERROR;
     }
     return PACK_OK;
@@ -843,21 +843,21 @@ pack_ret_t PackSet::get(char const* name, unsigned char** content,
 {
     if (name == 0 || content == 0 || content_size == 0)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x32c, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x32c, __FUNCTION__);
         return PACK_ERROR;
     }
 
     index_vector_it it = find(name);
     if (it == m_indexes.end())
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x333, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x333, __FUNCTION__);
         return PACK_ERROR;
     }
 
     hash_t code = (*it).first;
     if ((*it).second.get_content(this, code, content, content_size) == PACK_ERROR)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x339, "get");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x339, __FUNCTION__);
         return PACK_ERROR;
     }
     return PACK_OK;
@@ -868,7 +868,7 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x38a, "added");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x38a, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -876,7 +876,7 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
     if (it != m_indexes.end())
     {
         fprintf(stdout, "find %s", name);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x390, "added");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x390, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -884,7 +884,7 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
     entry.first = 0;
     if (entry.second.update_content_from_file(name, this, process) == PACK_ERROR)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x396, "added");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x396, __FUNCTION__);
         return PACK_ERROR;
     }
     entry.first = _hash(toMbcs(entry.second.name_.c_str()));
@@ -897,7 +897,7 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x369, "modified");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x369, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -905,7 +905,7 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
     if (it == m_indexes.end())
     {
         fprintf(stdout, "find failed. %s", name);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x370, "modified");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x370, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -918,7 +918,7 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
 
     if (entry.update_content_from_file(name, this, process) == PACK_ERROR)
     {
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x37d, "modified");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x37d, __FUNCTION__);
         return PACK_ERROR;
     }
     return PACK_OK;
@@ -929,7 +929,7 @@ pack_ret_t PackSet::deleted(char const* name)   // 0x08ac5332
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x346, "deleted");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x346, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -960,7 +960,7 @@ pack_ret_t PackSet::sort()      // 0x08ac58ee
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3b7, "sort");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3b7, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -986,7 +986,7 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
     if (is_ready())
     {
         fprintf(stdout, "%s\n", "Already opened");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3d8, "open");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3d8, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -994,7 +994,7 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
     if (fp == 0)
     {
         fprintf(stdout, "_tfopen failed. %s", name);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3e1, "open");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3e1, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1005,7 +1005,7 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
         {
             fclose(fp);
             fprintf(stdout, "tag mismatch. %s", index_tag.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3ec, "open");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x3ec, __FUNCTION__);
             return PACK_ERROR;
         }
     }
@@ -1098,7 +1098,7 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
     if (!is_ready())
     {
         fprintf(stdout, "%s\n", "Not yet opened");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5a5, "verify");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5a5, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1138,7 +1138,7 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
         if (it->second.get_content(this, code, buff_pack, bufferSize, &contentSize) == PACK_ERROR)
         {
             fprintf(stdout, "get content. %s", it->second.name_.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5e0, "verify");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5e0, __FUNCTION__);
             return PACK_ERROR;      // ORIG：此处不释放缓冲
         }
 
@@ -1146,7 +1146,7 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
         if (fp == 0)
         {
             fprintf(stdout, "fopen failed. %s", it->second.name_.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5e7, "verify");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5e7, __FUNCTION__);
             return PACK_ERROR;
         }
         fseek(fp, 0, SEEK_END);
@@ -1158,14 +1158,14 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
         if (size_file != contentSize)
         {
             fprintf(stdout, "size is different. %s", it->second.name_.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5f4, "verify");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5f4, __FUNCTION__);
             return PACK_ERROR;
         }
 
         if (memcmp(buff_file, buff_pack, contentSize) != 0)
         {
             fprintf(stdout, "contents is different. %s", it->second.name_.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5fa, "verify");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x5fa, __FUNCTION__);
             return PACK_ERROR;
         }
 
@@ -1209,7 +1209,7 @@ pack_ret_t PackSet::output_file_list(char const* pszOutputPath) const    // 0x08
     if (!is_ready())
     {
         fprintf(stdout, "%s\n", "Not yet opened");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x573, "output_file_list");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x573, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1217,7 +1217,7 @@ pack_ret_t PackSet::output_file_list(char const* pszOutputPath) const    // 0x08
     if (fp == 0)
     {
         fprintf(stdout, "%s\n", "Failed to output file open.");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x57a, "output_file_list");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x57a, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1254,7 +1254,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4e8, "write");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4e8, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1262,7 +1262,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     {
         if (sort() == PACK_ERROR)
         {
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4f0, "write");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4f0, __FUNCTION__);
             return PACK_ERROR;
         }
     }
@@ -1279,7 +1279,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
             if (_correct_filename(it->second.name_.c_str(), file, 0x104,
                                   dir, 0x104) == PACK_ERROR)
             {
-                fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4ff, "write");
+                fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4ff, __FUNCTION__);
                 return PACK_ERROR;      // writeIdx 由栈展开析构
             }
             tmp.first = _write_hash(file, dir);
@@ -1300,7 +1300,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     if (fp == 0)
     {
         fprintf(stdout, "_tfopen failed. %s", TEMP_HEADER_FILENAME);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x514, "write");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x514, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1309,7 +1309,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
         fwrite(&(it->first), 4, 1, fp);
         if (it->second.write_info(fp) == PACK_ERROR)
         {
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x51c, "write");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x51c, __FUNCTION__);
             fclose(fp);
             return PACK_ERROR;
         }
@@ -1320,7 +1320,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     if (fp == 0)
     {
         fprintf(stdout, "_tfopen failed. %s", name);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x526, "write");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x526, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1349,7 +1349,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     {
         delete[] headerBuf;
         fprintf(stdout, "_tfopen failed. %s", name);
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x551, "write");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x551, __FUNCTION__);
         return PACK_ERROR;
     }
 
@@ -1365,7 +1365,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
         if (it2->second->content_ == 0)
         {
             fprintf(stdout, "content is NULL. %s", it2->second->name_.c_str());
-            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x560, "write");
+            fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x560, __FUNCTION__);
             fclose(fp);
             delete[] headerBuf;
             return PACK_ERROR;
@@ -1382,7 +1382,7 @@ FILE* PackSet::pack_file()     // 0x08ac7608
     if (!(static_cast<bool>(m_bUseEncryptedFile) ^ true))     // !flag == false 即 flag 真
     {
         fprintf(stdout, "%s\n", "_C_DNF_SCRIPT_CRYPTER_ is turned on!!");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x677, "pack_file");
+        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x677, __FUNCTION__);
     }
     return m_packFile;
 }

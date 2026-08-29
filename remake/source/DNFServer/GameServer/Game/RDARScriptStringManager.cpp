@@ -187,7 +187,7 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
     if (table < 0 || table >= static_cast<int>(dictionaries_.size()))
     {
         LogManager::logFormat(
-            0, "../RDARScriptStringManager.cpp", "findString", 0x11c,
+            0, "../RDARScriptStringManager.cpp", __FUNCTION__, 0x11c,
             "오류 : 스트링 테이블 %d 는 범위를 벗어납니다. "
             "(index out of range reading string table %d)",
             table);

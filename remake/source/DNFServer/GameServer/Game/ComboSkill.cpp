@@ -14,18 +14,9 @@
 #include "SkillSlot.h"
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
+#include "PacketGuard.h"
 
-// ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char）----
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // G_CDataManager() 返回对象 +0x14 处为 char*（组合技列表基址），成员访问形态
 // 与 ORIG 一致（mov 0x14(%eax),%eax；而非 add+mov）。
@@ -73,7 +64,7 @@ void ComboSkill::resetTree(ENUM_SKILL_TREE_KIND kind)
     if (kind != SKILL_TREE_1 && kind != SKILL_TREE_2)
     {
         LogManager::logFormat(
-            1, "ComboSkill.cpp", "void ComboSkill::resetTree(ENUM_SKILL_TREE_KIND)",
+            1, "ComboSkill.cpp", __PRETTY_FUNCTION__,
             0xd, "ComboSkill::resetTree kind(%d) error", kind);
     }
     else
@@ -102,7 +93,7 @@ void ComboSkill::convertComboSkillMap(unsigned char count,
     {
         LogManager::logFormat(
             1, "ComboSkill.cpp",
-            "void ComboSkill::convertComboSkillMap(unsigned char, const comoboSkillData*, ENUM_SKILL_TREE_KIND)",
+            __PRETTY_FUNCTION__,
             0x25, "ComboSkill::setComboSkill count value(%d) error",
             (int)count);
     }
@@ -112,7 +103,7 @@ void ComboSkill::convertComboSkillMap(unsigned char count,
         {
             LogManager::logFormat(
                 1, "ComboSkill.cpp",
-                "void ComboSkill::convertComboSkillMap(unsigned char, const comoboSkillData*, ENUM_SKILL_TREE_KIND)",
+                __PRETTY_FUNCTION__,
                 0x2b, "ComboSkill::setComboSkill kind(%d) error", kind);
         }
         else
@@ -153,7 +144,7 @@ void ComboSkill::convertComboSkillArray(unsigned char& count,
     {
         LogManager::logFormat(
             1, "ComboSkill.cpp",
-            "void ComboSkill::convertComboSkillArray(unsigned char&, comoboSkillData*, ENUM_SKILL_TREE_KIND) const",
+            __PRETTY_FUNCTION__,
             0x4b, "ComboSkill::convertComboSkillArray kind(%d) error", kind);
     }
     else
@@ -219,7 +210,7 @@ void ComboSkill::getComboSkillSendForm(PacketGuard& packet,
     {
         LogManager::logFormat(
             1, "ComboSkill.cpp",
-            "void ComboSkill::getComboSkillSendForm(PacketGuard&, ENUM_SKILL_TREE_KIND) const",
+            __PRETTY_FUNCTION__,
             0x99, "ComboSkill::getComboSkillSendForm kind(%d) error", kind);
     }
     else
@@ -246,7 +237,7 @@ void ComboSkill::setComboSkill(ENUM_SKILL_TREE_KIND kind, ComboSkillMap& map)
     {
         LogManager::logFormat(
             1, "ComboSkill.cpp",
-            "void ComboSkill::setComboSkill(ENUM_SKILL_TREE_KIND, ComboSkillMap&)",
+            __PRETTY_FUNCTION__,
             0xb5, "ComboSkill::setComboSkill kind(%d) error", kind);
     }
     else
@@ -287,7 +278,7 @@ void ComboSkill::eraseDuplicationComboSKill(ENUM_SKILL_TREE_KIND kind, int slot)
     {
         LogManager::logFormat(
             1, "ComboSkill.cpp",
-            "void ComboSkill::eraseDuplicationComboSKill(ENUM_SKILL_TREE_KIND, int)",
+            __PRETTY_FUNCTION__,
             0xd4, "ComboSkill::eraseDuplicationComboSKill kind(%d) error", kind);
     }
     else

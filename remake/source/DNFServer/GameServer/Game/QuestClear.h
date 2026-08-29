@@ -22,11 +22,13 @@
 
 namespace WongWork
 {
+// ORIG STClearedQuest 为 1 字节（C1 0x0848f768 = movb $0,(%eax) 实证；SIG_LOAD_QUEST
+// 完成位图数组步长 1）。原 m_pad[0x14] 占位删除。
 struct STClearedQuest
 {
-    char m_pad[0x14];
+    unsigned char m_cleared;   // +0x00
 
-    // ORIG W 0x0848f768：C1Ev 仅置首字节 0（QuestClear.cpp 循环调用处的真实目标符号）。
+    // ORIG W 0x0848f768：C1Ev 仅置首字节 0。
     STClearedQuest();
 };
 

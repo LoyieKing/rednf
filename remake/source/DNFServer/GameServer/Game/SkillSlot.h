@@ -17,6 +17,7 @@
 
 #include "CUser.h"          // 权威 CUser/CUserCharacInfo/cUserHistoryLog（G1-3 统一）
 #include "SigTypes.h"       // SIG_COMBO_SKILL/comoboSkillData 权威定义（FixMissingSigTypes 迁移）
+#include "MasteredSkill.h"  // _Mastered_skill（原本头定义，抽出供 SigTypes_C.h 共用）
 
 class CSkill;
 class PacketGuard;
@@ -39,14 +40,7 @@ enum ENUM_SKILL_TREE_KIND
 };
 #endif
 
-// ---- 已学技能（2 字节：索引 + 等级）----
-struct _Mastered_skill
-{
-    _Mastered_skill();
-    unsigned char m_index;   // +0x00
-    char m_level;            // +0x01
-};
-
+// _Mastered_skill 权威定义已迁至 MasteredSkill.h（本头 include，供 SigTypes_C.h 共用）。
 // ---- ComboSkill 存档结构 SIG_COMBO_SKILL / comoboSkillData ----
 // 权威定义已迁移到 SigTypes.h（FixMissingSigTypes，广播周知；pack(1) 布局与
 // sizeof=0xb2 不变）。此处仅保留使用点引用。
@@ -143,12 +137,17 @@ public:
     union
     {
         char m_pad[0x92];
+        // ORIG 实证视图（WongWork__CSkillChanger 报告）：
+        //   _CountSkillBook 0x0860a2ec 写 (this+i*4) 与 (this+(i+8)*4+4)=0x24+i*4；
+        //   _addSPRelatedItem 0x0860a868 累加 (this+(i+0x10)*4+8)=0x48+i*4 并写
+        //   g_nElixerAbility 至 (this+(i+0x18)*4+0xc)=0x6c+i*4；
+        //   GetElixerCount=this / GetNeedElixerCount=+0x48 / GetNeedElixerAbility=+0x6c。
         struct
         {
-            int m_skillBookCount[9];
-            int m_pad24;
-            int m_elixerAbility[9];
-            char m_namedTail[0x92 - 0x28 - 0x24];
+            int m_elixerCount[9];       // +0x00
+            int m_skillBookCount[9];    // +0x24
+            int m_needElixerCount[9];   // +0x48
+            int m_needElixerAbility[9]; // +0x6c
         } m_data;
         struct
         {
@@ -164,6 +163,10 @@ public:
             unsigned char m_reserved91;
         } m_state;
     };
+    // ORIG D 0x093acdc0 / 0x093ace00：CSkillChanger 静态成员表，[0]=计数（8）。
+    // _CountSkillBook/_addSPRelatedItem 以 g_nStatUpItemIdx[0] 为循环上界。
+    static int g_nStatUpItemIdx[9];
+    static int g_nElixerAbility[9];
 };
 }
 
@@ -272,7 +275,7 @@ public:
     void debugCheckGrowTypeSkill(int level, int job, int firstGrow,
                                  int secondGrow);
     void debugCommandResetSkill();
-    int checkskillSlotEmptyCount(int& out) const;
+    int checkskillSlotEmptyCount(int& out);
 
     // ---- Combo 技能 ----
     void loadComboSkill(SIG_COMBO_SKILL* data);

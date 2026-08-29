@@ -63,20 +63,10 @@ private:
     std::vector<CGlobalEffect> m_reservedEffects; // +0x0c
 };
 
-// ORIG 0x08637e78：TimerGlobalEffectItemBegin::registTimer(unsigned int, unsigned int)
-//   → G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x77, beginSec, type, 0)
-class TimerGlobalEffectItemBegin
-{
-public:
-    static void registTimer(unsigned int type, unsigned int beginSec);
-};
-
-// ORIG 0x08637ef6：TimerGlobalEffectItemTimeout::registTimer(unsigned int, unsigned int)
-//   → G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x78, timeoutSec, type, 0)
-class TimerGlobalEffectItemTimeout
-{
-public:
-    static void registTimer(unsigned int type, unsigned int timeoutSec);
-};
+// TimerGlobalEffectItemBegin / TimerGlobalEffectItemTimeout 权威声明唯一在
+// TimerDispatcher.h（ORIG :public TimerSig 含 dispatch_sig；本头此前的无基类
+// 视图类与其构成 ODR 重复，已删除）。registTimer(unsigned,unsigned) 定义由
+// 原实现 TU 提供（ORIG T 0x08145caa / 0x08145cf4）。
+#include "TimerDispatcher.h"
 
 #endif  // GAME_CGLOBALEFFECTMANAGER_H_

@@ -93,8 +93,8 @@ struct WindowsExeConstantSection
 static_assert(sizeof(WindowsExeConstantSection) == 0x10,
               "WindowsExeConstantSection ABI drift");
 
-int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void* rhs);
-                                                 // t(static)@0x08572eef → 链接名取全局
+// CompareWindowsExeConstantSectionsForSort —— ORIG t(static)@0x08572eef，
+// 定义 WindowsPackFiles.cpp（文件内 static，链接名 _ZL40...，无外部调用者）。
 
 bool LoadClientFile(unsigned long* outSize, void** outBuf, const char* path);
                                                  // T @0x08572f3a
@@ -155,11 +155,11 @@ public:
 
     void SetCheckingOption(unsigned long minOff, unsigned long maxOff); // T @0x0857511e
     bool LoadWindowsDataFile(const char* path, const char* name);       // T @0x0857513c
-    bool IsDifferentFileData(const WindowsDataFile* f);                 // T @0x08575068
+    bool IsDifferentFileData(WindowsDataFile* f);                      // T @0x08575068（非 const）
     bool GenerateRange(unsigned long* outStart, unsigned long* outLen); // T @0x08575230
     bool GenerateChecksum(CodeHackChecksumEx* ckEx,
                           CodeHackCheckRangeEx* rangeEx);              // T @0x08575302
-    bool IsScanningAddressReset() const;                              // T @0x08575444
+    bool IsScanningAddressReset();                              // T @0x08575444
 
     std::vector<WindowsDataFile*> m_files;       // +0x00..0xb
     char                  m_name[0x104];         // +0x0c（StrCpyMaxPath 目标）
@@ -185,7 +185,7 @@ public:
 
     void SetCheckingOption(unsigned long minOff, unsigned long maxOff); // T @0x08574620
     bool LoadWindowsExeFile(const char* path, const char* name);        // T @0x0857463e
-    bool IsDifferentFileData(const WindowsExeFile* f);                  // T @0x08574ace
+    bool IsDifferentFileData(WindowsExeFile* f);                  // T @0x08574ace
     bool CompleteLoadingWindowsExeFiles();                              // T @0x08574736
     bool GenerateRange(long* outSecIdx, unsigned long* outStart,
                        unsigned long* outLen);                          // T @0x08574b8e

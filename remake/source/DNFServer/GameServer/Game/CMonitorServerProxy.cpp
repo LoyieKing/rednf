@@ -30,31 +30,10 @@
 
 #include "DNFFunctionLib.h"
 
-// ORIG DF_MonitorServerProxy.cpp 对 CNetwork<100000,100000>::CreateConnectionSocket
-// 的调用同 CGuildServerProxy（2 参使用，原样复刻，见 CGuildServerProxy.cpp 说明）。
-namespace
+CMonitorServerProxy::CMonitorServerProxy(std::string ip, int udpPort, int tcpPort)
+    : m_ip(ip), m_udpPort(udpPort), m_tcpPort(tcpPort), m_tcp(), m_udp()
 {
-// CEnvironment+0x378 视图（同 CGuildServerProxy.cpp）
-struct CEnvView
-{
-    char m_pad[0x378];
-    int m_serverGroup;    // +0x378
-};
-
-class CMonitorNetView
-{
-public:
-    int CreateConnectionSocket(const char* ip, int port);
-};
-
-int CMonitorNetView::CreateConnectionSocket(const char* ip, int port)
-{
-    int sock = 0;
-    return ((CNetwork<100000, 100000>*)this)->CreateConnectionSocket(sock, ip, port);
 }
-}
-
-// ---- 生命周期 ----
 
 bool CMonitorServerProxy::Init()
 {
@@ -81,8 +60,8 @@ bool CMonitorServerProxy::InitUdp()
 {
     if (m_udp.InitClientSocket() == -1)
     {
-        LogManager::logFormat(1, "DF_MonitorServerProxy.cpp",
-                              "bool CMonitorServerProxy::InitUdp()", 0x485,
+        LogManager::logFormat(1, "DF_MonitorServerProxy.cpp", __PRETTY_FUNCTION__,
+                              0x485,
                               "[CMonitorServerProxy::Init] Can\'t init udp client socket");
         return 0;
     }
@@ -97,17 +76,17 @@ bool CMonitorServerProxy::InitTcp()
     }
     if (m_tcp.m_sock < 0)
     {
-        int ret = ((CMonitorNetView*)&m_tcp)
-                      ->CreateConnectionSocket(m_ip.c_str(), m_tcpPort);
+        int ret = m_tcp.CreateConnectionSocket(m_tcp.m_sock, m_ip.c_str(),
+                                               m_tcpPort);
         while (ret != 0)
         {
-            cMyTrace("bool CMonitorServerProxy::InitTcp()", 0x49b, 0)
+            cMyTrace(__PRETTY_FUNCTION__, 0x49b, 0)
                 ("CMonitorServerProxy CreateConnectionSocket() error(%d:%d:%s)",
                  ret, errno, strerror(errno));
             return 0;
         }
     }
-    cMyTrace("bool CMonitorServerProxy::InitTcp()", 0x4a0, 9, true, true)
+    cMyTrace(__PRETTY_FUNCTION__, 0x4a0, 9, true, true)
         ("[!] Connect To Monitor Server ... ");
     return 1;
 }
@@ -147,18 +126,16 @@ int CMonitorServerProxy::OnTcpRecv()
     {
         if (Parsing(n) == false)
         {
-            LogManager::logFormat(1, "DF_MonitorServerProxy.cpp",
-                                  "bool CMonitorServerProxy::OnTcpRecv()", 0x685,
-                                  "Monitor Recv Parsing Err!!!");
+            LogManager::logFormat(1, "DF_MonitorServerProxy.cpp", __PRETTY_FUNCTION__,
+                                  0x685, "Monitor Recv Parsing Err!!!");
             return 0;
         }
         return 1;
     }
     if (n < 0)
     {
-        LogManager::logFormat(1, "DF_MonitorServerProxy.cpp",
-                              "bool CMonitorServerProxy::OnTcpRecv()", 0x68e,
-                              "Monitor Server maybe Die!!!");
+        LogManager::logFormat(1, "DF_MonitorServerProxy.cpp", __PRETTY_FUNCTION__,
+                              0x68e, "Monitor Server maybe Die!!!");
         Disconnect();
         return 0;
     }
@@ -169,7 +146,7 @@ int CMonitorServerProxy::OnTcpSend()
 {
     if (m_tcp.send_packet() < 0)
     {
-        cMyTrace("int CMonitorServerProxy::OnTcpSend()", 0x6a3, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x6a3, 0)
             ("OnSend() Socket[%d] Error(%s)", GetTcpHandler()->get_socket(),
              strerror(errno));
         Disconnect();
@@ -182,7 +159,7 @@ bool CMonitorServerProxy::OnTcpError()
 {
     if (errno != 0)
     {
-        cMyTrace("bool CMonitorServerProxy::OnTcpError()", 0x6b6, 0)
+        cMyTrace(__PRETTY_FUNCTION__, 0x6b6, 0)
             ("Monitor Server OnError() Socket[%d] Error(%s)",
              GetTcpHandler()->get_socket(), strerror(errno));
         return 0;
@@ -230,7 +207,7 @@ void CMonitorServerProxy::SendLogin(int channel, unsigned int dbid, int serverNo
     {
         LogManager::logFormat(
             1, "DF_MonitorServerProxy.cpp",
-            "void CMonitorServerProxy::SendLogin(int, memberIdentificationNumber_t, int, char*, unsigned char, char*)",
+            __PRETTY_FUNCTION__,
             0x4f3, "CMonitorServerProxy::SendLogin! DB ID(%s)", NumberToString(dbid, 0));
     }
     pkt.m_sex = sex;

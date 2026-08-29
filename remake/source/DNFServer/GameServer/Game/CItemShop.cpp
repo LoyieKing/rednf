@@ -15,6 +15,7 @@
 #include "DNFLexWrapper.h"
 #include "LogManager.h"
 #include "CSystemTime.h"
+#include "NpcScript.h"
 
 namespace GlobalData
 {
@@ -22,14 +23,7 @@ extern CSystemTime s_systemTime_;
 }
 
 // ---- 跨类符号（ORIG 真实符号） ----
-class STScriptFileList
-{
-public:
-    STScriptFileList() { Clear(); }                // ORIG 0x088bacf8
-    void Clear();                                  // STScriptFileList.cpp
-    std::map<int, std::string> m_fileMap;   // +0x00
-    int FindIndexByFullScan(const char* path) const;  // 定义于 STScriptFileList.cpp
-};
+
 STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
 
 // ORIG g_itemShopScriptBaseDirectory（B 0x094fe160[0x100]）：脚本目录全局
@@ -155,7 +149,7 @@ bool CItemShop::loadItemShopFiles()
         if (path == 0)
             break;
         if (!importItemShopScript(&script, path)) {
-            LogManager::logFormat(1, "item.cpp", "bool CItemShop::loadItemShopFiles()",
+            LogManager::logFormat(1, "item.cpp", __PRETTY_FUNCTION__,
                                   0xc26, "ImportEquipmentScript() fail file - %s", path);
             return false;
         }
@@ -241,7 +235,7 @@ void CItemShop::updateOneADayItemList()
     while (it != end) {
         if (it->second.m_isOneADay) {
             unsigned int listNo = setOneADayItemListNo(it->second);
-            cMyTrace tr("void CItemShop::updateOneADayItemList()", 0xc69, 0);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0xc69, 0);
             tr("updateOneADayItemList shop_id:%d list_no:%d", it->second.m_shopId,
                listNo);
         }

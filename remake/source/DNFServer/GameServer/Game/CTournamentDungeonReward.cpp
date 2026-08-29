@@ -84,7 +84,7 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
 // ORIG 0x8284a24：两张卡槽各按 rate 掷点决定奖励（未过首档则 m_id=0）。
 // ============================================================================
 void CTournamentDungeonReward::DecisionRewardType(
-    ENUM_TOURNAMENT_REWARD_CARD_TYPE card, const TournamentRewardRate& rate,
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE card, TournamentRewardRate& rate,
     const TournamentRewardItemRate* itemRate)
 {
     for (int slotIdx = 0; slotIdx < 2; ++slotIdx)
@@ -138,13 +138,17 @@ void CTournamentDungeonReward::MakeReward(
     if (it == rates->end())
         return;
 
-    DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, it->second, itemRate);
+    TournamentRewardRate rate = it->second;
+    DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, rate, itemRate);
     if (round == 4 && victory)
     {
         std::map<int, TournamentRewardRate>::const_iterator itFinal = rates->find(5);
         if (itFinal != rates->end())
-            DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, itFinal->second,
+        {
+            TournamentRewardRate rateFinal = itFinal->second;
+            DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, rateFinal,
                                itemRate);
+        }
     }
 }
 
@@ -153,7 +157,7 @@ void CTournamentDungeonReward::MakeReward(
 // （金币额）乘金币率写入 m_field04。
 // ============================================================================
 void CTournamentDungeonReward::SetRewardGold(
-    const WongWork::stGenerateResult_t& result, float goldRate)
+    WongWork::stGenerateResult_t& result, float goldRate)
 {
     for (int card = 0; card < 2; ++card)
     {
@@ -172,7 +176,7 @@ void CTournamentDungeonReward::SetRewardGold(
 
 // ORIG 0x82852e4：单卡型奖励包体（byte2 + 每卡槽 int/int/short0）
 void CTournamentDungeonReward::_MakeRewardPacket(
-    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, InterfacePacketBuf* packet)
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, PacketGuard* packet)
 {
     if ((int)type < 2)
     {
@@ -194,4 +198,129 @@ void CTournamentDungeonReward::MakeRewardPacket(PacketGuard* packet, bool flag)
         _MakeRewardPacket(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, packet);
     else
         packet->put_byte(0);
+}
+// ============================================================================
+// ORIG 0x08284ee4（报告 SelectCard.md）：cardA/cardB ∈ [0,1]、slotNo ∈ [0,3]
+// 校验后，m_rewards[(int)cardA][(int)cardB].m_flag08（movzbl 零扩展读）== 0xff（未选）
+// 才写入 slotNo 低字节并返回 1；否则返回 0。
+// ============================================================================
+bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
+{
+    if (cardA < 0 || cardA > 1)
+        return false;
+    if (cardB < 0 || cardB > 1)
+        return false;
+    if (slotNo < 0 || slotNo > 3)
+        return false;
+
+    // ORIG cmp $0xff; jne fail —— 命中未选槽（==0xff）直落写入体，失败块居尾
+    if (static_cast<unsigned char>(
+            m_rewards[(int)cardA][(int)cardB].m_flag08) == 0xff)
+    {
+        m_rewards[(int)cardA][(int)cardB].m_flag08 = static_cast<char>(slotNo);
+        return true;
+    }
+    return false;
+}
+// ============================================================================
+// ORIG 0x08285284（报告 CTournamentDungeonReward/isMemberSelectCard.md）：
+// 遍历该卡型两槽，m_flag08（char 符号扩展）== cardNo 即 1。
+// ============================================================================
+bool CTournamentDungeonReward::isMemberSelectCard(
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo)
+{
+    for (int slot = 0; slot < 2; ++slot)
+    {
+        if (static_cast<char>(m_rewards[(int)type][slot].m_flag08) == cardNo)
+            return true;
+    }
+    return false;
+}
+
+// ============================================================================
+// ORIG 0x082853b8（报告 _ForceSelectCard.md）：type>1 直接返回；
+// 对两槽：m_flag08==0xff（未选）时遍历 members，凡 !isMemberSelectCard(type,*it)
+// 者写入 m_flag08（低字节）。持续遍历不提前退出（ORIG 形态）。
+// ============================================================================
+void CTournamentDungeonReward::_ForceSelectCard(
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
+{
+    if ((int)type > 1)
+        return;
+
+    for (int slot = 0; slot < 2; ++slot)
+    {
+        if (static_cast<unsigned char>(m_rewards[(int)type][slot].m_flag08) == 0xff)
+        {
+            for (std::vector<int>::const_iterator it = members.begin();
+                 it != members.end(); ++it)
+            {
+                if (!isMemberSelectCard(type, *it))
+                    m_rewards[(int)type][slot].m_flag08 = static_cast<char>(*it);
+            }
+        }
+    }
+}
+
+// ============================================================================
+// ORIG 0x0828523c（报告 ForceSelectCard.md）：_ForceSelectCard(0)；victory 时
+// 再 _ForceSelectCard(1)。
+// ============================================================================
+void CTournamentDungeonReward::ForceSelectCard(std::vector<int>& members, bool victory)
+{
+    _ForceSelectCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, members);
+    if (victory)
+        _ForceSelectCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, members);
+}
+
+// ============================================================================
+// ORIG 0x08284d08（报告 isCardSelectComplete.md）：members 空 → 0。
+// type==2（双卡型）：2x2 全部槽的 m_flag08（char 引用，std::find<char> 实证
+// _ZSt4findI...cET_S8_S8_RKT0_）都必须出现在 members 中；否则查该行两槽。
+// 全命中 → 1。
+// ============================================================================
+bool CTournamentDungeonReward::isCardSelectComplete(
+    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
+{
+    if (members.empty())
+        return false;
+
+    if ((int)type == 2)
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            for (int j = 0; j < 2; ++j)
+            {
+                if (std::find(members.begin(), members.end(),
+                              m_rewards[i][j].m_flag08) == members.end())
+                    return false;
+            }
+        }
+    }
+    else
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            if (std::find(members.begin(), members.end(),
+                          m_rewards[(int)type][j].m_flag08) == members.end())
+                return false;
+        }
+    }
+    return true;
+}
+
+// ============================================================================
+// ORIG 0x08284fa4（报告 MakeSelectPacket.md）：两轮 put_byte(2)；内轮对两槽
+// put_byte((char)m_flag08 符号扩展)。
+// ============================================================================
+void CTournamentDungeonReward::MakeSelectPacket(PacketGuard* packet)
+{
+    for (int type = 0; type < 2; ++type)
+    {
+        packet->put_byte(2);
+        for (int slot = 0; slot < 2; ++slot)
+        {
+            packet->put_byte(static_cast<char>(m_rewards[type][slot].m_flag08));
+        }
+    }
 }

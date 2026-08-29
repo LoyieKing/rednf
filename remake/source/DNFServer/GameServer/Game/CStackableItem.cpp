@@ -27,13 +27,38 @@ CStackableItem::~CStackableItem()
 {
 }
 
-// ORIG 0x85150f2：逐成员复制（vector + map）
-stStackableBooster_t& stStackableBooster_t::operator=(
-    const stStackableBooster_t& other)
+// ORIG T 0x089c2832：if-return 链 + strcmp（每分支 `mov $N,%eax; jmp` 统一出口，
+// 尾项默认 `mov $0x9,%eax` 直落；P17/P47 形态）。字符串映射（.rodata 0x8e19e71..）：
+//   "[avatar]"→0 "[special avatar]"→1 "[cera]"→2 "[creature]"→3 "[equipment]"→4
+//   "[stackable]"→5 "[etc]"→6 "[special creature]"→7 "[emblem]"→8，未知→9。
+int stStackableBooster_t::tag2Type(const char* tag)
 {
-    m_elements = other.m_elements;
-    m_map = other.m_map;
-    return *this;
+    if (strcmp(tag, "[avatar]") == 0) return 0;
+    if (strcmp(tag, "[special avatar]") == 0) return 1;
+    if (strcmp(tag, "[cera]") == 0) return 2;
+    if (strcmp(tag, "[creature]") == 0) return 3;
+    if (strcmp(tag, "[equipment]") == 0) return 4;
+    if (strcmp(tag, "[stackable]") == 0) return 5;
+    if (strcmp(tag, "[etc]") == 0) return 6;
+    if (strcmp(tag, "[special creature]") == 0) return 7;
+    if (strcmp(tag, "[emblem]") == 0) return 8;
+    return 9;
+}
+
+// ORIG T 0x089c295a：同 tag2Type 形态；结束标签 "[/xxx]" 映射同值表
+// （.rodata 0x8e19ec6..）："[/avatar]"→0 .. "[/emblem]"→8，未知→9。
+int stStackableBooster_t::tag2EndType(const char* tag)
+{
+    if (strcmp(tag, "[/avatar]") == 0) return 0;
+    if (strcmp(tag, "[/special avatar]") == 0) return 1;
+    if (strcmp(tag, "[/cera]") == 0) return 2;
+    if (strcmp(tag, "[/creature]") == 0) return 3;
+    if (strcmp(tag, "[/equipment]") == 0) return 4;
+    if (strcmp(tag, "[/stackable]") == 0) return 5;
+    if (strcmp(tag, "[/etc]") == 0) return 6;
+    if (strcmp(tag, "[/special creature]") == 0) return 7;
+    if (strcmp(tag, "[/emblem]") == 0) return 8;
+    return 9;
 }
 
 // ORIG 0x8515128：逐字段复制（3 int + vector<string> + char）
@@ -46,6 +71,17 @@ BoosterSelectInfo& BoosterSelectInfo::operator=(
     m_nameVec = other.m_nameVec;
     m_field18 = other.m_field18;
     return *this;
+}
+
+// ORIG 0x8513b82：vector<string> 默认构造 + 三 int movl 清零 + char movb 清零
+// （P10/P33：m_field18 必须 char）。
+BoosterSelectInfo::BoosterSelectInfo()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_nameVec.clear();
+    m_field18 = '\0';
 }
 
 int get_rand_int(int range);
@@ -75,7 +111,7 @@ class CDataManager
 {
 public:
     void set_AuctionRegFreeCeraItem(unsigned int idx);
-    void set_lottery_use_cost(unsigned int cost);
+    void set_lottery_use_cost(unsigned int cost, unsigned int flag);
     char m_pad[0xc];
     class CItemList* m_itemList;   // +0x0c
 };
@@ -89,17 +125,7 @@ struct CDataManagerView
 
 #include "CSystemTime.h"
 
-struct itemGloballyUniqueIdentifier_t
-{
-    void reset();
-    char m_pad[0x11];
-};
-
-class CItemGloballyUniqueIdentifierGenerator
-{
-public:
-    void generate(itemGloballyUniqueIdentifier_t* id, int field);
-};
+#include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t 权威定义
 
 
 class GameWorld;
@@ -128,33 +154,220 @@ public:
 // ORIG 0x8a86d28：26 项字符串→枚举映射，默认 0x16
 int GetEquipmentTypeStringToEnum(std::string& type)
 {
-    if (type == "[hat avatar]")    return 0;
-    if (type == "[hair avatar]")   return 1;
-    if (type == "[face avatar]")   return 2;
-    if (type == "[coat avatar]")   return 3;
-    if (type == "[pants avatar]")  return 4;
-    if (type == "[shoes avatar]")  return 5;
-    if (type == "[breast avatar]") return 6;
-    if (type == "[waist avatar]")  return 7;
-    if (type == "[skin avatar]")   return 8;
-    if (type == "[aurora avatar]") return 9;
-    if (type == "[weapon]")        return 10;
-    if (type == "[title name]")    return 11;
-    if (type == "[coat]")          return 12;
-    if (type == "[shoulder]")      return 13;
-    if (type == "[pants]")         return 14;
-    if (type == "[shoes]")         return 15;
-    if (type == "[waist]")         return 16;
-    if (type == "[amulet]")        return 17;
-    if (type == "[wrist]")         return 18;
-    if (type == "[ring]")          return 19;
-    if (type == "[support]")       return 20;
-    if (type == "[magic stone]")   return 21;
-    if (type == "[creature]")      return 22;
-    if (type == "[artifact red]")  return 23;
-    if (type == "[artifact blue]") return 24;
-    if (type == "[artifact green]")return 25;
-    return 0x16;
+    int result = 0x16;
+    if (type == "[hat avatar]")
+    {
+        result = 0;
+    }
+    else if (type == "[hair avatar]")
+    {
+        result = 1;
+    }
+    else if (type == "[face avatar]")
+    {
+        result = 2;
+    }
+    else if (type == "[coat avatar]")
+    {
+        result = 3;
+    }
+    else if (type == "[pants avatar]")
+    {
+        result = 4;
+    }
+    else if (type == "[shoes avatar]")
+    {
+        result = 5;
+    }
+    else if (type == "[breast avatar]")
+    {
+        result = 6;
+    }
+    else if (type == "[waist avatar]")
+    {
+        result = 7;
+    }
+    else if (type == "[skin avatar]")
+    {
+        result = 8;
+    }
+    else if (type == "[aurora avatar]")
+    {
+        result = 9;
+    }
+    else if (type == "[weapon]")
+    {
+        result = 10;
+    }
+    else if (type == "[title name]")
+    {
+        result = 11;
+    }
+    else if (type == "[coat]")
+    {
+        result = 12;
+    }
+    else if (type == "[shoulder]")
+    {
+        result = 13;
+    }
+    else if (type == "[pants]")
+    {
+        result = 14;
+    }
+    else if (type == "[shoes]")
+    {
+        result = 15;
+    }
+    else if (type == "[waist]")
+    {
+        result = 16;
+    }
+    else if (type == "[amulet]")
+    {
+        result = 17;
+    }
+    else if (type == "[wrist]")
+    {
+        result = 18;
+    }
+    else if (type == "[ring]")
+    {
+        result = 19;
+    }
+    else if (type == "[support]")
+    {
+        result = 20;
+    }
+    else if (type == "[magic stone]")
+    {
+        result = 21;
+    }
+    else if (type == "[creature]")
+    {
+        result = 22;
+    }
+    else if (type == "[artifact red]")
+    {
+        result = 23;
+    }
+    else if (type == "[artifact blue]")
+    {
+        result = 24;
+    }
+    else if (type == "[artifact green]")
+    {
+        result = 25;
+    }
+    return result;
+}
+
+// ===================== StackableAction 字符串→枚举映射（ORIG T） =====================
+// getStackableActionType @0x089aeb9b：14 项字符串→Type 映射，默认 0（if-return 链，
+// 每项 call eq/test/je/mov+jmp 统一出口，与 ORIG 同形）。
+int getStackableActionType(std::string& type)
+{
+    if (type == "[megaphone]")
+    {
+        return 0x16;
+    }
+    if (type == "[upgrade cargo]")
+    {
+        return 0x2b;
+    }
+    if (type == "[chatemoticon]")
+    {
+        return 0x2c;
+    }
+    if (type == "[seria room deco]")
+    {
+        return 0x2a;
+    }
+    if (type == "[open guide book]")
+    {
+        return 0x2d;
+    }
+    if (type == "[class change]")
+    {
+        return 0x2e;
+    }
+    if (type == "[character name change]")
+    {
+        return 0x33;
+    }
+    if (type == "[bingo]")
+    {
+        return 0x34;
+    }
+    if (type == "[portable upgrade]")
+    {
+        return 0x35;
+    }
+    if (type == "[add fatigue]")
+    {
+        return 0x37;
+    }
+    if (type == "[candle golden wax]")
+    {
+        return 0x07;
+    }
+    if (type == "[add avatar socket]")
+    {
+        return 0x20;
+    }
+    if (type == "[LotteryCount]")
+    {
+        return 0x36;
+    }
+    if (type == "[equipment purify]")
+    {
+        return 0x21;
+    }
+    return 0;
+}
+
+// getStackableActionUsablePlace @0x089aed67：5 项字符串→UsablePlace，默认 1
+int getStackableActionUsablePlace(std::string& place)
+{
+    if (place == "[village]")
+    {
+        return 1;
+    }
+    if (place == "[dungeon]")
+    {
+        return 2;
+    }
+    if (place == "[pvp]")
+    {
+        return 3;
+    }
+    if (place == "[seria room]")
+    {
+        return 4;
+    }
+    if (place == "[dont use assult]")
+    {
+        return 5;
+    }
+    return 1;
+}
+
+// getStackableActionUsableServerType @0x089aee0a：3 项字符串→UsableServerType，默认 1
+int getStackableActionUsableServerType(std::string& type)
+{
+    if (type == "[general server]")
+    {
+        return 1;
+    }
+    if (type == "[event server]")
+    {
+        return 2;
+    }
+    if (type == "[starter server]")
+    {
+        return 3;
+    }
+    return 1;
 }
 
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
@@ -162,7 +375,7 @@ void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
 void createLotteryInfo(LotteryInfo* info, std::vector<int>* source);
 void createStackableLotteryInfo(LotteryInfo* info, std::vector<int>* source);
 void createStackableMultiBoxLotteryInfo(
-    MultiBoxLotteryInfo::MultiBoxLotteryInfoBody* info,
+    MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
     std::vector<int>* c);
 int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
@@ -260,34 +473,6 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
         info->m_counts.push_back(1);
     }
 }
-// ===================== MultiBoxLotteryInfo 辅助方法（ORIG W 弱符号） =====================
-// ORIG LotteryUnit::clear 0x89c358c：清零 count/idx/num/flag，清空 m_items/m_bonus
-void MultiBoxLotteryInfo::LotteryUnit::clear()
-{
-    m_count = 0;
-    m_defaultIdx = 0;
-    m_defaultNum = 0;
-    m_defaultFlag = 0;
-    m_items.clear();
-    m_bonus.clear();
-}
-// ORIG stDefaultItem::stDefaultItem 0x89c35d4：清零 4 字段
-MultiBoxLotteryInfo::stDefaultItem::stDefaultItem()
-{
-    m_itemIdx = 0;
-    m_count = 0;
-    m_prob = 0;
-    m_flag = 0;
-}
-// ORIG MultiBoxLotteryInfo::clear 0x8513f44：清 m_units，置 field0/4/8/c=-1/0/-1/0
-void MultiBoxLotteryInfo::MultiBoxLotteryInfoBody::clear()
-{
-    m_units.clear();
-    m_field0 = -1;
-    m_field4 = 0;
-    m_field8 = -1;
-    m_fieldc = 0;
-}
 
 // ORIG 0x89bafd1：解析 multibox 彩票脚本。
 //   a (vector<vector<int>>)：每元素是一个 LotteryUnit 的原始 int 流
@@ -296,7 +481,7 @@ void MultiBoxLotteryInfo::MultiBoxLotteryInfoBody::clear()
 //   b (vector<int>)：field8=b[0]，fieldc=b[1]
 //   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
 void createStackableMultiBoxLotteryInfo(
-    MultiBoxLotteryInfo::MultiBoxLotteryInfoBody* info,
+    MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
     std::vector<int>* c)
 {
@@ -358,16 +543,16 @@ void createStackableMultiBoxLotteryInfo(
     std::vector<int>::iterator it = c->begin();
     if (it != c->end())
     {
-        info->m_defaultCount = *it++;
+        info->m_default.m_defaultCount = *it++;
         if (it != c->end())
         {
-            info->m_defaultIdx = *it++;
+            info->m_default.m_defaultIdx = *it++;
             if (it != c->end())
             {
-                info->m_defaultNum = *it++;
+                info->m_default.m_defaultNum = *it++;
                 if (it != c->end())
                 {
-                    info->m_defaultFlag = (char)*it++;
+                    info->m_default.m_defaultFlag = (char)*it++;
                     if (it != c->end())
                     {
                         while (it != c->end())
@@ -380,7 +565,7 @@ void createStackableMultiBoxLotteryInfo(
                             item.m_count = *it++;
                             if (it == c->end()) return;
                             item.m_flag = (char)*it++;
-                            info->m_items.push_back(item);
+                            info->m_default.m_items.push_back(item);
                         }
                     }
                 }
@@ -394,10 +579,6 @@ class CChattingEmoticonList
 public:
     void* find_emoticon(int idx);
 };
-
-// 调用 ORIG DyeInfo::operator=（成员拷贝语义；GameStubs 提供桩）
-void DyeInfo_assign(DyeInfo& dst, const DyeInfo& src)
-    __asm__("_ZN7DyeInfoaSERKS_");
 
 // ===================== STStackableScript 工作布局（脚本表批次细化） =====================
 
@@ -796,9 +977,9 @@ bool CStackableItem::verifyUsableServerType()
     if (std::find(m_usableServers.begin(), m_usableServers.end(), serverType) ==
         m_usableServers.end())
     {
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ORIG 0x0822ca58 (W)：return m_int39c == type
@@ -995,7 +1176,7 @@ void CStackableItem::set_item(STStackableScript& script)
     scriptText[sizeof(scriptText) - 1] = '\0';
     if (!CodePage::script2Database(scriptText, buf))
     {
-        cMyTrace trace("void CStackableItem::set_item(STStackableScript&)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x80, 5);
         trace("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
               CodePage::database(), script.m_strac.c_str(),
@@ -1161,7 +1342,7 @@ void CStackableItem::set_item(STStackableScript& script)
     m_set128 = script.m_set11c;
     if (script.m_field474 != 0)
     {
-        G_CDataManager()->set_lottery_use_cost(script.m_field0);
+        G_CDataManager()->set_lottery_use_cost(script.m_field0, script.m_field474);
     }
     m_int340 = script.m_field478;
     m_char344 = script.m_field3a1;
@@ -1210,7 +1391,7 @@ void CStackableItem::set_item(STStackableScript& script)
     m_impossibleCharacCargo = script.m_fieldda;
     ((CItemView*)this)->m_int8c = script.m_field220;
     m_vec90 = script.m_vec224;
-    DyeInfo_assign(m_dyeInfo9c, script.m_dye164);
+    m_dyeInfo9c = script.m_dye164;
     m_randomOptionUnseal = script.m_field4b8 != 0;
     m_char144 = script.m_fieldd8;
     m_parentBoosterItemId = 0;
@@ -1235,7 +1416,7 @@ void CStackableItem::get_multibox_default_item(
         return;
     }
     for (unsigned int i = 0;
-         i < (unsigned int)m_multiBox.m_defaultCount; ++i)
+         i < (unsigned int)m_multiBox.m_default.m_defaultCount; ++i)
     {
         int rand = get_rand_int(1000000);
         int sum = 0;
@@ -1243,8 +1424,8 @@ void CStackableItem::get_multibox_default_item(
         int count = 0;
         bool flag = false;
         for (std::vector<MultiBoxLotteryInfo::stDefaultItem>::iterator it =
-                 m_multiBox.m_items.begin();
-             it != m_multiBox.m_items.end(); ++it)
+                 m_multiBox.m_default.m_items.begin();
+             it != m_multiBox.m_default.m_items.end(); ++it)
         {
             sum += it->m_prob;
             if (rand < sum)
@@ -1257,9 +1438,9 @@ void CStackableItem::get_multibox_default_item(
         }
         if (itemIdx == 0)
         {
-            itemIdx = m_multiBox.m_defaultIdx;
-            count = m_multiBox.m_defaultNum;
-            flag = m_multiBox.m_defaultFlag != 0;
+            itemIdx = m_multiBox.m_default.m_defaultIdx;
+            count = m_multiBox.m_default.m_defaultNum;
+            flag = m_multiBox.m_default.m_defaultFlag != 0;
         }
         Inven_Item item;
         item.m_addInfo = itemIdx;
@@ -1319,9 +1500,9 @@ void CStackableItem::get_multibox_default_item_arad(
     }
     if (itemIdx == 0)
     {
-        itemIdx = m_multiBox.m_defaultIdx;
-        count = m_multiBox.m_defaultNum;
-        flag = m_multiBox.m_defaultFlag;
+        itemIdx = m_multiBox.m_default.m_defaultIdx;
+        count = m_multiBox.m_default.m_defaultNum;
+        flag = m_multiBox.m_default.m_defaultFlag;
     }
     Inven_Item item;
     item.m_addInfo = itemIdx;
@@ -1508,19 +1689,19 @@ CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 // +0x2dc 头部建模为 m_int2dc；+0x2e0 起头部以 m_char2e0/m_char2e1 两字节建模
 // （+0x2e2/+0x2e3 隐式填充），故 flag 按低两字节拼出（高 2 字节为 0）。
 // 调用方(_processEffectItem)按 ORIG 只测 flag 的低 16 位。
-CStackableItem::StatChangeInfo CStackableItem::GetStatChangeInfo()
+StatChangeInfo CStackableItem::GetStatChangeInfo()
 {
     StatChangeInfo info;
-    info.sec  = m_int2dc;
-    info.flag = (unsigned int)(unsigned char)m_char2e0 |
-                ((unsigned int)(unsigned char)m_char2e1 << 8);
+    info.sec = m_int2dc;
+    info.m_flagLo = m_char2e0;
+    info.m_flagHi = m_char2e1;
     return info;
 }
 
 // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
 float CStackableItem::GetExpAffectRatio()
 {
-    return *(float*)((char*)this + 0x2e8);
+    return *(float*)&m_int2e8;
 }
 
 // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
@@ -1529,10 +1710,29 @@ unsigned short CStackableItem::getJewelTargetSocket() const
     return m_jewelTargetSocket;
 }
 
+// ORIG 0x0869475e W _ZNK14CStackableItem26IsUse2ndUpgradeTableRecipeEv：
+// movzbl 0xd0(%eax) —— 返回 CItem 基类 +0xd0 字节（m_boolD0）
+bool CStackableItem::IsUse2ndUpgradeTableRecipe() const
+{
+    return m_boolD0;
+}
+
 // ORIG 0x822ca48 (W)：movzbl 0x321(%eax),%eax —— 返回 +0x321（m_char321）字节非零
 bool CStackableItem::IsDeletableItem() const
 {
     return m_char321 != 0;
+}
+
+// ORIG _ZN14CStackableItem18IsSharedEffectItemEv W 0x0822ca18：movzbl 0x2ec(%eax),%eax —— 返回 m_char2ec 字节（共享特效物品标记）
+char CStackableItem::IsSharedEffectItem()
+{
+    return m_char2ec;
+}
+
+// ORIG _ZN14CStackableItem13GetEmancipateEv W 0x0854b4e8：movzwl 0x2ee(%eax),%eax —— 返回 m_short2ee（解绑值）
+unsigned short CStackableItem::GetEmancipate()
+{
+    return m_short2ee;
 }
 
 // ============================================================================

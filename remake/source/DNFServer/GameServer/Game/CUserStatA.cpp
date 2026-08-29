@@ -228,7 +228,7 @@ void CUser::_onLevelUp()
             DecFatigueBatteryCharging((short)descFatigue);     // +0x816 DecFatigueBatteryCharging
             short charging =
                 (short)GetFatigueBatteryCharging();            // +0x821 movswl（ORIG 按 signed 读）
-            cMyTrace trace("void CUser::_onLevelUp()", 0x4290, 0);   // +0x854 __PRETTY_FUNCTION__/行号
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x4290, 0);   // +0x854 __PRETTY_FUNCTION__/行号
             trace("FATIGUE BATTERY ACTIVE END_LEVEL: charno(%d) , descFatigueAmount(%d), cur charging(%d)",
                   (int)getCurCharacNo(), descFatigue, (int)charging); // +0x876
         }

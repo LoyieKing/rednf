@@ -33,77 +33,30 @@ public:
 
 // s_msgq_mgr / s_stream_pool 全局实例见 GlobalData.h（namespace GlobalData）。
 
-namespace Taiwan {
-
 // ---------------------------------------------------------------------------
-// base64（std::string/std::vector 语义版）
-// ORIG：_Z13base64_decodeRKSsRSt6vectorIhSaIhEE T 0x0807ebf4 /
-//       _Z13base64_encodePKhjRSs T 0x0807ea2e（静态链 libcrypto TU 内实现，
-//       表 _ZL12base64_chars B 0x093f56f4 由静态构造填充）。按 ORIG 反汇编
-//       逐分支还原；解密哈希类按用户规则以算法正确为准。
+// GetAppFolder —— ORIG W 0x0816c715（_Z12GetAppFolderv，COpensslRSA TU 内全局
+// 函数，由 sret 返回空串 "\"\"" 字面量 @0x08b81360）。重建以空串最小实现满足
+// Init 拼路径语义；真实路径来源（注册表/配置）缺省时返回空。
 // ---------------------------------------------------------------------------
-static const char k_base64_chars[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static bool is_base64(unsigned char c)
-{
-    return isalnum(c) || (c == '+') || (c == '/');
-}
-
-void base64_decode(std::string const& encoded_string,
-                   std::vector<unsigned char>& out)
-{
-    // ORIG 循环：每收满 4 字符查表组 3 字节 push_back（i<in_len 判界，
-    // 不足处以 0 补齐第 4 路，与 0x807ed8d 循环一致）。
-    int in_len = static_cast<int>(encoded_string.size());
-    int i = 0;
-    int in_ = 0;
-    unsigned char char_array_4[4];
-    unsigned char char_array_3[3];
-
-    while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_]))
-    {
-        char_array_4[i++] = encoded_string[in_];
-        in_++;
-        if (i == 4)
-        {
-            for (i = 0; i < 4; i++)
-                char_array_4[i] = static_cast<unsigned char>(
-                    static_cast<const char*>(strchr(k_base64_chars, char_array_4[i]))
-                        ? strchr(k_base64_chars, char_array_4[i]) - k_base64_chars
-                        : 0);
-            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-            for (i = 0; (i < 3); i++)
-                out.push_back(char_array_3[i]);
-            i = 0;
-        }
-    }
-}
-
-std::string GetAppFolder();   // 【推断】文件内前向；ORIG 全局 _Z12GetAppFolderv
-                              // T 0x0816c715：返回空串（"\"\"" 字面量 @0x08b81360），
-                              // 由 sret 返回。本批文件作用域最小实现以满足
-                              // COpensslRSA::Init 拼路径语义。
 std::string GetAppFolder()
 {
     return std::string("");
 }
 
 // ---------------------------------------------------------------------------
-// COpensslRSA
+// COpensslRSA —— OpenSSL RSA 公钥包装（全局命名空间，ORIG mangled _ZN11COpensslRSA*）
 // ---------------------------------------------------------------------------
 
 // ORIG W 0x0816c238
 COpensslRSA::COpensslRSA() : m_rsa(0) {}
 
 // ORIG W 0x0816c246：key 非空 RSA_free 后置空。
+extern "C" void RSA_free(void* rsa);
+
 COpensslRSA::~COpensslRSA()
 {
     if (m_rsa != 0)
     {
-        extern void RSA_free(void* rsa);   // libcrypto
         RSA_free(m_rsa);
         m_rsa = 0;
     }
@@ -160,6 +113,86 @@ bool COpensslRSA::Decrypt(const char* in, int len, std::vector<unsigned char>& o
         pos += chunk;
     }
     return true;
+}
+
+// ORIG T 0x0816c3a2：rsaSize=RSA_size(key)；maxChunk=rsaSize-0xc；pos=0 起按块
+// min(len-pos, maxChunk) RSA_private_encrypt(...,RSA_PKCS1_PADDING=1)（块长上限
+// rsaSize-12 预留 PKCS#1 填充），块失败即整体失败；成功块 insert 到 out 尾部，
+// 剩余不足一块时返回 true。
+bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& out)
+{
+    int rsa_size = RSA_size(m_rsa);
+    int max_chunk = rsa_size - 0xc;
+    int pos = 0;
+    while (true)
+    {
+        int chunk = len - pos;
+        if (chunk > max_chunk)
+            chunk = max_chunk;
+        if (chunk < 1)
+            return true;
+        std::vector<unsigned char> block;
+        block.resize(static_cast<size_t>(rsa_size), 0);
+        int written = RSA_private_encrypt(chunk,
+                                          reinterpret_cast<const unsigned char*>(in) + pos,
+                                          &block[0], m_rsa, 1);
+        if (written < 1)
+        {
+            return false;
+        }
+        out.insert(out.end(), block.begin(), block.begin() + written);
+        pos += chunk;
+    }
+    return true;
+}
+
+namespace Taiwan {
+
+// ---------------------------------------------------------------------------
+// base64（std::string/std::vector 语义版）
+// ORIG：_Z13base64_decodeRKSsRSt6vectorIhSaIhEE T 0x0807ebf4 /
+//       _Z13base64_encodePKhjRSs T 0x0807ea2e（静态链 libcrypto TU 内实现，
+//       表 _ZL12base64_chars B 0x093f56f4 由静态构造填充）。按 ORIG 反汇编
+//       逐分支还原；解密哈希类按用户规则以算法正确为准。
+// ---------------------------------------------------------------------------
+static const char k_base64_chars[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static bool is_base64(unsigned char c)
+{
+    return isalnum(c) || (c == '+') || (c == '/');
+}
+
+void base64_decode(std::string const& encoded_string,
+                   std::vector<unsigned char>& out)
+{
+    // ORIG 循环：每收满 4 字符查表组 3 字节 push_back（i<in_len 判界，
+    // 不足处以 0 补齐第 4 路，与 0x807ed8d 循环一致）。
+    int in_len = static_cast<int>(encoded_string.size());
+    int i = 0;
+    int in_ = 0;
+    unsigned char char_array_4[4];
+    unsigned char char_array_3[3];
+
+    while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_]))
+    {
+        char_array_4[i++] = encoded_string[in_];
+        in_++;
+        if (i == 4)
+        {
+            for (i = 0; i < 4; i++)
+                char_array_4[i] = static_cast<unsigned char>(
+                    static_cast<const char*>(strchr(k_base64_chars, char_array_4[i]))
+                        ? strchr(k_base64_chars, char_array_4[i]) - k_base64_chars
+                        : 0);
+            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+            for (i = 0; (i < 3); i++)
+                out.push_back(char_array_3[i]);
+            i = 0;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +279,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
 {
     if (token == 0)
     {
-        cMyTrace trace("decrypt", 0x7a, 5);
+        cMyTrace trace(__FUNCTION__, 0x7a, 5);
         trace("[Taiwan, Auth] Token is null!");
         return 0x7b;
     }
@@ -256,7 +289,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     if (encrypted.size() == 0)
     {
         LogManager::logFormat(
-            1, "localtaiwan/System/TaiwanAuth.cpp", "decrypt", 0x83,
+            1, "localtaiwan/System/TaiwanAuth.cpp", __FUNCTION__, 0x83,
             "[Taiwan, Auth] Invalid token format!");
         return 0x84;
     }
@@ -267,7 +300,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     if (!ok)
     {
         LogManager::logFormat(
-            1, "localtaiwan/System/TaiwanAuth.cpp", "decrypt", 0x8b,
+            1, "localtaiwan/System/TaiwanAuth.cpp", __FUNCTION__, 0x8b,
             "[Taiwan, Auth] Decrypt token failed!");
         return 0x8c;
     }
@@ -275,7 +308,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     if (decrypted.size() >= 0x69)
     {
         LogManager::logFormat(
-            1, "localtaiwan/System/TaiwanAuth.cpp", "decrypt", 0x92,
+            1, "localtaiwan/System/TaiwanAuth.cpp", __FUNCTION__, 0x92,
             "[Taiwan, Auth] Invalid decrypted token length! "
             "(buffer_size:%u, token_size:%u)",
             0x68, static_cast<unsigned int>(decrypted.size()));
@@ -293,7 +326,7 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
     char* uname = out.getUname();
     unsigned int uid = out.getUid();
 
-    cMyTrace trace("decrypt", 0x99, 0);
+    cMyTrace trace(__FUNCTION__, 0x99, 0);
     trace("[Taiwan, Auth] Success!! Uid:%u, UserName:%s, Timestamp:%u, "
           "GcaType:%u, GoldMemberType:%u, Mobile:%u",
           uid, uname, stamp, gca & 0xffff, gold & 0xff,

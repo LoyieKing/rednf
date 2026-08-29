@@ -8,9 +8,9 @@
 //   IsCompleteBuy 0x08ab155a / IsOpen 0x08ab150c / SetBuying 0x08ab1532；
 //   SECRET_SHOP_INFO C1 0x082a5396 / D1 0x082a53dc / clear 0x08ab1642 /
 //   GetSaleInfo 0x085fbe8a（透传 RETAILER::GetSaleInfo 0x08ab12a0）；
-//   SHOPPER GetBuyInfo 0x08ab1b2c / BuyItem 0x08ab1cc0。
-// 实现分布：RETAILER/SHOPPER 方法在 CSecretShop.cpp；SECRET_SHOP_INFO/
-// SECRET_SHOP_DATA 方法在 SECRET_SHOP_DATA.cpp。
+//   SHOPPER GetBuyInfo 0x08ab1344 / BuyItem 0x08ab13e8。
+// 实现分布：SALE_INFO/BUY_INFO/RETAILER/SHOPPER 方法在 CSecretShop.cpp；
+// SECRET_SHOP_INFO/SECRET_SHOP_DATA 方法在 SECRET_SHOP_DATA.cpp。
 #ifndef GAME_SECRET_SHOP_DATA_H_
 #define GAME_SECRET_SHOP_DATA_H_
 
@@ -22,6 +22,9 @@ namespace secretshop
 // ---- SALE_INFO（0x1c）----
 struct SALE_INFO
 {
+    SALE_INFO();               // ORIG W 0x08a832aa：逐字段清零
+    bool operator==(int itemIdx);  // ORIG W 0x08a832ee：sete 直返（std::find 比较用）
+
     int m_itemIdx;    // +0x00
     char m_rule;      // +0x04（eBuyRule）
     char m_pad05[3];  // +0x05
@@ -36,6 +39,9 @@ struct SALE_INFO
 // ---- BUY_INFO（0x8）----
 struct BUY_INFO
 {
+    BUY_INFO();                // ORIG W 0x08ab1606：两个 int 清零
+    bool operator==(int itemIdx);  // ORIG W 0x08ab161e：sete 直返
+
     int m_itemIdx;    // +0x00
     int m_count;      // +0x04
 };

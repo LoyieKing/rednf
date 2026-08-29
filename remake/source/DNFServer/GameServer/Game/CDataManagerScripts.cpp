@@ -11,6 +11,7 @@
 #include "STExpertJobScript.h"  // 权威 STExpertJobScript（唯一声明点）
 #include "DNFLexWrapper.h"   // ScanType/ScanInt/ScanStr/ScanFloat/loadRDARScriptFile/
                              // unloadRDARScriptFile（RDAR 脚本扫描接口）
+#include "Statuepredicate.h"  // pieceQuestRewardStatus 合并谓词（getRewardStatus）
 #include "CDungeon.h"        // advancealtar::{StageDifficulty,RewardItemType}
                              // （importAchievementRewardParameter 解析用）
 #include <cstring>
@@ -19,6 +20,10 @@
 // 0x088bbd77 T（定义 STScriptFileList.cpp；DNFLexWrapper.h 未含此声明）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* unused);
+// 频道类型 ∈ {4,6,5,7,8,9,10,13,14,15,16} 返回真，否则假。
+// 调用侧（GetPvPChannelNumber）按 bool 语义 test %al 使用；定义者按 ORIG
+// cmp/je 链 + mov $1/mov $0 分支形态实现即可（int/bool 返回符号相同）。
+bool IS_PVP_CHANNEL(int channelType);
 #include <algorithm>     // std::find（CWorldMap::hasDungeon）
 
 // ============================================================================
@@ -36,7 +41,6 @@ QuestParameterScript::~QuestParameterScript() {}
 
 void QuestParameterScript::clear()
 {
-    // ORIG clear 0x836f130：先清全部容器，末尾清 +0x18/+0x1c/+0x20 三 int。
     m_map0.clear();
     m_vec24.clear();
     m_vec30.clear();
@@ -45,6 +49,61 @@ void QuestParameterScript::clear()
     m_field18 = 0;
     m_field1c = 0;
     m_field20 = 0;
+}
+
+// ============================================================================
+// QuestParameterScript 奖励段查询（ORIG T 0x08a6bdc6 / 0x08a6be66）。
+// getRewardLevel：遍历 m_map3c（map<int,int>），取首个 second<=level 的
+// first（初始 0）；getRewardStatus：getRewardLevel(level) 后遍历 m_map54 中
+// key<=level 的各 vector，按 Statuepredicate（+0x0/+0x4 两 int）合并：
+// 命中段累加 m_value（+0x8 float），否则 push_back（sret 返回）。
+// ============================================================================
+int QuestParameterScript::getRewardLevel(int level)
+{
+    int result = 0;
+    std::map<int, int>::iterator it = m_map3c.begin();
+    for (; it != m_map3c.end(); ++it)
+    {
+        if (it->second <= level)
+        {
+            result = it->first;
+        }
+    }
+    return result;
+}
+
+std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
+    int level)
+{
+    std::vector<pieceQuestRewardStatus> result;
+    int rewardLevel = getRewardLevel(level);
+    if (rewardLevel == -1)
+        return result;
+
+    for (std::map<int, std::vector<pieceQuestRewardStatus> >::iterator it =
+             m_map54.begin(); it != m_map54.end(); ++it)
+    {
+        if (rewardLevel < it->first)
+            break;
+
+        const std::vector<pieceQuestRewardStatus>& section = it->second;
+        for (std::vector<pieceQuestRewardStatus>::const_iterator sit =
+                 section.begin(); sit != section.end(); ++sit)
+        {
+            Statuepredicate pred(*sit);
+            std::vector<pieceQuestRewardStatus>::iterator found =
+                std::find_if(result.begin(), result.end(), pred);
+            if (found != result.end())
+            {
+                found->m_value += sit->m_value;
+            }
+            else
+            {
+                result.push_back(*sit);
+            }
+        }
+    }
+    return result;
 }
 
 // ---- GuildParameterScript（ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542）----
@@ -73,10 +132,11 @@ void GuildParameterScript::clear()
     memset(m_levelUpCost, 0, sizeof(m_levelUpCost));  // ORIG：+0x5c memset 0x88
 }
 
-// ---- AccountCargoScript ----
+// ORIG C1 0x8372480：仅构造 +0x08 map 后调 clear()（+0x1c call；+0/+4 由 clear 内清零）。
 AccountCargoScript::AccountCargoScript()
-    : m_reqLevel(0), m_itemIdx(0), m_upgradeMap()
+    : m_upgradeMap()
 {
+    clear();
 }
 AccountCargoScript::~AccountCargoScript() {}
 
@@ -86,6 +146,7 @@ PvPSkillTreeParameterScript::PvPSkillTreeParameterScript()
     clear();
 }
 PvPSkillTreeParameterScript::~PvPSkillTreeParameterScript() {}
+
 void PvPSkillTreeParameterScript::clear()
 {
     m_map0.clear();
@@ -95,6 +156,50 @@ void PvPSkillTreeParameterScript::clear()
     m_field4c = 0;
     m_field50 = 0;
     m_map54.clear();
+}
+// ============================================================================
+// getPvPSkillPointNext（ORIG T 0x08a5df0e，const）：
+// m_map18[grade] 与 m_map18[grade-1] 中 (job*5+firstGrow) 的投入点数差，
+// 再减 m_map30[(job,firstGrow)] 的 m_pointCost。secondGrow 不参与
+// （ORIG 写入 0 后仅用于 key 第三字节，恒 0）。
+// ============================================================================
+int PvPSkillTreeParameterScript::getPvPSkillPointNext(
+    int job, int firstGrow, int secondGrow, int grade) const
+{
+    (void)secondGrow;
+    int points = 0;
+    std::map<int, std::map<int, int> >::const_iterator gradeIt =
+        m_map18.find(grade);
+    if (gradeIt != m_map18.end())
+    {
+        std::map<int, int>::const_iterator slotIt =
+            gradeIt->second.find(job * 5 + firstGrow);
+        if (slotIt != gradeIt->second.end())
+            points = slotIt->second;
+    }
+
+    int prevPoints = 0;
+    std::map<int, std::map<int, int> >::const_iterator prevIt =
+        m_map18.find(grade - 1);
+    if (prevIt != m_map18.end())
+    {
+        std::map<int, int>::const_iterator slotIt =
+            prevIt->second.find(job * 5 + firstGrow);
+        if (slotIt != prevIt->second.end())
+            prevPoints = slotIt->second;
+    }
+
+    PvPSkillTreeKey key;
+    key.m_a = static_cast<unsigned char>(job);
+    key.m_b = static_cast<unsigned char>(firstGrow);
+    int cost = 0;
+    std::map<PvPSkillTreeKey,
+             FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::const_iterator costIt =
+        m_map30.find(key);
+    if (costIt != m_map30.end())
+        cost = costIt->second.m_pointCost;
+
+    return (points - prevPoints) - cost;
 }
 
 // ---- IndependentDropParameterScript（ORIG C1 0x8372d46 / clear 0x8372dfa / D1 0x837daac）----
@@ -120,8 +225,12 @@ stMercenarySystemInfo::~stMercenarySystemInfo() {}
 channel_script_t::channel_script_t() : m_channelDungeonMap(), m_channelMap() {}
 channel_script_t::~channel_script_t() {}
 
-// ---- stBroadCastItemScript / eventReward ----
-stBroadCastItemScript::stBroadCastItemScript() : m_vec0(), m_mapC() {}
+// ORIG C1 0x8371694：构造 vector +0x0/map +0xc 后各自 clear()（+0x27/+0x35 call）。
+stBroadCastItemScript::stBroadCastItemScript() : m_vec0(), m_mapC()
+{
+    m_vec0.clear();
+    m_mapC.clear();
+}
 stBroadCastItemScript::~stBroadCastItemScript() {}
 
 // ORIG isUnCommonItem 0x8918d9c：m_mapC.find(itemIdx) != end()
@@ -217,7 +326,7 @@ stSeriaBlessingScript::~stSeriaBlessingScript() {}
 
 // ORIG W 0x822af22 is_possible_lv：FindOneByLv(0x822aebe 存 lv) 谓词
 // （0x822aecc）：min==max → lv==min；否则 min<=lv<max。
-bool stSeriaBlessingScript::is_possible_lv(int lv) const
+bool stSeriaBlessingScript::is_possible_lv(int lv)
 {
     for (std::map<int, Value>::const_iterator it = m_map0.begin();
          it != m_map0.end(); ++it)
@@ -247,20 +356,34 @@ CharacterStatus* FairPvPStatScript::FindCharacStat(int job, int growType)
 }
 
 // ORIG W 0x822b07e get_break_away_section_data(level)：sret；
-// 返回首个 elem.m_field1 <= level 的段拷贝（memmove 3 字节），未命中返回清零段。
-STBreakAwaySection STGrowthPowerData::get_break_away_section_data(int level) const
+// 返回最后一个 elem.m_field1 <= level 的段拷贝（memmove 3 字节；
+// 一旦 m_field1>level 即退出，未命中返回清零段）。
+STBreakAwaySection STGrowthPowerData::get_break_away_section_data(int level)
 {
     STBreakAwaySection out;
     for (std::vector<STBreakAwaySection>::const_iterator it = m_vec0.begin();
          it != m_vec0.end(); ++it)
     {
-        if (!(it->m_field1 > level))
-        {
-            memcpy(&out, &*it, sizeof(STBreakAwaySection));
+        if (it->m_field1 > level)
             break;
-        }
+        memmove(&out, &*it, sizeof(STBreakAwaySection));
     }
     return out;
+}
+
+// ORIG W 0x822afd6 get_break_away_section_low_level(lv)：返回最后一个
+// m_field1<=lv 段的 m_field1；首个 m_field1>lv 即返回 -1（循环内直返）。
+int STGrowthPowerData::get_break_away_section_low_level(int lv)
+{
+    int result = -1;
+    for (std::vector<STBreakAwaySection>::const_iterator it = m_vec0.begin();
+         it != m_vec0.end(); ++it)
+    {
+        if (it->m_field1 > lv)
+            return result;
+        result = it->m_field1;
+    }
+    return result;
 }
 
 // ORIG C1 0x8371194 / 0x83714c6：map 构造后 clear()。
@@ -288,13 +411,16 @@ CLottery_NeedMoney::~CLottery_NeedMoney() {}
 
 bool CLottery_NeedMoney::isNeedMoney(unsigned int itemIdx) const
 {
-    std::map<unsigned int, unsigned int>::const_iterator it = m_needMoneyMap.find(itemIdx);
-    return it == m_needMoneyMap.end() ? false : it->second;
+    static std::map<unsigned int, unsigned int>::const_iterator _itr;  // ORIG _ZZNK…isNeedMoneyEjE4_itr
+    _itr = m_needMoneyMap.find(itemIdx);
+    return _itr == m_needMoneyMap.end() ? false : _itr->second;
 }
 
 void CLottery_NeedMoney::add_lottery_needMoney(unsigned int itemIdx, unsigned int cost)
 {
-    if (m_needMoneyMap.find(itemIdx) == m_needMoneyMap.end())
+    static std::map<unsigned int, unsigned int>::iterator _itr;  // ORIG _ZZN…add_lottery_needMoneyEjjE4_itr
+    _itr = m_needMoneyMap.find(itemIdx);
+    if (_itr == m_needMoneyMap.end())
         m_needMoneyMap.insert(std::make_pair(itemIdx, cost));
 }
 
@@ -310,6 +436,28 @@ channel_info_t* channel_script_t::getChannelInfo(unsigned char channel, unsigned
     if (itInner == itOuter->second.end())
         return 0;
     return const_cast<channel_info_t*>(&itInner->second);
+}
+
+int channel_script_t::GetPvPChannelNumber(unsigned char channel, unsigned int channelNo) const
+{
+    // ORIG 0x088dcc28：外层 map(+0x18) 以 channel(serverNo) 查，未命中返回 -1；
+    // 内层按 channelNo 升序遍历，每遇 PVP 频道（IS_PVP_CHANNEL(m_channelType)）
+    // 计数 +1（-1 起步），命中 channelNo 即返回当前计数；遍历完未命中返回 -1。
+    std::map<int, std::map<int, channel_info_t> >::const_iterator itOuter =
+        m_channelMap.find((int)channel);
+    if (itOuter == m_channelMap.end())
+        return -1;
+    const std::map<int, channel_info_t>* pInner = &itOuter->second;
+    int pvpIndex = -1;
+    for (std::map<int, channel_info_t>::const_iterator it = pInner->begin();
+         it != pInner->end(); ++it)
+    {
+        if (IS_PVP_CHANNEL(it->second.m_channelType))
+            ++pvpIndex;
+        if (it->first == (int)channelNo)
+            return pvpIndex;
+    }
+    return -1;
 }
 
 float channel_script_t::getBonusRate(unsigned char channel, unsigned int channelNo,
@@ -329,10 +477,51 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
     return 0.0f;
 }
 
-int CNPCScriptList::find(unsigned int idx) const
+// ORIG T 0x08581680：hash_map 命中返回 CNPCScript*，未命中返回 0。
+CNPCScript* CNPCScriptList::find(unsigned int idx) const
 {
-    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator it = m_npcMap.find(idx);
-    return it == m_npcMap.end() ? 0 : reinterpret_cast<int>(it->second);
+    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator it =
+        m_npcMap.find(idx);
+    if (it == m_npcMap.end())
+        return 0;
+    return it->second;
+}
+
+// ORIG _ZNK14CNPCScriptList16getMaxFavorValueEv W 0x8582364：
+// movzwl 0x14(%eax)（m_npcCommon.m_maxFavorExp）+ movzwl %ax 零扩展，int 返回。
+int CNPCScriptList::getMaxFavorValue() const
+{
+    return m_npcCommon.m_maxFavorExp;
+}
+
+// ORIG _ZNK14CNPCScriptList13getFavorLevelEt 0x85816e4：favorExp 低于上限时按
+// m_favorExp[1..3] 阈值表（ushort 无符号比较）返回 1..3，否则 4。
+int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
+{
+    // 帧对齐：ORIG sub $0x34（Ghidra 未显示的死区局部，P31 dummy 对齐）。
+    char pad[24];
+    if (favorExp < getMaxFavorValue())
+    {
+        for (int i = 1; i <= 3; ++i)
+        {
+            if (m_npcCommon.m_favorExp[i] >= favorExp)
+                return i;
+        }
+    }
+    return 4;
+}
+
+// ORIG _ZNK14CNPCScriptList18getFavorLevelValueEj 0x858174e：level 0..3 返
+// m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
+unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
+{
+    // 帧对齐：ORIG sub $0x18（P31 dummy 对齐）。
+    char pad[20];
+    if (level > 3)
+        return getMaxFavorValue();
+    if (level == 0)
+        return 0;
+    return m_npcCommon.m_favorExp[level];
 }
 
 // ORIG _destroy 0x8581784：遍历 hash_map delete 各 CNPCScript*（调 D1 + operator delete），
@@ -450,13 +639,15 @@ char SecretShopScript::GetNpcByDungeonIdx(int& out, int a, int b)
     return GetNpcIdx(out, a, range);
 }
 
-void SecretShopScript::GetNpcByDungeonLev(int& out, int a, int b)
+char SecretShopScript::GetNpcByDungeonLev(int& out, int a, int b)
 {
+    // ORIG 0x8a8293c：GetLevelIdx(b) → +0x18（m_levelNpcMap）equal_range →
+    // GetNpcIdx（返回其 char 结果）。
     int levelIdx = GetLevelIdx(b);
     std::pair<std::multimap<int, stDungeonNpc>::iterator,
               std::multimap<int, stDungeonNpc>::iterator> range =
         m_levelNpcMap.equal_range(levelIdx);
-    GetNpcIdx(out, a, range);
+    return GetNpcIdx(out, a, range);
 }
 
 // ============================================================================
@@ -466,10 +657,23 @@ void SecretShopScript::GetNpcByDungeonLev(int& out, int a, int b)
 // ============================================================================
 DeleteInvalidItemScript::DeleteInvalidItemScript()
 {
+    // ORIG C1 0x8ac1d40：构造 string/map 后调 clearScript()（+0x35 call）
+    clearScript();
 }
-
+// ORIG D1 0x8ac1dce W：clearScript() 后 string +0x0/+0x4 与 map +0x8 由编译器按成员序析构
+// （P12 真实析构，非空桩——成员析构仍生成）。
 DeleteInvalidItemScript::~DeleteInvalidItemScript()
 {
+    // ORIG D1 0x8ac1dce：先调 clearScript()（+0x0e call）再析构成员
+    clearScript();
+}
+
+// ORIG 0x08ac2066 T：清 +0x00/+0x04 两 string 与 +0x8 map（loadScript 前置）。
+void DeleteInvalidItemScript::clearScript()
+{
+    m_field0.clear();
+    m_field4.clear();
+    m_deleteMap.clear();
 }
 
 bool DeleteInvalidItemScript::IsInvalidItem2Delete(int idx)
@@ -479,7 +683,7 @@ bool DeleteInvalidItemScript::IsInvalidItem2Delete(int idx)
 
 // ORIG 0x8ac20f8：map.find(idx)；命中 → rewardIdx=data.m_field0、rewardCnt=data.m_field4。
 bool DeleteInvalidItemScript::GetRewardItemInfo(int idx, int& rewardIdx,
-                                                int& rewardCnt) const
+                                                int& rewardCnt)
 {
     std::map<int, DeleteInvalidItemData>::const_iterator it =
         m_deleteMap.find(idx);
@@ -558,14 +762,11 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 // ORIG 全局标志位于 0x940b558（.bss）；SetLightServerFlag 经
 // GetLightServerFlag() 取指针后写入 bool。
 // ============================================================================
-namespace
-{
-bool g_lightServerFlag = false;   // ORIG 0x940b558
-}
 
 bool* GetLightServerFlag()
 {
-    return &g_lightServerFlag;
+    static bool light_server_flag = false;  // ORIG _ZZ18GetLightServerFlagvE17light_server_flag V @0x940b558
+	return &light_server_flag;
 }
 
 void SetLightServerFlag(bool flag)
@@ -699,25 +900,17 @@ void RecipeInfo::clear()
     m_vec40.clear();
 }
 
+void RecipeInfo::changeOutput(std::vector<std::pair<int, int> >& out)
+{   // ORIG W 0x08693a78：out.clear(); out = m_vec40（this+0x40 向量赋值）
+    out.clear();
+    out = m_vec40;
+}
+
 // ---- RandomItemTable（CEquipItem.h；ORIG W 0x8515468 / 0x8514b46）----
 RandomItemTable::RandomItemTable() {}
 RandomItemTable::~RandomItemTable() {}
 
-// ---- MultiBoxLotteryInfo::LotteryUnit（namespace，含 2×vector 成员）----
-MultiBoxLotteryInfo::LotteryUnit::LotteryUnit() {}
-MultiBoxLotteryInfo::LotteryUnit::LotteryUnit(const LotteryUnit& other) {}
-MultiBoxLotteryInfo::LotteryUnit::~LotteryUnit() {}
-
-// ---- MultiBoxLotteryInfo::LotteryDefaultArad（3×uint 成员）----
-MultiBoxLotteryInfo::LotteryDefaultArad::LotteryDefaultArad() {}
-MultiBoxLotteryInfo::LotteryDefaultArad::LotteryDefaultArad(unsigned int, unsigned int,
-                                                            unsigned int)
-{
-}
-MultiBoxLotteryInfo::LotteryDefaultArad::~LotteryDefaultArad() {}
-
 // ---- BaseItemKey / BaseItemValue（CItemList.h）----
-BaseItemKey::BaseItemKey() {}
 BaseItemKey::BaseItemKey(unsigned char rarity, unsigned char usableLevel,
                          unsigned short groupName)
     : m_rarity(rarity), m_level(usableLevel), m_partType(groupName)
@@ -726,8 +919,16 @@ BaseItemKey::BaseItemKey(unsigned char rarity, unsigned char usableLevel,
 BaseItemValue::BaseItemValue() : m_field0(0) {}
 BaseItemValue::BaseItemValue(int value) : m_field0(value) {}
 
-// ---- seriaRoomDecoEventScript（含 vector/map 成员 → 默认构造）----
-seriaRoomDecoEventScript::seriaRoomDecoEventScript() {}
+// ---- seriaRoomDecoEventScript（ORIG C1 0x8372ef4：构造 vector@0、+0xc=0、
+//      map@+0x10、vector@+0x28、+0x34=0、+0x38=0 后三容器各自 clear）----
+seriaRoomDecoEventScript::seriaRoomDecoEventScript()
+    : m_eventItemIdx(), m_maxEventItemCount(0), m_matchEventMap(),
+      m_soundList(), m_fatigueCondition(0), m_rewardMailExpireDate(0)
+{
+    m_matchEventMap.clear();   // ORIG：先 clear +0x10 map
+    m_eventItemIdx.clear();    // 再 clear +0x00 vector
+    m_soundList.clear();       // 最后 clear +0x28 vector
+}
 seriaRoomDecoEventScript::~seriaRoomDecoEventScript() {}
 
 // ---- growthEquipmentScript（ORIG C1 0x8372fbc）----
@@ -741,6 +942,13 @@ growthEquipmentScript::~growthEquipmentScript() {}
 
 // ---- createChracScript（ORIG C1 0x8373042：map 构造后 clear）----
 createChracScript::createChracScript() { m_map0.clear(); }
+// ORIG D1 0x837c3d4 (W)：析构成员 map<int,rewardInfoList>。
+createChracScript::~createChracScript() {}
+// ORIG rewardInfoList C1 0x84e91fa：vector<rewardInfo> ctor + clear()。
+createChracScript::rewardInfoList::rewardInfoList()
+{
+    m_list.clear();
+}
 // ORIG C1 0x8373098：map 构造后 clear()。
 useCharacterJobFatigue::useCharacterJobFatigue()
 {
@@ -748,21 +956,28 @@ useCharacterJobFatigue::useCharacterJobFatigue()
 }
 useCharacterJobFatigue::~useCharacterJobFatigue() {}
 
-// ---- CharacterCreateCreatureGiftScript（含 map 成员 → 默认构造）----
-CharacterCreateCreatureGiftScript::CharacterCreateCreatureGiftScript() {}
+// ---- CharacterCreateCreatureGiftScript（ORIG C1 0x83730ee：构造 map@0/
+//      +0x18=0/map@+0x1c/map@+0x34 后三容器各自 clear）----
+CharacterCreateCreatureGiftScript::CharacterCreateCreatureGiftScript()
+    : m_eventJobMap(), m_changeAbleCreatureLev(0), m_clientChangeMap(),
+      m_infinityChangeMap()
+{
+    m_eventJobMap.clear();
+    m_clientChangeMap.clear();
+    m_infinityChangeMap.clear();
+}
 CharacterCreateCreatureGiftScript::~CharacterCreateCreatureGiftScript() {}
 
 // ---- seriaRoomDecoAniEventScript（ORIG C1 0x83731ca：五容器构造后 clear 0x83732a4）----
 seriaRoomDecoAniEventScript::seriaRoomDecoAniEventScript() { clear(); }
 seriaRoomDecoAniEventScript::~seriaRoomDecoAniEventScript() {}
 
-// ---- stRankSystemInfo（ORIG C1 0x8370eba / clear 0x8370f94 / D1 0x837ce4c）----
-stDungeonRankSystem_t::stDungeonRankSystem_t() : m_map0(), m_vec18()
+stRankSystemInfo::stDungeonRankSystem_t::stDungeonRankSystem_t() : m_map0(), m_vec18()
 {
     clear();
 }
-stDungeonRankSystem_t::~stDungeonRankSystem_t() {}
-void stDungeonRankSystem_t::clear()
+stRankSystemInfo::stDungeonRankSystem_t::~stDungeonRankSystem_t() {}
+void stRankSystemInfo::stDungeonRankSystem_t::clear()
 {
     // ORIG 0x8370e34：清 map/vector + memset +0x24 0x12 字节
     m_map0.clear();
@@ -771,8 +986,9 @@ void stDungeonRankSystem_t::clear()
     memset(m_rankLevel, 0, sizeof(m_rankLevel));
 }
 
+// ORIG C1 0x8370eba：构造子对象 + 4 容器后调 clear()（clear 内写 +0x74）。
 stRankSystemInfo::stRankSystemInfo() : m_dungeonRank(), m_vec38(), m_map44(),
-                                       m_vec5c(), m_vec68(), m_field74(0)
+                                       m_vec5c(), m_vec68()
 {
     clear();
 }
@@ -987,9 +1203,9 @@ DimensionActivationData::DimensionActivationData()
 }
 DimensionActivationData::~DimensionActivationData() {}
 
-// ---- stUnlimitChallengeInfo（ORIG C1 0x837c53c / D1 0x837c5fa）----
+// ORIG C1 0x837c53c：仅构造 +0x4/+0x10/+0x1c/+0x28/+0x34 五容器，+0x00 不初始化。
 stUnlimitChallengeInfo::stUnlimitChallengeInfo()
-    : m_field0(0), m_vec4(), m_vec10(), m_vec1c(), m_vec28(), m_multiMap34()
+    : m_vec4(), m_vec10(), m_vec1c(), m_vec28(), m_multiMap34()
 {
 }
 stUnlimitChallengeInfo::~stUnlimitChallengeInfo() {}
@@ -1088,12 +1304,92 @@ ENUM_NPC_RELATION_EVENT_FAVOR_KIND CNPCRelationEventManager::GetFavorIndex(
     return static_cast<ENUM_NPC_RELATION_EVENT_FAVOR_KIND>(3);
 }
 
-// ---- stCharacLinkSystem_t（ORIG C1 0x837cf46 / D1 0x837cfde）----
+// ============================================================================
+// IsDislikeItem（ORIG T 0x0890d100）：m_npcEventMap.find(idx) 未命中 → 0；
+// node->m_dislikeItems（+0x3c vector<int>）任一元素 == itemId → 1。
+// ============================================================================
+bool CNPCRelationEventManager::IsDislikeItem(unsigned short idx,
+                                             unsigned int itemId)
+{
+    std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
+        m_npcEventMap.find(idx);
+    if (it == m_npcEventMap.end())
+        return false;
+
+    stNPCRelationEventInfo* node = it->second;
+    for (std::vector<int>::iterator vit = node->m_dislikeItems.begin();
+         vit != node->m_dislikeItems.end(); ++vit)
+    {
+        if (*vit == (int)itemId)
+            return true;
+    }
+    return false;
+}
+
+// ============================================================================
+// GetItemKind（ORIG T 0x0890d1c0，sret stTempRewardInfo*）：
+// m_npcEventMap.find(idx) 未命中 → 默认值；遍历 node->m_favor[kind].m_items
+// （kind=0..2，步长 0x14）：item.m_itemId==itemId 且 item.m_count<=count：
+//   count==0 → 默认值（不写）；
+//   否则 → out.m_kind=kind、out.m_count=ROUND(count/item.m_count)。
+// ============================================================================
+stTempRewardInfo CNPCRelationEventManager::GetItemKind(
+    unsigned short idx, unsigned int itemId, unsigned int count)
+{
+    stTempRewardInfo result;
+    std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
+        m_npcEventMap.find(idx);
+    if (it == m_npcEventMap.end())
+        return result;
+
+    stNPCRelationEventInfo* node = it->second;
+    for (int kind = 0; kind < 3; ++kind)
+    {
+        const std::vector<stNPCEventItemInfo>& items =
+            node->m_favor[kind].m_items;
+        for (std::vector<stNPCEventItemInfo>::const_iterator vit =
+                 items.begin(); vit != items.end(); ++vit)
+        {
+            if (vit->m_itemId != (int)itemId)
+                continue;
+            if (vit->m_count > (int)count)
+                continue;
+            if (vit->m_count == 0)
+                return result;
+            result.m_kind = kind;
+            result.m_count = static_cast<int>(
+                (double)count / (double)vit->m_count + 0.5);
+            return result;
+        }
+    }
+    return result;
+}
+
+// ORIG C1 0x837cf46：仅构造 +0x4/+0x10/+0x1c/+0x28 四 vector，+0x00 不初始化。
 stCharacLinkSystem_t::stCharacLinkSystem_t()
-    : m_field0(0), m_vec4(), m_vec10(), m_vec1c(), m_vec28()
+    : m_vec4(), m_vec10(), m_vec1c(), m_vec28()
 {
 }
 stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
+// ---- CNPCRelationEventManager::GetRewardItem（ORIG T 0x0890d326，sret
+//      stNPCRewardItemInfo）：find(idx) 未命中 → {0,0}；命中 →
+//      node->m_favor[kind].m_rewardA / m_rewardB（+0xc/+0x10）。----
+stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
+    unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
+{
+    stNPCRewardItemInfo result;
+    result.m_rewardA = 0;
+    result.m_rewardB = 0;
+    std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
+        m_npcEventMap.find(idx);
+    if (it == m_npcEventMap.end())
+        return result;
+
+    stNPCRelationEventInfo* node = it->second;
+    result.m_rewardA = node->m_favor[kind].m_rewardA;
+    result.m_rewardB = node->m_favor[kind].m_rewardB;
+    return result;
+}
 
 // ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /
 //      AdvanceAltarShopParameter D1 0x88a0fa2：析构 map 成员；
@@ -1108,6 +1404,18 @@ advancealtar::AdvanceAltarShopParameter::AdvanceAltarShopParameter()
 {
 }
 advancealtar::AdvanceAltarShopParameter::~AdvanceAltarShopParameter() {}
+// ORIG _ZN12advancealtar14BuyUpgradeDataC1Ev 0x088a3570 T：构造 string +0xc/
+// vector +0x10/map +0x1c 后：+0x00=0、+0x04=0、+0x08=1（ORIG movb 低字节，
+// bool 语义）、vector.clear()、map.clear()。
+advancealtar::BuyUpgradeData::BuyUpgradeData()
+    : m_strDesc(), m_fieldTypes(), m_listMap()
+{
+    m_nItemId = 0;
+    m_field4 = 0;
+    m_field8 = 1;
+    m_fieldTypes.clear();
+    m_listMap.clear();
+}
 advancealtar::RewardParameter::RewardParameter()
 {
     // ORIG C1 0x889af74 W：构造 this+0 的 map<int,AchievementRewardData>；
@@ -1614,34 +1922,10 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
     return 0;
 }
 
- // ---- PowerParameterScript（ORIG C1 0x08371a26 结构初始化 / D1 0x0837d634）----
+// ORIG C1 0x08371a26：构造 7 容器成员后调 clear()（+0x84 call clear）。
 PowerParameterScript::PowerParameterScript()
 {
-    m_ghostTime = 0;
-    m_penaltyThreshold = 0;
-    m_powerUpRatio = 0;                    // +0x1c
-    m_easyAssaultRange = 0;                // +0x2c
-    m_refreshProcessInfo = 0;              // +0x30
-    m_abuserBanTime = 0;                   // +0x34
-    m_pcRoomBonus = 0;                     // +0x44
-    m_powerUpGeneratePeriod = 0;           // +0x48
-    m_powerUpAssaultCount = 0;             // +0x4c
-    m_powerUpAssaultVictoryRatio = 0;      // +0x50
-    m_pad5c = 5;  // ORIG clear() 默认值
-    m_pad60 = 5;  // ORIG clear() 默认值
-    m_minEnterLevel = 0;
-    m_minEnterAge = 0;
-    m_itemInitialCooltime = 0;             // +0x6c
-    m_basicPowerWarPoint = 0;              // +0x7c
-    m_firstGradeBonusPoint = 0;            // +0x80
-    m_rankingBonusGrade = 0;               // +0x84
-    m_rankingBonusDecreasePoint = 0;       // +0x88
-    m_decreasePointPerDay = 0;             // +0x8c
-    m_requiredUserPoint4Dungeon = 0;       // +0x90
-    m_powerWarDungeonInfo0 = 0;            // +0x94
-    m_powerWarDungeonInfo1 = 0;            // +0x98
-    m_powerUpPointMod = 0;                 // +0xa8
-    m_victoriousRewardTime = 0;            // +0xd4
+    clear();
 }
 PowerParameterScript::~PowerParameterScript()
 {
@@ -1678,17 +1962,42 @@ stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
     return result;
 }
 
-// GetBreakBonus：m_vecC8（+0xc8 连破奖励表）；winCount 越界取末元素。
+// GetBreakBonus（ORIG T 0x08a59d58）：m_vecC8（+0xc8 连破奖励表）；
+// winCount < size → v[winCount]，否则 v[size-1]（越界取末元素）。
 int PowerParameterScript::GetBreakBonus(int winCount)
 {
-    const int count = static_cast<int>(m_vecC8.size());
-    if (winCount >= count)
-        winCount = count - 1;
-    return m_vecC8[static_cast<unsigned int>(winCount)];
+    const std::vector<int>& v = m_vecC8;
+    const int size = static_cast<int>(v.size());
+    if (winCount < size)
+    {
+        return v[winCount];
+    }
+    return v[size - 1];
+}
+
+// ============================================================================
+// checkPowerWarServer（ORIG T 0x08a59db4）：遍历 m_powerWarServerList
+// （+0x9c，vector<pair<int,int>>），pair.first==a && pair.second==b → 1，
+// 否则 0。
+// ============================================================================
+bool PowerParameterScript::checkPowerWarServer(int a, int b)
+{
+    for (std::vector<std::pair<int, int> >::iterator it =
+             m_powerWarServerList.begin(); it != m_powerWarServerList.end(); ++it)
+    {
+        if (it->first == a && it->second == b)
+            return true;
+    }
+    return false;
 }
 
 // ---- SecretShopScript（成员默认构造）----
-SecretShopScript::SecretShopScript() {}
+
+// ---- SecretShopScript（成员默认构造）----
+SecretShopScript::SecretShopScript()
+{
+    clear();   // ORIG C1 0x83720f4：构造 5 容器成员后调 clear()（写 +0x80/+0x84）
+}
 SecretShopScript::~SecretShopScript() {}
 
 // ---- stTitleBookInfo（ORIG C1 0x837d828 / D1 0x837d906）----
@@ -1698,11 +2007,21 @@ stTitleBookInfo::stTitleBookInfo()
 }
 stTitleBookInfo::~stTitleBookInfo() {}
 
-// ---- stItemMakingSkill（ORIG D1 0x837dce2）----
+// ---- stItemMakingSkill（ORIG C1 0x8370ff2 / clear 0x837105a / D1 0x837dce2）----
 stItemMakingSkill::stItemMakingSkill() : m_map0(), m_vec18()
 {
+    clear();   // ORIG C1：构造 map/vector 后调 clear()（清三 int）
 }
 stItemMakingSkill::~stItemMakingSkill() {}
+// ORIG clear 0x837105a：map.clear()、vector.clear()、+0x24/+0x28/+0x2c 三 int 清零。
+void stItemMakingSkill::clear()
+{
+    m_map0.clear();
+    m_vec18.clear();
+    m_exp = 0;
+    m_bonusExp = 0;
+    m_levelLimit = 0;
+}
 
 // ---- ChoiceItemInfo / ImageCommunicationData（无析构声明）----
 ChoiceItemInfo::ChoiceItemInfo()
@@ -1799,6 +2118,13 @@ bool CWorldMap::hasDeathTower() const     // ORIG W 0x822b520：movzbl 0xc(%eax)
     return m_hasDeathTower != 0;
 }
 
+// ORIG W 0x0822b514 _ZNK9CWorldMap18getDungeonMinLevelEv（const）：返回
+// m_dungeonIndex（this+0x8）；StartGame::check_error 消费。
+int CWorldMap::getDungeonMinLevel() const
+{
+    return m_dungeonIndex;
+}
+
 // ORIG W 0x822b52c _ZNK9CWorldMap10hasDungeonEj（0x85 字节）：
 // std::find(m_dungeonList.begin(), m_dungeonList.end(), dungeonIdx) != end()。
 // 实参为 unsigned int（find 模板 _ZSt4findI...jE...）；调用方
@@ -1881,9 +2207,9 @@ void stEmotionTypeTagsInfo::clear()
     m_data.clear();
 }
 
-// ---- stConditionEventInfo（ORIG D1 0x837c938）----
+// ORIG C1 0x837c8c6：仅构造 +0x8/+0x20/+0x38 三容器，+0x0/+0x4 不初始化。
 stConditionEventInfo::stConditionEventInfo()
-    : m_field0(0), m_field4(0), m_map8(), m_multiMap20(), m_multiMap38()
+    : m_map8(), m_multiMap20(), m_multiMap38()
 {
 }
 stConditionEventInfo::~stConditionEventInfo() {}
@@ -1972,7 +2298,27 @@ stRecipeInfo* STExpertJobScript::GetRecipeInfo(int index)
     return &it->second;
 }
 // ORIG D1 0x837c3d4 (W)：析构成员 map<int,rewardInfoList>。
-createChracScript::~createChracScript() {}
+// ---- GuildParameterScript::getGuildExpWeight（ORIG T 0x089795de）----
+// m_map44.find(level) 命中返回 second，否则 0（CUser::FatigueUp 公会经验权重，
+// 与 0x08979864 getExpWeight 的 m_vecE4 扫表路径不同；ORIG 返回 int）。
+int GuildParameterScript::getGuildExpWeight(int level)
+{
+    std::map<int, int>::iterator it = m_map44.find(level);
+    if (it != m_map44.end()) return it->second;
+    return 0;
+}
+
+// ---- GuildParameterScript::getGuildAgitUpgradeInfo（ORIG T 0x089796dc）----
+// m_vec2c（STAgitUpgradeInfo[agit upgrade info]）取下标 level-1；
+// level-1 >= size 返回 NULL（ORIG cmp/setl 分支一致）。
+STAgitUpgradeInfo* GuildParameterScript::getGuildAgitUpgradeInfo(int level)
+{
+    if (level - 1 < (int)m_vec2c.size())
+        return &m_vec2c[level - 1];
+    return 0;
+}
+
+// ---- GuildParameterScript::getExpWeight（ORIG T 0x08979864）----
 
 // ---- GuildParameterScript::getExpWeight（ORIG T 0x08979864）----
 // 自高向低扫 m_vecE4（vector<pair<int,double>>，等级阈值→经验权重），
@@ -2024,4 +2370,17 @@ int GuildParameterScript::getGuildExpBook(int key)
     std::map<int, int>::iterator it = m_map10.find(key);
     if (it != m_map10.end()) return it->second;
     return 0;
+}
+// ORIG _Z14IS_PVP_CHANNELi 0x088dd255（W）：线性 cmpl/je 链，命中集合
+// {4,6,5,7,8,9,10,13,14,15,16} 返回 1，否则 0（P45 短路线性判定同构）。
+// 定义落本 TU：声明同文件（CDataManagerScripts.cpp 顶部），调用点在
+// GetPvPChannelNumber 0x088dcc28（按 bool 语义消费）。
+bool IS_PVP_CHANNEL(int channelType)
+{
+    return (channelType == 4) || (channelType == 6) ||
+           (channelType == 5) || (channelType == 7) ||
+           (channelType == 8) || (channelType == 9) ||
+           (channelType == 10) || (channelType == 13) ||
+           (channelType == 14) || (channelType == 15) ||
+           (channelType == 16);
 }

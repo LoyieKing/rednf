@@ -15,14 +15,43 @@
 #include <utility>
 #include <vector>
 
+// ---- ORIG 枚举（mangled 标签与 ORIG 一致；值据 ORIG 汇编）----
+// getNpcMoodFromString（0x089faf46）返回 0/1/2/3（"bad"/"normal"/"good"）。
+enum ENUM_NPC_MOOD
+{
+    ENUM_NPC_MOOD_BAD = 0,
+    ENUM_NPC_MOOD_NORMAL = 1,
+    ENUM_NPC_MOOD_GOOD = 2,
+    ENUM_NPC_MOOD_3 = 3
+};
+
+// getGiftRewardItem 以 change 索引 stRewardItemInfo_t::m_byDir[3]（0..2）。
+enum ENUM_NPC_FAVOR_CHANGE_CONST
+{
+    ENUM_NPC_FAVOR_CHANGE_0 = 0,
+    ENUM_NPC_FAVOR_CHANGE_1 = 1,
+    ENUM_NPC_FAVOR_CHANGE_2 = 2
+};
+
+// giveGiftItem 在超出每日限额时向引用写 1。
+enum ENUM_NPC_FAVOR_GIFT_RESULT_CONST
+{
+    ENUM_NPC_FAVOR_GIFT_RESULT_OK = 0,
+    ENUM_NPC_FAVOR_GIFT_RESULT_FAIL = 1
+};
+
 // ORIG 全局（nm: g_npcScriptBaseDirectory B 0x094fe680 [0x100]，
 //             g_npcScriptFileList B 0x094fe780 [0x18]）。定义待全局区 TU 提供。
 extern char g_npcScriptBaseDirectory[0x100];
 
 struct STScriptFileList
 {
-    char m_pad[0x18];  // ORIG 大小 0x18；内部字段未还原 —「推断」
+    STScriptFileList();                       // ORIG 0x088bacf8
+    void Clear();                             // ORIG 0x088bad3a
+    std::map<int, std::string> m_fileMap;     // +0x00，sizeof 0x18
     int FindIndexByFullScan(const char* path) const;  // ORIG 0x088bae56 T
+    const char* GetFileName(int idx) const;           // ORIG 0x088bad4e T
+    int GetIndex(const char* path);  // ORIG T 0x088badba
 };
 extern STScriptFileList g_npcScriptFileList;
 
@@ -43,16 +72,24 @@ struct ClickMarkInfo
 };
 
 // [dialog]：InteractiveDialogScript（ORIG ctor 0x08a009f2）。
+// [dialog]：InteractiveDialogScript（ORIG ctor 0x08a009f2 / clear 0x08a0098a /
+// 拷贝 ctor 0x083d7fa4 逐偏移实证：+0/+4/+8 int、+0xc vector<int>、
+// +0x18 byte、+0x1c int、+0x20 byte、+0x24 string、+0x28 vector<int>；
+// 默认对齐恰好匹配，sizeof 0x34）。
 struct InteractiveDialogScript
 {
     int m_a;                       // +0x00
     int m_b;                       // +0x04
     int m_c;                       // +0x08
-    std::vector<int> m_conditions; // +0x0c（count==-1 时置 size1 标记，推断）
-    int m_d;                       // +0x18
-    bool m_flag;                   // +0x1c
-    std::string m_str;             // +0x20
-    std::vector<int> m_list2;      // +0x2c
+    std::vector<int> m_conditions; // +0x0c
+    char m_flag0;                  // +0x18（byte；clear 置 0）
+    int m_d;                       // +0x1c
+    bool m_flag;                   // +0x20
+    std::string m_str;             // +0x24
+    std::vector<int> m_list2;      // +0x28
+
+    InteractiveDialogScript();     // ORIG W C1 0x08a009f2（成员 C1 + clear）
+    void clear();                  // ORIG T 0x08a0098a
 };
 
 // [favor_dialog]：PresentResponceScript。
@@ -62,6 +99,11 @@ struct PresentResponceScript
     int m_b;            // +0x04
     int m_c;            // +0x08
     std::string m_str;  // +0x0c
+
+    // ORIG _ZN21PresentResponceScriptC1Ev W 0x8a00aba；
+    // clear ORIG 0x8a00a86：三 int 清零 + m_str.clear()
+    PresentResponceScript();
+    void clear();
 };
 
 // [favor_dialog_exception]
@@ -69,6 +111,11 @@ struct PresentResponceScriptException
 {
     int m_a;            // +0x00
     std::string m_str;  // +0x04
+
+    // ORIG _ZN30PresentResponceScriptExceptionC1Ev W 0x8a00b22；
+    // clear 0x8a00b02：m_a=0 + m_str.clear()
+    PresentResponceScriptException();
+    void clear();
 };
 
 // [event_favor_dialog]
@@ -76,24 +123,12 @@ struct PresentResponceScriptEvent
 {
     int m_a;            // +0x00
     std::string m_str;  // +0x04
-};
 
-// [prefer item] 等的礼物信息（解析顺序：int, int, short）—「推断」
-struct stGiftItemInfo_t
-{
-    int            m_a;   // +0x00
-    int            m_b;   // +0x04
-    short          m_c;   // +0x08
+    // ORIG _ZN26PresentResponceScriptEventC1Ev W 0x8a00b8a；
+    // clear 0x8a00b6a：m_a=0 + m_str.clear()
+    PresentResponceScriptEvent();
+    void clear();
 };
-
-// [prefer item] 等的礼物表：ORIG 每张 0x78 = 5 个相邻
-// std::map<unsigned long, stGiftItemInfo_t>（旧 libstdc++ sizeof(map)=0x18；
-// stride 见 ORIG clear() 的 +l*0x18 + {0x28, 0xa0, 0x118, 0x190}），按 slot 索引取表。
-struct stGiftTable_t
-{
-    std::map<unsigned long, stGiftItemInfo_t> m_maps[5];
-};
-static_assert(sizeof(stGiftTable_t) == 0x78, "stGiftTable_t size mismatch");
 
 
 // stFavorableRelationShip_t —— 内嵌于 NpcScript +0x170，总大小 0x514
@@ -111,13 +146,31 @@ public:
     ~stFavorableRelationShip_t() {}
     void clear();  // ORIG 0x089fb56c T（本 TU 提供）
 
-    // [reward item]/[favor]：单个奖励元素（3 int）。ORIG 析构为空体 ret。
+    // [prefer item] 等的礼物信息（int@0 / short@4 / short@6）。
+    struct stGiftItemInfo_t
+    {
+        int   m_a;   // +0x00
+        short m_b;   // +0x04
+        short m_c;   // +0x06
+    };
+
+    // [prefer item] 等的礼物表：ORIG 每张 0x78 = 5 个相邻
+    // std::map<unsigned long, stGiftItemInfo_t>（旧 libstdc++ sizeof(map)=0x18；
+    // stride 见 ORIG clear() 的 +l*0x18 + {0x28, 0xa0, 0x118, 0x190}），按 slot 索引取表。
+    struct stGiftTable_t
+    {
+        std::map<unsigned long, stGiftItemInfo_t> m_maps[5];
+    };
+    static_assert(sizeof(stGiftTable_t) == 0x78, "stGiftTable_t size mismatch");
+
+    // [reward item]/[favor]：单个奖励元素（3 int）。ORIG 为 POD：无用户析构
+    // （ORIG 08a06f28 W D1/D2 为 vector 析构链隐式实例；P12 实证 __uninitialized_copy<true>
+    // 链要求 trivial，2026-08-28 OrigFavorRel 删除用户析构声明）。
     struct stRewardItemElement_t
     {
         int m_a;  // +0x00
         int m_b;  // +0x04
         int m_w;  // +0x08
-        ~stRewardItemElement_t();
     };
 
     // [reward item] 每 (favorLevel, mood) 槽：3 个方向 vector + 3 个权重计数，sizeof=0x30。
@@ -187,8 +240,15 @@ public:
     unsigned short m_dialogDayGap1;                   // +0x00a（abs 0x17a）
     unsigned short m_dialogDayGap2;                   // +0x00c（abs 0x17c）
     // +0x00e pad 2
-    std::vector<std::pair<int, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
-    std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
+    // ORIG +0x010 为匿名嵌套类型实例（Ghidra 伪名 ._140/._199，隐式 C1/D1 即
+    // ORIG 符号 _ZN25stFavorableRelationShip_t5._14x/D1Ev；2026-08-28 EmptyStubs6
+    // 由两个独立成员合并为未命名类型实例，GCC 生成 stFavorableRelationShip_t::._N
+    // 隐式 ctor/dtor（t 本地符号），布局不变）。
+    struct
+    {
+        std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
+        std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
+    } m_fav;                                              // +0x010（sizeof 0x18）
     stGiftTable_t m_preferItems;                      // +0x028（abs 0x198）
     stGiftTable_t m_preferItemGroups;                 // +0x0a0（abs 0x210）
     stGiftTable_t m_unpreferItems;                    // +0x118（abs 0x288）
@@ -208,6 +268,8 @@ public:
 };
 
 // ---- NpcScript 主体 ----
+
+
 class NpcScript
 {
 public:

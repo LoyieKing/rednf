@@ -56,6 +56,14 @@
 namespace game_master
 {
 
+// CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以 pad 占位、
+// 未引入 CBattle_Field 类型；Main 裁定本组 TU 局部视图，与 CParty.cpp 口径一致）。
+struct CPartyBattleFieldView
+{
+    char m_pad[0xb24];
+    CBattle_Field m_battleField;   // +0xb24
+};
+
 // ---------------------------------------------------------------------------
 // 外部函数桥（头文件未声明的 ORIG 符号；不改共享头，按 mangled 名链接）
 // ---------------------------------------------------------------------------
@@ -64,12 +72,6 @@ namespace game_master
 extern "C" void _ZN13EventClassify15CEventScriptMng23test_process_change_dayEi(
     EventClassify::CEventScriptMng* self, int day);
 
-// ORIG T 0x08166752 HeroMissionEvent::setEventData(CUser*, char const*)
-extern "C" void _ZN16HeroMissionEvent12setEventDataEP5CUserPKc(
-    HeroMissionEvent* self, CUser* user, const char* data);
-// ORIG T 0x0816770e HeroMissionEvent::sendMissionData(CUser*)
-extern "C" void _ZN16HeroMissionEvent15sendMissionDataEP5CUser(
-    HeroMissionEvent* self, CUser* user);
 
 // ORIG T 0x0858efde DisPatcher_DebugCommand::_debugCommandSetLevel(CUser*, int)
 // （返回值调用点未用，int 为推断）
@@ -483,8 +485,8 @@ void CIndependentDrop::execute()
     if (!indAllFlag(this))
     {
         // 当前副本当前地图：roleType<4 → 普通怪集，4..8 → AI 集合。
-        CBattle_Field* field = reinterpret_cast<CBattle_Field*>(
-            reinterpret_cast<char*>(party) + 0xb24);         // ORIG 内嵌 CBattle_Field
+        CBattle_Field* field =
+            &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;  // ORIG 内嵌 CBattle_Field
         MapInfo* curMap = field->GetCurrentMapInfo();        // ORIG 0x822cbcc
         for (std::map<int, map_monster>::iterator it = curMap->m_monsterMap.begin();
              it != curMap->m_monsterMap.end(); ++it)
@@ -558,8 +560,7 @@ void CIndependentDrop::execute()
     for (std::set<int>::const_iterator sit = indAiSet(this).begin();
          sit != indAiSet(this).end(); ++sit)
     {
-        CAICharacter* ai = CAICharacterList::get(
-            G_CDataManager()->m_aiCharacterList,             // ORIG datamgr+0x869c
+        CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(// ORIG datamgr+0x869c
             static_cast<unsigned int>(*sit));
         if (ai == 0)
         {
@@ -724,9 +725,9 @@ void CHeroMissionCommand::execute()
     }
     else if (m_str0 == "reset")
     {
-        _ZN16HeroMissionEvent12setEventDataEP5CUserPKc(mission, user, "");
+        mission->setEventData(user, "");
     }
-    _ZN16HeroMissionEvent15sendMissionDataEP5CUser(mission, user);
+    mission->sendMissionData(user);
 }
 
 // （namespace game_master 于文件尾闭合——asm-label 实现体同属该命名空间）

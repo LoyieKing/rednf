@@ -18,7 +18,7 @@ struct ST_Guild_Mem_Info
         struct __attribute__((packed)) {
             char m_job;                    // +0（df_guild_r ReplyGuildMembers: rec[0] = m->GetJob()）
             char m_growthType;             // +1（rec[1] = m->GetGrowthType()）
-            unsigned short m_level;        // +2（*(ushort*)(rec+2) = m->GetLevel()）
+            short m_level;                 // +2（signed：MakePacketGuildMembersInfo movzwl+movswl 0x84ca43d、LogMakeGuildMembersInfo movzwl+cwtl 0x84ca5d1 实证；P11）
             char m_name[0x1d];             // +4..+0x20（memcpy(rec+4, m->GetCharName(), 0x1d)）
             char m_pad21;                  // +0x21
             char m_guildMemDBInfo[0x14];   // +0x22..+0x35（memcpy(rec+0x22, m->GetGuildMemDBInfo(), 0x14)）

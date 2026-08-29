@@ -13,6 +13,7 @@
 // _Charac_info（0x14d1）经本类访问器读写；其完整布局在 CUserCharacInfo.cpp
 // 内以本地 struct 呈现（避免与 SkillSlot.h 的 _Charac_info 冲突）。
 // ============================================================================
+class SkillSlot;   // wave1: getTagCharacSkillR(653) 返回类型前置声明
 
 #include <map>
 #include <string>
@@ -85,27 +86,11 @@ class CInventory;
 class CExpandEquipslot;
 struct SIG_LOAD_ETC;
 
-// ---- 依赖最小声明（签名按 ORIG nm 核对；定义由对应 TU / GameStubs 提供） ----
-class PvpResultType
-{
-public:
-    PvpResultType();
-    ~PvpResultType();
-    void Clear();
-    void AddNewResult(const PvpResultType& other);
-    void Set(const PvpResultType& other);  // ORIG T 0x085d58e6 _ZN13PvpResultType3SetERKS_
-    int GetTotalScore() const;   // ORIG _ZNK13PvpResultType13GetTotalScoreEv 0x85d5efe
-
-    int m_totalWinCount;        // +0x00（add_pvp_result 胜场递增，ORIG 0x865c678）
-    int m_totalLoseCount;       // +0x04（add_pvp_result 败场递增）
-    int m_expPoint;             // +0x08（get_pvp_result_exp_point）
-    int m_oldExpPoint;          // +0x0c（get_pvp_result_oldexp_point）
-    char m_pad10[4];            // +0x10
-    int m_pvpGrade;             // +0x14（get_pvp_grade）
-    char m_pad18[0x40];         // +0x18
-    int m_winPoint;             // +0x58（GetWinPoint / useWinPoint）
-    char m_pad5c[0x84 - 0x5c];  // +0x5c..0x84
-};
+#include "PvpResultType.h"   // PvpResultType 权威定义（HdrFieldG ODR 收敛 2026-08-28：
+                             //   本头原局部 pad 版类与 PvpResultType.h/PvpResultType.cpp
+                             //   三重定义；实证布局完全同构：m_pvpGrade@0x14、m_winPoint@0x58，
+                             //   +0x18..0x58 pad 区对应权威 m_avg[15]@0x18+m_count@0x54；
+                             //   +0x10 Clear 置 -1 对应 m_field10；+0x5c 今日胜场【推断】）。
 
 // GameResultType 权威定义见 GameResultType.h（上方已 include）；不再用空占位。
 
@@ -115,6 +100,7 @@ public:
     void SetCreateTime(long t);
     void SetCurTime();   // ORIG _ZN10CommonTime10SetCurTimeEv（0x082a4224，ShowLogo 使用）
     operator long() const;
+    void clear();   // ORIG W 0x086947d8 _ZN10CommonTime5clearEv（_Charac_info::Reset 消费；定义 owner 待分派）
 
     char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
 };
@@ -127,6 +113,7 @@ public:
     unsigned int GetTradeGoldTotalBillion() const;
     void SetTradeGoldDaily(unsigned int gold);
     void IncrementTradeGold(unsigned int gold);
+    void InitTradeGold(unsigned int a, unsigned int b, unsigned int c);   // ORIG T 0x086453b8（LinkClosureA-2 setCharacInfoDetail 消费；定义 owner 待分派）
 
     char m_pad[0xc];    // +0x00
     int m_schoolPoint;  // +0x0c（calcCurCharacSchoolPoint 读写 +0x71）
@@ -164,12 +151,14 @@ public:
 class CharacterOption
 {
 public:
+    CharacterOption();   // ORIG W _ZN14CharacterOptionC1Ev @0x0822abec（memset 0xff,0x200；LinkE2 定义）
     char m_pad[0x200];
 };
 
 class ContinuousItemInfo
 {
 public:
+    ContinuousItemInfo() : m_itemIdx(0), m_expireTime(0) {}  // ORIG W 0x08695c48（两字段清零）
     int m_itemIdx;             // +0x00
     unsigned int m_expireTime; // +0x04
 };
@@ -184,6 +173,8 @@ struct WpBonusPointResult
 
 struct ExpBonusPointResult
 {
+    ExpBonusPointResult();  // ORIG W _ZN19ExpBonusPointResultC1Ev/C2Ev @0x08695ca4（call clear）
+    void clear();           // ORIG W _ZN19ExpBonusPointResult5clearEv @0x08695cb8（+0x00/+0x04 清零）
     int m_base;   // +0x00
     int m_add;    // +0x04
 };
@@ -646,9 +637,9 @@ public:
     CCargo* getCurCharacCargoW();
     const CCargo* getCurCharacCargoR() const;
     Inven_Item* getTagCharacInvenW();
-    const Inven_Item* getTagCharacInvenR() const;
+    CInventory* getTagCharacInvenR() const;   // ORIG W 0x0822f110
     char* getTagCharacSkillW();
-    const char* getTagCharacSkillR() const;
+    SkillSlot* getTagCharacSkillR() const;    // ORIG W 0x0822f120
     CCargo* getTagCharacCargoW();
     const CCargo* getTagCharacCargoR() const;
     void* getCurCharacAddInfoW();
@@ -813,7 +804,6 @@ public:
     void setCurCharacVill(char vill);
     unsigned char isJoinPowerWar() const;
     void setCurrCharacJoinPower(char power);
-    unsigned short GetPowerWarHP();
     void SetIsInitSkillFlag(bool flag);
     void SetIsInitSkillFlag2ND(bool flag);
     void IncVillageAttackCount();

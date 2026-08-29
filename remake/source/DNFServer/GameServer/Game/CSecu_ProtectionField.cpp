@@ -242,7 +242,7 @@ Inven_Item* CSecu_ProtectionField::GetInvenItemPtr(CUser* user, char space,
     case 3:
     case 7:
         return (Inven_Item*)user->getCurCharacInvenR()->GetInvenRef(
-            GetInvenTypeFromItemSpace((int)space), (int)slot);
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)space), (int)slot);
     case 2:
         return user->getCurCharacCargoR()->GetCargoRef((int)slot);
     }
@@ -260,7 +260,7 @@ CItem* CSecu_ProtectionField::GetItemPtr(CUser* user, char space, short slot)
     case 3:
     case 7:
         probe = user->getCurCharacInvenR()->GetInvenSlot(
-            GetInvenTypeFromItemSpace((int)space), (int)slot);
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)space), (int)slot);
         break;
     case 2:
         probe = user->getCurCharacCargoR()->get_cargo_slot((int)slot);

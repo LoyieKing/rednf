@@ -17,7 +17,9 @@
 //   importUpgradeTable(char const*, upgrade_table_t*)              T 0x08900c26
 //   stLevelUpRewardItemScript::clear()                             W 0x083711d6（无报告，objdump）
 //   seriaRoomDecoAniEventScript::clear()                           W 0x083732a4（无报告，objdump）
-//   CItem::GetMedalPrice() const                                   W 0x0822c862（无报告，objdump）
+//   rewardSubKey::{rewardSubKey,clear,operator<}                   W 0x080f1190/0x080f11de/0x080f11a2
+//   rewardKey::{rewardKey,clear,operator<}                         W 0x080f11f0/0x080f12ac/0x080f121a
+//       （objdump 逐指令转写；布局见 CDataManager.h rewardSubKey/rewardKey 区）
 //
 // 报告路径：
 //   docs/class_func_reports/_lt_global_gt_/{convertTabTypeStringToEnum,
@@ -77,32 +79,32 @@ extern char g_npcScriptBaseDirectory[0x100];                // B 0x094fe680
 // ============================================================================
 int convertTabTypeStringToEnum(const char* text)
 {
-    static std::map<const char*, int, less_TCHAR> s_lookup;
-    static SpinLock s_initLock;
-    static char s_inited = 0;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static char __inited = 0;
 
     for (;;)
     {
-        if (!s_inited)
+        if (!__inited)
         {
-            s_initLock.enter();
-            if (s_inited)
+            __init_lock.enter();
+            if (__inited)
             {
-                s_initLock.leave();
+                __init_lock.leave();
                 continue;
             }
-            s_lookup.insert(std::make_pair("general", 0x11));
-            s_lookup.insert(std::make_pair("specific", 0x14));
-            s_lookup.insert(std::make_pair("despair", 0x17));
-            s_lookup.insert(std::make_pair("event", 0x1a));
-            s_initLock.leave();
-            s_inited = 1;
+            __lookup.insert(std::make_pair("general", 0x11));
+            __lookup.insert(std::make_pair("specific", 0x14));
+            __lookup.insert(std::make_pair("despair", 0x17));
+            __lookup.insert(std::make_pair("event", 0x1a));
+            __init_lock.leave();
+            __inited = 1;
             continue;   // ORIG jmp 回入口走 find 派发
         }
 
         std::map<const char*, int, less_TCHAR>::const_iterator it =
-            s_lookup.find(text);
-        if (it == s_lookup.end())
+            __lookup.find(text);
+        if (it == __lookup.end())
         {
             return 4;
         }
@@ -121,6 +123,7 @@ int convertTabTypeStringToEnum(const char* text)
         }
     }
 }
+
 
 // ============================================================================
 // stNPCCommonData_t::clear —— ORIG W 0x089fae9e（objdump 全文核实）：
@@ -246,7 +249,7 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
         {
             for (;;)
             {
-                std::vector<stOneBuff_t> buffs;
+                std::vector<stNPCCommonData_t::stOneBuff_t> buffs;
                 int first = ScanInt(&ok);
                 if (!ok)
                 {
@@ -270,7 +273,7 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
                     {
                         return 0;
                     }
-                    stOneBuff_t buff;
+                    stNPCCommonData_t::stOneBuff_t buff;
                     buff.m_changeStatusType = getChangeStatusType(s);   // 第二次入元素
                     buff.m_value = value;
                     if (!ScanStr(&s))
@@ -345,7 +348,7 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
             part = ScanInt(&ok);            // ORIG 不校验 ok
             ScanStr(&s);
             reg.m_map0[part].m_name4 = s;
-            _str_option_value_ratio ratio;  // ctor(0.0, 0.0, 0) 等价置零
+            _str_option_value_ratio ratio(0.0f, 0.0f, 0);  // ORIG 无默认 ctor 符号
             ratio.m_scaleRange0 = 0.0f;
             ratio.m_scaleBase4 = 0.0f;
             ratio.m_weight8 = 0;
@@ -383,9 +386,7 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                     int b;
                     ScanInt(&a);
                     ScanInt(&b);
-                    _str_cost cost;
-                    cost.m_field0 = a;
-                    cost.m_field4 = b;
+                    _str_cost cost(a, b);
                     costs[key] = cost;
                 } while (key < limit);
             }
@@ -958,28 +959,27 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
         return 0;
     }
 
-    static std::map<const char*, int, less_TCHAR> s_lookup;
-    static SpinLock s_initLock;
-    static char s_inited = 0;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static char __inited = 0;
 
     std::string token;
     std::string tok2;
     bool ok = false;
 
     rewardKey key;                                  // 5 字节栈键（-0x1a9..-0x1a5）
-    key.clear();
     std::map<int, std::vector<itemData> > subMap;   // 每 jobtype 局部表
     itemData curItem;                               // [option] 累积区
 
     while (ScanType(token, true))
     {
         int id;
-        if (!s_inited)
+        if (!__inited)
         {
-            s_initLock.enter();
-            if (s_inited)
+            __init_lock.enter();
+            if (__inited)
             {
-                s_initLock.leave();
+                __init_lock.leave();
                 continue;
             }
             id = 0;                                 // 首遍登记态
@@ -987,28 +987,28 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
         else
         {
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                s_lookup.find(token.c_str());
-            id = (it != s_lookup.end()) ? it->second : -1;
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
         }
 
-        if (!s_inited)
+        if (!__inited)
         {
             // 首遍：登记全部键值（顺序与 ORIG 级联一致），随后按当前令牌派发
-            s_lookup.insert(std::make_pair("[/reward]", 0x8f));
-            s_lookup.insert(std::make_pair("[job type]", 0x93));
-            s_lookup.insert(std::make_pair("[sub type]", 0xa3));
-            s_lookup.insert(std::make_pair("[option]", 0xaf));
-            s_lookup.insert(std::make_pair("[equipment item]", 0xb9));
-            s_lookup.insert(std::make_pair("[stackable item]", 0xd8));
-            s_lookup.insert(std::make_pair("[/sub type]", 0xfc));
-            s_lookup.insert(std::make_pair("[/job type]", 0x102));
-            s_lookup.insert(std::make_pair("[/option]", 0x107));
-            s_initLock.leave();
-            s_inited = 1;
+            __lookup.insert(std::make_pair("[/reward]", 0x8f));
+            __lookup.insert(std::make_pair("[job type]", 0x93));
+            __lookup.insert(std::make_pair("[sub type]", 0xa3));
+            __lookup.insert(std::make_pair("[option]", 0xaf));
+            __lookup.insert(std::make_pair("[equipment item]", 0xb9));
+            __lookup.insert(std::make_pair("[stackable item]", 0xd8));
+            __lookup.insert(std::make_pair("[/sub type]", 0xfc));
+            __lookup.insert(std::make_pair("[/job type]", 0x102));
+            __lookup.insert(std::make_pair("[/option]", 0x107));
+            __init_lock.leave();
+            __inited = 1;
 
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                s_lookup.find(token.c_str());
-            id = (it != s_lookup.end()) ? it->second : -1;
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
         }
 
         switch (id)
@@ -1058,23 +1058,23 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
             for (;;)
             {
                 itemData item = curItem;            // 栈副本
-                item.m_field0c = ScanInt(&ok);
+                const int findKey = ScanInt(&ok);   // ORIG 键为独立局部 int（不占 itemData）
                 if (!ok)
                 {
                     goto next_token;                // 回主循环
                 }
-                item.m_field04 = ScanInt(&ok);
+                item.m_itemIdx = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
                 std::map<int, std::vector<itemData> >::iterator fit =
-                    subMap.find(item.m_field0c);
+                    subMap.find(findKey);
                 if (fit == subMap.end())
                 {
                     std::vector<itemData> vec;
                     vec.push_back(item);
-                    subMap.insert(std::make_pair(item.m_field0c, vec));
+                    subMap.insert(std::make_pair(findKey, vec));
                 }
                 else
                 {
@@ -1085,33 +1085,33 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 
         case 0xd8:      // [stackable item]
         {
-            curItem.m_field08 = 1;                  // 段首一次性置 1（ORIG 同）
+            curItem.m_count = 1;                    // 段首一次性置 1（ORIG 同）
             defaultOption(key.m_sub.m_action, curItem);
             for (;;)
             {
                 itemData item = curItem;
-                item.m_field0c = ScanInt(&ok);
+                const int findKey = ScanInt(&ok);   // ORIG 键为独立局部 int
                 if (!ok)
                 {
                     goto next_token;
                 }
-                item.m_field04 = ScanInt(&ok);
+                item.m_itemIdx = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                item.m_field08 = ScanInt(&ok);
+                item.m_count = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
                 std::map<int, std::vector<itemData> >::iterator fit =
-                    subMap.find(item.m_field0c);
+                    subMap.find(findKey);
                 if (fit == subMap.end())
                 {
                     std::vector<itemData> vec;
                     vec.push_back(item);
-                    subMap.insert(std::make_pair(item.m_field0c, vec));
+                    subMap.insert(std::make_pair(findKey, vec));
                 }
                 else
                 {
@@ -1137,10 +1137,7 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 
         case 0x107:     // [/option]
         {
-            curItem.m_field00 = 0;                  // itemData::clear（W 0x080f1162；
-            curItem.m_field04 = 0;                  //   逐 int 清零——「推断」）
-            curItem.m_field08 = 0;
-            curItem.m_field0c = 0;
+            curItem.clear();                        // itemData::clear（W 0x080f1162，call 实证）
             break;
         }
 
@@ -1320,7 +1317,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                 if (!ScanType(token, true))
                 {
                     LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                                          "importUpgradeTable", 0xb3a,
+                                          __FUNCTION__, 0xb3a,
                                           "ERROR [amplification const] count %d",
                                           static_cast<int>(index));
                 }
@@ -1333,7 +1330,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xb48, "importUpgradeTable - invalid cost rarity table");
                     }
                 }
@@ -1346,7 +1343,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xb5a, "importUpgradeTable - invalid stat rarity table");
                     }
                 }
@@ -1359,7 +1356,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xb6c, "importUpgradeTable - invalid type table");
                     }
                 }
@@ -1372,7 +1369,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xb7e, "importUpgradeTable - invalid level table");
                     }
                 }
@@ -1385,7 +1382,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xb90, "importUpgradeTable - invalid gold table");
                     }
                 }
@@ -1396,7 +1393,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                 if (!ok)
                 {
                     LogManager::logFormat(
-                        0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                        0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                         0xb9e, "importUpgradeTable - invalid notice tag");
                 }
             }
@@ -1411,7 +1408,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                         {
                             LogManager::logFormat(
                                 0, "../RDARScriptEtcParameter.cpp",
-                                "importUpgradeTable", 0xbac,
+                                __FUNCTION__, 0xbac,
                                 "ERROR : [repair cost rate by upgrade level] size %d / %d",
                                 i, 100);
                         }
@@ -1533,7 +1530,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ok)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xc26, "importUpgradeTable - invalid type table");
                     }
                 }
@@ -1542,7 +1539,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                 {
                     return 1;                           // ORIG jmp EOF 成功出口
                 }
-                table->intAt(0x48c) = destroyIdx;
+                table->m_destruction.setField58(destroyIdx);
                 for (;;)
                 {
                     STResultItemCnt cnt;
@@ -1561,7 +1558,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         break;
                     }
-                    table->m_resultItems.push_back(cnt);
+                    table->m_destruction.getVec().push_back(cnt);
                 }
             }
             else if (token == "[cost weight by upgrade level]")
@@ -1583,7 +1580,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     if (!ins.second)
                     {
                         LogManager::logFormat(
-                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                             0xc54,
                             "[cost weight by upgrade level] key is duplicated]");
                         return 0;
@@ -1647,7 +1644,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
     catch (unsigned int errLine)
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                              "importUpgradeTable", 0xc14, "Error: (%s):%d",
+                              __FUNCTION__, 0xc14, "Error: (%s):%d",
                               "importUpgradeTable", static_cast<int>(errLine));
         return 0;
     }

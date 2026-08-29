@@ -1,14 +1,236 @@
-// df_game_r Game/ CConditionEventManager 实现（批3：从 GameStubs.cpp 迁移）。
+
 #include "CConditionEventManager.h"
+
+
+#include <string.h>
 
 #include "GlobalData.h"
 #include "CGuildServerProxy.h"
 #include "CDataManager.h"
 #include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CParty.h"
+#include "CItemList.h"
+#include "Inven_Item.h"
+#include "CInventory.h"
+#include "CCeraShop.h"
+#include "CSystemTime.h"
+#include "RDARScriptStringManager.h"
+#include "CMailBoxHelper.h"
 #include "PacketGuard.h"
 
+
+namespace
+{
+
+// ORIG 0x08334d05/0x08334f9e 两处相同的"入库失败→系统邮件"序列（msg_80/msg_81）。
+void insertFailSendMail(CUser* user, Inven_Item& item)
+{
+    char sender[30];
+    strncpy(sender,
+            g_scriptStringManager_.findString(4, "game_server_msg_80", 0), 0x1d);
+    char title[256];
+    strncpy(title,
+            g_scriptStringManager_.findString(4, "game_server_msg_81", 0), 0xff);
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        sender, item, 0,
+        static_cast<unsigned int>(user->getCurCharacNo()),
+        title, static_cast<int>(strlen(title)),
+        0, user->GetServerGroup(), false, false);
+}
+
+}  // namespace
+
+// ORIG T 0x08334844：空体 C1（push/mov/pop/ret；C1/C2 同址 T，类无虚函数）。
+// 调用点：CGameManager::GetConditionEventManager 的 placement new。
+// 置于 TU 首个成员定义位，使 _GLOBAL__I_ 键名按 C2Ev（匹配 ORIG 键名，P108）。
 CConditionEventManager::CConditionEventManager()
 {
+}
+
+// ORIG T 0x0833484a：空体 D1（push/mov/pop/ret；D1/D2 同址，类无虚函数）。
+CConditionEventManager::~CConditionEventManager()
+{
+}
+
+// ORIG T 0x08335264
+// _ZN22CConditionEventManager30ConditionRewardSameItemCombineERSt6vectorI26stConditionEventRewardInfoSaIS1_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE
+// 遍历 infos，按 info.m_field0（物品 id）聚合 m_field4（数量）到 outMap：
+// 已存在则累加 second，否则插入 {m_field0, m_field4}。
+void CConditionEventManager::ConditionRewardSameItemCombine(
+    std::vector<stConditionEventRewardInfo>& infos, std::map<int, int>& outMap)
+{
+    std::vector<stConditionEventRewardInfo>::iterator it = infos.begin();
+    for (; it != infos.end(); ++it)
+    {
+        std::map<int, int>::iterator mit = outMap.find(it->m_field0);
+        if (mit == outMap.end())
+        {
+            outMap.insert(std::make_pair(it->m_field0, it->m_field4));
+        }
+        else
+        {
+            mit->second += it->m_field4;
+        }
+    }
+}
+
+// ORIG T 0x08334850
+// _ZN22CConditionEventManager27RequestConditionEventRewardEP5CUserscRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE
+// 主奖励链：repeat 事件 0x71 未开启 → 0；curIdx 与 m_conditionEvent.m_field0 不符
+// → 1；step<1 / step 超前 / rewardStep != step-1 → 0x13；物品缺失 → 0x11。
+// 按 rewardMap 逐条发放：key==1 且 count>=0 → 事件币（EventCoinAdd 日志+保存+发送）；
+// 其余 → find_item+create_item，guard（itemIdx==0 或 get_add_info()==0）跳过；
+// 非特殊物品直接入库（失败邮件回退），特殊物品按 GetItemType()==0x10 / key==1
+// 分支：0x10 直接入库，否则 ProcessSpecialItem（outRestrict!=0 → 0x11）。
+// 全部成功 → IncCurConditionEventRewardStep() 并返回 0。
+int CConditionEventManager::RequestConditionEventReward(
+    CUser* user, short curIdx, char step, std::map<int, int>& rewardMap)
+{
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x71)->IsEventing((CUser*)0))
+    {
+        return 0;
+    }
+
+    int field0 = G_CDataManager()->m_conditionEvent.m_field0;
+    if (curIdx != field0)
+    {
+        return 1;
+    }
+
+            if (step < 1)
+        {
+            return 0x13;
+        }
+
+        unsigned short curStep = user->GetCurConditionEventStep();
+        if (curStep < static_cast<unsigned short>(step))
+        {
+            return 0x13;
+        }
+
+        short rewardStep = static_cast<short>(user->GetCurConditionEventRewardStep());
+        if (static_cast<int>(rewardStep) != step - 1)
+        {
+            return 0x13;
+        }
+
+    std::vector<stConditionEventRewardInfo> infos;
+    GetConditionRewardInfo(0, infos, curIdx, step);
+    ConditionRewardSameItemCombine(infos, rewardMap);
+
+    if (!rewardMap.empty())
+    {
+        for (std::map<int, int>::iterator it = rewardMap.begin();
+             it != rewardMap.end(); ++it)
+        {
+            if (it->first == 1 && it->second >= 0)
+            {
+                // ORIG 0x083349ee 区：key==1 → 事件币发放。
+                unsigned int coin = user->getCurCharacInvenR()->GetEventCoin();
+                user->getCurCharacInvenW()->SetEventCoin(coin + it->second);
+                unsigned int newCoin = user->getCurCharacInvenR()->GetEventCoin();
+                user->m_historyLog.EventCoinAdd(
+                    newCoin, it->second, static_cast<eCoinAddReason>(2));
+                user->SaveMoneyCoin();
+                user->SendCoin();
+                continue;
+            }
+
+            CItem* item = G_CDataManager()->find_item(it->first);
+            if (item != 0)
+            {
+                Inven_Item inv;
+                G_CDataManager()->getItemList()->create_item(
+                    static_cast<ENUM_ITEM_CREATE_TYPE>(0), inv, it->second);
+
+                // ORIG guard（0x08334b07..+0x2df）：itemIdx==0 或 get_add_info()==0 → 不处理。
+                bool guardOk = !(it->first == 0 || inv.get_add_info() == 0);
+                if (guardOk)
+                {
+                    int outType = 0;
+                    int outValue = 0;
+                    bool isSpecial = false;
+                    if (GlobalData::s_pCeraShop->IsSpecialItem(it->first, outType, outValue, isSpecial))
+                    {
+                        // ORIG 0x08334b7f 区：特殊物品 → GetItemType() 检查。
+                        int itemType = item->GetItemType();
+                        if (itemType == 0x10 || it->first == 1)
+                        {
+                            // type==0x10 或 itemIdx==1：不做 ProcessSpecialItem；
+                            // 仅 type==0x10 直接入库（0x08334d8e 区）。
+                            if (itemType == 0x10)
+                            {
+                                int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                                    inv, static_cast<eItemAddReason>(0x25), true, true);
+                                if (slot < 0)
+                                {
+                                    insertFailSendMail(user, inv);
+                                }
+                                else
+                                {
+                                    user->SendUpdateItem(CUser::eSendTarget_1,
+                                                         static_cast<ENUM_ITEMSPACE>(0), slot);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // ORIG 0x08334bb5 区：ProcessSpecialItem 发放特殊物品。
+                            int restrictCode =
+                                G_CDataManager()->getItemList()->GetRestrictCode(it->first);
+                            long curSec = GlobalData::s_systemTime_.getCurSec();
+                            int outRestrict = 0;
+                            std::vector<Inven_Item> items;
+                            WongWork::CCeraShop::stCeraShopItemParam_t param;
+                            bool ok = GlobalData::s_pCeraShop->ProcessSpecialItem(
+                                user, it->first, restrictCode, outRestrict, curSec, true,
+                                items, param, 0, 0, false, 1);
+                            if (ok)
+                            {
+                                if (outRestrict == 0)
+                                {
+                                    if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
+                                    {
+                                        user->SetRestrictedGoods(restrictCode);
+                                        GlobalData::s_pCeraShop->SaveFeaturedIdx(
+                                            user, restrictCode, curSec, 0);
+                                        user->SendRestrictedGoods(true, restrictCode);
+                                    }
+                                }
+                                else
+                                {
+                                    return 0x11;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // ORIG 0x08334f9e 区：非特殊物品 → 直接入库。
+                        int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                            inv, static_cast<eItemAddReason>(0x25), true, true);
+                        if (slot < 0)
+                        {
+                            insertFailSendMail(user, inv);
+                        }
+                        else
+                        {
+                            user->SendUpdateItem(CUser::eSendTarget_1,
+                                                 static_cast<ENUM_ITEMSPACE>(0), slot);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                return 0x11;
+            }
+        }
+    }
+
+    user->IncCurConditionEventRewardStep();
+    return 0;
 }
 
 // ORIG 0x08335754
@@ -20,6 +242,19 @@ int CConditionEventManager::GetCurEventIndex()
     if (!GlobalData::s_event_manager->GetRepeatEvent(0x71)->IsEventing((CUser*)0))
         return 0;
     return G_CDataManager()->m_conditionEvent.m_field0;
+}
+
+// ORIG T 0x083354f0 _ZN22CConditionEventManager16GetMaxRewardStepEs
+// 事件 0x71 进行中且 (short)step == m_conditionEvent.m_field0 时返回
+// m_conditionEvent.m_map8.size()（+0x4da0 map 的奖励步数上限）；否则 0。
+int CConditionEventManager::GetMaxRewardStep(short step)
+{
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x71)->IsEventing((CUser*)0))
+        return 0;
+    int field0 = G_CDataManager()->m_conditionEvent.m_field0;
+    if ((int)step != field0)
+        return 0;
+    return G_CDataManager()->m_conditionEvent.m_map8.size();
 }
 
 // ORIG T 0x083356a4 _ZN22CConditionEventManager21_getRequiredParameterEs
@@ -113,9 +348,47 @@ void CConditionEventManager::GetConditionRewardInfo(
     }
 }
 
-// ORIG T 0x0833586c
-// _ZN22CConditionEventManager21IsFreeGoldCardProcessERSt6vectorI26stConditionEventRewardInfoSaIS1_EE
-// 任一 info 的 m_flag8（+0x08 字节）非零 → true。
+// ORIG T 0x083358bc _ZN22CConditionEventManager16IsDoubleGoldCardEP5CUserc
+// CheckErrorCardForStep 不过 → false；普通集合（useQuickPartyAdd=0）按 step 收集
+// 奖励信息，IsDoubleGoldCardProcess 为真 → 双倍；否则须为快速组队
+// （GetParty 非空且 is_quick_party），再以快速集合（useQuickPartyAdd=1）更新判定。
+bool CConditionEventManager::IsDoubleGoldCard(CUser* user, char step)
+{
+    bool check = CheckErrorCardForStep(user, step);
+    bool doubleGoldCard;
+    if (!check)
+        return false;
+    int curIdx = GetCurEventIndex();
+    std::vector<stConditionEventRewardInfo> infos;
+    GetConditionRewardInfo((char)0, infos, (short)curIdx, step);
+    doubleGoldCard = IsDoubleGoldCardProcess(infos);
+    if (!doubleGoldCard && user->GetParty() != 0)
+    {
+        if (((CParty*)user->GetParty())->is_quick_party())
+        {
+            std::vector<stConditionEventRewardInfo> quickInfos;
+            GetConditionRewardInfo((char)1, quickInfos, (short)curIdx, step);
+            doubleGoldCard = IsDoubleGoldCardProcess(quickInfos);
+        }
+    }
+    return doubleGoldCard;
+}
+
+// ORIG T 0x08335a3a
+// _ZN22CConditionEventManager23IsDoubleGoldCardProcessERSt6vectorI26stConditionEventRewardInfoSaIS1_EE
+// 任一 info 的 m_flag9（+0x09 字节）非零 → true。
+bool CConditionEventManager::IsDoubleGoldCardProcess(
+    std::vector<stConditionEventRewardInfo>& infos)
+{
+    for (unsigned int i = 0; i < infos.size(); ++i)
+    {
+        if (infos[i].m_flag9)
+            return true;
+    }
+    return false;
+}
+
+// ORIG T 0x0833586c：任一 info.m_flag8（+0x08 字节）非零即免费。
 bool CConditionEventManager::IsFreeGoldCardProcess(
     std::vector<stConditionEventRewardInfo>& infos)
 {
@@ -126,6 +399,7 @@ bool CConditionEventManager::IsFreeGoldCardProcess(
     }
     return false;
 }
+
 
 // ORIG T 0x0833579e _ZN22CConditionEventManager14IsFreeGoldCardEP5CUserc
 // CheckErrorCardForStep 不过 → false；取当前条件事件索引，按 step 收集奖励信息，

@@ -7,7 +7,7 @@
 // ORIG：C1 0x08260628（仅清零两计数器，记录区不初始化）、
 //       AddTcpLog 0x085992c8（写 logs[count%10]）、
 //       AddUdpLog 0x0859926c（写 logs[count%10+10]）、
-//       AbsoluteTcpWriteLog 0x0859931a / AbsoluteUdpWriteLog 0x0859940e（本批未还原）。
+//       AbsoluteTcpWriteLog 0x0859931a / AbsoluteUdpWriteLog 0x0859940e（CryptoUtils1 批实装）。
 
 class CPacketTracer
 {
@@ -15,6 +15,8 @@ public:
     CPacketTracer();                     // ORIG C1/C2 0x08260628
     void AddTcpLog(int flag, int value); // ORIG 0x085992c8
     void AddUdpLog(int flag, int value); // ORIG 0x0859926c
+    void AbsoluteTcpWriteLog();          // ORIG T 0x0859931a
+    void AbsoluteUdpWriteLog();          // ORIG T 0x0859940e
 
 private:
     struct LogEntry

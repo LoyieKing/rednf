@@ -37,7 +37,7 @@ void CBloodDungeonRewardFirstEvent::StartEvent()
 {
     // ORIG 0x0811bd12：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)。
     SetEventFlag(true);
-    cMyTrace tr("virtual void CBloodDungeonRewardFirstEvent::StartEvent()", 0x10, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x10, 0);
     tr("CBloodDungeonRewardFirstEvent Start!");
 }
 
@@ -53,7 +53,7 @@ void CBloodDungeonRewardFirstEvent::EndEvent()
 {
     // ORIG 0x0811bd8c：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__, 0x2d, 0)。
     SetEventFlag(false);
-    cMyTrace tr("virtual void CBloodDungeonRewardFirstEvent::EndEvent()", 0x2d, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x2d, 0);
     tr("CBloodDungeonRewardFirstEvent End!");
 }
 
@@ -82,7 +82,7 @@ void CBloodDungeonRewardSecondEvent::StartEvent()
 {
     // ORIG 0x0811be52：SetEventFlag(true) + cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)。
     SetEventFlag(true);
-    cMyTrace tr("virtual void CBloodDungeonRewardSecondEvent::StartEvent()", 0x10, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x10, 0);
     tr("CBloodDungeonRewardSecondEvent Start!");
 }
 
@@ -98,7 +98,7 @@ void CBloodDungeonRewardSecondEvent::EndEvent()
 {
     // ORIG 0x0811becc：SetEventFlag(false) + cMyTrace(__PRETTY_FUNCTION__, 0x1b, 0)。
     SetEventFlag(false);
-    cMyTrace tr("virtual void CBloodDungeonRewardSecondEvent::EndEvent()", 0x1b, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x1b, 0);
     tr("CBloodDungeonRewardSecondEvent End!");
 }
 

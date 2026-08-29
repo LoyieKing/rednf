@@ -100,11 +100,11 @@ public:
 // ORIG B _ZN13private_store21g_CharacterControllerE @0x09472de0（BSS，size 6）
 extern CCharacterControllerPrivate g_CharacterController;
 
-// ---- PrivateStoreZone（2 字节 zone 标识；ORIG C1(h,h) W 0x85cb6f6：
+// ---- PrivateStoreZone（2 字节 zone 标识；ORIG C1(h,h) W 0x85cb6ce out-of-line：
 //      +0x00=参数a、+0x01=参数b，zone map 键类型）----
 struct PrivateStoreZone
 {
-    PrivateStoreZone(unsigned char a, unsigned char b) : m_a(a), m_b(b) {}
+    PrivateStoreZone(unsigned char a, unsigned char b);  // ORIG W 0x85cb6ce（定义于 .cpp）
     PrivateStoreZone() : m_a(0), m_b(0) {}
 
     unsigned char m_a;   // +0x00
@@ -141,16 +141,17 @@ public:
 };
 
 
-// ---- PrivateStorePos（6 字节：zone a/b + short/short；ORIG C1 0x85cb6f6）----
-struct PrivateStorePos
+// ---- PrivateStorePos（6 字节：继承 PrivateStoreZone(2) + short/short，布局不变；
+//      ORIG C1 0x85cb6f6 / 4参 C1 0x85cb72c 均调 PrivateStoreZoneC1Ehh 实证
+//      zone 部分走基类构造；4参构造 ORIG W 0x85cb72c）----
+struct PrivateStorePos : public PrivateStoreZone
 {
     PrivateStorePos();
+    PrivateStorePos(unsigned char a, unsigned char b, short field2, short field4);
     void clear();
 
-    unsigned char m_a;
-    unsigned char m_b;
-    unsigned short m_field2;
-    unsigned short m_field4;
+    unsigned short m_field2;   // +0x02
+    unsigned short m_field4;   // +0x04
 };
 
 // ---- CCharacterControllerPrivate（私商开店起点控制器；ORIG C1 W 0x85d0f90 /
@@ -171,6 +172,7 @@ private:
 struct PrivateStoreItem
 {
     PrivateStoreItem();
+    PrivateStoreItem& operator=(PrivateStoreItem const& other);   // ORIG W 0x85cb66e（定义于 .cpp）
     void Reset();                                  // ORIG W 0x823459a
     unsigned char GetState() { return m_flag3d; }  // ORIG W 0x85cb662：movzbl +0x3d 直返
     Inven_Item m_item;          // +0x00（packed 0x3d）
@@ -181,6 +183,10 @@ struct PrivateStoreItem
     unsigned short m_field48;   // +0x48
 };                              // sizeof 0x4c
 
+// ORIG 每 TU local const（_ZN13private_storeL16MaxItemSlotCountE，.rodata 值 7，
+// 18 个 TU 各一份拷贝实证）：私商单店最大在售条目数。
+static const int MaxItemSlotCount = 7;
+
 // ---- CPrivateStorePos（村庄对象；IObject vptr + Rectangle + 宿主 store 指针，
 //      sizeof 0x18）----
 class CPrivateStorePos : public village_object::IObject
@@ -188,10 +194,8 @@ class CPrivateStorePos : public village_object::IObject
 public:
     CPrivateStorePos();                                               // ORIG W 0x85cb7c8
     CPrivateStorePos(CPrivateStore* store, int centerX, int centerY); // ORIG W 0x85cb7fc
-
-    void reset();  // IObject vtable+0（ORIG 内联空体，无独立符号）
+    bool include(village_object::IObject const& obj) const;  // vtable slot0（ORIG W 0x85cb85c）
     virtual bool put_object_info(PacketGuard& p);  // vtable+4（ORIG T 0x85cadf6）
-    bool include(village_object::IObject const& obj) const;       // ORIG W 0x85cb85c
     CPrivateStorePos& operator=(CPrivateStorePos const& other);   // ORIG W 0x85ccae4
 
 private:
@@ -249,6 +253,7 @@ public:
     int RecreatePrivateStore(SIG_PRIVATE_STORE* sig);    // ORIG T 0x85c5b60：重算开店起点并从 SIG 恢复 14 条目，置状态 2（ISeller 虚表槽 +0x14）
     // ---- 成员辅助函数（9 槽方法全链依赖，全部 ORIG 真实符号）----
     bool MoveItems();                                   // ORIG T 0x85c7246：把过期/下架条目退回背包
+    bool IsLimitedSpace(PrivateStorePos const& pos);    // ORIG T 0x85c4ff2：开店起点与目标 pos 区域/范围判定
     bool RecallPrivateStoreItem();                      // ORIG T 0x85c63ca：非 doll 路径条目退还
     bool IsExistBuyerList(CUser* user);                 // ORIG T 0x85c91b6：m_users 是否含 user
     int GetCommissionPercent();                         // ORIG T 0x85c9b8c：手续费百分比

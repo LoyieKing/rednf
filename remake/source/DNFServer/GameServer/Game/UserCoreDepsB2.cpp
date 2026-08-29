@@ -179,8 +179,8 @@ bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot
     if (fromSpace == (ENUM_ITEMSPACE)0xc || toSpace == (ENUM_ITEMSPACE)0xc)
         return true;
 
-    int fromType = GetInvenTypeFromItemSpace(fromSpace);
-    int toType = GetInvenTypeFromItemSpace(toSpace);
+    int fromType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)fromSpace);
+    int toType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)toSpace);
 
     int foundFrom = 0;
     if (fromType == 5)
@@ -416,7 +416,7 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
             {
                 LogManager::logFormat(
                     1, "SpecialItemRoutingManager.cpp",
-                    "void CSpecialItemRoutingManager::processRouting(CParty*)",
+                    __PRETTY_FUNCTION__,
                     0x165, "[EPIC ROUTING] DELETE DUNGEON ITEM FAIL");
             }
 

@@ -1,6 +1,7 @@
 // df_game_r Game/ CBurningFatigueEvent（批3：从 GameStubs.cpp 迁移）。
 // ORIG：派生自 CEventBase；+0x0c 存 vector<stBurningFatigueParam_t>*（指向
-// CDataManager+0x4f4）。C1 0x8109fa4 / D0 0x810a024 / D1 0x8109ff4 /
+// CDataManager+0x4f4 = m_serverParameter(+0x68) 内 ServerParameterScript+0x48c）。
+// C1 0x8109fa4 / D0 0x810a024 / D1 0x8109ff4 /
 // StartEvent 0x810a042 / StartEvent(Word_Param) 0x810a048 / EndEvent 0x810a09a /
 // getBonusExpRate 0x810a0ec / getRefillFatigue 0x810a166。
 #ifndef DNF_CBURNINGFATIGUEEVENT_H
@@ -23,8 +24,8 @@ public:
     virtual void StartEvent(Word_Param param);    // 0x0810a048
     virtual void EndEvent();                      // 0x0810a09a
     int getBonusExpRate(unsigned short level) const;    // 0x0810a0ec
-    int getRefillFatigue(unsigned short level,
-                         unsigned short cur) const;     // 0x0810a166
+    unsigned short getRefillFatigue(unsigned short level,
+                                    unsigned short cur) const;  // 0x0810a166（ORIG 返回 ushort）
 
 private:
     std::vector<stBurningFatigueParam_t>* m_params;   // +0x0c（G_CDataManager()+0x4f4）

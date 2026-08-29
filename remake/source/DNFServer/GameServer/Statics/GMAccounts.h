@@ -644,15 +644,6 @@ public:
     STDeathTowerPlayDataPartyWireItem m_items[0x264];  // +0xe
 } __attribute__((packed));
 
-class Packet_Secret_Shop_Statistic : public PacketHeader
-{
-public:
-    Packet_Secret_Shop_Statistic();
-    int m_count;                              // +0xa
-    int m_shopIdx;                            // +0xe
-    SECRET_SHOP_STATISTIC_DATA m_items[200];  // +0x12（200 * 0x14）
-} __attribute__((packed));
-
 class Packet_DBMW_Loading_Time_Report : public PacketHeader
 {
 public:

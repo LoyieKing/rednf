@@ -73,7 +73,7 @@ bool importOldEquipmentStatInfo(const char* dir)
     if (!loadRDARScriptFile(dir, "equipment/OldEquipmentStatInfoList.dat"))
     {
         LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                              "importOldEquipmentStatInfo", 0x12,
+                              __FUNCTION__, 0x12,
                               "CRITICAL ERROR : old equipment stat info load failed!");
         return false;
     }
@@ -88,7 +88,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x29,
+                                  __FUNCTION__, 0x29,
                                   "Invalid Old Equipment Stat Info(missing hpMax)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -96,7 +96,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x30,
+                                  __FUNCTION__, 0x30,
                                   "Invalid Old Equipment Stat Info(missing mpMax)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -104,7 +104,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x37,
+                                  __FUNCTION__, 0x37,
                                   "Invalid Old Equipment Stat Info(missing physical attack)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -112,7 +112,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x3d,
+                                  __FUNCTION__, 0x3d,
                                   "Invalid Old Equipment Stat Info(missing physical defense)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -120,7 +120,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x43,
+                                  __FUNCTION__, 0x43,
                                   "Invalid Old Equipment Stat Info(missing magical attack)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -128,7 +128,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x49,
+                                  __FUNCTION__, 0x49,
                                   "Invalid Old Equipment Stat Info(missing magical defense)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -136,7 +136,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x50,
+                                  __FUNCTION__, 0x50,
                                   "Invalid Old Equipment Stat Info(missing equipment physical attack)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -144,7 +144,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x57,
+                                  __FUNCTION__, 0x57,
                                   "Invalid Old Equipment Stat Info(missing equipment physical defense)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -152,7 +152,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x5e,
+                                  __FUNCTION__, 0x5e,
                                   "Invalid Old Equipment Stat Info(missing magical attack)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -160,7 +160,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x65,
+                                  __FUNCTION__, 0x65,
                                   "Invalid Old Equipment Stat Info(missing magical defense)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -172,7 +172,7 @@ bool importOldEquipmentStatInfo(const char* dir)
             if (!ok)
             {
                 LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                      "importOldEquipmentStatInfo", 0x6e,
+                                      __FUNCTION__, 0x6e,
                                       "Invalid Old Equipment Stat Info(missing element tolerance %d)! itemIndex = %d", i, itemIndex);
                 return false;
             }
@@ -181,7 +181,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x76,
+                                  __FUNCTION__, 0x76,
                                   "Invalid Old Equipment Stat Info(missing all element tolerance)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -193,7 +193,7 @@ bool importOldEquipmentStatInfo(const char* dir)
             if (!ok)
             {
                 LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                      "importOldEquipmentStatInfo", 0x7f,
+                                      __FUNCTION__, 0x7f,
                                       "Invalid Old Equipment Stat Info(missing active property %d)! itemIndex = %d", j, itemIndex);
                 return false;
             }
@@ -202,7 +202,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (!ok)
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x87,
+                                  __FUNCTION__, 0x87,
                                   "Invalid Old Equipment Stat Info(missing all activeStatus tolerance)! itemIndex = %d", itemIndex);
             return false;
         }
@@ -210,7 +210,7 @@ bool importOldEquipmentStatInfo(const char* dir)
         if (g_equipmentStatInfoMap.find(itemIndex) != g_equipmentStatInfoMap.end())
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
-                                  "importOldEquipmentStatInfo", 0x92,
+                                  __FUNCTION__, 0x92,
                                   "Redundant Old Equipment Stat Info! itemIndex = %d", itemIndex);
         }
         else
@@ -558,12 +558,12 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
         }
         if (token == "[time assault super power state on join powerwar]")
         {
-            script->m_pad5c = ScanInt((bool*)0);
+            script->m_timeAssaultSuperPowerStateOnJoin = ScanInt((bool*)0);
             continue;
         }
         if (token == "[time assault super power state after powerwar]")
         {
-            script->m_pad60 = ScanInt((bool*)0);
+            script->m_timeAssaultSuperPowerStateAfter = ScanInt((bool*)0);
             continue;
         }
         if (token == "[powerwar enter level limit]")           { script->m_minEnterLevel = ScanInt((bool*)0); continue; }
@@ -830,9 +830,9 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
     if (!loadRDARScriptFile("", path))
         return false;
 
-    static std::map<const char*, int, less_TCHAR> s_lookup;
-    static SpinLock s_initLock;
-    static char s_inited = 0;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static char __inited = 0;
 
     std::string token;
     std::string tok2;
@@ -846,12 +846,12 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
             if (!ScanType(token, true))
                 goto scan_end;
 
-            if (!s_inited)
+            if (!__inited)
             {
-                s_initLock.enter();
-                if (s_inited)
+                __init_lock.enter();
+                if (__inited)
                 {
-                    s_initLock.leave();
+                    __init_lock.leave();
                     continue;
                 }
                 break;                          // 以未初始化态进入派发
@@ -859,25 +859,25 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
 
             tok2 = token;
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                s_lookup.find(tok2.c_str());
-            if (it != s_lookup.end())
+                __lookup.find(tok2.c_str());
+            if (it != __lookup.end())
                 goto dispatch;
             else
                 goto next_token;                // 未知键：忽略该令牌
         }
 
         // ---- 首遍：登记全部键值（顺序与 ORIG 级联一致）----
-        s_lookup.insert(std::make_pair("[default reward]", 0x39));
-        s_lookup.insert(std::make_pair("[title collection info]", 0x4d));
-        s_lookup.insert(std::make_pair("[section]", 0x7f));
-        s_lookup.insert(std::make_pair("[custom condition message]", 0xc6));
-        s_lookup.insert(std::make_pair("[adjust list]", 0xe4));
-        s_lookup.insert(std::make_pair("[view titlebook eventmark]", 0xf4));
+        __lookup.insert(std::make_pair("[default reward]", 0x39));
+        __lookup.insert(std::make_pair("[title collection info]", 0x4d));
+        __lookup.insert(std::make_pair("[section]", 0x7f));
+        __lookup.insert(std::make_pair("[custom condition message]", 0xc6));
+        __lookup.insert(std::make_pair("[adjust list]", 0xe4));
+        __lookup.insert(std::make_pair("[view titlebook eventmark]", 0xf4));
 
 dispatch:
         {
             int id;
-            if (!s_inited)
+            if (!__inited)
             {
                 id = 0;
             }
@@ -885,8 +885,8 @@ dispatch:
             {
                 tok2 = token;
                 std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    s_lookup.find(tok2.c_str());
-                id = (it != s_lookup.end()) ? it->second : -1;
+                    __lookup.find(tok2.c_str());
+                id = (it != __lookup.end()) ? it->second : -1;
             }
 
             switch (id)
@@ -894,14 +894,14 @@ dispatch:
             case 0x39:                           // [default reward]
             case 0:
             {
-                if (s_inited)
+                if (__inited)
                 {
                     while (true)
                     {
                         if (!ScanType(tok3, true))
                         {
-                            s_initLock.leave();
-                            s_inited = 1;
+                            __init_lock.leave();
+                            __inited = 1;
                             goto scan_end_true;
                         }
                         if (tok3 == "[/default reward]")
@@ -911,13 +911,13 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(std::make_pair("[default reward]", 0x39));
+                    __lookup.insert(std::make_pair("[default reward]", 0x39));
                 }
                 break;
             }
             case 0x4d:                           // [title collection info]
             {
-                if (s_inited)
+                if (__inited)
                 {
                     ScanStr(&tok3);
                     int tab = convertTabTypeStringToEnum(tok3.c_str());
@@ -939,13 +939,13 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(std::make_pair("[title collection info]", 0x4d));
+                    __lookup.insert(std::make_pair("[title collection info]", 0x4d));
                 }
                 break;
             }
             case 0x7f:                           // [section]
             {
-                if (s_inited)
+                if (__inited)
                 {
                     ScanStr(&tok3);
                     int tab = convertTabTypeStringToEnum(tok3.c_str());
@@ -989,13 +989,13 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(std::make_pair("[section]", 0x7f));
+                    __lookup.insert(std::make_pair("[section]", 0x7f));
                 }
                 break;
             }
             case 0xc6:                           // [custom condition message]
             {
-                if (s_inited)
+                if (__inited)
                 {
                     stCustomConditionMsg entry;
                     out->m_vec30.clear();
@@ -1009,14 +1009,14 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(
+                    __lookup.insert(
                         std::make_pair("[custom condition message]", 0xc6));
                 }
                 break;
             }
             case 0xe4:                           // [adjust list]
             {
-                if (s_inited)
+                if (__inited)
                 {
                     stAdjust entry;
                     while ((entry.m_questIdx = ScanInt(&ok), ok))
@@ -1030,13 +1030,13 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(std::make_pair("[adjust list]", 0xe4));
+                    __lookup.insert(std::make_pair("[adjust list]", 0xe4));
                 }
                 break;
             }
             case 0xf4:                           // [view titlebook eventmark]
             {
-                if (s_inited)
+                if (__inited)
                 {
                     int value = 0;
                     if (ScanInt(&value))         // ORIG 使用 ScanInt(int*) 重载
@@ -1044,7 +1044,7 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    s_lookup.insert(
+                    __lookup.insert(
                         std::make_pair("[view titlebook eventmark]", 0xf4));
                 }
                 break;
@@ -1053,10 +1053,10 @@ dispatch:
                 break;
             }
 
-            if (!s_inited)
+            if (!__inited)
             {
-                s_initLock.leave();
-                s_inited = 1;
+                __init_lock.leave();
+                __inited = 1;
                 continue;                        // 以当前令牌重新派发
             }
         }

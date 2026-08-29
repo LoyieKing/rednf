@@ -73,7 +73,7 @@ public:
     void reset();
 
     // ---- 槽选择/写入访问器（报告缺失，objdump 直转；W 符号实证）----
-    bool change_option(ENUM_RANDOM_OPTION_NUMBER num) const;        // W 0x85f4002
+    bool change_option(ENUM_RANDOM_OPTION_NUMBER num);              // W 0x85f4002（ORIG _ZN 非 const）
     unsigned char get_option_index(ENUM_RANDOM_OPTION_NUMBER num);  // W 0x85f4040
     void set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v);   // W 0x85f4078
     void set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v);  // W 0x85f40be
@@ -260,12 +260,26 @@ public:
 
 #pragma pack(pop)
 
+class CUser;   // 前向：CheckItemTradeLimitCountToMoveByUser
+
 // ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
 // 交易次数限制递减。GetTradeLimitCount() 非 0 时 Set(count-1) 并返回 true，
 // 否则返回 false（反编译见 docs/class_func_reports/_lt_global_gt_/DecreaseTradeLimitCount.md）。
 bool DecreaseTradeLimitCount(Inven_Item& item);
+
+// ORIG T 0x081202a9 _Z30CheckTradeLimitItemCountToMoveRK10Inven_ItemRb：
+// proto 可 stackable/attachType!=7 时直接通过；attach==7 且交易限次非 0 → false。
+bool CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok);
+// ORIG T 0x0812032e _Z36CheckItemTradeLimitCountToMoveByUserR5CUseriiRb：
+// *ok=true；curCharac 缺失直接返回；GetInvenSlot(space,slot) 取实体后转上一函数。
+bool CheckItemTradeLimitCountToMoveByUser(CUser& user, int space, int slot, bool& ok);
+
 // ORIG T 0x081201dc _Z26IsTradeLimitAttachTypeItemRK10Inven_Item：
 // 交易限制/绑定类物品判定（exchange_interspace 0xc 域前置校验；定义由后续批次补）。
 bool IsTradeLimitAttachTypeItem(const Inven_Item& item);
 
+// ORIG T 0x08120242 _Z32IsTradeLimitAttachTypeItemByUserR5CUserii：
+// getCurCharacR()==0 → false；GetInvenSlot(space,slot).m_addInfo==0 → false；
+// 否则委托上一函数。（定义 CMailBoxHelper.cpp）
+bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot);
 #endif  // GAME_INVEN_ITEM_H_

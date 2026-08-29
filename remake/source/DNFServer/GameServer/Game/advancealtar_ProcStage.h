@@ -26,7 +26,8 @@
 
 #include <cstring>
 
-#include "advancealtar.h"               // TimeLine / AdvanceAltarData / _Slot
+#include "NOTIPacketStruct.h"           // _NotiAdvanceAltarSpawnUnit/_NotiAdvanceAltarClearStage（ProcStage 发送用）
+#include "advancealtar_StageDifficulty.h"  // StageDifficulty::T
 #include "AdvanceAltarField.h"     // _RewardItem 完整定义（ShopType 幂等块已收敛）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T
 

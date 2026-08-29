@@ -17,10 +17,11 @@ public:
     STGameUserInfo gameUserInfo;
     int buddyCount;
     STPvPBuddyDBInfo buddies[0x20];
-    Packet_Community_Login() : PacketHeader(0x1b58, 0x5a2)
+    // ORIG W ctor 0x0846ce14：m_id/buddyCount 在初始化列表（声明序），
+    // memset 在函数体（OrigCommPx 批对齐修正）。
+    Packet_Community_Login() : PacketHeader(0x1b58, 0x5a2), m_id(0),
+        gameUserInfo(), buddyCount(0), buddies()
     {
-    *(int*)((char*)this + 0xa) = 0;
-    *(int*)((char*)this + 0x3e) = 0;
     memset((char*)this + 0xe, 0, 0x30);
     memset((char*)this + 0x42, 0, 0x560);
     };

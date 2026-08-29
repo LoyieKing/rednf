@@ -594,10 +594,3 @@ void arad_parsing(const std::string& src,
 }  // namespace WongWork
 
 // ----------------------------------------------------------------------------
-// STClearedQuest ctor（声明见 QuestClear.h 追加段；定义归本批以产出 ORIG 符号）
-// ORIG W 0x0848f768 (size 0xb)：仅置首字节 0。
-// ----------------------------------------------------------------------------
-WongWork::STClearedQuest::STClearedQuest()
-{
-    m_pad[0] = 0;
-}

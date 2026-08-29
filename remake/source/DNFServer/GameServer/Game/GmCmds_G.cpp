@@ -305,7 +305,7 @@ void CUserPremiumDelete::execute()
          it != list.end(); ++it)
     {
         unsigned int serverCode = 0;
-        if (GlobalData::g_SPremiumInfo[it->m_type].m_useTargetServer == 1)
+        if (g_SPremiumInfo[it->m_type].m_useTargetServer == 1)
             serverCode = (unsigned int)
                 G_CEnvironment()->m_serverEnvir.m_serverGroup;   // +0x378
 
@@ -557,73 +557,66 @@ void CTestTradeRestrict::execute()
     if (user == 0)
         return;
 
-    // ---- 循环 1：*(inv+0x650) 数组（0x39 槽）----
+    // ---- 循环 1：m_pEquipSlot 数组（0x39 槽）----
     for (int i = 0; i < 0x39; ++i)
     {
-        const char* rInv = reinterpret_cast<const char*>(user->getCurCharacInvenR());
-        const char* slotsR =
-            *reinterpret_cast<char* const*>(rInv + 0x650);
-        if (*(const int*)(slotsR + i * 0x3d + 2) != 0 &&
-            *(const char*)(slotsR + i * 0x3d + 1) == 1)
+        const CInventory* rInv = user->getCurCharacInvenR();
+        const Inven_Item* slotsR = rInv->m_pEquipSlot;
+        if (slotsR[i].m_addInfo != 0 &&
+            slotsR[i].m_field1 == 1)                // ITEM_TYPE_EQUIP
         {
-            char* slotsW =
-                *reinterpret_cast<char**>(
-                    reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x650);
-            *reinterpret_cast<unsigned char*>(slotsW + i * 0x3d + 0x33) |= 0x20;
+            Inven_Item* slotsW =
+                user->getCurCharacInvenW()->m_pEquipSlot;
+            slotsW[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
         }
     }
 
-    // ---- 循环 2：inventory 对象内嵌数组（0x1a 槽，基址 +0x1d/+0x1e）----
+    // ---- 循环 2：inventory 对象内嵌数组（0x1a 槽，m_invenItem）----
     for (int i = 0; i < 0x1a; ++i)
     {
-        const char* rInv = reinterpret_cast<const char*>(user->getCurCharacInvenR());
-        if (*(const int*)(rInv + i * 0x3d + 0x1e) != 0 &&
-            *(const char*)(rInv + i * 0x3d + 0x1d) == 1)
+        const CInventory* rInv = user->getCurCharacInvenR();
+        if (rInv->m_invenItem[i].m_addInfo != 0 &&
+            rInv->m_invenItem[i].m_field1 == 1)    // ITEM_TYPE_EQUIP
         {
-            char* slotW =
-                reinterpret_cast<char*>(user->getCurCharacInvenW()) + i * 0x3d;
-            *reinterpret_cast<unsigned char*>(slotW + 0x4f) |= 0x20;
+            CInventory* invW = user->getCurCharacInvenW();
+            invW->m_invenItem[i].m_upgradeSep.m_field |= 0x20;
         }
     }
 
-    // ---- 循环 3：*(inv+0x654) 数组（0x69 槽，仅判 itemIndex）----
+    // ---- 循环 3：m_pAvatarSlot 数组（0x69 槽，仅判 itemIndex）----
     for (int i = 0; i < 0x69; ++i)
     {
-        const char* rInv = reinterpret_cast<const char*>(user->getCurCharacInvenR());
-        const char* slotsR =
-            *reinterpret_cast<char* const*>(rInv + 0x654);
-        if (*(const int*)(slotsR + i * 0x3d + 2) != 0)
+        const CInventory* rInv = user->getCurCharacInvenR();
+        const Inven_Item* slotsR = rInv->m_pAvatarSlot;
+        if (slotsR[i].m_addInfo != 0)
         {
-            char* slotsW =
-                *reinterpret_cast<char**>(
-                    reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x654);
-            *reinterpret_cast<unsigned char*>(slotsW + i * 0x3d + 0x33) |= 0x20;
+            Inven_Item* slotsW =
+                user->getCurCharacInvenW()->m_pAvatarSlot;
+            slotsW[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
         }
     }
 
     // ---- 循环 4：角色仓库 CCargo（0x98 槽）----
-    char* cargoStart =
-        const_cast<char*>(reinterpret_cast<const char*>(
-            user->getCurCharacCargoW()->get_cargo_start()));
+    Inven_Item* cargoStart =
+        const_cast<Inven_Item*>(user->getCurCharacCargoW()->get_cargo_start());
     for (int i = 0; i < 0x98; ++i)
     {
-        if (*(int*)(cargoStart + i * 0x3d + 2) != 0 &&
-            *(char*)(cargoStart + i * 0x3d + 1) == 1)
+        if (cargoStart[i].m_addInfo != 0 &&
+            cargoStart[i].m_field1 == 1)            // ITEM_TYPE_EQUIP
         {
-            *reinterpret_cast<unsigned char*>(cargoStart + i * 0x3d + 0x33) |= 0x20;
+            cargoStart[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
         }
     }
 
     // ---- 账号货物（GetSlotRef(0)，0x38 槽；引用为空则跳过）----
-    char* accSlot =
-        reinterpret_cast<char*>(user->GetAccountCargo()->GetSlotRef(0));
+    Inven_Item* accSlot = user->GetAccountCargo()->GetSlotRef(0);
     int i = 0;
     while (i < 0x38 && accSlot != 0)
     {
-        if (*(int*)(accSlot + i * 0x3d + 2) != 0 &&
-            *(char*)(accSlot + i * 0x3d + 1) == 1)
+        if (accSlot[i].m_addInfo != 0 &&
+            accSlot[i].m_field1 == 1)               // ITEM_TYPE_EQUIP
         {
-            *reinterpret_cast<unsigned char*>(accSlot + i * 0x3d + 0x33) |= 0x20;
+            accSlot[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
         }
         ++i;
     }

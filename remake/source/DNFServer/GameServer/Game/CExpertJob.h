@@ -25,20 +25,25 @@ enum ENUM_PEER_REQUEST_TYPE { ENUM_PEER_REQUEST_TYPE_0 = 0 };
 //      包裹，P11stItemPos_t / P18MSG_STATIC_COMMAND；布局按使用点反汇编实证）----
 #ifndef DNF_GAME_STITEMPOS_T_DEFINED
 #define DNF_GAME_STITEMPOS_T_DEFINED
+#pragma pack(push, 1)
 struct stItemPos_t
 {
     unsigned char m_itemSpace;   // +0x00
-    unsigned short m_slot;       // +0x01
-};                               // sizeof 0x4（对齐）
+    unsigned short m_slot;       // +0x01（ORIG _TryEnchantMine movzwl 0x1(%eax) 实证）
+};                               // sizeof 0x3（pack(1)）
+#pragma pack(pop)
 #endif
 #ifndef DNF_GAME_MSG_STATIC_COMMAND_DEFINED
 #define DNF_GAME_MSG_STATIC_COMMAND_DEFINED
+#pragma pack(push, 1)
 struct MSG_STATIC_COMMAND
 {
     unsigned char m_pad00[0xd];  // +0x00..+0x0c
     unsigned char m_type0d;      // +0x0d（类别 byte）
-    int m_value0e;               // +0x0e（find_item 参数 = 内联 stItemPos_t 起点）
-};                               // sizeof 0x12
+    int m_value0e;               // +0x0e（find_item 参数 = 内联 stItemPos_t 起点；
+                                 //  ORIG OnPutItemForEnchant 访问 +0xe 实证）
+};                               // sizeof 0x12（pack(1)）
+#pragma pack(pop)
 #endif
 // ORIG _Z11EnableWorldPK5CItemS1_ T 0x0849d768（全局自由函数；Enchanter 附魔
 // 可用性判定调用；定义归属待定批，链接缺口见批次报告）。
@@ -229,10 +234,11 @@ public:
                      int x, int y);   // ORIG（定义 ExpertJobLink4.cpp）
     CDisjointMachine& operator=(CDisjointMachine const& other);  // ORIG W 0x085d3ed6
     ~CDisjointMachine();                    // ORIG 0x85d3eb6
-    void reset();                           // ORIG 0x85d3e1e（village_object::IObject）
-    bool put_object_info(PacketGuard& p);   // ORIG 0x85d1cc2（village_object::IObject）
+    void reset();                           // ORIG 0x85d3e1e（非虚普通成员，不在 IObject vtable）
+    bool put_object_info(PacketGuard& p);   // ORIG 0x85d1cc2（vtable slot1 覆写）
     void put_disjoint_machine_info(PacketGuard& p);  // ORIG 0x85d1bc0
-    bool include(const village_object::IObject& other) const;   // ORIG W 0x85d3de6：转调 m_rect.include
+    bool include(const village_object::IObject& other) const;   // vtable slot0 覆写
+                                               // ORIG W 0x85d3de6：转调 m_rect.include
 
 
     // ---- getter（ORIG W 0x85d3e06 / 0x082347e0 / 0x85d3e12）----
@@ -260,13 +266,13 @@ public:
                             bool flag);   // ORIG T 0x085d1424
 
     // ---- OnlyOrig_CreatureJob 批追加（定义 ExpertJobOnlyMgr.cpp）----
-    void UseDelilah(CUser* user);                     // ORIG T 0x085d18ae
-    void UseRevivalItem(CUser* user);                 // ORIG T 0x085d1694
+    static void UseDelilah(CUser* user);                     // ORIG T 0x085d18ae（体内无 this）
+    static void UseRevivalItem(CUser* user);                 // ORIG T 0x085d1694（同上）
     int GetAssaultPrevent(CUser* user, bool* flag);   // ORIG T 0x085d137c
-    int OnUseStackableItem(CUser* user, unsigned long uid,
-                           const CItem* item);        // ORIG T 0x085d1712
+    static int OnUseStackableItem(CUser* user, unsigned long uid,
+                                  const CItem* item);        // ORIG T 0x085d1712（LinkClosureA-2 改 static：ORIG 调用点 0x865e42e 无 ecx 设置、mangled 无 this 编码实证）
     int GetQuestItemDropRate(CUser* user, int itemIdx);   // ORIG T 0x085d12ee
-    int CheckUsableStackableItem(CUser* user, const CItem* item);   // ORIG T 0x085d18e2
+    static int CheckUsableStackableItem(CUser* user, const CItem* item);   // ORIG T 0x085d18e2（同上 static 实证）
     // ORIG T 0x085d121e——实现由 ItemUpgradeVtableB2.cpp 提供（同名局部类待收敛）
     static bool IsExistContinuousEffectItem(CUser* user, int itemIdx);
 };
@@ -284,8 +290,8 @@ public:
     bool IsAvailableJob();                                           // W 0x0849f596
     void Reset();                                                    // T 0x085d2cf2
 
-    STExpertJobScript* GetScript();      // ORIG T 0x085d1e0a
-    STExpertJobEtcScript* GetEtcScript();  // ORIG T 0x085d1e3a
+    static STExpertJobScript* GetScript();      // ORIG T 0x085d1e0a（函数局部 static，无 this）
+    static STExpertJobEtcScript* GetEtcScript();  // ORIG T 0x085d1e3a（同上）
     int OnCreateDisjointStore(CUser* user, const char* name, int level, int x,
                               int y);    // ORIG T 0x085d2d08
     int get_disjoint_result_(CItem* item, Inven_Item* inventItem, int count,
@@ -297,8 +303,11 @@ public:
     int get_disjoint_cost() const;       // ORIG W 0x085d3e50：m_machine.get_cost()
     std::vector<int>* GetPredictResult(CUser* user, CItem* item,
                                        Inven_Item* inventItem);       // ORIG T 0x085d1f68
-    int OnRepairDisjointMachine(CUser* user);     // ORIG T 0x085d35ce
-    int OnUpgradeDisjointMachine(CUser* user);    // ORIG T 0x085d37e8
+    // ORIG 0x085d35ce/0x085d37e8：调用点无 this 压栈（Dispatcher_Repair/Upgrade
+    // DisjointMachine 0x081cfec1/0x081d001f 仅压 user 一参），静态形态实证；
+    // static 成员 mangled 与非静态单参一致（_ZN10expert_job11CDisjointer23…）。
+    static int OnRepairDisjointMachine(CUser* user);     // ORIG T 0x085d35ce
+    static int OnUpgradeDisjointMachine(CUser* user);    // ORIG T 0x085d37e8
     void send_error(CUser* user, int err);                            // ORIG T 0x085d1e62
     bool check_disjoint_endurance();                                  // ORIG T 0x085d1f24
     // ---- OnlyOrig_CreatureJob 批追加（定义 ExpertJobOnlyMgr.cpp）----
@@ -348,9 +357,9 @@ public:
     int _TryEnchantOther(CUser* user, stItemPos_t* pos);             // T 0x0849da3e
     int _PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos, int money);   // T 0x849d344
     bool _DrawEnchant();                                             // T 0x849cac6
-    int IsRecipeRight();                                             // T 0x849ca06
+    bool IsRecipeRight();                                            // T 0x849ca06（bool：调用点 xor $1 实证 P22）
     int IsRightMaterial();                                           // T 0x849c9b2
-    int IsEqualMonsterCad();                                         // T 0x849ca6a
+        bool IsEqualMonsterCad();                                        // T 0x849ca6a（bool：调用点 xor $1 实证 P22）
 
 private:
     ExpertJobMaterial m_materials[2];   // +0x08，步长 0x10
@@ -372,7 +381,7 @@ public:
     ~CExpertJobFactory();
     StaticPool<CEnchanter, 300> m_enchanterPool;    // +0x00
     StaticPool<CDisjointer, 600> m_disjointerPool;  // +0x30
-
+    CExpertJob* AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type);  // ORIG W 0x0849f5d2：按 type 分派池
     void FreeExpertJob(CExpertJob* job);   // ORIG W 0x0849f63e：按 GetType 分派池
 };
 
@@ -438,6 +447,7 @@ public:
 
     void increaseItemCount(ENUM_EXPERT_JOB_TYPE type, unsigned long itemIdx,
                            int count);   // ORIG T 0x0860f9d4
+    void UpdateExpertJob();              // ORIG T 0x0860faca（DB_Q 批量写 m_counts 后清空）
 
 private:
     std::map<ExpertJobKey, int> m_counts;   // +0x00（ctor 即空 map）

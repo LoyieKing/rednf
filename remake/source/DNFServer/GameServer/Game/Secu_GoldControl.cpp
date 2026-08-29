@@ -12,6 +12,14 @@ class DB_CheckCharacName
 public:
     static void makeRequest(int uid, unsigned int accId, const char* charName, bool flag);
 };
+// ORIG 金币统计区组件视图（P1：成员视图折叠 lea/add 与 ORIG 同形）
+struct SecuGoldView
+{
+    char m_pad0[0x04];          // m_pUser @ +0x00
+    user_gold_info m_total;     // +0x04
+    user_gold_info m_cur;       // +0x40
+    user_gold_info m_backup;    // +0x7c
+};
 
 void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* charName, bool flag)
 {
@@ -41,8 +49,7 @@ void Secu_GoldControl::Init(CUser* user)
 
 void Secu_GoldControl::SetInfo(user_gold_info& info)
 {
-    user_gold_info* total = (user_gold_info*)&m_totalGoldLow;
-    memcpy(total, &info, sizeof(user_gold_info));
+    info.toCopy(*(user_gold_info*)((char*)this + 4));
 }
 
 void Secu_GoldControl::SetMailCharName(const char* name)
@@ -53,39 +60,25 @@ void Secu_GoldControl::SetMailCharName(const char* name)
     }
 }
 
-void Secu_GoldControl::resetRangeMoney(user_gold_info& dst, const user_gold_info& src)
+void Secu_GoldControl::resetRangeMoney(user_gold_info& cur, user_gold_info& copy)
 {
-    // Copy 0x3c (60) bytes from src to dst
-    memcpy(&dst, &src, 0x3c);
+    // ORIG 0x08287bdc 逐条：memcpy(copy, cur, 0x3c)；6 组 64 位
+    // if (cur > 0x00000000fffffffe) { copy = -1; cur -= 0xffffffff; }
+    // else { cur = 0; }（ORIG add $1/adc $-1 = 64 位减 0xffffffff）
+    memcpy(&copy, &cur, 0x3c);
 
-    int* srcInts = (int*)&src;
-    int* dstInts = (int*)&dst;
-
-    // Process 6 pairs of 64-bit values
-    for (int i = 0; i < 6; i++)
+    unsigned long long* cur64 = reinterpret_cast<unsigned long long*>(&cur);
+    unsigned long long* copy64 = reinterpret_cast<unsigned long long*>(&copy);
+    for (int i = 0; i < 6; ++i)
     {
-        int lowOffset = i * 8;
-        int highOffset = i * 8 + 4;
-        int high = srcInts[highOffset / 4];
-        unsigned int low = (unsigned int)srcInts[lowOffset / 4];
-
-        if (high == 0 && low <= 0xfffffffe)
+        if (cur64[i] > 0x00000000fffffffeULL)
         {
-            // dst = src - 1
-            unsigned long long val = ((unsigned long long)high << 32) | low;
-            val -= 1;
-            dstInts[lowOffset / 4] = (int)(val & 0xffffffff);
-            dstInts[highOffset / 4] = (int)(val >> 32);
+            copy64[i] = 0xffffffffffffffffULL;
+            cur64[i] -= 0x00000000ffffffffULL;
         }
         else
         {
-            // dst = 0, src = src + 1
-            dstInts[lowOffset / 4] = 0;
-            dstInts[highOffset / 4] = 0;
-            unsigned long long val = ((unsigned long long)high << 32) | low;
-            val += 1;
-            srcInts[lowOffset / 4] = (int)(val & 0xffffffff);
-            srcInts[highOffset / 4] = (int)(val >> 32);
+            cur64[i] = 0;
         }
     }
 }
@@ -338,28 +331,21 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
 {
     if (a && (m_counter74 != 0 || m_counter78 != 0 || m_fieldb8 != 0))
     {
-        char ipBuf[16];
-        void* hades = m_pUser->getHades();
-        typedef void (*GetIPFn)(void*, char*);
-        GetIPFn getIP = (GetIPFn)0x084b9774;
-        getIP(hades, ipBuf);
+        char ipBuf[16] = {0};
+        ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
 
-        char macBuf[65];
-        memset(macBuf, 0, sizeof(macBuf));
+        char macBuf[65] = {0};
         // get mac address from CNetwork at this+0xe0
-        char* mac = m_pUser->m_network.get_mac_addr();
-        strncpy(macBuf, mac, 0x41);
+        strncpy(macBuf, m_pUser->m_network.get_mac_addr(), 0x41);
 
         if (c)
         {
             user_gold_info tmp;
-            memset(&tmp, 0, sizeof(tmp));
-            resetRangeMoney(*(user_gold_info*)&m_goldLow, tmp);
+            resetRangeMoney(((SecuGoldView*)this)->m_cur, tmp);
         }
         else
         {
-            user_gold_info* gold = (user_gold_info*)&m_goldLow;
-            memset(gold, 0, sizeof(user_gold_info));
+            ((SecuGoldView*)this)->m_cur.reset();
         }
         m_fieldb8 = 0;
     }
@@ -368,17 +354,13 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
     {
         if (m_counterb0 != 0 || m_counterb4 != 0 || m_fieldbc != 0)
         {
-            char ipBuf[16];
-            void* hades = m_pUser->getHades();
-            typedef void (*GetIPFn)(void*, char*);
-            GetIPFn getIP = (GetIPFn)0x084b9774;
-            getIP(hades, ipBuf);
+            char ipBuf[16] = {0};
+            ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
 
-            char macBuf[65];
-            memset(macBuf, 0, sizeof(macBuf));
+            char macBuf[65] = {0};
+            strncpy(macBuf, m_pUser->m_network.get_mac_addr(), 0x41);
 
-            user_gold_info* backup = (user_gold_info*)&m_backupGoldLow;
-            memset(backup, 0, sizeof(user_gold_info));
+            ((SecuGoldView*)this)->m_backup.reset();
             m_fieldbc = 0;
         }
     }
@@ -395,20 +377,18 @@ void* Secu_GoldControl::GetGoldInfo()
 {
     return &m_totalGoldLow;
 }
+
 void Secu_GoldControl::CheckDate()
 {
     if (m_dateFlag != GlobalData::g_GoldControlDateFlag)
     {
         m_dateFlag = GlobalData::g_GoldControlDateFlag;
         // Copy current gold info (+0x40) to backup (+0x7c)
-        user_gold_info* current = (user_gold_info*)&m_goldLow;
-        user_gold_info* backup = (user_gold_info*)&m_backupGoldLow;
-        memcpy(backup, current, sizeof(user_gold_info));
+        ((SecuGoldView*)this)->m_cur.toCopy(((SecuGoldView*)this)->m_backup);
         // Reset total gold info (+0x04)
-        user_gold_info* total = (user_gold_info*)&m_totalGoldLow;
-        memset(total, 0, sizeof(user_gold_info));
+        ((SecuGoldView*)this)->m_total.reset();
         // Reset current gold info (+0x40)
-        memset(current, 0, sizeof(user_gold_info));
+        ((SecuGoldView*)this)->m_cur.reset();
         // Copy m_fieldb8 to m_fieldbc, reset m_fieldb8
         m_fieldbc = m_fieldb8;
         m_fieldb8 = 0;

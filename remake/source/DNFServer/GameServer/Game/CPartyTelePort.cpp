@@ -1,5 +1,6 @@
 // ==========================================================================
 #include <vector>
+#include <cstring>
 #include "CPartyTelePort.h"
 #include "CParty.h"
 #include "CUser.h"
@@ -23,9 +24,36 @@ struct TeleportEffect
 // 实现
 // ============================================================================
 // ---- stPartyTelePort（ORIG 0x822d764，memset 0，清 4 字节状态头）----
+
+// ORIG W 0x0822d764：memset(this,0,4)
 void stPartyTelePort::reset()
 {
-    memset(this, 0, 4);
+    memset((char*)this, 0, 4);
+}
+
+unsigned char stPartyTelePort::get_teleport_village() const
+{
+    return m_village;
+}
+
+unsigned char stPartyTelePort::get_teleport_area_index() const
+{
+    return m_areaIndex;
+}
+
+unsigned short stPartyTelePort::get_teleport_posx() const
+{
+    return m_posx;
+}
+
+unsigned short stPartyTelePort::get_teleport_posy() const
+{
+    return m_posy;
+}
+
+unsigned char stPartyTelePort::get_teleport_direction() const
+{
+    return m_direction;
 }
 
 CPartyTelePort::CPartyTelePort()
@@ -285,7 +313,7 @@ char CPartyTelePort::process_teleport()
                 if (moved != 1)
                 {
                     int charNo = user->getCurCharacNo();
-                    cMyTrace tr("bool CPartyTelePort::process_teleport()",
+                    cMyTrace tr(__PRETTY_FUNCTION__,
                                     0x43f9, 5);
                     tr("party_teleport_error:(char_no:%d)", charNo);
                 }
@@ -311,7 +339,7 @@ char CPartyTelePort::process_teleport()
             int optValue = manager->get_aura_avatar_option_value(0);
             manager->send_aura_avatar_option();
             int charNo = manager->getCurCharacNo();
-            cMyTrace tr("bool CPartyTelePort::process_teleport()",
+            cMyTrace tr(__PRETTY_FUNCTION__,
                             0x4419, 0);
             tr("party_teleport_success:(char_no:%d)", charNo);
         }

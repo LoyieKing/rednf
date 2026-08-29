@@ -50,18 +50,20 @@ public:
 };
 
 CSyncScript* GetInstanceSyncScript();
-extern std::map<int, std::string> g_dungeonInfoTable;  // ORIG 0x94f6ea0
-extern std::map<int, std::string> g_monsterInfoTable;  // ORIG 0x94ff260
-extern std::map<int, std::string> g_skillInfoTable[11]; // ORIG 0x9500820
-extern std::map<int, std::string> g_questInfoTable;     // ORIG 0x9500480
 }
+
+// ---- 脚本文件列表全局表（ORIG C 名，定义在 sync_script.cpp） ----
+extern "C" std::map<int, std::string> g_stDungeonScriptFileList;    // ORIG 0x94f6ea0
+extern "C" std::map<int, std::string> g_stMonsterScriptFileList;    // ORIG 0x94ff260
+extern "C" std::map<int, std::string> g_staSkillScriptFileList[11]; // ORIG 0x9500820
+extern "C" std::map<int, std::string> g_questScriptFileList;        // ORIG 0x9500480
 
 class CMonster
 {
 public:
     CMonster();
     ~CMonster();
-    int get_index() const;
+    int get_index();   // ORIG 仅非 const（_ZN7CMonster9get_indexEv；调用经 mangled 绑定真实实现）
     void set_monster(class STMonsterScript& script);
     char m_pad[0x1d28];
 };
@@ -205,7 +207,6 @@ class QuestScript
 {
 public:
     QuestScript();
-    QuestScript(const QuestScript& other);
     ~QuestScript();
     int m_index;                            // +0x00
     char m_pad4[0xd0];                      // +0x04
@@ -353,7 +354,7 @@ bool CDungeonList::insert_dungeon(CDungeon* dungeon)
         return true;
     }
     LogManager::logFormat(
-        1, "data_manager.cpp", "bool CDungeonList::insert_dungeon(CDungeon*)",
+        1, "data_manager.cpp", __PRETTY_FUNCTION__,
         0x921, "Already registed dungeon index detected : %d",
         dungeon->get_index());
     return false;
@@ -365,8 +366,8 @@ int CDungeonList::load_list()
     STDungeonScript script;
     CDungeon* dungeon = 0;
     for (std::map<int, std::string>::iterator it =
-             sync_script::g_dungeonInfoTable.begin();
-         it != sync_script::g_dungeonInfoTable.end(); ++it)
+             g_stDungeonScriptFileList.begin();
+         it != g_stDungeonScriptFileList.end(); ++it)
     {
         path = (char*)it->second.c_str();
         if (path == 0)
@@ -399,7 +400,7 @@ int CDungeonList::load_list()
             ->init_quick_party_pool(dungeon);
         if (size() > 1000)
         {
-            cMyTrace trace("bool CDungeonList::load_list()", 0x8ec, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8ec, 5);
             trace("Best Clear Time Save Dungeon Index Over Error: %d\n",
                   size());
             return 0;
@@ -611,8 +612,8 @@ int CMonsterManager::load_monsters()
         char* path = 0;
         CMonster* monster = 0;
         for (std::map<int, std::string>::iterator it =
-                 sync_script::g_monsterInfoTable.begin();
-             it != sync_script::g_monsterInfoTable.end(); ++it)
+                 g_stMonsterScriptFileList.begin();
+             it != g_stMonsterScriptFileList.end(); ++it)
         {
             path = (char*)it->second.c_str();
             if (path == 0)
@@ -706,9 +707,9 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
 {
     if (skill == 0)
     {
-        cMyTrace trace("void CSkillList::insert_skill(int, CSkill*)", 0xf91, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xf91, 5);
         trace("[%s][%d]_(0 == pSkill)",
-              "void CSkillList::insert_skill(int, CSkill*)", 0xf91);
+              __PRETTY_FUNCTION__, 0xf91);
         return;
     }
     int idx = skill->get_index();
@@ -718,9 +719,9 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
         m_skillList[jobType].end();
     if (it != end)
     {
-        cMyTrace trace("void CSkillList::insert_skill(int, CSkill*)", 0xfa4, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xfa4, 5);
         trace("[%s][%d]_( itr != m_SkillList[job_type].end() )",
-              "void CSkillList::insert_skill(int, CSkill*)", 0xfa4);
+              __PRETTY_FUNCTION__, 0xfa4);
         return;
     }
     m_skillList[jobType].insert(std::make_pair(idx, skill));
@@ -763,10 +764,10 @@ int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
             else
             {
                 cMyTrace trace(
-                    "int CSkillList::get_ran_groupskill_index(int, int, int)",
+                    __PRETTY_FUNCTION__,
                     0xfde, 5);
                 trace("[%s][%d]_( i == res.first )",
-                      "int CSkillList::get_ran_groupskill_index(int, int, int)",
+                      __PRETTY_FUNCTION__,
                       0xfde);
             }
         }
@@ -833,8 +834,8 @@ int CSkillList::init()
     for (job = 0; job <= 10; ++job)
     {
         for (std::map<int, std::string>::iterator it =
-                 sync_script::g_skillInfoTable[job].begin();
-             it != sync_script::g_skillInfoTable[job].end(); ++it)
+                 g_staSkillScriptFileList[job].begin();
+             it != g_staSkillScriptFileList[job].end(); ++it)
         {
             path = (int)it->second.c_str();
             if (path == 0)
@@ -1112,7 +1113,7 @@ int QuestList::check_ahead_quest(int questIdx,
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "bool QuestList::check_ahead_quest(int, const WongWork::CQuestClear&)",
+            __PRETTY_FUNCTION__,
             0x14b7, "find_quest(%d)", questIdx);
         return 0;
     }
@@ -1148,7 +1149,7 @@ int QuestList::check_anti_quest(int questIdx,
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "bool QuestList::check_anti_quest(int, const WongWork::CQuestClear&)",
+            __PRETTY_FUNCTION__,
             0x150a, "find_quest(%d)", questIdx);
         return 0;
     }
@@ -1159,10 +1160,10 @@ int QuestList::check_anti_quest(int questIdx,
         if (antiIdx > 29999)
         {
             cMyTrace trace(
-                "bool QuestList::check_anti_quest(int, const WongWork::CQuestClear&)",
+                __PRETTY_FUNCTION__,
                 0x151a, 5);
             trace("[%s][%d]",
-                  "bool QuestList::check_anti_quest(int, const WongWork::CQuestClear&)",
+                  __PRETTY_FUNCTION__,
                   0x151a);
             return 0;
         }
@@ -1185,10 +1186,10 @@ int QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
         return 1;
     }
     cMyTrace trace(
-        "bool QuestList::check_clear(int, const WongWork::CQuestClear&)",
+        __PRETTY_FUNCTION__,
         0x152f, 5);
     trace("[%s][%d]",
-          "bool QuestList::check_clear(int, const WongWork::CQuestClear&)",
+          __PRETTY_FUNCTION__,
           0x152f);
     return 0;
 }
@@ -1296,8 +1297,8 @@ int QuestList::load_list()
     Quest* quest = 0;
     sync_script::GetInstanceSyncScript()->truncate_quest_category();
     for (std::map<int, std::string>::iterator it =
-             sync_script::g_questInfoTable.begin();
-         it != sync_script::g_questInfoTable.end(); ++it)
+             g_questScriptFileList.begin();
+         it != g_questScriptFileList.end(); ++it)
     {
         char* path = (char*)it->second.c_str();
         if (path == 0)
@@ -1307,7 +1308,7 @@ int QuestList::load_list()
         if (!importQuestScript(&script, path))
         {
             LogManager::logFormat(1, "data_manager.cpp",
-                                  "bool QuestList::load_list()", 0x1357,
+                                  __PRETTY_FUNCTION__, 0x1357,
                                   "Quest Script Error: %s\n", path);
             return 0;
         }
@@ -1330,7 +1331,7 @@ int QuestList::load_list()
                 if (item == 0)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x136f,
                         "Quest Script Error: %s - Monster Kill Item %d is not "
                         "Exist\n",
@@ -1340,7 +1341,7 @@ int QuestList::load_list()
                 if (!(item->is_stackable() && getQuestItemType(item) == 8))
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x1375,
                         "Quest Script Error: %s - Monster Kill Item %d is not "
                         "Quest Item\n",
@@ -1360,7 +1361,7 @@ int QuestList::load_list()
                 script.m_questData.size() / div >= 4)
             {
                 LogManager::logFormat(
-                    1, "data_manager.cpp", "bool QuestList::load_list()",
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__,
                     0x1383,
                     "Quest Script Error: %s - Quest Data Type is %d, But "
                     "Argumemt Size is Wrong(%d)\n",
@@ -1382,7 +1383,7 @@ int QuestList::load_list()
                                               == 0)
                     {
                         LogManager::logFormat(
-                            1, "data_manager.cpp", "bool QuestList::load_list()",
+                            1, "data_manager.cpp", __PRETTY_FUNCTION__,
                             0x139d,
                             "Quest Script Error: %s - Unknown enemy type(%d)\n",
                             path, enemyType);
@@ -1393,7 +1394,7 @@ int QuestList::load_list()
                 if (triggerSize > 0x1ff)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13a4,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Trigger Size is Wrong(%d)\n",
@@ -1407,7 +1408,7 @@ int QuestList::load_list()
             if ((script.m_questData.size() & 1) != 0)
             {
                 LogManager::logFormat(
-                    1, "data_manager.cpp", "bool QuestList::load_list()",
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__,
                     0x13ba,
                     "Quest Script Error: %s - Quest Data Type is %d, But "
                     "Argumemt Size is Wrong(%d)\n",
@@ -1424,7 +1425,7 @@ int QuestList::load_list()
                 if (size != 2)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13c4,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
@@ -1437,7 +1438,7 @@ int QuestList::load_list()
                 if (size != 2 && size != 3)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13cc,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
@@ -1453,7 +1454,7 @@ int QuestList::load_list()
                 if (size != 3)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13d4,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
@@ -1464,7 +1465,7 @@ int QuestList::load_list()
             else if (size != 4)
             {
                 LogManager::logFormat(
-                    1, "data_manager.cpp", "bool QuestList::load_list()",
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__,
                     0x13dc,
                     "Quest Script Error: %s - Quest Data Type is %d, But "
                     "Argumemt Size is Wrong(%d)\n",
@@ -1478,7 +1479,7 @@ int QuestList::load_list()
             if (map == 0)
             {
                 LogManager::logFormat(
-                    1, "data_manager.cpp", "bool QuestList::load_list()",
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__,
                     0x13e9,
                     "Quest Script Error: %s - NPC wrong npc appear map index "
                     "%d.",
@@ -1499,8 +1500,8 @@ int QuestList::load_list()
         quest = new Quest();
         if (quest == 0)
         {
-            cMyTrace trace("bool QuestList::load_list()", 0x13ff, 5);
-            trace("[%s][%d]", "bool QuestList::load_list()", 0x13ff);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x13ff, 5);
+            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x13ff);
             return 0;
         }
         QuestScript script2(script);
@@ -1564,7 +1565,7 @@ int QuestList::load_list()
                 if (q->m_mailFlag == -1)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x145c, "Mail Quest Error (quest index : %d)",
                         questIdx);
                     return 0;
@@ -1572,7 +1573,7 @@ int QuestList::load_list()
                 if (q->m_mailTitle.size() == 0)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x1462,
                         "Mail Quest Error! mail title err(quest index : %d)",
                         questIdx);
@@ -1581,7 +1582,7 @@ int QuestList::load_list()
                 if (q->m_mailContents.size() == 0)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x1467,
                         "Mail Quest Error! mail contents err(quest index : %d)",
                         questIdx);
@@ -1590,7 +1591,7 @@ int QuestList::load_list()
                 if ((q->m_mailItems.size() & 1) != 0)
                 {
                     LogManager::logFormat(
-                        1, "data_manager.cpp", "bool QuestList::load_list()",
+                        1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x146c,
                         "Mail Quest Error! mail enclose item err(quest index : "
                         "%d)",
@@ -1604,7 +1605,7 @@ int QuestList::load_list()
     {
         return 1;
     }
-    LogManager::logFormat(1, "data_manager.cpp", "bool QuestList::load_list()",
+    LogManager::logFormat(1, "data_manager.cpp", __PRETTY_FUNCTION__,
                           0x1496,
                           "WongWork::CQuestClear::syncScript() fail");
     return 0;

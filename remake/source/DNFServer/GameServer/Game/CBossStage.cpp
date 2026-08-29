@@ -982,7 +982,7 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
     else
     {
         CAICharacterList* aiList = dm->m_aiCharacterList;
-        CAICharacter* ai = CAICharacterList::get(aiList, mob.m_mobIndex);
+        CAICharacter* ai = aiList->get(mob.m_mobIndex);
         if (ai != 0)
         {
             if (dungeon->hasTowerItemDrop())
@@ -1100,7 +1100,7 @@ bool CBossStage::consistMap(const CMap* map)
         {
             unsigned int aiType = (unsigned int)it->m_type;
             CAICharacter* ai =
-                CAICharacterList::get(dm->m_aiCharacterList, aiType);
+                dm->m_aiCharacterList->get(aiType);
             if (ai == 0)
                 return false;
 

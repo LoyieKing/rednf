@@ -162,7 +162,7 @@ CreateDnfEventSciprtServer::~CreateDnfEventSciprtServer()
 // 打点 "- Loading EventCreateDnf script - "；return m_script.loadScript()==0。
 bool CreateDnfEventSciprtServer::Load()
 {
-    cMyTrace trace("virtual bool CreateDnfEventSciprtServer::Load()", 0xd0, 9, true, false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0xd0, 9, true, false);
     trace("\t- Loading EventCreateDnf script - ");
     return m_script.loadScript() == 0;
 }

@@ -51,6 +51,11 @@ class CUser;   // UpdateEventInfo/SendCharacState/Process 参数（定义 CUserD
 
 #include "Arad_DataManager.h"   // ARAD::ScriptInterface / ARAD::Singleton
 
+#ifndef DNF_GAME_ENUM_ERROR_DEFINED
+#define DNF_GAME_ENUM_ERROR_DEFINED
+enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
+#endif
+
 // ============================================================================
 // LevelupSupportSciprt —— tw_LevelupSupport.evt 解析器（ORIG 全局类，size 0x18）。
 // 成员 +0x00 即 map<int, vector<ItemInfo>*>（LevelupSupportEventManger TU 内
@@ -143,6 +148,12 @@ public:
     bool CheckNewStep(int level);                     // ORIG T 0x08147164
     void UpdateEventInfo(CUser* user);                // ORIG T 0x081471c6
     static void SendCharacState(CUser* user, int state);  // ORIG T 0x0814701e（静态，操作 user->m_levelupEvents）
+    const std::vector<EventInfo>& GetDefaultEventInfo() const;  // ORIG T 0x08147012
+
+    // ---- UserMiscLink 批补（ORIG 实证；定义 Game/UserMiscLink.cpp）----
+    int GetStepIndex(int requestLevel);                 // ORIG T 0x08147362（m_stepIndexMap find→second/-1）
+    void InsertItem(CUser* user, int eventIdx, ENUM_ERROR& err);  // ORIG T 0x081473cc
+    std::vector<LevelupSupportSciprt::ItemInfo>* GetItemInfoVector(int level);  // ORIG T 0x08147724（m_script.m_stepItems find→second/NULL）
 
     LevelupSupportSciprt   m_script;        // +0x04
     std::map<int, int>     m_stepIndexMap;  // +0x1c level → 档位序号

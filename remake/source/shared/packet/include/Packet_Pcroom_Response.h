@@ -23,7 +23,7 @@ public:
     char m_fieldC;          // +0x1e ORIG ctor 清零、两条填充路径均未写入（语义无证据，已穷举内部+外部）
 
     Packet_Pcroom_Response() : PacketHeader(0xfaf, 0x1f),
-        m_uid(0), m_accId(0), m_field12(0), m_expireTime(0), m_field1a(0), m_field1b(0), m_fieldC(0)
+        m_uid(0), m_accId(0), m_fieldC(0)
     {
 
     }

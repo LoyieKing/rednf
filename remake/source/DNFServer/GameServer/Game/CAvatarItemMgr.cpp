@@ -5,11 +5,24 @@
 #include "AvatarRechargeServer.h"
 #include "GameTypes.h"
 #include "CDataManager.h"
-#include "CItem.h"
 #include <cstring>
-
 namespace WongWork
 {
+
+// ORIG 静态池 B 0x5c @0x943bd80；静态初始化 0x82fa193 实证 ctor(0x3a98=15000, 0x3e8=1000)。
+DynamicPool<Avatar_Item> CAvatarItemMgr::m_AvatarItemPool(15000, 1000);
+
+// ORIG 布局（nm/报告实证）：m_registeredItems(+0x00)/m_waitAssignItems(+0x18)
+// /m_tempKeyCounter(+0x30)/m_emblemInfo(+0x34)/m_emblemEnduranceMap(+0x54)
+// /m_enduranceUpdateMap(+0x6c)，总 0x84（CInventory.h:783 权威注释）。
+static_assert(sizeof(CAvatarItemMgr) == 0x84, "CAvatarItemMgr ABI size changed");
+
+// ORIG D1/D2 0x0822d2e0：调 Reset() 后成员 map 自动析构（D1 汇编
+// Reset → D1(+0x6c) → D1(+0x54) → D1(+0x18) → D1(+0x00)）。
+CAvatarItemMgr::~CAvatarItemMgr()
+{
+    Reset();
+}
 
 void CAvatarItemMgr::Reset()
 {
@@ -24,7 +37,7 @@ void CAvatarItemMgr::Reset()
         if (item != 0)
         {
             item->init();
-            delete item;
+            m_AvatarItemPool.Free(item);
         }
     }
     for (std::map<int, Avatar_Item*>::iterator it = m_waitAssignItems.begin();
@@ -33,7 +46,7 @@ void CAvatarItemMgr::Reset()
         Avatar_Item* item = it->second;
         if (item != 0)
         {
-            delete item;
+            m_AvatarItemPool.Free(item);
         }
     }
     m_registeredItems.clear();
@@ -73,9 +86,9 @@ Avatar_Item* CAvatarItemMgr::_FindWaitAssignItem(int key) const
 
 Avatar_Item* CAvatarItemMgr::_FindItemAll(int key) const
 {
-    // ORIG：const 版 _FindItemAll 内联展开 IsTempKey 的符号位测试
-    //（IsTempKey 本身 ORIG 为非 const W 0x0822d20d，C++ const 方法不可直调）。
-    if ((key >> 31) != 0)
+    // ORIG：_FindItemAll 调 IsTempKey（W 0x0822d20d）判定符号位；
+    // IsTempKey 为 static（mangled 不变），const 方法可直接调用。
+    if (IsTempKey(key))
         return _FindWaitAssignItem(key);
     std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.find(key);
     if (it == m_registeredItems.end())
@@ -146,7 +159,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(int itemIdx, int tick,
                                                           const stAvatarEmblemInfo_t& emblem)
 {
     int tempKey = _AssignTempKey();
-    Avatar_Item* item = new Avatar_Item();
+    Avatar_Item* item = m_AvatarItemPool.Acquire();
     int expireDate;
     if (itemIdx == 0 || itemIdx == 0x16d)
     {
@@ -171,7 +184,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(int itemIdx, int tick,
 unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(const Inven_Item& invenItem)
 {
     int tempKey = _AssignTempKey();
-    Avatar_Item* item = new Avatar_Item();
+    Avatar_Item* item = m_AvatarItemPool.Acquire();
     item->SetData(invenItem.m_addInfo2, 0, "");
     item->setColorEss(0, 0);
     m_waitAssignItems.insert(std::make_pair(tempKey, item));
@@ -184,7 +197,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(const Inven_Item& inve
 unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(Inven_Item invenItem)
 {
     int tempKey = _AssignTempKey();
-    Avatar_Item* item = new Avatar_Item();
+    Avatar_Item* item = m_AvatarItemPool.Acquire();
     item->SetData(invenItem.m_addInfo2, 0, "");
     item->setColorEss(0, 0);
     m_waitAssignItems.insert(std::make_pair(tempKey, item));
@@ -198,7 +211,7 @@ int CAvatarItemMgr::RegistItem(int key, int expireDate, int registTime, const ch
     Avatar_Item* item = _FindItem(key);
     if (item != 0)
         return 0;
-    item = new Avatar_Item();
+    item = m_AvatarItemPool.Acquire();
     int expireDate2 = 0;
     if (b)
     {
@@ -319,7 +332,7 @@ bool CAvatarItemMgr::UnRegistItem(int key)
     if (item == 0)
         return false;
     m_registeredItems.erase(key);
-    delete item;
+    m_AvatarItemPool.Free(item);
     std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
     if (it != m_emblemEnduranceMap.end())
         m_emblemEnduranceMap.erase(it);

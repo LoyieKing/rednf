@@ -34,23 +34,218 @@ namespace
 {
 // ---- 本 TU 局部偏移读写助手（SIG 结构按 ORIG 偏移访问，见 SigTypes.h 注释） ----
 
-template <typename T>
-inline T& sig_at(void* base, int off)
-{
-    return *reinterpret_cast<T*>(static_cast<char*>(base) + off);
-}
 
-template <typename T>
-inline const T& sig_at(const void* base, int off)
+#pragma pack(push, 1)
+struct MailBoxListV
 {
-    return *reinterpret_cast<const T*>(static_cast<const char*>(base) + off);
-}
+    struct Entry
+    {
+        unsigned int m_mailIdx;      // +0x00（AddNewMail input+0x00）
+        unsigned int m_characNo;     // +0x04（input+0x04）
+        char m_senderName[0x1d];     // +0x08（input+0x20 指针）
+        unsigned int m_unk25;        // +0x25（input+0x08）
+        unsigned char m_itemField0;  // +0x29
+        int m_itemIdx;               // +0x2a
+        int m_addInfo2;              // +0x2e
+        unsigned char m_itemAttr;    // +0x32
+        unsigned short m_field33;    // +0x33
+        int m_field35;               // +0x35
+        int m_field39;               // +0x39
+        int m_field3d;               // +0x3d
+        unsigned short m_field41;    // +0x41
+        unsigned char m_ampType;     // +0x43
+        unsigned short m_ampIdx;     // +0x44
+        int m_field46;               // +0x46
+        int m_field4a;               // +0x4a
+        int m_field4e;               // +0x4e
+        unsigned short m_field52;    // +0x52
+        unsigned char m_upgradeSep;  // +0x54
+        unsigned int m_money;        // +0x55（input+0x18）
+        unsigned char m_moneyFlag;   // +0x59
+        unsigned char m_coinFlag;    // +0x5a
+        unsigned char m_unlimit;     // +0x5b（input+0x1c）
+        unsigned int m_letterId;     // +0x5c（input+0x0c）
+        unsigned char m_attachType;  // +0x60（input+0x10）
+    };                               // sizeof 0x61
+
+    struct AvatarEntry
+    {
+        int m_uid;                       // +0x00
+        int m_itemIdx;                   // +0x04
+        int m_expire;                    // +0x08
+        char m_name[0x19];               // +0x0c
+        stAvatarEmblemInfo_t m_emblem;   // +0x25
+        stAvatarExpansionInfo_t m_expansion; // +0x43
+    };                                   // sizeof 0x47
+
+    struct CreatureEntry
+    {
+        int m_itemIdx;                   // +0x00
+        int m_expire;                    // +0x04
+    };                                   // 步长 0x25
+
+    struct DetailEntry
+    {
+        unsigned int m_letterId;         // +0x00
+        unsigned int m_characNo;         // +0x04
+        char m_title[0x1d];              // +0x08
+        char m_msg[0x100];               // +0x25
+        int m_period;                    // +0x125
+        short m_flag;                    // +0x129
+    };                                   // sizeof 0x12b
+
+    char m_padEntries[0x794];
+    int m_mailCount;                 // +0x794
+    int m_notLoadedMailCount;        // +0x798
+    long m_loadTime;                 // +0x79c
+    int m_avatarCount;               // +0x7a0
+    char m_padAvatar[0xd30 - 0x7a4]; // avatar 条目区首 @+0x7a4（0x47 步长）
+    int m_creatureCount;             // +0xd30
+    char m_padCreature[0x1018 - 0xd34];
+    int m_detailCount;               // +0x1018
+    char m_padDetail[0x332a - 0x101c];
+    int m_loadedAdd;                 // +0x332a
+    char m_padLack[0x333a - 0x332e];
+    unsigned int m_lackTable[20];    // +0x333a
+};                                   // sizeof 0x338a
+#pragma pack(pop)
+static_assert(sizeof(MailBoxListV) == 0x338a, "MailBoxListV ABI drift");
+static_assert(sizeof(MailBoxListV::Entry) == 0x61, "MailBoxListV::Entry ABI drift");
+static_assert(sizeof(MailBoxListV::AvatarEntry) == 0x47, "MailBoxListV::AvatarEntry ABI drift");
+static_assert(sizeof(MailBoxListV::DetailEntry) == 0x12b, "MailBoxListV::DetailEntry ABI drift");
+
+// SIG_MAILBOX_DEL_MAIL：+0 count / +4*i idx 表 / +0x54 type，总 0x58。
+#pragma pack(push, 1)
+struct MailBoxDelMailV
+{
+    unsigned int m_count;            // +0x00
+    unsigned int m_mailIdx[0x14];    // +0x04
+    unsigned int m_type;             // +0x54
+};                                   // sizeof 0x58
+#pragma pack(pop)
+static_assert(sizeof(MailBoxDelMailV) == 0x58, "MailBoxDelMailV ABI drift");
+
+// SIG_MAILBOX_SEND_NEW_MAIL（_makeSendMailData 0x8555756 逐字段证据），总 0x168。
+#pragma pack(push, 1)
+struct MailBoxSendNewMailV
+{
+    char m_senderName[0x1d];         // +0x00
+    char m_pad1d[0x1e - 0x1d];
+    int m_senderCharacNo;            // +0x1e
+    unsigned int m_amount;           // +0x22
+    unsigned int m_destCharacNo;     // +0x26
+    unsigned char m_itemField0;      // +0x2a
+    int m_addInfo;                   // +0x2b
+    int m_addInfo2;                  // +0x2f
+    unsigned char m_itemAttr;        // +0x33
+    unsigned short m_fieldb;         // +0x34
+    int m_fieldd;                    // +0x36
+    int m_field15;                   // +0x3a
+    int m_field19;                   // +0x3e
+    unsigned short m_field1d;        // +0x42
+    unsigned char m_ampType;         // +0x44
+    unsigned short m_ampIdx;         // +0x45
+    int m_field25;                   // +0x47
+    int m_field29;                   // +0x4b
+    int m_field2d;                   // +0x4f
+    unsigned short m_field31;        // +0x53
+    unsigned char m_upgradeSep;      // +0x55
+    unsigned char m_isAvatarSend;    // +0x56（m_field1==8）
+    unsigned char m_cashShopFlag;    // +0x57（CashShop 置 1）
+    unsigned char m_isCreature;      // +0x58
+    unsigned short m_titleLen;       // +0x59
+    char m_title[0x100];             // +0x5b
+    unsigned int m_nB;               // +0x15b
+    unsigned int m_serverGroup;      // +0x15f
+    int m_nType;                     // +0x163
+    unsigned char m_flag;            // +0x167
+};                                   // sizeof 0x168
+#pragma pack(pop)
+static_assert(sizeof(MailBoxSendNewMailV) == 0x168, "MailBoxSendNewMailV ABI drift");
+static_assert(offsetof(MailBoxSendNewMailV, m_addInfo) == 0x2b,
+              "MailBoxSendNewMailV m_addInfo offset drift");
+
+// SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL（ReqDBSendNewSystemMultiMail 证据），总 0x3a9。
+#pragma pack(push, 1)
+struct MailBoxSendSystemMultiMailV
+{
+    char m_senderName[0x1e];         // +0x00
+    char m_title[0x100];             // +0x1e
+    unsigned int m_characNo;         // +0x11e
+    unsigned int m_unk122;           // +0x122
+    Inven_Item m_items[0xa];         // +0x126（10 项 × 0x3d = 0x262）
+    unsigned int m_count;            // +0x388
+    unsigned int m_nA;               // +0x38c
+    unsigned int m_nB;               // +0x390
+    unsigned char m_flag;            // +0x394
+    unsigned int m_serverGroup;      // +0x395
+    unsigned int m_titleLen;         // +0x399
+    char m_pad39d[0x3a5 - 0x39d];
+    unsigned int m_unk3a5;           // +0x3a5
+};                                   // sizeof 0x3a9
+#pragma pack(pop)
+static_assert(sizeof(MailBoxSendSystemMultiMailV) == 0x3a9,
+              "MailBoxSendSystemMultiMailV ABI drift");
+static_assert(offsetof(MailBoxSendSystemMultiMailV, m_items) == 0x126,
+              "MailBoxSendSystemMultiMailV m_items offset drift");
+
+// SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK 两用：avatar 布局与 creature 布局
+// 在 +0x2c..+0x9f 区重叠，拆两个镜像（GetInBuffer 指针按消息类型强转）。
+#pragma pack(push, 1)
+struct MailBoxSendNewMailAvatarV
+{
+    unsigned int m_type;             // +0x00（0=avatar）
+    char m_senderName[0x1d];         // +0x04
+    char m_pad21[0x24 - 0x21];
+    int m_nCharacNo;                 // +0x24
+    unsigned int m_senderCharacNo;   // +0x28
+    SIG_AVATAR_INSERT m_avatar;      // +0x2c
+    char m_pad7f[0xa0 - 0x2c - 0x53];
+    unsigned short m_titleLen;       // +0xa0
+    char m_title[0x100];             // +0xa2
+    unsigned char m_cashShopFlag;    // +0x1a2
+    char m_pad1a3;                   // +0x1a3（对齐 ORIG 0x1a4）
+};                                   // sizeof 0x1a4
+
+struct MailBoxSendNewMailCreatureV
+{
+    unsigned int m_type;             // +0x00（1=creature）
+    char m_senderName[0x1d];         // +0x04
+    char m_pad21[0x24 - 0x21];
+    int m_nCharacNo;                 // +0x24
+    unsigned int m_senderCharacNo;   // +0x28
+    char m_pad2c[4];                 // +0x2c..+0x30
+    Inven_Item m_item;               // +0x30..+0x6d（0x3d 字节）
+    char m_pad6d[0x70 - 0x6d];
+    unsigned int m_unk70;            // +0x70（creature=100）
+    int m_nDestCharacNo;             // +0x74
+    char m_pad78[0x7c - 0x78];       // +0x78（memset 清零区）
+    unsigned char m_subType0;        // +0x7c
+    unsigned char m_unk7d;           // +0x7d（creature=0x20）
+    unsigned char m_unk7e;           // +0x7e
+    unsigned char m_unk7f;           // +0x7f（creature=1）
+    unsigned int m_usablePeriod;     // +0x80
+    unsigned int m_expiration;       // +0x84
+    char m_pad88[0x94 - 0x88];
+    unsigned int m_unk94;            // +0x94
+    char m_pad98[0xa0 - 0x98];
+    unsigned short m_titleLen;       // +0xa0
+    char m_title[0x100];             // +0xa2
+    unsigned char m_cashShopFlag;    // +0x1a2
+    char m_pad1a3;                   // +0x1a3（对齐 ORIG 0x1a4）
+};                                   // sizeof 0x1a4
+#pragma pack(pop)
+static_assert(sizeof(MailBoxSendNewMailAvatarV) == 0x1a4,
+              "MailBoxSendNewMailAvatarV ABI drift");
+static_assert(sizeof(MailBoxSendNewMailCreatureV) == 0x1a4,
+              "MailBoxSendNewMailCreatureV ABI drift");
+static_assert(offsetof(MailBoxSendNewMailCreatureV, m_item) == 0x30,
+              "MailBoxSendNewMailCreatureV m_item offset drift");
 
 inline void sig_copy(void* dst, int off, const void* src, int len)
 {
     std::memcpy(static_cast<char*>(dst) + off, src, len);
 }
-
 
 // CMailBox 内部布局（ORIG 偏移，权威布局批次前以偏移访问）：
 //   +0x10 StaticPool<CMail,20> / +0x40 map<uint,CMail*> / +0x58 list<Stream*>
@@ -63,10 +258,108 @@ const int CMAILBOX_OFF_KEEPCNT    = 0x80;
 typedef std::map<unsigned int, WongWork::CMailBox::CMail*> MailMap;
 typedef std::list<Stream*> MailStreamList;
 
+// CMailBox 组件视图（头内 private 成员，本 TU 按 ORIG 偏移访问；布局见
+// CMailBoxHelper.h 注释与 ctor/dtor/Init 报告）。
+struct CMailBoxView
+{
+    char m_pad0[0x10];
+    StaticPool<WongWork::CMailBox::CMail, 20> m_mailPool;   // +0x10（sizeof 0x30）
+    char m_pad40[0x40 - 0x40];
+    MailMap m_mailMap;           // +0x40
+    char m_pad58[0x58 - 0x58];
+    MailStreamList m_streamList; // +0x58
+    char m_pad80[0x80 - 0x80];
+    int m_letterKeepCount;       // +0x80
+};
+
 inline MailMap& mail_map(WongWork::CMailBox* box)
 {
-    return sig_at<MailMap>(box, CMAILBOX_OFF_MAILMAP); // 推断（ORIG 偏移）
+    return reinterpret_cast<CMailBoxView*>(box)->m_mailMap; // 推断（ORIG +0x40）
 }
+
+// MSG_MAILBOX_SEND 布局镜像（PacketTypes.h 冻结 m_pad[0x100]；偏移见
+// ReqDBSendNewMail(MSG) 0x8555b14 报告）。
+#pragma pack(push, 1)
+struct MailMsgSendV
+{
+    char m_pad0[0x11];
+    char m_receiverName[0x1d];   // +0x11（收件角色名）
+    char m_pad2e[0x2e - 0x2e];
+    int m_money;                 // +0x2e
+    unsigned char m_type;        // +0x36
+    unsigned short m_slot;       // +0x37
+    int m_itemIdx;               // +0x39
+    int m_addInfo;               // +0x3d（物品 add_info / 目标角色）
+    int m_titleLen;              // +0x41
+    char m_title[0x100];         // +0x45
+};
+#pragma pack(pop)
+// SIG_MAILBOX_LIST 请求头视图（ReqDBLoadMail 0x85552ac 写入侧；响应时
+// DB 以条目区覆盖，见 MailBoxListV）。
+#pragma pack(push, 1)
+struct MailBoxLoadReqV
+{
+    unsigned int m_mailIndex;         // +0x00
+    unsigned int m_lastLoadIdx;       // +0x04
+    int m_remainSize;                 // +0x08
+    unsigned int m_lastLoadLetterIdx; // +0x0c
+    unsigned int m_mailLoadCount;     // +0x10
+    unsigned int m_lackList[0x14];    // +0x14
+};
+#pragma pack(pop)
+// Inven_Item 布局镜像（pack(1) 0x3d；与 Inven_Item.h 权威布局一致，用于
+// SetMailBoxInfo 中对 amp/random 区按 ORIG 偏移逐字段搬运）。
+#pragma pack(push, 1)
+struct InvenItemRawV
+{
+    char m_field0;              // +0x00
+    unsigned char m_field1;     // +0x01
+    int m_addInfo;              // +0x02
+    unsigned char m_attr;       // +0x06
+    int m_addInfo2;             // +0x07
+    unsigned short m_fieldb;    // +0x0b
+    int m_fieldd;               // +0x0d
+    char m_ampArea[0xe];        // +0x11
+    char m_randomArea[0x14];    // +0x1f
+    unsigned char m_upgradeSep; // +0x33
+    char m_reserved[9];         // +0x34
+};
+#pragma pack(pop)
+// stAddNewMailInput 布局视图（SetMailBoxInfo 0x85525a6 条目区汇编证据：
+// input+0x20 = 条目+0x08 指针；input+0x08 ← 条目+0x25 dword）。
+#pragma pack(push, 1)
+struct MailInputV
+{
+    unsigned int m_mailIdx;      // +0x00
+    unsigned int m_characNo;     // +0x04
+    unsigned int m_unk08;        // +0x08
+    unsigned int m_letterId;     // +0x0c
+    unsigned char m_attachType;  // +0x10
+    int m_pkgType;               // +0x14
+    unsigned int m_money;        // +0x18
+    unsigned char m_unlimit;     // +0x1c
+    char m_pad1d[3];
+    const char* m_senderName;    // +0x20
+};
+#pragma pack(pop)
+// SIG_AVATAR_INSERT 布局视图（set 0x850d3c8 逐字段证据；SigTypes_A.h 为
+// m_data[0x53] 占位）。
+#pragma pack(push, 1)
+struct AvatarInsertV
+{
+    int m_field0;              // +0x00
+    unsigned int m_field4;     // +0x04
+    unsigned char m_field8;    // +0x08
+    unsigned char m_field9;    // +0x09（c）
+    int m_fielda;              // +0x0a（expire）
+    unsigned char m_fielde;    // +0x0e（bSet）
+    char m_agency[0x18];       // +0x0f
+    char m_pad27[0x28 - 0x27];
+    int m_field28;             // +0x28
+    unsigned char m_field2c;   // +0x2c
+};
+#pragma pack(pop)
+static_assert(offsetof(AvatarInsertV, m_field28) == 0x28, "AvatarInsertV m_field28 drift");
 
 } // namespace
 // ---- ORIG 全局 T 符号（本 TU 提供定义） ----
@@ -85,8 +378,9 @@ public:
 // 村庄使用 → false；否则 true。ORIG 无空指针检查，与汇编一致。
 bool _isUnusableSpecialItemInVillage(CItem const* item)
 {
-    int type = item->GetItemType();
-    return !(type == 0x10 || type == 0x22);
+    if (item->GetItemType() == 0x10 || item->GetItemType() == 0x22)
+        return false;
+    return true;
 }
 
 // ORIG 0x081201dc：find_item(item.m_addInfo)；为空或非 stackable → false；
@@ -100,18 +394,31 @@ bool IsTradeLimitAttachTypeItem(Inven_Item const& item)
         return false;
     return found->GetAttachType() == 7;
 }
+
+// ORIG T 0x08120242：无当前角色/槽空物品均 false；否则按上一函数判定。
+bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot)
+{
+    if (user.getCurCharacR() == 0)
+        return false;
+    Inven_Item item = user.getCurCharacInvenR()->GetInvenSlot(space, slot);
+    if (item.m_addInfo == 0)
+        return false;
+    return IsTradeLimitAttachTypeItem(item);
+}
 // ORIG 0x0855254c：遍历 SIG_MAILBOX_LIST 无限信列表（count @+0x794，条目
 // 步长 0x61；条目基 +i*0x61：+0x5c dword=信件 id，+0x5b byte=无限标志）。
-bool isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
+int isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
 {
-    for (int i = 0; i < sig_at<int>(info, 0x794); ++i)
+    MailBoxListV const* list = reinterpret_cast<MailBoxListV const*>(info);
+    for (int i = 0; i < list->m_mailCount; ++i)
     {
-        const char* entry =
-            reinterpret_cast<const char*>(info) + i * 0x61;
-        if (sig_at<int>(entry, 0x5c) == letterId)
-            return sig_at<unsigned char>(entry, 0x5b) != 0;
+        MailBoxListV::Entry const* entry =
+            reinterpret_cast<MailBoxListV::Entry const*>(
+                reinterpret_cast<const char*>(list) + i * 0x61);
+        if (entry->m_letterId == (unsigned int)letterId)
+            return entry->m_unlimit;
     }
-    return false;
+    return 0;
 }
 class DB_InsertCeraItemHistory
 {
@@ -119,6 +426,46 @@ public:
     static int makeRequest(int itemIdx, unsigned int senderCharacNo,
                            unsigned int receiverCharacNo, char flag); // 0x0844511a (T)
 };
+
+// ORIG DB_GetDeathTowerBestRecord::makeRequest @ 0x0842a048 T
+// mangled Eij=(int,unsigned int)：Acquire("DBThread.cpp",0x6be0) → opcode 0xe2
+// → uid → characNo → MsgQueueMgr::DB_Q。
+class DB_GetDeathTowerBestRecord
+{
+public:
+    static void makeRequest(int uid, unsigned int characNo);
+};
+
+void DB_GetDeathTowerBestRecord::makeRequest(int uid, unsigned int characNo)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6be0), true);
+    guard.operator*()->operator<<(0xe2);
+    guard.operator*()->operator<<(uid);
+    guard.operator*()->operator<<(characNo);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}
+
+// ORIG DB_GetUserRegdate::makeRequest @ 0x08442fae T
+// mangled Eij=(int,unsigned int)：opcode 0x2a1 后，输入字段为
+// SIG_GET_USER_REGDATE::{m_id(+0),m_regDay(+4),m_regDate(+8)}。
+class DB_GetUserRegdate
+{
+public:
+    static void makeRequest(int uid, unsigned int accId);
+};
+
+void DB_GetUserRegdate::makeRequest(int uid, unsigned int accId)
+{
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4b2), true);
+    guard.operator*()->operator<<(0x2a1);
+    guard.operator*()->operator<<(uid);
+    SIG_GET_USER_REGDATE* sig =
+        guard.operator->()->GetInBuffer<SIG_GET_USER_REGDATE>();
+    sig->m_id = accId;
+    sig->m_regDate = 0;
+    sig->m_regDay = 0;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+}
 namespace AvatarRouletteServer
 {
 bool isAvatarPottery(unsigned long v);                                // 0x0817fb0a (T)
@@ -207,8 +554,7 @@ void CMailBoxHelper::GetPackege(CUser* user, unsigned int mailIndex)
             senderName, (int)std::strlen(senderName));
     }
 
-    ((cUserHistoryLog*)((char*)user + 0x79700))
-        ->RecvMail(mailIndex, mail->GetSenderName(), user->get_acc_name()); // 推断：+0x79700 成员偏移
+    user->m_historyLog.RecvMail(mailIndex, mail->GetSenderName(), user->get_acc_name());
 
     packet.clear();
     packet.put_header(1, 0x62);
@@ -235,15 +581,16 @@ void CMailBoxHelper::ReqDBLoadMail(CUser* user, unsigned int mailIndex)
     guard << 0x7f;
     guard << (int)user->GetUID();
     SIG_MAILBOX_LIST* p = guard->GetInBuffer<SIG_MAILBOX_LIST>();
+    MailBoxLoadReqV* v = reinterpret_cast<MailBoxLoadReqV*>(p);
     std::memset(p, 0, 0x338a);
-    sig_at<unsigned int>(p, 0x00) = mailIndex;
-    sig_at<unsigned int>(p, 0x04) = (unsigned int)box->GetLastLoadIdx();
+    v->m_mailIndex = mailIndex;
+    v->m_lastLoadIdx = (unsigned int)box->GetLastLoadIdx();
     if (0x14 < box->GetLoadedLetterCount())
         box->SetLoadedLetterCount(0x14);
-    sig_at<int>(p, 0x08) = box->GetRemainSize() - box->GetLoadedLetterCount();
-    sig_at<unsigned int>(p, 0x0c) = (unsigned int)box->GetLastLoadLetterIdx();
-    sig_at<unsigned int>(p, 0x10) = (unsigned int)box->getMailLoadCount();
-    box->GetPackageLoadLack(&sig_at<unsigned int>(p, 0x14), 0x14);
+    v->m_remainSize = box->GetRemainSize() - box->GetLoadedLetterCount();
+    v->m_lastLoadLetterIdx = (unsigned int)box->GetLastLoadLetterIdx();
+    v->m_mailLoadCount = (unsigned int)box->getMailLoadCount();
+    box->GetPackageLoadLack(v->m_lackList, 0x14);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -254,10 +601,11 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
     guard << 0x81;
     guard << (int)user->GetUID();
     SIG_MAILBOX_DEL_MAIL* p = guard->GetInBuffer<SIG_MAILBOX_DEL_MAIL>();
-    sig_at<unsigned int>(p, 0x00) = mailIdx[0];
+    MailBoxDelMailV* v = reinterpret_cast<MailBoxDelMailV*>(p);
+    v->m_count = mailIdx[0];
     for (unsigned int i = 1; i <= mailIdx[0]; ++i)
-        sig_at<unsigned int>(p, (int)(i * 4)) = mailIdx[i];
-    sig_at<unsigned int>(p, 0x54) = a ? 2u : 1u;
+        v->m_mailIdx[i] = mailIdx[i];
+    v->m_type = a ? 2u : 1u;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -328,12 +676,11 @@ unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
                     found = true;
             }
             if (!found)
-                sig_at<int>(box, CMAILBOX_OFF_KEEPCNT) =
-                    sig_at<int>(box, CMAILBOX_OFF_KEEPCNT) + 1;
+                reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount =
+                    reinterpret_cast<CMailBoxView*>(box)->m_letterKeepCount + 1;
         }
         mail->ResetPackage();
-        sig_at<StaticPool<CMailBox::CMail, 20> >(box, CMAILBOX_OFF_STATICPOOL)
-            .Free(mail); // 推断：+0x10 StaticPool<CMail,20>
+        reinterpret_cast<CMailBoxView*>(box)->m_mailPool.Free(mail); // 推断：+0x10
     }
     ReqDBRemoveMail(user, removed, true);
     return removed[0];
@@ -380,15 +727,16 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
     long nowSec = GlobalData::s_systemTime_.getCurSec();
 
     // +0x333a：PackageLoadLack 表（20 项）
+    MailBoxListV const* list = reinterpret_cast<MailBoxListV const*>(info);
     std::set<unsigned int> lackSet;
-    box->SetPackageLoadLack(&sig_at<unsigned int>(info, 0x333a), 0x14, lackSet);
+    box->SetPackageLoadLack(list->m_lackTable, 0x14, lackSet);
 
     int count = 0;
     if (!bFirstLoad)
     {
         packet.put_header(0, 0x61);
         int idx = packet.get_index();
-        packet.put_byte(sig_at<int>(info, 0x794));
+        packet.put_byte(list->m_mailCount);
         packet.put_byte(1);
         MailMap& mails = mail_map(box);
         for (MailMap::iterator it = mails.begin(); it != mails.end(); ++it)
@@ -400,95 +748,88 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
                 count = count + 1;
             }
         }
-        packet.put_byte(idx, sig_at<int>(info, 0x794)); // 占位回填（ORIG 回填 count 于尾部）
-        packet.put_short(sig_at<int>(info, 0x798));
+        packet.put_byte(idx, count); // ORIG：回填 count 于尾部
+        packet.put_short(list->m_notLoadedMailCount);
     }
 
     // +0x7a0 avatar 注册区，步长 0x47
-    int avatarCount = sig_at<int>(info, 0x7a0);
+    int avatarCount = list->m_avatarCount;
     for (int i = 0; i < avatarCount; ++i)
     {
-        int base = i * 0x47;
+        MailBoxListV::AvatarEntry const* av =
+            reinterpret_cast<MailBoxListV::AvatarEntry const*>(
+                reinterpret_cast<const char*>(&list->m_padAvatar[0]) + i * 0x47);
         CInventory* invW = user->getCurCharacInvenW();
         invW->GetAvatarItemMgrW()->RegistItem(
-            sig_at<int>(info, base + 0x7a4),
-            sig_at<int>(info, base + 0x7a8),
-            sig_at<int>(info, base + 0x7ac),
-            &sig_at<char>(info, base + 0x7b0),
-            sig_at<stAvatarEmblemInfo_t>(info, base + 0x7c9),
-            sig_at<stAvatarExpansionInfo_t>(info, base + 0x7e7),
-            false);
+            av->m_uid, av->m_itemIdx, av->m_expire, av->m_name,
+            av->m_emblem, av->m_expansion, false);
     }
 
     // +0xd30 creature 临时期限区，步长 0x25
-    int creatureCount = sig_at<int>(info, 0xd30);
+    int creatureCount = list->m_creatureCount;
     for (int i = 0; i < creatureCount; ++i)
     {
-        int base = i * 0x25;
+        MailBoxListV::CreatureEntry const* ce =
+            reinterpret_cast<MailBoxListV::CreatureEntry const*>(
+                reinterpret_cast<const char*>(&list->m_padCreature[0]) + i * 0x25);
         CInventory* invW = user->getCurCharacInvenW();
-        invW->GetCreatureMgrW()->RegistTempPeriod(
-            sig_at<int>(info, base + 0xd34), sig_at<int>(info, base + 0xd38), 0);
+        invW->GetCreatureMgrW()->RegistTempPeriod(ce->m_itemIdx, ce->m_expire, 0);
     }
 
-    box->SetLoadState(true, sig_at<long>(info, 0x79c));
+    box->SetLoadState(true, list->m_loadTime);
 
     // 信件条目区：count @+0x794，步长 0x61
-    int mailCount = sig_at<int>(info, 0x794);
+    int mailCount = list->m_mailCount;
     for (int i = 0; i < mailCount; ++i)
     {
-        int base = i * 0x61;
+        MailBoxListV::Entry const* entry =
+            reinterpret_cast<MailBoxListV::Entry const*>(
+                reinterpret_cast<const char*>(list) + i * 0x61);
         Inven_Item item;
-        int itemIdx = sig_at<int>(info, base + 0x2a);
+        int itemIdx = entry->m_itemIdx;
         if (itemIdx != 0)
         {
             if (itemIdx == 1)
             {
                 item.m_addInfo = itemIdx;
-                sig_at<int>(&item, 0) = sig_at<int>(info, base + 0x29);
-                item.m_addInfo2 = sig_at<int>(info, base + 0x2e);
-                sig_at<unsigned short>(&item, 0x0b) =
-                    sig_at<unsigned short>(info, base + 0x33);
+                item.m_addInfo2 = entry->m_addInfo2;
+                item.m_fieldb = entry->m_field33;
             }
             else
             {
                 CItem* proto = G_CDataManager()->find_item(itemIdx);
                 if (proto != 0)
                 {
+                    InvenItemRawV* raw = reinterpret_cast<InvenItemRawV*>(&item);
                     proto->make_item(item);
-                    item.m_field0 = sig_at<unsigned char>(info, base + 0x29);
+                    item.m_field0 = entry->m_itemField0;
                     item.m_addInfo = itemIdx;
-                    item.m_addInfo2 = sig_at<int>(info, base + 0x2e);
-                    item.SetItemAttr(sig_at<unsigned char>(info, base + 0x32));
-                    sig_at<unsigned short>(&item, 0x0b) =
-                        sig_at<unsigned short>(info, base + 0x33);
-                    sig_at<int>(&item, 0x0d) = sig_at<int>(info, base + 0x35);
-                    sig_at<unsigned char>(&item, 0x11) =
-                        sig_at<unsigned char>(info, base + 0x43);
-                    sig_at<unsigned short>(&item, 0x12) =
-                        sig_at<unsigned short>(info, base + 0x44);
-                    sig_at<int>(&item, 0x14) = sig_at<int>(info, base + 0x46);
-                    sig_at<unsigned short>(&item, 0x18) =
-                        sig_at<unsigned short>(info, base + 0x52);
-                    item.m_amp.assign(sig_at<unsigned char>(info, base + 0x43),
-                                      sig_at<unsigned short>(info, base + 0x44));
-                    sig_at<unsigned int>(&item, 0x25) =
-                        sig_at<unsigned int>(info, base + 0x46);
-                    sig_at<unsigned int>(&item, 0x29) =
-                        sig_at<unsigned int>(info, base + 0x4a);
-                    sig_at<unsigned int>(&item, 0x2d) =
-                        sig_at<unsigned int>(info, base + 0x4e);
-                    sig_at<unsigned short>(&item, 0x31) =
-                        sig_at<unsigned short>(info, base + 0x52);
+                    item.m_addInfo2 = entry->m_addInfo2;
+                    item.SetItemAttr(entry->m_itemAttr);
+                    item.m_fieldb = entry->m_field33;
+                    item.m_fieldd = entry->m_field35;
+                    *reinterpret_cast<int*>(raw->m_ampArea + 4) = entry->m_field39;
+                    *reinterpret_cast<int*>(raw->m_ampArea + 8) = entry->m_field3d;
+                    *reinterpret_cast<unsigned short*>(raw->m_ampArea + 12) =
+                        entry->m_field41;
+                    item.m_amp.assign(entry->m_ampType, entry->m_ampIdx);
+                    *reinterpret_cast<unsigned int*>(raw->m_randomArea) =
+                        (unsigned int)entry->m_field46;
+                    *reinterpret_cast<unsigned int*>(raw->m_randomArea + 4) =
+                        (unsigned int)entry->m_field4a;
+                    *reinterpret_cast<unsigned int*>(raw->m_randomArea + 8) =
+                        (unsigned int)entry->m_field4e;
+                    *reinterpret_cast<unsigned short*>(raw->m_randomArea + 12) =
+                        entry->m_field52;
                     item.m_upgradeSep.SetUpgradeSeparateAndTradeRestriction(
-                        sig_at<unsigned char>(info, base + 0x54));
+                        entry->m_upgradeSep);
 
-                    if (sig_at<unsigned char>(info, base + 0x60) == 4 &&
+                    if (entry->m_attachType == 4 &&
                         IsTradeLimitAttachTypeItem(item))
                     {
                         unsigned char limit = item.GetTradeLimitCount();
                         item.SetTradeLimitCount(limit + 0xff);
-                        ((cUserHistoryLog*)((char*)user + 0x79700))
-                            ->ChangeItemLimitCount(1, -1, itemIdx, -1, 4); // 推断：+0x79700
+                        user->m_historyLog.ChangeItemLimitCount(1, -1, itemIdx, -1, 4);
                     }
                 }
             }
@@ -496,25 +837,25 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 
         // 邮件类型：+0x59 money / +0x5a coin → 1/2/0
         int pkgType = 0;
-        if (sig_at<unsigned char>(info, base + 0x59) != 0)
+        if (entry->m_moneyFlag != 0)
             pkgType = 1;
-        else if (sig_at<unsigned char>(info, base + 0x5a) != 0)
+        else if (entry->m_coinFlag != 0)
             pkgType = 2;
 
         CMailBox::stAddNewMailInput input;
-        sig_at<int>(&input, 0x00) = sig_at<int>(info, base + 0x00);
-        sig_at<int>(&input, 0x04) = sig_at<int>(info, base + 0x04);
-        sig_at<char*>(&input, 0x08) =
-            const_cast<char*>(&sig_at<char>(info, base + 0x08)); // 发件人名（推断）
-        sig_at<unsigned int>(&input, 0x0c) = sig_at<unsigned int>(info, base + 0x5c);
-        sig_at<unsigned char>(&input, 0x10) = sig_at<unsigned char>(info, base + 0x60);
-        sig_at<int>(&input, 0x14) = pkgType;
-        sig_at<unsigned int>(&input, 0x18) = sig_at<unsigned int>(info, base + 0x55);
-        sig_at<unsigned int>(&input, 0x1c) = sig_at<unsigned int>(info, base + 0x5b);
+        MailInputV* iv = reinterpret_cast<MailInputV*>(&input);
+        iv->m_mailIdx = entry->m_mailIdx;
+        iv->m_characNo = entry->m_characNo;
+        iv->m_unk08 = entry->m_unk25;                    // ORIG：input+0x08 ← 条目+0x25
+        iv->m_letterId = entry->m_letterId;
+        iv->m_attachType = entry->m_attachType;
+        iv->m_pkgType = pkgType;
+        iv->m_money = entry->m_money;
+        iv->m_unlimit = entry->m_unlimit;
+        iv->m_senderName = entry->m_senderName;          // ORIG：input+0x20 ← 条目+0x08
 
         CMailBox::CMail* added = box->AddNewMail(input);
-        if (added != 0 && box->FindPackageLoadLack(
-                              sig_at<unsigned int>(info, base + 0x5c)) == 0)
+        if (added != 0 && box->FindPackageLoadLack(entry->m_letterId) == 0)
         {
             count = count + 1;
             if (!bFirstLoad)
@@ -522,7 +863,7 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
         }
     }
 
-    box->SetNotLoadedMailCount(sig_at<int>(info, 0x798));
+    box->SetNotLoadedMailCount(list->m_notLoadedMailCount);
     if (!bFirstLoad)
     {
         packet.finalize(true);
@@ -537,11 +878,10 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
         box->SetLoadedLetterCount(0);
     }
 
-    box->SetLoadedLetterCount(box->GetLoadedLetterCount() +
-                              sig_at<int>(info, 0x332a));
+    box->SetLoadedLetterCount(box->GetLoadedLetterCount() + list->m_loadedAdd);
 
     // ---- 信件明细区：count @+0x1018，SIG_LETTER_INFO 步长 299 ----
-    int detailCount = sig_at<int>(info, 0x1018);
+    int detailCount = list->m_detailCount;
     count = 0;
     int idxPos = packet.get_index();
     packet.clear();
@@ -550,29 +890,31 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 
     for (int i = 0; i < detailCount; ++i)
     {
-        int base = i * 299;
-        unsigned int letterId = sig_at<unsigned int>(info, base + 0x101c);
+        MailBoxListV::DetailEntry const* de =
+            reinterpret_cast<MailBoxListV::DetailEntry const*>(
+                reinterpret_cast<const char*>(&list->m_padDetail[0]) + i * 299);
+        unsigned int letterId = de->m_letterId;
         if (box->FindPackageLoadLack(letterId) != 0)
             continue; // ORIG：缺载信件入 box 内 pending map（布局待权威批次）
 
-        packet.put_int(sig_at<int>(info, base + 0x101c));
-        packet.put_int(sig_at<int>(info, base + 0x1020));
-        const char* pTitle = &sig_at<char>(info, base + 0x1024);
+        packet.put_int((int)de->m_letterId);
+        packet.put_int((int)de->m_characNo);
+        const char* pTitle = de->m_title;
         packet.put_int((int)std::strlen(pTitle));
         packet.put_str(pTitle, std::strlen(pTitle));
-        const char* pMsg = &sig_at<char>(info, base + 0x1041);
+        const char* pMsg = de->m_msg;
         packet.put_int((int)std::strlen(pMsg));
         packet.put_str(pMsg, std::strlen(pMsg));
         if (!isUnlimitMail(info, letterId))
-            packet.put_int(sig_at<int>(info, base + 0x1141));
+            packet.put_int(de->m_period);
         else
             packet.put_int(0);
-        packet.put_short(sig_at<short>(info, base + 0x1145));
+        packet.put_short(de->m_flag);
         count = count + 1;
 
         box->SetLastLoadLetterIdx(std::max<unsigned int>(
             (unsigned int)box->GetLastLoadLetterIdx(), letterId));
-        if (sig_at<short>(info, base + 0x1145) == 3)
+        if (de->m_flag == 3)
             box->InsertLetterKeepCount(letterId);
     }
     packet.put_short(idxPos, count);
@@ -600,7 +942,7 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
         return false;
 
     Inven_Item const& pkg = mail->GetPackageItem();
-    unsigned long itemIdx = (unsigned long)sig_at<unsigned int>(&pkg, 0x02);
+    unsigned long itemIdx = (unsigned long)(unsigned int)pkg.m_addInfo;
     unsigned int money = mail->GetPackageMoney();
 
     if (money != 0)
@@ -646,7 +988,7 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
 
     if (AvatarRouletteServer::isAvatarPottery(itemIdx))
         return AvatarCoin::GetPackage(
-            user, sig_at<int>(&pkg, 0x07), bReset); // 推断：+0x07 avatar uid
+            user, pkg.m_addInfo2, bReset); // +0x07 avatar uid
 
     CItem* proto = G_CDataManager()->find_item((int)itemIdx);
     if (proto == 0)
@@ -678,10 +1020,12 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
         return true;
 
     Inven_Item const& pkg = mail->GetPackageItem();
-    int amount = sig_at<int>(&pkg, 0x03);          // 推断：ORIG 栈偏移 -0x66
-    short coinType = sig_at<short>(&pkg, 0x07);    // 推断：ORIG 栈偏移 -0x62
+    int amount = *reinterpret_cast<int*>(
+        reinterpret_cast<char*>(const_cast<Inven_Item*>(&pkg)) + 0x03); // +0x03（m_addInfo 跨字段）
+    short coinType = *reinterpret_cast<short*>(
+        reinterpret_cast<char*>(const_cast<Inven_Item*>(&pkg)) + 0x07); // +0x07 = m_addInfo2 低 16 位
 
-    cUserHistoryLog* hist = (cUserHistoryLog*)((char*)user + 0x79700);
+    cUserHistoryLog* hist = &user->m_historyLog;   // CUser +0x79700 嵌套成员
     if (coinType == 1)
     {
         int cur = (int)user->getCurCharacInvenR()->GetEventCoin();
@@ -712,7 +1056,7 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
     // ORIG 0x08553936
     Inven_Item const& pkgRef = mail->GetPackageItem();
     Inven_Item pkg(pkgRef); // 按值副本（ORIG 栈拷贝语义）
-    int itemIdx = sig_at<int>(&pkg, 0x02);
+    int itemIdx = pkg.m_addInfo;
 
     if (0x28d287 < (unsigned int)itemIdx && (unsigned int)itemIdx < 0x28d29a)
         return user->DoGetGoldItem(itemIdx, items, bReset, err);
@@ -744,7 +1088,8 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                 std::vector<std::pair<int, int> > evItems;
                 CItem* proto = G_CDataManager()->find_item(itemIdx);
                 std::vector<STStackablePackageData>& vec =
-                    sig_at<std::vector<STStackablePackageData> >(proto, 0x21c); // 推断：+0x21c
+                    *reinterpret_cast<std::vector<STStackablePackageData>*>(
+                        reinterpret_cast<char*>(proto) + 0x21c); // 推断：+0x21c
                 for (std::vector<STStackablePackageData>::iterator it = vec.begin();
                      it != vec.end(); ++it)
                     evItems.push_back(std::make_pair(it->m_field0, it->m_field4));
@@ -824,7 +1169,7 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
         err = (ENUM_ERROR)1;
         return false;
     }
-    int avatarUid = sig_at<int>(&pkg, 0x07); // 推断：avatar uid @+0x07
+    int avatarUid = pkg.m_addInfo2; // +0x07 avatar uid
 
     if (bReset)
     {
@@ -908,9 +1253,9 @@ int CMailBoxHelper::ReqDBCheckReceiver_forchina(CUser* user, const char* name,
     guard << 0x7e;
     guard << (int)user->GetUID();
     SIG_MAILBOX_CHECK_RECEIVER* p = guard->GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
-    std::strncpy((char*)p, name, 0x1d);
-    std::memcpy(sig_at<char*>(p, 0x31), msg, 0x3f88);
-    sig_at<unsigned int>(p, 0x2d) = user->get_charac_no(-1);
+    std::strncpy(p->m_receiverName, name, 0x1d);
+    std::memcpy(p->m_payload, msg, 0x3f88);
+    p->m_senderCharacNo = (unsigned int)user->get_charac_no(-1);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;
 }
@@ -927,45 +1272,55 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
                                        unsigned int nAmount, const char* pTitle,
                                        int nTitleLen, unsigned int nB, int nType)
 {
-    // ORIG 0x08555756 逐字段转写
-    std::strncpy(sig_at<char*>(msg, 0x00), pSender, 0x1d);
-    sig_at<unsigned int>(msg, 0x22) = nAmount;
-    sig_at<int>(msg, 0x1e) = nSenderCharacNo;
-    sig_at<unsigned int>(msg, 0x26) = nDestCharacNo;
+    // ORIG 0x08555756 逐字段转写。不缓存 msg/item 局部（O0 落栈槽导致帧差），
+    // 每字段经宏直读参数槽，同 ORIG `mov 0x8(%ebp),%eax` 形态。
+#define MAIL_MSG ((MailBoxSendNewMailV*)(msg))
+#define MAIL_IT  (&item)
+    std::strncpy(MAIL_MSG->m_senderName, pSender, 0x1d);
+    MAIL_MSG->m_amount = nAmount;
+    MAIL_MSG->m_senderCharacNo = nSenderCharacNo;
+    MAIL_MSG->m_destCharacNo = nDestCharacNo;
 
-    const Inven_Item* it = &item;
-    sig_at<unsigned char>(msg, 0x2a) = sig_at<unsigned char>(it, 0x00);
-    sig_copy(msg, 0x2b, &it->m_addInfo, 4);
-    sig_copy(msg, 0x2f, &it->m_addInfo2, 4);
-    sig_copy(msg, 0x34, &it->m_fieldb, 2);
-    sig_at<unsigned char>(msg, 0x33) = it->GetItemAttr();
-    sig_copy(msg, 0x36, &it->m_fieldd, 4);
-    sig_copy(msg, 0x3a, static_cast<const char*>(static_cast<const void*>(it)) + 0x15, 4);
-    sig_copy(msg, 0x3e, static_cast<const char*>(static_cast<const void*>(it)) + 0x19, 4);
-    sig_copy(msg, 0x42, static_cast<const char*>(static_cast<const void*>(it)) + 0x1d, 2);
-    it->m_amp.getValues(sig_at<unsigned char>(msg, 0x44),
-                        sig_at<unsigned short>(msg, 0x45));
-    sig_copy(msg, 0x47, static_cast<const char*>(static_cast<const void*>(it)) + 0x25, 4);
-    sig_copy(msg, 0x4b, static_cast<const char*>(static_cast<const void*>(it)) + 0x29, 4);
-    sig_copy(msg, 0x4f, static_cast<const char*>(static_cast<const void*>(it)) + 0x2d, 4);
-    sig_copy(msg, 0x53, static_cast<const char*>(static_cast<const void*>(it)) + 0x31, 2);
-    sig_at<unsigned char>(msg, 0x55) = it->m_upgradeSep.GetUpgradeSeparate();
-    sig_at<unsigned char>(msg, 0x58) = it->IsCreatureItemType() ? 1 : 0;
-    sig_at<unsigned char>(msg, 0x56) = (it->m_field1 == 8) ? 1 : 0;
+    MAIL_MSG->m_itemField0 = *reinterpret_cast<const unsigned char*>(MAIL_IT);
+    MAIL_MSG->m_addInfo = MAIL_IT->m_addInfo;
+    MAIL_MSG->m_addInfo2 = MAIL_IT->m_addInfo2;
+    MAIL_MSG->m_fieldb = MAIL_IT->m_fieldb;
+    MAIL_MSG->m_itemAttr = MAIL_IT->GetItemAttr();
+    MAIL_MSG->m_fieldd = MAIL_IT->m_fieldd;
+    MAIL_MSG->m_field15 = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x15);
+    MAIL_MSG->m_field19 = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x19);
+    MAIL_MSG->m_field1d = *reinterpret_cast<const unsigned short*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x1d);
+    MAIL_IT->m_amp.getValues(MAIL_MSG->m_ampType, MAIL_MSG->m_ampIdx);
+    MAIL_MSG->m_field25 = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x25);
+    MAIL_MSG->m_field29 = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x29);
+    MAIL_MSG->m_field2d = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x2d);
+    MAIL_MSG->m_field31 = *reinterpret_cast<const unsigned short*>(
+        reinterpret_cast<const char*>(MAIL_IT) + 0x31);
+    MAIL_MSG->m_upgradeSep = MAIL_IT->m_upgradeSep.GetUpgradeSeparate();
+    MAIL_MSG->m_isCreature = MAIL_IT->IsCreatureItemType() ? 1 : 0;
+    MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_field1 == 8) ? 1 : 0;
 
-    sig_at<unsigned short>(msg, 0x59) = 0;
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0x5b, 0, 0x100);
+    MAIL_MSG->m_titleLen = 0;
+    std::memset(MAIL_MSG->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
         unsigned short lens[2];
         lens[0] = (unsigned short)nTitleLen;
         lens[1] = 0xff;
-        sig_at<unsigned short>(msg, 0x59) = std::min(lens[0], lens[1]);
-        std::strncpy(sig_at<char*>(msg, 0x5b), pTitle, sig_at<unsigned short>(msg, 0x59));
+        MAIL_MSG->m_titleLen = std::min(lens[0], lens[1]);
+        std::strncpy(MAIL_MSG->m_title, pTitle, MAIL_MSG->m_titleLen);
     }
-    sig_at<unsigned int>(msg, 0x15b) = nB;
-    sig_at<int>(msg, 0x163) = nType;
-    sig_at<unsigned char>(msg, 0x167) = 0;
+    MAIL_MSG->m_nB = nB;
+    MAIL_MSG->m_nType = nType;
+    MAIL_MSG->m_flag = 0;
+#undef MAIL_MSG
+#undef MAIL_IT
 }
 
 int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
@@ -981,7 +1336,8 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
     std::memset(msg, 0, 0x168);
     _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(), item,
                       nDestCharacNo, nAmount, pTitle, nTitleLen, 0, nType);
-    sig_at<unsigned int>(msg, 0x15f) = (unsigned int)user->GetServerGroup();
+    reinterpret_cast<MailBoxSendNewMailV*>(msg)->m_serverGroup =
+        (unsigned int)user->GetServerGroup();
     if (bA)
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -989,9 +1345,7 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
     else
     {
         CMailBox* box = (CMailBox*)user->GetMailBox();
-        MailStreamList& pending =
-            sig_at<MailStreamList>(box, CMAILBOX_OFF_STREAMLIST); // 推断：+0x58
-        pending.push_back(guard.Get());
+        reinterpret_cast<CMailBoxView*>(box)->m_streamList.push_back(guard.Get()); // +0x58
     }
     return 0;
 }
@@ -1014,21 +1368,22 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
     //   +0x11 收件角色名, +0x2e 金币额, +0x36 物品类型选择, +0x37 槽位,
     //   +0x39 item id, +0x3d add_info/目标角色, +0x41 标题长度, +0x45 标题。
     // 返回码：0=成功 1=物品不存在 0x10=金币不足 0x11=校验失败 0x17=类型/绑定不符。
-    if (sig_at<int>(msg, 0x3d) < 0)
+    MailMsgSendV* m = reinterpret_cast<MailMsgSendV*>(msg);
+    if (m->m_addInfo < 0)
         return 0x11;
 
     int tax = 1000;
-    if (sig_at<int>(msg, 0x39) == 0)
+    if (m->m_itemIdx == 0)
         tax = 100;
-    if (sig_at<int>(msg, 0x2e) != 0)
+    if (m->m_money != 0)
     {
-        tax = (sig_at<int>(msg, 0x2e) * 5) / 100 + tax;
-        if (sig_at<int>(msg, 0x39) == 0)
+        tax = (m->m_money * 5) / 100 + tax;
+        if (m->m_itemIdx == 0)
             tax = std::min(0x2774, tax);
         else
             tax = std::min(0x2af8, tax);
     }
-    if (user->getCurCharacMoney() < sig_at<int>(msg, 0x2e) + tax)
+    if (user->getCurCharacMoney() < m->m_money + tax)
         return 10;
 
     CInventory* inven = user->getCurCharacInvenW();
@@ -1036,23 +1391,22 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
     Inven_Item found;      // 槽内物品（GetInvenSlot 返回）
     Inven_Item sendCopy;   // 待发副本
 
-    if (sig_at<int>(msg, 0x39) != 0)
+    if (m->m_itemIdx != 0)
     {
-        unsigned char mType = sig_at<unsigned char>(msg, 0x36);
+        unsigned char mType = m->m_type;
         if (mType == 1)       invenType = 2;
         else if (mType == 7)  invenType = 3;
         else if (mType != 0)  return 0x17;
         else                  invenType = 1;
 
-        found = inven->GetInvenSlot((INVEN_TYPE)invenType,
-                                    sig_at<unsigned short>(msg, 0x37));
+        found = inven->GetInvenSlot((INVEN_TYPE)invenType, m->m_slot);
 
-        if (found.m_addInfo != sig_at<int>(msg, 0x39))
+        if (found.m_addInfo != m->m_itemIdx)
             return 0x11;
         if (found.m_field1 == 4)
             return 0x17;
         if (found.isEquipableItemType() != 1 &&
-            found.m_addInfo2 < sig_at<int>(msg, 0x3d))
+            found.m_addInfo2 < m->m_addInfo)
             return 0x11;
 
         CItem* proto = G_CDataManager()->find_item(found.m_addInfo);
@@ -1073,10 +1427,8 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
         case 7:
             if (!DecreaseTradeLimitCount(found))
                 return 0x17;
-            ((cUserHistoryLog*)((char*)user + 0x79700))
-                ->ChangeItemLimitCount(invenType,
-                                       sig_at<unsigned short>(msg, 0x37),
-                                       found.m_addInfo, -1, 3);
+            user->m_historyLog.ChangeItemLimitCount(invenType, m->m_slot,
+                                                    found.m_addInfo, -1, 3);
         }
 
         if (found.m_upgradeSep.IsTradeRestriction())
@@ -1084,7 +1436,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         found.setCopy(sendCopy);
         if (sendCopy.isEquipableItemType() != 1)
-            sendCopy.set_add_info(sig_at<int>(msg, 0x3d));
+            sendCopy.set_add_info(m->m_addInfo);
 
         if (proto->IsAvatarItem())
         {
@@ -1098,24 +1450,22 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
     if (inven->use_money(tax, (eMoneySubReason)0x10, 1) == 1)
     {
-        if (sig_at<int>(msg, 0x2e) != 0)
+        if (m->m_money != 0)
         {
-            user->GetGoldControl()->SetMailCharName((const char*)msg + 0x11);
-            if (inven->use_money(sig_at<int>(msg, 0x2e),
-                                 (eMoneySubReason)0x11, 1) != 1)
+            user->GetGoldControl()->SetMailCharName(m->m_receiverName);
+            if (inven->use_money(m->m_money, (eMoneySubReason)0x11, 1) != 1)
                 return 10;
         }
 
-        if (sig_at<int>(msg, 0x39) != 0)
+        if (m->m_itemIdx != 0)
         {
             if (found.m_field1 == 8)   // AVATAR
             {
-                if (inven->delete_item((INVEN_TYPE)2,
-                                       sig_at<unsigned short>(msg, 0x37),
+                if (inven->delete_item((INVEN_TYPE)2, m->m_slot,
                                        1, (eItemDelReason)2, 1) != 1)
                     return 0x11;
                 inven->SendAvatarEvent(0x36, found.m_addInfo2, 2,
-                                       sig_at<unsigned short>(msg, 0x37) + 10, 0);
+                                       m->m_slot + 10, 0);
                 DB_AvatarChangeOwner::makeRequest(found.m_addInfo2,
                                                   user->getCurCharacNo(),
                                                   nCharacNo, '\0');
@@ -1123,25 +1473,21 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
             }
             else
             {
-                if (inven->delete_item((INVEN_TYPE)invenType,
-                                       sig_at<unsigned short>(msg, 0x37),
-                                       sig_at<int>(msg, 0x3d),
+                if (inven->delete_item((INVEN_TYPE)invenType, m->m_slot,
+                                       m->m_addInfo,
                                        (eItemDelReason)0xf, 1) != 1)
                     return 0x11;
             }
             if (found.IsCreatureItemType())
             {
-                inven->GetCreatureMgrW()->SendMail(
-                    &found, sig_at<unsigned short>(msg, 0x37), 0xf);
+                inven->GetCreatureMgrW()->SendMail(&found, m->m_slot, 0xf);
             }
         }
 
-        ((cUserHistoryLog*)((char*)user + 0x79700))
-            ->SendMail((::MSG_MAILBOX_SEND*)msg, nB);
+        user->m_historyLog.SendMail((::MSG_MAILBOX_SEND*)msg, nB);
 
-        return _DoSendNewMail(user, sendCopy, sig_at<int>(msg, 0x2e), nCharacNo,
-                              bA, (const char*)msg + 0x45,
-                              sig_at<int>(msg, 0x41), nC);
+        return _DoSendNewMail(user, sendCopy, m->m_money, nCharacNo,
+                              bA, m->m_title, m->m_titleLen, nC);
     }
     return 10;
 }
@@ -1160,8 +1506,9 @@ int CMailBoxHelper::ReqDBSendNewMailCashShop(CUser* user, Inven_Item const& item
     SIG_MAILBOX_SEND_NEW_MAIL* msg = guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(), item,
                       nDestCharacNo, nAmount, pTitle, nTitleLen, 0, 0);
-    sig_at<unsigned int>(msg, 0x15f) = 0;
-    sig_at<unsigned char>(msg, 0x57) = 1;
+    MailBoxSendNewMailV* m = reinterpret_cast<MailBoxSendNewMailV*>(msg);
+    m->m_serverGroup = 0;
+    m->m_isCreature = 1;   // +0x58
     if (bA)
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -1169,21 +1516,31 @@ int CMailBoxHelper::ReqDBSendNewMailCashShop(CUser* user, Inven_Item const& item
     else
     {
         CMailBox* box = (CMailBox*)user->GetMailBox();
-        sig_at<MailStreamList>(box, CMAILBOX_OFF_STREAMLIST).push_back(guard.Get());
+        reinterpret_cast<CMailBoxView*>(box)->m_streamList.push_back(guard.Get()); // +0x58
     }
     return 0;
 }
 
 int CMailBoxHelper::ReqDBSendStoredMail(CUser* user)
 {
-    // ORIG 0x085566ae
+    // ORIG 0x085566ae：box 非空且 stream 列表非空才处理；循环后 clear。
+    // 不缓存 pending 引用（ORIG 每处 lea box+0x58 直算）。
     CMailBox* box = (CMailBox*)user->GetMailBox();
     if (box == 0)
         return 0;
-    MailStreamList& pending = sig_at<MailStreamList>(box, CMAILBOX_OFF_STREAMLIST);
-    for (MailStreamList::iterator it = pending.begin(); it != pending.end(); ++it)
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, *it);
-    pending.clear();
+    if (!reinterpret_cast<CMailBoxView*>(box)->m_streamList.empty()) // +0x58
+    {
+        MailStreamList::iterator it =
+            reinterpret_cast<CMailBoxView*>(box)->m_streamList.begin();
+        MailStreamList::iterator e =
+            reinterpret_cast<CMailBoxView*>(box)->m_streamList.end();
+        while (it != e)
+        {
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, *it);
+            ++it;
+        }
+        reinterpret_cast<CMailBoxView*>(box)->m_streamList.clear();
+    }
     return 0;
 }
 
@@ -1201,9 +1558,10 @@ int CMailBoxHelper::ReqDBSendNewSystemMail(const char* pSender, Inven_Item const
     SIG_MAILBOX_SEND_NEW_MAIL* msg = guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     std::memset(msg, 0, 0x168);
     _makeSendMailData(msg, pSender, 0, item, nA, nCharacNo, pTitle, nTitleLen, nB, 0);
-    sig_at<unsigned int>(msg, 0x15f) = (unsigned int)nServerGroup;
-    sig_at<unsigned char>(msg, 0x57) = (unsigned char)(bA ? 1 : 0);
-    sig_at<unsigned char>(msg, 0x167) = (unsigned char)(bB ? 1 : 0);
+    MailBoxSendNewMailV* m = reinterpret_cast<MailBoxSendNewMailV*>(msg);
+    m->m_serverGroup = (unsigned int)nServerGroup;
+    m->m_cashShopFlag = (unsigned char)(bA ? 1 : 0);  // +0x57
+    m->m_flag = (unsigned char)(bB ? 1 : 0);          // +0x167
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;
 }
@@ -1226,24 +1584,22 @@ int CMailBoxHelper::ReqDBSendNewSystemMultiMail(const char* pSender,
     guard << -1;
     SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL>();
+    MailBoxSendSystemMultiMailV* m =
+        reinterpret_cast<MailBoxSendSystemMultiMailV*>(msg);
     std::memset(msg, 0, 0x3a9);
-    sig_at<unsigned int>(msg, 0x122) = 0;
-    std::strcpy(sig_at<char*>(msg, 0x00), pSender);
+    m->m_unk122 = 0;
+    std::strcpy(m->m_senderName, pSender);
     for (unsigned int i = 0; i < nCount; ++i)
-    {
-        sig_at<Inven_Item>(msg, (int)(i * sizeof(Inven_Item) + 0x126))
-            .setCopy(sig_at<Inven_Item>(const_cast<Inven_Item*>(itemBase),
-                                        (int)(i * sizeof(Inven_Item))));
-    }
-    sig_at<unsigned int>(msg, 0x388) = nCount;
-    sig_at<unsigned int>(msg, 0x38c) = nA;
-    sig_at<unsigned int>(msg, 0x11e) = nCharacNo;
-    std::strcpy(sig_at<char*>(msg, 0x1e), pTitle);
-    sig_at<unsigned int>(msg, 0x399) = nTitleLen;
-    sig_at<unsigned int>(msg, 0x390) = nB;
-    sig_at<unsigned int>(msg, 0x395) = (unsigned int)nServerGroup;
-    sig_at<unsigned char>(msg, 0x394) = (unsigned char)(bA ? 1 : 0);
-    sig_at<unsigned int>(msg, 0x3a5) = 1;
+        m->m_items[i].setCopy(itemBase[i]);
+    m->m_count = nCount;
+    m->m_nA = nA;
+    m->m_characNo = nCharacNo;
+    std::strcpy(m->m_title, pTitle);
+    m->m_titleLen = nTitleLen;
+    m->m_nB = nB;
+    m->m_serverGroup = (unsigned int)nServerGroup;
+    m->m_flag = (unsigned char)(bA ? 1 : 0);
+    m->m_unk3a5 = 1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;
 }
@@ -1262,8 +1618,8 @@ int CMailBoxHelper::MakeSystemMultiMailPostal(std::vector<std::pair<int, int> >&
     {
         Inven_Item tmp;
         tmp.reset();
-        sig_at<int>(&tmp, 0x00) = it->first;
-        sig_at<int>(&tmp, 0x02) = it->second; // item idx
+        *reinterpret_cast<int*>(&tmp) = it->first; // dword 写 +0x00（ORIG 同形）
+        tmp.m_addInfo = it->second; // item idx
         G_CDataManager()->m_itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, tmp,
                                                   it->second);
         (itemBase + slot)->setCopy(tmp);
@@ -1283,19 +1639,20 @@ void CMailBoxHelper::ReqDBSendNewAvatarMail(CUser* user, int nCharacNo, int nIte
     guard << (int)user->GetUID();
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
-    sig_at<unsigned int>(msg, 0x00) = 0;
-    std::strncpy(sig_at<char*>(msg, 0x04), user->getCurCharacName(), 0x1d);
-    sig_at<int>(msg, 0x24) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x28) = user->getCurCharacNo();
-    SIG_AVATAR_INSERT::set((SIG_AVATAR_INSERT*)(static_cast<char*>(static_cast<void*>(msg)) + 0x2c),
-                           nCharacNo, (unsigned int)nItemIdx, 0, nExpireDate, true, cA,
-                           pAgency, 2, 0);
-    sig_at<unsigned short>(msg, 0xa0) = 0;
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0xa2, 0, 0x100);
+    MailBoxSendNewMailAvatarV* m =
+        reinterpret_cast<MailBoxSendNewMailAvatarV*>(msg);
+    m->m_type = 0;
+    std::strncpy(m->m_senderName, user->getCurCharacName(), 0x1d);
+    m->m_nCharacNo = nCharacNo;
+    m->m_senderCharacNo = user->getCurCharacNo();
+    m->m_avatar.set(nCharacNo, (unsigned int)nItemIdx, 0, nExpireDate, true, cA,
+                    pAgency, 2, 0);
+    m->m_titleLen = 0;
+    std::memset(m->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
-        sig_at<unsigned short>(msg, 0xa0) = (unsigned short)nTitleLen;
-        std::strncpy(sig_at<char*>(msg, 0xa2), pTitle, nTitleLen);
+        m->m_titleLen = (unsigned short)nTitleLen;
+        std::strncpy(m->m_title, pTitle, nTitleLen);
     }
     stAvatarEmblemInfo_t emblem;
     emblem.init();
@@ -1305,9 +1662,7 @@ void CMailBoxHelper::ReqDBSendNewAvatarMail(CUser* user, int nCharacNo, int nIte
         hasSocket = item->IsAvatarItem();  // ORIG vtable+0x10 虚调用
     if (hasSocket)
         ((CEquipItem*)item)->getAvatarSocket((int)cB, emblem);
-    SIG_AVATAR_INSERT::setJewelSocket(
-        (SIG_AVATAR_INSERT*)(static_cast<char*>(static_cast<void*>(msg)) + 0x2c),
-        emblem);
+    m->m_avatar.setJewelSocket(emblem);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -1323,20 +1678,21 @@ void CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(CUser* user, int nCharacNo,
     guard << (int)user->GetUID();
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
-    sig_at<unsigned int>(msg, 0x00) = 0;
-    std::strncpy(sig_at<char*>(msg, 0x04), user->getCurCharacName(), 0x1d);
-    sig_at<int>(msg, 0x24) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x28) = user->getCurCharacNo();
-    SIG_AVATAR_INSERT::set((SIG_AVATAR_INSERT*)(static_cast<char*>(static_cast<void*>(msg)) + 0x2c),
-                           nCharacNo, (unsigned int)nItemIdx, 0, nExpireDate, true, cA,
-                           pAgency, 2, 0);
-    sig_at<unsigned char>(msg, 0x1a2) = 1;
-    sig_at<unsigned short>(msg, 0xa0) = 0;
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0xa2, 0, 0x100);
+    MailBoxSendNewMailAvatarV* m =
+        reinterpret_cast<MailBoxSendNewMailAvatarV*>(msg);
+    m->m_type = 0;
+    std::strncpy(m->m_senderName, user->getCurCharacName(), 0x1d);
+    m->m_nCharacNo = nCharacNo;
+    m->m_senderCharacNo = user->getCurCharacNo();
+    m->m_avatar.set(nCharacNo, (unsigned int)nItemIdx, 0, nExpireDate, true, cA,
+                    pAgency, 2, 0);
+    m->m_cashShopFlag = 1;   // +0x1a2
+    m->m_titleLen = 0;
+    std::memset(m->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
-        sig_at<unsigned short>(msg, 0xa0) = (unsigned short)nTitleLen;
-        std::strncpy(sig_at<char*>(msg, 0xa2), pTitle, nTitleLen);
+        m->m_titleLen = (unsigned short)nTitleLen;
+        std::strncpy(m->m_title, pTitle, nTitleLen);
     }
     stAvatarEmblemInfo_t emblem;
     emblem.init();
@@ -1346,9 +1702,7 @@ void CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(CUser* user, int nCharacNo,
         hasSocket = item->IsAvatarItem();  // ORIG vtable+0x10 虚调用
     if (hasSocket)
         ((CEquipItem*)item)->getAvatarSocket((int)cB, emblem);
-    SIG_AVATAR_INSERT::setJewelSocket(
-        (SIG_AVATAR_INSERT*)(static_cast<char*>(static_cast<void*>(msg)) + 0x2c),
-        emblem);
+    m->m_avatar.setJewelSocket(emblem);
     stAvatarExpansionInfo_t expansion;
     expansion.init();
     sig_copy(msg, 0x7b, &expansion, sizeof(expansion));
@@ -1365,34 +1719,35 @@ void CMailBoxHelper::ReqDBSendNewCreatureMail(CUser* user, int nCharacNo,
     guard << (int)user->GetUID();
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
-    sig_at<unsigned int>(msg, 0x00) = 1;
-    std::strncpy(sig_at<char*>(msg, 0x04), user->getCurCharacName(), 0x1d);
-    sig_at<int>(msg, 0x24) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x28) = user->getCurCharacNo();
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0x2c, 0, 0x74);
-    sig_at<Inven_Item>(msg, 0x30).setCopy(item);
-    sig_at<unsigned int>(msg, 0x58) = 0;
-    sig_at<int>(msg, 0x74) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x70) = 100;
-    sig_at<unsigned char>(msg, 0x7d) = 0x20;
-    sig_at<unsigned char>(msg, 0x7f) = 1;
-    sig_at<unsigned int>(msg, 0x94) = 0;
+    MailBoxSendNewMailCreatureV* m =
+        reinterpret_cast<MailBoxSendNewMailCreatureV*>(msg);
+    m->m_type = 1;
+    std::strncpy(m->m_senderName, user->getCurCharacName(), 0x1d);
+    m->m_nCharacNo = nCharacNo;
+    m->m_senderCharacNo = user->getCurCharacNo();
+    std::memset(&m->m_pad2c[0], 0, 0x74);
+    m->m_item.setCopy(item);
+    std::memset(&m->m_item.m_random.m_random.m_field3, 0, 4);  // item+0x28 seed 区清零
+    m->m_nDestCharacNo = nCharacNo;
+    m->m_unk70 = 100;
+    m->m_unk7d = 0x20;
+    m->m_unk7f = 1;
+    m->m_unk94 = 0;
 
     CItem* found = G_CDataManager()->find_item(item.m_addInfo);
     if (found == 0)
         return;
     if (found->is_stackable())
         return;
-    sig_at<unsigned char>(msg, 0x7c) =
-        (((CEquipItem*)found)->get_sub_type() == 0) ? 1 : 0;
-    sig_at<unsigned int>(msg, 0x80) = (unsigned int)found->getUsablePeriod();
-    sig_at<unsigned int>(msg, 0x84) = (unsigned int)found->getExpirationDate();
-    sig_at<unsigned short>(msg, 0xa0) = 0;
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0xa2, 0, 0x100);
+    m->m_subType0 = (((CEquipItem*)found)->m_randomTable.m_field18 == 0) ? 1 : 0;
+    m->m_usablePeriod = (unsigned int)found->getUsablePeriod();
+    m->m_expiration = (unsigned int)found->getExpirationDate();
+    m->m_titleLen = 0;
+    std::memset(m->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
-        sig_at<unsigned short>(msg, 0xa0) = (unsigned short)nTitleLen;
-        std::strncpy(sig_at<char*>(msg, 0xa2), pTitle, nTitleLen);
+        m->m_titleLen = (unsigned short)nTitleLen;
+        std::strncpy(m->m_title, pTitle, nTitleLen);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
@@ -1407,35 +1762,36 @@ void CMailBoxHelper::ReqDBSendNewCreatureMailCashShop(CUser* user, int nCharacNo
     guard << (int)user->GetUID();
     SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* msg =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>();
-    sig_at<unsigned int>(msg, 0x00) = 1;
-    std::strncpy(sig_at<char*>(msg, 0x04), user->getCurCharacName(), 0x1d);
-    sig_at<int>(msg, 0x24) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x28) = user->getCurCharacNo();
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0x2c, 0, 0x74);
-    sig_at<Inven_Item>(msg, 0x30).setCopy(item);
-    sig_at<unsigned int>(msg, 0x58) = 0;
-    sig_at<int>(msg, 0x74) = nCharacNo;
-    sig_at<unsigned int>(msg, 0x70) = 100;
-    sig_at<unsigned char>(msg, 0x7d) = 0x20;
-    sig_at<unsigned char>(msg, 0x7f) = 1;
-    sig_at<unsigned int>(msg, 0x94) = 0;
-    sig_at<unsigned char>(msg, 0x1a2) = 1;
+    MailBoxSendNewMailCreatureV* m =
+        reinterpret_cast<MailBoxSendNewMailCreatureV*>(msg);
+    m->m_type = 1;
+    std::strncpy(m->m_senderName, user->getCurCharacName(), 0x1d);
+    m->m_nCharacNo = nCharacNo;
+    m->m_senderCharacNo = user->getCurCharacNo();
+    std::memset(&m->m_pad2c[0], 0, 0x74);
+    m->m_item.setCopy(item);
+    std::memset(&m->m_item.m_random.m_random.m_field3, 0, 4);  // item+0x28 seed 区清零
+    m->m_nDestCharacNo = nCharacNo;
+    m->m_unk70 = 100;
+    m->m_unk7d = 0x20;
+    m->m_unk7f = 1;
+    m->m_unk94 = 0;
+    m->m_cashShopFlag = 1;   // +0x1a2
 
     CItem* found = G_CDataManager()->find_item(item.m_addInfo);
     if (found == 0)
         return;
     if (found->is_stackable())
         return;
-    sig_at<unsigned char>(msg, 0x7c) =
-        (((CEquipItem*)found)->get_sub_type() == 0) ? 1 : 0;
-    sig_at<unsigned int>(msg, 0x80) = (unsigned int)found->getUsablePeriod();
-    sig_at<unsigned int>(msg, 0x84) = (unsigned int)found->getExpirationDate();
-    sig_at<unsigned short>(msg, 0xa0) = 0;
-    std::memset(static_cast<char*>(static_cast<void*>(msg)) + 0xa2, 0, 0x100);
+    m->m_subType0 = (((CEquipItem*)found)->m_randomTable.m_field18 == 0) ? 1 : 0;
+    m->m_usablePeriod = (unsigned int)found->getUsablePeriod();
+    m->m_expiration = (unsigned int)found->getExpirationDate();
+    m->m_titleLen = 0;
+    std::memset(m->m_title, 0, 0x100);
     if (pTitle != 0 && nTitleLen != 0)
     {
-        sig_at<unsigned short>(msg, 0xa0) = (unsigned short)nTitleLen;
-        std::strncpy(sig_at<char*>(msg, 0xa2), pTitle, nTitleLen);
+        m->m_titleLen = (unsigned short)nTitleLen;
+        std::strncpy(m->m_title, pTitle, nTitleLen);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
@@ -1462,35 +1818,29 @@ int CMailBoxHelper::ReqChangeLetterStat(CUser* user, int mailIdx, int state)
     guard << 0xc2;
     guard << (int)user->GetUID();
     SIG_LETTER_STAT* p = guard->GetInBuffer<SIG_LETTER_STAT>();
-    sig_at<unsigned int>(p, 0x0) = user->getCurCharacNo();
-    sig_at<int>(p, 0x4) = mailIdx;
-    sig_at<short>(p, 0x8) = (short)state;
+    p->m_characNo = (int)user->getCurCharacNo();
+    p->m_mailIdx = mailIdx;
+    p->m_state = (short)state;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;
 }
 } // namespace WongWork
 
-// ---- SIG_AVATAR_INSERT 静态方法（ORIG 0x850d3c8 / 0x850d44c，全局作用域类型） ----
+// ---- SIG_AVATAR_INSERT 非静态成员（ORIG 0x850d3c8，mangled _ZN17SIG_AVATAR_INSERT
+//       3setEijiibcPKcim，this=ins；setJewelSocket 同非静态，定义见 CInventory.cpp） ----
 
-void SIG_AVATAR_INSERT::set(SIG_AVATAR_INSERT* ins, int a1, unsigned int a2,
-                            int a3, int expire, bool bSet, char c,
-                            const char* agency, int a7, unsigned long a8)
+void SIG_AVATAR_INSERT::set(int a1, unsigned int a2, int a3, int expire, bool bSet,
+                            char c, const char* agency, int a7, unsigned long a8)
 {
-    (void)c;
-    sig_at<int>(ins, 0x00) = a1;
-    sig_at<unsigned int>(ins, 0x04) = a2;
-    sig_at<unsigned char>(ins, 0x08) = (unsigned char)a3;
-    sig_at<int>(ins, 0x0a) = expire;
-    sig_at<unsigned char>(ins, 0x0e) = (unsigned char)expire;
-    sig_at<unsigned char>(ins, 0x09) = (unsigned char)(bSet ? 1 : 0);
+    AvatarInsertV* v = reinterpret_cast<AvatarInsertV*>(this);
+    v->m_field0 = a1;
+    v->m_field4 = a2;
+    v->m_field8 = (unsigned char)a3;
+    v->m_fielda = expire;
+    v->m_fielde = (unsigned char)(bSet ? 1 : 0);   // +0x0e = bSet（ORIG movzbl 低字节）
+    v->m_field9 = c;   // +0x09 = c
     if (agency != 0)
-        std::strncpy(sig_at<char*>(ins, 0x0f), agency, 0x18);
-    sig_at<int>(ins, 0x28) = a7;
-    sig_at<unsigned char>(ins, 0x2c) = (unsigned char)a8;
-}
-
-void SIG_AVATAR_INSERT::setJewelSocket(SIG_AVATAR_INSERT* ins,
-                                       const stAvatarEmblemInfo_t& emblem)
-{
-    sig_copy(ins, 0x2d, &emblem, 0x1e); // 7 dword + 1 word，同 ORIG 逐字段拷贝
+        std::strncpy(v->m_agency, agency, 0x18);
+    v->m_field28 = a7;
+    v->m_field2c = (unsigned char)a8;
 }

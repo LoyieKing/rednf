@@ -14,8 +14,10 @@
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
 
+// ORIG W 0x082a6fa8：ctor 即 Reset()（清零 +0x00/+0x04/+0x08）。
 CShutdowManager::CShutdowManager()
 {
+    Reset();
 }
 
 // ORIG 0x82a37c8：user 标志(+0x00)==1 时向 DB 队列投递两条关服消息：
@@ -53,8 +55,8 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
 // 还原后补齐；当前仅实现标志检查路径。
 bool CShutdowManager::WaitUntilExitThread()
 {
-    std::printf("WaitUntilExitThread (%d)\n", (int)(unsigned char)m_pad[0]);
-    if ((unsigned char)m_pad[0] != 0)
+    std::printf("WaitUntilExitThread (%d)\n", (int)(unsigned char)m_flag);
+    if ((unsigned char)m_flag != 0)
         return true;
     return true;  // join 序列阻塞（见上）
 }
@@ -63,4 +65,65 @@ CShutdowManager* GetInstanceShutdowManager()
 {
     static CShutdowManager s;
     return &s;
+}
+// ORIG 0x082a6f88（_ZN15CShutdowManager5ResetEv，W）：
+//   this+0 = 0；this+4 = 0；this+8 = 0。
+void CShutdowManager::Reset()
+{
+    m_flag = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+}
+
+// ORIG 0x082a6f70（_ZN15CShutdowManager14EnableShutdownEb，W）：
+//   *(bool*)this = on。
+void CShutdowManager::EnableShutdown(bool on)
+{
+    m_flag = static_cast<char>(on);
+}
+
+// ORIG 0x082a36bc（_ZN15CShutdowManager15OnAllUserLogoutEv，T，70 条）：
+//   !m_flag → return；cMyTrace(PRETTY,0x323b,0)("Send message to monitor
+//   for logout all user.")；guard 单例 stream：StreamPool::Acquire(
+//   GlobalData::s_stream_pool, 0x323d) → CStreamGuard(s,true) << 0x3f
+//   << -1；GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard)；
+//   GlobalData::s_server_stop = 1。
+void CShutdowManager::OnAllUserLogout()
+{
+    if (!static_cast<bool>(m_flag))
+    {
+        return;
+    }
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x323b, 0);
+    trace("Send message to monitor for logout all user.");
+    {
+        Stream* s =
+            GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x323d);
+        CStreamGuard guard(s, true);
+        guard << 0x3f;
+        guard << -1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    }
+    GlobalData::s_server_stop = true;
+}
+
+// ORIG 0x084ed1ea（_ZN15CShutdowManager29IncrementLastMsgResponseCountEv，W）：
+//   ++*(int*)(this+0x08)。
+void CShutdowManager::IncrementLastMsgResponseCount()
+{
+    ++m_field8;
+}
+
+// ORIG 0x084ed1fe（_ZN15CShutdowManager15GetLastMsgCountEv，W）：
+//   return *(unsigned int*)(this+0x04)。
+unsigned int CShutdowManager::GetLastMsgCount()
+{
+    return static_cast<unsigned int>(m_field4);
+}
+
+// ORIG 0x084ed20a（_ZN15CShutdowManager23GetLastMsgResponseCountEv，W）：
+//   return *(unsigned int*)(this+0x08)。
+unsigned int CShutdowManager::GetLastMsgResponseCount()
+{
+    return static_cast<unsigned int>(m_field8);
 }

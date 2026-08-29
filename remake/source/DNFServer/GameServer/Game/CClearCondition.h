@@ -18,8 +18,8 @@ public:
     ~CClearCondition();                      // ORIG 0x82a442e
 
     void Clear();                            // ORIG 0x82a438a
-    bool Empty() const;                      // ORIG 0x822cba8
-    bool IsClearCondition() const;           // ORIG 0x822cb92
+    bool Empty();                            // ORIG _ZN15CClearCondition5EmptyEv 0x822cba8
+    bool IsClearCondition();                 // ORIG _ZN15CClearCondition16IsClearConditionEv 0x822cb92
     bool ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int idx);  // ORIG 0x82fefce
     void SetDungeonClearConditionVector(
         std::vector<DungeonClearCondition>& vec);  // ORIG 0x82fef12

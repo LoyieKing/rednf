@@ -14,6 +14,7 @@
 enum TIMER_MESSAGE
 {
     TIMER_MESSAGE_DEFAULT = 0x75,
+    TIMER_MESSAGE_0x51 = 0x51,   // DisPatcher_SelectCharac::RegistTimerSchedules 0x81c7bac
     TIMER_MESSAGE_0x62 = 0x62,
     TIMER_MESSAGE_0x96 = 0x96,
     TIMER_MESSAGE_0xa3 = 0xa3

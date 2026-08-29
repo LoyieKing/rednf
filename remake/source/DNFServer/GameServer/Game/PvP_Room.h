@@ -185,29 +185,31 @@ private:
     PvpUserTable m_userTable;           // +0x268
     PvpResultRecvFlag m_recvFlagB4;     // +0x5b4
     PvpResultRecvFlag m_recvFlagBC;     // +0x5bc
-    short m_field5c4;                   // +0x5c4
-    short m_field5c6;                   // +0x5c6
+    short m_requestedMapNo;             // +0x5c4（ORIG Get/SetRequestedMapNo；start_pvp 随机抽选结果）
+    short m_playMapNo;                  // +0x5c6（start_pvp 从 m_requestedMapNo 派生，发包/Statistics::PVPPlay2 用）
     bool m_winCheck[8];                 // +0x5c8
     unsigned char m_teamWin[8];         // +0x5d0
-    int m_field5d8;                     // +0x5d8
-    char m_field5dc[12];                // +0x5dc
+    int m_field5d8;                     // +0x5d8（battle_reset 0x085d64eb 清 0；无 getter 证据）
+    char m_field5dc[12];                // +0x5dc（battle_reset memset 0xc；无 getter 证据）
     Mutex m_mutex;                      // +0x5e8
     int m_joinCount;                    // +0x600
-    unsigned char m_field604;           // +0x604
-    char m_password[0xb];               // +0x605
-    int m_passwordLen;                  // +0x610
-    unsigned char m_field614;           // +0x614
-    char m_field615;                    // +0x615
-    unsigned char m_field616;           // +0x616
-    unsigned char m_field617;           // +0x617
-    int m_field618;                     // +0x618
-    unsigned char m_field61c;           // +0x61c
+    unsigned char m_isExistPassword;    // +0x604（ORIG IsExistPassword 读）
+    char m_password[0xb];               // +0x605（CheckPassword 0x085dded5 memcmp 基址）
+    int m_passwordLen;                  // +0x610（CheckPassword 0x085ddeb7 读比对）
+    unsigned char m_battleEndFlag;      // +0x614（request_fight 入口非 0 即拒；time_out 置 1）
+    char m_rankRequested;               // +0x615（pvp_request_pvp_rank 一次性置 1 发 0x31 包）
+    unsigned char m_isInsertTimerRecvPvpRank;  // +0x616（ORIG IsInsertTimerRecvPvpRank 读）
+    unsigned char m_isEndPvpBattle;     // +0x617（ORIG IsEndPvpBattle 读）
+    int m_battleStartSec;               // +0x618（request_fight 记 getCurSec；time_out 算耗时）
+    bool m_field61c;                    // +0x61c（ORIG setReamtchable 0x8568d62 P33 形态）
     char m_pad61d[3];                   // +0x61d
 public: // m_relayMgr 由 online_preliminary::COnlinePreliminary::OnConnectP2P 域访问
     CRelayBattleMgr m_relayMgr;         // +0x620
 private:
     CDeathMatchBattleMgr m_deathMatch;  // +0x69c
     CMatchingSystem* m_pMatchingSystem; // +0x6e0
+public: // m_matching 由 DisPatcher_EndPvPResult（ORIG 0x081f88ae，DisPatcherCore.cpp）跨 TU
+        // vtable+0x80 槽直调消费；PvP_Room.cpp 同款 (int)GetMatchingSystem 存储口径，类型不变
     int m_matching;                     // +0x6e4
 };
 

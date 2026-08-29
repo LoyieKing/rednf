@@ -478,17 +478,12 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 // 6 参 IsIncludeVirtualMoveAreas——唯一 owner 归 CVillageMonsterMgr.cpp）
 // ============================================================
 
-const Point2d ASSAULT_RECT_PLAYER_POINT[8] = {
+static const Point2d ASSAULT_RECT_PLAYER_POINT[8] = {
     Point2d(0x000, 0x0f), Point2d(0x038, 0x05), Point2d(0x054, 0x00),
     Point2d(0x01c, 0x0a), Point2d(0x104, 0x0f), Point2d(0x0cc, 0x05),
     Point2d(0x0b0, 0x00), Point2d(0x0e8, 0x0a)
 };                                   // .rodata 0x8c1cce0 实测内容
-const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd20
-
-int GetMaxCandidateMatirxRow()          // ORIG T _Z24GetMaxCandidateMatirxRowv 0x82e5c9e
-{
-    return 15;
-}
+static const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd20
 
 Point2d::~Point2d() {}
 int Point2d::operator-(const Point2d& o) const
@@ -586,7 +581,7 @@ void CCandidateMatrix::MakeCandidatePoint(const Point2d& a, const Point2d& b) //
         _AddCandidatePoint(Point2d(a.m_x, a.m_y + i * 10), a, b, 10);
         _AddCandidatePoint(Point2d(a.m_x, a.m_y - i * 10), a, b, 10);
     }
-    for (int j = 0; GetMaxCandidateMatirxRow() > j; ++j)
+    for (int j = 0; ::GetMaxCandidateMatirxRow() > j; ++j)
     {
         for (int i = 1; i <= 7; ++i)
         {
@@ -623,6 +618,12 @@ void CCandidateMatrix::ArrangeCandidatePoint()          // ORIG 0x82e5fee
 // ============================================================
 
 } // namespace pvp_assault
+
+// ORIG T _Z24GetMaxCandidateMatirxRowv 0x82e5c9e（全局函数，非 pvp_assault 成员）。
+int GetMaxCandidateMatirxRow()
+{
+    return 15;
+}
 
 // ORIG T _ZN7MapArea7includeEii 0x82f0298：矩形包含判定。
 int MapArea::include(int x, int y)
@@ -717,7 +718,7 @@ bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
 {
     if (hp < 0 || hp > 100)
     {
-        cMyTrace trace("bool pvp_assault::CAssaulter::ChangeHp(int)", 0x18a, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x18a, 0);
         trace("ASSAULT_CHANGE_HP error (%d)", hp);
         return false;
     }
@@ -893,7 +894,7 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
     if (diff <= 20)
     {
         int characNo = user->getCurCharacNo();
-        cMyTrace trace("void pvp_assault::CAssaultPlace::AbuseUser(CUser*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xc23, 0);
         trace("CAssaultPlace::AbuseUser() charac_no(%d), timeout sec(%d)",
               characNo, diff);
@@ -935,9 +936,18 @@ CAssaultPlace::~CAssaultPlace()
 // ORIG T 0x82e6d3a：m_pos.x/y 非零才向所在区域广播。
 void CAssaultPlace::_SendPacketToArea(PacketGuard& packet)
 {
-    if (m_pos.m_x == 0 && m_pos.m_y == 0)
-        return;
-    G_GameWorld()->send_to_area(m_pos.m_x, m_pos.m_y, packet);
+    if (m_pos.m_x != 0 || m_pos.m_y != 0)
+        G_GameWorld()->send_to_area(m_pos.m_x, m_pos.m_y, packet);
+}
+
+// ORIG T 0x82e6dce：同门槛；带用户列表的 4 参 send_to_area 版。
+//   求值序（报告汇编 +0x25/+0x2e）：m_y 先入 esi、m_x 后入 ebx（右→左），
+//   与 send_to_area(int vill, int area, ...) 形参序一致。
+void CAssaultPlace::_SendPacketToArea(PacketGuard& packet,
+                                      std::vector<CUser*>& users)
+{
+    if (m_pos.m_x != 0 || m_pos.m_y != 0)
+        G_GameWorld()->send_to_area(m_pos.m_x, m_pos.m_y, packet, users);
 }
 
 // ORIG T 0x82e8afc：包 0x86 图标列表 = put_header(0,0x86) + put_short(1) +
@@ -1028,7 +1038,7 @@ void CAssaultPlace::_DelUser(int index, bool flag)
 // state 5/6 时两队下发 SetAssaultState(7)、置 state=7 并 CloseAssault()。
 void CAssaultPlace::TimeoutCloseAssault()
 {
-    cMyTrace trace("void pvp_assault::CAssaultPlace::TimeoutCloseAssault()",
+    cMyTrace trace(__PRETTY_FUNCTION__,
                    0x9ea, 0);
     trace("TimeoutCloseAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
           m_state,

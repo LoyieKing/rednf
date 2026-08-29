@@ -30,7 +30,7 @@ bool PacketBuf::bind_packet(char* packet, int size)
     if (packet == NULL || size == 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::bind_packet(char*, int)", 0x27c,
+                              __PRETTY_FUNCTION__, 0x27c,
                               "packet is null or size is zero");
         return false;
     }
@@ -62,7 +62,7 @@ void PacketBuf::set_packet(const char* data, int size)
     if (data == NULL || size < 1 || size > MAX_PACKET_SIZE)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "void PacketBuf::set_packet(const char*, int)", 0x270,
+                              __PRETTY_FUNCTION__, 0x270,
                               "!packet || size<1 || size> MAX_PACKET_SIZE");
     }
     else
@@ -125,7 +125,7 @@ bool PacketBuf::put_short(int& index, int value)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::put_short(int&, int)", 0xa6,
+                              __PRETTY_FUNCTION__, 0xa6,
                               "m_byte_encoding error %d", m_byte_encoding);
         return false;
     }
@@ -155,7 +155,7 @@ bool PacketBuf::put_int(int& index, int value)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::put_int(int&, int)", 0xc4,
+                              __PRETTY_FUNCTION__, 0xc4,
                               "m_byte_encoding error %d", m_byte_encoding);
         break;
     }
@@ -167,7 +167,7 @@ bool PacketBuf::put_binary(int& index, char* data, int len)
     if (data == NULL || len == 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::put_binary(int&, char*, int)", 0x123,
+                              __PRETTY_FUNCTION__, 0x123,
                               "bin is null or size is zero");
         return false;
     }
@@ -189,7 +189,7 @@ bool PacketBuf::put_binary(int& index, const char* data, int len)
     if (data == NULL || len == 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::put_binary(int&, const char*, int)", 0x138,
+                              __PRETTY_FUNCTION__, 0x138,
                               "bin is null or size is zero");
         return false;
     }
@@ -307,7 +307,7 @@ bool PacketBuf::get_short(short& out)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::get_short(short int&)", 0x191,
+                              __PRETTY_FUNCTION__, 0x191,
                               "m_byte_encoding error %d", m_byte_encoding);
         return false;
     }
@@ -347,7 +347,7 @@ bool PacketBuf::get_int(int& out)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::get_int(int&)", 0x1b7,
+                              __PRETTY_FUNCTION__, 0x1b7,
                               "m_byte_encoding error %d", m_byte_encoding);
         return false;
     }
@@ -381,7 +381,7 @@ bool PacketBuf::get_binary(char* out, int size)
     if (out == NULL || size == 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::get_binary(char*, int)", 0x21e,
+                              __PRETTY_FUNCTION__, 0x21e,
                               "o_buf == NULL || size == 0");
         return false;
     }
@@ -403,7 +403,7 @@ bool PacketBuf::get_str(char* out, int maxLen, int len)
     if (out == NULL)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::get_str(char*, int, int)", 0x1f8,
+                              __PRETTY_FUNCTION__, 0x1f8,
                               "o_buf is null");
         return false;
     }
@@ -469,7 +469,7 @@ void PacketBuf::finalize(bool isEncryptRequired)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "void PacketBuf::finalize(bool)", 0x2c4,
+                              __PRETTY_FUNCTION__, 0x2c4,
                               "m_byte_encoding error %d", m_byte_encoding);
         return;
     }
@@ -507,7 +507,7 @@ void PacketBuf::finalize(bool isEncryptRequired)
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "void PacketBuf::finalize(bool)", 0x2ec,
+                              __PRETTY_FUNCTION__, 0x2ec,
                               "m_byte_encoding error %d", m_byte_encoding);
         return;
     }
@@ -534,7 +534,7 @@ void PacketBuf::encFinalize()
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "void PacketBuf::encFinalize()", 0x419,
+                              __PRETTY_FUNCTION__, 0x419,
                               "m_byte_encoding error %d", m_byte_encoding);
         return;
     }
@@ -564,7 +564,7 @@ void PacketBuf::encFinalize()
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "void PacketBuf::encFinalize()", 0x439,
+                              __PRETTY_FUNCTION__, 0x439,
                               "m_byte_encoding error %d", m_byte_encoding);
         return;
     }
@@ -590,7 +590,7 @@ void PacketBuf::encrypt_packet()
         if (dataSize > MAX_PACKET_SIZE)
         {
             LogManager::logFormat(1, "packet_buf.cpp",
-                                  "void PacketBuf::encrypt_packet()", 0x302,
+                                  __PRETTY_FUNCTION__, 0x302,
                                   "Buffer overflow[Cipher] : EncryptDataSize[%d]>[%d]",
                                   dataSize, MAX_PACKET_SIZE);
             buffer = new char[dataSize];
@@ -630,7 +630,7 @@ bool PacketBuf::compress_packet()
     if (uncompressedSize <= 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::compress_packet()", 0x36e,
+                              __PRETTY_FUNCTION__, 0x36e,
                               "error; compress failed:unexpected message size");
         return false;
     }
@@ -643,7 +643,7 @@ bool PacketBuf::compress_packet()
     if (ret != 0 || compressedSize > MAX_PACKET_SIZE - 15)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "bool PacketBuf::compress_packet()", 0x380,
+                              __PRETTY_FUNCTION__, 0x380,
                               "error; compress failed:%d", ret);
         compressed_buffer_mutex.unlock();
         return false;
@@ -721,7 +721,7 @@ int PacketBuf::get_len() const
     if (m_finalized == false)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
-                              "int PacketBuf::get_len() const", 0x338,
+                              __PRETTY_FUNCTION__, 0x338,
                               "this packet is not finalized");
         return 0;
     }
@@ -732,8 +732,8 @@ char* PacketBuf::get_packet(int size)
 {
     if (size > MAX_PACKET_SIZE - 1)
     {
-        cMyTrace ct("get_packet", 0x170, 5);
-        ct("[%s][%d]", "get_packet", 0x170);
+        cMyTrace ct(__FUNCTION__, 0x170, 5);
+        ct("[%s][%d]", __FUNCTION__, 0x170);
     }
     return m_ptr + size;
 }

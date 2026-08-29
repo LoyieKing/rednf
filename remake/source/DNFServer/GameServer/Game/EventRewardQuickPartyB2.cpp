@@ -32,27 +32,10 @@
 // ===========================================================================
 // 1) eventReward 解析 helper 族（ORIG 非静态成员；this 不参与逻辑）
 // ---------------------------------------------------------------------------
-// itemData 为 4×int（CDataManager.h，sizeof 0x10）。ORIG 以「字节粒度」访问
-// +0/+1/+2 三字节（movb/movzbl 实证）；此处按报告偏移直接字节寻址复现，
-// 其余字节不动。
+// itemData 真实布局见 itemData.h（+0/+1/+2 三字节 + +0x04/+0x08 int，
+// sizeof 0x0c）；ORIG 以 movb/movzbl 访问 +0/+1/+2 字节、movl 访问 +4/+8。
 // ===========================================================================
 
-namespace
-{
-
-// itemData 字节域镜像（ORIG getOptionType/defaultOption 以 +0/+1/+2 字节粒度
-// movb/movzbl 访问；镜像仅限本 TU，布局与 CDataManager.h 的 4×int 严格一致）
-struct ItemDataBytes
-{
-    unsigned char m_upgrade;   // +0x00：强化档（"upgrade" 写入 / 尾部 0→1）
-    unsigned char m_seal;      // +0x01：seal/unseal
-    unsigned char m_roi;       // +0x02：sealROI/unsealROI
-    unsigned char m_pad3;
-    unsigned char m_tail[12];
-};                             // sizeof = 0x10（= itemData）
-typedef char itemdata_bytes_size_check[(sizeof(ItemDataBytes) == 0x10) ? 1 : -1];
-
-}  // unnamed namespace
 
 // ORIG T 0x080ef0c0：[sub type] 行名 → 子键类型。
 char eventReward::getSubKeyType(std::string& token)
@@ -78,40 +61,40 @@ bool eventReward::getOptionType(std::string& token, itemData& out)
 {
     bool ok = true;
     if (token == "unseal")
-        reinterpret_cast<ItemDataBytes&>(out).m_seal = 0;
+        out.m_seal = 0;
     else if (token == "seal")
-        reinterpret_cast<ItemDataBytes&>(out).m_seal = 1;
+        out.m_seal = 1;
     else if (token == "upgrade")
     {
         // ok 初值 true；ScanInt 自身写失败标志（ORIG 无预置 false）
         const int level = ScanInt(&ok);
-        reinterpret_cast<ItemDataBytes&>(out).m_upgrade = (unsigned char)level;
+        out.m_upgrade = (unsigned char)level;
         if (!ok)
             return false;
     }
     else if (token == "unsealROI")
-        reinterpret_cast<ItemDataBytes&>(out).m_roi = 0;
+        out.m_roi = 0;
     else if (token == "sealROI")
-        reinterpret_cast<ItemDataBytes&>(out).m_roi = 1;
+        out.m_roi = 1;
     return ok;
 }
 
-// ORIG W 0x080ef25c：动作 2（postal）时重置 ROI 域并置 m_field08=1；
+// ORIG W 0x080ef25c：动作 2（postal）时重置 ROI 域并置 m_count=1；
 // 尾部统一保证强化字节非 0（低字节为 0 → 置 1）。
 void eventReward::defaultOption(char action, itemData& out)
 {
     switch (action)                        // ORIG：movsbl 后与 2 比较
     {
     case 2:
-        out.m_field08 = 1;                     // *(int*)(d+8) = 1
-        reinterpret_cast<ItemDataBytes&>(out).m_seal = 0;   // +0x01 = 0
-        reinterpret_cast<ItemDataBytes&>(out).m_roi = 0;    // +0x02 = 0
+        out.m_count = 1;                     // *(int*)(d+8) = 1
+        out.m_seal = 0;   // +0x01 = 0
+        out.m_roi = 0;    // +0x02 = 0
         break;
     default:
         break;
     }
-    if (reinterpret_cast<ItemDataBytes&>(out).m_upgrade == 0)   // movzbl/test
-        reinterpret_cast<ItemDataBytes&>(out).m_upgrade = 1;    // +0x00 = 1
+    if (out.m_upgrade == 0)   // movzbl/test
+        out.m_upgrade = 1;    // +0x00 = 1
 }
 
 // ===========================================================================

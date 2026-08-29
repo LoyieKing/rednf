@@ -12,16 +12,13 @@
 //   _ZN13CBattle_Field15checkLayeredMapEii               T 0x0830e32e
 //   _ZN13CBattle_Field9onUseItemEP5CUserRK10Inven_Item   T 0x0830dbde
 //   _ZN13CBattle_Field16setQuestMazeInfoEv               T 0x0830e170
-//   _ZN8CRidable12GetObjectCntEv                         W 0x0830ea0a（非 const）
-//   _ZN8CRidable12GetObjectPosERSt6vectorISt4pairIiiESaIS2_EE         T 0x082fec2c
 //
 // 报告依据（编辑前已完整读 ##汇编 + ##反编译 C）：
 //   docs/class_func_reports/CBattle_Field/{CheckHellPartyCondition,ConsistMap,
 //     GetAppropriateMaze,GetHellPartyDifficulty,GetHellPartyEventType,MoveMap,
 //     SetGridPath,checkLayeredMap,onUseItem,setQuestMazeInfo}.md
-//   docs/class_func_reports/CRidable/GetObjectPos.md
 //   CRidable::GetObjectCnt 无函数报告 → 已先读同类报告（CRidable/README、
-//     GetObjectPos、SetRidableObjectState）与调用方（BattleDungeonMapA2.cpp
+//     SetRidableObjectState）与调用方（BattleDungeonMapA2.cpp
 //     MakePacket 段）后按规则 objdump 0x830ea0a 转写（= m_objects.size()）。
 //
 // 布局核对：CBattle_Field(0xcd0)/CRidable/CParty/BattleData(+0x7e0)/CMap/
@@ -62,16 +59,6 @@ inline bool operator==(const MONSTER_POS& a, const MONSTER_POS& b)
 int CRidable::GetObjectCnt()
 {
     return (int)m_objects.size();
-}
-
-// ORIG 0x082fec2c：遍历对象表，push (m_x, m_y)。
-void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out) const
-{
-    for (std::map<int, DungeonRidableObject>::const_iterator it = m_objects.begin();
-         it != m_objects.end(); ++it)
-    {
-        out.push_back(std::make_pair(it->second.m_x, it->second.m_y));
-    }
 }
 
 // ============================ CBattle_Field ============================
@@ -115,7 +102,7 @@ void CBattle_Field::ConsistMap()
     if (dungeon == NULL)
     {
         LogManager::logFormat(1, "battle_field.cpp",
-                              "void CBattle_Field::ConsistMap()", 0x7f2,
+                              __PRETTY_FUNCTION__, 0x7f2,
                               "G_CDataManager()->find_dungeon( %d) fail", m_dungeonIndex);
         return;
     }
@@ -159,13 +146,12 @@ void CBattle_Field::ConsistMap()
 
         // ORIG 083034ed..0830351c：m_pMap->m_ec(+0xec)==0 时取
         // *(uint*)(G_CDataManager()+0x49d0) 作 SelectDonsterItemDropLimit 上限。
-        // 该 CDataManager 字段尚未建模，保持 ORIG 直接读取（有据偏移，非成员猜测）。
+        // 即 CDataManager::m_serverParameter.m_4968（CDataManager+0x68+0x4968）。
         unsigned int dropLimit;
         if (m_pMap->m_ec == 0)
         {
             CDataManager* dm = G_CDataManager();
-            dropLimit = *reinterpret_cast<unsigned int*>(
-                reinterpret_cast<char*>(dm) + 0x49d0);
+            dropLimit = static_cast<unsigned int>(dm->m_serverParameter.m_4968);
         }
         else
         {
@@ -371,7 +357,7 @@ int CBattle_Field::MoveMap(int x, int y, bool& firstVisit)
 
     ConsistMap();
     if (m_party != NULL)
-        reinterpret_cast<std::map<int, int>&>(m_party->m_padMap).clear();  // +0x1844
+        m_party->m_killMobCounter.clear();   // +0x1844
     return 0;
 }
 
@@ -572,7 +558,7 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
                         usedPositions.end();
                     if (!sameOnList)
                     {
-                        cMyTrace trace("void CBattle_Field::SetGridPath(MazeScript*, int)",
+                        cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3e3, 0);
                         trace("Event monster generated (%d,%d ->%d(%d)",
                               status.m_pos.first, status.m_pos.second,
@@ -582,7 +568,7 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
                     }
                     else
                     {
-                        cMyTrace trace("void CBattle_Field::SetGridPath(MazeScript*, int)",
+                        cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3e8, 0);
                         trace("Event monster SameMap (not generated) (%d,%d ->%d(%d)",
                               status.m_pos.first, status.m_pos.second,

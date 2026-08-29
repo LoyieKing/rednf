@@ -36,6 +36,7 @@
 #include "TimerQueue.h"
 #include "TimerDispatcher.h"  // TimerStartMatching
 #include "CAdvanceAltarLog.h" // advanceAltarstatistics_
+#include "advancealtar.h"    // advancealtar::HistoryLog（advanceAltarstatistics_ 类静态成员声明）
 
 // ---------------------------------------------------------------------------
 // WongWork::DBCommon::GetIdentity —— ORIG T 0x083f9ad4（报告 DBCommon/GetIdentity.md）
@@ -393,22 +394,10 @@ TOD_Layer TOD_UserState::getLastEnterLayer() const
 }
 
 // ---------------------------------------------------------------------------
-// TimerStartMatching::registNextTimer —— ORIG T 0x08637e14 (objdump 兜底，
-// 报告缺失)：G_TimerQueue()->InsertTimer(OBJ_TYPE_2, p1, TIMER_MESSAGE(0x79),
-// sec, p2, 0)，逐参核对栈槽序。
-// ---------------------------------------------------------------------------
-void TimerStartMatching::registNextTimer(long sec, int p1, int p2)
-{
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
-                                static_cast<TIMER_MESSAGE>(0x79),
-                                static_cast<int>(sec), p2, 0);
-}
-
-// ---------------------------------------------------------------------------
 // advanceAltarstatistics_ —— ORIG B @0x09400300 全局实例（构造/析构随全局
 // __cxa 链）。唯一定义点；extern 声明在 CAdvanceAltarLog.h。
 // ---------------------------------------------------------------------------
-CAdvanceAltarLog advanceAltarstatistics_;
+CAdvanceAltarLog advancealtar::HistoryLog::advanceAltarstatistics_;  // ORIG B 0x09400300
 
 // ---------------------------------------------------------------------------
 // CAutoMarketConditionsControl::GetItemDropRate —— ORIG T 0x082f8ae8

@@ -16,16 +16,14 @@
 //   0x93f56a4 s_emptyWideStringData     -> raw 指针
 // 初值 refCount=1：每个空串 attach 时 incRef，析构 decRef 后仍 >=1，永不释放。
 // ============================================================================
-namespace {
-
 struct EmptyCharStringDataStorage
 {
     int m_refCount;
     int m_size;
     char m_buffer;
 };
-EmptyCharStringDataStorage s_emptyCharStringDataRaw = {1, 1, 0};
-CharStringData* s_emptyCharStringData =
+static EmptyCharStringDataStorage s_emptyCharStringDataRaw = {1, 1, 0};
+static CharStringData* s_emptyCharStringData =
     reinterpret_cast<CharStringData*>(&s_emptyCharStringDataRaw);
 
 struct EmptyWideStringDataStorage
@@ -34,11 +32,9 @@ struct EmptyWideStringDataStorage
     int m_size;
     wchar_t m_buffer;
 };
-EmptyWideStringDataStorage s_emptyWideStringDataRaw = {1, 4, 0};
-WideStringData* s_emptyWideStringData =
+static EmptyWideStringDataStorage s_emptyWideStringDataRaw = {1, 4, 0};
+static WideStringData* s_emptyWideStringData =
     reinterpret_cast<WideStringData*>(&s_emptyWideStringDataRaw);
-
-}  // namespace
 
 // ---- StringData（docs/class_func_reports/StringData/）----
 
@@ -1906,6 +1902,255 @@ int ss_strcat(char* dest, size_t count, const char* src)
     }
     memcpy(dest + dlen, src, slen + 1);
     return 0;
+}
+
+// ---- CharString / WideString 自由运算符（ORIG 0x8ad959a..0x8ad997c /
+// 0x08adc690..0x08adca62，委托 concat / compare；== 带长度/首字符预检）----
+
+bool operator==(const CharString& src1, const char* src2)
+{
+    if (src1[0] != src2[0])
+        return false;
+    return CharString::compare(src1, src2) == 0;
+}
+
+bool operator==(char const* src1, const CharString& src2)
+{
+    if (src1[0] != src2[0])
+        return false;
+    return CharString::compare(src1, src2) == 0;
+}
+
+bool operator==(const CharString& src1, const CharString& src2)
+{
+    if (src1.length() != src2.length())
+        return false;
+    if (src1[0] != src2[0])
+        return false;
+    return CharString::compare(src1, src2) == 0;
+}
+
+bool operator!=(const CharString& src1, const char* src2)
+{
+    return CharString::compare(src1, src2) != 0;
+}
+
+bool operator!=(char const* src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) != 0;
+}
+
+bool operator!=(const CharString& src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) != 0;
+}
+
+bool operator<(const CharString& src1, const char* src2)
+{
+    return CharString::compare(src1, src2) < 0;
+}
+
+bool operator<(char const* src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) < 0;
+}
+
+bool operator<(const CharString& src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) < 0;
+}
+
+bool operator<=(const CharString& src1, const char* src2)
+{
+    return CharString::compare(src1, src2) <= 0;
+}
+
+bool operator<=(char const* src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) <= 0;
+}
+
+bool operator<=(const CharString& src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) <= 0;
+}
+
+bool operator>(const CharString& src1, const char* src2)
+{
+    return CharString::compare(src1, src2) > 0;
+}
+
+bool operator>(char const* src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) > 0;
+}
+
+bool operator>(const CharString& src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) > 0;
+}
+
+bool operator>=(const CharString& src1, const char* src2)
+{
+    return CharString::compare(src1, src2) >= 0;
+}
+
+bool operator>=(char const* src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) >= 0;
+}
+
+bool operator>=(const CharString& src1, const CharString& src2)
+{
+    return CharString::compare(src1, src2) >= 0;
+}
+
+CharString operator+(const CharString& src1, const char* src2)
+{
+    return CharString::concat(src1, src2);
+}
+
+CharString operator+(const CharString& src1, const CharString& src2)
+{
+    return CharString::concat(src1, src2);
+}
+
+CharString operator+(const CharString& src1, char ch)
+{
+    return CharString::concat(src1, ch);
+}
+
+CharString operator+(const char* src1, const CharString& src2)
+{
+    return CharString::concat(src1, src2);
+}
+
+CharString operator+(char ch, const CharString& src2)
+{
+    return CharString::concat(ch, src2);
+}
+
+bool operator==(const WideString& src1, const wchar_t* src2)
+{
+    if (src1[0] != src2[0])
+        return false;
+    return WideString::compare(src1, src2) == 0;
+}
+
+bool operator==(wchar_t const* src1, const WideString& src2)
+{
+    if (src1[0] != src2[0])
+        return false;
+    return WideString::compare(src1, src2) == 0;
+}
+
+bool operator==(const WideString& src1, const WideString& src2)
+{
+    if (src1.length() != src2.length())
+        return false;
+    if (src1[0] != src2[0])
+        return false;
+    return WideString::compare(src1, src2) == 0;
+}
+
+bool operator!=(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::compare(src1, src2) != 0;
+}
+
+bool operator!=(wchar_t const* src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) != 0;
+}
+
+bool operator!=(const WideString& src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) != 0;
+}
+
+bool operator<(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::compare(src1, src2) < 0;
+}
+
+bool operator<(wchar_t const* src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) < 0;
+}
+
+bool operator<(const WideString& src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) < 0;
+}
+
+bool operator<=(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::compare(src1, src2) <= 0;
+}
+
+bool operator<=(wchar_t const* src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) <= 0;
+}
+
+bool operator<=(const WideString& src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) <= 0;
+}
+
+bool operator>(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::compare(src1, src2) > 0;
+}
+
+bool operator>(wchar_t const* src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) > 0;
+}
+
+bool operator>(const WideString& src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) > 0;
+}
+
+bool operator>=(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::compare(src1, src2) >= 0;
+}
+
+bool operator>=(wchar_t const* src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) >= 0;
+}
+
+bool operator>=(const WideString& src1, const WideString& src2)
+{
+    return WideString::compare(src1, src2) >= 0;
+}
+
+WideString operator+(const WideString& src1, const wchar_t* src2)
+{
+    return WideString::concat(src1, src2);
+}
+
+WideString operator+(const WideString& src1, const WideString& src2)
+{
+    return WideString::concat(src1, src2);
+}
+
+WideString operator+(const WideString& src1, wchar_t ch)
+{
+    return WideString::concat(src1, ch);
+}
+
+WideString operator+(const wchar_t* src1, const WideString& src2)
+{
+    return WideString::concat(src1, src2);
+}
+
+WideString operator+(wchar_t ch, const WideString& src2)
+{
+    return WideString::concat(ch, src2);
 }
 
 // ---- StringUnorderedMap 显式实例化（CNRDScriptData 等使用）----

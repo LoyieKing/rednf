@@ -46,7 +46,7 @@ public:
     virtual void RequestMap(short& mapNo, PVP_BATTLE_MODE& mode)
     { (void)mapNo; (void)mode; }                                // +0x18
     virtual int GetExtraWinPoint(int a) { return 0; }           // +0x1c
-    virtual void OnCreateRoom(CUser* user) { (void)user; }      // +0x20
+    virtual int OnCreateRoom(CUser* user) { (void)user; return 0; }  // +0x20（ORIG create_room 0x85d6ba0 call 后检查返回值）
     virtual void OnDestroyRoom(CUser* user) { (void)user; }     // +0x24
     virtual void OnJoinRoom(CUser* user) { (void)user; }        // +0x28
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room,
@@ -61,8 +61,8 @@ public:
     virtual void OnEndFight(PvP_Room* room) { (void)room; }     // +0x40
     virtual void OnWalkOut(PvP_Room* room, int a)
     { (void)room; (void)a; }                                    // +0x44
-    virtual void OnReady(CUser* user, bool ready)
-    { (void)user; (void)ready; }                                // +0x48
+    virtual bool OnReady(CUser* user, bool ready)
+    { (void)user; (void)ready; return false; }                  // +0x48（ORIG set_ready_state 0x85d82cb call 后 xor $1 取反，P22）
     virtual void OnReward(PvP_Room* room, int a, bool b)
     { (void)room; (void)a; (void)b; }                           // +0x4c
     virtual void OnEndPvP(PvP_Room* room) { (void)room; }       // +0x50

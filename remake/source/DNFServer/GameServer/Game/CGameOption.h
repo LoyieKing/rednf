@@ -128,7 +128,6 @@ public:
         m_nCount = 0;
     }
 
-private:
     char m_data[0x14];  // +0x00
     short m_nCount;     // +0x14，总 0x16 字节
 };
@@ -144,12 +143,14 @@ public:
             m_Row[i].clear();
     }
 
-private:
+    // 行数据公开（CChattingEmoticonList::ReCalc 0x80e5880 逐行读写；布局/尺寸不变）
     CChattingEmoticonConfigRow m_Row[24];  // +0x00，24 * 0x16 = 0x210 字节
 };
 
 #pragma pack(pop)
 
+#pragma pack(push, 1)
+// ORIG 模板（and $0x1 头部对齐检查）证明 CGameOption align 1 —— 类声明在 pack(1) 内
 class CGameOption
 {
 public:
@@ -173,8 +174,10 @@ public:
     short get_etc_option(ENUM_OPTION_ETC eOption);
     CHotkeyOption* get_hotkey_option(unsigned char cSlot);
     void reset_load_hotkey_flag();
-    bool get_load_hotkey_flag(unsigned char cSlot);  // ORIG 调用点（CUser::LoadCharacTypeHotKey
-                                                     // 0x08692d2a）test %al,%al 直测，bool 语义
+    bool get_load_hotkey_flag(unsigned char cSlot);  // ORIG 返回 bool（P32 直返判据：函数体
+                                                              // movzbl 直返无 setne ⇔ bool 字段直返；调用点
+                                                              // CUser::LoadCharacTypeHotKey 0x08692d2a 处
+                                                              // test %al,%al; je 无 setne ⇔ bool 返回）
     CChattingEmoticonConfig getEmoticonInfo() const;
 
     unsigned char isChanged_QuickChatData() { return m_bQuickChatChange; }
@@ -183,7 +186,8 @@ public:
 
 private:
     CHotkeyOption m_HotKeyOption[2];                 // +0x000
-    unsigned char m_bLoadHotKeyFlag[2];              // +0x178
+    bool m_bLoadHotKeyFlag[2];                    // +0x178（ORIG get_load_hotkey_flag movzbl 直返
+                                                     //   无 setne ⇔ bool 字段直返；reset/set 均为 movb 写）
     CETCOption m_EtcOption;                          // +0x17a
     CQuickChattingOption m_QuickChattingOption[2];   // +0x1c2
     bool m_bQuickChatChange;                         // +0x41a
@@ -196,15 +200,19 @@ public:
     char m_forceDropFlag;                            // +0x62d
     char m_webAddress[0x12];                         // +0x62e（getWebAddress）
     int m_playExpAdd;                                // +0x640
-    char m_pad644[4];                                // +0x644..0x647
+    unsigned char m_breakAwayDungeonClear;           // +0x644（CUser+0x703a8；setBreakAwayDungeonClear
+                                                     //   ORIG W 0x085bfd1a 写 byte / isBreakAwayDungeonClear
+                                                     //   0x086971de movzbl 读；CUserOnlyOrig.cpp:7704 同义实现）
+    char m_pad645[3];                                // +0x645..0x647（ORIG 无具名访问）
     int m_breakAwayDungeonClearCnt;                  // +0x648
     char m_pad64c[4];                                // +0x64c..0x64f
     int m_breakAwayQuestTime;                        // +0x650
-    // +0x654 区按 ORIG setter 实证具名（尺寸合计仍 0xc，总 sizeof 0x660 不变）：
+    // +0x654 区按 ORIG setter 实证具名（CGameOption 止于 +0x657，sizeof 0x658）：
     int m_breakAwayRewardOrder;                      // +0x654（setBreakAwayRewardOrder W 0x0831d4de 直写）
-    char m_pad658[4];                                // +0x658..0x65b
-    char m_breakAwayRewardData;                      // +0x65c（setBreakAwayRewardData W 0x0831d50c 写 byte）
-    char m_pad65d[3];                                // +0x65d..0x65f
+    // 注意：+0x658..+0x65f 8 字节为 CUser 字段（m_multiboxLotteryFailCnt @ CUser+0x703bc、
+    // m_breakAwayRewardData @ CUser+0x703c0、m_usedBreakAwayLuckPoint @ CUser+0x703c1），
+    // 原误入 CGameOption 尾部（Main 批准 2026-08-29 收敛）。
 };
 
+#pragma pack(pop)
 #endif  // GAME_CGAMEOPTION_H_

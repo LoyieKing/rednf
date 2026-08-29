@@ -60,7 +60,7 @@ public:
     DB_UpdateRewardMedal();   // ORIG W 0x0844ddce C1/C2 同体（vptr 0x8b5f458）
     virtual ~DB_UpdateRewardMedal();   // D1 0x08125536 / D0 0x08125566
 
-    void makeRequest(int uid, const _SIG_LOAD_REWARD_MEDAL& sig);       // ORIG T 0x08124c70 空体
+    static void makeRequest(int uid, const _SIG_LOAD_REWARD_MEDAL& sig);  // ORIG T 0x08124c70（0x08124e81 调用点无 this，静态实证；InterWave1）
     virtual bool dispatch(int a, int b, Stream* stream);                 // ORIG T 0x08124c78
     bool Update(_SIG_UPDATE_REWARD_MEDAL& sig);                         // ORIG T 0x08124cb2
 };

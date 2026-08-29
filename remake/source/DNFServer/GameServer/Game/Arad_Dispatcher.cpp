@@ -166,7 +166,7 @@ bool Arad_Dispatcher_Manager::db_dispatch(int code, int uid, Stream* stream)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatch_Manager.cpp",
-            "bool ARAD::Arad_Dispatcher_Manager::db_dispatch(int, int, Stream*)",
+            __PRETTY_FUNCTION__,
             0xab, "[ERROR] DB Dispatch Result dipCode[%d] uid[%d], ErrLine(%d)",
             code, uid, errLine);
     }

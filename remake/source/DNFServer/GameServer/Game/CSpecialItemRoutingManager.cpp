@@ -92,3 +92,56 @@ CSpecialItemRoutingManager::CSpecialItemRoutingManager()
 {
     // ORIG 0x0860a9c8：空函数（push ebp; mov; pop ebp; ret），不初始化任何成员。
 }
+
+CSpecialItemRoutingManager::~CSpecialItemRoutingManager()
+{
+    // ORIG T 0x0860a9ce：空函数（push ebp; mov; pop ebp; ret）。
+}
+
+// ORIG 0x0860abde（报告 CSpecialItemRoutingManager/ProcessTimeOut.md）：
+// IsRoutingState()→GetFirstValidMemberState()==5/0xc 时 SetRoutingTimerOver+
+// HasAllMemberSelection→processRouting；否则 SetEndRouting。恒返回 1。
+int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
+{
+    if (!party->IsRoutingState())
+    {
+        party->SetEndRouting();
+    }
+    else
+    {
+        char state = party->GetFirstValidMemberState();
+        if (state == 5 || state == 0xc)
+        {
+            party->SetRoutingTimerOver();
+            if (party->HasAllMemberSelection())
+                processRouting(party);
+        }
+        else
+        {
+            party->SetEndRouting();
+        }
+    }
+    return 1;
+}
+// ORIG T 0x0860ab2e（报告 CSpecialItemRoutingManager/ArriveMemberSelection.md
+// 全文转写）：GetMemberRoutingState(user) 已非 0 → 返回 0（已选过）；
+// 否则 sel==0 → SetMemberRoutingState(user,1)、sel==1 → SetMemberRoutingState(user,2)
+// （其它值不写状态）；随后 HasAllMemberSelection() 则 cancelTimer+processRouting；
+// 返回 1。
+int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
+                                                      char sel)
+{
+    char state = party->GetMemberRoutingState(user);          // ORIG 0x085ba150
+    if (state != 0)
+        return 0;
+    if (sel == 0)
+        party->SetMemberRoutingState(user, 1);                // ORIG 0x085ba0d8
+    else if (sel == 1)
+        party->SetMemberRoutingState(user, 2);
+    if (party->HasAllMemberSelection())                       // ORIG 0x085ba1c0
+    {
+        cancelTimer(party);
+        processRouting(party);
+    }
+    return 1;
+}

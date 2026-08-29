@@ -30,7 +30,7 @@
 class CDispatchServerPacket
 {
 public:
-    static void dispatchPacket(char* p);
+    static int dispatchPacket(char* p);   // ORIG 0x8473660：末尾 mov $1,%ebx → 恒返 1（调用侧 test %al）
     static int dispatchAuctionPacket(char* p);   // ORIG 0847ac3c（恒返 1）
     static int dispatchPointPacket(char* p);     // ORIG 0847c1fe（恒返 1）
 };
@@ -660,7 +660,6 @@ void CNetwork<N1, N2>::initNetworkBuffer()
 
 extern template class CNetwork<4096, 450000>;
 extern template class CNetwork<100000, 100000>;
-extern template class CNetwork<6144, 100000>;
 extern template class CNetwork<95000, 450000>;
 
 #endif  // DNF_GAME_CNETWORK_H_

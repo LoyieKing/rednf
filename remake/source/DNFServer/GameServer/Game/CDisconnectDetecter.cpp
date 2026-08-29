@@ -113,7 +113,7 @@ bool CDisconnectDetecter::RegisterUser(CUser* user)
     if (ret.second == false)
     {
         cMyTrace trace(
-            "bool disconnect_detecter::CDisconnectDetecter::RegisterUser(CUser*)",
+            __PRETTY_FUNCTION__,
             0x25, 0);
         trace("RegisterUser() wrong");
         return 0;

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <cstddef>
 
 // ---- CVersionMgr / CSourceVersionMgr（复用 auction 布局，常量不同）----
 class SourceVersion;
@@ -35,5 +36,13 @@ public:
     };
     std::vector<SourceVersion> source_version_list_;
 };
+
+static_assert(offsetof(CSourceVersionMgr::SourceVersion, source_file_name_) == 0,
+              "SourceVersion::source_file_name_ layout drift");
+static_assert(offsetof(CSourceVersionMgr::SourceVersion, version_) ==
+                  sizeof(std::string),
+              "SourceVersion::version_ layout drift");
+static_assert(offsetof(CSourceVersionMgr, source_version_list_) == 0,
+              "CSourceVersionMgr layout drift");
 
 #endif // DNF_VERSION_H_

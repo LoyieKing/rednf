@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -12,37 +10,16 @@
 #include "Stream.h"
 
 #include "CMailBoxHelper.h"   // WongWork::CMailBoxHelper 权威叶子头（连带真实 Inven_Item）
+#include "NpServerXml.h"  // np_server_xml::CServerXml/g_ServerString_
+#include "PacketGuard.h"
 // ============================================================================
 // 本 TU 最小依赖声明（CUser/CInventory/CDataManager/CItem 等属后续批次，
 // 只声明本 TU 调用所需的符号形态；与 CInventory.h/GameStubs 的版本待合并）。
 // ============================================================================
 
 
-class InterfacePacketBuf
-{
-public:
-    InterfacePacketBuf();
-    ~InterfacePacketBuf();
-    void clear();
-    bool put_header(int nPacketId, int nPacketSize);
-    bool put_byte(int nValue);
-    bool put_short(int nValue);
-    bool finalize(bool bEncryptRequired);
 
-private:
-    char m_pad[4];
-};
 
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 class CItem
 {
@@ -171,17 +148,8 @@ extern MsgQueueMgr* s_msgq_mgr;
 extern CSystemTime s_systemTime_;
 }
 
-namespace np_server_xml
-{
-class CServerXml
-{
-public:
-    std::string GetServerString(int nIndex, bool* pFlag) const;
-};
-
-CServerXml g_ServerString_;  // ORIG 全局（0x93fa660，np_server_xml::g_ServerString_），原 GameStubs.cpp 定义迁移
-}
-
+// CServerXml 类声明与 g_ServerString_ extern 见 NpServerXml.h（跨 TU 唯一声明点）；
+// 全局定义（C 名 g_ServerString_）在 ServerCommon/ServerXml.cpp（ORIG B 0x093fa660）。
 
 struct SIG_BOOSTER_GAGE_DATA
 {
@@ -192,6 +160,16 @@ struct SIG_BOOSTER_GAGE_DATA
 // ============================================================================
 // CBoosterGage
 // ============================================================================
+
+// ORIG W 0x0832af06：CData ctor + vptr + _reset()（m_dwTotalGage=0）。
+CBoosterGage::CBoosterGage()
+{
+    _reset();
+}
+
+CBoosterGage::~CBoosterGage()
+{
+}
 
 void CBoosterGage::inc_total_gage(int nGage)
 {
@@ -221,9 +199,9 @@ void CBoosterGage::make_postar(CUser* pUser, const Inven_Item& item,
 {
     char szPost[0x100] = {0};
     char szTitle[0x14];
-    std::string strTitle = np_server_xml::g_ServerString_.GetServerString(0x436, NULL);
+    std::string strTitle = g_ServerString_.GetServerString(0x436, NULL);
     strncpy(szTitle, strTitle.c_str(), 0x14);
-    std::string strBody = np_server_xml::g_ServerString_.GetServerString(0x437, NULL);
+    std::string strBody = g_ServerString_.GetServerString(0x437, NULL);
     strncpy(szPost, strBody.c_str(), 0xff);
 
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
@@ -258,18 +236,17 @@ void CBoosterGage::log_booster_gage_bonus_reward(
     std::string strLog;
     strLog.clear();
     for (std::vector<std::pair<Inven_Item, bool> >::const_iterator it = rewardList.begin();
-         it != rewardList.end(); ++it)
+         it != rewardList.end(); it++)
     {
         std::pair<Inven_Item, bool> item = *it;
         char szItem[0xff] = {0};
         sprintf(szItem, "%d ", item.first.m_addInfo);
         strLog += szItem;
     }
-    cMyTrace trace(
+    cMyTrace(
         "void CBoosterGage::log_booster_gage_bonus_reward(CUser*, const MULTIBOX_REWARD_LIST&)",
-        0x7c, 0);
-    trace("BOOSTER_GAGE : REWARD ITEM (%s) x 2 : CHARAC_NO (%u)",
-          strLog.c_str(), pUser->getCurCharacNo());
+        0x7c, 0)("BOOSTER_GAGE : REWARD ITEM (%s) x 2 : CHARAC_NO (%u)",
+                 strLog.c_str(), pUser->getCurCharacNo());
 }
 
 int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
@@ -288,7 +265,7 @@ int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
     for (int i = 0; i < nLoop; ++i)
     {
         nSlot = pUser->getCurCharacInvenW()->AddAvatarItem(
-            item.m_addInfo, nCount, cType, 0, -1, pAgency, eReason, 0, 0);
+            item.m_addInfo, nCount, bFlag, 0, -1, pAgency, eReason, 0, 0);
         if (nSlot == -1)
         {
             make_postar(pUser, item, pAgency, nCount);
@@ -299,8 +276,7 @@ int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
             Inven_Item invenItem = pUser->getCurCharacInvenR()->GetInvenSlot(2, nSlot);
             nRemainDate = pUser->getCurCharacInvenR()->GetAvatarItemMgrR()
                               ->GetRemainDate(invenItem.m_addInfo2, (int)tNow);
-            int nItemSpace = item.GetItemSpace();
-            itemList.push_back(std::make_pair(nSlot, nItemSpace));
+            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
         }
     }
     return nSlot;
@@ -332,8 +308,7 @@ int CBoosterGage::InsertCreatureItem(std::vector<std::pair<int, int> >& itemList
         {
             pUser->getCurCharacInvenW()->GetCreatureMgrW()->InsertCreatureItem(
                 (Inven_Item*)&item, nSlot, eReason, nA, nB);
-            int nItemSpace = item.GetItemSpace();
-            itemList.push_back(std::make_pair(nSlot, nItemSpace));
+            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
         }
     }
     return nSlot;
@@ -362,8 +337,7 @@ int CBoosterGage::insertItemIntoInventory(std::vector<std::pair<int, int> >& ite
         }
         else
         {
-            int nItemSpace = item.GetItemSpace();
-            itemList.push_back(std::make_pair(nSlot, nItemSpace));
+            itemList.push_back(std::make_pair(nSlot, item.GetItemSpace()));
         }
     }
     return nSlot;
@@ -441,13 +415,18 @@ bool CBoosterGage::_saveData(CUser* pUser)
     **guard << 0x2d8;
     **guard << (int)pUser->GetUID();
     SIG_BOOSTER_GAGE_DATA* pData = guard->GetInBuffer<SIG_BOOSTER_GAGE_DATA>();
-    bool bRet = (pData != NULL);
-    if (bRet)
+    register bool bRet;
+    if (pData == NULL)
+    {
+        bRet = false;
+    }
+    else
     {
         memset(pData, 0, sizeof(SIG_BOOSTER_GAGE_DATA));
         pData->m_dwAccountNo = pUser->get_acc_id();
         pData->m_dwBoosterGage = m_dwTotalGage;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        bRet = true;
     }
     return bRet;
 }

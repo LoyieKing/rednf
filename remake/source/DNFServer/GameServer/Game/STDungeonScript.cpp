@@ -97,6 +97,9 @@ bool ImportDungeonScript(STDungeonScript* script, const char* path)
         return false;
     }
     script->Clear();
+    // ORIG 在 Clear() 后单独清空 +0x384 的 vector<RecoveryStairInfo>
+    // （Clear 本身不处理该成员，ImportDungeonScript 0x88e5faa 顶部实证）。
+    script->m_vec384.clear();
     std::string line;
     int value = 0;
     if (!ScanType(line, true))
@@ -113,6 +116,41 @@ bool ImportDungeonScript(STDungeonScript* script, const char* path)
         return false;
     }
     script->m_4 = value;
+
+    // ---- 标签分派（简化：仅恢复 [tower recovery]，其余标签忽略）----
+    // ORIG 主循环 0x88e606e(+0xc4) 用函数局部 static map __lookup 分派
+    // 全部标签；本实现保持既有简化风格，仅按需识别。ScanType(line, true)
+    // 会跳过非标签 token，返回 true=读到标签 / false=EOF。
+    while (ScanType(line, true))
+    {
+        if (line == "[tower recovery]")
+        {
+            // ORIG +0x8d77..+0x8ec0（0x88eed21..0x88eee78）：单个
+            // RecoveryStairInfo；m_0/m_4 为 ScanFloat 转 int（fistpl），
+            // m_8 为 float 直存（fstps）；内循环连续读取 RecoveryInfo
+            // float[3] 直到某个 ScanFloat 失败，push_back 进 m_vec；
+            // 最后整体 push_back 进 m_vec384（实例化隐式拷贝构造）。
+            RecoveryStairInfo rsi;
+            bool ok = false;
+            rsi.m_0 = static_cast<int>(ScanFloat(&ok));
+            rsi.m_4 = static_cast<int>(ScanFloat(&ok));
+            rsi.m_8 = ScanFloat(&ok);
+            while (true)
+            {
+                RecoveryInfo ri;
+                ri.m_data[0] = ScanFloat(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ri.m_data[1] = ScanFloat(&ok);
+                ri.m_data[2] = ScanFloat(&ok);
+                rsi.m_vec.push_back(ri);
+            }
+            script->m_vec384.push_back(rsi);
+        }
+        // 其它标签：简化实现不解析，继续循环
+    }
     return true;
 }
 

@@ -65,7 +65,7 @@ void Secu_HackLogCheckByParty::CheckMoveMapFitInPathHackCnt(
         {
             LogManager::logFormat(
                 1, "Secu_HackLogCheckByParty.cpp",
-                "void Secu_HackLogCheckByParty::CheckMoveMapFitInPathHackCnt(CUser*, CParty*, unsigned int, unsigned int, int)",
+                __PRETTY_FUNCTION__,
                 0x2c, "Path gate position error. (User: %s %d,%d)",
                 NumberToString(user->get_acc_id(), 0), a, b);
             user->getHackAnalyzer()->addServerHackCnt(

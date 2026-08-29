@@ -17,7 +17,7 @@
 class CRabbitBox
 {
 public:
-    CRabbitBox() : m_field4(-1), m_itemIndex(-1), m_itemCount(-1), m_dropRate(-1) {}
+    CRabbitBox() : m_field4(-1), m_itemIndex(m_field4), m_itemCount(m_field4), m_dropRate(m_field4) {}
     virtual ~CRabbitBox() {}
 
     CRabbitBox(const CRabbitBox& other)
@@ -25,13 +25,10 @@ public:
           m_itemCount(other.m_itemCount), m_dropRate(other.m_dropRate) {}
     CRabbitBox& operator=(const CRabbitBox& other)
     {
-        if (this != &other)
-        {
-            m_field4 = other.m_field4;
-            m_itemIndex = other.m_itemIndex;
-            m_itemCount = other.m_itemCount;
-            m_dropRate = other.m_dropRate;
-        }
+        m_field4 = other.m_field4;
+        m_itemIndex = other.m_itemIndex;
+        m_itemCount = other.m_itemCount;
+        m_dropRate = other.m_dropRate;
         return *this;
     }
 

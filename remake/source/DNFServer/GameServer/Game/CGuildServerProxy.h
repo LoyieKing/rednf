@@ -88,12 +88,15 @@ public:
     const struct Inven_Item* m_item;  // +0x14
 };
 
-// stADDINFO（CEventBase +0x04，sizeof 4）：两个 ushort，ctor 0x0810af10 置 0xffff。
+// stADDINFO（CEventBase +0x04，sizeof 4）：两个 short，ctor 0x0810af10 置 0xffff。
+// 字段为 signed short（ORIG 2026-08-28 OrigEventLeaf8f 实证：AttendanceEvent/
+// CFatigueAttendance StartEvent(Word_Param) 写入 movzwl→eax→edx→movw 中转形态，
+// getRewordItem 读取 movzwl+cwtl 符号扩展；ushort 声明生成 edx 直存异形）。
 struct stADDINFO
 {
     stADDINFO();          // 0x0810af10（CEventBase TU 内联或独立 TU）
-    unsigned short m_info0;   // +0x00
-    unsigned short m_info1;   // +0x02
+    short m_info0;        // +0x00
+    short m_info1;        // +0x02
 };
 
 // CEventBase（ORIG vtable 0x08b4bae0）：0/1 = 虚析构，2/3 = StartEvent()/
@@ -111,7 +114,9 @@ public:
     virtual void StartEvent(Word_Param param);  // vtable+0x18
     virtual void StartAction();                 // vtable+0x1c
     virtual void AppendInfo(PacketGuard& packet);  // vtable+0x20
-    virtual int GetAddInfo();                   // vtable+0x24
+    virtual stADDINFO GetAddInfo();   // vtable+0x24；返回 4 字节非 POD stADDINFO
+    // （ORIG 0x080c84d0 sret 形态：写 this+0x04 至隐藏 out 指针，ret $4，
+    //  2026-08-28 OrigEventLeaf8f 修正 int→stADDINFO，mangled 不变 Ev）
     virtual void changeCharacName(CUser* user, int a, char* name, int b);
                                                 // vtable+0x28
     virtual void dailyresetData();              // vtable+0x2c
@@ -148,6 +153,9 @@ public:
     CEventManager();                       // 0x08114ce4 T（CEventManager.cpp）
     ~CEventManager();                      // 0x08114d4e T（CEventManager.cpp）
     CEventBase* GetRepeatEvent(int type);  // 0x08115998
+    void changeCharacName(CUser* user, int key, char* name, int flag);
+                                           // ORIG T _ZN13CEventManager16changeCharacNameEP5CUseriPci
+                                           // @0x08116276（定义由后续批次补产）
     // ORIG T 0x08116212：存在重叠经验加成事件（set_clear_reward_exp_parameter 消费）。
     bool IsExistOverlappedExpBonusEvent();
     int AddEvent(int type, CEventBase* event);            // 0x08115982
@@ -160,45 +168,37 @@ public:
     void BroadcastEventInfo();                             // 0x08116108
     void eventDeliveryNotify(int type, DeliveryMsg& msg);  // 0x08116874
 
-private:
-    // ORIG 布局：+0x00..+0x297 事件指针数组（0xa6 x CEventBase*），
-    // +0x298 CDelivery*（heap 分配，ctor 内 new）。sizeof = 0x29c。
-    char m_pad[0x29c];
+    // ORIG 布局（CEventManager.md ctor 0x08114ce4 实证）：+0x00..+0x297 事件
+    // 指针数组（0xa6 = 0x298/4 × CEventBase*，ctor memset(0x298)），+0x298
+    // CDelivery*（heap 分配，ctor 内 new）。sizeof = 0x29c。
+    CEventBase* m_events[0xa6];   // +0x00..+0x297
+    CDelivery*  m_delivery;       // +0x298
 };
-
-// NewAccountLevelUpEventToJob —— 新账号升级转职奖励 repeat 事件（event idx 0x68，
-// 经 CEventManager::GetRepeatEvent(0x68) 取得）。ORIG T
-// _ZN27NewAccountLevelUpEventToJob19processLevelUpToJobER5CUserb 0x081b82a4；
-// 完整类布局 ORIG 未恢复，本声明仅暴露 processLevelUpEvent 调用面（定义 CUserDepsB.cpp）。
-class NewAccountLevelUpEventToJob
-{
-public:
-    bool processLevelUpToJob(CUser& user, bool growup);
-};
+static_assert(sizeof(CEventManager) == 0x29c,
+              "CEventManager ABI drift");
 
 namespace WongWork
 {
-// GM 账号条目（8 字节）：账号 id + GM 类型。
-// isGM/getGMInfo 以 {mid, type=3} 在 m_gmList 中查找（ORIG isGM 0x08109346）。
-struct stGMInfo_t
-{
-    unsigned int mid;    // +0x00
-    unsigned int type;   // +0x04
-
-    stGMInfo_t() : mid(0), type(0) {}
-    stGMInfo_t(unsigned int m, unsigned int t) : mid(m), type(t) {}
-
-    // ORIG W 0x08109610 _ZNK8WongWork11CGMAccounts10stGMInfo_teqERKS1_
-    // (size 0x14)：仅比较 mid（+0x00），不比较 type。
-    bool operator==(const stGMInfo_t& o) const
-    {
-        return mid == o.mid;
-    }
-};
-
 class CGMAccounts
 {
 public:
+    // GM 账号条目（8 字节）：账号 id + GM 类型（ORIG 嵌套类型，mangled
+    // _ZNK8WongWork11CGMAccounts10stGMInfo_teqERKS1_）。
+    struct stGMInfo_t
+    {
+        unsigned int mid;    // +0x00
+        unsigned int type;   // +0x04
+
+        stGMInfo_t() : mid(0), type(0) {}
+        stGMInfo_t(unsigned int m, unsigned int t) : mid(m), type(t) {}
+
+        // ORIG W 0x08109610：仅比较 mid（+0x00），不比较 type。
+        bool operator==(const stGMInfo_t& o) const
+        {
+            return mid == o.mid;
+        }
+    };
+
     CGMAccounts();                         // 0x082a73a4 W（独立 TU）
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346

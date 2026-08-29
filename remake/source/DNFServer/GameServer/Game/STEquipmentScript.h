@@ -84,6 +84,7 @@ enum ENUM_CHARACTERJOB
 };
 #endif
 
+// ---- [equipment/OldEquipmentStatInfoList.dat] 旧装备统计条目。
 // ---- [war room point bonus]/[war room monster exp bonus] 载体（8 字节 POD）。
 // 与 CEquipItem.h 的 WpBonusPointData/ExpBonusPointData 同布局（int type/int value，
 // ORIG clear 置 type=2/value=0）；为避免 STEquipmentScript.h ↔ CEquipItem.h 循环
@@ -94,6 +95,65 @@ struct stBonusPointData_t
 {
     int m_type;    // +0x00
     int m_value;   // +0x04
+};
+#endif
+
+// ORIG 本 TU 段符号：C1/C2 T 0x0898d25e（调 clear）、clear T 0x0898d272；
+// clear 实证 38 个 int 全清 → sizeof 0x98：
+//   +0x00..+0x24 直接清零（hpMax..equipMagDef 10 字段）
+//   循环 i<=3  清 +0x28+4i（元素耐性 4）
+//   +0x38 直接（refAll）
+//   循环 j<=16 清 +0x3c+4j（状态耐性 17）
+//   +0x80/+0x84 直接（refAllState + 隐藏字段）
+//   循环 k<=3  清 +0x88+4k（隐藏字段 4）
+// 消费方（InitScriptProducers_3.cpp importOldEquipmentStatInfo）只写 +0x00..+0x80，
+// 尾部 5 字段仅 clear 触达；命名沿用 sync_script.h 旧镜像（该镜像已删，见批报）。
+#ifndef DNF_STEQUIPMENTSTATINFO_DEFINED
+#define DNF_STEQUIPMENTSTATINFO_DEFINED
+class STEquipmentStatInfo
+{
+public:
+    STEquipmentStatInfo();
+    void clear();
+
+    int m_hpMax;            // +0x00
+    int m_mpMax;            // +0x04
+    int m_phyAtt;           // +0x08
+    int m_phyDef;           // +0x0c
+    int m_magAtt;           // +0x10
+    int m_magDef;           // +0x14
+    int m_equipPhyAtt;      // +0x18
+    int m_equipPhyDef;      // +0x1c
+    int m_equipMagAtt;      // +0x20
+    int m_equipMagDef;      // +0x24
+    int m_refFire;          // +0x28
+    int m_refWater;         // +0x2c
+    int m_refDark;          // +0x30
+    int m_refLight;         // +0x34
+    int m_refAll;           // +0x38
+    int m_refSlow;          // +0x3c
+    int m_refFreeze;        // +0x40
+    int m_refPoison;        // +0x44
+    int m_refStun;          // +0x48
+    int m_refCurse;         // +0x4c
+    int m_refBlind;         // +0x50
+    int m_refLightning;     // +0x54
+    int m_refStone;         // +0x58
+    int m_refSleep;         // +0x5c
+    int m_refBurn;          // +0x60
+    int m_refWeaponBreak;   // +0x64
+    int m_refBleeding;      // +0x68
+    int m_refPierce;        // +0x6c
+    int m_refStuck;         // +0x70
+    int m_refConfuse;       // +0x74
+    int m_refHold;          // +0x78
+    int m_refArmorBreak;    // +0x7c
+    int m_refAllState;      // +0x80
+    int m_84;               // +0x84（仅 clear 清零，语义未建模）
+    int m_88;               // +0x88
+    int m_8c;               // +0x8c
+    int m_90;               // +0x90
+    int m_94;               // +0x94
 };
 #endif
 
@@ -112,14 +172,34 @@ struct STChangeStatusRate
 //      第三个 int 由 getEquipmentTypeToEnumValue 写入） ----
 struct STEnchantSystemData
 {
-    int m_a;   // +0x00
-    int m_b;   // +0x04
-    int m_c;   // +0x08（getEquipmentTypeToEnumValue(token)）
+    int m_a;               // +0x00
+    unsigned char m_b;     // +0x04（ORIG byte：clear movb 清 0、遍历 movzbl 读；sizeof 12 不变）
+    int m_c;               // +0x08（getEquipmentTypeToEnumValue(token)）
+
+    // ORIG 全 W 头内联：C1 0x854b194（调 clear）、clear 0x854b1a8
+    // （+0/+4/+8 依序清零）、D1 0x89d17a2（空体）。
+    STEnchantSystemData() { clear(); }
+
+    void clear()
+    {
+        m_a = 0;
+        m_b = 0;
+        m_c = 0;
+    }
+
+    ~STEnchantSystemData() {}
 };
 
 // ---- [setback img] 条目（ORIG ctor 0x0898f?? 三连 int 扫描） ----
 struct stSetItemBackImageInfo
 {
+    // ORIG C1/C2 0x089c3054（W）：三个 int 清零。
+    stSetItemBackImageInfo()
+    {
+        m_a = 0;
+        m_b = 0;
+        m_c = 0;
+    }
     int m_a;   // +0x00
     int m_b;   // +0x04
     int m_c;   // +0x08

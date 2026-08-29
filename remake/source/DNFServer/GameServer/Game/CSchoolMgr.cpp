@@ -20,6 +20,7 @@
 #include "GameWorld.h"
 #include "CSchoolMgr.h"
 #include "RDARScriptStringManager.h"
+#include "PacketGuard.h"
 
 // ---------------------------------------------------------------------------
 // 外部符号声明（实现属其它 TU）
@@ -29,16 +30,7 @@ class CUser;
 // ---------------------------------------------------------------------------
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char）
 // ---------------------------------------------------------------------------
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ---------------------------------------------------------------------------
 // CBelong / CSchoolMember（send_group 的归属对象；IsRight 为纯虚）

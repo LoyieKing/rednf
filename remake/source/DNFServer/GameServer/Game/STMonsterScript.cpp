@@ -22,7 +22,7 @@ extern std::vector<std::vector<MonsterBaseParameter> >
     g_monsterBaseParameters;                                    // B 0x094ff278
 int GetLinearDataForMonsterAbility(int low, int high, int diff,
                                    int span);                   // T 0x08891bae
-bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
+bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag);                  // T 0x08a97637
 void getScriptFileFullPath(char* out, unsigned int size,
                            const char* dir, const char* name);  // T 0x088bba4e
@@ -552,7 +552,7 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
     std::string tag;                           // -0x1a0c
     int moduleId = -1;                         // -0x1a1c
     int subId = -1;                            // -0x1a20
-    while (processModuleTagSet(&moduleId, &subId, &tag, type, flag))
+    while (processModuleTagSet(moduleId, subId, &tag, type, flag))
     {
         if (subId != -1)                       // +0x186
             script->m_field1c9c = subId;
@@ -769,10 +769,10 @@ bool exportMonsterScript(
     STMonsterScript* script, const char* path,
     std::map<std::string, std::vector<std::string> >& extra)
 {
-    char fullPath[0x100];                      // getScriptFileFullPath 缓冲
-    getScriptFileFullPath(fullPath, 0x100,
+    static char saveFileName[0x100];                      // getScriptFileFullPath 缓冲
+    getScriptFileFullPath(saveFileName, 0x100,
                           g_szMonsterScriptBaseDirectory, path);   // +0x2c
-    FILE* file = fopen(fullPath, "w");         // +0x3a "w"
+    FILE* file = fopen(saveFileName, "w");         // +0x3a "w"
     if (file == 0)
         return false;
 
@@ -854,3 +854,79 @@ bool exportMonsterScript(
     fclose(file);
     return true;
 }
+// ===========================================================================
+// ORIG 中 STMonsterScript.h 各成员类型的 clear/C1/隐式拷贝均为 W 弱符号，
+// 产生点由原 TU 中的实际调用触发；本 TU 无自然调用方（STMonsterScript 仅
+// 以 vector 容器持有它们，容器操作不 odr-use 元素值类型），此处补 odr-use
+// 以在本 TU 产出与 ORIG 符号集对齐的 W 符号（不改变任何语义/布局）。
+// ===========================================================================
+namespace
+{
+void EmitStMonsterScriptWeakSymbols()
+{
+    // 用户内联实现：C1/C2 + clear
+    STAtkSuper atkSuper;          atkSuper.clear();
+    STCoolTime coolTime;          coolTime.clear();
+    STDifficulty difficulty;      difficulty.clear();
+    STEventSuper eventSuper;      eventSuper.clear();
+    STJumpAttack jumpAttack;      jumpAttack.clear();
+    STSummonInfo summonInfo;      summonInfo.clear();
+    STThrowAttack throwAttack;    throwAttack.clear();
+    STAttackMethod attackMethod;  attackMethod.clear();
+    STCounterAttack counterAttack; counterAttack.clear();
+    STDash dash;                  dash.clear();
+    STHold hold;                  hold.clear();
+    STWarp warp;                  warp.clear();
+    STSummon summon;              summon.clear();
+    STMosterAttackReady attackReady; attackReady.clear();
+
+    // 隐式拷贝构造/拷贝赋值（P74：编译器按成员序合成）
+    STCoolTime ctCopy(coolTime);  coolTime = ctCopy;
+    STThrowAttack taCopy(throwAttack);  throwAttack = taCopy;
+    STInitialTarget initTarget;   STInitialTarget itCopy(initTarget);
+                                initTarget = itCopy;
+    STRidableSkillExplain skillExplain;
+    STRidableSkillExplain seCopy(skillExplain);  skillExplain = seCopy;
+    STMosterAttackReady arCopy(attackReady);  attackReady = arCopy;
+    STRidableSkill rSkill;        STRidableSkill rsCopy(rSkill);
+                                rSkill = rsCopy;
+
+    // 用户 ctor（非 clear 类）
+    STMonsterParameterCategory category;
+
+    // STAIInfoScript：destroy W 0x0836753a（头内联实现）+ 隐式拷贝
+    // 构造/赋值（ORIG C1ERKS_/aSERKS_ 均为编译器合成版，P74）。
+    STAIInfoScript aiInfo;
+    aiInfo.destroy();
+    STAIInfoScript aiCopy(aiInfo);   // → C1ERKS_/C2ERKS_
+    aiInfo = aiCopy;                 // → aSERKS_
+
+    // STMonsterScript：隐式 op=（ORIG W 0x08377994 编译器合成版）；
+    // ORIG 无 C1ERKS_，故只 force-use 赋值不触发拷贝构造。
+    STMonsterScript monster1;
+    STMonsterScript monster2;
+    monster1 = monster2;
+
+    // 无用户 ctor 类的隐式 C1（STRidableSkill/STInitialTarget/
+    // STRidableSkillExplain 已在上面默认构造触发）
+
+    // 隐式 op=（cpp 已定义 C1/clear）
+    STMonsterEquipment eq1;       STMonsterEquipment eq2;
+    eq1 = eq2;
+
+    // POD 类显式析构（D1/D2；trivial 析构容器路径不实例化）
+    CatchItemInfo catchItem;
+    catchItem.~CatchItemInfo();
+    stEnamyDropAvatarElement_t dropElement;
+    dropElement.~stEnamyDropAvatarElement_t();
+
+    (void)atkSuper; (void)coolTime; (void)difficulty; (void)eventSuper;
+    (void)jumpAttack; (void)summonInfo; (void)throwAttack; (void)attackMethod;
+    (void)counterAttack; (void)dash; (void)hold; (void)warp; (void)summon;
+    (void)attackReady; (void)ctCopy; (void)taCopy; (void)initTarget;
+    (void)itCopy; (void)skillExplain; (void)seCopy; (void)arCopy;
+    (void)rSkill; (void)rsCopy;
+    (void)aiInfo; (void)aiCopy; (void)monster1; (void)monster2;
+    (void)category;
+}
+}  // namespace

@@ -20,7 +20,7 @@
 // 语义链（依 process.md 反编译，逐段核对）：
 //   state==3 → 读 3 字段 → GetInvenSlot(1,slotA)=invA / GetInvenSlot(1,slotB)=invB
 //   cube  = find_item(invB.m_addInfo)；source = find_item(invA.m_addInfo)
-//   CheckItemLock(GetInvenTypeFromItemSpace(0), slotA) 非 0 → param.error=1
+//   CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)0), slotA) 非 0 → param.error=1
 //   check_error(slotA,itemIdx,slotB,invA,invB,cube) → 非 0 → param.error=码
 //   get_limit_cube_item(&pair) → {resultIdx, resultCount}；两者均 0 → error=0x11
 //     param.resultIdx=pair.first；param.resultCount=pair.second
@@ -111,19 +111,19 @@ int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg)
     if (!packet.get_short(*(short*)((char*)&msg + 0x0d)))
     {
         return LineFunc(0x337d,
-                        "virtual int Dispatcher_UseLimitCube::read(PacketBuf&, MSG_BASE&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     }
     if (!packet.get_int(*(unsigned int*)((char*)&msg + 0x0f)))
     {
         return LineFunc(0x3381,
-                        "virtual int Dispatcher_UseLimitCube::read(PacketBuf&, MSG_BASE&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     }
     if (!packet.get_short(*(short*)((char*)&msg + 0x13)))
     {
         return LineFunc(0x3385,
-                        "virtual int Dispatcher_UseLimitCube::read(PacketBuf&, MSG_BASE&)",
+                        __PRETTY_FUNCTION__,
                         0, 0);
     }
     return 0;
@@ -180,7 +180,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     CItem* source = G_CDataManager()->find_item(invA.m_addInfo);
 
     // ---- 物品锁检查 ----
-    int lockSpace = GetInvenTypeFromItemSpace(0);
+    int lockSpace = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)0);
     if (user->CheckItemLock(lockSpace, slotA))
     {
         *(unsigned char*)((char*)&st + 0x04) = 0x1;
@@ -330,7 +330,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
         if (resultIdx <= 0x671d || resultIdx > 0x6749)
         {
             LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
-                                  "virtual int Dispatcher_UseLimitCube::process(CUser*, MSG_BASE&, ParamBase&)",
+                                  __PRETTY_FUNCTION__,
                                   0x344b,
                                   "LIMIT CUBE : WRONG RESULT - cube_item(%u), result_item(%u)",
                                   (unsigned int)cubeIdx, (unsigned int)resultIdx);
@@ -341,7 +341,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
         if (resultIdx <= 0x6749 || resultIdx > 0x6775)
         {
             LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
-                                  "virtual int Dispatcher_UseLimitCube::process(CUser*, MSG_BASE&, ParamBase&)",
+                                  __PRETTY_FUNCTION__,
                                   0x3452,
                                   "LIMIT CUBE : WRONG RESULT - cube_item(%u), result_item(%u)",
                                   (unsigned int)cubeIdx, (unsigned int)resultIdx);

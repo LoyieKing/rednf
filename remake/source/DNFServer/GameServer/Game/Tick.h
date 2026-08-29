@@ -34,7 +34,7 @@ public:
     void setInternalValue(unsigned int v);      // _ZN4Tick16setInternalValueEj
     unsigned int getInternalValue() const;      // _ZNK4Tick16getInternalValueEv
 
-    Tick& operator=(const Tick& rhs);           // _ZN4TickaSES_
+    Tick& operator=(Tick rhs);                  // _ZN4TickaSES_（ORIG 按值参）
     Tick& operator+=(int span);                 // _ZN4TickpLEi
     Tick& operator-=(int span);                 // _ZN4TickmIEi
     Tick operator+(int span) const;             // _ZNK4TickplEi（sret）

@@ -62,7 +62,7 @@ public:
     void Send(PacketGuard& packet);                        // ORIG 0x086485ba
 };
 
-int GetInvenTypeFromItemSpace(int space);                  // ORIG（全局自由函数）
+int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);   // ORIG W 0x080f7845（switch 映射；权威定义 CTitleBook.cpp）
 // ORIG 匿名常量（rodata 内联实例 _ZN9item_lockL20CHECK_ITEM_LOCK_TIMEE
 namespace item_lock
 {
@@ -683,7 +683,7 @@ void CItemLock::getData(char* pData) const
         {
             LogManager::logFormat(
                 1, "ItemLock.cpp",
-                "virtual void item_lock::CItemLock::getData(char*) const",
+                __PRETTY_FUNCTION__,
                 0x6c, "itemlock error index %d", idx);
             continue;
         }
@@ -717,7 +717,7 @@ bool CItemLock::_saveData(CUser* user)
         {
             LogManager::logFormat(
                 1, "ItemLock.cpp",
-                "virtual bool item_lock::CItemLock::_saveData(CUser*)",
+                __PRETTY_FUNCTION__,
                 0x59, "itemlock error index %d", idx);
             continue;
         }

@@ -75,23 +75,20 @@ void TradeSlot::Reset()
 // ---- 构造 / 析构（ORIG 0x082a416c / 0x082a41e0）----
 CTradeSpace::CTradeSpace()
 {
-    new (m_mutex) Mutex;
     m_bTrading = 0;
     char* row = m_slotsData;
     for (int t = 1; t != -1; --t) {
         char* slot = row;
         for (int s = 0x1a; s != -1; --s) {
-            new (slot) TradeSlot;
+            ((TradeSlot*)slot)->Reset();
             slot += 0x48;
         }
         row += 0x798;
     }
     m_bLocked = 0;
 }
-
 CTradeSpace::~CTradeSpace()
 {
-    reinterpret_cast<Mutex*>(m_mutex)->~Mutex();
 }
 
 // ---- 弱符号访问器族（ORIG 0x082a41f4 起）----
@@ -175,9 +172,9 @@ int CTradeSpace::_CheckTrade4SameAvatar(const TradeSlot* slots,
                                         const Inven_Item& item)
 {
     for (int i = 3; i <= 0x1a; ++i) {
-        if (*(int*)((const char*)slots + i * 0x48 + 0xb) == *(int*)((const char*)&item + 2) &&
-            *(int*)((const char*)slots + i * 0x48 + 0x10) == *(int*)((const char*)&item + 7) &&
-            *(short*)((const char*)slots + i * 0x48 + 0x14) == *(short*)((const char*)&item + 0xb))
+        if (slots[i].m_item.m_addInfo == item.m_addInfo &&
+            slots[i].m_item.m_addInfo2 == item.m_addInfo2 &&
+            slots[i].m_item.m_fieldb == item.m_fieldb)
             return 1;
     }
     return 0;
@@ -203,7 +200,7 @@ int CTradeSpace::get_empty_itemslot(int traderIdx)
 }
 int CTradeSpace::check_trade_possibility()
 {
-    if (m_bTrading != 1)
+    if (!m_bTrading)
         return 0;
     if (m_pTraders[0]->GetTradeSpace() != m_pTraders[1]->GetTradeSpace())
         return 0;
@@ -215,19 +212,21 @@ int CTradeSpace::check_trade_possibility()
 // ---- _IsTradable @ 0x08529dce ----
 int CTradeSpace::_IsTradable(const Inven_Item& item)
 {
-    CDataManager* dm = G_CDataManager();
-    CItem* ci = dm->find_item(*(int*)((const char*)&item + 2));
+    CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
     if (ci == 0)
         return 0;
     if (item.m_upgradeSep.IsTradeRestriction())
         return 0;
     unsigned int t = (unsigned int)ci->GetAttachType();
     if (t < 6) {
-        t = 1u << t;
-        if ((t & 0x36) != 0)
+        unsigned int bit = 1u << t;
+        if ((bit & 0x36) != 0)
             return 0;
-        if (((t & 8) != 0) && (item.m_field0 != 1))
+        if ((bit & 8) != 0) {
+            if (item.m_field0 == 1)
+                return 1;
             return 0;
+        }
     }
     return 1;
 }
@@ -257,19 +256,19 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
                     memcpy(dst, &slot, 0x46);
                 ((TradeSlot*)dst)->m_item.set_add_info(count);
                 if (999 < count) {
-                    cMyTrace tr("int CTradeSpace::add_item(int, TradeSlot, int)", 0xde, 5);
+                    cMyTrace tr(__PRETTY_FUNCTION__, 0xde, 5);
                     tr("CTradeSpace::add_item, ITEM #%d, %d",
-                       *(int*)(dst + 0x3b), count);
+                       ((TradeSlot*)dst)->m_item.m_addInfo, count);
                 }
             }
         } else {
             char* dst = &m_slotsData[traderIdx * 0x798 + idx * 0x48];
-            int newCount = *(int*)(dst + 0x40) + count;
+            int newCount = ((TradeSlot*)dst)->m_item.m_addInfo2 + count;
             ((TradeSlot*)dst)->m_item.set_add_info(newCount);
             if (999 < newCount) {
-                cMyTrace tr("int CTradeSpace::add_item(int, TradeSlot, int)", 0xd1, 5);
+                cMyTrace tr(__PRETTY_FUNCTION__, 0xd1, 5);
                 tr("CTradeSpace::add_item, ITEM #%d, %d",
-                   *(int*)(dst + 0x3b), newCount);
+                   ((TradeSlot*)dst)->m_item.m_addInfo, newCount);
             }
         }
         ret = idx;
@@ -292,12 +291,9 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
     lock();
     m_bTrading = 1;
     _SetLock(0);
-    m_pTraders[0] = a;
-    *(unsigned int*)((char*)m_pTraders[0] + 0x8d25c) =
-        (unsigned int)b->get_unique_id() & 0xffff;
+    m_pTraders[0]->m_expReward.m_padf = (unsigned short)b->get_unique_id();
     m_pTraders[1] = b;
-    *(unsigned int*)((char*)m_pTraders[1] + 0x8d25c) =
-        (unsigned int)a->get_unique_id() & 0xffff;
+    m_pTraders[1]->m_expReward.m_padf = (unsigned short)a->get_unique_id();
     bool ok = (m_pTraders[1]->getCurCharacR() != 0) &&
               (m_pTraders[0]->getCurCharacR() != 0);
     if (ok) {
@@ -325,17 +321,9 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
 // ---- cancel_trade @ 0x0852effa ----
 int CTradeSpace::cancel_trade()
 {
-    bool fail = false;
-    if (m_pTraders[0]->getCurCharacR() != 0) {
-        if (m_pTraders[1]->getCurCharacR() != 0)
-            fail = false;
-        else
-            fail = true;
-    } else {
-        fail = true;
-    }
-    if (fail) {
-        cMyTrace tr("bool CTradeSpace::cancel_trade()", 0x788, 5);
+    if (m_pTraders[0]->getCurCharacR() == 0 ||
+        m_pTraders[1]->getCurCharacR() == 0) {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x788, 5);
         tr("CTradeSpace::cancel_trade()\t0 == m_pTraders[0]->getCurCharacR() || m_pTraders[1]->getCurCharacR()");
         return 0;
     }
@@ -347,7 +335,7 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 {
     char title[41];
     char msg[0xff];
-    if (*(int*)((char*)&item + 2) == 0)
+    if (item.m_addInfo == 0)
         return 0;
     {
         char* q = title;
@@ -407,11 +395,9 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 // （真实语义；跨类调用以 ORIG 符号为准）
 // ============================================================================
 
-// ---- 槽位辅助 ----
-static inline TradeSlot* TradeSlotAt(char* slots, int trader, int idx)
-{
-    return (TradeSlot*)&slots[trader * 0x798 + idx * 0x48];
-}
+// ---- 槽位辅助（P49：-O0 下 static inline 也产真实符号 → 宏）----
+#define TradeSlotAt(slots, trader, idx) \
+    ((TradeSlot*)&(slots)[(trader) * 0x798 + (idx) * 0x48])
 
 // ---- checkTrade @ 0x08530210 ----
 // 校验交易可完成：对双方背包做副本，模拟把对方注册物品/金钱插入各自副本，
@@ -447,11 +433,11 @@ int CTradeSpace::checkTrade()
             }
             if (ret < 0) {
                 if (slot->m_item.m_field1 == (unsigned char)8) {
-                    cMyTrace tr("bool CTradeSpace::checkTrade()", 0xba7, 5);
+                    cMyTrace tr(__PRETTY_FUNCTION__, 0xba7, 5);
                     tr("try insert_item(INVEN_TYPE_AVATAR) fail - fatal! ch=%d",
                        m_pTraders[1 - trader]->getCurCharacNo());
                 } else {
-                    cMyTrace tr("bool CTradeSpace::checkTrade()", 0xbab, 5);
+                    cMyTrace tr(__PRETTY_FUNCTION__, 0xbab, 5);
                     tr("try insert_item(INVEN_TYPE_INVENTORY) fail - fatal! ch=%d",
                        m_pTraders[1 - trader]->getCurCharacNo());
                 }
@@ -468,7 +454,7 @@ int CTradeSpace::checkTrade()
 int CTradeSpace::checkCancelTrade()
 {
     if (m_pTraders[0]->getCurCharacR() == 0 || m_pTraders[1]->getCurCharacR() == 0) {
-        cMyTrace tr("bool CTradeSpace::checkCancelTrade()", 0x674, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x674, 5);
         tr("CTradeSpace::cancel_trade()\t0 == m_pTraders[0]->getCurCharacR() || m_pTraders[1]->getCurCharacR()");
         return 0;
     }
@@ -499,7 +485,7 @@ int CTradeSpace::checkCancelTrade()
                 ret = own.insertItemIntoEquipment(item, (eItemAddReason)2, 0, 1);
             }
             if (ret < 0) {
-                cMyTrace tr("bool CTradeSpace::checkCancelTrade()", 0x6af, 5);
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x6af, 5);
                 tr("try insert_item(INVEN_TYPE_INVENTORY) fail - [Fail]Insert_item - fatal! canceled ch=%d",
                    m_pTraders[trader]->getCurCharacNo());
                 return 0;
@@ -533,7 +519,7 @@ int CTradeSpace::cancel_trade_for_china(CUser* user)
         } else {
             cnt += 1;
             if (owner->getCurCharacR() == 0) {
-                cMyTrace tr("bool CTradeSpace::cancel_trade_for_china(CUser*)", 0x71c, 5);
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x71c, 5);
                 tr("CTradeSpace::cancel_trade()\tm_pTraders[user_index]->getCurCharacR()");
                 return 0;
             }

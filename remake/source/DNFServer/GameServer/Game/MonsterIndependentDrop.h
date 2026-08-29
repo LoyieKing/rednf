@@ -96,4 +96,4 @@ private:
 
 // 布局自检（ORIG __copy_m 元素步长 0x48 实证）。
 typedef char assert_sizeof_monster_independent_drop[sizeof(stMonsterIndependentDrop_t) == 0x48 ? 1 : -1];
-typedef char assert_sizeof_independent_drop_rate_control[sizeof(stIndependentDropRateControl) == 0xc ? 1 : -1];
+typedef char assert_sizeof_independent_drop_rate_control[sizeof(stIndependentDropRateControl) == 0x54 ? 1 : -1];

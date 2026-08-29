@@ -240,7 +240,7 @@ int CBattle_Field::getAddChampionMobCnt()
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "int CBattle_Field::getAddChampionMobCnt()", 0x4ed,
+            __PRETTY_FUNCTION__, 0x4ed,
             "[FPE] [CBattle_Field::ConsistMap] Dungeon[%d] Width[%d] Height[%d]",
             m_dungeonIndex, m_mapWidth, m_mapHeight);
     }

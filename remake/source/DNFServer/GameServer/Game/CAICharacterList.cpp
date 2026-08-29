@@ -13,6 +13,7 @@
 
 #include <map>
 #include <vector>
+#include "NpcScript.h"
 
 typedef std::map<int, std::vector<CAICharacter*> > APGroupMap;
 
@@ -144,14 +145,7 @@ public:
 };
 typedef char assert_cai_character_size[sizeof(CAICharacter) == 0x74 ? 1 : -1];
 
-// ---- STScriptFileList 镜像（模式同 CExpertJobList.cpp；方法权威定义在
-//      STScriptFileList.cpp，全局对象定义在 InitScriptProducers_5.cpp）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;             // +0x00
-    int FindIndexByFullScan(const char* path) const;  // ORIG T 0x088bae56
-};
+
 extern STScriptFileList g_aiCharacterScriptFileList;  // B 0x094f6a20
 
 bool importAICharacterCommonScript(STAICharacterCommonScript* script,

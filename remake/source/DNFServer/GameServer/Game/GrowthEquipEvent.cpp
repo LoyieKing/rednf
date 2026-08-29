@@ -171,21 +171,21 @@ GrowthEquipEvent::~GrowthEquipEvent()
 void GrowthEquipEvent::StartEvent()
 {
     SetEventFlag(true);
-    cMyTrace tr("virtual void GrowthEquipEvent::StartEvent()", 0x18, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x18, 0);
     tr("GrowthEquipEvent Event start!");
 }
 
 void GrowthEquipEvent::StartEvent(Word_Param /*param*/)
 {
     SetEventFlag(true);
-    cMyTrace tr("virtual void GrowthEquipEvent::StartEvent(Word_Param)", 0x1e, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x1e, 0);
     tr("GrowthEquipEvent Event start! [monitor request]");
 }
 
 void GrowthEquipEvent::EndEvent()
 {
     SetEventFlag(false);
-    cMyTrace tr("virtual void GrowthEquipEvent::EndEvent()", 0x24, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x24, 0);
     tr("GrowthEquipEvent Event end!");
 }
 

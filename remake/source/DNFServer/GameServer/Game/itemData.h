@@ -1,0 +1,37 @@
+// ============================================================================
+// itemData.h — eventReward 奖励条目数据结构（ORIG 布局实证，独占 TU
+// itemData.cpp 提供 ctor/clear/析构）。
+//
+// ORIG 符号（df_game_r nm，全部 W）：
+//   _ZN8itemDataC1Ev / _ZN8itemDataC2Ev   0x080f1134（同址）
+//   _ZN8itemData5clearEv                  0x080f1162
+//   _ZN8itemDataD1Ev / _ZN8itemDataD2Ev   0x080f32fa（空体用户析构）
+//
+// 布局证据（objdump df_game_r 逐指令）：
+//   itemData::C1/clear：+0x00 字节=0、+0x01 字节=1、+0x02 字节=1、
+//     +0x04 int=0、+0x08 int=0（每次 store 前重读 this → 函数体赋值形态）；
+//   vector<itemData>::push_back（0x080f172a）元素步长 lea 0xc
+//     → sizeof(itemData) = 0x0c；
+//   eventReward::getOptionType 0x080ef190 / defaultOption 0x080ef25c /
+//     applyItemOption 0x080f0d6e 以 movb/movzbl 访问 +0/+1/+2 字节、
+//     movl 访问 +4/+8。
+// ============================================================================
+#ifndef __ITEMDATA_H__
+#define __ITEMDATA_H__
+
+struct itemData
+{
+    signed char m_upgrade;   // +0x00 强化档（>1 → SetUpgrade；低字节 0 → defaultOption 置 1）
+    // ORIG applyItemOption 0x080f0d6e 以 movzbl+cmp $1,%al+jle 比较（signed char，
+    // unsigned char 生成 jbe）、defaultOption 以 movsbl 读取 → 必须 signed。
+    unsigned char m_seal;      // +0x01 seal 标志（getOptionType "seal"/"unseal" 写 1/0）
+    unsigned char m_roi;       // +0x02 sealROI 标志（getOptionType "sealROI"/"unsealROI" 写 1/0）
+    int m_itemIdx;             // +0x04 [推断] 道具 idx（ImportRewardScript 行内 ScanInt）
+    int m_count;               // +0x08 [推断] 数量（stackable 行 ScanInt；defaultOption action==2 置 1）
+
+    itemData();
+    ~itemData();
+    void clear();
+};                             // sizeof 0x0c
+
+#endif  // __ITEMDATA_H__

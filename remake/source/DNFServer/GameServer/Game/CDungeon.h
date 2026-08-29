@@ -158,6 +158,24 @@ struct DimensionPartyCount
     char m_1;   // +0x01
     char m_2;   // +0x02
 
+    DimensionPartyCount()
+    {
+        m_0 = 0xff;
+        m_1 = 0xff;
+        m_2 = 0xff;
+    }
+
+    DimensionPartyCount(char a, char b, char c)
+    {
+        m_0 = a;
+        m_1 = b;
+        m_2 = c;
+    }
+
+    ~DimensionPartyCount()
+    {
+    }
+
     bool operator==(const DimensionPartyCount& other) const
     {
         return m_0 == other.m_0 && m_1 == other.m_1;
@@ -289,16 +307,35 @@ public:
 
 struct TournamentRewardRate
 {
+    // ORIG C1/C2 W 0x088f2da0：4×movl 0 逐字段清零。
+    TournamentRewardRate()
+    {
+        m_0 = 0;
+        m_4 = 0;
+        m_8 = 0;
+        m_c = 0;
+    }
+
     int m_0;   // +0x00
     int m_4;   // +0x04
     int m_8;   // +0x08
     int m_c;   // +0x0c
 };
 
-// ORIG sizeof=12：vector size() 反比 magic 0xAAAAAAAB（/12，82855e7）与
-// allocate 的 n*3*4（new_allocator）双证。字段语义未证，按 POD 整型建模。
 struct TournamentRewardItem
 {
+    // ORIG sizeof=12：vector size() 反比 magic 0xAAAAAAAB（/12，82855e7）与
+    // allocate 的 n*3*4（new_allocator）双证。字段语义未证，按 POD 整型建模。
+    // C1 0x088f2dcc 三字段清零；D1 0x088f9ef6 空体（vector 元素内联实例化）。
+    TournamentRewardItem()
+    {
+        m_data[0] = 0;
+        m_data[1] = 0;
+        m_data[2] = 0;
+    }
+    ~TournamentRewardItem()
+    {
+    }
     int m_data[3];
 };
 
@@ -317,6 +354,14 @@ public:
 
 struct STNamedMonsterMapPos
 {
+    STNamedMonsterMapPos()
+    {
+        m_y = 0;
+        m_x = m_y;
+    }
+    ~STNamedMonsterMapPos()
+    {
+    }
     int m_x;   // +0x00
     int m_y;   // +0x04
 };
@@ -335,7 +380,8 @@ public:
 struct RecoveryInfo
 {
     ~RecoveryInfo();   // ORIG W 0x088f9346：空体（vector<RecoveryInfo> 析构触发）
-    int m_data[3];
+    // ImportDungeonScript 0x88eedd5 起三处 fstps 直存 → ORIG 为 float[3]。
+    float m_data[3];
 };
 
 struct RecoveryStairInfo
@@ -343,16 +389,23 @@ struct RecoveryStairInfo
     RecoveryStairInfo();
     ~RecoveryStairInfo();
 
-    // ORIG C1ERKS_/aSERKS_（88f627e/88f6344）：前 3 个 int 逐个拷贝 +
+    // ORIG C1ERKS_/aSERKS_（88f627e/88f6344）：前 3 个字段逐个拷贝 +
     // vector 拷贝，为合成形态 → 拷贝构造/赋值由编译器生成。
-    int m_0;                          // +0x00（语义未证）
-    int m_4;                          // +0x04（语义未证）
-    int m_8;                          // +0x08（语义未证）
+    int m_0;                          // +0x00（ImportDungeonScript 0x88eed65 fistpl 实证 int）
+    int m_4;                          // +0x04（同上 0x88eedad）
+    float m_8;                        // +0x08（ImportDungeonScript 0x88eedc1 fstps 实证 float）
     std::vector<RecoveryInfo> m_vec;  // +0x0c
 };
 
 struct UseCoinDungeonDiff
 {
+    // ORIG C1/C2 W 0x088f2dee：movl $0xffffffff→+0 / movb $1→+4。
+    UseCoinDungeonDiff()
+    {
+        m_0 = -1;
+        m_4 = true;
+    }
+
     int m_0;    // +0x00
     bool m_4;   // +0x04（checkFreeRevivalCondition 以 xor $1 取反测试，83652fc）
     char m_5;   // +0x05
@@ -374,7 +427,13 @@ class STTowerDialog
 {
 public:
     STTowerDialog();
-    STTowerDialog(const STTowerDialog& other);
+    // ORIG W 0x088f6698（C1ERKS/C2ERKS 同址，头内联）：int 拷贝 → string 拷贝
+    // 构造 → 3 byte 拷贝。
+    STTowerDialog(const STTowerDialog& other)
+        : m_index(other.m_index), m_name(other.m_name),
+          m_flag8(other.m_flag8), m_flag9(other.m_flag9), m_flagA(other.m_flagA)
+    {
+    }
     ~STTowerDialog();
     STTowerDialog& operator=(const STTowerDialog& other);
     void clear();

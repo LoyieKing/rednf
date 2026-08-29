@@ -20,9 +20,10 @@
 
 // ============ InGameEventInfo ============
 
+// ORIG 0x08986044：ctor 仅构造 m_name（+0x08），m_eventId/m_field4 及后续
+// 字段保持未初始化，由后续 insertEventInfo 赋值（ORIG 汇编无任何 int 清零）。
 InGameEventInfo::InGameEventInfo()
-    : m_eventId(0), m_field4(0), m_name(), m_startTime(0),
-      m_endTime(0), m_isEventing(0)
+    : m_name()
 {
 }
 
@@ -36,24 +37,22 @@ InGameEventInfo::InGameEventInfo(const InGameEventInfo& o)
 {
 }
 
+// ORIG _ZN15InGameEventInfoaSERKS_：无自赋值检查，逐字段复制。
 InGameEventInfo& InGameEventInfo::operator=(const InGameEventInfo& o)
 {
-    if (this != &o)
-    {
-        m_eventId = o.m_eventId;
-        m_field4 = o.m_field4;
-        m_name = o.m_name;
-        m_startTime = o.m_startTime;
-        m_endTime = o.m_endTime;
-        m_isEventing = o.m_isEventing;
-    }
+    m_eventId = o.m_eventId;
+    m_field4 = o.m_field4;
+    m_name = o.m_name;
+    m_startTime = o.m_startTime;
+    m_endTime = o.m_endTime;
+    m_isEventing = o.m_isEventing;
     return *this;
 }
 
 // ============ InGameEventInfoList ============
 
+// ORIG _ZN19InGameEventInfoListD1Ev：仅 map 析构（隐式），无 clear（P12）。
 InGameEventInfoList::InGameEventInfoList() : m_info() {}
-InGameEventInfoList::~InGameEventInfoList() { m_info.clear(); }
 
 // ORIG 0x0897eb30：m_info[id] = info。
 void InGameEventInfoList::insertEventInfo(int id, InGameEventInfo& info)
@@ -64,8 +63,8 @@ void InGameEventInfoList::insertEventInfo(int id, InGameEventInfo& info)
 // ============ InGameEventScriptLoader ============
 
 
+// ORIG _ZN23InGameEventScriptLoaderD1Ev：仅 map 析构（隐式），无 clear（P12）。
 InGameEventScriptLoader::InGameEventScriptLoader() : m_scripts() {}
-InGameEventScriptLoader::~InGameEventScriptLoader() { m_scripts.clear(); }
 
 // ORIG 0x08982f10：非空则 m_scripts[name] = script；返回 script。
 InGameEventScript* InGameEventScriptLoader::insertEventScript(
@@ -120,8 +119,8 @@ bool CEventEntity::is_eventing()
 
 void CEventEntity::set_event_flag(bool flag)
 {
-    // ORIG 0x810b022：写 +0x04 字节。
-    m_isEventing = flag ? 1 : 0;
+    // ORIG 0x810b022：movzbl 参数 + mov %dl,0x4(%eax)（bool→uchar 直赋）。
+    m_isEventing = flag;
 }
 
 void CEventEntity::set_event_data(int key, InGameEventScript* script)
@@ -212,10 +211,16 @@ CEventScriptMng::~CEventScriptMng()
 // ORIG 0x810ba36：key ∈ [0,0x19c] 时取 map[key] 并调用其虚 is_eventing。
 bool CEventScriptMng::is_eventing(int key)
 {
-    if (key < 0 || 0x19c < key)
-        return false;
-    CEventEntity* entity = m_entities[key];
-    return entity != 0 ? entity->is_eventing() : false;
+    // ORIG 0x810ba36：正条件包裹（js/jg 均跳尾部 return 0），
+    // operator[] 后空槽同样返回 false。
+    if (key >= 0 && key <= 0x19c)
+    {
+        CEventEntity* entity = m_entities[key];
+        if (entity == 0)
+            return false;
+        return entity->is_eventing();
+    }
+    return false;
 }
 
 // ORIG T 0x0810bea8（报告 EventClassify__CEventScriptMng/
@@ -422,10 +427,11 @@ int CEventScriptMng::get_convert_to_user_confirmflag(int key)
 // ORIG 0x810b96a：map find，命中返回实体指针，未命中返回 0。
 CEventEntity* CEventScriptMng::get_event_entity(int key)
 {
+    // ORIG 0x810b96a：find != end 先行（ne），命中返回 second。
     std::map<int, CEventEntity*>::iterator it = m_entities.find(key);
-    if (it == m_entities.end())
-        return 0;
-    return it->second;
+    if (it != m_entities.end())
+        return it->second;
+    return 0;
 }
 
 // ORIG 0x810b9d4（const）：map find != end。
@@ -437,10 +443,12 @@ bool CEventScriptMng::is_event_entity(int key) const
 // ORIG 0x810c7b8：实体存在则调用虚 get_event_record_type（vtable+0x14）。
 int CEventScriptMng::get_record_type(int key)
 {
-    CEventEntity* entity = get_event_entity(key);
-    if (entity == 0)
-        return 0;
-    return entity->get_event_record_type();
+    // ORIG 0x810c7b8：独立 map find（不调 get_event_entity），
+    // 未命中返回 0，命中虚调 get_event_record_type（vtable+0x14）。
+    std::map<int, CEventEntity*>::iterator it = m_entities.find(key);
+    if (it != m_entities.end())
+        return it->second->get_event_record_type();
+    return 0;
 }
 
 int CEventScriptMng::get_today_time()
@@ -471,15 +479,15 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
     if (yyyymmdd1 < 1 && yyyymmdd2 < 1)
         return -1;
 
-    struct tm t1, t2;
-    std::memset(&t1, 0, sizeof(t1));
+    // ORIG 0x810c974：{0} 初始化产生 rep stos 内联（P4），非 call memset。
+    struct tm t1 = {0};
     t1.tm_year = yyyymmdd1 / 10000 - 1900;
     t1.tm_mon  = (yyyymmdd1 % 10000) / 100 - 1;
     t1.tm_mday = yyyymmdd1 % 100;
     t1.tm_hour = 0;
     time_t v1 = std::mktime(&t1);
 
-    std::memset(&t2, 0, sizeof(t2));
+    struct tm t2 = {0};
     t2.tm_year = yyyymmdd2 / 10000 - 1900;
     t2.tm_mon  = (yyyymmdd2 % 10000) / 100 - 1;
     t2.tm_mday = yyyymmdd2 % 100;

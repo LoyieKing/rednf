@@ -9,6 +9,7 @@ class PacketPool
 {
 public:
     PacketPool();
+    PacketPool(int poolSize, int allocSize);   // ORIG T 0x0828fcfa
     ~PacketPool();
     PacketBuf* Acquire();
     void Free(PacketBuf* packet);

@@ -68,6 +68,7 @@ bool addUserHackCount150(CUser* user);
 #include "PacketGuard.h"
 #include "RDARScriptStringManager.h"  // findString/g_scriptStringManager_
 #include "CStatisticServerProxy.h"    // SendPacket(char*, int)
+#include "CDungeonExpStatistic.h"  // CStatisticMgr+0x18 子对象（局部视图用）
 #include "TimerDispatcher.h"      // Timer_AssaultGhostTimer
 #include "CServerProxyMgr.h"      // CServerProxyMgr<CStatisticServerProxy> 完整类型
 #include "TimerQueue.h"           // G_TimerQueue
@@ -79,6 +80,27 @@ namespace
 //      故用宏保持调用点内联展开） ----
 #define bf(p) (*reinterpret_cast<CBattle_Field*>(&((p)->m_padBattleField1)))
 #define bd(p) (*reinterpret_cast<BattleData*>(&((p)->m_padBattleData)))
+
+// CStatisticMgr +0x18 = CDungeonExpStatistic 子对象（本体即 map；
+// CStatisticMgr.h 仅建模 +0x00 m_levelDungeonPlay，本视图补 +0x18 区）。
+struct CStatisticMgrExpView
+{
+    char m_pad[0x18];
+    CDungeonExpStatistic m_dungeonExp;   // +0x18
+};
+
+// CCharacBloodDungeon 计数视图（类未建模；同 CPartyDepsC2.cpp BloodDungeonCountsView
+// 惯例。GetEnterCount W 0x085bfe88 = *(int*)(this+0x18)；本 TU 另证
+// +0x08（IncPoint）/ +0x10（IncUseGold）为 int 计数槽）。
+struct BloodDungeonCountsView
+{
+    char m_pad0[0x8];
+    int m_point;              // +0x08
+    int m_weeklyEnterCount;   // +0x0c
+    int m_useGold;            // +0x10
+    char m_pad14[4];
+    int m_enterCount;         // +0x18
+};
 
 // GameResultSet 区（party+0x17f4..0x1843）未建模缓存字段：当前成员数 ushort。
 inline unsigned short grCachedMemberCount(CParty* p)
@@ -102,29 +124,7 @@ inline void writeStatHeader(unsigned char* buf, unsigned short id, unsigned shor
 
 // ===========================================================================
 // CDungeonExpStatistic::IncreaseDungeonExp —— T 0x0860efca
-// 报告：docs/class_func_reports/CDungeonExpStatistic/IncreaseDungeonExp.md
-// 类未建模：OnDungeonClear 调用点为 (CStatisticMgr* + 0x18)->IncreaseDungeonExp，
-// 即子对象本体就是 map<int,stDungeonExp>（find 直接以 this 调用）。
-// level<1 或 >200 → cMyTrace 警告返回；命中 → exp/count 累加、次数+1；
-// 未命中 → insert{exp,count,1}。
-// ===========================================================================
-class CDungeonExpStatistic
-{
-public:
-    struct stDungeonExp
-    {
-        int m_exp;          // +0x00（+= 参数 exp）
-        int m_count;        // +0x04（+= 参数 count）
-        int m_clearTimes;   // +0x08（每次 clear +1）
-    };
-
-    std::map<int, stDungeonExp> m_map;   // 子对象起始即 map（CStatisticMgr+0x18）
-
-    void IncreaseDungeonExp(int level, int exp, int count);
-};
-
-// ===========================================================================
-// CDungeonExpStatistic::IncreaseDungeonExp —— T 0x0860efca（实现）
+// 声明/布局见 CDungeonExpStatistic.h（权威头，替换原本地建模）；本 TU 保留实现。
 // ===========================================================================
 // ===========================================================================
 // 统计包结构（ORIG PacketHeader(id,size) W 0x08110b70 基类 + packed 字段；
@@ -224,7 +224,7 @@ void CDungeonExpStatistic::IncreaseDungeonExp(int level, int exp, int count)
 {
     if (level < 1 || level > 200)
     {
-        cMyTrace trace("void CDungeonExpStatistic::IncreaseDungeonExp(int, int, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x581, 0);
         trace("DUNGEON_EXP_STATISTIC wrong level(%d)", level);
         return;
@@ -746,18 +746,18 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
         packet.finalize(true);
         user->Send(packet);
 
-        // 血腥扩展数据计数（类未建模，同 CPartyDepsC2.cpp 视图惯例）
-        char* expand = reinterpret_cast<char*>(
-            const_cast<CExpandEquipslot*>(user->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)1)));
-        int enterCount = *reinterpret_cast<int*>(expand + 0x18);
+        // 血腥扩展数据计数（CCharacBloodDungeon 未建模，BloodDungeonCountsView 视图）
+        BloodDungeonCountsView* expand =
+            reinterpret_cast<BloodDungeonCountsView*>(const_cast<CExpandEquipslot*>(
+                user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1)));
+        int enterCount = expand->m_enterCount;
         ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
         const int lottePoint = sps->GetLottePoint(enterCount);
         const int level = user->get_charac_level();
         const int avgPrice = sps->GetPriceAverage(level);
-        *reinterpret_cast<int*>(expand + 0x18) = enterCount + 1;   // IncEnterCount
-        *reinterpret_cast<int*>(expand + 0x08) += lottePoint;      // IncPoint
-        *reinterpret_cast<int*>(expand + 0x10) += fee - avgPrice;  // IncUseGold
+        expand->m_enterCount = enterCount + 1;      // IncEnterCount
+        expand->m_point += lottePoint;              // IncPoint
+        expand->m_useGold += fee - avgPrice;        // IncUseGold
     }
 
     // ---- 维度副本入场券（dimension possible>0） ----
@@ -908,22 +908,20 @@ void CParty::OnDungeonClear(CUser* user, bool success)
     }
     else if (m_dungeon != 0 && m_dungeon->get_dimension_possible() >= 1)
     {
-        reinterpret_cast<CDungeonExpStatistic*>(
-            reinterpret_cast<char*>(GlobalData::s_statisticMgr) + 0x18)
-            ->IncreaseDungeonExp(user->get_charac_level(),
-                                 user->m_character.m_f28,
-                                 user->m_character.m_f30);
+        reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
+            ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
+                                              user->m_character.m_f28,
+                                              user->m_character.m_f30);
     }
     else if (m_dungeon != 0)
     {
         if (user->get_charac_level() >= m_dungeon->get_standard_level() - 5 &&
             m_dungeon->get_standard_level() + 3 >= user->get_charac_level())
         {
-            reinterpret_cast<CDungeonExpStatistic*>(
-                reinterpret_cast<char*>(GlobalData::s_statisticMgr) + 0x18)
-                ->IncreaseDungeonExp(user->get_charac_level(),
-                                     user->m_character.m_f28,
-                                     user->m_character.m_f30);
+            reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
+                ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
+                                                  user->m_character.m_f28,
+                                                  user->m_character.m_f30);
         }
     }
 

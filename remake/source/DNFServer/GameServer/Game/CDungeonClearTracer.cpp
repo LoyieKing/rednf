@@ -51,7 +51,11 @@ void CDungeonClearTracer::IncrementKilledMonsterCount()
 
 bool CDungeonClearTracer::IsKilledBoss()
 {
-    return m_killedBossCount > 0 && m_killedBossCount >= m_maxBossCount;
+    if (m_killedBossCount > 0 && m_killedBossCount >= m_maxBossCount)
+    {
+        return true;
+    }
+    return false;
 }
 
 void CDungeonClearTracer::Reset()
@@ -69,7 +73,7 @@ void CDungeonClearTracer::Trace(const char* name)
 {
     if (IsKilledBoss())
     {
-        cMyTrace("void CDungeonClearTracer::Trace(const char*)", 0x108, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x108, 0)(
             "FUNC(%s) Map ID(%d), Boss(%d/%d), Monster(%d/%d) Cleared(%d), "
             "End Point(%d)\n",
             name, m_mapId, m_killedBossCount, m_maxBossCount,

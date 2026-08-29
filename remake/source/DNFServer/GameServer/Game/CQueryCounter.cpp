@@ -126,19 +126,19 @@ bool CQueryCounter::LoadQueryTable()
         memset(query, 0, 0x6001);
         if (!mysql->fetch())
         {
-            cMyTrace trace("bool CQueryCounter::LoadQueryTable()", 0x22f, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x22f, 5);
             trace("LoadQueryTable, fatch ERROR");
             return false;
         }
         if (!mysql->get_int(0, qid))
         {
-            cMyTrace trace("bool CQueryCounter::LoadQueryTable()", 0x235, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x235, 5);
             trace("LoadQueryTable, get_int(0) ERROR");
             return false;
         }
         if (!mysql->get_str(1, query, 0x6000))
         {
-            cMyTrace trace("bool CQueryCounter::LoadQueryTable()", 0x23b, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x23b, 5);
             trace("LoadQueryTable, get_str(1) ERROR");
             return false;
         }
@@ -177,15 +177,15 @@ bool CQueryCounter::SaveQuery(const char* query, int& qid)
             {
                 return true;
             }
-            cMyTrace trace("bool CQueryCounter::SaveQuery(const char*, int&)", 0x277, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x277, 5);
             trace("SaveQuery, get_int(0) ERROR");
             return false;
         }
-        cMyTrace trace("bool CQueryCounter::SaveQuery(const char*, int&)", 0x271, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x271, 5);
         trace("SaveQuery, fetch() ERROR");
         return false;
     }
-    cMyTrace trace("bool CQueryCounter::SaveQuery(const char*, int&)", 0x265, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x265, 5);
     trace("SaveQuery, exec() ERROR");
     return false;
 }
@@ -204,7 +204,7 @@ bool CQueryCounter::RegisterQuery(const char* query, int qid, int type)
         m_queryIDMap.insert(std::make_pair(query, ins.first));
     if (!ins2.second)
     {
-        cMyTrace trace("bool CQueryCounter::RegisterQuery(const char*, int, int)", 0x291, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x291, 0);
         trace("LoadQueryTable,  query_id_map_.insert ERROR");
         return false;
     }

@@ -14,6 +14,9 @@
 #include <utility>
 #include <vector>
 
+// ORIG 各 TU 一份 _ZL21MAX_FIRST_GROWTH_TYPE（r 0x1）：成长类型槽位数（m_growTypeFlag 维度）。
+static const unsigned char MAX_FIRST_GROWTH_TYPE = 8;
+
 // ORIG df_game_r 符号：C1/C2 T 0x8348254（→clear）；clear T 0x8348268（memset(this,0,0x52)）。
 // 字段布局由 _ZN15_Additioal_info3addERKS_（W 0x08146300）逐字段算术偏移与
 // WongWork::CCalcCharacStat::InitializeStat（T 0x0831e9ca）的写入偏移共同证实；
@@ -86,24 +89,24 @@ public:
                         std::vector<std::pair<int, int> >& out,
                         unsigned int flag) const;
 
-    char get_give_skill_firstGrowtype_impl(int grow,
-                                           std::vector<std::pair<int, int> >& out) const;
-    // 推断：secondGrow 1..2 → m_secondGrowTypes[grow].m_skills[secondGrow-1]
-    //（报告迭代器目标偏移未被 Ghidra 保留）。
-    char get_give_skill_secondGrowtype_impl(int grow, int secondGrow,
-                                            std::vector<std::pair<int, int> >& out) const;
+    char get_give_skill_firstGrowtype(int grow,
+                                      std::vector<std::pair<int, int> >& out) const;
+    // secondGrow 1..2 → m_secondGrowTypes[grow+1].m_skills[secondGrow-1]。
+    char get_give_skill_secondGrowtype(int grow, int secondGrow,
+                                       std::vector<std::pair<int, int> >& out) const;
     // ORIG T 0x0834883e：按 (firstGrow,secondGrow) 返回成长属性块指针（+0x000 区内）
     const void* get_growtype_stat(int firstGrow, int secondGrow) const;
 
-private:
+public:  // ORIG SetSkillTree 0x84ef8cd 直访 m_characs[job]+0x240（m_giveSkillList[0]）
     _Additioal_info m_baseInfo[7];                 // +0x000..+0x23f
     std::vector<std::pair<int, int> > m_giveSkillList[7];  // +0x240..+0x293
+private:
     STSecondGrowTypeInfo m_secondGrowTypes[7];     // +0x294..+0x7d3
 
     // +0x7d4..+0x7db：set_data（ORIG 0x08348ac7/0x08348e0c）按 grow 类型索引逐字节写入
     // this[idx + 0x7d4]（源 STCharacterScript 行内 +0x76）。CCharacList 以 0x7dc 步长
     // 遍历本类数组（CCharacList.md ctor/init/destroy），对象必须补足到 0x7dc。
-    char m_growTypeFlag[8];
+    char m_growTypeFlag[MAX_FIRST_GROWTH_TYPE];
 };
 
 // 布局自检：锁死 ORIG 数组步长 ABI（CCharacList = CCharacter[10]，步长 0x7dc；

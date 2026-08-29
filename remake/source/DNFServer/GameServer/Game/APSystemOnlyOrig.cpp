@@ -52,8 +52,21 @@ namespace APSystem
 {
 
 // ---- 全局压缩缓冲（Select/Update 使用；ORIG 数据段同名 B 数组语义等价）----
-static char g_szZipAP_CLEAR_STATE[0x800];
-static char g_szStrAP_CLEAR_STATE[0x800];
+char g_szZipAP_CLEAR_STATE[0x800];
+char g_szStrAP_CLEAR_STATE[0x800];
+
+// ---- ORIG 域常量（nm：_ZN8APSystemL…E，r 段；值自 ORIG rodata 读取）----
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+static const int ConstMaxZipAP_CLEAR_STATE = 0x800;    // 0x08b5e0ec (2048)
+static const int ConstMaxStrAP_CLEAR_STATE = 0x800;    // 0x08b5e0f0 (2048)
+// 指针型分隔符常量（ORIG 值 = 指向 rodata 串；本侧指向等价字符串字面量）：
+static const char* ConstDelimterPoint = ",";           // 0x08b5e0fc → ",\0vector::_M_insert_aux" 区
+static const char* ConstDelimterAction = "|";          // 0x08b5e0f8 → 0x7c('|')
+static const char* ConstDelimterCondition = ",";       // 0x08af2e94 → 0x2c(',')
+static const int ConstClientClearAction[5] = {2, 5, 0x29, 0x2b, 0x2c};  // 0x08af2e9c (0x14 字节)
+
+// ORIG 域常量（nm：_ZN8APSystemL19ConstOCC_DATELengthE，r 段；"YYYY-MM-DD" 含 NUL）
+static const int ConstOCC_DATELength = 11;
 
 unsigned char CActionPointManager::_IsGMOn;                       // ORIG B 0x093ff07c
 CActionPointManager::GmWeekdayCtl CActionPointManager::_gmWeekday;  // ORIG D 0x0937008c
@@ -101,7 +114,7 @@ bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned in
 // ----------------------------------------------------------------------------
 // compress_zip —— ORIG T 0x086b201f（range [0x86b201f,0x86b2102]）：
 //   len<=0 → logFormat(1,"Utility.cpp",
-//             "bool compress_zip(char*, size_t&, const char*, size_t)",454,
+//             __PRETTY_FUNCTION__,454,
 //             "d%c%02d") 并 return false；
 //   bound = len + len/10 + 12（gcc 除 10 序列后 add $0xc，即 zlib compressBound）；
 //   zerr = compress2(out+4,&bound,in,len,-1)；失败返回 false；
@@ -113,7 +126,7 @@ bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int 
     {
         LogManager::logFormat(
             1, "Utility.cpp",
-            "bool compress_zip(char*, size_t&, const char*, size_t)", 0x1c6,
+            __PRETTY_FUNCTION__, 0x1c6,
             "d%c%02d");
         return false;
     }
@@ -234,7 +247,7 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 {
     MySQL* db = ap_db_handle();
     int dailyHour =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c);
+        G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
     int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
     time_t tt = dailyTime;
     struct tm tmc;
@@ -285,7 +298,7 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     {
         return false;
     }
-    memset(g_szZipAP_CLEAR_STATE, 0, 0x800);
+    memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
     if (!db->get_binary(col, g_szZipAP_CLEAR_STATE, blobLen))
     {
         return false;
@@ -296,7 +309,7 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     {
         return false;
     }
-    memset(g_szStrAP_CLEAR_STATE, 0, 0x800);
+    memset(g_szStrAP_CLEAR_STATE, 0, ConstMaxStrAP_CLEAR_STATE);
     unsigned int outLen = raw;
     if (!uncompress_zip(g_szStrAP_CLEAR_STATE, outLen, g_szZipAP_CLEAR_STATE,
                         static_cast<unsigned int>(blobLen)))
@@ -384,7 +397,7 @@ bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT
     {
         __GetCurrentDNFDate(dateTm);
     }
-    char date[12];
+        char date[ConstOCC_DATELength];
     memset(date, 0, sizeof(date));
     sprintf(date, "%04d-%02d-%02d", dateTm.tm_year + 1900, dateTm.tm_mon + 1,
             dateTm.tm_mday);
@@ -392,7 +405,7 @@ bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT
     std::string clearState;
     MakeActionClearStateString(clearState, sig.m_actionPoints, 300);
 
-    memset(g_szZipAP_CLEAR_STATE, 0, 0x800);
+    memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
     unsigned int zipLen = 0x400;
     if (!compress_zip(g_szZipAP_CLEAR_STATE, zipLen, clearState.c_str(),
                       static_cast<int>(clearState.size())))
@@ -471,7 +484,7 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 {
     MySQL* db = ap_db_handle();
     int dailyHour =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c);
+        G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
     int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
     int yesterdaySec = dailyTime - 0x93a80;
 
@@ -481,8 +494,8 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     struct tm tmYesterday;
     localtime_r(&today, &tmToday);
     localtime_r(&prev, &tmYesterday);
-    char strToday[16];
-    char strYesterday[16];
+    char strToday[ConstOCC_DATELength];
+    char strYesterday[ConstOCC_DATELength];
     sprintf(strToday, "%04d-%02d-%02d", tmToday.tm_year + 1900, tmToday.tm_mon + 1,
             tmToday.tm_mday);
     sprintf(strYesterday, "%04d-%02d-%02d", tmYesterday.tm_year + 1900,
@@ -852,7 +865,7 @@ void CActionPointManager::GetTodayRewardAndSendMail(
         }
         itemDef->make_item(item);
         // asm：count word → Inven_Item+0x07；elem+4 双字 → Inven_Item+0x02
-        *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&item) + 0x07) =
+        *reinterpret_cast<unsigned short*>(&item.m_addInfo2) =
             entry.m_count;
         item.m_addInfo = entry.m_rewardItemIdx;
 
@@ -910,7 +923,7 @@ void Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
         return;
     }
     itemDef->make_item(item);
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&item) + 0x07) =
+    *reinterpret_cast<unsigned short*>(&item.m_addInfo2) =
         hit->m_field08;
     item.m_addInfo = hit->m_field04;
 

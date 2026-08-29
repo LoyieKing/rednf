@@ -18,6 +18,7 @@ typedef std::map<int, int> MapII;
 #include "QuickParty.h"   // 必须先于 CDungeon.h/CParty.h（QUICKPARTY_H 守卫需先放开，避免 CDungeon 最小 CQuickPartySystemManager 与权威冲突）
 #include "CParty.h"
 #include "CDungeon.h"
+#include "Party.h"       // 仅ORIG 类 Party（DungeonPartyManager 数据类族，worklist Party.txt）
 #include "CInventory.h"
 #include "InterfacePacketBuf.h"
 #include "CPartyTelePort.h"
@@ -179,14 +180,12 @@ void CParty::CItemRoutingData::SetMemberRoutingState(int idx, char state)
 // ============================================================================
 CParty::CParty()
 {
-    new (&m_padElection) cElection<int,4,4>();
     new (&m_pad1dc) CPartyResultRecvFlag;
     new (&m_pad210) CTraceMobDieHack;
     new (&m_padShop) secretshop::SECRET_SHOP_DATA();
     new (&m_padBattleData) BattleData();
     new (&m_padBattleField1) CBattle_Field();
     new (&m_padResult) GameResultSet();
-    new (&m_padMap) std::map<int,int>();
     new (&m_padSecu) Secu_HackLogCheckByParty();
     new (&m_pad1ad0) CPartyTelePort();
     new (&m_padPassedMap) std::vector<MapInfo>();
@@ -209,7 +208,6 @@ CParty::~CParty()
     reinterpret_cast<MapInfoVec*>(&m_padPassedMap)->~MapInfoVec();
     reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->~CPartyTelePort();
     reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->~Secu_HackLogCheckByParty();
-    reinterpret_cast<MapII*>(&m_padMap)->~MapII();
     reinterpret_cast<GameResultSet*>(&m_padResult)->~GameResultSet();
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->~CBattle_Field();
     reinterpret_cast<BattleData*>(&m_padBattleData)->~BattleData();
@@ -978,7 +976,7 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         {
             // getAddExpRateFromPremium(0x4f)：见文件头注释（g_SPremiumInfo[0x4f].m_field44）
             total += user->setPremiumBonusExp(
-                baseExp, GlobalData::g_SPremiumInfo[0x4f].m_field44);
+                baseExp, g_SPremiumInfo[0x4f].m_field44);
         }
     }
 
@@ -1038,7 +1036,7 @@ int CParty::change_manager()
             return 1;
         }
     }
-    LogManager::logFormat(1, "party.cpp", "bool CParty::change_manager()",
+    LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                           0x689, "there is no manager(party empty)");
     return 0;
 }
@@ -1106,7 +1104,7 @@ void CParty::battle_data_reset()
     SetSelectedEPLPCmd(-1);
     m_dungeonClearState = 0;
     m_memberLevelGap = -1;
-    reinterpret_cast<MapII*>(&m_padMap)->clear();
+    m_killMobCounter.clear();
     reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->clear();
     SetEndRouting();
     ResetPremiumGoldCardParty();
@@ -1862,7 +1860,7 @@ bool CParty::_checkValidUser(int idx)
         int pIndex = m_partyIndex;
         unsigned short dungIndex = m_dungIndex;
         CUser* manager = m_manager;
-        new (log1) cMyTrace("bool CParty::_checkValidUser(int)", 0x37cf, 5);
+        new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x37cf, 5);
         (*reinterpret_cast<cMyTrace*>(log1))(
             "[PARTYPOOL] m_pManager : %x, dungeon_idx : %u, m_iIndex : %u, cState : %d",
             manager, (unsigned int)dungIndex, pIndex, cState);
@@ -1871,7 +1869,7 @@ bool CParty::_checkValidUser(int idx)
             if (m_member[i].m_pUser == 0)
             {
                 char log2[16];
-                new (log2) cMyTrace("bool CParty::_checkValidUser(int)", 0x37e5, 5);
+                new (log2) cMyTrace(__PRETTY_FUNCTION__, 0x37e5, 5);
                 (*reinterpret_cast<cMyTrace*>(log2))("User[%d] NULL uid : %d", i, m_member[i].m_field8);
             }
             else
@@ -1882,7 +1880,7 @@ bool CParty::_checkValidUser(int idx)
                 int uid = (int)m_member[i].m_pUser->GetUID();
                 int chState = m_member[i].m_pUser->get_state();
                 CUser* user = m_member[i].m_pUser;
-                new (log3) cMyTrace("bool CParty::_checkValidUser(int)", 0x37da, 5);
+                new (log3) cMyTrace(__PRETTY_FUNCTION__, 0x37da, 5);
                 (*reinterpret_cast<cMyTrace*>(log3))(
                     "User[%d] %x, ch_state %d, uid : %d / %d, charac_no : %u",
                     i, user, chState, uid, uid2, characNo);
@@ -1892,7 +1890,7 @@ bool CParty::_checkValidUser(int idx)
         int uid = (int)m_member[idx].m_pUser->GetUID();
         unsigned int accId = m_member[idx].m_pUser->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
-        new (log4) cMyTrace("bool CParty::_checkValidUser(int)", 0x37ed, 5);
+        new (log4) cMyTrace(__PRETTY_FUNCTION__, 0x37ed, 5);
         (*reinterpret_cast<cMyTrace*>(log4))("User missmatched in party (m_id: %s)(uid: %d)", accIdStr, uid);
         m_member[idx].m_pUser->DisConnSig((DISCONN_SIG)0x17, false, 0);
         m_member[idx].Init();
@@ -2088,7 +2086,7 @@ void CParty::ReturnToVillage()
         unsigned int accId = m_manager->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
         char log[16];
-        new (log) cMyTrace("void CParty::ReturnToVillage()", 0x2714, 0);
+        new (log) cMyTrace(__PRETTY_FUNCTION__, 0x2714, 0);
         (*reinterpret_cast<cMyTrace*>(log))(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             accIdStr, userState, (int)partyIdx);
@@ -2117,7 +2115,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
     if (user == 0)
     {
         LogManager::logFormat(1, "party.cpp",
-            "int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x56d,
+            __PRETTY_FUNCTION__, 0x56d,
             "CParty::leave_user pUser is NULL");
         return 1;
     }
@@ -2170,7 +2168,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         unsigned int accId = user->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
         char log[16];
-        new (log) cMyTrace("int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5b8, 0);
+        new (log) cMyTrace(__PRETTY_FUNCTION__, 0x5b8, 0);
         (*reinterpret_cast<cMyTrace*>(log))(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             accIdStr, userState, (int)partyIdx);
@@ -2180,7 +2178,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
             int pIndex = m_partyIndex;
             unsigned short dIdx = m_dungIndex;
             LogManager::logFormat(1, "party.cpp",
-                "int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5c5,
+                __PRETTY_FUNCTION__, 0x5c5,
                 "[PARTYPOOL] member_count : %d, m_pManager : %x, dungeon_idx : %u, m_iIndex : %u, cState : %d",
                 count, m_manager, (unsigned int)dIdx, pIndex, cState);
             for (int i = 0; i <= 3; ++i)
@@ -2188,14 +2186,14 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
                 if (m_member[i].m_pUser == 0)
                 {
                     LogManager::logFormat(1, "party.cpp",
-                        "int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5cd,
+                        __PRETTY_FUNCTION__, 0x5cd,
                         "User[%d] NULL, ch_state NONE, uid : %d, charac_no : 0",
                         i, m_member[i].m_field8);
                 }
                 else
                 {
                     LogManager::logFormat(1, "party.cpp",
-                        "int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5d8,
+                        __PRETTY_FUNCTION__, 0x5d8,
                         "User[%d] %x, ch_state %d, uid : %d / %d, charac_no : %u",
                         i, m_member[i].m_pUser, m_member[i].m_pUser->get_state(),
                         m_member[i].m_pUser->GetUID(), m_member[i].m_field8,
@@ -2370,7 +2368,7 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
                 int characNo = m_member[i].m_pUser->getCurCharacNo();
                 char log[16];
                 new (log) cMyTrace(
-                    "bool CParty::UseAncientDungeonItems(const CDungeon*, Inven_Item*, int*)",
+                    __PRETTY_FUNCTION__,
                     0xa60, 5);
                 (*reinterpret_cast<cMyTrace*>(log))(
                     "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
@@ -2658,11 +2656,11 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "unsigned int CParty::getClearRewardBonusExp(CUser*, unsigned int&, const stClearRewardExpParameter_t&, stClearRewardBonusExp_t&)",
+            __PRETTY_FUNCTION__,
             0x28b1, "BLOOD_LOG : EXP(%u), ExpPerUser(%u)\n", total, expPerUser);
         LogManager::logFormat(
             1, "party.cpp",
-            "unsigned int CParty::getClearRewardBonusExp(CUser*, unsigned int&, const stClearRewardExpParameter_t&, stClearRewardBonusExp_t&)",
+            __PRETTY_FUNCTION__,
             0x28c2,
             "BLOOD_LOG : BONUS EXP PARAMETER : %f, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u\n",
             (double)param.m_deadPenaltyRate,
@@ -2810,7 +2808,7 @@ void CParty::game_start(CUser* user)
     basicPacket.put_short(get_member_count());
 
     m_tournamentVictory = 0;                                // +0x11a
-    m_field144 = get_rand_int(get_member_count());          // +0x144 路由起始槽
+    m_routingDice = get_rand_int(get_member_count());          // +0x144 路由起始槽
     m_field185c = GlobalData::s_systemTime_.getCurSec();    // +0x185c
 
     PacketGuard enterPacket;                                // -0x60
@@ -2835,7 +2833,7 @@ void CParty::game_start(CUser* user)
                     ->m_villageMonsterId == 0)                  // ORIG this+0xc4c
         {
             LogManager::logFormat(
-                1, "party.cpp", "void CParty::game_start(CUser*)", 0x84c,
+                1, "party.cpp", __PRETTY_FUNCTION__, 0x84c,
                 "[HACK_VILL_AREA] m_id : %s, Vill(%d,%d), Area(%d,%d)",
                 NumberToString(m_member[i].m_pUser->get_acc_id(), 0),
                 (int)hostVill, (int)vill, hostArea, area);
@@ -2876,7 +2874,7 @@ void CParty::game_start(CUser* user)
             if (u != 0)
             {
                 LogManager::logFormat(
-                    1, "party.cpp", "void CParty::game_start(CUser*)", 0x88a,
+                    1, "party.cpp", __PRETTY_FUNCTION__, 0x88a,
                     "[HACK_VILL_AREA] m_id : %s, Vill(%d), Area(%d)",
                     NumberToString(u->get_acc_id(), 0), (int)hostVill,
                     hostArea);
@@ -2923,8 +2921,7 @@ void CParty::game_start(CUser* user)
             *(int*)((char*)G_CDataManager()->get_hellparty_script_values() + 8));
     }
 
-    int hellDiv = *(int*)(reinterpret_cast<char*>(&m_padBattleField1) +
-                          (0xd0c - 0xb24));   // ORIG this+0xd0c（BF 未建模区）
+    int hellDiv = *(int*)(m_padcee + 0x1e);   // ORIG this+0xd0c（BF 未建模区）
     int hellVal = (int)(bd.m_hellPartyValueTotal * 100.0f / (float)hellDiv);
     basicPacket.put_int(hellVal);
 
@@ -3472,7 +3469,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
             if (money > 499999)
             {
                 cMyTrace trace(
-                    "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
+                    __PRETTY_FUNCTION__,
                     0x165c, 4);
                 trace("Dungeon(%d) drop money(%d) on %d' party member with difficulty %d",
                       m_dungeon->m_index, money, get_member_count(),
@@ -3513,7 +3510,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 if (base > 499999)
                 {
                     cMyTrace trace(
-                        "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
+                        __PRETTY_FUNCTION__,
                         0x1688, 4);
                     trace("User(%s) Charac(%s) gain money(%d), old money is %d.",
                           NumberToString(m_member[i].m_pUser->get_acc_id(), 0),
@@ -3535,7 +3532,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 if (gain > 499999)
                 {
                     cMyTrace trace(
-                        "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
+                        __PRETTY_FUNCTION__,
                         0x1789, 4);
                     trace("User(%s) Charac(%s) gain money(%d), old money is %d.",
                           NumberToString(m_member[i].m_pUser->get_acc_id(), 0),
@@ -3686,7 +3683,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
+            __PRETTY_FUNCTION__,
             0x1878, "G_CDataManager()->find_item(%d) fail", addInfo);
         return 0;
     }
@@ -3716,7 +3713,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 
         if (routingEligible != 0)
         {
-            int diceNext = m_field144 + 1;                 // -0x34
+            int diceNext = m_routingDice + 1;                 // -0x34
             if (diceNext >= get_member_count())
                 diceNext = 0;
             int seq = 0;                                   // -0x30
@@ -3739,7 +3736,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 if (seq == diceNext)
                 {
                     weights[i] += 0x28;
-                    m_field144 = seq;
+                    m_routingDice = seq;
                 }
                 bool jobBonus;
                 if (item->is_stackable())
@@ -3857,7 +3854,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     if (picked >= 1)
     {
         cMyTrace trace(
-            "bool CParty::get_item(CUser*, int, bool, char, int&, unsigned char&, bool&)",
+            __PRETTY_FUNCTION__,
             0x19bb, 5);
         trace("m_field_data.pickup_item( %d/%d ) ", itemIdx, addInfo);
         packet.put_header(1, 0x2e);
@@ -3909,7 +3906,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     if (count < 0)
     {
         LogManager::logFormat(1, "party.cpp",
-                              "int CParty::drop_item(CUser*, int, int, char, int, int)",
+                              __PRETTY_FUNCTION__,
                               0x1a0c, "user - accid[%s] %s : count<0",
                               NumberToString(user->get_acc_id(), 0),
                               user->getCurCharacName());
@@ -3964,7 +3961,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         {
             LogManager::logFormat(
                 1, "party.cpp",
-                "int CParty::drop_item(CUser*, int, int, char, int, int)",
+                __PRETTY_FUNCTION__,
                 0x1a48, "[CParty::drop_item] Null Item");
             return -1;
         }
@@ -4019,7 +4016,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         CCargo* cargoW = const_cast<CCargo*>(user->getCurCharacCargoR());
         if (!cargoW->delete_item(slot, count, (eItemDelReason)6))
         {
-            cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1ac6, 5);
             trace("CParty::drop_item , delete_item failed 2, User ch =%d , %d %d",
                   user->getCurCharacNo(), slot, count);
@@ -4039,7 +4036,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             if (!user->getCurCharacInvenW()->use_money(count,
                                                        (eMoneySubReason)6, true))
             {
-                cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x1aa6, 5);
                 trace("CParty::drop_item , use_money failed, User ch =%d , %d %d",
                       user->getCurCharacNo(), slot, count);
@@ -4053,7 +4050,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             if (!user->getCurCharacInvenW()->delete_item(
                     (INVEN_TYPE)1, slot, count, (eItemDelReason)6, true))
             {
-                cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0x1ab5, 5);
                 trace("CParty::drop_item , delete_item failed, User ch =%d , %d %d",
                       user->getCurCharacNo(), slot, count);
@@ -4068,7 +4065,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)0, slot, count, (eItemDelReason)6, true))
         {
-            cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1ae8, 5);
             trace("CParty::drop_item , delete_item failed 3, User ch =%d , %d",
                   user->getCurCharacNo(), slot);
@@ -4082,7 +4079,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)3, slot, count, (eItemDelReason)6, true))
         {
-            cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1af9, 5);
             trace("CParty::drop_item , delete_item failed 4, User ch =%d , %d",
                   user->getCurCharacNo(), slot);
@@ -4095,7 +4092,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     if (!src.isEquipableItemType() && mi.m_item.m_addInfo2 != 0 &&
         mi.m_item.get_add_info() > 0x7d0)
     {
-        cMyTrace trace("int CParty::drop_item(CUser*, int, int, char, int, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b0c, 4);
         trace("drop item(%d) stack size over %d add_info(%d)", mi.m_item.m_addInfo,
               0x7d0, mi.m_item.get_add_info());
@@ -4224,12 +4221,12 @@ void CParty::map_load_forced_finish()
         if (count == 0)
         {
             char log1[16];
-            new (log1) cMyTrace("void CParty::map_load_forced_finish()", 0x3184, 0);
+            new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x3184, 0);
             (*reinterpret_cast<cMyTrace*>(log1))(
                 "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)");
             destroy();
             LogManager::logFormat(
-                1, "party.cpp", "void CParty::map_load_forced_finish()", 0x3187,
+                1, "party.cpp", __PRETTY_FUNCTION__, 0x3187,
                 "CParty::map_load_forced_finish 1, Using: %d, Member = 0\n",
                 (unsigned int)(unsigned char)m_field68);   // +0x68
         }
@@ -4413,7 +4410,7 @@ void CParty::CompleteCardSelect()
                         {
                             LogManager::logFormat(
                                 1, "party.cpp",
-                                "void CParty::CompleteCardSelect()", 0x36f8,
+                                __PRETTY_FUNCTION__, 0x36f8,
                                 "INIT_CARD_NUM != dungeon_reward_card_[i]==>> "
                                 "dungeon_reward_card_[i] = %d, i = %d, z = %d",
                                 (int)(char)m_field204[0][i], i, z);
@@ -4467,14 +4464,14 @@ void CParty::TournamentDungeonClear(bool flag)
     if (m_dungeon == 0)                                 // +0xcac
     {
         LogManager::logFormat(
-            1, "party.cpp", "void CParty::TournamentDungeonClear(bool)", 0x45bc,
+            1, "party.cpp", __PRETTY_FUNCTION__, 0x45bc,
             "Tournament Dungeon is NULL");
         return;
     }
     if (m_dungeon->isTournamentDungeon() != 1)
     {
         LogManager::logFormat(
-            1, "party.cpp", "void CParty::TournamentDungeonClear(bool)", 0x45c2,
+            1, "party.cpp", __PRETTY_FUNCTION__, 0x45c2,
             "Dungeon(%d) is can not call function", bf.get_dungeon_index());
         return;
     }
@@ -4551,7 +4548,7 @@ void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::MakeTournamentReward(CTournamentDungeonReward&)",
+            __PRETTY_FUNCTION__,
             0x4540, "Unknown Dungeon %d", dungIdx);
         return;
     }
@@ -4559,7 +4556,7 @@ void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::MakeTournamentReward(CTournamentDungeonReward&)",
+            __PRETTY_FUNCTION__,
             0x4545, "No Member[%d] in party", memberCount);
         return;
     }
@@ -4686,8 +4683,7 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     if (doCrossCheck && dieInfo.m_fieldA22 == 0 &&
         monster.m_roleType < 4 &&
         (unsigned int)dieInfo.m_killValue2 <
-            (unsigned int)reinterpret_cast<ActiveStaticInfo*>(
-                reinterpret_cast<char*>(&monster) + 0x38)->getHpMax() &&
+            (unsigned int)monster.m_active.getHpMax() &&      // +0x38 子对象
         monsterIdx != 10 && monsterIdx != 0xc351 && monsterIdx != 0x40a)
     {
         for (int i = 0; i < 4; ++i)                     // -0x20
@@ -4749,8 +4745,7 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     if (instantCheck)
     {
         int level = 0;                                  // -0x10
-        unsigned int hpMax = (unsigned int)reinterpret_cast<ActiveStaticInfo*>(
-            reinterpret_cast<char*>(&monster) + 0x38)->getHpMax();
+        unsigned int hpMax = (unsigned int)monster.m_active.getHpMax();  // +0x38 子对象
         if (hpMax * 4 < (unsigned int)dieInfo.m_killValue2)
             level = 3;
         else if (hpMax * 3 < (unsigned int)dieInfo.m_killValue2)
@@ -4795,8 +4790,7 @@ int CParty::OnFightVillageMonster(CUser* user, int param)
             //       （CWorldMapList 成员待 CDataManager 域具名）
             typedef CWorldMap* (*FindWmFn)(void*, int);
             (void)(FindWmFn)0;   // 形态说明；实际调用见下
-            CWorldMapList& wml = *reinterpret_cast<CWorldMapList*>(
-                reinterpret_cast<char*>(G_CDataManager()) + 0x8780);
+            CWorldMapList& wml = G_CDataManager()->m_worldMapList;  // +0x8780
             m_hellWorldMap = wml.find_world_map(wmIdx);   // +0x1868
         }
         if (bf.SelectDungeon(dungIdx, dungeon, diff, (ENUM_DUNGEON_TYPE)0,
@@ -4925,27 +4919,21 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                 packet.put_header(0, 0x1ec);
                 unsigned int attackCount =
                     (unsigned int)ci->GetCurVillageAttackCount();
-                // ORIG：CDataManager+0x500 std::vector<ConditionEnterRevenge>
-                // （元素 0xc：min/max/count；CDataManager 域字段待具名）
-                char* vecBase =
-                    reinterpret_cast<char*>(G_CDataManager()) + 0x500;
-                char* vecBegin = *(char**)vecBase;
-                char* vecEnd = *(char**)(vecBase + 4);
-                unsigned int condCount =
-                    (unsigned int)(vecEnd - vecBegin) / 0xc;
+                // m_serverParameter.m_revenge498（CDataManager+0x500）
+                const std::vector<ConditionEnterRevenge>& conds =
+                    G_CDataManager()->m_serverParameter.m_revenge498;
                 packet.put_binary(body, 10);
                 packet.finalize(true);
                 members[i]->Send(packet);
                 members[i]->SetVillageAttackedReward(false);
-                for (unsigned int c = 0; c < condCount; ++c)
+                for (std::vector<ConditionEnterRevenge>::const_iterator it =
+                         conds.begin();
+                     it != conds.end(); ++it)
                 {
-                    char* item = vecBegin + c * 0xc;
-                    unsigned int lo = *(unsigned int*)item;
-                    unsigned int hi = *(unsigned int*)(item + 4);
-                    unsigned char count = *(unsigned char*)(item + 8);
-                    if (lo <= attackCount && attackCount <= hi)
+                    if ((unsigned int)it->m_field0 <= attackCount &&
+                        attackCount <= (unsigned int)it->m_field4)
                     {
-                        ci->SetCurRevengeDungeonCount(count);
+                        ci->SetCurRevengeDungeonCount(it->m_field8);
                         ci->VillageAttack_DBUpdate();
                         break;
                     }
@@ -5102,7 +5090,7 @@ void CParty::party_dungeon_fail()
         unsigned int accId = m_manager->get_acc_id();
         char* idStr = NumberToString(accId, 0);
         char log1[16];
-        new (log1) cMyTrace("void CParty::party_dungeon_fail()", 0x3541, 0);
+        new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x3541, 0);
         (*reinterpret_cast<cMyTrace*>(log1))(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             idStr, mgrState, (int)mgrIndex);
@@ -5220,7 +5208,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
             CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
             char log1[16];
             new (log1) cMyTrace(
-                "int CParty::_putItemIntoUser(CUser*, Inven_Item*, PacketGuard&)",
+                __PRETTY_FUNCTION__,
                 0x232d, 4);
             (*reinterpret_cast<cMyTrace*>(log1))(
                 "Dungeon(%d) reward money(%d) on %d' party member with difficulty %d",
@@ -5366,6 +5354,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
             GetInstanceValueStatistic()->AddValueStatistic(
                 (VALUE_STATISTIC_FIELD)4, user, (unsigned int)sellPrice);
         }
+        // ORIG 越界读 items[1]+0x3e（Inven_Item 0x3d 后 1 字节；线格式遗留，保留）
         if ((unsigned char) *reinterpret_cast<unsigned char*>(
                 reinterpret_cast<char*>(&items[1]) + 0x3e) ==
                 1 &&
@@ -5476,7 +5465,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            __PRETTY_FUNCTION__,
             0x3cec,
             "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP(%u), BASE EXP (%u), "
             "EXP_WEIGHT(%f), EXP_INOUT_WEIGHT(%f), LAST_ROUND(%d), "
@@ -5531,12 +5520,12 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            __PRETTY_FUNCTION__,
             0x3d12, "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP!! (%u)\n",
             bonusExp);
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::generateBloodRewardExp(int, int, unsigned int, short int)",
+            __PRETTY_FUNCTION__,
             0x3d1c,
             "BLOOD_LOG : EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
             param.m_avatarBonus, param.m_creatureBonus,
@@ -5645,7 +5634,7 @@ void CParty::beginBloodClearProcess(bool flag)
             {
                 LogManager::logFormat(
                     1, "party.cpp",
-                    "void CParty::beginBloodClearProcess(bool)", 0x3c79,
+                    __PRETTY_FUNCTION__, 0x3c79,
                     "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP(%u)\n",
                     rewardExp);
                 rewardExp = 1000000;
@@ -5907,7 +5896,7 @@ int CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                         packet.put_byte(item->GetItemSpace());
                         packet.put_short(1);
                         INVEN_TYPE invenType =
-                            (INVEN_TYPE)GetInvenTypeFromItemSpace(
+                            (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)
                                 item->GetItemSpace());
                         ci->getCurCharacInvenR()->MakeItemPacket(
                             invenType, putSlot, packet);
@@ -5922,7 +5911,7 @@ int CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                 {
                     LogManager::logFormat(
                         1, "party.cpp",
-                        "bool CParty::onBloodRewardTimer(TIMER_MESSAGE)", 0x3bd4,
+                        __PRETTY_FUNCTION__, 0x3bd4,
                         "BLOOD_LOG : EROOR BLOOD CLEAR REWARD EXP!! (%u)\n",
                         rewardExp);
                     rewardExp = 1000000;
@@ -6007,7 +5996,7 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
     {
         LogManager::logFormat(
             1, "party.cpp",
-            "void CParty::set_clear_reward_exp_parameter(CUser*, uint, stClearRewardExpParameter_t&)",
+            __PRETTY_FUNCTION__,
             0x294a, "Unknown Dungeon %d",
             reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
         return;
@@ -6052,8 +6041,7 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
     unsigned int pcbangNo = static_cast<unsigned int>(user->GetPCRoomNo());
     if (pcbangNo != 0 && existSamePCRoomUser(pcbangNo))
     {
-        pcRoomSameUserBonus = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x7d4);
+        pcRoomSameUserBonus = G_CDataManager()->m_serverParameter.m_76c;  // +0x7d4
     }
 
     float returnUserBonus = 0.0f;                           // -0x18 local_1c
@@ -6084,9 +6072,9 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
     channel_script_t* channelScript =
         static_cast<channel_script_t*>(dm->GetChannelScript());
     CEnvironment* env = G_CEnvironment();
-    int serverType = *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1a8);
+    int serverType = env->m_serverEnvir.m_serverType;          // CEnvironment+0x1a8
     unsigned char channelByte =
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(env) + 0x378);
+        env->m_serverEnvir.m_serverGroup;                       // CEnvironment+0x378
     if (serverType == 1 || serverType == 2)
     {
         param.m_serverChannelRate = channelScript->getBonusRateEventServer(
@@ -6151,7 +6139,7 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
     else
     {
         param.m_premiumAddExpRate =
-            static_cast<float>(GlobalData::g_SPremiumInfo[0x4f].m_field44) /
+            static_cast<float>(g_SPremiumInfo[0x4f].m_field44) /
             100.0f;
     }
 
@@ -6191,20 +6179,20 @@ void CParty::clear_reward(int param)
 
     if (dungeon == 0)
     {
-        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+        LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a07, "Unknown Dungeon %d",
                               reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
         return;
     }
     if (memberCount < 1)
     {
-        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+        LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a0c, "No Member[%d] in party", memberCount);
         return;
     }
     if (dungeon->isTournamentDungeon())
     {
-        LogManager::logFormat(1, "party.cpp", "void CParty::clear_reward(int)",
+        LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a13, "TournamentDungeon(%d) can not call function",
                               reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
         return;
@@ -6215,8 +6203,7 @@ void CParty::clear_reward(int param)
 
     int rankBonusIdx = dm->getRankBonusIndex(param);
     ServerParameterScript* spScript =
-        reinterpret_cast<ServerParameterScript*>(
-            reinterpret_cast<char*>(dm) + 0x68);             // dm+0x68 子对象视图
+        &dm->m_serverParameter;                              // dm+0x68 子对象
 
     int stdLevel = 0;
     if (dungeon->get_dimension_possible() > 0)
@@ -6257,8 +6244,9 @@ void CParty::clear_reward(int param)
     ref.m_rankBonusIndex = rankBonusIdx;
     ref.m_goldBase = static_cast<unsigned short>(bd.m_field48);
     ref.m_goldFactor = static_cast<unsigned short>(bd.m_killedMonster1);
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&ref) + 0x40) = 0;
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&ref) + 0x42) =
+    // ORIG 死写 m_dungeon 低/高半字（随后 ref.m_dungeon = dungeon 覆盖）
+    *reinterpret_cast<unsigned short*>(&ref.m_dungeon) = 0;
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&ref.m_dungeon) + 2) =
         static_cast<unsigned short>(bd.m_killedMonster2);
 
     WongWork::stGenerateResult_t result;
@@ -6281,7 +6269,7 @@ void CParty::clear_reward(int param)
 
     ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
     ref.m_field34 = static_cast<char>(stdLevel);
-    *reinterpret_cast<float*>(reinterpret_cast<char*>(&ref) + 0x38) = mapRatio;
+    *reinterpret_cast<float*>(&ref.m_rankBonusIndex) = mapRatio;  // float 位型
     ref.m_dungeon = dungeon;
 
     int minStdDropRate = 100;
@@ -6347,8 +6335,8 @@ void CParty::clear_reward(int param)
             if (basePenalty >= 1.0 || dungeon->isRiskDungeon())
             {
                 unsigned short guildLvl = static_cast<unsigned short>(
-                    *reinterpret_cast<const unsigned short*>(
-                        reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x22));
+                    static_cast<const STGuildDBInfoOnly*>(
+                        user->GetGuildDBInfo())->m_memberCount);  // +0x22
                 unsigned long long tempExp =
                     static_cast<unsigned long long>(user->get_guild_temp_exp());
                 float weight = dm->m_guildParameter.getExpWeight(guildLvl);
@@ -6373,8 +6361,8 @@ void CParty::clear_reward(int param)
             int lvl = user->get_charac_level();
             ref.m_field34 = static_cast<char>(lvl);
             unsigned short guildLvl = static_cast<unsigned short>(
-                *reinterpret_cast<const unsigned short*>(
-                    reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x22));
+                static_cast<const STGuildDBInfoOnly*>(
+                    user->GetGuildDBInfo())->m_memberCount);  // +0x22
             unsigned long long tempExp =
                 static_cast<unsigned long long>(user->get_guild_temp_exp());
             float weight = dm->m_guildParameter.getExpWeight(guildLvl);
@@ -6433,7 +6421,7 @@ void CParty::clear_reward(int param)
                     static_cast<double>(addInfo) + 0.5));
         }
 
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) =
+        *reinterpret_cast<int*>(&ref.m_goldBase) =               // +0x3c 起 4 字节
             user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 3 : 0;
         WongWork::stGenerateResult_t genResult;
         GetLuckPoint(reinterpret_cast<CLuckPoint*>(&genResult.m_luckPoint), false);
@@ -6443,7 +6431,7 @@ void CParty::clear_reward(int param)
             rewardItems[1].setCopy(genResult.m_dropItems.front());
         }
 
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) =
+        *reinterpret_cast<int*>(&ref.m_goldBase) =               // +0x3c 起 4 字节
             user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 4 : 1;
         Inven_Item* goldCardItems = bd.m_itemGroups2[slot];
         goldCardItems[0].setCopy(rewardItems[0]);
@@ -6467,7 +6455,8 @@ void CParty::clear_reward(int param)
             if (ev41->IsEventing(static_cast<CUser*>(0)) && IsPremiumGoldCardParty())
             {
                 commissionRate = *reinterpret_cast<float*>(
-                    reinterpret_cast<char*>(G_CDataManager()) + 0x48fc);
+                    &G_CDataManager()->m_serverParameter
+                         .m_premiumGoldCard4894.m_field0);   // +0x48fc float 位型
             }
             CGameManager* gameMgr = G_CGameManager();
             CConditionEventManager* condMgr = gameMgr->GetConditionEventManager();
@@ -6481,7 +6470,7 @@ void CParty::clear_reward(int param)
             m_field1e4[1][slot] = static_cast<int>(
                 static_cast<float>(commission) * commissionRate + 0.5f);
             float createRate = clearGen->getGoldCardCreateRate();
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x34) =
+            *reinterpret_cast<int*>(&ref.m_field34) =           // +0x34 起 4 字节
                 *reinterpret_cast<const int*>(&createRate);
         }
 
@@ -6527,8 +6516,8 @@ void CParty::clear_reward(int param)
         if (dungeon->m_villageAttackEventFlag != 0)
         {
             Inven_Item eventItem;
-            eventItem.m_addInfo = *reinterpret_cast<int*>(
-                reinterpret_cast<char*>(G_CDataManager()) + 0x50c);
+            eventItem.m_addInfo =
+                G_CDataManager()->m_serverParameter.m_field4a4;  // +0x50c
             dm->getItemList()->create_item(
                 static_cast<ENUM_ITEM_CREATE_TYPE>(1), eventItem, 1);
             goldCardItems[0].reset();
@@ -6539,13 +6528,13 @@ void CParty::clear_reward(int param)
             bd.ResetEventDungeonClearPoint();
         }
 
-        *reinterpret_cast<float*>(reinterpret_cast<char*>(&ref) + 0x34) = mapRatio;
+        *reinterpret_cast<float*>(&ref.m_field34) = mapRatio;   // +0x34 起 4 字节
         if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)))
         {
             Inven_Item* pcRoomItems = bd.m_itemGroups1[slot];
             pcRoomItems[0].setCopy(rewardItems[0]);
             pcRoomItems[0].set_add_info(0);
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(&ref) + 0x3c) = 5;
+            *reinterpret_cast<int*>(&ref.m_goldBase) = 5;       // +0x3c 起 4 字节
             genResult.m_dropItems.clear();
             clearGen->generateRandomItem(ref, genResult);
             if (genResult.m_dropItems.empty())
@@ -6690,8 +6679,8 @@ void CParty::clear_reward(int param)
         {
             float premiumDeduction;   // ORIG quirk: flds -0x2cc has no writer
             int deduction = static_cast<int>(premiumDeduction + 0.5f);
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(user) + 0x8e05c) -= deduction;
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(user) + 0x8e068) -= deduction;
+            user->m_field8e05c -= deduction;
+            user->m_field8e068 -= deduction;
         }
 
         questItemList.clear();
@@ -6927,4 +6916,20 @@ void CParty::clear_reward(int param)
     {
         DungeonPermission(param);
     }
+}
+
+Party::Party()
+    : IData(), PlayInfo()
+{
+    Reset();
+}
+
+Party::~Party()
+{
+}
+
+void Party::Reset()
+{
+    PlayInfo::Reset();
+    m_f3c = 0;
 }

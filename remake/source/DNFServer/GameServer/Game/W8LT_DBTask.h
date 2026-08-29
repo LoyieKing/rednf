@@ -24,9 +24,14 @@
 #define DNF_GAME_W8LT_DBTASK_H_
 
 #include "MsgQueueMgr.h"
+#include "DBDispatcher.h"
+#include "GameEnums.h"   // ENUM_SKILL_TREE_KIND（DB_UpdateComboSkill::setComboSkill 按值形参）
 
 class Stream;
 class DBDispatcher;
+class MySQL;                 // DB_UpdateComboSkill::setComboSkill 形参（指针）
+struct comoboSkillData;      // DB_UpdateComboSkill::setComboSkill 形参（指针）
+struct SIG_SAVE_EVENTITEM;
 
 class DBTask
 {
@@ -45,6 +50,108 @@ public:
 private:
     int m_curQueueIdx;            // +0x00（HandleEvents 写入当前处理的队列枚举值）
     DBDispatcher* m_dispatchers[852];  // +0x04（消息 id -> dispatcher 表）
+};
+
+
+// DB_SaveFeaturedGoodsIdx —— 权威声明点（LinkClosureB-2）：
+// ORIG T _ZN23DB_SaveFeaturedGoodsIdx11makeRequestEjiiii @0x0841b2da
+// （static 成员，报告 docs/class_func_reports/DB_SaveFeaturedGoodsIdx/makeRequest.md）
+// CCeraShop_Special.cpp 提供定义；DB_SaveUserHandicap::makeRequest 尾部调用。
+class DB_SaveFeaturedGoodsIdx : public DBDispatcher
+{
+public:
+    DB_SaveFeaturedGoodsIdx() {}   // ORIG C1 0x844e0e2 (sz 0x4: base ctor+vptr only)
+    static void makeRequest(unsigned int accId, int characNo, int restrictCode,
+                            int curSec, int d);
+    // ORIG T 0x0841b210 _ZN23DB_SaveFeaturedGoodsIdx8dispatchEiiP6Stream（虚覆盖；W8LT_DBTask.cpp 定义）
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+};
+
+
+// DB_SwapCreatureItem —— 权威声明点（StubSwapCreature）：
+// ORIG T _ZN19DB_SwapCreatureItem11makeRequestEii @0x0841fef2
+// （static 成员，报告 docs/class_func_reports/DB_SwapCreatureItem/makeRequest.md）
+// W8LT_DBTask.cpp 提供定义；DB_LoadInventory.cpp GetUserCreature 调用点。
+class DB_SwapCreatureItem : public DBDispatcher
+{
+public:
+    DB_SwapCreatureItem() {}   // ORIG C1 0x844e39e (sz 0x4: base ctor+vptr only)
+    static void makeRequest(int itemIdx1, int slot2);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x0841fe0c
+};
+
+
+// DB_UpdateGMData —— 权威声明点（OrigEventLeaf8d）：
+// ORIG T _ZN15DB_UpdateGMData11makeRequestEb @0x0843982c
+// （static 成员，报告缺失按 §3.2 兜底 objdump 转写）：
+// Acquire("DBThread.cpp",0x8761) → CStreamGuard(stream,true)
+//   → <<0x14a(int) → <<-1(int) → <<flag(bool) → put(DB_Q(2))。
+// W8LT_DBTask.cpp 提供定义；CGmRegistEvent.cpp StartEvent 调用点。
+class DB_UpdateGMData : public DBDispatcher
+{
+public:
+    DB_UpdateGMData() {}   // ORIG C1 0x844ede6 (sz 0x4: base ctor+vptr only)
+    static void makeRequest(bool flag);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x0843990a
+};
+
+// DB_SaveEventItem —— 权威声明点（OrigDBEventItem）：
+// ORIG T（报告 docs/class_func_reports/DB_SaveEventItem/*）：
+//   dispatch              0x0841a7e4
+//   _CheckAlreadyGetYegamItem 0x0841a51a
+//   _HardCodeEventItems   0x0841a662
+//   _UpdateEventYegamInfo 0x0841a5ea
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册 slot 76。
+class DB_SaveEventItem : public DBDispatcher
+{
+public:
+    DB_SaveEventItem() {}   // ORIG C1 0x844dad8 (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0841a7e4
+    bool _CheckAlreadyGetYegamItem(int id, int type);               // ORIG 0x0841a51a
+    bool _HardCodeEventItems(SIG_SAVE_EVENTITEM* sig);              // ORIG 0x0841a662
+    bool _UpdateEventYegamInfo(int id, int type);                   // ORIG 0x0841a5ea
+};
+
+// DB_UpdateCharacView —— 权威声明点（GoalAuditDB7）：
+// ORIG T _ZN19DB_UpdateCharacView8dispatchEiiP6Stream @0x08408848
+// （报告 docs/class_func_reports/DB_UpdateCharacView/dispatch.md）。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册 slot 6。
+class DB_UpdateCharacView : public DBDispatcher
+{
+public:
+    DB_UpdateCharacView() {}   // ORIG C1 0x844d85c (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x08408848
+};
+
+
+// DB_UpdateBingoEvent —— 权威声明点（GoalAuditDB7）：
+// ORIG T _ZN19DB_UpdateBingoEvent11makeRequestEijib @0x08449032、
+// _ZN19DB_UpdateBingoEvent8dispatchEiiP6Stream @0x08448eb8
+// （报告 docs/class_func_reports/DB_UpdateBingoEvent/*）。
+// W8LT_DBTask.cpp 提供定义；CUser::updateBingoData 调用 makeRequest；
+// DBTask::RegistDispatcher 注册 slot 799。
+class DB_UpdateBingoEvent : public DBDispatcher
+{
+public:
+    DB_UpdateBingoEvent() {}   // ORIG C1 0x844fd6e (sz 0x4: base ctor+vptr only)
+    static void makeRequest(int uid, unsigned int accId, int eventId, bool won);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x08448eb8
+};
+
+
+// DB_UpdateComboSkill —— 权威声明点（GoalAuditDB7）：
+// ORIG T _ZN19DB_UpdateComboSkill8dispatchEiiP6Stream @0x0844a8ea、
+// _ZN19DB_UpdateComboSkill13setComboSkillEP5MySQLjhP15comoboSkillData20ENUM_SKILL_TREE_KIND
+// @0x0844aa4c（报告 docs/class_func_reports/DB_UpdateComboSkill/*）。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册 slot 797。
+class DB_UpdateComboSkill : public DBDispatcher
+{
+public:
+    DB_UpdateComboSkill() {}   // ORIG C1 0x844fe86 (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0844a8ea
+    bool setComboSkill(MySQL* db, unsigned int characNo, unsigned char count,
+                       comoboSkillData* data,
+                       ENUM_SKILL_TREE_KIND kind);                  // ORIG 0x0844aa4c
 };
 
 #endif  // DNF_GAME_W8LT_DBTASK_H_

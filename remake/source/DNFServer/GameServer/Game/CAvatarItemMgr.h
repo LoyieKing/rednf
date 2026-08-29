@@ -7,6 +7,7 @@
 // 语义字段：m_registeredItems/m_waitAssignItems/m_tempKeyCounter/m_emblemEnduranceMap
 //          /m_enduranceUpdateMap 替代原 m_items1/m_items2/m_field30/m_field54/m_field6c。
 
+#include "GameTypes.h"   // DynamicPool<T> 权威模板（ORIG 0x82ac4cc 起；池对象布局 0x5c）
 #include <map>
 #include "GamePODTypes.h"
 #include "AvatarItem.h"
@@ -19,10 +20,10 @@ namespace WongWork
 class CAvatarItemMgr
 {
 public:
-    CAvatarItemMgr();   // ORIG W 0x0822d22c（三 map 隐式成员构造）
-    // G7 miscB 追加：ORIG _ZN8WongWork14CAvatarItemMgrC1ERKS0_ W 0x0869937c
-    // （合成式逐成员拷贝，定义 WongWorkMiscB_A.cpp）。
+    CAvatarItemMgr();
     CAvatarItemMgr(const CAvatarItemMgr& other);
+    // 后由编译器析构三个 map（Reset 将池对象归还 m_AvatarItemPool；定义 CAvatarItemMgr.cpp）。
+    ~CAvatarItemMgr();
     void Reset();
     static bool IsTempKey(int key);   // ORIG W 0x0822d20d（_ZN...9IsTempKeyEi；
                                       //   ORIG 调用无 this，函数体不读对象 → static，
@@ -66,6 +67,9 @@ public:
     void UpdateEndurance(int key, int endurance);
     void SaveEndurance();
     int updateEmblemSocket(int key, unsigned int count, char* grades, unsigned long* itemIds);
+    // ORIG 静态池 _ZN8WongWork14CAvatarItemMgr16m_AvatarItemPoolE B 0x5c @0x943bd80；
+    // 定义 CAvatarItemMgr.cpp（ctor (15000,1000)，ORIG 静态初始化 0x82fa193-0x82fa1a3 实证）。
+    static DynamicPool<Avatar_Item> m_AvatarItemPool;
 
     std::map<int, Avatar_Item*> m_registeredItems;     // +0x00 (原 m_items1)
     std::map<int, Avatar_Item*> m_waitAssignItems;     // +0x18 (原 m_items2)

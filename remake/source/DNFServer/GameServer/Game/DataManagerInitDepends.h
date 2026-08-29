@@ -24,6 +24,7 @@
 
 #include "RDARScriptStringManager.h"   // ErrorLog（InitRDARScriptStringManager 形参）
 #include "CDailyScheduleManager.h"     // _DailySchedule / CDailyScheduleManager
+#include "CCompoundAvatar.h"          // ENUM_CHARACTERJOB（guard 枚举）+ tagCompoundAvatar 族声明
 
 
 class InGameEventInfoList;             // CEventScriptMng.h（全局作用域基类 1）
@@ -61,7 +62,7 @@ bool importGrowthEquipmentScript(class growthEquipmentScript* s, const char* pat
 char IsLightServer(void);                                     // _Z13IsLightServerv 0x0822ad44（定义 GlobalData.cpp）
 void SetCollectDungeonStatistic(bool flag);                   // _Z26SetCollectDungeonStatisticb
 bool prepareServerDelayCheckDamage(void);                     // _Z29prepareServerDelayCheckDamagev
-bool ImportWorldDrop(class WorldDropInfo* out, char* path);   // _Z15ImportWorldDropP13WorldDropInfoPKc
+bool ImportWorldDrop(class WorldDropInfo* out, const char* path);   // _Z15ImportWorldDropP13WorldDropInfoPKc
 int  ImportWarAreaCounter(class WarAreaCounter* out);         // _Z20ImportWarAreaCounterP14WarAreaCounter（0=成功；定义 InitScriptProducers_2.cpp）
 namespace AvatarVariation
 {
@@ -242,10 +243,12 @@ int  makeFairPVPEquipmentPackageKey(int job, int idx);                          
 // ORIG ImportSecurityReward(SecurityReward*) 写入 0x30 字节宿主
 // （CDataManager::m_securityReward）。专属 TU 未落地，先给可编译最小视图。
 // ORIG NeedMaterialDataManager::getInstance T 0x081b5ab2（单例；定义 CItem.cpp 域）
+class CItem;
 class NeedMaterialDataManager
 {
 public:
     static NeedMaterialDataManager* getInstance();
+    CItem* getNeedMaterial(const CItem* item) const;   // ORIG T 0x081b5b70（NeedMaterialDataManager.cpp 定义）
 };
 
 // ORIG CmmChannelProxy（GlobalData.h 前向；完整布局在 GlobalData.cpp/GameMain.cpp
@@ -334,7 +337,7 @@ class CLevelRewardTable
 public:
     CLevelRewardTable();                              // ORIG 0x086975feW
     void SetJobAffection(bool on);                    // ORIG 0x08697766W
-    bool GetJobAffection() const { return m_jobAffection; }
+    bool GetJobAffection();                         // ORIG W 0x08697782 _ZN…Ev 非 const（定义 CUserDepsB.cpp）
     int GetProperJobIndex(char job);                  // ORIG 0x08687e78
     int GetProperLevelIndex(unsigned int level);      // ORIG 0x086876c8
     int GetRewardItemNo(int jobIdx, int levelIdx);    // ORIG W 0x086976f6（定义 CUserDepsB.cpp）
@@ -362,6 +365,7 @@ public:
     bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
     bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）
     CLevelRewardTable* GetProperLevelRewardTableR() const;  // ORIG T 0x08687e62（返回 m_table；定义 CUserDepsB.cpp）
+    CLevelRewardTable* GetProperLevelRewardTableR(int) const; // ORIG T 0x08687e6e（恒返 0；定义 CUserDepsB.cpp）
     static CLevelRewardTableMgr* levelRewardTableMgr;            // ORIG B 0x09473978
 
     char m_flag;                          // +0x00
@@ -383,8 +387,14 @@ public:
     ~AvatarRoulette();
     void clear();                       // ORIG 0x8911cf6 T（仅清 m_avatars）
 
-    int swap(AvatarRoulette* other);    // ORIG 0x8911e4e T：前 5 dword 拷贝 + 11 桶
-                                        // vector::swap；恒返回 1（ORIG eax=1 实证）
+    bool isAvatarCoin(unsigned long avatarCoin);  // ORIG 0x8911da0 T（定义 AvatarCoin.cpp）
+    int swap(AvatarRoulette* other);       // ORIG 0x08911e4e T
+    // ORIG 0x8911db0 T _ZN14AvatarRoulette13getAvatarListERb17ENUM_CHARACTERJOBRSt6vectorIS2_ISt4pairImiESaIS4_EESaIS6_EE
+    // ORIG 0x8911dfe T _ZN14AvatarRoulette13getStikerListERb17ENUM_CHARACTERJOBRSt6vectorIiSaIiEE
+    // 定义 Arad_AvatarRoulette.cpp（本 TU）。
+    void getAvatarList(bool& isOk, ENUM_CHARACTERJOB job,
+                       std::vector<std::vector<std::pair<unsigned long, int> > >& out);
+    void getStikerList(bool& isOk, ENUM_CHARACTERJOB job, std::vector<int>& out);
     int m_avatarCoinInfo;               // +0x00 [avatar coin info]
     int m_rareCloneAvatarRate;          // +0x04 [rare clone avatar rate]
     int m_rareAvatarRate;               // +0x08 [rare avatar rate]
@@ -439,6 +449,7 @@ public:
 // ORIG SDCActiveStatusSyncCommon：Server 基类（ctor W 0x08234870 / dtor W
 // 0x08234876，均空体 ret）。定义：CtorProducers_2.cpp。
 class STSDCActiveStatusSyncDataSend;   // 布局见下方 packed 定义
+class STSDCActiveStatusSyncDataCLONG;  // 完整定义见 STSDCActiveStatusSyncDataCLONG.h（Send::operator= 形参）
 class IRDActiveObject;                 // 仅前置（getActiveStatusDurationClient 不解引用）
 
 namespace _SDC
@@ -472,6 +483,10 @@ struct STSDCActiveStatusSyncDataSend
     int m_field29;                // +0x29
     int m_field2d;                // +0x2d
     int m_field31;                // +0x31
+
+    // ORIG T 0x0808d18c：CLONG（0x44 展开）→ 本 packed 块字节截断回填。
+    STSDCActiveStatusSyncDataSend& operator=(
+        const STSDCActiveStatusSyncDataCLONG& o);
 };                                // sizeof = 0x35
 static_assert(sizeof(STSDCActiveStatusSyncDataSend) == 0x35,
               "STSDCActiveStatusSyncDataSend ABI drift");
@@ -539,11 +554,5 @@ public:
 
 // ---- ActiveStatus 表装载（定义待数据域批次）----
 bool importActiveStatusTable(const char* path);   // _Z23importActiveStatusTablePKc T 0x08906f88（成功 ret1/失败 logFormat ret0）
-
-// ORIG WongWork::CCompoundAvatar（0x88）：ctor T 0x08331d74 + LoadScript
-// ("Etc/","CompoundAvatar.etc") T 0x08333ea6。权威完整布局（含
-// tagCompoundAvatar/tagCompoundAvatarTable/importCompoundAvatarTable 声明）
-// 收敛至 CCompoundAvatar.h（Ctor2_ContB）。
-#include "CCompoundAvatar.h"
 
 #endif  // GAME_DATAMANAGER_INIT_DEPENDS_H_

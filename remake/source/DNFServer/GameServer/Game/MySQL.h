@@ -77,23 +77,26 @@ public:
     int insert(const char* fmt, ...); // 0x083f46ae
     int update(const char* fmt, ...); // 0x083f4718
     bool set_query();                 // 0x083f4782
-    void escape_string(char* dst, const char* src);  // 0x083f48aa
+    unsigned long escape_string(char* dst, const char* src);  // 0x083f48aa（ORIG 直返 mysql_real_escape_string）
+    void clear_result_set();
+    int exec_query();
 
-    int exec_query();                 // 0x083f5348（弱）
-    void clear_result_set();          // 0x083f5630（弱）
     CQueryCounter* GetQueryCounter(); // 0x082a4202（弱）
     void SetQueryCounter(CQueryCounter* pCounter);  // 0x083f531c（弱）
-
+    // ---- inline 访问器（ORIG 弱符号）----
     // ---- inline 访问器（ORIG 弱符号）----
     bool is_valid_col(int col);       // 0x080e22d0
     bool is_valid_data(int col);      // 0x085f41b2
     bool get_int(int col, int& out);  // 0x0811692c
+    // ORIG W 0x080e22ae _ZN5MySQL7get_intEiRj：转发 get_uint（DB dispatch 读取 uint 列）
+    bool get_int(int col, unsigned int& out);
     bool get_uint(int col, unsigned int& out);  // 0x080e22f2
     bool get_short(int col, short& out);        // 0x080fddec
     bool get_short(int col, int& out);          // 0x0814201c
     bool get_ushort(int col, unsigned short& out);  // 0x08116990
     bool get_byte(int col, char& out);          // 0x080fde54
     bool get_ubyte(int col, unsigned char& out);  // 0x080fdeba
+    bool get_byte(int col, int& out);           // 0x0844d73a（ORIG W；atoi 截断 signed char 再符号扩展）
     bool get_float(int col, float& out);        // 0x0844d6d0 (W)
     bool get_char(int col, char& out);          // 0x0815e6a6
     bool get_longlong(int col, long long& out); // 0x085f4214
@@ -142,7 +145,11 @@ inline bool MySQL::is_valid_data(int col)
     {
         return false;
     }
-    return m_row[col] != 0;
+    if (m_row[col] == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 inline bool MySQL::get_int(int col, int& out)
@@ -155,14 +162,19 @@ inline bool MySQL::get_int(int col, int& out)
     return true;
 }
 
+// ORIG W 0x080e22ae：转发 get_uint（弱符号，链接期与 ORIG 同名实例一致）
+inline bool MySQL::get_int(int col, unsigned int& out)
+{
+    return get_uint(col, out);
+}
+
 inline bool MySQL::get_uint(int col, unsigned int& out)
 {
     if (m_row == 0 || !is_valid_col(col))
     {
         return false;
     }
-    unsigned long value = strtoul(m_row[col], 0, 10);
-    out = (unsigned int)value;
+    out = (unsigned int)strtoul(m_row[col], 0, 10);
     return true;
 }
 
@@ -195,7 +207,19 @@ inline bool MySQL::get_ushort(int col, unsigned short& out)
     out = (unsigned short)atoi(m_row[col]);
     return true;
 }
+// ORIG W 0x0844d73a：int& 版本（atoi 结果截断为 signed char 暂存栈槽后符号扩展）。
+inline bool MySQL::get_byte(int col, int& out)
+{
+    if (m_row == 0 || !is_valid_col(col))
+    {
+        return false;
+    }
+    char tmp = (char)atoi(m_row[col]);
+    out = tmp;
+    return true;
+}
 
+// ORIG W 0x080fde54：atoi 结果按字节写入 char 引用。
 inline bool MySQL::get_byte(int col, char& out)
 {
     if (m_row == 0 || !is_valid_col(col))
@@ -267,6 +291,8 @@ inline bool MySQL::get_str(int col, char* buf, int size)
     return true;
 }
 
+// ORIG W 0x0812531a 反汇编：signed 比较（cmp;jge）→ `(long)m_lengths[col] >= size`
+// 时 len=size，否则 len=lengths 且 memset(buf,0,size)；随后 memcpy(m_row[col],len)。
 inline bool MySQL::get_binary(int col, void* buf, int size)
 {
     if (m_row == 0 || !is_valid_col(col) || size <= 0)
@@ -274,9 +300,9 @@ inline bool MySQL::get_binary(int col, void* buf, int size)
         return false;
     }
     int len = 0;
-    if (m_lengths[col] < (unsigned long)size)
+    if ((long)m_lengths[col] < size)
     {
-        len = m_lengths[col];
+        len = (int)m_lengths[col];
         memset(buf, 0, size);
     }
     else

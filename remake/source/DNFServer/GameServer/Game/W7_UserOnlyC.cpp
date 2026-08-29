@@ -51,7 +51,7 @@
 
 extern CDataManager* G_CDataManager();
 extern char* NumberToString(unsigned int value, int radix);
-extern char* GetPacketName(unsigned char area, unsigned short packetId);
+extern char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId);
 extern bool CheckDailyScheduleTime(int scheduleTime, long lastPlayTime,
                                    long curTime);
 unsigned char MakeHash(unsigned char* data, unsigned int len,
@@ -62,8 +62,8 @@ short _NS_PI_2ND_GetPacketIndex(char* packet);       // 定义 PIHash.cpp
 // ---- CPacketTimeChecker（ORIG W 0x8696d5c reset / 0x8696d74 check）----
 // ============================================================================
 
-int CPacketTimeChecker::validCount_E = 100;    // D 0x093ace48
-int CPacketTimeChecker::validSecond_E = 1;     // D 0x093ace4c
+int CPacketTimeChecker::validCount_ = 100;     // D 0x093ace48
+int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
 
 void CPacketTimeChecker::reset()
 {
@@ -75,12 +75,12 @@ bool CPacketTimeChecker::check()
 {
     ++m_count;
     long now = time(0);
-    if (now - m_lastTime >= validSecond_E)
+    if (now - m_lastTime >= validSecond_)
     {
         m_lastTime = now;
         m_count = 0;
     }
-    else if (m_count > validCount_E)
+    else if (m_count > validCount_)
     {
         return false;
     }
@@ -311,7 +311,7 @@ bool CUser::Parsing(int received)
     {
         net.m_recvOffset += received;                 // +0xf8
         net.m_recvBuf += received;                    // +0x10c
-        cMyTrace t("bool CUser::Parsing(int)", 0x69d, 0);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x69d, 0);
         t("(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
           reinterpret_cast<unsigned int>(net.m_recvBuf),
           reinterpret_cast<unsigned int>(net.m_recv), net.m_recvOffset,
@@ -327,7 +327,7 @@ bool CUser::Parsing(int received)
 
         if (net.m_bBufOffsetTrace != 0)
         {
-            cMyTrace t("bool CUser::Parsing(int)", 0x6b2, 0);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x6b2, 0);
             t("[BUFOFFSET TRACE](offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
               reinterpret_cast<unsigned int>(net.m_recvBuf),
               reinterpret_cast<unsigned int>(net.m_recv), net.m_recvOffset,
@@ -339,7 +339,7 @@ bool CUser::Parsing(int received)
         if (hdr.m_size < 13 || hdr.m_size > 0x578)
         {
             LogManager::logFormat(
-                1, "user.cpp", "bool CUser::Parsing(int)", 0x6ce,
+                1, "user.cpp", __PRETTY_FUNCTION__, 0x6ce,
                 "Recv Size[%d], Parsing Packet Size[%d], recvbuf_offset[%d] is Too Large",
                 received, static_cast<int>(hdr.m_size),
                 reinterpret_cast<int>(net.m_recvBuf));
@@ -353,7 +353,7 @@ bool CUser::Parsing(int received)
         if (verdict != 0)
         {
             LogManager::logFormat(
-                1, "user.cpp", "bool CUser::Parsing(int)", 0x6f4,
+                1, "user.cpp", __PRETTY_FUNCTION__, 0x6f4,
                 "[Packet Varifier Error %d][classification %d][packet id %d][ServerSequence: %d][ClientSequence: %d](m_id: %s)",
                 verdict, static_cast<int>(hdr.m_class),
                 static_cast<int>(hdr.m_id),
@@ -385,9 +385,9 @@ bool CUser::Parsing(int received)
                 _NS_PI_2ND_MakeChecksumTo1Byte2(crc, hdr.m_checksum);
                 if (hdr.m_checksum != crc)
                 {
-                    cMyTrace t("bool CUser::Parsing(int)", 0x73a, 5);
+                    cMyTrace t(__PRETTY_FUNCTION__, 0x73a, 5);
                     t("[CHECK SUM] check_sum error PACKET : %s",
-                      GetPacketName(hdr.m_class, hdr.m_id));
+                      GetPacketName((ENUM_PACKETCLASS)hdr.m_class, hdr.m_id));
                     return false;
                 }
             }
@@ -428,7 +428,7 @@ bool CUser::Parsing(int received)
         if (remain > 0x1000)
         {
             LogManager::logFormat(
-                1, "user.cpp", "bool CUser::Parsing(int)", 0x793,
+                1, "user.cpp", __PRETTY_FUNCTION__, 0x793,
                 "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
                 remain);
             return false;
@@ -617,32 +617,21 @@ void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
 // ---- LimitItemUsage（ORIG W；字段按汇编偏移访问，头内布局保留 pad 形态）----
 // ============================================================================
 
-namespace
-{
-
-inline unsigned int liu_read32(const LimitItemUsage* p, int off)
-{
-    unsigned int v;
-    std::memcpy(&v, reinterpret_cast<const char*>(p) + off, 4);
-    return v;
-}
-
-inline void liu_write32(LimitItemUsage* p, int off, unsigned int v)
-{
-    std::memcpy(reinterpret_cast<char*>(p) + off, &v, 4);
-}
-
-}  // namespace
+// 说明：LimitItemUsage 为 packed 布局（+0x15/+0x19 非对齐 int），
+// 具名成员直写（gcc packed 自动非对齐访问）即等价 ORIG 行为。
 
 // ORIG C1/C2 0x08695ef0：CommonTime 子对象刷新当前时间，其余字段清零。
 LimitItemUsage::LimitItemUsage()
 {
     CommonTime* t = reinterpret_cast<CommonTime*>(this);
     t->SetCurTime();
-    *(reinterpret_cast<unsigned char*>(this) + 0x10) = 0;
-    liu_write32(this, 0x11, 0);
-    liu_write32(this, 0x15, 0);
-    liu_write32(this, 0x19, 0);
+    m_field10 = 0;
+    m_pad11[0] = 0;
+    m_pad11[1] = 0;
+    m_pad11[2] = 0;
+    m_pad11[3] = 0;
+    m_field15 = 0;
+    m_field19 = 0;
 }
 
 // ORIG D1/D2/D0 0x086a6480：空析构（ORIG 仅 ret）。
@@ -666,19 +655,18 @@ bool LimitItemUsage::isAnotherDay()
 // ORIG W 0x08695f68。
 bool LimitItemUsage::isUsable()
 {
-    const unsigned char state =
-        *(reinterpret_cast<const unsigned char*>(this) + 0x10);
+    const unsigned char state = m_field10;
     if (state == 2)
     {
-        if (liu_read32(this, 0x19) >= liu_read32(this, 0x11))
+        if ((unsigned int)m_field19 >= *reinterpret_cast<const unsigned int*>(m_pad11))
             return false;
         return true;
     }
     if (state == 0 || state == 1)
     {
         if (isAnotherDay())
-            liu_write32(this, 0x19, 0);
-        if (liu_read32(this, 0x19) >= liu_read32(this, 0x11))
+            m_field19 = 0;
+        if ((unsigned int)m_field19 >= *reinterpret_cast<const unsigned int*>(m_pad11))
             return false;
     }
     return true;
@@ -689,7 +677,7 @@ bool LimitItemUsage::useIt()
 {
     if (!isUsable())
         return false;
-    liu_write32(this, 0x19, liu_read32(this, 0x19) + 1);
+    m_field19 += 1;
     reinterpret_cast<CommonTime*>(this)->SetCurTime();
     return true;
 }
@@ -750,7 +738,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "bool CDungeon::VerifyMaze(const MazeScript&) const", 0x83e,
+            __PRETTY_FUNCTION__, 0x83e,
             "dungeon index(%d) maze(%d) has error. (Start positions were not declared!)",
             m_index, maze.m_64);
         return false;
@@ -763,7 +751,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
         {
             LogManager::logFormat(
                 1, "data_manager.cpp",
-                "bool CDungeon::VerifyMaze(const MazeScript&) const", 0x847,
+                __PRETTY_FUNCTION__, 0x847,
                 "dungeon index(%d) maze(%d) has error. (Can't found start map(grid: %d,%d)!)",
                 m_index, maze.m_64, maze.m_vec14[i].first,
                 maze.m_vec14[i].second);
@@ -774,7 +762,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
-            "bool CDungeon::VerifyMaze(const MazeScript&) const", 0x84e,
+            __PRETTY_FUNCTION__, 0x84e,
             "dungeon index(%d) maze(%d) has error. (End positions were not declared!)",
             m_index, maze.m_64);
         return false;
@@ -787,7 +775,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
         {
             LogManager::logFormat(
                 1, "data_manager.cpp",
-                "bool CDungeon::VerifyMaze(const MazeScript&) const", 0x857,
+                __PRETTY_FUNCTION__, 0x857,
                 "dungeon index(%d) maze(%d) has error. (Can't found boss map(grid: %d,%d)!",
                 m_index, maze.m_64, maze.m_vec20[i].first,
                 maze.m_vec20[i].second);
@@ -815,7 +803,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
                     {
                         LogManager::logFormat(
                             1, "data_manager.cpp",
-                            "bool CDungeon::VerifyMaze(const MazeScript&) const",
+                            __PRETTY_FUNCTION__,
                             0x86b,
                             "dungeon index(%d) maze(%d) has error. (Can't found grid map(grid: %d,%d)!)",
                             m_index, maze.m_64, x, y);

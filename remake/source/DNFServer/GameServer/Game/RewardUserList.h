@@ -24,7 +24,7 @@
 //     ~CRewardUserList()  0x081bbffc（D1/D2）：成员反序析构 deque→map
 //     clear      0x081bc042：先 m_map.clear() 再 m_index.clear()
 //     get_index_size 0x081bc064：m_index.size()
-//   友邻 TU 访问接口（COnTimeEvent 等遍历 map/deque）：get_map() / get_index()
+//   友邻 TU（COnTimeEvent 等）直接访问公有成员 m_map/m_index（ORIG 无 getter 符号）。
 // ============================================================================
 
 #include <map>
@@ -51,11 +51,10 @@ public:
     ~CRewardUserList();  // 析构（ORIG D1/D2 0x081bbffc：成员反序析构 deque→map）
 
     void clear();                          // ORIG 0x081bc042：先 map.clear 再 deque.clear
-    unsigned int get_index_size() const;   // ORIG 0x081bc064：deque.size()
-    std::map<unsigned int, RewardUserData>& get_map();    // 友邻 TU 访问（COnTimeEvent 遍历）
-    std::deque<unsigned int>& get_index();                // 友邻 TU 访问
+    unsigned int get_index_size();         // ORIG 0x081bc064：deque.size()（ORIG 无 const，符号 _ZN...14get_index_sizeEv）
 
-private:
+    // m_map/m_index 公有：ORIG 无 get_map/get_index 符号，COnTimeEvent 直接
+    // lea this+0x2c/this+0x14 成员访问（process_send_reward_to_user @0x081bbd46 实证）。
     std::map<unsigned int, RewardUserData> m_map;  // +0x00
     std::deque<unsigned int>               m_index; // +0x18（key 的插入顺序索引）
 };

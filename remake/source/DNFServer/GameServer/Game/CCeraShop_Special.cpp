@@ -25,7 +25,7 @@
 #include "CPremiumLetheManager.h"
 #include "DB_UpdateInventoryCapacity.h"
 #include "CEventMgr.h"          // CEventMgr::GetPremiumServiceBonus
-#include "SPremiumInfo.h"       // SPremiumInfo 权威布局（GlobalData::g_SPremiumInfo）
+#include "SPremiumInfo.h"       // SPremiumInfo 权威布局（g_SPremiumInfo）
 #include "GameTypes.h"      // cMyTrace
 #include "LogManager.h"     // LogManager::logFormat
 #include "CEquipItem.h"     // getAvatarPeriod
@@ -42,9 +42,7 @@
 #include <map>
 #include <vector>
 
-extern void DB_SaveFeaturedGoodsIdx_makeRequest(unsigned int accId, int characNo,
-                                                int restrictCode, int curSec, int d)
-    asm("_ZN23DB_SaveFeaturedGoodsIdx11makeRequestEjiiii");
+#include "W8LT_DBTask.h"        // DB_SaveFeaturedGoodsIdx::makeRequest 权威声明
 
 
 
@@ -200,7 +198,7 @@ void SpecialItemHandler::respond_special_item_skill_confirm(int,
     CUser* user = static_cast<CUser*>(param.m_user);
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
     cMyTrace trace(
-        "void SpecialItemHandler::respond_special_item_skill_confirm(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+        __PRETTY_FUNCTION__,
         0x1e1, 0);
     trace("ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
           user->getCurCharacName(), user->getCurCharacNo(),
@@ -219,7 +217,7 @@ void SpecialItemHandler::respond_special_item_skill_tree_style(int,
     CUser* user = static_cast<CUser*>(param.m_user);
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
     cMyTrace trace(
-        "void SpecialItemHandler::respond_special_item_skill_tree_style(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+        __PRETTY_FUNCTION__,
         499, 0);
     trace("SKILL_TREE_STYLE : BUY_SKILL_TREE_STYLE, char(%s), char_no(%d)",
           user->getCurCharacName(), user->getCurCharacNo());
@@ -423,7 +421,7 @@ void SpecialItemHandler::respond_special_item_package(
                 char* accStr = NumberToString(user->get_acc_id(), 0);
                 LogManager::logFormat(
                     1, "SpecialItemHandler.cpp",
-                    "void SpecialItemHandler::respond_special_item_package(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+                    __PRETTY_FUNCTION__,
                     0xdb, "kdd372418Log::Package Selection item error (%s,%d,%d,%d,%d)",
                     accStr, user->get_charac_no(-1), it->m_itemIdx,
                     (int)it->m_outer, (int)it->m_inner);
@@ -451,7 +449,7 @@ void SpecialItemHandler::respond_special_item_package(
                     char* accStr = NumberToString(user->get_acc_id(), 0);
                     LogManager::logFormat(
                         1, "SpecialItemHandler.cpp",
-                        "void SpecialItemHandler::respond_special_item_package(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+                        __PRETTY_FUNCTION__,
                         0xe7, "Package Selection error (%s,%d,%d,%d,%d)",
                         accStr, user->get_charac_no(-1), it->m_itemIdx,
                         (int)it->m_outer, (int)it->m_inner);
@@ -547,7 +545,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     {
         LogManager::logFormat(
             1, "SpecialItemHandler.cpp",
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x2ff, "PREMIUM_ERROR : NO PREMIUM ITEM!! : ITEM_ID (%u)",
             (unsigned int)itemIdx);
         return;
@@ -555,8 +553,8 @@ void SpecialItemHandler::respond_special_item_premium(int type,
 
     const STPremiumItemData& d = it->second;
     int ptype = d.m_value0;                     // 商品类型（jump 键）
-    int term = (char)(d.m_value4 & 0xff);       // 期限（signed char）
-    unsigned int flag2 = (unsigned int)((d.m_value4 >> 8) & 0xff);  // 次字节
+    int term = (int)d.m_c4;                     // 期限（signed char）
+    unsigned int flag2 = (unsigned int)(unsigned char)d.m_c5;  // 次字节
     int item = d.m_value8;                      // 限制物品 idx
     int resultVal = premium_helper_function::cal_premium_term(
         term, param.m_char1f != 0, param.m_extra);
@@ -636,14 +634,14 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         {
             user->SetRestrictedGoods(count);
             int serverCode = 0;
-            if (GlobalData::g_SPremiumInfo[ptype].m_useTargetServer == 1)
+            if (g_SPremiumInfo[ptype].m_useTargetServer == 1)
                 serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x198+0x1e0
             m_owner->SaveFeaturedIdx(user, count, (int)timeB, serverCode);
         }
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x3a5, 0);
         trace("ONE_DAY_LETHE : BUY_RESTRICTED_PREMIUM, char(%s), char_no(%d)",
               user->getCurCharacName(), user->getCurCharacNo());
@@ -675,7 +673,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x3cb, 0);
         trace("GROWTH_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
               user->getCurCharacName(), user->getCurCharacNo());
@@ -686,7 +684,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x3d3, 0);
         trace("EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
               user->getCurCharacName(), user->getCurCharacNo());
@@ -699,7 +697,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x3db, 0);
         trace("EMOTICON_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
               user->getCurCharacName(), user->getCurCharacNo());
@@ -712,7 +710,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
-            "void SpecialItemHandler::respond_special_item_premium(int, const STSpecailItem_Param&, STSpecailItem_Result&)",
+            __PRETTY_FUNCTION__,
             0x3e5, 0);
         trace("CUBE_CONTRACT : BUY_PREMIUM, char(%s), char_no(%d)",
               user->getCurCharacName(), user->getCurCharacNo());
@@ -733,7 +731,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
 
     bool needGain = false;
-    if (GlobalData::g_SPremiumInfo[ptype].m_needDailyCheck == 0 ||
+    if (g_SPremiumInfo[ptype].m_needDailyCheck == 0 ||
         user->CheckFatigue() == 1)
         needGain = false;
     else
@@ -760,7 +758,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
 int premium_helper_function::cal_premium_term(int term, bool flag, int extra)
 {
     if (flag)
-        term = (int)G_CDataManager()->getPremiumTermMultiplier() * term;
+        return (int)G_CDataManager()->m_boosterGage.m_cMultiboxCount * term * extra;
     return term * extra;
 }
 
@@ -788,10 +786,10 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
     {
         end = (long)term * 0x15180 + base;
     }
-    if (GlobalData::g_SPremiumInfo[type].m_timeLimit != 0 &&
-        start < GlobalData::g_SPremiumInfo[type].m_timeLimit)
+    if (g_SPremiumInfo[type].m_timeLimit != 0 &&
+        start < g_SPremiumInfo[type].m_timeLimit)
     {
-        end = (long)GlobalData::g_SPremiumInfo[type].m_timeLimit;
+        end = (long)g_SPremiumInfo[type].m_timeLimit;
     }
 }
 
@@ -800,7 +798,7 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
 // G_CEnvironment()->m_serverEnvir.m_serverGroup（CEnvironment+0x378），否则 0。
 int premium_helper_function::get_target_server(int type)
 {
-    if (GlobalData::g_SPremiumInfo[type].m_useTargetServer == 1)
+    if (g_SPremiumInfo[type].m_useTargetServer == 1)
         return G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x198+0x1e0
     return 0;
 }
@@ -853,15 +851,6 @@ void premium_helper_function::write_log(CUser* user, int type)
         packet.finalize(true);
         G_GameWorld()->send_all(packet, user);
     }
-}
-
-// ---- _isPackageItem —— ORIG 0x08326739（_Z14_isPackageItemPK5CItem，全局函数 T）----
-// 包类商品判定：GetItemType() ∈ {0xe, 0xf, 0x10}。ORIG 为全局符号，仅本 TU
-// （_processAdditionalItem）使用，落地为 file-static。
-static bool _isPackageItem(const CItem* item)
-{
-    int type = item->GetItemType();
-    return type == 0xe || type == 0xf || type == 0x10;
 }
 
 namespace WongWork
@@ -1834,7 +1823,7 @@ void CCeraShop::ProcessError(CUser* user, unsigned short a, int b, unsigned int 
     packet.finalize(true);
     user->Send(packet);
 
-    cMyTrace trace("void WongWork::CCeraShop::ProcessError(CUser*, short unsigned int, int, unsigned int, int, int, char)", 0xc2a, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0xc2a, 0);
     trace("NEXON BILLING : Buy Error(%d,%u)", (int)a, c);
 }
 
@@ -1847,7 +1836,7 @@ void CCeraShop::SaveFeaturedIdx(CUser* user, int restrictCode, int curSec, int d
         return;
     int characNo = user->get_charac_no(-1);
     unsigned int accId = user->get_acc_id();
-    DB_SaveFeaturedGoodsIdx_makeRequest(accId, characNo, restrictCode, curSec, d);
+    DB_SaveFeaturedGoodsIdx::makeRequest(accId, characNo, restrictCode, curSec, d);
 }
 
 // ============================================================================
@@ -1919,7 +1908,7 @@ void CCeraShop::autoUnsealItem(const CItem* item, Inven_Item& invItem)
                 {
                     LogManager::logFormat(
                         1, "CeraShop.cpp",
-                        "void WongWork::CCeraShop::autoUnsealItem(const CItem*, Inven_Item&)",
+                        __PRETTY_FUNCTION__,
                         0x2131, "autoUnsealItem : %d", invItem.m_addInfo);
                 }
             }
@@ -1998,7 +1987,7 @@ int CCeraShop::_processCreature(CUser* user, Inven_Item item, int& outCode,
             {
                 LogManager::logFormat(
                     1, "CeraShop.cpp",
-                    "int WongWork::CCeraShop::_processCreature(CUser*, Inven_Item, int&, int&, bool, int, int)",
+                    __PRETTY_FUNCTION__,
                     0x171f, "History ERROR, CCreatureItemConverter::SetEggItem");
                 outFlag = 1;
             }
@@ -2120,7 +2109,7 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
         serverCode = 0;
         // m_useTargetServer(+0x5c)==1 → serverCode = m_serverEnvir.m_serverGroup
         // （CEnvironment+0x378）
-        if (GlobalData::g_SPremiumInfo[e.m_type].m_useTargetServer == 1)
+        if (g_SPremiumInfo[e.m_type].m_useTargetServer == 1)
         {
             serverCode = (unsigned int)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         }
@@ -2400,18 +2389,20 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
 }  // namespace WongWork
 
 // ---- DB_SaveFeaturedGoodsIdx::makeRequest —— ORIG 0x0841b2da (T) ----
-// opcode 0x52 | -1 | accId | characNo | restrictCode | d | curSec（注意 4/5 参顺序）
-void DB_SaveFeaturedGoodsIdx_makeRequest(unsigned int accId, int characNo,
-                                         int restrictCode, int curSec, int d)
+// 报告 docs/class_func_reports/DB_SaveFeaturedGoodsIdx/makeRequest.md 全文已读：
+// <<0x52<<-1<<param_1(accId)<<param_2(characNo)<<param_3(restrictCode)
+//   <<param_5(d)<<param_4(curSec) → put(DB_Q(2))。
+void DB_SaveFeaturedGoodsIdx::makeRequest(unsigned int accId, int characNo,
+                                          int restrictCode, int curSec, int d)
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x4dfb);
     CStreamGuard guard(stream, true);
-    guard.operator*()->operator<<(0x52);
-    guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(accId);
-    guard.operator*()->operator<<(characNo);
-    guard.operator*()->operator<<(restrictCode);
-    guard.operator*()->operator<<(d);
-    guard.operator*()->operator<<(curSec);
+    guard.operator*()->operator<<((int)0x52);
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<((unsigned int)accId);
+    guard.operator*()->operator<<((int)characNo);
+    guard.operator*()->operator<<((int)restrictCode);
+    guard.operator*()->operator<<((int)d);
+    guard.operator*()->operator<<((int)curSec);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

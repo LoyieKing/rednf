@@ -53,7 +53,8 @@ void CVillageObjectMgr::on_move_area(CUser* user)
 
 int CVillageObjectMgr::register_object(Zone zone, IObject* object)
 {
-    // ORIG 0x86b6f58：无该 Zone 则新建列表插入，否则追加；返回 1。
+    // ORIG 0x86b6f58：无该 Zone 则新建列表插入，否则先 detect_collision 碰撞
+    // 检测（命中返 0），通过才 push_back；成功返 1。
     std::map<Zone, std::list<IObject*> >::iterator it = m_objects.find(zone);
     if (it == m_objects.end())
     {
@@ -63,6 +64,8 @@ int CVillageObjectMgr::register_object(Zone zone, IObject* object)
     }
     else
     {
+        if (collision_detection::detect_collision(it->second, object))
+            return 0;
         it->second.push_back(object);
     }
     return 1;

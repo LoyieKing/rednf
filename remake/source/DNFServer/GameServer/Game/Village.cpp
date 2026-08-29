@@ -88,7 +88,7 @@ bool Village::set_village(TownScript& script)
     if (m_areaCount == 0)
     {
         LogManager::logFormat(
-            1, "world.cpp", "bool Village::set_village(TownScript&)", 0x2d0,
+            1, "world.cpp", __PRETTY_FUNCTION__, 0x2d0,
             "town.townAreaScripts_.size() == 0");
         return false;
     }
@@ -159,7 +159,7 @@ bool Village::set_village(TownScript& script)
         int areaIndex = temp.m_areaIndex;
         if (areaIndex < 0 || areaIndex >= m_areaCount)
         {
-            cMyTrace trace("bool Village::set_village(TownScript&)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x32e, 5);
             trace("temp_area.areaIndex_ %d", areaIndex);
         }
@@ -239,7 +239,7 @@ Area* Village::getArea(int area)
 {
     if (area < 0 || area >= m_areaCount)
     {
-        cMyTrace trace("Area* Village::getArea(int)", 0x356, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x356, 5);
         trace("area(%d) < 0 || area >= m_iAreaCount(%d)",
               area, m_areaCount);
         return 0;
@@ -271,7 +271,7 @@ void Village::send_to_area(int area, PacketGuard& pkt)
     if (area < 0 || area >= m_areaCount)
     {
         LogManager::logFormat(
-            1, "world.cpp", "void Village::send_to_area(int, PacketGuard&)",
+            1, "world.cpp", __PRETTY_FUNCTION__,
             0x360, "area(%d) < 0 || area >= m_iAreaCount(%d)", area,
             m_areaCount);
     }

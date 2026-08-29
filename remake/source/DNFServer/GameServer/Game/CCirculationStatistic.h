@@ -16,6 +16,8 @@ public:
         void reset();
     };
     bool AddCirculationStatistic(CIRCULATION_STATISTIC_FIELD field, CUser* user, unsigned int value);
+    // ORIG T 0x0860dccc（DB_InsertCirculationStatistic 生产；Timer_TenMinuteSchedule p3==1 分支）
+    void InsertCirculationStatistic();
 private:
     std::map<ENUM_SERVER_GROUP, stCirculationStatistic> m_data;
 };

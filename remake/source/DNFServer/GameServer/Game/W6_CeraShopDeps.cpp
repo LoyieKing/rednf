@@ -28,6 +28,7 @@
 #include "SigTypes.h"
 #include "SpecialItemHandler.h"
 #include "CStreamGuard.h"
+#include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
 #include "Stream.h"
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
@@ -58,18 +59,8 @@
 #include <vector>
 #include <algorithm>
 
-// ---------------------------------------------------------------------------
-// 仅调用视图（与 LinkClosureB_Misc.cpp / WongWorkEvents_A.cpp 既定先例同型；
-// 真实实现由其它 TU 提供，本 TU 不定义任何函数体）。
-// ---------------------------------------------------------------------------
-namespace break_away_prevent
-{
-class CBreakAwayPreventSystem
-{
-public:
-    void updateUsedCera(unsigned int accId, unsigned int cera);   // ORIG T 0x0831ce5e
-};
-}  // namespace break_away_prevent
+#include "BreakAwayPreventSystem.h"   // break_away_prevent::CBreakAwayPreventSystem 权威声明
+
 
 // ORIG T @0x0831ce5e [updateUsedCera.md]：仅转发 DB_UpdateBreakAwayAccruedCera::
 // makeRequest；不访问任何成员字段，调用视图本地布局即 ABI 安全。
@@ -83,13 +74,6 @@ void break_away_prevent::CBreakAwayPreventSystem::updateUsedCera(unsigned int ac
 // 与生命周期实现）见 DB_UpdateGiftCount.h（本批次新建 TU，已登记 CMake note）。
 
 // WongWork::CWebEvent 权威声明现位于 GlobalData.h（ReqSaveEventItem ORIG T 0x086c1910）。
-
-// 全局类；getBonusRate T 符号由现有 CMake TU 提供（此处仅调用视图）。
-class CCeraShopBonusItemEvent : public CEventBase
-{
-public:
-    int getBonusRate();                                          // ORIG 0x0830a8e4
-};
 
 namespace WongWork
 {
@@ -125,7 +109,7 @@ void FormatGiftMessage(char (&buf)[256], CUser* user)
 
 inline cUserHistoryLog* GiftHistoryLog(CUser* user)
 {
-    return reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(user) + 0x79700);
+    return &user->m_historyLog;
 }
 }  // namespace
 
@@ -402,7 +386,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
     char* idStr = NumberToString(user->get_acc_id(), 0);
 
     cMyTrace trace(
-        "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+        __PRETTY_FUNCTION__,
         0x92, 0);
     trace("NEXON BILLING : ProcessBuyRequest(m_id(%s),count(%d))", idStr,
           static_cast<int>(itemCount));
@@ -449,10 +433,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             goodsList[i] = 0;
 
             cMyTrace t(
-                "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                __PRETTY_FUNCTION__,
                 0xc3, 0);
             t("[%s][%d]",
-              "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+              __PRETTY_FUNCTION__,
               0xc3);
             continue;
         }
@@ -469,10 +453,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                              static_cast<unsigned int>(itemCount),
                              static_cast<char>(bGiftZone));
                 goodsList[i] = 0;
-                cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                cMyTrace t(__PRETTY_FUNCTION__,
                            0xde, 0);
                 t("[%s][%d]",
-                  "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                  __PRETTY_FUNCTION__,
                   0xde);
                 continue;
             }
@@ -483,10 +467,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                              static_cast<unsigned int>(itemCount),
                              static_cast<char>(bGiftZone));
                 goodsList[i] = 0;
-                cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                cMyTrace t(__PRETTY_FUNCTION__,
                            0xe8, 0);
                 t("[%s][%d]",
-                  "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                  __PRETTY_FUNCTION__,
                   0xe8);
                 continue;
             }
@@ -508,10 +492,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                              static_cast<unsigned int>(itemCount),
                              static_cast<char>(bGiftZone));
                 goodsList[i] = 0;
-                cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                cMyTrace t(__PRETTY_FUNCTION__,
                            0x116, 0);
                 t("[%s][%d]",
-                  "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                  __PRETTY_FUNCTION__,
                   0x116);
                 continue;
             }
@@ -580,10 +564,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                              static_cast<unsigned int>(itemCount),
                              static_cast<char>(bGiftZone));
                 goodsList[i] = 0;
-                cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                cMyTrace t(__PRETTY_FUNCTION__,
                            0x16c, 0);
                 t("[%s][%d]",
-                  "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                  __PRETTY_FUNCTION__,
                   0x16c);
                 continue;
             }
@@ -609,10 +593,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                          static_cast<unsigned int>(itemCount),
                          static_cast<char>(bGiftZone));
             goodsList[i] = 0;
-            cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+            cMyTrace t(__PRETTY_FUNCTION__,
                        0x185, 0);
             t("[%s][%d]",
-              "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+              __PRETTY_FUNCTION__,
               0x185);
         }
     }   // 条目循环（校验段）
@@ -675,7 +659,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                                  static_cast<unsigned int>(itemCount),
                                  static_cast<char>(bGiftZone));
                     goodsList[i] = 0;
-                    cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                    cMyTrace t(__PRETTY_FUNCTION__,
                                0x253, 0);
                     t("[%s][%d]",
                       "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
@@ -698,7 +682,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                                  static_cast<unsigned int>(itemCount),
                                  static_cast<char>(bGiftZone));
                     goodsList[i] = 0;
-                    cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                    cMyTrace t(__PRETTY_FUNCTION__,
                                0x25e, 0);
                     t("[%s][%d]",
                       "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
@@ -713,10 +697,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                              static_cast<unsigned int>(itemCount),
                              static_cast<char>(bGiftZone));
                 goodsList[i] = 0;
-                cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                cMyTrace t(__PRETTY_FUNCTION__,
                            0x247, 0);
                 t("[%s][%d]",
-                  "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                  __PRETTY_FUNCTION__,
                   0x247);
                 continue;
             }
@@ -781,19 +765,19 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             const char* charName = user->getCurCharacName();
             LogManager::logFormat(
                 1, "CeraShop.cpp",
-                "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                __PRETTY_FUNCTION__,
                 0x2d6,
                 "IPG ERROR [Dispatcher_BuyCeraShopItem::dispatch_sig] UserID[%s] ACera[%d] AGold[%d] AWP[%d]",
                 charName, static_cast<int>(ceraPrice),
                 static_cast<int>(goldPrice), static_cast<int>(wpPrice));
             LogManager::logFormat(
                 1, "CeraShop.cpp",
-                "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                __PRETTY_FUNCTION__,
                 0x2d7, " / UCera[%d] UGold[%d] UWP[%d]\n",
                 user->GetCera(), user->getCurCharacMoney(), user->GetWinPoint());
             LogManager::logFormat(
                 1, "CeraShop.cpp",
-                "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+                __PRETTY_FUNCTION__,
                 0x2d9, "Error Goods No : %d", productNo);
 
             ProcessError(user, static_cast<unsigned short>(errorReason),
@@ -802,10 +786,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                          static_cast<unsigned int>(itemCount),
                          static_cast<char>(bGiftZone));
             goodsList[i] = 0;
-            cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+            cMyTrace t(__PRETTY_FUNCTION__,
                        0x2e1, 0);
             t("[%s][%d]",
-              "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+              __PRETTY_FUNCTION__,
               0x2e1);
             continue;
         }
@@ -818,10 +802,10 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                          static_cast<unsigned int>(itemCount),
                          static_cast<char>(bGiftZone));
             goodsList[i] = 0;
-            cMyTrace t("bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+            cMyTrace t(__PRETTY_FUNCTION__,
                        0x2ed, 0);
             t("[%s][%d]",
-              "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
+              __PRETTY_FUNCTION__,
               0x2ed);
             continue;
         }
@@ -1308,9 +1292,8 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                 break;
                             }
                             Inven_Item bufItem;
-                            GetInvenSlot(&bufItem,
-                                         const_cast<CInventory*>(user->getCurCharacInvenR()),
-                                         2, targetSlot);
+                            bufItem = user->getCurCharacInvenR()->GetInvenSlot(
+                                2, targetSlot);
                             CInventory* invW = user->getCurCharacInvenW();
                             const int newSlot = invW->AddAvatarItem(
                                 bufItem.m_addInfo, targetPeriod, false,
@@ -1379,7 +1362,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                  groupIdx, productNo, seq, itemCountField,
                                  static_cast<char>(buyFlag));
                 cMyTrace t(
-                    "void WongWork::CCeraShop::ProcessIPGUserData(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)",
+                    __PRETTY_FUNCTION__,
                     0x955, 0);
                 t("[%s][%d]",
                   "void WongWork::CCeraShop::ProcessIPGUserData(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)",

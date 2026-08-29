@@ -53,15 +53,9 @@ DisjointSkillScript::DisjointSkillScript()
 
 DisjointScript::DisjointScript()
 {
-    // ORIG 0x08375d4c：5×vector<int>@+0、4×LotteryInfo@+0x3c、
-    // vector<DisjointSkillScript>@+0xc0、6×_381@+0x5c8 默认构造后调 clear()。
-    m_skillSelect = -1;
-    m_fieldCC = 0;
-    m_creationConst = 0;
-    for (int i = 0; i < 6; ++i)
-    {
-        m_additional[i].m_count = 0;
-    }
+    // ORIG 0x08375d4c：成员容器自动构造（含 6×匿名 _381@+0x5c8 循环调其 C1），
+    // 函数体仅调 clear()；m_skillSelect/m_fieldCC/m_creationConst 的初值由
+    // clear()（0x08375bca）写入，ctor 不再重复赋值（ORIG 实证无这些 store）。
     clear();
 }
 

@@ -33,9 +33,10 @@
 #include "CItemGeneratorMgr.h"
 #include "CDataManager.h"
 #include "CMonster.h"                    // IsHellMonster/generateIndependentItem/getMonsterScript
+#include "ItemFarmingData.h"             // ItemFarmingData（ORIG W C1/C1ERKS/D1；农田权重条目）
 #include "Inven_Item.h"
-#include "STMonsterScript.h"             // m_independentDrops(+0x3ac)/m_catchItems(+0x70)
-#include "MonsterIndependentDrop.h"      // CAICharacter 权威镜像（generateIndependentItem）
+#include "STMonsterScript.h"            // m_independentDrops(+0x3ac)/m_catchItems(+0x70)
+#include "MonsterIndependentDrop.h"     // CAICharacter 权威镜像（generateIndependentItem）
 
 // drops 域公共依赖 ::roundFloat（ORIG W 0x0853abe5；定义 CClearReward.cpp，
 // 全局命名空间符号 _Z10roundFloatf —— 放 WongWork ns 外保证调用 mangled 正确）。
@@ -205,7 +206,7 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
         reinterpret_cast<char const*>(&ref) + 0x38);
     CAICharacterList* list =
         G_CDataManager()->m_aiCharacterList;          // +0x869c（头注释实证）
-    CAICharacter* ai = CAICharacterList::get(list, aiIdx);   // ORIG get(idx)：map find
+    CAICharacter* ai = list->get(aiIdx);   // ORIG get(idx)：map find
     if (ai != 0)
     {
         extraCount =
@@ -352,21 +353,14 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
 // ---------------------------------------------------------------------------
 // GenerateRandomUpgrade — 升级随机源（m_rand = new CMTRand(0x9c8)）。
 // 比率/农田表位于 CDataManager 未建模字段（ORIG lea 0x528(%eax)/lea 0x540(%eax)
-// 直接证据；本批禁改 CDataManager.h，故以镜像类型 + 基址偏移访问【裸偏移保留】）：
+// 直接证据；本批禁改 CDataManager.h，故以裸基址偏移访问【裸偏移保留】）：
 //   +0x528 map<int, ItemFarmingData>{ vector<pair<int,int>> @0 ; int active @0xc }
 //     （布局依 copy ctor 0853ac12：vector op= 后拷 +0xc int，sizeof 0x10）
 //   +0x540 vector<pair<int,float>>（level → 比率系数）
 // ---------------------------------------------------------------------------
 namespace {
 
-struct FarmingEntry                   // 本地镜像 == ORIG ItemFarmingData（非
-{                                     // include ServerParameterScript.h 的
-                                      // 单 int 错误布局，避免 ODR）
-    std::vector<std::pair<int, int> > ups;    // +0x00
-    int active;                               // +0x0c
-};                                            // sizeof 0x10
-
-typedef std::map<int, FarmingEntry> FarmingMap;   // 元素步长与 ORIG map 一致
+typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map 一致
 
 std::vector<std::pair<int, float> >* equipGradeRates()
 {
@@ -441,7 +435,7 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
     FarmingMap::const_iterator it = farming->find(static_cast<int>(rarity));
     if (it == farming->end())
         return 0;
-    if (it->second.active == 0)              // pair.second + ItemFarmingData+0xc
+    if (it->second.m_active == 0)              // pair.second + ItemFarmingData+0xc
         return 0;
 
     std::vector<std::pair<int, float> > const* rates = equipGradeRates();
@@ -449,20 +443,20 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
     if (!rates->empty())
         factor = lookupGradeRatio(rates, levelDelta);
 
-    FarmingEntry entry = it->second;         // ORIG ItemFarmingData copy ctor
+    ItemFarmingData entry = it->second;         // ORIG ItemFarmingData copy ctor
 
-    int weightOld = entry.ups[0].second;
-    entry.ups[0].second = static_cast<int>(static_cast<float>(weightOld) * factor);
-    entry.active = entry.active - weightOld + entry.ups[0].second;
+    int weightOld = entry.m_vecWeight[0].second;
+    entry.m_vecWeight[0].second = static_cast<int>(static_cast<float>(weightOld) * factor);
+    entry.m_active = entry.m_active - weightOld + entry.m_vecWeight[0].second;
 
-    int roll = m_rand->randInt(static_cast<const unsigned long&>(entry.active));
+    int roll = m_rand->randInt(static_cast<const unsigned long&>(entry.m_active));
 
     int acc = 0;
-    for (size_t i = 0; i < entry.ups.size(); ++i)
+    for (size_t i = 0; i < entry.m_vecWeight.size(); ++i)
     {
-        acc += entry.ups[i].second;
+        acc += entry.m_vecWeight[i].second;
         if (roll <= acc)
-            return entry.ups[i].first;
+            return entry.m_vecWeight[i].first;
     }
     return 0;                                // ORIG 未命中返回 0
 }

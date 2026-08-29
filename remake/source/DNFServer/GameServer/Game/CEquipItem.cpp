@@ -20,6 +20,7 @@
 int get_rand_int(int range);
 
 #include "CEnvironment.h"  // m_serverEnvir.m_gcNo（+0x198）
+#include "GlobalData.h"    // s_systemTime_（+0x941f714；make_item getCurSec 调用）
 extern CEnvironment* G_CEnvironment();
 
 class CDataManager
@@ -43,18 +44,7 @@ int getLevelLinearAbility(int a, int b, int c, int d, int level)
     return out;
 }
 
-struct itemGloballyUniqueIdentifier_t
-{
-    void reset();
-    char m_pad[0x11];
-};
-
-class CItemGloballyUniqueIdentifierGenerator
-{
-public:
-    void generate(itemGloballyUniqueIdentifier_t* id, int field);
-};
-
+#include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t 权威定义
 #include "../../ServerCommon/DNFFunctionLib.h"
 
 namespace user_creature
@@ -109,13 +99,14 @@ bool CEquipItem::IsAvatarOptionValid(char idx) const
 
 bool CEquipItem::checkItemUpgradePossible() const
 {
-    if (!IsImpossibleUpgrade())
+    if (IsImpossibleUpgrade())
     {
-        if ((unsigned int)m_itemType < 0x16 &&
-            ((1 << m_itemType) & 0x3ff400U) != 0)
-        {
-            return 1;
-        }
+        return 0;
+    }
+    if ((unsigned int)m_itemType < 0x16 &&
+        ((1 << m_itemType) & 0x3ff400U) != 0)
+    {
+        return 1;
     }
     return 0;
 }
@@ -291,7 +282,7 @@ void CEquipItem::make_item(Inven_Item& item) const
         int t = 0;
         if (getUsablePeriod() != 0)
         {
-            t = ((CSystemTime*)0x941f714)->getCurSec() +
+            t = GlobalData::s_systemTime_.getCurSec() +
                 getUsablePeriod() * 0x15180;
         }
         else if (getExpirationDate() != 0)
@@ -308,14 +299,13 @@ void CEquipItem::make_item(Inven_Item& item) const
     // Inven_Item 的 m_amp(+0x11).m_pad4 起始（即 &item + 0x15），跨 ampen/pad 与
     // m_random 的交叠打包区。保留地址形式（打包交叠区非独立具名成员），锚定到
     // 具名子成员 m_amp.m_pad4 使偏移可审计。
-    itemGloballyUniqueIdentifier_t* guid =
-        (itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0];
-    guid->reset();
+    ((itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0])->reset();
     if ((unsigned int)m_itemType < 0x1a &&
         ((1 << m_itemType) & 0x3bffc00U) != 0)
     {
-        ((CItemGloballyUniqueIdentifierGenerator*)0x9494d68)
-            ->generate(guid, G_CEnvironment()->m_serverEnvir.m_gcNo);
+        g_ItemGloballyUniqueIdentifierGenerator.generate(
+            (itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0],
+            G_CEnvironment()->m_serverEnvir.m_gcNo);
     }
     item.m_amp.reset();
 }
@@ -324,8 +314,6 @@ void CEquipItem::make_item(Inven_Item& item) const
 
 void CEquipItem::set_item(STEquipmentScript& script)
 {
-    char buf[500];
-
     m_index = script.m_field0;
     m_grade = script.m_field4;
     m_field0c = script.m_field14;
@@ -341,21 +329,14 @@ void CEquipItem::set_item(STEquipmentScript& script)
         G_CDataManager()->set_AuctionRegFreeCeraItem(m_index);
     }
     m_boolF8 = script.m_field31;
-    __asm__ __volatile__(
-        "movl $0, %%eax\n\t"
-        "movl $0x7d, %%edx\n\t"
-        "movl %0, %%edi\n\t"
-        "movl %%edx, %%ecx\n\t"
-        "rep stosl\n\t"
-        : : "b"(buf) : "eax", "edx", "ecx", "edi", "memory");
+    char buf[500] = {0};
     strcpy(buf, script.m_strac.c_str());
     if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
     {
-        cMyTrace trace("void CEquipItem::set_item(STEquipmentScript&)", 0x553,
-                       5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x553, 5);
         trace("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
               CodePage::database(), script.m_strac.c_str(),
-              "void CEquipItem::set_item(STEquipmentScript&)", 0x553);
+              __PRETTY_FUNCTION__, 0x553);
     }
     m_str2c = buf;
     m_attachType = script.m_field8;
@@ -715,6 +696,12 @@ int CEquipItem::GetUsableMaxLevel() const  // ORIG 084e9700
     return m_field1c0;
 }
 
+// ORIG _ZNK10CEquipItem20getEnchantSystemDataEv W 0x0854b544：返回 +0x1b0（m_enchantVec）
+const std::vector<STEnchantSystemData>& CEquipItem::getEnchantSystemData() const
+{
+    return m_enchantVec;
+}
+
 // ORIG 0x833eecc：返回 this+0x160（脚本写入的 sub type 选择值，见 set_item 报告）
 int CEquipItem::get_sub_type() const
 {
@@ -733,11 +720,18 @@ int CEquipItem::get_creature_minimum_level() const
     return m_randomTable.m_field20;
 }
 
-// ORIG _ZNK10CEquipItem20get_creature_speciesEv W 0x833eebe：mov 0x15c(%eax)，
-// 即 m_randomTable.m_field14（宠物种族/进化目标 id；CCreature::GetCreatureId 依赖）。
+// ORIG W 0x0833eebe：返回 this+0x15c 的 creature species。
 int CEquipItem::get_creature_species() const
 {
     return m_randomTable.m_field14;
+}
+
+// ORIG CEquipItem::get_hatch_item_id()：CEgg::Hatch（0x833912a）调用处内联展开为
+// mov 0x164(%eax),%eax —— 即 m_randomTable.m_field1c（蛋孵化物品 id，set_item case 1
+// 由脚本 m_764 写入）。ORIG 无独立符号（头内联），本定义提供真实强符号供调用方链接。
+int CEquipItem::get_hatch_item_id() const
+{
+    return m_randomTable.m_field1c;
 }
 
 // ===================== RandomItemTable::Set（G6 物品表；ORIG T 0x89bba40）=====================

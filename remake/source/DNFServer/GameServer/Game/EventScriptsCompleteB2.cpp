@@ -135,6 +135,21 @@ void ObjectBringUpScript::ObjectBringUpRule::reset()
     m_rewardEndCount      = -1;
     m_rewardMutipleNumber = -1;
 }
+// PurchaseBonusRule：ORIG W 0x08985ce6（调 reset）/ T 0x08985cfa（三 int = -1）。
+PurchaseCashItemBonusScript::PurchaseBonusRule::PurchaseBonusRule() { reset(); }
+void PurchaseCashItemBonusScript::PurchaseBonusRule::reset()
+{
+    m_purchaseStartCount    = -1;
+    m_purchaseEndCount      = -1;
+    m_purchaseMutipleNumber = -1;
+}
+
+// ORIG W 0x08985d1c：基类 → string+0x8 → set+0xc → vector<pair<Rule,mail>>+0x24
+// → string+0x8 clear（无 mail.reset，忠实保留）。
+PurchaseCashItemBonusScript::PurchaseCashItemBonusScript()
+{
+    m_dbTableName.clear();
+}
 
 // ============================================================================
 // B. LevelupSupportSciprt / LevelupSupport2ndScript C1/D1（报告转写）
@@ -807,4 +822,113 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
         }
     }
     return result;
+}
+// ---- importPurchaseCashItemBonusEventScript T 0x089834a6（2404B）----
+// [objdump·报告缺失]。主循环 8 标签：[/event]=返回真、[title]/[explain]/
+// [db table] 三 ScanStr、[item idx] 循环 ScanInt(&ok) 成功才 insert 进 set+0xc、
+// [item idx start]=局部 start 直存（ScanInt(NULL)）、[item idx end] 读 count 后
+// 将 [start,count] 区间逐值 insert（start==0 或 count==0 或解析失败均跳过）、
+// [send] 节。[send] 节内标签用直接 strcmp（不入 static map）：三个
+// [purchase * count] 数值节 ScanInt(&ok) 失败继续节内、成功即退出节回主循环；
+// [send mail] 失败（且节内未曾成功）退出节回主循环、成功则三字段均非 -1 时
+// push_back 进 +0x24 并 rule.reset() 后继续节内（ORIG ebx 标志跨迭代保持）；
+// 未知 token 忽略继续；节内 ScanType 失败回主循环。ok 共享变量即最终返回值
+//（token 耗尽返回 ok 当前值）。
+bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
+                                            char const* path)
+{
+    if (!loadRDARScriptFile("Event/", path))
+        return false;
+    bool ok = false;
+    int  start = 0;
+    std::string token;
+    while (ScanType(token, true))
+    {
+        if (token == "[/event]")
+            return true;
+        else if (token == "[title]")
+            ScanStr(&script->m_field00);
+        else if (token == "[explain]")
+            ScanStr(&script->m_field04);
+        else if (token == "[db table]")
+            ScanStr(&script->m_dbTableName);
+        else if (token == "[item idx]")
+        {
+            for (;;)
+            {
+                const int v = ScanInt(&ok);
+                if (!ok)
+                    break;
+                script->m_set0c.insert(static_cast<unsigned int>(v));
+            }
+        }
+        else if (token == "[item idx start]")
+        {
+            start = ScanInt((bool*)0);
+        }
+        else if (token == "[item idx end]")
+        {
+            const int count = ScanInt(&ok);
+            if (!ok)
+                continue;                 // 回主循环
+            if (start == 0 || count == 0)
+                continue;                 // ORIG 两处跳过路径均回主循环
+            while (start <= count)
+            {
+                script->m_set0c.insert(static_cast<unsigned int>(start));
+                ++start;
+            }
+        }
+        else if (token == "[send]")
+        {
+            PurchaseCashItemBonusScript::PurchaseBonusRule rule;
+            bool sendOk = false;          // ORIG ebx 标志：节内曾成功处理 [send mail]
+            for (;;)
+            {
+                if (!ScanType(token, true))
+                    break;                // 节内 EOF：回主循环
+                if (token == "[purchase start count]")
+                {
+                    rule.m_purchaseStartCount = ScanInt(&ok);
+                    if (ok)
+                        break;            // 成功退出节回主循环
+                }
+                else if (token == "[purchase end count]")
+                {
+                    rule.m_purchaseEndCount = ScanInt(&ok);
+                    if (ok)
+                        break;
+                }
+                else if (token == "[purchase mutiple number]")
+                {
+                    rule.m_purchaseMutipleNumber = ScanInt(&ok);
+                    if (ok)
+                        break;
+                }
+                else if (token == "[send mail]")
+                {
+                    Action_SendMail mail;
+                    mail.reset();
+                    ok = importActionMailScript(&mail);
+                    if (ok)
+                    {
+                        if (rule.m_purchaseStartCount != -1 &&
+                            rule.m_purchaseEndCount != -1 &&
+                            rule.m_purchaseMutipleNumber != -1)
+                        {
+                            script->m_ruleMails24.push_back(
+                                std::pair<PurchaseCashItemBonusScript::PurchaseBonusRule,
+                                          Action_SendMail>(rule, mail));
+                        }
+                        rule.reset();     // 无论是否入表均复位
+                        sendOk = true;    // 置标志：此后失败仍留在节内（ORIG ebx）
+                    }
+                    else if (!sendOk)
+                        break;            // 首败且未成功过：退出节回主循环
+                }
+                // 其余未知 token：忽略继续节内（ORIG 同）
+            }
+        }
+    }
+    return ok;
 }

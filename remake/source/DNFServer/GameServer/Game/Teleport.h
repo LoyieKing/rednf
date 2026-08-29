@@ -49,7 +49,7 @@ public:
     virtual int check_rule(STCheckRuleData const& data);               // 0x08283d82（vtable 槽2）
     virtual void set_teleport_data(STTeleportData const& data) = 0;    // vtable 槽3（纯虚）
 
-    int check_rule(CUser* user);                                       // 0x08283c5a（重载，非虚）
+    static int check_rule(CUser* user);                                // 0x08283c5a（重载；ORIG 静态，体不读 this）
     void set_party_teleport(stPartyTelePort const& tp);                // 0x08283d98
     stPartyTelePort& get_party_teleport();                             // 0x08283db6（this+4）
     void set_end_cool_time(CUser* user);                               // 0x08283dc2

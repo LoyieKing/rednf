@@ -18,6 +18,23 @@
 #include <cstddef>
 #include <map>
 #include <set>
+
+// ---- StatChangeInfo（全局域；ORIG mangled _ZN14StatChangeInfoC1Ev）----
+// CStackableItem::GetStatChangeInfo（ORIG 0x08694716 W）按值返回；
+// ORIG ctor 0x085141a8：movl 0→+0 / movb 0→+4 / movb 0→+5。
+struct StatChangeInfo
+{
+    StatChangeInfo()
+    {
+        sec = 0;
+        m_flagLo = 0;
+        m_flagHi = 0;
+    }
+
+    int sec;                  // +0x00
+    char m_flagLo;            // +0x04（低字节）
+    char m_flagHi;            // +0x05（次字节）
+};
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,15 +67,31 @@ enum Type
     TYPE_LOTTERY_COUNT = 0x36,
     TYPE_ADD_FATIGUE = 0x37
 };
+// ORIG getStackableActionUsablePlace（0x089aed67）字符串→UsablePlace 映射：
+//   "[village]"→1 "[dungeon]"→2 "[pvp]"→3 "[seria room]"→4 "[dont use assult]"→5，默认 1
 enum UsablePlace
 {
-    USABLE_PLACE_0 = 0
+    USABLE_PLACE_VILLAGE = 1,
+    USABLE_PLACE_DUNGEON = 2,
+    USABLE_PLACE_PVP = 3,
+    USABLE_PLACE_SERIA_ROOM = 4,
+    USABLE_PLACE_DONT_USE_ASSULT = 5
 };
+// ORIG getStackableActionUsableServerType（0x089aee0a）字符串→UsableServerType 映射：
+//   "[general server]"→1 "[event server]"→2 "[starter server]"→3，默认 1
 enum UsableServerType
 {
-    USABLE_SERVER_TYPE_0 = 0
+    USABLE_SERVER_TYPE_GENERAL = 1,
+    USABLE_SERVER_TYPE_EVENT = 2,
+    USABLE_SERVER_TYPE_STARTER = 3
 };
 }
+
+// 全局命名空间自由函数（ORIG T：0x089aeb9b / 0x089aed67 / 0x089aee0a，
+// 字符串→枚举映射，调用方 ImportStackableScript 0x89aeec8）。
+int getStackableActionType(std::string& type);
+int getStackableActionUsablePlace(std::string& place);
+int getStackableActionUsableServerType(std::string& type);
 
 class STStackableScript;
 
@@ -93,6 +126,8 @@ static_assert(offsetof(stStackableBoosterItemInfo_t, m_addInfo) == 0x08,
 
 struct stStackableBoosterElement_t
 {
+    // ORIG C1/C2 0x089aee9c（t 局部）：仅构造 m_items（vector 成员）。
+    stStackableBoosterElement_t() : m_items() {}
     int m_field0;    // +0x00
     int m_count;     // +0x04
     int m_prob;      // +0x08
@@ -105,16 +140,33 @@ struct stStackableBooster_t
     std::map<std::pair<char, char>,
              std::vector<stStackableBoosterItemInfo_t> > m_map;       // +0x0c（ORIG clear 写 +0x28c 处）
     stStackableBooster_t& operator=(const stStackableBooster_t& other);
+    void clear();   // ORIG W 0x089c3076：vector::clear(@0) + map::clear(@0xc)；实现 STStackableScript.cpp
+    // ORIG T 0x089c2832 / 0x089c295a（非 static 成员；调用方 ImportStackableScript
+    // 压 &script->m_booster280 作 this）：脚本 "[xxx]"/"[/xxx]" 标签 → Booster 类型
+    // 枚举（0..8），未知标签返回 9（ORIG 默认 `mov $0x9,%eax`）。
+    int tag2Type(const char* tag);
+    int tag2EndType(const char* tag);
 };
 static_assert(sizeof(stStackableBoosterElement_t) == 0x18,
               "stStackableBoosterElement_t ABI drift (ORIG construct size 0x18)");
+
 
 struct stLimitCubeResult
 {
     int m_itemIdx;   // +0x00
     int m_count;     // +0x04
     int m_prob;      // +0x08
+    // ORIG C1 0x089c3362 / D1 0x089d4262（W 弱符号，共 C1/C2/D1/D2 4 个）：
+    //   C1 三次独立重读 this 逐句清零三 int（函数体赋值，非初始化列表，P29 反面形态）；
+    //   D1 空体。用户 ctor+空析构 → vector 元素非 trivial（P71 gcc4.1 场景，
+    //   gcc4.4 下 _Destroy_aux 实例差异属跨编译器结构性豁免）。
+    stLimitCubeResult() { m_itemIdx = 0; m_count = 0; m_prob = 0; }
+    ~stLimitCubeResult() {}
 };
+// ORIG 4 个用户定义符号：_ZN17stLimitCubeResultC1/C2/D1/D2Ev（0x089c3362/0x089d4262 W）；
+// vector 元素步进实证 sizeof==0xc（allocate: n*3 shl 2），三 int 无 pad。
+static_assert(sizeof(stLimitCubeResult) == 0x0c,
+              "stLimitCubeResult ABI drift (ORIG 4 syms, 3 int, sizeof 0xc)");
 
 struct stLimitCubeInfo
 {
@@ -136,62 +188,7 @@ struct stGlobalEffect_t
 };
 
 #include "LotteryInfo.h"   // LotteryInfo 唯一权威定义（原本地副本删除；布局一致）
-
-namespace MultiBoxLotteryInfo
-{
-struct stDefaultItem
-{
-    stDefaultItem();   // ORIG W 0x89c35d4：清零 4 字段
-    int m_itemIdx;   // +0x00
-    int m_count;     // +0x04
-    int m_prob;      // +0x08
-    char m_flag;     // +0x0c
-};
-
-struct LotteryUnit
-{
-    LotteryUnit();
-    LotteryUnit(const LotteryUnit& other);
-    ~LotteryUnit();
-    void clear();   // ORIG W 0x89c358c：清零 count/idx/num/flag，清空 m_items/m_bonus
-
-    int m_count;                       // +0x00
-    int m_defaultIdx;                  // +0x04
-    int m_defaultNum;                  // +0x08
-    char m_defaultFlag;                // +0x0c
-    char m_pad0d[3];                   // +0x0d
-    std::vector<std::pair<int, int> > m_items;   // +0x10
-    std::vector<std::pair<int, int> > m_bonus;   // +0x1c
-};
-
-struct LotteryDefaultArad
-{
-    LotteryDefaultArad();
-    LotteryDefaultArad(unsigned int a, unsigned int b, unsigned int c);
-    ~LotteryDefaultArad();
-
-    unsigned int m_field0;   // +0x00
-    unsigned int m_field4;   // +0x04
-    unsigned int m_field8;   // +0x08
-};
-
-struct MultiBoxLotteryInfoBody
-{
-    void clear();   // ORIG MultiBoxLotteryInfo::clear 0x8513f44：清 m_units，置 field0/4/8/c=-1/0/-1/0
-
-    int m_field0;                    // +0x00
-    int m_field4;                    // +0x04
-    int m_field8;                    // +0x08
-    int m_fieldc;                    // +0x0c
-    std::vector<LotteryUnit> m_units;  // +0x10
-    int m_defaultCount;                // +0x1c
-    int m_defaultIdx;                  // +0x20
-    int m_defaultNum;                  // +0x24
-    char m_defaultFlag;                // +0x28
-    char m_pad29[3];                   // +0x29
-    std::vector<stDefaultItem> m_items;  // +0x2c
-};
-}
+#include "MultiBoxLotteryInfo.h"   // MultiBoxLotteryInfo 唯一权威定义（namespace 旧建模删除，§4.4 合并）
 
 struct RecipeInfo
 {
@@ -219,7 +216,8 @@ struct RecipeInfo
 
 struct BoosterSelectInfo
 {
-    BoosterSelectInfo& operator=(const BoosterSelectInfo& other);
+    BoosterSelectInfo();                          // ORIG C1Ev W 0x08513b82
+    BoosterSelectInfo& operator=(const BoosterSelectInfo& other);   // ORIG aSERKS_ W 0x08515128
     int m_field0;                       // +0x00
     int m_field4;                       // +0x04
     int m_field8;                       // +0x08
@@ -251,6 +249,10 @@ public:
     bool IsAvatarOptionChangeItem() const;
     // ORIG 0x0822ca48 (W)：movzbl 0x321(%eax),%eax —— 返回 +0x321 字节非零（m_char321）
     bool IsDeletableItem() const;
+    // ORIG _ZN14CStackableItem18IsSharedEffectItemEv W 0x0822ca18：movzbl 0x2ec(%eax),%eax —— 返回 m_char2ec 字节（共享特效物品标记）
+    char IsSharedEffectItem();
+    // ORIG _ZN14CStackableItem13GetEmancipateEv W 0x0854b4e8：movzwl 0x2ee(%eax),%eax —— 返回 m_short2ee（解绑值）
+    unsigned short GetEmancipate();
     int check_able_To_use(int job, int level);
     bool check_change_job_type(char changeJob, char checkJob) const;
     bool IsExpAffect();
@@ -261,8 +263,10 @@ public:
     // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6) —— effect 时长(秒)/标志
     CoolTimeOption GetEffectItemOption();
     // ORIG 0x08694716 (W 非 const)：读 +0x2dc(+0x2e0) —— stat change 时长(秒)/状态
-    struct StatChangeInfo { unsigned int sec; unsigned int flag; };
-    StatChangeInfo GetStatChangeInfo();
+    // ORIG ctor 0x085141a8（mangled _ZN14StatChangeInfoC1Ev → 全局类型）：
+    // movl 0→+0 / movb 0→+4 / movb 0→+5（flag 仅低 2 字节）。定义见 CStackableItem.h 头部。
+    typedef ::StatChangeInfo StatChangeInfo;   // P105：保留既有限定名，mangling 归全局域
+    ::StatChangeInfo GetStatChangeInfo();
     // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
     float GetExpAffectRatio();
     void getBoosterItem(std::vector<stStackableBoosterItemInfo_t>& out) const;
@@ -295,9 +299,13 @@ public:
     void get_lotto_item(char* out);
     void get_multibox_default_item(std::vector<std::pair<Inven_Item, bool> >* out);
     void get_multibox_default_item_arad(std::vector<std::pair<Inven_Item, bool> >* out);
+    // ORIG _ZNK14CStackableItem27IsUse2ndUpgradeTableRecipeEv W 0x0869475e（实现=Wave9 CUserRest body）
+    bool IsUse2ndUpgradeTableRecipe() const;
     void get_multibox_lottery_item(std::vector<std::pair<Inven_Item, bool> >* out);
     bool is_included_material_for_limit_cube(unsigned int itemIdx);
     int quickslot_priority();
+    // ORIG _ZN14CStackableItem12IsEmancipateEv W 0x0822ca38：movzbl +0x2f0 直返（P9）
+    unsigned char IsEmancipate();
     void set_item(STStackableScript& script);
     bool verify();
     bool verifyUsablePlace(class CUser* user);
@@ -315,7 +323,6 @@ public:
 
     int m_int148;                         // +0x148（AradItemInfo 首字段）
     char m_growType;                      // +0x14c
-    char m_pad14d[3];                     // +0x14d
     std::string m_str150;                 // +0x150
     std::string m_str154;                 // +0x154
     std::string m_str158;                 // +0x158
@@ -324,7 +331,7 @@ public:
     RecipeInfo m_recipe174;               // +0x174
     LotteryInfo m_lotto;                  // +0x1c0
     CMTRand* m_pRand;                     // +0x1e0
-    MultiBoxLotteryInfo::MultiBoxLotteryInfoBody m_multiBox;  // +0x1e4
+    MultiBoxLotteryInfo m_multiBox;  // +0x1e4
     std::vector<char> m_pkg21c;           // +0x21c
     std::vector<char> m_pkg228;           // +0x228
     std::vector<std::vector<char> > m_pkg234;  // +0x234
@@ -335,7 +342,6 @@ public:
     stLimitCubeInfo m_limitCube;          // +0x290
     int m_nItemType;                      // +0x2b0
     unsigned short m_jewelTargetSocket;   // +0x2b4（珍宝目标槽位）
-    char m_pad2b6[2];                     // +0x2b6
     int m_int2b8;                         // +0x2b8
     int m_int2bc;                         // +0x2bc
     std::vector<int> m_usableTypes;       // +0x2c0
@@ -345,7 +351,6 @@ public:
     char m_char2d8;                       // +0x2d8
     char m_char2d9;                       // +0x2d9
     char m_char2da;                       // +0x2da
-    char m_pad2db[1];                     // +0x2db
     int m_int2dc;                         // +0x2dc
     char m_char2e0;                       // +0x2e0
     char m_char2e1;                       // +0x2e1
@@ -358,7 +363,6 @@ public:
     char m_pad2ed[1];                     // +0x2ed
     unsigned short m_short2ee;            // +0x2ee
     char m_char2f0;                       // +0x2f0
-    char m_pad2f1[3];                     // +0x2f1..0x2f4
     std::map<int, int> m_enchantMap;      // +0x2f4
     char m_char30c;                       // +0x30c
     char m_chars30d[2];                   // +0x30d
@@ -368,12 +372,10 @@ public:
     char m_char313;                       // +0x313
     unsigned short m_short314;            // +0x314
     char m_char316;                       // +0x316
-    char m_pad317[1];                     // +0x317
     int m_int318;                         // +0x318
     int m_int31c;                         // +0x31c
     char m_char320;                       // +0x320
     char m_char321;                       // +0x321
-    char m_pad322[2];                     // +0x322
     int m_int324;                         // +0x324
     int m_int328;                         // +0x328
     int m_int32c;                         // +0x32c
@@ -383,7 +385,6 @@ public:
     int m_int33c;                         // +0x33c
     int m_int340;                         // +0x340
     char m_char344;                       // +0x344
-    char m_pad345[3];                     // +0x345
     std::map<int, int> m_amplifyMap;      // +0x348
     int m_int360;                         // +0x360
     char m_char364;                       // +0x364
@@ -391,14 +392,12 @@ public:
     std::set<int> m_set368;               // +0x368
     std::set<int> m_set380;               // +0x380
     bool m_avatarOptionChange;            // +0x398
-    char m_pad399[3];                     // +0x399
     int m_int39c;                         // +0x39c
     std::vector<int> m_vec3a0;            // +0x3a0
     std::vector<StackableAction::UsablePlace> m_usablePlaces;  // +0x3ac
     std::vector<StackableAction::UsableServerType> m_usableServers;  // +0x3b8
     bool m_randomOptionUnseal;            // +0x3c4
     char m_char3c5;                       // +0x3c5
-    char m_pad3c6[2];                     // +0x3c6
     int m_int3c8;                         // +0x3c8
     int m_int3cc;                         // +0x3cc
     int m_int3d0;                         // +0x3d0

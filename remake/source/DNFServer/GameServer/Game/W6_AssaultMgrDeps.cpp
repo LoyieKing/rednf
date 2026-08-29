@@ -100,16 +100,16 @@ void CAssaultMgr::Reset()
 // ===========================================================================
 unsigned int CAssaultMgr::_GetNextAssaultPlaceId()
 {
-    static int overflowCount = 0;                       // ORIG _ZZN…_GetNextAssaultPlaceIdE5count
+    static int count = 0;                       // ORIG _ZZN…_GetNextAssaultPlaceIdE5count
 
     ++m_nextAssaultPlaceId;
     if (m_nextAssaultPlaceId == 0)
     {
-        ++overflowCount;
+        ++count;
         cMyTrace trace(
-            "unsigned int pvp_assault::CAssaultMgr::_GetNextAssaultPlaceId()",
+            __PRETTY_FUNCTION__,
             0x1085, 0);
-        trace("NEXT_ASSAULT_PLACE_ID overflow count(%d)", overflowCount);
+        trace("NEXT_ASSAULT_PLACE_ID overflow count(%d)", count);
         ++m_nextAssaultPlaceId;
     }
     return m_nextAssaultPlaceId;
@@ -723,7 +723,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             {
                 LogManager::logFormat(
                     1, "Assault.cpp",
-                    "bool pvp_assault::CAssaultMgr::OnRequestAssault(CUser*, CUser*, int*)",
+                    __PRETTY_FUNCTION__,
                     0x1291,
                     "CAssaultMgr::OnRequestAssault ERROR - pAssaultedUser Unique ID is invalid");
                 throw static_cast<ENUM_ERROR>(0x13);
@@ -1152,13 +1152,117 @@ void CPowerWarLog::IncTotalLeaveAssaultUser()           // ORIG W 0x082f08f2
 
 CPowerWarLog* CPowerManager::GetPowerWarLog()           // ORIG W 0x082f0906 (0xd)
 {
-    return reinterpret_cast<CPowerWarLog*>(
-        reinterpret_cast<char*>(this) + 0x1b4);
+    return &m_powerWarLog;   // +0x1b4 嵌入对象
 }
 
 void CPowerWarLog::PrintPowerWarAssultReport()          // ORIG T 0x084802cc (0x58e)
 {
-    // ORIG 为日志报表打印序列（十余组 cMyTrace 计数字段输出）。
-    // 本批只承载声明以满足潜在链接；具体打印行不参与任何重建运行链。
-    // 如后续 compare 要求可按报告逐段补全。
+    // docs/class_func_reports/CPowerWarLog/PrintPowerWarAssultReport.md
+    // 常量 .rodata@0x8c72fd8 = double 100.0（objdump 实测 00005940）。
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x32f, 0);
+        trace("-------------------------------------------------------------------------------------------------------------");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x330, 0);
+        trace("|                                  POWAR WAR ASSAULT RESULT REPORT                                          |");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x331, 0);
+        trace("-------------------------------------------------------------------------------------------------------------");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x334, 0);
+        trace("1. POWER WAR ATTEMPT REPORT");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x335, 0);
+        trace("- POWER WAR ATTEMPT                : %d", m_attemptCount);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x336, 0);
+        trace("- POWER WAR ATTEMPT SUCCESS        : %d", m_successCount);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x337, 0);
+        trace("- POWER WAR ATTEMPT FAILURE        : %d", m_failureCount);
+    }
+    double failureRatio = 0.0;
+    if (m_attemptCount != 0)
+        failureRatio = 100.0 * ((double)m_failureCount / (double)m_attemptCount);
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x340, 0);
+        trace("- POWER WAR ATTEMPT FAILURE RATIO  : %.2f%%", failureRatio);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x343, 0);
+        trace("2. POWER WAR LOADING & P2P FAILURE REPORT");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x344, 0);
+        trace("- POWER WAR LOADING TIMEOUT        : %d", m_loadingTimeout);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x345, 0);
+        trace("- POWER WAR P2P TIMEOUT            : %d", m_p2pTimeoutFailure);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x346, 0);
+        trace("- POWER WAR P2P BAD                : %d", m_p2pBadFailure);
+    }
+    double startFailureRatio = 0.0;
+    if (m_successCount != 0)
+        startFailureRatio = 100.0 * ((double)m_startFailure / (double)m_successCount);
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x34f, 0);
+        trace("- POWER WAR FAILURE RATIO         : %.2f%%", startFailureRatio);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x352, 0);
+        trace("3. POWER WAR START SECEDE REPORT");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x353, 0);
+        trace("- POWER WAR LOADING SECEDE        : %d", m_loadingTimeoutSecede);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x354, 0);
+        trace("- POWER WAR P2P SECEDE            : %d", m_p2pTimeoutSecede);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x355, 0);
+        trace("- POWER WAR P2P Bad               : %d", m_p2pBadSecede);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x357, 0);
+        trace("4. POWER WAR SUCCESS/FAILURE INFOMATION");
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x358, 0);
+        trace("- SUCCESS COUNT                   : %d", m_startSuccessCount);
+    }
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__, 0x359, 0);
+        trace("-------------------------------------------------------------------------------------------------------------");
+    }
 }

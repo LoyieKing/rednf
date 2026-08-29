@@ -5,14 +5,14 @@
 
 static int gCodePage;
 
-static __thread char g_szMbcsBuffer[10][0x1000];
-static __thread int g_nMbcsBufferIndex;
+static __thread char gMbcsBuffer[10][0x1000];
+static __thread int gMbcsBufferIndex;
 // ORIG：符号名 gUnicodeBuffer（_ZL14gUnicodeBuffer）——与符号名一致才能
 // 伪代码化为 &gUnicodeBuffer+0xN（TMsgCell/GetMessageBuffer 等引用）。
 static __thread wchar_t gUnicodeBuffer[10][0x1000];
-static __thread int g_nUnicodeBufferIndex;
-static __thread char g_szTCharBuffer[10][0x1000];
-static __thread int g_nTCharBufferIndex;
+static __thread int gUnicodeBufferIndex;
+static __thread char gTCharBuffer[10][0x1000];
+static __thread int gTCharBufferIndex;
 
 int getCodePage()
 {
@@ -28,17 +28,17 @@ int setCodePage(int nNewCodePage)
 
 char* getMbcsBuffer()
 {
-    return g_szMbcsBuffer[g_nMbcsBufferIndex];
+    return gMbcsBuffer[gMbcsBufferIndex];
 }
 
 wchar_t* getUnicodeBuffer()
 {
-    return gUnicodeBuffer[g_nUnicodeBufferIndex];
+    return gUnicodeBuffer[gUnicodeBufferIndex];
 }
 
 char* getTCharBuffer()
 {
-    return g_szTCharBuffer[g_nTCharBufferIndex];
+    return gTCharBuffer[gTCharBufferIndex];
 }
 
 int getMbcsBufferSize()
@@ -63,11 +63,11 @@ const char* toTString(const std::string& sSrc)
 
 const char* toTString(const std::wstring& sSrc)
 {
-    int curIndex = g_nTCharBufferIndex;
-    size_t nRet = wcstombs(g_szTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szTCharBuffer[curIndex][nRet] = 0;
-    g_nTCharBufferIndex = (g_nTCharBufferIndex + 1) % 10;
-    return g_szTCharBuffer[curIndex];
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
+    return gTCharBuffer[curIndex];
 }
 
 const char* toTString(const char* pszSrc)
@@ -77,11 +77,11 @@ const char* toTString(const char* pszSrc)
 
 const char* toTString(const wchar_t* pszSrc)
 {
-    int curIndex = g_nTCharBufferIndex;
-    size_t nRet = wcstombs(g_szTCharBuffer[curIndex], pszSrc, 0x1000);
-    g_szTCharBuffer[curIndex][nRet] = 0;
-    g_nTCharBufferIndex = (g_nTCharBufferIndex + 1) % 10;
-    return g_szTCharBuffer[curIndex];
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], pszSrc, 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
+    return gTCharBuffer[curIndex];
 }
 
 void toTString(const std::string& sSrc, std::string& sDst)
@@ -91,11 +91,11 @@ void toTString(const std::string& sSrc, std::string& sDst)
 
 void toTString(const std::wstring& sSrc, std::string& sDst)
 {
-    int curIndex = g_nTCharBufferIndex;
-    size_t nRet = wcstombs(g_szTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szTCharBuffer[curIndex][nRet] = 0;
-    sDst = g_szTCharBuffer[curIndex];
-    g_nTCharBufferIndex = (g_nTCharBufferIndex + 1) % 10;
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    sDst = gTCharBuffer[curIndex];
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
 }
 
 void toTString(const char* pszSrc, std::string& sDst)
@@ -105,11 +105,11 @@ void toTString(const char* pszSrc, std::string& sDst)
 
 void toTString(const wchar_t* pszSrc, std::string& sDst)
 {
-    int curIndex = g_nTCharBufferIndex;
-    size_t nRet = wcstombs(g_szTCharBuffer[curIndex], pszSrc, 0x1000);
-    g_szTCharBuffer[curIndex][nRet] = 0;
-    sDst = g_szTCharBuffer[curIndex];
-    g_nTCharBufferIndex = (g_nTCharBufferIndex + 1) % 10;
+    int curIndex = gTCharBufferIndex;
+    size_t nRet = wcstombs(gTCharBuffer[curIndex], pszSrc, 0x1000);
+    gTCharBuffer[curIndex][nRet] = 0;
+    sDst = gTCharBuffer[curIndex];
+    gTCharBufferIndex = (gTCharBufferIndex + 1) % 10;
 }
 
 const char* toMbcs(const std::string& sSrc)
@@ -119,11 +119,11 @@ const char* toMbcs(const std::string& sSrc)
 
 const char* toMbcs(const std::wstring& sSrc)
 {
-    int curIndex = g_nMbcsBufferIndex;
-    size_t nRet = wcstombs(g_szMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szMbcsBuffer[curIndex][nRet] = 0;
-    g_nMbcsBufferIndex = (g_nMbcsBufferIndex + 1) % 10;
-    return g_szMbcsBuffer[curIndex];
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+    return gMbcsBuffer[curIndex];
 }
 
 const char* toMbcs(const char* pszSrc)
@@ -133,11 +133,11 @@ const char* toMbcs(const char* pszSrc)
 
 const char* toMbcs(const wchar_t* pszSrc)
 {
-    int curIndex = g_nMbcsBufferIndex;
-    size_t nRet = wcstombs(g_szMbcsBuffer[curIndex], pszSrc, 0x1000);
-    g_szMbcsBuffer[curIndex][nRet] = 0;
-    g_nMbcsBufferIndex = (g_nMbcsBufferIndex + 1) % 10;
-    return g_szMbcsBuffer[curIndex];
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], pszSrc, 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
+    return gMbcsBuffer[curIndex];
 }
 
 void toMbcs(const std::string& sSrc, std::string& sDst)
@@ -147,11 +147,11 @@ void toMbcs(const std::string& sSrc, std::string& sDst)
 
 void toMbcs(const std::wstring& sSrc, std::string& sDst)
 {
-    int curIndex = g_nMbcsBufferIndex;
-    size_t nRet = wcstombs(g_szMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szMbcsBuffer[curIndex][nRet] = 0;
-    sDst = g_szMbcsBuffer[curIndex];
-    g_nMbcsBufferIndex = (g_nMbcsBufferIndex + 1) % 10;
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    sDst = gMbcsBuffer[curIndex];
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
 }
 
 void toMbcs(const char* pszSrc, std::string& sDst)
@@ -161,19 +161,19 @@ void toMbcs(const char* pszSrc, std::string& sDst)
 
 void toMbcs(const wchar_t* pszSrc, std::string& sDst)
 {
-    int curIndex = g_nMbcsBufferIndex;
-    size_t nRet = wcstombs(g_szMbcsBuffer[curIndex], pszSrc, 0x1000);
-    g_szMbcsBuffer[curIndex][nRet] = 0;
-    sDst = g_szMbcsBuffer[curIndex];
-    g_nMbcsBufferIndex = (g_nMbcsBufferIndex + 1) % 10;
+    int curIndex = gMbcsBufferIndex;
+    size_t nRet = wcstombs(gMbcsBuffer[curIndex], pszSrc, 0x1000);
+    gMbcsBuffer[curIndex][nRet] = 0;
+    sDst = gMbcsBuffer[curIndex];
+    gMbcsBufferIndex = (gMbcsBufferIndex + 1) % 10;
 }
 
 const wchar_t* toUnicode(const std::string& sSrc)
 {
-    int curIndex = g_nUnicodeBufferIndex;
+    int curIndex = gUnicodeBufferIndex;
     size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
     gUnicodeBuffer[curIndex][nRet] = 0;
-    g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
     return gUnicodeBuffer[curIndex];
 }
 
@@ -184,10 +184,10 @@ const wchar_t* toUnicode(const std::wstring& sSrc)
 
 const wchar_t* toUnicode(const char* pszSrc)
 {
-    int curIndex = g_nUnicodeBufferIndex;
+    int curIndex = gUnicodeBufferIndex;
     size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], pszSrc, 0x1000);
     gUnicodeBuffer[curIndex][nRet] = 0;
-    g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
     return gUnicodeBuffer[curIndex];
 }
 
@@ -198,11 +198,11 @@ const wchar_t* toUnicode(const wchar_t* pszSrc)
 
 void toUnicode(const std::string& sSrc, std::wstring& sDst)
 {
-    int curIndex = g_nUnicodeBufferIndex;
+    int curIndex = gUnicodeBufferIndex;
     size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
     gUnicodeBuffer[curIndex][nRet] = 0;
     sDst = gUnicodeBuffer[curIndex];
-    g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
 }
 
 void toUnicode(const std::wstring& sSrc, std::wstring& sDst)
@@ -212,11 +212,11 @@ void toUnicode(const std::wstring& sSrc, std::wstring& sDst)
 
 void toUnicode(const char* pszSrc, std::wstring& sDst)
 {
-    int curIndex = g_nUnicodeBufferIndex;
+    int curIndex = gUnicodeBufferIndex;
     size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], pszSrc, 0x1000);
     gUnicodeBuffer[curIndex][nRet] = 0;
     sDst = gUnicodeBuffer[curIndex];
-    g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
 }
 
 void toUnicode(const wchar_t* pszSrc, std::wstring& sDst)

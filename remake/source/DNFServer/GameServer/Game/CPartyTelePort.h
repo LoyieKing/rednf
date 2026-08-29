@@ -4,6 +4,11 @@
 struct stPartyTelePort
 {
     void reset();
+    unsigned char get_teleport_village() const;
+    unsigned char get_teleport_area_index() const;
+    unsigned short get_teleport_posx() const;
+    unsigned short get_teleport_posy() const;
+    unsigned char get_teleport_direction() const;
     char m_state;
     unsigned char m_village;
     unsigned char m_areaIndex;

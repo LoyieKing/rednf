@@ -90,11 +90,7 @@ public:
 };
 }  // namespace WongWork
 
-class CHARAC_LOAD_MERCENARY                        // Reset ORIG T 0x081b410a
-{
-public:
-    void Reset();
-};
+// CHARAC_LOAD_MERCENARY 权威定义已迁至 SigTypes.h（Inter_LoginInfo/dispatch_sig 批）。
 
 #include "DNFFunctionLib.h"    // DNFFLib::Hex2Binary
 namespace OS_API               // CInventory.h 同款最小声明（snprintf wrapper）
@@ -174,8 +170,6 @@ public:
     char* m_data;                                    // +0x00
     int m_cap;                                       // +0x04
 };
-static CCompressedBlob g_compressedBlob__;          // ORIG _ZZ24...E15compressed_blob 0x0943d24c
-
 // ============================================================================
 // SIG_LOGIN_DATA 字段访问 helper（本 TU 局部；共享头字段化后可整体替换）
 // ============================================================================
@@ -578,7 +572,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA*)",
+                              __PRETTY_FUNCTION__,
                               0x2f54, "LINK_LOG : charac_link_message DB ERROR!!");
         return false;
     }
@@ -589,7 +583,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
-                                  "void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA*)",
+                                  __PRETTY_FUNCTION__,
                                   0x2f5d, "LINK_LOG : charac_link_message DB INSERT FAIL!!");
         }
         return false;
@@ -601,7 +595,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
             bool got = db->get_byte(0, SGF<char>(sig, OFF_LINK_MSG_FLAG));
             return !got;   // ORIG bVar2 = get ^ 1
         }
-        cMyTrace trace("void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA*)", 0x2f65, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
         trace("LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
         return true;    // cMyTrace::operator() 返回值原样透传（ORIG byte）
@@ -1453,11 +1447,11 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::CreateAccount(SIG_LOGIN_DATA*, MySQL*)",
+                              __PRETTY_FUNCTION__,
                               0x37e6, "[Taiwan, Account] Fail create account. id=%s", userId);
         return false;
     }
-    cMyTrace trace("bool DB_Login::CreateAccount(SIG_LOGIN_DATA*, MySQL*)", 0x37ea, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x37ea, 0);
     trace("[Taiwan, Account] Success create account. id=%s", userId);
 
     db->set_query(
@@ -1466,7 +1460,7 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::CreateAccount(SIG_LOGIN_DATA*, MySQL*)",
+                              __PRETTY_FUNCTION__,
                               0x3804, "[Taiwan, Account] Fail select member_info m_id=%s", userId);
         return false;
     }
@@ -1488,7 +1482,7 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
     if (hexLen >> 1 >= 0x81)
     {
         cMyTrace trace(
-            "bool DB_Login::_DecryptUserInfo(char*, char*, memberIdentificationNumber_t)",
+            __PRETTY_FUNCTION__,
             0x3815, 5);
         trace("DB_Login::_DecryptUserInfo ERROR m_id=%s", NumberToString(mid, 0));
         return false;
@@ -1496,7 +1490,7 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
     if (!DNFFLib::Hex2Binary(hex, cipherBuf, (int)(hexLen >> 1)))
     {
         cMyTrace trace(
-            "bool DB_Login::_DecryptUserInfo(char*, char*, memberIdentificationNumber_t)",
+            __PRETTY_FUNCTION__,
             0x381b, 5);
         trace("DB_Login::_DecryptUserInfo::Hex2Binary ERROR m_id=%s", NumberToString(mid, 0));
         return false;
@@ -1510,7 +1504,7 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
     else
     {
         cMyTrace trace(
-            "bool DB_Login::_DecryptUserInfo(char*, char*, memberIdentificationNumber_t)",
+            __PRETTY_FUNCTION__,
             0x3820, 5);
         trace("DB_Login::_DecryptUserInfo::Decrypt ERROR m_id=%s ret=%u",
               NumberToString(mid, 0), ret);
@@ -1532,7 +1526,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         userId, (unsigned int)(unsigned char)SGF<char>(sig, OFF_HANGAME_FLAG));
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x397f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x397f, 5);
         trace("DB_Login::GetAccountInfo, exec() ERROR m_id=%s", userId);
         return false;
     }
@@ -1540,20 +1534,20 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     // 查询为空则尝试建号
     if (db->get_n_rows() == 0 && !CreateAccount(sig, db))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3986, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3986, 0);
         trace("[Taiwan, Auth] Fail create account. id=%s", userId);
         return false;
     }
 
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x39af, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39af, 5);
         trace("DB_Login::GetAccountInfo, fetch() ERROR m_id=%s", userId);
         return false;
     }
     if (!db->get_uint(0, SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x39b5, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39b5, 5);
         trace("DB_Login::GetAccountInfo, get(0) ERROR m_id=%s", userId);
         return false;
     }
@@ -1572,7 +1566,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
                           db->get_n_rows());
             db->exec(true);
         }
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x39c2, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39c2, 5);
         trace("DB_Login::GetAccountInfo, get_n_rows()!=1 ERROR m_id=%s", userId);
         return false;
     }
@@ -1582,7 +1576,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     memset(serverPwd, 0, sizeof(serverPwd));
     if (!db->get_str(1, serverPwd, 0x84))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x39c8, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39c8, 5);
         trace("DB_Login::GetAccountInfo, get(1) ERROR m_id=%s", userId);
         return false;
     }
@@ -1641,7 +1635,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int secondVal = 0;
     if (!db->get_str(2, firstSsn, 0x21))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a3f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a3f, 5);
         trace("DB_Login::GetAccountInfo, get(2) ERROR m_id=%s", userId);
         return false;
     }
@@ -1650,7 +1644,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         if (!_DecryptUserInfo(firstSsn, decFirst,
                               SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
         {
-            cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a48, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x3a48, 5);
             trace("_DecryptUserInfo(1) ERROR m_id=%s",
                   NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
             return false;
@@ -1659,7 +1653,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     }
     if (!db->get_str(3, secondSsn, 0x21))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a51, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a51, 5);
         trace("DB_Login::GetAccountInfo, get(3) ERROR m_id=%s", userId);
         return false;
     }
@@ -1668,7 +1662,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         if (!_DecryptUserInfo(secondSsn, decSecond,
                               SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
         {
-            cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a5a, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x3a5a, 5);
             trace("_DecryptUserInfo(2) ERROR m_id=%s",
                   NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
             return false;
@@ -1680,19 +1674,19 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int regDate = 0;
     if (!db->get_uint(4, regDate))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a71, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a71, 5);
         trace("DB_Login::GetAccountInfo, get(4) ERROR m_id=%s", userId);
         return false;
     }
     if (!db->get_str(5, SGB(sig, 0x2184), 0x80))    // user_name → sig+0x2184
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3a93, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a93, 5);
         trace("DB_Login::GetAccountInfo, get(5) ERROR m_id=%s", userId);
         return false;
     }
     if (!db->get_str(6, email, 0x81))               // email（加密串）
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3aa6, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3aa6, 5);
         trace("DB_Login::GetAccountInfo, get(6) ERROR m_id=%s", userId);
         return false;
     }
@@ -1706,7 +1700,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int hangameFlag = 0;
     if (!db->get_uint(7, hangameFlag))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3ac0, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3ac0, 5);
         trace("DB_Login::GetAccountInfo, get(7) ERROR m_id=%s", userId);
         return false;
     }
@@ -1715,7 +1709,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int regRaw = 0;
     if (!db->get_uint(8, regRaw))
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3ae6, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3ae6, 5);
         trace("DB_Login::GetAccountInfo, get(9) ERROR m_id=%s", userId);
         // 注意：ORIG 此分支记日志后不返回，继续走时间换算
     }
@@ -1750,21 +1744,21 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         if (!GetWhiteAccount(sig))
         {
             LogManager::logFormat(
-                1, "DBThread.cpp", "bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3b14,
+                1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b14,
                 "[Taiwan, Auth] Fail Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
                 NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
                 SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
             return false;
         }
         LogManager::logFormat(
-            1, "DBThread.cpp", "bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3b0f,
+            1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b0f,
             "[Taiwan, Auth] White Account Success Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
             NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
             SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
     }
     else
     {
-        cMyTrace trace("bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA*)", 0x3b1b, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3b1b, 0);
         trace("[Taiwan, Auth] Success Token reuse login. (mid:%s, token_time:%u, current_current:%u, login_time:%u, last_play_time:%u)",
               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
               SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
@@ -1928,7 +1922,7 @@ void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
     if (!db->exec(true))
     {
         cMyTrace trace(
-            "void DB_Login::SaveLoginTime(memberIdentificationNumber_t, int, char*)",
+            __PRETTY_FUNCTION__,
             0x3bd1, 0);
         trace("DB_Login::SaveLoginTime, inSert ERROR m_id=%s, logintime=%d, ip=%s",
               NumberToString(mid, 0), loginTime, ip);
@@ -1966,7 +1960,8 @@ bool CCompressedBlobUncompress(CCompressedBlob& blob, MySQL* db, int col,
 
 int get_compressed_blob_data(MySQL* db, int col, char* out, int outCap, int recordSize)
 {
-    return CCompressedBlobUncompress(g_compressedBlob__, db, col, out, outCap,
+    static CCompressedBlob compressed_blob;   // ORIG _ZZ24get_compressed_blob_dataP5MySQLiPciiE15compressed_blob 0x0943d24c
+    return CCompressedBlobUncompress(compressed_blob, db, col, out, outCap,
                                      recordSize) ? 1 : 0;
 }
 
@@ -1996,7 +1991,7 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
                                   0x14d0, 0x94))
     {
         cMyTrace trace(
-            "DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x3beb, 5);
         trace("DB_Login::_getGameDBCharacView uncompress fail, m_id(%d)",
               SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
@@ -2270,7 +2265,7 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
-                                  "bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA*)", 0x3e63,
+                                  __PRETTY_FUNCTION__, 0x3e63,
                                   "LOGIN_IP : IP Address UDATE DB ERROR!!");
             return 0;
         }
@@ -2332,7 +2327,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                 {
                     if (!dbItems->fetch())
                     {
-                        cMyTrace trace("bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA*)",
+                        cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3ea2, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea2,
                               characNo);
@@ -2341,7 +2336,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                     int gotSlot = 0;
                     if (!dbItems->get_int(0, gotSlot))
                     {
-                        cMyTrace trace("bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA*)",
+                        cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3ea8, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea8,
                               characNo);
@@ -2349,7 +2344,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                     }
                     if (!dbItems->get_int(1, itemId))
                     {
-                        cMyTrace trace("bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA*)",
+                        cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3eae, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR charac_no=%u", 0x3eae,
                               characNo);
@@ -2403,7 +2398,7 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA*)", 0xb487,
+                              __PRETTY_FUNCTION__, 0xb487,
                               "LoadGrowthWeaponEvent Query Error : m_id(%d)",
                               SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
         return 0;
@@ -2462,7 +2457,7 @@ int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA*)", 0xb4b9,
+                              __PRETTY_FUNCTION__, 0xb4b9,
                               "LoadGrowthCreatureEvent Query Error : m_id(%d)",
                               SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
         return 0;
@@ -2512,7 +2507,7 @@ int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA*)",
+                              __PRETTY_FUNCTION__,
                               0xb4e8,
                               "LoadAccountCharacterLevelUpOnceGift Query Error : m_id(%d)",
                               SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
@@ -2578,7 +2573,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
     }
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA*)", 0xb71b, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xb71b, 5);
         trace("DB_Login::GetBingoEvent, fetch() ERROR m_id=%s",
               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
         return 0;
@@ -2620,7 +2615,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
                   SGB(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xbc49, 5);
         trace("[QUERY_ERROR] (select from geo_allow)");
         return 0;
@@ -2631,7 +2626,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
     }
     if (!db->fetch() || !db->get_uint(0, allowCnt))
     {
-        cMyTrace trace("bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xbc52, 5);
         trace("[QUERY_ERROR] (fetch get_uint)");
         return 0;
@@ -2645,7 +2640,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
                   SGB(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xbc63, 5);
         trace("[QUERY_ERROR] (insert into member_join_info)");
         return 0;
@@ -2666,7 +2661,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)", 0x307b,
+                              __PRETTY_FUNCTION__, 0x307b,
                               "BREAK_AWAY : churn_member_info DB ERROR!!");
         return 0;
     }
@@ -2682,11 +2677,11 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
-                                  "bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)", 0x308c,
+                                  __PRETTY_FUNCTION__, 0x308c,
                                   "BREAK_AWAY : churn_member_info DB INSERT FAIL!!");
             return 0;
         }
-        cMyTrace trace("bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)", 0x308f, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x308f, 0);
         trace("BREAK_AWAY : churn_member_info MEMBER INSERT!! M_ID(%s)",
               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
 
@@ -2705,7 +2700,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
 
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)", 0x309a, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x309a, 5);
         trace("BREAK_AWAY : churn_member_info NO MEMBER USER!! M_ID(%s)",
               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
         return 0;
@@ -2717,7 +2712,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     if (SGB(sig, rec + 4)[0] == '\0')
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)", 0x30ab,
+                              __PRETTY_FUNCTION__, 0x30ab,
                               "BREAK_AWAY : ABNOMAL PLAY_INFO DATA!! M_ID(%s)",
                               NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
         return 0;
@@ -2748,7 +2743,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
             if (!(updOk && db->getAffectedRowCount() != 0))
             {
                 LogManager::logFormat(1, "DBThread.cpp",
-                                      "bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)",
+                                      __PRETTY_FUNCTION__,
                                       0x30d1, "BREAK_AWAY : LUCK POINT UPDATE ERROR!!");
                 return 0;
             }
@@ -2773,7 +2768,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
             if (!(updOk && db->getAffectedRowCount() != 0))
             {
                 LogManager::logFormat(1, "DBThread.cpp",
-                                      "bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA*)",
+                                      __PRETTY_FUNCTION__,
                                       0x30e6, "BREAK_AWAY : ADD INFO UPDATE ERROR!!");
                 return 0;
             }

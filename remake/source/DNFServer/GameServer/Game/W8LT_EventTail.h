@@ -8,6 +8,7 @@
 #include "SigTypes.h"
 #include "MoreTypes.h"
 #include "CGuildServerProxy.h"   // CEventBase/CDelivery/DeliveryMsg/Word_Param
+#include "DBDispatcher.h"        // DB_InsertEventStageLog 等权威基类（ORIG 单一类：static makeRequest + virtual dispatch）
 
 class STSDCActiveStatusSyncDataSend;   // 前置：SDC 同步数据（仅 SDC TU 内按报告布局使用）
 class IRDActiveObject;
@@ -59,29 +60,45 @@ struct EventStageLogDeliveryMsg : public DeliveryMsg
     const std::vector<std::pair<int, int> >* m_progressList;  // +0x20
 };
 
-// ---- 依赖的 DB request 类（BLOCKED：定义属 DB 域批次，链接期提供） ----
-struct DB_InsertEventStageLog
+// ---- 依赖的 DB request 类（权威声明；makeRequest 定义属 W8LT_EventTail.cpp，
+// dispatch 定义属 W8LT_DBTask.cpp，与 ORIG 单一类一致） ----
+class DB_InsertEventStageLog : public DBDispatcher
 {
+public:
+    // _ZN22DB_InsertEventStageLog8dispatchEiiP6Stream T 0x08449144（W8LT_DBTask.cpp）
     // _ZN22DB_InsertEventStageLog11makeRequestER19SIG_EVENT_STAGE_LOG T 0x0844920e
+    DB_InsertEventStageLog() {}                    // ORIG C1 0x844ff4a (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
     static bool makeRequest(SIG_EVENT_STAGE_LOG& sig);
 };
-struct DB_EventSaveGiveGrowCreature
+
+// _ZN28DB_EventSaveGiveGrowCreature11makeRequestEjRN30SIG_GIVE_GROWTH_CREATURE_EVENT15eventCharacInfoE
+// T 0x08449b32；_ZN28DB_EventSaveGiveGrowCreature8dispatchEiiP6Stream T 0x08449c50。
+class DB_EventSaveGiveGrowCreature : public DBDispatcher
 {
-    // _ZN28DB_EventSaveGiveGrowCreature11makeRequestEjRN30SIG_GIVE_GROWTH_CREATURE_EVENT15eventCharacInfoE T 0x08449b32
+public:
+    DB_EventSaveGiveGrowCreature() {}              // ORIG C1 0x844fdfa (sz 0x4: base ctor+vptr only)
     static bool makeRequest(unsigned int accId,
                             SIG_GIVE_GROWTH_CREATURE_EVENT::eventCharacInfo& info);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08449c50
 };
-struct DB_EventUpdateGiveGrowCreature
+class DB_EventUpdateGiveGrowCreature : public DBDispatcher
 {
+public:
     // ORIG T（地址见 nm _ZN29DB_EventUpdateGiveGrowCreature11makeRequestEjRN30SIG...）。
+    DB_EventUpdateGiveGrowCreature() {}            // ORIG C1 0x844fe16 (sz 0x4: base ctor+vptr only)
     static bool makeRequest(unsigned int accId,
                             SIG_GIVE_GROWTH_CREATURE_EVENT::eventCharacInfo& info);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08449d00
 };
-struct DB_UpdateSeriaRoomAnimationDeco
+class DB_UpdateSeriaRoomAnimationDeco : public DBDispatcher
 {
+public:
     // _ZN31DB_UpdateSeriaRoomAnimationDeco11makeRequestEjsiss T 0x0844af74
+    DB_UpdateSeriaRoomAnimationDeco() {}           // ORIG C1 0x844febe (sz 0x4: base ctor+vptr only)
     static void makeRequest(unsigned int accId, short serverGroup, int characNo,
                             short field1, short field2);
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844adc0（W8LT_EventTail.cpp）
 };
 
 // ============================ OneADayItemShopEvent ============================

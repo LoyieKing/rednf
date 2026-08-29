@@ -122,13 +122,15 @@ class CQuickPartySystemManager
                                  CParty* party);                      // ENUM_ERROR
     bool check_quick_party_min_count(const STQuickPartyPoolMap_Key& key,  // T @0x0826ab9e
                                      int count);
+    CParty* make_quick_party(CQuickParty* qp);                     // T @0x0826b222
+    void insert_timer_waiting_start_game(CParty* party);           // T @0x0826ad50
+
+public:
+    // DspD4 B1：Dispatcher_Register_Quick_Party/Direct_Entrance_Quick_Party
+    // process 经 GetQuickPartySystemManager() 公开调用，需 public 可见。
     int match_proper_party(const STQuickPartyPoolMap_Key& key,     // T @0x08269f3c
                            CParty* party, CUser* user);            // ENUM_ERROR
-    CParty* make_quick_party(CQuickParty* qp);                     // T @0x0826b222
-    void start_game(CQuickParty* qp);                              // T @0x0826b58a
-    bool start_game(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);  // T @0x0826a972
-    void insert_timer_waiting_start_game(CParty* party);           // T @0x0826ad50
-    int direct_entrance_quick_party(CUser* user);                  // T @0x0826a762（ENUM_ERROR）
+    int direct_entrance_quick_party(CUser* user);                  // T @0x0826a762
 
 public:
     CQuickPartySystemManager();
@@ -136,6 +138,8 @@ public:
 
     void init_quick_party_pool(const CDungeon* dungeon);
     void insert_timer_waiting_party_matching(CQuickParty* qp);  // T @0x0826acea
+    void start_game(CQuickParty* qp);                              // T @0x0826b58a
+    bool start_game(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);  // T @0x0826a972
     int cancel_quick_party(CParty* party, bool flag, CUser* user);  // ORIG 返回 0/1
     bool remove_quick_party_in_pool(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);   // T @0x0826aa9a（后续批次实现）
     bool push_quick_party_in_pool(const STQuickPartyPoolMap_Key& key, STQuickPartyPoolMap_Data& data,

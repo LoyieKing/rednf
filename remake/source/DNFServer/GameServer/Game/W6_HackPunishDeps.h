@@ -7,6 +7,11 @@
 // ============================================================================
 
 #include <map>
+#include <vector>
+
+// 全局容器元素类型（CUser.h 定义；本头仅前向，定义处见 W6_HackPunishDeps.cpp）
+struct stLookOuts;
+struct tyIPCounters;
 
 #include "CHackAnalyzer.h"        // WongWork::ENUM_HACKTYPE
 #include "WongWorkEvents_A.h"     // WongWork::HackTypeInfo_t（7 参 ctor inline）
@@ -130,6 +135,23 @@ public:
 
     bool checkTotalTradeRuleOver(unsigned int tradeType,
                                  unsigned long long total) const;  // ORIG W 0x08531fd2
+
+    // ORIG W 0x08695360：遍历 m_hackTypeMap 中 type 区间，任一规则条目的
+    // 累计黑客计数超过阈值时经 _checkApplyFlag 决定处置（返回 true 表示命中）。
+    bool checkMaxHackCntOver(ENUM_HACKTYPE type, unsigned int param,
+                             CHackAnalyzer* analyzer, HackTypeInfo_t& outInfo,
+                             std::vector<stLookOuts>& lookOutsA,
+                             std::vector<tyIPCounters>& ipCounters,
+                             std::vector<stLookOuts>& lookOutsB, char* ip);
+
+    // ORIG W 0x0869550c：按规则 m_value3 类型分派——1/5 直接拷贝出参；
+    // 2/10/3 查观察名单/计数器名单命中即拒绝；4/9 与 b/c 走 IP 计数日志；
+    // 全部通过则拷贝出参并返回 true。
+    bool _checkApplyFlag(const HackTypeInfo_t& info, CHackAnalyzer* analyzer,
+                         HackTypeInfo_t& outInfo,
+                         std::vector<stLookOuts>& lookOutsA,
+                         std::vector<tyIPCounters>& ipCounters,
+                         std::vector<stLookOuts>& lookOutsB, char* ip);
 
 private:
     // ORIG 布局（ctor 0x82a5b1a / set* 实证偏移）总 sizeof 0x70。

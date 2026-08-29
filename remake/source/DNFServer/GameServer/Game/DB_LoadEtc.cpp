@@ -221,12 +221,12 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
         int base = GetUserPvpBase(sig);
         if (base == -1)
         {
-            reinterpret_cast<PvpResultType*>(sig->m_pvpResult)->Clear();
+            sig->m_pvpResult.Clear();
         }
         else if (base == 1)
         {
             // *(undefined4*)(sig + 0x350) = -1 → PvpResultType+0x10（m_field10）。
-            *reinterpret_cast<int*>(sig->m_pvpResult + 0x10) = -1;   // ORIG sig+0x350（PvpResultType+0x10）
+            *reinterpret_cast<int*>((char*)&sig->m_pvpResult + 0x10) = -1;   // ORIG sig+0x350（PvpResultType+0x10）
         }
     }
     else if (pvp == 1)
@@ -238,20 +238,20 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
     }
     else if (pvp == -1)
     {
-        reinterpret_cast<PvpResultType*>(sig->m_pvpResult)->Clear();
+        sig->m_pvpResult.Clear();
     }
 
     if (!LoadCharacItemStat(sig))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "virtual bool DB_LoadEtc::dispatch(int, int, Stream*)",
+                              __PRETTY_FUNCTION__,
                               0x14c6, "DB_LoadETC ERROR : LoadCharacItemStat Fail");
         return false;
     }
 
     if (!LoadLitmitItem(sig))
     {
-        cMyTrace trace("virtual bool DB_LoadEtc::dispatch(int, int, Stream*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x14db, 0);
         trace("LoadLimitItem middle fetch <charac:%d>", sig->m_characNo);
         return false;
@@ -260,7 +260,7 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
     if (!GetUserSkill(sig))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "virtual bool DB_LoadEtc::dispatch(int, int, Stream*)",
+                              __PRETTY_FUNCTION__,
                               0x14e3, "DB_LoadETC ERROR : GetUserSkill Fail");
         sig->m_field8 = 1;
     }
@@ -284,7 +284,7 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
     if (!LoadItemMakingSkill(sig))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "virtual bool DB_LoadEtc::dispatch(int, int, Stream*)",
+                              __PRETTY_FUNCTION__,
                               0x1566, "DB_LoadETC ERROR : LoadItemMakingSkill Fail");
         return false;
     }
@@ -430,13 +430,14 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+    static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc14LoadRedeemItem…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect redeem_info from charac_inven_expand where charac_no=%u",
                   sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC*)", 0x1b16, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b16, 5);
         trace("DB_LoadRedeemItemList::dispatch, exec() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -447,7 +448,7 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
     }
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC*)", 0x1b20, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b20, 5);
         trace("DB_LoadRedeemItemList::dispatch, fetch() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -458,7 +459,7 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
     unsigned int outLen = 0x6c7;
     if (!db->get_binary(0, blob, 0x6c7))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC*)", 0x1b28, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b28, 5);
         trace("DB_LoadInventory::GetItemLock, get_binary(2) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -478,13 +479,14 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+    static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc18LoadPvPMissionList…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect pvp_mission_info from fair_pvp_score where charac_no=%u",
                   sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC*)", 0x1b3f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b3f, 5);
         trace("LoadPvPMissionList, exec() ERROR charac_no=%u", sig->m_characNo);
         return false;
     }
@@ -494,7 +496,7 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
     }
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC*)", 0x1b49, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b49, 5);
         trace("LoadPvPMissionList, fetch() ERROR charac_no=%u", sig->m_characNo);
         return false;
     }
@@ -504,7 +506,7 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
     unsigned int outLen = 0x198;
     if (!db->get_binary(0, blob, 0x198))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC*)", 0x1b51, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1b51, 5);
         trace("DB_LoadInventory::GetItemLock, get_binary(2) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -525,6 +527,7 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
 {
+    static const int compressed_buff_size = 0x1cd8;  // ORIG _ZZ…LoadAchievement…E20compressed_buff_size
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect achievement, unix_timestamp(last_update_time) from"
@@ -544,7 +547,7 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
 
     char blob[0x1cd8];
     memset(blob, 0, sizeof(blob));
-    if (!db->get_binary(0, blob, 0x1cd8))
+    if (!db->get_binary(0, blob, compressed_buff_size))
     {
         return false;
     }
@@ -673,7 +676,7 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     }
     if (!get_compressed_blob_data(db, 1, MIX(sig, 0xecd8), 24000, 0))
     {                                                        // col1 best_clear_time
-        cMyTrace trace("bool DB_LoadEtc::LoadCharacOption(int, int, SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1f5d, 5);
         trace("DB_LoadEtc::LoadCharacOption best_clear_time, get(%d) ERROR"
               " charac_no=%u", 2 /*local_18 已自增*/, sig->m_characNo);
@@ -748,7 +751,8 @@ static void questShopThrow(int line)
 
 bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* out)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+    static const int handleIdx = 2;    // ORIG _ZZN10DB_LoadEtc14_LoadQuestShop…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect qp, init_count, max_hp, max_mp, psy_attack, psy_defense,"
                   " mag_attack, mag_defence, move_speed, attack_speed, hp_regen,"
@@ -859,7 +863,7 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
     if (!_LoadQuestShop(sig->m_characNo,
                         reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(MIX(sig, 0xd5a7))))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC*)", 0x16c4, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x16c4, 5);
         trace("DB_LoadInventory::_LoadQuestShop ERROR::charac_no(%d)",
               sig->m_characNo);
         return false;
@@ -871,7 +875,7 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
                             reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
                                 MIX(sig, 0xd651))))
         {
-            cMyTrace trace("bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC*)", 0x16d5, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x16d5, 5);
             trace("DB_LoadInventory::_LoadQuestShop ERROR::tag_charac_no(%d)",
                   sig->m_fieldC);
             return false;
@@ -893,7 +897,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
                   " charac_titlebook where charac_no=%u", sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC*)", 0x19c0, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x19c0, 5);
         trace("LoadTitleBook(), exec() ERROR charac_no=%u", sig->m_characNo);
         return false;
     }
@@ -902,30 +906,64 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         return false;
     }
 
+    // ORIG 四列各自函数级 static const compressed_buff_size（0x1410/_0 0x393c/
+    // _1 0x225c/_2 0x1134），展开为四个独立作用域块保持符号一一对应。
     char blob[0x397c];
-    struct ColDef
     {
-        int capMax;      // get_binary size 上限（get 前 memset 长度=capMax）
-        unsigned int dstOff;   // 解压目的偏移
-        unsigned int dstCap;   // 解压容量初值
-    };
-    const ColDef cols[4] =
-    {
-        { 0x1410, 0x466a, 0x10ae },
-        { 0x393c, 0x5718, 0x2fa8 },
-        { 0x225c, 0x86c0, 0x1c98 },
-        { 0x1134, 0xa358, 0x0e4c },
-    };
-    for (int col = 0; col < 4; ++col)
-    {
-        memset(blob, 0, cols[col].capMax);
-        if (!db->get_binary(col, blob, cols[col].capMax))
+        static const int compressed_buff_size = 0x1410;
+        memset(blob, 0, compressed_buff_size);
+        if (!db->get_binary(0, blob, compressed_buff_size))
         {
             return false;
         }
-        unsigned int outLen = cols[col].dstCap;
-        int srcLen = db->get_binary_length(col);
-        if (!uncompress_zip(MIX(sig, cols[col].dstOff), outLen, blob,
+        unsigned int outLen = 0x10ae;
+        int srcLen = db->get_binary_length(0);
+        if (!uncompress_zip(MIX(sig, 0x466a), outLen, blob,
+                            static_cast<unsigned int>(srcLen)))
+        {
+            return false;
+        }
+    }
+    {
+        static const int compressed_buff_size = 0x393c;
+        memset(blob, 0, compressed_buff_size);
+        if (!db->get_binary(1, blob, compressed_buff_size))
+        {
+            return false;
+        }
+        unsigned int outLen = 0x2fa8;
+        int srcLen = db->get_binary_length(1);
+        if (!uncompress_zip(MIX(sig, 0x5718), outLen, blob,
+                            static_cast<unsigned int>(srcLen)))
+        {
+            return false;
+        }
+    }
+    {
+        static const int compressed_buff_size = 0x225c;
+        memset(blob, 0, compressed_buff_size);
+        if (!db->get_binary(2, blob, compressed_buff_size))
+        {
+            return false;
+        }
+        unsigned int outLen = 0x1c98;
+        int srcLen = db->get_binary_length(2);
+        if (!uncompress_zip(MIX(sig, 0x86c0), outLen, blob,
+                            static_cast<unsigned int>(srcLen)))
+        {
+            return false;
+        }
+    }
+    {
+        static const int compressed_buff_size = 0x1134;
+        memset(blob, 0, compressed_buff_size);
+        if (!db->get_binary(3, blob, compressed_buff_size))
+        {
+            return false;
+        }
+        unsigned int outLen = 0x0e4c;
+        int srcLen = db->get_binary_length(3);
+        if (!uncompress_zip(MIX(sig, 0xa358), outLen, blob,
                             static_cast<unsigned int>(srcLen)))
         {
             return false;
@@ -947,14 +985,14 @@ void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
     if (!LoadComboSkill(sig, (ENUM_SKILL_TREE_KIND)0))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC*)",
+                              __PRETTY_FUNCTION__,
                               0xbab4, "DB_LoadETC ERROR : LoadComboSkill Fail");
         sig->m_field8 = 1;
     }
     if (!LoadComboSkill(sig, (ENUM_SKILL_TREE_KIND)1))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC*)",
+                              __PRETTY_FUNCTION__,
                               0xbaba, "DB_LoadETC ERROR : LoadComboSkill Second Fail");
         sig->m_field8 = 1;
     }
@@ -1081,7 +1119,8 @@ bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
 // ============================================================================
 bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+    static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc12GetUserSkill…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect remain_sp,skill_slot,remain_sp_2nd, skill_slot_2nd,"
                   " remain_sfp_1st, remain_sfp_2nd, skill_command, skill_slot_lethe,"
@@ -1090,7 +1129,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                   get_skill_table_name(false), sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1d50, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d50, 5);
         trace("DB_LoadSkill::GetUserSkill, exec() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1103,7 +1142,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                       get_skill_table_name(false), sig->m_characNo);
         if (!db->exec(true))
         {
-            cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1d5d, 5);
             trace("DB_LoadSkill::GetUserSkill insert, exec() ERROR charac_no=%u",
                   sig->m_characNo);
@@ -1115,7 +1154,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1d69, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d69, 5);
         trace("DB_LoadSkill::GetUserSkill, fetch() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1127,7 +1166,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 
     if (!db->get_uint(0, SGF<unsigned int>(sig, 0xc9c8)))    // col0 remain_sp
     {
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1d71, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d71, 5);
         trace("DB_LoadSkill::GetUserSkill, get(0) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1139,7 +1178,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     }
     if (!db->get_uint(col++, spVals[0]))                     // col2? → get(4)行号
     {                                                        // remain_sp_2nd→0xcb64
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1d98, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d98, 5);
         trace("DB_LoadSkill::GetUserSkill, get(4) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1151,7 +1190,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     }
     if (!db->get_uint(col++, spVals[1]))                     // remain_sfp_1st→0xcd00
     {
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1dac, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1dac, 5);
         trace("DB_LoadSkill::GetUserSkill, get(7) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1159,7 +1198,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     SGF<unsigned int>(sig, 0xcd00) = spVals[1];
     if (!db->get_uint(col++, spVals[2]))                     // remain_sfp_2nd→0xcd04
     {
-        cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)", 0x1db2, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1db2, 5);
         trace("DB_LoadSkill::GetUserSkill, get(8) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
@@ -1207,7 +1246,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                       " charac_no=%u", sig->m_fieldC);
         if (!db->exec(true))
         {
-            cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1dea, 5);
             trace("DB_LoadSkill::GetUserSkill, exec() ERROR tagCharacNo=%u",
                   sig->m_fieldC);
@@ -1215,7 +1254,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         }
         if (!db->fetch())
         {
-            cMyTrace trace("bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1df1, 5);
             trace("DB_LoadSkill::GetUserSkill, fetch() ERROR tagCharacNo=%u",
                   sig->m_fieldC);
@@ -1258,7 +1297,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
 
     if (!db->get_binary(0, MIX(sig, 0x230c), 0x194))         // cooltime_item
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac8a, 5);
         trace("DB_LoadEtc::LoadCharacItemStat cooltime, get(%d) ERROR"
               " charac_no=%u", 1 /*local_10*/, sig->m_characNo);
@@ -1266,7 +1305,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
     }
     if (!db->get_binary(1, MIX(sig, 0x24a4), 0x194))         // effect_item
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac91, 5);
         trace("DB_LoadEtc::LoadCharacItemStat effect_item, get(%d) ERROR"
               " charac_no=%u", 2 /*local_10 已自增*/, sig->m_characNo);
@@ -1274,7 +1313,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
     }
     if (!get_compressed_blob_data(db, 2, MIX(sig, 0xd740), 5000, 0))
     {                                                        // check_flag
-        cMyTrace trace("bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac98, 5);
         trace("DB_LoadEtc::LoadCharacItemStat item_dictionary, get(%d) ERROR"
               " charac_no=%u", 3 /*local_10 已自增*/, sig->m_characNo);
@@ -1296,7 +1335,7 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
                   " item_making_skill_info where charac_no=%u", sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x15dd, 5);
         trace("DB_LoadEtc::LoadItemMakingSkill, exec() ERROR charac_no=%u",
               sig->m_characNo);
@@ -1308,7 +1347,7 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
     }
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x15e8, 5);
         trace("DB_LoadEtc::LoadItemMakingSkill fetch, exec() ERROR charac_no=%u",
               sig->m_characNo);
@@ -1323,7 +1362,7 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
                            *reinterpret_cast<short*>(&SGF<unsigned short>(sig,
                                                                           off))))
         {
-            cMyTrace trace("bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x15f2, 5);
             trace("DB_LoadEtc::LoadItemMakingSkill get(%d) ERROR charac_no=%u",
                   col, sig->m_characNo);
@@ -1340,7 +1379,8 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+    static const int handleIdx = 2;    // ORIG _ZZN10DB_LoadEtc16LoadTODUserState…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect unix_timestamp(first_layer_start_date),"
                   "today_enter_count,last_clear_layer,enter_count_by_week,"
@@ -1362,7 +1402,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     int col = 1;
     if (!db->get_int(0, SGF<int>(sig, 0xd71c)))
     {                                                        // first_layer_start_date
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b77, 5);
         trace("TOD : select from charac_tower_despair charac_no=%u",
               sig->m_characNo);
@@ -1371,7 +1411,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     ++col;
     if (!db->get_int(col++, SGF<int>(sig, 0xd720)))
     {                                                        // today_enter_count
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b7f, 5);
         trace("TOD select from charac_tower_despair charac_no=%u",
               sig->m_characNo);
@@ -1380,7 +1420,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     unsigned short layerVal = 0;
     if (!db->get_ushort(col++, layerVal))                    // last_clear_layer(ushort)
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b88, 5);
         trace("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
@@ -1392,7 +1432,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
                        *reinterpret_cast<short*>(&SGF<unsigned short>(sig,
                                                                       0xd726))))
     {                                                        // enter_count_by_week
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b92, 5);
         trace("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
@@ -1400,7 +1440,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     }
     if (!db->get_int(col++, SGF<int>(sig, 0xd728)))
     {                                                        // m_date
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b9a, 5);
         trace("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
@@ -1408,7 +1448,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     }
     if (!db->get_int(col, SGF<int>(sig, 0xd72c)))
     {                                                        // last_clear_date
-        cMyTrace trace("bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1ba2, 5);
         trace("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
@@ -1599,7 +1639,8 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
 // ============================================================================
 bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+    static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc16LoadFairPvPScore…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect private_win,private_lose,private_draw,relay_battle_win,"
                   " relay_battle_lose, relay_battle_draw,relay_battle_2kill,"
@@ -1609,7 +1650,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
                   sig->m_characNo);
     if (!db->exec(true))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1618, 5);
         trace("DB_LoadSkill::LoadFairPvPScore, exec() ERROR charac_no=%u",
               sig->m_characNo);
@@ -1623,7 +1664,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
                       sig->m_characNo);
         if (!db->exec(true))
         {
-            cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1625, 5);
             trace("DB_LoadEtc::LoadFairPvPScore insert, exec() ERROR"
                   " charac_no=%u", sig->m_characNo);
@@ -1634,7 +1675,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 
     if (!db->fetch())
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x162f, 5);
         trace("DB_LoadEtc::LoadFairPvPScore, fetch() ERROR charac_no=%u",
               sig->m_characNo);
@@ -1652,7 +1693,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
             if (!db->get_uint(col++,
                               SGF<unsigned int>(sig, base + (unsigned)k * 4)))
             {
-                cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                lineNo, 5);
                 trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
                       col, sig->m_characNo);
@@ -1676,7 +1717,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     {
         if (!db->get_uint(col++, SGF<unsigned int>(sig, plainCols[n].off)))
         {
-            cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            plainCols[n].line, 5);
             trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
                   col, sig->m_characNo);
@@ -1690,7 +1731,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     }
     if (!db->get_uint(col++, SGF<unsigned int>(sig, 0xd59b)))
     {                                                        // unix_timestamp(last_play_time)
-        cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1689, 5);
         trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
               col, sig->m_characNo);
@@ -1700,7 +1741,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     if (!db->get_int(col++, lastPlay))                       // give_item 后整型重读？
     {
         // ORIG 本列实为 get_int(行号 0x1690)；占位目标与下方一致。
-        cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1690, 5);
         trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
               col, sig->m_characNo);
@@ -1714,7 +1755,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     unsigned char giveFlag = 0;
     if (!db->get_ubyte(col++, giveFlag))                     // 末列 → +0xd5a3
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x16a5, 5);
         trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
               col, sig->m_characNo);
@@ -1730,7 +1771,8 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
 {
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+    static const int handleIdx = 2;    // ORIG _ZZN10DB_LoadEtc15LoadBoosterGage…E9handleIdx
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect gage from member_booster_gage where m_id=%u",
                   sig->m_accId);
@@ -1749,7 +1791,7 @@ bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
     }
     if (!db->get_int(0, SGF<int>(sig, 0xeccc)))
     {
-        cMyTrace trace("bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC*)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xafc4, 5);
         trace("DB_LoadEtc::LoadBoosterGage, get(%d) ERROR m_id=%u", 1, sig->m_accId);
         return false;
@@ -1913,7 +1955,7 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
-                              "bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC*)",
+                              __PRETTY_FUNCTION__,
                               0xba8f, "LoadSeriaRoomAniDeco Query Error : m_id(%d)",
                               sig->m_accId);
         return false;
@@ -2031,4 +2073,15 @@ char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind)
     if (kind == 1)
         return "combo_skill2";
     return "combo_skill";
+}
+
+// ---- OnlyOrigBatch3：CHARAC_QUEST_SHOP_DATA（ORIG C1 W 0x0848f862 / clear W 0x0848f83e）----
+CHARAC_QUEST_SHOP_DATA::CHARAC_QUEST_SHOP_DATA()
+{
+    clear();
+}
+
+void CHARAC_QUEST_SHOP_DATA::clear()
+{
+    memset(this, 0, sizeof(CHARAC_QUEST_SHOP_DATA));   // ORIG memset(this,0,0xaa)
 }

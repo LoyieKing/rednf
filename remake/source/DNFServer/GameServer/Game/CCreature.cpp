@@ -236,7 +236,7 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 {
     if (m_script == 0)
     {
-        cMyTrace trace("bool user_creature::CCreature::EvoluteMulty(CUser*, int)", 0x843, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x843, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
               "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
         return false;
@@ -257,7 +257,7 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
     if (!sender.EvoluteCreature(m_uid, m_itemId))
     {
-        cMyTrace trace("bool user_creature::CCreature::EvoluteMulty(CUser*, int)", 0x866, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x866, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
@@ -275,7 +275,7 @@ bool CCreature::ItemEvolute(CUser* user, int itemIdx)
 {
     if (m_script == 0)
     {
-        cMyTrace trace("bool user_creature::CCreature::ItemEvolute(CUser*, int)", 0x89b, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x89b, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
               "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
         return false;
@@ -295,7 +295,7 @@ bool CCreature::ItemEvolute(CUser* user, int itemIdx)
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
     if (!sender.EvoluteCreature(m_uid, m_itemId))
     {
-        cMyTrace trace("bool user_creature::CCreature::ItemEvolute(CUser*, int)", 0x8bb, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x8bb, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
@@ -316,7 +316,7 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
 {
     if (m_script == 0)
     {
-        cMyTrace trace("bool user_creature::CCreature::EventEvolute(CUser*, int, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x10cc, 5);
         trace("cannot event evolute because it haven't creature script uid(%d), "
               "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
@@ -357,7 +357,7 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
     if (!sender.EventEvoluteCreature(m_uid, m_itemId, m_exp))
     {
-        cMyTrace trace("bool user_creature::CCreature::EventEvolute(CUser*, int, int)",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1104, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
@@ -376,6 +376,7 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
 // m_hdr|=0x248；compat.m_itemIdx(+0x08)=itemIdx；m_addInfo2(+0x30)=uid；
 // exp 写 +0x4c；find_item(itemIdx)（ORIG 不判空）→ m_days(+0x54)=
 // getUsablePeriod()、m_expireTick(+0x58)=getExpirationDate()；返 1。
+
 bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int exp)
 {
     if (m_stream == 0)
@@ -389,5 +390,29 @@ bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54
     buf->m_expireTick = item->getExpirationDate();    // +0x58
+    return true;
+}
+ 
+ // ORIG _ZN13user_creature12CDBMsgSender4InitE19ENUM_INTERNALPACKETP5CUser W 0x833f7a8
+
+// ORIG _ZN13user_creature12CDBMsgSender4InitE19ENUM_INTERNALPACKETP5CUser W 0x833f7a8
+//（objdump 逐条转写）：type==0x89 走 BigStreamPool::Acquire("Creature.cpp",0xa7)，
+// 其余走 StreamPool::Acquire("Creature.cpp",0xa9)；stream 空→false；
+// m_user=user；CStreamGuard(m_stream,false) 后经 operator*()（de 0x80c8c46）链式
+// 依次 << (int)type、<< (int)GetUID()；return true 落在 guard 作用域内
+//（ORIG：mov $1,%ebx 先物化 → guard D1 → mov %ebx,%eax 共享出口）。
+// 池记录名取 ORIG .rodata 0x8c2d76a 字面量 "Creature.cpp"（AE 口径归 <A>，语义等价）。
+bool user_creature::CDBMsgSender::Init(ENUM_INTERNALPACKET type, CUser* user)
+{
+    if ((int)type == ENUM_INTERNALPACKET_0x89)
+        m_stream = GlobalData::s_big_stream_pool->Acquire("Creature.cpp", 0xa7);
+    else
+        m_stream = GlobalData::s_stream_pool->Acquire("Creature.cpp", 0xa9);
+    if (m_stream == 0)
+        return false;
+    m_user = user;
+    CStreamGuard guard(m_stream, false);
+    (*guard)->operator<<((int)type);
+    (*guard)->operator<<((int)m_user->GetUID());
     return true;
 }

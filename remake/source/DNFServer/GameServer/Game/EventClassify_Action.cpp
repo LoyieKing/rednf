@@ -3,6 +3,8 @@
 // （process_action_send_mail 0x0810cf32 / process_coin_send 0x0810d4ae /
 //   process_avatar_send 0x0810d70c / process_gold_mail_send 0x0810d83c /
 //   process_mail_send 0x0810da1c）反汇编转写；类布局见 EventClassify_Action.h。
+// 邮件发件人/标题缓冲按 ORIG 以 `= {0}` 清零（gcc 4.4 -O0 展开为内联循环，
+// 与 ORIG rep stos 一致），再 findString(表4) + strncpy(0x1d/0xff) 填充。
 
 #include "EventClassify_Action.h"
 
@@ -26,29 +28,6 @@
 namespace EventClassify
 {
 
-// ---- 局部工具：邮件发件人（30 字节，strncpy 0x1d）/ 标题（256 字节，
-//      strncpy 0xff），均先清零后从 g_scriptStringManager_ 表 4 取串。 ----
-namespace
-{
-
-void fillMailSender(char (&sender)[30], const Action_SendMail& mail)
-{
-    std::memset(sender, 0, sizeof(sender));
-    const char* src = g_scriptStringManager_.findString(
-        4, toTString(mail.m_field30), 0);
-    std::strncpy(sender, src, 0x1d);
-}
-
-void fillMailTitle(char (&title)[256], const Action_SendMail& mail)
-{
-    std::memset(title, 0, sizeof(title));
-    const char* src = g_scriptStringManager_.findString(
-        4, toTString(mail.m_field34), 0);
-    std::strncpy(title, src, 0xff);
-}
-
-}  // namespace
-
 // ============================================================================
 // process_action_send_mail（ORIG 0x0810cf32）
 // 返回：3=user 为空；0x11=物品表未命中；0=成功（MakeItemPacket 失败亦回 0）。
@@ -69,9 +48,9 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
     item.m_addInfo = mail.m_itemIdx;   // +0x02（item idx）
     int addInfo = mail.m_addInfo;      // +0x24
 
-    if (!mail.m_jobMap.empty())
+    if (mail.m_jobMap.size() != 0)
     {
-        std::map<int, std::pair<int, int> >::iterator it =
+        std::map<int, std::pair<int, int> >::const_iterator it =
             mail.m_jobMap.find(user->get_charac_job());
         if (it != mail.m_jobMap.end())
         {
@@ -105,7 +84,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
             {
                 failed = true;
             }
-            else if (!citem->IsAvatarItem())   // vtable 槽4
+            else if (citem->IsAvatarItem() == 0)   // vtable 槽4
             {
                 slot = user->getCurCharacInvenW()->insertItemIntoInventory(
                     item, (eItemAddReason)0xd, true, true);
@@ -124,7 +103,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
                 PacketGuard packet;
                 packet.put_header(0, 0xe);
                 bool sendOk = true;
-                if (!citem->IsAvatarItem())
+                if (citem->IsAvatarItem() == 0)
                 {
                     packet.put_byte(0);
                     packet.put_short(1);
@@ -153,14 +132,14 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
     // 时间 endurance(+0x0b)，其余记 0）→ mail.m_vec38(+0x38)。
     mail.m_vec38.push_back(slot);
     mail.m_vec38.push_back(item.m_addInfo);
-    mail.m_vec38.push_back(item.get_add_info());
+    mail.m_vec38.push_back(item.m_addInfo2);
     if (item.m_field1 == 2 || item.m_field1 == 3)
         mail.m_vec38.push_back((int)item.m_fieldb);
     else
         mail.m_vec38.push_back(0);
 
     user->SendAradEventItemLog((unsigned long)item.m_addInfo,
-                               item.get_add_info());
+                               item.m_addInfo2);
     return 0;
 }
 
@@ -174,22 +153,23 @@ int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
 {
     if (mail.m_field1c != 0)
     {
-        int cur = (int)user->getCurCharacInvenR()->GetEventCoin();
-        int amount = item.get_add_info();       // +0x07
         user->getCurCharacInvenW()->SetEventCoin(
-            (unsigned int)(cur + amount));
-        int total = (int)user->getCurCharacInvenR()->GetEventCoin();
-        user->m_historyLog.EventCoinAdd(total, amount, (eCoinAddReason)2);
+            user->getCurCharacInvenR()->GetEventCoin() + item.m_addInfo2);
+        user->m_historyLog.EventCoinAdd(
+            user->getCurCharacInvenR()->GetEventCoin(), item.m_addInfo2,
+            (eCoinAddReason)2);
         user->SaveMoneyCoin();
         user->SendCoin();
     }
     else
     {
         item.m_fieldb = 1;                       // +0x0b word = 1
-        char sender[30];
-        char title[256];
-        fillMailSender(sender, mail);
-        fillMailTitle(title, mail);
+        char title[256] = {0};
+        char sender[30] = {0};
+        std::strncpy(sender, g_scriptStringManager_.findString(
+                         4, toTString(mail.m_field30), 0), 0x1d);
+        std::strncpy(title, g_scriptStringManager_.findString(
+                         4, toTString(mail.m_field34), 0), 0xff);
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             sender, item,
             (unsigned int)mail.m_gold,                       // +0x28
@@ -244,10 +224,12 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
     Inven_Item item;
     item.m_addInfo = -1;
 
-    char sender[30];
-    char title[256];
-    fillMailSender(sender, mail);
-    fillMailTitle(title, mail);
+    char title[256] = {0};
+    char sender[30] = {0};
+    std::strncpy(sender, g_scriptStringManager_.findString(
+                     4, toTString(mail.m_field30), 0), 0x1d);
+    std::strncpy(title, g_scriptStringManager_.findString(
+                     4, toTString(mail.m_field34), 0), 0xff);
 
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         sender, item,
@@ -269,12 +251,14 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
     if (citem == 0)
         return 0x11;
 
-    char sender[30];
-    char title[256];
-    fillMailSender(sender, mail);
-    fillMailTitle(title, mail);
+    char title[256] = {0};
+    char sender[30] = {0};
+    std::strncpy(sender, g_scriptStringManager_.findString(
+                     4, toTString(mail.m_field30), 0), 0x1d);
+    std::strncpy(title, g_scriptStringManager_.findString(
+                     4, toTString(mail.m_field34), 0), 0xff);
 
-    if (!citem->IsAvatarItem())
+    if (citem->IsAvatarItem() == 0)
     {
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             sender, item,
@@ -284,7 +268,13 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
             (unsigned int)(signed char)mail.m_coin,
             user->GetServerGroup(), false, false);
     }
-    // avatar 分支：ORIG 仅清零 0x18 字节局部缓冲后返回 0（无 DB 请求）。
+    else
+    {
+        // avatar 分支：ORIG 仅清零 0x18 字节局部缓冲并置 0 一个 int
+        // 后返回 0（无 DB 请求）。mailPad/dummy 均为忠实还原的死存储。
+        char mailPad[24] = {0};
+        int dummy = 0;
+    }
     return 0;
 }
 
@@ -302,8 +292,9 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
     if (citem == 0)
         return 0x11;
 
-    const int itemType = citem->GetItemType();   // ORIG vtable slot +0x0c
-    if (itemType == 6)
+    switch (citem->GetItemType())   // ORIG vtable slot +0x0c
+    {
+    case 6:
     {
         Inven_Item item;
         G_CDataManager()->getItemList()->get_lotto_item(
@@ -311,8 +302,9 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
         if (item.m_addInfo == 0 || item.m_addInfo == -1)
             return 0x11;
         out.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+        break;
     }
-    else if (itemType == 16)
+    case 16:
     {
         std::vector<stStackableBoosterItemInfo_t> boosters;
         static_cast<CStackableItem*>(citem)->getBoosterItem(boosters);
@@ -326,9 +318,9 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
                 (int)(unsigned int)it->m_itemIdx,
                 (int)(unsigned short)it->m_addInfo));
         }
+        break;
     }
-    else
-    {
+    default:
         return 0x17;
     }
     return 0;

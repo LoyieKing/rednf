@@ -76,9 +76,8 @@ public:
     std::set<ScriptInterface*> m_scripts;   // +0x00（注册脚本集）
 };
 
-// ============================================================================
-// Arad_InterfaceGameScript —— Arad_DataManager::m_scriptMap 的 value 类型。
-// ORIG ctor _ZN4ARAD24Arad_InterfaceGameScriptC1ESs @0x08195c5c：
+// ORIG ctor _ZN4ARAD24Arad_InterfaceGameScriptC1ESs @0x08195c5c（按值 std::string
+//   形参，mangled 尾部为 Ss 而非 RKSs；声明/定义必须为按值，否则符号不匹配）：
 //   vptr @0x8b9ca68 + std::string m_scriptDataName @+0x04（typeinfo/vtable 共 0xc）。
 // 派生类（Arad_EventPeriodDataManager/Arad_StatisticsEventItemList）会在 vptr 后
 // 第一位放脚本名 string，然后才是各自成员。虚槽：槽2=loadScriptData、槽3=clearScriptData。
@@ -86,7 +85,7 @@ public:
 class Arad_InterfaceGameScript
 {
 public:
-    Arad_InterfaceGameScript(const std::string& name);
+    Arad_InterfaceGameScript(std::string name);   // ORIG 按值（_ZN4ARAD24Arad_InterfaceGameScriptC1ESs）
     virtual ~Arad_InterfaceGameScript();   // vtable 槽0=D1、槽1=D0（ORIG 有虚析构）
     // ORIG 基类这两虚槽为纯虚（vtable @0x8b9ca68 槽2/3 = __cxa_pure_virtual）。
     // 派生类覆盖为 loadScriptData（槽2）/ clearScriptData（槽3），以匹配 ORIG
@@ -94,7 +93,7 @@ public:
     virtual bool loadScriptData() = 0;    // vtable 槽 2（派生类装载脚本数据）
     virtual void clearScriptData() = 0;   // vtable 槽 3（派生类清理脚本数据）
 
-    std::string scriptDataName();   // ORIG 0x8188b18：返回 m_scriptDataName
+    std::string scriptDataName() const;   // ORIG 0x8188b18：返回 m_scriptDataName
 
 private:
     std::string m_scriptDataName;   // +0x04（vptr +0x00 之后）
@@ -292,9 +291,11 @@ class Arad_OnePlusCardEvent_ItemList : public Arad_ScriptLoader
 public:
     struct Data
     {
-        Data() : webId(0), itemIndex(0) {}
-        Data(unsigned short w, unsigned int i) : webId(w), itemIndex(i) {}
-        bool operator==(const Data& rhs) const { return webId == rhs.webId; }
+                // ORIG 两参 ctor @0x081a41e8（W，mangled _ZN30Arad_OnePlusCardEvent_ItemList4DataC1Etm，
+        // 形参 (unsigned short, unsigned long)）；ORIG 无默认 ctor 符号。
+        Data(unsigned short w, unsigned long i) : webId(w), itemIndex(i) {}
+        // ORIG operator== @0x081a420a（W）：std::find 实例化调用，仅比 webId。
+        bool operator==(const Data& rhs) { return webId == rhs.webId; }
         unsigned short webId;     // +0x00
         int itemIndex;            // +0x04
     };
@@ -329,7 +330,10 @@ public:
     struct Data
     {
         Data() : winPoint(0), itemIndex(0), itemCount(0) {}
-        bool operator==(const Data& rhs) const { return winPoint == rhs.winPoint; }
+        // ORIG W 0x084ed148 _ZN29Arad_VillageAttackRewardItem4DataC1Eimi（InterWave1 W5 批）
+        Data(int wp, unsigned long idx, int cnt)
+            : winPoint(wp), itemIndex(static_cast<int>(idx)), itemCount(cnt) {}
+        bool operator==(const Data& rhs) { return winPoint == rhs.winPoint; }
         int winPoint;     // +0x00
         int itemIndex;    // +0x04
         int itemCount;    // +0x08
@@ -382,7 +386,7 @@ public:
     // 在内部 new 各脚本单例并 __insertGameScript，成功后逐子对象 Arad_ScriptLoader::open。
     bool initAradData();
 
-    // ORIG 0x08188952：遍历 m_scriptMap 逐项 delete 脚本（FN_DeleteGameScript），clear map。
+    // ORIG 0x08188952：std::for_each(begin,end,FN_DeleteGameScript()) 逐项删除脚本，clear map。
     void destroyAradData();
 
     // ORIG 0x081889bc：若脚本名未注册则 m_scriptMap[scriptDataName()]=script 并返回 true；

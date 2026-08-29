@@ -22,10 +22,12 @@ float ScanFloat(bool* ok);
 float ScanFloat(int scale, bool* ok);
 bool ScanStr(std::string* value);
 bool ScanStr(char* dst, int maxLen);
+int ScanAll(int* intOut, float* floatOut, std::string* strOut);   // ORIG T 0x088bdea9
+int ScanAll(float* value, std::string* str);                      // ORIG T 0x088bde5a
 int ScanFloatStr(float& value, std::string& token);
 int ScanTypeOrInt(bool& isType, std::string& s, bool& isInt, bool consume);
 bool ScanTypeOrStr(bool& isType, std::string& s, bool consume);
-void GetEscapeString(MySQL* db, const char* src, char* dst);
+char* GetEscapeString(MySQL* db, const char* src, char* dst);  // ORIG 0x0861cc47：转义后返回 dst
 bool LoadStreamFromPack(const char* dir, const char* filename, DNFLex::stream_data_t* s);
 bool LoadStreamFromPlain(const char* dir, const char* filename, DNFLex::stream_data_t* s);
 

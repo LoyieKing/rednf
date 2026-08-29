@@ -33,12 +33,14 @@ namespace ARAD_DATAS
 struct AradMailItemInfo
 {
     AradMailItemInfo()
-        : m_flag(0), m_fieldA(0), m_fieldC(0), m_field10(0), m_itemAttr(0) {}
+        : m_flag(0), m_field4(0), m_field8(0), m_fieldA(0), m_fieldC(0),
+          m_field10(0), m_itemAttr(0) {}
 
     // ORIG GetItemAttr _ZNK10ARAD_DATAS16AradMailItemInfo11GetItemAttrEv W
     unsigned char GetItemAttr() const { return m_itemAttr; }  // 0x08197e12
-
-    unsigned char m_flag;    // +0x00 → SIG_MAILBOX_SEND_NEW_MAIL +0x2a
+    unsigned char m_flag;    // +0x00 → SIG +0x2a
+    int m_field4;            // +0x04（send_mail 0x081a329e 写 1）
+    unsigned char m_field8;  // +0x08（send_mail 0x081a329e 写 2）
     unsigned short m_fieldA; // +0x0a → SIG +0x34
     int m_fieldC;            // +0x0c → SIG +0x2b
     int m_field10;           // +0x10 → SIG +0x2f、+0x36
@@ -78,6 +80,8 @@ bool CheckAccountItem(CUser* user, unsigned int itemIndex,
                       class PurchaseLimitItem::Info& out);
 
 // ORIG _ZN4ARAD9send_mailERN10ARAD_DATAS12AradMailInfoE T @0x08196b03（返回 1）。
+// 定义：Arad_ItemBonus.cpp（实现已在）。
+int send_mail(ARAD_DATAS::AradMailInfo& info);
 
 // ORIG _ZN4ARAD35importCashShopPurcahseBonusItemListEPcRSt3mapIiSt6vectorINS_13PurcahseBonusESaIS3_EESt4lessIiESaISt4pairIKiS5_EEE
 // T @0x088b62ec —— "CashShop/PurcahseBonusItem.shp" 解析器（LoadScript 直接依赖）。

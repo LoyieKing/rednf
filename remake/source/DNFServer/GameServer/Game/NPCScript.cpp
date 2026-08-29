@@ -6,7 +6,10 @@
 
 #include "NpcScript.h"
 #include "CCubeStatistic.h"   // getItemGroupNameTable()（ORIG 0x088c0409）
+#include "CDataManager.h"     // G_CDataManager()/getItemList()（giveGiftItem 族）
+#include "CItem.h"            // CItem::get_index/getItemGroupName
 #include "DNFLexWrapper.h"    // ScanType/ScanInt/ScanStr
+#include "DNFFunctionLib.h"   // get_rand_int(int)
 
 // ============================================================================
 // CNPCScript / NpcScript / importNpcScript
@@ -23,6 +26,79 @@
 
 // [favor rate per mood] 的除数（ORIG _DAT_08e1dbf4 = 100.0f）。
 static const float NPC_FAVOR_RATE_DIVISOR = 100.0f;
+
+// ORIG W 0x08582338：仅构造 this+0x04 NpcScript；+0x00 不初始化。
+CNPCScript::CNPCScript()
+{
+}
+
+// ORIG W 0x0858234e：仅析构 this+0x04 NpcScript。
+CNPCScript::~CNPCScript()
+{
+}
+
+
+// ----------------------------------------------------------------------------
+// PresentResponceScript 族 —— ORIG [favor_dialog] 三结构生命周期：
+//   Script    C1 0x8a00aba / clear 0x8a00a86（m_a/m_b/m_c=0 + m_str.clear()）
+//   Exception C1 0x8a00b22 / clear 0x8a00b02（m_a=0 + m_str.clear()）
+//   Event     C1 0x8a00b8a / clear 0x8a00b6a（m_a=0 + m_str.clear()）
+// ----------------------------------------------------------------------------
+PresentResponceScript::PresentResponceScript() : m_str()
+{
+    clear();
+}
+
+void PresentResponceScript::clear()
+{
+    m_a = 0;
+    m_b = 0;
+    m_c = 0;
+    m_str.clear();
+}
+
+PresentResponceScriptException::PresentResponceScriptException() : m_str()
+{
+    clear();
+}
+
+void PresentResponceScriptException::clear()
+{
+    m_a = 0;
+    m_str.clear();
+}
+
+// InteractiveDialogScript：ORIG C1 0x08a009f2（成员 C1 + clear）/
+// clear T 0x08a0098a（+0/+4/+8 int=0、+0xc vector clear、+0x18 byte=0、
+// +0x1c int=0、+0x20 byte=0、+0x24 string clear、+0x28 vector clear）。
+InteractiveDialogScript::InteractiveDialogScript() : m_str()
+{
+    clear();
+}
+
+void InteractiveDialogScript::clear()
+{
+    m_a = 0;
+    m_b = 0;
+    m_c = 0;
+    m_conditions.clear();
+    m_flag0 = 0;
+    m_d = 0;
+    m_flag = false;
+    m_str.clear();
+    m_list2.clear();
+}
+
+PresentResponceScriptEvent::PresentResponceScriptEvent() : m_str()
+{
+    clear();
+}
+
+void PresentResponceScriptEvent::clear()
+{
+    m_a = 0;
+    m_str.clear();
+}
 
 // ----------------------------------------------------------------------------
 // NpcScript::clear —— ORIG 0x089fbf22 逐字段。
@@ -101,8 +177,8 @@ void stFavorableRelationShip_t::clear()
     m_maxGiftPerDay = 0;
     m_dialogDayGap1 = 0;
     m_dialogDayGap2 = 0;
-    m_moodChanges.clear();
-    m_keyItems.clear();
+    m_fav.m_moodChanges.clear();
+    m_fav.m_keyItems.clear();
     for (int l = 0; l < 5; ++l)
     {
         for (int i = 0; i < 5; ++i)
@@ -494,8 +570,8 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 bool ok = false;
                                 int value = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
-                                fav.m_moodChanges.push_back(
-                                    std::make_pair(mood,
+                                fav.m_fav.m_moodChanges.push_back(
+                                    std::make_pair(static_cast<ENUM_NPC_MOOD>(mood),
                                                    static_cast<unsigned int>(value)));
                             }
                         }
@@ -506,7 +582,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                             {
                                 unsigned int id = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
-                                fav.m_keyItems.push_back(
+                                fav.m_fav.m_keyItems.push_back(
                                     std::make_pair(
                                         static_cast<unsigned long>(
                                             static_cast<unsigned int>(key)),
@@ -540,7 +616,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                         }
                         if (token == "[prefer item]" || token == "[unprefer item]")
                         {
-                            stGiftTable_t& table = (token == "[prefer item]")
+                            stFavorableRelationShip_t::stGiftTable_t& table = (token == "[prefer item]")
                                                        ? fav.m_preferItems
                                                        : fav.m_unpreferItems;
                             const bool unprefer = (token == "[unprefer item]");
@@ -548,7 +624,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                             for (int slot = ScanInt(&ok); ok; slot = ScanInt(&ok))
                             {
                                 if (slot > 4) { return IMPORT_FAIL; }
-                                stGiftItemInfo_t info;
+                                stFavorableRelationShip_t::stGiftItemInfo_t info;
                                 info.m_a = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_b = ScanInt(&ok);
@@ -575,7 +651,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                         if (token == "[prefer item group]" ||
                             token == "[unprefer item group]")
                         {
-                            stGiftTable_t& table = (token == "[prefer item group]")
+                            stFavorableRelationShip_t::stGiftTable_t& table = (token == "[prefer item group]")
                                                        ? fav.m_preferItemGroups
                                                        : fav.m_unpreferItemGroups;
                             const bool unprefer =
@@ -591,7 +667,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                     names.find(sub);
                                 if (it == names.end()) { return IMPORT_FAIL; }
                                 int groupIdx = it->second;
-                                stGiftItemInfo_t info;
+                                stFavorableRelationShip_t::stGiftItemInfo_t info;
                                 info.m_a = groupIdx;
                                 info.m_b = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
@@ -794,24 +870,26 @@ int importNpcScript(NpcScript* npc, char const* path)
     }
 }
 
-namespace {
-
-// isKeyItem 使用的比较器（ORIG 反编译中称 isSameItem）。
-struct NPC_IsSameItem
+// ORIG W 0x08582374/0x085823a4：isKeyItem 的具名 functor（nm 三符号
+//   isSameItem C1/C2/cl，W 弱符号；ctor 以 pair<unsigned long,unsigned int>
+//   转发构造 m_pair，operator() 非 const 且语义为
+//   item.first==m_pair.first && m_pair.second>=item.second）。
+struct isSameItem
 {
-    const unsigned long m_key;
-    const unsigned int  m_itemId;
+    std::pair<unsigned long, unsigned int> m_pair;
 
-    NPC_IsSameItem(unsigned long key, unsigned int id)
-        : m_key(key), m_itemId(id) {}
+    isSameItem(unsigned long m, unsigned int j)
+        : m_pair(m, j) {}
 
-    bool operator()(const std::pair<unsigned long, unsigned int>& item) const
+    bool operator()(const std::pair<unsigned long, unsigned int>& item)
     {
-        return item.first == m_key && item.second == m_itemId;
+        if (m_pair.first == item.first && m_pair.second >= item.second)
+        {
+            return true;
+        }
+        return false;
     }
 };
-
-}  // namespace
 
 // ORIG 0x85809a6:
 //   ret = importNpcScript((NpcScript*)(this+4), path);
@@ -848,13 +926,18 @@ bool CNPCScript::isRewardLevel(unsigned short level) const
     return false;
 }
 
-// ORIG 0x8580e6a: find_if(keyItems, isSameItem) != end()（+0x18c）。
+// 具名局部 comp 先构造（ORIG ctor 调用居函数首），比较用 eq + je 分支形态。
 bool CNPCScript::isKeyItem(unsigned long key, unsigned int id) const
 {
-    return std::find_if(m_npcScript.m_favorableRelationShip.m_keyItems.begin(),
-                        m_npcScript.m_favorableRelationShip.m_keyItems.end(),
-                        NPC_IsSameItem(key, id)) !=
-           m_npcScript.m_favorableRelationShip.m_keyItems.end();
+    isSameItem comp(key, id);
+    std::vector<std::pair<unsigned long, unsigned int> >::const_iterator result =
+        std::find_if(m_npcScript.m_favorableRelationShip.m_fav.m_keyItems.begin(),
+                     m_npcScript.m_favorableRelationShip.m_fav.m_keyItems.end(), comp);
+    if (result == m_npcScript.m_favorableRelationShip.m_fav.m_keyItems.end())
+    {
+        return false;
+    }
+    return true;
 }
 
 // ORIG 0x85811a4: +0x670 字符串 == "item" -> 1；=="quest" -> 2；否则 0。
@@ -872,6 +955,183 @@ int CNPCScript::getPeriodRewardType() const
     return 0;
 }
 
-// 构造/析构：成员均为 std 容器（自带默认构造/析构）。
-CNPCScript::CNPCScript() {}
-CNPCScript::~CNPCScript() {}
+// ============================================================================
+// CNPCScript 礼物/心情/奖励 6 函数 —— ORIG 0x85809e4 / 0x8580d30 / 0x8580f28 /
+// 0x8581076 / 0x85811f8（T）；getFavorRatePerMood 为头内联（W 0x085819c6）。
+// ============================================================================
+
+// ORIG 0x85809e4：按 mood 槽依次查四张礼物表（m_maps[mood]），命中后比较
+//   it->second.m_b（ushort）与 count 决定采纳 m_c 还是写 result=FAIL；
+//   give!=0 时提前返回。m_c 为有符号 short（setg 16 位比较 / std::max<short>）。
+unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, unsigned int count,
+                                        ENUM_NPC_FAVOR_GIFT_RESULT_CONST& result) const
+{
+    short give = 0;
+    std::map<unsigned long, stFavorableRelationShip_t::stGiftItemInfo_t>::const_iterator it;
+    unsigned long key = item->get_index();
+    it = m_npcScript.m_favorableRelationShip.m_preferItems.m_maps[mood].find(key);
+    if (it != m_npcScript.m_favorableRelationShip.m_preferItems.m_maps[mood].end())
+    {
+        if (static_cast<unsigned short>(it->second.m_b) <= count)
+        {
+            give = it->second.m_c;
+        }
+        else
+        {
+            result = ENUM_NPC_FAVOR_GIFT_RESULT_FAIL;
+        }
+    }
+    int groupName = item->getItemGroupName();
+    if (groupName != 0)
+    {
+        it = m_npcScript.m_favorableRelationShip.m_preferItemGroups.m_maps[mood].find(
+            static_cast<unsigned long>(groupName));
+        if (it != m_npcScript.m_favorableRelationShip.m_preferItemGroups.m_maps[mood].end())
+        {
+            if (static_cast<unsigned short>(it->second.m_b) <= count)
+            {
+                if (it->second.m_c > give)
+                {
+                    give = it->second.m_c;
+                }
+            }
+            else
+            {
+                result = ENUM_NPC_FAVOR_GIFT_RESULT_FAIL;
+            }
+        }
+    }
+    if (give != 0)
+    {
+        return give;
+    }
+    key = item->get_index();
+    it = m_npcScript.m_favorableRelationShip.m_unpreferItems.m_maps[mood].find(key);
+    if (it != m_npcScript.m_favorableRelationShip.m_unpreferItems.m_maps[mood].end())
+    {
+        give = it->second.m_c;
+    }
+    int groupName2 = item->getItemGroupName();
+    if (groupName2 != 0)
+    {
+        it = m_npcScript.m_favorableRelationShip.m_unpreferItemGroups.m_maps[mood].find(
+            static_cast<unsigned long>(groupName2));
+        if (it != m_npcScript.m_favorableRelationShip.m_unpreferItemGroups.m_maps[mood].end())
+        {
+            if (give != 0)
+            {
+                give = std::max<short>(give, it->second.m_c);
+            }
+            else
+            {
+                give = it->second.m_c;
+            }
+        }
+    }
+    return give;
+}
+
+// ORIG 0x8580d30：按 m_rewardItems.m_slots[index][mood].m_byDir[change] 权重表
+//   随机抽取（get_rand_int(weight)）；权重 0 条目（m_a==0 && m_b==0）直接 break。
+Inven_Item CNPCScript::getGiftRewardItem(ENUM_NPC_MOOD mood,
+                                         ENUM_NPC_FAVOR_CHANGE_CONST change,
+                                         unsigned int index) const
+{
+    Inven_Item result;
+    const stFavorableRelationShip_t::stRewardItemInfo_t& slot =
+        m_npcScript.m_favorableRelationShip.m_rewardItems.m_slots[index][mood];
+    int r = get_rand_int(static_cast<int>(slot.m_weight[change]));
+    for (unsigned int i = 0; i < slot.m_byDir[change].size(); ++i)
+    {
+        const stFavorableRelationShip_t::stRewardItemElement_t& e =
+            slot.m_byDir[change].at(i);
+        if (static_cast<unsigned int>(e.m_w) > static_cast<unsigned int>(r))
+        {
+            if (e.m_a == 0 && e.m_b == 0)
+            {
+                break;
+            }
+            result.m_addInfo = e.m_a;
+            G_CDataManager()->getItemList()->create_item(
+                ENUM_ITEM_CREATE_TYPE_0, result, e.m_b);
+            break;
+        }
+    }
+    return result;
+}
+
+// ORIG 0x8580f28：m_moodChanges（NpcScript+0x180 处 pair<MOOD,uint> vector）
+//   轮转：空表时 mood=1/count=0 返回 0；否则 ++count 后越界回绕，
+//   输出 at(count) 的 first/second。
+int CNPCScript::getNextMood(ENUM_NPC_MOOD& mood, unsigned int& count) const
+{
+    if (m_npcScript.m_favorableRelationShip.m_fav.m_moodChanges.empty())
+    {
+        mood = ENUM_NPC_MOOD_NORMAL;
+        count = 0;
+        return 0;
+    }
+    ++count;
+    if (m_npcScript.m_favorableRelationShip.m_fav.m_moodChanges.size() <= count)
+    {
+        count = 0;
+    }
+    mood = m_npcScript.m_favorableRelationShip.m_fav.m_moodChanges.at(count).first;
+    return m_npcScript.m_favorableRelationShip.m_fav.m_moodChanges.at(count).second;
+}
+
+// ORIG 0x8581076：遍历 m_levelRewards，匹配 level 后拷贝五字段（string 用
+//   operator=）；循环条件每轮重求 end()。
+stFavorableRelationShip_t::stLevelRewardInfo CNPCScript::getLevelRewardInfo(
+    unsigned short level) const
+{
+    stFavorableRelationShip_t::stLevelRewardInfo result;
+    std::vector<stFavorableRelationShip_t::stLevelRewardInfo>::const_iterator it =
+        m_npcScript.m_favorableRelationShip.m_levelRewards.begin();
+    for (; it != m_npcScript.m_favorableRelationShip.m_levelRewards.end(); it++)
+    {
+        const stFavorableRelationShip_t::stLevelRewardInfo* p = &*it;
+        if (p != 0)
+        {
+            if (p->m_level == level)
+            {
+                result.m_level = p->m_level;
+                result.m_flag0 = p->m_flag0;
+                result.m_flag1 = p->m_flag1;
+                result.m_name = p->m_name;
+                result.m_desc = p->m_desc;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+// ORIG 0x85811f8：m_buffRewards 权重随机（get_rand_int(1000)），条件
+//   it->m_a < level；命中后拷贝 m_b/m_a/m_c 并 break。
+stFavorableRelationShip_t::stBuffRewardInfo CNPCScript::getBuffRewardInfo(int level) const
+{
+    std::vector<stFavorableRelationShip_t::stBuffRewardInfo>::const_iterator it =
+        m_npcScript.m_favorableRelationShip.m_buffRewards.begin();
+    std::vector<stFavorableRelationShip_t::stBuffRewardInfo>::const_iterator end =
+        m_npcScript.m_favorableRelationShip.m_buffRewards.end();
+    stFavorableRelationShip_t::stBuffRewardInfo info;
+    int r = get_rand_int(1000);
+    int total = 0;
+    info.m_b = 0;
+    for (; it != end; it++)
+    {
+        if (it->m_a < level)
+        {
+            total += it->m_c;
+            if (total > r)
+            {
+                info.m_b = it->m_b;
+                info.m_a = it->m_a;
+                info.m_c = it->m_c;
+                break;
+            }
+        }
+    }
+    return info;
+}

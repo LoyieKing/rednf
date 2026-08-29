@@ -47,6 +47,7 @@ void CCreatureScriptMgr::Destroy()
 //      m_scripts。
 bool CCreatureScriptMgr::LoadCreatureScriptFile()
 {
+    static const int OOJ_BUFSIZE = 0x100;  // ORIG _ZZN13user_creature18CCreatureScriptMgr22LoadCreatureScriptFileEvE11OOJ_BUFSIZE
     for (std::map<int, std::string>::const_iterator it = g_creatureScriptFileList.begin();
          it != g_creatureScriptFileList.end(); ++it)
     {
@@ -60,7 +61,7 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
         if (!importCreatureScript(&native, path.c_str()))
         {
             LogManager::logFormat(1, "Creature.cpp",
-                "bool user_creature::CCreatureScriptMgr::LoadCreatureScriptFile()",
+                __PRETTY_FUNCTION__,
                 0xf6b, "importCreatureScript fail file - %s", path.c_str());
             return false;
         }
@@ -95,10 +96,10 @@ CCreatureScript* CCreatureScriptMgr::FindCreatureScript(int creatureId)
     if (it == m_scripts.end())
     {
         cMyTrace trace(
-            "user_creature::CCreatureScript* user_creature::CCreatureScriptMgr::FindCreatureScript(int)",
+            __PRETTY_FUNCTION__,
             0xfe8, 5);
         trace("[%s][%d]",
-              "user_creature::CCreatureScript* user_creature::CCreatureScriptMgr::FindCreatureScript(int)",
+              __PRETTY_FUNCTION__,
               0xfe8);
         return 0;
     }
@@ -112,10 +113,10 @@ bool CCreatureScriptMgr::RegisterCreatureIdAndItemId(int creatureId, int itemId)
     if (it != m_creatureIdToItemId.end())
     {
         cMyTrace trace(
-            "bool user_creature::CCreatureScriptMgr::RegisterCreatureIdAndItemId(int, int)",
+            __PRETTY_FUNCTION__,
             0xfff, 5);
         trace("[%s][%d]",
-              "bool user_creature::CCreatureScriptMgr::RegisterCreatureIdAndItemId(int, int)",
+              __PRETTY_FUNCTION__,
               0xfff);
         return false;
     }

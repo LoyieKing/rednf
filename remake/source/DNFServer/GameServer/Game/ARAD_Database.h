@@ -28,6 +28,12 @@ namespace ARAD
 
 namespace DATABASE
 {
+// ORIG 死常量（头文件 static，逐 TU 一份；值按 .rodata 实测 _ZN4ARAD8DATABASEL*E）：
+static const unsigned int sourceInvenSize = 0x3b55;     // 角色背包快照长度
+static const unsigned int sourceCargoSize = 0x2438;     // 仓库快照长度（0x98 槽 * 0x3d）
+static const unsigned int sourceJewelSize = 0xf03;      // 珠宝快照长度
+static const unsigned int sourceEquipSize = 0x2dc;      // 装备区快照长度
+static const unsigned int sourceCreatureSize = 0x184e;  // 宠物区快照长度
 
 // ---- CREATE_QUERY：角色创建 DB 写入族（全 static，无 ctor/dtor 符号）----
 class CREATE_QUERY

@@ -796,9 +796,9 @@ int CBossTower::InsertRewardItems()
                 packet.put_header(0, 0xe);
                 packet.put_byte(reward.GetItemSpace());
                 packet.put_short(1);
-                packet.put_int(GetInvenTypeFromItemSpace(reward.GetItemSpace()));
+                packet.put_int(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward.GetItemSpace()));
                 member->getCurCharacInvenR()->MakeItemPacket(
-                    (INVEN_TYPE)GetInvenTypeFromItemSpace(reward.GetItemSpace()),
+                    (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward.GetItemSpace()),
                     slotResult, packet);
                 packet.finalize(true);
                 member->Send(packet);

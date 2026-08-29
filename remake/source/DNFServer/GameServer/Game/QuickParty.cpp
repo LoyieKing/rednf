@@ -22,6 +22,15 @@
 // [dedup] CGameManager 权威定义见 CGameManager.h（namespace WongWork），本 TU 本地桩已删。
 CGameManager* G_CGameManager();   // CDungeon.h 同声明
 
+// CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
+// m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
+// 本组 TU 局部视图，与 CParty.cpp 口径一致）。布局：pad 0xb24 + BF 0xcd0。
+struct CPartyBattleFieldView
+{
+    char m_pad[0xb24];
+    CBattle_Field m_battleField;   // +0xb24
+};
+
 namespace QuickParty
 {
 
@@ -177,9 +186,9 @@ int CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUser
 
     if (party->GetEPLPState() > 1 && flag) {
         party->SetSelectedEPLPCmd((char)-1);            // ORIG 写 -1（0x826a4db）
-        // ORIG: ((CBattle_Field*)((char*)party + 0xb24)) —— 字段为 CParty 私有，按偏移访问
+        // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
         CBattle_Field* bf =
-            reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+            &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
         int buffType = bf->getRandomBuffDungeonType(qp->get_dungeon_index());
         bf->setEplpWaitingTimer((RandomBuffDungeon)buffType);
     }
@@ -281,9 +290,8 @@ CParty* CQuickParty::get_party_object(int idx)
 // 先自增再返回新值。msg=0x9e 对应 +0x20 槽。
 int CQuickParty::gen_timer_key(TIMER_MESSAGE msg)
 {
-    int* slot = reinterpret_cast<int*>(
-        reinterpret_cast<char*>(this) + 0x0c +
-        (static_cast<int>(msg) - 0x9d + 4) * 4);
+    // 计数数组自 +0x1c 起（m_field1c 槽 0）；(msg-0x9d) 步进（ORIG 0x826a4db 口径）
+    int* slot = &m_field1c + (static_cast<int>(msg) - 0x9d);
     ++(*slot);
     return *slot;
 }
@@ -387,7 +395,7 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
     {
         qp->destroy();
         cMyTrace trace(
-            "bool QuickParty::CQuickPartySystemManager::remove_quick_party_in_pool(QuickParty::CQuickParty*, const QuickParty::STQuickPartyPoolMap_Key&)",
+            __PRETTY_FUNCTION__,
             0x2ba, 5);
         trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
         return false;
@@ -427,7 +435,7 @@ bool CQuickPartySystemManager::push_quick_party_in_pool(
         }
         LogManager::logFormat(
             1, "QuickParty.cpp",
-            "bool QuickParty::CQuickPartySystemManager::push_quick_party_in_pool(const QuickParty::STQuickPartyPoolMap_Key&, QuickParty::STQuickPartyPoolMap_Data&, CParty*, int, QuickParty::CQuickParty*, bool)",
+            __PRETTY_FUNCTION__,
             899, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! REGIST POOL INDEX(%d)",
             count);
         return false;
@@ -476,9 +484,7 @@ int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
 // ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
 bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
 {
-    return *reinterpret_cast<int*>(
-               reinterpret_cast<char*>(this) + 0x0c +
-               (static_cast<int>(msg) - 0x9d + 4) * 4) == key;
+    return (&m_field1c)[static_cast<int>(msg) - 0x9d] == key;
 }
 
 // ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
@@ -552,7 +558,7 @@ CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
         if (qp != 0)
             return qp;
         cMyTrace trace(
-            "QuickParty::CQuickParty* QuickParty::CQuickPartySystemManager::find_quick_party_in_pool(QuickParty::LIST_QUICK_PARTY&)",
+            __PRETTY_FUNCTION__,
             0x29c, 5);
         trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
     }
@@ -585,7 +591,7 @@ CQuickParty* CQuickPartySystemManager::pop_quick_party_in_pool(
     if (qp == 0)
     {
         cMyTrace trace(
-            "QuickParty::CQuickParty* QuickParty::CQuickPartySystemManager::pop_quick_party_in_pool(int&, QuickParty::STQuickPartyPoolMap_Data&, int, int, int)",
+            __PRETTY_FUNCTION__,
             0x352, 5);
         trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
         qp = G_CGameManager()->GetQuickParty();
@@ -634,7 +640,7 @@ int CQuickPartySystemManager::check_match_proper_party(
     {
         LogManager::logFormat(
             1, "QuickParty.cpp",
-            "ENUM_ERROR QuickParty::CQuickPartySystemManager::check_match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*)",
+            __PRETTY_FUNCTION__,
             0x16e, "QUICK_PARTY_LOG : DUNGEON INDEX ERROR!! (%d)",
             static_cast<int>(dungeonIdx));
     }
@@ -712,7 +718,7 @@ int CQuickPartySystemManager::match_proper_party(
         {
             LogManager::logFormat(
                 1, "QuickParty.cpp",
-                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                __PRETTY_FUNCTION__,
                 0x186, "QUICK_PARTY_LOG : PARTY IS NULL!! (%d)",
                 reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacNo());
         }
@@ -720,7 +726,7 @@ int CQuickPartySystemManager::match_proper_party(
         {
             LogManager::logFormat(
                 1, "QuickParty.cpp",
-                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                __PRETTY_FUNCTION__,
                 0x188, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY INDEX (%d)!!",
                 party ? party->get_quick_party_index() : 0);
         }
@@ -746,7 +752,7 @@ int CQuickPartySystemManager::match_proper_party(
     if (it == m_poolMap.end())
     {
         cMyTrace trace(
-            "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x1d6, 5);
         trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
         return 1;
@@ -783,7 +789,7 @@ int CQuickPartySystemManager::match_proper_party(
         unsigned int qpIndex =
             static_cast<unsigned int>(qp->get_quick_party_index());
         cMyTrace trace(
-            "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+            __PRETTY_FUNCTION__,
             0x1b4, 0);
         trace("QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
               qpIndex, total);
@@ -791,7 +797,7 @@ int CQuickPartySystemManager::match_proper_party(
         {
             LogManager::logFormat(
                 1, "QuickParty.cpp",
-                "ENUM_ERROR QuickParty::CQuickPartySystemManager::match_proper_party(const QuickParty::STQuickPartyPoolMap_Key&, CParty*, CUser*)",
+                __PRETTY_FUNCTION__,
                 0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
             return 1;
         }
@@ -840,7 +846,7 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
             qp->destroy();
             LogManager::logFormat(
                 1, "QuickParty.cpp",
-                "CParty* QuickParty::CQuickPartySystemManager::make_quick_party(QuickParty::CQuickParty*)",
+                __PRETTY_FUNCTION__,
                 0x3d0, "QUICK_PARTY_LOG : PARTY IS NULL!!");
             return 0;
         }
@@ -905,7 +911,7 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
     {
         LogManager::logFormat(
             1, "QuickParty.cpp",
-            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            __PRETTY_FUNCTION__,
             0x40c, "QUICK_PARTY_LOG : QUICK PARTY IS NULL!!");
         return;
     }
@@ -913,7 +919,7 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
     {
         LogManager::logFormat(
             1, "QuickParty.cpp",
-            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            __PRETTY_FUNCTION__,
             0x412,
             "QUICK_PARTY_LOG : NO START!! BECAUSE OF QUICK PARTY COUNT 1 !!");
         return;
@@ -924,7 +930,7 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
     {
         LogManager::logFormat(
             1, "QuickParty.cpp",
-            "void QuickParty::CQuickPartySystemManager::start_game(QuickParty::CQuickParty*)",
+            __PRETTY_FUNCTION__,
             0x41e, "QUICK_PARTY_LOG : NO EXIST PARTY!!");
         return;
     }

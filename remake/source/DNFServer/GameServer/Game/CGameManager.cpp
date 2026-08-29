@@ -150,7 +150,7 @@ StaticPool<T, N>::StaticPool()
     m_pNode = new CNode[N];
     if (m_pNode == 0)
     {
-        cMyTrace tr("StaticPool.cpp", 0x6c, 5);
+        cMyTrace tr(__FUNCTION__, 0x6c, 5);
         tr("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
     }
     for (int i = 0; i < N; ++i)
@@ -174,19 +174,19 @@ T* StaticPool<T, N>::Acquire()
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr("StaticPool.cpp", 0x89, 0);
+        cMyTrace tr(__FUNCTION__, 0x89, 0);
         tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 3;
     }
     if (pNode->bUse != 0)
     {
         register int use = pNode->bUse;
-        cMyTrace tr("StaticPool.cpp", 0x8f, 0);
+        cMyTrace tr(__FUNCTION__, 0x8f, 0);
         tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
         m_nErrorCode = 4;
     }
     pNode->bUse = pNode->bUse + 1;
-    return &pNode->data;
+    return pNode;
 }
 
 template <class T, int N>
@@ -198,7 +198,7 @@ T* StaticPool<T, N>::Get(int index)
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr("StaticPool.cpp", 0xc3, 0);
+        cMyTrace tr(__FUNCTION__, 0xc3, 0);
         tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 7;
     }
@@ -207,12 +207,12 @@ T* StaticPool<T, N>::Get(int index)
         if (pNode->bUse != 0)
         {
             register int use = pNode->bUse;
-            cMyTrace tr("StaticPool.cpp", 0xca, 0);
+            cMyTrace tr(__FUNCTION__, 0xca, 0);
             tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
             m_nErrorCode = 8;
         }
     }
-    return &pNode->data;
+    return pNode;
 }
 
 template <class T, int N>
@@ -220,7 +220,7 @@ void StaticPool<T, N>::Free(T* p)
 {
     if (p == 0)
     {
-        cMyTrace tr("StaticPool.cpp", 0xa0, 5);
+        cMyTrace tr(__FUNCTION__, 0xa0, 5);
         tr("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
     }
     CNode* pNode = (CNode*)p;
@@ -228,14 +228,14 @@ void StaticPool<T, N>::Free(T* p)
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr("StaticPool.cpp", 0xaa, 0);
+        cMyTrace tr(__FUNCTION__, 0xaa, 0);
         tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 5;
     }
     if (pNode->bUse != 1)
     {
         register int use = pNode->bUse;
-        cMyTrace tr("StaticPool.cpp", 0xb0, 0);
+        cMyTrace tr(__FUNCTION__, 0xb0, 0);
         tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
         m_nErrorCode = 6;
         PrintBackTrace();
@@ -253,7 +253,7 @@ int StaticPool<T, N>::GetIndex(T* p)
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr("StaticPool.cpp", 0x50, 0);
+        cMyTrace tr(__FUNCTION__, 0x50, 0);
         tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 1;
     }
@@ -262,7 +262,7 @@ int StaticPool<T, N>::GetIndex(T* p)
         if (pNode->bUse != 0)
         {
             register int use = pNode->bUse;
-            cMyTrace tr("StaticPool.cpp", 0x56, 0);
+            cMyTrace tr(__FUNCTION__, 0x56, 0);
             tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
             m_nErrorCode = 2;
         }
@@ -270,6 +270,12 @@ int StaticPool<T, N>::GetIndex(T* p)
     if (index > N - 1)
         return -1;
     return index;
+}
+
+template <class T, int N>
+int StaticPool<T, N>::GetLastErrorCode()
+{
+    return m_nErrorCode;
 }
 // ============================================================================
 // WongWork::CMailBox —— ORIG 布局（反汇编 0x8551d98/0x85579b2 核对）已于
@@ -308,66 +314,81 @@ WongWork::CMailBox::~CMailBox()
 
 void WongWork::CMailBox::Init()
 {
-    // ORIG 0x08551d98：若已初始化（m_bInit==1）则清理全部邮件/流/信标状态
-    if (m_bInit)
-    {
-        for (std::map<unsigned int, CMail*>::iterator it = m_mailMap.begin();
-             it != m_mailMap.end(); ++it)
-        {
-            CMail* mail = it->second;
-            if (mail != 0)
-            {
-                // 内联 CMail::ResetPackage（ORIG 0x085519fe）：
-                // senderName[0]=0; money(+0x28)=0; item(+0x2c).reset; type(+0x70)=0;
-                // unlimit(+0x74)=0
-                mail->m_senderName[0] = '\0';
-                mail->m_packageMoney = 0;
-                mail->m_item.reset();
-                mail->m_packageType = 0;
-                mail->m_unlimit = 0;
-                m_mailPool.Free(mail);
-            }
-        }
-        m_mailMap.clear();
-        m_bInit = false;
-        m_lastLoadIdx = 0;
-        m_notLoadedMailCount = 0;
-        for (std::list<Stream*>::iterator it = m_streamList.begin();
-             it != m_streamList.end(); ++it)
-        {
-            Stream* s = *it;
-            if (s != 0)
-                GlobalData::s_stream_pool->Free(s);
-        }
-        m_streamList.clear();
-        m_letterKeepCount.clear();
-        m_lastLoadLetterIdx = 0;
-        m_loadedLetterCount = 0;
-        m_loadLackList.clear();
-        m_letterInfo.clear();
-    }
+	// ORIG 0x08551d98：m_bInit==0 早退；否则遍历 m_mailMap 重置并释放邮件、
+	// 清空各容器与计数。迭代器形态：it 默认构造 + end 直构缓存 + begin 经临时
+	// 拷贝（P28）；循环为 while（前置 jmp）。
+	if (!m_bInit)
+		return;
+	CMail* mail;   // ORIG 槽 -0xc（先于迭代器声明；P28 声明序即栈槽序）
+	std::map<unsigned int, CMail*>::iterator it;
+	std::map<unsigned int, CMail*>::iterator endIt = m_mailMap.end();
+	it = m_mailMap.begin();
+	while (it != endIt)
+	{
+		mail = it->second;
+		mail->ResetPackage();   // ORIG call CMail::ResetPackage（0x085519fe）
+		m_mailPool.Free(mail);
+		++it;
+	}
+	m_mailMap.clear();
+	m_bInit = false;
+	m_lastLoadIdx = 0;
+	m_notLoadedMailCount = 0;
+	if (!m_streamList.empty())
+	{
+		std::list<Stream*>::iterator sit = m_streamList.begin();
+		std::list<Stream*>::iterator send = m_streamList.end();
+		while (sit != send)
+		{
+			// ORIG 无 Stream* 局部、无判空：*it 直取即 Free（mov (%eax),%edx）。
+			GlobalData::s_stream_pool->Free(*sit);
+			++sit;
+		}
+	}
+	m_streamList.clear();
+	m_letterKeepCount.clear();
+	m_lastLoadLetterIdx = 0;
+	m_loadedLetterCount = 0;
+	m_loadLackList.clear();
+		m_letterInfo.clear();
+}
+void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int idx)
+{
+	// ORIG 0x08557858：m_lastLoadLetterIdx(+0x7c) = idx 直写。
+	m_lastLoadLetterIdx = idx;
 }
 
-void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int) {}
 void WongWork::CMailBox::SetPackageLoadLack(const unsigned int* arr, int count,
                                             std::set<unsigned int>& oldLack)
 {
-    // ORIG 0x08557676：先把旧列表（m_loadLackList，+0x84）全部并入 oldLack，
-    // 清空列表；随后把新数组逐项 push_back，并把在 oldLack 中出现者从中移除。
-    for (std::vector<unsigned int>::const_iterator it = m_loadLackList.begin();
-         it != m_loadLackList.end(); ++it)
-        oldLack.insert(*it);
-    m_loadLackList.clear();
-    for (int i = 0; i < count; ++i)
-    {
-        m_loadLackList.push_back(arr[i]);
-        std::set<unsigned int>::iterator it = oldLack.find(arr[i]);
-        if (it != oldLack.end())
-            oldLack.erase(it);
-    }
+	// ORIG 0x08557676：先把旧列表（m_loadLackList，+0x84）全部并入 oldLack，
+	// 清空列表；随后把新数组逐项 push_back，并把在 oldLack 中出现者从中移除。
+	// 迭代器形态：vector iterator 直构 begin，end() 在循环条件内每轮调用（非缓存）。
+	std::vector<unsigned int>::iterator vit = m_loadLackList.begin();
+	while (vit != m_loadLackList.end())
+	{
+		oldLack.insert(*vit);
+		++vit;
+	}
+	m_loadLackList.clear();
+	for (int i = 0; i < count; ++i)
+	{
+		m_loadLackList.push_back(arr[i]);
+		std::set<unsigned int>::iterator sit = oldLack.find(arr[i]);
+		if (sit != oldLack.end())
+			oldLack.erase(sit);
+	}
 }
-void WongWork::CMailBox::SetLoadedLetterCount(int) {}
-void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
+void WongWork::CMailBox::SetLoadedLetterCount(int count)
+{
+	// ORIG 0x085789c：m_loadedLetterCount(+0x80) = count 直写。
+	m_loadedLetterCount = count;
+}
+void WongWork::CMailBox::SetNotLoadedMailCount(int count)
+{
+	// ORIG 0x08557914：m_notLoadedMailCount(+0x08) = count 直写。
+	m_notLoadedMailCount = count;
+}
 WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
 {
     // ORIG 0x0855236a：迭代器指向 m_mailMap；未到 end 则返回 second 并前移，
@@ -378,8 +399,19 @@ WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
     ++m_mailIterator;
     return mail;
 }
-void WongWork::CMailBox::incMailLoadCount() {}
-void WongWork::CMailBox::reset() {}
+void WongWork::CMailBox::incMailLoadCount()
+{
+	// ORIG 0x085575dc：m_mailLoadCount(+0x0c) 自增，超过 0x7ffffffe 归零
+	//（cmp $0x7ffffffe; jbe 无符号判定）。
+	m_mailLoadCount = m_mailLoadCount + 1;
+	if ((unsigned int)m_mailLoadCount > 0x7ffffffeU)
+		m_mailLoadCount = 0;
+}
+void WongWork::CMailBox::reset()
+{
+	// ORIG 0x08551f4a：仅清 m_mailLoadCount(+0x0c) 一个 dword。
+	m_mailLoadCount = 0;
+}
 void WongWork::CMailBox::setMailIterator()
 {
     // ORIG 0x0855232e：迭代器 = m_mailMap.begin()
@@ -426,6 +458,9 @@ CGameManager* G_CGameManager()
 {
     return GlobalInstance<CGameManager>::inst_ptr();
 }
+// 显式实例化补齐 ORIG W 弱符号 GlobalInstance<CGameManager>::inst()/destroy()
+//（ORIG 0x82ab72e/0x82ab740；GameMain.cpp 的 CREATE/DESTROY_CGameManager 调用）。
+template class GlobalInstance<CGameManager>;
 
 bool CGameManager::init()
 {
@@ -474,9 +509,9 @@ CUser* CGameManager::GetUserByAccId(unsigned int accId)
         {
             const char* mapId = NumberToString(user->get_acc_id(), 1);
             const char* inId = NumberToString(accId, 0);
-            cMyTrace tr("CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab, 5);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x9ab, 5);
             tr("[%s][%d][IN m_id: %s][Map m_id: %s]",
-               "CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab,
+               __PRETTY_FUNCTION__, 0x9ab,
                inId, mapId);
             user = 0;
         }
@@ -490,10 +525,12 @@ CGameManager::FindUserByUnique::FindUserByUnique(short uniqueId)
 }
 
 bool CGameManager::FindUserByUnique::operator()(
-    std::pair<const unsigned int, CUser*>& p) const
+    std::pair<const unsigned int, CUser*>& p)
 {
-    return p.second != 0 &&
-           (unsigned short)p.second->get_unique_id() == (short)m_uniqueId;
+    if (p.second != 0 &&
+        (unsigned short)p.second->get_unique_id() == (short)m_uniqueId)
+        return true;
+    return false;
 }
 
 CUser* CGameManager::getUserByUnique(short uniqueId)
@@ -514,7 +551,7 @@ CUser* CGameManager::getUser(int slotId, int increId)
     CUser* user = m_userPool.Get((int)slot);
     if (user == 0)
     {
-        cMyTrace tr("CUser* CGameManager::getUser(int, int)", 0x95c, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x95c, 5);
         tr(" No way! getUser , slot_id(%d) is abnormal!", (int)slot);
         user = 0;
     }
@@ -541,7 +578,7 @@ void CGameManager::insertUserByAccID(CUser* user)
     if (accId2 == 0)
     {
         const char* name = user->get_acc_name();
-        cMyTrace tr("void CGameManager::insertUserByAccID(CUser*)", 0x91d, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x91d, 5);
         tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", name);
     }
     else
@@ -568,7 +605,7 @@ CUser* CGameManager::createUser()
     CUser* user = m_userPool.Acquire();
     if (user == 0)
     {
-        cMyTrace tr("CUser* CGameManager::createUser()", 0x8e3, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x8e3, 5);
         tr("createUser Failed! need to restart!");
         user = 0;
     }
@@ -584,7 +621,7 @@ CUser* CGameManager::createUser()
         {
             unsigned int newUid = user->GetUID();
             const char* lastId = NumberToString(accId, 0);
-            cMyTrace tr("CUser* CGameManager::createUser()", 0x8f6, 0);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x8f6, 0);
             tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
                err, user, lastId, uid, newUid);
         }
@@ -606,52 +643,52 @@ void CGameManager::check_user_var(CUser* user)
     }
     if (b)
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x92c,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x92c,
                               "[CHECK_USER_VAR] RESET GUILD EXP ERROR!");
     }
     if (user->get_charac_level_before_dungeon() != 0)
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x92f,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x92f,
                               "[CHECK_USER_VAR] RESET CHARACTER LEVEL BEFORE DUNGEON ERROR!");
     }
     if (user->CheckInParty())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x932,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x932,
                               "[CHECK_USER_VAR] RESET PARTY ERROR!");
     }
     if (user->CheckInTrade())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x935,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x935,
                               "[CHECK_USER_VAR] RESET TRADE INDEX ERROR!");
     }
     if (user->CheckInPvp())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x938,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x938,
                               "[CHECK_USER_VAR] RESET PVP INDEX ERROR!");
     }
     if (user->CheckInWarRoom())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x93b,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x93b,
                               "[CHECK_USER_VAR] RESET WARROOM INDEX ERROR!");
     }
     if (user->getPlayingDungeonIndex() != -1)
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x93e,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x93e,
                               "[CHECK_USER_VAR] RESET DUNGEON ERROR!");
     }
     if (user->IsProgLogout())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x941,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x941,
                               "[CHECK_USER_VAR] RESET PROG LOGOUT ERROR!");
     }
     if (user->m_characterView.isSaveCharacView())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x944,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x944,
                               "[CHECK_USER_VAR] RESET CHARACTER VIEW ERROR!");
     }
     if (user->checkInBlueMarble())
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x948,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x948,
                               "[CHECK_USER_VAR] RESET BLUEMARBLE INDEX ERROR!");
     }
 }
@@ -682,7 +719,7 @@ void CGameManager::returnUserPool(CUser* user)
         if (err != 0)
         {
             const char* lastId = NumberToString(accId3, 0);
-            cMyTrace tr("void CGameManager::returnUserPool(CUser*)", 0xa0e, 0);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0xa0e, 0);
             tr("STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
                err, user, lastId, uid);
         }
@@ -709,7 +746,7 @@ CParty* CGameManager::GetParty()
     }
     else
     {
-        LogManager::logFormat(1, "App.cpp", "CParty* CGameManager::GetParty()", 0xa5f,
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0xa5f,
                               "party index(%d) already alloc", party->GetPartyIndex());
     }
     return party;
@@ -776,7 +813,7 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
             }
             // +0xc7c：CParty::m_dungeonClearTracer（CParty.h 权威成员，BF+0x158）。
             party->m_dungeonClearTracer.Trace(
-                "void CGameManager::CheckOutParty(CUser*, bool)");
+                __PRETTY_FUNCTION__);
             if (party->m_partyType != 1 && party->get_state() == 2)
             {
                 bVar2 = false;
@@ -866,7 +903,7 @@ PvP_Room* CGameManager::GetPvp()
     {
         roomIdx = room->get_index();
         {
-            CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xaa9, 0, 0);
+            CSwitchLog log(__PRETTY_FUNCTION__, 0xaa9, 0, 0);
             log("pvp@log room(%d) new alloc", roomIdx);
         }
         m_pvpRoomMap[room->get_index()] = room;
@@ -876,7 +913,7 @@ PvP_Room* CGameManager::GetPvp()
     {
         roomIdx = room->get_index();
         {
-            CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xab2, 0, 0);
+            CSwitchLog log(__PRETTY_FUNCTION__, 0xab2, 0, 0);
             log("pvp@log room(%d) already alloc", roomIdx);
         }
         return 0;
@@ -909,7 +946,7 @@ PvP_Room* CGameManager::GetPvp(int index, CUser* user, int param)
             accName = user->get_acc_name();
         }
         {
-            CSwitchLog log("PvP_Room* CGameManager::GetPvp(int, CUser*, int)", 0xacc, 0, 0);
+            CSwitchLog log(__PRETTY_FUNCTION__, 0xacc, 0, 0);
             log("pvp@log %s,%s, room(%d), %d", accName, name, roomIdx, param);
         }
         room = it->second;
@@ -927,9 +964,10 @@ void CGameManager::PutPvp(PvP_Room* room)
 {
     if (room != 0)
     {
-        int roomIndex = room->get_index();
+        // ORIG：roomIndex 经 ebx callee-saved 跨 CSwitchLog 构造缓存（P87）。
+        register int roomIndex = room->get_index();
         {
-            CSwitchLog log("void CGameManager::PutPvp(PvP_Room*)", 0xae4, 0, 0);
+            CSwitchLog log(__PRETTY_FUNCTION__, 0xae4, 0, 0);
             log("pvp@log room(%d)", roomIndex);
         }
         int key = room->get_index();
@@ -961,13 +999,13 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
             const char* characName = user->getCurCharacName();
             const char* accName = user->get_acc_name();
             {
-                CSwitchLog log("void CGameManager::CheckOutPvp(CUser*, bool)", 0x11a1, 0, 0);
+                CSwitchLog log(__PRETTY_FUNCTION__, 0x11a1, 0, 0);
                 log("pvp@log %s,%s, room(%d),%d,%d",
                     accName, characName, roomIdx, battleMode, outFlagInt);
             }
             if (ret < 0)
             {
-                LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutPvp(CUser*, bool)", 0x11bd,
+                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11bd,
                                       "pvp@log room(%d) user(%s) leave fail",
                                       room->get_index(),
                                       NumberToString(user->get_acc_id(), 0));
@@ -1049,7 +1087,7 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty()
     else
     {
         LogManager::logFormat(1, "App.cpp",
-                              "QuickParty::CQuickParty* CGameManager::GetQuickParty()", 0xb64,
+                              __PRETTY_FUNCTION__, 0xb64,
                               "quick party index(%d) already alloc",
                               qp->get_quick_party_index());
     }
@@ -1157,7 +1195,7 @@ void CGameManager::CheckOutWarRoom(CUser* user)
             int ret = room->WalkOutUser(user);
             if (ret == 4)
             {
-                LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutWarRoom(CUser*)", 0x117b,
+                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x117b,
                                       "CGameManager::CheckOutWarRoom Can't find user charno(%d)",
                                       user->get_charac_no(-1));
             }
@@ -1251,7 +1289,7 @@ void CGameManager::checkOutDeathTower(CUser* user)
         WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
         if (tower != 0 && tower->onLeaveUser(user) != 1)
         {
-            LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutDeathTower(CUser*)", 0x123a,
+            LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
                                   "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
                                   tower->getIdx(),
                                   NumberToString(user->get_acc_id(), 0));
@@ -1327,7 +1365,7 @@ void CGameManager::checkOutBossTower(CUser* user)
             // （vtable 0x08b70260 实证：槽内 0x081493fe；实参为 CUser* 转 int）。
             if ((char)tower->checkAllMemberReady((int)user) != 1)
             {
-                LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutBossTower(CUser*)", 0x11d9,
+                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",
                                       tower->getIdx(),
                                       NumberToString(user->get_acc_id(), 0));
@@ -1402,7 +1440,7 @@ void CGameManager::checkOutAdvanceAltar(CUser* user)
         if (control != 0 && control->leaveUser() != 1)
         {
             LogManager::logFormat(1, "App.cpp",
-                                  "void CGameManager::checkOutAdvanceAltar(CUser*)", 0x11ef,
+                                  __PRETTY_FUNCTION__, 0x11ef,
                                   "invalid user : advance altar logout ID[%d] ACCID[%s]",
                                   control->getIndex(),
                                   NumberToString(user->get_acc_id(), 0));
@@ -1717,6 +1755,9 @@ void CGameManager::SendWarRoomToAll(int index)
 
 void CGameManager::PrintWarRoomList()
 {
+	// ORIG 0x8298b40：函数体仅 4 条指令（push/mov/sub $0x50/leave/ret），
+	// 0x50 帧为未使用局部（P31 死局部帧差对齐）。
+	char m_unused[0x50];
 }
 
 // ============================================================================
@@ -1781,7 +1822,7 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
 
 void CGameManager::WarRoomCountManage(int hourIndex)
 {
-    cMyTrace tr0("void CGameManager::WarRoomCountManage(int)", 0x306f, 0);
+    cMyTrace tr0(__PRETTY_FUNCTION__, 0x306f, 0);
     tr0("WarRoomCountManage Start");
     int current[10];
     for (int i = 0; i < 10; ++i)
@@ -1801,7 +1842,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             if (room == 0)
             {
                 LogManager::logFormat(1, "App.cpp",
-                                      "void CGameManager::WarRoomCountManage(int)", 0x307d,
+                                      __PRETTY_FUNCTION__, 0x307d,
                                       "WarRoomCountManage Error : WarRoom does not exist %d", total);
             }
             else
@@ -1822,7 +1863,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     {
         hourTable = hourIndex;
     }
-    cMyTrace tr1("void CGameManager::WarRoomCountManage(int)", 0x3088, 0);
+    cMyTrace tr1(__PRETTY_FUNCTION__, 0x3088, 0);
     tr1("WarRoomCountManage currentHourIndex %d", hourTable);
     PacketGuard guard;
     guard.put_header(0, 0x58);
@@ -1840,7 +1881,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
                 guard.finalize(true);
                 G_GameWorld()->send_all(guard);
                 PrintWarRoomList();
-                cMyTrace tr3("void CGameManager::WarRoomCountManage(int)", 0x30cf, 0);
+                cMyTrace tr3(__PRETTY_FUNCTION__, 0x30cf, 0);
                 tr3("WarRoomCountManage end");
             }
             return;
@@ -1851,7 +1892,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         int diff = reinterpret_cast<int*>(
                        dm->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area] -
                    current[area];
-        cMyTrace tr2("void CGameManager::WarRoomCountManage(int)", 0x3097, 0);
+        cMyTrace tr2(__PRETTY_FUNCTION__, 0x3097, 0);
         tr2("WarRoomCountManage diff(%d) currentWarRoomCount(lev%d)", diff, current[area]);
         if (diff < 0)
         {
@@ -1921,7 +1962,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
             if (room == 0)
             {
                 LogManager::logFormat(1, "App.cpp",
-                                      "void CGameManager::WarRoomCountManageTest(int)", 0x30e2,
+                                      __PRETTY_FUNCTION__, 0x30e2,
                                       "WarRoomCountManage Error : WarRoom does not exist %d", total);
             }
             else
@@ -2001,8 +2042,9 @@ void CGameManager::updateDBLinkCharacConnectState(
     unsigned int accId, unsigned int characNo,
     ENUM_CHARAC_LINK_ACTION_TYPE action)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("App.cpp", 0x125b);
-    CStreamGuard guard(stream, true);
+    // ORIG：Acquire 结果直接作 CStreamGuard 第二实参（P52/P134 嵌套实参，
+    // eax 不落栈槽）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("App.cpp", 0x125b), true);
     (**guard) << 0x1e5;
     (**guard) << -1;
     SIG_UPDATE_LINK_CHARAC_CONNECT_STATE* info =
@@ -2016,8 +2058,13 @@ void CGameManager::updateDBLinkCharacConnectState(
 
 bool CGameManager::IsNoGameGuardApplingUser(std::string& name, char* addr)
 {
-    std::set<std::string>::iterator it = m_noGameGuard.find(name);
-    return it != m_noGameGuard.end();
+    // ORIG 0x82a3544：end() 先求值（const_iterator 直构 -0x10），find(name)
+    // 后求值（-0xc）；相等判 false（P56 分支返回 + eq 比较）。
+    std::set<std::string>::const_iterator endIt = m_noGameGuard.end();
+    std::set<std::string>::const_iterator it = m_noGameGuard.find(name);
+    if (it == endIt)
+        return false;
+    return true;
 }
 
 // ============================================================================
@@ -2279,7 +2326,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user == 0)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf20,
+                              __PRETTY_FUNCTION__, 0xf20,
                               "insert_waiting_room pUser parameter is null.");
         return 0;
     }
@@ -2287,7 +2334,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (characR == 0)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf27,
+                              __PRETTY_FUNCTION__, 0xf27,
                               "Not selected character(a reason is fast returning to character screen on client)");
         return 0;
     }
@@ -2339,7 +2386,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user->send_itemspace(0xc) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf58,
+                              __PRETTY_FUNCTION__, 0xf58,
                               "CGameManager::insert_game_world, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_ACCOUNT_CARGO ) return FAILED",
                               NumberToString(user->get_acc_id(), 0));
         return 0;
@@ -2347,7 +2394,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user->send_itemspace(0) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf5f,
+                              __PRETTY_FUNCTION__, 0xf5f,
                               "CGameManager::insert_game_world, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
                               NumberToString(user->get_acc_id(), 0));
         return 0;
@@ -2355,7 +2402,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user->send_itemspace(1) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf64,
+                              __PRETTY_FUNCTION__, 0xf64,
                               "CGameManager::insert_game_world, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
                               NumberToString(user->get_acc_id(), 0));
         return 0;
@@ -2363,7 +2410,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user->send_itemspace(2) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf69,
+                              __PRETTY_FUNCTION__, 0xf69,
                               "CGameManager::insert_game_world, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_CARGO ) return FAILED",
                               NumberToString(user->get_acc_id(), 0));
         return 0;
@@ -2371,7 +2418,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     if (user->send_itemspace(7) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
-                              "bool CGameManager::insert_game_world(CUser*)", 0xf7a,
+                              __PRETTY_FUNCTION__, 0xf7a,
                               "CGameManager::insert_game_world, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_CREATURE ) return FAILED",
                               NumberToString(user->get_acc_id(), 0));
         return 0;
@@ -2382,11 +2429,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     }
     if (G_GameWorld()->reach_game_world(user) != 1)
     {
-        cMyTrace tr("bool CGameManager::insert_game_world(CUser*)", 0xfa2, 0);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0xfa2, 0);
         tr("CGameManager::insert_game_world , !G_GameWorld()->reach_game_world( pUser ) , USER : %d(%s)",
            user->get_unique_id() & 0xffff, NumberToString(user->get_acc_id(), 0));
         user->SendCmdErrorPacket((ENUM_CMDPACKET)1, 4);
-        cMyTrace tr2("bool CGameManager::insert_game_world(CUser*)", 0xfab, 0);
+        cMyTrace tr2(__PRETTY_FUNCTION__, 0xfab, 0);
         tr2("from (%d) m_id[%s] uid[%d]", 1,
             NumberToString(user->get_acc_id(), 0), user->get_unique_id() & 0xffff);
         return 0;
@@ -2524,9 +2571,9 @@ void CGameManager::user_disconnect(CUser* user)
 {
     if (user == 0)
     {
-        cMyTrace tr("void CGameManager::user_disconnect(CUser*)", 0x138b, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x138b, 5);
         tr("USER DISCONNECT [%s][%d]",
-           "void CGameManager::user_disconnect(CUser*)", 0x138b);
+           __PRETTY_FUNCTION__, 0x138b);
         return;
     }
     HistoryLog::LogClose((FILE*)user->m_field796f8);
@@ -2574,16 +2621,16 @@ bool CGameManager::user_exit(CUser* user)
 {
     if (user == 0)
     {
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x1271, 5);
-        tr("USER_EXIT [%s][%d]", "bool CGameManager::user_exit(CUser*)", 0x1271);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x1271, 5);
+        tr("USER_EXIT [%s][%d]", __PRETTY_FUNCTION__, 0x1271);
         return false;
     }
     if (user->get_state() == 0)
     {
         unsigned int mid = user->get_acc_id();
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x127a, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x127a, 5);
         tr("USER_EXIT STATE NONE [%s][%d]mid(%d)",
-           "bool CGameManager::user_exit(CUser*)", 0x127a, mid);
+           __PRETTY_FUNCTION__, 0x127a, mid);
         return false;
     }
     HistoryLog::LogClose((FILE*)user->m_field796f8);   // ORIG *(user+0x796f8)
@@ -2610,13 +2657,13 @@ bool CGameManager::user_exit(CUser* user)
         user->UpdateData();
         user->LogoutCachedCharacter(0);
         user->UpdateLogout(false);
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x12dc, 0);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x12dc, 0);
         tr("ID: %s - UID: %d from Logout",
            user->getCurCharacName(), user->get_unique_id() & 0xffff);
         int err = G_EpollHandler()->ResetEpoll(user->m_network.get_socket());
         if (err != 0)
         {
-            LogManager::logFormat(1, "App.cpp", "bool CGameManager::user_exit(CUser*)", 0x12e3,
+            LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x12e3,
                                   "(m_id: %s) G_EpollHandler()->ResetEpoll(pUser->get_socket(%d)) %d(%s)",
                                   NumberToString(user->get_acc_id(), 0),
                                   user->m_network.get_socket(), err, strerror(err));
@@ -2628,30 +2675,59 @@ bool CGameManager::user_exit(CUser* user)
     }
     return true;
 }
+
 CGameManager::CGameManager()
-    : m_mutex(), m_uid(0), m_pad1a(), m_noGameGuard(), m_gameGuard2(),
+    : m_mutex(), m_noGameGuard(), m_gameGuard2(),
       m_userPool(), m_tradeSpacePool(), m_partyPool(), m_pvpRoomPool(),
       m_warRoomPool(), m_deathTowerPool(), m_bossTowerPool(), m_stagePool(),
       m_quickPartyPool(), m_blueMarblePool(), m_userByAccId(), m_userByAccId2(),
       m_pvpRoomMap(), m_partyMap(), m_warRoomMap(), m_deathTowerMap(), m_bossTowerMap(),
-      m_stageMap(), m_quickPartyMap(), m_blueMarbleMap(), m_pQuickPartySystemMgr(0),
-      m_pQuickPartyRewardMgr(0), m_pPremiumLetheMgr(0), m_pSharedServerMessageMgr(0),
-      m_pConditionEventMgr(0), m_pSpecialItemRoutingMgr(0), m_pAuctionAveragePriceMgr(0),
-      m_pCraneMinigameMgr(0)
+      m_stageMap(), m_quickPartyMap(), m_blueMarbleMap()
 {
+	// ORIG 0x82930c2：标量初始化全部在函数体内（初始化列表只含成员对象）：
+	// 成员构造后先 movw $0,0x18（m_uid），随后向 m_noGameGuard（+0x1c）逐条
+	// insert 14 个固定账号/IP 字符串（0x8c167b4..0x8c16833 实证，各插一条独立
+	// std::string 临时），最后 8 个管理器指针（+0x2fc..+0x318）清零。
+	m_uid = 0;
+	m_noGameGuard.insert(std::string("testman820"));
+	m_noGameGuard.insert(std::string("tilil"));
+	m_noGameGuard.insert(std::string("azzuman"));
+	m_noGameGuard.insert(std::string("cuwaki"));
+	m_noGameGuard.insert(std::string("slainer"));
+	m_noGameGuard.insert(std::string("mrsbscom"));
+	m_noGameGuard.insert(std::string("arandra"));
+	m_noGameGuard.insert(std::string("krucef"));
+	m_noGameGuard.insert(std::string("dnftest126"));
+	m_noGameGuard.insert(std::string("dnftest127"));
+	m_noGameGuard.insert(std::string("dnftest128"));
+	m_gameGuard2.insert(std::string("59.10.138.244"));
+	m_gameGuard2.insert(std::string("218.145.141.85"));
+	m_gameGuard2.insert(std::string("121.134.32.42"));
+	m_pQuickPartySystemMgr = 0;
+	m_pQuickPartyRewardMgr = 0;
+	m_pPremiumLetheMgr = 0;
+	m_pSharedServerMessageMgr = 0;
+	m_pConditionEventMgr = 0;
+	m_pSpecialItemRoutingMgr = 0;
+	m_pAuctionAveragePriceMgr = 0;
+	m_pCraneMinigameMgr = 0;
 }
 CGameManager::~CGameManager()
 {
-    // ORIG 0x08293d1a（D1 与 D2 同址）。前四个堆上管理者显式 delete 并置空，
-    // 其余容器/池成员（hash_map、StaticPool、std::map/set、Mutex）按声明逆序自动析构。
-    delete m_pQuickPartySystemMgr;
+    //（crane +0x318 不置空），其余容器/池成员（hash_map、StaticPool、
+    // std::map/set、Mutex）按声明逆序自动析构。
+    if (m_pQuickPartySystemMgr != 0)
+        delete m_pQuickPartySystemMgr;
     m_pQuickPartySystemMgr = 0;
-    delete m_pQuickPartyRewardMgr;
+    if (m_pQuickPartyRewardMgr != 0)
+        delete m_pQuickPartyRewardMgr;
     m_pQuickPartyRewardMgr = 0;
-    delete m_pAuctionAveragePriceMgr;
+    if (m_pAuctionAveragePriceMgr != 0)
+        delete m_pAuctionAveragePriceMgr;
     m_pAuctionAveragePriceMgr = 0;
-    delete m_pCraneMinigameMgr;
-    m_pCraneMinigameMgr = 0;
+    if (m_pCraneMinigameMgr != 0)
+        delete m_pCraneMinigameMgr;
+    // 其余容器/池成员（hash_map、StaticPool、std::map/set、Mutex）按声明逆序自动析构。
 }
 
 // ==== Wave6 QuickParty 访问器（声明 CGameManager.h:558 区）====

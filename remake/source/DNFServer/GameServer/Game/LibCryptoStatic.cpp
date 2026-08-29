@@ -12,7 +12,8 @@
 //   BIO_new                  T 0x087ec490 (0x11f)
 //   BIO_ctrl                 T 0x087eba50 (0x129)
 //   BIO_free_all             T 0x087ec320 (0x02f)
-//   PEM_read_bio_RSA_PUBKEY  T 0x087f0720 (0x03b)
+//   RSA_private_encrypt      T 0x087eaf40 (0x0c)  [Encrypt 路径伴生，同 pub_decrypt 尾跳]
+//   RSA_public_decrypt       T 0x087eaf60 (0x00c)
 //   RSA_public_decrypt       T 0x087eaf60 (0x00c)
 //   RSA_size                 T 0x087eb2e0 (0x026)
 //   RSA_free                 T 0x087eab50 (0x127)  [nm 实测全局 C 符号]
@@ -104,11 +105,13 @@ struct RSA_VIEW {
 };
 
 // RSA_METHOD 视图（finish@+0x20 见 RSA_free；pub_decrypt@+0x08 见
-// RSA_public_decrypt 尾跳 [meth+8]）
+// RSA_public_decrypt 尾跳 [meth+8]；priv_encrypt@+0x0c 见 RSA_private_encrypt）
 struct RSA_METH {
     int      pad00[2];                                    // +0x00..0x07
     int (*pub_decrypt)(int flen, const unsigned char* from,
                        unsigned char* to, RSA_VIEW* rsa, int padding); // +0x08
+    int (*priv_encrypt)(int flen, const unsigned char* from,
+                        unsigned char* to, RSA_VIEW* rsa, int padding); // +0x0c
     int      pad10[5];                                    // +0x10..0x1f
     int (*finish)(RSA_VIEW* rsa);                        // +0x20
 };
@@ -554,6 +557,16 @@ void* PEM_read_bio_RSA_PUBKEY(void* bp, void** x, void* cb, void* u)
         "PUBLIC KEY", bp, x, cb, u);
 }
 
+// === RSA_private_encrypt @0x087eaf40 ========================================
+// mov padding_arg→rsa槽 / [rsa+0x08]=meth / [meth+0x0c]=rsa_priv_enc / jmp
+int RSA_private_encrypt(int flen, const unsigned char* from,
+                        unsigned char* to, void* rsa, int padding)
+{
+    RSA_VIEW* r = static_cast<RSA_VIEW*>(rsa);
+    RSA_METH* meth = static_cast<RSA_METH*>(r->meth);
+    return meth->priv_encrypt(flen, from, to, r, padding);
+}
+
 // === RSA_public_decrypt @0x087eaf60 =========================================
 // mov padding_arg→rsa槽 / [rsa+0x08]=meth / [meth+0x08]=pub_decrypt / jmp
 int RSA_public_decrypt(int flen, const unsigned char* from,
@@ -808,14 +821,22 @@ void BN_BLINDING_free(void* blinding)                // ORIG T 0x088007b0
 //      其尾链 engine_free_util 深度为动态 ENGINE 管理（rebuild 域 rsa->engine
 //      恒 NULL，不可达），在 kl 收口内以 ref-- 后返 0 表达并注明。—— 若未来
 //      动态 ENGINE 批次落地，替换为完整 engine_free_util 转写即可。----
+// ENGINE 结构最小视图（engine_unlocked_finish_kl 转写实证：+0x3c finish 回调、
+// +0x5c 引用计数；其余 OpenSSL ENGINE 字段未建模，以 pad 保持布局）。
+struct EngineFinishView
+{
+    char m_pad[0x3c];
+    int (*m_finish)(void**);   // +0x3c
+    char m_pad40[0x1c];        // +0x40..0x5b
+    int m_refs;                // +0x5c
+};
+
 static int engine_unlocked_finish_kl(void** e)
 {
-    int* refs = reinterpret_cast<int*>(reinterpret_cast<char*>(e) + 0x5c);
-    if (--(*refs) != 0)
+    EngineFinishView* v = reinterpret_cast<EngineFinishView*>(e);
+    if (--(v->m_refs) != 0)
         return 1;
-    int (*fin)(void**) =
-        *reinterpret_cast<int (**)(void**)>(
-            reinterpret_cast<char*>(e) + 0x3c);
+    int (*fin)(void**) = v->m_finish;
     if (!fin)
         return 1;
     const int ret = fin(e);

@@ -22,7 +22,7 @@ public:
     virtual void Signature(char* szSignature);
     virtual int Encrypt(const char* szIn, char* szOut, size_t iLength);
     virtual int Decrypt(const char* szIn, char* szOut, size_t iLength);
-    virtual void ResetChain();
+    virtual int ResetChain();
 
     // ---- 初始化（与 ORIG 签名一致）----
     int Initialize(const char* key, int keyLen, const char* chain, int chainLen,
@@ -46,14 +46,18 @@ private:
 
     // ---- ORIG 布局（本实现只保证接口正确，内部按需使用）----
     unsigned char m_key[0x20];      // +0x18 实际密钥（cycled）
-    unsigned int  m_w[0x78];        // +0x38 加密轮密钥（最大 (14+1)*8 words）
+    unsigned int  m_w[0x70];        // +0x38 加密轮密钥（ORIG 容量 0x1c0=0x70 words；
+                                    //   块 32/14 轮时 (14+1)*8=0x78 words 越界至
+                                    //   m_wd 前 8 words —— 与 ORIG Initialize 清 0x78
+                                    //   words @+0x38 行为一致，本实现 m_wd 仅 C1 清零
+                                    //   不参与算法，无实际破坏）
     unsigned int  m_wd[0x78];       // +0x1f8 解密轮密钥（保留，本实现直接逆序用 m_w）
     unsigned int  m_rounds;         // +0x3d8
     unsigned char m_block[0x20];    // +0x3dc 初始 IV
     unsigned char m_chain[0x20];    // +0x3fc 当前链
     unsigned int  m_temp[8];        // +0x41c
     unsigned int  m_temp2[8];       // +0x43c
-    unsigned int  m_temp3[8];       // +0x45c
+    unsigned int  m_temp3[8];       // +0x45c（sizeof 收至 ORIG 0x47c，2026-08-28 Main 批准）
 };
 
 #endif  // GAME_CRIJNDAEL_H_

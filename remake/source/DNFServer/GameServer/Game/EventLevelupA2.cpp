@@ -255,6 +255,11 @@ InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
         loaded = importFatigueQuantityEventScript(
             static_cast<FatigueQuantityScript*>(script), path.c_str());
         break;
+    case 0x19a:  // 购买现金道具奖励（new 0x30）
+        script = new PurchaseCashItemBonusScript();
+        loaded = importPurchaseCashItemBonusEventScript(
+            static_cast<PurchaseCashItemBonusScript*>(script), path.c_str());
+        break;
     case 0x19b:  // 养成本体（new 0x34）
         script = new ObjectBringUpScript();
         loaded = importObjectBringUpEventScript(

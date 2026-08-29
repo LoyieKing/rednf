@@ -116,8 +116,22 @@ int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b)
     return (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
 }
 
+// ---- ORIG 域常量（nm：_ZN16village_attackedL…E，r 段；值自 ORIG rodata 读取）----
 namespace village_attacked
 {
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+static const int MONSTER_REGEN = 1;                // 0x08bc43c0
+static const int MONSTER_MOVE_PIXEL = 300;         // 0x08bc43b0 (0x12c)
+static const int MONSTER_UPDATE_RATE = 1;          // 0x08bc43b8
+static const int MAX_START_TIME_COUNT = 3;         // 0x08bc4394
+static const int start_time_count_next[3] = {5, 4, 1};     // 0x08bc43a4 (0xc 字节)
+static const int MIN_MONSTER_MOVE_PIXEL = 50;      // 0x08bc43b4 (0x32)
+static const int start_time_count_remain[3] = {10, 5, 1};  // 0x08bc4398 (0xc 字节)
+static const int MONSTER_MOVE_RANDOM_CONST = 3;    // 0x08bc43bc
+
+// ============================================================================
+// CVillageMonster area 构造 —— ORIG 0x86b3752
+// ============================================================================
 
 // ============================================================================
 // CVillageMonster area 构造 —— ORIG 0x86b3752
@@ -234,8 +248,8 @@ void CVillageMonster::OnRunVillageMonster(std::vector<MapArea>* areas, int idx)
         return;
     int oldX = m_field04;
     int oldY = m_field08;
-    int newX = m_field04 + get_rand_int(0x12c) - 0x96;
-    int newY = m_field08 + get_rand_int(0x12c) - 0x96;
+    int newX = m_field04 + get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
+    int newY = m_field08 + get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
     pvp_assault::IsIncludeVirtualMoveAreas(areas, newX, newY,
                                            m_field04, m_field08, 0x14);
     if (abs(m_field04 - oldX) + abs(m_field08 - oldY) > 0x31)
@@ -256,9 +270,9 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 {
     if (m_state != 0)
         return 0x13;
-    if (abs((int)user->get_posX() - m_field04) > 0x12c)
+    if (abs((int)user->get_posX() - m_field04) > MONSTER_MOVE_PIXEL)
         return 0x63;
-    if (abs((int)user->get_posY() - m_field08) > 0x12c)
+    if (abs((int)user->get_posY() - m_field08) > MONSTER_MOVE_PIXEL)
         return 0x63;
     OnChangeState(ENUM_VILLAGE_MONSTER_STATE_1);
     m_partyIndex = (int)user->GetPartyIndex();

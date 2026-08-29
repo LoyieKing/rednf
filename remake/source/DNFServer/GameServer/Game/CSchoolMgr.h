@@ -49,7 +49,7 @@ public:
     void DelUser(CUser* user);                // 0x085684bc T
     void SendBroadcastUserIn(CUser* user);    // 0x08567fe8 T
     void SendBroadcastUserOut(CUser* user);   // 0x085681ce T
-    unsigned int GetUserCount(unsigned int schoolNo);  // 0x084ed394 W
+    unsigned int GetUserCount(unsigned int schoolNo);  // 0x084ed394 W（cpp 访问 m_schoolUserCount）
     void SetSchoolArea(int start, int end);   // 0x086d245c W
     int GetSchoolArea(unsigned int schoolNo); // 0x086d2480 W
 

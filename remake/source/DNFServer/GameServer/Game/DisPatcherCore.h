@@ -8,6 +8,9 @@
 #include "Dispatchers.h"          // CMDPacketStruct::STBaseResponse 等
 #include "PacketTypes.h"
 
+struct MSG_MAKE_PVP_ROOM;   // wave1: DisPatcher_MakePVP::ExtractPacket 形参前置（完整定义 DisPatcherCore.cpp 声明区）
+struct MSG_RES_PVP_RANK;    // wave1: DisPatcher_ResPvpRank 两成员形参前置（同上）
+
 
 class DisPatcher_CheckConn : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
@@ -59,6 +62,9 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
+    // wave1: ORIG T 0x081c6c22 _ZN23DisPatcher_SelectCharac22checkPvpEnterCharacterEP5CUserR17MSG_CHARAC_SELECT
+    // （本 TU 家族；报告 checkPvpEnterCharacter.md 在，定义待落地 → U 引用合规）
+    bool checkPvpEnterCharacter(CUser* user, MSG_CHARAC_SELECT& msg);
     // ---- ORIG helper（T 符号；定义见 DisPatcherCore.cpp，报告 docs/class_func_reports/）----
     void RequestDBInventory_forchina(CUser* user, MSG_CHARAC_SELECT& msg);  // 0x081c7c1c
     int RequestDBCharac(CUser* user, MSG_CHARAC_SELECT const& msg);   // 0x081c6ca0
@@ -68,6 +74,11 @@ public:
     int RequestDBDungeonClear(CUser* user, MSG_CHARAC_SELECT& msg);   // 0x081c7436
     int RequestDBKillMonsterInfo(CUser* user, MSG_CHARAC_SELECT& msg);// 0x081c7836
     int RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg);            // 0x081c7602
+    int RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg);          // 0x081c6f08
+    // ORIG T 0x081c727c / 0x081c7bac（定义 DisPatcherCore.cpp；报告 RequestDBTicket.md /
+    // RegistTimerSchedules.md）：SelectCharac 登录流程 DB 票请求与定时器注册。
+    int RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg);        // 0x081c727c
+    int RegistTimerSchedules(CUser* user);                           // 0x081c7bac
 };
 
 class DisPatcher_CreateCharac : public IPacketDispatcher<MSG_CREATE_CHARACTER, stCreateCharac, (ch_state)2>
@@ -344,6 +355,9 @@ public:
     // ORIG T 0x081fa0f6 _ZN23DisPatcher_DisJointItem22_checkDisjointableItemERK10Inven_ItemP5CUser
     // （静态成员；定义 ExpertJobLink4.cpp）
     static int _checkDisjointableItem(const Inven_Item& item, CUser* targetUser);
+    // wave1: ORIG T 0x081f92ca _ZN23DisPatcher_DisJointItem9_disjointEP5CUserii14ENUM_CMDPACKETS1_t
+    // （静态成员无 this；当前逻辑由 DispDebugJoint4.cpp 自由函数承载，需迁回真实符号）
+    static int _disjoint(CUser* user, int a, int b, ENUM_CMDPACKET cmd, CUser* target, unsigned short w);
 };
 
 class DisPatcher_Lottery : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
@@ -492,6 +506,10 @@ public:
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN18DisPatcher_UseCoin11check_errorEP5CUserR8MSG_BASER9ParamBase
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // wave1/wave2: 本 TU 家族 helper（ORIG T 0x081ca63a / 0x081ca75c / 0x081cab3a）
+    int Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int WarRoom_check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    int usedCoinDungeonCheck(CUser* user, CParty* party);
     void send(CUser* user, ParamBase& param);
 };
 
@@ -583,6 +601,9 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // wave1: ORIG T 0x081f81ba _ZN18DisPatcher_MakePVP13ExtractPacketER9PacketBufR17MSG_MAKE_PVP_ROOM
+    // （本 TU 家族；MSG_MAKE_PVP_ROOM 局部建模于 DisPatcherCore.cpp 声明区）
+    bool ExtractPacket(PacketBuf& packet, MSG_MAKE_PVP_ROOM& msg);
 };
 
 class DisPatcher_EnterPVP : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
@@ -665,6 +686,10 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
+    // wave1: ORIG T 0x081f039e ExtractPacket(MSG_RES_PVP_RANK&,PacketBuf&) 与 0x081f05ea SavePvpRank(CUser*,MSG_RES_PVP_RANK&)
+    // （本 TU 家族定义；MSG_RES_PVP_RANK 局部建模于 DisPatcherCore.cpp 声明区）
+    bool ExtractPacket(MSG_RES_PVP_RANK& msg, PacketBuf& packet);
+    bool SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg);
 };
 
 class DisPatcher_SetPVPMapIndex : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
@@ -869,6 +894,10 @@ public:
     virtual ~DisPatcher_UdpCharacteristic();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
+    // wave1: ORIG W 三 ping（0x0821b098/0x0821afbc/0x0821b02a；报告在，定义待落地）
+    void partyPingStat(CUser* user, unsigned short& a, unsigned short& b);
+    void pvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
+    void fairPvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
@@ -903,7 +932,7 @@ public:
     void send(CUser* user, ParamBase& param);
 };
 
-class DisPatcher_EventDungeon_DestoryObject : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)3>
+class DisPatcher_EventDungeon_DestoryObject : public IPacketDispatcher<CMDPacketStruct::_STReqEventDungeonDestoryObject, CMDPacketStruct::_STResEventDungeonDestoryObject, (ch_state)3>
 {
 public:
     DisPatcher_EventDungeon_DestoryObject();
@@ -914,7 +943,7 @@ public:
     void send(CUser* user, ParamBase& param);
 };
 
-class DisPatcher_EventDungeon_ClearRoom : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)3>
+class DisPatcher_EventDungeon_ClearRoom : public IPacketDispatcher<CMDPacketStruct::_STReqEventDungeonClearRoom, CMDPacketStruct::_STResEventDungeonClearRoom, (ch_state)3>
 {
 public:
     DisPatcher_EventDungeon_ClearRoom();

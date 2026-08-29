@@ -607,8 +607,7 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
 
     unsigned int aiIdx = *reinterpret_cast<unsigned int const*>(
         reinterpret_cast<char const*>(&ref) + 0x38);   // dword@+0x38 上/index
-    CAICharacter* ai = CAICharacterList::get(
-        G_CDataManager()->m_aiCharacterList, aiIdx);
+    CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(aiIdx);
     if (ai == 0)
         return;
 

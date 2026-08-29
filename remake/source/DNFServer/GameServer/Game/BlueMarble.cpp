@@ -91,17 +91,16 @@ int BlueMarble::changeState(BlueMarbleState::T state)
 
 int BlueMarble::getWinner() const
 {
-    int i = 0;
-    while (i < ((BM_ScriptFields*)m_pScript)->m_maxUser)
+    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
     {
-        if (m_users[i].getUser() != 0)
+        if (m_users[i].getUser() == 0)
         {
-            if (m_users[i].getGrade() == 0)
-            {
-                return i;
-            }
+            continue;
         }
-        ++i;
+        if (m_users[i].getGrade() == 0)
+        {
+            return i;
+        }
     }
     return -1;
 }
@@ -245,12 +244,9 @@ int BlueMarble::getVisitZone(int seat) const
     std::set<int>::const_iterator it = m_set.find(seat);
     if (it == m_set.end())
     {
-        return 1;
-    }
-    else
-    {
         return 0;
     }
+    return 1;
 }
 
 int BlueMarble::setVisitZone(int zone)
@@ -321,8 +317,7 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
     int seat = getUserSlot(user);
     if (seat == -1)
     {
-        LogManager::logFormat(1, "BlueMarble.cpp",
-                              "int BlueMarble::getBuff(CUser*, BlueMarbleBuffType::T)",
+        LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__,
                               0x4c7, "BlueMarble::getBuff slot(%d)", seat);
         return 0;
     }
@@ -414,7 +409,7 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
     return local[idx];
 }
 
-int BlueMarble::checkJoin()
+bool BlueMarble::checkJoin()
 {
     if (getState() != 0)
     {
@@ -438,8 +433,7 @@ int BlueMarble::join(CUser* user)
         if (m_users[i].getUser() == 0)
         {
             m_users[i].setUser(user);
-            short idx = (short)getMemoryPoolIndex();
-            m_users[i].getUser()->setBlueMarbleIndex(idx);
+            m_users[i].getUser()->setBlueMarbleIndex((short)getMemoryPoolIndex());
             m_users[i].getUser()->setMoveSpace((UserSpace::T)1);
             break;
         }
@@ -453,8 +447,7 @@ int BlueMarble::leaveUser(CUser* user)
 {
     if (user == 0)
     {
-        LogManager::logFormat(1, "BlueMarble.cpp",
-                              "void BlueMarble::leaveUser(CUser*)", 0x3f9,
+        LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x3f9,
                               "BlueMarble::leaveUser user is NULL");
     }
     else
@@ -462,8 +455,7 @@ int BlueMarble::leaveUser(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::leaveUser(CUser*)", 0x400,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x400,
                                   "BlueMarble::leaveUser slot(%d)", seat);
         }
         else
@@ -605,7 +597,7 @@ void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
                 userState = m_users[i].getUser()->get_state();
                 int characNo = m_users[i].getUser()->get_charac_no(-1);
                 char* m_id = NumberToString(m_users[i].getUser()->get_acc_id(), 0);
-                CMyFileLog log("void BlueMarble::checkBlueMarbleUserConfirm(CUser*)",
+                CMyFileLog log(__PRETTY_FUNCTION__,
                                0x514);
                 log(local_428,
                     "checkBlueMarbleUserConfirm() m_id(%s) charac_no(%u)userState(%d) userSpace(%d) blueMarble_Index(%d) user_bluemarble_index(%d) slot_index(%d)",
@@ -644,7 +636,7 @@ int BlueMarble::enterBlueMarble(CUser* user)
     return 0;
 }
 
-int BlueMarble::checkStartBlueMarble()
+bool BlueMarble::checkStartBlueMarble()
 {
     if (getState() != 1)
     {
@@ -668,31 +660,31 @@ int BlueMarble::startBlueMarble()
         setMaxBoardSize();
         for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
         {
-            if (m_users[i].getUser() != 0)
+            if (m_users[i].getUser() == 0)
             {
-                m_users[i].setUserState((BlueMarbleUserState::T)1);
-                m_users[i].getUser()->increaseBlueMarbleEnterCount();
-                m_users[i].getUser()->sendBlueMarbleEnterCount();
+                continue;
             }
+            m_users[i].setUserState((BlueMarbleUserState::T)1);
+            m_users[i].getUser()->increaseBlueMarbleEnterCount();
+            m_users[i].getUser()->sendBlueMarbleEnterCount();
         }
         sendStartBlueMarble();
     }
 }
 
-int BlueMarble::checkThrowDice(int seat)
+bool BlueMarble::checkThrowDice(int seat)
 {
-    bool b;
+    register int bVar1;
     if (m_users[seat].getBoardZone() < getMaxBoardSize() &&
         m_users[seat].getUserState() == (BlueMarbleUserState::T)1 &&
         getState() == 2)
     {
-        b = false;
+        bVar1 = 0;
+        goto LAB;
     }
-    else
-    {
-        b = true;
-    }
-    return !b;
+    bVar1 = 1;
+LAB:
+    return !bVar1;
 }
 
 int BlueMarble::throwDice(int seat)
@@ -708,8 +700,7 @@ int BlueMarble::userThrowDice(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::userThrowDice(CUser*)", 0x446,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x446,
                                   "BlueMarble::userThrowDice slot(%d)", seat);
         }
         else if (checkThrowDice(seat))
@@ -731,8 +722,7 @@ int BlueMarble::movePosition(CUser* user, int pos)
     int seat = getUserSlot(user);
     if (seat == -1)
     {
-        LogManager::logFormat(1, "BlueMarble.cpp",
-                              "void BlueMarble::movePosition(CUser*, int)", 0x4f4,
+        LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x4f4,
                               "BlueMarble::movePosition slot(%d)", seat);
     }
     else if (checkThrowDice(seat))
@@ -751,7 +741,7 @@ int BlueMarble::movePosition(CUser* user, int pos)
     }
 }
 
-int BlueMarble::checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type)
+bool BlueMarble::checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type)
 {
     switch (type)
     {
@@ -846,7 +836,7 @@ int BlueMarble::intoBoardZone(int zone)
     setVisitZone(m_users[zone].getBoardZone());
 }
 
-int BlueMarble::checkLastZoneDungeonClear(int seat)
+bool BlueMarble::checkLastZoneDungeonClear(int seat)
 {
     if (getState() == 2)
     {
@@ -865,8 +855,7 @@ int BlueMarble::enterDungeon(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::enterDungeon(CUser*)", 0x45c,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x45c,
                                   "BlueMarble::enterDungeon slot(%d)", seat);
         }
         else
@@ -885,8 +874,7 @@ int BlueMarble::exitDungeon(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::exitDungeon(CUser*)", 0x49d,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x49d,
                                   "BlueMarble::exitDungeon slot(%d)", seat);
         }
         else
@@ -905,8 +893,7 @@ int BlueMarble::clearDungeon(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::clearDungeon(CUser*)", 0x48a,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x48a,
                                   "BlueMarble::clearDungeon slot(%d)", seat);
         }
         else if (checkLastZoneDungeonClear(seat))
@@ -921,19 +908,17 @@ done:
 
 int BlueMarble::giveupDungeon(CUser* user)
 {
-    if (user == 0) goto done;
+    if (user != 0)
     {
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::giveupDungeon(CUser*)", 0x46b,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x46b,
                                   "BlueMarble::giveupDungeon slot(%d)", seat);
         }
         else
         {
-            BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
-            if (map != 0)
+            if (m_pScript->getMap(getBlueMarbleMap()) != 0)
             {
                 int* tile = (int*)m_pScript->getMap(getBlueMarbleMap())->getTile(
                     (unsigned int)m_users[seat].getBoardZone());
@@ -951,8 +936,6 @@ int BlueMarble::giveupDungeon(CUser* user)
             }
         }
     }
-done:
-    ;
 }
 
 int BlueMarble::giveBonusItem(CUser* user)
@@ -962,8 +945,7 @@ int BlueMarble::giveBonusItem(CUser* user)
         int seat = getUserSlot(user);
         if (seat == -1)
         {
-            LogManager::logFormat(1, "BlueMarble.cpp",
-                                  "void BlueMarble::giveBonusItem(CUser*)", 0x4ac,
+            LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x4ac,
                                   "BlueMarble::giveBonusItem slot(%d)", seat);
         }
         else if (getState() == 2 && getUserState(seat) == 1)
@@ -987,14 +969,15 @@ int BlueMarble::resultReward()
     Inven_Item item;
     for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
     {
-        if (m_users[i].getUser() != 0)
+        if (m_users[i].getUser() == 0)
         {
-            item.reset();
-            setResultItem(i, item);
-            if (item.m_addInfo != 0)
-            {
-                insertItem(i, item, (eItemAddReason)0x42);
-            }
+            continue;
+        }
+        item.reset();
+        setResultItem(i, item);
+        if (item.m_addInfo != 0)
+        {
+            insertItem(i, item, (eItemAddReason)0x42);
         }
     }
 }
@@ -1104,8 +1087,7 @@ int BlueMarble::setLeaveUserSlot(int seat)
     if (m_users[seat].getUser() == 0)
     {
         m_users[seat].resetBlueMarbleUserInfo();
-        LogManager::logFormat(1, "BlueMarble.cpp",
-                              "void BlueMarble::setLeaveUserSlot(int)", 0x2c4,
+        LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x2c4,
                               "BlueMarble::setLeaveUserSlot slot(%d)", seat);
     }
     else
@@ -1135,11 +1117,12 @@ int BlueMarble::sendBlueMarbleRoomInfo() const
     packet.put_byte(getWaitUserCount());
     for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
     {
-        if (m_users[i].getUser() != 0)
+        if (m_users[i].getUser() == 0)
         {
-            packet.put_byte(i);
-            packet.put_short(m_users[i].getUser()->get_unique_id() & 0xffff);
+            continue;
         }
+        packet.put_byte(i);
+        packet.put_short((unsigned short)m_users[i].getUser()->get_unique_id());
     }
     packet.finalize(true);
     sendToBlueMarble(packet);
@@ -1204,9 +1187,10 @@ void BlueMarble::sendToBlueMarble(PacketGuard& guard) const
 {
     for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
     {
-        if (m_users[i].getUser() != 0)
+        if (m_users[i].getUser() == 0)
         {
-            m_users[i].getUser()->Send(guard);
+            continue;
         }
+        m_users[i].getUser()->Send(guard);
     }
 }

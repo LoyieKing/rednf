@@ -12,16 +12,17 @@
 #include <sys/select.h>
 #include <time.h>
 
-// ---- trim（CEnvironment::parse 用，ORIG 全局函数）----
-void trim(char* s)
+// ---- trim（CEnvironment::parse 用，ORIG 全局函数 _Z4trimPc @0x0829f0ef；返回入参）----
+char* trim(char* s)
 {
-    if (!s) return;
+    if (!s) return s;
     char* end = s + strlen(s);
     while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
         *--end = 0;
     char* p = s;
     while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') ++p;
     if (p != s) memmove(s, p, strlen(p) + 1);
+    return s;
 }
 
 // ---- trim(std::string&)（ORIG _Z4trimRSs @0x0829f068：字符集仅空格）----
@@ -36,7 +37,7 @@ void trim(std::string& s)
 }
 
 // ---- less_TCHAR（CEnvironment map 比较器）----
-bool less_TCHAR::operator()(const char* const& x, const char* const& y) const
+bool less_TCHAR::operator()(const char* x, const char* y) const
 {
     return strcmp(x, y) < 0;
 }
@@ -47,12 +48,24 @@ long long SECOND_TO_MILISECOND(int sec)
     return (long long)sec * 1000;
 }
 
-// ---- cMyTrace（GameTypes.h 声明，ORIG 0x854f746 族）----
-cMyTrace::cMyTrace(const char*, int, int) {}
-cMyTrace::cMyTrace(const char*, int, int, bool bFieldC, bool bFieldD)
+// ---- cMyTrace（GameTypes.h 声明，ORIG 0x854f718/0x854f746）----
+// ORIG 3 参 0x854f718：m_field_c=1、m_field_d=0、m_name/m_line/m_flag 直存。
+cMyTrace::cMyTrace(const char* name, int line, int flag)
+{
+    m_field_c = 1;
+    m_field_d = 0;
+    m_name = name;
+    m_line = line;
+    m_flag = flag;
+}
+// ORIG 5 参 0x854f746：两 bool 分别落 m_field_c/m_field_d，其余同 3 参。
+cMyTrace::cMyTrace(const char* name, int line, int flag, bool bFieldC, bool bFieldD)
 {
     m_field_c = (char)bFieldC;
     m_field_d = (char)bFieldD;
+    m_name = name;
+    m_line = line;
+    m_flag = flag;
 }
 void cMyTrace::operator()(const char* fmt, ...)
 {

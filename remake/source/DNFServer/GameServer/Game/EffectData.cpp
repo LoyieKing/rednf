@@ -13,10 +13,13 @@ class effect_data
 {
 public:
     effect_data();
+    effect_data(effect_data const& o);
     ~effect_data();
+    effect_data& operator=(effect_data const& o);
 
 private:
-    char m_head[0x08];             // +0x00
+    char m_byte;             // +0x00（1 字节；ORIG 拷贝 movzbl/movdl，非数组）
+    int  m_value;            // +0x04（char 后自然对齐；ORIG 拷贝 movl）
     std::vector<unsigned short> m_seq;  // +0x08
 };
 
@@ -26,6 +29,19 @@ effect_data::effect_data()
 {
 }
 
+effect_data::effect_data(effect_data const& o)
+    : m_byte(o.m_byte), m_value(o.m_value), m_seq(o.m_seq)
+{
+}
+
 effect_data::~effect_data()
 {
+}
+
+effect_data& effect_data::operator=(effect_data const& o)
+{
+    m_byte = o.m_byte;
+    m_value = o.m_value;
+    m_seq = o.m_seq;
+    return *this;
 }

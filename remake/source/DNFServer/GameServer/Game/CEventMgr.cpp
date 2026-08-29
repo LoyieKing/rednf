@@ -32,10 +32,10 @@ bool CEventMgr::_IsEventing(int startYear, int startMon, int startDay, int start
                             int endYear, int endMon, int endDay, int endHour,
                             EVENT_TYPE type)
 {
-    struct tm begin;
     struct tm endTm;
-    memset(&begin, 0, sizeof(struct tm));   // ORIG memset 0x2c == sizeof(tm)@i386
-    memset(&endTm, 0, sizeof(struct tm));
+    struct tm begin;
+    memset(&endTm, 0, sizeof(struct tm));   // ORIG memset 0x2c == sizeof(tm)@i386
+    memset(&begin, 0, sizeof(struct tm));
 
     begin.tm_year = startYear - 1900;       // ORIG sub $0x76c
     begin.tm_mon  = startMon - 1;
@@ -47,18 +47,28 @@ bool CEventMgr::_IsEventing(int startYear, int startMon, int startDay, int start
     endTm.tm_mday = endDay;
     endTm.tm_hour = endHour;
 
-    if (!in_time(&begin, &endTm))
-        return false;
-
-    if (type != EVENT_WEEKEND)
-        return true;
-
-    // ORIG: local_14 = CSystemTime::getCurSec(&GlobalData::s_systemTime_);
-    //       localtime_r → tm_wday==0(Sun) || tm_wday==6(Sat) → true
-    time_t now = (time_t)GlobalData::s_systemTime_.getCurSec();
-    struct tm cur;
-    localtime_r(&now, &cur);                 // ORIG 直接解引用返回指针，不判空
-    return cur.tm_wday == 0 || cur.tm_wday == 6;
+    // ORIG Ghidra 形态：cVar1 = in_time(&begin,&end); if (cVar1) {
+    //   if (type != EVENT_WEEKEND) return 1;
+    //   local_14 = CSystemTime::getCurSec(&GlobalData::s_systemTime_);
+    //   ptVar2 = localtime_r(&local_14,&local_98);
+    //   if (ptVar2->tm_wday==0 || ptVar2->tm_wday==6) return 1; }
+    // return 0;
+    if (in_time(&begin, &endTm))
+    {
+        if (type == EVENT_WEEKEND)
+        {
+            time_t now = (time_t)GlobalData::s_systemTime_.getCurSec();
+            struct tm cur;
+            struct tm* pcur = localtime_r(&now, &cur);
+            if ((pcur->tm_wday == 0) || (pcur->tm_wday == 6))
+                return true;
+        }
+        else
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // ---- ORIG @0x0848f078 ------------------------------------------------------

@@ -39,13 +39,13 @@ class MySQL;
 #include "TaiwanCash.h"    // BillTransaction 权威布局（唯一归口；无环）
 class CUser;
 
-namespace Taiwan {
-
 // ---------------------------------------------------------------------------
-// COpensslRSA —— OpenSSL RSA 公钥包装（AuthGarenaToken 静态成员所需完整类型）。
-// ORIG：ctor/dtor/Init()/Init(char const*)/Encrypt/Decrypt，本批实现除 Encrypt
-// 外全部；Encrypt（T 0x0816c3a2，RSA_private_encrypt 分块）暂无仓库消费者，
-// 待有引用批次时补全。m_rsa 以 void* 持 opaque RSA*（免 openssl 头依赖）。
+// COpensslRSA —— OpenSSL RSA 公钥包装（全局命名空间；ORIG mangled
+// _ZN11COpensslRSA*，AuthGarenaToken 静态成员所需完整类型）。
+// ORIG：ctor/dtor/Init()/Init(char const*)/Encrypt/Decrypt 六函数全实现；
+// Encrypt（T 0x0816c3a2）RSA_private_encrypt 分块，Decrypt（T 0x0816c532）
+// RSA_public_decrypt 分块，均 RSA_PKCS1_PADDING=1。m_rsa 以 void* 持 opaque
+// RSA*（免 openssl 头依赖）；openssl C 符号由 LibCryptoStatic.cpp 收口实现。
 // ---------------------------------------------------------------------------
 extern "C" {
 void* BIO_s_file();                                   // libcrypto（运行期由系统库提供）
@@ -54,9 +54,16 @@ int BIO_ctrl(void* bio, int cmd, long arg, void* p);
 void BIO_free_all(void* bio);
 void* PEM_read_bio_RSA_PUBKEY(void* bp, void** x, void* cb, void* u);
 int RSA_size(const void* rsa);
+int RSA_private_encrypt(int flen, const unsigned char* from,
+                        unsigned char* to, void* rsa, int padding);
 int RSA_public_decrypt(int flen, const unsigned char* from,
                        unsigned char* to, void* rsa, int padding);
 }
+
+// ORIG W 0x0816c715：GetAppFolder（_Z12GetAppFolderv，COpensslRSA TU 内全局函数，
+// 由 sret 返回）。重建以空串最小实现满足 Init 拼路径语义；真实路径来源（注册表/
+// 配置）缺省时返回空。
+std::string GetAppFolder();
 
 class COpensslRSA
 {
@@ -75,14 +82,27 @@ public:
     // 后 insert 到 out 尾部；任一块失败返回 false。
     bool Decrypt(const char* in, int len, std::vector<unsigned char>& out);
 
+    // ORIG T 0x0816c3a2：maxChunk=RSA_size-12，按块 RSA_private_encrypt(
+    // RSA_PKCS1_PADDING=1) 后 insert 到 out 尾部；任一块失败返回 false，
+    // 全部块处理完返回 true。
+    bool Encrypt(const char* in, int len, std::vector<unsigned char>& out);
+
 private:
     void* m_rsa;                          // +0x00（opaque RSA*）
 };
 
+namespace Taiwan {
+
 // ---------------------------------------------------------------------------
 // GarenaAuthData —— 解密令牌视图（Garena 对端下发，网络字节序原样存放）。
+// ORIG 死常量（头文件 static，逐 TU 一份；值按 .rodata 实测）：
+static const unsigned int MAX_GARENA_ID_LENTH = 0x20;                 // _ZN6TaiwanL19MAX_GARENA_ID_LENTHE r 0x4 (=32)
+static const unsigned short C_ARAD_PROD_TYPE = 0x2d;                  // _ZN6TaiwanL16C_ARAD_PROD_TYPEE r 0x2 (=45)
+static const unsigned short C_ARAD_PROD_TYPE_POINT_AUCTION_PRICE = 0x3c;      // _ZN6TaiwanL36C_ARAD_PROD_TYPE_POINT_AUCTION_PRICEE r 0x2 (=60)
+static const unsigned short C_ARAD_PROD_TYPE_POINT_AUCTION_COMMISSION = 0x3e; // _ZN6TaiwanL41C_ARAD_PROD_TYPE_POINT_AUCTION_COMMISSIONE r 0x2 (=62)
 // sizeof = 0x68（decrypt 按 size-1 memcpy 校验上限 0x68 字节）。
 // ---------------------------------------------------------------------------
+#pragma pack(push, 1)
 class GarenaAuthData
 {
 public:
@@ -97,14 +117,20 @@ public:
 
 private:
     unsigned int m_uid;                             // +0x00（ntohl 读取）
-    char m_uname[0x20];                             // +0x04..+0x23
+    char m_uname[MAX_GARENA_ID_LENTH];               // +0x04..+0x23
     unsigned int m_timeStamp;                       // +0x24（ntohl 读取）
     unsigned short m_gcaType;                       // +0x28（ntohs 读取）
     unsigned char m_goldMemberType;                 // +0x2a
+    unsigned char m_pad2b;                          // +0x2b（ORIG 空洞；getMobileAuth 读 +0x2c）
     unsigned char m_mobileAuth;                     // +0x2c（==1 视为已认证）
     unsigned char m_pad2d[0x64 - 0x2d];             // +0x2d..+0x63
     unsigned int m_patchTime;                       // +0x64（本地附加补偿秒数）
 };
+#pragma pack(pop)
+
+// 布局断言：packed 后 sizeof 必须仍为 0x68（ORIG decrypt memcpy 上限），
+// 且 CUser 成员 m_garenaAuthData 恢复非对齐偏移 +0x6ef92（Main 批准 2026-08-29）。
+typedef char _assert_garena_size[(sizeof(GarenaAuthData) == 0x68) ? 1 : -1];
 
 // ---------------------------------------------------------------------------
 // AuthGarenaToken —— Garena 登录令牌静态接口。
@@ -323,7 +349,6 @@ private:
     char m_countries[(0x2d0 - 4) / 0x10][0x10];         // +0x04（720=45×16）
 };
 
-// SigLoadRestrictPolicy（sizeof 0x1200：restrict 值 + 计数 + 0x1194 主缓冲 + 0x64 尾缓冲）
 class SigLoadRestrictPolicy
 {
 public:
@@ -331,10 +356,13 @@ public:
     void set(int restrictValue, int index, char flag);  // ORIG W 0x0815de02
     void set(SigLoadRestrictPolicy& other);             // ORIG W 0x0815de38 全量拷贝
 
-private:
+    // ORIG SecurityRestrictPolicy::getRestrictValue（0x0816dd22）直接写四字段，
+    // 无 public API 可拼 → 字段公开（Main 2026-08-28 批准；不新增符号）。
+    // m_data 真实语义：100 条 × 0x2d 字节的类别名缓冲（0x1194 = 100*0x2d；
+    // getRestrictValue strncpy(p.m_data[i], src, 0x2d) 实证）。
     int m_restrictValue;                                  // +0x000（getRestrictValue 读）
     int m_count;                                          // +0x004
-    unsigned char m_data[0x1194];                         // +0x008
+    char m_data[100][0x2d];                               // +0x008
     unsigned char m_extra[0x64];                          // +0x119c（flag 写入区）
 };
 

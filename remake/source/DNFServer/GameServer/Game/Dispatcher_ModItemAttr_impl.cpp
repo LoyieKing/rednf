@@ -62,7 +62,7 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->get_state() != 3 || user->getCurCharacR() == 0)
     {
         char* idStr = NumberToString(user->get_acc_id(), 0);
-        cMyTrace tr("virtual int Dispatcher_ModItemAttr::dispatch_sig(CUser*, PacketBuf&)",
+        cMyTrace tr(__PRETTY_FUNCTION__,
                     0x95db, 5);
         tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
            user->get_state(), idStr);

@@ -159,7 +159,7 @@ bool CCreatureMgr::AuctionRegist(Inven_Item* item, int param_2, int param_3)
     if (!sender.AuctionRegist(item, characNo, param_2, param_3, mapSize))
     {
         cMyTrace trace(
-            "bool user_creature::CCreatureMgr::AuctionRegist(Inven_Item*, int, int)",
+            __PRETTY_FUNCTION__,
             0xc5c, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
@@ -285,7 +285,7 @@ bool CCreatureMgr::SaveCreatureItem()
         sender.GetInBuffer<SIG_CREATURE_ITEM_LIST>();
     if (list == 0)
     {
-        cMyTrace trace("bool user_creature::CCreatureMgr::SaveCreatureItem()",
+        cMyTrace trace(__PRETTY_FUNCTION__,
                        0xd90, 5);
         trace("cannot write db uid(%d)\n",
               m_user->get_unique_id() & 0xffff);
@@ -336,7 +336,7 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
             if (!m_equippedCreature->IsCreatureScript())
             {
                 cMyTrace trace(
-                    "int user_creature::CCreatureMgr::SetOverSkillTime(const int&)",
+                    __PRETTY_FUNCTION__,
                     0xe62, 0);
                 trace("SetOverSkillTime::creature_script is null(creature_itemno=%u)",
                       itemIdx);
@@ -362,7 +362,7 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
                 curSec = GlobalData::s_systemTime_.getCurSec();
                 int last = *m_equippedCreature->GetOverSkillTime()->GetTime();
                 cMyTrace trace(
-                    "int user_creature::CCreatureMgr::SetOverSkillTime(const int&)",
+                    __PRETTY_FUNCTION__,
                     0xe6c, 0);
                 trace("fail:cur_time(%u),last_used_skilltime(%u),interval(%d) "
                       "st(%d),ovst(%d),m_id(%s),ch_no(%u)",
@@ -420,7 +420,7 @@ bool CCreatureMgr::EventEvoluteCreature(int creatureId, int minLevel, int slot)
         if (m_equippedCreature->GetLevel() < minLevel)
         {
             cMyTrace trace(
-                "bool user_creature::CCreatureMgr::EventEvoluteCreature(int, int, int)",
+                __PRETTY_FUNCTION__,
                 0x10c2, 0);
             trace("event evolute creature error : low creature level.");
         }
@@ -555,14 +555,14 @@ bool CCreatureMgr::Evolute(int creatureId, int minLevel, bool force)
                 return m_equippedCreature->EvoluteMulty(m_user, creatureId);
 
             cMyTrace trace(
-                "bool user_creature::CCreatureMgr::Evolute(int, int, bool)",
+                __PRETTY_FUNCTION__,
                 0xdd6, 0);
             trace("evolute error : different creature kind.");
         }
         else
         {
             cMyTrace trace(
-                "bool user_creature::CCreatureMgr::Evolute(int, int, bool)",
+                __PRETTY_FUNCTION__,
                 0xddb, 0);
             trace("evolute error : low creature level.");
         }
@@ -624,10 +624,10 @@ bool CCreatureMgr::IsExistedCreatureItem(int slot) const
         if (entry == 0)
         {
             cMyTrace trace(
-                "bool user_creature::CCreatureMgr::IsExistedCreatureItem(int) const",
+                __PRETTY_FUNCTION__,
                 0xbda, 5);
             trace("[%s][%d]",
-                  "bool user_creature::CCreatureMgr::IsExistedCreatureItem(int) const",
+                  __PRETTY_FUNCTION__,
                   0xbda);
         }
         else

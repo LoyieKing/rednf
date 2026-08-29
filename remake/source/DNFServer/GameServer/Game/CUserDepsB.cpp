@@ -25,7 +25,8 @@
 //   - CLevelRewardTableMgr::IsOn                     W 0x08697792（无报告，objdump）
 //   - CLevelRewardTableMgr::IsChallengingJob         T 0x08687792（有报告 docs/class_func_reports/CLevelRewardTableMgr/IsChallengingJob.md）
 //   - CLevelRewardTableMgr::GetProperLevelRewardTableR T 0x08687e62（有报告 GetProperLevelRewardTableR.md）
-//   - NewAccountLevelUpEventToJob::processLevelUpToJob T 0x081b82a4（无报告，objdump）
+//   - NewAccountLevelUpEventToJob::processLevelUpToJob T 0x081b82a4（有报告
+//     NewAccountLevelUpEventToJob/processLevelUpToJob.md；定义已迁 NewAccountLevelUpEventToJob.cpp）
 //   - LevelupSupportEventManger::CheckNewStep        T 0x08147164（无报告，objdump）
 //   - LevelupSupportEventManger::UpdateEventInfo     T 0x081471c6（无报告，objdump）
 //   - LevelupSupportEventManger::SendCharacState     T 0x0814701e（无报告，objdump；静态，操作 user->m_levelupEvents）
@@ -50,7 +51,8 @@
 #include "CDataManager.h"             // G_CDataManager/find_item/m_levelUpReward/getItemList
 #include "DataManagerInitDepends.h"   // CLevelRewardTable/CLevelRewardTableMgr
 #include "CGuildServerProxy.h"        // CEventManager/CEventBase::IsEventing/DeliveryMsg/
-                                      // BuyItemDeliveryMsg/NewAccountLevelUpEventToJob
+                                      // BuyItemDeliveryMsg
+#include "NewAccountLevelUpEventToJob.h"  // processLevelUpEvent 调用的完整类
 #include "GlobalData.h"               // s_event_manager/s_stream_pool/s_msgq_mgr/s_GM_Manager
 #include "LevelupSupportEventManger.h"
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString
@@ -517,6 +519,12 @@ char* CLevelRewardTable::GetMailString(int levelIdx)
     return &m_messages[levelIdx * 0x100];
 }
 
+// ORIG W 0x08697782 sz 0xf：movzbl 0x6086(%eax) —— 读 m_jobAffection。
+bool CLevelRewardTable::GetJobAffection() 
+{
+    return m_jobAffection;
+}
+
 // ORIG W 0x08697792 sz 0xc：movzbl (this) —— 读 m_flag。
 bool CLevelRewardTableMgr::IsOn()
 {
@@ -541,6 +549,12 @@ bool CLevelRewardTableMgr::IsChallengingJob(char job)
 CLevelRewardTable* CLevelRewardTableMgr::GetProperLevelRewardTableR() const
 {
     return m_table;
+}
+
+// ORIG T 0x08687e6e sz 0xa：mov $0x0,%eax —— 恒返回 0（参数未使用）。
+CLevelRewardTable* CLevelRewardTableMgr::GetProperLevelRewardTableR(int) const
+{
+    return 0;
 }
 
 // ORIG T 0x08687d18 sz 0x54：遍历 m_table 指针数组（0x46 项），
@@ -575,85 +589,6 @@ bool CLevelRewardTableMgr::IsOnServer(int serverIdx)
             return true;
     }
     return false;
-}
-
-// ---- NewAccountLevelUpEventToJob ----
-
-// ORIG T 0x081b82a4 sz 0x515。
-// 新账号升级转职奖励：查奖励表（growup 聚合 / 单项）→ 账号级 once-gift 多重映射
-// 去重（同 job 同 level 已领则中止）→ 插入 (level, job) → DB 上报 → 逐条
-// create_item + 邮寄（标题 game_server_msg_285，正文 snprintf(game_server_msg_286,
-// level)），失败走 logFormat。成功返回 1，前置失败返回 0。
-bool NewAccountLevelUpEventToJob::processLevelUpToJob(CUser& user, bool growup)
-{
-    char firstGrow = user.getCurCharFirstGrowType();
-    int job = user.get_charac_job();
-    int level = user.get_charac_level();
-    LevelUpRewardItemTableKey key(level, job, firstGrow);
-    std::vector<LevelUpRewardItemData> rewards;
-    if (growup)
-    {
-        if (!G_CDataManager()->m_levelUpReward.get_data_when_growup(key, rewards))
-            return false;                          // ebx=0 出口
-    }
-    else
-    {
-        LevelUpRewardItemData data;
-        if (!G_CDataManager()->m_levelUpReward.get_data(key, data))
-            return false;
-        rewards.push_back(data);
-    }
-    // getCharacLevelUpGift_AccountOnce（T 0x08691e5c，定义 CUser.cpp）返回
-    // &m_levelUpGift（+0x8ec04 CharacLevelUpGiftAccountOnce，其 +0x00 即
-    // multimap<int,int>）；multimap empty/lower_bound/upper_bound/insert 全部
-    // 以该指针为 this。
-    std::multimap<int, int>& gifts =
-        *static_cast<std::multimap<int, int>*>(
-            user.getCharacLevelUpGift_AccountOnce());
-    if (!gifts.empty())
-    {
-        int curJob = user.get_charac_job();        // lower/upper_bound 键
-        for (std::multimap<int, int>::iterator it = gifts.lower_bound(curJob);
-             it != gifts.upper_bound(curJob); ++it)
-        {
-            if (it->second == level)               // 该等级已领取 → 中止
-                return false;
-        }
-    }
-    DB_EventAccountCharacterLevelUpOnceGift::makeRequest(
-        user.get_acc_id(), static_cast<short>(user.GetServerGroupToPvP()),
-        user.getCurCharacNo(), static_cast<short>(user.get_charac_job()),
-        static_cast<short>(user.get_charac_level()));
-    char body[256];                                // -0x1b5 起 0x100 清零
-    memset(body, 0, sizeof(body));
-    OS_API::snprintf(body, 0xff,
-                     g_scriptStringManager_.findString(4, "game_server_msg_286",
-                                                       (bool*)0),
-                     level);
-    const char* mailTitle = g_scriptStringManager_.findString(
-        4, "game_server_msg_285", (bool*)0);
-    for (std::vector<LevelUpRewardItemData>::iterator it = rewards.begin();
-         it != rewards.end(); ++it)
-    {
-        Inven_Item item;
-        item.m_addInfo = it->m_field0;             // -0xb3 ← data.f0
-        G_CDataManager()->getItemList()->create_item(ENUM_ITEM_CREATE_TYPE_0,
-                                                     item, it->m_field4);
-        ENUM_SERVER_GROUP serverGroup =
-            static_cast<ENUM_SERVER_GROUP>(user.GetServerGroupToPvP());
-        int bodyLen = static_cast<int>(strlen(body));
-        int characNo = user.getCurCharacNo();
-        if (WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                mailTitle, item, 0, characNo, body, bodyLen, 0, serverGroup,
-                0, 0) != 0)
-        {
-            LogManager::logFormat(
-                1, "NewAccountLevelUpEventToJob.cpp",
-                "bool NewAccountLevelUpEventToJob::processLevelUpToJob(CUser&, bool)",
-                0x7f, "NewAccountLevelUpEventToJob Event Start!");
-        }
-    }
-    return true;                                   // ebx=1
 }
 
 // ---- LevelupSupport 域 ----

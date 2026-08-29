@@ -19,18 +19,9 @@
 #include "InterfacePacketBuf.h"
 #include "Stream.h"
 #include "CTitleBook.h"   // item_lock::stItemLockRef 权威定义
+#include "PacketGuard.h"
 
-// ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char）----
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ---- CUserCharacInfo / CUser（最小声明；CUser 继承于 +0x00）----
 class CParty;
@@ -465,7 +456,7 @@ int CExpandEquipslot::Send_Equip_Info(CUser* pUser)
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Send_Equip_Info(CUser*)", 0x9a,
+            __PRETTY_FUNCTION__, 0x9a,
             "Fail Send_Equip_Info : pUser is NULL");
         return 1;
     }
@@ -473,7 +464,7 @@ int CExpandEquipslot::Send_Equip_Info(CUser* pUser)
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Send_Equip_Info(CUser*)", 0xa0,
+            __PRETTY_FUNCTION__, 0xa0,
             "Fail Send_Equip_Info : pUser is not valid state");
         return 0x13;
     }
@@ -493,7 +484,7 @@ int CExpandEquipslot::Send_Expand_Equip_Info(CUser* pUser)
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Send_Expand_Equip_Info(CUser*)", 0x21b,
+            __PRETTY_FUNCTION__, 0x21b,
             "Fail Send_Expand_Equip_Info : pUser is NULL");
         return 1;
     }
@@ -501,7 +492,7 @@ int CExpandEquipslot::Send_Expand_Equip_Info(CUser* pUser)
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Send_Expand_Equip_Info(CUser*)", 0x221,
+            __PRETTY_FUNCTION__, 0x221,
             "Fail Send_Expand_Equip_Info : pUser is NULL");
         return 0x13;
     }
@@ -545,7 +536,7 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::EquipslotSwitch(CUser*, char, char, char)",
+            __PRETTY_FUNCTION__,
             0x44, "Fail Equipslot Switch : pUser is NULL");
         return 1;
     }
@@ -553,7 +544,7 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::EquipslotSwitch(CUser*, char, char, char)",
+            __PRETTY_FUNCTION__,
             0x4a, "Fail Equipslot Switch : pUser is not valid state");
         return 0x13;
     }
@@ -631,7 +622,7 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Move_Item(CUser*, int, int, int, int)",
+            __PRETTY_FUNCTION__,
             0x17c, "Fail Move_Item : pUser is NULL");
         return 0x11;
     }
@@ -639,7 +630,7 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Move_Item(CUser*, int, int, int, int)",
+            __PRETTY_FUNCTION__,
             0x182, "Fail Move_Item : pUser is not valid state");
         return 0x11;
     }
@@ -671,7 +662,7 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
                 if (item == 0 || pUser == 0)
                 {
                     cMyTrace(
-                        "int CExpandEquipslot::Move_Item(CUser*, int, int, int, int)",
+                        __PRETTY_FUNCTION__,
                         0x1a0, 5)(
                         "CExpandEquipslot::Move_Item Move_Item return false (%d)",
                         localItem.m_addInfo);
@@ -724,7 +715,7 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Change_Equip(CUser*, int, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xd8, "Fail Change_Equip : pUser is NULL");
         return 1;
     }
@@ -732,7 +723,7 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
     {
         LogManager::logFormat(
             1, "ExpandEquipslot.cpp",
-            "int CExpandEquipslot::Change_Equip(CUser*, int, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xde, "Fail Change_Equip : pUser is not valid state");
         return 0x13;
     }

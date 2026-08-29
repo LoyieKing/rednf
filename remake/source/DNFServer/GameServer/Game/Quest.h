@@ -6,10 +6,13 @@
 // sizeof(Quest) = 0x150；QuestScript 布局按 set_quest 读取偏移推导。
 // CListTables.cpp 的 QuestList 依赖本类的真实符号。
 
-#include <string>
-#include <map>
+#include <new>
 #include <utility>
-#include <vector>
+#include <utility>
+#include "CDailyScheduleManager.h"  // _DailySchedule（QuestScript::m_dailySchedule 元素类型）
+#include "NpcScript.h"              // InteractiveDialogScript（QuestScript::m_field1f4 元素类型）
+
+#include "AdditionalDungeonInfo.h"  // AdditionalDungeonInfo（QuestScript::m_field16c 元素类型）
 
 class CUser;
 class CDataManager;
@@ -44,9 +47,30 @@ enum _DailyScheduleType
 };
 #endif
 
-// ---- 任务目标职业/成长（12 字节） ----
 struct stQuestTargetCharacter_t
 {
+    stQuestTargetCharacter_t(ENUM_CHARACTERJOB job, int firstGrow, int secondGrow)
+    {
+        m_job = job;
+        m_firstGrow = firstGrow;
+        m_secondGrow = secondGrow;
+    }
+    // ORIG D1/D2 0x08a6956a（W 0x5）：平凡空体析构。
+    ~stQuestTargetCharacter_t() {}
+    // ORIG 为 _ZN24stQuestTargetCharacter_teqERKS_（非 const 成员，W 0x08a65fe6）
+    bool operator==(const stQuestTargetCharacter_t& o)
+    {
+        return m_job == o.m_job &&
+               m_firstGrow == o.m_firstGrow &&
+               m_secondGrow == o.m_secondGrow;
+    }
+    bool operator==(const stQuestTargetCharacter_t& o) const
+    {
+        return m_job == o.m_job &&
+               m_firstGrow == o.m_firstGrow &&
+               m_secondGrow == o.m_secondGrow;
+    }
+
     int m_job;        // +0x00
     int m_firstGrow;  // +0x04
     int m_secondGrow; // +0x08
@@ -61,6 +85,10 @@ struct DungeonClearItem
     int m_count;      // +0x0c
     int m_percent;    // +0x10
     int m_field14;    // +0x14
+    DungeonClearItem()
+    {
+        clear();
+    }
 
     void clear()
     {
@@ -69,13 +97,15 @@ struct DungeonClearItem
         m_rewardItem = 0;
         m_count = 0;
         m_percent = 0;
-        m_field14 = 0;
+        m_field14 = -1;
     }
 };
 
 // ---- 击杀怪物（32 字节） ----
 struct MonsterKillItem
 {
+    // ORIG W ctor 0x0869388e：调 clear()（32 字节逐字段初值）。
+    MonsterKillItem() { clear(); }
     int m_enemyType;   // +0x00（ENUM_QUEST_ENEMY_TYPE，默认 1）
     int m_killCount;   // +0x04
     int m_mapIdx;      // +0x08（-1 = 任意）
@@ -106,10 +136,11 @@ struct RewardItemInfo
     int m_job;       // +0x08（0xb = 无职业限制）
     int m_growType;  // +0x0c（-1 = 无成长限制）
 
+    // ORIG C1 0x8a67a18：m_count=0 后 m_itemIdx=m_count（编译器拷贝形态）
     RewardItemInfo()
     {
         m_count = 0;
-        m_itemIdx = 0;
+        m_itemIdx = m_count;
         m_job = 0xb;
         m_growType = -1;
     }
@@ -141,7 +172,7 @@ struct PostalReward
     int m_itemIdx;           // +0x08
     int m_addInfo;           // +0x0c
 
-    PostalReward() : m_itemIdx(0), m_addInfo(0) {}
+    PostalReward() {}
     void clear()
     {
         m_title.clear();
@@ -151,9 +182,29 @@ struct PostalReward
     }
 };
 
-// ---- 副本事件对话（0x54 字节） ----
+// ORIG 布局（C1 0x8a60f78 / C1ERKS 0x8a6100e / D1 0x8a61164 /
+// getNewDialog 0x8a615fe）：0x14 字节标量区 + std::string@+0x20 + int@+0x24 +
+// 11 个堆分配 std::string* @+0x28（getNewDialog(ENUM_CHARACTERJOB) 按职业取串，
+// 析构逐个释放；拷贝构造深拷贝，op= 为编译器隐式浅拷贝，与 ORIG W 弱符号一致）。
 struct dungeonEventHanaseStruct
 {
+    dungeonEventHanaseStruct();   // ORIG C1/C2 T 0x8a60f78（类外定义于 STQuestScript.cpp）
+    dungeonEventHanaseStruct(const dungeonEventHanaseStruct& o);  // ORIG C1ERKS T 0x8a6100e
+    // ORIG D1/D2 T 0x8a61164：i=0..10 逐个 delete 非空 dialog 串后置空；
+    // 内联（W）以规避 UserQuest.cpp 本地视图的强 T D1 重复定义，链接取强符号。
+    ~dungeonEventHanaseStruct()
+    {
+        for (int i = 0; i <= 10; ++i)
+        {
+            if (m_dialogs[i] != 0)
+            {
+                delete m_dialogs[i];
+                m_dialogs[i] = 0;
+            }
+        }
+    }
+    std::string* getNewDialog(ENUM_CHARACTERJOB job);  // ORIG T 0x8a615fe
+
     int m_field0;       // +0x00
     int m_field4;       // +0x04
     int m_field8;       // +0x08
@@ -164,12 +215,20 @@ struct dungeonEventHanaseStruct
     int m_field1c;      // +0x1c
     std::string m_str20; // +0x20
     int m_field24;      // +0x24
-    int m_field28[11];  // +0x28..+0x50
+    std::string* m_dialogs[11];  // +0x28..+0x50
 };
 
 // ---- 任务触发状态（8 字节：3 个 9 位值） ----
 struct stQuestTriggerState_t
 {
+    stQuestTriggerState_t();                      // ORIG W 0x0836ddac（定义于 QuestTriggerState.cpp）
+    void setTrigger(short a, short b, short c);   // ORIG W 0x0836dce0（定义于 Quest.cpp）
+    int getTrigger();                             // ORIG W 0x0836dd68（定义于 QuestTriggerState.cpp）
+    // ORIG W 0x086ad56c / 0x086ad602 / 0x086ad6ea：旧视图方法名（UserQuest.cpp 使用）
+    stQuestTriggerState_t& operator=(int const& v);
+    void incTirggerState(char v);
+    void subTriggerState(char v);
+
     short m_trigger0;  // +0x00
     short m_trigger1;  // +0x02
     short m_trigger2;  // +0x04
@@ -199,15 +258,14 @@ class QuestScript
 {
 public:
     QuestScript();
-    QuestScript(const QuestScript& other);
     ~QuestScript();
 
     void clear();
     void destroy();
-    const std::string& getName(int job) const;
-    const std::string& getRequestMessage(int job) const;
-    const std::string& getConditionMessage(int job) const;
-    const std::string& getSolveMessage(int job) const;
+    std::string& getName(ENUM_CHARACTERJOB job);   // ORIG _ZN11QuestScript7getNameE17ENUM_CHARACTERJOB（非 const）
+    std::string& getRequestMessage(ENUM_CHARACTERJOB job);
+    std::string& getConditionMessage(ENUM_CHARACTERJOB job);
+    std::string& getSolveMessage(ENUM_CHARACTERJOB job);
 
     int m_index;                                  // +0x00
     std::string m_name;                           // +0x04
@@ -229,37 +287,35 @@ public:
     int m_fieldEC;                                // +0xec
     int m_fieldF0;                                // +0xf0
     std::vector<stQuestTargetCharacter_t> m_targetCharacters;  // +0xf4
-    int m_levelMin;                               // +0x100
-    int m_levelMax;                               // +0x104
-    char m_field108;                              // +0x108
-    char m_pad109[3];
+    int m_levelMin[2];                            // +0x100/+0x104（ORIG clear 循环置 0）
+    char m_field108;                              // +0x108（后随对齐空洞，ORIG 拷贝跳过）
     std::vector<std::vector<int> > m_intDataList; // +0x10c
     std::vector<int> m_antiQuestList;             // +0x118
     int m_questCountLimit;                        // +0x124
     int m_field128;                               // +0x128
     int m_field12c;                               // +0x12c
-    char m_field130;                              // +0x130
-    char m_pad131[3];                             // +0x131..+0x133
+    char m_field130;                              // +0x130（后随对齐空洞）
     int m_field134;                               // +0x134
     std::vector<DungeonClearItem> m_clearItems;   // +0x138
     std::vector<MonsterKillItem> m_killItems;     // +0x144
     AppearMap m_appearMap;                        // +0x150
     std::vector<std::pair<int, int> > m_rewardSelectList;  // +0x160
-    char m_pad16c[0xc];                           // +0x16c..+0x177
+    std::vector<AdditionalDungeonInfo> m_field16c;        // +0x16c（ORIG ctor/copy 实证 vector<AdditionalDungeonInfo>）
     int m_triggerType;                            // +0x178
     int m_triggerSubType;                         // +0x17c
     std::vector<int> m_triggerData;               // +0x180
-    char m_pad18c[0x24];                          // +0x18c..+0x1af
+    std::vector<std::string> m_field18c;          // +0x18c（ORIG clear/ctor 实证）
+    std::map<int, std::pair<std::string, std::string> > m_field198;  // +0x198（ORIG ctor/copy 实证）
     std::vector<int> m_field1b0;                  // +0x1b0
-    char m_field1bc;                              // +0x1bc
-    char m_pad1bd[3];
+    char m_field1bc;                              // +0x1bc（后随对齐空洞）
     int m_field1c0;                               // +0x1c0
     int m_field1c4;                               // +0x1c4
+    std::vector<int> m_field1c8;                  // +0x1c8（ORIG ctor C1 实证）
     int m_rewardType;                             // +0x1d4
     std::vector<RewardItemInfo> m_titleReward;    // +0x1d8
     int m_field1e4;                               // +0x1e4
     std::vector<RewardItemInfo> m_selectReward;   // +0x1e8
-    char m_pad1f4[0xc];                           // +0x1f4..+0x1ff
+    std::vector<InteractiveDialogScript> m_field1f4;  // +0x1f4（ORIG ctor C1 实证）
     std::vector<dungeonEventHanaseStruct> m_eventDialogs;  // +0x200
     std::vector<int> m_field20c;                  // +0x20c
     int m_field218;                               // +0x218
@@ -267,29 +323,25 @@ public:
     int m_field228;                               // +0x228
     char m_field22c;                              // +0x22c
     char m_field22d;                              // +0x22d
-    char m_field22e;                              // +0x22e
-    char m_pad22f[0xd];                           // +0x22f..+0x23b
+    char m_field22e;                              // +0x22e（+0x22f 为对齐空洞，ORIG 拷贝跳过）
+    int m_field230[3];                            // +0x230..+0x23b（ORIG clear 循环置 -1）
     char m_field23c;                              // +0x23c
-    char m_field23d;                              // +0x23d
-    char m_pad23e[2];
+    char m_field23d;                              // +0x23d（后随对齐空洞）
     int m_field240;                               // +0x240
     std::string m_str244;                         // +0x244
     int m_field248;                               // +0x248
     int m_field24c;                               // +0x24c
     int m_field250;                               // +0x250
     int m_field254;                               // +0x254
-    char m_mailQuestFlag;                         // +0x258
-    char m_pad259[3];
+    char m_mailQuestFlag;                         // +0x258（后随对齐空洞）
     std::string m_mailTitle;                      // +0x25c
     std::string m_mailContents;                   // +0x260
     std::vector<int> m_mailItems;                 // +0x264
     char m_field270;                              // +0x270
-    char m_pad271;
-    char m_powerSide;                             // +0x272
-    char m_pad273;
+    char m_field271;                              // +0x271（ORIG clear 置 1）
+    char m_powerSide;                             // +0x272（+0x273 为对齐空洞）
     int m_field274;                               // +0x274
-    char m_field278;                              // +0x278
-    char m_pad279[3];
+    char m_field278;                              // +0x278（后随对齐空洞）
     int m_field27c;                               // +0x27c
     short m_field280;                             // +0x280
     short m_field282;                             // +0x282
@@ -297,6 +349,7 @@ public:
     int m_field288;                               // +0x288
     int m_field28c;                               // +0x28c
     int m_field290;                               // +0x290
+    std::string m_str294;                         // +0x294（ORIG clear/ctor 实证）
     PostalReward m_postalReward;                  // +0x298
     int m_field2a8;                               // +0x2a8
     int m_field2ac;                               // +0x2ac
@@ -304,7 +357,7 @@ public:
     char m_2c8;                                   // +0x2c8
     std::string m_str2cc;                         // +0x2cc
     std::vector<ENUM_QUEST_EXCEPTION_TYPE> m_exceptionList;  // +0x2d0
-    std::vector<int> m_dailySchedule;             // +0x2dc
+    std::vector<_DailySchedule> m_dailySchedule;  // +0x2dc（ORIG clear 实证 _ZNSt6vectorI14_DailySchedule）
     std::string m_str2e8;                         // +0x2e8
     char m_2ec;                                   // +0x2ec
     std::vector<int> m_vec2f0;                    // +0x2f0
@@ -397,7 +450,7 @@ public:
     char m_pad121[3];
     std::vector<dungeonEventHanaseStruct> m_eventDialogs;  // +0x124
     char m_field130;                           // +0x130
-    char m_powerSide;                          // +0x131
+    unsigned char m_powerSide;                 // +0x131
     char m_pad132[2];
     int m_field134;                            // +0x134
     short m_field138;                          // +0x138

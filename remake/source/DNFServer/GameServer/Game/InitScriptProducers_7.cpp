@@ -601,7 +601,7 @@ int importQuestShopScript(const char* path, stQuestShop& out)
     {
         if (token == "[initialization costs]")
         {
-            stQuestShop::stQuestShoptInitCost cost;
+            stQuestShoptInitCost cost;
             cost.m_cost0 = ScanInt(&ok);
             if (!ok) { return 0; }
             cost.m_cost1 = ScanInt(&ok);
@@ -1260,7 +1260,7 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 // ============================================================================
 
 // ORIG 0x891b4a8 W：临时元素 {kind,a,b} 后 push_back。
-void stLimitItemUsageInfo::Add(unsigned char kind, int a, int b)
+void stLimitItemUsageInfo::Add(char kind, int a, int b)
 {
     LimitInfo entry;
     entry.m_kind = kind;
@@ -1288,9 +1288,8 @@ void stRefillItemInfo::Add(int itemId, int count, long endSec)
     m_list.push_back(entry);
 }
 
-// ORIG 0x837109a W：三 int 逆序清零。
-// ORIG stQuestShoptInitCost C1 0x837109a W：+0x08=0 后逐槽前拷（三 int 全零）。
-stQuestShop::stQuestShoptInitCost::stQuestShoptInitCost()
+// ORIG 0x837109a W：三 int 逆序清零（全局类型，mangled 无 stQuestShop 前缀）。
+stQuestShoptInitCost::stQuestShoptInitCost()
 {
     m_cost2 = 0;
     m_cost1 = m_cost2;
@@ -1334,7 +1333,8 @@ stNPCRelationEventInfo::stNPCRelationEventInfo() {}
 // ORIG stMercenaryRewardGroup C1 0x89f7a9c W：int 清零 + string/vector 构造，
 // 尾部两 dword 清零（对齐 pad）。
 stMercenaryRewardGroup::stMercenaryRewardGroup()
-    : m_groupId(0), m_name(), m_mobList(), m_itemList()
+    : m_groupId(0), m_name(), m_mobList(), m_itemList(),
+      m_field20(0), m_field24(0)
 {
 }
 

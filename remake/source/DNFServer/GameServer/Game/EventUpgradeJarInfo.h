@@ -86,7 +86,7 @@ public:
     void CheckMaterialIndex(unsigned long index);                // 0x080f4d20
     void SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& info, unsigned char upgrade); // 0x080f4dac
     void GetProbability(int materialIdx, unsigned int& outProb) const; // 0x080f4ee2
-    bool CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade) const; // 0x080f4f62
+    bool CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade);       // 0x080f4f62（ORIG _ZN 非 const）
     unsigned long GetIndexLuckyStrengtheningDeed();              // 0x080f4fd0
     unsigned long getBoosterIndex_byUpgradeCardIndex(unsigned long& cardIdx, unsigned long& boosterIdx); // 0x080f4a0a
     bool isFortune() const;                                     // 0x0854b57c（W）

@@ -71,6 +71,7 @@ struct TagSkillPenalty
         m_isPercent = false;        // movb $0x0,0x8
         m_pad = 0;
     }
+    bool isPenaltyLevel(int level);  // ORIG T 0x08a9d7a6（定义 OnlyOrigBatch11.cpp）
     int m_skillIdx;   // +0x00
     int m_value;      // +0x04
     bool m_isPercent; // +0x08（与 "%" 比较）
@@ -104,6 +105,7 @@ struct StrikerSkillAddCommand
 // ---- StrikerDirectionType（ctor 0x08a9d7ec / setType 0x08a9d7fa）----
 struct StrikerDirectionType
 {
+    enum T { T_0 = 0, T_1 = 1 };      // ORIG mangled NS_1TE（嵌套枚举 T）
     StrikerDirectionType() : m_type(0) {}
     void setType(int type)
     {
@@ -112,6 +114,7 @@ struct StrikerDirectionType
             m_type = type;
         }
     }
+    bool isType(T type);           // ORIG T 0x08a9d81a（定义 OnlyOrigBatch11.cpp）
     int m_type;  // +0x00
 };  // 0x4
 
@@ -134,6 +137,14 @@ public:
     void importSkillCoolTimePenalty();           // ORIG T 0x08a9e5fc
     void importParentLevelPenlaty();             // ORIG T 0x08a9e654
     void readSkillPenalty(std::vector<TagSkillPenalty>& out);  // ORIG T 0x08a9e6cc
+    bool importComboList();                    // ORIG T 0x08a9e79c
+    void importStrikerLevelPenalty();          // ORIG T 0x08a9e628
+    int getPrecedeSkillIndex(short firstGrowType, short secondGrowType,
+                             int skillIndex);  // ORIG T 0x08a9ea96
+    int getComboIndex(short firstGrowType, short secondGrowType,
+                      int skillIndex);         // ORIG T 0x08a9e97a
+    int getAddCommand(short firstGrowType, int command);   // ORIG T 0x08a9eb3a
+    int isCommonSkill(short firstGrowType, int skillIndex);  // ORIG T 0x08a9ebee
 
     // ---- 布局（ctor 0x08a9d88e / clear 0x08a9dbb4 实证）----
     int m_tagCostTime;                           // +0x00（[tag cost time]）
@@ -164,6 +175,16 @@ public:
     StrikerDirectionType m_direction;            // +0xa8
     int m_positionType;                          // +0xac（[position] 第 1 值）
     int m_upgradeRevision;                       // +0xb0（clear=99；[upgrade revision]）
+
+    // ORIG W _ZN13StrikerScript21getStrikerSkillVectorEss（实现待 striker 域批次；
+    // checkSkillIndex 消费。LinkClosureC 批次按 ORIG mangled 补声明。）
+    std::vector<StrikerSkill>* getStrikerSkillVector(short firstGrowType,
+                                                     short secondGrowType);
+    bool checkSkillIndex(short firstGrowType, short secondGrowType,
+                         int skillIndex);
+                                                           // ORIG T _ZN13StrikerScript15checkSkillIndexEssi
+                                                           //   @0x08a9e868（ValidateStrikerInfo 消费；
+                                                           //   实现 owner＝striker 脚本域批次）
 };  // sizeof == 0xb4
 
 #endif  // GAME_STRIKER_SCRIPT_H_

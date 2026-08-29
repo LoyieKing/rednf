@@ -30,11 +30,13 @@ class PacketGuard;
 
 class Stream;
 
-// ---- ORIG 全局信件明细载荷（SetMailBoxInfo 栈帧推断，约 300 字节；原
-//      CGameManager.cpp 局部定义上移至此，letterInfo map 值类型所需） ----
+// ---- ORIG 全局信件明细载荷（DB_MailBox_Req_List::SelectLetter 逐指令实证
+//      0x12b=299：memset 0x12b / 拷贝循环 0x12b / imul $0x12b；
+//      vector<SIG_LETTER_INFO>::push_back 实例 lea 0x12b；CMailBoxHelper.cpp
+//      detail 区按 i*299 步长访问） ----
 struct SIG_LETTER_INFO
 {
-    char m_pad[0x12c];
+    char m_pad[0x12b];
 };
 struct MSG_CHECK_MAIL_RECEIVER;               // 定义见 CGameManager.h（0x3f88）
 struct SIG_MAILBOX_LIST;                      // 定义见 SigTypes.h
@@ -150,7 +152,7 @@ private:
 };
 
 // ---- 布局守 ABI 断言（成员自然偏移依赖下列尺寸；漂移即编译失败） ----
-static_assert(sizeof(SIG_LETTER_INFO) == 0x12c, "SIG_LETTER_INFO ABI drift");
+static_assert(sizeof(SIG_LETTER_INFO) == 0x12b, "SIG_LETTER_INFO ABI drift");
 static_assert(sizeof(WongWork::CMailBox) == 0x100, "CMailBox ABI drift (ORIG 0x100)");
 
 // SIG_MAILBOX_* 完整定义见 SigTypes.h（全局作用域）

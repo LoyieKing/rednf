@@ -53,6 +53,7 @@ CGameManager* G_CGameManager();
 #include <algorithm>
 #include <stdio.h>
 #include <string.h>
+#include <set>
 
 #include "CSystemTime.h"
 #include "CSyncSlangFilter.h"
@@ -101,7 +102,9 @@ extern int* Get_instance_groupOrder_map_pool();
 
 extern int importSpPerLevelReferenceTable(const char* path, void* table);
 // importPvPReferenceTable 在本 TU 下方实现（见 set_pvp_grade 区），无需 extern。
-// PvP 战斗时间全局（ORIG 0x93f4ee0/0x93f4ee8/0x93f4ef0，各 [2] int）。
+// PVP_NORMAL_BATTLE_TIME / PVP_DM_BATTLE_TIME 定义于 InitScriptProducers_2.cpp
+// （ORIG 同源首个具名对象，决定 _GLOBAL__I_ 键名）；PvP_Room.cpp 仅 extern 引用。
+extern int PVP_NORMAL_BATTLE_TIME[2];
 // PVP_NORMAL_BATTLE_TIME / PVP_DM_BATTLE_TIME 定义于 PvP_Room.cpp。
 extern int PVP_NORMAL_BATTLE_TIME[2];
 extern int PVP_DM_BATTLE_TIME[2];
@@ -245,17 +248,13 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
 
 int* Get_instance_stHellParty_t()
 {
-    // ORIG 0x089097c4：static stHellParty_t hellPartyScript_（--cxa_guard 构造 + atexit）。
-    // 返回单例指针；stHellParty_t 无完整类型（本 TU），以静态缓冲区承载，仅保证
-    // 稳定单例地址（callers 以 float[..]/map 偏移访问其字段）。
-    static char buf[0x120];
-    static bool init = false;
-    if (!init)
-    {
-        memset(buf, 0, sizeof(buf));
-        init = true;
-    }
-    return reinterpret_cast<int*>(buf);
+    // ORIG 0x089097c4：函数局部 static stHellParty_t hellPartyScript_，
+    // __cxa_guard 构造 + __cxa_atexit(D1)（P20 单例形态）。
+    // 完整类型见 DataManagerInitDepends.h（stHellParty_t），ctor/dtor
+    // 由 InitScriptProducers_7.cpp 提供；本函数保持 int* 返回与既有
+    // 各 TU 的 extern int* 声明兼容（ORIG 实为 stHellParty_t*）。
+    static stHellParty_t hellPartyScript_;
+    return reinterpret_cast<int*>(&hellPartyScript_);
 }
 
 // ===================== 查询 =====================
@@ -326,7 +325,7 @@ void* CDataManager::find_mission(int idx) const
 
 int CDataManager::find_npc(unsigned int idx) const
 {
-    return m_npcScriptList->find(idx);
+    return (int)(unsigned long)m_npcScriptList->find(idx);
 }
 
 bool CDataManager::find_lottery_use_cost(unsigned int money) const
@@ -389,7 +388,7 @@ int CDataManager::get_creature_level_exp(int level) const
         return 0;
     }
     // ORIG 消费 CreatureScript::ExpTable_E（0x94fefa0，initCreatureScript 填充）。
-    return CreatureScript::ExpTable_E[level - 2];
+    return CreatureScript::ExpTable_[level - 2];
 }
 
 int CDataManager::get_creature_exp_level(int exp) const
@@ -686,7 +685,7 @@ std::list<CMission*>* CDataManager::get_kind_mission_list(int idx) const
 }
 
 void CDataManager::get_New_DailyMission(
-    std::vector<std::pair<unsigned int, unsigned int> >& out) const
+    std::vector<std::pair<unsigned int, unsigned int> >& out)
 {
     m_pvpChannel.m_pvpMissionSystem->get_New_DailyMission(out);
 }
@@ -970,85 +969,103 @@ ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
     return it->second;
 }
 
-void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config, const CUser& user)
+// ---- CChattingEmoticonList::ReCalc（报告 ReCalc.md，ORIG T 0x080e5880）：
+//      ① 遍历 config 24 行：行 m_nCount 能 find_emoticon 命中且 isCommonEmoticon
+//         （vtable+0x14）→ 行拷入 rows 并记 used；② config.clear()；
+//      ③ rows 各行回填到 config 中 m_nCount==0 的空行（[GetStartArrayIndex,
+//         GetEndArrayIndex] 区间内第一个空位，整行 0x16 字节拷贝）；
+//      ④ 遍历 m_map：GetIndex 未在 used 且 isCommonEmoticon → 同样区间内
+//         空行写入 m_nCount。 ----
+void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
+                                   const CUser& user)
 {
-    // ORIG 0x80e5880：两轮扫描。
-    // 1) 遍历 config 行（0x17+1 行），对每行 +0x14 的 emoticon idx 查表；
-    //    命中且 isCommonEmoticon(user) 为真的行收集到 rows，idx 记录到 locked。
-    // 2) config.clear() 后，把 rows 按各 emoticon 的 [GetStartArrayIndex,
-    //    GetEndArrayIndex] 槽位范围填回 config 空槽（+0x14 == 0）；
-    //    最后遍历 m_map，把未锁定且 common 的 emoticon idx 填入空槽。
     std::vector<CChattingEmoticonConfigRow> rows;
-    std::set<int> locked;
+    std::set<int> used;
 
     for (int i = 0; i <= 0x17; ++i)
     {
-        const unsigned short idx =
-            *reinterpret_cast<const unsigned short*>(
-                reinterpret_cast<const char*>(&config) + i * 0x16 + 0x14);
-        ChattingEmoticonBase* e = find_emoticon(idx);
-        if (e == 0)
+        ChattingEmoticonBase* p = find_emoticon(config.m_Row[i].m_nCount);
+        if (p == 0)
             continue;
-        if (e->isCommonEmoticon(user) == false)
+        if (!p->isCommonEmoticon(user))
             continue;
-        rows.push_back(*reinterpret_cast<const CChattingEmoticonConfigRow*>(
-            reinterpret_cast<const char*>(&config) + i * 0x16));
-        locked.insert(idx);
+        rows.push_back(config.m_Row[i]);
+        used.insert(config.m_Row[i].m_nCount);
     }
-
     config.clear();
 
-    for (int j = 0; j < static_cast<int>(rows.size()); ++j)
+    for (unsigned int r = 0; r < rows.size(); ++r)
     {
-        const unsigned short idx =
-            *reinterpret_cast<const unsigned short*>(
-                reinterpret_cast<const char*>(&rows[j]) + 0x14);
-        ChattingEmoticonBase* e = find_emoticon(idx);
-        if (e == 0)
+        ChattingEmoticonBase* p = find_emoticon(rows[r].m_nCount);
+        if (p == 0)
             continue;
-        int k = e->GetStartArrayIndex();
-        while (e->GetEndArrayIndex() >= k)
+        for (int i = p->GetStartArrayIndex(); i <= p->GetEndArrayIndex(); ++i)
         {
-            unsigned short* slot =
-                reinterpret_cast<unsigned short*>(
-                    reinterpret_cast<char*>(&config) + k * 0x16 + 0x14);
-            if (*slot == 0)
+            if (config.m_Row[i].m_nCount == 0)
             {
-                memcpy(reinterpret_cast<char*>(&config) + k * 0x16, &rows[j], 0x16);
+                config.m_Row[i] = rows[r];
                 break;
             }
-            ++k;
         }
     }
 
     for (std::map<int, ChattingEmoticonBase*>::iterator it = m_map.begin();
          it != m_map.end(); ++it)
     {
-        ChattingEmoticonBase* e = it->second;
-        const int idx = e->GetIndex();
-        if (locked.find(idx) != locked.end())
+        if (used.find(it->second->GetIndex()) != used.end())
             continue;
-        if (e->isCommonEmoticon(user) == false)
+        if (!it->second->isCommonEmoticon(user))
             continue;
-        int k = e->GetStartArrayIndex();
-        while (e->GetEndArrayIndex() >= k)
+        for (int i = it->second->GetStartArrayIndex();
+             i <= it->second->GetEndArrayIndex(); ++i)
         {
-            unsigned short* slot =
-                reinterpret_cast<unsigned short*>(
-                    reinterpret_cast<char*>(&config) + k * 0x16 + 0x14);
-            if (*slot == 0)
+            if (config.m_Row[i].m_nCount == 0)
             {
-                *slot = static_cast<unsigned short>(idx);
+                config.m_Row[i].m_nCount = (short)it->second->GetIndex();
                 break;
             }
-            ++k;
         }
     }
 }
 
+// ReCalcEmoticonConf —— ORIG T 0x0835fc76 _ZN12CDataManager18ReCalcEmoticonConfER23CChattingEmoticonConfigRK5CUser
+//   （docs/class_func_reports/CDataManager/ReCalcEmoticonConf.md）：
+//   直通 m_emoticonList(+0x28) 的 CChattingEmoticonList::ReCalc（call 前置：
+//   user 压 0x8(%esp)、config 压 0x4(%esp)、m_emoticonList 压 (%esp)）。
+// ---------------------------------------------------------------------------
 void CDataManager::ReCalcEmoticonConf(CChattingEmoticonConfig& config, const CUser& user)
 {
     m_emoticonList->ReCalc(config, user);
+}
+
+// ---------------------------------------------------------------------------
+// IsUsableEmoticons —— ORIG T 0x0835fc9a _ZN12CDataManager17IsUsableEmoticonsERK5CUserRKSt6vectorIiSaIiEE
+// IsUsableEmoticons —— ORIG T 0x0835fc9a _ZN12CDataManager17IsUsableEmoticonsERK5CUserRKSt6vectorIiSaIiEE
+//   （非 const；sret 返回 vector<int>；报告缺失，按 nm 定址 + objdump 转写）。
+//   反汇编逐条转写：
+//     result 默认构造；m_emoticonList(+0x28) 为空直接返回空表；
+//     遍历 emoticons：find_emoticon(emoticons[i]) 未命中跳过；
+//     命中且 !isUsable(user)（vtable+0x08 虚调用，bool 取反 P22）
+//     → result.push_back(emoticons[i])。
+// ---------------------------------------------------------------------------
+std::vector<int> CDataManager::IsUsableEmoticons(const CUser& user,
+                                                 const std::vector<int>& emoticons)
+{
+    std::vector<int> result;
+    if (m_emoticonList != 0)
+    {
+        ChattingEmoticonBase* p;
+        for (unsigned int i = 0; i < emoticons.size(); ++i)
+        {
+            p = m_emoticonList->find_emoticon(emoticons[i]);
+            if (p == 0)
+                continue;
+            if (!p->isUsable(user))
+                continue;
+            result.push_back(emoticons[i]);
+        }
+    }
+    return result;
 }
 
 int CDataManager::GetUpgradeRevisionPvPChannel()
@@ -1127,35 +1144,15 @@ void* CDataManager::GetImageCommnicationData()
     return (void*)&m_imageCommData;
 }
 
-int CDataManager::getEmblemCompoundCost(int grade) const
-{
-    // ORIG Dispatcher_CompoundEmblem::dispatch_sig 0x8220bb2:
-    //   *(int*)(CDataManager + 0x828 + grade*0x18)
-    // m_serverParameter 于 CDataManager + 0x68；其 m_emblemCompound[grade] 位于
-    // ServerParameterScript + 0x7c0（= CDataManager + 0x828）。grade 0..6。
-    if (grade < 0 || grade > 6)
-    {
-        return -1;
-    }
-    return m_serverParameter.m_emblemCompound[grade].m_cost;
-}
-
-int CDataManager::getEmblemResultItem(int grade, int jewelType) const
-{
-    // ORIG Dispatcher_CompoundEmblem::dispatch_sig 0x8220bb2:
-    //   *(int*)(CDataManager + (grade*6 + jewelType)*4 + 0x82c)
-    //   = m_serverParameter.m_emblemCompound[grade].m_result[jewelType].
-    // jewelType 0..4（_selectJewelTypeIndex 返回 0..4），grade 0..6。
-    if (grade < 0 || grade > 6 || jewelType < 0 || jewelType > 4)
-    {
-        return -1;
-    }
-    return m_serverParameter.m_emblemCompound[grade].m_result[jewelType];
-}
 
 std::set<int>* CDataManager::getUltimateDungeonList() const
 {
     return (std::set<int>*)&m_ultimateDungeonList;
+}
+// ORIG W 0x0822b64c：return this+0xb424（&m_vendingMachine）。
+std::vector<stVendingMachine_t>* CDataManager::getVendingMachineTable() const
+{
+    return (std::vector<stVendingMachine_t>*)&m_vendingMachine;
 }
 
 // 注：ORIG 仅有非 const getBlueMarbleScript()（0x08365eea，nm 无 _ZNK 重载）；
@@ -1367,14 +1364,6 @@ int CDataManager::get_limit_inout_count(ENUM_BLOOD_TYPE type)
     return (unsigned char)m_limitInoutCount[type];
 }
 
-unsigned char CDataManager::getPremiumTermMultiplier() const
-{
-    // ORIG premium_helper_function::cal_premium_term 0x827cff0：
-    //   if(flag) term *= (byte)CDataManager+0x877e；term *= extra。
-    // +0x877e 位于 m_boosterGage(+0x8770) 内偏移 0x0e（BoosterGageData 尾部）。
-    return *(const unsigned char*)((const char*)this + 0x877e);
-}
-
 // ============================================================================
 // 迁移自 GameStubs.cpp 的 CDataManager 桩方法（ORIG 符号/偏移已核对）
 // ============================================================================
@@ -1383,13 +1372,6 @@ void CDataManager::set_AuctionRegFreeCeraItem(unsigned int idx)
 {
     // ORIG 0x08513fbc W：m_choiceSet(+0xb4ac).insert(idx)
     m_choiceSet.insert(idx);
-}
-
-void CDataManager::set_lottery_use_cost(unsigned int cost)
-{
-    // 重建便捷 1 参版本（CStackableItem.cpp 调用，script.m_field0）。
-    // ORIG 无此 1 参符号；2 参版本见本 TU 上方，语义为 add_lottery_needMoney。
-    m_lotteryNeedMoney.add_lottery_needMoney(0, cost);
 }
 
 void* CDataManager::GetExpertJobScript(int job)
@@ -1485,7 +1467,7 @@ void CDataManager::GetPvPChannelGrade()
             }
         }
     }
-    cMyTrace trace("bool CDataManager::GetPvPChannelGrade()", 0x18f3, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x18f3, 0);
     trace("PVP Channel Information  serverGroup(%d), pvpChannelNum(%d), "
           "minGrade(%d), maxGrade(%d), upgradeRevision(%d), type(%d), "
           "minLevel(%d), maxLevel(%d)",
@@ -1554,11 +1536,11 @@ int CDataManager::VerifyMap(const CMap& map, int idx) const
              it != aiList->end(); ++it)
         {
             unsigned int apcType = (unsigned int)it->m_type;
-            if (CAICharacterList::get(m_aiCharacterList, apcType) == 0)
+            if (m_aiCharacterList->get(apcType) == 0)
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp",
-                    "bool CDataManager::VerifyMap(const CMap&, int) const", 0x2847,
+                    __PRETTY_FUNCTION__, 0x2847,
                     "Unknown APC Type(%d). Map(%d)", apcType, map.get_index());
             }
         }
@@ -1725,7 +1707,7 @@ bool CDataManager::reselectDailyTrainingQuest()
                     {
                         LogManager::logFormat(
                             1, "data_manager.cpp",
-                            "bool CDataManager::reselectDailyTrainingQuest()",
+                            __PRETTY_FUNCTION__,
                             0x2ac8,
                             "reselectDailyTrainingQuest() ERROR : quest(%d), "
                             "level(%d)",
@@ -1749,7 +1731,7 @@ bool CDataManager::reselectDailyTrainingQuest()
                         *vit);
                 questStr += tmp;
             }
-            cMyTrace trace("bool CDataManager::reselectDailyTrainingQuest()", 0x2ad2, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2ad2, 0);
             trace("TRAINING_QUEST level(%d), quest(%s)", level, questStr.c_str());
         }
     }
@@ -3580,7 +3562,7 @@ int CDataManager::init()
 //   未命中返回 0；命中按 difficulty(0..3) 取 stClearTimeAverage::m_v[难度]，
 //   其它难度返回 0。
 unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyCount,
-                                                      int difficulty)
+                                                      ENUM_DUNGEON_DIFFICULTY difficulty)
 {
     stClearTimeAverageMapKey key;
     key.m_a = dungeonIdx;
@@ -3629,3 +3611,17 @@ int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
     }
     return result;
 }
+
+// ---- ORIG W force-use 发射（结构生命周期专项）----
+// LevelUpRewardItemTableKey C1 0x0891bac0 / clear 0x0891bad4：
+//   默认构造在既有 TU 无使用点（均为 C2Eiii），此处合法 force-use 触发弱符号。
+// LevelUpRewardItemData C1 0x081b88bc / clear 0x081b88d0 同段发射（重复弱符号无害）。
+namespace {
+void emitLevelUpRewardWeakSymbols()
+{
+    LevelUpRewardItemTableKey key;   // C1 → call clear
+    (void)key;
+    LevelUpRewardItemData data;      // C1 → call clear
+    (void)data;
+}
+}  // namespace

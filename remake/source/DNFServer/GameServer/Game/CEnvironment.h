@@ -30,7 +30,7 @@ public:
     virtual void Signature(char* szSignature) = 0;
     virtual int Encrypt(const char* szIn, char* szOut, size_t iLength) = 0;
     virtual int Decrypt(const char* szIn, char* szOut, size_t iLength) = 0;
-    virtual void ResetChain() = 0;
+    virtual int ResetChain() = 0;
 
     // G7 分组模式辅助（实现属加密库 TU：CRijndael.cpp）
     void Xor(char* buff, const char* chain);
@@ -54,7 +54,7 @@ public:
     virtual void Signature(char* szSignature);
     virtual int Encrypt(const char* szIn, char* szOut, size_t iLength);
     virtual int Decrypt(const char* szIn, char* szOut, size_t iLength);
-    virtual void ResetChain();
+    virtual int ResetChain();
     int Initialize(const char* key, int keyLen, const char* iv, int ivLen, int mode);
     static const char sm_chain0[8];
 
@@ -67,7 +67,8 @@ public:
 // ---- less_TCHAR（ORIG map 比较器；实现属于 STL/ServerLib TU）----
 struct less_TCHAR
 {
-    bool operator()(const char* const& x, const char* const& y) const;
+    // ORIG mangled _ZNK10less_TCHARclEPKcS1_（按值参数）。
+    bool operator()(const char* x, const char* y) const;
 };
 
 // ---- SpinLock（ORIG 全局类；本 TU 只做声明，enter/leave 属于 ServerLib TU）----
@@ -204,6 +205,7 @@ public:
     char* get_channel_name();
     void set_channel_name(char* name);
     int get_server_group();
+    int getProcessSequence() const;                        // ORIG W 0x08234516（读 m_serverEnvir.m_processSequence）
     bool get_suspend_state();
     void set_suspend_state(bool state);
     eStartArgumentType_t get_operation_type();
@@ -238,6 +240,10 @@ public:
     char* get_cera_auction_server_ip();
     int get_cera_auction_server_port();
     char* get_system_monitoring_ip();
+
+    // 偏移清理（OffsetCleanup2）：DB 连接信息表（+0x68，m_dbConnInfo）。
+    // inline accessor 不产生符号、不改变布局；替代裸偏移 reinterpret 访问。
+    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& get_db_conn_info() { return m_dbConnInfo; }
 
     void lock();
     void unlock();
@@ -309,7 +315,7 @@ template <class T>
 T* GlobalInstance<T>::m_p = NULL;
 
 // ---- trim（ORIG 全局函数，实现属于 ServerCommon/Library TU）----
-void trim(char* str);
+char* trim(char* str);
 void trim(std::string& s);   // ORIG _Z4trimRSs @0x0829f068（game_master 命令体系用）
 
 // ---- 单例访问器 ----

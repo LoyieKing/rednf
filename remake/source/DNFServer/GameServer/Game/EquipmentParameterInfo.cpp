@@ -17,220 +17,45 @@
 #include "LogManager.h"
 #include "ScriptValue.h"
 #include "SyncScriptDeps.h"   // toTString / getCharacterJob
+#include "CreatureScript.h"  // ENUM_ELEMENT（getElementName 形参）
 
+// ORIG 全局记账（0x949b28c/0x949b294，C1/C2 递增、D1 递减）：
+// 实例计数与按 sizeof 累积的分配字节数。
+int g_EquipmentParameterInfoCount = 0;
+int g_EquipmentParameterInfoSize = 0;
+
+// ORIG C1（0x8919ce8）：成员默认构造后，先更新全局记账
+// （count++、size = count * sizeof），再调 clear。
 EquipmentParameterInfo::EquipmentParameterInfo()
 {
+    ++g_EquipmentParameterInfoCount;
+    g_EquipmentParameterInfoSize =
+        g_EquipmentParameterInfoCount * sizeof(EquipmentParameterInfo);
     clear();
 }
 
+// ORIG C2（0x891a0d4）：成员默认构造 + 函数体 `*this = other`（0x891a2a2 call op=）。
+// ORIG C2（0x891a0d4）：成员默认构造 + 全局记账 + `*this = other`。
 EquipmentParameterInfo::EquipmentParameterInfo(const EquipmentParameterInfo& other)
-    : m_vec158(other.m_vec158),
-      m_vec17c(other.m_vec17c),
-      m_aura188(other.m_aura188),
-      m_vec194(other.m_vec194),
-      m_skill1b8(other.m_skill1b8),
-      m_descMap1c4(other.m_descMap1c4),
-      m_skill1dc(other.m_skill1dc),
-      m_skill1e8(other.m_skill1e8),
-      m_vec1f4(other.m_vec1f4),
-      m_aura200(other.m_aura200),
-      m_vec214(other.m_vec214),
-      m_vec240(other.m_vec240),
-      m_levelUpSkills24c(other.m_levelUpSkills24c),
-      m_avatar264(other.m_avatar264),
-      m_str278(other.m_str278),
-      m_str27c(other.m_str27c),
-      m_vec468(other.m_vec468),
-      m_var474(other.m_var474),
-      m_418(other.m_418),
-      m_428(other.m_428)
 {
-    m_field0 = other.m_field0;
-    m_hpMax = other.m_hpMax;
-    m_hpMaxRate = other.m_hpMaxRate;
-    m_mpMax = other.m_mpMax;
-    m_mpMaxRate = other.m_mpMaxRate;
-    m_physicalAttack = other.m_physicalAttack;
-    m_physicalDefense = other.m_physicalDefense;
-    m_magicalAttack = other.m_magicalAttack;
-    m_20 = other.m_20;
-    m_magicalDefense = other.m_magicalDefense;
-    m_28 = other.m_28;
-    m_2c = other.m_2c;
-    m_50 = other.m_50;
-    m_phyAtt[0] = other.m_phyAtt[0];
-    m_phyAtt[1] = other.m_phyAtt[1];
-    m_phyDef[0] = other.m_phyDef[0];
-    m_phyDef[1] = other.m_phyDef[1];
-    m_physicalAbsoluteDamage = other.m_physicalAbsoluteDamage;
-    m_physicalDamageReduce = other.m_physicalDamageReduce;
-    m_physicalAbsoluteDefense = other.m_physicalAbsoluteDefense;
-    m_magicalAbsoluteDamage = other.m_magicalAbsoluteDamage;
-    m_magicalDamageReduce = other.m_magicalDamageReduce;
-    m_magicalAbsoluteDefense = other.m_magicalAbsoluteDefense;
-    m_8c = other.m_8c;
-    m_fireResistance = other.m_fireResistance;
-    m_waterResistance = other.m_waterResistance;
-    m_darkResistance = other.m_darkResistance;
-    m_lightResistance = other.m_lightResistance;
-    m_allElementalResistance = other.m_allElementalResistance;
-    m_slowResistance = other.m_slowResistance;
-    m_freezeResistance = other.m_freezeResistance;
-    m_poisonResistance = other.m_poisonResistance;
-    m_stunResistance = other.m_stunResistance;
-    m_curseResistance = other.m_curseResistance;
-    m_blindResistance = other.m_blindResistance;
-    m_lightningResistance = other.m_lightningResistance;
-    m_stoneResistance = other.m_stoneResistance;
-    m_sleepResistance = other.m_sleepResistance;
-    m_burnResistance = other.m_burnResistance;
-    m_weaponBreakResistance = other.m_weaponBreakResistance;
-    m_bleedingResistance = other.m_bleedingResistance;
-    m_piercingResistance = other.m_piercingResistance;
-    m_stuckResistance = other.m_stuckResistance;
-    m_confuseResistance = other.m_confuseResistance;
-    m_holdResistance = other.m_holdResistance;
-    m_armorBreakResistance = other.m_armorBreakResistance;
-    m_allActiveStatusResistance = other.m_allActiveStatusResistance;
-    m_inventoryLimit = other.m_inventoryLimit;
-    m_hpRegenSpeed = other.m_hpRegenSpeed;
-    m_mpRegenSpeed = other.m_mpRegenSpeed;
-    m_mpRegenSpeedRate = other.m_mpRegenSpeedRate;
-    m_moveSpeed = other.m_moveSpeed;
-    m_xMoveDashSpeed = other.m_xMoveDashSpeed;
-    m_yMoveDashSpeed = other.m_yMoveDashSpeed;
-    m_attackSpeed = other.m_attackSpeed;
-    m_castSpeed = other.m_castSpeed;
-    m_hitRecovery = other.m_hitRecovery;
-    m_jumpPower = other.m_jumpPower;
-    m_physicalCriticalHit = other.m_physicalCriticalHit;
-    m_magicalCriticalHit = other.m_magicalCriticalHit;
-    m_elementalProperty = other.m_elementalProperty;
-    m_activeStatusType = other.m_activeStatusType;
-    m_activeStatusValue = other.m_activeStatusValue;
-    m_activeStatusLevel = other.m_activeStatusLevel;
-    m_activeStatusFlag = other.m_activeStatusFlag;
-    m_activeStatusValue2 = other.m_activeStatusValue2;
-    m_magAtt[0] = other.m_magAtt[0];
-    m_magAtt[1] = other.m_magAtt[1];
-    m_magDef[0] = other.m_magDef[0];
-    m_magDef[1] = other.m_magDef[1];
-    m_388[0] = other.m_388[0];
-    m_388[1] = other.m_388[1];
-    m_388[2] = other.m_388[2];
-    m_388[3] = other.m_388[3];
-    m_388[4] = other.m_388[4];
-    m_410 = other.m_410;
-    m_414 = other.m_414;
-    m_424 = other.m_424;
-    m_425 = other.m_425;
+    ++g_EquipmentParameterInfoCount;
+    g_EquipmentParameterInfoSize =
+        g_EquipmentParameterInfoCount * sizeof(EquipmentParameterInfo);
+    *this = other;
 }
 
+// ORIG D1（0x891a4c6）：先递减全局记账，再析构成员（编译器生成）。
 EquipmentParameterInfo::~EquipmentParameterInfo()
 {
+    --g_EquipmentParameterInfoCount;
+    g_EquipmentParameterInfoSize =
+        g_EquipmentParameterInfoCount * sizeof(EquipmentParameterInfo);
 }
 
-EquipmentParameterInfo& EquipmentParameterInfo::operator=(
-    const EquipmentParameterInfo& other)
-{
-    if (this != &other)
-    {
-        m_field0 = other.m_field0;
-        m_hpMax = other.m_hpMax;
-        m_hpMaxRate = other.m_hpMaxRate;
-        m_mpMax = other.m_mpMax;
-        m_mpMaxRate = other.m_mpMaxRate;
-        m_physicalAttack = other.m_physicalAttack;
-        m_physicalDefense = other.m_physicalDefense;
-        m_magicalAttack = other.m_magicalAttack;
-        m_20 = other.m_20;
-        m_magicalDefense = other.m_magicalDefense;
-        m_28 = other.m_28;
-        m_2c = other.m_2c;
-        m_50 = other.m_50;
-        m_phyAtt[0] = other.m_phyAtt[0];
-        m_phyAtt[1] = other.m_phyAtt[1];
-        m_phyDef[0] = other.m_phyDef[0];
-        m_phyDef[1] = other.m_phyDef[1];
-        m_physicalAbsoluteDamage = other.m_physicalAbsoluteDamage;
-        m_physicalDamageReduce = other.m_physicalDamageReduce;
-        m_physicalAbsoluteDefense = other.m_physicalAbsoluteDefense;
-        m_magicalAbsoluteDamage = other.m_magicalAbsoluteDamage;
-        m_magicalDamageReduce = other.m_magicalDamageReduce;
-        m_magicalAbsoluteDefense = other.m_magicalAbsoluteDefense;
-        m_8c = other.m_8c;
-        m_fireResistance = other.m_fireResistance;
-        m_waterResistance = other.m_waterResistance;
-        m_darkResistance = other.m_darkResistance;
-        m_lightResistance = other.m_lightResistance;
-        m_allElementalResistance = other.m_allElementalResistance;
-        m_slowResistance = other.m_slowResistance;
-        m_freezeResistance = other.m_freezeResistance;
-        m_poisonResistance = other.m_poisonResistance;
-        m_stunResistance = other.m_stunResistance;
-        m_curseResistance = other.m_curseResistance;
-        m_blindResistance = other.m_blindResistance;
-        m_lightningResistance = other.m_lightningResistance;
-        m_stoneResistance = other.m_stoneResistance;
-        m_sleepResistance = other.m_sleepResistance;
-        m_burnResistance = other.m_burnResistance;
-        m_weaponBreakResistance = other.m_weaponBreakResistance;
-        m_bleedingResistance = other.m_bleedingResistance;
-        m_piercingResistance = other.m_piercingResistance;
-        m_stuckResistance = other.m_stuckResistance;
-        m_confuseResistance = other.m_confuseResistance;
-        m_holdResistance = other.m_holdResistance;
-        m_armorBreakResistance = other.m_armorBreakResistance;
-        m_allActiveStatusResistance = other.m_allActiveStatusResistance;
-        m_inventoryLimit = other.m_inventoryLimit;
-        m_hpRegenSpeed = other.m_hpRegenSpeed;
-        m_mpRegenSpeed = other.m_mpRegenSpeed;
-        m_mpRegenSpeedRate = other.m_mpRegenSpeedRate;
-        m_moveSpeed = other.m_moveSpeed;
-        m_xMoveDashSpeed = other.m_xMoveDashSpeed;
-        m_yMoveDashSpeed = other.m_yMoveDashSpeed;
-        m_attackSpeed = other.m_attackSpeed;
-        m_castSpeed = other.m_castSpeed;
-        m_hitRecovery = other.m_hitRecovery;
-        m_jumpPower = other.m_jumpPower;
-        m_physicalCriticalHit = other.m_physicalCriticalHit;
-        m_magicalCriticalHit = other.m_magicalCriticalHit;
-        m_elementalProperty = other.m_elementalProperty;
-        m_activeStatusType = other.m_activeStatusType;
-        m_activeStatusValue = other.m_activeStatusValue;
-        m_activeStatusLevel = other.m_activeStatusLevel;
-        m_activeStatusFlag = other.m_activeStatusFlag;
-        m_activeStatusValue2 = other.m_activeStatusValue2;
-        m_magAtt[0] = other.m_magAtt[0];
-        m_magAtt[1] = other.m_magAtt[1];
-        m_magDef[0] = other.m_magDef[0];
-        m_magDef[1] = other.m_magDef[1];
-        m_vec158 = other.m_vec158;
-        m_vec17c = other.m_vec17c;
-        m_aura188 = other.m_aura188;
-        m_vec194 = other.m_vec194;
-        m_skill1b8 = other.m_skill1b8;
-        m_descMap1c4 = other.m_descMap1c4;
-        m_skill1dc = other.m_skill1dc;
-        m_skill1e8 = other.m_skill1e8;
-        m_vec1f4 = other.m_vec1f4;
-        m_aura200 = other.m_aura200;
-        m_vec214 = other.m_vec214;
-        m_vec240 = other.m_vec240;
-        m_levelUpSkills24c = other.m_levelUpSkills24c;
-        m_avatar264 = other.m_avatar264;
-        m_str278 = other.m_str278;
-        m_str27c = other.m_str27c;
-        m_vec468 = other.m_vec468;
-        m_var474 = other.m_var474;
-        m_418 = other.m_418;
-        m_424 = other.m_424;
-        m_425 = other.m_425;
-        m_428 = other.m_428;
-    }
-    return *this;
-}
 
+// ORIG 0x089193c0（0x928 字节）：标量清零 + 数组循环清零 + 容器 clear。
+// 数组循环（m_pad30/m_pad29c/m_pad39c 区）按 ORIG 的 `((int*)this)[i+K]`
+// 大数组视图书写；add-vs-lea 属 P30 结构性伪影（语义等价）。
 void EquipmentParameterInfo::clear()
 {
     m_field0 = 2;
@@ -245,41 +70,56 @@ void EquipmentParameterInfo::clear()
     m_magicalDefense = 0;
     m_28 = 0;
     m_2c = 0;
+    {
+        int i;
+        int* p = (int*)this;
+        for (i = 0; i <= 1; ++i)
+        {
+            p[i + 12] = 0;
+            p[i + 14] = 0;
+            p[i + 16] = 0;
+            p[i + 18] = 0;
+        }
+    }
     m_50 = 0;
-    m_phyAtt[0] = 0;
-    m_phyAtt[1] = 0;
-    m_phyDef[0] = 0;
-    m_phyDef[1] = 0;
+    {
+        int i;
+        for (i = 0; i <= 1; ++i)
+        {
+            m_phyAtt[i] = 0;
+            m_phyDef[i] = 0;
+            m_magAtt[i] = 0;
+            m_magDef[i] = 0;
+        }
+    }
     m_physicalAbsoluteDamage = 0;
     m_physicalDamageReduce = 0;
     m_physicalAbsoluteDefense = 0;
     m_magicalAbsoluteDamage = 0;
     m_magicalDamageReduce = 0;
     m_magicalAbsoluteDefense = 0;
-    m_8c = 0;
-    m_fireResistance = 0;
-    m_waterResistance = 0;
-    m_darkResistance = 0;
-    m_lightResistance = 0;
+    m_94 = 0;
+    m_98 = 0;
+    m_9c = 0;
+    m_a0 = 0;
+    m_a4 = 0;
+    m_a8 = 0;
+    m_ac = 0;
+    {
+        int i;
+        for (i = 0; i <= 3; ++i)
+        {
+            ((int*)this)[i + 44] = 0;
+        }
+    }
     m_allElementalResistance = 0;
-    m_slowResistance = 0;
-    m_freezeResistance = 0;
-    m_poisonResistance = 0;
-    m_stunResistance = 0;
-    m_curseResistance = 0;
-    m_blindResistance = 0;
-    m_lightningResistance = 0;
-    m_stoneResistance = 0;
-    m_sleepResistance = 0;
-    m_burnResistance = 0;
-    m_weaponBreakResistance = 0;
-    m_bleedingResistance = 0;
-    m_piercingResistance = 0;
-    m_stuckResistance = 0;
-    m_confuseResistance = 0;
-    m_holdResistance = 0;
-    m_armorBreakResistance = 0;
-    m_allActiveStatusResistance = 0;
+    {
+        int i;
+        for (i = 0; i <= 16; ++i)
+        {
+            ((int*)this)[i + 49] = 0;
+        }
+    }
     m_inventoryLimit = 0;
     m_hpRegenSpeed = 0;
     m_mpRegenSpeed = 0;
@@ -293,20 +133,117 @@ void EquipmentParameterInfo::clear()
     m_jumpPower = 0;
     m_physicalCriticalHit = 0;
     m_magicalCriticalHit = 0;
-    m_elementalProperty = 0;
-    m_activeStatusType = 0;
+    m_elementalProperty = 4;
+    m_activeStatusType = 0x12;
     m_activeStatusValue = 0;
     m_activeStatusLevel = 0;
     m_activeStatusFlag = 0;
     m_activeStatusValue2 = 0;
-    m_magAtt[0] = 0;
-    m_magAtt[1] = 0;
-    m_magDef[0] = 0;
-    m_magDef[1] = 0;
     m_vec158.clear();
+    m_attackedActiveStatusType = 0x12;
+    m_attackedActiveStatusValue = 0;
+    m_attackedActiveStatusLevel = 0;
+    m_attackedActiveStatusFlag = 0;
+    m_attackedActiveStatusValue2 = 0;
+    m_vec17c.clear();
+    m_164 = 0;
+    m_vec240.clear();
+    m_164 = 0;
+    m_attackedActiveStatusValue = 0;
+    m_attackedActiveStatusLevel = 0;
+    m_attackedActiveStatusFlag = 0;
+    m_attackedActiveStatusValue2 = 0;
     m_vec17c.clear();
     m_aura188.clear();
     m_vec194.clear();
+    m_addAbsoluteDamageType = 4;
+    m_addAbsoluteDamageValue = 0;
+    m_addAbsoluteDamageExtra = 0;
+    m_addAbsoluteDefenseType = 4;
+    m_addAbsoluteDefenseValue = 0;
+    m_addAbsoluteDefenseExtra = 0;
+    m_pushAside = 0;
+    m_liftUp = 0;
+    m_stuck = 0;
+    m_ignoreDefense = 0;
+    {
+        int i;
+        for (i = 0; i <= 2; ++i)
+        {
+            ((float*)this)[i + 0x8c] = 0.0f;
+        }
+    }
+    m_hpDrain = 0;
+    m_mpDrain = 0;
+    {
+        int i;
+        for (i = 0; i <= 1; ++i)
+        {
+            m_levelUpSkills[i].clear();
+        }
+    }
+    m_avatar264.clear();
+    m_270 = -1;
+    m_roomListMoveSpeedRate = 0;
+    m_str278 = "";
+    m_str27c = "";
+    m_antiEvil = 0;
+    m_rigidity = 0;
+    {
+        int i;
+        for (i = 0; i <= 3; ++i)
+        {
+            ((int*)this)[i + 0xa2] = 0;
+        }
+    }
+    {
+        int i;
+        for (i = 0; i <= 17; ++i)
+        {
+            ((int*)this)[i + 0xa7] = 0;
+            ((int*)this)[i + 0xbb] = 0;
+            ((int*)this)[i + 0xcb] = 0;
+        }
+    }
+    {
+        int i;
+        for (i = 0; i <= 4; ++i)
+        {
+            ((int*)this)[i + 0xdd] = 0;
+        }
+    }
+    m_388[0] = 0;
+    m_388[1] = 0;
+    *(float*)&m_388[2] = 1.0f;
+    *(float*)&m_388[3] = 1.0f;
+    m_388[4] = 0;
+    *(int*)&m_pad39c[0] = 0;
+    m_414 = 0;
+    {
+        int i;
+        for (i = 0; i <= 1; ++i)
+        {
+            ((int*)this)[i + 0xc] = 0;
+            ((int*)this)[i + 0xe] = 0;
+            ((int*)this)[i + 0x10] = 0;
+            ((int*)this)[i + 0x12] = 0;
+            ((int*)this)[i + 0xf8] = 0;
+            ((int*)this)[i + 0x102] = 0;
+        }
+    }
+    {
+        int i;
+        for (i = 0; i <= 3; ++i)
+        {
+            ((int*)this)[i + 0xe8] = 0;
+            ((int*)this)[i + 0xec] = 0;
+            ((int*)this)[i + 0xf0] = 0;
+            ((int*)this)[i + 0xf4] = 0;
+            ((int*)this)[i + 0xfa] = 0;
+            ((float*)this)[i + 0x100] = 1.0f;
+        }
+    }
+    m_410 = 0;
     m_skill1b8.clear();
     m_descMap1c4.clear();
     m_skill1dc.clear();
@@ -314,35 +251,57 @@ void EquipmentParameterInfo::clear()
     m_vec1f4.clear();
     m_aura200.clear();
     m_vec214.clear();
-    m_vec240.clear();
-    m_levelUpSkills24c.clear();
-    m_avatar264.clear();
-    m_str278.clear();
-    m_str27c.clear();
-    m_388[0] = 0;
-    m_388[1] = 0;
-    m_388[2] = 0;
-    m_388[3] = 0;
-    m_388[4] = 0;
-    m_410 = 0;
-    m_414 = 0;
+    m_decreaseCriticalDamage = 0;
+    m_210 = 0;
+    m_119.m_424 = 0;
+    m_119.m_425 = 0;
+    m_434 = 0;
+    m_438 = -1;
+    m_43c = -1;
+    m_upgradeCostDiscount = 0;
+    m_448 = 0;
+    m_assaultCostDiscount = 0;
+    m_allElementalAttack = 0;
+    m_8c = 0;
+    m_90 = 0;
+    m_rebirth450.clear();
     m_vec468.clear();
     m_var474.clear();
-    m_418.clear();
-    m_424 = 0;
-    m_425 = 0;
-    m_428.clear();
+    m_440 = 0;
 }
 
-void EquipmentParameterInfo::addString(std::string str)
+// ORIG 0x089c2e98：遍历查找 str 已存在的 key（无则 size()+1），m[key]=str 后返回 key。
+int EquipmentParameterInfo::addString(std::string str)
 {
-    // ORIG 0x089c2e98：追加描述文本到 m_descMap1c4（自增键）。
-    int key = 0;
-    if (!m_descMap1c4.empty())
+    int key = -1;
+    char b = 0;
+    if (!b)
     {
-        key = m_descMap1c4.rbegin()->first + 1;
+        std::map<int, std::string>::iterator it = m_descMap1c4.begin();
+        std::map<int, std::string>::iterator e = m_descMap1c4.end();
+        while (it != e && (b ^= 1))
+        {
+            std::pair<const int, std::string>& p = *it;
+            if (b)
+            {
+                if (p.second == str)
+                {
+                    key = p.first;
+                }
+                else
+                {
+                    b = 0;
+                }
+            }
+            ++it;
+        }
     }
-    m_descMap1c4[key] = str;
+    if (key == -1)
+    {
+        key = (int)m_descMap1c4.size() + 1;
+        m_descMap1c4[key] = str;
+    }
+    return key;
 }
 
 int& EquipmentParameterInfo::getEquipmentPhysicalAttack(int level)
@@ -366,6 +325,7 @@ int& EquipmentParameterInfo::getEquipmentMagicalDefense(int level)
 }
 
 EquipmentParameterInfo::RebirthAppendageinfo::RebirthAppendageinfo()
+    : m_pair4()
 {
     clear();
 }
@@ -373,40 +333,16 @@ EquipmentParameterInfo::RebirthAppendageinfo::RebirthAppendageinfo()
 void EquipmentParameterInfo::RebirthAppendageinfo::clear()
 {
     m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    m_fieldc = 0;
+    m_field14 = 0;
+    m_field10 = 0;
+    m_pair4.first = -1;
+    m_pair4.second = 0;
 }
 
-EquipmentParameterInfo::SASPROPERTY::SASPROPERTY()
-{
-    // ORIG 0x89c5046：vector<float> @+0x20 默认构造，string @+0x2c 默认构造；
-    // 头部 0x20 字节不初始化。
-    memset(m_head, 0, sizeof(m_head));  // [推断] ORIG 不清零；此处保持确定值
-}
 
-EquipmentParameterInfo::SASPROPERTY::SASPROPERTY(const SASPROPERTY& other)
-    : m_vec20(other.m_vec20),
-      m_str2c(other.m_str2c)
-{
-    // ORIG 0x83cb038：头部 0x20 字节逐 dword 拷贝（无 self-check）。
-    memcpy(m_head, other.m_head, sizeof(m_head));
-}
 
-EquipmentParameterInfo::SASPROPERTY::~SASPROPERTY()
-{
-    // ORIG 0x83db300：先析构 string @+0x2c，再析构 vector @+0x20（成员逆序）。
-}
 
-EquipmentParameterInfo::SASPROPERTY& EquipmentParameterInfo::SASPROPERTY::operator=(
-    const SASPROPERTY& other)
-{
-    // ORIG 0x83dbdfc：头部 0x20 字节逐 dword 拷贝，再 vector/string 赋值
-    // （无 self-check）。
-    memcpy(m_head, other.m_head, sizeof(m_head));
-    m_vec20 = other.m_vec20;
-    m_str2c = other.m_str2c;
-    return *this;
-}
 
 // ---- ORIG 全局枚举转换 helper（真实符号，定义在各自 TU；此处仅声明） ----
 int getCharacterJobToEnumValue(std::string& s);        // 0x89bbc0f
@@ -423,7 +359,7 @@ int scanModuleType();                                  // 0x88c0b9a（ORIG 返�
 bool ScanTypeOrStr(bool& isType, std::string& s, bool consume);  // 0x88bc4e5 族
 int getElement(const char* s);                         // 0x88bfe5b（CreatureScript.cpp）
 int getActiveStatusType(const std::string& s);         // 0x88944fb（CreatureScript.cpp）
-const char* getElementName(int element);               // 0x88bfee0（CreatureScript.cpp）
+const char* getElementName(ENUM_ELEMENT element);      // 0x88bfee0（CreatureScript.cpp）
 
 // ---- 由 CStackableItem.cpp 提供（ORIG 0x08a86d28，'[hat avatar]' 带括号变体） ----
 int GetEquipmentTypeStringToEnum(std::string& type);
@@ -647,7 +583,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         if (!getTargetTag(&t)) return false;
         if (!ScanInt(&iv))
         {
-            LogManager::logFormat(0, "../RDARScriptItem.cpp", "readAction", 0x125f,
+            LogManager::logFormat(0, "../RDARScriptItem.cpp", __FUNCTION__, 0x125f,
                 "[SCRIPT] invalid [TARGET] tag arguments. [%s]", line.c_str());
             iv = -1;
         }
@@ -2073,7 +2009,7 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
             sp.m_head[3] <= sp.m_head[4])
         {
             if (sp.m_head[5] < 1) return 0;
-            info->m_418.push_back(sp);
+            info->m_119.m_418.push_back(sp);
             return 1;
         }
         return 0;
@@ -2100,14 +2036,14 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
         {
             std::vector<float> v;
             GetStat(&v);
-            info->m_428.push_back(v);
+            info->m_119.m_428.push_back(v);
             any = true;
         }
     }
     if (terminated && any)
     {
-        info->m_424 = 1;
-        info->m_425 = 1;
+        info->m_119.m_424 = 1;
+        info->m_119.m_425 = 1;
         return 1;
     }
     return 0;
@@ -2317,12 +2253,12 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         std::string t;
         while (ScanType(t, true))
         {
-            if (t == "[probability]")      { if (ScanInt(&iv)) info->m_consumeItem = iv; }
-            else if (t == "[consume item]"){ if (ScanInt(&iv)) info->m_upgradeProbIncrease = iv;
-                                             if (ScanInt(&iv)) info->m_hpRecovery = iv; }
-            else if (t == "[hp recovery]") { if (ScanInt(&iv)) info->m_cooltime = iv; }
-            else if (t == "[cooltime]")    { if (ScanInt(&iv)) info->m_mpRecovery = iv; }
-            else if (t == "[mp recovery]") { if (ScanInt(&iv)) info->m_rebirth = iv; }
+            if (t == "[probability]")      { if (ScanInt(&iv)) info->m_rebirth450.m_field0 = iv; }
+            else if (t == "[consume item]"){ if (ScanInt(&iv)) info->m_rebirth450.m_pair4.first = iv;
+                                             if (ScanInt(&iv)) info->m_rebirth450.m_pair4.second = iv; }
+            else if (t == "[hp recovery]") { if (ScanInt(&iv)) info->m_rebirth450.m_fieldc = iv; }
+            else if (t == "[cooltime]")    { if (ScanInt(&iv)) info->m_rebirth450.m_field14 = iv; }
+            else if (t == "[mp recovery]") { if (ScanInt(&iv)) info->m_rebirth450.m_field10 = iv; }
             else break;
         }
         goto done;
@@ -2341,14 +2277,98 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
 
     if (path == "[skill levelup]")
     {
-        info->m_levelUpSkills24c.clear();
+        info->m_levelUpSkills[0].clear();
         while (ScanStr(&s))
         {
             LevelUpSkill lu;
             lu.m_job = (s == "[common]") ? 0xb : getCharacterJob(s.c_str());
             lu.m_field4 = ScanInt((bool*)0);
             lu.m_field8 = ScanInt((bool*)0);
-            info->m_levelUpSkills24c.push_back(lu);
+            info->m_levelUpSkills[0].push_back(lu);
+        }
+        goto done;
+    }
+    if (path == "[avatar select ability]")
+    {
+        // ORIG 0x089ab451：先清空 m_avatar264，再按 47 项能力名表（0x93f4840）
+        // 匹配解析；命中则填 STAvatarAbilityVariation（m_field0=表下标、
+        // m_field4='+'→0 / '*'→1 标志、m_field8=float 数值；[SKILL_LEVEL](43)
+        // 特殊：job 标签 + 两 int），size<=99 时 push_back；未命中项 push 默认值。
+        info->m_avatar264.clear();
+        static const char* const kAvatarAbilityNames[] = {
+            "[none]", "[HP MAX]", "[MP MAX]", "[PHYSICAL_ATTACK]",
+            "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
+            "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
+            "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
+            "[ELEMENT_TOLERANCE_FIRE]", "[ELEMENT_TOLERANCE_WATER]",
+            "[ELEMENT_TOLERANCE_DARK]", "[ELEMENT_TOLERANCE_LIGHT]",
+            "[ELEMENT_TOLERANCE_ALL]", "[ACTIVESTATUS_TOLERANCE_SLOW]",
+            "[ACTIVESTATUS_TOLERANCE_FREEZE]", "[ACTIVESTATUS_TOLERANCE_POISON]",
+            "[ACTIVESTATUS_TOLERANCE_STUN]", "[ACTIVESTATUS_TOLERANCE_CURSE]",
+            "[ACTIVESTATUS_TOLERANCE_BLIND]", "[ACTIVESTATUS_TOLERANCE_LIGHTNING]",
+            "[ACTIVESTATUS_TOLERANCE_STONE]", "[ACTIVESTATUS_TOLERANCE_SLEEP]",
+            "[ACTIVESTATUS_TOLERANCE_BURN]", "[ACTIVESTATUS_TOLERANCE_WEAPON_BREAK]",
+            "[ACTIVESTATUS_TOLERANCE_BLEEDING]", "[ACTIVESTATUS_TOLERANCE_PIERCE]",
+            "[ACTIVESTATUS_TOLERANCE_STUCK]", "[ACTIVESTATUS_TOLERANCE_CONFUSE]",
+            "[ACTIVESTATUS_TOLERANCE_HOLD]", "[ACTIVESTATUS_TOLERANCE_ALL]",
+            "[INVENTORY_MAX_WEIGHT]", "[HP_REGENRATE]", "[MP_REGENRATE]",
+            "[MP_REGENRATE_PERCENT_UP]", "[MOVE_SPEED]", "[ATTACK_SPEED]",
+            "[CAST_SPEED]", "[HIT_RECOVERY]", "[JUMP_POWER]", "[CRITICAL]",
+            "[SKILL_LEVEL]", "[PHYSICAL ABSOLUTE DEFENSE]",
+            "[MAGICAL ABSOLUTE DEFENSE]", "[STUCK ON ATTACK]"
+        };
+        while (ScanStr(&s))
+        {
+            STAvatarAbilityVariation var;
+            int i = 0;
+            while (i <= 0x2e)
+            {
+                if (s == kAvatarAbilityNames[i])
+                {
+                    var.m_field0 = i;
+                    if (i == 0x2b)
+                    {
+                        var.m_field4 = 0;
+                        ScanStr(&s);
+                        if (s == "[common]")
+                        {
+                            var.m_skill.m_job = 0xb;
+                        }
+                        else
+                        {
+                            int job = getCharacterJob(s.c_str());
+                            if (job == 0xb)
+                            {
+                                LogManager::logFormat(0, "../RDARScriptItem.cpp",
+                                    __FUNCTION__, 0x199e,
+                                    "ImportEquipmentScript - file %s, invalid job tag %s",
+                                    dir, s.c_str());
+                                return false;
+                            }
+                            var.m_skill.m_job = job;
+                        }
+                        var.m_skill.m_field4 = ScanInt((bool*)0);
+                        var.m_skill.m_field8 = ScanInt((bool*)0);
+                    }
+                    else
+                    {
+                        ScanStr(&s);
+                        if (s == "+")
+                        {
+                            var.m_field4 = 0;
+                        }
+                        else if (s == "*")
+                        {
+                            var.m_field4 = 1;
+                        }
+                        var.m_field8 = ScanFloat((bool*)0);
+                    }
+                    break;
+                }
+                ++i;
+            }
+            if (info->m_avatar264.size() <= 0x63)
+                info->m_avatar264.push_back(var);
         }
         goto done;
     }
@@ -2471,7 +2491,8 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     if (info->m_magicalCriticalHit != 0.0f) fprintf(file, "[magical critical hit] %+.2f\n", (double)info->m_magicalCriticalHit);
 
     if (info->m_elementalProperty != 4)
-        fprintf(file, "[elemental property] `%s`\n", getElementName(info->m_elementalProperty));
+        fprintf(file, "[elemental property] `%s`\n",
+                getElementName(static_cast<ENUM_ELEMENT>(info->m_elementalProperty)));
 
     // active status（ORIG：0x144 类型名 + 值/等级）
     if (info->m_activeStatusType != 0x12)
@@ -2489,11 +2510,11 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     }
 
     // skill levelup
-    if (!info->m_levelUpSkills24c.empty())
+    if (!info->m_levelUpSkills[0].empty())
     {
         fprintf(file, "[skill levelup]\n");
-        for (std::vector<LevelUpSkill>::iterator it = info->m_levelUpSkills24c.begin();
-             it != info->m_levelUpSkills24c.end(); ++it)
+        for (std::vector<LevelUpSkill>::iterator it = info->m_levelUpSkills[0].begin();
+             it != info->m_levelUpSkills[0].end(); ++it)
         {
             if (it->m_job == 0xb)
                 fwrite("[common]", 1, 8, file);

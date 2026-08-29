@@ -37,11 +37,11 @@ namespace {
 // 【推断】+0xa680=straight-victories 阈值、+0xa67c=power-war point multiple）。
 inline int dm_pw_point_multiple()
 {
-    return *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa67c);
+    return G_CDataManager()->m_powerParameter.m_powerWarPointMultiple;  // +0xa67c
 }
 inline int dm_straight_victories_min()
 {
-    return *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa680);
+    return G_CDataManager()->m_powerParameter.m_straightVictories;      // +0xa680
 }
 
 }  // namespace
@@ -97,15 +97,14 @@ void CAssaultPlace::_MakeMoveAssaultPlace(PacketGuard* p)
     p->put_byte(m_pos.m_x);                     // +0x118 vill（既沿头字段名）
     p->put_byte(m_pos.m_y);                     // +0x11c area
     unsigned short leaderUid0 = 0;
-    if (*reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x134) != 0)
-        leaderUid0 = reinterpret_cast<CUser*>(*reinterpret_cast<void**>(
-                        reinterpret_cast<char*>(this) + 0x134))->get_unique_id();
+    if (m_checkUser != 0)                                       // +0x134
+        leaderUid0 = m_checkUser->get_unique_id();
     p->put_short(leaderUid0);
     unsigned short leaderUid1 = 0;
     if (*reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x138) != 0)
         leaderUid1 = reinterpret_cast<CUser*>(*reinterpret_cast<void**>(
                         reinterpret_cast<char*>(this) + 0x138))->get_unique_id();
-    p->put_short(leaderUid1);
+    p->put_short(leaderUid1);    // +0x138 通用指针槽（pad，未具名）
 
     // 第一段：场内成员列表
     int countIdx = p->get_index();              // PacketGuard 局部 idx 补丁槽
@@ -419,7 +418,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
     if (user == 0) {
         LogManager::logFormat(
             1, "Assault.cpp",
-            "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xf4c, "Invalid User pointer income (%d, %d, %d, %d)",
             winner, winCnt, loseCnt, winAliveCnt);
         return;
@@ -438,7 +437,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
     if (winCnt - aliveCnt < 0) {
         LogManager::logFormat(
             1, "Assault.cpp",
-            "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xf5c, "Power War Point Computer Error( winCnt : %d, winAliveCnt : %d )",
             winCnt, aliveCnt);
         aliveCnt = winCnt;                       // ORIG: param_6 = param_4
@@ -449,7 +448,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
     if (multiple * (winCnt - aliveCnt) > 0xff) {          // imul; cmp $0xff; setg
         LogManager::logFormat(
             1, "Assault.cpp",
-            "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xf62,
             "Power War Point Computer Error( winCnt : %d, winAliveCnt : %d , multiple n : %d)",
             winCnt, aliveCnt, multiple);
@@ -463,7 +462,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
     if (multiple * loseCnt > 0xff) {
         LogManager::logFormat(
             1, "Assault.cpp",
-            "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xf6a,
             "Power War Point Computer Error( winCnt : %d, winAliveCnt : %d , multiple n : %d )",
             winCnt, aliveCnt, multiple);
@@ -489,7 +488,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
             unsigned int playTime = static_cast<unsigned int>(now - m_abuseSec);   // +0x13c
             {
                 cUserHistoryLog* hist =
-                    reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(u) + 0x79700);
+                    &u->m_historyLog;                           // +0x79700
                 bool winFlag =
                     static_cast<int>(static_cast<unsigned char>(side))
                     == static_cast<int>(static_cast<signed char>(u->getPowerSide()));
@@ -504,7 +503,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
                 if (winnerIdx > 3) {
                     LogManager::logFormat(
                         1, "Assault.cpp",
-                        "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+                        __PRETTY_FUNCTION__,
                         0xf94,
                         "Power War Point Computer Error( winner index : %d, loser index : %d )",
                         winnerIdx, loserIdx);
@@ -518,7 +517,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
                 if (loserIdx > 3) {
                     LogManager::logFormat(
                         1, "Assault.cpp",
-                        "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+                        __PRETTY_FUNCTION__,
                         0xfa4,
                         "Power War Point Computer Error( winner index : %d, loser index : %d )",
                         winnerIdx, loserIdx);
@@ -541,7 +540,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
 
     {
         cMyTrace trace(
-            "void pvp_assault::CAssaultPlace::_SendPowerWarPointToGuildServer(CUser*, ENUM_POWER_WAR_WINNER_OR_LOSER, int, int, int)",
+            __PRETTY_FUNCTION__,
             0xfad, 0);
         trace("win side(%d), win pp(%d, %d), lose pp(%d, %d), winAliveCnt(%d)",
               static_cast<int>(static_cast<unsigned char>(side)), winCnt,
@@ -577,22 +576,22 @@ void CAssaultPlace::TimeoutCompleteLoad()
             if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
                 GlobalData::s_power_manager->GetPowerWarLog()->IncLoadingTimeOutCountSecede();
                 {
-                    cMyTrace trace("bool pvp_assault::CAssaultPlace::TimeoutCompleteLoad()", 0xa18, 0);
+                    cMyTrace trace(__PRETTY_FUNCTION__, 0xa18, 0);
                     trace("POWER WAR LOADING SECEDE");
                 }
                 for (int j = 0; j <= 7; ++j) {
                     if (!m_assaulters[j].Empty()) {
                         CUser* uj = m_assaulters[j].GetUser();
                         if (m_assaulters[j].GetTeam() == 0) {
-                            cMyTrace t("bool pvp_assault::CAssaultPlace::TimeoutCompleteLoad()", 0xa20, 0);
+                            cMyTrace t(__PRETTY_FUNCTION__, 0xa20, 0);
                             t("BLUE TEAM : %s", uj->getCurCharacName());
                         } else {
-                            cMyTrace t("bool pvp_assault::CAssaultPlace::TimeoutCompleteLoad()", 0xa22, 0);
+                            cMyTrace t(__PRETTY_FUNCTION__, 0xa22, 0);
                             t("RED TEAM : %s", uj->getCurCharacName());
                         }
                     }
                 }
-                cMyTrace secede("bool pvp_assault::CAssaultPlace::TimeoutCompleteLoad()", 0xa25, 0);
+                cMyTrace secede(__PRETTY_FUNCTION__, 0xa25, 0);
                 // ORIG 直接把 GetUser(i) 指针作为 %s 实参传给 trace（保留原样）。
                 secede("SECEDE : %s", reinterpret_cast<const char*>(m_assaulters[i].GetUser()));
             }
@@ -694,7 +693,7 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
         killer = m_assaulters[killerIdx].GetUser();
         if (m_assaulters[killerIdx].GetState() != 5) {
             cMyTrace trace(
-                "void pvp_assault::CAssaultPlace::DieUser(int, int, MSG_DIE_ASSAULT_PLAYER&)",
+                __PRETTY_FUNCTION__,
                 0xd37, 0);
             trace("CAssaultPlace::DieUser => killer is already died!");
         }
@@ -711,7 +710,7 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
         }
     } else {
         cMyTrace trace(
-            "void pvp_assault::CAssaultPlace::DieUser(int, int, MSG_DIE_ASSAULT_PLAYER&)",
+            __PRETTY_FUNCTION__,
             0xd54, 0);
         trace("CAssaultPlace::DieUser invalid killer index income(%d,%d)", victimIdx, killerIdx);
     }
@@ -720,7 +719,7 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
         bool pw = victim->getCurCharacVill() == 7
                   && GlobalData::s_power_manager->IsPowerWarEventOn();
         cUserHistoryLog* hist =
-            reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(victim) + 0x79700);
+            &victim->m_historyLog;                             // +0x79700
         if (pw) {
             hist->DiePvP((ENUM_PVP_HISTORY_REASON)2,
                          msg.m_damage, msg.m_attackCount,
@@ -826,8 +825,8 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
     m_pos.m_y = user2->get_area(false);
     if (m_pos.m_x == 0 && m_pos.m_y == 0)
         throw (ENUM_ERROR)0x15;
-    *reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x134) = user2;
-    *reinterpret_cast<int**>(reinterpret_cast<char*>(this) + 0x138) = &outIdx;
+    m_checkUser = user2;                                        // +0x134
+    *reinterpret_cast<int**>(reinterpret_cast<char*>(this) + 0x138) = &outIdx;  // pad 槽
 
     // posX 比较：ORIG 对 param_2 与 param_3（按 CUser* 解引用，Ghidra 同形）取
     // get_posX；随后 _SeparateTeam 两参顺序随比较翻转，+0x124 记 0/1。
@@ -836,10 +835,10 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
         reinterpret_cast<CUser*>(&outIdx)->get_posX();
     if (px1 < px2) {
         _SeparateTeam(user2, reinterpret_cast<CUser*>(&outIdx));
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(this) + 0x124) = 0;
+        m_winTeam = 0;                                          // +0x124
     } else {
         _SeparateTeam(reinterpret_cast<CUser*>(&outIdx), user2);
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(this) + 0x124) = 1;
+        m_winTeam = 1;                                          // +0x124
     }
 
     m_authenValue = GlobalData::s_systemTime_.getCurSec();   // +0x108 = getCurSec
@@ -871,8 +870,7 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
         CUser* u = m_assaulters[i].GetUser();
         if (u != 0) {
             int reason = (u->getCurCharacVill() == 7) ? 0 : 4;   // ENUM_PVP_HISTORY_REASON
-            cUserHistoryLog* hist =
-                reinterpret_cast<cUserHistoryLog*>(reinterpret_cast<char*>(u) + 0x79700);
+            cUserHistoryLog* hist = &u->m_historyLog;           // +0x79700
             hist->StartPvP((ENUM_PVP_HISTORY_REASON)reason,
                            names[0], names[1], names[2], names[3],
                            names[4], names[5], names[6], names[7]);

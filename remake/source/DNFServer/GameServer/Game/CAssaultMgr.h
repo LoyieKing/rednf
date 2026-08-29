@@ -82,8 +82,6 @@ public:
 //   ASSAULT_RECT_PLAYER_POINT @0x8c1cce0（Point2d[8]：
 //     (0,15) (56,5) (84,0) (28,10) (260,15) (204,5) (176,0) (232,10)）
 //   ASSAULT_RECT_ICON_POINT   @0x8c1cd20 = {130, 5}
-extern const Point2d ASSAULT_RECT_PLAYER_POINT[8];
-extern const Point2d ASSAULT_RECT_ICON_POINT;
 
 // =====================================================================
 // PartyInfo —— ORIG PartyInfo::C1 0x82f05ee：清零单个 int；
@@ -380,6 +378,7 @@ public:
     void _SendUserState();                                // ORIG T 0x82e79f6
     void _MakeViewAssaultIconPlayer(PacketGuard* p, bool flag); // ORIG T 0x82e8afc
     void _SendPacketToArea(PacketGuard& packet);          // ORIG T 0x82e6d3a
+    void _SendPacketToArea(PacketGuard& packet, std::vector<CUser*>& users); // ORIG T 0x82e6dce
     void _DelUser(int index, bool flag);                  // ORIG T 0x82e6e2c
     void CloseAssault();                                  // ORIG T 0x82e9ad6
     bool _IsBroadcastRunaway(CUser* user);                // ORIG T 0x82eab1a
@@ -513,6 +512,9 @@ CAssaultPlaceFactory* GetInstanceAssaultPlaceFactory();  // ORIG T 0x82f0fa9（g
 CAssaultMgr* GetInstanceAssaultMgr();                    // guard 单例
 
 }  // namespace pvp_assault
+
+// ORIG T _Z24GetMaxCandidateMatirxRowv 0x82e5c9e（全局函数，非 pvp_assault 成员）。
+int GetMaxCandidateMatirxRow();
 
 #endif  // DNF_CASSAULTMGR_H_PART2
 

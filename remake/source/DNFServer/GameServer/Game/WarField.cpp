@@ -119,7 +119,8 @@ void WarField::PickupItem(std::map<int, map_item>::iterator it)
 int WarField::CheckPickupItem(int idx, int owner,
                               std::map<int, map_item>::iterator& out)
 {
-    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
+    std::map<int, map_item>::iterator it;
+    it = m_mapInfo.m_itemMap.find(idx);
     if (it == m_mapInfo.m_itemMap.end())
     {
         return 0x15;
@@ -127,8 +128,8 @@ int WarField::CheckPickupItem(int idx, int owner,
     int curSec = GlobalData::s_systemTime_.getCurSec();
     if (curSec - it->second.m_createTick < 10)
     {
-        if (it->second.m_dropIndex != (unsigned short)-1 &&
-            (unsigned int)it->second.m_dropIndex != (unsigned int)owner)
+        if (!(it->second.m_dropIndex == (unsigned short)-1 ||
+              (unsigned int)it->second.m_dropIndex == owner))
         {
             return 0x1c;
         }
@@ -156,7 +157,8 @@ int WarField::DropItem(map_item item)
 
 int WarField::GetFieldItem(int idx, map_item& out)
 {
-    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
+    std::map<int, map_item>::iterator it;
+    it = m_mapInfo.m_itemMap.find(idx);
     if (it == m_mapInfo.m_itemMap.end())
     {
         return 0;
@@ -171,7 +173,8 @@ int WarField::GetFieldItem(int idx, map_item& out)
 
 bool WarField::GetFieldMob(int idx, map_monster& out)
 {
-    std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(idx);
+    std::map<int, map_monster>::iterator it;
+    it = m_mapInfo.m_monsterMap.find(idx);
     if (it == m_mapInfo.m_monsterMap.end())
     {
         return 0;
@@ -199,7 +202,7 @@ void WarField::MakePacket(int packetId, void* packet)
         buf->put_byte((int)m_mapInfo.m_monsterMap.size());
         map_monster mob;
         for (std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.begin();
-             it != m_mapInfo.m_monsterMap.end(); ++it)
+             it != m_mapInfo.m_monsterMap.end(); it++)
         {
             mob = it->second;
             buf->put_short(0);
@@ -223,8 +226,9 @@ void WarField::MakePacket(int packetId, void* packet)
 int WarField::HandleWpPerMonster(CUser* user, int monsterIdx, int wp,
                                  map_monster& out)
 {
-    std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(monsterIdx);
-    if (it == m_mapInfo.m_monsterMap.end())
+    MapInfo* mi = &m_mapInfo;
+    std::map<int, map_monster>::iterator it = mi->m_monsterMap.find(monsterIdx);
+    if (it == mi->m_monsterMap.end())
     {
         return 0;
     }
@@ -275,7 +279,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
     if (playerCount == 0)
     {
         cMyTrace trace(
-            "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+            __PRETTY_FUNCTION__,
             0x3b, 5);
         trace("WarField::ConsistMap playerCount is 0");
         return;
@@ -293,7 +297,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
     if (m_mapInfo.m_monsterMap.size() != 0)
     {
         cMyTrace trace(
-            "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+            __PRETTY_FUNCTION__,
             0x53, 5);
         trace("WarField::ConsistMap Clear");
         m_mapInfo.Clear();
@@ -311,7 +315,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         {
             LogManager::logFormat(
                 1, "WarField.cpp",
-                "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+                __PRETTY_FUNCTION__,
                 0x65, "WARROOM totalProb is 0");
             return;
         }
@@ -329,7 +333,6 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
             }
         }
         int type = i;
-        int count = 0;
         std::vector<int>* mobList =
             (std::vector<int>*)((char*)dungeon + type * 0xc + 0x708);
         int listSize = (int)mobList->size();
@@ -337,15 +340,14 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         int weights[256];
         for (int i = 0; i < listSize; i = i + 1)
         {
-            int mobIdx = mobList->at(i);
             CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
-                                    ->find_monster(mobIdx);
+                                    ->find_monster(mobList->at(i));
             if (monster == 0)
             {
                 LogManager::logFormat(
                     1, "WarField.cpp",
-                    "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
-                    0x96, "WARROOM Find Monster[%d] Error", mobIdx);
+                    __PRETTY_FUNCTION__,
+                    0x96, "WARROOM Find Monster[%d] Error", mobList->at(i));
                 return;
             }
             weights[i] = *(int*)((char*)monster + 0x1d24);
@@ -355,7 +357,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         {
             LogManager::logFormat(
                 1, "WarField.cpp",
-                "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+                __PRETTY_FUNCTION__,
                 0x9f, "WARROOM totalWeight is 0, type %d", type);
             return;
         }
@@ -371,14 +373,13 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
             }
         }
         int sel = i2;
-        int mobIdx = mobList->at(sel);
         CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
-                                ->find_monster(mobIdx);
+                                ->find_monster(mobList->at(sel));
         if (monster == 0)
         {
             LogManager::logFormat(
                 1, "WarField.cpp",
-                "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+                __PRETTY_FUNCTION__,
                 0xbc, "WARROOM::ConsistMap pMob is Null");
             return;
         }
@@ -393,33 +394,34 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         {
             LogManager::logFormat(
                 1, "WarField.cpp",
-                "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+                __PRETTY_FUNCTION__,
                 0xd0, "WARROOM rivalTotal is 0");
             return;
         }
         randProb = get_rand_int(rivalTotal);
         rivalTotal = 0;
-        int rivalSel = 0;
-        for (int i = 0; i < (int)rivalData->size(); i = i + 1)
+        i = 0;
+        while (i < (int)rivalData->size())
         {
             rivalTotal = rivalTotal + (*rivalData)[i].m_rate;
             if (randProb < rivalTotal)
             {
                 break;
             }
-            rivalSel = i + 1;
+            i = i + 1;
         }
+        int rivalSel = i;
         map_monster mob;
         mob.m_instId = uid;
         uid = uid + 1;
         mob.m_roleType = (char)type;
         mob.m_mobIndex = monster->get_index();
-        mob.m_level = (char)b;
-        mob.m_field11 = 0x0101;   // 字节 +0x11 与 +0x12 均置 1（ORIG ConsistMap 逐字节写）
+        mob.m_level = b;
+        *(char*)&mob.m_field11 = 1;         // 字节 +0x11（ORIG 逐字节写，非 movw）
+        *((char*)&mob.m_field11 + 1) = 1;   // 字节 +0x12
         mob.m_field18 = *(float*)((char*)dungeon + 0x7b0) * (float)(6 - playerCount) + 1.0f;
         mob.m_field28 = *(float*)((char*)dungeon + 0x7b4) * (float)(6 - playerCount) + 1.0f;
-        map_monster mobCopy(mob);
-        m_mapInfo.Add_Mob(mobCopy);
+        m_mapInfo.Add_Mob(mob);
         monsterCount = monsterCount - *(int*)((char*)dungeon + type * 4 + 0x7b8);
         buf->put_short(mob.m_instId);
         buf->put_byte(type);
@@ -433,7 +435,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         if (playerCount == 0)
         {
             cMyTrace trace(
-                "void WarField::ConsistMap(void*, const CDungeon*, const CMap*, byte, int)",
+                __PRETTY_FUNCTION__,
                 0x107, 5);
             trace("WarField::ConsistMap playerCount is 0");
             playerCount = 1;
@@ -453,29 +455,29 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
 bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
                                  CUser* user, const CDungeon* dungeon)
 {
+    int userUid = 0xffff;
     int moneyRatio = 0;
-    unsigned short userUid = 0xffff;
     if (user != 0)
     {
         userUid = (unsigned short)user->get_unique_id();
-        const char* accName = user->get_acc_name();
-        int level = user->get_charac_level();
         int moneyLimit = (int)((const CDataManager*)G_CDataManager())
-                             ->GetMoneyLimitPerLevel(level, accName);
+                             ->GetMoneyLimitPerLevel(user->get_charac_level(),
+                                                     user->get_acc_name());
         if (moneyLimit < 1)
         {
             cMyTrace trace(
-                "bool WarField::HandleMonsterKill(int, PacketGuard&, map_monster&, CUser*, const CDungeon*)",
+                __PRETTY_FUNCTION__,
                 0x178, 5);
-            trace("WarField::HandleMonsterKill limitMoney(%d) is under 0");
+            trace("WarField::HandleMonsterKill limitMoney(%d) is under 0", moneyLimit);
         }
         else
         {
             moneyRatio = (user->getCurCharacMoney() * 100) / moneyLimit;
         }
     }
-    std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(uid);
-    if (it == m_mapInfo.m_monsterMap.end())
+    MapInfo* mi = &m_mapInfo;
+    std::map<int, map_monster>::iterator it = mi->m_monsterMap.find(uid);
+    if (it == mi->m_monsterMap.end())
     {
         return 0;
     }
@@ -486,22 +488,22 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     {
         LogManager::logFormat(
             1, "WarField.cpp",
-            "bool WarField::HandleMonsterKill(int, PacketGuard&, map_monster&, CUser*, const CDungeon*)",
+            __PRETTY_FUNCTION__,
             0x18c, "G_CDataManager()->find_monster(%u) fail", fieldMob->m_mobIndex);
         return 0;
     }
     mob = *fieldMob;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0x26);
-    buf->put_short(uid);
+    InterfacePacketBuf& buf = *(InterfacePacketBuf*)&packet;
+    buf.put_header(0, 0x26);
+    buf.put_short(uid);
     std::list<map_item> itemList;
     int curSec = GlobalData::s_systemTime_.getCurSec();
     stGenerateRefData_t refData;
     if (user != 0)
     {
         refData.m_dropRate = 100;
-        ServiceRestrictManager* srm = ARAD::Singleton<ServiceRestrictManager>::Get();
-        if (srm->isRestricted(RestrictCategory::Enum_3, 1))
+        if (ARAD::Singleton<ServiceRestrictManager>::Get()
+                ->isRestricted(RestrictCategory::Enum_3, 1))
         {
             refData.m_dropRate = user->getStdDropRate();
         }
@@ -511,18 +513,20 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x36) = fieldMob->m_level;
     *(char*)((char*)&refData + 0x37) = 0;
     *(char*)((char*)&refData + 0x38) = 1;
-    *(char*)((char*)&refData + 0x39) = (char)(fieldMob->m_field11 >> 8);   // 字节 +0x12（short 高位）
+    *(char*)((char*)&refData + 0x39) = *((char*)&fieldMob->m_field11 + 1);  // 字节 +0x12
+    *(int*)((char*)&refData + 0x3c) = moneyRatio;
     *(char*)((char*)&refData + 0x40) = 1;
     *(char*)((char*)&refData + 0x41) = 0;
     stGenerateResult_t result;
-    CItemGenerator* gen = G_CDataManager()
-                              ->getItemGenerator()
-                              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
-    gen->generateRandomItem(refData, result);
+    G_CDataManager()
+        ->getItemGenerator()
+        ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0)
+        ->generateRandomItem(refData, result);
     *(int*)((char*)&refData + 0x38) = fieldMob->m_mobIndex;
     *(char*)((char*)&refData + 0x3c) = fieldMob->m_roleType;
-    *(char*)((char*)&refData + 0x3d) = (char)fieldMob->m_field11;         // 字节 +0x11（short 低位）
+    *(char*)((char*)&refData + 0x3d) = *(char*)&fieldMob->m_field11;       // 字节 +0x11
     *(char*)((char*)&refData + 0x36) = 0;
+    *(char*)((char*)&refData + 0x3e) = 1;
     *(char*)((char*)&refData + 0x35) = fieldMob->m_level;
     *(char*)((char*)&refData + 0x40) = 0;
     *(char*)((char*)&refData + 0x41) = 0;
@@ -532,86 +536,83 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     {
         refData.m_field24 = user->getForceDropFlag();
     }
-    gen = G_CDataManager()
-              ->getItemGenerator()
-              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
-    gen->generateSpecificItem(refData, result);
-    void* drops = (void*)dungeon->getDropItems();
-    (void)drops;
-    gen = G_CDataManager()
-              ->getItemGenerator()
-              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4);
-    gen->generateSpecificItem(refData, result);
+    G_CDataManager()
+        ->getItemGenerator()
+        ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0)
+        ->generateSpecificItem(refData, result);
+    dungeon->getDropItems();
+    G_CDataManager()
+        ->getItemGenerator()
+        ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
+        ->generateSpecificItem(refData, result);
     *(char*)((char*)&refData + 0x34) = 1;
     *(char*)((char*)&refData + 0x35) = fieldMob->m_level;
-    gen = G_CDataManager()
-              ->getItemGenerator()
-              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3);
-    gen->generateRandomItem(refData, result);
+    G_CDataManager()
+        ->getItemGenerator()
+        ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3)
+        ->generateRandomItem(refData, result);
     for (std::vector<Inven_Item>::iterator itemIt = result.m_dropItems.begin();
          itemIt != result.m_dropItems.end(); ++itemIt)
     {
         map_item item;
         item.m_count = 1;
-        item.m_itemIndex = m_mapInfo.m_dropItemCnt;
-        m_mapInfo.m_dropItemCnt = m_mapInfo.m_dropItemCnt + 1;
+        item.m_itemIndex = mi->m_dropItemCnt;
+        mi->m_dropItemCnt = mi->m_dropItemCnt + 1;
         item.m_dropIndex = userUid;
         item.m_createTick = curSec;
         item.m_item = *itemIt;
         itemList.push_back(item);
-        m_mapInfo.Add_Item(item);
+        mi->Add_Item(item);
     }
-    buf->put_byte((int)itemList.size());
+    buf.put_byte((int)itemList.size());
     stAvatarEmblemInfo_t emblem;
     emblem.init();
     for (std::list<map_item>::iterator itemIt = itemList.begin();
-         itemIt != itemList.end(); ++itemIt)
+         itemIt != itemList.end(); itemIt++)
     {
         map_item& mi = *itemIt;
-        buf->put_short(mi.m_itemIndex);
-        buf->put_int(mi.m_item.m_addInfo);
-        buf->put_byte((int)mi.m_item.GetItemAttr());
-        if (!mi.m_item.isAvatarItemType())
+        buf.put_short(mi.m_itemIndex);
+        buf.put_int(mi.m_item.m_addInfo);
+        buf.put_byte((int)mi.m_item.GetItemAttr());
+        if (mi.m_item.isAvatarItemType())
         {
-            buf->put_int(mi.m_item.get_add_info());
-        }
-        else
-        {
-            void* equip = G_CDataManager()->find_item(mi.m_item.m_addInfo);
+            CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(mi.m_item.m_addInfo);
             if (equip == 0)
             {
-                buf->put_int(mi.m_item.get_add_info());
+                buf.put_int(mi.m_item.get_add_info());
             }
             else
             {
-                buf->put_int(((CEquipItem*)equip)->getAvatarPeriod(
-                                  (unsigned char)mi.m_item.m_fieldb) *
-                              0x15180);
+                buf.put_int(equip->getAvatarPeriod((unsigned char)mi.m_item.m_fieldb) * 0x15180);
                 emblem.init();
-                ((CEquipItem*)equip)->getAvatarSocket(mi.m_item.m_fieldb, emblem);
+                equip->getAvatarSocket(mi.m_item.m_fieldb, emblem);
             }
-        }
-        buf->put_short(mi.m_item.m_fieldb);
-        buf->put_byte((int)mi.m_item.m_amp.getAbilityType());
-        buf->put_short(mi.m_item.m_amp.getAbilityValue());
-        buf->put_packet(mi.m_item);
-        if (!mi.m_item.isAvatarItemType())
-        {
-            buf->put_byte(0);
         }
         else
         {
-            buf->put_byte(1);
-            buf->put_int(0x1e);
-            buf->put_binary((const char*)&emblem, 0x1e);
+            buf.put_int(mi.m_item.get_add_info());
+        }
+        buf.put_short(mi.m_item.m_fieldb);
+        buf.put_byte((int)mi.m_item.m_amp.getAbilityType());
+        buf.put_short(mi.m_item.m_amp.getAbilityValue());
+        buf.put_packet(mi.m_item);
+        if (mi.m_item.isAvatarItemType())
+        {
+            buf.put_byte(1);
+            buf.put_int(0x1e);
+            buf.put_binary((const char*)&emblem, 0x1e);
             stAvatarExpansionInfo_t expansion;
             expansion.init();
-            buf->put_int(4);
-            buf->put_binary((const char*)&expansion, 4);
+            buf.put_int(4);
+            buf.put_binary((const char*)&expansion, 4);
         }
-        buf->put_short(mi.m_dropIndex);
+        else
+        {
+            buf.put_byte(0);
+        }
+        buf.put_short(mi.m_dropIndex);
     }
-    m_mapInfo.m_monsterMap.erase(it);
+    mi->m_monsterMap.erase(it);
     return 1;
 }
 

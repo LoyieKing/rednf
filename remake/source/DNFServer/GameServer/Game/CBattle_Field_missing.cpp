@@ -152,7 +152,7 @@ void CBattle_Field::reset_field()
     m_mapInfo.clear();                      // +0x78
     m_bossRoomConditions.clear();           // +0x170
     m_apcList.clear();                      // +0x118
-    m_field124 = 0;                         // +0x124
+    m_apcAllKilledSec = 0;                         // +0x124
     m_eventMonsterStatus.clear();           // +0x17c
 
     // —— 血/奖励系统 ——
@@ -631,7 +631,7 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd0c,
+            __PRETTY_FUNCTION__, 0xd0c,
             "BLOOD_LOG : round_order_ (%d), small_round_order_ (%d) : SET ORDER ERROR!!\n",
             (int)roundOrder, (int)smallRoundOrder);
         return;
@@ -644,7 +644,7 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd19,
+            __PRETTY_FUNCTION__, 0xd19,
             "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
             (int)smallRoundOrder);
         return;
@@ -659,7 +659,7 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "void CBattle_Field::BloodSpawnTimerManager(bool, bool)", 0xd2b,
+            __PRETTY_FUNCTION__, 0xd2b,
             "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
             (int)smallRoundOrder);
     }
@@ -762,7 +762,7 @@ void CBattle_Field::startUltimateRound()
         if (nextDiff == 0)
         {
             LogManager::logFormat(1, "battle_field.cpp",
-                                  "void CBattle_Field::startUltimateRound()", 0xf04,
+                                  __PRETTY_FUNCTION__, 0xf04,
                                   "ULTIMATE_LOG : ULITMATE ROUND (%d) startUltimateRound() ERROR!!\n",
                                   (int)roundOrder);
             return;
@@ -770,7 +770,7 @@ void CBattle_Field::startUltimateRound()
         if (!forceValuesToChangeRound(roundOrder, smallRoundOrder, nextDiff))
         {
             LogManager::logFormat(1, "battle_field.cpp",
-                                  "void CBattle_Field::startUltimateRound()", 0xf0a,
+                                  __PRETTY_FUNCTION__, 0xf0a,
                                   "ULTIMATE_LOG : startUltimateRound() ERROR!!\n",
                                   (int)roundOrder);
             return;

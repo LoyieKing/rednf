@@ -26,59 +26,15 @@ struct SIG_PRIVATE_STORE
 typedef char SIG_PRIVATE_STORE_size_check[(sizeof(SIG_PRIVATE_STORE) == 0x434) ? 1 : -1];
 }
 
-namespace DBInsertCreateDnfUserInfo {
-struct MSG { char m_pad[0x100]; };
-}
-
-namespace DBSelectCreateDnfUserInfo {
-struct MSG { char m_pad[0x100]; };
-}
-
-namespace DBSelectPcroomDailyReward {
-struct MSG { char m_pad[0x100]; };
-}
-
-namespace DBUpdatePcroomDailyReward {
-struct MSG { char m_pad[0x100]; };
-}
-
-namespace DBInsertGiveBoxEventReward {
-// ORIG 布局（makeRequest 反汇编）：+0 acc_id（get_acc_id）、+4 charac_no
-// （get_charac_no(-1)），总尺寸 0x100（网络缓冲）。
-struct MSG
-{
-    unsigned int m_accId;   // +0x00
-    int m_characNo;         // +0x04
-    char m_pad08[0xf8];     // +0x08..+0xff
-};
-}
-
-namespace DBSelectMobileAuthRewardTw {
-struct MSG { char m_pad[0x100]; };
-}
-
-namespace InterSelectMobileAuthReward {
-struct Msg { char m_pad[0x100]; };
-}
-
-namespace InterSelectCreateDnfUserInfo {
-struct Msg { char m_pad[0x100]; };
-}
-
-namespace InterSelectPcroomDailyReward {
-struct Msg { char m_pad[0x100]; };
-}
-
-namespace InterSelectCreateDnfEventInfo {
-struct Msg { char m_pad[0x100]; };
-}
-
 // Wave5 APSystem 批调和：ORIG 全局类（CUser.h:10 全局前向 + SetGrowthCreatureEventInfo
-// (SIG const&) 0x8691cde），原 namespace 占位与 CUser.h ODR 冲突，改全局 struct。
+#ifndef DNF_SIG_GIVE_GROWTH_CREATURE_EVENT_DEFINED
+#define DNF_SIG_GIVE_GROWTH_CREATURE_EVENT_DEFINED
+// Wave5 APSystem 批调和 + Inter_LoginInfo/dispatch_sig 权威化：ORIG 全局类，
+// SetGrowthCreatureEventInfo(SIG const&) 0x8691cde 按 +0x00 起步长 0x2c 循环至
+// 条目 serverGroup/characNo 归零，缓冲区总长 0xb*0x2c = 0x1e4（dispatch_sig
+// SIG_LOGIN_DATA+0x4154..0x4338 区间证据一致）。权威定义唯此一处。
 struct SIG_GIVE_GROWTH_CREATURE_EVENT
 {
-    // 真实布局 stride 0x2c（changeCharacName/processEvent ORIG 写入侧实证；
-    // CUserOnlyOrig.cpp 注释同证）。staticAssert 锁定。
     struct eventCharacInfo
     {
         unsigned short m_serverGroup;   // +0x00
@@ -91,8 +47,13 @@ struct SIG_GIVE_GROWTH_CREATURE_EVENT
             m_name[0] = '\0';
         }
     };
-    static_assert(sizeof(eventCharacInfo) == 0x2c, "SIG_GIVE_GROWTH_CREATURE_EVENT::eventCharacInfo size");
+    static_assert(sizeof(eventCharacInfo) == 0x2c, "eventCharacInfo size");
+
+    eventCharacInfo m_entries[11];      // stride 0x2c × 0xb = 0x1e4
 };
+static_assert(sizeof(SIG_GIVE_GROWTH_CREATURE_EVENT) == 0x1e4,
+              "SIG_GIVE_GROWTH_CREATURE_EVENT ABI drift");
+#endif  // DNF_SIG_GIVE_GROWTH_CREATURE_EVENT_DEFINED
 
 namespace ARAD {
 namespace INTERNAL_PACKET {
@@ -102,12 +63,13 @@ struct PURCHASE_COUNT_CHECK { char m_pad[0x100]; };
 
 namespace TaiwanInternalPack { enum T { PACKET_0 = 0 }; }
 namespace Taiwan {
-struct SigUpdateExitTime { char m_pad[0x100]; };
-struct SigLoadGeolocation { char m_pad[0x100]; };
-struct SigLoadRestrictPolicy { char m_pad[0x100]; };
-struct SigResetStayTimeEvent { char m_pad[0x100]; };
-struct SigLoadHeroMissionData { char m_pad[0x100]; };
-struct SigSaveHeroMissionData { char m_pad[0x100]; };
+// LinkClosureD：SigUpdateExitTime/SigLoadGeolocation/SigLoadRestrictPolicy/
+// SigLoadHeroMissionData/SigSaveHeroMissionData 的 0x100 pad 占位与权威
+// TaiwanQueries.h（sizeof 0x8/0x2d4/0x1200/0x104/0x104）ODR 冲突，删除占位；
+// SigResetStayTimeEvent：ORIG 实证 4 字节 —— Stream::GetInBuffer 实例
+// 0x816c14a 的 enable_in/in_ptr 两处 size 立即数均为 $0x4（CEventStayTime
+// dailyresetData 消费；共享协议布局修正 2026-08-29 EventStayTimeWave2）。
+struct SigResetStayTimeEvent { unsigned int m_field0; };
 struct SigStayTimeEvent { void init(); void set(unsigned int accId); unsigned int m_accId; char m_pad[0x1c]; };
 }
 
@@ -136,7 +98,7 @@ struct __attribute__((packed)) SigServerState
         AradServerStateMessage m_msg;  // +0x08
     };
 
-    SigServerState() : m_flag(0), m_count(0)
+    SigServerState() : m_count(0)
     {
         init();
     }
@@ -151,14 +113,14 @@ struct __attribute__((packed)) SigServerState
     void set(bool endFlag, int category, int code,
              const AradServerStateMessage& msg)
     {
-        m_flag = endFlag ? 1 : 0;
+        m_flag = endFlag;
         m_data[m_count].m_category = category;
         m_data[m_count].m_code = code;
         m_data[m_count].m_msg = msg;
         ++m_count;
     }
 
-    unsigned char           m_flag;      // +0x00
+    bool                    m_flag;      // +0x00（ORIG bool：P33 setter 先 mov this 再回读）
     int                     m_count;     // +0x01
     tagData        m_data[20];  // +0x05..+0x194
 };

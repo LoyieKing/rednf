@@ -13,11 +13,13 @@
 #include <ext/hash_map>
 #include <map>
 #include <vector>
+#include <cstring>
 
 class CItem;
 
 #include "EquipmentParameterInfo.h"   // STResultItemCnt（upgrade_table_t +0x490 vector 元素）
 #include "STEquipmentScript.h"    // ENUM_EQUIPMENTTYPE / ItemUpgradeType::T（ODR 守卫已由 FixEquipmentTypeGuard 统一）
+#include "ST3rdChronicleDestructionResult.h"   // upgrade_table_t +0x434 成员（ORIG C1 0x089000ca 实证）
 
 class Inven_Item;
 
@@ -131,6 +133,16 @@ public:
 // 与 get_upgrade_info 按 float 偏移访问，属内部镜像，不具名）。
 struct upgrade_info_t
 {
+    // ORIG C1/C2 0x0854b282（W）：+0x00..+0x68 全部清零
+    // （前 8 字 edx 中转 movl、+0x20..+0x34 直 movl、两段循环）。
+    upgrade_info_t()
+    {
+        memset(m_pad0, 0, sizeof(m_pad0));
+        m_recipeItem = 0;
+        m_meterialCount = 0;
+        m_discountBase = 0;
+        memset(m_pad, 0, sizeof(m_pad));
+    }
     char m_pad0[0x2c];        // +0x00 概率/等级混合区（float 偏移访问）
     int m_recipeItem;         // +0x2c（材料 item idx / 强化商品）
     int m_meterialCount;      // +0x30（材料数量）
@@ -145,6 +157,8 @@ public:
     // 0x08900c26 实证：4×ScanFloat + ScanInt，sizeof 0x14）。
     struct MachineFrameInfo
     {
+        // ORIG T ctor 0x089003b4：4×float 1.0f + int 2。定义 OnlyOrigBatch4_Force.cpp。
+        MachineFrameInfo();
         float m_f00;   // +0x00
         float m_f04;   // +0x04
         float m_f08;   // +0x08
@@ -155,8 +169,9 @@ public:
     upgrade_table_t();                                // ORIG 0x089000ca
 
     std::vector<upgrade_info_t> m_infos;              // +0x000
-    char m_body[0x490 - 0x00c];                       // +0x00c 混合表（至 0x48f）
-    std::vector<STResultItemCnt> m_resultItems;       // +0x490（[destruction result]）
+    char m_body[0x434 - 0x00c];                       // +0x00c 混合表（至 0x433）
+    ST3rdChronicleDestructionResult m_destruction;    // +0x434（ORIG C1 0x089000ca 直构；
+                                                      //   内部 m_vec @+0x490 = 旧 m_resultItems）
     std::map<int, float> m_floatMap;                  // +0x49c（[cost weight by upgrade level]）
     int m_zero4b4[4];                                 // +0x4b4..+0x4c0（machine frame base time ×4）
     __gnu_cxx::hash_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4（本工具链
@@ -197,7 +212,16 @@ public:
                                   ENUM_ITEM_AMPLIFY_INVEST_TYPE type) const;
     void investAmplifyOption(const CItem* item, Inven_Item& inven,
                              const stInvestAmplifyOption_t& option) const;
-    // ORIG 0x854b560：返回 &m_upgrade（+0x100 的 upgrade_table_t）。
+    // ---- 净化材料查询（ORIG W 0x08234d20 / 0x08234cd4 / 0x08234cfa）----
+    // type∈[0,1] 对应 [purify material]/[purify only material] 两行；
+    // 数据来自 stAmplifyItemScript_t（+0x9c..+0xa8，importAmplifyItem 填充）。
+    // getPurifyMaterialType 返回 itemIdx 所在行的 type（无匹配 -1），
+    // 其余两个按 type 返回 itemIdx/count，type 越界返回 0。
+    int getPurifyMaterialType(int itemIdx) const;
+    int getPurifyMaterialItemIdx(int type) const;
+    int getPurifyMaterialItemCount(int type) const;
+
+    // ORIG W 0x0854b382：返回内嵌 upgrade_table_t（+0x100）。
     const upgrade_table_t* getUpgradeInfoTable() const { return &m_upgrade; }
 
     // ORIG _ZN14CItemAmplifier10loadScriptEPKcS1_ W 0x08376060

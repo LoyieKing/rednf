@@ -40,7 +40,20 @@
 #include "CItemAmplifier.h"         // upgrade_table_t 权威布局（+0x48c/+0x490 视图）
 #include "CStackableItem.h"         // ProcUpgradeChronicle 材料券脚本（GetEmancipate 视图）
 #include "CEquipItem.h"             // m_vec198/m_vec1a4（emancipate 材料/结果表）
-#include "GameRand.h"               // get_rand_int
+// ---------------------------------------------------------------------------
+// CEquipItem::GetEmancipateMaterialList/GetEmancipateResultList —— ORIG 弱符号
+// W 0x0854b528 / 0x0854b536：push ebp; mov esp,ebp; mov 0x8(%ebp),%eax;
+// add $0x198/$0x1a4,%eax; pop ebp; ret —— 直返 &m_vec198 / &m_vec1a4（P1 视图）。
+// 本 TU 独占定义（与 CEquipItem.h 声明配套），调用方 ProcUpgradeChronicle 使用。
+std::vector<std::pair<int, int> >& CEquipItem::GetEmancipateMaterialList()
+{
+    return m_vec198;
+}
+
+std::vector<std::pair<int, int> >& CEquipItem::GetEmancipateResultList()
+{
+    return m_vec1a4;
+}
 
 namespace WongWork
 {
@@ -256,7 +269,7 @@ int CUserPremium::GetAddQuestItemDropRate(int level)
 {
     if (level < 0 || level > 0x69)
         return 0;
-    return GlobalData::g_SPremiumInfo[level].m_field48;
+    return g_SPremiumInfo[level].m_field48;
 }
 
 // ---------------------------------------------------------------------------
@@ -288,10 +301,10 @@ void CItemUpgrade::_getAdditionalDisjointItem(
     (void)itemScript;
     try
     {
-        const STResultItemCnt& elem = table.m_resultItems.at(up);   // at 越界抛异常 → catch 吞掉并 trace
+        const STResultItemCnt& elem = table.m_destruction.getVec().at(up);   // at 越界抛异常 → catch 吞掉并 trace
         if ((int)(short)elem.m_a != (int)up)
             return;
-        int slotIdx = table.intAtConst(0x48c);
+        int slotIdx = table.m_destruction.getField58();
         short count = flag ? (short)elem.m_c : (short)elem.m_b;     // ORIG 读合并 dword 的低/高半字
         if (count != 0)
         {
@@ -328,9 +341,9 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
     CEquipItem* targetScript =
         (CEquipItem*)G_CDataManager()->find_item(target.m_addInfo);
 
-    // CEquipItem::GetEmancipateMaterialList W 0x854b528（弱内联）＝ this+0x198。
+    // CEquipItem::GetEmancipateMaterialList W 0x854b528（本 TU 独占定义）＝ &m_vec198。
     const std::vector<std::pair<int, int> >& materials =
-        *(const std::vector<std::pair<int, int> >*)((char*)targetScript + 0x198);
+        targetScript->GetEmancipateMaterialList();
 
     if (!user->getCurCharacInvenR()->CheckNeedItemList(materials))
         return 0x16;
@@ -368,10 +381,8 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
             }
         }
 
-        // CStackableItem::GetEmancipate W 0x854b4e8（弱内联）＝ movzwl this+0x2ee
-        //（成员未具名，按 ORIG 偏移读取）。
-        int emancipate =
-            (int)*(const unsigned short*)((const char*)ticketScript + 0x2ee);
+        // CStackableItem::GetEmancipate W 0x854b4e8（弱内联）＝ movzwl m_short2ee。
+        int emancipate = (int)ticketScript->m_short2ee;
         // stEquipConditionForChronicle 现为空壳占位；ORIG 输出布局：
         // +0 upgrade、+1/+2 两标志字节、+4 u16 强化选项 value。按该布局提供
         // 存储，由 CInventory::CheckEquipmentItemCondition 填充后回读。
@@ -390,10 +401,9 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
                 return condErr;   // shadow 析构自动完成
         }
 
-        // CEquipItem::GetEmancipateResultList W 0x854b536 ＝ this+0x1a4。
+        // CEquipItem::GetEmancipateResultList W 0x854b536（本 TU 独占定义）＝ &m_vec1a4。
         const std::vector<std::pair<int, int> >& results =
-            *(const std::vector<std::pair<int, int> >*)((char*)targetScript +
-                                                        0x1a4);
+            targetScript->GetEmancipateResultList();
         int err = 0x11;
         do
         {

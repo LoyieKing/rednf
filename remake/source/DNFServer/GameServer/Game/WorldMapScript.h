@@ -13,6 +13,9 @@
 #include <utility>
 #include <vector>
 
+#include "STWorldmapPattern.h"    // aWorldMapPatternTable_E 元素（0x28）
+#include "STWorldmapPattern2ND.h" // aWorldMapPatternTable2ND_E 元素（0x1c）
+
 // ORIG WorldMapDungeon（ctor 0x08ab09e8 W / clear 0x08ab09c6 W /
 // D1 0x08ab0f74 W）：clear 置 [-1, -1, 0]。
 struct WorldMapDungeon
@@ -49,7 +52,20 @@ public:
     std::vector<std::pair<int, int> > m_freepassItems;  // +0x30 ([hell freepass item])
     std::vector<int> m_itemConditions;            // +0x3c ([item condition])
     std::vector<std::pair<int, int> > m_minimapPoints;  // +0x48 ([minimap points])
+    // ORIG 静态图案表（B 0x09501020 / 0x095014e0；GetWorldMapCoordFromTable
+    // T 0x088e5ef8 依 400*row+40*col 寻址 aWorldMapPatternTable_、依 0x1c 步长
+    // 读 aWorldMapPatternTable2ND_。定义见 InitScriptProducers_5.cpp；成员名含尾下划线）。
+    static STWorldmapPattern aWorldMapPatternTable_[3][10];
+    static STWorldmapPattern2ND aWorldMapPatternTable2ND_[20];
 };
+
+// ORIG _Z25GetWorldMapCoordFromTableiiR17STWorldmapPattern 0x088e5ef8 T：
+// (a>0 && b>0) 时 out = aWorldMapPatternTable_E[a-1][b-1]，否则不变。
+void GetWorldMapCoordFromTable(int a, int b, STWorldmapPattern& out);
+
+// ORIG _Z28GetWorldMapCoordFromTable2NDiR20STWorldmapPattern2ND 0x088e5f44 T：
+// (a>=0) 时 out = aWorldMapPatternTable2ND_E[a]，否则不变。
+void GetWorldMapCoordFromTable2ND(int a, STWorldmapPattern2ND& out);
 
 // ORIG _Z20importWorldMapScriptP14WorldMapScriptPKc 0x08ab0388 T。
 bool importWorldMapScript(WorldMapScript* script, const char* path);

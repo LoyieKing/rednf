@@ -146,8 +146,8 @@ void COnlinePreliminaryTeam::SetCurrentUserCount(int n)
     m_field00 = n;
 }
 
-// ORIG W 0x08588d7e【推断：objdump】
-int COnlinePreliminaryTeam::GetCurrentUserCount() const
+// ORIG W 0x08588d7e【推断：objdump】（非 const，mangled _ZN…GetCurrentUserCountEv）
+int COnlinePreliminaryTeam::GetCurrentUserCount()
 {
     return m_field00;
 }
@@ -164,7 +164,7 @@ void COnlinePreliminaryTeam::IncreaseEachOtherTeamPlayCount(int teamId)
         {
             // ORIG __PRETTY_FUNCTION__ 行号 0xca（202）
             cMyTrace trace(
-                "void online_preliminary::COnlinePreliminaryTeam::IncreaseEachOtherTeamPlayCount(int)",
+                __PRETTY_FUNCTION__,
                 0xca, 0);
             trace("Online Preliminary each other team play count map size over! %d",
                   static_cast<unsigned int>(m_playCountMap.size()));
@@ -507,7 +507,7 @@ void COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(
         {
             // ORIG __PRETTY_FUNCTION__ 行号 0x65（101）
             cMyTrace trace(
-                "void online_preliminary::COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(int, unsigned int)",
+                __PRETTY_FUNCTION__,
                 0x65, 0);
             trace("Online Preliminary peer play count map size over! %d",
                   static_cast<unsigned int>(m_peerMap.size()));

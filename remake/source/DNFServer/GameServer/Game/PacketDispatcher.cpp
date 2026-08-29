@@ -694,8 +694,7 @@ int PacketDispatcher::dispatch(int userId, char* data, int len)
         (*reinterpret_cast<void***>(checker))[0x3c / 4]);
     if (fn(checker, user->getAntibotKey(), (short)cmd) != 0)
     {
-        cUserHistoryLog* history = reinterpret_cast<cUserHistoryLog*>(
-            reinterpret_cast<char*>(user) + 0x79700);
+        cUserHistoryLog* history = &user->m_historyLog;   // CUser+0x79700
         history->AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)0, cmd,
                               user->getAntibotKey(), 0);
         return 0;
@@ -732,7 +731,7 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     {
         LogManager::logFormat(
             1, "PacketDispatcher.cpp",
-            "bool PacketDispatcher::doDispatch(CUser*, ENUM_PACKETCLASS, short unsigned int, char*, int, ENUM_PACKETCLASS, short unsigned int)",
+            __PRETTY_FUNCTION__,
             0xa06, "m_id:%s, cmd:%d", NumberToString(user->get_acc_id(), 0),
             (int)cmd);
     }
@@ -747,17 +746,25 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     if (0xd < len && flag == 0x25c)
     {
         unsigned int serverCrc = Encryption::crc32N(data + 0xb, len - 0xb);
+        // 线格式视图：协议头 +7 处为校验和 dword（pack(1)，非对齐）
+#pragma pack(push, 1)
+        struct ChecksumHeadView
+        {
+            char m_pad[7];
+            unsigned int m_crc;
+        };
+#pragma pack(pop)
         char head[0xd];
         memcpy(head, data, 0xd);
-        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc,
-                                        *reinterpret_cast<unsigned*>(head + 7));
-        if (*reinterpret_cast<unsigned*>(head + 7) != serverCrc)
+        ChecksumHeadView* hv = reinterpret_cast<ChecksumHeadView*>(head);
+        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc, hv->m_crc);
+        if (hv->m_crc != serverCrc)
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
-                "bool PacketDispatcher::doDispatch(CUser*, ENUM_PACKETCLASS, short unsigned int, char*, int, ENUM_PACKETCLASS, short unsigned int)",
+                __PRETTY_FUNCTION__,
                 0xa37, "Check Sum Error: server(%d), client(%d), mid(%s)",
-                serverCrc, *reinterpret_cast<unsigned*>(head + 7),
+                serverCrc, hv->m_crc,
                 NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)0xd, true, 0);
             return 0;
@@ -784,7 +791,7 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
-                "bool PacketDispatcher::doDispatch(CUser*, ENUM_PACKETCLASS, short unsigned int, char*, int, ENUM_PACKETCLASS, short unsigned int)",
+                __PRETTY_FUNCTION__,
                 0xa60, "[doErrorDispatcher] ERROR_NOT_TING - code : %d, m_id :%s",
                 (int)cmd, NumberToString(user->get_acc_id(), 0));
         }
@@ -792,7 +799,7 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
-                "bool PacketDispatcher::doDispatch(CUser*, ENUM_PACKETCLASS, short unsigned int, char*, int, ENUM_PACKETCLASS, short unsigned int)",
+                __PRETTY_FUNCTION__,
                 0xa5b, "[doErrorDispatcher] ERROR_TING - code : %d, m_id :%s",
                 (int)cmd, NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)0xa, true, 0);
@@ -815,7 +822,7 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
-                "bool PacketDispatcher::doDispatch(CUser*, ENUM_PACKETCLASS, short unsigned int, char*, int, ENUM_PACKETCLASS, short unsigned int)",
+                __PRETTY_FUNCTION__,
                 0xa7a, "Delay notice, OnRecvBufferFromClient dispatch time : %u",
                 elapsed);
         }

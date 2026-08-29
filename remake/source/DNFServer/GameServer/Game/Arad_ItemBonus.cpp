@@ -153,7 +153,7 @@ int importCashShopPurcahseBonusItemList(
             {
                 LogManager::logFormat(
                     1, "../localjapan/RDARScriptCeraShop.cpp",
-                    "importCashShopPurcahseBonusItemList", 0x2b,
+                    __FUNCTION__, 0x2b,
                     "[PURCAHSE BONUS] invalid purcahse count (goods:%u, count:%d)",
                     key, (int)bonus.m_flag);
                 result = 44;                 // 0x2c：重复门槛档
@@ -170,7 +170,7 @@ int importCashShopPurcahseBonusItemList(
         {
             LogManager::logFormat(
                 1, "../localjapan/RDARScriptCeraShop.cpp",
-                "importCashShopPurcahseBonusItemList", 0x36,
+                __FUNCTION__, 0x36,
                 "[PURCAHSE BONUS] duplicate purcahse item (goods:%d)", key);
             result = 55;                     // 0x37：key 重复
             break;
@@ -508,7 +508,7 @@ bool ARAD_ITEM::arad_process_item(CUser* user, Inven_Item const& item)
     {
         LogManager::logFormat(
             1, kAradFuncFile,
-            "bool ARAD::ARAD_ITEM::arad_process_item(CUser*, const Inven_Item&)",
+            __PRETTY_FUNCTION__,
             0x187, "Error process Item (charac:%u, item:%u, count:%d)",
             (unsigned int)user->getCurCharacNo(), (unsigned int)item.m_addInfo,
             (unsigned int)item.m_addInfo2);

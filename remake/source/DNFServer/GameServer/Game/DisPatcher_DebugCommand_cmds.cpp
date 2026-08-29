@@ -522,7 +522,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetEnchant(CUser* user,
     if (user->getCurCharacR() == 0)             // +0x2e getCurCharacR!=0 才续
         return false;
 
-    int invenType = GetInvenTypeFromItemSpace(msg.m_arg);       // +0x42 itemspace→type
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)msg.m_arg);       // +0x42 itemspace→type
     Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(
         invenType, msg.payload.ench.slotInt);                   // +0x6c GetInvenRef(space,slot)
     if (ref == 0)                                               // +0x74
@@ -820,7 +820,7 @@ bool DisPatcher_DebugCommand::_debugCommandPowerUpOn(CUser* user,
     user->SetPowerUp(true);                                     // +0x2f SetPowerUp(1)
     std::vector<CUser*> targets;                                // -0x14 局部 vector
     targets.push_back(user);                                    // +0x4c push_back(user)
-    G_GameWorld()->SendPowerUpList(1, targets);                 // +0x68 activate type=1
+    G_GameWorld()->SendPowerUpList((ENUM_POWER_UP_ACTIVATE_TYPE)1, targets);
     return true;
 }
 
@@ -851,11 +851,56 @@ bool DisPatcher_DebugCommand::_debugCommandPowerWarEnd(CUser* user)
 }
 
 // ===========================================================================
-// 27. _debugCommandSetUserDefine —— 0x085908ba（ORIG 原始二进制即此形态：
-//     仅判断 this 后首参指针是否为空并返回布尔，无任何业务处理）
+// 27. _debugCommandSetUserDefine —— 0x085908ba：user==0 → 返回 0；非空 → 1。
 // ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandSetUserDefine(CUser* user,
                                                          PacketBuf& /*packet*/)
 {
-    return user == 0;
+    return user != 0;
+}
+
+// ===========================================================================
+// LinkFinal2 核销（/tmp/undef_r26.txt）：
+// 28. _Z19DoUserDefineCommandP5CUseriPKc @0x0820ba90 (0xd8) —— objdump 逐指令转写。
+//     CParser 栈对象；m_user=param；sprintf(m_buf,"%d %s",cmd,arg)（0x8bc2c30）；
+//     parse()（ORIG 直接 call 非虚派发）；GetCommand(m_id) → SetParser → HandleRequest。
+//     ORIG 返回值未定义（尾 ret 无 eax 写）；调用方不使用返回值，此处返 0。
+// ===========================================================================
+#include "GameMasterCmd.h"      // game_master::{CParser,CCommand,CGameMasterMgr}
+
+int DoUserDefineCommand(CUser* user, int cmd, const char* arg)
+{
+    game_master::CParser parser;
+    parser.m_user = user;                                        // ORIG -0x130 = parser+0x04
+    sprintf(parser.m_buf, "%d %s", cmd, arg);                    // ORIG 0x820bad4
+    parser.parse();                                              // ORIG 0x820bae2 直接 call
+    game_master::CCommand* command =
+        GlobalData::s_GameMasterMgr->GetCommand(parser.m_id);    // ORIG 0x820baf9（m_id=parser+0x18）
+    if (command != 0)
+    {
+        command->SetParser(&parser);                             // ORIG 0x820bb17
+        GlobalData::s_GameMasterMgr->HandleRequest(command);     // ORIG 0x820bb2b
+    }
+    return 0;
+}
+
+// ===========================================================================
+// 29. _Z28SendVillageAttackedGMCommandP5CUseri @0x0820bb68 (0x76) —— objdump 逐指令转写。
+//     Packet_VillageAttackedGMCommand 栈包（0x1a）；gcc 将包内字段寻址为栈局部：
+//     -0x18=+0x0a uid、-0x14=+0x0e characNo、-0xc=+0x16 state；
+//     GetServerProxy(user->GetServerGroup())->SendTcpPacket(&pkt, 0x1a)。
+// ===========================================================================
+#include "Packet_VillageAttackedGMCommand.h"
+
+void SendVillageAttackedGMCommand(CUser* user, int state)
+{
+    Packet_VillageAttackedGMCommand pkt;                         // ORIG 0x820bb75
+    pkt.m_uid = user->GetUID();                                  // ORIG 0x820bb80（-0x18）
+    pkt.m_characNo =
+        static_cast<unsigned int>(user->get_charac_no(-1));      // ORIG 0x820bb96（get_charac_no(0xffffffff)）
+    pkt.m_field16 = static_cast<unsigned int>(state);            // ORIG 0x820bba1（-0xc）
+    CMonitorServerProxy* proxy =
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+            user->GetServerGroup());                             // ORIG 0x820bbbf（mgr 0x940be28）
+    proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x1a);   // ORIG 0x820bbd3
 }

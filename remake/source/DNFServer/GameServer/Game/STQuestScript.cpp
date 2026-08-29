@@ -34,9 +34,10 @@ class STScriptFileList;
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* map);
 
-// ---- ORIG 全局脚本文件列表缓冲（initQuestScript/initTownScript 使用） ----
-static char g_questScriptDir[0x100];   // ORIG 0x9500380
-static char g_townScriptDir[0x100];    // ORIG 0x9500da0
+// ---- ORIG 全局脚本文件列表缓冲（initQuestScript/initTownScript 使用）。
+// g_questScriptBaseDirectory 定义见下（ORIG B 0x9500380，供 EpisodeScript 等
+// loadRDARScriptFile 首参，另一处 0x580 行已定义）；此处仅 town 目录定义。
+char g_townScriptBaseDirectory[0x100];    // ORIG B 0x9500da0
 
 namespace
 {
@@ -68,108 +69,6 @@ QuestScript::QuestScript()
     clear();
 }
 
-QuestScript::QuestScript(const QuestScript& other)
-    : m_name(other.m_name),
-      m_requestDefault(other.m_requestDefault),
-      m_conditionDefault(other.m_conditionDefault),
-      m_solveDefault(other.m_solveDefault),
-      m_fieldC8(other.m_fieldC8),
-      m_targetCharacters(other.m_targetCharacters),
-      m_intDataList(other.m_intDataList),
-      m_antiQuestList(other.m_antiQuestList),
-      m_clearItems(other.m_clearItems),
-      m_killItems(other.m_killItems),
-      m_appearMap(other.m_appearMap),
-      m_rewardSelectList(other.m_rewardSelectList),
-      m_triggerData(other.m_triggerData),
-      m_titleReward(other.m_titleReward),
-      m_selectReward(other.m_selectReward),
-      m_eventDialogs(other.m_eventDialogs),
-      m_field20c(other.m_field20c),
-      m_rewardData(other.m_rewardData),
-      m_mailTitle(other.m_mailTitle),
-      m_mailContents(other.m_mailContents),
-      m_mailItems(other.m_mailItems),
-      m_postalReward(other.m_postalReward),
-      m_map2b0(other.m_map2b0),
-      m_str2cc(other.m_str2cc),
-      m_exceptionList(other.m_exceptionList),
-      m_dailySchedule(other.m_dailySchedule),
-      m_str2e8(other.m_str2e8),
-      m_vec2f0(other.m_vec2f0),
-      m_vec2fc(other.m_vec2fc)
-{
-    m_index = other.m_index;
-    m_questIdx = other.m_questIdx;
-    m_questType = other.m_questType;
-    m_fieldD8 = other.m_fieldD8;
-    m_jobChangeQuest = other.m_jobChangeQuest;
-    m_fieldE0 = other.m_fieldE0;
-    m_npcIdx = other.m_npcIdx;
-    m_fieldE8 = other.m_fieldE8;
-    m_fieldEC = other.m_fieldEC;
-    m_fieldF0 = other.m_fieldF0;
-    m_levelMin = other.m_levelMin;
-    m_levelMax = other.m_levelMax;
-    m_field108 = other.m_field108;
-    m_questCountLimit = other.m_questCountLimit;
-    m_field128 = other.m_field128;
-    m_field12c = other.m_field12c;
-    m_field130 = other.m_field130;
-    m_field134 = other.m_field134;
-    m_triggerType = other.m_triggerType;
-    m_triggerSubType = other.m_triggerSubType;
-    m_field1bc = other.m_field1bc;
-    m_field1c0 = other.m_field1c0;
-    m_field1c4 = other.m_field1c4;
-    m_rewardType = other.m_rewardType;
-    m_field1e4 = other.m_field1e4;
-    m_field218 = other.m_field218;
-    m_field228 = other.m_field228;
-    m_field22c = other.m_field22c;
-    m_field22d = other.m_field22d;
-    m_field22e = other.m_field22e;
-    m_field23c = other.m_field23c;
-    m_field23d = other.m_field23d;
-    m_field240 = other.m_field240;
-    m_str244 = other.m_str244;
-    m_field248 = other.m_field248;
-    m_field24c = other.m_field24c;
-    m_field250 = other.m_field250;
-    m_field254 = other.m_field254;
-    m_mailQuestFlag = other.m_mailQuestFlag;
-    m_field270 = other.m_field270;
-    m_powerSide = other.m_powerSide;
-    m_field274 = other.m_field274;
-    m_field278 = other.m_field278;
-    m_field27c = other.m_field27c;
-    m_field280 = other.m_field280;
-    m_field282 = other.m_field282;
-    m_field284 = other.m_field284;
-    m_field288 = other.m_field288;
-    m_field28c = other.m_field28c;
-    m_field290 = other.m_field290;
-    m_field2a8 = other.m_field2a8;
-    m_field2ac = other.m_field2ac;
-    m_2c8 = other.m_2c8;
-    m_2ec = other.m_2ec;
-    m_308 = other.m_308;
-    for (int i = 0; i < 11; ++i)
-    {
-        m_jobNames[i] = other.m_jobNames[i]
-                            ? new std::string(*other.m_jobNames[i])
-                            : 0;
-        m_jobRequests[i] = other.m_jobRequests[i]
-                               ? new std::string(*other.m_jobRequests[i])
-                               : 0;
-        m_jobConditions[i] = other.m_jobConditions[i]
-                                 ? new std::string(*other.m_jobConditions[i])
-                                 : 0;
-        m_jobSolves[i] = other.m_jobSolves[i]
-                             ? new std::string(*other.m_jobSolves[i])
-                             : 0;
-    }
-}
 
 QuestScript::~QuestScript()
 {
@@ -201,8 +100,8 @@ void QuestScript::clear()
     m_fieldD8 = 3;
     m_fieldEC = 0xb;
     m_fieldF0 = -1;
-    m_levelMin = 0;
-    m_levelMax = 0;
+    m_levelMin[0] = 0;
+    m_levelMin[1] = 0;
     m_field108 = 0;
     m_intDataList.clear();
     m_antiQuestList.clear();
@@ -289,7 +188,7 @@ void QuestScript::destroy()
     }
 }
 
-const std::string& QuestScript::getName(int job) const
+std::string& QuestScript::getName(ENUM_CHARACTERJOB job)
 {
     if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobNames[job])
     {
@@ -298,7 +197,7 @@ const std::string& QuestScript::getName(int job) const
     return m_name;
 }
 
-const std::string& QuestScript::getRequestMessage(int job) const
+std::string& QuestScript::getRequestMessage(ENUM_CHARACTERJOB job)
 {
     if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobRequests[job])
     {
@@ -307,7 +206,7 @@ const std::string& QuestScript::getRequestMessage(int job) const
     return m_requestDefault;
 }
 
-const std::string& QuestScript::getConditionMessage(int job) const
+std::string& QuestScript::getConditionMessage(ENUM_CHARACTERJOB job)
 {
     if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobConditions[job])
     {
@@ -316,7 +215,7 @@ const std::string& QuestScript::getConditionMessage(int job) const
     return m_conditionDefault;
 }
 
-const std::string& QuestScript::getSolveMessage(int job) const
+std::string& QuestScript::getSolveMessage(ENUM_CHARACTERJOB job)
 {
     if (m_questIdx != 0 && job >= 0 && job <= 10 && m_jobSolves[job])
     {
@@ -494,9 +393,9 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 
 int initQuestScript(const char* dir, const char* list)
 {
-    strncpy(g_questScriptDir, dir, 0x100);
-    AppendDirSlash(g_questScriptDir);
-    if (!loadRDARScriptListFile(0, g_questScriptDir, list, 0))
+    strncpy(g_questScriptBaseDirectory, dir, 0x100);
+    AppendDirSlash(g_questScriptBaseDirectory);
+    if (!loadRDARScriptListFile(0, g_questScriptBaseDirectory, list, 0))
     {
         return 0;
     }
@@ -505,6 +404,46 @@ int initQuestScript(const char* dir, const char* list)
 
 int importQuestScript(QuestScript* script, const char* path)
 {
+    // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
+    // importQuestScript_QuestScript___char_const____QuestData/：
+    //   C1 0x08a616fe / D1 0x08a617a6）。重建版解析不复用该辅助结构，
+    // 按报告布局语义落地并 force 实例化以发射 _ZZ17importQuestScript...
+    // QuestData C1/C2/D1/D2 符号。
+    struct QuestData
+    {
+        std::string m_str0;                     // +0x00
+        std::vector<int> m_vec4;                // +0x04
+        int m_int10;                            // +0x10
+        int m_int14;                            // +0x14
+        char m_byte18;                          // +0x18
+        char m_byte19;                          // +0x19
+        char m_byte1a;                          // +0x1a
+        char m_byte1b;                          // +0x1b
+        char m_byte1c;                          // +0x1c
+        std::vector<MonsterKillItem> m_vec20;   // +0x20
+        char m_byte2c;                          // +0x2c
+
+        QuestData()
+        {
+            m_int14 = 0;   // ORIG 先清 +0x14
+            m_int10 = 0;   // 再清 +0x10
+            m_byte18 = 0;
+            m_byte19 = 0;
+            m_byte1a = 0;
+            m_byte1b = 0;
+            m_byte1c = 0;
+            m_byte2c = 0;
+        }
+
+        ~QuestData()
+        {
+        }
+    };
+    {
+        QuestData qd;
+        (void)qd;
+    }
+
     if (!loadRDARScriptFile("Script/QuestScript", path))
     {
         return 0;
@@ -551,20 +490,20 @@ int importQuestScript(QuestScript* script, const char* path)
     {
         return 0;
     }
-    script->m_levelMin = value;
+    script->m_levelMin[0] = value;
     if (!ScanInt(&value))
     {
         return 0;
     }
-    script->m_levelMax = value;
+    script->m_levelMin[1] = value;
     return 1;
 }
 
 int initTownScript(char* dir, char* list)
 {
-    strncpy(g_townScriptDir, dir, 0x100);
-    AppendDirSlash(g_townScriptDir);
-    if (!loadRDARScriptListFile(0, g_townScriptDir, list, 0))
+    strncpy(g_townScriptBaseDirectory, dir, 0x100);
+    AppendDirSlash(g_townScriptBaseDirectory);
+    if (!loadRDARScriptListFile(0, g_townScriptBaseDirectory, list, 0))
     {
         return 0;
     }
@@ -636,4 +575,49 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
         script->m_selectProb.m_dayProb[i].push_back(value);
     }
     return 1;
+}
+
+// ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。
+char g_questScriptBaseDirectory[0x100];
+
+// ORIG T 0x8a60f78（0x95）：0x14 字节标量区清零（+0x10 为字节）+ m_str20 构造
+// + m_field24 清零 + 11 个 dialog 指针清零（i=0..10，P151）。
+dungeonEventHanaseStruct::dungeonEventHanaseStruct()
+    : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0), m_field10(0),
+      m_field14(0), m_field18(0), m_field1c(0), m_str20(), m_field24(0)
+{
+    for (int i = 0; i <= 10; ++i)
+        m_dialogs[i] = 0;
+}
+
+// ORIG T 0x8a6100e：逐字段拷贝 + 深拷贝 11 个 dialog 串
+// （new std::string + operator=，非拷贝构造；ORIG asm _Znwj→SsC1→SsaSERKSs 实证）。
+dungeonEventHanaseStruct::dungeonEventHanaseStruct(
+    const dungeonEventHanaseStruct& o)
+    : m_field0(o.m_field0), m_field4(o.m_field4), m_field8(o.m_field8),
+      m_fieldc(o.m_fieldc), m_field10(o.m_field10), m_field14(o.m_field14),
+      m_field18(o.m_field18), m_field1c(o.m_field1c), m_str20(o.m_str20),
+      m_field24(o.m_field24)
+{
+    for (int i = 0; i <= 10; ++i)
+    {
+        m_dialogs[i] = 0;
+        if (o.m_dialogs[i] != 0)
+        {
+            m_dialogs[i] = new std::string;
+            *m_dialogs[i] = *o.m_dialogs[i];
+        }
+    }
+}
+
+// ORIG T 0x8a615fe（0x44）：m_field24!=0 且 0<=job<=10 且 m_dialogs[job]!=0 →
+// 返回 m_dialogs[job]；否则返回 &m_str20（+0x20）。
+std::string* dungeonEventHanaseStruct::getNewDialog(ENUM_CHARACTERJOB job)
+{
+    if (m_field24 != 0 && static_cast<int>(job) >= 0 &&
+        static_cast<int>(job) <= 10 && m_dialogs[job] != 0)
+    {
+        return m_dialogs[job];
+    }
+    return &m_str20;
 }

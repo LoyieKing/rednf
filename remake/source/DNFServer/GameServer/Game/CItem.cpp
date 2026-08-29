@@ -16,9 +16,17 @@ public:
 
 // ===================== 报告函数（CItem.md） =====================
 
+
 CItem::CItem() {}
 
 CItem::~CItem() {}
+
+// ORIG 0x08326739 T：GetItemType() ∈ {0xe, 0xf, 0x10}（包类商品）。
+bool _isPackageItem(const CItem* item)
+{
+    return item->GetItemType() == 0xf || item->GetItemType() == 0xe ||
+           item->GetItemType() == 0x10;
+}
 
 CItem* CItem::GetNeedMaterial() const
 {
@@ -44,7 +52,7 @@ bool CItem::check_item_routing() const
     return m_rarity > 0;
 }
 
-unsigned char CItem::check_job_type(char job) const
+bool CItem::check_job_type(char job) const
 {
     if (job > 10)
     {
@@ -326,8 +334,41 @@ int CItem::GetIncreaseStatusType() const  // ORIG W 0x086946b6
 bool CItem::GetIncreaseStatusIntData(int idx, int& out) const
     // ORIG W 0x08694658：idx<0 或 idx>=size → false；否则 out=at(idx) → true
 {
-    if (idx < 0 || static_cast<std::vector<int>::size_type>(idx) >= m_vec90.size())
+    if (idx < 0 || idx >= (int)m_vec90.size())
         return false;
     out = m_vec90.at(idx);
     return true;
+}
+
+// ORIG W 0x08545fda（0x0e）：mov 0xf4(%eax),%eax — 返回 +0xf4 所需等级
+int CItem::GetNeedLevel() const
+{
+    return m_intF4;
+}
+
+// ORIG W 0x08545fcc：返回升级技能类型字段 +0xf0。
+int CItem::GetUpSkillType() const
+{
+    return m_intF0;
+}
+
+// ORIG W 0x822c86e（0x0d）：mov 0x8(%ebp),%eax; add $0x9c,%eax; ret
+// ORIG W 0x822c86e（0x0d）：mov 0x8(%ebp),%eax; add $0x9c,%eax; ret
+DyeInfo* CItem::GetDyeInfo() const
+{
+    return const_cast<DyeInfo*>(&m_dyeInfo9c);
+}
+
+// ORIG W 0x822c97a（0x57）：m_set128.find(category) != m_set128.end()
+bool CItem::hasCategory(STItemScript::ENUM_ITEM_CATEGORY category) const
+{
+    std::set<STItemScript::ENUM_ITEM_CATEGORY>::const_iterator it =
+        m_set128.find(category);
+    return it != m_set128.end();
+}
+
+// ORIG W 0x85f7be0（0x0f）：mov 0x8(%ebp),%eax; movzbl 0x144(%eax),%eax; ret
+unsigned char CItem::IsBanRedeemItem() const
+{
+    return m_char144;
 }

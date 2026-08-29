@@ -110,7 +110,7 @@ int CExchangeServer::GetExchangeServerCount(CONNECT_TYPE type)
 void CExchangeServer::SetMaster()
 {
     cMyTrace trace(
-        "void exchange_server::CExchangeServer::SetMaster()", 0xf6, 0);
+        __PRETTY_FUNCTION__, 0xf6, 0);
     trace("SetMaster()");
     SetServerType(EXCHANGE_SERVER_MASTER);
     m_flag38 = true;
@@ -122,7 +122,7 @@ void CExchangeServer::SetMaster()
 void CExchangeServer::SetSlave()
 {
     cMyTrace trace(
-        "void exchange_server::CExchangeServer::SetSlave()", 0xfe, 0);
+        __PRETTY_FUNCTION__, 0xfe, 0);
     trace("SetSlave()");
     SetServerType(EXCHANGE_SERVER_SLAVE);
     m_flag38 = false;

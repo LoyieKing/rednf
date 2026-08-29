@@ -19,7 +19,7 @@ public:
     virtual void StartEvent();                      // 0x08267250
     virtual void StartEvent(Word_Param param);      // 0x082672ac
     virtual void EndEvent();                        // 0x0826730a
-    virtual bool IsEventing(CUser* user) const;     // 0x08267366（override vtable+0x34）
+    virtual bool IsEventing(CUser* user) const;     // 0x08267366（override vtable+0x3c）
     int GetExpFactor();                             // 0x0814aae4：return +0x0c
 
 private:

@@ -97,7 +97,7 @@ void CUser::decide_growth_power_reward_system()
 // 谓词 std::find_if 遍历 m_map0；谓词条件 = (m_minLv==m_maxLv && m_minLv==lv)
 // 或 (m_minLv<=lv && lv<m_maxLv)。命中把 Value 五 int 拷入 out 返回 true。
 // ============================================================================
-bool stSeriaBlessingScript::get_value(int lv, Value& out) const
+bool stSeriaBlessingScript::get_value(int lv, Value& out)
 {
     for (std::map<int, Value>::const_iterator it = m_map0.begin();
          it != m_map0.end(); ++it)
@@ -122,7 +122,7 @@ bool stSeriaBlessingScript::get_value(int lv, Value& out) const
 // ORIG W 0x822b136：遍历 m_vec0，首个满足 (unsigned char)m_field1 <= lv 且
 // lv < (unsigned char)m_field2 的下标；未命中返回 -1。
 // ============================================================================
-int STGrowthPowerData::get_idx_break_away_section(int lv) const
+int STGrowthPowerData::get_idx_break_away_section(int lv)
 {
     int idx = 0;
     for (std::vector<STBreakAwaySection>::const_iterator it = m_vec0.begin();

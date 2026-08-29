@@ -2,8 +2,11 @@
 // 依据 docs/class_func_reports/CDimensionActivationEvent/*.md + ORIG elf 反汇编。
 // 数据面：CDataManager+0x4b18 起 m_dimensionAct（DimensionActivationData）：
 //   +0x00 int 日计数、+0x04 map<int,DimensionCoinInfo> m_coinMap。
+// <iostream> 引入 _ZStL8__ioinit 动态初始化，键名 _GLOBAL__I__ZN25CDimensionActivationEventC2Ev
+// 与 ORIG 0x080eed65 一致（ORIG __static_initialization_and_destruction_0 仅构造 ios_base::Init）。
 #include "CDimensionActivationEvent.h"
 
+#include <iostream>
 #include <map>
 #include "CDataManager.h"
 #include "GameTypes.h"   // cMyTrace（定义于 GameUtils.cpp）
@@ -22,7 +25,7 @@ void CDimensionActivationEvent::StartEvent()
 {
     // ORIG 0x080eeaee：SetEventFlag(true) → trace → set_dungeon_play_count()。
     SetEventFlag(true);
-    cMyTrace tr("void CDimensionActivationEvent::StartEvent()", 0x12, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x12, 0);
     tr("CDimensionActivationEvent Event Start!");
     set_dungeon_play_count();
 }
@@ -31,7 +34,7 @@ void CDimensionActivationEvent::EndEvent()
 {
     // ORIG 0x080eeb64：SetEventFlag(false) → trace → reset_dungeon_play_count()。
     SetEventFlag(false);
-    cMyTrace tr("void CDimensionActivationEvent::EndEvent()", 0x1e, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x1e, 0);
     tr("CDimensionActivationEvent Event End!");
     reset_dungeon_play_count();
 }
@@ -48,7 +51,7 @@ void CDimensionActivationEvent::set_dungeon_play_count()
     // ORIG 0x080eebc0：读 m_dimensionAct.m_field0（日计数）→ trace；
     // >0 时对难度 0..5 逐个 set_dimensionInout(i, (char)dayCount)。
     int dayCount = G_CDataManager()->m_dimensionAct.m_field0;
-    cMyTrace tr("void CDimensionActivationEvent::set_dungeon_play_count()", 0x27, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x27, 0);
     tr("CDimensionActivationEvent day_play_count : %d", dayCount);
     if (dayCount > 0)
     {
@@ -61,17 +64,22 @@ void CDimensionActivationEvent::reset_dungeon_play_count()
 {
     // ORIG 0x080eec58：reset_dimensionInout() → trace。
     G_CDataManager()->reset_dimensionInout();
-    cMyTrace tr("void CDimensionActivationEvent::reset_dungeon_play_count()", 0x34, 0);
+    cMyTrace tr(__PRETTY_FUNCTION__, 0x34, 0);
     tr("CDimensionActivationEvent reset_dungeon_play_count");
 }
 
 bool CDimensionActivationEvent::checkFreeRevivalCondition(int dungeonDiff)
 {
-    // ORIG 0x080eeca4：以 dungeonDiff 在 m_dimensionAct.m_coinMap 中 find；
-    // 命中且 value 的 +0x04 字节 != 1 → 可免费复活（true），否则 false。
-    std::map<int, DimensionCoinInfo>& coinMap = G_CDataManager()->m_dimensionAct.m_coinMap;
-    std::map<int, DimensionCoinInfo>::const_iterator it = coinMap.find(dungeonDiff);
-    if (it != coinMap.end() && it->second.m_field4 != 1)
-        return true;
+    // ORIG 0x080eeca4：两次 G_CDataManager()（O0 无 CSE），以 dungeonDiff 在
+    // m_dimensionAct.m_coinMap 中 find/end（可变 iterator，P96）；命中且 value
+    // 的 +0x04 bool != true → 可免费复活（true），否则 false。分支布局照 ORIG
+    // 两个独立条件直跳统一失败出口（P133），bool 返回单出口。
+    std::map<int, DimensionCoinInfo>::iterator it = G_CDataManager()->m_dimensionAct.m_coinMap.find(dungeonDiff);
+    std::map<int, DimensionCoinInfo>::iterator e = G_CDataManager()->m_dimensionAct.m_coinMap.end();
+    if (it != e)
+    {
+        if (it->second.m_field4 != 1)
+            return true;
+    }
     return false;
 }

@@ -20,6 +20,7 @@
 #include "CItemList.h"
 #include "CItemGeneratorMgr.h"
 #include "STQuestScript.h"   // TrainingQuestScript 唯一声明点（0x1490 权威布局；CDataManager 成员 m_trainingQuest）
+#include "itemData.h"       // eventReward itemData 的唯一完整定义（0x0c）
 
 class CUser;
 class CMap;
@@ -214,6 +215,9 @@ struct sItemGenRef
 // 每条扫描 4 个 int（level/cost/时间/附加），sizeof 0x10。
 struct STAgitUpgradeInfo
 {
+    STAgitUpgradeInfo();
+    ~STAgitUpgradeInfo();
+    void clear();
     int m_field0;    // +0x00
     int m_field4;    // +0x04
     int m_field8;    // +0x08
@@ -225,6 +229,9 @@ struct STAgitUpgradeInfo
 // 每条以 ScanInt(&ok) 起头共 5 个 int，sizeof 0x14。
 struct STGuildStorageUpgradeInfo
 {
+    STGuildStorageUpgradeInfo();
+    ~STGuildStorageUpgradeInfo();
+    void clear();
     int m_field0;    // +0x00（ok 校验的首字段）
     int m_field4;    // +0x04
     int m_field8;    // +0x08
@@ -236,14 +243,21 @@ struct STGuildStorageUpgradeInfo
 // D1 0x83e629c / copy 0x8aaa67c；importTitleBookEtcScript
 // [custom condition message]（0x8aa88b7..0x8aa8945）每条填
 // {convertTabTypeStringToEnum 结果, ScanInt, ScanStr}，sizeof 0x14。
+
+
+// ORIG C1 0x8aa9928（string 成员默认构造 + 两 int 置 -1）/
+// D1 0x83e629c / copy 0x8aaa67c；importTitleBookEtcScript
+// [custom condition message]（0x8aa88b7..0x8aa8945）每条填
+// {convertTabTypeStringToEnum 结果, ScanInt, ScanStr}，sizeof 0x14。
 struct stCustomConditionMsg
 {
     int m_tabType;        // +0x00（ctor 置 -1）
     int m_value;          // +0x04（ctor 置 -1）
     std::string m_msg;    // +0x08
 };
-// stMercenaryRewardGroup（ORIG C1 0x89f7a9c / D1 0x83dd67c）：
-// +0x00 int +0x04 string +0x08 vector<pair<int,int>> +0x14 vector<pair<int,int>>，sizeof 0x20。
+// stMercenaryRewardGroup（ORIG C1 0x89f7a9c / D1 0x83dd67c）
+// +0x00 int +0x04 string +0x08 vector<pair<int,int>> +0x14 vector<pair<int,int>>
+// +0x20/+0x24 两个掉落范围 dword，sizeof 0x28。
 // importMercenarySystemEtcScript [reward group]/[mob index]/[item index] 实证。
 struct stMercenaryRewardGroup
 {
@@ -252,6 +266,8 @@ struct stMercenaryRewardGroup
     std::string m_name;                             // +0x04
     std::vector<std::pair<int, int> > m_mobList;    // +0x08（[mob index] 对）
     std::vector<std::pair<int, int> > m_itemList;   // +0x14（[item index] 对）
+    unsigned int m_field20;                        // +0x20（mob 掉落范围）
+    unsigned int m_field24;                        // +0x24（item 掉落范围）
 };
 
 // ORIG C1 0x89f7b28 / D1 0x83dd70e：+0x00 ushort +0x04 vector<stMercenaryRewardGroup>
@@ -286,6 +302,13 @@ struct stCharacLinkSystemData
 // valueType=loadValueType(ScanStr)、value=ScanFloat，sizeof 0xc。
 struct pieceQuestRewardStatus
 {
+    // ORIG C1 0x8a6c146（W）：m_appendageType=0x4d、m_valueType=2、m_value=0。
+    pieceQuestRewardStatus()
+    {
+        m_appendageType = 0x4d;
+        m_valueType = 2;
+        m_value = 0;
+    }
     int m_appendageType;   // +0x00
     int m_valueType;       // +0x04
     float m_value;         // +0x08
@@ -327,8 +350,8 @@ struct FAIR_PVP_SKILL_TREE_SKILL_PER_POINT
 {
     // ORIG ctor 0x08a5e7e6 / clear 0x08a5e874：map<int,int> @+0x00、
     // map<int,int> @+0x18、vector<pair<int,int>> @+0x30、int @+0x3c 置 0
-    // （sizeof 0x40）。job 不在本结构内——initFairPVPSkillPoint 0x835f484
-    // 从外层 map 键首字节读取（movzbl (%eax) 于 value_type*）。
+    // （sizeof 0x40）。
+    void clear();                        // ORIG W 0x08a5e874
     std::map<int, int> m_addSkills;                    // +0x00（加技能→等级表）
     std::map<int, int> m_removeSkills;                 // +0x18（减技能→等级表）
     std::vector<std::pair<int, int> > m_giveSkills;    // +0x30（getGiveSkill 0x8a5e178 返回值）
@@ -367,23 +390,26 @@ struct stIndependentDropInfo
 };
 struct stIndependentDropRateControl
 {
-    // ORIG independentItemRateControl 0x834972f 读 +0x00/+0x04/+0x08 三个 int
-    // 实证（元素步长 12；sizeof 4 的旧推断会导致 vector 遍历错位）。
+    // ORIG independentItemRateControl 0x834972f 读 +0x00/+0x04/+0x08 三个 int；
+    // vector 元素步长为 0x54，故 +0x0c 起还包含完整 stMonsterIndependentDrop_t。
     int m_itemId;    // +0x00（与 stMonsterIndependentDrop_t::m_itemIdx 匹配）
     int m_field04;   // +0x04（等级差阈值：仅当 m_field04 > diff 时生效）
     int m_field08;   // +0x08（衰减系数：10000 - m_field08*diff 为比率因子）
+    stMonsterIndependentDrop_t m_drop0C; // +0x0c，sizeof 0x48
 };
-// ORIG 布局（eventReward::ImportRewardScript 0x080ef3a2 实证，sizeof 0x10）：
-// [equipment]/[stackable] 行以栈副本整体 push_back（元素 16 字节）；
-// +0x0c 为 subMap find/pair 键。
-struct itemData
+struct SlotBound
 {
-    int m_field00;   // +0x00（option 区）
-    int m_field04;   // +0x04
-    int m_field08;   // +0x08
-    int m_field0c;   // +0x0c（find/pair 键；stackable=itemIdx）
-};                   // sizeof 0x10
-struct SlotBound                  { int m_field0; };                       // [推断]
+    SlotBound() : m_field0(0), m_field4(0), m_field8(false) {}
+    SlotBound(int start, int end, bool enabled)
+    {
+        m_field0 = start;
+        m_field4 = end;
+        m_field8 = enabled;
+    }
+    int m_field0;            // +0x00
+    int m_field4;            // +0x04
+    unsigned char m_field8;  // +0x08
+};                           // sizeof 0xc
 // ORIG C1 0x891b682：+0x00=-1、+0x04=0、+0x08/+0x09 字节=0（sizeof 0xc）。
 // importConditionEventScript [condition reward]/[condition quick party add reward]
 // （0x890e868）：f0/f4=ScanInt×2，b8=(v3!=0)、b9=(v4!=0)。
@@ -429,6 +455,8 @@ struct STUltimateRewardProb
 // 连续写入后整体 push_back/set_data（元素步长 8 实证）。
 struct StackableItemData
 {
+    StackableItemData();   // ORIG C1 0x0891bccc（调 clear）
+    void clear();          // ORIG 0x0891bce0：+0x00=-1、+0x04=0
     int m_field0;   // +0x00（[推断] 道具 idx）
     int m_field4;   // +0x04（[推断] 数量）
 };
@@ -436,14 +464,15 @@ struct StackableItemData
 // LoadRewardDataByGrowType/ImportLevelUpRewardItemScript 每条写两 int（步长 8）。
 // ORIG 布局（loadNPCCommonData 0x089fafc5 实证，sizeof 0xc）：
 // push_back 元素 = {getChangeStatusType 结果@+0, ScanInt 值@+4, bool(串!="+")@+8}。
-struct stOneBuff_t
-{
-    int m_changeStatusType;   // +0x00
-    int m_value;              // +0x04
-    unsigned char m_isNotPlus; // +0x08（脚本第 3 串 != "+"）
-};                            // sizeof 0xc
 struct LevelUpRewardItemData
 {
+    // ORIG W ctor 0x081b88bc：调 clear()（+0x00=-1、+0x04=0）。
+    LevelUpRewardItemData() { clear(); }
+    void clear()
+    {
+        m_field0 = -1;
+        m_field4 = 0;
+    }
     int m_field0;   // +0x00（clear 置 -1；[推断] 道具 idx）
     int m_field4;   // +0x04（clear 置 0；[推断] 数量）
 };
@@ -460,12 +489,28 @@ struct str_index_to_itemgroup
 // _Calculate_RegenCost 报告实证：pair.second 两 int——f0==0 时取 f1 计费。
 struct _str_cost
 {
+    // ORIG C1/C2 0x8a7ea82（W）：两 int 形参顺序赋入 +0/+4。
+    _str_cost(int a, int b)
+    {
+        m_field0 = a;
+        m_field4 = b;
+    }
+    // 内联默认 ctor：ORIG map operator[]（0x8a7ee34 实例化）经值初始化新建
+    // 元素，零初始化两 int（ORIG 无独立默认 ctor 符号，内联不发射）。
+    _str_cost() : m_field0(0), m_field4(0) {}
     int m_field0;   // +0x00
     int m_field4;   // +0x04
 };  // sizeof 8
 // RegenerationROI::RegenVer_get_option_value 报告实证 12 字节三字。
 struct _str_option_value_ratio
 {
+    // ORIG C1/C2 0x8a7ea98（W）：三形参顺序赋入 +0/+4/+8。
+    _str_option_value_ratio(float a, float b, int c)
+    {
+        m_scaleRange0 = a;
+        m_scaleBase4 = b;
+        m_weight8 = c;
+    }
     float m_scaleRange0;      // +0x00（以 (max-min) 加权）
     float m_scaleBase4;       // +0x04（以 min 加权）
     unsigned int m_weight8;   // +0x08（累积权重）
@@ -516,6 +561,8 @@ struct PvPSkillTreeKey
     unsigned char m_b;   // +0x01（firstGrow / grow type index）
     unsigned char m_c;   // +0x02（secondGrow / awakening type）
     PvPSkillTreeKey() { m_a = 0; m_b = 0; m_c = 0; }
+    PvPSkillTreeKey(unsigned char a, unsigned char b, unsigned char c)  // ORIG W 0x08a5e768（Ehhh）
+        : m_a(a), m_b(b), m_c(c) {}
     bool operator<(const PvPSkillTreeKey& o) const
     {
         if (m_a < o.m_a) return true;
@@ -532,14 +579,31 @@ struct PvPSkillTreeKey
 // 保持旧 m_a/m_b 先行语义映射到新字段）。
 struct rewardSubKey
 {
+    // ORIG C1/C2 0x080f1190（W）：两字节清零。
+    rewardSubKey()
+    {
+        m_type = 0;
+        m_action = 0;
+    }
+
     unsigned char m_type;     // +0x00（getSubKeyType）
     unsigned char m_action;   // +0x01（getSubKeyAction）
 
     void clear() { m_type = 0; m_action = 0; }   // ORIG W 0x080f11de 语义
+
+    // ORIG W 0x080f11a2 _ZNK12rewardSubKeyltERKS_：字典序（m_type 优先）。
+    bool operator<(const rewardSubKey& other) const;   // 定义 OnlyOrigBatch12.cpp
 };
 
 struct rewardKey
 {
+    // ORIG C1/C2 0x080f11f0（W）：m_job/m_a/m_b 清零后构造 m_sub
+    // （初始化列表按声明序：标量先行、子对象后构，与 ORIG 指令序一致）。
+    rewardKey()
+        : m_job(0), m_a(0), m_b(0), m_sub()
+    {
+    }
+
     unsigned char m_job;     // +0x00（[job type]：getCharacterJobToEnumValue）
     unsigned char m_a;       // +0x01（[job type] ScanInt#1）
     unsigned char m_b;       // +0x02（[job type] ScanInt#2）
@@ -563,11 +627,17 @@ struct rewardKey
 };
 struct SlotBoundKey
 {
-    int m_a;   // [推断]
-    int m_b;   // [推断]
+    SlotBoundKey() : m_a(0), m_b((Inven_Item::ITEM_TYPE)0) {}
+    SlotBoundKey(unsigned short a, Inven_Item::ITEM_TYPE b) : m_a(a), m_b(b) {}
+    unsigned short m_a;              // +0x00
+    Inven_Item::ITEM_TYPE m_b;       // +0x04
     bool operator<(const SlotBoundKey& o) const
     {
-        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+        if (m_a < o.m_a)
+            return true;
+        if (m_a == o.m_a && m_b < o.m_b)
+            return true;
+        return false;
     }
 };
 
@@ -578,6 +648,13 @@ struct LevelUpRewardItemTableKey
     unsigned short m_lv;     // +0x00（clear 默认 200）
     unsigned char m_job;     // +0x02（clear 默认 0xb）
     unsigned char m_grow;    // +0x03
+    LevelUpRewardItemTableKey() : m_lv(0xc8), m_job(0xb), m_grow(0) {}
+    void clear()
+    {
+        m_lv = 0xc8;
+        m_job = 0xb;
+        m_grow = 0;
+    }
     // ORIG W 0x081b8896 C2Eiii：(+0)=level 截断 ushort、(+2)=job 字节、(+3)=grow 字节。
     LevelUpRewardItemTableKey(int level, int job, int grow);   // 定义 CUserDepsB.cpp
     bool operator<(const LevelUpRewardItemTableKey& o) const
@@ -600,7 +677,8 @@ struct stLimitItemUsageInfo
         int m_b;                // +0x08
     };
     std::vector<LimitInfo> m_list;        // +0x00
-    void Add(unsigned char kind, int a, int b);   // ORIG W 0x891b4a8
+    // ORIG W 0x891b4a8 _ZN20stLimitItemUsageInfo3AddEcii（char 形参）。
+    void Add(char kind, int a, int b);    // 定义 OnlyOrigBatch12.cpp
 };
 
 struct stResetItemInfo
@@ -632,6 +710,13 @@ struct stRefillItemInfo
 // +0x38 favorLevelRewardNpcList +0x44 favorDurationBuffList，sizeof 0x50。
 struct stNPCCommonData_t
 {
+    struct stOneBuff_t
+    {
+        int m_changeStatusType;    // +0x00
+        int m_value;               // +0x04
+        unsigned char m_isNotPlus; // +0x08
+        ~stOneBuff_t();            // ORIG W 0x08a04b54
+    };                             // sizeof 0xc
     unsigned short m_maxFavorExp;                    // +0x00 [npc favor exp] max
     unsigned short m_favorExp[10];                   // +0x02..+0x14 [npc favor exp]
     std::vector<int> m_favorableNpcList;             // +0x18 [favorable npc list]
@@ -642,6 +727,7 @@ struct stNPCCommonData_t
     char m_pad36[2];                                 // +0x36（未知字节保留 m_pad）
     std::vector<int> m_favorLevelRewardNpcList;      // +0x38 [favor level reward npc]
     std::vector<std::pair<int, std::vector<stOneBuff_t> > > m_favorDurationBuffList; // +0x44
+    int getIllustIndex(int npcIdx);  // ORIG T 0x089faeee
     void clear();   // ORIG W 0x089fae9e（定义 ScriptLeafA2.cpp）
 };                                                   // （loadNPCCommonData 实证）
 
@@ -673,12 +759,15 @@ struct DimensionActivationRewardData
     std::map<std::pair<int, int>,
              std::vector<std::vector<EventRewardItemInfo> > > m_map24;     // +0x24
 
-    // ---- 查询（RandomRentalA2 批次/GlobalData.cpp 实现）----
-    EventRewardSection* getSectionData(int idx);                // T 0x08915f16
     std::vector<std::vector<EventRewardItemInfo> >*
-        getRewardSelectItemList(int packageKey);                // T 0x08916086
+        getRewardGiveItemList(int job, int growType);           // T 0x08916086（GlobalData.cpp）
+    // T 0x08915f9a：getRewardGiveItemList(job, growType) 非空且
+    // 0<=selectionIdx<size → 返回内层 vector 指针，否则 0。
+    std::vector<EventRewardItemInfo>*
+        getRewardGiveItems(int selectionIdx, int job, int growType);   // T 0x08915f9a
+    EventRewardSection* getSectionData(int idx);                // T 0x08915f16（GlobalData.cpp）
     std::vector<std::vector<EventRewardItemInfo> >*
-        getRewardGiveItemList(int job, int growType);           // T 0x08916004
+        getRewardSelectItemList(int packageKey);                // T 0x08916086（GlobalData.cpp）
 };
 
 // ===================== ST* 脚本占位类型（后续批次实现） =====================
@@ -753,10 +842,12 @@ public:
 struct DimensionCoinInfo
 {
     // ORIG ctor 0x0891bcb6 W：+0x00 int 清零、+0x04 字节清零（对齐后 sizeof=0x8）。
+    DimensionCoinInfo() { m_field0 = 0; m_field4 = false; }
     // CDimensionActivationEvent::checkFreeRevivalCondition（ORIG 0x080eeca4）读取
     // map 命中项 value 的 +0x04 字节：!=1 表示该难度今日仍可免费复活。
+    // 类型为 bool（ORIG 0x080eed10 movzbl 0x8(%eax),%eax; xor $1 取反测试，同 CDungeon.h m_4）。
     int m_field0;               // +0x00（ctor 清零）
-    unsigned char m_field4;     // +0x04（ctor 清零；==1 表示已使用）
+    bool m_field4;              // +0x04（ctor 清零；true==1 表示已使用）
 };
 
 class DimensionActivationData
@@ -854,6 +945,7 @@ public:
     // rewardInfoList —— ORIG C1 0x84e91fa：vector<rewardInfo> @+0x00。
     struct rewardInfoList
     {
+        rewardInfoList();                 // ORIG W 0x84e91fa
         std::vector<rewardInfo> m_list;   // +0x00
     };
 
@@ -900,8 +992,16 @@ public:
 
 struct seriaRoomDecoRewardInfo
 {
+    // ORIG C1/C2 0x08962634（W）：三个 int 清零（sizeof 0xc）。
+    seriaRoomDecoRewardInfo()
+    {
+        m_itemIdx = 0;
+        m_reward = 0;
+        m_field8 = 0;
+    }
     int m_itemIdx;   // +0x00
     int m_reward;    // +0x04
+    int m_field8;    // +0x08（ORIG C1 清零第三字；vector stride 0xc 实证）
 };
 
 // ---- ani 元素（ORIG C1 0x089625e8：string ctor 后 clear；clear 0x08962606：
@@ -974,6 +1074,9 @@ struct stNPCEventItemInfo
 {
     int m_itemId;   // +0x00
     int m_count;    // +0x04
+
+    // ORIG W 0x0891b52e _ZN18stNPCEventItemInfoaSES_（按值参数）。
+    stNPCEventItemInfo& operator=(stNPCEventItemInfo other);  // 定义 OnlyOrigBatch12.cpp
 };
 
 // ORIG AddFavorItemInfo 0x890cf44：items=vector@+0x00、rewardA=int@+0x0c、rewardB=int@+0x10（步长 0x14）。
@@ -992,6 +1095,23 @@ struct stNPCRelationEventInfo
     stNPCRelationEventInfo();
 };
 
+// ORIG sret 返回类型（GetItemKind 0x0890d1c0 / GetRewardItem 0x0890d326）。
+struct stTempRewardInfo
+{
+    // ORIG C1/C2 0x0891b548（W）：m_kind=3、m_count=1。
+    stTempRewardInfo()
+    {
+        m_kind = 3;
+        m_count = 1;
+    }
+    int m_kind;    // +0x00（0..2 亲密度类别）
+    int m_count;   // +0x04（ROUND(count/item.m_count)）
+};
+struct stNPCRewardItemInfo
+{
+    int m_rewardA;  // +0x00（node->m_favor[kind].m_rewardA）
+    int m_rewardB;  // +0x04
+};
 class CNPCRelationEventManager
 {
 public:
@@ -1010,6 +1130,11 @@ public:
                            unsigned int a, unsigned int b);                                  // 0x890cfda
     void AddDislikeItemInfo(unsigned short idx, unsigned int itemId);                        // 0x890d07a
     ENUM_NPC_RELATION_EVENT_FAVOR_KIND GetFavorIndex(const char* name);                      // 0x890d3d0
+    bool IsDislikeItem(unsigned short idx, unsigned int itemId);        // T 0x0890d100
+    stTempRewardInfo GetItemKind(unsigned short idx, unsigned int itemId,
+                                 unsigned int count);                   // T 0x0890d1c0（sret）
+    stNPCRewardItemInfo GetRewardItem(
+        unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind);   // T 0x0890d326（sret）
 };
 
 class stLimitItemUsageInfoEx
@@ -1109,7 +1234,8 @@ public:
 // ORIG CharacterKind（C1Ehh 0x8693c3e：this[0]=job, this[1]=growType；sizeof 2）
 struct CharacterKind
 {
-    CharacterKind() {}
+    // ORIG W ctor 0x08568652（C2 同址）：两字节清零。
+    CharacterKind() { m_job = 0; m_grow = 0; }
     // ORIG 调用点（FairPvPStatScript::FindCharacStat）以 movzbl 扩展 → unsigned char。
     CharacterKind(unsigned char job, unsigned char grow) { m_job = job; m_grow = grow; }
     // ORIG 三段式比较（cmp/jae 形态，_ZNK13CharacterKindltERKS_ 实证）。
@@ -1220,10 +1346,19 @@ public:
     };
 
     // ORIG W 0x822af22：map 中存在 minLv<=lv<maxLv（或 min==max 且 lv==min）的项。
-    bool is_possible_lv(int lv) const;
+    bool is_possible_lv(int lv);
     // ORIG W 0x8693ad6：FindOneByLv(lv) 谓词 std::find_if 遍历 m_map0；
     // 命中把 Value 五 int 拷入 out 并返回 true，否则 false。（定义 W7_LinkTailGrowth.cpp）
-    bool get_value(int lv, Value& out) const;
+    bool get_value(int lv, Value& out);
+
+    // ORIG W 0x822aebe C1Ei / 0x822aecc operator()（find_if 谓词；定义
+    // ValueCtors.cpp）：条件 (min==max && min==lv) || (min<=lv && lv<max)。
+    struct FindOneByLv
+    {
+        FindOneByLv(int lv);   // ORIG W 0x822aebe：+0x00 = lv
+        bool operator()(const std::pair<const int, Value>& p) const;  // ORIG W 0x822aecc
+        int m_lv;   // +0x00
+    };
 
     std::map<int, Value> m_map0;   // +0x00（ORIG map<int,Value>，sizeof 0x18 不变；
                                    // ImportSeriaBlessingScript 自由函数直接回填）
@@ -1244,6 +1379,18 @@ public:
     // 收集进 out；返回 !out.empty()。
     bool get_data_when_growup(const LevelUpRewardItemTableKey& key,
                               std::vector<LevelUpRewardItemData>& out);  // 定义 CUserDepsB.cpp
+
+    // ORIG W 0x081b88e8 C1 / 0x081b88fe operator()（for_each functor；定义
+    // ValueCtors.cpp）：同 job+grow 且 pair key lv<=this key lv 时 push_back。
+    struct GetGrowUpRewardItemFunctor
+    {
+        GetGrowUpRewardItemFunctor(const LevelUpRewardItemTableKey& key,
+                                   std::vector<LevelUpRewardItemData>& out);  // W 0x81b88e8
+        void operator()(const std::pair<const LevelUpRewardItemTableKey,
+                                        LevelUpRewardItemData>& p) const;     // W 0x81b88fe
+        const LevelUpRewardItemTableKey* m_key;  // +0x00
+        std::vector<LevelUpRewardItemData>* m_out;  // +0x04
+    };
 
     std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData> m_map0;  // +0x00
 };  // sizeof 0x18（ORIG C1 0x8371194/D1 0x8371530 仅构造/析构该 map）
@@ -1273,28 +1420,28 @@ public:
     int m_capsuleLimitLv;  // +0x10（[capsule limit lv]）
 };
 
-struct stDungeonRankSystem_t
-{
-    stDungeonRankSystem_t();
-    ~stDungeonRankSystem_t();
-    void clear();
-
-    // ORIG C1 0x8370dcc / clear 0x8370e34：+0x00 map<stClearTimeAverageMapKey,
-    // stClearTimeAverage> +0x18 vector<stBonusPointValues>
-    // +0x24 ushort m_rankLevel[9]（getRankIndex 读 0..7；importRankSystemScript
-    // [rank grade] 0x0890ed7f 循环 i<9 连写 9 项，memset 0x12 字节实证），sizeof 0x38
-    std::map<stClearTimeAverageMapKey, stClearTimeAverage> m_map0;  // +0x00
-    std::vector<stBonusPointValues> m_vec18;                        // +0x18
-    unsigned short m_rankLevel[9];                                  // +0x24..+0x35
-    char m_pad36[2];                                                // +0x36
-};
-
 class stRankSystemInfo
 {
 public:
     stRankSystemInfo();
     ~stRankSystemInfo();
     void clear();
+
+    // ORIG C1 0x8370dcc / clear 0x8370e34：+0x00 map<stClearTimeAverageMapKey,
+    // stClearTimeAverage> +0x18 vector<stBonusPointValues>
+    // +0x24 ushort m_rankLevel[9]（getRankIndex 读 0..7；importRankSystemScript
+    // [rank grade] 0x0890ed7f 循环 i<9 连写 9 项，memset 0x12 字节实证），sizeof 0x38
+    // ORIG mangled _ZN16stRankSystemInfo21stDungeonRankSystem_tC1Ev（嵌套于本类）。
+    struct stDungeonRankSystem_t
+    {
+        stDungeonRankSystem_t();
+        ~stDungeonRankSystem_t();
+        void clear();
+        std::map<stClearTimeAverageMapKey, stClearTimeAverage> m_map0;  // +0x00
+        std::vector<stBonusPointValues> m_vec18;                        // +0x18
+        unsigned short m_rankLevel[9];                                  // +0x24..+0x35
+        char m_pad36[2];                                                // +0x36
+    };
 
     // ORIG C1 0x0891b6f2 / clear 0x0891b706（memset(this,0,0x1c)）/
     // D1 0x0893fbc6（空体）。7 个 int（0x1c）。
@@ -1500,6 +1647,7 @@ struct _StarRestFeeByGold
 // FieldData::m_value，见 AdvanceAltarField.h 注释）。
 struct BuyUpgradeData
 {
+    BuyUpgradeData();             // ORIG C1 0x088a3570
     int m_nItemId;                    // +0x00
     int m_field4;                     // +0x04（[unlock stage index]）
     int m_field8;                     // +0x08（[is settable slot]，仅 skill 段）
@@ -1636,6 +1784,16 @@ public:
 };
 }
 
+// stQuestShoptInitCost：ORIG 全局类型（mangled _ZN20stQuestShoptInitCostC1Ev
+// 无 stQuestShop 前缀），C1 0x837109a（三 int 逆序清零），sizeof 0xc。
+struct stQuestShoptInitCost
+{
+    stQuestShoptInitCost();
+    int m_cost0;   // +0x00
+    int m_cost1;   // +0x04
+    int m_cost2;   // +0x08
+};
+
 class stQuestShop
 {
 public:
@@ -1668,15 +1826,6 @@ public:
         int m_field1c;                                 // +0x1c（clear=2）
         int m_field20;                                 // +0x20（clear=0）
         std::vector<stStatusLevelInfo> m_levelInfos;   // +0x24（[level info] push_back）
-    };
-
-    // stQuestShoptInitCost：ORIG C1 0x837109a（三 int 逆序清零），sizeof 0xc。
-    struct stQuestShoptInitCost
-    {
-        stQuestShoptInitCost();
-        int m_cost0;   // +0x00
-        int m_cost1;   // +0x04
-        int m_cost2;   // +0x08
     };
 
     // ORIG C1 0x83710d4：map 构造+clear；+0x18=-1；initCost@0x1c；memset(+0x28,0,0x4d)；sizeof 0x78。
@@ -1735,10 +1884,14 @@ class STGrowthPowerData
 public:
     STGrowthPowerData();
 
-    // ORIG W 0x822b07e：sret 返回首个 m_field1<=level 的段（未命中返回清零段）。
-    STBreakAwaySection get_break_away_section_data(int level) const;
+    // ORIG W 0x822b07e（mangled 无 K → 非 const）：sret 返回最后一个
+    // m_field1<=level 的段（未命中返回清零段）。
+    STBreakAwaySection get_break_away_section_data(int level);
+    // ORIG W 0x822afd6（非 const）：返回最后一个 m_field1<=lv 段的 m_field1，
+    // 首个段 m_field1>lv 即返回 -1。
+    int get_break_away_section_low_level(int lv);
     // ORIG W 0x822b136：首个满足 m_field1<=lv<m_field2 的 m_vec0 下标，未命中 -1。
-    int get_idx_break_away_section(int lv) const;
+    int get_idx_break_away_section(int lv);   // ORIG _ZN20STGrowthPowerData26get_idx_break_away_sectionEi（非 const）
     ~STGrowthPowerData();
 
     // ORIG C1 0x83711fe / D1 0x837d290：+0x00 vector<STBreakAwaySection>
@@ -1754,6 +1907,8 @@ namespace AvatarVariation
 
 struct colorRGB
 {
+    colorRGB();
+    bool operator==(colorRGB const& rhs);
     // ORIG C1 0x088d43f0：三字节各置 0xff；importAvatarColorVariation 以
     // mov %al 写 +0/+1/+2（字节宽度实证），sizeof 3。
     unsigned char m_r;   // +0x00
@@ -1904,6 +2059,9 @@ public:
     // ORIG T 0x08a6bd86 / 0x08a6bda6：vector<int>::at 取值（越界抛出）。
     int getRewardExp(int idx);                             // m_vec24
     int getRewardGold(int idx);                            // m_vec30
+    // ORIG T 0x08a6bdc6 / 0x08a6be66：奖励等级/状态查询（定义 CDataManagerScripts.cpp）。
+    int getRewardLevel(int level);
+    std::vector<pieceQuestRewardStatus> getRewardStatus(int level);
 };
 
 class TrainingQuestScript;
@@ -1920,6 +2078,9 @@ public:
     int getGuildLevelUpParam(int level);                     // T 0x08979648 _ZN20GuildParameterScript20getGuildLevelUpParamEi
     int getLevelupPrice(int level, int memberCnt);           // T 0x089797a4 _ZN20GuildParameterScript15getLevelupPriceEii
     int getGuildExpBook(int key);                            // T 0x08979672 _ZN20GuildParameterScript15getGuildExpBookEi（m_map10 find→second/0）
+    STGuildStorageUpgradeInfo* getGuildCargoUpradeInfo(int capacity); // ORIG T 0x08979726
+    int getGuildExpWeight(int level);                       // T 0x089795de
+    STAgitUpgradeInfo* getGuildAgitUpgradeInfo(int level);  // T 0x089796dc
     // ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542，sizeof 0x11c：
     // +0x00 int +0x04 int +0x08 char +0x0c int +0x10 map<int,int>
     // +0x28 int +0x2c vector<STAgitUpgradeInfo> +0x38
@@ -1956,6 +2117,7 @@ public:
     // W6_AssaultPlaceA：_VictoryBonus 胜利惩罚/连破奖励查询
     stVictoryPenalty GetPenalty(int victory);   // ORIG T 0x08a59c6e（sret，按值返回）
     int GetBreakBonus(int winCount);            // ORIG T 0x08a59d58
+    bool checkPowerWarServer(int a, int b);                 // T 0x08a59db4
 public:
     // 布局依据 ORIG ctor (0x08371a26) / clear (0x0837187a) / D1 (0x0837d634) /
     // importPowerParameterScript (0x08a592bc) / checkPowerWarServer (0x08a59db4,
@@ -1984,8 +2146,8 @@ public:
     int m_powerUpAssaultVictoryRatio;                       // +0x50（[power up assault victory ratio]，import +0x2e9）
     int m_powerWarPointMultiple;                            // +0x54（[powerwar point multiple number]，import +0x203）
     int m_straightVictories;                                // +0x58（[straight victories]，import +0x399）
-    int m_pad5c;                                            // +0x5c（ORIG clear 默认 5）
-    int m_pad60;                                            // +0x60（ORIG clear 默认 5）
+    int m_timeAssaultSuperPowerStateOnJoin;              // +0x5c
+    int m_timeAssaultSuperPowerStateAfter;               // +0x60
     int m_minEnterLevel;                                    // +0x64（CheckPowerWarEnterLimit 读 +0xa68c）
     int m_minEnterAge;                                      // +0x68（CheckPowerWarEnterLimit 读 +0xa690）
     int m_itemInitialCooltime;                              // +0x6c（[item initial cooltime]，import +0x3c7 写入）
@@ -2061,7 +2223,7 @@ public:
     SecretShopScript();
     ~SecretShopScript();
     char GetNpcByDungeonIdx(int& out, int a, int b);
-    void GetNpcByDungeonLev(int& out, int a, int b);
+    char GetNpcByDungeonLev(int& out, int a, int b);
     char GetItemByDungeonIdx(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
                              int dungeonIdx, int level, bool event);
     char GetItemByDungeonLev(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
@@ -2159,6 +2321,11 @@ public:
                          bool flag) const;
     bool getGiveSkill(int job, int firstGrow, int secondGrow,
                       std::vector<std::pair<int, int> >& out) const;
+    int getInitSkillTreeGrade(int grade) const; // ORIG W 0x084e913a
+    int getGivePvPSkillPoint(int job, int firstGrow, int secondGrow,
+                             int grade) const; // ORIG T 0x08a5dc74
+    int getPvPSkillPointNext(int job, int firstGrow, int secondGrow,
+                             int grade) const;              // T 0x08a5df0e
     // ORIG T 0x08a5db5a：按职业/成长/段位取技能树 (skillIdx,level) 列表
     bool getPvPSkillTree(int job, int firstGrow, int secondGrow, int grade,
                          bool flag,
@@ -2279,6 +2446,7 @@ struct channel_script_t
     // ORIG T 0x08a8d0ae：服务器加成版本（服务器频道*索引 0/1/2 分流；定义归
     // channel 域导入 TU）。clear_reward 经验通道加成在 server channel 1/2 时调用。
     float getBonusRateEventServer(unsigned char channel, unsigned int a) const;  // T 0x088dcee2
+    int GetPvPChannelNumber(unsigned char channel, unsigned int channelNo) const;  // T 0x088dcc28
 
 private:
     std::map<std::string, channel_dungeon_info_t> m_channelDungeonMap;  // +0x00
@@ -2286,6 +2454,7 @@ private:
 
     // ORIG 自由函数（定义 InitScriptProducers_1.cpp），需写两个 map 成员。
     friend int applyChannelScript(channel_script_t* script);
+    friend void traversalChannelScript(channel_script_t* script);   // 定义 InitScriptProducers_1.cpp（读两 map）
 };
 
 // ---- 售货机三型（ORIG importVendingMachineInfo 0x0890b74e / Core 0x0890b2a3
@@ -2383,6 +2552,7 @@ class stItemMakingSkill
 public:
     stItemMakingSkill();
     ~stItemMakingSkill();
+    void clear();                 // ORIG 0x837105a
 
     // ORIG D1 0x837dce2：+0x00 map<int,stUpgradeWithCompound>
     // +0x18 vector<pair<int,int>>，sizeof 0x30。
@@ -2455,7 +2625,7 @@ public:
     // ORIG _ZNK4ARAD6SCRIPT18AradJumping_Script16getCurRewardItemEiiRm
     // 0x088b424a（报告 ARAD__SCRIPT__AradJumping_Script/getCurRewardItem.md）：
     // 线性扫 m_rewardItems，(m_job==job && m_growValue==growValue) → out=m_money。
-    bool getCurRewardItem(int job, int growValue, unsigned long& out) const;
+    bool getCurRewardItem(int job, int growValue, unsigned long& out);
     ~AradJumping_Script();
 
     // ORIG _ZN4ARAD6SCRIPT18AradJumping_Script17getRDARScriptDataEv
@@ -2582,6 +2752,15 @@ public:
     // ORIG _ZN11eventReward17importRewardTableEPKcS1_（init 调用，0=成功；
     // 列表加载失败 0x77 / ImportRewardScript 失败 0x71）
     int importRewardTable(const char* dir, const char* file);
+    void StartEndPos(Inven_Item::ITEM_TYPE type, int& start, int& end, int cap) const;
+    void applyItemOption(Inven_Item& inven, const CItem* item, const itemData& data);
+    int unsealRandomOption(const CItem* item, Inven_Item& inven);
+    bool rewardWriteUserInven(Inven_Item* item, rewardKey key, int count);
+    bool rewardWriteUserEquip(Inven_Item* item, rewardKey key, int count);
+    int sendPostalReward(CUser& user, rewardKey key, int count,
+                         const char* title, const char* body);
+    bool createCharacInvenReward(Inven_Item* item, rewardKey key, int count);
+    bool createCharacEquipReward(Inven_Item* item, rewardKey key, int count);
     // ---- ImportRewardScript 依赖的解析 helper（ORIG T；定义待 eventReward 域批次，
     //      ScriptLeafA2.cpp 先行声明引用；asm 均传 this，为非静态成员）----
     char getSubKeyType(std::string& token);              // T 0x080ef0c0
@@ -2606,9 +2785,10 @@ class DeleteInvalidItemScript
 public:
     DeleteInvalidItemScript();
     ~DeleteInvalidItemScript();
+    void clearScript();           // ORIG T 0x08ac2066
     bool IsInvalidItem2Delete(int idx);
-    // ORIG：GetRewardItemInfo 0x8ac20f8 T / GetMailInfo 0x8ac2180 T
-    bool GetRewardItemInfo(int idx, int& rewardIdx, int& rewardCnt) const;
+    // ORIG：GetRewardItemInfo 0x8ac20f8 T（_ZN 非 const）/ GetMailInfo 0x8ac2180 T（_ZNK）
+    bool GetRewardItemInfo(int idx, int& rewardIdx, int& rewardCnt);
     void GetMailInfo(std::string& title, std::string& body) const;  // ORIG T 0x8ac2180
     bool loadScript();   // ORIG _ZN23DeleteInvalidItemScript10loadScriptEv（init 调用）
 private:
@@ -2696,7 +2876,7 @@ public:
     void GetTrainingQuestList(std::vector<int>& out, short level);
     Quest* find_quest(int idx);
     std::multimap<int, int>* getQuestNPCList(ENUM_QUEST_GRADE grade);
-    QuestList* getQuestList();
+    QuestList* getQuestList() { return this; }   // ORIG W 0x08374c7a（mov this,%eax; ret）
 
     __gnu_cxx::hash_map<int, Quest*> m_questMap;   // +0x00
     std::multimap<int, int> m_npcQuestList[8];     // +0x14
@@ -2735,7 +2915,7 @@ namespace WongWork
 //   +0x00=ProcUpgrade(MSG_ITEM_UPGRADE) 0x0854779c、+0x04=LoadUpgradeScript
 //   0x0854919a；ctor/dtor 写 &vtable+8 于 this+0 实证）。typeinfo 为 __vmi 类
 //   （双基：IItemUpgrade 非虚主基 @+0x00、CItemUpgradeTable 表区 @+0x04..+0x4e7）。
-class CItemUpgrade : public IItemUpgrade
+class CItemUpgrade : public IItemUpgrade, public CItemUpgradeTable
 {
 public:
     CItemUpgrade();   // ORIG T 0x085461c8（定义 CtorProducers_2C.cpp）
@@ -2833,6 +3013,8 @@ public:
     // （STEnchantSystemMapKey 完整类型：STStackableScript.h，4 字节）。
     STEnchantSystemMapData* find3rdChronicleEnchantData(
         STEnchantSystemMapKey key, int type);
+    CMTRand* m_rand;                         // +0x4e8（ORIG ctor new CMTRand）
+    int m_randMax;                           // +0x4ec（ORIG ctor 写 100000 热身上界）
 };
 }
 namespace WongWork { class CItemUpgrade_Separate; }  // ORIG _ZN8WongWork21CItemUpgrade_Separate…（权威声明 CItemUpgrade_Separate.h）
@@ -2882,7 +3064,11 @@ public:
     ~CNPCScriptList();
     // ORIG _ZN14CNPCScriptList10initScriptEPcS0_S0_（init 调用，0=成功）
     int initScript(char* dir, char* list, char* common);
-    int find(unsigned int idx) const;
+    // ORIG T 0x08581680：hash_map 命中返回 CNPCScript*，未命中返回 0。
+    CNPCScript* find(unsigned int idx) const;
+    int getMaxFavorValue() const;                       // W 0x8582364
+    int getFavorLevel(unsigned short favorExp) const;   // T 0x85816e4
+    unsigned int getFavorLevelValue(unsigned int level) const;  // T 0x858174e
     // ORIG _ZN14CNPCScriptList8_destroyEv 0x8581784 T（D1 0x83762a8 调用；
     // 定义见 CDataManagerScripts.cpp：delete 各 CNPCScript* 后 clear()）
     void _destroy();
@@ -2973,8 +3159,9 @@ class CAICharacterList
 public:
     ~CAICharacterList();
     void destroy();   // ORIG 0x0834a59a：遍历 m_charMap delete 全部 CAICharacter
-    static CAICharacter* get(void* list, unsigned int idx);
-    static CAICharacter* getByLevel(void* list, unsigned int level);  // ORIG T 0x0834aa60
+    // ORIG 均为成员函数（this=CAICharacterList，mangled 无指针参数）：
+    CAICharacter* get(unsigned int idx);            // ORIG T 0x0834a9d2
+    CAICharacter* getByLevel(unsigned int level);   // ORIG T 0x0834aa60
     CAICharacter* getByAP(unsigned int ap);          // ORIG T 0x0834aaf4
     int getMinAP();                                  // ORIG W 0x08150872：返回 m_maxAP(+0x4bc)
     std::map<int, int> const& getAPCount() const;    // ORIG W 0x08150880：返回 m_apStatMap(+0x520) 引用
@@ -3006,6 +3193,7 @@ public:
     int LoadScript(const char* path);
     // ORIG T 0x082f8540（int）/ T 0x082f85a8（无参）：耐久度比率包广播。
     void SendNotiSetDurability(int value);
+    void SendNotiSetDurability(CUser* user);
     void SendNotiSetDurability();
     // ORIG T 0x082f89bc _ZN28CAutoMarketConditionsControl21GetGoldDropAmountRateEii
     int GetGoldDropAmountRate(int level, int gold);
@@ -3093,7 +3281,7 @@ public:
     unsigned int getNewRankIndex(int idx) const;
     int getRankBonusIndex(int idx) const;
     int calRankPoint(int a, int b);
-    unsigned int getDungeonClearAverageTime(int a, int b, int difficulty);
+    unsigned int getDungeonClearAverageTime(int a, int b, ENUM_DUNGEON_DIFFICULTY difficulty);
     int getClearTimeBonusPoint(int a, int b);
     int getPvPChannelGrade(int channel);
 
@@ -3103,7 +3291,7 @@ public:
     bool reselectDailyTrainingQuest();
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>* get_kind_mission_list(int idx) const;
-    void get_New_DailyMission(std::vector<std::pair<unsigned int, unsigned int> >& out) const;
+    void get_New_DailyMission(std::vector<std::pair<unsigned int, unsigned int> >& out);
     int get_BaseMissionExp_byRank(unsigned short rank) const;
     std::bitset<32> get_daily_mission_kind() const;
 
@@ -3133,13 +3321,14 @@ public:
     void get_useJobFatigueMatchGiftMsg(int job, std::string& msg1, std::string& msg2);
     void get_createCharacterGift(int idx, createChracScript::rewardInfoList& out) const;
     void* get_hellparty_script_values();
+    std::vector<stVendingMachine_t>* getVendingMachineTable() const;
     void* get_hellparty_groupOrder_map(int idx);
 
     // ---- 情感/过滤 ----
     void ReCalcEmoticonConf(CChattingEmoticonConfig& config, const CUser& user);
     void rewriteUsableEmoticon(const CUser& user, char* text);
     std::vector<int> IsUsableEmoticons(const CUser& user,
-                                       const std::vector<int>& emoticons) const;
+                                       const std::vector<int>& emoticons);
     bool hasPreventString(const char* name);
     bool hasPreventStringName(const char* name);
     int hasPreventPrefixCharacName(const char* name, int unused);

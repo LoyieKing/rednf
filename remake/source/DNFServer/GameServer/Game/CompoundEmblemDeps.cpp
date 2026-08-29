@@ -117,7 +117,7 @@ int getAvatarEmblemTypeIdxForCompountEmblem(unsigned short type, int* counts, in
 // LineFunc —— 包分发断言日志（_Z8LineFunciPKcij）
 // ORIG 0x85908d7：
 //   return LogManager::logFormat(1,"PacketDispatcher.cpp",
-//       "int LineFunc(int, const char*, int, memberIdentificationNumber_t)", 0x221,
+//       __PRETTY_FUNCTION__, 0x221,
 //       "return __LINE__:func(%s) line(%d) errNo(%d) mid(%u)",
 //       func, line, errNo, mid);
 //   return line;
@@ -126,7 +126,7 @@ int LineFunc(int line, const char* func, int errNo, unsigned int mid)
 {
     LogManager::logFormat(
         1, "PacketDispatcher.cpp",
-        "int LineFunc(int, const char*, int, memberIdentificationNumber_t)", 0x221,
+        __PRETTY_FUNCTION__, 0x221,
         "return __LINE__:func(%s) line(%d) errNo(%d) mid(%u)",
         func, line, errNo, mid);
     return line;

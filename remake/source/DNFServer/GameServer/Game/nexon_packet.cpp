@@ -10,6 +10,23 @@
 namespace nexon_packet
 {
 
+// ---- ORIG 域常量 _ZN12nexon_packetL12domainStringE（r 段 0x08af2e20，32 字节）----
+// 布局：4 组 { int, const char* } 对，指向 cain/diregie/first/release 字符串。
+// gcc 4.4：namespace 内 static const 未使用也发射（内部链接，名含 L）。
+struct DomainStringEntry
+{
+    int m_index;
+    const char* m_string;
+};
+static const DomainStringEntry domainString[] = {
+    { 0x00, "cain" },
+    { 0x01, "diregie" },
+    { 0x02, "first" },
+    { 0x63, "release" },
+};
+
+// ---- CPacketHelper ---------------------------------------------------------
+
 // ---- CPacketHelper ---------------------------------------------------------
 
 // ORIG 0x086940d2 (sz 0x1f): m_offset=offset; m_size=size; m_buffer=buffer
@@ -110,7 +127,7 @@ stLoginPacket::stLoginPacket(stLogin& login)
 {
     stPacket();
 
-    CPacketHelper helper(m_body, 0x1000, 0);
+    CPacketHelper helper(m_body, MaxBodySize, 0);
 
     helper.padding(reinterpret_cast<unsigned char*>(&login.m_type), 1);
     helper.padding(reinterpret_cast<unsigned char*>(&login.m_accLen), 1);
@@ -144,7 +161,7 @@ void stLoginPacket::ReadPacket(const char* packet, stLogin& out)
 {
     (void)packet;  // ORIG 未使用该参数（this 即已解码缓冲）
 
-    CPacketHelper helper(m_body, 0x1000, 0);
+    CPacketHelper helper(m_body, MaxBodySize, 0);
 
     helper.scan(reinterpret_cast<unsigned char*>(&out.m_type), 1);
     helper.scan(reinterpret_cast<unsigned char*>(&out.m_accLen), 1);

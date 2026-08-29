@@ -4,7 +4,7 @@
 // objdump。本文件由 LinkMiscSecuTimerSolo 批次注册（cmake/game/CMakeLists.txt）。
 // 符号归属：
 //   Timer* 域（TimerDispatcher.h 声明；dispatch_sig 已由 TimerDispatcher.cpp 提供）
-//   STMonsterAIInfo / GetLinearDataForMonsterAbility（STMonsterScript.h）
+//   STAIInfoScript（STMonsterScript.h 内联）/ GetLinearDataForMonsterAbility
 //   CServerProxyMgr<CGuildServerProxy>::GetServerProxy（模板显式实例化）
 //   competition_reward_result ctor（PacketTypes.h）
 //   getScriptFileFullPath / findFileWithServerToken（RDAR 脚本域）
@@ -132,52 +132,53 @@ void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
 // 解析 "<module>"/"<sub>" 标签对：moduleId/subId 输出 + 前置 tag 消费。
 // type 覆写为 3（ORIG 直接改参数）；标签表 g_moduleNameTag[0x20]（开/闭对）。
 // ===========================================================================
-bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
+// ORIG T 0x08a97637（mangled _Z19processModuleTagSetRiS_PSsib：int&,int& 形参）。
+bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag)
 {
     type = 3;
     bool subMatched = false;
-    *moduleId = -1;
-    *subId = -1;
+    moduleId = -1;
+    subId = -1;
     int i = 0;
     for (; i <= 0x10; ++i)
     {
         if (*tag == g_moduleNameTag[2 * i] ||
             *tag == g_moduleNameTag[2 * i + 1])
         {
-            *moduleId = i;
+            moduleId = i;
             subMatched = (*tag == g_moduleNameTag[2 * i + 1]);
             if (i != type && type <= 0x10 &&
                 g_moduleNameTag[2 * type] == g_moduleNameTag[2 * i])
             {
-                *moduleId = type;
+                moduleId = type;
             }
             break;
         }
     }
 
-    if (*moduleId != -1)
+    if (moduleId != -1)
     {
-        if (*moduleId == type)
+        if (moduleId == type)
         {
             if (!subMatched)
-                *subId = type;
+                subId = type;
         }
-        else if (g_moduleNameTag[2 * (*moduleId)] == "[dungeon]")
+        else if (g_moduleNameTag[2 * moduleId] == "[dungeon]")
         {
             if (subMatched)
             {
-                *subId = 3;
+                subId = 3;
                 LogManager::logFormat(0, "../RDARScriptSkill.cpp",
-                                      "processModuleTagSet", 0xc0,
+                                      __FUNCTION__, 0xc0,
                                       "skillscript separating : \xbc\xba\xb0\xf8 : \xb1\xe2\xba\xbb\xb0\xaa \xb8\xf0\xb5\xe2\xc5\xc2\xb1\xd7\xc0\xcc\xb9\xc7\xb7\xce \xc1\xf8\xc7\xe0 tag %s",
                                       tag->c_str());
             }
         }
-        else if (g_moduleNameTag[2 * (*moduleId)] == "[pvp]")
+        else if (g_moduleNameTag[2 * moduleId] == "[pvp]")
         {
             if (type == 9 || type == 5)
-                *subId = 4;
+                subId = 4;
         }
         else
         {
@@ -200,7 +201,7 @@ bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
             if (!foundSub)
             {
                 LogManager::logFormat(0, "../RDARScriptSkill.cpp",
-                                      "processModuleTagSet", 0xf3,
+                                      __FUNCTION__, 0xf3,
                                       "ERROR : skillscript separating : \xbf\xa1\xb7\xaf : \xc0\xdf\xb8\xf8\xb5\xc8 \xb8\xf0\xb5\xe2\xb1\xb8\xba\xd0\xc5\xc2\xb1\xd7 \xbb\xe7\xbf\xeb %s",
                                       tag->c_str());
             }
@@ -210,12 +211,38 @@ bool processModuleTagSet(int* moduleId, int* subId, std::string* tag,
 
     if (subMatched)
         return 0;
-    if (flag && *moduleId != -1)
+    if (flag && moduleId != -1)
         ScanType(*tag, false);
     return 1;
 }
 
+// processModuleTagSet(std::string*, int&)  ORIG T 0x0896a87b（RDARScriptSkill.cpp）
+// 局部 static 标签表（函数局部 _ZZ19processModuleTagSetPSsRiE13moduleNameTag，
+// guard 惰性构造）：10 个开/闭标签对（[expert job none] 对不参与主循环）。
+// i=1..4 命中开标签（arr[2i]）写 out=i 返回 0；命中闭标签（arr[2i+1]）返回 0；
+// 否则返回 1。
 // ===========================================================================
+bool processModuleTagSet(std::string* tag, int& out)
+{
+    static const std::string moduleNameTag[10] = {
+        "[expert job none]", "[/expert job none]",
+        "[magic enchant]",   "[/magic enchant]",
+        "[alchemist]",       "[/alchemist]",
+        "[disjointer]",      "[/disjointer]",
+        "[doll controller]", "[/doll controller]"
+    };
+    for (int i = 1; i <= 4; ++i)
+    {
+        if (*tag == moduleNameTag[2 * i])
+        {
+            out = i;
+            return 0;
+        }
+        if (*tag == moduleNameTag[2 * i + 1])
+            return 0;
+    }
+    return 1;
+}
 // GetLinearDataForMonsterAbility  ORIG T 0x08891bae
 // diff>=span → high；diff<=0 → low；否则 low + (high-low)*diff/span。
 // ===========================================================================
@@ -229,114 +256,11 @@ int GetLinearDataForMonsterAbility(int low, int high, int diff, int span)
 }
 
 // ===========================================================================
-// STMonsterAIInfo（ORIG STAIInfoScript）ctor W 0x08366f48 / dtor W 0x083671a4 /
-// clear W 0x083673d4 / destroy W 0x0836753a。类 vtable 经本 TU 首个非内联
-// 虚函数（dtor）发出（_ZTV14... 与 ORIG 同长度 mangle）。
+// Timer 域注册/生命周期。RegistNextTimer 族（TimerNatType/TimerNatTypeUser/
+// TimerQueueSizeLog/TimerStatisticsDetailChannelInfo）已由 TimerDispatcher.cpp
+// 权威定义（本文件重复实现于 2026-08-29 删除，避免多重定义）。
+// 其余 Timer 生命周期 ctor/dtor 仍在本 TU。
 // ===========================================================================
-STMonsterAIInfo::STMonsterAIInfo()
-{
-    // ORIG 0x08366f48：vptr → string(+0xc) → 5×vector<string*>（+0x10）→
-    // 22×vector<int>（+0xa4）→ 5×vector<int>（+0x1b0..+0x1e0）→ clear()。
-    // 成员（vector/string）由默认构造完成；清零字段由 clear() 落实。
-    clear();
-}
-
-STMonsterAIInfo::~STMonsterAIInfo()
-{
-}
-
-void STMonsterAIInfo::clear()
-{
-    // ORIG 0x083673d4：默认值逐字段（见各 movl/movb）。
-    m_thinkTerm = 0x3e8;
-    m_destinationChangeTerm = 0x3e8;
-    for (int i = 0; i < 5; ++i)
-        m_keepRange[i].clear();
-    m_dir.clear();
-    for (int i = 0; i < 5; ++i)
-        m_patterns[i].clear();
-    for (int i = 0; i <= 21; ++i)
-    {
-        m_targetingBonus[i] = (i == 0) ? 0x32 : 0;
-        m_targetingBonusStr[i].clear();
-    }
-    m_keepDistance = 0x64;      // +0x1ac
-    m_intelligence = 0x64;      // +0x1ec
-    m_field1f0 = 0x64;          // +0x1f0
-    m_field1f4 = 0x1388;        // +0x1f4
-    m_vision = 0x5dc;           // +0x1f8
-    m_backVision = 0x5dc;       // +0x1fc
-    m_noChangeTarget = 1;       // +0x200
-}
-
-void STMonsterAIInfo::destroy()
-{
-    // ORIG 0x0836753a：释放 5×vector<string*> 中挂接的每个 string* 后 clear，
-    // 再清 22×vector<int> 与 5×vector<int> 与 string。
-    for (int i = 0; i < 5; ++i)
-    {
-        for (unsigned int j = 0; j < m_patterns[i].size(); ++j)
-        {
-            delete m_patterns[i][j];
-            m_patterns[i][j] = 0;
-        }
-        m_patterns[i].clear();
-    }
-    for (int i = 0; i <= 21; ++i)
-        m_targetingBonusStr[i].clear();
-    for (int i = 0; i < 5; ++i)
-        m_keepRange[i].clear();
-    m_dir.clear();
-}
-
-// ===========================================================================
-// Timer 域注册/生命周期（ORIG 地址见每函数）。dispatch_sig 在
-// TimerDispatcher.cpp（本 TU 不再发 vtable）。
-// ===========================================================================
-
-// TimerNatType::RegistNextTimer  ORIG T 0x08635c5a：86400s / msg 0x5a。
-void TimerNatType::RegistNextTimer()
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x5a, 0x15180, 0, 0);
-}
-
-// TimerNatTypeUser::RegistNextTimer  ORIG T 0x08635cd0：3600s / msg 0x5b。
-void TimerNatTypeUser::RegistNextTimer()
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x5b, 0xe10, 0, 0);
-}
-
-// TimerQueueSizeLog::RegistNextTimer  ORIG T 0x08636348：60s / msg 0x61。
-bool TimerQueueSizeLog::RegistNextTimer()
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x61, 0x3c, 0, 0);
-    return true;
-}
-
-// TimerStatisticsDetailChannelInfo::RegistNextTimer  ORIG T 0x08635782。
-// 每 30 分钟边界调度（msg 0x54）：delay 由当前 min/15 段与 sec 推算。
-void TimerStatisticsDetailChannelInfo::RegistNextTimer()
-{
-    time_t now = GlobalData::s_systemTime_.getCurSec();
-    struct tm tmv;
-    localtime_r(&now, &tmv);
-    int min = tmv.tm_min;
-    int sec = tmv.tm_sec;
-    int q = min / 15;
-    int delay = 1740 - 60 * (min - 30 * q) + 60 - sec;
-
-    int ch = G_CEnvironment()->get_channel_no();
-    cMyTrace trace(
-        "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()", 0x92c, 0);
-    trace("content min:%d sec:%d next sec:%d  (channel no:%d)\n", min, sec,
-          delay, ch);
-
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x54, delay, 0, 0);
-}
 
 // TimerBossDieTimeout ctor W 0x0863c7fa / dtor W 0x0863fe2e（仅 vptr）。
 TimerBossDieTimeout::TimerBossDieTimeout()
@@ -347,15 +271,6 @@ TimerBossDieTimeout::~TimerBossDieTimeout()
 {
 }
 
-// TimerConnectMonitorServer::registNextTimer  ORIG T 0x086381a0：
-// InsertTimer(2, p1, 0x7a, sec, p2)。返回 void。
-void TimerConnectMonitorServer::registNextTimer(long sec, int p1, int p2)
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, p1,
-                                (TIMER_MESSAGE)0x7a,
-                                static_cast<int>(sec), p2, 0);
-}
-
 // TimerStartVillageAttacked ctor W 0x0863cd92 / dtor W 0x0863ee98。
 TimerStartVillageAttacked::TimerStartVillageAttacked()
 {
@@ -363,13 +278,6 @@ TimerStartVillageAttacked::TimerStartVillageAttacked()
 
 TimerStartVillageAttacked::~TimerStartVillageAttacked()
 {
-}
-
-// Timer_HadesHeartBeat::registNextTimer  ORIG T 0x0863a7c2：60s / msg 0x96。
-void Timer_HadesHeartBeat::registNextTimer()
-{
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                (TIMER_MESSAGE)0x96, 0x3c, 0, 0);
 }
 
 // ===========================================================================
@@ -548,7 +456,7 @@ int CAutoMarketConditionsControl::LoadDatabase(
         SendNotiSetDurability();
 
     cMyTrace trace(
-        "int CAutoMarketConditionsControl::LoadDatabase(SIG_AUTO_MARKET_CONDITIONS_CONTROL*)",
+        __PRETTY_FUNCTION__,
         0xae, 0);
     trace("LoadDatabase() %qd %u %d %d %d %d %d",
           static_cast<long long>(static_cast<unsigned long long>(base)),

@@ -7,7 +7,7 @@
 // ChattingEmoticonBase / CChattingEmoticonList 权威声明见 CDataManager.h；
 // 本头补充 EmoticonScript 与三个派生表情类（各带独立 vtable 0x8b30680 族）。
 
-#include <set>
+#include <string>
 
 #include "CDataManager.h"
 
@@ -16,19 +16,33 @@
 //   +0x00 int m_index（FindIndexByFullScan 写回）
 //   +0x04 int m_type（1=event / 2=premium / 4=level，Factory 分派键）
 //   +0x08 int m_param（byLevel 用的等级阈值）
+// ORIG C1 W 0x080e602e：+0x0c/+0x10 两 std::string 默认构造（sizeof 0x14）；
+// ORIG D1 W 0x080e607a：析构 +0x10 再 +0x0c（逆序）。
 namespace EmoticonType
 {
 
+// ORIG 域常量（nm：_ZN12EmoticonTypeL20kInvalidChatEmoticonE，r 段 1 字节；
+// 无效表情索引 = 0；m_nCount==0 空行语义 / m_index 初始值）
+static const unsigned char kInvalidChatEmoticon = 0;
+// ORIG 域计数常量（r 段 4 字节，值实测 0x08cd16b0..）：cash=12 / event=6 / level=6
+static const int kEmoticonCashCnt = 12;
+static const int kEmoticonEventCnt = 6;
+static const int kEmoticonLevelCnt = 6;
+
 struct EmoticonScript
 {
-    int m_index;   // +0x00
-    int m_type;    // +0x04
-    int m_param;   // +0x08
-};
+    EmoticonScript() : m_field0c(), m_field10() {}   // ORIG C1 W 0x080e602e
+    ~EmoticonScript() {}                             // ORIG D1 W 0x080e607a
+
+    int m_index;        // +0x00
+    int m_type;         // +0x04
+    int m_param;        // +0x08
+    std::string m_field0c;   // +0x0c（ORIG C1/D1 实证；语义无直接写入证据）
+    std::string m_field10;   // +0x10
+};  // sizeof 0x14
 
 }  // namespace EmoticonType
 
-// ---- 表情派生类 ----
 // byEvent（type=1）：GetStartArrayIndex 返回 0，GetEndArrayIndex 返回 5；
 //   isUsable 遍历 m_set，命中 isAffectedPremium 返回 true。
 // byPremium（type=2）：GetStartArrayIndex 返回 6，GetEndArrayIndex 返回 0x11。
@@ -60,6 +74,7 @@ public:
     virtual int GetStartArrayIndex() const;           // ORIG 0x80e5e6c（0x12）
     virtual int GetEndArrayIndex() const;             // ORIG 0x80e5e76（0x17）
     virtual bool isCommonEmoticon(const CUser& user) const;  // ORIG 0x80e5e80
+    void AddPremiumIndex(int idx);                    // ORIG W 0x080e5fe0（空体）
 
 private:
     int m_level;   // +0x20（byLevel 等级阈值；+0x20 = base(0x18 尾部) 后首个字段）

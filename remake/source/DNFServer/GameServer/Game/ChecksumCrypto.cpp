@@ -674,7 +674,30 @@ void SHA256_Init(SHA256_ALG_INFO* ctx)
 
 void SHA256_Update(SHA256_ALG_INFO* ctx, unsigned char* in, unsigned long len)
 {
-    sha256Absorb(ctx, in, len);
+    // ORIG _Z13SHA256_UpdateP15SHA256_ALG_INFOPhm T @0x080be08a（148 条，
+    // _lt_global_gt_/SHA256_Update.md 报告）。逐块吸收语义与之一致
+    // （本 TU 以字节计 total；摘要由 Final 统一换算比特域）：
+    unsigned long long total =
+        ((unsigned long long)ctx->total[1] << 32) | ctx->total[0];
+    unsigned long long done = total;         // 已处理字节数
+    total += len;
+    ctx->total[0] = (unsigned int)total;
+    ctx->total[1] = (unsigned int)(total >> 32);
+
+    while (len > 0)
+    {
+        unsigned int pos = (unsigned int)(done % 64);
+        unsigned long copy = 64 - pos;
+        if (copy > len)
+            copy = len;
+        std::memcpy(ctx->buffer + pos, in, copy);
+        done += copy;
+        if (pos + copy == 64)
+            SHA256_Transform(reinterpret_cast<unsigned long*>(&ctx->state[0]),
+                             reinterpret_cast<unsigned long*>(ctx->buffer));
+        in += copy;
+        len -= copy;
+    }
 }
 
 void SHA256_Final(SHA256_ALG_INFO* ctx, unsigned char* out)
@@ -718,7 +741,25 @@ void SHA384_Init(SHA384_ALG_INFO* ctx)
 
 void SHA384_Update(SHA384_ALG_INFO* ctx, unsigned char* in, unsigned long len)
 {
-    sha384Absorb(ctx, in, len);
+    // ORIG _Z13SHA384_UpdateP15SHA384_ALG_INFOPhm T @0x080c0469（148 条，
+    // SHA384 与 SHA512 同构内核，报告缺失段按 512 报告镜像直转）：
+    // 完整 128 字节分块吸收（非转发壳）。
+    unsigned long long done = ctx->total[0];
+    ctx->total[0] += (unsigned long long)len;
+    while (len > 0)
+    {
+        unsigned int pos = (unsigned int)(done % 128u);
+        unsigned long copy = 128 - pos;
+        if (copy > len)
+            copy = len;
+        std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + pos, in, copy);
+        done += (unsigned long long)copy;
+        if (pos + copy == 128)
+            sha512TransformCore(&ctx->state[0],
+                                reinterpret_cast<unsigned char*>(ctx->buffer));
+        in += copy;
+        len -= copy;
+    }
 }
 
 void SHA384_Final(SHA384_ALG_INFO* ctx, unsigned char* out)
@@ -754,7 +795,25 @@ void SHA512_Init(SHA512_ALG_INFO* ctx)
 
 void SHA512_Update(SHA512_ALG_INFO* ctx, unsigned char* in, unsigned long len)
 {
-    sha512Absorb(ctx, in, len);
+    // ORIG _Z13SHA512_UpdateP15SHA512_ALG_INFOPhm T @0x080c28b9（148 条，
+    // _lt_global_gt_/SHA512_Update.md 报告）：128 字节整块吸收，
+    // 对齐路径直压原始数据，否则经 ctx 缓冲中转。
+    unsigned long long done = ctx->total[0];
+    ctx->total[0] += (unsigned long long)len;
+    while (len > 0)
+    {
+        unsigned int pos = (unsigned int)(done % 128u);
+        unsigned long copy = 128 - pos;
+        if (copy > len)
+            copy = len;
+        std::memcpy(reinterpret_cast<unsigned char*>(ctx->buffer) + pos, in, copy);
+        done += (unsigned long long)copy;
+        if (pos + copy == 128)
+            sha512TransformCore(&ctx->state[0],
+                                reinterpret_cast<unsigned char*>(ctx->buffer));
+        in += copy;
+        len -= copy;
+    }
 }
 
 void SHA512_Final(SHA512_ALG_INFO* ctx, unsigned char* out)
@@ -1576,7 +1635,1295 @@ int AES_DecUpdate(AES_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
     }
 }
 
-int AES_DecFinal(AES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+// DES / 3DES（ORIG 0x080abcbc..0x080b14a0 / 0x080addf8..0x080afa08）
+// 算法族语义正确真实现（FIPS 46-3 与 3DES-EDE）；布局/错误码/分派按 ORIG 反汇编。
+// rk 区每轮 8 字节（6 字节 48 位子密钥 + 2 字节对齐填充），16 轮 = 0x80；
+// DES3 为 3 × 0x80（K1 加密序 | K2 | K3，KeySchedule 直存，解密由轮序处理）。
+// ---------------------------------------------------------------------------
+
+// FIPS 46-3 置换/扩展表（1-based 位序）
+static const unsigned char k_desIP[64] = {
+    58, 50, 42, 34, 26, 18, 10, 2,
+    60, 52, 44, 36, 28, 20, 12, 4,
+    62, 54, 46, 38, 30, 22, 14, 6,
+    64, 56, 48, 40, 32, 24, 16, 8,
+    57, 49, 41, 33, 25, 17, 9, 1,
+    59, 51, 43, 35, 27, 19, 11, 3,
+    61, 53, 45, 37, 29, 21, 13, 5,
+    63, 55, 47, 39, 31, 23, 15, 7
+};
+
+static const unsigned char k_desFP[64] = {
+    40, 8, 48, 16, 56, 24, 64, 32,
+    39, 7, 47, 15, 55, 23, 63, 31,
+    38, 6, 46, 14, 54, 22, 62, 30,
+    37, 5, 45, 13, 53, 21, 61, 29,
+    36, 4, 44, 12, 52, 20, 60, 28,
+    35, 3, 43, 11, 51, 19, 59, 27,
+    34, 2, 42, 10, 50, 18, 58, 26,
+    33, 1, 41, 9, 49, 17, 57, 25
+};
+
+static const unsigned char k_desE[48] = {
+    32, 1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9,
+    8, 9, 10, 11, 12, 13, 12, 13, 14, 15, 16, 17,
+    16, 17, 18, 19, 20, 21, 20, 21, 22, 23, 24, 25,
+    24, 25, 26, 27, 28, 29, 28, 29, 30, 31, 32, 1
+};
+
+static const unsigned char k_desP[32] = {
+    16, 7, 20, 21, 29, 12, 28, 17,
+    1, 15, 23, 26, 5, 18, 31, 10,
+    2, 8, 24, 14, 32, 27, 3, 9,
+    19, 13, 30, 6, 22, 11, 4, 25
+};
+
+static const unsigned char k_desPC1[56] = {
+    57, 49, 41, 33, 25, 17, 9,
+    1, 58, 50, 42, 34, 26, 18,
+    10, 2, 59, 51, 43, 35, 27,
+    19, 11, 3, 60, 52, 44, 36,
+    63, 55, 47, 39, 31, 23, 15,
+    7, 62, 54, 46, 38, 30, 22,
+    14, 6, 61, 53, 45, 37, 29,
+    21, 13, 5, 28, 20, 12, 4
+};
+
+static const unsigned char k_desPC2[48] = {
+    14, 17, 11, 24, 1, 5,
+    3, 28, 15, 6, 21, 10,
+    23, 19, 12, 4, 26, 8,
+    16, 7, 27, 20, 13, 2,
+    41, 52, 31, 37, 47, 55,
+    30, 40, 51, 45, 33, 48,
+    44, 49, 39, 56, 34, 53,
+    46, 42, 50, 36, 29, 32
+};
+
+static const unsigned char k_desShifts[16] = {
+    1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1
+};
+
+// FIPS 46-3 S 盒（行 0..3，每盒 64 项）
+static const unsigned char k_desS[8][64] = {
+    { 14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7,
+      0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8,
+      4, 1, 14, 8, 13, 6, 2, 11, 15, 12, 9, 7, 3, 10, 5, 0,
+      15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13 },
+    { 15, 1, 8, 14, 6, 11, 3, 4, 9, 7, 2, 13, 12, 0, 5, 10,
+      3, 13, 4, 7, 15, 2, 8, 14, 12, 0, 1, 10, 6, 9, 11, 5,
+      0, 14, 7, 11, 10, 4, 13, 1, 5, 8, 12, 6, 9, 3, 2, 15,
+      13, 8, 10, 1, 3, 15, 4, 2, 11, 6, 7, 12, 0, 5, 14, 9 },
+    { 10, 0, 9, 14, 6, 3, 15, 5, 1, 13, 12, 7, 11, 4, 2, 8,
+      13, 7, 0, 9, 3, 4, 6, 10, 2, 8, 5, 14, 12, 11, 15, 1,
+      13, 6, 4, 9, 8, 15, 3, 0, 11, 1, 2, 12, 5, 10, 14, 7,
+      1, 10, 13, 0, 6, 9, 8, 7, 4, 15, 14, 3, 11, 5, 2, 12 },
+    { 7, 13, 14, 3, 0, 6, 9, 10, 1, 2, 8, 5, 11, 12, 4, 15,
+      13, 8, 11, 5, 6, 15, 0, 3, 4, 7, 2, 12, 1, 10, 14, 9,
+      10, 6, 9, 0, 12, 11, 7, 13, 15, 1, 3, 14, 5, 2, 8, 4,
+      3, 15, 0, 6, 10, 1, 13, 8, 9, 4, 5, 11, 12, 7, 2, 14 },
+    { 2, 12, 4, 1, 7, 10, 11, 6, 8, 5, 3, 15, 13, 0, 14, 9,
+      14, 11, 2, 12, 4, 7, 13, 1, 5, 0, 15, 10, 3, 9, 8, 6,
+      4, 2, 1, 11, 10, 13, 7, 8, 15, 9, 12, 5, 6, 3, 0, 14,
+      11, 8, 12, 7, 1, 14, 2, 13, 6, 15, 0, 9, 10, 4, 5, 3 },
+    { 12, 1, 10, 15, 9, 2, 6, 8, 0, 13, 3, 4, 14, 7, 5, 11,
+      10, 15, 4, 2, 7, 12, 9, 5, 6, 1, 13, 14, 0, 11, 3, 8,
+      9, 14, 15, 5, 2, 8, 12, 3, 7, 0, 4, 10, 1, 13, 11, 6,
+      4, 3, 2, 12, 9, 5, 15, 10, 11, 14, 1, 7, 6, 0, 8, 13 },
+    { 4, 11, 2, 14, 15, 0, 8, 13, 3, 12, 9, 7, 5, 10, 6, 1,
+      13, 0, 11, 7, 4, 9, 1, 10, 14, 3, 5, 12, 2, 15, 8, 6,
+      1, 4, 11, 13, 12, 3, 7, 14, 10, 15, 6, 8, 0, 5, 9, 2,
+      6, 11, 13, 8, 1, 4, 10, 7, 9, 5, 0, 15, 14, 2, 3, 12 },
+    { 13, 2, 8, 4, 6, 15, 11, 1, 10, 9, 3, 14, 5, 0, 12, 7,
+      1, 15, 13, 8, 10, 3, 7, 4, 12, 5, 6, 11, 0, 14, 9, 2,
+      7, 11, 4, 1, 9, 12, 14, 2, 0, 6, 10, 13, 15, 3, 5, 8,
+      2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11 }
+};
+
+// 弱/半弱密钥表（16 × 8 字节；ORIG DES_KeySchedule memcmp 表 @0x8b195a0）
+static const unsigned char k_desWeakKeys[16][8] = {
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
+    { 0x1E, 0x1E, 0x1E, 0x1E, 0x0F, 0x0F, 0x0F, 0x0F },
+    { 0xE0, 0xE0, 0xE0, 0xE0, 0xF1, 0xF1, 0xF1, 0xF1 },
+    { 0x01, 0xFE, 0x01, 0xFE, 0x01, 0xFE, 0x01, 0xFE },
+    { 0xFE, 0x01, 0xFE, 0x01, 0xFE, 0x01, 0xFE, 0x01 },
+    { 0x1F, 0xE0, 0x1F, 0xE0, 0x0E, 0xF1, 0x0E, 0xF1 },
+    { 0xE0, 0x1F, 0xE0, 0x1F, 0xF1, 0x0E, 0xF1, 0x0E },
+    { 0x01, 0xE0, 0x01, 0xE0, 0x01, 0xF1, 0x01, 0xF1 },
+    { 0xE0, 0x01, 0xE0, 0x01, 0xF1, 0x01, 0xF1, 0x01 },
+    { 0x1F, 0xFE, 0x1F, 0xFE, 0x0E, 0xFE, 0x0E, 0xFE },
+    { 0xFE, 0x1F, 0xFE, 0x1F, 0xFE, 0x0E, 0xFE, 0x0E },
+    { 0x01, 0x1F, 0x01, 0x1F, 0x01, 0x0E, 0x01, 0x0E },
+    { 0x1F, 0x01, 0x1F, 0x01, 0x0E, 0x01, 0x0E, 0x01 },
+    { 0xE0, 0xFE, 0xE0, 0xFE, 0xF1, 0xFE, 0xF1, 0xFE },
+    { 0xFE, 0xE0, 0xFE, 0xE0, 0xFE, 0xF1, 0xFE, 0xF1 }
+};
+
+// 大端 64 位装载/存储（ORIG DES_Encrypt 对首 dword 做 ror24 字节交换 = 大端）
+static unsigned long long desLoad64(unsigned char const* p)
+{
+    unsigned long long v = 0;
+    for (int i = 0; i < 8; ++i)
+        v = (v << 8) | p[i];
+    return v;
+}
+
+static void desStore64(unsigned char* p, unsigned long long v)
+{
+    for (int i = 7; i >= 0; --i) {
+        p[i] = (unsigned char)(v & 0xff);
+        v >>= 8;
+    }
+}
+
+// 通用置换：tbl 为 1-based 位序，输入/输出均 MSB-first
+static unsigned long long desPermute(unsigned long long in, int nbits,
+                                     int outbits, unsigned char const* tbl)
+{
+    unsigned long long out = 0;
+    for (int i = 0; i < outbits; ++i) {
+        int src = tbl[i] - 1;
+        out = (out << 1) | ((in >> (nbits - 1 - src)) & 1ULL);
+    }
+    return out;
+}
+
+static unsigned long desRotl28(unsigned long v, int n)
+{
+    return (unsigned long)(((v << n) | (v >> (28 - n))) & 0x0fffffffUL);
+}
+
+// 第 round 轮 48 位子密钥（rk 区每轮 8 字节，前 6 字节有效）
+static unsigned long long desSubkey48(unsigned char const* rk, int round)
+{
+    unsigned long long k = 0;
+    for (int i = 0; i < 6; ++i)
+        k = (k << 8) | rk[round * 8 + i];
+    return k;
+}
+
+// Feistel f(R, K)：E 扩展 → 异或 → S 盒 → P 置换
+static unsigned long desF(unsigned long r, unsigned long long subkey)
+{
+    unsigned long long e = desPermute(r, 32, 48, k_desE) ^ subkey;
+    unsigned long f = 0;
+    for (int i = 0; i < 8; ++i) {
+        int b6 = (int)((e >> (42 - i * 6)) & 0x3f);
+        int row = ((b6 >> 4) & 2) | (b6 & 1);
+        int col = (b6 >> 1) & 0xf;
+        f = (f << 4) | k_desS[i][row * 16 + col];
+    }
+    return (unsigned long)desPermute(f, 32, 32, k_desP);
+}
+
+// 16 轮核心以宏直接展开进导出函数体（O0 下不得是仅转调 helper 的短 wrapper，
+// 否则 scan_stubs 按 ≤12 指令判桩；ENCRYPT=1 顺序 / 0 逆序）
+#define DES_BLOCK_BODY(ENCRYPT)                                                \
+    do {                                                                      \
+        unsigned long long blk = desPermute(desLoad64(block), 64, 64, k_desIP);\
+        unsigned long L = (unsigned long)(blk >> 32);                         \
+        unsigned long R = (unsigned long)(blk & 0xffffffffUL);                \
+        for (int round = 0; round < 16; ++round) {                            \
+            int r = (ENCRYPT) ? round : (15 - round);                         \
+            unsigned long t = L ^ desF(R, desSubkey48(                       \
+                (unsigned char const*)rkArea, r));                            \
+            L = R;                                                            \
+            R = t;                                                            \
+        }                                                                     \
+        unsigned long long pre = ((unsigned long long)R << 32) | L;           \
+        desStore64(block, desPermute(pre, 64, 64, k_desFP));                  \
+    } while (0)
+
+void DES_Encrypt(void* rkArea, unsigned char* block)
+{
+    DES_BLOCK_BODY(1);
+}
+
+void DES_Decrypt(void* rkArea, unsigned char* block)
+{
+    DES_BLOCK_BODY(0);
+}
+
+// ORIG 0x080abcbc：keyLen==8 否则 0x1002；弱/半弱密钥 0x1006；
+// 生成 16 轮 × 8 字节子密钥至 alg->rk（返回错误码，DES3_KeySchedule 检查）
+int DES_KeySchedule(unsigned char* key, unsigned long keyLen,
+                    DES_ALG_INFO* alg)
+{
+    if (keyLen != 8)
+        return AES_ERR_BAD_KEYLEN;
+    for (int i = 0; i < 16; ++i) {
+        if (std::memcmp(key, k_desWeakKeys[i], 8) == 0)
+            return 0x1006;
+    }
+    unsigned long long k56 = desPermute(desLoad64(key), 64, 56, k_desPC1);
+    unsigned long C = (unsigned long)(k56 >> 28);
+    unsigned long D = (unsigned long)(k56 & 0x0fffffffUL);
+    for (int r = 0; r < 16; ++r) {
+        C = desRotl28(C, k_desShifts[r]);
+        D = desRotl28(D, k_desShifts[r]);
+        unsigned long long cd = ((unsigned long long)C << 28) | D;
+        unsigned long long k48 = desPermute(cd, 56, 48, k_desPC2);
+        for (int i = 0; i < 6; ++i)
+            alg->rk[r * 8 + i] = (unsigned char)((k48 >> (40 - i * 8)) & 0xff);
+        alg->rk[r * 8 + 6] = 0;
+        alg->rk[r * 8 + 7] = 0;
+    }
+    return 0;
+}
+
+// ORIG 0x080addf8：keyLen 16/24 否则 0x1002；K1..K3 各经 DES_KeySchedule 生成
+// 并拷入 rk 三块（keyLen==16 时 K3 重复 K1，ORIG 分支实证）
+int DES3_KeySchedule(unsigned char* key, unsigned long keyLen,
+                     DES3_ALG_INFO* alg)
+{
+    if (keyLen != 16 && keyLen != 24)
+        return AES_ERR_BAD_KEYLEN;
+    DES_ALG_INFO tmp;
+    int rc = DES_KeySchedule(key, 8, &tmp);
+    if (rc != 0)
+        return rc;
+    std::memcpy(alg->rk, tmp.rk, 0x80);
+    rc = DES_KeySchedule(key + 8, 8, &tmp);
+    if (rc != 0)
+        return rc;
+    std::memcpy(alg->rk + 0x80, tmp.rk, 0x80);
+    if (keyLen == 24)
+        rc = DES_KeySchedule(key + 0x10, 8, &tmp);
+    else
+        rc = DES_KeySchedule(key, 8, &tmp);
+    if (rc != 0)
+        return rc;
+    std::memcpy(alg->rk + 0x100, tmp.rk, 0x80);
+    return 0;
+}
+
+// ORIG 0x080adf6c / 0x080adfbc：EDE 三块顺序调用
+void DES3_Encrypt(void* rkArea, unsigned char* block)
+{
+    unsigned char* rk = (unsigned char*)rkArea;
+    DES_Encrypt(rk, block);
+    DES_Decrypt(rk + 0x80, block);
+    DES_Encrypt(rk + 0x100, block);
+}
+
+void DES3_Decrypt(void* rkArea, unsigned char* block)
+{
+    unsigned char* rk = (unsigned char*)rkArea;
+    DES_Decrypt(rk + 0x100, block);   // D(K3)
+    DES_Encrypt(rk + 0x80, block);    // E(K2)
+    DES_Decrypt(rk, block);           // D(K1)
+}
+
+// ORIG 0x080afaa4 / 0x080ae00c：mode/padding 直写，vec 拷 8 字节（DES 块大小）
+void DES_SetAlgInfo(unsigned long mode, unsigned long padding,
+                    unsigned char* vec, DES_ALG_INFO* alg)
+{
+    alg->mode = mode;
+    alg->padding = padding;
+    if (vec != 0)
+        std::memcpy(alg->vec, vec, 8);
+    else
+        std::memset(alg->vec, 0, 8);
+}
+
+void DES3_SetAlgInfo(unsigned long mode, unsigned long padding,
+                     unsigned char* vec, DES3_ALG_INFO* alg)
+{
+    alg->mode = mode;
+    alg->padding = padding;
+    if (vec != 0)
+        std::memcpy(alg->vec, vec, 8);
+    else
+        std::memset(alg->vec, 0, 8);
+}
+
+// ORIG 0x080afbf0/0x080b07ca/0x080ae158/0x080aed32：buffered=0，非 ECB 时 chain←vec(8)
+void DES_EncInit(DES_ALG_INFO* alg)
+{
+    alg->buffered = 0;
+    if (alg->mode == 1)
+        return;
+    std::memcpy(alg->chain, alg->vec, 8);
+}
+
+void DES_DecInit(DES_ALG_INFO* alg)
+{
+    alg->buffered = 0;
+    if (alg->mode == 1)
+        return;
+    std::memcpy(alg->chain, alg->vec, 8);
+}
+
+void DES3_EncInit(DES3_ALG_INFO* alg)
+{
+    alg->buffered = 0;
+    if (alg->mode == 1)
+        return;
+    std::memcpy(alg->chain, alg->vec, 8);
+}
+
+void DES3_DecInit(DES3_ALG_INFO* alg)
+{
+    alg->buffered = 0;
+    if (alg->mode == 1)
+        return;
+    std::memcpy(alg->chain, alg->vec, 8);
+}
+
+// DES/DES3 模式骨架（file-static，ORIG _ZL13ECB_EncUpdateP12DES_ALG_INFO... 等；
+// 与 AES 族 Update/Final 骨架同构，块大小 8）
+// ---------------------------------------------------------------------------
+
+static int ECB_EncUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        in += need;
+        inLen -= need;
+        DES_Encrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        std::memcpy(out, in, 8);
+        DES_Encrypt(alg->rk, out);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CBC_EncUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{   // ORIG CBC_EncUpdate 0x080afdbe：明文^chain 后加密，新链=密文
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        DES_Encrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        std::memcpy(alg->chain, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        DES_Encrypt(alg->rk, out);
+        std::memcpy(alg->chain, out, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int OFB_EncUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{   // keystream = E(chain)，反馈 keystream 本身；流式无 padding
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CFB_EncUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{   // 密文 = 明文 ^ E(chain)，密文回作新链
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(out, alg->buf, 8);
+        std::memcpy(alg->chain, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, out, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+// ---- 解密 Update：保留最后一块整块供 DecFinal 校验 padding ----
+
+static int ECB_DecUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long avail = alg->buffered + inLen;
+    if (avail < 16) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+        *outLen = 0;
+        return 0;
+    }
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES_Decrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 16) {
+        std::memcpy(out, in, 8);
+        DES_Decrypt(alg->rk, out);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen >= 8) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    } else if (inLen > 0) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CBC_DecUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long avail = alg->buffered + inLen;
+    if (avail < 16) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+        *outLen = 0;
+        return 0;
+    }
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES_Decrypt(alg->rk, alg->buf);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, alg->buf, 8);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 16) {
+        unsigned char cipher[8];
+        std::memcpy(cipher, in, 8);
+        DES_Decrypt(alg->rk, cipher);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(cipher[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, in, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen >= 8) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int OFB_DecUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{   // OFB 加解密同构
+    return OFB_EncUpdate(alg, in, inLen, out, outLen);
+}
+
+static int CFB_DecUpdate(DES_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{   // 解密：明文 = 密文 ^ E(chain)；链更新为原密文
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i) {
+            unsigned char plain = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+            alg->chain[i] = alg->buf[i];
+            alg->buf[i] = plain;
+        }
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        unsigned char cipher[8];
+        std::memcpy(cipher, in, 8);
+        DES_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(cipher[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, cipher, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+// ---- Enc Final（static；块 8）----
+
+static int ECB_EncFinal(DES_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    unsigned long len =
+        PaddSet(alg->buf, alg->buffered, 8, alg->padding == 2 ? 2 : 1);
+    if (len > 8)
+        return (int)len;
+    if (len == 0 && alg->padding != 2) {
+        *outLen = 0;
+        return 0;
+    }
+    DES_Encrypt(alg->rk, alg->buf);
+    std::memcpy(out, alg->buf, 8);
+    *outLen = 8;
+    return 0;
+}
+
+static int CBC_EncFinal(DES_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    unsigned long len = PaddSet(alg->buf, alg->buffered, 8, alg->padding);
+    if (len > 8)
+        return (int)len;
+    if (len == 0) {
+        *outLen = 0;
+        return 0;
+    }
+    for (int i = 0; i < 8; ++i)
+        alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+    DES_Encrypt(alg->rk, alg->buf);
+    std::memcpy(out, alg->buf, 8);
+    std::memcpy(alg->chain, out, 8);
+    *outLen = 8;
+    return 0;
+}
+
+static int OFB_EncFinal(DES_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    DES_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+static int CFB_EncFinal(DES_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    DES_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+// ---- public 分派：DES ----
+
+int DES_EncUpdate(DES_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                  unsigned char* out, unsigned long* outLen)
+{   // ORIG 0x080b0393：按 alg->mode 分派
+    switch (alg->mode) {
+    case 1:
+        return ECB_EncUpdate(alg, in, inLen, out, outLen);
+    case 2:
+        return CBC_EncUpdate(alg, in, inLen, out, outLen);
+    case 3:
+        return OFB_EncUpdate(alg, in, inLen, out, outLen);
+    case 4:
+        return CFB_EncUpdate(alg, in, inLen, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;               // ORIG 返 0x1001
+    }
+}
+
+int DES_DecUpdate(DES_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                  unsigned char* out, unsigned long* outLen)
+{
+    switch (alg->mode) {
+    case 1:
+        return ECB_DecUpdate(alg, in, inLen, out, outLen);
+    case 2:
+        return CBC_DecUpdate(alg, in, inLen, out, outLen);
+    case 3:
+        return OFB_DecUpdate(alg, in, inLen, out, outLen);
+    case 4:
+        return CFB_DecUpdate(alg, in, inLen, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+int DES_EncFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{   // ORIG 0x080b072f
+    switch (alg->mode) {
+    case 1:
+        return ECB_EncFinal(alg, out, outLen);
+    case 2:
+        return CBC_EncFinal(alg, out, outLen);
+    case 3:
+        return OFB_EncFinal(alg, out, outLen);
+    case 4:
+        return CFB_EncFinal(alg, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+// ORIG public 四模式 Dec Final（T 符号 0x080b1187..0x080b1403）
+
+int ECB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES_Decrypt(alg->rk, alg->buf);
+    unsigned long pad = PaddCheck(alg->buf, 8, alg->padding);
+    if (pad > 8 && pad != AES_ERR_BAD_MODE)
+        return AES_ERR_PAD_CHECK;
+    std::memcpy(out, alg->buf, 8 - pad);
+    *outLen = 8 - pad;
+    return 0;
+}
+
+int CBC_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    unsigned char cipher[8];
+    std::memcpy(cipher, alg->buf, 8);
+    unsigned char plain[8];
+    std::memcpy(plain, alg->buf, 8);
+    DES_Decrypt(alg->rk, plain);
+    for (int i = 0; i < 8; ++i)
+        plain[i] = (unsigned char)(plain[i] ^ alg->chain[i]);
+    std::memcpy(alg->chain, cipher, 8);
+    unsigned long pad = PaddCheck(plain, 8, alg->padding);
+    if (pad > 8 && pad != AES_ERR_BAD_MODE)
+        return AES_ERR_PAD_CHECK;
+    std::memcpy(out, plain, 8 - pad);
+    *outLen = 8 - pad;
+    return 0;
+}
+
+int OFB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+int CFB_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+int DES_DecFinal(DES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    switch (alg->mode) {
+    case 1:
+        return ECB_DecFinal(alg, out, outLen);
+    case 2:
+        return CBC_DecFinal(alg, out, outLen);
+    case 3:
+        return OFB_DecFinal(alg, out, outLen);
+    case 4:
+        return CFB_DecFinal(alg, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+// ---- public 分派：DES3（骨架同 DES，块 8；单块走 3DES-EDE）----
+
+static int ECB_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        in += need;
+        inLen -= need;
+        DES3_Encrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        std::memcpy(out, in, 8);
+        DES3_Encrypt(alg->rk, out);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CBC_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        DES3_Encrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        std::memcpy(alg->chain, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        DES3_Encrypt(alg->rk, out);
+        std::memcpy(alg->chain, out, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int OFB_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CFB_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(out, alg->buf, 8);
+        std::memcpy(alg->chain, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(in[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, out, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int ECB_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long avail = alg->buffered + inLen;
+    if (avail < 16) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+        *outLen = 0;
+        return 0;
+    }
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES3_Decrypt(alg->rk, alg->buf);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 16) {
+        std::memcpy(out, in, 8);
+        DES3_Decrypt(alg->rk, out);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen >= 8) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    } else if (inLen > 0) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int CBC_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long avail = alg->buffered + inLen;
+    if (avail < 16) {
+        std::memcpy(alg->buf + alg->buffered, in, inLen);
+        alg->buffered += inLen;
+        *outLen = 0;
+        return 0;
+    }
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES3_Decrypt(alg->rk, alg->buf);
+        for (int i = 0; i < 8; ++i)
+            alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, alg->buf, 8);
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 16) {
+        unsigned char cipher[8];
+        std::memcpy(cipher, in, 8);
+        DES3_Decrypt(alg->rk, cipher);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(cipher[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, in, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen >= 8) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int OFB_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    return OFB_EncUpdate(alg, in, inLen, out, outLen);
+}
+
+static int CFB_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in,
+                         unsigned long inLen, unsigned char* out,
+                         unsigned long* outLen)
+{
+    unsigned long produced = 0;
+    if (alg->buffered > 0) {
+        if (alg->buffered + inLen < 8) {
+            std::memcpy(alg->buf + alg->buffered, in, inLen);
+            alg->buffered += inLen;
+            *outLen = 0;
+            return 0;
+        }
+        unsigned long need = 8 - alg->buffered;
+        std::memcpy(alg->buf + alg->buffered, in, need);
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i) {
+            unsigned char plain = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+            alg->chain[i] = alg->buf[i];
+            alg->buf[i] = plain;
+        }
+        std::memcpy(out, alg->buf, 8);
+        out += 8;
+        produced += 8;
+        in += need;
+        inLen -= need;
+        alg->buffered = 0;
+    }
+    while (inLen >= 8) {
+        unsigned char cipher[8];
+        std::memcpy(cipher, in, 8);
+        DES3_Encrypt(alg->rk, alg->chain);
+        for (int i = 0; i < 8; ++i)
+            out[i] = (unsigned char)(cipher[i] ^ alg->chain[i]);
+        std::memcpy(alg->chain, cipher, 8);
+        out += 8;
+        in += 8;
+        inLen -= 8;
+        produced += 8;
+    }
+    if (inLen > 0) {
+        std::memcpy(alg->buf, in, inLen);
+        alg->buffered = inLen;
+    }
+    *outLen = produced;
+    return 0;
+}
+
+static int ECB_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    unsigned long len =
+        PaddSet(alg->buf, alg->buffered, 8, alg->padding == 2 ? 2 : 1);
+    if (len > 8)
+        return (int)len;
+    if (len == 0 && alg->padding != 2) {
+        *outLen = 0;
+        return 0;
+    }
+    DES3_Encrypt(alg->rk, alg->buf);
+    std::memcpy(out, alg->buf, 8);
+    *outLen = 8;
+    return 0;
+}
+
+static int CBC_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    unsigned long len = PaddSet(alg->buf, alg->buffered, 8, alg->padding);
+    if (len > 8)
+        return (int)len;
+    if (len == 0) {
+        *outLen = 0;
+        return 0;
+    }
+    for (int i = 0; i < 8; ++i)
+        alg->buf[i] = (unsigned char)(alg->buf[i] ^ alg->chain[i]);
+    DES3_Encrypt(alg->rk, alg->buf);
+    std::memcpy(out, alg->buf, 8);
+    std::memcpy(alg->chain, out, 8);
+    *outLen = 8;
+    return 0;
+}
+
+static int OFB_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    DES3_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+static int CFB_EncFinal(DES3_ALG_INFO* alg, unsigned char* out,
+                        unsigned long* outLen)
+{
+    DES3_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+int DES3_EncUpdate(DES3_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                   unsigned char* out, unsigned long* outLen)
+{   // ORIG 0x080ae8fb
+    switch (alg->mode) {
+    case 1:
+        return ECB_EncUpdate(alg, in, inLen, out, outLen);
+    case 2:
+        return CBC_EncUpdate(alg, in, inLen, out, outLen);
+    case 3:
+        return OFB_EncUpdate(alg, in, inLen, out, outLen);
+    case 4:
+        return CFB_EncUpdate(alg, in, inLen, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+int DES3_DecUpdate(DES3_ALG_INFO* alg, unsigned char* in, unsigned long inLen,
+                   unsigned char* out, unsigned long* outLen)
+{
+    switch (alg->mode) {
+    case 1:
+        return ECB_DecUpdate(alg, in, inLen, out, outLen);
+    case 2:
+        return CBC_DecUpdate(alg, in, inLen, out, outLen);
+    case 3:
+        return OFB_DecUpdate(alg, in, inLen, out, outLen);
+    case 4:
+        return CFB_DecUpdate(alg, in, inLen, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+int DES3_EncFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{   // ORIG 0x080aec97
+    switch (alg->mode) {
+    case 1:
+        return ECB_EncFinal(alg, out, outLen);
+    case 2:
+        return CBC_EncFinal(alg, out, outLen);
+    case 3:
+        return OFB_EncFinal(alg, out, outLen);
+    case 4:
+        return CFB_EncFinal(alg, out, outLen);
+    default:
+        return AES_ERR_BAD_MODE;
+    }
+}
+
+// ORIG public 3DES 四模式 Dec Final（T 符号 0x080af6ef..0x080af96b）
+
+int ECB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES3_Decrypt(alg->rk, alg->buf);
+    unsigned long pad = PaddCheck(alg->buf, 8, alg->padding);
+    if (pad > 8 && pad != AES_ERR_BAD_MODE)
+        return AES_ERR_PAD_CHECK;
+    std::memcpy(out, alg->buf, 8 - pad);
+    *outLen = 8 - pad;
+    return 0;
+}
+
+int CBC_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    unsigned char cipher[8];
+    std::memcpy(cipher, alg->buf, 8);
+    unsigned char plain[8];
+    std::memcpy(plain, alg->buf, 8);
+    DES3_Decrypt(alg->rk, plain);
+    for (int i = 0; i < 8; ++i)
+        plain[i] = (unsigned char)(plain[i] ^ alg->chain[i]);
+    std::memcpy(alg->chain, cipher, 8);
+    unsigned long pad = PaddCheck(plain, 8, alg->padding);
+    if (pad > 8 && pad != AES_ERR_BAD_MODE)
+        return AES_ERR_PAD_CHECK;
+    std::memcpy(out, plain, 8 - pad);
+    *outLen = 8 - pad;
+    return 0;
+}
+
+int OFB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES3_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+int CFB_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
+{
+    DES3_Encrypt(alg->rk, alg->chain);
+    for (unsigned long k = 0; k < alg->buffered; ++k)
+        out[k] = (unsigned char)(alg->buf[k] ^ alg->chain[k]);
+    *outLen = alg->buffered;
+    return 0;
+}
+
+int DES3_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
 {
     switch (alg->mode) {
     case 1:
@@ -1699,4 +3046,321 @@ IChecksum* CreateCryptoChecksum(CRYPTO_CHECKSUM_TYPE type)
     default:
         return 0;
     }
+}
+
+// ---------------------------------------------------------------------------
+// CSHA —— 自实现 SHA-256（ORIG 0x080bb69c..0x080bd977）
+// 报告：docs/class_func_reports/CSHA/{CSHA,AddData,FinalDigest,Reset,Transform}.md
+// 布局：state[8]@0x00, m_lenLo@0x20, m_lenHi@0x24, m_buffer[64]@0x28,
+//       m_pending@0x68（AddData/FinalDigest 残留标志，ORIG 行为照抄）。
+// 算法为 FIPS 180-4 标准 SHA-256（用户规则豁免 identical，语义真实现）。
+// ---------------------------------------------------------------------------
+
+namespace {
+
+unsigned int const kSha256H[8] = {
+    0x6a09e667u, 0xbb67ae85u, 0x3c6ef372u, 0xa54ff53au,
+    0x510e527fu, 0x9b05688cu, 0x1f83d9abu, 0x5be0cd19u,
+};  // ORIG CSHA::sm_H256 @0x8b230e0（小端存储）
+
+unsigned int const kSha256K[64] = {
+    0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
+    0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
+    0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u,
+    0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
+    0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu,
+    0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
+    0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u,
+    0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
+    0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u,
+    0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
+    0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u,
+    0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
+    0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
+    0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
+    0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u,
+    0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u,
+};  // ORIG CSHA::sm_K256 @0x8b22fe0
+
+}  // namespace
+
+CSHA::CSHA()
+{
+    for (int i = 0; i < 8; ++i) {
+        m_state[i] = kSha256H[i];
+    }
+    m_lenLo = 0;
+    m_lenHi = 0;
+    std::memset(m_buffer, 0, sizeof(m_buffer));
+    m_pending = 0;
+}
+
+int CSHA::AddData(char const* data, int len)
+{
+    if (len < 1) {
+        return (int)0x70000007;    // ORIG：len <= 0 错误码
+    }
+    unsigned int prevBits = m_lenLo;
+    m_lenLo = (unsigned int)len * 8u + prevBits;
+    if (m_lenLo < prevBits) {
+        m_lenHi = m_lenHi + 1u;
+    }
+    m_lenHi = m_lenHi + ((unsigned int)len >> 29u);
+    unsigned int pos = (prevBits >> 3u) & 0x3fu;
+    if (pos != 0u) {
+        unsigned char* tail = m_buffer + pos;
+        unsigned int room = 0x40u - pos;
+        if ((unsigned int)len < room) {
+            std::memcpy(tail, data, len);
+            return (int)0x6fffffff;
+        }
+        std::memcpy(tail, data, room);
+        Transform();
+        data += room;
+        len -= room;
+    }
+    for (; len > 0x3f; data += 0x40, len -= 0x40) {
+        std::memcpy(m_buffer, data, 0x40);
+        Transform();
+    }
+    std::memcpy(m_buffer, data, len);
+    m_pending = 1;
+    return (int)0x6fffffff;
+}
+
+int CSHA::FinalDigest(char* out)
+{
+    if (m_pending != 1) {
+        return (int)0x70000008;    // ORIG：缓冲区有残留时拒绝 finalize
+    }
+    unsigned int pos = (m_lenLo >> 3u) & 0x3fu;
+    unsigned char* tail = m_buffer + pos;
+    *tail = 0x80;
+    ++tail;
+    unsigned int room = 0x3fu - pos;
+    if (room < 8u) {
+        std::memset(tail, 0, room);
+        Transform();
+        std::memset(m_buffer, 0, 0x38);
+    } else {
+        std::memset(tail, 0, room - 8u);
+    }
+    Word2Bytes(m_lenHi, m_buffer + 0x38);
+    Word2Bytes(m_lenLo, m_buffer + 0x3c);
+    Transform();
+    for (int i = 0; i < 8; ++i, out += 4) {
+        Word2Bytes(m_state[i], reinterpret_cast<unsigned char*>(out));
+    }
+    Reset();
+    return (int)0x6fffffff;
+}
+
+void CSHA::Reset()
+{
+    for (int i = 0; i < 8; ++i) {
+        m_state[i] = kSha256H[i];
+    }
+    m_lenLo = 0;
+    m_lenHi = 0;
+    m_pending = 0;
+}
+
+void CSHA::Transform()
+{
+    unsigned int w[64];
+    for (int i = 0; i < 16; ++i) {
+        Bytes2Word(m_buffer + i * 4, w[i]);
+    }
+    for (int i = 16; i < 64; ++i) {
+        w[i] = sig1(w[i - 2]) + w[i - 7] + sig0(w[i - 15]) + w[i - 16];
+    }
+    unsigned int a = m_state[0], b = m_state[1], c = m_state[2], d = m_state[3];
+    unsigned int e = m_state[4], f = m_state[5], g = m_state[6], h = m_state[7];
+    for (int i = 0; i < 64; ++i) {
+        unsigned int t1 = h + SIG1(e) + CHE(e, f, g) + kSha256K[i] + w[i];
+        unsigned int t2 = SIG0(a) + MAJ(a, b, c);
+        h = g; g = f; f = e; e = d + t1;
+        d = c; c = b; b = a; a = t1 + t2;
+    }
+    m_state[0] += a; m_state[1] += b; m_state[2] += c; m_state[3] += d;
+    m_state[4] += e; m_state[5] += f; m_state[6] += g; m_state[7] += h;
+}
+
+unsigned int CSHA::CHE(unsigned int x, unsigned int y, unsigned int z)
+{
+    return (x & y) ^ (~x & z);
+}
+
+unsigned int CSHA::MAJ(unsigned int x, unsigned int y, unsigned int z)
+{
+    return (x & y) ^ (x & z) ^ (y & z);
+}
+
+unsigned int CSHA::SIG0(unsigned int x)
+{
+    return (x >> 2u | x << 30u) ^ (x >> 13u | x << 19u) ^ (x >> 22u | x << 10u);
+}
+
+unsigned int CSHA::SIG1(unsigned int x)
+{
+    return (x >> 6u | x << 26u) ^ (x >> 11u | x << 21u) ^ (x >> 25u | x << 7u);
+}
+
+unsigned int CSHA::sig0(unsigned int x)
+{
+    return (x >> 7u | x << 25u) ^ (x >> 18u | x << 14u) ^ (x >> 3u);
+}
+
+unsigned int CSHA::sig1(unsigned int x)
+{
+    return (x >> 17u | x << 15u) ^ (x >> 19u | x << 13u) ^ (x >> 10u);
+}
+
+void CSHA::Word2Bytes(unsigned int const& word, unsigned char* out)
+{
+    out[0] = (unsigned char)(word >> 24u);
+    out[1] = (unsigned char)(word >> 16u);
+    out[2] = (unsigned char)(word >> 8u);
+    out[3] = (unsigned char)(word);
+}
+
+void CSHA::Bytes2Word(unsigned char const* in, unsigned int& word)
+{
+    word = ((unsigned int)in[0] << 24u) | ((unsigned int)in[1] << 16u)
+         | ((unsigned int)in[2] << 8u)  |  (unsigned int)in[3];
+}
+
+// ---------------------------------------------------------------------------
+// CSHA1 —— 经典 SHA-1（ORIG 0x08087d28..0x0808a4d5）。
+// 报告：docs/class_func_reports/CSHA1/{CSHA1,Reset,Transform,Update,Final,
+// GetHash,GetHexHash,~CSHA1}.md。算法类语义正确实现（用户规则：算法族
+// 不要求 identical）；行为与 ORIG 报告逐一对应。
+// ---------------------------------------------------------------------------
+
+CSHA1::CSHA1()
+{
+    // ORIG 0x08087d28：m_blockPtr = this+0x80; Reset();
+    m_blockPtr = m_work;
+    Reset();
+}
+
+CSHA1::~CSHA1()
+{
+    // ORIG 0x08087d4c：空析构。
+}
+
+void CSHA1::Reset()
+{
+    // ORIG 0x08087d60：SHA-1 初始链接变量 + 位计数清零。
+    m_state[0] = 0x67452301u;
+    m_state[1] = 0xefcdab89u;
+    m_state[2] = 0x98badcfeu;
+    m_state[3] = 0x10325476u;
+    m_state[4] = 0xc3d2e1f0u;
+    m_countLo  = 0;
+    m_countHi  = 0;
+}
+
+void CSHA1::Update(unsigned char const* data, unsigned int len)
+{
+    // ORIG 0x0808a19e：位计数（含进位），缓冲区满则 Transform（整块 0x40）。
+    unsigned int buffered = (m_countLo >> 3) & 0x3f;
+    m_countLo += len * 8u;
+    if (m_countLo < len * 8u)
+        m_countHi += 1;
+    m_countHi += (len >> 0x1d);
+
+    unsigned int copied = 0;
+    if (buffered + len >= 0x40)
+    {
+        copied = 0x40 - buffered;
+        memcpy(&m_buffer[buffered], data, copied);
+        Transform(m_state, m_buffer);
+        for (; copied + 0x3f < len; copied += 0x40)
+            Transform(m_state, data + copied);
+        buffered = 0;
+    }
+    if (len != copied)
+        memcpy(&m_buffer[buffered], data + copied, len - copied);
+}
+
+void CSHA1::Transform(unsigned int* state, unsigned char const* block)
+{
+    // ORIG 0x08087daa：块经 m_blockPtr 大端读入展开为 W[80]，四轮 80 步压缩。
+    static const unsigned int K[4] = { 0x5a827999u, 0x6ed9eba1u, 0x8f1bbcdcu, 0xca62c1d6u };
+    unsigned int w[80];
+    for (int i = 0; i < 16; ++i)
+    {
+        w[i] = ((unsigned int)block[i * 4] << 24) | ((unsigned int)block[i * 4 + 1] << 16)
+             | ((unsigned int)block[i * 4 + 2] << 8) | (unsigned int)block[i * 4 + 3];
+    }
+    for (int i = 16; i < 80; ++i)
+    {
+        unsigned int v = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
+        w[i] = v << 1 | v >> 31;
+    }
+    unsigned int a = state[0], b = state[1], c = state[2], d = state[3], e = state[4];
+    for (int i = 0; i < 80; ++i)
+    {
+        unsigned int f;
+        if (i < 20)      f = (d ^ (b & (c ^ d))) + K[0];       // ORIG 0x5a827999 轮
+        else if (i < 40) f = (b ^ c ^ d) + K[1];               // 0x6ed9eba1
+        else if (i < 60) f = ((b | c) & d | b & c) + K[2];     // 0x8f1bbcdc
+        else             f = (b ^ c ^ d) + K[3];               // 0xca62c1d6
+        unsigned int tmp = (a << 5 | a >> 27) + f + e + w[i];
+        e = d;
+        d = c;
+        c = b << 30 | b >> 2;
+        b = a;
+        a = tmp;
+    }
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
+    state[4] += e;
+}
+
+void CSHA1::Final()
+{
+    // ORIG 0x0808a2d2：0x80 填充 + 0x00 补位至 (count&0x1f8)==0x1c0 + 8 字节大端位长，
+    // 摘要按大端写入 m_digest[20]。
+    unsigned char tail[8];
+    // ORIG：i<4 取槽 4（m_countLo）、i>=4 取槽 5（m_countHi），位移 (~i&3)<<3 —— 均大端。
+    for (int i = 0; i < 8; ++i)
+    {
+        unsigned int v = (i < 4) ? m_countLo : m_countHi;
+        tail[i] = (unsigned char)(v >> ((3 - (i & 3)) * 8));
+    }
+    static unsigned char const pad0x80[1] = { 0x80 };
+    Update(pad0x80, 1);
+    static unsigned char const padZero[1] = { 0x00 };
+    while ((m_countLo & 0x1f8u) != 0x1c0u)
+        Update(padZero, 1);
+    Update(tail, 8);
+
+    for (int i = 0; i < 0x14; ++i)
+    {
+        unsigned int v = m_state[i >> 2];
+        m_digest[i] = (unsigned char)(v >> ((3 - (i & 3)) * 8));
+    }
+}
+
+int CSHA1::GetHash(unsigned char* out) const
+{
+    // ORIG 0x0808a3d8：memcpy digest[20]。
+    if (out == 0)
+        return 0;
+    memcpy(out, m_digest, 0x14);
+    return 1;
+}
+
+int CSHA1::GetHexHash(char* out)
+{
+    // ORIG 0x0808a410：逐字节 sprintf("%02X")，40 个十六进制字符 + NUL 由调用方持有。
+    if (out == 0)
+        return 0;
+    for (int i = 0; i < 0x14; ++i)
+        sprintf(out + i * 2, "%02X", (unsigned int)m_digest[i]);
+    return 1;
 }

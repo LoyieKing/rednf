@@ -106,13 +106,14 @@ public:
             m_flag90 = 0;
             m_field94 = -1;
         }
-        bool operator>(const stBestRecord_t& other) const
+        // ORIG 两运算符均为非 const 成员（mangled 无 K：_ZN...teq/gtERKS1_）
+        bool operator>(const stBestRecord_t& other)
         {
             if (m_stage != other.m_stage)
                 return m_stage > other.m_stage;
             return m_playTime < other.m_playTime;
         }
-        bool operator==(const stBestRecord_t& other) const
+        bool operator==(const stBestRecord_t& other)
         {
             return m_stage == other.m_stage && m_playTime == other.m_playTime;
         }

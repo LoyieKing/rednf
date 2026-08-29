@@ -5,11 +5,15 @@
 // df_game_r 还原 —— StringUnorderedMap / CharStringHashTrait
 // ORIG: StringUnorderedMap<HashTrait, ValueType> 内部使用 std::_Hashtable，
 // key 为 const char*，value 为 ValueEx<ValueType>。
+// ValueEx<Ss> ORIG 实测（nm W，objdump）：C1 0x8080c9c（CharString::C1 @+0x00、
+//   Ss::C1 @+0x04）、D1 0x8080ce2（Ss::D1 @+0x04 → CharString::D1）、
+//   C1ERKS2_ 0x80817a8（两成员依次拷贝构造）⇒ 布局 {CharString m_key@0;
+//   ValueType m_value@0x04}。
 // ============================================================================
 
 #include <unordered_map>
 #include <string>
-
+#include "StringTypes.h"   // CharString
 struct CharStringHashTrait
 {
     struct HashKey
@@ -38,17 +42,19 @@ public:
     class ValueEx
     {
     public:
-        ValueEx() : m_value() {}
-        ValueEx(const ValueEx& other) : m_value(other.m_value) {}
-        ~ValueEx() {}
+        ValueEx() {}                              // ORIG C1：m_key CharString C1 + m_value C1
+        ValueEx(const ValueEx& other)             // ORIG C1ERKS2_：两成员拷贝构造
+            : m_key(other.m_key), m_value(other.m_value) {}
 
         ValueEx& operator=(const ValueEx& other)
         {
+            m_key = other.m_key;
             m_value = other.m_value;
             return *this;
         }
 
-        ValueType m_value;
+        CharString m_key;    // +0x00（ORIG D1 逆序析构 string→CharString 实证）
+        ValueType m_value;   // +0x04
     };
 
     typedef std::unordered_map<const char*, ValueEx,
@@ -63,6 +69,7 @@ public:
     void insert(const char* key, const ValueType& value)
     {
         ValueEx v;
+        v.m_key = key;
         v.m_value = value;
         m_map[key] = v;
     }

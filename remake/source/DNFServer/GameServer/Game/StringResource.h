@@ -52,7 +52,8 @@ public:
     bool get(int id, const CharString** out) const;   // ORIG T 0x08ad4878
 
     bool loadFromFile(const char* path, CharString* error);          // ORIG T 0x08ad4ce4
-    bool loadFromBinary(char* data, int size, CharString* error);    // ORIG T 0x08ad4e04
+    bool loadFromBinary(const unsigned char* data, int size, CharString* error);  // ORIG T 0x08ad4e04
+    bool loadFromResource(void* data, int size, CharString* error);  // ORIG T 0x08ad4dfa
     bool loadFromString(char* text, int length, CharString* error);  // ORIG T 0x08ad4ac2
 
 private:
@@ -63,16 +64,19 @@ namespace app {
 
 // ORIG T 0x08ad5439：进程级唯一 StringResource 实例（guard 单例）。
 StringResource* stringResource();
+// ORIG T 0x08ad54cc：get(id) 命中返回表项拷贝；未命中
+// CharString::format("getStr(%d) == none", id)（定义 StringResource.cpp）。
+CharString getStr(int id);
 
 }  // namespace app
 
 // ORIG T 0x08ac35cc：app::stringResource()->loadFromFile(g_STRING_FILE, err)。
 bool loadString(CharString* error);
 
-// ORIG 中为编译单元内静态指针 _ZL11STRING_FILE（0x093f567c），由初始化域赋值；
-// 重建版以可寻址全局暴露（初值 0，行为与 ORIG 空载一致：fopen(NULL)="rb" 失败
-// → loadString false → getStr 回退 errmsg 路径，直至初始化域设置路径）。
-extern const char* g_STRING_FILE;
+// ORIG 中为编译单元内静态指针 _ZL11STRING_FILE（0x093f567c），恒 0（无写入方）；
+// 重建版以同 TU 内 static STRING_FILE 复现（fopen(NULL)="rb" 失败
+// → loadString false → getStr 回退 errmsg 路径）。
+// 该路径无外部设置方（全仓库无引用），loadString 直读本 TU static。
 
 class CStringManager
 {
@@ -84,7 +88,7 @@ public:
 // 编码原语（见文件头地址证据）
 bool convertFromUtf8(const char* src, int srcLength, WideString* out);  // ORIG T 0x08adf893
 CharString convertToCharString(const wchar_t* src);                     // ORIG T 0x08adf54c
-CharString convertToCharString(const wchar_t* src, int srcLength);      // ORIG T 0x08adf57f
+CharString convertToCharString(const wchar_t* src, unsigned int srcLength);  // ORIG T 0x08adf57f（PKwj）
 CharString convertToCharString(const WideString& src);                  // ORIG T 0x08adf624
 
 #endif  // DNF_GAME_STRINGRESOURCE_H_

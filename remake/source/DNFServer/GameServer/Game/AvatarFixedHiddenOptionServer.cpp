@@ -304,7 +304,7 @@ AvatarFixedHiddenOptionServer::~AvatarFixedHiddenOptionServer()
 // "\t- Loading Avatar Hidden Option - "；loadScript==0 且 Init()!=0 才算成功。
 bool AvatarFixedHiddenOptionServer::Load()
 {
-    cMyTrace trace("virtual bool AvatarFixedHiddenOptionServer::Load()", 0x1a, 9, true, false);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1a, 9, true, false);
     trace("\t- Loading Avatar Hidden Option - ");
     return m_script.loadScript() == 0 && Init() != 0;
 }
@@ -406,7 +406,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-            "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+            __PRETTY_FUNCTION__,
             0x71,
             "AVATAR HIDDEN OPTION CHANGE : Material GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
             (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
@@ -420,7 +420,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-                "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+                __PRETTY_FUNCTION__,
                 0x83,
                 "AVATAR HIDDEN OPTION CHANGE : Avatar GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
                 (int)sig->m_avatarSlot, (unsigned int)user->getCurCharacNo());
@@ -434,7 +434,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-                "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+                __PRETTY_FUNCTION__,
                 0x94,
                 "AVATAR HIDDEN OPTION CHANGE : IsHiddenOption() failed. [index:%d] [charac_no:%d]",
                 (int)avatar.m_addInfo, (unsigned int)user->getCurCharacNo());
@@ -445,7 +445,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
     }
     LogManager::logFormat(
         1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-        "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        __PRETTY_FUNCTION__,
         0x78,
         "AVATAR HIDDEN OPTION CHANGE : isMaterial() failed [index:%d] [charac_no:%d]",
         (int)material.m_addInfo, (unsigned int)user->getCurCharacNo());
@@ -462,7 +462,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
-            "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+            __PRETTY_FUNCTION__,
             0xa1,
             "AVATAR HIDDEN OPTION CHANGE : delete_item() failed. [slot:%d] [charac_no:%d]",
             (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
@@ -472,7 +472,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
                              (int)sig->m_materialSlot);
     cMyTrace traceDel(
-        "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        __PRETTY_FUNCTION__,
         0xa6, 0);
     traceDel("AVATAR HIDDEN OPTION CHANGE : delete_item() success. [slot:%d] "
              "[charac_no:%d]",
@@ -499,7 +499,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     save.m_hiddenOption = (short)ref->m_fieldSplit.m_fielddLo;
 
     cMyTrace traceOk(
-        "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        __PRETTY_FUNCTION__,
         0xc2, 0);
     traceOk("AVATAR HIDDEN OPTION CHANGE : success [slot:%d] [item_id:%d] "
             "[hidden_option:%d] [charac_no:%d]",
@@ -517,4 +517,34 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
                              (int)sig->m_avatarSlot);
     return true;
+}
+// ============================================================================
+// UnitTest / Test1 —— ORIG UnitTest T 0x0817ecd8、Test1 t 0x0817ec67
+// （docs/class_func_reports/AvatarFixedHiddenOptionServer/UnitTest.md、
+//  docs/class_func_reports/_lt_global_gt_/Test1.md 全文转写）
+// ============================================================================
+
+// ORIG 0x0817ec67（文件内 static，_ZL 局部符号）：调 GetSkillIndex(rarity=3, input)
+// 并把结果与期望值 printf 比对。
+static void Test1(AvatarFixedHiddenOptionServer* server, int input, int expect)
+{
+    int output = server->GetSkillIndex((ENUM_RARITY)3, input);
+    if (expect != output) {
+        printf("input==%d, output!=%d/%d\n", input, output, expect);
+    } else {
+        printf("input==%d, output==%d/%d\n", input, output, expect);
+    }
+}
+
+// ORIG 0x0817ecd8：非空 server 时依次跑 6 组 (input, expect) 用例。
+void AvatarFixedHiddenOptionServer::UnitTest(AvatarFixedHiddenOptionServer* server)
+{
+    if (server == 0)
+        return;
+    Test1(server, 0, 1);
+    Test1(server, 0x95, 1);
+    Test1(server, 0x96, 2);
+    Test1(server, 0x26dd, 0x3e);
+    Test1(server, 0x26de, 0x3f);
+    Test1(server, 9999, 0x3f);
 }

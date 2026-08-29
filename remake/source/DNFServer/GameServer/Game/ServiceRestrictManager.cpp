@@ -5,13 +5,17 @@
 //   initialize 0x816e2b2 / savePolicy 0x816e8ce / loadPolicy 0x816e7d6 /
 //   isRestricted(CUser*,Enum,int) 0x816e6b8 / isRestricted(Enum,int) 0x816e75e /
 //   ctor 0x816e272。
-// 策略类 InterfaceServicePolicy 的 vtable 槽 +0x14 为 isRestricted 虚入口
-// （ORIG 虚调用 `call *(vtable+0x14)`，单 int 参数）；槽 +0x8/+0xc/+0x10 为
-// getCode/save 等（推断：具体签名未还原，按 GlobalData 迁移版本建模）。
+// 策略类 InterfaceServicePolicy 的 vtable 8 槽（D1/D0 + 6 虚函数）与三个具体
+// 策略类的具名符号见 RestrictPolicy.h（ORIG nm/objdump 实证）。
 // ============================================================================
 
 #include "ServiceRestrictManager.h"
 #include "MsgQueueMgr.h"
+#include "RestrictPolicy.h"           // NullPolicy/AuthMobileRestrictPolicy/CreateCharacterRestrictPolicy 声明
+#include "MobileRestrict.h"           // MobileRestrict::enumToString（T @0x0816d463）
+#include "MobileRestrict.h"           // MobileRestrict::enumToString（T @0x0816d463）
+#include "CharacterRestrict.h"        // CharacterRestrict::enumToString（T @0x0816d472）
+#include "SecurityRestrict.h"         // SecurityRestrict::enumToString（T @0x0816d481）
 
 #include "CEnvironment.h"
 #include "CStreamGuard.h"
@@ -19,68 +23,245 @@
 #include "GlobalData.h"
 #include "LogManager.h"
 #include "TaiwanInternal.h"
+#include "TaiwanQueries.h"  // LinkClosureD：Taiwan::SigLoadRestrictPolicy 权威
+                            // （MoreTypes.h 0x100 占位已删）
 
 #include <new>
+#include <sstream>
 
-// ---- Taiwan::GarenaAuthData（ORIG _ZN6Taiwan14GarenaAuthData13getMobileAuthEv
-// 0x8173022：返回 this+0x2c 字节 == 1）。CUser::getGarenaAuthData 返回该缓冲。----
-namespace Taiwan
-{
-struct GarenaAuthData
-{
-    char m_pad[0x2c];
-    unsigned char m_mobileAuth;   // +0x2c
-
-    bool getMobileAuth() const { return m_mobileAuth == 1; }  // ORIG 0x8173022
-};
-}  // namespace Taiwan
+// LinkClosureD：局部 Taiwan::GarenaAuthData 镜像已删（与 TaiwanQueries.h 权威
+// 定义 ODR 冲突；getMobileAuth 权威实现在 TaiwanQueries.cpp）。
 
 class CStreamGuard;
 
 namespace
 {
 
-// ---- InterfaceServicePolicy（ORIG 抽象接口；vtable+0x14 = isRestricted 入口）----
-struct NullPolicy;
-struct AuthMobileRestrictPolicy;
-struct CreateCharacterRestrictPolicy;
-struct SecurityRestrictPolicy;
+// ORIG static _ZL19setPolicyApplyValue...（0x0816d490）：策略字符串 '0'/'1' 解析
+// 写入 policy vector（下标 1 起）；非法字符记日志置 0；越界即停。与
+// SecurityRestrictPolicy.cpp 中副本同源（ORIG 同文件单定义，跨 TU 各一份）。
+void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
+                         std::string const& str)
+{
+    if (str.empty())
+    {
+        return;
+    }
+    unsigned int idx = 1;
+    unsigned int size = policy.size();
+    std::string::const_iterator it = str.begin();
+    while (it != str.end())
+    {
+        int v = static_cast<signed char>(*it) - 0x30;
+        if (v > 1 || v < 0)
+        {
+            LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
+                                  "void setPolicyApplyValue(RestrictCategory::Enum, ServicePolicy&, std::string const&)",
+                                  0x22,
+                                  "[Taiwan, Restrict] Invalid server value. restrict:%d,%d,%d",
+                                  code, idx, v);
+            v = 0;
+        }
+        if (idx >= size)
+        {
+            break;
+        }
+        policy[idx] = static_cast<short>(v);
+        ++it;
+        ++idx;
+    }
+}
 
 }  // namespace
 
-class InterfaceServicePolicy
-{
-public:
-    virtual ~InterfaceServicePolicy() {}                       // vtable +0x00/+0x04
-    virtual int getCode() const = 0;                           // +0x08
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) {}       // +0x0c【推断】
-protected:
-    virtual void unknown_10() {}                               // +0x10【推断】占位槽
-public:
-    virtual bool isRestricted(int /*v*/) { return false; }     // +0x14（ORIG 虚调用槽）
-};
+// ==================== 三个具体策略（ORIG 全局具名类，具名符号见 RestrictPolicy.h） ====================
 
-namespace
+// ---- NullPolicy（ORIG 0x0816d5aa 区，全部空/恒真）----
+NullPolicy::NullPolicy() : InterfaceServicePolicy(RestrictCategory::ENUM_0)
 {
+    m_apply = false;          // ORIG 0816d5d1 movb $0,0x4
+    m_svc.Init();             // ORIG 0816d5de call ServicePolicy::Init
+}
 
-struct NullPolicy : InterfaceServicePolicy
+NullPolicy::~NullPolicy()
 {
-    virtual int getCode() const { return 0; }
-};
-struct AuthMobileRestrictPolicy : InterfaceServicePolicy
-{
-    virtual int getCode() const { return 1; }
-};
-struct CreateCharacterRestrictPolicy : InterfaceServicePolicy
-{
-    virtual int getCode() const { return 2; }
-};
-struct SecurityRestrictPolicy : InterfaceServicePolicy
-{
-    virtual int getCode() const { return 3; }
-};
+}
 
-}  // namespace
+bool NullPolicy::beginPolicy(std::string const&)
+{
+    return true;              // ORIG 0816d656 mov $1
+}
+
+void NullPolicy::endPolicy()
+{
+}                             // ORIG 0816d660 空
+
+bool NullPolicy::isApply()
+{
+    return true;              // ORIG 0816d666 mov $1
+}
+
+bool NullPolicy::isApply(int)
+{
+    return true;              // ORIG 0816d670 mov $1
+}
+
+void NullPolicy::printRestrict()                                    // ORIG 0816d67a
+{
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x52, 9, true, true);
+    trace("\tDummy Restrict");
+}
+
+void NullPolicy::getRestrictValue(Taiwan::SigLoadRestrictPolicy&)  // ORIG 0816d6c8 空
+{
+}
+
+// ---- AuthMobileRestrictPolicy（ORIG 0x0816d6ce 区，code=1，34 条限制）----
+AuthMobileRestrictPolicy::AuthMobileRestrictPolicy()
+    : InterfaceServicePolicy(RestrictCategory::Enum_1)
+{
+    m_apply = false;          // ORIG 0816d6f5
+    m_svc.Init();             // ORIG 0816d702
+    for (int i = 0; i <= 0x21; ++i)   // ORIG 0816d72f cmpl $0x21/setle（34 条）
+    {
+        short v = 1;          // ORIG 0816d710 movw $1,-0xe（常量 1）
+        m_svc.push_back(v);
+    }
+}
+
+AuthMobileRestrictPolicy::~AuthMobileRestrictPolicy()
+{
+}
+
+bool AuthMobileRestrictPolicy::beginPolicy(std::string const& str)
+{
+    // ORIG 读 this+0x8（m_code）传 setPolicyApplyValue。
+    setPolicyApplyValue(static_cast<RestrictCategory::Enum>(m_code), m_svc, str);
+    return true;
+}
+
+void AuthMobileRestrictPolicy::endPolicy()
+{
+    m_apply = false;          // ORIG 0816d7d8
+}
+
+bool AuthMobileRestrictPolicy::isApply()
+{
+    return m_apply;           // ORIG 0816d7e4 movzbl
+}
+
+bool AuthMobileRestrictPolicy::isApply(int param)                   // ORIG 0816d7f0
+{
+    if (param > 0x21 || param < 0)
+    {
+        LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
+                              __PRETTY_FUNCTION__, 0x84,
+                              "[Taiwan, Restrict] Invalid AuthMobileRestrictPolicy Parameter. End:%d, Param:%d",
+                              0x22, param);
+        return false;
+    }
+    return m_svc[param] == 1;
+}
+
+void AuthMobileRestrictPolicy::printRestrict()                      // ORIG 0816d866
+{
+    unsigned int i;
+    cMyTrace trace1(__PRETTY_FUNCTION__, 0x8d, 9, true, true);
+    trace1("\tMobile Auth Begin");
+    for (i = 0; i < m_svc.size(); ++i)
+    {
+        // P37 链式临时：实参右→左求值（m_svc[i]→esi、enumToString→ebx）后构造。
+        cMyTrace(__PRETTY_FUNCTION__, 0x90, 9, true, true)(
+            "\t- %s : %d",
+            MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i)),
+            static_cast<int>(m_svc[i]));
+    }
+    cMyTrace trace3(__PRETTY_FUNCTION__, 0x94, 9, true, true);
+    trace3("\tMobile Auth End");
+}
+
+void AuthMobileRestrictPolicy::getRestrictValue(Taiwan::SigLoadRestrictPolicy& policy)  // 0816d9a0
+{
+    policy.m_restrictValue = getCode();   // ORIG call 816ee12
+    policy.m_count = 0;
+    for (unsigned int i = 1; i < m_svc.size(); ++i)
+    {
+        // ORIG 0816d9cc：enumToString 实参内联（无命名局部；P24）。
+        strncpy(policy.m_data[i],
+                MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i)), 0x2d);
+        policy.m_extra[i] = static_cast<unsigned char>(m_svc[i]);
+        ++policy.m_count;
+    }
+}
+
+// ---- CreateCharacterRestrictPolicy（ORIG 0x0816ddd2 区，code=2，3 条限制）----
+CreateCharacterRestrictPolicy::CreateCharacterRestrictPolicy()
+    : InterfaceServicePolicy(RestrictCategory::Enum_2)
+{
+    m_apply = false;          // ORIG 0816de0d
+    m_svc.Init();             // ORIG 0816de06
+    for (int i = 0; i <= 2; ++i)      // ORIG 0816de34 cmpl $0x2/setle（3 条）
+    {
+        short v = static_cast<short>(i);   // ORIG 0816de14 mov %ax,-0xe（push i 值）
+        m_svc.push_back(v);
+    }
+}
+
+CreateCharacterRestrictPolicy::~CreateCharacterRestrictPolicy()
+{
+}
+
+bool CreateCharacterRestrictPolicy::beginPolicy(std::string const& str)
+{
+    // ORIG 读 this+0x8（m_code）传 setPolicyApplyValue。
+    setPolicyApplyValue(static_cast<RestrictCategory::Enum>(m_code), m_svc, str);
+    return true;
+}
+
+void CreateCharacterRestrictPolicy::endPolicy()
+{
+    m_apply = false;          // ORIG 0816dede
+}
+
+bool CreateCharacterRestrictPolicy::isApply()
+{
+    return m_apply;           // ORIG 0816deea movzbl
+}
+
+bool CreateCharacterRestrictPolicy::isApply(int param)              // ORIG 0816def6
+{
+    if (param > 2 || param < 0)
+    {
+        LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
+                              __PRETTY_FUNCTION__, 0x11c,
+                              "[Taiwan, Restrict] Invalid CreateCharacterRestrictPolicy Parameter. End:%d, Param:%d",
+                              3, param);
+        return false;
+    }
+    return m_svc[param] == 1;
+}
+
+void CreateCharacterRestrictPolicy::printRestrict()                 // ORIG 0816df6c
+{
+    cMyTrace trace1(__PRETTY_FUNCTION__, 0x125, 9, true, true);
+    trace1("\tCreate Character Begin");
+    for (unsigned int i = 0; i < m_svc.size(); ++i)
+    {
+        // P37 链式临时：实参右→左求值（m_svc[i]→esi、enumToString→ebx）后构造。
+        cMyTrace(__PRETTY_FUNCTION__, 0x128, 9, true, true)(
+            "\t- %s : %d",
+            CharacterRestrict::enumToString(static_cast<CharacterRestrict::Enum>(i)),
+            static_cast<int>(m_svc[i]));
+    }
+    cMyTrace trace3(__PRETTY_FUNCTION__, 0x12c, 9, true, true);
+    trace3("\tCreate Character End");
+}
+
+void CreateCharacterRestrictPolicy::getRestrictValue(Taiwan::SigLoadRestrictPolicy&)  // 0816e0a6 空
+{
+}
+
+// ---- ctor / dtor（ORIG 0x816e272：map 构造 + 两标志字节清零）----
 
 // ---- ctor / dtor（ORIG 0x816e272：map 构造 + 两标志字节清零）----
 ServiceRestrictManager::ServiceRestrictManager() : m_policyMap(), m_flag18(0), m_flag19(0)
@@ -89,7 +270,7 @@ ServiceRestrictManager::ServiceRestrictManager() : m_policyMap(), m_flag18(0), m
 
 ServiceRestrictManager::~ServiceRestrictManager()
 {
-    for (std::map<int, InterfaceServicePolicy*>::iterator it = m_policyMap.begin();
+    for (std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it = m_policyMap.begin();
          it != m_policyMap.end(); ++it)
     {
         delete it->second;
@@ -104,15 +285,17 @@ bool ServiceRestrictManager::initialize()
     {
         m_flag19 = 1;
     }
-    m_policyMap[0] = new (std::nothrow) NullPolicy;
-    m_policyMap[1] = new (std::nothrow) AuthMobileRestrictPolicy;
-    m_policyMap[2] = new (std::nothrow) CreateCharacterRestrictPolicy;
-    m_policyMap[3] = new (std::nothrow) SecurityRestrictPolicy;
-    if (m_policyMap[0] == 0 || m_policyMap[1] == 0 ||
-        m_policyMap[2] == 0 || m_policyMap[3] == 0)
+    m_policyMap[RestrictCategory::ENUM_0] = new (std::nothrow) NullPolicy;
+    m_policyMap[RestrictCategory::Enum_1] = new (std::nothrow) AuthMobileRestrictPolicy;
+    m_policyMap[RestrictCategory::Enum_2] = new (std::nothrow) CreateCharacterRestrictPolicy;
+    m_policyMap[RestrictCategory::Enum_3] = new (std::nothrow) SecurityRestrictPolicy;
+    if (m_policyMap[RestrictCategory::ENUM_0] == 0 ||
+        m_policyMap[RestrictCategory::Enum_1] == 0 ||
+        m_policyMap[RestrictCategory::Enum_2] == 0 ||
+        m_policyMap[RestrictCategory::Enum_3] == 0)
     {
         LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                              "bool ServiceRestrictManager::initialize()", 0x169,
+                              __PRETTY_FUNCTION__, 0x169,
                               "[Taiwan, Restrict] Fail create NullPolicy.");
         return false;
     }
@@ -127,7 +310,7 @@ void ServiceRestrictManager::savePolicy()
     {
         return;
     }
-    for (std::map<int, InterfaceServicePolicy*>::iterator it = m_policyMap.begin();
+    for (std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it = m_policyMap.begin();
          it != m_policyMap.end(); ++it)
     {
         if (it->second == 0)
@@ -141,11 +324,12 @@ void ServiceRestrictManager::savePolicy()
             guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
         if (sig == 0)
         {
-            cMyTrace t("void ServiceRestrictManager::savePolicy()", 0x1e3, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x1e3, 5);
             t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
             return;
         }
-        it->second->save(sig);
+        // ORIG 0x0816e9c5：虚调用 vtable+0x1c（槽7）= getRestrictValue(sig)。
+        it->second->getRestrictValue(*sig);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -161,7 +345,7 @@ void ServiceRestrictManager::loadPolicy()
     if (sig == 0)
     {
         LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                              "void ServiceRestrictManager::loadPolicy()", 0x1cc,
+                              __PRETTY_FUNCTION__, 0x1cc,
                               "[Taiwan, Restrict] SigLoadRestrictPolicy is null.");
     }
     else
@@ -181,17 +365,124 @@ bool ServiceRestrictManager::isRestricted(CUser* user,
         reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData());
     if (auth->getMobileAuth())
         return false;
-    std::map<int, InterfaceServicePolicy*>::iterator it = m_policyMap.find(category);
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
     if (it == m_policyMap.end())
         return true;
-    return it->second->isRestricted(v);
+    // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
+    return it->second->isApply(v);
 }
 
 // ORIG 0x0816e75e（WarField 用）：map 无该类别→true；否则策略虚调用。
 bool ServiceRestrictManager::isRestricted(RestrictCategory::Enum category, int v)
 {
-    std::map<int, InterfaceServicePolicy*>::iterator it = m_policyMap.find(category);
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
     if (it == m_policyMap.end())
         return true;
-    return it->second->isRestricted(v);
+    // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
+    return it->second->isApply(v);
+}
+
+// ORIG 0x0816e54a：find 命中则策略 beginPolicy(str)；随后 printPolicy + updatePolicy。
+void ServiceRestrictManager::beginPolicy(RestrictCategory::Enum category,
+                                         std::string const& str)
+{
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
+    if (it != m_policyMap.end())
+    {
+        // ORIG 0x0816e5a7：虚调用 vtable+0x8（槽2）= beginPolicy(string)。
+        it->second->beginPolicy(str);
+    }
+    printPolicy(category);
+    updatePolicy(category);
+}
+
+// ORIG 0x0816e5de：find 命中则策略 endPolicy()（虚槽 +0xc）。
+void ServiceRestrictManager::endPolicy(RestrictCategory::Enum category)
+{
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
+    if (it != m_policyMap.end())
+    {
+        it->second->endPolicy();
+    }
+}
+
+// ORIG 0x0816e648：map 无该类别→true；否则策略 isApply()（虚槽 +0x10）。
+bool ServiceRestrictManager::isApply(RestrictCategory::Enum category)
+{
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
+    if (it != m_policyMap.end())
+        return it->second->isApply();
+    return true;
+}
+
+// ORIG 0x0816ea6a：trace 头 + 命中则策略 printRestrict()（虚槽 +0x18），
+// 未命中打 End 行。
+void ServiceRestrictManager::printPolicy(RestrictCategory::Enum category)
+{
+    cMyTrace trace1(__PRETTY_FUNCTION__,
+                    0x1ef, 9, true, true);
+    trace1("[!] Service Restrict List ... ");
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
+    if (it != m_policyMap.end())
+    {
+        it->second->printRestrict();
+    }
+    else
+    {
+        cMyTrace trace2(__PRETTY_FUNCTION__,
+                        0x1f3, 9, true, true);
+        trace2("[!] Service Restrict List ... End");
+    }
+}
+
+// ORIG 0x0816eb62：find 命中则经 SigSaveRestrictPolicy 流把策略当前值写回 DB。
+void ServiceRestrictManager::updatePolicy(RestrictCategory::Enum category)
+{
+    std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
+        m_policyMap.find(category);
+    if (it != m_policyMap.end())
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                               "localtaiwan/System/ServiceRestrictManager.cpp", 0x1fd), true);
+        Taiwan::internal_stream(guard, TaiwanInternalPack::T(2), 0xffffffff);
+        Taiwan::SigLoadRestrictPolicy* sig =
+            guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
+        if (sig == 0)
+        {
+            cMyTrace t(__PRETTY_FUNCTION__,
+                       0x202, 5);
+            t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
+        }
+        else
+        {
+            // ORIG 0x0816ec69：虚调用 vtable+0x1c（槽7）= getRestrictValue(sig)。
+            sig->init();
+            it->second->getRestrictValue(*sig);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        }
+    }
+}
+
+// ORIG 0x0816e0ac：拼接 Mobile(0..0x21) 与 Character(0..2) 限制串到 ostringstream
+// （str() 结果丢弃，原样保留）。
+void ServiceRestrictManager::serviceRestrictStringQuery()
+{
+    std::ostringstream oss;
+    for (int i = 0; i <= 0x21; ++i)
+    {
+        oss << "(" << 1 << "," << i << ","
+            << MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i)) << ")";
+    }
+    for (int i = 0; i <= 2; ++i)
+    {
+        oss << "(" << 2 << "," << i << ","
+            << CharacterRestrict::enumToString(static_cast<CharacterRestrict::Enum>(i)) << ")";
+    }
+    oss.str();
 }

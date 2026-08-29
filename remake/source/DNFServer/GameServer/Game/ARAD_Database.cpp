@@ -76,7 +76,7 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
         create_result_code(sig) = 2;
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_charater_name_check(MySQL*, SIG_CREATE_CHARAC*, const char*)",
+            __PRETTY_FUNCTION__,
             0x1f, "%s", "select error");
         return -1;
     }
@@ -91,7 +91,7 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_charater_name_check(MySQL*, SIG_CREATE_CHARAC*, const char*)",
+            __PRETTY_FUNCTION__,
             0x28, "%s", "Parsing Error of Selected Field");
         return -1;
     }
@@ -113,7 +113,7 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_get_characer_index(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x47, "%s", "select @@identity error");
         return -1;
     }
@@ -121,7 +121,7 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_get_characer_index(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x4c, "%s", "Parsing Error of Selected Field");
         return -1;
     }
@@ -129,7 +129,7 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_get_characer_index(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x51, "%s", "charac_no error");
         return -1;
     }
@@ -144,7 +144,7 @@ int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* s
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_create_character_check(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x62, "%s", "select charac_info error");
         return -1;
     }
@@ -160,7 +160,7 @@ int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* s
         create_result_code(sig) = 2;
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_create_character_check(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x69, "%s", "max charac slot limit");
         return -1;
     }
@@ -178,10 +178,10 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
 
     // ORIG：库名 = G_CEnvironment()->m_dbConnInfo[(ENUM_DB_HANDLE_IDX)2].m_db(+0x42)，
     // 该 map 为 private 且无访问器，此处在类外按 ABI 镜像定位 +0x68 后调用 operator[]。
+    // ORIG：库名 = G_CEnvironment()->m_dbConnInfo[(ENUM_DB_HANDLE_IDX)2].m_db(+0x42)，
+    // 经 get_db_conn_info accessor 具名访问（+0x68）。
     typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnInfoMap;
-    DbConnInfoMap& connMap =
-        *reinterpret_cast<DbConnInfoMap*>(
-            reinterpret_cast<char*>(G_CEnvironment()) + 0x68);      // 【ABI 镜像】+0x68
+    DbConnInfoMap& connMap = G_CEnvironment()->get_db_conn_info();
     char const* dbName = connMap[static_cast<ENUM_DB_HANDLE_IDX>(2)].m_db;
 
     if (arad_sp_charater_name_check(db, sig, dbName) != 0)
@@ -227,8 +227,8 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
             "%d,%d,NOW(),%d)",
             sig->m_accId,
             escName,
-            static_cast<int>(static_cast<char>(login_field<unsigned char>(sig, 0x22))),
-            static_cast<int>(static_cast<char>(login_field<unsigned char>(sig, 0x534c))),
+            static_cast<int>(static_cast<char>(sig->m_slot)),            // +0x22
+            static_cast<int>(static_cast<char>(sig->m_ssnCheckFail)),    // +0x534c
             maxHP, maxMP, phyAtk, phyDef, magAtk, magDef,
             elementResist, specProperty,
             invenWt, hpRegen, mpRegen, moveSpd, atkSpd, castSpd, hitRecov, jump,
@@ -273,7 +273,7 @@ int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
         return 0;
     }
 
-    static const unsigned int kInvenSrcLen = 0x3b55;   // ORIG 背包快照长度
+    static const unsigned int kInvenSrcLen = sourceInvenSize;   // ORIG 背包快照长度
     char zipBuf[0x4152];
     memset(zipBuf, 0, sizeof(zipBuf));
     unsigned int zipLen = 0x4152;
@@ -312,18 +312,18 @@ int CREATE_QUERY::arad_sp_create_expand_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
 // ORIG 0x0818b443：初始 equipslot 快照（+0x4e01 起 0x2dc 字节）zip 后 upDate 入库。
 int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
-    static const unsigned int kEquipSrcLen = 0x2dc;    // ORIG 初始装备区长度
+    static const unsigned int kEquipSrcLen = sourceEquipSize;    // ORIG 初始装备区长度
     char zipBuf[0x333];
     memset(zipBuf, 0, sizeof(zipBuf));
     unsigned int zipLen = 0x333;
     bool compressed = compress_zip(zipBuf, zipLen,
-                                   reinterpret_cast<char*>(sig) + 0x4e01,
-                                   kEquipSrcLen);
+                                   reinterpret_cast<char*>(&sig->m_giftItem),
+                                   kEquipSrcLen);   // +0x4e01 初始装备区
     if (!compressed)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::CREATE_QUERY::arad_sp_create_equip(MySQL*, SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x155, "%s", "equip compress zip fail");
         return -1;
     }
@@ -341,7 +341,7 @@ int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     char* skillBlob =
-        db->blob_to_str(0, reinterpret_cast<char*>(sig) + 0x79, 0x198);
+        db->blob_to_str(0, sig->m_masteredSkillA, 0x198);   // +0x79 技能树 blob
     if (db->insert("inSert into skill (charac_no, skill_slot) values(%u, '%s')",
                    create_charac_no(sig), skillBlob) != 0)
     {
@@ -420,7 +420,7 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x1e8, "%s", "Database null!!");
         return -1;
     }
@@ -429,17 +429,17 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
             "seLect m_id, passwd,first_ssn, second_ssn, "
             "mid(from_unixtime(reg_date)+0,1,8),user_name,email, user_id, hangame_flag "
             "from member_info where m_id=%d",
-            login_field<unsigned int>(data, 0xc0)) != 0)
+            data->m_accId) != 0)
     {
         return -1;
     }
     if (db->get_n_rows() != 1)
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x1f5, 5);
         trace("query get_n_rows() ERROR m_id=%u",
-              login_field<unsigned int>(data, 0xc0));
+              data->m_accId);
         return 0;
     }
 
@@ -448,93 +448,93 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     unsigned int regMid = 0;                  // mid(from_unixtime(reg_date))
     unsigned int hangameFlag = 0;
     int col = 1;
-    if (!db->get_uint(col, login_field<unsigned int>(data, 0xc0)))       // col1
+    if (!db->get_uint(col, data->m_accId))       // col1
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x201, 5);
         trace("user m_id ERROR m_id=%u",
-              login_field<unsigned int>(data, 0xc0));
+              data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, param_2, 0x84))                              // col2
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x207, 5);
         trace("user password ERROR m_id=%u",
-              login_field<unsigned int>(data, 0xc0));
+              data->m_accId);
         return 0;
     }
     if (!db->get_uint(col++, fssn))
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x20d, 5);
-        trace("user fssn ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user fssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(col++, sssn))
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x213, 5);
-        trace("user sssn ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user sssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(col++, regMid))
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x219, 5);
-        trace("user regdate ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user regdate ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_str(col++, reinterpret_cast<char*>(data) + 0x2184, 0x80))  // user_name
+    if (!db->get_str(col++, data->m_userDetailIpPort, 0x80))  // user_name（+0x2184）
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x21f, 5);
-        trace("user user_name ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user user_name ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_str(col++, reinterpret_cast<char*>(data) + 0x2204, 0x80))  // email
+    if (!db->get_str(col++, data->m_userDetailSsn, 0x80))  // email（+0x2204）
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x225, 5);
-        trace("user email ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user email ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(col++, reinterpret_cast<char*>(data), 0x1e))           // user_id
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x22b, 5);
-        trace("user id ERROR m_id=%u", login_field<unsigned int>(data, 0xc0));
+        trace("user id ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_uint(col++, hangameFlag))                                  // col9
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x231, 5);
         trace("user HanGameUser Check ERROR m_id=%u",
-              login_field<unsigned int>(data, 0xc0));
+              data->m_accId);
         return 0;
     }
 
-    login_field<unsigned int>(data, 0xcc) = regMid;
-    login_field<unsigned char>(data, 0x38dd) =
+    data->m_regDate = regMid;
+    data->m_hangameUser =
         static_cast<unsigned char>(hangameFlag == 1 ? 1 : 0);
-    OS_API::snprintf(reinterpret_cast<char*>(data) + 0x2284, 0x10, "%d%d",
+    OS_API::snprintf(data->m_birth, 0x10, "%d%d",   // +0x2284
                      static_cast<int>(fssn), static_cast<int>(sssn));
     unsigned int year = 2000;
     if (sssn / 1000000 < 3)
     {
         year = fssn / 10000 + 1900;
     }
-    login_field<unsigned int>(data, 0xc8) = year;
+    data->m_birthYear = year;
     return 0;
 }
 
@@ -547,7 +547,7 @@ int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x255, "%s", "Database null!!");
         return -1;
     }
@@ -556,7 +556,7 @@ int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
             "seLect punish_type, unix_timestamp(occ_time),punish_value, apply_flag, "
             "unix_timestamp(start_time),unix_timestamp(end_time) from "
             "member_punish_info where m_id=%d and apply_flag=1 LIMIT %d",
-            login_field<unsigned int>(data, 0xc0), 0x32) != 0)
+            data->m_accId, 0x32) != 0)
     {
         return -1;
     }
@@ -564,13 +564,13 @@ int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
     {
-        char* base = reinterpret_cast<char*>(data) + 0x3a54 + row * 0x18;
-        if (!db->get_int(0, *reinterpret_cast<int*>(base)) ||
-            !db->get_uint(1, *reinterpret_cast<unsigned int*>(base + 0x04)) ||
-            !db->get_int(2, *reinterpret_cast<int*>(base + 0x08)) ||
-            !db->get_int(3, *reinterpret_cast<int*>(base + 0x0c)) ||
-            !db->get_uint(4, *reinterpret_cast<unsigned int*>(base + 0x10)) ||
-            !db->get_uint(5, *reinterpret_cast<unsigned int*>(base + 0x14)))
+        SIG_LOGIN_PUNISH_INFO& pun = data->m_punishInfos[row];   // +0x3a54 stride 0x18
+        if (!db->get_int(0, pun.m_type) ||
+            !db->get_uint(1, reinterpret_cast<unsigned int&>(pun.m_field04)) ||
+            !db->get_int(2, pun.m_stdDropRate) ||
+            !db->get_int(3, pun.m_field0c) ||
+            !db->get_uint(4, reinterpret_cast<unsigned int&>(pun.m_field10)) ||
+            !db->get_uint(5, reinterpret_cast<unsigned int&>(pun.m_endTime)))
         {
             return -1;
         }
@@ -587,7 +587,7 @@ int LOGIN_QUERY::arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_punish_second_user(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x293, "%s", "Database null!!");
         return -1;
     }
@@ -595,14 +595,16 @@ int LOGIN_QUERY::arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data)
     if (db->select(
             "seLect trade_cnt,trade_gold,punish_flag,unix_timestamp(occ_time) from "
             "auto_punish_second_user where m_id=%d",
-            login_field<unsigned int>(data, 0xc0)) != 0)
+            data->m_accId) != 0)
     {
         return -1;
     }
 
     char punishFlag = 0;                       // ORIG 不回写 sig，仅做判定
-    db->get_uint(0, login_field<unsigned int>(data, 0x3a24));           // trade_cnt
-    db->get_ulonglong(1, login_field<unsigned long long>(data, 0x3a28)); // trade_gold
+    db->get_uint(0, data->m_totalHackUserTradeCnt);           // trade_cnt
+    // trade_gold：ORIG 按 8 字节 long 槽读取（覆盖 m_totalHackUserTradeGold 与高位槽）
+    db->get_ulonglong(
+        1, *reinterpret_cast<unsigned long long*>(&data->m_totalHackUserTradeGold));
     db->get_byte(2, punishFlag);
     int occTime = 0;                           // ORIG 读入后未使用，保留调用
     db->get_int(3, occTime);
@@ -618,7 +620,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2b0, "%s", "Database null!!");
         return -1;
     }
@@ -626,7 +628,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     if (!db->set_query(
             "seLect mousepass, fail_cnt, cancel_cnt, version_info, validity_time, "
             "enable_flag from member_mousepass where m_id=%d",
-            login_field<unsigned int>(data, 0xc0)))
+            data->m_accId))
     {
         return -1;
     }
@@ -634,7 +636,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             700, "%s", "arad_sp_convert_pass_pad_info fail");
         return -1;
     }
@@ -642,10 +644,10 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     if (db->get_n_rows() == 0)
     {
         cMyTrace trace(
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2c2, 0);
         trace("Goblin Pad Exist");
-        login_field<unsigned char>(data, 0x390c) = 0;      // version_info 置无
+        data->m_passPadVersion = 0;      // version_info 置无
         return 0;
     }
 
@@ -653,18 +655,18 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2c9, "%s", "arad_sp_convert_pass_pad_info fetch fail");
         return -1;
     }
 
     char enableFlag = 0;
-    bool ok = db->get_str(0, reinterpret_cast<char*>(data) + 0x38e1, 0x24);
+    bool ok = db->get_str(0, data->m_passPadPassword, 0x24);   // +0x38e1
     if (!ok)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2cf, "%s", "Mouse Pass Encrypted Parsing error");
         return -1;
     }
@@ -672,7 +674,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2d5, "%s", "Mouse PassPad Fail Count Parsing error");
         return -1;
     }
@@ -680,15 +682,15 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2db, "%s", "PassPad Cancel Count Parsing error");
         return -1;
     }
-    if (!db->get_byte(3, login_field<char>(data, 0x390c)))   // version_info
+    if (!db->get_byte(3, *reinterpret_cast<char*>(&data->m_passPadVersion)))   // version_info（+0x390c）
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2e0, "%s", "VersionInfo Parsing error");
         return -1;
     }
@@ -696,7 +698,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2e6, "%s", "Goblin Validity Time Parsing error");
         return -1;
     }
@@ -704,7 +706,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x2ed, "%s", "Goblin enable flage Parsing error");
         return -1;
     }
@@ -724,12 +726,12 @@ int LOGIN_QUERY::arad_sp_delete_member_mouspass(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x345, "%s", "Database null!!");
         return -1;
     }
     if (db->select("deLete from member_mousepass where m_id=%d",
-                   login_field<unsigned int>(data, 0xc0)) != 0)
+                   data->m_accId) != 0)
     {
         return -1;
     }
@@ -745,13 +747,13 @@ int LOGIN_QUERY::arad_sp_update_fail_record(SIG_LOGIN_DATA* data)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(SIG_LOGIN_DATA*)",
+            __PRETTY_FUNCTION__,
             0x365, "%s", "Database null!!");
         return -1;
     }
     if (db->select("upDate member_mousepass set fail_cnt=%d where m_id=%d",
                    login_field<unsigned int>(data, 0x3914),
-                   login_field<unsigned int>(data, 0xc0)) != 0)
+                   data->m_accId) != 0)
     {
         return -1;
     }
@@ -767,13 +769,13 @@ int LOGIN_QUERY::arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_update_history(SIG_LOGIN_DATA*, int)",
+            __PRETTY_FUNCTION__,
             0x37c, "%s", "Database null!!");
         return -1;
     }
 
     if (db->select("seLect mousepass from member_mousepass  where m_id=%d",
-                   login_field<unsigned int>(data, 0xc0)) != 0)
+                   data->m_accId) != 0)
     {
         return -1;
     }
@@ -787,7 +789,7 @@ int LOGIN_QUERY::arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType)
     if (db->select("inSert into member_mousepass_history"
                    "(occ_time, m_id, pre_mousepass, modify_type)  "
                    "values (now(),%d,'%s',%d)",
-                   login_field<unsigned int>(data, 0xc0), oldMousePass,
+                   data->m_accId, oldMousePass,
                    modifyType) != 0)
     {
         return -1;
@@ -804,7 +806,7 @@ int LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTi
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             0x30d, "%s", "Database null!!");
         return -1;
     }
@@ -812,18 +814,18 @@ int LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTi
     // ORIG 未检查 set_query 返回值，直接 exec
     db->set_query("seLect m_id from member_mousepass_history where modify_type = %d "
                   "and m_id=%d and occ_time >= '%s'",
-                  0x10, login_field<unsigned int>(data, 0xc0), sinceTime);
+                  0x10, data->m_accId, sinceTime);
     if (!db->exec(true))
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA*, char*)",
+            __PRETTY_FUNCTION__,
             799, "%s", "arad_sp_check_goblin_reward fail");
         return -1;
     }
     db->get_n_rows();                                        // ORIG 丢弃行数
     login_field<unsigned char>(data, 0x38e0) = 1;
-    login_field<unsigned char>(data, 0x390c) = 2;
+    data->m_passPadVersion = 2;
     return 0;
 }
 
@@ -837,7 +839,7 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_load_event_entry(SIG_LOGIN_DATA*, DB_Login::vecDNFEventEntry_t&)",
+            __PRETTY_FUNCTION__,
             0x3a5, "%s", "Database null!!");
         return -1;
     }
@@ -847,7 +849,7 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
             "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,"
             "unix_timestamp(obtain_date) from dnf_event_entry where m_id=%d "
             "and server_id in(0,%d)",
-            login_field<unsigned int>(data, 0xc0), serverGroup))
+            data->m_accId, serverGroup))
     {
         return -1;
     }
@@ -887,7 +889,7 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_brodcast(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&, int)",
+            __PRETTY_FUNCTION__,
             0x3d6, "%s", "Database null!!");
         return -1;
     }
@@ -895,7 +897,7 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     if (db->select(
             "seLect m_id,charac_no,server_id,unix_timestamp(start_time),charac_name "
             "from member_broadcast where event_id=%d and m_id=%d and end_time>now() limit 1",
-            login_field<unsigned int>(data, 0xc0),
+            data->m_accId,
             entry.m_eventId) != 0)
     {
         return -1;
@@ -942,7 +944,7 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
-            "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&, IntVector&, ARAD::DATABASE::LOGIN_QUERY::vecPremiumRemoveInfo_t)",
+            __PRETTY_FUNCTION__,
             0x412, "%s", "Database null!!");
         return -1;
     }
@@ -951,7 +953,7 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
             "seLect pre_type,unix_timestamp(service_start),unix_timestamp(service_end) "
             "from member_premium where m_id=%d and event_id=%d and service_end>now() "
             "and server_id in(0,%d) order by service_end desc limit 1",
-            login_field<unsigned int>(data, 0xc0), entry.m_eventId,
+            data->m_accId, entry.m_eventId,
             entry.m_serverId) != 0)
     {
         return -1;
@@ -976,28 +978,28 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
         if (!db->get_int(0, preType))
         {
             cMyTrace trace(
-                "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&, IntVector&, ARAD::DATABASE::LOGIN_QUERY::vecPremiumRemoveInfo_t)",
+                __PRETTY_FUNCTION__,
                 0x432, 5);
             trace("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%u",
-                  login_field<unsigned int>(data, 0xc0));
+                  data->m_accId);
             return -1;
         }
         if (!db->get_int(1, startSec))
         {
             cMyTrace trace(
-                "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&, IntVector&, ARAD::DATABASE::LOGIN_QUERY::vecPremiumRemoveInfo_t)",
+                __PRETTY_FUNCTION__,
                 0x438, 5);
             trace("DB_Login::GetPremiumInfo, get(2) ERROR m_id=%u",
-                  login_field<unsigned int>(data, 0xc0));
+                  data->m_accId);
             return -1;
         }
         if (!db->get_int(2, endSec))
         {
             cMyTrace trace(
-                "int ARAD::DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(SIG_LOGIN_DATA*, DB_Login::tagDNFEventEntry&, IntVector&, ARAD::DATABASE::LOGIN_QUERY::vecPremiumRemoveInfo_t)",
+                __PRETTY_FUNCTION__,
                 0x43e, 5);
             trace("DB_Login::GetPremiumInfo, get(3) ERROR m_id=%u",
-                  login_field<unsigned int>(data, 0xc0));
+                  data->m_accId);
             return -1;
         }
         if (slot > 0x69)
@@ -1007,18 +1009,17 @@ int LOGIN_QUERY::arad_sp_select_member_premium(
 
         // premium 元素基址 = sig + (slot+0x229)*0x10；字段位 [+8 pre_type]
         // [+0xc start][+0x10 end][+0x14 event id]【ABI 镜像】
-        char* item = reinterpret_cast<char*>(data) + (slot + 0x229) * 0x10;
-        *reinterpret_cast<int*>(item + 0x08) = preType;
-        *reinterpret_cast<int*>(item + 0x0c) = startSec;
-        *reinterpret_cast<int*>(item + 0x10) = endSec;
-        *reinterpret_cast<int*>(item + 0x14) = entry.m_eventId;
+        // premium 元素（+0x2290 起 stride 0x10 的窗口，字段对应 m_premiums[slot]）
+        SIG_LOGIN_PREMIUM_ENTRY& prem = data->m_premiums[slot];
+        prem.m_type = static_cast<unsigned int>(preType);
+        prem.m_startTime = static_cast<unsigned int>(startSec);
+        prem.m_endTime = static_cast<unsigned int>(endSec);
+        prem.m_flag = entry.m_eventId;
 
-        // 计数 ushort@0x293a 与 m_id 数组基址 sig+0xc+(cnt+0xa4c)*4【ABI 镜像】
-        unsigned short cnt = login_field<unsigned short>(data, 0x293a);
-        login_field<int>(data, 0xc + (static_cast<unsigned int>(cnt) + 0xa4c) * 4) =
-            entry.m_eventId;
-        login_field<unsigned short>(data, 0x293a) =
-            static_cast<unsigned short>(cnt + 1);
+        // 计数 ushort@0x293a（m_restrictedGoodsCount）与 m_id 数组（+0x293c 起 int 表）
+        unsigned short cnt = data->m_restrictedGoodsCount;
+        data->m_restrictedGoods[cnt] = entry.m_eventId;
+        data->m_restrictedGoodsCount = static_cast<unsigned short>(cnt + 1);
         ++slot;
     }
     return 0;
@@ -1041,7 +1042,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::dispatch(int param1, int param2, Stream* st
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "virtual int ARAD::Arad_DB_Charac_Dispatcher::dispatch(int, int, Stream*)",
+            __PRETTY_FUNCTION__,
             0x18, "%s", "Context Null");
         return -1;
     }
@@ -1089,7 +1090,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_charac(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x4e, "%s", "Database null!!");
         return -1;
     }
@@ -1112,7 +1113,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_stat(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_charac_stat(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x67, "%s", "Database null!!");
         return -1;
     }
@@ -1127,7 +1128,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_inventory(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_inventory(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x7b, "%s", "Database null!!");
         return -1;
     }
@@ -1150,7 +1151,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_equip(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_equip(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0x95, "%s", "Database null!!");
         return -1;
     }
@@ -1170,7 +1171,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_skill(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_skill(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0xb0, "%s", "Database null!!");
         return -1;
     }
@@ -1185,7 +1186,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_pvp(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_pvp(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0xbf, "%s", "Database null!!");
         return -1;
     }
@@ -1200,7 +1201,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_dungeon(SIG_CREATE_CHARAC* si
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_charac_dungeon(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0xcd, "%s", "Database null!!");
         return -1;
     }
@@ -1215,7 +1216,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_quest(SIG_CREATE_CHARAC* sig)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_charac_quest(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0xdb, "%s", "Database null!!");
         return -1;
     }
@@ -1231,7 +1232,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_npc_relationship(
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Character.cpp",
-            "int ARAD::Arad_DB_Charac_Dispatcher::create_charac_npc_relationship(SIG_CREATE_CHARAC*)",
+            __PRETTY_FUNCTION__,
             0xe9, "%s", "Database null!!");
         return -1;
     }
@@ -1280,7 +1281,7 @@ void CCoinEventOnCharCreate::StartEvent()            // T 0x0810a988
 {
     SetEventFlag(true);
     m_coin = 5;
-    cMyTrace trace("StartEvent", 0x15, 0);           // __FUNCTION__@0x8b4ac44
+    cMyTrace trace(__FUNCTION__, 0x15, 0);           // __FUNCTION__@0x8b4ac44
     trace("Coin Event On Char Create Start!");       // @0x8b4a4a0
 }
 
@@ -1288,7 +1289,7 @@ void CCoinEventOnCharCreate::StartEvent(Word_Param param)   // T 0x0810a9e4
 {
     SetEventFlag(true);
     m_coin = static_cast<int>(param.m_duration);     // 低 ushort 直接写入 +0xc
-    cMyTrace trace("StartEvent", 0x1c, 0);           // __FUNCTION__@0x8b4ac39
+    cMyTrace trace(__FUNCTION__, 0x1c, 0);           // __FUNCTION__@0x8b4ac39
     trace("Coin Event On Char Create Start!");
 }
 
@@ -1296,7 +1297,7 @@ void CCoinEventOnCharCreate::EndEvent()              // T 0x0810aa42
 {
     SetEventFlag(false);
     m_coin = 5;
-    cMyTrace trace("EndEvent", 0x24, 0);             // __FUNCTION__@0x8b4ac30
+    cMyTrace trace(__FUNCTION__, 0x24, 0);             // __FUNCTION__@0x8b4ac30
     trace("Coin Event On Char Create End!");         // @0x8b4a4c4
 }
 

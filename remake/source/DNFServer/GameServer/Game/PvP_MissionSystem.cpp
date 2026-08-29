@@ -4,6 +4,7 @@
 #include "DNFLexWrapper.h"     // loadRDARScriptFile / Scan* helper
 #include <stdio.h>
 #include "SyncScriptDeps.h"   // checkValiedJobName / getCharacterJob
+#include "NpcScript.h"
 
 // ============================================================================
 // PvP_MissionSystem 装载支撑（G5 批次）。
@@ -12,12 +13,7 @@
 
 // ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp 同布局：
 //      +0x00 std::map<int,std::string>，大小 0x18）----
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp
-};
+
 
 // ORIG 全局 STScriptFileList（PvP 任务脚本列表，BSS 0x0949…）。由
 // CDataManager::init 的 loadRDARScriptListFile 填充；此处提供符号。
@@ -497,9 +493,8 @@ int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
     {
         if (!*it)
             continue;
-        int grade[2] = {0, 0};
-        (*it)->GetRankRange(grade);
-        if (grade[0] == idx)
+        MissionRankRange grade = (*it)->GetRankRange();
+        if (grade.gradeMin == idx)
             return (*it)->GetMissionIndex();
     }
     return 0;

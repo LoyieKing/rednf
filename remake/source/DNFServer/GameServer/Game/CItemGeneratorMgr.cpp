@@ -19,10 +19,7 @@ namespace WongWork
 
 CItemGenerator* CItemGeneratorMgr::getGenerator(eGenerateType_t type)
 {
-    int idx = static_cast<int>(type);
-    if (idx < 0 || idx >= 8)
-        return 0;
-    return m_generators[idx];
+    return m_generators[type];
 }
 
 }  // namespace WongWork

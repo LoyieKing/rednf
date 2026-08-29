@@ -20,11 +20,31 @@
 #include <string>
 #include <utility>
 
-#include "GameTypes.h"
-// ENUM_SERVER_GROUP（CEnvironment.h）与 ENUM_NOTIPACKET（CUser.h）的权威声明
 #include "CUser.h"
 #include "Village.h"    // Village（GameWorld 成员 m_pVill / GetVillage）
 #include "Area.h"       // Area（Village::getArea 返回 / GameWorld.cpp 访问）
+#include "CPowerManager.h"  // ENUM_POWER_SIDE_TYPE（IsPowerWarSafeZone 三参版签名，ORIG mangled _ZN9GameWorld18IsPowerWarSafeZoneEii20ENUM_POWER_SIDE_TYPE）
+#include "CPowerManager.h"  // ENUM_POWER_SIDE_TYPE（IsPowerWarSafeZone 三参版签名，ORIG mangled _ZN9GameWorld18IsPowerWarSafeZoneEii20ENUM_POWER_SIDE_TYPE）
+
+class CUser;
+class CParty;
+class PacketGuard;
+class CBelong;
+class CUserModifier;
+class BuddyList;
+class MSG_ITEM_HYPER_LINK_MESSAGE;  // 权威定义见 PacketTypes.h（引用参数仅需前向）
+
+class TownScript;
+class CSyncScript;
+
+// ---- ENUM_POWER_UP_ACTIVATE_TYPE：SendPowerUpList 激活类型 ----
+// ORIG mangled _ZN9GameWorld15SendPowerUpListE27ENUM_POWER_UP_ACTIVATE_TYPERSt6vectorIP5CUserSaIS3_EE。
+// 枚举值实证：CancelPowerUp（ORIG 086cf432 传 0）、DisPatcher_DebugCommand_cmds（传 1）。
+enum ENUM_POWER_UP_ACTIVATE_TYPE
+{
+    ENUM_POWER_UP_ACTIVATE_TYPE_CANCEL = 0,   // CancelPowerUp 使用【实证】
+    ENUM_POWER_UP_ACTIVATE_TYPE_ACTIVATE = 1, // _debugCommandPowerUpOn 使用【实证】
+};
 
 class CUser;
 class CParty;
@@ -36,40 +56,98 @@ class BuddyList;
 class TownScript;
 class CSyncScript;
 
-// ---- Statistics 族（尚无权威头；尺寸/符号取自 ORIG 构造链）----
+// ---- Statistics 族（布局证据：docs/class_func_reports/Statistics/*/ 各 ctor/getter/reset 报告）----
 class StatisticsToObserveCrash
 {
 public:
     StatisticsToObserveCrash();
     ~StatisticsToObserveCrash();
     void reset();
-    char m_pad[0x64];
+    int getAbnormalDownUserCount();   // ORIG T 0x0860bb0d（定义 StatisticsToObserveCrash.cpp）
+    void lock();    // ORIG W 0x0844d4d0（Mutex::lock 转发，定义 W8LT_DBTask.cpp）
+    void unlock();  // ORIG W 0x0844d4e6（Mutex::unlock 转发，定义 W8LT_DBTask.cpp）
+    // +0x00 int 计数（ctor 置 0 / reset 清 0；getAbnormalDownUserCount 0x0860bb0d 读 (this+0)）
+    int m_abnormalDownUserCount;                        // +0x00
+    Mutex m_mutex;                                      // +0x04（ctor Mutex::Mutex(this+4)）
+    // 三个 map<int,int>，语义由三个 getter 偏移实证：
+    //   getUserLastCrashPacketID 0x0860bc9a → this+0x1c
+    //   getUserLastCrashDungeonID 0x0860be40 → this+0x34
+    //   getUserLastCrashPlayStatus 0x0860bfe6 → this+0x4c
+    std::map<int, int> m_userLastCrashPacketId;         // +0x1c
+    std::map<int, int> m_userLastCrashDungeonId;        // +0x34
+    std::map<int, int> m_userLastCrashPlayStatus;       // +0x4c
 };
+    static_assert(sizeof(StatisticsToObserveCrash) == 0x64, "StatisticsToObserveCrash size");
 
 class StatisticsShusiaService
 {
 public:
     StatisticsShusiaService();
     ~StatisticsShusiaService();
-    char m_pad[0x48];
+    void reset();   // ORIG T 0x0860c154（清空两张统计 map）
+    void lock();    // ORIG W 0x0844d4fc（Mutex::lock 转发）
+    void unlock();  // ORIG W 0x0844d510（Mutex::unlock 转发）
+    // +0x00 Mutex（ctor）；+0x18 / +0x30 两个 map<int,int>（ctor map::map(this+0x18/this+0x30)）：
+    //   incDungeonFailure 0x0860c1d7 → this+0x18；getServiceUSage 0x0860c463 → this+0x30
+    Mutex m_mutex;                                      // +0x00
+    std::map<int, int> m_dungeonFailure;                // +0x18
+    std::map<int, int> m_serviceUsage;                  // +0x30
 };
+    static_assert(sizeof(StatisticsShusiaService) == 0x48, "StatisticsShusiaService size");
 
 class StatisticsPvP
 {
 public:
     StatisticsPvP();
     ~StatisticsPvP();
-    char m_pad[0x30];
+    void lock();    // ORIG W 0x0844d524（Mutex::lock 转发）
+    void unlock();  // ORIG W 0x0844d538（Mutex::unlock 转发）
+    // +0x00 Mutex（ctor）；+0x18 map<PvP_Key,PvP_Room>（incPvPRoomResult 0x0860c603 → this+0x18）。
+    struct PvP_Key   // 8 字节（incPvPRoomResult local_40/local_3c 两个 int 组 key）
+    {
+        int m_a;    // +0x00
+        int m_b;    // +0x04
+        bool operator<(const PvP_Key& rhs) const
+            { return m_a < rhs.m_a || (m_a == rhs.m_a && m_b < rhs.m_b); }
+    };
+    struct PvP_Room  // 8 字节 value（find 命中时 value+0/+4 各自自增，incPvPRoomResult 0x0860c6b4..0x0860c6ce）
+    {
+        int m_roomCount;    // +0x00
+        int m_resultSum;    // +0x04（+= param_3）
+    };
+    Mutex m_mutex;                                      // +0x00
+    std::map<PvP_Key, PvP_Room> m_roomResults;          // +0x18
 };
+    static_assert(sizeof(StatisticsPvP) == 0x30, "StatisticsPvP size");
 
 class StatisticsNatType
 {
 public:
     StatisticsNatType();
     ~StatisticsNatType();
-    char m_pad[0x18];
-    static void UpdateNatType();   // ORIG T _ZN17StatisticsNatType13UpdateNatTypeEv 0x0860c968（静态语义，定义缺口记报告）
+
+    void Reset();
+    void IncreaseNatType(int natA, int natB, unsigned char count);  // ORIG T 0x0860c86c（StatisticsNatType.cpp 定义）
+    void UpdateNatType();  // ORIG T 0x0860c950（StatisticsNatType.cpp 定义；TimerNatType::dispatch_sig 调用）
+    // +0x00 单个 map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*>（ctor map::map(this+0)；
+    // IncreaseNatType 0x0860c86c find/insert，value 为 operator new(8) 的 RESULT_COUNT*）。
+    struct NAT_TYPE_PEER_TO_PEER   // 8 字节 key（ctor 0x08610262 接收两个 int）
+    {
+        NAT_TYPE_PEER_TO_PEER(int a, int b);
+        int m_a;    // +0x00
+        int m_b;    // +0x04
+        bool operator<(const NAT_TYPE_PEER_TO_PEER& rhs) const
+            { return m_a < rhs.m_a || (m_a == rhs.m_a && m_b < rhs.m_b); }
+    };
+    struct RESULT_COUNT  // 8 字节（ctor 0x08610294；IncreaseNatType 按 +0/+4 自增）
+    {
+        RESULT_COUNT();
+        int m_countA;   // +0x00（param_3!=0 分支自增）
+        int m_countB;   // +0x04（param_3==0 分支自增）
+    };
+    std::map<NAT_TYPE_PEER_TO_PEER, RESULT_COUNT*> m_counts;  // +0x00（gcc4.4 map=0x18，GameWorld 偏移 0x11c→0x134 实证）
 };
+static_assert(sizeof(StatisticsNatType) == 0x18, "StatisticsNatType size");
 
 // ---- SimpleInfo：GameWorld m_idMap（+0x8c）的 value（0x10 字节） ----
 struct SimpleInfo
@@ -80,6 +158,15 @@ struct SimpleInfo
     char m_pad6[2];      // +0x06
     int m_chatEndTick;   // +0x08（禁言结束毫秒时间）
     int m_moveEndTick;   // +0x0c（禁移动结束毫秒时间）
+
+    SimpleInfo()   // ORIG C1/C2 W 0x086d2108：逐字段清零（movl/movb）
+    {
+        m_id = 0;
+        m_chatBan = 0;
+        m_moveBan = 0;
+        m_chatEndTick = 0;
+        m_moveEndTick = 0;
+    }
 };
 
 // ---- stOccStatisticByAge：按年龄统计（short[100]）----
@@ -201,18 +288,18 @@ public:
     void gotoBlueMarble(CUser* user);
     void outFromBlueMarble(CUser* user);
     void fishing(CUser* user);
-    bool IsPowerWarSafeZone(int vill, int area, int side);
+    bool IsPowerWarSafeZone(int vill, int area, ENUM_POWER_SIDE_TYPE side);
     bool IsPowerWarSafeZone(int vill, int area);
 
     // ---- 聊天 ----
     void make_packet_chat_msg(PacketGuard& packet, CUser* user, char* msg, int len,
                               char type, ENUM_NOTIPACKET notify);
     void make_packet_chat_msg_hyper_link(PacketGuard& packet, CUser* user,
-                                         void* linkMsg, ENUM_NOTIPACKET notify);
+                                         MSG_ITEM_HYPER_LINK_MESSAGE& linkMsg, ENUM_NOTIPACKET notify);
     void send_chat_msg(CUser* from, char type, unsigned short target,
                        unsigned int characNo, char* msg, int len, char* nick,
                        int nickLen, ENUM_NOTIPACKET notify);
-    void send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPACKET notify);
+    void send_chat_msg_hyper_link(CUser* from, MSG_ITEM_HYPER_LINK_MESSAGE& linkMsg, ENUM_NOTIPACKET notify);
     void check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char type,
                                          char* msg, int len);
     void send_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char type,
@@ -269,7 +356,7 @@ public:
     void OnBanAbuserFromPowerWar();
     void OnRefreshPowerWarProcessInfo();
     void GetPowerUpDomain(std::vector<CUser*>& listA, std::vector<CUser*>& listB);
-    void SendPowerUpList(int activateType, std::vector<CUser*>& list);
+    void SendPowerUpList(ENUM_POWER_UP_ACTIVATE_TYPE activateType, std::vector<CUser*>& list);
     void CancelPowerUp();
 
     // ---- 成员（布局见文件头注释）----

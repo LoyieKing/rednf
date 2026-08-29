@@ -14,23 +14,21 @@
 #include "CGameManager.h"           // WongWork::CMailBoxHelper
 #include "RDARScriptStringManager.h"
 #include "CompoundEmblemDeps.h"     // getCompoundEmblemStatistic / getAvatarEmblemTypeIdxForCompountEmblem / LineFunc
+#include "Packet_Emblem_Create_Statistic.h"  // Packet_Emblem_Create_Statistic（C1 W 0x08110bdc）
 #include "CStatisticServerProxy.h"
 #include "GlobalData.h"             // GlobalData::s_statistic_proxy_mgr
 #include "CServerProxyMgr.h"        // CServerProxyMgr<T>::GetServerProxy
 
-// ============================================================================
-// Dispatcher_CompoundEmblem::dispatch_sig 忠实还原 (ORIG 0x08220bb2 T, 1065 insn)
-//
-// 语义依据 docs/class_func_reports/Dispatcher_CompoundEmblem/dispatch_sig.md、
-// _selectJewelTypeIndex.md、SendCreateEmblemInfo.md。
-//
-// _selectJewelTypeIndex 与 SendCreateEmblemInfo 是私有 ORIG 成员，当前
-// Dispatchers.h 未声明；作为文件局部辅助在此实现（不导出强符号，仅本 TU 用）。
+// _selectJewelTypeIndex 与 SendCreateEmblemInfo 为 ORIG 私有成员
+// （_ZNK25Dispatcher_CompoundEmblem21_selectJewelTypeIndexEjPKt T 0x08220a60、
+//  _ZN25Dispatcher_CompoundEmblem20SendCreateEmblemInfoERKSt6vectorISt4pairIiiESaIS2_EE
+//  T 0x08221dde），声明于 Dispatchers.h，本 TU 实现。
 // ============================================================================
 
 // ORIG _ZNK25Dispatcher_CompoundEmblem21_selectJewelTypeIndexEjPKt（0x8220a60）
 // 纹章位图→槽位 加权随机选取珍宝类型索引。
-static int selectJewelTypeIndex(unsigned int count, const unsigned short* sockets)
+int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
+    unsigned int count, const unsigned short* sockets) const
 {
     int socketCounts[5] = {0, 0, 0, 0, 0};   // 各类型计数（ORIG local_54[6..10]）
     int accums[5]        = {0, 0, 0, 0, 0};   // 各类型累计权重（local_54[1..5]）
@@ -60,49 +58,41 @@ static int selectJewelTypeIndex(unsigned int count, const unsigned short* socket
     return -1;
 }
 
-// ORIG _ZN25Dispatcher_CompoundEmblem20SendCreateEmblemInfoERKSt6vectorISt4pairIiiESaIS2_EE
-// (0x8221dde)：把合成的 [itemIdx, addInfo] 对打包成 0x36 字节统计包发送。
-// 布局（ORIG 汇编实证）：PacketHeader(0x17a4, 0x36) + count@+0xa + grades@+0xe(5)
-// + addInfo@+0x22(5)，SendPacket(pkt, 0x36)。
-static void sendCreateEmblemInfo(const std::vector<std::pair<int, int> >& created)
+// 布局（ORIG 汇编实证）：Packet_Emblem_Create_Statistic(0x17a4, 0x36)
+// + count@slots[0](+0xa) + grades@slots[i+1](+0xe) + addInfo@slots[i+6](+0x22)，
+// SendPacket(pkt, 0x36)。迭代器 while 循环（ORIG __gnu_cxx::operator!= 判续）。
+void Dispatcher_CompoundEmblem::SendCreateEmblemInfo(
+    const std::vector<std::pair<int, int> >& created)
 {
-    unsigned char statBuf[0x36];
-    std::memset(statBuf, 0, sizeof(statBuf));
-
-    // PacketHeader(0x17a4 /*id*/, 0x36 /*size*/) 字节序（ORIG 0x8110b70）：
-    // [0..1]=id LE, [2..3]=size LE, [4..9]=0 + Packet_Emblem_Create_Statistic [0xa..0xd]=0
-    statBuf[0] = (unsigned char)(0x17a4 & 0xff);
-    statBuf[1] = (unsigned char)((0x17a4 >> 8) & 0xff);
-    statBuf[2] = (unsigned char)(0x36 & 0xff);
-    statBuf[3] = (unsigned char)((0x36 >> 8) & 0xff);
+    Packet_Emblem_Create_Statistic packet;
 
     if (created.size() < 6)
     {
-        size_t i = 0;
-        for (; i < created.size(); ++i)
+        int count = 0;
+        std::vector<std::pair<int, int> >::const_iterator it = created.begin();
+        std::vector<std::pair<int, int> >::const_iterator end = created.end();
+        while (it != end)
         {
-            int itemIdx  = created[i].first;
-            int addInfo  = created[i].second;
-            CItem* item  = G_CDataManager()->find_item(itemIdx);
+            const CItem* item = G_CDataManager()->find_item(it->first);
             if (item == 0)
                 return;                       // ORIG 中途 return
-            int grade    = item->get_grade();
-            *reinterpret_cast<int*>(&statBuf[0xe + i * 4]) = grade;
-            *reinterpret_cast<int*>(&statBuf[0x22 + i * 4]) = addInfo;
-            if (i >= 5)
+            packet.m_slots[count + 1] = item->get_grade();
+            packet.m_slots[count + 6] = it->second;
+            ++count;
+            if (count > 5)
                 break;
+            ++it;
         }
-        if (i == created.size())
+        if (count == (int)created.size())
         {
-            *reinterpret_cast<int*>(&statBuf[0xa]) = (int)i;
+            packet.m_slots[0] = count;
             CStatisticServerProxy* proxy =
                 GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
             if (proxy)
-                proxy->SendPacket(reinterpret_cast<char*>(statBuf), 0x36);
+                proxy->SendPacket(reinterpret_cast<char*>(&packet), 0x36);
         }
     }
 }
-
 int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     static const char SELF[] = "virtual int Dispatcher_CompoundEmblem::dispatch_sig(CUser*, PacketBuf&)";
@@ -175,30 +165,30 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
             throw (ENUM_ERROR)0x11;
 
         // 该纹章等级合成费用表：cost==-1 不可合成
-        if (G_CDataManager()->getEmblemCompoundCost(gradeA) == -1)
+        if (G_CDataManager()->m_serverParameter.m_emblemCompound[gradeA].m_cost == -1)
             throw (ENUM_ERROR)7;
         if (gradeB < 0 || gradeB > 6)
             throw (ENUM_ERROR)0x11;
-        if (G_CDataManager()->getEmblemCompoundCost(gradeB) == -1)
+        if (G_CDataManager()->m_serverParameter.m_emblemCompound[gradeB].m_cost == -1)
             throw (ENUM_ERROR)7;
 
         // 珍宝目标槽位（每个材料物品一槽）
         unsigned short jewelSockets[2];
         jewelSockets[0] = static_cast<CStackableItem*>(itemA)->getJewelTargetSocket();
         jewelSockets[1] = static_cast<CStackableItem*>(itemB)->getJewelTargetSocket();
-        jewelTypeIndex = selectJewelTypeIndex(2, jewelSockets);
+        jewelTypeIndex = _selectJewelTypeIndex(2, jewelSockets);
         if (jewelTypeIndex == -1)
             throw (ENUM_ERROR)0x17;
 
         // 合成结果物品（按 grade 与珍宝类型查表）
-        resultItemIdx = G_CDataManager()->getEmblemResultItem(gradeA, jewelTypeIndex);
+        resultItemIdx = G_CDataManager()->m_serverParameter.m_emblemCompound[gradeA].m_result[jewelTypeIndex];
         CStackableItem* resultItem =
             static_cast<CStackableItem*>(G_CDataManager()->find_item(resultItemIdx));
         if (resultItem == 0 || resultItem->GetItemType() != 0x10)
             throw (ENUM_ERROR)0x16;
 
         // 扣除合成费用
-        int cost = G_CDataManager()->getEmblemCompoundCost(gradeA);
+        int cost = G_CDataManager()->m_serverParameter.m_emblemCompound[gradeA].m_cost;
         if (!user->getCurCharacInvenW()->use_money(cost, (eMoneySubReason)0x23, true))
             throw (ENUM_ERROR)0xa;
 
@@ -263,7 +253,7 @@ int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
 
         // ---- 统计 ----
         getCompoundEmblemStatistic()->increaseCount(gradeA);
-        sendCreateEmblemInfo(created);
+        SendCreateEmblemInfo(created);
     }
     catch (ENUM_ERROR& e)
     {

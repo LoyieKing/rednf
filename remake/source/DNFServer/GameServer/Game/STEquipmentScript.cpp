@@ -28,16 +28,13 @@
 // ---- 跨 TU 符号（ORIG 真实符号；定义归各自属主批次，此处仅按 ABI 引用） ----
 #include "SyncScriptDeps.h"    // toTString（importCommand 键名转换）
 #include "CEnvironment.h"      // SpinLock / less_TCHAR（GetExpertJobTypeList）
+#include "NpcScript.h"
 
 // ---- 跨 TU 符号（InitScriptProducers_5.cpp 提供） ----
 void InitMapEquipmentAniScript();  // ORIG T 0x089c0586
 extern std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript;  // B 0x094f7bf8
 // ORIG 全局脚本文件列表（权威视图同 NpcScript.h：pad 0x18 + 查找方法）
-struct STScriptFileList
-{
-    char m_pad[0x18];
-    int FindIndexByFullScan(const char* path) const;  // ORIG T 0x088bae56
-};
+
 extern STScriptFileList g_stEquipmentScriptFileList;        // ORIG B 0x94fac00
 
 int GetEquipmentType(const char* name);                     // T 0x08990f1f
@@ -50,25 +47,25 @@ bool importEffect(effect::STEffect& effect);                // T 0x088c1a0d
 bool importCommand(STKeyCommand* command);                  // T 0x088c167a
 static bool GetItemCategory(STItemScript* item);                   // t 0x089bfdc5
 static bool GetAuraAvatarOption(STEquipmentScript* script);        // t 0x089c019b
-bool GetExpertJobTypeList(STItemScript* item);              // t 0x089bf6ca
-bool GetExpertJobValueMaterialVariation(STItemScript* it);  // t 0x089bfc2f
-bool GetExpertJobValueCompoundRate(STItemScript* item);     // t 0x089bfc84
-bool GetExpertJobResultVariation(STItemScript* item);       // t 0x089bfcb5
-bool GetExpertJobDisjointBigWinRate(STItemScript* item);    // t 0x089bfd0b
-bool GetExpertJobDisjointResultVariation(STItemScript* i);  // t 0x089bfd3c
-bool GetExpertJobAdditionalGainExp(STItemScript* item);     // t 0x089bfd6d
+static bool GetExpertJobTypeList(STItemScript* item);       // t 0x089bf6ca
+static bool GetExpertJobValueMaterialVariation(STItemScript* it);  // t 0x089bfc2f
+static bool GetExpertJobValueCompoundRate(STItemScript* item);     // t 0x089bfc84
+static bool GetExpertJobResultVariation(STItemScript* item);       // t 0x089bfcb5
+static bool GetExpertJobDisjointBigWinRate(STItemScript* item);    // t 0x089bfd0b
+static bool GetExpertJobDisjointResultVariation(STItemScript* i);  // t 0x089bfd3c
+static bool GetExpertJobAdditionalGainExp(STItemScript* item);     // t 0x089bfd6d
 int getCharacterJob(const char* name);                      // T 0x088be57e
 int getCharacterJobToEnumValue(std::string& job);           // T 0x089bbc0f
 int getEquipmentTypeToEnumValue(std::string& type);         // T 0x089bc76e
 int loadAppendageType(const std::string& token);            // T 0x0889253b
-bool processModuleTagSet(int* moduleId, int* subId,
-                         std::string* tag, int type, bool flag);  // T 0x08a97637
+bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
+                         int type, bool flag);                      // T 0x08a97637
 std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript();  // T 0x089c05dd
 void setEquipmentAniScriptLay(
     const std::map<std::string, STEquipmentAniScript>* table,
     STEquipmentAniScript* ani, std::string* key, int layerId,
     std::string* path, STEquipmentScript* script,
-    ENUM_CHARACTERJOB job, int aniType);                    // T 0x089c1cb9
+    ENUM_CHARACTERJOB job, equipmentAniType::T aniType);    // T 0x089c1cb9
 bool importEquipmentParameterInfo(EquipmentParameterInfo* param,
                                   std::string& token, const char* path,
                                   int& countA, int& countB);  // T 0x089a75ea
@@ -94,7 +91,41 @@ void ScanMotionString(char* buf, unsigned int size, bool aniMode, int levelAniId
 
 }  // namespace
 
-// ===================== 生命周期与查询（ORIG 同段支撑类型） =====================
+STEquipmentStatInfo::STEquipmentStatInfo()
+{
+    clear();
+}
+
+void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(+0x28)
+                                   // + +0x38 + 循环 j<=16(+0x3c) + +0x80/+0x84
+                                   // + 循环 k<=3(+0x88)；38 int 全清，sizeof 0x98
+{
+    m_hpMax = 0;
+    m_mpMax = 0;
+    m_phyAtt = 0;
+    m_phyDef = 0;
+    m_magAtt = 0;
+    m_magDef = 0;
+    m_equipPhyAtt = 0;
+    m_equipPhyDef = 0;
+    m_equipMagAtt = 0;
+    m_equipMagDef = 0;
+    for (int i = 0; i <= 3; ++i)
+    {
+        (&m_refFire)[i] = 0;        // +0x28..+0x34 元素耐性
+    }
+    m_refAll = 0;                   // +0x38
+    for (int j = 0; j <= 16; ++j)
+    {
+        (&m_refSlow)[j] = 0;        // +0x3c..+0x7c 状态耐性
+    }
+    m_refAllState = 0;              // +0x80
+    m_84 = 0;                       // +0x84
+    for (int k = 0; k <= 3; ++k)
+    {
+        (&m_88)[k] = 0;             // +0x88..+0x94
+    }
+}
 
 STEquipmentAniScript::STEquipmentAniScript()
 {
@@ -1018,20 +1049,23 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         setEquipmentAniScriptLay(table, &normalLayer, &scanBuf,
                                                  normalLayerId, &normalPath,
                                                  script,
-                                                 (ENUM_CHARACTERJOB)curJob, 0);
+                                                 (ENUM_CHARACTERJOB)curJob,
+                                                 equipmentAniType::T_normal);
                     }
                     else
                     {
                         setEquipmentAniScriptLay(table, &levelLayer, &scanBuf,
                                                  levelLayerId, &levelPath, script,
-                                                 (ENUM_CHARACTERJOB)curJob, 2);
+                                                 (ENUM_CHARACTERJOB)curJob,
+                                                 (equipmentAniType::T)2);
                     }
                 }
                 else
                 {
                     setEquipmentAniScriptLay(table, &jobLayer, &scanBuf, jobLayerId,
                                              &jobPath, script,
-                                             (ENUM_CHARACTERJOB)curJob, 1);
+                                             (ENUM_CHARACTERJOB)curJob,
+                                             (equipmentAniType::T)1);
                 }
             }
             else if (token == "[LAYER]")                             // 0x8da
@@ -1999,7 +2033,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 int modOut[2];
                 modOut[0] = -1;
                 modOut[1] = -1;
-                bool okMod = processModuleTagSet(&modOut[1], &modOut[0], &token,
+                bool okMod = processModuleTagSet(modOut[1], modOut[0], &token,
                                                  a, true);
                 if (modOut[0] != -1 && okMod)
                 {
@@ -2142,10 +2176,77 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
 bool importArtifactInfo(STEquipmentScript::artifact_info& info,
                         std::string str)
 {
-    // ORIG T 0x089bd079：带查找表的关键字解析器；当前以清零复位承载。
-    // 关键字级还原归 artifact_info 独立批次。
-    (void)str;
-    info = STEquipmentScript::artifact_info();
+    // ORIG T 0x089bd079（0x7cb，报告全文转写）：函数级静态 lookup 表
+    // （map<const char*,int,less_TCHAR> @0x94fdf28 + SpinLock @0x94fdf40 +
+    // 就绪字节 @0x94fdf44）双检锁惰性建表；11 个 [creature *] 关键字 → id
+    // （0x2ee9..0x2f07），未命中返回 0，命中按 id 分派 ScanInt/ScanFloat 写回。
+    // 扫描参数：3 个 int 字段 ScanInt(0)；7 个 rate 字段 ScanFloat(scale,0)
+    // ——mp/charge/overcharge/exp 用 scale=2，crit×2/stuck 用 scale=1。
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
+
+    if (!__inited)
+    {
+        __init_lock.enter();
+        if (!__inited)
+        {
+            __lookup.insert(std::make_pair("[creature minimum level]", 0x2ee9));
+            __lookup.insert(std::make_pair("[creature physical attack]", 0x2eec));
+            __lookup.insert(std::make_pair("[creature magical attack]", 0x2eef));
+            __lookup.insert(std::make_pair("[creature skill consume mp rate]", 0x2ef2));
+            __lookup.insert(std::make_pair("[creature skill charge time rate]", 0x2ef5));
+            __lookup.insert(std::make_pair("[creature skill over charge time rate]", 0x2ef8));
+            __lookup.insert(std::make_pair("[creature experience amount rate]", 0x2efb));
+            __lookup.insert(std::make_pair("[creature physical critical hit]", 0x2efe));
+            __lookup.insert(std::make_pair("[creature magical critical hit]", 0x2f01));
+            __lookup.insert(std::make_pair("[creature stuck]", 0x2f04));
+            __lookup.insert(std::make_pair("[creature piercing]", 0x2f07));
+            __inited = true;
+        }
+        __init_lock.leave();
+    }
+
+    std::map<const char*, int, less_TCHAR>::const_iterator it =
+        __lookup.find(str.c_str());
+    switch (it != __lookup.end() ? it->second : -1)
+    {
+    case 0x2ee9:                                       // [creature minimum level]
+        info.m_minLevel = ScanInt((bool*)0);
+        break;
+    case 0x2eec:                                       // [creature physical attack]
+        info.m_physAttack = ScanInt((bool*)0);
+        break;
+    case 0x2eef:                                       // [creature magical attack]
+        info.m_magAttack = ScanInt((bool*)0);
+        break;
+    case 0x2ef2:                                       // [creature skill consume mp rate]
+        info.m_mpRate = ScanFloat(2, (bool*)0);
+        break;
+    case 0x2ef5:                                       // [creature skill charge time rate]
+        info.m_chargeRate = ScanFloat(2, (bool*)0);
+        break;
+    case 0x2ef8:                                       // [creature skill over charge time rate]
+        info.m_overChargeRate = ScanFloat(2, (bool*)0);
+        break;
+    case 0x2efb:                                       // [creature experience amount rate]
+        info.m_expRate = ScanFloat(2, (bool*)0);
+        break;
+    case 0x2efe:                                       // [creature physical critical hit]
+        info.m_physCrit = ScanFloat(1, (bool*)0);
+        break;
+    case 0x2f01:                                       // [creature magical critical hit]
+        info.m_magCrit = ScanFloat(1, (bool*)0);
+        break;
+    case 0x2f04:                                       // [creature stuck]
+        info.m_stuck = ScanFloat(1, (bool*)0);
+        break;
+    case 0x2f07:                                       // [creature piercing]
+        info.m_piercing = ScanInt((bool*)0);
+        break;
+    default:
+        return false;                                  // ORIG 未命中 → 0
+    }
     return true;
 }
 
@@ -2183,32 +2284,32 @@ std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript()
 //      + 就绪字节 @0x94fde44，双检锁形态）；未知标签令整个导入失败。 ----
 static bool GetItemCategory(STItemScript* item)
 {
-    static std::map<const char*, int, less_TCHAR> s_categoryTable;
-    static SpinLock s_tableLock;
-    static bool s_tableReady = false;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
 
     std::string token;
     while (ScanStr(&token))
     {
-        if (!s_tableReady)
+        if (!__inited)
         {
-            s_tableLock.enter();
-            if (!s_tableReady)
+            __init_lock.enter();
+            if (!__inited)
             {
                 // ORIG 首轮 case 链依次插入三项（字面量 .rodata 0x8e19dcd 起），
                 // 随后重查当前 token；此处建表后直接落入同一 find，行为一致。
-                s_categoryTable.insert(std::make_pair("monster card", 0x30ae));
-                s_categoryTable.insert(std::make_pair("cannot bind", 0x30b1));
-                s_categoryTable.insert(std::make_pair("boss drop", 0x30b4));
-                s_tableReady = true;
+                __lookup.insert(std::make_pair("monster card", 0x30ae));
+                __lookup.insert(std::make_pair("cannot bind", 0x30b1));
+                __lookup.insert(std::make_pair("boss drop", 0x30b4));
+                __inited = true;
             }
-            s_tableLock.leave();
+            __init_lock.leave();
         }
 
         int state = 0;
         std::map<const char*, int, less_TCHAR>::const_iterator it =
-            s_categoryTable.find(token.c_str());
-        switch (it != s_categoryTable.end() ? it->second : -1)
+            __lookup.find(token.c_str());
+        switch (it != __lookup.end() ? it->second : -1)
         {
         case 0x30ae:                                   // "monster card"
             state = STItemScript::ITEM_CATEGORY_1;
@@ -2233,9 +2334,9 @@ static bool GetItemCategory(STItemScript* item)
 //      就绪字节 @0x94fde24）。ScanStr 返回值不检查——空 token 必然 miss，
 static bool GetAuraAvatarOption(STEquipmentScript* script)
 {
-    static std::map<const char*, int, less_TCHAR> s_auraOptionTable;
-    static SpinLock s_tableLock;
-    static bool s_tableReady = false;
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
 
     if (script == 0)
         return false;
@@ -2244,23 +2345,23 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
     std::string token;
     ScanStr(&token);
 
-    if (!s_tableReady)
+    if (!__inited)
     {
-        s_tableLock.enter();
-        if (!s_tableReady)
+        __init_lock.enter();
+        if (!__inited)
         {
-            s_auraOptionTable.insert(
+            __lookup.insert(
                 std::make_pair("[party teleport]", 0x30d0));
-            s_auraOptionTable.insert(std::make_pair("[none]", 0x30d5));
-            s_auraOptionTable.insert(std::make_pair("[solo teleport]", 0x30db));
-            s_tableReady = true;
+            __lookup.insert(std::make_pair("[none]", 0x30d5));
+            __lookup.insert(std::make_pair("[solo teleport]", 0x30db));
+            __inited = true;
         }
-        s_tableLock.leave();
+        __init_lock.leave();
     }
 
     std::map<const char*, int, less_TCHAR>::const_iterator it =
-        s_auraOptionTable.find(token.c_str());
-    switch (it != s_auraOptionTable.end() ? it->second : -1)
+        __lookup.find(token.c_str());
+    switch (it != __lookup.end() ? it->second : -1)
     {
     case 0x30d0:                                       // [party teleport]
         script->m_880 = 0;
@@ -2491,7 +2592,7 @@ void setEquipmentAniScriptLay(
     const std::map<std::string, STEquipmentAniScript>* table,
     STEquipmentAniScript* ani, std::string* key, int layerId,
     std::string* path, STEquipmentScript* script,
-    ENUM_CHARACTERJOB job, int aniType)
+    ENUM_CHARACTERJOB job, equipmentAniType::T aniType)
 {
     char buf[0x200];
     memset(buf, 0, sizeof(buf));
@@ -2568,15 +2669,15 @@ void setEquipmentAniScriptLay(
 // ---- 专家职业解析组（ORIG t 局部静态；关键字映射表/SpinLock/inited 三件套） ----
 
 // ORIG t 0x089bf6ca：[usable list] —— 关键字→typeSel(1..5) + 每项等级下限。
-bool GetExpertJobTypeList(STItemScript* item)
+static bool GetExpertJobTypeList(STItemScript* item)
 {
     if (item == 0)
         return false;
     item->m_expertJob.m_usable.clear();
 
-    static std::map<const char*, int, less_TCHAR> s_lookup;  // 0x94fde48
-    static SpinLock s_lock;                                  // 0x94fde60
-    static bool s_inited = false;                            // 0x94fde64
+    static std::map<const char*, int, less_TCHAR> __lookup;  // 0x94fde48
+    static SpinLock __init_lock;                                  // 0x94fde60
+    static bool __inited = false;                            // 0x94fde64
 
     std::string token;
     bool scanning = true;
@@ -2587,31 +2688,31 @@ bool GetExpertJobTypeList(STItemScript* item)
             break;
 
         // 首个 token 惰性登记全部关键字映射（锁内连续 insert），随后重查本 token。
-        if (!s_inited)
+        if (!__inited)
         {
-            s_lock.enter();
-            if (!s_inited)
+            __init_lock.enter();
+            if (!__inited)
             {
-                s_lookup.insert(std::make_pair("enchanter", 0x303a));
-                s_lookup.insert(std::make_pair("alchemist", 0x303d));
-                s_lookup.insert(std::make_pair("disjointer", 0x3040));
-                s_lookup.insert(std::make_pair("doll_controller", 0x3043));
-                s_lookup.insert(std::make_pair("all", 0x3046));
-                s_inited = true;
+                __lookup.insert(std::make_pair("enchanter", 0x303a));
+                __lookup.insert(std::make_pair("alchemist", 0x303d));
+                __lookup.insert(std::make_pair("disjointer", 0x3040));
+                __lookup.insert(std::make_pair("doll_controller", 0x3043));
+                __lookup.insert(std::make_pair("all", 0x3046));
+                __inited = true;
             }
-            s_lock.leave();
+            __init_lock.leave();
 
             typeSel = 0;
             std::map<const char*, int, less_TCHAR>::const_iterator found =
-                s_lookup.find(token.c_str());
-            if (found != s_lookup.end())
+                __lookup.find(token.c_str());
+            if (found != __lookup.end())
                 typeSel = found->second;
         }
         else
         {
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                s_lookup.find(token.c_str());
-            if (it == s_lookup.end())
+                __lookup.find(token.c_str());
+            if (it == __lookup.end())
                 return false;
             switch (it->second)
             {
@@ -2661,7 +2762,7 @@ bool GetExpertJobValueCompoundRate(STItemScript* item)
 }
 
 // ORIG t 0x089bfcb5：第一 float 成功即返回；否则读第二槽。
-bool GetExpertJobResultVariation(STItemScript* item)
+static bool GetExpertJobResultVariation(STItemScript* item)
 {
     if (item == 0)
         return false;
@@ -2674,7 +2775,7 @@ bool GetExpertJobResultVariation(STItemScript* item)
 }
 
 // ORIG t 0x089bfd0b
-bool GetExpertJobDisjointBigWinRate(STItemScript* item)
+static bool GetExpertJobDisjointBigWinRate(STItemScript* item)
 {
     if (item == 0)
         return false;
@@ -2684,7 +2785,7 @@ bool GetExpertJobDisjointBigWinRate(STItemScript* item)
 }
 
 // ORIG t 0x089bfd3c
-bool GetExpertJobDisjointResultVariation(STItemScript* item)
+static bool GetExpertJobDisjointResultVariation(STItemScript* item)
 {
     if (item == 0)
         return false;
@@ -2694,7 +2795,7 @@ bool GetExpertJobDisjointResultVariation(STItemScript* item)
 }
 
 // ORIG t 0x089bfd6d：float(+0x140) 失败时回退读 int(+0x144)。
-bool GetExpertJobAdditionalGainExp(STItemScript* item)
+static bool GetExpertJobAdditionalGainExp(STItemScript* item)
 {
     if (item == 0)
         return false;

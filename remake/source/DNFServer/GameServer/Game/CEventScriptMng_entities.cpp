@@ -95,37 +95,36 @@ char* CLevelUpReward::get_mail_data()
         &static_cast<LevelUpRewardScript*>(m_script1c)->m_mail);
 }
 
-// 成长类型匹配（m_filter[1]，0xff 通配）则遍历条件项；项 m_level 满足
-// growType < m_level <= level 时填充 m_mail（reset/set_item/标题/正文）并发奖。
+// ORIG 0x810e51a：不缓存脚本/items/item/mail 局部——条件与循环每次内联
+// 解引用 it 与 m_script1c；循环计数为 signed int（setg 比较）。
 int CLevelUpReward::send_reward_from_recv_level(CUser* user, int level,
                                                 int growType)
 {
-    LevelUpRewardScript* script =
-        static_cast<LevelUpRewardScript*>(m_script1c);
     int job = user->get_charac_job();
     int curGrowType = static_cast<int>(user->getCurCharFirstGrowType());
 
     std::map<int, Condition_LevelUp>::iterator it =
-        script->m_conditions.find(job);
-    if (it == script->m_conditions.end())
+        static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
+    if (it == static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
         return 1;
 
     if (it->second.m_filter[1] != 0xff &&
-        static_cast<int>(it->second.m_filter[1]) != curGrowType)
+        static_cast<int>(static_cast<signed char>(it->second.m_filter[1])) != curGrowType)
         return 1;
 
-    Condition_LevelUp::ItemVector& items = it->second.m_items;
-    for (unsigned int i = 0; i < items.size(); ++i)
+    for (int i = 0; i < (int)it->second.m_items.size(); ++i)
     {
-        Condition_LevelUp::Reward_Item& item = items[i];
-        if (growType < item.m_level && item.m_level <= level)
+        if (growType < it->second.m_items[i].m_level &&
+            it->second.m_items[i].m_level <= level)
         {
-            ::Action_SendMail* mail =
-                &static_cast<LevelUpRewardScript*>(m_script1c)->m_mail;
-            mail->reset();
-            mail->set_item(item.m_itemIndex, item.m_itemCount);
-            mail->m_field30 = item.m_title;
-            mail->m_field34 = item.m_content;
+            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.reset();
+            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.set_item(
+                it->second.m_items[i].m_itemIndex,
+                it->second.m_items[i].m_itemCount);
+            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field30 =
+                it->second.m_items[i].m_title;
+            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field34 =
+                it->second.m_items[i].m_content;
             do_action(user);
         }
     }
@@ -165,18 +164,18 @@ int CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
     }
 }
 
-void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
-{
-    // ORIG 0x81105be。
-    set_event_record_type(key);
-    m_script1c = script;
-}
-
 char* CUsedFatigueGiveItem::get_db_table_name()
 {
     // ORIG 0x81105e8：return &m_dbTableName。
     return reinterpret_cast<char*>(
         &static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName);
+}
+
+void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
+{
+    // ORIG 0x81105be。
+    set_event_record_type(key);
+    m_script1c = script;
 }
 
 bool CUsedFatigueGiveItem::getIsCharacEvent(bool& out) const
@@ -185,8 +184,8 @@ bool CUsedFatigueGiveItem::getIsCharacEvent(bool& out) const
     // m_charcEventFlag（+0x14 字节）后返回 true。
     if (m_script1c == 0)
         return false;
-    out = *reinterpret_cast<const bool*>(
-        &static_cast<const UsedFatigueGiveItemScript*>(m_script1c)->m_charcEventFlag);
+    *(unsigned char*)&out =
+        static_cast<const UsedFatigueGiveItemScript*>(m_script1c)->m_charcEventFlag;
     return true;
 }
 
@@ -223,7 +222,7 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
         if (sent == 0)
             continue;
         LogManager::logFormat(1, "EventClassify.cpp",
-            "void EventClassify::CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser*, unsigned int)",
+            __PRETTY_FUNCTION__,
             0x83f,
             "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
             user->get_acc_id(), user->getCurCharacNo(),
@@ -294,22 +293,25 @@ int CAttendance::get_final_day_condition()
 // m_attends[day] 写入 mail 的 itemIdx/addInfo，正文 key 取 m_str70 后发奖邮件。
 void CAttendance::send_attend_reward_item(CUser* user, int day)
 {
-    AttendanceScript* script = static_cast<AttendanceScript*>(m_script1c);
-    if (script->m_attends.empty() || day < 0 ||
-        static_cast<size_t>(day) >= script->m_attends.size())
-    {
+    // 判断段 ORIG 为三个独立 if+return（跳转目标各异）：size()==0 判空、
+    // day<0、signed size<=day，每次内联解引用脚本（不缓存）；m_attends[day]
+    // 两次独立取用。
+    if (static_cast<AttendanceScript*>(m_script1c)->m_attends.size() == 0)
         return;
-    }
+    if (day < 0)
+        return;
+    if ((int)static_cast<AttendanceScript*>(m_script1c)->m_attends.size() <= day)
+        return;
 
     char* mid = NumberToString(user->get_acc_id(), 0);
     cMyTrace trace(
-        "void EventClassify::CAttendance::send_attend_reward_item(CUser*, int)",
+        __PRETTY_FUNCTION__,
         0x5ad, 0);
     trace("send_attend_reward_item m_id:%s day:%d", mid, day);
 
-    const std::pair<int, int>& reward = script->m_attends[day];
-    script->m_mail.m_itemIdx = reward.first;
-    script->m_mail.m_addInfo = reward.second;
+    AttendanceScript* script = static_cast<AttendanceScript*>(m_script1c);
+    script->m_mail.m_itemIdx = script->m_attends[day].first;
+    script->m_mail.m_addInfo = script->m_attends[day].second;
     script->m_mail.m_field34 = script->m_str70;
 
     CEventActionMng mng;
@@ -323,7 +325,7 @@ void CAttendance::send_attend_final_rward_item(CUser* user, int attendFlags,
 {
     char* mid = NumberToString(user->get_acc_id(), 0);
     cMyTrace trace(
-        "void EventClassify::CAttendance::send_attend_final_rward_item(CUser*, int, int)",
+        __PRETTY_FUNCTION__,
         0x5ba, 0);
     trace("send_attend_final_rward_item m_id:%s day:%d record:%u",
           mid, record, static_cast<unsigned int>(attendFlags));
@@ -339,13 +341,19 @@ void CAttendance::send_attend_final_rward_item(CUser* user, int attendFlags,
         return;
     }
 
-    AttendanceScript* script = static_cast<AttendanceScript*>(m_script1c);
-    script->m_mail.m_itemIdx = script->m_pair1c.first;
-    script->m_mail.m_addInfo = script->m_pair1c.second;
-    script->m_mail.m_field34 = script->m_str74;
+    // ORIG 发奖段每次内联解引用脚本（不缓存局部）。
+    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_itemIdx =
+        static_cast<AttendanceScript*>(m_script1c)->m_pair1c.first;
+    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_addInfo =
+        static_cast<AttendanceScript*>(m_script1c)->m_pair1c.second;
+    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_field34 =
+        static_cast<AttendanceScript*>(m_script1c)->m_str74;
 
     CEventActionMng mng;
-    mng.process_action_send_mail(user, EVENT_MAIL_REF(script->m_mail), true);
+    mng.process_action_send_mail(
+        user,
+        EVENT_MAIL_REF(static_cast<AttendanceScript*>(m_script1c)->m_mail),
+        true);
 }
 
 // ============ CPcRoomPlayTime（0x5c → PcBangPlayTimeScript）============
@@ -424,7 +432,7 @@ void CAccountFirstLogin::do_action(int flags, CUser* user, std::bitset<32u> /*bs
 {
     // ORIG 0x810df04：发首登奖励邮件并请求 DB 落首登标记（仅判 user 空指针）。
     // 服务器组：PvP 统合频道取 GetServerGroup 低字节，否则取 CEnvironment +0x378
-    // 低字节（共享头暂无命名字段，待补后字段化）。
+    // 低字节（共享头暂无命名字段，用组件视图复现 ORIG 单指令 disp 加载）。
     if (user == 0)
         return;
     CEventActionMng mng;
@@ -433,12 +441,17 @@ void CAccountFirstLogin::do_action(int flags, CUser* user, std::bitset<32u> /*bs
         EVENT_MAIL_REF(static_cast<AccountFirstLoginScript*>(m_script1c)->m_mail),
         true);
 
+    struct CEnvironment378View
+    {
+        char         m_pad378[0x378];
+        unsigned int m_serverGroup378;   // +0x378
+    };
     int serverGroup = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         serverGroup = (unsigned char)user->GetServerGroup();
     else
-        serverGroup =
-            (unsigned char)*(unsigned int*)((char*)G_CEnvironment() + 0x378);
+        serverGroup = (unsigned char)
+            ((CEnvironment378View*)G_CEnvironment())->m_serverGroup378;
 
     DB_InsertAccountFirstLoginFlag::makeRequest(
         (int)user->GetUID(), user->get_acc_id(), serverGroup,

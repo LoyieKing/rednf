@@ -36,6 +36,16 @@ struct MissionInfo
     short m_index;   // +0x02
     short m_count;   // +0x04（进度/连击位图）
     short m_streak;  // +0x06（连胜/状态/连击位图）
+
+    MissionInfo()   // ORIG C1/C2 W 0x0832aede：4×movw 逐字段清零
+    {
+        m_kind = 0;
+        m_index = 0;
+        m_count = 0;
+        m_streak = 0;
+    }
+
+    void clear();   // ORIG 0x85e68b6 W：4×movw 逐字段清零
 };
 
 // ---- 连击脚本键（4 字节） ----
@@ -54,10 +64,21 @@ struct combo_script_key
 };
 
 // ---- 连击脚本数据（20 字节：奖励表 + 单项奖励） ----
+// ORIG C1 0x8a5bd94 W（objdump）：隐式 vector C1@+0x00、pair C1@+0x0c 后调 clear()
+//   T 0x8a5a7f4（m_rewardList.clear() + m_bonus.first/second 清零）。报告仅有
+//   combo_script_data/{README,clear}.md；ctor 序列按 objdump【推断落位】。
 struct combo_script_data
 {
     std::vector<std::pair<int, int> > m_rewardList;    // +0x00（前 4 项 → count 位图）
     std::pair<int, int> m_bonus;                       // +0x0c（单项组合奖励）
+
+    combo_script_data() { clear(); }                   // ORIG C1/C2 0x8a5bd94 W
+    void clear()                                       // ORIG T 0x8a5a7f4 (0x27)
+    {
+        m_rewardList.clear();
+        m_bonus.first = 0;
+        m_bonus.second = 0;
+    }
 };
 
 // ---- 任务脚本（CDataManager 装载，0x88 字节） ----

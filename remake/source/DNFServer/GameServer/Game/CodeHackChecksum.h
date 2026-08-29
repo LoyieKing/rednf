@@ -94,8 +94,7 @@ public:
     void Clear();                                        // T @0x0808a61a
     void Reserve(long count);                            // T @0x0808a62e
     void AddCodeHackChecksum(const CodeHackChecksum& c); // T @0x0808a648
-    bool IsRightChecksum(const CodeHackChecksum* p) const;        // T @0x0808a662
-
+    bool IsRightChecksum(const CodeHackChecksum* p);     // T @0x0808a662（ORIG _ZN 非 const）
     std::vector<CodeHackChecksum> m_checksums;           // +0x00..+0x0b
 };
 
@@ -120,8 +119,7 @@ public:
     void SetCodeHackCheckRange(const CodeHackCheckRange& range);  // T @0x0808a7d8
     CodeHackCheckRange* GetCodeHackCheckRange();         // T @0x0808a7f4
     void setData(const char* serialized);                // T @0x0808a802
-    bool IsRightChecksum(const CodeHackChecksum* p) const;        // T @0x0808a8c8
-
+    bool IsRightChecksum(const CodeHackChecksum* p);     // T @0x0808a8c8（ORIG _ZN 非 const）
     char m_fileName[0x104];                              // +0x0c..+0x10f（基类 12B 起）
     CodeHackCheckRange m_range;                          // +0x110..+0x117 {start,size}
 };

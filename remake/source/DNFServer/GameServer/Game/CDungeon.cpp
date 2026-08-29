@@ -352,11 +352,12 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     while (mit != mitEnd)
     {
         MazeScript* maze = &(*mit);
-        if (maze->m_questType == 0)
+        int questType = maze->m_questType;
+        if (questType == 0)
             m_mazeList0[0].push_back(*maze);
-        else if (maze->m_questType == 1)
+        else if (questType == 1)
             m_mazeList0[1].push_back(*maze);
-        else if (maze->m_questType == -1)
+        else if (questType == -1)
             m_mazeList.push_back(*maze);
         ++mit;
     }
@@ -541,14 +542,13 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
     TOD_UserState* todState =
         (TOD_UserState*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd);
     todState->IncreaseEnterCount();
-    int enterCount = todState->getEnterCount();
-
-    if (enterCount > 1 && m_entryRequiredItem.m_enableFlag != 0)
+    if (todState->getEnterCount() > 1)
     {
+        if (m_entryRequiredItem.m_enableFlag != 0)
+        {
         // 二次及以上进入需持有门票物品（ORIG this+0x7f4/+0x7f8/+0x7fc）。
-        int itemIdx = m_entryRequiredItem.m_itemIdx;
-        const CInventory* invenR = user->getCurCharacInvenR();
-        int slot = invenR->check_item_exist(itemIdx);
+        int slot = user->getCurCharacInvenR()->check_item_exist(
+            m_entryRequiredItem.m_itemIdx);
         if (slot == -1)
             return 0;
         Inven_Item item =
@@ -556,16 +556,15 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
         if (item.m_addInfo2 < m_entryRequiredItem.m_itemCount)
             return 0;
 
-        int delCount = m_entryRequiredItem.m_itemCount;
-        unsigned int chNo = user->getCurCharacNo();
         if (!user->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)1, slot, delCount, (eItemDelReason)0xe, true))
+                (INVEN_TYPE)1, slot, m_entryRequiredItem.m_itemCount,
+                (eItemDelReason)0xe, true))
         {
             cMyTrace trace(
-                "virtual bool CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser*) const",
+                __PRETTY_FUNCTION__,
                 0x96f, 5);
             trace("CDungeon_TowerOfDespair::_do_after_dungeon_start, delete_item failed , User ch =%d , %d %d",
-                  chNo, slot, delCount);
+                  user->getCurCharacNo(), slot, m_entryRequiredItem.m_itemCount);
             return 0;
         }
 
@@ -591,6 +590,7 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
         pg.finalize(true);
         user->Send(pg);
         user->SaveInventory();
+        }
     }
 
     Packet_TowerOfDespair_Statistic_GTS gts;
@@ -618,46 +618,45 @@ int CDungeon::GetMaze(int idx) const
 
 void CDungeon::GetRandMaze(int& out) const
 {
-    out = rand() % m_mazeList.size();
-    (void)m_mazeList[out];
+	out = rand() % m_mazeList.size();
+	(void)m_mazeList[out];
 }
 
 int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 {
-    // ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
-    // 收集候选；候选唯一/随机取，空则全表随机。
-    if (m_mazeList.size() == 1)
-        return (int)&m_mazeList[0];
+	// ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
+	// 收集候选；候选唯一/随机取，空则全表随机。
+	if (m_mazeList.size() == 1)
+		return (int)&m_mazeList[0];
 
-    std::vector<MazeScript*> candidates;
-    unsigned int i = 0;
-    while (m_mazeList.size() > i)
-    {
-        MazeScript* maze = const_cast<MazeScript*>(&m_mazeList[i]);
-        if (maze->m_partyCountMin <= partyCount &&
-            partyCount <= maze->m_partyCountMax)
-            candidates.push_back(maze);
-        i = i + 1;
-    }
+	MazeScript* local_1c;
+	std::vector<MazeScript*> candidates;
+	unsigned int r;
+	unsigned int i;
 
-    unsigned int r = 0;
-    MazeScript* result;
-    if (!candidates.empty())
-    {
-        if (candidates.size() == 1)
-            result = candidates[0];
-        else
-        {
-            r = rand() % candidates.size();
-            result = candidates[r];
-        }
-    }
-    else
-    {
-        r = rand() % m_mazeList.size();
-        result = const_cast<MazeScript*>(&m_mazeList[r]);
-    }
-    return (int)result;
+	i = 0;
+	while (m_mazeList.size() > i)
+	{
+		MazeScript* elem = const_cast<MazeScript*>(&m_mazeList[i]);
+		if (elem->m_partyCountMin <= partyCount &&
+			partyCount <= elem->m_partyCountMax)
+		{
+			local_1c = elem;
+			candidates.push_back(local_1c);
+		}
+		i = i + 1;
+	}
+
+	r = 0;
+	if (candidates.empty())
+	{
+		r = rand() % m_mazeList.size();
+		return (int)&m_mazeList[r];
+	}
+	if (candidates.size() == 1)
+		return (int)candidates[0];
+	r = rand() % candidates.size();
+	return (int)candidates[r];
 }
 
 int CDungeon::GetStartMap(int direction) const
@@ -670,7 +669,7 @@ int CDungeon::GetStartMap(int direction) const
     if (m_maplist[direction].size() == 0)
     {
         LogManager::logFormat(
-            1, "data_manager.cpp", "int CDungeon::GetStartMap(int) const",
+            1, "data_manager.cpp", __PRETTY_FUNCTION__,
             0x79a,
             "CDungeon::GetStartMap() : direction(%d), dungeon index(%d), "
             "start_maplist_[direction].size() == 0, May be Script Error!",
@@ -692,30 +691,32 @@ int CDungeon::GetStartMap(int direction) const
 
 int CDungeon::get_clear_item() const
 {
-    // ORIG 0x0834c8c0：ret 先置栈、迭代器默认构造、lower_bound 到临时再赋值
-    int ret = 0;
-    std::map<int, int>::const_iterator it;
-    int key = get_rand_int(100) + 1;
-    it = m_clearItemMap.lower_bound(key);
-    if (it == m_clearItemMap.end())
-        ret = -2;
-    else
-        ret = it->second;
-    return ret;
+	// ORIG 0x0834c8c0：ret 先置栈、迭代器默认构造、lower_bound 到临时再赋值
+	int ret = 0;
+	int key;
+	std::map<int, int>::const_iterator it;
+	key = get_rand_int(100) + 1;
+	it = m_clearItemMap.lower_bound(key);
+	if (it == m_clearItemMap.end())
+		ret = -2;
+	else
+		ret = it->second;
+	return ret;
 }
 
 int CDungeon::get_clear_item(int level) const
 {
-    // ORIG 0x0834c95c：同 get_clear_item()，key = level + 1
-    int ret = 0;
-    std::map<int, int>::const_iterator it;
-    int key = level + 1;
-    it = m_clearItemMap.lower_bound(key);
-    if (it == m_clearItemMap.end())
-        ret = -2;
-    else
-        ret = it->second;
-    return ret;
+	// ORIG 0x0834c95c：同 get_clear_item()，key = level + 1
+	int ret = 0;
+	int key;
+	std::map<int, int>::const_iterator it;
+	key = level + 1;
+	it = m_clearItemMap.lower_bound(key);
+	if (it == m_clearItemMap.end())
+		ret = -2;
+	else
+		ret = it->second;
+	return ret;
 }
 
 int CDungeon::getLimitCoinDiff(int diff, int& out) const
@@ -736,10 +737,9 @@ bool CDungeon::checkFreeRevivalCondition(int diff) const
 {
     // ORIG 0x08365298：it != end 且 !(value.m_4)（xor $1 取反测试）→ true
     std::map<int, UseCoinDungeonDiff>::const_iterator it = m_map91c.find(diff);
-    if (it != m_map91c.end() && !it->second.m_4)
-        return true;
-    return false;
+    return it != m_map91c.end() && !it->second.m_4;
 }
+
 bool CDungeon::get_dimension_member_count(DimensionPartyCount& out) const
 {
     // ORIG 0x0834d220：std::find 匹配 m_0/m_1，命中复制 m_2 返回 true
@@ -1145,5 +1145,20 @@ STTowerFullDialog::STTowerFullDialog()
 
 STTowerFullDialog::~STTowerFullDialog()
 {
+}
+
+// ---- ORIG W 弱符号发射段（头内联定义，本 TU 无 odr-use 故未发射）----
+//   TournamentRewardItem  C1/C2 @0x088f2dcc（三字段清零）、D1/D2 @0x088f9ef6（空体）
+//   STNamedMonsterMapPos  C1/C2 @0x088f2d6c（m_y=0; m_x=m_y）、D1/D2 @0x088f8cbc（空体）
+// 真实构造/析构强制发射，不引入导出符号。
+namespace
+{
+void emitDungeonRewardWeakSymbols()
+{
+    TournamentRewardItem item;      // C1/C2
+    item.~TournamentRewardItem();   // D1/D2
+    STNamedMonsterMapPos pos;       // C1/C2
+    pos.~STNamedMonsterMapPos();    // D1/D2
+}
 }
 

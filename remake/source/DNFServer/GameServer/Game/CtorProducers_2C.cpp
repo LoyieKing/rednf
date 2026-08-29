@@ -49,14 +49,13 @@ CItemUpgrade::CItemUpgrade()
     //   [+0x4ec] = 100000（randInt 热身上界）；
     //   [热身] time(NULL) 种子 → operator new(0x9c8) → CMTRand(seed) 存 +0x4e8，
     //          循环 100 次 randInt(*+0x4ec) 预热 MT19937 状态（结果弃用）。
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x4ec) = 100000;
+    m_randMax = 100000;
     unsigned long seed = time(0);
     CMTRand* pRand = new CMTRand(seed);
-    *reinterpret_cast<CMTRand**>(reinterpret_cast<char*>(this) + 0x4e8) = pRand;
+    m_rand = pRand;
     for (int i = 0; i < 100; ++i)
     {
-        unsigned long range =
-            *reinterpret_cast<unsigned long*>(reinterpret_cast<char*>(this) + 0x4ec);
+        unsigned long range = static_cast<unsigned long>(m_randMax);
         pRand->randInt(range);
     }
 }
@@ -66,16 +65,14 @@ int CItemUpgrade::LoadUpgradeScript(const char* path)
     // ORIG 0x0854919a：尾调 WongWork::CItemUpgradeTable::loadUpgradeScript(this+0x04,
     // path)（W 0x0854b38a，内部即 importUpgradeTable(path, table) 并透传 eax）。
     // 基类纯虚槽1 返回 int，尾透传 import 错误行号（0=成功）。
-    void* table = reinterpret_cast<char*>(this) + 0x04;
-    return importUpgradeTable(path, reinterpret_cast<upgrade_table_t*>(table));
+    return importUpgradeTable(path, static_cast<upgrade_table_t*>(this));
 }
 
 int CItemUpgrade::Load3rdChronicleUpgradeScript(const char* path)
 {
     // ORIG 0x085491b8：与 LoadUpgradeScript 同体（同一尾调用目标 0x0854b38a），
     // 仅符号不同；chronicle.etc 表与 Upgrade.etc 表共用表类型。
-    void* table = reinterpret_cast<char*>(this) + 0x04;
-    return importUpgradeTable(path, reinterpret_cast<upgrade_table_t*>(table));
+    return importUpgradeTable(path, static_cast<upgrade_table_t*>(this));
 }
 
 }  // namespace WongWork
@@ -88,14 +85,14 @@ int CItemAmplifier::loadScript(const char* itemScript, const char* upgradeScript
 {
     // ORIG 0x08376060 逐段转写：
     //   line = importAmplifyItem(itemScript, m_script)；line!=0 →
-    //   cMyTrace("bool CItemAmplifier::loadScript(const char*, const char*)",0x14,0)
+    //   cMyTrace(__PRETTY_FUNCTION__,0x14,0)
     //     ("importAmplifyItem failed. line(%d)", line)（字符串 0x8c34400/0x8c2f674）
     //     返回 0；否则尾调 importUpgradeTable(upgradeScript, &m_upgrade)（asm 透传 eax，
     //     故返回 int 行号而非 bool 截断）。
     int line = importAmplifyItem(itemScript, m_script);
     if (line != 0)
     {
-        cMyTrace("bool CItemAmplifier::loadScript(const char*, const char*)",
+        cMyTrace(__PRETTY_FUNCTION__,
                  0x14, 0)("importAmplifyItem failed. line(%d)", line);
         return 0;
     }

@@ -13,6 +13,7 @@
 #include "SkillSlot.h"
 #include "StreamPool.h"
 #include "GameWorld.h"
+#include "PacketGuard.h"
 
 // ---- 全局单例（CUserCharacInfo.h 已声明 namespace GlobalData；不引入
 //      GlobalData.h 以避免 class/namespace 形态冲突） ----
@@ -26,16 +27,7 @@ extern MsgQueueMgr* s_msgq_mgr;
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；构造/析构由
 // GameStubs 提供桩符号，本 TU 只声明不定义）
 // ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
 
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ---- 忘川水状态（ORIG 数据段 .data 0x93abc60 / .bss 0x9472dbc）----
 class CPremiumLetheManager
@@ -106,7 +98,7 @@ bool CPremiumLetheManager::ConfirmSkillReq(CUser* user)
     {
         return false;
     }
-    cMyTrace("bool CPremiumLetheManager::ConfirmSkillReq(CUser*)", 0x35, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x35, 0)(
         "ONE_DAY_LETHE : CONFIRM_SKILL, char(%s)", user->getCurCharacName());
     _update(user, SKILL_CONFIRM_STATE,
             (ENUM_SKILL_TREE_KIND)user->GetCurCharacSkillTreeIndex());
@@ -133,7 +125,7 @@ bool CPremiumLetheManager::BackToPre(CUser* user, _Mastered_skill* skills,
     {
         user->SetOneDayLetheFlag2ND(NOT_USE_LETHE_STATE);
     }
-    cMyTrace("bool CPremiumLetheManager::BackToPre(CUser*, _Mastered_skill*, ENUM_SKILL_TREE_KIND)",
+    cMyTrace(__PRETTY_FUNCTION__,
              0x4f, 0)("ONE_DAY_LETHE : SUCCESS_BACK_TO_PRE, char(%s)",
                       user->getCurCharacName());
     return true;
@@ -157,7 +149,7 @@ bool CPremiumLetheManager::UpdateBackupSkillFlag(CUser* user,
         }
     }
     _update(user, NOT_USE_LETHE_STATE, kind);
-    cMyTrace("bool CPremiumLetheManager::UpdateBackupSkillFlag(CUser*, ENUM_SKILL_TREE_KIND)",
+    cMyTrace(__PRETTY_FUNCTION__,
              0x69, 0)("ONE_DAY_LETHE : SUCCESS_INIT_FOR_LEGACY_LETHE, char(%s)",
                       user->getCurCharacName());
     return true;
@@ -171,7 +163,7 @@ bool CPremiumLetheManager::InitLetheSkill(CUser* user,
         return false;
     }
     _update(user, INIT_LETHE_SKILL, kind);
-    cMyTrace("bool CPremiumLetheManager::InitLetheSkill(CUser*, ENUM_SKILL_TREE_KIND)",
+    cMyTrace(__PRETTY_FUNCTION__,
              0x75, 0)("ONE_DAY_LETHE : SUCCESS_INIT_FOR_1ST_GROW_CHAR, char(%s)",
                       user->getCurCharacName());
     return true;
@@ -191,7 +183,7 @@ void CPremiumLetheManager::_resetSkill(CUser* user)
     }
     if (flag != USE_LETHE_STATE)
     {
-        cMyTrace trace("void CPremiumLetheManager::_resetSkill(CUser*)", 0x93, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x93, 0);
         trace("ONE_DAY_LETHE : CAN'T USE INIT STATE");
     }
     else
@@ -240,7 +232,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         {
             user->send_skill_info();
             const char* name = user->getCurCharacName();
-            cMyTrace trace("void CPremiumLetheManager::InitSkill(CUser*, bool, ENUM_SKILL_TREE_KIND)",
+            cMyTrace trace(__PRETTY_FUNCTION__,
                            0xb1, 0);
             trace("ONE_DAY_LETHE : SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
                   name);
@@ -307,7 +299,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
             {
                 user->send_skill_info();
                 const char* name = user->getCurCharacName();
-                cMyTrace trace("void CPremiumLetheManager::InitSkill(CUser*, bool, ENUM_SKILL_TREE_KIND)",
+                cMyTrace trace(__PRETTY_FUNCTION__,
                                0xf7, 0);
                 trace("ONE_DAY_LETHE : SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
                       name);

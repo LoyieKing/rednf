@@ -34,7 +34,6 @@ void CServerXml::InitString()
     m_mapEventStartStr.clear();
     m_mapEventEndStr.clear();
     m_map_EventRGBA.clear();
-    auctionString_.clear();
 }
 
 void CServerXml::StrLoading()
@@ -63,7 +62,6 @@ void CServerXml::StrLoading(std::string file)
             CharsetInit(pRootNode);
             EventLoad(pRootNode);
             ProcessLoad(pRootNode);
-            auctionStringLoad(pRootNode);
         }
     }
 }
@@ -235,49 +233,7 @@ void CServerXml::StrPunish(int nTextID, const char* pText, _eStringType type)
     }
 }
 
-void CServerXml::auctionStringLoad(TiXmlNode* rootNode)
-{
-    TiXmlNode* xmlNode = (TiXmlNode*)0;
-    xmlNode = rootNode->FirstChild("auction");
-    if (xmlNode == (TiXmlNode*)0)
-    {
-        puts("[CServerXml] <auction> Tag Skip!!");
-    }
-    else
-    {
-        xmlNode = xmlNode->FirstChild("string");
-        if (xmlNode != (TiXmlNode*)0)
-        {
-            for (; xmlNode != (TiXmlNode*)0; xmlNode = xmlNode->NextSibling())
-            {
-                int textNo = 0;
-                const char* stringTemp = (const char*)0;
-                TiXmlNode* localeNode = (TiXmlNode*)0;
-                xmlNode->ToElement()->Attribute("id", &textNo);
-                localeNode = xmlNode->FirstChild(m_cCharSet);
-                if (localeNode == (TiXmlNode*)0)
-                {
-                    printf("%s Tag Error\n", this);
-                    return;
-                }
-                stringTemp = localeNode->ToElement()->Attribute("text");
-                if (auctionString_.find(textNo) != auctionString_.end())
-                {
-                    printf("%s Tag Invalid text id : %d\n", this, textNo);
-                    exit(-1);
-                }
-                if (!auctionString_.insert(std::pair<int, std::string>(textNo, stringTemp)).second)
-                {
-                    printf("%s Tag Invalid text : %d, %s\n", this, textNo, stringTemp);
-                    exit(-1);
-                }
-            }
-        }
-    }
-}
-
-std::string CServerXml::GetServerString(int nTextID, bool* pbResult) const
-{
+std::string CServerXml::GetServerString(int nTextID, bool* pbResult) const{
     std::string ret = "";
     std::map<int, std::string>::const_iterator pIter;
     pIter = m_mapServerStr.find(nTextID);
@@ -310,23 +266,7 @@ int CServerXml::GetEventRGBA(int nEventID) const
     return 0;
 }
 
-std::string CServerXml::getAuctionString(int textNo, bool& result)
-{
-    std::map<int, std::string>::const_iterator findResult = auctionString_.find(textNo);
-    if (findResult != auctionString_.end())
-    {
-        result = true;
-        return findResult->second;
-    }
-    else
-    {
-        result = false;
-        return std::string("");
-    }
-}
-
-std::string CServerXml::GetEventString(int nTextID, _eStringType type, bool* pbResult) const
-{
+std::string CServerXml::GetEventString(int nTextID, _eStringType type, bool* pbResult) const{
     std::string ret = "";
     std::map<int, std::string>::const_iterator pIter;
     switch (type)

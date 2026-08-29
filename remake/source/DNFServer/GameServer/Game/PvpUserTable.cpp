@@ -207,7 +207,7 @@ int PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
     float ratioSum = m_teamPoint[team1] + m_teamPoint[team2];
     if (ratioSum == 0.0f)
     {
-        cMyTrace tr("bool PvpUserTable::GetTeamVsTeamPoint(int, int)", 0x162, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x162, 5);
         tr("[FPE][PvpUserTable::GetTeamVsTeamPoint] RatioSum: %f",
            (double)ratioSum);
         return 0;
@@ -244,7 +244,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
     {
         if (team != 2 && team != 1)
         {
-            cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)", 0x1a0, 5);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x1a0, 5);
             tr("\xea\xb2\xb0\xed\x88\xac\xeb\xa1\x9c\xec\xa7\x81"
                " \xec\x98\xa4\xeb\xa5\x98"
                " PvpUserTable::GetResult Invalid Team<%d>", team);
@@ -266,7 +266,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
             int v = RoundToNearestInt(f * 1000.0f * 120.0f / 100.0f);
             if (v < -100000 || 100000 < v)
             {
-                cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)",
+                cMyTrace tr(__PRETTY_FUNCTION__,
                             0x1d0, 5);
                 tr("pvp_exp_error3 %d, %f",
                    RoundToNearestInt(f * 1000.0f * 120.0f / 100.0f), (double)f);
@@ -280,7 +280,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
             int v = RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
             if (v < -100000 || 100000 < v)
             {
-                cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)",
+                cMyTrace tr(__PRETTY_FUNCTION__,
                             0x1c4, 5);
                 tr("pvp_exp_error2 %d, %f",
                    RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f), (double)f);
@@ -292,7 +292,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
         int v = RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
         if (v < -100000 || 100000 < v)
         {
-            cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)", 0x1b9, 5);
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x1b9, 5);
             tr("pvp_exp_error1 %d, %f",
                RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f), (double)f);
         }
@@ -303,7 +303,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
     int v = RoundToNearestInt(f * 1000.0f);
     if (v < -100000 || 100000 < v)
     {
-        cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)", 0x1dd, 5);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x1dd, 5);
         tr("pvp_exp_error4 %d, %f", RoundToNearestInt(f * 1000.0f), (double)f);
     }
     return RoundToNearestInt(f * 1000.0f);

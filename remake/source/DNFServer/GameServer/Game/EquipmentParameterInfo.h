@@ -28,13 +28,30 @@ enum ENUM_CHANGE_STATUS_TYPE
 // ctor 0x0891a8c0 后连续三 ScanInt 截断 ushort 写 +0/+2/+4，sizeof 6）。
 struct STResultItemCnt
 {
+    // ORIG C1/C2 W 0x0891a8c0：3×movw 0 逐字段清零。
+    STResultItemCnt()
+    {
+        m_a = 0;
+        m_b = 0;
+        m_c = 0;
+    }
+
     unsigned short m_a;   // +0x00
     unsigned short m_b;   // +0x02
     unsigned short m_c;   // +0x04
 };                        // sizeof 6
 
-struct ItemAuraInfo
-{
+    // ORIG W ctor 0x089c2e1e（C2 同址）：m_field0=0x4d(77)、m_field4=0、
+    // m_float8=0（edx 中转）、m_fieldc=0。
+    struct ItemAuraInfo
+    {
+    ItemAuraInfo()
+    {
+        m_field0 = 0x4d;
+        m_field4 = 0;
+        m_float8 = 0.0f;
+        m_fieldc = 0;
+    }
     int m_field0;            // +0x00
     unsigned char m_field4;  // +0x04（ORIG CStringMaker::operator()(ItemAuraInfo)
                              //   @0x08627066：movzbl v+0x10(ebp)=v+4 零扩展）
@@ -81,16 +98,15 @@ struct LevelUpSkill
     ~LevelUpSkill() {}                               // ORIG 0x0818250e（空）
 };
 
-// STAvatarAbilityVariation（ORIG C1 0x089c2d82 W / clear 0x089c2da4 W /
-// D1 0x089d2af0 W）：clear 置 +0/+4/+8 三 int 为 0 并对 +0xc 的 LevelUpSkill
+// D1 0x089d2af0 W）：clear 置 +0/+4/+8 三字段为 0 并对 +0xc 的 LevelUpSkill
 // 调 clear；ctor 先构造内嵌 LevelUpSkill 再调 clear。sizeof 0x18
 // （AvatarRouletteServer::InitAddCharacSkill 0x0817f386 读元素 +0xc/+0x10/+0x14
-// 实证；旧「单 int」模型与该证据冲突，2026-08-24 修正）。
+// 实证；importEquipmentParameterInfo 0x089ab614 以 fstps 写 +0x08 → float，P79）。
 struct STAvatarAbilityVariation
 {
     int m_field0;        // +0x00
     int m_field4;        // +0x04
-    int m_field8;        // +0x08
+    float m_field8;      // +0x08（fstps 实证：avatar 能力数值）
     LevelUpSkill m_skill;   // +0x0c
 
     STAvatarAbilityVariation() { clear(); }          // ORIG 0x089c2d82（先 skill 构造再 clear）
@@ -110,10 +126,12 @@ public:
     EquipmentParameterInfo();
     EquipmentParameterInfo(const EquipmentParameterInfo& other);
     ~EquipmentParameterInfo();
-    EquipmentParameterInfo& operator=(const EquipmentParameterInfo& other);
+    // operator= 不声明：ORIG 0x83662ca 为 W（weak）且无 self-check，
+    // 编译器隐式生成与 ORIG 同形。
 
     void clear();
-    void addString(std::string str);
+    // ORIG 0x089c2e98 返回 int（key）；返回类型随 ORIG。
+    int addString(std::string str);
     int& getEquipmentPhysicalAttack(int level);
     int& getEquipmentPhysicalDefense(int level);
     int& getEquipmentMagicalAttack(int level);
@@ -128,29 +146,33 @@ public:
         ENUM_SKILL_UP_VECTOR_INDEX_2 = 2
     };
 
-    // ---- 嵌套结构 ----
     struct RebirthAppendageinfo
     {
         RebirthAppendageinfo();
         void clear();
-        int m_field0;   // +0x00
-        int m_field4;   // +0x04
-        int m_field8;   // +0x08
+        // ORIG（C1 0x891935e / clear 0x8919380）：+0x04 为 std::pair<int,int>
+        // （ctor 先构造 pair 再调 clear；clear 置 first=-1 second=0），
+        // +0x0c/+0x10/+0x14 为 0。sizeof 0x18。
+        int m_field0;              // +0x00
+        std::pair<int, int> m_pair4;  // +0x04
+        int m_fieldc;              // +0x0c
+        int m_field10;             // +0x10
+        int m_field14;             // +0x14
     };
 
     struct EquipmentAuraAppendageData
     {
+        // ORIG W 0x089d2cf2（D2 同址）：空体用户析构（6 字节 push/mov/pop/ret）。
+        ~EquipmentAuraAppendageData() {}
         int m_field0;   // +0x00
     };
 
     struct SASPROPERTY
     {
-        SASPROPERTY();
-        SASPROPERTY(const SASPROPERTY& other);
-        ~SASPROPERTY();
-        SASPROPERTY& operator=(const SASPROPERTY& other);
-        // ORIG（C1 0x89c5046 / copy 0x83cb038 / D1 0x83db300 / assign 0x83dbdfc）：
-        // 头部 0x20 字节按整块 memcpy，vector<float> @+0x20，string @+0x2c。
+        // ORIG（C1 0x89c5046 / copy 0x83cb038 / D1 0x83db300 / assign 0x83dbdfc）
+        // 全部为 W（weak）= 编译器隐式生成：C1 默认构造 vector/string、
+        // copy 逐 dword 拷头 0x20 再拷贝 vector/string、D1 逆序析构、
+        // assign 无 self-check 逐成员拷贝。故不声明任何特殊成员。
         int m_head[8];                  // +0x00..0x1c
         std::vector<float> m_vec20;     // +0x20
         std::string m_str2c;            // +0x2c
@@ -170,7 +192,11 @@ public:
     int m_magicalDefense;                              // +0x24 [magical defense]
     int m_28;                                          // +0x28（import 写 int；语义未确认）
     int m_2c;                                          // +0x2c（import 写 int；语义未确认）
-    char m_pad30[0x20];                                // +0x30..0x4f（8 个标量 int，语义未知，clear 不重置）
+    // +0x30..0x4f：ORIG 隐式 op=（0x8366361）按 4 个 8 字节对拷贝 → 4 个 long long。
+    long long m_pad30_0;                                  // +0x30
+    long long m_pad30_1;                                  // +0x38
+    long long m_pad30_2;                                  // +0x40
+    long long m_pad30_3;                                  // +0x48
     int m_50;                                          // +0x50（clear 清零；语义未知）
     int m_phyAtt[2];                                   // +0x54（getEquipmentPhysicalAttack 0x89c2e48：this+(level+0x14)*4+4）
     int m_phyDef[2];                                   // +0x5c（getEquipmentPhysicalDefense 0x89c2e5c：this+(level+0x14)*4+0xc）
@@ -182,8 +208,15 @@ public:
     int m_magicalAbsoluteDamage;                       // +0x80 [magical absolute damage]
     int m_magicalDamageReduce;                         // +0x84 [magical damage reduce]
     float m_magicalAbsoluteDefense;                    // +0x88 [magical absolute defense]
-    int m_8c;                                          // +0x8c（标量，clear 清零；语义未在 import/export 出现）
-    char m_pad90[0x20];                                // +0x90..0xaf（8 个标量 int，clear 清零 0x94/0x98/0xa0/0xa4/0xac，语义未知）
+    float m_8c;                                        // +0x8c（float，clear 清零）
+    float m_90;                                        // +0x90（float，clear 清零）
+    int m_94;                                          // +0x94（int，clear 清零）
+    int m_98;                                          // +0x98（int，clear 清零）
+    float m_9c;                                        // +0x9c（float，clear 清零）
+    int m_a0;                                          // +0xa0（int，clear 清零）
+    int m_a4;                                          // +0xa4（int，clear 清零）
+    float m_a8;                                        // +0xa8（float，clear 清零）
+    int m_ac;                                          // +0xac（int，clear 清零）
     int m_fireResistance;                              // +0xb0 [fire resistance]
     int m_waterResistance;                             // +0xb4 [water resistance]
     int m_darkResistance;                              // +0xb8 [dark resistance]
@@ -227,7 +260,7 @@ public:
     bool m_activeStatusFlag;                           // +0x150 [active status] flag
     int m_activeStatusValue2;                          // +0x154 [active status] value2
     std::vector<int> m_vec158;                         // +0x158（[active status]/[blind]..[curse] 附加参数 push_back）
-    char m_pad164[4];                                  // +0x164
+    float m_164;                                       // +0x164（clear 清零）
     int m_attackedActiveStatusType;                    // +0x168 [attacked active status] type（getActiveStatusType）
     float m_attackedActiveStatusValue;                 // +0x16c [attacked active status] value
     int m_attackedActiveStatusLevel;                   // +0x170 [attacked active status] level
@@ -261,10 +294,11 @@ public:
     bool m_hpDrain;                                    // +0x23c [HP drain]
     bool m_mpDrain;                                    // +0x23d [MP drain]
     std::vector<std::vector<float> > m_vec240;         // +0x240（[level linear ability] 表）
-    std::vector<LevelUpSkill> m_levelUpSkills24c;      // +0x24c
-    std::vector<LevelUpSkill> m_levelUpSkills258;      // +0x258（skill_levelup 第二档；GetLevelUpSkill idx==1）
+    // ORIG C1（0x8919ce8）对 +0x24c/+0x258 两个 vector<LevelUpSkill> 用
+    // do-while 循环逐个构造（esi/edi/ebx 缓存），故建模为数组成员。
+    std::vector<LevelUpSkill> m_levelUpSkills[2];      // +0x24c/+0x258（skill_levelup 档位；GetLevelUpSkill idx）
     std::vector<STAvatarAbilityVariation> m_avatar264; // +0x264（[avatar select ability]）
-    char m_pad270[4];                                  // +0x270
+    int m_270;                                         // +0x270（clear 置 -1）
     float m_roomListMoveSpeedRate;                     // +0x274 [room list move speed rate]
     std::string m_str278;                              // +0x278
     std::string m_str27c;                              // +0x27c
@@ -281,23 +315,29 @@ public:
     char m_pad39c[0x74];                               // +0x39c..0x40f（标量，语义未知）
     int m_410;                                         // +0x410
     int m_414;                                         // +0x414
-    // +0x418..0x434 = ORIG `._119` 匿名结构（importAllSkillItem/importItemOverpowerDesc 写入）
-    std::vector<SASPROPERTY> m_418;                    // +0x418（importAllSkillItem push_back）
-    char m_424;                                        // +0x424（importItemOverpowerDesc 置 1）
-    char m_425;                                        // +0x425（importItemOverpowerDesc 置 1）
-    char m_pad426[2];                                  // +0x426..0x427
-    std::vector<std::vector<float> > m_428;            // +0x428（importItemOverpowerDesc 写入）
+    // +0x418..0x434 = ORIG `._119` 匿名结构（importAllSkillItem/importItemOverpowerDesc
+    // 写入）。合并为匿名 struct 以生成 GCC 的 EquipmentParameterInfo::._N 隐式
+    // ctor/dtor/op=（ORIG t _ZN22EquipmentParameterInfo5._119*，本地符号；
+    // 成员名经匿名提升后仍直接可访问）。
+    struct
+    {
+        std::vector<SASPROPERTY> m_418;                // +0x418（importAllSkillItem push_back）
+        char m_424;                                    // +0x424（importItemOverpowerDesc 置 1）
+        char m_425;                                    // +0x425（importItemOverpowerDesc 置 1）
+        char m_pad426[2];                              // +0x426..0x427
+        std::vector<std::vector<float> > m_428;        // +0x428（importItemOverpowerDesc 写入）
+    } m_119;                                           // +0x418（匿名类型实例）
     EquipmentParameterInfo* m_434;                     // +0x434（scanRandomOptionValue 传入的 EquipmentParameterInfo* 子指针）
-    char m_pad438[0xc];                                // +0x438..0x443
+    int m_438;                                         // +0x438（clear 置 -1）
+    int m_43c;                                         // +0x43c（clear 置 -1）
+    char m_440;                                        // +0x440（clear 置 0）
+    char m_pad441[3];                                  // +0x441..0x443
     float m_upgradeCostDiscount;                       // +0x444 [upgrade cost discount]
     float m_448;                                       // +0x448 [upgrade cost discount] 第二值
     float m_assaultCostDiscount;                       // +0x44c [assault cost discount]
-    int m_consumeItem;                                 // +0x450 [consume item]
-    int m_upgradeProbIncrease;                         // +0x454 [upgrade prob increase]
-    int m_hpRecovery;                                  // +0x458 [hp recovery]
-    int m_cooltime;                                    // +0x45c [cooltime]
-    int m_rebirth;                                     // +0x460 [rebirth]
-    int m_mpRecovery;                                  // +0x464 [mp recovery]
+    // +0x450..0x464 = RebirthAppendageinfo（ORIG clear 0x8919cb7 调其 clear；
+    //   import 写 +0x450/+0x454/+0x458/+0x45c/+0x464/+0x460）
+    RebirthAppendageinfo m_rebirth450;                 // +0x450
     std::vector<std::pair<int, int> > m_vec468;        // +0x468
     std::vector<VariableStat> m_var474;                // +0x474
 };
@@ -319,7 +359,10 @@ struct EquipmentParameterInfoLayoutMirror
     int m_magicalDefense;
     int m_28;
     int m_2c;
-    char m_pad30[0x20];
+    long long m_pad30_0;
+    long long m_pad30_1;
+    long long m_pad30_2;
+    long long m_pad30_3;
     int m_50;
     int m_phyAtt[2];
     int m_phyDef[2];
@@ -331,8 +374,15 @@ struct EquipmentParameterInfoLayoutMirror
     int m_magicalAbsoluteDamage;
     int m_magicalDamageReduce;
     float m_magicalAbsoluteDefense;
-    int m_8c;
-    char m_pad90[0x20];
+    float m_8c;
+    float m_90;
+    int m_94;
+    int m_98;
+    float m_9c;
+    int m_a0;
+    int m_a4;
+    float m_a8;
+    int m_ac;
     int m_fireResistance;
     int m_waterResistance;
     int m_darkResistance;
@@ -376,7 +426,7 @@ struct EquipmentParameterInfoLayoutMirror
     bool m_activeStatusFlag;
     int m_activeStatusValue2;
     char m_vec158[sizeof(std::vector<int>)];
-    char m_pad164[4];
+    float m_164;
     int m_attackedActiveStatusType;
     float m_attackedActiveStatusValue;
     int m_attackedActiveStatusLevel;
@@ -410,10 +460,9 @@ struct EquipmentParameterInfoLayoutMirror
     bool m_hpDrain;
     bool m_mpDrain;
     char m_vec240[sizeof(std::vector<std::vector<float> >)];
-    char m_levelUpSkills24c[sizeof(std::vector<LevelUpSkill>)];
-    char m_levelUpSkills258[sizeof(std::vector<LevelUpSkill>)];
+    char m_levelUpSkills[2][sizeof(std::vector<LevelUpSkill>)];
     char m_avatar264[sizeof(std::vector<STAvatarAbilityVariation>)];
-    char m_pad270[4];
+    int m_270;
     float m_roomListMoveSpeedRate;
     char m_str278[sizeof(std::string)];
     char m_str27c[sizeof(std::string)];
@@ -436,16 +485,14 @@ struct EquipmentParameterInfoLayoutMirror
     char m_pad426[2];
     char m_428[sizeof(std::vector<std::vector<float> >)];
     void* m_434;
-    char m_pad438[0xc];
+    int m_438;
+    int m_43c;
+    char m_440;
+    char m_pad441[3];
     float m_upgradeCostDiscount;
     float m_448;
     float m_assaultCostDiscount;
-    int m_consumeItem;
-    int m_upgradeProbIncrease;
-    int m_hpRecovery;
-    int m_cooltime;
-    int m_rebirth;
-    int m_mpRecovery;
+    char m_rebirth450[sizeof(EquipmentParameterInfo::RebirthAppendageinfo)];
     char m_vec468[sizeof(std::vector<std::pair<int, int> >)];
     char m_var474[sizeof(std::vector<VariableStat>)];
 };

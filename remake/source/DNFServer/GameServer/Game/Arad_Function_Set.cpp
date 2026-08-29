@@ -36,7 +36,7 @@ void PRINT_ERROR::isEmpty(char* tag, CUser* user, unsigned short slot)
         (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
-        "void ARAD::PRINT_ERROR::isEmpty(char*, CUser*, short unsigned int)",
+        __PRETTY_FUNCTION__,
         0x29d,
         "%s : isEmpty() [slot:%d] [charac_no:%d]",
         tag, (unsigned int)slot, characNo);
@@ -49,7 +49,7 @@ void PRINT_ERROR::CheckItemLock(char* tag, CUser* user, unsigned short slot)
         (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
-        "void ARAD::PRINT_ERROR::CheckItemLock(char*, CUser*, short unsigned int)",
+        __PRETTY_FUNCTION__,
         0x2a2,
         "%s : CheckItemLock() fail [slot:%d] [charac_no:%d]",
         tag, (unsigned int)slot, characNo);
@@ -62,7 +62,7 @@ void PRINT_ERROR::delete_item(char* tag, CUser* user, unsigned short slot)
         (unsigned int)user->getCurCharacNo();
     LogManager::logFormat(
         1, "localjapan/Arad_Function_Set.cpp",
-        "void ARAD::PRINT_ERROR::delete_item(char*, CUser*, short unsigned int)",
+        __PRETTY_FUNCTION__,
         0x2a7,
         "%s : delete_item() [slot:%d] [charac_no:%d]",
         tag, (unsigned int)slot, characNo);

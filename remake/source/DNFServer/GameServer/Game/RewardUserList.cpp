@@ -35,9 +35,13 @@ bool CRewardUserList::insert(unsigned int key, int a, int b)
     return false;
 }
 
+// ORIG 0x081bb73c：find→iterator 临时→const_iterator 拷贝→end→拷贝→
+// operator== 取反汇聚（test/je/mov $0/jmp/mov $1）。
 bool CRewardUserList::is_exist(unsigned int key)
 {
-    return m_map.find(key) != m_map.end();
+    std::map<unsigned int, RewardUserData>::const_iterator it =
+        m_map.find(key);
+    return it == m_map.end() ? false : true;
 }
 
 bool CRewardUserList::delete_mark(unsigned int key)
@@ -61,17 +65,7 @@ void CRewardUserList::clear()
     m_index.clear();   // 后 deque（0x081bc05c）
 }
 
-unsigned int CRewardUserList::get_index_size() const
+unsigned int CRewardUserList::get_index_size()
 {
-    return (unsigned int)m_index.size();   // ORIG 0x081bc064
-}
-
-std::map<unsigned int, RewardUserData>& CRewardUserList::get_map()
-{
-    return m_map;
-}
-
-std::deque<unsigned int>& CRewardUserList::get_index()
-{
-    return m_index;
+    return m_index.size();   // ORIG 0x081bc064
 }

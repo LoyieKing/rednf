@@ -20,17 +20,14 @@
 #include <cstring>
 #include <istream>
 #include <vector>
+#include "NpcScript.h"
 class Comment;
 
 // ============================================================================
 // STScriptFileList（与 STScriptFileList.cpp 权威布局一致：+0x00
 // std::map<int,std::string> m_fileMap；本 TU 局部完整定义以便成员访问）。
 // ============================================================================
-class STScriptFileList
-{
-public:
-    std::map<int, std::string> m_fileMap;   // +0x00
-};
+
 
 // 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
@@ -40,6 +37,12 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 // 0x949b180；_ZL16s_bUseScriptPack d 0x93f4d24）----
 char g_szScriptFileBaseDirectory[0x104];  // ORIG B 0x949b180
 static char s_bUseScriptPack = 0;         // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
+
+// ORIG T 0x088bb7cf：movzbl 0x93f4d24（s_bUseScriptPack）直返。
+char UseScriptPack()
+{
+    return s_bUseScriptPack;
+}
 
 // ORIG g_szScriptFilePriorityBaseDirectory B 0x0949b168 (0xc)：
 // std::vector<std::string>（SetPriorityBaseDirectory push、
@@ -66,14 +69,14 @@ bool isDbcsLead(char c)
 void LexerOutput(const char* buf, int size)
 {
     (void)size;
-    LogManager::logFormat(0, "../RDARScript.cpp", "LexerOutput", 0x12f, "%s",
+    LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x12f, "%s",
                           toTString(buf));
 }
 
 // ORIG T _Z10LexerErrorPKc 0x88bb3c7：词法错误走 LogManager 日志。
 void LexerError(const char* msg)
 {
-    LogManager::logFormat(0, "../RDARScript.cpp", "LexerError", 0x134, "%s",
+    LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0x134, "%s",
                           toTString(msg));
 }
 
@@ -171,7 +174,7 @@ bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
         if (!isNew)
         {
             LogManager::logFormat(
-                0, "../RDARScript.cpp", "loadRDARNameFile", 1000,
+                0, "../RDARScript.cpp", __FUNCTION__, 1000,
                 "ITEM NAME FILE LIST LOAD FAIL! [%s%s][%s]", dir, file,
                 name.c_str());
         }
@@ -202,7 +205,7 @@ bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* 
         else
         {
             LogManager::logFormat(
-                0, "../RDARScript.cpp", "addRDARScriptListFile", 0x418,
+                0, "../RDARScript.cpp", __FUNCTION__, 0x418,
                 "SCRIPT FILE LIST ADD FAIL! - DUPLICATED DATA [%s%s][%d]",
                 dir, file, idx);
         }

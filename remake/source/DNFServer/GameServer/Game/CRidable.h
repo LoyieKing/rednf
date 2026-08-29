@@ -42,9 +42,9 @@ public:
 
     void Clear();                                            // ORIG 0x82fe6bc
     int GetObjectCnt();                                      // ORIG 0x830ea0a（W，非 const：_ZN8CRidable12GetObjectCntEv）
-    void GetObjectPos(std::vector<std::pair<int, int> >& out) const;  // ORIG 0x82fec2c
+    void GetObjectPos(std::vector<std::pair<int, int> >& out);  // ORIG 0x82fec2c 非const
     void SetRidableObject(RidableScript& script);            // ORIG 0x82fe6d0
-    void SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e
+    int SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e（返回 0/1，Dispatcher_OperateRidableObject 0x08226eed 消费）
     void CheckAppearRidableObject(CParty* party, int a, int b, PacketGuard* p);  // ORIG 0x82fe9c8
     void SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d);     // ORIG 0x82fece2
 

@@ -198,11 +198,12 @@ FILE* HistoryLog::LogOpen(unsigned int chNo)
     return file;
 }
 
-void HistoryLog::WriteCreateCh(FILE* file, char* name, int job, int level, int growType)
+void HistoryLog::WriteCreateCh(FILE* file, char* name, int job)   // ORIG T 0x084b9d70
 {
     if (!CheckFD(file)) return;
     fprintf(file, FMT_CREATE_CH, time, name, job);
 }
+
 
 void HistoryLog::WriteDeleteCh(FILE* file, char* name, int job, int level, int growType)
 {
@@ -325,7 +326,7 @@ void cHistoryTrace::operator()(char const* fmt, ...)
 
     CLog* log = CLog::instance();
     // ORIG：Guard<Mutex>(instance()+0xa8)；m_mutexes[7] 起始 = 7 * 0x18 = 0xa8。
-    Guard<Mutex> guard(reinterpret_cast<Mutex*>(reinterpret_cast<char*>(log) + 0xa8));
+    Guard<Mutex> guard(&log->m_mutexes[7]);
 
     log->logHistory(fmt, reinterpret_cast<char*>(ap));  // ORIG logHistory(fmt, &stack)
 

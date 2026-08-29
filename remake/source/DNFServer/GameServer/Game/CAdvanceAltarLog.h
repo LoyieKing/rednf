@@ -46,6 +46,5 @@ public:
 };
 
 // ORIG 全局实例 advanceAltarstatistics_（starAdd/buyItem/updateStatistics 引用）。
-extern CAdvanceAltarLog advanceAltarstatistics_;
 
 #endif  // DNF_GAME_CADVANCEALTARLOG_H_

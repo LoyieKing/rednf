@@ -77,6 +77,6 @@ void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
 CDungeonEntranceLog* GetInstanceDungeonEntranceLog()
 {
     // ORIG _Z29GetInstanceDungeonEntranceLogv：guard 单例。
-    static CDungeonEntranceLog s;
-    return &s;
+    static CDungeonEntranceLog instance;
+    return &instance;
 }

@@ -83,12 +83,6 @@ inline CMonitorServerProxy::CMonitorServerProxy()
     m_tcpPort = 0;
 }
 
-inline CMonitorServerProxy::CMonitorServerProxy(std::string ip, int udpPort,
-                                                int tcpPort)
-    : m_ip(ip), m_udpPort(udpPort), m_tcpPort(tcpPort), m_tcp(), m_udp()
-{
-}
-
 inline CMonitorServerProxy::~CMonitorServerProxy()
 {
 }

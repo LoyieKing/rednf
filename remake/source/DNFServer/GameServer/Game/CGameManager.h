@@ -33,8 +33,8 @@
 #include <string>
 #include <utility>
 
-#include "GameTypes.h"
-#include "SigTypes.h"    // SIG_* 完整定义（CMailBoxHelper 等使用）
+#include "CacheCharacterType.h"  // 全局 ::ENUM_INTERNALPACKET 权威定义（ORIG mangled 无嵌套名；CDBMsgSender 族签名依赖）
+#include "CUser.h"
 #include "CUser.h"
 #include "CParty.h"
 #include "InterfacePacketBuf.h"
@@ -186,15 +186,8 @@ public:
 
 // ORIG 内部包类型（CDBMsgSender::Init 0x833f7a8：0x89 走 BigStreamPool，
 // CCreatureMgr::RecvMail 使用 0x8a；其余值待 DB 域批次核对）。
-#ifndef DNF_GAME_ENUM_INTERNALPACKET_DEFINED
-// ORIG 全局枚举；权威副本同守卫另存 CacheCharacterType.h（OnlyOrig_Exchange 批）。
-enum ENUM_INTERNALPACKET
-{
-    ENUM_INTERNALPACKET_0x89 = 0x89,
-    ENUM_INTERNALPACKET_RECV_MAIL = 0x8a   // 推断命名
-};
-#endif
-
+// 全局 ::ENUM_INTERNALPACKET 权威定义见 CacheCharacterType.h（守卫
+// DNF_GAME_ENUM_INTERNALPACKET_DEFINED；本头顶部已引入）。
 class CDBMsgSender
 {
 public:
@@ -455,6 +448,11 @@ public:
     CUser* getUserByUnique(short uniqueId);
     CUser* getUser(int slotId, int increId);
     void insertUserByAccID(CUser* user);
+    // ORIG TimerScheduleTenSecond 0x8637936 / Inter_CodeChecksumRange 0x084d0648
+    // 内联遍历 +0x22c map（跨 TU 访问需要）；inline 不产生新链接符号。
+    std::map<unsigned int, CUser*>& getUserByAccIdMap() { return m_userByAccId; }
+    // ORIG getUser(unsigned int) 0x084bb9cf 读 +0x244 map（LinkE2 批）；inline 不产生新链接符号。
+    std::map<unsigned int, CUser*>& getUserByAccId2Map() { return m_userByAccId2; }
     bool isConnectUserByAccId(unsigned int accId);
     void returnUserPool(CUser* user);
     void check_user_var(CUser* user);
@@ -563,7 +561,7 @@ public:
     struct FindUserByUnique
     {
         FindUserByUnique(short uniqueId);
-        bool operator()(std::pair<const unsigned int, CUser*>& p) const;
+        bool operator()(std::pair<const unsigned int, CUser*>& p) ;
         short m_uniqueId;
     };
     int userPoolRemain() { return m_userPool.Remain(); }  // MainLoop 心跳条件用

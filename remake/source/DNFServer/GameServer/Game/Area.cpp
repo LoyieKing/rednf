@@ -285,7 +285,7 @@ void Area::insert_user(CUser* user)
     if (m_UsersInArea.find(id) != m_UsersInArea.end())
     {
         LogManager::logFormat(1, "world.cpp",
-                                 "void Area::insert_user(CUser*)", 0x1a7,
+                                 __PRETTY_FUNCTION__, 0x1a7,
                                  "m_UsersInArea.find(%d)", (int)id);
         return;
     }

@@ -20,6 +20,7 @@
 #include "GameWorld.h"
 #include "PacketGuard.h"
 #include "GlobalData.h"
+#include "DisPatcherCore.h"   // DisPatcher_DisJointItem::_disjoint（ORIG T 0x081f92ca）
 #include "CServerProxyMgr.h"
 #include "CMonitorServerProxy.h"
 #include "CGuildServerProxy.h"
@@ -47,18 +48,10 @@ public:
 // ---------------------------------------------------------------------------
 // 外部符号（本批禁改共享头，按 ORIG mangled 直连 / 等价自由函数声明）：
 //
-// ORIG T 0x086475d8 _ZN5CUser14RewardTutorialEj —— CUser::RewardTutorial(uint)，
-// CUser.h 未声明（禁改）；i386 成员 ABI 即 this 首参压栈，extern "C" 等价直连。
-extern "C" void _ZN5CUser14RewardTutorialEj(CUser* user, unsigned int flag);
 
 // ORIG T 0x081f92ca _ZN23DisPatcher_DisJointItem9_disjointEP5CUserii14ENUM_CMDPACKETS1_t
-// —— DisPatcher_DisJointItem 静态成员（参数表 P5Cuser i i ENUM_CMDPACKET CUser* ushort，
-// 无 this）；DisPatcherCore.h 未声明（禁改），按同参数表自由函数 extern。
-// （game_master 命令链路只做编译期调用约定对接，符号名以注释为准）
-extern void DisPatcher_DisJointItem_disjoint(CUser* requestUser, int reason,
-                                             int unk0, ENUM_CMDPACKET cmd,
-                                             CUser* targetUser,
-                                             unsigned short region);
+// —— DisPatcher_DisJointItem 静态成员，权威声明在 DisPatcherCore.h（static int _disjoint），
+// 由 DisPatcherCore.cpp 提供 ORIG 真实定义（LinkF2 已实现）。
 
 namespace game_master
 {
@@ -69,10 +62,6 @@ namespace game_master
 
 // CStartEvent 真实布局（头文件占位 m_str0/m_f1 别名映射，总大小 0x14 一致）：
 //   +0x08 int 参数计数 / +0x0c int eventId / +0x10 short p1 / +0x12 short p2
-#define GM_EV_COUNT(c)  (*(reinterpret_cast<int*>(&(c)->m_str0)))
-#define GM_EV_ID(c)     ((reinterpret_cast<int*>(&(c)->m_str0))[1])
-#define GM_EV_P1(c)     (*(reinterpret_cast<unsigned short*>(&(c)->m_f1)))
-#define GM_EV_P2(c)     ((reinterpret_cast<unsigned short*>(&(c)->m_f1))[1])
 
 // ===========================================================================
 // CRequestDisjointCmd（id 注册序见 Mgr ctor；sizeof=0xc）
@@ -102,9 +91,9 @@ void CRequestDisjointCmd::execute()
     if (target != 0)
     {
         CUser* self = GetUser();
-        DisPatcher_DisJointItem_disjoint(self, 9, 0,
-                                         static_cast<ENUM_CMDPACKET>(0x1c),
-                                         target, 0xffff);
+        DisPatcher_DisJointItem::_disjoint(self, 9, 0,
+                                           static_cast<ENUM_CMDPACKET>(0x1c),
+                                           target, 0xffff);
     }
 }
 
@@ -316,104 +305,60 @@ void CSetMultiboxFailCnt::execute()
 // CSetTutorialFlagCmd（sizeof=0xc）
 // ===========================================================================
 
-// ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；string@+0x08 默认构造。
+// ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
 CSetTutorialFlagCmd::CSetTutorialFlagCmd()
-    : m_str0()
 {
 }
 
-// ORIG parse 0x084a921a：trim(args)；+0x08(int 占位槽) = atoi(args)（教程标记）。
+// ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
 void CSetTutorialFlagCmd::parse()
 {
     trim(m_parser->m_args);
-    GM_STR0_INT(m_str0) = atoi(m_parser->m_args.c_str());
+    m_flag = static_cast<unsigned int>(atoi(m_parser->m_args.c_str()));
 }
 
-// ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)
-//（ORIG T 0x086475d8，经 extern "C" mangled 直连）。
+// ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)。
 void CSetTutorialFlagCmd::execute()
 {
     CUser* user = GetUser();
-    unsigned int flag = static_cast<unsigned int>(GM_STR0_INT(m_str0));
-    _ZN5CUser14RewardTutorialEj(user, flag);
+    user->RewardTutorial(m_flag);
 }
 
-// ===========================================================================
 // CStartEvent（sizeof=0x14）
 //   ORIG 真实布局：+0x08 int 参数计数 / +0x0c int eventId /
 //                 +0x10 short param1 / +0x12 short param2。
-//   头文件占位 m_str0(string)@+0x08、m_f1(uint)@+0x10 总大小一致，此处别名映射。
+//   头文件使用真实字段布局，总大小 0x14。
 // ===========================================================================
 
-namespace
-{
-inline int& ev_count(CStartEvent* c)   // +0x08
-{
-    return *reinterpret_cast<int*>(&c->m_str0);
-}
-inline int& ev_event_id(CStartEvent* c) // +0x0c
-{
-    return reinterpret_cast<int*>(&c->m_str0)[1];
-}
-inline unsigned short& ev_param1(CStartEvent* c) // +0x10
-{
-    return *reinterpret_cast<unsigned short*>(&c->m_f1);
-}
-inline unsigned short& ev_param2(CStartEvent* c) // +0x12
-{
-    return reinterpret_cast<unsigned short*>(&c->m_f1)[1];
-}
-} // namespace
-
-// ORIG ctor 0x082a8442：仅基类 ctor → 自身 vptr(0x8c81918)，不清数据字段
-//（清零动作在 parse 开头）。
 CStartEvent::CStartEvent()
 {
 }
 
-// ORIG parse 0x084ab5b6：清零四字段；trim(args)；构造 args 副本交 getParam 切分。
 void CStartEvent::parse()
 {
-    GM_EV_ID(this) = 0;
-    GM_EV_P1(this) = 0;
-    GM_EV_P2(this) = 0;
-    GM_EV_COUNT(this) = 0;
-
+    m_eventId = 0;
+    m_param1 = 0;
+    m_param2 = 0;
+    m_eventCount = 0;
     trim(m_parser->m_args);
-    std::string args = m_parser->m_args;
-    getParam();   // ORIG 语义：getParam(args)（见 getParam 注释）
+    getParam(m_parser->m_args);
 }
 
-// ORIG getParam 0x084ab64e _ZN11game_master11CStartEvent8getParamESs
-// —— 真实签名为 void getParam(std::string)（按值副本）；因本批禁止编辑
-// GameMasterCmd.h，头内占位声明为无参。此处以无参成员承载同一逻辑：内部
-// 显式复制 parser->m_args 副本后再切分，保证 ORIG「按值副本」语义
-//（substr 回写不影响 parser->m_args）。
-// 逻辑：按 ' ' 循环切分入 16 个栈上 string 槽（ORIG 无上限防护，原样保留）；
-// 余串入末槽；随后 atoi：param[0]→eventId(int)，param[1]→param1(short)，
-// param[2]→param2(short)。
-void CStartEvent::getParam()
+// ORIG getParam 0x084ab64e：按值接收参数副本并切分。
+void CStartEvent::getParam(std::string param)
 {
-    std::string param = m_parser->m_args;   // ORIG 按值形参副本
-    int count = 0;
+    int pos = 0;
     std::string params[16];
-
-    while (true)
+    while ((pos = static_cast<int>(param.find(' ', 0))) != -1)
     {
-        size_t pos = param.find(' ', 0);
-        if (pos == std::string::npos)
-        {
-            break;
-        }
-        params[count] = param.substr(0, pos);
-        param = param.substr(pos + 1);
-        count = count + 1;
+        params[m_eventCount] = param.substr(0, pos);
+        param = param.substr(pos + 1, std::string::npos);
+        m_eventCount = m_eventCount + 1;
     }
-    params[count] = param;
-
-    GM_EV_ID(this) = atoi(params[0].c_str());
-    GM_EV_P1(this) = static_cast<unsigned short>(atoi(params[1].c_str()));
-    GM_EV_P2(this) = static_cast<unsigned short>(atoi(params[2].c_str()));
+    params[m_eventCount] = param;
+    m_eventId = atoi(params[0].c_str());
+    m_param1 = static_cast<unsigned short>(atoi(params[1].c_str()));
+    m_param2 = static_cast<unsigned short>(atoi(params[2].c_str()));
 }
 
 // ORIG execute 0x084ab886：仅 GM 用户生效；组 Packet_Monitor_Event_Start
@@ -428,9 +373,9 @@ void CStartEvent::execute()
     }
 
     Packet_Monitor_Event_Start packet;
-    packet.m_field1 = static_cast<unsigned int>(GM_EV_ID(this));
-    packet.m_field2 = GM_EV_P1(this);
-    packet.m_field3 = GM_EV_P2(this);
+    packet.m_field1 = static_cast<unsigned int>(m_eventId);
+    packet.m_field2 = m_param1;
+    packet.m_field3 = m_param2;
 
     CMonitorServerProxy* proxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());

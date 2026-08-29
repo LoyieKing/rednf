@@ -27,9 +27,15 @@
 #include "CStreamGuard.h"
 #include "GlobalData.h"
 #include "StreamPool.h"
-#include "LogManager.h"
 #include "CUser.h"
 #include "CInventory.h"  // OS_API::snprintf（ORIG 0x858c81c）
+#include "CDataManager.h"  // G_CDataManager/FindGoods/getItemList（GetFinalProbability）
+#include "CItemList.h"     // CCeraShopGoods 完整定义（_GetItemType/_GetInvenSlotInfo 等）
+#include <cstdlib>  // atoi（ORIG atoi@plt）
+#include <cstdlib>  // atoi（ORIG atoi@plt）
+#include "CDataManager.h"  // G_CDataManager/FindGoods/getItemList（GetFinalProbability）
+#include "CItemList.h"     // CCeraShopGoods 完整定义（_GetItemType/_GetInvenSlotInfo 等）
+#include <cstdlib>  // atoi（ORIG atoi@plt）
 #include <cstdlib>  // atoi（ORIG atoi@plt）
 
 namespace
@@ -49,6 +55,107 @@ const double kFeeDivisor = 100.0;  // 0x08b871d0
 // +0x14、trans2.m_tranNo 落在 +0x20，与 BillingSuccess/Fail 读参偏移一致）。
 typedef char (*AuctionNeedInfoSizeAssert)[sizeof(ItemVendingMachine::AuctionNeedInfo) == 0x28 ? 1 : -1];
 AuctionNeedInfoSizeAssert g_auctionNeedInfoSizeAssert = 0;
+
+// ============================================================================
+// W8_LongTail 批次 5 符号（ItemVendingMachine.h 声明；ORIG objdump 逐指令核对，
+// 报告 docs/class_func_reports/ItemVendingMachine/{_GetItemType,_GetInvenSlotInfo,
+// _CheckEnableInventoryCondition,LoadPurcahseBonusScript,GetFinalProbability}.md）
+// ============================================================================
+
+// ---- _GetItemType —— ORIG 0x08176348 ----
+// 函数局部 static Inven_Item temp（guard 惰性构造）；GetRelatedItem 取 CItem*
+// 后经 vtable+0x08（ORIG vtable 槽 2 = make_item）拷入 temp，返回 temp.m_field1
+// （+0x01，ITEM_TYPE）。temp 每次调用先 reset（0x80cb7d8）。
+int ItemVendingMachine::_GetItemType(const CCeraShopGoods* goods)
+{
+    static Inven_Item temp;
+    temp.reset();
+    goods->GetRelatedItem()->make_item(temp);
+    return temp.m_field1;
+}
+
+// ---- _GetInvenSlotInfo —— ORIG 0x081763be ----
+// 稀疏 switch 决策树（P46：case 数值升序 0/2/3/7；叶块排放 = 书写序）。
+// groupIdx: 0→AVATAR；2→EQUIP+_GetItemType；3→CREATURE+_GetItemType；
+// 7→EQUIP+itemType=2；其余保持调用方初值，恒 return true。
+bool ItemVendingMachine::_GetInvenSlotInfo(const CCeraShopGoods* goods,
+                                           INVEN_TYPE& invenType,
+                                           Inven_Item::ITEM_TYPE& itemType)
+{
+    int groupIdx = goods->GetGroupIdx();
+    switch (groupIdx)
+    {
+    case 0:
+        invenType = INVEN_TYPE_AVATAR;
+        break;
+    case 2:
+        invenType = INVEN_TYPE_EQUIP;
+        itemType = (Inven_Item::ITEM_TYPE)_GetItemType(goods);
+        break;
+    case 3:
+        invenType = INVEN_TYPE_CREATURE;
+        itemType = (Inven_Item::ITEM_TYPE)_GetItemType(goods);
+        break;
+    case 7:
+        invenType = INVEN_TYPE_EQUIP;
+        itemType = (Inven_Item::ITEM_TYPE)2;
+        break;
+    }
+    return true;
+}
+
+// ---- _CheckEnableInventoryCondition —— ORIG 0x081768ba ----
+// getCurCharacInvenR()->GetRemainCapacity(invenType,itemType) > 0，或物品
+// get_index ∈ {200,0xcb,0xcc,0xcd,5,6,7} → true。ORIG 形态：条件真路径
+// 统一 je/jg 到 mov $0，全假 fallthrough mov $1，再 test/je 双常反转
+// （对应 if (!(C)) return false; return true; 逐字同构）。
+bool ItemVendingMachine::_CheckEnableInventoryCondition(CUser* user, const CItem* item,
+                                                        INVEN_TYPE invenType,
+                                                        Inven_Item::ITEM_TYPE itemType)
+{
+    if (!(user->getCurCharacInvenR()->GetRemainCapacity(invenType, itemType) > 0 ||
+          item->get_index() == 200 ||
+          item->get_index() == 0xcb ||
+          item->get_index() == 0xcc ||
+          item->get_index() == 0xcd ||
+          item->get_index() == 5 ||
+          item->get_index() == 6 ||
+          item->get_index() == 7))
+        return false;
+    return true;
+}
+
+// ---- LoadPurcahseBonusScript —— ORIG 0x08179eae ----
+// 委托 m_bonus.LoadScript()；ORIG 形态为 call 后 xor $1、test/je 双常返回
+// （if (!LoadScript()) return false; return true;）。
+bool ItemVendingMachine::LoadPurcahseBonusScript()
+{
+    if (!m_bonus.LoadScript()) return false;
+    return true;
+}
+
+// ---- GetFinalProbability —— ORIG 0x0854c470 ----
+// FindGoods(goodsIdx) 视作 CCeraShopGoods* 取 GetBonusWeight()（float）；
+// G_CDataManager()+0x0c 的 CItemList*（ORIG 内联读，非 getItemList W call）的
+// GetVendingBonusRate()（W 0x0854c596，读 +0x4c）。fistpl 复用 rate 槽
+// （ORIG fistpl -0x1c）。栈槽序依 ORIG：weight(-0x24)/rate(-0x1c)/goods(-0xc)，
+// 4 个未用 dummy 撑出中间空隙（P31 帧差对齐）。+0x0c 读用 P1 组件视图折叠。
+struct VendingItemListView { char m_pad[0xc]; CItemList* m_list; };  // CDataManager+0x0c 视图
+int ItemVendingMachine::GetFinalProbability(int goodsIdx)
+{
+    float weight;
+    int x;
+    int rate;
+    int y;
+    int z;
+    int w;
+    CCeraShopGoods* goods;
+    goods = reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(goodsIdx));
+    weight = goods->GetBonusWeight();
+    rate = reinterpret_cast<VendingItemListView*>(G_CDataManager())->m_list->GetVendingBonusRate();
+    rate = (int)((float)rate * weight);
+    return rate;
+}
 
 bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                         int /*a3*/, bool bPremiumFee, int refValue)
@@ -121,7 +228,7 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                        const_cast<char*>("purchase"));
         LogManager::logFormat(
             1, "localjapan/AppendVendingMachine.cpp",
-            "bool ItemVendingMachine::BuyAuctionItem(CUser*, ItemVendingMachine::AuctionNeedInfo&, int, bool, int)",
+            __PRETTY_FUNCTION__,
             0xa5, "IPG_OUTPUT user: %u, charac: %s reason: %d",
             user->getCurCharacNo(), user->getCurCharacName(), rc);
         return false;
@@ -145,7 +252,7 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                        const_cast<char*>("purchase"));
         LogManager::logFormat(
             1, "localjapan/AppendVendingMachine.cpp",
-            "bool ItemVendingMachine::BuyAuctionItem(CUser*, ItemVendingMachine::AuctionNeedInfo&, int, bool, int)",
+            __PRETTY_FUNCTION__,
             0xe8, "IPG_OUTPUT user: %u, charac: %s reason: %d",
             user->getCurCharacNo(), user->getCurCharacName(), rc);
         return false;

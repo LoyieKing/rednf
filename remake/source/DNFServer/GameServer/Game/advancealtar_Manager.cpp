@@ -18,7 +18,29 @@
 #include "CMDPacketStruct.h"         // _SetSlotData 完整定义（setSlot/exchangeSlot/resetSlot 按值访问）
 
 namespace advancealtar
+
 {
+
+// ORIG namespace 内 static 常量（_ZN12advancealtarL<len><name>E，r 段；值实测 ORIG
+// .rodata 0x08af2e40..0x08af2e90 / 0x08b6d3cc..）：gcc 4.4 对未使用也发射。
+// ----------------------------------------------------------------------------
+static const int kMaxSlotCount = 12;            // 0x08af2e70
+static const int kPlayMinLevel = 50;            // 0x08af2e64
+static const int kMaxStageCount = 50;           // 0x08af2e6c
+static const int kUnitSlotCount = 6;            // 0x08af2e50
+static const int kSkillSlotCount = 6;           // 0x08af2e54
+static const int kMaxBuyItemCount = 50;         // 0x08af2e74
+static const int kMaxRewardCount = 30;          // 0x08af2e78
+static const int kDefaultTicketFree = 100;      // 0x08af2e4c
+static const int kInvalidRewardType = 0;        // 0x08af2e68
+static const int kMaxAdvanceAltarDbData = 1;    // 0x08af2e7c
+static const int kMaxStrBuffer = 2048;          // 0x08b6d3d0
+static const int kMaxZipBuffer = 2048;          // 0x08b6d3cc
+static const char* const kDelimterItem = "|";   // 0x08b6d3d8 指针 → '|'(0x7c)
+static const char* const kDelimterField = ",";  // 0x08b6d3dc 指针 → ','(0x2c)
+static const int KGaugeWidth[4] = { 60, 90, 125, 170 };       // 0x08af2e80
+static const unsigned char kUnitSlotNoLock[6] = { 0, 0, 0, 0, 0, 0 };   // 0x08af2e58
+static const unsigned char kSkillSlotNoLock[6] = { 0, 0, 0, 0, 1, 1 };  // 0x08af2e5e（实测）
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x0813090e _ZN12advancealtar7Manager11selectStageEP5CUseriNS_15StageDifficulty1TE
@@ -43,7 +65,7 @@ int Manager::selectStage(CUser* user, int stageId, StageDifficulty::T diff)
     if (control == 0)
     {
         cMyTrace trace(
-            "static ENUM_ERROR advancealtar::Manager::selectStage(CUser*, int, advancealtar::StageDifficulty::T)",
+            __PRETTY_FUNCTION__,
             0x6ab, 5);
         trace("StaticPool Defence DungeonNULL");
         return 3;
@@ -730,10 +752,8 @@ void CharacAdvanceAltarManager::setDefaultSlot()
     {
         return;
     }
-    static const advancealtar::_Slot* kUnitSlotNoLock_ = 0;  // 占位避免误用；见下方静态表声明
-    (void)kUnitSlotNoLock_;
-    static const unsigned char kUnit[6] = {0, 0, 0, 0, 0, 0};          // ORIG .rodata 0x08af2e58（6×00）
-    static const unsigned char kSkill[6] = {1, 1, 0x32, 0, 0, 0};      // ORIG .rodata 0x08af2e5e（01 01 32 00 00 00）
+    static const unsigned char* kUnit = kUnitSlotNoLock;    // ORIG .rodata 0x08af2e58（6×00，实测）
+    static const unsigned char* kSkill = kSkillSlotNoLock;  // ORIG .rodata 0x08af2e5e（实测 00 00 00 00 01 01）
 
     for (int k = 0; k <= 5; ++k)
     {
@@ -886,7 +906,7 @@ void CharacAdvanceAltarManager::checkAndCreateDefaultRidable()
     }
     if (target == 0)
     {
-        target = &m_data;                // ORIG 回退 this+4
+        target = &m_data[0];            // ORIG 回退 this+4
     }
     target->m_update = 1;
     target->m_ridableId = RidableId::RIDEABLE;
@@ -1123,7 +1143,7 @@ AdvanceAltarData* CharacAdvanceAltarManager::getCurrentAdvanceAltarData() const
 {
     // ORIG W thunk mov (%eax),%eax；NK 成员但返回非 const 指针（调用方原地改写），
     // C++ 下需显式去除 const 视图（与 ORIG 语义一致）。
-    return m_field0 != 0 ? const_cast<AdvanceAltarData*>(&m_data)
+    return m_field0 != 0 ? const_cast<AdvanceAltarData*>(&m_data[0])
                          : static_cast<AdvanceAltarData*>(0);
 }
 

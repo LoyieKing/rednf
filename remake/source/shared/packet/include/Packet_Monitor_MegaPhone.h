@@ -12,10 +12,16 @@ public:
     char m_sg;  // +a（df_monitor_r OnMonitorMegaPhoneMsg 转发前写入 Get_ServerGroup()，同族 Hyper_Link 已同名；game 侧 ctor 清零、set() 不写）
     char m_channel;  // +b（send_chat_msg case 0xb/c/e：set() 参数1 = CEnvironment::get_channel_no）
     unsigned short m_uniqueId;  // +c（send_chat_msg：set() 参数2 = CUser::get_unique_id）
-    char m_nameLength;  // +e（名字长度，set() 参数3 为 getCurCharacName；ctor 未触碰）
+    unsigned char m_type;  // +e（ORIG set 0x086d19b0 第6参 f → +0xe；同族 Hyper_Link m_type 同型；ctor 未触碰）
     char m_name[0x1e];  // +f..+2c（名字区 30B，与家族 0x1e 缓冲一致；ctor 仅清 m_name[0]）
     char m_msgLength;  // +2d（set() 参数4 = 消息长度；SendPacket 大小 = msgLen + 0x2e）
     char m_msg[0x100];  // +2e..+12d（消息体；msg 起点 +0x2e 由 SendPacket 大小 msgLen+0x2e 反推；ctor 仅清 m_msg[0]）
+
+    // ORIG W 0x086d19b0（_ZN24Packet_Monitor_MegaPhone3setEhtPKchS1_h）。
+    // 写 m_channel(+b)/m_uniqueId(+c)/m_type(+e) → strncpy m_name 0x1e →
+    // strncpy m_msg 0x100 → m_msgLength(+2d) → packetSize(+2) = msgLen + 0x2e。
+    void set(unsigned char channel, unsigned short uniqueId, char const* name,
+             unsigned char msgLen, char const* msg, unsigned char type);
 
     Packet_Monitor_MegaPhone() : PacketHeader(0x546, 0x12e),
         m_sg(0), m_channel(0), m_uniqueId(0), m_msgLength(0)

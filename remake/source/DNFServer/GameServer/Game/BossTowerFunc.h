@@ -16,6 +16,7 @@
 
 class CUser;
 class CParty;
+struct MSG_MONSTER_DIE;
 class Inven_Item;
 
 // ORIG 全局枚举（mangled 17ENUM_DUNGEON_TYPE；权威定义 CParty.h，同守卫幂等复制）
@@ -46,6 +47,14 @@ public:
     static char MoveMap(CUser* user, unsigned short* mapIndex); // ORIG T 0x08146ba2
     static char DieCharacInDungeon(CUser* user);                // ORIG T 0x08146824（DisP_GroupG 调用）
     static void GiveUpGame(CUser* user);                        // ORIG T 0x08146ad8（恒返回 1；DisP_GroupG 调用）
+    // ORIG T 0x081468aa（nm 实证）：state==12(0xc) → getBossTower()
+    //   handleKillMonster；其余为二级校验路径。DisPatcher_DieMob 调用。
+    static int DieMob(CUser* user, unsigned short mobSeq, unsigned short param,
+                      const MSG_MONSTER_DIE& msg, int* out);
+    // ORIG T 0x08146994（nm 实证）：getBossTower() 判空 → trace 后仍返 1；
+    // 否则虚槽[10] handlePickupItem(user,item,flag,type)；非零 → 回包
+    // put_header(1,0x2e)+put_byte(1)+finalize(true)+Send。恒返回 1。
+    static char GetItem(CUser* user, int item, bool flag, char type);
 };
 
 // ----------------------------------------------------------------------------

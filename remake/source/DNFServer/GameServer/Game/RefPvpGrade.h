@@ -27,16 +27,39 @@
 //   _ZNK11RefPvpGrade19GetPvpNextRankPointEi       (0x085d4860)
 //   _ZNK11RefPvpGrade19GetPvpCurrRankPointEi       (0x085d4880)
 //   _ZN11RefPvpGrade3setERK15stPvpRefTable_t       (0x085d48a0)
+// ORIG 符号（W，非 const，mangled 无 K）：
+//   _ZN11RefPvpGrade18getPvPExpLossGradeEv         (0x0844d54c)
+//   _ZN11RefPvpGrade16getPvPExpLossExpEv           (0x0844d55a)
+//   _ZN11RefPvpGrade19getPvPRankRateGradeEv        (0x0844d568)
+//   _ZN11RefPvpGrade14getPvPRankRateEv             (0x0844d576)
 
 // PvP 参照表（importPvPReferenceTable @ 0x0890857b 填充）。
-struct stPvPGradeExp_t
-{
-    int a; // +0x00
-    int b; // +0x04
-};
-
+// ORIG 中 stPvPGradeExp_t 是 stPvpRefTable_t 的嵌套类型
+//（符号 _ZN15stPvpRefTable_t15stPvPGradeExp_tC1Ev/C1Eij/C2Ev/C2Eij 验证）。
 struct stPvpRefTable_t
 {
+    struct stPvPGradeExp_t
+    {
+        int a; // +0x00
+        int b; // +0x04
+
+        // ORIG _ZN15stPvpRefTable_t15stPvPGradeExp_tC1Ev @ 0x0891b114
+        // movl $0,(%eax); movl $0,0x4(%eax)——函数体逐句清零（P29：非初始化列表形态）
+        stPvPGradeExp_t()
+        {
+            a = 0;
+            b = 0;
+        }
+
+        // ORIG _ZN15stPvpRefTable_t15stPvPGradeExp_tC1Eij @ 0x0891b0fe
+        // mov 0xc(%ebp)→(%eax); mov 0x10(%ebp)→0x4(%eax)——逐字段重读 this 赋值
+        stPvPGradeExp_t(int x, unsigned y)
+        {
+            a = x;
+            b = y;
+        }
+    };
+
     int m_count;                              // +0x00  "[pvp experience max grade]"
     std::vector<stPvPGradeExp_t> m_grades;    // +0x04  grades vector
     int m_pvpExpLoss1;                        // +0x10  "[pvp experience loss]" v1
@@ -45,6 +68,10 @@ struct stPvpRefTable_t
     std::vector<int> m_rankRate;              // +0x1c  "[pvp rank rate]"
     std::vector<int> m_recordOrder;           // +0x28  "[pvp record order]"
 };
+
+// 兼容别名：CDataManager.cpp 等以全局名引用该嵌套类型
+//（typedef 不改变类型身份，生成的 ctor 符号仍为嵌套形式）。
+typedef stPvpRefTable_t::stPvPGradeExp_t stPvPGradeExp_t;
 
 class RefPvpGrade
 {
@@ -64,6 +91,13 @@ public:
     int SetPvpGrade(int grade, const RefPvpGradeData& data);
     int GetPvpGrade(int idx) const;
     int GetPvpPoint(int idx) const;
+    // ORIG W 0x0844d54c / 0x0844d55a（Inter_LoadEtc::SetPvpRecord 消费；非 const）
+    int getPvPExpLossGrade();
+    int getPvPExpLossExp();
+    // ORIG W 0x0844d568（DB_UpdatePvPGrade::dispatch 消费）：返回 +0x13c = m_rankRateGrade
+    int getPvPRankRateGrade();
+    // ORIG W 0x0844d576：返回 +0x140 地址 = m_rankRate 引用（DB_UpdatePvPGrade 遍历）
+    std::vector<int>& getPvPRankRate();
     int GetPvpNextRankPoint(int idx) const;
     int GetPvpCurrRankPoint(int idx) const;
     void set(const stPvpRefTable_t& refTable);

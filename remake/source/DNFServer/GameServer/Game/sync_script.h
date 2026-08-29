@@ -48,44 +48,6 @@ public:
     int m_fieldc;        // +0x0c（ScanInt）
 };
 
-class STEquipmentStatInfo
-{
-public:
-    int m_hpMax;            // +0x00
-    int m_mpMax;            // +0x04
-    int m_phyAtt;           // +0x08
-    int m_phyDef;           // +0x0c
-    int m_magAtt;           // +0x10
-    int m_magDef;           // +0x14
-    int m_equipPhyAtt;      // +0x18
-    int m_equipPhyDef;      // +0x1c
-    int m_equipMagAtt;      // +0x20
-    int m_equipMagDef;      // +0x24
-    int m_refFire;          // +0x28
-    int m_refWater;         // +0x2c
-    int m_refDark;          // +0x30
-    int m_refLight;         // +0x34
-    int m_refAll;           // +0x38
-    int m_refSlow;          // +0x3c
-    int m_refFreeze;        // +0x40
-    int m_refPoison;        // +0x44
-    int m_refStun;          // +0x48
-    int m_refCurse;         // +0x4c
-    int m_refBlind;         // +0x50
-    int m_refLightning;     // +0x54
-    int m_refStone;         // +0x58
-    int m_refSleep;         // +0x5c
-    int m_refBurn;          // +0x60
-    int m_refWeaponBreak;   // +0x64
-    int m_refBleeding;      // +0x68
-    int m_refPierce;        // +0x6c
-    int m_refStuck;         // +0x70
-    int m_refConfuse;       // +0x74
-    int m_refHold;          // +0x78
-    int m_refArmorBreak;    // +0x7c
-    int m_refAllState;      // +0x80
-};
-
 class STMonsterScript
 {
 public:

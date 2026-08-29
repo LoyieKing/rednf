@@ -31,9 +31,8 @@
 #include "DNFLexWrapper.h"
 #include "LogManager.h"
 
-#include <map>
-#include <string>
-#include <vector>
+#include <cstdio>
+#include <cstring>
 
 // ---- 外部定义 ----
 int  getCharacterJobToEnumValue(std::string& job);                     // CDataManager.cpp 0x89bbc0f
@@ -220,7 +219,7 @@ int applyChannelScript(channel_script_t* script)
 
         if (token != "[dungeon]" && token != "[server]")
         {
-            LogManager::logFormat(0, "../RDARScriptChannel.cpp", "applyChannelScript",
+            LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__,
                                   0xef,
                                   "importChannelScript - invalid type. %s is not acceptable",
                                   token.c_str());
@@ -244,7 +243,7 @@ int applyChannelScript(channel_script_t* script)
                 int value = ScanInt(&more);
                 if (!more)
                     break;
-                LogManager::logFormat(0, "../RDARScriptChannel.cpp", "applyChannelScript",
+                LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__,
                                       0x65, "[DUNGEON LIST] %s\t%d", name.c_str(), value);
                 info.m_intList.push_back(value);
             }
@@ -278,7 +277,7 @@ int applyChannelScript(channel_script_t* script)
             }
             else if (channelInfos.find(chNo) != channelInfos.end())
             {
-                LogManager::logFormat(0, "../RDARScriptChannel.cpp", "applyChannelScript",
+                LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__,
                                       0x85,
                                       "importChannelScript - invalid channel number. %d already exists",
                                       chNo);
@@ -289,7 +288,7 @@ int applyChannelScript(channel_script_t* script)
                 if (!ScanStr(&info.m_name))
                 {
                     LogManager::logFormat(0, "../RDARScriptChannel.cpp",
-                                          "applyChannelScript", 0x8c,
+                                          __FUNCTION__, 0x8c,
                                           "importChannelScript - invalid channel name (requires STR)");
                     state = ROW_ERROR;
                 }
@@ -299,21 +298,21 @@ int applyChannelScript(channel_script_t* script)
                     if (!ok)
                     {
                         LogManager::logFormat(0, "../RDARScriptChannel.cpp",
-                                              "applyChannelScript", 0x9c,
+                                              __FUNCTION__, 0x9c,
                                               "importChannelScript - invalid channel type (requires INT)");
                         state = ROW_ERROR;
                     }
                     else if (!ScanStr(&info.m_dungeonName))
                     {
                         LogManager::logFormat(0, "../RDARScriptChannel.cpp",
-                                              "applyChannelScript", 0xa3,
+                                              __FUNCTION__, 0xa3,
                                               "importChannelScript - invalid dungeon classification (requires STR)");
                         state = ROW_ERROR;
                     }
                     else
                     {
                         LogManager::logFormat(0, "../RDARScriptChannel.cpp",
-                                              "applyChannelScript", 0xab,
+                                              __FUNCTION__, 0xab,
                                               "[CHANNEL LIST] %d\t%s\t%d", chNo,
                                               info.m_dungeonName.c_str(), info.m_channelType);
 
@@ -324,7 +323,7 @@ int applyChannelScript(channel_script_t* script)
                             if (dit == script->m_channelDungeonMap.end())
                             {
                                 LogManager::logFormat(
-                                    0, "../RDARScriptChannel.cpp", "applyChannelScript", 0xb6,
+                                    0, "../RDARScriptChannel.cpp", __FUNCTION__, 0xb6,
                                     "importChannelScript - invalid dungeon classification. %s does not exist",
                                     info.m_dungeonName.c_str());
                                 state = ROW_ERROR;
@@ -345,7 +344,7 @@ int applyChannelScript(channel_script_t* script)
                             if (!ok)
                             {
                                 LogManager::logFormat(0, "../RDARScriptChannel.cpp",
-                                                      "applyChannelScript", 0xc3,
+                                                      __FUNCTION__, 0xc3,
                                                       "importChannelScript - invalid dungeon bonus rate. (required INT)");
                                 state = ROW_ERROR;
                             }
@@ -359,7 +358,7 @@ int applyChannelScript(channel_script_t* script)
                                     if (!ok)
                                     {
                                         LogManager::logFormat(
-                                            0, "../RDARScriptChannel.cpp", "applyChannelScript",
+                                            0, "../RDARScriptChannel.cpp", __FUNCTION__,
                                             0xcc,
                                             "importChannelScript - invalid level GridPercent(%d). (required Float)",
                                             i);
@@ -402,12 +401,103 @@ bool importChannelScript(channel_script_t* script)
 {
     if (!loadRDARScriptFile("", "Etc/channel_info.etc"))
     {
-        LogManager::logFormat(0, "../RDARScriptChannel.cpp", "importChannelScript", 0x38,
+        LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x38,
                               "importChannelScript - can't find channel_info.etc");
         return 0;
     }
     return applyChannelScript(script) != 0;
 }
+
+// ---- Channel 类型名表（ORIG static _ZL19g_ChannelTypeString d 0x093f4e40，
+//      20 项 ASCII 字符串指针，getChannelType/toChannelTypeString 共用）----
+static const char* const g_ChannelTypeString[20] = {
+    "CHANNEL_TEEN",                     // 0
+    "CHANNEL_GENERAL",                  // 1
+    "CHANNEL_BEGINNER",                 // 2
+    "CHANNEL_TRADE",                    // 3
+    "CHANNEL_PVP",                      // 4
+    "CHANNEL_FREEPVP",                  // 5
+    "CHANNEL_GUILD_WAR_PVP",            // 6
+    "CHANNEL_TOURNAMENT_PVP",           // 7
+    "CHANNEL_INTEGRATED_PVP",           // 8
+    "CHANNEL_SCHOOL_LEAGUE_PVP",        // 9
+    "CHANNEL_SCHOOL_TOURNAMENT_PVP",    // 10
+    "CHANNEL_GORGE_OF_THE_DEAD",        // 11
+    "CHANNEL_CASUAL_PVP",               // 12
+    "CHANNEL_INTEGRATED_FREEPVP",       // 13
+    "CHANNEL_ONLINE_PRELIMINARY_PVP",   // 14
+    "CHANNEL_FAIR_PVP",                 // 15
+    "CHANNEL_FAIR_FREEPVP",             // 16
+    "CHANNEL_DEBUGGING",                // 17
+    "CHANNEL_ATTACK_ZONE",              // 18
+    "CHANNEL_MAX",                      // 19
+};
+
+// ORIG T 0x088dd190：越界返回 "UNKNOWN_CHANNEL_TYPE"，否则返回类型名字符串。
+const char* toChannelTypeString(int type)
+{
+    if (type >= 0 && type <= 0x13)
+        return g_ChannelTypeString[type];
+    return "UNKNOWN_CHANNEL_TYPE";
+}
+
+// ORIG T 0x088dd1b2：strcmp 线性查表，命中返回下标，未命中返回 -1。
+int getChannelType(const char* name)
+{
+    for (int i = 0; i <= 0x13; ++i)
+    {
+        if (strcmp(name, g_ChannelTypeString[i]) == 0)
+            return i;
+    }
+    return -1;
+}
+
+// ORIG T 0x088dc81b。遍历打印：dungeon 段（+0x00 map）逐项
+// "[DUNGEON] <键名> as <键> : " + 区间 int 列表；server 段（+0x18 外层 map）
+// "[CHANNEL] Server %d" + 每频道 "\t%d : %s type(%d) name(%s) tag(%s) " +
+// bonusRate 表。日志行号 0x107/0x10c/0x11a 与 ORIG 一致。
+void traversalChannelScript(channel_script_t* script)
+{
+    char buf[0x200];
+
+    for (std::map<std::string, channel_dungeon_info_t>::iterator it =
+             script->m_channelDungeonMap.begin();
+         it != script->m_channelDungeonMap.end(); ++it)
+    {
+        snprintf(buf, sizeof(buf), "[DUNGEON] %s as %s : ",
+                 it->second.m_keyName.c_str(), it->first.c_str());
+        for (unsigned int j = 0; j < it->second.m_intList.size(); ++j)
+            snprintf(buf, sizeof(buf), "%s%d ", buf, it->second.m_intList[j]);
+        LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x107, buf);
+    }
+
+    for (std::map<int, std::map<int, channel_info_t> >::iterator outer =
+             script->m_channelMap.begin();
+         outer != script->m_channelMap.end(); ++outer)
+    {
+        LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x10c,
+                              "[CHANNEL] Server %d", outer->first);
+        for (std::map<int, channel_info_t>::iterator inner = outer->second.begin();
+             inner != outer->second.end(); ++inner)
+        {
+            channel_info_t& ci = inner->second;
+            snprintf(buf, sizeof(buf), "\t%d : %s type(%d) name(%s) tag(%s) ",
+                     inner->first, ci.m_name.c_str(), ci.m_channelType,
+                     ci.m_dungeonKey.c_str(), ci.m_dungeonName.c_str());
+            if (ci.m_pBonusRates != 0)
+            {
+                for (unsigned int j = 0; j < ci.m_pBonusRates->size(); ++j)
+                    snprintf(buf, sizeof(buf), "%s%d ", buf, ci.m_pBonusRates->at(j));
+            }
+            LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x11a,
+                                  buf);
+        }
+    }
+}
+
+// ============================================================================
+// WorldDrop（Etc/WorldDrop.etc、Etc/WorldDropWarArea.etc）
+// ============================================================================
 
 // ============================================================================
 // WorldDrop（Etc/WorldDrop.etc、Etc/WorldDropWarArea.etc）
@@ -416,7 +506,7 @@ bool importChannelScript(channel_script_t* script)
 // ORIG T 0x089022be。[world drop] 段：slot 步长 0x14 寻址；槽内首值写 +0x00，
 // 总量清零后成对读 (itemIdx, rate)：rate 累加 +0x10、chunck 入 +0x04 vector；
 // 段内所有出口统一执行 +0x00 = +0x10。itemIdx==-1 即终止本槽。slot 无越界检查（忠实）。
-bool ImportWorldDrop(WorldDropInfo* out, char* path)
+bool ImportWorldDrop(WorldDropInfo* out, const char* path)
 {
     static const char kFailMsg[] =
         "CRITICAL ERROR : \xED\x9C\x84\xEB\x93\x9C\xEB\x93\x9C\xEB\xA1\xAD "
@@ -424,7 +514,7 @@ bool ImportWorldDrop(WorldDropInfo* out, char* path)
 
     if (!loadRDARScriptFile("", path))
     {
-        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", "ImportWorldDrop",
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
                               0xd36, kFailMsg);
         return false;
     }
@@ -669,6 +759,17 @@ void stStepRewardStackableItemScript::set_data(int step, StackableItemData& data
     {
         it->second.push_back(data);
     }
+}
+// ---- StackableItemData（ORIG C1 0x0891bccc / clear 0x0891bce0，W）----
+void StackableItemData::clear()
+{
+    m_field0 = -1;   // +0x00 movl $0xffffffff
+    m_field4 = 0;    // +0x04
+}
+
+StackableItemData::StackableItemData()
+{
+    clear();
 }
 
 // ORIG T 0x08917c99。endTag 形参在 ORIG 函数体内零引用（段终止靠 ScanInt 断流，

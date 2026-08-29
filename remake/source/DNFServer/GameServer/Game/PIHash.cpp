@@ -47,7 +47,9 @@ int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
     }
     else if (tmp == 1)
     {
-        h = h + static_cast<int>(*data) ^ (h + static_cast<int>(*data)) * 0x400;
+        // ORIG movsx（signed char）——与 rem==3 的 data[2] 一致。
+        h = h + static_cast<int>(static_cast<signed char>(*data)) ^
+            (h + static_cast<int>(static_cast<signed char>(*data))) * 0x400;
         h = h + (h >> 1);
     }
     h = h ^ (h << 3);
@@ -57,6 +59,12 @@ int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
     h = h ^ (h * 0x2000000);
     hash = h + (h >> 6);
     return 1;
+}
+
+// ORIG W 0x0808c174：unsigned char* 重载（与 char* 版同实现）。
+int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
+{
+    return DoSuperFastHash(reinterpret_cast<char*>(data), len, hash);
 }
 
 // ---- MakeHash ORIG @ 0x0808c311 ----
@@ -131,22 +139,15 @@ void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
 // +0x23 ip 相关 dword、+0x27 ip[0x10]、+0x37 前段、+0x43 后段（'.' 拆分）。
 void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
 {
-    if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))  // ORIG 实参 0xc
-    {
-        *(reinterpret_cast<char*>(sig) + 0x22) = 1;
-    }
-    else
-    {
-        *(reinterpret_cast<char*>(sig) + 0x22) = 0;
-    }
+    sig->m_pcbangFlag = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0;
 
-    char* ip = reinterpret_cast<char*>(sig) + 0x27;
+    char* ip = sig->m_ipBuf;
     user->m_network.GetPeerIP2(ip, 0x10);
 
-    // peer IP 为空时回退用户对象 +0x8e418 处记录的 IP（ORIG 偏移）。
+    // peer IP 为空时回退用户 m_mcap.m_pcRoomIp（+0x8e418）记录的 IP。
     if (*ip == '\0')
     {
-        char* savedIp = reinterpret_cast<char*>(user) + 0x8e418;
+        const char* savedIp = user->m_mcap.m_pcRoomIp;
         if (*savedIp != '\0')
         {
             std::memset(ip, 0, 0x10);
@@ -169,8 +170,44 @@ void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
     int suffixLen = static_cast<int>(std::strlen(dot + 1));
     if (static_cast<unsigned int>(suffixLen) > 4)
         return;
-    std::strncpy(reinterpret_cast<char*>(sig) + 0x37, ip, prefixLen);
-    std::strncpy(reinterpret_cast<char*>(sig) + 0x43, dot + 1, suffixLen);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x23) =
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(user) + 0x8e414);
+    std::strncpy(sig->m_ipPrefix, ip, prefixLen);
+    std::strncpy(sig->m_ipSuffix, dot + 1, suffixLen);
+    sig->m_ipDword = static_cast<unsigned int>(user->m_mcap.m_field24);  // +0x8e414
+}
+
+
+// ============================================================================
+// OnlyOrigBatch11 落地：_NS_PI_2ND_MakeHash / GetRandomHashKey /
+// ReconstructCheckSum（报告 _lt_global_gt_ 三份，objdump 逐指令转写）
+// ============================================================================
+
+// ORIG T 0x0808c9a0：DoSuperFastHash(data,len,&h) → 4 字节异或 ^ seed ^ 0x53
+// → (v & 0xf) ^ (v >> 4)（返回低半字节折叠）。
+unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
+                                  unsigned char seed)
+{
+    unsigned int h = 0;
+    DoSuperFastHash(data, len, h);
+    unsigned char* p = reinterpret_cast<unsigned char*>(&h);
+    unsigned char v = static_cast<unsigned char>(
+        p[0] ^ p[1] ^ p[2] ^ p[3] ^ seed ^ 0x53);
+    return static_cast<unsigned char>((v & 0xf) ^ (v >> 4));
+}
+
+// ORIG T 0x0808ca1c：return rand() & 0xf。
+unsigned char _NS_PI_2ND_GetRandomHashKey()
+{
+    return static_cast<unsigned char>(rand() & 0xf);
+}
+
+// ORIG T 0x0808ca2c：checksum = (cksum & 0xff) | ((k1<<8) & 0xffff00) |
+// ((k2<<24) & 0xf000000) | (k3 << 28)。
+void _NS_PI_2ND_ReconstructCheckSum(unsigned int& checksum, unsigned int k1,
+                                    unsigned int k2, unsigned int k3)
+{
+    unsigned int v = checksum & 0xff;
+    v |= (k1 << 8) & 0xffff00;
+    v |= (k2 << 24) & 0xf000000;
+    v |= k3 << 28;
+    checksum = v;
 }

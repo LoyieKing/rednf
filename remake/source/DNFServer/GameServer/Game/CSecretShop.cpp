@@ -25,6 +25,7 @@
 #include "GlobalData.h"
 #include "SECRET_SHOP_DATA.h"
 #include "CSecretShop.h"   // eBuyRule/CSecretShopStatistic/IBuyRule/CSecretShop 唯一声明点
+#include "CParty.h"
 #include "CDungeon.h"  // CheckLottery 遍历 m_dungeonMap
 #include "PvPTypes.h"  // 权威全局 CMTRand（0x9c8，MT19937；实现见 CMTRand.cpp）
 #include "Packet_Secret_Shop_Statistic.h"  // 权威包头（shared/packet/include）
@@ -33,22 +34,38 @@
 // eBuyRule / CSecretShopStatistic / IBuyRule / CSecretShop 类声明已提取至
 // CSecretShop.h（跨 TU 唯一声明点，供 CParty::dungeon_start 等调用方）。
 
-// ---- SECRET_SHOP_STATISTIC_DATA（0x14，全局类型，Statics/GMAccounts.h 权威） ----
-// ORIG 的 std::map<int,SECRET_SHOP_STATISTIC_DATA> 按全局类型 mangled
-// （26SECRET_SHOP_STATISTIC_DATA，无 secretshop:: 前缀）；ctor 定义于
-// GMAccounts.cpp（此处仅声明，避免重复符号）。
-struct SECRET_SHOP_STATISTIC_DATA
-{
-    SECRET_SHOP_STATISTIC_DATA();
-    int m_data[5];   // [0]=dungeonIdx [1]=showCount [2]=showPrice
-                     // [3]=buyCount [4]=buyPrice
-} __attribute__((packed));
-
 namespace secretshop
 {
 
-// SALE_INFO/BUY_INFO/RETAILER/SHOPPER/SECRET_SHOP_INFO 类声明见
-// SECRET_SHOP_DATA.h（唯一声明点）；此处仅保留方法实现。
+// ---- SALE_INFO / BUY_INFO（ORIG W 0x08a832aa / 0x08ab1606 逐字段清零；
+//      operator== ORIG W 0x08a832ee / 0x08ab161e，sete 直返 bool，
+//      供 std::find 实例（0x08a839dd / 0x08ab16ec）比较）----
+SALE_INFO::SALE_INFO()
+{
+    m_itemIdx = 0;
+    m_rule = 0;
+    m_price = 0;
+    m_limit = 0;
+    m_material = 0;
+    m_materialCount = 0;
+    m_field18 = 0;
+}
+
+bool SALE_INFO::operator==(int itemIdx)
+{
+    return m_itemIdx == itemIdx;
+}
+
+BUY_INFO::BUY_INFO()
+{
+    m_itemIdx = 0;
+    m_count = 0;
+}
+
+bool BUY_INFO::operator==(int itemIdx)
+{
+    return m_itemIdx == itemIdx;
+}
 
 RETAILER::RETAILER()
 {
@@ -65,10 +82,11 @@ void RETAILER::clear()
 
 SALE_INFO* RETAILER::GetSaleInfo(int itemIdx)
 {
-    for (unsigned int i = 0; i < m_sales.size(); ++i) {
-        if (m_sales[i].m_itemIdx == itemIdx)
-            return &m_sales[i];
-    }
+    // ORIG T 0x08ab12a0：std::find + ne 比较；迭代器先声明后赋值（P28/P50）。
+    std::vector<SALE_INFO>::iterator it;
+    it = std::find(m_sales.begin(), m_sales.end(), itemIdx);
+    if (it != m_sales.end())
+        return &*it;
     return 0;
 }
 
@@ -87,18 +105,21 @@ void SHOPPER::clear()
 
 BUY_INFO* SHOPPER::GetBuyInfo(int itemIdx)
 {
-    for (unsigned int i = 0; i < m_buys.size(); ++i) {
-        if (m_buys[i].m_itemIdx == itemIdx)
-            return &m_buys[i];
-    }
+    // ORIG T 0x08ab1344：std::find + ne 比较。
+    std::vector<BUY_INFO>::iterator it;
+    it = std::find(m_buys.begin(), m_buys.end(), itemIdx);
+    if (it != m_buys.end())
+        return &*it;
     return 0;
 }
 
 void SHOPPER::BuyItem(int itemIdx, int count)
 {
-    BUY_INFO* info = GetBuyInfo(itemIdx);
-    if (info != 0) {
-        info->m_count += count;
+    // ORIG T 0x08ab13e8：内联 std::find；命中累加，未命中 ctor+push_back。
+    std::vector<BUY_INFO>::iterator it;
+    it = std::find(m_buys.begin(), m_buys.end(), itemIdx);
+    if (it != m_buys.end()) {
+        it->m_count += count;
     } else {
         BUY_INFO b;
         b.m_itemIdx = itemIdx;
@@ -883,3 +904,12 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
     }
     return 1;
 }
+
+void* CUser::GetSecretShopData()
+{
+    CParty* party = static_cast<CParty*>(GetParty());
+    if (party == 0)
+        return 0;
+    return party->GetSecretShopData();
+}
+

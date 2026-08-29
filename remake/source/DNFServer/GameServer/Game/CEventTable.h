@@ -15,6 +15,7 @@ class CEventTable
 {
 public:
     CEventTable();                                       // 0x0811a0c8（空）
+    ~CEventTable();                                      // 0x0811a0ce（空）
     static int GetEventTableCount();                     // 0x0811a0d4
     static CEventBase* GetEventBase(int idx);            // 0x0811a0de
     static int GetEventId(int idx);                      // 0x0811a11e

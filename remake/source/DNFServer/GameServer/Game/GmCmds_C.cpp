@@ -127,8 +127,7 @@ CDeleteAccountCargo::CDeleteAccountCargo()
 void CDeleteAccountCargo::execute()
 {
     CUser* user = GetUser();
-    CAccountCargo* cargo =
-        reinterpret_cast<CAccountCargo*>(reinterpret_cast<char*>(user) + 0x6effc);
+    CAccountCargo* cargo = &user->m_accountCargo;
     cargo->DeleteAccountCargo(user);
 }
 
@@ -197,9 +196,8 @@ DungeonDifficulty::DungeonDifficulty()
 void DungeonDifficulty::parse()
 {
     trim(m_parser->m_args);
-    *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08) = 0;
-    *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08) =
-        static_cast<unsigned char>(atoi(m_parser->m_args.c_str()));
+    m_difficulty = 0;
+    m_difficulty = static_cast<unsigned char>(atoi(m_parser->m_args.c_str()));
 }
 
 // ORIG execute 0x084b2152：遍历全地下城索引表，为非特殊地下城写入通关难度记录。
@@ -210,8 +208,7 @@ void DungeonDifficulty::execute()
     {
         return;
     }
-    unsigned char difficulty =
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08);
+    unsigned char difficulty = m_difficulty;
     if (difficulty == 0 || difficulty > 3)
     {
         return;
@@ -255,8 +252,7 @@ CEndEvent::CEndEvent()
 void CEndEvent::parse()
 {
     trim(m_parser->m_args);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08) =
-        atoi(m_parser->m_args.c_str());
+    m_eventCode = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084ab94c：GM 校验后向 monitor 发 Packet_Monitor_Event_End。
@@ -268,8 +264,7 @@ void CEndEvent::execute()
         return;
     }
     Packet_Monitor_Event_End packet;
-    packet.m_eventCode = static_cast<unsigned int>(
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08));
+    packet.m_eventCode = static_cast<unsigned int>(m_eventCode);
     CMonitorServerProxy* proxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0xe);
@@ -294,10 +289,8 @@ void CEnduranceCmd::parse()
     std::string slotStr = m_parser->m_args.substr(0, pos);
     std::string enduranceStr = m_parser->m_args.substr(pos + 1, std::string::npos);
 
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08) =
-        atoi(slotStr.c_str());
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x0c) =
-        static_cast<unsigned short>(atoi(enduranceStr.c_str()));
+    m_slot = atoi(slotStr.c_str());
+    m_endurance = static_cast<unsigned short>(atoi(enduranceStr.c_str()));
 }
 
 // ORIG execute 0x084aa858：GM 且槽位 ∈ (9,0x15) 时改写背包物品耐久并回发更新包。
@@ -309,7 +302,7 @@ void CEnduranceCmd::execute()
     {
         return;
     }
-    int slot = *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08);
+    int slot = m_slot;
     if (!(slot > 9 && slot < 0x15))
     {
         return;
@@ -322,8 +315,7 @@ void CEnduranceCmd::execute()
         return;
     }
 
-    item->m_fieldb =
-        *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x0c);
+    item->m_fieldb = m_endurance;
 
     PacketGuard packet;
     packet.put_header(0, 0xe);
@@ -350,13 +342,12 @@ void CGrowhWeaponEvent::parse()
     trim(m_parser->m_args);
     if (m_parser->m_args == "gw")
     {
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08) = 1;
+        m_resetFlag = 1;
     }
     else
     {
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08) = 0;
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c) =
-            atoi(m_parser->m_args.c_str());
+        m_resetFlag = 0;
+        m_timepiece = atoi(m_parser->m_args.c_str());
     }
 }
 
@@ -370,28 +361,26 @@ void CGrowhWeaponEvent::execute()
     {
         return;
     }
-    unsigned char* data =
-        static_cast<unsigned char*>(user->getGrowthWeaponEventdata());
-    unsigned char resetFlag =
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 0x08);
+    GrowthWeaponEvent* data =
+        static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata());
+    unsigned char resetFlag = m_resetFlag;
     if (resetFlag != 0)
     {
-        *reinterpret_cast<unsigned int*>(data + 0x08) = 0;
-        *reinterpret_cast<unsigned int*>(data + 0x04) = 0;
-        data[0x00] = 0;
-        *reinterpret_cast<unsigned short*>(data + 0x10) = 0;
-        *reinterpret_cast<unsigned int*>(data + 0x0c) = 0;
+        data->m_field8 = 0;
+        data->m_field4 = 0;
+        data->m_eventFlag = 0;
+        data->m_field10 = 0;
+        data->m_fieldc = 0;
         gmShimDbGrowthWeaponReset(user->get_acc_id());
     }
     else
     {
-        int timepiece =
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c);
-        *reinterpret_cast<short*>(data + 0x10) = static_cast<short>(timepiece);
-        *reinterpret_cast<unsigned int*>(data + 0x0c) = 0;
+        int timepiece = m_timepiece;
+        data->m_field10 = static_cast<short>(timepiece);
+        data->m_fieldc = 0;
         gmShimDbGrowthWeaponTimepiece(
             user->get_acc_id(),
-            static_cast<short>(*reinterpret_cast<unsigned short*>(data + 0x10)), 0);
+            static_cast<short>((unsigned short)data->m_field10), 0);
     }
 }
 
@@ -408,10 +397,9 @@ CGuildDebug::CGuildDebug()
 void CGuildDebug::parse()
 {
     trim(m_parser->m_args);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08) =
-        atoi(m_parser->m_args.c_str());
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c) = 0;
-    m_f1 = 0;  // +0x10（头占位字段；ORIG 无其它写点，恒为 0）
+    m_param1 = atoi(m_parser->m_args.c_str());
+    m_param2 = 0;
+    m_f1 = 0;  // +0x10（ORIG 无其它写点，恒为 0）
 }
 
 // ORIG execute 0x084ac76c：组 Packet_Guild_Debug 经 guild 代理 SendTcpPacket
@@ -423,10 +411,8 @@ void CGuildDebug::execute()
     packet.m_charNo = static_cast<unsigned int>(user->get_charac_no(-1));
     packet.m_guildKey =
         static_cast<unsigned int>(user->get_charac_guildkey());
-    packet.m_mode =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x08);
-    packet.m_field16 =
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c);
+    packet.m_mode = m_param1;
+    packet.m_field16 = m_param2;
     packet.m_field1a = m_f1;  // +0x10
 
     CGuildServerProxy* proxy =

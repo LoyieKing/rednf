@@ -51,6 +51,37 @@ bool Global::CBossTowerFunc::UseItem(CUser* user, const Inven_Item& item)
 }
 
 // ----------------------------------------------------------------------------
+// ORIG T 0x08146994 _ZN6Global14CBossTowerFunc7GetItemEP5CUseribc
+// getBossTower() 判空 → cMyTrace("bossTower not find : charac_no - %u") 恒返 1；
+// 否则虚槽[10] handlePickupItem(user,item,flag,type)；非零 →
+// PacketGuard: put_header(1,0x2e)+put_byte(1)+finalize(true)+user->Send。
+// ----------------------------------------------------------------------------
+char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type)
+{
+    WongWork::CBossTower* tower = user->getBossTower();
+    if (tower != 0)
+    {
+        const int result = tower->handlePickupItem(user, item, flag, type);
+        if (result != 0)
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0x2e);
+            packet.put_byte(1);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+    }
+    else
+    {
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xb7, 5);
+        trace("bossTower not find : charac_no - %u", user->getCurCharacNo());
+    }
+    return 1;
+}
+
+// ----------------------------------------------------------------------------
 // ORIG T 0x08146722 _ZN6Global14CBossTowerFunc13SelectDungeonEP6CPartys17ENUM_DUNGEON_TYPE
 // party 判空 → 0；getBossTower() 判空 → cMyTrace(PRETTY_FUNCTION,0x34,5) +
 // "StaticPool BossTower NULL" → 0；按 get_member_count 映射 (1→0,2→1,3→2,4→3，
@@ -68,7 +99,7 @@ bool Global::CBossTowerFunc::SelectDungeon(CParty* party, short dungeonIdx,
     if (tower == 0)
     {
         cMyTrace trace(
-            "static bool Global::CBossTowerFunc::SelectDungeon(CParty*, short int, ENUM_DUNGEON_TYPE)",
+            __PRETTY_FUNCTION__,
             0x34, 5);
         trace("StaticPool BossTower NULL");
         return false;

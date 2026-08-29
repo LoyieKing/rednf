@@ -6,6 +6,19 @@
 #include "PacketTypes.h"  // MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE 权威定义（MSG_BASE 派生类；SigTypes.h 中的重复 POD 已删）
 #include "CAchievement.h"  // stAchievement_DBSaveData 权威定义（GetOutBuffer<T> 需完整类型 sizeof）
 #include "CCharacter.h"   // _Additioal_info 权威定义（inline clear；CHARAC_DATA::Reset 复用）
+#include "TaiwanQueries.h"  // LinkClosureD：Taiwan::SigUpdateExitTime 等 5 类
+                            // 权威定义（MoreTypes.h 占位已删）
+// Taiwan 域 MSG/Msg 权威类型（MoreTypes.h 同名 namespace 占位已迁入类）
+#include "DBInsertCreateDnfUserInfo.h"
+#include "DBSelectCreateDnfUserInfo.h"
+#include "DBSelectPcroomDailyReward.h"
+#include "DBUpdatePcroomDailyReward.h"
+#include "DBInsertGiveBoxEventReward.h"
+#include "DBSelectMobileAuthRewardTw.h"
+#include "InterSelectMobileAuthReward.h"
+#include "InterSelectCreateDnfUserInfo.h"
+#include "InterSelectPcroomDailyReward.h"
+#include "InterSelectCreateDnfEventInfo.h"
 
 template InformNoticeFlagData* Stream::GetInBuffer<InformNoticeFlagData>();
 template InformNoticeFlagData* CStreamGuard::GetInBuffer<InformNoticeFlagData>();
@@ -682,27 +695,22 @@ void SIG_SAVE_DIMENSION_RENT_ITEM::clear()    // ORIG W 0x8694cd2
 }
 
 
-// ============================================================================
-// CHARAC_DATA / TAG_* 缓存区清理原语（Prod_DispatcherHelpers 批次补定义；
-// 均为 ORIG W 内联函数，DisPatcher_SelectCharac::RequestDB* 生产者调用）。
-// ============================================================================
-
 void CHARAC_DATA::Reset()       // ORIG W 0x822ec9e
 {
     // this+0x60 起 _Additioal_info（步长 0x52，见 CCharacter.cpp ctor 注释）
-    reinterpret_cast<_Additioal_info*>(m_data + 0x60)->clear();
+    m_add.clear();
     memset(m_data + 0x04, 0, 0x1e);      // ORIG +0x0b2 行
     memset(m_data + 0x34, 0, 0x19);      // ORIG +0x0d0 行
     memset(m_data + 0x138, 0, 0x53e);    // ORIG +0x0ee 行（至 +0x676，不含 m_schoolNo）
     memset(m_data + 0x0b9, 0, 0x10);     // ORIG +0x10d 行
-    m_data[0x124] = 0;                   // ORIG +0x12e..+0x131：逐字节清零簇
-    m_data[0x129] = 0;
-    m_data[0x12a] = 0;
-    m_data[0x12b] = 0;
-    m_data[0x12c] = 0;
-    m_data[0x12d] = 0;
-    m_data[0x12f] = 0;                   // 注意：+0x12e 未清（ORIG 跳过）
-    m_dword130 = 0;                      // ORIG +0x139：dword 清零（movl $0,0x130(%eax)）
+    m_unkB2.m_b124 = 0;                  // ORIG +0x12e..+0x131：逐字节清零簇
+    m_unkB2.m_b129 = 0;
+    m_unkB2.m_b12a = 0;
+    m_unkB2.m_b12b = 0;
+    m_unkB2.m_b12c = 0;
+    m_unkB2.m_b12d = 0;
+    m_unkB2.m_b12f = 0;                  // 注意：+0x12e 未清（ORIG 跳过）
+    m_unkB2.m_i130 = 0;                  // ORIG +0x139：dword 清零（movl $0,0x130(%eax)）
 }
 
 void TAG_CHARAC_DATA::clear()   // ORIG W 0x822ed84

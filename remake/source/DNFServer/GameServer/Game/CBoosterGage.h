@@ -89,7 +89,7 @@ public:
     virtual void _reset() = 0;
 
     void alter();
-    bool isSave() const;
+    char isSave();  // ORIG _ZN13charac_expand5CData6isSaveEv（非 const，movzbl 直返 m_bIsSave）
     bool saveData(CUser* pUser);
     void reset();
 
@@ -176,5 +176,11 @@ public:
 private:
     int m_dwTotalGage;  // +0x08
 };
+
+// 布局核对（ORIG 反汇编 _reset 写 +0x08；vtable 槽位见文件头注释）：
+// CData 非 packed 派生：vptr +0x0 / m_bIsSave +0x4（基类 pack(1) sizeof 5）/
+// m_dwTotalGage +0x8（int 对齐 4），sizeof 0xc。
+static_assert(sizeof(charac_expand::CData) == 0x05, "CData size mismatch");
+static_assert(sizeof(CBoosterGage) == 0x0c, "CBoosterGage size mismatch");
 
 #endif  // GAME_CBOOSTERGAGE_H_

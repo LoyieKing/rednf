@@ -50,13 +50,17 @@ struct map_item
     int m_ownerId;            // +0x50（ctor=0）
 
     map_item();
-    map_item(const map_item& other);
+    // ORIG 无拷贝构造/operator=/~map_item 符号（nm 仅 081512cc 默认构造）：
+    // 保持隐式平凡拷贝/析构（用户声明拷贝构造会使 DropItem/Add_Item 调用
+    // C1ERKS 而非 ORIG 的 rep movsl 位拷贝，偏离 df_game_r）。
     // ORIG 无 ~map_item 符号：保持隐式 trivial 析构（用户定义空体会使
     // std::list/map 节点析构产生额外 call 与 D1 符号，偏离 df_game_r）。
-    map_item& operator=(const map_item& other);
 };
 
 // ---- map_monster（0x34c 字节；ctor 081511c8） ----
+// ORIG 布局 +0x10 byte/+0x11 word/+0x13 byte…：m_field11(short) 位于奇数偏移
+// +0x11（非 2 对齐，ORIG ConsistMap 逐字节写 +0x11/+0x12 实证），整体 pack(1)。
+#pragma pack(push, 1)
 struct map_monster
 {
     int m_mobId;              // +0x00
@@ -64,10 +68,10 @@ struct map_monster
     char m_roleType;          // +0x08
     char m_pad9[3];           // +0x09
     int m_mobIndex;           // +0x0c（击杀逻辑的怪物索引）
-    char m_level;             // +0x10（byte）
+    unsigned char m_level;    // +0x10（byte；ORIG 读取全 movzbl → unsigned）
     short m_field11;          // +0x11
-    char m_field13;           // +0x13
-    char m_field14;           // +0x14
+    unsigned char m_field13;  // +0x13（ORIG 读取 movzbl）
+    unsigned char m_field14;  // +0x14（ORIG 读取 movzbl）
     char m_field15;           // +0x15
     char m_field16;           // +0x16
     char m_field17;           // +0x17
@@ -105,6 +109,7 @@ struct map_monster
     map_monster& operator=(const map_monster& other);  // ORIG 08151d3a
     bool isNamedMonster();                 // ORIG 08151182（非 const）
 };
+#pragma pack(pop)
 
 
 // ---- MapInfo 支撑结构（0x18/0x10；init ORIG 081512ec/0815132c） ----
@@ -119,8 +124,8 @@ struct stMapMonsterKillChecker_t
     void init();                           // ORIG 081512ec
     void initMonsterInfo();                // ORIG W 0x830e71c
     void setUseSkillMaterial(unsigned int tick);   // ORIG W 0x830e72c
-    unsigned int getUseSkillMaterialTime() const;  // ORIG W 0x830e78c
-    int getUseSkillMaterialCount() const;          // ORIG W 0x822cb86
+    unsigned int getUseSkillMaterialTime();  // ORIG W 0x830e78c（非 const）
+    int getUseSkillMaterialCount();          // ORIG W 0x822cb86（非 const）
     int dieMonster(unsigned int tick, unsigned int limit);       // ORIG W 0x830e748
     void setLastMobDieTime(unsigned int tick);     // ORIG W 0x830e796
     int checkLongTermMobDie(unsigned int tick, unsigned int limit);  // ORIG W 0x830e7a4

@@ -1,0 +1,7 @@
+#include "CCoinEventPerDay.h"
+void CCoinEventPerDay::StartEvent(Word_Param param)
+{
+    SetEventFlag(true);
+    unsigned int v = *(const unsigned int*)&param;
+    m_coinPack = v;
+}

@@ -66,7 +66,7 @@ BuyUpgradeData& BuyUpgradeData::operator=(const BuyUpgradeData& other)
 int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
 {
     LogManager::logFormat(
-        0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", "getFieldData",
+        0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
         0x26e, "BuyUpgradeData::GetFieldData level = %d", level);   // [objdump 0x88a2c98]
 
     LevelFieldDataMap::iterator lit = m_listMap.find(level);
@@ -81,7 +81,7 @@ int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
 
     std::string typeName(getStatStringIndex(ft));                   // [objdump 0x88a2d6e]
     LogManager::logFormat(
-        0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", "getFieldData",
+        0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
         0x27b,
         "AdvanceAltar BuyUpgradeData::GetFieldData Error level = %d, type = %s",
         level, typeName.c_str());                                   // [objdump 0x88a2db3]
