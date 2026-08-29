@@ -17,7 +17,7 @@
 
 #include <cstddef>
 
-class STSpecailItem_Param;  // 完整定义在 CCeraShop_Special.cpp
+class STSpecailItem_Param;  // 完整定义在 CCeraShop.h（ORIG W ctor 0x08234ec2）
 class STSpecailItem_Result;
 
 namespace WongWork

@@ -2862,7 +2862,21 @@ class stRequestIngameAdvertisement : public ParamBase
 {
 public:
     stRequestIngameAdvertisement();
-    char m_pad[0x644];        // ORIG 实证用到 +0x643（RequestIngameAdvertisement 包字段区），总长 0x648
+    // ORIG 实证字段（Dispatcher_RequestIngameAdvertisement process/read.md）：
+    // +0x04 起内嵌 stNotifyIngameADInfo 相关字段；总长 0x648。
+    unsigned int m_code;          // +0x04（WriteLog 第 5 参 uint / send 首字段）
+    char m_pad08[0x230];          // +0x08 .. +0x237
+    unsigned long m_itemID;       // +0x238（奖品 idx A）
+    char m_pad23c[0xff];          // +0x23c .. +0x33a
+    unsigned char m_adShape;      // +0x33b 广告形态
+    unsigned char m_logFlag;      // +0x33c 日志开关
+    unsigned char m_prizeShape;   // +0x33d 奖品形态
+    char m_pad33e[0x1fe];         // +0x33e .. +0x53b
+    unsigned long m_itemID2;      // +0x53c（奖品 idx B）
+    char m_pad540[0x100];         // +0x540 .. +0x63f
+    int m_errorCode;              // +0x640
+    short m_adType;               // +0x644
+    char m_pad646[2];             // +0x646 .. +0x647（总长 0x648）
 };
 
 class stRequestMemberEnterParam : public ParamBase

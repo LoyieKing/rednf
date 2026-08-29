@@ -15,6 +15,9 @@
 #include "CServerProxyMgr.h"
 #include <string.h>
 #include <vector>
+#include "CHackLog_InvitationPaperSellToNPC.h"   // user_sell_item hack 检查
+#include "CHackAnalyzer.h"                        // addServerHackCnt
+#include "HistoryLog.h"                           // WriteSellItem
 
 #include "CStatisticServerProxy.h"
 
@@ -322,7 +325,7 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
 }
 
 // ---------------------------------------------------------------------------
-// user_sell_item(CUser*, short slot, short invenType)
+// user_sell_item(CUser*, char invenType, short slot, short count) —— ORIG 0x86193f8
 // ---------------------------------------------------------------------------
 int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
 {
@@ -346,37 +349,84 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
     }
 
     Inven_Item item;
+    if (invenType == 2)
+    {
+        item = user->getCurCharacCargoR()->get_cargo_slot(slot);
+    }
+    else
+    {
+        int t = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)invenType);
+        item = user->getCurCharacInvenR()->GetInvenSlot(t, slot);
+    }
+
     if (invenType == 0)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        inven->delete_item(INVEN_TYPE_INVEN, slot, count, eItemDelReason_0, true);
+        if (!inven->delete_item(INVEN_TYPE_INVEN, slot, count, eItemDelReason_0, true))
+        {
+            cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
+                        0x136, 5);
+            tr("Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
+               user->getCurCharacNo(), slot, count);
+            return 0x11;
+        }
     }
     else if (invenType == 2)
     {
         CCargo* cargo = user->getCurCharacCargoW();
-        cargo->delete_item(slot, count, eItemDelReason_0);
+        if (!cargo->delete_item(slot, count, eItemDelReason_0))
+        {
+            cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
+                        0x141, 5);
+            tr("Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
+               user->getCurCharacNo(), slot, count);
+            return 0x11;
+        }
     }
     else if (invenType == 3)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        inven->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0, true);
+        if (!inven->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0, true))
+        {
+            cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
+                        0x14d, 5);
+            tr("Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
+               user->getCurCharacNo(), slot);
+            return 0x11;
+        }
         user->send_equip(slot);
     }
     else if (invenType == 7)
     {
         CInventory* inven = user->getCurCharacInvenW();
-        inven->delete_item(INVEN_TYPE_AVATAR, slot, count, eItemDelReason_0, true);
+        if (!inven->delete_item(INVEN_TYPE_AVATAR, slot, count, eItemDelReason_0, true))
+        {
+            cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
+                        0x167, 5);
+            tr("Store::user_sell_item, delete_item failed 4, User ch=%d , %d %d",
+               user->getCurCharacNo(), slot, count);
+            return 0x11;
+        }
     }
 
-    CInventory* invenW = user->getCurCharacInvenW();
-    invenW->gain_money(outCount, eMoneyAddReason_0, true, 0);
+    if (outCount > 0x7a11f)
+    {
+        int oldMoney = user->getCurCharacInvenR()->get_money();
+        cMyTrace tr("int Store::user_sell_item(CUser*, char, short int, short int)",
+                    0x172, 4);
+        tr("User(%s) Charac(%s) gain money(%d) by selling item(%d), old money is %d.",
+           NumberToString(user->get_acc_id(), 0),
+           user->getCurCharacName(), outCount, price, oldMoney);
+    }
+
+    user->getCurCharacInvenW()->gain_money(outCount, eMoneyAddReason_0, true, 0);
 
     if (!item.isEmpty())
     {
         CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
         if (pItem && pItem->is_stackable())
         {
-            // stackable item handling
+            item.m_addInfo2 = count;   // ORIG movswl count → item+0x7（stackable 覆写数量）
         }
         user->Add_RedeemInfo(item, outCount, true);
     }
@@ -390,6 +440,14 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
     packet.put_short(count);
     packet.finalize(true);
     user->Send(packet);
+
+    CHackLog_InvitationPaperSellToNPC hackLog;
+    if (hackLog.IsInvitationPaper(price))
+    {
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, (WongWork::ENUM_HACKTYPE)hackLog.GetHackType(), 1, 0, 0);
+    }
+    HistoryLog::WriteSellItem(*(FILE**)((char*)user + 0x796f8), price, count);
 
     return 0;
 }

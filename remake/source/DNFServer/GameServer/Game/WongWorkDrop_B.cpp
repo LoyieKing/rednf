@@ -290,14 +290,14 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                 tablePtr = fallbackTable;
         }
 
-        // prob = trunc( v[2+i] × dungeonBonus[i][difficulty](0xf8)
+        // prob = trunc( v[2+i] × factor × dungeonBonus[i][difficulty](0xf8)
         //             × monsterTypeBonus[i][role](0x15c)
-        //             × partyBonus[i][ppIndex](0xa8) × factor )
+        //             × partyBonus[i][ppIndex](0xa8) ) —— ORIG 乘法顺序
         float probAcc = static_cast<float>(t.v[2 + i]) *
+                        factor *
                         m_dungeonBonus[i][difficulty] *
                         m_monsterTypeBonus[i][static_cast<int>(role)] *
-                        m_partyBonus[i][ppIndex] *
-                        factor;
+                        m_partyBonus[i][ppIndex];
         int probValue = static_cast<int>(probAcc);   // fldcw truncate ≡ (int)
         int dropValue = probValue * dropRate / 100;  // 魔数除法 = signed /100
 
@@ -471,26 +471,43 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
     ENUM_DUNGEON_DIFFICULTY dungeonDiff,
     ENUM_ITEM_DROP_DUNGEON_TYPE dropDungeonType)
 {
-    if (type == eItemDropType_2)
+    // ORIG 0x08534fce：type==2 先试 random_option 槽；否则按 diff/ddt 选块；
+    // 整段 try 包裹，catch(...) 走 cMyTrace（pretty/0x2e5/5）+ 日志后返回 -1。
+    int result = -1;
+    try
     {
-        int randomOptionIdx =
-            static_cast<int>(m_optHandle.choose_item(rarity, level));
-        if (randomOptionIdx != -1)
-            return randomOptionIdx;
+        if (type == eItemDropType_2)
+        {
+            int randomOptionIdx =
+                static_cast<int>(m_optHandle.choose_item(rarity, level));
+            if (randomOptionIdx != -1)
+                return randomOptionIdx;
+        }
+        if (m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].empty())
+            return -1;
+        std::map<unsigned int, int>::iterator lastIter =
+            m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].end();
+        --lastIter;
+        unsigned long maxKey = lastIter->first;
+        unsigned long roll = static_cast<unsigned long>(
+            m_rand->randInt(maxKey));
+        std::map<unsigned int, int>::iterator lb =
+            m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].lower_bound(roll);
+        if (lb == m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level].end())
+            --lb;
+        result = lb->second;
     }
-    std::map<unsigned int, int>& slot =
-        m_blocks[dungeonDiff][dropDungeonType].m_slots[type][rarity][level];
-    if (slot.empty())
-        return -1;
-    std::map<unsigned int, int>::iterator lastIter = slot.end();
-    --lastIter;
-    unsigned long maxKey = lastIter->first;
-    unsigned long roll =
-        static_cast<unsigned long>(m_rand->randInt(maxKey));
-    std::map<unsigned int, int>::iterator lb = slot.lower_bound(roll);
-    if (lb == slot.end())
-        --lb;
-    return lb->second;
+    catch (...)
+    {
+        cMyTrace t("int WongWork::CSecialIMonsterDropItemGenRateTable::chooseItem("
+                   "WongWork::eItemDropType_t, ENUM_RARITY, int, "
+                   "ENUM_DUNGEON_DIFFICULTY, ENUM_ITEM_DROP_DUNGEON_TYPE)", 0x2e5, 5);
+        t("[%s][%d]",
+          "int WongWork::CSecialIMonsterDropItemGenRateTable::chooseItem("
+          "WongWork::eItemDropType_t, ENUM_RARITY, int, "
+          "ENUM_DUNGEON_DIFFICULTY, ENUM_ITEM_DROP_DUNGEON_TYPE)", 0x2e5);
+    }
+    return result;
 }
 
 

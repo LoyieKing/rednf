@@ -28,7 +28,9 @@ private:
     int m_flag;                // +0x00
     int m_count;               // +0x04
     std::vector<int> m_vec;    // +0x08
-    int m_unk14;               // +0x14
+    // ORIG 0x82fefce/0x82fef12：+0x14 为 vector<DungeonClearCondition>* 指针
+    // （SetDungeonClearConditionVector 写入外部条件表地址；Clear 置 0）。
+    std::vector<DungeonClearCondition>* m_pCondVec;   // +0x14
 };
 
 #endif  // DNF_GAME_CCLEARCONDITION_H_

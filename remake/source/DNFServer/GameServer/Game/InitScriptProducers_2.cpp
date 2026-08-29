@@ -645,15 +645,14 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 
     std::string token;
     bool ok = false;
-    char jobIndex = 0;
-    char growTypeIndex = 0;
+    CharacterKind kind;
     CharacterStatus* current = 0;
 
     while (ScanType(token, true))
     {
         if (token == "[job index]")
         {
-            jobIndex = (char)ScanInt(&ok);
+            kind.m_job = (char)ScanInt(&ok);
             if (!ok)
                 return false;
             continue;
@@ -661,7 +660,7 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 
         if (token == "[grow type index]")
         {
-            growTypeIndex = (char)ScanInt(&ok);
+            kind.m_grow = (char)ScanInt(&ok);
             if (!ok)
                 return false;
 
@@ -669,9 +668,7 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
             std::memset(&status, 0, sizeof(status));     // ORIG memset 0x54
             const std::pair<std::map<CharacterKind, CharacterStatus>::iterator,
                             bool> inserted =
-                script.m_map0.insert(
-                    std::make_pair(CharacterKind(jobIndex, growTypeIndex),
-                                   status));
+                script.m_map0.insert(std::make_pair(kind, status));
             if (!inserted.second)
                 return false;
             current = &inserted.first->second;

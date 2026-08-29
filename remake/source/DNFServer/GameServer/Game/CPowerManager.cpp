@@ -379,10 +379,23 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
         m_rankings[i].m_level = (char)*(const unsigned char*)(src + 0x23);
         m_rankings[i].m_grow = (char)*(const unsigned char*)(src + 0x24);
         m_rankings[i].m_guildId = *(const int*)(src + 0x50);
-        strncpy(m_rankings[i].m_name, (const char*)(src + 0x04), 0x1e);
-        strncpy(m_rankings[i].m_guildName, (const char*)(src + 0x25), 0x28);
-        memcpy(m_rankings[i].m_equipment, src + 0x54, sizeof(m_rankings[i].m_equipment));
-        m_rankings[i].m_flag = 1;
+        // ORIG 0x0847f0e5：cMyTrace(3 参) + "Set Statue Ranker ..." 变参日志。
+        // 注意 ORIG 压栈 job/lev 槽位互换（lev 值在 job 槽、job 值在 lev 槽），
+        // 且 EQUP 用 m_equipment[0..8] 与 [10]（跳过 [9]）——忠实保留。
+        cMyTrace trace(
+            "void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO*)",
+            0xa4, 0);
+        trace("Set Statue Ranker %s(%d), job:%d, lev:%d, grow:%d, guild_name:%s, guild_id:%d, EQUP [head:%d][hair:%d][face:%d][jacket:%d][pants:%d][shoes:%d][breast:%d][waist:%d][skin:%d][weapon:%d]",
+              m_rankings[i].m_name, m_rankings[i].m_characNo,
+              static_cast<int>(m_rankings[i].m_level),
+              static_cast<int>(m_rankings[i].m_job),
+              static_cast<int>(m_rankings[i].m_grow),
+              m_rankings[i].m_guildName, m_rankings[i].m_guildId,
+              m_rankings[i].m_equipment[0], m_rankings[i].m_equipment[1],
+              m_rankings[i].m_equipment[2], m_rankings[i].m_equipment[3],
+              m_rankings[i].m_equipment[4], m_rankings[i].m_equipment[5],
+              m_rankings[i].m_equipment[6], m_rankings[i].m_equipment[7],
+              m_rankings[i].m_equipment[8], m_rankings[i].m_equipment[10]);
         break;
     }
     if (CheckCompleteDBLoadStatueInfo())

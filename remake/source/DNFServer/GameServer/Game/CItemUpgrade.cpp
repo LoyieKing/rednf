@@ -62,12 +62,18 @@ void CItemUpgrade::make3rdChroniclePacket(CUser* user,
 {
     if (user == 0 || packet == 0)
         return;
+    // ORIG 0x854a9aa：局部 STEnchantSystemMapKey keys[2]（0x10 步长，循环 C1 构造）。
+    STEnchantSystemMapKey keys[2];
     const unsigned char* fields =
         reinterpret_cast<const unsigned char*>(&item) + 0x1f;
-    int count = (fields[0] & 1) != 0 ? 1 : 0;
-    if (count != 0 && (fields[1] & 1) != 0)
-        count = 2;
-    if (count == 0)
+    int count = 0;
+    if ((fields[0] & 1) != 0)
+    {
+        count = 1;
+        if ((fields[1] & 1) != 0)
+            count = 2;
+    }
+    else
     {
         packet->put_byte(0);
         return;
@@ -83,11 +89,15 @@ void CItemUpgrade::make3rdChroniclePacket(CUser* user,
         const int enchantId = kind == 0 ? 0x4e6 :
                               kind == 1 ? 0x4e7 :
                               kind == 2 ? 0x4e8 : 0x4e9;
+        keys[i].m_a = user->get_charac_job();
+        keys[i].m_b = (unsigned char)user->getCurCharFirstGrowType();
+        keys[i].m_c = itemScript->GetItemType();
+        keys[i].m_fieldC = (unsigned char)(field >> 3);
         packet->put_int(enchantId);
-        packet->put_byte(user->get_charac_job());
-        packet->put_byte(user->getCurCharFirstGrowType());
-        packet->put_byte(itemScript->GetItemType());
-        packet->put_byte(field >> 3);
+        packet->put_byte(keys[i].m_a);
+        packet->put_byte(keys[i].m_b);
+        packet->put_byte(keys[i].m_c);
+        packet->put_byte(keys[i].m_fieldC);
     }
 }
 
@@ -307,7 +317,8 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
         return 7;
 
     int rarity = itemScript->get_rarity();
-    int penTable = table.intAtConst((rarity + 0x100) * 4 + 0xc);
+    // ORIG 0x8546600：读 table+(rarity+0x104)*4+0xc（intAtConst 减 0xc 内偏）。
+    int penTable = table.intAtConst((rarity + 0x104) * 4 + 0xc);
     if (penTable != -1)
     {
         if (penTable <= (int)upgrade)
@@ -318,11 +329,17 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     if (penalty != 3)
         goto check_level;
     // 若 penalty 类型==3，预测结果物品数检查（InvenEmptycount+QuickEmptyCount）。
+    // ORIG 0x8546695：predict = getPredictResultItemTypeCount(rarity)+1，hasAbility 再 +1；
+    // predict==0 跳过检查；<predict 返回 0x15。
     {
-        int predict = 1;
-        if (user->getCurCharacInvenR()->InvenEmptycount(Inven_Item::ITEM_TYPE_3) +
-                user->getCurCharacInvenR()->QuickEmptyCount() <
-            (unsigned)predict)
+        int predict =
+            G_CDataManager()->m_disJoint->getPredictResultItemTypeCount(rarity) + 1;
+        if (item.m_amp.hasAbility())
+            predict += 1;
+        if (predict != 0 &&
+            user->getCurCharacInvenR()->InvenEmptycount(Inven_Item::ITEM_TYPE_3) +
+                    user->getCurCharacInvenR()->QuickEmptyCount() <
+                (unsigned)predict)
             return 0x15;
     }
 check_level:

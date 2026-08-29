@@ -531,240 +531,1410 @@ int scanValue()
 
 }  // namespace
 
+namespace {
+static int MonsterTagLookup(const std::string& tag)
+{
+    if (tag == "[name]") return 2580;
+    if (tag == "[width]") return 2590;
+    if (tag == "[floating height]") return 2593;
+    if (tag == "[layer]") return 2597;
+    if (tag == "[ambient sound]") return 2620;
+    if (tag == "[attack sound]") return 2630;
+    if (tag == "[appear sound]") return 2635;
+    if (tag == "[damage sound]") return 2640;
+    if (tag == "[die sound]") return 2645;
+    if (tag == "+") return 2672;
+    if (tag == "[ability table]") return 2675;
+    if (tag == "[summon skill status up rate]") return 2679;
+    if (tag == "[level]") return 2683;
+    if (tag == "[fire resistance]") return 2687;
+    if (tag == "[water resistance]") return 2691;
+    if (tag == "[dark resistance]") return 2695;
+    if (tag == "[light resistance]") return 2699;
+    if (tag == "[HP regen speed]") return 2703;
+    if (tag == "[MP regen speed]") return 2707;
+    if (tag == "[move speed]") return 2711;
+    if (tag == "[attack speed]") return 2723;
+    if (tag == "[cast speed]") return 2727;
+    if (tag == "[hit recovery]") return 2731;
+    if (tag == "[jump power]") return 2735;
+    if (tag == "[jump speed]") return 2740;
+    if (tag == "[normal dash speed]") return 2745;
+    if (tag == "[slant dash speed]") return 2751;
+    if (tag == "[weight]") return 2755;
+    if (tag == "[superarmor on attack]") return 2759;
+    if (tag == "[sight]") return 2762;
+    if (tag == "[come in action]") return 2767;
+    if (tag == "[come in action ex]") return 2774;
+    if (tag == "[diving sight]") return 2778;
+    if (tag == "[targeting time term]") return 2784;
+    if (tag == "[targeting on damage]") return 2787;
+    if (tag == "[targeting high level]") return 2791;
+    if (tag == "[targeting low level]") return 2795;
+    if (tag == "[targeting high HP]") return 2799;
+    if (tag == "[targeting low HP]") return 2803;
+    if (tag == "[targeting nearest]") return 2806;
+    if (tag == "[targeting attacker]") return 2809;
+    if (tag == "[targeting from direction]") return 2812;
+    if (tag == "[targeting low physical attack]") return 2815;
+    if (tag == "[targeting low physical defense]") return 2818;
+    if (tag == "[targeting low magical attack]") return 2821;
+    if (tag == "[targeting low magical defense]") return 2824;
+    if (tag == "[targeting downed]") return 2827;
+    if (tag == "[warlike]") return 2837;
+    if (tag == "[stuckbonus on damage]") return 2843;
+    if (tag == "[item]") return 2853;
+    if (tag == "[common champion drop item]") return 2865;
+    if (tag == "[hell monster]") return 2870;
+    if (tag == "[boss drop item]") return 2880;
+    if (tag == "[death tower item]") return 2987;
+    if (tag == "[super champion drop item]") return 3016;
+    if (tag == "[keep distance]") return 3030;
+    if (tag == "[is on the object]") return 3036;
+    if (tag == "[out of targetting]") return 3040;
+    if (tag == "[die effect]") return 3066;
+    if (tag == "[face image]") return 3075;
+    if (tag == "[move motion]") return 3087;
+    if (tag == "[sit motion]") return 3099;
+    if (tag == "[damage motion 1]") return 3111;
+    if (tag == "[damage motion 2]") return 3123;
+    if (tag == "[down motion]") return 3135;
+    if (tag == "[overturn motion]") return 3147;
+    if (tag == "[jump motion]") return 3159;
+    if (tag == "[jumpattack motion]") return 3171;
+    if (tag == "[attack motion]") return 3183;
+    if (tag == "[etc motion]") return 3209;
+    if (tag == "[waiting action]") return 3235;
+    if (tag == "[move action]") return 3244;
+    if (tag == "[sit action]") return 3247;
+    if (tag == "[damage action 1]") return 3250;
+    if (tag == "[damage action 2]") return 3253;
+    if (tag == "[down action]") return 3256;
+    if (tag == "[overturn action]") return 3259;
+    if (tag == "[jump action]") return 3262;
+    if (tag == "[jumpattack action]") return 3265;
+    if (tag == "[basic action]") return 3266;
+    if (tag == "[action list]") return 3272;
+    if (tag == "[etc action]") return 3277;
+    if (tag == "[last action]") return 3280;
+    if (tag == "[attack info]") return 3289;
+    if (tag == "[etc attack info]") return 3295;
+    if (tag == "[int data]") return 3306;
+    if (tag == "[on attack]") return 3321;
+    if (tag == "[on damage]") return 3330;
+    if (tag == "[on die]") return 3333;
+    if (tag == "[on revenge]") return 3336;
+    if (tag == "[on etc]") return 3339;
+    if (tag == "[on appear]") return 3342;
+    if (tag == "[on disappear]") return 3345;
+    if (tag == "[on go to help]") return 3348;
+    if (tag == "[fix move direction]") return 3357;
+    if (tag == "[passive object filename]") return 3370;
+    if (tag == "[passive object number]") return 3380;
+    if (tag == "[passive object index]") return 3386;
+    if (tag == "[power]") return 3389;
+    if (tag == "[passive object start x cood]") return 3396;
+    if (tag == "[passive object start y cood]") return 3403;
+    if (tag == "[passive object start z cood]") return 3410;
+    if (tag == "[direction]") return 3417;
+    if (tag == "[attack number]") return 3420;
+    if (tag == "[attack index]") return 3426;
+    if (tag == "[throw sound]") return 3429;
+    if (tag == "[equipment]") return 3438;
+    if (tag == "[ready action]") return 3451;
+    if (tag == "[counter attack]") return 3478;
+    if (tag == "[probability]") return 3489;
+    if (tag == "[approach attack]") return 3511;
+    if (tag == "[need hp]") return 3520;
+    if (tag == "[start frame index]") return 3535;
+    if (tag == "[end frame index]") return 3538;
+    if (tag == "[jump height]") return 3541;
+    if (tag == "[on collision custom animation index]") return 3547;
+    if (tag == "[ememy distance rate]") return 3550;
+    if (tag == "[limited x cood]") return 3553;
+    if (tag == "[limited y cood]") return 3556;
+    if (tag == "[jump direction]") return 3564;
+    if (tag == "[function index]") return 3572;
+    if (tag == "[summon term]") return 3593;
+    if (tag == "[enterance effect]") return 3605;
+    if (tag == "[dash attack]") return 3613;
+    if (tag == "[shakeable]") return 3631;
+    if (tag == "[first speed]") return 3634;
+    if (tag == "[last speed]") return 3640;
+    if (tag == "[dash time]") return 3643;
+    if (tag == "[animation first index]") return 3651;
+    if (tag == "[offset]") return 3676;
+    if (tag == "[animation index]") return 3679;
+    if (tag == "[max hold]") return 3687;
+    if (tag == "[warp style]") return 3706;
+    if (tag == "[after attack]") return 3709;
+    if (tag == "[after appear time]") return 3712;
+    if (tag == "[cool time]") return 3715;
+    if (tag == "[target offset]") return 3718;
+    if (tag == "[event super on scr]") return 3742;
+    if (tag == "[on time]") return 3749;
+    if (tag == "[on hp]") return 3761;
+    if (tag == "[always]") return 3767;
+    if (tag == "[counter]") return 3773;
+    if (tag == "[breakable]") return 3780;
+    if (tag == "[half]") return 3787;
+    if (tag == "[unbreakable]") return 3794;
+    if (tag == "[with blast]") return 3802;
+    if (tag == "[/cooltime]") return 3875;
+    if (tag == "[spawn prob]") return 3879;
+    if (tag == "[drop item offset]") return 3883;
+    if (tag == "[is grabable]") return 3886;
+    if (tag == "[ai pattern]") return 3888;
+    if (tag == "[think term]") return 3889;
+    if (tag == "[destination change term]") return 3890;
+    if (tag == "[targeting bonus]") return 3891;
+    if (tag == "[keep distance with target]") return 3892;
+    if (tag == "[vision]") return 3894;
+    if (tag == "[intelligence]") return 3895;
+    if (tag == "[keep range distance with target]") return 3896;
+    if (tag == "[back vision]") return 3897;
+    if (tag == "[no change target]") return 3898;
+    if (tag == "[keep range distance with target 1]") return 3900;
+    if (tag == "[keep range distance with target 2]") return 3901;
+    if (tag == "[keep range distance with target 3]") return 3902;
+    if (tag == "[keep range distance with target 4]") return 3910;
+    if (tag == "[reflection object]") return 3927;
+    if (tag == "[set damage check]") return 3932;
+    if (tag == "[change direction by target]") return 3938;
+    if (tag == "[is direction to move]") return 3943;
+    if (tag == "[hp regen rate]") return 3954;
+    if (tag == "[absolute defense ignore rate]") return 3958;
+    if (tag == "[lie frame]") return 3963;
+    if (tag == "[forced knockback]") return 3968;
+    if (tag == "[No Combo Rate Monster]") return 3975;
+    if (tag == "[proc action]") return 3978;
+    if (tag == "[monster title]") return 3981;
+    if (tag == "[destroy count]") return 3993;
+    if (tag == "[destroy count damage]") return 3997;
+    if (tag == "[overhead gauge pos]") return 4002;
+    if (tag == "[flying mark]") return 4007;
+    if (tag == "[moveback action]") return 4010;
+    if (tag == "[dash action]") return 4016;
+    if (tag == "[dashattack action]") return 4019;
+    if (tag == "[level of difficulty]") return 4062;
+    if (tag == "[hero]") return 4128;
+    if (tag == "[fire attack]") return 4132;
+    if (tag == "[water attack]") return 4136;
+    if (tag == "[dark attack]") return 4140;
+    if (tag == "[light attack]") return 4144;
+    if (tag == "[rigidity]") return 4149;
+    if (tag == "[pattern]") return 4192;
+    if (tag == "[fix direction]") return 4205;
+    if (tag == "[left]") return 4219;
+    if (tag == "[right]") return 4235;
+    if (tag == "[/ridableskill definition]") return 4254;
+    if (tag == "normal") return 4282;
+    if (tag == "defaultcancel") return 4297;
+    if (tag == "movable") return 4302;
+    if (tag == "charge") return 4307;
+    if (tag == "[limit slowdown atkspeed]") return 4422;
+    if (tag == "[non targeted]") return 4500;
+    if (tag == "[damage time balance]") return 4512;
+    if (tag == "[stun time balance]") return 4519;
+    if (tag == "[add gravity in aerial]") return 4526;
+    if (tag == "[summon skill status up type]") return 4529;
+    if (tag == "[attack down prob]") return 4550;
+    if (tag == "[strong]") return 4554;
+    if (tag == "[weak]") return 4559;
+    if (tag == "[explain]") return 4564;
+    if (tag == "[consume mp]") return 4582;
+    if (tag == "[catch item]") return 4607;
+    if (tag == "[fixed height]") return 4627;
+    if (tag == "[etc sound]") return 4640;
+    if (tag == "[/can beat index]") return 4665;
+    if (tag == "[mounting action]") return 4671;
+    if (tag == "[mounted action]") return 4677;
+    if (tag == "[unmounting action]") return 4683;
+    if (tag == "[index]") return 4696;
+    if (tag == "[x pos]") return 4712;
+    if (tag == "[y pos]") return 4720;
+    if (tag == "[height]") return 4736;
+    if (tag == "[velocity x]") return 4744;
+    if (tag == "[velocity y]") return 4752;
+    if (tag == "convert y to z") return 4760;
+    if (tag == "[transparency]") return 4771;
+    if (tag == "[master]") return 4784;
+    if (tag == "[others]") return 4800;
+    if (tag == "inherit") return 4807;
+    if (tag == "[/control passive object]") return 4855;
+    if (tag == "[life max]") return 4859;
+    return -1;
+}
+}  // namespace
+
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
-    bool ok_flag = false;   // ScanInt 成功标志（与 ORIG 栈上 bool 等价）
+    bool ok_flag = false;
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))
-        return 0;                              // +0x2f
-    script->Clear();                           // +0x3f
+        return 0;
+    script->Clear();
 
-    // +0x46：getDirectoryPath(m_field708, "%s%s", baseDir, path) 后传 AI 目录
     getDirectoryPath(script->m_field708, "%s%s",
                      g_szMonsterScriptBaseDirectory, path);
-    script->m_aiInfo.m_dir = script->m_field708;             // +0x7c SsaSERKSs(+144←+708)
-    script->m_throwAttacks.clear();                          // +0x94
+    script->m_aiInfo.m_dir = script->m_field708;
+    script->m_throwAttacks.clear();
     script->m_counterAttacks.clear();
     script->m_jumpAttacks.clear();
-    script->m_equipment.m_items.clear();                     // +0xc4 clear(+390)
+    script->m_equipment.m_items.clear();
     script->m_attackReadies.clear();
 
-    std::string tag;                           // -0x1a0c
-    int moduleId = -1;                         // -0x1a1c
-    int subId = -1;                            // -0x1a20
+    std::string tag;
+    std::string token;
+    std::string local_str;
+    bool ok = false;
+    int moduleId = -1;
+    int subId = -1;
     while (processModuleTagSet(moduleId, subId, &tag, type, flag))
     {
-        if (subId != -1)                       // +0x186
+        if (subId != -1)
             script->m_field1c9c = subId;
 
-        while (scanTag(tag))                   // +0x229 起主扫描循环骨架
+        while (scanTag(tag))
         {
-            if (tag == "name")
+            switch (MonsterTagLookup(tag))
             {
-                ScanStr(&script->m_name);
-                script->m_index = ScanInt(&ok_flag);   // 【推断】首列即索引
+case 0xa14:  // "[name]"
+        ScanStr(&script->m_name);  // +0x4
+    break;
+
+case 0xa1a:  // "[name]"
+        script->m_width = ScanInt(&ok);  // +0xc
+        script->m_height = ScanInt(&ok);  // +0x10
+    break;
+
+case 0xa1e:  // "[width]"
+        script->m_floatingHeight = ScanInt(&ok);  // +0x14
+    break;
+
+case 0xa21:  // "[floating height]"
+        ScanStr(&local_str);  // 局部 string @8a13905
+    break;
+
+case 0xa3c:  // "[ambient sound]"
+        ScanStr(&local_str);  // 局部 string @8a13b4d
+    break;
+
+case 0xa41:  // "[ambient sound]"
+        ScanStr(&local_str);  // 局部 string @8a13be9
+    break;
+
+case 0xa46:  // "[attack sound]"
+        ScanStr(&local_str);  // 局部 string @8a13c85
+    break;
+
+case 0xa4b:  // "[appear sound]"
+        ScanStr(&local_str);  // 局部 string @8a13d21
+    break;
+
+case 0xa50:  // "[damage sound]"
+        ScanStr(&local_str);  // 局部 string @8a13dbd
+    break;
+
+case 0xa55:  // "[die sound]"
+        ScanStr(&local_str);  // 局部 string @8a13ebb
+        ScanInt(&ok);  // 局部用途 @8a13f11
+        ScanStr(&local_str);  // 局部 string @8a13f58
+    break;
+
+case 0xa70:  // "+"
+        script->m_abilityTable = ScanInt(&ok);  // +0x3bc
+    break;
+
+case 0xa73:  // "[ability table]"
+        ScanFloat(&ok);  // @8a14057
+    break;
+
+case 0xa77:  // "[summon skill status up rate]"
+        *(int*)((char*)script+0x3ec) = ScanInt(&ok);  // +0x3ec
+        *(int*)((char*)script+0x3f0) = ScanInt(&ok);  // +0x3f0
+    break;
+
+case 0xa7b:  // "[level]"
+        *(int*)((char*)script+0x3f4) = ScanInt(&ok);  // +0x3f4
+        *(int*)((char*)script+0x3f8) = ScanInt(&ok);  // +0x3f8
+    break;
+
+case 0xa7f:  // "[fire resistance]"
+        *(int*)((char*)script+0x3fc) = ScanInt(&ok);  // +0x3fc
+        *(int*)((char*)script+0x400) = ScanInt(&ok);  // +0x400
+    break;
+
+case 0xa83:  // "[water resistance]"
+        *(int*)((char*)script+0x404) = ScanInt(&ok);  // +0x404
+        *(int*)((char*)script+0x408) = ScanInt(&ok);  // +0x408
+    break;
+
+case 0xa87:  // "[dark resistance]"
+        *(int*)((char*)script+0x40c) = ScanInt(&ok);  // +0x40c
+        *(int*)((char*)script+0x410) = ScanInt(&ok);  // +0x410
+    break;
+
+case 0xa8b:  // "[light resistance]"
+        *(int*)((char*)script+0x49c) = ScanInt(&ok);  // +0x49c
+        *(int*)((char*)script+0x4a0) = ScanInt(&ok);  // +0x4a0
+    break;
+
+case 0xa8f:  // "[HP regen speed]"
+        *(int*)((char*)script+0x4a4) = ScanInt(&ok);  // +0x4a4
+        *(int*)((char*)script+0x4a8) = ScanInt(&ok);  // +0x4a8
+    break;
+
+case 0xa93:  // "[MP regen speed]"
+        *(int*)((char*)script+0x4ac) = ScanInt(&ok);  // +0x4ac
+        *(int*)((char*)script+0x4b0) = ScanInt(&ok);  // +0x4b0
+    break;
+
+case 0xa97:  // "[move speed]"
+        *(int*)((char*)script+0x4b4) = ScanInt(&ok);  // +0x4b4
+        *(int*)((char*)script+0x4b8) = ScanInt(&ok);  // +0x4b8
+    break;
+
+case 0xaa3:  // "[attack speed]"
+        *(int*)((char*)script+0x4bc) = ScanInt(&ok);  // +0x4bc
+        *(int*)((char*)script+0x4c0) = ScanInt(&ok);  // +0x4c0
+    break;
+
+case 0xaa7:  // "[cast speed]"
+        *(int*)((char*)script+0x4c4) = ScanInt(&ok);  // +0x4c4
+        *(int*)((char*)script+0x4c8) = ScanInt(&ok);  // +0x4c8
+    break;
+
+case 0xaab:  // "[hit recovery]"
+        *(int*)((char*)script+0x4cc) = ScanInt(&ok);  // +0x4cc
+        *(int*)((char*)script+0x4d0) = ScanInt(&ok);  // +0x4d0
+    break;
+
+case 0xaaf:  // "[jump power]"
+        *(int*)((char*)script+0x4d4) = ScanInt(&ok);  // +0x4d4
+        *(int*)((char*)script+0x4d8) = ScanInt(&ok);  // +0x4d8
+    break;
+
+case 0xab4:  // "[jump speed]"
+        *(int*)((char*)script+0x4dc) = ScanInt(&ok);  // +0x4dc
+        *(int*)((char*)script+0x4e0) = ScanInt(&ok);  // +0x4e0
+    break;
+
+case 0xab9:  // "[normal dash speed]"
+        *(int*)((char*)script+0x4e4) = ScanInt(&ok);  // +0x4e4
+        *(int*)((char*)script+0x4e8) = ScanInt(&ok);  // +0x4e8
+    break;
+
+case 0xabf:  // "[slant dash speed]"
+        *(int*)((char*)script+0x4ec) = ScanInt(&ok);  // +0x4ec
+        *(int*)((char*)script+0x4f0) = ScanInt(&ok);  // +0x4f0
+    break;
+
+case 0xac3:  // "[weight]"
+        script->m_superarmorOnAttack = ScanInt(&ok) != 0;  // +0x5a5
+        script->m_field5a8 = ScanInt(&ok);  // +0x5a8
+    break;
+
+case 0xac7:  // "[superarmor on attack]"
+        script->m_sight = ScanInt(&ok);  // +0x504
+    break;
+
+case 0xaca:  // "[sight]"
+        ScanStr(&script->m_comeInAction);  // +0x530
+        script->m_field538 = ScanInt(&ok);  // +0x538
+        script->m_field53c = ScanInt(&ok);  // +0x53c
+    break;
+
+case 0xacf:  // "[come in action]"
+        ScanStr(&script->m_comeInAction);  // +0x530
+        ScanStr(&script->m_comeInActionEx);  // +0x534
+        script->m_field538 = ScanInt(&ok);  // +0x538
+        script->m_field53c = ScanInt(&ok);  // +0x53c
+    break;
+
+case 0xad6:  // "[come in action ex]"
+        ScanInt(&ok);  // 局部用途 @8a14bf7
+        ScanInt(&ok);  // 局部用途 @8a14c09
+    break;
+
+case 0xada:  // "[diving sight]"
+        script->m_targetingTimeTerm = ScanInt(&ok);  // +0x574
+    break;
+
+case 0xadd:  // "[diving sight]"
+        script->m_targetingOnAttack = ScanInt(&ok) != 0;  // +0x580
+    break;
+
+case 0xae0:  // "[targeting time term]"
+        script->m_targetingOnDamage = ScanInt(&ok) != 0;  // +0x581
+    break;
+
+case 0xae3:  // "[targeting on damage]"
+        ScanInt(&ok);  // 局部用途 @8a14dec
+        script->m_targetingNearest = 0x2;  // +0x584 [literal]
+    break;
+
+case 0xae7:  // "[targeting high level]"
+        ScanInt(&ok);  // 局部用途 @8a14e74
+        script->m_targetingNearest = 0x1;  // +0x584 [literal]
+    break;
+
+case 0xaeb:  // "[targeting low level]"
+        ScanInt(&ok);  // 局部用途 @8a14efc
+        script->m_targetingAttacker = 0x2;  // +0x588 [literal]
+    break;
+
+case 0xaef:  // "[targeting high HP]"
+        ScanInt(&ok);  // 局部用途 @8a14f84
+        script->m_targetingAttacker = 0x1;  // +0x588 [literal]
+    break;
+
+case 0xaf3:  // "[targeting low HP]"
+        script->m_targetingLowPhysAttack = ScanInt(&ok) != 0;  // +0x590
+    break;
+
+case 0xaf6:  // "[targeting nearest]"
+        script->m_targetingLowPhysDefense = ScanInt(&ok) != 0;  // +0x591
+    break;
+
+case 0xaf9:  // "[targeting attacker]"
+        script->m_targetingLowMagAttack = ScanInt(&ok) != 0;  // +0x592
+    break;
+
+case 0xafc:  // "[targeting from direction]"
+        ScanInt(&ok);  // 局部用途 @8a15180
+    break;
+
+case 0xaff:  // "[targeting low physical attack]"
+        ScanInt(&ok);  // 局部用途 @8a151ff
+    break;
+
+case 0xb02:  // "[targeting low physical defense]"
+        ScanInt(&ok);  // 局部用途 @8a1527e
+    break;
+
+case 0xb05:  // "[targeting low magical attack]"
+        ScanInt(&ok);  // 局部用途 @8a152fd
+    break;
+
+case 0xb08:  // "[targeting low magical defense]"
+        script->m_field5a4 = ScanInt(&ok) != 0;  // +0x5a4
+    break;
+
+case 0xb0b:  // "[targeting downed]"
+        script->m_warlike = ScanInt(&ok);  // +0x578
+    break;
+
+case 0xb12:  // "[targeting downed]"
+        script->m_attackDelay = ScanInt(&ok);  // +0x57c
+    break;
+
+case 0xb15:  // "[warlike]"
+        *(int*)((char*)script+0x4f4) = ScanInt(&ok);  // +0x4f4
+        *(int*)((char*)script+0x4f8) = ScanInt(&ok);  // +0x4f8
+        *(int*)((char*)script+0x4fc) = ScanInt(&ok);  // +0x4fc
+        *(int*)((char*)script+0x500) = ScanInt(&ok);  // +0x500
+    break;
+
+case 0xb1b:  // "[stuckbonus on damage]"
+        script->m_field028[0].clear();  // vector<pair<int,int>> @+0x28
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field028[0].push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xb25:  // "[item]"
+        script->m_field028[1].clear();  // vector<pair<int,int>> @+0x34
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field028[1].push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xb31:  // "[common champion drop item]"
+        script->m_flag3a8 = ScanInt(&ok) != 0;  // +0x3a8
+    break;
+
+case 0xb36:  // "[hell monster]"
+        script->m_field028[3].clear();  // vector<pair<int,int>> @+0x4c
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field028[3].push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xb40:  // "[boss drop item]"
+        script->m_field08c.clear();  // vector<pair<int,int>> @+0x8c
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field08c.push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xbab:  // "[death tower item]"
+        script->m_field058.clear();  // vector<pair<int,int>> @+0x58
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field058.push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xbb5:  // "[death tower item]"
+        // ORIG：m_championElements.clear() → while(ScanStr) 匹配 0..4 元素名
+        // getElementName(ENUM_ELEMENT) 声明于 CreatureScript.h（外部函数）
+        script->m_championElements.clear();
+        while (ScanStr(&token)) {
+            static const char* const s_elemNames[5] = { "fire", "water", "dark", "light", "none" };  // 【推断】
+            for (int i = 0; i <= 4; ++i) {
+                if (token == s_elemNames[i]) {
+                    script->m_championElements.push_back(i);
+                    break;
+                }
             }
-            else if (tag == "width")
-            {
-                script->m_width = ScanInt(&ok_flag);
-                script->m_height = ScanInt(&ok_flag);
-            }
-            else if (tag == "floating height")
-            {
-                script->m_floatingHeight = ScanInt(&ok_flag);
-            }
-            else if (tag == "layer")
-            {
-                script->m_layer = ScanInt(&ok_flag);
-            }
-            else if (tag == "level")
-            {
-                script->m_levelByDiff[0] = ScanInt(&ok_flag);
-                script->m_levelByDiff[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "fire resistance")
-            {
-                script->m_resistTable[0][0] = ScanInt(&ok_flag);
-                script->m_resistTable[0][1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "water resistance")
-            {
-                script->m_resistTable[1][0] = ScanInt(&ok_flag);
-                script->m_resistTable[1][1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "dark resistance")
-            {
-                script->m_resistTable[2][0] = ScanInt(&ok_flag);
-                script->m_resistTable[2][1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "light resistance")
-            {
-                script->m_resistTable[3][0] = ScanInt(&ok_flag);
-                script->m_resistTable[3][1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "HP regen speed")
-            {
-                script->m_hpRegenSpeed[0] = ScanInt(&ok_flag);
-                script->m_hpRegenSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "MP regen speed")
-            {
-                script->m_mpRegenSpeed[0] = ScanInt(&ok_flag);
-                script->m_mpRegenSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "move speed")
-            {
-                script->m_moveSpeed[0] = ScanInt(&ok_flag);
-                script->m_moveSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "attack speed")
-            {
-                script->m_attackSpeed[0] = ScanInt(&ok_flag);
-                script->m_attackSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "cast speed")
-            {
-                script->m_castSpeed[0] = ScanInt(&ok_flag);
-                script->m_castSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "hit recovery")
-            {
-                script->m_hitRecovery[0] = ScanInt(&ok_flag);
-                script->m_hitRecovery[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "jump power")
-            {
-                script->m_jumpPower[0] = ScanInt(&ok_flag);
-                script->m_jumpPower[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "jump speed")
-            {
-                script->m_jumpSpeed[0] = ScanInt(&ok_flag);
-                script->m_jumpSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "normal dash speed")
-            {
-                script->m_normalDashSpeed[0] = ScanInt(&ok_flag);
-                script->m_normalDashSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "slant dash speed")
-            {
-                script->m_slantDashSpeed[0] = ScanInt(&ok_flag);
-                script->m_slantDashSpeed[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "weight")
-            {
-                script->m_weight[0] = ScanInt(&ok_flag);
-                script->m_weight[1] = ScanInt(&ok_flag);
-            }
-            else if (tag == "superarmor on attack")
-            {
-                script->m_superarmorOnAttack =
-                    ScanInt(&ok_flag) != 0;    // bool 列【推断】
-            }
-            else if (tag == "sight")
-            {
-                script->m_sight = ScanInt(&ok_flag);
-            }
-            else if (tag == "come in action")
-            {
-                ScanStr(&script->m_comeInAction);
-                ScanInt(&ok_flag);
-                ScanInt(&ok_flag);
-            }
-            else if (tag == "come in action ex")
-            {
-                ScanStr(&script->m_comeInActionEx);
-                ScanInt(&ok_flag);
-                ScanInt(&ok_flag);
-                ScanStr(&script->m_comeInAction);   // 【推断】ex 含回退串
-            }
-            else if (tag == "targeting time term")
-                script->m_targetingTimeTerm = ScanInt(&ok_flag);
-            else if (tag == "targeting on attack")
-                script->m_targetingOnAttack = ScanInt(&ok_flag) != 0;
-            else if (tag == "targeting on damage")
-                script->m_targetingOnDamage = ScanInt(&ok_flag) != 0;
-            else if (tag == "targeting nearest")
-                script->m_targetingNearest = ScanInt(&ok_flag);
-            else if (tag == "targeting attacker")
-                script->m_targetingAttacker = ScanInt(&ok_flag);
-            else if (tag == "targeting from direction")
-                script->m_targetingFromDirection = ScanInt(&ok_flag);
-            else if (tag == "targeting low physical attack")
-                script->m_targetingLowPhysAttack = ScanInt(&ok_flag) != 0;
-            else if (tag == "targeting low physical defense")
-                script->m_targetingLowPhysDefense = ScanInt(&ok_flag) != 0;
-            else if (tag == "targeting low magical attack")
-                script->m_targetingLowMagAttack = ScanInt(&ok_flag) != 0;
-            else if (tag == "targeting low magical defense")
-                script->m_targetingLowMagDefense = ScanInt(&ok_flag);
-            else if (tag == "targeting downed")
-                script->m_targetingDowned = ScanInt(&ok_flag);
-            else if (tag == "warlike")
-                script->m_warlike = ScanInt(&ok_flag);
-            else if (tag == "attack delay")
-                script->m_attackDelay = ScanInt(&ok_flag);
-            else if (tag == "stuckbonus on damage")
-            {
-                for (int i = 0; i < 2; ++i)
-                    for (int j = 0; j < 2; ++j)
-                        script->m_stuckBonusOnDamage[i][j] = ScanInt(&ok_flag);
-            }
-            else if (tag == "keep distance")
-                script->m_keepDistance = ScanInt(&ok_flag);
-            else if (tag == "is on the object")
-                script->m_isOnTheObject = ScanInt(&ok_flag) != 0;
-            else if (tag == "die effect")
-            {
-                script->m_dieEffect[0] = ScanInt(&ok_flag);
-                script->m_dieEffect[1] = ScanInt(&ok_flag);
-                script->m_dieEffect[2] = ScanInt(&ok_flag);
-            }
-            else if (tag == "face image")
-            {
-                ScanStr(&script->m_faceImage);
-                script->m_field5b0 = ScanInt(&ok_flag);
-            }
-            else if (tag == "ambient sound" || tag == "attack sound" ||
-                     tag == "appear sound" || tag == "damage sound" ||
-                     tag == "die sound" || tag == "etc sound")
-            {
-                // 六个声音串为独立成员（+0x5b4..+0x5cb，C1 实证）
-                std::string* dst = &script->m_sound0;
-                if (tag == "attack sound") dst = &script->m_sound1;
-                else if (tag == "appear sound") dst = &script->m_sound2;
-                else if (tag == "damage sound") dst = &script->m_sound3;
-                else if (tag == "die sound") dst = &script->m_sound4;
-                else if (tag == "etc sound") dst = &script->m_sound5;
-                ScanStr(dst);
-            }
-            else if (tag == "waiting motion") ScanStr(&script->m_waitingMotion);
-            else if (tag == "move motion") ScanStr(&script->m_moveMotion);
-            else if (tag == "sit motion") ScanStr(&script->m_sitMotion);
-            else if (tag == "damage motion 1") ScanStr(&script->m_damageMotion1);
-            else if (tag == "damage motion 2") ScanStr(&script->m_damageMotion2);
-            else if (tag == "down motion") ScanStr(&script->m_downMotion);
-            else if (tag == "overturn motion") ScanStr(&script->m_overturnMotion);
-            else if (tag == "jump motion") ScanStr(&script->m_jumpMotion);
-            else if (tag == "jumpattack motion") ScanStr(&script->m_jumpAttackMotion);
-            else
-            {
-                // 未建模标签：跳过该行剩余 token（ORIG 以 static map 分派，
-                // 此处线性兜底；「推断」：不消费即下一轮 tag 扫描对齐）
+        }
+    break;
+
+case 0xbc8:  // "[super champion drop item]"
+        script->m_field028[2].clear();  // vector<pair<int,int>> @+0x40
+        while (true) {
+            int v1 = ScanInt(&ok);
+            if (!ok) break;
+            int v2 = ScanInt(&ok);
+            script->m_field028[2].push_back(std::make_pair(v1, v2));
+        }
+    break;
+
+case 0xbd3:  // "[super champion drop item]"
+        script->m_keepDistance = ScanInt(&ok);  // +0x6e0
+    break;
+
+case 0xbd6:  // "[keep distance]"
+        script->m_flag374 = ScanInt(&ok) != 0;  // +0x374
+        script->m_field378 = ScanInt(&ok);  // +0x378
+    break;
+
+case 0xbdc:  // "[is on the object]"
+        script->m_isOnTheObject = ScanInt(&ok) != 0;  // +0x6e4
+    break;
+
+case 0xbe0:  // "[out of targetting]"
+        ScanFloat(&ok);  // @8a15e91
+        ScanFloat(&ok);  // @8a15eb7
+        ScanFloat(&ok);  // @8a15ec9
+        ScanInt(&ok);  // 局部用途 @8a15edb
+        ScanInt(&ok);  // 局部用途 @8a15ef5
+        ScanInt(&ok);  // 局部用途 @8a15f07
+        ScanInt(&ok);  // 局部用途 @8a15f19
+        ScanInt(&ok);  // 局部用途 @8a15f2b
+        ScanInt(&ok);  // 局部用途 @8a15f3d
+        ScanInt(&ok);  // 局部用途 @8a15f4f
+        ScanInt(&ok);  // 局部用途 @8a15f61
+        ScanInt(&ok);  // 局部用途 @8a15f73
+    break;
+
+case 0xbfa:  // "[die effect]"
+        *(int*)((char*)script+0x6fc) = ScanInt(&ok);  // +0x6fc
+        *(int*)((char*)script+0x700) = ScanInt(&ok);  // +0x700
+        *(int*)((char*)script+0x704) = ScanInt(&ok);  // +0x704
+    break;
+
+case 0xbff:  // "[die effect]"
+        ScanStr(&script->m_faceImage);  // +0x5ac
+        script->m_field5b0 = ScanInt(&ok);  // +0x5b0
+    break;
+
+case 0xc03:  // "[face image]"
+        ScanStr(&local_str);  // 局部 string @8a1613d
+    break;
+
+case 0xc0f:  // "[move motion]"
+        ScanStr(&local_str);  // 局部 string @8a162d4
+    break;
+
+case 0xc1b:  // "[sit motion]"
+        ScanStr(&local_str);  // 局部 string @8a1646b
+    break;
+
+case 0xc27:  // "[damage motion 1]"
+        ScanStr(&local_str);  // 局部 string @8a16602
+    break;
+
+case 0xc33:  // "[damage motion 2]"
+        ScanStr(&local_str);  // 局部 string @8a16799
+    break;
+
+case 0xc3f:  // "[down motion]"
+        ScanStr(&local_str);  // 局部 string @8a16930
+    break;
+
+case 0xc4b:  // "[overturn motion]"
+        ScanStr(&local_str);  // 局部 string @8a16ac7
+    break;
+
+case 0xc57:  // "[jump motion]"
+        ScanStr(&local_str);  // 局部 string @8a16c5e
+    break;
+
+case 0xc63:  // "[jumpattack motion]"
+        ScanStr(&local_str);  // 局部 string @8a16df5
+    break;
+
+case 0xca3:  // "[waiting action]"
+        ScanStr(&script->m_field5fc0);  // +0x5fc
+    break;
+
+case 0xca6:  // "[waiting action]"
+        ScanStr(&script->m_field5fc1);  // +0x600
+    break;
+
+case 0xca9:  // "[waiting action]"
+        ScanStr(&script->m_field5fc5);  // +0x610
+    break;
+
+case 0xcac:  // "[move action]"
+        ScanStr((std::string*)((char*)script+0x614));  // +0x614
+    break;
+
+case 0xcaf:  // "[sit action]"
+        ScanStr((std::string*)((char*)script+0x618));  // +0x618
+    break;
+
+case 0xcb2:  // "[damage action 1]"
+        ScanStr(&script->m_field61c0);  // +0x61c
+    break;
+
+case 0xcb5:  // "[damage action 2]"
+        ScanStr(&script->m_field61c1);  // +0x620
+    break;
+
+case 0xcb8:  // "[down action]"
+        ScanStr(&script->m_field61c2);  // +0x624
+    break;
+
+case 0xcbb:  // "[overturn action]"
+        ScanStr(&script->m_field61c3);  // +0x628
+    break;
+
+case 0xcbe:  // "[jump action]"
+        ScanStr(&script->m_moveMotion);  // +0x698
+    break;
+
+case 0xcc1:  // "[jumpattack action]"
+        ScanStr(&local_str);  // 局部 string @8a17873
+    break;
+
+case 0xcc2:  // "[basic action]"
+        ScanStr(&local_str);  // 局部 string @8a17873
+    break;
+
+case 0xcc8:  // "[action list]"
+        ScanStr(&local_str);  // 局部 string @8a17914
+    break;
+
+case 0xccd:  // "[etc action]"
+        ScanStr(&script->m_field6440);  // +0x644
+    break;
+
+case 0xcd0:  // "[last action]"
+        ScanStr(&script->m_jumpAttackMotion);  // +0x6b4
+    break;
+
+case 0xcd3:  // "[last action]"
+        ScanStr(&local_str);  // 局部 string @8a17a99
+    break;
+
+case 0xcd9:  // "[attack info]"
+        ScanStr(&local_str);  // 局部 string @8a17b3a
+    break;
+
+case 0xcdf:  // "[etc attack info]"
+        ScanInt(&ok);  // 局部用途 @8a17bbe
+    break;
+
+case 0xd14:  // "[on go to help]"
+        ScanStr(&local_str);  // 局部 string @8a183fb
+    break;
+
+case 0xd1d:  // "[fix move direction]"
+        ScanInt(&ok);  // 局部用途 @8a1849c
+    break;
+
+case 0xd2a:  // "[passive object filename]"
+        ScanStr(&local_str);  // 局部 string @8a1887d
+    break;
+
+case 0xd31:  // "[passive object filename]"
+        ScanInt(&ok);  // 局部用途 @8a1891d
+    break;
+
+case 0xd34:  // "[passive object number]"
+        ScanInt(&ok);  // 局部用途 @8a18991
+    break;
+
+case 0xd37:  // "[passive object number]"
+        ScanInt(&ok);  // 局部用途 @8a18a05
+    break;
+
+case 0xd3a:  // "[passive object index]"
+        ScanInt(&ok);  // 局部用途 @8a18a79
+    break;
+
+case 0xd3d:  // "[power]"
+        ScanInt(&ok);  // 局部用途 @8a18b39
+    break;
+
+case 0xd44:  // "[passive object start x cood]"
+        ScanInt(&ok);  // 局部用途 @8a18c0f
+    break;
+
+case 0xd4b:  // "[passive object start y cood]"
+        ScanInt(&ok);  // 局部用途 @8a18ce5
+    break;
+
+case 0xd52:  // "[passive object start z cood]"
+        ScanInt(&ok);  // 局部用途 @8a18dbb
+    break;
+
+case 0xd59:  // "[direction]"
+        ScanInt(&ok);  // 局部用途 @8a18e45
+    break;
+
+case 0xd5c:  // "[attack number]"
+        ScanInt(&ok);  // 局部用途 @8a18eb9
+    break;
+
+case 0xd5f:  // "[attack number]"
+        ScanStr(&local_str);  // 局部 string @8a18f32
+    break;
+
+case 0xd62:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a18fa0
+    break;
+
+case 0xd65:  // "[throw sound]"
+        ScanInt(&ok);  // 局部用途 @8a19011
+        ScanStr(&local_str);  // 局部 string @8a1904c
+    break;
+
+case 0xd6e:  // "[equipment]"
+        ScanInt(&ok);  // 局部用途 @8a19151
+        ScanStr(&local_str);  // 局部 string @8a19171
+        ScanStr(&local_str);  // 局部 string @8a191c2
+    break;
+
+case 0xd7b:  // "[ready action]"
+        ScanInt(&ok);  // 局部用途 @8a192c1
+        ScanInt(&ok);  // 局部用途 @8a192f6
+        ScanStr(&local_str);  // 局部 string @8a19349
+        ScanInt(&ok);  // 局部用途 @8a19370
+        ScanStr(&local_str);  // 局部 string @8a193b6
+    break;
+
+case 0xda1:  // "[probability]"
+        ScanInt(&ok);  // 局部用途 @8a1977d
+    break;
+
+case 0xda4:  // "[probability]"
+        ScanInt(&ok);  // 局部用途 @8a197f1
+    break;
+
+case 0xda7:  // "[probability]"
+        ScanStr(&local_str);  // 局部 string @8a19878
+    break;
+
+case 0xdb7:  // "[approach attack]"
+        ScanInt(&ok);  // 局部用途 @8a1997e
+        ScanStr(&local_str);  // 局部 string @8a199b9
+    break;
+
+case 0xdc6:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a19d75
+    break;
+
+case 0xdc9:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a19de9
+    break;
+
+case 0xdcc:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a19e5d
+    break;
+
+case 0xdcf:  // "[start frame index]"
+        ScanInt(&ok);  // 局部用途 @8a19ed1
+    break;
+
+case 0xdd2:  // "[end frame index]"
+        ScanInt(&ok);  // 局部用途 @8a19f45
+    break;
+
+case 0xdd5:  // "[jump height]"
+        ScanInt(&ok);  // 局部用途 @8a19fb9
+    break;
+
+case 0xdd8:  // "[jump speed]"
+        ScanFloat(&ok);  // @8a1a02d
+    break;
+
+case 0xddb:  // "[on collision custom animation index]"
+        ScanInt(&ok);  // 局部用途 @8a1a0a1
+    break;
+
+case 0xdde:  // "[ememy distance rate]"
+        ScanInt(&ok);  // 局部用途 @8a1a115
+    break;
+
+case 0xde1:  // "[limited x cood]"
+        ScanInt(&ok);  // 局部用途 @8a1a189
+    break;
+
+case 0xde4:  // "[limited y cood]"
+        ScanInt(&ok);  // 局部用途 @8a1a1fa
+        ScanStr(&local_str);  // 局部 string @8a1a235
+    break;
+
+case 0xdf4:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1a5cf
+    break;
+
+case 0xdf7:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1a643
+    break;
+
+case 0xdfa:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1a6b7
+    break;
+
+case 0xdfd:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a1a72e
+        ScanInt(&ok);  // 局部用途 @8a1a767
+        ScanInt(&ok);  // 局部用途 @8a1a779
+        ScanInt(&ok);  // 局部用途 @8a1a78b
+        ScanInt(&ok);  // 局部用途 @8a1a79d
+    break;
+
+case 0xe09:  // "[summon term]"
+        ScanInt(&ok);  // 局部用途 @8a1a846
+    break;
+
+case 0xe0c:  // "[summon term]"
+        ScanInt(&ok);  // 局部用途 @8a1a8ba
+    break;
+
+case 0xe0f:  // "[summon term]"
+        ScanInt(&ok);  // 局部用途 @8a1a92e
+    break;
+
+case 0xe12:  // "[probability]"
+        ScanInt(&ok);  // 局部用途 @8a1a9a2
+    break;
+
+case 0xe15:  // "[enterance effect]"
+        ScanInt(&ok);  // 局部用途 @8a1aa13
+        ScanStr(&local_str);  // 局部 string @8a1aa4e
+    break;
+
+case 0xe24:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1adfa
+    break;
+
+case 0xe27:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1ae6e
+    break;
+
+case 0xe2a:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1aee2
+        ScanInt(&ok);  // 局部用途 @8a1aef4
+        ScanInt(&ok);  // 局部用途 @8a1af06
+    break;
+
+case 0xe2f:  // "[shakeable]"
+        ScanInt(&ok);  // 局部用途 @8a1af7a
+    break;
+
+case 0xe32:  // "[first speed]"
+        ScanInt(&ok);  // 局部用途 @8a1afee
+    break;
+
+case 0xe35:  // "[first speed]"
+        ScanInt(&ok);  // 局部用途 @8a1b062
+    break;
+
+case 0xe38:  // "[last speed]"
+        ScanInt(&ok);  // 局部用途 @8a1b0d6
+    break;
+
+case 0xe3b:  // "[dash time]"
+        ScanInt(&ok);  // 局部用途 @8a1b147
+        ScanStr(&local_str);  // 局部 string @8a1b182
+    break;
+
+case 0xe4a:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1b4d5
+        ScanInt(&ok);  // 局部用途 @8a1b4f6
+        ScanInt(&ok);  // 局部用途 @8a1b508
+    break;
+
+case 0xe52:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1b57c
+    break;
+
+case 0xe55:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a1b5f0
+        ScanInt(&ok);  // 局部用途 @8a1b602
+    break;
+
+case 0xe59:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a1b676
+    break;
+
+case 0xe5c:  // "[offset]"
+        ScanInt(&ok);  // 局部用途 @8a1b6ea
+    break;
+
+case 0xe5f:  // "[animation index]"
+        ScanInt(&ok);  // 局部用途 @8a1b75b
+        ScanStr(&local_str);  // 局部 string @8a1b799
+    break;
+
+case 0xe6e:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1bb25
+    break;
+
+case 0xe71:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1bb99
+    break;
+
+case 0xe74:  // "[function index]"
+        ScanInt(&ok);  // 局部用途 @8a1bc0d
+    break;
+
+case 0xe77:  // "[attack index]"
+        ScanInt(&ok);  // 局部用途 @8a1bc81
+    break;
+
+case 0xe7a:  // "[warp style]"
+        ScanInt(&ok);  // 局部用途 @8a1bcf5
+    break;
+
+case 0xe7d:  // "[after attack]"
+        ScanInt(&ok);  // 局部用途 @8a1bd69
+    break;
+
+case 0xe80:  // "[after appear time]"
+        ScanInt(&ok);  // 局部用途 @8a1bddd
+    break;
+
+case 0xe83:  // "[cool time]"
+        ScanInt(&ok);  // 局部用途 @8a1be51
+    break;
+
+case 0xe86:  // "[target offset]"
+        ScanStr(&local_str);  // 局部 string @8a1bed8
+        ScanStr(&local_str);  // 局部 string @8a1bfa2
+    break;
+
+case 0xea5:  // "[on time]"
+        ScanInt(&ok);  // 局部用途 @8a1c32d
+        ScanInt(&ok);  // 局部用途 @8a1c33f
+        ScanInt(&ok);  // 局部用途 @8a1c351
+    break;
+
+case 0xeab:  // "[on time]"
+        ScanInt(&ok);  // 局部用途 @8a1c3d4
+        ScanInt(&ok);  // 局部用途 @8a1c3e6
+        ScanInt(&ok);  // 局部用途 @8a1c3f8
+    break;
+
+case 0xeb1:  // "[on hp]"
+        ScanInt(&ok);  // 局部用途 @8a1c47b
+        ScanInt(&ok);  // 局部用途 @8a1c48d
+    break;
+
+case 0xeb7:  // "[always]"
+        ScanInt(&ok);  // 局部用途 @8a1c510
+        ScanInt(&ok);  // 局部用途 @8a1c522
+        ScanInt(&ok);  // 局部用途 @8a1c534
+    break;
+
+case 0xebd:  // "[counter]"
+        ScanInt(&ok);  // 局部用途 @8a1c5b7
+        ScanInt(&ok);  // 局部用途 @8a1c5c9
+        ScanInt(&ok);  // 局部用途 @8a1c5db
+        ScanInt(&ok);  // 局部用途 @8a1c5ed
+    break;
+
+case 0xec4:  // "[breakable]"
+        ScanInt(&ok);  // 局部用途 @8a1c66b
+        ScanInt(&ok);  // 局部用途 @8a1c67d
+        ScanInt(&ok);  // 局部用途 @8a1c68f
+        ScanInt(&ok);  // 局部用途 @8a1c6a1
+    break;
+
+case 0xecb:  // "[half]"
+        ScanInt(&ok);  // 局部用途 @8a1c71f
+        ScanInt(&ok);  // 局部用途 @8a1c731
+        ScanInt(&ok);  // 局部用途 @8a1c743
+        ScanInt(&ok);  // 局部用途 @8a1c755
+    break;
+
+case 0xed2:  // "[unbreakable]"
+        ScanStr(&local_str);  // 局部 string @8a1c7f6
+    break;
+
+case 0xeda:  // "[with blast]"
+        ScanInt(&ok);  // 局部用途 @8a1c89a
+        ScanStr(&local_str);  // 局部 string @8a1c8c2
+        ScanInt(&ok);  // 局部用途 @8a1c93e
+        ScanInt(&ok);  // 局部用途 @8a1c950
+        ScanInt(&ok);  // 局部用途 @8a1c962
+        ScanInt(&ok);  // 局部用途 @8a1c974
+    break;
+
+case 0xefb:  // "[breakable]"
+        ScanInt(&ok);  // 局部用途 @8a1cab2
+    break;
+
+case 0xf23:  // "[/cooltime]"
+        script->m_fieldc4c = ScanInt(&ok);  // +0xc4c
+    break;
+
+case 0xf27:  // "[spawn prob]"
+        script->m_field36c = ScanInt(&ok);  // +0x36c
+        script->m_field370 = ScanInt(&ok);  // +0x370
+    break;
+
+case 0xf2b:  // "[drop item offset]"
+        script->m_flag368 = ScanInt(&ok) != 0;  // +0x368
+    break;
+
+case 0xf46:  // "[keep range distance with target 4]"
+        ScanInt(&ok);  // 局部用途 @8a1d391
+        ScanInt(&ok);  // 局部用途 @8a1d3b7
+    break;
+
+case 0xf57:  // "[reflection object]"
+        ScanInt(&ok);  // 局部用途 @8a1d45e
+    break;
+
+case 0xf5c:  // "[set damage check]"
+        *(int*)((char*)script+0x33c) = ScanInt(&ok) != 0;  // +0x33c
+    break;
+
+case 0xf62:  // "[change direction by target]"
+        ScanInt(&ok);  // 局部用途 @8a1d56a
+    break;
+
+case 0xf67:  // "[is direction to move]"
+        ScanFloat(&ok);  // @8a1d5ed
+    break;
+
+case 0xf6c:  // "[is direction to move]"
+        ScanFloat(&ok);  // @8a1d664
+        ScanFloat(&ok);  // @8a1d679
+    break;
+
+case 0xf72:  // "[hp regen rate]"
+        ScanFloat(&ok);  // @8a1d6f0
+    break;
+
+case 0xf76:  // "[absolute defense ignore rate]"
+        ScanInt(&ok);  // 局部用途 @8a1d779
+    break;
+
+case 0xf7b:  // "[lie frame]"
+        script->m_field1cac = ScanInt(&ok);  // +0x1cac
+    break;
+
+case 0xf84:  // "[forced knockback]"
+        ScanStr(&script->m_field6441);  // +0x648
+    break;
+
+case 0xf87:  // "[No Combo Rate Monster]"
+        ScanStr(&script->m_waitingMotion);  // +0x694
+    break;
+
+case 0xf8a:  // "[proc action]"
+        script->m_field6f4 = ScanInt(&ok);  // +0x6f4
+    break;
+
+case 0xf8d:  // "[monster title]"
+        script->m_field6f8 = ScanInt(&ok);  // +0x6f8
+    break;
+
+case 0xf99:  // "[destroy count]"
+        script->m_fieldc74 = ScanInt(&ok);  // +0xc74
+    break;
+
+case 0xf9d:  // "[destroy count damage]"
+        script->m_fieldc78 = ScanInt(&ok);  // +0xc78
+        script->m_fieldc7c = ScanInt(&ok);  // +0xc7c
+    break;
+
+case 0xfa2:  // "[overhead gauge pos]"
+        ScanInt(&ok);  // 局部用途 @8a1dbc1
+    break;
+
+case 0xfa7:  // "[flying mark]"
+        ScanStr(&script->m_field5fc2);  // +0x604
+    break;
+
+case 0xfaa:  // "[moveback action]"
+        ScanStr(&script->m_field5fc3);  // +0x608
+    break;
+
+case 0xfad:  // "[moveback action]"
+        ScanStr(&script->m_field5fc4);  // +0x60c
+    break;
+
+case 0xfb0:  // "[dash action]"
+        ScanStr(&script->m_field098);  // +0x98
+    break;
+
+case 0xfb3:  // "[dashattack action]"
+        ScanInt(&ok);  // 局部用途 @8a1dea4
+        ScanInt(&ok);  // 局部用途 @8a1dee3
+    break;
+
+case 0xfde:  // "[level of difficulty]"
+        ScanInt(&ok);  // 局部用途 @8a1e062
+        ScanInt(&ok);  // 局部用途 @8a1e074
+        ScanInt(&ok);  // 局部用途 @8a1e0a5
+        ScanInt(&ok);  // 局部用途 @8a1e0b7
+        ScanInt(&ok);  // 局部用途 @8a1e0e8
+        ScanInt(&ok);  // 局部用途 @8a1e0fa
+        ScanInt(&ok);  // 局部用途 @8a1e128
+        ScanInt(&ok);  // 局部用途 @8a1e13a
+        ScanInt(&ok);  // 局部用途 @8a1e168
+        ScanInt(&ok);  // 局部用途 @8a1e17a
+    break;
+
+case 0x1020:  // "[hero]"
+        *(int*)((char*)script+0x508) = ScanInt(&ok);  // +0x508
+        *(int*)((char*)script+0x50c) = ScanInt(&ok);  // +0x50c
+    break;
+
+case 0x1024:  // "[fire attack]"
+        *(int*)((char*)script+0x510) = ScanInt(&ok);  // +0x510
+        *(int*)((char*)script+0x514) = ScanInt(&ok);  // +0x514
+    break;
+
+case 0x1028:  // "[water attack]"
+        *(int*)((char*)script+0x518) = ScanInt(&ok);  // +0x518
+        *(int*)((char*)script+0x51c) = ScanInt(&ok);  // +0x51c
+    break;
+
+case 0x102c:  // "[dark attack]"
+        *(int*)((char*)script+0x520) = ScanInt(&ok);  // +0x520
+        *(int*)((char*)script+0x524) = ScanInt(&ok);  // +0x524
+    break;
+
+case 0x1030:  // "[light attack]"
+        *(int*)((char*)script+0x528) = ScanInt(&ok);  // +0x528
+        *(int*)((char*)script+0x52c) = ScanInt(&ok);  // +0x52c
+    break;
+
+case 0x1035:  // "[rigidity]"
+        ScanFloat(&ok);  // @8a1e50e
+        ScanFloat(&ok);  // @8a1e562
+        ScanInt(&ok);  // 局部用途 @8a1e5a4
+        ScanInt(&ok);  // 局部用途 @8a1e5d5
+        ScanInt(&ok);  // 局部用途 @8a1e606
+        ScanInt(&ok);  // 局部用途 @8a1e62e
+        ScanInt(&ok);  // 局部用途 @8a1e65a
+    break;
+
+case 0x1060:  // "[pattern]"
+        ScanInt(&ok);  // 局部用途 @8a1e73d
+    break;
+
+case 0x107b:  // "[left]"
+        script->m_fieldcd8 = 0x0;  // +0xcd8 [literal]
+    break;
+
+case 0x107e:  // "[left]"
+        script->m_fieldcd8 = 0x1;  // +0xcd8 [literal]
+    break;
+
+case 0x10a4:  // "[/ridableskill definition]"
+        ScanInt(&ok);  // 局部用途 @8a1efb3
+    break;
+
+case 0x10a7:  // "[/ridableskill definition]"
+        ScanStr(&local_str);  // 局部 string @8a1f02c
+    break;
+
+case 0x10d3:  // "charge"
+        ScanInt(&ok);  // 局部用途 @8a1f662
+        ScanInt(&ok);  // 局部用途 @8a1f67a
+        ScanInt(&ok);  // 局部用途 @8a1f6cf
+        ScanInt(&ok);  // 局部用途 @8a1f6e8
+    break;
+
+case 0x1146:  // "[limit slowdown atkspeed]"
+        script->m_field1c94 = ScanInt(&ok);  // +0x1c94
+    break;
+
+case 0x1149:  // "[limit slowdown atkspeed]"
+        script->m_field1c98 = ScanInt(&ok);  // +0x1c98
+    break;
+
+case 0x114c:  // "[limit slowdown atkspeed]"
+        ScanStr(&local_str);  // 局部 string @8a1f9b1
+        ScanStr(&local_str);  // 局部 string @8a1f9de
+        ScanStr(&local_str);  // 局部 string @8a1fa0e
+        ScanStr(&local_str);  // 局部 string @8a1fa3e
+        ScanInt(&ok);  // 局部用途 @8a1fa6d
+    break;
+
+case 0x1177:  // "[pattern]"
+        ScanInt(&ok);  // 局部用途 @8a1fb7b
+        ScanFloat(&ok);  // @8a1fbb2
+    break;
+
+case 0x1194:  // "[non targeted]"
+        script->m_field56c = ScanInt(&ok) != 0;  // +0x56c
+    break;
+
+case 0x1197:  // "[non targeted]"
+        ScanStr(&script->m_field570);  // +0x570
+    break;
+
+case 0x119a:  // "[non targeted]"
+        ScanInt(&ok);  // 局部用途 @8a1fd99
+    break;
+
+case 0x11a0:  // "[damage time balance]"
+        ScanInt(&ok);  // 局部用途 @8a1fe42
+    break;
+
+case 0x11a7:  // "[stun time balance]"
+        script->m_field548 = ScanInt(&ok) != 0;  // +0x548
+        ScanFloat(&ok);  // @8a1fefa
+        ScanFloat(&ok);  // @8a1ff0f
+    break;
+
+case 0x11ae:  // "[add gravity in aerial]"
+        script->m_field3c0 = ScanInt(&ok);  // +0x3c0
+    break;
+
+case 0x11b1:  // "[summon skill status up type]"
+        ScanFloat(&ok);  // @8a2000e
+    break;
+
+case 0x11c6:  // "[attack down prob]"
+        script->m_field1ca0 = ScanInt(&ok);  // +0x1ca0
+        ScanFloat(&ok);  // @8a200c7
+    break;
+
+case 0x11ca:  // "[strong]"
+        ScanInt(&ok);  // 局部用途 @8a2013e
+        ScanFloat(&ok);  // @8a20157
+    break;
+
+case 0x11cf:  // "[weak]"
+        ScanStr(&script->m_field6d0);  // +0x6d0
+    break;
+
+case 0x11d4:  // "[explain]"
+        ScanInt(&ok);  // 局部用途 @8a20242
+    break;
+
+case 0x11e6:  // "[consume mp]"
+        ScanStr(&local_str);  // 局部 string @8a202fd
+    break;
+
+case 0x11ff:  // "[catch item]"
+        script->m_field064 = ScanInt(&ok);  // +0x64
+        script->m_field068 = ScanInt(&ok);  // +0x68
+        ScanFloat(&ok);  // @8a20453
+    break;
+
+case 0x1213:  // "[fixed height]"
+        script->m_field1cb0 = ScanInt(&ok);  // +0x1cb0
+    break;
+
+case 0x1218:  // "[fixed height]"
+        ScanStr(&local_str);  // 局部 string @8a205b5
+    break;
+
+case 0x1239:  // "[/can beat index]"
+        ScanStr(&script->m_field6442);  // +0x64c [间接赋值]
+    break;
+
+case 0x123f:  // "[mounting action]"
+        ScanStr(&script->m_field6443);  // +0x650 [间接赋值]
+    break;
+
+case 0x1245:  // "[mounted action]"
+        ScanStr(&script->m_field6444);  // +0x654 [间接赋值]
+    break;
+
+case 0x1258:  // "[index]"
+        ScanInt(&ok);  // 局部用途 @8a20ca4
+    break;
+
+case 0x1260:  // "[index]"
+        ScanInt(&ok);  // 局部用途 @8a20d46
+    break;
+
+case 0x1268:  // "[x pos]"
+        ScanInt(&ok);  // 局部用途 @8a20de8
+    break;
+
+case 0x1270:  // "[y pos]"
+        ScanInt(&ok);  // 局部用途 @8a20e8a
+    break;
+
+case 0x1278:  // "[width]"
+        ScanInt(&ok);  // 局部用途 @8a20f2c
+    break;
+
+case 0x1280:  // "[height]"
+        ScanFloat(&ok);  // @8a20fce
+    break;
+
+case 0x1288:  // "[velocity x]"
+        ScanFloat(&ok);  // @8a2106a
+    break;
+
+case 0x12e0:  // "[left]"
+        script->m_field684 = 0x0;  // +0x684 [literal]
+    break;
+
+case 0x12e4:  // "[left]"
+        script->m_field684 = 0x1;  // +0x684 [literal]
+    break;
+
+case 0x12f7:  // "[/control passive object]"
+        ScanInt(&ok);  // 局部用途 @8a22132
+    break;
+
+case 0x12fb:  // "[life max]"
+        ScanInt(&ok);  // 局部用途 @8a221ad
+        ScanInt(&ok);  // 局部用途 @8a22222
+        ScanInt(&ok);  // 局部用途 @8a2223e
+    break;
+            default:
+                break;
             }
             if (!ok_flag && !ScanType(tag, false))
                 break;
         }
     }
-    return 1;                                  // +0xfae6 mov ebx,1
+    return 1;
 }
 
-// ===========================================================================
-// exportMonsterScript —— ORIG T 0x08a22520（0x798d 字节）。
-// 骨架级复原：路径拼接/fopen("w")/名称标签输出与 ORIG 一致；正文逐段输出
-// 与 ImportMonsterScript 标签集对称（fprintf 格式串取自 ORIG rodata）。
-// ===========================================================================
 bool exportMonsterScript(
     STMonsterScript* script, const char* path,
     std::map<std::string, std::vector<std::string> >& extra)

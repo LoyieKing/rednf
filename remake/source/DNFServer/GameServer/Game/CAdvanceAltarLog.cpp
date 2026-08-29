@@ -150,9 +150,13 @@ void CAdvanceAltarLog::updateDatabase()
     for (std::map<unsigned int, STAdvanceAltarEntranceData>::const_iterator it =
              m_entrances.begin(); it != m_entrances.end(); ++it)
     {
-        STAdvanceAltarEntranceData* slot = stream->GetInBuffer<STAdvanceAltarEntranceData>();
+        STAdvanceAltarEntranceData* slot =
+            stream->GetInBuffer<STAdvanceAltarEntranceData>();
         std::memcpy(slot, &it->second, 0x10);
-        // ORIG 行号 0xf4 trace [推断保留语义]
+        cMyTrace trace("void CAdvanceAltarLog::updateDatabase()", 0xf4, 0);
+        trace("[AdvanceAltar] stageIndex:%d, enterCount:%d, successCount:%d, obtainStar:%d",
+              it->second.m_stageIndex, it->second.m_enterCount,
+              it->second.m_successCount, it->second.m_obtainStar);
     }
     m_entrances.clear();
 
@@ -164,7 +168,11 @@ void CAdvanceAltarLog::updateDatabase()
             stream->GetInBuffer<STAdvanceAltarLayerStatData>();
         // pair+8 起复制 0x10（超过 ST 0xe 的 2 字节为 ORIG 原样超读，勿改 0x10）。
         std::memcpy(slot, &it->second, 0x10);
-        // ORIG 行号 0x106 trace
+        cMyTrace trace("void CAdvanceAltarLog::updateDatabase()", 0x106, 0);
+        trace("[AdvanceAltar] itemType:%u, itemIndex:%u, itemLevel:%u, useCount:%u, useStar:%u",
+              (unsigned int)it->second.m_itemType, it->second.m_itemIndex,
+              (unsigned int)it->second.m_itemLevel, (unsigned int)it->second.m_useCount,
+              (unsigned int)it->second.m_useStar);
     }
     m_layers.clear();
 

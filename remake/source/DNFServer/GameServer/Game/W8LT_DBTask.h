@@ -26,6 +26,8 @@
 #include "MsgQueueMgr.h"
 #include "DBDispatcher.h"
 #include "GameEnums.h"   // ENUM_SKILL_TREE_KIND（DB_UpdateComboSkill::setComboSkill 按值形参）
+#include <map>           // DB_UpdateFatigueAttendance::makeRequest 形参
+#include <utility>       // std::pair
 
 class Stream;
 class DBDispatcher;
@@ -177,6 +179,34 @@ public:
     static void makeRequest(unsigned int characNo, unsigned char attack,
                             unsigned char revenge); // ORIG 0x0843f232
     virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0843f34c
+};
+
+// DB_UpdateOntimeLastRecvIdx —— 权威声明点（Fix7_F CUser::UpdateLogout 消费）：
+// ORIG T _ZN25DB_UpdateOntimeLastRecvIdx11makeRequestEiji @0x08442966、
+// _ZN25DB_UpdateOntimeLastRecvIdx8dispatchEiiP6Stream @0x0844280a。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册。
+class DB_UpdateOntimeLastRecvIdx : public DBDispatcher
+{
+public:
+    DB_UpdateOntimeLastRecvIdx() {}   // ORIG C1 0x844f946 (sz 0x4: base ctor+vptr only)
+    static void makeRequest(int uid, unsigned int accId, int idx); // ORIG 0x08442966
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0844280a
+};
+
+// DB_UpdateFatigueAttendance —— 权威声明点（Fix7_F CUser::UpdateLogout 消费）：
+// ORIG T _ZN26DB_UpdateFatigueAttendance11makeRequestEjRKSt3mapIhsSt4lessIhESaISt4pairIKhsEEE
+// @0x084447d6、_ZN26DB_UpdateFatigueAttendance8dispatchEiiP6Stream @0x084444ec。
+// W8LT_DBTask.cpp 提供定义；DBTask::RegistDispatcher 注册。
+class DB_UpdateFatigueAttendance : public DBDispatcher
+{
+public:
+    DB_UpdateFatigueAttendance() {}   // ORIG C1 0x844f9d2 (sz 0x4: base ctor+vptr only)
+    static void makeRequest(
+        unsigned int accId,
+        std::map<unsigned char, short, std::less<unsigned char>,
+                 std::allocator<std::pair<const unsigned char, short> > > const& m);
+    // ORIG 0x084444ec（虚覆盖）
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
 
 #endif  // DNF_GAME_W8LT_DBTASK_H_

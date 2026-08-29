@@ -7,12 +7,12 @@
 //   Empty _ZN15CClearCondition5EmptyEv               0x822cba8 → return m_vec.empty()
 //   IsC   _ZN15CClearCondition16IsClearConditionEv   0x822cb92 → return m_flag <= m_count
 //   ClearCondition _ZN15CClearCondition14ClearConditionE... 0x82fefce
-//     → type∈[0,4] 校验；遍历 (+0x14 的 vector<DungeonClearCondition>) 与
+//     → type∈[0,4] 校验；遍历 (+0x14 指向的 vector<DungeonClearCondition>) 与
 //       m_vec 同步递增；结尾 return (m_flag <= m_count)。
 // 布局：当前 CClearCondition.h 以 m_unk14(int) 建模 +0x14（CBattle_Field 0x18
-// 布局锁定）。ORIG 此处实为 vector<DungeonClearCondition>，因 ABI 锁定无法在
-// 本批扩展；ClearCondition 在该布局下无可匹配条件，保持 ORIG 结尾判定
-// (m_flag <= m_count)。Empty/IsClearCondition/Clear 与布局一致，按 ORIG 实现。
+// 布局锁定）。ORIG 此处实为 vector<DungeonClearCondition>* 指针（指向外部表，
+// SetDungeonClearConditionVector 写入 vec 地址；Clear 置 0），与 m_unk14 兼容。
+// Empty/IsClearCondition/Clear 与布局一致，按 ORIG 实现。
 // ============================================================================
 
 #include "CClearCondition.h"
@@ -22,7 +22,7 @@ CClearCondition::CClearCondition()
     m_flag = 0;
     m_count = 0;
     m_vec.clear();
-    m_unk14 = 0;
+    m_pCondVec = 0;
 }
 
 CClearCondition::~CClearCondition()
@@ -34,7 +34,7 @@ void CClearCondition::Clear()
     m_flag = 0;
     m_count = 0;
     m_vec.clear();
-    m_unk14 = 0;
+    m_pCondVec = 0;
 }
 
 bool CClearCondition::Empty()
@@ -53,27 +53,53 @@ bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int
     {
         return false;
     }
-    // ORIG 同步遍历 +0x14 的 DungeonClearCondition 表与 m_vec（逐条件计数），
-    // 最终判定 (m_flag <= m_count)。当前重建布局未建模条件表，无可匹配项。
-    return m_flag <= m_count;
+    // ORIG 0x82fefce：+0x14 指向 vector<DungeonClearCondition>（外部条件表），
+    // 与 m_vec 同步遍历；条目 m_0/m_4 匹配 type/idx 时，若 m_8 > 当前计数
+    // 则计数自增并 m_count++，否则返回 false；结尾 (m_flag <= m_count)。
+    std::vector<DungeonClearCondition>::iterator itd = m_pCondVec->begin();
+    std::vector<DungeonClearCondition>::iterator endd = m_pCondVec->end();
+    std::vector<int>::iterator itv = m_vec.begin();
+    std::vector<int>::iterator endv = m_vec.end();
+    while (itd != endd && itv != endv)
+    {
+        DungeonClearCondition* d = &*itd;
+        int* v = &*itv;
+        if (d->m_0 == (int)type && d->m_4 == idx)
+        {
+            if (d->m_8 > *v)
+            {
+                ++(*v);
+                ++m_count;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        ++itd;
+        ++itv;
+    }
+    if (m_flag > m_count)
+    {
+        return false;
+    }
+    return true;
 }
 
 void CClearCondition::SetDungeonClearConditionVector(
     std::vector<DungeonClearCondition>& vec)
 {
-    // ORIG 0x82fef12：Clear 后若 vec 非空，把整个 vector 存入 +0x14，并对每个
-    // 条目：m_flag(+0x00) += 条目+0x08 字段，同时向 m_vec push 一个 0。
+    // ORIG 0x82fef12：Clear 后若 vec 非空，+0x14 存 vec 地址，并对每个
+    // 条目：m_flag(+0x00) += 条目 m_8 字段，同时向 m_vec push 一个 0。
     Clear();
     if (!vec.empty())
     {
-        for (unsigned int i = 0; i < vec.size(); ++i)
+        m_pCondVec = &vec;
+        for (std::vector<DungeonClearCondition>::iterator it = vec.begin();
+             it != vec.end(); ++it)
         {
-            const unsigned char* e =
-                reinterpret_cast<const unsigned char*>(&vec[i]);
-            m_flag += *reinterpret_cast<const int*>(e + 8);
+            m_flag += it->m_8;
             m_vec.push_back(0);
         }
-        // 【阻塞】ORIG 将 vector 复制到 +0x14；该偏移在重建中被 CBattle_Field
-        // ABI 锁定为 int（见头注释），条件表存储待布局统一后补齐。
     }
 }

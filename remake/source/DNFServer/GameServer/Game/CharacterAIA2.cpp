@@ -94,24 +94,27 @@ int stringToInt(const char* s, const char** table, int maxCount)
 std::string getFileName(const std::string& path)
 {
     std::string out(path);
-    std::size_t pos = std::string::npos;
-    for (std::size_t i = out.size(); i-- > 0; )
+
+    std::string::iterator it = out.end() - 1;
+    while (it != out.begin())
     {
-        if (out[i] == '/' || out[i] == '\\')
+        if (*it == '/' || *it == '\\')
         {
-            pos = i;
+            out.erase(out.begin(), it + 1);
             break;
         }
+        it--;
     }
-    if (pos != std::string::npos)
-        out.erase(0, pos + 1);
-    for (std::size_t i = out.size(); i-- > 0; )
+
+    std::string::iterator it2 = out.end() - 1;
+    while (it2 != out.begin())
     {
-        if (out[i] == '.')
+        if (*it2 == '.')
         {
-            out.erase(i);
+            out.erase(it2, out.end());
             break;
         }
+        it2--;
     }
     return out;
 }
@@ -445,7 +448,9 @@ STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
 
 STAIInfoScript::~STAIInfoScript()
 {
-    // 成员逆序析构由编译器生成（ORIG D1 W 0x083671a4 同构）。
+    // ORIG D1 W 0x083671a4：写 vtable 后先 destroy() 释放 pattern 桶，
+    // 随后编译器按声明逆序析构成员。
+    destroy();
 }
 
 void STAIInfoScript::destroy()

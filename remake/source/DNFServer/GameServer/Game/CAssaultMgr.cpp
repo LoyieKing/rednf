@@ -464,20 +464,150 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 }
 
 // ============================================================================
-// LeaveAssaultPlace(int,bool,bool) —— ORIG 0x82ead6a。
-// 保留批3已验证的可链接骨架（校验索引并释放槽位）；已还原的自包含 helper
-// （_MakeLeaveUser/_SendCloseAssault/_IsBroadcastRunaway/_BroadcastRunaway）供
-// 后续在 _IsGiveupPanalty 事件判定、_DelUser/CloseAssault/EndAssault、
-// CPowerWarLog 等未还原子系统落地后接入完整链。不造桩。
+// LeaveAssaultPlace(int,bool,bool) —— ORIG 0x82ead6a 逐段转写。
+// 结构：索引/用户校验 → GiveupPanalty 判定（m_state 区间分支）→ 逃跑广播 →
+// leave 包 + PowerWar 计数 + close 包 → _DelUser/用户状态包 → PowerWar 特判
+// （村庄==7 时 guild 点数/连击广播）→ 双方 SetAssaultState(6)+EndAssault。
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
-    if (index < 0 || index >= 8)
+    if (index < 0 || index > 7)
         return;
-    CAssaulter& assaulter = m_assaulters[index];
-    if (assaulter.GetUser() == 0)
-        return;
-    assaulter.m_user = 0;   // 释放槽位（批3骨架；完整链见 _IsGiveupPanalty 依赖）
+
+    CUser* user = m_assaulters[index].GetUser();
+    if (user != 0)
+    {
+        // ---- GiveupPanalty 分支（82eadb0；_IsGiveupPanalty true 时）----
+        if (_IsGiveupPanalty(penaltyFlag))
+        {
+            m_assaulters[index].GiveupPanalty();
+            if (m_state > 1 && m_state <= 3)
+            {
+                user->SetCurCharacLeaveTimeout(true);
+            }
+            else if (m_state > 3 && m_state <= 6)
+            {
+                PacketGuard packet;
+                _MakeUserState(&packet, user);
+                GameWorld* world = G_GameWorld();
+                world->send_all(packet);
+            }
+        }
+
+        // ---- _IsBroadcastRunaway（82eae89）----
+        if (_IsBroadcastRunaway(user))
+            _BroadcastRunaway(user, index);
+
+        // ---- 82eaeb8：leave 包 + PowerWar 计数 ----
+        {
+            PacketGuard packet;
+            _MakeLeaveUser(&packet, index);
+            SendPacket(packet);
+        }
+        if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+            user->getCurCharacVill() == 7)
+        {
+            GlobalData::s_power_manager->GetPowerWarLog()
+                ->IncTotalLeaveAssaultUser();
+        }
+
+        // ---- close 包：PowerWar 村庄用 powerWarHP，否则用槽位 HP ----
+        if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+            user->getCurCharacVill() == 7)
+        {
+            _SendCloseAssault(user, user->getPowerWarHP());
+        }
+        else
+        {
+            _SendCloseAssault(user, m_assaulters[index].GetHp());
+        }
+
+        // ---- 82eafb0：槽位非空 → 删除用户 + 用户状态广播 ----
+        if (!m_assaulters[index].Empty())
+        {
+            _DelUser(index, delFlag);
+            if (!user->IsCurCharacGhost())
+            {
+                PacketGuard packet;
+                _MakeUserState(&packet, user);
+                GameWorld* world = G_GameWorld();
+                world->send_all(packet);
+            }
+        }
+    }
+
+    // ---- 82eb07a：user!=0 的收尾链 ----
+    if (user != 0)
+    {
+        // 非 PowerWar（或非村庄7）且状态<=3 且索引 0/1：双方队伍置 7 后关闭。
+        bool nonPowerWar = !GlobalData::s_power_manager->IsPowerWarEventOn() ||
+                           user->getCurCharacVill() != 7;
+        if (nonPowerWar && m_state <= 3 && (index == 0 || index == 1))
+        {
+            if (m_parties[0].m_field00 != 0)
+                ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
+            if (m_parties[1].m_field00 != 0)
+                ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
+            m_state = 7;
+            CloseAssault();
+            return;
+        }
+        // 82eb13a：m_field100==0 → 同样置 7 后关闭。
+        if (m_field100 == 0)
+        {
+            if (m_parties[0].m_field00 != 0)
+                ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
+            if (m_parties[1].m_field00 != 0)
+                ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
+            m_state = 7;
+            CloseAssault();
+            return;
+        }
+        // 82eb1b0：m_field100!=0 且场景可玩时，PowerWar 村庄7 且状态∈(3,4]
+        // 走 guild 点数/连击清理；随后统一置 6 结束。
+        if (!_CheckPlayable())
+            return;
+        if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+            user->getCurCharacVill() == 7 && m_state > 3 && m_state <= 4)
+        {
+            int winCnt = 0;
+            int loseCnt = 0;
+            int aliveCnt = 0;
+            if (_CheckPowerWarInPlayer(
+                    (ENUM_POWER_SIDE_TYPE)user->getPowerSide(),
+                    (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt, loseCnt,
+                    aliveCnt))
+            {
+                _SendPowerWarPointToGuildServer(
+                    user, (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt, loseCnt,
+                    aliveCnt);
+            }
+            CParty* party = (CParty*)user->GetParty();
+            if (party != 0)
+                party->resetStraightVictories();
+            else
+                user->resetStraightVictories();
+            for (int i = 0; i <= 7; ++i)
+            {
+                if (!m_assaulters[i].Empty())
+                {
+                    CUser* slotUser = m_assaulters[i].GetUser();
+                    if (slotUser->getPowerSide() != user->getPowerSide())
+                    {
+                        _SendStraightVictories(slotUser);
+                        break;
+                    }
+                }
+            }
+        }
+        // 82eb349：双方队伍置 6 后结束。
+        if (m_parties[0].m_field00 != 0)
+            ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
+        if (m_parties[1].m_field00 != 0)
+            ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
+        m_state = 6;
+        EndAssault();
+    }
 }
 
 // ============================================================

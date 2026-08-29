@@ -2463,14 +2463,6 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08442e68
     bool SendResult(int userIdx, int slot, SIG_GET_USER_REGDATE* sig);  // ORIG T 0x0844309c（定义 OrigDBInter19.cpp）
 };
-class DB_UpdateOntimeLastRecvIdx : public DBDispatcher
-{
-public:
-    DB_UpdateOntimeLastRecvIdx() {}   // ORIG C1 0x844f946 (sz 0x4: base ctor+vptr only)
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x0844280a
-    // ORIG T 0x08442966 _ZN25DB_UpdateOntimeLastRecvIdx11makeRequestEiji（static；定义本文件）
-    static void makeRequest(int param1, unsigned int param2, int param3);
-};
 class DB_InsertOnTimeRewardUserLog : public DBDispatcher
 {
 public:
@@ -2490,19 +2482,7 @@ public:
     DB_CheckSecuReward() {}   // ORIG C1 0x844f9b6 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x084441e6
 };   // ORIG C1 0x844f9b6 (sz 0x4: base ctor+vptr only)
-class DB_UpdateFatigueAttendance : public DBDispatcher
-{
-public:
-    DB_UpdateFatigueAttendance() {}   // ORIG C1 0x844f9d2 (sz 0x4: base ctor+vptr only)
-    // ORIG T 0x084447d6 _ZN26DB_UpdateFatigueAttendance11makeRequestEjRKSt3mapIhsSt4lessIhESaISt4pairIKhsEEE
-    // （static；定义本文件）
-    static void makeRequest(
-        unsigned int param1,
-        std::map<unsigned char, short, std::less<unsigned char>,
-                 std::allocator<std::pair<const unsigned char, short> > > const& m);
-    // ORIG 0x084444ec（虚覆盖）
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);
-};
+
 class DB_UpdateInGameEventHistory : public DBDispatcher
 {
 public:

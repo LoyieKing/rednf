@@ -555,23 +555,26 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
 // ---- _get_option_value —— T 0x085f2b02（同名报告全文转写）----------------
 int CRandomOptionItemHandle::_get_option_value(int minV, int maxV)
 {
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
-    unsigned long bound = (unsigned long)script->m_ratioE4.m_c;
+    unsigned long bound =
+        (unsigned long)reinterpret_cast<RandomOptionScript*>(
+            GetRandomOption())->m_ratioE4.m_c;
     int r1 = m_rand[7].randInt(bound);
 
     CRandomListEx<OptionValueRatio> chooser((unsigned int)r1);
-    std::for_each(script->m_ratioE4.m_vec0.begin(),
-                  script->m_ratioE4.m_vec0.end(), chooser);
+    std::for_each(
+        reinterpret_cast<RandomOptionScript*>(
+            GetRandomOption())->m_ratioE4.m_vec0.begin(),
+        reinterpret_cast<RandomOptionScript*>(
+            GetRandomOption())->m_ratioE4.m_vec0.end(),
+        chooser);
 
     OptionValueRatio sel = chooser.get_value();
 
     float spanf = sel.m_scaleRange0 * (float)(maxV - minV);
-    int span = (int)(spanf + (spanf >= 0.0f ? 0.5f : -0.5f));   // ROUND(fistp)
+    int span = (int)spanf;      // ORIG fistpl 截断（fnstcw 0xc 实证，非四舍五入）
 
     float basef = sel.m_scaleBase4 * (float)minV;
-    int base = (int)(basef + (basef >= 0.0f ? 0.5f : -0.5f));
+    int base = (int)basef;      // ORIG fistpl 截断
 
     unsigned long bound2 = (unsigned long)span;
     int r2 = m_rand[8].randInt(bound2);
@@ -695,119 +698,57 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
     return (unsigned int)walk->second.m_field0;
 }
 
-// ---- give_option_core —— give_option/RegenVer_give_option 共享主体 --------
-// （两报告逐段一致；差异仅数量入口 optType==0x65、数值出口 optType==0xc9，
-//   以及 logFormat 行号/PRETTY 文案。）
-bool CRandomOptionItemHandle::give_option_core(
-    CRandomOptionItemHandle* self, unsigned long itemIdx, ENUM_RARITY rarity,
-    int level, int group, int grade, RandomOption* opts, RegenerationROI* roi,
-    int optType, bool regenVer)
+// ---- give_option —— T 0x085f2cc6（ORIG 独立完整实现，逐段转写）----------
+// 注意：辅助调用参数顺序按 ORIG 反汇编实证——
+//   _get_option_type 第4参=grade（内层 find 键，非 group）；
+//   _get_option_quantity 键=(rarity,ff,outGrade,level)，回退 b1=grade；
+//   _choose_option_group 键=(rarity,ff,group,level)+u32(outGrade)。
+bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
+                                          ENUM_RARITY rarity, int level,
+                                          int group, int grade,
+                                          RandomOption* opts)
 {
     unsigned char outGrade = 0;
-    int err = self->_get_option_type(itemIdx, rarity, level, group, outGrade);
+    int err = 0;
+    err = _get_option_type(itemIdx, rarity, level, grade, outGrade);
     if (err != 0)
     {
-        if (regenVer)
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
-                0x1d8, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
-                (int)itemIdx, (int)(unsigned char)rarity, level, grade,
-                (int)outGrade, err);
-        }
-        else
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::give_option("
-                "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
-                0x2f9, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
-                (int)itemIdx, (int)(unsigned char)rarity, level, grade,
-                (int)outGrade, err);
-        }
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::give_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            0x2f9, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
+            (int)itemIdx, (int)rarity, level, grade, (int)outGrade, err);
         return false;
     }
 
     int quantity = 0;
-    if (regenVer && optType == 0x65)
-    {
-        err = self->RegenVer_get_option_quantity(rarity, level, grade, optType,
-                                                 quantity, roi);
-        if (err != 0)
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
-                0x1e2, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
-                (int)(unsigned char)rarity, level, grade, (int)optType,
-                quantity, err);
-            return false;
-        }
-    }
-    else
-    {
-        err = self->_get_option_quantity(rarity, level, grade, optType,
-                                         quantity);
-        if (err != 0)
-        {
-            if (regenVer)
-            {
-                LogManager::logFormat(
-                    1, "RandomOption.cpp",
-                    "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                    "option(itemIndex_t, ENUM_RARITY, int, int, int, "
-                    "RandomOption*, RegenerationROI*, int)",
-                    0x1ea,
-                    "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
-                    (int)(unsigned char)rarity, level, grade, (int)optType,
-                    quantity, err);
-            }
-            else
-            {
-                LogManager::logFormat(
-                    1, "RandomOption.cpp",
-                    "bool random_option::CRandomOptionItemHandle::give_option("
-                    "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
-                    0x300,
-                    "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
-                    (int)(unsigned char)rarity, level, grade, (int)optType,
-                    quantity, err);
-            }
-            return false;
-        }
-    }
-
-    int groupId = 0;
-    err = self->_choose_option_group(rarity, level, grade, optType, group,
-                                     groupId);
+    err = _get_option_quantity(rarity, grade, outGrade, level, quantity);
     if (err != 0)
     {
-        if (regenVer)
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
-                0x1f2, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
-                (int)(unsigned char)rarity, level, grade, (int)optType, groupId,
-                err);
-        }
-        else
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::give_option("
-                "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
-                0x30d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
-                (int)(unsigned char)rarity, level, grade, (int)optType, groupId,
-                err);
-        }
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::give_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            0x300, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
+            (int)rarity, grade, (int)outGrade, level, quantity, err);
+        return false;
+    }
+
+    // ORIG asm 85f2e27：m_field10(+0x10) 非零时覆盖数量（RegenVer 无此步）。
+    if (m_field10 != 0)
+        quantity = m_field10;
+
+    int groupId = 0;
+    err = _choose_option_group(rarity, grade, group, level, outGrade, groupId);
+    if (err != 0)
+    {
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::give_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            0x30d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
+            (int)rarity, grade, group, level, (int)outGrade, groupId, err);
         return false;
     }
 
@@ -815,6 +756,7 @@ bool CRandomOptionItemHandle::give_option_core(
     // 键 short = 低字节 rarity | 高字节 outGrade（asm -0x6e/-0x6d 实证）。
     RandomOptionScript* script =
         reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    DifferentWeightValue dwTmp;  // ORIG 未使用临时（O0 保留 ctor call）
     unsigned short dwRaw =
         (unsigned short)(((unsigned short)(unsigned char)rarity) |
                          ((unsigned short)outGrade << 8));
@@ -822,52 +764,27 @@ bool CRandomOptionItemHandle::give_option_core(
         script->m_mapf4.find((short)dwRaw);
     if (dw == script->m_mapf4.end())
     {
-        if (regenVer)
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
-                0x1fe, "different_weight_ (%d,%d) ",
-                (int)(unsigned char)rarity, (int)outGrade);
-        }
-        else
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::give_option("
-                "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
-                0x319, "different_weight_ (%d,%d) ",
-                (int)(unsigned char)rarity, (int)outGrade);
-        }
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::give_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            0x319, "different_weight_ (%d,%d) ",
+            (int)(unsigned char)rarity, (int)outGrade);
         return false;
     }
     int dwA = dw->second.m_field0;
     int dwB = dw->second.m_field4;
 
-    // 组值表：map<int, OptionGroupValue> @+0x160（两份 give_option 报告均直呼
-    // GetRandomOption()+0x160）。
-    std::map<int, OptionGroupValue>::iterator ogIt = script->m_map160.find(groupId);
+    // 组值表：map<int, OptionGroupValue> @+0x160。
+    std::map<int, OptionGroupValue>::iterator ogIt =
+        script->m_map160.find(groupId);
     if (ogIt == script->m_map160.end())
     {
-        if (regenVer)
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
-                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
-                " RegenerationROI*, int)",
-                0x206, "option_group_ (%d) ", groupId);
-        }
-        else
-        {
-            LogManager::logFormat(
-                1, "RandomOption.cpp",
-                "bool random_option::CRandomOptionItemHandle::give_option("
-                "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
-                0x321, "option_group_ (%d) ", groupId);
-        }
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::give_option("
+            "itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*)",
+            0x321, "option_group_ (%d) ", groupId);
         return false;
     }
 
@@ -878,7 +795,7 @@ bool CRandomOptionItemHandle::give_option_core(
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
         unsigned long bound = (unsigned long)remaining;
-        int pickN = self->m_rand[9].randInt(bound);      // m_rand+0x5808 → 池[9]
+        int pickN = m_rand[9].randInt(bound);      // m_rand+0x5808 → 池[9]
 
         CRandomList<unsigned int> chooser((unsigned int)pickN);
         std::for_each(groupVec.begin(), groupVec.end(), chooser);
@@ -894,20 +811,10 @@ bool CRandomOptionItemHandle::give_option_core(
             victim += sel;
             groupVec.erase(victim);
 
-            unsigned char v1;
-            unsigned char v2;
-            if (regenVer && optType == 0xc9)
-            {
-                v1 = (unsigned char)roi->RegenVer_get_option_value(dwA, dwB);
-                v2 = (unsigned char)roi->RegenVer_get_option_value(dwA, dwB);
-            }
-            else
-            {
-                v1 = (unsigned char)self->_get_option_value(dwA, dwB);
-                v2 = (unsigned char)self->_get_option_value(dwA, dwB);
-            }
-            optB[slotI * 3 + 1] = v1;
-            optB[slotI * 3 + 2] = v2;
+            optB[slotI * 3 + 1] =
+                (unsigned char)_get_option_value(dwA, dwB);
+            optB[slotI * 3 + 2] =
+                (unsigned char)_get_option_value(dwA, dwB);
         }
     }
 
@@ -915,27 +822,165 @@ bool CRandomOptionItemHandle::give_option_core(
     unsigned char* optBytes = reinterpret_cast<unsigned char*>(opts);
     optBytes[9] = (unsigned char)((optBytes[9] & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
-    int seedRoll = self->m_rand[10].randInt(seedBound);
+    int seedRoll = m_rand[10].randInt(seedBound);
     optBytes[9] = (unsigned char)((optBytes[9] & 3) | ((seedRoll & 0x3f) << 2));
 
     return true;
 }
 
-bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
-                                          ENUM_RARITY rarity, int level,
-                                          int group, int grade,
-                                          RandomOption* opts)
-{
-    return give_option_core(this, itemIdx, rarity, level, group, grade, opts, 0,
-                            0, false);
-}
-
+// ---- RegenVer_give_option —— T 0x085f1bb0（ORIG 独立完整实现，逐段转写）--
+// 数量入口 optType==0x65 走 RegenVer_get_option_quantity（键构建同
+// _get_option_quantity：(rarity,ff,outGrade,level)，回退 b1=grade）；
+// 数值出口 optType==0xc9 走 roi->RegenVer_get_option_value，否则
+// _get_option_value。logFormat 行号/PRETTY 与 give_option 不同。
 bool CRandomOptionItemHandle::RegenVer_give_option(
     unsigned long itemIdx, ENUM_RARITY rarity, int level, int group, int grade,
     RandomOption* opts, RegenerationROI* roi, int optType)
 {
-    return give_option_core(this, itemIdx, rarity, level, group, grade, opts,
-                            roi, optType, true);
+    unsigned char outGrade = 0;
+    int err = 0;
+    err = _get_option_type(itemIdx, rarity, level, grade, outGrade);
+    if (err != 0)
+    {
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+            " RegenerationROI*, int)",
+            0x1d8, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
+            (int)itemIdx, (int)rarity, level, grade, (int)outGrade, err);
+        return false;
+    }
+
+    int quantity = 0;
+    if (optType == 0x65)
+    {
+        err = RegenVer_get_option_quantity(rarity, grade, outGrade, level,
+                                           quantity, roi);
+        if (err != 0)
+        {
+            LogManager::logFormat(
+                1, "RandomOption.cpp",
+                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+                " RegenerationROI*, int)",
+                0x1e2, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
+                (int)rarity, grade, (int)outGrade, level, quantity, err);
+            return false;
+        }
+    }
+    else
+    {
+        err = _get_option_quantity(rarity, grade, outGrade, level, quantity);
+        if (err != 0)
+        {
+            LogManager::logFormat(
+                1, "RandomOption.cpp",
+                "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+                "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+                " RegenerationROI*, int)",
+                0x1ea, "_get_option_quantity (%d,%d,%d,%d,%d) error_line(%d)",
+                (int)rarity, grade, (int)outGrade, level, quantity, err);
+            return false;
+        }
+    }
+
+    int groupId = 0;
+    err = _choose_option_group(rarity, grade, group, level, outGrade, groupId);
+    if (err != 0)
+    {
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+            " RegenerationROI*, int)",
+            0x1f2, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
+            (int)rarity, grade, group, level, (int)outGrade, groupId, err);
+        return false;
+    }
+
+    RandomOptionScript* script =
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    DifferentWeightValue dwTmp;  // ORIG 未使用临时（O0 保留 ctor call）
+    unsigned short dwRaw =
+        (unsigned short)(((unsigned short)(unsigned char)rarity) |
+                         ((unsigned short)outGrade << 8));
+    std::map<short, DifferentWeightValue>::iterator dw =
+        script->m_mapf4.find((short)dwRaw);
+    if (dw == script->m_mapf4.end())
+    {
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+            " RegenerationROI*, int)",
+            0x1fe, "different_weight_ (%d,%d) ",
+            (int)(unsigned char)rarity, (int)outGrade);
+        return false;
+    }
+    int dwA = dw->second.m_field0;
+    int dwB = dw->second.m_field4;
+
+    std::map<int, OptionGroupValue>::iterator ogIt =
+        script->m_map160.find(groupId);
+    if (ogIt == script->m_map160.end())
+    {
+        LogManager::logFormat(
+            1, "RandomOption.cpp",
+            "bool random_option::CRandomOptionItemHandle::RegenVer_give_"
+            "option(itemIndex_t, ENUM_RARITY, int, int, int, RandomOption*,"
+            " RegenerationROI*, int)",
+            0x206, "option_group_ (%d) ", groupId);
+        return false;
+    }
+
+    int remaining = ogIt->second.m_fieldC;
+    std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;
+    unsigned char* const optB = reinterpret_cast<unsigned char*>(opts);
+
+    for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
+    {
+        unsigned long bound = (unsigned long)remaining;
+        int pickN = m_rand[9].randInt(bound);
+
+        CRandomList<unsigned int> chooser((unsigned int)pickN);
+        std::for_each(groupVec.begin(), groupVec.end(), chooser);
+
+        unsigned int sel = chooser.get_value();
+        if (sel < groupVec.size())
+        {
+            OptionGroup og = groupVec[sel];
+            optB[slotI * 3] = (unsigned char)og.m_type0;
+            remaining -= og.m_weight4;
+
+            std::vector<OptionGroup>::iterator victim = groupVec.begin();
+            victim += sel;
+            groupVec.erase(victim);
+
+            unsigned char v1;
+            unsigned char v2;
+            if (optType == 0xc9)
+            {
+                v1 = (unsigned char)roi->RegenVer_get_option_value(dwA, dwB);
+                v2 = (unsigned char)roi->RegenVer_get_option_value(dwA, dwB);
+            }
+            else
+            {
+                v1 = (unsigned char)_get_option_value(dwA, dwB);
+                v2 = (unsigned char)_get_option_value(dwA, dwB);
+            }
+            optB[slotI * 3 + 1] = v1;
+            optB[slotI * 3 + 2] = v2;
+        }
+    }
+
+    unsigned char* optBytes = reinterpret_cast<unsigned char*>(opts);
+    optBytes[9] = (unsigned char)((optBytes[9] & 0xfc) | (outGrade & 3));
+    unsigned long seedBound = MAX_RANDOM_SEED;
+    int seedRoll = m_rand[10].randInt(seedBound);
+    optBytes[9] = (unsigned char)((optBytes[9] & 3) | ((seedRoll & 0x3f) << 2));
+
+    return true;
 }
 
 // ---- RegenVer_get_option_quantity —— T 0x085f1a62（同名报告全文转写）------

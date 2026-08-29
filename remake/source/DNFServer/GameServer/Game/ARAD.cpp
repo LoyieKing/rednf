@@ -11,9 +11,9 @@
 #include "CreateDnfEventSciprt.h"           // #8 注册项
 #include "ARAD_FN_DeleteGameScript.h"   // FN_DeleteGameScript 唯一类声明（Arad_DataManager.h 不含）
 #include "Arad_Script.h"
-#include "Arad_Script.h"
 #include "CUser.h"          // CerashopAddRestrict::Manager（Init 注册）
 #include "PacketGuard.h"    // notifyOpenMessageDialog 组包
+#include "LogManager.h"
 #include <algorithm>
 #include <cstring>
 #include <cstring>
@@ -214,18 +214,44 @@ Arad_Mileage_Data::~Arad_Mileage_Data() {}
 int Arad_Mileage_Data::parsing(char* data)
 {
     Arad_Script script;
-    if (script.Load(data, "default"))
+    if (!script.Load(data, "default"))
+        return 0x18c;
+    if (script.GetRowNum() == 0)
+        return 0x18f;
+
+    m_defaultPercent = 0;
+    m_defaultPercent = script.GetInt(0, "percent");
+    if (m_defaultPercent < 0 || m_defaultPercent > 0x3e8)
     {
-        if (script.GetRowNum() > 0)
-            m_defaultPercent = script.GetInt(0, "percent");
+        LogManager::logFormat(
+            1, "localjapan/Arad_Script_Loader.cpp",
+            "virtual int Arad_Mileage_Data::parsing(char*)",
+            0x197, "[ERROR] invalid mileage default value. (%f)", m_defaultPercent);
+        return 0x198;
     }
-    if (script.Load(data, "item"))
+
+    if (!script.Load(data, "item"))
+        return 0x19e;
+    if (script.GetRowNum() == 0)
+        return 0;
+
+    for (int r = 0; r < script.GetRowNum(); ++r)
     {
-        int rows = script.GetRowNum();
-        for (int r = 0; r < rows; ++r)
+        int ipg = script.GetInt(r, "ipg_no");
+        int percent = script.GetInt(r, "percent");
+        if (find(ipg) < 0)
         {
-            Data d(script.GetInt(r, "ipg_no"), script.GetInt(r, "percent"));
+            Data d(ipg, percent);
             m_mileageList.push_back(d);
+        }
+        else
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_Mileage_Data::parsing(char*)",
+                0x1b0, "[ERROR] already exist item index (IPG:%d, percent:%d)",
+                ipg, percent);
+            return 0x1b1;
         }
     }
     return 0;
@@ -252,26 +278,56 @@ int Arad_Mileage_Data::default_value()
 // parsing 0x81a36fc / find_item x2 / is_limited_map。解析 "item"（web_id/item_index）与
 // "limited_map"（index）。
 // ============================================================================
-Arad_OnePlusCardEvent_ItemList::Arad_OnePlusCardEvent_ItemList() {}
-Arad_OnePlusCardEvent_ItemList::~Arad_OnePlusCardEvent_ItemList() {}
+// ORIG ctor @0x08188d0a / dtor @0x08188d6a（vector 成员自动构造/析构）。
+Arad_OnePlusCardEvent_ItemList::Arad_OnePlusCardEvent_ItemList()
+{
+}
+
+Arad_OnePlusCardEvent_ItemList::~Arad_OnePlusCardEvent_ItemList()
+{
+}
 
 int Arad_OnePlusCardEvent_ItemList::parsing(char* data)
 {
     Arad_Script script;
-    if (script.Load(data, "item"))
+    if (!script.Load(data, "item"))
+        return 0x1db;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
     {
-        int rows = script.GetRowNum();
-        for (int r = 0; r < rows; ++r)
+        Data d((unsigned short)script.GetInt(r, "web_id"),
+               (unsigned long)script.GetInt(r, "item_index"));
+        if (find_item(d.webId))
         {
-            Data d((unsigned short)script.GetInt(r, "web_id"), (unsigned long)script.GetInt(r, "item_index"));
-            m_cardList.push_back(d);
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                0x1ea,
+                "[ERROR] already exist data id OnePlusCardEvent(id:%d, item:%u)",
+                (int)d.webId, (unsigned int)d.itemIndex);
+            return 0x1eb;
         }
+        m_cardList.push_back(d);
     }
-    if (script.Load(data, "limited_map"))
+    if (!script.Load(data, "limited_map"))
+        return 0x1f3;
+    if (script.GetRowNum() == 0)
+        return 0;
+    for (int r = 0; r < script.GetRowNum(); ++r)
     {
-        int rows = script.GetRowNum();
-        for (int r = 0; r < rows; ++r)
-            m_limitedMap.push_back((unsigned int)script.GetInt(r, "index"));
+        unsigned int map = (unsigned int)script.GetInt(r, "index");
+        if (is_limited_map(map))
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Script_Loader.cpp",
+                "virtual int Arad_OnePlusCardEvent_ItemList::parsing(char*)",
+                0x1fe,
+                "[ERROR] already exist limited map index (map:%u)",
+                map);
+            return 0x1ff;
+        }
+        m_limitedMap.push_back(map);
     }
     return 0;
 }
@@ -387,44 +443,87 @@ int Arad_DataManager::Destroy()
 
 bool Arad_DataManager::initAradData()
 {
-    // ORIG 0x81882f8：三段装载——① "Event Period Script"：new Arad_EventPeriodDataManager
-    // -> loadScriptData -> __insertGameScript；② "Statistics Item List"：new
-    // Arad_StatisticsEventItemList（operator new(0x14)）-> loadScriptData ->
-    // __insertGameScript；③ "NexonFolder Script"：逐子对象 Arad_ScriptLoader::open
-    // （+0x1c/+0x38/+0x54 均 "Nexon/AradSpecialUseItems.txt"、+0x70
-    // "Nexon/CeraShopMileage.txt"、+0xa0 "Nexon/VillageAttackRewardItem.txt"）。
-    // 任一 Load/open 失败 → cMyTrace "Fail" 并返回 0。
+
+    // 各段起始/失败/成功均按 ORIG 记 cMyTrace（line/flag/bC/bD 逐点核对）：
+    // 段①起(0x48,9,1,0)、Fail(0x4c/0x52,9,1,1)、Success(0x55,9,0,1)；
+    // 段②起(0x59,9,0,1)、Fail(0x5d/0x63,9,1,1)、Success(0x66,9,0,1)；
+    // 段③起(0x94,9,1,0)、open 失败(0x97/0x9d/0xa3/0xb2/0xbb,9,1,1) 带
+    // "…script load fail. (line:%d)" 参数为 open 返回值。
+    cMyTrace trace0("initAradData", 0x48, 9, true, false);
+    trace0("\t- Loading Event Period Script - ");
     Arad_EventPeriodDataManager* ep = new Arad_EventPeriodDataManager();
     if (ep == 0 || !ep->loadScriptData())
     {
+        cMyTrace trace("initAradData", 0x4c, 9, true, true);
+        trace("Fail");
         delete ep;
         return false;
     }
     if (!__insertGameScript(ep))
     {
+        cMyTrace trace("initAradData", 0x52, 9, true, true);
+        trace("Fail");
         return false;
     }
+    cMyTrace trace1("initAradData", 0x55, 9, false, true);
+    trace1("Success");
+
+    cMyTrace trace2("initAradData", 0x59, 9, false, true);
+    trace2("\t- Loading Statistics Item List - ");
     Arad_StatisticsEventItemList* st = new Arad_StatisticsEventItemList();
     if (st == 0 || !st->loadScriptData())
     {
+        cMyTrace trace("initAradData", 0x5d, 9, true, true);
+        trace("Fail");
         delete st;
         return false;
     }
     if (!__insertGameScript(st))
     {
+        cMyTrace trace("initAradData", 0x63, 9, true, true);
+        trace("Fail");
         return false;
     }
-    if (m_exceptionItem.open("Nexon/AradSpecialUseItems.txt") != 0)
-        return false;
-    if (m_purchaseLimitItem.open("Nexon/AradSpecialUseItems.txt") != 0)
-        return false;
-    if (m_bonusItem.open("Nexon/AradSpecialUseItems.txt") != 0)
-        return false;
+    cMyTrace trace3("initAradData", 0x66, 9, false, true);
+    trace3("Success");
 
-    if (m_mileageData.open("Nexon/CeraShopMileage.txt") != 0)
+    cMyTrace trace4("initAradData", 0x94, 9, true, false);
+    trace4("\t- Loading NexonFolder Script - ");
+    int openResult = m_exceptionItem.open("Nexon/AradSpecialUseItems.txt");
+    if (openResult != 0)
+    {
+        cMyTrace trace("initAradData", 0x97, 9, true, true);
+        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
         return false;
-    if (m_villageAttackReward.open("Nexon/VillageAttackRewardItem.txt") != 0)
+    }
+    openResult = m_purchaseLimitItem.open("Nexon/AradSpecialUseItems.txt");
+    if (openResult != 0)
+    {
+        cMyTrace trace("initAradData", 0x9d, 9, true, true);
+        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
         return false;
+    }
+    openResult = m_bonusItem.open("Nexon/AradSpecialUseItems.txt");
+    if (openResult != 0)
+    {
+        cMyTrace trace("initAradData", 0xa3, 9, true, true);
+        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
+        return false;
+    }
+    openResult = m_mileageData.open("Nexon/CeraShopMileage.txt");
+    if (openResult != 0)
+    {
+        cMyTrace trace("initAradData", 0xb2, 9, true, true);
+        trace("CeraShopMileage script load fail. (line:%d)", openResult);
+        return false;
+    }
+    openResult = m_villageAttackReward.open("Nexon/VillageAttackRewardItem.txt");
+    if (openResult != 0)
+    {
+        cMyTrace trace("initAradData", 0xbb, 9, true, true);
+        trace("VillageAttackRewardItem script load fail. (line:%d)", openResult);
+        return false;
+    }
     return true;
 }
 

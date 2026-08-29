@@ -46,51 +46,10 @@
 
 
 
-// ---- SpecialItemHandler（ORIG 全局类，execute @0x0827be0a T）----
-// 表驱动分发器：对象前 0x70 字节为 14 组 {int flag; int offset}，offset 指向
-// respond_special_item_* 子对象；respond_* 家族未还原（独立批次）。
-// ORIG _ZN19STSpecailItem_ParamC1ERSt6vectorI10Inven_ItemSaIS1_EERN8WongWork9CCeraShop21stCeraShopItemParam_tE (W 0x08234ec2)
-// 布局：+0x00 user +0x04 itemIdx +0x08 value +0x0c items* +0x10 ceraParam*
-//       +0x14 count +0x18 time(long) +0x1c flag +0x1d/1e/1f char +0x20 extra(ctor 置 1)
-struct STSpecailItem_Param
-{
-    STSpecailItem_Param(std::vector<Inven_Item>& items,
-                        WongWork::CCeraShop::stCeraShopItemParam_t& cera)
-    {
-        m_user = 0;
-        m_itemIdx = 0;
-        m_value = 0;
-        m_items = &items;
-        m_ceraParam = &cera;
-        m_count = 0;
-        m_time = 0;
-        m_flag = 0;
-        m_char1e = 0;
-        m_char1d = m_char1e;
-        m_char1f = 0;
-        m_extra = 1;
-    }
-
-    void* m_user;            // +0x00（ProcessSpecialItem 写 CUser*）
-    int m_itemIdx;           // +0x04
-    int m_value;             // +0x08
-    void* m_items;           // +0x0c
-    void* m_ceraParam;       // +0x10
-    int m_count;             // +0x14
-    long m_time;             // +0x18
-    unsigned char m_flag;    // +0x1c
-    unsigned char m_char1d;  // +0x1d
-    unsigned char m_char1e;  // +0x1e
-    unsigned char m_char1f;  // +0x1f
-    int m_extra;             // +0x20
-};
-
-// ORIG _ZN20STSpecailItem_ResultC1Ev (W 0x08234f36)：仅清零首 4 字节。
-struct STSpecailItem_Result
-{
-    STSpecailItem_Result() { m_value = 0; }
-    int m_value;  // +0x00
-};
+// STSpecailItem_Param/Result 完整定义已提升至 CCeraShop.h（ORIG W ctor
+// 0x08234ec2/0x08234f36；布局 +0x00 user +0x04 itemIdx +0x08 value +0x0c items*
+// +0x10 ceraParam* +0x14 count +0x18 time(long) +0x1c flag +0x1d/1e/1f char
+// +0x20 extra(ctor 置 1)；Result 仅 int m_value）。本 TU 经 CCeraShop.h 获得。
 
 // ============================================================================
 // SpecialItemHandler —— ORIG 全局类（mangled _ZN18SpecialItemHandler…，非 WongWork 前缀）。

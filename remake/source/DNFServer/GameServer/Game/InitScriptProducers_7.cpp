@@ -782,8 +782,8 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
                     {
                         EventRewardItemInfo item;
                         item.m_field0 = itemIdx;
-                        item.m_field4 = ScanInt((bool*)NULL);
                         item.m_short8 = static_cast<short>(ScanInt((bool*)NULL));
+                        item.m_field4 = ScanInt((bool*)NULL);
 
                         std::string growText;
                         ScanStr(&growText);

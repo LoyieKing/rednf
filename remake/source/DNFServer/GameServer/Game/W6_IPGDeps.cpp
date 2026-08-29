@@ -703,43 +703,28 @@ void CIPGHelper::IPGOutputCancel(CUser* user,
     m_mgr->PutIPGRequest(data, true);
 }
 
-// Helper 二字串重载公共尾部： Alloc 响应块 → 拷 req/res 字段 → 投递。
-static void IPGOutputCancelConfirmCommon(CIPGMgr* mgr, SIPGData* reqBase, SIPGData* resBase,
-                                         bool setReserveFields)
+// ORIG T 0x08100616 (0x179)：Alloc 响应块 → 拷 req/res 字段 → 投递（无前置保留字段）。
+void CIPGHelper::IPGOutputCancel(SIPGData* req, SIPGData* res)
 {
-    char* r = (char*)mgr->AllocIPGData();
-    char* req = (char*)reqBase;
-    char* res = (char*)resBase;
-    if (setReserveFields)
-    {
-        *(unsigned int*)(r + 0x20) = 0xffffffff;   // 仅 Confirm 版前置写入（ORIG 08100e24）
-        *(int*)(r + 0x1c) = 5;
-        r[0x24] = 0;
-    }
-    memcpy(r + 0x28, req + 0x28, 0x41);
-    strncpy(r + 0x69, res + 0x16e, 0x15);
-    strncpy(r + 0x7e, req + 0x69, 8);
-    strncpy(r + 0x92, req + 0x7d, 0x14);
-    strncpy(r + 0x86, req + 0x71, 0xc);
+    SIPGData* d = m_mgr->AllocIPGData();
+    memcpy((char*)d + 0x28, (char*)req + 0x28, 0x41);
+    strncpy((char*)d + 0x69, (char*)res + 0x16e, 0x15);
+    strncpy((char*)d + 0x7e, (char*)req + 0x69, 8);
+    strncpy((char*)d + 0x92, (char*)req + 0x7d, 0x14);
+    strncpy((char*)d + 0x86, (char*)req + 0x71, 0xc);
     if ((char*)req + 0x91 != 0)   // ORIG add/test 形态照写（指针非空判断）
     {
-        strncpy(r + 0xa6, req + 0x91, 100);
+        strncpy((char*)d + 0xa6, (char*)req + 0x91, 100);
     }
     if ((char*)req + 0xf5 != 0)   // 同上
     {
-        strncpy(r + 0x10a, req + 0xf5, 100);
+        strncpy((char*)d + 0x10a, (char*)req + 0xf5, 100);
     }
-    *(unsigned int*)(r + 0x1f0) = *(unsigned int*)(res + 0x1dc);
-    *(unsigned int*)(r + 0x1f4) = *(unsigned int*)(res + 0x1e0);
-    *(unsigned int*)(r + 0x1f8) = *(unsigned int*)(res + 0x1e4);
-    r[0x24] = 0;
-    mgr->PutIPGRequest((SIPGData*)r, true);
-}
-
-// ORIG T 0x08100616 (0x179)。
-void CIPGHelper::IPGOutputCancel(SIPGData* req, SIPGData* res)
-{
-    IPGOutputCancelConfirmCommon(m_mgr, req, res, false);
+    *(unsigned int*)((char*)d + 0x1f0) = *(unsigned int*)((char*)res + 0x1dc);
+    *(unsigned int*)((char*)d + 0x1f4) = *(unsigned int*)((char*)res + 0x1e0);
+    *(unsigned int*)((char*)d + 0x1f8) = *(unsigned int*)((char*)res + 0x1e4);
+    ((char*)d)[0x24] = 0;
+    m_mgr->PutIPGRequest(d, true);
 }
 
 // ORIG T 0x08100cd2 (0x138)。
@@ -769,10 +754,31 @@ void CIPGHelper::IPGOutputConfirm(CUser* user,
     m_mgr->PutIPGRequest(data, true);
 }
 
-// ORIG T 0x08100e0a (0x194)。
+// ORIG T 0x08100e0a (0x194)：前置写保留字段后按 Cancel 同款拷 req/res → 投递。
 void CIPGHelper::IPGOutputConfirm(SIPGData* req, SIPGData* res)
 {
-    IPGOutputCancelConfirmCommon(m_mgr, req, res, true);
+    SIPGData* d = m_mgr->AllocIPGData();
+    ((unsigned int*)d)[0x20 / 4] = 0xffffffff;   // ORIG 08100e24
+    ((int*)d)[0x1c / 4] = 5;
+    ((char*)d)[0x24] = 0;
+    memcpy((char*)d + 0x28, (char*)req + 0x28, 0x41);
+    strncpy((char*)d + 0x69, (char*)res + 0x16e, 0x15);
+    strncpy((char*)d + 0x7e, (char*)req + 0x69, 8);
+    strncpy((char*)d + 0x92, (char*)req + 0x7d, 0x14);
+    strncpy((char*)d + 0x86, (char*)req + 0x71, 0xc);
+    if ((char*)req + 0x91 != 0)   // ORIG add/test 形态照写（指针非空判断）
+    {
+        strncpy((char*)d + 0xa6, (char*)req + 0x91, 100);
+    }
+    if ((char*)req + 0xf5 != 0)   // 同上
+    {
+        strncpy((char*)d + 0x10a, (char*)req + 0xf5, 100);
+    }
+    *(unsigned int*)((char*)d + 0x1f0) = *(unsigned int*)((char*)res + 0x1dc);
+    *(unsigned int*)((char*)d + 0x1f4) = *(unsigned int*)((char*)res + 0x1e0);
+    *(unsigned int*)((char*)d + 0x1f8) = *(unsigned int*)((char*)res + 0x1e4);
+    ((char*)d)[0x24] = 0;
+    m_mgr->PutIPGRequest(d, true);
 }
 
 // ORIG T 0x0810085e (0x1d0)：结果回传流 —— Acquire→header 0x48/err -1→按有无

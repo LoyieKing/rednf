@@ -1,7 +1,8 @@
 #include <cstring>
 
-#include "PvPTypes.h"   // PvP 子对象权威声明（原 PvP_deps.h 已并入）
-#include "MatchRoomList.h"   // IMatch 基类
+#include "CLeagueMatch.h"    // type 2：CLeagueMatch（new 0xfc）
+#include "OnlinePreliminary.h"  // type 4：online_preliminary::COnlinePreliminary（new 0x70）
+#include "CFairMatch.h"      // type 5：fair_pvp::CFairMatch（new 0xc4）
 
 // ---- CMatchingSystem（ORIG 0x18 = IMatch* m_systems[6]，懒加载匹配子系统单例） ----
 // 布局/语义依据 ORIG 0x085dfac6（Ctor）、0x085dfaf4（Dtor）、0x085dfba0（GetMatchingSystem）：
@@ -53,17 +54,10 @@ void* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type)
     {
     case 0: m_systems[t] = new CNormalMatch;     break;
     case 1: m_systems[t] = new CLadderMatch;     break;
-    case 2:
-        // CLeagueMatch（0xfc）：构造逻辑未交付（顶层依赖，见 PvP_Room.cpp 调用链）。
-        // 返回 0，待 CLeagueMatch 批次落地后接线【推断】。
-        return 0;
+    case 2: m_systems[t] = new CLeagueMatch;     break;
     case 3: m_systems[t] = new CTournamentMatch; break;
-    case 4:
-        // online_preliminary::COnlinePreliminary（0x70）：构造逻辑未交付【推断】。
-        return 0;
-    case 5:
-        // fair_pvp::CFairMatch（0xc4）：构造逻辑未交付【推断】。
-        return 0;
+    case 4: m_systems[t] = new online_preliminary::COnlinePreliminary; break;
+    case 5: m_systems[t] = new fair_pvp::CFairMatch; break;
     default:
         return 0;
     }

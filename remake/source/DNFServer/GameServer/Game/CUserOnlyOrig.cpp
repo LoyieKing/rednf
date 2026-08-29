@@ -63,7 +63,7 @@
 #include "CPrivateStoreMgr.h"
 #include "STGrowthType.h"        // _Charac_info +0x29/+0x2a 子对象（LinkE2）
 #include "STPowerWarCharacData.h"// _Charac_info +0xe8d 子对象（LinkE2）
-#include <new>                   // _Charac_info pad 区子对象 placement new（LinkE2）
+#include "CAchievement.h"        // stAchievement_DBData（SIG_LOAD_ETC ctor 子对象）
 
 #include <algorithm>
 #include "HistoryLog.h"
@@ -4012,9 +4012,6 @@ void CUser::onSelectCharacter()
         if (i > 9) break;
         Inven_Item tmp;                                    // -0x61 起局部
         tmp = getCurCharacInvenR()->GetInvenSlot(0, i);
-        if (tmp.m_addInfo != 0) {
-            ++richCount;
-            G_CDataManager();
             CItem* def = G_CDataManager()->find_item(tmp.m_addInfo);
             bool isRare = false;
             if (def == 0) {
@@ -4023,7 +4020,6 @@ void CUser::onSelectCharacter()
                 isRare = (def->get_rarity() == 2);
             }
             if (isRare) ++rareCount;
-        }
         ++i;
     } while (true);
 
@@ -10610,19 +10606,34 @@ void CUser::_onCreateCharacter(unsigned int characNo, char* name, char job)
 //     第二实例恰抵 +0x121f，与 CUser.h pad 区边界互证）。
 // ===========================================================================
 
-// ---- SIG_LOAD_PREMIUM_LETHE（完整类型；CUser.h:6 前向声明的唯一补全）----
-struct SIG_LOAD_PREMIUM_LETHE
+// ---- SIG_LOAD_ETC ctor（ORIG W 0x08491f86；子对象区按 ORIG call 序
+//      placement new 显式构造；具名成员 m_tagEtc/m_pvpResult/m_records/
+//      m_attendanceEvent 由编译器自动构造）----
+SIG_LOAD_ETC::SIG_LOAD_ETC()
 {
-    SIG_LOAD_PREMIUM_LETHE();   // ORIG W _ZN21SIG_LOAD_PREMIUM_LETHEC1Ev @0x0848ff7c
-    _Mastered_skill m_skills[0xcb];   // +0x00（203 × 2B，循环步长 2）
-    char m_pad196[3];                 // +0x196..0x198（sizeof = 0x199）
-};
-
-SIG_LOAD_PREMIUM_LETHE::SIG_LOAD_PREMIUM_LETHE()
-{
-    // ORIG 0x0848ff7c：esi=0xcb 递减单循环直接构造（数组成员默认构造模式）。
-    // placement new 循环在 gcc 4.4.7 O0 下会生成双循环（多一次 _ZnwjPv 重建），
-    // 故用空体让数组成员自动逐元素构造（实验证实与 ORIG 一致）。
+    char* p = reinterpret_cast<char*>(this);
+    new (p + 0x2308) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
+    new (p + 0x24a0) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
+    new (p + 0x29fd) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
+    new (p + 0x2b97) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
+    for (int i = 0; i < 0x31; ++i)
+        new (p + 0x3e70 + i * 0xc) stNPCRelationship_t();       // 0x848fa50
+    new (p + 0x40ce) SIG_REDEEMINFO_LIST_TO_DB();               // 0x848f894
+    new (p + 0x466a) stTitleBook();                             // 0x848f62a
+    new (p + 0xb1a4) stAchievement_DBData();                    // 0x828d8d8
+    new (p + 0xc9af) SIG_SAVE_PC_ROOM_PLAY_TIME();              // 0x848fb64
+    new (p + 0xc9bc) std::bitset<32>();                         // 0x84954de
+    new (p + 0xc9c0) SIG_LOAD_SKILL();                          // 0x8491ee0
+    new (p + 0xcdd5) SIG_REQUEST_PVP_MISSION_LIST();            // 0x848f8d4
+    new (p + 0xd5a7) SIG_QUEST_SHOP_DATA();                     // 0x848f92e
+    new (p + 0xd6fc) SIG_ITEM_MAKING_SKILL();                   // 0x848fa82
+    new (p + 0xd718) SIG_REQUEST_TOD_USER_STATE();              // 0x8491f68
+    new (p + 0xd73c) SIG_ITEM_DICTIONARY_FLAG();                // 0x848fab2
+    new (p + 0xeac8) CharacterOption();                         // 0x822abec
+    new (p + 0xecc8) SIG_BOOSTER_GAGE_DATA();                   // 0x848fb4c
+    new (p + 0xecd0) SIG_BEST_CLEAR_TIME();                     // 0x848fb02
+    new (p + 0x14aaa) SIG_COMBO_SKILL();                        // 0x848fbbe
+    new (p + 0x14b5c) seriaRoom_AniDeco();                      // 0x822ee18
 }
 
 CharacterOption::CharacterOption()

@@ -73,39 +73,16 @@ QuestScript::QuestScript()
     clear();
 }
 
-
+// ORIG D1 0x08a70700（成员自动析构）。
 QuestScript::~QuestScript()
 {
-    destroy();
 }
+
 
 void QuestScript::clear()
 {
-    m_index = -1;
-    m_name = "";
-    m_requestDefault = "";
-    m_conditionDefault = "";
-    m_solveDefault = "";
-    m_fieldC8.clear();
-    m_str2e8 = "";
-    m_2ec = 0;
-    m_questType = 4;
-    m_npcIdx = 0;
-    m_fieldE8 = -1;
-    m_field134 = -1;
-    m_jobChangeQuest = 0;
-    m_field1b0.clear();
-    m_field1bc = 0;
-    m_field1c0 = -1;
-    m_postalReward.clear();
-    m_field1c4 = 4;
-    m_targetCharacters.clear();
-    m_fieldE0 = -1;
-    m_fieldD8 = 3;
-    m_fieldEC = 0xb;
-    m_fieldF0 = -1;
-    m_levelMin[0] = 0;
-    m_levelMin[1] = 0;
+    for (int i = 0; i <= 1; ++i)
+        m_levelMin[i] = 0;
     m_field108 = 0;
     m_intDataList.clear();
     m_antiQuestList.clear();
@@ -118,17 +95,15 @@ void QuestScript::clear()
     m_triggerType = 0;
     m_triggerSubType = 0;
     m_triggerData.clear();
+    m_field18c.clear();
     m_rewardType = 0;
     m_titleReward.clear();
     m_field1e4 = -1;
-    m_selectReward.clear();
+    m_field20c.clear();
     m_field218 = 0;
     m_rewardData.clear();
     m_field228 = -1;
     m_field22c = 0;
-    m_field22d = 1;
-    m_field22e = 0;
-    m_field23c = 0;
     m_field23d = 0;
     m_field240 = 100;
     m_str244 = "";
@@ -136,22 +111,39 @@ void QuestScript::clear()
     m_field24c = -1;
     m_field250 = -1;
     m_field254 = -1;
-    m_mailTitle.clear();
     m_mailQuestFlag = -1;
+    m_mailTitle.clear();
     m_mailContents.clear();
     m_mailItems.clear();
+    m_field1f4.clear();
+    m_selectReward.clear();
+    m_eventDialogs.clear();
+    m_field22d = 1;
+    m_field22e = 0;
+    for (int i = 0; i <= 2; ++i)
+        m_field230[i] = -1;
+    m_field23c = 0;
     m_field270 = 0;
-    m_powerSide = 1;
+    m_field271 = 1;
+    m_powerSide = 0xff;
     m_field274 = -1;
     m_field278 = 0;
     m_field27c = 0;
     m_questIdx = 0;
+    for (int i = 0; i <= 10; ++i)
+    {
+        m_jobNames[i] = 0;
+        m_jobRequests[i] = 0;
+        m_jobConditions[i] = 0;
+        m_jobSolves[i] = 0;
+    }
     m_field280 = 0;
     m_field282 = 0;
     m_field284 = -1;
     m_field288 = -1;
     m_field28c = -1;
     m_field290 = -1;
+    m_str294.clear();
     m_field2a8 = 0;
     m_field2ac = -1;
     m_2c8 = 0;
@@ -160,6 +152,8 @@ void QuestScript::clear()
     m_field128 = 0;
     m_field12c = 0;
     m_dailySchedule.clear();
+    m_field12c = 0;
+    m_field128 = 0;
     m_vec2f0.clear();
     m_vec2fc.clear();
     m_308 = 0;
@@ -519,7 +513,8 @@ int initTownScript(char* dir, char* list)
 
 bool importTownScript(TownScript* script, const char* path)
 {
-    // ORIG T 0x8aada90（382 条）逐指令转写：完整键值解析器。
+    // ORIG T 0x8aada90（382 条）：键值解析器。ScanType 失败=文件读完（break，
+    // 非错误）；ScanStr/ScanInt 返回值不检查（ORIG 无防御，Fix7_I 2026-08-30 修正）。
     if (!loadRDARScriptFile("Script/TownScript", path))
     {
         return false;
@@ -536,131 +531,120 @@ bool importTownScript(TownScript* script, const char* path)
     {
         if (!ScanType(line, true))
         {
-            return false;
+            break;
         }
         if (line == "[name]")
         {
-            if (!ScanStr(&script->m_str4))
-                return false;
+            ScanStr(&script->m_str4);
             continue;
         }
         if (line == "[entering title]")
         {
-            if (!ScanStr(&script->m_str8))
-                return false;
+            ScanStr(&script->m_str8);
             continue;
         }
         if (line == "[entering title next]")
         {
-            if (!ScanStr(&script->m_str10))
-                return false;
+            ScanStr(&script->m_str10);
             continue;
         }
         if (line == "[cutscene image]")
         {
-            if (!ScanStr(&script->m_strc))
-                return false;
-            if (!ScanInt(&script->m_14))
-                return false;
+            ScanStr(&script->m_strc);
+            script->m_14 = ScanInt((bool*)0);   // ORIG：ScanInt 返回直接存（无检查）
             continue;
         }
         if (line == "[dungeon what must be cleared]")
         {
-            if (!ScanInt(&script->m_18))
-                return false;
+            script->m_18 = ScanInt((bool*)0);
             continue;
         }
         if (line == "[only server parsing dungeon what must be cleared]")
         {
-            if (!ScanInt(&script->m_1c))
-                return false;
+            script->m_1c = ScanInt((bool*)0);
             continue;
         }
         if (line == "[area]")
         {
             TownAreaScript area;
             area.clear();
-            if (!ScanInt(&area.m_areaIndex))
-                return false;
-            if (!ScanStr(&area.m_mapName))
-                return false;
-            // [minimap rect]：4 个 int，按 ORIG 顺序 m_00/m_08/m_04/m_0c 填 T_Rect
-            if (!ScanType(sub, true))
-                return false;
+            bool flag = false;
+            area.m_areaIndex = ScanInt(&flag);      // ORIG 8aadc87 无检查
+            ScanStr(&area.m_mapName);               // ORIG 8aadc9f 无检查
+            ScanStr(&sub);                          // ORIG 8aadca4 ScanStr（非 ScanType）
             if (sub == "[minimap rect]")
             {
+                // ORIG 8aadcca..8aadd75：T_Rect 复用 + 多个 rect，
+                // 每个 rect 至多 4 值（m_00/m_08/m_04/m_0c），以 flag 失败终止。
                 T_Rect r;
-                int v = 0;
-                int i = 0;
                 for (;;)
                 {
-                    if (!ScanInt(&v))
-                        return false;
-                    if (i == 0)
-                        r.m_00 = v;
-                    else if (i == 1)
-                        r.m_08 = v;
-                    else if (i == 2)
-                        r.m_04 = v;
-                    else
-                        r.m_0c = v;
-                    if (i >= 3)
-                        break;
-                    ++i;
+                    value = ScanInt(&flag);         // 8aadcd5
+                    if (!flag)
+                        break;                      // 8aadd63 flag 检查
+                    int i = 0;
+                    do
+                    {
+                        if (i == 0)
+                            r.m_00 = value;
+                        else if (i == 1)
+                            r.m_08 = value;
+                        else if (i == 2)
+                            r.m_04 = value;
+                        else
+                            r.m_0c = value;
+                        value = ScanInt(&flag);     // 8aadd1e
+                        ++i;
+                    } while (i <= 3 && flag);       // 8aadd30
+                    area.m_rects.push_back(r);      // 8aadd4e
+                    if (!flag)
+                        break;                      // 8aadd63：读到新值则继续新 rect
                 }
-                area.m_rects.push_back(r);
-                if (!ScanType(sub, true))
-                    return false;
+                ScanStr(&sub);                      // ORIG 8aadd6f ScanStr
             }
-            else
+            if (sub == "[use private store]")
             {
-                line = sub;
-            }
-            // [use private store] → m_field24
-            if (line == "[use private store]")
-            {
-                if (!ScanInt(&value))
-                    return false;
-                area.m_field24 = (value != 0) ? 1 : 0;
-                if (!ScanType(line, true))
-                    return false;
+                value = ScanInt(&flag);             // ORIG 8aadd97
+                area.m_field24 = (value != 0) ? 1 : 0;  // ORIG 8aadda2 setne
+                ScanStr(&sub);                      // ORIG 8aaddb0 ScanStr
             }
             // 区域类型：normal/gate/fishing place/pub/dungeon gate/
             //          safe zone against a / safe zone against b
-            if (line == "[normal]")
+            if (sub == "[normal]")
                 area.m_areaType = 0;
-            else if (line == "[gate]")
+            else if (sub == "[gate]")
                 area.m_areaType = 1;
-            else if (line == "[fishing place]")
+            else if (sub == "[fishing place]")
                 area.m_areaType = 2;
-            else if (line == "[pub]")
+            else if (sub == "[pub]")
                 area.m_areaType = 3;
-            else if (line == "[dungeon gate]")
+            else if (sub == "[dungeon gate]")
                 area.m_areaType = 4;
-            else if (line == "[safe zone against a]")
+            else if (sub == "[safe zone against a]")
                 area.m_areaType = 5;
-            else if (line == "[safe zone against b]")
+            else if (sub == "[safe zone against b]")
                 area.m_areaType = 6;
             else
-            {
                 area.m_areaType = 0;
+            // ORIG 8aade99..8aadec7：循环 ScanInt 直到 flag 失败，全部 push
+            for (;;)
+            {
+                value = ScanInt(&flag);
+                if (!flag)
+                    break;
+                area.m_field18.push_back(value);
             }
-            if (!ScanInt(&value))
-                return false;
-            area.m_field18.push_back(value);
             script->m_areas[area.m_areaIndex] = area;
             continue;
         }
         if (line == "[limit level]")
         {
-            if (!ScanInt(&script->m_3c))
-                return false;
+            script->m_3c = ScanInt((bool*)0);
             continue;
         }
         if (line == "[need quest]")
         {
-            if (!ScanInt(&script->m_40))
-                return false;
+            script->m_40 = ScanInt((bool*)0);
             continue;
         }
         // 未知键：忽略（回到循环读下一行）

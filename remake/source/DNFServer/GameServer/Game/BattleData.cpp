@@ -38,6 +38,7 @@ BattleData::BattleData()
             new (&m_itemGroups2[i][j]) Inven_Item();
     for (int i = 0; i < 4; ++i)
         new (&m_gameResults[i]) GameResultType();
+    Reset();
 }
 
 BattleData::~BattleData()

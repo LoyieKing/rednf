@@ -11,6 +11,7 @@
 #include "TimeLog_.h"      // CUser::LogHistory（ORIG 0x0867c8d8 时间头）
 #include "cHistoryTrace.h" // CUser::LogHistory 日志输出
 #include "CSwitchLog.h"   // CUser::SetPvpIndex（ORIG 0x08669ee8 pvp@log）
+#include "HistoryLog.h"  // CUser::master_new_skill WriteLearnSkill（ORIG 0x0866b4d7）
 #include "CUser.h"
 #include "CUser.h"
 
@@ -30,6 +31,8 @@
 #include "GameBasicsScripts.h"
 #include "CParty.h"
 #include "SkillSlot.h"
+#include "CSkill.h"       // master_new_skills 成长展开 get_group（ORIG 866b9c0）
+#include "WarRoom.h"
 #include "WarRoom.h"
 #include "PvP_Room.h"   // add_pvp_result/update_pvp_point 房间查询（get_user_seat 等）
 #include "SyncScriptDeps.h"   // toTString（RewardItem2DeleteInvalidItem 字符串表翻译）
@@ -5782,7 +5785,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
     {
         pkt->put_byte(0);
         static const unsigned char errMap[6] = {0x15, 0x16, 0x12, 0x01, 0x5b, 0x5c};
-        unsigned char e = (ret >= -6 && ret <= -1) ? errMap[-ret - 1] : 0;
+        unsigned char e = (ret >= -6 && ret <= -1) ? errMap[-ret - 6] : 0;
         pkt->put_byte(e);
     }
     else
@@ -5798,7 +5801,9 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
         {
             pkt->put_byte(ret);
             pkt->put_byte(skillIdx);
-            pkt->put_byte(((SkillSlot*)getCurCharacSkillR())->get_skill_level(ret));
+            int level = ((SkillSlot*)getCurCharacSkillR())->get_skill_level(ret);
+            pkt->put_byte(level);
+            HistoryLog::WriteLearnSkill((FILE*)m_field796f8, (int)skillIdx, level);
         }
         else
         {
@@ -6139,7 +6144,8 @@ void CUser::UpdateData()
 
 // 0x086554aa：登出主链路（UpdateLogout.md）。SIG_UPDATE_LOGOUT(0x2c, 0x8b 字节)：
 // accId/characNo/gcNo/fatigue；state>1 记 playTime/IP/机器码/会员奖励疲劳并复位；
-// 写登录时间戳；历史日志 Logout；DB 杂项；!param 发包(1,3)。
+// 两条 trace（0x22e0/0x22e2）；写登录时间戳；历史日志 Logout；DB 杂项（复仇/
+// ontime/疲劳出勤）；!param 发包(1,3)；清商城内购限制。
 void CUser::UpdateLogout(bool param)
 {
     UpdateCharacView();
@@ -6151,13 +6157,18 @@ void CUser::UpdateLogout(bool param)
     char* sig = (char*)guard.GetInBuffer<SIG_UPDATE_LOGOUT>();
     memset(sig, 0, 0x8b);
     *(unsigned int*)(sig + 0x00) = get_acc_id();
-    *(unsigned int*)(sig + 0x08) =
-        (unsigned int)G_CEnvironment()->get_gc_no();
+    // ORIG 0x865557c：IntegratedPvP 频道用 get_gc_no_hardcode(GetServerGroup())。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        *(unsigned int*)(sig + 0x08) =
+            (unsigned int)G_CEnvironment()->get_gc_no_hardcode(GetServerGroup());
+    else
+        *(unsigned int*)(sig + 0x08) = (unsigned int)G_CEnvironment()->get_gc_no();
     if (getCurCharacR() != 0)
     {
         *(unsigned int*)(sig + 0x04) = (unsigned int)getCurCharacNo();
         *(unsigned short*)(sig + 0x0c) = GetFatigue();
     }
+    ((XNuclear::CHades*)getHades())->Send_Logout();   // ORIG 0x8655605
 
     long now = (long)GlobalData::s_systemTime_.getCurSec();
     *(sig + 0x12) = 0;
@@ -6176,19 +6187,37 @@ void CUser::UpdateLogout(bool param)
         char mac[0x41];
         memset(mac, 0, sizeof(mac));
         memcpy(mac, m_network.get_mac_addr(), 0x41);
-        memcpy(sig + 0x47, mac, 0x41);
+        strncpy(sig + 0x47, mac, 0x41);
         *(sig + 0x88) = (char)(IsEnableSaveMemberBonusFatigue() ? 1 : 0);
         DisableSaveMemberBonusFatigue();
         *(unsigned short*)(sig + 0x89) =
             (unsigned short)getAccountMemberBonusFatigue();
         resetAccountMemberBonusFatigue();
     }
+    {
+        // ORIG 0x8655791/0x8655803：0x71ba4 更新前后各打一条 trace。
+        int mid = get_unique_id();
+        int playTime = *(int*)(sig + 0x13);
+        cMyTrace tr1(__PRETTY_FUNCTION__, 0x22e0, 0);
+        tr1("trace mid:%d playTime:%d login_time:%d now_time:%d",
+            mid, playTime, *(long*)((char*)this + 0x71ba4), (int)now);
+    }
     *(long*)((char*)this + 0x71ba4) = now;
+    {
+        int mid = get_unique_id();
+        int playTime = *(int*)(sig + 0x13);
+        cMyTrace tr2(__PRETTY_FUNCTION__, 0x22e2, 0);
+        tr2("trace mid:%d playTime:%d login_time:%d now_time:%d",
+            mid, playTime, *(long*)((char*)this + 0x71ba4), (int)now);
+    }
 
     bool sendOut = get_acc_id() != 0 ||
+                   G_GameWorld()->IsIntegratedPvPBaseChannel() ||
                    G_GameWorld()->GetChannelType() == 7;
     if (sendOut)
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
+    else
+        GlobalData::s_stream_pool->Free(guard);
 
     if (m_network.get_str_ip()[0] != '\0' && getCurCharacName() != 0)
     {
@@ -6206,10 +6235,28 @@ void CUser::UpdateLogout(bool param)
     DBUpdateDBLogItem();
     ResetDBLogItem();
 
+    {
+        unsigned int characNo = getCurCharacNo();
+        unsigned char villageCnt = GetCurVillageAttackCount();
+        unsigned char revengeCnt = GetCurRevengeDungeonCount();
+        if (IsVillageAttackDBUpdate())
+            DB_UpdateRevengeData::makeRequest(characNo, villageCnt, revengeCnt);
+    }
     if (is_update_ontime_last_recv_idx())
     {
-        // 推断：DB_UpdateOntimeLastRecvIdx::makeRequest(uid, accId, idx) 待 DB 域接线。
+        DB_UpdateOntimeLastRecvIdx::makeRequest(GetUID(), get_acc_id(),
+                                                get_ontime_last_recv_idx());
         reset_update_ontime_last_recv_idx();
+    }
+    if (((EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng())
+            ->is_eventing(0x56))
+    {
+        if (get_server_fatigue_day_size() != 0)
+        {
+            DB_UpdateFatigueAttendance::makeRequest(
+                get_acc_id(), m_map8eb50);
+            reset_server_fatigue_data();
+        }
     }
     reset_ingame_event_history();
 
@@ -6221,6 +6268,7 @@ void CUser::UpdateLogout(bool param)
         ((InterfacePacketBuf*)&pkt)->finalize(true);
         Send(pkt);
     }
+    CerashopAddRestrict::Manager::ClearBuyRestrictItem(this);
 }
 
 // 0x0867e734：日删可堆叠物品（deleteDailyStackableItem.md）。区间 [a,b] 三重过滤
@@ -6745,12 +6793,12 @@ void CUser::send_ontime_reward_start_notify()
 // remain_sp(short)+count(byte)+N×{idx,lvl,master}（计数事后回填）；公会技能段
 // （+0x44 计数、+0x45+i*5 等级、+0x49 master，5 字节步进）在 PvP 树频道清零；
 // 末尾两个 sfp 余量 short；发完追加 sendComboSkillList。
-static void s2_putSkillTree(InterfacePacketBuf* pkt, const char* skillBase,
-                            int baseOff, int idxBase)
+// 树段：写入单技能 {槽位, 等级, 熟练度, 命令段}；cntIdx/count 由调用方
+// 管理（树段与 guild 段共用同一数量回填，ORIG send_skill_info 0x866c46a）。
+static void s2_putSkillTree(CUser* user, InterfacePacketBuf* pkt,
+                            const char* skillBase, int baseOff, int idxBase,
+                            int& count)
 {
-    int cntIdx = pkt->get_index();
-    int written = 0;
-    pkt->put_byte(0);
     for (int i = 0; i < 0xcc; ++i)
     {
         unsigned char level =
@@ -6762,40 +6810,70 @@ static void s2_putSkillTree(InterfacePacketBuf* pkt, const char* skillBase,
         pkt->put_byte(i);
         pkt->put_byte((int)level);
         pkt->put_byte((int)master);
-        ++written;
-        pkt->put_byte(0);   // 技能命令段：findSkillCommandData 未建模，按 0 占位（推断）
+        ++count;
+        STSkillCommandData cmd;
+        if (user->findSkillCommandData((int)level, cmd))
+        {
+            pkt->put_byte((int)cmd.m_count);
+            for (int j = 0; j < (int)cmd.m_count; ++j)
+            {
+                pkt->put_byte((int)(*((unsigned char*)&cmd + 3 + j)));
+            }
+        }
+        else
+        {
+            pkt->put_byte(0);
+        }
     }
-    pkt->put_byte(cntIdx, written);   // 回填数量
+}
+
+// guild 段：写入 {槽位+0x8a, 等级, 称号} + 命令占位 0；共用 count 回填。
+static void s2_putGuildSkill(InterfacePacketBuf* pkt, void* guildDB,
+                             int guildCnt, unsigned char grade, int& count)
+{
+    for (int i = 0; i < guildCnt; ++i)
+    {
+        int glv = *(int*)((char*)guildDB + i * 5 + 0x45);
+        if (grade == 0 || glv <= 0xc7)
+            continue;
+        pkt->put_byte(i + 0x8a);
+        pkt->put_byte(glv);
+        pkt->put_byte((int)*(signed char*)((char*)guildDB + i * 5 + 0x49));
+        ++count;
+        pkt->put_byte(0);   // 命令段占位（ORIG 同位置 put_byte 0）
+    }
 }
 
 void CUser::send_skill_info()
 {
+    // ORIG 0x0866c46a：树0 段 + guild 段共用 count 回填；树1 段 + guild
+    // 段再共用 count 回填；尾部 SFP 两短整 + finalize + Send + sendComboSkillList。
     PacketGuard packet;
     InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
     SkillSlot* skill = (SkillSlot*)getCurCharacSkillR();
     const char* sb = (const char*)getCurCharacSkillR();
-
-    pkt->put_header(0, 0x13);
-    pkt->put_short(skill->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0));
-    s2_putSkillTree(pkt, sb, 6, 0x20);          // 树0：base+6, idx+0x20
-
     void* guildDB = GetGuildDBInfo();
     int guildCnt = *(unsigned char*)((char*)guildDB + 0x44);
     if (G_GameWorld()->IsPvPSkilTreeChannel())
         guildCnt = 0;
     unsigned char grade = getGuildMemberGrade();
-    for (int i = 0; i < guildCnt; ++i)
-    {
-        int glv = *(int*)((char*)guildDB + i * 5 + 0x45);
-        if (grade == 0 || glv < 200)
-            continue;
-        pkt->put_byte(i + 0x8a);
-        pkt->put_byte(glv);
-        pkt->put_byte((int)*(signed char*)((char*)guildDB + i * 5 + 0x49));
-    }
+
+    pkt->put_header(0, 0x13);
+    pkt->put_short(skill->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0));
+    int cntIdx = pkt->get_index();
+    int count = 0;
+    pkt->put_byte(0);
+    s2_putSkillTree(this, pkt, sb, 6, 0x20, count);       // 树0：base+6, idx+0x20
+    s2_putGuildSkill(pkt, guildDB, guildCnt, grade, count);
+    pkt->put_byte(cntIdx, count);
 
     pkt->put_short(skill->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1));
-    s2_putSkillTree(pkt, sb, 0xe, 0xe8);        // 树1：base+0xe, idx+0xe8
+    cntIdx = pkt->get_index();
+    count = 0;
+    pkt->put_byte(0);
+    s2_putSkillTree(this, pkt, sb, 0xe, 0xe8, count);     // 树1：base+0xe, idx+0xe8
+    s2_putGuildSkill(pkt, guildDB, guildCnt, grade, count);
+    pkt->put_byte(cntIdx, count);
 
     pkt->put_short(skill->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2));
     pkt->put_short(skill->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3));
@@ -8175,9 +8253,8 @@ void CUser::reqHumanCertify4ClearMap(bool flag)
 // ---- CUser::master_new_skills @ 0x0866b53e ----
 // 批量习得技能：按 _Mastered_skill 数组计算 SP/SFP 用量并扣减对应技能树余量，
 // 将技能槽写入（set_skill_slot_at_index），同时记录 SP/SFP 消耗日志。
-// 依据 docs/class_func_reports/CUser/master_new_skills.md 反编译；
-// 成长型 give-skill 展开部分（CCharacter 布局 + G_CDataManager()+0x14）待
-// CCharacter 布局批次落地后按报告补全，此处置 PvP 技能树通路返回 true。
+// PvP 树频道直接返回 true；普通树按 secondGrow/firstGrow 走成长型
+// get_give_skill 展开（ORIG 866b844-866bcd5 逐段转写）。
 bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind)
 {
     int usedSp = 0;
@@ -8217,9 +8294,78 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
 
     slotW->set_skill_slot_at_index((char*)skills, 0x198, kind);
 
-    // TODO(G1)：PvP 通路（GameWorld::IsPvPSkilTreeChannel）与成长型
-    // give-skill 展开（CCharacter::get_give_skill 经 G_CDataManager()+0x14）
-    // 按 master_new_skills.md 补全后返回相应结果；当前按固定应用成功返回。
+    if (G_GameWorld()->IsPvPSkilTreeChannel())
+        return true;
+
+    // ORIG 866b852：secondGrow 非零 → get_give_skill(flag=0) 展开。
+    if (getCurCharSecondGrowType() != 0)
+    {
+        std::vector<std::pair<int, int> > giveVec;
+        CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
+        char got = chars[get_charac_job()].get_give_skill(
+            getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 0);
+        if (got == 0)
+            return false;
+        for (int i = 0; i < (int)giveVec.size(); ++i)
+        {
+            int skillId = giveVec[i].first;
+            int level = giveVec[i].second;
+            CSkill* skill =
+                G_CDataManager()->find_skill(get_charac_job(), skillId);
+            if (skill == 0)
+            {
+                LogManager::logFormat(
+                    1, "user.cpp",
+                    "bool CUser::master_new_skills(_Mastered_skill*, "
+                    "ENUM_SKILL_TREE_KIND)",
+                    0x52bd, "G_CDataManager()->find_skill( %d, %d )",
+                    get_charac_job(), skillId);
+                return false;
+            }
+            int group = skill->get_group();
+            int slotNo = slotR->get_skillslot_no(skillId, group, kind, true);
+            if (slotNo < 0)
+            {
+                slotW->growtype_skill(get_charac_job(), skillId, level, kind);
+            }
+        }
+        return true;
+    }
+
+    // ORIG 866ba98：firstGrow 非零 → get_give_skill(flag=1) 展开。
+    if (getCurCharFirstGrowType() != 0)
+    {
+        std::vector<std::pair<int, int> > giveVec;
+        CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
+        char got = chars[get_charac_job()].get_give_skill(
+            getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 1);
+        if (got == 0)
+            return false;
+        for (int i = 0; i < (int)giveVec.size(); ++i)
+        {
+            int skillId = giveVec[i].first;
+            int level = giveVec[i].second;
+            CSkill* skill =
+                G_CDataManager()->find_skill(get_charac_job(), skillId);
+            if (skill == 0)
+            {
+                LogManager::logFormat(
+                    1, "user.cpp",
+                    "bool CUser::master_new_skills(_Mastered_skill*, "
+                    "ENUM_SKILL_TREE_KIND)",
+                    0x52e0, "G_CDataManager()->find_skill( %d, %d )",
+                    get_charac_job(), skillId);
+                return false;
+            }
+            int group = skill->get_group();
+            int slotNo = slotR->get_skillslot_no(skillId, group, kind, true);
+            if (slotNo < 0)
+            {
+                slotW->growtype_skill(get_charac_job(), skillId, level, kind);
+            }
+        }
+        return true;
+    }
     return true;
 }
 

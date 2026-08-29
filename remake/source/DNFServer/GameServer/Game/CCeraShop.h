@@ -19,7 +19,7 @@ class CCeraShopGoods;  // 前向（_CheckBuyingCondition/_CheckValidCount 形参
 class CItem;      // 前向（autoUnsealItem 形参；完整定义在 CItem.h）
 struct MSG_BUY_CERASHOP_ITEM;          // 前向（ProcessBuyRequest const& 形参；完整定义在 SigTypes.h）
 namespace WongWork { namespace IPG { struct SIPGData; } }  // 前向（ProcessIPGUserData 形参）
-class STSpecailItem_Param;   // 全局类；完整定义见 CCeraShop_Special.cpp 局部视图
+class STSpecailItem_Param;   // 完整定义见本文件尾部（ORIG W ctor 0x08234ec2，inline）
 class STSpecailItem_Result;
 
 // ORIG SpecialItemHandler 为全局类（mangled _ZN18SpecialItemHandler…，非 WongWork 前缀）。
@@ -135,8 +135,8 @@ public:
         int m_fieldc;            // +0x0c（→ +0x18）
         unsigned short m_field10;// +0x10（→ +0x10）
     };
-    void LogError(const stErrorLogInput_t& input) const;                           // 0x0832033a
-    void CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
+    void LogError(const stErrorLogInput_t& input) const;   // 0x0832033a
+    bool CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
                                 STSpecailItem_Result& result);                     // 0x08325854
     void _ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
                           IPG::SIPGData* resData, unsigned char errCodeA,
@@ -163,5 +163,51 @@ private:
 };
 
 }  // namespace WongWork
+
+// ---------------------------------------------------------------------------
+// STSpecailItem_Param / STSpecailItem_Result —— ORIG 全局类型（mangled 19STSpecailItem……
+// 非 WongWork 前缀）。完整定义自 CCeraShop_Special.cpp 提升（2026-08-30，Fix7_I）。
+// 布局（ORIG W ctor 0x08234ec2/0x08234f36 转写）：见下注释。
+// 供 Dispatcher_CeraPackageOpen::process 真实调用 CallSpecialItemHandler。
+// ---------------------------------------------------------------------------
+struct STSpecailItem_Param
+{
+    STSpecailItem_Param(std::vector<Inven_Item>& items,
+                        WongWork::CCeraShop::stCeraShopItemParam_t& cera)
+    {
+        m_user = 0;
+        m_itemIdx = 0;
+        m_value = 0;
+        m_items = &items;
+        m_ceraParam = &cera;
+        m_count = 0;
+        m_time = 0;
+        m_flag = 0;
+        m_char1e = 0;
+        m_char1d = m_char1e;
+        m_char1f = 0;
+        m_extra = 1;
+    }
+
+    void* m_user;            // +0x00（ProcessSpecialItem 写 CUser*）
+    int m_itemIdx;           // +0x04
+    int m_value;             // +0x08
+    void* m_items;           // +0x0c
+    void* m_ceraParam;       // +0x10
+    int m_count;             // +0x14
+    long m_time;             // +0x18
+    unsigned char m_flag;    // +0x1c
+    unsigned char m_char1d;  // +0x1d
+    unsigned char m_char1e;  // +0x1e
+    unsigned char m_char1f;  // +0x1f
+    int m_extra;             // +0x20
+};
+
+// ORIG _ZN20STSpecailItem_ResultC1Ev (W 0x08234f36)：仅清零首 4 字节。
+struct STSpecailItem_Result
+{
+    STSpecailItem_Result() { m_value = 0; }
+    int m_value;  // +0x00
+};
 
 #endif  // GAME_CCERASHOP_H

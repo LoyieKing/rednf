@@ -738,8 +738,8 @@ bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 {
     static const int handleIdx = 3;
-    char bufSlot[1002];            // 帧 -0x402 区（skillB 压缩输出）
-    char bufSecond[1002];          // 帧 -0x20d 区（skillA 压缩输出）
+    char bufSlot[0x1f5];           // 帧 -0x402 区（skillB 压缩输出，ORIG 501B）
+    char bufSecond[0x1f5];         // 帧 -0x20d 区（skillA 压缩输出，ORIG 501B）
     memset(bufSlot, 0, sizeof(bufSlot));
     memset(bufSecond, 0, sizeof(bufSecond));
     unsigned int lenSlot = 0x1f5;     // -0x18

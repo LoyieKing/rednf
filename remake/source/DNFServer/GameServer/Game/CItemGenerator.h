@@ -334,9 +334,6 @@ public:
                        int grade, int group, int slot, RandomOption* opts); // ORIG T 0x085f3340
 
 private:
-    static bool give_option_core(CRandomOptionItemHandle*, unsigned long,
-                                 ENUM_RARITY, int, int, int, RandomOption*,
-                                 RegenerationROI*, int optType, bool regenVer);
     int _get_level_limit(ENUM_RARITY rarity, int level);                 // T 0x085f0f9a
     int _get_part_type(int limit);                                       // T 0x085f1088
     int _get_part_type_by_ItemGroup(int limit,

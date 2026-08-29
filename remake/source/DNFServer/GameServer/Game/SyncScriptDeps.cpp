@@ -373,10 +373,10 @@ bool SyncScript::truncateItemDescTable()
 }
 
 // ORIG 0x08134132：见头注。type==1→+0x10 vec；type==2→+0x1c vec；type==0→+0x04 vec；
-// 其它 type 直接返回 0。逐项 CodePage::script2Database 转换 desc 后 sprintf 元组，
-// 项间追加 ", "；任一项转换失败返回 0（ORIG 走错误日志路径）。
-int SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
-                                   AdvanceAltarShopType::T type, std::string& out)
+// 其它 type 直接返回 false。逐项 CodePage::script2Database 转换 desc 后 sprintf 元组，
+// 项间追加 ", "；任一项转换失败走 cMyTrace 错误日志并返回 false。
+bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
+                                    AdvanceAltarShopType::T type, std::string& out)
 {
     const std::vector<BuyUpgradeData>* vec = 0;
     switch (type)
@@ -384,31 +384,39 @@ int SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
     case AdvanceAltarShopType::T_1: vec = &data.m_vecT1; break;
     case AdvanceAltarShopType::T_2: vec = &data.m_vecT2; break;
     case AdvanceAltarShopType::T_0: vec = &data.m_vecT0; break;
-    default: return 0;
+    default: return false;
     }
 
-    char tuple[1024];
-    char conv[1024];
-    for (int i = 0; i < (int)vec->size(); ++i)
+    char tuple[0x400];
+    const int total = (int)vec->size();
+    int i = 0;
+    for (std::vector<BuyUpgradeData>::const_iterator it = vec->begin();
+         it != vec->end(); ++it, ++i)
     {
-        const BuyUpgradeData& item = (*vec)[i];
-        memset(conv, 0, sizeof(conv));
-        if (CodePage::script2Database((char*)item.m_strDesc.c_str(), conv))
+        std::string s;                 // ORIG 循环体内多余局部（汇编构造/析构实证）
+        char conv[0x100] = {0};
+        if (!CodePage::script2Database(
+                const_cast<char*>(it->m_strDesc.c_str()), conv))
         {
-            sprintf(tuple, "(%d,%d,%d,'%s')", ridableId, (int)type,
-                    item.m_nItemId, conv);
-            out += tuple;
-            if (i < (int)vec->size() - 1)
-            {
-                out += ", ";
-            }
+            cMyTrace trace(
+                "static bool advancealtar::SyncScript::getItemValueStirng(int, const advancealtar::BuyShopData&, advancealtar::AdvanceAltarShopType::T, std::tstring&)",
+                0xd36, 5);
+            trace("Error!!! %s->%s [%s][%s][%d]",
+                  CodePage::script(), CodePage::database(),
+                  it->m_strDesc.c_str(),
+                  "static bool advancealtar::SyncScript::getItemValueStirng(int, const advancealtar::BuyShopData&, advancealtar::AdvanceAltarShopType::T, std::tstring&)",
+                  0xd36);
+            return false;
         }
-        else
+        sprintf(tuple, "(%d,%d,%d,'%s')", ridableId, (int)type,
+                it->m_nItemId, conv);
+        out += tuple;
+        if (i < total - 1)
         {
-            return 0;
+            out += ", ";
         }
     }
-    return 1;
+    return true;
 }
 
 // ORIG 0x08133ea6：遍历 G_CDataManager()+0x631c 的 map<int,BuyShopData>

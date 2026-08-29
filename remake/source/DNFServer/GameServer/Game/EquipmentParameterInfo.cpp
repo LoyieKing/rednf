@@ -18,6 +18,7 @@
 #include "ScriptValue.h"
 #include "SyncScriptDeps.h"   // toTString / getCharacterJob
 #include "CreatureScript.h"  // ENUM_ELEMENT（getElementName 形参）
+#include "CEnvironment.h"    // less_TCHAR / SpinLock（GetSkillPhase static map）
 
 // ORIG 全局记账（0x949b28c/0x949b294，C1/C2 递增、D1 递减）：
 // 实例计数与按 sizeof 累积的分配字节数。
@@ -1935,41 +1936,111 @@ static int GetItemGrowtype(EquipmentParameterInfo::SASPROPERTY* sp)
     return 1;
 }
 
-// GetSkillApplyCondition —— ORIG 0x89bd8ea（static local，大分派）。消费
-// [skill apply condition] 块直至 "[/skill apply condition]"；已具名证据子键：
-//   [lower bound level]→m_head[3]、[upper bound level]→m_head[4]；
-// 其余子键（job/state 等）在此仅消费扫描流不入 sp 字段，保持块推进。
+// [skill apply condition] 块直至 "[/skill apply condition]"；子键语义（ORIG
+// 惰性 map 分派实证）：
+//   [lower bound level]→m_head[3]、[upper bound level]→m_head[4]、
+//   [value]→m_head[5]；[skill group] 后 ScanStr 查 passive/active/all →
+//   m_head[2]（1/0/-1）；[extra condition] 后 ScanStr 循环查
+//   [normal skill]→bit1、[consume item skill]→bit2、[ex skill]→bit4、
+//   [except for ex skill]→bit1|bit2 位或入 m_head[6]，flags==0 返回 0。
+// 未知标签（惰性 map 已建）返回 0；ScanType/ScanInt/ScanStr 失败返回 0。
 static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 {
+    if (sp == 0) return 0;
     std::string token;
     for (;;)
     {
         if (!ScanType(token, true)) return 0;
         if (token == "[/skill apply condition]") return 1;
-        if (token == "[lower bound level]") { if (!ScanInt(&sp->m_head[3])) return 0; }
-        else if (token == "[upper bound level]") { if (!ScanInt(&sp->m_head[4])) return 0; }
-        else { int discard = 0; ScanInt(&discard); }
+        if (token == "[lower bound level]")
+        {
+            if (!ScanInt(&sp->m_head[3])) return 0;
+        }
+        else if (token == "[upper bound level]")
+        {
+            if (!ScanInt(&sp->m_head[4])) return 0;
+        }
+        else if (token == "[value]")
+        {
+            if (!ScanInt(&sp->m_head[5])) return 0;
+        }
+        else if (token == "[skill group]")
+        {
+            std::string str;
+            if (!ScanStr(&str)) return 0;
+            if      (str == "[passive]") sp->m_head[2] = 1;
+            else if (str == "[active]")  sp->m_head[2] = 0;
+            else if (str == "[all]")     sp->m_head[2] = -1;
+            else                         return 0;   // map2 已建未命中
+        }
+        else if (token == "[extra condition]")
+        {
+            int flags = 0;
+            std::string str;
+            while (ScanStr(&str))
+            {
+                if      (str == "[normal skill]")      flags |= 1;
+                else if (str == "[consume item skill]") flags |= 2;
+                else if (str == "[ex skill]")           flags |= 4;
+                else if (str == "[except for ex skill]") flags |= 3;
+                else    return 0;   // map3 已建未命中
+            }
+            if (flags == 0) return 0;
+            sp->m_head[6] = flags;
+        }
+        else
+        {
+            return 0;   // map1 已建未命中
+        }
     }
 }
 
-// GetSkillPhase —— ORIG 0x89be70c（static local）。消费 [skill phase] 块直至
-// "[/skill phase]"；子键参数扫描消费入 sp->m_vec20（float 列表）。
+// GetSkillPhase —— ORIG 0x89be70c（static local）。消费 [skill phase] 块：
+// 惰性初始化 static map（"[all]"→0x2f8c … "[fourth]"→0x2f9b），ScanStr 读
+// token 查表，命中写 sp->m_head[7] = phase（0..5）并返回 1，未命中返回 0。
 static int GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
 {
+    if (!sp) return 0;
+    static std::map<const char*, int, less_TCHAR> s_phaseMap;
+    static SpinLock s_lock;
+    static bool s_init = false;
     std::string token;
     for (;;)
     {
-        if (!ScanType(token, true)) return 0;
-        if (token == "[/skill phase]") return 1;
-        float f = 0.0f;
-        if (ScanFloat(&f)) sp->m_vec20.push_back(f);
-        else { int d = 0; ScanInt(&d); sp->m_vec20.push_back((float)d); }
+        if (!ScanStr(&token)) return 0;
+        if (!s_init)
+        {
+            s_lock.enter();
+            if (s_init) { s_lock.leave(); continue; }
+            s_phaseMap.insert(std::make_pair("[all]", 0x2f8c));
+            s_phaseMap.insert(std::make_pair("[common]", 0x2f8f));
+            s_phaseMap.insert(std::make_pair("[first]", 0x2f92));
+            s_phaseMap.insert(std::make_pair("[second]", 0x2f95));
+            s_phaseMap.insert(std::make_pair("[third]", 0x2f98));
+            s_phaseMap.insert(std::make_pair("[fourth]", 0x2f9b));
+            s_lock.leave();
+            s_init = true;
+            continue;   // ORIG 置 init 后重新 ScanStr（89bebf2 jmp 89be755）
+        }
+        std::map<const char*, int, less_TCHAR>::const_iterator it =
+            s_phaseMap.find(token.c_str());
+        int id = (it != s_phaseMap.end()) ? it->second : -1;
+        switch (id)
+        {
+        case 0x2f8c: sp->m_head[7] = 5; return 1;
+        case 0x2f8f: sp->m_head[7] = 4; return 1;
+        case 0x2f92: sp->m_head[7] = 0; return 1;
+        case 0x2f95: sp->m_head[7] = 1; return 1;
+        case 0x2f98: sp->m_head[7] = 2; return 1;
+        case 0x2f9b: sp->m_head[7] = 3; return 1;
+        default: return 0;
+        }
     }
 }
 
-// ---- importAllSkillItem（ORIG 0x089bec41，static local） ----
-// 构建一个 SASPROPERTY 并从词法流填充 [item growtype]/[skill apply condition]/
-// [skill phase]/[skill levelup]，结束 push 到 info->m_418（vector<SASPROPERTY>）。
+// ORIG：static map<const char*,int> 懒初始化——首次调用丢弃第一个 token（仅
+// 触发初始化），其后未知 token 一律返回 0（default 分支）；[skill levelup] 的
+// GetSkillLevelUp 直接填充 sp.m_vec20（+0x20），非局部 vector。
 static int importAllSkillItem(EquipmentParameterInfo* info)
 {
     EquipmentParameterInfo::SASPROPERTY sp;
@@ -1978,8 +2049,14 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
     sp.m_head[6] = 7;   sp.m_head[7] = 5;
     std::string token;
     bool terminated = false;
+    static bool s_first = true;   // ORIG static map 懒初始化：首次调用丢弃首 token
     while (ScanType(token, true))
     {
+        if (s_first)
+        {
+            s_first = false;
+            continue;
+        }
         if (token == "[/all skill item]")
         {
             terminated = true;
@@ -1999,8 +2076,11 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
         }
         else if (token == "[skill levelup]")
         {
-            std::vector<float> v;
-            if (!GetSkillLevelUp(&v)) return 0;
+            if (!GetSkillLevelUp(&sp.m_vec20)) return 0;
+        }
+        else
+        {
+            return 0;             // ORIG default：未知 token → 失败
         }
     }
     if (terminated)
@@ -2019,15 +2099,23 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
 }
 
 // ---- importItemOverpowerDesc（ORIG 0x089bf290，static local） ----
-// 循环 ScanType 读 token；"[stat]"→局部 vector+GetStat 后 push 到 info->m_428；
-// "[/item overpower desc]"→结束；结束时 m_428 非空置 m_424=m_425=1 返回 1 否则 0。
+// 循环 ScanType 读 token；"[stat]"→局部 vector+GetStat（失败不 push）后 push
+// 到 info->m_428；"[/item overpower desc]"→结束。ORIG 结尾语义（与直觉相反，
+// 忠实保留）：token 耗尽（未 terminated）返回 0；terminated 且 m_428 为**空**
+// 时置 m_424=m_425=1 返回 1；terminated 且 m_428 非空返回 0。未知 token 返回
+// 0（default）；首次调用丢弃首 token（static map 懒初始化）。
 static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 {
     std::string token;
     bool terminated = false;
-    bool any = false;
+    static bool s_first = true;
     while (ScanType(token, true))
     {
+        if (s_first)
+        {
+            s_first = false;
+            continue;
+        }
         if (token == "[/item overpower desc]")
         {
             terminated = true;
@@ -2035,13 +2123,19 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
         }
         if (token == "[stat]")
         {
+            // ORIG：GetStat（push 12.0f + GetStatValue）后以 eax 残留的
+            // GetStatValue 返回值判定，成功才 push 到 m_428。
             std::vector<float> v;
-            GetStat(&v);
-            info->m_119.m_428.push_back(v);
-            any = true;
+            v.push_back(12.0f);
+            if (GetStatValue(&v))
+                info->m_119.m_428.push_back(v);
+        }
+        else
+        {
+            return 0;
         }
     }
-    if (terminated && any)
+    if (terminated && info->m_119.m_428.empty())
     {
         info->m_119.m_424 = 1;
         info->m_119.m_425 = 1;
@@ -2560,15 +2654,15 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
         }
         else if (line == "[cooltime]")
         {
-            e.m_key = 2; e.m_v8 = ScanInt((bool*)0);
+            e.m_key = 2; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
         else if (line == "[mp]")
         {
-            e.m_key = 3; e.m_v8 = ScanInt((bool*)0);
+            e.m_key = 3; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
         else if (line == "[maintain mp]")
         {
-            e.m_key = 4; e.m_v8 = ScanInt((bool*)0);
+            e.m_key = 4; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
         else if (line == "[skill consume item]")
         {
@@ -2576,7 +2670,7 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
         }
         else if (line == "[casting time]")
         {
-            e.m_key = 6; e.m_v8 = ScanInt((bool*)0);
+            e.m_key = 6; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
         // 未知标签：不消费 level token，key/level 保持默认
 

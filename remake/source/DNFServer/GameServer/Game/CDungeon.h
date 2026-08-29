@@ -598,6 +598,9 @@ struct STDungeonScript
     unsigned char m_505;                             // +0x505
     char m_508;                             // +0x508
     char m_509;                             // +0x509
+    char m_50a;                             // +0x50a（ORIG Clear movl $0,0x508 覆盖 508-50b）
+    char m_50b;                             // +0x50b
+    char m_50c;                             // +0x50c（ORIG Clear movb $0,0x50c）
 
     STDungeonScript();
     ~STDungeonScript();

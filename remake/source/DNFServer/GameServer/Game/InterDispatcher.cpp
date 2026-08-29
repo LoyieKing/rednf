@@ -5852,19 +5852,23 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
     }
     user->UpdateCharacView();
 
-    for (int round = 0; round < 2; ++round)
+    if (*reinterpret_cast<int*>(data + 0x2c) != 0)
     {
-        // 轮内：guild 条件 + monitor 无条件（ORIG 顺序直写两轮，语义等价展开）
-        (void)round;
-        if (*reinterpret_cast<int*>(data + 0x2c) != 0)
-        {
-            CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-            proxy->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                      static_cast<unsigned int>(characNo),
-                                      static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
-                                      data + 4);
-        }
+        CGuildServerProxy* proxy =
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
+        proxy->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
+                                  static_cast<unsigned int>(characNo),
+                                  static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                  data + 4);
+        CGuildServerProxy* proxy2 =
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
+        proxy2->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
+                                   static_cast<unsigned int>(characNo),
+                                   static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                   data + 4);
+    }
+    else
+    {
         CMonitorServerProxy* monitor =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitor->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
@@ -7467,7 +7471,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         if (g_auctionResultGmList[i] == user->getCurCharacNo())
         {
             cMyTrace trace(
-                __PRETTY_FUNCTION__,
+                "virtual int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser*, char*, int)",
                 0x37a3, 0);
             trace("Trace Auction Delay, %s(%d)", "ACK AuctionResultAskRegistedItemNum",
                   user->getCurCharacNo());

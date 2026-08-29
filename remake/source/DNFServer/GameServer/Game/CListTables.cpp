@@ -225,7 +225,7 @@ public:
     char m_pad18c[0xcc];                    // +0x18c..+0x258
     char m_mailQuestFlag;                   // +0x258
     char m_pad259[0x83];                    // +0x259..+0x2dc
-    std::vector<int> m_dailySchedule;       // +0x2dc
+    std::vector<_DailySchedule> m_dailySchedule;  // +0x2dc（ORIG size/AddDailSchedule 实证）
     char m_pad2e8[0x7c];                    // +0x2e8..+0x364
 };
 
@@ -1022,15 +1022,15 @@ void QuestList::destroy()
         it++;
     }
     m_questMap.clear();
-    m_npcQuestList[0].clear();
-    m_npcQuestList[1].clear();
-    m_npcQuestList[2].clear();
-    m_npcQuestList[7].clear();
-    m_npcQuestList[3].clear();
-    m_npcQuestList[4].clear();
-    m_npcQuestList[5].clear();
+    m_npcQuestList0.clear();
+    m_npcQuestList1.clear();
+    m_npcQuestList2.clear();
+    m_npcQuestList7.clear();
+    m_npcQuestList3.clear();
+    m_npcQuestList4.clear();
+    m_npcQuestList5.clear();
     m_listE0.clear();
-    m_npcQuestList[6].clear();
+    m_npcQuestList6.clear();
 }
 
 Quest* QuestList::find_quest(int idx)
@@ -1049,19 +1049,19 @@ std::multimap<int, int>* QuestList::getQuestNPCList(ENUM_QUEST_GRADE grade)
     switch (grade)
     {
     case ENUM_QUEST_GRADE_NONE:
-        return &m_npcQuestList[0];
+        return &m_npcQuestList0;
     case ENUM_QUEST_GRADE_1:
-        return &m_npcQuestList[3];
+        return &m_npcQuestList3;
     case ENUM_QUEST_GRADE_2:
-        return &m_npcQuestList[4];
+        return &m_npcQuestList4;
     case ENUM_QUEST_GRADE_4:
-        return &m_npcQuestList[2];
+        return &m_npcQuestList2;
     case ENUM_QUEST_GRADE_5:
-        return &m_npcQuestList[1];
+        return &m_npcQuestList1;
     case ENUM_QUEST_GRADE_6:
-        return &m_npcQuestList[5];
+        return &m_npcQuestList5;
     case ENUM_QUEST_GRADE_8:
-        return &m_npcQuestList[6];
+        return &m_npcQuestList6;
     default:
         return 0;
     }
@@ -1220,13 +1220,13 @@ void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
                              const WongWork::CQuestClear& clear)
 {
     out.clear();
-    allowable_questlist_as_npc(out, m_npcQuestList[0], param, clear, false);
-    allowable_questlist_as_npc(out, m_npcQuestList[1], param, clear, false);
-    allowable_questlist_as_npc(out, m_npcQuestList[2], param, clear, true);
-    allowable_questlist_as_npc(out, m_npcQuestList[7], param, clear, false);
-    allowable_questlist_as_npc(out, m_npcQuestList[3], param, clear, false);
-    allowable_questlist_as_npc(out, m_npcQuestList[4], param, clear, false);
-    allowable_questlist_as_npc(out, m_npcQuestList[5], param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList0, param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList1, param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList2, param, clear, true);
+    allowable_questlist_as_npc(out, m_npcQuestList7, param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList3, param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList4, param, clear, false);
+    allowable_questlist_as_npc(out, m_npcQuestList5, param, clear, false);
 }
 
 void QuestList::allowable_questlist_as_npc(
@@ -1263,7 +1263,7 @@ void QuestList::GetDailyQuestList(std::list<int>& out)
         int npcIdx = *it;
         std::pair<std::multimap<int, int>::const_iterator,
                   std::multimap<int, int>::const_iterator> range =
-            m_npcQuestList[7].equal_range(npcIdx);
+            m_npcQuestList7.equal_range(npcIdx);
         for (std::multimap<int, int>::const_iterator cit = range.first;
              cit != range.second; ++cit)
         {
@@ -1314,12 +1314,10 @@ int QuestList::load_list()
         }
         if (!script.m_dailySchedule.empty())
         {
-            // 脚本表存 int 索引；AddDailSchedule 权威签名为 vector<_DailySchedule>
-            // （ORIG 0x8125c3c）—「推断」：int 为 m_idx。
-            std::vector<_DailySchedule> schedules(script.m_dailySchedule.size());
-            for (unsigned int si = 0; si < script.m_dailySchedule.size(); ++si)
-                schedules[si].m_idx = script.m_dailySchedule[si];
-            GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
+            // ORIG 0x8353eb1：lea script+0x2dc 直传 AddDailSchedule
+            // （vector<_DailySchedule> const&，ORIG 0x8125c3c），无逐项转换。
+            GlobalData::s_DailyScheduleManager->AddDailSchedule(
+                script.m_dailySchedule);
         }
         if (!script.m_monsterKillList.empty())
         {
@@ -1510,42 +1508,42 @@ int QuestList::load_list()
         m_questMap.insert(std::make_pair(script.m_index, quest));
         if (script.m_questType == 4)
         {
-            m_npcQuestList[2].insert(
+            m_npcQuestList2.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 5)
         {
-            m_npcQuestList[1].insert(
+            m_npcQuestList1.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 0)
         {
-            m_npcQuestList[0].insert(
+            m_npcQuestList0.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 2)
         {
-            m_npcQuestList[4].insert(
+            m_npcQuestList4.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 6)
         {
-            m_npcQuestList[5].insert(
+            m_npcQuestList5.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 3)
         {
-            m_npcQuestList[7].insert(
+            m_npcQuestList7.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 1)
         {
-            m_npcQuestList[3].insert(
+            m_npcQuestList3.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 8)
         {
-            m_npcQuestList[6].insert(
+            m_npcQuestList6.insert(
                 std::make_pair(script.m_npcIdx, script.m_index));
         }
         if (script.m_mailQuestFlag != -1)

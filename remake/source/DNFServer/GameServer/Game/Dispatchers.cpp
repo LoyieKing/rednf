@@ -7,6 +7,7 @@
 #include "CUserProc.h"             // APSystem::CUserProc（ClearAction/GetTodayReward dispatch_sig）
 #include "CCharacInformNotice.h"   // CCharacInformNotice::handleInformNoticeFlag
 #include "PacketHeader.h"          // LimitNpcBuyItemInfo 包头（ORIG C1 0x08110b70）
+#include "Packet_Approve_Join_Guild.h"  // 8924 行使用（局部栈对象）
 #include "LogManager.h"            // LogManager::logFormat（RequestCharacSkillInfo read）
 // ORIG 域常量（nm：_ZN15InformNotice2ndL6kIndexE / L4kBitE，r 段内部链接；
 // 2nd 通知标志板容量 = kIndex*kBit = 0x80）
@@ -32,6 +33,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CDataManager.h"       // G_CDataManager / find_skill
 #include "CGameManager.h"            // MSG_CHECK_MAIL_RECEIVER（set<type,T> 模板）
 #include "CGuildServerProxy.h"       // CGuildServerProxy::SendGuildMail
+#include "BreakAwayPreventSystem.h"  // s_BreakAwaySys 完整类型（giveBreakAwayDungeonClearReward）
 #include "CInventory.h"              // CSecu_ProtectionField / GetInvenTypeFromItemSpace /
 #include "CInventory.h"         // CInventory::GetInvenData/setCopy/delete_item/SetInventoryMemory
 #include "CMailBoxHelper.h"          // WongWork::CMailBoxHelper::ReqDBCheckReceiver
@@ -88,7 +90,8 @@ bool check_url(const char* url)
 }
 #include "W8LT_DBTask.h"  // StubS3A 依赖
 #include "CSpecialItemRoutingManager.h"  // StubS3A 依赖
-#include "BreakAwayPreventSystem.h"  // StubS3A 依赖
+#include "CExtraction.h"             // expert_extraction::CExtraction（process 虚调用）
+#include "CExtractionMgr.h"          // expert_extraction::CExtractionMgr::get_extracter
 // StubS3A：DB 请求类本地声明（与 W8LT_DBTask.cpp 内建模一致；定义在 W8LT_DBTask.cpp/StubS3A_deps.cpp）
 class DB_ReqQueryCharacInfo : public DBDispatcher
 {
@@ -258,7 +261,7 @@ public:
 #include "Packet_Monitor_Member_Secede.h"        // ORIG W ctor 0x0822ba34（D3）
 #include "Packet_Monitor_Call_Member_List.h"     // D3 公会成员列表包
 #include "Packet_PvPChannelInfo.h"               // D3 PvP 频道信息包
-#include "Packet_Approve_Join_Guild.h"           // ORIG 0x16 字节（shared/packet 权威布局，D3）
+#include "Packet_Guild_Check_Guild_Cargo_Push_Item.h"  // GuildCargoPushItem process 发送（Fix7_I）
 #include "Packet_Monitor_Member_Enter_Reply.h"   // ORIG 0x13 字节（D3）
 #include "Packet_Request_BlackList.h"            // D3 黑名单请求包
 #include "Packet_Delete_To_BlackList.h"          // ORIG 栈对象 0x2c（D3）
@@ -12451,6 +12454,7 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
 {
     // ORIG 0x081d10d4 (0x242 insn)
     stGuildCargoPushItemParam& result = static_cast<stGuildCargoPushItemParam&>(param);
+    const char* const M = reinterpret_cast<const char*>(&msg);
     const unsigned char itemSpace =
         *reinterpret_cast<const unsigned char*>(reinterpret_cast<const char*>(&msg) + 0x0d);
     const unsigned short slot =
@@ -12470,21 +12474,35 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
     CDataManager* dataMgr = G_CDataManager();
     CItem* item = dataMgr->find_item(slotItem.m_addInfo);
 
-    // ORIG: 构造 Packet_Guild_Check_Guild_Cargo_Push_Item 并经
-    //       CServerProxyMgr<CGuildServerProxy>::GetServerProxy(s_guild_proxy_mgr,
-    //       user->GetServerGroup())->SendTcpPacket 发送，字段：
-    //         guildkey=get_charac_guildkey() / characNo=getCurCharacNo() /
-    //         msg+0x10 int / msg+0x18 ushort / msg+0x14 int / msg[0xd] byte /
-    //         msg+0xe ushort / isStackable=item->is_stackable() /
-    //         stackLimit=is_stackable()?getStackableLimit():1
-    // BLOCKED(Packet_Guild_Check_Guild_Cargo_Push_Item 未建模 —— Inter/Guild 域缺口)
+    // ---- ORIG 0x081d11c9..0x081d1305（Fix7_I 恢复真实调用）----
     const bool isStackable = item->is_stackable();
     const int stackLimit =
         isStackable ? static_cast<CStackableItem*>(item)->getStackableLimit() : 1;
-    (void)stackLimit;
-    (void)isStackable;
-    // BLOCKED(cUserHistoryLog::GuildCargoCheckPushItem(Reason5, msg+0x18, msg+0x10,
-    //        msg+0x14, msg[0xd], msg+0xe, isStackable) @0x0868659c —— 声明缺失)
+
+    Packet_Guild_Check_Guild_Cargo_Push_Item pkt;            // ctor 0x0822bec2
+    pkt.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0xa
+    pkt.m_charNo = (unsigned int)user->getCurCharacNo();          // +0xe
+    pkt.m_slot = (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x18);  // +0x12
+    pkt.m_itemId = *reinterpret_cast<const int*>(M + 0x10);      // +0x16
+    pkt.m_count = *reinterpret_cast<const int*>(M + 0x14);        // +0x1a
+    pkt.m_maxStack = stackLimit;                                  // +0x1e
+    pkt.m_stackable = (unsigned char)(isStackable ? 1 : 0);       // +0x22
+    pkt.m_invenType = *reinterpret_cast<const unsigned char*>(M + 0x0d);  // +0x23
+    pkt.m_invenSlot = *reinterpret_cast<const unsigned short*>(M + 0x0e); // +0x24
+
+    CGuildServerProxy* proxy =
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
+    proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt),
+                         (int)*(unsigned short*)((char*)&pkt + 2));
+
+    user->m_historyLog.GuildCargoCheckPushItem(
+        (ENUM_GUILD_CARGO_HISTORY_REASON)5,
+        (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x18),
+        *reinterpret_cast<const int*>(M + 0x10),
+        *reinterpret_cast<const int*>(M + 0x14),
+        (int)*reinterpret_cast<const unsigned char*>(M + 0x0d),
+        (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x0e),
+        (int)(isStackable ? 1 : 0));
     return 0;
 }
 
@@ -24614,28 +24632,32 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
     }
 
     {
-        // ---- 构造特殊商品处理入参（两 BLOCKED 类型均无权威可见性）----
-        /* BLOCKED: stCeraShopItemParam_t 构造（ORIG ctor 0x0817a244）——
-           WongWork::CCeraShop 嵌套类型无权威可见性。ORIG:
-             count = *(uchar*)(M+0x10);
-             for i<count: ceraParam.m_pairs.push_back({(int)*(ulong*)(M+(i+2)*8+4),
-                                                       (int)*(uchar*)(M+(i+2)*8+8)});
-           依赖补齐后恢复。 */
+        // ---- 构造特殊商品处理入参（ORIG 0x081e7a1c..0x081e7b31 逐指令转写）----
+        WongWork::CCeraShop::stCeraShopItemParam_t ceraParam;   // ORIG ctor 0x0817a244
+        const int subCount = (int)(unsigned int)(unsigned char)*(M + 0x10);
+        for (int i = 0; i < subCount; ++i)
+        {
+            // ORIG pair<int,int> ctor（Rm/Rh）：first=*(ulong*)(M+(i+2)*8+4) 低 32 位，
+            // second=*(uchar*)(M+(i+2)*8+8)。
+            ceraParam.m_pairs.push_back(std::make_pair(
+                *(int*)(M + (i + 2) * 8 + 4),
+                (int)*(unsigned char*)(M + (i + 2) * 8 + 8)));
+        }
+
         std::vector<Inven_Item> items;                      // ORIG vector<Inven_Item> C1
 
-        bool handlerOk = false;
-        int resultValue = 0;
-        /* BLOCKED: _ZN8WongWork9CCeraShop22CallSpecialItemHandlerEiRK19STSpecailItem_ParamR20STSpecailItem_Result @0x08325854
-           ORIG:
-             STSpecailItem_Param sp(items, ceraParam);       // W 0x08234ec2
-             sp.m_user = user;
-             sp.m_itemIdx = itemIdx;
-             STSpecailItem_Result result;                    // W 0x08234f36（清零首 4 字节）
-             handlerOk = GlobalData::s_pCeraShop->CallSpecialItemHandler(5, sp, result);
-             resultValue = result.m_value;
-           两参数类型为 CCeraShop_Special.cpp 文件局部 struct、CCeraShop.h 缺方法声明；
-           占位保持其余逻辑（handlerOk=false → 走错误回包分支），恢复后由其写回。 */
-        (void)items;
+        STSpecailItem_Param sp(items, ceraParam);           // W 0x08234ec2
+        sp.m_user = user;
+        sp.m_itemIdx = itemIdx;
+        sp.m_count = 0;
+        sp.m_time = 0;
+        sp.m_flag = 0;
+        sp.m_char1d = 0;
+        sp.m_char1e = 0;
+        STSpecailItem_Result result;                        // W 0x08234f36（清零首 4 字节）
+        const bool handlerOk =
+            GlobalData::s_pCeraShop->CallSpecialItemHandler(5, sp, result);
+        const int resultValue = result.m_value;
 
         if (!handlerOk)
         {
@@ -24738,35 +24760,36 @@ int Dispatcher_ExpertExtraction::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_ExpertExtraction::process (ORIG 0x081d9412) ====
+namespace expert_extraction
+{
+int GetExtracterType(ENUM_EXPERT_JOB_TYPE job);  // ORIG T 0x084a2904（ExpertExtraction.cpp）
+}
+
 int Dispatcher_ExpertExtraction::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stExpertExtraction& p = static_cast<stExpertExtraction&>(param);
-    MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
 
-    const int err = check_error(user, msg);
-    p.m_4 = err;
-    if (err > 0)
+    p.m_4 = check_error(user, msg);
+    if (p.m_4 > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (p.m_4 < 0)
     {
-        return LineFunc(0x45bf, __PRETTY_FUNCTION__, err, 0);
+        return LineFunc(0x45bf, __PRETTY_FUNCTION__, p.m_4, 0);
     }
 
-    /* BLOCKED: expert_extraction::{GetExtracterType @0x084a2904, CExtractionMgr::get_extracter
-       @0x084a3166} —— GlobalData.cpp 局部类不完整、无头声明。ORIG:
-       ex = g_ExtractionMgr->get_extracter(GetExtracterType((ENUM_EXPERT_JOB_TYPE)m.m_0d));
-       依赖补齐前按"提取器存在且校验通过"路径继续（ex 恒视为非空）。
-       ORIG ex==0 分支: return LineFunc(0x45cb, ..., 0, get_acc_id); */
+    MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
+    expert_extraction::CExtraction* ex = GlobalData::g_ExtractionMgr->get_extracter(
+        expert_extraction::GetExtracterType((ENUM_EXPERT_JOB_TYPE)m.m_0d));
+    if (ex == 0)
+    {
+        return LineFunc(0x45cb, __PRETTY_FUNCTION__, 0, user->get_acc_id());
+    }
 
     std::vector<std::pair<int, int> > materials;
     materials.clear();
-    /* BLOCKED: CExtraction::extraction vtable+0x08 —— expert_extraction 域未建模。
-       ORIG: if (!ex->extraction(user, (short)m.m_10, materials)) { p.m_4 = 1; return 0; }
-       依赖补齐前按成功路径继续（materials 保持空）。 */
-    const bool extracted = true;
-    if (!extracted)
+    if (!ex->extraction(user, (short)m.m_10, materials))
     {
         p.m_4 = 1;
         return 0;
@@ -24774,10 +24797,7 @@ int Dispatcher_ExpertExtraction::process(CUser* user, MSG_BASE& msg, ParamBase& 
 
     std::vector<int> results;
     results.clear();
-    /* BLOCKED: CExtraction::inven_process vtable+0x10 —— 同上。
-       ORIG: if (!ex->inven_process(user, (short)m.m_10, materials, results)) { p.m_4 = 0x11; } else ... */
-    const bool invenOk = true;
-    if (!invenOk)
+    if (!ex->inven_process(user, (short)m.m_10, materials, results))
     {
         p.m_4 = 0x11;
     }
@@ -25504,86 +25524,69 @@ int Dispatcher_RequestIngameAdvertisement::read(PacketBuf& packet, MSG_BASE& msg
 int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
                                                    ParamBase& param)
 {
-    char* const P = reinterpret_cast<char*>(&param);
+    stRequestIngameAdvertisement* R =
+        reinterpret_cast<stRequestIngameAdvertisement*>(&param);
+    MSG_REQUEST_INGAME_ADVERTISEMENT& M =
+        reinterpret_cast<MSG_REQUEST_INGAME_ADVERTISEMENT&>(msg);
 
-    const int err = check_error(user, msg);
-    *reinterpret_cast<int*>(P + 0x640) = err;
+    R->m_errorCode = check_error(user, msg);
 
-    if (err >= 1)
+    if (R->m_errorCode >= 1)
     {
         return 0;
     }
-    if (err < 0)
+    if (R->m_errorCode < 0)
     {
         LineFunc(
             0x5c20,
             __PRETTY_FUNCTION__,
-            err, 0);
+            R->m_errorCode, 0);
         return 0;
     }
 
     // err == 0 主流程
-    const short adType =
-        *reinterpret_cast<const short*>(reinterpret_cast<const char*>(&msg) + 0xd);
-    *reinterpret_cast<short*>(P + 0x644) = adType;
+    R->m_adType = M.m_field0d;
 
-    bool adOk = false;
-    /* BLOCKED: _ZN27CInGameAdvertisementManager33CheckIngameAdvertisementConditionEP5CUserR20stNotifyIngameADInfoi @0x080fcfa8
-       ORIG: adOk = InGameADManagerInstance()->CheckIngameAdvertisementCondition(
-                 user, *reinterpret_cast<stNotifyIngameADInfo*>(P + 4), (int)adType);
-       仓库暂无该真实声明（CInGameAdvertisementManager 为 GameMain.cpp 局部最小类），
-       占位保持其余逻辑；恢复后由其写回 adOk。 */
-
-    if (adOk)
+    if (InGameADManagerInstance()->CheckIngameAdvertisementCondition(
+            user, *reinterpret_cast<stNotifyIngameADInfo*>(&R->m_code),
+            (int)M.m_field0d))
     {
-        const unsigned char adShape =
-            *reinterpret_cast<const unsigned char*>(P + 0x33b);
-
-        if (adShape == 4 && user->get_multiboxLotteryItemFailCnt() > 2)
+        if (R->m_adShape == 4 && user->get_multiboxLotteryItemFailCnt() > 2)
         {
-            const unsigned char prizeShape =
-                *reinterpret_cast<const unsigned char*>(P + 0x33d);
-
-            if (prizeShape != 0 &&
-                *reinterpret_cast<unsigned long*>(P + 0x238) != 0)
+            if (R->m_prizeShape != 0 && R->m_itemID != 0)
             {
-                sendRewardItemSystemMail(
-                    user, *reinterpret_cast<unsigned long*>(P + 0x238), 1);
-                if (*reinterpret_cast<const unsigned char*>(P + 0x33c) != 0)
+                sendRewardItemSystemMail(user, R->m_itemID, 1);
+                if (R->m_logFlag != 0)
                 {
-                    /* BLOCKED: _ZN27CInGameAdvertisementManager8WriteLogEP5CUsercscj @0x080fda56
-                       ORIG: InGameADManagerInstance()->WriteLog(user, '\x03', adType,
-                                 (char)*reinterpret_cast<const unsigned char*>(P + 0x33b),
-                                 *reinterpret_cast<unsigned int*>(P + 4));
-                       占位保持其余逻辑；恢复后改为真实调用。 */
+                    InGameADManagerInstance()->WriteLog(
+                        user, '\x03', M.m_field0d,
+                        (char)R->m_adShape, R->m_code);
                 }
             }
-            else if (prizeShape == 0 &&
-                     *reinterpret_cast<unsigned long*>(P + 0x53c) != 0)
+            else if (R->m_prizeShape == 0 && R->m_itemID2 != 0)
             {
-                sendRewardItemSystemMail(
-                    user, *reinterpret_cast<unsigned long*>(P + 0x53c), 1);
-                if (*reinterpret_cast<const unsigned char*>(P + 0x33c) != 0)
+                sendRewardItemSystemMail(user, R->m_itemID2, 1);
+                if (R->m_logFlag != 0)
                 {
-                    /* BLOCKED: _ZN27CInGameAdvertisementManager8WriteLogEP5CUsercscj @0x080fda56
-                       ORIG: 同上 WriteLog(user, '\x03', ...)。占位保持其余逻辑。 */
+                    InGameADManagerInstance()->WriteLog(
+                        user, '\x03', M.m_field0d,
+                        (char)R->m_adShape, R->m_code);
                 }
             }
 
             user->set_multiboxLotteryItemFailCnt(0);        // 0x080fdf44
         }
 
-        if (*reinterpret_cast<const unsigned char*>(P + 0x33c) != 0)
+        if (R->m_logFlag != 0)
         {
-            /* BLOCKED: _ZN27CInGameAdvertisementManager8WriteLogEP5CUsercscj @0x080fda56
-               ORIG: InGameADManagerInstance()->WriteLog(user, '\0', adType,
-                         (char)adShape, *reinterpret_cast<unsigned int*>(P + 4));
-               占位保持其余逻辑。 */
+            InGameADManagerInstance()->WriteLog(
+                user, '\0', M.m_field0d,
+                (char)R->m_adShape, R->m_code);
         }
     }
     else
     {
-        *reinterpret_cast<int*>(P + 0x640) = 4;             // 条件不满足固定错误码
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(R) + 0x640) = 4;             // 条件不满足固定错误码
     }
 
     return 0;

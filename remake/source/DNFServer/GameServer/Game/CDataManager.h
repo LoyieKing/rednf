@@ -2887,7 +2887,15 @@ public:
     QuestList* getQuestList() { return this; }   // ORIG W 0x08374c7a（mov this,%eax; ret）
 
     __gnu_cxx::hash_map<int, Quest*> m_questMap;   // +0x00
-    std::multimap<int, int> m_npcQuestList[8];     // +0x14
+    // ORIG ctor/dtor 展开 8 次独立构造/析构（83538f0/8353aa0）→ 独立成员而非数组。
+    std::multimap<int, int> m_npcQuestList0;       // +0x14
+    std::multimap<int, int> m_npcQuestList1;       // +0x2c
+    std::multimap<int, int> m_npcQuestList2;       // +0x44
+    std::multimap<int, int> m_npcQuestList3;       // +0x5c
+    std::multimap<int, int> m_npcQuestList4;       // +0x74
+    std::multimap<int, int> m_npcQuestList5;       // +0x8c
+    std::multimap<int, int> m_npcQuestList6;       // +0xa4
+    std::multimap<int, int> m_npcQuestList7;       // +0xbc
     std::vector<int> m_vecD4;                      // +0xd4
     std::list<int> m_listE0;                       // +0xe0
 };

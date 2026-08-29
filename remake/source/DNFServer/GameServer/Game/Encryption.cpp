@@ -5,6 +5,9 @@
 
 #include <cstring>
 
+#include "EncryptTool.h"   // EncryptTool（m_rijndael@+0x204）
+#include "CRijndael.h"     // CRijndael::Decrypt
+
 // index_array（ORIG 0x9370f60，.data，200*300 int）：getOriginalBuf 的插入
 // 位置表，从 ORIG 二进制提取，60000 个 0..299 值。
 #include "index_array.inc"
@@ -150,9 +153,14 @@ void Encryption::DecryptBody(unsigned short, void* data, int len, unsigned int& 
     }
     if (mode == 5)
     {
-        // ORIG：G_EncryptTool()->getCryptObject()->Decrypt(data, tmp, len) 后拷回。
-        // EncryptTool 属 G2 批次（df_group_2），本批次不实现；此路径在 ORIG 中
-        // 亦无活跃调用（DecryptBody 仅被 Encryption::DecryptBody 引用）。
+        // ORIG 0x848dd5e：G_EncryptTool()->m_rijndael(+0x204) 虚调用
+        // Decrypt(data, tmp, len) 后 memcpy 拷回（加密类，算法正确即可）。
+        extern EncryptTool* G_EncryptTool();
+        CRijndael* rd = *reinterpret_cast<CRijndael**>(
+            reinterpret_cast<char*>(G_EncryptTool()) + 0x204);
+        char tmp[0x400];
+        rd->Decrypt((const char*)data, tmp, len);
+        std::memcpy(data, tmp, len);
         return;
     }
 

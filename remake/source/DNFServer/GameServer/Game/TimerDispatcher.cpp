@@ -303,20 +303,53 @@ TimerCheckConn::TimerCheckConn() {}
 TimerCheckConn::~TimerCheckConn() {}
 int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p2, p1);
-    if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) != p3)
+    // ORIG 0x8632bca：getUser(p1, 2)（increId 形参被 getUser 忽略，常量 2 为占位）。
+    CUser* user = G_CGameManager()->getUser(p1, 2);
+    // ORIG 0x8632bff：movzwl %ax 后与 p2 作 int 比较（unique_id 低 16 位）。
+    if (user == 0 || static_cast<unsigned short>(user->get_unique_id()) != p2)
     {
         return 0;
     }
-    user->incre_check_count();
-    // ORIG 无 SendCheckConnPacket 符号：内联构造空包头（put_header(0,0)+finalize）发送。
-    PacketGuard packet;
-    packet.put_header(0, 0);
-    packet.finalize(true);
-    user->Send(packet);
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
-                                (TIMER_MESSAGE)0, user->GetCheckConnInterval(),
-                                user->get_unique_id(), 0);
+    std::string accName(user->get_acc_name());
+    char ip[0x10] = {0};
+    user->m_network.GetPeerIP2(ip, 0x10);
+    if (G_CGameManager()->IsNoGameGuardApplingUser(accName, ip))
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x3a4, 0);
+        tr("Try To Login By No Game Guard : %s", accName.c_str());
+        return 1;
+    }
+    if (user->get_state() != 0)
+    {
+        if (user->get_connect_count() <= 2)
+        {
+            if (user->get_connect_count() > 1)
+            {
+                cMyTrace tr2(__PRETTY_FUNCTION__, 0x3bc, 0);
+                tr2("User %s - no response %dth ping.", user->getCurCharacName(),
+                    static_cast<int>(user->get_connect_count()));
+                user->SetResumeChecksumTime(GlobalData::s_systemTime_.getCurSec() +
+                                            user->GetCheckConnInterval());
+            }
+            user->incre_check_count();
+            // ORIG 无 SendCheckConnPacket 符号：内联构造空包头（put_header(0,0)+finalize）发送。
+            PacketGuard packet;
+            packet.put_header(0, 0);
+            packet.finalize(true);
+            user->Send(packet);
+            G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
+                                        (TIMER_MESSAGE)0, user->GetCheckConnInterval(),
+                                        user->get_unique_id(), 0);
+        }
+        else
+        {
+            // ORIG 0x8632ec4：连续 3 次无响应 → 日志 + 断线。
+            LogManager::logFormat(1, __PRETTY_FUNCTION__, "TimerDispatcher.cpp", 0x40a,
+                                  "User %s - no response during 3 times ping",
+                                  user->getCurCharacName());
+            user->DisConnSig(static_cast<DISCONN_SIG>(8), false, 0);
+        }
+    }
     return 1;
 }
 

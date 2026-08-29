@@ -57,7 +57,7 @@ public:
     int getTagSizeInFile(int table);
     const char* findChangedString(int table, const char* key, bool* flag);
     void* getStringFileList();
-    void changeSpacilTagStr(std::string& s);
+    bool changeSpacilTagStr(std::string& s);   // ORIG 0x8aa60b0 返回 bool（成功替换=1）
     void release();
 };
 

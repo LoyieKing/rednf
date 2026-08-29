@@ -4769,14 +4769,23 @@ int StackableAction::Action::proc_lotteryCount(input_param& p)
     p.m_user->giveLotteryCountItem(p.m_item->get_index(), false);
     return 0;
 }
+
 void StackableAction::Action::init_function_type()
 {
-    // ORIG 0x0827f7c8：以 boost::bind 将 proc_* 成员注册进 map2（key 0x34 等）。
-    // proc 实现未还原，注册关系保留（推断：key 集合不完整）。
+    // ORIG 0x0827f7c8：以 boost::bind 将 proc_* 成员注册进 map2（key 0x34/0x36/0x37）。
+    // 与 ORIG 一致用 insert 方式（非 operator[]）。
     using boost::arg;
-    m_map2[0x34] = boost::function<int(input_param&)>(
-        boost::bind(&Action::proc_bingo, this, arg<1>()));
+    m_map2.insert(std::make_pair(TYPE_BINGO,
+        boost::function<int(input_param&)>(
+            boost::bind(&Action::proc_bingo, this, arg<1>()))));
+    m_map2.insert(std::make_pair(TYPE_LOTTERY_COUNT,
+        boost::function<int(input_param&)>(
+            boost::bind(&Action::proc_lotteryCount, this, arg<1>()))));
+    m_map2.insert(std::make_pair(TYPE_ADD_FATIGUE,
+        boost::function<int(input_param&)>(
+            boost::bind(&Action::proc_addFatigue, this, arg<1>()))));
 }
+
 expert_extraction::CExtraction::CExtraction()
 {
     // ORIG 0x084a2938：vptr + new CMTRand 并以 time(0) seed。

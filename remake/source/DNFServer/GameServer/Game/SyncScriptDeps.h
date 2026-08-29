@@ -76,9 +76,10 @@ public:
     static bool insertItemDescTable();    // ORIG 0x08133ea6
     static bool truncateItemDescTable();  // ORIG 0x08133e44
 
-    // ORIG 0x08134132：生成 "(%d,%d,%d,'%s')" 元组追加到 out，成功返回 1。
-    static int getItemValueStirng(int ridableId, const BuyShopData& data,
-                                  AdvanceAltarShopType::T type, std::string& out);
+    // ORIG 0x08134132：生成 "(%d,%d,%d,'%s')" 元组追加到 out，成功返回 true
+    //（__PRETTY_FUNCTION__ 字符串 "static bool …getItemValueStirng" 实证 bool）。
+    static bool getItemValueStirng(int ridableId, const BuyShopData& data,
+                                   AdvanceAltarShopType::T type, std::string& out);
 };
 }  // namespace advancealtar
 

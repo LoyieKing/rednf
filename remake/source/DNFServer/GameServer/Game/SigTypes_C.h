@@ -199,7 +199,39 @@ struct SIG_ATTENDANCE_EVENT
     // ORIG W 0x0848fb84：仅 movb $0,(%eax)（只清首字节）。
     SIG_ATTENDANCE_EVENT() { m_isEnabled = 0; }
 };
-static_assert(sizeof(SIG_ATTENDANCE_EVENT) == 0x11, "SIG_ATTENDANCE_EVENT ABI drift");
+// ============================================================================
+// stNPCRelationship_t（ORIG C1 0x0848fa50 W）：4×ushort + int 清零，sizeof 0xc。
+// 权威定义（自 OnlyOrigBatch7_Force.cpp 局部定义提升，2026-08-30）。
+// ============================================================================
+struct stNPCRelationship_t
+{
+    stNPCRelationship_t()
+    {
+        m_a = 0;
+        m_b = 0;
+        m_c = 0;
+        m_d = 0;
+        m_e = 0;
+    }
+    unsigned short m_a;   // +0x00
+    unsigned short m_b;   // +0x02
+    unsigned short m_c;   // +0x04
+    unsigned short m_d;   // +0x06
+    int m_e;              // +0x08
+};
+
+// ============================================================================
+// SIG_LOAD_PREMIUM_LETHE（ORIG ctor W 0x0848ff7c：203×2B _Mastered_skill 数组
+// 循环构造，0x196 + 3 pad = 0x199）。权威定义（自 CUserOnlyOrig.cpp 提升）。
+// ============================================================================
+struct SIG_LOAD_PREMIUM_LETHE
+{
+    SIG_LOAD_PREMIUM_LETHE() {}   // 空体让数组成员自动逐元素构造（同 ORIG）
+    _Mastered_skill m_skills[0xcb];   // +0x00（203 × 2B）
+    char m_pad196[3];                 // +0x196..0x198（sizeof = 0x199）
+};
+
+// ORIG sizeof = 0x14b60（CACHE_CHARACTER_TYPE@+0x1fd20 → +0x34880 cacheTime）。
 
 // ORIG sizeof = 0x14b60（CACHE_CHARACTER_TYPE@+0x1fd20 → +0x34880 cacheTime）。
 // CUser::GetEtcInfo @0x867794c 依此偏移填充；子对象区（skill/expand/aura/option）
@@ -245,6 +277,7 @@ struct SIG_LOAD_ETC
     SIG_ATTENDANCE_EVENT m_attendanceEvent;          // +0x14a99
     char     m_comboSkill[0x14b60 - 0x14aaa];        // +0x14aaa
 
+    SIG_LOAD_ETC();   // ORIG W 0x08491f86（定义 SigTypes_C.cpp：子对象逐区构造）
     // ORIG D1/D2 W 0x084921f0：GameResultType[0x64] 析构循环 + PvpResultType 析构。
     ~SIG_LOAD_ETC() {}
 };

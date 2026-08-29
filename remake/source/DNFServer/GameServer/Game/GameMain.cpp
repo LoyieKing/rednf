@@ -91,7 +91,7 @@ void CREATE_TimerDispatcher();    void DESTROY_TimerDispatcher();
 // ---------------------------------------------------------------------------
 // 外部自由函数 / 类（均为 ORIG 真实符号；声明集中于此，定义在各自 TU）
 // ---------------------------------------------------------------------------
-void regist_signals();                       // _Z14regist_signalsv          0x0829f4c5
+int regist_signals();                        // _Z14regist_signalsv          0x0829f4c5
 int check_argv(int argc, char** argv);       // _Z10check_argviPPc           0x0829ea5a
 bool IsLightServer();                        // _Z13IsLightServerv           0x0822ad44 W
 int create_thread();                         // _Z13create_threadv           0x0829fd30（返回 bool）
@@ -474,18 +474,32 @@ void Neof_shutdownGlobalInstances()
 // ---------------------------------------------------------------------------
 bool Init(int argc, char** argv)
 {
-    regist_signals();
-
-    // rlimit 提升文件句柄上限（getrlimit/setrlimit @82a09??，「推断」细节）
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
+    // ORIG @0x82a08f4：regist_signals 失败 → cout "Fail to regist os signals,
+    // Server process is terminated." → return 0（82a090c..82a0937 实证）。
+    if (!regist_signals())
     {
-        rl.rlim_cur = rl.rlim_max;
-        setrlimit(RLIMIT_NOFILE, &rl);
+        std::cout << "Fail to regist os signals, Server process is terminated."
+                  << std::endl;
+        return false;
     }
 
+    // ORIG 82a093a..82a0973：getrlimit(RLIMIT_CORE) → rlim_cur=RLIM_INFINITY
+    // → setrlimit(RLIMIT_CORE)（不检查返回值）；随后无条件
+    // cout "[!] Check Args ..."（82a0976..82a0998）。
+    struct rlimit rl;
+    getrlimit(RLIMIT_CORE, &rl);
+    rl.rlim_cur = static_cast<rlim_t>(-1);
+    setrlimit(RLIMIT_CORE, &rl);
+
+    std::cout << "[!] Check Args ..." << std::endl;
     if (!check_argv(argc, argv))
+    {
+        // ORIG 82a09b3..82a09dc：cout "[!] Check Args Fail" → return 0。
+        std::cout << "[!] Check Args Fail" << std::endl;
         return false;
+    }
+    // ORIG 82a09e1..82a0a02：cout "[!] Check Args Success"。
+    std::cout << "[!] Check Args Success" << std::endl;
 
     std::srand(static_cast<unsigned>(time(NULL)));
 
@@ -970,24 +984,24 @@ void TerminateServers()
 // omll_dump_core_file() —— ORIG 0x829f6f4（逐指令一致）：abort();
 void omll_dump_core_file() { std::abort(); }
 
-// regist_signals() —— ORIG 0x829f4c5（逐指令转写）：
-// 15/10/12 → signal_handler（校验）；13 → SIG_IGN（校验）；
-// 之后 11/8/4/7/16/23/24/25/31 → signal_handler（不校验）。返回最后一次结果。
-void regist_signals()
+// 15/10/12/13/11/8/4/7/16/23/24/25/31 → signal_handler（13 → SIG_IGN），
+// 任一注册失败即返回 0，全部成功返回 1。
+int regist_signals()
 {
-    if (!regist_signal(15, signal_handler)) { return; }  // ORIG: eax=0 返回
-    if (!regist_signal(10, signal_handler)) { return; }
-    if (!regist_signal(12, signal_handler)) { return; }
-    if (!regist_signal(13, (void (*)(int))1)) { return; }  // SIG_IGN
-    regist_signal(11, signal_handler);
-    regist_signal(8,  signal_handler);
-    regist_signal(4,  signal_handler);
-    regist_signal(7,  signal_handler);
-    regist_signal(16, signal_handler);
-    regist_signal(23, signal_handler);
-    regist_signal(24, signal_handler);
-    regist_signal(25, signal_handler);
-    regist_signal(31, signal_handler);
+    if (!regist_signal(15, signal_handler)) { return 0; }
+    if (!regist_signal(10, signal_handler)) { return 0; }
+    if (!regist_signal(12, signal_handler)) { return 0; }
+    if (!regist_signal(13, (void (*)(int))1)) { return 0; }  // SIG_IGN
+    if (!regist_signal(11, signal_handler)) { return 0; }
+    if (!regist_signal(8,  signal_handler)) { return 0; }
+    if (!regist_signal(4,  signal_handler)) { return 0; }
+    if (!regist_signal(7,  signal_handler)) { return 0; }
+    if (!regist_signal(16, signal_handler)) { return 0; }
+    if (!regist_signal(23, signal_handler)) { return 0; }
+    if (!regist_signal(24, signal_handler)) { return 0; }
+    if (!regist_signal(25, signal_handler)) { return 0; }
+    if (!regist_signal(31, signal_handler)) { return 0; }
+    return 1;
 }
 
 // make_dir(char*) —— ORIG _Z8make_dirPc 0x829ee83：opendir 探测，不存在则 mkdir 0777。

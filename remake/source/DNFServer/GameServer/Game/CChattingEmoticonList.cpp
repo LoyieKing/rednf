@@ -29,21 +29,34 @@ bool ImportChattingEmoticon(EmoticonType::EmoticonScript& script,
                             const char* path)
 {
     // ORIG 0x88e31b4：loadRDARScriptFile 后 FindIndexByFullScan 写 index；
-    // 再依 [type]/[level] 等键解析。本 TU 先提供符号；待数据域 TU 细化。
-    // [依赖] ImportChattingEmoticon 完整逻辑属数据域 TU（可依 _lt_global_gt_ 报告）。
+    // [type] 分支 ScanStr 读 "EVENT"/"CASH" 置 m_type=1/2（其它 4），随后
+    // ScanInt 写 m_param(+0x8)；[ani]/[macro] 分别 ScanStr 写 +0xc/+0x10。
     if (!loadRDARScriptFile(g_ChattingEmoticonScriptBaseDirectory, path))
         return false;
-    script.m_index = EmoticonType::kInvalidChatEmoticon;
-    script.m_type = 0;
-    script.m_param = 0;
-    bool ok = false;
+    script.m_index = g_ChattingEmoticonScriptFileList.FindIndexByFullScan(path);
     std::string token;
+    std::string value;
     while (ScanType(token, true))
     {
         if (token == "[type]")
-            script.m_type = ScanInt(&ok);
-        else if (token == "[level]")
-            script.m_param = ScanInt(&ok);
+        {
+            if (!ScanStr(&value)) return false;
+            if (value == "EVENT")
+                script.m_type = 1;
+            else if (value == "CASH")
+                script.m_type = 2;
+            else
+                script.m_type = 4;
+            if (!ScanInt(&script.m_param)) return false;
+        }
+        else if (token == "[ani]")
+        {
+            if (!ScanStr(&script.m_field0c)) return false;
+        }
+        else if (token == "[macro]")
+        {
+            if (!ScanStr(&script.m_field10)) return false;
+        }
     }
     return true;
 }
@@ -167,7 +180,12 @@ bool CChattingEmoticonList::Load_list()
             delete emo;
             return false;
         }
-        m_map[idx] = emo;
+        m_map.insert(std::make_pair(idx, emo));
+        if (m_mapVec.find(idx) == m_mapVec.end())
+        {
+            m_mapVec.insert(std::make_pair(
+                idx, std::vector<ChattingEmoticonBase*>()));
+        }
         m_mapVec[idx].push_back(emo);
     }
     return true;

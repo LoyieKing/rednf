@@ -32,24 +32,6 @@
 // 缺失类型定义（ORIG 全局/共享头缺失，按 nm+objdump 恢复布局）
 // ============================================================================
 
-// stNPCRelationship_t（ORIG C1 0x0848fa50 W）：4×ushort + int 清零，sizeof 0xc。
-struct stNPCRelationship_t
-{
-    stNPCRelationship_t()
-    {
-        m_a = 0;
-        m_b = 0;
-        m_c = 0;
-        m_d = 0;
-        m_e = 0;
-    }
-    unsigned short m_a;   // +0x00
-    unsigned short m_b;   // +0x02
-    unsigned short m_c;   // +0x04
-    unsigned short m_d;   // +0x06
-    int m_e;              // +0x08
-};
-
 // stEVENTADDINFO（ORIG D1/D2 0x08118b56 W 空体；trivial POD，无成员析构）。
 struct stEVENTADDINFO
 {

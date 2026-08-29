@@ -410,17 +410,79 @@ static int getc_from_file(void* p)
 
 bool Arad_Script::Load(const char* dir, const char* file)
 {
+    if (!Create())
+        return 0;
+    // ORIG 0x817b950：先在数据流中定位 sprintf("[%s]", file) 节标记，跳过后
+    // 才开始解析（滑动匹配：空白/控制字符忽略，不匹配则 pos 归零继续读）。
+    char tag[0x100] = {0};
+    sprintf(tag, "[%s]", file);
+    int tagLen = (int)strlen(tag);
+
     const char* p = dir;
+    int pos = 0;
+    while (true)
+    {
+        unsigned char c = (unsigned char)*p;
+        int ch = (int)(signed char)c;
+        if (ch == -1)
+            return 0;
+        if (ch <= 0x20 || ch > 0x7e)
+        {
+            ++p;
+            continue;
+        }
+        if (tag[pos] == ch)
+        {
+            ++pos;
+            if (pos == tagLen)
+            {
+                ++p;
+                break;
+            }
+        }
+        else
+        {
+            pos = 0;
+        }
+        ++p;
+    }
     return parse_arad_from_getc(this, getc_from_ptr, &p, file);
 }
 
 bool Arad_Script::Load(const char* path)
 {
     std::FILE* fp = std::fopen(pathC_.c_str(), "rt");
-    bool ok;
     if (fp == 0)
         return 0;
-    ok = parse_arad_from_getc(this, getc_from_file, fp, path);
+    if (!Create())
+        return 0;
+    // ORIG 0x817bea4：在文件流中定位 sprintf("[%s]", path) 节标记后解析。
+    char tag[0x100] = {0};
+    sprintf(tag, "[%s]", path);
+    int tagLen = (int)strlen(tag);
+    int pos = 0;
+    while (true)
+    {
+        int ch = std::fgetc(fp);
+        if (ch == -1)
+        {
+            std::fclose(fp);
+            return 0;
+        }
+        if (ch <= 0x20 || ch > 0x7e)
+            continue;
+        if (tag[pos] == ch)
+        {
+            ++pos;
+            if (pos == tagLen)
+                break;
+        }
+        else
+        {
+            pos = 0;
+        }
+    }
+    bool ok = parse_arad_from_getc(this, getc_from_file, fp, path);
     std::fclose(fp);
     return ok;
 }

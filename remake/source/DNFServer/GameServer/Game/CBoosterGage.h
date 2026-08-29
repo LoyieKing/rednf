@@ -31,6 +31,7 @@ enum eItemAddReason
     eItemAddReason_2 = 2,
     eItemAddReason_7 = 7,
     eItemAddReason_8 = 8,
+    eItemAddReason_0xd = 0xd,
     eItemAddReason_0x3a = 0x3a
 };
 #endif

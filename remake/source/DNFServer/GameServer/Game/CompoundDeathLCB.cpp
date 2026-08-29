@@ -181,15 +181,24 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
         info.m_errorFlag = true;                 // ORIG +0x2ef
         return info;
     }
-    // 材料必须正是槽内两件物品（itemId 与 addInfo 相等校验）。
-    if (*reinterpret_cast<const int*>(raw + 0x11) !=
-            static_cast<int>(info.m_materialA.get_add_info()) ||
-        *reinterpret_cast<const int*>(raw + 0x17) !=
-            static_cast<int>(info.m_materialB.get_add_info()))
+    // ORIG 0x327：双脚本 job 匹配循环（0..10）——两脚本同 job 且均可用时
+    // m_field00=job；无匹配保持 clear 哨兵 0xb → 直接返回（不设 error）。
+    for (int job = 0; job <= 10; ++job)
     {
-        info.m_errorFlag = true;                 // ORIG +0x31b
-        return info;
+        if (info.m_scriptA->check_job_type(static_cast<char>(job)) !=
+            info.m_scriptB->check_job_type(static_cast<char>(job)))
+        {
+            continue;
+        }
+        if (info.m_scriptA->check_job_type(static_cast<char>(job)) == 0)
+            continue;
+        if (info.m_scriptB->check_job_type(static_cast<char>(job)) == 0)
+            continue;
+        info.m_field00 = job;                    // ORIG +0x3b8
+        break;
     }
+    if (info.m_field00 == 0xb)                   // ORIG +0x3dd：无匹配
+        return info;
 
     const tagCompoundAvatarTable& table = m_tables[info.m_field00];
     unsigned int found = 0;                      // -0x28：匹配到的 rec 下标
@@ -252,8 +261,9 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
         return 0x11;
     if (info.m_field00 == 0xb)                                 // 表索引无效
         return 0x17;
-    if (info.m_materialA.get_add_info() == 0 ||
-        info.m_materialB.get_add_info() == 0)
+    // ORIG 读 m_addInfo(+0x02)（get_add_info() 读 m_addInfo2，字段不同）。
+    if (info.m_materialA.m_addInfo == 0 ||
+        info.m_materialB.m_addInfo == 0)
         return 0x11;
 
     // 任一材料的 uid(addInfo2) 是临时 key → 1。

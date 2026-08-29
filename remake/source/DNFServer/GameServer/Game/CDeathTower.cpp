@@ -18,6 +18,10 @@
 #include "CDungeonEntranceLog.h"
 #include "CDeathTowerRanking.h"
 #include "CMonster.h"
+#include "CItemGenerator.h"    // WongWork::stGenerateRefData_t/stGenerateResult_t
+#include "CDeathTowerWinPointEvent.h"
+#include "Secu_HackLogCheckByParty.h"   // MSG_MONSTER_DIE 完整定义
+#include "CStatisticServerProxy.h"    // statistc_proxy::add（handlePickupItem 随机选项统计）
 
 // ---- CAICharacter / CAICharacterList ----
 // 布局依据 ORIG set 0x0834a066 / ctor 0x08373a9a / 各访问器：
@@ -835,44 +839,48 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             unsigned int mobExp = 0;
             int charLevel = partyUser->get_charac_level();
             G_CDataManager()->get_mob_reward(charLevel, mobExp);
-            // m_party->getMonsterTotalExp(mobExp, false, 0, 1.0f, 1.0f, false);
-
-            // RewardData_Param rewardParam(m_party);
-            // RewardData_Result rewardResult;
-            // rewardResult.m_exp = mobExp;
-            // m_party->set_random_reward(0, rewardParam, 0, rewardResult);
-            // mobExp = rewardResult.m_exp;
+            // ORIG 0x08464e69：getMonsterTotalExp 后经 set_random_reward 取回
+            mobExp = m_party->getMonsterTotalExp(mobExp, false, 0, 1.0f, 1.0f, false);
+            QuickParty::RewardData_Param rewardParam(m_party);
+            QuickParty::RewardData_Result rewardResult;
+            rewardResult.m_value00 = mobExp;
+            m_party->set_random_reward((QuickParty::RandomBuffType)0, rewardParam,
+                                       rewardResult);
+            mobExp = rewardResult.m_value00;
 
             if (monster.m_roleType == 5)
             {
-                // G_CDataManager +0x5198 = m_deathTower（stDeathTower_t 未建模）内
-                // 魔王怪 EXP 倍率 float 字段【推断】
+                // ORIG 0x08464f2c：G_CDataManager+0x5198 float 倍率（魔王怪 EXP）
                 float* ratePtr = (float*)((char*)G_CDataManager() + 0x5198);
-                mobExp = (unsigned int)(*ratePtr * mobExp);
+                mobExp = (unsigned int)(*ratePtr * (float)mobExp);
             }
 
-            // G_CDataManager +0x5e1c = m_deathTower 内部 EXP 倍率 float 字段
-            // （stDeathTower_t m_pad[0xc98] 未建模；+0x5e1c = +0x5198 + 0x484）【推断】
+            // ORIG 0x08464f80：G_CDataManager+0x5e1c float 倍率（无条件）
             float* ratePtr2 = (float*)((char*)G_CDataManager() + 0x5e1c);
-            mobExp = (unsigned int)(*ratePtr2 * mobExp);
+            mobExp = (unsigned int)(*ratePtr2 * (float)mobExp);
 
-            // mobExp = m_party->sumGainedEachExp(partyUser, expData);
+            // ORIG 0x08465000：STGainedEachExpData(m_exp=mobExp) 后
+            // sumGainedEachExp 取回
+            STGainedEachExpData expData;
+            expData.m_exp = mobExp;
+            mobExp = m_party->sumGainedEachExp(partyUser, expData);
 
             if (winPoint != 0)
             {
-                // CDeathTowerWinPointEvent* event = (CDeathTowerWinPointEvent*)CEventManager::GetRepeatEvent(GlobalData::s_event_manager, 0x27);
-                // float bonusRate = event ? event->getBonusRate() : 0.0f;
-                // if (bonusRate == 0.0f)
-                // {
-                //     partyUser->gainWinPoint(winPoint, 2);
-                // }
-                // else
-                // {
-                //     partyUser->gainWinPoint((int)(winPoint * bonusRate), 2);
-                // }
+                // ORIG 0x08465017：GetRepeatEvent(0x27) 后直接调 getBonusRate
+                // （不判空，与 ORIG 一致）；rate==0 → 原值，否则乘率取整
+                CDeathTowerWinPointEvent* event =
+                    (CDeathTowerWinPointEvent*)GlobalData::s_event_manager->GetRepeatEvent(0x27);
+                float bonusRate = event->getBonusRate();
+                if (bonusRate == 0.0f)
+                    partyUser->gainWinPoint(winPoint, (eWPAddReason)2);
+                else
+                    partyUser->gainWinPoint((int)((float)winPoint * bonusRate),
+                                            (eWPAddReason)2);
             }
 
-            // partyUser->get_charac_info()->calcHelpAbuseRatio(mobExp);
+            // ORIG 0x08465090：calcHelpAbuseRatio(mobExp, false)
+            partyUser->calcHelpAbuseRatio(mobExp, false);
 
             int notiType = 0xb;
             if (monster.m_roleType == 5)
@@ -889,12 +897,31 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
                 partyUser->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
             }
 
-            // History log
-            // cUserHistoryLog* historyLog = (cUserHistoryLog*)((char*)partyUser + 0x79700);
-            // historyLog->KillMonster(monster.m_mobIndex, 0, 0, 0, 0, &msg, monster.m_roleType, monster.m_roleType == 5, 0, mobExp, notiType);
+            // ORIG 0x0846515f：cUserHistoryLog（user+0x79700）KillMonster 日志；
+            // killValue1=msg+0xa1e / killValue2=msg+0xa1a / a=+0xa24 / b=+0xa26；
+            // curExp=getCurCharacExp()
+            cUserHistoryLog* historyLog =
+                (cUserHistoryLog*)((char*)partyUser + 0x79700);
+            historyLog->KillMonster(monster.m_mobIndex, msg.m_killValue1,
+                                    msg.m_killValue2, msg.m_killPairA24,
+                                    msg.m_killPairA26, msg,
+                                    static_cast<char>(monster.m_roleType),
+                                    monster.m_roleType == 5,
+                                    partyUser->getCurCharacExp(),
+                                    (int)mobExp, (CUser::eExpAddReason)notiType);
 
-            // Quest check
-            // partyUser->CheckQuestMonster(dungeonIdx, monster.m_mobIndex, questType);
+            // ORIG 0x08465244：CheckQuestMonster(dungeonIndex, mobIndex, type)
+            // type：roleType 5..8 → 2，否则 1
+            {
+                int questType = 1;
+                if (monster.m_roleType > 4 && monster.m_roleType < 9)
+                    questType = 2;
+                CDungeon* dungeon = m_dungeonMgr.getDungeon();
+                if (dungeon)
+                    partyUser->CheckQuestMonster(dungeon->get_index(),
+                                                 monster.m_mobIndex,
+                                                 (ENUM_QUEST_ENEMY_TYPE)questType);
+            }
         }
     }
 
@@ -1540,18 +1567,30 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
     }
 
     map_item item;
-    PacketGuard packet;
+    CPacketHandler packet;
 
-    if (_makeDropItem(user, a4, a5, a6, item))
+    if (!_makeDropItem(user, a4, a5, a6, item))
     {
-        int dropIdx = m_stage.dropItem(item);
-        if (dropIdx == -1)
-        {
-            // makeDropItemError(packet, 0x32, 0x16, a4)
-            user->Send(packet);
-            return 0;
-        }
+        packet.makeDropItemError((ENUM_CMDPACKET)0x32, (ENUM_ERROR)0x11, a4);
+        user->Send(packet);
+        return 0;
     }
+
+    int dropIdx = m_stage.dropItem(item);
+    if (dropIdx == -1)
+    {
+        packet.makeDropItemError((ENUM_CMDPACKET)0x32, (ENUM_ERROR)0x16, a4);
+        user->Send(packet);
+        return 0;
+    }
+
+    unsigned short idx16 = (unsigned short)dropIdx;
+    packet.makeDropItemNotify((unsigned short)user->get_unique_id(), a2, a3, idx16, item);
+    m_party->send_to_party(packet);
+
+    packet.clear();
+    packet.makeDropItem(a4, a5, a6);
+    user->Send(packet);
     return 1;
 }
 
@@ -1670,11 +1709,14 @@ int CDeathTower::handleMoveMap()
 int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
 {
     map_item item;
-    PacketGuard packet;
+    CPacketHandler packet;
 
     if (!m_stage.peekItem(idx, item))
     {
-        // makeCommonError(packet, 0x2e, a4 < 4 ? 0x15 : 0x51)
+        if (a4 > 3)
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x51);
+        else
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x15);
         user->Send(packet);
         return 0;
     }
@@ -1682,32 +1724,30 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
     int memberCnt = m_party->get_member_count();
     if (memberCnt < 1)
     {
-        // makeCommonError(packet, 0x2e, 0x15)
+        packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x15);
         user->Send(packet);
         return 0;
     }
 
-    // ORIG：map_item.m_item（+0x10 Inven_Item 打包首 4 字节）作为 itemId 判定金钱物品。
-    // 打包区跨 m_field0/m_field1/m_addInfo，无单一具名成员，保留地址形式【推断】。
-    int itemId = *(int*)((char*)&item + 0x10);
-    if (itemId == 0)
+    // ORIG：map_item+0x12 = Inven_Item.m_addInfo（item idx）判定金钱物品。
+    if (item.m_item.m_addInfo == 0)
     {
         // Money item
         if (!m_stage.pickupItem(idx, item))
         {
-            // makeCommonError(packet, 0x2e, 0x15)
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x15);
             user->Send(packet);
             return 0;
         }
-        int money1 = 0, money2 = 0;
-        _pickupItemMoney(user, memberCnt, item, &money1, &money2);
-        unsigned short uid = user->get_unique_id();
-        // makePickupItemHeader(packet, uid, idx)
-        // appendPickupMoney(packet, &money1, &money2, m_party)
+        int moneyA[4] = {0};
+        int moneyB[4] = {0};
+        _pickupItemMoney(user, memberCnt, item, moneyA, moneyB);
+        packet.makePickupItemHeader(user->get_unique_id(), (unsigned short)idx);
+        packet.appendPickupMoney(moneyA, moneyB, m_party);
     }
     else
     {
-        CItem* citem = G_CDataManager()->find_item(itemId);
+        CItem* citem = G_CDataManager()->find_item(item.m_item.m_addInfo);
         if (!citem)
         {
             return 0;
@@ -1737,22 +1777,26 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
         }
 
         char ipgNo[0x18] = {0};
-        CUser* targetUser = _pickupItem(user, ipgNo, memberCnt, item, a3, a4, citem);
+        int nameBuf = 0;              // ORIG -0x4c：_pickupItem/appendPickupItem 的 char*
+        CUser* targetUser = _pickupItem(
+            user, (char*)&nameBuf, memberCnt, item, a3, a4, citem);
         if (!targetUser)
         {
-            // makeCommonError(packet, 0x2e, 0x16)
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x16);
             user->Send(packet);
             return 0;
         }
 
         int slot = -1;
-        Inven_Item* invenItem = (Inven_Item*)&item;
+        Inven_Item* invenItem = &item.m_item;
         if (invenItem->isAvatarItemType())
         {
             int characNo = targetUser->getCurCharacNo();
             WongWork::CGenUniqueNo::genIPGNo(
                 (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5, characNo, ipgNo);
-            slot = targetUser->addAvatarItem(itemId, 0, (char)item.m_count, ipgNo, (eAvatarItemAddReason)0x10);
+            slot = targetUser->addAvatarItem(
+                item.m_item.m_addInfo, 0, (char)item.m_item.m_fieldb,
+                ipgNo, (eAvatarItemAddReason)0x10);
         }
         else
         {
@@ -1762,27 +1806,29 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
 
         if (slot == -1)
         {
-            // makeCommonError(packet, 0x2e, 4)
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)4);
             user->Send(packet);
             return 0;
         }
 
         if (citem->IsRandomOption())
         {
-            // statistc_proxy::add(...)
+            statistc_proxy::add(
+                targetUser, "log_random_option", "pick_cnt", 1, "%d,'%s'",
+                targetUser->get_charac_10_level_section(),
+                GlobalData::s_systemTime_.getCurDate());
         }
 
         if (!m_stage.pickupItem(idx, item))
         {
-            // makeCommonError(packet, 0x2e, 0x15)
+            packet.makeCommonError((ENUM_CMDPACKET)0x2e, (ENUM_ERROR)0x15);
             user->Send(packet);
             return 0;
         }
 
-        unsigned short uid = user->get_unique_id();
-        // makePickupItemHeader(packet, uid, idx)
-        unsigned short targetUid = targetUser->get_unique_id();
-        // appendPickupItem(packet, ipgNo, targetUid, slot, itemType)
+        packet.makePickupItemHeader(user->get_unique_id(), (unsigned short)idx);
+        packet.appendPickupItem((char*)&nameBuf, targetUser->get_unique_id(),
+                                slot, itemType);
     }
 
     m_party->send_to_party(packet);
@@ -1911,28 +1957,31 @@ int CDeathTower::CStage::dropItem(map_item& item)
     m_mapInfo.Add_Item(item);
     return idx;
 }
+
 bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* map,
                                      CDeathTower* tower)
 {
-    m_mapInfo.m_mapIndex = map->get_index();
-
+    // ORIG 0x8460634：mobIdVec + apMap（拷贝自 aiList->getAPCount()）+
+    // map_monster mob 局部，随后按三段填充：AI 布点 → AP 随机怪 → 脚本怪列表
+    // → 特殊被动物品生成。tower 参数 ORIG 未使用。
     std::vector<unsigned int> mobIdVec;
     CAICharacterList* aiList = G_CDataManager()->m_aiCharacterList;
-    std::map<int, int> apMap;
+    std::map<int, int> apMap(aiList->getAPCount());
 
     int mobIdx = 0;
+    map_monster mob;
     const std::vector<STAICharacterMapArrangeData>* aiChars = map->getAICharacters();
 
+    // ---- 第一段：图上 AI 布点 ----
     if (!aiChars->empty())
     {
-        for (size_t i = 0; i < aiChars->size(); i++)
+        for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
+                 aiChars->begin(); it != aiChars->end(); ++it)
         {
-            const STAICharacterMapArrangeData& data = (*aiChars)[i];
+            const STAICharacterMapArrangeData& data = *it;
             CAICharacter* aiChar = aiList->get(data.m_type);
             if (!aiChar)
-            {
                 return false;
-            }
 
             unsigned int aiIdx = aiChar->getIdx();
             mobIdVec.push_back(aiIdx);
@@ -1940,35 +1989,178 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             int ap = aiChar->getAppearancePoint();
             if (ap != 0)
             {
-                std::map<int, int>::iterator it = apMap.find(ap);
-                if (it != apMap.end())
-                {
-                    int val = it->second - 1;
-                    it->second = std::max(val, 0);
-                }
+                std::map<int, int>::iterator it2 = apMap.find(ap);
+                if (it2 != apMap.end())
+                    it2->second = std::max(it2->second - 1, 0);
             }
 
-            map_monster mob;
             memset(&mob, 0, sizeof(mob));
             mob.m_mobId = mobIdx;
+            mob.m_mobIndex = data.m_type;
             mob.m_instId = m_mapInfo.m_assignItemIdx;
             m_mapInfo.m_assignItemIdx++;
             mob.m_roleType = 5;
-            mob.m_mobIndex = data.m_type;
             mob.m_level = aiChar->getLevel();
             mob.m_dropCnt = data.m_camp;
-
-            m_mapInfo.m_monsterMap[mobIdx] = mob;
+            m_mapInfo.Add_Mob(mob);
             mobIdx++;
         }
     }
 
-    // AP random monster handling (simplified)
+    // ---- 第二段：AP 随机怪（剩余点数预算扣减；ORIG 0x8460940..0x8460d28）----
     int apRandomPoint = map->getAPCRandomPoint();
     if (apRandomPoint != 0)
     {
-        // TODO: full AP random monster logic
         mobIdx = 0x40;
+        for (;;)
+        {
+            CAICharacter* aiChar = aiList->getByAP(
+                static_cast<unsigned int>(get_rand_int(apRandomPoint) + 1));
+            if (!aiChar)
+                return false;
+
+            std::vector<unsigned int>::iterator fi = std::find(
+                mobIdVec.begin(), mobIdVec.end(), aiChar->getIdx());
+            if (fi == mobIdVec.end())
+            {
+                // 未用过：统计 ≤ 剩余点数的可用 AP 总量，为 0 则跳出
+                int total = 0;
+                for (std::map<int, int>::const_iterator ci = apMap.begin();
+                     ci != apMap.upper_bound(apRandomPoint); ++ci)
+                    total += ci->second;
+                if (total == 0)
+                    break;
+            }
+            else
+            {
+                mobIdVec.push_back(aiChar->getIdx());
+                int ap = aiChar->getAppearancePoint();
+                std::map<int, int>::iterator it2 = apMap.find(ap);
+                if (it2 != apMap.end())
+                    it2->second = std::max(it2->second - 1, 0);
+                apRandomPoint -= ap;
+
+                memset(&mob, 0, sizeof(mob));
+                mob.m_mobId = mobIdx;
+                mob.m_mobIndex = aiChar->getIdx();
+                mob.m_instId = m_mapInfo.m_assignItemIdx;
+                m_mapInfo.m_assignItemIdx++;
+                mob.m_roleType = 5;
+                mob.m_level = aiChar->getLevel();
+                mob.m_dropCnt = 100;   // ORIG 立即数
+                m_mapInfo.Add_Mob(mob);
+                mobIdx++;
+            }
+            if (aiList->getMinAP() > apRandomPoint)
+                break;
+        }
+    }
+
+    // ---- 第三段：脚本怪列表（ORIG 0x8460d28..0x8460f74）----
+    mobIdx = 0;
+    std::vector<int> namedVec;
+    const std::list<_mapMonster> mons = map->get_monster_list();
+    for (std::list<_mapMonster>::const_iterator it = mons.begin();
+         it != mons.end(); ++it)
+    {
+        const _mapMonster& src = *it;
+        memset(&mob, 0, sizeof(mob));
+        mob.m_mobId = mobIdx;
+
+        if (src.m_flag04 != 0)
+        {
+            int lv = dungeonMgr.getStandardLevel() + src.m_field08;
+            if (lv > 0xc7)
+                lv = 0xc8;
+            else if (lv <= 0)
+                lv = 1;
+            mob.m_level = static_cast<unsigned char>(lv);
+        }
+        else
+        {
+            mob.m_level = static_cast<unsigned char>(src.m_field08);
+        }
+
+        if (src.m_mobId == -1)
+            mob.m_mobIndex =
+                G_CDataManager()->m_monsterManager->get_levelrandom_mob(
+                    mob.m_level);
+        else
+            mob.m_mobIndex = src.m_mobId;
+
+        // ORIG 分别写 +0x11/+0x12 两字节 = m_field11 半字（小端拼装）
+        mob.m_field11 = static_cast<short>(
+            (static_cast<unsigned short>(
+                static_cast<unsigned char>(src.m_levelAdd)) |
+             (static_cast<unsigned short>(
+                static_cast<unsigned char>(src.m_field14)) << 8)));
+        mob.m_roleType = static_cast<char>(
+            static_cast<unsigned char>(src.m_roleType));
+        mob.m_instId = m_mapInfo.m_assignItemIdx;
+        m_mapInfo.m_assignItemIdx++;
+
+        if (mob.m_roleType == 0 && !mob.isNamedMonster())
+            namedVec.push_back(mob.m_instId);
+
+        mob.m_field13 = static_cast<unsigned char>(src.m_champion);
+        mob.m_field14 = static_cast<unsigned char>(src.m_posX);
+        mob.m_dropCnt = src.m_hpPct;
+        m_mapInfo.Add_Mob(mob);
+        mobIdx++;
+    }
+
+    // ---- 第四段：特殊被动物品生成（ORIG 0x8460fdd..0x846133f）----
+    std::vector<stDungeonAssignItem_t>* specialItems =
+        dungeonMgr.getSpecialPassiveObjectItems();
+    stGenerateRefData_t refData1;
+    stGenerateRefData_t refData2;
+    dungeonMgr.getObjectDropItems();   // ORIG 取出未用（忠实保留）
+    const std::list<_mapItem> items = map->get_item_list();
+
+    for (std::list<_mapItem>::const_iterator it = items.begin();
+         it != items.end(); ++it)
+    {
+        const _mapItem& src = *it;
+        const stDungeonAssignItem_t& assign =
+            specialItems->at(static_cast<unsigned int>(src.m_objectIdx));
+
+        if (assign.m_assignItemIdx != -1)
+        {
+            *(char*)((char*)&refData1 + 0x38) =
+                static_cast<char>(assign.m_assignItemIdx);
+        }
+        else
+        {
+            int stdLevel = dungeonMgr.getStandardLevel();
+            if (stdLevel <= 0 || stdLevel > 0xc8)
+                continue;
+            *(char*)((char*)&refData1 + 0x38) =
+                static_cast<char>(stdLevel);
+        }
+        // ORIG 0x84610fb..0x846111b：refData1+0x39 = src.m_field04 低字节
+        //（+0x38/+0x39 即 m_rankBonusIndex 的低两字节）
+        *(char*)((char*)&refData1 + 0x39) =
+            static_cast<char>(src.m_field04);
+
+        stGenerateResult_t result;
+        WongWork::CItemGeneratorMgr* genMgr =
+            G_CDataManager()->getItemGenerator();
+        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_1)
+            ->generateRandomItem(refData1, result);
+        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
+            ->generateSpecificItem(refData2, result);
+
+        for (std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();
+             d != result.m_dropItems.end(); ++d)
+        {
+            map_item drop;
+            drop.m_count = 1;
+            drop.m_itemIndex = m_mapInfo.m_dropItemCnt;
+            m_mapInfo.m_dropItemCnt++;
+            drop.m_standardLevel = static_cast<char>(src.m_field0c);
+            drop.m_item = *d;
+            m_mapInfo.Add_Item(drop);
+        }
     }
 
     return true;
@@ -2292,7 +2484,7 @@ void CDeathTower::CStage::resetCurrentStage()
 
 void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
 {
-    packet.put_short(m_currentStage);
+    packet.put_short(getCurrentStage());
     packet.put_int(get_rand_int(0));
     packet.put_short(m_mapInfo.m_mapIndex);
     packet.put_byte(m_mapInfo.m_monsterMap.size());
@@ -2300,7 +2492,7 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
     for (std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.begin();
          it != m_mapInfo.m_monsterMap.end(); ++it)
     {
-        map_monster& mob = it->second;
+        map_monster mob(it->second);   // ORIG 栈拷贝（C1ERKS）后逐字段写包
         packet.put_int(mob.m_mobId);
         packet.put_short(mob.m_instId);
         packet.put_int(mob.m_mobIndex);
@@ -2308,6 +2500,22 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
         packet.put_byte(mob.m_roleType);
         packet.put_byte(mob.m_field13);
         packet.put_byte(mob.m_field14);
+    }
+    // ORIG 0x84619ed 起：m_mapInfo.m_itemMap（+0x30）遍历。序列化格式与
+    // CBossStage::SendMapInfoPacket 不同（此处 itemIndex 仅 short、m_addInfo
+    // 为 int、endurance word），按 ORIG 逐字段转写。
+    packet.put_byte((int)m_mapInfo.m_itemMap.size());
+    for (std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.begin();
+         it != m_mapInfo.m_itemMap.end(); ++it)
+    {
+        map_item item = it->second;        // ORIG 21 dword 栈拷贝
+        packet.put_byte((int)(signed char)item.m_standardLevel);   // +0x01
+        packet.put_short((int)(short)item.m_itemIndex);            // +0x04 低 2 字节
+        packet.put_int(item.m_item.m_addInfo);                     // m_item+0x02
+        packet.put_int(item.m_item.get_add_info());                // m_item+0x07
+        packet.put_short((int)item.m_item.m_fieldb);               // m_item+0x0b（endurance）
+        packet.put_byte((int)item.m_item.m_amp.getAbilityType());  // m_item+0x11
+        packet.put_short((int)item.m_item.m_amp.getAbilityValue());
     }
 }
 

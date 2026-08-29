@@ -5124,7 +5124,7 @@ void CParty::dungeon_clear()
             secretshop::SECRET_SHOP_DATA& shop =
                 *reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
             if (shop.IsOpen())
-                sec = *(int*)((char*)G_CDataManager() + 0xa784) * 0x3c;
+                sec = *(int*)((char*)G_CDataManager() + 0xa784) * 12;
             int key = gen_timer_key((TIMER_MESSAGE)0x15);
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
                                         GetPartyIndex(), (TIMER_MESSAGE)0x15,

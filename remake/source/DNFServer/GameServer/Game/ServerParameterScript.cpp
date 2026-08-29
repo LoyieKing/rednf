@@ -523,16 +523,34 @@ int ServerParameterScript::GetCleanChattingCount(int level)
 int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
                                                std::vector<std::pair<int, int> >& out)
 {
-    (void)a;
-    (void)b;
-    (void)c;
-    out.clear();
-    for (std::map<int, int>::iterator it = m_map49c4.begin();
-         it != m_map49c4.end(); ++it)
+    // ORIG 0x084a61c4：① 在 m_map49c4 线性找首个 key>=c（第 3 参数），找到则
+    // c=key 并跳出；未找到（it==end）回退到最大 key 并把 c=key。② 以 (a,b,c)
+    // 构造 PvPPlayerKey 查 m_pvp49ac；未命中返 0。③ 命中把 vector 整段 insert
+    // 到 out 末尾，返 1。
+    std::map<int, int>::iterator it = m_map49c4.begin();
+    std::map<int, int>::iterator e = m_map49c4.end();
+    for (; it != e; ++it)
     {
-        out.push_back(std::pair<int, int>(it->first, it->second));
+        if (it->first >= c)
+        {
+            c = it->first;
+            break;
+        }
     }
-    return (int)out.size();
+    if (it == e)
+    {
+        --it;
+        c = it->first;
+    }
+    PvPPlayerKey key((unsigned char)a, (unsigned char)b, (unsigned char)c);
+    std::map<PvPPlayerKey, std::vector<std::pair<int, int> > >::iterator found =
+        m_pvp49ac.find(key);
+    if (found == m_pvp49ac.end())
+    {
+        return 0;
+    }
+    out.insert(out.end(), found->second.begin(), found->second.end());
+    return 1;
 }
 
 int ServerParameterScript::GetTraningSealGive(int idx) const

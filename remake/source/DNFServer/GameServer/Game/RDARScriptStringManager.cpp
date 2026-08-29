@@ -560,22 +560,23 @@ void* RDARScriptStringManager::getStringFileList()
     return this;
 }
 
-void RDARScriptStringManager::changeSpacilTagStr(std::string& s)
+bool RDARScriptStringManager::changeSpacilTagStr(std::string& s)
 {
     // ORIG 0x8aa60b0：把 "<URL LINK>内文</URL LINK>" 转为 0x1c 内文 0x1d，
-    // 尾部残留追加，最后补 "\n"。任何初始条件不满足则不修改 s。
+    // 尾部残留追加，最后补 "\n"。任何初始条件不满足返回 0 且不修改 s；
+    // 成功替换返回 1。
     static const char* OPEN = "<URL LINK>";
     static const char* CLOSE = "</URL LINK>";
 
     if (s.empty())
-        return;
+        return false;
 
     std::string::size_type posOpen = s.find(OPEN, 0);
     std::string::size_type posClose = s.rfind(CLOSE, std::string::npos);
     if (posOpen == std::string::npos || posClose == std::string::npos ||
         posOpen == posClose)
     {
-        return;
+        return false;
     }
 
     std::string part1 = s.substr(0, posOpen);
@@ -585,7 +586,7 @@ void RDARScriptStringManager::changeSpacilTagStr(std::string& s)
         s.substr(posClose + std::strlen(CLOSE), s.length() - posClose - std::strlen(CLOSE));
 
     if (part1.empty() || partInner.empty())
-        return;
+        return false;
 
     std::string out = part1;
     out += static_cast<char>(0x1c);
@@ -595,8 +596,12 @@ void RDARScriptStringManager::changeSpacilTagStr(std::string& s)
         out += partTail;
     out += "\n";
 
-    if (!out.empty())
-        s = out;
+    if (out.empty())
+        return false;
+
+    s.clear();
+    s = out;
+    return true;
 }
 
 void RDARScriptStringManager::release()

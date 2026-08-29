@@ -886,16 +886,18 @@ int ImportBroadCastItemScript(const char* path, stBroadCastItemScript& script)
 // 共享字符串工具（LoadRewardDataByGrowType 依赖，Main 裁定本批承载）
 // ============================================================================
 
-// ORIG T 0x08917db3：剔除 '[' 与 ']'；仅当确有剔除时回写（ORIG local_11 门禁）。
+// ORIG T 0x08917db3：剔除 '[' 与 ']'（ORIG 以 tag="[]" 逐字符比对）；仅当确有
+// 剔除时回写（ORIG local_11 门禁）。
 void deleteTagBracketString(std::string& text)
 {
+    std::string tag = "[]";
     std::string filtered;
     bool replaced = false;
 
     for (std::string::size_type i = 0; i < text.size(); ++i)
     {
         char c = text[i];
-        if (c == '[' || c == ']')
+        if (c == tag[0] || c == tag[1])
         {
             replaced = true;
         }

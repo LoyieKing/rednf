@@ -181,7 +181,7 @@ bool FnRewardInterface::operator()(int eventCode, unsigned long itemIndex,
                                              (int)m_user->GetUID());
         guard.put_binary(&sig, 0x16);
         MsgQueueMgr::QUEUE_IDX idx = MsgQueueMgr::QUEUE_IDX(2);
-        GlobalData::s_msgq_mgr->put(idx, guard);
+        return GlobalData::s_msgq_mgr->put(idx, guard);
     }
     else
     {
@@ -194,7 +194,6 @@ bool FnRewardInterface::operator()(int eventCode, unsigned long itemIndex,
             (int)count);
         return false;
     }
-    return true;
 }
 
 // ---- FnRewardMomoji --------------------------------------------------------
@@ -295,7 +294,7 @@ bool FnRewardLethe::operator()(int eventCode, unsigned long itemIndex,
                                              (int)m_user->GetUID());
         guard.put_binary(&sig, 0x16);
         MsgQueueMgr::QUEUE_IDX idx = MsgQueueMgr::QUEUE_IDX(2);
-        GlobalData::s_msgq_mgr->put(idx, guard);
+        return GlobalData::s_msgq_mgr->put(idx, guard);
     }
     else
     {
@@ -307,7 +306,6 @@ bool FnRewardLethe::operator()(int eventCode, unsigned long itemIndex,
             characNo, (unsigned int)itemIndex, (int)count);
         return false;
     }
-    return true;
 }
 
 }  // namespace ARAD

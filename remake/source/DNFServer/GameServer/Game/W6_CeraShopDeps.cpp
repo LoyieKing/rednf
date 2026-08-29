@@ -117,10 +117,10 @@ inline cUserHistoryLog* GiftHistoryLog(CUser* user)
 // CallSpecialItemHandler —— ORIG T 0x08325854 (0x2a)
 // 薄转发：m_handler->execute(type,param,result)。
 // ---------------------------------------------------------------------------
-void CCeraShop::CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
+bool CCeraShop::CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
                                        STSpecailItem_Result& result)
 {
-    m_handler->execute(type, param, result);
+    return m_handler->execute(type, param, result);
 }
 
 // ---------------------------------------------------------------------------
