@@ -245,14 +245,13 @@ int CItemAmplifier::getInvestMaterialInfo(
     {
         return 0;
     }
-
     info = it->second;
     return 1;
 }
 
 // ORIG 0x08234c3c：返回 ENUM_ERROR 码（0 = 允许）。
 //   0:  item 无能力且未强化 → 0；有强化 → 0x12；有(已识别)能力 → 0x14
-//   1:  无能力 → 0x15；有强化 → 0x12；否则 → 0
+//   1:  有能力 → (有强化 → 0x12；否则 0)；无能力 → 0x15
 //   2:  恒 0
 //   其他（>2）: 恒 1
 int CItemAmplifier::enableInvestAmplifyOption(
@@ -263,15 +262,15 @@ int CItemAmplifier::enableInvestAmplifyOption(
 
     if (type == ENUM_ITEM_AMPLIFY_INVEST_TYPE_1)
     {
-        if (!amp.hasAbility())
+        if (amp.hasAbility())
         {
-            return 0x15;
+            if (inven.GetUpgrade())
+            {
+                return 0x12;
+            }
+            return 0;
         }
-        if (inven.GetUpgrade())
-        {
-            return 0x12;
-        }
-        return 0;
+        return 0x15;
     }
     if (type == ENUM_ITEM_AMPLIFY_INVEST_TYPE_2)
     {

@@ -68,7 +68,7 @@ void CQuickParty::init()
 void CQuickParty::set_quick_party_index(int idx) { m_quickPartyIndex = idx; }
 
 short CQuickParty::get_dungeon_index() { return m_dungeonIndex; }
-char CQuickParty::get_dungeon_diff() { return m_dungeonDiff; }
+int CQuickParty::get_dungeon_diff() { return static_cast<signed char>(m_dungeonDiff); }
 
 void CQuickParty::set_change_quick_party_count(bool flag)
 {

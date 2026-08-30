@@ -950,6 +950,8 @@ void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
         Inven_Item probe;                       // ORIG 局部 ctor 清零
         probe.m_addInfo = itemIndex;            // 直接写 +0x02
         probe.set_add_info(1);                  // ORIG：m_addInfo2 = 1（set_add_info 语义）
+        templateItem->make_item(probe);         // ORIG 0x81f90f3..0x81f9108：vptr+8
+                                                // 虚槽 make_item 填充 type 等（CItem.h vtable 槽 2）
         unsigned char probeType = probe.m_field1;   // make_item 填充的 type 字节
         int needSlot = kInvalidSlot;
         CInventory* inven =

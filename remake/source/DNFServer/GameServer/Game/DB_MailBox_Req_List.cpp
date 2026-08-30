@@ -158,7 +158,7 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
         int i;
         for (i = mailIdx; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT) - 1; ++i)
         {
-            memcpy(SIG_PTR(list, i * 0x61), SIG_PTR(list, (i + 1) * 0x61), 0x61);
+            memmove(SIG_PTR(list, i * 0x61), SIG_PTR(list, (i + 1) * 0x61), 0x61);
         }
     }
     SIG_I32(list, SIG_OFF_POSTAL_COUNT) -= 1;

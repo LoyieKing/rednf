@@ -237,7 +237,8 @@ void CHandlePremium::handlePremiumTimeout(CUser* user)
         return;
 
     handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)timeoutType, 0, 0, 0, true);
-    user->RemoveRestrictedGoods(timeoutType);
+    // ORIG 0x086afb4c：mov -0x10(%ebp) = info.m_flag(+0xc)（非 m_type）。
+    user->RemoveRestrictedGoods(info.m_flag);
     if (user->getCurCharacR() != 0)
     {
         user->ProcPremiumFatigue();

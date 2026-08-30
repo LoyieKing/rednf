@@ -1357,6 +1357,7 @@ void CParty::sendInoutConditionDungeon(RetryFailReason::T reason)
     if ((int)reason == 10)
         return;
     PacketGuard packet;
+    packet.clear();                                  // ORIG 0x85ac97b：ctor 后显式 clear
     packet.put_header(0, 0x104);
     packet.put_byte((int)reason);
     packet.finalize(true);

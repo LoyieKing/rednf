@@ -581,6 +581,9 @@ CCreatureMgr::CCreatureMgr()
     Reset();
 }
 
+// ORIG 0x86992cc 拷贝构造：map/equipped/user/tempExpireDelta/map30/isMaxLevel
+// 复制后仅循环复制 +0x20 起 2 个 dword（m_artifacts[0..1]）；m_artifacts[2]
+// 与 +0x28 区间不复制（保持目标默认状态）。
 CCreatureMgr::CCreatureMgr(const CCreatureMgr& src)
     : m_creatureItems(src.m_creatureItems),
       m_equippedCreature(src.m_equippedCreature),
@@ -589,7 +592,7 @@ CCreatureMgr::CCreatureMgr(const CCreatureMgr& src)
       m_field30(src.m_field30),
       m_isMaxLevelGrowCreature(src.m_isMaxLevelGrowCreature)
 {
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 2; ++i)
         m_artifacts[i] = src.m_artifacts[i];
 }
 

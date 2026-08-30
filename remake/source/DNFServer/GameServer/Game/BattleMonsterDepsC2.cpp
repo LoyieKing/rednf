@@ -556,22 +556,22 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
     }
 }
 
-// ORIG 0x083026da：对当前图副本逐只计算基础能力并按难度/头目/冠军特性升级。
-// ORIG 先复制整张 monsterMap 再遍历（能力写入落在副本上，随函数结束丢弃）——忠实保留。
+// ORIG 0x083026da：直接遍历 GetCurrentMapInfo()->m_monsterMap（+0xc）原图，
+// 能力写入落在真实地图怪物上；srand/冠军分支均重新 GetCurrentMapInfo。
 void CBattle_Field::set_monster_ability()
 {
     if (m_pDungeon == NULL)
         return;
     MapInfo* mapInfo = GetCurrentMapInfo();
     mapInfo->m_mapBasisLevel = rand();                                    // +0x48
-    srand(static_cast<unsigned int>(mapInfo->m_mapBasisLevel));
+    srand(static_cast<unsigned int>(GetCurrentMapInfo()->m_mapBasisLevel));
 
-    std::map<int, map_monster> monsters = GetCurrentMapInfo()->m_monsterMap;
-    for (std::map<int, map_monster>::iterator it = monsters.begin();
-         it != monsters.end(); ++it)
+    for (std::map<int, map_monster>::iterator it =
+             GetCurrentMapInfo()->m_monsterMap.begin();
+         it != GetCurrentMapInfo()->m_monsterMap.end(); ++it)
     {
         map_monster& mm = it->second;
-        if (static_cast<signed char>(mm.m_mobIndex) >= 5)
+        if (static_cast<unsigned char>(mm.m_roleType) > 4)   // ORIG movzbl +0x8
             continue;
         CMonster* monster =
             static_cast<CMonster*>(G_CDataManager()->find_monster(mm.m_mobIndex));
@@ -598,13 +598,13 @@ void CBattle_Field::set_monster_ability()
         }
         else if (mm.m_roleType == 1 || mm.m_roleType == 2)
         {
-            const int elem =
-                getRandomChampionElement(script, mapInfo->m_mapBasisLevel);
+            const int elem = getRandomChampionElement(
+                script, GetCurrentMapInfo()->m_mapBasisLevel);
             std::vector<int> features;
             makeChampionFeatureList(mm.m_mobList,
                                     static_cast<unsigned char>(mm.m_level),
-                                    mapInfo->m_mapBasisLevel, features,
-                                    get_dungeon_diff());
+                                    GetCurrentMapInfo()->m_mapBasisLevel,
+                                    features, get_dungeon_diff());
             upgradeAbilityByChampionFeature(elem,
                                             static_cast<signed char>(mm.m_roleType),
                                             &features, active);
@@ -751,35 +751,37 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
 
 void CBattle_Field::moveMap_1_Log(int x, int y)
 {
-    MapInfo* info = GetMapInfoFromPos(x, y, false);
+    // ORIG 无局部变量：三元表达式直接链式调用（cdecl 从右到左求值，
+    // 首个调用用于 m_layeredMap、第二个用于 m_mapIndex）。
     LogManager::logFormat(
         1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1126,
         "TRY MoveMap [1][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
-        x, y, info->m_layeredMap ? "layeredMap" : "generalMap");
+        x, y,
+        GetMapInfoFromPos(x, y, false)->m_layeredMap ? "layeredMap" : "generalMap");
 }
 
 void CBattle_Field::moveMap_2_Log(int x, int y)
 {
-    MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
         1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1138,
         "TRY MoveMap [2][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
-        x, y, info->m_layeredMap ? "layeredMap" : "generalMap");
+        x, y,
+        GetMapInfoFromPos(x, y, false)->m_layeredMap ? "layeredMap" : "generalMap");
 }
 
 void CBattle_Field::moveMap_3_Log(int x, int y)
 {
-    MapInfo* info = GetMapInfoFromPos(x, y, false);
     LogManager::logFormat(
         1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x114a,
         "TRY MoveMap [3][Dungeon Type : %d][Map Index : %d](%d,%d) -> (%d,%d) "
         "[Map Kind : %s]",
         m_dungeonIndex, GetMapInfoFromPos(x, y, false)->m_mapIndex, m_curX, m_curY,
-        x, y, info->m_layeredMap ? "layeredMap" : "generalMap");
+        x, y,
+        GetMapInfoFromPos(x, y, false)->m_layeredMap ? "layeredMap" : "generalMap");
 }
 
 void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)

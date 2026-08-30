@@ -95,10 +95,10 @@ public:
         SEXPERTJOB();
         ~SEXPERTJOB();
 
-        float m_field0;                // +0x00 (stExpertCompoundResultVariation.f0)
-        float m_field4;                // +0x04
-        float m_field8;                // +0x08 (stExpertJobAdditionalExp.f0)
-        int m_fieldc;                  // +0x0c
+        // ORIG 布局：+0x00 为 stExpertCompoundResultVariation（8B）、
+        // +0x08 为 stExpertJobAdditionalExp（8B），ctor 分别调用。
+        stExpertCompoundResultVariation m_variation;   // +0x00
+        stExpertJobAdditionalExp m_additionalExp;      // +0x08
         float m_field10;               // +0x10
         float m_field14;               // +0x14
         float m_field18;               // +0x18

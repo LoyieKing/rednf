@@ -101,15 +101,10 @@ void CBattle_Field::reset_field()
     m_dungeonIndex = 0;                     // +0x194
     m_mapHeight    = 0;                     // +0x190
     m_mapWidth     = m_mapHeight;           // +0x18c
-    // 位置链：pair[1].second/+0x18 → ... → m_startX，最终全 0
-    m_pos[1].second = 0;                    // +0x18
-    m_pos[1].first  = 0;                    // +0x14
-    m_curY          = 0;                    // +0x64
-    m_curX          = 0;                    // +0x60
-    m_pos[0].second = 0;                    // +0x10
-    m_pos[0].first  = 0;                    // +0x0c
-    m_startY        = 0;                    // +0x08
-    m_startX        = 0;                    // +0x04
+    // 位置链：pair[1].second/+0x18 → ... → m_startX，最终全 0。
+    // ORIG 为链式复制（0x18→0x14→0x64→0x60→0x10→0xc→0x8→0x4），多重赋值复现。
+    m_startX = m_startY = m_pos[0].first = m_pos[0].second = m_curX =
+        m_curY = m_pos[1].first = m_pos[1].second = 0;
     for (int i = 0; i < 4; ++i)             // pair[2..5] 与 pair[6..9] 清零
     {
         m_pos[i + 2].first  = 0;
@@ -120,10 +115,8 @@ void CBattle_Field::reset_field()
     m_firstEnterDungeon = 1;                // +0x5c
 
     // —— 难度/迷宫链 ——
-    m_dungeonDiff   = 0;                    // +0x1a0
-    m_questStageMap = 0;                    // +0x19c = (+0x1a0)
-    m_field198      = 0;                    // +0x198 = (+0x19c)
-    m_mapMobCount  = 0;                     // +0x70 = (+0x198)
+    // ORIG 链式复制（0x1a0→0x19c→0x198→0x70），多重赋值复现。
+    m_mapMobCount = m_field198 = m_questStageMap = m_dungeonDiff = 0;
 
     m_apcKillCount  = 0;                    // +0x1a8
     m_pDungeon      = NULL;                 // +0x188

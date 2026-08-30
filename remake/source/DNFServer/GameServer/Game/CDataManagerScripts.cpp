@@ -680,8 +680,10 @@ bool DeleteInvalidItemScript::GetRewardItemInfo(int idx, int& rewardIdx,
         m_deleteMap.find(idx);
     if (it == m_deleteMap.end())
         return false;
-    rewardIdx = it->second.m_field0;
-    rewardCnt = it->second.m_field4;
+    // ORIG 0x8ac2152：ptEv 读 second+0x4 / second+0x8 —— rewardIdx=m_field4、rewardCnt=m_field8
+    //（m_field0 为脚本 idx，与 map key 重复；loadScript 填充 data[0]=idx,data[4]=rewardIdx,data[8]=rewardCnt）
+    rewardIdx = it->second.m_field4;
+    rewardCnt = it->second.m_field8;
     return true;
 }
 
@@ -2075,13 +2077,15 @@ CWorldMapList::~CWorldMapList()
 // ORIG 0x8374752：遍历 delete 各 CWorldMap*（D1 + operator delete），最后清空 map。
 void CWorldMapList::destroy()
 {
+    // ORIG 0x8374752：局部变量暂存 second、delete、清零局部（不写回 map 值）。
     for (std::map<int, CWorldMap*>::iterator it = m_map.begin(); it != m_map.end(); ++it)
     {
-        if (it->second != 0)
+        CWorldMap* worldMap = it->second;
+        if (worldMap != 0)
         {
-            delete it->second;
+            delete worldMap;
         }
-        it->second = 0;
+        worldMap = 0;
     }
     m_map.clear();
 }

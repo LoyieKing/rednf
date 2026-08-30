@@ -23,7 +23,7 @@ public:
     void getData(char* out) const;            // override（ORIG 0x0811d7e0）
     bool loadData(CUser* user, char* data);   // override（ORIG 0x0811d79a）
     int getGainItemCount() const;
-    std::vector<int>& getGainItemList();
+    std::vector<int> getGainItemList();   // ORIG 按值返回（ret $0x4 NRV 实证）
     bool getItemCheckFlag(unsigned int item, unsigned int flag) const;
     int getLengthBinary() const;
     void sendItemDictionaryInfo(CUser* user, unsigned int item);
@@ -32,7 +32,8 @@ public:
     void setItemCheckFlag(CUser* user, unsigned int item, unsigned int flag);
 private:
     unsigned char m_data[5000];               // +0x05 起位图（5000 字节）
-    std::vector<int> m_gainItemList;
+    // ORIG 无成员 vector：getGainItemList 按值返回局部 vector（NRV）；
+    // D1 0x0811d5f0 反汇编无 vector 析构调用（仅 vptr + complete-object delete）。
 };
 #pragma pack(pop)
 

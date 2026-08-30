@@ -295,8 +295,9 @@ void CBattle_Field::getLastPosXY(int& x, int& y)
     }
     else
     {
+        // ORIG 0x8300e44 原版笔误：两次均写 &x（mov 0xc(%ebp)），y 形参未写。
         x = m_lastX;
-        y = m_lastY;
+        x = m_lastY;
     }
 }
 

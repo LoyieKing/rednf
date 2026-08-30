@@ -116,9 +116,12 @@ void CCreature::Reset()
 // COverSkillTimeC1（+0x48=0）→ Reset()。镜像无虚表，m_vptr 常量模拟
 // vtable 指针；memset 在成员自动构造之后执行会覆盖子对象构造结果，
 // 故补回 CStomach 初始值（Reset 随后把 m_value 覆盖为 0.0f，与 ORIG 一致）。
+// 镜像无虚表：以 placement new 显式调用 CCreatureItemC1 模拟 ORIG 基类构造
+// （写 +0x00=0x8c2f4d8，随后被 vptr 覆盖），与 ORIG call 序列一致；
+// 余下字段不初始化（同 ORIG，由 Reset 覆盖）。
 CCreature::CCreature()
 {
-    memset(this, 0, sizeof(*this));
+    new (this) CCreatureItem;            // ORIG call CCreatureItemC1（写 +0x00）
     m_vptr = 0x08c2f4c0;                 // ORIG movl $0x8c2f4c0,(%eax)
     m_stomach.m_lastTime = GlobalData::s_systemTime_.getCurSec();  // ORIG CStomachC1：+0x34
     m_stomach.m_value = 100.0f;          // ORIG CStomachC1：+0x38

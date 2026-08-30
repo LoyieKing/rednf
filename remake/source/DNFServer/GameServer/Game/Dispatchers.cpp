@@ -8,6 +8,7 @@
 #include "CUserProc.h"             // APSystem::CUserProc（ClearAction/GetTodayReward dispatch_sig）
 #include "CCharacInformNotice.h"   // CCharacInformNotice::handleInformNoticeFlag
 #include "Packet_Monitor_Other_Channel_Chat_Hyper_Link.h"  // ItemHyperLinkMessage process +0x26 跨服转发
+#include "Packet_Monitor_Other_Channel_Chat.h"           // CreatureSendMessage/CreatureScriptMessage 私聊监控包（shared 权威 packed 0x13b）
 #include "Packet_Approve_Join_Guild.h"  // 8924 行使用（局部栈对象）
 #include "InterSelectPcroomDailyReward.h"   // RequestPrcoomDayilyReward 发放后回包/落库
 #include "DBUpdatePcroomDailyReward.h"      // RequestPrcoomDayilyReward 发放后落库
@@ -480,24 +481,6 @@ struct MSG_EPLP_COMMAND
     char m_pad00[0xd];        // 包头区（+0x00..+0x0c，ORIG 偏移视图）
     unsigned char m_cmd;      // +0x0d：命令字节（_BroadCastPacket 首个 put_byte）
     unsigned char m_subCmd;   // +0x0e：子命令字节（_BroadCastPacket 第二个 put_byte）
-};
-
-// Packet_Monitor_Other_Channel_Chat：ORIG 仅导出弱内联 ctor W 0x0822b8e6
-// （ CreatureSendMessage / CreatureScriptMessage 私聊监控包）。字段偏移取自
-// Dispatchers.cpp 两处使用点注释（+0x13 characNo / +0x1b nameLen / +0x1c name /
-// +0x3a msgLen / +0x3b msg）；布局无头文件证据，不设 static_assert。
-struct Packet_Monitor_Other_Channel_Chat
-{
-    Packet_Monitor_Other_Channel_Chat();   // ORIG W 0x0822b8e6
-
-    char m_pad00[0x13];                    // 包头区（put_header 域，ORIG 偏移视图）
-    unsigned int m_characNo;               // +0x13：发起者角色号
-    char m_pad17[0x04];                    // +0x17
-    char m_buddyNameLen;                   // +0x1b：好友名长度（char 截断）
-    char buddy_n_user_id_what[0x1e];       // +0x1c：好友名（0x1e 上限）
-    unsigned char m_msgLen;                // +0x3a：消息长度
-    char m_msg[0xc8];                      // +0x3b：消息体
-    unsigned short packetSize;             // 包大小回写（send 前统计）
 };
 
 
@@ -4795,7 +4778,17 @@ int Dispatcher_ScanBotByDll::check_error(CUser* user, MSG_BASE& msg)
 {
     const MSG_SCAN_DLL& req = static_cast<const MSG_SCAN_DLL&>(msg);
     const int value = req.m_field0d;  // ORIG check_error @0x8264538 读 msg+0xd int
-    return value < 0 || value > 49 ? 0x407 : 0;
+    // ORIG 0x0826456f：x=value+0x352；x<=0x351→0；x<=0x383→返回 x；否则 0x407
+    //（即 value<0→0；0<=value<=0x31→value+0x352；value>0x31→0x407）
+    if (value < 0)
+    {
+        return 0;
+    }
+    if (value <= 0x31)
+    {
+        return value + 0x352;
+    }
+    return 0x407;
 }
 // ORIG 0x082643b2（报告 Dispatcher_ScanBotByDll/read.md）[随行依赖]。
 int Dispatcher_ScanBotByDll::read(PacketBuf& packet, MSG_BASE& msg)

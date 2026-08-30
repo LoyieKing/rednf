@@ -87,7 +87,7 @@ public:
     void set_quick_party_index(int idx);
 
     short get_dungeon_index();           // W @0x0826b798 (+0x16)
-    char get_dungeon_diff();             // W @0x0826b7b4 (+0x18)
+    int get_dungeon_diff();              // W @0x0826b7b4 (+0x18, ORIG movsbl 符号扩展)
     int get_quick_party_count();         // T @0x082698be
     void set_change_quick_party_count(bool flag);  // W @0x0826b7f0 (+0x24)
     void delete_party_index(int partyIdx);         // T @0x0826980e

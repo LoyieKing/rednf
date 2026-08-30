@@ -50,19 +50,26 @@ int CItemDictionary::getGainItemCount() const {
 // ORIG 0x0811dba6（ret $0x4 克隆；逐条转写）：遍历位图（+0x5 起），置位处
 // itemIdx=i*8+bit 经 G_CDataManager()->m_mapA940（+0xa940）翻译后
 // push_back(map[itemIdx])；map 无此键则跳过。
-std::vector<int>& CItemDictionary::getGainItemList() {
-    m_gainItemList.clear();
-    for (unsigned int i = 0; i < kBinaryLength; ++i)
-        for (unsigned int bit = 0; bit < kItemDictionaryBit; ++bit)
-            if ((m_data[i] >> bit) & 1)
+// ORIG 为按值返回（ret $0x4 NRV 隐藏参数 @ ebp+8、this @ ebp+0xc；引用返回
+// 少 NRV 参数、直接返回 &成员，符号同 mangled 但语义不同），故用局部对象。
+std::vector<int> CItemDictionary::getGainItemList() {
+    int itemIdx = 0;      // ORIG：先声明 itemIdx（-0x2c 清零在 vector 构造前）
+    std::vector<int> result;
+    result.clear();       // ORIG：vectorC1 构造后显式 clear（0x0811dbb2）
+    for (int i = 0; i < static_cast<int>(kBinaryLength); ++i)   // ORIG setle（有符号）
+    {
+        unsigned char c = m_data[i];   // ORIG 缓存 -0x1d（movzbl 无符号复用）
+        for (int bit = 0; bit < kItemDictionaryBit; ++bit)
+            if ((c >> bit) & 1)
             {
-                const int itemIdx = static_cast<int>(i * kItemDictionaryBit + bit);
+                itemIdx = i * kItemDictionaryBit + bit;
                 std::map<int, int>::iterator it =
                     G_CDataManager()->m_mapA940.find(itemIdx);
                 if (it != G_CDataManager()->m_mapA940.end())
-                    m_gainItemList.push_back(it->second);
+                    result.push_back(it->second);
             }
-    return m_gainItemList;
+    }
+    return result;
 }
 // ORIG 0x0811da32：index=flag>>3、bit=flag&7 越界（index∉[0,0x1387] 或 bit∉[0,7]）
 // → logFormat 后返回 1；否则返回 (m_data[index]>>bit)&1。item 参数仅入日志。

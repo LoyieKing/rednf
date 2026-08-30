@@ -270,6 +270,19 @@ class Arad_GiftItem_Set : public Arad_ScriptLoader
 public:
     struct Data;   // 前置声明：find 返回 Data*，完整定义在下方
 
+    // ORIG ctor make_pair 第二实参类型（_ZNSt4pairIKSsiEC1IPKcN17Arad_GiftItem_Set
+    // 12ST_ITEM_KINDEEE… 实证）：嵌套枚举，值 1..6 与 kind 表一致；成员名不可考，
+    // 按数值命名（同 ExtreamDungeon 先例）。
+    enum ST_ITEM_KIND
+    {
+        ST_ITEM_KIND_1 = 1,
+        ST_ITEM_KIND_2 = 2,
+        ST_ITEM_KIND_3 = 3,
+        ST_ITEM_KIND_4 = 4,
+        ST_ITEM_KIND_5 = 5,
+        ST_ITEM_KIND_6 = 6
+    };
+
     Arad_GiftItem_Set();   // ORIG 0x081a2a68：填 +0x1c 的 ST_EVENT_GIFT_ITEM*→kind 表
     ~Arad_GiftItem_Set();  // ORIG T 0x081a2dea：析构 +0x04/+0x1c 两个 map（无虚析构）
     int open(STStackableScript* script);

@@ -483,11 +483,8 @@ TimeLineSummary::TimeLineSummary(const TimeLineSummary& other)
 
 TimeLineSummary& TimeLineSummary::operator=(const TimeLineSummary& other)
 {
-    if (this != &other)
-    {
-        m_field0 = other.m_field0;
-        m_phaseSummarys = other.m_phaseSummarys;
-    }
+    m_field0 = other.m_field0;
+    m_phaseSummarys = other.m_phaseSummarys;
     return *this;
 }
 
@@ -517,11 +514,8 @@ TimeLine::TimeLine(const TimeLine& other)
 
 TimeLine& TimeLine::operator=(const TimeLine& other)
 {
-    if (this != &other)
-    {
-        m_phases = other.m_phases;
-        m_summary = other.m_summary;
-    }
+    m_phases = other.m_phases;
+    m_summary = other.m_summary;
     return *this;
 }
 

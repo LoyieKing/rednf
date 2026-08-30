@@ -1859,14 +1859,16 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
 int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 {
     // ORIG 0x8461708：find(idx)；命中则 monster = it->second、取
-    // m_field14(+0x14) 作返回值并 erase；未命中返回 0。
+    // m_level(+0x10) 作返回值并 erase；未命中返回 0。
+    // 注：ORIG movzbl 0x14(%pair) = pair+0x14 = map_monster+0x10 = m_level
+    //（map_monster 为 pack(1)，second @ pair+4）。
     std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(idx);
     if (it == m_mapInfo.m_monsterMap.end())
     {
         return 0;
     }
     monster = it->second;
-    int roleType = (unsigned char)it->second.m_field14;
+    int roleType = (unsigned char)it->second.m_level;
     m_mapInfo.m_monsterMap.erase(it);
     return roleType;
 }

@@ -124,12 +124,8 @@ public:
         : m_monsterMap(), m_jobMap(), m_success()
     {
     }
-    CDungeonNode(const CDungeonNode& other)       // W 0x08487a86
-        : m_monsterMap(other.m_monsterMap), m_jobMap(other.m_jobMap)
-    {
-        m_success[0] = other.m_success[0];
-        m_success[1] = other.m_success[1];
-    }
+    // W 0x08487a86：ORIG 为隐式拷贝构造（m_success 数组逐元素 C1ERKS_），
+    // 显式赋值会生成 C1Ev+aSERKS_，偏离 ORIG —— 保持隐式。
     ~CDungeonNode() {}                            // W 0x08486d3c
 
     int InsertDB(const DungeonKey& key);          // T 0x08485ba4

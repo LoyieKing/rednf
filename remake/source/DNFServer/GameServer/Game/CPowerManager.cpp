@@ -304,7 +304,7 @@ void CPowerManager::LoadPowerWarInfo()
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x3c4), true);
     **guard << 0x19b;
     **guard << -1;
-    **guard << G_CEnvironment()->get_server_group();
+    **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;   // ORIG env+0x378 直读
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -315,7 +315,7 @@ void CPowerManager::LoadRankerInfo()
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x12e), true);
     **guard << 0x165;
     **guard << -1;
-    **guard << G_CEnvironment()->get_server_group();
+    **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;   // ORIG env+0x378 直读
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()

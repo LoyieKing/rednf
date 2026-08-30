@@ -94,10 +94,6 @@ SkillUseItem::SkillUseItem()
     clear();
 }
 
-SkillUseItem::~SkillUseItem()
-{
-}
-
 void SkillUseItem::clear()
 {
     m_index = -1;

@@ -5068,7 +5068,7 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     m_field10 = 0;
     // ORIG 0x85f0e2d..0x85f0e3b：m_optionSet = GetRandomOption() + 0x148
     // （m_randomOption 内嵌 provider 对象基址 m_providerNormal148；虚槽0/1 见 RandomOptionScript.h）。
-    m_optionSet = &G_CDataManager()->m_randomOption.m_providerNormal148;
+    m_optionSet = (char*)GetRandomOption() + 0x148;
 }
 random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 {

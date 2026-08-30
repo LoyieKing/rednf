@@ -39,8 +39,10 @@ bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user
         user->get_charac_level() <= 0 || user->get_charac_level() >= 0x47)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x306, false);
+        // ORIG 0x0860d6ea：trace 实参序为 (field, level)（0x8(%esp)=field、
+        // 0xc(%esp)=level），输出 "(%d,%d)" 为 field,level。
         trace("VALUE_STATISTIC wrong index (%d,%d)",
-              user->get_charac_level(), fieldIdx);
+              fieldIdx, user->get_charac_level());
         return false;
     }
     int level = user->get_charac_level();

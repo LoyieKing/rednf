@@ -47,7 +47,6 @@ class ISeller
 {
 protected:
     ISeller() {}
-    ~ISeller() {}
 public:
     virtual bool CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
                                     short posX, short posY,
@@ -67,7 +66,6 @@ class IBuyer
 {
 protected:
     IBuyer() {}
-    ~IBuyer() {}
 public:
     virtual bool BuyPrivateStoreItem(int slot, int count) = 0;           // ORIG thunk -7（槽+0x00）
     virtual bool VerifyPrivateStoreItem(int slot, int count) = 0;        // （槽+0x04）
@@ -125,7 +123,6 @@ class IUserPos
 {
 protected:
     IUserPos() {}
-    ~IUserPos() {}
 
 public:
     virtual int Enter(CUser* user) = 0;                          // 槽+0
@@ -235,7 +232,7 @@ public:
     void SetBuyer(CUser* user) { m_pBuyer = user; }       // ORIG W 0x85cb8b8：写 +0x30
     void SetParent(CPrivateStoreMgr* parent) { m_pParent = parent; }  // ORIG W 0x85cb8c6：写 +0x20
     PrivateStorePos* GetPos() { return &m_pos; }          // ORIG W 0x85cb8d4：返回 &+0x24
-    void SetDollCreated(bool created) { m_dollCreated = created ? 1 : 0; }  // ORIG W 0x85cb8e0：写 +0x08
+    void SetDollCreated(bool created) { m_dollCreated = created; }  // ORIG W 0x85cb8e0：movzbl 直拷 +0x08（残留差异仅 mov this/movzbl 指令序，语义等价）
     unsigned long GetDollItemID()                         // ORIG W 0x85cb8f8：doll 已生成才返回 +0x0c
     {
         return isDollCreated() ? m_dollItemID : 0;

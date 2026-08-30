@@ -2768,10 +2768,10 @@ static bool GetExpertJobResultVariation(STItemScript* item)
     if (item == 0)
         return false;
     bool ok = true;
-    item->m_expertJob.m_field0 = ScanFloat(&ok);
+    item->m_expertJob.m_variation.m_field0 = ScanFloat(&ok);
     if (ok)
         return true;
-    item->m_expertJob.m_field4 = ScanFloat(&ok);
+    item->m_expertJob.m_variation.m_field4 = ScanFloat(&ok);
     return ok;
 }
 
@@ -2801,10 +2801,10 @@ static bool GetExpertJobAdditionalGainExp(STItemScript* item)
     if (item == 0)
         return false;
     bool ok = true;
-    item->m_expertJob.m_field8 = ScanFloat(&ok);
+    item->m_expertJob.m_additionalExp.m_field0 = ScanFloat(&ok);
     if (ok)
         return true;
-    item->m_expertJob.m_fieldc = ScanInt(&ok);
+    item->m_expertJob.m_additionalExp.m_field4 = ScanInt(&ok);
     return ok;
 }
 

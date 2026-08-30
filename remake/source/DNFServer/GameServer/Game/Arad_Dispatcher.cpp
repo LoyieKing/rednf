@@ -269,16 +269,16 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
 
 // ============================================================================
 // ARAD::GetQuarterOfYear —— ORIG T 0x0819e8d0。
-// time/localtime 后 quarter=tm_mon/3+1（0x55555556 除魔数）、year=(tm_year+1900)%10000
-// （0x10624dd3/sar7 除魔数 + imul 0x7d0 取余），sprintf("%02d%d", year, quarter)。
+// time/localtime 后 quarter=tm_mon/3+1（0x55555556 除魔数）、year=(tm_year+1900)%2000
+// （0x10624dd3/sar7 除魔数 = /2000 + imul 0x7d0 取余），sprintf("%02d%d", year, quarter)。
 // ============================================================================
 void GetQuarterOfYear(char* buf)
 {
     time_t t = time(0);
-    struct tm* tmp = localtime(&t);
-    const int quarter = tmp->tm_mon / 3 + 1;
-    const int yearFull = tmp->tm_year + 1900;
-    const int year = yearFull - (yearFull / 10000) * 10000;
+    struct tm tmp = *localtime(&t);
+    const int quarter = tmp.tm_mon / 3 + 1;
+    const int yearFull = tmp.tm_year + 1900;
+    const int year = yearFull - (yearFull / 2000) * 2000;
     sprintf(buf, "%02d%d", year, quarter);
 }
 

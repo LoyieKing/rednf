@@ -5823,7 +5823,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
     if (ret < 0)
     {
         pkt->put_byte(0);
-        static const unsigned char errMap[6] = {0x15, 0x16, 0x12, 0x01, 0x5b, 0x5c};
+        static const unsigned char errMap[6] = {0x5c, 0x5b, 0x01, 0x12, 0x16, 0x15};  // 索引 -ret-6，对齐 ORIG 跳表(0x8cef5b0)
         unsigned char e = (ret >= -6 && ret <= -1) ? errMap[-ret - 6] : 0;
         pkt->put_byte(e);
     }
@@ -9065,9 +9065,9 @@ int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
         {
             sig->m_entry[index].m_itemIndex = rental.m_itemIndex;
             sig->m_entry[index].m_field4 = rental.m_field8;
-            sig->m_entry[index].m_field5 = rental.m_fieldB;
+            sig->m_entry[index].m_field5 = rental.m_field9;   // ORIG movzbl 0x9
             sig->m_entry[index].m_inEquip = bInEquip ? 1 : 0;
-            sig->m_entry[index].m_field8 = rental.m_flag0;
+            sig->m_entry[index].m_field8 = rental.m_rentItemId;  // ORIG mov 0xc
             ++index;
             if (index > 1)
                 return 0;
@@ -9101,9 +9101,9 @@ int CUser::GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig)
         {
             sig->m_entry[index].m_itemIndex = rental.m_itemIndex;
             sig->m_entry[index].m_field4 = rental.m_field8;
-            sig->m_entry[index].m_field5 = rental.m_fieldB;
+            sig->m_entry[index].m_field5 = rental.m_field9;   // ORIG movzbl 0x9
             sig->m_entry[index].m_inEquip = bInEquip ? 1 : 0;
-            sig->m_entry[index].m_field7 = 0;
+            sig->m_entry[index].m_field7 = rental.m_fieldB;   // ORIG movzbl 0xb
             ++index;
             if (index > 11)
                 return 0;

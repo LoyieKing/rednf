@@ -155,15 +155,17 @@ exitLoop:
 
 // ORIG W 0x088dd2a8：三个 string 构造（+0x00/+0x08/+0x0c）+ type/pBonusRates 清零
 // + bonusRate 字节清零 + memset(m_gridPercent, 0, 0x28)。初始化列表等价转写。
+// 注意：m_gridPercent() 值初始化会被 gcc 展开成 9 次循环（36B），与 ORIG
+// memset 0x28（40B）不一致，故显式 memset 全部 10 个 float。
 channel_info_t::channel_info_t()
     : m_name(),
       m_channelType(0),
       m_dungeonName(),
       m_dungeonKey(),
       m_pBonusRates(0),
-      m_bonusRate(0),
-      m_gridPercent()
+      m_bonusRate(0)
 {
+    memset(m_gridPercent, 0, sizeof(m_gridPercent));
 }
 
 // ORIG W 0x083f11da：逆序析构 +0x0c/+0x08/+0x00 三个 string（其余 POD 无动作）。

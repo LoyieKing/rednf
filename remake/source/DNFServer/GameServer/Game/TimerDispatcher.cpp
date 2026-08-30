@@ -1441,13 +1441,14 @@ int TimerNatType::dispatch_sig(int p1, int p2, unsigned int p3)
 }
 // ORIG T 0x08635c5a (_ZN12TimerNatType15RegistNextTimerEv)：
 // G_TimerQueue()->InsertTimer(2, 0, 0x5a, 0x15180, 0, 0)；返回 1（void 化）。
-void TimerNatType::RegistNextTimer()
+int TimerNatType::RegistNextTimer()
 {
     // ORIG 先把 delay 常量暂存 -0xc(%ebp) 再装入实参槽（gcc4.1 形态），
-    // 用局部常量复现该栈槽暂存（同 TimerFatigueReset 先例）。
-    const int delay = 0x15180;
+    // 用局部变量复现该栈槽暂存（同 TimerFatigueReset 先例）。
+    int delay = 0x15180;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x5a, delay, 0, 0);
+    return 1;
 }
 
 TimerNatTypeUser::TimerNatTypeUser() {}
@@ -1987,7 +1988,8 @@ int TimerInsertUserPlayTime::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /
 {
     // ORIG 0x08636d0a：统计单例落盘 → 重排当日 04:30 定时器。
     GetInstanceUserPlayTimeStatisticMgr()->InsertUserPlayTime();
-    return RegistNextTimer() == 1;
+    // ORIG 0x08636d2a：xor $0x1 取反——RegistNextTimer()==1 返回 0，==0 返回 1
+    return RegistNextTimer() != 1;
 }
 
 // ORIG T 0x08636d44（_ZN23TimerInsertUserPlayTime15RegistNextTimerEv）
@@ -2118,7 +2120,7 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 1;
     }
 
-    if ((unsigned int)user->getHumanCertifyTimerKey() > p3)
+    if ((unsigned int)user->getHumanCertifyTimerKey() > (unsigned int)p2)
     {
         return 1;
     }
@@ -3877,7 +3879,7 @@ Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() {}
 int Timer_NoticeEmergencyPatchMessage::dispatch_sig(int /*p1*/, int /*p2*/,
                                                     unsigned int /*p3*/)
 {
-    char local_43c[0x100];              // ORIG +0x6b..0x7f：rep stos 清零 0x100
+    char local_43c[0x400];              // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
     memset(local_43c, 0, sizeof(local_43c));
     PacketGuard packet;
     packet.put_header(0, 0xc);

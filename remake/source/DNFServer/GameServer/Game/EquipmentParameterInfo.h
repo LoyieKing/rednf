@@ -69,7 +69,6 @@ struct EquipmentSkillDataUp
 {
     EquipmentSkillDataUp() { m_job = 0xb; m_v4 = 0; m_v8 = 0; m_percent = 0;
                              m_v10 = 0; m_key = 0; m_module = 0x2; }
-    ~EquipmentSkillDataUp() {}
     int m_job;      // +0x00 getCharacterJob（ctor 默认 0xb）
     int m_v4;       // +0x04 ScanInt（job 后）
     int m_v8;       // +0x08 分派值（static/level/skill-consume 读 ScanInt，其余 0）
@@ -95,7 +94,6 @@ struct LevelUpSkill
         m_field4 = 0;
         m_field8 = 0;
     }
-    ~LevelUpSkill() {}                               // ORIG 0x0818250e（空）
 };
 
 // D1 0x089d2af0 W）：clear 置 +0/+4/+8 三字段为 0 并对 +0xc 的 LevelUpSkill

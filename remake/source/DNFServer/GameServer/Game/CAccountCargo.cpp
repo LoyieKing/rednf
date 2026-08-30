@@ -96,13 +96,12 @@ int CAccountCargo::CheckValidSlot(int slot) const
 
 Inven_Item CAccountCargo::GetSlot(int slot)
 {
+    // ORIG 0x828986c：valid 直接返回槽值（编译器逐字段展开拷贝）；
+    // invalid 构造空 Inven_Item（C1 清零）返回。
     if (CheckValidSlot(slot)) {
-        Inven_Item out;
-        memcpy(&out, &m_slots[slot], sizeof(Inven_Item));
-        return out;
+        return m_slots[slot];
     }
     Inven_Item out;
-    memset(&out, 0, sizeof(out));
     return out;
 }
 

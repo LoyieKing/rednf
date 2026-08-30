@@ -125,10 +125,13 @@ CUser* CharacData::getUser() const
 
 // ----------------------------------------------------------------------------
 // ORIG W 0x08134674：_SummonObject ctor(this+0x14) 后 memset(this,0,0x38)。
-// 整体清零使子对象前置 memset 冗余，行为一致。
+// m_summon 为字节槽（CDataManager.h 反向不可达），ctor 显式调用复现调用序列。
 // ----------------------------------------------------------------------------
 _SummonObjectMs::_SummonObjectMs()
 {
+    // gcc 4.4 不支持显式 ctor 调用语法（Fix14_F 记录），用 placement new 复现
+    // ORIG 子对象构造序列（ctor 本身 memset 0x24）。
+    new (reinterpret_cast<void*>(reinterpret_cast<char*>(this) + 0x14)) _SummonObject;
     std::memset(this, 0, sizeof(*this));
 }
 

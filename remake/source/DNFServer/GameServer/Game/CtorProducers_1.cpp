@@ -963,12 +963,12 @@ bool CWorldMapList::load_list()
     // ORIG 0x08364506：遍历 g_worldMapScriptFileList，逐个导入并 new CWorldMap(0x40)
     // set_world_map + insert_world_map；导入失败 printf 后返回 0。
     WorldMapScript script;
-    for (std::map<int, std::string>::const_iterator it =
+    for (std::map<int, std::string>::iterator it =
              reinterpret_cast<STFileListMapMirror*>(&g_worldMapScriptFileList)
                  ->m_fileMap.begin();
          it != reinterpret_cast<STFileListMapMirror*>(
                    &g_worldMapScriptFileList)->m_fileMap.end();
-         ++it)
+         it++)
     {
         const char* name = it->second.c_str();
         if (name == 0)

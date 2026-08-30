@@ -592,13 +592,7 @@ CUser* CGameManager::createUser()
 {
     Guard<Mutex> guard(&m_mutex);
     CUser* user = m_userPool.Acquire();
-    if (user == 0)
-    {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x8e3, 5);
-        tr("createUser Failed! need to restart!");
-        user = 0;
-    }
-    else
+    // ORIG 无 user==0 分支（Acquire 后直接使用）。
     {
         unsigned int uid = user->GetUID();
         unsigned int accId = user->get_acc_id();
@@ -624,13 +618,8 @@ CUser* CGameManager::createUser()
 }
 void CGameManager::check_user_var(CUser* user)
 {
-    bool b = false;
-    if (user->get_charac_guildkey() != 0)
-    {
-        if (user->get_guild_exp() != 0)
-            b = true;
-    }
-    if (b)
+    // ORIG：直接 && 条件（无中间 bool 变量）。
+    if (user->get_charac_guildkey() != 0 && user->get_guild_exp() != 0)
     {
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x92c,
                               "[CHECK_USER_VAR] RESET GUILD EXP ERROR!");

@@ -164,7 +164,8 @@ class CExchangeServer : public IExchangeServer
 {
 public:
     CExchangeServer();                   // ORIG 0x8493ae6
-    virtual ~CExchangeServer();          // ORIG 0x8493b82
+    ~CExchangeServer();                  // ORIG 0x8493b82：非虚（ORIG 仅 D1 符号，无 D0；
+                                          // virtual 会产生 D0 + gcc 4.4 D1 尾部 if(0) delete 处理）
 
     void SetServerType(EXCHANGE_SERVER_TYPE type);   // ORIG 0x849103c（+0x68）
     EXCHANGE_SERVER_TYPE GetServerType();            // ORIG 0x8491030（覆盖基类纯虚）

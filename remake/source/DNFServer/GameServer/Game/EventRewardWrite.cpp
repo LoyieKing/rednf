@@ -94,8 +94,9 @@ int eventReward::unsealRandomOption(const CItem* item, Inven_Item& inven)
     // ORIG 0x80f0e40：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
     if (!item->IsRandomOption())
         return 0;
-    // P87：ORIG 以 edi/esi/ebx 跨 give_option 缓存 period/group/lvl。
-    register int period = item->PeriodAfterUnsealing();  // vtable+0x50
+    // ORIG 反汇编：第二次虚调用 vptr+0x50 = vtable 槽 20 = GetRandomOptionGrade
+    //（CItem vtable @0x8c96da8：s19=IsRandomOption, s20=GetRandomOptionGrade）。
+    register int period = item->GetRandomOptionGrade();
     register int group = item->getItemGroupName();
     register int lvl = item->getUsableLevel();
     register int rarity = item->get_rarity();

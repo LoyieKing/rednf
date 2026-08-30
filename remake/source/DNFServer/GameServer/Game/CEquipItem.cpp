@@ -477,12 +477,12 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_float100 = script.m_expertJob.m_field1c;
     m_vec104.clear();
     m_vec104 = script.m_expertJob.m_usable;
-    m_compound110.m_field0 = script.m_expertJob.m_field0;
-    m_compound110.m_field4 = script.m_expertJob.m_field4;
+    m_compound110.m_field0 = script.m_expertJob.m_variation.m_field0;
+    m_compound110.m_field4 = script.m_expertJob.m_variation.m_field4;
     m_float118 = script.m_expertJob.m_field10;
     m_float11c = script.m_expertJob.m_field14;
-    m_additionalExp120.m_field0 = script.m_expertJob.m_field8;
-    m_additionalExp120.m_field4 = script.m_expertJob.m_fieldc;
+    m_additionalExp120.m_field0 = script.m_expertJob.m_additionalExp.m_field0;
+    m_additionalExp120.m_field4 = script.m_expertJob.m_additionalExp.m_field4;
     m_set128 = script.m_set11c;
     {
         // ORIG 依字节偏移读 STEquipmentScript +0x604/+0x608/+0x60c

@@ -93,10 +93,10 @@ void STItemScript::Clear()
     m_expertJob.m_field18 = 0;
     m_expertJob.m_field1c = 0;
     m_expertJob.m_usable.clear();
-    m_expertJob.m_field4 = 0;
-    m_expertJob.m_field0 = 0;
-    m_expertJob.m_field8 = 0;
-    m_expertJob.m_fieldc = 0;
+    m_expertJob.m_variation.m_field4 = 0;
+    m_expertJob.m_variation.m_field0 = 0;
+    m_expertJob.m_additionalExp.m_field0 = 0;
+    m_expertJob.m_additionalExp.m_field4 = 0;
     m_expertJob.m_field10 = 0;
     m_expertJob.m_field14 = 0;
     m_fieldd4 = 0;

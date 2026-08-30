@@ -225,7 +225,7 @@ void Manager::eplp(CUser* user, EplpType::T type)
     {
         return;
     }
-    if (static_cast<int>(type) > 2)   // ORIG: add $0; cmp $2 ja —— 无符号比较
+    if (type > EplpType::EPLP_N2)   // ORIG: add $0; cmp $2 ja —— 枚举无符号比较
     {
         return;
     }
@@ -415,7 +415,7 @@ void CharacAdvanceAltarManager::getClearStageSummary(int out[3]) const
     for (std::map<int, _Stage>::const_iterator it = data->m_stages.begin();
          it != data->m_stages.end(); ++it)
     {
-        const int diff = it->second.m_field0;          // ORIG iter+8 → value.f0
+        const int diff = it->second.m_field4;          // ORIG iter+8 → value.f4（pair 内 key+value.f0 之后）
         if (diff == 1)
         {
             ++out[1];

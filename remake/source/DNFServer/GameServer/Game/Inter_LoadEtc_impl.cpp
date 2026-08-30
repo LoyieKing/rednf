@@ -613,11 +613,8 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
     int lossGrade = GlobalData::s_ref_pvp_grade->getPvPExpLossGrade();
     int minPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(lossGrade);
     const PvpResultType* cur = user->getPVPResultRefR();
-    bool apply = (cur != 0 &&
-                  (cur->m_pvpGrade < lossGrade || cur->m_expPoint > minPoint) &&
-                  cur->m_expPoint > minPoint && lossGrade > cur->m_pvpGrade);
-    // ORIG：!(cur+0x14 < lossGrade || cur+8 <= minPoint) 才进日切扣减分支
-    apply = (cur != 0 && !(cur->m_pvpGrade < lossGrade || cur->m_expPoint <= minPoint));
+    // ORIG：!(cur+0x14 < lossGrade || cur+8 <= minPoint) 才进日切扣减分支（无 null 检查）
+    bool apply = !(cur->m_pvpGrade < lossGrade || cur->m_expPoint <= minPoint);
     if (apply)
     {
         long now = GlobalData::s_systemTime_.getCurSec();
@@ -645,9 +642,9 @@ bool Inter_LoadEtc::SendResult(CUser* user)
     packet.put_short(user->getCurCharacUsedFatigue());
 
     WongWork::CUserPremium* premium = user->GetPremiumInfo();
+    // ORIG 无 null 检查，直接解引用调用 GetPremiumInfoList(0x270f)。
     std::vector<WongWork::SUserPremiumInfo> infos =
-        (premium != 0) ? premium->GetPremiumInfoList(0x270f)
-                       : std::vector<WongWork::SUserPremiumInfo>();
+        premium->GetPremiumInfoList(0x270f);
     int index = packet.get_index();
     int count = 0;
     packet.put_byte(0);

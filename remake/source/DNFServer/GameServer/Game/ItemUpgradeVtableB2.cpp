@@ -194,8 +194,6 @@ DisJointResult::DisJointResult()
 }
 
 // ============================================================================
-// ============================================================================
-// ============================================================================
 // DisJoint::GetResult @ 0x084733f6
 //   out.m_f[5] = m_cubeIndexVecs[4][0]；
 //   out.m_f[0] = ROUND(((ROUND(1.1f*sellPrice) 经 getItemSellPrice 折算 ×1000 ÷
@@ -225,12 +223,12 @@ int DisJoint::GetResult(int itemIdx, DisJointResult& out)
     static const float thousand = 1000.0f;  // ORIG .rodata 0x08c6ff54
 
     const float scaled = priceBias * (float)script->GetSellPrice();
-    // fistp 四舍五入。
-    const int sell = getItemSellPrice((int)(scaled + 0.5f), 0, 0,
+    // ORIG 0x08473490 区：fnstcw/fldcw 置截断模式后 fistpl —— 截断（非四舍五入）。
+    const int sell = getItemSellPrice((int)scaled, 0, 0,
                                       script->IsRandomOption());
-    // ORIG：(sell*1000)/creationConst 为整数除法后再进浮点。
+    // ORIG：(sell*1000)/creationConst 为整数除法后再进浮点，fistpl 截断。
     const int money = (int)(((float)((sell * 1000) / m_creationConst) *
-                             rate) / thousand + 0.5f);  // fistp 四舍五入
+                             rate) / thousand);  // 截断（ORIG 无 +0.5）
     out.m_f[0] = money < 1 ? 1 : money;
 
     _GetAdditionalItem(script, out.m_f[6], out.m_f[1]);

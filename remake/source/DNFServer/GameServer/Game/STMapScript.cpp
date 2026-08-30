@@ -626,17 +626,12 @@ void AssignNpc::clear()                     // ORIG 0x089e87ee
 }
 
 STAssignItem::STAssignItem(const STAssignItem& other)   // ORIG 0x083ef750
+    : m_field00(other.m_field00), m_field04(other.m_field04),
+      m_field08(other.m_field08), m_field0c(other.m_field0c),
+      m_field10(other.m_field10), m_field14(other.m_field14),
+      m_field18(other.m_field18), m_field1c(other.m_field1c),
+      m_field20(other.m_field20), m_generateInfos(other.m_generateInfos)
 {
-    m_field00 = other.m_field00;
-    m_field04 = other.m_field04;
-    m_field08 = other.m_field08;
-    m_field0c = other.m_field0c;
-    m_field10 = other.m_field10;
-    m_field14 = other.m_field14;
-    m_field18 = other.m_field18;
-    m_field1c = other.m_field1c;
-    m_field20 = other.m_field20;
-    m_generateInfos = other.m_generateInfos;
 }
 
 STAssignItem::~STAssignItem()               // ORIG 0x083b6a8c（仅析构 +0x24 向量）

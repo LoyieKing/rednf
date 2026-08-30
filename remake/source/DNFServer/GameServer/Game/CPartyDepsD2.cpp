@@ -476,9 +476,8 @@ void CParty::SaveCoin(eCoinSubReason reason)
 // ---------------------------------------------------------------------------
 // changeBattleDataOnMoveMap —— ORIG T 0x085a8ee0
 // 报告：docs/class_func_reports/CParty/changeBattleDataOnMoveMap.md
-// 重置换图 tick（BD+0x34/0x38 ↔ CParty+0x360/0x364）、地图进入 tick
-// （BD+0x18/0x1c ↔ CParty+0x344/0x348）；非 firstVisit 时累加 BD.m_field4c
-// （CParty+0x378）。两次独立取时（ORIG 形态）。
+// （BD+0x18/0x1c ↔ CParty+0x344/0x348）；非 firstVisit 时累加 BD.m_field68c
+// （CParty+0x9b8）。两次独立取时（ORIG 形态）。
 // ---------------------------------------------------------------------------
 void CParty::changeBattleDataOnMoveMap(bool firstVisit)
 {
@@ -493,7 +492,7 @@ void CParty::changeBattleDataOnMoveMap(bool firstVisit)
     d.m_field1c = 0;                                     // +0x348 高
 
     if (!firstVisit)                                     // movzbl xor $1 test je
-        ++d.m_field4c;                                   // +0x378
+        ++d.m_field68c;                                  // +0x9b8
 }
 
 // ---------------------------------------------------------------------------

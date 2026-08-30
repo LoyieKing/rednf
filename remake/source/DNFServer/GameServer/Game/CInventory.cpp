@@ -467,12 +467,13 @@ CInventory& CInventory::operator=(const CInventory& other)
     m_eventCoin = other.m_eventCoin;
     m_field14 = other.m_field14;
     m_inventoryCapacity = other.m_inventoryCapacity;
-    // ORIG 0x84fbfc8：memcpy 0x18c + 2 字节（仅复制 m_invenItem 前 0x18e 字节，
-    // 不复制整个数组——复现 ORIG 字节行为，勿改成 0x632）
-    memcpy(m_invenItem, other.m_invenItem, 0x18c);
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(m_invenItem) + 0x18c) =
+    // ORIG 0x869d7a3..0x869d7b5：rep movsl 0x18c dwords + 2 字节 = 0x632 字节，
+    // 完整复制 m_invenItem[26]（26×0x3d = 0x632）。旧注释 0x18c 误引
+    // GetInvenData（0x84fbfc8）站点，此处必须整数组复制。
+    memcpy(m_invenItem, other.m_invenItem, 0x630);
+    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(m_invenItem) + 0x630) =
         *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(other.m_invenItem) + 0x18c);
+            reinterpret_cast<const char*>(other.m_invenItem) + 0x630);
     m_pEquipSlot = other.m_pEquipSlot;
     m_pAvatarSlot = other.m_pAvatarSlot;
     m_avatarCoin = other.m_avatarCoin;

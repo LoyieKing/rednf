@@ -48,7 +48,6 @@ class SkillUseItem
 {
 public:
     SkillUseItem();
-    ~SkillUseItem();
     void clear();
 
     int m_index;      // +0x00（-1）

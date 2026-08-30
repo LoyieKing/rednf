@@ -638,7 +638,7 @@ bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
         PlayerInfo const& pi = m_teamA.m_players[i];
         if (pi.m_flag == 0 || pi.m_user == 0)
             continue;
-        int win = pi.m_user->getPVPResultR()->m_winPoint;
+        int win = pi.m_user->getPVPResultR()->m_pvpGrade;   // ORIG +0x14
         if (maxWinSelf <= win)
             maxWinSelf = win;
     }
@@ -648,7 +648,7 @@ bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
                                                  0x1c + i * 0x1c);
         if (pi.m_flag == 0 || pi.m_user == 0)
             continue;
-        int win = pi.m_user->getPVPResultR()->m_winPoint;
+        int win = pi.m_user->getPVPResultR()->m_pvpGrade;   // ORIG +0x14
         if (maxWinOther <= win)
             maxWinOther = win;
     }

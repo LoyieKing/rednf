@@ -545,6 +545,8 @@ void CAchievement::adjust()
         questIdx = GetAdjustList(G_CDataManager())[i].m_questIdx;
         achievementIdx =
             GetAdjustList(G_CDataManager())[i].m_achievementIdx;
+        // ORIG：getCurCharacQuestR()+0x4 直接调 CQuestClear::isClearedQuest
+        //（UserQuest::isClearQuest 即其包装，等效调用）。
         if (m_user->getCurCharacQuestR()->isClearQuest((int)questIdx))
         {
             Quest* quest = G_CDataManager()->find_quest((int)questIdx);

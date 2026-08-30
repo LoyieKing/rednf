@@ -501,7 +501,8 @@ int ServerParameterScript::getRecoverStaminaPrice(int stamina, int price)
 {
     int n = std::min((int)m_vec57c.size(), stamina) - 1;
     int v = m_vec57c[n];
-    return ((100 - price) * v) / 100;
+    // ORIG 0x0869375a：magic 0xb60b60b7 + sar $0x6 = 除以 90（非 100）
+    return ((100 - price) * v) / 90;
 }
 
 int ServerParameterScript::GetPvPChannelGradePenalty(int grade) const
