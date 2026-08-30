@@ -427,12 +427,13 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[694] = new Inter_HadesAction();  // slot +0xad8
     m_dispatchers[695] = new Inter_Check3rdPartyConcent();  // slot +0xadc
     m_dispatchers[697] = new Inter_SelectCharacMid();  // slot +0xae4
-    m_dispatchers[708] = new Inter_NpcLimitBuyItemInfo();  // slot +0xb10
+    m_dispatchers[709] = new Inter_NpcLimitBuyItemInfo();  // slot +0xb14（ORIG 0xb14，非 0xb10）
     m_dispatchers[710] = new Inter_NpcLimitBuyItemInfoAll();  // slot +0xb18
     m_dispatchers[711] = new Inter_NpcLimitBuyItemChangeInfo();  // slot +0xb1c
     m_dispatchers[712] = new Inter_NpcLimitBuyItemInfoRenew();  // slot +0xb20
     m_dispatchers[718] = new Inter_MonitorReplyCharacInfo();  // slot +0xb38
     m_dispatchers[729] = new Inter_CeraShopPurchaseCount();  // slot +0xb64
+    m_dispatchers[730] = new Inter_OwnerisVIP();  // slot +0xb68（ORIG 0xb68 注册，NEW 原缺失）
     m_dispatchers[732] = new Inter_DispatcherAradOnly();  // slot +0xb70（ORIG new 0x1c）
     m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
     m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
@@ -448,6 +449,7 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[815] = new Inter_UpdateMiniCraneSeed();  // slot +0xcbc
     m_dispatchers[818] = new Inter_GetPremiumSelectedCubeInfo();  // slot +0xcc8
     m_dispatchers[830] = new Inter_CheckAddFriend();  // slot +0xcf8
+    m_dispatchers[833] = new Inter_LoadCerashopAddRestrictType();  // slot +0xd04（ORIG 0xd04 注册，NEW 原缺失）
     m_dispatchers[846] = new Inter_DispatcherTaiwan();  // slot +0xd38（ORIG new 0x1c）
     m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40
     m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40

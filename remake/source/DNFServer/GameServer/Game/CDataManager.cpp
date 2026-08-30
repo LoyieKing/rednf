@@ -2203,22 +2203,28 @@ int CDataManager::init()
         return 0;
     }
 
-    // CheckTraningFirstGive 为假 → 无 TRACE 直接 return 0（ORIG 尾部裸 else）。
+    // CheckTraningFirstGive 为假 → TRACE 0x1ab7 后 return 0。
     if (!m_serverParameter.CheckTraningFirstGive())
     {
+        cMyTrace("int CDataManager::init()", 0x1ab7, 9, true, true)(
+            "\t- [training first give] error");
         return 0;
     }
 
-    // expertjob.lst。
+    // expertjob.lst（失败 TRACE 0x1abf）。
     if (!initExpertJobScript((char*)"Character/", (char*)"expertjob.lst"))
     {
+        cMyTrace("int CDataManager::init()", 0x1abf, 9, true, true)(
+            "\t- Load expertjob.lst fail");
         return 0;
     }
 
-    // new CExpertJobList(0x48) → m_regeneration.m_expertJobList；init() 失败 ret0。
+    // new CExpertJobList(0x48) → m_regeneration.m_expertJobList；init() 失败 TRACE 0x1ac5。
     m_regeneration.m_expertJobList = new CExpertJobList;
     if (!m_regeneration.m_expertJobList->init())
     {
+        cMyTrace("int CDataManager::init()", 0x1ac5, 9, true, true)(
+            "\t- Load expertjob fail");
         return 0;
     }
 
@@ -2426,6 +2432,8 @@ int CDataManager::init()
     // load fail" 0x1c0c/0x1c12）；insert 用第二张表（ORIG +0x18f6 取 +0xa940）。
     if (!sync->truncate_mapping_equip_info_table())
     {
+        cMyTrace("int CDataManager::init()", 0x1c06, 9, true, true)(
+            "\t- Fail truncate_mapping_equip_info_table");
         return 0;
     }
     if (!importExperienceItemMapInfo(m_mapA928, false))
@@ -2442,6 +2450,8 @@ int CDataManager::init()
     }
     if (!sync->insert_mapping_equip_info_to_db(m_mapA940))
     {
+        cMyTrace("int CDataManager::init()", 0x1c18, 9, true, true)(
+            "\t- Fail insert_mapping_equip_info_table");
         return 0;
     }
 
@@ -2817,7 +2827,7 @@ int CDataManager::init()
         }
     }
 
-    // Compound Item（bindsphere.etc；失败仅双空 TRACE 0x1ec2 继续）。
+    // Compound Item（bindsphere.etc；失败 TRACE 0x1ebf 后 ret0）。
     cMyTrace("int CDataManager::init()", 0x1eb9, 9, false, true)("");
     {
         cMyTrace("int CDataManager::init()", 0x1ebb, 9, true, false)(
@@ -2825,7 +2835,12 @@ int CDataManager::init()
         ExtreamDungeon::CCompound_ExtreamDun_Item* bindsphere =
             new ExtreamDungeon::CCompound_ExtreamDun_Item;
         GlobalData::s_pCompoundBindCube = bindsphere;
-        bindsphere->LoadScript("Etc/", "bindsphere.etc");
+        if (bindsphere->LoadScript("Etc/", "bindsphere.etc") != 0)
+        {
+            cMyTrace("int CDataManager::init()", 0x1ebf, 9, true, true)(
+                "\t- Fail load Compound Item Bind Cube Script File");
+            return 0;
+        }
         cMyTrace("int CDataManager::init()", 0x1ec2, 9, false, true)("");
     }
 
@@ -2853,6 +2868,8 @@ int CDataManager::init()
         GlobalData::s_pCompoundAvatar = avatar;
         if (avatar == 0 || !avatar->LoadScript("Etc/", "CompoundAvatar.etc"))
         {
+            cMyTrace("int CDataManager::init()", 0x1ee2, 9, true, true)(
+                "\t- Loading Compound Avatar Fail\n");
             return 0;
         }
         cMyTrace("int CDataManager::init()", 0x1ee5, 9, false, true)("");
@@ -2878,18 +2895,25 @@ int CDataManager::init()
         memset(m_limitInoutCount, 0, 3);
         if (!m_dungeonList->load_list())
         {
+            cMyTrace("int CDataManager::init()", 0x1f05, 9, true, true)(
+                "\t- Loading Dungeons Fail");
             return 0;
         }
     }
 
-    // Tower Of Despair（失败仅 TRACE 0x1f12 继续）。
+    // Tower Of Despair（失败 TRACE 0x1f0f 后 ret0）。
     {
         cMyTrace("int CDataManager::init()", 0x1f08, 9, false, true)("");
         cMyTrace("int CDataManager::init()", 0x1f0b, 9, true, false)(
             "\t- Loading Tower Of Despair System ");
         TowerOfDespairMgr* tower = new TowerOfDespairMgr;
         GlobalData::s_pTowerOfDespairMgr = tower;
-        tower->LoadScript("Etc/", "TowerOfDespair.etc");
+        if (tower->LoadScript("Etc/", "TowerOfDespair.etc") != 0)
+        {
+            cMyTrace("int CDataManager::init()", 0x1f0f, 9, true, true)(
+                "\t- Fail load TowerOfDespair System Script");
+            return 0;
+        }
         cMyTrace("int CDataManager::init()", 0x1f12, 9, false, true)("");
     }
 
@@ -2901,10 +2925,14 @@ int CDataManager::init()
         if (!initChattingEmoticonScriptList((char*)"ChatEmoticon/",
                                             (char*)"ChatEmoticon.lst"))
         {
+            cMyTrace("int CDataManager::init()", 0x1f1b, 9, true, true)(
+                "\t- Emoticon List file error");
             return 0;
         }
         if (!m_emoticonList->Load_list())
         {
+            cMyTrace("int CDataManager::init()", 0x1f20, 9, true, true)(
+                "\t- Emoticon Script file fail");
             return 0;
         }
         cMyTrace("int CDataManager::init()", 0x1f23, 9, false, true)("");
@@ -2915,6 +2943,8 @@ int CDataManager::init()
         std::vector<PVPMAP_DATA> pvpMaps;
         if (!loadPvpMapBasicDataScript("Etc/pvpmapbasicdata.etc", &pvpMaps))
         {
+            cMyTrace("int CDataManager::init()", 0x1f29, 9, true, true)(
+                "Load Etc/pvpmapbasicdata.etc fail");
             return 0;
         }
         cMyTrace("int CDataManager::init()", 0x1f2d, 9, true, false)(
@@ -2922,6 +2952,8 @@ int CDataManager::init()
         m_mapList = new CMapList;
         if (!load_map_files(pvpMaps))
         {
+            cMyTrace("int CDataManager::init()", 0x1f33, 9, true, true)(
+                "\t- Loading Maps Fail");
             return 0;
         }
 
@@ -2932,6 +2964,8 @@ int CDataManager::init()
         m_monsterManager = new CMonsterManager;
         if (!m_monsterManager->load_monsters())
         {
+            cMyTrace("int CDataManager::init()", 0x1f3e, 9, true, true)(
+                "\t- Loading Monsters Fail");
             return 0;
         }
     }   // pvpMaps 析构（ORIG 清理块 -0xf34 vector<PVPMAP_DATA> D2）
@@ -2945,6 +2979,8 @@ int CDataManager::init()
         m_skillList = new CSkillList;
         if (!m_skillList->init())
         {
+            cMyTrace("int CDataManager::init()", 0x1f4d, 9, true, true)(
+                "\t- Loading Skills Fail");
             return 0;
         }
     }
@@ -3083,6 +3119,8 @@ int CDataManager::init()
     // WorldMapList + Quests + Characters + Disjoints。
     if (!m_worldMapList.load_list())
     {
+        cMyTrace("int CDataManager::init()", 0x1fe1, 9, true, true)(
+            "\t- Loading World Map List Fail");
         return 0;
     }
     {
@@ -3091,6 +3129,8 @@ int CDataManager::init()
         m_questList = new QuestList;
         if (!m_questList->load_list())
         {
+            cMyTrace("int CDataManager::init()", 0x1fe9, 9, true, true)(
+                "\t- Loading Quests Fail");
             return 0;
         }
     }
@@ -3101,6 +3141,8 @@ int CDataManager::init()
         m_characList = new CCharacList;
         if (!m_characList->init())
         {
+            cMyTrace("int CDataManager::init()", 0x1ff2, 9, true, true)(
+                "\t- Loading Characters Fail");
             return 0;
         }
     }
@@ -3111,8 +3153,11 @@ int CDataManager::init()
         m_disJoint = new DisJoint;
         if (!m_disJoint->LoadDisJoint())
         {
+            cMyTrace("int CDataManager::init()", 0x1ffb, 9, true, true)(
+                "\t- Loading Disjoints Fail");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x1ffe, 9, false, true)("Success");
     }
 
     // Advance Altar：StageMapList::loadList。
@@ -3121,6 +3166,8 @@ int CDataManager::init()
             "\t- Loading Advance Altar ");
         if (!m_stageMapList.loadList())
         {
+            cMyTrace("int CDataManager::init()", 0x2004, 9, true, true)(
+                "\t- Loading Advance Altar Fail");
             return 0;
         }
         cMyTrace("int CDataManager::init()", 0x2007, 9, false, true)("");
@@ -3133,6 +3180,8 @@ int CDataManager::init()
     }
     if (!m_itemGeneratorMgr->initialize())
     {
+        cMyTrace("int CDataManager::init()", 0x2012, 9, true, true)(
+            "\t- Loading Item Generator Manager Fail\n");
         return 0;
     }
     {
@@ -3302,6 +3351,7 @@ int CDataManager::init()
                 "\t- Import Condition Event Script Dungeon Fail");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x210c, 9, false, true)("Success");
     }
 
     // NPCRelation / EmotionTags / EquipGrade。
@@ -3315,6 +3365,7 @@ int CDataManager::init()
                 "\t- Import NPC Relation Event Info Fail");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x211b, 9, false, true)("Success");
         cMyTrace("int CDataManager::init()", 0x211e, 9, true, false)(
             "\t- Import Emotion Type Tags Info ");
         if (!importEmotionTypeTagsScript("Etc/EmotionExpressionData.etc",
@@ -3324,6 +3375,7 @@ int CDataManager::init()
                 "\t- Import Emotion Type Tags Info Fail\n");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x2124, 9, false, true)("Success");
         cMyTrace("int CDataManager::init()", 0x2126, 9, true, false)(
             "\t- Import Equipment Grade Sample Info ");
         if (!importEquipmentGradeSampleInfo("Etc/EquipmentGradeSample.etc",
@@ -3333,6 +3385,7 @@ int CDataManager::init()
                 "\t- Import Equipment Grade Sample Info Fail\n");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x212c, 9, false, true)("Success");
     }
 
     // Creature 脚本两步。
@@ -3352,6 +3405,7 @@ int CDataManager::init()
                 "\t- Import Creature Script Fail");
             return 0;
         }
+        cMyTrace("int CDataManager::init()", 0x2168, 9, false, true)("Success");
     }
 
     // PvP single playable map（静态，无条件）+ NPC Script。

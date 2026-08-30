@@ -15,6 +15,12 @@
 #include <string.h>
 
 #include "DNFLexWrapper.h"   // loadRDARScriptFile/getDirectoryPath/ScanType/ScanInt
+#include "STMapScript.h"     // ENUM_DRAWLAYER + getDrawLayerName 声明
+
+#include "GameEnums.h"       // ENUM_CATEGORY
+#include "RDARScriptStringManager.h"  // g_scriptStringManager_/getTagByName
+#include "SyncScriptDeps.h"           // toTString
+#include "CreatureScript.h"           // getElementName(ENUM_ELEMENT)
 
 // ---- 跨 TU 符号（ORIG 地址随注；定义在各自所属批次 TU）----
 extern char g_szMonsterScriptBaseDirectory[0x100];              // B 0x094ff160
@@ -26,6 +32,12 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag);                  // T 0x08a97637
 void getScriptFileFullPath(char* out, unsigned int size,
                            const char* dir, const char* name);  // T 0x088bba4e
+std::string getObjectCategoryString(ENUM_CATEGORY cat);         // T 0x08a3ca81（ScriptDepsA.cpp）
+void convertBinaryToText(const char* path);                     // T 0x088be04c（STMapScript.cpp）
+int isExistAiPattern(STAIInfoScript* info, int bucket);         // T 0x08a2232f（CharacterAIA2.cpp）
+void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket);  // T 0x08a223b0（CharacterAIA2.cpp）
+extern "C" const char* ACTIVEOBJECT_STATE_STRING[16];           // D 0x093f4d80（CharacterAIA2.cpp）
+extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];             // D 0x093f54e0（CharacterAIA2.cpp）
 
 // ===========================================================================
 // Clear —— ORIG T 0x08a398aa（逐条转写，顺序保持汇编原序）
@@ -120,49 +132,49 @@ void STMonsterScript::Clear()
     m_field5a8 = 0;
     m_faceImage = "";                        // assign(+0x5ac)
     m_field5b0 = 0;                          // movl $0,0x5b0
-    m_sound0 = "";                        // 三连展开（[2..4] 不清，实证）
-    m_sound1 = "";
-    m_sound5 = "";
+    m_waitingMotion = "";                        // 三连展开（[2..4] 不清，实证）
+    m_moveMotion = "";
+    m_sitMotion = "";
     for (i = 0; i <= 1; ++i)
-        m_field5cc[i] = "";                  // 循环 ×2 @0x5cc
-    m_field5d40 = "";                      // 四连展开
-    m_field5d41 = "";
-    m_field5d42 = "";
-    m_field5d43 = "";
-    m_field5e4.clear();
-    m_field5f0.clear();
-    m_jumpAttackMotion = "";                 // assign(+0x6b4)
-    m_field6b8.clear();
-    m_field6c4.clear();
-    m_field6d4.clear();
+        m_damageMotion[i] = "";                  // 循环 ×2 @0x5cc
+    m_downMotion = "";                      // 四连展开
+    m_overturnMotion = "";
+    m_jumpMotion = "";
+    m_jumpAttackMotion = "";
+    m_attackMotions.clear();
+    m_etcMotions.clear();
+    m_jumpAttackInfo = "";                 // assign(+0x6b4)
+    m_attackInfos.clear();
+    m_etcAttackInfos.clear();
+    m_intData.clear();
     m_keepDistance = -1;                     // movl $<A>,0x6e0
     m_isOnTheObject = false;                 // movb $0,0x6e4
     m_attackMethods.clear();                 // call(+0x6e8)
-    m_field5fc0 = "";                      // 六连展开 @0x5fc（实证非循环）
-    m_field5fc1 = "";
-    m_field5fc2 = "";
-    m_field5fc3 = "";
-    m_field5fc4 = "";
-    m_field5fc5 = "";
+    m_waitingAction = "";                      // 六连展开 @0x5fc（实证非循环）
+    m_moveAction = "";
+    m_movebackAction = "";
+    m_dashAction = "";
+    m_dashattackAction = "";
+    m_sitAction = "";
     for (i = 0; i <= 1; ++i)
-        m_field614[i] = "";                  // 循环 ×2 @0x614
-    m_field61c0 = "";                      // 四连展开 @0x61c
-    m_field61c1 = "";
-    m_field61c2 = "";
-    m_field61c3 = "";
-    m_field62c.clear();
-    m_field638.clear();
-    m_field6440 = "";                      // assign(+0x644)
-    m_field6441 = "";                      // assign(+0x648)
-    m_field688.clear();                      // vector<vector<int>> (+0x688)
-    m_waitingMotion = "";                    // assign(+0x694)
-    m_moveMotion = "";
-    m_sitMotion = "";
-    m_damageMotion1 = "";
-    m_damageMotion2 = "";
-    m_downMotion = "";
-    m_overturnMotion = "";
-    m_jumpMotion = "";                       // assign(+0x6b0)
+        m_damageAction[i] = "";                  // 循环 ×2 @0x614
+    m_downAction = "";                      // 四连展开 @0x61c
+    m_overturnAction = "";
+    m_jumpAction = "";
+    m_jumpAttackAction = "";
+    m_attackActions.clear();
+    m_etcActions.clear();
+    m_lastAction = "";                      // assign(+0x644)
+    m_procAction = "";                      // assign(+0x648)
+    m_patterns.clear();                      // vector<vector<int>> (+0x688)
+    m_monsterTitle = "";                    // assign(+0x694)
+    m_basicAction = "";
+    m_damageSound = "";
+    m_dieSound = "";
+    m_appearSound = "";
+    m_attackSound = "";
+    m_ambientSound = "";
+    m_etcSound = "";                       // assign(+0x6b0)
     m_field6f4 = 0;                          // +0x6f4
     m_field6f8 = 0;                          // +0x6f8
     m_dieEffect[0] = -1;                     // movl $<A>,0x6fc（{-1,0,0} 实证）
@@ -203,9 +215,9 @@ void STMonsterScript::Clear()
     m_field1cac = -1;                        // movl $<A>,0x1cac
     m_field1cb0 = -1;                        // movl $<A>,0x1cb0
     m_field1cb4.clear();                     // call(+0x1cb4)
-    m_field6442 = "";                      // assign(+0x64c)
-    m_field6443 = "";                      // assign(+0x650)
-    m_field6444 = "";                      // assign(+0x654)
+    m_mountingAction = "";                      // assign(+0x64c)
+    m_mountedAction = "";                      // assign(+0x650)
+    m_unmountingAction = "";                      // assign(+0x654)
     m_field658 = -1;                         // movl $<A>,0x658
     m_field65c = 0;
     m_field660 = 0;
@@ -1191,15 +1203,15 @@ case 0xc63:  // "[jumpattack motion]"
     break;
 
 case 0xca3:  // "[waiting action]"
-        ScanStr(&script->m_field5fc0);  // +0x5fc
+        ScanStr(&script->m_waitingAction);  // +0x5fc
     break;
 
 case 0xca6:  // "[waiting action]"
-        ScanStr(&script->m_field5fc1);  // +0x600
+        ScanStr(&script->m_moveAction);  // +0x600
     break;
 
 case 0xca9:  // "[waiting action]"
-        ScanStr(&script->m_field5fc5);  // +0x610
+        ScanStr(&script->m_sitAction);  // +0x610
     break;
 
 case 0xcac:  // "[move action]"
@@ -1211,23 +1223,23 @@ case 0xcaf:  // "[sit action]"
     break;
 
 case 0xcb2:  // "[damage action 1]"
-        ScanStr(&script->m_field61c0);  // +0x61c
+        ScanStr(&script->m_downAction);  // +0x61c
     break;
 
 case 0xcb5:  // "[damage action 2]"
-        ScanStr(&script->m_field61c1);  // +0x620
+        ScanStr(&script->m_overturnAction);  // +0x620
     break;
 
 case 0xcb8:  // "[down action]"
-        ScanStr(&script->m_field61c2);  // +0x624
+        ScanStr(&script->m_jumpAction);  // +0x624
     break;
 
 case 0xcbb:  // "[overturn action]"
-        ScanStr(&script->m_field61c3);  // +0x628
+        ScanStr(&script->m_jumpAttackAction);  // +0x628
     break;
 
 case 0xcbe:  // "[jump action]"
-        ScanStr(&script->m_moveMotion);  // +0x698
+        ScanStr(&script->m_basicAction);  // +0x698
     break;
 
 case 0xcc1:  // "[jumpattack action]"
@@ -1243,11 +1255,11 @@ case 0xcc8:  // "[action list]"
     break;
 
 case 0xccd:  // "[etc action]"
-        ScanStr(&script->m_field6440);  // +0x644
+        ScanStr(&script->m_lastAction);  // +0x644
     break;
 
 case 0xcd0:  // "[last action]"
-        ScanStr(&script->m_jumpAttackMotion);  // +0x6b4
+        ScanStr(&script->m_jumpAttackInfo);  // +0x6b4
     break;
 
 case 0xcd3:  // "[last action]"
@@ -1657,11 +1669,11 @@ case 0xf7b:  // "[lie frame]"
     break;
 
 case 0xf84:  // "[forced knockback]"
-        ScanStr(&script->m_field6441);  // +0x648
+        ScanStr(&script->m_procAction);  // +0x648
     break;
 
 case 0xf87:  // "[No Combo Rate Monster]"
-        ScanStr(&script->m_waitingMotion);  // +0x694
+        ScanStr(&script->m_monsterTitle);  // +0x694
     break;
 
 case 0xf8a:  // "[proc action]"
@@ -1686,15 +1698,15 @@ case 0xfa2:  // "[overhead gauge pos]"
     break;
 
 case 0xfa7:  // "[flying mark]"
-        ScanStr(&script->m_field5fc2);  // +0x604
+        ScanStr(&script->m_movebackAction);  // +0x604
     break;
 
 case 0xfaa:  // "[moveback action]"
-        ScanStr(&script->m_field5fc3);  // +0x608
+        ScanStr(&script->m_dashAction);  // +0x608
     break;
 
 case 0xfad:  // "[moveback action]"
-        ScanStr(&script->m_field5fc4);  // +0x60c
+        ScanStr(&script->m_dashattackAction);  // +0x60c
     break;
 
 case 0xfb0:  // "[dash action]"
@@ -1843,7 +1855,7 @@ case 0x11ca:  // "[strong]"
     break;
 
 case 0x11cf:  // "[weak]"
-        ScanStr(&script->m_field6d0);  // +0x6d0
+        ScanStr(&script->m_explain);  // +0x6d0
     break;
 
 case 0x11d4:  // "[explain]"
@@ -1869,15 +1881,15 @@ case 0x1218:  // "[fixed height]"
     break;
 
 case 0x1239:  // "[/can beat index]"
-        ScanStr(&script->m_field6442);  // +0x64c [间接赋值]
+        ScanStr(&script->m_mountingAction);  // +0x64c [间接赋值]
     break;
 
 case 0x123f:  // "[mounting action]"
-        ScanStr(&script->m_field6443);  // +0x650 [间接赋值]
+        ScanStr(&script->m_mountedAction);  // +0x650 [间接赋值]
     break;
 
 case 0x1245:  // "[mounted action]"
-        ScanStr(&script->m_field6444);  // +0x654 [间接赋值]
+        ScanStr(&script->m_unmountingAction);  // +0x654 [间接赋值]
     break;
 
 case 0x1258:  // "[index]"
@@ -1953,12 +1965,12 @@ bool exportMonsterScript(
     fprintf(file, "[width] %d %d\n", script->m_width, script->m_height);
     fprintf(file, "[floating height] %d\n", script->m_floatingHeight);
     fprintf(file, "[layer] %d\n", script->m_layer);
-    fprintf(file, "`%s`\n", script->m_sound0.c_str());   // 六声音段独立成员
-    fprintf(file, "`%s`\n", script->m_sound1.c_str());
-    fprintf(file, "`%s`\n", script->m_sound2.c_str());
-    fprintf(file, "`%s`\n", script->m_sound3.c_str());
-    fprintf(file, "`%s`\n", script->m_sound4.c_str());
-    fprintf(file, "`%s`\n", script->m_sound5.c_str());
+    fprintf(file, "`%s`\n", script->m_waitingMotion.c_str());   // 六声音段独立成员
+    fprintf(file, "`%s`\n", script->m_moveMotion.c_str());
+    fprintf(file, "`%s`\n", script->m_field5bc.c_str());
+    fprintf(file, "`%s`\n", script->m_field5c0.c_str());
+    fprintf(file, "`%s`\n", script->m_field5c4.c_str());
+    fprintf(file, "`%s`\n", script->m_sitMotion.c_str());
     fprintf(file, "[ability table] %d\n", script->m_abilityTable);
     fprintf(file, "[level] %d %d\n",
             script->m_levelByDiff[0], script->m_levelByDiff[1]);

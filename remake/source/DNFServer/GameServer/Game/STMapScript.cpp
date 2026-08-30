@@ -2597,36 +2597,28 @@ bool ExportMapScript(STMapScript* script, const char* path)
         }
         fwrite("[/monster]\n", 1, 11, file);
     }
-    if (!script->m_vecMonster.empty())          // [monster team]/AI 段
+    if (!script->m_vecMonster.empty())          // [monster specific AI]（ORIG 089e565b..089e58c7）
     {
-        bool hasTeam = false;
+        fwrite("[monster specific AI]\n", 1, 0x16, file);
         for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
-            if (script->m_vecMonster[i].m_34 != 0)
-                hasTeam = true;
-        if (hasTeam)
         {
-            // m_34==1 → `[zone defence]` %d %d（+0x38/+0x3c）
-            // m_34==2 → `[roaming]` + 计数与 pair 序列（此处按 ORIG 主序输出）
-            fwrite("`[zone defence]`\n", 1, 17, file);
-            for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
+            const STAssignMonster& mon = script->m_vecMonster[i];
+            if (mon.m_34 == 0)
+                fwrite("`[normal]`\n", 1, 0xb, file);
+            else if (mon.m_34 == 1)
+                fprintf(file, "`[zone defence]` %d %d\n", mon.m_38, mon.m_3c);
+            else if (mon.m_34 == 2)
             {
-                const STAssignMonster& mon = script->m_vecMonster[i];
-                if (mon.m_34 == 1)
-                    fprintf(file, " %d %d", mon.m_38, mon.m_3c);
-                else if (mon.m_34 == 2)
-                {
-                    fprintf(file, "`[roaming]` ");
-                    fprintf(file, " %d",
-                            static_cast<int>(mon.m_vec40.size()));
-                    for (size_t k = 0; k < mon.m_vec40.size(); ++k)
-                        fprintf(file, " %d", mon.m_vec40[k].first);
-                    for (size_t k = 0; k < mon.m_vec40.size(); ++k)
-                        fprintf(file, " %d", mon.m_vec40[k].second);
-                }
+                fwrite("`[roaming]`", 1, 0xb, file);
+                fprintf(file, " %d", static_cast<int>(mon.m_vec40.size()));
+                for (size_t k = 0; k < mon.m_vec40.size(); ++k)
+                    fprintf(file, " %d", mon.m_vec40[k].first);
+                for (size_t k = 0; k < mon.m_vec40.size(); ++k)
+                    fprintf(file, " %d", mon.m_vec40[k].second);
+                fputc(10, file);
             }
-            fputc('\n', file);
-            fwrite("`[roaming]`\n", 1, 17, file);
         }
+        fwrite("[/monster specific AI]\n", 1, 0x17, file);
     }
     {                                           // m_4c 任一非默认(100) → team 表
         bool anyTeam = false;
@@ -2655,7 +2647,8 @@ bool ExportMapScript(STMapScript* script, const char* path)
                     it->m_field0c, it->m_field10, it->m_field14,
                     it->m_field18, it->m_field1c, it->m_field20,
                     static_cast<int>(it->m_generateInfos.size()));
-            fputc('\n', file);
+            if (!it->m_generateInfos.empty())       // ORIG：仅非空才 fputc(10)
+                fputc('\n', file);
             for (size_t k = 0; k < it->m_generateInfos.size(); ++k)
                 fprintf(file, "%d %d\n",
                         it->m_generateInfos[k].m_field00,
@@ -2716,10 +2709,9 @@ bool ExportMapScript(STMapScript* script, const char* path)
             const AssignNpc& npc = script->m_vecNpc[i];
             std::string dirTok;
             dirTok = (npc.m_dir == 0) ? "`[left]`" : "`[right]`";
-            fprintf(file, "%d `%s` %d %d %d %d\n",
-                    npc.m_npcIdx, dirTok.c_str() + 1,
-                    npc.m_x, npc.m_y, npc.m_z,
-                    npc.m_npcIdx);
+            fprintf(file, "%d %s %d %d %d\n",
+                    npc.m_npcIdx, dirTok.c_str(),
+                    npc.m_x, npc.m_y, npc.m_z);
         }
         fwrite("[/NPC]\n", 1, 7, file);
     }
@@ -2763,8 +2755,8 @@ bool ExportMapScript(STMapScript* script, const char* path)
                     script->m_vecMonsterSpawnPos[i].m_field08);
         fwrite("[/monster spawn pos]\n", 1, 21, file);
     }
-    if (!script->m_mapLoadingImagePath.empty()) // +0x26c
-        fprintf(file, "[map loading image path] %s\n",
+    if (!script->m_mapLoadingImagePath.empty()) // +0x26c（ORIG：fprintf 无 \n，089e67b4）
+        fprintf(file, "[map loading image path] %s",
                 script->m_mapLoadingImagePath.c_str());
     if (script->m_vecEventMonsterPos.empty())   // +0x278 空 → [move layered map]
     {

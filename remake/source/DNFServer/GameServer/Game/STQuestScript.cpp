@@ -27,6 +27,8 @@
 #include "MyRandom.h"          // suffleTrainingQuests 的 random_shuffle 随机数器
 
 #include "DNFLexWrapper.h"
+#include "CEnvironment.h"      // class SpinLock / less_TCHAR（importQuestScript [type] 静态表）
+#include "SyncScriptDeps.h"    // checkValiedJobName（importQuestScript [target character]）
 
 // loadRDARScriptListFile 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77，
 // mangled _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE）。
@@ -34,6 +36,16 @@
 // STScriptFileList 权威定义见 NpcScript.h（经 Quest.h include 链可见）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* map);
+// ---- importQuestScript 依赖的外部符号（权威定义分属其他 TU）----
+bool IsLightServer();                                        // _Z13IsLightServerv 0x0822ad44（GlobalData.cpp）
+void OutputErrorMessage(const char* msg);                    // _Z18OutputErrorMessagePKc（STMapScript.cpp）
+bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token);  // _Z15ScanRewardItems... 0x08a65da5（OnlyOrigBatch14.cpp）
+bool ConvertStringToTime(std::string s, long& out);          // 0x088c2341（InitScriptProducers_6.cpp）
+bool ConvertWeekdayStringToInt(std::string s, unsigned int& out);  // 0x088c284a
+bool ConvertHHMMSSStringToInt(std::string s, unsigned char& h,
+                              unsigned char& m, unsigned char& sec);  // 0x088c25df
+bool ScanJobStr(std::string* jobName, std::string** out);  // _Z10ScanJobStrPSsPS_ 0x08a6143f（ScanJobStr.cpp）
+
 
 // ---- ORIG 全局脚本文件列表缓冲（initQuestScript/initTownScript 使用）。
 // g_questScriptBaseDirectory 定义见下（ORIG B 0x9500380，供 EpisodeScript 等
@@ -469,9 +481,10 @@ int importQuestScript(QuestScript* script, const char* path)
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
     // importQuestScript_QuestScript___char_const____QuestData/：
-    //   C1 0x08a616fe / D1 0x08a617a6）。重建版解析不复用该辅助结构，
-    // 按报告布局语义落地并 force 实例化以发射 _ZZ17importQuestScript...
-    // QuestData C1/C2/D1/D2 符号。
+    //   C1 0x08a616fe / D1 0x08a617a6）。重建版按报告布局语义落地并
+    // force 实例化以发射 _ZZ17importQuestScript...QuestData C1/C2/D1/D2 符号。
+    // 布局/初值顺序依 ORIG C1 0x08a616fe：string+两容器自动构造后，
+    // m_int14=0 → m_int10=0 → 5 字节清 0 → m_byte2c=0。
     struct QuestData
     {
         std::string m_str0;                     // +0x00
@@ -502,66 +515,1238 @@ int importQuestScript(QuestScript* script, const char* path)
         {
         }
     };
-    {
-        QuestData qd;
-        (void)qd;
-    }
+    QuestData qd0;   // ORIG -0x3d8（light 系临时数据）
+    QuestData qd1;   // ORIG -0x408（first 系临时数据）
 
+    // ---- ORIG T 0x08a61813（3883 条）逐指令转写：QuestScript 键值解析器。
+    // 主循环 ScanType 读键；[light/first] 系数据先暂存 QuestData，文件读完
+    // 收尾时（IsLightServer）合并；[type]/[exception quest] 用 SpinLock+flag
+    // 双检锁保护的静态 map 惰性填充（ORIG BSS 0x95004d8/0x95004f0/0x95004f4
+    // 与 0x95004f8/0x9500510/0x9500514）。 ----
     if (!loadRDARScriptFile("Script/QuestScript", path))
     {
         return 0;
     }
     script->clear();
 
-    std::string line;
-    if (!ScanType(line, true))
+    std::string line;      // ORIG -0x320
+    std::string sub;       // ORIG -0x324
+    int value = 0;         // ORIG -0x328
+    bool ok = false;       // ORIG -0x329
+
+    for (;;)
     {
-        return 0;
+        if (!ScanType(line, true))
+        {
+            break;         // 文件读完 → 收尾（ORIG 0x8a6576a）
+        }
+        if (line == "[name]")
+        {
+            // ORIG：m_questIdx(+0x14)!=0 时走 ScanJobStr（职业串表），否则 ScanStr
+            if (script->m_questIdx != 0)
+            {
+                ScanJobStr(&script->m_name, script->m_jobNames);
+            }
+            else
+            {
+                ScanStr(&script->m_name);
+            }
+            continue;
+        }
+        if (line == "[depend message]")
+        {
+            if (script->m_questIdx != 0)
+            {
+                ScanJobStr(&script->m_requestDefault, script->m_jobRequests);
+            }
+            else
+            {
+                ScanStr(&script->m_requestDefault);
+            }
+            continue;
+        }
+        if (line == "[light condition message]")
+        {
+            ScanStr(&qd0.m_str0);
+            qd0.m_byte19 = 1;
+            continue;
+        }
+        if (line == "[first condition message]")
+        {
+            ScanStr(&qd1.m_str0);
+            qd1.m_byte19 = 1;
+            continue;
+        }
+        if (line == "[condition message]")
+        {
+            if (script->m_questIdx != 0)
+            {
+                ScanJobStr(&script->m_conditionDefault, script->m_jobConditions);
+            }
+            else
+            {
+                ScanStr(&script->m_conditionDefault);
+            }
+            // ORIG 8a61a4e：title 任务（questType==7）时 m_name 取条件串并
+            // 剔除 '\''/'`' 后固定 0x1d 长度（remove+resize）。
+            if (script->m_questType == 7)
+            {
+                script->m_name = script->m_conditionDefault;
+                script->m_name.erase(
+                    std::remove(script->m_name.begin(), script->m_name.end(),
+                                '\''),
+                    script->m_name.end());
+                script->m_name.erase(
+                    std::remove(script->m_name.begin(), script->m_name.end(),
+                                '`'),
+                    script->m_name.end());
+                script->m_name.resize(0x1d);
+            }
+            continue;
+        }
+        if (line == "[solve message]")
+        {
+            if (script->m_questIdx != 0)
+            {
+                ScanJobStr(&script->m_solveDefault, script->m_jobSolves);
+            }
+            else
+            {
+                ScanStr(&script->m_solveDefault);
+            }
+            continue;
+        }
+        if (line == "[grade]")
+        {
+            ScanStr(&sub);
+            if (sub == "[normaly repeat]")
+            {
+                script->m_questType = 4;
+            }
+            else if (sub == "[common unique]")
+            {
+                script->m_questType = 5;
+            }
+            else if (sub == "[epic]")
+            {
+                script->m_questType = 0;
+            }
+            else if (sub == "[achievement]")
+            {
+                script->m_questType = 2;
+            }
+            else if (sub == "[training]")
+            {
+                script->m_questType = 1;
+            }
+            else if (sub == "[special]")
+            {
+                script->m_questType = 6;
+            }
+            else if (sub == "[urgent]")
+            {
+                script->m_questType = 8;
+            }
+            else if (sub == "[daily]")
+            {
+                script->m_questType = 3;
+                script->m_fieldD8 = 0;
+            }
+            else if (sub == "[special daily]")
+            {
+                script->m_questType = 3;
+                ScanStr(&sub);
+                if (sub == "[village attack revenge]")
+                {
+                    script->m_fieldD8 = 1;
+                }
+                else if (sub == "[schedule]")
+                {
+                    script->m_fieldD8 = 2;
+                }
+                else
+                {
+                    script->m_fieldD8 = 0;
+                }
+            }
+            else if (sub == "[title]")
+            {
+                script->m_questType = 7;
+            }
+            continue;
+        }
+        if (line == "[schedule]")
+        {
+            // ORIG 0x8a61e4c..0x8a6238d：循环装配 _DailySchedule（0x24）。
+            // 首字段 ScanInt 失败=哨兵（schedule 数据读完→继续主循环）；
+            // 其余解析失败→return 0。m_type(+0x04)=1、m_idx(+0x08)=
+            // FindIndexByFullScan(path) 在循环外固定。
+            _DailySchedule entry;
+            memset(&entry, 0, sizeof(entry));
+            entry.m_type = 1;
+            entry.m_idx = reinterpret_cast<STScriptFileList*>(
+                              &g_questScriptFileList)->FindIndexByFullScan(path);
+            for (;;)
+            {
+                entry.m_eventId = ScanInt(&ok);      // +0x00
+                if (!ok)
+                {
+                    break;                           // 哨兵 → continue 主循环
+                }
+                std::string strStart;
+                if (!ScanStr(&strStart))
+                {
+                    return 0;
+                }
+                std::string strEnd;
+                if (!ScanStr(&strEnd))
+                {
+                    return 0;
+                }
+                std::string strWeekday;
+                if (!ScanStr(&strWeekday))
+                {
+                    return 0;
+                }
+                std::string strStartTime;
+                if (!ScanStr(&strStartTime))
+                {
+                    return 0;
+                }
+                std::string strEndTime;
+                if (!ScanStr(&strEndTime))
+                {
+                    return 0;
+                }
+                {
+                    std::string tmp(strStart);
+                    if (!ConvertStringToTime(tmp, *(long*)&entry.m_startSec))
+                    {
+                        return 0;                    // +0x0c
+                    }
+                }
+                {
+                    std::string tmp(strEnd);
+                    if (!ConvertStringToTime(tmp, *(long*)&entry.m_endSec))
+                    {
+                        return 0;                    // +0x10
+                    }
+                }
+                {
+                    unsigned int wday = 0;
+                    std::string tmp(strWeekday);
+                    if (!ConvertWeekdayStringToInt(tmp, wday))
+                    {
+                        return 0;
+                    }
+                    entry.m_wday = static_cast<int>(wday);   // +0x14
+                }
+                {
+                    std::string tmp(strStartTime);
+                    unsigned char h = 0;
+                    unsigned char m = 0;
+                    unsigned char sec = 0;
+                    if (!ConvertHHMMSSStringToInt(tmp, h, m, sec))
+                    {
+                        return 0;
+                    }
+                    entry.m_startHour = h;           // +0x18
+                    entry.m_startMin = m;            // +0x19
+                    entry.m_startSec2 = sec;         // +0x1a
+                }
+                {
+                    std::string tmp(strEndTime);
+                    unsigned char h = 0;
+                    unsigned char m = 0;
+                    unsigned char sec = 0;
+                    if (!ConvertHHMMSSStringToInt(tmp, h, m, sec))
+                    {
+                        return 0;
+                    }
+                    entry.m_endHour = h;             // +0x1b
+                    entry.m_endMin = m;              // +0x1c
+                    entry.m_endSec2 = sec;           // +0x1d
+                }
+                script->m_dailySchedule.push_back(entry);
+            }
+            continue;
+        }
+        if (line == "[job change quest]")
+        {
+            script->m_jobChangeQuest = ScanInt((bool*)0);
+            // ORIG 8a623c1：jobChangeQuest==1 且 growType(+0xf0)!=-1 为非法组合
+            if (script->m_jobChangeQuest == 1 && script->m_fieldF0 != -1)
+            {
+                printf("questScript->classChangeQuestType_(%d) > 0  and "
+                       "questScript->growType_(%d) != -1",
+                       script->m_fieldF0, script->m_jobChangeQuest);
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[npc index]")
+        {
+            script->m_npcIdx = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[complete npc index]")
+        {
+            script->m_fieldE8 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[job]")
+        {
+            ScanStr(&sub);
+            script->m_fieldEC = getCharacterJob(sub.c_str());
+            continue;
+        }
+        if (line == "[grow type]")
+        {
+            script->m_fieldF0 = ScanInt((bool*)0);
+            if (script->m_jobChangeQuest == 1 && script->m_fieldF0 != -1)
+            {
+                printf("questScript->classChangeQuestType_(%d) > 0  and "
+                       "questScript->growType_(%d) != -1",
+                       script->m_fieldF0, script->m_jobChangeQuest);
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[awakening type]")
+        {
+            script->m_fieldE0 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[target character]")
+        {
+            // ORIG 0x8a6259e..0x8a62689：循环 职业名+两 int，ScanStr 失败=读完
+            for (;;)
+            {
+                if (!ScanStr(&sub))
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                if (!checkValiedJobName(sub.c_str()))
+                {
+                    return 0;
+                }
+                int job = getCharacterJob(sub.c_str());
+                int v1 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                int v2 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                stQuestTargetCharacter_t t(
+                    static_cast<ENUM_CHARACTERJOB>(job), v1, v2);
+                script->m_targetCharacters.push_back(t);
+            }
+            continue;
+        }
+        if (line == "[reward one more check]")
+        {
+            ScanStr(&script->m_str2e8);
+            continue;
+        }
+        if (line == "[quest window extension]")
+        {
+            script->m_2ec = (ScanInt((bool*)0) > 0) ? 1 : 0;
+            continue;
+        }
+        if (line == "[light level]")
+        {
+            qd0.m_int10 = ScanInt((bool*)0);         // +0x10
+            qd0.m_int14 = ScanInt((bool*)0);         // +0x14
+            qd0.m_byte1b = 1;
+            continue;
+        }
+        if (line == "[level]")
+        {
+            script->m_levelMin[0] = ScanInt((bool*)0);
+            script->m_levelMin[1] = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[ignore quest level 4 exp]")
+        {
+            script->m_field108 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            continue;
+        }
+        if (line == "[pre required quest]")
+        {
+            // ORIG 0x8a627e2..0x8a62888：临时 vector<int>，ScanInt 失败=读完；
+            // 非空才整体入 m_intDataList
+            std::vector<int> tmp;
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                tmp.push_back(value);
+            }
+            if (!tmp.empty())
+            {
+                script->m_intDataList.push_back(tmp);
+            }
+            continue;
+        }
+        if (line == "[collision quest]")
+        {
+            script->m_antiQuestList.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_antiQuestList.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[PVP RANK]")
+        {
+            script->m_questCountLimit = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[creature kind]")
+        {
+            script->m_field128 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[creature level]")
+        {
+            script->m_field12c = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[effect after clear quest]")
+        {
+            script->m_field130 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            continue;
+        }
+        if (line == "[delete npc index]")
+        {
+            script->m_field134 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[clear reward item]")
+        {
+            // ORIG 0x8a62a23..0x8a62ade：6×ScanInt 一条 DungeonClearItem
+            script->m_clearItems.clear();
+            for (;;)
+            {
+                DungeonClearItem item;
+                item.m_itemIdx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                item.m_dungeonIdx = ScanInt((bool*)0);
+                item.m_rewardItem = ScanInt((bool*)0);
+                item.m_count = ScanInt((bool*)0);
+                item.m_percent = ScanInt((bool*)0);
+                item.m_field14 = ScanInt((bool*)0);
+                script->m_clearItems.push_back(item);
+            }
+            continue;
+        }
+        if (line == "[light monster reward item]" || line == "[light enemy reward item]")
+        {
+            // ORIG 0x8a62b2b..0x8a62c32：先读 m_killCount(+0x4)，enemy 系再读
+            // m_enemyType(+0x0)，随后 6 值；首值失败=读完（置 m_byte2c 供收尾合并）
+            qd0.m_vec20.clear();
+            for (;;)
+            {
+                MonsterKillItem item;
+                item.m_killCount = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                if (line == "[light enemy reward item]")
+                {
+                    item.m_enemyType = ScanInt((bool*)0);
+                }
+                item.m_mapIdx = ScanInt((bool*)0);
+                item.m_dungeonIdx = ScanInt((bool*)0);
+                item.m_field10 = ScanInt((bool*)0);
+                item.m_field14 = ScanInt((bool*)0);
+                item.m_field18 = ScanInt((bool*)0);
+                item.m_field1c = ScanInt((bool*)0);
+                qd0.m_vec20.push_back(item);
+            }
+            qd0.m_byte2c = 1;
+            continue;
+        }
+        if (line == "[monster reward item]" || line == "[enemy reward item]")
+        {
+            script->m_killItems.clear();
+            for (;;)
+            {
+                MonsterKillItem item;
+                item.m_killCount = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                if (line == "[enemy reward item]")
+                {
+                    item.m_enemyType = ScanInt((bool*)0);
+                }
+                item.m_mapIdx = ScanInt((bool*)0);
+                item.m_dungeonIdx = ScanInt((bool*)0);
+                item.m_field10 = ScanInt((bool*)0);
+                item.m_field14 = ScanInt((bool*)0);
+                item.m_field18 = ScanInt((bool*)0);
+                item.m_field1c = ScanInt((bool*)0);
+                script->m_killItems.push_back(item);
+            }
+            continue;
+        }
+        if (line == "[appear map]")
+        {
+            script->m_appearMap.m_mapA = ScanInt((bool*)0);
+            script->m_appearMap.m_mapB = ScanInt((bool*)0);
+            script->m_appearMap.m_appearMap = ScanInt((bool*)0);
+            script->m_appearMap.m_percent = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[depend give item]")
+        {
+            script->m_rewardSelectList.clear();
+            for (;;)
+            {
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                int b = ScanInt((bool*)0);
+                script->m_rewardSelectList.push_back(std::make_pair(a, b));
+            }
+            continue;
+        }
+        if (line == "[limit dungeon index]")
+        {
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_field1c8.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[type]")
+        {
+            // ORIG 0x8a62f16..0x8a63ea4：静态 map<const char*,int,less_TCHAR>
+            // （BSS 0x95004d8）+ SpinLock（0x95004f0）+ 惰性填充标志（0x95004f4）。
+            // 首次进入填表后重查；未知 type → return 0；m_triggerType = 值-0x32c。
+            if (!ScanStr(&sub))
+            {
+                return 0;
+            }
+            static std::map<const char*, int, less_TCHAR> s_questTriggerTypeMap;
+            static SpinLock s_questTriggerTypeLock;
+            static bool s_questTriggerTypeInit = false;
+            if (!s_questTriggerTypeInit)
+            {
+                s_questTriggerTypeLock.enter();
+                if (!s_questTriggerTypeInit)
+                {
+                    s_questTriggerTypeMap["[seeking]"] = 0x32c;
+                    s_questTriggerTypeMap["[condition under clear]"] = 0x32f;
+                    s_questTriggerTypeMap["[hunt monster]"] = 0x332;
+                    s_questTriggerTypeMap["[clear map]"] = 0x335;
+                    s_questTriggerTypeMap["[meet npc]"] = 0x338;
+                    s_questTriggerTypeMap["[pvp rank]"] = 0x33b;
+                    s_questTriggerTypeMap["[hunt enemy]"] = 0x33e;
+                    s_questTriggerTypeMap["[powerwar win]"] = 0x342;
+                    s_questTriggerTypeMap["[powerwar point]"] = 0x345;
+                    s_questTriggerTypeMap["[mobile]"] = 0x34a;
+                    s_questTriggerTypeMap["[use item]"] = 0x34f;
+                    s_questTriggerTypeMap["[get score]"] = 0x352;
+                    s_questTriggerTypeMap["[clear quest]"] = 0x355;
+                    s_questTriggerTypeMap["[check time]"] = 0x358;
+                    s_questTriggerTypeMap["[check life]"] = 0x35b;
+                    s_questTriggerTypeMap["[amplify item]"] = 0x35e;
+                    s_questTriggerTypeMap["[disjoint item]"] = 0x361;
+                    s_questTriggerTypeMap["[equipped item]"] = 0x364;
+                    s_questTriggerTypeMap["[get item]"] = 0x367;
+                    s_questTriggerTypeMap["[custom quest]"] = 0x36a;
+                    s_questTriggerTypeMap["[send chatting]"] = 0x36f;
+                    s_questTriggerTypeMap["[turn gold card]"] = 0x372;
+                    s_questTriggerTypeMap["[use fortune coin]"] = 0x375;
+                    s_questTriggerTypeMap["[meet secret npc]"] = 0x378;
+                    s_questTriggerTypeMap["[ui click]"] = 0x37d;
+                    s_questTriggerTypeMap["[seek n meet npc]"] = 0x382;
+                    s_questTriggerTypeMap["[assault count]"] = 0x387;
+                    s_questTriggerTypeInit = true;
+                }
+                s_questTriggerTypeLock.leave();
+            }
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                s_questTriggerTypeMap.find(sub.c_str());
+            int type = (it != s_questTriggerTypeMap.end()) ? it->second : -1;
+            if (type == -1)
+            {
+                return 0;                            // ORIG default → return 0
+            }
+            script->m_triggerType = type - 0x32c;    // 0..0x1a
+            continue;
+        }
+        if (line == "[dungeon info]")
+        {
+            // ORIG 0x8a63ec3..0x8a63f18：两 int 一条 AdditionalDungeonInfo
+            for (;;)
+            {
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                int b = ScanInt((bool*)0);
+                AdditionalDungeonInfo info;
+                info.m_field0 = a;
+                info.m_field4 = b;
+                script->m_field16c.push_back(info);
+            }
+            continue;
+        }
+        if (line == "[sub type]")
+        {
+            script->m_triggerSubType = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[light int data]")
+        {
+            qd0.m_vec4.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                qd0.m_vec4.push_back(value);
+            }
+            qd0.m_byte1a = 1;
+            continue;
+        }
+        if (line == "[first int data]")
+        {
+            qd1.m_vec4.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                qd1.m_vec4.push_back(value);
+            }
+            qd1.m_byte1a = 1;
+            continue;
+        }
+        if (line == "[int data]")
+        {
+            script->m_triggerData.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_triggerData.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[string data]")
+        {
+            script->m_field18c.clear();
+            std::string s;
+            for (;;)
+            {
+                if (!ScanStr(&s))
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_field18c.push_back(s);
+            }
+            continue;
+        }
+        if (line == "[send postal]")
+        {
+            script->m_postalReward.m_itemIdx = ScanInt((bool*)0);   // +0x2a0
+            script->m_postalReward.m_addInfo = ScanInt((bool*)0);   // +0x2a4
+            ScanStr(&script->m_postalReward.m_title);               // +0x298
+            ScanStr(&script->m_postalReward.m_contents);            // +0x29c
+            continue;
+        }
+        if (line == "[condition data]")
+        {
+            script->m_field198.clear();
+            for (;;)
+            {
+                int key = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                std::string s;
+                ScanStr(&s);
+                std::pair<std::string, std::string> p;
+                p.first = s;
+                script->m_field198[key] = p;
+            }
+            continue;
+        }
+        if (line == "[check count]")
+        {
+            script->m_field1b0.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_field1b0.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[limit showing msg]")
+        {
+            script->m_field1c0 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[reward type]")
+        {
+            ScanStr(&sub);
+            if (sub == "[item]")
+            {
+                script->m_rewardType = 0;
+            }
+            else if (sub == "[grow type]")
+            {
+                script->m_rewardType = 1;
+            }
+            else if (sub == "[awakening type]")
+            {
+                script->m_rewardType = 2;
+            }
+            else if (sub == "[hell challenge]")
+            {
+                script->m_rewardType = 3;
+            }
+            else if (sub == "[creature evolution]")
+            {
+                script->m_rewardType = 0xa;
+            }
+            else if (sub == "[expert job]")
+            {
+                script->m_rewardType = 0x14;
+            }
+            else if (sub == "[hero]")
+            {
+                script->m_rewardType = 0x15;
+            }
+            else if (sub == "[slot expansion]")
+            {
+                script->m_rewardType = 0x16;
+            }
+            else if (sub == "[ridable]")
+            {
+                script->m_rewardType = 0x17;
+            }
+            else if (sub == "[title]")
+            {
+                script->m_rewardType = 0x18;
+            }
+            else if (sub == "[event creature evolution]")
+            {
+                script->m_rewardType = 0x19;
+            }
+            // 未知：不设置（ORIG 无 else）
+            continue;
+        }
+        if (line == "[reward selection int data]")
+        {
+            script->m_selectReward.clear();
+            if (script->m_rewardType == 0 || script->m_rewardType == 0x19)
+            {
+                if (!ScanRewardItems(script->m_selectReward,
+                                     "[/reward selection int data]"))
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                ScanType(line, true);                // ORIG 8a6467a：跳过
+            }
+            continue;
+        }
+        if (line == "[dialog]")
+        {
+            dungeonEventHanaseStruct ev;
+            std::string s;
+            ev.m_field0 = ScanInt((bool*)0);
+            ev.m_field4 = ScanInt((bool*)0);
+            ev.m_field8 = ScanInt((bool*)0);
+            ev.m_fieldc = ScanInt((bool*)0);
+            ev.m_field10 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            ev.m_field14 = ScanInt((bool*)0);
+            ev.m_field18 = ScanInt((bool*)0);
+            if (script->m_questIdx != 0)
+            {
+                ScanJobStr(&ev.m_str20, ev.m_dialogs);
+            }
+            else
+            {
+                ScanStr(&ev.m_str20);
+            }
+            bool isType = false;
+            ScanTypeOrStr(isType, s, 1);             // ORIG 返回值丢弃
+            script->m_eventDialogs.push_back(ev);
+            continue;
+        }
+        if (line == "[reward int data]")
+        {
+            script->m_titleReward.clear();
+            // ORIG 8a6485a：rewardType<=0x19 且 (1<<rewardType)&0x3000001
+            // （即 0/0x18/0x19）→ ScanRewardItems；否则仅读一 int + 跳行
+            if (script->m_rewardType <= 0x19 &&
+                ((1 << script->m_rewardType) & 0x3000001) != 0)
+            {
+                if (!ScanRewardItems(script->m_titleReward,
+                                     "[/reward int data]"))
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                script->m_field1e4 = ScanInt((bool*)0);
+                ScanType(line, true);                // ORIG 8a64963：跳过
+            }
+            continue;
+        }
+        if (line == "[collision reward int data]")
+        {
+            // ORIG 0x8a6498b..0x8a64abe：值读至 -1 结束，其后 [and]/[or] 决定
+            // 组合类型，最后是 reward data 列表
+            script->m_field20c.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                if (value == -1)
+                {
+                    break;
+                }
+                script->m_field20c.push_back(value);
+            }
+            if (!ScanStr(&sub))
+            {
+                return 0;
+            }
+            if (sub == "[and]")
+            {
+                script->m_field218 = 0;
+            }
+            else if (sub == "[or]")
+            {
+                script->m_field218 = 1;
+            }
+            else
+            {
+                return 0;
+            }
+            script->m_rewardData.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_rewardData.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[relation quest]")
+        {
+            script->m_field228 = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[light exposed by npc]")
+        {
+            if (ScanInt(&ok) == 1)
+            {
+                qd0.m_byte1c = 1;
+            }
+            if (!ok)
+            {
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[first exposed by npc]")
+        {
+            if (ScanInt(&ok) == 1)
+            {
+                qd1.m_byte1c = 1;
+            }
+            if (!ok)
+            {
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[exposed by npc]")
+        {
+            script->m_field22d = (ScanInt(&ok) == 1) ? 1 : 0;
+            if (!ok)
+            {
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[event]")
+        {
+            script->m_field22e = (ScanInt(&ok) == 1) ? 1 : 0;
+            if (!ok)
+            {
+                return 0;
+            }
+            continue;
+        }
+        if (line == "[auto display]")
+        {
+            // ORIG 8a64c64..0x8a64cb1：3 个 int 直写 +0x8c/+0x90/+0x94
+            // （位于 m_jobConditions 指针数组槽位，ORIG 原样直写）
+            int* p = reinterpret_cast<int*>(&script->m_jobConditions[7]);
+            for (int i = 0; i <= 2; ++i)
+            {
+                p[i] = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+            }
+            script->m_field23c = 1;
+            continue;
+        }
+        if (line == "[substitutive names]")
+        {
+            // ORIG 0x8a64cde..0x8a64d71：ScanTypeOrStr；读到 '[/substitutive
+            // names]' 结束，其余行入 m_fieldC8；解析失败打错误日志
+            for (;;)
+            {
+                bool isType = false;
+                if (!ScanTypeOrStr(isType, line, 1))
+                {
+                    OutputErrorMessage(path);
+                    break;
+                }
+                if (isType)
+                {
+                    if (line != "[/substitutive names]")
+                    {
+                        OutputErrorMessage(path);
+                    }
+                    break;
+                }
+                script->m_fieldC8.push_back(line);
+            }
+            continue;
+        }
+        if (line == "[difficulty]")
+        {
+            ScanStr(&sub);
+            script->m_field23d = sub.c_str()[0];
+            if (islower(script->m_field23d))
+            {
+                script->m_field23d = static_cast<char>(toupper(script->m_field23d));
+            }
+            continue;
+        }
+        if (line == "[gold multiple]")
+        {
+            script->m_field240 = ScanInt(&ok);
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[mail time]")
+        {
+            script->m_mailQuestFlag = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[mail title]")
+        {
+            ScanStr(&script->m_mailTitle);
+            continue;
+        }
+        if (line == "[mail contents]")
+        {
+            ScanStr(&script->m_mailContents);
+            continue;
+        }
+        if (line == "[mail enclose]")
+        {
+            script->m_mailItems.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                           // 读完 → continue 主循环
+                }
+                script->m_mailItems.push_back(value);
+            }
+            continue;
+        }
+        if (line == "[cant giveup]")
+        {
+            script->m_field270 = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[searching information]")
+        {
+            script->m_field271 = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[grow number]")
+        {
+            script->m_field274 = ScanInt(&ok);
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[belong to winning power]")
+        {
+            script->m_powerSide = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[online]")
+        {
+            script->m_field27c = ScanInt(&ok);
+            if (!ok)
+            {
+                break;                               // 文件结束 → 收尾
+            }
+            continue;
+        }
+        if (line == "[job message]")
+        {
+            script->m_questIdx = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[quest point]")
+        {
+            value = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0;
+            }
+            script->m_field280 = static_cast<short>(value);
+            continue;
+        }
+        if (line == "[quest piece]")
+        {
+            value = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0;
+            }
+            script->m_field282 = static_cast<short>(value);
+            continue;
+        }
+        if (line == "[go guide]")
+        {
+            script->m_field284 = ScanInt((bool*)0);
+            script->m_field288 = ScanInt((bool*)0);
+            script->m_field28c = ScanInt((bool*)0);
+            script->m_field290 = ScanInt((bool*)0);
+            ScanStr(&script->m_str294);
+            continue;
+        }
+        if (line == "[expertjob level]")
+        {
+            script->m_field2a8 = ScanInt((bool*)0);
+            script->m_field2ac = ScanInt((bool*)0);
+            continue;
+        }
+        if (line == "[change dungeon info message]")
+        {
+            script->m_2c8 = 1;
+            ScanStr(&script->m_str2cc);
+            continue;
+        }
+        if (line == "[exception quest]")
+        {
+            // ORIG 0x8a652d7..0x8a65651：静态 map（BSS 0x95004f8）+ SpinLock
+            // （0x9500510）+ flag（0x9500514）；表仅 "urgent"→0x5c1。
+            static std::map<const char*, int, less_TCHAR> s_exceptionTypeMap;
+            static SpinLock s_exceptionTypeLock;
+            static bool s_exceptionTypeInit = false;
+            if (!s_exceptionTypeInit)
+            {
+                s_exceptionTypeLock.enter();
+                if (!s_exceptionTypeInit)
+                {
+                    s_exceptionTypeMap["urgent"] = 0x5c1;
+                    s_exceptionTypeInit = true;
+                }
+                s_exceptionTypeLock.leave();
+            }
+            for (;;)
+            {
+                bool isType = false;
+                if (!ScanTypeOrStr(isType, sub, 1))
+                {
+                    return 0;
+                }
+                if (isType)
+                {
+                    if (sub != "[/exception quest]")
+                    {
+                        return 0;
+                    }
+                    break;                           // 正常结束 → continue 主循环
+                }
+                std::map<const char*, int, less_TCHAR>::const_iterator it =
+                    s_exceptionTypeMap.find(sub.c_str());
+                int type = (it != s_exceptionTypeMap.end()) ? it->second : -1;
+                if (type == 0 || type == 0x5c1)
+                {
+                    script->m_exceptionList.push_back(
+                        ENUM_QUEST_EXCEPTION_TYPE_0);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            continue;
+        }
+        if (line == "[hide npc on clear]")
+        {
+            value = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0;
+            }
+            script->m_vec2f0.push_back(value);
+            continue;
+        }
+        if (line == "[show npc on clear]")
+        {
+            value = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0;
+            }
+            script->m_vec2fc.push_back(value);
+            continue;
+        }
+        if (line == "[show click on complete npc]")
+        {
+            if (!ScanInt(&value))
+            {
+                return 0;
+            }
+            script->m_308 = (value != 0) ? 1 : 0;
+            continue;
+        }
+        // 未知键：忽略（回循环读下一行）
     }
-    int value = 0;
-    if (!ScanInt(&value))
+
+    // ---- 收尾（ORIG 0x8a6576a..0x8a65a18）----
+    if (IsLightServer())
     {
-        return 0;
+        if (qd0.m_byte1c)                  // [light exposed by npc]
+        {
+            script->m_field22d = qd0.m_byte18;
+        }
+        if (qd0.m_byte1a)                  // [light int data]
+        {
+            script->m_triggerData.clear();
+            script->m_triggerData.assign(qd0.m_vec4.begin(),
+                                         qd0.m_vec4.end());
+        }
+        if (qd0.m_byte1b)                  // [light level]
+        {
+            script->m_levelMin[0] = qd0.m_int10;
+            script->m_levelMin[1] = qd0.m_int14;
+        }
+        if (qd0.m_byte19)                  // [light condition message]
+        {
+            script->m_conditionDefault = qd0.m_str0;
+        }
+        if (qd0.m_byte2c)                  // [light monster reward item]
+        {
+            script->m_killItems.clear();
+            script->m_killItems.assign(qd0.m_vec20.begin(),
+                                       qd0.m_vec20.end());
+        }
     }
-    script->m_questIdx = value;
-    if (!ScanType(line, true))
+    script->m_index = reinterpret_cast<STScriptFileList*>(
+                          &g_questScriptFileList)->FindIndexByFullScan(path);
+    if (script->m_fieldE8 == -1)
     {
-        return 0;
+        script->m_fieldE8 = script->m_npcIdx;
     }
-    script->m_name = line;
-    if (!ScanType(line, true))
+    // ORIG 8a65902：无目标角色且 job==0xb（全职业）且 growType==-1 时补
+    // 默认目标角色（awakening 取 m_fieldE0），重复则跳过
+    if (!script->m_targetCharacters.empty() &&
+        script->m_fieldEC == 0xb && script->m_fieldF0 == -1)
     {
-        return 0;
+        stQuestTargetCharacter_t t(
+            static_cast<ENUM_CHARACTERJOB>(script->m_fieldEC),
+            script->m_fieldF0, script->m_fieldE0);
+        if (std::find(script->m_targetCharacters.begin(),
+                      script->m_targetCharacters.end(), t) ==
+            script->m_targetCharacters.end())
+        {
+            script->m_targetCharacters.push_back(t);
+        }
     }
-    script->m_requestDefault = line;
-    if (!ScanType(line, true))
-    {
-        return 0;
-    }
-    script->m_conditionDefault = line;
-    if (!ScanType(line, true))
-    {
-        return 0;
-    }
-    script->m_solveDefault = line;
-    if (!ScanInt(&value))
-    {
-        return 0;
-    }
-    script->m_npcIdx = value;
-    if (!ScanInt(&value))
-    {
-        return 0;
-    }
-    script->m_levelMin[0] = value;
-    if (!ScanInt(&value))
-    {
-        return 0;
-    }
-    script->m_levelMin[1] = value;
     return 1;
 }
-
 int initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptBaseDirectory, dir, 0x100);

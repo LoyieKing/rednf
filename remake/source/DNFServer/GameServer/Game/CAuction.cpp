@@ -27,6 +27,18 @@
 #include "ServiceRestrictManager.h"   // 0x27ff case：loadPolicy
 #include "CHadesServerProxy.h"       // 0xfe7 case：ConnTcpHadesSvr
 #include "CSwitchLog.h"              // 0x2717 case：SetLogWriteFlag
+// 0xb54 case 使用（权威定义在 GlobalData.cpp，本 TU 局部声明保持一致，避免 ODR 冲突）
+class DB_ReloadAutoPunishRuleBackIP
+{
+public:
+    static void makeRequest();
+};
+
+class DB_ReloadAutoPunishRuleHackType
+{
+public:
+    static void makeRequest();
+};
 
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
 struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
@@ -358,7 +370,7 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0x424)
     {
-        guard << 0;
+        guard << 199;
         guard << *(int*)(data + 10);
         guard->put_binary(data, *(unsigned short*)(data + 2));
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -700,10 +712,11 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0xb54)
     {
-        guard << 294;
-        guard << -1;
-        guard->put_binary(data, 0);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG je 8476eeb/8476f0c：data[10] 非 0 → HackType::makeRequest()，否则 BackIP::makeRequest()。
+        if (data[10] != 0)
+            DB_ReloadAutoPunishRuleHackType::makeRequest();
+        else
+            DB_ReloadAutoPunishRuleBackIP::makeRequest();
     }
         else if (sig == 0xb57)
     {
@@ -914,10 +927,22 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0x1b6a)
     {
-        guard << 477;
-        guard << -1;
-        guard->put_binary(data, *(unsigned short*)(data + 2));
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG 0x8477dab：SetRewardType(data+10) → switch(data+10){1:Open, 2/0:Close} →
+        // SetCloseTime(data+14) → printf("[Packet_Request_Revenge] ...")。
+        GlobalData::s_villageMonsterMgr->SetRewardType(
+            (ENUM_VILLAGE_ATTACKED_REWARD)*(int*)(data + 10));
+        int reward = *(int*)(data + 10);
+        if (reward == 1)
+        {
+            GlobalData::s_revengeDungeonMgr->OpenRevengeDungeon();
+        }
+        else if (reward == 2 || reward == 0)
+        {
+            GlobalData::s_revengeDungeonMgr->CloseRevengeDungeon();
+        }
+        GlobalData::s_revengeDungeonMgr->SetCloseTime(*(unsigned int*)(data + 14));
+        printf("[Packet_Request_Revenge] isRevengeDungeonOpen : %d, DungeonClose",
+               *(int*)(data + 10), *(int*)(data + 14));
     }
         else if (sig == 0x1b6c)
     {
@@ -1099,20 +1124,6 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     {
         // ORIG je 847abd8：ServiceRestrictManager::loadPolicy()，恒返 1。
         ARAD::Singleton<ServiceRestrictManager>::Get()->loadPolicy();
-    }
-        else if (sig == 0x1)
-    {
-        guard << 389;
-        guard << -1;
-        guard->put_binary(data, *(unsigned short*)(data + 2));
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        else if (sig == 0x2)
-    {
-        guard << 389;
-        guard << -1;
-        guard->put_binary(data, *(unsigned short*)(data + 2));
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         else if (sig == 0x3e8)
     {
@@ -1541,6 +1552,18 @@ int CDispatchServerPacket::dispatchPacket(char* data)
         guard << -1;
         guard->put_binary(data, *(unsigned short*)(data + 2));
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6a5)
+    {
+        // ORIG je 847abf1：空 case（无操作），直接返 1。
+    }
+        else if (sig == 0x6ae)
+    {
+        // ORIG je 847abf7：空 case（无操作），直接返 1。
+    }
+        else if (sig == 0x6af)
+    {
+        // ORIG je 847abf4：空 case（无操作），直接返 1。
     }
     // ORIG 末尾 mov $1,%ebx → 恒返 1（_processUDPData 调用侧 test %al 判成功）。
     return 1;

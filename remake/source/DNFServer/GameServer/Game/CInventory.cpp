@@ -6510,3 +6510,11 @@ int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     buf->finalize(true);
     return 1;
 }
+
+// 链接桩：ORIG ChangeEquip 以 4 参自由函数形态调用成员 GetInvenSlot
+// （压栈 out,this,1,slot），转发到成员实现。
+int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot)
+{
+    *out = self->GetInvenSlot(invenType, slot);
+    return 0;
+}

@@ -1237,6 +1237,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         short kind = user->getCurCharacGrowType() == 0 ? 0x1f : 0x20;
         user->Update_ComboMission(kind, v);
     }
+    // ---- roiregen：ORIG 空分支（args[0] 匹配后直接 return 0）----
+    else if (cmd == "roiregen")
+    {
+        // ORIG 空分支
+    }
     // ---- qp ----
     else if (cmd == "qp")
     {
@@ -1312,7 +1317,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 name += " ";
             name += args[i];
         }
-        CItem* pItem = G_CDataManager()->find_item(std::atoi(name.c_str()));
+        CItem* pItem = G_CDataManager()->find_item(name.c_str());
         if (pItem == 0)
         {
             A2_GmBuf b;

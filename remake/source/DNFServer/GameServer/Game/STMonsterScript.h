@@ -762,38 +762,41 @@ public:
     int m_field5a8;                      // +0x5a8
     std::string m_faceImage;             // +0x5ac [face image]
     int m_field5b0;                      // +0x5b0（face image 第二列 %d）
-    // 以下 6 个为独立成员而非数组：C1 逐一 SsC1 实证（合成 ctor 不生成循环）
-    std::string m_sound0;                // +0x5b4 [ambient sound]
-    std::string m_sound1;                // +0x5b8 [attack sound]
-    std::string m_sound2;                // +0x5bc [appear sound]
-    std::string m_sound3;                // +0x5c0 [damage sound]
-    std::string m_sound4;                // +0x5c4 [die sound]
-    std::string m_sound5;                // +0x5c8 [etc sound]
-    std::string m_field5cc[2];           // +0x5cc..0x5d3（C1/Clear 均为数组循环实证）
-    std::string m_field5d40;             // +0x5d4..0x5e3 独立成员（C1 逐个构造实证）
-    std::string m_field5d41;             // +0x5d8
-    std::string m_field5d42;             // +0x5dc
-    std::string m_field5d43;             // +0x5e0
-    std::vector<std::string> m_field5e4; // +0x5e4
-    std::vector<std::string> m_field5f0; // +0x5f0
-    std::string m_field5fc0;             // +0x5fc..0x613 独立成员（C1 实证）
-    std::string m_field5fc1;             // +0x600
-    std::string m_field5fc2;             // +0x604
-    std::string m_field5fc3;             // +0x608
-    std::string m_field5fc4;             // +0x60c
-    std::string m_field5fc5;             // +0x610
-    std::string m_field614[2];           // +0x614..0x61b
-    std::string m_field61c0;             // +0x61c..0x62b 独立成员（C1 实证）
-    std::string m_field61c1;             // +0x620
-    std::string m_field61c2;             // +0x624
-    std::string m_field61c3;             // +0x628
-    std::vector<std::string> m_field62c; // +0x62c
-    std::vector<std::string> m_field638; // +0x638
-    std::string m_field6440;             // +0x644..0x657 独立成员（C1/D1 逐个实证）
-    std::string m_field6441;             // +0x648
-    std::string m_field6442;             // +0x64c
-    std::string m_field6443;             // +0x650
-    std::string m_field6444;             // +0x654
+    // 以下 6 个为独立成员而非数组：C1 逐一 SsC1 实证（合成 ctor 不生成循环）。
+    // 语义命名证据（exportMonsterScript fprintf 格式串 ↔ 偏移）：
+    //   +0x5b4=[waiting motion] +0x5b8=[move motion] +0x5bc..0x5c4=未导出
+    //   +0x5c8=[sit motion]（原 m_sound0..5 命名错误，已按导出语义修正）
+    std::string m_waitingMotion;         // +0x5b4 [waiting motion]
+    std::string m_moveMotion;            // +0x5b8 [move motion]
+    std::string m_field5bc;              // +0x5bc（未导出）
+    std::string m_field5c0;              // +0x5c0（未导出）
+    std::string m_field5c4;              // +0x5c4（未导出）
+    std::string m_sitMotion;             // +0x5c8 [sit motion]
+    std::string m_damageMotion[2];       // +0x5cc..0x5d3 [damage motion 1/2]
+    std::string m_downMotion;            // +0x5d4 [down motion]
+    std::string m_overturnMotion;        // +0x5d8 [overturn motion]
+    std::string m_jumpMotion;            // +0x5dc [jump motion]
+    std::string m_jumpAttackMotion;      // +0x5e0 [jumpattack motion]
+    std::vector<std::string> m_attackMotions;   // +0x5e4 [attack motion] 列表
+    std::vector<std::string> m_etcMotions;      // +0x5f0 [etc motion] 列表
+    std::string m_waitingAction;         // +0x5fc [waiting action]
+    std::string m_moveAction;            // +0x600 [move action]
+    std::string m_movebackAction;        // +0x604 [moveback action]
+    std::string m_dashAction;            // +0x608 [dash action]
+    std::string m_dashattackAction;      // +0x60c [dashattack action]
+    std::string m_sitAction;             // +0x610 [sit action]
+    std::string m_damageAction[2];       // +0x614..0x61b [damage action 1/2]
+    std::string m_downAction;            // +0x61c [down action]
+    std::string m_overturnAction;        // +0x620 [overturn action]
+    std::string m_jumpAction;            // +0x624 [jump action]
+    std::string m_jumpAttackAction;      // +0x628 [jumpattack action]
+    std::vector<std::string> m_attackActions;    // +0x62c [attack action] 列表
+    std::vector<std::string> m_etcActions;       // +0x638 [etc action] 列表
+    std::string m_lastAction;            // +0x644 [last action]
+    std::string m_procAction;            // +0x648 [proc action]
+    std::string m_mountingAction;        // +0x64c [mounting action]
+    std::string m_mountedAction;         // +0x650 [mounted action]
+    std::string m_unmountingAction;      // +0x654 [unmounting action]
     int m_field658;                      // +0x658（Clear=-1）
     int m_field65c;                      // +0x65c
     int m_field660;                      // +0x660
@@ -808,20 +811,20 @@ public:
     bool m_field680;                     // +0x680
     char m_pad681[3];                    // +0x681..0x683
     int m_field684;                      // +0x684 =4
-    std::vector<std::vector<int> > m_field688;         // +0x688
-    std::string m_waitingMotion;         // +0x694 [waiting motion]
-    std::string m_moveMotion;            // +0x698 [move motion]
-    std::string m_sitMotion;             // +0x69c [sit motion]
-    std::string m_damageMotion1;         // +0x6a0 [damage motion 1]
-    std::string m_damageMotion2;         // +0x6a4 [damage motion 2]
-    std::string m_downMotion;            // +0x6a8 [down motion]
-    std::string m_overturnMotion;        // +0x6ac [overturn motion]
-    std::string m_jumpMotion;            // +0x6b0 [jump motion]
-    std::string m_jumpAttackMotion;      // +0x6b4 [jumpattack motion]
-    std::vector<std::string> m_field6b8; // +0x6b8
-    std::vector<std::string> m_field6c4; // +0x6c4
-    std::string m_field6d0;              // +0x6d0
-    std::vector<int> m_field6d4;         // +0x6d4
+    std::vector<std::vector<int> > m_patterns;    // +0x688 [pattern]
+    std::string m_monsterTitle;          // +0x694 [monster title]
+    std::string m_basicAction;           // +0x698 [basic action]
+    std::string m_damageSound;           // +0x69c [damage sound]
+    std::string m_dieSound;              // +0x6a0 [die sound]
+    std::string m_appearSound;           // +0x6a4 [appear sound]
+    std::string m_attackSound;           // +0x6a8 [attack sound]
+    std::string m_ambientSound;          // +0x6ac [ambient sound]
+    std::string m_etcSound;              // +0x6b0 [etc sound]
+    std::string m_jumpAttackInfo;        // +0x6b4 [jumpattack info]
+    std::vector<std::string> m_attackInfos;      // +0x6b8 [attack info] 列表
+    std::vector<std::string> m_etcAttackInfos;   // +0x6c4 [etc attack info] 列表
+    std::string m_explain;               // +0x6d0 [explain]
+    std::vector<int> m_intData;          // +0x6d4 [int data]
     int m_keepDistance;                  // +0x6e0 =-1 [keep distance]
     bool m_isOnTheObject;                // +0x6e4 [is on the object]
     char m_pad6e5[3];                    // +0x6e5..0x6e7

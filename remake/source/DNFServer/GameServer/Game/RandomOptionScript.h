@@ -352,7 +352,9 @@ public:
     std::set<unsigned long> m_set218;                                 // +0x218
 };
 
-bool importRandomOptionScript(RandomOptionScript& script, const char* path);
+// ORIG 0x08a70a90 返回脚本出错行号（成功 0）；调用方 CDataManager::init
+// 以 `const int err = importRandomOptionScript(...)` 消费，故声明为 int。
+int importRandomOptionScript(RandomOptionScript& script, const char* path);
 
 
 #endif  // GAME_RANDOMOPTIONSCRIPT_H_

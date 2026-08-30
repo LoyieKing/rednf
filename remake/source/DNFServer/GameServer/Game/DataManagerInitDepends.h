@@ -69,8 +69,8 @@ namespace AvatarVariation
 class AvatarColorInfo;
 bool importAvatarColorVariation(AvatarColorInfo* out);        // _ZN15AvatarVariation26importAvatarColorVariationEPNS_15AvatarColorInfoE
 }
-bool importRandomOptionScript(class RandomOptionScript& script,
-                              const char* path);              // _Z24importRandomOptionScriptR18RandomOptionScriptPKc（定义 RandomOptionScript.cpp；本头不引其权威头以避免与 CDataManager.h 本地类冲突）
+int  importRandomOptionScript(class RandomOptionScript& script,
+                              const char* path);              // _Z24importRandomOptionScriptR18RandomOptionScriptPKc（返回出错行号/0；定义 RandomOptionScript.cpp；本头不引其权威头以避免与 CDataManager.h 本地类冲突）
 bool importCharacterCreateGiftScript(class createChracScript* s, const char* path);           // _Z31..
 bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* s, const char* path);        // _Z29..
 bool importCharacterCreateCreatureGiftScript(class CharacterCreateCreatureGiftScript* s,

@@ -652,20 +652,20 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_SKILL_FITNESS_SECOND_GROWTYPE:      // [skill fitness second growtype]
         {
-            script->m_vec128.clear();                // 目标 +0xf4（8a98e8a..8a98ec2）
+            script->m_vecf4.clear();                 // 目标 +0xf4（8a98e8a..8a98ec2）
             for (;;)
             {
                 value = ScanInt(&okFlag);
                 if (!okFlag)
                     break;
-                script->m_vec128.push_back(value);
+                script->m_vecf4.push_back(value);
             }
             break;
         }
 
         case TAG_CASTING_TIME:                       // [casting time]
             for (int i = 0; i <= 1; ++i)
-                script->m_i108[i] = ScanInt((bool*)0);      // dst = this+(i+0x44)*4+0x00
+                script->m_i108[i + 2] = ScanInt((bool*)0);    // dst = this+(i+0x44)*4+0x00
             break;
 
         case TAG_DURABILITY_DECREASE_RATE:           // [durability decrease rate]
@@ -679,9 +679,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_MAINTAIN_MP:                        // [maintain MP]
             for (int i = 0; i <= 1; ++i)
-                script->m_f100[i] = ScanFloat((bool*)0);    // fstps this+i*0x40+0x08（ORIG 同址别名写）
+                *reinterpret_cast<float*>(&script->m_i108[i]) =
+                    ScanFloat((bool*)0);                     // fstps this+i*0x40+0x08（+0x108 起 float 写）
             break;
-
         case TAG_CONSUME_ITEM:                       // [consume item]
         {
             SkillUseItem item;
@@ -723,7 +723,11 @@ int ImportSkillScript(STSkillScript* script, const char* path,
 
         case TAG_COOL_TIME:                          // [cool time]
             for (int i = 0; i <= 1; ++i)
-                script->m_i108[i + 19] = ScanInt((bool*)0); // dst = this+(i+0x4c)*4+0x08
+                script->m_arr138[i] = ScanInt((bool*)0); // dst = this+(i+0x4c)*4+0x08（+0x138）
+            break;
+
+        case TAG_LEAGUE_BAN:                         // [league ban]（ORIG 0x1ff case：写 +0x23c）
+            script->m_23c = ScanInt((bool*)0);
             break;
 
         case TAG_SKILL_UNDER_COOLTIME_EFFECT:        // [skill under cooltime effect]
@@ -899,12 +903,8 @@ int ImportSkillScript(STSkillScript* script, const char* path,
         case TAG_SKILL_PRELOADING_IMAGE:             // [skill preloading image]
         {
             std::string imgName;
-            bool cont = true;
-            while (cont)
-            {
+            while (ScanStr(&imgName))                // ORIG：先 ScanStr 后 push（8a9a0d7..）
                 script->m_vec1f8.push_back(imgName);
-                cont = ScanStr(&imgName);            // 尾部余项不压入（jmp 8a9a10b）
-            }
             break;
         }
 
@@ -1037,9 +1037,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
             script->m_280 = (ScanInt((bool*)0) != 0) ? 1 : 0;
             break;
 
-        case TAG_COMBO_SET:                          // [combo set]
-        {
-            bool first = true;
+        case TAG_COMBO_SET:                          // [combo set]（ORIG 8a9ab36：无 clear，直接 push）
             for (;;)
             {
                 value = ScanInt(&okFlag);
@@ -1048,16 +1046,9 @@ int ImportSkillScript(STSkillScript* script, const char* path,
                     script->m_290 = 1;
                     break;
                 }
-                if (first)
-                {
-                    script->m_vec294.clear();        // only 头条清空 vector
-                    first = false;
-                }
-                int pushVal = value;
-                script->m_vec294.push_back(pushVal);
+                script->m_vec294.push_back(value);
             }
             break;
-        }
 
         default:                                     // 8a9ab85（含 tagId==-1 未知标签）
             if (s_skillTagReady)                     // 未就绪时 ORIG 直接落 8a9ac24 循环尾
