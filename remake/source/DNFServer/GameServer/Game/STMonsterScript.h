@@ -745,18 +745,18 @@ public:
     bool m_targetingOnAttack;            // +0x580
     bool m_targetingOnDamage;            // +0x581
     char m_pad582[2];                    // +0x582..0x583
-    int m_targetingNearest;              // +0x584
-    int m_targetingAttacker;             // +0x588
-    int m_targetingFromDirection;        // +0x58c
-    bool m_targetingLowPhysAttack;       // +0x590
-    bool m_targetingLowPhysDefense;      // +0x591
-    bool m_targetingLowMagAttack;        // +0x592
+    int m_targetingLevel;                // +0x584 [targeting high/low level]（==2 高等级 / ==1 低等级）
+    int m_targetingHp;                   // +0x588 [targeting high/low HP]（==2 高 HP / ==1 低 HP）
+    int m_field58c;                      // +0x58c（未导出）
+    bool m_targetingNearest;             // +0x590 [targeting nearest]
+    bool m_targetingAttacker;            // +0x591 [targeting attacker]
+    bool m_targetingFromDirection;       // +0x592 [targeting from direction]
     char m_pad593[1];                    // +0x593
-    int m_targetingLowMagDefense;        // +0x594
-    int m_targetingDowned;               // +0x598
-    int m_field59c;                      // +0x59c
-    int m_field5a0;                      // +0x5a0
-    bool m_field5a4;                     // +0x5a4
+    int m_targetingLowPhysAttack;        // +0x594 [targeting low physical attack]
+    int m_targetingLowPhysDefense;       // +0x598 [targeting low physical defense]
+    int m_targetingLowMagAttack;         // +0x59c [targeting low magical attack]
+    int m_targetingLowMagDefense;        // +0x5a0 [targeting low magical defense]
+    bool m_targetingDowned;              // +0x5a4 [targeting downed]
     bool m_superarmorOnAttack;           // +0x5a5
     char m_pad5a6[2];                    // +0x5a6..0x5a7
     int m_field5a8;                      // +0x5a8
