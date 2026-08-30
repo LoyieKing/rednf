@@ -20,6 +20,7 @@ class CItem;
 #include "EquipmentParameterInfo.h"   // STResultItemCnt（upgrade_table_t +0x490 vector 元素）
 #include "STEquipmentScript.h"    // ENUM_EQUIPMENTTYPE / ItemUpgradeType::T（ODR 守卫已由 FixEquipmentTypeGuard 统一）
 #include "ST3rdChronicleDestructionResult.h"   // upgrade_table_t +0x434 成员（ORIG C1 0x089000ca 实证）
+#include <unordered_map>   // upgrade_table_t +0x4c4（ORIG _ZNSt13unordered_map…C1EjRKS3_RKS5_RKS9_）
 
 class Inven_Item;
 
@@ -124,8 +125,8 @@ public:
 // ---- 强化升级表（CItemAmplifier +0x100，0x4e4）----
 // 布局依据 ORIG C1 0x089000ca 反汇编：+0x000 vector<upgrade_info_t>，
 // +0x00c..+0x49b 概率/等级混合表（float/int 交叠访问，ctor 按偏移初始化），
-// +0x49c map<int,float>，+0x4b4 四个标量，+0x4c4 unordered_map<int,
-// MachineFrameInfo>（桶数 0xa；本 TU 仅构造/清空，按字节镜像，「推断」）。
+// +0x49c map<int,float>，+0x4b4 四个标量，+0x4c4 std::unordered_map<int,
+// MachineFrameInfo>（ORIG C1 0x089000ca 实证：构造传桶数 0xa）。
 // ---- upgrade_info_t（强化信息行，尺寸 0x6c）----
 // 权威尺寸来自 ORIG vector<upgrade_info_t>::operator[]（0x891e08e）步长 `imul $0x6c`，
 // 及 Event_Upgrade_Jar::SettingRecipeNUpConunt / updateUpgradeTableFromEventUpgradeJarScript
@@ -174,9 +175,8 @@ public:
                                                       //   内部 m_vec @+0x490 = 旧 m_resultItems）
     std::map<int, float> m_floatMap;                  // +0x49c（[cost weight by upgrade level]）
     int m_zero4b4[4];                                 // +0x4b4..+0x4c0（machine frame base time ×4）
-    __gnu_cxx::hash_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4（本工具链
-                                                                 //   sizeof 0x14）
-    char m_hashPad[0x20 - 0x14];                      // 补齐 ORIG _Hashtable 0x20
+    std::unordered_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4
+                                                       // （sizeof 0x20，与 ORIG 一致）
 
     // ORIG 直访视图（off 为对象内绝对偏移）。
     int& intAt(int off) { return *(int*)(m_body + off - 0xc); }

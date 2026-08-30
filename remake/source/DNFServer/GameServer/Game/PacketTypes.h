@@ -1282,15 +1282,18 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_RIGHT_OF_CHANGE_GROW_TYPE : public MSG_BASE
 {
 public:
     MSG_RIGHT_OF_CHANGE_GROW_TYPE();
-    // ORIG C1：+0xd word、+0xf byte 清零
+    // ORIG C1：+0xd word、+0xf byte 清零（packed：基类 0xd 非对齐长度，
+    // 无 pack 时 m_0d 被对齐到 +0xe —— 与 ORIG 偏移不符）
     unsigned short m_0d;      // +0x0d
     unsigned char m_0f;       // +0x0f
     char m_pad10[0xfd];       // 保持占位总长 0x10d
 };
+#pragma pack(pop)
 
 class MSG_SAVE_CHARACTER_OPTION : public MSG_BASE
 {

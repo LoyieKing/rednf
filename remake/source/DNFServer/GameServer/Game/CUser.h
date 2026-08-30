@@ -600,8 +600,9 @@ struct _Charac_info
     char m_pad1247[0x124f - 0x1247];  // +0x1247..0x124e
     unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
     char m_pad1250[4];                            // +0x1250..0x1253
-    std::map<int, STSkillCommandData> m_skillCommandsMap;   // +0x1254（Reset map::clear 实证；0x18）
-    char m_pad1269[3];                            // +0x1269..0x126b（c6root 实测 map sizeof 0x15：STSkillCommandData align1；0x126c 前补齐，LinkClosureA-2）
+#pragma pack(pop)   // map 内部布局按默认 4 字节对齐：pack(1) 传染使 _Rb_tree_impl 变 header@+1/sizeof 0x15，ORIG 为 header@+4/0x18（NEW 二进制 _M_initialize 实证）
+    std::map<int, STSkillCommandData> m_skillCommandsMap;   // +0x1254（Reset map::clear 实证；sizeof 0x18）
+#pragma pack(push, 1)   // 恢复 _Charac_info 的 pack(1)
     unsigned short m_field126c;       // +0x126c ← CHARAC_DATA+0x122 (u16)
     unsigned char m_field126e;        // +0x126e ← CHARAC_DATA[0x124]
     int m_field126f;                  // +0x126f ← +0x125 (int)

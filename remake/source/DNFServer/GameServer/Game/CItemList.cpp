@@ -363,42 +363,76 @@ namespace sync_script
 //   +0x1c map<string, SITEMTYPE>
 //   +0x34 map<SWEAPONTYPE, SITEMTYPE>
 //   +0x4c map<SARMORTYPE, SITEMTYPE>
-//   +0x64 map<unsigned char, string>
-//   +0x7c map<unsigned char, string>
-struct SITEMTYPE
-{
-    char m_field0;         // +0x00
-    char m_pad1[3];
-    unsigned short m_field4;  // +0x04（ORIG GetType 读 *(ushort*)(p+4)）
-};
-
-struct SWEAPONTYPE
-{
-    int m_field0;
-    int m_field4;
-    bool operator<(const SWEAPONTYPE& o) const
-    {
-        return m_field0 < o.m_field0 ||
-               (m_field0 == o.m_field0 && m_field4 < o.m_field4);
-    }
-};
-
-struct SARMORTYPE
-{
-    unsigned char m_field0;
-    std::string m_str4;
-    bool operator<(const SARMORTYPE& o) const
-    {
-        return m_field0 < o.m_field0 ||
-               (m_field0 == o.m_field0 && m_str4 < o.m_str4);
-    }
-};
-
+// 嵌套类型定义与 sync_script.h 权威头一致（ORIG mangled 为
+// sync_script::CSyncScript::{SITEMTYPE,SWEAPONTYPE,SARMORTYPE} 嵌套名；
+// 本地曾用全局 struct，导致 C1/D1 子对象构造 mangled 与 ORIG 不符）。
 class CSyncScript
 {
 public:
     CSyncScript();
     ~CSyncScript();
+
+struct SITEMTYPE
+{
+    SITEMTYPE() : m_field0(0), m_field1(0), m_field2(0), m_field4(0) {}
+    // ORIG C1 _ZN...SITEMTYPEC1EbhhtSs：第5参 std::string 按值。
+    SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
+              unsigned short f4, std::string name)
+        : m_field0(usable ? 1 : 0), m_field1(f1), m_field2(f2),
+          m_field4(f4), m_str8(name)
+    {
+    }
+    char m_field0;        // +0x00
+    unsigned char m_field1;  // +0x01
+    unsigned char m_field2;  // +0x02
+    unsigned short m_field4; // +0x04（ORIG GetType 读 *(ushort*)(p+4)）
+    std::string m_str8;      // +0x08
+};
+
+struct SWEAPONTYPE
+{
+    // ORIG C1/C2：_ZN...SWEAPONTYPEC1E17ENUM_CHARACTERJOBi，双成员初始化。
+    SWEAPONTYPE() : m_job(0), m_idx(0) {}
+    SWEAPONTYPE(ENUM_CHARACTERJOB job, int idx) : m_job(job), m_idx(idx) {}
+    int m_job;    // +0x00
+    int m_idx;    // +0x04
+    bool operator<(const SWEAPONTYPE& o) const
+    {
+        if (m_job < o.m_job)
+        {
+            return true;
+        }
+        if (m_job == o.m_job && m_idx < o.m_idx)
+        {
+            return true;
+        }
+        return false;
+    }
+};
+
+struct SARMORTYPE
+{
+    // ORIG C1/C2 _ZN...SARMORTYPEC1EhSs：(unsigned char, std::string)。
+    SARMORTYPE() : m_field0(0), m_str4("") {}
+    SARMORTYPE(unsigned char f0, std::string name)
+        : m_field0(f0), m_str4(name)
+    {
+    }
+    unsigned char m_field0;  // +0x00
+    std::string m_str4;      // +0x04
+    bool operator<(const SARMORTYPE& o) const
+    {
+        if (m_field0 < o.m_field0)
+        {
+            return true;
+        }
+        if (m_field0 == o.m_field0 && m_str4.compare(o.m_str4) < 0)
+        {
+            return true;
+        }
+        return false;
+    }
+};
 
     bool truncate_dnf_item_info_table();
     bool insert_equiptment_item_to_db(STEquipmentScript* script,

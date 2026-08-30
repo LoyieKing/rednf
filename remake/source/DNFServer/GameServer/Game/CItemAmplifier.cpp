@@ -26,6 +26,7 @@ stAmplifyItemScript_t::stAmplifyItemScript_t()
 
 // ORIG 0x089000ca：按偏移初始化概率/等级混合表。
 upgrade_table_t::upgrade_table_t()
+    : m_machineFrames(0xa)   // ORIG C1 0x089000ca：_Hashtable 桶数 0xa
 {
     int i;
     for (i = 0; i <= 3; ++i)          // +0x0c..：1.0f
@@ -57,8 +58,6 @@ upgrade_table_t::upgrade_table_t()
     intAt(0x258) = 0;
 
     m_floatMap.clear();
-    m_machineFrames.clear();
-    m_machineFrames.resize(0xa);   // ORIG _Hashtable 桶数 0xa（C1 反汇编）
     memset(m_zero4b4, 0, sizeof(m_zero4b4));
 }
 

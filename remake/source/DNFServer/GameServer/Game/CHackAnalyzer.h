@@ -117,22 +117,31 @@ public:
 namespace WongWork
 {
 
+// stHackInfo_t —— 全局（ORIG mangled _ZN8WongWork12stHackInfo_tE；D1/D2 W
+// @0x080fb5c8，空析构）。reportHackInfo/_addHackInfo 读取视图：
+// {accId, curCharacNo, hackType(u16), value(int)}，sizeof 0x10。
+// 权威声明点（2026-08-30 自 WongWorkEvents_A.h 迁入）；CHackAnalyzer 成员
+// m_hackInfoList 直接使用。原类内嵌套视图已删除——ORIG ctor 构造的是全局
+// vector<WongWork::stHackInfo_t>（SUB 差异根因：嵌套 mangling 不匹配）。
+// ============================================================================
+struct stHackInfo_t
+{
+    unsigned int   m_uid;        // +0x00（acc_id）
+    unsigned int   m_characNo;   // +0x04（curCharacNo）
+    unsigned short m_hackType;   // +0x08（hack type）
+    unsigned short m_pad0a;
+    int            m_value;      // +0x0c（value）
+
+    ~stHackInfo_t();             // inline 定义见下，产生 W D1/D2 弱符号
+};
+
+inline stHackInfo_t::~stHackInfo_t() {}
+
 // ============================================================================
 // WongWork::CHackAnalyzer —— CUser 子对象 +0x71bac（总尺寸 0x7a3c）
 class CHackAnalyzer
 {
 public:
-    // ORIG stHackInfo_t（reportHackInfo 读取 +0/+4/+8/+0xc；_addHackInfo 以
-    // {accId, curCharacNo, hackType(u16), value(int)} 局部落栈 push_back）
-    struct stHackInfo_t
-    {
-        unsigned int m_uid;      // +0x00（acc_id）
-        unsigned int m_hackType; // +0x04（curCharacNo）
-        unsigned short m_cnt;    // +0x08（hack type）
-        unsigned short m_pad0a;
-        int m_time;              // +0x0c（value）
-    };  // sizeof 0x10
-
     CHackAnalyzer();
     ~CHackAnalyzer();
 

@@ -20,23 +20,9 @@
 namespace WongWork
 {
 
-// ----------------------------------------------------------------------------
-// 独立 stHackInfo_t（非 CHackAnalyzer 嵌套视图）。
-// ORIG: _ZN8WongWork12stHackInfo_tD1Ev/_D2Ev = W @0x080fb5c8, size 5（空析构）。
-// 字段布局沿用 reportHackInfo/_addHackInfo 使用视图（uid/characNo/hackType/value）。
-// ----------------------------------------------------------------------------
-struct stHackInfo_t
-{
-    unsigned int   m_uid;        // +0x00
-    unsigned int   m_characNo;   // +0x04【推断命名】
-    unsigned short m_hackType;   // +0x08
-    unsigned short m_pad0a;
-    int            m_value;      // +0x0c
-
-    ~stHackInfo_t();             // inline 定义见下，产生 W D1/D2 弱符号
-};
-
-inline stHackInfo_t::~stHackInfo_t() {}
+// stHackInfo_t 权威声明点已迁至 CHackAnalyzer.h（WongWork 命名空间内、类外，
+// mangled _ZN8WongWork12stHackInfo_tE 与 ORIG 对齐）；本头经 include
+// CHackAnalyzer.h 直接可见，本地重复定义删除（2026-08-30）。
 
 // ----------------------------------------------------------------------------
 // HackTypeInfo_t：6×u16 + u32@0xc，sizeof = 0x10。

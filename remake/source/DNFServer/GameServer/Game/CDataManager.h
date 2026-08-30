@@ -679,6 +679,9 @@ struct LevelUpRewardItemTableKey
 // 嵌套 vector 容器子类型（ORIG D1 仅析构各自 vector/map 成员）：
 struct stLimitItemUsageInfo
 {
+    // ORIG 具名 C1 0x837c6be（W）：仅构造 m_list vector。用户构造器使
+    // value-init 不再 zero-init+构造双写（对齐 ORIG ExC1 0x837c736 单 call 形态）。
+    stLimitItemUsageInfo() : m_list() {}
     // ORIG Add(signed char,int,int) 0x891b4a8：临时元素 +0x00 kind(字节)/+0x04 int/+0x08 int
     // 后 push_back（元素步长 0xc）。importLimitItemUsageInfo [Limit Item Usage Info] 实证。
     struct LimitInfo
@@ -694,6 +697,8 @@ struct stLimitItemUsageInfo
 
 struct stResetItemInfo
 {
+    // ORIG 具名 C1 0x837c6e6（W）：仅构造 m_list vector。
+    stResetItemInfo() : m_list() {}
     // ORIG（CUser::ResetItemByScript 0x8689010 / Add(int,long) 0x891b4dc）：
     // 元素 +0x00 itemspace、+0x04 到期秒。
     struct ResetItem { int m_space; int m_resetSec; };
@@ -703,6 +708,8 @@ struct stResetItemInfo
 
 struct stRefillItemInfo
 {
+    // ORIG 具名 C1 0x837c70e（W）：仅构造 m_list vector。
+    stRefillItemInfo() : m_list() {}
     // ORIG Add(int,int,long) 0x891b502：元素 +0x00/+0x04/+0x08 三 int（非 ResetItem 同构）。
     // CUser::RefillItemByScript 0x86890be 实证：[0]→find_item/GetInvenData 的物品索引、
     // [1]→数量（写 Inven_Item+0x07）、[2]→与 CSystemTime::getCurSec() 比较的到期秒。
@@ -1808,39 +1815,57 @@ struct stQuestShoptInitCost
     int m_cost2;   // +0x08
 };
 
+// stStatusLevelInfo：ORIG 全局类型（mangled _ZN17stStatusLevelInfoC1Ev /
+// _ZN17stStatusLevelInfoD1Ev 无 stQuestShop 前缀；vector<stStatusLevelInfo>
+// 模板实例 _ZNSt6vectorI17stStatusLevelInfo... 实证），C1 0x891b8b4
+// （+0x01 清零后拷至 +0x00），用户空体析构（non-trivial，D1 0x08940782），
+// sizeof 0x2。member 名与 CQuestShop.cpp 消费侧镜像一致（m_first=嵌套版 m_max，
+// m_second=嵌套版 m_min）。
+struct stStatusLevelInfo
+{
+    stStatusLevelInfo()
+    {
+        m_second = 0;
+        m_first = m_second;
+    }
+    ~stStatusLevelInfo() {}
+    unsigned char m_first;   // +0x00（getNextLevel 返回；= 嵌套版 m_max）
+    unsigned char m_second;  // +0x01（getMaxCount/getNextLevel 累计；= 嵌套版 m_min）
+};
+
+// stQuestShopStatus：ORIG 全局类型（mangled _ZN17stQuestShopStatusC1Ev /
+// D1 0x83cd826 / clear 0x891b8cc 无 stQuestShop 前缀）。4×string @0x00..0x0f；
+// clear 置 +0x10=-1、+0x14=0、+0x18=0x4d、+0x1c=2、+0x20=0；
+// vector<stStatusLevelInfo> @0x24；sizeof 0x30。方法定义见 CQuestShop.cpp。
+struct stQuestShopStatus
+{
+    int getMaxCount(int level);
+    int getNextLevel(int level);
+    void clear();                                  // W 0x891b8cc
+    stQuestShopStatus();                           // W 0x891b948
+    stQuestShopStatus(stQuestShopStatus const&);   // W 0x85f07fe
+    ~stQuestShopStatus();                          // W 0x83cd826
+
+    std::string m_name;                    // +0x00
+    std::string m_name2;                   // +0x04
+    std::string m_explain;                 // +0x08
+    std::string m_icon;                    // +0x0c
+    int m_field10;                         // +0x10（clear 置 -1）
+    unsigned char m_questPoint;            // +0x14（clear 置 0）
+    unsigned char m_pad15[3];
+    int m_field18;                         // +0x18（clear 置 0x4d；movl 4 字节实证）
+    int m_statusType;                      // +0x1c（clear 置 2）
+    int m_field20;                         // +0x20（clear 置 0）
+    std::vector<stStatusLevelInfo> m_levelInfos; // +0x24
+};
+static_assert(sizeof(stQuestShopStatus) == 0x30,
+              "ORIG stQuestShopStatus layout drift");
+
 class stQuestShop
 {
 public:
     stQuestShop();
     ~stQuestShop();
-
-    // ---- 嵌套类型（importQuestShopScript 0x890fa3d + ORIG C1/clear 反汇编实证）----
-    // stStatusLevelInfo：ORIG C1 0x891b8b4（+0x01 清零后拷至 +0x00），sizeof 0x2。
-    struct stStatusLevelInfo
-    {
-        stStatusLevelInfo();
-        unsigned char m_min;   // +0x00
-        unsigned char m_max;   // +0x01
-    };
-
-    // stQuestShopStatus：ORIG C1 0x891b948 / clear 0x891b8cc / D1 0x83cd826。
-    // 4×string @0x00..0x0f；clear 置 +0x10=-1、+0x14=0、+0x18=0x4d、+0x1c=2、+0x20=0；
-    // vector<stStatusLevelInfo> @0x24；sizeof 0x30。
-    struct stQuestShopStatus
-    {
-        stQuestShopStatus();
-        void clear();
-        std::string m_name;                            // +0x00
-        std::string m_name2;                           // +0x04
-        std::string m_explain;                         // +0x08
-        std::string m_icon;                            // +0x0c
-        int m_field10;                                 // +0x10（[icon] 分支 ScanInt 写入）
-        unsigned char m_questPoint;                    // +0x14（[quest point] 字节写入）
-        int m_field18;                                 // +0x18（clear=0x4d）
-        int m_field1c;                                 // +0x1c（clear=2）
-        int m_field20;                                 // +0x20（clear=0）
-        std::vector<stStatusLevelInfo> m_levelInfos;   // +0x24（[level info] push_back）
-    };
 
     // ORIG C1 0x83710d4：map 构造+clear；+0x18=-1；initCost@0x1c；memset(+0x28,0,0x4d)；sizeof 0x78。
     std::map<int, stQuestShopStatus> m_map0;          // +0x00

@@ -618,7 +618,7 @@ int importQuestShopScript(const char* path, stQuestShop& out)
         }
 
         // ---- 单个 [quest status] 记录 ----
-        stQuestShop::stQuestShopStatus status;
+        stQuestShopStatus status;
         status.clear();
         const int idx = ScanInt(&ok);
         if (!ok)
@@ -684,13 +684,13 @@ int importQuestShopScript(const char* path, stQuestShop& out)
             }
             else if (token == "[level info]")
             {
-                stQuestShop::stStatusLevelInfo info;
-                info.m_min = static_cast<unsigned char>(ScanInt(&ok));
+                stStatusLevelInfo info;
+                info.m_second = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     continue;
                 }
-                info.m_max = static_cast<unsigned char>(ScanInt(&ok));
+                info.m_first = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     continue;
@@ -709,7 +709,7 @@ int importQuestShopScript(const char* path, stQuestShop& out)
         }
 
         out.m_map0.insert(
-            std::map<int, stQuestShop::stQuestShopStatus>::value_type(idx, status));
+            std::map<int, stQuestShopStatus>::value_type(idx, status));
     }
     return 0;
 }
@@ -1256,9 +1256,7 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 }
 
 // ============================================================================
-// 依赖的 ORIG 小符号定义
-// ============================================================================
-
+// 三个子类型构造器为头文件内联（CDataManager.h，ORIG 具名 C1 0x837c6be/6e6/70e）。
 // ORIG 0x891b4a8 W：临时元素 {kind,a,b} 后 push_back。
 void stLimitItemUsageInfo::Add(char kind, int a, int b)
 {
@@ -1294,36 +1292,6 @@ stQuestShoptInitCost::stQuestShoptInitCost()
     m_cost2 = 0;
     m_cost1 = m_cost2;
     m_cost0 = m_cost1;
-}
-
-// ORIG stStatusLevelInfo C1 0x891b8b4 W：+0x01 清零后拷至 +0x00。
-stQuestShop::stStatusLevelInfo::stStatusLevelInfo()
-{
-    m_max = 0;
-    m_min = m_max;
-}
-
-// ORIG stQuestShopStatus C1 0x891b948 W：成员默认构造 + clear()。
-stQuestShop::stQuestShopStatus::stQuestShopStatus()
-    : m_name(), m_name2(), m_explain(), m_icon(), m_levelInfos()
-{
-    clear();
-}
-
-// ORIG clear 0x891b8cc W：字符串 clear；+0x10=-1、+0x14=0、+0x18=0x4d、
-// +0x1c=2、+0x20=0；vector clear。
-void stQuestShop::stQuestShopStatus::clear()
-{
-    m_name.clear();
-    m_name2.clear();
-    m_explain.clear();
-    m_icon.clear();
-    m_field10 = -1;
-    m_questPoint = 0;
-    m_field18 = 0x4d;
-    m_field1c = 2;
-    m_field20 = 0;
-    m_levelInfos.clear();
 }
 
 // ORIG stNPCRelationEventInfo C1 0x891c946 W：两个 FavorAndReward 子对象 +

@@ -475,7 +475,7 @@ struct Pakcet_FindUserName_use_Charac_no : public PacketHeader
     unsigned int m_characNo;               // +0x0e
     unsigned int m_field12;                // +0x12
     char m_name[0x1e];                     // +0x16..+0x33（角色名区，ctor memset 0）
-};
+} __attribute__((packed));   // packed：无 pack 时 uint 成员 4 对齐致字段 +2（m_uid@+0xc），与 ORIG +0xa 不符
 
 // MSG_EPLP_COMMAND：ORIG 无独立导出符号，仅经 Dispatcher_EPLPCommand::
 // _BroadCastPacket（0x081fee14）以引用访问；报告反编译只读 +0x0d/+0x0e

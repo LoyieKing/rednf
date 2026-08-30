@@ -296,8 +296,8 @@ void CHackAnalyzer::reportHackInfo()
          it != m_hackInfoList.end(); ++it)
     {
         stHackInfo_t info = *it;
-        ReqDBSaveHackInfo(info.m_uid, info.m_hackType, info.m_cnt,
-                          info.m_time, 1);
+        ReqDBSaveHackInfo(info.m_uid, info.m_characNo, info.m_hackType,
+                          info.m_value, 1);
     }
 }
 
@@ -320,9 +320,9 @@ void CHackAnalyzer::_addHackInfo(ENUM_REPORT_4_HACK_FLAG flag,
     // 随后 m_flag04 |= flag。
     stHackInfo_t info;
     info.m_uid = ((CUser*)m_baseHackType)->get_acc_id();
-    info.m_hackType = (unsigned int)((CUser*)m_baseHackType)->getCurCharacNo();
-    info.m_cnt = (unsigned short)(unsigned int)type;
-    info.m_time = value;
+    info.m_characNo = (unsigned int)((CUser*)m_baseHackType)->getCurCharacNo();
+    info.m_hackType = (unsigned short)(unsigned int)type;
+    info.m_value = value;
     m_hackInfoList.push_back(info);
 
     m_flag04 = (unsigned char)((unsigned)flag | (unsigned)m_flag04);

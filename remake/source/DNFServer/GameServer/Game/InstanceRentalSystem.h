@@ -8,6 +8,7 @@
 // 此前 CUser.h/PacketTypes.h 以 namespace 形式声明，与全局类名冲突，已并入本头。
 
 #include <map>
+#include <memory>
 #include <vector>
 
 class IRentalMachine;
@@ -96,7 +97,7 @@ public:
 
 
 private:
-    RentalSystemImpl* m_impl;  // +0x00（ORIG auto_ptr）
+    std::auto_ptr<RentalSystemImpl> m_impl;  // +0x00（ORIG auto_ptr；C1 调 auto_ptr C1EPS1_）
 };
 
 // ============================================================================

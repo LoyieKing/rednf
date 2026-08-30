@@ -593,6 +593,7 @@ private:
 };
 
 #include "CLevelDungeonPlayStatistic.h"
+#include "CDungeonExpStatistic.h"   // +0x18 子对象权威定义（map<int, stDungeonExp>）
 
 class CStatisticMgr : public CLevelDungeonPlayStatistic
 {
@@ -602,8 +603,7 @@ private:
     // ORIG ctor 0x82aa89e：CLevelDungeonPlayStatistic@+0（0x18，map<int,
     // stDungeonPlayInfo>）+ CDungeonExpStatistic@+0x18（0x18，map<int,
     // stDungeonExp>）。基类即 CLevelDungeonPlayStatistic（首基类同址）。
-    struct stDungeonExp { char m_pad[4]; };
-    std::map<int, stDungeonExp> m_expMap;             // +0x18
+    CDungeonExpStatistic m_dungeonExp;      // +0x18（权威定义见 CDungeonExpStatistic.h）
 };
 
 class CGM_Manager;  // 完整定义见 CGM_Manager.h（真实布局）
@@ -4349,25 +4349,19 @@ void village_attacked::CRevengeDungeon::SetCloseTime(unsigned int sec)  // ORIG 
     m_field04 = sec;
 }
 InstanceRentalSystem::InstanceRentalSystem()
+    : m_impl(new RentalSystemImpl)
 {
-    // ORIG 0x08270014：new RentalSystemImpl(0x18)；注册 PcRoom(1)/Dimension(2)。
-    m_impl = new RentalSystemImpl;
+    // ORIG 0x08270014：new RentalSystemImpl(0x18) 交 auto_ptr；注册 PcRoom(1)/Dimension(2)。
     registerRentalMachine(1, new RentalMachinePcRoom);
     registerRentalMachine(2, new RentalMachineDimension);
 }
 InstanceRentalSystem::~InstanceRentalSystem()
 {
-    // ORIG 0x08270110：遍历机器表虚析构；释放 impl。
-    if (m_impl)
+    // ORIG 0x08270110：遍历机器表虚析构；impl 由 auto_ptr D1 释放。
+    for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
+         it != m_impl->m_machines.end(); ++it)
     {
-        for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
-             it != m_impl->m_machines.end(); ++it)
-        {
-            delete it->second;
-        }
-        m_impl->m_machines.clear();
-        delete m_impl;
-        m_impl = 0;
+        delete it->second;
     }
 }
 void InstanceRentalSystem::registerRentalMachine(int idx, IRentalMachine* m)
