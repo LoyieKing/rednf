@@ -6646,7 +6646,9 @@ int ProcessEquipItem(CUser& user,
     ri.m_field8 = (unsigned char)reward.m_field0;
     ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
     ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
-    ri.m_rentItemId = savedRentId;
+    // ORIG：ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2
+    //（savedRentId==-1 时取 item.m_addInfo2，构造清零后为 0）
+    ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2;
 
     out.m_infos.push_back(ri);
     return 0;
@@ -6686,7 +6688,7 @@ int ProcessInsertItem(CUser& user,
     ri.m_field8 = (unsigned char)reward.m_field0;
     ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
     ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
-    ri.m_rentItemId = savedRentId;
+    ri.m_rentItemId = savedRentId != -1 ? savedRentId : item.m_addInfo2;
 
     out.m_infos.push_back(ri);
     return 0;

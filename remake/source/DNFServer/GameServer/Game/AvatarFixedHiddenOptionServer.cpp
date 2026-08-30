@@ -379,9 +379,7 @@ bool AvatarFixedHiddenOptionServer::IsVaildSkillIndex(ENUM_RARITY rarity,
 int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity, int randIdx)
 {
     std::vector<int>& rates = m_cumulativeRate[rarity];
-    if (rates.empty())
-        return -1;                     // back() 前置保护（ORIG 空桶即 empty->back 未定义；
-                                       // GetRandomInput 已保证非空进入，此处保持一致性）
+    // ORIG 0x0817e23e：无 empty() 前置检查，直接 back()（GetRandomInput 保证非空进入）。
     if (!(randIdx < rates.back() && 0 <= randIdx))
         return -1;
     std::vector<int>::iterator up =

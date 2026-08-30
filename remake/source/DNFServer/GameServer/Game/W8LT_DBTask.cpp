@@ -16206,7 +16206,7 @@ struct SecuRetransferReqView
 {
     unsigned int m_mId;          // +0x00
     char m_certKey[0x21];        // +0x04
-    char m_card[0xc];            // +0x25
+    char m_card[0x6];            // +0x25
     char m_serverKey[0x27];      // +0x2b
     char m_serial[0xc];          // +0x52
     char m_phone[0x29];          // +0x5e
@@ -17198,13 +17198,15 @@ struct DB_TowerRankerRankView   // +0x06
 {
     unsigned short m_ranks[0x800];
 };
-// +0xfa0 行视图（步长 0x6c）：+0x00 towerIndex(ushort)、+0x02 type(ushort)、
-// +0x04 memberInfo[0x17]（ORIG DB_DeathTowerLoadTopRanker 0x0842a910 写偏移实证）。
+// +0xfa0 行视图（步长 0x6c）：+0x0c towerIndex(ushort)、+0x0e type(ushort)、
+// +0x10 memberInfo[0x17]（ORIG DB_DeathTowerLoadTopRanker 0x0842a866..0x0842a87b
+// 实测：get_ushort(1)→+0xc、写 type→+0xe、get_binary(2)→+0x10）。
 struct DB_TowerRankerRowView
 {
-    unsigned short m_towerIndex;   // +0x00
-    unsigned short m_type;         // +0x02
-    char m_memberInfo[0x17];       // +0x04
+    char m_pad0[0xc];              // +0x00..+0x0b（ORIG 未写）
+    unsigned short m_towerIndex;   // +0x0c
+    unsigned short m_type;         // +0x0e
+    char m_memberInfo[0x17];       // +0x10
 };
 // +0x1000 行视图（步长 0x6c）：+0x00 stage(uint)、+0x04 playTime(uint)。
 struct DB_TowerRankerPlayView

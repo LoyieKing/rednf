@@ -944,7 +944,7 @@ bool ProcStage::isEndStage(StageEndType::T& endType) const
     {
         if (m_map != 0 &&
             static_cast<unsigned>(*reinterpret_cast<const unsigned short*>(
-                &it->second.m_seq)) ==
+                &it->second.m_towerRefA)) ==
                 *reinterpret_cast<const unsigned*>(
                     reinterpret_cast<const char*>(m_map) + 0x110) &&
             it->second.m_padC != 1)

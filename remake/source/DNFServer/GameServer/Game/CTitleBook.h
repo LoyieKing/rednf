@@ -52,12 +52,27 @@ extern const int TITLE_BOOK_MAX[4];
 // ---- 称号元素（0x20 字节） ----
 struct stTitleElement
 {
+    stTitleElement()
+        : m_index(-1),
+          m_fitJobs(),
+          m_field10(-1),
+          m_field14(0),
+          m_strText(),
+          m_achievementIdx(-1),
+          m_field20(0),
+          m_field24(-1)
+    {
+    }
+
     int m_index;                  // +0x00（-1 = 空槽）
     std::vector<int> m_fitJobs;   // +0x04（ORIG D1 0x828d926 析构此 vector）
-    char m_pad10[8];              // +0x10
+    int m_field10;                // +0x10（ORIG C1 初始化为 -1；脚本导入不写）
+    int m_field14;                // +0x14（ORIG C1 初始化为 0）
     std::string m_strText;        // +0x18（ORIG D1 析构此 string）[推断：称号文本]
     int m_achievementIdx;         // +0x1c（-1 = 无成就关联）
-};  // sizeof 0x20
+    int m_field20;                // +0x20（ORIG C1 初始化为 0）
+    int m_field24;                // +0x24（ORIG C1 初始化为 -1）
+};  // sizeof 0x28（ORIG C1 0x08aa95ae / C1ERKS_ 0x0828f43e 逐字段实证）
 
 // ---- 奖励基类（0xc 字节；ORIG C1 W 0x08aa9632 / D1 W 0x08aa9652）----
 // C1：type=4、byte4=0、data=0。D1：data 非空时经其 vtable 槽 +0xC

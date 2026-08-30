@@ -109,10 +109,20 @@ public:
 
 struct stSelectQuestParam
 {
-    char m_pad0[0x18];
-    int m_questIdx;    // +0x18
-    char m_pad1c[0x34];
-    char m_powerSide;  // +0x50
+    // 权威布局（Quest.h，ORIG _ZN18stSelectQuestParamC1EP5CUser）：m_powerSide 在 +0x14。
+    // 此局部定义仅用于本 TU 编译（CDataManager.h 只有前向声明）；曾误作 +0x50，
+    // 导致 Check_Quest 读 param+0x50 而非 ORIG 的 +0x14。字段与 Quest.h 严格一致。
+    int m_level;          // +0x00
+    int m_job;            // +0x04
+    int m_firstGrow;      // +0x08
+    int m_secondGrow;     // +0x0c
+    int m_pvpGrade;       // +0x10
+    char m_powerSide;     // +0x14
+    char m_pad15[3];      // +0x15..0x17
+    int m_questIdx;       // +0x18
+    int m_expertJobType;  // +0x1c
+    int m_expertJobLevel; // +0x20
+    int m_questCount;     // +0x24
 };
 
 namespace WongWork

@@ -4681,10 +4681,10 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
         Packet_Channel_Guild_Cargo_Push_Item resp;
         resp.m_b = pb->m_charNo;
         resp.m_d = pb->m_slot;
-        resp.m_item = *(DnfItemInfo*)pb->m_item;
+        resp.m_item = pb->m_item;
         resp.m_e = pb->m_fsn;
         resp.m_flag = pb->m_fst;
-        char* itemDesc = (char*)CGuildCargo::PrintDnfItemInfo(*(DnfItemInfo*)pb->m_item);
+        char* itemDesc = (char*)CGuildCargo::PrintDnfItemInfo(pb->m_item);
         CMyFileLog log0(__FUNCTION__, 0x19b3);
         log0("./log/GuildCargo", "PUSH ITEM(g:%d,cn:%d,sn:%d,sl:%d,fsn:%d,fst:%d,it:%d,%s)",
              pb->m_guildKey, pb->m_charNo, pb->m_slot,

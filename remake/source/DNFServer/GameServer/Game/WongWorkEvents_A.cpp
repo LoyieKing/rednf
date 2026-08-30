@@ -423,11 +423,11 @@ void EventFCCombo::ArrangeFCComboEventItem(unsigned int mid, unsigned int server
     while (row < (unsigned int)db->get_n_rows() && db->fetch())
     {
         unsigned int id = 0;               // col0
-        unsigned int srv = 0;              // col1
+        int srv = 0;                    // col1
         int charac_no = 0;                 // col2
-        unsigned int item_no = 0;          // col3
+        int item_no = 0;                   // col3
         int item_check = 0;                // col4
-        unsigned int item_cnt = 0;         // col5
+        int item_cnt = 0;                  // col5
         db->get_int(0, id);
         db->get_int(1, srv);
         db->get_int(2, charac_no);

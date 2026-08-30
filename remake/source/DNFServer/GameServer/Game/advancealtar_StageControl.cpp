@@ -360,7 +360,7 @@ int StageControl::getCenterCount() const
         int valueA = 0;                                 // local_88[1]
         int valueB = 0;                                 // local_88[0]
         CharacAdvanceAltarManager& cam = user->m_advanceAltar;
-        if (cam.getTowerInfo(it->m_orderIdx, valueA, valueB))
+        if (cam.getTowerInfo(it->m_mobId, valueA, valueB))
         {
             ++count;
         }

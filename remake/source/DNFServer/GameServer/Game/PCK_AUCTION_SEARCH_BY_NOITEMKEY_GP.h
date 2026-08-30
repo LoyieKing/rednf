@@ -15,7 +15,7 @@ struct PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP : public nsl::PACKET_HEADER
     TSearchByCategory_ m_cat;    // +0x1a..+0x30（ORIG TSearchByCategory_C1 在 this+0x1a）
     char m_pad31[0x33 - 0x31];   // +0x31..+0x32
 
-    PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP() : m_cat()
+    PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP()
     {
         PACKET_CTOR_BODY(0x12, 0x7, 0x33);
     }

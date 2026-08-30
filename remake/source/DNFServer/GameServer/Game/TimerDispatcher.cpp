@@ -3325,10 +3325,10 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
             !GlobalData::s_villageMonsterMgr->OnEvent())
         {
             // ORIG 0826868c / 082687fc：dm+0x68（m_serverParameter）上的
-            // isDungeonOpen(p3)/setDungeonOpen(p3,true)
-            if (!G_CDataManager()->m_serverParameter.isDungeonOpen((int)p3))
+            // isDungeonOpen(0x2aff)/setDungeonOpen(0x2aff,true)；send 用 p3
+            if (!G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff))
             {
-                G_CDataManager()->m_serverParameter.setDungeonOpen((int)p3, true);
+                G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, true);
                 G_GameWorld()->send_all_dungeon_inout_message((int)p3);
             }
             cMyTrace traceOpen(__PRETTY_FUNCTION__,

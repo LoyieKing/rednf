@@ -10239,9 +10239,8 @@ public:
 // （多一次 operator new 调用，形态残留；gcc 4.4.7 拒绝显式构造调用，语义与 ORIG 一致）。
 Packet_Guild_Guild_Cargo_Push_Item::Packet_Guild_Guild_Cargo_Push_Item()
     : PacketHeader(0x70d, 0x53),
-      m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0)
+      m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0), m_item()
 {
-    new (&m_item) DnfItemInfo;
     m_e = 0;
     m_f = 0;
 }
@@ -10340,7 +10339,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     user->SaveInventory();
 
     Packet_Guild_Guild_Cargo_Push_Item pck;            // ORIG ctor 0x084e9434
-    DnfItemInfoView& pckItem = *reinterpret_cast<DnfItemInfoView*>(&pck.m_item[0]);  // +0x1b DnfItemInfo 视图（头内 m_item 为字节区）
+    DnfItemInfoView& pckItem = *reinterpret_cast<DnfItemInfoView*>(&pck.m_item);  // +0x1b DnfItemInfo 视图（头内 m_item 为字节区）
     pck.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0x0a
     pck.m_charNo   = (unsigned int)user->getCurCharacNo();        // +0x0e
     pck.m_b        = (int)*reinterpret_cast<unsigned int*>(data + 0x13);   // +0x12

@@ -1093,7 +1093,7 @@ void CharacAdvanceAltarManager::getSlotItem(
          sit != slots.end(); ++sit)
     {
         std::map<int, _BuyItem>::const_iterator bit =
-            cur->m_buyItems1.find(static_cast<int>(sit->first));       // 槽号查购买表
+            cur->m_buyItems1.find(sit->second.m_int6);                 // 槽内物品 id 查购买表
         if (bit == cur->m_buyItems1.end())
         {
             continue;

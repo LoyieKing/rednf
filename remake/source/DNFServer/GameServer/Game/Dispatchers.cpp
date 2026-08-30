@@ -8451,6 +8451,10 @@ int Dispatcher_MailBox_Extract::check_error(CUser* user, MSG_BASE& msg)
         {
             return 0x3c;
         }
+        if (user->CheckInTrade())
+        {
+            return 0xda;
+        }
         return 0;
     }
     return -1;
@@ -12537,10 +12541,7 @@ Dispatcher_RemovePrivateStore::Dispatcher_RemovePrivateStore() {}
 Dispatcher_RemovePrivateStore::~Dispatcher_RemovePrivateStore() {}
 int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0)
-    {
-        return 0;
-    }
+    // ORIG 0x08202bb0：无 user/manager/seller 判空（GetStoreSeller 假定有效）。
     if (user->get_state() > 2 && user->getCurCharacR() != 0)
     {
         PacketGuard response;
@@ -12554,14 +12555,8 @@ int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
     private_store::CPrivateStoreMgr* manager =
         private_store::GetInstancePrivateStoreMgr();
     private_store::ISeller* seller = 0;
-    if (manager != 0)
-    {
-        manager->GetStoreSeller(&seller, user);
-    }
-    if (seller != 0)
-    {
-        seller->RemovePrivateStore(false);
-    }
+    manager->GetStoreSeller(&seller, user);
+    seller->RemovePrivateStore(false);
     return 0;
 }
 int Dispatcher_RemovePrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -12684,7 +12679,8 @@ Dispatcher_RequestMemberEnter::Dispatcher_RequestMemberEnter() {}
 Dispatcher_RequestMemberEnter::~Dispatcher_RequestMemberEnter() {}
 int Dispatcher_RequestMemberEnter::check_error(CUser* user, MSG_BASE& msg)
 {
-    return user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0 ? 0 : -1;
+    // ORIG 0x081cb830：无 user 判空；state<=2 → 0；getCurCharacR()==NULL → -1。
+    return user->get_state() > 2 && user->getCurCharacR() != 0 ? 0 : -1;
 }
 int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
