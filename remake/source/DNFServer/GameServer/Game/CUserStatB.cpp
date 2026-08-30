@@ -33,7 +33,8 @@
 // ---------------------------------------------------------------------------
 void CUser::RefillItemByScript(std::vector<std::pair<int, int> >& list)
 {
-    std::vector<stRefillItemInfo::RefillItem>* refill =
+    // ORIG 0x086890be：经 const 指针走 const operator[]（ix 常量符号）
+    const std::vector<stRefillItemInfo::RefillItem>* refill =
         G_CDataManager()->GetRefillItemInfo();
     const int nowSec = GlobalData::s_systemTime_.getCurSec();
 

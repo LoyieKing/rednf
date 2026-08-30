@@ -1178,7 +1178,8 @@ void CDeathTower::_onPrepareFinishTower()
 void CDeathTower::_onStartDeathTower()
 {
     char memberNames[0x40];
-    memset(memberNames, 0, sizeof(memberNames));   // ORIG rep stos 0x40
+    // ORIG 0x08467b83：getMemberNames 填充（转发 _getMemberNames）
+    m_party->getMemberNames(memberNames);
 
     for (int i = 0; i <= 3; ++i)
     {

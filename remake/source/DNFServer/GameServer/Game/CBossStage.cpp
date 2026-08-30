@@ -451,6 +451,8 @@ int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
     CParty* party = getParty();
     CDungeon* dungeon = m_dungeon;
 
+    party->getMemberLevelGap();      // ORIG 副作用调用（填充 m_memberLevelGap 缓存）
+
     for (int i = 0; i < 4; ++i)
     {
         CUser* user = party->get_user(i);

@@ -50,14 +50,13 @@ int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
                                                unsigned int money,
                                                char* senderName, int nameLen)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8846);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8846), true);
     guard.operator*()->operator<<(0x18b);  // SIG_CHECK_MY_ACCOUNT
     guard.operator*()->operator<<((int)uid);
 
     SIG_CHECK_MY_ACCOUNT_IN_DB* sig =
-        guard.GetInBuffer<SIG_CHECK_MY_ACCOUNT_IN_DB>();
+        guard->GetInBuffer<SIG_CHECK_MY_ACCOUNT_IN_DB>();
     sig->m_param0 = a;
     sig->m_accId = accId;
     sig->m_money = money;

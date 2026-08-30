@@ -185,8 +185,8 @@ public:
 
 private:
     const char* m_account;                // +0x00
-    int m_balance;                        // +0x04（@out_balance）
-    int m_resultCode;                     // +0x08（@out_result）
+    unsigned int m_balance;               // +0x04（@out_balance；ORIG get_int(EiRj)）
+    int m_resultCode;                     // +0x08（@out_result；ORIG get_int(EiRi)）
 };
 
 // ---- BalancePointQuery（usp_balance_point('%s', @out_balance, @out_point, @out_result)）----
@@ -204,9 +204,9 @@ public:
 
 private:
     const char* m_account;                // +0x00
-    int m_balance;                        // +0x04（@out_balance）
-    int m_point;                          // +0x08（@out_point）
-    int m_resultCode;                     // +0x0c（@out_result）
+    unsigned int m_balance;               // +0x04（@out_balance；ORIG get_int(EiRj)）
+    unsigned int m_point;                 // +0x08（@out_point；ORIG get_int(EiRj)）
+    int m_resultCode;                     // +0x0c（@out_result；ORIG get_int(EiRi)）
 };
 
 // ---- GiftQuery（usp_gift('%s','%s','%s',%u,%u,@out_tran,@out_code)）----

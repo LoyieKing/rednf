@@ -385,6 +385,17 @@ int Arad_VillageAttackRewardItem::parsing(char* data)
             d.winPoint = script.GetInt(r, "win_point");
             d.itemIndex = script.GetInt(r, "item_index");
             d.itemCount = script.GetInt(r, "item_count");
+            Data out;
+            if (find_reward_item(d.winPoint, out))
+            {
+                LogManager::logFormat(
+                    1, "localjapan/Arad_Script_Loader.cpp",
+                    "virtual int Arad_VillageAttackRewardItem::parsing(char*)",
+                    0x244,
+                    "[ERROR] Already exist data. (point:%d, item:%u, count:%d)",
+                    d.winPoint, d.itemIndex, d.itemCount);
+                return 0x245;
+            }
             m_rewardList.push_back(d);
         }
     }
@@ -431,7 +442,10 @@ Arad_DataManager::Arad_DataManager()
 {
 }
 
-Arad_DataManager::~Arad_DataManager() {}
+Arad_DataManager::~Arad_DataManager()
+{
+    Destroy();    // ORIG 0x08188170：D1 写 vptr 后调 Destroy()（成员随后自动析构）
+}
 
 bool Arad_DataManager::Load()
 {
@@ -571,6 +585,8 @@ int notifyOpenMessageDialog(CUser* user, int a, int b,
     if (user == 0)
         return 0;
     PacketGuard guard;
+    // ORIG 0x8197907：getCurSec() 死存储（存栈未用），保留以字节一致
+    GlobalData::s_systemTime_.getCurSec();
     guard.put_header(0, 0x21a);
     guard.put_int(a);
     guard.put_int(b);

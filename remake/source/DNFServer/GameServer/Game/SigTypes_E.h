@@ -43,9 +43,25 @@ struct SIG_SAVE_GEO_REJECT
     char m_pad[0x20];
 };
 
+// 具名化（Fix11 real10b；proceed_trade @0x8530e64 填包 + DB_SaveGoldZeroTradeLog
+// @0x084227f6 读包交叉实证）：
+//   +0x00 to_m_id(uint) / +0x04 from_m_id(uint) / +0x08 from_nat_ip[0x10] /
+//   +0x1c from_peer_ip[0x14] / +0x30 from_nat_type(byte) / +0x31 from_mac_addr[0x41] /
+//   +0x72 to_nat_ip[0x10] / +0x86 to_peer_ip[0x14] / +0x9a to_nat_type(byte) /
+//   +0x9b to_mac_addr[0x41] / +0xdc injury_money(uint)；sizeof 0xe0。
 struct SIG_SAVE_GOLD_ZERO_TRADE_LOG
 {
-    char m_pad[0xe0];
+    unsigned int m_to_m_id;        // +0x00
+    unsigned int m_from_m_id;      // +0x04
+    char m_from_nat_ip[0x10];      // +0x08
+    char m_from_peer_ip[0x14];     // +0x1c
+    unsigned char m_from_nat_type; // +0x30
+    char m_from_mac_addr[0x41];    // +0x31
+    char m_to_nat_ip[0x10];        // +0x72
+    char m_to_peer_ip[0x14];       // +0x86
+    unsigned char m_to_nat_type;   // +0x9a
+    char m_to_mac_addr[0x41];      // +0x9b
+    unsigned int m_injury_money;   // +0xdc
 };
 
 // 具名化（G6 HackAnM 批次；DB_ReqSaveHackUserPunish::makeRequest ORIG T

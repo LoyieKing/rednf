@@ -288,12 +288,11 @@ public:
 
 void CLocalChina_DB_BreakAwayReset::makeRequest(unsigned int accId)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localchina/localchina_DBThread.c", 0x408);
-    CStreamGuard guard(stream, true);
-    guard << 0x2dd;   // ORIG opcode（localchina DBThread 分发表）
-    guard << -1;
-    guard << accId;   // ORIG operator<<(unsigned)
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localchina/localchina_DBThread.c", 0x408), true);
+    guard.operator*()->operator<<(0x2dd);   // ORIG opcode（localchina DBThread 分发表）
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(accId);   // ORIG operator<<(unsigned)
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 

@@ -294,7 +294,10 @@ public:
     ENUM_SCHOOL_MATCH_TEAM _GetTeam(ENUM_SEAT_STATE state);  // 0x08568866：return state-1
 
 private:
-    static CLeagueMatchRoomList* pWaitingRoomList_;   // 全局延迟单例
+    // ORIG 0x0943e13c：delete 处仅 _ZdlPv（无 CLeagueMatchRoomListD1 调用，
+    // 且 ORIG 符号表无 CLeagueMatchRoomList D1）⇒ 静态类型为 IRoomList*
+    // （无虚析构），new 用完整类型构造、调用点全虚调用。
+    static IRoomList* pWaitingRoomList_;   // 全局延迟单例
     static int nWaitingRoomListRefCount_;
     static bool bMatchable_;                      // ORIG B 0x0943e138
     static int  nextAuthValue_;                   // ORIG B→D 0x0943e144（OnCreateRoom 自增令牌）

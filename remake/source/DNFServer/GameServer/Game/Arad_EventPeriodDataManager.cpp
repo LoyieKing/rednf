@@ -26,15 +26,14 @@ Arad_EventPeriodDataManager::Arad_EventPeriodDataManager()
 
 Arad_EventPeriodDataManager::~Arad_EventPeriodDataManager()
 {
+    clearScriptData();    // ORIG 0x0819554c：D1 写 vptr 后调 clearScriptData()
 }
 
 bool Arad_EventPeriodDataManager::loadScriptData()
 {
-    // ORIG vtable 槽2 loadScriptData：清空后重装事件周期数据。
-    // 完整装载逻辑依赖 Arad_Script 解析与周期表，此处保持结构并标记 TODO。
-    clearScriptData();
-    // TODO(G2)：从脚本装载 SEventPeriodData 周期项后由 isApplied 判定。
-    return true;
+    // ORIG 0x08195650：直接调 importAradEventScript(m_eventPeriodList,
+    // m_rewardPeriodList)（+0xc/+0x18 两 vector），无 return（eax 残留）。
+    ARAD::SCRIPT::importAradEventScript(m_eventPeriodList, m_rewardPeriodList);
 }
 
 void Arad_EventPeriodDataManager::clearScriptData()

@@ -155,7 +155,7 @@ bool DisPatcher_DebugCommand::_debugCommandOn(CUser* user,
     DBG_TRACE(g_dbgCmdPrettyOn, 0x10, "%s:'%s' GM Mode ON.");   // +0x2b
     user->SetGameMasterMode(true);              // +0x7e SetGameMasterMode(1)
 
-    if (user->getCurCharacInvenR() == 0)        // +0x83 getCurCharacR==0 → ret 0
+    if (user->getCurCharacR() == 0)             // +0x83 getCurCharacR==0 → ret 0
         return false;
 
     PacketGuard packet;                         // -0x24 local_28

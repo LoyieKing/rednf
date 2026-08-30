@@ -467,6 +467,8 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
         else
             spawnTime = 0;
     }
+    // ORIG 0x08305672：spawnTime 调整后立即发包 BloodMonsterSpawnPacket(cnt, time, smallRound, nextRound)
+    BloodMonsterSpawnPacket(spawnCnt, spawnTime, smallRound, nextRound);
     const int totalPhase = get_blood_spawn_phase_total_cnt_of_small_round(smallRound);
     if (totalPhase < 0)
     {

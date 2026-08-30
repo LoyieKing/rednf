@@ -898,19 +898,20 @@ TimerPremiumServiceStart::~TimerPremiumServiceStart() {}
 int TimerPremiumServiceStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
-    if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3)
-    {
+    if (user == 0)
         return 0;
-    }
-    WongWork::CUserPremium* premium = user->GetPremiumInfoW();
-    if (!premium->startPremium(p2, false))
+    if (static_cast<unsigned int>(user->get_acc_id()) != p3)
+        return 0;
+    if (!user->GetPremiumInfoW()->startPremium(p2, false))
     {
         return 0;
     }
     if (user->get_state() > 2)
     {
-        WongWork::SUserPremiumInfo* info = premium->GetPremiumInfo(p2);
-        if (info != 0 && info->m_type != 0)
+        // ORIG 通过 CUser::GetPremiumInfo()（const）取 CUserPremium*，再查指定类型信息。
+        WongWork::SUserPremiumInfo* info =
+            user->GetPremiumInfo()->GetPremiumInfo(p2);
+        if (info->m_type != 0)
         {
             WongWork::CHandlePremium::handleNotifyPremiumInfo(
                 user, info->m_type, info->m_end - info->m_start);
@@ -1118,14 +1119,13 @@ TimerBloodPhaseRegister0::~TimerBloodPhaseRegister0() {}
 int TimerBloodPhaseRegister0::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x17, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x17, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[0]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[0]),
-                           nextRound, 0x17, 0);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[0]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[0], 0x17, 0);
     return 1;
 }
 
@@ -1134,14 +1134,13 @@ TimerBloodPhaseRegister1::~TimerBloodPhaseRegister1() {}
 int TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x18, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x18, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[1]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[1]),
-                           nextRound, 0x18, 1);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[1]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[1], 0x18, 1);
     return 1;
 }
 
@@ -1150,14 +1149,13 @@ TimerBloodPhaseRegister2::~TimerBloodPhaseRegister2() {}
 int TimerBloodPhaseRegister2::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x19, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x19, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[2]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[2]),
-                           nextRound, 0x19, 2);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[2]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[2], 0x19, 2);
     return 1;
 }
 
@@ -1166,14 +1164,13 @@ TimerBloodPhaseRegister3::~TimerBloodPhaseRegister3() {}
 int TimerBloodPhaseRegister3::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1a, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1a, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[3]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[3]),
-                           nextRound, 0x1a, 3);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[3]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[3], 0x1a, 3);
     return 1;
 }
 
@@ -1182,14 +1179,13 @@ TimerBloodPhaseRegister4::~TimerBloodPhaseRegister4() {}
 int TimerBloodPhaseRegister4::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1b, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1b, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[4]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[4]),
-                           nextRound, 0x1b, 4);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[4]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[4], 0x1b, 4);
     return 1;
 }
 
@@ -1198,14 +1194,13 @@ TimerBloodPhaseRegister5::~TimerBloodPhaseRegister5() {}
 int TimerBloodPhaseRegister5::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1c, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1c, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[5]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[5]),
-                           nextRound, 0x1c, 5);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[5]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[5], 0x1c, 5);
     return 1;
 }
 
@@ -1214,14 +1209,13 @@ TimerBloodPhaseRegister6::~TimerBloodPhaseRegister6() {}
 int TimerBloodPhaseRegister6::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1d, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1d, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[6]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[6]),
-                           nextRound, 0x1d, 6);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[6]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[6], 0x1d, 6);
     return 1;
 }
 
@@ -1230,14 +1224,13 @@ TimerBloodPhaseRegister7::~TimerBloodPhaseRegister7() {}
 int TimerBloodPhaseRegister7::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1e, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1e, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[7]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[7]),
-                           nextRound, 0x1e, 7);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[7]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[7], 0x1e, 7);
     return 1;
 }
 
@@ -1246,14 +1239,13 @@ TimerBloodPhaseRegister8::~TimerBloodPhaseRegister8() {}
 int TimerBloodPhaseRegister8::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x1f, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x1f, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[8]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[8]),
-                           nextRound, 0x1f, 8);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[8]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[8], 0x1f, 8);
     return 1;
 }
 
@@ -1262,14 +1254,13 @@ TimerBloodPhaseRegister9::~TimerBloodPhaseRegister9() {}
 int TimerBloodPhaseRegister9::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x20, p2))
-    {
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x20, p2))
+        return 0;
     CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnTime[9]);
-    field->BloodPhaseSpawn(static_cast<short>(field->m_bloodSpawnCnt[9]),
-                           nextRound, 0x20, 9);
+    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[9]);
+    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[9], 0x20, 9);
     return 1;
 }
 
@@ -1911,6 +1902,8 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (user->IsRecvEvent() != 1)
     {
+        // ORIG 0x086369e6：DisConnSig(0x1d, false, 0) 断线
+        user->DisConnSig((DISCONN_SIG)0x1d, false, 0);
         char ip[20];
         ip[0] = '\\0';
         ip[1] = '\\0';
@@ -1947,7 +1940,7 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3
 {
     // ORIG 0x08636a7c：越界检查（p3 负或 >= size 直接 false）→ 构造 0xc 包
     // {byte 0, short 0, byte 0, int len, str} 广播 → RegistNextTimer(p3)。
-    const std::vector<stLightServerNotice_t>& notices =
+    std::vector<stLightServerNotice_t>& notices =
         G_CDataManager()->m_serverParameter.m_light3c;
     if (static_cast<int>(p3) < 0 || p3 >= notices.size())
     {
@@ -1960,6 +1953,8 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3
     packet.put_short(0);
     packet.put_byte(0);
     int len = notices[p3].m_message.size();
+    // ORIG 0x08636b50：先 put_int(len) 再 put_str
+    packet.put_int(len);
     packet.put_str(notices[p3].m_message.c_str(), len);
     packet.finalize(true);
     G_GameWorld()->send_all(guard);

@@ -105,10 +105,17 @@ void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
 
 void CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
 {
-    // ORIG 0x82ef176：取用户所在区域并执行离开流程。
-    CAssaultPlace* place = _GetAssaultPlace(
-        (unsigned int)user->GetAssaultPlace());
-    place->LeaveAssaultPlace(user, flag);
+    // ORIG 0x82ef176：取用户所在区域并执行离开流程；ORIG 全程 try/catch-all
+    // （__cxa_begin_catch 后仅 end_catch）吞掉异常。
+    try
+    {
+        CAssaultPlace* place = _GetAssaultPlace(
+            (unsigned int)user->GetAssaultPlace());
+        place->LeaveAssaultPlace(user, flag);
+    }
+    catch (...)
+    {
+    }
 }
 
 void CAssaultMgr::SetAssaultChannel(bool flag)

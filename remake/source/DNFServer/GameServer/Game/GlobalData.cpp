@@ -4,6 +4,7 @@
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
 
 #include "GlobalData.h"
+#include "Action.h"  // StackableAction::Action 定义（GlobalData.h 不再复制）
 #include "OnlinePreliminary.h"   // online_preliminary 域权威声明（本 TU 持有 s_onlinePreliminaryTeamMgr 构造）
 #include "RestrictGeolocation.h"   // RestrictGeolocation 权威（原局部镜像删除，实现迁 RestrictGeolocation.cpp）
 #include "CDailyScheduleManager.h"  // _DailySchedule / CDailyScheduleManager 权威（原本地镜像删除，ODR 收敛）
@@ -759,29 +760,6 @@ char IsLightServer()
     // ORIG 0x822ad44：旗标指针先落局部变量再解引用。
     bool* flag = GetLightServerFlag();
     return *flag;
-}
-namespace StackableAction
-{
-// ORIG：输入参数结构（+0x08 CUser*、+0x0c CItem* 为 proc_* 实际使用字段）。
-struct input_param
-{
-    char m_pad0[8];    // +0x00（未还原）
-    CUser* m_user;     // +0x08
-    CItem* m_item;     // +0x0c
-};
-
-class Action
-{
-public:
-    Action();
-    int proc_bingo(input_param& p);        // ORIG T 0x0827fb14
-    int proc_addFatigue(input_param& p);   // ORIG T 0x0827fbd6
-    int proc_lotteryCount(input_param& p); // ORIG T 0x0827fb86
-    void init_function_type();             // ORIG T 0x0827f7c8
-    // ORIG 布局：boost::noncopyable 基类 + 两个 map<int, boost::function>。
-    std::map<int, boost::function<int(input_param&)> > m_map1;  // +0x00
-    std::map<int, boost::function<int(input_param&)> > m_map2;  // +0x18
-};
 }
 
 
@@ -6867,9 +6845,9 @@ int RentalMachineDimension::GetRentItemInfo(
     }
     else
     {
-        list =
-            G_CDataManager()->m_dimensionAct.m_rewardData.getRewardSelectItemList(
-                packageKey);
+        // ORIG 0x0826f900：pc_room::GetRewardItemSelectionList(packageKey, type)
+        list = pc_room::GetRewardItemSelectionList(packageKey,
+                                                   (int)inElem.m_type);
     }
     if (list == 0)
     {

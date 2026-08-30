@@ -782,8 +782,8 @@ void HistoryLog::dungeonClearInfo(CUser& user, StageControl& control, bool isLas
 
     if (isLast)
     {
-        // [未建模批次] ORIG CAdvanceAltarLog::incrementEntranceData(
-        // advanceAltarstatistics_, stageIndex, 0, 1, 0)（统计日志类未建模）。
+        HistoryLog::advanceAltarstatistics_.incrementEntranceData(
+            static_cast<unsigned int>(stageIndex), 0, 1, 0);
     }
 }
 
@@ -807,8 +807,8 @@ void HistoryLog::enterDungeon(CUser& user, const ProcStage& procStage)
     cUserHistoryLog* hist = &user.m_historyLog;
     hist->EnterDungeon(stageIndex, difficulty, 1, memberNames, 2, 0);
 
-    // [未建模批次] ORIG CAdvanceAltarLog::incrementEntranceData(
-    // advanceAltarstatistics_, stageIndex, 1, 0, 0)。
+    HistoryLog::advanceAltarstatistics_.incrementEntranceData(
+        static_cast<unsigned int>(stageIndex), 1, 0, 0);
 }
 
 

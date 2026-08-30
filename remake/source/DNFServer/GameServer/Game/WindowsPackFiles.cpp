@@ -915,18 +915,10 @@ bool WindowsExeFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
 // WindowsCodeProtectorServer —— 0x08575462..
 // ===========================================================================
 WindowsCodeProtectorServer::WindowsCodeProtectorServer()
-    : m_exeFamily(0),
-      m_dataFamilies(),
-      m_cfgLong(0),
-      m_retryCount(0),
-      m_curDataFamily(0),
-      m_loaded(0),
-      m_exeMin(0),
-      m_exeMax(0),
-      m_dataMin(0),
-      m_dataMax(0)
+    : m_dataFamilies()
 {
-}                                                            // 0x08575462（调 Initialize）
+    Initialize();                                            // ORIG 0x08575462：仅 vector 构造 + Initialize()
+}                                                            // （m_exeMin..m_dataMax 由 SetExeCheckingOption 设置，构造不初始化）
 
 WindowsCodeProtectorServer::~WindowsCodeProtectorServer()
 {                                                            // 0x08575484 → Destroy + ~vector

@@ -99,6 +99,8 @@ bool WongWork::CSimpleSSO::_getGameStartTime(unsigned int mId, long& loginTime,
         return false;
     if (!m_mysql->fetch())
         return false;
+    if (m_mysql->get_n_rows() == 0)   // ORIG fetch 后空结果检查
+        return false;
 
     unsigned int loginValue = 0;   // col0 login_time
     unsigned int expireValue = 0;  // col1 expire_time

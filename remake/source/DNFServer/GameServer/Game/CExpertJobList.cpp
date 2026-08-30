@@ -58,6 +58,12 @@ bool get_disjoint_additional_items(
 }
 }
 
+// ORIG C1/C2 @0x0896e5cc：全部成员容器构造后尾调 Clear()（与 ORIG 构造序一致）。
+STExpertJobScript::STExpertJobScript()
+{
+    Clear();
+}
+
 // ============================================================================
 // STExpertJobScript::Clear —— 清空全部容器并清零标量。
 // 由 ImportExpertJobScript 在加载前调用（脚本为 new 分配，容器已默认构造，

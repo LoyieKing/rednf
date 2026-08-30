@@ -500,10 +500,10 @@ int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
     return 0;
 }
 
+// ORIG 0x85e26a0：else 分支 operator[](0)（m_kindMissionList[0]，非静态空表）。
 std::list<CMission*>& PvP_MissionSystem::get_kind_mission_list(unsigned int idx)
 {
-    static std::list<CMission*> empty;
-    return idx < m_kindMissionList.size() ? m_kindMissionList[idx] : empty;
+    return idx < m_kindMissionList.size() ? m_kindMissionList[idx] : m_kindMissionList[0];
 }
 
 std::bitset<32> PvP_MissionSystem::get_daily_mission_kind() const

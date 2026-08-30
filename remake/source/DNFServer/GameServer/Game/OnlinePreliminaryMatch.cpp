@@ -165,8 +165,8 @@ namespace online_preliminary
 // 静态数据成员（ORIG nm）
 // ---------------------------------------------------------------------------
 
-/* ORIG B 0x0943e13c */
-CLeagueMatchRoomList* COnlinePreliminary::pWaitingRoomList_ = 0;
+/* ORIG B 0x0943e13c（delete 仅 _ZdlPv ⇒ IRoomList* 静态类型，见 OnlinePreliminary.h） */
+IRoomList* COnlinePreliminary::pWaitingRoomList_ = 0;
 /* ORIG B 0x0943e140 */
 int COnlinePreliminary::nWaitingRoomListRefCount_ = 0;
 /* ORIG B 0x0943e138 */

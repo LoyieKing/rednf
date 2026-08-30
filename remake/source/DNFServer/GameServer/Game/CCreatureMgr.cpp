@@ -1525,7 +1525,7 @@ int CCreatureMgr::GetExtraGold(int gold) const
 int CCreatureMgr::GetOverSkillExtraGold(int gold) const
 {
     if (m_equippedCreature != 0 && !m_equippedCreature->IsDieCreature() &&
-        m_equippedCreature->m_itemId == 0xf68a &&
+        ((user_creature::CCreatureItem*)m_equippedCreature)->GetItemId() == 0xf68a &&
         m_equippedCreature->GetOverSkillTime()->checkTime())
     {
         return gold * 5 / 100;

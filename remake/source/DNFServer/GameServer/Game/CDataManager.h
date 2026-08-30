@@ -624,8 +624,8 @@ struct rewardKey
         if (m_job != o.m_job) return m_job < o.m_job;
         if (m_a != o.m_a) return m_a < o.m_a;
         if (m_b != o.m_b) return m_b < o.m_b;
-        if (m_sub.m_type != o.m_sub.m_type) return m_sub.m_type < o.m_sub.m_type;
-        return m_sub.m_action < o.m_sub.m_action;
+        // ORIG 0x080f1267：调用外部 rewardSubKey::operator<（OnlyOrigBatch12.cpp）
+        return m_sub < o.m_sub;
     }
 };
 struct SlotBoundKey

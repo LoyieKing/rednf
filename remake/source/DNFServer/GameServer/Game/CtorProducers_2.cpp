@@ -120,7 +120,7 @@ bool DisJoint::LoadDisJoint()
 
     for (int i = 0; i < 6; ++i)
     {
-        int value = m_cubeIndexVecs[4][0];           // at(this+0x30, 0)
+        int value = m_cubeIndexVecs[4].at(0);        // at(this+0x30, 0)；ORIG 显式 _ZNSt6vectorIiSaIiEE2atEj
         m_resultVecs[i].push_back(value);
         const int count = *reinterpret_cast<const int*>(
             reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10);

@@ -4898,7 +4898,7 @@ void DB_SecurityCardUpdateValidityTime::makeRequest(unsigned int accId,
     guard.operator*()->operator<<((int)0x100);
     guard.operator*()->operator<<((int)-1);
     SIG_SECURITY_CARD_UPDATE_VALIDITYTIME* sig =
-        guard.GetInBuffer<SIG_SECURITY_CARD_UPDATE_VALIDITYTIME>();
+        guard->GetInBuffer<SIG_SECURITY_CARD_UPDATE_VALIDITYTIME>();
     *(unsigned int*)&sig->m_pad[0] = accId;
     *(unsigned int*)&sig->m_pad[0x4] = flag;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -4966,7 +4966,7 @@ void DB_ReqQueryCharacInfoMailbox::makeRequest(int userIdx, const char* name)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8ec5), true);
     guard.operator*()->operator<<((int)0x1f6);
     guard.operator*()->operator<<((int)userIdx);
-    SIG_QUERY_CHARAC_INFO* sig = guard.GetInBuffer<SIG_QUERY_CHARAC_INFO>();
+    SIG_QUERY_CHARAC_INFO* sig = guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>();
     strncpy(sig->m_pad, name, 0x1d);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
@@ -7332,7 +7332,7 @@ bool DB_LoadPowerWarStatueInfo::dispatch(int userIdx, int slot, Stream* stream)
     guard.operator*()->operator<<(userIdx);
     guard.operator*()->operator<<(slot);
     SIG_LOAD_POWER_WAR_STATUE_INFO* sig =
-        guard.operator*()->GetInBuffer<SIG_LOAD_POWER_WAR_STATUE_INFO>();
+        guard->GetInBuffer<SIG_LOAD_POWER_WAR_STATUE_INFO>();
     memset(sig, 0, 0x80);
     unsigned int characNo;
     *stream >> characNo;
@@ -14059,7 +14059,7 @@ bool DB_GetPremiumSelectedCubeInfo::dispatch(int userIdx, int slot,
     guard.operator*()->operator<<((int)userIdx);
     guard.operator*()->operator<<((int)slot);
     SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES* out =
-        guard.GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES>();
+        guard->GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES>();
     *(unsigned int*)&out->m_pad[0] = sig->m_characNo;
     *(unsigned char*)&out->m_pad[4] = 0;
     *(unsigned char*)&out->m_pad[5] = 0;
@@ -14403,9 +14403,9 @@ bool DB_CheckDoubleGuildAddress::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<((int)0xec);
         guard.operator*()->operator<<((int)userIdx);
         if (db->get_n_rows() == 0)
-            guard.operator*()->operator<<((int)1);
+            guard.operator*()->operator<<((char)1);   // ORIG lsEc（char 版）
         else
-            guard.operator*()->operator<<((int)2);
+            guard.operator*()->operator<<((char)2);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
@@ -14476,14 +14476,14 @@ bool DB_SaveGoldZeroTradeLog::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     db->set_query(
         "inSert into dnf_zeromoney_log(to_m_id,to_nat_ip,to_peer_ip,to_nat_type,from_m_id,from_nat_ip,from_peer_ip,from_nat_type,occ_time,injury_money,to_mac_addr,from_mac_addr) values(%s,'%s','%s',%d,%s,'%s','%s',%d,now(),%d,'%s','%s')",
-        NumberToString(*(unsigned int*)&sig->m_pad[0], 0),
-        &sig->m_pad[0x72], &sig->m_pad[0x86],
-        (int)*(unsigned char*)&sig->m_pad[0x9a],
-        NumberToString(*(unsigned int*)&sig->m_pad[0x4], 1),
-        &sig->m_pad[0x8], &sig->m_pad[0x1c],
-        (int)*(unsigned char*)&sig->m_pad[0x30],
-        *(unsigned int*)&sig->m_pad[0xdc], &sig->m_pad[0x9b],
-        &sig->m_pad[0x31]);
+        NumberToString(sig->m_to_m_id, 0),
+        sig->m_to_nat_ip, sig->m_to_peer_ip,
+        (int)sig->m_to_nat_type,
+        NumberToString(sig->m_from_m_id, 1),
+        sig->m_from_nat_ip, sig->m_from_peer_ip,
+        (int)sig->m_from_nat_type,
+        sig->m_injury_money, sig->m_to_mac_addr,
+        sig->m_from_mac_addr);
     return db->exec(true) == 1;
 }
 
@@ -16558,7 +16558,7 @@ void DB_SecurityCardAddCertCnt::makeRequest(unsigned int accId)
     guard.operator*()->operator<<(0x17c);
     guard.operator*()->operator<<(-1);
     SIG_SECURITY_CARD_ADD_CERT_CNT* sig =
-        guard.GetInBuffer<SIG_SECURITY_CARD_ADD_CERT_CNT>();
+        guard->GetInBuffer<SIG_SECURITY_CARD_ADD_CERT_CNT>();
     *(unsigned int*)sig = accId;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
@@ -16665,7 +16665,7 @@ void DB_SecurityCardUpdateFailCnt::makeRequest(unsigned int accId,
     guard.operator*()->operator<<(0x101);
     guard.operator*()->operator<<(-1);
     SIG_SECURITY_CARD_UPDATE_FAIL_CNT* sig =
-        guard.GetInBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>();
+        guard->GetInBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>();
     *(unsigned int*)sig = accId;
     *((unsigned int*)sig + 1) = failCnt;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -18427,8 +18427,7 @@ bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
     {
         if (!db->fetch())
             return 0;
-        char ipStr[0xc];
-        memset(ipStr, 0, sizeof(ipStr));
+        char ipStr[0xc] = {};
         if (!db->get_str(0, ipStr, 0xc))
             return 0;
         unsigned int startIp = 0;
@@ -18437,8 +18436,7 @@ bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
             return 0;
         if (!db->get_uint(2, endIp))
             return 0;
-        char ipBuf[0x10];
-        memset(ipBuf, 0, sizeof(ipBuf));
+        char ipBuf[0x10] = {};
         OS_API::snprintf(ipBuf, 0x10, "%s.0", ipStr);
         out->m_entries[i].m_ip = inet_addr(ipBuf);
         out->m_entries[i].m_start = (unsigned char)startIp;

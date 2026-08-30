@@ -28,21 +28,28 @@
 // ============================================================================
 // arad::SigSaveRewardEventItem 生命周期（置于全局作用域；MoreTypes.h namespace arad 声明）（声明于 MoreTypes.h；ORIG 见其注释）
 // ============================================================================
+// ORIG 0x08195ce8：6 dword 清零（+0x00..+0x14）。
 void arad::SigSaveRewardEventItem::init()
 {
-    set(0, 0, 0, 0, 0, 0);
+    m_field00 = 0;
+    m_field04 = 0;
+    m_field08 = 0;
+    m_field0c = 0;
+    m_field10 = 0;
+    m_field14 = 0;
 }
 
 void arad::SigSaveRewardEventItem::set(int a, unsigned int b, unsigned int c,
                                        unsigned long d, short e, unsigned int f)
 {
-    // 按参数名走【字段语义】写入；ORIG 栈槽读位见 MoreTypes.h 注释。
+    // ORIG 0x08195d18 栈槽：0xc→+0x00、0x10→+0x04、0x14→+0x08、
+    //   0x18(d 低32位)→+0x10、0x1c(e 低16位)→+0x14、0x20(f)→+0x0c。
     m_field00 = a;
     m_field04 = b;
     m_field08 = c;
-    m_field10 = f;          // 【推断】ORIG 写入第4个 dword（栈槽 +0x18）
-    m_field14 = (short)e;   // word（ORIG 槽 +0x1c 的低16位）
-    m_field0c = (unsigned int)e >> 16;  // 保持写入动作覆盖（值语义不可证）
+    m_field0c = f;
+    m_field10 = (unsigned int)d;
+    m_field14 = (short)e;
 }
 
 

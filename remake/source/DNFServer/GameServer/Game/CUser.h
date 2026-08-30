@@ -3378,7 +3378,7 @@ public:
     void requestCubePremiumInfoIfContracted();
     void reset_tag_info_to_me(unsigned int tagAccId);
     void ResetMissionList();
-    void Return_Mercenary_Charac(unsigned int mercUid, competition_reward_result& reward);
+    bool Return_Mercenary_Charac(unsigned int mercUid, competition_reward_result& reward);   // ORIG 调用点用 %al 返回值（实现 void 转发无 return，UB 复刻）
     void rewardExp(int expBase, int& bonusA, int& bonusB, int& spBefore, int& spAfter, ::eExpAddReason reason, bool triggerGrowth);   // ORIG _ZN5CUser9rewardExpEiRiS0_S0_S0_13eExpAddReasonb（全局 13 前缀，非嵌套）
     void SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src, ENUM_SKILL_TREE_KIND kind);
     void saveCharacLinkMessageFlag(bool flag);

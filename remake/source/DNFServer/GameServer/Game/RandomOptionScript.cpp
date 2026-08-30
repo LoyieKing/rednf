@@ -74,8 +74,9 @@ void RandomOptionScript::clear()
     m_map190.clear();
     m_prefixNormal.clear();
     m_prefixPremium.clear();
+    // ORIG 0x083838c4 起：+0x1d8 vector clear 后直接 +0x1e8 map clear，
+    // 中间的 m_str1e4（ORIG C1/D1 实证 +0x1e4 string）不参与 clear()。
     m_choosePrefix1d8.clear();
-    m_str1e4.clear();
     m_map1e8.clear();
     m_set200.clear();
     m_set218.clear();

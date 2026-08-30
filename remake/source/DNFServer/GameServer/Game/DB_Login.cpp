@@ -1476,6 +1476,8 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
     memset(cipherBuf, 0, sizeof(cipherBuf));
 
     CRijndael cipher;
+    cipher.Initialize("sbTgiYsfxpfg5fox", 0x20, CRijndael::sm_chain0, 0x10,
+                      0x10, 0, 0);
     size_t hexLen = strlen(hex);
     if (hexLen >> 1 >= 0x81)
     {

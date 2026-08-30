@@ -1697,10 +1697,9 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         packet.put_header(0, 0x5d);
         packet.put_short(idx);
         packet.put_short(user->get_unique_id());
-        char iter[4] = {0};
+        std::map<int, map_item>::iterator iter;  // ORIG 显式 _Rb_tree_iterator C1Ev（置 0）
         int check = m_field.CheckPickupItem(
-            idx, user->get_unique_id(),
-            *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
+            idx, user->get_unique_id(), iter);
         if (check < 1)
         {
             int gained = user->getCurCharacInvenW()->gain_money(
@@ -1712,7 +1711,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     gained = 0;
                 user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0, money, gained);
             }
-            m_field.PickupItem(*reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
+            m_field.PickupItem(iter);
             packet.put_int(gained);
             packet.finalize(true);
             SendToRoom(packet);
@@ -1773,10 +1772,9 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     notice.finalize(true);
                     user->Send(notice);
                 }
-                char iter[4] = {0};
+                std::map<int, map_item>::iterator iter;  // ORIG 显式 _Rb_tree_iterator C1Ev（置 0）
                 int check = m_field.CheckPickupItem(
-                    idx, user->get_unique_id(),
-                    *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
+                    idx, user->get_unique_id(), iter);
                 if (check < 1)
                 {
                     int added = -1;
@@ -1808,7 +1806,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     else
                     {
                         m_field.PickupItem(
-                            *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
+                            iter);
                         packet.put_header(0, 0x5d);
                         packet.put_short(idx);
                         packet.put_short(user->get_unique_id());

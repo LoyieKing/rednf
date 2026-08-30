@@ -391,6 +391,9 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     }
     int materialIdx = sale->m_material;
     int need = sale->m_materialCount * count;
+    std::pair<int, int> cubeStat;
+    cubeStat.first = materialIdx;
+    cubeStat.second = need;
     CInventory* invenR = (CInventory*)user->getCurCharacInvenR();
     Inven_Item material;
     int materialSlot = invenR->GetInvenData(materialIdx, material);
@@ -406,7 +409,11 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     }
     CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
     invenW->delete_item((INVEN_TYPE)1, materialSlot, need, (eItemDelReason)0x1a, 1);
-    SendSecretShopBuyItem(user, slot, item, materialIdx, need, remain);
+    const CInventory* invenR2 = user->getCurCharacInvenR();
+    const Inven_Item* ref = invenR2->GetInvenRef(1, materialSlot);
+    int remain2 = (ref != 0) ? ref->m_addInfo2 : 0;
+    SendSecretShopBuyItem(user, slot, item, materialIdx, need, remain2);
+    LogCubeStatistic(user, cubeStat);
     info.m_shopper.BuyItem(itemIdx, count);
     return 1;
 }

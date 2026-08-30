@@ -182,9 +182,9 @@ struct SigSaveRewardEventItem
     int           m_field00;   // +0x00（SQL %d）
     unsigned int  m_field04;   // +0x04（SQL %u）
     unsigned int  m_field08;   // +0x08（SQL %u）
-    unsigned int  m_field0c;   // +0x0c（e 槽；dispatch 不读）
+    unsigned int  m_field0c;   // +0x0c（f 槽；dispatch 不读）
     unsigned int  m_field10;   // +0x10（d 低 32 位）
-    short         m_field14;   // +0x14（d 高半低 16 位 → from_unixtime(%u)）
+    short         m_field14;   // +0x14（e 低 16 位）
 };
 #pragma pack(pop)
 // set(a,b)：+0x00=a、+0x04=b（两个 dword 直写）；GetOutBuffer 实例 size 立即数 $0x8

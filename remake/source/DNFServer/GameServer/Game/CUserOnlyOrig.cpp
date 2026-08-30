@@ -128,10 +128,9 @@ public:
        // CCubeStatistic/CUBE_STATISTIC_FIELD
 
 // ORIG 链接依赖（本 TU 内自由函数式 helper；ROUNDf 对应 ORIG 内联 roundf 形态）
-static float ROUNDf(float v)
-{
-    return roundf(v);
-}
+// ORIG 形态：roundf 内建内联（fnstcw/fldcw RC=11 截断 + fistpl）；函数式 helper 在
+// O0 下生成外部调用 _ZL6ROUNDff，与 ORIG 不符 → 用宏展开为内建 roundf。
+#define ROUNDf(v) __builtin_roundf(v)
 
 // ORIG STSkillCommandData 命令键 i-th 访问（Ghidra 视图 m_commands[i] 的权威等价：
 // CUser.h STCommand 位域 m_key0..m_key4 @+0x03..+0x07）。
@@ -690,12 +689,12 @@ void CUser::_processCharacterDayEvent(unsigned int oldFatigue, unsigned int addF
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
 
-    static const float DIV_DAY = *reinterpret_cast<const float*>(0x08cf3960); // ORIG .rodata DAY 常量
+    static const float DIV_DAY = 30.0f;  // ORIG .rodata DAY 常量（0x08cf3960 处值 30.0，已验证）
     int dayA = (int)ROUNDf((float)oldFatigue / DIV_DAY);
     int dayB = (int)ROUNDf((float)total / DIV_DAY);
     if (dayA == dayB)
     {
-        static const float DIV_WEEK = *reinterpret_cast<const float*>(0x08cf3964);
+        static const float DIV_WEEK = 156.0f;  // ORIG .rodata WEEK 常量（0x08cf3964 处值 156.0，已验证）
         int weekA = (int)ROUNDf((float)oldFatigue / DIV_WEEK);
         int weekB = (int)ROUNDf((float)total / DIV_WEEK);
         if (weekA == weekB)
@@ -742,7 +741,7 @@ void CUser::_processFatigueBuffEvent(unsigned int oldFatigue, unsigned int addFa
     unsigned int total = oldFatigue + addFatigue;
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
-    static const float DIV = *reinterpret_cast<const float*>(0x08cf3968);
+    static const float DIV = 50.0f;  // ORIG .rodata 常量（0x08cf3968 处值 50.0，已验证）
     int zoneA = (int)ROUNDf((float)oldFatigue / DIV);
     int zoneB = (int)ROUNDf((float)total / DIV);
     if (zoneA == zoneB) return;
@@ -834,9 +833,10 @@ void CUser::_updateSaveOption()
         unsigned int m_characNo;
         CharacterOption m_option;
     };
+    // ORIG 0x08652dde：GetInBuffer<SIG_CHARACTER_OPTION>（0x204 占位协议视图）
     SIG_CHARACTER_OPTION_VIEW* body =
         reinterpret_cast<SIG_CHARACTER_OPTION_VIEW*>(
-            guard.operator->()->GetInBuffer<CharacterOption>());
+            guard.operator->()->GetInBuffer<SIG_CHARACTER_OPTION>());
     memset(body, 0, 0x204);
     body->m_characNo = getCurCharacNo();
     GetCurCharacOption(body->m_option);
@@ -2196,8 +2196,9 @@ void CUser::DeleteCurrentCharacRentalItemInfo(int key)
 int CUser::deleteToBlackList(unsigned int id)
 {
     if (!m_vec8cef4.empty()) {
-        std::vector<unsigned int>::iterator it;
-        for (it = m_vec8cef4.begin(); it != m_vec8cef4.end(); ++it) {
+        // ORIG 0x0867f040：begin() 拷贝初始化 iterator，无默认构造（无 C1 符号）
+        std::vector<unsigned int>::iterator it = m_vec8cef4.begin();
+        for (; it != m_vec8cef4.end(); ++it) {
             if (*it == id) {
                 m_vec8cef4.erase(it);
                 return 1;
@@ -4010,8 +4011,8 @@ void CUser::onSelectCharacter()
     int i = 0;                                             // -0x14
     do {
         if (i > 9) break;
-        Inven_Item tmp;                                    // -0x61 起局部
-        tmp = getCurCharacInvenR()->GetInvenSlot(0, i);
+        // ORIG 0x086800c6：GetInvenSlot 按值返回，拷贝初始化（sret 直写），无默认构造
+        Inven_Item tmp = getCurCharacInvenR()->GetInvenSlot(0, i);
             CItem* def = G_CDataManager()->find_item(tmp.m_addInfo);
             bool isRare = false;
             if (def == 0) {
@@ -4032,8 +4033,7 @@ void CUser::onSelectCharacter()
     int spareCount = 0;                                    // -0x1c(second loop)
     for (int j = 10; j <= 0x15; ++j) {                     // P2 有符号
         if (j != 0xb) {
-            Inven_Item t2;                                 // -0x9a
-            t2 = getCurCharacInvenR()->GetInvenSlot(0, j);
+            Inven_Item t2 = getCurCharacInvenR()->GetInvenSlot(0, j);   // ORIG sret 直写
             if (t2.m_addInfo != 0) ++spareCount;
         }
     }
@@ -5384,10 +5384,10 @@ unsigned int CUser::SaveInventoryOnly()
 
     Stream* s = GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1888);
     CStreamGuard guard(s, true);
-    guard << (int)0x23;
-    guard << (int)GetUID();
+    guard.operator*()->operator<<(0x23);           // ORIG 0x086501c8：deEv→lsEi 链
+    guard.operator*()->operator<<((int)GetUID());  // ORIG 同型
     SIG_SAVE_INVENTORY* inv = (SIG_SAVE_INVENTORY*)
-        guard.GetInBuffer<SIG_SAVE_INVENTORY>();
+        guard.operator->()->GetInBuffer<SIG_SAVE_INVENTORY>();  // ORIG ptEv 链
 
     _GetSaveInvenBase(inv);
     inv->m_saveFlag = 2; /*ORIG sig+0x08 save type*/                              // +0x08 save type
@@ -5448,9 +5448,9 @@ void CUser::SaveMileage()
 
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x18e4);
     CStreamGuard guard(s, true);
-    guard << (int)0x1fc;
-    guard << (int)GetUID();
-    char* sig = (char*)guard.GetInBuffer<SIG_MILEAGE_STRUCT>();
+    guard.operator*()->operator<<(0x1fc);          // ORIG 0x086505f6：deEv→lsEi 链
+    guard.operator*()->operator<<((int)GetUID());  // ORIG 同型
+    char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();  // ORIG ptEv 链
     *(unsigned int*)(sig + 0) = get_acc_id();
     *(unsigned int*)(sig + 4) = getCurCharacNo();
     *(unsigned int*)(sig + 8) = GetMileage();
@@ -7711,6 +7711,9 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     }
 
     std::vector<std::pair<int,int> > giveVec;
+    // ORIG 0x0866bce8：giveVec 后立即构造独立 pair 局部（C1 符号），
+    // 循环内 giveVec[i] 逐字段拷入（mov/mov），非引用。
+    std::pair<int,int> pr;
     char secondGrow = getCurCharSecondGrowType();
     char firstGrow = getCurCharFirstGrowType();
     int job = get_charac_job();
@@ -7729,8 +7732,8 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     {
         // ORIG 循环体顺序：先 get_charac_job、再 getCurCharacSkillW，
         // slot->growtype_skill(job, pair.first, pair.second, kind)。
+        pr = giveVec[i];
         int j = get_charac_job();
-        std::pair<int,int>& pr = giveVec[i];
         ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second, kind);
     }
 
@@ -9303,13 +9306,18 @@ void CUser::initBingoData()
     // 返回 shared_ptr<CBingo> 槽 {px,pn}，经 px 调 CBingo::initUserData(*bingoData)
     // （本 TU 补真实定义，见下），最后 sendBingoData()（定义 BingoEventLink4.cpp）。
     CEventBase* probe = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (probe == 0 || !probe->IsEventing(static_cast<CUser*>(0)))
+    // ORIG 0x086912be：首次 GetRepeatEvent 后无空判直接虚调 IsEventing；
+    // 事件进行中**二次** GetRepeatEvent（此处于判空）后经 shared_ptr
+    // operator->（pt 显式符号）解引用 CBingo。NEW 曾复用 probe 且直读 px。
+    if (!probe->IsEventing(static_cast<CUser*>(0)))
         return;
-    BingoEvent* event =
-        reinterpret_cast<BingoEvent*>(probe);
-    CBingo* bingo =
-        *reinterpret_cast<CBingo**>(event->getBingoSystem());
+    BingoEvent* event = reinterpret_cast<BingoEvent*>(
+        GlobalData::s_event_manager->GetRepeatEvent(0x6a));
+    if (event == 0) return;
     BingoData* data = static_cast<BingoData*>(getBingoData());
+    // 注：boost::shared_ptr<CBingo> operator-> 因 TU-local CBingo 不完整无法实例化，
+    // 直读 px 槽（语义等价；ORIG pt 符号差异记深查）
+    CBingo* bingo = *reinterpret_cast<CBingo**>(event->getBingoSystem());
     bingo->initUserData(*data);
     sendBingoData();
 }

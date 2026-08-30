@@ -562,7 +562,18 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
 bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
                                               unsigned long itemIdx) const
 {
-    return m_unusableItemFC.find(itemIdx) != m_unusableItemFC.end();
+    if (m_unusableItemFC.find(itemIdx) != m_unusableItemFC.end())
+    {
+        return false;
+    }
+    std::map<ENUM_EQUIPMENTTYPE, std::set<unsigned long> >::const_iterator it =
+        m_map114.find(equipType);
+    if (it != m_map114.end() &&
+        it->second.find(itemIdx) != it->second.end())
+    {
+        return false;
+    }
+    return true;
 }
 
 int ServerParameterScript::get_pvp_item_give(int idx)

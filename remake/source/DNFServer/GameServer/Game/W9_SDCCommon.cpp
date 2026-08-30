@@ -102,8 +102,9 @@ namespace _SDC
 {
 bool isObjectType(int objectType, int code)
 {
+    // ORIG 0x080950e8：仅 sete —— (code & objectType) == code
     unsigned int andv = (unsigned int)(code & objectType);
-    return (andv >> 8 << 8) | (andv == (unsigned int)code ? 1u : 0u);
+    return andv == (unsigned int)code;
 }
 
 // ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。

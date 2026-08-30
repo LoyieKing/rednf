@@ -20,13 +20,10 @@ stMacroData::stMacroData()                              // 0x084b3f6a
     m_len = 0;
 }
 
-stMacroData::~stMacroData()                            // 0x084b5db4（推断：与 Reset 循环同型释放）
+stMacroData::~stMacroData()                            // 0x084b5db4（ORIG D1 空体：push ebp/mov/pop/ret）
 {
-    if (m_data != 0)
-    {
-        delete[] m_data;
-        m_data = 0;
-    }
+    // m_data 释放由 CMacro::Reset 循环负责（ORIG operator delete[] 实证）；
+    // 析构不释放：vector<stMacroData> push_back 为浅拷贝，释放会导致 double-free。
 }
 
 // ---- CMacro ----

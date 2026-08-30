@@ -349,7 +349,9 @@ void ServiceRestrictManager::savePolicy()
             t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
             return;
         }
-        // ORIG 0x0816e9c5：虚调用 vtable+0x1c（槽7）= getRestrictValue(sig)。
+        // ORIG 0x0816e9a6：GetInBuffer 后先 sig->init() 清零（见 TaiwanQueries.cpp
+        // ORIG W 0x0815dda8），再虚调用 vtable+0x1c（槽7）= getRestrictValue(sig)。
+        sig->init();
         it->second->getRestrictValue(*sig);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
@@ -371,6 +373,8 @@ void ServiceRestrictManager::loadPolicy()
     }
     else
     {
+        // ORIG 0x0816e8ab：GetInBuffer 后先 sig->init() 清零再入 DB 队列。
+        sig->init();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }

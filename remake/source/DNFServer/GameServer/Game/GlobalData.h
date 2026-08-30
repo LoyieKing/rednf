@@ -12,9 +12,11 @@
 #include <queue>
 #include "EventUpgradeJarInfo.h"   // Event_Upgrade_Jar 完整类型（s_pEvent_UpGrade_Jar）
 #include "GameBase.h"
+#include "Action.h"               // StackableAction::Action 权威定义（input_param/check/run）
 #include "SPremiumInfo.h"         // g_SPremiumInfo 权威元素类型（SPremiumInfo 0x120）
 #include "CSystemTime.h"
 #include "StreamPool.h"
+#include <boost/function.hpp>
 
 class InstanceRentalSystem;       // 前向：s_rentalSystem 强指针（Fini 单 mov 访存）
 
@@ -69,6 +71,7 @@ class CRandomOptionItemHandle;
 class ServiceRestrictManager;
 class RestrictGeolocation;
 class CUser;
+class CItem;
 class PacketPool;
 class DBMgr;
 class MsgQueueMgr;
@@ -138,7 +141,7 @@ class CVillageMonsterMgr;
 namespace online_preliminary { class COnlinePreliminaryTeamMgr; }
 namespace break_away_prevent { class CBreakAwayPreventSystem; }
 namespace game_master { class CGameMasterMgr; }
-namespace StackableAction { class Action; }
+
 namespace random_option { class CRandomOptionItemHandle; }
 namespace expert_extraction { class CExtractionMgr; }
 namespace sync_script { class CSyncScript; }

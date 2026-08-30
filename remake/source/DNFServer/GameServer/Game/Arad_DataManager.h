@@ -376,7 +376,8 @@ private:
 // ============================================================================
 namespace ARAD
 {
-class Arad_DataManager : public ScriptInterface
+class Arad_DataManager : public Singleton<Arad_DataManager>,
+                         public ScriptInterface
 {
 public:
     // ORIG 0x08188030：先构造 Singleton 基（空）、ScriptInterface 基（vptr 0x8b2db78）、

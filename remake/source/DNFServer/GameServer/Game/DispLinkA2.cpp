@@ -335,10 +335,11 @@ int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
                                                ParamBase& param)
 {
-    if (user->get_state() <= 2 || user->getCurCharacR() != 0)
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return -1;
 
-    unsigned short uid = static_cast<unsigned short>(A2_paramShort(param, 0xe));
+    unsigned short uid = *reinterpret_cast<unsigned short*>(
+        reinterpret_cast<char*>(&param) + 0xe);
     CUser* target = G_GameWorld()->find_from_world(uid);   // 0x086c4b9c
     if (target == 0)
         return 0x15;
@@ -417,7 +418,7 @@ int Dispatcher_PrecheckSoloTeleport::check_error(CUser* user, MSG_BASE& msg,
 int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
-    if (user->get_state() <= 2 || user->getCurCharacR() != 0)
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return -1;
 
     ServiceRestrictManager* mgr =
@@ -425,7 +426,8 @@ int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg,
     if (mgr->isRestricted(user, RestrictCategory::Enum(1), 0x13))
         return 0xd1;
 
-    unsigned short uid = static_cast<unsigned short>(A2_paramShort(param, 0xe));
+    unsigned short uid = *reinterpret_cast<unsigned short*>(
+        reinterpret_cast<char*>(&param) + 0xe);
     CUser* target = G_GameWorld()->find_from_world(uid);
     if (target == 0)
         return 3;

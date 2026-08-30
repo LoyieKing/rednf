@@ -16,12 +16,11 @@
 
 void DBInsertGiveBoxEventReward::makeRequest(CUser* user)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x369);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x369), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x10,
                             user->GetUID());
-    MSG* msg = guard.GetInBuffer<MSG>();
+    MSG* msg = guard->GetInBuffer<MSG>();
     if (msg == 0)
     {
         cMyTrace trace("DBThread.cpp", 0x36e, 0);

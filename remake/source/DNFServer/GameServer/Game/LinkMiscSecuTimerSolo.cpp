@@ -369,13 +369,12 @@ public:
                             unsigned long long c, unsigned long long d,
                             int e, int f, int g)
     {
-        Stream* stream =
-            GlobalData::s_stream_pool->Acquire("../RDARScript.cpp", 0x7c79);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("../RDARScript.cpp", 0x7c79), true);
         guard.operator*()->operator<<(0x15b);
         guard.operator*()->operator<<(-1);
         SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL* sig =
-            guard.GetInBuffer<SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL>();
+            guard->GetInBuffer<SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL>();
         *(unsigned long long*)((char*)sig + 0x00) = a;
         *(unsigned long long*)((char*)sig + 0x08) = b;
         *(unsigned long long*)((char*)sig + 0x10) = c;

@@ -97,6 +97,8 @@ struct stRecipeInfo
 class STExpertJobScript
 {
 public:
+    // ORIG C1/C2 @0x0896e5cc：全部成员容器构造后尾调 Clear()（定义见 CExpertJobList.cpp）。
+    STExpertJobScript();
     // ---- ORIG 嵌套类型（均为 W 符号；定义见 STExpertJobOnlyOrig.cpp）----
     // 怪物卡绑定率（[monstercard bind info] 值）。
     struct stMonsterCardBindRate

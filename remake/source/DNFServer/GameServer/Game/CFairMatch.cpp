@@ -36,13 +36,11 @@ bool CFairMatch::bMatchable_ = true;
 // fair_pvp::PlayerInfoThird
 // ---------------------------------------------------------------------------
 
-// ORIG PlayerInfoThird::reset（W 内联经 TeamInfoThird::reset 调用 @0x8568900）
+// ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 m_job、+0x06 m_growType 不初始化。
 void PlayerInfoThird::reset()
 {
     m_user = 0;
     m_flag = 0;
-    m_job = 0;
-    m_growType = 0;
     m_pvpGrade = 0;
     m_rating = 0.0f;
 }

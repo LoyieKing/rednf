@@ -2274,7 +2274,8 @@ bool CParty::IsEventCharacParty()
     }
     for (int i = 0; i <= 3; ++i)
     {
-        if (_checkValidUser(i) != 1)
+        // ORIG 0x085ba04c：checkValidUser（外部转发 _checkValidUser）
+        if (checkValidUser(i) != 1)
             continue;
         if (m_member[i].m_pUser == 0)
         {
@@ -3298,7 +3299,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         }
 
         mu->setPlayingDungeonIndex(dungeonIdx);
-        mu->m_character.Reset();              // PlayInfo::Reset @ user+0x8e034
+        mu->m_character.PlayInfo::Reset();    // ORIG PlayInfo::Reset @ user+0x8e034（不清 m_f3c）
         mu->m_character.m_f20 = startCount;   // user+0x8e054
         mu->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 

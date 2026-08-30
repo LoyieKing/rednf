@@ -9378,13 +9378,16 @@ int Dispatcher_Mercenary_Return::process(CUser* user, MSG_BASE& msg, ParamBase& 
 
     char* pResult = reinterpret_cast<char*>(&result);
     // ORIG: Return_Mercenary_Charac(user, *(uint*)(msg+0x10), m_result@+0xc 引用传入)
-    // BLOCKED(_ZN5CUser23Return_Mercenary_CharacEjR25competition_reward_result @0x0868e692
-    //        —— CUser.h 缺声明，跨域待补): 返回值与出线结果填充占位
-    const bool ret = false;  // BLOCKED 调用返回值
-    pResult[0x04] = static_cast<char>(ret != false);            // +0x04 bool 归还成功
-    pResult[0x05] = req.m_head[0];                              // +0x05 char 回显(msg+0xd)
+    // （ORIG 0x0868e692 声明 bool、实现 void 转发无 return，%al 残留直写 pResult+0x04）
+    pResult[0x04] = static_cast<char>(
+        user->Return_Mercenary_Charac(
+            *reinterpret_cast<unsigned int*>(
+                reinterpret_cast<char*>(&msg) + 0x10),
+            result.m_result));                                  // +0x04 bool 归还成功
+    pResult[0x05] = req.m_pad[0];                               // +0x05 char 回显(msg+0xd)
     *reinterpret_cast<int*>(pResult + 0x08) =
-        *reinterpret_cast<unsigned int*>(req.m_pad + 3);        // +0x08 int = msg+0x10
+        *reinterpret_cast<unsigned int*>(
+            reinterpret_cast<char*>(&msg) + 0x10);              // +0x08 int = msg+0x10
     return 0;
 }
 
@@ -14790,11 +14793,10 @@ int Dispatcher_CheckGuildNameDouble::dispatch_sig(CUser* user, PacketBuf& packet
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9f, 0x6c);
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "PacketDispatcher_Impl_1.cpp", 0xa39d);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "PacketDispatcher_Impl_1.cpp", 0xa39d), true);
     **guard << 0xeb;
-    **guard << user->GetUID();
+    **guard << static_cast<int>(user->GetUID());
     SIG_DOUBLE_CHECK_GUILD_NAME* sig = guard->GetInBuffer<SIG_DOUBLE_CHECK_GUILD_NAME>();
     memset(sig, 0, 0x17);
     memcpy(sig, name, len);
@@ -20184,10 +20186,9 @@ int Dispatcher_SaveGameOption_QuickChatting::process(CUser* user, MSG_BASE& msgB
     }
     if (save)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x291b);
-        CStreamGuard guard(stream, true);
-        guard << 0x239;
-        guard << static_cast<int>(user->GetUID());
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x291b), true);
+        guard.operator*()->operator<<(0x239);
+        guard.operator*()->operator<<(static_cast<int>(user->GetUID()));
         SIG_SAVE_GAME_OPTION_QUICKCHAT* sig = guard->GetInBuffer<SIG_SAVE_GAME_OPTION_QUICKCHAT>();
         char* buf = reinterpret_cast<char*>(sig);
         *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
@@ -20953,11 +20954,10 @@ int Dispatcher_P2PHolePunchingSuccessRateStatistics::process(CUser* user, MSG_BA
     (void)param;
     // ORIG 0x0825ffb6：Acquire("PacketDispatcher_Impl_2.cpp",0xb4c) → internal_stream(0xf,uid)
     // → GetInBuffer<MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE> ← memcpy(&msg,0x16) → QUEUE 1
-    Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_2.cpp", 0xb4c);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_2.cpp", 0xb4c), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0xf, (int)user->GetUID());
     MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE* in =
-        guard.GetInBuffer<MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE>();
+        guard->GetInBuffer<MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE>();
     memcpy(in, &msg, 0x16);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
@@ -21038,11 +21038,10 @@ int Dispatcher_AvartarRoulette::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x347);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x347), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2c, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 3);
+    guard->put_binary((void*)&sig, 3);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21134,11 +21133,10 @@ int Dispatcher_AradAvatarConvert::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x780);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x780), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x33, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 0xe);
+    guard->put_binary((void*)&sig, 0xe);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21207,11 +21205,10 @@ int Dispatcher_AradEmblemCompound::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x723);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x723), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x32, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 0x16);
+    guard->put_binary((void*)&sig, 0x16);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -21344,11 +21341,10 @@ int Dispatcher_AradUseAvatarRecharge::dispatch_sig(CUser* user, PacketBuf& packe
     {
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x6c2);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x6c2), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x30, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 0x10);
+    guard->put_binary((void*)&sig, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -22663,6 +22659,7 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
     CItem* cardC = G_CDataManager()->find_item(slotC.m_addInfo);
 
     std::vector<std::pair<int, int> > results;
+    results.clear();   // ORIG 0x081d8a32：构造后显式 clear
 
     bool bindOk = false;
     {
@@ -22721,6 +22718,7 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
     invenW->delete_item((INVEN_TYPE)1, m.m_11, 1, (eItemDelReason)0x2c, true);
 
     std::vector<int> outSlots;
+    outSlots.clear();   // ORIG 0x081d8cdb：构造后显式 clear
     invenW->insert_event_items(results, outSlots, (eMoneyAddReason)0,
                                (eItemAddReason)0x34, false, "", "");
 
@@ -24105,26 +24103,23 @@ int Dispatcher_StackableActionUse::process(CUser* user, MSG_BASE& msg, ParamBase
         return 0;
     }
 
-    /* BLOCKED: StackableAction::Action 动作执行链
-       —— _ZN15StackableAction6Action5checkEiRNS_11input_paramE @0x0827fa26、
-          _ZN15StackableAction6Action3runEiRNS_11input_paramE @0x0827fa9a 仓库无定义；
-          input_param 仅在 GlobalData.cpp 内部定义（头未暴露，且其 m_pad0[8] 于 ORIG
-          栈上未初始化）。ORIG 后续主链（依赖补齐后恢复）：
-              StackableAction::input_param inputs;         // 前 8 字节未初始化（忠实）
-              inputs.m_user = user;                        // +0x08
-              inputs.m_item = itemDef;                     // +0x0c
-              err = GlobalData::g_Actions->check((int)(char)req.m_14, inputs);
-              if (err == 0)
-                  err = GlobalData::g_Actions->run((int)(char)req.m_14, inputs);
-              if (err == 0)
-              {
-                  err = user->getCurCharacInvenW()->use_item(
-                      (int)req.m_0d, 1, (int)(char)req.m_0f);
-                  if (err == 0)
-                      user->_processContinuousItem(itemIdx, itemDef);
-              }
-       use_item/_processContinuousItem 均为 run 成功后的下游，此处按 ORIG 门控整体
-       短路；err 保持 check_error 的 0。 */
+    StackableAction::input_param inputs;   // 前 8 字节未初始化（ORIG 忠实形态）
+    inputs.m_user = user;                  // +0x08
+    inputs.m_item = itemDef;               // +0x0c
+    err = GlobalData::g_Actions->check((int)(char)req.m_14, inputs);
+    if (err == 0)
+    {
+        err = GlobalData::g_Actions->run((int)(char)req.m_14, inputs);
+    }
+    if (err == 0)
+    {
+        err = user->getCurCharacInvenW()->use_item(
+            (int)req.m_0d, 1, (int)(char)req.m_0f);
+        if (err == 0)
+        {
+            user->_processContinuousItem(itemIdx, itemDef);
+        }
+    }
     return 0;
 }
 
@@ -24795,15 +24790,18 @@ int Dispatcher_ExpertExtraction::check_error(CUser* user, MSG_BASE& msg)
     }
     MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
 
-    const int type = 0;  // BLOCKED: GetExtracterType @0x084a2904（同上）
+    const int type = expert_extraction::GetExtracterType((ENUM_EXPERT_JOB_TYPE)m.m_0d);
     if (type == 3)
     {
         return 1;
     }
-    /* BLOCKED: CExtractionMgr::get_extracter @0x084a3166 / CExtraction::check_error vtable+0x0c —— 同上。
-       ORIG: if (ex == 0) return 1; return ex->check_error(user, (char)m.m_0d, (short)m.m_0e, (short)m.m_10);
-       依赖补齐前按校验通过返回。 */
-    return 0;
+    expert_extraction::CExtraction* ex =
+        GlobalData::g_ExtractionMgr->get_extracter((unsigned int)type);
+    if (ex == 0)
+    {
+        return 1;
+    }
+    return ex->check_error(user, (char)m.m_0d, (short)m.m_0e, (short)m.m_10);
 }
 
 // ==== Dispatcher_ExpertExtraction::send (ORIG 0x081d9700) ====
@@ -25336,8 +25334,8 @@ int Dispatcher_RequestAssaultPrice::check_error(CUser* user, MSG_BASE& msg)
         return 0xc0;
     }
 
-    /* BLOCKED: check_party_teleport_user @0x082efe14 —— 同上；ORIG tpErr>0 时透传其值 */
-    const int tpErr = 0;
+    // ORIG 0x082efe14：GetInstanceAssaultMgr()->check_party_teleport_user(4, user, target, false)
+    int tpErr = pvp_assault::GetInstanceAssaultMgr()->check_party_teleport_user(4, user, target, false);
     if (tpErr > 0)
     {
         return tpErr;
@@ -25354,17 +25352,21 @@ int Dispatcher_RequestAssaultPrice::check_error(CUser* user, MSG_BASE& msg)
         return 0x7fffffff;
     }
 
-    // ORIG 分支语义:请求者非 GM 且目标为 GM → 拒绝。
-    const bool gmBlock = !GlobalData::s_pGMAccounts_->isGM(user->get_acc_id())
-                      && GlobalData::s_pGMAccounts_->isGM(target->get_acc_id());
-    if (gmBlock)
+    // ORIG 分支语义:请求者非 GM 且目标为 GM → 拒绝（ORIG 无 bool 栈变量,直接判断）。
+    if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id())
+        && GlobalData::s_pGMAccounts_->isGM(target->get_acc_id()))
     {
         return 0x7fffffff;
     }
 
-    int err = 0;
-    /* BLOCKED: OnRequestAssault @0x082edfba —— 同上；ORIG: OnRequestAssault(user, target, &err) */
-    return err;
+    // ORIG 0x082edfba：GetInstanceAssaultMgr()->OnRequestAssault(user, target, &tpErr)；
+    // tpErr 与 check_party_teleport_user 返回值复用同一栈槽（ORIG -0x18）。
+    pvp_assault::GetInstanceAssaultMgr()->OnRequestAssault(user, target, &tpErr);
+    if (tpErr != 0)
+    {
+        return tpErr;
+    }
+    return 0;
 }
 
 // ==== Dispatcher_RequestAssaultPrice::send (ORIG 0x081df294) ====

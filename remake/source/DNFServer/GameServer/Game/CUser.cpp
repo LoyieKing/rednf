@@ -747,7 +747,7 @@ void CUser::reset()
     m_field8d0f1 = 0;
     m_field8d0f2 = 0;
     m_field8e074 = 0;
-    m_character.Reset();
+        m_character.PlayInfo::Reset();
     m_field8d0f8 = 0;
     m_field8d0f4 = 0;
     m_379.reset();
@@ -1696,8 +1696,9 @@ void CUser::send_equip(int slot)
 void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
                          ENUM_DBLOG_ITEM_TYPE value)
 {
+    // ORIG 0x08689360：循环步进用后置 it++（ppEi 符号），非 ++it
     for (std::vector<_DBLogItemInfo>::iterator it = m_dbLogItems.begin();
-         it != m_dbLogItems.end(); ++it)
+         it != m_dbLogItems.end(); it++)
     {
         if (it->m_itemIdx == itemIdx)
         {
@@ -3029,9 +3030,11 @@ void CUser::setDeathTowerIndex(short idx)
 WongWork::CDeathTower* CUser::getDeathTower()
 {
     // ORIG 0x086552a4：idx<0 => NULL；否则 G_CGameManager()->getDeathTower(idx)
-    int idx = (int)getDeathTowerIndex();
-    if (idx < 0) return 0;
-    return G_CGameManager()->getDeathTower(idx);
+    // ORIG 直读 m_field8d00e（movzwl+test %ax+js 正路径顺序，无局部栈槽）。
+    if ((short)(unsigned short)m_field8d00e >= 0)
+        return G_CGameManager()->getDeathTower(
+            (int)(short)(unsigned short)m_field8d00e);
+    return 0;
 }
 
 // ---- Redeem_Item::CRedeemItem（GetCharacExpandData(6) 返回，未建模为
@@ -4723,7 +4726,9 @@ void CUser::IncCurCharacUsedFatigueQuantity(unsigned int n)
 // ORIG _ZN5CUser35IncCurCharacUsedGiftFatigueQuantityEj W 0x08110e3a：m_field8ebac += n。
 void CUser::IncCurCharacUsedGiftFatigueQuantity(unsigned int n)
 {
-    m_field8ebac = m_field8ebac + n;
+    m_field8ebac += n;
+    // ORIG 0x08110e57：累加后 SetChangedGiftFatigueQuantity(true)
+    SetChangedGiftFatigueQuantity(true);
 }
 
 // ORIG _ZN5CUser27ProcProperLevelDungeonClearEv T 0x0868f5fa（0x13 字节）：单行转发。
@@ -5408,8 +5413,8 @@ void CUser::ResetDailyQuest()
     for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
-        UserQuest* pQuest = getCurCharacQuestR();
-        if (pQuest && pQuest->isClearQuest(questId))
+        // ORIG 0x08657574：getCurCharacQuestRefR 链式调用 isClearQuest（无中间变量、不判空）
+        if (getCurCharacQuestRefR()->isClearQuest(questId))
         {
             getCurCharacQuestW()->resetClearQuest(questId);
         }
@@ -5815,7 +5820,8 @@ void CUser::ChangeGrowType_GM(int a, int b)
         return;
     }
     int level = get_charac_level();
-    unsigned int overLevel = m_premium.getOverSkillLevel();
+    // ORIG 0x0867b5f4：GetPremiumInfo() 转发后 getOverSkillLevel，不直读 m_premium
+    unsigned int overLevel = GetPremiumInfo()->getOverSkillLevel();
     SkillSlot* slotW = (SkillSlot*)getCurCharacSkillW();
     slotW->debugCheckGrowTypeSkill(level + (int)(overLevel & 0xffff),
                                    get_charac_job(), a, b);
@@ -5903,8 +5909,8 @@ void CUser::LogoutCachedCharacter(unsigned char param)
         SendLogoutToPCRoomServer();       // ORIG T 0x0868170c
 
     delete_ontime_reward_list();          // ORIG T 0x0868c3bc
-    // 推断：ARAD::Singleton<HeroMissionEvent>::Get()->saveEventData(this, true)
-    //（ORIG T 0x08166d38）待 HeroMission 域补声明后接线。
+    // ORIG T 0x08166d38：ARAD::Singleton<HeroMissionEvent>::Get()->saveEventData(this, true)
+    ARAD::Singleton<HeroMissionEvent>::Get()->saveEventData(this, true);
 }
 
 // 0x08689a22：表情配置重算（ReCalcChattingEmoticon.md）。读 GameOption 表情配置 →
@@ -6719,8 +6725,8 @@ void CUser::prepareDisconnect()
                    (unsigned int)get_acc_id());
     ((Fn1)vtbl[9])(checker, (unsigned int)get_acc_id());
 
-    unsigned int ts = reinterpret_cast<Taiwan::GarenaAuthData*>(getGarenaAuthData())
-                          ->getTimeStamp();
+    // ORIG 0x086487ea：直读 m_garenaAuthData(+0x6ef92) 调 getTimeStamp，不经 getGarenaAuthData
+    unsigned int ts = m_garenaAuthData.getTimeStamp();
     DBUpdateExitTime::makeRequest(
         (unsigned int)get_acc_id(),
         (unsigned int)(unsigned short)get_unique_id(), ts);
@@ -7873,10 +7879,12 @@ void CUser::resetDailyData()
                                                (char*)getWebAddress());
     }
     resetNPCRelationShipDailyData();
-    // 推断：GetActionPoint() 返回内部 _SIG_LOAD_ACTION_POINT 存储体（对象首地址）；
-    // 按 const& 签名解引用传递以匹配 ORIG 符号。
+    // ORIG 0x08657450：resetNPCRelationShipDailyData 后尾调 sendNPCRelationShipFavor；
+    // ActionPoint 经 m_actionPoint.GetActionPoint()（返回 this+0x08 数据体）传递，
+    // 不可取 &m_actionPoint（+0x00 偏移不同）。
+    sendNPCRelationShipFavor();
     APSystem::DB_UpdateActionPoint::makeRequest(GetUID(),
-        *(const APSystem::_SIG_LOAD_ACTION_POINT*)&m_actionPoint, true);
+        *(const APSystem::_SIG_LOAD_ACTION_POINT*)m_actionPoint.GetActionPoint(), true);
     APSystem::CUserProc::SetTodayActionAndCheckMedalReward(this);
 }
 
@@ -7922,7 +7930,8 @@ void CUser::SendOpenflag()
     if (eventOn)
         coinNeed = (unsigned int)pEvent->GetCoinNoPerDay(1);
     if (IsHavePremiumAdvantage())
-        coinNeed = coinNeed + (unsigned int)m_premium.GetAdvantageCoin();
+        // ORIG 0x086568fc：GetPremiumInfo() 转发后 GetAdvantageCoin，不直读 m_premium
+        coinNeed = coinNeed + (unsigned int)GetPremiumInfo()->GetAdvantageCoin();
     unsigned int coin = getCurCharacInvenR()->GetCoin();
     bool enough = !(coin < coinNeed && GetOpencoin() != (char)1);
     if (enough)
@@ -8422,6 +8431,8 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
     if (getCurCharSecondGrowType() != 0)
     {
         std::vector<std::pair<int, int> > giveVec;
+        // ORIG 0x0866b53e：giveVec 后构造独立 pair 局部（C1），循环内逐字段拷入
+        std::pair<int, int> pr;
         CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
         char got = chars[get_charac_job()].get_give_skill(
             getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 0);
@@ -8429,8 +8440,9 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
             return false;
         for (int i = 0; i < (int)giveVec.size(); ++i)
         {
-            int skillId = giveVec[i].first;
-            int level = giveVec[i].second;
+            pr = giveVec[i];
+            int skillId = pr.first;
+            int level = pr.second;
             CSkill* skill =
                 G_CDataManager()->find_skill(get_charac_job(), skillId);
             if (skill == 0)
@@ -8457,6 +8469,8 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
     if (getCurCharFirstGrowType() != 0)
     {
         std::vector<std::pair<int, int> > giveVec;
+        // ORIG 0x0866b53e：同第二块，giveVec 后 pair 局部（C1）+ 循环内拷入
+        std::pair<int, int> pr;
         CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
         char got = chars[get_charac_job()].get_give_skill(
             getCurCharFirstGrowType(), getCurCharSecondGrowType(), giveVec, 1);
@@ -8464,8 +8478,9 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
             return false;
         for (int i = 0; i < (int)giveVec.size(); ++i)
         {
-            int skillId = giveVec[i].first;
-            int level = giveVec[i].second;
+            pr = giveVec[i];
+            int skillId = pr.first;
+            int level = pr.second;
             CSkill* skill =
                 G_CDataManager()->find_skill(get_charac_job(), skillId);
             if (skill == 0)
@@ -8497,7 +8512,8 @@ void CUser::ProcPremiumFatigue()
         return;
     if (!IsHavePremiumAdvantage())
         return;
-    WongWork::CUserPremium* premium = GetPremiumInfoW();
+    // ORIG 0x0867cbe4：直读 m_premium(+0x7121c)，不调 GetPremiumInfoW
+    WongWork::CUserPremium* premium = &m_premium;
     const bool pcRoomPremium =
         GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0) &&
         premium->GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0;

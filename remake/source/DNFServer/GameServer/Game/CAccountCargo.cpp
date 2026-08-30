@@ -360,7 +360,8 @@ int CAccountCargo::WithdrawMoney(unsigned int money)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, (unsigned char)err);
         return 0;
     }
-    if (m_money < money || (int)money < 0) {
+    // ORIG 0x0828a3a4：GetMoney() 访问器比较（ORIG 非内联调用）
+    if (GetMoney() < money || (int)money < 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
         return 0;
     }

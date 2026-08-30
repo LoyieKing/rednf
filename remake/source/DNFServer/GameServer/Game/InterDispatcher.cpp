@@ -1668,8 +1668,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->SetGuildInfoProxy(proxy);
         }
     }
+    user->setCurCharacHelpAbuseComputedRatio(
+        static_cast<unsigned int>(user->calc_disp_help_abuse_ratio(0)));
     user->EnableCharacInfo(CACHE_CHARAC);          // ORIG 0x84c386b（calc 后、ReqDBLoadMail 前）
-    WongWork::CMailBoxHelper::ReqDBLoadMail(user, reqCharacNo);
     WongWork::CMailBoxHelper::ReqDBLoadMail(user, reqCharacNo);
     if (!G_GameWorld()->InsertUserToIDMap(data + 0x10,
                                           (unsigned int)user->get_acc_id()))
@@ -3590,7 +3591,7 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
-    const char* msg = data;                            // -0x1c
+    char* msg = data;                                 // -0x1c
 
     if (*reinterpret_cast<const unsigned char*>(msg + 0x35) == 1)
     {
@@ -12808,11 +12809,12 @@ int Inter_GoldControlMoneyActionCancel::dispatch_sig(CUser* user, char* data, in
 {
     if (user != 0)
     {
-        Secu_GoldControl* gold = user->GetGoldControl();
+        // ORIG 直接 user+0x8e980 成员访问（无 GetGoldControl() 调用）。
         if (*reinterpret_cast<unsigned char*>(data + 0x0) != 0)
-            gold->MailSameMid();
+            user->m_goldControl.MailSameMid();
         else
-            gold->MailComplete(*reinterpret_cast<bool*>(data + 0x1));
+            user->m_goldControl.MailComplete(
+                *reinterpret_cast<bool*>(data + 0x1));
     }
     return 0;
 }

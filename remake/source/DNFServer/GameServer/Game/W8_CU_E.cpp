@@ -191,7 +191,10 @@ bool CUser::defaultSkillCommand()
 // 5. void CUser::initTPSkill() @0x0868fdbc
 void CUser::initTPSkill()
 {
-    if ((int)getCurCharacLastPlayTick() < (int)0x500723d0)
+    // ORIG 0x0868fdbc：直接读 getCurCharacR()->m_field7b(+0x7b) 与
+    // 0x500723d0 比较（setl），不经 getCurCharacLastPlayTick（NEW 曾用
+    // <= 0x500723cf，等价但字节不同）。
+    if (getCurCharacR()->m_field7b < (int)0x500723d0)
     {
         SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
         slot->initialize_sfp_skill();

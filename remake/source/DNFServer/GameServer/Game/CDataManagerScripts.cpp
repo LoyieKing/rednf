@@ -462,7 +462,7 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
     std::vector<int>& rates = *info->m_pBonusRates;
     for (size_t i = 0; i < rates.size(); ++i)
     {
-        if (rates[i] == (int)dungeonIndex)
+        if (rates.at(i) == (int)dungeonIndex)
             return (float)info->m_bonusRate / 1000.0f;
     }
     return 0.0f;
@@ -1213,6 +1213,7 @@ CNPCRelationEventManager::CNPCRelationEventManager()
     : m_npcEventMap()
 {
 }
+// ORIG 0x890ce34：遍历 delete 节点后直接析构 map（无显式 clear()）。
 CNPCRelationEventManager::~CNPCRelationEventManager()
 {
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
@@ -1224,7 +1225,6 @@ CNPCRelationEventManager::~CNPCRelationEventManager()
             delete node;
         ++it;
     }
-    m_npcEventMap.clear();
 }
 
 // ---- CNPCRelationEventManager::AddNPCInfo（ORIG 0x890ceea：

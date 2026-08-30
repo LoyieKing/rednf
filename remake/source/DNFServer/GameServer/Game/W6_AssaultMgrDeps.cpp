@@ -434,7 +434,7 @@ int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
 // ===========================================================================
 // OnTimeoutConnectP2PAfterAssault —— ORIG T 0x082ef9d8 (0x79)
 // ===========================================================================
-void CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
+int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
 {
     (void)timerKey;                                     // ORIG 第 2 参未消费
     try
@@ -442,15 +442,17 @@ void CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int t
         CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
         if (party != 0)
         {
-            party->TimeoutCompleteAfterAssault();   // ORIG 返回值判定归 CParty 域签名修正
-            party->ClearBadP2PUser();
+            if (party->TimeoutCompleteAfterAssault() != 0)
+            {
+                party->ClearBadP2PUser();
+            }
         }
     }
     catch (...)
     {
         // ORIG catch-all（__cxa_begin_catch 后仅 end_catch）。
     }
-    (void)0;   // ORIG eax=1（void 签名沿用头内既有声明）
+    return 1;   // ORIG 所有路径 eax=1
 }
 
 // ===========================================================================

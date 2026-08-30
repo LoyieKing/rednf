@@ -439,8 +439,8 @@ int InterUpdateP2pHolePunchingState::dispatch_sig(CUser* user, char* buf, int le
     pkt.m_requiredTime = *(int*)((char*)buf + 0xe);
     pkt.m_checkTime = *(int*)((char*)buf + 0x12);
     user->m_network.GetPeerIP2(pkt.m_peerAddress, 0x10);
-    std::string ip(pkt.m_peerAddress);
-    RestrictGeolocation::Get()->getCountryCode(pkt.m_nationCode, 0x10, ip);
+    RestrictGeolocation::Get()->getCountryCode(
+        pkt.m_nationCode, 0x10, std::string(pkt.m_peerAddress));
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy(
             (ENUM_SERVER_GROUP)0);
