@@ -59,8 +59,6 @@ void CAssaultPlace::_GetTeamCount(int* counts, ENUM_ASSAULT_STATE state)
 // ---------------------------------------------------------------------------
 void CAssaultPlace::_MakeChangeHp(PacketGuard* p, int index, int hp)
 {
-    if (p == 0)
-        return;  // ORIG 不判空；防御保留为 no-op（asm 隐含 deref）
     p->put_header(0, 0x88);
     unsigned short uid =
         m_assaulters[index].GetUserUniqueId();  // movzwl %ax zero-extend
@@ -744,7 +742,6 @@ int CAssaultPlace::_VictoryBonus(CUser* user, char side)
 void CAssaultPlace::_SeparateTeam(CUser* leader1, CUser* leader2)
 {
     std::vector<CUser*> lists[2];
-    lists[0].clear();
     CParty* party1 = leader1->GetUserListByParty(lists[0]);
     _BackupPartyInfo(party1, (ENUM_ASSAULT_TEAM)0);
     CParty* party2 = leader2->GetUserListByParty(lists[1]);

@@ -727,7 +727,7 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
         NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0), 0x32);
     if (!db->exec(true))
     {
-        return false;
+        return true;   // ORIG 0x8410d7d：exec 失败视为无惩罚数据，正常继续
     }
     int nRows = db->get_n_rows();
     if (nRows == 0)

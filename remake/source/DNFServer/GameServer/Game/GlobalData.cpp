@@ -4681,7 +4681,7 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
     {
         return 4;
     }
-    int need = std::max(0, (*costs)[0]);
+    int need = std::max(0, costs->at(0));
     int cur = p.m_user->getCurCharacFatigue();
     if ((int)(cur & 0xffff) < need)
     {

@@ -58,19 +58,19 @@ void CUser::RewardTutorial(unsigned int flag)
     packet.put_byte(insertedCount);
     if (insertedCount > 0)
     {
-        // ORIG 循环每次消费 3 个 int（槽位三元组）：byte/int/int；
-        // 迭代器步进语义与 ORIG 一致（it != end 判定，每轮 ++ 三次）。
-        std::vector<int>::iterator it = outSlots.begin();
-        while (it != outSlots.end())
-        {
-            packet.put_byte(*it);
-            ++it;
-            packet.put_int(*it);
-            ++it;
-            packet.put_int(*it);
-            ++it;
-        }
-    }
+		// ORIG 循环每次消费 3 个 int（槽位三元组）：short/int/int；
+		// 迭代器步进语义与 ORIG 一致（it != end 判定，每轮 ++ 三次）。
+		std::vector<int>::iterator it = outSlots.begin();
+		while (it != outSlots.end())
+		{
+			packet.put_short(*it);
+			++it;
+			packet.put_int(*it);
+			++it;
+			packet.put_int(*it);
+			++it;
+		}
+	}
     packet.finalize(true);
     Send(packet);
 }

@@ -50,6 +50,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CompoundEmblemDeps.h" // LineFunc(int, char const*, int, unsigned)
 #include "GameEnums.h"          // ENUM_SKILL_TREE_KIND / eItemDelReason / ENUM_CMDPACKET
 #include "GameTypes.h"          // cMyTrace
+#include "cMyTraceNoop.h"        // cMyTraceNoop（ReportBadP2PUser 日志）
 #include "cHistoryTrace.h"      // UseCreatureEvolutionItem process ItemEvolute 日志
 #include "GameWorld.h"          // G_GameWorld / IsPvPSkilTreeChannel
 #include "GlobalData.h"              // s_guild_proxy_mgr / s_stream_pool / s_msgq_mgr
@@ -9736,23 +9737,26 @@ Dispatcher_ReportBadP2PUser::Dispatcher_ReportBadP2PUser() {}
 Dispatcher_ReportBadP2PUser::~Dispatcher_ReportBadP2PUser() {}
 int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    char seat = 0;
+    char seat;
     if (!packet.get_byte(seat))
     {
         return LineFunc(0x8ddb,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (user == 0)
-    {
-        return 0;
-    }
+    cMyTraceNoop log;
+    log(" %s Lack votes slot %d as Lack.", user->getCurCharacName(), (int)seat);
     if (!user->CheckInPvp())
     {
         if (user->IsState((ch_state)5))
         {
             CParty* party = (CParty*)user->GetParty();
-            if (party != 0)
+            if (party == 0)
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x8df8, 0x5);
+                trace("[%s][%d]_!pParty", __PRETTY_FUNCTION__, 0x8df8);
+            }
+            else
             {
                 party->VoteLackUser(user, (int)seat);
             }
@@ -9761,7 +9765,12 @@ int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
     else
     {
         PvP_Room* room = (PvP_Room*)user->GetPVPRoom();
-        if (room != 0)
+        if (room == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x8de8, 0x5);
+            trace("[%s][%d]_!pPVPRoom", __PRETTY_FUNCTION__, 0x8de8);
+        }
+        else
         {
             room->VoteLackUser(user, (int)seat);
         }

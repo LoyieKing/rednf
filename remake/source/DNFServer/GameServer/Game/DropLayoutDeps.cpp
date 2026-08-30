@@ -1048,13 +1048,18 @@ CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
 // ============================================================================
 int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
 {
+    int result = 0;                         // ORIG prolog 后立即清零（-0x14）
+    double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
     if (m_field00 == 0)
-        return gold;                        // 未启用折算：原样返回
-    // rate = cond[level]*(1-base)/(-1000) + 1；出 (0,1] 则回退 base。
-    double rate = ((double)m_goldPerLevel[level] * (1.0 - m_goldBaseRate)) / -1000.0 + 1.0;
-    if (!(rate > 0.0) || rate > 1.0)
-        rate = m_goldBaseRate;
-    int result = (int)((double)gold * rate + 0.5);   // ORIG fistpl 就近取整【近似】
+        result = gold;                      // 未启用折算：原样返回（ORIG 尾部共用块 result=gold）
+    else
+    {
+        // rate = cond[level]*(1-base)/(-1000) + 1；出 (0,1] 则回退 base。
+        rate = ((double)m_goldPerLevel[level] * (1.0 - m_goldBaseRate)) / -1000.0 + 1.0;
+        if (!(rate > 0.0) || rate > 1.0)
+            rate = m_goldBaseRate;
+        result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
+    }
     static int logCount = 0;                // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
     bool logIt = (logCount % 1000 == 0);
     ++logCount;

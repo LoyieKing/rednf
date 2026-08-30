@@ -105,7 +105,7 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, (ENUM_SERVER_GROUP)0);
     MySQL* db3 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, (ENUM_SERVER_GROUP)0);
 
-    char name[0x3c] = { '\0' };
+    char name[0x3b] = { '\0' };  // ORIG 0x3b 字节（2*0x1d+1）
     db2->escape_string(name, sig->m_receiverName);
     db2->set_query(
         "seLect charac_no,lev,delete_flag,m_id from charac_info where charac_name='%s'",

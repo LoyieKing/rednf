@@ -4879,10 +4879,13 @@ int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /
     SIG_MAILBOX_CHECK_RECEIVER* sig =                  // -0x30
         reinterpret_cast<SIG_MAILBOX_CHECK_RECEIVER*>(data);
 
+    // ORIG 0x084cf95a：cmd/type 判定读 sig+0x31（m_payload 首 int，邮件类型
+    // 1=cera 直购/2=多附件），不是 m_resultFlag(+0x3fb9，DB 结果 0/0x4d)。
+    const int mailType = *reinterpret_cast<const int*>(sig->m_payload);
     int cmd = 0x61;                                    // -0x2c
-    if (sig->m_resultFlag == 1)
+    if (mailType == 1)
         cmd = 0x43;
-    else if (sig->m_resultFlag == 2)
+    else if (mailType == 2)
         cmd = 0x13c;
 
     if (sig->m_receiverCharacNo == 0)      // 收件角色号
@@ -4902,7 +4905,7 @@ int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /
             }
 
             unsigned int err = 0;                      // -0x28
-            const int type = sig->m_resultFlag;
+            const int type = *reinterpret_cast<const int*>(sig->m_payload);
             if (type == 1)
             {   // cera 直购：sig+0x35 载荷按 MSG_BUY_CERASHOP_ITEM 视图
                 *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x67) =

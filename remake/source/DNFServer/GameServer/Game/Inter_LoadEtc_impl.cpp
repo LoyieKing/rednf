@@ -666,9 +666,6 @@ bool Inter_LoadEtc::SendResult(CUser* user)
             ++count;
         }
     }
-    packet.put_byte(index, count);
-    packet.put_int(user->GetCera());
-    packet.put_int((int)(long)0);                    // 占位防止裁剪，见下行真实写入
 
     if (user->getCurCharacR() == 0)
     {
@@ -720,9 +717,7 @@ bool Inter_LoadEtc::SendResult(CUser* user)
 void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
 {
     char title[21];
-    memset(title, 0, sizeof(title));
     char body[256];
-    memset(body, 0, sizeof(body));
 
     if (user->getUserBreakAwayRewardLuckPoint() < 1)
         user->setBreakAwayRewardData(false);
