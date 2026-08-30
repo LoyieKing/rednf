@@ -896,7 +896,14 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
                 reinterpret_cast<const char*>(&list->m_padDetail[0]) + i * 299);
         unsigned int letterId = de->m_letterId;
         if (box->FindPackageLoadLack(letterId) != 0)
-            continue; // ORIG：缺载信件入 box 内 pending map（布局待权威批次）
+        {
+            // ORIG 0x8553407..3485：缺载信件入 m_letterInfo[key=letterId]
+            // （SIG_LETTER_INFO 0x12b；key=条目+0xc，与 de 基址差 0xc 等价）。
+            SIG_LETTER_INFO val;
+            std::memcpy(&val, de, sizeof(val));
+            box->m_letterInfo.insert(std::make_pair(letterId, val));
+            continue;
+        }
 
         packet.put_int((int)de->m_letterId);
         packet.put_int((int)de->m_characNo);

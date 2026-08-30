@@ -52,8 +52,10 @@ class MSG_MAILBOX_SEND;  // PacketTypes.h 实定义
 
 namespace WongWork
 {
+class CMailBoxHelper;
 class CMailBox
 {
+    friend class CMailBoxHelper;   // ORIG SetMailBoxInfo 直访 m_letterInfo（+0x90）
 public:
     struct stAddNewMailInput
     {

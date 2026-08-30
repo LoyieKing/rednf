@@ -529,21 +529,24 @@ bool Init(int argc, char** argv)
     //   cMyTrace trace("AuthGarenaToken::Init"@0x8c1b026, 0x29c9, 9, 1, 0);
     //   trace("[!] Init Taiwan Garena Auth Key ..."@0x8c187e8);
     //   init(env+0x314 = m_serverEnvir.m_garenaPublickey.c_str())；
-    //   失败 → cMyTrace(0x29d0, 9).trace(" %s Fail"@0x8c1880c, pubkey)
-    //   → return 0（Init 终止，main 返回 1）。
+    //   init 返回 1（成功）→ xor 翻转 0 → je 82a0bc5（Success 分支：trace
+    //   0x29d3 " %s Success" → 继续 GlobalData::Init）；init 返回 0（失败）
+    //   → 82a0b57 起 Fail 分支：trace 0x29d0 " %s Fail" → jmp 82a2105
+    //   （Init 返回 0，main 退出）。影子实证：publickey.pem Fail 两侧都退出，
+    //   第二轮均 pid 残留 already operated。
     cMyTrace authTrace("AuthGarenaToken::Init", 0x29c9, 9, 1, 0);
     authTrace("[!] Init Taiwan Garena Auth Key ...");
     const char* garenaPubkey =
         G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str();
     if (!Taiwan::AuthGarenaToken::init(garenaPubkey))
     {
-        // ORIG 82a0b6b..b73：Fail trace 构造 (name, 0x29d0, 9, 0, 1)
+        // ORIG 82a0b57..bb6：Fail trace 构造 (name, 0x29d0, 9, 0, 1)
         // ——bFieldC=0、bFieldD=1（+0xc=1 → bAppend/bTimestamp=1 → 尾部 CRLF）。
         cMyTrace failTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
         failTrace(" %s Fail", garenaPubkey);
         return false;
     }
-    cMyTrace okTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
+    cMyTrace okTrace("AuthGarenaToken::Init", 0x29d3, 9, 0, 1);
     okTrace(" %s Success", garenaPubkey);
     CodePage::initCodePage();
 
