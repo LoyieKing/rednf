@@ -3249,7 +3249,7 @@ bool Timer_DungeonInoutOpenTime::checkDungeonInoutTime(int dungeonIdx)
     const int min = localTm->tm_min;
     const STDungeonInoutTime& w = it->second;
     return hour >= w.m_startHour && hour <= w.m_endHour
-        && min >= w.m_startMin && min <= w.m_endMin;
+        && min >= w.m_startMin && min < w.m_endMin;
 }
 
 // Timer_DungeonInoutOpenTime::dispatch_sig ORIG T 0x8639e0a (0x3c5)

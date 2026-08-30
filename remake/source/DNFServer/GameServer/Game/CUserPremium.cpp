@@ -655,7 +655,8 @@ unsigned short CUserPremium::getOverSkillLevel() const
 
 int CUserPremium::GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const
 {
-    return *reinterpret_cast<const int*>(&m_pad[0x218 + (int)type * 4 + 4]);
+    // ORIG：0x4(%eax,%edx,4) 且 edx = type+0x218 → this+0x864+4*type（additionalInfo[type]）
+    return *reinterpret_cast<const int*>(&m_pad[0x860 + (int)type * 4 + 4]);
 }
 
 int CUserPremium::GetAdvantageExpRate() const
@@ -693,6 +694,7 @@ void CUserPremium::InitPremium()
     *(short*)&m_pad[0x85e] = 0;              // overSkillLevel
     m_ceraDiscountRate = 0;                  // +0x860（field860）
     m_field862 = 0;                          // +0x862（field862）
+    memset(&m_pad[0x864], 0, 0x58);         // additionalInfo[0x58]（+0x864..+0x8bb）
     memset(&m_additionalInfo, 0, sizeof(_Additioal_info));  // additionalOut（+0x90f）
     m_pad[0x8bc] = 0;                        // field8bc
     memset(&m_pad862[0x5a], 0, 0x52);        // additionalBase（+0x8bd 起；0x58→0x52 对齐 _Additioal_info）

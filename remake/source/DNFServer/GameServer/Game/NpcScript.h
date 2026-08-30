@@ -270,12 +270,10 @@ public:
     float m_favorRate2;                               // +0x4e0（abs 0x650）
     std::vector<stLevelRewardInfo> m_levelRewards;    // +0x4e4（abs 0x654）
     std::vector<stBuffRewardInfo>  m_buffRewards;     // +0x4f0（abs 0x660）
-    unsigned short m_durationRewardType;              // +0x4fc（abs 0x66c）
-    std::string m_durationRewardName;                 // +0x500（abs 0x670）
-    int m_durationRewardA;                            // +0x504（abs 0x674）
-    int m_durationRewardB;                            // +0x508（abs 0x678）
-    std::string m_durationRewardStr1;                 // +0x50c（abs 0x67c）
-    std::string m_durationRewardStr2;                 // +0x510（abs 0x680）
+    // ORIG +0x4fc 为一个 stPeriodRewardInfo 实例（C1 @0x08a00c70 清零标量并
+    // 构造三 string；D1 @0x085819e4）；按 ORIG 建模为子结构而非平铺成员，
+    // 使 C1 自动清零 m_type/m_a/m_b（与 ORIG 逐字节一致）。
+    stPeriodRewardInfo m_durationReward;              // +0x4fc（abs 0x66c，sizeof 0x18）
 };
 
 // ---- NpcScript 主体 ----

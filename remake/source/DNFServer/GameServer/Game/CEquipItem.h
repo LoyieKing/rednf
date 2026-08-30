@@ -34,6 +34,8 @@ enum T
 }
 #endif
 
+// ORIG 布局（init 0x0898d1fc 实证）：5 int（+0x00..+0x13）+ 5 ushort（+0x14..+0x1d）
+// = sizeof 0x20；与 STEquipmentScript.h 同 guard 同定义（Fix18_E 收敛，原 [4] 错误）。
 #ifndef DNF_STAVATARTYPESELECT_T_DEFINED
 #define DNF_STAVATARTYPESELECT_T_DEFINED
 struct stAvatarTypeSelect_t
@@ -43,7 +45,9 @@ struct stAvatarTypeSelect_t
     int m_field8;       // +0x08
     int m_fieldc;       // +0x0c
     int m_field10;      // +0x10（ORIG：此选择项小孔数/数组长度）
-    unsigned short m_socketType[4];  // +0x14
+    unsigned short m_socketType[5];  // +0x14..+0x1d
+
+    void init();        // ORIG T 0x0898d1fc（定义 STEquipmentScript.cpp）
 };
 #endif
 

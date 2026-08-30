@@ -31,12 +31,15 @@ class CMission
 {
 public:
     CMission(const MissionScript& script);
-    virtual ~CMission();
 
     virtual void _makeTotalMissionInfo(MissionInfo& info,
                                        const CUser& user) const;
     virtual bool _canUpdate(const MissionClearCondition_Parameter& param) const;
     virtual bool _isAcceptCondition(const CUser& user) const;
+    // ORIG vtable（_ZTV19CMission_remains_hp 实证）：_makeTotalMissionInfo/
+    // _canUpdate/_isAcceptCondition/~dtor(D1/D0)/isClearable/verifyMission/...
+    // dtor 声明位置决定全族 vtable 槽位，必须位于 _isAcceptCondition 之后。
+    virtual ~CMission();
     virtual bool isClearable(MissionInfo& info, bool& clear) const = 0;
     virtual bool verifyMission(const MissionInfo& info) const = 0;
     virtual bool isSeriesMission() const = 0;
@@ -65,7 +68,8 @@ protected:
     bool _isAcceptCondition_Series(const CUser& user) const;
 
     // 基类成员（+0x04 起；vptr 占 +0x00）
-    char m_conditionType;                          // +0x04
+    // ORIG canUpdate movzbl+0xff 特判：无符号比较，signed char 会把 0xff 分支优化掉
+    unsigned char m_conditionType;                 // +0x04
     int m_kind;                                    // +0x08
     int m_missionIndex;                            // +0x0c
     int m_field10;                                 // +0x10

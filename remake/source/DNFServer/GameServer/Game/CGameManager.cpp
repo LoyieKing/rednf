@@ -462,18 +462,9 @@ template class GlobalInstance<CGameManager>;
 
 bool CGameManager::init()
 {
-    void* pMgr = operator new(0x6c);
-    try
-    {
-        new (pMgr) CraneMinigameManager();
-    }
-    catch (...)
-    {
-        operator delete(pMgr);
-        throw;
-    }
-    m_pCraneMinigameMgr = (CraneMinigameManager*)pMgr;
-    return GetCraneMinigameManager()->init() == 1;
+    m_pCraneMinigameMgr = new CraneMinigameManager;
+    // ORIG 0x8294213：init() 返回非 0 → 1；0 → 0（显式 bool 化）。
+    return GetCraneMinigameManager()->init() ? 1 : 0;
 }
 
 short CGameManager::getNextUID()
@@ -2064,17 +2055,7 @@ QuickParty::CQuickPartySystemManager* CGameManager::GetQuickPartySystemManager()
 {
     if (m_pQuickPartySystemMgr == 0)
     {
-        void* pMgr = operator new(0x18);
-        try
-        {
-            new (pMgr) QuickParty::CQuickPartySystemManager();
-        }
-        catch (...)
-        {
-            operator delete(pMgr);
-            throw;
-        }
-        m_pQuickPartySystemMgr = (QuickParty::CQuickPartySystemManager*)pMgr;
+        m_pQuickPartySystemMgr = new QuickParty::CQuickPartySystemManager;
     }
     return m_pQuickPartySystemMgr;
 }
@@ -2083,9 +2064,7 @@ QuickParty::CQuickPartyRewardManager* CGameManager::GetQuickPartyRewardManager()
 {
     if (m_pQuickPartyRewardMgr == 0)
     {
-        void* pMgr = operator new(0x228);
-        new (pMgr) QuickParty::CQuickPartyRewardManager();
-        m_pQuickPartyRewardMgr = (QuickParty::CQuickPartyRewardManager*)pMgr;
+        m_pQuickPartyRewardMgr = new QuickParty::CQuickPartyRewardManager;
     }
     return m_pQuickPartyRewardMgr;
 }
@@ -2094,9 +2073,7 @@ CPremiumLetheManager* CGameManager::GetPremiumLetheManager()
 {
     if (m_pPremiumLetheMgr == 0)
     {
-        void* pMgr = operator new(1);
-        new (pMgr) CPremiumLetheManager();
-        m_pPremiumLetheMgr = (CPremiumLetheManager*)pMgr;
+        m_pPremiumLetheMgr = new CPremiumLetheManager;
     }
     return m_pPremiumLetheMgr;
 }
@@ -2105,14 +2082,12 @@ CSharedServerMessageManager* CGameManager::GetSharedServerMessageManager()
 {
     if (m_pSharedServerMessageMgr == 0)
     {
-        CDataManager* dmp = (CDataManager*)G_CDataManager();
-        void* pMgr = operator new(0x18);
         // ORIG lea 0x7d8(dm)：CDataManager 内嵌 stSharedServerMessageInfo。
         // 该结构即 ServerParameterScript::m_shared770（ServerParameterScript.h +0x770，
         // ORIG C1 0x836fed4 实证），m_serverParameter 位于 CDataManager+0x68，
-        // 0x68+0x770=0x7d8 与 ORIG lea 偏移一致。
-        new (pMgr) CSharedServerMessageManager(&dmp->m_serverParameter.m_shared770);
-        m_pSharedServerMessageMgr = (CSharedServerMessageManager*)pMgr;
+        // 0x68+0x770=0x7d8 与 ORIG lea 偏移一致（不缓存 dmp，对齐 ORIG 寄存器形态）。
+        m_pSharedServerMessageMgr = new CSharedServerMessageManager(
+            &((CDataManager*)G_CDataManager())->m_serverParameter.m_shared770);
     }
     return m_pSharedServerMessageMgr;
 }
@@ -2121,9 +2096,7 @@ CSpecialItemRoutingManager* CGameManager::GetSpecialItemRoutingManager()
 {
     if (m_pSpecialItemRoutingMgr == 0)
     {
-        void* pMgr = operator new(1);
-        new (pMgr) CSpecialItemRoutingManager();
-        m_pSpecialItemRoutingMgr = (CSpecialItemRoutingManager*)pMgr;
+        m_pSpecialItemRoutingMgr = new CSpecialItemRoutingManager;
     }
     return m_pSpecialItemRoutingMgr;
 }
@@ -2132,9 +2105,7 @@ CConditionEventManager* CGameManager::GetConditionEventManager()
 {
     if (m_pConditionEventMgr == 0)
     {
-        void* pMgr = operator new(1);
-        new (pMgr) CConditionEventManager();
-        m_pConditionEventMgr = (CConditionEventManager*)pMgr;
+        m_pConditionEventMgr = new CConditionEventManager;
     }
     return m_pConditionEventMgr;
 }
@@ -2143,12 +2114,7 @@ CAuctionAveragePrice* CGameManager::GetAuctionAveragePriceManager()
 {
     if (m_pAuctionAveragePriceMgr == 0)
     {
-        void* pMgr = operator new(0x18, std::nothrow);
-        if (pMgr != 0)
-        {
-            new (pMgr) CAuctionAveragePrice();
-        }
-        m_pAuctionAveragePriceMgr = (CAuctionAveragePrice*)pMgr;
+        m_pAuctionAveragePriceMgr = new (std::nothrow) CAuctionAveragePrice;
     }
     return m_pAuctionAveragePriceMgr;
 }

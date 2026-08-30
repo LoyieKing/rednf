@@ -56,11 +56,10 @@ const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
 // 生命周期
 // ============================================================================
 
-// stRewardItem_t ctor（ORIG W 0x081519b6）：构造 10 个 Inven_Item。
+// stRewardItem_t ctor（ORIG W 0x081519b6）：构造 10 个 Inven_Item
+// （ORIG 为编译器对 Inven_Item m_items[10] 数组成员的自动构造，body 为空）。
 CBossPlay::stRewardItem_t::stRewardItem_t()
 {
-    for (int i = 0; i < 10; ++i)
-        m_items[i] = Inven_Item();
 }
 
 // Ctor（ORIG W 0x081519ec）：置 vptr（编译器自动），构造 4 个 stRewardItem_t 块
@@ -273,7 +272,7 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
         stDeathTower_t* tower =
             G_CDataManager()->GetTowerScript(dungeon->get_index());
         clearExp = (unsigned int)(long long)(
-            (double)(long long)((unsigned long long)a * b) *
+            (double)(long long)((unsigned int)(a * b)) *
             tower->m_rewardExpWeight[1 + a]);
     }
 

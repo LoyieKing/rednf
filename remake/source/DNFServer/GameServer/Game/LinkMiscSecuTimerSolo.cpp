@@ -457,10 +457,10 @@ int CAutoMarketConditionsControl::LoadDatabase(
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0xae, 0);
-    trace("LoadDatabase() %qd %u %d %d %d %d %d",
+    trace("LoadDatabase() %qd %u %d %d %d",
           static_cast<long long>(static_cast<unsigned long long>(base)),
           static_cast<unsigned int>(*(int*)(msg->m_pad + 0x08)),
-          *(int*)(msg->m_pad + 0x0c), m_field00, m_field380, m_field3e8, 0);
+          *(int*)(msg->m_pad + 0x0c), m_field00, m_field380, m_field3e8);
 
     long long diff = static_cast<long long>(base) -
                      static_cast<long long>(amount);

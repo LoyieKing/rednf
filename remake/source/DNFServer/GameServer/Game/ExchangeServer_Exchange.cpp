@@ -708,7 +708,13 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
         trace("cannot connect other game server! (%s,%d)",
               inet_ntoa(*(struct in_addr*)&info.m_field00),
               (int)(short)info.m_word04);
-        RegisterExchangeServer(remoteId, info);       // 失败亦登记占位
+        if (!RegisterExchangeServer(remoteId, info))
+        {
+            cMyTrace trace("int exchange_server::CExchangeServer::"
+                           "OnRecvPacketServerInfoRet(exchange_server::"
+                           "CSession*, PacketGuard&)", 0x301, 0);
+            trace("RegisterExchangeServer! failed (%d)", remoteId);
+        }
     }
 
     if (!AttachSessionInExchangeServer(senderId, session))

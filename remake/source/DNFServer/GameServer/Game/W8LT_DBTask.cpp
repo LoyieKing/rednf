@@ -18343,7 +18343,9 @@ bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
     }
     catch (unsigned int e)
     {
-        (void)e;
+        // ORIG 0x0842761c：cMyTrace(__PRETTY_FUNCTION__, 0x6899, 5) + trace("%d", e)。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x6899, 5);
+        trace("%d", e);
     }
     return 1;
 }

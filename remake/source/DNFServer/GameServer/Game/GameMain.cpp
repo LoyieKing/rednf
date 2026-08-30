@@ -1387,8 +1387,8 @@ void InitCipherKeyString()
     }
 
     int elapsed = static_cast<int>(s_systemTime_.getCurSec()) - t0;
-    cMyTrace trace("InitCipherKeyString()", 0x283e, 9, true, true);
-    trace("cipher keystring init %d sec", elapsed);
+    cMyTrace trace("void InitCipherKeyString()", 0x283e, 9, true, true);
+    trace("[!] Init CipherKeyString TotalTime : %ds", elapsed);
 }
 
 // ProcessAntiBotInputWrapper() —— ORIG 0x80eddb0（0xe1 字节，逐指令转写）：

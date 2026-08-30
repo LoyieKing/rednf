@@ -89,12 +89,11 @@ struct CStatisticMgrExpView
     CDungeonExpStatistic m_dungeonExp;   // +0x18
 };
 
-// CCharacBloodDungeon 计数视图（类未建模；同 CPartyDepsC2.cpp BloodDungeonCountsView
-// 惯例。GetEnterCount W 0x085bfe88 = *(int*)(this+0x18)；本 TU 另证
-// +0x08（IncPoint）/ +0x10（IncUseGold）为 int 计数槽）。
 struct BloodDungeonCountsView
 {
-    char m_pad0[0x8];
+    char m_pad0[0x4];
+    char m_alter;             // +0x04（alter() 脏标记，W 0x080c8bc4 写 1）
+    char m_pad5[0x3];
     int m_point;              // +0x08
     int m_weeklyEnterCount;   // +0x0c
     int m_useGold;            // +0x10
@@ -755,7 +754,9 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
         const int lottePoint = sps->GetLottePoint(enterCount);
         const int level = user->get_charac_level();
         const int avgPrice = sps->GetPriceAverage(level);
-        expand->m_enterCount = enterCount + 1;      // IncEnterCount
+        expand->m_alter = 1;                        // alter()：三个方法前置脏标记
+        expand->m_enterCount = enterCount + 1;      // IncEnterCount（+0x18）
+        expand->m_weeklyEnterCount++;               // IncEnterCount（+0x0c 同步自增）
         expand->m_point += lottePoint;              // IncPoint
         expand->m_useGold += fee - avgPrice;        // IncUseGold
     }

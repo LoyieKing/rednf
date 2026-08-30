@@ -8461,7 +8461,8 @@ Inter_PvPChannelUserCount::~Inter_PvPChannelUserCount() {}
 int Inter_PvPChannelUserCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     *reinterpret_cast<unsigned int*>(data + 0x1a) =
-        g_schoolMgr->GetUserCount(0);  // TODO(schoolNo 待核)
+        g_schoolMgr->GetUserCount(
+            *reinterpret_cast<unsigned int*>(data + 0x12));  // ORIG mov 0x12(%eax)→GetUserCount
     *reinterpret_cast<unsigned int*>(data + 0x16) =
         G_CEnvironment()->get_channel_no();
     *reinterpret_cast<unsigned int*>(data + 0x22) =

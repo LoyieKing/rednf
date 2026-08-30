@@ -117,9 +117,12 @@ Inven_Item* CCargo::GetCargoRef(int idx)
 
 
 // ---- get_cargo_slot @ 0x850b2b4（按值返回 Inven_Item） ----
+// ORIG 0x850b2b4：call IsOperatorable → xor $0x1 → test → je 0xaf（空 item 分支）。
+// 即 IsOperatorable==true（索引合法）→ 返回 memset 全 0 的空 item；
+// IsOperatorable==false → memmove 返回 m_pItems[idx] 原样内容。分支与直觉相反，以 ORIG 为准。
 Inven_Item CCargo::get_cargo_slot(int idx) const
 {
-    if (IsOperatorable(idx)) {
+    if (!IsOperatorable(idx)) {
         Inven_Item out;
         memmove(&out, &m_pItems[idx], 0x3d);
         return out;

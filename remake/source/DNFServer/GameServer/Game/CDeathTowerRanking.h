@@ -98,13 +98,17 @@ public:
     {
         stBestRecord_t()
         {
-            m_pad0[0] = m_pad0[1] = m_pad0[2] = m_pad0[3] = 0;
-            memset(m_memberData, 0, sizeof(m_memberData));
-            memset(m_pad7c, 0, sizeof(m_pad7c));
-            m_stage = 0;
-            m_playTime = 0;
             m_flag90 = 0;
             m_field94 = -1;
+            for (int i = 0; i <= 3; ++i)
+            {
+                m_memberData[i][0] = 0;
+                m_pad7c[0][i] = 0;
+                m_pad7c[1][i] = 0;
+                m_pad7c[2][i] = 0;
+            }
+            m_stage = 0;
+            m_playTime = 0;
         }
         // ORIG 两运算符均为非 const 成员（mangled 无 K：_ZN...teq/gtERKS1_）
         bool operator>(const stBestRecord_t& other)
@@ -120,7 +124,7 @@ public:
 
         char m_pad0[4];              // +0x00（registBestRecord 用作 key dword）
         char m_memberData[4][30];    // +0x04（ctor 循环清零）
-        char m_pad7c[12];            // +0x7c（+0x7c/80/84 三条 byte lane 起点）
+        char m_pad7c[3][4];          // +0x7c（+0x7c/80/84 三条 byte lane）
         unsigned int m_stage;        // +0x88
         unsigned int m_playTime;     // +0x8c
         unsigned char m_flag90;      // +0x90（ctor 置 0；塔榜首槽此位=“有纪录”）

@@ -123,9 +123,9 @@ bool CParty::existSamePCRoomUser(unsigned int pcbangNo)
 // ============================================================================
 // calDeadUserDungeonPenalty —— ORIG T 0x085ad9b4。
 // slot<0 → 0；memberCount(m_field9b8)>1 时 rate = float(记录[slot])/float(count-1)，
-// rate<0.3f（ORIG .rodata 0x08cbbbe8 = 0.3f）→ 归零。
-// 死亡成员计数表基址 this+0x10+(slot+0xe0)*4（ORIG 寻址实证），位于 BattleData
-// 占位区，按裸偏移访问。
+// ORIG 语义：rate == 0.3f（.rodata 0x08cbbbe8 = 0.3f）→ 归零（fucompp+test
+// $0x45+sete 严格相等比较，非 <）。死亡计数表基址 this+0x10+(slot+0xe0)*4
+// （ORIG 寻址实证），位于 BattleData 占位区，按裸偏移访问。
 // ============================================================================
 float CParty::calDeadUserDungeonPenalty(int slot)
 {
@@ -141,7 +141,7 @@ float CParty::calDeadUserDungeonPenalty(int slot)
             reinterpret_cast<char*>(this) + 0x10 + (slot + 0xe0) * 4);
         rate =
             static_cast<float>(deadCnt) / static_cast<float>(memberCount - 1);
-        if (rate < 0.3f)
+        if (rate == 0.3f)
             rate = 0.0f;
     }
     return rate;

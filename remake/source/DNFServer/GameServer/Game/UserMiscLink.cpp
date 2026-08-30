@@ -325,6 +325,17 @@ bool HeroMissionEvent::rewardMission(CUser* user,
         return false;
     }
 
+    // ORIG 顺序（Fix18_E 实证）：user==0 检查在 find 之前（0x32 处），
+    // 否则 null 用户会在 find 失败分支执行 get_charac_no/DisConnSig。
+    if (user == 0)
+    {
+        LogManager::logFormat(
+            1, "localtaiwan/Event/EventHeroMission.cpp",
+            __PRETTY_FUNCTION__,
+            0x2d8, "[HeroMission] User is null.");
+        return false;
+    }
+
     std::map<HeroMissionCondition::MissionNo::T, BaseHeroMissionCondition*>::iterator it =
         m_conditions.find(mission);
     if (it == m_conditions.end())
@@ -335,15 +346,6 @@ bool HeroMissionEvent::rewardMission(CUser* user,
             0x2df, "[HeroMission] Invalid mission. (charac:%u, mission:%d)",
             (unsigned int)user->get_charac_no(-1), (int)mission);
         user->DisConnSig((DISCONN_SIG)0x3e, true, 0x2e0);
-        return false;
-    }
-
-    if (user == 0)
-    {
-        LogManager::logFormat(
-            1, "localtaiwan/Event/EventHeroMission.cpp",
-            __PRETTY_FUNCTION__,
-            0x2d8, "[HeroMission] User is null.");
         return false;
     }
 

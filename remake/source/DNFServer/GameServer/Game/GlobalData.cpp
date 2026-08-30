@@ -3543,14 +3543,17 @@ bool ItemVendingMachine::_CheckEnableStateCondition(const CCeraShopGoods*, CUser
 }
 
 // _CheckEnableAvatarCondition —— ORIG 0x08176794 (T)
+// ORIG 代码形态（Fix18_E 实证）：GetRelatedItem 两次调用、IsAvatarItem 前
+// 无判空、out 经 stAvatarTypeSelect_t::init() 清零、四字段各自下标访问。
 bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods,
                                                      char c, unsigned char uc,
                                                      stAvatarTypeSelect_t& out)
 {
     CItem* related = goods->GetRelatedItem();
-    if (related == 0 || !related->IsAvatarItem())
+    if (!related->IsAvatarItem())
         return false;
-    std::memset(&out, 0, sizeof(out));   // 等价 stAvatarTypeSelect_t::init()
+    out.init();
+    related = goods->GetRelatedItem();
     CEquipItem* equip = static_cast<CEquipItem*>(related);
     void* vec = equip->getAvatarTypeSelect();
     std::vector<stAvatarTypeSelect_t>& select =
@@ -3560,11 +3563,10 @@ bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods
         return false;
     if (uc >= 100)
         return false;
-    const stAvatarTypeSelect_t& src = select[idx];
-    out.m_fieldc = src.m_fieldc;
-    out.m_field4 = src.m_field4;
-    out.m_field8 = src.m_field8;
-    out.m_field0 = src.m_field0;
+    out.m_fieldc = select[idx].m_fieldc;
+    out.m_field4 = select[idx].m_field4;
+    out.m_field8 = select[idx].m_field8;
+    out.m_field0 = select[idx].m_field0;
     return true;
 }
 

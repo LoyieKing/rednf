@@ -26,11 +26,11 @@ class CUser;
 // cMyTrace 权威声明见 GameTypes.h（经 GameWorld.h 链包含），本地类已删除（§7）。
 
 
-// ORIG GetResult/GetLeavePenalty 以 fnstcw→RC=00(就近舍入)→fldcw→fistpl 转 int；
-// C++ 侧按仓库惯例以 ±0.5 就近取整等价实现（CExpertJob 同模式）。
+// ORIG GetResult/GetLeavePenalty 以 fnstcw→mov $0xc,%ah（RC=11 截断）→fldcw→
+// fistpl 转 int（0x85d51bd 等实证），即 C 的 float→int 截断转换，非 ±0.5 舍入。
 static inline int RoundToNearestInt(float f)
 {
-    return (int)(f < 0.0f ? f - 0.5f : f + 0.5f);
+    return (int)f;
 }
 
 PvpUserTable::PvpUserTable()

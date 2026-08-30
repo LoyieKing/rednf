@@ -56,7 +56,7 @@ CSession::CSession()
 {
     m_triggerEventType = 0;
     m_channelNo = 0;
-    m_field0c = 1;
+    *(char*)&m_field0c = 1;   // ORIG movb $0x1,0xc(%eax)（Fix18_E：仅写低字节）
 }
 
 // D1 — ORIG 0x8495662 size 0x13，仅调基类析构（隐式空体一致）。

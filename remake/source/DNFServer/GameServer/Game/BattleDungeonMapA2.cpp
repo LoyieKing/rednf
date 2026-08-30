@@ -332,12 +332,14 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             CUser* manager = m_party->getManager();
             if (manager != 0)
             {
-                // ORIG: TOD_UserState::getTodayEnterLayer().GetLayer()
-                // TOD_UserState 未建模，扩展数据 +0x14 即当日层 ushort
-                // （同 CDungeon.cpp tod_detail 注）。
+                // （同 CDungeon.cpp tod_detail 注）。ORIG 语义（0x86439c8/0x85fe7b4）：
+                // layer = (ushort)(state+0x14) + 1，>0x64 时 clamp 到 1。
                 char* todState = (char*)manager->GetCharacExpandData(
                     (ENUM_CHARAC_EXPAND_TYPE)0xd);
-                todayLayer = *(unsigned short*)(todState + 0x14);
+                unsigned short todBase = *(unsigned short*)(todState + 0x14);
+                todayLayer = (unsigned short)(todBase + 1);
+                if (todayLayer > 0x64)
+                    todayLayer = 1;
             }
         }
         pkt->put_short(todayLayer);

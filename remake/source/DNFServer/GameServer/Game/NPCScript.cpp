@@ -941,7 +941,7 @@ bool CNPCScript::isKeyItem(unsigned long key, unsigned int id) const
 // ORIG 0x85811a4: +0x670 字符串 == "item" -> 1；=="quest" -> 2；否则 0。
 int CNPCScript::getPeriodRewardType() const
 {
-    const std::string& t = m_npcScript.m_favorableRelationShip.m_durationRewardName;
+    const std::string& t = m_npcScript.m_favorableRelationShip.m_durationReward.m_name;
     if (t == "item")
     {
         return 1;

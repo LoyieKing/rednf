@@ -333,7 +333,7 @@ int CRandomOptionItemHandle::_get_part_type_by_ItemGroup(
         return 0;
     }
 
-    std::vector<unsigned int> weights(itemGroups.size(), 0);
+    std::vector<int> weights(itemGroups.size(), 0);
     unsigned int total = 0;
 
     std::vector<PartSelectonField>& vec = it->second.m_vec10;

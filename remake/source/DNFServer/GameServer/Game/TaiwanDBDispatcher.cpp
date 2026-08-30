@@ -187,6 +187,30 @@ DBUpdatePcroomDailyReward::~DBUpdatePcroomDailyReward()
 {
 }
 
+// ORIG T 0x0815cf06（报告 DBUpdatePcroomDailyReward/makeRequest.md）：PC 房日奖励
+// 落库请求：internal_stream(0xe, uid) → MSG{m_id=acc_id, m_remain=user+0x8ec32}。
+void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
+{
+    Stream* stream = GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x325);
+    CStreamGuard guard(stream, true);
+    Taiwan::internal_stream(guard, TaiwanInternalPack::T(0xe), user->GetUID());
+    MSG* msg = guard.GetInBuffer<MSG>();
+    if (msg == 0)
+    {
+        cMyTrace trace(
+            "static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
+            0x32b, 0);
+        trace("[Taiwan, Pcroom] msg is null");
+    }
+    else
+    {
+        msg->m_id = user->get_acc_id();
+        msg->m_remain = user->m_field8ec32;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    }
+}
+
 DBInsertGiveBoxEventReward::DBInsertGiveBoxEventReward() throw()
     : TaiwanInterfaceDBDispatcher((TaiwanInternalPack::T)0x10)  // ORIG @0x0815e559 movl $0x10
 {

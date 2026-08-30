@@ -301,11 +301,7 @@ struct SigAvatarRoulette
     unsigned char m_field02;   // +0x02（init 清零，消费侧未读）
 };                             // sizeof = 0x3
 
-// SigAradJumpingCharacter —— Arad_INTER_kAradJumpingCharacter::dispatch_sig
-// 0x08199a24 区消费证据：+0x09 char（==2 觉醒转职分支）、+0x0a uchar
-// （ChangeGrowType_GM growType）、+0x0b ushort（delete_item 的 item index）。
-// ORIG W C1/C2 0x81a0990 -> init() 0x81a09a4：仅清 +0..+8（movb/movl/movl），
-// 不初始化 eventKind/growType/itemIndex/tail 区。
+#pragma pack(push, 1)
 struct SigAradJumpingCharacter
 {
     SigAradJumpingCharacter();   // 定义在 Game/W8_AradSig.cpp
@@ -316,6 +312,7 @@ struct SigAradJumpingCharacter
     unsigned short m_itemIndex;    // +0x0b
     char          m_tail[5];       // +0x0d 尾部填充（sizeof = 0x12）
 };
+#pragma pack(pop)
 
 }  // namespace arad
 

@@ -649,8 +649,8 @@ void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
         const int len = static_cast<int>(strlen(record.m_memberData[i]));
         packet.put_int(len);
         packet.put_str(const_cast<char*>(record.m_memberData[i]), len);
-        packet.put_byte(record.m_pad7c[4 + i]);                // +0x80
-        packet.put_byte(record.m_pad7c[8 + i]);                // +0x84
+        packet.put_byte(record.m_pad7c[1][i]);                // +0x80..+0x83
+        packet.put_byte(record.m_pad7c[2][i]);                // +0x84..+0x87
     }
     packet.put_short(static_cast<int>(record.m_stage));        // +0x88
     packet.put_int(static_cast<int>(record.m_playTime));       // +0x8c

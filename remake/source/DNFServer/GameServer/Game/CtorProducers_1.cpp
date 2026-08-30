@@ -181,11 +181,23 @@ struct STAICharScriptView
     char m_pad100d[3];
 };  // sizeof 0x1010
 
+// stEnamyDropAvatarElement_t 同构（3×int，sizeof 0xc；权威定义 STMonsterScript.h）。
+// 文件作用域（GCC 4.4 不允许局部类型作模板实参），仅 sub_CAISet 深拷贝用。
+struct EnamyAvatarDropElemL
+{
+    int m0;
+    int m4;
+    int m8;
+};
+typedef std::vector<EnamyAvatarDropElemL> EnamyAvatarDropVecL;
+
 // ============================================================================
 
 // （报告 AvatarRoulette/{AvatarRoulette,clear,swap}.md）
+
 // ============================================================================
 
+// （报告 AvatarRoulette/{AvatarRoulette,clear,swap}.md）
 // ============================================================================
 // AvatarRouletteServer（报告 AvatarRouletteServer/*.md）
 // ============================================================================
@@ -1078,8 +1090,15 @@ void sub_CAISet(void* self, int idx, const void* scriptRaw)
     selfC.m_dropItems = script.m_d88;
     selfC.m_pvpWinLow = script.m_da4;
     selfC.m_pvpWinHigh = script.m_da8;
-    selfC.m_independentDrops = script.m_f2c;
-    memcpy(selfC.m_avatarDrops, script.m_f50, sizeof(selfC.m_avatarDrops));
+    // ORIG 0x08366ea8 stEnamyDropAvatarInfo_t::operator=：POD 区 0x30 拷贝 +
+    // +0x30 vector<stEnamyDropAvatarElement_t> 深拷贝（memcpy 浅拷贝会共享
+    // 底层数组，与 ORIG 语义不符）。
+    memcpy(selfC.m_avatarDrops, script.m_f50, 0x30);
+    EnamyAvatarDropVecL* dstV = reinterpret_cast<EnamyAvatarDropVecL*>(
+        selfC.m_avatarDrops + 0x30);
+    const EnamyAvatarDropVecL* srcV = reinterpret_cast<const EnamyAvatarDropVecL*>(
+        script.m_f50 + 0x30);
+    *dstV = *srcV;   // 深拷贝（目标 ctor 已 memset，无需先 clear）
     selfC.m_name = script.m_str4;
     selfC.m_rarity = script.m_rarityByte;
 }

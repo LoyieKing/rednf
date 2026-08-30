@@ -235,6 +235,13 @@ struct SIG_AVATAR_CHANGE_STAT
     char m_pad[0x51];
 };
 
+// ORIG GetInBuffer 实例化（SendAvatarEvent 0x8508ed2 分支）sizeof 0x51；
+// 前 10 字节载荷：+0x00 b、+0x04 c、+0x08 (char)d、+0x09 (char)e。
+struct SIG_AVATAR_CHANGE_STATE
+{
+    char m_pad[0x51];
+};
+
 struct SIG_AVATAR_COLOR_CHANGE
 {
     char m_pad[0xc];

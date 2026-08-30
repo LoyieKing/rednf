@@ -93,11 +93,12 @@ static hash_t _hash(char const* src)
 {
     signed char c = static_cast<signed char>(src[0]);
     unsigned long h = 0;
+    h = 0x1505;   // ORIG movl $0 + movl $0x1505（O0 保留死赋值）
     while (c != 0)
     {
-        h = (h << 5) + h + c;
+        c = static_cast<signed char>(src[0]);   // ORIG 循环体开头重读
         ++src;
-        c = static_cast<signed char>(src[0]);
+        h = (h << 5) + h + c;
     }
     return h;
 }

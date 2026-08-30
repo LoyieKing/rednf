@@ -147,7 +147,7 @@ public:
 
 private:
     std::map<STQuickPartyPoolMap_Key, STQuickPartyPoolMap_Data> m_poolMap;  // +0x00
-    unsigned char m_padTail[0xd0];       // 至 ORIG 对象大小 0x100（其余成员未还原）
+    // ORIG sizeof 0x18（GetQuickPartySystemManager _Znwj(0x18) 实证），仅 m_poolMap。
 };
 
 // ---- RewardData_Param/Result、IRewardType 奖励族、QuickPartyData 权威定义

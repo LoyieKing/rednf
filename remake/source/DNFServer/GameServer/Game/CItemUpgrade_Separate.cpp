@@ -174,7 +174,9 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
     {
         return -1;
     }
-    factor = kMatEpsilon.f + factor * it->second.m_materialRate;
+    // ORIG 0x08912b88：pt() 后 flds 0x10(%eax) = pair+0x10 = value+0xc = m_goldRate
+    // （import 第 4 值；m_materialRate +0x10 从不被 import 写入）
+    factor = kMatEpsilon.f + factor * it->second.m_goldRate;
 
     std::map<int, GenuineDamageUpgradeMaterialInfo>::const_iterator mit =
         m_materials.find(static_cast<int>(growth));
@@ -292,7 +294,8 @@ bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem*
     }
 
     out->m_materialCnt = materialCnt;
-    out->m_gold = static_cast<int>(kGoldBase * it->second.m_goldRate);
+    // ORIG 0x0811e138：pt() 后 flds 0xc(%eax) = pair+0xc = value+0x8 = m_levelRate
+    out->m_gold = static_cast<int>(kGoldBase * it->second.m_levelRate);
     return true;
 }
 

@@ -138,7 +138,8 @@ class MissionClearCondition_Parameter
 public:
     MissionClearCondition_Parameter(PVP_BATTLE_MODE mode);
 
-    char m_mode;             // +0x00（0x0a 默认；2→1、3→2）
+    // ORIG canUpdate 等 movzbl 零扩展读取 m_mode → 无符号比较
+    unsigned char m_mode;    // +0x00（0x0a 默认；2→1、3→2）
     unsigned short m_victory; // +0x01（bit0 = 本场胜利）
     int m_killCount;         // +0x03（击杀计数）
     int m_channelFrom;       // +0x07（换线前频道）

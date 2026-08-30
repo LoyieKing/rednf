@@ -4283,12 +4283,14 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
     }
     else if (a == 0x2c3)
     {
-        char buf[0x14];
+        // ORIG GetInBuffer<SIG_AVATAR_OPTION_CHANGE>（sizeof 0xc）：[0]=b、
+        // [4]=(char)c、[8]=characNo。
+        char buf[0xc];
         memset(buf, 0, sizeof(buf));
         *(int*)(buf + 0) = b;
+        buf[4] = (char)c;
         *(int*)(buf + 8) = characNo;
-        *(int*)(buf + 0x10) = c;
-        guard->put_binary(buf, 0x14);
+        guard->put_binary(buf, sizeof(buf));
     }
     else if (a == 0x31a)
     {
@@ -4302,13 +4304,14 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
     }
     else if (a == 0x36)
     {
-        char buf[0x28];
-        memset(buf, 0, sizeof(buf));
-        *(int*)(buf + 0) = b;
-        *(int*)(buf + 4) = c;
-        buf[8] = (char)d;
-        *(int*)(buf + 0x24) = characNo;
-        guard->put_binary(buf, 0x28);
+        // ORIG GetInBuffer<SIG_AVATAR_CHANGE_STATE>（sizeof 0x51）：
+        // +0x00=b、+0x04=c、+0x08=(char)d、+0x09=(char)e。
+        SIG_AVATAR_CHANGE_STATE* s =
+            guard->GetInBuffer<SIG_AVATAR_CHANGE_STATE>();
+        *(int*)((char*)s + 0) = b;
+        *(int*)((char*)s + 4) = c;
+        *(char*)((char*)s + 8) = (char)d;
+        *(char*)((char*)s + 9) = (char)e;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

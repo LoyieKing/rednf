@@ -58,11 +58,13 @@ namespace expert_job
 namespace
 {
 
-// ORIG OnGiveup 经 __cxa_throw 携带 ENUM_ERROR 类实例；仓库将 ENUM_ERROR 建
-// 模为 enum，暂以等宽 int 载荷抛出（恢复类建模时替换）。
-void ThrowEnumError(int code)
+// ORIG OnGiveup 经 __cxa_throw 携带 ENUM_ERROR 类实例，被函数内部 catch 捕获后
+// 调 SendCmdErrorPacket(0xf3, errCode) 并正常返回（0x849eccc catch 块实证：
+// movzbl 异常对象首字节 → SendCmdErrorPacket(0xf3, al) → __cxa_end_catch → ret）。
+// 还原以直接发包返回实现等价行为（避免裸 throw 逃逸导致 terminate）。
+void SendGiveupError(CUser* user, int code)
 {
-    throw code;
+    user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf3, (unsigned char)code);
 }
 
 // 自身扩展数据槽（charac_expand 槽 0）快捷读取，与各报告两次独立取址序一致。
@@ -602,36 +604,41 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
 // ---- OnGiveup（报告，ORIG T 0x0849e60c sz 0x70d）----
 void CExpertJobMgr::OnGiveup(CUser* user)
 {
-    if (user->getCurCharacR() == 0)
+   if (user->getCurCharacR() == 0)
     {
-        ThrowEnumError(3);
+        SendGiveupError(user, 3);
+        return;
     }
     STExpertJobScript* script =
         (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(
             user->GetCurCharacExpertJobType());
-    if (script == 0)
+   if (script == 0)
     {
-        ThrowEnumError(8);
+        SendGiveupError(user, 8);
+        return;
     }
 
     unsigned int giveupCount = GetSelfExpand(user)->get_giveup_count() & 0xffff;
-    if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
+   if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
     {
-        ThrowEnumError(1);
+        SendGiveupError(user, 1);
+        return;
     }
     int giveupCost = script->m_giveupCost.at(giveupCount);
-    if (user->getCurCharacMoney() < giveupCost)
+   if (user->getCurCharacMoney() < giveupCost)
     {
-        ThrowEnumError(0x15);
+        SendGiveupError(user, 0x15);
+        return;
     }
 
     // 前置校验：[clear quest] 清单全部已达标，任一未清 → 错误 8。
     for (std::vector<int>::iterator it = script->m_clearQuests.begin();
          it != script->m_clearQuests.end(); ++it)
     {
-        if (user->getCurCharacQuestRefR()->isClearQuest(*it) != true)
+       if (user->getCurCharacQuestRefR()->isClearQuest(*it) != true)
         {
-            ThrowEnumError(8);
+            SendGiveupError(user, 8);
+            return;
         }
     }
     for (std::vector<int>::iterator it = script->m_clearQuests.begin();

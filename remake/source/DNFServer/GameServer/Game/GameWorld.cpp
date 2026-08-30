@@ -1094,11 +1094,11 @@ void GameWorld::send_all_dungeon_inout_message(int dungeonIdx)
         std::map<unsigned short, CUser*>::iterator it;
         for (it = m_UserInWorld.begin(); it != m_UserInWorld.end(); it++)
         {
-            CUserCharacInfo* info = it->second;
-            if (info->getCurCharacR() != NULL &&
-                minLevel <= info->get_charac_level())
+            CUser* user = it->second;
+            if (user->get_state() > 2 &&
+                minLevel <= user->get_charac_level())
             {
-                ((CUser*)info)->Send(packet);
+                user->Send(packet);
             }
         }
     }
@@ -1118,11 +1118,11 @@ void GameWorld::send_all_dungeon_inout_message(int dungeonIdx, bool open)
         std::map<unsigned short, CUser*>::iterator it;
         for (it = m_UserInWorld.begin(); it != m_UserInWorld.end(); it++)
         {
-            CUserCharacInfo* info = it->second;
-            if (info->getCurCharacR() != NULL &&
-                minLevel <= info->get_charac_level())
+            CUser* user = it->second;
+            if (user->get_state() > 2 &&
+                minLevel <= user->get_charac_level())
             {
-                ((CUser*)info)->Send(packet);
+                user->Send(packet);
             }
         }
     }

@@ -204,7 +204,8 @@ int AradBonusItem::parsing(char* data)
         d.itemId = script.GetInt(r, "item_id");
         d.bonusType = (unsigned short)script.GetInt(r, "bonus_type");
         d.bonusValue = script.GetInt(r, "bonus_value");
-        m_bonusMap[d.itemId] = d;
+        // ORIG 0x81a238a：insert(make_pair)（重复 key 不覆盖），非 operator[]。
+        m_bonusMap.insert(std::make_pair(d.itemId, d));
     }
     return 0;
 }

@@ -9117,9 +9117,9 @@ int CUser::GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig)
 void CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
 {
     sig->m_accId = get_acc_id();
+    // ORIG 0x0864bcc8：无条件 mov (%eax) 解引用（getCurCharacR 恒非空，无检查）
     const _Charac_info* cur = getCurCharacR();
-    if (cur != 0)
-        sig->m_characNo = (unsigned int)cur->m_characNo;
+    sig->m_characNo = (unsigned int)cur->m_characNo;
     int characIdx = get_charac_idx(sig->m_characNo);
     sig->m_result = 0;
 

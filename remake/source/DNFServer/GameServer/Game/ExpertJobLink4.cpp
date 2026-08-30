@@ -87,16 +87,17 @@ namespace expert_job
 
 // ---------------------------------------------------------------------------
 // 辅助：ORIG 浮点常量（.rodata 实测）
-//   0x08cc080c = 1.1f / 0x08cc0810 = 1000.0f / 0x08cc0814 = 100.0f
-// ORIG 所有浮点→整型转换均显式置 FPU 控制字 RC=最近偶数（fldcw 0xc<<8），
-// 等价于对正值四舍五入；此处以 +0.5f 截断表达同一语义。
+// ORIG 所有浮点→整型转换均显式置 FPU 控制字 RC=最近偶数（fldcw 0xc<<8，
+// 0x85d246f flds+fnstcw+fistpl 实证），即 x87 就近取整（round-to-nearest-even，
+// x.5 边界取偶）；以 (int)value 直接转换由编译器生成同一 fistpl 序列。
+// 注意不可用 +0.5f 截断：2.5 → RC=even 得 2，+0.5 截断得 3。
 // ---------------------------------------------------------------------------
 namespace
 {
 
 inline int round_nearest(float value)
 {
-    return (int)(value + 0.5f);
+    return (int)value;
 }
 
 }  // namespace

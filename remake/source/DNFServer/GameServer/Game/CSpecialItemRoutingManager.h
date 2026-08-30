@@ -40,8 +40,8 @@ public:
     // HasAllMemberSelection 则 cancelTimer+processRouting；返回 1=处理 0=已选过。
     int ArriveMemberSelection(CUser* user, CParty* party, char sel);
 
-private:
-    char m_pad[0x8];
+// ORIG 空类（sizeof 1，GetSpecialItemRoutingManager _Znwj(0x1) 实证；
+// 各方法经 CParty/全局数据工作，不访问 this 成员）。
 };
 
 #endif  // GAME_CSpecialItemRoutingManager_H

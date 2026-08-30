@@ -92,10 +92,13 @@ class CItem;
 class AvatarRechargeServer;
 
 class AvatarConvertServer : public ARAD::SCRIPT::AvatarConvert,
+                           public ARAD::Singleton<AvatarConvertServer>,
                            public ARAD::ScriptInterface
 {
 public:
-    AvatarConvertServer();    // ORIG 0x081921b6：脚本基(+4) → ScriptInterface(+0) → vtable
+    AvatarConvertServer();    // ORIG 0x081921b6：脚本基(+4) → Singleton(空基) →
+                              // ScriptInterface(+0) → vtable（Fix18_E：ORIG C1 实证
+                              // 调 _ZN4ARAD9SingletonI19AvatarConvertServerEC1Ev）
     ~AvatarConvertServer();   // ORIG 0x081921ec：vtable + 脚本基 dtor
 
     virtual bool Load();      // ORIG 0x081930ba：cMyTrace + return loadScript()==0

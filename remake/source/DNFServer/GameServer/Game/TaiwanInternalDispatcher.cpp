@@ -360,9 +360,10 @@ bool TaiwanInternalDispatcher::init()
 
 // ============================================================================
 // OnlyOrigBatch14：InterSelectMobileAuthReward::dispatch_sig
-// ORIG T 0x0816132a（0x283）。buf 承载 Msg*；m_rewarded==0 时发
-// tw_mobile_authentication_title_01/..._mail_01 系统邮件 + CeraShop 事件奖励；
-// m_rewarded!=0 时仅回写 user+0x8ec31 = m_rewarded。
+// ORIG T 0x0816132a（0x283）。buf 承载 Msg*。
+// 注意：ORIG 0x08161384 处为无条件 jmp（E9 04 02 00 00 → +0x263），
+// 发邮件主体（make_pair/findString/ReqDBSendNewSystemMultiMail/SendReward）
+// 在 ORIG 中为不可达代码；执行路径仅回写 user+0x8ec31 = m_rewarded。
 // ============================================================================
 int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
 {
@@ -374,54 +375,7 @@ int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
                               0x161, "[Taiwan, MobileAuth] interMsg is null.");
         return 0x162;
     }
-    if (msg->m_rewarded == 0)
-    {
-        // ORIG 0x081613a3：make_pair(1, 0x28983a) 入 vector
-        std::vector<std::pair<int, int> > items;
-        items.push_back(std::make_pair(1, 0x28983a));
-
-        char szTitle[0x1d];
-        strncpy(szTitle,
-                g_scriptStringManager_.findString(
-                    4, "tw_mobile_authentication_title_01", 0),
-                0x1d);
-        char szContents[0xff];
-        strncpy(szContents,
-                g_scriptStringManager_.findString(
-                    4, "tw_mobile_authentication_mail_01", 0),
-                0xff);
-
-        Inven_Item mailItems[9];
-        for (int i = 0; i < 9; ++i)
-        {
-            mailItems[i] = Inven_Item();
-        }
-        WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(
-            items, mailItems, 0xa);
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
-            szTitle, mailItems, (unsigned int)items.size(), 0,
-            (unsigned int)user->getCurCharacNo(), szContents,
-            (int)strlen(szContents), 0, user->GetServerGroup(), false);
-
-        CEventCeraShopRewardPoint* event = (CEventCeraShopRewardPoint*)
-            GlobalData::s_event_manager->GetRepeatEvent(0xa1);
-        typedef bool (*IsEventingFn)(void*, void*);
-        bool active = false;
-        if (event != 0 &&
-            reinterpret_cast<IsEventingFn>(
-                (*reinterpret_cast<void***>(event))[0x34 / 4])(event, 0))
-        {
-            active = true;
-        }
-        if (active)
-        {
-            event->SendReward(user);
-        }
-    }
-    else
-    {
-        user->m_field8ec31 = msg->m_rewarded;
-    }
+    user->m_field8ec31 = msg->m_rewarded;
     return 0;
 }
 

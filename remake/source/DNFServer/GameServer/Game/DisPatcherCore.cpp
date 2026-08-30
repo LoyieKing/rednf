@@ -755,6 +755,7 @@ int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         else
         {
+            DB_ArrangeUserLoginInfo::makeRequest(local_1c, false, local_18);
             WongWork::CSecurityCard* this_06 = user->getSecurityCard();
             if (this_06->isCertified() != false)
             {
