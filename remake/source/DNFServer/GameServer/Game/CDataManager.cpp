@@ -1455,15 +1455,22 @@ void CDataManager::GetPvPChannelGrade()
         channelMap.find(serverGroup);
     if (it != channelMap.end())
     {
+        // ORIG 0x08357e9e：遍历 vector，取 env channelNo(Server_Envir+0x18)
+        // 与 info.m_field0 匹配的首项拷入 m_pvpChannel（9 int）；未命中保持旧值。
+        int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
         std::vector<pvp_channel_info_t>& vec = it->second;
-        if (!vec.empty())
+        for (std::vector<pvp_channel_info_t>::iterator vit = vec.begin();
+             vit != vec.end(); ++vit)
         {
-            pvp_channel_info_t& info = vec.front();
-            int* dst = (int*)&m_pvpChannel;
-            const int* src = (const int*)&info;
-            for (int i = 0; i < 9; ++i)
+            if (channelNo == vit->m_field0)
             {
-                dst[i] = src[i];
+                int* dst = (int*)&m_pvpChannel;
+                const int* src = (const int*)&*vit;
+                for (int i = 0; i < 9; ++i)
+                {
+                    dst[i] = src[i];
+                }
+                break;
             }
         }
     }

@@ -347,7 +347,7 @@ int CAccountCargo::DepositMoney(unsigned int money)
     return 0;
 }
 
-int CAccountCargo::WithdrawMoney(unsigned int money)
+bool CAccountCargo::WithdrawMoney(unsigned int money)
 {
     CUser* user = m_pUser;
     ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();

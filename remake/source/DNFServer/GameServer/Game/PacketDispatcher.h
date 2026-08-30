@@ -153,13 +153,17 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
     // ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
     // MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；
     // 赋值内嵌于条件（(result = read(...)) != 0 / (result = process(...)) > 0
-    // ⇒ setne/setg 物化形态）；MSG 为 POD 不调用构造。
+    // ⇒ setne/setg 物化形态）；MSG 不调用构造（ORIG 实证：MSG_BASE 自带
+    // 空构造 _ZN8MSG_BASEC1Ev，但 dispatch_template 全部实例化对 MSG 栈对象
+    // 零构造调用——MSG_BASE/ParamBase 实例@0x81258f1 直接 lea 栈址传 read；
+    // 故以 char 缓冲承载，避免 `MSG msg;` 触发用户构造）。
     if (check_state(user, packet) > 0)
     {
         return 0;
     }
 
-    MSG msg;
+    char msgBuf[sizeof(MSG)];
+    MSG& msg = *reinterpret_cast<MSG*>(msgBuf);
     int result = 0;
     if ((result = this->read(packet, *reinterpret_cast<MSG_BASE*>(&msg))) != 0)
     {

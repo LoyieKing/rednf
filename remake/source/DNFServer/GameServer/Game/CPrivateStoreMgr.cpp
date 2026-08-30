@@ -2136,6 +2136,8 @@ CCharacterControllerPrivate::CCharacterControllerPrivate() : m_startPos() {}
 // 文案（0x8cbd0cf，原版即如此），逐字保留。
 void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& pos)
 {
+    pos.m_field2 = 0x172;
+    pos.m_field4 = 0xbe;
     pos.m_a = 0;
     pos.m_b = 0;
     if (user == 0)

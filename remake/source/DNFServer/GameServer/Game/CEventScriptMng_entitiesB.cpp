@@ -44,11 +44,10 @@ void CFatigueQuantity::set_event_data(int key, InGameEventScript* script)
     m_script1c = script;
 }
 
-char* CFatigueQuantity::get_db_table_name()
+std::string& CFatigueQuantity::get_db_table_name()
 {
     // ORIG 0x0810f988：return &m_dbTableName（FatigueQuantityScript +0x08）。
-    return reinterpret_cast<char*>(
-        &static_cast<FatigueQuantityScript*>(m_script1c)->m_dbTableName);
+    return static_cast<FatigueQuantityScript*>(m_script1c)->m_dbTableName;
 }
 
 // ORIG W 0x08110edc：返回绑定脚本 +0x0c 的 [user type] 字节。
@@ -112,11 +111,10 @@ void CObjectBringUp::set_event_data(int key, InGameEventScript* script)
     m_script1c = script;
 }
 
-char* CObjectBringUp::get_db_table_name()
+std::string& CObjectBringUp::get_db_table_name()
 {
     // ORIG 0x0810fcdc：return &m_dbTableName（ObjectBringUpScript +0x08）。
-    return reinterpret_cast<char*>(
-        &static_cast<ObjectBringUpScript*>(m_script1c)->m_dbTableName);
+    return static_cast<ObjectBringUpScript*>(m_script1c)->m_dbTableName;
 }
 
 // ORIG 0x08110386：按已用疲劳档位发放事件物品邮件。
@@ -181,10 +179,9 @@ void CPurchaseCashItemBonus::set_event_data(int key, InGameEventScript* script)
 }
 
 // ORIG 0x0810f9c0：return &m_dbTableName（PurchaseCashItemBonusScript +0x08）。
-char* CPurchaseCashItemBonus::get_db_table_name()
+std::string& CPurchaseCashItemBonus::get_db_table_name()
 {
-    return reinterpret_cast<char*>(
-        &static_cast<PurchaseCashItemBonusScript*>(m_script1c)->m_dbTableName);
+    return static_cast<PurchaseCashItemBonusScript*>(m_script1c)->m_dbTableName;
 }
 
 // ORIG 0x0810f9ce：目标商品购买计数更新。

@@ -3971,6 +3971,24 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                         outSlots.push_back(0);
                         outSlots.push_back(i);
                         outSlots.push_back(amount);
+                        if (m_pParent != 0 && (int)itemReason == 8 && bLog)
+                        {
+                            GetInstanceCubeStatistic()->collectCubeStatistics(
+                                itemIdx, amount, m_pParent,
+                                (CUBE_STATISTIC_FIELD)0x65);
+                        }
+                        else if (m_pParent != 0 && (int)itemReason == 8 && !bLog)
+                        {
+                            GetInstanceCubeStatistic()->collectCubeStatistics(
+                                itemIdx, amount, m_pParent,
+                                (CUBE_STATISTIC_FIELD)0x64);
+                        }
+                        else if (m_pParent != 0 && (int)itemReason == 4)
+                        {
+                            GetInstanceCubeStatistic()->collectCubeStatistics(
+                                itemIdx, amount, m_pParent,
+                                (CUBE_STATISTIC_FIELD)0x66);
+                        }
                         break;
                     }
                 }
@@ -3987,6 +4005,24 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                             outSlots.push_back(0);
                             outSlots.push_back(i);
                             outSlots.push_back(amount);
+                            if (m_pParent != 0 && (int)itemReason == 8 && bLog)
+                            {
+                                GetInstanceCubeStatistic()->collectCubeStatistics(
+                                    itemIdx, amount, m_pParent,
+                                    (CUBE_STATISTIC_FIELD)0x65);
+                            }
+                            else if (m_pParent != 0 && (int)itemReason == 8 && !bLog)
+                            {
+                                GetInstanceCubeStatistic()->collectCubeStatistics(
+                                    itemIdx, amount, m_pParent,
+                                    (CUBE_STATISTIC_FIELD)0x64);
+                            }
+                            else if (m_pParent != 0 && (int)itemReason == 4)
+                            {
+                                GetInstanceCubeStatistic()->collectCubeStatistics(
+                                    itemIdx, amount, m_pParent,
+                                    (CUBE_STATISTIC_FIELD)0x66);
+                            }
                             break;
                         }
                     }
@@ -6002,7 +6038,10 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
             int gained = cnt;
             if (m_pParent != 0 && ((CUserCharacInfo*)m_pParent)->getCurCharacR() != 0)
             {
-                gained = gain_money(cnt, moneyReason, true, 0);
+                // ORIG 0x08506d8d：gain_money 调在 charac 的 invenW 子背包实例上
+                // （m_pParent->getCurCharacInvenW()，enableSaveInven 后返回 +0xda）。
+                gained = ((CUserCharacInfo*)m_pParent)->getCurCharacInvenW()->
+                    gain_money(cnt, moneyReason, true, 0);
             }
             outSlots.push_back(0);
             outSlots.push_back(0);

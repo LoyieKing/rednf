@@ -80,7 +80,9 @@ struct Condition_LevelUp
     Condition_LevelUp();          // ORIG W 0x0898605a（装载批次定义）
     ~Condition_LevelUp();         // ORIG W 0x08986070
 
-    unsigned char m_filter[4];    // +0x00 解析器写入；+1=growType 过滤（0xff 通配）
+    unsigned char m_filter[2];    // +0x00 解析器写入；+1=growType 过滤（0xff 通配）；
+                                  // 仅 [0][1] 有访问证据（ORIG 拷贝构造 0x0898605a
+                                  // 仅 movzbl 复制 2 字节，[2][3] 不复制）
     std::vector<Reward_Item> m_items;  // +0x04
 
     typedef std::vector<Reward_Item> ItemVector;   // 便捷别名

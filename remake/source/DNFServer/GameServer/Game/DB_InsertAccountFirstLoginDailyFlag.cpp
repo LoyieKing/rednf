@@ -61,8 +61,8 @@ int DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*param1*/, int /*serverGr
         return 0;
 
     // ORIG 0x0843e99c/0x0843ea12：toTString(const std::string&) 转换表名。
-    char* tableName = ent->get_db_table_name();
-    const char* tableNameStr = toTString(*reinterpret_cast<const std::string*>(tableName));
+    std::string& tableName = ent->get_db_table_name();
+    const char* tableNameStr = toTString(tableName);
     db->set_query("upDate %s set charac_no=%u, occ_date=now() where m_id=%u",
                   tableNameStr, local_24, local_20);
     if (!db->exec(true))

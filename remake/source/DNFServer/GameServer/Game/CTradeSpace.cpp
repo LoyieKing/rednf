@@ -554,9 +554,14 @@ int CTradeSpace::cancel_trade_for_china(CUser* user)
             unsigned char kind = (unsigned char)slot->m_field08;
             if (kind == 1) {
                 ret = inv->insertAvatarIntoInventory(item, (eAvatarItemAddReason)3, 1);
+                if (ret >= 0 && slot->m_field00 != ret)
+                    inv->SendAvatarEvent(0x32, slot->m_field00 + 10, ret + 10,
+                                         *(int*)((char*)slot + 0x40), 0);
                 buf->put_byte(1);
             } else if (kind == 7) {
                 ret = inv->insertItemIntoCreature(item, (eItemAddReason)0x1c, 1, 1);
+                if (ret >= 0 && slot->m_field00 != ret)
+                    inv->GetCreatureMgrW()->ChangeSlotNo(&slot->m_item, ret, 0x1c);
                 buf->put_byte(7);
             } else if (kind == 0) {
                 ret = inv->insertItemIntoInventory(item, (eItemAddReason)2, 1, 1);

@@ -69,8 +69,8 @@ int DB_InsertAccountFirstLoginFlag::dispatch(int /*param1*/, int /*serverGroup*/
     char* numStr = NumberToString(local_2c, 0);
     // ORIG 0x0843e744：toTString(const std::string&) 转换表名（get_db_table_name
     // 返回 &m_dbTableName，调用方按 std::string& 解释）。
-    char* tableName = ent->get_db_table_name();
-    const char* tableNameStr = toTString(*reinterpret_cast<const std::string*>(tableName));
+    std::string& tableName = ent->get_db_table_name();
+    const char* tableNameStr = toTString(tableName);
     db->set_query("inSert into %s(m_id,server_id, charac_no, occ_date) "
                   "values(%s,%d, %u, now())",
                   tableNameStr, numStr, local_34, local_30);

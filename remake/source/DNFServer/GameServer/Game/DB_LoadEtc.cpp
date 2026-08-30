@@ -1551,7 +1551,7 @@ bool DB_LoadEtc::LoadAccountFirstLogin(SIG_LOAD_ETC* sig, int eventCode)
     // ORIG vtable+0x20 虚调用 get_db_table_name → &m_dbTableName（std::string 视图）
     // 经 toTString(std::string const&) 取表名。
     const char* tableName =
-        toTString(*reinterpret_cast<std::string*>(entity->get_db_table_name()));
+        toTString(entity->get_db_table_name());
     db->set_query("seLect m_id from %s where m_id=%s", tableName, accStr);
 
     unsigned int flagPos =
@@ -1615,7 +1615,7 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
     }
 
     const char* tableName =
-        toTString(*reinterpret_cast<std::string*>(entity->get_db_table_name()));
+        toTString(entity->get_db_table_name());
     db->set_query("seLect m_id from %s where m_id=%u and occ_date >"
                   " FROM_UNIXTIME(%d)", tableName, sig->m_accId, baseSec);
 
@@ -1876,7 +1876,7 @@ bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
 
     MySQL* db = 0;
     const char* tableName =
-        toTString(*reinterpret_cast<std::string*>(entity->get_db_table_name()));
+        toTString(entity->get_db_table_name());
     if (isCharacEvent)
     {
         db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,

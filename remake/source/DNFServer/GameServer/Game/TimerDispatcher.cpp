@@ -2223,9 +2223,9 @@ TimerCompleteLoadAssaultTimeout::TimerCompleteLoadAssaultTimeout() {}
 TimerCompleteLoadAssaultTimeout::~TimerCompleteLoadAssaultTimeout() {}
 int TimerCompleteLoadAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x863752c: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoad(p2,p3), return 1
+    // ORIG 0x863752c: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoad(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCompleteLoad((unsigned int)p2, p3);
+    mgr->OnTimeoutCompleteLoad((unsigned int)p1, p2);
     return 1;
 }
 
@@ -2233,9 +2233,9 @@ TimerConnectP2PAssaultTimeout::TimerConnectP2PAssaultTimeout() {}
 TimerConnectP2PAssaultTimeout::~TimerConnectP2PAssaultTimeout() {}
 int TimerConnectP2PAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x863759c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2P(p2,p3), return 1
+    // ORIG 0x863759c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2P(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutConnectP2P((unsigned int)p2, p3);
+    mgr->OnTimeoutConnectP2P((unsigned int)p1, p2);
     return 1;
 }
 
@@ -2243,9 +2243,9 @@ TimerEndAssault::TimerEndAssault() {}
 TimerEndAssault::~TimerEndAssault() {}
 int TimerEndAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x863760c: GetInstanceAssaultMgr() -> OnTimeoutEndAssault(p2,p3), return 1
+    // ORIG 0x863760c: GetInstanceAssaultMgr() -> OnTimeoutEndAssault(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutEndAssault((unsigned int)p2, p3);
+    mgr->OnTimeoutEndAssault((unsigned int)p1, p2);
     return 1;
 }
 
@@ -2253,9 +2253,9 @@ TimerCloseAssault::TimerCloseAssault() {}
 TimerCloseAssault::~TimerCloseAssault() {}
 int TimerCloseAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x863767c: GetInstanceAssaultMgr() -> OnTimeoutCloseAssault(p2,p3), return 1
+    // ORIG 0x863767c: GetInstanceAssaultMgr() -> OnTimeoutCloseAssault(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCloseAssault((unsigned int)p2, p3);
+    mgr->OnTimeoutCloseAssault((unsigned int)p1, p2);
     return 1;
 }
 
@@ -3779,7 +3779,7 @@ int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, uns
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x2e, p3))
         return 0;
-    if (party->GetTournamentDungeonClearState() == 'x01')
+    if (party->GetTournamentDungeonClearState() == 0x01)
     {
         PacketGuard packet;
         packet.clear();
@@ -3804,7 +3804,7 @@ int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, uns
         }
         packet.finalize(true);
         party->send_to_party(packet);
-        party->SetTournamentDungeonClearState('x02');
+        party->SetTournamentDungeonClearState(0x02);
         party->InsertTournamentDungeonTimer((TIMER_MESSAGE)0x2f);
     }
     return 1;

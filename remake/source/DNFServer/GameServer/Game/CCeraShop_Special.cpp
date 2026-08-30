@@ -251,7 +251,8 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
     int type, const STSpecailItem_Param& param, STSpecailItem_Result& result)
 {
     CUser* user = static_cast<CUser*>(param.m_user);
-    CInventory* inv = user->getCurCharacInvenW();
+    // ORIG 调 getCurCharacInvenR（const 版，无 enableSaveInven 副作用；W 版会置脏标记）
+    CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
     int cap = inv->get_inventory_capacity();
     if (cap < 0x10)
     {

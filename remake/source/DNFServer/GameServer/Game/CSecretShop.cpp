@@ -33,6 +33,15 @@
 #include <cstring>
 // eBuyRule / CSecretShopStatistic / IBuyRule / CSecretShop 类声明已提取至
 // CSecretShop.h（跨 TU 唯一声明点，供 CParty::dungeon_start 等调用方）。
+// CEventManager 完整定义在 CGuildServerProxy.h（与 GMAccounts.h 重定义冲突，
+// 本 TU 不可同时包含）。按 DB_Login.cpp 先例：仅声明 GetRepeatEvent 非虚
+// 成员（ORIG T 0x08115998），IsEventing 经 vtable+0x34 槽直调。
+class CEventBase;
+class CEventManager
+{
+public:
+    CEventBase* GetRepeatEvent(int type);
+};
 
 namespace secretshop
 {
@@ -476,9 +485,24 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
 {
     SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
     // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
-    // 为全局 CMTRand*（ORIG mangled P7CMTRand），类型一致，无需转换。
-    if (!script->GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, false))
-        script->GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, false);
+    // ORIG 0x085faca2：event = s_event_manager->GetRepeatEvent(0x3a)
+    // ->IsEventing((CUser*)0)（vtable slot 13），作 GetItemByDungeonIdx/Lev
+    // 第 5 参（命中时额外 GetItemByEvent 追加事件商品）。CEventManager 完整
+    // 定义在 CGuildServerProxy.h（与 GMAccounts.h 重定义冲突不可同时包含），
+    // 按 DB_Login.cpp 先例：GetRepeatEvent 用前置 CEventManager 的成员声明，
+    // IsEventing 经 vtable+0x34 槽直调（ORIG 指令形态）。
+    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
+    bool event = false;
+    if (ev != 0)
+    {
+        typedef bool (*IsEventingFn)(CEventBase*, int);
+        IsEventingFn fn =
+            *reinterpret_cast<IsEventingFn*>(
+                *reinterpret_cast<void**>(ev) + 0x34);
+        event = fn(ev, 0) != 0;
+    }
+    if (!script->GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
+        script->GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, event);
 }
 
 void CSecretShop::CheckLottery()

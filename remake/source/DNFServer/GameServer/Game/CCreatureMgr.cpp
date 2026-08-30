@@ -111,11 +111,17 @@ void CCreature::Reset()
     m_stomach.SetStomachValue(0.0f);   // CStomach::SetStomachValue(this+0x34, 0.0)
 }
 
-// ORIG CCreature @ 0x833705e：基类构造 → vptr → CStomach/COverSkillTime → Reset()。
-// 推断：本镜像无虚表；基类与子对象按零初始化后统一 Reset。
+// ORIG CCreature @ 0x833705e：基类构造（+0 ← 0x8c2f4d8）→ vptr 覆盖
+// （+0 ← 0x8c2f4c0）→ CStomachC1（+0x34=当前秒、+0x38=100.0f）→
+// COverSkillTimeC1（+0x48=0）→ Reset()。镜像无虚表，m_vptr 常量模拟
+// vtable 指针；memset 在成员自动构造之后执行会覆盖子对象构造结果，
+// 故补回 CStomach 初始值（Reset 随后把 m_value 覆盖为 0.0f，与 ORIG 一致）。
 CCreature::CCreature()
 {
     memset(this, 0, sizeof(*this));
+    m_vptr = 0x08c2f4c0;                 // ORIG movl $0x8c2f4c0,(%eax)
+    m_stomach.m_lastTime = GlobalData::s_systemTime_.getCurSec();  // ORIG CStomachC1：+0x34
+    m_stomach.m_value = 100.0f;          // ORIG CStomachC1：+0x38
     m_overSkill.m_time = 0;
     Reset();
 }
@@ -1878,11 +1884,15 @@ user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatu
     return 0;
 }
 
+// ORIG 0x833f618：GetCreatureItemType()==1 → 归还 m_creaturePool(+0x5c)；
+// ==0 → 归还 m_eggPool(+0x00)；否则返回 0（ORIG 无 null 检查，忠实转写）。
 bool user_creature::CCreatureItemFactory::FreeCreatureItem(user_creature::CCreatureItem* item)
 {
-    if (item == 0)
-        return false;
-    return m_creaturePool.Free(reinterpret_cast<user_creature::CCreature*>(item));
+    if (item->GetCreatureItemType() == 1)
+        return m_creaturePool.Free(reinterpret_cast<user_creature::CCreature*>(item));
+    if (item->GetCreatureItemType() == 0)
+        return m_eggPool.Free(reinterpret_cast<user_creature::CEgg*>(item));
+    return false;
 }
 
 // ORIG guard 单例（guard var 0x943c070 / instance 0x943c080）：__cxa_guard

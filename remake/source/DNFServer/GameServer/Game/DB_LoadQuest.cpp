@@ -122,7 +122,7 @@ bool DB_LoadQuest::GetUserQuest(SIG_LOAD_QUEST* sig)
             throw 0x2a36;
         }
         col0 = 0;
-        if (!db->get_int(idx++, (int&)col0))
+        if (!db->get_int(idx++, col0))
         {
             throw 0x2a39;
         }

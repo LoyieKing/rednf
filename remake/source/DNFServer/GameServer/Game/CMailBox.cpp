@@ -22,16 +22,18 @@ namespace
 {
 
 template <typename T>
-inline T& sig_at(void* base, int off)
+inline __attribute__((always_inline)) T& sig_at(void* base, int off)
 {
     return *reinterpret_cast<T*>(static_cast<char*>(base) + off);
 }
 
 template <typename T>
-inline const T& sig_at(const void* base, int off)
+inline __attribute__((always_inline)) const T& sig_at(const void* base, int off)
 {
     return *reinterpret_cast<const T*>(static_cast<const char*>(base) + off);
 }
+#define SIG_OFF(T, base, OFF) \
+    (*reinterpret_cast<T*>(const_cast<char*>(reinterpret_cast<const char*>(base)) + (OFF)))
 
 typedef std::map<unsigned int, WongWork::CMailBox::CMail*> MailMap;
 typedef std::map<int, bool> KeepMap;
@@ -71,7 +73,7 @@ long CMailBox::CMail::GetPeriod() const { return m_period; }
 bool CMailBox::CMail::IsTimeOver(long nowSec) const { return m_period <= nowSec; }
 
 // ORIG 0x08557590 (W)
-bool CMailBox::CMail::isUnlimit() const { return m_unlimit != 0; }
+unsigned char CMailBox::CMail::isUnlimit() const { return m_unlimit; }
 
 // ORIG 0x085574fe (W)
 const char* CMailBox::CMail::GetSenderName() const { return m_senderName; }
@@ -97,8 +99,8 @@ void CMailBox::CMail::ResetPackage()
     m_senderName[0] = '\0';
     m_item.reset();
     m_packageMoney = 0;
-    m_packageType = 0;
     m_unlimit = 0;
+    m_packageType = 0;
 }
 
 // ORIG 0x08551a36 (T)——docs/class_func_reports/WongWork__CMailBox__CMail/MakePacket.md
@@ -107,36 +109,33 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
 {
     packet->put_int((int)m_mailIndex);
 
-    int nameLen = (int)std::strlen(m_senderName);
-    packet->put_int(nameLen);
-    packet->put_str(m_senderName, nameLen);
+    packet->put_int((int)std::strlen(m_senderName));
+    packet->put_str(m_senderName, (int)std::strlen(m_senderName));
 
     packet->put_int(m_packageMoney);
-    packet->put_int(sig_at<int>(&m_item, 0x02));            // item idx（Inven_Item+0x02）
+    packet->put_int(m_item.m_addInfo);            // item idx（Inven_Item+0x02）
     packet->put_byte(m_item.m_field0 != 0 ? 1 : 0);         // Inven_Item+0x00
 
-    if (!isAvatarPackage())
+    if (isAvatarPackage())
     {
-        packet->put_int(sig_at<int>(this, 0x33));           // avatar/creature uid 域
+        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
+        inv->GetAvatarItemMgrR()->GetRemainDate(m_item.m_addInfo2,
+                                                (int)nowSec);
     }
     else
     {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        inv->GetAvatarItemMgrR()->GetRemainDate(sig_at<int>(this, 0x33),
-                                                (int)nowSec);
+        packet->put_int(m_item.m_addInfo2);           // avatar/creature uid 域
     }
 
-    packet->put_short((int)sig_at<unsigned short>(this, 0x37));
+    packet->put_short((int)m_item.m_fieldb);
 
     packet->put_byte((int)(m_item.GetItemAttr() & 0xff));
 
-    packet->put_int(sig_at<int>(this, 0x39));
+    packet->put_int(m_item.m_fieldd);
 
     // +0x3d 即 Inven_Item 内嵌 stAmplifyOption_t（m_item +0x11）
-    stAmplifyOption_t& ampRef =
-        sig_at<stAmplifyOption_t>(const_cast<char*>(reinterpret_cast<const char*>(&m_item)), 0x11);
-    packet->put_byte((int)(ampRef.getAbilityType() & 0xff));
-    packet->put_short((int)(ampRef.getAbilityValue() & 0xffff));
+    packet->put_byte((int)(m_item.m_amp.getAbilityType() & 0xff));
+    packet->put_short((int)(m_item.m_amp.getAbilityValue() & 0xffff));
 
     if (m_item.m_field1 == 5)                               // ITEM_TYPE creature
     {
@@ -144,7 +143,7 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
         user_creature::CCreatureMgr* cmgr =
             const_cast<user_creature::CCreatureMgr*>(inv->GetCreatureMgrR());
         packet->put_int(
-            cmgr->getRemainTempPeriod(sig_at<int>(this, 0x33), (int)nowSec));
+            cmgr->getRemainTempPeriod(m_item.m_addInfo2, (int)nowSec));
     }
 
     packet->put_packet(m_item);
@@ -153,7 +152,7 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
         const void* mgr = inv->GetAvatarItemMgrR();
-        int uid = sig_at<int>(this, 0x33);
+        int uid = m_item.m_addInfo2;
 
         packet->put_int(0x1e);
         packet->put_binary(CMailBox_AvatarGetJewelSocketData(mgr, uid), 0x1e);
@@ -194,72 +193,72 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
 // ORIG 0x08234566 (W)：map::size @+0x40
 int CMailBox::GetRecvSize()
 {
-    return (int)sig_at<MailMap>(this, OFF_MAILMAP).size();
+    return (int)m_mailMap.size();
 }
 
 // ORIG 0x08557922 (W)：StaticPool<CMail,20>::Remain @+0x10
 int CMailBox::GetRemainSize()
 {
-    return sig_at<StaticPool<CMail, 20> >(this, OFF_MAILPOOL).Remain();
+    return m_mailPool.Remain();
 }
 
 // ORIG 0x0823454c (W)
-int CMailBox::GetLoadedLetterCount() { return sig_at<int>(this, OFF_LOADCNT); }
+int CMailBox::GetLoadedLetterCount() { return m_loadedLetterCount; }
 
 // ORIG 0x0823455a (W)
-int CMailBox::GetNotLoadedMailCount() { return sig_at<int>(this, OFF_NOTLOADED); }
+int CMailBox::GetNotLoadedMailCount() { return m_notLoadedMailCount; }
 
 // ORIG 0x08557944 (W)
 int CMailBox::GetLastLoadIdx()
 {
-    return (int)sig_at<unsigned int>(this, OFF_LASTLOADIDX);
+    return (int)m_lastLoadIdx;
 }
 
 // ORIG 0x0855784c (W)
 int CMailBox::GetLastLoadLetterIdx()
 {
-    return (int)sig_at<unsigned int>(this, OFF_LASTLETTER);
+    return (int)m_lastLoadLetterIdx;
 }
 
 // ORIG 0x08557886 (W)：keep map::size @+0x64
 int CMailBox::GetLetterKeepCount()
 {
-    return (int)sig_at<KeepMap>(this, OFF_KEEP).size();
+    return (int)m_letterKeepCount.size();
 }
 
 // ORIG 0x08557866 (W)：clear keep map 并清零 lastLoadLetterIdx
 void CMailBox::ClearLetterKeepCount()
 {
-    sig_at<KeepMap>(this, OFF_KEEP).clear();
-    sig_at<unsigned int>(this, OFF_LASTLETTER) = 0;
+    m_letterKeepCount.clear();
+    m_lastLoadLetterIdx = 0;
 }
 
 // ORIG 0x084ed222 (W)：map.insert(make_pair(letterId,true))，返回 insert 的 bool
 //（新插入 true / 已存在 false；ORIG movzbl insert 返回 pair.second）。
 bool CMailBox::InsertLetterKeepCount(unsigned int letterId)
 {
-    return sig_at<KeepMap>(this, OFF_KEEP)
-        .insert(std::make_pair((int)letterId, true)).second;
+    return m_letterKeepCount
+        .insert(std::make_pair(letterId, true)).second;
 }
 
 // ORIG 0x08557938 (W)
-bool CMailBox::IsLoaded() { return sig_at<bool>(this, OFF_LOADED); }
+bool CMailBox::IsLoaded() { return m_bInit; }
 
 // ORIG 0x08557950 (W)：写加载状态；置 true 时同时写 lastLoadIdx ← nowSec
 void CMailBox::SetLoadState(bool loaded, long nowSec)
 {
-    *(bool*)((char*)this + OFF_LOADED) = loaded;   // ORIG mov %dl,(%eax) 直写
+    m_bInit = loaded;                              // ORIG mov %dl,(%eax) 直写
     if (loaded)
-        *(unsigned int*)((char*)this + OFF_LASTLOADIDX) = (unsigned int)nowSec;   // ORIG mov %edx,0x4(%eax)
+        m_lastLoadIdx = (unsigned int)nowSec;      // ORIG mov %edx,0x4(%eax)
 }
 
 // ORIG 0x085577ac (W)：id==0 → false；否则在 loadLack 列表中查找
-int CMailBox::FindPackageLoadLack(unsigned int id)
+bool CMailBox::FindPackageLoadLack(unsigned int id)
 {
     if (id == 0)
         return 0;
-    std::vector<unsigned int>& list = m_loadLackList;
-    return std::find(list.begin(), list.end(), id) != list.end() ? 1 : 0;
+    return std::find(m_loadLackList.begin(), m_loadLackList.end(), id)
+               != m_loadLackList.end();
 }
 
 // ORIG 0x08557608 (W)：逐项拷贝 lack 列表前 n 项到 out（越界即停）
@@ -272,11 +271,8 @@ void CMailBox::GetPackageLoadLack(unsigned int* out, unsigned int n)
 // ORIG 0x085522c4 (T, _ZNK)：map find，未找到返回 0
 CMailBox::CMail* CMailBox::GetMail(unsigned int mailIndex) const
 {
-    MailMap const& mails =
-        *reinterpret_cast<MailMap const*>(reinterpret_cast<char const*>(this) +
-                                          OFF_MAILMAP);
-    MailMap::const_iterator it = mails.find(mailIndex);
-    if (it == mails.end())
+    MailMap::const_iterator it = m_mailMap.find(mailIndex);
+    if (it == m_mailMap.end())
         return 0;
     return it->second;
 }
@@ -284,29 +280,30 @@ CMailBox::CMail* CMailBox::GetMail(unsigned int mailIndex) const
 // ORIG 0x08552138 (T)——docs/class_func_reports/WongWork__CMailBox/RemoveMail.md
 int CMailBox::RemoveMail(unsigned int mailIndex)
 {
-    MailMap& mails = sig_at<MailMap>(this, OFF_MAILMAP);
-    MailMap::iterator it = mails.find(mailIndex);
-    if (it == mails.end())
+    CMail* mail = 0;                       // ORIG movl $0x0 提前清零
+    MailMap::iterator it;                  // ORIG 先默认构造再拷贝赋值
+    it = m_mailMap.find(mailIndex);
+    if (it == m_mailMap.end())
         return 0;
 
-    CMail* mail = it->second;
-    mails.erase(it);
+    mail = it->second;
+    m_mailMap.erase(it);
 
     if (mail->GetLetterId() != 0)
     {
         // 若剩余邮件中不再有同 letterId 者 → 已加载计数 +1
         bool stillExists = false;
-        for (MailMap::iterator jt = mails.begin(); jt != mails.end(); ++jt)
+        for (MailMap::iterator jt = m_mailMap.begin(); jt != m_mailMap.end(); ++jt)
         {
             if (jt->second->GetLetterId() == mail->GetLetterId())
                 stillExists = true;
         }
         if (!stillExists)
-            sig_at<int>(this, OFF_LOADCNT) += 1;
+            m_loadedLetterCount += 1;
     }
 
     mail->ResetPackage();
-    sig_at<StaticPool<CMail, 20> >(this, OFF_MAILPOOL).Free(mail);
+    m_mailPool.Free(mail);
     return 1;
 }
 
@@ -318,38 +315,32 @@ int CMailBox::RemoveMail(unsigned int mailIndex)
 //   +0x24 Inven_Item*（可空）
 CMailBox::CMail* CMailBox::AddNewMail(const stAddNewMailInput& inputRaw)
 {
-    const void* in = reinterpret_cast<const void*>(&inputRaw);
-    CMail* mail = sig_at<StaticPool<CMail, 20> >(this, OFF_MAILPOOL).Acquire();
+    CMail* mail = m_mailPool.Acquire();
     if (mail == 0)
         return 0;
 
-    mail->m_mailIndex      = sig_at<unsigned int>(in, 0x00);
-    mail->m_senderCharacNo = sig_at<unsigned int>(in, 0x04);
-    mail->m_packageMoney   = sig_at<unsigned int>(in, 0x08);
-    mail->m_letterId       = sig_at<unsigned int>(in, 0x0c);
-    mail->m_remainSec      = sig_at<unsigned int>(in, 0x10);
-    mail->m_packageType    = sig_at<int>(in, 0x14);
-    mail->m_period         = (long)sig_at<unsigned int>(in, 0x18);
-    mail->m_unlimit        = sig_at<unsigned char>(in, 0x1c);
+    mail->m_mailIndex      = SIG_OFF(unsigned int, &inputRaw, 0x00);
+    mail->m_senderCharacNo = SIG_OFF(unsigned int, &inputRaw, 0x04);
+    mail->m_packageMoney   = SIG_OFF(unsigned int, &inputRaw, 0x08);
 
-    const Inven_Item* srcItem = sig_at<const Inven_Item*>(in, 0x24);
+    // ORIG：srcItem 分支逐字段展开拷贝；空时构造 Inven_Item() 后逐字段搬移。
+    const Inven_Item* srcItem = SIG_OFF(const Inven_Item*, &inputRaw, 0x24);
     if (srcItem == 0)
         mail->m_item = Inven_Item();
     else
-        std::memcpy(&mail->m_item, srcItem, sizeof(Inven_Item));
+        mail->m_item = *srcItem;
 
-    const char* name = sig_at<const char*>(in, 0x20);
-    if (name != 0)
-    {
-        std::strncpy(mail->m_senderName, name, 0x1d);
-        mail->m_senderName[0x1d - 1] = '\0';
-    }
-    else
-    {
-        mail->m_senderName[0] = '\0';
-    }
+    mail->m_period = (long)SIG_OFF(unsigned int, &inputRaw, 0x18);
 
-    sig_at<MailMap>(this, OFF_MAILMAP)[mail->m_mailIndex] = mail;
+    std::strncpy(mail->m_senderName, SIG_OFF(const char*, &inputRaw, 0x20), 0x1d);
+
+    mail->m_packageType = SIG_OFF(int, &inputRaw, 0x14);
+    mail->m_unlimit     = SIG_OFF(unsigned char, &inputRaw, 0x1c);
+    mail->m_letterId    = SIG_OFF(unsigned int, &inputRaw, 0x0c);
+
+    m_mailMap.insert(std::make_pair(mail->m_mailIndex, mail));
+
+    mail->m_remainSec = SIG_OFF(unsigned int, &inputRaw, 0x10);
     return mail;
 }
 
@@ -366,9 +357,9 @@ namespace user_creature
 CCreatureItem* CCreatureMgr::FindCreatureItem(int uid) const
 {
     std::map<int, CCreatureItem*>::const_iterator it = m_creatureItems.find(uid);
-    if (it == m_creatureItems.end())
-        return 0;
-    return it->second;
+    if (it != m_creatureItems.end())
+        return it->second;
+    return 0;
 }
 
 // ORIG 0x0833d88c (_ZNK...18getRemainTempPeriodEii)
@@ -380,11 +371,14 @@ int CCreatureMgr::getRemainTempPeriod(int uid, int nowSec) const
     std::map<int, int>::const_iterator it = m_field30.find(uid);
     if (it != m_field30.end())
     {
-        int v = it->second;
-        if (v < 1)
-            return v;
-        int r = v - nowSec;
-        return r == 0 ? 1 : r;
+        if (it->second > 0)
+        {
+            int r = it->second - nowSec;
+            if (r == 0)
+                return 1;
+            return r;
+        }
+        return it->second;
     }
     CCreatureItem* item = FindCreatureItem(uid);
     if (item == 0)

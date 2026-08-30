@@ -12347,16 +12347,14 @@ bool DB_UpdateAddItemCountValue::dispatch(int /*userIdx*/, int /*slot*/,
     // ORIG：表名不缓存（UPDATE/INSERT 各自 vtable+0x20 虚调用 + toTString，
     // 无 CSE）；mId 串每处 NumberToString 即时求值（ebx/esi callee-saved 缓存）。
     db->set_query("upDate %s set item_cnt=item_cnt+%d where m_id=%s",
-                  toTString(*reinterpret_cast<std::string*>(
-                      entity->get_db_table_name())),
+                  toTString(entity->get_db_table_name()),
                   itemCnt, NumberToString(mId, 0));
     if (!db->exec(true))
         return 0;
     if (db->getAffectedRowCount() == 0)
     {
         db->set_query("inSert into %s(m_id, item_cnt) values(%s, %d)",
-                      toTString(*reinterpret_cast<std::string*>(
-                          entity->get_db_table_name())),
+                      toTString(entity->get_db_table_name()),
                       NumberToString(mId, 0), itemCnt);
         if (!db->exec(true))
             return 0;
@@ -12431,10 +12429,8 @@ bool DB_UpdateFatigueAttendance::dispatch(int /*userIdx*/, int /*slot*/,
     CDataManager* dm = G_CDataManager();
     EventClassify::CEventScriptMng* sm =
         static_cast<EventClassify::CEventScriptMng*>(dm->get_event_script_mng());
-    // ORIG 0x08444616：get_db_table_name(int) 返回 char*（entity 的 string 视图），
-    // 拷贝构造源为 reinterpret_cast<std::string*>（_ZNSsC1ERKSs，非 char* 构造）。
-    std::string tableStr(
-        *reinterpret_cast<std::string*>(sm->get_db_table_name(0x56)));
+    // ORIG 0x08444616：get_db_table_name(int) 返回 std::string&（_ZNSsC1ERKSs 拷贝构造）。
+    std::string tableStr(sm->get_db_table_name(0x56));
     const char* tableName = toTString(tableStr);
     for (std::map<unsigned char, short>::iterator it = fatigueMap.begin();
          it != fatigueMap.end(); ++it)
@@ -13718,9 +13714,8 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
                                                   E_SERVER_GROUP_NONE);
     SIG_OBJECT_BRING_UP* sig = stream->GetOutBuffer<SIG_OBJECT_BRING_UP>();
     std::string tableStr(
-        *reinterpret_cast<std::string*>(
-            static_cast<EventClassify::CEventScriptMng*>(
-                G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19b)));
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19b));
     if (sig->m_rewardFlag == 0)
     {
         db->set_query(
@@ -15878,9 +15873,9 @@ bool DB_UpdateUserFatigueQuantity::dispatch(int userIdx, int slot, Stream* strea
     unsigned int u2 = 0;
     stream->operator>>(u1);
     stream->operator>>(u2);
-    std::string table(*reinterpret_cast<std::string*>(
+    std::string table(
         static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x199)));
+            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x199));
     db->set_query(
         "upDate %s set fatigue_quantity=fatigue_quantity+%d where m_id=%s",
         toTString(table), u2, NumberToString(u1, 0));
@@ -15919,7 +15914,7 @@ bool DB_UpdateUserGiftFatigueQuantity::dispatch(int userIdx, int slot, Stream* s
     stream->operator>>(u2);
     stream->operator>>(u3);
     MySQL* db = 0;
-    std::string table(*reinterpret_cast<std::string*>(evt->get_db_table_name()));
+    std::string table(evt->get_db_table_name());
     if (charac)
     {
         db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
@@ -16690,9 +16685,8 @@ bool DB_SelectLevelUpReward::dispatch(int userIdx, int slot, Stream* stream)
     *stream >> characNo;
     *stream >> rewardIdx;
     std::string tableStr(
-        *reinterpret_cast<std::string*>(
-            static_cast<EventClassify::CEventScriptMng*>(
-                G_CDataManager()->get_event_script_mng())->get_db_table_name(0x194)));
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x194));
 
     db->set_query("seLect  recv_level from %s where charac_no = %u",
                   toTString(tableStr), characNo);

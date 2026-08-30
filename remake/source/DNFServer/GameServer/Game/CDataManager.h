@@ -285,7 +285,8 @@ struct STBreakAwaySection         // ORIG C1 0x822afb0（清零）；get_break_a
 {                                 //   sret memmove 3 字节实证 → sizeof 0x3
     STBreakAwaySection() { m_field0 = m_field1 = m_field2 = 0; }  // ORIG 链式清零形态
     char m_field0;                // +0x00
-    char m_field1;                // +0x01（get_break_away_section_data 按此与 level 比较）
+    unsigned char m_field1;       // +0x01（ORIG get_break_away_section_data/low_level
+                                  //  对 m_field1 的 movzbl 零扩展实证 ⇒ 无符号比较）
     char m_field2;                // +0x02
 };
 // ORIG C1 0x891b762（4×int 逐个清零）/ D1 0x893c682（trivial ret）。

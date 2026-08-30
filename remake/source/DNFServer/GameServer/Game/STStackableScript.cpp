@@ -287,13 +287,20 @@ STStackableScript& STStackableScript::operator=(const STStackableScript& other)
     m_package274 = other.m_package274;
     m_booster280 = other.m_booster280;
     m_package2a4 = other.m_package2a4;
-    memcpy(&m_recovery2b0, &other.m_recovery2b0, 0x11);
-    memcpy(&m_recovery2c4, &other.m_recovery2c4, 0x11);
-    memcpy(&m_statusRecovery2d8, &other.m_statusRecovery2d8, 0x11);
+    // ORIG 对 6 个平凡区 memcpy 均带 self 守卫（cmp this+off vs other+off; je 跳过）
+    if (&m_recovery2b0 != &other.m_recovery2b0)
+        memcpy(&m_recovery2b0, &other.m_recovery2b0, 0x11);
+    if (&m_recovery2c4 != &other.m_recovery2c4)
+        memcpy(&m_recovery2c4, &other.m_recovery2c4, 0x11);
+    if (&m_statusRecovery2d8 != &other.m_statusRecovery2d8)
+        memcpy(&m_statusRecovery2d8, &other.m_statusRecovery2d8, 0x11);
     m_status2ec = other.m_status2ec;
-    memcpy(&m_buff304, &other.m_buff304, 0xd);
-    memcpy(&m_summonMonster314, &other.m_summonMonster314, 0x19);
-    memcpy(&m_summonApc330, &other.m_summonApc330, 0x15);
+    if (&m_buff304 != &other.m_buff304)
+        memcpy(&m_buff304, &other.m_buff304, 0xd);
+    if (&m_summonMonster314 != &other.m_summonMonster314)
+        memcpy(&m_summonMonster314, &other.m_summonMonster314, 0x19);
+    if (&m_summonApc330 != &other.m_summonApc330)
+        memcpy(&m_summonApc330, &other.m_summonApc330, 0x15);
     m_348 = other.m_348;
     m_statChange34c = other.m_statChange34c;
     m_364 = other.m_364;

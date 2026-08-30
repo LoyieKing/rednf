@@ -42,6 +42,7 @@ class CDataManager
 {
 public:
     void* get_event_script_mng();
+    int GetPvPMode();    // ORIG W 0x844d4ae（LinkClosureA_Data.cpp 实现）
 };
 CDataManager* G_CDataManager();
 
@@ -514,8 +515,7 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
         else
         {
             unsigned int modeMask = SGF<unsigned int>(sig, OFF_PVP_MODE_MASK);
-            unsigned int pvpMode =
-                *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(G_CDataManager()) + 0xb44c);  // GetPvPMode 弱内联 ORIG 0x844d4ae
+            unsigned int pvpMode = (unsigned int)G_CDataManager()->GetPvPMode();
             blocked = ((pvpMode & modeMask) == 1);
         }
         if (blocked)
@@ -901,8 +901,9 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     db->get_int(1, SGF<int>(sig, OFF_SEC_FAILCNT));               // fail_cnt
     db->get_uint(2, validity);                                    // validity_time>now()
     db->get_uint(3, SGF<unsigned int>(sig, OFF_SEC_CERTFLAG));    // cert_flag
+    db->get_byte(4, SGF<char>(sig, OFF_SEC_CERTCNT));             // cert_cnt（ORIG 先读列 4）
     db->get_short(5, SGF<int>(sig, OFF_SEC_QPOS));                // q_pos（int 引用重载）
-    db->get_byte(4, SGF<char>(sig, OFF_SEC_CERTCNT));             // cert_cnt
+    db->get_str(5, SGB(sig, 0x3a18), 5);                          // ORIG：列 5 再读 str 到 +0x3a18（长 5）
     if (validity == 1)
     {
         SGF<char>(sig, OFF_SEC_CARD_LIFE) = 1;
@@ -913,11 +914,7 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     if (SGF<int>(sig, OFF_SEC_CERTFLAG) != 0)
     {
         long long curSec = GlobalData::s_systemTime_.getCurSec();
-        bool doReset = CheckDailyScheduleTime(
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
-            SGF<long long>(sig, 0x3958), curSec) ? true : false;
-        (void)doReset;
-        // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真
+        // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（单次调用）
         char chk = CheckDailyScheduleTime(
             *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
             SGF<long long>(sig, 0x3958), curSec);
@@ -1056,9 +1053,8 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     db->get_uint(8, col[8]);                        // sec_card_validity>now()
 
     char validIp[16];
-    memset(validIp, 0, sizeof(validIp));
     char ipMatch = 1;
-    db->get_str(9, validIp, 0x10);
+    db->get_str(9, validIp, 0x10);    // ORIG：get_str 直接覆盖，无预清零
     if (strncmp(validIp, SGB(sig, OFF_LOGIN_IP), 0x10) != 0)
     {
         ipMatch = 0;
@@ -1337,9 +1333,27 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                     int preType = 0;
                     int svcStart = 0;
                     int svcEnd = 0;
-                    if (!dbPremium->get_int(0, preType)) break;
-                    if (!dbPremium->get_int(1, svcStart)) break;
-                    if (!dbPremium->get_int(2, svcEnd)) break;
+                    if (!dbPremium->get_int(0, preType))
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x3628, 5);
+                        trace("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%s",
+                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                        return;    // ORIG：失败即收尾返回（不进收尾的 RemovePreminuInfo）
+                    }
+                    if (!dbPremium->get_int(1, svcStart))
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x362e, 5);
+                        trace("DB_Login::GetPremiumInfo, get(2) ERROR m_id=%s",
+                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                        return;
+                    }
+                    if (!dbPremium->get_int(2, svcEnd))
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x3634, 5);
+                        trace("DB_Login::GetPremiumInfo, get(3) ERROR m_id=%s",
+                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                        return;
+                    }
 
                     bool skip =
                         (G_GameWorld()->GetChannelType() == 7 && (preType == 0x16 || preType == 0x1b)) ||
@@ -1472,8 +1486,7 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
 {
     bool ok = false;
-    unsigned char cipherBuf[128];
-    memset(cipherBuf, 0, sizeof(cipherBuf));
+    unsigned char cipherBuf[128];    // ORIG：未清零（Hex2Binary 全量覆盖）
 
     CRijndael cipher;
     cipher.Initialize("sbTgiYsfxpfg5fox", 0x20, CRijndael::sm_chain0, 0x10,
@@ -2001,9 +2014,7 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
 
     char hashKey[0x84];
     char pwdHash[0x84];
-    memset(hashKey, 0, sizeof(hashKey));
-    memset(pwdHash, 0, sizeof(pwdHash));
-    if (!db->get_binary(1, hashKey, 0x84))
+    if (!db->get_binary(1, hashKey, 0x84))    // ORIG：get_binary 全量覆盖，无预清零
     {
         return -1;
     }
@@ -2235,13 +2246,10 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     }
     SGF<char>(sig, 0x4124) = 0;                  // ip 变更标志清零
 
-    char curIp[32];
-    char oldIp[32];
-    memset(curIp, 0, sizeof(curIp));
-    memset(oldIp, 0, sizeof(oldIp));
-    strcpy(curIp + 0x10 /*占位由下方整理*/, "");
+    char curIp[16] = {0};
+    char oldIp[16] = {0};
     strcpy(curIp, SGB(sig, OFF_LOGIN_IP));
-    // ORIG：local_34[32] 双缓冲，前 16 字节=旧登录 ip(+0x4114)、后 16 字节=当前 ip
+    // ORIG：双 16 字节缓冲，当前 ip 与旧登录 ip(+0x4114)
     strcpy(oldIp, SGB(sig, 0x4114));
 
     char* dotCur = strrchr(curIp, '.');          // 截掉最后一段（去端口化前缀）
@@ -2364,6 +2372,22 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
             {
                 SGF<char>(sig, outIdx * 0x54 + 0x15e6) = 0;
             }
+            if (dbBonus->getAffectedRowCount() == 0)
+            {
+                dbBonus->set_query(
+                    "inSert into charac_link_bonus (charac_no,mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period) values(%u,0,0,-1,-1)",
+                    characNo);
+                if (dbBonus->exec(true))
+                {
+                    SGF<int>(sig, outIdx * 0x54 + 0x15dc) = 0;
+                    SGF<int>(sig, outIdx * 0x54 + 0x15e0) = 0;
+                    SGF<char>(sig, outIdx * 0x54 + 0x15e4) = 0xff;
+                    SGF<char>(sig, outIdx * 0x54 + 0x15e5) = 0xff;
+                    outIdx += 1;
+                    SGF<int>(sig, OFF_QUICK_SLOT) += 1;
+                }
+            }
+            else
             {
                 bool ok = dbBonus->fetch();
                 if (ok) ok = dbBonus->get_int(0, SGF<int>(sig, outIdx * 0x54 + 0x15dc));
@@ -2532,7 +2556,7 @@ int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
                 return 0;
             }
             // ORIG 基址换算：(i + 0x866)*8 + 8/0xc ⇒ i*8 + OFF_ONCE_GIFT / +4
-            short jobType = 0;
+            int jobType = 0;
             int level = 0;
             if (!db->get_short(0, jobType)) return 0;
             if (!db->get_int(1, level)) return 0;

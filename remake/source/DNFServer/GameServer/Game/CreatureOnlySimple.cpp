@@ -111,9 +111,10 @@ unsigned char CCreatureItem::GetStat()
 // ② vptr ← &_ZTVN13user_creature4CEggE+0x8（nm V 0x08c2f4a0 → +8 = 0x08c2f4a8）
 // ③ Reset()
 // 镜像以 int m_vptr 槽模拟多态头，无虚表生成。
+// ORIG 只调一次 CCreatureItemC1（编译器隐式基类构造）；显式
+// `CCreatureItem();` 会额外构造一次临时对象（NEW 反汇编 2 次 C1），删除。
 CEgg::CEgg()
 {
-    CCreatureItem();           // ORIG call CCreatureItemC1
     m_vptr = (int)0x08c2f4a8;  // ORIG movl $&_ZTVN13user_creature4CEggE+0x8
     Reset();
 }

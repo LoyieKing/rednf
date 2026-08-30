@@ -144,14 +144,20 @@ struct stRewardPostal : public stTitleRewardBasis
 static_assert(sizeof(stRewardPostal) == 0x20,
               "stRewardPostal size drift");
 
-// ---- 称号章节（0x40 字节；布局经 importTitleSection 报告逐偏移实证：
-// 字符串 +0x04/+0x14/+0x18/+0x20/+0x24/+0x30，int +0x00/+0x08/+0x0c/+0x10/
+// 字符串 +0x04/+0x08/+0x14/+0x18/+0x20/+0x24/+0x30，int +0x00/+0x0c/+0x10/
 // +0x1c/+0x28/+0x2c，rewards vector +0x34）----
 struct stTitleSection
 {
+    stTitleSection()
+        : m_category(4), m_startIdx(-1), m_endIdx(-1),
+          m_imageParam(-1), m_iconId(-1), m_frameType(0)
+    {
+        // ORIG C1 0x08aa979e：+0x00=4、+0x0c/+0x10/+0x1c/+0x28=-1、+0x2c=0
+        //（string/vector 成员自动构造）
+    }
     int m_category;                          // +0x00
     std::string m_sectionName;               // +0x04（[section name]）
-    int m_field8;                            // +0x08
+    std::string m_field8;                    // +0x08（ORIG 实证 string；解析不使用）
     int m_startIdx;                          // +0x0c（importTitleSection：tab*10）
     int m_endIdx;                            // +0x10（startIdx+10）
     std::string m_name;                      // +0x14（[name]）

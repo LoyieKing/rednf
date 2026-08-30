@@ -150,9 +150,12 @@ class MSG_BUY_ITEM
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // ORIG DisPatcher_BuyItem（process/get_data/check_error 逐字节）：
-    int m_itemIdx;      // +0x0d（购买目标 item idx；get_data find_item 输入）
-    int m_buyCount;     // +0x11（购买数量；>1 时 get_nMaxBuyableCount 校验）
-    int m_deliveryType; // +0x15（eventDeliveryBuyItem 首参回传）
+    unsigned long m_itemIdx;      // +0x0d（ORIG read 调 get_int(unsigned long&)ERm；
+                                  //  get_data find_item 输入）
+    unsigned int m_buyCount;      // +0x11（ORIG read 调 get_int(unsigned&)ERj；购买数量；
+                                  //  >1 时 get_nMaxBuyableCount 校验）
+    unsigned int m_deliveryType;  // +0x15（ORIG read 调 get_int(unsigned&)ERj；
+                                  //  eventDeliveryBuyItem 首参回传）
 };
 #pragma pack(pop)
 
@@ -1466,7 +1469,8 @@ class MSG_SECU_RPY : public MSG_BASE
 {
 public:
     MSG_SECU_RPY();
-    char m_pad[0x100];
+    char m_pad[0x1007];       // +0x0d..（ORIG 权威尺寸 0x1014：数据区 +0x0f..+0x100e、
+                              //  长度 +0x100f、应答类型 +0x1013；dispatch_template 帧实证）
 };
 
 #pragma pack(push, 1)

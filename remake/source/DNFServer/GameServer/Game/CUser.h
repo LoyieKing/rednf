@@ -725,7 +725,7 @@ public:
 
     // ---- 金钱 ----
     int DepositMoney(unsigned int money);
-    int WithdrawMoney(unsigned int money);
+    bool WithdrawMoney(unsigned int money);
     int CheckMoneyLimit(unsigned int money);
     void AddMoney(unsigned int money);
     void SubMoney(unsigned int money);
@@ -3285,7 +3285,7 @@ public:
     void quest_basic_reward(Quest* q, int& a, int& b, int& c, int& d,
                             bool flag);                       // 0x0869235a T（定义本批 body_B）
         // ---- Competition / Mercenary ----
-        void Competition_Mercenary_Charac(unsigned int slot, char modeA, char modeB);   // 0x0868e6c0 T
+        int Competition_Mercenary_Charac(unsigned int slot, char modeA, char modeB);   // 0x0868e6c0 T（透传 CompetitionCharac 0/1）
         // ---- Reward list / compound ----
         void complete_reward_list(std::vector<std::pair<int,int> >& needList,
                                   std::vector<std::pair<int,int> >& gotList);           // 0x08664dce T

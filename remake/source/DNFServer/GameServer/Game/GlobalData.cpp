@@ -4632,7 +4632,7 @@ void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
 void CBusinessImpl::ProcessProtectMsg(tagTSafeModePkg* pkg)
 {
     // ORIG 0x080de4ec：StreamPool 取流；<<0x254 <<-1；put_binary(pkg, 0x34)。
-    Stream* s = GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x75);
+    Stream* s = GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x88);
     CStreamGuard guard(s, true);
     **guard << 0x254;
     **guard << -1;

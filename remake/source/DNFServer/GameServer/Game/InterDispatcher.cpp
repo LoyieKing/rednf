@@ -2699,7 +2699,7 @@ Inter_CutOffCallUserInfo::Inter_CutOffCallUserInfo() {}
 Inter_CutOffCallUserInfo::~Inter_CutOffCallUserInfo() {}
 // ORIG 0x084c8a70 T dispatch_sig —— 截断服索取用户信息。
 // 报告 docs/class_func_reports/Inter_CutOffCallUserInfo/dispatch_sig.md 全文转写。
-int Inter_CutOffCallUserInfo::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
+int Inter_CutOffCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_CGameManager() == 0)
     {
@@ -2709,11 +2709,12 @@ int Inter_CutOffCallUserInfo::dispatch_sig(CUser* /*user*/, char* /*data*/, int 
         trace("Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager() is null");
         return 0;
     }
+    char* p = data;
     G_CGameManager()->send_userinfos_to_cutoff_server();
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x2252, 0);
-    trace("Cut Off Server Call UserInfo Arrived");
+    trace("Cut Off Server Call UserInfo Arrived\n");
     return 0;
 }
 
@@ -11889,16 +11890,23 @@ Inter_CreateAccountCargo::~Inter_CreateAccountCargo() {}
 // 报告 docs/class_func_reports/Inter_CreateAccountCargo/dispatch_sig.md 全文转写。
 int Inter_CreateAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+#pragma pack(push, 1)
+    struct CreateAccountCargoView
+    {
+        unsigned char m_errCode;    // +0x0
+        char m_pad[3];
+        unsigned int m_money;       // +0x4
+    };
+#pragma pack(pop)
+    CreateAccountCargoView* p = reinterpret_cast<CreateAccountCargoView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    if (*reinterpret_cast<unsigned char*>(data + 0x0) != 0)
+    if (p->m_errCode != 0)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132,
-                                 *reinterpret_cast<unsigned char*>(data + 0x0));
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, p->m_errCode);
         return 0;
     }
-    user->SetAccountCargoDBData(
-        (Inven_Item*)0, 0, *reinterpret_cast<unsigned int*>(data + 0x4));
+    user->SetAccountCargoDBData((Inven_Item*)0, 0, p->m_money);
     user->SendCmdOkPacket((ENUM_CMDPACKET)0x132);
     return 0;
 }
@@ -12305,22 +12313,30 @@ Inter_AddGuildFundResult::~Inter_AddGuildFundResult() {}
 // 报告 docs/class_func_reports/Inter_AddGuildFundResult/dispatch_sig.md 全文转写。
 int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user->get_state() > 2 &&
-        *reinterpret_cast<int*>(data + 0xb) == user->getCurCharacNo())
+#pragma pack(push, 1)
+    struct AddGuildFundResultView
     {
-        if (*reinterpret_cast<unsigned char*>(data + 0xa) != 0)
-        {
-            user->getCurCharacInvenW()->gain_money(
-                *reinterpret_cast<int*>(data + 0x13),
-                (eMoneyAddReason)0x1d, true, 0);
-            user->SendCmdErrorPacket(
-                (ENUM_CMDPACKET)0x15b,
-                *reinterpret_cast<unsigned char*>(data + 0xa));
-        }
-        else
-        {
-            user->SendCmdOkPacket((ENUM_CMDPACKET)0x15b);
-        }
+        char m_pad[0xa];
+        unsigned char m_bSuccess;   // +0xa
+        int m_characNo;             // +0xb
+        char m_pad2[0x4];
+        int m_money;                // +0x13
+    };
+#pragma pack(pop)
+    AddGuildFundResultView* p = reinterpret_cast<AddGuildFundResultView*>(data);
+    if (user->get_state() <= 2)
+        return 0;
+    if (p->m_characNo != user->getCurCharacNo())
+        return 0;
+    if (p->m_bSuccess != 0)
+    {
+        user->getCurCharacInvenW()->gain_money(
+            p->m_money, (eMoneyAddReason)0x1d, true, 0);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, p->m_bSuccess);
+    }
+    else
+    {
+        user->SendCmdOkPacket((ENUM_CMDPACKET)0x15b);
     }
     return 0;
 }
@@ -12789,8 +12805,9 @@ int Inter_LoadKillMonsterInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 {
     if (user->get_state() == 0)
         return 0x6248;
-    reinterpret_cast<charac_expand::CData*>(
-        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc))->loadData(user, data);
+    charac_expand::CData* p = reinterpret_cast<charac_expand::CData*>(
+        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc));
+    p->loadData(user, data);
     user->EnableCharacInfo((CACHE_SECTION)9);
     return 0;
 }
@@ -13450,10 +13467,18 @@ Inter_CollectItemsResult::~Inter_CollectItemsResult() {}
 // 报告 docs/class_func_reports/Inter_CollectItemsResult/dispatch_sig.md 全文转写。
 int Inter_CollectItemsResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const int total = *reinterpret_cast<int*>(data + 0xa);
-    if (total != 0)
+#pragma pack(push, 1)
+    struct CollectItemsResultView
     {
-        int level = (*reinterpret_cast<int*>(data + 0xe) * 100) / total;
+        char m_pad[0xa];
+        int m_total;        // +0xa
+        int m_fieldE;       // +0xe
+    };
+#pragma pack(pop)
+    CollectItemsResultView* p = reinterpret_cast<CollectItemsResultView*>(data);
+    if (p->m_total != 0)
+    {
+        int level = (p->m_fieldE * 100) / p->m_total;
         if (100 < level)
             level = 100;
 
@@ -13464,9 +13489,10 @@ int Inter_CollectItemsResult::dispatch_sig(CUser* /*user*/, char* data, int /*le
         packet.put_byte(level);
         packet.finalize(true);
 
-        const int areaIdx = GlobalData::s_timeGate_->getAreaIndex();
-        const int villageIdx = GlobalData::s_timeGate_->getVillageIndex();
-        G_GameWorld()->send_to_area(villageIdx, areaIdx, packet);
+        G_GameWorld()->send_to_area(
+            GlobalData::s_timeGate_->getVillageIndex(),
+            GlobalData::s_timeGate_->getAreaIndex(),
+            packet);
     }
     return 0;
 }

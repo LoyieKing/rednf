@@ -196,8 +196,15 @@ int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
             }
         }
 
-        // 【BLOCKED】APC 药水段（ORIG get_sub_type()==2 → SetUseAPCPotionTime
-        // (curSec + m_int2d0/1000))；恢复方式同 CheckUsableStackableItem 注释。
+        // ORIG 0x085d17e2：sub_type()==2 的 APC 药水——记录使用截止时间
+        // SetUseAPCPotionTime(curSec + m_int2d0/1000000)（反汇编魔数
+        // 0x10624dd3 除 1e6，非注释旧值 1000）。
+        if (((const CStackableItem*)item)->get_sub_type() == 2)
+        {
+            user->SetUseAPCPotionTime(
+                GlobalData::s_systemTime_.getCurSec() +
+                ((const CStackableItem*)item)->m_int2d0 / 1000000);
+        }
     }
 
     // 固定道具唯一 id 分派（分支序照 ORIG 汇编比较树）：

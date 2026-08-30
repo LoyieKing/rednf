@@ -5033,10 +5033,13 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                     reinterpret_cast<CUserCharacInfo*>(members[i]);
                 char body[10];                          // -0x6a
                 memset(body, 0, sizeof(body));
+                *(int*)(body + 2) = remain;             // ORIG body+2 写 remain
                 PacketGuard packet;                     // -0x78
                 packet.put_header(0, 0x1ec);
                 unsigned int attackCount =
                     (unsigned int)ci->GetCurVillageAttackCount();
+                if (attackCount > 2)                    // ORIG body+6 条件写 0x1e41
+                    *(int*)(body + 6) = 0x1e41;
                 // m_serverParameter.m_revenge498（CDataManager+0x500）
                 const std::vector<ConditionEnterRevenge>& conds =
                     G_CDataManager()->m_serverParameter.m_revenge498;

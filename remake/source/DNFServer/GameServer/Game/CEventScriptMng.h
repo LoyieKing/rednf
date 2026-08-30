@@ -95,7 +95,7 @@ public:
     // vptr+0x20 的虚函数（派生类 CAttendance/CLevelUpReward/CObjectBringUp/
     // CAddItemCountDB 均覆写），必须声明为 virtual。4 个时间访问器
     // （0x810b094/0x810b078/0x810b0a0/0x810b086）确认非虚，虚表无 process 槽。
-    virtual char* get_db_table_name();                // 0x810b06c：return (char*)&m_dbTableName（+0x08）
+    virtual std::string& get_db_table_name();                // 0x810b06c：return (char*)&m_dbTableName（+0x08）
     int   get_event_start_time();                     // return m_startTime（+0x0c）
     void  set_event_start_time(int t);                // m_startTime = t
     int   get_event_end_time();                       // return m_endTime（+0x10）
@@ -127,7 +127,7 @@ class CLevelUpReward : public CEventEntity
 {
 public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e168
-    virtual char* get_db_table_name();               // slot 8 0x810e2d6：&m_dbTableName
+    virtual std::string& get_db_table_name();               // slot 8 0x810e2d6：&m_dbTableName
     char  is_recv_check_item();                      // 0x810e2f2：m_flag08
     char* get_mail_data();                           // 0x810e2e4：&m_mail
     int   set_reward_item(int, int, int);            // 0x810e302（定义 EventLevelupA2）
@@ -146,7 +146,7 @@ class CUsedFatigueGiveItem : public CEventEntity
 public:
     virtual bool is_eventing();                      // slot 2 0x811056e
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x81105be
-    virtual char* get_db_table_name();               // slot 8 0x81105e8：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x81105e8：m_script+8
     bool  getIsCharacEvent(bool& out) const;         // 0x81107ea
     char  get_user_type() const;                     // 0x8110eec（ZNK，读脚本 +0xc）
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x81105f6
@@ -166,7 +166,7 @@ public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810eadc
     virtual bool send_init_data(CUser* user, PacketGuard& packet,
                                 short key, unsigned char count, bool flag);  // slot 7 0x810e804
-    virtual char* get_db_table_name();               // slot 8 0x810e7cc：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x810e7cc：m_script+8
     char* get_mail_data();                           // 0x810e7da：m_script+0x2c
     int   get_fatigue_condition();                   // 0x810e7e8：*(m_script+0xc)
     int   get_final_day_condition();                 // 0x810e7f6：*(m_script+0x24)
@@ -184,7 +184,7 @@ class CPcRoomPlayTime : public CEventEntity
 public:
     virtual bool is_eventing();                      // slot 2 0x8110814
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x8110872
-    virtual char* get_db_table_name();               // slot 8 0x8110864：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x8110864：m_script+8
     int   processEventPcRoomPlayTime(CUser*);        // 0x811089c
     int   verifyUserPcRoomPlayEvent(CUser*);         // 0x8110a38
 protected:
@@ -202,7 +202,7 @@ class CAccountFirstLogin : public CEventEntity
 public:
     CAccountFirstLogin();                            // 0x08110f88
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810deda
-    virtual char* get_db_table_name();               // slot 8 0x810debe：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x810debe：m_script+8
     virtual void do_action(int flags, CUser* user, std::bitset<32u> bs);  // slot 9 0x810df04
     char* get_mail_data();                           // 0x810decc：m_script+0xc
 protected:
@@ -216,7 +216,7 @@ class CAddItemCountDB : public CEventEntity
 {
 public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e064
-    virtual char* get_db_table_name();               // slot 8 0x810e15a：m_script+0x20
+    virtual std::string& get_db_table_name();               // slot 8 0x810e15a：m_script+0x20
     int is_event_item(int itemId);                   // 0x810e08e
     int is_event_quest(int questId);                 // 0x810e0f4
 protected:
@@ -237,7 +237,7 @@ public:
     CFatigueQuantity();                              // 0x08111030
     virtual ~CFatigueQuantity();                     // D1 0x08114aac / D0 0x08114adc
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f95e
-    virtual char* get_db_table_name();               // slot 8 0x810f988：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x810f988：m_script+8
     char get_user_type() const;                       // 0x08110edc（ZNK const）
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
@@ -294,7 +294,7 @@ public:
     CObjectBringUp();                                // 0x08111068
     virtual ~CObjectBringUp();                       // D1 0x08114a10 / D0 0x08114a40
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810fcb2
-    virtual char* get_db_table_name();               // slot 8 0x810fcdc：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x810fcdc：m_script+8
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x8110386
     bool  verifyGiveBringUpReward(ObjectBringUpScript::ObjectBringUpRule& rule,
                                   int count);                       // 0x0810fe1a
@@ -313,7 +313,7 @@ public:
     CPurchaseCashItemBonus();                        // 0x0811104c
     virtual ~CPurchaseCashItemBonus();               // D1 0x08114a5e / D0 0x08114a8e
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f996
-    virtual char* get_db_table_name();               // slot 8 0x810f9c0：m_script+8
+    virtual std::string& get_db_table_name();               // slot 8 0x810f9c0：m_script+8
     void  updateTargetGoodsCount(CUser*, unsigned int,
                                  stCeraShopIPGRequest_t*);  // 0x810f9ce
     bool  sendPurchaseBonusReward(CUser*, int);             // 0x810fb34
@@ -345,7 +345,7 @@ public:
     void send_event_init_data(CUser* user, bool flag);   // ORIG 0x810c40e T
     void process_level_up_reward(CUser* user, bool flag);   // ORIG 0x0810bf56（CUser::_onLevelUp 尾调用；声明先行）
     void process_add_item_count_db(CUser* user, int itemId, int count);   // ORIG T 0x0810bea8（事件 0x193 拾取计数）
-    char* get_db_table_name(int key);
+        std::string& get_db_table_name(int key);
     void process_account_first_login(int key, CUser* user, std::bitset<32u> flags);
     void process_add_fatigue_count(CUser* user, int count);
     void process_add_quest_count_db(CUser* user, int questId);

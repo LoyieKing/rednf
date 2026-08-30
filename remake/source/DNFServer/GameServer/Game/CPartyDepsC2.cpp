@@ -169,10 +169,8 @@ bool CParty::isGuildParty()
 // ---------------------------------------------------------------------------
 // isPremiumGoldCardReward —— ORIG T 0x085b11ee
 // 报告：docs/class_func_reports/CParty/isPremiumGoldCardReward.md
-// 表区即 CDataManager.m_serverParameter.m_premiumGoldCard4894（ORIG 寻址：
-//   count(short) = mgr+0x4900、entry[i].min/max/prob/reward =
-//   mgr+(i*0x10)+0x4904/+0x4908/+0x490c/+0x4910），换算为 conds 平铺 int 下标：
-//   flat = &conds[0].m_field0 起（script+0x4894）→ count=flat[1] 低半字，
+//   mgr+(i*0x10)+0x4904/+0x4908/+0x490c/+0x4910），换算为 ev 平铺 int 下标：
+//   flat = (int*)&ev 起（+0x00）→ count=flat[1] 低半字，
 //   min=flat[2+i*4]、max=flat[3+i*4]、prob=flat[4+i*4]、reward=flat[5+i*4]。
 // ---------------------------------------------------------------------------
 bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param)
@@ -182,7 +180,7 @@ bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& para
 
     ServerParameterScript::stPremiumGoldCardEvent& ev =
         mgr->m_serverParameter.m_premiumGoldCard4894;
-    int* const flat = &ev.m_conds[0].m_field0;
+    int* const flat = reinterpret_cast<int*>(&ev);
 
     // movzwl 0x4900 + cwtl：读低半字并有符号扩展为循环上限
     const int condCount =

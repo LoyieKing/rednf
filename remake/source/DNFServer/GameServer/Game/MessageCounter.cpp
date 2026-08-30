@@ -84,12 +84,13 @@ CTimeInterval::CTimeInterval()
 CTimeInterval* CTimeInterval::Create()
 {
     // ORIG @0x0856f974：operator new(0xc) → 三槽 u32 清零 →
-    // 构造（落地为派生 ctor 完整初始化链）→ 返回。
+    // 构造派生 CUnixTimeInterval（ORIG call _ZN15message_counter17CUnixTimeIntervalC1Ev，
+    // 置派生 vtable；基类构造为空实现）→ 返回。
     CTimeInterval* raw = static_cast<CTimeInterval*>(::operator new(0xc));
     *reinterpret_cast<unsigned int*>(raw) = 0;
     raw->m_last.tv_sec = 0;
     raw->m_last.tv_usec = 0;
-    new (raw) CTimeInterval();
+    new (raw) CUnixTimeInterval();
     return raw;
 }
 
@@ -137,7 +138,6 @@ long long CUnixTimeInterval::GetTimeInterval()
 // ORIG ctor @0x0844de36：map 默认构造 + this+0x18=param。
 CMessageCounter::CMessageCounter(int idBias)
     : m_map(),
-      m_pad18(),
       m_idBias(idBias)
 {
 }

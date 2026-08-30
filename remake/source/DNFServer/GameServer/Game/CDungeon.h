@@ -51,7 +51,7 @@ struct GridScript
 
 struct RidableObject
 {
-    // ORIG clear 0x830e47c：6 个 int 全置 -1（sizeof=0x18）；
+    // ORIG clear 0x830e47c：前 5 int 置 -1、+0x14 置 0xc8（sizeof=0x18）；
     // 字段名为与 DungeonRidableObject 前 6 字段的位置镜像【推断】，拷贝语义实证。
     int m_x;        // +0x00
     int m_y;        // +0x04

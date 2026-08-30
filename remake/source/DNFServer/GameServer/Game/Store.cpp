@@ -178,8 +178,7 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
 
     if (invenType == 0)
     {
-        CInventory* inven = user->getCurCharacInvenW();
-        inven->GetInvenSlotByRef(1, slot, item);
+        item = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
         pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
         itemCount = item.get_add_info();
     }
@@ -193,16 +192,14 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
     else if (invenType == 3)
     {
         // creature slot
-        CInventory* inven = user->getCurCharacInvenW();
-        inven->GetInvenSlotByRef((INVEN_TYPE)0, slot, item);   // ORIG: 消息 3 → type 0
+        item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, slot);   // ORIG: 消息 3 → type 0
         pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
         itemCount = item.get_add_info();
     }
     else if (invenType == 7)
     {
         // avatar slot
-        CInventory* inven = user->getCurCharacInvenW();
-        inven->GetInvenSlotByRef((INVEN_TYPE)3, slot, item);   // ORIG: 消息 7 → type 3
+        item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, slot);   // ORIG: 消息 7 → type 3
         pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
         itemCount = item.get_add_info();
     }
@@ -270,6 +267,11 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
             item.m_field1 = 4;
         }
         item.set_add_info(count);
+        if (count > 0x3e7)
+        {
+            cMyTrace trace("int Store::user_buy_item(CUser*, int, int)", 0x3d, 5);
+            trace("Store::user_buy_item,  ITEM #%d, %d", item.m_addInfo, count);
+        }
         item.m_fieldb = 0;
         item.ResetItemAttr();
     }

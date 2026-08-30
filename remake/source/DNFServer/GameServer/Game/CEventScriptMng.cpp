@@ -149,10 +149,10 @@ bool CEventEntity::send_init_data(CUser*, PacketGuard&, short,
     return false;
 }
 
-char* CEventEntity::get_db_table_name()
+std::string& CEventEntity::get_db_table_name()
 {
-    // ORIG 0x810b06c：return (char*)(this+0x08) = &m_dbTableName。
-    return reinterpret_cast<char*>(&m_dbTableName);
+    // ORIG 0x810b06c：return &m_dbTableName（+0x08）。
+    return m_dbTableName;
 }
 
 int CEventEntity::get_event_start_time()
@@ -241,7 +241,7 @@ void EventClassify::CEventScriptMng::process_add_item_count_db(CUser* user,
 }
 
 // ORIG 0x810b110：按事件类型取实体，并转发到实体的表名访问器。
-char* CEventScriptMng::get_db_table_name(int key)
+std::string& CEventScriptMng::get_db_table_name(int key)
 {
     return get_event_entity(key)->get_db_table_name();
 }

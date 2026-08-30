@@ -260,13 +260,10 @@ int StaticPool<T, N>::GetIndex(T* p)
     }
     if (pNode->bUse != 1)
     {
-        if (pNode->bUse != 0)
-        {
-            register int use = pNode->bUse;
-            cMyTrace tr(__FUNCTION__, 0x56, 0);
-            tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
-            m_nErrorCode = 2;
-        }
+        register int use = pNode->bUse;
+        cMyTrace tr(__FUNCTION__, 0x56, 0);
+        tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        m_nErrorCode = 2;
     }
     if (index > N - 1)
         return -1;

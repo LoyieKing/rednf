@@ -177,6 +177,6 @@ char const* MobileRestrict::enumToString(Enum e)
 
 char const* CharacterRestrict::enumToString(Enum e)
 {
-    unsigned idx = static_cast<unsigned>(e);
-    return (idx < 4u) ? enumStringCharacters[idx] : "";
+    // ORIG 0x0816d472：无边界检查，直接按 Enum 查表（同 MobileRestrict 形态）。
+    return enumStringCharacters[e];
 }

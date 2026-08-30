@@ -1607,7 +1607,8 @@ int CDeathTower::handleFinishLoading(CUser* user)
     int memberCnt = m_party->get_member_count();
     if (m_playData.checkAllMemberReady(memberCnt))
     {
-        PacketGuard packet;
+        CPacketHandler packet;
+        packet.makeFinishLoading();    // ORIG：全员 ready 后广播加载完成包
         m_party->send_to_party(packet);
     }
     return 1;
@@ -1626,9 +1627,9 @@ int CDeathTower::handleDieUser(CUser* user)
             }
             m_playData.setMemberAlive(i, false);
 
-            PacketGuard packet;
+            CPacketHandler packet;
             unsigned short uid = user->get_unique_id();
-            // CPacketHandler::makeDieState(packet, uid)
+            packet.makeDieState(uid);    // ORIG：死亡状态包
             m_party->send_to_party(packet);
 
             if (_checkMemberDie())
@@ -1742,51 +1743,62 @@ int CDeathTower::handleLeaveUser(CUser* user)
 
 int CDeathTower::handleMoveMap()
 {
-    if (_checkMemberDie())
+    try
     {
+        if (_checkMemberDie())
+        {
+            CPacketHandler packet;
+            packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x16);
+            m_party->send_to_party(packet);
+            return 0;
+        }
+
+        if (m_stage.getState() < 2)
+        {
+            CPacketHandler packet;
+            packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x13);
+            m_party->send_to_party(packet);
+            return 0;
+        }
+
+        unsigned int endStage = m_dungeonMgr.getEndStage();
+        if (!m_stage.moveNextStage(endStage))
+        {
+            CPacketHandler packet;
+            packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)0x16);
+            m_party->send_to_party(packet);
+            return 0;
+        }
+
+        CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
+        if (!map)
+        {
+            throw 0x15;
+        }
+
+        m_stage.reset();
+        if (!m_stage.consistMap(m_dungeonMgr, map, this))
+        {
+            throw 1;
+        }
+
         PacketGuard packet;
-        // makeCommonError(packet, 0x30, 0x16)
+        packet.put_header(0, 0x8f);
+        m_stage.makeStagePacket(packet);
+        packet.finalize(true);
+        m_party->send_to_party(packet);
+
+        _checkMemberReady();
+        return 1;
+    }
+    catch (int e)
+    {
+        // ORIG：catch 后广播 makeCommonError(0x30, e)
+        CPacketHandler packet;
+        packet.makeCommonError((ENUM_CMDPACKET)0x30, (ENUM_ERROR)e);
         m_party->send_to_party(packet);
         return 0;
     }
-
-    if (m_stage.getState() < 2)
-    {
-        PacketGuard packet;
-        // makeCommonError(packet, 0x30, 0x13)
-        m_party->send_to_party(packet);
-        return 0;
-    }
-
-    unsigned int endStage = m_dungeonMgr.getEndStage();
-    if (!m_stage.moveNextStage(endStage))
-    {
-        PacketGuard packet;
-        // makeCommonError(packet, 0x30, 0x16)
-        m_party->send_to_party(packet);
-        return 0;
-    }
-
-    CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
-    if (!map)
-    {
-        throw 0x15;
-    }
-
-    m_stage.reset();
-    if (!m_stage.consistMap(m_dungeonMgr, map, this))
-    {
-        throw 1;
-    }
-
-    PacketGuard packet;
-    packet.put_header(0, 0x8f);
-    m_stage.makeStagePacket(packet);
-    packet.finalize(true);
-    m_party->send_to_party(packet);
-
-    _checkMemberReady();
-    return 1;
 }
 
 int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)

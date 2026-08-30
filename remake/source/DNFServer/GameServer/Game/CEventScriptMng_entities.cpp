@@ -74,11 +74,10 @@ void CLevelUpReward::do_action(CUser* user)
     m_script1c = script;
 }
 
-char* CLevelUpReward::get_db_table_name()
+std::string& CLevelUpReward::get_db_table_name()
 {
     // ORIG 0x810e2d6：return &m_dbTableName（调用方按 std::string& 解释）。
-    return reinterpret_cast<char*>(
-        &static_cast<LevelUpRewardScript*>(m_script1c)->m_dbTableName);
+    return static_cast<LevelUpRewardScript*>(m_script1c)->m_dbTableName;
 }
 
 char CLevelUpReward::is_recv_check_item()
@@ -164,11 +163,10 @@ int CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
     }
 }
 
-char* CUsedFatigueGiveItem::get_db_table_name()
+std::string& CUsedFatigueGiveItem::get_db_table_name()
 {
     // ORIG 0x81105e8：return &m_dbTableName。
-    return reinterpret_cast<char*>(
-        &static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName);
+    return static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName;
 }
 
 void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
@@ -263,11 +261,10 @@ bool CAttendance::send_init_data(CUser* user, PacketGuard& packet,
     return true;
 }
 
-char* CAttendance::get_db_table_name()
+std::string& CAttendance::get_db_table_name()
 {
     // ORIG 0x810e7cc：return &m_dbTableName。
-    return reinterpret_cast<char*>(
-        &static_cast<AttendanceScript*>(m_script1c)->m_dbTableName);
+    return static_cast<AttendanceScript*>(m_script1c)->m_dbTableName;
 }
 
 char* CAttendance::get_mail_data()
@@ -377,11 +374,10 @@ void CPcRoomPlayTime::set_event_data(int key, InGameEventScript* script)
     m_script1c = script;
 }
 
-char* CPcRoomPlayTime::get_db_table_name()
+std::string& CPcRoomPlayTime::get_db_table_name()
 {
     // ORIG 0x8110864：return &m_dbTableName。
-    return reinterpret_cast<char*>(
-        &static_cast<PcBangPlayTimeScript*>(m_script1c)->m_dbTableName);
+    return static_cast<PcBangPlayTimeScript*>(m_script1c)->m_dbTableName;
 }
 
 int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
@@ -414,11 +410,10 @@ void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)
     m_script1c = script;
 }
 
-char* CAccountFirstLogin::get_db_table_name()
+std::string& CAccountFirstLogin::get_db_table_name()
 {
     // ORIG 0x810debe：return &m_dbTableName。
-    return reinterpret_cast<char*>(
-        &static_cast<AccountFirstLoginScript*>(m_script1c)->m_dbTableName);
+    return static_cast<AccountFirstLoginScript*>(m_script1c)->m_dbTableName;
 }
 
 char* CAccountFirstLogin::get_mail_data()
@@ -467,11 +462,10 @@ void CAddItemCountDB::set_event_data(int key, InGameEventScript* script)
     m_script1c = script;
 }
 
-char* CAddItemCountDB::get_db_table_name()
+std::string& CAddItemCountDB::get_db_table_name()
 {
     // ORIG 0x810e15a：return &m_dbTableName。
-    return reinterpret_cast<char*>(
-        &static_cast<AddItemCountDBScript*>(m_script1c)->m_dbTableName);
+    return static_cast<AddItemCountDBScript*>(m_script1c)->m_dbTableName;
 }
 
 int CAddItemCountDB::is_event_item(int itemId)

@@ -242,7 +242,7 @@ void Inven_Item::SetItemAttr(unsigned char attr)
 
 unsigned char Inven_Item::GetReSealCount() const
 {
-    return m_attr >> 5;
+    return (m_attr & 0xe0) >> 5;
 }
 
 void Inven_Item::SetReSealCount(unsigned char count)
@@ -252,7 +252,7 @@ void Inven_Item::SetReSealCount(unsigned char count)
 
 unsigned char Inven_Item::GetTradeLimitCount() const
 {
-    return m_attr >> 5;
+    return (m_attr & 0xe0) >> 5;
 }
 
 void Inven_Item::SetTradeLimitCount(unsigned char count)

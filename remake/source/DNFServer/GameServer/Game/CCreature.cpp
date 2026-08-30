@@ -141,14 +141,16 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
     if (m_isGrow == 1)
     {
-        m_level = GetExpLevel(m_exp);              // 全量 m_exp 参与查级
-        info->m_growExpFlag = 1;
+        // ORIG 8338663：m_isGrow==1 → GetExpLevel(高 16 位进度) + flag=0
+        short progress = (short)((unsigned int)m_exp >> 16);
+        m_level = GetExpLevel((int)progress);
+        info->m_growExpFlag = 0;
     }
     else
     {
-        short progress = (short)((unsigned int)m_exp >> 16);   // 高 16 位进度
-        m_level = GetExpLevel((int)progress);
-        info->m_growExpFlag = 0;
+        // ORIG 8338665：m_isGrow==0 → GetExpLevel(全量 m_exp) + flag=1
+        m_level = GetExpLevel(m_exp);
+        info->m_growExpFlag = 1;
     }
     info->m_isMaxLevel = isMaxLevel() ? 1 : 0;
     m_noCharge = (info->m_noCharge != 0) ? 1 : 0;

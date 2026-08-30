@@ -2666,43 +2666,40 @@ void CUser::get_ingame_event_history(int key, std::pair<int,int>& out)
 //     if (idx > 9) {
 //         return -1;
 //     }
-//     return *(int*)((char*)this + 0x8e09c + idx * 4);   /*slots 表 @0x8E09C*/                      // 基址 0x23824*4+0xc=0x8E09C
-// }
-//
 // 43. CUser::getCompoundUpgrade(CStackableItem const*, stEquipCondition) const T 0x08682082
-// ORIG 实测（objdump）：cond+1（m_tableIdx）test 选表组；cond+0（m_upgrade）<<7 选表行。
-// 表基址 = G_CDataManager() 基址 + 行<<7 + 0x8d0/0x18d0/0x28d0/0x38d0（CDataManager
-// 数据区裸表，32×int 累加随机分布）。
+// ORIG 实测（objdump）：test 用 cond+2（m_amplifySelect）选表组，位移用 cond+1（m_tableIdx）
+// <<7 选表行；表基址 = G_CDataManager() 基址 + 行<<7 + 0x8d0/0x18d0/0x28d0/0x38d0
+// （CDataManager 数据区裸表，32×int 累加随机分布）。
 int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond) const
 {
     int upgrade = 0;                                              // -0x1c 默认0
     unsigned int tableAddr = 0;                                   // -0x18
     if (item->IsUse2ndUpgradeTableRecipe()) {
-        if (cond.m_tableIdx == 0) {
+        if (cond.m_amplifySelect == 0) {
             tableAddr = (unsigned int)G_CDataManager() +
-                        ((unsigned int)cond.m_upgrade << 7) + 0x28d0;
+                        ((unsigned int)cond.m_tableIdx << 7) + 0x28d0;
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x86e5, 0);
             trace("RECIPE LOG : (Item:%u)UpgradeTable2nd", item->get_index());
         }
         else {
             tableAddr = (unsigned int)G_CDataManager() +
-                        ((unsigned int)cond.m_upgrade << 7) + 0x38d0;
+                        ((unsigned int)cond.m_tableIdx << 7) + 0x38d0;
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x86eb, 0);
             trace("RECIPE LOG : (Item:%u)AmplifyTable2nd", item->get_index());
         }
     }
-    else if (cond.m_tableIdx == 0) {
+    else if (cond.m_amplifySelect == 0) {
         tableAddr = (unsigned int)G_CDataManager() +
-                    ((unsigned int)cond.m_upgrade << 7) + 0x8d0;
+                    ((unsigned int)cond.m_tableIdx << 7) + 0x8d0;
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x86f4, 0);
         trace("RECIPE LOG : (Item:%u)UpgradeTable", item->get_index());
     }
     else {
         tableAddr = (unsigned int)G_CDataManager() +
-                    ((unsigned int)cond.m_upgrade << 7) + 0x18d0;
+                    ((unsigned int)cond.m_tableIdx << 7) + 0x18d0;
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x86fa, 0);
         trace("RECIPE LOG : (Item:%u)AmplifyTable", item->get_index());
@@ -2722,6 +2719,8 @@ int CUser::getCompoundUpgrade(const CStackableItem* item, stEquipCondition cond)
     }
     return upgrade;
 }
+//
+// 44/45. CUser::GetCurCharacInventoryRef(ushort,ushort) 非 const T 0x08680f2e / const T 0x08680c8a
 //
 // 44/45. CUser::GetCurCharacInventoryRef(ushort,ushort) 非 const T 0x08680f2e / const T 0x08680c8a
 // const 版报告在案（GetCurCharacInventoryRef.md）；非 const 版【报告缺失·objdump 同构】，
@@ -9778,8 +9777,9 @@ int CUser::SelectCharac(int idx, int tagIdx)
         bool tagValid = (tagIdx >= 0) && (static_cast<int>(m_characList.size()) > tagIdx);
         if (tagValid) {
             setTagCharac(&m_characList[tagIdx]);
-        const CInventory* tagInven =
-            reinterpret_cast<const CInventory*>(getTagCharacInvenR());
+            const CInventory* tagInven =
+                reinterpret_cast<const CInventory*>(getTagCharacInvenR());
+            const_cast<CInventory*>(tagInven)->set_parent(this);
             const SkillSlot* tagSkill =
                 reinterpret_cast<const SkillSlot*>(getTagCharacSkillR());
             const_cast<SkillSlot*>(tagSkill)->set_parent(this);

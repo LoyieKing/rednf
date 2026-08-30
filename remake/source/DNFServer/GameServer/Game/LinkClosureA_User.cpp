@@ -67,8 +67,10 @@ Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
     return 0;
 }
 
-// ORIG T 0x08680c8a（const 重载；report 区同构，guard/getter 用 const 版，
-// 容器访问仍走 *W getter——经 const_cast 去 CV，与 ORIG 直调 _ZN…WEv 一致）。
+// ORIG T 0x08680c8a（const 重载）：guard/getter 全部走 const R 版
+// （getCurCharacInvenR/getCurCharacCargoR/GetInvenRefR/GetCargoRef const/
+// GetCharacExpandDataR/GetInvenRefR）——ORIG 无 enableSaveInven 副作用，
+// 仅 CTitleBook::getTitleSlot 直调非 const 版（_ZN…E 实证）。
 const Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
                                                   unsigned short slot) const
 {
@@ -77,33 +79,32 @@ const Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
         return 0;
     }
 
-    CUser* self = const_cast<CUser*>(this);
-
     switch (area)
     {
     case 0:
-        return self->getCurCharacInvenW()->GetInvenRef(1, slot);
+        return getCurCharacInvenR()->GetInvenRef(1, slot);
     case 1:
-        return self->getCurCharacInvenW()->GetInvenRef(2, slot);
+        return getCurCharacInvenR()->GetInvenRef(2, slot);
     case 2:
-        return self->getCurCharacCargoW()->GetCargoRef(slot);
+        return getCurCharacCargoR()->GetCargoRef(slot);
     case 3:
-        return self->getCurCharacInvenW()->GetInvenRef(0, slot);
+        return getCurCharacInvenR()->GetInvenRef(0, slot);
     case 7:
-        return self->getCurCharacInvenW()->GetInvenRef(3, slot);
+        return getCurCharacInvenR()->GetInvenRef(3, slot);
     case 0x12:
-        return self->GetCharacExpandData(
+        return GetCharacExpandDataR(
                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(9))
-                   ->GetInvenRefW(static_cast<INVEN_TYPE>(5), slot);
+                   ->GetInvenRefR(static_cast<INVEN_TYPE>(5), slot);
     case 0x13:
     case 0x14:
     case 0x15:
     case 0x16:
-        return reinterpret_cast<CTitleBook*>(self->GetCharacExpandData(
-                   static_cast<ENUM_CHARAC_EXPAND_TYPE>(14)))
-                   ->getTitleSlot(
-                       static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13),
-                       slot);
+        // ORIG 直调非 const getTitleSlot（_ZN…E）；经 const_cast 去 CV
+        return const_cast<CTitleBook*>(reinterpret_cast<const CTitleBook*>(
+                   GetCharacExpandDataR(
+                       static_cast<ENUM_CHARAC_EXPAND_TYPE>(14))))
+            ->getTitleSlot(
+                static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13), slot);
     default:
         break;
     }

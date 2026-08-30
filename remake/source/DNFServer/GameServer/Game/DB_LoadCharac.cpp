@@ -28,13 +28,9 @@
 // ORIG T _Z14NumberToStringji @0x0810904b（C++ linkage；定义归既有批次）。
 extern char* NumberToString(unsigned int value, int radix);
 
-namespace   // SIG_LOAD_CHARAC 文档化偏移访问 helper（同 CUser::GetCharacInfo 约定）
-{
-inline char* SLC(SIG_LOAD_CHARAC* sig, unsigned int off)
-{
-    return reinterpret_cast<char*>(sig) + off;
-}
-}  // namespace
+// SIG_LOAD_CHARAC 文档化偏移访问宏（ORIG 无 _ZN12_GLOBAL__N_13SLC 符号，
+// 编译产物为直接偏移寻址 → 原实现为宏而非 inline 函数）
+#define SLC(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
 // ============================================================================
 // DB_LoadCharac::DB_LoadCharac @0x844d8c6（C1/C2 同址）

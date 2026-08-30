@@ -4164,7 +4164,8 @@ int CUser::GetCharacJob(int idx) const
 {
     if (idx < 0 || idx >= (int)m_characList.size())
         return 0xb;
-    return m_characList[idx].m_field26;
+    // ORIG 0x822ff34：movzbl 0x26(%eax) 零扩展返回（job 值按 0..255 无符号解释）
+    return (unsigned char)m_characList[idx].m_field26;
 }
 
 int CUser::getCharacLevelByCharacNo(int characNo) const

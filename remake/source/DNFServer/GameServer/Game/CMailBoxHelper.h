@@ -74,7 +74,7 @@ public:
         unsigned int GetLetterId();                       // 0x085574d4 (W)
         long GetPeriod() const;                           // 0x085574f2 (W)
         bool IsTimeOver(long nowSec) const;               // 0x085574e0 (W)
-        bool isUnlimit() const;                           // 0x08557590 (W)
+        unsigned char isUnlimit() const;                 // 0x08557590 (W)：ORIG movzbl 直返
         const char* GetSenderName() const;                // 0x085574fe (W)
         unsigned int GetPackageMoney() const;             // 0x08557516 (W)
         Inven_Item GetPackageItem() const;                // 0x08557522 (W, sret 按值拷贝 0x3d 字节)
@@ -106,7 +106,7 @@ public:
     void ClearLetterKeepCount();
     void DecLoadedLetterCount();
     int DeleteLetterKeepCount(unsigned int);
-    int FindPackageLoadLack(unsigned int);
+    bool FindPackageLoadLack(unsigned int);
     int GetLastLoadIdx();
     int GetLastLoadLetterIdx();
     int GetLetterKeepCount();

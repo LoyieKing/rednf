@@ -86,8 +86,7 @@ public:
 
 private:
     std::map<MessageKey, MessageValue> m_map;   // +0x00
-    char m_pad18[0x18];                         // +0x08..+0x17（未访问区）
-    int  m_idBias;                              // +0x18（WriteLog entry id 偏置）
+    int  m_idBias;                              // +0x18（WriteLog entry id 偏置；ORIG 实证 +0x18，无填充）
 };
 
 }  // namespace message_counter

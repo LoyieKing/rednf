@@ -152,16 +152,11 @@ int Dispatcher_DisJointAvatar::_selectJewelTypeIndex(
         // stAvatarEmblemInfo_t pack(1)：5×{ushort emblemSocketType_@+i*6, int emblemItemIdx_}
         if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0)
             continue;
-        // ORIG 0x08218598：哨兵为 0xffff（cmp $0xffff,%ax），非 0xffef。
+        // ORIG 0x08218598：两个哨兵检查（cmp $0xffef / cmp $0xffff），
+        // 任一命中即 continue。
+        if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0xffef)
+            continue;
         if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0xffff)
-            continue;
-        idx = _getJewelTypeIndex(
-            jewelSocketData->stEmblemSocket[i].emblemSocketType_);  // ORIG W 0x0821857c 转发目标
-        if (idx == -1)
-            continue;
-        int idx = _getJewelTypeIndex(
-            jewelSocketData->stEmblemSocket[i].emblemSocketType_);  // ORIG W 0x0821857c 转发目标
-        if (idx == -1)
             continue;
         typeCounts[idx] = typeCounts[idx] + 1;
         total = total + 1;
