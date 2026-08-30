@@ -1088,8 +1088,8 @@ unsigned int CParty::GetMapPlayingTime()
     unsigned long long baseTick =
         (unsigned long long)bd(this).m_field14 << 32 | bd(this).m_field10;
     unsigned long long played = (now - enterTick) - baseTick;
-    bd(this).m_field10 = (unsigned int)played;
-    bd(this).m_field14 = (unsigned int)(played >> 32);
+    bd(this).m_field8 = (unsigned int)played;          // ORIG 写 this+0x334/0x338
+    bd(this).m_fieldc = (unsigned int)(played >> 32);
     return (unsigned int)played;
 }
 

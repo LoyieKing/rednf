@@ -6614,7 +6614,7 @@ void CUser::SetTradePunishOverThirtyDays(bool flag)
 {
     printf(" CUser::SetTradePunishOverThirtydays(%c) \n",
            static_cast<unsigned int>(flag));
-    m_postChecksumData.m_tradePunishOverThirtyDays = (unsigned char)(flag ? 1 : 0);
+    m_postChecksumData.m_tradePunishOverThirtyDays = flag;
 }
 
 // ---------------------------------------------------------------------------
@@ -6622,7 +6622,7 @@ void CUser::SetTradePunishOverThirtyDays(bool flag)
 // ---------------------------------------------------------------------------
 void CUser::setUsedBreakAwayLuckPoint(bool flag)
 {
-    m_usedBreakAwayLuckPoint = (char)(flag ? 1 : 0);
+    m_usedBreakAwayLuckPoint = flag;
 }
 
 // >>> W7-BLOCKED CUser::st_monstorkill —— CUser::st_monstorkill 嵌套类型未建模于权威头

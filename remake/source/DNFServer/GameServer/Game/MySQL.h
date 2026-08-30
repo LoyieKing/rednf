@@ -194,7 +194,7 @@ inline bool MySQL::get_short(int col, int& out)
     {
         return false;
     }
-    out = atoi(m_row[col]);
+    out = (short)atoi(m_row[col]);   // ORIG mov %ax + movswl：截断为 short 再符号扩展
     return true;
 }
 

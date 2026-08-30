@@ -571,7 +571,7 @@ public:
     TimerQueryCounter();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerQueryCounter();
-    static void RegistNextTimer();
+    static int RegistNextTimer();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -595,7 +595,7 @@ public:
     TimerNatTypeUser();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerNatTypeUser();
-    static void RegistNextTimer();
+    static int RegistNextTimer();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

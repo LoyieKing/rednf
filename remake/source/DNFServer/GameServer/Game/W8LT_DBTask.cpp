@@ -15,6 +15,9 @@
 #include "SigTypes_E.h"     // SIG_SELECT_SERVER_MESSAGE（DB_LoadServerMessage::dispatch 出站头）
 #include "SigTypes_E.h"     // SIG_SELECT_SERVER_MESSAGE（DB_LoadServerMessage::dispatch 出站头）
 #include "DB_AvatarChangeOwner.h"  // DB_AvatarChangeOwner 权威声明（dispatch ORIG 0x084004bc）
+#include "DB_InsertAccountFirstLoginFlag.h"
+#include "DB_InsertAccountFirstLoginDailyFlag.h"
+#include "DB_UpdatePurchaseCashItemBonus.h"
 #include "SigTypes_B.h"      // SIG_ITEM_DICTIONARY_FLAG/SIG_IN_GAME_ADVERTISEMENT_LOG（本 TU dispatch 载荷）
 #include "GamePODTypes.h"   // stAvatarEmblemInfo_t（DB_AvatarChangeStat::dispatch 值对象）
 #include "GamePODTypes.h"   // stAvatarEmblemInfo_t（DB_AvatarChangeStat::dispatch 值对象）
@@ -2288,14 +2291,12 @@ public:
     DB_UpdateReturnUserFirstLogin() {}   // ORIG C1 0x844f5c6 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0843dffe
 };
-class DB_InsertAccountFirstLoginFlag : public DBDispatcher { public: DB_InsertAccountFirstLoginFlag() {} };   // ORIG C1 0x844f5e2 (sz 0x4: base ctor+vptr only)
 class DB_SaveGameOption_QuickChatting : public DBDispatcher
 {
 public:
     DB_SaveGameOption_QuickChatting() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844a800
 };   // ORIG C1 0x844f5fe (sz 0x4: base ctor+vptr only)
-class DB_UpdatePurchaseCashItemBonus : public DBDispatcher { public: DB_UpdatePurchaseCashItemBonus() {} };   // ORIG C1 0x844f61a (sz 0x4: base ctor+vptr only)
 class DB_UpdateItemCountValue : public DBDispatcher
 {
 public:
@@ -2762,7 +2763,6 @@ public:
     // （虚槽 2 覆盖；定义在 DB_CerashopAddRestrict.cpp）
     virtual bool dispatch(int a, int b, Stream* stream);
 };
-class DB_InsertAccountFirstLoginDailyFlag : public DBDispatcher { public: DB_InsertAccountFirstLoginDailyFlag() {} };   // ORIG C1 0x844ff9e (sz 0x4: base ctor+vptr only)
 class DB_SaveEventLevelupSupport : public DBDispatcher
 {
 public:
@@ -17439,6 +17439,12 @@ bool CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch(int userIdx, int slot,
         STBossDungeonTowerLog* sig = stream->GetOutBuffer<STBossDungeonTowerLog>();
         // ORIG 列映射：play_cnt=+0x0 / success_cnt=+0x4 / play_time=+0xc /
         // uniq_cnt=+0x8（UPDATE 与 INSERT 同口径）。
+        // ORIG 0x0812825e：每个 key 先打一条 trace（行号 0x4f9）再 UPDATE。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x4f9, 0);
+        trace("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+              key, key & 0xff, key >> 28, (key >> 24) & 0xf,
+              (key >> 16) & 0xff, (key >> 8) & 0xff, sig->stageStartCount,
+              sig->stageEndCount, sig->playTimeSum, sig->pickUpItemCount);
         db->set_query(
             "upDate log_monstertower_layer_stat SET play_cnt = play_cnt + %u, success_cnt = success_cnt + %u, play_time = play_time + %u, uniq_cnt = uniq_cnt + %u WHERE occ_date = '%s' and key_id = %u",
             sig->stageStartCount, sig->stageEndCount, sig->playTimeSum,
@@ -17448,7 +17454,7 @@ bool CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch(int userIdx, int slot,
         {
             db->set_query(
                 "inSert into log_monstertower_layer_stat(occ_date, key_id, layer, monster_diff, charac_job, charac_grow, level, play_cnt, success_cnt, play_time, uniq_cnt) values('%s', %u, %u, %u, %u, %u, %u, %u, %u, %u, %u)",
-                date, key, key & 0xff, key >> 28, key & 0xff,
+                date, key, key & 0xff, key >> 28, (key >> 24) & 0xf,
                 (key >> 16) & 0xff, (key >> 8) & 0xff, sig->stageStartCount,
                 sig->stageEndCount, sig->playTimeSum, sig->pickUpItemCount);
             db->exec(true);

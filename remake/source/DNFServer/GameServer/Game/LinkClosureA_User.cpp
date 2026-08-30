@@ -235,8 +235,7 @@ int CUser::compute_quest_basic_reward_exp(Quest* quest)
 
     STExpReward growthView;                                // [ctor 085bed52 -0x28]
     int growthBonus = 0;                                   // [-0x10]
-    int growthReward = get_growth_power_exp_reward();      // [sret int]
-    growthView.m_reward = growthReward;                    // [mov %eax,-0x28]
+    growthView.m_reward = get_growth_power_exp_reward().m_reward;  // [sret 临时 + mov dword]
     float growthRate =
         static_cast<float>(static_cast<short>(
             static_cast<unsigned char>(

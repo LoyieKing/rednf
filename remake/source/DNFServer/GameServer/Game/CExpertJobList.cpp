@@ -724,6 +724,7 @@ bool CExpertJobList::init()
             return false;
         }
         int job = g_expertJobScriptFileList.FindIndexByFullScan(path);
+        m_jobMap.insert(std::make_pair(job, script));   // ORIG 0x896d8ec：find 后 insert（NEW 二进制/源码曾丢失）
     }
     if (!ImportExpertJobEtcScript(m_etc, "expertjob.etc"))
     {
@@ -745,7 +746,6 @@ void CExpertJobList::destroy()
         if (script != 0)
             delete script;
     }
-    m_jobMap.clear();
 }
 
 // ============================================================================

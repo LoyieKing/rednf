@@ -154,14 +154,15 @@ void WongWork::CSimpleSSO::getGameStartTime(unsigned int mId, long& loginTime,
     _getGameStartTime(mId, loginTime, expireTime, out);
 }
 
-// ---- checkValidPassword(...)  ORIG 0x086028c6：两相邻 unsigned 局部作 long& 传入
-void WongWork::CSimpleSSO::checkValidPassword(unsigned int mId, char const* a,
+// ---- checkValidPassword(...)  ORIG 0x086028c6：两相邻 unsigned 局部作 long& 传入；
+// ORIG 返回 bool（= _getGameStartTime 结果，GetAccountInfo 失败时记日志返回 false）。
+bool WongWork::CSimpleSSO::checkValidPassword(unsigned int mId, char const* a,
                                               char const* b, stOutputData_t& out)
 {
     unsigned int v1 = 0;  // ORIG -0x18(%ebp)
     unsigned int v2 = 0;  // ORIG -0x14(%ebp)
-    _getGameStartTime(mId, *reinterpret_cast<long*>(&v2),
-                      *reinterpret_cast<long*>(&v1), out);
+    return _getGameStartTime(mId, *reinterpret_cast<long*>(&v2),
+                             *reinterpret_cast<long*>(&v1), out);
 }
 
 // ---- checkValidPassword_Jpn(...)  ORIG 0x081b25ec

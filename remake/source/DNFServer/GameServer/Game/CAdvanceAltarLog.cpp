@@ -28,21 +28,21 @@ long long CAdvanceAltarLog::makeKey(unsigned short itemType,
 // ORIG getType @0x081572ea：返回 key 高 32 位的高 16 位（= key>>48，符号扩展位型扩展）。
 long long CAdvanceAltarLog::getType(long long key)
 {
-    return static_cast<int>(key >> 0x30);
+    return key >> 0x30;
 }
 
-// ORIG getIndex @0x0815730e：空函数（ORIG 汇编仅 ret）。
-void CAdvanceAltarLog::getIndex(long long key)
+// ORIG getIndex @0x0815730e：返回 (long long)(int)key（低 32 位符号扩展；
+// mov $0,%eax 后 mov %edx,%eax 残留，sar $0x1f 符号扩展为 64 位）。
+long long CAdvanceAltarLog::getIndex(long long key)
 {
-    (void)key;
+    return static_cast<int>(key);
 }
 
-// ORIG getLevel @0x08157336：((int)key & 0xffffffff)<<16 | （静态 this 高 16 截断）
-// —— 按 ORIG C 忠实转写。
+// ORIG getLevel @0x08157336：shld+shl 组合 (key<<16) 后取高 32 位 sar 16
+// —— 即 (int)((key<<16)>>48) = 高 32 位（(itemType<<16)|keyC）的低 16 位（keyC）。
 long long CAdvanceAltarLog::getLevel(long long key)
 {
-    unsigned int low32 = static_cast<unsigned int>(key);
-    return static_cast<int>(static_cast<int>((low32 << 0x10)) >> 0x10);
+    return (key << 0x10) >> 0x30;
 }
 
 // ----------------------------------------------------------------------------

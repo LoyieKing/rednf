@@ -278,7 +278,7 @@ void readStringFromBuffer(std::string& str, char*& buf)
 {
     const unsigned short n = *(unsigned short*)buf;
     buf += 2;
-    str.resize(n + 1, static_cast<char>(n));
+    str.resize(n + 1, 0);
     str.assign(buf, n);
     buf += n;
 }

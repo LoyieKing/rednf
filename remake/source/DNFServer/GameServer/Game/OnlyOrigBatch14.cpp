@@ -1082,7 +1082,7 @@ const char* RestrictCategory::enumToString(Enum e)
 // ORIG T 0x088c1558 _ZL23importKeyNameIndexTablev（static）。
 static bool importKeyNameIndexTable()
 {
-    if (!loadRDARScriptFile("Skill", "RDARKeyIndex.dat"))
+    if (!loadRDARScriptFile("", "Skill/RDARKeyIndex.dat"))
         return false;
     int value = 0;
     std::string s;

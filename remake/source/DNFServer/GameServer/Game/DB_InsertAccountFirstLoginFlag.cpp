@@ -42,8 +42,8 @@ void DB_InsertAccountFirstLoginFlag::makeRequest(int p1, unsigned int p2, int p3
 // DB_InsertAccountFirstLoginFlag::dispatch @ 0x0843e636
 // mangled _ZN30DB_InsertAccountFirstLoginFlag8dispatchEiiP6Stream
 // ============================================================================
-int DB_InsertAccountFirstLoginFlag::dispatch(int /*param1*/, int /*serverGroup*/,
-                                             Stream* s)
+bool DB_InsertAccountFirstLoginFlag::dispatch(int /*userIdx*/, int /*slot*/,
+                                               Stream* s)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);
@@ -74,5 +74,5 @@ int DB_InsertAccountFirstLoginFlag::dispatch(int /*param1*/, int /*serverGroup*/
     db->set_query("inSert into %s(m_id,server_id, charac_no, occ_date) "
                   "values(%s,%d, %u, now())",
                   tableNameStr, numStr, local_34, local_30);
-    return db->exec(true) ? 1 : 0;
+    return db->exec(true);
 }

@@ -292,6 +292,8 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     for (int i = 0; i <= 0xa; ++i)
         *reinterpret_cast<unsigned short*>(sigBuf + 4 + i * 2) =
             m_skillLevels[i];
+    // ORIG：MsgQueueMgr::put(DB_Q=2, guard) 提交 DB 队列（0x08545381）。
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }
 

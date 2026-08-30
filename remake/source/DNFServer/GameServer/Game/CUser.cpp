@@ -2693,9 +2693,11 @@ bool CUser::unlockDeleteCharac()
     return c == 1;
 }
 
-int CUser::get_growth_power_exp_reward()
+STExpReward CUser::get_growth_power_exp_reward()
 {
-    return m_expReward.m_reward;
+    STExpReward ret;
+    ret.m_reward = m_expReward.m_reward;
+    return ret;
 }
 
 void CUser::setAntibotKey(int key)
@@ -3522,7 +3524,7 @@ void CUser::subBreakAwayDungeonClearCnt()
 
 void CUser::setBreakAwayDungeonClear(bool flag)
 {
-    m_gameOption.m_breakAwayDungeonClear = flag ? 1 : 0;
+    m_gameOption.m_breakAwayDungeonClear = flag;
 }
 
 unsigned char CUser::isBreakAwayRewardData()
@@ -4517,14 +4519,14 @@ bool CUser::isHumanCertified()
     return m_humanCertified;
 }
 
-bool CUser::isLoadingHackGold()
+unsigned char CUser::isLoadingHackGold()
 {
-    return *(unsigned char*)((char*)&m_mcap.m_pad54d[7]) != 0;
+    return *(unsigned char*)((char*)&m_mcap.m_pad54d[7]);
 }
 
 bool CUser::isSaveInformNoticeFlag()
 {
-    return m_informNoticeFlags[0] != 0;
+    return m_saveInformNoticeFlag;   // ORIG movzbl 0x8ebc1 直返（m_informNoticeFlags 起 +0x10）
 }
 
 int CUser::CheckMaxLuckyLevel()
@@ -4572,17 +4574,17 @@ void CUser::InitReceivedRequestType()
 
 bool CUser::isBreakAwayDungeonClear()
 {
-    return m_gameOption.m_breakAwayDungeonClear != 0;
+    return m_gameOption.m_breakAwayDungeonClear;   // ORIG movzbl 直返（无 test/setne）
 }
 
 bool CUser::isUsedBreakAwayLuckPoint()
 {
-    return m_breakAwayRewardData != 0;   // CUser+0x703c0
+    return m_usedBreakAwayLuckPoint;   // ORIG movzbl 0x703c1 直返
 }
 
-bool CUser::isJoinedSchoolPointEvent()
+unsigned char CUser::isJoinedSchoolPointEvent()
 {
-    return *(unsigned char*)((char*)&m_postChecksumData.m_field44) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_field44);
 }
 
 void CUser::DisableSaveMemberBonusFatigue()
@@ -4590,34 +4592,34 @@ void CUser::DisableSaveMemberBonusFatigue()
     *(char*)((char*)&m_postChecksumData.m_field60) = 0;
 }
 
-bool CUser::IsEnableSaveMemberBonusFatigue()
+unsigned char CUser::IsEnableSaveMemberBonusFatigue()
 {
-    return *(unsigned char*)((char*)&m_postChecksumData.m_field60) != 0;
+    return *(unsigned char*)((char*)&m_postChecksumData.m_field60);
 }
 
 void CUser::SetProperLevelDungeonUser()
 {
-    *(char*)((char*)&m_field8eb99) = 1;
+    m_field8eb99 = true;
 }
 
 void CUser::ClearProperLevelDungeonUser()
 {
-    *(char*)((char*)&m_field8eb99) = 0;
+    m_field8eb99 = false;
 }
 
 bool CUser::IsProperLevelDungeonUser()
 {
-    return *(unsigned char*)((char*)&m_field8eb99) != 0;
+    return m_field8eb99;
 }
 
-bool CUser::isCharacLinkMessageFlag()
+unsigned char CUser::isCharacLinkMessageFlag()
 {
-    return *(unsigned char*)((char*)m_breakAway.m_pad14) != 0;
+    return *(unsigned char*)((char*)m_breakAway.m_pad14);
 }
 
-bool CUser::isLinkCharacDisconnectFlag()
+unsigned char CUser::isLinkCharacDisconnectFlag()
 {
-    return *(unsigned char*)((char*)&m_breakAway.m_pad14[1]) != 0;
+    return *(unsigned char*)((char*)&m_breakAway.m_pad14[1]);
 }
 
 unsigned char CUser::getDisconnectLinkCharacSlotIdx()
@@ -4625,9 +4627,9 @@ unsigned char CUser::getDisconnectLinkCharacSlotIdx()
     return *(unsigned char*)((char*)&m_breakAway.m_pad14[2]);
 }
 
-bool CUser::is_update_ontime_last_recv_idx()
+unsigned char CUser::is_update_ontime_last_recv_idx()
 {
-    return *(unsigned char*)((char*)&m_ceraUserInfo + 0x68) != 0;
+    return *(unsigned char*)((char*)&m_ceraUserInfo + 0x68);
 }
 
 void CUser::reset_update_ontime_last_recv_idx()
@@ -4635,9 +4637,9 @@ void CUser::reset_update_ontime_last_recv_idx()
     *(char*)((char*)&m_ceraUserInfo + 0x68) = 0;
 }
 
-bool CUser::CheckLoadRentalInfoFromExchange()
+unsigned char CUser::CheckLoadRentalInfoFromExchange()
 {
-    return *(unsigned char*)((char*)&m_rentalFlag2) != 0;
+    return m_rentalFlag2;   // ORIG movzbl 0x6ef91 直返
 }
 
 unsigned char CUser::GetPuUser()
@@ -7221,13 +7223,13 @@ void CUser::FatigueUp(int v)
 
     if ((short)getCurCharacUsedFatigue() == 0x9c)
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            this, APSystem::_ActionGroupIndex(0x16), 0, (ENUM_PACKETCLASS)0);
+            this, (APSystem::_ActionGroupIndex)0x16, 0, (ENUM_PACKETCLASS)0);
     if ((short)getCurCharacUsedFatigue() == 0x32)
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            this, APSystem::_ActionGroupIndex(0x28), 0, (ENUM_PACKETCLASS)0);
+            this, (APSystem::_ActionGroupIndex)0x28, 0, (ENUM_PACKETCLASS)0);
     else if ((short)getCurCharacUsedFatigue() == 100)
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            this, APSystem::_ActionGroupIndex(0x2a), 0, (ENUM_PACKETCLASS)0);
+            this, (APSystem::_ActionGroupIndex)0x2a, 0, (ENUM_PACKETCLASS)0);
 
     // ---- 事件脚本（EventClassify::CEventScriptMng）----
     EventClassify::CEventScriptMng* esm = static_cast<
@@ -7395,7 +7397,7 @@ void CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
             (ENUM_SKILL_TREE_KIND)2));
         pkt->put_short(((SkillSlot*)getCurCharacSkillR())->get_remain_sfp_at_index(
             (ENUM_SKILL_TREE_KIND)3));
-        pkt->put_int(getPVPResultRefR()->m_winPoint);
+        pkt->put_int(getPVPResultR()->m_winPoint);
         pkt->put_int(get_charac_fatigue_buf_bonus_exp());
         pkt->put_int(get_charac_seria_buf_bonus_exp());
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x57);

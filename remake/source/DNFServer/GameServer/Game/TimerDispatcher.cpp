@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <new>
 #include <string>
@@ -357,7 +358,8 @@ TimerDBUpdate::TimerDBUpdate() {}
 TimerDBUpdate::~TimerDBUpdate() {}
 int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    // ORIG 0x8631f0c：getUser(p1, 3)（第二实参为常量 3，increId 占位）。
+    CUser* user = G_CGameManager()->getUser(p1, 3);
     if (user == 0)
     {
         return 0;
@@ -723,7 +725,7 @@ int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
           dbLoadCount, dbLoadOverflowCount, cacheLoadCount, cacheLoadOverflowCount,
           cacheLoadFailCount, cacheLoadFailOverflowCount);
 
-    if (TimerStatisticsLog::RegistNextTimer() == '\\x01')
+    if (TimerStatisticsLog::RegistNextTimer() == '\x01')
     {
         return 1;
     }
@@ -1419,10 +1421,12 @@ int TimerQueryCounter::dispatch_sig(int p1, int p2, unsigned int p3)
 
 // ORIG T 0x8635bdc（RegistNextTimer.md 全文转写；声明已在 TimerDispatcher.h，
 // 签名 static void；ORIG 恒返回 eax=1，void 化由现有头口径决定）
-void TimerQueryCounter::RegistNextTimer()
+// ORIG T 0x08635bdc：InsertTimer(2,0,0x59,0x708,0,0)；返回 1。
+int TimerQueryCounter::RegistNextTimer()
 {
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x59,
                                 0x708, 0, 0);
+    return 1;
 }
 
 TimerNatType::TimerNatType() {}
@@ -1456,14 +1460,15 @@ int TimerNatTypeUser::dispatch_sig(int p1, int p2, unsigned int p3)
 }
 
 // ORIG T 0x08635cd0 (_ZN16TimerNatTypeUser15RegistNextTimerEv)：
-// G_TimerQueue()->InsertTimer(2, 0, 0x5b, 0xe10, 0, 0)；返回 1（void 化）。
-void TimerNatTypeUser::RegistNextTimer()
+// G_TimerQueue()->InsertTimer(2, 0, 0x5b, 0xe10, 0, 0)；返回 1。
+int TimerNatTypeUser::RegistNextTimer()
 {
     // ORIG 先把 delay 常量暂存 -0xc(%ebp) 再装入实参槽（gcc4.1 形态），
     // 用局部常量复现该栈槽暂存（同 TimerFatigueReset 先例）。
     const int delay = 0xe10;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x5b, delay, 0, 0);
+    return 1;
 }
 
 TimerCheckMailTimeOut::TimerCheckMailTimeOut() {}
@@ -2119,7 +2124,7 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     }
 
     unsigned int point = user->m_mcap.getPoint();
-    user->m_historyLog.RequestCleanPad(point, '\\x03');
+    user->m_historyLog.RequestCleanPad(point, '\x03');
 
     for (int i = 0; i < 10; ++i)
     {
@@ -3872,7 +3877,8 @@ Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() {}
 int Timer_NoticeEmergencyPatchMessage::dispatch_sig(int /*p1*/, int /*p2*/,
                                                     unsigned int /*p3*/)
 {
-    char local_43c[0x100] = { '\0' };   // ORIG +0x6b..0x7f：rep stos 清零 0x100
+    char local_43c[0x100];              // ORIG +0x6b..0x7f：rep stos 清零 0x100
+    memset(local_43c, 0, sizeof(local_43c));
     PacketGuard packet;
     packet.put_header(0, 0xc);
     packet.put_byte(0);

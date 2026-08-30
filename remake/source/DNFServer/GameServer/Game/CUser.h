@@ -779,7 +779,7 @@ public:
     char m_birthDay;        // +0xbf8（0x711d4 IsOverBirthDay）
     char m_birthMonth;      // +0xbf9（0x711d5 IsOverBirthDay）
     char m_padbfa[2];       // +0xbfa..0xbfb
-    char m_gmUserFlag;      // +0xbfc（0x711d8 isGMUser；ResetCurCharac movb 实证）
+    bool m_gmUserFlag;      // +0xbfc（0x711d8 isGMUser；ORIG movzbl 直返，bool 实证）
     char m_padbfd[0xc00 - 0xbfd];  // +0xbfd..0xbff
     int m_gmUpgradeMode;    // +0xc00（0x711dc）
     int m_age;              // +0xc04（0x711e0）
@@ -1018,7 +1018,7 @@ struct PostChecksumUserInfoBlock
     // 起始 = CUser+0x79624（m_codeHackCheck 后）；字段偏移为块内相对。
     int m_field28;                   // +0x00 → CUser+0x79624（getStdDropRate 旧视图）
     int m_tradePunishType;           // +0x04 → CUser+0x79628（GetTradePunishType）
-    char m_tradePunishOverThirtyDays; // +0x08 → CUser+0x7962c（SetTradePunishOverThirtyDays ORIG 0x08689850）
+    bool m_tradePunishOverThirtyDays; // +0x08 → CUser+0x7962c（SetTradePunishOverThirtyDays ORIG 0x08689850）
     bool m_field31;                  // +0x09（0x7962d tournament account）
     char m_pad32[2];                 // +0x0a..0x0b
     int m_serverGroup;               // +0x0c（GetServerGroupToPvP 0x864a97c 整数读取并返回）
@@ -2125,7 +2125,7 @@ public:
         std::vector<InstanceRentalSystem::RentalInfo> > >
         m_rentalInfo;                                       // +0x6ef78
     char m_rentalFlag1;                                     // +0x6ef90
-    char m_rentalFlag2;                                     // +0x6ef91
+    bool m_rentalFlag2;                                     // +0x6ef91
     Taiwan::GarenaAuthData m_garenaAuthData;                // +0x6ef92（sizeof 0x68；证据 CUser/prepareDisconnect.md
                                                             //   0x6ef92=getTimeStamp 对象、CUser/InitOnAccept.md memset(this+0x6ef92,0,0x68)）
     bool m_rentalFlag3;                                     // +0x6effa
@@ -2134,7 +2134,7 @@ public:
     CGameOption m_gameOption;                               // +0x6fd64
     int m_multiboxLotteryFailCnt;                           // +0x703bc（inc_multiboxLotteryItemFailCnt）
     unsigned char m_breakAwayRewardData;                    // +0x703c0（setBreakAwayRewardData ORIG W 0x0831d50c 写 byte / isBreakAwayRewardData 0x084ec64e 读；CUserOnlyOrig.cpp:8920 同义实现）
-    char m_usedBreakAwayLuckPoint;                          // +0x703c1（setUsedBreakAwayLuckPoint ORIG W 0x086971ee）
+    bool m_usedBreakAwayLuckPoint;                          // +0x703c1（setUsedBreakAwayLuckPoint ORIG W 0x086971ee）
     char m_pad703c0b[2];                                    // +0x703c2..0x703c3
     STBreakAwayRewards m_breakAway;                         // +0x703c4
     STSkillCommandData::STCommand m_skillCommands[50];      // +0x703db
@@ -2329,7 +2329,7 @@ public:
     std::map<int, std::pair<int, int> > m_map8eb68;         // +0x8eb68
     std::map<int, bool> m_map8eb80;                         // +0x8eb80
     bool m_field8eb98;                                      // +0x8eb98
-    char m_field8eb99;                                      // +0x8eb99
+    bool m_field8eb99;                                      // +0x8eb99
     char m_pad8eb9a[2];                                     // 0x8eb9a..0x8eb9b
     unsigned int m_pcRoomPlayStartTime;                     // +0x8eb9c（setPcRoomPlayStartTime）
     int m_totalPcRoomPlayTime;                              // +0x8eba0（getTotalPcRoomPlayTime）
@@ -2339,7 +2339,7 @@ public:
     int m_field8ebac;                                       // +0x8ebac（Inc/Get CurCharacUsedGiftFatigueQuantity）
     unsigned char m_field8ebb0;                             // +0x8ebb0（GetChangedGiftFatigueQuantity movzbl）
     unsigned char m_informNoticeFlags[16];                  // +0x8ebb1..0x8ebc0（bit 索引访问）
-    char m_saveInformNoticeFlag;                                // +0x8ebc1
+    bool m_saveInformNoticeFlag;                                // +0x8ebc1
     char m_pad8ebc2[2];                                     // 0x8ebc2..0x8ebc3
     std::vector<unsigned char> m_vec8ebc4;                  // +0x8ebc4
     int m_field8ebd0;                                       // +0x8ebd0
@@ -2535,7 +2535,7 @@ public:
     int get_multiboxLotteryItemFailCnt();
     int GetCurCharacUsedFatigueQuantity();
     bool isHumanCertified();
-    bool isLoadingHackGold();
+    unsigned char isLoadingHackGold();   // ORIG movzbl 直返（无 bool 规范化）
     bool isSaveInformNoticeFlag();
     int CheckMaxLuckyLevel();
     void OnRecvEvent();
@@ -2547,22 +2547,22 @@ public:
     void InitReceivedRequestType();
     bool isBreakAwayDungeonClear();
     bool isUsedBreakAwayLuckPoint();
-    bool isJoinedSchoolPointEvent();
+    unsigned char isJoinedSchoolPointEvent();   // ORIG movzbl 直返
     void DisableSaveMemberBonusFatigue();
-    bool IsEnableSaveMemberBonusFatigue();
+    unsigned char IsEnableSaveMemberBonusFatigue();   // ORIG movzbl 直返
     void SetProperLevelDungeonUser();
     void ClearProperLevelDungeonUser();
     bool IsProperLevelDungeonUser();
     void ProcProperLevelDungeonClear();   // ORIG 0x0868f5fa = GiveMeBoxReward（声明供
     void GiveMeBoxReward();               //   ORIG 0x08693758 = DBInsertGiveBoxEventReward::makeRequest
                                           //   TournamentDungeonClear 调用；定义待 CUser 域批次）
-    bool isCharacLinkMessageFlag();
-    bool isLinkCharacDisconnectFlag();
+    unsigned char isCharacLinkMessageFlag();   // ORIG movzbl 直返
+    unsigned char isLinkCharacDisconnectFlag();   // ORIG movzbl 直返
     void setLinkCharacDisconnectFlag(bool flag);   // ORIG 0x086973dc
     unsigned char getDisconnectLinkCharacSlotIdx();
-    bool is_update_ontime_last_recv_idx();
+    unsigned char is_update_ontime_last_recv_idx();   // ORIG movzbl 直返
     void reset_update_ontime_last_recv_idx();
-    bool CheckLoadRentalInfoFromExchange();
+    unsigned char CheckLoadRentalInfoFromExchange();   // ORIG movzbl 直返
     unsigned char GetPuUser();
     void SetCeraPoint(unsigned int point);
     void SetDebugCommand(int cmd);
@@ -2846,7 +2846,7 @@ public:
     int GetUserPosInParty();      // 0x08688638
     void* GetWarRoom();
     void set_growth_power_exp_reward(int reward);
-    int get_growth_power_exp_reward();
+    STExpReward get_growth_power_exp_reward();   // ORIG sret 结构返回（仅填 m_reward dword）
     unsigned short getCurCharacTotalFatigue() const;
     unsigned short getCurCharacTotalMaxFatigue() const;
     int serviceOfShusia();    // ORIG T 0x865798a（休沙疲劳恢复服务：扣费+满疲劳；定义见 DisPatcherCore.cpp）

@@ -948,9 +948,11 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
         }
 
         // 成长之力：ratio = 字节1(v>>8&0xff) / 2.0f（flds 0x08cbbbcc = 2.0f）
-        int growthReward = user->get_growth_power_exp_reward();
+        STExpReward growthView;                            // [ctor -0x3c]
+        growthView.m_reward =
+            user->get_growth_power_exp_reward().m_reward;  // [sret 临时 + mov dword]
         float seriaRatio =
-            static_cast<float>((growthReward >> 8) & 0xff) / 2.0f;
+            static_cast<float>((growthView.m_reward >> 8) & 0xff) / 2.0f;
         // fildll(exp)*fmuls(ratio) → fistpl
         seriaBonus = static_cast<int>(
             static_cast<double>(static_cast<unsigned long long>(baseExp)) *
@@ -1516,6 +1518,11 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
         (*reinterpret_cast<cMyTrace*>(log))(
             "CParty::UseSealDoorItems, freepass delete_item failed , User ch=%d , %d %d",
             user->getCurCharacNo(), slotResult, itemId);
+        // ORIG 0x85bc86e：日志后实际删除物品并通知客户端（NEW 原缺这两步）。
+        user->getCurCharacInvenW()->delete_item(
+            static_cast<INVEN_TYPE>(1), slotResult, count,
+            static_cast<eItemDelReason>(0x17), true);
+        user->SendUpdateItem(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slotResult);
     }
     return 0 < slotResult;
 }
@@ -6248,7 +6255,8 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
 
     // +0x49e..+0x4dd：成长之力（STExpReward 局部回填 dword0 后取字节 2）
     STExpReward growthTmp;                                     // -0x3c
-    growthTmp.m_reward = user->get_growth_power_exp_reward();  // sret dword → +0x00
+    growthTmp.m_reward =
+        user->get_growth_power_exp_reward().m_reward;          // sret dword → +0x00
     param.m_growthPowerExpRate =
         static_cast<float>((growthTmp.m_reward >> 16) & 0xff) / 100.0f;
 

@@ -2070,7 +2070,7 @@ char const* get_skill_table_name(bool use2nd)
 char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind)
 {
     if (kind == 1)
-        return "combo_skill2";
+        return "combo_skill_2nd";
     return "combo_skill";
 }
 

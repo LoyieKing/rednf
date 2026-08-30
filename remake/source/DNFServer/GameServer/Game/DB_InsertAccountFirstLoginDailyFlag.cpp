@@ -38,8 +38,8 @@ void DB_InsertAccountFirstLoginDailyFlag::makeRequest(int p1, unsigned int p2,
 // DB_InsertAccountFirstLoginDailyFlag::dispatch @ 0x0843e8be
 // mangled _ZN35DB_InsertAccountFirstLoginDailyFlag8dispatchEiiP6Stream
 // ============================================================================
-int DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*param1*/, int /*serverGroup*/,
-                                                  Stream* s)
+bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/,
+                                                    Stream* s)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);

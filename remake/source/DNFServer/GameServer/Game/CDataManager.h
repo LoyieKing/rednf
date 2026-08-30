@@ -3399,7 +3399,7 @@ public:
     stDeathTower_t* GetTowerScript(unsigned int dungeonIdx);   // ORIG W 0x081455d8：查 m_deathTowerMap，返回 it->second+4（m_rateA）
     void* getBlueMarbleScript();
     void* get_event_script_mng();
-    int get_dimensionInout(int idx);
+    char get_dimensionInout(int idx);   // ORIG 0x0822b612 返回 char：movzbl 单条读取（无 32 位扩展指令）
     int get_limit_inout_count(ENUM_BLOOD_TYPE type);
     void GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
     std::vector<stResetItemInfo::ResetItem>* GetResetItemInfo() const;  // ORIG W 0x8693f24
@@ -3527,7 +3527,7 @@ public:
     {
         struct
         {
-            char m_dimensionInout[6];             // +0xaa74
+            char m_dimensionInout[6];            // +0xaa74（ORIG get_dimensionInout movzbl 读取实证）
             char m_originalDimensionInout[6];     // +0xaa7a
             char m_limitInoutCount[4];            // +0xaa80（set/get_limit_inout_count）
             int m_expTable[200];                  // +0xaa84

@@ -84,7 +84,6 @@ void RestrictGeolocation::closeGeolocation()
     {
         geoipDelete(m_geoip);
     }
-    m_geoip = 0;
 }
 
 void RestrictGeolocation::clearAllowCountry()

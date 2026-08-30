@@ -1595,18 +1595,30 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     }
 
     WongWork::CSimpleSSO::stOutputData_t ssoOut;
-    GlobalData::s_psimpleSSO->checkValidPassword(
-        SGF<unsigned int>(sig, OFF_MEMBER_M_ID), serverPwd,
-        SGB(sig, OFF_CLIENT_IP), ssoOut);
+    if (!GlobalData::s_psimpleSSO->checkValidPassword(
+            SGF<unsigned int>(sig, OFF_MEMBER_M_ID), serverPwd,
+            SGB(sig, OFF_CLIENT_IP), ssoOut))
+    {
+        // ORIG 0x84136c0-0x841370e：失败记日志（行号 0x39da）并返回 false。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x39da, 0);
+        trace("DB_Login::GetAccountInfo, checkValidPassword() ERROR m_id=%s",
+              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        return false;
+    }
 
-    // stOutputData_t → sig 布局映射（逐字段，见 CSimpleSSO.h 与报告 0x84131xx 区指令）
-    SGF<int>(sig, OFF_SSO_LASTPLAY) = ssoOut.m_lastPlayTime;             // +0x3950
-    SGF<int>(sig, OFF_SSO_LASTPLAY + 4) = ssoOut.m_accountFail;          // +0x3954
+    // stOutputData_t → sig 布局映射（逐字段，见 CSimpleSSO.h 与报告 0x84131xx 区指令）。
+    // ORIG 0x8413713-0x8413790：+0x3950=accountFail、+0x3954=totalAccountFail、
+    // +0x3958=lastPlayTime、+0x3960=reportCnt、+0x3964=reliableFlag、
+    // +0x3968=tradeGoldDaily、+0x396c=schoolId、+0x3970=rating。
+    SGF<int>(sig, OFF_SSO_LASTPLAY) = ssoOut.m_accountFail;              // +0x3950
+    SGF<int>(sig, OFF_SSO_LASTPLAY + 4) = ssoOut.m_totalAccountFail;     // +0x3954
     SGF<long long>(sig, OFF_SSO_TRADEGOLD) =                             // +0x3958 lastPlayTime
-        ssoOut.m_lastPlayTime;   // 【ORIG 恒等】sig+0x3958 = stOut+0x00（同源值二写）
+        ssoOut.m_lastPlayTime;   // 【ORIG】sig+0x3958 = stOut+0x00（lastPlayTime）
     SGF<int>(sig, OFF_SSO_REPORTCNT) = ssoOut.m_reportCnt;               // +0x3960
     SGF<char>(sig, OFF_SSO_RELIABLE) = ssoOut.m_reliableFlag;            // +0x3964
     SGF<unsigned int>(sig, OFF_SSO_TRADEGOLD_DAILY) = ssoOut.m_tradeGoldDaily; // +0x3968
+    SGF<unsigned int>(sig, OFF_SCHOOL_ID) = ssoOut.m_schoolId;           // +0x396c
+    SGF<float>(sig, OFF_SSO_RATING) = ssoOut.m_rating;                   // +0x3970
     memset(SGB(sig, OFF_SSO_CLEAR28), 0, 0x28);                          // +0x3974..0x39bb 清零
 
     GameWorld* world = G_GameWorld();

@@ -201,7 +201,7 @@ public:
     char m_forceDropFlag;                            // +0x62d
     char m_webAddress[0x12];                         // +0x62e（getWebAddress）
     int m_playExpAdd;                                // +0x640
-    unsigned char m_breakAwayDungeonClear;           // +0x644（CUser+0x703a8；setBreakAwayDungeonClear
+    bool m_breakAwayDungeonClear;                    // +0x644（CUser+0x703a8；ORIG movzbl 直返，bool 实证
                                                      //   ORIG W 0x085bfd1a 写 byte / isBreakAwayDungeonClear
                                                      //   0x086971de movzbl 读；CUserOnlyOrig.cpp:7704 同义实现）
     char m_pad645[3];                                // +0x645..0x647（ORIG 无具名访问）

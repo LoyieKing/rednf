@@ -207,7 +207,7 @@ public:
     void setElement(ENUM_ELEMENT element);
     bool isValidElement(ENUM_ELEMENT element);
     void setAttackType(ENUM_ATTACKTYPE type);
-    int getAttackType(std::string& tag);
+    static int getAttackType(std::string& tag);
 
     float m_damage;                    // +0x00
     float m_damageIncreaseRate;        // +0x04

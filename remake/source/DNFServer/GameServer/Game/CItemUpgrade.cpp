@@ -262,7 +262,8 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     CEventBase* repeatEvent =
         GlobalData::s_event_manager->GetRepeatEvent(0x32);
     // vtable+0x34（slot 13 = IsEventing(CUser*)）判活 + hasAbility。
-    if (repeatEvent != 0 && !item.m_amp.hasAbility())
+    if (repeatEvent != 0 && repeatEvent->IsEventing(0) &&
+        !item.m_amp.hasAbility())
     {
         CReduceUpgradeItemPay* reduce =
             (CReduceUpgradeItemPay*)repeatEvent;

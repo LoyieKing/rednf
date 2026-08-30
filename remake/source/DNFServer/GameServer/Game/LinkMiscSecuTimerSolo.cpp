@@ -73,14 +73,14 @@ static bool dnf_packset_is_exist(const char* path)
 bool findFileWithServerToken(char* path)
 {
     std::string pathStr(path);
-    std::string::size_type pos = pathStr.find_last_of("\\/");
+    std::string::size_type pos = pathStr.find_last_of("/");
     if (pos == std::string::npos)
-        pos = pathStr.find_last_of(".");
+        pos = pathStr.find_last_of("\\");
     if (pos == std::string::npos)
         return false;
 
     std::string full = pathStr.substr(0, pos + 1);
-    full += "server";
+    full += "(R)";
     full += pathStr.substr(pos + 1, pathStr.size());
 
     ss_strcpy(path, 0x104, full.c_str());

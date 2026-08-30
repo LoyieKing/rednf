@@ -1212,13 +1212,13 @@ char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId)
         return GetNotifyPacketName((ENUM_NOTIPACKET)packetId);
     if (packetClass == (ENUM_PACKETCLASS)1)
         return GetCommandPacketName((ENUM_CMDPACKET)packetId);
-    return const_cast<char*>("?");
+    return const_cast<char*>("Undefined Packet Class");
 }
 
 // ORIG 0x082a2150：越界 → NONAME。
 char* GetNotifyPacketName(ENUM_NOTIPACKET type)
 {
-    static const char* const NONAME = "b'";
+    static const char* const NONAME = "???";
     const int id = (int)type;
     if (id < 0 || id >= getNotiPacketNameCount())
         return const_cast<char*>(NONAME);
@@ -1228,7 +1228,7 @@ char* GetNotifyPacketName(ENUM_NOTIPACKET type)
 // ORIG 0x082a2191：越界 → NONAME。
 char* GetCommandPacketName(ENUM_CMDPACKET type)
 {
-    static const char* const NONAME = "b'";
+    static const char* const NONAME = "???";
     const int id = (int)type;
     if (id < 0 || id >= getCmdPacketNameCount())
         return const_cast<char*>(NONAME);
@@ -2092,7 +2092,7 @@ static const char* const NAMES[852] = {
     """",
     """",
 };
-    static const char* const NONAME = "b'";
+    static const char* const NONAME = "???";
     const int id = (int)type;
     if (id < 0 || id > 0x353)
         return const_cast<char*>(NONAME);

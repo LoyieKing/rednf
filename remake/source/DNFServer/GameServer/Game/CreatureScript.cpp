@@ -316,7 +316,7 @@ int AttackInfo::getAttackType(std::string& tag)
         return 1;
     if (tag == "attack type absolute")
         return 2;
-    return 0;
+    return 7;
 }
 
 // ---- 辅助自由函数 ----

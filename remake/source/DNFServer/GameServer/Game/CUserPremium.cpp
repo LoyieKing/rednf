@@ -207,9 +207,9 @@ int importPremiumList(const char* path,
                     if (value == "[hat avatar]")          equipCase = 0x0;
                     else if (value == "[hair avatar]")     equipCase = 0x1;
                     else if (value == "[face avatar]")     equipCase = 0x2;
-                    else if (value == "[neck avatar]")     equipCase = 0x3;
-                    else if (value == "[coat avatar]")     equipCase = 0x4;
-                    else if (value == "[pants avatar]")    equipCase = 0x5;
+                    else if (value == "[coat avatar]")     equipCase = 0x3;
+                    else if (value == "[pants avatar]")    equipCase = 0x4;
+                    else if (value == "[shoes avatar]")    equipCase = 0x5;
                     else if (value == "[breast avatar]")   equipCase = 0x6;
                     else if (value == "[waist avatar]")    equipCase = 0x7;
                     else if (value == "[skin avatar]")     equipCase = 0x8;

@@ -1160,7 +1160,7 @@ void CDeathTower::_onFinishStage()
         if (m_party->checkValidUser(i))
         {
             CUser* user = m_party->get_user(i);
-            if (clearTime <= 6000)
+            if (clearTime <= 0x176f)   // ORIG cmp $0x176f,setbe（5999，非 6000）
             {
                 CHackAnalyzer* hack = user->getHackAnalyzer();
                 hack->addServerHackCnt(user, (WongWork::ENUM_HACK_TYPE)0x19a, 1u, 0u, 0u);

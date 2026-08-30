@@ -37,7 +37,7 @@ private:
                              unsigned short keyC);                     // T 0x08157298
 public:
     static long long getType(long long key);                           // T 0x081572ea
-    static void getIndex(long long key);                               // T 0x0815730e
+    static long long getIndex(long long key);                          // T 0x0815730e
     static long long getLevel(long long key);                          // T 0x08157336
 
     Mutex m_mutex;                                                   // +0x00

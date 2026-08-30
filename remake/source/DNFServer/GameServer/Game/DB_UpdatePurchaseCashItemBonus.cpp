@@ -41,8 +41,8 @@ void DB_UpdatePurchaseCashItemBonus::makeRequest(int p1, unsigned int p2)
 // DB_UpdatePurchaseCashItemBonus::dispatch @ 0x0843e252
 // mangled _ZN30DB_UpdatePurchaseCashItemBonus8dispatchEiiP6Stream
 // ============================================================================
-int DB_UpdatePurchaseCashItemBonus::dispatch(int /*param1*/, int param2,
-                                             Stream* s)
+bool DB_UpdatePurchaseCashItemBonus::dispatch(int /*userIdx*/, int slot,
+                                               Stream* s)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);
@@ -83,7 +83,7 @@ int DB_UpdatePurchaseCashItemBonus::dispatch(int /*param1*/, int param2,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9407);
     CStreamGuard guard(stream, true);
     guard.operator*()->operator<<(0x23c);
-    guard.operator*()->operator<<(param2);
+    guard.operator*()->operator<<(slot);   // ORIG 0x843e4c0：第二个 lsEi 参数 = 0x10(%ebp) = slot
     SIG_PURCHASE_CASHITEM_BONUS* sig = guard.GetInBuffer<SIG_PURCHASE_CASHITEM_BONUS>();
     *reinterpret_cast<unsigned int*>(sig) = purchaseCnt;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

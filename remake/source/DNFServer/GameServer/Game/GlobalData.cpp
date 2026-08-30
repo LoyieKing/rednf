@@ -4378,10 +4378,7 @@ InstanceRentalSystem::~InstanceRentalSystem()
 }
 void InstanceRentalSystem::registerRentalMachine(int idx, IRentalMachine* m)
 {
-    if (m_impl)
-    {
-        m_impl->m_machines[idx] = m;
-    }
+    m_impl->m_machines[idx] = m;
 }
 
 RentalMachinePcRoom::RentalMachinePcRoom() : m_impl(new RentalMachinePcRoomImpl)
@@ -4393,10 +4390,6 @@ RentalMachinePcRoom::RentalMachinePcRoom() : m_impl(new RentalMachinePcRoomImpl)
 void RentalMachinePcRoom::initLoggingEnvironment()
 {
     // ORIG 0x8270886：snprintf(impl, 0x103, "./log/%s/dw2_RentalItems", 文件名)。
-    if (m_impl.get() == 0)
-    {
-        return;
-    }
     snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
              G_CEnvironment()->get_file_name());
 }
@@ -4404,10 +4397,6 @@ void RentalMachinePcRoom::initLoggingEnvironment()
 void RentalMachineDimension::initLoggingEnvironment()
 {
     // ORIG 0x826efdc：同 PcRoom 日志路径（.rodata 0x8bf90c2 同串）。
-    if (m_impl == 0)
-    {
-        return;
-    }
     snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
              G_CEnvironment()->get_file_name());
 }

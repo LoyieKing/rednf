@@ -459,7 +459,7 @@ bool initNpcScript(const char* dir, const char* listPath)
     size_t len = strlen(g_npcScriptBaseDirectory);
     char last = g_npcScriptBaseDirectory[len - 1];
     if (last != '\\' && last != '/')
-        memcpy(g_npcScriptBaseDirectory + len, "/", 2);
+        memcpy(g_npcScriptBaseDirectory + len, "\\", 2);
     return loadRDARScriptListFile(&g_npcScriptFileList,
                                   g_npcScriptBaseDirectory, listPath, 0)
                ? true : false;

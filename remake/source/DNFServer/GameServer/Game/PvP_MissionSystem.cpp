@@ -1,5 +1,6 @@
 #include "CDataManager.h"
 #include "CMission.h"
+#include "MissionLessThan.h"
 #include "PvPTypes.h"          // CMTRand
 #include "DNFLexWrapper.h"     // loadRDARScriptFile / Scan* helper
 #include <stdio.h>
@@ -630,5 +631,5 @@ void PvP_MissionSystem::sort_list()
 {
     for (std::vector<std::list<CMission*> >::iterator it = m_kindMissionList.begin();
          it != m_kindMissionList.end(); ++it)
-        it->sort();
+        it->sort(MissionLessThan());
 }

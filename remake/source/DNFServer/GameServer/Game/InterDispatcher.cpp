@@ -10074,12 +10074,12 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_charac_no(-1) != characNo)
         return 0;
 
-    {   // ORIG (user+0x79700)->GuildCargoResult(reason=msg+0x18ee, 1, capacity=msg+0x18ea)
+    {   // ORIG 0x084dd2df：GuildCargoResult(reason=1, a=msg+0x18ee, b=capacity=msg+0x18ea)
+        //   （esp+4=1、esp+8=0x18ee、esp+0xc=0x18ea——reason 为常量 1，勿与字段错位）
         cUserHistoryLog* hist = &user->m_historyLog;
         hist->GuildCargoResult(
-            (ENUM_GUILD_CARGO_HISTORY_REASON)(
-                *reinterpret_cast<unsigned char*>(data + 0x18ee)),
-            1,
+            (ENUM_GUILD_CARGO_HISTORY_REASON)1,
+            (int)*reinterpret_cast<unsigned char*>(data + 0x18ee),
             (int)*reinterpret_cast<unsigned int*>(data + 0x18ea));
     }
 

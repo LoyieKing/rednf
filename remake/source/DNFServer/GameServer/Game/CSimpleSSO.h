@@ -54,8 +54,8 @@ public:
 
     void reset();  // ORIG T 0x086028b4：m_mysql = 0
 
-    void checkValidPassword(unsigned int mId, char const* serverPwd,
-                            char const* clientPwd, stOutputData_t& out);  // ORIG T 0x086028c6
+    bool checkValidPassword(unsigned int mId, char const* serverPwd,
+                            char const* clientPwd, stOutputData_t& out);  // ORIG T 0x086028c6（返回 bool）
     bool checkValidPassword_Jpn(unsigned int mId, char const* a, char const* b,
                                 stOutputData_t& out);  // ORIG T 0x081b25ec
     void getGameStartTime(unsigned int mId, long& loginTime, long& expireTime,

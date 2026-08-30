@@ -22,7 +22,8 @@
 struct ExpertJobExp
 {
     int         m_exp;    // +0x00（GetLevel/isBoundaryExpValue 比较用）
-    int         m_level;  // +0x04
+    char        m_level;  // +0x04（ORIG C1ERKS_/aSERKS_ 实证 movzbl+mov %dl 单字节拷贝）
+    char        m_pad5[3];// +0x05
     std::string m_name;   // +0x08（专家职业名）
 };
 

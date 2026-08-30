@@ -236,9 +236,10 @@ public:
     ReservedCapacity m_reserved;       // +0x34
 };
 
-// ============================================================================
-// Inven_Item_Compatible —— ORIG 0x833f38e/0x833f418（user_creature DB 域使用）。
-// Inven_Item 的 DB 兼容子集布局（setCopy 逐字段转写推导，pack(1)）：
+// Inven_Item 的 DB 兼容子集布局（setCopy 逐字段转写推导，自然对齐——
+// ORIG 反汇编 m_attr@+0x08 后 m_addInfo2@+0x0c（+0x09..0x0b 填充），
+// 与 pack(1) 的 Inven_Item 本体不同，故定义在 pack(1) 区外）：
+#pragma pack(pop)
 class Inven_Item_Compatible
 {
 public:
@@ -247,7 +248,7 @@ public:
 
     unsigned char m_field0;     // +0x00（← item+0x00）
     unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
-    unsigned char m_field2[2];  // +0x02..0x03（pack(1) 显式填充：ORIG m_itemIdx 在 +0x04）
+    unsigned char m_field2[2];  // +0x02..0x03（填充：ORIG m_itemIdx 在 +0x04）
     int m_itemIdx;              // +0x04（← item+0x02）
     unsigned char m_attr;       // +0x08（← Inven_Item::GetItemAttr）
     int m_addInfo2;             // +0x0c（← item+0x07）

@@ -494,7 +494,8 @@ int GiftQuery::getResult(MySQL& db)
 }
 
 // ---- ConfirmQuery ---------------------------------------------------------
-// ORIG T 0x08174ac6（C2 同址别名）：trans 前 12 字节逐 dword 拷贝进 m_trans。
+// ORIG T 0x08174ac6（C2 同址别名）：trans 前 12 字节逐 dword 拷贝进 m_trans；
+// ORIG 尾部 movl $0x0,(%eax) 清零 m_resultCode（+0x00）。
 ConfirmQuery::ConfirmQuery(const BillTransaction& trans)
     : m_resultCode(0)
 {
@@ -540,7 +541,7 @@ int ConfirmQuery::getResult(MySQL& db)
 
 // ---- CancelQuery ----------------------------------------------------------
 
-// ORIG T 0x08174ce2（C2 同址别名）
+// ORIG T 0x08174ce2（C2 同址别名）；ORIG 尾部同样清零 m_resultCode（+0x00）。
 CancelQuery::CancelQuery(const BillTransaction& trans)
     : m_resultCode(0)
 {

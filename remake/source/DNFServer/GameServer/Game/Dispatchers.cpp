@@ -13266,7 +13266,6 @@ int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     // 局部载荷区（-0x157 起）：+0x0d type / +0x0e target / +0x10 uint /
     // +0x14 msg2len / +0x18 msg2[0x1e] / +0x36 msg1len / +0x3a msg1[0x100]
     char buf[0x13a];
-    memset(buf, 0, sizeof(buf));
     if (user->get_state() < 3)
     {
         return 0;
@@ -15990,7 +15989,7 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
     pkt.m_accIdHi = user->get_acc_id();             // +0x1e ← get_acc_id
     unsigned int nameLen = (unsigned int)strlen(user->getCurCharacName());  // -0x54
     unsigned int minLen = 0x1d;                     // -0x4c
-    unsigned int copyLen = *std::min<unsigned int const*>(&nameLen, &minLen);
+    unsigned int copyLen = std::min(nameLen, minLen);
     strncpy(pkt.m_name, user->getCurCharacName(), copyLen);                 // +0x22
     unsigned char groupByte = 0;                    // -0x55
     packet.get_byte(groupByte);
@@ -16331,7 +16330,7 @@ int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packe
     // +0x93：5 段读取（每段失败 → LineFunc 对应行号后 jmp 尾部）
     if (!packet.get_byte((char&)chatType))
         goto L_9cf3;
-    if (!packet.get_short((short&)target))
+    if (!packet.get_short(target))
         goto L_9cf4;
     if (!packet.get_int((unsigned int&)fromId))
         goto L_9cf5;
@@ -16767,8 +16766,8 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
     }
     else
     {
-        // ---- 点券拍卖（GA；ORIG ctor 0x0822e6aa，category 0x06）----
-        DspAuctionSearchByItemKeyPck pck(0x06);
+        // ---- 点券拍卖（GA；ORIG ctor 0x0822e6aa，category 0）----
+        DspAuctionSearchByItemKeyPck pck(0);
         pck.uid = user->GetUID();
         pck.characNo = user->getCurCharacNo();
         if (!packet.get_int((unsigned int&)pck.field1a))            // +0x1a
@@ -18953,16 +18952,7 @@ int Dispatcher_Select_Item_Grwoth_Power::check_error(CUser* user, MSG_BASE& msg,
         return -1;
     }
     int level = user->get_charac_level();
-    int low = -1;  // ORIG 0x0822afd6：无命中返回 -1
-    const std::vector<STBreakAwaySection>& secs = G_CDataManager()->m_growthPower.m_vec0;
-    for (std::vector<STBreakAwaySection>::const_iterator it = secs.begin(); it != secs.end(); ++it)
-    {
-        if (static_cast<int>(static_cast<unsigned char>(it->m_field1)) > level)
-        {
-            break;
-        }
-        low = static_cast<unsigned char>(it->m_field1);
-    }
+    int low = G_CDataManager()->m_growthPower.get_break_away_section_low_level(level);
     unsigned char reward = user->get_growth_power_reward();
     if (static_cast<int>(reward) < low)
     {
@@ -21637,7 +21627,7 @@ int Dispatcher_ClearAction::dispatch_sig(CUser* user, PacketBuf& packet)
     _MSG_ACTION_POINT_ACTION_CLEAR msg;
     if (!packet.get_binary(reinterpret_cast<char*>(&msg), 0xb))
         return 0x27c;
-    CUserProc::ClearActionAndSendtoUser(user, _ActionGroupIndex(msg.m_group),
+    CUserProc::ClearActionAndSendtoUser(user, (_ActionGroupIndex)msg.m_group,
                                         msg.m_field4, (ENUM_PACKETCLASS)1);
     return 0;
 }

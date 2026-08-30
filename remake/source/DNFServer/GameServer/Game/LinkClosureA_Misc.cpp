@@ -52,16 +52,16 @@ char* GetUserName(IMatch* match, char* out)
 {
     const char* n3 = match->GetUser(3) != 0
                          ? match->GetUser(3)->get_acc_name()
-                         : "127.0.0.1";                     // [edi 槽]
+                         : "";                     // [edi 槽]
     const char* n2 = match->GetUser(2) != 0
                          ? match->GetUser(2)->get_acc_name()
-                         : "127.0.0.1";                     // [esi 槽]
+                         : "";                     // [esi 槽]
     const char* n1 = match->GetUser(1) != 0
                          ? match->GetUser(1)->get_acc_name()
-                         : "127.0.0.1";                     // [ebx 槽]
+                         : "";                     // [ebx 槽]
     const char* n0 = match->GetUser(0) != 0
                          ? match->GetUser(0)->get_acc_name()
-                         : "127.0.0.1";                     // [eax 槽]
+                         : "";                     // [eax 槽]
     sprintf(out, "%s,%s,%s,%s", n0, n1, n2, n3);
                                                             // [0x8564132 fmt @0x8ca23b5]
     return out;

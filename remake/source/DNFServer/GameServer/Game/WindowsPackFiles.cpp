@@ -311,7 +311,7 @@ WindowsDataFile::~WindowsDataFile()
 {                                                            // 0x08574e56
     if (m_data != 0)
     {
-        delete[] m_data;
+        delete m_data;      // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样，同 LoadClientFile）
         m_data = 0;
     }
 }
@@ -352,7 +352,7 @@ WindowsExeFile::~WindowsExeFile()
 {                                                            // 0x0857371a
     if (m_image != 0)
     {
-        delete[] m_image;
+        delete m_image;      // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样，同 LoadClientFile）
         m_image = 0;
     }
     for (std::size_t i = 0; i < m_sections.size(); ++i)
@@ -560,7 +560,7 @@ bool WindowsExeFile::LoadWindowsExeFile(const char* path)    // 0x085740de
     }
     if (!ReadPeHeader())
     {
-        delete[] m_image;
+        delete m_image;      // ORIG _ZdlPv（同 ~WindowsExeFile 保留原版形态）
         m_image = 0;
         m_size = 0;
         return false;
