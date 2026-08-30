@@ -345,12 +345,14 @@ char WongWork::CWebEvent::m_strEventIPGCode[10][0xb] = {
 char const* WongWork::CWebEvent::_GetEventString(int idx)
 {
     // ORIG T 0x086c1ba8 (size 0x2b)：idx≤0xa 允许（含第 11 槽，照抄 asm jle
-    // 边界）；stride 0x12。
-    if (idx <= 0xa)
+    // 边界）；stride 0x12。ret 栈变量形态按 ORIG 字节序（movl $0,-0x4(%ebp)
+    // 初始化；if (idx>0xa) return ret → cmpl+jle 跳计算块）。
+    char const* ret = 0;
+    if (idx > 0xa)
     {
-        return &m_strEventName[0][0] + idx * 0x12;
+        return ret;
     }
-    return 0;
+    return &m_strEventName[0][0] + idx * 0x12;
 }
 
 char const* WongWork::CWebEvent::_GetEventIPGCode(int idx)
@@ -371,20 +373,34 @@ char const* WongWork::CWebEvent::_GetEventIPGCode(int idx)
 int WongWork::CWebEvent::_GetATIAvatarAbility(int itemIdx)
 {
     // ORIG T 0x086c1a2e (size 0x8c)：离散映射 0x9ed0→1、0xae68→6、0xbe0c→4，
-    // 其余（含 0xa060/0xaff8/0xbf9c/0xcd81/0xcf11 槽）→0。
+    // 其余（含 0xa060/0xaff8/0xbf9c/0xcd81/0xcf11 槽）→0。ret 栈变量形态按
+    // ORIG 字节序（各 case 写 -0x4(%ebp)，尾部 mov -0x4(%ebp),%eax；无 default，
+    // 0xcd81 独立 body、其余 0 值 case fall-through 共享 body——见 ORIG 布局）。
+    int ret = 0;
     switch (itemIdx)
     {
         case 0x9ed0:
-            return 1;
+            ret = 1;
+            break;
         case 0xae68:
-            return 6;
+            ret = 6;
+            break;
         case 0xbe0c:
-            return 4;
-        default:
-            return 0;
+            ret = 4;
+            break;
+        case 0xcd81:
+            ret = 0;
+            break;
+        case 0xa060:
+        case 0xaff8:
+        case 0xbf9c:
+        case 0xcf11:
+            ret = 0;
+            break;
     }
+    return ret;
 }
-
+ 
 bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
                                            unsigned int p3, unsigned int p4,
                                            unsigned int p5, unsigned int p6,

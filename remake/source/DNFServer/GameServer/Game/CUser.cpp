@@ -9573,29 +9573,18 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // skill 区（+0xc9c0）+ combo（+0x14aaa）
     GetSkill((SIG_LOAD_SKILL*)sig->m_mixedRegion, (SIG_COMBO_SKILL*)sig->m_comboSkill);
 
-    // 混合区内 expand 子区（m_mixedRegion 内文档化偏移）
+    // 混合区内 expand 子区（m_mixedRegion 内文档化偏移）。
+    // ORIG 顺序：type 7/0xd/8/0xb 无条件；type 0xa/0x10/0xe/0xf/0x11/0x12、
+    // aura、option、attendance、blueMarble、type 0x13 均在 getTagCharacR()!=0 内。
     char* mix = (char*)sig->m_mixedRegion;
-    CExpandEquipslot* e8 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
-    (*(GetDataFn)((char*)*(void**)e8 + 8))(e8, mix + (0xcdd5 - 0xc9c0));
     CExpandEquipslot* e7 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)7);
     (*(GetDataFn)((char*)*(void**)e7 + 8))(e7, mix + (0xcf1f - 0xc9c0));
-    CExpandEquipslot* eb = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xb);
-    (*(GetDataFn)((char*)*(void**)eb + 8))(eb, mix + (0xd5a7 - 0xc9c0));
     CExpandEquipslot* ed = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xd);
     (*(GetDataFn)((char*)*(void**)ed + 8))(ed, mix + (0xd718 - 0xc9c0));
-    // ORIG 0x0867794c：expand type 0xa → mix+0xd3c（0xd6fc - 0xc9c0）。
-    CExpandEquipslot* ea = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa);
-    (*(GetDataFn)((char*)*(void**)ea + 8))(ea, mix + (0xd6fc - 0xc9c0));
-    CExpandEquipslot* e10 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10);
-    (*(GetDataFn)((char*)*(void**)e10 + 8))(e10, mix + (0xd73c - 0xc9c0));
-    CExpandEquipslot* ee = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe);
-    (*(GetDataFn)((char*)*(void**)ee + 8))(ee, (char*)sig->m_expandDataE);
-    CExpandEquipslot* ef = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf);
-    (*(GetDataFn)((char*)*(void**)ef + 8))(ef, (char*)sig->m_expandDataF);
-    CExpandEquipslot* e11 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11);
-    (*(GetDataFn)((char*)*(void**)e11 + 8))(e11, mix + (0xecc8 - 0xc9c0));
-    CExpandEquipslot* e12 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12);
-    (*(GetDataFn)((char*)*(void**)e12 + 8))(e12, mix + (0xecd0 - 0xc9c0));
+    CExpandEquipslot* e8 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
+    (*(GetDataFn)((char*)*(void**)e8 + 8))(e8, mix + (0xcdd5 - 0xc9c0));
+    CExpandEquipslot* eb = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xb);
+    (*(GetDataFn)((char*)*(void**)eb + 8))(eb, mix + (0xd5a7 - 0xc9c0));
 
     // tag 角色技能槽（+0x10/+0x1a8）
     if (getTagCharacR() != 0)
@@ -9604,17 +9593,31 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
         ((SkillSlot*)getTagCharacSkillR())->get_skill_slot(
             reinterpret_cast<char*>(sig->m_tagEtc.m_rows[0].m_skills),
             reinterpret_cast<char*>(sig->m_tagEtc.m_rows[1].m_skills), 0x198);
+
+        // ORIG 0x0867794c：expand type 0xa → mix+0xd3c（0xd6fc - 0xc9c0）。
+        CExpandEquipslot* ea = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa);
+        (*(GetDataFn)((char*)*(void**)ea + 8))(ea, mix + (0xd6fc - 0xc9c0));
+        CExpandEquipslot* e10 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10);
+        (*(GetDataFn)((char*)*(void**)e10 + 8))(e10, mix + (0xd73c - 0xc9c0));
+        CExpandEquipslot* ee = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe);
+        (*(GetDataFn)((char*)*(void**)ee + 8))(ee, (char*)sig->m_expandDataE);
+        CExpandEquipslot* ef = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf);
+        (*(GetDataFn)((char*)*(void**)ef + 8))(ef, (char*)sig->m_expandDataF);
+        CExpandEquipslot* e11 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11);
+        (*(GetDataFn)((char*)*(void**)e11 + 8))(e11, mix + (0xecc8 - 0xc9c0));
+        CExpandEquipslot* e12 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12);
+        (*(GetDataFn)((char*)*(void**)e12 + 8))(e12, mix + (0xecd0 - 0xc9c0));
+
+        // aura（+0xd730）/ character option（+0xeac8）在混合区内
+        GetAuraAvatarOption(*(stAuraAvatarOption*)(mix + (0xd730 - 0xc9c0)));
+        GetCurCharacOption(*(CharacterOption*)(mix + (0xeac8 - 0xc9c0)));
+
+        // attendance（+0x14a99）+ blueMarble（+0x14a98）+ expand 0x13（+0x14a9a）
+        GetCharacCashAttendanceInfo(*(SIG_ATTENDANCE_EVENT*)&sig->m_attendanceEvent);
+        sig->m_blueMarbleEnterCount = getBlueMarbleEnterCount();
+        CExpandEquipslot* e13 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13);
+        (*(GetDataFn)((char*)*(void**)e13 + 8))(e13, (char*)&sig->m_attendanceEvent + (0x14a9a - 0x14a99));
     }
-
-    // aura（+0xd730）/ character option（+0xeac8）在混合区内
-    GetAuraAvatarOption(*(stAuraAvatarOption*)(mix + (0xd730 - 0xc9c0)));
-    GetCurCharacOption(*(CharacterOption*)(mix + (0xeac8 - 0xc9c0)));
-
-    // attendance（+0x14a99）+ blueMarble（+0x14a98）+ expand 0x13（+0x14a9a）
-    GetCharacCashAttendanceInfo(*(SIG_ATTENDANCE_EVENT*)&sig->m_attendanceEvent);
-    sig->m_blueMarbleEnterCount = getBlueMarbleEnterCount();
-    CExpandEquipslot* e13 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13);
-    (*(GetDataFn)((char*)*(void**)e13 + 8))(e13, (char*)&sig->m_attendanceEvent + (0x14a9a - 0x14a99));
 
     return 1;
 }

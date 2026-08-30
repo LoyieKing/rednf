@@ -468,7 +468,7 @@ copy_rest:
     m_tournamentRoundFatigue = script.m_498;
     m_itemRate8c4 = script.m_itemRate4b4;
     m_map8ac = script.m_map49c;
-    m_itemRate8c4.m_10 = script.m_4c4;
+    m_8d4 = script.m_4c4;
     m_map8d8 = script.m_map4c8;
     m_map91c = script.m_map4e4;
     m_dimensionPartyCount.swap(script.m_dimension308);

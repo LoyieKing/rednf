@@ -344,8 +344,8 @@ public:
 
     std::vector<TournamentRewardItem> m_items;  // +0x00
     int m_c;                                    // +0x0c
-    int m_10;                                   // +0x10（ORIG sizeof 0x14）
-};
+};  // sizeof == 0x10（ORIG Clear 0x836ab66 与 STDungeonScript::Clear
+    //    m_itemRate4b4→m_4c4@+0x4c4 实证；无 m_10 字段）
 
 struct STNamedMonsterMapPos
 {
@@ -767,7 +767,9 @@ public:
     int m_tournamentRoundFatigue;   // +0x8a4（getTournamentRoundFatigue）
     unsigned char m_tournamentFlag; // +0x8a8（isTournamentDungeon：signed <=1 判定）
     std::map<int, TournamentRewardRate> m_map8ac; // +0x8ac
-    TournamentRewardItemRate m_itemRate8c4;       // +0x8c4
+    TournamentRewardItemRate m_itemRate8c4;       // +0x8c4（sizeof 0x10）
+    int m_8d4;                      // +0x8d4（set_dungeon 从 script.m_4c4 位拷贝；
+                                    //      ORIG 0x834b8cc mov 0x4c4→0x8d4）
     std::map<unsigned char, unsigned int> m_map8d8; // +0x8d8
     std::vector<STNamedMonsterMapPos> m_vec8f0;   // +0x8f0
     unsigned char m_questNpcDungeon; // +0x8fc（getQuestNpcDungeon；script+0x2aa）

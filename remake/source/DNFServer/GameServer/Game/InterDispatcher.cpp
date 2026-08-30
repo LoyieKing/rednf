@@ -7427,13 +7427,25 @@ struct RegPckDnfItemInfo    // 0x35：@PCK+0x30..+0x64
     unsigned long extendInfo;               // +0x0c (u32)
     unsigned char abilityType_;             // +0x10
     unsigned short abilityValue_;           // +0x11
+    char guid_[10];                         // +0x13..+0x1c（auction DnfItemInfo::guid_ 10B；ORIG reset 不清）
     RandomOption random_option_;            // +0x1d (0xe)
     UpgradeSeparateInfo separate_info;      // +0x2b
     ReservedCapacity reserved_capacity;     // +0x2c (9)
 };
 
+struct RegPckGuid  // 10B：ORIG pck+0x8b..+0x95（=auction itemGloballyUniqueIdentifier_t 10B 版；AuctionItem.h 与 Inven_Item.h 冲突故本地定义）
+{
+    char data_[10];
+};
+
 struct RegPckRoiCategory   // 12B：ORIG high(short)×3 + reserved(short) + low(char)×3
 {
+    // ORIG ROI_Category C1 @0x0822ac10：清零 12B（3×movl $0），PCK_ 构造内先于 memset。
+    RegPckRoiCategory()
+    {
+        memset(this, 0, 12);
+    }
+
     void _sort()
     {
         short th;
@@ -7474,6 +7486,7 @@ struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
     stAvatarEmblemInfo_t jewel_info;          // @101
     stAvatarExpansionInfo_t expansion;        // @131
     unsigned int black_point;                 // @135
+    char guid[10];                            // @139（10B；ORIG dispatch_sig +0x8b..+0x95）
     int unit_price;                           // @149
     RegPckRoiCategory _reg_roi_category_key;  // @153
     char owner_nexon_id[nexon::cash::MAX_NEXON_ID_LENTH];  // @165
@@ -7487,6 +7500,8 @@ struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
     }
 };
 #pragma pack(pop)
+
+// 布局自检（ORIG 实证：guid @0x8b..+0x95、roi @0x99、sizeof 0xc5；字段已按 ORIG 补齐）
 
 
 

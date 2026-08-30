@@ -1507,9 +1507,12 @@ bool CCreatureMgr::CheckItem(CUser* user, Inven_Item* item, bool& b)
 
 // ORIG _ZNK13user_creature12CCreatureMgr12GetExtraGoldEi T 0x0833c31a：
 // 无装备宠/已死亡 → 0；按宠物种族 id 给额外金币比例（*5 或 *3 再 /100）。
+// 两个独立 if（非 ||）：ORIG 字节序两条独立 0 返回路径（je +0xfc / jmp +0x101）。
 int CCreatureMgr::GetExtraGold(int gold) const
 {
-    if (m_equippedCreature == 0 || m_equippedCreature->IsDieCreature())
+    if (m_equippedCreature == 0)
+        return 0;
+    if (m_equippedCreature->IsDieCreature())
         return 0;
     switch (m_equippedCreature->GetCreatureId())
     {

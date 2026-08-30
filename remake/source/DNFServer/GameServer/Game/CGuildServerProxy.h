@@ -109,21 +109,21 @@ class CEventBase
 public:
     CEventBase();                          // 0x0810ae2c
     virtual ~CEventBase();
-    virtual void StartEvent() = 0;              // vtable+0x10
-    virtual void EndEvent() = 0;                // vtable+0x14
-    virtual void StartEvent(Word_Param param);  // vtable+0x18
-    virtual void StartAction();                 // vtable+0x1c
-    virtual void AppendInfo(PacketGuard& packet);  // vtable+0x20
-    virtual stADDINFO GetAddInfo();   // vtable+0x24；返回 4 字节非 POD stADDINFO
+    virtual void StartEvent() = 0;              // vtable+0x08（ORIG 0x08724fe0）
+    virtual void EndEvent() = 0;                // vtable+0x0c（ORIG 0x08724fe0）
+    virtual void StartEvent(Word_Param param);  // vtable+0x10（ORIG 0x0810af26）
+    virtual void StartAction();                 // vtable+0x14（ORIG 0x080c84c4）
+    virtual void AppendInfo(PacketGuard& packet);  // vtable+0x18（ORIG 0x080c84ca）
+    virtual stADDINFO GetAddInfo();   // vtable+0x1c（ORIG 0x080c84d0）；返回 4 字节非 POD stADDINFO
     // （ORIG 0x080c84d0 sret 形态：写 this+0x04 至隐藏 out 指针，ret $4，
     //  2026-08-28 OrigEventLeaf8f 修正 int→stADDINFO，mangled 不变 Ev）
     virtual void changeCharacName(CUser* user, int a, char* name, int b);
-                                                // vtable+0x28
-    virtual void dailyresetData();              // vtable+0x2c
-    virtual void deliveryStart(CDelivery* delivery);  // vtable+0x30
-    virtual void deliveryEnd(CDelivery* delivery);    // vtable+0x34
-    virtual void delivery(DeliveryMsg& msg);    // vtable+0x38
-    virtual bool IsEventing(CUser* user) const; // vtable+0x3c
+                                                // vtable+0x20（ORIG 0x0810ae96）
+    virtual void dailyresetData();              // vtable+0x24（ORIG 0x0810ae9c）
+    virtual void deliveryStart(CDelivery* delivery);  // vtable+0x28（ORIG 0x0810aea2）
+    virtual void deliveryEnd(CDelivery* delivery);    // vtable+0x2c（ORIG 0x0810aea8）
+    virtual void delivery(DeliveryMsg& msg);    // vtable+0x30（ORIG 0x0810aeae）
+    virtual bool IsEventing(CUser* user) const; // vtable+0x34（ORIG 0x080c84fa）
     void SetEventFlag(bool flag);               // 非虚 0x080c84e2
 
 protected:

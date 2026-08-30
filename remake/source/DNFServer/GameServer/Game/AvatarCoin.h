@@ -13,7 +13,7 @@ public:
     unsigned int Get() const;
     static bool BuyProcess(CUser* user, Inven_Item& item);          // ORIG 0x081801d0
     char IsUsable() const;
-    static int GetPackage(CUser* user, int avatarUid, bool bReset); // ORIG 0x0818028a
+    static bool GetPackage(CUser* user, int avatarUid, bool bReset); // ORIG 0x0818028a
     static int SaveToDB(CUser* user);                               // ORIG 0x081800d6
     static int SendSyncPacket(CUser* user);                         // ORIG 0x0817ffe4
 

@@ -38,14 +38,13 @@ struct AradMailItemInfo
     // ORIG GetItemAttr _ZNK10ARAD_DATAS16AradMailItemInfo11GetItemAttrEv W
     unsigned char GetItemAttr() const { return m_itemAttr; }  // 0x08197e12
     unsigned char m_flag;    // +0x00 → SIG +0x2a
-    int m_field4;            // +0x04（send_mail 0x081a329e 写 1）
+    int m_field4;            // +0x04（send_mail 0x081a329e 写 1）→ SIG +0x2f
     unsigned char m_field8;  // +0x08（send_mail 0x081a329e 写 2）
     unsigned short m_fieldA; // +0x0a → SIG +0x34
     int m_fieldC;            // +0x0c → SIG +0x2b
-    int m_field10;           // +0x10 → SIG +0x2f、+0x36
+    int m_field10;           // +0x10 → SIG +0x36
     unsigned char m_itemAttr;// +0x14（GetItemAttr 读取位）
 };
-
 // ---------------------------------------------------------------------------
 // AradMailInfo —— ORIG C1 @0x081a3ff2 (W)：清零以下标量字段后构造内嵌 item。
 // sizeof ≈ 0x38（尾部对齐）。字符串指针字段由调用方保证生存期。

@@ -2641,14 +2641,13 @@ public:
     int _read_packet(PacketBuf& packet);   // ORIG 0x08225806
 
 private:
-    // ORIG 成员布局（_reset/_read_packet/_send_result 实证；基类仅 vptr）
-    short m_field4;               // +0x04（包内读出的目标槽）
-    short m_newSlot;              // +0x06（合成结果入包槽位）
-    short m_slots[2];             // +0x08（两个材料槽位）
+    unsigned short m_field4;   // +0x04（包内读出的目标槽；ORIG movzwl 零扩展）
+    short m_newSlot;           // +0x06（合成结果入包槽位；ORIG cwtl 符号扩展）
+    unsigned short m_slots[2]; // +0x08（两个材料槽位；ORIG movzwl 零扩展）
     Inven_Item m_materials[2];    // +0x0c（stride 0x3d）
     const CItem* m_itemRefs[2];   // +0x88（find_item 结果）
     Inven_Item m_resultItem;      // +0x90
-    unsigned char m_select;       // +0xcd（包内读出的选择字节）
+    char m_select;            // +0xcd（包内读出的选择字节；ORIG jle 有符号比较）
     unsigned char m_padCe[2];     // +0xce..+0xcf
     CUser* m_user;                // +0xd0
     unsigned char m_targetKind;   // +0xd4（0/1/2/3，按目标物品 idx 判别）

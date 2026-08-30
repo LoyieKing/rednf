@@ -865,7 +865,7 @@ void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
     for (std::map<int, int>::iterator it = result.begin(); it != result.end();)
     {
         sprintf(line, "%d gold count = %d \n", it->first, it->second);
-        unsigned int gold = static_cast<unsigned int>(it->first) * it->second;
+        int gold = it->first * it->second;
         maxGold += gold;
 
         if (strlen(fileBuf) + strlen(line) > 89999)

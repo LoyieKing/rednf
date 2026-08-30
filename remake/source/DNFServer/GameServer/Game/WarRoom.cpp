@@ -2221,7 +2221,7 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
-                              "CRITICAL ERROR : 쟁역 카운터 스크립트 로드 실패!");
+                              "CRITICAL ERROR : \xc0\xef\xbf\xaa \xc4\xab\xbf\xee\xc5\xcd \xbd\xba\xc5\xa9\xb8\xb3\xc6\xae \xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
         return 0;
     }
     std::string token;

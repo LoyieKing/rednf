@@ -6406,7 +6406,7 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
     int   sp2   = *reinterpret_cast<int*>(base + 0x1a4);
     char* bufB  = base + 0x1a8;
     int   tail1 = *reinterpret_cast<int*>(base + 0x340);
-    (void)*reinterpret_cast<int*>(base + 0x344);           // ORIG 仅读取未用
+    int   tail2 = *reinterpret_cast<int*>(base + 0x344);   // ORIG 实参第 4（sfp2）
 
     if (getCurCharacR() == 0)
     {
@@ -6415,9 +6415,9 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
         return false;
     }
 
-    // asm 实参序:(sp1, sp2, tail1, tail1)
+    // asm 实参序:(sp1, sp2, tail1, tail2=[0x344])——ORIG 第 4 参为 0x344 字段
     SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
-    slot->set_remain_sp(sp1, sp2, tail1, tail1);
+    slot->set_remain_sp(sp1, sp2, tail1, tail2);
 
     slot = (SkillSlot*)getCurCharacSkillW();
     slot->set_skill_slot(bufA, bufB, 0x198);
@@ -9470,6 +9470,7 @@ void CUser::SendDungeonClearList()
     const WongWork::CDungeonClear* clear = getDungeonClearRefR();
     packet.put_short(static_cast<int>(clear->getDungeonClearSize()));
     clear->enumDungeonClear(this, ::fnEnumDungeonClear, &packet);
+    packet.finalize(true);
     Send(packet);
 }
 

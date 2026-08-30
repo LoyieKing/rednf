@@ -20,6 +20,7 @@
 #include "HistoryLog.h"                           // WriteSellItem
 
 #include "CStatisticServerProxy.h"
+#include "Packet_DeathTower_Statistic_Value.h"   // 类带 PacketHeader(0xc3b,0x15) ctor（ORIG C1 0x0860ffc2）
 
 // ---- 前向声明 ----
 enum DEATHTOWER_VALUE_STATISTIC_FIELD
@@ -31,7 +32,7 @@ enum DEATHTOWER_VALUE_STATISTIC_FIELD
 class CDeathTowerValueStatistic
 {
 public:
-    void SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field, char a, char b, unsigned int c);
+    bool SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field, char a, char b, unsigned int c);
 };
 
 extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
@@ -40,21 +41,12 @@ extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
     return &instance;
 }
 
-struct Packet_DeathTower_Statistic_Value
-{
-    char m_pad0[0xa];
-    char m_a;
-    short m_b;
-    int m_field;
-    int m_c;
-};
-
-void CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
+bool CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
                                                               char a, char b, unsigned int c)
 {
     Packet_DeathTower_Statistic_Value packet;
-    packet.m_a = a;
-    packet.m_b = (short)b;
+    packet.m_type = a;
+    packet.m_level = (short)b;
 
     int f = (int)field;
     if (field == (DEATHTOWER_VALUE_STATISTIC_FIELD)10)
@@ -78,25 +70,27 @@ void CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_ST
         {
             if (c != 3)
             {
-                LogManager::logFormat(1, "Statistics.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x5d5, 0, 10);
-                return;
+                // ORIG 0x0860f342：logFormat(1, "Statistics.cpp", __PRETTY_FUNCTION__,
+                // 0x5d5, "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) ...", field)
+                LogManager::logFormat(
+                    1, "Statistics.cpp", __PRETTY_FUNCTION__, 0x5d5,
+                    "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) level (%d) job_ (%d) grow_type_ (%d) clearStage (%d)",
+                    field);
+                return false;
             }
             f = 6;
             c = 1;
         }
     }
 
-    packet.m_field = f;
-    packet.m_c = c;
+    packet.m_counterIdx = f;
+    packet.m_value = c;
 
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    if (proxy)
-    {
-        proxy->SendPacket((char*)&packet, 0x15);
-    }
+    // ORIG 0x0860f342 无条件 SendPacket（无 proxy 空检查），返回 true。
+    proxy->SendPacket((char*)&packet, 0x15);
+    return true;
 }
 
 // 修理价格系数（由 InitEquipmentScript 从脚本加载）

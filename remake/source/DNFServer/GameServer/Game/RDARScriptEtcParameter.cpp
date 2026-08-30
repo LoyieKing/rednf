@@ -353,7 +353,7 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0x3233,
-                              "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe\xec\x9d\x84\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88\xeb\x8b\xa4.", path);
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
 

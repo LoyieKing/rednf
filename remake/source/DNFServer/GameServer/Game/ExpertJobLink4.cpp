@@ -751,20 +751,16 @@ void CEnchanter::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
     CUser* peer = 0;
     if ((unsigned int)(user->get_unique_id() & 0xffff) == m_uid)
     {
-        if (m_user != 0)
-            m_user->SetCurCharacExpertJob(0);
-        if (m_peer != 0)
-            m_peer->SetCurCharacExpertJob(0);
+        m_user->SetCurCharacExpertJob(0);
+        m_peer->SetCurCharacExpertJob(0);
         peer = m_peer;
     }
     else
     {
         if ((unsigned int)(user->get_unique_id() & 0xffff) != m_peerUid)
             return;
-        if (m_user != 0)
-            m_user->SetCurCharacExpertJob(0);
-        if (m_peer != 0)
-            m_peer->SetCurCharacExpertJob(0);
+        m_user->SetCurCharacExpertJob(0);
+        m_peer->SetCurCharacExpertJob(0);
         peer = m_user;
     }
 

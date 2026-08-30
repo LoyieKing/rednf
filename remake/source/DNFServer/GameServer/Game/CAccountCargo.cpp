@@ -179,9 +179,14 @@ int CAccountCargo::InsertItem(Inven_Item& item, int slot)
             m_alter = 1;
             return slot;
         }
-        memcpy(&m_slots[slot], &item, sizeof(Inven_Item));
+        // ORIG 0x08289c82：不同类型且槽非空 → 返回 -1（不覆盖）；仅空槽才拷贝。
+        if (m_slots[slot].m_addInfo == 0) {
+            memcpy(&m_slots[slot], &item, sizeof(Inven_Item));
+            m_alter = 1;
+            return slot;
+        }
         m_alter = 1;
-        return slot;
+        return -1;
     }
     if (m_slots[slot].m_addInfo == 0) {
         memcpy(&m_slots[slot], &item, sizeof(Inven_Item));

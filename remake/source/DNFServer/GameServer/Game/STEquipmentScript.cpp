@@ -2622,8 +2622,8 @@ void setEquipmentAniScriptLay(
 #define SETANI_SLOT(member)                                                    \
     do                                                                         \
     {                                                                          \
-        snprintf(buf, sizeof(buf), "%s%s", path->c_str(),                      \
-                 def.member.c_str());                                          \
+        /* ORIG 0x89c1e63..：格式串 = def.member（脚本模板），参数 = path */     \
+        snprintf(buf, sizeof(buf), def.member.c_str(), path->c_str());         \
         ani->member = buf;                                                     \
     } while (0)
 
@@ -2656,13 +2656,15 @@ void setEquipmentAniScriptLay(
     for (std::vector<std::string>::const_iterator it = def.m_vec64.begin();
          it != def.m_vec64.end(); ++it)
     {
-        snprintf(buf, sizeof(buf), "%s%s", path->c_str(), it->c_str());
+        // ORIG 0x89c2601..0x89c2634：格式串 = it 元素，参数 = path
+        snprintf(buf, sizeof(buf), it->c_str(), path->c_str());
         ani->m_vec64.push_back(std::string(buf));
     }
     for (std::vector<std::string>::const_iterator it = def.m_vec70.begin();
          it != def.m_vec70.end(); ++it)
     {
-        snprintf(buf, sizeof(buf), "%s%s", path->c_str(), it->c_str());
+        // ORIG 0x89c272b..0x89c275e：同上
+        snprintf(buf, sizeof(buf), it->c_str(), path->c_str());
         ani->m_vec70.push_back(std::string(buf));
     }
 }

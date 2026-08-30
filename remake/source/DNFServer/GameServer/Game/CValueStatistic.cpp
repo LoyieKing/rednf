@@ -9,15 +9,7 @@
 // ---- CStatisticServerProxy（定义见 GameStubs_remaining.cpp） ----
 #include "CStatisticServerProxy.h"
 
-// ---- Packet_Value_Statistic（统计服务器发包，0x86 字节） ----
-// 布局依据 InsertValueStatistic 反汇编：
-//   +0x00 包头(6 字节)  +0x06 int level  +0x0a int values[30]（0x78 字节）
-struct Packet_Value_Statistic
-{
-    char m_header[0x06];  // +0x00
-    int m_level;          // +0x06
-    int m_values[30];     // +0x0a（0x78 字节）
-};
+#include "Packet_Value_Statistic.h"
 
 CValueStatistic* GetInstanceValueStatistic()
 {
@@ -83,8 +75,9 @@ int CValueStatistic::InsertValueStatistic()
             }
             if (hasValue)
             {
+                // ORIG 0x0860d8a4：ctor（PacketHeader(0x17ca,0x86)+m_level=0）构造，
+                // 随后 m_level=level 与 memcpy m_values；不再整体 memset。
                 Packet_Value_Statistic packet;
-                memset(&packet, 0, sizeof(packet));
                 packet.m_level = level;
                 memcpy(packet.m_values, stat.m_values[level], 0x78);
                 CStatisticServerProxy* proxy =

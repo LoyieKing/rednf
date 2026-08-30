@@ -4068,7 +4068,7 @@ bool CDBConnector::Init(STDBConnInfo& info)
 {
     // ORIG 0x080ec620：拷贝 0x5a dword（0x168 字节）到 this+4；OpenMaster()。
     memcpy(&m_connInfo, &info, sizeof(STDBConnInfo));
-    return OpenMaster();
+    return !OpenMaster();   // ORIG xor $0x1 取反（OpenMaster 本身亦取反 → 双重取反）
 }
 bool CDBConnector::OpenMaster()
 {
@@ -4258,7 +4258,6 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     memcpy(m_base, data, 0x2e4);
     m_rewardMap.clear();
 
-    int keyCount = 0;
     int count = data->m_field2e0;
     for (int i = 0; i < count; ++i)
     {
@@ -4288,13 +4287,9 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
             m_rewardMap.insert(std::make_pair(key, list));
         }
 
-        if (keyCount < 5)
-        {
-            m_keys[keyCount].m_data[0] = key.m_data[0];
-            m_keys[keyCount].m_data[1] = key.m_data[1];
-            m_keys[keyCount].m_data[2] = key.m_data[2];
-            ++keyCount;
-        }
+        m_keys[i].m_data[0] = key.m_data[0];
+        m_keys[i].m_data[1] = key.m_data[1];
+        m_keys[i].m_data[2] = key.m_data[2];
     }
 }
 expert_job::CExpertJobFactory::CExpertJobFactory()
@@ -5115,7 +5110,7 @@ void* CreateAntiServerObj(const char* path)
     if (err != 0)
     {
         dlclose(handle);
-        printf("dlsym GetAntiBotInterfaceAll failed, %s\n", err);
+        printf("dlsym failed, %s\n", err);
         return 0;
     }
     return ((void* (*)())fn)();

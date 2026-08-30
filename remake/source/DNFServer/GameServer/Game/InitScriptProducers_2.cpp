@@ -481,10 +481,10 @@ int ImportWarAreaCounter(WarAreaCounter* out)
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0xdeb,
-                              "CRITICAL ERROR : \xec\x9f\x81\xec\x97\xad "
-                              "\xec\xb9\xb4\xec\x9a\xb4\xed\x84\xb0 "
-                              "\xec\x8a\xa4\xed\x81\xac\xeb\xa6\xbd\xed\x8a\xb8 "
-                              "\xeb\xa1\x9c\xeb\x93\x9c \xec\x8b\xa4\xed\x8c\xa8!");
+                              "CRITICAL ERROR : \xc0\xef\xbf\xaa "
+                              "\xc4\xab\xbf\xee\xc5\xcd "
+                              "\xbd\xba\xc5\xa9\xb8\xb3\xc6\xae "
+                              "\xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
         return 0;
     }
 

@@ -558,8 +558,9 @@ int InterLoadGeolocation::dispatch_sig(CUser* user, char* buf, int len)
     }
     for (int i = 0; i < sig->countryCount; ++i)
     {
-        std::string country(sig->countryCode[i]);
-        ARAD::Singleton<RestrictGeolocation>::Get()->addAllowCountry(country);
+        // ORIG：构造临时 string 直接值传（无拷贝），addAllowCountry 参数槽复用
+        ARAD::Singleton<RestrictGeolocation>::Get()->addAllowCountry(
+            std::string(sig->countryCode[i]));
         cMyTrace tr(__PRETTY_FUNCTION__, 0xb9, 9, true, true);
         tr("GeoIP Allow Country Code : %s", sig->countryCode[i]);
     }

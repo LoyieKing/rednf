@@ -147,7 +147,7 @@ void AvatarCoin::HistoryLog::AddLog(CUser* user, unsigned int amount)
 }
 
 // ---- AvatarCoin::GetPackage ORIG @ 0x0818028a ----
-int AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
+bool AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
 {
     if (!bReset)
     {

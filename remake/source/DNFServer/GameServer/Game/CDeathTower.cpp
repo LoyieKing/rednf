@@ -37,7 +37,8 @@ enum DEATHTOWER_VALUE_STATISTIC_FIELD
 class CDeathTowerValueStatistic
 {
 public:
-    void SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
+    // ORIG 0x0860f342 返回 bool（PRETTY_FUNCTION "bool ..."，true/false 分支）
+    bool SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
                                       char a, char b, unsigned int c);
 };
 extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic();

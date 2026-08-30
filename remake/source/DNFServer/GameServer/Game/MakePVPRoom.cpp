@@ -6,7 +6,7 @@
 //   （mangled 不含返回类型，与 PVP_BATTLE_MODE 返回同符号；此处忠实写 bool）。
 // 逐指令转写自 objdump 0x081f793c..0x081f803d；日志串原样：
 //   0x8bc22a4 "pvp@log %s,%s, room(%d),%d,%d,%d"
-//   0x8bc22c8 "create_room fail: PVP할 수 없는 지역 입니다. ID[%d]\n"
+//   0x8bc22c8 "create_room fail: PVP슬롯반환 ID[%d]\n"（CP949 字节）
 //   0x8bc1464 "PacketDispatcher_Impl_1.cpp"（logFormat file 参）
 // 调用方：DisPatcherCore.cpp::DisPatcher_MakePVP::dispatch_sig（cmd=0x35/0x9f）。
 // ============================================================================
@@ -138,7 +138,7 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
         LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
                               __PRETTY_FUNCTION__,
                               0x858c,
-                              "create_room fail: PVP할 수 없는 지역 입니다. ID[%d]\n",
+                              "create_room fail: PVP\xbd\xbd\xb7\xd4\xb9\xdd\xc8\xaf ID[%d]\n",
                               (int)pvp->get_index());
         G_CGameManager()->PutPvp(pvp);                   // 0x81f7e47..0x81f7e56
         return false;                                    // ebx=0 → 0x81f8025

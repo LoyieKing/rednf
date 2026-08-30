@@ -378,7 +378,7 @@ int send_mail(ARAD_DATAS::AradMailInfo& info)
 
     sig->m_field2a = info.m_item.m_flag;
     sig->m_field2b = info.m_item.m_fieldC;
-    sig->m_field2f = info.m_item.m_field10;
+    sig->m_field2f = info.m_item.m_field4;
     sig->m_field34 = info.m_item.m_fieldA;
     sig->m_field33 = info.m_item.GetItemAttr();
     sig->m_field36 = info.m_item.m_field10;

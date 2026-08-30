@@ -252,7 +252,8 @@ void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
             continue;
 
         std::string sv = v;
-        sv.erase(std::remove(sv.begin(), sv.end(), ' '), sv.end());
+        // ORIG 0x8aa59f0：仅 std::remove（未 erase，尾部空格仍保留在串中）。
+        std::remove(sv.begin(), sv.end(), ' ');
         std::wstring wv = toUnicode(sv);
         if (wcsstr(wv.c_str(), name) == 0)
             continue;
@@ -315,7 +316,9 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
                 }
                 if (!exists)
                 {
-                    d->add(toTString(cand.c_str()), toTString(b));
+                    // ORIG 0x8aa5e40：add(key=buf, value=b) 直接把 wchar_t* 当
+                    // char* 传（addString 内 strlen 按窄串处理，存原始 wchar 字节）。
+                    d->add(toTString(cand.c_str()), reinterpret_cast<const char*>(b));
                     idx = d->getCount() - 1;
                     break;
                 }

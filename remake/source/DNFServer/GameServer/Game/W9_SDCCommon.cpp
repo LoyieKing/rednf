@@ -266,8 +266,8 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(
     {
         *outPtr = getDuration(status, level, param);
     }
-    if (out != 0)
-        makeEtcParameters(status, level, *out);
+    // ORIG 0x0808d4b4 无条件转发三参版本（无 out != 0 检查）。
+    makeEtcParameters(status, level, *out);
 }
 
 void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,

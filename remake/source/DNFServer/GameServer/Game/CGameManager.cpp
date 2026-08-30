@@ -467,7 +467,7 @@ bool CGameManager::init()
 {
     m_pCraneMinigameMgr = new CraneMinigameManager;
     // ORIG 0x8294213：init() 返回非 0 → 1；0 → 0（显式 bool 化）。
-    return GetCraneMinigameManager()->init() ? 1 : 0;
+    return !GetCraneMinigameManager()->init();   // ORIG xor $0x1 取反
 }
 
 short CGameManager::getNextUID()

@@ -476,8 +476,12 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
 void CBattle_Field::add_monster_additional_champion(std::vector<int>& championList,
                                                     int count)
 {
-    for (int i = 0; i < count && !championList.empty(); ++i)
+    // ORIG 每轮循环首查 size==0 即退出（首轮亦然，避免空表除零）；empty 检查
+    // 必须置于循环体首，不能并入 for 条件（NEW 二进制曾因此首轮漏检）。
+    for (int i = 0; i < count; ++i)
     {
+        if (championList.empty())
+            break;
         const size_t slot =
             rand() % championList.size();                                  // ORIG 单次 rand
         const int picked = championList[slot];

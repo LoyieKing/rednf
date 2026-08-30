@@ -5428,37 +5428,37 @@ Dispatcher_ConnectP2PPvP::Dispatcher_ConnectP2PPvP() {}
 Dispatcher_ConnectP2PPvP::~Dispatcher_ConnectP2PPvP() {}
 int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user->get_state() < 2)
-        return LineFunc(0xe016, __PRETTY_FUNCTION__, 0, 0);
-    char count = 0;                                  // conn[8]（-0x11）
-    if (!packet.get_byte(count))
-        return LineFunc(0xe01a, __PRETTY_FUNCTION__, 0, 0);
-    if (count > 8 || count < 0)
-        return LineFunc(0xe01e, __PRETTY_FUNCTION__, 0, 0);
-    char conn[9];                                    // -0x19（conn[0..7] 清零，conn[8]=count）
-    conn[0] = 0; conn[1] = 0; conn[2] = 0; conn[3] = 0;
-    conn[4] = 0; conn[5] = 0; conn[6] = 0; conn[7] = 0;
-    conn[8] = count;
-    for (int i = 0; i < count; ++i)                  // -0xc
-    {
-        char seat = 0;                               // -0x1a
-        if (!packet.get_byte(seat))
-            return LineFunc(0xe025, __PRETTY_FUNCTION__, 0, 0);
-        if (seat > 7 || seat < 0)
-            return LineFunc(0xe028, __PRETTY_FUNCTION__, 0, 0);
-        if (!packet.get_byte(conn[(int)seat]))
-            return LineFunc(0xe02b, __PRETTY_FUNCTION__, 0, 0);
-    }
-    PvP_Room* room = (PvP_Room*)user->GetPVPRoom();
-    if (room == 0)
-        return 0;
-    if (room->m_matching == 0)                       // +0x6e4 matching 子对象指针
-        return 0;
-    // ORIG：对 room->m_matching（+0x6e4）虚表 +0x5c 槽 thiscall：
-    //   (match, user, room, conn, count)。与 DisPatcherCore.cpp:10214 / PvP_Room.cpp:456 同款直调口径。
-    (*(int (**)(void*, void*, void*, char*, char))(*(char**)room->m_matching + 0x5c))(
-        (void*)room->m_matching, user, room, conn, count);
-    return 0;
+	if (user->get_state() < 2)
+		return LineFunc(0xe016, __PRETTY_FUNCTION__, 0, 0);
+	char count = -1;                                 // -0x11（ORIG 0xff 初始化）
+	if (!packet.get_byte(count))
+		return LineFunc(0xe01a, __PRETTY_FUNCTION__, 0, 0);
+	if (count > 8 || count < 0)
+		return LineFunc(0xe01e, __PRETTY_FUNCTION__, 0, 0);
+	char conn[9];                                    // -0x19（conn[0..7] 清零，conn[8]=count）
+	conn[0] = 0; conn[1] = 0; conn[2] = 0; conn[3] = 0;
+	conn[4] = 0; conn[5] = 0; conn[6] = 0; conn[7] = 0;
+	conn[8] = count;
+	char seat = -1;                                  // -0x1a（ORIG 0xff 初始化，循环外一次）
+	for (int i = 0; i < count; ++i)                  // -0xc
+	{
+		if (!packet.get_byte(seat))
+			return LineFunc(0xe025, __PRETTY_FUNCTION__, 0, 0);
+		if (seat > 7 || seat < 0)
+			return LineFunc(0xe028, __PRETTY_FUNCTION__, 0, 0);
+		if (!packet.get_byte(conn[(int)seat]))
+			return LineFunc(0xe02b, __PRETTY_FUNCTION__, 0, 0);
+	}
+	PvP_Room* room = (PvP_Room*)user->GetPVPRoom();
+	if (room == 0)
+		return 0;
+	if (room->m_matching == 0)                       // +0x6e4 matching 子对象指针
+		return 0;
+	// ORIG：对 room->m_matching（+0x6e4）虚表 +0x5c 槽 thiscall：
+	//   (match, user, room, conn, count)。与 DisPatcherCore.cpp:10214 / PvP_Room.cpp:456 同款直调口径。
+	(*(int (**)(void*, void*, void*, char*, char))(*(char**)room->m_matching + 0x5c))(
+		(void*)room->m_matching, user, room, conn, count);
+	return 0;
 }
 
 int Dispatcher_ConnectP2PPvP::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -20936,13 +20936,15 @@ int Dispatcher_Select_3rdChronicleItem_ForEnchant::read(PacketBuf& packet, MSG_B
 
 Dispatcher_GrowthCreatureChangeInfinityCreature::Dispatcher_GrowthCreatureChangeInfinityCreature() {}
 Dispatcher_GrowthCreatureChangeInfinityCreature::~Dispatcher_GrowthCreatureChangeInfinityCreature() {}
-// ORIG 0x081e86fc（报告 check_error_event.md）[随行依赖]：
-// 经 GiveGrowCreatureEvent vtable+0x34 槽（空实现）后 test %al 残值，
-// 等价事件指针非零弱检查 [推断]。
+// 经 GiveGrowCreatureEvent vtable+0x34 槽（IsEventing，ORIG vtable 0x08b4bae0 实证）
+// 判事件开启；失败路径返回 1。
 int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error_event(CUser* user)
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    ev->deliveryEnd(0);                  // 0x081e8729 虚槽 +0x34（空）
+    if (!ev->IsEventing(0))              // 0x081e8729 虚槽 +0x34 = IsEventing
+    {
+        return 1;
+    }
     ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
     if (ev != 0)
     {
@@ -20951,11 +20953,14 @@ int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error_event(CUser* us
     return 1;
 }
 
-// ORIG 0x081e863a（报告 process_event.md）[随行依赖]，结构同上。
+// ORIG 0x081e863a（报告 process_event.md）[随行依赖]，结构同上，失败返回 0。
 int Dispatcher_GrowthCreatureChangeInfinityCreature::process_event(CUser* user)
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    ev->deliveryEnd(0);                  // 0x081e8667 虚槽 +0x34（空）
+    if (!ev->IsEventing(0))              // 0x081e8667 虚槽 +0x34 = IsEventing
+    {
+        return 0;
+    }
     ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
     if (ev != 0)
     {

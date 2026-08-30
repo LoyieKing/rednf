@@ -833,7 +833,7 @@ int regist_signal(int sig, void (*handler)(int))
     sa.sa_flags = (sig == 14) ? 0x20000000 : 0x10000000;
     if (sigaction(sig, &sa, NULL) < 0)
     {
-        std::printf("%d signal register failed\n", sig);  // ORIG 文案为韩文「推断」
+        std::printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);  // ORIG 文案（CP949 韩文）
         return 0;
     }
     return 1;
@@ -1040,7 +1040,7 @@ bool check_cfg_file()
     std::memset(path, 0, sizeof(path));
     std::snprintf(path, sizeof(path), "./cfg/%s.cfg",
                   G_CEnvironment()->get_file_name());
-    std::printf("cfg path: %s\n", path);
+    std::printf("\t- cfg path: %s\n", path);
     return access(path, F_OK) == 0;
 }
 
@@ -1051,7 +1051,7 @@ bool check_pid_file()
     std::memset(path, 0, sizeof(path));
     std::snprintf(path, sizeof(path), "./pid/%s.pid",
                   G_CEnvironment()->get_file_name());
-    std::printf("pid path: %s\n", path);
+    std::printf("\t- pid path: %s\n", path);
     return access(path, F_OK) == 0;
 }
 

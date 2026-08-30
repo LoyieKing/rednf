@@ -396,7 +396,7 @@ TimerStamina::TimerStamina() {}
 TimerStamina::~TimerStamina() {}
 int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
+    CUser* user = G_CGameManager()->getUser(p1, 4);   // ORIG 0x08633c90 第2参固定 4（p2 仅用于 loginTick 比对）
     if (user == 0 || user->GetLoginTick() != p2 ||
         (p3 != 0 && static_cast<unsigned int>(user->get_charac_no(-1)) != p3))
     {
@@ -2303,9 +2303,9 @@ TimerCompleteLoadAfterAssaultTimeout::TimerCompleteLoadAfterAssaultTimeout() {}
 TimerCompleteLoadAfterAssaultTimeout::~TimerCompleteLoadAfterAssaultTimeout() {}
 int TimerCompleteLoadAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x86376ec: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoadAfterAssault(p2,p3), return 1
+    // ORIG 0x86376ec: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoadAfterAssault(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCompleteLoadAfterAssault((unsigned int)p2, p3);
+    mgr->OnTimeoutCompleteLoadAfterAssault((unsigned int)p1, p2);
     return 1;
 }
 
@@ -2313,9 +2313,9 @@ TimerConnectP2PAfterAssaultTimeout::TimerConnectP2PAfterAssaultTimeout() {}
 TimerConnectP2PAfterAssaultTimeout::~TimerConnectP2PAfterAssaultTimeout() {}
 int TimerConnectP2PAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x863775c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2PAfterAssault(p2,p3), return 1
+    // ORIG 0x863775c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2PAfterAssault(p1,p2), return 1
     pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutConnectP2PAfterAssault((unsigned int)p2, p3);
+    mgr->OnTimeoutConnectP2PAfterAssault((unsigned int)p1, p2);
     return 1;
 }
 
