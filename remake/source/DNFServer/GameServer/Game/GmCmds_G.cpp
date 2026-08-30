@@ -170,7 +170,6 @@ void CTeleportCmd::execute()
 // parse 0x084aa10c / execute 0x084aa144
 // ============================================================================
 CVillageAttackedStartCmd::CVillageAttackedStartCmd()
-    : m_str0()   // ORIG +0x08 为 int（村庄号）；占位字段按布局使用
 {
 }
 
@@ -428,7 +427,6 @@ void CTitleBookNoClear::execute()
 // parse 0x084b1b5e / execute 0x084b1b96 / SendChatMsg 0x084b1e8a
 // ============================================================================
 CUpgradeCardDebug::CUpgradeCardDebug()
-    : m_str0()   // ORIG +0x08 为 int（道具 index）；占位字段按布局使用
 {
 }
 

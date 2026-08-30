@@ -341,11 +341,9 @@ int CSession::Send(PacketGuard& guard)
 CSession* CSession::Listen(int port, const char* ip)
 {
     int sock;                                 // -0x20(%ebp)
-    // ORIG 在栈上构造临时 CNetwork<95000,450000> 后调用其成员
-    // CreateListenSocket(&sock, port, ip)。
-    CNetwork<95000, 450000> net;
-    const int ok = net.CreateListenSocket(sock, port, ip);
-    if (ok == 0)
+    // ORIG：静态调用 CreateListenSocket(&sock, port, ip)（无对象/无 this）；
+    // 直接 !返回值 判断（ORIG xor $0x1,%eax; test %al,%al 形态）。
+    if (!CNetwork<95000, 450000>::CreateListenSocket(sock, port, ip))
     {
         cMyTrace("CreateListenSocket", 0x236, 0)(
             "CreateListenSocket failed - %s", strerror(errno));
@@ -368,8 +366,7 @@ CSession* CSession::Connect(const char* ip, int port)
 {
     int sock;                                 // -0x24(%ebp)
     // CreateConnectionSocket 为静态成员（ORIG 同）；返回非 0=失败码。
-    CNetwork<95000, 450000> net;
-    const int ok = net.CreateConnectionSocket(sock, ip, port);
+    const int ok = CNetwork<95000, 450000>::CreateConnectionSocket(sock, ip, port);
 
     if (ok != 0)
     {

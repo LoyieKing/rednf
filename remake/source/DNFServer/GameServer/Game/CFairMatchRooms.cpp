@@ -242,13 +242,13 @@ float CFairMatch::GetGap(IMatch* other)
     return diff < 0.0f ? -diff : diff;
 }
 
-// GetUser ORIG T 0x08565140 报告 GetUser.md
-// idx∈[0,4)：读 m_teams 基址 idx 决定的槽（ORIG 常量落位于第二支队玩家区，
-// 报告标注“二号队玩家槽位读取”）
+// idx∈[0,4)：ORIG 反汇编 0x856515c/0x856517d 实证槽基址 = this + 0x24 + idx*0x10
+// （movzbl 0x18+(idx+1)*16 读 m_flag、+(idx+1)*16+0x14 读 m_user），即
+// m_teams[0].m_players[idx]（m_teams[0] @ +0x1c，m_players @ +0x08）。
 CUser* CFairMatch::GetUser(unsigned int idx)
 {
     if (idx > 3u) return 0;
-    PlayerInfoThird& slot = m_teams[1].m_players[idx];
+    PlayerInfoThird& slot = m_teams[0].m_players[idx];
     if (slot.m_flag == 0) return 0;
     return slot.m_user;
 }
@@ -344,7 +344,8 @@ void CFairMatch::_BackupRoomInfo(PvP_Room* room)
 // (**pWaitingRoomList_)->vtable[0] = AddRoom —— 经 IRoomList::AddRoom(this)
 void CFairMatch::_RegisterWaitingRoom(PvP_Room* /*room*/)
 {
-    if (pWaitingRoomList_) pWaitingRoomList_->AddRoom(this);
+    // ORIG 0x8563a38 实证无 null 检查直接解引用（pWaitingRoomList_ 恒非 0）
+    pWaitingRoomList_->AddRoom(this);
 }
 
 // _ChangeTeamLeader ORIG T 0x8563272 报告 _ChangeTeamLeader.md
@@ -422,36 +423,44 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
 }
 
 // OnUnregisterMatch ORIG T 0x85663cc6?（README 行：0x08563cc6）报告同名 md
-void CFairMatch::OnUnregisterMatch(CUser* /*user*/, PvP_Room* /*room*/)
+// ORIG 返回 int：条件不满足 → 0；执行 → 1。
+int CFairMatch::OnUnregisterMatch(CUser* /*user*/, PvP_Room* /*room*/)
 {
     if (m_field04 == 1 || m_field04 == 2) {
         m_field04 = 0;
         if (pWaitingRoomList_) pWaitingRoomList_->DelRoom(this);
         _SendMatchStatePacket(5, 1);
+        return 1;
     }
+    return 0;
 }
 
 // OnRegisterMatch ORIG T 0x85623bba?（README 0x08563bba）报告同名 md
-void CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
+// ORIG 返回 int：m_field04==1 → 1；失败路径 → 0；成功 → 1。
+int CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 {
     if (m_field04 == 1)
-        return;
+        return 1;
     if (!bMatchable_) {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199), 0x13);
-        return;
+        return 0;
     }
     const int err = _CheckMatchable(room);
     if (err != 0) {
         user->SendCmdErrorPacket(
             static_cast<ENUM_CMDPACKET>(199),
             static_cast<unsigned char>(err & 0xff));
-        return;
+        return 0;
     }
-        _RegisterWaitingRoom(room); // ORIG 0x8563c5f 实传 room（第三参数）
+    // ORIG 0x8563c54 实证：m_field04==2（超时兜底中）跳过等待表注册
+    if (m_field04 != 2) {
+        _RegisterWaitingRoom(room);
+    }
     m_field04 = 1;
     TimerStartMatching::registNextTimer(10, room->get_index(),
                                         m_matchNotifyId);
     _SendMatchStatePacket(0, 1);
+    return 1;
 }
 
 // ===================================================================== //
@@ -462,11 +471,9 @@ void CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
                                   PvP_Room** out)
 {
+    // ORIG 0x8563ede 实证 other==0 直接 return 0（无 trace；0xc5d trace 仅在
+    // 循环后 member==0 分支，见下）
     if (other == 0) {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xc5d, 0);
-        trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc5d);
         return 0;
     }
     CUser* member = 0;
@@ -584,11 +591,9 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
         pkt.put_header(0, 2);
         pkt.put_byte(1);
         pkt.put_short(1);
-        {
-            char basicBuf[512];
-            user->make_basic_info(basicBuf, 1);
-            pkt.put_binary(basicBuf, sizeof(basicBuf));
-        }
+        // ORIG 0x85661b4 实证 make_basic_info 直接写 pkt（无独立缓冲/put_binary；
+        // make_basic_info 内部将 buf reinterpret_cast 为 InterfacePacketBuf）
+        user->make_basic_info(reinterpret_cast<char*>(&pkt), 1);
         pkt.finalize(true);
         user->Send(pkt);
 
@@ -646,17 +651,17 @@ void CFairMatch::_MoveRoom(PvP_Room* to, PvP_Room* from, bool observerFlag)
     }
 }
 
-// OnMatchRoom ORIG T 0x8564150 报告 OnMatchRoom.md
-void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
+// OnMatchRoom ORIG T 0x8564150 报告 OnMatchRoom.md。ORIG 失败路径 → 0；成功 → 1。
+int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
 {
     if (m_matchNotifyId != notifyId) {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xc8b, 0);
         trace("OnMatchRoom timeout");
-        return;
+        return 0;
     }
     if (m_field04 != 1)
-        return;
+        return 0;
 
     room->setReamtchable(GetPlayCountPerOneTeam() == 1);
     m_fieldB8 = room->GetManagerSeat();
@@ -679,7 +684,7 @@ void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
                           0xcb1, 0, 0);
             l1("pvp@log 1 opposite match(%x), %s ", other, nameBuf2);
         }
-        return;
+        return 0;
     }
 
     PvP_Room* movable = 0;
@@ -697,7 +702,7 @@ void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
                           0xcb1, 0, 0);
             l1("pvp@log 1 opposite match(%x), %s ", other, nameBuf2);
         }
-        return;
+        return 0;
     }
 
     if (room->get_index() == movable->get_index()) {
@@ -715,7 +720,7 @@ void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
                           0xcbc, 0, 0);
             l1("pvp@log 2 opposite match(%x), %s ", other, nameBuf2);
         }
-        return;
+        return 0;
     }
 
     // 正式配成：沿其它匹配单元的 next-match 链把对方队伍搬进来
@@ -729,7 +734,7 @@ void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         if (_CheckMovableRoom(it, room, &moveTarget) == 0) {
             m_field04 = 2;
             _SendMatchStatePacket(1, 1);
-            return;
+            return 0;
         }
         if (static_cast<CFairMatch*>(it)->GetPlayerCount()
             == static_cast<int>(GetPlayCountPerOneTeam())) {
@@ -770,7 +775,7 @@ void CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         pkt.finalize(true);
         m_teams[t].SendToTeam(pkt);
     }
-    return;
+    return 1;
 }
 
 // ===================================================================== //
@@ -853,13 +858,14 @@ int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
     return 1;
 }
 
-// OnWalkOut ORIG T 0x8564fb2 报告 OnWalkOut.md
+// OnWalkOut ORIG T 0x8564fb2 报告 OnWalkOut.md。ORIG 返回 1。
 // 转发到本类虚槽 +0x2c（OnLeaveRoom(user,room,team,seat)）
-void CFairMatch::OnWalkOut(PvP_Room* room, int seat)
+int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     const int team = room->get_team(seat);
     const int userSeat = room->get_user_seat(seat);
     OnLeaveRoom(reinterpret_cast<CUser*>(userSeat), room, team, seat);
+    return 1;
 }
 
 // CheckRematch ORIG T 0x85665d04 报告 CheckRematch.md
@@ -1079,7 +1085,9 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
     if (m_teams[1].size() != 0 && m_teams[1].m_field04 == 0) {
         _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(1));
     }
-    const int team0Decision = FM_TeamByte0(m_teams[0]);
+    // ORIG 0x856607a 实证读 *(int*)(this+0x20) = m_teams[0].m_field04（4 字节）
+    // （队决定位，OnAskRematch 写入；FM_TeamByte0 队头字节仅 CheckRematch 用）
+    const int team0Decision = m_teams[0].m_field04;
     if (team0Decision == 0) {
         _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
         if (m_teams[1].size() != 0) {
@@ -1370,8 +1378,8 @@ void CFairMatch::OnConnectP2P(CUser* user, PvP_Room* room,
 }
 
 
-// _UpdateRating ORIG T 0x8562e1e 报告同名 md
-// teamNo==1 以队1 平均 rating 作对手值回写队0 各人 rating，反之亦然。
+// ORIG 反汇编实证：teamNo==1 分支 GetTeamRating 用 this+0x64（m_teams[1]），
+// 队员循环读 this+0x24+i*0x10（m_teams[0]）；else 分支相反（0x1c / 0x6c）。
 // BLOCKED 局部依赖：CEloRating::calc 本体与 PvPGlobalEnvironmentVariable::
 // school_match_elo_k_ 定义尚未由任何 TU 提供（仅 ORIG 符号）。
 void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
@@ -1382,7 +1390,7 @@ void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
     if (teamNo == 1) {
         oppositeRating = static_cast<float>(m_teams[1].GetTeamRating());
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[1].m_players[i];
+            PlayerInfoThird& s = m_teams[0].m_players[i];
             if (s.m_flag != 0 && s.m_user != 0) {
                 member = s.m_user;
                 memberRating = s.m_rating;
@@ -1394,7 +1402,7 @@ void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
     } else {
         oppositeRating = static_cast<float>(m_teams[0].GetTeamRating());
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[0].m_players[i];
+            PlayerInfoThird& s = m_teams[1].m_players[i];
             if (s.m_flag != 0 && s.m_user != 0) {
                 member = s.m_user;
                 memberRating = s.m_rating;

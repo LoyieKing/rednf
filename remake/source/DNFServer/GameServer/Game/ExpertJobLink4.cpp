@@ -895,7 +895,7 @@ short STExpertJobScript::GetPortableDisjointPossibleLevel(int level)
 // ---- DisPatcher_DisJointItem::_checkDisjointableItem
 // （报告 _checkDisjointableItem.md，ORIG T 0x081fa0f6）：
 // 未鉴定且无目标用户 → 0xae；物品缺失 → 0x11；
-// IsImpossibleCharacCargo(vptr slot14) → 0x13；GetAttachType==2 → 0x11。 ----
+// IsImpossibleDisjoint（ORIG vptr+0x38 = vtable 槽16）→ 0x13；GetAttachType==2 → 0x11。 ----
 int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
                                                     CUser* targetUser)
 {
@@ -908,7 +908,7 @@ int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
     if (itemObj == 0)
         return 0x11;
 
-    if (itemObj->IsImpossibleCharacCargo())
+    if (itemObj->IsImpossibleDisjoint())   // ORIG vptr+0x38（IsImpossibleDisjoint，非 CharacCargo）
         return 0x13;
     if (itemObj->GetAttachType() == 2)
         return 0x11;

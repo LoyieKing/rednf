@@ -73,7 +73,7 @@ private:
     bool m_bLocked;           // +0x1d
     CUser* m_pTraders[2];     // +0x20
     int m_nState[2];          // +0x28
-    char m_slotsData[2 * 0x798];  // +0x30（行距 0x798 = 27 * 0x48；手写构造）
+    TradeSlot m_slotsData[2 * 27];  // +0x30（每行 27 槽 × 0x48 = 0x798；数组隐式构造同 ORIG）
     int m_nMoney[2];          // +0xf60
     char m_pad[0xf70 - 0xf68];
 };

@@ -100,9 +100,8 @@ bool PvPSkillTreeParameterScript::getGiveSkill(
 {
     // ORIG 0x08a5e178：m_map30[(job,firstGrow)] 命中时 out = value.m_giveSkills(+0x34)，返回 true
     (void)secondGrow;
-    PvPSkillTreeKey key;
-    key.m_a = job;
-    key.m_b = firstGrow;
+    PvPSkillTreeKey key(static_cast<unsigned char>(job),
+                        static_cast<unsigned char>(firstGrow), 0);
     std::map<PvPSkillTreeKey,
              FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::const_iterator it =
         m_map30.find(key);
@@ -128,10 +127,9 @@ bool PvPSkillTreeParameterScript::getPvPSkillTree(
     int job, int firstGrow, int secondGrow, int grade, bool flag,
     std::vector<std::pair<int, int> >** out) const
 {
-    PvPSkillTreeKey key;
-    key.m_a = static_cast<unsigned char>(job);
-    key.m_b = static_cast<unsigned char>(firstGrow);
-    key.m_c = static_cast<unsigned char>(secondGrow);
+    PvPSkillTreeKey key(static_cast<unsigned char>(job),
+                        static_cast<unsigned char>(firstGrow),
+                        static_cast<unsigned char>(secondGrow));
 
     std::map<PvPSkillTreeKey,
              std::map<int, PvPSkillTreeValue> >::const_iterator treeIt =

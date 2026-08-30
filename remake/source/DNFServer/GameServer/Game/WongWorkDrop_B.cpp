@@ -485,17 +485,17 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
             if (randomOptionIdx != -1)
                 return randomOptionIdx;
         }
-        if (m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].empty())
+        if (m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].empty())
             return -1;
         std::map<unsigned int, int>::iterator lastIter =
-            m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].end();
+            m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end();
         --lastIter;
         unsigned long maxKey = lastIter->first;
         unsigned long roll = static_cast<unsigned long>(
             m_rand->randInt(maxKey));
         std::map<unsigned int, int>::iterator lb =
-            m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].lower_bound(roll);
-        if (lb == m_blocks[dungeonDiff][dropDungeonType].m_slots[type - 1][rarity][level].end())
+            m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].lower_bound(roll);
+        if (lb == m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end())
             --lb;
         result = lb->second;
     }

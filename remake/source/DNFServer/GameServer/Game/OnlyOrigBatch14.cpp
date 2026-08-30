@@ -1139,7 +1139,9 @@ void WriteCodeSection(const char* path)
 // 函数局部 static map + SpinLock 惰性填充；键 "slow resistance" 等 16 项。
 int getActivePropertyTypeToEnumValue(std::string& s)
 {
-    static std::map<const char*, int> __lookup;
+    // ORIG 用 less_TCHAR（strcmp 内容比较）：查找键为 s.c_str() 动态指针，
+    // 默认 std::less<const char*>（指针比较）必然 miss → 恒返回 17（错误）。
+    static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
     for (;;)
@@ -1147,7 +1149,7 @@ int getActivePropertyTypeToEnumValue(std::string& s)
         int v;
         if (__inited)
         {
-            std::map<const char*, int>::const_iterator it = __lookup.find(s.c_str());
+            std::map<const char*, int, less_TCHAR>::const_iterator it = __lookup.find(s.c_str());
             v = (it != __lookup.end()) ? it->second : -1;
         }
         else

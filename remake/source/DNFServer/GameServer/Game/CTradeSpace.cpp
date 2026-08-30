@@ -87,16 +87,9 @@ void TradeSlot::Reset()
 // ---- 构造 / 析构（ORIG 0x082a416c / 0x082a41e0）----
 CTradeSpace::CTradeSpace()
 {
+    // ORIG 0x082a416c：编译器对 TradeSlot m_slotsData[2*27] 数组隐式构造循环
+    // （直接逐槽 TradeSlotC1Ev，无 placement new 的 _ZnwjPv）。
     m_bTrading = 0;
-    char* row = m_slotsData;
-    for (int t = 1; t != -1; --t) {
-        char* slot = row;
-        for (int s = 0x1a; s != -1; --s) {
-            ::new (slot) TradeSlot();
-            slot += 0x48;
-        }
-        row += 0x798;
-    }
     m_bLocked = 0;
 }
 CTradeSpace::~CTradeSpace()
@@ -196,7 +189,7 @@ int CTradeSpace::_CheckTrade4SameAvatar(const TradeSlot* slots,
 int CTradeSpace::check_item_exist(int traderIdx, int itemId)
 {
     for (int i = 3; i <= 0x1a; ++i) {
-        if (((TradeSlot*)&m_slotsData[i * 0x48 + traderIdx * 0x798])->m_item.m_addInfo == itemId)
+        if (((TradeSlot*)((char*)m_slotsData + i * 0x48 + traderIdx * 0x798))->m_item.m_addInfo == itemId)
             return i;
     }
     return -1;
@@ -205,7 +198,7 @@ int CTradeSpace::check_item_exist(int traderIdx, int itemId)
 int CTradeSpace::get_empty_itemslot(int traderIdx)
 {
     for (int i = 3; i <= 0x1a; ++i) {
-        if (((TradeSlot*)&m_slotsData[i * 0x48 + traderIdx * 0x798])->m_item.m_addInfo == 0)
+        if (((TradeSlot*)((char*)m_slotsData + i * 0x48 + traderIdx * 0x798))->m_item.m_addInfo == 0)
             return i;
     }
     return -1;
@@ -263,7 +256,7 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
         if (idx == -1) {
             idx = get_empty_itemslot(traderIdx);
             if (idx != -1) {
-                char* dst = &m_slotsData[traderIdx * 0x798 + idx * 0x48];
+                char* dst = (char*)m_slotsData + traderIdx * 0x798 + idx * 0x48;
                 if (dst != (char*)&slot)
                     memcpy(dst, &slot, 0x46);
                 ((TradeSlot*)dst)->m_item.set_add_info(count);
@@ -274,7 +267,7 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
                 }
             }
         } else {
-            char* dst = &m_slotsData[traderIdx * 0x798 + idx * 0x48];
+            char* dst = (char*)m_slotsData + traderIdx * 0x798 + idx * 0x48;
             int newCount = ((TradeSlot*)dst)->m_item.m_addInfo2 + count;
             ((TradeSlot*)dst)->m_item.set_add_info(newCount);
             if (999 < newCount) {
@@ -287,7 +280,7 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
     } else {
         int idx = get_empty_itemslot(traderIdx);
         if (idx != -1) {
-            char* dst = &m_slotsData[traderIdx * 0x798 + idx * 0x48];
+            char* dst = (char*)m_slotsData + traderIdx * 0x798 + idx * 0x48;
             if (dst != (char*)&slot)
                 memcpy(dst, &slot, 0x46);
         }
@@ -409,7 +402,7 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 
 // ---- 槽位辅助（P49：-O0 下 static inline 也产真实符号 → 宏）----
 #define TradeSlotAt(slots, trader, idx) \
-    ((TradeSlot*)&(slots)[(trader) * 0x798 + (idx) * 0x48])
+    ((TradeSlot*)((char*)(slots) + (trader) * 0x798 + (idx) * 0x48))
 
 // ---- checkTrade @ 0x08530210 ----
 // 校验交易可完成：对双方背包做副本，模拟把对方注册物品/金钱插入各自副本，

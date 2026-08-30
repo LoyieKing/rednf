@@ -1102,10 +1102,8 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
             flagByte = 1;
         }
         // CUser::IncrementTradeGold(uint,int) ORIG _ZN5CUser18IncrementTradeGoldEji @0x0864658a
-        // （仓库 CUserCharacInfo.h 既有声明为单参版本，与 ORIG ABI 不符，按先例函数指针调用）。
-        typedef void (*IncTradeGoldFn)(void*, unsigned int, int);
-        IncTradeGoldFn incTradeGold = (IncTradeGoldFn)0x0864658a;
-        incTradeGold(m_pBuyer, (unsigned int)price, (int)flagByte);
+        // （定义在 CUserOnlyOrig.cpp；CUser.h 两参声明，直接调用与 ORIG 字节一致。）
+        m_pBuyer->IncrementTradeGold((unsigned int)price, (int)flagByte);
 
         unsigned short usedFatigue =
             (unsigned short)m_pBuyer->getCurCharacUsedFatigue();   // ORIG local_26
@@ -2005,21 +2003,17 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
         (INVEN_TYPE)1, item, outSlot, historyAddInfo, (eItemAddReason)0x11,
         sellerName, buyerName);
 
-    // XNuclear::CHades::GetIP @0x84b9774：仓库先例 Secu_GoldControl.cpp:264 函数指针形态。
+    // XNuclear::CHades::GetIP @0x84b9774（CUser.h 已声明，直接调用与 ORIG 字节一致）
     char ipBuf[16];
-    void* hades = m_pSeller->getHades();
-    typedef void (*GetIPFn)(void*, char*);
-    GetIPFn getIP = (GetIPFn)0x084b9774;
-    getIP(hades, ipBuf);
+    m_pSeller->getHades()->GetIP(ipBuf);
 
     unsigned int buyerMoney =
         (unsigned int)m_pBuyer->getCurCharacInvenR()->get_money();
-    // Secu_AccountHacking::sendGold @0x8278cce：同上函数指针形态（镜像类未声明该方法）。
-    typedef void (*SendGoldFn)(void*, char const*, unsigned int, unsigned int,
-                               unsigned int, unsigned char, char*);
-    SendGoldFn sendGold = (SendGoldFn)0x08278cce;
-    sendGold(m_pBuyer->getAcccountHackInfo(), 0, (unsigned int)m_pSeller->get_acc_id(),
-             (unsigned int)gold, buyerMoney, 1, ipBuf);
+    // Secu_AccountHacking::sendGold @0x8278cce（CHackAnalyzer.h 已声明，
+    // 直接调用与 ORIG 字节一致；参数 (0, sellerId, gold, buyerMoney, 1, ip)）。
+    m_pBuyer->getAcccountHackInfo()->sendGold(
+        0, (unsigned int)m_pSeller->get_acc_id(), (unsigned int)gold,
+        buyerMoney, 1, ipBuf);
 
     m_pBuyer->getCurCharacInvenW()->use_money(gold, (eMoneySubReason)0xe, true);
 

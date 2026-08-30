@@ -475,7 +475,7 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
         unsigned int wp = chi->GetWinPoint();
         if (wp < (unsigned int)info->m_payAmount)
             return 0;   // ORIG throw ENUM_ERROR(0x16)
-        user->useWinPoint(info->m_payAmount, (eWPSubReason)4);
+        user->UseWinPoint(info->m_payAmount, (eWPSubReason)4);   // ORIG CUser::UseWinPoint（含 WPSub 日志）
         remainingMoney = chi->GetWinPoint();
     }
     else

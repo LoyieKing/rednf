@@ -772,13 +772,13 @@ void SetLightServerFlag(bool flag)
 // _checkTimeoutItem（ORIG 0x867cf8d T，G3 任务域辅助）
 // CTitleBook 通过 _checkTimeoutItem 直接调用：检查物品是否过期。
 // ORIG 逻辑（逐步核对 0x867cf8d 反汇编）：
-//   find_item(item.m_addInfo) 失败 → 0；usablePeriod/expirationDate 任一非 0 → 0；
-//   虚表 +0x10（IsCreatureItem）非 0 → 0；
-//   虚表 +0x48（IsRandomOption）非 0 且 item.m_field0 != 0 → 1；
-//   虚表 +0xc（GetItemType）== 0xa 时：expirationDate <= now → 1；
+//   虚表 +0x10（IsAvatarItem，@4）非 0 → 0；
+//   虚表 +0x48（PeriodAfterUnsealing，@18）非 0 且 item.m_field0 != 0 → 1；
+//   虚表 +0xc（GetItemType，@3）== 0xa 时：expirationDate <= now → 1；
 //   否则（其他类型）：item.m_fieldb * 86400 + 0x44a54a80 <= now → 1；
 //   其余 → 0。
-// ============================================================================
+//   注：ORIG vtable（0x8c96da8）实证 @4=IsAvatarItem、@18=PeriodAfterUnsealing、
+//   @19=IsRandomOption（NEW 原实现误用 IsCreatureItem/IsRandomOption，已纠正）。
 int _checkTimeoutItem(const Inven_Item& item)
 {
     CDataManager* dm = G_CDataManager();
@@ -793,11 +793,11 @@ int _checkTimeoutItem(const Inven_Item& item)
     {
         return 0;
     }
-    if (ci->IsCreatureItem())
+    if (ci->IsAvatarItem())
     {
         return 0;
     }
-    if (ci->IsRandomOption() && item.m_field0 != 0)
+    if (ci->PeriodAfterUnsealing() && item.m_field0 != 0)
     {
         return 1;
     }

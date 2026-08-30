@@ -143,7 +143,8 @@ public:
     virtual EXCHANGE_SERVER_TYPE GetServerType() = 0;
 
     IExchangeServer() {}
-    ~IExchangeServer() {}                // 非虚空析构（ORIG 无 IES D 符号）
+    // ORIG 无 ~IExchangeServer 符号：析构为隐式 trivial（派生 D1 不生成基类
+    // 析构调用；ORIG vtable 亦无虚析构槽）。不得显式声明析构。
 };
 
 struct ExchangeServerInfo

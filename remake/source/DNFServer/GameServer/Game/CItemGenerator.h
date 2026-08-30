@@ -298,11 +298,11 @@ struct stGenItemRange_t   // ORIG WongWork::stGenItemRange_t
 };
 
 // ---- 单 type 组生成率块：槽址 = type*0x7110+rarity*0x12d8+level*24 ----------
-struct DropGenRateBlock_t
-{
-    char m_typeSlot0[0x7110];                        // type 槽 0：ORIG 不构造不访问
-    std::map<unsigned int, int> m_slots[4][6][201];  // 元素步长 24
-};  // sizeof 0x23550
+// ORIG 中无 DropGenRateBlock_t 类型符号：CItemGenRateTable::C1（0x08539e66）
+// 与 CSecialIMonsterDropItemGenRateTable::C1（0x0853a0b6）均内联 5×6×201 map
+// 构造循环（外层 5×0x7110，type0 块同样构造但代码仅访问 type∈[1,4]）。
+// 故两宿主类直接持有裸 map 数组成员，不引入 struct 包装（struct 会触发
+// GCC 4.4 提取成员构造符号，与 ORIG 内联形态不符）。
 
 }  // namespace WongWork（临时闭合：random_option 为全局命名空间）
 
@@ -425,7 +425,7 @@ public:
     void set_disable_drop_random_option_item();  // W 0x08539e4e
 
 private:
-    DropGenRateBlock_t m_block;                  // +0x00000
+    std::map<unsigned int, int> m_slots[5][6][201];  // +0x00000（0x23550 字节）
     CMTRand* m_rand;                             // +0x23550
     random_option::CRandomOptionItemHandle m_optHandle;  // +0x23554
 };  // sizeof 0x2356C
@@ -448,7 +448,7 @@ public:
                    ENUM_ITEM_DROP_DUNGEON_TYPE dropDungeonType);
 
 private:
-    DropGenRateBlock_t m_blocks[5][3];           // 15×0x23550 = 0x211FB0
+    std::map<unsigned int, int> m_blocks[5][3][5][6][201];  // 15×0x23550 = 0x211FB0
     CMTRand* m_rand;                             // +0x211FB0
     random_option::CRandomOptionItemHandle m_optHandle;  // +0x211FB4
 };  // sizeof 0x211FCC

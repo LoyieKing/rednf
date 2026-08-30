@@ -786,7 +786,9 @@ SigSaveHeroMissionData::SigSaveHeroMissionData()
 // ORIG T 0x0817305a
 bool GarenaCyberCafe(unsigned short cafeFlag)
 {
-    return (cafeFlag & 1) != 0;
+    if ((cafeFlag & 1) != 0)
+        return true;
+    return false;
 }
 
 // ORIG T 0x08173080

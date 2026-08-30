@@ -786,23 +786,23 @@ void COnlinePreliminary::OnLeaveRoom(CUser* user, PvP_Room* room,
     pWaitingRoomList_->DelRoom(this);
 }
 
-/* ORIG T 0x085613de（eax 结果按 IMatch void 槽由 caller 忽略，仍按位写出） */
-void COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
+/* ORIG T 0x085613de。ORIG 返回 int：m_field04==1 → 1；失败路径 → 0；成功 → 1。 */
+int COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
 {
     if (m_field04 == 1)
-        return;
+        return 1;
 
     if (!bMatchable_)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc7, 0x13);
-        return;
+        return 0;
     }
 
     int err = _CheckMatchable(room);
     if (err != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc7, (unsigned char)err);
-        return;
+        return 0;
     }
 
     if (m_field04 != 2)
@@ -811,20 +811,21 @@ void COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
     m_field04 = 1;
     TimerStartMatching::registNextTimer(10, room->get_index(), m_authValue);
     _SendMatchStatePacket(0, 1);
+    return 1;
 }
 
-/* ORIG T 0x085614ea：第 2 参为匹配授权号，与 m_authValue 校验 */
-void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
+/* ORIG T 0x085614ea：第 2 参为匹配授权号，与 m_authValue 校验。ORIG 失败路径 → 0；成功 → 1。 */
+int COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
 {
     if (m_authValue != authNo)
     {
         cMyTrace trace("online_preliminary::COnlinePreliminary::OnMatchRoom(PvP_Room*, int)",
                        0x7a6, 0);
         trace("OnMatchRoom timeout");
-        return;
+        return 0;
     }
     if (m_field04 != 1)
-        return;
+        return 0;
 
     IMatch* opponent = 0;
     pWaitingRoomList_->Match(this, &opponent);            /* vtable+8 虚调 */
@@ -832,7 +833,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
     {
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     CUser* oppUser = opponent->GetUser(0);                /* vt+0x10 */
@@ -842,7 +843,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x7c1);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     PvP_Room* oppRoom = (PvP_Room*)oppUser->GetPVPRoom();            /* T 0x865518e */
@@ -852,7 +853,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x7ca);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
     if (oppRoom->get_player_count() > (int)(GetPlayCountPerOneTeam() & 0xff))
     {
@@ -860,7 +861,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x7d2);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
     if ((int)(GetPlayCountPerOneTeam() & 0xff) < m_teams[0].size() ||
         oppRoom->get_player_count() > (int)(GetPlayCountPerOneTeam() & 0xff))
@@ -869,7 +870,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x7da);
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     _BackupRoomInfo(oppRoom);
@@ -903,6 +904,7 @@ void COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
     unsigned int key = room->gen_timer_key((TIMER_MESSAGE)0x3b);
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)5, room->get_index(),
                                 (TIMER_MESSAGE)0x3b, 0xb4, (int)key, 0);
+    return 1;
 }
 
 /* ORIG T 0x08561a52 */
@@ -924,12 +926,13 @@ void COnlinePreliminary::OnEndFight(PvP_Room* room)
     m_teams[1].reset();
 }
 
-/* ORIG T 0x08561f8c（vtable+0x2c＝OnLeaveRoom 级联） */
-void COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
+/* ORIG T 0x08561f8c（vtable+0x2c＝OnLeaveRoom 级联）。ORIG 返回 1。 */
+int COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
 {
     int team = room->get_team(a);
     CUser* u = reinterpret_cast<CUser*>(room->get_user_seat(a));
     OnLeaveRoom(u, room, a, team);
+    return 1;
 }
 
 /* ORIG T 0x08561ff2 */

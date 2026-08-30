@@ -273,7 +273,6 @@ void CBloodMonsterListCmd::execute()
 // string@+0x08 默认构造（占位；真实 +0x08 为 int 物品索引）。
 // ===========================================================================
 CAddItemPollutionCmd::CAddItemPollutionCmd()
-    : m_str0()
 {
 }
 
@@ -352,7 +351,6 @@ void CAddItemPollutionCmd::execute()
 // string@+0x08 默认构造（占位；真实 +0x08 为 int 物品索引）。
 // ===========================================================================
 CAddItemByMail::CAddItemByMail()
-    : m_str0()
 {
 }
 
@@ -900,7 +898,6 @@ void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
 // string@+0x08 默认构造（占位；真实 +0x08 为 byte 职业）。
 // ===========================================================================
 CBindCubeTest::CBindCubeTest()
-    : m_str0()
 {
 }
 
@@ -957,7 +954,6 @@ void CBindCubeTest::execute()
 //       +0x0c int token 计数（getParam 工作区）。
 // ===========================================================================
 BlueMarbleSet::BlueMarbleSet()
-    : m_str0()
 {
 }
 

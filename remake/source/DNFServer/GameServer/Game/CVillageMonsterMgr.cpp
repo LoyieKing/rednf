@@ -111,6 +111,8 @@ int IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
 // ============================================================================
 int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b)
 {
+    // ORIG 0x82e59f1 尾调 Point2d::operator-（= |dx|+|dy| 曼哈顿距离）。
+    // 语义等价（ORIG 传参形态差异属编译器形式；operator- 实现一致）。
     int dx = a.m_x - b.m_x;
     int dy = a.m_y - b.m_y;
     return (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);

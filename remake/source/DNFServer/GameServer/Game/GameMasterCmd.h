@@ -16,6 +16,7 @@
 #define GAME_GAME_MASTER_CMD_H_
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -331,7 +332,7 @@ public:
     virtual void parse();                            // ORIG T 0x084aa10c
     virtual void execute();                          // ORIG T 0x084aa144
 
-    std::string m_str0;                              // +0x08
+    int m_villageNo;                            // +0x08（ORIG POD：村庄号）
 };
 class CVillageAttackedStopCmd : public CCommand
 {
@@ -361,7 +362,7 @@ public:
     virtual void parse();                            // ORIG T 0x084aa9c8
     virtual void execute();                          // ORIG T 0x084aaa00
 
-    std::string m_str0;                              // +0x08
+    int m_itemIdx;                              // +0x08（ORIG POD：道具 idx）
 };
 class CChangeNPCMaxDayCmd : public CCommand
 {
@@ -483,7 +484,7 @@ public:
     virtual void parse();                            // ORIG T 0x084ab9da
     virtual void execute();                          // ORIG T 0x084aba12
 
-    std::string m_str0;                              // +0x08
+    int m_npcIdx;                               // +0x08（ORIG POD：NPC idx）
 };
 class CItemDropInDungeon : public CCommand
 {
@@ -492,7 +493,7 @@ public:
     virtual void parse();                            // ORIG T 0x084abcb0
     virtual void execute();                          // ORIG T 0x084abce8
 
-    std::string m_str0;                              // +0x08
+    int m_itemIdx;                              // +0x08（ORIG POD：道具 idx）
 };
 class CDeleteAccountCargo : public CCommand
 {
@@ -525,7 +526,7 @@ public:
     virtual void parse();                            // ORIG T 0x084ac2aa
     virtual void execute();                          // ORIG T 0x084ac2e2
 
-    std::string m_str0;                              // +0x08
+    int m_itemIdx;                              // +0x08（ORIG POD：道具 idx）
 };
 class CAdjustCharacStat : public CCommand
 {
@@ -540,7 +541,7 @@ public:
     virtual void parse();                            // ORIG T 0x084ac668
     virtual void execute();                          // ORIG T 0x084ac6a0
 
-    std::string m_str0;                              // +0x08
+    int m_fund;                                 // +0x08（ORIG POD：资金额）
 };
 class CGuildDebug : public CCommand
 {
@@ -566,7 +567,7 @@ public:
     virtual void parse();                            // ORIG T 0x084ac80a
     virtual void execute();                          // ORIG T 0x084ac846
 
-    std::string m_str0;                              // +0x08
+    short m_cashType;                           // +0x08（ORIG POD：short）
 };
 class CPickup : public CCommand
 {
@@ -630,7 +631,8 @@ public:
     static void printClient(CUser* user, bool more, char const* name, char const* contents);
     static void printServer(char const* path, char const* contents);
 
-    std::string m_str0;                              // +0x08
+    int m_mode;                                  // +0x08（ORIG POD：sscanf "%d%d" 首值）
+    int m_count;                                 // +0x0c（ORIG POD：sscanf 次值）
 };
 class CRandomObjectTest : public CCommand
 {
@@ -654,7 +656,7 @@ public:
     virtual void parse();                            // ORIG T 0x084acbe4
     virtual void execute();                          // ORIG T 0x084acc1e
 
-    std::string m_str0;                              // +0x08
+    char m_flag;                                // +0x08（ORIG POD：byte 标志）
 };
 class COneADayItemShop : public CCommand
 {
@@ -726,7 +728,7 @@ public:
     virtual void parse();                            // ORIG T 0x084b09d0
     virtual void execute();                          // ORIG T 0x084b0a08
 
-    std::string m_str0;                              // +0x08
+    int m_day;                                  // +0x08（ORIG POD：天数）
 };
 class CChoiceItem : public CCommand
 {
@@ -748,18 +750,10 @@ public:
     void SendChatMsg();                                       // 辅助（ORIG T 0x084b15c4，签名见报告）
     void printClient();                                       // 辅助（ORIG T 0x084b14b8，签名见报告）
 
-    std::string m_str0;                              // +0x08
-    unsigned int m_f1;                               // +0x10（字段语义见报告）
-    unsigned int m_f2;                               // +0x14（字段语义见报告）
-    unsigned int m_f3;                               // +0x18（字段语义见报告）
-    unsigned int m_f4;                               // +0x1c（字段语义见报告）
-    unsigned int m_f5;                               // +0x20（字段语义见报告）
-    unsigned int m_f6;                               // +0x24（字段语义见报告）
-    unsigned int m_f7;                               // +0x28（字段语义见报告）
-    unsigned int m_f8;                               // +0x2c（字段语义见报告）
-    unsigned int m_f9;                               // +0x30（字段语义见报告）
-    unsigned int m_f10;                               // +0x34（字段语义见报告）
-    unsigned int m_f11;                               // +0x38（字段语义见报告）
+    bool m_all;                                   // +0x08（ORIG POD：all 标志）
+    char m_pad09[3];                              // +0x09..0x0b 对齐
+    std::set<int> m_mons;                         // +0x0c（ORIG C1 构造，0x18）
+    std::set<int> m_ais;                          // +0x24（ORIG C1 构造，0x18）
 };
 class CUpgradeCardDebug : public CCommand
 {
@@ -769,7 +763,7 @@ public:
     virtual void execute();                          // ORIG T 0x084b1b96
     void SendChatMsg();                                       // 辅助（ORIG T 0x084b1e8a，签名见报告）
 
-    std::string m_str0;                              // +0x08
+    int m_itemIdx;                              // +0x08（ORIG POD：道具 idx）
 };
 class NpcLimitBuyItem : public CCommand
 {
@@ -785,7 +779,7 @@ public:
     virtual void parse();                            // ORIG T 0x084b1f8c
     virtual void execute();                          // ORIG T 0x084b1fda
 
-    std::string m_str0;                              // +0x08
+    char m_flag;                                // +0x08（ORIG POD：byte 标志）
 };
 class DungeonDifficulty : public CCommand
 {
@@ -805,7 +799,10 @@ public:
     virtual void execute();                          // ORIG T 0x084b25a4
     void getParam();                                       // 辅助（ORIG T 0x084b235c，签名见报告）
 
-    std::string m_str0;                              // +0x08
+    char m_flag0;                                 // +0x08（ORIG POD）
+    char m_flag1;                                 // +0x09
+    char m_flag2;                                 // +0x0a
+    int m_param;                                  // +0x0c
 };
 class CTestTradeRestrict : public CCommand
 {
@@ -842,7 +839,7 @@ public:
     void reqValue();                                 // ORIG T 0x084b368a
     void resetData();                                // ORIG T 0x084b363e
 
-    std::string m_str0;                              // +0x08
+    int m_subCmd;                               // +0x08（ORIG POD：子命令码）
 };
 
 class CSetMultiboxFailCnt : public CCommand
@@ -852,7 +849,7 @@ public:
     virtual void parse();                            // ORIG T 0x084b34a4
     virtual void execute();                          // ORIG T 0x084b34f8
 
-    std::string m_str0;                              // +0x08
+    int m_failCnt;                              // +0x08（ORIG POD：失败次数）
 };
 class CLevelUp : public CCommand
 {
@@ -863,7 +860,7 @@ public:
     void getLevel();                                       // 辅助（ORIG T 0x084b398e，签名见报告）
     void setLevel();                                       // 辅助（ORIG T 0x084b395c，签名见报告）
 
-    std::string m_str0;                              // +0x08
+    int m_level;                                // +0x08（ORIG POD：等级）
 };
 class CRecipeSuccess : public CCommand
 {

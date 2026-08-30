@@ -21,11 +21,15 @@ CShutdowManager::CShutdowManager()
     Reset();
 }
 
-// ORIG 0x82a37c8：user 标志(+0x00)==1 时向 DB 队列投递两条关服消息：
-//   queue 2: << 0x95 << -1；queue 4: << 0x96 << -1；各使 user+0x04 计数 +1。
+// ORIG 0x82a37c8：this 使能位(+0x00) 非零时向 DB 队列投递两条关服消息：
+//   queue 2: << 0x95 << -1；queue 4: << 0x96 << -1；各使 this+0x04 计数 +1。
+//   （ORIG 全程未使用 user 参数。）
 unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
 {
-    if (*reinterpret_cast<int*>(user) == 1)
+    if (!static_cast<bool>(m_flag))
+    {
+        return 1;
+    }
     {
         Stream* stream = GlobalData::s_stream_pool->Acquire("App.cpp", 0x324c);
         {
@@ -34,7 +38,7 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
             (*guard)->operator<<(-1);
             GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
         }
-        ++*reinterpret_cast<int*>(reinterpret_cast<unsigned char*>(user) + 4);
+        ++m_field4;
 
         stream = GlobalData::s_stream_pool->Acquire("App.cpp", 0x3257);
         {
@@ -43,7 +47,7 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
             (*guard)->operator<<(-1);
             GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
         }
-        ++*reinterpret_cast<int*>(reinterpret_cast<unsigned char*>(user) + 4);
+        ++m_field4;
     }
     return 1;
 }

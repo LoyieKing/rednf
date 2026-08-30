@@ -881,6 +881,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
 
 bool HeroMissionEvent::loadScript()
 {
+	try {
     BaseHeroMissionCondition* p = new ClearDungeonMission();
     if (p == 0)
         throw 0x345;
@@ -936,6 +937,16 @@ bool HeroMissionEvent::loadScript()
         __PRETTY_FUNCTION__, 0x367,
         "[HeroMission] Load script fail. (line:%d)", line);
     return false;
+	} catch (int e) {
+		// ORIG 0x08167e60-0x08167eb2：new 失败 throw 被本函数 catch 消化，
+		// logFormat(0x35e, "[HeroMission] Fail create mission. (line:%d)", e)
+		// 后返回 false，异常不向上传播（NEW 原实现裸 throw 会逃逸）。
+		LogManager::logFormat(
+			1, "localtaiwan/Event/EventHeroMission.cpp",
+			__PRETTY_FUNCTION__, 0x35e,
+			"[HeroMission] Fail create mission. (line:%d)", e);
+		return false;
+	}
 }
 // ============================================================================
 // setEventData @ 0x08166752（setEventData.md 全文转写；定义归本 TU，

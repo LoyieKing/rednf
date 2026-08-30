@@ -188,9 +188,9 @@ unsigned int CUser::Redeem_Item(int redeemId)
     }
 
     Redeem_Item::Inven_Item_Expand_RedeemInfo info = redeem->GetRedeemInfoR(redeemId);
-    // info 前 0x3d 字节即 Inven_Item 快照（AddRedeemList 复制口径），按
-    // Inven_Item 视图读取（pack(1) 布局一致；ORIG 直接以 local_14 指针消费）。
-    Inven_Item& item = *reinterpret_cast<Inven_Item*>(info.m_data);
+    // info 前 0x3d 字节即 Inven_Item 快照（AddRedeemList 复制口径）；m_item 为
+    // 真实 Inven_Item 成员（pack(1) 布局一致；ORIG 直接以 local_14 指针消费）。
+    Inven_Item& item = *reinterpret_cast<Inven_Item*>(&info.m_item);
     if (item.isEmpty())
     {
         SendCmdErrorPacket((ENUM_CMDPACKET)0x137, 3);

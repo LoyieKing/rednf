@@ -148,7 +148,6 @@ void CSecretShopCheckLottery::execute()
 
 // ORIG ctor 0x082a8496：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CSecretShopNpc::CSecretShopNpc()
-    : m_str0()
 {
 }
 
@@ -156,7 +155,7 @@ CSecretShopNpc::CSecretShopNpc()
 void CSecretShopNpc::parse()
 {
     trim(m_parser->m_args);
-    GM_STR0_INT(m_str0) = atoi(m_parser->m_args.c_str());
+    m_npcIdx = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084aba12：GM 用户处于 state 5（组队等待态，推断）时，把本人
@@ -179,7 +178,7 @@ void CSecretShopNpc::execute()
         return;
     }
 
-    int npcId = GM_STR0_INT(m_str0);
+    int npcId = m_npcIdx;
     if (!(npcId == 1000 || npcId == 0x3ea || npcId == 0x3eb || npcId == 0x3ec))
     {
         return;
@@ -234,7 +233,6 @@ void CSecretShopNpc::execute()
 
 // ORIG ctor 0x082a8576：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CSetGuildFund::CSetGuildFund()
-    : m_str0()
 {
 }
 
@@ -242,7 +240,7 @@ CSetGuildFund::CSetGuildFund()
 void CSetGuildFund::parse()
 {
     trim(m_parser->m_args);
-    GM_STR0_INT(m_str0) = atoi(m_parser->m_args.c_str());
+    m_fund = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084ac6a0：向发起者所在公会代理发送加 fund 请求
@@ -250,7 +248,7 @@ void CSetGuildFund::parse()
 void CSetGuildFund::execute()
 {
     CUser* user = GetUser();
-    unsigned int amount = static_cast<unsigned int>(GM_STR0_INT(m_str0));
+    unsigned int amount = static_cast<unsigned int>(m_fund);
     unsigned int guildKey =
         static_cast<unsigned int>(user->get_charac_guildkey());
     unsigned int characNo = static_cast<unsigned int>(user->get_charac_no(-1));
@@ -266,7 +264,6 @@ void CSetGuildFund::execute()
 
 // ORIG ctor 0x082a891e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 CSetMultiboxFailCnt::CSetMultiboxFailCnt()
-    : m_str0()
 {
 }
 
@@ -274,10 +271,10 @@ CSetMultiboxFailCnt::CSetMultiboxFailCnt()
 // atoi(parser->m_extra[1])（第二个分词）。
 void CSetMultiboxFailCnt::parse()
 {
-    GM_STR0_INT(m_str0) = 0;
+    m_failCnt = 0;
     trim(m_parser->m_args);
     std::vector<std::string>& extra = m_parser->m_extra;
-    GM_STR0_INT(m_str0) = atoi(extra[1].c_str());   // ORIG 直接 operator[](1)，无边界检查
+    m_failCnt = atoi(extra[1].c_str());   // ORIG 直接 operator[](1)，无边界检查
 }
 
 // ORIG execute 0x084b34f8：set_multiboxLotteryItemFailCnt(v)；v > 2 时追加
@@ -289,7 +286,7 @@ void CSetMultiboxFailCnt::execute()
     {
         return;
     }
-    int cnt = GM_STR0_INT(m_str0);
+    int cnt = m_failCnt;
     user->set_multiboxLotteryItemFailCnt(cnt);
     if (cnt > 2)
     {

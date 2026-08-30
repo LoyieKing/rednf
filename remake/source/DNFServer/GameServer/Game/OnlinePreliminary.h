@@ -240,11 +240,11 @@ public:
     virtual void OnDestroyRoom(CUser* user);
     virtual void OnJoinRoom(CUser* user);
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);
-    virtual void OnRegisterMatch(CUser* user, PvP_Room* room);   // 基类槽保持 void（ORIG eax 由 caller 忽略）
-    virtual void OnMatchRoom(PvP_Room* room, int a);
+    virtual int OnRegisterMatch(CUser* user, PvP_Room* room);     // ORIG 返 1
+    virtual int OnMatchRoom(PvP_Room* room, int a);               // ORIG 返 1
     virtual void OnStartFight();
     virtual void OnEndFight(PvP_Room* room);
-    virtual void OnWalkOut(PvP_Room* room, int a);
+    virtual int OnWalkOut(PvP_Room* room, int a);                 // ORIG 返 1
     virtual bool OnReady(CUser* user, bool ready);
     virtual void OnReward(PvP_Room* room, int a, bool b);
     virtual void OnCompleteLoad(CUser* user);

@@ -362,6 +362,7 @@ PvP_MissionSystem::~PvP_MissionSystem()
     if (m_trand != 0)
         delete (CMTRand*)m_trand;
     m_trand = 0;
+    puts("Mission System Delete");   // ORIG 0x85e1c72-0x85e1c79
 
     for (std::map<int, CMission*>::iterator it = m_missionMap.begin();
          it != m_missionMap.end(); ++it)

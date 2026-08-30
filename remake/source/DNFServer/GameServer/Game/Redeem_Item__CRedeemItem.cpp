@@ -78,8 +78,9 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
 int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 {
     Inven_Item_Expand_RedeemInfo info;
-    std::memcpy(&info.m_data, &item, 0x3c);
-    info.m_byte3c = *((const unsigned char*)&item + 0x3c);
+    std::memcpy(&info.m_item, &item, 0x3c);
+    reinterpret_cast<unsigned char*>(&info.m_item)[0x3c] =
+        *((const unsigned char*)&item + 0x3c);
     info.m_count40 = param3 ? (param2 + THROW_FEE) : BUY_FEE;
     alter();
     if (m_redeemList.size() > 0x14)
@@ -122,8 +123,8 @@ int CRedeemItem::Send_RedeemList(CUser* user)
         // Inven_Item_Expand_RedeemInfo 前 0x3c 字节即 Inven_Item 镜像
         // （AddRedeemList 拷贝实证），按字段口径逐项写出。
         Inven_Item item;
-        std::memcpy(&item, &entry.m_data[0], 0x3c);
-        unsigned char lastByte = entry.m_byte3c;
+        std::memcpy(&item, &entry.m_item, 0x3c);
+        unsigned char lastByte = reinterpret_cast<const unsigned char*>(&entry.m_item)[0x3c];
 
         packet.put_int(entry.m_count40);                    // +0x40 兑换计数
         packet.put_int(item.m_addInfo);                     // +0x02 物品 idx

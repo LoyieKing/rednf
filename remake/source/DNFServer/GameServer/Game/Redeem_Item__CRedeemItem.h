@@ -27,10 +27,12 @@ namespace Redeem_Item
 //   +0x3c 复制 Inven_Item 末字节 + +0x40 写入 int（param2+1000 或 1000）。
 struct Inven_Item_Expand_RedeemInfo
 {
-    Inven_Item_Expand_RedeemInfo() { std::memset(this, 0, sizeof(*this)); }
+    Inven_Item_Expand_RedeemInfo() : m_item(), m_count40(0x7fffffff)
+    {
+        // ORIG C1 0x085f75ea：Inven_ItemC1 构造 +0x00..0x3c，+0x40 = 0x7fffffff。
+    }
 
-    unsigned int m_data[0xf];  // +0x00..0x3c（15 dword）
-    unsigned char m_byte3c;    // +0x3c
+    Inven_Item m_item;         // +0x00..0x3c（0x3d 字节，pack(1)）
     char m_pad3d[3];           // +0x3d..0x40
     int m_count40;             // +0x40
 };

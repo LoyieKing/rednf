@@ -112,17 +112,16 @@ bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned in
 }
 
 // ----------------------------------------------------------------------------
-// compress_zip —— ORIG T 0x086b201f（range [0x86b201f,0x86b2102]）：
-//   len<=0 → logFormat(1,"Utility.cpp",
-//             __PRETTY_FUNCTION__,454,
-//             "d%c%02d") 并 return false；
-//   bound = len + len/10 + 12（gcc 除 10 序列后 add $0xc，即 zlib compressBound）；
+//   bound = len + len/5 + 12（ORIG imul $0x66666667+sar 序列 = gcc 除 5 magic；
+//            即 zlib compressBound 的 1.2 倍形式，非 1.1 倍）；
 //   zerr = compress2(out+4,&bound,in,len,-1)；失败返回 false；
-//   成功：out 头 dword=len（cmp 判定所在指令序列），outLen 写回。
+//   成功但 *outLen（入参容量）< bound → 返回 false（ORIG 防御性容量检查）；
+//   成功：out 头 dword = len & 0x3fffffff（ORIG and 截断 30 位），outLen = bound+4。
 // ----------------------------------------------------------------------------
 bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen)
 {
-    if (inLen <= 0)
+    // ORIG 以带符号语义处理 inLen（cmpl+jg 有符号比较、imul 0x66666667+sar 有符号除 5）
+    if ((int)inLen <= 0)
     {
         LogManager::logFormat(
             1, "Utility.cpp",
@@ -130,14 +129,18 @@ bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int 
             "d%c%02d");
         return false;
     }
-    unsigned long bound = static_cast<unsigned long>(inLen + inLen / 10 + 12);
+    unsigned long bound =
+        static_cast<unsigned long>((int)inLen + (int)inLen / 5 + 12);
     if (compress2(reinterpret_cast<unsigned char*>(out + 4), &bound,
                   reinterpret_cast<const unsigned char*>(in),
                   static_cast<unsigned long>(inLen), -1) != 0)
     {
         return false;
     }
-    *reinterpret_cast<unsigned int*>(out) = static_cast<unsigned int>(inLen);
+    if (outLen < bound)                        // ORIG：*destCap < size → 失败
+        return false;
+    *reinterpret_cast<unsigned int*>(out) =
+        static_cast<unsigned int>(inLen) & 0x3fffffff;   // ORIG and 截断 30 位
     outLen = static_cast<unsigned int>(bound + 4);
     return true;
 }
@@ -169,13 +172,10 @@ _TodayRewardItem::~_TodayRewardItem() {}
 
 // _SIG_LOAD_ACTION_POINT —— W 0x0848f5d8 C1/C2 同体（0x51 字节）：
 //   esi 循环 [300..1] 逐元素调 _ActionPointC1Ev，随后 memset(this,0,0xcf1)。
+//   数组成员 _ActionPoint m_actionPoints[300] 由编译器自动逐元素构造
+//   （与 ORIG 同形）；旧实现额外显式 D1+placement new 造成双重构造，已删。
 _SIG_LOAD_ACTION_POINT::_SIG_LOAD_ACTION_POINT()
 {
-    for (int i = 299; i >= 0; --i)
-    {
-        m_actionPoints[i]._ActionPoint::~_ActionPoint();
-        new (&m_actionPoints[i]) _ActionPoint();   // 复用 _ZN8APSystem12_ActionPointC1Ev
-    }
     memset(this, 0, sizeof(*this));                // 终态与 ORIG 全零一致
 }
 

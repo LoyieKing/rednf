@@ -82,7 +82,9 @@ bool check_url(const char* url)
         unsigned char c = (unsigned char)url[i];
         if (c > 0x60 && c <= 0x7a)                     // a..z
             continue;
-        if (c <= 0x2f)                                 // ORIG 双重 cmp（0x2f<0x57 恒真）
+        // ORIG 0x82057d0 控制流：c<=0x2f → jbe 0x57f8（0x57f8 检查 c==0x5f，
+        // c<=0x2f 时恒不成立 → 拒绝）；0x30..0x57（数字/大写/部分标点）→ 允许。
+        if (c > 0x2f && c <= 0x57)                     // '0'..'W'
             continue;
         if (c == 0x5f)
             continue;
@@ -3956,7 +3958,7 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
         reinterpret_cast<char*>(party) + 0xb24);           // party+0xc3c = BF+0x118
     std::vector<int>::iterator it = std::find(field->m_apcList.begin(),
                                               field->m_apcList.end(),
-                                              (int)bossSeq);
+                                              bossSeq);
     if (it != field->m_apcList.end())
     {
         field->m_apcList.erase(it);
@@ -6425,17 +6427,11 @@ int Dispatcher_UseRenameCard::check_error(CUser* user, MSG_BASE& msg)
         return 0x13;
     }
 
-    // BLOCKED(CUser::IsWaitingStateCharac(unsigned int)
-    //         call @0x0822fbe6，参数 (this, *characR))
-    // 仓库未建模该符号（见 NEEDS_DECL）。ORIG：返回真 → 通过(0)，假 → 0x12。
-    // 占位：保守取 false（拒绝），避免未建模状态下误放行改名卡消耗。
-    bool waiting = false; // 占位
-    if (waiting)
+    if (!user->IsWaitingStateCharac((unsigned int)charac->m_characNo))
     {
-        return 0;
+        return 0x12;
     }
-
-    return 0x12;
+    return 0;
 }
 int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -13819,6 +13815,7 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     PacketGuard packetOut;
     packetOut.put_header(0, 0xe);
     packetOut.put_byte(0);
+    packetOut.put_short(1);   // ORIG put_short(1)（NEW 缺此字段，回包格式差异）
     user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, (int)slotA,
                                                packetOut);
     packetOut.finalize(true);
@@ -26244,7 +26241,7 @@ int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
         static_cast<int>(party.get_teleport_posx()),
         static_cast<int>(party.get_teleport_posy()),
         static_cast<int>(party.get_teleport_direction()),
-        true, 1);
+        true, 2);      // ORIG 末参 2（param==2 强制通过同村检查）
 }
 
 // ==== Dispatcher_SoloTeleport::send (ORIG 0x081e1ff6) ====

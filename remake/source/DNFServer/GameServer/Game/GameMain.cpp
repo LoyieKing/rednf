@@ -433,11 +433,14 @@ void ShowLogo()
     std::puts("* +---   + +-+  |      Copyright(c) 2004,2005 Neople Co. *");
     std::puts("**********************************************************");
 
-    CommonTime time;                          // 栈上对象（ebp-0x18，推断布局同 ORIG）
+    CommonTime time;                          // 栈上对象（ebp-0x18，布局同 ORIG：+0..+4 年/月/日/时/分）
     time.SetCurTime();
-    // ORIG 依次读 ebp-0x18/-0x17/-0x16/-0x15/-0x14 五字节 → 年/月/日/时/分（推断顺序）
+    // ORIG 依次读 ebp-0x18/-0x17/-0x16/-0x15/-0x14 五字节（movsbl）→ 年/月/日/时/分
+    const char* p = reinterpret_cast<const char*>(&time);
     std::printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
-                0, 0, 0, 0, 0);               // 「推断」：CommonTime 字段未建模，置 0 占位
+                (int)(signed char)p[0], (int)(signed char)p[1],
+                (int)(signed char)p[2], (int)(signed char)p[3],
+                (int)(signed char)p[4]);      // CommonTime 字段偏移 +0..+4（m_year..m_min）
 }
 
 // ---------------------------------------------------------------------------

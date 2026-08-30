@@ -359,8 +359,8 @@ int CItemGenRateTable::chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int 
                 return itemIdx;
         }
         // ORIG 槽址 = type*0x7110+rarity*0x12d8+level*24（type 调用方传 1..4），
-        // 等价 m_slots[type-1]（m_slots 从 block+0x7110 起）。
-        std::map<unsigned int, int>& slot = m_block.m_slots[type - 1][rarity][level];
+        // 等价 m_slots[type]（m_slots 无 type0 前缀，直接 5×6×201）。
+        std::map<unsigned int, int>& slot = m_slots[type][rarity][level];
         if (slot.empty())
             return -1;
         std::map<unsigned int, int>::iterator it = slot.end();

@@ -7558,28 +7558,24 @@ bool CUser::IsGuildSkillLearn(int skillIdx)
 // 0x0864fb3a
 // ORIG：公会技能经验换算。无公会/非公会成员/未学技能 0xc9 → 0；
 // 否则按职业 find_skill 返回的 vector<vector<int>>（+0x108）取
-// 公会等级-1 的权重，返回 param_1 * 权重 / 100。
+// 公会技能经验：ORIG 0x0864fb3a（sz 0x100，报告 gainGuildSkillExp.md）。
+// 忠实转写：find_skill(job, 0xc9)；索引 = IsGuildSkillLearn(0xc9)-1（前检查
+// 已保证其为 1 → 恒 0）；取权重表第 0 行的 at(gradeIdx)；无 find_skill/边界/
+// empty 防御检查（ORIG 直接 operator[]+at，越界走 at 异常路径）。
 int CUser::gainGuildSkillExp(int exp)
 {
     if (get_charac_guildkey() == 0)
         return 0;
     if (getGuildMemberGrade() == 0)
         return 0;
-    if (IsGuildSkillLearn(0xc9) == 0)
+    char learned = (char)IsGuildSkillLearn(0xc9);   // ORIG：movb 存栈 + cmpb + movsbl
+    if (learned == 0)
         return 0;
-    CSkill* skill = G_CDataManager()->find_skill(get_charac_job(), 0);
-    if (skill == 0)
-        return 0;
-    // 推断：find_skill 返回 CSkill 族对象，+0x108 为 vector<vector<int>> 权重表
+    CSkill* skill = G_CDataManager()->find_skill(get_charac_job(), 0xc9);
     std::vector<std::vector<int> >* gradeWeights =
         (std::vector<std::vector<int> >*)((char*)skill + 0x108);
-    int gradeIdx = (int)getGuildMemberGrade() - 1;
-    if (gradeIdx < 0 || gradeIdx >= (int)gradeWeights->size())
-        return 0;
-    std::vector<int>& w = (*gradeWeights)[gradeIdx];
-    if (w.empty())
-        return 0;
-    return (exp * w[0]) / 100;
+    int gradeIdx = (int)learned - 1;
+    return (exp * (*gradeWeights)[0].at(gradeIdx)) / 100;
 }
 
 // ---- 0x08659faa make_charac_stat(PacketGuard&)：角色属性块序列化。
@@ -8143,6 +8139,7 @@ void CUser::AddDailyItem()
                                it->second);
     }
 
+    m_advanceAltar.refillTicketFree();   // ORIG 0x0865f6dc：每日门票免费补满
     if (GlobalData::s_systemTime_.getCurSec() < (time_t)0x4811f1f0)
     {
         CItem* def = G_CDataManager()->find_item(0x1cab);

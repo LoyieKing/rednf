@@ -362,7 +362,9 @@ enum
     TAG_COMBO_SET = 0x31d,
 };
 
-std::map<const char*, int> s_skillTagMap;
+// ORIG 全局实证：map<PKc,i> 全部用 less_TCHAR（strcmp 内容比较）——
+// find(token.c_str()) 为动态指针，默认 std::less 指针比较恒 miss。
+std::map<const char*, int, less_TCHAR> s_skillTagMap;
 SpinLock s_skillTagLock;
 bool s_skillTagReady = false;
 const int kTagCount = 65;   // ORIG 技能标签表项数（下表 65 项实证：多对项合并一行）
@@ -433,7 +435,7 @@ int ImportSkillScript(STSkillScript* script, const char* path,
         int tagId;
         if (s_skillTagReady)
         {
-            std::map<const char*, int>::const_iterator it = s_skillTagMap.find(token.c_str());
+            std::map<const char*, int, less_TCHAR>::const_iterator it = s_skillTagMap.find(token.c_str());
             if (it != s_skillTagMap.end())
                 tagId = it->second;
             else

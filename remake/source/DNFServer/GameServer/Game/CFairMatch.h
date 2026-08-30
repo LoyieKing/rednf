@@ -88,12 +88,12 @@ public:
     virtual void OnDestroyRoom(CUser* user);                   // 0x8562dc6
     virtual void OnJoinRoom(CUser* user);                      // 0x8562df6
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room, int a, int b);  // 0x8562fbc
-    virtual void OnRegisterMatch(CUser* user, PvP_Room* room); // 0x8563bba
-    virtual void OnUnregisterMatch(CUser* user, PvP_Room* room);  // 0x85663cc6? 以 README 为准
-    virtual void OnMatchRoom(PvP_Room* room, int a);          // 0x8564150
+    virtual int OnRegisterMatch(CUser* user, PvP_Room* room); // 0x8563bba（ORIG 返 1）
+    virtual int OnUnregisterMatch(CUser* user, PvP_Room* room);  // 0x85663cc6?（ORIG 返 1）
+    virtual int OnMatchRoom(PvP_Room* room, int a);          // 0x8564150（ORIG 返 1）
     virtual void OnStartFight();                               // 0x8564952
     virtual void OnEndFight(PvP_Room* room);                  // 0x8565048
-    virtual void OnWalkOut(PvP_Room* room, int a);            // 0x8564fb2
+    virtual int OnWalkOut(PvP_Room* room, int a);            // 0x8564fb2（ORIG 返 1）
     virtual bool OnReady(CUser* user, bool ready);            // 0x8565018（!ready && state==4 → false；IMatch 基类 bool 同步）
     virtual void OnReward(PvP_Room* room, int a, bool b);    // 0x8565966
     virtual void OnEndPvP(PvP_Room* room);                   // 0x8565c4e

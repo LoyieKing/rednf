@@ -51,16 +51,16 @@ public:
     virtual void OnJoinRoom(CUser* user) { (void)user; }        // +0x28
     virtual void OnLeaveRoom(CUser* user, PvP_Room* room,
                              int a, int b) { (void)user; (void)room; (void)a; (void)b; }  // +0x2c
-    virtual void OnRegisterMatch(CUser* user, PvP_Room* room)
-    { (void)user; (void)room; }                                 // +0x30
-    virtual void OnUnregisterMatch(CUser* user, PvP_Room* room)
-    { (void)user; (void)room; }                                 // +0x34
-    virtual void OnMatchRoom(PvP_Room* room, int a)
-    { (void)room; (void)a; }                                    // +0x38
+    virtual int OnRegisterMatch(CUser* user, PvP_Room* room)
+    { (void)user; (void)room; return 1; }                       // +0x30
+    virtual int OnUnregisterMatch(CUser* user, PvP_Room* room)
+    { (void)user; (void)room; return 1; }                       // +0x34
+    virtual int OnMatchRoom(PvP_Room* room, int a)
+    { (void)room; (void)a; return 1; }                          // +0x38
     virtual void OnStartFight() {}                              // +0x3c
     virtual void OnEndFight(PvP_Room* room) { (void)room; }     // +0x40
-    virtual void OnWalkOut(PvP_Room* room, int a)
-    { (void)room; (void)a; }                                    // +0x44
+    virtual int OnWalkOut(PvP_Room* room, int a)
+    { (void)room; (void)a; return 0; }                          // +0x44
     virtual bool OnReady(CUser* user, bool ready)
     { (void)user; (void)ready; return true; }                   // +0x48（ORIG set_ready_state 0x85d82cb call 后 xor $1 取反，P22）
     virtual void OnReward(PvP_Room* room, int a, bool b)

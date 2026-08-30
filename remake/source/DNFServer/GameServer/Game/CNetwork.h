@@ -53,7 +53,7 @@ public:
     int GetRemainSendSize();
     static int CreateConnectionSocket(int& sock, const char* ip, int port);
     static int CreateConnectionBlockSocket(int& sock, const char* ip, int port);
-    int CreateListenSocket(int& sock, int port, const char* ip);
+    static bool CreateListenSocket(int& sock, int port, const char* ip);
     bool Parsing_ServerPacket(int recvLen);
     bool Parsing_AuctionServerPacket(int recvLen);
 
@@ -357,48 +357,48 @@ int CNetwork<N1, N2>::CreateConnectionBlockSocket(int& sock, const char* ip, int
 }
 
 template <int N1, int N2>
-int CNetwork<N1, N2>::CreateListenSocket(int& sock, int port, const char* ip)
+bool CNetwork<N1, N2>::CreateListenSocket(int& sock, int port, const char* ip)
 {
     sockaddr_in addr;
     int opt = 0xea60;
     int ret = 0;
 
-    m_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (m_sock < 0)
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
     {
-        return 0;
+        return false;
     }
 
     memset(&addr, 0, 0x10);
     addr.sin_family = AF_INET;
-    if (port != 0)
+    if (ip != 0)
     {
-        addr.sin_addr.s_addr = inet_addr((const char*)port);
+        addr.sin_addr.s_addr = inet_addr(ip);
     }
     else
     {
         addr.sin_addr.s_addr = htonl(0);
     }
-    addr.sin_port = htons((unsigned short)sock);
+    addr.sin_port = htons((unsigned short)port);
 
-    ret = setsockopt(m_sock, SOL_SOCKET, SO_REUSEADDR, &opt, 4);
+    ret = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, 4);
     if (ret < 0)
     {
-        return 0;
+        return false;
     }
-    if (bind(m_sock, (sockaddr*)&addr, 0x10) < 0)
+    if (bind(sock, (sockaddr*)&addr, 0x10) < 0)
     {
-        return 0;
+        return false;
     }
-    if (listen(m_sock, 0x400) < 0)
+    if (listen(sock, 0x400) < 0)
     {
-        return 0;
+        return false;
     }
-    if (!SetNonBlock(m_sock))
+    if (!SetNonBlock(sock))
     {
-        return 0;
+        return false;
     }
-    return 1;
+    return true;
 }
 
 template <int N1, int N2>

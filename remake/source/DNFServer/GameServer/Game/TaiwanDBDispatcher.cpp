@@ -396,19 +396,19 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        if (!db->set_query(
-                "seLect reward_flag from event_stay_time_charac where m_id=%s",
-                NumberToString(sig->m_accId, 0)))
-            throw "select_exec";
-        if (!db->exec(true))                 // ORIG 0x0815b424：set_query 后 exec(true)
+        // ORIG 0x0815b424：set_query 返回值不检查（失败留给 exec 的 throw）
+        db->set_query(
+            "seLect reward_flag from event_stay_time_charac where m_id=%s",
+            NumberToString(sig->m_accId, 0));
+        if (!db->exec(true))                 // ORIG：exec(true) 失败 throw
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
-            if (!db->set_query(
-                    "inSert into event_stay_time_charac values('%s', 1, 1, now())",
-                    NumberToString(sig->m_accId, 0)))
-                throw "insert_exec";
-            if (!db->exec(true))             // ORIG 0x0815b4ac：insert 后 exec(true)
+            // ORIG 0x0815b4ac：insert set_query 不检查，exec(true) 失败 throw
+            db->set_query(
+                "inSert into event_stay_time_charac values('%s', 1, 1, now())",
+                NumberToString(sig->m_accId, 0));
+            if (!db->exec(true))
                 throw "insert_exec";
             sendStayTimeData(uid);
         }
@@ -421,11 +421,11 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
                 throw "get_int";
             if (flag != 0)
                 return 1;
-            if (!db->set_query(
-                    "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
-                    NumberToString(sig->m_accId, 0)))
-                throw "update_exec";
-            if (!db->exec(true))             // ORIG：update 后 exec(true)
+            // ORIG：update set_query 不检查，exec(true) 失败 throw
+            db->set_query(
+                "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
+                NumberToString(sig->m_accId, 0));
+            if (!db->exec(true))
                 throw "update_exec";
             sendStayTimeData(uid);
         }

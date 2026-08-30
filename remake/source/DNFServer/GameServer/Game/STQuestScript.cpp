@@ -437,11 +437,11 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
         {
             if (*it == -100)
             {
-                out->insert(*it);
+                out[level - 1].insert(*it);
             }
             else if (*it + level >= 1)
             {
-                out->insert(*it);
+                out[level - 1].insert(*it);
             }
         }
     }

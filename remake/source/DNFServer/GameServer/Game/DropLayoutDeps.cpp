@@ -102,7 +102,7 @@ bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
 void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOption)
 {
     // 报告 generateTable.md（T 0x0853466c）逐循环转写。槽址 =
-    // type*0x7110+rarity*0x12d8+level*24 ⇒ m_block.m_slots[type-1][rarity][level]。
+    // type*0x7110+rarity*0x12d8+level*24 ⇒ m_slots[type][rarity][level]。
     __gnu_cxx::hash_map<int, CItem*>* grades =
         G_CDataManager()->m_itemList->getItemGradeList();
     for (int type = 1; type <= 4; ++type)
@@ -139,7 +139,7 @@ void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOp
                         if (!keepRandomOption && item->IsRandomOption())
                             continue;
                         cumulative += (unsigned int)item->get_gen_rate();
-                        m_block.m_slots[type - 1][rarity][target].insert(
+                        m_slots[type][rarity][target].insert(
                             std::make_pair(cumulative, item->get_index()));
                     }
                 }
@@ -251,7 +251,7 @@ void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
                                 if (!item->isDropItemDungeonType(b))
                                     continue;
                                 cumulative += (unsigned int)item->get_gen_rate();
-                                m_blocks[a][b].m_slots[type - 1][rarity][target].insert(
+                                m_blocks[a][b][type][rarity][target].insert(
                                     std::make_pair(cumulative, item->get_index()));
                             }
                         }
@@ -1070,7 +1070,6 @@ int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
 // 布局自检（嵌入尺寸三重互证见文件头）
 // ============================================================================
 typedef char assert_drop_range[sizeof(WongWork::stGenItemRange_t) == 0x194 ? 1 : -1];
-typedef char assert_drop_block[sizeof(WongWork::DropGenRateBlock_t) == 0x23550 ? 1 : -1];
 typedef char assert_rate_table[sizeof(WongWork::CItemGenRateTable) == 0x2356C ? 1 : -1];
 typedef char assert_secial_table[sizeof(WongWork::CSecialIMonsterDropItemGenRateTable) ==
                                  0x211FCC ? 1 : -1];

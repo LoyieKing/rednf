@@ -65,7 +65,7 @@ template int CNetwork<95000, 450000>::recv_packet();
 template int CNetwork<95000, 450000>::send_packet();
 template bool CNetwork<95000, 450000>::set_socket(int, bool);
 template int CNetwork<95000, 450000>::send_packet(char*, int);
-template int CNetwork<95000, 450000>::CreateListenSocket(int&, int, const char*);
+template bool CNetwork<95000, 450000>::CreateListenSocket(int&, int, const char*);
 template int CNetwork<95000, 450000>::CreateConnectionSocket(int&, const char*, int);
 template void CNetwork<95000, 450000>::disconnect();
 template void CNetwork<95000, 450000>::send_lock();

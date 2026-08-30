@@ -1686,16 +1686,18 @@ bool CDataManager::reselectDailyTrainingQuest()
     //  4) reset_same_apply_level_cnt()；非空列表记 TRAINING_QUEST trace。
     m_trainingQuest.suffleTrainingQuests();
 
-    std::multiset<int> applyLevels;
-    m_trainingQuest.getApplyLevel(&applyLevels);
+    // ORIG 0x08363d03：getApplyLevel 按 level 分桶写入 multiset 数组
+    // （out[level-1]，level 1..0x46），主循环对每个 level 遍历对应桶。
+    std::multiset<int> applyLevels[0x46];
+    m_trainingQuest.getApplyLevel(applyLevels);
 
     for (int level = 1; level < 0x47; ++level)
     {
         m_dailyTrainingQuest[level - 1].clear();
         int prevMin = 0x7fffffff;
         int prevApply = 0x7fffffff;
-        for (std::multiset<int>::iterator it = applyLevels.begin();
-             it != applyLevels.end(); ++it)
+        for (std::multiset<int>::iterator it = applyLevels[level - 1].begin();
+             it != applyLevels[level - 1].end(); ++it)
         {
             prevApply = *it;
             int questIdx =

@@ -476,18 +476,20 @@ bool CAutoPunishRuleHackTypeMgr::checkTotalTradeRuleOver(unsigned int tradeType,
     {
         return false;
     }
+    // ORIG 比较顺序：先高 32 位（+0x20），再低 32 位（+0x1c）——
+    // 标准 64 位无符号比较，先低位后高位会出错（ruleHi 大而 ruleLo 小时误判）。
     {
-        unsigned int ruleLo = (unsigned int)m_totalTradeValue;
-        if (ruleLo > totalLo)
+        unsigned int ruleHi = (unsigned int)(m_totalTradeValue >> 32);
+        if (ruleHi > totalHi)
         {
             return false;
         }
-        if (ruleLo < totalLo)
+        if (ruleHi < totalHi)
         {
             return true;
         }
-        unsigned int ruleHi = (unsigned int)(m_totalTradeValue >> 32);
-        if (ruleHi > totalHi)
+        unsigned int ruleLo = (unsigned int)m_totalTradeValue;
+        if (ruleLo > totalLo)
         {
             return false;
         }

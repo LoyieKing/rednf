@@ -438,9 +438,7 @@ inline std::set<int>& indAiSet(CIndependentDrop* self)
 // set<int>（_ZNSt3setIiSt4lessIiESaIiEEC1Ev）；+0x08 bool 不初始化。
 CIndependentDrop::CIndependentDrop()
 {
-    GmDID* self = (GmDID*)this;                              // ORIG +0x0c/+0x24 set ctor
-    new (static_cast<void*>(&self->mons)) std::set<int>();
-    new (static_cast<void*>(&self->ais)) std::set<int>();
+    // 头已声明真实 std::set<int> m_mons/m_ais（+0x0c/+0x24），隐式构造同 ORIG。
 }
 
 // ORIG parse 0x084b0b08：trim(args)；args=="all" → +0x08=1 否则 0。

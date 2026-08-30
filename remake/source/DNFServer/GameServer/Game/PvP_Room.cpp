@@ -3312,7 +3312,7 @@ int PvP_Room::pvp_reward()
                 if (P_SEATS(local_30) != 0)
                 {
                     local_94.put_short((int)P_SEATS(local_30)->get_unique_id() & 0xffff);
-                    local_94.put_int(*(int*)((char*)P_SEATS(local_30) + 0x78));
+                    local_94.put_int(*(int*)((char*)this + local_30 * 4 + 0x78));
                     local_94.put_byte(P_SEATS(local_30)->get_pvp_grade());
                     local_94.put_int(P_SEATS(local_30)->get_pvp_result_exp_point());
                     local_94.put_int(GlobalData::s_ref_pvp_grade->GetPvpCurrRankPoint(
@@ -3461,20 +3461,23 @@ int PvP_Room::SelectRandomMap()
 
 int PvP_Room::GetAce() const
 {
+    // ORIG 0x085dc654：分数为 PvP_Room 内嵌数组 this + seat*4 + 0x98/0x78
+    // （mov 0x8(%eax,(seat+0x24)*4) = this+seat*4+0x98；+0x1c → +0x78），
+    // 非 CUser 对象字段。
     int local_10 = -1;
     int local_c = -1;
     for (int local_8 = 0; local_8 < 8; local_8 = local_8 + 1)
     {
         if (P_SEATS(local_8) != 0)
         {
-            if (local_c < *(int*)((char*)P_SEATS(local_8) + 0x98))
+            if (local_c < *(int*)((char*)this + local_8 * 4 + 0x98))
             {
-                local_c = *(int*)((char*)P_SEATS(local_8) + 0x98);
+                local_c = *(int*)((char*)this + local_8 * 4 + 0x98);
                 local_10 = local_8;
             }
-            else if ((*(int*)((char*)P_SEATS(local_8) + 0x98) == local_c) &&
-                     (*(int*)((char*)P_SEATS(local_10) + 0x78) <
-                      *(int*)((char*)P_SEATS(local_8) + 0x78)))
+            else if ((*(int*)((char*)this + local_8 * 4 + 0x98) == local_c) &&
+                     (*(int*)((char*)this + local_10 * 4 + 0x78) <
+                      *(int*)((char*)this + local_8 * 4 + 0x78)))
             {
                 local_10 = local_8;
             }
@@ -3496,7 +3499,8 @@ int PvP_Room::GetRanking(int* out) const
     {
         if (P_SEATS(local_20) != 0)
         {
-            int local_1c = *(int*)((char*)P_SEATS(local_20) + 0x78);
+            // ORIG 0x085dc58e：this+seat*4+0x78（PvP_Room 内嵌分数数组）
+            int local_1c = *(int*)((char*)this + local_20 * 4 + 0x78);
             int local_18 = 0;
             for (local_18 = 0;
                  (local_18 < local_24 &&
@@ -3519,9 +3523,12 @@ int PvP_Room::GetRanking(int* out) const
 
 int PvP_Room::SetPVPResult(int seat, const PvpResultType& result)
 {
+    // ORIG 0x085dc060：写 PvP_Room 内嵌数组 this+seat*4+0x78 / +0x98
+    // （lea 0x1c(seat),*4 后 mov 0x8(disp) → +0x78；+0x24 → +0x98）。
     if ((seat >= 0) && (seat < 8))
     {
-        *(int*)((char*)P_SEATS(seat) + 0x78) = result.GetTotalScore();
-        *(int*)((char*)P_SEATS(seat) + 0x98) = *(int*)((const char*)&result + 0x18);
+        *(int*)((char*)this + seat * 4 + 0x78) = result.GetTotalScore();
+        *(int*)((char*)this + seat * 4 + 0x98) =
+            *(int*)((const char*)&result + 0x18);
     }
 }

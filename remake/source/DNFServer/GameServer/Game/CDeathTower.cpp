@@ -449,8 +449,10 @@ void CDeathTowerRanking::unregistRanking(unsigned int characNo)
 void CDeathTowerRanking::init(unsigned int type)
 {
     void* table = getRankTable(type);
+    // ORIG 0x8c63370 实证每名 7 字符（"AAAAAAA\0" 等，8 字节；memcpy 7 字节
+    // 拷 7 字母不含 NUL），NEW 原 6 字符差 1
     static const char* kDefaultNames[5] = {
-        "AAAAAA", "BBBBBB", "CCCCCC", "DDDDDD", "EEEEEE" };
+        "AAAAAAA", "BBBBBBB", "CCCCCCC", "DDDDDDD", "EEEEEEE" };
     char* base = reinterpret_cast<char*>(table);
     for (unsigned int tower = 0; tower <= 4; ++tower)
     {
@@ -1217,7 +1219,7 @@ void CDeathTower::_onStartStage()
 // ORIG W 0x82a74ca：MapInfo ctor（编译器生成）后 resetCurrentStage()。
 CDeathTower::CStage::CStage()
 {
-    m_currentStage = 1;
+    resetCurrentStage();
 }
 
 // ORIG W 0x82a74ec：仅 MapInfo dtor（编译器生成）。

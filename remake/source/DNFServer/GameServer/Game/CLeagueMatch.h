@@ -86,11 +86,11 @@ public:
     virtual void OnDestroyRoom(CUser* user);                    // 0x0855d168
     virtual void OnJoinRoom(CUser* user);                       // 0x0855d198
     virtual void OnLeaveRoom(CUser*, PvP_Room*, int, int);      // 0x0855d1c0
-    virtual void OnRegisterMatch(CUser*, PvP_Room*);            // 0x0855db58
-    virtual void OnMatchRoom(PvP_Room*, int authValue);        // 0x0855dc64
+    virtual int OnRegisterMatch(CUser*, PvP_Room*);             // 0x0855db58（ORIG 返 1）
+    virtual int OnMatchRoom(PvP_Room*, int authValue);         // 0x0855dc64（ORIG 返 1）
     virtual void OnStartFight();                                // 0x0855e21c
     virtual void OnEndFight(PvP_Room* room);                   // 0x0855e55a
-    virtual void OnWalkOut(PvP_Room* room, int seat);          // 0x0855e4c4
+    virtual int OnWalkOut(PvP_Room* room, int seat);           // 0x0855e4c4（ORIG 返 1）
     virtual bool OnReady(CUser*, bool ready);                   // 0x0855e52a
     virtual void OnReward(PvP_Room*, int winTeam, bool draw);  // 0x0855eb22
     virtual void OnCompleteLoad(CUser* user);                   // 0x0855e22c

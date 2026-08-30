@@ -279,22 +279,22 @@ void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
     pWaitingRoomList_->DelRoom(this);               // IRoomList vtable+0x04
 }
 
-// ORIG T 0x0855db58。基类虚槽声明为 void，ORIG 返回 bool 经 eax 回传【推断】。
-void CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
+// ORIG T 0x0855db58。ORIG 返回 int：m_state==1 → 1；失败路径 → 0；成功 → 1。
+int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 {
     if (m_state == 1)
-        return;
+        return 1;
 
     if (!bMatchable_) {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199), 0x13);
-        return;
+        return 0;
     }
 
     int err = _CheckMatchable(room);
     if (err != 0) {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199),
                                  static_cast<unsigned char>(err & 0xff));
-        return;
+        return 0;
     }
 
     if (m_state != 2)
@@ -305,25 +305,26 @@ void CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
     int roomIdx = room->get_index();
     TimerStartMatching::registNextTimer(10, roomIdx, static_cast<int>(auth));
     _SendMatchStatePacket(0, 1);
+    return 1;
 }
 
-// ORIG T 0x0855dc64。基类虚槽为 void，ORIG 返回 bool【推断】。
-void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
+// ORIG T 0x0855dc64。ORIG 返回 int：失败路径 → 0；成功 → 1。
+int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
 {
     if (m_authValue != authValue) {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x295, 0);
         trace("OnMatchRoom timeout");
-        return;
+        return 0;
     }
     if (m_state != 1)
-        return;
+        return 0;
 
     IMatch* opponent = 0;
     if (!(pWaitingRoomList_ != 0 && pWaitingRoomList_->Match(this, &opponent)) ||
         opponent == 0) {
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     CUser* leader = opponent->GetUser(0);
@@ -332,7 +333,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b0);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     PvP_Room* theirRoom = reinterpret_cast<PvP_Room*>(leader->GetPVPRoom());
@@ -341,7 +342,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2b9);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     if (theirRoom->get_player_count() > (int)nPlayerCountPerOneTeam_) {
@@ -349,7 +350,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2c2);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     bool badSize =
@@ -360,7 +361,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0x2ca);
         m_state = 2;
         _SendMatchStatePacket(1, 1);
-        return;
+        return 0;
     }
 
     _BackupRoomInfo(theirRoom);
@@ -383,6 +384,7 @@ void CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
     pWaitingRoomList_->DelRoom(this);                   // IRoomList vtable+0x04
     m_state = 4;
     _SendMatchStatePacket(2, 2);
+    return 1;
 }
 
 void CLeagueMatch::OnStartFight()           // ORIG T 0x0855e21c
@@ -402,12 +404,13 @@ void CLeagueMatch::OnEndFight(PvP_Room* room)
     m_teamB.reset();
 }
 
-// ORIG T 0x0855e4c4。IMatch 虚槽 void；ORIG 返回 1【推断】。
-void CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
+// ORIG T 0x0855e4c4。ORIG 返回 1。
+int CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     int team = room->get_team(seat);
     CUser* user = reinterpret_cast<CUser*>(room->get_user_seat(seat));
     OnLeaveRoom(user, room, team, seat);                // vtable+0x2c 四参形态
+    return 1;
 }
 
 // ORIG T 0x0855e52a。ORIG 返回 bool（!ready && state==4 → 0）。

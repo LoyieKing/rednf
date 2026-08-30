@@ -213,11 +213,13 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
     slot->set_parent(user);
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        int kind2 = 1;
-        if (kind != SKILL_TREE_NONE && kind != SKILL_TREE_1)
-        {
+        int kind2;                       // ORIG：kind==NONE(-1)→0、kind==1(0)→1、其余→2
+        if (kind == SKILL_TREE_1)
+            kind2 = 1;
+        else if (kind == SKILL_TREE_NONE)
+            kind2 = 0;
+        else
             kind2 = 2;
-        }
         user->givePvPSkillTree(0, true, kind2);
         int grade = user->get_pvp_grade();
         int second = (signed char)user->getCurCharSecondGrowType();
@@ -289,11 +291,13 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
                 }
             }
             WongWork::CSkillChanger changer;
-            int kind3 = 1;
-            if (kind != SKILL_TREE_NONE && kind != SKILL_TREE_1)
-            {
+            int kind3;                  // ORIG：同 kind2（NONE→0、1→1、其余→2）
+            if (kind == SKILL_TREE_1)
+                kind3 = 1;
+            else if (kind == SKILL_TREE_NONE)
+                kind3 = 0;
+            else
                 kind3 = 2;
-            }
             changer.SkillInitialize(user, kind3, false);
             if (flag)
             {

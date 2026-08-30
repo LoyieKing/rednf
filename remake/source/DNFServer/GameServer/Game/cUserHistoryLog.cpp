@@ -16,6 +16,7 @@
 
 
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
+#include "TimeLog_.h"
 
 // ---- CItemGloballyUniqueIdentifierPrint（ORIG W 0x84ebe58 族实证）----
 // ctor：memset(this,0,0x15)；operator()：DNFFLib::Binary2Hex(&guid,0xa,this)，返回缓冲；
@@ -1057,6 +1058,9 @@ void cUserHistoryLog::CashInvenDel(eCashInvenDelReason reason, unsigned int a,
 //   【推断】TimeLog_ 为纯计时局部对象，无可观察副作用，重建中省略。
 void cUserHistoryLog::CharacAdd(int idx)
 {
+    // ORIG 栈上 TimeLog_ 局部对象调 setTime()（结果未用，保留以对齐字节）。
+    TimeLog_ tl;
+    tl.setTime();
     std::vector<_Charac_info>& characs =
         *reinterpret_cast<std::vector<_Charac_info>*>(
             reinterpret_cast<char*>(m_user) + 0x796e8);
@@ -1066,6 +1070,8 @@ void cUserHistoryLog::CharacAdd(int idx)
 // ORIG _ZN15cUserHistoryLog9CharacDelEi @0x08682ae0（与 CharacAdd 同型，"Charac-,"）
 void cUserHistoryLog::CharacDel(int idx)
 {
+    TimeLog_ tl;
+    tl.setTime();
     std::vector<_Charac_info>& characs =
         *reinterpret_cast<std::vector<_Charac_info>*>(
             reinterpret_cast<char*>(m_user) + 0x796e8);
