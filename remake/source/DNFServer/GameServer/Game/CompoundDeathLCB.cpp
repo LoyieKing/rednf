@@ -98,7 +98,8 @@ public:
     int m_gradeIdxB;              // +0x1b 同 A 组算法但取 scriptB grade
     int m_subTypeB;               // +0x1f【ORIG 怪癖】也读 scriptA vtbl+0xc
     unsigned char m_flagB;        // +0x23 置 0
-};                                // sizeof == 0x28
+    unsigned int m_pad24;         // +0x24..+0x27 未初始化（ORIG SendPacket 传 0x28）
+};                                // sizeof == 0x28（pack(1) 下需显式尾填充）
 #pragma pack(pop)
 
 namespace WongWork {

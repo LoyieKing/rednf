@@ -281,7 +281,7 @@ bool CUser::st_monstorkill::Check(unsigned int nowTick, unsigned short nx,
                                   unsigned short ny, unsigned short xLim,
                                   unsigned short yLim, unsigned int windowLimit)
 {
-    if ((int)(nowTick - m_lastTick) > (int)windowLimit)   // ORIG 82304cc: cmp/ja 无符号超窗
+    if ((unsigned int)(nowTick - m_lastTick) > windowLimit)   // ORIG 82304cc: cmp/ja 无符号超窗
     {
         // 超窗重置检测框
         m_deltaX = 0;

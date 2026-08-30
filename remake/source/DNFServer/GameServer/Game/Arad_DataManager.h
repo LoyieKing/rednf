@@ -23,6 +23,7 @@
 #define DNF_ARAD_DATAMANAGER_H
 
 #include <string>
+#include <cstring>
 #include <map>
 #include <vector>
 #include <list>
@@ -348,7 +349,8 @@ public:
 
     struct RankData
     {
-        RankData() : itemIndex(0), itemCount(0), itemIndex2(0), itemCount2(0) {}
+        // ORIG 调 memset(this,0,0x10)；初始化列表会被 gcc 展开为逐条 movl。
+        RankData() { memset(this, 0, sizeof(RankData)); }
         int itemIndex;    // +0x00
         int itemCount;    // +0x04
         int itemIndex2;   // +0x08

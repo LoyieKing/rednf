@@ -23,11 +23,11 @@ public:
     int m_gradeIdxA;              // +0x0e rarity==2?2:grade-1
     int m_subTypeA;               // +0x12 scriptA vtbl+0xc 结果
     unsigned char m_flagA;        // +0x16 置 0
-    unsigned int m_pad17;         // +0x17..+0x1a 未初始化（与 ORIG 一致）
-    int m_gradeIdxB;              // +0x1b 同 A 组算法但取 scriptB grade
+    unsigned int m_gradeIdxB;              // +0x1b 同 A 组算法但取 scriptB grade
     int m_subTypeB;               // +0x1f【ORIG 怪癖】也读 scriptA vtbl+0xc
     unsigned char m_flagB;        // +0x23 置 0
-};                                // sizeof == 0x28
+    unsigned int m_pad24;         // +0x24..+0x27（ORIG SendPacket 传 0x28，尾部未初始化）
+};                                // sizeof == 0x28（pack(1) 下需显式尾填充）
 #pragma pack(pop)
 
 #endif  // DNF_GAME_PACKET_AVATER_DISJOINT_STATISTIC_H_

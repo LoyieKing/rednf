@@ -224,13 +224,16 @@ struct SIG_MAILBOX_CHECK_RECEIVER
     unsigned int m_senderCharacNo;    // +0x2d game 写 get_charac_no(-1)
     char m_payload[0x3f88];           // +0x31 MSG_CHECK_MAIL_RECEIVER 载荷透传
     unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
-    char m_pad[0x21];
+    unsigned int m_letterId;          // +0x3fbd DB_Multi_MailBox_Req_Send 读 letterId
+    char m_senderName[0x1d];          // +0x3fc1 SendDBThread_forchina 写发件人名（strncpy 0x1d）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_MAILBOX_CHECK_RECEIVER) == 0x3fde,
               "SIG_MAILBOX_CHECK_RECEIVER ABI drift");
 static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_resultFlag) == 0x3fb9,
               "SIG_MAILBOX_CHECK_RECEIVER resultFlag offset drift");
+static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_senderName) == 0x3fc1,
+              "SIG_MAILBOX_CHECK_RECEIVER senderName offset drift");
 static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_payload) == 0x31,
               "SIG_MAILBOX_CHECK_RECEIVER payload offset drift");
 

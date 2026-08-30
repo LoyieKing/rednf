@@ -173,6 +173,7 @@ int CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
         cMyTrace trace(kPretty, 0x56e, 5);
         trace("stageData_.item not find itemUID : %d", itemUID);
         PacketGuard packet;
+        packet.clear();
         packet.put_header(1, 0x2e);
         packet.put_byte(0);
         packet.put_byte(4);
@@ -693,6 +694,7 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
     if (slot == -1)
     {
         PacketGuard packet;
+        packet.clear();
         packet.put_header(1, 0x2e);
         packet.put_byte(0);
         packet.put_byte(4);
@@ -703,6 +705,7 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
 
     m_stageData.m_itemMap.erase((int)uid);
     PacketGuard packet;
+    packet.clear();
     packet.put_header(0, 0x27);
     packet.put_short((int)uid);
     packet.put_short((int)(user->get_unique_id() & 0xffff));
@@ -751,6 +754,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
     if (winner == 0)
     {
         PacketGuard packet;
+        packet.clear();
         packet.put_header(1, 0x2e);
         packet.put_byte(0);
         packet.put_byte(4);
@@ -791,6 +795,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
     if (slot == -1)
     {
         PacketGuard packet;
+        packet.clear();
         packet.put_header(1, 0x2e);
         packet.put_byte(0);
         packet.put_byte(4);
@@ -801,6 +806,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
 
     m_stageData.m_itemMap.erase((int)uid);
     PacketGuard packet;
+    packet.clear();
     packet.put_header(0, 0x27);
     packet.put_short((int)uid);
     packet.put_short((int)(user->get_unique_id() & 0xffff));

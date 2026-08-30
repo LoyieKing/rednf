@@ -81,9 +81,10 @@ static_assert(sizeof(MSG_APPROVE_JOIN_GUILD) == 0x10d, "MSG_APPROVE_JOIN_GUILD s
 class MSG_AVATAR_DISJOINT_RANDOM_REWARD : public MSG_BASE
 {
 public:
-    unsigned short m_slotE;        // +0x0e 槽位（Dispatchers.cpp Dispatcher_Avatar_Disjoint_Random_Reward 实证）
+    char m_gapD;                   // +0x0d 包格式 1 字节间隙（ORIG process 读 slot@+0xe）
+    unsigned short m_slotE;        // +0x0e 槽位（ORIG 实证；NEW 此前 +0xd 错位 1 字节）
     int m_itemIdx10;               // +0x10 物品 idx（同上）
-    char m_pad[0x100 - 6];         // +0x12..（余量占位，总长保持 0x10d）
+    char m_pad[0x100 - 7];         // +0x12..（余量占位，总长保持 0x10d）
 };
 #pragma pack(pop)
 static_assert(sizeof(MSG_AVATAR_DISJOINT_RANDOM_REWARD) == 0x10d, "MSG_AVATAR_DISJOINT_RANDOM_REWARD size");

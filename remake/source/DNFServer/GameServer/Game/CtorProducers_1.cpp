@@ -743,18 +743,9 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
 // ============================================================================
 
 WorldMapScript::WorldMapScript()
-    : m_index(0),
-      m_name(),
-      m_mapImage(),
-      m_uiPath(),
-      m_field10(0),
-      m_dungeons(),
-      m_isHellDungeon(0),
-      m_hellQuests(),
-      m_freepassItems(),
-      m_itemConditions(),
-      m_minimapPoints()
 {
+    // ORIG ctor 0x08369f08W：默认构造全部成员后调用 clear()（O0 下保留 call）。
+    clear();
 }
 
 WorldMapScript::~WorldMapScript()
@@ -764,9 +755,9 @@ WorldMapScript::~WorldMapScript()
 void WorldMapScript::clear()
 {
     m_index = 0;
-    m_name.clear();
-    m_mapImage.clear();
-    m_uiPath.clear();
+    m_name = "";              // ORIG 0x08369e74W：operator=(const char* "")（_ZNSsaSEPKc）
+    m_mapImage = "";
+    // ORIG clear 不清 m_uiPath(+0xc)；仅清 +0x4/+0x8 两个 string。
     m_field10 = 0;
     m_dungeons.clear();
     m_isHellDungeon = 0;

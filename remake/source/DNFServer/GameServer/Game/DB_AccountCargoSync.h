@@ -108,13 +108,12 @@ public:
     static void makeRequest(unsigned int a, unsigned int b);   // ORIG 静态调用形态 0x0842c112
 };
 
-// ORIG _ZN25DB_PassPadUpdateCancelCnt11makeRequestEjjPc @0x0842403a：
-//   非静态成员；发 passpad 取消计数请求，DB_Q 入队。
+//   静态调用形态（参数自 +0x8 起）；发 passpad 取消计数请求，DB_Q 入队。
 class DB_PassPadUpdateCancelCnt : public DBDispatcher
 {
 public:
     DB_PassPadUpdateCancelCnt() {}                   // ORIG C1 0x844e4ee (sz 0x4: base ctor+vptr only)
-    void makeRequest(unsigned int a, unsigned int b, char* c);
+    static void makeRequest(unsigned int a, unsigned int b, char* c);
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08423a80（W8LT_DBTask.cpp）
 };
 

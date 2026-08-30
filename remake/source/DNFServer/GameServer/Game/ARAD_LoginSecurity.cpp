@@ -230,7 +230,7 @@ bool pvp_grade_check(CUser* user)
     int level = user->get_charac_level();
     CDataManager* mgr = G_CDataManager();
     if (level < mgr->GetMinLevelPvPChannel() ||
-        level >= mgr->GetMaxLevelPvPChannel())
+        level > mgr->GetMaxLevelPvPChannel())
     {
         int minLevel = G_CDataManager()->GetMinLevelPvPChannel();
         int maxLevel = G_CDataManager()->GetMaxLevelPvPChannel();

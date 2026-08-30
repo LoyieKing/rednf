@@ -683,7 +683,9 @@ CMission_kill::~CMission_kill() {}
 
 bool CMission_kill::_canUpdate(const MissionClearCondition_Parameter& param) const
 {
-    return m_minKill <= param.m_killCount;
+    // ORIG W 0x085e3bc4：cmp m_minKill, m_killCount; jl → true
+    // （killCount < minKill 时返回 true——"尚未满足"语义，与源码先前相反）。
+    return param.m_killCount < m_minKill;
 }
 
 bool CMission_kill::isClearable(MissionInfo& info, bool&) const

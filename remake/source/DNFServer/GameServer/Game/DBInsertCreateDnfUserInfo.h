@@ -18,7 +18,8 @@ public:
 
     DBInsertCreateDnfUserInfo() throw();
     virtual ~DBInsertCreateDnfUserInfo();
-    void makeRequest(int, unsigned int);   // ORIG T 0x0815c25c
+    // ORIG T 0x0815c25c：静态调用形态（参数自 +0x8 起），与 ORIG 字节一致。
+    static void makeRequest(int, unsigned int);
     virtual bool dispatch(int, int, Stream*);   // ORIG T 0x0815c3b0
 };
 

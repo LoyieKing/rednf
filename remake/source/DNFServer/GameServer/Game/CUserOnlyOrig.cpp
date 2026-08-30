@@ -414,7 +414,7 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
 //    0x193 计数事件 → process_add_quest_count_db；0x987/0x96f 按 systemTime
 //    门控投 DB；0x970 经 repeat 0x13 事件 IsEventing 门控投 0712 冬季券。
 // ---------------------------------------------------------------------------
-void CUser::_onQuestClear(int /*questIdx*/, int questId)
+void CUser::_onQuestClear(int questId, int /*opt*/)
 {
     EventClassify::CEventScriptMng* mng = static_cast<EventClassify::CEventScriptMng*>(
         G_CDataManager()->get_event_script_mng());
@@ -1888,7 +1888,8 @@ void CUser::copyItemOption(Inven_Item& dst, Inven_Item& src)
     dst.SetUpgrade(src.GetUpgrade());
     dst.set_add_info(src.get_add_info());
     dst.m_upgradeSep.m_field = (dst.m_upgradeSep.m_field & 0xe0) | (src.m_upgradeSep.m_field & 0x1f);
-    dst.m_amp = src.m_amp;                              // +0x11 int
+    // ORIG 仅拷 m_amp 前 4 字节（mov 0x11(%edx)→0x11(%eax)；余 0x15..0x1e 不拷）
+    *(unsigned int*)&dst.m_amp = *(unsigned int*)&src.m_amp;
     dst.m_fieldd = src.m_fieldd;                  // +0xd int
     const stAmplifyOption_t& amp = dst.m_amp;                       // stAmplifyOption_t 视图 @+0x11
     LogHistory("Compound+,%u,%d,%d,%d,%d,%d,%d,%d,",

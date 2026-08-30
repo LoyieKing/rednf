@@ -4733,7 +4733,7 @@ void DB_DeathTowerLoadTopRanker::makeRequest(bool reload)
         GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x6c5f), true);
     guard.operator*()->operator<<((int)0xe4);
     guard.operator*()->operator<<((int)-1);
-    guard.operator*()->operator<<((bool)reload);
+    guard.operator*()->operator<<((unsigned char)reload);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -17834,7 +17834,7 @@ bool DB_InsertDungeonEntrance_hour::dispatch(int userIdx, int slot,
     int dungeonIndex = 0;
     int enterCount = 0;
     int exerciseCount = 0;
-    char buf[0x400];
+    char buf[0x100];   // ORIG 0x084298a2：-0x43c 起 rep stos 清 0x100
     memset(buf, 0, sizeof(buf));
     std::string s;
     for (int i = 0; i < count; ++i)

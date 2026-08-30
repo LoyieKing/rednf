@@ -1011,9 +1011,11 @@ void CUserPremium::GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int t
 
 SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 {
-    if (type < 0x6a && type != 0x270f)
-        return Entries(const_cast<CUserPremium*>(this)) + type;
-    return Entries(const_cast<CUserPremium*>(this));
+    // ORIG：仅 type==0x270f(9999) 走 entries[0]；其余（含越界）均返回 entries+type。
+    // NEW 早期实现多了 type<0x6a 边界检查，与 ORIG 不符，已去除。
+    if (type == 0x270f)
+        return Entries(const_cast<CUserPremium*>(this));
+    return Entries(const_cast<CUserPremium*>(this)) + type;
 }
 
 int CUserPremium::GetReturnItemRate(int type) const

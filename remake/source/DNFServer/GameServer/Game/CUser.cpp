@@ -10314,8 +10314,7 @@ void CUser::SendMoenyLog()
             CStatisticServerProxy* proxy =
                 GlobalData::s_statistic_proxy_mgr->GetServerProxy(
                     GetServerGroup());
-            if (proxy != 0)
-                proxy->SendPacket((char*)&pkt, 0x1e);
+            proxy->SendPacket((char*)&pkt, 0x1e);
         }
     }
     resetMoneyLog();

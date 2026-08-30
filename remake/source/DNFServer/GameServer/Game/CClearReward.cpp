@@ -138,6 +138,11 @@ void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClea
              m_dungeonDropBonus[refClear.m_level]) *
             (param / 100)));
 
+    // ORIG 0x085388ca：generateNumber(0, 10000) 掉落概率判定，roll >= thr 直接退出。
+    int dropRoll = m_random.generateNumber(0, 10000);
+    if (dropRoll >= thr)
+        return;
+
     int dropType = 1;   // 初值（未命中即 1）
     int cum = 0;
     int roll = m_random.generateNumber(2, 10000);

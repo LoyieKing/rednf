@@ -474,7 +474,7 @@ void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int
         {
             throw static_cast<ENUM_ERROR>(0x17);
         }
-        party->TimeoutCompleteAfterAssault();           // ORIG 返回值为包触发条件
+        if (party->TimeoutCompleteAfterAssault())       // ORIG 返回值为包触发条件（test %al; je 跳过）
         {
             PacketGuard packet;
             packet.clear();                             // InterfacePacketBuf::clear @080cb8e6

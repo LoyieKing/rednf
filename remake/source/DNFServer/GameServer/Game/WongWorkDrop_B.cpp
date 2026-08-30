@@ -229,8 +229,9 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
             Mon_generateCatchMonsterItem(mon, result.m_dropItems);
     }
 
-    if (*reinterpret_cast<int const*>(reinterpret_cast<char const*>(&ref) +
-                                      0x40) != 0)
+    // ORIG 0x08535b08 以 movzbl 读 +0x40 仅测低字节（非 dword 非空判据）。
+    if (*reinterpret_cast<unsigned char const*>(
+            reinterpret_cast<char const*>(&ref) + 0x40) != 0)
     {
         for (int i = 0; i < extraCount; ++i)
             generateSpecificItem(ref, result);         // ORIG vtable 槽 +0xc 直呼

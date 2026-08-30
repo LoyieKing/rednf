@@ -543,12 +543,13 @@ bool PvPSkillTreeParameterScript::importPairPvPSkillPointScript(
         {
             for (;;)
             {
-                float raw = ScanFloat(&ok);
+                // ORIG：先 (int) 转换（x87 fistpl 截断）后检查 ok；lrintf 是
+                // round-to-nearest，对 .5 值语义不同（真差异）。
+                int rounded = static_cast<int>(ScanFloat(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                int rounded = static_cast<int>(lrintf(raw));
                 row.insert(std::make_pair(slotIdx++, rounded));
                 if (static_cast<int>(row.size()) == slotsPerJob)
                 {

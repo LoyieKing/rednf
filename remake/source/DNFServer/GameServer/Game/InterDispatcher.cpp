@@ -5070,7 +5070,7 @@ int Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
         static_cast<int>(user->GetUID()));
     SIG_MAILBOX_CHECK_RECEIVER* dst = guard->GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
     memcpy(dst, sig, 0x3fde);
-    strncpy(dst->m_receiverName, user->getCurCharacName(), 0x1d);
+    strncpy(dst->m_senderName, user->getCurCharacName(), 0x1d);
     dst->m_senderCharacNo = user->getCurCharacNo();   // +0x2d
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     return 1;
@@ -11048,6 +11048,8 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
 
     const int rewardType = *reinterpret_cast<int*>(data + 0x16);
+    // ORIG 0x084dfea6：cmp 链 5→6→3（jne 尾），reward3 代码在比较链后 fallthrough，
+    // reward5/6 代码跳转在后。保持 if 顺序 5→6→3 以匹配。
     if (rewardType == 5)
     {   // 胜利点数奖励
         Arad_VillageAttackRewardItem::Data rewardData(   // -0x64
@@ -12147,7 +12149,6 @@ int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, 
             0x5308, 5);
         trace("Channel NO %d is already registerd(server type : %d). use another channel NO",
               channelNo, (unsigned int)(unsigned char)serverKind);
-        GetInstanceShutdowManager();
         GetInstanceShutdowManager()->SendShutdownSignal();
     }
     else if (serverKind == '\0')

@@ -52,8 +52,9 @@ template <> void cElection<int, 8, 8>::cVoter::Init()
 template <> cElection<int, 8, 8>::cVoter::cVoter() { Init(); }
 template <> cElection<int, 8, 8>::cElection()
 {
-    for (int i = 7; i >= 0; --i)          // ORIG 0x85dff3a：倒序逐 voter 构造
-        new (&m_voters[i]) cVoter();
+    // 成员数组 m_voters[8] 的 cVoter 构造由编译器在 ctor 体前自动生成
+    // （ORIG 0x85dff3a 亦仅此一段倒序构造 + Init；NEW 曾多出的 placement
+    // new 循环属双构造冗余，已删除以对齐 ORIG）。
     Init();                               // ORIG 0x85e02d2
 }
 template <> void cElection<int, 8, 8>::Init()

@@ -359,7 +359,7 @@ void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(
         break;
     case 9:                                        // burn
     {
-        bool flag = true;
+        bool flag = false;
         *outB = getBurnDamage(flag, &local, 0, local.m_durationTick);
         break;
     }

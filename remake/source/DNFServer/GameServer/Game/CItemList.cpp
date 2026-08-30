@@ -2287,9 +2287,9 @@ bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x
     int inRarity = _convertInputItem(
         (ENUM_UNUSABLE_EQUIPMENT_TYPE)refs[0]->GetUsableEquipmentType());
 
-    // 双次 randInt()%1000000 + 1（magic 常量 0x431bde83 实证）
-    unsigned int r0 = (unsigned int)(m_rand->randInt() % 1000000) + 1;
-    unsigned int r1 = (unsigned int)(m_rand->randInt() % 1000000) + 1;
+    // 双次 randInt()%1000000 + 1（magic 常量 0x431bde83 实证；ORIG 为无符号除法）
+    unsigned int r0 = ((unsigned int)m_rand->randInt() % 1000000) + 1;
+    unsigned int r1 = ((unsigned int)m_rand->randInt() % 1000000) + 1;
     (void)r0;  // ORIG 计算了两个随机数，仅第二个参与判定
 
     unsigned int outputRarity = 4;
@@ -2309,7 +2309,7 @@ bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x
         (ENUM_OUTPUTITEMS_RARITY)outputRarity, bind);
 
     int found = 0;
-    if (!(bonus.second == 0xa && inRarity != 1 && (baseLevel % 10) > 4))
+    if (!(bonus.second == 0xa && inRarity != 1 && ((unsigned int)baseLevel % 10) > 4))
     {
         found = _FindItemAll_BindSphere(refs, select,
             (ENUM_OUTPUTITEMS_RARITY)outputRarity,

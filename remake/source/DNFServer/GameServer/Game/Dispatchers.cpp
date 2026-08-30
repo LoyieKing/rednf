@@ -6316,7 +6316,7 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
     }
     char sel = (char)m.m_0d;
     _Charac_info& entry = user->m_characList[sel];
-    if (entry.m_pad14bc == 0)                                   // +0x14bc（movzbl 判 0）
+    if (entry.m_pad14bc[0] == 0)                                // +0x14bc（ORIG movzbl 判 0）
     {
         Stream* stream = GlobalData::s_stream_pool->Acquire(
             "PacketDispatcher_Impl_1.cpp", 0x5ba6);
@@ -16315,6 +16315,9 @@ int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packe
                             __PRETTY_FUNCTION__,
                             0, 0);
         if (!packet.get_str(recvName, 0x1e, recvNameLen))
+            return LineFunc(0x9cfc,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
         if (chatType == 7)
         {
             Packet_Monitor_Other_Channel_Chat notify;                     // ctor 0822b8e6
@@ -19404,7 +19407,13 @@ Dispatcher_BloodRoundUiPrepareFinish::~Dispatcher_BloodRoundUiPrepareFinish() {}
 int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x8222270：战斗态+血轮地下城且非（bloodType<1 或物品等级==1）→ 血轮生成计时器
-    if (user == 0 || user->getCurCharacR() == 0)
+    if (user == 0)
+    {
+        return LineFunc(0xdbbf,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
+    }
+    if (user->getCurCharacR() == 0)
     {
         return LineFunc(0xdbc0,
                         __PRETTY_FUNCTION__,
@@ -21598,6 +21607,7 @@ int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& p
         return 0;
     }
     Inven_Item inven;
+    inven.m_addInfo = item->get_index();
     item->make_item(inven);
     inven.set_add_info(1);
     CInventory* inv = user->getCurCharacInvenW();

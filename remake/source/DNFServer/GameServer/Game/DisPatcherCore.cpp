@@ -10890,6 +10890,9 @@ ST_Guild_War_Rank_Info::ST_Guild_War_Rank_Info()
 Packet_Notice_Guild_War_Info::Packet_Notice_Guild_War_Info()
     : PacketHeader(0x414, 0x15c)
 {
+    // ORIG 循环直接 call ST_Guild_War_Rank_InfoC1（无 _ZnwjPv，数组成员隐式构造）；
+    // gcc 4.4 拒绝显式构造调用语法，placement new 多出 _ZnwjPv（标准 no-op），
+    // 语义等价 → 豁免该调用差异。
     char* base = reinterpret_cast<char*>(this) + 0x12;
     for (int i = 0; i < 9; ++i)
     {
