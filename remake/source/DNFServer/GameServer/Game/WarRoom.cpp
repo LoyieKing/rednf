@@ -1479,6 +1479,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
     }
     else
     {
+        ReviveAll();   // ORIG 0x086bdbb2：m_flag10!=0 时先全员复活
         if ((m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50) ||
             (m_flag11 != 0))
         {

@@ -25,7 +25,7 @@
 #include "CMonitorServerProxy.h"      // updateTowerRank（_beginTowerClearProcess）
 #include "GlobalData.h"               // s_monitor_proxy_mgr
 #include "CServerProxyMgr.h"          // GetServerProxy 完整定义
-#include "CDeathTowerPlayDataStatistic.h"  // SendDeathTowerPlayInfo
+#include "MonsterIndependentDrop.h"        // CAICharacter 完整镜像（destroy 需 delete）
 
 // ---- 死亡塔统计/记录接口（定义见 Store.cpp / OnlyOrigBatch14.cpp / W8LT_DBTask.cpp）----
 enum DEATHTOWER_VALUE_STATISTIC_FIELD
@@ -41,7 +41,7 @@ public:
                                       char a, char b, unsigned int c);
 };
 extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic();
-class CDeathTowerPlayDataStatistic;
+#include "CDeathTowerPlayDataStatistic.h"          // SendDeathTowerPlayInfo 完整类型
 extern CDeathTowerPlayDataStatistic* GetInstanceDeathTowerPlaydataStatistic();
 class DB_UpdateDeathTowerBestRecord
 {
@@ -65,6 +65,8 @@ public:
 //   +0x30 stEnamyDropAvatarInfo_t
 //   +0x6c std::string m_name
 //   +0x70 unsigned char m_rarity
+#ifndef DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
+#define DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
 class CAICharacter
 {
 public:
@@ -105,6 +107,7 @@ private:
     int m_pvpWinHigh;                               // +0x20
     char m_pad24[0x70 - 0x24];                      // +0x24..+0x6f（独立掉/头像/名字区，本 TU 未用）
 };
+#endif  // DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
 
 CAICharacter* CAICharacterList::get(unsigned int idx)
 {
@@ -126,7 +129,7 @@ void CAICharacterList::destroy()
         // operator delete；CAICharacter 在本工程尚未建模（仅前向声明），
         // 其析构当前无可执行语义，先直接释放【推断】。
         if (it->second != 0)
-            ::operator delete(it->second);
+            delete it->second;   // 镜像类成员（vector/string）随析构释放
     }
     m_charMap.clear();
 }
@@ -1297,66 +1300,97 @@ int CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& it
 
     return 0;
 }
-CUser* CDeathTower::_pickupItem(CUser* user, char* a2, int slot, const map_item& item, bool a5, char a6, const CItem* citem)
+CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map_item& item, bool a5, char a6, const CItem* citem)
 {
-    (void)a2;
-    (void)a5;
-    (void)a6;
-
-    if (slot <= 1)
+    // ORIG T 0x08466cfe（Ghidra 反编译语义逐条转写；countBuf = 调用点 nameBuf[4] 计数）
+    CUser* result = user;
+    if (slot > 1)
     {
-        return NULL;
-    }
-
-    // Determine if item should be routed
-    bool isFromMap = ((unsigned char)item.m_count) != 0;
-    bool routeFlag = !isFromMap;
-
-    if (citem)
-    {
+        char isFromMap = (item.m_count == 1) ? 1 : 0;          // mVar1 == 1
         int rarity = citem->get_rarity();
         if (rarity > 3)
         {
-            routeFlag = a6;
+            isFromMap = a5 ? 1 : 0;
         }
-        if (isFromMap && citem->isEpicRoutingItem())
+        bool bEpic = false;
+        if (item.m_count == 0 || !citem->isEpicRoutingItem())
         {
-            routeFlag = true;
+            bEpic = false;
+        }
+        else
+        {
+            bEpic = true;
+        }
+        if (bEpic)
+        {
+            isFromMap = a5 ? 1 : 0;
+        }
+        if (isFromMap && citem->check_item_routing())
+        {
+            result = NULL;
+            int routedTurn = m_playData.getLastRoutedTurn() + 1;
+            if (slot <= routedTurn)
+            {
+                routedTurn = 0;
+            }
+            int local_24 = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                CUser* member = m_party->get_user(i);
+                if (!member || !m_party->checkValidUser(i))
+                    continue;
+                if (!m_playData.isMemberAlive(i))
+                    continue;
+
+                CInventory* invenR = (CInventory*)member->getCurCharacInvenR();
+                int ins = invenR->tryInsertItemIntoInventory(item.m_item);
+                if (ins != -1)
+                {
+                    countBuf[i] += 1;
+                    if (local_24 == routedTurn)
+                    {
+                        countBuf[i] += '(';
+                        m_playData.setLastRoutedTurn(local_24);
+                    }
+                    bool bAdd = false;
+                    if (!citem->is_stackable() && citem->GetItemType() == 10)
+                    {
+                        bAdd = citem->check_job_type(member->get_charac_job());
+                    }
+                    if (bAdd)
+                    {
+                        countBuf[i] += 0x1e;
+                    }
+                    countBuf[i] += get_rand_int(100 - countBuf[i]);
+                    local_24 += 1;
+                }
+            }
+            char maxC = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                CUser* member = m_party->get_user(i);
+                if (!member || !m_party->checkValidUser(i))
+                    continue;
+                if (!m_playData.isMemberAlive(i))
+                    continue;
+
+                if (maxC < countBuf[i])
+                {
+                    maxC = countBuf[i];
+                    result = member;
+                }
+                else if (countBuf[i] == maxC && countBuf[i] > 0)
+                {
+                    countBuf[i] -= 1;
+                }
+            }
         }
     }
-
-    if (isFromMap && citem && !citem->check_item_routing())
-    {
-        routeFlag = false;
-    }
-
-    if (!routeFlag)
-    {
-        return user;
-    }
-
-    // Routing: find next member
-    int memberCnt = m_party->get_member_count();
-    int routedTurn = m_playData.getLastRoutedTurn() + 1;
-    if (routedTurn >= memberCnt)
-    {
-        routedTurn = 0;
-    }
-
-    for (int i = 0; i < memberCnt; ++i)
-    {
-        int idx = (routedTurn + i) % memberCnt;
-        CUser* member = m_party->get_user(idx);
-        if (!member || !m_party->checkValidUser(idx))
-            continue;
-        if (!m_playData.isMemberAlive(idx))
-            continue;
-
-        return member;
-    }
-
-    return NULL;
+    return result;
 }
+
+// ORIG T 0x0846966c：卡片统计（每卡 AddValueStatistic 0xb/0xc + 死亡之塔
+// ValueStatistic 上报，字段 8/2/7/10；isNotTower/level 参与上报参数）。
 void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_Item* items)
 {
     unsigned int dungeonIdx = m_dungeonMgr.getDungeon()->get_index();
@@ -1372,6 +1406,9 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
             int addInfo = item->get_add_info();
             GetInstanceValueStatistic()->AddValueStatistic(
                 (VALUE_STATISTIC_FIELD)0xb, user, (unsigned int)addInfo);
+            GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+                (DEATHTOWER_VALUE_STATISTIC_FIELD)8, (char)isNotTowerOfDespair,
+                (char)level, (unsigned int)addInfo);
         }
         else
         {
@@ -1383,59 +1420,198 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
                 G_Store()->GetSellItemPrice(itemCopy, (const CItem*)citem, (short)count, false, price);
                 GetInstanceValueStatistic()->AddValueStatistic(
                     (VALUE_STATISTIC_FIELD)0xc, user, (unsigned int)price);
+                if (citem->GetAttachType() == 3)     // ORIG vptr 虚调用 ==3
+                {
+                    GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+                        (DEATHTOWER_VALUE_STATISTIC_FIELD)2, (char)isNotTowerOfDespair,
+                        (char)level, 1);
+                    GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+                        (DEATHTOWER_VALUE_STATISTIC_FIELD)7, (char)isNotTowerOfDespair,
+                        (char)level, (unsigned int)price);
+                }
+                else
+                {
+                    GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+                        (DEATHTOWER_VALUE_STATISTIC_FIELD)10, (char)isNotTowerOfDespair,
+                        (char)level, (unsigned int)citem->get_rarity());
+                    GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
+                        (DEATHTOWER_VALUE_STATISTIC_FIELD)7, (char)isNotTowerOfDespair,
+                        (char)level, (unsigned int)price);
+                }
             }
         }
     }
-    (void)isNotTowerOfDespair;
-    (void)level;
 }
 bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map_item& item)
 {
-    Inven_Item invenItem;
-    memset(&invenItem, 0, sizeof(invenItem));
+    // ORIG T 0x0846638c（Ghidra 反编译语义逐条转写；参数槽：0x8=this,0xc=user,
+    // 0x10=type,0x14=slot,0x18=count,0x1c=item&）
+    Inven_Item invenItem;   // ORIG 调 _ZN10Inven_ItemC1Ev（0x80cb854）
 
     switch (type)
     {
-    case 0: // money or equip
-        if (count == 0)
+    case 0: // money or equip（ORIG 判断 slot==0 为金钱）
+        if (slot == 0)
         {
-            // money item
-            item.m_item.m_field1 = 0;
-            item.m_item.m_amp.m_abilityType = 2;
-            item.m_item.set_add_info(0);
+            // money item（ORIG +0x4d：m_count=0 / m_field1=2 / m_addInfo=0 /
+            // set_add_info(count) / m_fieldb=0 / ResetItemAttr）
+            item.m_count = 0;
+            item.m_item.m_field1 = 2;
+            item.m_item.m_addInfo = 0;
+            item.m_item.set_add_info(count);
+            item.m_item.m_fieldb = 0;
             item.m_item.ResetItemAttr();
         }
         else
         {
             CInventory* inven = (CInventory*)user->getCurCharacInvenR();
             inven->GetInvenSlotByRef(1, slot, invenItem);
-            memcpy(&item.m_item, &invenItem, sizeof(Inven_Item));
         }
-        return true;
+        break;
     case 2: // cargo
     {
         const CCargo* cargo = user->getCurCharacCargoR();
         invenItem = cargo->get_cargo_slot(slot);
-        memcpy(&item.m_item, &invenItem, sizeof(Inven_Item));
-        return true;
+        break;
     }
-    case 3: // avatar
+    case 3: // avatar（ORIG GetInvenSlot space=0）
     {
         CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-        inven->GetInvenSlotByRef(2, slot, invenItem);
-        memcpy(&item.m_item, &invenItem, sizeof(Inven_Item));
-        return true;
+        inven->GetInvenSlotByRef(0, slot, invenItem);
+        break;
     }
-    case 7: // creature
+    case 7: // creature（ORIG GetInvenSlot space=3）
     {
         CInventory* inven = (CInventory*)user->getCurCharacInvenR();
         inven->GetInvenSlotByRef(3, slot, invenItem);
-        memcpy(&item.m_item, &invenItem, sizeof(Inven_Item));
-        return true;
+        if (invenItem.m_field1 == 5)          // ITEM_TYPE_CREATURE_EQUIP → 拒绝
+        {
+            return false;
+        }
+        break;
     }
     default:
         return false;
     }
+
+    // 公共校验 + 字段填充（ORIG +0x377 起）
+    int sellPrice = 0;
+    if (invenItem.m_addInfo != 0)             // +0x37e：itemId 非 0 才校验
+    {
+        CItem* citem = G_CDataManager()->find_item(invenItem.m_addInfo);
+        if (!citem)
+        {
+            return false;
+        }
+        int attachType = citem->GetAttachType();
+        switch (attachType)
+        {
+        case 1:
+        case 2:
+        case 5:
+            return false;
+        case 3:
+            if (invenItem.m_field0 != 1)
+            {
+                return false;
+            }
+            break;
+        }
+        if (invenItem.m_upgradeSep.IsTradeRestriction())
+        {
+            return false;
+        }
+        if (invenItem.isEquipableItemType())
+        {
+            int itemType = *(int*)((char*)citem + 0x234);   // ORIG 直读数据 +0x234
+            if (itemType == 0xb || itemType < 10)
+            {
+                return false;
+            }
+        }
+        // 字段填充（ORIG +0x44c）
+        item.m_item.m_field0 = 0;
+        item.m_item.m_field1 = invenItem.m_field1;
+        item.m_item.m_addInfo = invenItem.m_addInfo;
+        item.m_item.m_fieldd = invenItem.m_fieldd;
+        item.m_item.m_amp = invenItem.m_amp;
+        item.m_item.m_fieldb = invenItem.m_fieldb;
+        item.m_item.m_field0 = invenItem.m_field0;
+        if (invenItem.isEquipableItemType())
+        {
+            item.m_item.set_add_info(count);
+        }
+        else
+        {
+            item.m_item.set_add_info(invenItem.m_addInfo2);
+        }
+        item.m_item.SetItemAttr(invenItem.GetItemAttr());
+        G_Store()->GetSellItemPrice(invenItem, citem, (short)count, false, sellPrice);
+    }
+
+    // 删除/扣费 + 统计（ORIG +0x535 起）
+    switch (type)
+    {
+    case 0:
+        if (slot == 0)
+        {
+            CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
+            if (invenW->use_money(count, (eMoneySubReason)6, true) != 1)
+            {
+                return false;
+            }
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)0x17, user, (unsigned int)count);
+        }
+        else
+        {
+            CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
+            if (invenW->delete_item((INVEN_TYPE)1, slot, count,
+                                    (eItemDelReason)6, true) != 1)
+            {
+                return false;
+            }
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)sellPrice);
+        }
+        break;
+    case 2:
+    {
+        CCargo* cargoW = user->getCurCharacCargoW();
+        if (cargoW->delete_item(slot, count, (eItemDelReason)0x10) != 1)
+        {
+            return false;
+        }
+        break;
+    }
+    case 3:
+    {
+        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
+        if (invenW->delete_item((INVEN_TYPE)0, slot, 1,
+                                (eItemDelReason)6, true) != 1)
+        {
+            return false;
+        }
+        GetInstanceValueStatistic()->AddValueStatistic(
+            (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)sellPrice);
+        break;
+    }
+    case 7:
+    {
+        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
+        if (invenW->delete_item((INVEN_TYPE)3, slot, 1,
+                                (eItemDelReason)6, true) != 1)
+        {
+            return false;
+        }
+        GetInstanceValueStatistic()->AddValueStatistic(
+            (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)sellPrice);
+        break;
+    }
+    default:
+        return false;
+    }
+    return true;
 }
 
 int CDeathTower::_checkRenewMyRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b, unsigned int c)

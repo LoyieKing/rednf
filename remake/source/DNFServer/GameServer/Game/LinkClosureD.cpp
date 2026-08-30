@@ -105,14 +105,11 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
             return false;
         }
     }
-    // 段 B（m_equipMirror）
+    // 段 B（m_equipMirror）——ORIG 无 meterial_item_change 调用（仅段 C/D 有）
     for (int i = 0xa; i <= 0x15; ++i)
     {
         Inven_Item* item = &sig->m_equipMirror[i];
         collectLock(item->m_amp, 0x03, static_cast<short>(i), lockRefs);
-        // ORIG *(int*)(item+0xb)：m_fieldb(+0x0b)+m_fieldd(+0x0d) 4 字节槽非零判定
-        if (item->m_fieldb != 0 || item->m_fieldd != 0)
-            meterial_item_change(i, sig, item);
         int err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
         if (err != 0)
         {

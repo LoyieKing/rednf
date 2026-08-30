@@ -912,7 +912,7 @@ public:
     // ORIG 真实符号（README Dispatcher_MouseRegister/ 8 函数全集）
     static int checkValiedPassword(char const* pwd);                       // T 0x082632ca（ORIG 无 this，静态形态——DisPatcher_Login 0x082632ca 三参全栈传实证）
     static bool decryptPassword(char const* in, char* out, unsigned int len); // T 0x0826333a（同上）
-    void doPassPadReplay(CUser* user, char* answer, char answerType, // T 0x082633c6
+    static void doPassPadReplay(CUser* user, char* answer, char answerType, // T 0x082633c6（ORIG 静态：5 参全栈传无 this，调用点实证 0x08262ebb）
                          bool& ok, unsigned char& errCode);
 };
 

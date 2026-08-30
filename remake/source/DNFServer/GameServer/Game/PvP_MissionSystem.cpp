@@ -334,19 +334,18 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
 //       m_trand = new CMTRand(time(0))；m_field3c=0；reset bitset；
 //       m_kindMissionList.resize(0x24)。
 // ============================================================================
+// ORIG 0x85e1abc：+0x30(m_field30)/+0x3c(m_field3c)/+0x44(m_trand) 仅
+// 构造函数体内赋值一次，初始化列表不产生写入（m_field30 保持垃圾，与 ORIG 一致）。
 PvP_MissionSystem::PvP_MissionSystem()
     : m_missionMap(),
       m_kindMissionList(),
       m_dailyMissionIndices(),
-      m_field30(0),
       m_dailyMissionList(),
-      m_field3c(0),
       m_dailyMissionKind(),
-      m_trand(0),
       m_baseMissionExp()
 {
     CMTRand* rand = new CMTRand();
-    rand->seed((unsigned long)time(0));   // ORIG CMTRand(time(0))
+    rand->seed((unsigned long)time(0));   // ORIG CMTRand(time(0))：initialize+reload 覆盖全部状态
     m_trand = rand;
     m_field3c = 0;
     m_dailyMissionKind.reset();
@@ -485,8 +484,6 @@ CMission* PvP_MissionSystem::find_mission(int idx)
 // 的 CMission 返回其 GetMissionIndex()；无匹配返回 0。
 int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
 {
-    if (m_kindMissionList.size() <= 0x1b)
-        return 0;
     const std::list<CMission*>& list = m_kindMissionList[0x1b];
     for (std::list<CMission*>::const_iterator it = list.begin();
          it != list.end(); ++it)

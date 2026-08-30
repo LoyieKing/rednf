@@ -14344,7 +14344,7 @@ bool DB_Check3rdPartyConcent::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xad91), true);
     guard.operator*()->operator<<((int)0x2b7);
     guard.operator*()->operator<<((int)userIdx);
-    guard.operator*()->operator<<((int)consent);
+    guard.operator*()->operator<<(consent);   // ORIG lsEh（unsigned char 1 字节，勿转 int）
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -14370,9 +14370,9 @@ bool DB_CheckDoubleGuildName::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<((int)0xeb);
         guard.operator*()->operator<<((int)userIdx);
         if (db->get_n_rows() == 0)
-            guard.operator*()->operator<<((int)1);
+            guard.operator*()->operator<<((char)1);   // ORIG lsEc（char 1 字节，勿转 int）
         else
-            guard.operator*()->operator<<((int)GUILD_NAME_DOUBLE_CHECK);
+            guard.operator*()->operator<<((char)GUILD_NAME_DOUBLE_CHECK);  // ORIG lsEc
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }

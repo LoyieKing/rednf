@@ -4030,10 +4030,8 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
             }
             if (!found)
             {
-                LogManager::logFormat(
-                    1, "inventory.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x1d3a, "NOT CRITICAL BUT FOR OBSERVING, No Event Item %d FOUND!", itemIdx);
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x1d3a, 5);
+                trace("NOT CRITICAL BUT FOR OBSERVING, No Event Item %d FOUND!", itemIdx);
                 return 0;
             }
         }
@@ -4052,12 +4050,8 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
     {
         if (a < 0)
         {
-            LogManager::logFormat(
-                1, "inventory.cpp",
-                __PRETTY_FUNCTION__,
-                0x1742, "[%s][%d]",
-                __PRETTY_FUNCTION__,
-                0x1742);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1742, 5);
+            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x1742);
             return -2;
         }
         gain_money(a, moneyReason, true, 0);
@@ -4084,6 +4078,14 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
             {
                 if (0x7fffffff - a < m_pEquipSlot[i].m_addInfo2)
                 {
+                    if (m_pParent != 0)
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x177c, 4);
+                        trace("INVEN INT_MAX setting 3 : mid(%d),characNo(%d),inven(%d)+add(%d) item_id(%d)",
+                              NumberToString(m_pParent->get_acc_id(), 0),
+                              m_pParent->get_charac_no(-1), m_pEquipSlot[i].m_addInfo2, a,
+                              item.m_addInfo);
+                    }
                     m_pEquipSlot[i].m_addInfo2 = 0x7fffffff;
                 }
                 else
@@ -4109,6 +4111,13 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
                 if (0x7fffffff - a < m_pEquipSlot[i].m_addInfo2)
                 {
                     m_pEquipSlot[i].m_addInfo2 = 0x7fffffff;
+                    if (m_pParent != 0)
+                    {
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x179f, 4);
+                        trace("INT_MAX setting 3 : mid(%d),characNo(%d), inven(%d)+add(%d)",
+                              NumberToString(m_pParent->get_acc_id(), 0),
+                              m_pParent->get_charac_no(-1), m_pEquipSlot[i].m_addInfo2, a);
+                    }
                 }
                 else
                 {
@@ -4155,13 +4164,43 @@ void CInventory::MoveClearAvatar(int a, int b, int c, int d, int e, int f)
                 {
                     return;
                 }
+                stAvatarExpansionInfo_t* expInfo =
+                    (stAvatarExpansionInfo_t*)GetAvatarItemMgrW()->GetExpansionInfo(
+                        m_invenItem[d].m_addInfo2);
+                if (expInfo == 0)
+                {
+                    return;
+                }
                 if (a - 10 < 0 || a - 10 > 0x68)
                 {
                     return;
                 }
-                // 颜色（AvatarVariation::colorRGB）映射与 SetAvatarColor
-                // 依赖后续批次的 CAvatarItemMgr 扩展，本批仅保留清除形态迁移。
-                SendAvatarEvent(0x31a, m_pAvatarSlot[a - 10].m_addInfo, c, 0, 0);
+                Inven_Item* slotItem = &m_pAvatarSlot[a - 10];
+                std::map<int, AvatarVariation::colorRGB>& colorMap =
+                    G_CDataManager()->m_avatarColor.m_colorMap;
+                if (colorMap.find((int)expInfo->m_color[0]) == colorMap.end())
+                {
+                    LogManager::logFormat(
+                        1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21db,
+                        "Avatar color error. ItemID(%d), colorId(%d)",
+                        m_invenItem[d].m_addInfo2, (int)expInfo->m_color[0]);
+                    return;
+                }
+                if (colorMap.find((int)expInfo->m_color[1]) == colorMap.end())
+                {
+                    LogManager::logFormat(
+                        1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21e2,
+                        "Avatar color error. ItemID(%d), colorId(%d)",
+                        m_invenItem[d].m_addInfo2, (int)expInfo->m_color[1]);
+                    return;
+                }
+                if (!GetAvatarItemMgrW()->SetAvatarColor(
+                        slotItem->m_addInfo2, expInfo->m_color[0], expInfo->m_color[1]))
+                {
+                    return;
+                }
+                SendAvatarEvent(0x31a, slotItem->m_addInfo2, expInfo->m_color[0],
+                                expInfo->m_color[1], 0);
             }
         }
     }

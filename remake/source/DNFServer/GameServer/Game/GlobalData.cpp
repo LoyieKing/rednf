@@ -4,6 +4,7 @@
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
 
 #include "GlobalData.h"
+#include "PCRoomServerProxy.h"   // CPCRoomServerProxy 权威（原 TU 局部定义收敛，Fix14_I）
 #include "Action.h"  // StackableAction::Action 定义（GlobalData.h 不再复制）
 #include "OnlinePreliminary.h"   // online_preliminary 域权威声明（本 TU 持有 s_onlinePreliminaryTeamMgr 构造）
 #include "RestrictGeolocation.h"   // RestrictGeolocation 权威（原局部镜像删除，实现迁 RestrictGeolocation.cpp）
@@ -212,33 +213,6 @@ private:
 };
 
 
-
-class CPCRoomServerProxy
-{
-public:
-    CPCRoomServerProxy(char* ip, int port);   // ORIG T 0x084717dc
-    ~CPCRoomServerProxy();                    // ORIG T 0x08471874
-    bool Init();                              // ORIG T 0x084718bc（!InitTcp() 取反）
-    bool InitTcp();                           // ORIG T 0x084718e2
-    void Disconnect();                        // ORIG T 0x084719de
-    void SendTcpPacket(char* data, int len);  // ORIG T 0x08471a32
-    bool OnTcpRecv();                         // ORIG T 0x08471a9a
-    int OnTcpSend();                          // ORIG T 0x08471b32
-    bool OnTcpError();                        // ORIG T 0x08471bd0
-    bool Parsing(int recvLen);                // ORIG T 0x08471c5a（转发 Parsing_ServerPacket）
-    // ORIG W 0x0857f444/0x0857f456：socketState 直写/直读（P119 外联定义发射 W 符号）。
-    void SetSocketState(ENUM_SOCKET_STATE state);
-    int GetSocketState();
-    // ORIG W 0x08471e08：getter 直返 this（m_tcp @+0x00 → &m_tcp == this）（P119 外联）。
-    CNetwork<100000, 100000>* GetTcpHandler();
-private:
-    // ORIG ctor 0x084717dc：CNetwork@+0x00 + string@+0x30df8 +
-    // m_tcpPort@+0x30dfc + socketState@+0x30e00（sizeof 0x30e04）。
-    CNetwork<100000, 100000> m_tcp;   // +0x00
-    std::string m_ip;                 // +0x30df8
-    int m_tcpPort;                    // +0x30dfc
-    ENUM_SOCKET_STATE m_socketState;  // +0x30e00
-};
 
 namespace secretshop
 {
@@ -4260,8 +4234,10 @@ break_away_prevent::CBreakAwayPreventSystem::CBreakAwayPreventSystem()
     // ORIG 0x0831c3e0：SIG 基类构造；map 构造；5×STRewardDataKey 构造；
     // memset(+0x30b, 0, 0x1f)；map.clear()。基类/Key 内容未还原（推断：
     // 以清零等价，容器真实构造）。
+    // ORIG 0x0831c3e0：m_keys 仅构造 4 项（mov $0x4 循环 STRewardDataKeyC1，
+    // 每项 3 字节）；第 5 槽（+0x308..+0x30a）保持垃圾，不清零。
     memset(m_base, 0, sizeof(m_base));
-    memset(m_keys, 0, sizeof(m_keys));
+    memset(m_keys, 0, 4 * sizeof(STRewardDataKey));
     memset(m_tail, 0, sizeof(m_tail));
     m_rewardMap.clear();
 }

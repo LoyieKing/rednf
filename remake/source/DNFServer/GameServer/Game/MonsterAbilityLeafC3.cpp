@@ -585,9 +585,7 @@ void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
         static_cast<float>(info->m_statBase14) * DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d]);
 }
 
-// ---------------------------------------------------------------------------
-// DungeonRidableObject::operator=(RidableObject) — ORIG W 0x830e9d8：
-// 逐双字拷贝前 6 个字段（state 不动）。
+// 逐双字拷贝前 5 个字段（+0x14 m_field18 与 state 均不动）。
 // ---------------------------------------------------------------------------
 DungeonRidableObject& DungeonRidableObject::operator=(RidableObject other)
 {
@@ -596,7 +594,6 @@ DungeonRidableObject& DungeonRidableObject::operator=(RidableObject other)
     m_field0c = other.m_field0c;
     m_field10 = other.m_field10;
     m_field14 = other.m_field14;
-    m_field18 = other.m_field18;
     return *this;
 }
 

@@ -622,6 +622,7 @@ CLevelRewardTable::CLevelRewardTable()
             m_rewardPrimary[j * 0x46 + l] = 0;
             m_rewardSecondary[j * 0x46 + l] = 0;
         }
+    m_jobAffection = false;   // ORIG 0x086975fe 尾部：movb $0x0,0x6086(%eax)
 }
 
 void CLevelRewardTable::SetJobAffection(bool on)

@@ -101,10 +101,26 @@ public:
     DB_ReqQueryCharacInfo() {}
     static void makeRequest(int uid, const char* name);
 };
-class DB_SecurityCardDisuse : public DBDispatcher
+// ORIG T 0x0842bfaa _ZN28DB_SecurityCardUpdateFailCnt11makeRequestEjj
+// ORIG T 0x08436388 _ZN25DB_SecurityCardAddCertCnt11makeRequestEj
+// 真实定义：W8LT_DBTask.cpp（静态 makeRequest 全文转写）；本 TU 局部类声明
+// 与定义一致，调用点直调成员（符号同名，链接到真实实现；§8 全禁）。
+class DB_SecurityCardUpdateFailCnt
 {
 public:
-    DB_SecurityCardDisuse() {}
+    static void makeRequest(unsigned int accId, unsigned int failCnt);
+};
+class DB_SecurityCardAddCertCnt
+{
+public:
+    static void makeRequest(unsigned int accId);
+};
+// ORIG T 0x0842b790 _ZN22DB_SecurityCardDisuse11makeRequestEj
+// 真实定义：W8LT_DBTask.cpp（静态 makeRequest 全文转写）+ Dispatchers.cpp 尾（dispatch）；
+// 本 TU 局部类声明与定义一致，调用点直调成员（符号同名，链接到真实实现）。
+class DB_SecurityCardDisuse
+{
+public:
     static void makeRequest(unsigned int accId);
 };
 class DB_ReqQueryCharacInfoMailbox : public DBDispatcher
@@ -4833,11 +4849,16 @@ int Dispatcher_ScanBotByDrv::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 int Dispatcher_ScanBotByDrv::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 int(msg+0xd)，失败记 LineFunc(0x42c)
+    // ORIG 0x082646ae：读 int(msg+0xd) 失败记 LineFunc(0x42c)；
+    // 再读 byte(msg+0x11)（signed char）失败记 LineFunc(0x431)。
     char* p = reinterpret_cast<char*>(&msg);
     if (!packet.get_int(*reinterpret_cast<int*>(p + 0xd)))
     {
         return LineFunc(0x42c, __PRETTY_FUNCTION__, 0, 0);
+    }
+    if (!packet.get_byte(*reinterpret_cast<char*>(p + 0x11)))
+    {
+        return LineFunc(0x431, __PRETTY_FUNCTION__, 0, 0);
     }
     return 0;
 }
@@ -14524,6 +14545,11 @@ int Dispatcher_AbnormalUseStackable::read(PacketBuf& packet, MSG_BASE& msg)
     {
         return LineFunc(0x530, __PRETTY_FUNCTION__, 0, 0);
     }
+    // ORIG 0x T：读 unsigned int(msg+0x14)，失败记 LineFunc(0x534)
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(p + 0x14)))
+    {
+        return LineFunc(0x534, __PRETTY_FUNCTION__, 0, 0);
+    }
     return 0;
 }
 
@@ -17368,6 +17394,11 @@ int Dispatcher_Float_RDATA_Modulation::read(PacketBuf& packet, MSG_BASE& msg)
     {
         return LineFunc(0x582, __PRETTY_FUNCTION__, 0, 0);
     }
+    // ORIG 0x T：读 unsigned int(msg+0x14)，失败记 LineFunc(0x586)
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(p + 0x14)))
+    {
+        return LineFunc(0x586, __PRETTY_FUNCTION__, 0, 0);
+    }
     return 0;
 }
 
@@ -17604,35 +17635,10 @@ int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& pack
 }
 int Dispatcher_SecurityCardAuthCancel::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    // ORIG 0x0820a580：取消安全卡/密保认证请求。
-    // 安全卡激活时：setRequestState(0) + incCancelCnt + 落库(acc_id, cancelCnt)；
-    // 否则密保激活时：setRequestState(0) + incCancelCnt + 落库(acc_id, cancelCnt,
-    // webAddress)；尾部 getCancelCnt() 的 cmp $0x9 结果为死值，恒返回 1。
-    (void)msg;
-    (void)param;
-    if (user->getSecurityCard()->isActivate())
-    {
-        WongWork::CSecurityCard* card = user->getSecurityCard();
-        card->setRequestState(WongWork::CSecurityCard::eRequestStateNone);
-        card->incCancelCnt();
-        DB_SecurityCardUpdateCancelCnt req;
-        req.makeRequest((unsigned int)user->get_acc_id(),
-                        (unsigned int)card->getCancelCnt());
-        card->getCancelCnt();   // ORIG 死值比较，丢弃
-        return 1;
-    }
-    if (user->getPad()->isActivate())
-    {
-        Sanicova::CPad* pad = user->getPad();
-        pad->setRequestState(Sanicova::CPad::eRequestStateNone);
-        pad->incCancelCnt();
-        DB_PassPadUpdateCancelCnt req;
-        req.makeRequest((unsigned int)user->get_acc_id(),
-                        (unsigned int)pad->getCancelCnt(),
-                        (char*)user->getWebAddress());
-        pad->getCancelCnt();   // ORIG 死值比较，丢弃
-    }
-    return 1;
+    // ORIG 0x0820a580 W：push ebp; mov esp,ebp; mov $0x0,%eax; pop ebp; ret —— 空体。
+    // 实际业务逻辑在 static process(CUser*)（DispLinkA3.cpp，ORIG 同址重载）。
+    (void)user; (void)msg; (void)param;
+    return 0;
 }
 int Dispatcher_SecurityCardAuthCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -18183,7 +18189,7 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         return 0;
     }
 
-    if (user->get_state() <= 2 || user->getCurCharacNo() == 0)
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return LineFunc(0xc73f, kPretty, 0, 0);
 
     // 包布局（ServerLab/Auction/AuctionServer/auction_header/AuctionPacket.h）：
@@ -19501,6 +19507,11 @@ int Dispatcher_Buy_Charac_Status_Using_QP::read(PacketBuf& packet, MSG_BASE& msg
     {
         return LineFunc(0x3fb8, __PRETTY_FUNCTION__, 0, 0);
     }
+    // ORIG 0x T：读 unsigned char(msg+0xe)，失败记 LineFunc(0x3fba)
+    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xe)))
+    {
+        return LineFunc(0x3fba, __PRETTY_FUNCTION__, 0, 0);
+    }
     return 0;
 }
 void Dispatcher_Buy_Charac_Status_Using_QP::send(CUser* user, ParamBase& param)
@@ -20141,6 +20152,11 @@ int Dispatcher_GrowthWeaponEventUseMaterial::read(PacketBuf& packet, MSG_BASE& m
     {
         return LineFunc(0x646a, __PRETTY_FUNCTION__, 0, 0);
     }
+    // ORIG 0x T：读 int(msg+0x11)，失败记 LineFunc(0x646d)
+    if (!packet.get_int(*reinterpret_cast<int*>(p + 0x11)))
+    {
+        return LineFunc(0x646d, __PRETTY_FUNCTION__, 0, 0);
+    }
     return 0;
 }
 void Dispatcher_GrowthWeaponEventUseMaterial::send(CUser* user, ParamBase& param)
@@ -20739,6 +20755,11 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::read(PacketBuf& packet, MSG_BASE
     if (!packet.get_int(*reinterpret_cast<int*>(p + 0xd)))
     {
         return LineFunc(0x63fc, __PRETTY_FUNCTION__, 0, 0);
+    }
+    // ORIG 0x T：读 int(msg+0x11)，失败记 LineFunc(0x63ff)
+    if (!packet.get_int(*reinterpret_cast<int*>(p + 0x11)))
+    {
+        return LineFunc(0x63ff, __PRETTY_FUNCTION__, 0, 0);
     }
     return 0;
 }
@@ -22125,18 +22146,40 @@ inline unsigned short& mbSlot(MSG_BASE& m) { return *reinterpret_cast<unsigned s
 inline unsigned long& mbItemId(MSG_BASE& m) { return *reinterpret_cast<unsigned long*>(reinterpret_cast<char*>(&m) + 0x39); } // +0x39 物品 id
 inline int& mbTitleLen(MSG_BASE& m) { return *reinterpret_cast<int*>(reinterpret_cast<char*>(&m) + 0x41); }     // +0x41 标题长
 inline char* mbText(MSG_BASE& m) { return reinterpret_cast<char*>(&m) + 0x45; }                                 // +0x45 文本[0x100]
+inline int& mbExtra(MSG_BASE& m) { return *reinterpret_cast<int*>(reinterpret_cast<char*>(&m) + 0x3d); }      // +0x3d 附件附加字段
 
 }  // namespace
 
 // ==== Dispatcher_MailBox_Send::read (ORIG 0x081cc3da) ====
 int Dispatcher_MailBox_Send::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 int(msg+0x3d)，失败记 LineFunc(0x2309)
-    char* p = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(p + 0x3d)))
-    {
+    // ORIG 0x081cc3da：依次解析 10 个字段；失败分支各自 LineFunc 并返回其返回值。
+    // 收件人名/金币/空间/槽位/物品 id/附加字段 共用 0x2315（ORIG 同一跳转目标），
+    // 标题长 0x231b、文本 0x231e、公会邮键 0x2321 独立。
+    // 字段经 MSG_MAILBOX_SEND 成员直访（O0 下 inline helper 不内联会多出 call，
+    // 故本函数不走 mbXxx helper）。
+    MSG_MAILBOX_SEND& m = reinterpret_cast<MSG_MAILBOX_SEND&>(msg);
+    if (!packet.get_int(m.m_nameLenD))                                // +0x0d 收件人名长
         return LineFunc(0x2309, __PRETTY_FUNCTION__, 0, 0);
-    }
+
+    if (!packet.get_str(m.m_name11, 0x1d, m.m_nameLenD) ||           // +0x11 收件人名
+        !packet.get_int(m.m_gold2e) ||                               // +0x2e 金币
+        !packet.get_byte(m.m_space36) ||                             // +0x36 物品空间
+        !packet.get_short(m.m_slot37) ||                             // +0x37 槽位
+        !packet.get_int(m.m_itemId39) ||                             // +0x39 物品 id
+        !packet.get_int(m.m_extra3d))                                // +0x3d 附加字段
+        return LineFunc(0x2315, __PRETTY_FUNCTION__, 0, 0);
+
+    m.m_titleLen41 = 0;                                              // +0x41 标题长清零
+    m.m_guildKey32 = 0;                                              // +0x32 公会邮键清零
+    memset(m.m_text45, 0, 0x100);                                    // +0x45 文本区清零
+
+    if (!packet.get_int(m.m_titleLen41))                             // +0x41 标题长
+        return LineFunc(0x231b, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_str(m.m_text45, 0x100, m.m_titleLen41))          // +0x45 邮件文本
+        return LineFunc(0x231e, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_int(m.m_guildKey32))                             // +0x32 公会邮键
+        return LineFunc(0x2321, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
 
@@ -23146,12 +23189,8 @@ int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& pa
             ->Rent(*user, input, out.m_output));
     if (out.m_4 == 0)
     {
-        /* BLOCKED: _ZN5CUser29UpdateCurrentCharacRentalInfoERKN20InstanceRentalSystem10RentOutputEib @0x08676e3c
-           —— 仓库无该 CUser 方法声明/定义。ORIG 实参：
-           user->UpdateCurrentCharacRentalInfo(out.m_output,
-                                               (int)(char)req.m_0e, false);
-           （RentOutput const&, int machineKey, bool logFlag=false）。
-           依赖补齐后恢复本调用，其余逻辑保持不变。 */
+        user->UpdateCurrentCharacRentalInfo(
+            out.m_output, (int)(char)req.m_0e, false);
     }
     return 0;                                            // ORIG RentInput dtor 于帧尾
 }
@@ -23837,73 +23876,63 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
 
     if (cardActive)
     {
-        card->setRequestState(WongWork::CSecurityCard::eRequestStateNone);
-        if ((unsigned int)card->getFailCnt() > 2)
+        // ORIG checkAnswer(answer0, answer1)：非 1 走失败链。
+        if (card->checkAnswer(answer0, answer1) != 1)
         {
-            param.m_5 = 0x7a;
-            return 0;
-        }
-
-        // BLOCKED: _ZNK8WongWork13CSecurityCard11checkAnswerEhh @0x085fdf6a ——
-        //   CUser.h 的 CSecurityCard 缺 checkAnswer 声明，待 CSecurityCard 批次补齐：
-        //   bool answerOk = (card->checkAnswer(answer0, answer1) == 1);
-        bool answerOk = false;  // 占位（依赖缺失），失败链路以下完整保留
-
-        if (!answerOk)
-        {
-            // BLOCKED: _ZN15cUserHistoryLog11SecuServiceE22ENUM_SECU_SERVICE_TYPE24ENUM_SECU_SERVICE_ACTION @0x0868479c
-            //   user->m_historyLog.SecuService((ENUM_SECU_SERVICE_TYPE)1, (ENUM_SECU_SERVICE_ACTION)0);
-            // BLOCKED: _ZN8WongWork13CSecurityCard10incFailCntEv @0x082652ae ——
-            //   ORIG failCnt 为 incFailCnt 自增后的新值。
-            unsigned int newFailCnt = (unsigned int)card->getFailCnt();
-            if (newFailCnt < 3)
+            // ORIG SecuService(1, 0) → incFailCnt → 新值 >2 走 0x7a/0x17/hack，
+            // 否则 0x79 + ChangeSecurity(1, failCnt==1 ? 0x15 : 0x16) → DB 上报后返回。
+            user->m_historyLog.SecuService(
+                (ENUM_SECU_SERVICE_TYPE)1, (ENUM_SECU_SERVICE_ACTION)0);
+            unsigned int newFailCnt = (unsigned int)card->incFailCnt();
+            if (newFailCnt > 2)
             {
-                param.m_5 = 0x79;
-                // BLOCKED: _ZN8XNuclear6CHades14ChangeSecurityENS_19ENUM_HADES_SECURITYEj @0x084b95a8
-                //   user->getHades()->ChangeSecurity((XNuclear::ENUM_HADES_SECURITY)1,
-                //       newFailCnt == 1 ? 0x15 : 0x16);
+                param.m_5 = 0x7a;
+                user->getHades()->ChangeSecurity(
+                    (XNuclear::ENUM_HADES_SECURITY)1, 0x17);
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, (WongWork::ENUM_HACKTYPE)0x343, 1, 0, 0);
             }
             else
             {
-                param.m_5 = 0x7a;
-                // BLOCKED: ChangeSecurity(hades, (ENUM_HADES_SECURITY)1, 0x17) 同上地址
-                user->getHackAnalyzer()->addServerHackCnt(user,
-                                                          (WongWork::ENUM_HACKTYPE)0x343,
-                                                          1, 0, 0);
+                param.m_5 = 0x79;
+                if (newFailCnt == 1)
+                {
+                    user->getHades()->ChangeSecurity(
+                        (XNuclear::ENUM_HADES_SECURITY)1, 0x15);
+                }
+                else
+                {
+                    user->getHades()->ChangeSecurity(
+                        (XNuclear::ENUM_HADES_SECURITY)1, 0x16);
+                }
             }
-            // BLOCKED: _ZN28DB_SecurityCardUpdateFailCnt11makeRequestEjj @0x0842bfaa
-            //   DB_SecurityCardUpdateFailCnt::makeRequest(user->get_acc_id(),
-            //       card->getFailCnt());
+            DB_SecurityCardUpdateFailCnt::makeRequest(
+                user->get_acc_id(), (unsigned int)card->getFailCnt());
             return 0;
         }
 
-        // BLOCKED: SecuService(hist, (ENUM_SECU_SERVICE_TYPE)1, (ENUM_SECU_SERVICE_ACTION)1) 同上
-        // BLOCKED: ChangeSecurity(hades, (ENUM_HADES_SECURITY)1, 0x19) 同上
+        // 认证成功：SecuService(1, 1) → ChangeSecurity(1, 0x19) →
+        // 发包（0xa7, byte1, certCnt>0x3b?1:0）→ DB 清零 fail/cancel → setCertified/resetFailCnt。
+        user->m_historyLog.SecuService(
+            (ENUM_SECU_SERVICE_TYPE)1, (ENUM_SECU_SERVICE_ACTION)1);
+        user->getHades()->ChangeSecurity((XNuclear::ENUM_HADES_SECURITY)1, 0x19);
 
         PacketGuard packet;
         packet.put_header(1, 0xa7);
         packet.put_byte(1);
-        // BLOCKED: _ZNK8WongWork13CSecurityCard11getCertCntEv @0x0826528a ——
-        //   int certCnt = card->getCertCnt();
-        int certCnt = 0;  // 占位（依赖缺失）
+        int certCnt = card->getCertCnt();
         packet.put_byte(certCnt > 0x3b ? 1 : 0);
         packet.finalize(true);
         user->Send(packet);
 
-        // BLOCKED: DB_SecurityCardUpdateFailCnt::makeRequest(acc_id, 0) @0x0842bfaa
+        DB_SecurityCardUpdateFailCnt::makeRequest(user->get_acc_id(), 0);
         if (card->getCancelCnt() != 0)
         {
-            // BLOCKED: _ZN30DB_SecurityCardUpdateCancelCnt11makeRequestEjj @0x0842c112
-            //   DB_AccountCargoSync.h 现把 makeRequest 声明为非静态成员，与 ORIG
-            //   静态调用形态不符；统一为 static 后接：
-            //   DB_SecurityCardUpdateCancelCnt::makeRequest(user->get_acc_id(), 0);
+            DB_SecurityCardUpdateCancelCnt::makeRequest(user->get_acc_id(), 0);
         }
-        // BLOCKED: _ZN25DB_SecurityCardAddCertCnt11makeRequestEj @0x08436388
-        //   DB_SecurityCardAddCertCnt::makeRequest(user->get_acc_id());
-        // BLOCKED: _ZN8WongWork13CSecurityCard12setCertifiedEb @0x08265296
-        //   card->setCertified(true);
-        // BLOCKED: _ZN8WongWork13CSecurityCard12resetFailCntEv @0x082652c8
-        //   card->resetFailCnt();
+        DB_SecurityCardAddCertCnt::makeRequest(user->get_acc_id());
+        card->setCertified(true);
+        card->resetFailCnt();
     }
     else  // padActive
     {
@@ -23923,11 +23952,11 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
         passAnswer[5] = (char)answer5;
         passAnswer[6] = '\0';
 
-        // BLOCKED: _ZN24Dispatcher_MouseRegister15doPassPadReplayEP5CUserPccRbRh @0x082633c6 ——
-        //   Dispatcher_MouseRegister 无头声明，待 MouseRegister 批次补齐：
-        //   Dispatcher_MouseRegister::doPassPadReplay(user, passAnswer,
-        //       (char)m.m_answerType,
-        //       *reinterpret_cast<bool*>(&param.m_4), param.m_5);
+        // ORIG doPassPadReplay(user, passAnswer, answerType, ok, errCode)
+        // （Dispatcher_MouseRegister，0x082633c6）。
+        Dispatcher_MouseRegister::doPassPadReplay(
+            user, passAnswer, (char)m.m_answerType,
+            *reinterpret_cast<bool*>(&param.m_4), param.m_5);
         if (param.m_4 == 0)
             return 0;
         param.m_5 = 1;
@@ -25296,9 +25325,8 @@ int Dispatcher_RequestAssaultPrice::process(CUser* user, MSG_BASE& msg, ParamBas
         return 0;
     }
 
-    /* BLOCKED: pvp_assault::GetInstanceAssaultMgr()->GetRequestAssaultNeedMoney @0x082edc86
-       —— CAssaultMgr.h 无该访问器声明。ORIG: needMoney = GetInstanceAssaultMgr()->GetRequestAssaultNeedMoney(user, target); */
-    const int needMoney = 0;
+    const int needMoney = pvp_assault::GetInstanceAssaultMgr()
+        ->GetRequestAssaultNeedMoney(user, target);
     p.m_8 = needMoney;
     if (p.m_8 > 0)
     {
@@ -25838,11 +25866,9 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
         static_cast<short>(static_cast<unsigned short>(info.m_field2 + 1));
     user->setSeriaRoomAniDecoInfo(updated);
 
-    /* BLOCKED: _ZN31DB_UpdateSeriaRoomAnimationDeco11makeRequestEjsiss @0x0844af74
-       DB_UpdateSeriaRoomAnimationDeco 未建模；ORIG 此处调
-       DB_UpdateSeriaRoomAnimationDeco::makeRequest(user->get_acc_id(),
-           user->GetServerGroupToPvP(), user->getCurCharacNo(),
-           info.m_field0, updated.m_field2); */
+    DB_UpdateSeriaRoomAnimationDeco::makeRequest(
+        user->get_acc_id(), user->GetServerGroupToPvP(),
+        user->getCurCharacNo(), info.m_field0, updated.m_field2);
 
     CEventManager* eventMgr = GlobalData::s_event_manager;
     CEventBase* evt = eventMgr->GetRepeatEvent(0x69);
@@ -25851,10 +25877,8 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
         CEventBase* aniDecoEvent = eventMgr->GetRepeatEvent(0x69);
         if (aniDecoEvent != 0)
         {
-            /* BLOCKED: _ZN21SeriaRoomAniDecoEvent12processEventER5CUser @0x0827ba52
-               SeriaRoomAniDecoEvent 未建模；ORIG 此处调
-               res.m_4 = static_cast<SeriaRoomAniDecoEvent*>(aniDecoEvent)
-                               ->processEvent(*user); */
+            res.m_4 = static_cast<SeriaRoomAniDecoEvent*>(aniDecoEvent)
+                          ->processEvent(*user);
         }
     }
     return 0;
@@ -26014,15 +26038,13 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
             break;
         }
 
-        /* BLOCKED: CUser::customizingSkillCommand(STSkillCommandData&)
-           _ZN5CUser23customizingSkillCommandER18STSkillCommandData @0x08654f74
-           源码树暂无声明/定义。ORIG:cVar1 = customizingSkillCommand(user,&data);
-             if (cVar1 != 1) { res.m_4 = 0xfc; break; }
-           producer 落地后恢复上述两行(替换本注释)。BLOCKED 期间等效于
-           “调用恒成功”路径继续下一轮——错误码 0xfc 的该来源缺失,已在文件头
-           注明依赖宿主补齐,不伪造其它返回。 */
-        (void)data;
-        (void)keyRangeError;
+        // ORIG: cVar1 = customizingSkillCommand(user, &data);
+        //       if (cVar1 != 1) { res.m_4 = 0xfc; break; }
+        if (user->customizingSkillCommand(data) != 1)
+        {
+            res.m_4 = 0xfc;
+            break;
+        }
     }
 
     if (res.m_4 != 0)
@@ -26033,11 +26055,7 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
             0x3051,
             "SKILL_COMMAND_LOG : CUSTOMIZING ERROR!! ALL COMMAND DEFAULT!! m_id (%s)",
             NumberToString(user->get_acc_id(), 0));
-        /* BLOCKED: CUser::defaultSkillCommand()
-           _ZN5CUser19defaultSkillCommandEv @0x086550ee
-           源码树暂无声明/定义。producer 落地后恢复:
-             user->defaultSkillCommand();
-           (全部命令重置为默认;BLOCKED 期间仅记录日志。) */
+        user->defaultSkillCommand();
     }
     return 0;
 }
@@ -26379,10 +26397,8 @@ int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, Param
     CTournamentDungeonReward& reward =
         reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;   // +0x17bc
     // 全员已选卡 → 0x7fffffff（isCardSelectComplete 第二参=卡组类型 2）
-    /* BLOCKED: CTournamentDungeonReward::isCardSelectComplete @0x08284d08 —— CTournamentDungeonReward.h 缺声明。
-       ORIG: if (reward.isCardSelectComplete((ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, list)) { ... 0x7fffffff }
-       依赖补齐前按未完成继续。 */
-    if (false)  // BLOCKED: isCardSelectComplete @0x08284d08（ORIG 实参 cardType=2, members）
+    if (reward.isCardSelectComplete(
+            (ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, members))
     {
         *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = 0x7fffffff;
         return 0;
@@ -26390,10 +26406,8 @@ int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, Param
 
     // msg+0xd/msg+0xe 为 signed byte 读入（movsbl）
     const unsigned int slotNo = party->GetMemberSlotNo(user);
-    /* BLOCKED: CTournamentDungeonReward::SelectCard —— CTournamentDungeonReward.h 缺声明。
-       ORIG: bool selected = reward.SelectCard((int)slotNo, (char)req.m_0d, (char)req.m_0e);
-       依赖补齐前按选卡成功继续。 */
-    const bool selected = true;
+    const bool selected = reward.SelectCard(
+        (int)slotNo, (char)req.m_0d, (char)req.m_0e);
     if (!selected)
     {
         *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = 0x7fffffff;

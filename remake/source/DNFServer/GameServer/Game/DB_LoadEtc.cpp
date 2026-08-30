@@ -1558,16 +1558,16 @@ bool DB_LoadEtc::LoadAccountFirstLogin(SIG_LOAD_ETC* sig, int eventCode)
         (unsigned int)evMng->get_convert_to_user_confirmflag(eventCode);
     if (!db->exec(true))
     {
-        sig->m_bitset |= (1u << flagPos);                    // set(pos,true)
+        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
         return false;
     }
     if (db->get_n_rows() == 0)
     {
-        sig->m_bitset &= ~(1u << flagPos);                   // reset(pos)
+        sig->m_bitset.reset(flagPos);                        // ORIG bitset::reset(Ej)
     }
     else
     {
-        sig->m_bitset |= (1u << flagPos);                    // set(pos,true)
+        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
     }
     return true;
 }
@@ -1623,16 +1623,16 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
         (unsigned int)evMng->get_convert_to_user_confirmflag(eventCode);
     if (!db->exec(true))
     {
-        sig->m_bitset |= (1u << flagPos);
+        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
         return false;
     }
     if (db->get_n_rows() == 0)
     {
-        sig->m_bitset &= ~(1u << flagPos);
+        sig->m_bitset.reset(flagPos);                        // ORIG bitset::reset(Ej)
     }
     else
     {
-        sig->m_bitset |= (1u << flagPos);
+        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
     }
     return true;
 }

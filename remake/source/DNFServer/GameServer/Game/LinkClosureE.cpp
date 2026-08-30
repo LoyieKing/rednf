@@ -526,7 +526,7 @@ void CItemMakingSkill::SetItemMakingSkillPoint(int skillIdx, int point,
 
     bool gate;
     if (point > 0 && point <= 0x3e8)                       // ORIG 0x8545d95
-        gate = (point < vec.rbegin()->first);              // ORIG cmp/jge：first>point → 放行
+        gate = (vec.rbegin()->first < point);              // ORIG cmp/jge：first<point 才放行
     else
         gate = true;
     if (!gate)

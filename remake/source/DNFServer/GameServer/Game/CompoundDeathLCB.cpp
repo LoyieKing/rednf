@@ -275,17 +275,21 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
         return 0x11;
     if (CI_SubType(info.m_scriptA) != CI_SubType(info.m_scriptB))
         return 0x17;
-    if (info.m_field04 == 0)
-        return 0x17;
     if (!CI_UsableType1(info.m_scriptA) || !CI_UsableType1(info.m_scriptB))
         throw static_cast<ENUM_ERROR>(0x17);                   // __cxa_throw ENUM_ERROR
-
     const tagCompoundAvatarTable& table = m_tables[info.m_field00];
     const tagCompoundAvatar* rec =
         table.getCompoundAvatarInfo(info.m_field04);           // 所选 recipe 条目
     const int subType = CI_SubType(info.m_scriptA);
     const int gradeA = info.m_scriptA->get_grade();
     const int gradeB = info.m_scriptB->get_grade();
+
+    // ORIG 0x0833260c：两材料稀有度必须 ≤ 1（普通），否则 0x17。
+    if (info.m_scriptA->get_rarity() > 1 || info.m_scriptB->get_rarity() > 1)
+        return 0x17;
+    // ORIG 0x0833260c：两材料 grade 必须相等，否则 0x17。
+    if (gradeA != gradeB)
+        return 0x17;
 
     // 非“加攻标记”时才检查选项池里存在用户请求的 option 对：
     // subType==rec->m_idx 用 m_optsC[sub]，否则 grade 必须 == rec->m_flag2dc

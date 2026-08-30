@@ -74,10 +74,17 @@ public:
     // ORIG W 0x08539de8 _ZNK12CAICharacter13IsHellMonsterEv：
     // return *(unsigned char*)(this+0x70)（12 字节读字节直返）。
     unsigned char IsHellMonster() const;
-    // ORIG T 0x0834a15e _ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE：
-    // 转发 ::generateDropAvatarItem(m_dropAvatarInfo, a, b, out)。
     void generateDropAvatarItem(unsigned char rarity, unsigned char grade,
-                                std::vector<Inven_Item>& out) const;
+                                std::vector<Inven_Item>& out) const;  // 定义 MonsterWrapLCB.cpp
+    // ORIG 0x0834a240 _ZNK12CAICharacter14getPvPWinPointEv：
+    // +0x1c=最小胜点，+0x20=最大胜点；等则返回该值，
+    // 否则返回 min + get_rand_int(max - min + 1)。
+    int getPvPWinPoint() const
+    {
+        if (m_pvpWinLow == m_pvpWinHigh)
+            return m_pvpWinLow;
+        return m_pvpWinLow + get_rand_int(m_pvpWinHigh - m_pvpWinLow + 1);
+    }
 private:
     int m_idx;                                       // +0x00
     int m_level;                                     // +0x04

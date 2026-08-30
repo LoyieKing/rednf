@@ -122,13 +122,17 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
     }
 
     STAdvanceAltarLayerStatData data;                   // 栈装配（ORIG local_30 区）
-    std::memset(&data, 0, sizeof(data));                // ORIG ctor memset 装配前清零
+    // ORIG 0x08156d60：装配前 STAdvanceAltarLayerStatDataC1 仅清 14 字节
+    // （movw@0/movl@4/movw@8/movw@a/movw@c，+0xe pad 不写）；新槽写入用
+    // memcpy 0xe，pad 保持垃圾。
+    std::memset(&data, 0, 0xe);
     data.m_itemType = itemType;
     data.m_field2 = a3;
     data.m_itemIndex = itemIndex;
     data.m_useCount = static_cast<unsigned short>(data.m_useCount + useCountDelta);
     data.m_useStar = static_cast<unsigned short>(data.m_useStar + useStarDelta);
-    m_layers[key] = data;
+    STAdvanceAltarLayerStatData* slot = &m_layers[key];
+    std::memcpy(slot, &data, 0xe);
 }
 
 // ----------------------------------------------------------------------------

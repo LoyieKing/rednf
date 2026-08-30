@@ -455,8 +455,11 @@ void LevelupSupportEventManger::InsertItem(CUser* user, int eventIdx, ENUM_ERROR
     LevelupSupportEventManger::EventInfo& info = user->m_levelupEvents[eventIdx];
     info.m_state = 2;
 
-    std::vector<LevelupSupportSciprt::ItemInfo>* items =
-        GetItemInfoVector((int)info.m_level);
+    // ORIG：内部经 Singleton 重取实例再调（0x08147413）；ORIG 以 const 指针遍历
+    //（at/size 用 const 重载），此处 const 指针与 ORIG 同形。
+    const std::vector<LevelupSupportSciprt::ItemInfo>* items =
+        ARAD::Singleton<LevelupSupportEventManger>::Get()->GetItemInfoVector(
+            (int)info.m_level);
     if (items == 0)
     {
         err = (ENUM_ERROR)0x15;
@@ -465,7 +468,7 @@ void LevelupSupportEventManger::InsertItem(CUser* user, int eventIdx, ENUM_ERROR
 
     for (std::size_t i = 0; i < items->size(); ++i)
     {
-        LevelupSupportSciprt::ItemInfo& itemInfo = items->at(i);
+        const LevelupSupportSciprt::ItemInfo& itemInfo = items->at(i);
         CItem* pItem = G_CDataManager()->find_item(itemInfo.m_itemIndex);
         if (pItem == 0)
         {
@@ -477,6 +480,8 @@ void LevelupSupportEventManger::InsertItem(CUser* user, int eventIdx, ENUM_ERROR
         }
 
         Inven_Item item;
+        // ORIG：make_item 前先置 m_addInfo(+0x02) = get_index()（0x081474c9）
+        item.m_addInfo = pItem->get_index();
         pItem->make_item(item);
         item.set_add_info((int)itemInfo.m_itemCount);
 

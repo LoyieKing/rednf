@@ -235,10 +235,11 @@ CDisjointMachine::CDisjointMachine(CUser* user, char const* name, int level,
     m_rect.m_height     = 0x64;                 // +0x0c
 }
 
-// ---- CDisjointMachine::operator=（ORIG W 0x085d3ed6：拷 +0x04..+0x14 与
-//      string/+0x1c/+0x20/+0x24/+0x28，不拷 vptr）----
+// ---- CDisjointMachine::operator=（ORIG W 0x085d3ed6：基类 IObject::operator=
+//      空操作 + 拷 +0x04..+0x14 与 string/+0x1c/+0x20/+0x24/+0x28，不拷 vptr）----
 CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 {
+    village_object::IObject::operator=(other);   // ORIG W 0x85ccadc 同款空操作
     m_rect.m_pos.m_x = other.m_rect.m_pos.m_x;
     m_rect.m_pos.m_y = other.m_rect.m_pos.m_y;
     m_rect.m_width   = other.m_rect.m_width;
@@ -947,6 +948,7 @@ void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
 
         Inven_Item probe;                       // ORIG 局部 ctor 清零
         probe.m_addInfo = itemIndex;            // 直接写 +0x02
+        probe.set_add_info(1);                  // ORIG：m_addInfo2 = 1（set_add_info 语义）
         unsigned char probeType = probe.m_field1;   // make_item 填充的 type 字节
         int needSlot = kInvalidSlot;
         CInventory* inven =
@@ -1014,6 +1016,8 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
             throw static_cast<ENUM_ERROR>(0x15);
 
         int ticketLevel = ticketObj->m_int324;   // +0x324 使用等级门槛
+        if (ticketLevel == -1)
+            throw static_cast<ENUM_ERROR>(1);   // ORIG：门槛 -1 直接抛 1
 
         int portableLimit =
             ((STExpertJobScript*)G_CDataManager()->GetExpertJobScript(3))

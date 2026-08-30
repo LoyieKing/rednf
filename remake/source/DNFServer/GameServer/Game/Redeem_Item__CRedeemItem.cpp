@@ -66,8 +66,8 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
     }
     if (bVar2)
         return 0;
-    // ORIG CItem::IsBanRedeemItem() = 读 CItem+0x144（m_char144）
-    if (ci->m_char144 != 0)
+    // ORIG 0x085f77f4 调用 CItem::IsBanRedeemItem()（非内联，生成 call）
+    if (ci->IsBanRedeemItem() != 0)
         return 0;
     return 1;
 }

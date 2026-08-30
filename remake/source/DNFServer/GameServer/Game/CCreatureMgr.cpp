@@ -1933,8 +1933,6 @@ void user_creature::CCreature::SetStomach(int stomachValue)
 // ============================================================================
 void user_creature::CCreatureItem::Set(user_creature::CCreatureItem* src)
 {
-    if (src == 0)
-        return;
     m_itemId = src->m_itemId;
     m_creatureItemType = src->m_creatureItemType;
     m_uid = src->m_uid;

@@ -22,10 +22,10 @@ public:
         // 自身），随后写 magic=0x8f21、bUse=0。缺此构造则 magic/bUse 为垃圾值，
         // Acquire/Get/Free/GetIndex 的 magic==0x8f21 检查运行时失效。
         CNode() : T(), magic(0x8f21), bUse(0) {}
-        // ORIG 各池 CNode D1/D2/D0 均为 W 符号（用户定义析构 → 非 trivial；
-        // 多态派生使 GCC 亦生成 D0 deleting dtor）；空体即可，编译器自动
-        // 展开基类 ~T() 析构链。
-        ~CNode() {}
+        // ORIG 各池 CNode D1（非 POD T 的池如 CUser/CTradeSpace/CParty/
+        // CDeathTower 实证 CNodeD1Ev W 符号）：隐式析构经 ~T() 链即满足，
+        // 故不写用户定义析构——POD T 池（如 _IO_FILE）的 ORIG 不生成
+        // CNodeD1Ev，用户定义空析构会让此类池多出逐元素析构循环。
 
         int magic;     // +sizeof(T)，恒 0x8f21
         char bUse;     // +sizeof(T)+4，引用计数

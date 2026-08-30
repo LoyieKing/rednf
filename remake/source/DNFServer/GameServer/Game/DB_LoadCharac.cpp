@@ -229,45 +229,49 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
         return false;
     if (!db->get_int(20, *(int*)SLC(sig, 0xfd)))             // chaos_kill_time
         return false;
-    if (!db->get_int(21, *(int*)SLC(sig, 0x116)))            // help_abuse_ratio
+    if (!db->get_uint(21, *(unsigned int*)SLC(sig, 0x10a)))  // help_abuse_ratio
         return false;
-    if (!db->get_short(22, *(short*)SLC(sig, 0x3e)))         // help_abuse_exp
+    if (!db->get_uint(22, *(unsigned int*)SLC(sig, 0x10e)))  // help_abuse_exp
         return false;
-    if (!db->get_binary(23, SLC(sig, 0xc5), 0x10))           // expert_job_exp
+    if (!db->get_int(23, *(int*)SLC(sig, 0x116)))            // expert_job_exp
         return false;
-    if (!db->get_short(24, *(short*)SLC(sig, 0x11a)))        // fatigue_battery_charging
+    if (!db->get_short(24, *(short*)SLC(sig, 0x3e)))         // fatigue_battery_charging
         return false;
-    if (!db->get_byte(25, *(char*)SLC(sig, 0x2f)))           // escalade_tutorial_flag
+    if (!db->get_binary(25, SLC(sig, 0xc5), 0x10))           // escalade_tutorial_flag
         return false;
-    if (!db->get_uint(26, *(unsigned int*)SLC(sig, 0x11c)))  // power_war_point
+    if (!db->get_short(26, *(short*)SLC(sig, 0x11a)))        // power_war_point
         return false;
-    if (!db->get_uint(27, *(unsigned int*)SLC(sig, 0x120)))  // village_prev
+    if (!db->get_byte(27, *(char*)SLC(sig, 0x2f)))           // village_prev
         return false;
-    if (!db->get_uint(28, *(unsigned int*)SLC(sig, 0x124)))  // power_war_assault_count
+    if (!db->get_uint(28, *(unsigned int*)SLC(sig, 0x11c)))  // power_war_assault_count
         return false;
-    if (!db->get_ushort(29, *(unsigned short*)SLC(sig, 0x3c)))   // power_war_assault_victory_count
+    if (!db->get_uint(29, *(unsigned int*)SLC(sig, 0x120)))  // power_war_assault_victory_count
         return false;
-    if (!db->get_short(30, *(short*)SLC(sig, 0x128)))        // last_play_time_powerwar
+    if (!db->get_uint(30, *(unsigned int*)SLC(sig, 0x124)))  // last_play_time_powerwar
         return false;
-    if (!db->get_byte(31, *(char*)SLC(sig, 0x12b)))          // fatigue_grownup_buff
+    if (!db->get_ushort(31, *(unsigned short*)SLC(sig, 0x3c))) // fatigue_grownup_buff
         return false;
-    if (!db->get_byte(32, *(char*)SLC(sig, 0x12d)))          // emotion
+    if (!db->get_short(32, *(short*)SLC(sig, 0x128)))        // emotion
         return false;
-    if (!db->get_short(33, *(short*)SLC(sig, 0x12e)))        // add_slot_flag
+    if (!db->get_byte(33, *(char*)SLC(sig, 0x12b)))          // add_slot_flag
         return false;
-    if (!db->get_uint(34, *(unsigned int*)SLC(sig, 0x131)))  // member_dungeon_flag
+    if (!db->get_byte(34, *(char*)SLC(sig, 0x12d)))          // member_dungeon_flag
         return false;
-    if (!db->get_byte(35, *(char*)SLC(sig, 0x135)))          // member_bonus_fatigue
+    if (!db->get_short(35, *(short*)SLC(sig, 0x12e)))        // member_bonus_fatigue
         return false;
-    if (!db->get_byte(36, *(char*)SLC(sig, 0x136)))          // last_play_dungeon_index
+    if (!db->get_uint(36, *(unsigned int*)SLC(sig, 0x131)))  // last_play_dungeon_index
         return false;
-    if (!db->get_byte(37, *(char*)SLC(sig, 0x137)))          // add_equipslot_flag
+    if (!db->get_byte(37, *(char*)SLC(sig, 0x135)))          // add_equipslot_flag
         return false;
-    if (!db->get_byte(38, *(char*)SLC(sig, 0x13a)))          // channel_equipslot_switch
+    if (!db->get_byte(38, *(char*)SLC(sig, 0x136)))          // channel_equipslot_switch
         return false;
-    if (!db->get_ubyte(39, *(unsigned char*)SLC(sig, 0x13b))) // expand_equipslot_switch
+    if (!db->get_byte(39, *(char*)SLC(sig, 0x137)))          // expand_equipslot_switch
         return false;
-    if (!db->get_int(40, *(int*)SLC(sig, 0x13c)))            // visible_flags
+    if (!db->get_byte(40, *(char*)SLC(sig, 0x13a)))          // visible_flags
+        return false;
+    if (!db->get_ubyte(41, *(unsigned char*)SLC(sig, 0x13b))) // growth_power_reward
+        return false;
+    if (!db->get_int(42, *(int*)SLC(sig, 0x13c)))            // chaos_respon_time
         return false;
 
     return true;

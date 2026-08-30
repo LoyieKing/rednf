@@ -105,7 +105,7 @@ class DB_SecurityCardUpdateCancelCnt : public DBDispatcher
 {
 public:
     DB_SecurityCardUpdateCancelCnt() {}              // ORIG C1 0x844e94e (sz 0x4: base ctor+vptr only)
-    void makeRequest(unsigned int a, unsigned int b);
+    static void makeRequest(unsigned int a, unsigned int b);   // ORIG 静态调用形态 0x0842c112
 };
 
 // ORIG _ZN25DB_PassPadUpdateCancelCnt11makeRequestEjjPc @0x0842403a：

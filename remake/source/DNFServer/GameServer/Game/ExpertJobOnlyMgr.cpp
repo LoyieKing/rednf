@@ -197,13 +197,14 @@ int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
         }
 
         // ORIG 0x085d17e2：sub_type()==2 的 APC 药水——记录使用截止时间
-        // SetUseAPCPotionTime(curSec + m_int2d0/1000000)（反汇编魔数
-        // 0x10624dd3 除 1e6，非注释旧值 1000）。
+        // SetUseAPCPotionTime(curSec + m_int2d0/1000)。
+        // 反汇编铁证：imul $0x10624dd3 + sar $0x6 = 除以 1000（毫秒→秒），
+        // 非 1e6（0x431bde83+sar 0x12 才是 /1e6；旧注释误判魔数）。
         if (((const CStackableItem*)item)->get_sub_type() == 2)
         {
             user->SetUseAPCPotionTime(
                 GlobalData::s_systemTime_.getCurSec() +
-                ((const CStackableItem*)item)->m_int2d0 / 1000000);
+                ((const CStackableItem*)item)->m_int2d0 / 1000);
         }
     }
 

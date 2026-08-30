@@ -2754,11 +2754,11 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     // last_reward_time 跨日（days>0）→ luck_point 清零并回写
     if (SGF<int>(sig, rec + 0x24) != 0)
     {
-        long long prev = getPrevScheduleTime(0, SGF<long long>(sig, rec + 0x24));
-        long long curSec = GlobalData::s_systemTime_.getCurSec();
-        size_t days = (size_t)((curSec - prev) / 0x15180);
-        size_t zero = 0;
-        size_t maxDays = (zero < days) ? days : zero;          // std::max<size_t>(0, days)
+        long prev = getPrevScheduleTime(0, SGF<long>(sig, rec + 0x24));
+        int curSec = GlobalData::s_systemTime_.getCurSec();
+        unsigned int days = (unsigned int)((curSec - prev) / 0x15180);
+        unsigned int zero = 0;
+        unsigned int maxDays = std::max<unsigned int>(zero, days);   // ORIG call _ZSt3maxIjERKT_S2_S2_
         if (maxDays != 0 && SGF<int>(sig, rec + 0x3c) != 0)
         {
             SGF<int>(sig, rec + 0x3c) = 0;                     // luck_point 清零

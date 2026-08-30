@@ -55,9 +55,14 @@ unsigned int CBreakAwayPreventSystem::getDiffConnectDay(unsigned int timeSec)
         return 0;
 
     long prevDaySec = getPrevScheduleTime(0, static_cast<long>(timeSec));
-    long curSec = static_cast<long>(GlobalData::s_systemTime_.getCurSec());
-    long dayDiff = (curSec - prevDaySec) / 0x15180L;
-    return static_cast<unsigned int>(std::max<long>(0L, dayDiff));
+    // ORIG 0x0831c794：getCurSec() 结果不落栈、除法结果直接入
+    // max<unsigned int>(0, ·)（_ZSt3maxIjE）；负天数按 unsigned 包装返回
+    // （int 解释为负），不可用 max<long> 钳制为 0。
+    return std::max<unsigned int>(
+        0u, static_cast<unsigned int>(
+                (static_cast<long>(GlobalData::s_systemTime_.getCurSec())
+                 - prevDaySec) /
+                0x15180L));
 }
 
 // ---- calBreakAwayUserPoint（ORIG 0x0831c810）-------------------------------

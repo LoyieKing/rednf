@@ -34,11 +34,11 @@ upgrade_table_t::upgrade_table_t()
         floatAt((i + 4) * 4 + 0xc) = 1.0f;
     for (i = 0; i <= 5; ++i)
     {
-        floatAt((i + 7) * 4 + 4) = 1.0f;    // +0x20..
-        floatAt((i + 8) * 4 + 0xc) = 1.0f;  // +0x28..
+        floatAt((i + 0x1c) * 4 + 4) = 1.0f;    // ORIG 0x089000ca：+0x74..
+        floatAt((i + 0x20) * 4 + 0xc) = 1.0f;  // +0x8c..
     }
-    for (i = 0; i <= 0x63; ++i)       // +0xa4..：整数 1
-        intAt((i + 10) * 4 + 4) = 1;
+    for (i = 0; i <= 0x63; ++i)       // ORIG +0xa4..：整数 1
+        intAt((i + 0x28) * 4 + 4) = 1;
     intAt(0x234) = 0;
     for (i = 0; i <= 0x63; ++i)       // +0x274..：1.0f
         floatAt((i + 0x9c) * 4 + 4) = 1.0f;

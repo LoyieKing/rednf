@@ -598,21 +598,20 @@ void cUserHistoryLog::QPAdd(int before, int questIdx, int add)
     m_user->LogHistory("QP+,%d,%d,%d", before, questIdx, add);
 }
 
-// SendMail：ORIG 0x86847ea。MSG_MAILBOX_SEND 仅前向声明，按 ORIG 反编译的
-// 包结构字节偏移访问（+0x11 标题串 / +0x2e 物品 / +0x36..0x37 计数 / +0x39,+0x3d /
-// +0x45 附言）。条件为 mail 非空 且 &mail[0x11] 非空。
+// SendMail：ORIG 0x86847ea。字段已具名（PacketTypes.h MSG_MAILBOX_SEND，
+// m_pad 即 MSG_BASE 后的 +0x0d 起原字节区）。条件为 mail 非空 且 收件人名非空。
 void cUserHistoryLog::SendMail(MSG_MAILBOX_SEND* mail, unsigned int a)
 {
-    if (mail != 0 && (mail->m_pad + 4) != 0) {
+    if (mail != 0 && mail->m_name11[0] != 0) {
         char* nstr = NumberToString(a, 0);
-        const char* mailBody = mail->m_pad + 0x38;                    // ORIG local：&mail[0x45] → -0x24
-        int f3d = *reinterpret_cast<const int*>(&mail->m_pad[0x30]);  // -0x20
-        int f39 = *reinterpret_cast<const int*>(&mail->m_pad[0x2c]);  // -0x1c
-        unsigned short f37 = *reinterpret_cast<const unsigned short*>(&mail->m_pad[0x2a]);
-        unsigned char f36 = static_cast<unsigned char>(mail->m_pad[0x29]);
-        int f2e = *reinterpret_cast<const int*>(&mail->m_pad[0x21]);
+        const char* mailBody = mail->m_text45;        // +0x45 邮件文本
+        int f3d = mail->m_extra3d;                    // +0x3d
+        int f39 = (int)mail->m_itemId39;              // +0x39（64 位 id 低 32 位）
+        unsigned short f37 = mail->m_slot37;          // +0x37
+        unsigned char f36 = mail->m_space36;          // +0x36
+        int f2e = (int)mail->m_gold2e;                // +0x2e
         m_user->LogHistory("MailS,%s,%d,%d,%d,%d,%d,\"%s\",%s",
-                           mail->m_pad + 4, f2e, static_cast<int>(f36), static_cast<int>(f37),
+                           mail->m_name11, f2e, static_cast<int>(f36), static_cast<int>(f37),
                            f39, f3d, mailBody, nstr);
     }
 }

@@ -30,15 +30,15 @@ BlueMarbleUserInfo::BlueMarbleUserInfo()
     m_userState = (BlueMarbleUserState::T)0;
     m_boardZone = 1;
     m_grade = (BlueMarbleUserGrade::T)4;
-    m_buff.m_exp = 0;              // BuffInfo C1（+reset）：三字段清零
-    m_buff.m_gold = 0;
-    m_buff.m_drop = 0;
+    m_buff.m_exp = 1;              // BuffInfo C1：三字段置 1
+    m_buff.m_gold = 1;
+    m_buff.m_drop = 1;
     m_tileIndex.m_dungeon = 0;     // TileIndexInfo C1（+reset）：两字段清零
     m_tileIndex.m_item = 0;
     m_pScript = 0;
-    m_buff.m_exp = 0;              // BuffInfo reset（ORIG C1 后再 reset）
-    m_buff.m_gold = 0;
-    m_buff.m_drop = 0;
+    m_buff.m_exp = 1;              // BuffInfo reset（ORIG C1 后再 reset，置 1）
+    m_buff.m_gold = 1;
+    m_buff.m_drop = 1;
     m_tileIndex.m_dungeon = 0;     // TileIndexInfo reset
     m_tileIndex.m_item = 0;
 }
@@ -52,16 +52,17 @@ void BlueMarbleUserInfo::resetBlueMarbleUserInfo()
     m_user = 0;
     m_userState = (BlueMarbleUserState::T)0;
     m_boardZone = 1;
-    m_buff.m_exp = 0;   // BuffInfo::reset
-    m_buff.m_gold = 0;
-    m_buff.m_drop = 0;
+    m_grade = (BlueMarbleUserGrade::T)4;
+    m_buff.m_exp = 1;   // BuffInfo::reset
+    m_buff.m_gold = 1;
+    m_buff.m_drop = 1;
     resetIndex();
 }
 void BlueMarbleUserInfo::resetBuff()
 {
-    m_buff.m_exp = 0;   // BuffInfo::reset
-    m_buff.m_gold = 0;
-    m_buff.m_drop = 0;
+    m_buff.m_exp = 1;   // BuffInfo::reset
+    m_buff.m_gold = 1;
+    m_buff.m_drop = 1;
 }
 
 void BlueMarbleUserInfo::resetIndex()

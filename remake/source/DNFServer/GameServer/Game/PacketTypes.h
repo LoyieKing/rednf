@@ -861,12 +861,26 @@ public:
 #pragma pack(pop)
 static_assert(sizeof(MSG_MAILBOX_EXTRACT_ITEM) == 0x10d, "MSG_MAILBOX_EXTRACT_ITEM size");
 
+#pragma pack(push, 1)
 class MSG_MAILBOX_SEND : public MSG_BASE
 {
 public:
     MSG_MAILBOX_SEND();
-    char m_pad[0x100];
-};
+
+    // ORIG 布局依据：Dispatcher_MailBox_Send/read @0x081cc3da 全部读写偏移：
+    int m_nameLenD;            // +0x0d 收件人名长度（read get_int #1）
+    char m_name11[0x1d];       // +0x11 收件人名（get_str 上限 0x1d）
+    unsigned int m_gold2e;     // +0x2e 附金币
+    unsigned int m_guildKey32; // +0x32 公会邮键（非 0 走公会邮件；后读）
+    unsigned char m_space36;   // +0x36 附件物品空间
+    unsigned short m_slot37;   // +0x37 附件槽位
+    unsigned long m_itemId39;  // +0x39 附件物品 id
+    int m_extra3d;             // +0x3d 附件附加字段
+    int m_titleLen41;          // +0x41 标题长度
+    char m_text45[0x100];      // +0x45..0x144 邮件文本（get_str 上限 0x100）
+};                             // sizeof 0x145
+#pragma pack(pop)
+static_assert(sizeof(MSG_MAILBOX_SEND) == 0x145, "MSG_MAILBOX_SEND ABI drift");
 
 #pragma pack(push, 1)
 class MSG_MEMBER_ENTER_REPLY : public MSG_BASE
@@ -1689,7 +1703,7 @@ class MSG_USERINFO_REQ
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned short m_targetId;  // +0xd（GameWorld::get_user_info 目标 id）
-    unsigned char m_slot;       // +0xf
+    char m_slot;                // +0xf（ORIG read 用 get_byte(char&) 重载）
 };
 #pragma pack(pop)
 

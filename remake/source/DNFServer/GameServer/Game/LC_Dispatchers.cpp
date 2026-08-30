@@ -103,6 +103,8 @@ int Dispatcher_RegisterToBlackList::process(CUser* user, MSG_BASE& msg, ParamBas
         strncpy(packet.m_name,
                 reinterpret_cast<char*>(&req) + 0x14,
                 *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&req) + 0x10));
+        // ORIG 韩服判定：G_CEnvironment+0x378 == 3（serverGroup==3）才做 GM 名单比较。
+        if (G_CEnvironment()->get_server_group() == 3)
         {
             // DAT_08bc17d6 / DAT_08bc17dd：EUC-KR GM 名串区（0x1d 字节精确比较）
             static const char kGmName1[0x1d] = {

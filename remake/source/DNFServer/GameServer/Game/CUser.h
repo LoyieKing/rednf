@@ -2388,7 +2388,7 @@ public:
     void resetMoneyLog();
     void set_guildwar_point_per_pvpplay(int point);
     int get_guildwar_point_per_pvpplay();
-    void* getHades();
+    XNuclear::CHades* getHades();   // ORIG 0x08230800：返回 this+0x8e954（内嵌 CHades 成员，CHades 在 namespace XNuclear）
     void* GetPVPRoom();
     void UpdateRating(float rating);   // ORIG W 0x08568e9c _ZN5CUser12UpdateRatingEf（Elo 个人分回写；定义归 CUser 域）
     void* GetSecretShopData();
@@ -2734,7 +2734,7 @@ public:
     void sendBlueMarbleEnterCount();
     void sendNotiPcRoomPlayTime();
     void sendReturnUserFirstLogin();
-    void send_ontime_reward_start_notify();
+    int send_ontime_reward_start_notify();
     void sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
                             int* param);
     void sendInformNoticeFlag();
@@ -2752,7 +2752,7 @@ public:
     void ReturnToSelectCharacList(bool param);
     void LogoutCachedCharacter(unsigned char param);
     void SetCharacInfo(int slot, char* data);
-    void SetCharacLevel(int level);
+    int SetCharacLevel(int level);
     void SetSkillLevel(int skillIdx, int level);
     void onSelectCharacter();
     void select_charac_set_visible_values(char value);
@@ -2830,7 +2830,7 @@ public:
     void processLevelUpEventReward(bool flag);                       // ORIG T 0x08663cc0
     void processLevelUpEvent();                                      // ORIG T 0x0869115a
     // ORIG 0x8679cee：公会强化公告（name/upgrade 标记/是否增幅）。
-    void makeGuildItemUpgradMessage(const char* itemName, int from,
+    int makeGuildItemUpgradMessage(const char* itemName, int from,
                                     int to, bool isAmplify);
     // ORIG T 0x0867a242：分离强化公告（Ctor2_ContB 定义于 CItemUpgrade_Separate.cpp）。
     void makeGuildItemSeparateUpgradMessage(const char* itemName, int oldLevel,
@@ -2993,7 +2993,7 @@ public:
     void recover_stamina();                         // 0x0865784e T（TimerStamina 调用）
     void WorkPerFiveMin();                          // 0x08652f0c T（TimerScheduleFiveMinPerUser 调用）
     void WorkPerTenMin();                           // 0x08653196 T（TimerScheduleTenMinPerUser 调用）
-    void delete_ontime_reward_list();               // 0x0868c3bc T
+    int delete_ontime_reward_list();                // 0x0868c3bc T
     bool HasCurCharacRentalItem(int type) const;    // ORIG _ZNK5CUser22HasCurCharacRentalItemEi 0x86772d2
     bool findSkillCommandData(int skillId, STSkillCommandData& out);          // 0x08654b94 T
     void RefillItemByScript(std::vector<std::pair<int, int> >& list);         // 0x086890be T

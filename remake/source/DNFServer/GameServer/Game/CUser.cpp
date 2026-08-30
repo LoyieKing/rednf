@@ -46,6 +46,9 @@
 #include "CGuildServerProxy.h"    // SendPacket（WorkPerFiveMin）
 #include "InterfacePacketBuf.h"
 #include "CExpertJob.h"              // charac_expand::CDataMgr slot0 CCharacExpertJob（StubS3A ctor）
+#include "CExpertJobList.h"          // STExpertJobEtcScript（SetCharacLevel 专家职业经验）
+#include "nexon_packet.h"           // stLoginPacket（SendLogin/LogoutToPCRoomServer）
+#include "PCRoomServerProxy.h"     // CPCRoomServerProxy::SendTcpPacket（PC 房登录/登出通知）
 #include "W9_EventSmall.h"           // slot1 CCharacBloodDungeon
 #include "CPvPLiveEventData.h"       // slot3 CPvPLiveEventData
 #include "Redeem_Item__CRedeemItem.h"// slot6 Redeem_Item::CRedeemItem
@@ -931,7 +934,7 @@ int CUser::get_guildwar_point_per_pvpplay()
     return m_guildWarPoint;
 }
 
-void* CUser::getHades()
+XNuclear::CHades* CUser::getHades()
 {
     return &m_hades;
 }
@@ -1828,35 +1831,36 @@ void CUser::makeGuildSkillMessage(const char* skillName, int count)
 }
 
 // ============================================================================
-// CUser::makeGuildItemUpgradMessage @ 0x8679cee
-//   公会强化公告。isAmplify && to>10 时用 "+to itemName"；否则 from>=0xb 时
-//   用 "+{from+1} itemName"。长度<0x78，经 CGuildServerProxy::SendGuildBoardWrite
-//   广播。字符串槽位沿用 makeGuildSkillMessage 族（0x3ea/0x3eb 前缀/后缀）。
+// CUser::makeGuildItemUpgradMessage @ 0x8679cee（返回 1 已广播 / 0 未达条件）
+//   公会强化公告。isAmplify && to>10 用 "+to itemName"，否则 from>10 用
+//   "+{from+1} itemName"。消息 = GetServerString(0x3e8) + 数字串 +
+//   GetServerString(0x3ec 强化 / 0x3ed 降级) + 角色名；长度>0x77 不发，
+//   否则经 CGuildServerProxy::SendGuildBoardWrite 广播。
 // ============================================================================
-void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
-                                       int to, bool isAmplify)
+int CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
+                                      int to, bool isAmplify)
 {
-    if (itemName == 0)
-        return;
     char numStr[256];
     memset(numStr, 0, sizeof(numStr));
-    std::string body = g_ServerString_.GetServerString(0x3ea, 0);
     if (isAmplify)
     {
         if (to <= 10)
-            return;
+            return 0;
         sprintf(numStr, "+%d %s", to, itemName);
     }
     else
     {
-        if (from < 0xb)
-            return;
+        if (from <= 10)
+            return 0;
         sprintf(numStr, "+%d %s", from + 1, itemName);
     }
+    std::string name = getCurCharacName();   // ORIG 先构名字串（拼接在末尾）
+    std::string body = g_ServerString_.GetServerString(0x3e8, 0);
     body += numStr;
-    body += g_ServerString_.GetServerString(0x3eb, 0);
-    if (body.length() >= 0x78)
-        return;
+    body += g_ServerString_.GetServerString(isAmplify ? 0x3ec : 0x3ed, 0);
+    body += name;
+    if (body.length() > 0x77)
+        return 0;
     char board[120];
     memset(board, 0, sizeof(board));
     memcpy(board, body.c_str(), body.length());
@@ -1865,6 +1869,7 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
     if (proxy != 0)
         proxy->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
                                    -1, -1, (unsigned int)get_charac_guildkey());
+    return 1;
 }
 
 // ORIG 0x086787fc：改成长类型主分支（set_grow_type.md）。校验 first<6/second<3；
@@ -2329,6 +2334,13 @@ public:
 // 0x08657ada
 void CUser::RecoverFatigue(int value)
 {
+    // ORIG 0x08657ada：角色为空直接返回（跳过全部）；否则先写回
+    // premium 疲劳（ushort 截断）与当前疲劳
+    if (getCurCharacR() == 0)
+        return;
+    setCurCharacPremiumFatigue((unsigned short)value);
+    setCurCharacFatigue(value);
+
     // ORIG 0x08657ada：学校点非零 → DB 上报并清零
     if (getCurCharacSchoolPoint() != 0)
     {
@@ -5142,6 +5154,10 @@ int CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
     if (itemNo == 0)
         return 0;
 
+    // ORIG 0x8681d98：物品索引无效（find_item 空）→ 直接返回 0（不发包）
+    if (G_CDataManager()->find_item((int)itemNo) == 0)
+        return 0;
+
     PacketGuard packet;
     packet.put_header(1, 0x120);
     packet.put_byte(1);
@@ -5629,15 +5645,15 @@ void CUser::OnDisconnect()
     }
 }
 
-// 0x0867a95c
-void CUser::SetCharacLevel(int level)
+// 0x0867a95c（返回 1 成功 / 0 角色为空；DisPatcher_DebugCommand 以 !=1 判失败）
+int CUser::SetCharacLevel(int level)
 {
     // 0x0867a95c 主分支（SetCharacLevel.md）：等级钳制[1,200]；按方向取
     // GetSpAtLevelUp 计算 SP 增量加到树 0/1 并 clamp；exp=get_level_exp；
     // SFP：<50 清 idx2/3，旧级<0x33 则=level-0x31 否则各+差值；逐级加/减
     // 成长属性、写日志、premium 金币奖励；专家/公会/监控/副本通知收尾。
     if (getCurCharacR() == 0)
-        return;
+        return 0;
     if (level < 1) level = 1;
     if (level > 200) level = 200;
 
@@ -5683,14 +5699,15 @@ void CUser::SetCharacLevel(int level)
 
     // 成长类型属性表：G_CDataManager()+0x14 为 CCharacter 表基址（job 步长 0x7dc，推断）
     CCharacter* growTable = *(CCharacter**)((char*)G_CDataManager() + 0x14);
-    const void* growStat = growTable[get_charac_job()].get_growtype_stat(
-        getCurCharFirstGrowType(), getCurCharSecondGrowType());
-    (void)growStat;   // 属性 add/subtract 走 _Additioal_info（未建模，推断保留控制流）
+    const _Additioal_info* growStat = (const _Additioal_info*)growTable[get_charac_job()]
+        .get_growtype_stat(getCurCharFirstGrowType(), getCurCharSecondGrowType());
 
     while (get_charac_level() != level)
     {
         if (get_charac_level() < level)
         {
+            // ORIG 0x867acca：先加成长属性再升级（升/降分支对称）
+            ((_Additioal_info*)getCurCharacAddInfoRefW())->add(*growStat);
             incCurCharacLevel();
             m_historyLog.LevelUp(get_charac_level(), (eLevelUpReason)1);
             int bonus = m_premium.GetGoldBonus(get_charac_level());
@@ -5702,12 +5719,21 @@ void CUser::SetCharacLevel(int level)
         }
         else
         {
+            ((_Additioal_info*)getCurCharacAddInfoRefW())->subtract(*growStat);
             decCurCharacLevel();
             m_historyLog.LevelDown(get_charac_level(), (eLevelDownReason)0);
         }
         m_premium.RecalcAdditionalInfo(this);
     }
     setCurCharacLevel(level);
+
+    // ORIG 0x867ae4c：专家职业——类型非 0 且等级命中限定等级 → 增加专家职业经验
+    STExpertJobEtcScript* ejScript =
+        (STExpertJobEtcScript*)G_CDataManager()->GetExpertJobEtcScript();
+    if (GetCurCharacExpertJobType() != 0 && ejScript->isExpertJobLimitLevel(level))
+    {
+        expert_job::CExpertJob::IncreaseExpertJobExp(this, GetCurCharacExpertJobExp());
+    }
 
     makeGuildLevelUpMessage(level);   // ORIG T 0x8679754
 
@@ -5723,10 +5749,18 @@ void CUser::SetCharacLevel(int level)
             proxy->SendPacket(pkt, 0x28);
     }
 
+    // ORIG 0x867af66：等级==副本 0x2aff 最低要求等级时，按副本开放状态广播进出场
+    if (get_charac_level() == G_GameWorld()->getDungeonMinimumRequiredLevel(0x2aff))
+    {
+        bool open = G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff) != 0;
+        G_GameWorld()->send_user_dungeon_inout_message(this, 0x2aff, open);
+    }
+
     if (get_charac_level() > 0x3b)
         DimensionInoutUpdate(true, true);
 
     m_characterView.enableSaveCharacView();
+    return 1;
 }
 
 // 0x0866afa2：习得单技能主分支（master_new_skill.md）：
@@ -6785,25 +6819,42 @@ int CUser::send_itemspace(int space)
     return 1;
 }
 
-// 0x0868c170
-void CUser::send_ontime_reward_start_notify()
+// 0x0868c170（返回 1 已通知 / 0 未满足条件）
+int CUser::send_ontime_reward_start_notify()
 {
-    // 0x0868c170 主分支（send_ontime_reward_start_notify.md）：事件 0x33 活跃且
-    // 奖励未开始时，本地 last_recv_idx < ontime_id 则发包 header(0,0x105) 单 int
-    // = 奖励结束时间 - now（秒），负数不发。事件字段经 vtable/字段读取（推断）。
+    // 0x0868c170 主分支（send_ontime_reward_start_notify.md）：事件 0x33 空 →
+    // 日志+0；非活跃 / 奖励已开始（get_reward_state!=0）→ 0；日志块（文件名
+    // ./log/<env>/OnTimeEvent + "On Charac Login"）后，ontime_id > 本地
+    // last_recv_idx 且剩余时间 >=0 才发包 header(0,0x105) 单 int，返回 1。
     CEventBase* eventRaw = GlobalData::s_event_manager->GetRepeatEvent(0x33);
-    if (eventRaw == 0 || !eventRaw->IsEventing((CUser*)0))
-        return;
-    int remain = *(int*)((char*)eventRaw + 0x1c) - (int)time(0);   // 推断：+0x1c 结束时刻
-    if (get_ontime_last_recv_idx() >= *(int*)((char*)eventRaw + 0x18))
-        return;                                                     // 推断：+0x18 ontime_id
+    if (eventRaw == 0)
+    {
+        cMyTrace trace("bool CUser::send_ontime_reward_start_notify()", 0xa7f7, 5);
+        trace("[ON_TIME_EVENT] send_ontime_reward_start_notify() error");
+        return 0;
+    }
+    if (!eventRaw->IsEventing((CUser*)0))
+        return 0;
+    COnTimeEvent* ev = (COnTimeEvent*)eventRaw;
+    if (ev->get_reward_state() != 0)
+        return 0;
+    char fileName[0x40];
+    memset(fileName, 0, sizeof(fileName));
+    sprintf(fileName, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
+    CMyFileLog log("bool CUser::send_ontime_reward_start_notify()", 0xa803);
+    log(fileName, "On Time Event : On Charac Login(%s, %u)",
+        NumberToString(get_acc_id(), 0), get_charac_no(-1));
+    if (ev->get_ontime_id() <= get_ontime_last_recv_idx())
+        return 0;
+    int remain = (int)ev->get_reward_end_time() - (int)time(0);
     if (remain < 0)
-        return;
+        return 0;
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(0, 0x105);
     ((InterfacePacketBuf*)&packet)->put_int(remain);
     ((InterfacePacketBuf*)&packet)->finalize(true);
     Send(packet);
+    return 1;
 }
 
 // 0x0866c46a：技能信息包（send_skill_info.md）。header(0,0x13)；两棵树各为
@@ -8815,8 +8866,13 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;                  // +0xb9
     memset(m_subMasterData, 0, 0x14);   // +0x2e
     memset(m_guildName, 0, 0x17);       // +0x00
-    m_ability = (unsigned short)(m_ability | 1);           // +0x1c ORIG movzbl;or $1;movb
-    m_ability = (unsigned short)(m_ability & ~2);          // +0x1c ORIG movzbl;and $~2;movb
+    // ORIG 0x08693f56：+0x1c 为 byte 位操作（movzbl;or $1;movb / movzbl;and $~2;movb），
+    // 只动低字节，不触碰 +0x1d；m_ability 是 unsigned short，需经 byte 视图改写。
+    {
+        unsigned char* flags = reinterpret_cast<unsigned char*>(&m_ability);
+        *flags = (unsigned char)(*flags | 1);
+        *flags = (unsigned char)(*flags & ~2);
+    }
     memset(m_skills, 0, 0x50);          // +0x45
     memset(m_masterName, 0, 0x15);      // +0xa4
 }
@@ -9586,7 +9642,7 @@ void CUser::_SaveCharacData()
     char* sig = (char*)guard.GetInBuffer<SIG_SAVE_CHARAC>();
     memset(sig, 0, 0x10d);
 
-    *(unsigned int*)(sig + 0xf2) = *(unsigned int*)getDungeonGainedGold(); /*推断: +0x00 值*/
+    *(unsigned int*)(sig + 0xf2) = getDungeonGainedGold()->getGainedGold();
     *(unsigned int*)(sig + 0xe6) = get_acc_id();
     *(unsigned int*)(sig + 0xea) = (unsigned int)m_field8d110;   /* ORIG this+0x8d110 实证 */
     *(unsigned int*)(sig + 0xee) = GetOverTradeGoldCount();
@@ -9639,6 +9695,7 @@ void CUser::_SaveCharacData()
         *(unsigned int*)(sig + 0xab)  = GetAssaultCount();
         *(unsigned int*)(sig + 0xaf)  = GetCurCharacChaosKillTime();
         *(unsigned int*)(sig + 0xb3)  = GetCurCharacLuckPoint();
+        *(unsigned int*)(sig + 0xb7)  = GetCurCharacDungeonPlayCount();
         *(unsigned int*)(sig + 0xbb)  = GetCurCharacExpertJobExp();
         *(unsigned short*)(sig + 0xbf) = (unsigned short)GetFatigueBatteryCharging();
         *(unsigned short*)(sig + 0xc1) = (unsigned short)GetUserPowerWarPoint();
@@ -10066,18 +10123,23 @@ bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
     return true;
 }
 
-// ORIG T 0x0868c3bc sz0xa2：OnTimeEvent(0x33) 删除奖励用户。
-void CUser::delete_ontime_reward_list()
+// ORIG T 0x0868c3bc sz0xa2（返回 1 已删 / 0 事件空或非活跃）：
+// OnTimeEvent(0x33) 活跃时删除奖励用户。
+int CUser::delete_ontime_reward_list()
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x33);
     if (ev == 0)
-        return;
+    {
+        cMyTrace trace("bool CUser::delete_ontime_reward_list()", 0xa828, 5);
+        trace("[ON_TIME_EVENT]delete_ontime_reward_list() error");
+        return 0;
+    }
     // 虚表 +0x34：IsEventing(int)（PvP_Room.cpp 同型裸虚调用）
     typedef int (*IsEventingFn)(CEventBase*, int);
-    if (((IsEventingFn)(*(void**)(*(char**)ev + 0x34)))(ev, 0))
-    {
-        ((COnTimeEvent*)ev)->delete_reward_user(this);
-    }
+    if (!((IsEventingFn)(*(void**)(*(char**)ev + 0x34)))(ev, 0))
+        return 0;
+    ((COnTimeEvent*)ev)->delete_reward_user(this);
+    return 1;
 }
 
 // ORIG T 0x086924aa sz0x119：job==9 才发包；去重 combo 技能 → 包 0x1bd。
@@ -10164,8 +10226,7 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         (CStackableItem*)G_CDataManager()->find_item(itemNo);
     if (item == 0)
         return;
-    if (!((U1VerifyStackableFn)0x0868f60e)(
-            this, 0x36, item))
+    if (!verifyStackableItemProcess((StackableAction::Type)0x36, item))
         return;
 
     std::vector<Inven_Item> rewards;
@@ -10256,12 +10317,11 @@ void CUser::SendMoenyLog()
 }
 
 // ORIG T 0x0868152c sz0x1e0：PC 房 login 通知。填 stLogin（login[0]=3/acc 名/
-// charac 名/ip/uid/accid）→ stLoginPacket 桥打包 → SendTcpPacket；随后
-// ReadPacket 读回包。nexon_packet 未建模，与 SendLogoutToPCRoomServer 同桥。
+// charac 名/ip/uid/accid）→ stLoginPacket 打包 → SendTcpPacket；随后
+// ReadPacket 读回包（ORIG 以 pkt 自身为 this、reply 为 packet 源）。
 void CUser::SendLoginToPCRoomServer()
 {
     char login[0x20e];
-    char packet[0x1210];
     char reply[0x20e];
     memset(login, 0, sizeof(login));
     login[0] = 3;
@@ -10275,28 +10335,23 @@ void CUser::SendLoginToPCRoomServer()
     *(int*)(login + 0x206) = GetUID();
     *(int*)(login + 0x20a) = get_acc_id();
     printf(
-        "stLogin::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
+        "SEND nexon_packet::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
         "Addr:%d canTry_:%d UserIdx:%d m_id:%d\n",
         login[0], login[1], login + 2, login[0x101], (int)(login + 0x102),
         ip, login[0x205], GetUID(), get_acc_id());
 
-    typedef void* (*MakeLoginPacketFn)(void*, const void*);  // 0x08694252
-    ((MakeLoginPacketFn)0x08694252)(packet, login);
-    typedef int (*GetLengthFn)(void*);                       // 0x08694224
-    int len = ((GetLengthFn)0x08694224)(packet);
-    ((void(*)(void*, char*, int))0x08471a32)(GlobalData::s_pcroom_proxy,
-                                             packet, len); /* 桥接 SendTcpPacket */
+    nexon_packet::stLoginPacket pkt(*(nexon_packet::stLogin*)login);
+    int len = pkt.GetLength();
+    GlobalData::s_pcroom_proxy->SendTcpPacket((char*)&pkt, len);
     memset(reply, 0, sizeof(reply));
-    typedef void (*ReadPacketFn)(const char*, void*);        // 0x086943af
-    ((ReadPacketFn)0x086943af)(packet, reply);
+    pkt.ReadPacket((const char*)reply, *(nexon_packet::stLogin*)reply);
 }
 
-// ORIG T 0x0868170c sz0x113：PC 房 logout 通知。nexon_packet::stLoginPacket
-// (0x08694252)/stPacket::GetLength(0x08694224) 未建模 → 函数指针桥。
+// ORIG T 0x0868170c sz0x113：PC 房 logout 通知。stLoginPacket 打包 →
+// GetLength → SendTcpPacket（nexon_packet 已建模，符号直调）。
 void CUser::SendLogoutToPCRoomServer()
 {
     char login[0x210];
-    char packet[0x1210];
     memset(login, 0, sizeof(login));
     login[0] = 1;
     strcpy(login + 2, get_acc_name());
@@ -10306,12 +10361,9 @@ void CUser::SendLogoutToPCRoomServer()
     *(int*)(login + 0x201) = get_local_ip_address();
     login[0x205] = 1;
 
-    typedef void* (*MakeLoginPacketFn)(void*, const void*);  // 0x08694252
-    ((MakeLoginPacketFn)0x08694252)(packet, login);
-    typedef int (*GetLengthFn)(void*);                       // 0x08694224
-    int len = ((GetLengthFn)0x08694224)(packet);
-    ((void(*)(void*, char*, int))0x08471a32)(GlobalData::s_pcroom_proxy,
-                                             packet, len);  /*推断: SendTcpPacket 桥*/
+    nexon_packet::stLoginPacket pkt(*(nexon_packet::stLogin*)login);
+    int len = pkt.GetLength();
+    GlobalData::s_pcroom_proxy->SendTcpPacket((char*)&pkt, len);
 }
 
 // ORIG T 0x0864870e sz0xdc：LOGDB_Q(=4)：<<0xcc、<<-1、<<reason。

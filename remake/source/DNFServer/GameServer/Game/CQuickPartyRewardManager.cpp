@@ -12,7 +12,7 @@
 #include "CParty.h"      // get_member_count / increase_dungeon_coin_count /
                          // increase_ancient_dungeon_ticket
 
-#include <cmath>         // lrintf（ORIG fnstcw/fldcw 就近偶舍入等价）
+#include <cmath>
 #include <new>
 
 namespace QuickParty
@@ -62,7 +62,8 @@ IRandomwReward::IRandomwReward(QuickPartyData& data)
 }
 
 // ---- RewardCardGold（T 0x0826d070）----
-// result.m_value00 *= (levels[成员数-2].m_value4 / 100.0f + 1.0f)，就近偶舍入。
+// result.m_value00 *= (levels[成员数-2].m_value4 / 100.0f + 1.0f)，截断取整。
+// ORIG 反汇编：fnstcw 置 RC=0 + fistpl（截断）；lrintf 为就近偶舍入，语义不符。
 void RewardCardGold::process(RewardData_Param param, RewardData_Result& result)
 {
     const std::vector<LevelData>& levels = m_data.m_basicReward.m_levelDatas;
@@ -71,8 +72,8 @@ void RewardCardGold::process(RewardData_Param param, RewardData_Result& result)
     {
         float rate = 1.0f +
             static_cast<float>(levels[idx].m_value4) / 100.0f;
-        result.m_value00 =
-            static_cast<int>(lrintf(static_cast<float>(result.m_value00) * rate));
+        result.m_value00 = static_cast<int>(
+            static_cast<float>(result.m_value00) * rate);
     }
 }
 
@@ -104,8 +105,8 @@ void KillMonsterExp::process(RewardData_Param param, RewardData_Result& result)
     {
         float rate = 1.0f +
             static_cast<float>(levels[idx].m_value4) / 100.0f;
-        result.m_value00 =
-            static_cast<int>(lrintf(static_cast<float>(result.m_value00) * rate));
+        result.m_value00 = static_cast<int>(
+            static_cast<float>(result.m_value00) * rate);
     }
 }
 

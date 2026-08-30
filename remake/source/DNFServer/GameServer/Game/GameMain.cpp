@@ -1381,7 +1381,7 @@ void InitCipherKeyString()
     }
 
     int elapsed = static_cast<int>(s_systemTime_.getCurSec()) - t0;
-    cMyTrace trace("InitCipherKeyString()", 0x283e, 0);  // 行号「推断」
+    cMyTrace trace("InitCipherKeyString()", 0x283e, 9, true, true);
     trace("cipher keystring init %d sec", elapsed);
 }
 

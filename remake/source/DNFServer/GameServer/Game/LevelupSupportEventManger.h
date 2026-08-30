@@ -152,7 +152,7 @@ public:
 
     // ---- UserMiscLink 批补（ORIG 实证；定义 Game/UserMiscLink.cpp）----
     int GetStepIndex(int requestLevel);                 // ORIG T 0x08147362（m_stepIndexMap find→second/-1）
-    void InsertItem(CUser* user, int eventIdx, ENUM_ERROR& err);  // ORIG T 0x081473cc
+    static void InsertItem(CUser* user, int eventIdx, ENUM_ERROR& err);  // ORIG T 0x081473cc（静态：无 this，user@0x8；内部经 Singleton 重取实例）
     std::vector<LevelupSupportSciprt::ItemInfo>* GetItemInfoVector(int level);  // ORIG T 0x08147724（m_script.m_stepItems find→second/NULL）
 
     LevelupSupportSciprt   m_script;        // +0x04

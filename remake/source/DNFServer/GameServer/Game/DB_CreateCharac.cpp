@@ -44,29 +44,6 @@ unsigned int GetIdentity(MySQL* db);   // ORIG T 0x083f9ad4（LinkClosureB_Misc.
 
 char* NumberToString(unsigned int value, int radix);   // ORIG T 0x0810904b
 
-namespace {
-
-unsigned int rd32(const unsigned char* p)   // MakeInsertCharacInfo blob 区读取
-{
-    unsigned int v;
-    memcpy(&v, p, 4);
-    return v;
-}
-int rdu16(const unsigned char* p)           // movzwl → 零扩展
-{
-    unsigned short v;
-    memcpy(&v, p, 2);
-    return v;
-}
-int rds16(const unsigned char* p)           // cwtl → 符号扩展
-{
-    short v;
-    memcpy(&v, p, 2);
-    return v;
-}
-
-}  // namespace
-
 // ===========================================================================
 // C1/C2 — DB_CreateCharac.md @0x08400cc2：基类 ctor + 设 vptr。
 // D1/D2/D0 — ~.md @0x08400cde/@0x08400d0e：设 vptr + 基类析构；D0 另 delete。
@@ -826,29 +803,29 @@ void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
 
     // job 数据区（ORIG 原始偏移 +0x26..+0x74）现经 m_field26/m_jobData 具名
     // 锚点读取，字节语义不变（m_jobData 即 "同表 +2..0x51" 的 80 字节区）。
-    unsigned int expertJob   = rd32(&sig->m_jobData[0x4c]);            // +0x74
-    int jumpValue            = rds16(&sig->m_jobData[0x4a]);           // +0x72
-    int hitRecovery          = rds16(&sig->m_jobData[0x48]);           // +0x70
-    unsigned int castSpeed   = (unsigned int)rdu16(&sig->m_jobData[0x46]);  // +0x6e
-    unsigned int attackSpeed = (unsigned int)rdu16(&sig->m_jobData[0x44]);  // +0x6c
-    unsigned int moveSpeed   = rd32(&sig->m_jobData[0x40]);            // +0x68
-    int mpRegenShort         = rds16(&sig->m_jobData[0x3e]);           // +0x66
-    int hpRegenShort         = rds16(&sig->m_jobData[0x3c]);           // +0x64
-    unsigned int invenWeight = rd32(&sig->m_jobData[0x38]);            // +0x60
+    unsigned int expertJob   = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x4c]);            // +0x74
+    int jumpValue            = *reinterpret_cast<const short*>(&sig->m_jobData[0x4a]);           // +0x72
+    int hitRecovery          = *reinterpret_cast<const short*>(&sig->m_jobData[0x48]);           // +0x70
+    unsigned int castSpeed   = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x46]);  // +0x6e
+    unsigned int attackSpeed = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x44]);  // +0x6c
+    unsigned int moveSpeed   = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x40]);            // +0x68
+    int mpRegenShort         = *reinterpret_cast<const short*>(&sig->m_jobData[0x3e]);           // +0x66
+    int hpRegenShort         = *reinterpret_cast<const short*>(&sig->m_jobData[0x3c]);           // +0x64
+    unsigned int invenWeight = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x38]);            // +0x60
     // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
     char const* elementResistBlob =
         db->blob_to_str(0, const_cast<unsigned char*>(&sig->m_jobData[0x0e]), 8);
     // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'
     char const* specPropertyBlob =
         db->blob_to_str(1, const_cast<unsigned char*>(&sig->m_jobData[0x16]), 0x22);
-    unsigned int magDefense = (unsigned int)rdu16(&sig->m_jobData[0x0c]);   // +0x34
-    unsigned int magAttack  = (unsigned int)rdu16(&sig->m_jobData[0x0a]);   // +0x32
-    unsigned int phyDefense = (unsigned int)rdu16(&sig->m_jobData[0x08]);   // +0x30
-    unsigned int phyAttack  = (unsigned int)rdu16(&sig->m_jobData[0x06]);   // +0x2e
-    unsigned int maxMP      = rd32(&sig->m_jobData[0x02]);                  // +0x2a
+    unsigned int magDefense = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x0c]);   // +0x34
+    unsigned int magAttack  = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x0a]);   // +0x32
+    unsigned int phyDefense = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x08]);   // +0x30
+    unsigned int phyAttack  = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x06]);   // +0x2e
+    unsigned int maxMP      = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x02]);                  // +0x2a
     // +0x26 的 4 字节读跨 m_field26(ushort) 与 m_jobData[0..1]，以 m_field26 锚点。
-    unsigned int maxHP      = rd32(
-        reinterpret_cast<const unsigned char*>(&sig->m_field26));
+    unsigned int maxHP      = *reinterpret_cast<const unsigned int*>(
+        &sig->m_field26);
 
     db->set_query(
         "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"

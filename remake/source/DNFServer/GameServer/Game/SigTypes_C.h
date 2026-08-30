@@ -7,6 +7,7 @@
 // ============================================================================
 
 #include <string>  // std::string（CHARAC_LOAD_MERCENARY::GetRewardItem 形参）
+#include <bitset>  // std::bitset<32>（SIG_LOAD_ETC::m_bitset，ORIG 类型）
 
 #include <cstddef>  // offsetof static_assert
 // SIG_LOAD_PVP_BUDDY 载荷引用 shared 权威 STPvPBuddyDBInfo（0x2b 步长）。
@@ -271,7 +272,7 @@ struct SIG_LOAD_ETC
     int      m_totalPcRoomPlayTime;                  // +0xc9b3
     unsigned char m_pcRoomPlayTimeRewardCnt;         // +0xc9b7
     int      m_curCharacUsedGiftFatigueQuantity;     // +0xc9b8
-    unsigned int m_bitset;                           // +0xc9bc（std::bitset<32>，4 字节）
+    std::bitset<32> m_bitset;                        // +0xc9bc（ORIG bitset<32>，4 字节；set/reset 成员调用）
     char     m_mixedRegion[0x14a98 - 0xc9c0];        // +0xc9c0（skill + expand8/7/b/10/d/10 + aura + option）
     unsigned char m_blueMarbleEnterCount;            // +0x14a98
     SIG_ATTENDANCE_EVENT m_attendanceEvent;          // +0x14a99

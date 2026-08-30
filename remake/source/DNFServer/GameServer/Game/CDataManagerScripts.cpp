@@ -1942,14 +1942,9 @@ stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
             return result;
         }
     }
-    if (!m_vecBC.empty())
-    {
-        const stVictoryPenalty& last = m_vecBC[m_vecBC.size() - 1];
-        result.m_field0 = last.m_field0;
-        result.m_field4 = last.m_field4;
-        result.m_field8 = last.m_field8;
-        result.m_fieldC = last.m_fieldC;
-    }
+    // ORIG：无条件整体赋值（memmove 16B，无 empty 保护；size==0 时为
+    // 与 ORIG 相同的越界读，勿加保护）。
+    result = m_vecBC[m_vecBC.size() - 1];
     return result;
 }
 

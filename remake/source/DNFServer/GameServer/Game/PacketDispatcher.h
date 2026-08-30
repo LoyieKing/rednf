@@ -162,8 +162,10 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
         return 0;
     }
 
-    char msgBuf[sizeof(MSG)];
-    MSG& msg = *reinterpret_cast<MSG*>(msgBuf);
+    // ORIG 各实例化对含构造的 MSG 生成 C1 调用（如 MSG_ENCHANT 0x82523e1、
+    // MSG_COMBO_SKILL 0x826042c 内 map 构造），POD MSG 无调用；故直接声明
+    // `MSG msg;`（char 缓冲会跳过非平凡构造，对 map 成员 MSG 是错误行为）。
+    MSG msg;
     int result = 0;
     if ((result = this->read(packet, *reinterpret_cast<MSG_BASE*>(&msg))) != 0)
     {

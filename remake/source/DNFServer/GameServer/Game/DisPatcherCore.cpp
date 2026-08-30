@@ -3289,7 +3289,7 @@ int DisPatcher_LeaveParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         out.m_errNo = 1;
     }
-    // pvp_assault::GetInstanceAssaultMgr()->ForcedMoveAtPowerWarPlace(user);  // 见上 BLOCKED
+    pvp_assault::GetInstanceAssaultMgr()->ForcedMoveAtPowerWarPlace(user);  // ORIG 0x082350a0
     return 0;
 }
 
@@ -4055,8 +4055,9 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     // ---- 公共开团路径（ORIG +0xc1f）----
     if (party != 0)
     {
+        // ORIG 读 CParty::m_partyType(+0xcd8) 字段与 1 比较（非 GetPartyType() 方法计算值）
         const bool skipFatigue = (hasDeathFlag != 0) ||
-                                 (party->GetPartyType() == 1) ||
+                                 (party->m_partyType == 1) ||
                                  (checkBlueMarble(party) != 0) ||
                                  (dungeon->isNoFatigueDungeon() != 0);
         if (!skipFatigue)

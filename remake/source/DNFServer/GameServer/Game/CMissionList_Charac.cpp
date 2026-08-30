@@ -87,14 +87,9 @@ static int GetDailyScheduleTime(CEnvironment* env)
 
 CMissionList_Charac::CMissionList_Charac()
 {
-    for (int i = 0; i < 36; ++i)
-    {
-        m_missionList[i].m_kind = 0;
-        m_missionList[i].m_index = 0;
-        m_missionList[i].m_count = 0;
-        m_missionList[i].m_streak = 0;
-    }
-    m_clearedFlags.reset();
+    // ORIG C1 @0x832af90：仅隐式成员构造（MissionInfo[36] 逐个清零 +
+    // bitset<256> 默认构造，不额外 reset；显式清零循环与 reset 均为
+    // NEW 冗余，移除以对齐 ORIG 字节）。
 }
 
 CMissionList_Charac::~CMissionList_Charac()
@@ -222,9 +217,6 @@ void CMissionList_Charac::_reset()
 }
 
 // ============================================================================
-// 事件入口
-// ============================================================================
-
 void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
 {
     int type = G_GameWorld()->GetChannelType();
@@ -233,6 +225,8 @@ void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
         alter();
         std::vector<int> out;
         MissionClearCondition_Parameter param(PVP_BATTLE_MODE_2);
+        int pvpType = G_CDataManager()->GetPvPChannelType();  // ORIG 死代码调用（结果未使用）
+        int chanType = G_GameWorld()->GetChannelType();       // ORIG 死代码调用（结果未使用）
         check_mission_kind(7, user, param, out);
         check_mission_kind(0x1e, user, param, out);
         Send_Cleared_Mission_List(user, out);
@@ -297,6 +291,7 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
             alter();
             std::vector<int> out;
             MissionClearCondition_Parameter param(mode);
+            short issueMode = getIssue_mode(mode == PVP_BATTLE_MODE_2);  // ORIG 死代码调用（结果未使用）
             check_mission_kind(0xc, user, param, out);
             check_mission_kind(0x16, user, param, out);
             Send_Cleared_Mission_List(user, out);

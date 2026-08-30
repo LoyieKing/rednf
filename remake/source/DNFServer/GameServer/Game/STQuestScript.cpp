@@ -84,6 +84,7 @@ void QuestScript::clear()
 {
     for (int i = 0; i <= 1; ++i)
         m_levelMin[i] = 0;
+    m_targetCharacters.clear();      // ORIG 0x836dfdb：+0xf4 vector 清空（原缺失）
     m_field108 = 0;
     m_intDataList.clear();
     m_antiQuestList.clear();
@@ -157,6 +158,7 @@ void QuestScript::clear()
     m_field128 = 0;
     m_vec2f0.clear();
     m_vec2fc.clear();
+    m_postalReward.clear();          // ORIG 0x836e012：+0x298 PostalReward 清空（原缺失）
     m_308 = 0;
 }
 
