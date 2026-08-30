@@ -21,9 +21,13 @@ char* trim(char* s)
     int len = strlen(s);
     int start = 0;
     int i = 0;
-    while (i < len && (signed char)s[i] >= 0 && s[i] <= 0x20)
+    // ORIG do-while 形态：先存 start=i 再检查——跳出时 start 即第一个非空白
+    // （我们原 while 先检后存，start 落最后一个空白——前导空白未被去除）。
+    while (i < len)
     {
         start = i;
+        if ((signed char)s[i] < 0 || s[i] > 0x20)
+            break;
         ++i;
     }
     int end = len;
@@ -73,11 +77,14 @@ cMyTrace::cMyTrace(const char* name, int line, int flag)
     m_line = line;
     m_flag = flag;
 }
-// ORIG 5 参 0x854f746：两 bool 分别落 m_field_c/m_field_d，其余同 3 参。
+// ORIG 5 参 0x854f746：反汇编实测 0x18(%ebp)=第 5 参(bFieldC)→+0x0d、
+// 0x1c(%ebp)=第 6 参(bFieldD)→+0x0c——**字段与形参名交叉**（m_field_c 存的是
+// bFieldD，m_field_d 存的是 bFieldC）。冒烟实测 logInit 的 bTimestamp 因此差
+// 异（ORIG 输出行首是否带CRLF），已按ORIG实测映射修正。
 cMyTrace::cMyTrace(const char* name, int line, int flag, bool bFieldC, bool bFieldD)
 {
-    m_field_c = (char)bFieldC;
-    m_field_d = (char)bFieldD;
+    m_field_c = (char)bFieldD;   // ORIG +0x0c ← 第 6 参 bFieldD
+    m_field_d = (char)bFieldC;   // ORIG +0x0d ← 第 5 参 bFieldC
     m_name = name;
     m_line = line;
     m_flag = flag;
@@ -117,7 +124,10 @@ void cMyTrace::operator()(const char* fmt, ...)
 			log->logSnapShot(buf);
 			log->logInit(m_field_d != 0, m_field_c != 0, buf);  // ORIG 0x854f520：第一参 m_field_d
 			break;
-        default:  // 6/7/9：ORIG 跳表指向收尾，无日志输出
+		case 9:  // ORIG 跳表 0x8c9edf4 flag 9 → 0x854f92c：仅 logInit（无 SnapShot）
+			log->logInit(m_field_d != 0, m_field_c != 0, buf);
+			break;
+        default:  // 6/7：ORIG 跳表指向收尾 0x854f95f，无日志输出
             break;
         }
     }

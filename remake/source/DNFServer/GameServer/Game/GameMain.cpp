@@ -511,13 +511,40 @@ bool Init(int argc, char** argv)
 
     std::srand(static_cast<unsigned>(time(NULL)));
 
-    // 日志初始化："./pid/%s.log" 由 get_file_name 拼接（「推断」路径格式）
+    // 日志初始化（ORIG 82a0a19..82a0ae5）：
+    //   CLog::createInstance → cout "[!] Init Log ..." → sprintf
+    //   "./log/%s/"（0x8c187b8）→ initiate(path, 0, 0)（第 2 参 ORIG 传 0，
+    //   m_logFile 前缀回落 "Log"）→ cout "	- log path: " << path
+    //   → cout "[!] Init Log Success"。
     CLog::createInstance();
+    std::cout << "[!] Init Log ..." << std::endl;
     char logPath[0x104];
-    std::snprintf(logPath, sizeof(logPath), "%s", G_CEnvironment()->get_file_name());
-    CLog::instance()->initiate(logPath, logPath, 0);
+    std::snprintf(logPath, sizeof(logPath), "./log/%s/",
+                  G_CEnvironment()->get_file_name());
+    CLog::instance()->initiate(logPath, 0, 0);
+    std::cout << "	- log path: " << logPath << std::endl;
+    std::cout << "[!] Init Log Success" << std::endl;
 
-    Taiwan::AuthGarenaToken::init(G_CEnvironment()->get_channel_name());
+    // ORIG 82a0aea..82a0bc0：
+    //   cMyTrace trace("AuthGarenaToken::Init"@0x8c1b026, 0x29c9, 9, 1, 0);
+    //   trace("[!] Init Taiwan Garena Auth Key ..."@0x8c187e8);
+    //   init(env+0x314 = m_serverEnvir.m_garenaPublickey.c_str())；
+    //   失败 → cMyTrace(0x29d0, 9).trace(" %s Fail"@0x8c1880c, pubkey)
+    //   → return 0（Init 终止，main 返回 1）。
+    cMyTrace authTrace("AuthGarenaToken::Init", 0x29c9, 9, 1, 0);
+    authTrace("[!] Init Taiwan Garena Auth Key ...");
+    const char* garenaPubkey =
+        G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str();
+    if (!Taiwan::AuthGarenaToken::init(garenaPubkey))
+    {
+        // ORIG 82a0b6b..b73：Fail trace 构造 (name, 0x29d0, 9, 0, 1)
+        // ——bFieldC=0、bFieldD=1（+0xc=1 → bAppend/bTimestamp=1 → 尾部 CRLF）。
+        cMyTrace failTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
+        failTrace(" %s Fail", garenaPubkey);
+        return false;
+    }
+    cMyTrace okTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
+    okTrace(" %s Success", garenaPubkey);
     CodePage::initCodePage();
 
     if (!GlobalData::Init())
@@ -1187,12 +1214,11 @@ int check_argv(int argc, char** argv)
     char* shellsKey =
         reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318);
     bool keyOk = ncl_check_key(shellsKey) != 0;
-    std::printf("server_shells_key :: %s\n", shellsKey);  // 格式串截自 ORIG rodata「推断」
-    if (!keyOk)
-    {
-        std::puts("[!] Server key Check FAIL");
-        return 0;
-    }
+    std::printf("lls_key :: %s\n", shellsKey);  // 格式串 0x8c182f2（ORIG rodata）
+    // ORIG 0x829eb66-0x829eb6f：keyOk 存入栈后 movzbl/xor/test 紧跟无条件
+    // jmp 0x829eb87——FAIL 路径（0x829eb71）无任何跳转引用，系死代码；
+    // 行为上永远打印 Check OK 并继续。此处保留调用与存储以对齐形态。
+    (void)keyOk;
     std::puts("[!] Server key Check OK");
 
     const char* op = argv[2];

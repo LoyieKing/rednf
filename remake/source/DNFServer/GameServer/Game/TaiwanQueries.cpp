@@ -267,11 +267,13 @@ void AuthGarenaToken::init()
 // 返回对应 Init 的布尔结果。
 bool AuthGarenaToken::init(const char* path)
 {
+    // ORIG 81730d6：arg==empty（0x8b83f20）走带参 Init(path)，
+    // 否则无参 Init()（= Init("publickey.pem"@0x8b81361)）。
     std::string empty("");
     std::string arg(path == 0 ? "" : path);
     if (arg == empty)
-        return openSSLRSA_.Init();
-    return openSSLRSA_.Init(path);
+        return openSSLRSA_.Init(path);
+    return openSSLRSA_.Init();
 }
 
 // ORIG T 0x081731f2

@@ -274,9 +274,9 @@ int CLog::logToInitFile(FILE*& out, TimeLog_& last, char* ext,
     vsprintf(body, fmt, va);
     char fmtStr[16] = { 0 };
     if (bTimestamp)
-        std::memcpy(fmtStr, "\r\n%s", 5);
+        std::memcpy(fmtStr, "%s\r\n", 5);   // ORIG 0x8c9ede4（后缀 CRLF）
     else
-        std::memcpy(fmtStr, "%s", 3);
+        std::memcpy(fmtStr, "%s", 3);         // ORIG 0x8c9ed4b
     std::printf(fmtStr, body);
     if (bPrint)
     {
