@@ -7715,7 +7715,8 @@ Dispatcher_CallGuildInvite::Dispatcher_CallGuildInvite() {}
 Dispatcher_CallGuildInvite::~Dispatcher_CallGuildInvite() {}
 int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0 || user->get_state() < 3 || user->getCurCharacR() == 0) {
+    // ORIG 0x0820792a：无 user==0 防御（直接 get_state；state<=2 失败）。
+    if (user->get_state() < 3 || user->getCurCharacR() == 0) {
         return LineFunc(0xa24f, __PRETTY_FUNCTION__, 0, 0);
     }
     int secuRet = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0xb);
@@ -7723,7 +7724,7 @@ int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9a, (unsigned char)(secuRet & 0xff));
         return 0;
     }
-    int guildKey = 0;
+    int guildKey;  // ORIG 0x08207a07：不预清零（直接作 get_int 输出缓冲）
     if (!packet.get_int(guildKey)) {
         return LineFunc(0xa25d, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -7732,12 +7733,12 @@ int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xa261, __PRETTY_FUNCTION__, 0, 0);
     }
     if (user->get_charac_guildkey() == 0) {
-        send_packet_guild_invite(user, (unsigned char)0x22);
+        this->send_packet_guild_invite(user, (unsigned char)0x22);
         return 0;
     }
     if (!user->IsSubGuildMaster() && !user->IsGuildMaster()
         && user->getGuildMemberGrade() != 3) {
-        send_packet_guild_invite(user, (unsigned char)0x24);
+        this->send_packet_guild_invite(user, (unsigned char)0x24);
         return 0;
     }
     unsigned int inviteGuildKey = (unsigned int)user->get_charac_guildkey();
@@ -7792,14 +7793,14 @@ int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned short slot = 0;                                // -0x1e
+    unsigned short slot;                                    // -0x1e（ORIG 不预清零）
     if (!packet.get_short(slot))
     {
         return LineFunc(0xc163,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned char space = 0;                                // -0x1f
+    unsigned char space;                                    // -0x1f（ORIG 不预清零）
     if (!packet.get_byte(space))
     {
         return LineFunc(0xc166,
@@ -7839,8 +7840,9 @@ int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xb6, 0x11);
         return 0;
     }
-    if ((user->getCurCharacInvenW()->delete_item(
-             (INVEN_TYPE)1, (int)slot, 1, (eItemDelReason)3, true) & 0xff) == 1)
+    // ORIG 0x0821377b：delete_item 返回 1（成功）→ 继续；0（失败）→ 报错 0xb6/0x11。
+    if (!user->getCurCharacInvenW()->delete_item(
+            (INVEN_TYPE)1, (int)slot, 1, (eItemDelReason)3, true))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xb6, 0x11);
         return 0;

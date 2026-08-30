@@ -241,12 +241,12 @@ int CSharedServerMessageManager::CSharedServerMessageAdapter::GetShareKindWithIn
         std::pair<int, int>* pPair = &(*it);
         if (pPair == 0)
         {
-            ++it;
+            it++;
             continue;
         }
         if (pPair->first == nMapped)
             return pPair->second;
-        ++it;
+        it++;
     }
     return -1;
 }
@@ -307,7 +307,7 @@ void CSharedServerMessageManager::SendServerMessageInfo(CUser* pUser,
             pg.put_str(p->m_msg, p->m_lenMsg);
             pg.put_int(p->m_lenMsg2);
             pg.put_str(p->m_msg2, p->m_lenMsg2);
-            ++it;
+            it++;
         }
 
         pg.finalize(true);

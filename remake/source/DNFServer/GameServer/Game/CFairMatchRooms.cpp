@@ -153,7 +153,7 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
     const int total = static_cast<int>(
         static_cast<unsigned>(m_teams[0].size()) +
         static_cast<unsigned>(m_teams[1].size()));
-    if (!(total < static_cast<int>((GetPlayCountPerOneTeam() & 0xff) * 2)))
+    if (total > static_cast<int>((GetPlayCountPerOneTeam() & 0xff) * 2))
         return 4;
 
     switch (m_field04) {
@@ -600,11 +600,7 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
         pkt.clear();
         pkt.put_header(0, 0x29);
         pkt.put_short(1);
-        {
-            char roomBuf[256];
-            room->make_room_info(reinterpret_cast<char*>(&pkt));
-            (void)roomBuf;
-        }
+        room->make_room_info(reinterpret_cast<char*>(&pkt));
         pkt.finalize(true);
         G_GameWorld()->send_all(pkt);
         G_GameWorld()->goto_pvp(user);

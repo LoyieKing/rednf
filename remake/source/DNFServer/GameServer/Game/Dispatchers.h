@@ -1229,7 +1229,8 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    static void send_packet_guild_invite(CUser* user, unsigned char inviteType);  // ORIG T 0x08207852
+    // ORIG T 0x08207852：ORIG 为普通成员（调用点 push this 作第 1 参，函数体不用 this）。
+    void send_packet_guild_invite(CUser* user, unsigned char inviteType);
 };
 
 class Dispatcher_CancelJoinGuild : public IPacketDispatcher<MSG_CANCEL_JOIN_GUILD, ParamBase, ch_state0>
