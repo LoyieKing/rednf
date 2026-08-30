@@ -111,6 +111,17 @@ typedef unsigned long long ulong64;
 #define LTC_TWOFISH
 #define LTC_XTEA
 
+// CBlowFish —— ORIG 的 CNCryptoBlowFish 上下文（ORIG new 0x1058=4184 实证）。
+// ORIG CBlowFish 布局：SBlock(8)+SBlock(8)+P[18](0x48)+S[4][256](0x1000)；
+// 此处按 symmetric_key->blowfish 同序（S 在前）组织，前 4168 字节与
+// blowfish_setup/ecb 访问布局一致，尾补 16 字节对齐 4184。
+struct CBlowFish
+{
+    ulong32 S[4][256];   // +0x0000
+    ulong32 P[18];       // +0x1000
+    unsigned char pad[16];  // +0x1048 .. 0x1058（对齐 ORIG 大小）
+};
+
 struct symmetric_key
 {
     union
@@ -198,16 +209,13 @@ int  xtea_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_
 int  xtea_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
 int  xtea_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
 
-// RC6（ORIG 用 RC6_ALG_INFO 上下文；ORIG new 0x4c=76 实证——ORIG 的
-// rc6_key_setup 0x80b5b48 是自创变体（输出区首字节 0x63、44 字节轮密钥），
-// 与标准 RC6（44×ulong32 子密钥、20 轮）不同。2026-08-31 评估：结构按 ORIG
-// 76 对齐需同步转写 ORIG 变体算法（key_setup/encrypt/decrypt 三函数），
-// 归入加密算法专项（FINDINGS_R1 §剩余待修）；当前保持标准 RC6 208 字节
-// 结构（算法自洽不越界）。
+// RC6 —— ORIG 自创变体（2026-08-31 完整转写，结构按 ORIG new 0x4c=76 对齐）。
+// ORIG Initialize 0x809bc84：memcpy(+0x0,key,0x20)+memcpy(+0x20,key,0x2c)
+// → rc6_key_setup(c,0x20)；K 为 44 字节轮密钥（byte 数组）。
 struct RC6_ALG_INFO
 {
-    unsigned char key[0x20];  // 原始密钥（rc6_key_setup 取前 keylen 字节）
-    unsigned int K[44];       // RC6 轮密钥（w=32, r=20）
+    unsigned char key[0x20];  // +0x00 原始密钥
+    unsigned char K[0x2c];    // +0x20 轮密钥（44 字节）
 };
 
 void rc6_key_setup(RC6_ALG_INFO* alg, int keylen);

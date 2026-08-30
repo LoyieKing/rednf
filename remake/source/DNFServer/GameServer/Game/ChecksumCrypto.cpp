@@ -341,7 +341,8 @@ int CNChecksumSha256::MakeChecksumFromFile(char const* path, unsigned char* out,
 CNChecksumSha384::CNChecksumSha384()
     : IChecksum(CHECKSUM_TYPE_SHA384), m_ctx(0)
 {
-    m_ctx = new unsigned char[0xd0];
+    // ORIG 0x8098aca new 0xd0（标量 operator new）——对齐 _Znwj
+    m_ctx = (unsigned char*)::operator new(0xd0);
 }
 
 CNChecksumSha384::CNChecksumSha384(CNChecksumSha384 const&)
@@ -352,7 +353,7 @@ CNChecksumSha384::CNChecksumSha384(CNChecksumSha384 const&)
 CNChecksumSha384::~CNChecksumSha384()
 {
     if (m_ctx != 0) {
-        delete[] m_ctx;
+        ::operator delete(m_ctx);
         m_ctx = 0;
     }
 }
@@ -414,7 +415,8 @@ int CNChecksumSha384::MakeChecksumFromFile(char const* path, unsigned char* out,
 CNChecksumSha512::CNChecksumSha512()
     : IChecksum(CHECKSUM_TYPE_SHA512), m_ctx(0)
 {
-    m_ctx = new unsigned char[0xd0];
+    // ORIG 0x8098aca new 0xd0（标量 operator new）——对齐 _Znwj
+    m_ctx = (unsigned char*)::operator new(0xd0);
 }
 
 CNChecksumSha512::CNChecksumSha512(CNChecksumSha512 const&)
@@ -425,7 +427,7 @@ CNChecksumSha512::CNChecksumSha512(CNChecksumSha512 const&)
 CNChecksumSha512::~CNChecksumSha512()
 {
     if (m_ctx != 0) {
-        delete[] m_ctx;
+        ::operator delete(m_ctx);
         m_ctx = 0;
     }
 }

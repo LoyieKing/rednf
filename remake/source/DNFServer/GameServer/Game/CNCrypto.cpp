@@ -368,13 +368,16 @@ CNCryptoBlowFish::CNCryptoBlowFish()
 {
     m_pCrypto = 0;
     m_mode = 0;
-    symmetric_key* c = new symmetric_key;
+    // ORIG 0x8099876 new 0x1058（CBlowFish，非 symmetric_key）——2026-08-31
+    // 对齐：CBlowFish 前 4168 字节与 symmetric_key->blowfish 布局一致，
+    // blowfish_setup/ecb 可直接使用。
+    CBlowFish* c = new CBlowFish;
     m_pCrypto = c;
     if (c)
     {
         unsigned char key[0x38];
         GenerateRandomKey(key, 0x38);
-        if (blowfish_setup(key, 0x38, 0, c) != CRYPT_OK)
+        if (blowfish_setup(key, 0x38, 0, (symmetric_key*)c) != CRYPT_OK)
         {
             delete c;
             m_pCrypto = 0;
@@ -541,7 +544,10 @@ int CNCryptoRc6::Initialize(const unsigned char* key, int keyLen)
     if (keyLen < 0x3c)
         return 0x70000002;
     RC6_ALG_INFO* c = (RC6_ALG_INFO*)m_pCrypto;
+    // ORIG 0x809bc84：memcpy(+0x0, key, 0x20) + memcpy(+0x20, key, 0x2c)
+    // （K 区初始 = key 前 0x2c 字节）→ rc6_key_setup(c, 0x20)。
     std::memcpy(c->key, key, 0x20);
+    std::memcpy(c->K, key, 0x2c);
     rc6_key_setup(c, 0x20);
     return 0x6fffffff;
 }
@@ -615,7 +621,7 @@ int CNCryptoRc6::GetBlockSize() const
 Name::Name() : ICryptoGraph(CtorType)                                                       \
 {                                                                                           \
     m_pCrypto = 0;                                                                          \
-    symmetric_key* c = (symmetric_key*)new char[CtxSize];                                   \
+    symmetric_key* c = (symmetric_key*)::operator new(CtxSize);                           \
     m_pCrypto = c;                                                                          \
     if (c)                                                                                  \
     {                                                                                       \
@@ -628,7 +634,7 @@ Name::~Name()                                                                   
 {                                                                                           \
     if (m_pCrypto)                                                                          \
     {                                                                                       \
-        delete[] (char*)m_pCrypto;                                                          \
+        ::operator delete(m_pCrypto);                                                     \
         m_pCrypto = 0;                                                                      \
     }                                                                                       \
 }                                                                                           \

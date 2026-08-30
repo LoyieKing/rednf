@@ -23,79 +23,108 @@ static unsigned int rc6_rotr(unsigned int x, int n)
     return (x >> n) | (x << (32 - n));
 }
 
+// ============================================================================
+// RC6 —— ORIG 自创变体完整转写（2026-08-31）。
+// ORIG rc6_key_setup 0x80b5b48 / rc6_block_encrypt 0x80b5d6e /
+// rc6_block_decrypt 0x80b5f07 逐指令转写。与标准 RC6 不同：
+//  - K 区 44 字节（0x2c）轮密钥：K[0]=0x63、K[i]=K[i-1]-0x47
+//  - 混合轮：K[i]=(byte)rol32(K[i]+B+A,3)；L[j]=rotl32(L[j]+B+A,(B+A)&0x1f)；
+//    轮数 3*max(44,keyWords)
+//  - 加密预加 B+=K[0]、D+=K[1]；尾 A+=K[0x2a]、C+=K[0x2b]
+//  - 轮内 t/u = ror32(x*2+1, 0x1b)（= rol5）；rol32(A^t, u&31)+K[r] 等
+// ============================================================================
+static inline unsigned int rc6_ror32(unsigned int x, int n)
+{
+    n &= 31;
+    return (x >> n) | (x << (32 - n));
+}
+static inline unsigned int rc6_rol32(unsigned int x, int n)
+{
+    n &= 31;
+    return (x << n) | (x >> (32 - n));
+}
+
 void rc6_key_setup(RC6_ALG_INFO* alg, int keylen)
 {
-    unsigned int L[8];
-    unsigned int S[44];
-    int c = keylen / 4;
-    if (c < 1) c = 1;
-    if (c > 8) c = 8;
-    for (int i = 0; i < c; ++i)
-    {
-        const unsigned char* p = (const unsigned char*)&alg->key[i * 4];
-        L[i] = (unsigned int)p[0] | ((unsigned int)p[1] << 8) |
-               ((unsigned int)p[2] << 16) | ((unsigned int)p[3] << 24);
-    }
-    S[0] = RC6_P32;
-    for (int i = 1; i < 44; ++i)
-        S[i] = S[i - 1] + RC6_Q32;
+    unsigned char* K = alg->K;                 // +0x20
+    const unsigned char* key = alg->key;
+    unsigned int L[8] = { 0 };
+    int keyWords = (keylen + 3) / 4;           // ORIG 80b5b60..74（向上取整）
+    int n = keyWords - 1;
+    L[n] = 0;                                  // ORIG 80b5b77（仅清 L[n]）
+    for (int i = keylen - 1; i >= 0; --i)      // ORIG 80b5b8a..d8（大端字节聚合）
+        L[i / 4] = (L[i / 4] << 8) | key[i];
+
+    K[0] = 0x63;                               // ORIG 80b5bdd
+    for (int i = 1; i <= 0x2b; ++i)            // ORIG 80b5be0..0d
+        K[i] = (unsigned char)(K[i - 1] - 0x47);
 
     unsigned int A = 0, B = 0;
     int i = 0, j = 0;
-    int v = 3 * (c > 44 ? c : 44);
-    for (int s = 0; s < v; ++s)
+    int rounds = 0x2c;                         // ORIG 80b5c28
+    if (keyWords > rounds)                     // ORIG 80b5c43..5c
+        rounds = keyWords;
+    rounds *= 3;                               // ORIG 80b5c5f..68
+
+    for (int r = 1; r <= rounds; ++r)
     {
-        A = S[i] = rc6_rotl(S[i] + A + B, 3);
-        B = L[j] = rc6_rotl(L[j] + A + B, (int)(A + B));
-        i = (i + 1) % 44;
-        j = (j + 1) % c;
+        // K[i] = (byte)rol32(K[i]+B+A, 3) —— ORIG 80b5c77..92（ror 0x1d）
+        unsigned int x = (unsigned int)K[i] + B + A;
+        K[i] = (unsigned char)((x << 3) | (x >> 29));
+        B = K[i];                              // ORIG 80b5c94..9a
+        // L[j] = rotl32(L[j]+B+A, (B+A)&0x1f) —— ORIG 80b5c9d..cf3
+        unsigned int y = L[j] + B + A;
+        unsigned int sh = (B + A) & 0x1f;
+        L[j] = sh ? rc6_rol32(y, sh) : y;
+        A = L[j];                              // ORIG 80b5cf3..f7
+        i = (i + 1) % 0x2c;                    // ORIG 80b5cfa..27
+        j = (j + 1) % keyWords;                // ORIG 80b5d29..4e
     }
-    for (int k = 0; k < 44; ++k)
-        alg->K[k] = S[k];
 }
 
 void rc6_block_encrypt(const RC6_ALG_INFO* alg, const unsigned int* in, unsigned int* out)
 {
-    unsigned int A = in[0] + alg->K[0];
-    unsigned int B = in[1] + alg->K[1];
-    unsigned int C = in[2] + alg->K[2];
-    unsigned int D = in[3] + alg->K[3];
+    const unsigned char* K = alg->K;
+    unsigned int A = in[0];                    // ORIG 80b5d82
+    unsigned int B = in[1] + K[0];             // ORIG 80b5dab
+    unsigned int C = in[2];                    // ORIG 80b5d98
+    unsigned int D = in[3] + K[1];             // ORIG 80b5dba
 
-    for (int i = 1; i <= 20; ++i)
+    for (int r = 2; r <= 0x28; r += 2)         // ORIG 80b5dc3..eaa
     {
-        unsigned int t = rc6_rotl(B * (2 * B + 1), 5);
-        unsigned int u = rc6_rotl(D * (2 * D + 1), 5);
-        A = rc6_rotl(A ^ t, (int)u) + alg->K[2 * i];
-        C = rc6_rotl(C ^ u, (int)t) + alg->K[2 * i + 1];
-        unsigned int tmp = A; A = B; B = C; C = D; D = tmp;
+        unsigned int t = rc6_ror32(B * 2 + 1, 0x1b);   // ORIG 80b5dcf..dd
+        unsigned int u = rc6_ror32(D * 2 + 1, 0x1b);   // ORIG 80b5de1..ed
+        A = rc6_rol32(A ^ t, u & 0x1f) + K[r];         // ORIG 80b5df3..39
+        C = rc6_rol32(C ^ u, t & 0x1f) + K[r + 1];     // ORIG 80b5e3c..85
+        unsigned int tmp = A; A = B; B = C; C = D; D = tmp;  // ORIG 80b5e88..a3
     }
-    out[0] = A + alg->K[42];
-    out[1] = B;
-    out[2] = C + alg->K[43];
-    out[3] = D;
+    out[0] = A + K[0x2a];                      // ORIG 80b5eb9..c5
+    out[1] = B;                                // ORIG 80b5ee5
+    out[2] = C + K[0x2b];                      // ORIG 80b5ecb..d4
+    out[3] = D;                                // ORIG 80b5efb
 }
 
 void rc6_block_decrypt(const RC6_ALG_INFO* alg, const unsigned int* in, unsigned int* out)
 {
-    unsigned int A = in[0] - alg->K[42];
-    unsigned int B = in[1];
-    unsigned int C = in[2] - alg->K[43];
-    unsigned int D = in[3];
+    const unsigned char* K = alg->K;
+    unsigned int A = in[0] - K[0x2a];          // ORIG 80b5f53..5c
+    unsigned int B = in[1];                    // ORIG 80b5f28
+    unsigned int C = in[2] - K[0x2b];          // ORIG 80b5f44..4d
+    unsigned int D = in[3];                    // ORIG 80b5f3c
 
-    for (int i = 20; i >= 1; --i)
+    for (int r = 0x28; r >= 2; r -= 2)         // ORIG 80b5f5f..6051
     {
-        unsigned int tmp = D; D = C; C = B; B = A; A = tmp;
-        unsigned int u = rc6_rotl(D * (2 * D + 1), 5);
-        unsigned int t = rc6_rotl(B * (2 * B + 1), 5);
-        C = rc6_rotr(C - alg->K[2 * i + 1], (int)t) ^ u;
-        A = rc6_rotr(A - alg->K[2 * i], (int)u) ^ t;
+        unsigned int tmp = D; D = C; C = B; B = A; A = tmp;  // ORIG 80b5f6b..86
+        // ORIG 80b5f89 取 -0x1c（轮换后 D = 加密前 D）、80b5f9b 取 -0x24
+        // （轮换后 B = 加密前 B）——u/t 与加密同源。
+        unsigned int u = rc6_ror32(D * 2 + 1, 0x1b);
+        unsigned int t = rc6_ror32(B * 2 + 1, 0x1b);
+        C = rc6_ror32(C - K[r + 1], t & 0x1f) ^ u;     // ORIG 80b5fad..ffa
+        A = rc6_ror32(A - K[r], u & 0x1f) ^ t;         // ORIG 80b6000..4a
     }
-    out[0] = A - alg->K[0];
-    out[1] = B - alg->K[1];
-    out[2] = C - alg->K[2];
-    out[3] = D - alg->K[3];
+    B -= K[0]; D -= K[1];                              // ORIG 80b6060..78
+    out[0] = A; out[1] = B; out[2] = C; out[3] = D;
 }
-
 // ==================== anubis ====================
 /* LibTomCrypt, modular cryptographic library -- Tom St Denis */
 /* SPDX-License-Identifier: Unlicense */
