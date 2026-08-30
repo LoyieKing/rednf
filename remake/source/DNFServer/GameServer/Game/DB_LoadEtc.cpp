@@ -57,18 +57,12 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // （定义 LinkClosureA_Misc.cpp）。
 long GetCurrentResetBaseTime(long t, int hour);
 
-namespace   // SIG_LOAD_ETC 文档化偏移访问 helper（同 CUser::GetEtcInfo 约定）
-{
-inline char* MIX(void* sig, unsigned int off)
-{
-    return reinterpret_cast<char*>(sig) + off;
-}
-template <typename T>
-inline T& SGF(SIG_LOAD_ETC* sig, unsigned int off)
-{
-    return *reinterpret_cast<T*>(reinterpret_cast<char*>(sig) + off);
-}
-}  // namespace
+// SIG_LOAD_ETC 文档化偏移访问 helper（同 CUser::GetEtcInfo 约定）。
+// 用宏而非 inline 函数/模板：O0 下 inline 会生成 call（MIX/SGF 弱符号），
+// ORIG 为直接 lea/内存寻址；宏展开才能字节一致。
+#define MIX(sig, off) (reinterpret_cast<char*>(sig) + (off))
+#define SGF(sig, off) (*reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (off)))
+#define SGF2(type, sig, off) (*reinterpret_cast<type*>(reinterpret_cast<char*>(sig) + (off)))
 
 // ============================================================================
 // DB_LoadEtc::DB_LoadEtc @0x08403b84（C1/C2 同址）
@@ -139,20 +133,20 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     {
         if (!db->get_int(col, v))
             return -1;
-        SGF<int>(sig, kPvpBase + col * 4) = v;
+        SGF(sig, kPvpBase + col * 4) = v;
     }
-    if (!db->get_int(3, SGF<int>(sig, kPvpBase + 0x14)))   // pvp_grade（跳过 +0x0c/+0x10）
+    if (!db->get_int(3, SGF(sig, kPvpBase + 0x14)))   // pvp_grade（跳过 +0x0c/+0x10）
         return -1;
     for (int i = 0; i < 15; ++i)                    // col4..18 → avg[15](+0x18..+0x50)
     {
-        if (!db->get_int(4 + i, SGF<int>(sig, kPvpBase + 0x18 + i * 4)))
+        if (!db->get_int(4 + i, SGF(sig, kPvpBase + 0x18 + i * 4)))
             return -1;
     }
-    if (!db->get_int(19, SGF<int>(sig, kPvpBase + 0x54)))  // pvp_count
+    if (!db->get_int(19, SGF(sig, kPvpBase + 0x54)))  // pvp_count
         return -1;
-    if (!db->get_int(20, SGF<int>(sig, kPvpBase + 0x58)))  // win_point
+    if (!db->get_int(20, SGF(sig, kPvpBase + 0x58)))  // win_point
         return -1;
-    if (!db->get_int(21, SGF<int>(sig, kPvpBase + 0x5c)))  // pvp_grade_ext
+    if (!db->get_int(21, SGF(sig, kPvpBase + 0x5c)))  // pvp_grade_ext
         return -1;
 
     int lastPlaySec = 0;
@@ -161,10 +155,10 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     unsigned int u;
     if (!db->get_uint(23, u))                       // play_count→+0x64
         return -1;
-    SGF<unsigned int>(sig, kPvpBase + 0x64) = u;
+    SGF2(unsigned int, sig, kPvpBase + 0x64) = u;
     if (!db->get_uint(24, u))                       // play_time→+0x60
         return -1;
-    SGF<unsigned int>(sig, kPvpBase + 0x60) = u;
+    SGF2(unsigned int, sig, kPvpBase + 0x60) = u;
 
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm tmv;
@@ -173,15 +167,15 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     tmv.tm_min = 0;
     tmv.tm_hour = 0;
     int nextReset = (int)mktime(&tmv);
-    SGF<int>(sig, kPvpBase + 0x68) = nextReset;
+    SGF(sig, kPvpBase + 0x68) = nextReset;
     if (nextReset > lastPlaySec)
-        SGF<int>(sig, kPvpBase + 0x60) = 0;
+        SGF(sig, kPvpBase + 0x60) = 0;
 
     int gradeExtUpdateSec = 0;
     if (!db->get_int(25, gradeExtUpdateSec))        // unix(pvp_grade_ext_update_time)
         return -1;
     if (gradeExtUpdateSec + 0x15180 < (int)GlobalData::s_systemTime_.getCurSec())
-        SGF<int>(sig, kPvpBase + 0x5c) = 0;
+        SGF(sig, kPvpBase + 0x5c) = 0;
 
     return 0;
 }
@@ -340,7 +334,7 @@ bool DB_LoadEtc::LoadProperDungeonClearCount(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig, 0x40cc))))
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40cc))))
     {
         return false;
     }
@@ -372,12 +366,12 @@ bool DB_LoadEtc::LoadConditionEventInfo(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig, 0x40c8))))
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40c8))))
     {
         return false;
     }
     if (!db->get_short(1,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig, 0x40ca))))
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40ca))))
     {
         return false;
     }
@@ -412,7 +406,7 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
     {
         return 0x1c8a;
     }
-    SGF<unsigned int>(sig, 0x3e6c) = npcCnt;
+    SGF2(unsigned int, sig, 0x3e6c) = npcCnt;
     if (db->get_binary_length(1) != static_cast<int>(npcCnt) * 12)
     {
         return 0x1c8d;
@@ -562,20 +556,20 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     int count = 0;
     for (int i = 0; i <= 0x1ff; ++i)                       // i <= 0x1ff（cmpl 0x1ff setle）
     {
-        if (SGF<int>(sig, 0xb1a4 + i * 12) == 0)
+        if (SGF(sig, 0xb1a4 + i * 12) == 0)
         {
             break;                                          // 计数停在首个零条目
         }
         ++count;
     }
-    SGF<int>(sig, 0xc9a4) = count;
+    SGF(sig, 0xc9a4) = count;
 
     unsigned int lastUpdate = 0;
     if (!db->get_uint(1, lastUpdate))
     {
         return false;
     }
-    SGF<unsigned int>(sig, 0xc9a8) = lastUpdate;
+    SGF2(unsigned int, sig, 0xc9a8) = lastUpdate;
     return true;
 }
 
@@ -693,7 +687,7 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         }
     }
 
-    SGF<unsigned char>(sig, 0x14a98) = 0;                    // 先置 0 再回填
+    SGF2(unsigned char, sig, 0x14a98) = 0;                    // 先置 0 再回填
     if (!db->get_ubyte(2, sig->m_blueMarbleEnterCount))
     {
         return false;
@@ -707,12 +701,12 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     for (int i = 0; i <= 0x3e7; ++i)                         // 条目 stride 0x18@+0xecd8
     {
         unsigned int entry = 0xecd8 + i * 0x18;
-        if (SGF<int>(sig, entry + 8) != 0)
+        if (SGF(sig, entry + 8) != 0)
         {
             ++count;
         }
     }
-    SGF<int>(sig, 0xecd4) = count;
+    SGF(sig, 0xecd4) = count;
     return true;
 }
 
@@ -880,7 +874,7 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
                   sig->m_fieldC);
             return false;
         }
-        SGF<unsigned char>(sig, 0xd6fb) = 1;
+        SGF2(unsigned char, sig, 0xd6fb) = 1;
     }
     return true;
 }
@@ -1153,7 +1147,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                   sig->m_characNo);
             return false;
         }
-        SGF<unsigned char>(sig, 0xcdd4) = 1;
+        SGF2(unsigned char, sig, 0xcdd4) = 1;
         return true;
     }
 
@@ -1169,7 +1163,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     unsigned int spVals[4];
     int letheFlags[2] = { 0, 0 };
 
-    if (!db->get_uint(0, SGF<unsigned int>(sig, 0xc9c8)))    // col0 remain_sp
+    if (!db->get_uint(0, SGF2(unsigned int, sig, 0xc9c8)))    // col0 remain_sp
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1d71, 5);
         trace("DB_LoadSkill::GetUserSkill, get(0) ERROR charac_no=%u",
@@ -1188,7 +1182,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF<unsigned int>(sig, 0xcb64) = spVals[0];
+    SGF2(unsigned int, sig, 0xcb64) = spVals[0];
     if (!get_compressed_blob_data(db, col++, MIX(sig, 0xcb68), 0x198, 2))
     {                                                        // skill_slot_2nd
         return false;
@@ -1200,7 +1194,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF<unsigned int>(sig, 0xcd00) = spVals[1];
+    SGF2(unsigned int, sig, 0xcd00) = spVals[1];
     if (!db->get_uint(col++, spVals[2]))                     // remain_sfp_2nd→0xcd04
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1db2, 5);
@@ -1208,7 +1202,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF<unsigned int>(sig, 0xcd04) = spVals[2];
+    SGF2(unsigned int, sig, 0xcd04) = spVals[2];
     (void)spVals[3];
     if (!get_compressed_blob_data(db, col++, MIX(sig, 0xcd08), 200, 4))
     {                                                        // skill_command
@@ -1235,14 +1229,14 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    SGF<unsigned char>(sig, 0xcdd1) = scriptVersion;         // ORIG get_ubyte→+0xcdd1
+    SGF2(unsigned char, sig, 0xcdd1) = scriptVersion;         // ORIG get_ubyte→+0xcdd1
 
 
     // lethe 标志低位字节落位（ORIG movzbl/mov dl）。
-    SGF<unsigned char>(sig, 0x2b95) = (unsigned char)letheFlags[0];
-    SGF<unsigned char>(sig, 0x29fc) = (unsigned char)letheFlags[0];
-    SGF<unsigned char>(sig, 0x2d2f) = (unsigned char)letheFlags[1];
-    SGF<unsigned char>(sig, 0x2b96) = (unsigned char)letheFlags[1];
+    SGF2(unsigned char, sig, 0x2b95) = (unsigned char)letheFlags[0];
+    SGF2(unsigned char, sig, 0x29fc) = (unsigned char)letheFlags[0];
+    SGF2(unsigned char, sig, 0x2d2f) = (unsigned char)letheFlags[1];
+    SGF2(unsigned char, sig, 0x2b96) = (unsigned char)letheFlags[1];
 
     if (sig->m_fieldC != 0)
     {
@@ -1364,7 +1358,7 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
         // ORIG 地址式：sig + 0x10 + (col + 0x6b78)*2。
         unsigned int off = 0x10 + (unsigned int)(col + 0x6b78) * 2;
         if (!db->get_short(col,
-                           *reinterpret_cast<short*>(&SGF<unsigned short>(sig,
+                           *reinterpret_cast<short*>(&SGF2(unsigned short, sig,
                                                                           off))))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
@@ -1405,7 +1399,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     }
 
     int col = 1;
-    if (!db->get_int(0, SGF<int>(sig, 0xd71c)))
+    if (!db->get_int(0, SGF(sig, 0xd71c)))
     {                                                        // first_layer_start_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b77, 5);
@@ -1414,7 +1408,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
         return false;
     }
     ++col;
-    if (!db->get_int(col++, SGF<int>(sig, 0xd720)))
+    if (!db->get_int(col++, SGF(sig, 0xd720)))
     {                                                        // today_enter_count
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b7f, 5);
@@ -1432,9 +1426,9 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
         return false;
     }
     TOD_Layer layer(layerVal);                               // ORIG TOD_Layer C1(T)@0x085fe7b4
-    SGF<unsigned short>(sig, 0xd724) = layer.m_layer;
+    SGF2(unsigned short, sig, 0xd724) = layer.m_layer;
     if (!db->get_short(col++,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig,
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig,
                                                                       0xd726))))
     {                                                        // enter_count_by_week
         cMyTrace trace(__PRETTY_FUNCTION__,
@@ -1443,7 +1437,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col++, SGF<int>(sig, 0xd728)))
+    if (!db->get_int(col++, SGF(sig, 0xd728)))
     {                                                        // m_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b9a, 5);
@@ -1451,7 +1445,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col, SGF<int>(sig, 0xd72c)))
+    if (!db->get_int(col, SGF(sig, 0xd72c)))
     {                                                        // last_clear_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1ba2, 5);
@@ -1696,7 +1690,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
             const int lineNo =
                 (k == 0) ? 0x1638 : (k == 1) ? 0x163f : 0x1646;
             if (!db->get_uint(col++,
-                              SGF<unsigned int>(sig, base + (unsigned)k * 4)))
+                              SGF2(unsigned int, sig, base + (unsigned)k * 4)))
             {
                 cMyTrace trace(__PRETTY_FUNCTION__,
                                lineNo, 5);
@@ -1720,7 +1714,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     };
     for (int n = 0; n < 4; ++n)
     {
-        if (!db->get_uint(col++, SGF<unsigned int>(sig, plainCols[n].off)))
+        if (!db->get_uint(col++, SGF2(unsigned int, sig, plainCols[n].off)))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            plainCols[n].line, 5);
@@ -1734,7 +1728,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     {                                                        // give_item
         return false;
     }
-    if (!db->get_uint(col++, SGF<unsigned int>(sig, 0xd59b)))
+    if (!db->get_uint(col++, SGF2(unsigned int, sig, 0xd59b)))
     {                                                        // unix_timestamp(last_play_time)
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1689, 5);
@@ -1752,10 +1746,10 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
               col, sig->m_characNo);
         return false;
     }
-    SGF<int>(sig, 0xd59f) = lastPlay;                        // 实际报告写点 +0xd59f
-    if (SGF<int>(sig, 0xd59f) < getDailyInitializeTime(6, 0, 0))
+    SGF(sig, 0xd59f) = lastPlay;                        // 实际报告写点 +0xd59f
+    if (SGF(sig, 0xd59f) < getDailyInitializeTime(6, 0, 0))
     {
-        SGF<unsigned int>(sig, 0xd59b) = 0;
+        SGF2(unsigned int, sig, 0xd59b) = 0;
     }
     unsigned char giveFlag = 0;
     if (!db->get_ubyte(col++, giveFlag))                     // 末列 → +0xd5a3
@@ -1766,7 +1760,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
               col, sig->m_characNo);
         return false;
     }
-    SGF<unsigned char>(sig, 0xd5a3) = giveFlag;
+    SGF2(unsigned char, sig, 0xd5a3) = giveFlag;
     return true;
 }
 
@@ -1794,7 +1788,7 @@ bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (!db->get_int(0, SGF<int>(sig, 0xeccc)))
+    if (!db->get_int(0, SGF(sig, 0xeccc)))
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xafc4, 5);
@@ -1974,12 +1968,12 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig, 0x14b5c))))
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x14b5c))))
     {
         return false;
     }
     if (!db->get_short(1,
-                       *reinterpret_cast<short*>(&SGF<unsigned short>(sig, 0x14b5e))))
+                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x14b5e))))
     {
         return false;
     }
@@ -2042,19 +2036,19 @@ bool DB_LoadEtc::LoadEventServerMessageInfo(SIG_LOAD_ETC* sig)
         }
 
         unsigned int base = 0x2d3c + (unsigned int)written * 0x58;
-        SGF<unsigned char>(sig, base)     = (unsigned char)kind;
-        SGF<unsigned char>(sig, base + 1) = (unsigned char)msgIndex;
+        SGF2(unsigned char, sig, base)     = (unsigned char)kind;
+        SGF2(unsigned char, sig, base + 1) = (unsigned char)msgIndex;
         size_t msgLen = strlen(message);
-        SGF<unsigned int>(sig, base + 4) = (unsigned int)msgLen;   // +0x2d40 strlen
+        SGF2(unsigned int, sig, base + 4) = (unsigned int)msgLen;   // +0x2d40 strlen
         strncpy(MIX(sig, base + 8) /*+0x2d44*/, message, msgLen);
         size_t nameLen = strlen(name);
-        SGF<unsigned int>(sig, base + 60) = (unsigned int)nameLen; // +0x2d78 strlen
+        SGF2(unsigned int, sig, base + 60) = (unsigned int)nameLen; // +0x2d78 strlen
         strncpy(MIX(sig, base + 64) /*+0x2d7c*/, name, nameLen);
-        SGF<int>(sig, base + 84) = updateTime;               // +0x2d90 update_time
+        SGF(sig, base + 84) = updateTime;               // +0x2d90 update_time
         ++written;
     }
 
-    SGF<unsigned char>(sig, 0x2d38) = (unsigned char)nRows;  // 条目计数（截断）
+    SGF2(unsigned char, sig, 0x2d38) = (unsigned char)nRows;  // 条目计数（截断）
     return true;
 }
 

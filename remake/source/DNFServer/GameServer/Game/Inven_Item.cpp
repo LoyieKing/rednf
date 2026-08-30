@@ -140,6 +140,7 @@ void ChronicleRandomOptionInfo::reset()
     m_random.reset();
 }
 
+// ORIG W 0x080cb332：构造后调 reset()（位域清零）。
 UpgradeSeparateInfo::UpgradeSeparateInfo()
 {
     reset();
@@ -147,8 +148,12 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 
 void UpgradeSeparateInfo::reset()
 {
-    // ORIG 0x84e9081：三次位清（&0xffffffe0, &0xffffffdf, &0x3f）→ 仅清低 7 位，保留 bit7
-    m_field = (unsigned char)(m_field & 0x80);
+    // ORIG 0x80cb346：位域 b0:5/b1:1/b2:2 清零 → 三次位清
+    // （&0xffffffe0 → &0xffffffdf → &0x3f），整字节清零。
+    struct Bits { unsigned char a:5, b:1, c:2; };
+    reinterpret_cast<Bits*>(&m_field)->a = 0;
+    reinterpret_cast<Bits*>(&m_field)->b = 0;
+    reinterpret_cast<Bits*>(&m_field)->c = 0;
 }
 
 unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const

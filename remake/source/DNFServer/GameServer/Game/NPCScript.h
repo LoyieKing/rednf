@@ -24,12 +24,7 @@
 //   奖励等级表 +0x654（=+0x658）、周期奖励名 +0x670（=+0x674）。
 // ============================================================================
 
-#include "NpcScript.h"
-
-enum ENUM_NPC_ROLE
-{
-    ENUM_NPC_ROLE_0 = 0
-};
+#include "NpcScript.h"   // ENUM_NPC_ROLE 现由 NpcScript.h 提供
 
 class CItem;
 class Inven_Item;

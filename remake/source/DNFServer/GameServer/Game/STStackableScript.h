@@ -27,24 +27,10 @@
 
 // CRabbitBox 权威定义收敛到 AradRabbitBox.h（多态兔盒，W6_ARAD_ItemBonus 批次），
 // 本头仅保留 m_rabbit19c 容器成员（@+0x19c）。
-#include "AradRabbitBox.h"
-
 // STRecovery 权威定义（ORIG W 0x089c3098 C1 / 0x089c30ac clear；实现 STRecovery.cpp）。
 #include "STRecovery.h"
 
-struct STStackablePackageData
-{
-    // ORIG C1/C2 W 0x08919346：2×movl 0 逐字段清零。
-    STStackablePackageData()
-    {
-        m_field0 = 0;
-        m_field4 = 0;
-    }
-
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04
-};
-
+// ---- STPassiveObjectInStackable
 
 // ---- STPassiveObjectInStackable（ORIG C1/C2 W 0x089c34e8；无 D1/D2 →
 //      析构 trivial，P12；sizeof 0x10）----
@@ -199,102 +185,11 @@ public:
     unsigned char m_field14;  // +0x14
 };   // sizeof 0x18
 
-// ---- CountinuousItemOption（ORIG T 0x0898c770 C1 / 0x0898c784 clear；sizeof 3）----
-// 3 个独立字节；clear 逐字节清零。trivial 析构。本类方法属 STStackableScript TU。
-struct CountinuousItemOption
-{
-public:
-    CountinuousItemOption();
-    void clear();
-
-    unsigned char m_field0;  // +0x00
-    unsigned char m_field1;  // +0x01
-    unsigned char m_field2;  // +0x02
-};   // sizeof 3
-
-// ---- AvatarOptionChangeType（ORIG W 0x08513b6e C1 / 0x08513b48 clear；sizeof 3）----
-// clear 链：m_b2 = 0xff → m_b1 = m_b2 → m_b0 = m_b1（movb/movzbl 逐级传播）。trivial 析构。
-struct AvatarOptionChangeType
-{
-public:
-    AvatarOptionChangeType();
-    void clear();
-
-    unsigned char m_field0;  // +0x00
-    unsigned char m_field1;  // +0x01
-    unsigned char m_field2;  // +0x02
-};   // sizeof 3
-
-
-// ---- 附魔键/值（CStackableItem.h 无同名定义） ----
-// ORIG 布局实证：
-//   _ZN19STEnchantSystemData5clearEv W 0x854b1a8 → 基类 {int@0, byte@4(清0), int@8}
-//   _ZN21STEnchantSystemMapKeyC1Ev  W 0x854b268 → 调基类 ctor 后仅置 this+0xc=0
-//     （即 MapKey 继承 STEnchantSystemData 并新增 +0x0c 单字节，sizeof 16）
-//   _ZNK21STEnchantSystemMapKeyltERKS_ W 0x854b1c8（57 条）：逐字段
-//     <+0x00 int、+0x04 u8(movzbl)、+0x08 int、+0x0c u8(unsigned jae)>
-//     标准字典序；同字段相等才继续下一字段。
-#include "STEquipmentScript.h"   // STEnchantSystemData 权威基类
-struct STEnchantSystemMapKey : public STEnchantSystemData
-{
-    unsigned char m_fieldC;   // +0x0c
-
-    STEnchantSystemMapKey()
-    {
-        m_fieldC = 0;
-    }
-
-    // ORIG D1/D2 W 0x08513b2e 为 5 字节空体（inline 弱副本）：基类析构同样
-    // 5 字节空，派生不生成对基类 D2 的调用。保留用户空析构以对齐符号集。
-    ~STEnchantSystemMapKey() {}
-
-    bool operator<(const STEnchantSystemMapKey& o) const
-    {
-        if (m_a < o.m_a)
-            return true;
-        if (m_a != o.m_a)
-            return false;
-        if (static_cast<unsigned char>(m_b) < static_cast<unsigned char>(o.m_b))
-            return true;
-        if (static_cast<unsigned char>(m_b) != static_cast<unsigned char>(o.m_b))
-            return false;
-        if (m_c < o.m_c)
-            return true;
-        if (m_c != o.m_c)
-            return false;
-        if (m_fieldC < o.m_fieldC)
-            return true;
-        return false;
-    }
-};
-
-// ---- STEnchantSystemMapData（ORIG C1 0x089c3384 / C1ERKS 0x08527d54 /
-//      D1 0x085218cc，全 W → 头内联；D1==D2、C1==C2 同址）----
-// C1：vector<EquipmentSkillDataUp>@+0x00 构造 → string@+0x0c 构造 → 双 clear；
-// C1ERKS：vector 拷贝 → string 拷贝；D1：string 析构 → vector 析构（unwind 清理）。
-// sizeof 0x10（vector 0xc + string 0x4，EquipmentSkillDataUp 见 EquipmentParameterInfo.h）。
-struct STEnchantSystemMapData
-{
-    std::vector<EquipmentSkillDataUp> m_vec0;   // +0x00
-    std::string m_strC;                         // +0x0c
-
-    STEnchantSystemMapData()
-        : m_vec0(), m_strC()
-    {
-        m_vec0.clear();
-        m_strC.clear();
-    }
-
-    STEnchantSystemMapData(const STEnchantSystemMapData& other)
-        : m_vec0(other.m_vec0), m_strC(other.m_strC)
-    {
-    }
-
-    ~STEnchantSystemMapData()
-    {
-    }
-};
-
+// ---- CountinuousItemOption / AvatarOptionChangeType / STEnchantSystemMapKey /
+//      STEnchantSystemMapData 权威定义已迁至 CStackableItem.h（CStackableItem
+//      +0x2d8/+0x2e4/+0x365/+0x2f4 成员子对象类型；本头 include CStackableItem.h
+//      即可见），本处删除防重复定义。STEnchantSystemData 基类经
+//      STEquipmentScript.h（本头 include STItemScript.h → EquipmentParameterInfo.h）可见。
 enum ENUM_MODULE_TYPE
 {
     ENUM_MODULE_TYPE_0 = 0
@@ -433,7 +328,7 @@ public:
     char m_4b0;                                       // +0x4b0
     std::string m_str4b4;                             // +0x4b4
     int m_4b8;                                        // +0x4b8
-    std::map<int, EquipmentParameterInfo*> m_module4bc;  // +0x4bc
+    std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*> m_module4bc;  // +0x4bc
     std::set<int> m_set4d4;                           // +0x4d4
     int m_4ec;                                        // +0x4ec
     int m_4f0;                                        // +0x4f0（RecipeInfo additionalInfo 源1）

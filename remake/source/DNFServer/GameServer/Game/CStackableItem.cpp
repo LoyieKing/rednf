@@ -686,10 +686,10 @@ public:
     std::vector<std::vector<int> > m_vec244;  // +0x244
     std::vector<int> m_vec250;           // +0x250
     std::vector<int> m_vec25c;           // +0x25c
-    std::vector<char> m_vec268;          // +0x268
-    std::vector<std::vector<char> > m_vec274;  // +0x274
+    std::vector<STStackablePackageData> m_vec268;  // +0x268（ORIG vector<STStackablePackageData>）
+    std::vector<std::vector<STStackablePackageData> > m_vec274;  // +0x274
     stStackableBooster_t m_booster;      // +0x280
-    std::vector<char> m_vec2a4;          // +0x2a4
+    std::vector<STStackablePackageData> m_vec2a4;  // +0x2a4（ORIG vector<STStackablePackageData>）
     char m_pad2b0[0x7c];                 // +0x2b0
     char m_field32c;                     // +0x32c
     char m_pad32d[0x2b];                 // +0x32d
@@ -723,7 +723,7 @@ public:
     int m_field3e0;                      // +0x3e0
     int m_field3e4;                      // +0x3e4
     std::vector<stLimitCubeResult> m_vec3e8;     // +0x3e8
-    std::map<int, int> m_map3f4;         // +0x3f4
+    std::map<STEnchantSystemMapKey, STEnchantSystemMapData> m_map3f4;  // +0x3f4
     char m_field40c;                     // +0x40c
     char m_fields40d[2];                 // +0x40d
     char m_pad40f[9];                    // +0x40f
@@ -789,11 +789,11 @@ bool CStackableItem::check_change_job_type(char changeJob,
     {
         return 0;
     }
-    if ((char)m_growType < 0)
+    if ((char)m_arad148.m_field4 < 0)
     {
         return 1;
     }
-    return m_growType == changeJob;
+    return m_arad148.m_field4 == changeJob;
 }
 
 void CStackableItem::getBoosterItem(
@@ -1124,10 +1124,10 @@ bool CStackableItem::verifyUsablePlace(CUser* user)
     {
         return 0;
     }
-    if ((char)m_growType < 0 ||
-        ((char)m_growType >= 0 &&
+    if ((char)m_arad148.m_field4 < 0 ||
+        ((char)m_arad148.m_field4 >= 0 &&
          ((CUserCharacInfo*)user)->getCurCharFirstGrowType() ==
-             (char)m_growType))
+             (char)m_arad148.m_field4))
     {
         return 1;
     }
@@ -1282,15 +1282,15 @@ void CStackableItem::set_item(STStackableScript& script)
     }
     m_int2d0 = script.m_field68;
     m_int2d4 = script.m_field1b4;
-    m_char2d8 = script.m_field1b9;
-    m_char2d9 = script.m_field1ba;
-    m_char2da = script.m_field1bb;
-    m_char2e0 = script.m_field360;
-    m_int2dc = script.m_field358;
-    m_char2e1 = script.m_field1bf;
-    m_char2e4 = script.m_field1bc;
-    m_char2e5 = script.m_field1bd;
-    m_char2e6 = script.m_field1be;
+    m_option2d8.m_field0 = script.m_field1b9;
+    m_option2d8.m_field1 = script.m_field1ba;
+    m_option2d8.m_field2 = script.m_field1bb;
+    m_stat2dc.m_flagLo = script.m_field360;
+    m_stat2dc.sec = script.m_field358;
+    m_stat2dc.m_flagHi = script.m_field1bf;
+    m_option2e4.m_field0 = script.m_field1bc;
+    m_option2e4.m_field1 = script.m_field1bd;
+    m_option2e4.m_field2 = script.m_field1be;
     m_char2e7 = script.m_field1c0;
     m_int2e8 = script.m_field1c4;
     m_char2ec = script.m_field1d0;
@@ -1350,27 +1350,27 @@ void CStackableItem::set_item(STStackableScript& script)
     m_int340 = script.m_field478;
     m_char344 = script.m_field3a1;
     m_amplifyMap = script.m_map3a4;
-    m_int148 = script.m_field178;
-    m_growType = script.m_field17c;
-    m_str150 = script.m_str180;
-    m_str154 = script.m_str184;
-    m_str158 = script.m_str188;
+    m_arad148.m_field0 = script.m_field178;
+    m_arad148.m_field4 = script.m_field17c;
+    m_arad148.m_str8 = script.m_str180;
+    m_arad148.m_strC = script.m_str184;
+    m_arad148.m_str10 = script.m_str188;
     if (!script.m_vec19c.empty())
     {
-        m_vec168.reserve(script.m_vec19c.size());
+        m_arad148.m_vec20.reserve(script.m_vec19c.size());
         std::copy(script.m_vec19c.begin(), script.m_vec19c.end(),
-                  std::back_inserter(m_vec168));
+                  std::back_inserter(m_arad148.m_vec20));
     }
     if (!script.m_vec190.empty())
     {
-        m_vec15c.reserve(script.m_vec190.size());
+        m_arad148.m_vec14.reserve(script.m_vec190.size());
         std::copy(script.m_vec190.begin(), script.m_vec190.end(),
-                  std::back_inserter(m_vec15c));
+                  std::back_inserter(m_arad148.m_vec14));
     }
     m_int360 = script.m_field418;
     m_char364 = script.m_field32c;
-    m_tail365.m_short365 = script.m_field47c;
-    m_tail365.m_char367 = script.m_field47e;
+    *reinterpret_cast<unsigned short*>(&m_avatar365.m_field0) = script.m_field47c;
+    m_avatar365.m_field2 = script.m_field47e;
     m_set368 = script.m_set480;
     m_set380 = script.m_set498;
     m_avatarOptionChange = script.m_field4b0;
@@ -1664,37 +1664,34 @@ bool CStackableItem::IsExpAffect()
     return m_char2e7 != 0;;
 }
 
-// ORIG 0x086946d2 (W 非 const，按值返回)：读 +0x2d8(+0x2da)，cooltime 时长(秒)/标志
-//   movzwl 0x2d8(%edx),%ecx; mov %cx,(%eax); movzbl 0x2da(%edx),%edx; mov %dl,0x2(%eax)
-// 头部将 +0x2d8..+0x2d9 建模为 m_char2d8/m_char2d9 二字，+0x2da 为 m_char2da。
+// +0x2d8 为 CountinuousItemOption 子对象（m_option2d8：3 独立字节）。
 CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 {
     CoolTimeOption opt;
-    opt.sec  = (unsigned short)((unsigned char)m_char2d8 |
-                                ((unsigned char)m_char2d9 << 8));
-    opt.flag = m_char2da;
+    opt.sec  = (unsigned short)((unsigned char)m_option2d8.m_field0 |
+                                ((unsigned char)m_option2d8.m_field1 << 8));
+    opt.flag = m_option2d8.m_field2;
     return opt;
 }
 
 // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6)，effect 时长(秒)/标志
-// 头部 +0x2e4..+0x2e5 建模为 m_char2e4/m_char2e5 二字，+0x2e6 为 m_char2e6。
+// +0x2e4 为 CountinuousItemOption 子对象（m_option2e4：3 独立字节）。
 CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
-    opt.sec  = *reinterpret_cast<unsigned short*>(&m_char2e4);
-    opt.flag = m_char2e6;
+    opt.sec  = *reinterpret_cast<unsigned short*>(&m_option2e4.m_field0);
+    opt.flag = m_option2e4.m_field2;
     return opt;
 }
 
 // ORIG 0x08694716 (W 非 const)：无 ctor 调用，直接 8 字节拷贝
 //   mov 0x2e0(%eax),%edx; mov 0x2dc(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx)
-// +0x2dc 头部建模为 m_int2dc；+0x2e0 起头部以 m_char2e0/m_char2e1 两字节建模
-// （+0x2e2/+0x2e3 隐式填充），故 flag 按低两字节拼出（高 2 字节为 0）。
+// +0x2dc 为 StatChangeInfo 子对象（m_stat2dc：int + 低两字节 flag）。
 // 调用方(_processEffectItem)按 ORIG 只测 flag 的低 16 位。
 StatChangeInfo CStackableItem::GetStatChangeInfo()
 {
     // 直接 reinterpret 拷贝：不调用 StatChangeInfo ctor，生成 ORIG 的 8 字节整拷。
-    return *reinterpret_cast<StatChangeInfo*>(&m_int2dc);
+    return *reinterpret_cast<StatChangeInfo*>(&m_stat2dc);
 }
 
 // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
@@ -1707,6 +1704,13 @@ float CStackableItem::GetExpAffectRatio()
 unsigned short CStackableItem::getJewelTargetSocket() const
 {
     return m_jewelTargetSocket;
+}
+
+// ORIG W 0x822c9d2 _ZNK14CStackableItem12get_sub_typeEv：
+// mov 0x2bc(%eax) —— 返回 m_int2bc（sub_type）
+int CStackableItem::get_sub_type() const
+{
+    return m_int2bc;
 }
 
 // ORIG 0x0869475e W _ZNK14CStackableItem26IsUse2ndUpgradeTableRecipeEv：

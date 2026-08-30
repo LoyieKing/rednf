@@ -76,8 +76,9 @@ void eventReward::applyItemOption(Inven_Item& inven, const CItem* item,
     {
         inven.SetUpgrade(data.m_upgrade);
     }
-    if (item->IsPossibleKiriProtection() &&
-        data.m_roi == 0)                            // +0x02 字节
+    // ORIG 0x80f0d6e：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
+    // （vptr 指向 vtable+8；勿与 vt[19] IsPossibleKiriProtection 混淆）
+    if (item->IsRandomOption() && data.m_roi == 0)  // +0x02 字节
     {
         this->unsealRandomOption(item, inven);
     }
@@ -90,7 +91,8 @@ int eventReward::unsealRandomOption(const CItem* item, Inven_Item& inven)
 {
     if (item == 0)
         return 0;
-    if (!item->IsPossibleKiriProtection())          // vtable+0x4c
+    // ORIG 0x80f0e40：虚调用 vptr+0x4c = vtable+0x54 = vt[21] IsRandomOption
+    if (!item->IsRandomOption())
         return 0;
     // P87：ORIG 以 edi/esi/ebx 跨 give_option 缓存 period/group/lvl。
     register int period = item->PeriodAfterUnsealing();  // vtable+0x50

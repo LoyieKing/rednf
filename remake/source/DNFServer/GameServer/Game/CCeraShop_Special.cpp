@@ -1013,7 +1013,7 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
             std::vector<stAvatarTypeSelect_t>* sel =
                 (std::vector<stAvatarTypeSelect_t>*)(
                     ((CEquipItem*)citem)->getAvatarTypeSelect());
-            stAvatarTypeSelect_t& selItem = (*sel)[e];  // at(e)
+            stAvatarTypeSelect_t& selItem = sel->at(e);  // at(e)
             int slotCount = selItem.m_field10;
             if (c != 4 && slotCount != 0)
                 return 0;
@@ -2092,14 +2092,14 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
         }
         Stream* stream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x20e7);
         CStreamGuard guard(stream, true);
-        guard.operator*()->operator<<((int)0x54);   // 0x54 头
-        guard.operator*()->operator<<((int)user->GetUID());
-        guard.operator*()->operator<<((int)user->get_acc_id());
-        guard.operator*()->operator<<((int)e.m_type);
-        guard.operator*()->operator<<((int)curSec);
-        guard.operator*()->operator<<((int)nextSec);
-        guard.operator*()->operator<<((int)e.m_flag);
-        guard.operator*()->operator<<((int)serverCode);
+        guard.operator*()->operator<<((int)0x54);   // 0x54 头（ORIG lsEi）
+        guard.operator*()->operator<<((int)user->GetUID());   // lsEi
+        guard.operator*()->operator<<((unsigned int)user->get_acc_id());  // ORIG lsEj
+        guard.operator*()->operator<<((int)e.m_type);   // lsEi
+        guard.operator*()->operator<<((long)curSec);    // ORIG lsEl
+        guard.operator*()->operator<<((long)nextSec);   // ORIG lsEl
+        guard.operator*()->operator<<((int)e.m_flag);   // lsEi
+        guard.operator*()->operator<<((unsigned int)serverCode);  // ORIG lsEj
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         WongWork::CHandlePremium::handleSetUserPremium(
             user, (ENUM_PREMIUM_TYPE)e.m_type, curSec, nextSec, e.m_flag, false);

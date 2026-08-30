@@ -767,7 +767,7 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 
 // ORIG T 0x085be56c（checkLimitUsedCoinCondition.md）：party/dungeon 双层
 // 硬币限额校验；超限返回 0x16、找不到副本返回 0x13、通过返回 0。
-bool CParty::checkLimitUsedCoinCondition(CDungeon const* dungeonParam)
+int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeonParam)
 {
     CDungeon const* dungeon = dungeonParam;
     if (dungeon == 0)

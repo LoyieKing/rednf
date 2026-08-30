@@ -1940,7 +1940,7 @@ Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLe
 // ============================================================================
 // Arad_GiftItem_Set::level_check（ORIG 0x081a31c4，_ZN17Arad_GiftItem_Set11level_checkEP5CUserPK14CStackableItem）
 // 语义：
-//   kind  = str_to_enum(item->m_str150.c_str())
+//   kind  = str_to_enum(item->m_arad148.m_str8.c_str())
 //   job   = user->get_charac_job()
 //   ulv   = item->getUsableLevel()
 //   data  = find(this, kind, job, ulv)
@@ -1952,7 +1952,7 @@ int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
 {
     if (user == 0 || item == 0)
         return 1;
-    int kind = str_to_enum(item->m_str150.c_str());
+    int kind = str_to_enum(item->m_arad148.m_str8.c_str());
     int job = user->get_charac_job();
     int ulv = item->getUsableLevel();
     Data* data = find(kind, job, ulv);

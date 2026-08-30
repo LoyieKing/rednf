@@ -281,10 +281,6 @@ void MapInfo::SelectDonsterItemDropLimit(unsigned int limit)
 // m_mobIndex 落在命名怪区间 (0xc34f,0xc738] 或 (0xdabf,0xea60] → true。
 bool map_monster::isNamedMonster()
 {
-    int idx = m_mobIndex;
-    if (idx > 0xc34f && idx <= 0xc738)
-        return true;
-    if (idx > 0xdabf && idx <= 0xea60)
-        return true;
-    return false;
+    return (m_mobIndex > 0xc34f && m_mobIndex <= 0xc738)
+        || (m_mobIndex > 0xdabf && m_mobIndex <= 0xea60);
 }

@@ -1582,7 +1582,7 @@ int CDataManager::VerifyMap(const CMap& map, int idx) const
             }
             if ((unsigned int)item.m_objectIdx < passive->size())
             {
-                int assignIdx = (*passive)[item.m_objectIdx].m_assignItemIdx;
+                int assignIdx = passive->at(item.m_objectIdx).m_assignItemIdx;
                 if (assignIdx < 1 || assignIdx > 200)
                 {
                     // [推断] ORIG 在此仅遍历/校验，不作为 fail 条件（report 未显示

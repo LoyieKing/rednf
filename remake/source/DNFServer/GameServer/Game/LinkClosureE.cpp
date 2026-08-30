@@ -179,11 +179,6 @@ int CItemMakingSkill::Send_ItemMakingSkillList(CUser* user) const
 namespace
 {
 
-stItemMakingSkill* itemMakingSkillTable()
-{
-    return reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
-}
-
 cUserHistoryLog* userHistoryLogOf(CUser* user)
 {
     return &user->m_historyLog;   // CUser::m_historyLog（+0x79700）
@@ -196,7 +191,8 @@ cUserHistoryLog* userHistoryLogOf(CUser* user)
 // 的下标；idxByLevel = 第一个 user 等级 < vec[i].second 的下标；取 min。
 int CItemMakingSkill::GetSkillLevel(ENUM_ITEM_MAKING_TYPE type, CUser* user) const
 {
-    const stItemMakingSkill* table = itemMakingSkillTable();
+    const stItemMakingSkill* table =
+        reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
     const short cur = static_cast<short>(m_skillLevels[type]);
     int idxByExp = 0;
     while (static_cast<int>(idxByExp) < static_cast<int>(table->m_vec18.size())
@@ -230,10 +226,11 @@ int CItemMakingSkill::GetItemMakingSkillLevel(const CStackableItem* item, CUser*
 // （0x46 级钳 vec.back().first / 否则逐档钳制）+ 1000 上限 clamp；alter() 通知。
 void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser* user)
 {
-    const stItemMakingSkill* table = itemMakingSkillTable();
+    const stItemMakingSkill* table =
+        reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
     if (10 < type)
         return;
-    if (table->m_vec18.empty())      // ORIG rbegin==rend 空判定
+    if (table->m_vec18.rbegin() == table->m_vec18.rend())   // ORIG rbegin==rend 空判定
         return;
     bool allowed = false;
     if (0 < point && point <= table->m_bonusExp
@@ -304,7 +301,8 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
     const ENUM_ITEM_MAKING_TYPE type =
         static_cast<ENUM_ITEM_MAKING_TYPE>(item->GetUpSkillType());
     const int needLevel = item->GetNeedLevel();
-    const stItemMakingSkill* table = itemMakingSkillTable();
+    const stItemMakingSkill* table =
+        reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
     const int skillLevel = GetItemMakingSkillLevel(item, user);
     int gained = static_cast<unsigned int>(m_rand->randInt())
                      % static_cast<unsigned int>(table->m_bonusExp)
@@ -315,7 +313,7 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
         errCode = 0xd;
         gained = 0;
     }
-    if (table->m_vec18.empty())      // ORIG rbegin==rend 空判定（+0xe4 跳出）
+    if (table->m_vec18.rbegin() == table->m_vec18.rend())   // ORIG rbegin==rend 空判定（+0xe4 跳出）
         return;
     if (user->get_charac_level() == 0x46)
     {
@@ -517,7 +515,8 @@ void InitializeCharacStat::initCharacStat(_Additioal_info& info,
 void CItemMakingSkill::SetItemMakingSkillPoint(int skillIdx, int point,
                                                CUser* user)
 {
-    const stItemMakingSkill* table = itemMakingSkillTable();
+    const stItemMakingSkill* table =
+        reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
     if (skillIdx > 0xa)                                    // ORIG 0x8545d3f
         return;
     const std::vector<std::pair<int, int> >& vec = table->m_vec18;

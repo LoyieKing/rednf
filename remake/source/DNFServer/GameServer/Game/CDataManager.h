@@ -1565,19 +1565,20 @@ public:
                                           CActionPointEtcParameter& param);
     // 重建辅助访问器（ORIG 调用方内联直读 +0x18；实现见 SyncScriptDeps.cpp）。
     const std::map<unsigned short, const CActionPointEx*>& getActionPointRefs() const;
-public:
-    // Wave5 APSystem 批：m_medalRewards/m_todayRewards 置于 public（DB_LoadRewardMedal::
-    // Select / GetTodayRewardAndSendMail / Inter_LoadRewardMedal::SendMail 跨 TU 直读；
-    // 布局/偏移不变）。
-    std::vector<_MedalRewardItem> m_medalRewards;                                // +0x60
-    std::vector<APSystem::_TodayRewardItem> m_todayRewards;        // +0x6c
-
 private:
-    // ORIG ClearData 0x088948fc 布局（32 位：4×map(0x18) + 2×vector(0xc) = 0x78）
+    // ORIG ClearData 0x088948fc 布局（32 位：4×map(0x18) + 2×vector(0xc) = 0x78）。
+    // 声明顺序即布局顺序：ORIG C1 0x0889484a 先构造 4 个 map（+0x0/+0x18/+0x30/+0x48）
+    // 再构造 2 个 vector（+0x60/+0x6c）；vector 需保持 public 供跨 TU 直读，
+    // 故置于类尾 public 段（顺序不变）。
     std::map<unsigned short, std::vector<CActionPointEx> > m_actionPoints;       // +0x00
     std::map<unsigned short, const CActionPointEx*> m_actionPointRefs;           // +0x18
     std::map<unsigned int, std::string> m_rewardMessages;                        // +0x30
     std::map<unsigned int, std::string> m_rewardMessages2;                       // +0x48
+public:
+    // Wave5 APSystem 批：m_medalRewards/m_todayRewards 置于 public（DB_LoadRewardMedal::
+    // Select / GetTodayRewardAndSendMail / Inter_LoadRewardMedal::SendMail 跨 TU 直读）。
+    std::vector<_MedalRewardItem> m_medalRewards;                                // +0x60
+    std::vector<APSystem::_TodayRewardItem> m_todayRewards;        // +0x6c
 };
 }
 
@@ -3187,11 +3188,10 @@ public:
     bool _add(CAICharacter* ai);   // ORIG T 0x0834a61c（init 每条目调用；报告 _add.md）
 
     std::map<int, CAICharacter*> m_charMap;               // +0x00
-    std::vector<CAICharacter*> m_byLevelList[99];         // +0x18（ORIG dtor 析构区间 +0x4a4，含未建模尾差【推断】）
-    unsigned char m_pad4b0[0xc];                          // +0x4b0 未建模字段
+    std::vector<CAICharacter*> m_byLevelList[99];         // +0x18（99×0xc=0x4a4，止于 +0x4bc；ORIG dtor 析构区间 +0x4a4）
     int m_maxAP;                                          // +0x4bc（init 置 0x7fffffff）
     std::map<int, std::vector<CAICharacter*> > m_groupMap; // +0x4c0
-    std::vector<CAICharacter*> m_byAPList[6];             // +0x4d8
+    std::vector<CAICharacter*> m_byAPList[6];             // +0x4d8（6×0xc=0x48，止于 +0x520）
     std::map<int, int> m_apStatMap;                       // +0x520
 };
 class SlangFilter;

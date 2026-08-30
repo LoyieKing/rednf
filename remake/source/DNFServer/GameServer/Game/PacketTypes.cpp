@@ -3,11 +3,6 @@
 #include <cstring>
 
 
-// ORIG 0x812c076：空体 leaf（push/mov/pop/ret，无栈帧）。
-// 唯一定义处（PacketDispatcher.h keeper 协作约定）：声明于共享头，定义归本 TU，
-// 使各 TU 中 MSG keeper 构造对 _ZN8MSG_BASEC1Ev 的调用在链接期落到同一空实现。
-MSG_BASE::MSG_BASE() {}
-
 InstanceRentalSystem::RentOutput::RentOutput() : m_infos(), m_deleted() {}  // ORIG 0x8231c4e
 InstanceRentalSystem::RentOutput::~RentOutput() {}                          // ORIG 0x8231c94
 

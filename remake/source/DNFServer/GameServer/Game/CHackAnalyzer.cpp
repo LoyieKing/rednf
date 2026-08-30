@@ -48,8 +48,11 @@ struct SIG_SAVE_CLIENT_HACK_LOG
     int m_b;
 };
 
-// 计数区寻址（ORIG：this + 4*(idx)+8，idx = t-0x65 与 t-0x65+0xf44）。
-#define HACK_CNT_A(T) (*(int*)(m_cntRegion + ((((int)(T)) - 0x65) * 4 + 8) - 0x28))
+// 计数区寻址（ORIG 实测：A 表槽 = this + (t-0x65)*4 + 0x28，即
+// m_cntRegion(=this+0x28) + (t-0x65)*4；B 表槽 = this + (t-0x65+0xf44)*4 + 8，
+// 即 m_cntRegion + (t-0x65+0xf44)*4 + 8 - 0x28。getServerHackCnt 0x08695086 /
+// addServerHackCnt 0x080f8c7e 反汇编核实）。
+#define HACK_CNT_A(T) (*(int*)(m_cntRegion + ((((int)(T)) - 0x65) * 4)))
 #define HACK_CNT_B(T) \
     (*(int*)(m_cntRegion + ((((int)(T)) - 0x65 + 0xf44) * 4 + 8) - 0x28))
 

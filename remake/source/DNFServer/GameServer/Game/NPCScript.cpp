@@ -144,12 +144,9 @@ void NpcScript::clear()
     m_visibleOnDungeonClear = false;
     m_webPages.clear();
     m_clickMarks.clear();
-    m_randomMessageAnimation = "";   // 推断：ORIG clear 未显式清 +0x6a4..+0x6b4，
-                                     // 由各自容器构造保证空态；字符串赋值等价。
-    m_randomMessageProbability = 0;  // 推断：同上
-    m_randomMessageList.clear();
     m_hide = false;
-    m_moviePaths.clear();            // 推断：内嵌 NpcMovieData 首成员队列
+    // ORIG clear 未显式清 +0x6a4..+0x6e4：randomMessageBalloonInfo / NpcMovieData
+    // 由其自身 clear 保证空态，这里不重复清（与 ORIG 字节一致）。
 }
 
 // ----------------------------------------------------------------------------
@@ -305,7 +302,8 @@ int importNpcScript(NpcScript* npc, char const* path)
                 }
                 else
                 {
-                    npc->m_roleMap[role] = ScanInt(static_cast<bool*>(0));
+                    npc->m_roleMap[static_cast<ENUM_NPC_ROLE>(role)] =
+                        ScanInt(static_cast<bool*>(0));
                 }
             }
             continue;
@@ -353,9 +351,9 @@ int importNpcScript(NpcScript* npc, char const* path)
         {
             while (ScanStr(&sub))
             {
-                npc->m_moviePaths.push_back(sub);
+                npc->m_movieData.m_movies.push_back(sub);
             }
-            npc->m_moviePathIndex = 0;
+            npc->m_movieData.m_movieIdx = 0;
             continue;
         }
         if (token == "[/movie path]")
@@ -836,12 +834,12 @@ int importNpcScript(NpcScript* npc, char const* path)
             std::string anim;
             if (ScanStr(&anim) && !anim.empty())
             {
-                npc->m_randomMessageAnimation = anim;
+                npc->m_balloonInfo.m_randomMessageAnimation = anim;
             }
             int prob = 0;
             if (ScanInt(&prob) && prob != 0)
             {
-                npc->m_randomMessageProbability = prob;
+                npc->m_balloonInfo.m_randomMessageProbability = prob;
             }
             bool ok = false;
             int count = ScanInt(&ok);
@@ -856,7 +854,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                 }
                 if (!list.empty())
                 {
-                    npc->m_randomMessageList = list;
+                    npc->m_balloonInfo.m_randomMessageList = list;
                 }
             }
             continue;

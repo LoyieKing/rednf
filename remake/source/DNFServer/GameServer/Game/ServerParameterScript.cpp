@@ -491,9 +491,10 @@ float ServerParameterScript::GetPvPPenaltyRevision(int grade)
     std::map<int, int>::const_iterator it = m_mapb0.find(grade);
     if (it == m_mapb0.end())
     {
-        return 0.0f;
+        return 1.0f;
     }
-    return (float)it->second;
+    // ORIG 0x08693918：命中 → fildl second; flds 100.0f; fdivrp（second/100.0）
+    return (float)it->second / 100.0f;
 }
 
 int ServerParameterScript::getRecoverStaminaPrice(int stamina, int price)

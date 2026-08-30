@@ -15,9 +15,8 @@
 //   +0x368/0x380 set<int>  +0x3a0/0x3ac/0x3b8 vector  +0x3d8 set<int>
 // ============================================================================
 
-#include <cstddef>
-#include <map>
-#include <set>
+#include "AradItemInfo.h"   // +0x148 AradItemInfo 子对象（布局转写；类型见 AradItemInfo.h）
+#include "STEquipmentScript.h"   // STEnchantSystemData 基类 + EquipmentSkillDataUp（附魔 map 键/值依赖）
 
 // ---- StatChangeInfo（全局域；ORIG mangled _ZN14StatChangeInfoC1Ev）----
 // CStackableItem::GetStatChangeInfo（ORIG 0x08694716 W）按值返回；
@@ -35,9 +34,6 @@ struct StatChangeInfo
     char m_flagLo;            // +0x04（低字节）
     char m_flagHi;            // +0x05（次字节）
 };
-#include <string>
-#include <utility>
-#include <vector>
 
 #include "CItem.h"
 
@@ -91,17 +87,120 @@ enum UsableServerType
 // 字符串→枚举映射，调用方 ImportStackableScript 0x89aeec8）。
 int getStackableActionType(std::string& type);
 int getStackableActionUsablePlace(std::string& place);
-int getStackableActionUsableServerType(std::string& type);
-
 class STStackableScript;
 
-#pragma pack(push, 1)
-struct StackableTail365
+// ---- STStackablePackageData（ORIG C1/C2 W 0x08919346：2×movl 0 逐字段清零）----
+// 由 STStackableScript.h 迁入（CStackableItem 包数据成员 +0x21c/+0x228/+0x234
+// 元素类型；ORIG C1 实证 vector<STStackablePackageData>）。
+struct STStackablePackageData
 {
-    unsigned short m_short365;   // +0x00（0x365）
-    char m_char367;              // +0x02（0x367）
+    STStackablePackageData()
+    {
+        m_field0 = 0;
+        m_field4 = 0;
+    }
+
+    int m_field0;   // +0x00
+    int m_field4;   // +0x04
 };
-#pragma pack(pop)
+
+// ---- CountinuousItemOption（ORIG T 0x0898c770 C1 / 0x0898c784 clear；sizeof 3）----
+// 3 个独立字节；clear 逐字节清零。trivial 析构。本类方法属 STStackableScript TU。
+// 由 STStackableScript.h 迁入（CStackableItem +0x2d8/+0x2e4 子对象类型）。
+struct CountinuousItemOption
+{
+public:
+    CountinuousItemOption();
+    void clear();
+
+    unsigned char m_field0;  // +0x00
+    unsigned char m_field1;  // +0x01
+    unsigned char m_field2;  // +0x02
+};   // sizeof 3
+
+// ---- AvatarOptionChangeType（ORIG W 0x08513b6e C1 / 0x08513b48 clear；sizeof 3）----
+// clear 链：m_b2 = 0xff → m_b1 = m_b2 → m_b0 = m_b1（movb/movzbl 逐级传播）。trivial 析构。
+// 由 STStackableScript.h 迁入（CStackableItem +0x365 子对象类型）。
+struct AvatarOptionChangeType
+{
+public:
+    AvatarOptionChangeType();
+    void clear();
+
+    unsigned char m_field0;  // +0x00
+    unsigned char m_field1;  // +0x01
+    unsigned char m_field2;  // +0x02
+};   // sizeof 3
+
+// ---- 附魔键/值（STEquipmentScript.h 已含 STEnchantSystemData 权威基类）----
+// ORIG 布局实证：
+//   _ZN19STEnchantSystemData5clearEv W 0x854b1a8 → 基类 {int@0, byte@4(清0), int@8}
+//   _ZN21STEnchantSystemMapKeyC1Ev  W 0x854b268 → 调基类 ctor 后仅置 this+0xc=0
+//     （即 MapKey 继承 STEnchantSystemData 并新增 +0x0c 单字节，sizeof 16）
+//   _ZNK21STEnchantSystemMapKeyltERKS_ W 0x854b1c8（57 条）：逐字段
+//     <+0x00 int、+0x04 u8(movzbl)、+0x08 int、+0x0c u8(unsigned jae)>
+//     标准字典序；同字段相等才继续下一字段。
+// 由 STStackableScript.h 迁入（CStackableItem m_enchantMap(+0x2f4) 键类型）。
+struct STEnchantSystemMapKey : public STEnchantSystemData
+{
+    unsigned char m_fieldC;   // +0x0c
+
+    STEnchantSystemMapKey()
+    {
+        m_fieldC = 0;
+    }
+
+    // ORIG D1/D2 W 0x08513b2e 为 5 字节空体（inline 弱副本）：基类析构同样
+    // 5 字节空，派生不生成对基类 D2 的调用。保留用户空析构以对齐符号集。
+    ~STEnchantSystemMapKey() {}
+
+    bool operator<(const STEnchantSystemMapKey& o) const
+    {
+        if (m_a < o.m_a)
+            return true;
+        if (m_a != o.m_a)
+            return false;
+        if (static_cast<unsigned char>(m_b) < static_cast<unsigned char>(o.m_b))
+            return true;
+        if (static_cast<unsigned char>(m_b) != static_cast<unsigned char>(o.m_b))
+            return false;
+        if (m_c < o.m_c)
+            return true;
+        if (m_c != o.m_c)
+            return false;
+        if (m_fieldC < o.m_fieldC)
+            return true;
+        return false;
+    }
+};
+
+// ---- STEnchantSystemMapData（ORIG C1 0x089c3384 / C1ERKS 0x08527d54 /
+//      D1 0x085218cc，全 W → 头内联；D1==D2、C1==C2 同址）----
+// C1：vector<EquipmentSkillDataUp>@+0x00 构造 → string@+0x0c 构造 → 双 clear；
+// C1ERKS：vector 拷贝 → string 拷贝；D1：string 析构 → vector 析构（unwind 清理）。
+// sizeof 0x10（vector 0xc + string 0x4，EquipmentSkillDataUp 见 EquipmentParameterInfo.h）。
+// 由 STStackableScript.h 迁入（CStackableItem m_enchantMap(+0x2f4) 值类型）。
+struct STEnchantSystemMapData
+{
+    std::vector<EquipmentSkillDataUp> m_vec0;   // +0x00
+    std::string m_strC;                         // +0x0c
+
+    STEnchantSystemMapData()
+        : m_vec0(), m_strC()
+    {
+        m_vec0.clear();
+        m_strC.clear();
+    }
+
+    STEnchantSystemMapData(const STEnchantSystemMapData& other)
+        : m_vec0(other.m_vec0), m_strC(other.m_strC)
+    {
+    }
+
+    ~STEnchantSystemMapData()
+    {
+    }
+};
 
 struct stStackableBoosterItemInfo_t
 {
@@ -318,23 +417,15 @@ public:
     const std::vector<stGlobalEffect_t>& getGlobalEffectData() const;
     // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
     unsigned short getJewelTargetSocket() const;
-    // ORIG _ZNK14CStackableItem12get_sub_typeEv W 0x822c9d2：return +0x2bc（m_int2bc）
-    int get_sub_type() const { return m_int2bc; }
-
-    int m_int148;                         // +0x148（AradItemInfo 首字段）
-    char m_growType;                      // +0x14c
-    std::string m_str150;                 // +0x150
-    std::string m_str154;                 // +0x154
-    std::string m_str158;                 // +0x158
-    std::vector<int> m_vec15c;            // +0x15c
-    std::vector<CRabbitBox> m_vec168;     // +0x168（ORIG secret_shop_event_item 分支：vector<CRabbitBox>）
+    int get_sub_type() const;             // ORIG W 0x822c9d2：return m_int2bc（定义 CStackableItem.cpp）
+    AradItemInfo m_arad148;               // +0x148（0x2c；m_field0/m_field4/3str/2vec）
     RecipeInfo m_recipe174;               // +0x174
     LotteryInfo m_lotto;                  // +0x1c0
     CMTRand* m_pRand;                     // +0x1e0
     MultiBoxLotteryInfo m_multiBox;  // +0x1e4
-    std::vector<char> m_pkg21c;           // +0x21c
-    std::vector<char> m_pkg228;           // +0x228
-    std::vector<std::vector<char> > m_pkg234;  // +0x234
+    std::vector<STStackablePackageData> m_pkg21c;  // +0x21c
+    std::vector<STStackablePackageData> m_pkg228;  // +0x228
+    std::vector<std::vector<STStackablePackageData> > m_pkg234;  // +0x234
     stStackableBooster_t m_booster;       // +0x240
     BoosterSelectInfo m_boosterSelect;    // +0x264
     std::vector<stGlobalEffect_t> m_vec280;  // +0x280
@@ -348,23 +439,16 @@ public:
     int m_int2cc;                         // +0x2cc
     int m_int2d0;                         // +0x2d0
     int m_int2d4;                         // +0x2d4
-    char m_char2d8;                       // +0x2d8
-    char m_char2d9;                       // +0x2d9
-    char m_char2da;                       // +0x2da
-    int m_int2dc;                         // +0x2dc
-    char m_char2e0;                       // +0x2e0
-    char m_char2e1;                       // +0x2e1
-    char m_pad2e2[2];                     // +0x2e2..+0x2e3（ORIG 布局空洞）
-    char m_char2e4;                       // +0x2e4
-    char m_char2e5;                       // +0x2e5
-    char m_char2e6;                       // +0x2e6
+    CountinuousItemOption m_option2d8;    // +0x2d8（3 字节）
+    StatChangeInfo m_stat2dc;             // +0x2dc（int+2char）
+    CountinuousItemOption m_option2e4;    // +0x2e4（3 字节）
     char m_char2e7;                       // +0x2e7
     int m_int2e8;                         // +0x2e8
     char m_char2ec;                       // +0x2ec
     char m_pad2ed[1];                     // +0x2ed
     unsigned short m_short2ee;            // +0x2ee
     char m_char2f0;                       // +0x2f0
-    std::map<int, int> m_enchantMap;      // +0x2f4
+    std::map<STEnchantSystemMapKey, STEnchantSystemMapData> m_enchantMap;  // +0x2f4
     char m_char30c;                       // +0x30c
     char m_chars30d[2];                   // +0x30d
     char m_char30f;                       // +0x30f
@@ -389,7 +473,7 @@ public:
     std::map<int, int> m_amplifyMap;      // +0x348
     int m_int360;                         // +0x360
     char m_char364;                       // +0x364
-    StackableTail365 m_tail365;           // +0x365
+    AvatarOptionChangeType m_avatar365;   // +0x365（3 字节）
     std::set<int> m_set368;               // +0x368
     std::set<int> m_set380;               // +0x380
     bool m_avatarOptionChange;            // +0x398

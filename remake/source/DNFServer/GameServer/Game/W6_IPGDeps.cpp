@@ -39,7 +39,10 @@ int snprintf(char* buf, unsigned int n, const char* fmt, ...);  // 同 CInventor
 
 // ORIG T（_Z14NumberToStringyi）：64 位版 NumberToString；32 位版声明在
 // CInventory.h。定义属 NumberToString 权威 TU，此处仅声明。
+// _SetIPGData 的 get_acc_id()（unsigned int）须选 u32 版（ORIG _Z14NumberToStringji），
+// 故两重载都声明；tranNo 为 ull 仍走 64 位版。
 char* NumberToString(unsigned long long value, int radix);
+char* NumberToString(unsigned int value, int radix);
 
 
 namespace WongWork { namespace IPG {

@@ -581,28 +581,49 @@ int CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equip
                                            unsigned char param, Inven_Item& item,
                                            const CItem* itemScript)
 {
-    // ORIG key：job + growType + equipType + param 组合查 map（CStackableItem+0x2f4）。
-    // 该 map 权威键类型 STEnchantSystemMapKey 仅含 m_field0（int），此处用
-    // map<int,int>（CStackableItem::m_enchantMap）查 job 键近似。
-    const std::map<int, int>* map2f4 =
-        &static_cast<const CStackableItem*>(itemScript)->m_enchantMap;
-    std::map<int, int>::const_iterator it = map2f4->find(user->get_charac_job());
-    bool found = it != map2f4->end();
+    // ORIG 0x0854a006：四字段键（job/growType/equipType/param）查
+    // CStackableItem+0x2f4 附魔 map（键 STEnchantSystemMapKey，值
+    // STEnchantSystemMapData 含 vector<EquipmentSkillDataUp>）；命中 →
+    // item+0x1f 或 item+0x20（按首字节 &1 二选一）写入附魔类型/槽位，返回 1；
+    // 未命中 → 0。值 vector 仅作命中判定（拷贝后立即析构），不读取内容。
+    STEnchantSystemMapKey key;
+    key.m_a = user->get_charac_job();
+    key.m_b = user->getCurCharFirstGrowType();
+    key.m_c = (int)equipType;
+    key.m_fieldC = param;
+
+    const std::map<STEnchantSystemMapKey, STEnchantSystemMapData>& map2f4 =
+        static_cast<const CStackableItem*>(itemScript)->m_enchantMap;
+    std::map<STEnchantSystemMapKey, STEnchantSystemMapData>::const_iterator it =
+        map2f4.find(key);
 
     unsigned char* f = &item.m_random.m_skill0.m_field;
-    if ((f[0] & 1) == 0)
+    if (it != map2f4.end())
     {
-        f[0] |= 1;
-        f[0] = (unsigned char)((f[0] & 0xf9) |
-                               ((param & 0x1f) * 8));
+        // ORIG：命中后拷贝值 vector（仅作命中判定，内容不读取）再修改 item。
+        // itemScript 实参为 CStackableItem*（ORIG 读 +0x30c 附魔类型字节）。
+        const CStackableItem* stackItem =
+            static_cast<const CStackableItem*>(itemScript);
+        std::vector<EquipmentSkillDataUp> val(it->second.m_vec0);
+        if ((f[0] & 1) == 0)
+        {
+            f[0] |= 1;
+            f[0] = (unsigned char)((f[0] & 0xf9) |
+                                   (((stackItem->m_char30c) & 0x3) * 2));
+            f[0] = (unsigned char)((f[0] & 0x7) |
+                                   ((param & 0x1f) * 8));
+        }
+        else
+        {
+            f[1] |= 1;
+            f[1] = (unsigned char)((f[1] & 0xf9) |
+                                   (((stackItem->m_char30c) & 0x3) * 2));
+            f[1] = (unsigned char)((f[1] & 0x7) |
+                                   ((param & 0x1f) * 8));
+        }
+        return 1;
     }
-    else
-    {
-        f[1] |= 1;
-        f[1] = (unsigned char)((f[1] & 0xf9) |
-                               ((param & 0x1f) * 8));
-    }
-    return found ? 1 : 0;
+    return 0;
 }
 
 // ============================================================================

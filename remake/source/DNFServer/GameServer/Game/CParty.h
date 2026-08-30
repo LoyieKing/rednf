@@ -488,7 +488,7 @@ public:
     int checkInoutConditionDungeon();
     bool checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
     bool checkFreeRevivalCondition(CDungeon const* dungeon);
-    bool checkLimitUsedCoinCondition(CDungeon const* dungeon);
+    int checkLimitUsedCoinCondition(CDungeon const* dungeon);   // ORIG 返回错误码 0x13/0x16/0
     bool checkUnLimitUsedCoinCondition(CDungeon const* dungeon);
     int getStandardDimensionLevel();
     bool setStandardDimensionLevel(CDungeon const* dungeon);   // ORIG 恒返回 al=1

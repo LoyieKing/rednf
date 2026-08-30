@@ -196,19 +196,19 @@ STStackableScript::STStackableScript(STStackableScript& other)
     operator=(other);
     if (!other.m_module4bc.empty())
     {
-        std::map<int, EquipmentParameterInfo*>::iterator it = other.m_module4bc.begin();
+        std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it = other.m_module4bc.begin();
         while (true)
         {
-            std::map<int, EquipmentParameterInfo*>::iterator end_tmp = other.m_module4bc.end();
+            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator end_tmp = other.m_module4bc.end();
             if (!(it != end_tmp))
             {
                 break;
             }
-            std::map<int, EquipmentParameterInfo*>::iterator dst_end = m_module4bc.end();
-            std::map<int, EquipmentParameterInfo*>::iterator found = m_module4bc.find(it->first);
+            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator dst_end = m_module4bc.end();
+            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator found = m_module4bc.find(it->first);
             if (found != dst_end)
             {
-                std::pair<int, EquipmentParameterInfo*> src_pair;
+                std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*> src_pair;
                 src_pair = *it;
                 EquipmentParameterInfo* p = new EquipmentParameterInfo();
                 *p = *it->second;
@@ -225,7 +225,7 @@ STStackableScript::~STStackableScript()
 {
     if (!m_module4bc.empty())
     {
-        for (std::map<int, EquipmentParameterInfo*>::iterator it = m_module4bc.begin();
+        for (std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it = m_module4bc.begin();
              it != m_module4bc.end(); ++it)
         {
             if (it->second != 0)

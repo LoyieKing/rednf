@@ -1799,12 +1799,14 @@ char* CParty::getMemberNames(char* buf)
     return _getMemberNames(buf);
 }
 
-// ORIG T 0x085b9e20：循环 i=0..3 读 (this+0x78+i*0x18) 的 CUser* 与 user 比较，
-// 命中返回 i，否则 -1。
+// ORIG T 0x085b9e20：循环 i=0..3，_checkValidUser 过滤后读 (this+0x78+i*0x18)
+// 的 CUser* 与 user 比较，命中返回 i，否则 -1。
 int CParty::GetUserPosition(CUser* user)
 {
     for (int i = 0; i <= 3; ++i)
     {
+        if (!_checkValidUser(i))
+            continue;
         if (*reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) +
                                        0x78 + i * 0x18) == user)
             return i;

@@ -418,7 +418,7 @@ void ARAD_ITEM::arad_secret_shop_event_item(CUser* user, unsigned long param,
                                             CStackableItem* stackable)
 {
     typedef std::vector<CRabbitBox> RabbitVec;
-    RabbitVec& rabbits = stackable->m_vec168;   // +0x168（CStackableItem.h 权威字段）
+    RabbitVec& rabbits = stackable->m_arad148.m_vec20;   // +0x148+0x20（AradItemInfo 子对象）
 
     if (rabbits.empty())
         return;

@@ -349,8 +349,8 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
         return 0;
 
     float bias = 2.0f * 0.5f;  // 常量区：two(0x8c9d?) * pointFive
-    // 拷贝 m_infos[upgrade] 到 out（0x6c = 27 dwords）。
-    memcpy(out, &m_infos[upgrade], sizeof(upgrade_info_t));
+    // 拷贝 m_infos.at(upgrade) 到 out（0x6c = 27 dwords；ORIG 用 at 带越界检查）。
+    memcpy(out, &m_infos.at(upgrade), sizeof(upgrade_info_t));
 
     float gain = floatAt((rarity + 0x20) * 4 + 0xc);
     out->m_pad0[0] = 0;  // 占位：浮点区逐项缩放（见 floatAt 访问）

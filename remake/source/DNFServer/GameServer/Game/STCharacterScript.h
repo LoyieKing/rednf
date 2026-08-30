@@ -118,6 +118,9 @@ public:
     class STSecondGrowTypeData
     {
     public:
+        // ORIG C1 W 0x08367a28 域：构造后调 clear()（138 条；NEW 隐式 C1
+        // 仅 111 条不调 clear）。
+        STSecondGrowTypeData() { clear(); }
         void clear();                    // ORIG W 0x08367a28
 
         STRDCharacterStatus m_statusA;                  // +0x00（awakening 1）

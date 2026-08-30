@@ -2814,18 +2814,16 @@ int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error)
 int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay)
 {
     PacketGuard packet;
-    ((InterfacePacketBuf*)&packet)->clear();
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
     ((InterfacePacketBuf*)&packet)->put_byte(0);
     ((InterfacePacketBuf*)&packet)->put_byte(error);
-    ((InterfacePacketBuf*)&packet)->put_int((int)pay);
+    ((InterfacePacketBuf*)&packet)->put_byte((int)pay);   // ORIG 写 1 字节（put_int 会破坏包格式）
     ((InterfacePacketBuf*)&packet)->finalize(true);
     return Send(packet);
 }
 
 int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGuard& packet)
 {
-    ((InterfacePacketBuf*)&packet)->clear();
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
     ((InterfacePacketBuf*)&packet)->put_byte(0);
     ((InterfacePacketBuf*)&packet)->put_byte(error);
@@ -10539,7 +10537,7 @@ void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
               "[effect maintenance]. There is no duration value.");
         return;
     }
-    unsigned int durationSec = (unsigned int)item->m_int2dc / 1000;
+    unsigned int durationSec = (unsigned int)item->m_stat2dc.sec / 1000;
     unsigned int expireSec = curSec + durationSec;
     CStackableItem::StatChangeInfo stat = item->GetStatChangeInfo();
     if (stat.m_flagLo != 0 || stat.m_flagHi != 0)

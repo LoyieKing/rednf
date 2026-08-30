@@ -157,7 +157,8 @@ void STEquipmentAniScript::clear()  // ORIG 0x0898ce62（m_field0=0，各 string
     m_str50.clear();
     m_str54.clear();
     m_str58.clear();
-    m_str5c.clear();
+    // ORIG 0x0898ce62 未清 +0x5c（23 个 string 逐一 =""，缺 +0x5c；拷贝构造/operator= 均
+    // 拷贝 +0x5c，故 +0x5c 是 string 成员，仅 clear 漏清——按 ORIG 实证保留不清）
     m_str60.clear();
     m_vec64.clear();
     m_vec70.clear();

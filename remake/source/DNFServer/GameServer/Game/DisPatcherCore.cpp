@@ -937,7 +937,7 @@ int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
     {
         return 0;
     }
-    return party->checkLimitUsedCoinCondition(dungeon) ? 1 : 0;   // ORIG +0x108..0x11d：返 bool 升 int
+    return party->checkLimitUsedCoinCondition(dungeon);   // ORIG +0x108..0x11d：透传错误码
 }
 
 // ORIG 0x081ca63a T _ZN18DisPatcher_UseCoin11Dungeon_check_errorEP5CUserR8MSG_BASER9ParamBase

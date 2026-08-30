@@ -1,6 +1,15 @@
 #ifndef GAME_NPCSCRIPT_STRUCT_H
 #define GAME_NPCSCRIPT_STRUCT_H
 
+#include <deque>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "randomMessageBalloonInfo.h"   // NpcScript+0x6a4 内嵌对象（ORIG ctor 0x8a00c08）
+#include "NpcMovieData.h"               // NpcScript+0x6bc 内嵌对象（ORIG ctor 0x89fb78e）
+
 // ============================================================================
 // NpcScript —— NPC 对话脚本结构（ORIG 0x089fb942 ctor / 0x089fbf22 clear /
 // 0x089fc264 importNpcScript 逐字段写回还原）。
@@ -9,11 +18,13 @@
 // 本头为 NpcScript 及其子类型的唯一声明点。
 // ============================================================================
 
-#include <deque>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
+// ORIG 枚举（mangled 标签与 ORIG 一致）：NpcScript+0x4c 的
+// std::map<ENUM_NPC_ROLE,int> 键类型（isExistRole 符号
+// _ZNK10CNPCScript11isExistRoleE13ENUM_NPC_ROLE 实证）。
+enum ENUM_NPC_ROLE
+{
+    ENUM_NPC_ROLE_0 = 0
+};
 
 // ---- ORIG 枚举（mangled 标签与 ORIG 一致；值据 ORIG 汇编）----
 // getNpcMoodFromString（0x089faf46）返回 0/1/2/3（"bad"/"normal"/"good"）。
@@ -291,8 +302,9 @@ public:
     std::string m_popupWav[2];                        // +0x02c/+0x030 [popup wav]
     bool m_lookAround;                                // +0x034 [look around]
     int m_unknown38;                                  // +0x038 clear=-1 —「推断」
-    char m_pad3c[0x10];                               // +0x03c..0x4b ctor 构造两个子对象，类型未还原 —「推断」
-    std::map<int, int> m_roleMap;                     // +0x04c [role]
+    std::string m_unknown3c;                          // +0x03c（ORIG ctor 0x89fb954 构造 string）
+    std::vector<int> m_unknown40;                     // +0x040（ORIG ctor 0x89fba1e 构造 vector<int>）
+    std::map<ENUM_NPC_ROLE, int> m_roleMap;           // +0x04c [role]（ORIG map<ENUM_NPC_ROLE,int>）
     std::string m_questSpeech;                        // +0x064 [quest speech]
     std::vector<int> m_skills[12];                    // +0x068 [skill]（0xb=common，job 索引）
     std::string m_moveTownLimitStr;                   // +0x0f8 [move town limit str]
@@ -312,13 +324,9 @@ public:
     bool m_visibleOnDungeonClear;                     // +0x688 [visible on dungeon clear]
     std::vector<std::string> m_webPages;              // +0x68c [web page]
     std::vector<ClickMarkInfo> m_clickMarks;          // +0x698 [click mark]
-    std::string m_randomMessageAnimation;             // +0x6a4 [random message animation]
-    int m_randomMessageProbability;                   // +0x6a8 [random message probability]
-    std::vector<std::string> m_randomMessageList;     // +0x6ac [random message list]
+    randomMessageBalloonInfo m_balloonInfo;           // +0x6a4（ORIG ctor 0x8a00c08，sizeof 0x14）
     bool m_hide;                                      // +0x6b8 [hide]
-    // ORIG +0x6bc 为内嵌 NpcMovieData 对象，其首成员即 movie path 队列 —「推断」
-    std::deque<std::string> m_moviePaths;             // +0x6bc [movie path]
-    int m_moviePathIndex;                             // +0x6e4 [movie path] 置 0
+    NpcMovieData m_movieData;                         // +0x6bc（ORIG ctor 0x89fb78e，sizeof 0x2c）
 };
 
 #endif  // GAME_NPCSCRIPT_STRUCT_H

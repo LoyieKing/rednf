@@ -21,7 +21,7 @@ void GreyImage::reset()
     {
         m_width = 0;
         m_height = 0;
-        delete[] m_image;
+        delete m_image;   // ORIG reset 0x80df5ae 用标量 _ZdlPv（init 虽 _Znaj）
         m_image = 0;
     }
 }

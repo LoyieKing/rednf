@@ -54,7 +54,7 @@ void CDungeonEntranceLog::InsertDungeonEntrance()
 {
     // ORIG 0x860e59c：map 非空时把 (key, m_enter, m_partyEnter) 写入 Statistics DB
     // 流（msg 0xe0, LOGDB_Q=4），随后清空 map。
-    if (m_inoutMap.empty())
+    if (m_inoutMap.size() == 0)   // ORIG call size(); cmpl $0x0; jg
         return;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x4da), true);
     **guard << 0xe0;
@@ -75,7 +75,7 @@ void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
 {
     // ORIG 0x860e38e：map 非空时把 (key, m_total, m_curInside) 写入 Statistics DB
     // 流（msg 0xe1, LOGDB_Q=4），随后归零 m_total/m_curInside。
-    if (m_inoutMap.empty())
+    if (m_inoutMap.size() == 0)   // ORIG call size(); cmpl $0x0; jg
         return;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x4b5), true);
     **guard << 0xe1;

@@ -21811,9 +21811,12 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
         return 0xd5;
 
     // 消耗品尾部三字节选项条件区：+0x365 job、+0x366 type、+0x367 grade
-    const signed char optJob = (signed char)(consume->m_tail365.m_short365 & 0xff);
-    const signed char optType = (signed char)((consume->m_tail365.m_short365 >> 8) & 0xff);
-    const signed char optGrade = (signed char)consume->m_tail365.m_char367;
+    // （AvatarOptionChangeType 3 字节视图：低 ushort = job/type，高字节 = grade）
+    const unsigned short tail365 =
+        *reinterpret_cast<const unsigned short*>(&consume->m_avatar365.m_field0);
+    const signed char optJob = (signed char)(tail365 & 0xff);
+    const signed char optType = (signed char)((tail365 >> 8) & 0xff);
+    const signed char optGrade = (signed char)consume->m_avatar365.m_field2;
 
     if (consume->m_set368.empty())
     {
@@ -23752,6 +23755,7 @@ void Dispatcher_RefundSkill::send(CUser* user, ParamBase& param)
 // ============================================================================
 
 // ==== 前置：局部线格式视图（宿主一次性置入匿名 namespace） ====
+#pragma pack(push, 1)
 namespace {
 
 struct ScrMsgView
@@ -23760,11 +23764,13 @@ struct ScrMsgView
     unsigned char m_secuType;      // +0x0d（0=安全卡、1=密保卡 pad）
     unsigned char m_cryptoType;    // +0x0e（check_error：非 0、<=0xd、!=5）
     char m_data[0x1000];           // +0x0f 密文区（get_binary 读 m_dataLen 字节）
-    int m_dataLen;                 // +0x100f
+    int m_dataLen;                 // +0x100f（ORIG 紧凑布局：0xf+0x1000=0x100f；
+                                   //   缺 pack(1) 时 int 对齐把 m_dataLen 推至 0x1010）
     unsigned char m_answerType;    // +0x1013
 };
 
 }  // namespace
+#pragma pack(pop)
 
 // ==== Dispatcher_SecurityCardAuthRpy::read (ORIG 0x08262658) ====
 int Dispatcher_SecurityCardAuthRpy::read(PacketBuf& packet, MSG_BASE& msg)

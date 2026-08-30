@@ -231,7 +231,8 @@ bool CAICharacterList::init()
 bool CAICharacterList::_add(CAICharacter* aiChar)
 {
     std::pair<std::map<int, CAICharacter*>::iterator, bool> ins =
-        m_charMap.insert(std::make_pair(aiChar->getIdx(), aiChar));
+        m_charMap.insert(std::make_pair(
+            static_cast<unsigned int>(aiChar->getIdx()), aiChar));   // ORIG make_pair<unsigned int,...>
     if (!ins.second)
         return false;
 

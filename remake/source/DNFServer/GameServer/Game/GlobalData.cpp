@@ -5524,10 +5524,6 @@ bool GlobalData::Init()
     s_itemAmplifier_ = new CItemAmplifier;
     s_globalEffectManager_ = new CGlobalEffectManager;
 
-    // Event Upgrade Jar（ORIG 于 CDataManager::init 中 new + LoadScript）。
-    s_pEvent_UpGrade_Jar = new Event_Upgrade_Jar;
-    s_pEvent_UpGrade_Jar->LoadScript("", "Etc/EventUpgradeJar.etc");
-
     s_timeGate_ = new (std::nothrow) CTimeGate;
     if (!s_timeGate_)
     {

@@ -259,8 +259,9 @@ public:
                      std::map<int, RandomOptionGive> >& get_option_type() = 0;        // 槽0
     virtual std::map<unsigned long long, OptionGroupChoiceValue>&
                                      get_option_group_choice() = 0;                    // 槽1
+// ORIG 该基类无析构（nm 无 D1/D2/D0；派生类亦无 D1）——声明析构会使
+// 派生类生成 D1，RandomOptionScript C1 异常清理链多出 provider 的 D1 调用。
 protected:
-    ~CRandomOptionGive() {}
 };
 
 // ---- 派生 provider（原 CRandomOptionGiveNormal.h/CModifiedRandomOptionGive.h 定义移入本头，

@@ -42,8 +42,9 @@
 class MSG_BASE
 {
 public:
-    MSG_BASE();                  // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
-                                 // 定义唯一提供于 PacketTypes.cpp（keeper 协作约定）。
+    MSG_BASE() {}                // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
+                                 // 头文件内联 → 弱符号 W（同 ORIG），GCC O0 对空构造
+                                 // 调用点省略（ORIG 全二进制仅 65 调用，均派生构造链）。
     char m_head[0xd];
 };
 

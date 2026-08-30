@@ -693,7 +693,7 @@ void CEquipItem::getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const
             return;
     }
 
-    const stAvatarTypeSelect_t* p = &m_avatarSelect[selIndex];
+    const stAvatarTypeSelect_t* p = &m_avatarSelect.at(selIndex);
     if (index + (size_t)p->m_field10 > 4)
         return;
 

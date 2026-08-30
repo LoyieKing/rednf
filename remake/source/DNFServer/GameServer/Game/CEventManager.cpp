@@ -199,7 +199,7 @@ int filterEvent(int type)
         if (type == 0x39) return 0;
         if (type < 0x3a)
             return type == 0xb ? 0 : 1;
-        return (type - 0x3dU > 1) ? 1 : 0;
+        return (type - 0x3dU <= 1) ? 0 : 1;
     }
     if (type < 0x3a)
         return (type < 0x36 && type != 0xb) ? 1 : 0;

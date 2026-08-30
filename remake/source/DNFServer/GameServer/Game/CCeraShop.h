@@ -60,7 +60,12 @@ public:
     // +0x0c std::vector<tagPackageItemSelection>（已选包条目，package 处理时迭代/erase）
     struct stCeraShopItemParam_t
     {
-        stCeraShopItemParam_t() {}
+        // ORIG ctor 0x0817a244：构造两 vector 后各调一次 clear。
+        stCeraShopItemParam_t()
+        {
+            m_pairs.clear();
+            m_sel.clear();
+        }
         std::vector<std::pair<int, int> > m_pairs;     // +0x00
         std::vector<tagPackageItemSelection> m_sel;    // +0x0c
     };

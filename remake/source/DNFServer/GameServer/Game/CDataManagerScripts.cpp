@@ -2348,7 +2348,7 @@ int GuildParameterScript::getGuildLevelUpParam(int level)
 }
 
 // ---- GuildParameterScript::getLevelupPrice（ORIG T 0x089797a4）----
-// 自高向低扫 m_vecF0，首个 first>=memberCnt（members 阈值）的
+// 自高向低扫 m_vecF0，首个 first<=memberCnt（members 阈值）的
 // second[level]；全不命中取 [0].second[level]；结果 ×10000。
 int GuildParameterScript::getLevelupPrice(int level, int memberCnt)
 {
@@ -2356,7 +2356,7 @@ int GuildParameterScript::getLevelupPrice(int level, int memberCnt)
     int priceVecIdx = -1;
     for (unsigned int i = tbl.size(); i-- > 0;)
     {
-        if (memberCnt <= tbl[i].first)
+        if (tbl[i].first <= memberCnt)
         {
             priceVecIdx = static_cast<int>(i);
             break;

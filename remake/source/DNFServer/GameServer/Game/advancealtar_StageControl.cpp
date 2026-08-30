@@ -17,25 +17,23 @@ namespace advancealtar
 //   ProcStage::ProcStage(this+4, characData@this+0x98)（T 0x812dc18）+
 //   CharacData::CharacData(this+0x98)（T 0x812d024）。
 // 子对象以字节槽持有（advancealtar.h 布局注释），此处 placement 构造；
-// ORIG 先 ProcStage 后 CharacData 的顺序保留（ProcStage ctor 仅存指针，
-// 无观察差异）。
-// ----------------------------------------------------------------------------
 StageControl::StageControl()
 {
     m_index = -1;
-    new (getCharacData()) CharacData;
-    new (reinterpret_cast<void*>(m_procStage)) ProcStage(*getCharacData());
+    CharacData* characData = reinterpret_cast<CharacData*>(
+        reinterpret_cast<char*>(this) + 0x98);
+    new (reinterpret_cast<void*>(m_procStage)) ProcStage(*characData);
+    new (characData) CharacData;
 }
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x0812fa06（~StageControl.md 全文）：CharacData::~CharacData →
-//   ProcStage::~ProcStage（vector@+0x80、map@+0x50、ProcSummonObjectMs@+0x18
-//   随成员析构；堆元素由 reset() delete，与 ORIG 一致）。
-// ----------------------------------------------------------------------------
 StageControl::~StageControl()
 {
+    CharacData* characData = reinterpret_cast<CharacData*>(
+        reinterpret_cast<char*>(this) + 0x98);
+    characData->~CharacData();
     reinterpret_cast<ProcStage*>(m_procStage)->~ProcStage();
-    getCharacData()->~CharacData();
 }
 
 // ORIG W 0x81348ba：(const) return *(int*)this;

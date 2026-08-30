@@ -4402,7 +4402,8 @@ bool DBTask::HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx, int& signal)
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x8f2, 5);
-            trace("Small Stream Size over code(%d), size(%u)", length,
+            // ORIG：第一变参为 *signal（消息 code），第二变参为 length。
+            trace("Small Stream Size over code(%d), size(%u)", signal,
                   static_cast<unsigned int>(length));
         }
         GlobalData::s_small_stream_pool->Free(stream);        // ORIG 0x08290004
@@ -4413,7 +4414,7 @@ bool DBTask::HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx, int& signal)
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x908, 5);
-            trace("Big Stream Size over code(%d), size(%u)", length,
+            trace("Big Stream Size over code(%d), size(%u)", signal,
                   static_cast<unsigned int>(length));
         }
         GlobalData::s_big_stream_pool->Free(stream);          // ORIG 0x08290304
@@ -4424,7 +4425,7 @@ bool DBTask::HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx, int& signal)
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x8fd, 5);
-            trace("Default Stream Size over code(%d), size(%u)", length,
+            trace("Default Stream Size over code(%d), size(%u)", signal,
                   static_cast<unsigned int>(length));
         }
         GlobalData::s_stream_pool->Free(stream);              // ORIG 0x0828fb28
@@ -7419,7 +7420,7 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
         return 0;
     }
     int nItems = 0x73;                   // ORIG 死局部（-0x2c 只写不读，P31）
-    Inven_Item items[0x15];
+    Inven_Item items[22];                // ORIG 构造 0x15→-1 共 22 次（P34）
     int rows[0x73][3];                   // slot/it_id/clear_avatar_id × 115
     memset(rows, 0, sizeof(rows));
     int dbSize = db->get_binary_length(0);

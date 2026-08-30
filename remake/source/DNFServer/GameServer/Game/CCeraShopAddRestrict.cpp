@@ -281,7 +281,7 @@ bool Manager::Load()
 {
     // ORIG 0x080e0e08：printf("[!] Loading CeraShop Add Restrict Script ...") 后
     // 调 ScriptLoader::LoadScript()；非 0 返回 0，否则 1。
-    printf("[!] Loading CeraShop Add Restrict Type script - \n");  // ORIG 串无 \n，仅尾随空格
+    printf("[!] Loading CeraShop Add Restrict Type script - ");  // ORIG 串无 \n，仅尾随空格（带 \n 会被 GCC 转 puts）
     return m_loader.LoadScript() == 0;
 }
 
