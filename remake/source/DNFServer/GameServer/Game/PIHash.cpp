@@ -124,17 +124,17 @@ short _NS_PI_2ND_GetPacketIndex(char* packet)
     return *reinterpret_cast<short*>(packet + 1);
 }
 
-// ---- PISenderManager::MakeHashForSending ORIG @ 0x0808be6e ----
-// this+0x10 为当前 key 字节；bNewKey 时先写固定种子 0x27，再以 rand() 刷新。
+// this+0x4 为当前 key 字节（ORIG asm：movb $0x27,0x4(%eax) / movzbl 0x4(%eax)）；
+// bNewKey 时先写固定种子 0x27，再以 rand() 刷新。
 unsigned int PISenderManager::MakeHashForSending(unsigned char* data,
                                                  unsigned int len,
                                                  bool bNewKey)
 {
     if (bNewKey)
-        m_field10 = 0x27;
-    unsigned char key = m_field10;
+        m_pad[0] = 0x27;
+    unsigned char key = m_pad[0];
     unsigned int rnd = static_cast<unsigned int>(rand());
-    m_field10 = static_cast<unsigned char>(rnd);
+    m_pad[0] = static_cast<unsigned char>(rnd);
 
     unsigned char h;
     if (len == 0)

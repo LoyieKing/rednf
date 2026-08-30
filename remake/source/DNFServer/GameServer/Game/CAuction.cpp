@@ -25,6 +25,8 @@
 #include "Arad_InternalDispatcher.h"  // ARAD::DISPATCHER::make_internal_stream_jpn
 #include "RestrictGeolocation.h"      // 0x27fe case：initGeolocation
 #include "ServiceRestrictManager.h"   // 0x27ff case：loadPolicy
+#include "CHadesServerProxy.h"       // 0xfe7 case：ConnTcpHadesSvr
+#include "CSwitchLog.h"              // 0x2717 case：SetLogWriteFlag
 
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
 struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
@@ -788,10 +790,8 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0xfe7)
     {
-        guard << 368;
-        guard << -1;
-        guard->put_binary(data, *(unsigned short*)(data + 2));
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG 0x847a140：GlobalData::s_hades_proxy->ConnTcpHadesSvr() 后直返。
+        GlobalData::s_hades_proxy->ConnTcpHadesSvr();
     }
         else if (sig == 0x1004)
     {
@@ -997,10 +997,8 @@ int CDispatchServerPacket::dispatchPacket(char* data)
     }
         else if (sig == 0x2717)
     {
-        guard << 677;
-        guard << *(int*)(data + 10);
-        guard->put_binary(data, *(unsigned short*)(data + 2));
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG 0x847a272：CSwitchLog::SetLogWriteFlag(data[10]) 后直返。
+        CSwitchLog::SetLogWriteFlag(data[10]);
     }
         else if (sig == 0x2719)
     {

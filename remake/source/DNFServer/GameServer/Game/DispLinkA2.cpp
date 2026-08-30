@@ -152,7 +152,8 @@ int Dispatcher_DisJointAvatar::_selectJewelTypeIndex(
         // stAvatarEmblemInfo_t pack(1)：5×{ushort emblemSocketType_@+i*6, int emblemItemIdx_}
         if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0)
             continue;
-        if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0xffef)
+        // ORIG 0x08218598：哨兵为 0xffff（cmp $0xffff,%ax），非 0xffef。
+        if (jewelSocketData->stEmblemSocket[i].emblemSocketType_ == 0xffff)
             continue;
         idx = _getJewelTypeIndex(
             jewelSocketData->stEmblemSocket[i].emblemSocketType_);  // ORIG W 0x0821857c 转发目标

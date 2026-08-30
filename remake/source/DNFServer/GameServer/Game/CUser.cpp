@@ -82,6 +82,9 @@
 #include "CExpertJob.h"          // expert_job::CExpertJobMgr::OnLeaveUser
 #include "CHandlePremium.h"      // WongWork::CHandlePremium（handleReturn2CharacView）
 #include "W8LT_DBTask.h"        // DB_UpdateSchoolPoint（RecoverFatigue 学校点落库）
+#include "DB_InterDeps.h"       // DB_UpdateCharacPlayTime（ReturnToSelectCharacList）
+#include "COnTimeEvent.h"       // COnTimeEvent::delete_reward_user（delete_ontime_reward_list）
+#include "MoreTypes.h"         // arad::SigAradEventItemLog（SendAradEventItemLog）
 #include "CPowerManager.h"    // s_power_manager 完整类型（make_basic_info 排名查询）
 #include "AuctionProxy.h"    // CAuctionServerProxy/CCeraAuctionServerProxy 完整类型（IsRunning）
 #include "CDeathTowerRanking.h"
@@ -1047,11 +1050,12 @@ bool CUser::CheckItemLock(int a, int b) const
 {
     if (getCurCharacR() == 0)
         return 0;
-    CInventory* pInven = (CInventory*)getCurCharacInvenR();
-    if (pInven->GetInvenRef(a, b) == 0)
+    const CInventory* pInven = getCurCharacInvenR();
+    const Inven_Item* item = pInven->GetInvenRef(a, b);
+    if (item == 0)
         return 1;
     unsigned char lock =
-        ((stAmplifyOption_t*)((char*)pInven->GetInvenRef(a, b) + 0x11))->GetLock();
+        ((const stAmplifyOption_t*)((const char*)item + 0x11))->GetLock();
     if (lock == 0)
         return 0;
     // ORIG 0x86469d4：((CItemLock*)GetCharacExpandDataR(2))->CheckItemLock(lock)。
@@ -2546,15 +2550,17 @@ int CUser::CheckMoveTown(int vill)
         if ((1 << vill) & 0x580)
             return 0;
     }
-    Village* village = G_GameWorld()->GetVillage(vill);
-    if (!village)
-        return 8;
-    if (village->m_questIdx != 0)
-    {
-        if (!getCurCharacQuestR()->isClearQuest(village->m_questIdx))
-            return 7;
-    }
-    return 0;
+    	Village* village = G_GameWorld()->GetVillage(vill);
+	if (!village)
+		return 8;
+	if (get_charac_level() < village->m_field2c)
+		return 8;
+	if (village->m_questIdx != 0)
+	{
+		if (!getCurCharacQuestR()->isClearQuest(village->m_questIdx))
+			return 7;
+	}
+	return 0;
 }
 
 unsigned char CUser::isUseCraneStart() const
@@ -5451,17 +5457,26 @@ void CUser::SetPvpIndex(short idx)
 
 void CUser::add_inventory_item(unsigned int itemId)
 {
-    CItem* pItem = G_CDataManager()->find_item(itemId);
-    if (!pItem)
-        return;
-    Inven_Item invenItem;
-    pItem->make_item(invenItem);
-    invenItem.m_addInfo2 = 1;  // count
-    invenItem.m_addInfo = itemId;  // item id
-    int slot = getCurCharacInvenW()->insertItemIntoInventory(invenItem, (eItemAddReason)0x18, true, true);
-    if (slot == -1)
-        return;
-    // send update item packet
+    	CItem* pItem = G_CDataManager()->find_item(itemId);
+	if (!pItem)
+		return;
+	Inven_Item invenItem;
+	pItem->make_item(invenItem);
+	invenItem.m_addInfo2 = 1;  // count
+	invenItem.m_addInfo = itemId;  // item id
+	int slot = getCurCharacInvenW()->insertItemIntoInventory(invenItem, (eItemAddReason)0x18, true, true);
+	if (slot == -1)
+		return;
+	// ORIG 0x0865cb19：MakeItemPacket 成功则 finalize+Send（0xe/byte 0/short 1）
+	PacketGuard packet;
+	((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
+	((InterfacePacketBuf*)&packet)->put_byte(0);
+	((InterfacePacketBuf*)&packet)->put_short(1);
+	if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet))
+	{
+		((InterfacePacketBuf*)&packet)->finalize(true);
+		Send(packet);
+	}
 }
 
 void CUser::send_MissionList()
@@ -8360,9 +8375,8 @@ void CUser::reqHumanCertify4ClearMap(bool flag)
             {
                 setStdDropRate(rate);
                 int nowRate = getStdDropRate();
-                // 推断：DB_SaveUserHandicap::makeRequest(accId,0x9c41,0x65,
-                //   nowRate,1,0) 待 DB 域建模后接线。
-                (void)nowRate;
+                DB_SaveUserHandicap::makeRequest(get_acc_id(), 0x9c41, 0x65,
+                                                 nowRate, 1, 0);
                 }
             }
         }
@@ -9095,7 +9109,8 @@ int CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
     const CCargo* cargo = getCurCharacCargoR();
     sig->m_cargoCapacity = (unsigned int)cargo->GetCapacity();
     cargo->get_cargo(&sig->m_cargo);
-    sig->m_avatarCoin = *(unsigned int*)((char*)inven + 0x658);  // AvatarCoin::Get（inven+0x658 处 4 字节）
+    	sig->m_avatarCoin =
+	    ((AvatarCoin*)((char*)inven + 0x658))->Get();  // AvatarCoin::Get（inven+0x658）
     sig->m_inventoryCapacity = inven->get_inventory_capacity();
     return 1;
 }
@@ -9493,7 +9508,8 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_totalPcRoomPlayTime = getTotalPcRoomPlayTime();
     sig->m_pcRoomPlayTimeRewardCnt = getPcRoomPlayTimeRewardCnt();
     sig->m_curCharacUsedGiftFatigueQuantity = GetCurCharacUsedGiftFatigueQuantity();
-    sig->m_bitset = 1;   // std::bitset<32>::set 位0（ORIG +0xc9bc）
+    // ORIG 调 std::bitset<32>::set()（无参，全部 32 位置 1 → 0xffffffff）。
+    sig->m_bitset = 0xffffffff;
 
     // skill 区（+0xc9c0）+ combo（+0x14aaa）
     GetSkill((SIG_LOAD_SKILL*)sig->m_mixedRegion, (SIG_COMBO_SKILL*)sig->m_comboSkill);
@@ -9508,6 +9524,9 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     (*(GetDataFn)((char*)*(void**)eb + 8))(eb, mix + (0xd5a7 - 0xc9c0));
     CExpandEquipslot* ed = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xd);
     (*(GetDataFn)((char*)*(void**)ed + 8))(ed, mix + (0xd718 - 0xc9c0));
+    // ORIG 0x0867794c：expand type 0xa → mix+0xd3c（0xd6fc - 0xc9c0）。
+    CExpandEquipslot* ea = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa);
+    (*(GetDataFn)((char*)*(void**)ea + 8))(ea, mix + (0xd6fc - 0xc9c0));
     CExpandEquipslot* e10 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10);
     (*(GetDataFn)((char*)*(void**)e10 + 8))(e10, mix + (0xd73c - 0xc9c0));
     CExpandEquipslot* ee = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe);
@@ -10056,10 +10075,7 @@ void CUser::delete_ontime_reward_list()
     typedef int (*IsEventingFn)(CEventBase*, int);
     if (((IsEventingFn)(*(void**)(*(char**)ev + 0x34)))(ev, 0))
     {
-        // COnTimeEvent::delete_reward_user(CUser*) ORIG T 0x081bbc64（类未建模，
-        // 函数指针桥，Secu_GoldControl.cpp 先例）
-        typedef void (*DeleteRewardUserFn)(void*, CUser*);
-        ((DeleteRewardUserFn)0x081bbc64)(ev, this);
+        ((COnTimeEvent*)ev)->delete_reward_user(this);
     }
 }
 
@@ -10683,19 +10699,11 @@ void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
         return;
     }
 
-    // 线格式（ORIG put_binary 0x10）：+0x00 ulong itemIndex / +0x04 int count /
-    // +0x08 uint accId / +0x0c int characNo。
-    struct SigAradEventItemLogLine
-    {
-        unsigned long itemIndex;
-        int count;
-        unsigned int accId;
-        int characNo;
-    } sig;
-    sig.itemIndex = itemIndex;
-    sig.count = count;
-    sig.accId = get_acc_id();
-    sig.characNo = get_charac_no(-1);
+    arad::SigAradEventItemLog sig;
+    sig.m_itemId = itemIndex;
+    sig.m_itemCount = count;
+    sig.m_id = get_acc_id();
+    sig.m_characNo = get_charac_no(-1);
 
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xb9c7);
     CStreamGuard guard(stream, true);
@@ -11033,20 +11041,18 @@ void CUser::ReturnToSelectCharacList(bool param)
     private_store::CPrivateStoreMgr* psMgr = private_store::GetInstancePrivateStoreMgr();
     (*(void(**)(private_store::CPrivateStoreMgr*, CUser*))(*(void**)psMgr))(psMgr, this);
 
-    pvp_assault::CAssaultMgr* assaultMgr = pvp_assault::GetInstanceAssaultMgr();
-    assaultMgr->OnLeaveAssaultPlace(this, true);
-    // BLOCKED：expert_job::CExpertJobMgr::OnLeaveUser（0x0849e214，权威类缺方法，
-    //   由专家域批次补声明/定义后恢复调用）。
-    long playTick = GetCharacPlayTick();
-    int characNo = get_charac_no(-1);
-    // BLOCKED：DB_UpdateCharacPlayTime::makeRequest(int,long)（DB 域）。
-    // BLOCKED：online_preliminary::COnlinePreliminaryTeamMgr::OnLeaveUser（在线域）。
-    unsigned int curCharacNo = getCurCharacNo();
-    unsigned char villageCnt = GetCurVillageAttackCount();
-    unsigned char revengeCnt = GetCurRevengeDungeonCount();
-    if (IsVillageAttackDBUpdate())
-        ;
-    // BLOCKED：DB_UpdateRevengeData::makeRequest(uint,uchar,uchar)（DB 域）。
+    	pvp_assault::CAssaultMgr* assaultMgr = pvp_assault::GetInstanceAssaultMgr();
+	assaultMgr->OnLeaveAssaultPlace(this, true);
+	GlobalData::s_ExpertJobMgr->OnLeaveUser(this);
+	long playTick = GetCharacPlayTick();
+	int characNo = get_charac_no(-1);
+	DB_UpdateCharacPlayTime::makeRequest(characNo, playTick);
+	GlobalData::s_onlinePreliminaryTeamMgr->OnLeaveUser(this);
+	unsigned int curCharacNo = getCurCharacNo();
+	unsigned char villageCnt = GetCurVillageAttackCount();
+	unsigned char revengeCnt = GetCurRevengeDungeonCount();
+	if (IsVillageAttackDBUpdate())
+		DB_UpdateRevengeData::makeRequest(curCharacNo, villageCnt, revengeCnt);
 
     DBUpdateDBLogItem();
     ResetDBLogItem();
@@ -11077,9 +11083,8 @@ void CUser::ReturnToSelectCharacList(bool param)
 
     long now = (long)time(0);
     getPad()->setCheckTime(now);
-    CerashopAddRestrict::Manager::ClearBuyRestrictItem(this);
-    // BLOCKED：WongWork::CHandlePremium::handleReturn2CharacView（0x086af96e，
-    //   权威类缺方法，由 premium 批次补声明/定义后恢复调用）。
+    	CerashopAddRestrict::Manager::ClearBuyRestrictItem(this);
+	WongWork::CHandlePremium::handleReturn2CharacView(this);
 
     if (param)
     {

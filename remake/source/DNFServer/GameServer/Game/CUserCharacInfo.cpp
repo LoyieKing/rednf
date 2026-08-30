@@ -1434,7 +1434,7 @@ void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
 {
     char buffer[0x100];
     out.clear();
-    memset(buffer, 0, sizeof(buffer));
+    memset(buffer, 0, 0x40);   // ORIG asm：memset 0x40（数组 0x100 仅清前 64）
     int offset = 6;
     while (true)
     {

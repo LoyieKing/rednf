@@ -10204,6 +10204,16 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
 
+    // ORIG 0x08223484：CSecu_ProtectionField::Check(user, 0x1a)，
+    // 非 0 则 SendCmdErrorPacket(0x112, 错误码) 返回 0。
+    int secuErr = GlobalData::s_pSecuProtectionField->Check(
+        user, (SECURITY_PROTCTION)0x1a);
+    if (secuErr != 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, (unsigned char)secuErr);
+        return 0;
+    }
+
     if ((int)user->CheckItemLock(1, (int)slotB) != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, 0xd5);
@@ -22143,11 +22153,7 @@ int Dispatcher_MailBox_Send::check_error(CUser* user, MSG_BASE& msg)
 
     {
         bool movable = true;
-        /* BLOCKED: _Z36CheckItemTradeLimitCountToMoveByUserR5CUseriiRb @0x0812032e
-           ORIG: CheckItemTradeLimitCountToMoveByUser(*user, invenType, slot, &movable);
-           仓库暂无该真实声明，占位保持其余逻辑；恢复后 movable 由其写回。 */
-        (void)invenType;
-        (void)slot;
+        CheckItemTradeLimitCountToMoveByUser(*user, invenType, slot, movable);
         if (!movable)
             return 0x72;
     }
@@ -24311,6 +24317,11 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     packet.finalize(true);
     user->Send(packet);
 
+    /* ORIG 0x81e6fa0..0x81e6fc8：发包后先通知头像变化
+       SendAvatarEvent(0x31a, targetItem.m_addInfo, 颜色, 0, 0)，再取头像信息。 */
+    user->getCurCharacInvenW()->SendAvatarEvent(
+        0x31a, targetItem.m_addInfo, dye.m_vec4[0].first, 0, 0);
+
     /* ORIG 0x81e6fed..0x81e7062：GetAvatarInfo(targetItem.m_addInfo) →
        UseDye(dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
        string(GetIPGAgencyNo()), req.m_10)（cUserHistoryLog @ user+0x79700）。 */
@@ -26340,7 +26351,8 @@ int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, Param
     std::vector<int> members;                                // +0x1c7 默认构造
     party->GetValidPartyMember(members);                     // T 0x085bd1dc
 
-    CTournamentDungeonReward& reward = party->m_tournamentReward;   // +0x17bc
+    CTournamentDungeonReward& reward =
+        reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;   // +0x17bc
     // 全员已选卡 → 0x7fffffff（isCardSelectComplete 第二参=卡组类型 2）
     /* BLOCKED: CTournamentDungeonReward::isCardSelectComplete @0x08284d08 —— CTournamentDungeonReward.h 缺声明。
        ORIG: if (reward.isCardSelectComplete((ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, list)) { ... 0x7fffffff }
@@ -26376,7 +26388,8 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party != 0)
         {
-            CTournamentDungeonReward& reward = party->m_tournamentReward;   // +0x17bc
+            CTournamentDungeonReward& reward =
+                reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;   // +0x17bc
             reward.MakeSelectPacket(&guard);
             guard.finalize(true);
             party->send_to_party(guard);

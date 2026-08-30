@@ -71,7 +71,16 @@ public:
 // 不再保留本文件的 flat 工作布局副本（消除与权威头的重复定义）。
 // ===================== 报告函数（CEquipItem.md） =====================
 
-CEquipItem::CEquipItem() {}
+// ORIG 0x851547e：+0x1e0 WpBonusPointData 与 +0x1e8 ExpBonusPointData 各自
+// clear()（m_type=2、m_value=0）。本文件以 4 个 int 平铺该 16 字节区
+// （m_field1e0..m_field1ec），初始化列表按声明顺序（0x1f0 vector 之前）补齐。
+CEquipItem::CEquipItem()
+    : m_field1e0(2),   // WpBonusPointData::m_type
+      m_field1e4(0),   // WpBonusPointData::m_value
+      m_field1e8(2),   // ExpBonusPointData::m_type
+      m_field1ec(0)    // ExpBonusPointData::m_value
+{
+}
 
 CEquipItem::~CEquipItem() {}
 

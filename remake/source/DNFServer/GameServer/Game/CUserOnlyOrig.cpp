@@ -10710,6 +10710,58 @@ _Charac_info::~_Charac_info()
     reinterpret_cast<SkillSlot*>(p + 0x892)->~SkillSlot();                // call 0x8694e80
     reinterpret_cast<CInventory*>(p + 0xda)->~CInventory();               // call 0x822d600
 }
+// ORIG 0x08699863：编译器生成的拷贝构造。平凡区（含 _Additioal_info@0x88、
+// CCargo@0xdaa 等无堆成员子对象）逐字段拷贝；非平凡子对象调用拷贝构造。
+_Charac_info::_Charac_info(const _Charac_info& other)
+{
+    typedef std::map<int, stBloodBestRecord> BloodBestMap;
+    typedef std::map<int, STSkillCommandData> SkillCommandMap;
+    char* p = reinterpret_cast<char*>(this);
+    const char* o = reinterpret_cast<const char*>(&other);
+    memcpy(p, o, 0xda);                                                // +0x00..+0xd9 平凡区
+    new (p + 0xda) CInventory(*reinterpret_cast<const CInventory*>(o + 0xda));    // call 0x8699476
+    new (p + 0x892) SkillSlot(*reinterpret_cast<const SkillSlot*>(o + 0x892));    // call 0x86996f6
+    memcpy(p + 0xdaa, o + 0xdaa, 0xe9a - 0xdaa);                       // CCargo 等平凡区
+    new (p + 0xe9a) std::vector<ContinuousItemInfo>(
+        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xe9a));    // call 0x869f61c
+    new (p + 0xea6) std::vector<ContinuousItemInfo>(
+        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xea6));    // call 0x869f61c
+    new (reinterpret_cast<BloodBestMap*>(p + 0xecc))
+        BloodBestMap(*reinterpret_cast<const BloodBestMap*>(o + 0xecc));          // call 0x869f6d0
+    memcpy(p + 0xeed, o + 0xeed, 0x1254 - 0xeed);                       // +0xeed..+0x1253 平凡区
+    new (reinterpret_cast<SkillCommandMap*>(p + 0x1254))
+        SkillCommandMap(*reinterpret_cast<const SkillCommandMap*>(o + 0x1254));   // call 0x869f6ea
+    memcpy(p + 0x129d, o + 0x129d, 0x14d1 - 0x129d);                    // 尾部平凡区
+}
+
+// ORIG 0x0869da62：编译器生成的赋值。顺序：平凡区（+0x88 区 0x52 memcpy）→
+// CInventory/SkillSlot 赋值 → +0xdaa 区 0x11 memcpy → 双 vector/双 map 赋值。
+_Charac_info& _Charac_info::operator=(const _Charac_info& other)
+{
+    typedef std::map<int, stBloodBestRecord> BloodBestMap;
+    typedef std::map<int, STSkillCommandData> SkillCommandMap;
+    char* p = reinterpret_cast<char*>(this);
+    const char* o = reinterpret_cast<const char*>(&other);
+    if (p == o)
+        return *this;
+    memcpy(p, o, 0x88);                                                // +0x00..+0x87 平凡区
+    memcpy(p + 0x88, o + 0x88, 0x52);                                  // _Additioal_info
+    *reinterpret_cast<CInventory*>(p + 0xda) =
+        *reinterpret_cast<const CInventory*>(o + 0xda);                // call 0x869d73c
+    *reinterpret_cast<SkillSlot*>(p + 0x892) =
+        *reinterpret_cast<const SkillSlot*>(o + 0x892);                // call 0x869d91e
+    memcpy(p + 0xdaa, o + 0xdaa, 0x11);                                // CCargo 平凡区
+    *reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xe9a) =
+        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xe9a);     // call 0x86a32b0
+    *reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xea6) =
+        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xea6);     // call 0x86a32b0
+    *reinterpret_cast<BloodBestMap*>(p + 0xecc) =
+        *reinterpret_cast<const BloodBestMap*>(o + 0xecc);             // call 0x86a34fe
+    *reinterpret_cast<SkillCommandMap*>(p + 0x1254) =
+        *reinterpret_cast<const SkillCommandMap*>(o + 0x1254);         // call 0x86a351c
+    memcpy(p + 0x129d, o + 0x129d, 0x14d1 - 0x129d);                   // 尾部平凡区
+    return *this;
+}
 
 // ============================================================================
 // CUser::giveCharacLinkBonusExp(unsigned int bonusExp)

@@ -520,8 +520,9 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
         return;
     }
 
-    int rowCount = db->get_n_rows();
-    if (rowCount == 0)
+    // ORIG 0x083f9d60：if 条件内直接调用 get_n_rows()（第一次）；
+    // 下方 int rowCount = get_n_rows() 为第二次调用（0x083f9e09）。忠实保留。
+    if (db->get_n_rows() == 0)
         return;
 
     Stream* stream = GlobalData::s_stream_pool->Acquire("DBEventWork.inl", 0x3e);
@@ -535,6 +536,7 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
     sig->m_eventId = eventId;
     sig->m_characNo = characNo;
 
+    int rowCount = db->get_n_rows();                   // 第二次调用（ORIG 0x083f9e09）
     int loaded = 0;                                    // fetch 游标
     while (loaded < rowCount && db->fetch())
     {

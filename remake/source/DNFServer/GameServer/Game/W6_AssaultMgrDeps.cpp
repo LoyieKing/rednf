@@ -1045,7 +1045,9 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         if (PowerWarOn()
             && attacker->getCurCharacVill() == 0x7 && result == 0)
         {
-            GlobalData::s_power_manager->GetPowerWarLog()->IncStartFailureCount();
+            // ORIG catch 内计数用 IncAssaultAttemptFailureCount（0x82f0850）
+            GlobalData::s_power_manager->GetPowerWarLog()
+                ->IncAssaultAttemptFailureCount();
         }
         if (result != 0)
         {

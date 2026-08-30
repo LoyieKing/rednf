@@ -501,6 +501,8 @@ typedef char charac_login_data_size_ok[(sizeof(CHARAC_LOGIN_DATA) == 0x90) ? 1 :
 #pragma pack(push, 1)
 struct _Charac_info
 {
+    _Charac_info(const _Charac_info& other);   // ORIG W 0x08699863（编译器生成版：平凡区逐字段 + 子对象拷贝构造）
+    _Charac_info& operator=(const _Charac_info& other);  // ORIG W 0x0869da62
     _Charac_info();                         // ORIG W 0x08695cf8（LinkClosureA-2 CreateCharac 消费）
     ~_Charac_info();                        // ORIG W 0x08697982
     void Reset();                           // ORIG T 0x086822b8（_Charac_info.cpp 归属域批次实现）

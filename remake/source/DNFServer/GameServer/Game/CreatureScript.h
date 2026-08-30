@@ -160,8 +160,7 @@ public:
     int m_evolutionCreatureId;               // +0x178
     int m_evolutionLevel;                    // +0x17c
     std::vector<int> m_evolutionMultyId;     // +0x180
-    selectiveGrowCreatureInfo m_selectiveGrow;  // +0x18c
-    char m_pad1a4[0x1a8 - 0x1a4];            // +0x1a4
+    selectiveGrowCreatureInfo m_selectiveGrow;  // +0x18c（size 0x1c → 0x1a8）
     std::vector<std::string> m_randomMotion;  // +0x1a8
     int m_defaultRandomMotionRate;            // +0x1b4
     int m_increaseRandomMotionRate;           // +0x1b8

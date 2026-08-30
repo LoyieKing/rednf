@@ -41,6 +41,7 @@
 #include "CPrivateStoreMgr.h"  // private_store 单例 / IsBusyPrivateStore
 #include "CStackableItem.h"    // m_int2d0（APC 药水持续秒）
 #include "CSystemTime.h"       // CSystemTime::getCurSec
+#include "InstanceRentalSystem.h"  // CheckRentableItem（OnEnchantByBead 租赁双查）
 #include "GameTypes.h"         // cMyTrace
 #include "GlobalData.h"        // s_systemTime_
 #include "PacketGuard.h"
@@ -505,8 +506,17 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
         return 0x11;
     }
 
-    // 【BLOCKED】租赁两连查 InstanceRentalSystem::CheckRentableItem(int,unsigned)
-    // T 0x82702dc —— 权威头仅单参虚槽；ORIG kind=1/kind=2 任一命中 → 0x11。
+    // 租赁两连查（ORIG 0x82702dc；kind=1/kind=2 任一命中 → 0x11）
+    if (GlobalData::s_rentalSystem->CheckRentableItem(
+            1, (unsigned int)beadRef->m_addInfo))
+    {
+        return 0x11;
+    }
+    if (GlobalData::s_rentalSystem->CheckRentableItem(
+            2, (unsigned int)beadRef->m_addInfo))
+    {
+        return 0x11;
+    }
 
     CItem* beadItem = dm->find_item(beadRef->m_addInfo);
     if (beadItem == 0)
@@ -523,12 +533,17 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
         return 0x11;
     }
 
-    // 【BLOCKED】怪物卡主表链（恢复步骤按 ORIG 序）：
-    //   cardId     = ((CStackableItem*)beadItem)->GetMonsterCardId(); // W 0x849f530
-    //   masterItem = dm->find_item(cardId); 为空 → 0x11
-    //   EnableWorld(ringItem, beadItem) != 1 → 0x13
-    //   masterItem->getUsableItemType(
-    //       ((CStackableItem*)ringItem)->GetItemType()) != 1 → 0x17
+    // 怪物卡主表链（ORIG 序）：cardId→masterItem→EnableWorld 校验
+    int cardId = ((CStackableItem*)beadItem)->GetMonsterCardId();
+    CItem* masterItem = dm->find_item(cardId);
+    if (masterItem == 0)
+    {
+        return 0x11;
+    }
+    if (EnableWorld(ringItem, beadItem) != 1)
+    {
+        return 0x13;
+    }
 
     bool deleted =
         user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, beadSlot, 1,
@@ -543,8 +558,7 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
     }
 
     int savedCardIdx = ringRef->m_fieldd;
-    int replacedCardIdx =
-        savedCardIdx; /* BLOCKED: 恢复为 dm->find_item(cardId)->get_index() */
+    int replacedCardIdx = masterItem->get_index();
 
     PacketGuard packet;
     packet.clear();
@@ -556,11 +570,16 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
     packet.finalize(true);
     user->Send(packet);
 
-    // 【BLOCKED】统计与历史：
-    //   GetInstanceExpertJobStatistic() T 0x860f940 → increaseItemCount(
-    //       (ENUM_EXPERT_JOB_TYPE)1, masterIndex, 1)      // T 0x860f9d4
-    //   (user+0x79700 历史对象)->EnchantItem(ringRef->m_addInfo, savedCardIdx,
-    //       replacedCardIdx, true, get_acc_name(), getCurCharacName())
+    // 统计（ORIG 0x860f940/0x860f9d4：increaseItemCount((ENUM_EXPERT_JOB_TYPE)1,
+    // masterIndex, 1)）
+    GetInstanceExpertJobStatistic()->increaseItemCount(
+        (ENUM_EXPERT_JOB_TYPE)1, (unsigned long)replacedCardIdx, 1);
+
+    // 历史（ORIG 0x8684d74：EnchantItem(ringRef->m_addInfo, savedCardIdx,
+    // replacedCardIdx, true, acc_name, characName)）
+    user->m_historyLog.EnchantItem(ringRef->m_addInfo, savedCardIdx,
+                                   replacedCardIdx, true, user->get_acc_name(),
+                                   user->getCurCharacName());
 
     ringRef->m_fieldd = replacedCardIdx;
 

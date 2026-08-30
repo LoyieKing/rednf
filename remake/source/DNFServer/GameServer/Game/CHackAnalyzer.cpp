@@ -171,7 +171,7 @@ bool CHackAnalyzer::CheckExceptionCnt(ENUM_HACKTYPE type, int cnt)
     }
 
     std::pair<std::map<int, int>::iterator, bool> res =
-        m_exceptionCntMap.insert(std::make_pair((int)type, 0));
+        m_exceptionCntMap.insert(std::make_pair((int)type, 1));
     if (!res.second)
     {
         res.first->second += cnt;
@@ -739,14 +739,15 @@ void Secu_AccountHacking::sendGold(char const* name, unsigned int a,
                 unsigned long long numB = b;           // ORIG fildll
                 int ratio = (int)(_S_HACK_RATIO_COEF_100F *
                                   ((double)numMoney / (double)numB));
-                setPatten(AccountHackingType::GOLD_0, name, a, money);
-                if (ratio < 0x46)
-                {
-                    if (ratio >= 0x32)
-                        setPatten(AccountHackingType::GOLD_1, name, a, money);
-                    else if (ratio > 0x1d)
-                        setPatten(AccountHackingType::GOLD_2, name, a, money);
-                }
+                // ORIG 0x08278cce：先无条件 setPatten(GOLD_3)，再按比例分档
+                // ratio>0x45→GOLD_0，0x32..0x45→GOLD_1，0x1e..0x31→GOLD_2。
+                setPatten(AccountHackingType::GOLD_3, name, a, money);
+                if (ratio > 0x45)
+                    setPatten(AccountHackingType::GOLD_0, name, a, money);
+                else if (ratio > 0x31)
+                    setPatten(AccountHackingType::GOLD_1, name, a, money);
+                else if (ratio > 0x1d)
+                    setPatten(AccountHackingType::GOLD_2, name, a, money);
             }
         }
     }

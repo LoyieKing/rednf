@@ -632,14 +632,15 @@ void CLevelRewardTable::SetJobAffection(bool on)
 
 int CLevelRewardTable::GetProperJobIndex(char job)
 {
-    // ORIG 0x08687e78：<0→-1；开关关→0；>8→-1；否则恒等映射 0..8。
+    // ORIG 0x08687e78：<0→-1；开关关→0；>7→-1；否则跳转表返回 job+1
+    // （表 0x8cf10cc 八条目 0→1..7→8，cmp $0x7,ja 拦截 ≥8）。
     if (job < 0)
         return -1;
     if (!GetJobAffection())
         return 0;
-    if (static_cast<unsigned char>(job) > 8)
+    if (static_cast<unsigned char>(job) > 7)
         return -1;
-    return job;
+    return job + 1;
 }
 
 int CLevelRewardTable::GetProperLevelIndex(unsigned int level)

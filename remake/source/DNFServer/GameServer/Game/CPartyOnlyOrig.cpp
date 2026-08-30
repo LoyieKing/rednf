@@ -1075,20 +1075,20 @@ int CParty::_Send_TOD_ClearReward()
     {
         packet.put_short(0);
     }
-    packet.put_byte(10);
-    size_t rewardCount = m_todRewardItems.size();
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    size_t rewardCount = bf.m_todReward.m_todMap.size();
     for (size_t i = 0; i < rewardCount; i++)
     {
-        packet.put_int(m_todRewardItems[i].first);
-        packet.put_int(m_todRewardItems[i].second);
+        packet.put_int(bf.m_todReward.m_todMap[i].first);
+        packet.put_int(bf.m_todReward.m_todMap[i].second);
     }
     for (size_t i = 0; i < 9U - rewardCount; i++)
     {
         packet.put_int(-1);
         packet.put_int(0);
     }
-    packet.put_int(m_todRewardItemIdx);
-    packet.put_int(m_todRewardItemCnt);
+    packet.put_int(bf.m_todReward.m_todPos.first);
+    packet.put_int(bf.m_todReward.m_todPos.second);
     packet.finalize(true);
     send_to_party(packet);
     return 1;

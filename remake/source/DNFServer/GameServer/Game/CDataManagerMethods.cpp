@@ -204,7 +204,7 @@ int CDataManager::initFairPVPSkillPoint()
                 CSkill* skill =
                     G_CDataManager()->find_skill(
                         perIt->first.m_a, rem->first);
-                {
+                if (skill == 0) {
                     continue;
                 }
                 int sp = skill->get_need_sp_for_level(0, rem->second);

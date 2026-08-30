@@ -83,17 +83,6 @@ void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
                                std::vector<Inven_Item>& out)
     __asm__("_ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
 
-// 命中即建道具入结果（ORIG 各处同型四连：Inven_Item ctor / 写 item idx /
-// create_item(1,&inv,1) / result.m_dropItems.push_back(inv)）。
-inline void pushCreatedItem(int itemIdx, stGenerateResult_t& result)
-{
-    Inven_Item inv;                                    // C2（ORIG 内联）
-    inv.m_addInfo = itemIdx;                           // ORIG 写对象首 +0x02
-    G_CDataManager()->getItemList()->create_item(
-        static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
-    result.m_dropItems.push_back(inv);
-}
-
 }  // namespace
 
 // ref blob 字节读取 helper（+0x34..+0x47 调用方上下文区【推断语义】；布局实证，
@@ -345,7 +334,19 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                 reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint), buf);
         }
 
-        pushCreatedItem(itemIdx, result);
+        // ORIG 同型四连 + UseLuckPoint：Inven_Item ctor / 写 item idx /
+        // create_item(1,&inv,1) / get_grade+get_rarity+UseLuckPoint / push_back。
+        Inven_Item inv;                                // ORIG 内联 C2
+        inv.m_addInfo = itemIdx;                       // ORIG 写对象首 +0x02
+        G_CDataManager()->getItemList()->create_item(
+            static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
+        int grade = item->get_grade();
+        int itemRarity = item->get_rarity();
+        Luck_UseLuckPointM(
+            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
+            static_cast<int>(inv.m_field1), itemRarity, grade,
+            static_cast<int>(result.m_dropItems.size()));
+        result.m_dropItems.push_back(inv);
         done = true;                                  // movb $1,(p10)
     }
 }

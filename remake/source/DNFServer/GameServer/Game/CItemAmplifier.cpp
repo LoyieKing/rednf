@@ -380,24 +380,28 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
     f[0x18] = gain * f[0x18];
     f[0x19] = gain * f[0x19];
     f[0x1a] = gain * f[0x1a];
-    f[0xd] = (float)intAtConst((growthGrade + 0x28) * 4 + 4);
-    // 后续常数 + 等级系数 + map 折扣调整。
+    // ORIG 0x8900436：两段系数均按 float 解读（flds，floatAt），非 int。
     int disc = (int)f[0xd];
-    disc = (int)(-100.0f + intAtConst((equipType + 4) * 4 + 0xc) * (float)disc);
-    disc = (int)(-100.0f + intAtConst((rarity + 0x1c) * 4 + 4) * (float)disc);
+    disc = (int)(-100.0f + floatAt((equipType + 4) * 4 + 0xc) * (float)disc);
+    disc = (int)(-100.0f + floatAt((rarity + 0x1c) * 4 + 4) * (float)disc);
     out->m_discountBase = disc;
+    // ORIG：equipType 钳制到 0x12 后查 m_floatMap(+0x49c) 折扣，命中则覆盖。
+    int et = equipType > 0x12 ? 0x12 : equipType;
+    std::map<int, float>::const_iterator it = m_floatMap.find(et);
+    if (it != m_floatMap.end())
+        out->m_discountBase = static_cast<int>(it->second * (float)disc);
     return 1;
 }
 
-// ============================================================================
-// upgrade_table_t::GetPenaltyType @ 0x89003ee
-//   返回 3 或 upgrade_info.m_discountBase 编码值。
+//   返回 3 或 upgrade_info +0x24 惩罚类型字段（importUpgradeTable 的
+//   infoInt(info,0x24) 脚本导入值；ORIG 反汇编 mov 0x24(%eax),%eax 实证，
+//   非 m_discountBase(+0x34)）。
 // ============================================================================
 int upgrade_table_t::GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                                     const upgrade_info_t* info) const
 {
     int th = intAtConst((rarity + 0x100) * 4 + 4);
     if (th == -1 || (int)upgrade < th)
-        return info->m_discountBase;
+        return *(const int*)((const char*)info + 0x24);
     return 3;
 }

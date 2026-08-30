@@ -1390,9 +1390,10 @@ int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     process_event(user, sig);
 
     // 跳跳角色奖励判定：服务器组==10 且 2011-01-01 活动期内且 sig+0x534d 非 0
+    // （ORIG 0x84bf255 cmp $0x478e7050;ja → x<=0x478e7050 含边界）
     bool jumpReward = false;
     if (G_CEnvironment()->get_server_group() == 10 &&
-        GlobalData::s_systemTime_.getCurSec() < 0x478e7050)
+        GlobalData::s_systemTime_.getCurSec() <= 0x478e7050)
         jumpReward = true;
     if (jumpReward && *reinterpret_cast<unsigned char*>(
                           &sig->m_pad534d[0]) != 0)   // +0x534d
@@ -5869,6 +5870,9 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
     }
     user->UpdateCharacView();
 
+    // ORIG 0x0840b96b 两段：第一段 if(guildKey) guild 1 次 else monitor 1 次；
+    // 第二段 if(guildKey) { guild 1 次 + monitor 1 次 }。NEW 原实现把第一段
+    // guild 重复两次且缺第二段，属转写错误。
     if (*reinterpret_cast<int*>(data + 0x2c) != 0)
     {
         CGuildServerProxy* proxy =
@@ -5877,12 +5881,6 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
                                   static_cast<unsigned int>(characNo),
                                   static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
                                   data + 4);
-        CGuildServerProxy* proxy2 =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxy2->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
-                                   static_cast<unsigned int>(characNo),
-                                   static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
-                                   data + 4);
     }
     else
     {
@@ -5892,6 +5890,21 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
                                     static_cast<unsigned int>(characNo),
                                     static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
                                     data + 4);
+    }
+    if (*reinterpret_cast<int*>(data + 0x2c) != 0)
+    {
+        CGuildServerProxy* proxyG =
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
+        proxyG->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
+                                   static_cast<unsigned int>(characNo),
+                                   static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                   data + 4);
+        CMonitorServerProxy* monitorM =
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
+        monitorM->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
+                                     static_cast<unsigned int>(characNo),
+                                     static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                     data + 4);
     }
 
     if (*reinterpret_cast<int*>(data + 0x28) == 0)
@@ -10526,6 +10539,12 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
         else if (ci->IsAvatarItem())
             second = inven->insertAvatarIntoInventory(
                 item, (eAvatarItemAddReason)0x12, true);
+        else
+            // ORIG 0x084de1c7：普通物品实际插入（insertItemIntoInventory，
+            // reason=0x28/bLog=true/b=false）；NEW 原 tryInsert* 成功后
+            // 无实际插入分支 → 物品丢失，属转写缺失。
+            second = inven->insertItemIntoInventory(
+                item, (eItemAddReason)0x28, true, false);
         if (second < 0)
         {
             const char* title =

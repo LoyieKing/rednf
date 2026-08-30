@@ -1111,8 +1111,10 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
     }
     total_count = m_indexes.size();
 
-    Tick start_time = Tick::now();     // 进度更新基准
-    Tick frame_start = Tick::now();    // 最后一次刷新时刻
+    Tick start_time;                   // ORIG：先默认构造再赋值（TickC1+now+aSES）
+    start_time = Tick::now();          // 进度更新基准
+    Tick frame_start;                  // 最后一次刷新时刻
+    frame_start = Tick::now();
 
     for (index_vector_it it = m_indexes.begin(); it != m_indexes.end(); ++it)
     {
@@ -1310,7 +1312,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
             return PACK_ERROR;
         }
     }
-    fclose(fp);
+    // ORIG 循环结束后不 fclose（直接重开同名文件，实证 0x08ac654f fopen）
 
     fp = fopen(TEMP_HEADER_FILENAME, "rb");
     if (fp == 0)
@@ -1324,7 +1326,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     long sz = ftell(fp);
     if (sz < 0)
     {
-        fclose(fp);
+        // ORIG sz<0 不 fclose，直接返回（实证 0x08ac65ef）
         return PACK_ERROR;
     }
     fseek(fp, 0, SEEK_SET);

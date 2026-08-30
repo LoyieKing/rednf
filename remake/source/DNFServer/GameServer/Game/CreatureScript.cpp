@@ -60,14 +60,7 @@ void CreatureScriptSkillInfo::clear()
 
 // ORIG 0x833e5ac：构造全部字符串/向量/映射成员（自动成员构造）后调 clear()。
 CreatureScript::CreatureScript()
-    : m_id(0),
-      m_name(), m_field8(0), m_fieldc(0), m_field10(0), m_layer(0), m_field18(0),
-      m_field1c(0), m_field20(0), m_directionCorrect(0),
-      m_moveSpeed(), m_gravity(0), m_startLevel(0), m_permissionLevel(0),
-      m_maxLevel(0), m_parentMaxLevel(0), m_artifactSlotRed(0),
-      m_artifactSlotBlue(0), m_artifactSlotGreen(0), m_learnOverSkillLevel(0),
-      m_skillMP(0), m_overSkillMP(0), m_skillType(0), m_overSkillType(0),
-      m_basicMotion(), m_walkMotion(), m_runMotion(), m_flyMotion(),
+    : m_name(), m_basicMotion(), m_walkMotion(), m_runMotion(), m_flyMotion(),
       m_getExpMotion(), m_getExpOverMotion(), m_getExpUnderMotion(),
       m_skillMotion(), m_overSkillMotion(), m_responseMotion(), m_specialMotion(),
       m_equipMotion(), m_equipOverMotion(), m_equipUnderMotion(),
@@ -78,16 +71,13 @@ CreatureScript::CreatureScript()
       m_responseUnderEffect(), m_specialUnderEffect(), m_defaultUnderEffect(),
       m_additionalAnimations(), m_defaultParticle(), m_responseSoundTag(),
       m_wingSoundTag(), m_walkSoundTag(), m_runSoundTag(),
-      m_revisionX(0), m_revisionY(0), m_etcMotion(), m_attackInfo(),
-      m_skillString(), m_skillLevelValues(), m_overSkillLevelValues(),
-      m_piercing(), m_intData(), m_stringData(), m_directory(),
-      m_evolutionQuestId(0), m_evolutionCreatureId(0), m_evolutionLevel(0),
-      m_evolutionMultyId(), m_selectiveGrow(), m_randomMotion(),
-      m_defaultRandomMotionRate(0), m_increaseRandomMotionRate(0),
-      m_itemEvolution(0), m_itemEvolCreatureIds(), m_skillInfo(),
-      m_overSkillInfo(), m_skillList(), m_overSkillList(),
-      m_usingRandomSkill(0), m_eventEvlouteCreature()
+      m_etcMotion(), m_attackInfo(), m_skillString(), m_skillLevelValues(),
+      m_overSkillLevelValues(), m_piercing(), m_intData(), m_stringData(),
+      m_directory(), m_evolutionMultyId(), m_selectiveGrow(), m_randomMotion(),
+      m_itemEvolCreatureIds(), m_skillInfo(), m_overSkillInfo(), m_skillList(),
+      m_overSkillList(), m_eventEvlouteCreature()
 {
+    // ORIG 0x833e5ac：仅构造类类型成员（标量未初始化，由 clear() 复位）。
     clear();
 }
 
@@ -110,13 +100,22 @@ void CreatureScript::clear()
     m_field1c = 0;
     m_field20 = 0;
     m_directionCorrect = 1;
-    m_moveSpeed[4] = 0;      // ORIG 仅清 +0x38（moveSpeed[4]），[0..3] 保留
+    // ORIG 0x833dfac：循环 i=0..1 清 m_moveSpeed[i] 与 m_moveSpeed[i+2]
+    // （覆盖 +0x28..+0x34），再单独清 +0x38（moveSpeed[4]）。
+    for (int i = 0; i <= 1; ++i)
+    {
+        m_moveSpeed[i] = 0;
+        m_moveSpeed[i + 2] = 0;
+    }
+    m_moveSpeed[4] = 0;
     m_gravity = 1500;
     m_startLevel = 1;
     m_permissionLevel = 1;
     m_maxLevel = 1;
     m_parentMaxLevel = 1;
-    // ORIG clear 不复位 m_artifactSlotRed/Blue/Green（+0x50..+0x58）
+    // ORIG 0x833dfac：循环 i=0..2 清 m_artifactSlotRed/Blue/Green（+0x50..+0x58）。
+    for (int i = 0; i <= 2; ++i)
+        (&m_artifactSlotRed)[i] = 0;
     m_learnOverSkillLevel = 1;
     m_skillMP = 0;
     m_overSkillMP = 0;

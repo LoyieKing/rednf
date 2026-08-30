@@ -5,10 +5,11 @@
 #include "CCharacter.h"
 
 // ORIG STSecondGrowTypeInfo::STSecondGrowTypeInfo W 0x8373934：
-// 2 个 _Additioal_info 构造 + 2 个 vector 默认构造。
+// 2 个 _Additioal_info 构造 + 2 个 vector 默认构造 + clear()。
 STSecondGrowTypeInfo::STSecondGrowTypeInfo()
     : m_addInfo(), m_skills(), m_fieldbc(0)
 {
+    clear();   // ORIG 0x8373a1e：成员构造后调 clear()（m_fieldbc 低 2 字节置 0）
 }
 
 // ORIG ~STSecondGrowTypeInfo W 0x8376324：逆序析构 +0xa4/+0xb0 两个 vector。

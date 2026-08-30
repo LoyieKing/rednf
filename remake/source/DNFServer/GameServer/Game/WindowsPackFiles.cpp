@@ -240,34 +240,6 @@ int CObfuscator::Deobfuscate1()                              // 0x08585aaa
     return 0;
 }
 
-namespace  // 2 型共用的位搬运核（ORIG 两函数体同构展开）
-{
-inline void shuffle2(CBitManager& bm, int initTail)
-{
-    int dst = 0;
-    int tail = initTail;
-    for (int i = bm.m_size; i > 0; --i)
-    {
-        unsigned char hi = bm.GetBit(i - 1, 0, tail);
-        bm.m_buffer[bm.m_size - 1] =
-            static_cast<unsigned char>(hi << ((7 - tail) & 0x1f));
-        unsigned char lo = bm.GetBit(i - 1, tail + 1, 7);
-        bm.m_buffer[bm.m_size - 1] |=
-            static_cast<unsigned char>(lo >> ((tail + 1) & 0x1f));
-        bm.m_buffer[dst] = bm.m_buffer[bm.m_size - 1];
-        ++dst;
-        if (tail == 0)
-        {
-            tail = 6;
-        }
-        else
-        {
-            --tail;
-        }
-    }
-}
-}  // namespace
-
 int CObfuscator::Obfuscate2()                                // 0x08585be4
 {
     // ORIG 单函数 103 条指令（CObfuscator/Obfuscate2.md 报告）：
@@ -301,7 +273,30 @@ int CObfuscator::Obfuscate2()                                // 0x08585be4
 
 int CObfuscator::Deobfuscate2()                              // 0x08585d2e
 {
-    shuffle2(*this, (m_size % 7 == 0) ? 6 : (m_size % 7) - 1);
+    // ORIG tail 初值：m_size%7==0 → 6；否则 m_size%7 - 1（0→6, 1→0 … 6→5）。
+    // 与 Obfuscate2 的固定 tail=6 不同。循环体两函数同构。
+    int outIdx = 0;
+    int tail = (m_size % 7 == 0) ? 6 : (m_size % 7) - 1;
+    for (int idx = m_size - 1; idx >= 0; --idx)
+    {
+        unsigned char hi = static_cast<unsigned char>(
+            static_cast<unsigned int>(GetBit(idx, 0, tail)) <<
+                ((7 - tail) & 0x1f));
+        m_buffer[m_size - 1] = hi;
+        unsigned char lo = GetBit(idx, tail + 1, 7);
+        m_buffer[m_size - 1] |= static_cast<unsigned char>(
+            (static_cast<unsigned int>(lo) >> ((tail + 1) & 0x1f)));
+        m_buffer[outIdx] = m_buffer[m_size - 1];
+        ++outIdx;
+        if (tail == 0)
+        {
+            tail = 6;
+        }
+        else
+        {
+            --tail;
+        }
+    }
     return 0;
 }
 

@@ -621,9 +621,9 @@ struct rewardKey
     }
     bool operator<(const rewardKey& o) const
     {
-        if (m_job != o.m_job) return m_job < o.m_job;
-        if (m_a != o.m_a) return m_a < o.m_a;
-        if (m_b != o.m_b) return m_b < o.m_b;
+        if ((char)m_job != (char)o.m_job) return (char)m_job < (char)o.m_job;
+        if ((char)m_a != (char)o.m_a) return (char)m_a < (char)o.m_a;
+        if ((char)m_b != (char)o.m_b) return (char)m_b < (char)o.m_b;
         // ORIG 0x080f1267：调用外部 rewardSubKey::operator<（OnlyOrigBatch12.cpp）
         return m_sub < o.m_sub;
     }

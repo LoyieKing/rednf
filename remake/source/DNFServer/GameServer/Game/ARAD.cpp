@@ -147,15 +147,20 @@ int PurchaseLimitItem::parsing(char* data)
 {
     Arad_Script script;
     if (!script.Load(data, "purchase_limit_item"))
-        return 0x27;
+        return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
     int rows = script.GetRowNum();
+    if (rows == 0)
+        return 0x4f;                  // ORIG 0x81a21cc：无行返 0x4f
     for (int r = 0; r < rows; ++r)
     {
         Info info;
         unsigned int idx = (unsigned int)script.GetInt(r, "Item_Index");
         info.purchaseType = (unsigned short)script.GetInt(r, "purchase_Type");
         info.limitCount = (unsigned short)script.GetInt(r, "puchase_limit_count");
-        m_purchaseLimitMap[idx] = info;
+        // ORIG 0x81a2297：insert 而非 operator[]（重复 key 保留首条），
+        // 插入失败（已存在）返 0x5c。
+        if (!m_purchaseLimitMap.insert(std::make_pair(idx, info)).second)
+            return 0x5c;
     }
     return 0;
 }

@@ -1016,11 +1016,14 @@ void make_dir(char* path)
 }
 
 // rdar_init(char**) —— ORIG 0x829e5bf（0x1f 字节）：make_dir("./rdar") 后
-// 将 argv 交予 rdar 模块（第二个调用目标未建模 —「推断」仅建目录）。
-void rdar_init(char** /*argv*/)
+// 将 argv 交予 daemon_init（ORIG 0x829e8b9 调用，argv[2]="start"/"start_all"
+// 时 fork 守护化；定义 OnlyOrigBatch11.cpp，ORIG T 0x0829e8b9）。
+int daemon_init(char** argv);
+void rdar_init(char** argv)
 {
     static char s_rdarDir[] = "./rdar";  // ORIG 字符串 0x8c18171 内容「推断」
     make_dir(s_rdarDir);
+    daemon_init(argv);
 }
 
 // check_cfg_file() —— ORIG 0x829e9ca（0x82 字节）：

@@ -356,6 +356,7 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
                        "unsigned char&, bool)", 0xdb, 5);
         trace("boss Tower dungeon is not open");
         PacketGuard packet;
+        packet.clear();              // ORIG 0x0814309a（本分支 C1 后显式 clear）
         packet.put_header(1, 0x10);
         packet.put_byte(0);
         packet.put_int(0x15);
@@ -376,6 +377,7 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
             trace("dungeon level check charac_level : %d, dungeon_min_level : %d",
                   member->get_charac_level(), m_dungeon->get_min_level());
             PacketGuard packet;
+            packet.clear();          // ORIG 0x08143229（本分支 C1 后显式 clear）
             packet.put_header(1, 0x10);
             packet.put_byte(0);
             packet.put_int(0xe);

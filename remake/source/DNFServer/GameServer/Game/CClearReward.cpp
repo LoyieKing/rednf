@@ -479,7 +479,8 @@ int CLuckPoint::GetLuckPoint()
         if (m_users[i] != 0)
             sum += reinterpret_cast<CUserCharacInfo*>(m_users[i])->GetCurCharacLuckPoint();
     }
-    return sum / static_cast<int>(m_users.size());
+    // ORIG 0x085509da：divl（无符号除法，int/size_t 提升）；强制 int 会生成 idivl。
+    return sum / m_users.size();
 }
 
 int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)

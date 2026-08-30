@@ -134,17 +134,17 @@ bool makeFullPath(std::string directory, std::string& path)
 }
 
 // makeAIFullPath —— 报告 _lt_global_gt_/makeAIFullPath.md：dir+"ai/" 后接 makeFullPath。
+// ORIG 0x08a38af4：临时直接作为按值参数（无额外拷贝构造）。
 void makeAIFullPath(std::string& dir, std::string& name)
 {
-    std::string combined = dir + "ai/";
-    makeFullPath(combined, name);
+    makeFullPath(dir + "ai/", name);
 }
 
 // makeKeyFullPath —— 报告 _lt_global_gt_/makeKeyFullPath.md：dir+"key/" 后接 makeFullPath。
+// ORIG 0x08a38b5d：临时直接作为按值参数（无额外拷贝构造）。
 void makeKeyFullPath(std::string& dir, std::string& name)
 {
-    std::string combined = dir + "key/";
-    makeFullPath(combined, name);
+    makeFullPath(dir + "key/", name);
 }
 
 // ============================================================================
@@ -399,7 +399,13 @@ public:
 typedef char assert_stai_script_size[
     sizeof(STAICharacterCommonScript) == 0x1014 ? 1 : (int)-sizeof(STAICharacterCommonScript)];
 
-// ---- 生命周期 ----
+STAIInfoScript::STAIInfoScript()
+{
+    // ORIG C1 W 0x08366f48：vptr + 成员默认构造（编译器生成）→ 调 clear()。
+    // 强符号覆盖 STMonsterScript.h 的 inline 弱定义（后者内联 clear 展开，
+    // 与 ORIG 的“成员构造 + call clear”结构不一致）。
+    clear();
+}
 
 STAIInfoScript::STAIInfoScript(const STAIInfoScript& other)
 {

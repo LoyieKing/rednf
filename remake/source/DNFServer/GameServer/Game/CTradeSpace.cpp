@@ -421,8 +421,9 @@ int CTradeSpace::checkTrade()
     memset(mem, 0, sizeof(mem));
     copy[0].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[0]));
     copy[1].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[1]));
-    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenW());
-    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenW());
+    // ORIG 经 getCurCharacR()+0xda 纯读取背包（无 enableSaveInven 副作用）
+    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenR());
+    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenR());
     for (int trader = 0; trader < 2; ++trader) {
         CInventory& dst = copy[1 - trader];
         if (m_nMoney[trader] > 0 && m_pTraders[1 - trader] != 0) {
@@ -475,8 +476,9 @@ int CTradeSpace::checkCancelTrade()
     memset(mem, 0, sizeof(mem));
     copy[0].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[0]));
     copy[1].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[1]));
-    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenW());
-    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenW());
+    // ORIG 经 getCurCharacR()+0xda 纯读取背包（无 enableSaveInven 副作用）
+    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenR());
+    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenR());
     for (int trader = 0; trader < 2; ++trader) {
         CInventory& own = copy[trader];
         if (m_nMoney[trader] > 0 && m_pTraders[trader] != 0)

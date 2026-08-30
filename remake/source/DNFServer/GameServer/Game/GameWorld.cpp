@@ -75,6 +75,10 @@
 #include "Packet_Monitor_Member_Chat_Hyper_Link.h"   // case 8 超链接会员消息
 #include "Packet_Monitor_MegaPhone_Hyper_Link.h"     // case 0xb/0xc/0xe/0x23 超链接喇叭消息（set 声明，定义已报 Main）
 #include "Packet_Monitor_Other_Channel_Chat_Hyper_Link.h"  // case 1 超链接跨服消息
+#include "Packet_Monitor_Other_Channel_Chat.h"  // case 1 跨服私聊监控包（ORIG 0x86ca0b9 布局）
+#include "../../../shared/packet/include/Packet_Monitor_Guild_Chat.h"  // case 6 公会聊天监控包（ORIG 0x86ca6ac；Game/ 空壳头同名，必须用 shared 完整版）
+#include "../../../shared/packet/include/Packet_Monitor_Member_Chat.h"  // case 8 会员聊天监控包（ORIG 0x86ca7dc）
+#include "../../../shared/packet/include/Packet_Monitor_MegaPhone.h"  // case 0xb/0xc/0xe 喇叭监控包（ORIG 0x86ca8b8）
 
 // ============================================================================
 // CStreamGuard::GetInBuffer 模板实参（全局类型：C++98 不允许局部类型作为模板
@@ -1629,11 +1633,14 @@ int GameWorld::check_restrictive_commercial_transaction_zone(int vill, int area,
             {
                 return 0x3e;
             }
-            std::vector<MapArea>::iterator it;
-            for (it = pArea->m_mapAreas.begin(); it != pArea->m_mapAreas.end(); it++)
+            // ORIG 0x86c461e：遍历 Area+0x70 的 vector<pair<int,int>>
+            // （m_npcPositions，非 +0x7c 的 m_mapAreas）。
+            std::vector<std::pair<int, int> >::iterator it;
+            for (it = pArea->m_npcPositions.begin();
+                 it != pArea->m_npcPositions.end(); it++)
             {
                 if (Is_restrictive_commercial_transaction_zone(
-                        it->m_x, it->m_y, x, y))
+                        it->first, it->second, x, y))
                 {
                     return 0x52;
                 }
@@ -3492,16 +3499,18 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         CUser* to = find_from_world(target);
         if (to == 0)
         {
-            char buf[0x12c];
-            memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = type;
-            *(int*)(buf + 0x08) = from->getCurCharacNo();
-            *(char*)(buf + 0x0c) = (char)len;
-            memcpy(buf + 0x0d, nick, nickLen);
-            memcpy(buf + 0x2c, msg, len);
-            int sendLen = len + 0x3b;
+            // ORIG 0x86ca0b9：跨服私聊监控包（m_characNo/m_recverCharId/
+            // m_msgLen/m_msg/m_buddyNameLen/buddy_n_user_id_what；SendPacket
+            // 长度 0x3b+len）。
+            Packet_Monitor_Other_Channel_Chat pkt;
+            pkt.m_characNo = from->getCurCharacNo();
+            pkt.m_recverCharId = characNo;
+            pkt.m_msgLen = (unsigned char)len;
+            memcpy(pkt.m_msg, msg, len);
+            pkt.m_buddyNameLen = (char)nickLen;
+            memcpy(pkt.buddy_n_user_id_what, nick, nickLen);
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket(buf, sendLen);
+                ->SendPacket((char*)&pkt, 0x3b + len);
             break;
         }
         PacketGuard pm;
@@ -3651,14 +3660,16 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     case 6:
         if (from->getCurCharacNo() != 0 && from->get_charac_guildkey() != 0)
         {
-            char buf[0x40];
-            memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = from->get_charac_guildkey();
-            *(int*)(buf + 0x08) = from->getCurCharacNo();
-            *(char*)(buf + 0x0c) = (char)len;
-            memcpy(buf + 0x0d, msg, len);
+            // ORIG 0x86ca6ac：Packet_Monitor_Guild_Chat（ORIG 实证：+0xa 槽写
+            // guildkey、+0xe 槽写 characNo，与头文件字段名相反；SendPacket 长度
+            // 0x13+len）。
+            Packet_Monitor_Guild_Chat pkt;
+            pkt.m_charNo = from->get_charac_guildkey();
+            pkt.m_guildKey = from->getCurCharacNo();
+            pkt.m_msgLen = (unsigned char)len;
+            memcpy(pkt.m_msg, msg, len);
             GlobalData::s_guild_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket(buf, len + 0x13);
+                ->SendPacket((char*)&pkt, len + 0x13);
         }
         else
         {
@@ -3672,13 +3683,13 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         if (from->getCurCharacNo() != 0 &&
             from->get_charac_memberkey() != 0)
         {
-            char buf[0x40];
-            memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = (int)from->get_charac_memberkey();
-            *(char*)(buf + 0x08) = (char)len;
-            memcpy(buf + 0x09, msg, len);
+            // ORIG 0x86ca7dc：Packet_Monitor_Member_Chat（SendPacket 长度 0xf+len）。
+            Packet_Monitor_Member_Chat pkt;
+            pkt.m_memberId = from->get_charac_memberkey();
+            pkt.m_msgLen = (unsigned char)len;
+            memcpy(pkt.m_msg, msg, len);
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket(buf, len + 0xf);
+                ->SendPacket((char*)&pkt, len + 0xf);
         }
         else
         {
@@ -3713,16 +3724,14 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     case 0xc:
     case 0xe:
     {
-        char buf[0x2e + 256];
-        memset(buf, 0, sizeof(buf));
-        *(char*)(buf + 0x00) = type;
-        memcpy(buf + 0x01, from->getCurCharacName(),
-               strlen(from->getCurCharacName()));
-        *(unsigned short*)(buf + 0x01 + 0x20) = from->get_unique_id();
-        *(char*)(buf + 0x25) = (char)len;
-        memcpy(buf + 0x26, msg, len);
+        // ORIG 0x86ca8b8：Packet_Monitor_MegaPhone::set(channel, uniqueId,
+        // name, msgLen, msg, type)；SendPacket 长度 0x2e+len。
+        Packet_Monitor_MegaPhone pkt;
+        pkt.set(G_CEnvironment()->get_channel_no(), from->get_unique_id(),
+                from->getCurCharacName(), (unsigned char)len, msg,
+                (unsigned char)type);
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-            ->SendPacket(buf, len + 0x2e);
+            ->SendPacket((char*)&pkt, len + 0x2e);
         break;
     }
     case 0xd:
@@ -3813,22 +3822,23 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
         CUser* to = find_from_world(msg.m_itemSpaceE);
         if (to == 0)
         {
-            char buf[0x12c + 0x100];
-            memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = msg.m_typeD;
-            *(unsigned int*)(buf + 0x08) = msg.m_slot10;
-            *(char*)(buf + 0x0c) = (char)msg.m_textLen14;
-            memcpy(buf + 0x0d, msg.m_name11c, msg.m_nameLen118);
-            *(char*)(buf + 0x0d + 0x20) = (char)msg.m_textLen14;
-            memcpy(buf + 0x2c, msg.m_text18, msg.m_textLen14);
-            *(char*)(buf + 0x2c + msg.m_textLen14) = msg.m_linkCount13b;
+            // ORIG 0x86d01c5：Packet_Monitor_Other_Channel_Chat_Hyper_Link
+            // （m_characNo/m_recverCharId/m_msgLen/m_msg/m_buddyNameLen/buddy/
+            //  m_itemCount/m_items；SendPacket 长度 0x174+textLen）。
+            Packet_Monitor_Other_Channel_Chat_Hyper_Link pkt;
+            pkt.m_characNo = from->getCurCharacNo();
+            pkt.m_recverCharId = msg.m_slot10;
+            pkt.m_msgLen = (unsigned char)msg.m_textLen14;
+            memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);
+            pkt.m_buddyNameLen = (char)msg.m_nameLen118;
+            memcpy(pkt.buddy_n_user_id_what, msg.m_name11c, msg.m_nameLen118);
+            pkt.m_itemCount = msg.m_linkCount13b;
             for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                memcpy(buf + 0x2c + msg.m_textLen14 + 1 + i * 0x68,
-                       msg.m_links13c[i], 0x68);
+                memcpy(pkt.m_items[i], msg.m_links13c[i], 0x68);
             }
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket(buf, msg.m_textLen14 + 0x174);
+                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x174);
             break;
         }
         PacketGuard pm;

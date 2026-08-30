@@ -1674,8 +1674,8 @@ void CParty::ClearDungeon()
                 else
                 {
                     m_tournamentVictory = 1;
-                    m_tournamentReward.ResetReward();
-                    MakeTournamentReward(m_tournamentReward);
+                    bf(this).m_tournamentReward.ResetReward();
+                    MakeTournamentReward(bf(this).m_tournamentReward);
                 }
             }
             else
@@ -1686,8 +1686,8 @@ void CParty::ClearDungeon()
                     manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd));
                 todState->ClearLayer();
                 int layerCount = 5;
-                m_todRewardItemIdx = -1;
-                m_todRewardItemCnt = 0;
+                bf(this).m_todReward.m_todPos.first = -1;
+                bf(this).m_todReward.m_todPos.second = 0;
                 TOD_Layer layer(todState->m_lastEnterLayer ? todState->m_lastEnterLayer : 1);
                 int apcIdx = reinterpret_cast<TowerOfDespairMgr*>(
                     GlobalData::s_pTowerOfDespairMgr)->Get_APCIndexByLayer(
@@ -1719,14 +1719,14 @@ void CParty::ClearDungeon()
                         G_GameWorld()->send_all(namePacket);
                     }
                     layerCount = 9;
-                    m_todRewardItemIdx = 0x4e4;
-                    m_todRewardItemCnt = 1;
+                    bf(this).m_todReward.m_todPos.first = 0x4e4;
+                    bf(this).m_todReward.m_todPos.second = 1;
                 }
                 TOD_Layer curLayer(todState->m_lastEnterLayer ? todState->m_lastEnterLayer : 1);
                 if (curLayer.GetLayer() == 100)
                 {
-                    m_todRewardItemIdx = 0xcf2;
-                    m_todRewardItemCnt = 1;
+                    bf(this).m_todReward.m_todPos.first = 0xcf2;
+                    bf(this).m_todReward.m_todPos.second = 1;
                 }
                 WongWork::stGenerateRefData_t ref;
                 WongWork::stGenerateResult_t result;
@@ -1755,9 +1755,11 @@ void CParty::ClearDungeon()
                     else
                         itemList[i].second = item.get_add_info();
                 }
-                m_todRewardItems = itemList;
-                if (m_todRewardItemIdx != -1)
-                    itemList.push_back(std::pair<int, int>(m_todRewardItemIdx, m_todRewardItemCnt));
+                bf(this).m_todReward.m_todMap = itemList;
+                if (bf(this).m_todReward.m_todPos.first != -1)
+                    itemList.push_back(std::pair<int, int>(
+                        bf(this).m_todReward.m_todPos.first,
+                        bf(this).m_todReward.m_todPos.second));
                 std::vector<int> slots;
                 int putCount = (int)manager->getCurCharacInvenW()->insert_event_items(
                     itemList, slots, (eMoneyAddReason)0x1f, (eItemAddReason)0x37, true,

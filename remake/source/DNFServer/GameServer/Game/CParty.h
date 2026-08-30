@@ -766,14 +766,15 @@ public:
     char m_sealDoorItemsOk;                 // +0xced（UseSealDoorItems：全员通过=1/失败=0）
     unsigned char m_padcee[0x6e];           // +0xcee..0xd5b
     int m_standardDimensionLevel;           // +0xd5c
-    // CBattle_Field(+0xb24, 0xcd0) 余下区 +0xd60..0x17f3：
-    //   0x17a8..0x17f3 已按 ORIG ClearDungeon(0x85a9330)/MakeTournamentReward 具名
-    //   （m_todRewardItems 待发奖励清单、m_tournamentReward 0x38 值成员）。
-    unsigned char m_padCBattleField2[0xa48];    // +0xd60..0x17a7
-    std::vector<std::pair<int, int> > m_todRewardItems;  // +0x17a8（ClearDungeon 待发奖励清单）
-    int m_todRewardItemIdx;                     // +0x17b4（-1=无特殊奖励；0xcf2/0x4e4 等）
-    int m_todRewardItemCnt;                     // +0x17b8（特殊奖励数量）
-    CTournamentDungeonReward m_tournamentReward; // +0x17bc（0x38；MakeTournamentReward 实证）
+    //   0x17a8..0x17f3 位于内嵌 CBattle_Field 内部（BF+0xc84 m_todReward、
+    //   BF+0xc98 m_tournamentReward），由 CBattle_Field 构造/析构管理——
+    //   ORIG CPartyC1Ev/D1Ev 不直接构造/析构该区（实证：ORIG 析构仅
+    //   0x17f4/0x1844/0xb24/0x32c/0x2a4/0x210/0x1abc/0x1ad0/0x4c）。
+    //   曾把 m_todReward/m_tournamentReward 重复建模为 CParty 直接成员，
+    //   导致与 CBattle_Field 内嵌成员双重构造/析构（NEW 比 ORIG 多
+    //   vector<pair<int,int>>C1/D1、CTournamentDungeonRewardC1/D1）——已移除。
+    //   访问经 bf(this)->m_todReward.m_todMap / bf(this)->m_tournamentReward。
+    unsigned char m_padCBattleField2[0xa94];    // +0xd60..0x17f3（BF 余下全部占位）
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
     std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
                                            //   击杀计数 map，size 0x18 同位）

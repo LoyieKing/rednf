@@ -167,6 +167,11 @@ int CConditionEventManager::RequestConditionEventReward(
                                 {
                                     insertFailSendMail(user, inv);
                                 }
+                                else if (inv.IsCreatureItemType())
+                                {
+                                    user->SendUpdateItem(CUser::eSendTarget_1,
+                                                         static_cast<ENUM_ITEMSPACE>(7), slot);
+                                }
                                 else
                                 {
                                     user->SendUpdateItem(CUser::eSendTarget_1,
@@ -213,6 +218,11 @@ int CConditionEventManager::RequestConditionEventReward(
                         if (slot < 0)
                         {
                             insertFailSendMail(user, inv);
+                        }
+                        else if (inv.IsCreatureItemType())
+                        {
+                            user->SendUpdateItem(CUser::eSendTarget_1,
+                                                 static_cast<ENUM_ITEMSPACE>(7), slot);
                         }
                         else
                         {

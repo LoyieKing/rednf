@@ -1726,7 +1726,7 @@ bool CDBMsgSender::RenameCreatureItem(int uid, const char* name)
     buf->m_hdr |= 0x1;
     buf->m_addInfo2 = uid;                            // +0x30
     char* dst = reinterpret_cast<char*>(buf->m_item); // +0x04
-    strncpy(dst, name != 0 ? name : "", 0x27);
+    strncpy(dst, name != 0 ? name : "", 0xc);   // ORIG asm 833fc1a：movl $0xc（12 字节）
     return true;
 }
 
@@ -1744,7 +1744,7 @@ bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
     if (buf == 0)
         return false;
     memset(buf, 0, 0x74);
-    buf->m_hdr |= 0x400;
+    buf->m_hdr |= 0x244;   // ORIG asm 833fcf0：or $0x244（0x200|0x40|0x4）
     buf->m_addInfo2 = uid;                            // +0x30
     buf->m_flag50 = (unsigned char)flag;              // +0x50
     Inven_Item_Compatible* compat =

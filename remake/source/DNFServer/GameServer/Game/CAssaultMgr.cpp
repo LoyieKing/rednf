@@ -951,10 +951,10 @@ void CDynamicDisposition::GetFlagPoint(int& x, int& y)       // ORIG 0x82f050a
 
 void CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e624c
 {
-    for (int i = 0; i < 2; ++i)
-        m_matrices[i].RemoveCandidatePoint(areas);
-    for (int i = 0; i < 2; ++i)
-        m_matrices[i].ArrangeCandidatePoint();
+    m_matrices[0].RemoveCandidatePoint(areas);
+    m_matrices[1].RemoveCandidatePoint(areas);
+    m_matrices[0].ArrangeCandidatePoint();
+    m_matrices[1].ArrangeCandidatePoint();
 }
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032

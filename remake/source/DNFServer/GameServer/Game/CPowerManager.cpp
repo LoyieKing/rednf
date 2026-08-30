@@ -15,6 +15,7 @@
 #include "CStreamGuard.h"
 #include "MsgQueueMgr.h"
 #include "CPrivateStoreMgr.h"
+#include "CSharedServerMessageManager.h"
 // ---- CPowerManager（PowerWar 管理器，ORIG 0x0847e998 域，布局 0x208）----
 // report: docs/class_func_reports/CPowerManager.md。对象为 GlobalData.cpp
 // 的 m_pad[0x208]（offset 布局一致：+0x00 winnerSide / +0x04/+0x08 分数 /
@@ -406,28 +407,44 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
 
 void CPowerManager::ClearMVPInfo()
 {
+    cMyTrace trace("void CPowerManager::ClearMVPInfo()", 0x143, 0);
+    trace("CLEAR MVP INFO");
     memset(m_rankings, 0, sizeof(m_rankings));
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x149), true);
     **guard << 0x1a5;
     **guard << -1;
     **guard << G_CEnvironment()->get_server_group();
-    // ORIG 另调 CSharedServerMessageManager::DeleteSpecificMessage(1/2/3)；
-    // 该类型与 SigTypes.h 的 SIG_EVENT_SERVER_MESSAGE 存在不可同时包含的重复定义
-    // 冲突（CSharedServerMessageManager.h:32），本 TU 无法引入完整类型，故省略。
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+
+    cMyTrace tr("void CPowerManager::ClearMVPInfo()", 0x152, 0);
+    tr("PUT DB MSG - E_DELETE_POWER_WAR_STATUE_MESSAGE / server_group : %d",
+       G_CEnvironment()->get_server_group());
+
+    CSharedServerMessageManager* mgr =
+        G_CGameManager()->GetSharedServerMessageManager();
+    if (mgr != 0)
+    {
+        mgr->DeleteSpecificMessage(1);
+        mgr->DeleteSpecificMessage(2);
+        mgr->DeleteSpecificMessage(3);
+    }
 
     PacketGuard pkt;
     pkt.put_header(0, 0xc0);
     pkt.put_byte(2);
     pkt.put_byte(3);
+    const char* msg = "null string";
+    int len = static_cast<int>(strlen(msg));
     for (int i = 0; i < 3; ++i)
     {
         pkt.put_byte(i + 1);
-        pkt.put_short(7);
-        pkt.put_str("null string", 7);
-        pkt.put_short(7);
-        pkt.put_str("null string", 7);
+        pkt.put_int(len);
+        pkt.put_str(msg, len);
+        pkt.put_int(len);
+        pkt.put_str(msg, len);
     }
+
     pkt.finalize(true);
     G_GameWorld()->send_all_with_state(pkt, 3);
 }

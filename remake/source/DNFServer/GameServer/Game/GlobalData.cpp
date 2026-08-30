@@ -6161,14 +6161,8 @@ bool GlobalData::Init()
 
     {
         char seq[4] = {0, 0, 0, 0};
-        struct CEnvProcSeq
-        {
-            int getProcessSequence() const
-            {
-                return 0;  // TODO(后续批次)：ORIG 读取环境对象的进程序列号
-            }
-        };
-        sprintf(seq, "%d", ((const CEnvProcSeq*)G_CEnvironment())->getProcessSequence());
+        // ORIG 0x8471ebd：G_CEnvironment()->getProcessSequence() 真实读环境进程序列号
+        sprintf(seq, "%d", G_CEnvironment()->getProcessSequence());
         typedef void (*AntibotInitFn)(void*, void*, char*);
         (*(AntibotInitFn*)s_antibotChecker_)(s_antibotChecker_, s_antibotBusinessImpl_, seq);
     }

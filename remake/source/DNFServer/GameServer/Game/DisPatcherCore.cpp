@@ -4214,7 +4214,9 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
                 if (item != 0 && item->get_index() == 0x1973)
                 {
                     // ORIG lea 0xb58(tower) == &m_timerKeys[7]（CGameManager.h 布局）
-                    reinterpret_cast<stMapMonsterKillChecker_t*>(
+                    // ORIG 0x81c1bf0 调嵌套版 CDeathTower::stMapMonsterKillChecker_t
+                    // ::setUseSkillMaterial（W 0x0823464c）——勿用全局版（布局不同）。
+                    reinterpret_cast<WongWork::CDeathTower::stMapMonsterKillChecker_t*>(
                         reinterpret_cast<char*>(tower) + 0xb58)
                         ->setUseSkillMaterial(GlobalData::s_systemTime_.getCurTickCount());
                 }
@@ -9535,13 +9537,15 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
             CInventory* memberInv = static_cast<CInventory*>(
                 const_cast<void*>(static_cast<const void*>(
                     party->GetMember()[i].m_pUser->getCurCharacInvenR())));
-            Inven_Item slotItem = memberInv->GetInvenSlot(1, 0xb);
+            // ORIG 0x8231a9/0x8232f6：GetInvenSlot(0, 0xc) 与 GetInvenSlot(0, 0xe)
+            // （invenType=0，槽 0xc/0xe）；NEW 原为 (1,0xb)/(1,0x9) 属转写错误。
+            Inven_Item slotItem = memberInv->GetInvenSlot(0, 0xc);
             if (slotItem.m_addInfo == 0x2ad4)
             {
                 pillFound = true;
                 break;
             }
-            Inven_Item slotItem2 = memberInv->GetInvenSlot(1, 0x89 - 0x80);
+            Inven_Item slotItem2 = memberInv->GetInvenSlot(0, 0xe);
             if (slotItem2.m_addInfo == 0x329e)
             {
                 pillFound = true;
@@ -9739,11 +9743,9 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (state == 0xc)
     {
-        // ORIG 经 vtable+0x20（槽 8=handleDropItem，vtable for WongWork::CBossTower
-        // @0x8b70260 实测）；getBossTower 等价于 getBossTowerIndex + mgr->getBossTower(idx)
-        // （ORIG _ZN5CUser12getBossTowerEv 0x08655220 反汇编实证）。
-        WongWork::CBossTower* tower =
-            G_CGameManager()->getBossTower(user->getBossTowerIndex());
+        // ORIG 81c35b0：user->getBossTower()（0x08655220：idx<0→0 否则
+        // mgr->getBossTower(idx)）→ vtable+0x20 handleDropItem。
+        WongWork::CBossTower* tower = user->getBossTower();
         if (tower != 0)
         {
             tower->handleDropItem(user, req.m_0d, req.m_0f, (char)req.m_11,

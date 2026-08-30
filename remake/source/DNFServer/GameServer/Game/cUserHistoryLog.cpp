@@ -492,7 +492,7 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
     for (int line = 0; line < lineCount; line++)
     {
         char buf[1024];
-        memset(buf, 0, sizeof(buf));
+        memset(buf, 0, 0x100);
         memcpy(buf, "SaveLethe", 10);
         strcat(buf, header);
 
@@ -516,7 +516,7 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         strcat(buf, tmp + 0x10);
 
         char chunk[512];
-        memset(chunk, 0, sizeof(chunk));
+        memset(chunk, 0, 0x80);
         for (int k = 0; k < n; k++)
         {
             int idx = vec[start + k].first;
