@@ -11163,11 +11163,10 @@ int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf
     {
         Packet_Disable_User_OneToOneChat_Police pkt;
         unsigned int nameLen = 0;
-        char name[0x1e] = {0};
         packet.get_int(nameLen);
-        packet.get_str(name, static_cast<int>(sizeof(name)), static_cast<int>(nameLen));
         pkt.m_nameLength = nameLen;
-        memcpy(pkt.m_name, name, sizeof(pkt.m_name));
+        packet.get_str(pkt.m_name, static_cast<int>(sizeof(pkt.m_name)),
+                       static_cast<int>(nameLen));
         if (user->isGMUser())
         {
             pkt.m_gmId = user->getCurCharacNo();

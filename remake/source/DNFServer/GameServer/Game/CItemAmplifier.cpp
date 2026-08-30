@@ -236,12 +236,7 @@ int CItemAmplifier::getInvestMaterialInfo(
     unsigned long level,
     stInvestAmplifyOption_t& info) const
 {
-    if (type < ENUM_ITEM_AMPLIFY_INVEST_NONE ||
-        type > ENUM_ITEM_AMPLIFY_INVEST_TYPE_2)
-    {
-        return 0;
-    }
-
+    // ORIG 0x08234c3c：无边界检查，直接以 type 索引表（越界行为与 ORIG 一致）。
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>&
         table = m_script.m_investMap[(int)type];
     __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator it =

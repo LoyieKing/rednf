@@ -49,6 +49,7 @@ extern int LineFunc(int, const char*, int, unsigned int);
 #include "VendingMachine.h"   // CVendingMachineStatistic / TimerVendingMachineItemNotify 权威声明
 #include "CGlobalEffectManager.h"
 #include "CUserProc.h"   // APSystem::CUserProc::ClearActionAndSendtoUser 权威声明
+#include "CGuildServerProxy.h"   // CEventManager::GetRepeatEvent / CEventBase::IsEventing 权威声明
 
 /* =========================================================================
  * ORIG 嵌套类型 stPutItemResult_t —— _putItemIntoUser/_notifyItemInfo 共用输出
@@ -144,11 +145,11 @@ Inven_Item Dispatcher_UseVendingMachine::_getBonusItem(
 {
     Inven_Item out;               // ORIG：Inven_Item::Inven_Item(sret)
     out.m_addInfo = -1;
-    // ORIG：GetRepeatEvent(0x23) → 事件对象 vtable[+0x34] 未建模（仅 ret 或检查开启位）。
-    // 该事件状态接口未在共享头落地，按报告以「事件开启」为默认真值（推断），
-    // 仅依赖 bonus 表非空。若后续权威事件检查落地，替换为真实调用。
-    bool eventOn = true;
-    if ((!eventOn) || info->m_vecBonus.empty())
+    // ORIG 0x0821c058：GetRepeatEvent(0x23) → IsEventing(0) 判活，
+    // 事件未开启 → 返回空 Inven_Item（m_addInfo=-1）。
+    CEventManager* evMgr = GlobalData::s_event_manager;
+    CEventBase* ev = evMgr ? evMgr->GetRepeatEvent(0x23) : 0;
+    if (ev == 0 || !ev->IsEventing(0) || info->m_vecBonus.empty())
         return out;
     int range = info->m_bonusCount - 1;
     if (range < 0)
@@ -177,9 +178,8 @@ void Dispatcher_UseVendingMachine::_putItemIntoUser(
     CUser* user, unsigned long itemIdx, unsigned int count,
     stPutItemResult_t& result) const
 {
-    const int PAY_MONEY     = 0;   // 金币
-    const int PAY_EVENTCOIN = 1;   // 活动币
-    const int PAY_WINPOINT  = 2;   // 胜点
+    // 常量（ORIG 直接 cmpl 立即数比较，避免局部 const 数组）
+    enum { PAY_MONEY = 0, PAY_EVENTCOIN = 1, PAY_WINPOINT = 2 };
     // （其它值 = 给实物物品，按 itemIdx）
 
     result.m_itemIdx = itemIdx;
@@ -288,20 +288,39 @@ void Dispatcher_UseVendingMachine::_putItemIntoUser(
         else
         {
             // 普通实物
-            // ORIG：item 非 0x10（stackable 普通物）时先查 Cera 特殊物品处理；
-            //   报告路径依赖 CCeraShop 特殊物品与受限物品逻辑。此处按报告保留
-            //   "非特殊 → 直接 insert" 的真实分支（restrictCode 路径待 producer）。
-            bool special = false;
-            bool skipInsert = false;
-            if (item->GetItemType() != 0x10)
+            // ORIG 0x0821bc1c 起：Cera 特殊物品处理 + 受限商品（防 hack）完整路径。
+            //   IsSpecialItem → 非 0x10（普通 stackable）时 ProcessSpecialItem 分发，
+            //   restrictCode 非 0 且未受限 → SetRestrictedGoods + SaveFeaturedIdx +
+            //   SendRestrictedGoods；ProcessSpecialItem 返回 true 且 rc!=0 表示特殊
+            //   处理已发物，直接结束（result 保持默认）。
+            bool specialHandled = false;   // ORIG -0x21(%ebp)
+            int specialType = 0, specialValue = 0;
+            bool specialFlag = false;
+            if (GlobalData::s_pCeraShop->IsSpecialItem((int)itemIdx, specialType,
+                                                       specialValue, specialFlag)
+                && item->GetItemType() != 0x10)
             {
-                int dummy = 0;
-                skipInsert = GlobalData::s_pCeraShop->IsSpecialItem((int)itemIdx,
-                                                                    dummy, dummy, special);
-                // [TODO] producer 落地后：ProcessSpecialItem / SaveFeaturedIdx /
-                //   SetRestrictedGoods / SendRestrictedGoods 阶段按报告补齐。
+                std::vector<Inven_Item> items;    // ORIG -0x70(%ebp)
+                int rc = 0;                       // ORIG -0x74(%ebp)
+                int restrictCode =
+                    G_CDataManager()->getItemList()->GetRestrictCode((int)itemIdx);
+                long curSec = GlobalData::s_systemTime_.getCurSec();
+                WongWork::CCeraShop::stCeraShopItemParam_t param;  // ORIG -0x8c(%ebp)
+                bool ok = GlobalData::s_pCeraShop->ProcessSpecialItem(
+                    user, (int)itemIdx, restrictCode, rc, curSec, true,
+                    items, param, 0, 0, false, 1);
+                if (ok && rc != 0)
+                    return;   // ORIG：特殊处理已放物品，直接结束
+                if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
+                {
+                    user->SetRestrictedGoods(restrictCode);
+                    GlobalData::s_pCeraShop->SaveFeaturedIdx(user, restrictCode,
+                                                             (int)curSec, 0);
+                    user->SendRestrictedGoods(true, restrictCode);
+                }
+                specialHandled = true;   // ORIG：跳过普通 insert
             }
-            if ((!skipInsert) && (!special))
+            if (!specialHandled)
             {
                 CInventory* invW = chi->getCurCharacInvenW();
                 slot = (short)invW->insertItemIntoInventory(outItem,

@@ -149,7 +149,7 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
 void CMissionList_Charac::getData(char* pData) const
 {
     std::memset(pData, 0, 0x14a);
-    std::memcpy(pData, &m_pad14f[1], 4);
+    *(unsigned int*)pData = *(const unsigned int*)&m_pad14f[1];
     for (int kind = 0; kind < 36; ++kind)
     {
         *(short*)(pData + kind * 8 + 6) = m_missionList[kind].m_index;
@@ -158,9 +158,8 @@ void CMissionList_Charac::getData(char* pData) const
         *(short*)(pData + kind * 8 + 10) = m_missionList[kind].m_streak;
     }
     {
-        std::string clearedStr;
-        BitsetToStr(m_clearedFlags, clearedStr);
-        std::memcpy(pData + 0x124, clearedStr.data(), 0x20);
+        // ORIG 直接调用 BitsetToStr(Ph) 重载写 0x20 字节到 pData+0x124（无 string 中间层）
+        BitsetToStr(m_clearedFlags, (unsigned char*)(pData + 0x124));
     }
     *(short*)(pData + 0x144) = m_field148;
     *(short*)(pData + 0x146) = m_field14a;

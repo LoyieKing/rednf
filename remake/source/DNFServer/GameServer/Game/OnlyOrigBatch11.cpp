@@ -195,8 +195,8 @@ int WaitForSingleObject(bool* p, int timeout)
     return 0;
 }
 
-// ORIG T 0x086b1a7e：sprintf 时间串。分隔符 sep==0 → "%02d%02d%02d"
-//（年/月/日）；否则 "%02d%c%02d%c%02d"。
+//（时/分/秒）；否则 "%02d%c%02d%c%02d"（ORIG 反汇编读 tm_sec(+0x0)/
+// tm_min(+0x4)/tm_hour(+0x8)）。
 void get_str_time(char* out, int c, char sep)
 {
     time_t curSec = GlobalData::s_systemTime_.getCurSec();
@@ -204,13 +204,12 @@ void get_str_time(char* out, int c, char sep)
     struct tm* ptm = localtime_r(&curSec, &tmv);
     if (sep == 0)
     {
-        sprintf(out, "%02d%02d%02d", ptm->tm_year % 100, ptm->tm_mon + 1,
-                ptm->tm_mday);
+        sprintf(out, "%02d%02d%02d", ptm->tm_sec, ptm->tm_min, ptm->tm_hour);
     }
     else
     {
-        sprintf(out, "%02d%c%02d%c%02d", ptm->tm_year % 100, sep,
-                ptm->tm_mon + 1, sep, ptm->tm_mday);
+        sprintf(out, "%02d%c%02d%c%02d", ptm->tm_sec, sep, ptm->tm_min, sep,
+                ptm->tm_hour);
     }
 }
 

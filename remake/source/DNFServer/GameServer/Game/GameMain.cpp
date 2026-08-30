@@ -398,6 +398,9 @@ void RegistServerSchedule()
                                     (TIMER_MESSAGE)0x8e, delay, 0, 0);
     }
 
+    // 0x9a：固定 0 秒（ORIG 0x82a08af，0x8e 之后注册）
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x9a, 0, 0, 0);
+
     // ORIG 0x82a08cf：尾部 checkContinus + loadServerState（全局 0x941f7f0）
     if (GlobalData::s_serverStateManager_ != 0)
     {

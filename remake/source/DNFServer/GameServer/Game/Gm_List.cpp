@@ -132,6 +132,10 @@ void Gm_List::LoadGmListFromDb()
                 return;
             }
             {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x15ec, 0);
+                trace("GM M_ID : %s", NumberToString(mid, 0));
+            }
+            {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x15f2, 9, true, true);
                 if (!m_db->get_int(1, level))
                 {

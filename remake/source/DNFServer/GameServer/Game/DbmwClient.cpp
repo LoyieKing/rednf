@@ -140,7 +140,7 @@ bool DbmwClient::Regist()
 unsigned int DbmwClient::Connect()
 {
     // ORIG @0x081209fa：Init 失败 -98；已连接 -96；
-    // connect() -1 且 errno!=EISCONN → -97（否则继续 Regist）；
+    // connect() -1 且 errno!=EINPROGRESS(0x73) → -97（否则继续 Regist）；
     // Regist 失败 → -95；成功置 connected、返回 0。
     if (Init() != 0)
         return (unsigned int)-98;
@@ -151,7 +151,7 @@ unsigned int DbmwClient::Connect()
     sockaddr* addr = reinterpret_cast<sockaddr*>(&m_addr);
     if (::connect(m_sock, addr, sizeof(sockaddr_in)) == -1)
     {
-        if (errno != EISCONN)
+        if (errno != EINPROGRESS)              // ORIG 0x8120a63：cmp $0x73（EINPROGRESS=115）
             return (unsigned int)-97;          // 0xffffff9f
         if (!Regist())
             return (unsigned int)-95;          // 0xffffffa1

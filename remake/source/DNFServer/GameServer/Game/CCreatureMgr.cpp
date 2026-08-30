@@ -1756,9 +1756,11 @@ bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
     Inven_Item_Compatible* compat =
         (Inven_Item_Compatible*)(void*)buf->m_item;   // +0x04
     compat->m_itemIdx = itemIdx;                      // +0x08
+    CItem* item = G_CDataManager()->find_item(itemIdx);
+    buf->m_days = item->getUsablePeriod();            // +0x54
+    buf->m_expireTick = item->getExpirationDate();    // +0x58
     return true;
 }
-
 // ============================================================================
 // RenameCreature @ 0x08339b6e（RenameCreature.md）
 //   装备宠物非空 → use_item 消耗改名书（creatureIdx×1，slot 空间）→ 宠物改名 +

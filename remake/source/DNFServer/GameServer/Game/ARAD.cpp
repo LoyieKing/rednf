@@ -15,7 +15,8 @@
 #include "PacketGuard.h"    // notifyOpenMessageDialog 组包
 #include "LogManager.h"
 #include <algorithm>
-#include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace ARAD
@@ -61,10 +62,19 @@ bool ScriptManager::DestroyScript()
     return true;
 }
 
-bool ScriptManager::RegistScript(ScriptInterface* s, int /*priority*/)
+bool ScriptManager::RegistScript(ScriptInterface* s, int priority)
 {
-    // ORIG 0x81a136c：insert 成功返回 true；重复则返回 false。
-    return m_scripts.insert(s).second;
+    // ORIG 0x81a136c：find 已存在（重复注册）→
+    // printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority) + exit(0)；
+    // 不存在 → insert，返回 true。
+    if (m_scripts.find(s) == m_scripts.end())
+    {
+        m_scripts.insert(s);
+        return true;
+    }
+    printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority);
+    exit(0);
+    return false;
 }
 
 void ScriptManager::Init()

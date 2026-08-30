@@ -40,7 +40,7 @@
 
 // drops 域公共依赖 ::roundFloat（ORIG W 0x0853abe5；定义 CClearReward.cpp，
 // 全局命名空间符号 _Z10roundFloatf —— 放 WongWork ns 外保证调用 mangled 正确）。
-extern float roundFloat(float v);
+extern int roundFloat(float v);
 
 namespace WongWork
 {

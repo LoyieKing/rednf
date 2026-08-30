@@ -52,7 +52,7 @@ namespace WongWork
 
 // ORIG W 0x0853abe5 ::roundFloat —— 定义于 CClearReward.cpp（drops 域公共依赖，
 // 全局命名空间符号 _Z10roundFloatf；声明须置于全局域保证调用 mangled 匹配）
-extern float roundFloat(float v);
+extern int roundFloat(float v);
 
 namespace WongWork
 {

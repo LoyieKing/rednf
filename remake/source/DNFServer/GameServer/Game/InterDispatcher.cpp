@@ -13424,11 +13424,11 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x27) =
         static_cast<unsigned int>(price);
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x2b) =
-        *reinterpret_cast<unsigned int*>(msg + 0x08);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x2f) =
         *reinterpret_cast<unsigned int*>(msg + 0x04);
+    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x2f) =
+        *reinterpret_cast<unsigned int*>(msg + 0x08);
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x33) =
-        static_cast<unsigned int>(price);
+        *reinterpret_cast<unsigned int*>(msg + 0x04);
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x37) =
         *reinterpret_cast<unsigned int*>(msg + 0x08);
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x3b) =

@@ -509,32 +509,32 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
     {
         if (line == "[master type]")
         {
-            int value = ScanInt((int*)0);
+            int value = ScanInt((bool*)0);
             ScanStr(&str);
             m_map64[(unsigned char)value] = str;
         }
         else if (line == "[type addition]")
         {
-            int value = ScanInt((int*)0);
+            int value = ScanInt((bool*)0);
             m_vec1.push_back((unsigned char)value);
         }
         else if (line == "[reverse desc]")
         {
-            int value = ScanInt((int*)0);
+            int value = ScanInt((bool*)0);
             m_vec2.push_back((unsigned char)value);
         }
         else if (line == "[material type]")
         {
-            int value = ScanInt((int*)0);
+            int value = ScanInt((bool*)0);
             ScanStr(&str);
             m_map7c[(unsigned char)value] = str;
         }
         else if (line == "[weapon type]")
         {
             ScanStr(&str);
-            int type = ScanInt((int*)0);
-            int subType = ScanInt((int*)0);
-            int value = ScanInt((int*)0);
+            int type = ScanInt((bool*)0);
+            int subType = ScanInt((bool*)0);
+            int value = ScanInt((bool*)0);
             std::string name;
             ScanStr(&name);
             int job = getCharacterJob(str.c_str());
@@ -546,9 +546,9 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         else if (line == "[armor type]")
         {
             ScanStr(&str);
-            int type = ScanInt((int*)0);
-            int subType = ScanInt((int*)0);
-            int value = ScanInt((int*)0);
+            int type = ScanInt((bool*)0);
+            int subType = ScanInt((bool*)0);
+            int value = ScanInt((bool*)0);
             std::string name;
             ScanStr(&name);
             SARMORTYPE ap((unsigned char)subType, str);
@@ -559,10 +559,10 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         else if (line == "[item type]")
         {
             ScanStr(&str);
-            int type = ScanInt((int*)0);
-            int subType = ScanInt((int*)0);
-            int value = ScanInt((int*)0);
-            int extra = ScanInt((int*)0);
+            int type = ScanInt((bool*)0);
+            int subType = ScanInt((bool*)0);
+            int value = ScanInt((bool*)0);
+            int extra = ScanInt((bool*)0);
             std::string name;
             ScanStr(&name);
             m_itemTypeMap[str] = SITEMTYPE(type != 0, (unsigned char)subType,

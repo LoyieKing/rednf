@@ -36,7 +36,6 @@ struct buySkillInfo
 class MSG_ABNORMAL_USE_STACKABLE : public MSG_BASE
 {
 public:
-    MSG_ABNORMAL_USE_STACKABLE();
     char m_gap0d[3];          // +0x0d（ORIG 未出线，read 首读 +0x10）
     unsigned int m_field10;   // +0x10 异常使用 stackable 参数1【推断】
                               //（Dispatcher_AbnormalUseStackable/read.md get_int@msg+0x10）
@@ -50,7 +49,6 @@ static_assert(sizeof(MSG_ABNORMAL_USE_STACKABLE) == 0x10d, "MSG_ABNORMAL_USE_STA
 class MSG_ACHIEVEMENT_TRIGGER : public MSG_BASE
 {
 public:
-    MSG_ACHIEVEMENT_TRIGGER();
     unsigned int m_field0d;   // +0x0d 成就触发主参数【推断】
                               //（Dispatcher_AchievementTrigger/read.md get_int@msg+0xd）
     unsigned short m_field11; // +0x11 参数2【推断】（get_short@msg+0x11）
@@ -72,7 +70,6 @@ public:
 class MSG_APPROVE_JOIN_GUILD : public MSG_BASE
 {
 public:
-    MSG_APPROVE_JOIN_GUILD();
     unsigned int m_characNo;  // +0x0d 被批准入会申请的角色编号【推断】
                               //（Dispatcher_ApproveJoinGuild/read.md get_int(uint&)@msg+0xd）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -84,7 +81,6 @@ static_assert(sizeof(MSG_APPROVE_JOIN_GUILD) == 0x10d, "MSG_APPROVE_JOIN_GUILD s
 class MSG_AVATAR_DISJOINT_RANDOM_REWARD : public MSG_BASE
 {
 public:
-    MSG_AVATAR_DISJOINT_RANDOM_REWARD();
     unsigned short m_slotE;        // +0x0e 槽位（Dispatchers.cpp Dispatcher_Avatar_Disjoint_Random_Reward 实证）
     int m_itemIdx10;               // +0x10 物品 idx（同上）
     char m_pad[0x100 - 6];         // +0x12..（余量占位，总长保持 0x10d）
@@ -124,7 +120,6 @@ public:
 class MSG_BOSS_DIE_CHECK : public MSG_BASE
 {
 public:
-    MSG_BOSS_DIE_CHECK();
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     unsigned short m_field0e; // +0x0e 队伍/角色类标识【推断】
                               //（Dispatcher_BossDieCheck/read.md get_short@msg+0xe；==-1 时 addServerHackCnt 0xcb）
@@ -182,7 +177,6 @@ public:
 class MSG_CANCEL_JOIN_GUILD : public MSG_BASE
 {
 public:
-    MSG_CANCEL_JOIN_GUILD();
     unsigned int m_characNo;  // +0x0d 撤销入会申请的角色编号【推断】
                               //（Dispatcher_CancelJoinGuild/read.md get_int(uint&)@msg+0xd）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -219,7 +213,6 @@ public:
 class MSG_CHANGE_EMOTION : public MSG_BASE
 {
 public:
-    MSG_CHANGE_EMOTION();
     short m_emotionIdx;       // +0x0d 表情索引（Dispatcher_ChangeEmotion/read.md get_short@msg+0xd；
                               //  经 isVaildEmotionValue 校验后 SetCurCharacEmotion）
     char m_gap0f[0xfe];       // +0x0f..（ORIG 未出线；总长保持 0x10d）
@@ -230,7 +223,6 @@ static_assert(sizeof(MSG_CHANGE_EMOTION) == 0x10d, "MSG_CHANGE_EMOTION size");
 class MSG_CHANGE_HOST_WARROOM : public MSG_BASE
 {
 public:
-    MSG_CHANGE_HOST_WARROOM();
     char m_pad[0x100];
 };
 
@@ -238,7 +230,6 @@ public:
 class MSG_CHANGE_LETTER_STAT : public MSG_BASE
 {
 public:
-    MSG_CHANGE_LETTER_STAT();
     int m_mailIdx;            // +0x0d 邮件编号（Dispatcher_ChangeLetterStat/read.md get_int@msg+0xd）
     short m_letterStat;       // +0x11 新邮件状态【推断】（get_short(s16&)@msg+0x11）
     char m_gap13[0xfa];       // +0x13..（ORIG 未出线；总长保持 0x10d）
@@ -371,7 +362,6 @@ public:
 class MSG_CREATE_DISJOINT_STORE : public MSG_BASE
 {
 public:
-    MSG_CREATE_DISJOINT_STORE();
     char m_pad[0x100];
 };
 
@@ -398,7 +388,6 @@ public:
 class MSG_DELETE_ITEM : public MSG_BASE
 {
 public:
-    MSG_DELETE_ITEM();
     // 布局证据：DisPatcher_DeleteItem::process(0x081c1dda)/exercise_mode/
     // restricted_check/condition_check 对 msg 的全部读取（i<count<=100）：
     //   +0x0d byte itemSpace、+0x0e sbyte count、+0x0f short opType[i]、
@@ -417,7 +406,6 @@ public:
 class MSG_DELETE_TO_BLACKLIST : public MSG_BASE
 {
 public:
-    MSG_DELETE_TO_BLACKLIST();
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_DeleteToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 移出黑名单的角色名（get_str(buf,0x1e)@msg+0x14）
@@ -430,7 +418,6 @@ static_assert(sizeof(MSG_DELETE_TO_BLACKLIST) == 0x10d, "MSG_DELETE_TO_BLACKLIST
 class MSG_DENY_JOIN_GUILD : public MSG_BASE
 {
 public:
-    MSG_DENY_JOIN_GUILD();
     unsigned int m_characNo;  // +0x0d 被拒绝入会申请的角色编号【推断】
                               //（Dispatcher_DenyJoinGuild/read.md get_int(uint&)@msg+0xd）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -449,7 +436,6 @@ public:
 class MSG_DONATE_GUILD_FUND : public MSG_BASE
 {
 public:
-    MSG_DONATE_GUILD_FUND();
     int m_donateMoney;        // +0x0d 公会基金捐赠金额【推断】
                               //（Dispatcher_DonateGuildFund/read.md get_int@msg+0xd）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -488,7 +474,6 @@ public:
 class MSG_ENCHANT_BY_BEAD : public MSG_BASE
 {
 public:
-    MSG_ENCHANT_BY_BEAD();
     signed char m_field0d;    // +0x0d OnEnchantByBead 第2参【推断】（Dispatcher_EnchantByBead/read.md get_byte@msg+0xd）
     short m_field0e;          // +0x0e 第3参【推断】（get_short@msg+0xe）
     signed char m_field10;    // +0x10 第4参【推断】（get_byte@msg+0x10）
@@ -503,7 +488,6 @@ static_assert(sizeof(MSG_ENCHANT_BY_BEAD) == 0x10d, "MSG_ENCHANT_BY_BEAD size");
 class MSG_ENTER_DISJOINT_STORE : public MSG_BASE
 {
 public:
-    MSG_ENTER_DISJOINT_STORE();
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e 进入目标标识 slot/idx【推断】
                               //（Dispatcher_EnterDisjointStore/read.md get_short@msg+0xe）
@@ -516,7 +500,6 @@ static_assert(sizeof(MSG_ENTER_DISJOINT_STORE) == 0x10d, "MSG_ENTER_DISJOINT_STO
 class MSG_EQUIPSLOT_SWITCH : public MSG_BASE
 {
 public:
-    MSG_EQUIPSLOT_SWITCH();
     signed char m_field0d;    // +0x0d EquipslotSwitch 第3参【推断】（Dispatcher_Equipslot_Switch/read.md get_byte@msg+0xd）
     signed char m_field0e;    // +0x0e 第4参【推断】（get_byte@msg+0xe）
     signed char m_field0f;    // +0x0f 第2参【推断】（get_byte@msg+0xf）
@@ -538,7 +521,6 @@ public:
 class MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE : public MSG_BASE
 {
 public:
-    MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE();
     signed char m_flag;       // +0x0d 装备栏扩展标志（Dispatcher_Expand_Equipslot_Flag_Update/read.md
                               //  get_byte@msg+0xd；process 传 CUser::UpdateEquipslotFlag）
     char m_gap0e[0xff];       // +0x0e..（ORIG 未出线；总长保持 0x10d）
@@ -585,7 +567,6 @@ public:
 class MSG_FLOAT_RDATA_MODULATION : public MSG_BASE
 {
 public:
-    MSG_FLOAT_RDATA_MODULATION();
     char m_gap0d[3];          // +0x0d（ORIG 未出线，read 首读 +0x10）
     unsigned int m_encoded1;  // +0x10 加密值1，process 解码 xor 0x59ab991f【推断】
                               //（Dispatcher_Float_RDATA_Modulation/read.md get_int@msg+0x10）
@@ -617,7 +598,6 @@ public:
 class MSG_GOLD_TAKE_INCREASING_AMOUNT : public MSG_BASE
 {
 public:
-    MSG_GOLD_TAKE_INCREASING_AMOUNT();
     int m_overSkillTime;      // +0x0d 宠物/精灵过技能时间值（Dispatcher_GoldTakeIncreasingAmount/read.md
                               //  get_int@msg+0xd；process 传 CCreatureMgr::SetOverSkillTime）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -651,7 +631,6 @@ public:
 class MSG_GUILD_ATTENDANCE : public MSG_BASE
 {
 public:
-    MSG_GUILD_ATTENDANCE();
     signed char m_field0d;    // +0x0d 公会出勤信息类型【推断】
                               //（Dispatcher_GuildAttendanceInfo/read.md get_byte@msg+0xd）
     char m_gap0e[0xff];       // +0x0e..（ORIG 未出线；总长保持 0x10d）
@@ -697,7 +676,6 @@ public:
 class MSG_GUILD_CARGO_MOVE_ITEM : public MSG_BASE
 {
 public:
-    MSG_GUILD_CARGO_MOVE_ITEM();
     unsigned short m_field0d;  // +0x0d 货运参数1【推断】
                                //（Dispatcher_GuildCargoMoveItem/read.md get_short@msg+0xd；process.md:153）
     unsigned short m_field0f;  // +0x0f 货运参数2【推断】（get_short@msg+0xf；process.md:154）
@@ -712,7 +690,6 @@ static_assert(sizeof(MSG_GUILD_CARGO_MOVE_ITEM) == 0x10d, "MSG_GUILD_CARGO_MOVE_
 class MSG_GUILD_CARGO_POP_ITEM : public MSG_BASE
 {
 public:
-    MSG_GUILD_CARGO_POP_ITEM();
     unsigned short m_field0d;  // +0x0d 槽位【推断】
                                //（Dispatcher_GuildCargoPopItem/read.md get_short@msg+0xd；process.md:187）
     int m_itemIdx;             // +0x0f 物品索引（get_int@msg+0xf；process.md find_item）
@@ -727,7 +704,6 @@ static_assert(sizeof(MSG_GUILD_CARGO_POP_ITEM) == 0x10d, "MSG_GUILD_CARGO_POP_IT
 class MSG_GUILD_CARGO_PUSH_ITEM : public MSG_BASE
 {
 public:
-    MSG_GUILD_CARGO_PUSH_ITEM();
     unsigned char m_field0d;   // +0x0d byte 参数【推断】
                                //（Dispatcher_GuildCargoPushItem/read.md get_byte@msg+0xd；process.md:245）
     unsigned short m_field0e;  // +0x0e ushort 参数【推断】（get_short@msg+0xe；process.md:246）
@@ -743,7 +719,6 @@ static_assert(sizeof(MSG_GUILD_CARGO_PUSH_ITEM) == 0x10d, "MSG_GUILD_CARGO_PUSH_
 class MSG_HATCH_CREATURE : public MSG_BASE
 {
 public:
-    MSG_HATCH_CREATURE();
     unsigned char m_itemSpace;  // +0x0d 物品空间类型（Dispatcher_HatchCreature/read.md get_byte@msg+0xd；
                                 //  check_error GetInvenTypeFromItemSpace + CheckItemLock）
     short m_slotIdx;            // +0x0e 待孵化生物槽索引（get_short@msg+0xe；CheckItemLock 第2参）
@@ -779,14 +754,12 @@ public:
 class MSG_ITEM_DICTIONARY : public MSG_BASE
 {
 public:
-    MSG_ITEM_DICTIONARY();
     char m_pad[0x100];
 };
 
 class MSG_ITEM_HYPER_LINK_MESSAGE : public MSG_BASE
 {
 public:
-    MSG_ITEM_HYPER_LINK_MESSAGE();
 
     // ORIG 布局（Dispatcher_ItemHyperLinkMessage/read 0x081d98c4、process 报告）
     unsigned char m_typeD;             // +0x0d 消息频道类型
@@ -853,7 +826,6 @@ static_assert(sizeof(MSG_LOG_INGAME_ADVERTISEMENT) == 0x10d, "MSG_LOG_INGAME_ADV
 class MSG_MAILBOX_EXTRACT_ITEM : public MSG_BASE
 {
 public:
-    MSG_MAILBOX_EXTRACT_ITEM();
     unsigned int m_mailIdx;   // +0x0d 提取的邮件编号【推断】
                               //（Dispatcher_MailBox_Extract/read.md get_int(uint&)@msg+0xd）
     char m_gap11[0xfc];       // +0x11..（ORIG 未出线；总长保持 0x10d）
@@ -865,7 +837,6 @@ static_assert(sizeof(MSG_MAILBOX_EXTRACT_ITEM) == 0x10d, "MSG_MAILBOX_EXTRACT_IT
 class MSG_MAILBOX_SEND : public MSG_BASE
 {
 public:
-    MSG_MAILBOX_SEND();
 
     // ORIG 布局依据：Dispatcher_MailBox_Send/read @0x081cc3da 全部读写偏移：
     int m_nameLenD;            // +0x0d 收件人名长度（read get_int #1）
@@ -886,7 +857,6 @@ static_assert(sizeof(MSG_MAILBOX_SEND) == 0x145, "MSG_MAILBOX_SEND ABI drift");
 class MSG_MEMBER_ENTER_REPLY : public MSG_BASE
 {
 public:
-    MSG_MEMBER_ENTER_REPLY();
     unsigned char m_reply;    // +0x0d 进入请求答复【推断:0=拒绝 1=同意】
                               //（Dispatcher_MemberEnterReply/read.md get_byte@msg+0xd）
     char m_gap0e[0xff];       // +0x0e..（ORIG 未出线；总长保持 0x10d）
@@ -898,7 +868,6 @@ static_assert(sizeof(MSG_MEMBER_ENTER_REPLY) == 0x10d, "MSG_MEMBER_ENTER_REPLY s
 class MSG_MEMBER_SECEDE : public MSG_BASE
 {
 public:
-    MSG_MEMBER_SECEDE();
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_MemberSecede/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 脱离公会的成员角色名（get_str(buf,0x1e)@msg+0x14）
@@ -924,7 +893,6 @@ public:
 class MSG_MOTION_HACK : public MSG_BASE
 {
 public:
-    MSG_MOTION_HACK();
     unsigned char m_field0d;  // +0x0d 移动外挂检测类型【推断】
                               //（Dispatcher_MotionHack/read.md get_byte@msg+0xd）
     unsigned int m_field0e;   // +0x0e 检测数据1【推断】（get_int@msg+0xe）
@@ -985,7 +953,6 @@ public:
 class MSG_OBJECT_BRING_UP : public MSG_BASE
 {
 public:
-    MSG_OBJECT_BRING_UP();
     char m_pad[0x100];
 };
 
@@ -1100,7 +1067,6 @@ public:
 class MSG_PVP_MISSION_COMBO_CLEAR : public MSG_BASE
 {
 public:
-    MSG_PVP_MISSION_COMBO_CLEAR();
     char m_pad[0x100];
 };
 
@@ -1189,7 +1155,6 @@ public:
 class MSG_REGISTER_TO_BLACKLIST : public MSG_BASE
 {
 public:
-    MSG_REGISTER_TO_BLACKLIST();
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RegisterToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 加入黑名单的目标角色名（get_str(buf,0x1e)@msg+0x14）
@@ -1255,7 +1220,6 @@ public:
 class MSG_REQUEST_DISJOINT_ITEM : public MSG_BASE
 {
 public:
-    MSG_REQUEST_DISJOINT_ITEM();
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e slot【推断】（Dispatcher_RequestDisjointItem/read.md get_short@msg+0xe）
     short m_field10;          // +0x10 第二 slot/idx【推断】（get_short@msg+0x10）
@@ -1295,7 +1259,6 @@ static_assert(sizeof(MSG_REQUEST_INGAME_ADVERTISEMENT) == 0x10d, "MSG_REQUEST_IN
 class MSG_REQUEST_MEMBER_ENTER : public MSG_BASE
 {
 public:
-    MSG_REQUEST_MEMBER_ENTER();
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RequestMemberEnter/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 请求进入成员的角色名（get_str(buf,0x1e)@msg+0x14）
@@ -1402,7 +1365,6 @@ public:
 class MSG_SCAN_DLL : public MSG_BASE
 {
 public:
-    MSG_SCAN_DLL();
     int m_field0d;            // +0x0d DLL 扫描结果码【推断】
                               //（Dispatcher_ScanBotByDll/read.md get_int@msg+0xd）
     signed char m_field11;    // +0x11 扫描标志【推断】（get_byte@msg+0x11）
@@ -1416,7 +1378,6 @@ static_assert(sizeof(MSG_SCAN_DLL) == 0x10d, "MSG_SCAN_DLL size");
 class MSG_SCAN_DRV : public MSG_BASE
 {
 public:
-    MSG_SCAN_DRV();
     int m_field0d;            // +0x0d 驱动扫描结果码【推断】
                               //（Dispatcher_ScanBotByDrv/read.md get_int@msg+0xd）
     signed char m_field11;    // +0x11 扫描标志【推断】（get_byte@msg+0x11）
@@ -1429,7 +1390,6 @@ static_assert(sizeof(MSG_SCAN_DRV) == 0x10d, "MSG_SCAN_DRV size");
 class MSG_SCRIPT_HASH : public MSG_BASE
 {
 public:
-    MSG_SCRIPT_HASH();
     signed char m_field0d;    // +0x0d 脚本哈希校验类型1【推断】
                               //（Dispatcher_ValidateScriptHash/read.md get_byte@msg+0xd）
     signed char m_field0e;    // +0x0e 校验类型2【推断】（get_byte@msg+0xe）
@@ -1443,7 +1403,6 @@ static_assert(sizeof(MSG_SCRIPT_HASH) == 0x10d, "MSG_SCRIPT_HASH size");
 class MSG_SECRET_SHOP_BUY_ITEM : public MSG_BASE
 {
 public:
-    MSG_SECRET_SHOP_BUY_ITEM();
     int m_itemIdx;            // +0x0d 购买物品索引（Dispatcher_SecretShopBuyItem/read.md get_int@msg+0xd；
                               //  process 传 secretshop::CSecretShop::BuyItem）
     int m_count;              // +0x11 购买数量，read 校验 >0；非堆叠物品 BuyItem 强制为 1
@@ -1457,7 +1416,6 @@ static_assert(sizeof(MSG_SECRET_SHOP_BUY_ITEM) == 0x10d, "MSG_SECRET_SHOP_BUY_IT
 class MSG_SECRET_SHOP_OPEN_CLOSE : public MSG_BASE
 {
 public:
-    MSG_SECRET_SHOP_OPEN_CLOSE();
     unsigned char m_openFlag;  // +0x0d 购买开关（Dispatcher_SecretShopOpenClose/read.md get_byte@msg+0xd；
                                //  process 传 SECRET_SHOP_DATA::SetBuying(pos,bool)）
     char m_gap0e[0xff];        // +0x0e..（ORIG 未出线；总长保持 0x10d）
@@ -1482,7 +1440,6 @@ static_assert(sizeof(MSG_SECURITY_LOG_PACKET) == 0x10d, "MSG_SECURITY_LOG_PACKET
 class MSG_SECU_RPY : public MSG_BASE
 {
 public:
-    MSG_SECU_RPY();
     char m_pad[0x1007];       // +0x0d..（ORIG 权威尺寸 0x1014：数据区 +0x0f..+0x100e、
                               //  长度 +0x100f、应答类型 +0x1013；dispatch_template 帧实证）
 };
@@ -1516,7 +1473,6 @@ public:
 class MSG_SERIAROOM_DECO_EVENT : public MSG_BASE
 {
 public:
-    MSG_SERIAROOM_DECO_EVENT();
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     unsigned short m_decoEventId;  // +0x0e 赛丽亚房装饰事件编号
                                    //（Dispatcher_SeriaRoom_Deco_Event/read.md get_short@msg+0xe）
@@ -1611,7 +1567,6 @@ public:
 class MSG_TELEPORT : public MSG_BASE
 {
 public:
-    MSG_TELEPORT();
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e【推断】（Dispatcher_Teleport/read.md get_short@msg+0xe）
     unsigned int m_field10;   // +0x10【推断】（get_int@msg+0x10）
@@ -1633,7 +1588,6 @@ public:
 class MSG_TITLEBOOK_GET : public MSG_BASE
 {
 public:
-    MSG_TITLEBOOK_GET();
     int m_itemSpace;          // +0x0d ENUM_ITEMSPACE（Dispatcher_TitleBookGet/read.md get_int@msg+0xd；
                               //  process getTitle 第5参）
     int m_field11;            // +0x11 getTitle 第6参 int& 回填【推断】（get_int@msg+0x11）
@@ -1649,7 +1603,6 @@ static_assert(sizeof(MSG_TITLEBOOK_GET) == 0x10d, "MSG_TITLEBOOK_GET size");
 class MSG_TITLEBOOK_OTHERUSER : public MSG_BASE
 {
 public:
-    MSG_TITLEBOOK_OTHERUSER();
     unsigned short m_targetIdx;  // +0x0d 目标用户/称号索引【推断】
                                  //（Dispatcher_TitleBookOtherUser/read.md get_short@msg+0xd）
     char m_gap0f[0xfe];          // +0x0f..（ORIG 未出线；总长保持 0x10d）
@@ -1661,7 +1614,6 @@ static_assert(sizeof(MSG_TITLEBOOK_OTHERUSER) == 0x10d, "MSG_TITLEBOOK_OTHERUSER
 class MSG_TITLEBOOK_PUT : public MSG_BASE
 {
 public:
-    MSG_TITLEBOOK_PUT();
     int m_itemSpace;          // +0x0d【推断】与 TITLEBOOK_GET 同构 5 int（Dispatcher_TitleBookPut/read.md）
     int m_field11;            // +0x11【推断】（get_int@msg+0x11）
     int m_field15;            // +0x15【推断】（get_int@msg+0x15）
@@ -1800,7 +1752,6 @@ public:
 class MSG_WARROOM_WP_PER_MONSTER : public MSG_BASE
 {
 public:
-    MSG_WARROOM_WP_PER_MONSTER();
     int m_field0d;            // +0x0d HandleWpPerMonster 第2参【推断】
                               //（Dispatcher_WarRoomWpPerMonster/read.md get_int@msg+0xd）
     int m_field11;            // +0x11 第3参【推断】（get_int@msg+0x11）

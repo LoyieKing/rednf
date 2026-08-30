@@ -405,10 +405,11 @@ int PI_GetType_SC(char type, short value)
         case 0x20: return 25;
         case 0x2e: return 18;
         case 0x2f: return 12;
-        case 0x43: return 44;
+        case 0x43: return 27;
         case 0x48: return 22;
         case 0x49: return 23;
         case 0x4a: return 24;
+        case 0x53: return 44;
         default:   return 0;
         }
     }

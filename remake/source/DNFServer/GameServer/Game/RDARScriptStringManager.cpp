@@ -230,8 +230,8 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
 
 int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
 {
-    // ORIG 0x8aa5cba
-    if (key != 0)
+    // ORIG 0x8aa5cba：key==0 或 table 越界 → -1
+    if (key != 0 && static_cast<unsigned>(table) < dictionaries_.size())
     {
         StringDictionary* d = dictionaries_[table];
         int n = d->getCount();

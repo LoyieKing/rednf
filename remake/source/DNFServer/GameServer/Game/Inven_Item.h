@@ -247,6 +247,7 @@ public:
 
     unsigned char m_field0;     // +0x00（← item+0x00）
     unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
+    unsigned char m_field2[2];  // +0x02..0x03（pack(1) 显式填充：ORIG m_itemIdx 在 +0x04）
     int m_itemIdx;              // +0x04（← item+0x02）
     unsigned char m_attr;       // +0x08（← Inven_Item::GetItemAttr）
     int m_addInfo2;             // +0x0c（← item+0x07）

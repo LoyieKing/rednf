@@ -71,7 +71,11 @@ void CTrcOnOffEvent::StartEvent(Word_Param)  // ORIG 0x08285b00
 
 bool CTrcOnOffEvent::IsEventing(CUser* user) const  // ORIG 0x08285ba4：透传基类
 {
-    return CEventBase::IsEventing(user) == true;
+    // ORIG 0x08285ba4：第二参数恒传 0（NULL），不转发本函数形参。
+    if (CEventBase::IsEventing(static_cast<CUser*>(0)) == true)
+        return true;
+    else
+        return false;
 }
 
 // ---- CFatigueBuffEvent ----

@@ -13,15 +13,30 @@
 #include <time.h>
 
 // ---- trim（CEnvironment::parse 用，ORIG 全局函数 _Z4trimPc @0x0829f0ef；返回入参）----
+// ORIG 语义：跳过 0x01..0x20 的 ASCII 控制字符（保留 >=0x80 高位字节），
+// 子串拷贝到 0x400 栈缓冲后 strcpy 回写（反汇编 0x0829f0ef 逐指令转写）。
 char* trim(char* s)
 {
-    if (!s) return s;
-    char* end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
-        *--end = 0;
-    char* p = s;
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') ++p;
-    if (p != s) memmove(s, p, strlen(p) + 1);
+    char buf[0x400];
+    int len = strlen(s);
+    int start = 0;
+    int i = 0;
+    while (i < len && (signed char)s[i] >= 0 && s[i] <= 0x20)
+    {
+        start = i;
+        ++i;
+    }
+    int end = len;
+    i = len - 1;
+    while (i >= 0 && end > start &&
+           (signed char)s[i] >= 0 && s[i] <= 0x20)
+    {
+        --end;
+        --i;
+    }
+    buf[end - start] = 0;
+    memcpy(buf, s + start, end - start);
+    strcpy(s, buf);
     return s;
 }
 

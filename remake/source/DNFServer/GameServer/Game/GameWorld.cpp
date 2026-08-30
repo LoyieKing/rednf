@@ -1925,10 +1925,33 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                         curVill, curArea, vill, area) &&
                     curVill == prevVill && curArea == prevArea)
                 {
+                    // ORIG 0x86c6352：先记日志（User acc_id 与四区坐标），
+                    // 再把 (prevVill,prevArea)/(vill,area) 各拼成 "%d%d" 字符串
+                    // 经 atoi 还原后作为 hack 计数参数（数值拼接怪癖）。
+                    LogManager::logFormat(
+                        1, "world.cpp", __PRETTY_FUNCTION__, 0x832,
+                        "move area error. User:%s (%d,%d)->(%d,%d)",
+                        NumberToString(user->get_acc_id(), 0), curVill,
+                        curArea, vill, area);
+                    int hackA = 0;
+                    int hackB = 0;
+                    char buf[8] = {0};
+                    if (prevVill >= 0 && prevVill <= 10 &&
+                        prevArea >= 0 && prevArea <= 10)
+                    {
+                        sprintf(buf, "%d%d", prevVill, prevArea);
+                        hackA = atoi(buf);
+                        memset(buf, 0, 5);
+                    }
+                    if (vill >= 0 && vill <= 10 && area >= 0 && area <= 10)
+                    {
+                        sprintf(buf, "%d%d", vill, area);
+                        hackB = atoi(buf);
+                    }
                     user->getHackAnalyzer()->addServerHackCnt(
                         user,
                         (WongWork::ENUM_HACK_TYPE)CHackLog_InvalidAreaMove::GetHackType(),
-                        1, prevVill, prevArea);
+                        1, hackA, hackB);
                 }
             }
         }

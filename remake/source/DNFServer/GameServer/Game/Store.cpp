@@ -169,6 +169,14 @@ int Store::GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
     }
     return 0;
 }
+
+// ---------------------------------------------------------------------------
+// GetSellItemPrice(CUser*, char invenType, short slot, short count, bool flag,
+//                  int& outPrice, int& outCount) —— ORIG 0x08619008
+// 汇合段（find_item 后共享检查，objdump 实证）：GetFinishPointPrice()!=0 → 0x17；
+// GetAttachType()==2 → 0x17；*outCount = pItem->get_index()；再委托 5 参重载
+// （count 传参数而非槽数量）。
+// ---------------------------------------------------------------------------
 int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count,
                             bool flag, int& outPrice, int& outCount)
 {
@@ -213,10 +221,15 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
         return 0x11;
     }
 
+    if (pItem->GetFinishPointPrice() != 0)
+        return 0x17;
+    if (pItem->GetAttachType() == 2)
+        return 0x17;
+    outCount = pItem->get_index();
+
     int price = 0;
-    int ret = GetSellItemPrice(item, pItem, (short)itemCount, flag, price);
+    int ret = GetSellItemPrice(item, pItem, count, flag, price);
     outPrice = price;
-    outCount = itemCount;
     return ret;
 }
 

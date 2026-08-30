@@ -260,6 +260,7 @@ class QuestScript
 public:
     QuestScript();
     ~QuestScript();
+    QuestScript(const QuestScript& other);   // ORIG copy 0x0837adc8：string/容器深拷贝，指针数组浅拷贝
 
     void clear();
     void destroy();

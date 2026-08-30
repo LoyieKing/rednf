@@ -1511,14 +1511,11 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
         if (!del)
             break;   // 仅检查存在性
         int count = m_hellWorldMap->m_hellPassItemList[k].second;
-        if (user->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)1, slotResult, count, (eItemDelReason)0x17, true) == 1)
-        {
-            user->SendUpdateItem((CUser::eSendTarget)1,
-                                 (ENUM_ITEMSPACE)0, slotResult);
-            break;
-        }
-        // 删除失败：记录（ORIG 走 cMyTrace 日志，此处跳过日志对象，保留语义）
+        char log[16];
+        new (log) cMyTrace(__PRETTY_FUNCTION__, 0x44fb, 5);
+        (*reinterpret_cast<cMyTrace*>(log))(
+            "CParty::UseSealDoorItems, freepass delete_item failed , User ch=%d , %d %d",
+            user->getCurCharacNo(), slotResult, itemId);
     }
     return 0 < slotResult;
 }

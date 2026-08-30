@@ -33,8 +33,7 @@ namespace ARAD_DATAS
 struct AradMailItemInfo
 {
     AradMailItemInfo()
-        : m_flag(0), m_field4(0), m_field8(0), m_fieldA(0), m_fieldC(0),
-          m_field10(0), m_itemAttr(0) {}
+        : m_flag(0), m_fieldA(0), m_fieldC(0), m_field10(0), m_itemAttr(0) {}
 
     // ORIG GetItemAttr _ZNK10ARAD_DATAS16AradMailItemInfo11GetItemAttrEv W
     unsigned char GetItemAttr() const { return m_itemAttr; }  // 0x08197e12

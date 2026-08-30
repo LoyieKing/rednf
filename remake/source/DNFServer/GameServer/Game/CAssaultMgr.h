@@ -249,12 +249,10 @@ namespace pvp_assault
 class CAssaulter
 {
 public:
+    // ORIG C1 0x82e661e：仅清 m_user(+0)/m_team(+4) 两字段（movl 0; movl 0x4）。
     CAssaulter()
-        : m_user(0), m_team(0), m_state(0), m_lastHpSec(0),
-          m_hp(0), m_powerWarWinner(0)
+        : m_user(0), m_team(0)
     {
-        for (int i = 0; i < (int)sizeof(m_connectIp); ++i)
-            m_connectIp[i] = 0;
     }
     ~CAssaulter() {}                                  // ORIG D1/D2 0x82e6636 空
 

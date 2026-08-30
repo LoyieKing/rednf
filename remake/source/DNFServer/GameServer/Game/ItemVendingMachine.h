@@ -51,12 +51,12 @@ public:
 private:
     // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus14_findBonusItemERKSt6vectorINS_13PurcahseBonusESaIS2_EERS2_t
     // T @0x081ac04c —— 取 vector 中 m_flag <= threshold 的最后一个元素拷入 out。
-    static bool _findBonusItem(const std::vector<PurcahseBonus>& list,
-                               PurcahseBonus& out, unsigned short threshold);
+    bool _findBonusItem(const std::vector<PurcahseBonus>& list,
+                        PurcahseBonus& out, unsigned short threshold);
     // ORIG _ZN4ARAD26CeraShopPurcahseCountBonus17_processBonusItemEP5CUseriRKNS_13PurcahseBonusE
     // T @0x081ac13e —— bonus 发放主逻辑（代币/里程券/物品三通道）。
-    static void _processBonusItem(CUser* user, int goodsIdx,
-                                  const PurcahseBonus& bonus);
+    void _processBonusItem(CUser* user, int goodsIdx,
+                           const PurcahseBonus& bonus);
 
     std::map<int, std::vector<PurcahseBonus> > m_bonusMap;  // +0x00
 };

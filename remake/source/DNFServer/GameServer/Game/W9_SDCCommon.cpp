@@ -33,10 +33,8 @@ extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE;        // D 0x0936e48c
 extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE_DEATH_TOWER;  // D 0x0936e490
 extern int ACTIVESTATUS_MAXLEVEL;                          // D 0x0936e484
 
-static inline int round_f(float v)
-{
-    return static_cast<int>(v + (v >= 0.0f ? 0.5f : -0.5f));
-}
+// ORIG 各函数实证为 fistpl 截断（fnstcw/fldcw 设 RC=truncate），非四舍五入；
+// 故一律用 static_cast<int>（GCC O0 生成相同截断序列）。
 
 // ORIG T 0x0808d0a6：Send（packed 0x35）→ CLONG（0x44 展开）逐字段；
 // +0/+4/+0x14/+0x18 符号扩展（movsbl），+0x8 零扩展（movzbl），余 dword。
@@ -174,7 +172,7 @@ int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
         unsigned int mask = 1u << status;
         if ((mask & 0x385aa) != 0)
         {
-            duration = round_f(1000.0f * getActiveStatusPower1(status, level));
+            duration = static_cast<int>(1000.0f * getActiveStatusPower1(status, level));
         }
         else if ((mask & 0x3a55) != 0)
         {
@@ -191,7 +189,7 @@ int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
     {
         float f = static_cast<float>(duration);
         float x = static_cast<float>(hpPenalty);
-        duration -= static_cast<int>((f * ((x / 3.0f) / x)) + 0.5f);
+        duration -= static_cast<int>(f * ((x / 3.0f) / x));
     }
     if (duration < 0)
         duration = 0;
@@ -233,12 +231,12 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
     if (!(d->m_hpPercent < 100))
         return 0;
 
-    int dmg = round_f(GetUniformVelocityFloatSDC(
+    int dmg = static_cast<int>(GetUniformVelocityFloatSDC(
         0.0f, static_cast<float>(d->m_baseDamage), t, d->m_durationTick));
     if (d->m_isPvp != 0)
     {
         float rate = getUserToUserDamageRate(d->m_attackerType == 10);
-        dmg = round_f(rate * static_cast<float>(dmg));
+        dmg = static_cast<int>(rate * static_cast<float>(dmg));
     }
     return dmg;
 }
@@ -246,7 +244,7 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
 int SDCActiveStatusSyncCommon::getBleedingDamageServer(
     STSDCActiveStatusSyncDataSend* d)
 {
-    return round_f(1.5f * static_cast<float>(d->m_baseDamage));
+    return static_cast<int>(1.5f * static_cast<float>(d->m_baseDamage));
 }
 
 int SDCActiveStatusSyncCommon::getBleedingDamageClient(
@@ -255,7 +253,7 @@ int SDCActiveStatusSyncCommon::getBleedingDamageClient(
     int tickA = d->m_durationTick / 500;
     int tickB = 1;
     int tick = std::max(tickB, tickA);          // ORIG std::max(tickB, tickA) 序保持
-    return round_f(static_cast<float>(d->m_baseDamage) / static_cast<float>(tick));
+    return static_cast<int>(static_cast<float>(d->m_baseDamage) / static_cast<float>(tick));
 }
 
 void SDCActiveStatusSyncCommon::makeEtcParameters(
@@ -282,7 +280,7 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,
 // 0x0808d50e：switch 表逐 case push_back(ROUND(ETC_PARAMETER))。
 {
 #define PUSH_ETC(j) \
-    out.push_back(round_f(getActiveStatusEtcParameter(status, level, j)))
+    out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, j)))
     switch (status)
     {
     case 0:

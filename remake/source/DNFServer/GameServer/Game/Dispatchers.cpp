@@ -140,14 +140,19 @@ public:
 #include "Cipher.h"              // Cipher::Decrypt（MouseRegister 密码管线）
 #include "DB_AccountCargoSync.h" // DB_PassPadUpdateFailCnt / DB_GoblinPadUpdateReward
 
-// ORIG T 0x088945ad（定义于 InitScriptProducers_2.cpp）
-int makeFairPVPEquipmentPackageKey(int job, int idx);
-// ORIG T 0x088945c6：包键低 16 位（段位）减 1 回写后返回原槽值。
+// ORIG T 0x088945c6：包键槽高 16 位（段位，makeFairPVP 第二参）减 1 写回后返回整槽；
+// 低 16 位（职业）保留；无下溢保护（wrap）。
 int decreaseRankOfFairPVPEquipmentPackageKey(int key)
 {
-    unsigned short rank = (unsigned short)(key & 0xffff);
-    rank = (unsigned short)(rank - 1);   // ORIG 无下溢保护（wrap）
-    return (int)((key & (int)0xffff0000) | (int)rank);
+    // ORIG：整槽 -0x4 = key，槽高 16 位 -0x2 减 1 写回后返回整槽（低 16 位保留）。
+    union
+    {
+        int k;
+        unsigned short w[2];
+    } u;
+    u.k = key;
+    u.w[1] = static_cast<unsigned short>(u.w[1] - 1);   // ORIG 无下溢保护（wrap）
+    return u.k;
 }
 #include "CAssaultMgr.h"                    // DspD4 B1/B6/B7: pvp_assault::GetInstanceAssaultMgr/OnChangeHp
 #include "PCK_AUCTION_MY_AUCTION_HISTORY_GA.h"  // B6: 拍卖历史包

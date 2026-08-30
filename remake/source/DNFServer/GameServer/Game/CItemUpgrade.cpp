@@ -442,7 +442,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet
     packet->put_byte(1);
     packet->put_short(msg->m_13);
     Inven_Item material2 = invenW->GetInvenSlot(1, msg->m_13);
-    packet->put_short((int)(material2.m_addInfo & 0xffff));
+    packet->put_short((int)(material2.get_add_info() & 0xffff));
     packet->put_byte(doEnchant ? 1 : 0);
 
     int ret = 0;

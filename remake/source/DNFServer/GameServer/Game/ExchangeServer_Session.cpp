@@ -134,7 +134,7 @@ int CSession::Parsing(int recvLen)
             m_recvBuf -= m_recvOffset;                        // 2c -= 18
             memcpy(header, (const void*)m_recvBuf, HEADER_SIZE); // memcpy(hdr, buf, 0xd)
 
-            packetSize = *(unsigned int*)(header + 2);        // -0x3e → -0x14
+            packetSize = *(unsigned int*)(header + 3);        // -0x3e → -0x14（ORIG 实证）
             if (packetSize <= 0xc)
             {
                 // 8490111 jbe → 继续下方逻辑（<=12 直接走派发比较）

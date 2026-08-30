@@ -87,6 +87,7 @@ struct combo_script_data
 // 实证总尺寸 0x88。
 struct MissionScript
 {
+    MissionScript();   // ORIG C1 W：成员构造后调 clear()
     void clear();   // ORIG 0x08a5bbb2
 
     int m_field00;                                   // +0x00（[next mission]）

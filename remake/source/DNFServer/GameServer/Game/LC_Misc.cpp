@@ -125,7 +125,8 @@ char* Sanicova::CPad::getPassword()
 
 // ORIG T 0x08599712（报告 Sanicova__CPad/checkAnswer.md）：
 // 清零 36 字节缓冲 ×2 → strncpy(answer, 8) → encryptAES_ → 与 m_pad 0x24 字节
-// memcmp（Ghidra 误标 strncmp：ORIG call 0807e8c0 = memcmp）。
+// strncmp（ORIG call 0x0807e8c0 = strncmp@plt；密文二进制可能含 NUL，
+// strncmp 遇 NUL 提前停止——ORIG 语义如此，不得改为 memcmp）。
 bool Sanicova::CPad::checkAnswer(char* answer) const
 {
     char plain[36];
@@ -135,7 +136,7 @@ bool Sanicova::CPad::checkAnswer(char* answer) const
 
     strncpy(plain, answer, 8);
     encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, plain, cipher);
-    return memcmp(m_pad, cipher, 0x24) == 0;
+    return strncmp(m_pad, cipher, 0x24) == 0;
 }
 
 // encryptAES_ —— ORIG T 0x0846c398（MouseRegisterEJ.cpp 定义）。

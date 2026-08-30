@@ -381,7 +381,7 @@ bool CAssaultPlace::_IsGiveupPanalty(bool flag)
     return m_state >= 2 && m_state <= 4 && !flag;
 }
 
-// ORIG T 0x82eab1a：_IsBroadcastRunaway —— PowerWar 且村庄==7 时 true。
+// ORIG T 0x82eab1a：_IsBroadcastRunaway —— (PowerWar 且村庄==7) 或当前角色非空时 true。
 bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
 {
     if (GlobalData::s_power_manager->IsPowerWarEventOn())
@@ -389,7 +389,7 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
         if (user->getCurCharacVill() == 7)
             return true;
     }
-    return false;
+    return user->getCurCharacR() != 0;
 }
 
 // ORIG T 0x82eab7a：_BroadcastRunaway(CUser*, int) —— 经 monitor server
