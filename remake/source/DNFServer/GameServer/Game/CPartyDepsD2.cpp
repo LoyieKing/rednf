@@ -1011,9 +1011,8 @@ void CParty::send_to_party_cmd_error(ENUM_CMDPACKET cmd, unsigned char error)
 // ---------------------------------------------------------------------------
 // setStandardDimensionLevel —— ORIG T 0x0859f612
 // 报告：docs/class_func_reports/CParty/setStandardDimensionLevel.md
-// 有效成员平均等级写入 m_standardDimensionLevel(+0xd5c)；恒返回 true。
-// （isGMUser 调用结果与 dungeon 参数均未消费——ORIG 形态；成员数为 0 时
-//  ORIG idivl 除零同样崩溃，忠实保留。）
+// 仅 GM 有效成员参与平均：ORIG 中 isGMUser() 结果为 0 时 je 跳到循环尾
+// （不累加等级/计数）；成员数为 0 时 ORIG idivl 除零同样崩溃，忠实保留。
 // ---------------------------------------------------------------------------
 bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
 {
@@ -1024,7 +1023,8 @@ bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
     {
         if (!_checkValidUser(i))
             continue;
-        memberUser(this, i)->isGMUser();                 // thunk 0x0814589c（未消费）
+        if (memberUser(this, i)->isGMUser() == 0)        // test/je —— 非 GM 跳过
+            continue;
         levelSum += memberUser(this, i)->get_charac_level();  // thunk 0x080da2b8
         ++validCount;
     }

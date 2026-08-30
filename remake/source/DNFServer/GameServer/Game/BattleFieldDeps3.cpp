@@ -31,10 +31,9 @@ void CBattle_Field::check_elevator_timer()
         send_elevator_time_packet(0);
 }
 
-// ORIG 0x0830de1c（报告 CBattle_Field/GetTotalSkillMaterial.md）：
-// 遍历 m_mapInfo(+0x78)；对每项 MapInfo：
-//   m_dummyBossMap(+0x45) != 1 且 m_visited(+0x01) != 0
-//   → total += m_killChecker1.m_field14(+0x4c+0x14，即使用技能材料数)。
+//   → total += m_killChecker1.m_useSkillMaterialTime(+0x4c+0x00)。
+//   （ORIG 0830dea6 累加 -0xb4(%ebp)=MapInfo+0x4c=killChecker1 首字段；
+//    2026-08-30 Fix21_C 由 m_field14 修正）
 int CBattle_Field::GetTotalSkillMaterial()
 {
     int total = 0;
@@ -43,7 +42,7 @@ int CBattle_Field::GetTotalSkillMaterial()
     {
         MapInfo& info = it->second;
         if (info.m_dummyBossMap != 1 && info.m_visited != 0)
-            total += info.m_killChecker1.m_field14;
+            total += info.m_killChecker1.m_useSkillMaterialTime;
     }
     return total;
 }

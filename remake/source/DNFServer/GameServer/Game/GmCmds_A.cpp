@@ -823,7 +823,7 @@ int gmA_booster__selectJewelTypeIndex(CBoosterTest const* /*self*/, unsigned int
 void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>& result)
 {
     char line[1024];
-    memset(line, 0, sizeof(line));
+    memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
 
     for (std::map<int, int>::iterator it = result.begin(); it != result.end();)
     {
@@ -869,7 +869,7 @@ void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
                                          std::map<int, int>& result)
 {
     char line[1024];
-    memset(line, 0, sizeof(line));
+    memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
 
     unsigned long long maxGold = 0;
     for (std::map<int, int>::iterator it = result.begin(); it != result.end();)

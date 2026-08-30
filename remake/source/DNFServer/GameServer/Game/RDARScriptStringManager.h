@@ -6,6 +6,7 @@
 #include <string>
 #include "StringDictionary.h"
 #include <wchar.h>
+#include "NpcScript.h"          // STScriptFileList（+0 布局 = map<int,string>，与 ORIG 成员一致）
 
 // ORIG 布局（objdump 逐段实测）：C1 0x88c424c W 仅构造两个 string（+0x04/+0x08，
 //   各 _ZNSsC1Ev）；aSERKS_ 0x88c5192 W 依次拷贝 *(int*)other→this、SsaSERKSs ×2、
@@ -40,7 +41,7 @@ class RDARScriptStringManager
 public:
     // ORIG C1 0x8aa4e98：STScriptFileList at +0 (map 0x18), vector* at +0x18,
     // wstring at +0x24. getStringFileList returns this.
-    std::map<int, std::string> fileList_;
+    STScriptFileList fileList_;
     std::vector<StringDictionary*> dictionaries_;
     std::wstring tag_;
     RDARScriptStringManager();

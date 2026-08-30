@@ -33,10 +33,14 @@ extern CDataManager* G_CDataManager();
 // ORIG 0x898c79d：线性插值
 int getLevelLinearAbility(int a, int b, int c, int d, int level)
 {
-    double ratio = (double)(level - a) / (double)(b - a);
+    int vSpan = b - a;                              // ORIG：先求除数（-0x2c）
+    int vLevel = level - a;                         // ORIG：再求被除数（-0x28）
+    double ratio = (double)vLevel / (double)vSpan;
+    if (ratio == 0.0)                      // ORIG：冗余特判（设回 0），字节对齐保留
+        ratio = 0.0;
     if (ratio > 1.0)
         ratio = 1.0;
-    double result = floor(ratio * 1000000.0);
+    double result = floor(ratio * 1000000.0 + 0.5L);
     double result2 = (result / 1000000.0) * (double)(d - c);
     int out = (int)((double)c + result2);
     if (out < 0)

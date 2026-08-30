@@ -1335,9 +1335,9 @@ struct paramDaily
 class DBInputData
 {
 public:
-    // ORIG W 0x080e243c：+0/+4 清零。
+    // ORIG W 0x080e243c：+0/+4 清零。无用户 dtor（ORIG 无 D1 符号，
+    // 调用点不生成析构/异常清理调用）。
     DBInputData() : m_result(0), m_pInfo(0) {}
-    ~DBInputData() {}
 
     int m_result;         // +0x00（InputBuyInfo 写入结果：1=已登记）
     InfoDaily* m_pInfo;   // +0x04

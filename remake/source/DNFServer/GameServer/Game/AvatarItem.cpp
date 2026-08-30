@@ -6,7 +6,7 @@
 
 static_assert(sizeof(stAvatarEmblemInfo_t) == 0x1e, "avatar emblem ABI layout changed");
 static_assert(offsetof(stAvatarEmblemInfo_t, stEmblemSocket) == 0, "avatar emblem socket offset changed");
-static_assert(sizeof(WongWork::Avatar_Item) == 0x100, "Avatar_Item ABI size changed (ORIG packed 0x100)");
+static_assert(sizeof(WongWork::Avatar_Item) == 0x44, "Avatar_Item ABI size changed (ORIG packed 0x44, DynamicPool MoreAlloc 步长 0x4c)");
 static_assert(offsetof(WongWork::Avatar_Item, m_emblemInfo) == 0x21, "Avatar_Item emblem offset changed");
 static_assert(offsetof(WongWork::Avatar_Item, m_color1) == 0x3f, "Avatar_Item color1 offset changed (ORIG 0x3f)");
 static_assert(offsetof(WongWork::Avatar_Item, m_color2) == 0x41, "Avatar_Item color2 offset changed (ORIG 0x41)");

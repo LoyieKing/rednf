@@ -73,7 +73,7 @@ private:
     bool m_bLocked;           // +0x1d
     CUser* m_pTraders[2];     // +0x20
     int m_nState[2];          // +0x28
-    TradeSlot m_slotsData[2 * 27];  // +0x30（每行 27 槽 × 0x48 = 0x798；数组隐式构造同 ORIG）
+    TradeSlot m_slotsData[2][27];  // +0x30（每行 27 槽 × 0x48 = 0x798；二维数组隐式构造循环同 ORIG 双层形态）
     int m_nMoney[2];          // +0xf60
     char m_pad[0xf70 - 0xf68];
 };

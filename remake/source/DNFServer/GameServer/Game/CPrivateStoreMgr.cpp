@@ -886,7 +886,7 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
         }
     }
 
-    if ((short)item.m_field44 >= 7)
+    if (item.m_field44 >= 7)
     {
         LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x566,
                               "CPrivateStore::AddItem slot_no(%d) ERROR",
@@ -944,13 +944,13 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
             return false;
         }
 
-        if ((short)item.m_field44 < 0xe && (short)item.m_field44 >= 0 &&
+        if (item.m_field44 < 0xe && item.m_field44 >= 0 &&
             prevCountSlot < 0xe && prevCountSlot >= 0)
         {
             if (prevCountSlot == 0)
                 ResetItems();
 
-            PrivateStoreItem& target = m_items[(unsigned short)item.m_field44];
+            PrivateStoreItem& target = m_items[item.m_field44];
             if (target.GetState() != 0)
                 return false;
 

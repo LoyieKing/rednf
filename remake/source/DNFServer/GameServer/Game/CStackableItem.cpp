@@ -900,7 +900,7 @@ void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
         ++it;
     }
     unsigned long range = total;
-    int rand = m_pRand->randInt(range);
+    unsigned int rand = m_pRand->randInt(range);
     int sum = 0;
     std::vector<stLimitCubeResult>::const_iterator it2 =
         m_limitCube.m_results.begin();

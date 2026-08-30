@@ -285,9 +285,9 @@ public:
     static unsigned int RecvInfoFromDB(CUser* user, unsigned int itemId,     // ORIG T 0x086c121e
                                        unsigned int count, unsigned int eventIdx,
                                        unsigned int extra);
-    static unsigned int RecvInfoFromWeb(unsigned int p1, unsigned int p2,    // ORIG T 0x086c11d0
-                                        unsigned int p3, unsigned int p4,
-                                        unsigned int p5, unsigned int p6);
+    static bool RecvInfoFromWeb(unsigned int p1, unsigned int p2,           // ORIG T 0x086c11d0（透传 ReqSaveEventItem）
+                                unsigned int p3, unsigned int p4,
+                                unsigned int p5, unsigned int p6);
     static bool ReqSaveEventItem(unsigned int p1, unsigned int p2,           // ORIG T 0x086c1910
                                  unsigned int p3, unsigned int p4,
                                  unsigned int p5, unsigned int p6, bool last);

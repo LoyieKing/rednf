@@ -512,7 +512,7 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
         *(const int*)((const char*)sig + 0x30),               // m_addInfo2
         1,
         (int)*(const unsigned char*)((const char*)sig + 5),   // compat.m_field1
-        (eItemAddReason)*(const unsigned char*)((const char*)sig + 0x51));
+        (eItemAddReason)*(const signed char*)((const char*)sig + 0x51));  // ORIG movsbl 符号扩展
     m_user->set_cera_item_order_no(0);
     return true;
 }

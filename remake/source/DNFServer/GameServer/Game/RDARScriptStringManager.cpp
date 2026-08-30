@@ -26,7 +26,8 @@
 
 #include "DNFFunctionLib.h"   // CodePage::script2Database
 #include "LogManager.h"       // LogManager::logFormat
-#include "SyncScriptDeps.h"   // toTString(const char*)
+#include "SyncScriptDeps.h"   // toTString(const char*) / toTString(const wchar_t*)
+#include "StringTypes.h"      // toUnicode（G4 域；返回 TLS 环形缓冲槽指针）
 
 namespace
 {
@@ -119,37 +120,16 @@ int parseStringLine(char* line, char** outKey, char** outValue)
     return 0;
 }
 
-// ORIG toUnicode(const char*) 0x8adf1b3（G4 域未落地）：逐字节宽化等价。
-std::wstring rdarToUnicode(const char* s)
-{
-    std::wstring w;
-    if (s == 0)
-        return w;
-    for (const char* p = s; *p != '\0'; ++p)
-        w += static_cast<wchar_t>(static_cast<unsigned char>(*p));
-    return w;
-}
-
-// ORIG toTString(const wchar_t*) 0x8adeb7d（G4 域未落地）：宽窄化等价。
-std::string rdarToTString(const wchar_t* w)
-{
-    std::string s;
-    if (w == 0)
-        return s;
-    for (const wchar_t* p = w; *p != L'\0'; ++p)
-        s += static_cast<char>(*p);
-    return s;
-}
-
-// STScriptFileList::GetFileName(int) const（0x88bad4e）等价：
-// 读 +0x00 std::map<int,std::string> m_fileMap，按 index 查文件名，未命中返回 0。
-const char* rdarGetFileName(const std::map<int, std::string>& fileList, int idx)
-{
-    std::map<int, std::string>::const_iterator it = fileList.find(idx);
-    return (it != fileList.end()) ? it->second.c_str() : 0;
-}
-
 }  // namespace
+
+// ORIG 字符串表函数用 ss_sprintf<256>（安全限长）而非裸 sprintf：
+// 模板定义与 OnlyOrigBatch12.cpp 一致（extern ss_vsprintf，直接传变参起始地址）。
+extern int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList);
+template <size_t N>
+int ss_sprintf(char (&buffer)[N], const char* format, ...)
+{
+    return ss_vsprintf(buffer, N, format, reinterpret_cast<char*>(&format + 1));
+}
 
 RDARScriptStringManager::RDARScriptStringManager()
 {
@@ -191,7 +171,7 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
             "오류 : 스트링 테이블 %d 는 범위를 벗어납니다. "
             "(index out of range reading string table %d)",
             table);
-        std::sprintf(errStr, "String table index out of range %d", table);
+        ss_sprintf(errStr, "String table index out of range %d", table);
         return errStr;
     }
 
@@ -201,8 +181,8 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
     if (result != 0)
         return result;
 
-    const char* fname = rdarGetFileName(fileList_, table);
-    std::sprintf(errStr, "%s == NULL, %s : ", toTString(key), fname);
+    const char* fname = fileList_.GetFileName(table);
+    ss_sprintf(errStr, "%s == NULL, %s : ", toTString(key), fname);
     return errStr;
 }
 
@@ -216,15 +196,15 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
     }
 
     static char errStr[256];
-    std::string k = rdarToTString(key);
+    std::string k = toTString(key);
     const char* result = dictionaries_[table]->get(k.c_str());
     if (flag != 0)
         *flag = (result != 0);
     if (result != 0)
         return result;
 
-    const char* fname = rdarGetFileName(fileList_, table);
-    std::sprintf(errStr, "%s == NULL, %s : ", k.c_str(), fname);
+    const char* fname = fileList_.GetFileName(table);
+    ss_sprintf(errStr, "%s == NULL, %s : ", k.c_str(), fname);
     return errStr;
 }
 
@@ -240,8 +220,8 @@ int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
             const char* v = d->getValue(i);
             if (v != 0)
             {
-                std::wstring wv = rdarToUnicode(v);
-                if (wcscmp(wv.c_str(), key) == 0)
+                const wchar_t* wv = toUnicode(v);
+                if (wcscmp(wv, key) == 0)
                 {
                     if (d->getKey(i) != 0)
                         return i;
@@ -273,7 +253,7 @@ void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
 
         std::string sv = v;
         sv.erase(std::remove(sv.begin(), sv.end(), ' '), sv.end());
-        std::wstring wv = rdarToUnicode(sv.c_str());
+        std::wstring wv = toUnicode(sv);
         if (wcsstr(wv.c_str(), name) == 0)
             continue;
 
@@ -281,8 +261,8 @@ void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
         if (k == 0)
             continue;
 
-        a->push_back(rdarToUnicode(k));
-        b->push_back(rdarToUnicode(v));
+        a->push_back(std::wstring(toUnicode(k)));
+        b->push_back(std::wstring(toUnicode(v)));
     }
 }
 
@@ -307,7 +287,7 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
             if (idx == -1)
                 baseKey = tag_;
             else
-                baseKey = rdarToUnicode(d->getKey(idx));
+                baseKey = toUnicode(d->getKey(idx));
 
             for (int i = 0; i < 10000; ++i)
             {
@@ -327,7 +307,7 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
                 for (int j = 0; j < n; ++j)
                 {
                     const char* k = d->getKey(j);
-                    if (k != 0 && cand == rdarToUnicode(k))
+                    if (k != 0 && cand == toUnicode(k))
                     {
                         exists = true;
                         break;
@@ -335,7 +315,7 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
                 }
                 if (!exists)
                 {
-                    d->add(rdarToTString(cand.c_str()).c_str(), rdarToTString(b).c_str());
+                    d->add(toTString(cand.c_str()), toTString(b));
                     idx = d->getCount() - 1;
                     break;
                 }
@@ -345,15 +325,15 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
         if (idx != -1)
         {
             const char* key = d->getKey(idx);
-            std::wstring wkey = rdarToUnicode(key);
+            std::wstring wkey = toUnicode(key);
             std::swprintf(retBuf, 256, L"<%d::%s>", table, wkey.c_str());
             return retBuf;
         }
     }
 
-    const char* fname = rdarGetFileName(fileList_, table);
+    const char* fname = fileList_.GetFileName(table);
     std::wstring wb = (b != 0) ? b : L"";
-    std::wstring wfname = rdarToUnicode(fname);
+    std::wstring wfname = toUnicode(fname);
     std::swprintf(errBuf, 256, L"`%s is not found, %s`", wb.c_str(), wfname.c_str());
     return errBuf;
 }
@@ -486,12 +466,12 @@ void RDARScriptStringManager::writeStringFile(int table)
 {
     // ORIG 0x8aa50bc：写 "Script/<文件名>"，逐条 "key>value\n"，value 内 '\n' 转义
     // 为 "\\n"。
-    const char* fname = rdarGetFileName(fileList_, table);
+    const char* fname = fileList_.GetFileName(table);
     if (fname == 0)
         return;
 
     char path[512];
-    std::sprintf(path, "Script/%s", fname);
+    ss_sprintf(path, "Script/%s", fname);
     std::FILE* fp = std::fopen(path, "w");
     if (fp == 0)
         return;

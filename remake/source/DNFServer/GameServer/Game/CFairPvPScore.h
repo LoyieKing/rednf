@@ -23,6 +23,20 @@ class CUser;
 
 #include "CCompoundAvatar.h"  // ENUM_CHARACTERJOB（守卫幂等）
 
+// 三项计分结构（UpdateScore 对新键插入后累加 value+0/+4/+8；
+// MakePacketSocre/loadData 按同样三个 int 序列化）。
+// ORIG 中该类型位于全局作用域（mangled 无 N...E 嵌套前缀：
+//   _ZNKSt3mapIN8fair_pvp6JobKeyE25FAIR_PVP_SCORE_MODE_COUNTSt4lessIS1_...
+// ），故定义在命名空间外。
+struct FAIR_PVP_SCORE_MODE_COUNT
+{
+    int m_cnt0;  // value+0x00
+    int m_cnt1;  // value+0x04
+    int m_cnt2;  // value+0x08
+};  // sizeof 0x0c
+
+
+
 namespace fair_pvp
 {
 
@@ -38,15 +52,6 @@ public:
     int           m_job;   // +0x00
     unsigned char m_sub;   // +0x04
 };  // sizeof 0x08
-
-// 三项计分结构（UpdateScore 对新键插入后累加 value+0/+4/+8；
-// MakePacketSocre/loadData 按同样三个 int 序列化）。
-struct FAIR_PVP_SCORE_MODE_COUNT
-{
-    int m_cnt0;  // value+0x00
-    int m_cnt1;  // value+0x04
-    int m_cnt2;  // value+0x08
-};  // sizeof 0x0c
 
 // CFairPvPScore 本体。charac_expand::CData 基类：vptr@+0x00、
 // m_bIsSave@+0x04。

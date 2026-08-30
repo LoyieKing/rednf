@@ -140,10 +140,10 @@ int CCreature::GetState()
 }
 
 // ORIG _ZN13user_creature9CCreature13IsDieCreatureEv T 0x8338478：
-// GetStomachValue(m_state, m_isGrow) <= 1.0f。
+// GetStomachValue(m_state, m_isGrow) < 1.0f（ORIG fucompp+test0x45 sete=value<1）。
 bool CCreature::IsDieCreature()
 {
-    return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow) <= 1.0f;
+    return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow) < 1.0f;
 }
 
 // ORIG _ZN13user_creature9CCreature8SetStateEP5CUserNS_14CREATURE_STATEE T 0x0833715a
@@ -1008,9 +1008,9 @@ bool CCreatureMgr::UnregisterCreatureItem(int uid)
 // user_creature::CDBMsgSender（ORIG 域内类，本 TU 提供最小真实实现）
 // ============================================================================
 
-// ORIG C1 @ 0x833f8ae：清 m_stream 后委托 Init。
+// ORIG C1 @ 0x833f8ae：仅清 m_stream（offset 0）后委托 Init；m_user 由 Init 写入。
 CDBMsgSender::CDBMsgSender(ENUM_INTERNALPACKET type, CUser* user)
-    : m_stream(0), m_user(0)
+    : m_stream(0)
 {
     Init(type, user);
 }

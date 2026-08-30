@@ -192,10 +192,12 @@ void CodeHackChecksumEx::setData(const char* serialized)
     p += 4;                                               // addl $0x4
     for (int i = 0; i < count; ++i)
     {
-        CodeHackChecksum entry;
-        std::memcpy(&entry, p, sizeof(entry));            // memcpy(local_38,param_1,0x20)
+        // ORIG 循环体仅 memcpy 到栈缓冲 + Add（无 entry 构造——ORIG 的
+        // CodeHackChecksum ctor 为弱符号从未被调用）；reinterpret 避免 C1/D1。
+        unsigned char buf[0x20];
+        std::memcpy(buf, p, sizeof(buf));                 // memcpy(local_34,p,0x20)
         p += 0x20;                                        // addl $0x20
-        AddCodeHackChecksum(entry);                       // 基类 push_back
+        AddCodeHackChecksum(*reinterpret_cast<CodeHackChecksum*>(buf));  // push_back
     }
 }
 

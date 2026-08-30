@@ -54,7 +54,6 @@ TCPSocket::TCPSocket()
 // ORIG 0x081af50e (sz 0x0f)：反汇编体仅把参数 port 存入栈局部并返回，
 // 不触及 this、无任何字段写入（弱符号内联残留形态）。忠实保留为空操作。
 TCPSocket::TCPSocket(const char* host, unsigned short port)
-    : m_socket(INVALID_SOCKET), m_sendRetryCount(0)
 {
     (void)host;
     (void)port;
@@ -858,7 +857,7 @@ ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
 
 // ORIG 0x081ae52e：magic='U'; bodyLength=0。
 NCashMessage::NCashMessage()
-    : m_magic('U'), m_pad01(0), m_bodyLength(0)
+    : m_magic('U'), m_bodyLength(0)
 {
 }
 

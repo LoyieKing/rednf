@@ -100,7 +100,7 @@ bool CPvPLiveEventData::_saveData(CUser* user)
         GlobalData::s_stream_pool->Acquire("PvPLiveEventData.cpp", 0x1e), true);
     guard << 0x1e1;
     guard << user->GetUID();
-    guard << user->GetServerGroup();
+    guard << (char)user->GetServerGroup();   // ORIG lsEc（movsbl 符号扩展，写 1 字节）
     guard << user->getCurCharacNo();
     guard << m_playCount;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

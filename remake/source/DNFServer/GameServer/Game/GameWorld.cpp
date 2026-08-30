@@ -2626,7 +2626,11 @@ unsigned int GameWorld::WhenIsTheEndOfForbiddenMove(const char* name)
 
 unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
 {
-    if (name == 0 || strlen(name) >= 31)
+    if (name == 0)
+    {
+        return 0;    // ORIG：name 空直接返回，无 trace
+    }
+    if (strlen(name) >= 31)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x15f2, 0);
         trace("GetLeftTimeOfForbiddenChat return 1\n");
@@ -2647,6 +2651,7 @@ unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
         {
             return 0;
         }
+        // ORIG：diff < 60000 抬升为 60000，否则原样返回（下限抬升）。
         if (diff < 60000)
         {
             return 60000;

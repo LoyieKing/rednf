@@ -175,8 +175,9 @@ stCompoundRate* CExpertJob::GetSuccessRate(CUser* user, CStackableItem const* it
     int level = user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
     float f = inven->GetExpertJobCompoundRateVariation(
         (ENUM_EXPERT_JOB_TYPE)user->GetCurCharacExpertJobType(), level);
-    // ORIG fistpl 四舍五入（round-to-nearest）
-    variation = (int)(f < 0 ? f - 0.5f : f + 0.5f);
+    // ORIG 0x849b436：fistpl 前 fldcw 置截断模式（mov $0xc,%ah，RC=11），
+    // 直接向零截断，无 ±0.5 四舍五入分支。
+    variation = (int)f;
     return rate;
 }
 

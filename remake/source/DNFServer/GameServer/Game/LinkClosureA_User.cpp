@@ -99,9 +99,11 @@ const Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
     case 0x14:
     case 0x15:
     case 0x16:
-        // ORIG 直调非 const getTitleSlot（_ZN…E）；经 const_cast 去 CV
+        // ORIG 直调非 const getTitleSlot（_ZN…E）且用非 RE 重载
+        // GetCharacExpandData(ENUM)（_ZNK5CUser19GetCharacExpandDataE23…）；
+        // 经 const_cast 去 CV。
         return const_cast<CTitleBook*>(reinterpret_cast<const CTitleBook*>(
-                   GetCharacExpandDataR(
+                   GetCharacExpandData(
                        static_cast<ENUM_CHARAC_EXPAND_TYPE>(14))))
             ->getTitleSlot(
                 static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13), slot);

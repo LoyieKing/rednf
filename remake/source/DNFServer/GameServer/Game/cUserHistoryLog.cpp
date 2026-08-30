@@ -106,7 +106,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
             CItemGloballyUniqueIdentifierPrint print;
             const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -126,7 +126,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
         unsigned short yPos = posSrc->getItemYPos();
         CItemGloballyUniqueIdentifierPrint print;
         const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -157,7 +157,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
             CItemGloballyUniqueIdentifierPrint print;
             const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -176,7 +176,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
     {
         CItemGloballyUniqueIdentifierPrint print;
         const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -396,6 +396,13 @@ void cUserHistoryLog::InitSkill(int treeKind, int level, int sp, int sfp, eSkill
 // ============================================================================
 void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason)
 {
+    // ORIG 语句顺序：changer 构造 → totalSP → buf 清零 → isSingleTree 判定。
+    WongWork::CSkillChanger changer;
+    int totalSP = changer.GetCurCharacTotalSP(user, false);
+
+    char buf1[0x20] = {0};   // ORIG rep stos 0x20 清零
+    char buf2[0x20] = {0};
+
     bool isSingleTree = false;
     if (user != 0)
     {
@@ -404,12 +411,6 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
             isSingleTree = true;
         }
     }
-
-    WongWork::CSkillChanger changer;
-    int totalSP = changer.GetCurCharacTotalSP(user, false);
-
-    char buf1[128] = {0};
-    char buf2[128] = {0};
 
     if (isSingleTree)
     {
@@ -849,7 +850,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -876,7 +877,7 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[1]);
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",

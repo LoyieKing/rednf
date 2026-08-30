@@ -202,9 +202,7 @@ struct stIPGStatus_t
 };
 
 // ---- WongWork::IPG::IIPGHelperInterface —— IPG 回调纯虚接口 ----
-// ORIG 实证：_ZTV 0x48 = [otop,typeinfo] + 16 槽全 __cxa_pure_virtual（无 dtor 槽）；
-// CIPGHelper vtable(0x08b420a0) 反查逐槽符号得到下方槽序（vptr 相对）。
-// dispatch 的 +0x34 调用即 vptr+0x34 → slot11 IPGResult(req,res)。
+// dispatch 的 +0x34 调用即 vptr+0x34 → slot11 IPGQuery（0x08100790）。
 struct SIPGData;   // 前置：IIPGHelperInterface 槽参仅用指针（完整定义见下）
 class CIPGMgr;     // 前置：slot15 GetIPGMgr 返回类型（完整定义见下）
 class IIPGHelperInterface
@@ -231,12 +229,13 @@ public:
                                   Taiwan::BillTransaction*) = 0;
     virtual void IPGOutputCancel(SIPGData*, SIPGData*) = 0;                       // slot9  T 0x08100616
     virtual void IPGOutputConfirm(SIPGData*, SIPGData*) = 0;                      // slot10 T 0x08100e0a
-    virtual void IPGResult(SIPGData*, SIPGData*) = 0;                             // slot11(+0x34) T 0x0810085e
-    virtual void IPGQuery(CUser*) = 0;                                            // slot12 T 0x08100790
-    virtual void IPGRequest(SIPGData*) = 0;                                       // slot13 T 0x081007e8
+    virtual void IPGQuery(CUser*) = 0;                                            // slot11(+0x34) T 0x08100790
+    virtual void IPGRequest(SIPGData*) = 0;                                       // slot12(+0x38) T 0x081007e8
+    virtual void IPGResult(SIPGData*, SIPGData*) = 0;                             // slot13(+0x3c) T 0x0810085e
     virtual void getIPGStatus(stIPGStatus_t&) = 0;                                // slot14 T 0x080ffae0
     virtual CIPGMgr* GetIPGMgr() = 0;                                             // slot15 W 0x081010a2
 };
+
 
 // ---- WongWork::IPG::SIPGData —— IPG 请求数据（0x2dc）----
 // 尺寸实证：DynamicPool<SIPGData>::MoreAlloc 节点步长 imul $0x2e4

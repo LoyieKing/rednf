@@ -126,7 +126,5 @@ bool CCharacInformNotice::_saveData(CUser* user)
 
 void CCharacInformNotice::getData(char* data) const
 {
-    if (data == 0)
-        return;
     memcpy(data, m_flags, sizeof(m_flags));
 }

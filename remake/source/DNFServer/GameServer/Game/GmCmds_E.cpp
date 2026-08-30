@@ -376,10 +376,13 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
     {
         float effVal = effMgr->getEffectValue(1);
         float baseF = G_CDataManager()->getDropRate();
-        int base = static_cast<int>(baseF); // ORIG fistp 截断口径
-        if (baseF < effVal)
+        // ORIG 0x84add20：条件 effVal > (int)baseF（fildll 载入截断整数 base 与
+        // effVal 浮点比较）；加成 (base - effVal) * killCnt（符号与 baseF 相反）。
+        int base = static_cast<int>(baseF); // ORIG fistpll 截断口径
+        if (static_cast<float>(base) < effVal)
         {
-            killCnt += static_cast<int>((effVal - baseF) * static_cast<float>(killCnt));
+            killCnt += static_cast<int>((static_cast<float>(base) - effVal)
+                                        * static_cast<float>(killCnt));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));
         }
@@ -389,9 +392,10 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
         float effVal = effMgr->getEffectValue(4);
         float baseF = G_CDataManager()->getDropRate();
         int base = static_cast<int>(baseF);
-        if (baseF < effVal)
+        if (static_cast<float>(base) < effVal)
         {
-            killCnt += static_cast<int>((effVal - baseF) * static_cast<float>(killCnt));
+            killCnt += static_cast<int>((static_cast<float>(base) - effVal)
+                                        * static_cast<float>(killCnt));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));
         }
@@ -708,7 +712,7 @@ void CMonsterDropTest_makeFileGoldContents_Orig(void* self, void* user, char* fi
                                                 std::map<int, int>* stat)
 {
     char line[1024];
-    memset(line, 0, sizeof(line));
+    memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
 
     for (std::map<int, int>::iterator it = stat->begin(); it != stat->end();)
     {

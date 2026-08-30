@@ -67,7 +67,7 @@ public:
     float GetTeamRating();                           // 0x85627b2（平均 rating，全 0 返 0）
     void SendToTeam(PacketGuard& pkt);               // 0x856274c：CUser::Send 全员
 
-    int              m_field00;    // +0x00（reset 清 0）
+    char             m_field00;    // +0x00（reset 清 0；ORIG movb 单字节清）
     int              m_field04;    // +0x04（reset 置 2）
     PlayerInfoThird  m_players[4]; // +0x08（0x40）
 };  // sizeof 0x48

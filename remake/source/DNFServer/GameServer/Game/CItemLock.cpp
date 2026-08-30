@@ -247,18 +247,13 @@ void CItemLock::SendItemLockList(CUser* user)
                                               remainSec);
         if (state == 0)
         {
-            // 已解锁：清除物品上的锁位并同步。
-            CInventory* inven = user->getCurCharacInvenW();
-            if (inven != 0)
+            // 已解锁：清除物品上的锁位并同步（ORIG 经 GetCurCharacInventoryRef
+            // 全分派：含 cargo(space=2)/title(space=0x13..0x16)）。
+            Inven_Item* slot = user->GetCurCharacInventoryRef(ref.m_space, ref.m_slot);
+            if (slot != 0)
             {
-                int invenType =
-                    GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)ref.m_space);
-                Inven_Item* slot = inven->GetInvenRef(invenType, ref.m_slot);
-                if (slot != 0)
-                {
-                    slot->m_amp.SetLock(0);
-                    UpdateItem(user, slot);
-                }
+                slot->m_amp.SetLock(0);
+                UpdateItem(user, slot);
             }
         }
         else

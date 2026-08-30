@@ -259,21 +259,21 @@ int CBattle_Field::getItemDropDungeonType()
     return 0;
 }
 
-// ============================================================================
-// setPremiumDropRate —— ORIG T 0x0830b848。
-// 血轮或掉落域类型!=0 或绝望之塔或 ref+0x40!=0 → rate=0；
+// 血轮或掉落域类型!=0 或绝望之塔或 ref+0x40 低字节!=0 → rate=0；
 // premiumRate==0 → -1（禁用）；否则写 premiumRate。
+// ORIG 0830b88a movzbl 0x40(%eax)（1 字节读），无 m_pDungeon 空检查；
+// 2026-08-30 Fix21_C 修正（原用 4 字节 m_dungeon 指针比较且多加空检查）。
 // ============================================================================
 void CBattle_Field::setPremiumDropRate(WongWork::stGenerateRefData_t& ref,
                                        int premiumRate)
 {
     bool disable = true;
-    if (m_pDungeon != 0 && m_pDungeon->get_blood_dungeon_type() < 1)
+    if (m_pDungeon->get_blood_dungeon_type() < 1)
     {
         if (getItemDropDungeonType() == 0)
         {
             if (!m_pDungeon->isTowerOfDespairDungeon()
-                && ref.m_dungeon == 0)   // +0x40
+                && *reinterpret_cast<unsigned char*>(&ref.m_dungeon) == 0)
             {
                 disable = false;
             }
@@ -285,6 +285,7 @@ void CBattle_Field::setPremiumDropRate(WongWork::stGenerateRefData_t& ref,
         ref.m_premiumDropRate = -1;
     else
         ref.m_premiumDropRate = premiumRate;
+
 }
 
 // ============================================================================

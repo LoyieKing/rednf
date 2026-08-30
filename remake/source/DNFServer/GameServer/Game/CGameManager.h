@@ -346,7 +346,7 @@ public:
     bool Die(CUser* user);
     // ORIG _ZN13user_creature9CCreature17CheckDiedCreatureEv... 实为 (P5CUser) T 0x83384b8
     bool CheckDiedCreature(CUser* user);
-    // ---- 布局（总 0x100；基区按 CCreatureItem 展开为具名字段）----
+    // ---- 布局（总 0x54；基区按 CCreatureItem 展开为具名字段）----
     int m_vptr;                     // +0x00（ORIG vptr 槽占位）
     int m_itemId;                   // +0x04（CCreatureItem::GetItemId）
     int m_creatureItemType;         // +0x08（Reset=1；列表包过滤要求 ==1）
@@ -370,7 +370,6 @@ public:
     unsigned char m_field4d;       // +0x4d（Reset=5）
     unsigned char m_pad4e[2];      // +0x4e
     COverSkillTime m_overSkill;    // +0x50
-    char m_pad54[0xac];            // → 总 0x100（保持镜像尺寸）
 };
 
 class CCreatureItem;   // 前向：CCreatureItemFactory 返回/释放（权威定义见 CInventory.h）

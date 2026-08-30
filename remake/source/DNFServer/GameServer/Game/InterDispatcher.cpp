@@ -12718,7 +12718,7 @@ CUserTeen::CUserTeen() {}
 char CUserTeen::IsRight(CUser* user)
 {
     int dummy = 0;
-    return static_cast<char>(user->CheckLimitMiniumAge(0xf, dummy) );
+    return static_cast<char>(!user->CheckLimitMiniumAge(0xf, dummy));
 }
 
 int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
@@ -13416,24 +13416,12 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 
     PCK_AUCTION_BIDDING_GP pck;                            // -0xa7（0x33，ctor W 0x084e9a98）
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x12) =
-        target->GetUID();
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x16) =
-        target->getCurCharacNo();
+    // ORIG：GetUID/getCurCharacNo 各调用一次，结果仅存栈（-0x95/-0x91）未使用——
+    // 保留死调用以对齐 ORIG 指令序列（pck 除 characName 外保持 ctor 清零）。
+    (void)target->GetUID();
+    (void)target->getCurCharacNo();
     strncpy(reinterpret_cast<char*>(&pck) + 0x1a,
             reinterpret_cast<const char*>(target->getCurCharacR()) + 4, 0xd);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x27) =
-        static_cast<unsigned int>(price);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x2b) =
-        *reinterpret_cast<unsigned int*>(msg + 0x04);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x2f) =
-        *reinterpret_cast<unsigned int*>(msg + 0x08);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x33) =
-        *reinterpret_cast<unsigned int*>(msg + 0x04);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x37) =
-        *reinterpret_cast<unsigned int*>(msg + 0x08);
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&pck) + 0x3b) =
-        *reinterpret_cast<unsigned int*>(msg + 0x22);
 
     PrePayInfo prePay;                                     // -0x74（0x28 按值）
     *reinterpret_cast<unsigned int*>(prePay.m_data + 0x00) =

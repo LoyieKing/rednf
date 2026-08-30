@@ -50,6 +50,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CompoundEmblemDeps.h" // LineFunc(int, char const*, int, unsigned)
 #include "GameEnums.h"          // ENUM_SKILL_TREE_KIND / eItemDelReason / ENUM_CMDPACKET
 #include "GameTypes.h"          // cMyTrace
+#include "cHistoryTrace.h"      // UseCreatureEvolutionItem process ItemEvolute 日志
 #include "GameWorld.h"          // G_GameWorld / IsPvPSkilTreeChannel
 #include "GlobalData.h"              // s_guild_proxy_mgr / s_stream_pool / s_msgq_mgr
 #include "InterfacePacketBuf.h" // clear/put_header/put_byte/put_short/put_int/finalize
@@ -19198,6 +19199,59 @@ int Dispatcher_UseCreatureEvolutionItem::dispatch_sig(CUser* user, PacketBuf& pa
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x144, (unsigned char)err);
     }
     return 0;
+}
+// ORIG 0x08228bcc（报告 UseCreatureEvolutionItem/process.md）：使用生物进化道具。
+// 流程：物品空间→inven 槽位取物 → find_item → 非 stackable/非本生物(0x360) 报错；
+// 通过则 CCreatureMgr::ItemEvolute。日志 cMyTrace(0xe621/0xe627/0xe62f)、
+// cHistoryTrace("ItemEvolute ...") 与 ORIG rodata 逐字节一致。
+int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
+                                                 unsigned char evolveSlot,
+                                                 short itemCount, int itemIdx)
+{
+    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)evolveSlot);
+    const Inven_Item* item =
+        user->getCurCharacInvenR()->GetInvenRef(invenType, itemCount);
+    if (item == 0)
+        return 4;
+
+    CItem* itemInfo = G_CDataManager()->find_item(item->m_addInfo);
+    if (itemInfo == 0)
+    {
+        cMyTrace local_58(__PRETTY_FUNCTION__, 0xe621, 0);
+        local_58("Dispatcher_UseCreatureEvolutionItem not found item_id(%d), charac_no(%d)\n",
+                 item->m_addInfo, user->getCurCharacNo());
+        return 0x15;
+    }
+    if (!itemInfo->is_stackable())
+    {
+        cMyTrace local_48(__PRETTY_FUNCTION__, 0xe627, 0);
+        local_48("Dispatcher_UseCreatureEvolutionItem item_id(%d) is not stackable charac_no(%d)\n",
+                 item->m_addInfo, user->getCurCharacNo());
+        return 0x17;
+    }
+
+    CStackableItem* stackable = static_cast<CStackableItem*>(itemInfo);
+    int creatureIdx =
+        user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex();
+    if (creatureIdx != stackable->m_int360)
+    {
+        cMyTrace local_38(__PRETTY_FUNCTION__, 0xe62f, 0);
+        local_38("Dispatcher_UseCreatureEvolutionItem cur_creatureid(%d) != item_base_creature_id(%d) charac_no(%d)\n",
+                 creatureIdx, stackable->m_int360, user->getCurCharacNo());
+        return 7;
+    }
+
+    if (user->getCurCharacInvenRefW()->GetCreatureMgrW()->ItemEvolute(itemIdx))
+    {
+        cHistoryTrace local_26;
+        local_26("ItemEvolute Succ evolution_creature_id(%d), charac_no(%d)",
+                 itemIdx, user->getCurCharacNo());
+        return 0;
+    }
+    cHistoryTrace local_25;
+    local_25("ItemEvolute Fail evolution_creature_id(%d), charac_no(%d)",
+             itemIdx, user->getCurCharacNo());
+    return 1;
 }
 int Dispatcher_UseCreatureEvolutionItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseCreatureEvolutionItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }

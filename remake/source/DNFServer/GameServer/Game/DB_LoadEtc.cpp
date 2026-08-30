@@ -540,7 +540,7 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     }
 
     char blob[0x1cd8];
-    memset(blob, 0, sizeof(blob));
+    memset(blob, 0, 0x736);   // ORIG rep stos 0x736（仅清前 0x736，get_binary 仍收 0x1cd8）
     if (!db->get_binary(0, blob, compressed_buff_size))
     {
         return false;

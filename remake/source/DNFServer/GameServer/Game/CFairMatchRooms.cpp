@@ -307,7 +307,7 @@ int CFairMatch::OnCreateRoom(CUser* user)
 void CFairMatch::OnDestroyRoom(CUser* /*user*/)
 {
     m_field04 = 0;
-    if (pWaitingRoomList_) pWaitingRoomList_->DelRoom(this);        // 等待表 vtable[+0x04]=DelRoom(this)
+    pWaitingRoomList_->DelRoom(this);        // 等待表 vtable[+0x04]=DelRoom(this)
 }
 
 // OnJoinRoom ORIG T 0x8562df6 报告 OnJoinRoom.md

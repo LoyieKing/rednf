@@ -172,7 +172,9 @@ void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
         res = ProcIPGSync(req);
 
         IIPGHelperInterface* helper = m_mgr->GetIPGHelper();
-        helper->IPGResult(req, res);          // ORIG vtable +0x34 槽调用
+        // ORIG vtable +0x34 = slot11 IPGQuery（CIPGHelper vtable 0x08b420a0
+        // 逐槽实证；res 压栈但 IPGQuery 忽略——ORIG 原样行为）。
+        helper->IPGQuery(reinterpret_cast<CUser*>(req));
 
 
         if (res != 0)

@@ -109,8 +109,10 @@ void CQuickParty::destroy()
     CGameManager* mgr = G_CGameManager();
     int registeredCnt = mgr->GetActiveQuickPartyCnt();          // ebx: map size
     int occupiedCnt = mgr->GetOccupiedQuickPartyPoolCnt();      // esi: Size-Remain
-    cMyTrace trace("QuickParty::CQuickParty::destroy", 0x32, 0);
-    trace("QUICK_PARTY_LOG : QUICK 파티해제 됩니다. QUICK 파티수<%d>, 등록 QUICK 파티수<%d>",
+    cMyTrace trace("void QuickParty::CQuickParty::destroy()", 0x32, 0);
+    // ORIG fmt @0x8bf5380（GBK）：
+    // "QUICK_PARTY_LOG : QUICK 快捷组队 解除。 QUICK 快捷队<%d>, 剩余 QUICK 快捷队<%d>"
+    trace("QUICK_PARTY_LOG : QUICK \xc6\xc4\xc6\xbc\xc7\xd8\xc1\xa6 \xb5\xcb\xb4\xcf\xb4\xd9. QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>, \xb5\xee\xb7\xcf QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>",
           occupiedCnt, registeredCnt);
 }
 

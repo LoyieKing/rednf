@@ -333,7 +333,8 @@ void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
     if (ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data) != 0) {
         // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
         DB_SaveCerashopAddRestrictType::makeRequest(user, data);
-        ARAD::Singleton<Manager>::Get()->SendSyncPacket(user);
+        // ORIG 直接调 static SendSyncPacket（无 this、无 Get()；注释 0x817915c 实证）
+        SendSyncPacket(user);
     }
 }
 

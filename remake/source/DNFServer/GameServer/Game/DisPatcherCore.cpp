@@ -12627,7 +12627,7 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     if (!packet.get_int(natIp))
         return LineFunc(0x80e6, kPretty, 0, 0);
     if (!packet.get_short(natPort))
-        return LineFunc(33000, kPretty, 0, 0);
+        return LineFunc(0x80e7, kPretty, 0, 0);
     if (!packet.get_int(mtu))
         return LineFunc(0x80e8, kPretty, 0, 0);
     user->m_network.set_nat(natType, innerIp, natIp, natPort, mtu);

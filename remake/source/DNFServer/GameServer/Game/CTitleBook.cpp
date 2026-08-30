@@ -40,6 +40,8 @@ int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
 // ---- ORIG 真实符号（自由函数 / 跨类方法，普通 C++ 声明，无 extern "C" 桥） ----
 // _checkTimeoutItem（ORIG 0x867cf8d T）定义于 CDataManagerScripts.cpp。
 int _checkTimeoutItem(const Inven_Item& item);
+// NumberToString（ORIG 0x810904b T，定义于 LinkFinalDeps.cpp）——失败日志用。
+char* NumberToString(unsigned int value, int radix);
 // GetIntegratedPvPItemAttr（ORIG 0x84fc5ff T）定义于 CDataManagerScripts.cpp。
 unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
 // DeleteInvalidItemScript::IsInvalidItem2Delete（ORIG 0x8ac2096）定义于
@@ -529,7 +531,10 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
             title, eItemAddReason_7, true, false);
         if (ret < 0)
         {
-            // ORIG 此处仅日志
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2a5, 5);
+            trace("insertItemIntoInventory failed(title) %s %d %d",
+                  NumberToString(user->get_acc_id(), 0),
+                  user->getCurCharacNo(), title.m_addInfo);
         }
         outSlot = ret;
     }
@@ -557,7 +562,10 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
             title, eItemAddReason_7, true, false);
         if (ret < 0)
         {
-            // ORIG 此处仅日志
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2c7, 5);
+            trace("insertItemIntoEquipment failed(title) %s %d %d",
+                  NumberToString(user->get_acc_id(), 0),
+                  user->getCurCharacNo(), title.m_addInfo);
         }
         user->send_equip(ret);
     }
@@ -634,7 +642,10 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                 old, eItemAddReason_7, true, false);
             if (ret < 0)
             {
-                // ORIG 此处仅日志
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x24f, 5);
+                trace("insertItemIntoInventory failed(title) %s %d %d",
+                      NumberToString(user->get_acc_id(), 0),
+                      user->getCurCharacNo(), old.m_addInfo);
             }
         }
         else if (invenType == 0)
@@ -643,7 +654,10 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                 old, eItemAddReason_7, true, false);
             if (ret < 0)
             {
-                // ORIG 此处仅日志
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x256, 5);
+                trace("insertItemIntoEquipment failed(title) %s %d %d",
+                      NumberToString(user->get_acc_id(), 0),
+                      user->getCurCharacNo(), old.m_addInfo);
             }
             else
             {

@@ -1033,9 +1033,10 @@ bool CExchangeServer::PreparePassiveSocket()
     }
 
     // ORIG 局部序列：-0x10=0x10（未参与比较）、-0xc=0x15469 后接三级常量门限
-    const int warnBase = 0x10;                        // -0x10（写入未读取）
+    // 注意：不能声明 const（GCC O0 会常量折叠删除比较链，ORIG 保留运行时判断）。
+    int warnBase = 0x10;                              // -0x10（写入未读取）
     (void)warnBase;
-    const int sizeProbe = 0x15469;                    // -0xc
+    int sizeProbe = 0x15469;                          // -0xc
     if (sizeProbe > 0x17318)
     {
         cMyTrace trace("bool exchange_server::CExchangeServer::"

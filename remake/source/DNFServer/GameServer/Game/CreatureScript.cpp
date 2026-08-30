@@ -1272,11 +1272,11 @@ void CCreatureScript::Set(CreatureScript* src)
     m_field0 = src->m_evolutionQuestId;
     m_field4 = src->m_evolutionCreatureId;
 
-    m_vec8.clear();
-    for (std::vector<int>::const_iterator it = src->m_evolutionMultyId.begin();
-         it != src->m_evolutionMultyId.end(); ++it)
+    // ORIG 无 clear：目标 vector 假定空，按 size()+ix 索引循环拷贝。
+    int n8 = (int)src->m_evolutionMultyId.size();
+    for (int i = 0; i < n8; ++i)
     {
-        m_vec8.push_back(*it);
+        m_vec8.push_back(src->m_evolutionMultyId[i]);
     }
 
     m_field14 = src->m_evolutionLevel;
@@ -1285,12 +1285,10 @@ void CCreatureScript::Set(CreatureScript* src)
     m_field28 = src->m_field20;
     m_field2c = (unsigned char)(src->m_learnOverSkillLevel & 0xff);
 
-    m_set34.clear();
-    for (std::vector<st_crature_id_item_id>::const_iterator it =
-             src->m_itemEvolCreatureIds.begin();
-         it != src->m_itemEvolCreatureIds.end(); ++it)
+    int nSet = (int)src->m_itemEvolCreatureIds.size();
+    for (int i = 0; i < nSet; ++i)
     {
-        m_set34.insert(it->m_creatureId);
+        m_set34.insert(src->m_itemEvolCreatureIds[i].m_creatureId);
     }
 
     m_field4c = src->m_selectiveGrow.m_usingExpItem;
@@ -1301,11 +1299,10 @@ void CCreatureScript::Set(CreatureScript* src)
     m_field60 = src->m_selectiveGrow.m_growBTypeItem;
     m_field64 = src->m_selectiveGrow.m_growItemCount;
 
-    m_vec68.clear();
-    for (std::vector<int>::const_iterator it = src->m_eventEvlouteCreature.begin();
-         it != src->m_eventEvlouteCreature.end(); ++it)
+    int n68 = (int)src->m_eventEvlouteCreature.size();
+    for (int i = 0; i < n68; ++i)
     {
-        m_vec68.push_back(*it);
+        m_vec68.push_back(src->m_eventEvlouteCreature[i]);
     }
 }
 

@@ -175,9 +175,9 @@ struct PrivateStoreItem
     Inven_Item m_item;          // +0x00（packed 0x3d）
     unsigned char m_flag3d;     // +0x3d（GetState；ORIG Reset 清零位）
     int m_field40;              // +0x40（售价）
-    unsigned short m_field44;   // +0x44
+    short m_field44;            // +0x44（ORIG movswl/cwtl 符号扩展）
     unsigned char m_field46;    // +0x46
-    unsigned short m_field48;   // +0x48
+    short m_field48;            // +0x48（ORIG movswl 符号扩展）
 };                              // sizeof 0x4c
 
 // ORIG 每 TU local const（_ZN13private_storeL16MaxItemSlotCountE，.rodata 值 7，
