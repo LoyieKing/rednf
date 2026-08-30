@@ -2412,7 +2412,7 @@ public:
     int CalcMercenaryAvatarBonus() const;      // ORIG T 0x0868ea68 _ZNK5CUser24CalcMercenaryAvatarBonusEv
     void setAvatarTypeBonus(char bonus);       // ORIG T 0x0868ebaa _ZN5CUser18setAvatarTypeBonusEc
     void* getBlueMarble();
-    bool checkLogOutCorrectly();
+    void checkLogOutCorrectly();   // ORIG 无返回值指令（void）
     unsigned int find_pvp_masterid_walkingout_me(unsigned int id);
     void insert_pvp_masterid_walkingout_me(unsigned int id);
     void update_old_pvp_point();
@@ -3150,7 +3150,7 @@ public:
     void IncChecksumAnswerCount();
     int GetCheckConnInterval();
     void SetResumeChecksumTime(int time);
-    short incre_check_count();
+    void incre_check_count();      // ORIG 无返回值指令（void）
     short get_connect_count();
     void setTotalHackUserTradeGold(unsigned long long gold);
     void setTotalHackUserTradeCnt(unsigned int cnt);

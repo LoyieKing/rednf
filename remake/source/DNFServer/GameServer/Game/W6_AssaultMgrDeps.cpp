@@ -498,44 +498,36 @@ void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int
 void CAssaultMgr::_SendVictoryInfo(CUser* userA, CUser* userB)
 {
     PacketGuard packet;
-    try
+    packet.put_header(0, 0x10a);
+    if (userA->getPowerSide() == 1)
     {
-        packet.put_header(0, 0x10a);
-        if (userA->getPowerSide() == 1)
-        {
-            packet.put_int(userA->GetPowerWarPartyVictory());
-            packet.put_int(userB->GetPowerWarPartyVictory());
-        }
-        else
-        {
-            packet.put_int(userB->GetPowerWarPartyVictory());
-            packet.put_int(userA->GetPowerWarPartyVictory());
-        }
-        packet.finalize(true);
-
-        CParty* partyA = static_cast<CParty*>(userA->GetParty());
-        if (partyA == 0)
-        {
-            userA->Send(packet);
-        }
-        else
-        {
-            partyA->send_to_party(packet);
-        }
-        CParty* partyB = static_cast<CParty*>(userB->GetParty());
-        if (partyB == 0)
-        {
-            userB->Send(packet);
-        }
-        else
-        {
-            partyB->send_to_party(packet);
-        }
+        packet.put_int(userA->GetPowerWarPartyVictory());
+        packet.put_int(userB->GetPowerWarPartyVictory());
     }
-    catch (...)
+    else
     {
-        // ORIG 异常 unwind 时析构局部 PacketGuard。
-        throw;
+        packet.put_int(userB->GetPowerWarPartyVictory());
+        packet.put_int(userA->GetPowerWarPartyVictory());
+    }
+    packet.finalize(true);
+
+    CParty* partyA = static_cast<CParty*>(userA->GetParty());
+    if (partyA == 0)
+    {
+        userA->Send(packet);
+    }
+    else
+    {
+        partyA->send_to_party(packet);
+    }
+    CParty* partyB = static_cast<CParty*>(userB->GetParty());
+    if (partyB == 0)
+    {
+        userB->Send(packet);
+    }
+    else
+    {
+        partyB->send_to_party(packet);
     }
 }
 

@@ -210,32 +210,28 @@ struct SIG_AVATAR_RENEW
 #pragma pack(pop)
 static_assert(sizeof(SIG_AVATAR_RENEW) == 7, "SIG_AVATAR_RENEW ABI drift");
 
-// ---- DB_SaveMercenaryData::dispatch 载荷视图（SIG_MERCENARY_DB_DATA 0xbd4）----
-// ORIG 0x84458c6：+0x00 count(int)；行步长 0x54，行内 +0x00 charac_no(uint)、
-// +0x2c mercenary_start_time(int)、+0x30 mercenary_finish_time(int)、
-// +0x34 area(char 符号扩展)、+0x35 period(char)。ORIG 汇编对 finish/area/
+// +0x28 mercenary_start_time(int)、+0x2c mercenary_finish_time(int)、
+// +0x30 area(char 符号扩展)、+0x31 period(char)。ORIG 汇编对 finish/area/
 // period 以「行基址 add $0x30」+ 位移 0/4/5 两步寻址（P8 逐指令累加），故
-// 行内定义 @ +0x30 的 area/period 子视图以复现该形态。表头 4 字节 + 0x24 行。
+// 行内定义 @ +0x2c 的 area/period 子视图以复现该形态。表头 4 字节 + 0x24 行。
 #pragma pack(push, 1)
-struct DB_MercenaryAreaView   // 行内 @ +0x30
+struct DB_MercenaryAreaView   // 行内 @ +0x2c
 {
-    int m_finishTime;           // +0x30
-    char m_area;                // +0x34
-    char m_period;              // +0x35
+    int m_finishTime;           // +0x2c
+    char m_area;                // +0x30
+    char m_period;              // +0x31
 };
 #pragma pack(pop)
 #pragma pack(push, 1)
 struct DB_MercenaryRowView
 {
     unsigned int m_characNo;    // +0x00
-    char m_pad04[0x28];         // +0x04..+0x2b
-    int m_startTime;            // +0x2c
-    DB_MercenaryAreaView m_areaPeriod;  // +0x30..+0x35
-    char m_pad36[0x1e];         // +0x36..+0x53
+    char m_pad04[0x24];         // +0x04..+0x27
+    int m_startTime;            // +0x28
+    DB_MercenaryAreaView m_areaPeriod;  // +0x2c..+0x31
+    char m_pad32[0x22];         // +0x32..+0x53
 };
 #pragma pack(pop)
-static_assert(sizeof(DB_MercenaryRowView) == 0x54,
-              "DB_MercenaryRowView ABI drift");
 #pragma pack(push, 1)
 struct DB_MercenaryDataView
 {
@@ -17778,8 +17774,11 @@ bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
+    // ORIG 用 GetOutBuffer<SIG_GOBLIN_UPDATE_REWARD>（模板实例符号一致）；
+    // View 仅作字段访问视图（reinterpret_cast 保留，布局 +0x18 相同）。
     DB_GoblinPadUpdateRewardView* sig =
-        stream->GetOutBuffer<DB_GoblinPadUpdateRewardView>();
+        reinterpret_cast<DB_GoblinPadUpdateRewardView*>(
+            stream->GetOutBuffer<SIG_GOBLIN_UPDATE_REWARD>());
     db->set_query(
         "seLect mousepass from member_mousepass where m_id=%s",
         NumberToString(sig->m_mId, 0));

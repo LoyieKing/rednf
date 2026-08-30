@@ -2044,7 +2044,8 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
     }
 
     SGF<unsigned int>(sig, OFF_CHARAC_CNT) = 0;
-    for (int i = 0; i <= 0x24; ++i)
+    // ORIG：36 个槽位（i<=0x23；blob 解压 0x14d0 = 36×0x94），非 37
+    for (int i = 0; i <= 0x23; ++i)
     {
         if (SGF<int>(sig, i * 0x94 + OFF_CHARAC_VIEW) != 0)
         {

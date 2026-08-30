@@ -192,8 +192,8 @@ struct sItemGenRef
     int m_field0;    // +0x00
     int m_field4;    // +0x04
     int m_field8;    // +0x08
-    int m_fieldc;    // +0x0c
-    int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
+    int m_fieldc;    // +0x0c 固定 1000（无消费方）
+    int m_dropRate;  // +0x10 掉落率（脚本第 4 值；SetItemDropRate 按比例缩放）
 };
 #endif
 
@@ -2299,6 +2299,18 @@ public:
     char m_pad55[3];                                          // +0x55
 };
 
+// ORIG 的 AccountCargoScript::m_upgradeMap 为 std::map<int, ::UpgradeInfo>——
+// ORIG 反汇编 mangled 无类前缀（_ZNSt3mapIi11UpgradeInfo...），故 UpgradeInfo
+// 必须是全局类型（嵌套类会生成 IN18AccountCargoScript11UpgradeInfo mangled，
+// 与 ORIG 不符）。importAccountCargoScript（0x088c7e80）构造该值类型。
+struct UpgradeInfo
+{
+    int m_field0;   // +0x00（=档位 key；CAccountCargo.cpp 读作新容量）
+    int m_field4;   // +0x04
+    int m_field8;   // +0x08（所需道具 idx）
+    int m_fieldC;   // +0x0c（所需金币）
+};
+
 class AccountCargoScript
 {
 public:
@@ -2312,14 +2324,6 @@ public:
     // ORIG +0x8 为 std::map<int, UpgradeInfo>（C1 0x8372480 构造）；
     // GetCurrUpgradeInfo/GetNextUpgradeInfo/GetCreateInfo（0x88c80ba/0x88c8124/
     // 0x88c8056）在该 map 上 find/begin/++ 返回 value 指针。
-    // importAccountCargoScript（0x088c7e80）需构造该值类型 → 置于 public。
-    struct UpgradeInfo
-    {
-        int m_field0;   // +0x00（=档位 key；CAccountCargo.cpp 读作新容量）
-        int m_field4;   // +0x04
-        int m_field8;   // +0x08（所需道具 idx）
-        int m_fieldC;   // +0x0c（所需金币）
-    };
     int m_reqLevel;        // +0x00（CAccountCargo.cpp:482 读作 reqLevel）
     int m_itemIdx;         // +0x04
     std::map<int, UpgradeInfo> m_upgradeMap;  // +0x08（ORIG C1 0x8372480 构造于此，

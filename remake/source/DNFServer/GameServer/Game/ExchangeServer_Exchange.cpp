@@ -933,7 +933,7 @@ Stream* CExchangeServer::GetMessage()
 // ---------------------------------------------------------------------------
 void CExchangeServer::FreeMessage(Stream* stream, int flag)
 {
-    if (flag == 0)
+    if (stream == 0)
     {
         return;                                       // ORIG: 返回 false 不释放
     }
@@ -945,7 +945,7 @@ void CExchangeServer::FreeMessage(Stream* stream, int flag)
         if (len > 0xfff)
         {
             cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3b5, 0);
+                           "FreeMessage(Stream*, int)", 0x3b5, 0x5);
             trace("Small Stream Size over code(%d), size(%u)", flag,
                   (unsigned int)len);
         }
@@ -955,7 +955,7 @@ void CExchangeServer::FreeMessage(Stream* stream, int flag)
         if (len > 0x3fff)
         {
             cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3c0, 0);
+                           "FreeMessage(Stream*, int)", 0x3c0, 0x5);
             trace("Default Stream Size over code(%d), size(%u)", flag,
                   (unsigned int)len);
         }
@@ -965,7 +965,7 @@ void CExchangeServer::FreeMessage(Stream* stream, int flag)
         if (len > 0x3ffff)
         {
             cMyTrace trace("bool exchange_server::CExchangeServer::"
-                           "FreeMessage(Stream*, int)", 0x3cb, 0);
+                           "FreeMessage(Stream*, int)", 0x3cb, 0x5);
             trace("Big Stream Size over code(%d), size(%u)", flag,
                   (unsigned int)len);
         }

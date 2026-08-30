@@ -633,7 +633,8 @@ int CDisjointer::complete_disjoint(CUser* requestUser, PacketGuard& packet)
         get_rand_int(script->m_gainExp2 - script->m_gainExp1 + 1) +
         script->m_gainExp1;
 
-    CInventory* inven = requestUser->getCurCharacInvenW();
+    // ORIG 0x85d328d 用 getCurCharacInvenR()（const 版）取背包。
+    const CInventory* inven = requestUser->getCurCharacInvenR();
     STItemScript::SEXPERTJOB::stExpertJobAdditionalExp additionalExp;
     int jobExp = requestUser->GetCurCharacExpertJobExp();
     int jobLevel = requestUser->GetCurExpertJobLevel(jobExp);

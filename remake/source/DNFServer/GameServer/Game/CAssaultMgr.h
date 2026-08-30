@@ -161,14 +161,12 @@ public:
 // =====================================================================
 // CDisposition —— 多态基类。
 // ORIG 虚表 0x8c1d1c8 起：[SetVirtualMap, GetFlagPoint, MoveUser] 三槽全为
-// __cxa_pure_virtual（0x08724fe0）。ORIG 纯虚基无 dtor 符号；此处补虚析构以
-// 正确派生（派生类 ctor 覆盖 vptr 的调用面语义不变）。
+// __cxa_pure_virtual（0x08724fe0）。ORIG 纯虚基无 dtor 符号，不得补虚析构
+// （虚析构会把 MoveUser 虚槽从 vptr+8 推到 vptr+0x10，破坏 _MoveUser 调用面）。
 // =====================================================================
 class CDisposition
 {
 public:
-    virtual ~CDisposition() {}
-
     virtual void SetVirtualMap(std::vector<MapArea>* areas) = 0;
     virtual void GetFlagPoint(int& x, int& y) = 0;
     virtual bool MoveUser(CForcedMoveCharacter* fm) = 0;

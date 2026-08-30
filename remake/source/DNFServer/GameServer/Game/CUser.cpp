@@ -2273,10 +2273,9 @@ void* CUser::getBlueMarble()
     return G_CGameManager()->getBlueMarble(idx);
 }
 
-bool CUser::checkLogOutCorrectly()
+void CUser::checkLogOutCorrectly()
 {
     m_guildAgitDB.m_pad2[0] = 1;   // +0x8d0df（ORIG 单指令 movb 写；组件视图折叠）
-    return true;
 }
 
 unsigned int CUser::find_pvp_masterid_walkingout_me(unsigned int id)
@@ -4103,9 +4102,9 @@ void CUser::SetResumeChecksumTime(int time)
     m_field8cfd4 = time;
 }
 
-short CUser::incre_check_count()
+void CUser::incre_check_count()
 {
-    return m_field8cfc8 = (short)(m_field8cfc8 + 1);
+    m_field8cfc8 = (short)(m_field8cfc8 + 1);
 }
 
 short CUser::get_connect_count()
@@ -10335,13 +10334,13 @@ void CUser::SendLoginToPCRoomServer()
     const int ip = get_public_ip_address();
     *(int*)(login + 0x201) = ip;
     login[0x205] = 0;
-    *(int*)(login + 0x206) = GetUID();
-    *(int*)(login + 0x20a) = get_acc_id();
+    *(int*)(login + 0x206) = GetUID();      // ORIG：直接写 login+0x206（-0x20(%ebp)）
+    *(int*)(login + 0x20a) = get_acc_id();  // ORIG：直接写 login+0x20a（-0x1c(%ebp)）
     printf(
         "SEND nexon_packet::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
         "Addr:%d canTry_:%d UserIdx:%d m_id:%d\n",
         login[0], login[1], login + 2, login[0x101], (int)(login + 0x102),
-        ip, login[0x205], GetUID(), get_acc_id());
+        ip, login[0x205], *(int*)(login + 0x206), *(int*)(login + 0x20a));
 
     nexon_packet::stLoginPacket pkt(*(nexon_packet::stLogin*)login);
     int len = pkt.GetLength();

@@ -293,7 +293,7 @@ void CEnduranceCmd::parse()
     m_endurance = static_cast<unsigned short>(atoi(enduranceStr.c_str()));
 }
 
-// ORIG execute 0x084aa858：GM 且槽位 ∈ (9,0x15) 时改写背包物品耐久并回发更新包。
+// ORIG execute 0x084aa858：GM 且槽位 ∈ (9,0x15]（cmp $0x15;jg 允许 ==0x15）时改写背包物品耐久并回发更新包。
 void CEnduranceCmd::execute()
 {
     CUserCharacInfo* ci = GetUser();
@@ -303,7 +303,7 @@ void CEnduranceCmd::execute()
         return;
     }
     int slot = m_slot;
-    if (!(slot > 9 && slot < 0x15))
+    if (!(slot > 9 && slot <= 0x15))
     {
         return;
     }

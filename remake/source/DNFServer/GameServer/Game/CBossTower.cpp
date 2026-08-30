@@ -484,13 +484,16 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
             static_cast<unsigned char>(m_stageCur),
             static_cast<unsigned char>(m_difficulty));
 
-        GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
-            towerIdx, m_party->m_partyType == 1);
-
         member->m_historyLog.EnterDungeon(m_dungeon->GetDungeonName(),
                                           m_difficulty, memberNames,
                                           m_party->m_partyType);
     }
+
+    // ORIG：循环外单次调用（if/else 两分支，常量 0/1），非每成员调用
+    if (m_party->m_partyType == 1)
+        GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
+    else
+        GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 0);
 
     m_party->SetEPLPState(1);
     m_party->gen_timer_key((TIMER_MESSAGE)0x2d);

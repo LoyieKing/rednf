@@ -83,23 +83,30 @@ void CAssaultMgr::OnMoveArea(CUser* user)
         packet.put_short(countIdx, count);
         packet.finalize(true);
         user->Send(packet);
-    }
+    	}
 }
 
 void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
 {
     // ORIG 0x82efb54：按用户所在袭击区域转发；flag=true 时限定队伍。
-    CAssaultPlace* place = _GetAssaultPlace(
-        (unsigned int)user->GetAssaultPlace());
-    if (flag)
+    // ORIG 全程 try/catch-all（__cxa_begin_catch 后仅 end_catch）吞掉异常。
+    try
     {
-        ENUM_ASSAULT_TEAM team;
-        if (place->GetTeam(user, team))
-            place->SendPacket(*packet, team);
+        CAssaultPlace* place = _GetAssaultPlace(
+            (unsigned int)user->GetAssaultPlace());
+        if (flag)
+        {
+            ENUM_ASSAULT_TEAM team;
+            if (place->GetTeam(user, team))
+                place->SendPacket(*packet, team);
+        }
+        else
+        {
+            place->SendPacket(*packet);
+        }
     }
-    else
+    catch (...)
     {
-        place->SendPacket(*packet);
     }
 }
 

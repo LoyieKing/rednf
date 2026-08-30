@@ -74,7 +74,7 @@ void CDungeonEntranceLog::InsertDungeonEntrance()
 void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
 {
     // ORIG 0x860e38e：map 非空时把 (key, m_total, m_curInside) 写入 Statistics DB
-    // 流（msg 0xe1, LOGDB_Q=4），随后归零 m_total/m_curInside。
+    // 流（msg 0xe1, LOGDB_Q=4），随后归零 m_total（ORIG 清节点 +0xc）。
     if (m_inoutMap.size() == 0)   // ORIG call size(); cmpl $0x0; jg
         return;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x4b5), true);
@@ -91,7 +91,7 @@ void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     for (std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
          it != m_inoutMap.end(); ++it)
-        it->second.m_curInside = 0;
+        it->second.m_total = 0;
 }
 
 CDungeonEntranceLog* GetInstanceDungeonEntranceLog()

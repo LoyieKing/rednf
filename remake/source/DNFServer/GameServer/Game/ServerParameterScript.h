@@ -354,8 +354,9 @@ struct sItemGenRef
     int m_field0;    // +0x00
     int m_field4;    // +0x04
     int m_field8;    // +0x08
-    int m_fieldc;    // +0x0c
-    int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
+    int m_fieldc;    // +0x0c 固定 1000（ORIG importServerParameterScript 0x08a875cb 实证；
+                     //      语义「未建模」，无消费方）
+    int m_dropRate;  // +0x10 掉落率（脚本第 4 值；SetItemDropRate 按比例缩放）
 };
 #endif
 

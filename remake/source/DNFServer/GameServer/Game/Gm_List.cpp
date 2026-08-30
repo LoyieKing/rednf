@@ -127,7 +127,7 @@ void Gm_List::LoadGmListFromDb()
         {
             unsigned int mid = 0;
             int level = 0;
-            if (!m_db->fetch() || !m_db->get_int(0, reinterpret_cast<int&>(mid)))
+            if (!m_db->fetch() || !m_db->get_int(0, mid))
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x15e5, 9, true, true);
                 trace("Failed to get GM's m_id from DB.");
@@ -146,8 +146,7 @@ void Gm_List::LoadGmListFromDb()
                 }
             }
             accounts->LoadGmList(mid, level);
-            idLog += NumberToString(mid, 0);
-            idLog += ", ";
+            idLog.append(std::string(NumberToString(mid, 0)) + ", ");   // ORIG: _ZStpl + append
         }
         ok = true;
         cMyTrace trace(__PRETTY_FUNCTION__, 0x15f9, 9, true, true);

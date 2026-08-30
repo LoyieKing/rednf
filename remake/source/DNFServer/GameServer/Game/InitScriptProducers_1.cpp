@@ -130,7 +130,7 @@ bool importAccountCargoScript(AccountCargoScript* script, const char* path)
                     int f8 = ScanInt(&ok);
                     int fC = ScanInt(&ok);
 
-                    AccountCargoScript::UpgradeInfo info;
+                    UpgradeInfo info;
                     info.m_field0 = grade;
                     info.m_field4 = f4;
                     info.m_field8 = f8;

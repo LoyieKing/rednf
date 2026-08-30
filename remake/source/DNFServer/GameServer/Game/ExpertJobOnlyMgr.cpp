@@ -554,6 +554,12 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
     {
         return 0x13;
     }
+    // ORIG 0x849eeb3：ringItem->GetItemType() 结果作实参调
+    // masterItem->getUsableItemType()（虚槽 vptr+0xc / vptr+0x20），失败返回 0x17。
+    if (!masterItem->getUsableItemType(ringItem->GetItemType()))
+    {
+        return 0x17;
+    }
 
     bool deleted =
         user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, beadSlot, 1,

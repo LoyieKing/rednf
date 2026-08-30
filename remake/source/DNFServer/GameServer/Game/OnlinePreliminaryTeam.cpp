@@ -309,8 +309,8 @@ int COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(char* data)
 // ============================================================================
 
 // ORIG T 0x08585f34 C1：charac_expand::CData ctor + 置本类虚表（编译器生成）。
+// ORIG 不初始化 m_rating/m_winCount/m_loseCount（构造后为垃圾值）。
 COnlinePreliminaryMember::COnlinePreliminaryMember()
-    : m_rating(0.0f), m_winCount(0), m_loseCount(0)
 {
 }
 

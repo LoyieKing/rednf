@@ -186,9 +186,9 @@ public:
     std::vector<std::string> m_etcAttackInfo;         // +0xbb8
     std::vector<WeaponInfo> m_weaponWav;              // +0xbc4
     std::string m_scriptPath;                         // +0xbd0
-    std::string m_scriptName;                         // +0xbdc
-    int m_fieldbd4;                                   // +0xbd4（Clear=0；语义「推断」未建模）
-    float m_fieldbd8;                                 // +0xbd8（Clear=1.0f；「推断」）
+    int m_fieldbd4;                                   // +0xbd4（Clear=0；ORIG Clear 0x08367a98 实证）
+    float m_fieldbd8;                                 // +0xbd8（Clear=1.0f；ORIG Clear 实证）
+    std::string m_scriptName;                         // +0xbdc（ImportCharacterScript 0x08a0ce06 实证）
     _ComboInfo m_combo;                               // +0xbe0 → sizeof 0xc1c
 };
 

@@ -5412,10 +5412,14 @@ void Dispatcher_Clear_Used_QP::send(CUser* user, ParamBase& param)
     }
     else
     {
-        guard.put_byte(0);
-        guard.put_short(err);
-        guard.finalize(true);
-        user->Send(guard);
+        // ORIG 0x081d69ca：err!=0 时发送独立的第二个包（新 PacketGuard + put_header(1,400)），
+        // 原实现复用 guard 导致第二包缺失 header（真语义差，已修）。
+        PacketGuard guard2;
+        guard2.put_header(1, 400);
+        guard2.put_byte(0);
+        guard2.put_short(err);
+        guard2.finalize(true);
+        user->Send(guard2);
     }
 }
 
@@ -5723,7 +5727,7 @@ int Dispatcher_HatchCreature::process(CUser* user, MSG_BASE& msg, ParamBase& par
         (ENUM_ITEMSPACE)(unsigned char)pMsg[0x0d]);
 
     const Inven_Item* item =
-        user->getCurCharacInvenR()->GetInvenRef(invenType, slot);
+        user->getCurCharacInvenRefR()->GetInvenRef(invenType, slot);
     if (item == 0)
     {
         return LineFunc(0x2533,

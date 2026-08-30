@@ -79,7 +79,8 @@ int IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
     outY = y;
     for (unsigned int i = 0; i < areas->size(); ++i)
     {
-        MapArea& a = (*areas)[i];
+        // ORIG 0x82e5a0b 用 at()（越界抛异常路径与 ORIG 一致）。
+        MapArea& a = areas->at(i);
         int tx = 0;
         int ty = 0;
         if (a.include(x, y, tx, ty, margin))

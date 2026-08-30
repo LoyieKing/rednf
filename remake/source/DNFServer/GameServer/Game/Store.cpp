@@ -180,40 +180,37 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
                             bool flag, int& outPrice, int& outCount)
 {
     Inven_Item item;
-    const CItem* pItem = NULL;
-    int itemCount = 0;
 
     if (invenType == 0)
     {
         item = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
-        pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
-        itemCount = item.get_add_info();
     }
     else if (invenType == 2)
     {
-        const CCargo* cargo = user->getCurCharacCargoR();
-        item = cargo->get_cargo_slot(slot);
-        pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
-        itemCount = item.get_add_info();
+        item = user->getCurCharacCargoR()->get_cargo_slot(slot);
     }
     else if (invenType == 3)
     {
         // creature slot
         item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)0, slot);   // ORIG: 消息 3 → type 0
-        pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
-        itemCount = item.get_add_info();
     }
     else if (invenType == 7)
     {
         // avatar slot
         item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, slot);   // ORIG: 消息 7 → type 3
-        pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
-        itemCount = item.get_add_info();
+        if (item.m_field1 == 5)   // ORIG 分支独占检查：ITEM_TYPE==5 → 0x11（objdump 0x861932c）
+            return 0x11;
     }
     else
     {
         return 0x13;
     }
+
+    if (item.m_addInfo == 0)   // ORIG 共享段检查（find_item 前，m_addInfo 直读）
+    {
+        return 0x11;
+    }
+    const CItem* pItem = G_CDataManager()->m_itemList->find_item(item.m_addInfo);
 
     if (pItem == NULL)
     {

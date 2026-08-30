@@ -901,8 +901,10 @@ bool importServerParameterScript(ServerParameterScript* script,
                 r.m_field0 = ScanInt((bool*)0);
                 r.m_field4 = ScanInt((bool*)0);
                 r.m_field8 = ScanInt((bool*)0);
-                r.m_fieldc = ScanInt((bool*)0);
-                r.m_dropRate = 1000;
+                // ORIG 0x08a875b7 实证：第 4 个 ScanInt 写入 +0x10（m_dropRate），
+                // +0x0c 固定 1000（SetItemDropRate 缩放 +0x10）。
+                r.m_dropRate = ScanInt((bool*)0);
+                r.m_fieldc = 1000;
             }
         }
         else if (line == "[dungeon difficulty drop bonusrate]")
@@ -938,8 +940,10 @@ bool importServerParameterScript(ServerParameterScript* script,
                 r.m_field0 = ScanInt((bool*)0);
                 r.m_field4 = ScanInt((bool*)0);
                 r.m_field8 = 0;
-                r.m_fieldc = ScanInt((bool*)0);
-                r.m_dropRate = 1000;
+                // ORIG 0x08a8786a 实证：第 4 个 ScanInt 写入 +0x10（m_dropRate），
+                // +0x0c 固定 1000（与 [drop prob] 节一致）。
+                r.m_dropRate = ScanInt((bool*)0);
+                r.m_fieldc = 1000;
             }
         }
         else if (line == "[dungeon difficulty reward bonusrate]")

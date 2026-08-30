@@ -2370,11 +2370,10 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
                 int itemIdx2 = dungeon->m_entryRequiredItem.m_itemCount;
                 int slot2 = param[i];
                 int characNo = m_member[i].m_pUser->getCurCharacNo();
-                char log[16];
-                new (log) cMyTrace(
+                cMyTrace trace(
                     __PRETTY_FUNCTION__,
                     0xa60, 5);
-                (*reinterpret_cast<cMyTrace*>(log))(
+                trace(
                     "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
                     characNo, slot2, itemIdx2);
                 return 0;
@@ -4343,9 +4342,8 @@ void CParty::map_load_forced_finish()
         int count = get_member_count();                 // -0x10
         if (count == 0)
         {
-            char log1[16];
-            new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x3184, 0);
-            (*reinterpret_cast<cMyTrace*>(log1))(
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x3184, 0);
+            trace(
                 "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)");
             destroy();
             LogManager::logFormat(

@@ -312,9 +312,11 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
+            // ORIG 0x8641468 的 std::find 以 unsigned long（itemIdx 原类型）实例化，
+            // 不做 (int) 转换。
             if (std::find(it->second[i].m_fitJobs.begin(),
                           it->second[i].m_fitJobs.end(),
-                          (int)itemIdx) != it->second[i].m_fitJobs.end())
+                          itemIdx) != it->second[i].m_fitJobs.end())
             {
                 if (it->second[i].m_achievementIdx == -1)
                 {
@@ -595,9 +597,11 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
         CAchievement::_getSectionIdx(category, titleSlot);
     if (sectionIdx != 0xffffffff)
     {
-        stTitleSection& section =
+        // ORIG 0x8642129：按值拷贝 sections[sectionIdx]（析构后判定），
+        // 检查 +0x30 m_lockMessage 非空即锁定、返回 0xc。
+        stTitleSection section =
             ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_sections[sectionIdx];
-        if (!section.m_name.empty())
+        if (!section.m_lockMessage.empty())
         {
             return 0xc;
         }

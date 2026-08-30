@@ -412,6 +412,9 @@ bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT
     {
         return false;
     }
+    // ORIG：压缩结果仍超 0x7ff 字节 → 更新失败（防御性检查，ORIG 实证）
+    if (zipLen > 0x7ff)
+        return false;
 
     char* blobStr = db->blob_to_str(0, g_szZipAP_CLEAR_STATE, zipLen);
     db->set_query("update charac_action_point set ap_sum=%d, is_reward_medal=%u, \t\t\t\t\tis_reward_item_1=%u, is_reward_item_2=%u, is_reward_item_3=%u, is_reward_item_4=%u,\t\t\t\t\t\tap_clear_state='%s'\t\t\t\t\t\twhere occ_date='%s'\t\t\t\t\t\tand charac_no=%u",

@@ -578,7 +578,6 @@ struct CHARAC_LOAD_MERCENARY
     // +0x32=0xa、memset(+6,0,0x1e)、memset(+0x34,0,0x20)（定义在
     // CUserMissingA2.cpp，标量在前两 memset 在后的独立展开，勿调 Reset）。
     CHARAC_LOAD_MERCENARY();
-    ~CHARAC_LOAD_MERCENARY() {}
     void Reset();                 // ORIG T 0x081b410a
     int GetCompetitionState() const;  // ORIG T 0x081b2e86
     // ---- 雇佣兵竞技域方法声明（CUserMissingA2.cpp 独占定义；ORIG 报告齐备）----

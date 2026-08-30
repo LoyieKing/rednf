@@ -873,7 +873,7 @@ void CUser::AddCurCharacMercenaryInfo()
     if (sel->m_level < minLvRequired) return;
 
     CHARAC_LOAD_MERCENARY info;
-    memset(&info, 0, sizeof(info)); /*推断:ORIG Reset 无符号，局部清零*/ info.m_level = sel->m_level;               // +0x04
+    info.Reset(); /* ORIG 调 Reset（+0x30/0x31=0xff、+0x32=0xa）*/ info.m_level = sel->m_level;               // +0x04
     info.m_characNo = sel->m_characNo;         // +0x00
     strncpy(info.m_name, sel->m_name, 0x1d);   // +0x06 ← src charac+0x04
     info.m_avatarBonus = CalcMercenaryAvatarBonus();  // +0x32 uchar
@@ -5540,7 +5540,6 @@ void CUser::select_charac_set_visible_values(char value)
 // ORIG 0x0868d1ec CUser::send_broadcast_lottery_gold_message(unsigned long,int)
 void CUser::send_broadcast_lottery_gold_message(unsigned long itemIdx, int count)
 {
-    G_CDataManager();
     CItem* def = G_CDataManager()->find_item((int)itemIdx);
     if (def == 0) return;
     if (!def->is_stackable()) return;
