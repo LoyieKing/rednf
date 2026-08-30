@@ -45,13 +45,14 @@ struct MailPostalView
         unsigned int m_letterId; // +0x5c
     } m_occ;                     // +0x50
 };
-#pragma pack(pop)
-// SIG_LETTER_INFO 内 +0x125 字段（occ_time）
+// SIG_LETTER_INFO 内 +0x125 字段（occ_time）；必须在 pack(1) 内，
+// 否则默认 4 字节对齐会把 m_occ 推到 +0x128（与 ORIG 0x125 不符）。
 struct LetterOccView
 {
     char m_pad[0x125];
     int  m_occ;              // +0x125
 };
+#pragma pack(pop)
 
 // RemoveMailByLatestLetter —— ORIG 0x0841cd03，定义归 DB_MailBox_Req_List.cpp
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);

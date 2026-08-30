@@ -9,12 +9,6 @@
 #include "InterfacePacketBuf.h"
 #include "GameRand.h"          // get_rand_int
 
-// ROUND：Ghidra 反编译 (int)ROUND(float) 形态（正数域四舍五入）。
-static int RoundGoldRate(float v)
-{
-    return (int)(v + 0.5f);
-}
-
 // ORIG ctor 0x8284770：写虚表 0x8c0cbf0；D1 0x82847dc；ResetReward 0x8284820。
 // 本 TU 仅提供 CBattle_Field 构造/析构链与 ResetReward 所需符号（ORIG 0x8284820）。
 // 其余成员（MakeSelectPacket/_MakeRewardPacket/MakeRewardPacket 等）在头为 G2
@@ -168,9 +162,10 @@ void CTournamentDungeonReward::SetRewardGold(
             if (m_rewards[card][slotIdx].m_id == 0 &&
                 !result.m_dropItems.empty())
             {
+                // ORIG x87 RC=truncate 直接截断（fildl+fmuls+fistpl，无 +0.5）
                 m_rewards[card][slotIdx].m_field04 =
-                    RoundGoldRate((float)result.m_dropItems.begin()->get_add_info()
-                                  * goldRate);
+                    (int)((float)result.m_dropItems.begin()->get_add_info()
+                          * goldRate);
             }
         }
     }

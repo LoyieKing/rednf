@@ -134,12 +134,9 @@ void CCharacter::destroy()
     clear();
 }
 
-// ORIG CCharacter::clear @ 0x0834852e：
-//   m_baseInfo[0..6] 逐个 _Additioal_info::clear；
-//   循环 i=0..6 { m_giveSkillList[i].clear(); m_secondGrowTypes[i].clear(); }。
 void CCharacter::clear()
 {
-    for (int i = 0; i < 7; ++i)
+    for (int i = 1; i < 7; ++i)
         m_baseInfo[i].clear();
     for (int i = 0; i <= 6; ++i)
     {

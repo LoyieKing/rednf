@@ -15,7 +15,7 @@ template void CNetwork<4096, 450000>::send_unlock();
 template int CNetwork<4096, 450000>::GetRemainSendSize();
 template char* CNetwork<4096, 450000>::GetPeerIP2(char*, int);
 template char* CNetwork<4096, 450000>::get_str_ip();
-template unsigned char CNetwork<4096, 450000>::get_nat_type();
+template char CNetwork<4096, 450000>::get_nat_type();
 template void CNetwork<4096, 450000>::set_nat(char, unsigned int, unsigned int,
                                               unsigned short, unsigned int);
 template void CNetwork<4096, 450000>::set_nat(char, unsigned int, unsigned int,

@@ -171,24 +171,25 @@ void CAssaultPlace::_MakeUserUdpIpPort(PacketGuard* p)
     countIdx = p->get_index();
     p->put_byte(count);
     for (int i = 0; i <= 7; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            CUser* u = m_assaulters[i].GetUser();
-            unsigned short uid = u->get_unique_id();
-            p->put_short(uid & 0xffff);
-            p->put_int(static_cast<int>(u->m_network.get_inner_ip()));
-            p->put_int(static_cast<int>(u->m_network.get_ip()));
-            p->put_short(u->m_network.get_port() & 0xffff);
-            p->put_int(u->get_acc_id());
-            p->put_byte(static_cast<int>(u->m_network.get_nat_type()));
-            p->put_int(u->m_network.get_mtu());
-            const _Charac_info* ch = m_assaulters[i].GetUser()->getCurCharacR();
-            if (ch == 0)
-                p->put_byte(0);
-            else
-                p->put_byte(*reinterpret_cast<const unsigned char*>(
-                    reinterpret_cast<const char*>(ch) + 0x75));   // m_stamina @+0x75
-            count++;
-        }
+        if (m_assaulters[i].Empty())
+            continue;
+        p->put_short(m_assaulters[i].GetUser()->get_unique_id() & 0xffff);
+        p->put_int(static_cast<int>(
+            m_assaulters[i].GetUser()->m_network.get_inner_ip()));
+        p->put_int(static_cast<int>(
+            m_assaulters[i].GetUser()->m_network.get_ip()));
+        p->put_short(m_assaulters[i].GetUser()->m_network.get_port() & 0xffff);
+        p->put_int(m_assaulters[i].GetUser()->get_acc_id());
+        p->put_byte(static_cast<int>(
+            m_assaulters[i].GetUser()->m_network.get_nat_type()));
+        p->put_int(m_assaulters[i].GetUser()->m_network.get_mtu());
+        const _Charac_info* ch = m_assaulters[i].GetUser()->getCurCharacR();
+        if (ch == 0)
+            p->put_byte(0);
+        else
+            p->put_byte(*reinterpret_cast<const unsigned char*>(
+                reinterpret_cast<const char*>(ch) + 0x75));   // m_stamina @+0x75
+        count++;
     }
     p->put_byte(countIdx, count);
     p->finalize(true);

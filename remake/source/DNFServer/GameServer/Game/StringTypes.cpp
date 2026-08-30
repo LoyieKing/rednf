@@ -825,46 +825,39 @@ int CharString::tokenizeNewLine(const CharString& str,
 CharString CharString::join(const std::vector<CharString>& stringVector,
                             const CharString& separator)
 {
-    bool empty = stringVector.empty();
-    if (!empty)
-    {
-        const char* separatorStrSrc = separator.c_str();
-        int separatorStrLen = separator.length();
-        int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-        for (std::vector<CharString>::const_iterator it = stringVector.begin();
-             it != stringVector.end(); ++it)
-        {
-            totalLength += it->length();
-        }
-        if (totalLength != 0)
-        {
-            CharStringData* newData = CharStringData::createTerminated(totalLength);
-            char* newDataBuf = newData->getBuffer();
-            bool tokenFirst = true;
-            for (std::vector<CharString>::const_iterator it = stringVector.begin();
-                 it != stringVector.end(); ++it)
-            {
-                if (separatorStrLen >= 1 && !tokenFirst)
-                {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
-                    newDataBuf += separatorStrLen;
-                }
-                int tokenLength = it->length();
-                memcpy(newDataBuf, it->c_str(), tokenLength);
-                newDataBuf += tokenLength;
-                tokenFirst = false;
-            }
-            return CharString(newData);
-        }
-        else
-        {
-            return CharString();
-        }
-    }
-    else
+    if (stringVector.empty())
     {
         return CharString();
     }
+    const char* separatorStrSrc = separator.c_str();
+    int separatorStrLen = separator.length();
+    int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
+    for (std::vector<CharString>::const_iterator it = stringVector.begin();
+         it != stringVector.end(); ++it)
+    {
+        totalLength += it->length();
+    }
+    if (totalLength == 0)
+    {
+        return CharString();
+    }
+    CharStringData* newData = CharStringData::createTerminated(totalLength);
+    char* newDataBuf = newData->getBuffer();
+    bool tokenFirst = true;
+    for (std::vector<CharString>::const_iterator it = stringVector.begin();
+         it != stringVector.end(); ++it)
+    {
+        if (separatorStrLen >= 1 && !tokenFirst)
+        {
+            memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
+            newDataBuf += separatorStrLen;
+        }
+        int tokenLength = it->length();
+        memcpy(newDataBuf, it->c_str(), tokenLength);
+        newDataBuf += tokenLength;
+        tokenFirst = false;
+    }
+    return CharString(newData);
 }
 
 int CharString::compare(const CharString& src1, const char* src2)
@@ -1586,46 +1579,39 @@ int WideString::tokenizeNewLine(const WideString& str,
 WideString WideString::join(const std::vector<WideString>& stringVector,
                             const WideString& separator)
 {
-    bool empty = stringVector.empty();
-    if (!empty)
-    {
-        const wchar_t* separatorStrSrc = separator.c_str();
-        int separatorStrLen = separator.length();
-        int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-        for (std::vector<WideString>::const_iterator it = stringVector.begin();
-             it != stringVector.end(); ++it)
-        {
-            totalLength += it->length();
-        }
-        if (totalLength != 0)
-        {
-            WideStringData* newData = WideStringData::createTerminated(totalLength);
-            wchar_t* newDataBuf = newData->getBuffer();
-            bool tokenFirst = true;
-            for (std::vector<WideString>::const_iterator it = stringVector.begin();
-                 it != stringVector.end(); ++it)
-            {
-                if (separatorStrLen >= 1 && !tokenFirst)
-                {
-                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
-                    newDataBuf += separatorStrLen;
-                }
-                int tokenLength = it->length();
-                memcpy(newDataBuf, it->c_str(), tokenLength * sizeof(wchar_t));
-                newDataBuf += tokenLength;
-                tokenFirst = false;
-            }
-            return WideString(newData);
-        }
-        else
-        {
-            return WideString();
-        }
-    }
-    else
+    if (stringVector.empty())
     {
         return WideString();
     }
+    const wchar_t* separatorStrSrc = separator.c_str();
+    int separatorStrLen = separator.length();
+    int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
+    for (std::vector<WideString>::const_iterator it = stringVector.begin();
+         it != stringVector.end(); ++it)
+    {
+        totalLength += it->length();
+    }
+    if (totalLength == 0)
+    {
+        return WideString();
+    }
+    WideStringData* newData = WideStringData::createTerminated(totalLength);
+    wchar_t* newDataBuf = newData->getBuffer();
+    bool tokenFirst = true;
+    for (std::vector<WideString>::const_iterator it = stringVector.begin();
+         it != stringVector.end(); ++it)
+    {
+        if (separatorStrLen >= 1 && !tokenFirst)
+        {
+            memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
+            newDataBuf += separatorStrLen;
+        }
+        int tokenLength = it->length();
+        memcpy(newDataBuf, it->c_str(), tokenLength * sizeof(wchar_t));
+        newDataBuf += tokenLength;
+        tokenFirst = false;
+    }
+    return WideString(newData);
 }
 
 int WideString::compare(const WideString& src1, const wchar_t* src2)

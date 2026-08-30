@@ -4109,8 +4109,7 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)0,
                                                   (ENUM_SERVER_GROUP)0);
-    if (!db ||
-        !db->set_query("seLect db_name,db_ip,db_port,db_userid,db_passwd from "
+    if (!db->set_query("seLect db_name,db_ip,db_port,db_userid,db_passwd from "
                        "db_connect where db_server_group = %d and db_type = %d",
                        (int)group, (int)idx))
         return false;

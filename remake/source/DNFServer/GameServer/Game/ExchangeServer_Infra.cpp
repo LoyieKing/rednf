@@ -278,7 +278,7 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
     {
         mem = it->second;
         memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-        mem->setCacheTime(static_cast<unsigned int>(time(0)));
+        mem->m_cacheTime = static_cast<unsigned int>(time(0));
         return mem;
     }
     if (m_pool.Remain() == 0)
@@ -290,7 +290,7 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
     if (mem != 0)
     {
         memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-        mem->setCacheTime(static_cast<unsigned int>(time(0)));
+        mem->m_cacheTime = static_cast<unsigned int>(time(0));
     }
     return mem;
 }
@@ -348,7 +348,7 @@ bool CCacheCharacterMgr::CollectGarbage()
     std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.begin();
     while (it != m_map.end())
     {
-        if ((now - it->second->getCacheTime()) > 0x1d)
+        if ((int)(now - it->second->m_cacheTime) > 0x1d)
         {
             m_pool.Free(it->second);
             std::map<int, CACHE_CHARACTER_TYPE*>::iterator cur = it;

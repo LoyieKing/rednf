@@ -60,7 +60,7 @@ void CItemUpgrade::make3rdChroniclePacket(CUser* user,
                                           const Inven_Item& item,
                                           PacketGuard* packet)
 {
-    if (user == 0 || packet == 0)
+    if (user == 0)
         return;
     // ORIG 0x854a9aa：局部 STEnchantSystemMapKey keys[2]（0x10 步长，循环 C1 构造）。
     STEnchantSystemMapKey keys[2];

@@ -254,6 +254,10 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
     {
         totalPrice = pItem->get_price() * count;
     }
+    else
+    {
+        totalPrice = pItem->get_price();   // ORIG +0x71 分支：不可堆叠同样取价（不乘 count）
+    }
     const CInventory* invenR = user->getCurCharacInvenR();
     if (invenR->get_money() < totalPrice)
     {

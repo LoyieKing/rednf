@@ -10411,29 +10411,25 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     // 分数(0x89=视图+0x7c)/时间(0x8d=视图+0x80) 反作弊 → job 3/4-grow2 折算 → update_pvp_rank
     // → PVPRoom SetPVPResult/recv 链。
     unsigned int score = (unsigned int)msg.m_result.m_field7c;   // msg+0x89（视图 +0x7c）
-    unsigned int playSec = (unsigned int)msg.m_result.m_field80 / 1000;  // msg+0x8d（视图 +0x80）
+    int playSec = (int)msg.m_result.m_field80 / 1000;            // msg+0x8d（视图 +0x80），有符号除
     if (10000 < score)
     {
         unsigned int over = score / 10000;
         score = score % 10000;
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x76, 1, (int)over, (int)playSec);
     }
-    bool reduced;
-    if (user->get_charac_job() == 3)
+    // ORIG _DAT_08bd6320=0.5（job3）/ _DAT_08bd6328=0.8（其余）双精度折算（(int) 截断语义）
+    bool reduced = (user->get_charac_job() == 3 ||
+                    (user->get_charac_job() == 4 && user->getCurCharFirstGrowType() == 2));
+    if (reduced)
     {
-        reduced = true;
-    }
-    else if (user->get_charac_job() == 4 && user->getCurCharFirstGrowType() == 2)
-    {
-        reduced = true;
+        score = (unsigned int)(0.5 * (double)score);
     }
     else
     {
-        reduced = false;
+        score = (unsigned int)(0.8 * (double)score);
     }
-    // ORIG _DAT_08bd6320=0.5（job3）/ _DAT_08bd6328=0.8（其余）双精度折算（ROUND 语义）
-    const double coeff = reduced ? 0.5 : 0.8;
-    unsigned int adjusted = (unsigned int)(coeff * (double)score + 0.5);
+    unsigned int adjusted = score;
     if (playSec < adjusted)
     {
         user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x73, 1, (int)adjusted, (int)playSec);
@@ -10753,11 +10749,10 @@ DisPatcher_Cera::DisPatcher_Cera() {}
 DisPatcher_Cera::~DisPatcher_Cera() {}
 int DisPatcher_Cera::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // ORIG 0x081fd360：s_pIPGHelper 虚表 +0x2c（slot10 IPGOutputConfirm(SIPGData*,SIPGData*)）
-    // 第一实参=user，第二实参为栈上未初始化（ORIG 未写 0x8(%esp)）；随后 LoadMileage(user)。
-    WongWork::IPG::SIPGData* res;   // ORIG 0x8(%esp) 未初始化
-    GlobalData::s_pIPGHelper->IPGOutputConfirm(
-        reinterpret_cast<WongWork::IPG::SIPGData*>(user), res);
+    // ORIG 0x081fd360：s_pIPGHelper 虚表 +0x2c（slot11 IPGQuery——vtable
+    // 0x08b420a8 逐槽实证：+0x28=slot10 IPGOutputConfirm(SIPGData*,SIPGData*)
+    // 0x08100e0a，+0x2c=slot11 IPGQuery 0x08100790）；随后 LoadMileage(user)。
+    GlobalData::s_pIPGHelper->IPGQuery(user);
     user->LoadMileage();
     return 0;
 }
@@ -11704,7 +11699,7 @@ int CUser::serviceOfShusia()
     {
         return 0x13;
     }
-    if (getCurCharacStamina() > 99)  // ORIG movzbl/cmp $0x63/seta（byte 无符号比较）
+    if (getCurCharacR()->m_stamina > 99)  // ORIG getCurCharacR + movzbl 0x75
     {
         return 0x12;
     }
@@ -11715,7 +11710,7 @@ int CUser::serviceOfShusia()
     }
 
     const int price = G_CDataManager()->m_serverParameter.getRecoverStaminaPrice(
-        get_charac_level(), getCurCharacStamina());
+        get_charac_level(), getCurCharacR()->m_stamina);
     if (getCurCharacMoney() < price)
     {
         return 0x16;

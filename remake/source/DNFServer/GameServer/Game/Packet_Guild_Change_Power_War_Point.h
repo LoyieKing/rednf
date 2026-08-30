@@ -21,7 +21,8 @@ public:
     Packet_Guild_Change_Power_War_Point()
         : PacketHeader(0x6a4, 0x2d), m_powerSide(0), m_winPoint(0), m_losePoint(0)
     {
-        memset(m_characNo, 0, sizeof(m_characNo));
+        memset(m_characNo, 0, 0x10);              // ORIG 分两次：+0xb[16] 胜者
+        memset(&m_characNo[4], 0, 0x10);          // ORIG：+0x1b[16] 败者
     }
 
     char          m_powerSide;          // +0x0a

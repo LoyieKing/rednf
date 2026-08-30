@@ -3133,7 +3133,7 @@ public:
     void lock();
     void unlock();
     int getBackupSeed();
-    unsigned char getPowerSide();
+    char getPowerSide();
     char* getClientHWSpec();
     void SetGuildDBInfo(STGuildDBInfoOnly& info);
     void ChangeGuildName(char* name);

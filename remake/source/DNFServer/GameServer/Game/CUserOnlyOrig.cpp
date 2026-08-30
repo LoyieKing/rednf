@@ -277,10 +277,9 @@ CItem* CUser::_GetRecipeItem(unsigned long itemIdx, bool byIndex, int& outSlotRe
     }
     else
     {
-        Inven_Item slot;                                    // GetInvenSlot 按隐藏返回值回填
         CInventory* inven = const_cast<CInventory*>(getCurCharacInvenR());
-        slot = inven->GetInvenSlot(1, (int)itemIdx);
-        if (((const unsigned char*)&slot)[5] == 0)          // slot.m_addInfo==0（+0x05 uchar 区）
+        const Inven_Item& slot = inven->GetInvenSlot(1, (int)itemIdx);   // ORIG 无构造/拷贝：直接绑定隐藏返回
+        if (slot.m_addInfo == 0)                            // ORIG mov -0x4b(+0x02 dword) test
             return 0;
         outSlotRef = slot.get_add_info();
         ret = G_CDataManager()->find_item(slot.m_addInfo);
@@ -289,7 +288,7 @@ CItem* CUser::_GetRecipeItem(unsigned long itemIdx, bool byIndex, int& outSlotRe
     }
     if (!ret->is_stackable())
         return 0;
-    if (((CStackableItem*)ret)->GetMonsterCardId() /*CItem* 静态视为 stackable*/ != 3)                  // CItem+0x2b0 !=3 → 失败
+    if (((CStackableItem*)ret)->m_nItemType != 3)   // ORIG 读 +0x2b0（非 GetMonsterCardId +0x2b8）
         return 0;
     return ret;
 }
@@ -690,13 +689,13 @@ void CUser::_processCharacterDayEvent(unsigned int oldFatigue, unsigned int addF
         return;
 
     static const float DIV_DAY = 30.0f;  // ORIG .rodata DAY 常量（0x08cf3960 处值 30.0，已验证）
-    int dayA = (int)ROUNDf((float)oldFatigue / DIV_DAY);
-    int dayB = (int)ROUNDf((float)total / DIV_DAY);
+    int dayA = (int)(oldFatigue / DIV_DAY);
+    int dayB = (int)(total / DIV_DAY);
     if (dayA == dayB)
     {
         static const float DIV_WEEK = 156.0f;  // ORIG .rodata WEEK 常量（0x08cf3964 处值 156.0，已验证）
-        int weekA = (int)ROUNDf((float)oldFatigue / DIV_WEEK);
-        int weekB = (int)ROUNDf((float)total / DIV_WEEK);
+        int weekA = (int)(oldFatigue / DIV_WEEK);
+        int weekB = (int)(total / DIV_WEEK);
         if (weekA == weekB)
             return;
     }
@@ -742,8 +741,8 @@ void CUser::_processFatigueBuffEvent(unsigned int oldFatigue, unsigned int addFa
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
     static const float DIV = 50.0f;  // ORIG .rodata 常量（0x08cf3968 处值 50.0，已验证）
-    int zoneA = (int)ROUNDf((float)oldFatigue / DIV);
-    int zoneB = (int)ROUNDf((float)total / DIV);
+    int zoneA = (int)(oldFatigue / DIV);
+    int zoneB = (int)(total / DIV);
     if (zoneA == zoneB) return;
     int itemId = 0x1d95, addCount;
     const char* key = 0;

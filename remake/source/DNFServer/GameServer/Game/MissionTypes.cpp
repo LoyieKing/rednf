@@ -2,9 +2,13 @@
 #include "MissionTypes.h"
 
 
-// ORIG _ZN13MissionScriptC1Ev W 0x08a5baf0：成员默认构造后调 clear()。
+// ORIG 的 +0x10/+0x18 为 std::pair<int,int> 成员（ctor 默认构造为 0，
+// clear() 只重置 +0x10 的 pair）；重建布局拆成独立 int，ctor 必须显式
+// 清零 m_rateMin/m_rateMax（+0x18/+0x1c）以对齐 ORIG 的 pair 构造初值。
 MissionScript::MissionScript()
 {
+    m_rateMin = 0;
+    m_rateMax = 0;
     clear();
 }
 

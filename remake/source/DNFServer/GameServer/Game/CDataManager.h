@@ -717,8 +717,6 @@ struct stRefillItemInfo
 // stNPCCommonData_t（ORIG C1 0x837612e / D1 0x83761c6 / clear 0x89fae9e）：
 // {maxFavorExp@0; favorExp[10]@2}（clear 循环 movw $0,0x2(%eax,%edx,2) +
 // getIllustIndex 遍历实证）+0x18 favorableNpcList +0x24 illustrationVariableNpcList
-// +0x30 favorSystemBeginQuest +0x32 favorSystemBeginLevel +0x34 maxFavorLevelNpc
-// +0x38 favorLevelRewardNpcList +0x44 favorDurationBuffList，sizeof 0x50。
 struct stNPCCommonData_t
 {
     struct stOneBuff_t
@@ -728,6 +726,10 @@ struct stNPCCommonData_t
         unsigned char m_isNotPlus; // +0x08
         ~stOneBuff_t();            // ORIG W 0x08a04b54
     };                             // sizeof 0xc
+    // 用户提供默认构造：值初始化仅构造容器成员、不零初始化 POD 前缀。
+    // （ORIG CNPCScriptList C1 0x8376262 无 rep stos 预清——隐式构造行为；
+    //  无此 ctor 时 gnu++0x 值初始化会在调用点生成 memset。）
+    stNPCCommonData_t() {}
     unsigned short m_maxFavorExp;                    // +0x00 [npc favor exp] max
     unsigned short m_favorExp[10];                   // +0x02..+0x14 [npc favor exp]
     std::vector<int> m_favorableNpcList;             // +0x18 [favorable npc list]

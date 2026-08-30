@@ -106,7 +106,7 @@ void ProcessServerStatusLog();               // _Z22ProcessServerStatusLogv
 // ORIG 0x0829d7b3：conf.find(key) 命中且 value 非空 → 返回 value.c_str()；
 // 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
 // "%s tag error", key) 后返回 ""。
-std::string GetConfigFileString(
+const char* GetConfigFileString(
     std::map<std::string, std::string>& conf, const char* key)
 {
     std::string keyStr(key);

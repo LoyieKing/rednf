@@ -220,7 +220,8 @@ void HeroMissionEvent::StartEvent()
     }
     else
     {
-        m_isEventing = 1;
+        // ORIG 0x81666a8：loadScript 成功后 SetEventFlag(true)（写 +0x08 标志）
+        SetEventFlag(true);
         cMyTrace tr(__PRETTY_FUNCTION__, 0x203, 0);
         tr("[HeroMission] Start!");
     }
@@ -244,7 +245,8 @@ void HeroMissionEvent::EndEvent()
 {
     cMyTrace tr(__PRETTY_FUNCTION__, 0x20d, 0);
     tr("[HeroMission] End!");
-    m_isEventing = 0;
+    // ORIG 0x816674a：SetEventFlag(false)（写 +0x08 标志，与 IsEventing 同字段）
+    SetEventFlag(false);
 }
 
 TotalMission::TotalMission()

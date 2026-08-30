@@ -247,9 +247,12 @@ void StaticPool<T, N>::Free(T* p)
 template <class T, int N>
 int StaticPool<T, N>::GetIndex(T* p)
 {
-    if (p < (T*)m_pNode)
+    if ((unsigned int)p < (unsigned int)m_pNode)
         return -1;
-    int index = (int)((CNode*)p - m_pNode);
+    int diff = (int)((char*)p - (char*)m_pNode);
+    int index = 0;
+    if (diff != 0)
+        index = (unsigned int)diff / sizeof(CNode);
     CNode* pNode = (CNode*)p;
     if (pNode->magic != 0x8f21)
     {

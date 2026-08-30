@@ -1066,15 +1066,9 @@ int CParty::_Send_TOD_ClearReward()
     CUser* manager = getManager();
     TOD_UserState* todState = reinterpret_cast<TOD_UserState*>(
         manager->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)));
-    if (todState != 0)
-    {
-        TOD_Layer lastLayer = todState->getLastEnterLayer();
-        packet.put_short(lastLayer.GetLayer() & 0xffff);
-    }
-    else
-    {
-        packet.put_short(0);
-    }
+    TOD_Layer lastLayer = todState->getLastEnterLayer();   // ORIG 无条件（无 null 检查）
+    packet.put_short(lastLayer.GetLayer() & 0xffff);
+    packet.put_byte(10);   // ORIG +0x09c 固定 byte 10
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
     size_t rewardCount = bf.m_todReward.m_todMap.size();
     for (size_t i = 0; i < rewardCount; i++)

@@ -581,7 +581,7 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation
     char m_field5d;                    // +0x5d
     char m_chatMsg[0x100];             // +0x5e（memset 0）
 
-    bool isNeedTypeForChattingMsg(int type);   // ORIG W 0x0822c1ca（_ZN 非 const）
+    static bool isNeedTypeForChattingMsg(int type);   // ORIG W 0x0822c1ca：调用点只 push 1 参（静态）
 
 };
 struct SIG_AVATAR_MOVE { char m_pad[0x16]; };

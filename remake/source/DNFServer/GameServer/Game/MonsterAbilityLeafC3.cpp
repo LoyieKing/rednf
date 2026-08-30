@@ -305,7 +305,7 @@ void upgradeAbilityByChampionFeature(int elem, int roleType,
 
     if (haveChampionFeature(features, static_cast<CHAMPION_FEATURES>(0x2000d)))
         info->m_statBase3 =
-            static_cast<int>(static_cast<float>(info->m_statBase3) * 0.75f);
+            static_cast<int>(static_cast<float>(info->m_statBase3) * 1.5f);
     if (haveChampionFeature(features, static_cast<CHAMPION_FEATURES>(0x3000e)))
         info->m_statBase4 = static_cast<int>(
             static_cast<float>(info->m_statBase4) +
@@ -314,8 +314,8 @@ void upgradeAbilityByChampionFeature(int elem, int roleType,
         info->m_statBase12 =
             static_cast<int>(static_cast<float>(info->m_statBase12) * 2.5f);
     if (haveChampionFeature(features, static_cast<CHAMPION_FEATURES>(0x2ff03)))
-        info->m_statBase13 =
-            static_cast<int>(static_cast<float>(info->m_statBase13) * 2.5f);
+        info->m_statBase14 =
+            static_cast<int>(static_cast<float>(info->m_statBase14) * 2.5f);
     if (haveChampionFeature(features, static_cast<CHAMPION_FEATURES>(0x3000f)))
         info->m_statBase6 = static_cast<int>(
             static_cast<float>(info->m_statBase6) +
@@ -340,7 +340,7 @@ float STMonsterParameterCategory::getValueFloat() const
 namespace
 {
 // 类别 id → ActiveStaticInfo 字段映射；ORIG 跳转表 0x8e07f80 共 14 项
-// （id≤0xd 有效，越界返回 0 表示忽略）。id6/id12 同指 +0xac，
+// （id≤0xd 有效，越界返回 0 表示忽略）。id6 指 +0x158、id12 指 +0xac、
 // id10/id13 同指 +0x04，与 ORIG 表项一致。
 int* categoryField(ActiveStaticInfo* info, int id)
 {

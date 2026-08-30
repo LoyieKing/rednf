@@ -1899,21 +1899,26 @@ int Dispatcher_BingoQuiz::read(PacketBuf& packet, MSG_BASE& msg)
 void Dispatcher_BingoQuiz::send(CUser* user, ParamBase& param)
 {
     stBingoQuiz& out = static_cast<stBingoQuiz&>(param);
-    PacketGuard packet;
-    packet.put_header(1, 0x203);
+    // ORIG 各分支独立 PacketGuard（-0x18 / -0x24 分别构造）。
     if (out.m_result == 0)
     {
+        PacketGuard packet;
+        packet.put_header(1, 0x203);
         packet.put_byte(1);
         packet.put_int((int)out.m_bingoData);
+        packet.finalize(true);
+        user->Send(packet);
     }
     else
     {
+        PacketGuard packet;
+        packet.put_header(1, 0x203);
         packet.put_byte(0);
         packet.put_byte(out.m_result);
         packet.put_int((int)out.m_bingoData);
+        packet.finalize(true);
+        user->Send(packet);
     }
-    packet.finalize(true);
-    user->Send(packet);
 }
 
 
@@ -4062,8 +4067,7 @@ int Dispatcher_CodeCheckSum::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
 
-    char path[260];                                    // ORIG local_13c 清零区（rep stos 0x104）
-    memset(path, 0, sizeof(path));
+    char path[260] = { 0 };                            // ORIG rep stos 0x104 清零
 
     // ORIG 0x0820459a：checkCodeChecksum(checksum, path)；失败（返回 0）时
     // failKind = strstr(path,".exe.bak")?2:3 且 state>1 记 hack(0x3c8)。
@@ -4072,8 +4076,10 @@ int Dispatcher_CodeCheckSum::dispatch_sig(CUser* user, PacketBuf& packet)
     user->IncChecksumAnswerCount();
     if (!checksumOk)
     {
-        int failKind = std::strstr(path, ".exe.bak") != 0 ? 2 : 3;   // ORIG 死存储保留
-        (void)failKind;
+        int failKind = 2;                                          // ORIG 先置 2
+        if (std::strstr(path, ".exe.bak") == 0)                    // strstr 命中保持 2
+            failKind = 3;
+        (void)failKind;                                            // ORIG 死存储保留
         if (user->get_state() > 1)
         {
             user->getHackAnalyzer()->addServerHackCnt(user,
@@ -8385,7 +8391,7 @@ int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
         return 0x17;
 
     // +0x1a6：背包内材料数据
-    if (user->getCurCharacInvenW()->GetInvenData(mat->first, matItem) < 0)
+    if (((const CInventory*)user->getCurCharacInvenRefR())->GetInvenData(mat->first, matItem) < 0)
         return 0x15;
     // +0x1d8：数量校验（need < 1 或持有 < need → 0x16）
     if (mat->second < 1 || matItem.get_add_info() < mat->second)
@@ -8395,7 +8401,7 @@ int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
     Inven_Item buyItem;                                           // ctor 080cb854（-0xa2）
     buyItem.m_addInfo = (int)msgD;                                // msg+0x0d → item+0x02
     G_CDataManager()->getItemList()->create_item((ENUM_ITEM_CREATE_TYPE)0, buyItem, 1);
-    if (user->getCurCharacInvenW()->tryInsertItemIntoInventory(buyItem) < 0)
+    if (((const CInventory*)user->getCurCharacInvenRefR())->tryInsertItemIntoInventory(buyItem) < 0)
         return 0x4;
     return 0;
 }
@@ -10712,9 +10718,10 @@ int Dispatcher_DeleteToBlackList::process(CUser* user, MSG_BASE& msg, ParamBase&
 
     // Packet_Delete_To_BlackList local_40（ORIG 栈对象 sizeof 0x2c；字段为裸偏移）
     Packet_Delete_To_BlackList packet;
-    *(unsigned int*)((char*)&packet + 0x06) = user->get_acc_id();          // local_36
-    // strncpy(packet+0x0a, msg+0x14, *(size_t*)(msg+0x10))
-    strncpy((char*)&packet + 0x0a,
+    // ORIG 实测 2026-08-30：accId → packet+0x0a（C1 memset 区 +0x0e 起 0x1e 之前）；
+    // name → packet+0x0e（C1 memset 的 0x1e 字节区）。NEW 曾误写 +0x06/+0x0a（覆盖 connNo/accId），已修正。
+    *(unsigned int*)((char*)&packet + 0x0a) = user->get_acc_id();
+    strncpy((char*)&packet + 0x0e,
             (const char*)((char*)&msg + 0x14),
             (size_t)*(unsigned int*)((char*)&msg + 0x10));
 
@@ -14976,7 +14983,7 @@ int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet
             }
             if (bVar2)
             {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0xd5);
+                m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0xd5);
             }
             else
             {
@@ -14998,14 +15005,14 @@ int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet
                         m_resultItem.SetReSealCount(rounded);
                         if (m_resultItem.m_addInfo == 0)   // +0x92（m_resultItem 内偏移）
                         {
-                            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
+                            m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
                         }
                         else
                         {
                             cVar3 = (char)_remove_victim();
                             if (cVar3 == 0)
                             {
-                                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
+                                m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
                             }
                             else
                             {
@@ -15016,23 +15023,23 @@ int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet
                     }
                     else
                     {
-                        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
+                        m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0x11);
                     }
                 }
                 else
                 {
-                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0xd1);
+                    m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0xd1);
                 }
             }
         }
         else
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, (unsigned char)(int)(char)(cVar3));
+            m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, (unsigned char)(int)(char)(cVar3));
         }
     }
     else
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0);
+        m_user->SendCmdErrorPacket((ENUM_CMDPACKET)0x146, 0);
     }
     return 0;
 }
@@ -16003,7 +16010,7 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
     {
         return 0;
     }
-    if (pkt.isNeedTypeForChattingMsg(type))
+    if (Packet_Mannerless_User_Accusation::isNeedTypeForChattingMsg(type))
     {
         unsigned int chatLen = 0;                   // -0x60
         if (!packet.get_int(chatLen))
@@ -16139,7 +16146,7 @@ int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBa
         bool deleteFlag = false;
         if (deleteFlag)
         {
-            inven->delete_item((INVEN_TYPE)1, slot, 1, (eItemDelReason)3, true);
+            user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, slot, 1, (eItemDelReason)3, true);
         }
         return 0;
     }
@@ -23749,28 +23756,46 @@ int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param
 }
 
 // ==== Dispatcher_RefundSkill::send (ORIG 0x081dae0a) ====
+// ORIG 以 param 基址 + 固定偏移直读（-0xc 缓存指针，合并寻址 mov 0xNN(%eax)）。
+struct RefundParamView
+{
+    char m_pad00[0x04];
+    char m_treeIndex;            // +0x04 树序号（ORIG movsbl 符号扩展）
+    char m_special;              // +0x05 特殊技能（ORIG movsbl）
+    unsigned short m_remain;     // +0x06 剩余SP/SFP
+    int m_result;                // +0x08 refund 结果
+    unsigned char m_kind;        // +0x0c 树种类
+    unsigned char m_level;       // +0x0d 等级
+    char m_pad0e[2];
+    int m_itemIdx;               // +0x10 物品序号
+    unsigned char m_count;       // +0x14 数量
+    char m_pad15[3];
+    int m_err;                   // +0x18 错误码
+};
 void Dispatcher_RefundSkill::send(CUser* user, ParamBase& param)
 {
-    if (rfErr(param) != 0) {
+    RefundParamView& v = *reinterpret_cast<RefundParamView*>(&param);
+    if (v.m_err != 0) {                                         // +0x18 错误码
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1ab),
-                                 static_cast<unsigned char>(rfErr(param) & 0xff));
-        return;
+                                 static_cast<unsigned char>(v.m_err & 0xff));
     }
-
-    PacketGuard pg;
-    pg.clear();
-    pg.put_header(1, 0x1ab);
-    pg.put_byte(1);                                             // 成功标志
-    pg.put_byte(static_cast<int>(static_cast<char>(rfSpecial(param))));   // +0x05
-    pg.put_byte(static_cast<int>(static_cast<char>(rfTreeIndex(param)))); // +0x04
-    pg.put_short(static_cast<int>(rfRemain(param)));            // +0x06
-    pg.put_byte(static_cast<int>(rfResult(param) & 0xff));      // +0x08 低字节
-    pg.put_byte(static_cast<int>(rfKind(param)));               // +0x0c
-    pg.put_byte(static_cast<int>(rfLevel(param)));              // +0x0d
-    pg.put_int(rfItemIdx(param));                               // +0x10
-    pg.put_byte(static_cast<int>(rfCount(param)));              // +0x14
-    pg.finalize(true);
-    user->Send(pg);
+    else
+    {
+        PacketGuard pg;
+        pg.clear();
+        pg.put_header(1, 0x1ab);
+        pg.put_byte(1);                                         // 成功标志
+        pg.put_byte(static_cast<int>(v.m_special));                    // +0x05
+        pg.put_byte(static_cast<int>(v.m_treeIndex));               // +0x04
+        pg.put_short(static_cast<int>(v.m_remain));             // +0x06
+        pg.put_byte(static_cast<int>(static_cast<unsigned char>(v.m_result)));   // +0x08 低字节
+        pg.put_byte(static_cast<int>(v.m_kind));                // +0x0c
+        pg.put_byte(static_cast<int>(v.m_level));               // +0x0d
+        pg.put_int(v.m_itemIdx);                                // +0x10
+        pg.put_byte(static_cast<int>(v.m_count));               // +0x14
+        pg.finalize(true);
+        user->Send(pg);
+    }
 }
 
 /* ==================== SecurityCardAuthRpy_body.cpp (批次B1 落盘) ==================== */
@@ -26742,9 +26767,11 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
 extern "C" void _ZN12PacketHeaderC1Ett(void* self, unsigned short type, unsigned short size);
 
 // ORIG W 0x0822c1ca（_ZN 非 const）：(unsigned)type <= 2。
-bool Packet_Mannerless_User_Accusation::isNeedTypeForChattingMsg(int type)
+bool Packet_Mannerless_User_Accusation::isNeedTypeForChattingMsg(int type)   // ORIG 静态：无 this
 {
-    return (unsigned int)type <= 2u;
+    if ((unsigned int)type <= 2)   // ORIG: ja 分支结构（残留 add $0 为编译器形式差）
+        return true;
+    return false;
 }
 
 Packet_Mannerless_User_Accusation::Packet_Mannerless_User_Accusation()
@@ -26754,8 +26781,10 @@ Packet_Mannerless_User_Accusation::Packet_Mannerless_User_Accusation()
     m_type = 0;                                                // 0x0822c214：+0xe = 0
     m_serverGroup = 4;                                         // 0x0822c21e：+0x12 = 4
     m_accIdHi = 0;                                             // 0x0822c228：+0x1e = 0
-    memset(m_name, 0, 0x1e);                                   // 0x0822c235：+0x22[30] 清零
-    memset(m_chatMsg, 0, 0x100);                               // 0x0822c26b：+0x5e[0x100] 清零
+        memset(m_name, 0, 0x1e);                                   // 0x0822c235：+0x22[30] 清零
+    memset(m_targetName, 0, 0x1e);                             // 0x0822c24a：+0x40[30] 清零（NEW 曾漏）
+            memset(reinterpret_cast<char*>(this) + 0x5e, 0, 0x100);    // 0x0822c26b：+0x5e[0x100]（field5d+chatMsg）
+    reinterpret_cast<char*>(this)[0x15e] = 0;                  // ORIG movb $0,0x15e
 }
 
 // ---- DB_SecurityCardRetransfer::makeRequest ----

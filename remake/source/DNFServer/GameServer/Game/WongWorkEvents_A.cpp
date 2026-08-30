@@ -242,7 +242,7 @@ void EventSigong::ArrangeSigongEventItem(unsigned int mid, unsigned int serverId
         rowBuf[0] = 1;                     // ORIG: item1 常量数量
         rowBuf[1] = 200;                   // ORIG: item2 常量数量
 
-        db->get_int(0, (int&)rowBuf[10]);  // id
+        db->get_int(0, rowBuf[10]);        // id（ORIG 选 unsigned 重载 get_int(int,unsigned&)）
         db->get_int(1, (int&)rowBuf[8]);   // item1_no
         db->get_int(2, (int&)rowBuf[6]);   // item1_server_id
         db->get_int(3, (int&)rowBuf[4]);   // item1_charac_no

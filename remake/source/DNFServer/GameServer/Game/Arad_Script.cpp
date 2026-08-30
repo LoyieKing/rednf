@@ -104,11 +104,7 @@ int Arad_Script::GetIdx4Row(char* name)
 int Arad_Script::GetInt(int row, int col)
 {
     char* local_c;
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    local_c = cells_ + a;
+    local_c = cells_ + ((cols_ * row + col) << 7);
     return std::atoi(local_c);
 }
 
@@ -130,11 +126,7 @@ int Arad_Script::GetInt(int row, char* col)
 float Arad_Script::GetFloat(int row, int col)
 {
     char* local_c;
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    local_c = cells_ + a;
+    local_c = cells_ + ((cols_ * row + col) << 7);
     return (float)std::atof(local_c);
 }
 
@@ -156,11 +148,7 @@ float Arad_Script::GetFloat(int row, char* col)
 double Arad_Script::GetDouble(int row, int col)
 {
     char* local_c;
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    local_c = cells_ + a;
+    local_c = cells_ + ((cols_ * row + col) << 7);
     return std::atof(local_c);
 }
 
@@ -181,11 +169,9 @@ double Arad_Script::GetDouble(int row, char* col)
 
 char* Arad_Script::GetString(int row, int col)
 {
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    return cells_ + a;
+    char* local_c;
+    local_c = cells_ + ((cols_ * row + col) << 7);
+    return local_c;
 }
 
 char* Arad_Script::GetString(char* row, char* col)
@@ -205,11 +191,7 @@ char* Arad_Script::GetString(int row, char* col)
 
 void Arad_Script::SetInt(int row, int col, int value)
 {
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    std::sprintf(cells_ + a, "%d", value);
+    std::sprintf(cells_ + ((cols_ * row + col) << 7), "%d", value);
 }
 
 void Arad_Script::SetInt(char* row, char* col, int value)
@@ -229,11 +211,7 @@ void Arad_Script::SetInt(int row, char* col, int value)
 
 void Arad_Script::SetString(int row, int col, char* value)
 {
-    int a = cols_;
-    a = a * row;
-    a = a + col;
-    a = a << 7;
-    std::strcpy(cells_ + a, value);
+    std::strcpy(cells_ + ((cols_ * row + col) << 7), value);
 }
 
 void Arad_Script::SetString(char* row, char* col, char* value)

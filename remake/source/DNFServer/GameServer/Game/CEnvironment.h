@@ -98,7 +98,7 @@ struct STDBConnInfo
     STDBConnInfo();
 
     char m_host[0x11];      // +0x00
-    int m_port;             // +0x14
+    unsigned int m_port;    // +0x14（ORIG QueryConnInfo 走 get_int EiRj unsigned 重载）
     char m_user[0x15];      // +0x18
     char m_pass[0x15];      // +0x2d
     char m_db[0x1f];        // +0x42

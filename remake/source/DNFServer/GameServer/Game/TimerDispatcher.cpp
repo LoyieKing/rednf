@@ -1311,7 +1311,7 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
     }
     const int diff = field->getNextRoundRandomDifficulty();
     field->setUltimateDifficulty(static_cast<char>(diff));
-    const int roundOrder = static_cast<int>(field->m_bloodRound.getBloodRoundOrder());
+    const int roundOrder = static_cast<short>(field->m_bloodRound.getBloodRoundOrder());
     if (roundOrder != field->getBloodMaxRound() - 1)
     {
         field->sendUltimateRandomDifficulty(roundOrder, diff);
@@ -1904,26 +1904,26 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         // ORIG 0x086369e6：DisConnSig(0x1d, false, 0) 断线
         user->DisConnSig((DISCONN_SIG)0x1d, false, 0);
         char ip[20];
-        ip[0] = '\\0';
-        ip[1] = '\\0';
-        ip[2] = '\\0';
-        ip[3] = '\\0';
-        ip[4] = '\\0';
-        ip[5] = '\\0';
-        ip[6] = '\\0';
-        ip[7] = '\\0';
-        ip[8] = '\\0';
-        ip[9] = '\\0';
-        ip[10] = '\\0';
-        ip[11] = '\\0';
-        ip[12] = '\\0';
-        ip[13] = '\\0';
-        ip[14] = '\\0';
-        ip[15] = '\\0';
-        ip[16] = '\\0';
-        ip[17] = '\\0';
-        ip[18] = '\\0';
-        ip[19] = '\\0';
+        ip[0] = '\0';
+        ip[1] = '\0';
+        ip[2] = '\0';
+        ip[3] = '\0';
+        ip[4] = '\0';
+        ip[5] = '\0';
+        ip[6] = '\0';
+        ip[7] = '\0';
+        ip[8] = '\0';
+        ip[9] = '\0';
+        ip[10] = '\0';
+        ip[11] = '\0';
+        ip[12] = '\0';
+        ip[13] = '\0';
+        ip[14] = '\0';
+        ip[15] = '\0';
+        ip[16] = '\0';
+        ip[17] = '\0';
+        ip[18] = '\0';
+        ip[19] = '\0';
         const char* ipStr = user->m_network.GetPeerIP2(ip, 0x14);  // +0xe0
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -2019,12 +2019,14 @@ TimerCheckForcedDisconnect::~TimerCheckForcedDisconnect() {}
 // 报告：docs/class_func_reports/TimerCheckForcedDisconnect/{dispatch_sig,RegistNextTimer}.md
 
 // ORIG T 0x08636e06 (_ZN26TimerCheckForcedDisconnect12dispatch_sigEiij)
+// 参数语义（实测 2026-08-30）：getUser(p1, 0x2)，比较 unique_id!=p2；
+// NEW 曾误用 p2/p3，已修正。
 int TimerCheckForcedDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p2, 0x2);
+    CUser* user = G_CGameManager()->getUser(p1, 0x2);
     if (user == NULL)
         return 0;
-    if ((unsigned short)user->get_unique_id() != p3)
+    if ((unsigned short)user->get_unique_id() != p2)
         return 0;
     if (user->get_state() != 7)
         return 1;

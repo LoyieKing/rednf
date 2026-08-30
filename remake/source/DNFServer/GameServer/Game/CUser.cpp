@@ -2557,9 +2557,10 @@ int CUser::CheckMoveTown(int vill)
 {
     if (G_GameWorld()->IsPVPChannel())
         return 0;
-    if (vill <= 10)
+    if (static_cast<unsigned int>(vill) <= 10)   // ORIG: ja 无符号比较
     {
-        if ((1 << vill) & 0x580)
+        register int moveMask = 1 << vill;   // ORIG: shl 形式且不落栈（register）
+        if (moveMask & 0x580)
             return 0;
     }
     	Village* village = G_GameWorld()->GetVillage(vill);
@@ -4013,7 +4014,7 @@ int CUser::getBackupSeed()
     return m_backupSeed;
 }
 
-unsigned char CUser::getPowerSide()
+char CUser::getPowerSide()
 {
     return m_guildDB.m_field95;
 }
@@ -7217,8 +7218,9 @@ void CUser::FatigueUp(int v)
     m_fatigueGain = v;                             // +0x8e08c
     incCurCharacUsedFatigue((unsigned short)v);
     unsigned short nowFatigue = (unsigned short)getCurCharacUsedFatigue();
-    // ORIG imul $0x147b（除以 25 魔术数）：nowFatigue % 50 == 0
-    if ((short)((short)nowFatigue + (short)((nowFatigue >> 1 & 0x7fff) / 0x19) * -0x32) == 0)
+    // ORIG：imul $0x147b（除以 25 魔术数）后乘 -0x2a（42）——ORIG 实际为
+    // now - 42*floor(now/50) == 0（仅 now==0 触发）；NEW 曾误写 -0x32(50)。
+    if ((short)((short)nowFatigue + (short)((nowFatigue >> 1 & 0x7fff) / 0x19) * -0x2a) == 0)
         getHackAnalyzer()->addServerHackCnt(this, (WongWork::ENUM_HACKTYPE)0x263, 1, 0, 0);
 
     if ((short)getCurCharacUsedFatigue() == 0x9c)
@@ -10349,9 +10351,10 @@ void CUser::SendLoginToPCRoomServer()
 void CUser::SendLogoutToPCRoomServer()
 {
     char login[0x210];
-    memset(login, 0, sizeof(login));
     login[0] = 1;
     strcpy(login + 2, get_acc_name());
+    login[1] = (char)strlen(get_acc_name());
+    strcpy(login + 2, get_acc_name());   // ORIG 重复一次（+0x049/+0x064 双 strcpy）
     login[1] = (char)strlen(get_acc_name());
     strcpy(login + 0x102, getCurCharacName());
     login[0x101] = (char)strlen(getCurCharacName());

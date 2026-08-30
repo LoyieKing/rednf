@@ -60,7 +60,7 @@ public:
     // ---- P2P/NAT 接口（<4096,450000> 实例使用）----
     char* GetPeerIP2(char* ip, int size);
     char* get_str_ip();
-    unsigned char get_nat_type();
+    char get_nat_type();
     void set_nat(char natType, unsigned int innerIp, unsigned int ip,
                  unsigned short port, unsigned int mtu);
     void set_nat(char natType, unsigned int innerIp, unsigned int ip,
@@ -571,7 +571,7 @@ char* CNetwork<N1, N2>::get_str_ip()
 }
 
 template <int N1, int N2>
-unsigned char CNetwork<N1, N2>::get_nat_type()
+char CNetwork<N1, N2>::get_nat_type()
 {
     return m_natType;
 }

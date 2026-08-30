@@ -5309,7 +5309,8 @@ int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len
     trace("Inter_MonitorForbidChat::dispatch_sig recv\n");
 
     const size_t nameLen = *reinterpret_cast<size_t*>(data + 0xe);
-    char name[30] = { '\0' };
+    char name[30];                                              // ORIG call memset 清零
+    memset(name, 0, sizeof(name));
     strncpy(name, data + 0x12, nameLen);
 
     if (!G_GameWorld()->IsForbiddenChat(name))

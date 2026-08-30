@@ -259,7 +259,7 @@ void GameWorld::InsertChannel(int gcNo, ENUM_SERVER_GROUP group)
     **guard << 0x2d;
     **guard << -1;
 
-    struct stChannelInsertInfo
+    struct __attribute__((packed)) stChannelInsertInfo
     {
         int m_gcNo;                 // +0x00
         unsigned short m_zero;      // +0x04

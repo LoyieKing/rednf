@@ -73,6 +73,8 @@ bool DenyPacket(int id)
 
     if (id <= 0x100)
     {
+        if (id == 0x100)
+            return true;
         if (id <= 0xcd)
         {
             if (id >= 0xcc)  // 0xcc..0xcd

@@ -2004,10 +2004,8 @@ void CParty::ReturnToVillage()
     packet.put_header(0, 2);
     if (m_autoCreated == 0)
     {
-        packet.put_byte(0);
-        packet.put_short(get_member_count());
-        char names[0x100];
-        memset(names, 0, 0x100);
+        char names[0x40];   // ORIG rep stos 0x40
+        memset(names, 0, 0x40);
         _getMemberNames(names);
         for (int i = 0; i <= 3; ++i)
         {
@@ -2059,8 +2057,8 @@ void CParty::ReturnToVillage()
     {
         if (m_dungeon != 0)
         {
-            char names2[0x100];
-            memset(names2, 0, 0x100);
+            char names2[0x40];   // ORIG rep stos 0x40（+0x32b）
+            memset(names2, 0, 0x40);
             int pt = m_partyType;
             char* n = _getMemberNames(names2);
             int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
@@ -2626,8 +2624,8 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
     // 注意 ORIG 次序：燃烧疲劳块在择优之后执行并会把 m_bestType 覆写为 1。
     if (param.m_burningFatigueBonusExp != 0)
     {
-        bonus.m_burningFatigueExp =
-            (unsigned int)((long long)param.m_burningFatigueBonusExp * (long long)exp / 100);
+        bonus.m_burningFatigueExp =   // ORIG 32 位乘除（mul+shr 魔术，无 __divdi3）
+            (unsigned int)((unsigned int)param.m_burningFatigueBonusExp * exp / 100);
         bonus.m_bestType = 1;
     }
 

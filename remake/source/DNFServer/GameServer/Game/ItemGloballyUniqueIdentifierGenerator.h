@@ -32,7 +32,7 @@ class CItemGloballyUniqueIdentifierGenerator
 public:
     CItemGloballyUniqueIdentifierGenerator() { m_seq = 0; }
     unsigned short getSeq();
-    void generate(itemGloballyUniqueIdentifier_t* id, int field);
+    itemGloballyUniqueIdentifier_t* generate(itemGloballyUniqueIdentifier_t* id, int field);  // ORIG 末尾 return id
 
 private:
     unsigned short m_seq;                       // @+0x00

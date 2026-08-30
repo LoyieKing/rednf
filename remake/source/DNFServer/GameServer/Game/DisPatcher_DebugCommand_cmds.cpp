@@ -339,8 +339,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser* user, int kind,
 // ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (user->isGMUser() != 1)
         return false;
     DBG_TRACE(g_dbgCmdPrettyLevelUpDown, 0x1ce, "%s:'%s' GM Mode Level Up.");
 
@@ -350,8 +349,8 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
     bool changed = true;                        // -0x9 local_d
     int candA = user->get_charac_level() + delta;   // +0xb1 lv+delta
     int candB = 200;                            // +0xbe $200
-    // std::min(candB=&lv+delta… ORIG min<int>(&local_18[1], &local_18[0]) → 取较小者
-    int newLevel = (candA < candB) ? candA : candB;
+    // ORIG min<int>(&lv+delta, &$200) 取较小者 → SetCharacLevel
+    int newLevel = std::min(candB, candA);
     if (_ZN5CUser14SetCharacLevelEi(user, newLevel) != 1)   // +0xdc xor $1/test al 判成功
         changed = false;
     if (changed)
@@ -420,34 +419,28 @@ bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
     return true;
 }
 
-// ===========================================================================
-// 10. _debugCommandAddAvatar —— 0x0858f7b6
-// ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
                                                      MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (user->isGMUser() != 1)
         return false;
 
     char dateKey[0x18];                                         // -0x4c
     memset(dateKey, 0, sizeof(dateKey));                        // +0x28 memset 0x18
     time_t now = time(0);                                       // +0x43 time(NULL)
     struct tm broken;                                           // -0x80
-    localtime_r(&now, &broken);                                 // +0x55 localtime_r
+    struct tm* p = localtime_r(&now, &broken);                  // +0x55 localtime_r
     // env+0x1b0 = Server_Envir(+0x198).m_channelNo(+0x18)
-    int channelNo = *(reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(G_CEnvironment()) + 0x1b0));
     OS_API::snprintf(dateKey, 0x14, "D%02d%02d%02d%02d%010d",
-                     channelNo,
-                     (broken.tm_year + 0x76c) % 2000,           // +0xa3 (yr+1900)%2000
-                     broken.tm_mon + 1,
-                     broken.tm_mday,
+                     *(reinterpret_cast<const int*>(
+                         reinterpret_cast<const char*>(G_CEnvironment()) + 0x1b0)),
+                     (p->tm_year + 0x76c) % 2000,               // +0xa3 (yr+1900)%2000
+                     p->tm_mon + 1,
+                     p->tm_mday,
                      (unsigned int)user->getCurCharacNo());     // %010d
 
     CItem* item = G_CDataManager()->find_item((int)msg.m_arg);  // +0x106 find_item(msg[0xe])
-    bool isAvatar = (item != 0 && item->IsAvatarItem());        // +0x114 vtbl+0x10 虚槽
-    if (!isAvatar)
+    if (!(item != 0 && item->IsAvatarItem()))                   // +0x114 vtbl+0x10 虚槽
         return false;
 
     int usablePeriod = item->getUsablePeriod();                 // +0x145 thunk
@@ -457,28 +450,35 @@ bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
           (unsigned int)(unsigned char)msg.payload.avatar.periodKind,
           usablePeriod);
 
-    int periodArg;
+    int slot;
     if (msg.payload.avatar.periodKind == 0)                     // +0x1a3 分支一
     {
-        periodArg = usablePeriod;                               // 物品表默认天数
+        slot = user->getCurCharacInvenW()->AddAvatarItem(       // +0x221
+            (int)msg.m_arg,
+            item->getUsablePeriod(),                            // 分支一重新调用
+            /*b*/ false,
+            /*c*/ (char)msg.payload.avatar.slotByte,            // sbyte 槽位口径
+            /*d*/ (char)-1,
+            /*agency*/ dateKey,
+            static_cast<eAvatarItemAddReason>(9),
+            /*e*/ false,
+            /*f*/ msg.payload.avatar.count);                    // u16 数量
     }
     else                                                        // +0x22e 分支二
     {
         if (msg.payload.avatar.periodKind == 0x63)              // 哨兵 99 → 0
             msg.payload.avatar.periodKind = 0;
-        periodArg = msg.payload.avatar.periodKind;
+        slot = user->getCurCharacInvenW()->AddAvatarItem(       // +0x2b5
+            (int)msg.m_arg,
+            (int)msg.payload.avatar.periodKind,
+            /*b*/ false,
+            /*c*/ (char)msg.payload.avatar.slotByte,
+            /*d*/ (char)-1,
+            /*agency*/ dateKey,
+            static_cast<eAvatarItemAddReason>(9),
+            /*e*/ false,
+            /*f*/ msg.payload.avatar.count);                    // u16 数量
     }
-
-    int slot = user->getCurCharacInvenW()->AddAvatarItem(       // +0x221/+0x2b5
-        (int)msg.m_arg,
-        periodArg,
-        /*b*/ false,
-        /*c*/ (char)msg.payload.avatar.slotByte,                // sbyte 槽位口径
-        /*d*/ (char)-1,
-        /*agency*/ dateKey,
-        static_cast<eAvatarItemAddReason>(9),
-        /*e*/ false,
-        /*f*/ msg.payload.avatar.count);                        // u16 数量
 
     if (slot == -1)                                             // +0x2bd
         return false;

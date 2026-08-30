@@ -139,16 +139,13 @@ struct CTitleBookInfoRaw
     std::vector<stAdjust> m_adjustList;                          // +0x3c
 };
 
-static std::vector<stTitleSection>& GetTitleSections(CDataManager* mgr)
+// CDataManager 局部代理：m_titleBook@+0xa788（成员链让 GCC 折叠为单 lea）
+struct CTitleBookMgrRaw
 {
-    return ((CTitleBookInfoRaw*)((char*)mgr + 0xa788))->m_sections;
-}
+    char m_pad0[0xa788];                                         // +0x00
+    CTitleBookInfoRaw m_titleBook;                               // +0xa788
+};
 
-static std::map<int, std::vector<stTitleElement> >& GetTitleElements(
-    CDataManager* mgr)
-{
-    return ((CTitleBookInfoRaw*)((char*)mgr + 0xa788))->m_elements;
-}
 // 称号簿 DB 存档（stTitleBook_Save，0x6b3e 字节；ORIG 未对齐写 +0x6b3a → pack(1)）
 #pragma pack(push, 1)
 struct stTitleBook_Save
@@ -308,11 +305,10 @@ void CTitleBook::sendListOtherUser(CUser* user,
 
 bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 {
-    std::map<int, std::vector<stTitleElement> >& elements =
-        GetTitleElements(G_CDataManager());
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
-             elements.begin();
-         it != elements.end(); ++it)
+             ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
+         it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
+         ++it)
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
@@ -334,11 +330,11 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
                                int slot)
 {
-    std::map<int, std::vector<stTitleElement> >& elements =
-        GetTitleElements(G_CDataManager());
     std::map<int, std::vector<stTitleElement> >::iterator it =
-        elements.find((int)category);
-    if (it == elements.end())
+        ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
+            (int)category);
+    if (it == ((CTitleBookMgrRaw*)G_CDataManager())
+                  ->m_titleBook.m_elements.end())
     {
         return 0;
     }
@@ -362,11 +358,10 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
                              int& slot)
 {
-    std::map<int, std::vector<stTitleElement> >& elements =
-        GetTitleElements(G_CDataManager());
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
-             elements.begin();
-         it != elements.end(); ++it)
+             ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
+         it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
+         ++it)
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
@@ -601,7 +596,7 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     if (sectionIdx != 0xffffffff)
     {
         stTitleSection& section =
-            GetTitleSections(G_CDataManager())[sectionIdx];
+            ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_sections[sectionIdx];
         if (!section.m_name.empty())
         {
             return 0xc;
@@ -766,11 +761,11 @@ bool CTitleBook::_checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
                                    int slot)
 {
-    std::map<int, std::vector<stTitleElement> >& elements =
-        GetTitleElements(G_CDataManager());
     std::map<int, std::vector<stTitleElement> >::iterator it =
-        elements.find((int)category);
-    if (it == elements.end())
+        ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
+            (int)category);
+    if (it == ((CTitleBookMgrRaw*)G_CDataManager())
+                  ->m_titleBook.m_elements.end())
     {
         return 0;
     }

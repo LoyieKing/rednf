@@ -643,7 +643,9 @@ void CMissionList_Charac::Reset_DailyMission()
     G_CDataManager()->get_New_DailyMission(newList);
     if (newList.empty())
     {
-        // ORIG 此处仅打日志
+        // ORIG 0x85e5607：cMyTrace 5/0x669 记 "[@missionSystem] Daily Mission List is Empty!!"
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x669, 5);
+        trace("[@missionSystem] Daily Mission List is Empty!!");
     }
     for (unsigned int i = 0; i < newList.size(); ++i)
     {

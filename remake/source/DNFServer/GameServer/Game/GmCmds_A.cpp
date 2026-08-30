@@ -102,24 +102,14 @@ public:
 namespace game_master
 {
 
-namespace
-{
-
-// ---- 占位字段槽访问（见文件头布局说明）----
-inline int& cmd_int0(void* cmd)
-{
-    return *reinterpret_cast<int*>(static_cast<char*>(cmd) + 0x08);
-}
-inline int& cmd_int1(void* cmd)
-{
-    return *reinterpret_cast<int*>(static_cast<char*>(cmd) + 0x0c);
-}
-inline unsigned char& cmd_byte0(void* cmd)
-{
-    return *reinterpret_cast<unsigned char*>(static_cast<char*>(cmd) + 0x08);
-}
-
-} // namespace
+// ---- 占位字段槽访问（见文件头布局说明）。O0 下 inline 函数不内联（ORIG
+// 为内联成员访问），故用宏保证展开匹配 ORIG。----
+#define cmd_int0(cmd) \
+    (*reinterpret_cast<int*>(reinterpret_cast<char*>(cmd) + 0x08))
+#define cmd_int1(cmd) \
+    (*reinterpret_cast<int*>(reinterpret_cast<char*>(cmd) + 0x0c))
+#define cmd_byte0(cmd) \
+    (*reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(cmd) + 0x08))
 
 // ---------------------------------------------------------------------------
 // ORIG 真实符号原型（带参辅助；asm 标签对齐 ORIG mangled。本 TU 提供定义，
