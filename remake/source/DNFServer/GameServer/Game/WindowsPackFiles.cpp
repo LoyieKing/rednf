@@ -936,12 +936,14 @@ void WindowsCodeProtectorServer::Destroy()                   // 0x08575500
         delete m_exeFamily;
         m_exeFamily = 0;
     }
-    for (std::size_t i = 0; i < m_dataFamilies.size(); ++i)
+    // ORIG 0x08575500：迭代器 for 循环（begin/end/++/de）
+    for (std::vector<WindowsDataFileFamily*>::iterator it =
+             m_dataFamilies.begin(); it != m_dataFamilies.end(); ++it)
     {
-        if (m_dataFamilies[i] != 0)
+        if (*it != 0)
         {
-            delete m_dataFamilies[i];
-            m_dataFamilies[i] = 0;
+            delete *it;
+            *it = 0;
         }
     }
     m_dataFamilies.clear();
@@ -959,11 +961,13 @@ bool WindowsCodeProtectorServer::FindExeFamilyFile(const char* name) // 0x085755
 WindowsDataFileFamily*
 WindowsCodeProtectorServer::FindDataFamilyFile(const char* name) // 0x0857562e
 {
-    for (std::size_t i = 0; i < m_dataFamilies.size(); ++i)
+    // ORIG：迭代器 for 循环（begin/end/++/de）
+    for (std::vector<WindowsDataFileFamily*>::iterator it =
+             m_dataFamilies.begin(); it != m_dataFamilies.end(); ++it)
     {
-        if (strcmp(m_dataFamilies[i]->m_name, name) == 0)
+        if (strcmp((*it)->m_name, name) == 0)
         {
-            return m_dataFamilies[i];
+            return *it;
         }
     }
     return 0;
@@ -1051,11 +1055,14 @@ bool WindowsCodeProtectorServer::IsDifferentExeVersionRoughly() // 0x08575970
     if (m_exeFamily != 0)
     {
         unsigned long maxFileSize = 0;
-        for (std::size_t i = 0; i < m_exeFamily->m_exeFiles.size(); ++i)
+        // ORIG：迭代器 for 循环（begin/end/++/de）
+        for (std::vector<WindowsExeFile*>::iterator it =
+                 m_exeFamily->m_exeFiles.begin();
+             it != m_exeFamily->m_exeFiles.end(); ++it)
         {
-            if (maxFileSize < m_exeFamily->m_exeFiles[i]->m_size)
+            if (maxFileSize < (*it)->m_size)
             {
-                maxFileSize = m_exeFamily->m_exeFiles[i]->m_size;
+                maxFileSize = (*it)->m_size;
             }
         }
         if (static_cast<unsigned long>(
@@ -1110,11 +1117,10 @@ bool WindowsCodeProtectorServer::GenerateChecksum(CodeHackChecksumEx* ckEx,
     }
     if (wantData)
     {
-        WindowsDataFileFamily* family =
-            m_dataFamilies[m_curDataFamily];
-        if (family->GenerateChecksum(ckEx, rangeEx))
+        // ORIG：m_dataFamilies[m_curDataFamily] 各取一次（不缓存指针）
+        if (m_dataFamilies[m_curDataFamily]->GenerateChecksum(ckEx, rangeEx))
         {
-            if (family->IsScanningAddressReset())
+            if (m_dataFamilies[m_curDataFamily]->IsScanningAddressReset())
             {
                 m_curDataFamily += 1;
                 if (static_cast<std::size_t>(m_curDataFamily) >=

@@ -1502,7 +1502,9 @@ const char* getElementName(ENUM_ELEMENT element)
 }
 
 // ---- OnlyOrigBatch3：CreatureAdditionalAnimation 3参构造（ORIG W 0x08a3dcc2）----
+// ORIG：m_name 默认构造（_ZNSsC1Ev）后赋值（_ZNSsaSEPKc）
 CreatureAdditionalAnimation::CreatureAdditionalAnimation(int a, int b, const char* name)
-    : m_field0(a), m_field4(b), m_name(name)
+    : m_field0(a), m_field4(b)
 {
+    m_name = name;
 }

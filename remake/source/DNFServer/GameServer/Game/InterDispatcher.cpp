@@ -5394,14 +5394,16 @@ int Inter_Monitor_MegaphoneMsg::dispatch_sig(CUser* /*user*/, char* data, int /*
                    (unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x2d));
     packet.finalize(true);
 
-    if (G_GameWorld()->IsIntegratedPvPBaseChannel() == '\0')
+    // ORIG：group = IsIntegratedPvPBaseChannel() 返回值（非 recv+0xa）；
+    // 非 0 → send_server_group(group=返回值)，0 → send_all
+    const char integrated = G_GameWorld()->IsIntegratedPvPBaseChannel();
+    if (integrated != 0)
     {
-        G_GameWorld()->send_all(packet);
+        G_GameWorld()->send_server_group(packet, integrated);
     }
     else
     {
-        const char group = *reinterpret_cast<signed char*>(recv + 0xa);
-        G_GameWorld()->send_server_group(packet, group);
+        G_GameWorld()->send_all(packet);
     }
     return 0;
 }
@@ -8282,21 +8284,22 @@ Inter_AuctionNotifyAuctionService::~Inter_AuctionNotifyAuctionService() {}
 // 报告 docs/class_func_reports/Inter_AuctionNotifyAuctionService/dispatch_sig.md 全文转写。
 int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
+    SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+        reinterpret_cast<SIG_AUCTION_NOTIFY_AUCTION_SERVICE*>(data);
 
     PacketGuard packet;
     packet.put_header(0, 0xb7);
-    packet.put_byte((unsigned char)*recv);
-    if (*recv == 1)
+    packet.put_byte(sig->m_result);
+    if (sig->m_result == 1)
     {   // 点数拍卖服
-        GlobalData::s_cera_auction_proxy->SetRunning((char)recv[1]);
+        GlobalData::s_cera_auction_proxy->SetRunning((char)sig->m_flag);
     }
     else
     {   // 金币拍卖服
-        GlobalData::s_auction_proxy->SetRunning((char)recv[1]);
+        GlobalData::s_auction_proxy->SetRunning((char)sig->m_flag);
     }
 
-    if (recv[1] == '\0')
+    if (sig->m_flag == 0)
         packet.put_byte(0);
     else
         packet.put_byte(1);
@@ -8304,12 +8307,12 @@ int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data,
     G_GameWorld()->send_all(packet);
 
     const char* state;
-    if (recv[1] != '\0')                               // ORIG 真分支直落 "Opened"
+    if (sig->m_flag != 0)                              // ORIG 真分支直落 "Opened"
         state = "Opened";
     else
         state = "Closed";
     const char* serverName;
-    if (*recv == 0)                                    // ORIG data==0 直落 "Auction"
+    if (sig->m_result == 0)                            // ORIG data==0 直落 "Auction"
         serverName = "Auction";
     else
         serverName = "Point";
@@ -9392,10 +9395,12 @@ int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*
                 {
                     CUser* target = G_CGameManager()->GetUserByAccId(accId);
                     target->DisConnSig((DISCONN_SIG)0x2c, true, 0);
+                    // ORIG：NumberToString 先求值再构造 cMyTrace
+                    char* str = NumberToString(accId, 0);
                     cMyTrace kick(
                         __PRETTY_FUNCTION__,
                         0x43d4, 0);
-                    kick("System Kick User : %s", NumberToString(accId, 0));
+                    kick("System Kick User : %s", str);
                 }
             }
             i = i + 1;                                 // addl $0x1,mem 形态
@@ -11700,10 +11705,12 @@ int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*
     const unsigned char punishMode = *reinterpret_cast<unsigned char*>(data + 4);
     CUser* target = getUser(uid);
 
+    // ORIG：NumberToString 先求值（存寄存器）再构造 cMyTrace
+    char* uidStr = NumberToString(uid, 0);
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x5eb3, 0);
-    trace("requested uid(%s), punish_mode(%d), user(%x)",
-          NumberToString(uid, 0), (int)punishMode, target);
+    trace("requested uid(%s), punish_mode(%d), user(%x)", uidStr,
+          (int)punishMode, target);
 
     if (punishMode == 2)
     {

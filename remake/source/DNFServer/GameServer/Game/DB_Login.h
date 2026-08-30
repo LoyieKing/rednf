@@ -13,10 +13,10 @@
 //   全源码此前无 owner，定义在本头（inline → weak，与 ORIG W 一致；
 //   dispatch T 级实现放 DB_Login.cpp）。nsl::DBDispatcher 为另一独立类，
 //   二者 ABI 互不相干（basic_header/DBDispatcher.h）。
-//
-// tagDNFEventEntry（5×int POD，_LoadDNFEventEntry 逐列 get_int 填充）：
-//   +0x00 event_id | +0x04 unix_timestamp(occ_date) | +0x08 server_id
-//   +0x0c charac_no | +0x10 unix_timestamp(obtain_date)
+// tagDNFEventEntry（6×int POD 占 0x18，ORIG 步长 0x18 实证；+0x04 为 ORIG 占位
+// 从未填充/读取）：
+//   +0x00 event_id | +0x04 (reserved) | +0x08 unix_timestamp(occ_date)
+//   +0x0c server_id | +0x10 charac_no | +0x14 unix_timestamp(obtain_date)
 #include "CEnvironment.h"   // ENUM_DB_HANDLE_IDX / ENUM_SERVER_GROUP
 
 #include <vector>
@@ -49,10 +49,11 @@ public:
     struct tagDNFEventEntry
     {
         int m_eventId;       // +0x00 event_id
-        int m_occDate;       // +0x04 unix_timestamp(occ_date)
-        int m_serverId;      // +0x08 server_id
-        int m_characNo;      // +0x0c charac_no
-        int m_obtainDate;    // +0x10 unix_timestamp(obtain_date)
+        int m_reserved;      // +0x04 ORIG 占位（从未填充/读取，保持 sizeof==0x18）
+        int m_occDate;       // +0x08 unix_timestamp(occ_date)
+        int m_serverId;      // +0x0c server_id
+        int m_characNo;      // +0x10 charac_no
+        int m_obtainDate;    // +0x14 unix_timestamp(obtain_date)
 
         // ORIG 无显式 C1 符号；D1/D2 W 0x818d8d0（纯 ret）
         ~tagDNFEventEntry() {}

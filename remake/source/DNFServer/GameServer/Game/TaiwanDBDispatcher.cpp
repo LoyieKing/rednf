@@ -521,9 +521,9 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        if (!db->set_query(
-                "seLect rate, HOUR(CURTIME()), event_day FROM event_create_dnf_info WHERE occ_time=DATE_ADD(CURDATE(), INTERVAL HOUR(CURTIME()) HOUR)"))
-            throw "select_exec";
+        // ORIG：set_query 返回值不检查（仅 exec 检查）
+        db->set_query(
+            "seLect rate, HOUR(CURTIME()), event_day FROM event_create_dnf_info WHERE occ_time=DATE_ADD(CURDATE(), INTERVAL HOUR(CURTIME()) HOUR)");
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
@@ -725,17 +725,16 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
         if (db == 0)
             throw "handle null";
         unsigned int mId = *reinterpret_cast<unsigned int*>(sig);
-        if (!db->set_query("seLect m_id from mobile_auth_reward_tw where m_id=%s",
-                           NumberToString(mId, 0)))
-            throw "select_exec";
+        // ORIG：set_query 返回值不检查（仅 exec 检查）
+        db->set_query("seLect m_id from mobile_auth_reward_tw where m_id=%s",
+                      NumberToString(mId, 0));
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
-            if (!db->set_query(
-                    "inSert into mobile_auth_reward_tw(m_id,occ_date) VALUES(%s,now())",
-                    NumberToString(mId, 0)))
-                throw "insert_exec";
+            db->set_query(
+                "inSert into mobile_auth_reward_tw(m_id,occ_date) VALUES(%s,now())",
+                NumberToString(mId, 0));
             if (!db->exec(1))
                 throw "insert_exec";
             ok = false;
@@ -994,10 +993,11 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
             throw "handle_null";
         int serverGroup = G_CEnvironment()->get_server_group();
         unsigned int characNo = reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
-        if (!db->set_query(
-                "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
-                serverGroup, characNo))
-            throw "exec_select";
+        // ORIG 0x0815d7a8：set_query 返回值不检查（call 后直接 exec）；
+        // 仅 exec(1) 失败才 throw "exec_select"。
+        db->set_query(
+            "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
+            serverGroup, characNo);
         if (!db->exec(1))
             throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
@@ -1005,10 +1005,9 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         reinterpret_cast<SigHeroMissionDataView*>(&data)->m_field0 = characNo;
         if (db->get_n_rows() == 0)
         {
-            if (!db->set_query(
-                    "inSert into event_hero_mission_data values(%d,%u,'',now())",
-                    serverGroup, characNo))
-                throw "exec_insert";
+            db->set_query(
+                "inSert into event_hero_mission_data values(%d,%u,'',now())",
+                serverGroup, characNo);
             if (!db->exec(1))
                 throw "exec_insert";
             memset(reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0, 0x100);
@@ -1063,10 +1062,11 @@ bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         int serverGroup = G_CEnvironment()->get_server_group();
         unsigned int characNo = reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
         char* blob = db->blob_to_str(0, reinterpret_cast<SigHeroMissionDataView*>(sig)->m_data, 0x100);
-        if (!db->set_query(
-                "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
-                blob, serverGroup, characNo))
-            throw "exec_update";
+        // ORIG 0x0815db98：set_query 返回值不检查（call 后直接 exec）；
+        // 仅 exec(1) 失败才 throw "exec_update"。
+        db->set_query(
+            "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
+            blob, serverGroup, characNo);
         if (!db->exec(1))
             throw "exec_update";
         return 1;

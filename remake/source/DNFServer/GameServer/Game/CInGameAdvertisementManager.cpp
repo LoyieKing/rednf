@@ -344,17 +344,12 @@ bool CInGameAdvertisementManager::CheckIngameAdvertisementCondition(
     CUser* user, stNotifyIngameADInfo& info, int flag)
 {
     stNotifyIngameADInfo buf;
+    // ORIG：vec 先构造、it 后初始化（调用顺序）；upper_bound 在循环条件处
+    std::vector<stNotifyIngameADInfo> vec;
     std::multimap<short, CAdvertisementExposeInfo*>::iterator it =
         m_exposeInfo.lower_bound(static_cast<short>(flag));
-    std::vector<stNotifyIngameADInfo> vec;
-    while (true)
+    while (it != m_exposeInfo.upper_bound(static_cast<short>(flag)))
     {
-        std::multimap<short, CAdvertisementExposeInfo*>::iterator ub =
-            m_exposeInfo.upper_bound(static_cast<short>(flag));
-        if (!(it != ub))
-        {
-            break;
-        }
         CAdvertisementExposeInfo* ad = it->second;
         if (checkCondition(user, ad))
         {

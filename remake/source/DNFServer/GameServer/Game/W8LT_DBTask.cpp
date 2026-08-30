@@ -12419,7 +12419,9 @@ bool DB_UpdateFatigueAttendance::dispatch(int /*userIdx*/, int /*slot*/,
         short fatigue = 0;          // -0x5c
         *stream >> occDay;
         *stream >> fatigue;
-        fatigueMap.insert(std::make_pair(occDay, fatigue));
+        // ORIG：显式 pair 构造（_ZNSt4pairIKhsEC1IRhRsEEOT_OT0_，非 make_pair）
+        fatigueMap.insert(
+            std::pair<const unsigned char, short>(occDay, fatigue));
     }
     CDataManager* dm = G_CDataManager();
     EventClassify::CEventScriptMng* sm =
@@ -17987,13 +17989,21 @@ bool DB_LoadBreakAwayPreventData::dispatch(int userIdx, int slot,
             "upDate churn_system_manager set state_flag=%d where no = %d",
             0, no);
         if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x8684, 0)(
+                "BREAK_AWAY : STATE_FALG ALREADY OFF!!");
             return 0;
+        }
         return 0;   // ORIG：flag==0 分支无论 UPDATE 成败均返 0
     }
     db->set_query(
         "upDate churn_system_manager set state_flag=%d where no = %d", 1, no);
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
-        return 0;
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x868a, 0)(
+            "BREAK_AWAY : STATE_FALG ALREADY ON!!");
+        // ORIG：ON 分支 UPDATE 失败/无影响行时打日志后继续执行（不返回）
+    }
     sig.m_fieldE = (unsigned char)flag;
     db->set_query(
         "seLect min_day, max_day, min_val, max_val, item_id, add_info, luck_point, quest_id from churn_reward_manager");
@@ -18027,7 +18037,7 @@ bool DB_LoadBreakAwayPreventData::dispatch(int userIdx, int slot,
     guard.operator*()->operator<<(0x141);
     guard.operator*()->operator<<(-1);
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* out =
-        guard.GetInBuffer<SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER>();
+        guard->GetInBuffer<SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER>();
     memcpy(out, &sig, 0x2e4);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -18113,20 +18123,28 @@ bool DB_LoadBreakAwayRewardData::dispatch(int userIdx, int slot,
         return 0;
     }
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x871e, 5)(
+            "BREAK_AWAY : ABNORMAL DB_LoadBreakAwayRewardData REWARD!!");
         return 0;
+    }
     db->set_query(
         "inSert into churn_reward_history_%s(m_id,occ_time,server_id,charac_no,item_id,add_info,luck_point,cera,reward_order) values(%s, from_unixtime(%u), %d, %u, %u, %d, %d, %u, %d)",
         ym, NumberToString(m_id, 0), (unsigned int)curSec, serverId,
         characNo, lastRewardTime, questTime, luckPoint, addInfo, rewardOrder);
     if (!db->exec(true))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x8740, 5)(
+            "BREAK_AWAY : ABNORMAL DB_LoadBreakAwayRewardData LOG!!");
         return 0;
+    }
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8745), true);
     guard.operator*()->operator<<(0x143);
     guard.operator*()->operator<<(slot);
     DB_BreakAwayMessageView* out =
         reinterpret_cast<DB_BreakAwayMessageView*>(
-            guard.GetInBuffer<SIG_BREAK_AWAY_PREVENT_MESSAGE>());
+            guard->GetInBuffer<SIG_BREAK_AWAY_PREVENT_MESSAGE>());
     if (rewardOrder == 0 || rewardOrder == 2)
         out->m_nextRewardTime = (unsigned int)curSec + 0x15180;
     out->m_rewardOrder = rewardOrder;
@@ -18203,7 +18221,11 @@ bool DB_LoadEventLevelupSupport::dispatch(int userIdx, int slot, Stream* stream)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
     if (db == 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0xc26d, 5)(
+            "[ERROR] Database Handle is NULL [index:%d]", 2);
         return 0;
+    }
     try
     {
         db->set_query(
@@ -18217,7 +18239,7 @@ bool DB_LoadEventLevelupSupport::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<(slot);
         DB_EventLevelupSupportView* out =
             reinterpret_cast<DB_EventLevelupSupportView*>(
-                guard.GetInBuffer<SIG_EVENT_LEVEUP_SUPPORT_INFO>());
+                guard->GetInBuffer<SIG_EVENT_LEVEUP_SUPPORT_INFO>());
         int rowCount = db->get_n_rows();
         out->m_count = (unsigned int)rowCount;
         for (int i = 0; i < rowCount; ++i)
@@ -18234,7 +18256,8 @@ bool DB_LoadEventLevelupSupport::dispatch(int userIdx, int slot, Stream* stream)
     }
     catch (unsigned int e)
     {
-        (void)e;
+        cMyTrace(__PRETTY_FUNCTION__, 0xc297, 5)(
+            "[ERROR] DB_LoadEventLevelupSupport. [line:%d]", e);
         return 0;
     }
 }

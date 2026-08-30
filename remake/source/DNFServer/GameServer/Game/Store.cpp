@@ -49,38 +49,39 @@ bool CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_ST
     packet.m_level = (short)b;
 
     int f = (int)field;
-    if (field == (DEATHTOWER_VALUE_STATISTIC_FIELD)10)
+    // ORIG 0x0860f342：field != 10 时直接 return false（jne → mov $0 出口，
+    // 不组包不发送）；仅 field==10 才按 c 映射计数器下标。
+    if (field != (DEATHTOWER_VALUE_STATISTIC_FIELD)10)
+        return false;
+    if (c == 1)
     {
-        if (c == 1)
+        f = 4;
+        c = 1;
+    }
+    else if (c == 0)
+    {
+        f = 3;
+        c = 1;
+    }
+    else if (c == 2)
+    {
+        f = 5;
+        c = 1;
+    }
+    else
+    {
+        if (c != 3)
         {
-            f = 4;
-            c = 1;
+            // ORIG 0x0860f342：logFormat(1, "Statistics.cpp", __PRETTY_FUNCTION__,
+            // 0x5d5, "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) ...", field)
+            LogManager::logFormat(
+                1, "Statistics.cpp", __PRETTY_FUNCTION__, 0x5d5,
+                "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) level (%d) job_ (%d) grow_type_ (%d) clearStage (%d)",
+                field);
+            return false;
         }
-        else if (c == 0)
-        {
-            f = 3;
-            c = 1;
-        }
-        else if (c == 2)
-        {
-            f = 5;
-            c = 1;
-        }
-        else
-        {
-            if (c != 3)
-            {
-                // ORIG 0x0860f342：logFormat(1, "Statistics.cpp", __PRETTY_FUNCTION__,
-                // 0x5d5, "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) ...", field)
-                LogManager::logFormat(
-                    1, "Statistics.cpp", __PRETTY_FUNCTION__, 0x5d5,
-                    "CDeathTowerPlayDataStatistic ERROR!! deathTower_type (%d) level (%d) job_ (%d) grow_type_ (%d) clearStage (%d)",
-                    field);
-                return false;
-            }
-            f = 6;
-            c = 1;
-        }
+        f = 6;
+        c = 1;
     }
 
     packet.m_counterIdx = f;

@@ -157,8 +157,8 @@ int ScriptStringManager::insertString(const char* string)
 
 // exportToBuffer @ 0x8acf420：count + (count+1) 个 offset 字 + 字符串数据；
 // 返回写入总字节数，任一段缓冲不足返回 -1。检查时机与 ORIG 逐点一致：
-// offsets[i] 写前查 4+4*i<=buffSize（8acf480/8acf491）、数据区起点查
-// 4+4*(count+1)<=buffSize（8acf4ba）、每串 memcpy 后查游标<=buffSize
+// offsets[i] 写前查 4+4*i<=buffSize（8acf480/8acf491）、数据区前查
+// 总大小 offset<=buffSize（8acf4bd）、每串 memcpy 后查游标<=buffSize
 // （8acf528）。ORIG 无 buffer==NULL 检查（UB），此处护栏返回 -1。
 int ScriptStringManager::exportToBuffer(unsigned char* buffer, int buffSize) const
 {
@@ -175,7 +175,7 @@ int ScriptStringManager::exportToBuffer(unsigned char* buffer, int buffSize) con
         offset += static_cast<int>(strings_[i - 1].size());
         *reinterpret_cast<int*>(buffer + 4 + 4 * i) = offset;
     }
-    if (4 + 4 * (count + 1) > buffSize)             // 数据区起点检查
+    if (offset > buffSize)                          // ORIG 8acf4bd：数据区前检查总大小
         return -1;
     unsigned char* dst = buffer + 4 + 4 * (count + 1);
     int pos = 4 + 4 * (count + 1);

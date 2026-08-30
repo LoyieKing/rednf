@@ -3275,11 +3275,10 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     }
 
-    std::map<int, STDungeonInoutTime>& dungeonInout =
-        G_CDataManager()->m_serverParameter.m_dungeonInoutc8;  // ORIG dm+0x130
+    // ORIG：find/end 各自写完整表达式（两次 G_CDataManagerv 调用，不缓存）
     std::map<int, STDungeonInoutTime>::iterator it =
-        dungeonInout.find((int)p3);                            // key=p3（-0x7c）
-    if (it != dungeonInout.end())
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.find((int)p3);
+    if (it != G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end())
     {
         // second 自节点数据 +0x04 起：endHour@+8 / startHour@+4 /
         // startMin@+c / endMin@+10（对照 asm 取值偏移）

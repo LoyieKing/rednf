@@ -199,6 +199,9 @@ void CCompoundAvatar::_SendResult(CUser* user, const tagCompoundInfo& info)
     const CInventory* inven = user->getCurCharacInvenR();
     Inven_Item resultSlot =
         inven->GetInvenSlot(2, (int)(short)info.m_resultSlot);
+    // ORIG 0x8333c46..0x8333c5b：GetInvenSlot 后先 put_short((short)m_resultSlot)
+    // （movzwl 0xd8(%ebp); cwtl → put_short），再 put_int(m_addInfo）。
+    packet.put_short((int)(short)info.m_resultSlot);
     packet.put_int((int)(short)resultSlot.m_addInfo);
 
     int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -206,7 +209,8 @@ void CCompoundAvatar::_SendResult(CUser* user, const tagCompoundInfo& info)
     int remainDate =
         avatarMgr->GetRemainDate(resultSlot.m_addInfo2, curSec);
     packet.put_int(remainDate);
-    packet.put_int(resultSlot.m_fieldb);
+    // ORIG 0x8333cb9：movzwl -0x66(%ebp)（resultSlot 按值副本 +0xb）→ put_short。
+    packet.put_short(resultSlot.m_fieldb);
     packet.put_int(0x1e);
     const char* jewelData =
         avatarMgr->getJewelSocketData(resultSlot.m_addInfo2);

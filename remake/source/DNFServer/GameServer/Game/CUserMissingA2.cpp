@@ -219,16 +219,17 @@ unsigned int UserMercenaryInfoMgr::FindIndexByCharacNo(unsigned int characNo) co
 }
 
 // ----------------------------------------------------------------------------
-// 6. ORIG T 0x081b4262 sz 0x4b。empty→0；size>=index（jae 无符号）→1；
-// size<index→0。注意 ORIG 边界为 index<=size（Ghidra 同口径），实际调用点
-// FindIndexByCharacNo 命中下标恒 <size，语义等价安全。
+// 6. ORIG T 0x081b4262 sz 0x4b。empty→1；size>=index（jae 无符号，含等）→1；
+// size<index→0（汇编实证：empty 分支经 eax=0→je→返回 1，仅 size<index
+// 落到返回 0）。ORIG 边界 index<=size 与调用点 FindIndexByCharacNo
+// 命中下标恒 <size 相容。
 // ----------------------------------------------------------------------------
 bool UserMercenaryInfoMgr::CheckCharacIndex(unsigned char index) const
 {
-    // ORIG 形态：empty→flag=1；!empty 且 index<=size→flag=0；否则 flag=1；返 !flag。
+    // ORIG 形态：empty→flag=0；!empty 且 index<=size→flag=0；否则 flag=1；返 !flag。
     bool bInvalid;
     if (m_characs.empty())
-        bInvalid = true;
+        bInvalid = false;
     else if (static_cast<unsigned int>(index) <= m_characs.size())
         bInvalid = false;
     else
@@ -429,7 +430,7 @@ bool CHARAC_LOAD_MERCENARY::CheckCompetitionAreaIndex(char areaIdx,
         bInvalid = true;
     if (bInvalid)
         return false;
-    if (level < (int)vec[static_cast<int>(areaIdx)].m_areaLevel)
+    if (level < static_cast<int>(static_cast<short>(vec[static_cast<int>(areaIdx)].m_areaLevel)))
         return false;
     return true;
 }

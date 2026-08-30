@@ -1760,16 +1760,16 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
             return 0x13;
         }
         if (vill < 0 || MAX_VILLAGE_NUM <= vill ||
-            &m_pVill[vill] == NULL || !user->CheckMoveTown(vill))
+            &m_pVill[vill] == NULL)
         {
             return 0;
         }
+        return user->CheckMoveTown(vill);
     }
     else
     {
         return 0x13;
     }
-    return 0;
 }
 
 bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
@@ -2923,7 +2923,7 @@ void GameWorld::ResetEntireReliablePerson()
 
 void GameWorld::ResetOneADayItemShop()
 {
-    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(0))
     {
         G_CDataManager()->m_itemShop->updateOneADayItemList();
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -2941,7 +2941,7 @@ void GameWorld::ResetOneADayItemShop()
 
 void GameWorld::testResetOneADayItemShop()
 {
-    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(0))
     {
         G_CDataManager()->m_itemShop->testupdateOneADayItemList();
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -2965,7 +2965,7 @@ void GameWorld::SetWeekendBounsEvent()
     if ((local.tm_wday == 6 && local.tm_hour > 5) || local.tm_wday == 0 ||
         (local.tm_wday == 1 && local.tm_hour < 6))
     {
-        if (GlobalData::s_event_manager->GetRepeatEvent(0x57) == 0)
+        if (!GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0))
         {
             Word_Param param;
             param.m_duration = 0;
@@ -2977,7 +2977,7 @@ void GameWorld::SetWeekendBounsEvent()
     }
     else if (local.tm_wday == 1 && local.tm_hour > 5)
     {
-        if (GlobalData::s_event_manager->GetRepeatEvent(0x57) != 0)
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0))
         {
             GlobalData::s_event_manager->TriggerEventEnd(0x57);
         }

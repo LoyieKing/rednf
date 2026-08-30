@@ -8296,17 +8296,17 @@ Dispatcher_GoblinPadStatus::~Dispatcher_GoblinPadStatus() {}
 int Dispatcher_GoblinPadStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x82177ae (81 insn)：状态字节 0=未激活 / 1=失败≥3 / 2=已认证 / 3=未认证
-    Sanicova::CPad* pad = user->getPad();
+    // ORIG：isActivate/getFailCnt/isCertified 各前均重新 getPad()（不缓存）
     unsigned char status = 0;
-    if (pad->isActivate())
+    if (user->getPad()->isActivate())
     {
-        if (pad->getFailCnt() >= 3)
+        if (user->getPad()->getFailCnt() >= 3)
         {
             status = 1;
         }
         else
         {
-            status = pad->isCertified() ? 2 : 3;
+            status = user->getPad()->isCertified() ? 2 : 3;
         }
     }
     PacketGuard response;
@@ -9009,9 +9009,10 @@ int Dispatcher_CallGuildMembers::dispatch_sig(CUser* user, PacketBuf& packet)
                  0, 0);
         return 0;
     }
-    guildkey = user->get_charac_guildkey();
-    if (guildkey != 0)
+    // ORIG：get_charac_guildkey() 调用两次（条件判断 + 取值）
+    if (user->get_charac_guildkey() != 0)
     {
+        guildkey = user->get_charac_guildkey();
         characNo = (unsigned int)user->getCurCharacNo();
         serverGroup = (unsigned int)user->GetServerGroup();
         proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
@@ -9826,10 +9827,11 @@ int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& 
     memcpy(cleared, &user->getCurCharacQuestR()->m_cleared, 0x7531);
 
     stSelectQuestParam selectParam(user);
-    QuestList* list = G_CDataManager()->m_questList;
+    // ORIG：getQuestNPCList/allowable_questlist_as_npc 各自写完整表达式
+    //（两次 G_CDataManagerv 调用，不缓存 questList 指针）
     std::multimap<int, int>* npcList =
-        list->getQuestNPCList(ENUM_QUEST_GRADE_8);
-    list->allowable_questlist_as_npc(
+        G_CDataManager()->m_questList->getQuestNPCList(ENUM_QUEST_GRADE_8);
+    G_CDataManager()->m_questList->allowable_questlist_as_npc(
         selected_quest, *npcList, selectParam,
         *reinterpret_cast<const WongWork::CQuestClear*>(cleared), true);
 
@@ -9841,8 +9843,8 @@ int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& 
     {
         static CMTRand urgentRandomDice;  // ORIG __cxa_guard 静态
         unsigned long range = (unsigned long)(selected_quest.size() - 1);
-        int dice = urgentRandomDice.randInt(range);
-        if ((unsigned int)dice < selected_quest.size())
+        unsigned int dice = urgentRandomDice.randInt(range);
+        if (dice < selected_quest.size())
         {
             std::list<int>::iterator it = selected_quest.begin();
             std::advance(it, dice);
@@ -10119,9 +10121,11 @@ int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& 
         gameOption->SetEtcOption(etc);
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x2899),
                            true);
-        guard << 0x130;
-        guard << (int)user->GetUID();
-        SIG_SAVE_GAME_OPTION_1* save = guard.GetInBuffer<SIG_SAVE_GAME_OPTION_1>();
+        // ORIG：guard.operator*()->operator<< 两次 + guard->GetInBuffer
+        guard.operator*()->operator<<(0x130);
+        guard.operator*()->operator<<((int)user->GetUID());
+        SIG_SAVE_GAME_OPTION_1* save =
+            guard->GetInBuffer<SIG_SAVE_GAME_OPTION_1>();
         *(unsigned int*)save = user->get_acc_id();
         memcpy(reinterpret_cast<char*>(save) + 4, &etc, 0x48);
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -10198,7 +10202,7 @@ Dispatcher_UpgradeChronicle::~Dispatcher_UpgradeChronicle() {}
 int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08223330：三代编年史强化（WongWork::CItemUpgrade::ProcUpgradeChronicle）。
-    if (user == 0 || user->get_state() < 3)
+    if (user->get_state() < 3)
         return 0;
 
     short slotA = 0;
@@ -13530,7 +13534,7 @@ Dispatcher_PowerWarProcessInfo::~Dispatcher_PowerWarProcessInfo() {}
 int Dispatcher_PowerWarProcessInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x821ea32 (83 insn)
-    if (!(user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0))
+    if (!(user->get_state() > 2 && user->getCurCharacR() != 0))
     {
         return LineFunc(0xd721,
                         __PRETTY_FUNCTION__,
@@ -18349,7 +18353,14 @@ int Dispatcher_CheckEnableServerMessage::dispatch_sig(CUser* user, PacketBuf& pa
         if (!mgr->CheckUserCondition(user, (int)msgIdx, cond))
         {
             guard.put_byte(0);
-            guard.put_byte(3);
+            if (cond != 0)
+            {
+                guard.put_byte(cond);
+            }
+            else
+            {
+                guard.put_byte(3);
+            }
         }
         else if (!mgr->IsChangableMessage((int)msgIdx, curSec))
         {
@@ -22550,53 +22561,52 @@ int Dispatcher_MonstercardBind::_bind_process(
     }
     const std::vector<stMonsterCardBindResult>& table = info->m_vec[rarity];
     const int total = info->m_count[rarity];
-    const size_t entryCount = table.size();
-    if (entryCount == 0)
+    // ORIG：table.size() 各次独立调用（不缓存 entryCount）
+    if (table.size() == 0)
     {
         cMyTrace trace(
             "bool Dispatcher_MonstercardBind::_bind_process("
             "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
             "ENUM_RARITY, IntPairVector&)",
             0x44b1, 5);
-        trace("MonstercardBind Error : size(%d)", (int)entryCount);
+        trace("MonstercardBind Error : size(%d)", (int)table.size());
         return 0;
     }
-    if (total == 0)
+    if (table.size() != 0 && total != 0)
     {
-        cMyTrace trace(
-            "bool Dispatcher_MonstercardBind::_bind_process("
-            "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
-            "ENUM_RARITY, IntPairVector&)",
-            0x44b6, 5);
-        trace("MonstercardBind Error : size(%d), sum(%d)", (int)entryCount,
-              total);
-        return 0;
-    }
-    unsigned long range = (unsigned long)(total - 1);
-    const int pick = m_rand->randInt(range) + 1;
-    int accWeight = 0;
-    for (size_t i = 0; i < entryCount; ++i)
-    {
-        const unsigned short weight = (unsigned short)table[i].m_field4;
-        if (accWeight < pick && pick <= accWeight + (int)weight)
+        unsigned long range = (unsigned long)(total - 1);
+        const int pick = m_rand->randInt(range) + 1;
+        int accWeight = 0;
+        for (size_t i = 0; i < table.size(); ++i)
         {
-            results.push_back(std::make_pair(table[i].m_field0, 1));
-            break;
+            if (accWeight < pick && pick <= accWeight + (int)table[i].m_field4)
+            {
+                results.push_back(std::make_pair(table[i].m_field0, 1));
+                break;
+            }
+            accWeight += (int)table[i].m_field4;
         }
-        accWeight += (int)weight;
+        if (results.empty())
+        {
+            cMyTrace trace(
+                "bool Dispatcher_MonstercardBind::_bind_process("
+                "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
+                "ENUM_RARITY, IntPairVector&)",
+                0x44ca, 5);
+            trace("Dispatcher_MonstercardBind::_bind_process ERROR : result "
+                  "is empty");
+            return 0;
+        }
+        return 1;
     }
-    if (results.empty())
-    {
-        cMyTrace trace(
-            "bool Dispatcher_MonstercardBind::_bind_process("
-            "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
-            "ENUM_RARITY, IntPairVector&)",
-            0x44ca, 5);
-        trace("Dispatcher_MonstercardBind::_bind_process ERROR : result is "
-              "empty");
-        return 0;
-    }
-    return 1;
+    cMyTrace trace(
+        "bool Dispatcher_MonstercardBind::_bind_process("
+        "Dispatcher_MonstercardBind::ENUM_MONSTER_CARD_BIND_TYPE, "
+        "ENUM_RARITY, IntPairVector&)",
+        0x44b6, 5);
+    trace("MonstercardBind Error : size(%d), sum(%d)", (int)table.size(),
+          total);
+    return 0;
 }
 
 // ==== Dispatcher_MonstercardBind::read (ORIG 0x081d82e8 T) ====
@@ -22605,31 +22615,28 @@ int Dispatcher_MonstercardBind::_bind_process(
 int Dispatcher_MonstercardBind::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_MONSTERCARD_BIND& m = static_cast<MSG_MONSTERCARD_BIND&>(msg);
-    short value = 0;
-    if (!packet.get_short(value))
+    // ORIG：get_short 直接读入 MSG 字段（msg+0xd/0xf/0x11，无临时变量）
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_0d)))
     {
         return LineFunc(
             0x444a,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    m.m_0d = (unsigned short)value;
-    if (!packet.get_short(value))
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_0f)))
     {
         return LineFunc(
             0x444c,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    m.m_0f = (unsigned short)value;
-    if (!packet.get_short(value))
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_11)))
     {
         return LineFunc(
             0x444e,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    m.m_11 = (unsigned short)value;
     return 0;
 }
 
@@ -22646,10 +22653,10 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
     }
 
     MSG_MONSTERCARD_BIND& m = static_cast<MSG_MONSTERCARD_BIND&>(msg);
-    CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
 
     // 卡 1（msg+0x0d）：须为非堆叠怪物卡且绑定数据索引有效
-    Inven_Item slotA = invenR->GetInvenSlot(1, m.m_0d);
+    // ORIG：每次 GetInvenSlot 前重新 getCurCharacInvenR()（不缓存指针）
+    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0d);
     CItem* cardA = G_CDataManager()->find_item(slotA.m_addInfo);
     if (cardA == 0)
     {
@@ -22675,7 +22682,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
     }
 
     // 卡 2（msg+0x0f）：非堆叠 + 数量校验（无绑定索引检查，与 ORIG 一致）
-    Inven_Item slotB = invenR->GetInvenSlot(1, m.m_0f);
+    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0f);
     CItem* cardB = G_CDataManager()->find_item(slotB.m_addInfo);
     if (cardB == 0)
     {
@@ -22691,7 +22698,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
     }
 
     // 卡 3（msg+0x11）：同卡 2 口径
-    Inven_Item slotC = invenR->GetInvenSlot(1, m.m_11);
+    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_11);
     CItem* cardC = G_CDataManager()->find_item(slotC.m_addInfo);
     if (cardC == 0)
     {
@@ -22762,12 +22769,12 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
                         res.m_4, 0);
     }
 
-    CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
-    Inven_Item slotA = invenR->GetInvenSlot(1, m.m_0d);
+    // ORIG：每次 GetInvenSlot 前重新 getCurCharacInvenR()（不缓存指针）
+    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0d);
     CItem* cardA = G_CDataManager()->find_item(slotA.m_addInfo);
-    Inven_Item slotB = invenR->GetInvenSlot(1, m.m_0f);
+    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0f);
     CItem* cardB = G_CDataManager()->find_item(slotB.m_addInfo);
-    Inven_Item slotC = invenR->GetInvenSlot(1, m.m_11);
+    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_11);
     CItem* cardC = G_CDataManager()->find_item(slotC.m_addInfo);
 
     std::vector<std::pair<int, int> > results;
@@ -24738,10 +24745,13 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
         for (int i = 0; i < subCount; ++i)
         {
             // ORIG pair<int,int> ctor（Rm/Rh）：first=*(ulong*)(M+(i+2)*8+4) 低 32 位，
-            // second=*(uchar*)(M+(i+2)*8+8)。
-            ceraParam.m_pairs.push_back(std::make_pair(
-                *(int*)(M + (i + 2) * 8 + 4),
-                (int)*(unsigned char*)(M + (i + 2) * 8 + 8)));
+            // second=*(uchar*)(M+(i+2)*8+8)。显式 pair 构造（非 make_pair）。
+            // ORIG 符号 _ZNSt4pairIiiEC1IRmRhEEOT_OT0_：非 const ulong&/uchar& 左值
+            unsigned long v1 =
+                *(unsigned long*)(M + (i + 2) * 8 + 4);
+            unsigned char v2 =
+                *(unsigned char*)(M + (i + 2) * 8 + 8);
+            ceraParam.m_pairs.push_back(std::pair<int, int>(v1, v2));
         }
 
         std::vector<Inven_Item> items;                      // ORIG vector<Inven_Item> C1
