@@ -4543,19 +4543,20 @@ void CUser::OnRecvEvent()
     m_mcap.m_recvEventWaiting = true;   // +0x18
 }
 
-bool CUser::GetBuyingGold()
+unsigned char CUser::GetBuyingGold()
 {
-    return *(unsigned char*)((char*)&m_field8ead8) != 0;
+    return m_field8ead8;   // ORIG movzbl 直返（无 test/setne）
 }
 
 void CUser::SetBuyingGold(bool flag)
 {
-    *(unsigned char*)((char*)&m_field8ead8) = flag ? 1 : 0;
+    // ORIG：bool 转换指针形式（mov this; movzbl flag; mov %dl,0x8ead8 完全一致）。
+    *(bool*)((char*)&m_field8ead8) = flag;
 }
 
-bool CUser::GetFirstLogin()
+unsigned char CUser::GetFirstLogin()
 {
-    return *(unsigned char*)((char*)&m_postChecksumData.m_firstLogin) != 0;
+    return m_postChecksumData.m_firstLogin;   // ORIG movzbl 直返（成员 bool）
 }
 
 void CUser::SetProgLogout()
@@ -4563,9 +4564,9 @@ void CUser::SetProgLogout()
     *(char*)((char*)&m_clientSpec.m_progLogout) = 1;
 }
 
-bool CUser::isRestingUser()
+unsigned char CUser::isRestingUser()
 {
-    return *(unsigned char*)((char*)&m_mcap.m_field544) != 0;
+    return m_mcap.m_field544;   // ORIG movzbl 直返（无 test/setne）
 }
 
 void CUser::InitReceivedRequestType()
@@ -5079,17 +5080,20 @@ void CUser::IncreaseUsedCoinCount()
 
 void CUser::setLoadHackGold(bool flag)
 {
-    *(unsigned char*)((char*)&m_mcap.m_pad54d[7]) = flag ? 1 : 0;
+    // ORIG：bool 转换指针形式（mov this; movzbl flag; mov %dl 完全一致）。
+    *(bool*)((char*)&m_mcap.m_pad54d[7]) = flag;
 }
 
 void CUser::SetNonClientFlag(bool flag)
 {
-    m_piSender.m_nonClientFlag = flag ? 1 : 0;
+    // ORIG：bool 转换指针形式（mov this; movzbl flag; mov %dl 完全一致）。
+    *(bool*)((char*)&m_piSender.m_nonClientFlag) = flag;
 }
 
 void CUser::setHumanCertified(bool flag)
 {
-    m_humanCertified = flag ? 1 : 0;
+    // ORIG：bool 转换指针形式（mov this; movzbl flag; mov %dl 完全一致）。
+    *(bool*)((char*)&m_humanCertified) = flag;
 }
 
 void CUser::incTradeCount()

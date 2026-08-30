@@ -10218,7 +10218,7 @@ public:
 
 // ORIG ctor 0x084e9434：PacketHeader(0x70d,0x53) → 字段清零 → DnfItemInfo(+0x1b) 构造
 // → m_e/m_f 清零。m_item 为字节区（Guild 域同名类冲突），placement-new 显式构造
-// （多一次 operator new 调用，形态残留；语义与 ORIG 一致）。
+// （多一次 operator new 调用，形态残留；gcc 4.4.7 拒绝显式构造调用，语义与 ORIG 一致）。
 Packet_Guild_Guild_Cargo_Push_Item::Packet_Guild_Guild_Cargo_Push_Item()
     : PacketHeader(0x70d, 0x53),
       m_guildKey(0), m_charNo(0), m_b(0), m_d(0), m_itemType(0)
@@ -14026,7 +14026,7 @@ int Inter_NpcLimitBuyItemInfo::checkError(CUser* user, LimitNpcBuyItemInfo* info
     if (m_needItem.first == 0 || m_needItem.first == -1)
         return 0x17;
 
-    const CInventory* invenR = user->getCurCharacInvenR();
+    const CInventory* invenR = user->getCurCharacInvenRefR();
     m_param2 = invenR->GetInvenData(m_needItem.first, m_invenItem2);
     if (m_param2 < 0)
         return 0x15;

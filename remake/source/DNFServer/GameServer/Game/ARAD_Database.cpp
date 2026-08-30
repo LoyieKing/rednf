@@ -524,10 +524,18 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
         static_cast<unsigned char>(hangameFlag == 1 ? 1 : 0);
     OS_API::snprintf(data->m_birth, 0x10, "%d%d",   // +0x2284
                      static_cast<int>(fssn), static_cast<int>(sssn));
-    unsigned int year = 2000;
-    if (sssn / 1000000 < 3)
+    // ORIG 0x0818bcf1：先 fssn/=10000、sssn/=1000000（mul/shr 常量除法），
+    // 再 sssn > 2 → year=fssn+2000(0x7d0)，否则 year=fssn+1900(0x76c)。
+    fssn = fssn / 10000;
+    sssn = sssn / 1000000;
+    unsigned int year;
+    if (sssn > 2)
     {
-        year = fssn / 10000 + 1900;
+        year = fssn + 2000;
+    }
+    else
+    {
+        year = fssn + 1900;
     }
     data->m_birthYear = year;
     return 0;

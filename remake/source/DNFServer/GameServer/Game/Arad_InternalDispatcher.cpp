@@ -31,12 +31,8 @@
 // ORIG 0x08195ce8：6 dword 清零（+0x00..+0x14）。
 void arad::SigSaveRewardEventItem::init()
 {
-    m_field00 = 0;
-    m_field04 = 0;
-    m_field08 = 0;
-    m_field0c = 0;
-    m_field10 = 0;
-    m_field14 = 0;
+    // ORIG：6 dword 清零通过 set(0,0,0,0,0,0) 栈传参（0x08195ce8）。
+    set(0, 0, 0, 0, 0, 0);
 }
 
 void arad::SigSaveRewardEventItem::set(int a, unsigned int b, unsigned int c,

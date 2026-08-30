@@ -577,9 +577,8 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation
     unsigned int m_accIdLo;            // +0x1a
     unsigned int m_accIdHi;            // +0x1e（ctor 置 0）
     char m_name[30];                   // +0x22（memset 0）
-    char m_targetName[30];             // +0x40
-    char m_field5d;                    // +0x5d
-    char m_chatMsg[0x100];             // +0x5e（memset 0）
+    char m_targetName[30];             // +0x40（ORIG 无 +0x5d 单字节字段）
+    char m_chatMsg[0x100];             // +0x5e（memset 0；get_str 读举报文本）
 
     static bool isNeedTypeForChattingMsg(int type);   // ORIG W 0x0822c1ca：调用点只 push 1 参（静态）
 

@@ -15,7 +15,9 @@ class Packet_Guild_Cargo_History_Request : public PacketHeader
 public:
     Packet_Guild_Cargo_History_Request();   // ORIG W @0x0822be8a
 
-    char m_data[0x12 - 0xa];   // +0x0a 起
+    // ORIG ctor 0x0822be8a：+0xa/+0xe 两个 dword 清零（2×movl 直接位移）。
+    unsigned int m_guildKey;   // +0x0a
+    unsigned int m_charNo;     // +0x0e
 };
 
 #pragma pack(pop)

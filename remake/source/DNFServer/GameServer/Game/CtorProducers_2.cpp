@@ -179,8 +179,9 @@ void StrikerScript::create()
 
 void StrikerScript::destory()
 {
-    // ORIG 0x08a9dcbe：delete 文件列表；遍历技能 map delete 各 vector 并置空。
-    delete m_fileList;                       // ORIG 先 STScriptFileList::D1 + operator delete
+    // ORIG 0x08a9dcbe：delete 文件列表（STScriptFileList::D1 + operator delete）；
+    // 遍历技能 map delete 各 vector 并置空；尾部 m_skillMap.clear()。
+    delete reinterpret_cast<STScriptFileList*>(m_fileList);
     m_fileList = 0;
     for (std::map<int, std::vector<StrikerSkill>*>::iterator it = m_skillMap.begin();
          it != m_skillMap.end(); ++it)
@@ -190,12 +191,8 @@ void StrikerScript::destory()
             delete it->second;
             it->second = 0;
         }
-        if (it->second != 0)
-        {
-            delete it->second;
-            it->second = 0;
-        }
     }
+    m_skillMap.clear();   // ORIG 尾部 map clear
 }
 
 

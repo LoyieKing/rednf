@@ -135,8 +135,8 @@ bool NewAccountLevelUpEventToJob::processLevelUpToJob(CUser& user, bool growup)
     {
         Inven_Item item;
         item.m_addInfo = it->m_field0;             // -0xb3 ← data.f0
-        G_CDataManager()->getItemList()->create_item(ENUM_ITEM_CREATE_TYPE_0,
-                                                     item, it->m_field4);
+        G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0,
+                                                  item, it->m_field4);
         // findString("game_server_msg_285") 在循环体内实参位（ORIG 每次迭代调）。
         if (WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(4, "game_server_msg_285",

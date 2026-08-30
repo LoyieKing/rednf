@@ -105,6 +105,7 @@ void CInGameAdvertisementManager::CheckFailMultiBoxLottery(
     }
 
     PacketGuard out;
+    out.clear();                       // ORIG PacketGuardC1 后显式 clear
     out.put_header(0, 0x1c6);
     out.finalize(true);
     user->Send(out);

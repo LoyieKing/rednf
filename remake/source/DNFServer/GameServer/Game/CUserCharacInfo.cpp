@@ -1699,9 +1699,9 @@ CInventory* CUserCharacInfo::getCurCharacInvenRefW()
     return (CInventory*)CUR->m_inven;
 }
 
-const Inven_Item* CUserCharacInfo::getCurCharacInvenRefR() const
+const CInventory* CUserCharacInfo::getCurCharacInvenRefR() const
 {
-    return (const Inven_Item*)CUR->m_inven;
+    return (const CInventory*)CUR->m_inven;
 }
 
 const CInventory* CUserCharacInfo::getCurCharacInvenR() const

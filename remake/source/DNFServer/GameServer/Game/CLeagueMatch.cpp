@@ -939,7 +939,7 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
                            unsigned char* msgFlag, bool extra)   // ORIG T 0x0855e7ee
 {
     do {
-        if (info->m_flag != 1)
+        if (!info->m_flag)    // ORIG movzbl 0xc + xor $1（flag==0 → 返回 0）
             break;
         if (info->m_user == 0)
             break;
@@ -958,7 +958,8 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
 
         info->m_user->AddDailyBadge(badgeType);
         *msgFlag = 1;
-        int count = (*msgFlag) + (extra ? 1 : 0);
+        // ORIG：count 初 0，仅 extra 加 1（不读 *msgFlag）。
+        int count = extra ? 1 : 0;
 
         char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
         const char* key = (badgeType == 1) ? "school_red_badge_msg"

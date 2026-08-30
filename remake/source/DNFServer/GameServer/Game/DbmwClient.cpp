@@ -53,7 +53,6 @@ void DbmwClient::SetServerAddress(const char* ip, unsigned short port)
     m_addr.sin_addr.s_addr = inet_addr(ip);
     m_addr.sin_port = htons(port);
 }
-
 bool DbmwClient::SendHeader(char type, int bodyLen)
 {
     // ORIG @0x08120654：18 字节头 {0x15,type,len+0x12,12B zero} 后 send。
@@ -61,8 +60,10 @@ bool DbmwClient::SendHeader(char type, int bodyLen)
     header[0] = 0x15;
     header[1] = (unsigned char)type;
     int total = bodyLen + 0x12;
-    memcpy(&header[2], &total, sizeof(int));
-    memset(&header[6], 0, sizeof(header) - 6);
+    *reinterpret_cast<int*>(&header[2]) = total;
+    *reinterpret_cast<int*>(&header[6]) = 0;
+    *reinterpret_cast<int*>(&header[10]) = 0;
+    *reinterpret_cast<int*>(&header[14]) = 0;
 
     ssize_t sent = ::send(m_sock, header, sizeof(header), 0);
     return sent > 0;
@@ -189,7 +190,7 @@ int DbmwClient::ReadData(char* dst, int len)
     while ((int)remain >= 1)
     {
         ssize_t got = ::recv(m_sock, cur, remain, 0);
-        if (got == -1)
+        if (got < 0)
         {
             if (errno == EINTR)
                 continue;

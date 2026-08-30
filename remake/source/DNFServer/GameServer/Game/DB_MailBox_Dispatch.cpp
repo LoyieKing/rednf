@@ -263,12 +263,12 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         return 1;
     }
 
-    int characNo = 0;
-    int job = 0;
-    int lev = 0;
-    int growType = 0;
-    int sex = 0;
-    int mId = 0;
+    unsigned int characNo = 0;
+    unsigned int job = 0;
+    unsigned int lev = 0;
+    unsigned int growType = 0;
+    unsigned int sex = 0;
+    unsigned int mId = 0;
     db->get_int(1, mId);
     db->get_int(2, characNo);
     db->get_int(3, job);

@@ -53,7 +53,6 @@ void CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_ST
                                                               char a, char b, unsigned int c)
 {
     Packet_DeathTower_Statistic_Value packet;
-    memset(&packet, 0, sizeof(packet));
     packet.m_a = a;
     packet.m_b = (short)b;
 

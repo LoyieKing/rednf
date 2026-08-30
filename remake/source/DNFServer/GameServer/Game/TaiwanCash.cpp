@@ -224,7 +224,8 @@ Taiwan::TaiwanCash* CIPGMgr::getBillingCash()   // ORIG W 0x0817a2ee
 //   type = *(uchar*)(G_CEnvironment()+0x378)（= Server_Envir.m_serverGroup 低字节，
 //   CEnvironment.h 布局 +0x198+0x1e0 实证）；new TaiwanCash(type, 1) 存入出参；
 //   以 m_dbConnInfo[DB_HANDLE_E] 的连接信息 init(host, port, db, user, pass)；
-//   出参为空或 init 失败 → false。----
+//   ORIG 反汇编（0x0814657c）：出参判空分支走 0xd0 恒返回 1；init 结果按
+//   0xd5/0xe0/0xe5 三态归一（init==1→1、init==0→0）。----
 bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 {
     CEnvironment* env = G_CEnvironment();
@@ -241,7 +242,7 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 
     if (cash == 0)
     {
-        return false;
+        return true;
     }
     return cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
                       info.m_db, info.m_user, info.m_pass);

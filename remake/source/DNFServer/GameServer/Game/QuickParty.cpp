@@ -54,14 +54,18 @@ int CQuickParty::get_quick_party_index() const { return m_quickPartyIndex; }
 
 void CQuickParty::init()
 {
-    memset(m_partyIndex, 0xff, sizeof(m_partyIndex));   // ORIG memset(this,-1,0x10)
+    memset(m_partyIndex, -1, sizeof(m_partyIndex));   // ORIG memset(this,-1,0x10)
     m_quickPartyIndex = -1;
     m_firstMatchingCnt = 0;
     m_dungeonIndex = 0;
     m_dungeonDiff = (char)0xff;
     m_poolIndex = (char)0xff;
-    m_field1c = 0;                                      // ORIG 循环清零 +0x1c/+0x20
-    m_field20 = 0;
+    for (int msg = 0x9d; msg <= 0x9e; ++msg)
+    {
+        int idx = msg - 0x9d + 4;
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c +
+                                idx * 4) = 0;
+    }
     m_isChangeQuickPartyCount = 0;
 }
 
@@ -292,8 +296,9 @@ CParty* CQuickParty::get_party_object(int idx)
 // 先自增再返回新值。msg=0x9e 对应 +0x20 槽。
 int CQuickParty::gen_timer_key(TIMER_MESSAGE msg)
 {
-    // 计数数组自 +0x1c 起（m_field1c 槽 0）；(msg-0x9d) 步进（ORIG 0x826a4db 口径）
-    int* slot = &m_field1c + (static_cast<int>(msg) - 0x9d);
+    int idx = static_cast<int>(msg) - 0x9d;
+    int* slot = reinterpret_cast<int*>(
+        reinterpret_cast<char*>(this) + 0x0c + (idx + 4) * 4);
     ++(*slot);
     return *slot;
 }
@@ -486,7 +491,9 @@ int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
 // ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
 bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
 {
-    return (&m_field1c)[static_cast<int>(msg) - 0x9d] == key;
+    return *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(this) + 0x0c +
+        (static_cast<int>(msg) - 0x9d + 4) * 4) == key;
 }
 
 // ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
@@ -505,7 +512,7 @@ void CQuickParty::set_party_index(int partyIdx)
 // ---- set_party_index @0x082697c8：定位写，idx∈[0,3] 才生效 ----
 void CQuickParty::set_party_index(int idx, int partyIdx)
 {
-    if (idx >= 0 && idx < 4)
+    if (idx < 4 && idx >= 0)
         m_partyIndex[idx] = partyIdx;
 }
 

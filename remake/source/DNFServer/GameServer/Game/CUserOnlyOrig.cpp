@@ -11414,8 +11414,8 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     }
 
     STItemScript::SEXPERTJOB::stExpertCompoundResultVariation variation;  // local_b4
-    CInventory* invRef = reinterpret_cast<CInventory*>(
-        const_cast<Inven_Item*>(getCurCharacInvenRefR()));         // ORIG 恶趣味：Inven_Item* 与 CInventory* 同址（_Charac_info+0xda 槽0）
+    // getCurCharacInvenRefR 现返回 const CInventory*（ORIG 符号实证）。
+    CInventory* invRef = const_cast<CInventory*>(getCurCharacInvenRefR());
     const int expertExp = GetCurCharacExpertJobExp();
     const int expertLevel = GetCurExpertJobLevel(expertExp);
     const int expertType = GetCurCharacExpertJobType();
@@ -11428,8 +11428,7 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     CInventory shadowInv;                                          // local_9b0
     InventoryMemory shadowMem;                                     // local_caef
     shadowInv.SetInventoryMemory(&shadowMem);
-    shadowInv.setCopy(*reinterpret_cast<CInventory*>(
-        const_cast<Inven_Item*>(getCurCharacInvenRefR())));
+    shadowInv.setCopy(*const_cast<CInventory*>(getCurCharacInvenRefR()));
     if (shadowInv.tryDeleteEventItems(delListScaled))
     {
         if (useRecipe2ndCheck)

@@ -32,18 +32,6 @@ namespace pvp_assault { int GetDirectionByTeam(ENUM_ASSAULT_TEAM team); }
 
 namespace {
 
-// ORIG _SendStraightVictories/_SendPowerWarPointToGuildServer 内对
-// G_CDataManager()+0xa67c / +0xa680 的直读（CDataManager 该区尚未具名建模；
-// 【推断】+0xa680=straight-victories 阈值、+0xa67c=power-war point multiple）。
-inline int dm_pw_point_multiple()
-{
-    return G_CDataManager()->m_powerParameter.m_powerWarPointMultiple;  // +0xa67c
-}
-inline int dm_straight_victories_min()
-{
-    return G_CDataManager()->m_powerParameter.m_straightVictories;      // +0xa680
-}
-
 }  // namespace
 
 using pvp_assault::CAssaulter;
@@ -368,7 +356,7 @@ void CAssaultPlace::_SendStraightVictories(CUser* user)
 {
     PacketGuard packet;
     unsigned short victories = 0;
-    int threshold = dm_straight_victories_min();
+    int threshold = G_CDataManager()->m_powerParameter.m_straightVictories;
 
     if (user != 0) {
         CParty* party = static_cast<CParty*>(user->GetParty());
@@ -445,7 +433,7 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
         aliveCnt = winCnt;                       // ORIG: param_6 = param_4
     }
 
-    int multiple = dm_pw_point_multiple();
+    int multiple = G_CDataManager()->m_powerParameter.m_powerWarPointMultiple;
     unsigned char winPoint;
     if (multiple * (winCnt - aliveCnt) > 0xff) {          // imul; cmp $0xff; setg
         LogManager::logFormat(

@@ -312,11 +312,11 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
-            const stTitleElement& element = it->second[i];
-            if (std::find(element.m_fitJobs.begin(), element.m_fitJobs.end(),
-                          (int)itemIdx) != element.m_fitJobs.end())
+            if (std::find(it->second[i].m_fitJobs.begin(),
+                          it->second[i].m_fitJobs.end(),
+                          (int)itemIdx) != it->second[i].m_fitJobs.end())
             {
-                if (element.m_achievementIdx == -1)
+                if (it->second[i].m_achievementIdx == -1)
                 {
                     return 1;
                 }
@@ -342,13 +342,13 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    const stTitleElement& element = it->second[slot];
-    if (std::find(element.m_fitJobs.begin(), element.m_fitJobs.end(),
-                  itemIdx) != element.m_fitJobs.end())
+    if (std::find(it->second[slot].m_fitJobs.begin(),
+                  it->second[slot].m_fitJobs.end(),
+                  itemIdx) != it->second[slot].m_fitJobs.end())
     {
         return 1;
     }
-    if (element.m_achievementIdx == -1)
+    if (it->second[slot].m_achievementIdx == -1)
     {
         return 1;
     }
@@ -365,9 +365,9 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
-            const stTitleElement& element = it->second[i];
-            if (std::find(element.m_fitJobs.begin(), element.m_fitJobs.end(),
-                          itemIdx) != element.m_fitJobs.end())
+            if (std::find(it->second[i].m_fitJobs.begin(),
+                          it->second[i].m_fitJobs.end(),
+                          itemIdx) != it->second[i].m_fitJobs.end())
             {
                 category = (ENUM_TITLE_BOOK_CATEGORY)it->first;
                 slot = (int)i;

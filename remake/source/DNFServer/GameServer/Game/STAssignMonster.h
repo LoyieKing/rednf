@@ -20,7 +20,7 @@ struct STAssignMonster
     int m_10;                               // +0x10
     int m_14;                               // +0x14
     int m_18;                               // +0x18
-    char m_1c;                              // +0x1c
+    int m_1c;                               // +0x1c（ORIG Clear 0x836c4fa 以 movl 读写实证为 int）
     int m_20;                               // +0x20
     int m_24;                               // +0x24
     std::vector<int> m_vec28;               // +0x28

@@ -39,9 +39,9 @@ struct RandomApplicationKey
 
 struct RandomApplicationValue
 {
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04（_random_application：randInt 上界分量）
-    int m_field8;   // +0x08（_random_application：阈值比较分量）
+    int m_field0;   // +0x00（_random_application：randInt 上界分量）
+    int m_field4;   // +0x04（_random_application：阈值比较分量；上界=m_field4+m_field0）
+    int m_field8;   // +0x08（未在本批方法中消费）
 };
 
 struct LevelLimitDecisionValue

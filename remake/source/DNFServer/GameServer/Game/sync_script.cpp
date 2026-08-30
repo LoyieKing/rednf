@@ -944,7 +944,7 @@ bool CSyncScript::insert_aicharacter_info_to_db(int idx,
     }
     static char aicharacter_info_name[0xf0];
     memset(aicharacter_info_name, 0, sizeof(aicharacter_info_name));
-    char escaped[0x100];
+    char escaped[0x400];
     memset(escaped, 0, sizeof(escaped));
     // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
     if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
@@ -993,7 +993,7 @@ bool CSyncScript::insert_town_info_to_db(const TownScript& script)
     }
     static char town_name[0xf0];
     memset(town_name, 0, sizeof(town_name));
-    char escaped[0x100];
+    char escaped[0x400];
     memset(escaped, 0, sizeof(escaped));
     // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
     if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
@@ -1042,7 +1042,7 @@ bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
     }
     static char monster_name[0xf0];
     memset(monster_name, 0, sizeof(monster_name));
-    char escaped[0x100];
+    char escaped[0x400];
     memset(escaped, 0, sizeof(escaped));
     // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
     if (!CodePage::script2Database((char*)script.m_name.c_str(), escaped))

@@ -7383,7 +7383,8 @@ bool DB_LoadPowerWarStatueInfo::GetCharacInfo(
         return 0;
     if (!db->get_uint(4, v->m_guildId))
         return 0;
-    int serverId = G_CEnvironment()->get_server_group();
+    int serverId = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);
     if (v->m_guildId == 0)
         return 1;
     guildDb->set_query(
@@ -9149,31 +9150,28 @@ bool DB_UpdateCreatureItemList::dispatch(int userIdx, int slot, Stream* stream)
 }
 
 // ============================================================================
-// AddFieldString —— ORIG T 0x0841fff8（manifest MISSING；无独立报告）
-// [INFERENCE] 语义自 DB_UpdateCreatureItem::GetField 调用点推导：mask 为
-// SIG_CREATURE_ITEM::m_hdr 操作类型位（RecvMail 0x130/SendMail 0x100/
-// UseFeedCreature 0x2/InsertCreatureItem 6），flag 为字段位（1=name..0x200=
-// expire_date）；(mask&flag)==0 时该字段不输出；isFirst 控制逗号分隔。
+// ORIG 实证（0x0841fff8 反汇编）：buf 参数预期已含首字段（调用方预填），
+// isFirst==1 时追加 "," 并清标志，isFirst==0 时 strncat 追加字段内容；
+// 与 NEW 此前 strcpy 覆盖语义相反，已按 ORIG 改回（GetField 输出 ",f1f2.."）。
 // ============================================================================
 void AddFieldString(bool& isFirst, char* buf, int mask, int flag,
                     const char* fmt, ...)
 {
     if ((mask & flag) == 0)
         return;
-    char tmp[128];
+    char tmp[100] = { '\0' };
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    vsprintf(tmp, fmt, ap);
     va_end(ap);
     if (isFirst)
     {
-        strcpy(buf, tmp);
         isFirst = false;
+        strncat(buf, ",", 1);
     }
     else
     {
-        strcat(buf, ",");
-        strcat(buf, tmp);
+        strncat(buf, tmp, strlen(tmp));
     }
 }
 
@@ -16030,7 +16028,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
     DB_AutoPunishedSecondUserReqView* req =
-        stream->GetOutBuffer<DB_AutoPunishedSecondUserReqView>();
+        reinterpret_cast<DB_AutoPunishedSecondUserReqView*>(
+            stream->GetOutBuffer<SIG_SECOND_USER_DATA>());
     db->set_query(
         "seLect trade_cnt,trade_gold from auto_punish_second_user where m_id=%s",
         NumberToString(req->m_mId, 0));
@@ -16042,7 +16041,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
         guard.operator*()->operator<<(0x1ca);
         guard.operator*()->operator<<(req->m_tradeCnt);
         DB_AutoPunishedSecondUserSetView* out =
-            guard.GetInBuffer<DB_AutoPunishedSecondUserSetView>();
+            reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
+                guard.GetInBuffer<SIG_SECOND_USER_DATA_SET>());
         memset(out, 0, sizeof(*out));
         out->m_punished = req->m_punished;
         out->m_goldLo = req->m_goldLo;
@@ -16062,7 +16062,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
     guard.operator*()->operator<<(0x1ca);
     guard.operator*()->operator<<(req->m_tradeCnt);
     DB_AutoPunishedSecondUserSetView* out =
-        guard.GetInBuffer<DB_AutoPunishedSecondUserSetView>();
+        reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
+            guard.GetInBuffer<SIG_SECOND_USER_DATA_SET>());
     memset(out, 0, sizeof(*out));
     out->m_punished = req->m_punished;
     out->m_goldLo = req->m_goldLo;
@@ -18147,11 +18148,12 @@ bool DB_LoadCharacHotKeyOption::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_B,
                                                   E_SERVER_GROUP_NONE);
-    DB_ReqLoadHotKeyOptionView* req =
-        stream->GetOutBuffer<DB_ReqLoadHotKeyOptionView>();
+    SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION* req =
+        stream->GetOutBuffer<SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION>();
     db->set_query(
         "seLect key_option from member_key_option where m_id = %s and key_type = %d",
-        NumberToString(req->m_accId, 0), req->m_hotkeyType);
+        NumberToString(*(unsigned int*)req, 0),
+        *(int*)((char*)req + 4));
     if (!db->exec(true))
         return 0;
     CStreamGuard guard(
@@ -18160,8 +18162,8 @@ bool DB_LoadCharacHotKeyOption::dispatch(int userIdx, int slot, Stream* stream)
     guard.operator*()->operator<<(slot);
     DB_LoadHotKeyOptionView* out = reinterpret_cast<DB_LoadHotKeyOptionView*>(
         guard.GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>());
-    out->m_accId = req->m_accId;
-    out->m_hotkeyType = (unsigned char)req->m_hotkeyType;
+    out->m_accId = *(unsigned int*)req;
+    out->m_hotkeyType = (unsigned char)*(int*)((char*)req + 4);
     if (db->get_n_rows() == 0)
     {
         out->m_hotkey.clear();

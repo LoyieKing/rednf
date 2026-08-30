@@ -1347,9 +1347,10 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
 namespace random_option
 {
 
-// ---- _random_application —— T 0x085f0ec2（_random_application.md 全文转写）----
-// m_map0 查 (rarity,level)：命中时 roll=randInt(m_field8+m_field4)，
-// m_field8 < roll → 1（应用），否则 0；未命中 0。
+// m_map0 查 (rarity,level)：命中时 roll=randInt(m_field4+m_field0)，
+// m_field4 < roll → 1（应用），否则 0；未命中 0。
+// （ORIG 反汇编实证：bound=pt()+0x8 + pt()+0x4（value.m_field4+m_field0），
+//   阈值=pt()+0x8（m_field4）；2026-08-30 修正字段选择。）
 int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
 {
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
@@ -1359,10 +1360,10 @@ int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
         table->m_map0.find(key);
     if (it != table->m_map0.end())
     {
-        const int bound = it->second.m_field8 + it->second.m_field4;
+        const int bound = it->second.m_field4 + it->second.m_field0;
         const unsigned long roll =
             static_cast<unsigned long>(m_rand->randInt(bound));
-        if (static_cast<unsigned int>(it->second.m_field8) < roll)
+        if (static_cast<unsigned int>(it->second.m_field4) < roll)
         {
             return 1;
         }

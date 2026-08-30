@@ -45,13 +45,7 @@ namespace ARAD {
 int limitValue(int value, int minValue, int maxValue)
 {
     // ORIG：std::max<int>(&value,&minValue) → std::min<int>(&maxValue)
-    if (value < minValue) {
-        value = minValue;
-    }
-    if (maxValue < value) {
-        value = maxValue;
-    }
-    return value;
+    return std::min(std::max(value, minValue), maxValue);
 }
 
 void uint32Time(short* timeBuf)

@@ -514,7 +514,7 @@ public:
     ~SDCActiveStatusSyncCommon();
 
     // 全部非虚；ORIG 地址注释逐方法标注。
-    void getDuration(ENUM_ACTIVESTATUS status, int level, void* param);  // 0x0808dc7a
+    int getDuration(ENUM_ACTIVESTATUS status, int level, void* param);   // 0x0808dc7a（透传返回值）
     int getBurnDamage(bool& flag, STSDCActiveStatusSyncDataSend* d,
                       void* obj, int t);                          // 0x0808de08
     int getPoisonDamage(STSDCActiveStatusSyncDataSend* d, void* obj,

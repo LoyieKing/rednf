@@ -633,7 +633,7 @@ public:
     CInventory* getCurCharacInvenW();
     const CInventory* getCurCharacInvenR() const;
     CInventory* getCurCharacInvenRefW();   // ORIG 返回 m_inven（CInventory* 口径）
-    const Inven_Item* getCurCharacInvenRefR() const;
+    const CInventory* getCurCharacInvenRefR() const;   // ORIG 返回 m_inven（CInventory* 口径）
     char* getCurCharacSkillW();
     const char* getCurCharacSkillR() const;
     CCargo* getCurCharacCargoW();

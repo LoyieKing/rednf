@@ -275,6 +275,8 @@ public:
 #include "Packet_Stat_Lag_Statistics.h"          // ORIG W ctor 0x0822c144
 #include "Packet_Loading_Time_Report_Statistics.h" // ORIG W ctor 0x0822c040
 #include "Packet_Guild_Guild_Cargo_Upgrade.h"     // ORIG W ctor 0x0822bfea
+#include "../../../shared/packet/include/Packet_Guild_Guild_Cargo_Pop_Item.h"   // shared 权威（ORIG W ctor 0x0822bf38）
+#include "../../../shared/packet/include/Packet_Guild_Guild_Cargo_Move_Item.h"  // shared 权威（ORIG W ctor 0x0822bf62）
 #include "PCK_AUCTION_ASK_OWNER_IS_VIP_GP.h"     // ORIG W ctor 0x0822ebd8
 #include "PCK_AUCTION_BIDDING_GA.h"              // 拍卖竞价请求包
 #include "PCK_AUCTION_REGIST_CANCEL_GP.h"        // ORIG 拍卖登记取消 GP 包
@@ -7338,37 +7340,6 @@ int Dispatcher_P2P_Statistics::check_error(CUser* user, MSG_BASE& msg)
                     0, 0);
 }
 
-// ---- GuildCargo Pop/Move 与 P2P_Statistics 包视图（StubS3A；ORIG 包字段实证，
-//      与 shared 权威包头布局一致，仅类型名不同；待权威头转发后可删） ----
-class GuildCargoPopItem_PacketView : public PacketHeader
-{
-public:
-    unsigned int m_guildKey;   // +0x0a
-    unsigned int m_charNo;     // +0x0e
-    int m_slot;                // +0x12
-    int m_id;                  // +0x16
-    int m_count;               // +0x1a
-    unsigned char m_itemType;  // +0x1e（is_stackable → 0/1）
-    unsigned char m_uit;       // +0x1f（msg+0x17 byte）
-    GuildCargoPopItem_PacketView() : PacketHeader(0x70e, 0x23),
-        m_guildKey(0), m_charNo(0), m_slot(0), m_id(0), m_count(0),
-        m_itemType(0), m_uit(0) {}
-} __attribute__((packed));
-
-class GuildCargoMoveItem_PacketView : public PacketHeader
-{
-public:
-    unsigned int m_guildKey;   // +0x0a
-    unsigned int m_charNo;     // +0x0e
-    int m_fromSlot;            // +0x12
-    int m_toSlot;              // +0x16
-    int m_count;               // +0x1a
-    int m_type;                // +0x1e
-    GuildCargoMoveItem_PacketView() : PacketHeader(0x70f, 0x22),
-        m_guildKey(0), m_charNo(0), m_fromSlot(0), m_toSlot(0),
-        m_count(0), m_type(0) {}
-} __attribute__((packed));
-
 // ===== Dispatcher_GuildCargoPopItem::process ===== ORIG 0x081d15b2 (0x195)
 // 报告 Dispatcher_GuildCargoPopItem/process.md 全文转写。
 int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9774,7 +9745,7 @@ int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     if (!user->CheckInPvp())
     {
-        if (user->get_state() == 5)
+        if (user->IsState((ch_state)5))
         {
             CParty* party = (CParty*)user->GetParty();
             if (party != 0)
@@ -10214,27 +10185,27 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
 
     short slotA = 0;
-    if (!packet.get_short(*(unsigned short*)&slotA))
+    if (!packet.get_short(slotA))
         return LineFunc(0xdda4,
                         __PRETTY_FUNCTION__,
                         0, 0);
     unsigned int seqA = 0;
-    if (!packet.get_int((int&)seqA))
+    if (!packet.get_int(seqA))
         return LineFunc(0xdda5,
                         __PRETTY_FUNCTION__,
                         0, 0);
     short slotB = 0;
-    if (!packet.get_short(*(unsigned short*)&slotB))
+    if (!packet.get_short(slotB))
         return LineFunc(0xdda6,
                         __PRETTY_FUNCTION__,
                         0, 0);
     unsigned int seqB = 0;
-    if (!packet.get_int((int&)seqB))
+    if (!packet.get_int(seqB))
         return LineFunc(0xdda7,
                         __PRETTY_FUNCTION__,
                         0, 0);
     char chanceGrade = 0;
-    if (!packet.get_byte(*(unsigned char*)&chanceGrade))
+    if (!packet.get_byte(chanceGrade))
         return LineFunc(0xdda8,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -10855,7 +10826,7 @@ int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase&
     MSG_GUILD_CARGO_POP_ITEM& req = static_cast<MSG_GUILD_CARGO_POP_ITEM&>(msg);
     CItem* item = G_CDataManager()->find_item(req.m_itemIdx);   // msg+0x0f
 
-    GuildCargoPopItem_PacketView pkt;
+    Packet_Guild_Guild_Cargo_Pop_Item pkt;
     pkt.m_guildKey = user->get_charac_guildkey();               // → +0x0a
     pkt.m_charNo = user->getCurCharacNo();                      // → +0x0e
     pkt.m_slot = (int)req.m_field0d;                            // msg+0x0d ushort → +0x12
@@ -12373,7 +12344,7 @@ int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase
 
     MSG_GUILD_CARGO_MOVE_ITEM& req = static_cast<MSG_GUILD_CARGO_MOVE_ITEM&>(msg);
 
-    GuildCargoMoveItem_PacketView pkt;
+    Packet_Guild_Guild_Cargo_Move_Item pkt;
     pkt.m_guildKey = user->get_charac_guildkey();               // → +0x0a
     pkt.m_charNo = user->getCurCharacNo();                      // → +0x0e
     pkt.m_fromSlot = (int)req.m_field0d;                        // msg+0x0d ushort → +0x12
@@ -15621,29 +15592,21 @@ int Dispatcher_PartyTeleportConfirm::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x13;
     }
-    // ORIG 两次 G_GameWorld() 调用（0x080da3a7）形态保留。
-    if (G_GameWorld()->IsPVPChannel() != 0)
-    {
-        return 0x13;
-    }
-    if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
+    // ORIG 两次 G_GameWorld() 调用（0x080da3a7），`||` 展开为布尔合并（mov $1/$0 + test）。
+    if (G_GameWorld()->IsPVPChannel() ||
+        G_GameWorld()->IsPvPSkilTreeChannel())
     {
         return 0x13;
     }
 
     CParty* party = (CParty*)user->GetParty();
-    if (party == 0)
+    if (party != 0)
     {
-        return 0;
-    }
-
-    // ORIG 首次取 state（cmp $0xff,%al; jge → 有符号 < -1 才进入内层）。
-    CPartyTelePort* tp = (CPartyTelePort*)party->GetPartyTelePort();
-    if (tp->get_teleport_state() < -1)
-    {
-        // ORIG 内层重新取 GetPartyTelePort + get_teleport_state。
-        CPartyTelePort* tp2 = (CPartyTelePort*)party->GetPartyTelePort();
-        if (tp2->get_teleport_state() > 3)
+        // ORIG：`&&` 展开（jge/jle 直跳 + mov $1/$0 + test）；链式调用不缓存 tp。
+        if (((CPartyTelePort*)party->GetPartyTelePort())
+                    ->get_teleport_state() < -1 &&
+            ((CPartyTelePort*)party->GetPartyTelePort())
+                    ->get_teleport_state() > 3)
         {
             return 0x13;
         }
@@ -15652,44 +15615,42 @@ int Dispatcher_PartyTeleportConfirm::check_error(CUser* user, MSG_BASE& msg)
 }
 int Dispatcher_PartyTeleportConfirm::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    char* out = reinterpret_cast<char*>(&param);
-    const int err = check_error(user, msg);
-    *reinterpret_cast<int*>(out + 4) = err;
-    if (err > 0)
+    stPartyTeleportConfirm& p =
+        static_cast<stPartyTeleportConfirm&>(param);
+    p.m_result = check_error(user, msg);
+    if (p.m_result > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (p.m_result < 0)
     {
         return LineFunc(
             0x4be5,
             __PRETTY_FUNCTION__,
-            err, 0);
+            p.m_result, 0);
     }
-    *reinterpret_cast<unsigned char*>(out + 8) =
-        *reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(&msg) + 0xd);
+    MSG_PARTY_TELEPORT_CONFIRM& m =
+        static_cast<MSG_PARTY_TELEPORT_CONFIRM&>(msg);
+    p.m_bConfirm = m.m_confirmFlag;
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
         const int slotNo = party->GetMemberSlotNo(user);
-        const unsigned char confirm =
-            *reinterpret_cast<const unsigned char*>(out + 8);
-        if (confirm == 1)
+        if (m.m_confirmFlag == 1)
         {
             static_cast<CPartyTelePort*>(party->GetPartyTelePort())
                 ->set_teleport_member_state(slotNo, 1);
             static_cast<CPartyTelePort*>(party->GetPartyTelePort())
                 ->check_cur_teleport_state();
         }
-        else if (confirm == 0)
+        else if (m.m_confirmFlag == 0)
         {
             static_cast<CPartyTelePort*>(party->GetPartyTelePort())
                 ->set_teleport_member_state(slotNo, 0);
             static_cast<CPartyTelePort*>(party->GetPartyTelePort())
                 ->set_teleport_state(2);
         }
-        else if (confirm == 3)
+        else if (m.m_confirmFlag == 3)
         {
             static_cast<CPartyTelePort*>(party->GetPartyTelePort())
                 ->set_teleport_state(3);
@@ -15710,28 +15671,29 @@ int Dispatcher_PartyTeleportConfirm::read(PacketBuf& packet, MSG_BASE& msg)
 void Dispatcher_PartyTeleportConfirm::send(CUser* user, ParamBase& param)
 {
     // ORIG 0x081dc830：p4==0 → Ok(0x1b4)+party teleport 状态/处理/复位；否则 Error(0x1b4,p4&0xff)
-    char* p = reinterpret_cast<char*>(&param);
-    if (*reinterpret_cast<int*>(p + 4) == 0)
+    stPartyTeleportConfirm& p =
+        static_cast<stPartyTeleportConfirm&>(param);
+    if (p.m_result == 0)
     {
         user->SendCmdOkPacket((ENUM_CMDPACKET)0x1b4);
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party != 0)
         {
-            CPartyTelePort* tp = static_cast<CPartyTelePort*>(party->GetPartyTelePort());
-            tp->send_teleport_status(0);
-            tp = static_cast<CPartyTelePort*>(party->GetPartyTelePort());
-            tp->process_teleport();
-            if (p[8] != 1)
+            static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->send_teleport_status(0);
+            static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->process_teleport();
+            if (p.m_bConfirm != 1)
             {
-                tp = static_cast<CPartyTelePort*>(party->GetPartyTelePort());
-                tp->reset_teleport_data();
+                static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                    ->reset_teleport_data();
             }
         }
     }
     else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b4,
-                                 (unsigned char)(*(unsigned int*)(p + 4) & 0xff));
+                                 (unsigned char)(p.m_result & 0xff));
     }
 }
 
@@ -15977,8 +15939,10 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
                         0, 0);
     }
     Packet_Mannerless_User_Accusation pkt;
-    pkt.m_type = user->getCurCharacNo();            // +0x0e ← getCurCharacNo
-    pkt.m_characNo = user->GetUID();                // +0x0a ← GetUID（ORIG 字段写入序）
+    // ORIG：getCurCharacNo/GetUID/get_acc_id 结果仅存局部（-0x1b1/-0x1b5/-0x1a1），
+    // 从不写回 pkt（pkt 保持 C1 默认值）；仅调用副作用保留。
+    int characNo = user->getCurCharacNo();
+    int uid = user->GetUID();
     int type = 4;                                   // -0x50
     if (!packet.get_int(type) || type > 3)
     {
@@ -15986,20 +15950,31 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    pkt.m_serverGroup = type;                       // +0x12
-    pkt.m_accIdHi = user->get_acc_id();             // +0x1e ← get_acc_id
+    int accId = user->get_acc_id();
     unsigned int nameLen = (unsigned int)strlen(user->getCurCharacName());  // -0x54
     unsigned int minLen = 0x1d;                     // -0x4c
     unsigned int copyLen = std::min(nameLen, minLen);
     strncpy(pkt.m_name, user->getCurCharacName(), copyLen);                 // +0x22
     unsigned char groupByte = 0;                    // -0x55
     packet.get_byte(groupByte);
-    pkt.m_accIdLo = (unsigned int)groupByte;        // +0x1a ← byte
-    if ((unsigned int)groupByte > 0x64)
+    unsigned int group = (unsigned int)groupByte;   // -0x1a5（ORIG 不写 pkt）
+    if (group > 0x64)
     {
         return LineFunc(0x9fa0,
                         __PRETTY_FUNCTION__,
                         0, 0);
+    }
+    // ORIG：server_group 计算在 get_int(targetLen) 之前；
+    //   group==0 → group=reporterGroup=env group；否则 reporterGroup=user group。
+    unsigned int reporterGroup;                     // -0x1a9
+    if (group == 0)
+    {
+        group = (unsigned int)G_CEnvironment()->get_server_group();
+        reporterGroup = group;
+    }
+    else
+    {
+        reporterGroup = (unsigned int)user->GetServerGroup();
     }
     unsigned int targetLen = 0;                     // -0x5c
     if (!packet.get_int(targetLen))
@@ -16026,23 +16001,9 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
     Inven_Item item = inven->GetInvenSlot(0, 0xb);
     if (item.m_addInfo == 0x677e)
     {
-        *((char*)&pkt + 0x15e) = 0x70;              // 包末字节（-0x61）
+        *((char*)&pkt + 0x15e) = 0x70;              // 包末字节
     }
-    // reporterGroup(+0x16) 与 claimed(+0x1a)：
-    //   byte==0 → 两者均置 G_CEnvironment()->get_server_group()；
-    //   byte!=0 → reporterGroup=user->GetServerGroup()，claimed=byte。
-    if (groupByte == 0)
-    {
-        pkt.m_accIdLo =
-            (unsigned int)G_CEnvironment()->get_server_group();
-        pkt.m_reporterGroup = pkt.m_accIdLo;
-    }
-    else
-    {
-        pkt.m_reporterGroup =
-            (unsigned int)user->GetServerGroup();
-    }
-    if (pkt.m_reporterGroup == pkt.m_accIdLo &&
+    if (reporterGroup == group &&
         targetLen == nameLen &&
         strncmp(pkt.m_name, pkt.m_targetName, targetLen) == 0)
     {
@@ -16203,9 +16164,8 @@ int Dispatcher_WriteGuildMemberMemo::dispatch_sig(CUser* user, PacketBuf& packet
         return 0;
     }
 
-    // +0x09b: char memo[0x15] 清零
-    char memo[21];
-    memset(memo, 0, sizeof(memo));
+    // +0x09b: char memo[0x15] 聚合初始化（ORIG 内联展开，非 call memset）
+    char memo[21] = {0};
 
     // +0x110: 读 memo 长度 + 内容
     int memoLen = 0;
@@ -16218,20 +16178,18 @@ int Dispatcher_WriteGuildMemberMemo::dispatch_sig(CUser* user, PacketBuf& packet
         return LineFunc(0xd56d, __PRETTY_FUNCTION__, 0, 0);
     }
 
-    // +0x1a9: 敏感词/特殊字符过滤
-    bool invalid = G_CDataManager()->hasPreventString(memo) ||
-                   G_CDataManager()->hasSpecialCharacterExceptSpace(memo);
-    if (invalid)
+    // +0x1a9: 敏感词/特殊字符过滤（ORIG `||` 布尔合并）
+    if (G_CDataManager()->hasPreventString(memo) ||
+        G_CDataManager()->hasSpecialCharacterExceptSpace(memo))
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xe3), 0x6c);
         return 0;
     }
 
-    // +0x20d: 发公会备忘录
+    // +0x20d: 发公会备忘录（ORIG 链式调用不缓存 proxy）
     int characNo = user->get_charac_no(-1);
-    CGuildServerProxy* guildProxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    guildProxy->SendMemoToGuild(guildKey, characNo, memoLen, memo);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendMemoToGuild(guildKey, characNo, memoLen, memo);
 
     // +0x25c: 0xe3 成功回执
     PacketGuard pg;
@@ -16932,20 +16890,20 @@ int Dispatcher_ChangeAnotherSkillTree::check_error(CUser* user, MSG_BASE& msg)
     {
         return -1;
     }
-    int state = user->get_state();
-    if (state != 3 && state != 6)
+    // ORIG：`!(get_state()==3 || get_state()==6)` 展开为两次 get_state + 布尔合并。
+    if (!(user->get_state() == 3 || user->get_state() == 6))
     {
         return 0x13;
     }
     const MSG_CHANGE_ANOTHER_SKILL_TREE& req =
         static_cast<const MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
     int requested = static_cast<signed char>(req.m_0d);
-    int current = user->GetCurCharacSkillTreeIndex();
-    if (requested != current)
+    // ORIG：GetCurCharacSkillTreeIndex 调用两次（比较 + ==-1 检查）。
+    if (requested != user->GetCurCharacSkillTreeIndex())
     {
         return -2;
     }
-    return current == -1 ? -3 : 0;
+    return user->GetCurCharacSkillTreeIndex() == -1 ? -3 : 0;
 }
 int Dispatcher_ChangeAnotherSkillTree::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -22742,16 +22700,15 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
 
-    // 类别校验（ORIG call CItem::hasCategory W 0x0822c97a = m_set128 查询；
-    // CItem.h 未声明该方法，按其实现语义直查 m_set128）：
-    // 两卡均须含类别 1，且均不得含类别 2。
-    if (!(cardB->m_set128.count((STItemScript::ENUM_ITEM_CATEGORY)1) != 0 &&
-          cardC->m_set128.count((STItemScript::ENUM_ITEM_CATEGORY)1) != 0))
+    // 类别校验（ORIG call CItem::hasCategory W 0x0822c97a）：两卡均须含类别 1，
+    // 且均不得含类别 2。
+    if (!(cardB->hasCategory((STItemScript::ENUM_ITEM_CATEGORY)1) &&
+          cardC->hasCategory((STItemScript::ENUM_ITEM_CATEGORY)1)))
     {
         return 0x17;
     }
-    if (cardB->m_set128.count((STItemScript::ENUM_ITEM_CATEGORY)2) != 0 ||
-        cardC->m_set128.count((STItemScript::ENUM_ITEM_CATEGORY)2) != 0)
+    if (cardB->hasCategory((STItemScript::ENUM_ITEM_CATEGORY)2) ||
+        cardC->hasCategory((STItemScript::ENUM_ITEM_CATEGORY)2))
     {
         return 0x17;
     }

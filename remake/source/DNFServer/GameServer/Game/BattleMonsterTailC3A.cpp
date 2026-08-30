@@ -69,6 +69,9 @@ bool CBattle_Field::ConsistTournament(const CMap* pMap, std::list<_mapMonster>& 
         return false;
     }
 
+    // ORIG 0x08303734：monsters = group->second（map 中该人数对应的怪物列表拷贝）。
+    monsters = group->second;
+
     std::vector<TournamentInfo> roundInfo;
     if (!MakeBasicRoundInfo(memberCount, monsters, roundInfo))
         return false;

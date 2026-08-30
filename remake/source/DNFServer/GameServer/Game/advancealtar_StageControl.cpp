@@ -65,7 +65,7 @@ char StageControl::leaveUser()
     {
         return 0;
     }
-    // [blocker] ORIG 此处调 HistoryLog::leaveDungeon(user, *getProcStage())。
+    HistoryLog::leaveDungeon(*user, *getProcStage());
     G_GameWorld()->out_from_dungeon(user);
     PacketGuard guard;
     guard.put_header(0, 2);

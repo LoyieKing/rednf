@@ -458,9 +458,7 @@ public:
     //   GetSellItemPrice(Inven_Item&, CItem const*, short, bool, int&) 0x08618ea0
     //   GetSellItemPrice(CUser*, char, short, short, bool, int&, int&)  0x08619008
     //   user_buy_item(CUser*, int, int)                                 0x08618a44
-    //   user_sell_item(CUser*, char, short, short)                      0x086193f8
-    //   repair_equip(CUser*, char, short, unsigned short, unsigned short&)
-    //                                                                   0x08619cec
+    Store() : m_field0(0), m_field4(0) {}   // ORIG create 内联构造：movl $0,(%eax); movb $0,0x4(%eax)
     int GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
                          bool flag, int& outPrice);
     int GetSellItemPrice(CUser* user, char invenType, short slot, short count,
@@ -469,6 +467,11 @@ public:
     int user_sell_item(CUser* user, char invenType, short slot, short count);
     int repair_equip(CUser* user, char invenType, short slot,
                      unsigned short count, unsigned short& outEndurance);
+private:
+    // ORIG sizeof(Store)==8：+0x0 int / +0x4 byte（全二进制无读取点，
+    // 仅 create 内联构造清零；字段用途【推断：原版遗留占位】）。
+    int m_field0;    // +0x00
+    char m_field4;   // +0x04
 };
 
 class CValueStatistic

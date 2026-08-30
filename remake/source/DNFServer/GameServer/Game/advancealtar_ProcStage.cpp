@@ -670,17 +670,21 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
     if (getStageType() == 1)
     {
         reset(StageType::STAGE_SURVIVAL);
-        if (!isSurvivalModeFirstRound())
-        {
-            ++m_survivalRound;
-        }
-        else
+        if (isSurvivalModeFirstRound())
         {
             // ORIG: roundMaps = *(std::vector<int>*)(dungeon+0x814); random_shuffle。
             const std::vector<int>& src = *reinterpret_cast<const std::vector<int>*>(
                 reinterpret_cast<const char*>(m_dungeon) + 0x814);
             m_roundMaps = src;
             std::random_shuffle(m_roundMaps.begin(), m_roundMaps.end());
+            // ORIG: state=1、startStageTime=getCurSec、HistoryLog::enterDungeon。
+            m_state = 1;
+            m_startStageTime = GlobalData::s_systemTime_.getCurSec();
+            HistoryLog::enterDungeon(*user, *this);
+        }
+        else
+        {
+            ++m_survivalRound;
         }
 
         if (static_cast<unsigned int>(m_survivalRound) >= m_roundMaps.size())
@@ -696,12 +700,13 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
         reset(StageType::STAGE_NORMAL);
         m_difficulty = static_cast<int>(diff);
         m_state = 1;
+        // ORIG: mapIdx/mapBasisLevel 按 difficulty（非 stageId）索引 dungeon 表。
         mapIdx = *reinterpret_cast<const int*>(
             reinterpret_cast<const char*>(m_dungeon) +
-            static_cast<unsigned int>(stageId + 0x200) * 4);
+            static_cast<unsigned int>(diff + 0x200) * 4);
         m_mapBasisLevel = *reinterpret_cast<const int*>(
             reinterpret_cast<const char*>(m_dungeon) +
-            static_cast<unsigned int>(stageId + 0x208) * 4);
+            static_cast<unsigned int>(diff + 0x208) * 4);
         m_startStageTime = GlobalData::s_systemTime_.getCurSec();
         HistoryLog::enterDungeon(*user, *this);
     }

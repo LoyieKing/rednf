@@ -449,10 +449,10 @@ void CDeathTowerRanking::unregistRanking(unsigned int characNo)
 void CDeathTowerRanking::init(unsigned int type)
 {
     void* table = getRankTable(type);
-    // ORIG 0x8c63370 实证每名 7 字符（"AAAAAAA\0" 等，8 字节；memcpy 7 字节
-    // 拷 7 字母不含 NUL），NEW 原 6 字符差 1
+    // ORIG 0x8c63370 实证每名 6 字符 + NUL（"AAAAAA\0" 等，7 字节；
+    // memcpy 7 字节 = 6 字母 + NUL，与 ORIG 逐字节一致）
     static const char* kDefaultNames[5] = {
-        "AAAAAAA", "BBBBBBB", "CCCCCCC", "DDDDDDD", "EEEEEEE" };
+        "AAAAAA", "BBBBBB", "CCCCCC", "DDDDDD", "EEEEEE" };
     char* base = reinterpret_cast<char*>(table);
     for (unsigned int tower = 0; tower <= 4; ++tower)
     {

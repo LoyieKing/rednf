@@ -2539,11 +2539,11 @@ public:
     bool isSaveInformNoticeFlag();
     int CheckMaxLuckyLevel();
     void OnRecvEvent();
-    bool GetBuyingGold();
+    unsigned char GetBuyingGold();   // ORIG movzbl 直返
     void SetBuyingGold(bool flag);
-    bool GetFirstLogin();
+    unsigned char GetFirstLogin();   // ORIG movzbl 直返
     void SetProgLogout();
-    bool isRestingUser();
+    unsigned char isRestingUser();   // ORIG movzbl 直返
     void InitReceivedRequestType();
     bool isBreakAwayDungeonClear();
     bool isUsedBreakAwayLuckPoint();

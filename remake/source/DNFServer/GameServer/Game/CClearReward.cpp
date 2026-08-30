@@ -129,12 +129,14 @@ void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClea
         return;
 
     const stGenItemProb_t& e = m_workProbs[refClear.m_dropProb][idx];
+    // ORIG 两处均 fistpl 截断（fnstcw/fldcw 0xc 截断模式），非 round；
+    // 保持 (int) 强转截断语义。
     int thr = static_cast<int>(
-        roundFloat((1.0f - dropRate) *
-                   static_cast<float>(
-                       (static_cast<int>(roundFloat(refClear.m_bonusRate * e.v[2])) +
-                        m_dungeonDropBonus[refClear.m_level]) *
-                       (param / 100))));
+        (1.0f - dropRate) *
+        static_cast<float>(
+            (static_cast<int>(refClear.m_bonusRate * e.v[2]) +
+             m_dungeonDropBonus[refClear.m_level]) *
+            (param / 100)));
 
     int dropType = 1;   // 初值（未命中即 1）
     int cum = 0;
@@ -208,14 +210,15 @@ void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
     unsigned short g2 = *reinterpret_cast<unsigned short const*>(rc + 0xa);
     int sum = static_cast<int>(g0 + (g1 * 2 + g2) * 2);
     int baseCount = rc[2];
-    int gold = static_cast<int>(roundFloat(static_cast<float>((sum * base) / 2) * weight));
+    // ORIG 两处 fistpl 截断（fldcw 0xc），非 round。
+    int gold = static_cast<int>(static_cast<float>((sum * base) / 2) * weight);
     static const float kGoldDivisor = 2.0f;   // _DAT_08c9a6d8 = 0x40000000 = 2.0f
     for (int i = 0; i < baseCount; ++i)
     {
         float piece = (static_cast<float>(gold) / kGoldDivisor /
                        static_cast<float>(baseCount)) * weight;
         int randSpan = GetRandomRange(-goldTable[1], goldTable[1]);
-        int amount = (static_cast<int>(roundFloat(piece)) * (randSpan + 100)) / 100;
+        int amount = (static_cast<int>(piece) * (randSpan + 100)) / 100;
         Inven_Item inv;
         inv.m_field1 = static_cast<unsigned char>(2);
         inv.m_addInfo = 0;
@@ -243,12 +246,13 @@ void CClearReward::power_war_dungeon_gold_clear_reward(
     unsigned short g1 = *reinterpret_cast<unsigned short const*>(rc + 0xe);
     unsigned short g2 = *reinterpret_cast<unsigned short const*>(rc + 0xa);
     int sum = static_cast<int>(g0 + (g1 * 2 + g2) * 2);
-    int gold = static_cast<int>(roundFloat(static_cast<float>((sum * base) / 2) * weight));
+    // ORIG 两处 fistpl 截断，非 round。
+    int gold = static_cast<int>(static_cast<float>((sum * base) / 2) * weight);
     static const float kGoldDivisor = 2.0f;   // _DAT_08c9a6d8 = 2.0f
     float piece = (static_cast<float>(gold) / kGoldDivisor /
                    static_cast<float>(rc[2])) * weight;
     int randSpan = GetRandomRange(-goldTable[1], goldTable[1]);
-    int amount = (static_cast<int>(roundFloat(piece)) * (randSpan + 100)) / 100;
+    int amount = (static_cast<int>(piece) * (randSpan + 100)) / 100;
     Inven_Item inv;
     inv.m_field1 = static_cast<unsigned char>(2);
     inv.m_addInfo = 0;

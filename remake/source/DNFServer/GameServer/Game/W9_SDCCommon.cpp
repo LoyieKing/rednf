@@ -151,12 +151,13 @@ int SDCActiveStatusSyncCommon::getActiveStatusDurationClient(
     return 0;
 }
 
-void SDCActiveStatusSyncCommon::getDuration(ENUM_ACTIVESTATUS status,
-                                            int level, void* param)
-// 0x0808dc7a：param（DataSend 视图）尾部三 int 作 objectType/a4/hpPenalty。
+int SDCActiveStatusSyncCommon::getDuration(ENUM_ACTIVESTATUS status,
+                                           int level, void* param)
+// 0x0808dc7a：param（DataSend 视图）尾部三 int 作 objectType/a4/hpPenalty；
+// ORIG 透传 getActiveStatusDurationServer 返回值。
 {
     const unsigned char* p = static_cast<const unsigned char*>(param);
-    getActiveStatusDurationServer(
+    return getActiveStatusDurationServer(
         status, level,
         *reinterpret_cast<const int*>(p + 0x29),
         *reinterpret_cast<const int*>(p + 0x2d),
@@ -263,12 +264,7 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(
 {
     if (outPtr != 0)
     {
-        const unsigned char* p = static_cast<const unsigned char*>(param);
-        *outPtr = getActiveStatusDurationServer(
-            status, level,
-            *reinterpret_cast<const int*>(p + 0x29),
-            *reinterpret_cast<const int*>(p + 0x2d),
-            *reinterpret_cast<const int*>(p + 0x31));
+        *outPtr = getDuration(status, level, param);
     }
     if (out != 0)
         makeEtcParameters(status, level, *out);

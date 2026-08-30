@@ -61,7 +61,7 @@ bool IsCollectDungeonStatistic();
 #include "Quest.h"               // Quest 完整类型（MakeQuestRewardPacket）
 #include "GameResultSet.h"     // GameResultSet 完整类型（SetPlayResult）
 #include "DisPatcherCore.h"    // DisPatcher_SetPlayResult::SendResult
-#include "PacketHeader.h"     // Packet_Goldcard_Event_Statistic_GTS 基头
+#include "GoldCardEventStatistic.h"  // Packet_Goldcard_Event_Statistic_GTS m_stat 完整类型
 #include "PacketGuard.h"
 #include "TimerQueue.h"
 #include "Secu_HackLogCheckByParty.h"
@@ -1439,30 +1439,26 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Packet_Goldcard_Event_Statistic_GTS —— ORIG ctor 0x085bee96 W：
-//   PacketHeader(0x1f46,0x13)[10] + byte + int + int（总 0x13）。
+//   PacketHeader(0x1f46,0x13)[10] + GoldCardEventStatistic(+0xa, size 0x9, 总 0x13)。
+//   （与 Game/Packet_Goldcard_Event_Statistic_GTS.h 同布局；本 TU 自包含定义。）
 // ---------------------------------------------------------------------------
 struct Packet_Goldcard_Event_Statistic_GTS
 {
-    PacketHeader m_header;   // +0x00（packed 0xa）
-    unsigned char m_fieldA;  // +0x0a（活动类型）
-    int m_fieldB;            // +0x0b
-    int m_fieldF;            // +0x0f
+    PacketHeader m_header;          // +0x00（packed 0xa）
+    GoldCardEventStatistic m_stat;  // +0x0a（ORIG GoldCardEventStatisticC1 构造）
 
     Packet_Goldcard_Event_Statistic_GTS()
-        : m_header(0x1f46, 0x13)
+        : m_header(0x1f46, 0x13), m_stat()
     {
-        m_fieldA = 0;
-        m_fieldB = 0;
-        m_fieldF = 0;
     }
 } __attribute__((packed));
 
 void CParty::sendPremiumGoldCardStatistic(int type, int value1, int value2)
 {
     Packet_Goldcard_Event_Statistic_GTS packet;
-    packet.m_fieldA = (unsigned char)type;
-    packet.m_fieldB = value1;
-    packet.m_fieldF = value2;
+    packet.m_stat.m_field0 = (unsigned char)type;
+    packet.m_stat.m_field1 = value1;
+    packet.m_stat.m_field5 = value2;
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
     if (proxy != 0)

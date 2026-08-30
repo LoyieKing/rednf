@@ -2053,7 +2053,7 @@ void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
     (void)rank;
     Inven_Item item;
     item.m_addInfo = static_cast<int>(itemIdx);
-    G_CDataManager()->getItemList()->create_item(
+    G_CDataManager()->m_itemList->create_item(
         ENUM_ITEM_CREATE_TYPE_0, item, count);
     if (item.m_addInfo == -1)
     {

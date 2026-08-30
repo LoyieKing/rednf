@@ -2707,7 +2707,10 @@ class stPartyTeleportConfirm : public ParamBase
 {
 public:
     stPartyTeleportConfirm();
-    char m_pad[0x40];
+    // ORIG：+0x04 int m_result、+0x08 unsigned char m_bConfirm（构造体见 PacketTypes.cpp）
+    int m_result;              // +0x04
+    unsigned char m_bConfirm;  // +0x08
+    char m_pad[0x3b];          // 保持占位总长 0x44
 };
 
 class stQuickChatParam : public ParamBase
