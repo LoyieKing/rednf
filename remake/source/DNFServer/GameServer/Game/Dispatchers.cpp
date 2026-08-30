@@ -11503,7 +11503,7 @@ Dispatcher_Antibot_DPCallBack::~Dispatcher_Antibot_DPCallBack() {}
 int Dispatcher_Antibot_DPCallBack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     typedef int (*CheckFn)(void*, int, char*, unsigned short, char*, short*);  // vtable +0x2c
-    char& retryCnt = user->m_expReward.m_field5;                               // +0x8d252（ORIG 有符号字节）
+    char& retryCnt = user->m_field5;                               // +0x8d252（ORIG 有符号字节）
     if (retryCnt < 5)
     {
         retryCnt = static_cast<unsigned char>(retryCnt + 1);

@@ -2836,6 +2836,10 @@ private:
     // 布局依据 ORIG C1/D1（0x8ac1d40/0x8ac1dce）：string +0x0 / string +0x4 /
     // map<int, DeleteInvalidItemData> +0x8；IsInvalidItem2Delete（0x8ac2096）
     // 在 +0x8 map 上 find(idx)。
+    // 2026-08-31 修正：原实现含 char m_pad14[0x20-0x14]（假设 map 只占 0xc），
+    // 实测 std::map<int,T>（c6root gcc 4.4.7 -m32）= 0x18——0x8+0x18=0x20
+    // 已对齐 ORIG 尾（CDataManager +0xb658 起 0x20 字节），pad 属多余 0xc，
+    // 导致 CDataManager sizeof 0xb684 ≠ ORIG 0xb678（影子测试 malloc 差）。
     struct DeleteInvalidItemData
     {
         DeleteInvalidItemData();  // ORIG _ZN23DeleteInvalidItemScript21DeleteInvalidItemDataC1Ev W 0x08ac220c
@@ -2848,8 +2852,8 @@ private:
     std::string m_field0;                                  // +0x00
     std::string m_field4;                                  // +0x04
     std::map<int, DeleteInvalidItemData> m_deleteMap;      // +0x08
-    char m_pad14[0x20 - 0x14];                             // +0x14..0x20
 };
+typedef char assert_sizeof_deleteinvaliditem[sizeof(DeleteInvalidItemScript) == 0x20 ? 1 : -1];
 
 // ===================== 外部依赖类（其它 TU 提供） =====================
 

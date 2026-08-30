@@ -2624,8 +2624,8 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
               user->getClientVersion(), antibotRet);
         }
         user->m_field8cf00 = 0;
-        user->m_expReward.m_field4 = 0;
-        user->m_expReward.m_field5 = 0;
+        user->m_field4 = 0;
+        user->m_field5 = 0;
         typedef int (*P2PAddClientFn)(void*, unsigned int, int, unsigned int);
         P2PAddClientFn p2pAdd =
             *(P2PAddClientFn*)((*(void***)checker)[0x20 / 4]);
@@ -11630,10 +11630,10 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
             "Ignore SendBuffertoClient [%s][size:%d]; reason:%s, QQID:%s",
             kind, (int)(short)*reinterpret_cast<unsigned short*>(data + 8),
             reason, NumberToString(*reinterpret_cast<unsigned int*>(data + 4), 0));
-        if (target != 0 && (unsigned char)target->m_expReward.m_field4 < 5)
+        if (target != 0 && (unsigned char)target->m_field4 < 5)
         {
-            const unsigned char old = (unsigned char)target->m_expReward.m_field4;
-            target->m_expReward.m_field4 = (char)(old + 1);
+            const unsigned char old = (unsigned char)target->m_field4;
+            target->m_field4 = (char)(old + 1);
             target->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)3, 0x252,
                                               (int)old, 0);
         }
@@ -11685,10 +11685,10 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
         }
     }
     else if (packetType == 0x231 &&
-             (unsigned char)target->m_expReward.m_field4 < 5)
+             (unsigned char)target->m_field4 < 5)
     {
-        const unsigned char old = (unsigned char)target->m_expReward.m_field4;
-        target->m_expReward.m_field4 = (char)(old + 1);
+        const unsigned char old = (unsigned char)target->m_field4;
+        target->m_field4 = (char)(old + 1);
         target->m_historyLog.SendBuffertoClientLog(
             *reinterpret_cast<int*>(data),
             (short)*reinterpret_cast<unsigned short*>(data + 8),

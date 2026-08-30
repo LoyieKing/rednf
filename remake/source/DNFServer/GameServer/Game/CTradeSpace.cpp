@@ -299,9 +299,9 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
     lock();
     m_bTrading = 1;
     _SetLock(0);
-    m_pTraders[0]->m_expReward.m_padf = (unsigned short)b->get_unique_id();
+    m_pTraders[0]->m_padf = (unsigned short)b->get_unique_id();
     m_pTraders[1] = b;
-    m_pTraders[1]->m_expReward.m_padf = (unsigned short)a->get_unique_id();
+    m_pTraders[1]->m_padf = (unsigned short)a->get_unique_id();
     bool ok = (m_pTraders[1]->getCurCharacR() != 0) &&
               (m_pTraders[0]->getCurCharacR() != 0);
     if (ok) {

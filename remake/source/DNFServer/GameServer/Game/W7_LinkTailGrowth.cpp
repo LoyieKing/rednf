@@ -139,13 +139,13 @@ int STGrowthPowerData::get_idx_break_away_section(int lv)
 //         !is_growth_power_exp_reward_right())
 //       写 m_expReward 字节 [+2]=value.m_fieldC、[+3]=value.m_field10、
 //                          [+1]=value.m_field8                // 0x8d24f/50/4e
-//     else memset(&m_expReward, 0, 4);                        // 0x8d24d
+//     else memset(&m_reward, 0, 4);                        // 0x8d24d
 //   else：                                                    // +0xe7..+0x15f
 //     idx = m_growthPower.get_idx_break_away_section(level);
 //     sz = m_vecC.size();                                     // dm+0x871c
 //     if (idx >= 0 && idx < sz && !is_growth_power_exp_reward_right())
-//       m_expReward.m_reward = m_vecC[idx].m_reward;          // 0x8d24d int 写
-//     else memset(&m_expReward, 0, 4);
+//       m_reward = m_vecC[idx].m_reward;          // 0x8d24d int 写
+//     else memset(&m_reward, 0, 4);
 // ============================================================================
 void CUser::set_growth_power_exp_reward(int level)
 {
@@ -156,14 +156,14 @@ void CUser::set_growth_power_exp_reward(int level)
         if (G_CDataManager()->m_seriaBlessing.get_value(level, value) &&   // +0x36
             !is_growth_power_exp_reward_right())                            // +0x45
         {
-            char* pBytes = reinterpret_cast<char*>(&m_expReward);  // +0x8d24d
+            char* pBytes = reinterpret_cast<char*>(&m_reward);  // +0x8d24d
             pBytes[2] = static_cast<char>(value.m_fieldC);    // +0x69 → 0x8d24f
             pBytes[3] = static_cast<char>(value.m_field10);   // +0x77 → 0x8d250
             pBytes[1] = static_cast<char>(value.m_field8);    // +0x85 → 0x8d24e
         }
         else
         {
-            memset(&m_expReward, 0, 4);                       // +0xc2 分支
+            memset(&m_reward, 0, 4);                       // +0xc2 分支
         }
     }
     else                                                      // +0xbb5 分支
@@ -174,11 +174,11 @@ void CUser::set_growth_power_exp_reward(int level)
         if (idx >= 0 && static_cast<std::size_t>(idx) < sz &&                  // +0xeb/+0xf3
             !is_growth_power_exp_reward_right())             // +0xfb
         {
-            m_expReward.m_reward = gp.m_vecC[idx].m_reward;  // +0x135 int 写
+            m_reward = gp.m_vecC[idx].m_reward;  // +0x135 int 写
         }
         else
         {
-            memset(&m_expReward, 0, 4);                      // +0x16f 分支
+            memset(&m_reward, 0, 4);                      // +0x16f 分支
         }
     }
 }

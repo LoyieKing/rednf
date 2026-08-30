@@ -714,7 +714,7 @@ CUser::CUser()
 
 CUser::~CUser()
 {
-    m_expReward.m_powerUp = 0;
+    m_powerUp = 0;
 }
 
 void CUser::reset()
@@ -791,8 +791,8 @@ void CUser::reset()
     m_field6ef68 = 0;
     m_field6ef69 = 0xff;
     resetMoneyLog();
-    m_expReward.m_field4 = 0;
-    m_expReward.m_field5 = 0;
+    m_field4 = 0;
+    m_field5 = 0;
     m_receivedRequestType = 0xff;
     m_field796d8 = 0;
     m_quest.reset();
@@ -878,7 +878,7 @@ void CUser::ResetCurCharac()
     m_field8d1e0 = 0;
     m_quest.m_field761c = 0;
     m_pcRoomAuth = 0;   // CUser+0x8cef1（原 m_quest.m_field761d 别名）
-    memset(&m_expReward, 0, 4);
+    memset(&m_reward, 0, 4);
     setForceDropFlag(false);
     m_rentalFlag1 = 1;
     m_rentalFlag2 = 0;
@@ -2696,7 +2696,7 @@ bool CUser::unlockDeleteCharac()
 STExpReward CUser::get_growth_power_exp_reward()
 {
     STExpReward ret;
-    ret.m_reward = m_expReward.m_reward;
+    ret.m_reward = m_reward;
     return ret;
 }
 
@@ -3639,37 +3639,37 @@ unsigned char CUser::GetLogInOutState()
 
 int CUser::get_public_ip_address()
 {
-    return m_expReward.m_publicIp;
+    return m_publicIp;
 }
 
 void CUser::set_public_ip_address(int ip)
 {
-    m_expReward.m_publicIp = ip;
+    m_publicIp = ip;
 }
 
 void CUser::set_local_ip_address(int ip)
 {
-    m_expReward.m_localIp = ip;
+    m_localIp = ip;
 }
 
 void CUser::setHangameUser(bool flag)
 {
-    m_expReward.m_hangameUser = flag;
+    m_hangameUser = flag;
 }
 
 unsigned char CUser::isHangameUser()
 {
-    return m_expReward.m_hangameUser;
+    return m_hangameUser;
 }
 
 unsigned char CUser::IsPowerUp()
 {
-    return m_expReward.m_powerUp;
+    return m_powerUp;
 }
 
 void CUser::SetPowerUp(bool flag)
 {
-    m_expReward.m_powerUp = flag;   // ORIG 直写 mov %dl,0x8d253（P32 bool 字段直赋）
+    m_powerUp = flag;   // ORIG 直写 mov %dl,0x8d253（P32 bool 字段直赋）
 }
 
 void CUser::SetRating(float rating)
@@ -4471,7 +4471,7 @@ int CUser::getRecipeProbability()
 
 int CUser::get_local_ip_address()
 {
-    return *(int*)((char*)&m_expReward.m_localIp);
+    return *(int*)((char*)&m_localIp);
 }
 
 unsigned int CUser::GetGuildCargoCapacity()

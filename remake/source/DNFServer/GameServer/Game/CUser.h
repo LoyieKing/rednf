@@ -2267,7 +2267,17 @@ public:
     int m_field8d1dc;                                       // +0x8d1dc
     int m_field8d1e0;                                       // +0x8d1e0
     CerashopAddRestrict::UserInfo m_ceraUserInfo;           // +0x8d1e4
-    STExpReward m_expReward;                                // +0x8d24d
+    // +0x8d24d 起 0x17 字节：ORIG 为 CUser 平铺字段区（STExpReward 类型仅 4 字节
+    // 用于 vector/解析；此处字段独立——2026-08-31 影子测试实测分离）。
+    int m_reward;                                           // +0x8d24d（dword）
+    char m_field4;                                          // +0x8d251
+    char m_field5;                                          // +0x8d252
+    char m_powerUp;                                         // +0x8d253（SetPowerUp）
+    int m_localIp;                                          // +0x8d254
+    int m_publicIp;                                         // +0x8d258
+    int m_padf;                                             // +0x8d25c（int 视图）
+    bool m_hangameUser;                                     // +0x8d260
+    char m_pad261[0x8d264 - 0x8d261];                       // +0x8d261..+0x8d263
     APSystem::CActionPointManager m_actionPoint;            // +0x8d264
     advancealtar::CharacAdvanceAltarManager m_advanceAltar; // +0x8df60
     Character m_character;                                  // +0x8e034（ORIG 大小 0x40 → 0x8e074）
