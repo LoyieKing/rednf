@@ -121,7 +121,7 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
     if (!user->IsPremiumUser())
         return;
 
-    std::vector<SUserPremiumInfo> infoList = premium->GetPremiumInfoList(0x270f);  // ORIG sret
+    std::vector<SUserPremiumInfo> infoList = premium->GetPremiumInfoList((int)type);  // ORIG 0x86afc6e 传 type 参数
 
     for (size_t i = 0; i < infoList.size(); ++i)
     {

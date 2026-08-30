@@ -212,7 +212,7 @@ public:
         ITEM_TYPE_INVALID = 0xb
     };
 
-    char m_field0;                     // +0x00
+    unsigned char m_field0;            // +0x00（ORIG 反汇编一律 movzbl 无符号读）
     unsigned char m_field1;            // +0x01（ITEM_TYPE）
     int m_addInfo;                     // +0x02（item idx）
     unsigned char m_attr;              // +0x06（upgrade:bit0-4 / reseal:bit5-7）

@@ -33,8 +33,7 @@ enum
     SIG_OFF_REMAIN_COUNT = 0x798,   // int 剩余可拉条数
 };
 
-// ---- 组件视图（P1：成员访问折叠单 disp；pack(1) 保证偏移精确） ----
-// postal 明细项（stride 0x61=97）
+#pragma pack(push, 1)
 struct MailPostalView
 {
     char m_pad0[0x50];
@@ -46,13 +45,13 @@ struct MailPostalView
         unsigned int m_letterId; // +0x5c
     } m_occ;                     // +0x50
 };
+#pragma pack(pop)
 // SIG_LETTER_INFO 内 +0x125 字段（occ_time）
 struct LetterOccView
 {
     char m_pad[0x125];
     int  m_occ;              // +0x125
 };
-#pragma pack(pop)
 
 // RemoveMailByLatestLetter —— ORIG 0x0841cd03，定义归 DB_MailBox_Req_List.cpp
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);

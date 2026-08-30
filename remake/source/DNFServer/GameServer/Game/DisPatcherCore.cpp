@@ -7758,13 +7758,13 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 user->m_mcap.m_monsterDieHackCnt = 0;
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xcd*/, 1,
+                    user, (WongWork::ENUM_HACKTYPE)0xcd, 1,
                     (party->m_dungeon == 0) ? 0 :
                     (party->m_dungeon->get_index() == 0x2afe ? 2 : 0), 0);
                 if (!party->checkBossRoom())
                 {
                     user->getHackAnalyzer()->addServerHackCnt(
-                        user, WongWork::ENUM_HACKTYPE_0 /*0xce*/, 1,
+                        user, (WongWork::ENUM_HACKTYPE)0xce, 1,
                         (party->m_dungeon == 0) ? 0 :
                         (party->m_dungeon->get_index() == 0x2afe ? 2 : 0),
                         0);
@@ -7782,7 +7782,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                               600, 600, 1000))
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xd1*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0xd1, 1, 0, 0);
             }
             user->m_mcap.m_monsterDieHackCnt = 0;
         }
@@ -7805,7 +7805,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (die.m_killValue1 > 0x5dc)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6f*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6f, 1, 0, 0);
                 cMyTrace trace(
                     __PRETTY_FUNCTION__,
                     0x6ddb, 0);
@@ -7823,19 +7823,19 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (zeroHitBossDg)
             {
                 attacker->getHackAnalyzer()->addServerHackCnt(
-                    attacker, WongWork::ENUM_HACKTYPE_0 /*0x7f*/, 1,
+                    attacker, (WongWork::ENUM_HACKTYPE)0x7f, 1,
                     die.m_killValue1, 0);
             }
             if (die.m_killValue2 == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6d*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6d, 1, 0, 0);
                 die.m_killValue2 = 1;
             }
             if (die.m_hitCountList[i] == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6e*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6e, 1, 0, 0);
                 die.m_hitCountList[i] = 1;
             }
             unsigned int perHit =
@@ -7859,7 +7859,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         if (die.m_killValue1 % 10 == 0 && die.m_killValue2 % 10 == 0)
         {
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0xca*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0xca, 1, 0, 0);
         }
         user->getHackAnalyzer()->ValidateFixMobDiePos(
             user, (unsigned short)monsterIdxOut,
@@ -7882,7 +7882,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                               600, 600, 1000))
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xd4*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0xd4, 1, 0, 0);
             }
         }
         for (int i = 0; i < (int)(unsigned char)die.m_mobCount; ++i)
@@ -7896,7 +7896,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (die.m_hitCountList[i] == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6e*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6e, 1, 0, 0);
                 die.m_hitCountList[i] = 1;
             }
             unsigned int perHit =
@@ -7904,7 +7904,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (perHit > 12999)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6c*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6c, 1, 0, 0);
             }
             if (CHackLog_OverDamage::GetDeathTowerLimitDamage() < perHit)
             {
@@ -7928,9 +7928,9 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 user->m_mcap.m_monsterDieHackCnt = 0;
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xcd*/, 1, 1, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0xcd, 1, 1, 0);
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xce*/, 1, 1, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0xce, 1, 1, 0);
             }
         }
         else
@@ -7950,9 +7950,9 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         if ((unsigned short)die.m_fieldF == 0xffff)
         {
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0xcd*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0xcd, 1, 0, 0);
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0xce*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0xce, 1, 0, 0);
         }
         for (int i = 0; i < (int)(unsigned char)die.m_mobCount; ++i)
         {
@@ -7982,19 +7982,19 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (die.m_killValue1 > 0x5dc)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6f*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6f, 1, 0, 0);
                 die.m_killValue1 = 1;
             }
             if (die.m_hitCountList[i] == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6e*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6e, 1, 0, 0);
                 die.m_hitCountList[i] = 1;
             }
             if (die.m_killValue2 == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0x6d*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0x6d, 1, 0, 0);
                 die.m_killValue2 = 1;
             }
         }
@@ -8654,7 +8654,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
     if ((unsigned int)user->getCurCharacInvenCheckSum() != invenCheckSum)
     {
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0x25b*/, 1, 0, 0);
+            user, (WongWork::ENUM_HACKTYPE)0x25b, 1, 0, 0);
     }
     if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
             user, static_cast<RestrictCategory::Enum>(1), 0xc))
@@ -9375,7 +9375,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     if (killCountRead != 0 && !party->checkBossRoom())
     {
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0x1fb*/,
+            user, (WongWork::ENUM_HACKTYPE)0x1fb,
             static_cast<unsigned int>(killCountRead), 0, 0);
     }
     unsigned int* coinSlot =
@@ -9389,7 +9389,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     if (*coinSlot > 10000)
     {
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0x78*/, 1,
+            user, (WongWork::ENUM_HACKTYPE)0x78, 1,
             *coinSlot / 10000, 0);
         *coinSlot = *coinSlot % 10000;
     }
@@ -9409,7 +9409,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     if (party->GetMapPlayingTime() / 1000 < *coinSlot)
     {
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0x75*/, 1, *coinSlot, 0);
+            user, (WongWork::ENUM_HACKTYPE)0x75, 1, *coinSlot, 0);
     }
 
     CBattle_Field& field =
@@ -9425,7 +9425,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         if (!field.IsClearDungeon())
         {
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0x196*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0x196, 1, 0, 0);
             return 0;
         }
         int key = party->gen_timer_key((TIMER_MESSAGE)0x29);
@@ -9447,7 +9447,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
             // ORIG local_158e 为 SIG_LOAD_CHARAC 尾部长度字段；
             // 此处结构建模以 GetCharacInfo 报告为准【推断】。
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0xe2*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0xe2, 1, 0, 0);
         }
     }
     if (*reinterpret_cast<int*>(
@@ -9470,7 +9470,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
                  0x1d < *reinterpret_cast<short*>(
                             reinterpret_cast<char*>(&sigChk))))
                 user->getHackAnalyzer()->addServerHackCnt(
-                    user, WongWork::ENUM_HACKTYPE_0 /*0xe3*/, 1, 0, 0);
+                    user, (WongWork::ENUM_HACKTYPE)0xe3, 1, 0, 0);
         }
     }
 
@@ -9481,13 +9481,13 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         int fastCnt = 11 - playMs / 1000;                 // ORIG local_28
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0xe5*/,
+            user, (WongWork::ENUM_HACKTYPE)0xe5,
             static_cast<unsigned int>(fastCnt), 0, 0);
     }
     if (playMs < 20000 && 10 < level)
     {
         user->getHackAnalyzer()->addServerHackCnt(
-            user, WongWork::ENUM_HACKTYPE_0 /*0xe4*/, 1, 0, 0);
+            user, (WongWork::ENUM_HACKTYPE)0xe4, 1, 0, 0);
     }
 
     unsigned int memberKillSum = 0;               // local_ebc
@@ -9551,7 +9551,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         if (!pillFound)
         {
             user->getHackAnalyzer()->addServerHackCnt(
-                user, WongWork::ENUM_HACKTYPE_0 /*0x1a2*/, 1, 0, 0);
+                user, (WongWork::ENUM_HACKTYPE)0x1a2, 1, 0, 0);
         }
     }
     if (!party->CheckRecvFromAllMember(user))
