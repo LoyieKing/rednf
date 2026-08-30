@@ -2239,10 +2239,11 @@ struct stNpcSales
 
 struct stDungeonNpc
 {
+    // 2026-08-31：ORIG sizeof 12（multimap 节点 _Rb_tree_node 32 = 16 + pair(4+12)；
+    // new_allocator 32B）——原 m_fieldC 多余，删。
     int m_field0;   // +0x00
     int m_npcIdx;   // +0x04（GetNpcIdx 返回）
     int m_rate;     // +0x08（GetNpcIdx 累加权重）
-    int m_fieldC;   // +0x0c
 };
 
 struct stLevelSection
@@ -2587,7 +2588,9 @@ struct pvp_channel_info_t
     int m_maxLevel;           // +0x18（trace 第 6 参 maxLevel；扫描序 7）
     int m_field1c;            // +0x1c（扫描序 8）
     int m_field20;            // +0x20（扫描序 9）
-    PvP_MissionSystem* m_pvpMissionSystem;  // +0x24（ctor 初始化）
+    // 2026-08-31：m_pvpMissionSystem 移出——ORIG sizeof 36（new_allocator 36B；
+    // C1 0x8370900 只清零 +0x0..+0x20）；该指针是 CDataManager 独立成员
+    // +0xb454（find_mission 0x835fa8f 读 CDataManager+0xb454）。
 };
 
 class stItemMakingSkill
@@ -3575,7 +3578,8 @@ public:
     float m_dropRate;                             // +0xb3f0
     channel_script_t m_channelScript;             // +0xb3f4
     std::vector<stVendingMachine_t> m_vendingMachine;  // +0xb424
-    pvp_channel_info_t m_pvpChannel;              // +0xb430
+    pvp_channel_info_t m_pvpChannel;              // +0xb430（sizeof 36，至 +0xb454）
+    PvP_MissionSystem* m_pvpMissionSystem;        // +0xb454（ORIG find_mission 实证）
     stItemMakingSkill m_itemMakingSkill;          // +0xb458
     std::set<int> m_ultimateDungeonList;          // +0xb488
     ChoiceItemInfo m_choiceItem;                  // +0xb4a0

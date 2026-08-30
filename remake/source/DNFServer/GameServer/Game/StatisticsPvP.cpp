@@ -28,8 +28,12 @@ public:
 
     struct PvP_Room
     {
-        int m_count;  // +0x00
-        int m_total;  // +0x04
+        // 2026-08-31：ORIG sizeof 16（map 节点 40 = 16+pair(8+16)；incPvPRoomResult
+        // 0x860c653 构造 4 dword：{keyA, keyB, 1, value}）——原仅 2 int，补全。
+        int m_field0;  // +0x00
+        int m_field4;  // +0x04
+        int m_field8;  // +0x08
+        int m_fieldC;  // +0x0c
     };
 
     StatisticsPvP();
@@ -66,14 +70,17 @@ void StatisticsPvP::incPvPRoomResult(int keyA, int keyB, int value)
     std::map<PvP_Key, PvP_Room>::iterator it = m_map.find(key);
     if (it == m_map.end())
     {
+        // ORIG 0x860c653：PvP_Room 四字段 {keyA, keyB, 1, value}。
         PvP_Room room;
-        room.m_count = 1;
-        room.m_total = value;
+        room.m_field0 = keyA;
+        room.m_field4 = keyB;
+        room.m_field8 = 1;
+        room.m_fieldC = value;
         m_map.insert(std::make_pair(key, room));
     }
     else
     {
-        it->second.m_count += 1;
-        it->second.m_total += value;
+        it->second.m_field8 += 1;
+        it->second.m_fieldC += value;
     }
 }

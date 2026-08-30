@@ -39,9 +39,10 @@ struct RandomApplicationKey
 
 struct RandomApplicationValue
 {
+    // 2026-08-31：ORIG sizeof 8（map 节点 28 = 16+pair(2+pad2+8)；new_allocator
+    // 28B）——原 m_field8 无消费且 ORIG 无此字段，删。
     int m_field0;   // +0x00（_random_application：randInt 上界分量）
     int m_field4;   // +0x04（_random_application：阈值比较分量；上界=m_field4+m_field0）
-    int m_field8;   // +0x08（未在本批方法中消费）
 };
 
 struct LevelLimitDecisionValue

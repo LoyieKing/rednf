@@ -58,14 +58,15 @@ struct GenuineDamageUpgradeInfo
 {
     GenuineDamageUpgradeInfo();              // ORIG W 0x0891baf0：清零前 4 dword
 
+    // 2026-08-31：ORIG sizeof 16（map 节点 36 = 16+pair(4+16)；ctor 0x891baf0
+    // 清零 4 dword）——原 m_materialRate（+0x10）无代码引用且 ORIG 无此字段，删。
     int m_a;                                 // +0x00（useAlt=false 分支乘数，fildl）
     int m_b;                                 // +0x04（useAlt=true 分支乘数，fildl）
     float m_levelRate;                       // +0x08（import：level/10000f；ctor 清零）
     float m_goldRate;                        // +0x0c（_GetUpgradeInfo ×9840f → 金币）
-    float m_materialRate;                    // +0x10（getMaterialCnt 放大系数；ctor 不初始化）
-};  // sizeof == 0x14
+};  // sizeof == 0x10
 
-static_assert(sizeof(GenuineDamageUpgradeInfo) == 0x14,
+static_assert(sizeof(GenuineDamageUpgradeInfo) == 0x10,
               "GenuineDamageUpgradeInfo size drift");
 
 struct OutLineEFFECTInfoTemp

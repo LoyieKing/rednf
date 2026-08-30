@@ -198,7 +198,12 @@ int  xtea_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_
 int  xtea_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
 int  xtea_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
 
-// RC6（ORIG 用 RC6_ALG_INFO 上下文，接口保留；算法为标准 RC6）
+// RC6（ORIG 用 RC6_ALG_INFO 上下文；ORIG new 0x4c=76 实证——ORIG 的
+// rc6_key_setup 0x80b5b48 是自创变体（输出区首字节 0x63、44 字节轮密钥），
+// 与标准 RC6（44×ulong32 子密钥、20 轮）不同。2026-08-31 评估：结构按 ORIG
+// 76 对齐需同步转写 ORIG 变体算法（key_setup/encrypt/decrypt 三函数），
+// 归入加密算法专项（FINDINGS_R1 §剩余待修）；当前保持标准 RC6 208 字节
+// 结构（算法自洽不越界）。
 struct RC6_ALG_INFO
 {
     unsigned char key[0x20];  // 原始密钥（rc6_key_setup 取前 keylen 字节）

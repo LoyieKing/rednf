@@ -860,7 +860,6 @@ int importSecretShopScript(SecretShopScript* script, const char* path)
                 npc.m_field0 = key;      // [推断]
                 npc.m_npcIdx = npcIdx;
                 npc.m_rate = rate;
-                npc.m_fieldC = 0;
                 npcMap.insert(std::make_pair(key, npc));
             }
             script->verifyNpc(npcMap);

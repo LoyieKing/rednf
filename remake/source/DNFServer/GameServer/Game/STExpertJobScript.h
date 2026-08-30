@@ -113,12 +113,14 @@ public:
     // 怪物卡绑定结果（stride 0xc）。ctor 0x0896dc20：只清 w+4 后 d+0。
     struct stMonsterCardBindResult
     {
+        // 2026-08-31：ORIG sizeof 8（new_allocator 8B；C1 0x896dc20 清 d@+0 +
+        // w@+4）——原 m_field8(ushort)/m_fieldA 建模偏移错：+0x4 即 ushort 字段
+        // （CExpertJobList 解析写 m_field4），尾 pad2 对齐。
         stMonsterCardBindResult();               // ORIG C1/C2 @0x0896dc20
         ~stMonsterCardBindResult();              // ORIG D1/D2 @0x08974fac（空体）
         int            m_field0;  // +0x00
-        int            m_field4;  // +0x04
-        unsigned short m_field8;  // +0x08
-        unsigned char  m_fieldA;  // +0x0a
+        unsigned short m_field4;  // +0x04
+        char           m_pad6[2]; // +0x06
     };
     // 娃娃机结果（[doll_controller extraction result item] 元素）。
     // ctor 0x0896deac：w@+8=0 → w+6=w+8 → w+4=w+6 → d+0=(uint)(word)w+4（链式置零）。

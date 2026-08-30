@@ -22,9 +22,12 @@ namespace APSystem
 // [action point today reward] 栈对象 -0x116 同构（GetTodayRewardAndSendMail
 // 0x08122104 元素偏移 +0/+4/+6/+8/+0xc 实证）。
 // ============================================================================
+#pragma pack(push, 1)
 class _TodayRewardItem
 {
 public:
+    // 2026-08-31：ORIG memset(this,0,0xe)、元素分配 14B（new_allocator 14B）
+    // ——pack(1) sizeof 0xe；原默认对齐 0x10。
     __attribute__((used)) _TodayRewardItem();   // ORIG W 0x08895736
     __attribute__((used)) ~_TodayRewardItem();  // ORIG W 0x08897d76
 
@@ -34,6 +37,7 @@ public:
     int m_rewardItemIdx;        // +0x08（find_item 实参）
     unsigned short m_count;     // +0x0c（邮件附件数量）
 };                              // sizeof 0xe
+#pragma pack(pop)
 
 // APSystem::_ActionPoint —— 行动点 DB 行记录。
 // ORIG W 0x0848f5b4 _ZN8APSystem12_ActionPointC1Ev/C2Ev（ctor 体=memset(this,0,0xb)，
@@ -102,15 +106,19 @@ struct CActionPointEx
 // 布局（importActionPointSystemEtcScript [action point medal reward] 实证，
 // 栈对象 -0x116..-0x109：ushort/ushort/int/ushort，sizeof 0xc；
 // ctor 0x08895712=memset(this,0,0xa)，尾 pad 不清零）。
+#pragma pack(push, 1)
 struct _MedalRewardItem
 {
+    // 2026-08-31：ORIG ctor 0x8895712 memset(this,0,0xa)、元素分配 10B
+    // （new_allocator 10B）——pack(1) sizeof 0xa；原默认对齐 0xc。
     _MedalRewardItem();   // ORIG W 0x08895712
 
     unsigned short m_field00;   // +0x00
     unsigned short m_field02;   // +0x02
     int m_field04;              // +0x04
     unsigned short m_field08;   // +0x08
-};                              // sizeof 0xc
+};                              // sizeof 0xa
+#pragma pack(pop)
 
 
 // ORIG 0x08121616：GetActionPointFromMemory（纯空函数）

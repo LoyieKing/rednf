@@ -73,13 +73,13 @@ enum ENUM_CHARAC_EXPAND_TYPE
 };
 #endif
 
-#pragma pack(push, 1)
-
 namespace charac_expand
 {
 class CData
 {
 public:
+    // 2026-08-31 复核：ORIG CItemDictionary = 5008（0x1390，new 实参实证）=
+    // CData(8：vptr+m_bIsSave+对齐 pad3) + m_data[5000]——保持默认对齐 8。
     CData();                                 // ORIG W 0x80c8cba：置基类 vptr
     virtual void ResetDailyMidnight() {}
     virtual bool loadData(CUser* pUser, char* pData) = 0;
@@ -99,13 +99,15 @@ protected:
 };
 }
 
-#pragma pack(pop)
-
+#pragma pack(push, 1)
 struct BoosterPoint
 {
+    // 2026-08-31：ORIG 元素 sizeof 5（new_allocator 5B；getBoosterPoint 0x80dd510
+    // 比较 +0x0 dword）——pack(1)；原默认对齐 8。
     unsigned long m_dwItemIdx;  // +0x00
     unsigned char m_cPoint;     // +0x04
 };
+#pragma pack(pop)
 
 #ifndef DNF_BOOSTERGAGEDATA_DEFINED
 #define DNF_BOOSTERGAGEDATA_DEFINED
@@ -179,9 +181,9 @@ private:
 };
 
 // 布局核对（ORIG 反汇编 _reset 写 +0x08；vtable 槽位见文件头注释）：
-// CData 非 packed 派生：vptr +0x0 / m_bIsSave +0x4（基类 pack(1) sizeof 5）/
-// m_dwTotalGage +0x8（int 对齐 4），sizeof 0xc。
-static_assert(sizeof(charac_expand::CData) == 0x05, "CData size mismatch");
+// CData 默认对齐：vptr +0x0 / m_bIsSave +0x4 / pad 至 8（CItemDictionary
+// 5008 实证）；CBoosterGage：CData(8) + m_dwTotalGage +0x8，sizeof 0xc。
+static_assert(sizeof(charac_expand::CData) == 0x08, "CData size mismatch");
 static_assert(sizeof(CBoosterGage) == 0x0c, "CBoosterGage size mismatch");
 
 #endif  // GAME_CBOOSTERGAGE_H_

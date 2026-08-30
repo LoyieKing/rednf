@@ -74,9 +74,11 @@ public:
     // ORIG W C1/C2(Ehh) @0x084eb598 (size 0x27)：this+0x00=p1(u8)、+0x01=p2(u8)。
     struct stIPInfo_t
     {
+        // 2026-08-31：ORIG sizeof 4（map 节点 _Rb_tree_node 24 = 16+pair(4+4)；
+        // new_allocator 24B）——原 m_pad[0x16] 为无证据推断，删至对齐 4。
         unsigned char m_minIp;   // +0x00（区间下界）【推断命名】
         unsigned char m_maxIp;   // +0x01（区间上界）【推断命名】
-        char m_pad[0x16];        // 【推断】对象净尺寸无 ORIG 直接证据，沿用镜像 0x18
+        char m_pad[2];           // +0x02..+0x04（对齐）
 
         stIPInfo_t(unsigned char minIp, unsigned char maxIp);
     };

@@ -190,12 +190,13 @@ struct STPremiumItemData
         m_value8 = 0;
     }
 
+    // 2026-08-31：ORIG sizeof 12（map 节点 _Rb_tree_node 32 = 16+pair(4+12)；
+    // SetPremiumItemData 0x86af70a 写 +0/+4/+5/+8）——原 m_valuec 多余，删。
     int m_value0;          // +0x00
     char m_c4;             // +0x04（term 低字节）
     char m_c5;             // +0x05（flag 次字节）
     char m_pad6[2];        // +0x06
     int m_value8;          // +0x08
-    int m_valuec;          // +0x0c
 };
 // ---- ORIG 全局 g_map_premium_item_data（premium 商品数据表）----
 // std::map<unsigned long, STPremiumItemData>。由 CUserPremium::SetPremiumItemData
@@ -643,7 +644,7 @@ struct LimitItemUsage
     char             m_pad11[0x4]; // +0x11
     int              m_field15;    // +0x15
     int              m_field19;    // +0x19
-    char             m_pad1d[0x20 - 0x1d];
+    // 2026-08-31：原 m_pad1d[3] 多余——ORIG 元素 sizeof 0x1d（new_allocator 29B），删。
     // ---- Wave6-CUser 补声明（ORIG T/W 符号实证；定义 owner=对应域批次）----
     bool isUsable();   // ORIG W 0x08695f68 _ZN14LimitItemUsage8isUsableEv
     bool useIt();      // ORIG W 0x08695f28 _ZN14LimitItemUsage5useItEv
@@ -652,18 +653,19 @@ struct LimitItemUsage
 
 struct stLookOuts
 {
+    // 2026-08-31：ORIG C1（0x869380e）仅写 +0x0/+0x4——sizeof 8（影子测试
+    // new_allocator 元素分配 8B）；原 m_pad8[8] 多余（误按 0x10 建模）——删。
     stLookOuts(unsigned int a, unsigned int b);   // ORIG W _ZN10stLookOutsC1Ejj 0x0869380e（定义=W8_CU_G.cpp）
     unsigned int m_a;                             // +0x00（ctor arg1）
     unsigned int m_b;                             // +0x04（ctor arg2）
-    char m_pad8[8];                               // +0x08..0x0f
 };
 
 struct tyIPCounters
 {
+    // 2026-08-31：同 stLookOuts——sizeof 8，原 m_pad8[8] 多余——删。
     tyIPCounters(unsigned int a, unsigned int b); // ORIG W _ZN12tyIPCountersC1Ejj 0x08693824（同上承载）
     unsigned int m_a;                             // +0x00
     unsigned int m_b;                             // +0x04
-    char m_pad8[8];                               // +0x08..0x0f
 };
 
 class UserMercenaryInfoMgr
@@ -2097,10 +2099,10 @@ public:
     // ---- 嵌套结构（vector<_DBLogItemInfo> 元素 / 金钱日志） ----
     struct _DBLogItemInfo
     {
+        // 2026-08-31：原 m_pad0c[4] 多余——ORIG 元素 sizeof 12（new_allocator 12B）。
         unsigned int m_itemIdx;    // +0x00
         unsigned int m_type;       // +0x04
         ENUM_DBLOG_ITEM_TYPE m_value;  // +0x08
-        char m_pad0c[4];           // +0x0c
     };
 
     class CharacMoneyLog

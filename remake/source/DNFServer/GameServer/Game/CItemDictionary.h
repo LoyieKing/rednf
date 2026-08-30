@@ -32,6 +32,8 @@ public:
     void setItemCheckFlag(CUser* user, unsigned int item, unsigned int flag);
 private:
     unsigned char m_data[5000];               // +0x05 起位图（5000 字节）
+    char m_pad5005[3];                        // +0x138d..0x1390（ORIG new 0x1390=5008 实证；
+                                               //   getLengthBinary 只遍历 +5..+5004，尾 3 无访问）
     // ORIG 无成员 vector：getGainItemList 按值返回局部 vector（NRV）；
     // D1 0x0811d5f0 反汇编无 vector 析构调用（仅 vptr + complete-object delete）。
 };

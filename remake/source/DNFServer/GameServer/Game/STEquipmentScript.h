@@ -166,11 +166,15 @@ public:
 //      int appendage + 4×float rate；loadAppendageType 取首字段） ----
 struct STChangeStatusRate
 {
+    // 2026-08-31：ORIG 元素 sizeof 24（new_allocator 24B；ImportEquipmentScript
+    // 0x899a3bc push_back 栈对象 24B）——int+4×float=20 后仍有 4B（未初始化
+    // 尾字段，ORIG 原样未写）——补 pad 保持 vector 步长。
     int m_appendage;   // +0x00（loadAppendageType(token)）
     float m_rate1;     // +0x04
     float m_rate2;     // +0x08
     float m_rate3;     // +0x0c
     float m_rate4;     // +0x10
+    char m_pad14[4];   // +0x14..0x18（ORIG 未写尾字段）
 };
 
 // ---- [character item check] 条目（vector stride 实证：+0x7cc→+0x7d8 = 0xc；

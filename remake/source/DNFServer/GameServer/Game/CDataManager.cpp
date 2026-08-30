@@ -320,7 +320,7 @@ void* CDataManager::find_monster(int idx) const
 
 void* CDataManager::find_mission(int idx) const
 {
-    return (void*)m_pvpChannel.m_pvpMissionSystem->find_mission(idx);
+    return (void*)m_pvpMissionSystem->find_mission(idx);
 }
 
 int CDataManager::find_npc(unsigned int idx) const
@@ -676,28 +676,28 @@ int CDataManager::isThereDailyTrainingQuestList(int idx, int questIdx)
 
 int CDataManager::get_WithinMissionIndex(int idx) const
 {
-    return m_pvpChannel.m_pvpMissionSystem->get_WithinMissionIndex(idx);
+    return m_pvpMissionSystem->get_WithinMissionIndex(idx);
 }
 
 std::list<CMission*>* CDataManager::get_kind_mission_list(int idx) const
 {
-    return &m_pvpChannel.m_pvpMissionSystem->get_kind_mission_list(idx);
+    return &m_pvpMissionSystem->get_kind_mission_list(idx);
 }
 
 void CDataManager::get_New_DailyMission(
     std::vector<std::pair<unsigned int, unsigned int> >& out)
 {
-    m_pvpChannel.m_pvpMissionSystem->get_New_DailyMission(out);
+    m_pvpMissionSystem->get_New_DailyMission(out);
 }
 
 int CDataManager::get_BaseMissionExp_byRank(unsigned short rank) const
 {
-    return m_pvpChannel.m_pvpMissionSystem->get_BaseMissionExp_byRank(rank);
+    return m_pvpMissionSystem->get_BaseMissionExp_byRank(rank);
 }
 
 std::bitset<32> CDataManager::get_daily_mission_kind() const
 {
-    return m_pvpChannel.m_pvpMissionSystem->get_daily_mission_kind();
+    return m_pvpMissionSystem->get_daily_mission_kind();
 }
 
 // ===================== 事件/道具 =====================
@@ -2794,14 +2794,14 @@ int CDataManager::init()
             "\t- Load PVP_Mission.lst fail");
         return 0;
     }
-    m_pvpChannel.m_pvpMissionSystem = new PvP_MissionSystem;
-    if (!m_pvpChannel.m_pvpMissionSystem->Load_list())
+    m_pvpMissionSystem = new PvP_MissionSystem;
+    if (!m_pvpMissionSystem->Load_list())
     {
         cMyTrace("int CDataManager::init()", 0x1eb8, 9, true, true)(
             "\t- PvP_MissionSystem Load_list Fail");
         return 0;
     }
-    if (!m_pvpChannel.m_pvpMissionSystem->Load_EtcParameter())
+    if (!m_pvpMissionSystem->Load_EtcParameter())
     {
         cMyTrace("int CDataManager::init()", 0x1ec1, 9, true, true)(
             "\t- PvP_MissionSystem Load_EtcParameter Fail");

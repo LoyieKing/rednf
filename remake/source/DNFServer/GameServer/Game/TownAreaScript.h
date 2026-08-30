@@ -34,7 +34,9 @@ public:
     std::vector<T_Rect> m_rects;   // +0x0c
     std::vector<int> m_field18;    // +0x18
     unsigned char m_field24;       // +0x24
-    char m_pad25[0x30 - 0x25];     // +0x25
+    // 2026-08-31：ORIG sizeof 40（map 节点 60 = 16+pair(4+40)；clear 0x86d1d46
+    // 只到 +0x18 vector）——原 pad 到 0x30 多余 8，改到 0x28。
+    char m_pad25[0x28 - 0x25];     // +0x25..+0x28
 };
 
 #endif  // GAME_TOWNAREASCRIPT_H

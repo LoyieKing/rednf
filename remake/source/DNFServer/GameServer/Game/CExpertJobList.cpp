@@ -461,10 +461,10 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) break;
                     int idx = ScanInt(&ok);
                     if (!ok) return false;
-                    res.m_field8 = (unsigned short)ScanInt(&ok);
+                    res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     script->m_specialBindInfo.m_vec[idx].push_back(res);
-                    cnt[idx] += (int)res.m_field8;
+                    cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 4; ++i)
                     script->m_specialBindInfo.m_count[i] = cnt[i];
@@ -479,10 +479,10 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) break;
                     int idx = ScanInt(&ok);
                     if (!ok) return false;
-                    res.m_field8 = (unsigned short)ScanInt(&ok);
+                    res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     script->m_commonBindInfo.m_vec[idx].push_back(res);
-                    cnt[idx] += (int)res.m_field8;
+                    cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 4; ++i)
                     script->m_commonBindInfo.m_count[i] = cnt[i];
@@ -549,7 +549,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     std::string type;
                     if (!ScanStr(&type))
                         return false;
-                    res.m_field8 = (unsigned short)ScanInt(&ok);
+                    res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     int idx;
                     if (type == "food")
@@ -567,7 +567,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                         return false;
                     }
                     script->m_alchemistResultInfo.m_vec[idx].push_back(res);
-                    cnt[idx] += (int)res.m_field8;
+                    cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 3; ++i)
                     script->m_alchemistResultInfo.m_count[i] = cnt[i];
@@ -580,9 +580,9 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     stMonsterCardBindResult res;
                     res.m_field0 = ScanInt(&ok);
                     if (!ok) break;
-                    res.m_field8 = (unsigned short)ScanInt(&ok);
+                    res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    total += (int)res.m_field8;
+                    total += (int)res.m_field4;
                     script->m_enchanterResultInfo.m_vec.push_back(res);
                 }
                 script->m_enchanterResultInfo.m_count = total;
@@ -599,7 +599,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field6 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    res.m_field8 = (unsigned short)ScanInt(&ok);
+                    res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     int idx = 3;
                     if (res.m_field4 == 0 || 0x1e < res.m_field6)
@@ -626,7 +626,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                         idx = 0;
                     }
                     script->m_dollResultInfo.m_vec[idx].push_back(res);
-                    cnt[idx] += (int)res.m_field8;
+                    cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 3; ++i)
                     script->m_dollResultInfo.m_count[i] = cnt[i];
