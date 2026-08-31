@@ -15,7 +15,8 @@
 #include "Action.h"               // StackableAction::Action 权威定义（input_param/check/run）
 #include "SPremiumInfo.h"         // g_SPremiumInfo 权威元素类型（SPremiumInfo 0x120）
 #include "CSystemTime.h"
-#include "StreamPool.h"
+    #include "CEnvironment.h"        // STDBConnInfo / ENUM_DB_HANDLE_IDX（CDBConnector）
+    #include "StreamPool.h"
 #include <boost/function.hpp>
 
 class InstanceRentalSystem;       // 前向：s_rentalSystem 强指针（Fini 单 mov 访存）
@@ -48,7 +49,31 @@ class Secu_DataControl;
 class CSecu_ProtectionField;
 class AcceptThread;
 class RefPvpGrade;
-class CDBConnector;
+    class DBMgr;
+
+    // ---- CDBConnector 完整声明（全局类；定义移自 GlobalData.cpp，实现仍在 .cpp）----
+    typedef std::map<ENUM_DB_HANDLE_IDX, ENUM_SERVER_GROUP> DBGroupMap;
+    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
+    class CDBConnector
+    {
+    public:
+        CDBConnector(DBMgr* dbMgr);
+        ~CDBConnector();
+        bool Init(STDBConnInfo& info);
+        bool GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap);
+        bool Connect(DBInfoMap infoMap);
+        bool ConnectWithServerGroup(DBInfoMap infoMap);
+        bool QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
+                           DBInfoMap& outMap);
+        bool OpenMaster();
+        bool Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
+                  STDBConnInfo& info);
+        void Close();
+        void CloseMaster();
+    private:
+        DBMgr* m_dbMgr;            // +0x00
+        STDBConnInfo m_connInfo;   // +0x04（0x168 字节）
+    };
 class CSimpleSSO;
 class CGMAccounts;
 class CSecurityCardCenter;

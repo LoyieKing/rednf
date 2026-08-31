@@ -571,26 +571,6 @@ private:
     char m_pad[1];
 };
 
-class CDBConnector
-{
-public:
-    CDBConnector(DBMgr* dbMgr);
-    ~CDBConnector();
-    bool Init(STDBConnInfo& info);
-    bool GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap);
-    bool Connect(DBInfoMap infoMap);
-    bool ConnectWithServerGroup(DBInfoMap infoMap);
-    bool QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
-                       DBInfoMap& outMap);  // ORIG T 0x080eca6c
-    bool OpenMaster();  // ORIG T 0x080ec67c（支撑）
-    bool Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
-              STDBConnInfo& info);  // ORIG T 0x080ec6da（支撑）
-    void Close();      // ORIG T 0x080ec668
-    void CloseMaster();  // ORIG T 0x080ec6bc
-private:
-    DBMgr* m_dbMgr;            // +0x00
-    STDBConnInfo m_connInfo;   // +0x04（0x168 字节）
-};
 
 #include "CLevelDungeonPlayStatistic.h"
 #include "CDungeonExpStatistic.h"   // +0x18 子对象权威定义（map<int, stDungeonExp>）

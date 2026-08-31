@@ -674,13 +674,14 @@ bool Init(int argc, char** argv)
             }
             GlobalData::s_event_manager->LoadEventFromDB();
 
-            // 触发周期事件（SystemTime 当前秒 → GetRepeatEvent → TriggerEventStart）
-            for (int t = 0; t <= 23; ++t)  // 「推断」小时槽位循环边界
-            {
-                CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(t);
-                if (ev)
-                    GlobalData::s_event_manager->TriggerEventStart(t, Word_Param());
-            }
+            // 触发周期事件（ORIG 82a1d56..dd8：getCurSec → GetRepeatEvent(0x3a)
+            // → ev->IsEventing(0) 且 curSec>0x4cbe3f0f(约 2017 时间戳) 则
+            // TriggerEventStart(0x3a, Word_Param())；单事件非小时槽循环）。
+            long curSec = static_cast<long>(s_systemTime_.getCurSec());
+            CEventBase* ev =
+                GlobalData::s_event_manager->GetRepeatEvent(0x3a);
+            if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
+                GlobalData::s_event_manager->TriggerEventStart(0x3a, Word_Param());
         }
     }
     // 公会信息装载
@@ -731,7 +732,9 @@ bool Init(int argc, char** argv)
 
     create_thread();
 
-    GlobalData::s_db_mgr->Close();
+    // ORIG 82a204e：CDBConnector::Close()（s_db_connector，仅 master 连接器）；
+    // 原用 s_db_mgr->Close() 关所有 handle 与 ORIG 不一致。
+    GlobalData::s_db_connector->Close();
 
     cMyTrace trace(G_CEnvironment()->get_channel_name(), 0, 0);  // 「推断」参数
     trace("%s %d %s init complete",
