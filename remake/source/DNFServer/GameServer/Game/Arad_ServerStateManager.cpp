@@ -266,7 +266,7 @@ void Arad_ServerStateManager::sendEffectPacket(ENUM_GLOBAL_EFFECT_ARAD code,
     packet.put_header(0, 0x21a);
     packet.put_int(1);
     packet.put_int((int)code);
-    packet.put_binary((const char*)&msg, 0xc);
+    packet.put_binary((char*)&msg, 0xc);   // ORIG put_binary(char*,int)（非 const 重载）
     packet.finalize(true);
 
     if (user == 0)

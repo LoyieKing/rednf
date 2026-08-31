@@ -161,7 +161,7 @@ int CAssaultMgr::OnChangeHp(CUser* user, int hp)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->ChangeHp(user, hp);
     }
     catch (ENUM_ERROR e)
@@ -180,7 +180,7 @@ int CAssaultMgr::OnAbuseUser(CUser* user)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->AbuseUser(user);
     }
     catch (ENUM_ERROR)
@@ -198,7 +198,7 @@ int CAssaultMgr::OnConnectP2P(CUser* user, char* ip, int len)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->ConnectP2P(user, ip, len);
     }
     catch (ENUM_ERROR e)
@@ -243,7 +243,7 @@ int CAssaultMgr::OnCompleteLoad(CUser* user)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->CompleteLoad(user);
     }
     catch (ENUM_ERROR e)
@@ -262,7 +262,7 @@ int CAssaultMgr::OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->DieUser(user, index, msg);
     }
     catch (ENUM_ERROR e)
@@ -353,7 +353,7 @@ int CAssaultMgr::OnEvadeAssaultPlace(CUser* user)
     try
     {
         CAssaultPlace* place =
-            _GetAssaultPlace(static_cast<unsigned int>(userIdPlaceId(user)));
+            _GetAssaultPlace(static_cast<unsigned int>(user->GetAssaultPlace()));
         place->EvadeAssaultPlace(user);
     }
     catch (ENUM_ERROR)
@@ -834,11 +834,11 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             }
         }
 
-        if (userIdPlaceId(attacker) != 0)
+        if (attacker->GetAssaultPlace() != 0)
         {
             throw static_cast<ENUM_ERROR>(0x13);
         }
-        if (userIdPlaceId(target) != 0)
+        if (target->GetAssaultPlace() != 0)
         {
             throw static_cast<ENUM_ERROR>(0x12);
         }

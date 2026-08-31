@@ -173,7 +173,7 @@ struct _SIG_UPDATE_REWARD_MEDAL
     char m_occDate[0xb];       // +0x04
 };                              // sizeof 0xf
 #pragma pack(pop)
-struct SigSaveRewardEventItem
+struct __attribute__((packed)) SigSaveRewardEventItem
 {
     SigSaveRewardEventItem();   // ORIG W C1/C2 0x08195cd4：调 init()；定义在 Game/W8_AradSig.cpp
     void init();                // ORIG W 0x8195ce8（现定义于 Arad_InternalDispatcher.cpp）
@@ -322,16 +322,16 @@ namespace APSystem {
 // ORIG 布局（DB_LoadRewardMedal::Select 0x08124910 get_str(col1,+8,0xb) /
 // SendResult 0x08124b8e put_binary(0x13)；DB_UpdateRewardMedal::Update
 // 0x08124cb2 读 +0 charac_no、+4 occ_date('%s')）：
-struct _SIG_LOAD_REWARD_MEDAL
+struct __attribute__((packed)) _SIG_LOAD_REWARD_MEDAL
 {
     unsigned int m_characNo;   // +0x00（where charac_no）
     unsigned int m_apSum;      // +0x04（select ap_sum）
     char m_occDate[0xb];       // +0x08（occ_date，无 NUL 保证）
 };                              // sizeof 0x13
-struct _SIG_UPDATE_REWARD_MEDAL
+struct __attribute__((packed)) _SIG_UPDATE_REWARD_MEDAL
 {
     unsigned int m_characNo;   // +0x00（where charac_no）
     char m_occDate[0xb];       // +0x04
-};                              // sizeof 0x10（尾部对齐）
+};                              // sizeof 0xf（ORIG，pack(1)）
 }
 #endif  // DNF_GAME_MORE_TYPES_H_

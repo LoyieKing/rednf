@@ -17,7 +17,7 @@ public:
     bool ExpandRow();
     bool Load(const char* path);
     bool Load(const char* dir, const char* file);
-    const char* make_file_path(const char* file);
+    static const char* make_file_path(const char* file);
 
     int GetIdx4Col(char* name);
     int GetIdx4Row(char* name);

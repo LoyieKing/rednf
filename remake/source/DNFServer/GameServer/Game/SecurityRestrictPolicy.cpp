@@ -14,15 +14,12 @@
 #include <cstring>   // strncpy
 #include <string>
 
-namespace
-{
-
 // ORIG static _ZL19setPolicyApplyValueN16RestrictCategory4EnumER13ServicePolicyRKSs
 //      @0x0816d490（objdump 0x0816d490-0x0816d5a9 转写）。
 // 语义：字符串逐字符 '0'/'1' → 值 0/1，从下标 1 起写入策略 vector；
 //       非法字符记日志并置 0；超出 vector 长度即停止；空串直接返回。
-void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
-                         std::string const& str)
+static void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
+                                std::string const& str)
 {
     if (str.empty())
     {
@@ -53,8 +50,6 @@ void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
     }
 }
 
-}  // namespace
-
 // ORIG 0x0816da50：基类 ctor(Enum_3) + 清 m_apply + ServicePolicy::Init +
 // push_back(1) × 2（setle 循环 i<=1）。
 SecurityRestrictPolicy::SecurityRestrictPolicy()
@@ -64,8 +59,7 @@ SecurityRestrictPolicy::SecurityRestrictPolicy()
     m_svc.Init();
     for (int i = 0; i <= 1; ++i)
     {
-        short v = 1;
-        m_svc.push_back(v);
+        m_svc.push_back(static_cast<short>(1));   // ORIG push_back(short&&)
     }
 }
 

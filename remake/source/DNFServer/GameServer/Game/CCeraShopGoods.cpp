@@ -4,6 +4,8 @@
 // ORIG 反汇编逐函数核对。布局见 CItemList.h。
 // ============================================================================
 
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <string>
@@ -226,29 +228,468 @@ bool importCashShopItemList(
     if (!loadRDARScriptFile("", path))
         return 0;
 
-    itemList->clear();
-    std::string section;
-    bool flag = false;
+    // 按 ORIG 0x88fdcb5 完整转写。itemList 指向 16 个连续 vector<STCeraShopItem>
+    // 桶（调用方 shopList[0x10]）。分区→槽位：avatar=0 coin=1 item=2 creature=3
+    // package=7 premium=9 mileage=11 avatar-dye=15。
+    for (int i = 0; i < 0x10; ++i)
+        itemList[i].clear();
 
-    // 简化扫描：逐行读 int 序列，第一条为 itemIdx，按顺序映射已知字段。
-    STCeraShopItem item;
-    bool eof = false;
-    while (true) {
-        int v0 = ScanInt(&eof);
-        if (!eof)
+    std::string section;
+    int seq = 0;                // ORIG -0x50(%ebp)：avatar 族 m_field4 序数
+    bool ok = false;
+
+    while (true)
+    {
+        if (!ScanType(section, true))
             break;
-        item.clear();
-        item.m_field14 = v0;
-        int v1 = ScanInt(&eof);
-        int v2 = ScanInt(&eof);
-        int v3 = ScanInt(&eof);
-        int v4 = ScanInt(&eof);
-        if (eof) {
-            item.m_fieldc = v1;
-            item.m_field10 = v2;
-            item.m_field1c = v3;
-            item.m_field34 = v4;
-            itemList->push_back(item);
+
+        if (section == "[cerashop banner]")
+        {
+            ok = false;
+            ScanInt(&ok);                     // local_50（仅消费）
+        }
+        else if (section == "[npc info]")
+        {
+            for (int i = 0; i < 0x10; ++i)
+            {
+                std::string s;
+                ScanStr(&s);
+                ok = false;
+                ScanInt(&ok);
+            }
+        }
+        else if (section == "[category event tag]")
+        {
+            ok = false;
+            while (true)
+            {
+                int v = ScanInt(&ok);
+                if (!ok)
+                    break;
+                if (param7)
+                    param7->push_back(v);
+            }
+        }
+        else if (section == "[avatar]" || section == "[national avatar]")
+        {
+            if (section == "[avatar]")
+                itemList[0].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field4 = seq;
+                ++seq;
+                item.m_field8 = itemIdx;            // +0x08 itemIdx
+                item.m_field14 = ScanInt(&ok);      // +0x14
+                item.m_field22 = (unsigned short)ScanInt(&ok);  // +0x22
+                item.m_field20 = (char)ScanInt(&ok);            // +0x20
+                item.m_field10 = ScanInt(&ok);      // +0x10
+                item.m_field3c = (char)ScanInt(&ok);// +0x3c
+                item.m_field0 = 0;                  // 类型 0
+                item.m_fieldc = 0;                  // 组 0
+                item.m_field1c = 1;                 // stack 1
+                itemList[0].push_back(item);
+            }
+        }
+        else if (section == "[dont trade avatar]")
+        {
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field4 = seq;
+                ++seq;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field22 = (unsigned short)ScanInt(&ok);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field3c = (char)ScanInt(&ok);
+                item.m_field0 = 0;
+                item.m_fieldc = 0;
+                item.m_field1c = 1;
+                ok = false;
+                item.m_field7c = ScanInt(&ok);      // +0x7c（仅消费，不入桶）
+            }
+        }
+        else if (section == "[coin]" || section == "[national coin]")
+        {
+            if (section == "[coin]")
+                itemList[1].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 1;
+                item.m_fieldc = 1;
+                item.m_name = "";
+                itemList[1].push_back(item);
+            }
+        }
+        else if (section == "[avatar dye]")
+        {
+            itemList[15].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 2;
+                item.m_fieldc = 2;
+                item.m_name = "";
+                itemList[15].push_back(item);
+            }
+        }
+        else if (section == "[item]" || section == "[national item]")
+        {
+            if (section == "[item]")
+                itemList[2].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 2;
+                item.m_fieldc = 2;
+                item.m_name = "";
+                itemList[2].push_back(item);
+            }
+        }
+        else if (section == "[premium]" || section == "[national premium]")
+        {
+            if (section == "[premium]")
+                itemList[9].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 9;
+                item.m_fieldc = 9;
+                item.m_name = "";
+                itemList[9].push_back(item);
+            }
+        }
+        else if (section == "[creature]" || section == "[national creature]")
+        {
+            if (section == "[creature]")
+                itemList[3].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 3;
+                item.m_fieldc = 3;
+                item.m_name = "";
+                itemList[3].push_back(item);
+            }
+        }
+        else if (section == "[NPC]")
+        {
+            ok = false;
+            ScanInt(&ok);                          // local_90
+        }
+        else if (section == "[type]")
+        {
+            std::string s;
+            ScanStr(&s);                           // local_8c
+        }
+        else if (section == "[item group index]")
+        {
+            ok = false;
+            ScanInt(&ok);                          // local_44
+        }
+        else if (section == "[mileage item]")
+        {
+            itemList[11].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field0 = (char)ScanInt(&ok);  // +0x00 类型
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field34 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_fieldc = 0xb;
+                item.m_name = "";
+                itemList[11].push_back(item);
+            }
+        }
+        else if (section == "[package]" || section == "[national package]")
+        {
+            if (section == "[package]")
+                itemList[7].clear();
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field22 = (unsigned short)ScanInt(&ok);
+                item.m_field3c = (char)ScanInt(&ok);
+                item.m_field0 = 7;
+                item.m_fieldc = 7;
+                item.m_field1c = 1;
+                item.m_name = "";
+                itemList[7].push_back(item);
+            }
+        }
+        else if (section == "[cart disallowance]" ||
+                 section == "[gift disallowance]" ||
+                 section == "[cerapoint disallowance]")
+        {
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem probe;
+                probe.m_field8 = itemIdx;
+                for (int i = 0; i < 0x10; ++i)
+                {
+                    std::vector<STCeraShopItem>::iterator it =
+                        std::find(itemList[i].begin(), itemList[i].end(), probe);
+                    if (it != itemList[i].end())
+                    {
+                        if (section == "[cart disallowance]")
+                            it->m_field52 = 1;
+                        else if (section == "[gift disallowance]")
+                            it->m_field50 = 1;
+                        else
+                            it->m_field51 = 1;
+                    }
+                }
+            }
+        }
+        else if (section == "[max gift count]")
+        {
+            ok = false;
+            int v = ScanInt(&ok);
+            if (ok && param5)
+                *param5 = v;
+        }
+        else if (section == "[bonus item info]")
+        {
+            while (true)
+            {
+                stCeraShopBonusInfo_t info;
+                ok = false;
+                info.m_field0 = ScanInt(&ok);
+                if (!ok)
+                    break;
+                info.m_field4 = ScanInt(&ok);
+                int count = ScanInt(&ok);
+                if (!ok)
+                    break;
+                info.m_items.reserve(count);
+                int total = 0;
+                bool bad = false;
+                for (int i = 0; i < count; ++i)
+                {
+                    stCeraShopBonusItemInfo_t bi;
+                    bi.m_field0 = ScanInt(&ok);
+                    if (!ok) { bad = true; break; }
+                    bi.m_field4 = (unsigned short)ScanInt(&ok);
+                    if (!ok) { bad = true; break; }
+                    bi.m_field8 = ScanInt(&ok);
+                    if (!ok) { bad = true; break; }
+                    total += bi.m_field8;
+                    info.m_items.push_back(bi);
+                }
+                if (bad)
+                    break;
+                if (total == 1000)
+                    bonusList.push_back(info);
+                else
+                    printf("bonus rate error %d", total);
+            }
+        }
+        else if (section == "[not stackable buy]")
+        {
+            std::vector<int> indexList;
+            ok = false;
+            while (true)
+            {
+                int v = ScanInt(&ok);
+                if (!ok)
+                    break;
+                indexList.push_back(v);
+            }
+            for (int i = 0; i < 0x10; ++i)
+            {
+                for (std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
+                     it != itemList[i].end(); ++it)
+                {
+                    for (unsigned int k = 0; k < indexList.size(); ++k)
+                    {
+                        if (it->m_field8 == indexList[k])
+                            it->m_field53 = 0;
+                    }
+                }
+            }
+        }
+        else if (section == "[recommended avatar list]")
+        {
+            ok = false;
+            while (true)
+            {
+                int mapKey = ScanInt(&ok);
+                if (!ok)
+                    break;
+                std::vector<int> list;
+                for (int i = 0; i < 10; ++i)
+                {
+                    ok = false;
+                    int v = ScanInt(&ok);
+                    if (v == 0)
+                        v = -1;
+                    list.push_back(v);
+                }
+                if (mapKey >= 0 && mapKey < 0xb && limitMap)
+                    (*limitMap)[mapKey].push_back(list);
+            }
+        }
+        else if (section == "[restricted premium map]")
+        {
+            ok = false;
+            do {
+                int a = ScanInt(&ok);
+                if (!ok)
+                    break;
+                int b = ScanInt(&ok);
+            } while (ok);
+        }
+        else if (section == "[immediately adaptive product]")
+        {
+            ok = false;
+            do {
+                ScanInt(&ok);
+            } while (ok);
+        }
+        else if (section == "[avatar coin]")
+        {
+            ok = false;
+            while (true)
+            {
+                int itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                STCeraShopItem item;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(&ok);
+                item.m_field1c = ScanInt(&ok);
+                item.m_field2c = ScanInt(&ok);
+                item.m_field30 = ScanInt(&ok);
+                item.m_field38 = ScanInt(&ok);
+                ScanStr(&item.m_name);
+                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field10 = ScanInt(&ok);
+                item.m_field0 = 2;
+                item.m_fieldc = 2;
+                item.m_name = "";
+                itemList[0].push_back(item);
+            }
+        }
+        else if (section == "[exceptional product price in first server]")
+        {
+            ok = false;
+            do {
+                unsigned int price = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                    break;
+                int val = ScanInt(&ok);
+            } while (ok);
+        }
+    }
+
+    // LAB_088ff96d：全部 16 桶中，item->m_field10 != 0 的条目置 m_field50 = 1。
+    for (int i = 0; i < 0x10; ++i)
+    {
+        for (std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
+             it != itemList[i].end(); ++it)
+        {
+            if (it->m_field10 != 0)
+                it->m_field50 = 1;
         }
     }
     return 1;

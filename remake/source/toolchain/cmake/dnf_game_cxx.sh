@@ -48,6 +48,10 @@ case "$(basename "$src" .cpp)" in
                 # + FindGoods 迭代器槽位：4.4.6 下 identical=147 ae=675（合计 822）
                 # near 3→1，diff 保持 8；4.4.7 下合计 820）
                 exec "$C6446R" "$@" ;;
+            *Game/STDungeonScript.cpp)
+                # STDungeonScript（Import/exportDungeonScript）：ORIG 为 4.4.6。
+                # 字节级 identical 需 4.4.6 产生与 ORIG 相同栈布局/寄存器分配。
+                exec "$C6446R" "$@" ;;
             *Game/CUser.cpp)
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）

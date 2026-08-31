@@ -270,6 +270,7 @@ int ncl_decrypt_key(char* key, char* mac, char* date1, char* date2)
 int ncl_check_key(char* key)
 {
     int ok = 0;
+    char today[0x80];   // 提升到函数首部：ORIG 使 today 落栈顶 -0x8c（if 块内声明则落最深 -0x20c）
     char mac[0x80];
     char date1[0x80];
     char date2[0x80];
@@ -279,7 +280,6 @@ int ncl_check_key(char* key)
     if (ncl_decrypt_key(key, mac, date1, date2) == 0x28)
     {
         ok = 1;
-        char today[0x80];
         std::memset(today, 0, sizeof(today));
         ncl_make_mac(today);
         if (std::strcmp(mac, today) != 0)

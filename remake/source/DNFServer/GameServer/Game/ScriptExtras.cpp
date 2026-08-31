@@ -54,15 +54,20 @@ std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 // 构造临时 string；非空才 push_back（空串忽略）。
 void SetPriorityBaseDirectory(const char* dir)
 {
-    std::string path(dir ? dir : "");
-    if (!path.empty())
+    std::string path(dir);
+    if (path.length() == 0)
+    {
+    }
+    else
         g_szScriptFilePriorityBaseDirectory.push_back(path);
 }
 
 // ORIG T _Z10isDbcsLeadc 0x88bb367：DBCS 首字节判定（最高位为 1）。
+// 写回 `(c & 0x80) != 0` 使 4.4.x 生成 ORIG 完全相同序列
+// （movzbl -0x4(%ebp),%eax; shr $0x7,%al; 无 setne）。
 bool isDbcsLead(char c)
 {
-    return (static_cast<unsigned char>(c) >> 7) != 0;
+    return (c & 0x80) != 0;
 }
 
 // ORIG T _Z11LexerOutputPKci 0x88bb37c：词法输出走 LogManager 日志。
@@ -270,13 +275,17 @@ int Arad_ScriptLoader::open(const char* path)
     int size = g_dnfLex.getInputStreamSize();
     char* buffer = new char[size + 1];
     std::memset(buffer, 0, size + 1);
-    std::istream* in = static_cast<std::istream*>(g_dnfLex.getInputStream());
-    in->read(buffer, size);
+    static_cast<std::istream*>(g_dnfLex.getInputStream())->read(buffer, size);
     buffer[size] = static_cast<char>(0xff);
 
     int ok = parsing(buffer);
+    if (ok)
+    {
+        delete[] buffer;
+        return ok;
+    }
     delete[] buffer;
-    return ok;
+    return 0;
 }
 
 // ORIG W 0x081a4054：默认解析器直接返回成功（1）。

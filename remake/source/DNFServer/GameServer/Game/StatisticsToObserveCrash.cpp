@@ -87,7 +87,7 @@ int StatisticsToObserveCrash::getUserLastCrashPacketID(int userIdx)
     std::map<int, int>::iterator it = m_crashPacketID.find(userIdx);
     if (it != m_crashPacketID.end())
     {
-        return it->second;
+        return (*it).second;   // ORIG 用 operator*（de）
     }
     return 0;
 }
@@ -112,7 +112,7 @@ int StatisticsToObserveCrash::getUserLastCrashDungeonID(int userIdx)
     std::map<int, int>::iterator it = m_crashDungeonID.find(userIdx);
     if (it != m_crashDungeonID.end())
     {
-        return it->second;
+        return (*it).second;   // ORIG 用 operator*（de）
     }
     return 0;
 }
@@ -137,7 +137,7 @@ int StatisticsToObserveCrash::getUserLastCrashPlayStatus(int userIdx)
     std::map<int, int>::iterator it = m_crashPlayStatus.find(userIdx);
     if (it != m_crashPlayStatus.end())
     {
-        return it->second;
+        return (*it).second;   // ORIG 用 operator*（de）
     }
     return 0;
 }

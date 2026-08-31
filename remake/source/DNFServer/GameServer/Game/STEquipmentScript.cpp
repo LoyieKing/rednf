@@ -364,7 +364,7 @@ EquipmentAniInfoScript* STEquipmentScript::getAniInfo(ENUM_CHARACTERJOB job)  //
         m_aniInfo640.find(job);
     if (it != m_aniInfo640.end())
     {
-        return &it->second;
+        return &(*it).second;   // ORIG 用 operator*（de）
     }
     if (job == 0xb)
     {

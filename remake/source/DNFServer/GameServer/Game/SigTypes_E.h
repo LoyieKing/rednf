@@ -54,15 +54,17 @@ struct SIG_SAVE_GOLD_ZERO_TRADE_LOG
     unsigned int m_to_m_id;        // +0x00
     unsigned int m_from_m_id;      // +0x04
     char m_from_nat_ip[0x10];      // +0x08
+    char m_pad18[4];               // +0x18（ORIG 该处 4B pad：from_peer_ip 落 +0x1c，非 pack(1) 连续 +0x18）
     char m_from_peer_ip[0x14];     // +0x1c
     unsigned char m_from_nat_type; // +0x30
     char m_from_mac_addr[0x41];    // +0x31
     char m_to_nat_ip[0x10];        // +0x72
+    char m_pad82[4];               // +0x82（ORIG 该处 4B pad：to_peer_ip 落 +0x86，非 pack(1) 连续 +0x82）
     char m_to_peer_ip[0x14];       // +0x86
     unsigned char m_to_nat_type;   // +0x9a
     char m_to_mac_addr[0x41];      // +0x9b
     unsigned int m_injury_money;   // +0xdc
-};
+};  // ORIG sizeof 0xe0（＋0x18/0x82 两个 4B pad；此前 pack(1) 连续得 0xd8，-8）
 
 // 具名化（G6 HackAnM 批次；DB_ReqSaveHackUserPunish::makeRequest ORIG T
 // 0x08425494 报告偏移：+0 accId / +4 punish / +8 ip[16]（NULL→"000.000.000.000"，
@@ -579,6 +581,7 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation
     char m_name[30];                   // +0x22（memset 0）
     char m_targetName[30];             // +0x40（ORIG 无 +0x5d 单字节字段）
     char m_chatMsg[0x100];             // +0x5e（memset 0；get_str 读举报文本）
+    char m_result;                     // +0x15e（ORIG 尾字节；使 sizeof=0x15f，匹配 GetOutBuffer 尺寸）
 
     static bool isNeedTypeForChattingMsg(int type);   // ORIG W 0x0822c1ca：调用点只 push 1 参（静态）
 

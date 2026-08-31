@@ -19,6 +19,13 @@ public:
         return m_p;
     }
 
+    // ORIG GlobalInstance<T>::inst()（无锁）：create() 后返回 m_p。
+    static T* inst()
+    {
+        create();
+        return m_p;
+    }
+
     static void create()
     {
         if (m_p == NULL)

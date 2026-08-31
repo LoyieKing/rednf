@@ -14,6 +14,7 @@
 #include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
 #include "CItemList.h"             // get_rand_int
 #include "CCeraShopBonusItemEvent.h"   // 权威声明（P104 ODR 收敛，2026-08-29 EventManagerWave）
+#include "OS_API.h"                    // OS_API::snprintf（ORIG _ZN6OS_API8snprintfEPcjPKcz）
 
 #include <iostream>
 #include <new>
@@ -2725,24 +2726,24 @@ WongWork::CAutoPunishRuleHackTypeMgr::CAutoPunishRuleHackTypeMgr()
     // / multimap<u16,HackIPCounter_t> / multimap<u16,HackFullIPCounter_t>
     // / map<int,stHacktypeExceptionInfo_t>），随后向 m_exceptionMap 插入 18 个
     // 异常类型条目（key, {m_cnt, m_flag}）。+0x18 的 12 字节未初始化。
-    m_exceptionMap.insert(std::make_pair(0x83, stHacktypeExceptionInfo_t(0x14, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xca, stHacktypeExceptionInfo_t(0x28, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xcd, stHacktypeExceptionInfo_t(0x0a, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xce, stHacktypeExceptionInfo_t(0x05, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xd0, stHacktypeExceptionInfo_t(0xc8, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xd1, stHacktypeExceptionInfo_t(0x96, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xd3, stHacktypeExceptionInfo_t(0x64, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xd7, stHacktypeExceptionInfo_t(0x32, 0x3e8)));
-    m_exceptionMap.insert(std::make_pair(0xd8, stHacktypeExceptionInfo_t(0xc8, 0x3e8)));
-    m_exceptionMap.insert(std::make_pair(0x131, stHacktypeExceptionInfo_t(0x1e, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0x193, stHacktypeExceptionInfo_t(0x0a, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0x19b, stHacktypeExceptionInfo_t(0x32, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0x19c, stHacktypeExceptionInfo_t(0x14, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0x340, stHacktypeExceptionInfo_t(0x05, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xdc, stHacktypeExceptionInfo_t(0x64, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0x86, stHacktypeExceptionInfo_t(0x32, 0x0)));
-    m_exceptionMap.insert(std::make_pair(0xe0, stHacktypeExceptionInfo_t(0x00, 0x14)));
-    m_exceptionMap.insert(std::make_pair(0xe1, stHacktypeExceptionInfo_t(0x00, 0x32)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x83), stHacktypeExceptionInfo_t(0x14, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xca), stHacktypeExceptionInfo_t(0x28, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xcd), stHacktypeExceptionInfo_t(0x0a, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xce), stHacktypeExceptionInfo_t(0x05, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xd0), stHacktypeExceptionInfo_t(0xc8, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xd1), stHacktypeExceptionInfo_t(0x96, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xd3), stHacktypeExceptionInfo_t(0x64, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xd7), stHacktypeExceptionInfo_t(0x32, 0x3e8)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xd8), stHacktypeExceptionInfo_t(0xc8, 0x3e8)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x131), stHacktypeExceptionInfo_t(0x1e, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x193), stHacktypeExceptionInfo_t(0x0a, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x19b), stHacktypeExceptionInfo_t(0x32, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x19c), stHacktypeExceptionInfo_t(0x14, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x340), stHacktypeExceptionInfo_t(0x05, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xdc), stHacktypeExceptionInfo_t(0x64, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0x86), stHacktypeExceptionInfo_t(0x32, 0x0)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xe0), stHacktypeExceptionInfo_t(0x00, 0x14)));
+    m_exceptionMap.insert(std::make_pair(static_cast<ENUM_HACKTYPE>(0xe1), stHacktypeExceptionInfo_t(0x00, 0x32)));
 }
 void WongWork::CAutoPunishRuleHackTypeMgr::reset()
 {
@@ -4358,15 +4359,15 @@ RentalMachinePcRoom::RentalMachinePcRoom() : m_impl(new RentalMachinePcRoomImpl)
 void RentalMachinePcRoom::initLoggingEnvironment()
 {
     // ORIG 0x8270886：snprintf(impl, 0x103, "./log/%s/dw2_RentalItems", 文件名)。
-    snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
-             G_CEnvironment()->get_file_name());
+    OS_API::snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
+                     G_CEnvironment()->get_file_name());
 }
 
 void RentalMachineDimension::initLoggingEnvironment()
 {
     // ORIG 0x826efdc：同 PcRoom 日志路径（.rodata 0x8bf90c2 同串）。
-    snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
-             G_CEnvironment()->get_file_name());
+    OS_API::snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
+                     G_CEnvironment()->get_file_name());
 }
 
 // ---- IRentalMachine 槽实现（PcRoom / Dimension 同构，逐报告转写）----

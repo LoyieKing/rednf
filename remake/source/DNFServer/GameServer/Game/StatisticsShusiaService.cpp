@@ -73,7 +73,7 @@ int StatisticsShusiaService::getDungeonFailure(int dungeonIdx)
     std::map<int, int>::iterator it = m_dungeonFailure.find(dungeonIdx);
     if (it != m_dungeonFailure.end())
     {
-        return it->second;
+        return (*it).second;   // ORIG 用 operator*（de）
     }
     return 0;
 }
@@ -84,7 +84,7 @@ int StatisticsShusiaService::getServiceUSage(int serviceIdx)
     std::map<int, int>::iterator it = m_serviceUsage.find(serviceIdx);
     if (it != m_serviceUsage.end())
     {
-        return it->second;
+        return (*it).second;   // ORIG 用 operator*（de）
     }
     return 0;
 }

@@ -149,7 +149,7 @@ CodeHackChecksumEx::CodeHackChecksumEx()                  // T @0x0808a700
 
 CodeHackChecksumEx::~CodeHackChecksumEx()                 // T @0x0808a76c
 {
-    Clear();                                              // vector::clear
+    m_checksums.clear();                                  // ORIG 直接 vector::clear
 }                                                         // 随后隐式基类/vector 析构
 
 CodeHackChecksumEx::CodeHackChecksumEx(const CodeHackChecksumEx& other)        // W @08575f10

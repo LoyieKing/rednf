@@ -640,7 +640,7 @@ STAssignItem::~STAssignItem()               // ORIG 0x083b6a8c（仅析构 +0x24
 
 void STAssignAnimation::Clear()             // ORIG 0x089e832c
 {
-    m_name.assign("");                      // Ss::assign("")
+    m_name = "";                            // ORIG Ss::operator=("")
     m_layer = 1;                            // +0x04 movl $1
     m_field08 = 0;                          // +0x08
     m_field0c = 0;                          // +0x0c
@@ -679,7 +679,7 @@ STAssignPassiveObject::STAssignPassiveObject()
 
 void BackAniScript::clear()                 // ORIG 0x089e884a
 {
-    m_filename.assign("");                  // Ss::assign("")
+    m_filename = "";                        // ORIG Ss::operator=("")
     m_layer = 1;                            // +0x04
     m_orderUpper = false;                   // +0x08
     m_loopYAxis = false;                    // +0x09

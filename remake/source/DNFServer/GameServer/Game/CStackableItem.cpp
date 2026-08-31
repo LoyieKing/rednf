@@ -964,18 +964,19 @@ bool CStackableItem::verifyUsableServerType()
     {
         return 1;
     }
-    int serverType = 0;
+    StackableAction::UsableServerType serverType =
+        static_cast<StackableAction::UsableServerType>(0);
     if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 0)
     {
-        serverType = 1;
+        serverType = StackableAction::USABLE_SERVER_TYPE_GENERAL;
     }
     if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 2)
     {
-        serverType = 3;
+        serverType = StackableAction::USABLE_SERVER_TYPE_STARTER;
     }
     if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 1)
     {
-        serverType = 2;
+        serverType = StackableAction::USABLE_SERVER_TYPE_EVENT;
     }
     if (std::find(m_usableServers.begin(), m_usableServers.end(), serverType) ==
         m_usableServers.end())

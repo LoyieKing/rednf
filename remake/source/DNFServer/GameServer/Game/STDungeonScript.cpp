@@ -11,6 +11,23 @@
 
 #include "CDungeon.h"
 #include "DNFLexWrapper.h"
+#include "DataManagerInitDepends.h"   // getCharacterJobToEnumValue 声明（[impossible skills]）
+#include "NpcScript.h"                // STScriptFileList（[schedule] 双视图）
+
+extern std::map<int, std::string> g_stDungeonScriptFileList;   // 定义 InitScriptProducers_4.cpp（双视图 STScriptFileList）
+
+// ORIG _ZL13g_gridSymbols（[greed] 网格符号，16 项两字符编码；STMapScript.cpp 同表为文件内
+// static，本 TU 单独复现以支撑 import/exportDungeonScript 引用）。
+static const char* const g_gridSymbols[16] = {
+    "AA", "BB", "CC", "DD", "EE", "FF", "GG", "HH",
+    "II", "JJ", "KK", "LL", "MM", "NN", "OO", "PP",
+};
+
+// [schedule] 时间串转换器（权威定义 InitScriptProducers_6.cpp，签名须与定义一致）
+bool ConvertStringToTime(std::string s, long& out);
+bool ConvertWeekdayStringToInt(std::string s, unsigned int& out);
+bool ConvertHHMMSSStringToInt(std::string s, unsigned char& h, unsigned char& m,
+                              unsigned char& sec);
 
 STDungeonScript::STDungeonScript()
 {
@@ -187,144 +204,6 @@ void STDungeonScript::Clear()
     m_50c = 0;
     // ORIG 未清：m_4/m_8、m_str58、m_vec15c、m_dimension308（按 ORIG 实证保留不清）
 }
-
-namespace {
-// ORIG 标签分派表（主 map 0x94f7040，155 标签；重复标签取最小 case 值）
-static int DungeonTagLookup(const std::string& tag)
-{
-    if (tag == "[name]") return 117;
-    if (tag == "ByDifficulty") return 152;
-    if (tag == "[cutscene image]") return 185;
-    if (tag == "[dungeon loading image path]") return 190;
-    if (tag == "[worldmap info]") return 202;
-    if (tag == "[herosmode required quest]") return 207;
-    if (tag == "[background pos]") return 221;
-    if (tag == "[monsterapc diff table]") return 255;
-    if (tag == "[minimum required level]") return 269;
-    if (tag == "[required item]") return 276;
-    if (tag == "[event dungeon]") return 280;
-    if (tag == "[event required item]") return 286;
-    if (tag == "[recommended level]") return 396;
-    if (tag == "[coin limit]") return 405;
-    if (tag == "[character coin limit]") return 413;
-    if (tag == "[basis level]") return 417;
-    if (tag == "[champion]") return 422;
-    if (tag == "[item]") return 435;
-    if (tag == "[dungeon drop]") return 489;
-    if (tag == "[dungeon object drop]") return 511;
-    if (tag == "[pathgate object]") return 541;
-    if (tag == "[maze info]") return 552;
-    if (tag == "[quest connection]") return 650;
-    if (tag == "../RDARScriptDungeon.cpp") return 702;
-    if (tag == "[party num check]") return 708;
-    if (tag == "[size]") return 720;
-    if (tag == "[map specification]") return 782;
-    if (tag == "[boss map specification]") return 798;
-    if (tag == "[layered map specification]") return 814;
-    if (tag == "[start map]") return 830;
-    if (tag == "[boss map]") return 853;
-    if (tag == "[hell dungeon]") return 859;
-    if (tag == "[prohibit practice]") return 866;
-    if (tag == "[disable skill]") return 871;
-    if (tag == "[/impossible skills]") return 883;
-    if (tag == "[use countdown]") return 897;
-    if (tag == "[use zoom rate]") return 902;
-    if (tag == "[usable item]") return 906;
-    if (tag == "[seal door map index]") return 914;
-    if (tag == "[seal door pos]") return 919;
-    if (tag == "[hell coin limit]") return 923;
-    if (tag == "[dead tower map index]") return 933;
-    if (tag == "[select]") return 947;
-    if (tag == "[regenerate]") return 957;
-    if (tag == "[minimap icon]") return 962;
-    if (tag == "[map]") return 981;
-    if (tag == "[index]") return 995;
-    if (tag == "[neutral]") return 1006;
-    if (tag == "[point by type]") return 1057;
-    if (tag == "[phase fatigue]") return 1068;
-    if (tag == "[warroom map index]") return 1075;
-    if (tag == "[monster exp bonus per user decrease]") return 1078;
-    if (tag == "[monster type spawn cost]") return 1110;
-    if (tag == "[monster type spawn interval rate]") return 1119;
-    if (tag == "[monster spawn base interval]") return 1122;
-    if (tag == "[monster spawn random interval]") return 1128;
-    if (tag == "[fatigue]") return 1131;
-    if (tag == "[fatigue result]") return 1134;
-    if (tag == "[max monster]") return 1138;
-    if (tag == "[spawn common monster index]") return 1151;
-    if (tag == "[spawn common champion index]") return 1164;
-    if (tag == "[spawn super champion index]") return 1177;
-    if (tag == "[spawn boss index]") return 1190;
-    if (tag == "[spawn step max]") return 1195;
-    if (tag == "[spawn step resource pool]") return 1209;
-    if (tag == "[kill count const]") return 1214;
-    if (tag == "[join cost gold]") return 1224;
-    if (tag == "[gold drop prob]") return 1229;
-    if (tag == "[common monster item drop prob]") return 1234;
-    if (tag == "[common champion item drop prob]") return 1239;
-    if (tag == "[super champion item drop prob]") return 1244;
-    if (tag == "[boss item drop prob]") return 1252;
-    if (tag == "[common monster exp const]") return 1260;
-    if (tag == "[common champion exp const]") return 1268;
-    if (tag == "[super champion exp const]") return 1276;
-    if (tag == "[common monster item drop list]") return 1288;
-    if (tag == "[common champion item drop list]") return 1300;
-    if (tag == "[super champion item drop list]") return 1312;
-    if (tag == "[boss item drop list]") return 1324;
-    if (tag == "[battle spawn time]") return 1332;
-    if (tag == "[powerwar dungeon]") return 1341;
-    if (tag == "[blood dungeon]") return 1359;
-    if (tag == "[move speed]") return 1369;
-    if (tag == "[physical attack add]") return 1378;
-    if (tag == "[physical defense add]") return 1381;
-    if (tag == "[limit escape character]") return 1398;
-    if (tag == "[defense dungeon]") return 1408;
-    if (tag == "[advance altar map]") return 1422;
-    if (tag == "[advance altar clear reward]") return 1442;
-    if (tag == "[advance altar survival map]") return 1497;
-    if (tag == "[dimension dungeon]") return 1570;
-    if (tag == "[necessary party]") return 1584;
-    if (tag == "[village attack revenge dungeon]") return 1621;
-    if (tag == "[limit party count]") return 1687;
-    if (tag == "[hit count]") return 1701;
-    if (tag == "[seal door appear rate]") return 1704;
-    if (tag == "[dummy appear count]") return 1738;
-    if (tag == "advance altar") return 1781;
-    if (tag == "[tower random map indexes]") return 1784;
-    if (tag == "[death tower map indexes]") return 1822;
-    if (tag == "[named monster map pos]") return 1836;
-    if (tag == "[blood max round]") return 1860;
-    if (tag == "[event monster]") return 1894;
-    if (tag == "[tower high skill initial cool time]") return 1961;
-    if (tag == "[tower high skill initial cool time rate]") return 1969;
-    if (tag == "[tower fp cubepiece]") return 1972;
-    if (tag == "[tower limit of stackable item]") return 1975;
-    if (tag == "[tower dialog]") return 1998;
-    if (tag == "[tower item drop]") return 2078;
-    if (tag == "[tower max clear item num]") return 2084;
-    if (tag == "[evil]") return 2089;
-    if (tag == "[evil high level]") return 2100;
-    if (tag == "[monster difficulty bonus]") return 2108;
-    if (tag == "[/monster difficulty bonus]") return 2141;
-    if (tag == "[gold card use]") return 2158;
-    if (tag == "[SWAY EFFECT]") return 2164;
-    if (tag == "[no fatigue]") return 2170;
-    if (tag == "[quest npc dungeon]") return 2185;
-    if (tag == "[designate dungeon difficulty]") return 2190;
-    if (tag == "[tournament dungeon]") return 2195;
-    if (tag == "[tournament round fatigue]") return 2200;
-    if (tag == "[tournament clear reward gold rate]") return 2285;
-    if (tag == "[risk dungeon]") return 2316;
-    if (tag == "[easy]") return 2333;
-    if (tag == "[medium]") return 2348;
-    if (tag == "[party member coin limit]") return 2370;
-    if (tag == "[individual map movement]") return 2388;
-    if (tag == "[open door even enemy]") return 2396;
-    if (tag == "[disable exit]") return 2402;
-    return -1;
-}
-}  // namespace
-
 bool ImportDungeonScript(STDungeonScript* script, const char* path)
 {
     if (!loadRDARScriptFile("Script/DungeonScript", path))
@@ -358,11 +237,205 @@ bool ImportDungeonScript(STDungeonScript* script, const char* path)
     int v1 = 0;
     int v2 = 0;
 
+    // ORIG 惰性初始化：函数级静态 __lookup + __inited + SpinLock（首次调用构建 tag→case 值映射）。
+    static std::map<const char*, int> __lookup;
+    static bool __inited = false;
+    static SpinLock __init_lock;
+    if (!__inited)
+    {
+        __init_lock.enter();
+        if (!__inited)
+        {
+            __lookup["[name]"] = 117;
+            __lookup["[explain]"] = 121;
+            __lookup["[tower of despair]"] = 2170;
+            __lookup["[minimap image]"] = 4096;
+            __lookup["[ancient dungeon]"] = 4097;
+            __lookup["[boss exp const]"] = 4098;
+            __lookup["[experience increasing point]"] = 4099;
+            __lookup["[hard]"] = 4100;
+            __lookup["[ultimate]"] = 4101;
+            __lookup["[entering title]"] = 4102;
+            __lookup["[player kc]"] = 4103;
+            __lookup["[worldmap pattern info]"] = 4104;
+            __lookup["[entering title next]"] = 4105;
+            __lookup["[herosmode enable]"] = 215;
+            __lookup["[ai character appear rate]"] = 4106;
+            __lookup["[limit inout count]"] = 4107;
+            __lookup["[escape hell]"] = 4108;
+            __lookup["[dungeon type]"] = 4109;
+            __lookup["[room move keep state]"] = 4110;
+            __lookup["[monster type spawn prob]"] = 4111;
+            __lookup["[result exp bonus per user decrease]"] = 4112;
+            __lookup["[tower recovery]"] = 4113;
+            __lookup["[tower stage]"] = 4114;
+            __lookup["[tournament clear reward exp]"] = 4115;
+            __lookup["[road necessary party]"] = 4116;
+            __lookup["[impossible skills]"] = 4117;
+            __lookup["[special passive object item]"] = 4118;
+            __lookup["[evil rate]"] = 4119;
+            __lookup["[result card]"] = 4120;
+            __lookup["[advance altar type]"] = 4121;
+            __lookup["[revision table]"] = 4122;
+            __lookup["[character respawn posetion]"] = 4123;
+            __lookup["[boss room entrance condition]"] = 4124;
+            __lookup["[clear reward item]"] = 4125;
+            __lookup["[absolute change stat]"] = 4126;
+            __lookup["[event monster2]"] = 4127;
+            __lookup["[magical attack add]"] = 4128;
+            __lookup["[magical defense add]"] = 4129;
+            __lookup["[coin info]"] = 4130;
+            __lookup["[clear condition]"] = 4131;
+            __lookup["[greed]"] = 4132;
+            __lookup["[randomized object creation]"] = 4133;
+            __lookup["[schedule]"] = 4134;
+            __lookup["[team]"] = 4144;
+            __lookup["[pos]"] = 4145;
+            __lookup["[object]"] = 4146;
+            __lookup["[realdungeon checkup]"] = 4147;
+            __lookup["[limit item stat]"] = 4148;
+            __lookup["[advance altar survival clear reward]"] = 4149;
+            __lookup["[physical attack add]"] = 4150;
+            __lookup["[physical defense add]"] = 4151;
+            __lookup["ByDifficulty"] = 152;
+            __lookup["[cutscene image]"] = 185;
+            __lookup["[dungeon loading image path]"] = 190;
+            __lookup["[worldmap info]"] = 202;
+            __lookup["[herosmode required quest]"] = 207;
+            __lookup["[background pos]"] = 221;
+            __lookup["[monsterapc diff table]"] = 255;
+            __lookup["[minimum required level]"] = 269;
+            __lookup["[required item]"] = 276;
+            __lookup["[event dungeon]"] = 280;
+            __lookup["[event required item]"] = 286;
+            __lookup["[recommended level]"] = 396;
+            __lookup["[coin limit]"] = 405;
+            __lookup["[character coin limit]"] = 413;
+            __lookup["[basis level]"] = 417;
+            __lookup["[champion]"] = 422;
+            __lookup["[item]"] = 435;
+            __lookup["[dungeon drop]"] = 489;
+            __lookup["[dungeon object drop]"] = 511;
+            __lookup["[pathgate object]"] = 541;
+            __lookup["[maze info]"] = 552;
+            __lookup["[quest connection]"] = 650;
+            __lookup["../RDARScriptDungeon.cpp"] = 702;
+            __lookup["[party num check]"] = 708;
+            __lookup["[size]"] = 720;
+            __lookup["[map specification]"] = 782;
+            __lookup["[boss map specification]"] = 798;
+            __lookup["[layered map specification]"] = 814;
+            __lookup["[start map]"] = 830;
+            __lookup["[boss map]"] = 842;
+            __lookup["[hell dungeon]"] = 859;
+            __lookup["[prohibit practice]"] = 866;
+            __lookup["[disable skill]"] = 871;
+            __lookup["[/impossible skills]"] = 883;
+            __lookup["[use countdown]"] = 897;
+            __lookup["[use zoom rate]"] = 902;
+            __lookup["[usable item]"] = 906;
+            __lookup["[seal door map index]"] = 914;
+            __lookup["[seal door pos]"] = 919;
+            __lookup["[hell coin limit]"] = 923;
+            __lookup["[dead tower map index]"] = 933;
+            __lookup["[select]"] = 947;
+            __lookup["[regenerate]"] = 957;
+            __lookup["[minimap icon]"] = 962;
+            __lookup["[map]"] = 981;
+            __lookup["[index]"] = 995;
+            __lookup["[neutral]"] = 1006;
+            __lookup["[point by type]"] = 1057;
+            __lookup["[phase fatigue]"] = 1068;
+            __lookup["[warroom map index]"] = 1075;
+            __lookup["[monster exp bonus per user decrease]"] = 1078;
+            __lookup["[monster type spawn cost]"] = 1110;
+            __lookup["[monster type spawn interval rate]"] = 1119;
+            __lookup["[monster spawn base interval]"] = 1122;
+            __lookup["[monster spawn random interval]"] = 1128;
+            __lookup["[fatigue]"] = 1131;
+            __lookup["[fatigue result]"] = 1134;
+            __lookup["[max monster]"] = 1138;
+            __lookup["[spawn common monster index]"] = 1151;
+            __lookup["[spawn common champion index]"] = 1164;
+            __lookup["[spawn super champion index]"] = 1177;
+            __lookup["[spawn boss index]"] = 1190;
+            __lookup["[spawn step max]"] = 1195;
+            __lookup["[spawn step resource pool]"] = 1209;
+            __lookup["[kill count const]"] = 1214;
+            __lookup["[join cost gold]"] = 1224;
+            __lookup["[gold drop prob]"] = 1229;
+            __lookup["[common monster item drop prob]"] = 1234;
+            __lookup["[common champion item drop prob]"] = 1239;
+            __lookup["[super champion item drop prob]"] = 1244;
+            __lookup["[boss item drop prob]"] = 1252;
+            __lookup["[common monster exp const]"] = 1260;
+            __lookup["[common champion exp const]"] = 1268;
+            __lookup["[super champion exp const]"] = 1276;
+            __lookup["[common monster item drop list]"] = 1288;
+            __lookup["[common champion item drop list]"] = 1300;
+            __lookup["[super champion item drop list]"] = 1312;
+            __lookup["[boss item drop list]"] = 1324;
+            __lookup["[battle spawn time]"] = 1332;
+            __lookup["[powerwar dungeon]"] = 1341;
+            __lookup["[blood dungeon]"] = 1359;
+            __lookup["[move speed]"] = 1369;
+            __lookup["[limit escape character]"] = 1398;
+            __lookup["[defense dungeon]"] = 1408;
+            __lookup["[advance altar map]"] = 1422;
+            __lookup["[advance altar clear reward]"] = 1442;
+            __lookup["[advance altar survival map]"] = 1497;
+            __lookup["[dimension dungeon]"] = 1570;
+            __lookup["[necessary party]"] = 1584;
+            __lookup["[village attack revenge dungeon]"] = 1621;
+            __lookup["[limit party count]"] = 1687;
+            __lookup["[hit count]"] = 1701;
+            __lookup["[seal door appear rate]"] = 1704;
+            __lookup["[dummy appear count]"] = 1738;
+            __lookup["advance altar"] = 1781;
+            __lookup["[tower random map indexes]"] = 1784;
+            __lookup["[death tower map indexes]"] = 1822;
+            __lookup["[named monster map pos]"] = 1836;
+            __lookup["[blood max round]"] = 1860;
+            __lookup["[event monster]"] = 1894;
+            __lookup["[tower high skill initial cool time]"] = 1961;
+            __lookup["[tower high skill initial cool time rate]"] = 1969;
+            __lookup["[tower fp cubepiece]"] = 1972;
+            __lookup["[tower limit of stackable item]"] = 1975;
+            __lookup["[tower dialog]"] = 1998;
+            __lookup["[tower item drop]"] = 2078;
+            __lookup["[tower max clear item num]"] = 2084;
+            __lookup["[evil]"] = 2089;
+            __lookup["[evil high level]"] = 2100;
+            __lookup["[monster difficulty bonus]"] = 2108;
+            __lookup["[/monster difficulty bonus]"] = 2141;
+            __lookup["[gold card use]"] = 2158;
+            __lookup["[SWAY EFFECT]"] = 2164;
+            __lookup["[no fatigue]"] = 2170;
+            __lookup["[quest npc dungeon]"] = 2185;
+            __lookup["[designate dungeon difficulty]"] = 2190;
+            __lookup["[tournament dungeon]"] = 2195;
+            __lookup["[tournament round fatigue]"] = 2200;
+            __lookup["[tournament clear reward gold rate]"] = 2285;
+            __lookup["[risk dungeon]"] = 2316;
+            __lookup["[easy]"] = 2333;
+            __lookup["[medium]"] = 2348;
+            __lookup["[party member coin limit]"] = 2370;
+            __lookup["[individual map movement]"] = 2388;
+            __lookup["[open door even enemy]"] = 2396;
+            __lookup["[disable exit]"] = 2402;
+            __inited = true;
+        }
+        __init_lock.leave();
+    }
+
     // 标签分派：DungeonTagLookup 返回 ORIG case 值，switch 分派。
     // 复杂容器/子标签 case 按 ORIG 反汇编转写，无法完全确认处标注【推断】。
     while (ScanType(line, true))
     {
-        switch (DungeonTagLookup(line))
+        // ORIG 标签分派：__lookup map 查找（惰性构建于首次调用）
+        std::map<const char*, int>::const_iterator it = __lookup.find(line.c_str());
+        int tagId = (it != __lookup.end()) ? it->second : -1;
+        switch (tagId)
         {
 case 0x75:  // "[name]"
     ScanStr(&script->m_str1c);  // +0x1c
@@ -566,8 +639,8 @@ case 0x228:  // "[maze info]"
 
 case 0x27d:  // "[maze info]"
     // [maze info]（尺寸标签）：mazeLocal 宽高
-    ScanInt(&ok);
-    ScanInt(&ok);
+    v1 = ScanInt(&ok);
+    v2 = ScanInt(&ok);
     mazeLocal.m_width = v1;
     mazeLocal.m_height = v2;
     break;
@@ -588,8 +661,8 @@ case 0x2c4:  // "[party num check]"
 
 case 0x2c8:  // "[party num check]"
     // [party num check]：maze 尺寸 → grids.resize
-    ScanInt(&ok);
-    ScanInt(&ok);
+    v1 = ScanInt(&ok);
+    v2 = ScanInt(&ok);
     mazeLocal.m_width = v1;
     mazeLocal.m_height = v2;
     mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
@@ -610,12 +683,14 @@ case 0x2d0:  // "[size]"
 
 case 0x30e:  // "[map specification]"
     // [map specification]：填充 maze grid
-    ScanInt(&ok);  // x
-    ScanInt(&ok);  // y
+    v1 = ScanInt(&ok);  // x
+    v2 = ScanInt(&ok);  // y
     {
         GridScript* g = mazeLocal.getGrid(v1, v2);
         g->m_mapCandidates.clear();
-        while (ScanInt(&ok)) {
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
             g->m_mapCandidates.push_back(v1);
         }
     }
@@ -623,40 +698,54 @@ case 0x30e:  // "[map specification]"
 
 case 0x31e:  // "[boss map specification]"
     // [boss map specification]：同 [map specification]
-    ScanInt(&ok);
-    ScanInt(&ok);
+    v1 = ScanInt(&ok);
+    v2 = ScanInt(&ok);
     {
         GridScript* g = mazeLocal.getGrid(v1, v2);
-        g->m_mapCandidates.clear();
-        while (ScanInt(&ok)) {
-            g->m_mapCandidates.push_back(v1);
+        g->m_secondCandidates.clear();
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            g->m_secondCandidates.push_back(v1);
         }
     }
     break;
 
 case 0x32e:  // "[layered map specification]"
     // [layered map specification]：同 [map specification]
-    ScanInt(&ok);
-    ScanInt(&ok);
+    v1 = ScanInt(&ok);
+    v2 = ScanInt(&ok);
     {
         GridScript* g = mazeLocal.getGrid(v1, v2);
-        g->m_mapCandidates.clear();
-        while (ScanInt(&ok)) {
-            g->m_mapCandidates.push_back(v1);
+        g->m_layeredMapIndexes.clear();
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            g->m_layeredMapIndexes.push_back(v1);
         }
     }
     break;
 
 case 0x33e:  // "[start map]"
-    // [start map]：start map 对 (x,y) 读入（局部 pair 列表）
-    ScanInt(&ok);
-    ScanInt(&ok);
+    // [start map]：读 (x,y) 坐标对入 mazeLocal.m_vec14（ORIG LAB_088e919e）
+    mazeLocal.m_vec14.clear();
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
+        v2 = ScanInt(&ok);
+        mazeLocal.m_vec14.push_back(std::make_pair(v1, v2));
+    }
     break;
 
-case 0x34a:  // "[start map]"
-    // [start map]：同 0x33e
-    ScanInt(&ok);
-    ScanInt(&ok);
+case 0x34a:  // "[boss map]"
+    // [boss map]：读 (x,y) 坐标对入 mazeLocal.m_vec20（ORIG LAB_088e9288）
+    mazeLocal.m_vec20.clear();
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
+        v2 = ScanInt(&ok);
+        mazeLocal.m_vec20.push_back(std::make_pair(v1, v2));
+    }
     break;
 
 case 0x355:  // "[boss map]"
@@ -719,7 +808,9 @@ case 0x397:  // "[seal door pos]"
 
 case 0x39b:  // "[hell coin limit]"
     // [hell coin limit]：push_back 到 m_deadTower180.m_vec
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_deadTower180.m_vec.push_back(v1);
     }
     break;
@@ -788,25 +879,33 @@ case 0x46e:  // "[fatigue result]"
 
 case 0x472:  // "[max monster]"
     // [max monster]：vector<int> 循环
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec6c[0].push_back(v1);  // 【推断】目标 vector 待核
     }
     break;
 
 case 0x47f:  // "[spawn common monster index]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec6c[1].push_back(v1);
     }
     break;
 
 case 0x48c:  // "[spawn common champion index]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec6c[2].push_back(v1);
     }
     break;
 
 case 0x499:  // "[spawn super champion index]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec6c[3].push_back(v1);
     }
     break;
@@ -816,7 +915,9 @@ case 0x4a6:  // "[spawn boss index]"
     break;
 
 case 0x4ab:  // "[spawn step max]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec14[0].push_back(v1);  // 【推断】
     }
     break;
@@ -866,25 +967,33 @@ case 0x4f4:  // "[common champion exp const]"
     break;
 
 case 0x4fc:  // "[super champion exp const]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec44.push_back(v1);  // 【推断】
     }
     break;
 
 case 0x508:  // "[common monster item drop list]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec14[1].push_back(v1);  // 【推断】
     }
     break;
 
 case 0x514:  // "[common champion item drop list]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec14[2].push_back(v1);  // 【推断】
     }
     break;
 
 case 0x520:  // "[super champion item drop list]"
-    while (ScanInt(&ok)) {
+    while (true) {
+        v1 = ScanInt(&ok);
+        if (!ok) break;
         script->m_warRoom18c.m_vec14[3].push_back(v1);  // 【推断】
     }
     break;
@@ -1240,6 +1349,504 @@ case 0x92c:  // "[medium]"
     ScanInt(&ok);
     break;
 
+case 0x91d:  // "[easy]"（ORIG 0x91d；同构于 [medium]，消费难度数据 token）
+    ScanInt(&ok);
+    ScanInt(&ok);
+    break;
+
+case 0x1000:  // "[minimap image]"
+    ScanStr(&script->m_str30);   // +0x30（export 对称）
+    break;
+
+case 0x1001:  // "[ancient dungeon]"
+    script->m_28c = ScanInt(&ok) != 0;   // +0x28c（export 对称：%d 字节）
+    break;
+
+case 0x1002:  // "[boss exp const]"
+    script->m_warRoom18c.m_9c[3] = ScanInt(&ok);   // +0x234（export 对称）
+    break;
+
+case 0x1003:  // "[experience increasing point]"
+    script->m_b0 = ScanFloat(&ok);   // +0xb0（float；export 对称 %.3f）
+    break;
+
+case 0x1004:  // "[hard]"
+    ScanInt(&ok);
+    ScanInt(&ok);
+    break;
+
+case 0x1005:  // "[ultimate]"
+    ScanInt(&ok);
+    ScanInt(&ok);
+    break;
+
+case 0x1006:  // "[entering title]"
+    ScanStr(&script->m_str24);   // +0x24（export 对称）
+    break;
+
+case 0x1007:  // "[player kc]"
+    script->m_warRoom18c.m_d4 = ScanInt(&ok);   // +0x260（export 对称）
+    break;
+
+case 0x1008:  // "[worldmap pattern info]"
+    ScanStr(&script->m_str74);   // +0x74（worldmap pattern 名）
+    break;
+
+case 0x1009:  // "[entering title next]"
+    ScanStr(&script->m_str28);   // 下一个进场标题（存 m_str28）
+    break;
+
+case 0x100a:  // "[ai character appear rate]"
+    script->m_338 = ScanInt(&ok);   // +0x338（report LAB_088e9a09 实证）
+    break;
+
+case 0x100b:  // "[limit inout count]"
+    script->m_325 = (char)ScanInt(&ok);   // +0x325（report LAB_088ed81e 实证）
+    break;
+
+case 0x100c:  // "[escape hell]"
+    ScanInt(&ok);   // ORIG LAB_088e8ace：读 1 int 设局部标志（无脚本字段，消费 token 防错位）
+    break;
+
+case 0x100d:  // "[dungeon type]"
+    ScanInt(&ok);   // 【推断】单标量 type；消费防错位
+    break;
+
+case 0x100e:  // "[room move keep state]"
+    ScanInt(&ok);   // 【推断】单标量 keep-state 枚举；消费防错位
+    break;
+
+case 0x100f:  // "[monster type spawn prob]"
+{
+    // ORIG LAB_088ea9eb：逐条读 4 int（怪物类型 + 3 概率）push 入 m_warRoom18c.m_spawnProb
+    while (true) {
+        STMonsterTypeSpawnProb sp;
+        int* el = (int*)sp.m_pad;
+        el[0] = ScanInt(&ok);
+        if (!ok) break;
+        el[1] = ScanInt(&ok);
+        if (!ok) break;
+        el[2] = ScanInt(&ok);
+        if (!ok) break;
+        el[3] = ScanInt(&ok);
+        if (!ok) break;
+        script->m_warRoom18c.m_spawnProb.push_back(sp);
+    }
+    break;
+}
+
+case 0x1010:  // "[result exp bonus per user decrease]"
+    *(float*)&script->m_warRoom18c.m_c0 = ScanFloat(&ok);   // +0x24c（report LAB_088ea971 实证）
+    break;
+
+case 0x1011:  // "[tower recovery]"
+{
+    // ORIG LAB_088eecc1：RecoveryStairInfo（int ROUND + int ROUND + float + vector<RecoveryInfo>）
+    RecoveryStairInfo rsi;
+    rsi.m_0 = (int)(ScanFloat(&ok) + 0.5f);            // ROUND
+    rsi.m_4 = (int)(ScanFloat(&ok) + 0.5f);
+    rsi.m_8 = ScanFloat(&ok);
+    while (true) {
+        float a = ScanFloat(&ok);
+        if (!ok) break;
+        RecoveryInfo ri;
+        ri.m_data[0] = a;
+        ri.m_data[1] = ScanFloat(&ok);
+        ri.m_data[2] = ScanFloat(&ok);
+        rsi.m_vec.push_back(ri);
+    }
+    script->m_vec384.push_back(rsi);
+    break;
+}
+
+case 0x1012:  // "[tower stage]"
+{
+    // ORIG LAB_088ee05d：读 maxStage，循环读 (mapIdx,weight) → m_map340[maxStage]
+    int maxStage = ScanInt(&ok);
+    if (ok) {
+        std::vector<RandomList> vec;
+        while (true) {
+            RandomList rl;
+            rl.m_mapIndex = ScanInt(&ok);
+            if (!ok) break;
+            rl.m_weight = ScanInt(&ok);
+            if (!ok) break;
+            vec.push_back(rl);
+        }
+        script->m_map340[maxStage] = vec;
+    }
+    break;
+}
+
+case 0x1013:  // "[tournament clear reward exp]"
+{
+    // ORIG LAB_088effb9：读 (key uchar, val uint) 对 insert 入 m_map4c8（重复 key 告警）
+    while (true) {
+        int key = ScanInt(&ok);
+        if (!ok) break;
+        int val = ScanInt(&ok);
+        if (!ok) break;
+        std::pair<std::map<unsigned char, unsigned int>::iterator, bool> res =
+            script->m_map4c8.insert(std::make_pair((unsigned char)key, (unsigned int)val));
+        if (!res.second)
+            puts("TournamentClearRewardExpMap Key is Duplicated!!!");
+    }
+    break;
+}
+
+case 0x1014:  // "[road necessary party]"
+{
+    // ORIG LAB_088ecf16：读 count，循环读 DimensionPartyCount(3 char)，去重后 push 入 m_dimension308
+    int count = ScanInt(&ok);
+    if (ok) {
+        for (int i = 0; i < count; ++i) {
+            DimensionPartyCount dpc;
+            dpc.m_0 = (char)ScanInt(&ok);
+            dpc.m_1 = (char)ScanInt(&ok);
+            dpc.m_2 = (char)ScanInt(&ok);
+            std::vector<DimensionPartyCount>::iterator it =
+                std::find(script->m_dimension308.begin(), script->m_dimension308.end(), dpc);
+            if (it == script->m_dimension308.end())
+                script->m_dimension308.push_back(dpc);
+        }
+    }
+    break;
+}
+
+case 0x1015:  // "[impossible skills]"
+{
+    // ORIG LAB_088e94fb：循环 ScanStr job 名 → getCharacterJobToEnumValue + ScanInt → m_vec144
+    while (true) {
+        std::string token;
+        if (!ScanStr(&token)) break;
+        if (token == "[/impossible skills]") break;
+        int job = getCharacterJobToEnumValue(token);
+        int val = ScanInt(&ok);
+        script->m_vec144.push_back(std::make_pair(job, val));
+    }
+    break;
+}
+
+case 0x1016:  // "[special passive object item]"
+{
+    // ORIG LAB_088e81e4：清 m_vecec，循环读（itemIdx 消费 / assignItemIdx / pairCount + pair 列表）
+    script->m_vecec.clear();
+    while (true) {
+        int v0 = ScanInt(&ok);       // itemIdx（消费）
+        if (!ok) break;
+        int assignItemIdx = ScanInt(&ok);
+        int pairCount = ScanInt(&ok);
+        stDungeonAssignItem_t item;
+        item.m_assignItemIdx = assignItemIdx;
+        for (int i = 0; i < pairCount; ++i) {
+            int a = ScanInt(&ok);
+            if (!ok) break;
+            int b = ScanInt(&ok);
+            if (!ok) break;
+            item.m_list.push_back(std::make_pair(a, b));
+        }
+        script->m_vecec.push_back(item);
+    }
+    break;
+}
+
+case 0x1017:  // "[evil rate]"
+{
+    // ORIG LAB_088ef474：13 行 × 5 float → m_vec404
+    script->m_vec404.clear();
+    for (int i = 0; i < 0xd; ++i) {
+        std::vector<float> row;
+        row.reserve(5);
+        for (int j = 0; j < 5; ++j) {
+            float f = ScanFloat(&ok);
+            if (!ok) break;   // ORIG 在此 logFormat 告警后 break（省略日志，不影响数据）
+            row.push_back(f);
+        }
+        script->m_vec404.push_back(row);
+    }
+    break;
+}
+
+case 0x1018:  // "[result card]"
+{
+    // ORIG LAB_088efba8：子 token 分发 [reward item rate]→m_itemRate4b4、[reward rate]→m_map49c
+    while (true) {
+        std::string sub;
+        if (!ScanType(sub, true)) break;
+        if (sub == "[reward item rate]") {
+            script->m_itemRate4b4.Clear();
+            while (true) {
+                int a = ScanInt(&ok); if (!ok) break;
+                int b = ScanInt(&ok); if (!ok) break;
+                script->m_itemRate4b4.m_c += b;
+                int c = ScanInt(&ok); if (!ok) break;
+                TournamentRewardItem it;
+                it.m_data[0] = a; it.m_data[1] = b; it.m_data[2] = c;
+                script->m_itemRate4b4.m_items.push_back(it);
+            }
+        }
+        else if (sub == "[reward rate]") {
+            while (true) {
+                int key = ScanInt(&ok); if (!ok) break;
+                TournamentRewardRate rate;
+                rate.m_0 = ScanInt(&ok); if (!ok) break;
+                rate.m_4 = ScanInt(&ok); if (!ok) break;
+                rate.m_8 = ScanInt(&ok); if (!ok) break;
+                int sum = rate.m_0 + rate.m_4 + rate.m_8;
+                if (sum == 0) break;   // ORIG：sum==0 → 错误退出
+                script->m_map49c[key] = rate;
+            }
+        }
+        else break;   // 未知子 token 结束
+    }
+    break;
+}
+
+case 0x1019:  // "[advance altar type]"
+{
+    // ORIG LAB_088ec46e：ScanStr → advancealtar::StageType::getStageType → m_2ac
+    std::string s;
+    if (ScanStr(&s)) {
+        advancealtar::StageType::T t;
+        if (advancealtar::StageType::getStageType(s, t))
+            script->m_2ac = (int)t;
+    }
+    break;
+}
+
+case 0x101a:  // "[revision table]"
+    ScanStr(&script->m_str448);   // +0x448（report LAB_088ef6c4 实证）
+    break;
+
+case 0x101b:  // "[character respawn posetion]"
+    script->m_50c = ScanInt(&ok) != 0;   // +0x50c（report LAB_088f08d4 实证，char）
+    break;
+
+case 0x101c:  // "[boss room entrance condition]"
+    script->m_16c = ScanInt(&ok);   // 【推断】LAB_088edcca __inited==1 读 +0x16c（与 dummy appear count 共享块）
+    break;
+
+case 0x101d:  // "[clear reward item]"
+    script->m_450 = ScanInt(&ok);   // +0x450（report LAB_088e78f5 实证）
+    script->m_454 = ScanInt(&ok);   // +0x454
+    break;
+
+case 0x101e:  // "[absolute change stat]"
+{
+    // ORIG 0x088ebdf1（objdump 解码）：ScanStr(stat 名) → __lookup_0 映射到
+    // 0x55c/0x55f/0x562/0x565/0x559（[physical|magical attack|defense add]/[move speed]）
+    // → local_113c(1/2/3/4/0) → 共享块读 float 写 m_statMap290[(T)local_113c]；
+    // 未知名 / 无法解析时 local_113c=5 不写 map。
+    while (true) {
+        std::string statName;
+        if (!ScanStr(&statName)) break;
+        int idx = -1;
+        if (statName == "[physical attack add]") idx = 0x55c;
+        else if (statName == "[physical defense add]") idx = 0x55f;
+        else if (statName == "[magical attack add]") idx = 0x562;
+        else if (statName == "[magical defense add]") idx = 0x565;
+        else if (statName == "[move speed]") idx = 0x559;
+        int statKey;
+        if (idx == 0x55c) statKey = 1;
+        else if (idx == 0x55f) statKey = 2;
+        else if (idx == 0x562) statKey = 3;
+        else if (idx == 0x565) statKey = 4;
+        else if (idx == 0x559) statKey = 0;
+        else statKey = 5;   // 未知名 → 不写 map
+        float v = ScanFloat(&ok);
+        if (!ok) break;
+        if (statKey != 5)
+            script->m_statMap290[static_cast<AbsoluteChangeStat::T>(statKey)] = v;
+    }
+    break;
+}
+
+case 0x101f:  // "[event monster2]"
+{
+    // ORIG LAB_088ee594 __inited==1：读 m_3ec/m_3f0 + 循环 5 int 的 stSecondEventMonster_t 入 m_vec3f8
+    script->m_3ec = ScanInt(&ok);
+    script->m_3f0 = ScanInt(&ok);
+    while (true) {
+        stSecondEventMonster_t em;
+        em.m_eventIdx = ScanInt(&ok); if (!ok) break;
+        em.m_monsterIdx = ScanInt(&ok); if (!ok) break;
+        em.m_prob = ScanInt(&ok); if (!ok) break;
+        em.m_field0c = ScanInt(&ok); if (!ok) break;
+        em.m_field10 = ScanInt(&ok); if (!ok) break;
+        script->m_3f4 += em.m_prob;   // ORIG 累加 local_11f0(prob) 到 +0x3f4
+        script->m_vec3f8.push_back(em);
+    }
+    break;
+}
+
+case 0x1020:  // "[magical attack add]"
+    // ORIG LAB_088ec1ff：设 local_113c=3（AbsoluteChangeStat::T）→ 共享块读 float 入 m_statMap290[(T)3]
+    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(3)] = ScanFloat(&ok);
+    break;
+
+case 0x1021:  // "[magical defense add]"
+    // ORIG：设 local_113c=4 → 共享块读 float 入 m_statMap290[(T)4]
+    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(4)] = ScanFloat(&ok);
+    break;
+
+case 0x1022:  // "[coin info]"
+    script->m_4fc = ScanInt(&ok);   // +0x4fc（report LAB_088f06bb __inited==1 实证）
+    break;
+
+case 0x1023:  // "[clear condition]"
+{
+    // ORIG LAB_088e8643：子 token（[destroy object]/[clear map]/[hunt monster|apc|boss]→类型）
+    // + 左/右变量 → mazeLocal.m_clearCondition；子 token 用 ScanStr 近似 ScanTypeOrStr【推断】。
+    while (true) {
+        std::string sub;
+        if (!ScanStr(&sub)) break;
+        if (sub == "[/clear condition]") break;
+        int type = -1;
+        if (sub == "[destroy object]") type = 0;
+        else if (sub == "[clear map]") type = 1;
+        else if (sub == "[hunt monster]") type = 2;
+        else if (sub == "[hunt apc]") type = 3;
+        else if (sub == "[hunt boss]") type = 4;
+        DungeonClearCondition cond;
+        cond.m_0 = type;
+        cond.m_4 = ScanInt(&ok);
+        cond.m_8 = ScanInt(&ok);
+        if (type == 1) cond.m_8 = 1;   // ORIG：clear map → 右变量恒 1
+        mazeLocal.m_clearCondition.push_back(cond);
+    }
+    break;
+}
+
+case 0x1024:  // "[greed]"
+{
+    // ORIG LAB_088e8c37：ScanStr 读 greed 串 → 逐 2 字符匹配 g_gridSymbols 填 mazeLocal.m_grids。
+    // \r / \n / 空格作分隔；未知 2 字符符号记行推进（近似）。
+    std::string greed;
+    ScanStr(&greed);
+    int pos = 0;
+    int gridIdx = 0;
+    int len = (int)greed.size();
+    while (pos < len - 1)
+    {
+        char c0 = greed[pos];
+        if (c0 == '\r' || c0 == '\n' || c0 == ' ')
+        {
+            pos += 1;
+            continue;
+        }
+        int cc = 0;
+        for (; cc < 16; ++cc)
+        {
+            if (greed[pos] == g_gridSymbols[cc][0] && greed[pos + 1] == g_gridSymbols[cc][1])
+                break;
+        }
+        if (cc == 16)
+        {
+            pos += 1;   // 未知 2 字符 → 行推进（近似）
+        }
+        else
+        {
+            if (gridIdx < (int)mazeLocal.m_grids.size())
+                mazeLocal.m_grids[gridIdx].m_gridValue = cc;
+            gridIdx += 1;
+            pos += 2;
+        }
+    }
+    break;
+}
+
+case 0x1025:  // "[randomized object creation]"
+{
+    // ORIG objdump 解明：子标签为 [select]/[regenerate]/[minimap icon]/[object]
+    // （经子 map 0x94f7060 分发到 0x3b3/0x3b8/0x3bd/0x3c2）。
+    // [select]/[regenerate]/[minimap icon] 各读 1 int；[object] 是嵌套 RidableObject 容器（深）。
+    while (true) {
+        std::string sub;
+        if (!ScanType(sub, true)) break;
+        if (sub == "[/randomized object creation]") break;
+        if (sub == "[select]" || sub == "[regenerate]" || sub == "[minimap icon]")
+            ScanInt(&ok);
+        else if (sub == "[object]")
+        {
+            // 嵌套 RidableObject 容器；objdump 解明其子子标签为 [map]/[index]/[team]/[pos]
+            // （经子 map 分发到 0x3d5/0x3de/0x3e3/0x3ee），各读 int 进 RidableObject 字段。
+            while (true) {
+                std::string ss;
+                if (!ScanType(ss, true)) break;
+                if (ss == "[/object]") break;
+                if (ss == "[map]") { ScanInt(&ok); ScanInt(&ok); }        // objdump：map 读 x/y
+                else if (ss == "[index]" || ss == "[pos]")
+                    ScanInt(&ok);
+                else if (ss == "[team]")
+                    ScanInt(&ok);   // 【推断】约 1 int（objdump 子分派未直接扫，近似）
+                else
+                    break;   // 未知子子标签
+            }
+        }
+        else break;   // 未知子标签结束
+    }
+    break;
+}
+
+case 0x1026:  // "[schedule]"
+{
+    // ORIG LAB_088ed1f9：scheduleId + 5 个时间串 → _DailySchedule（字段映射同 I6 参考实现）。
+    // FileIdx（FindIndexByFullScan / g_stDungeonScriptFileList 双视图）为次要字段，暂略。
+    while (true) {
+        int id = ScanInt(&ok);
+        if (!ok) break;
+        std::string strStart, strEnd, strWeekday, strStartTime, strEndTime;
+        if (!ScanStr(&strStart)) break;
+        if (!ScanStr(&strEnd)) break;
+        if (!ScanStr(&strWeekday)) break;
+        if (!ScanStr(&strStartTime)) break;
+        if (!ScanStr(&strEndTime)) break;
+        _DailySchedule ds;
+        ds.m_eventId = id;
+        ds.m_idx = reinterpret_cast<STScriptFileList*>(&g_stDungeonScriptFileList)
+                       ->FindIndexByFullScan(path);   // ORIG FindIndexByFullScan(g_stDungeonScriptFileList, path)
+        { std::string tmp(strStart); ConvertStringToTime(tmp, *(long*)&ds.m_startSec); }
+        { std::string tmp(strEnd); ConvertStringToTime(tmp, *(long*)&ds.m_endSec); }
+        { unsigned int wday = 0; std::string tmp(strWeekday); ConvertWeekdayStringToInt(tmp, wday); ds.m_wday = (int)wday; }
+        { unsigned char h = 0, m = 0, sec = 0; std::string tmp(strStartTime); ConvertHHMMSSStringToInt(tmp, h, m, sec); ds.m_startHour = h; ds.m_startMin = m; ds.m_startSec2 = sec; }
+        { unsigned char h = 0, m = 0, sec = 0; std::string tmp(strEndTime); ConvertHHMMSSStringToInt(tmp, h, m, sec); ds.m_endHour = h; ds.m_endMin = m; ds.m_endSec2 = sec; }
+        script->m_dailySchedule.push_back(ds);
+    }
+    break;
+}
+
+case 0x1030:  // "[team]"（rand obj 子标签兜底）
+    ScanInt(&ok); ScanInt(&ok);
+    break;
+
+case 0x1031:  // "[pos]"（rand obj 子标签兜底）
+    ScanInt(&ok); ScanInt(&ok);
+    break;
+
+case 0x1032:  // "[object]"（rand obj 子标签兜底）
+    ScanInt(&ok); ScanInt(&ok); ScanInt(&ok);
+    break;
+
+case 0x1033:  // "[realdungeon checkup]"
+    ScanInt(&ok);   // 【推断】消费，防错位
+    break;
+
+case 0x1034:  // "[limit item stat]"
+    ScanInt(&ok);   // 【推断】消费，防错位
+    break;
+
+case 0x1035:  // "[advance altar survival clear reward]"
+    ScanInt(&ok);   // 【推断】消费，防错位
+    break;
+
+case 0x1036:  // "[physical attack add]"
+    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(1)] = ScanFloat(&ok);   // (T)1
+    break;
+
+case 0x1037:  // "[physical defense add]"
+    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(2)] = ScanFloat(&ok);   // (T)2
+    break;
+
 case 0x942:  // "[party member coin limit]"
     script->m_4fc = ScanInt(&ok);  // +0x4fc
     break;
@@ -1259,6 +1866,11 @@ case 0x95c:  // "[open door even enemy]"
 case 0x962:  // "[disable exit]"
     ScanInt(&ok);
     break;
+
+case 0x87a:  // "[tower of despair]"
+    script->m_2a9 = 1;   // ORIG LAB_088ef8f3：local_12c[0x2a9]=1
+    break;
+
         default:
             break;
         }
@@ -1266,16 +1878,242 @@ case 0x962:  // "[disable exit]"
     return true;
 }
 
+// exportDungeonScript 依赖的脚本域符号（权威定义在 STMapScript.cpp /
+// LinkMiscSecuTimerSolo.cpp / InitScriptProducers_4.cpp）。
+void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
+                           const char* name);
+void convertBinaryToText(const char* path);
+extern char g_szDungeonScriptBaseDirectory[0x100];
+
 bool exportDungeonScript(STDungeonScript* script, const char* path)
 {
-    FILE* file = fopen(path, "w");
+    // ORIG 0x088f0a98（0x160c）——完整导出。按反汇编/Ghidra C 逐字段转写：
+    //   fopen("wb") → STDungeonScript local（提供 m_a4 默认比较值）→ 各分区
+    //   fprintf/fwrite 转储 → maze 循环（greed/map/boss/layered/start/boss）
+    //   → spawn 系列 → 收尾 fclose + convertBinaryToText。
+    // 【依赖】getScriptFileFullPath/convertBinaryToText/g_gridSymbols 见行内 extern。
+    static char saveFileName[0x100];   // ORIG _ZZ19exportDungeonScriptP15STDungeonScriptPKcE12saveFileName
+    getScriptFileFullPath(saveFileName, 0x100, g_szDungeonScriptBaseDirectory, path);
+
+    FILE* file = fopen(saveFileName, "wb");
     if (!file)
+        return 0;
+
+    STDungeonScript local;   // ORIG 在栈上构造，仅用于 [coin limit] 与默认值比较
+
+    fprintf(file, "[name] `%s`\n", script->m_str1c.c_str());
+    fprintf(file, "[explain]\n`%s`\n", script->m_str20.c_str());
+    fprintf(file, "[entering title] `%s`\n", script->m_str24.c_str());
+    fprintf(file, "[cutscene image] `%s` %d\n", script->m_str28.c_str(), script->m_2c);
+    fprintf(file, "[minimap image] `%s`\n", script->m_str30.c_str());
+    fprintf(file, "[worldmap info]\n%d %d\n%d %d\n`%s`\n\n",
+            script->m_5c[0], script->m_5c[1], script->m_5c[2], script->m_5c[3],
+            script->m_str74.c_str());
+    fprintf(file, "[minimum required level] %d\n", script->m_78);
+    if (script->m_requiredItem7c.m_itemIdx != -1)
     {
-        return false;
+        fprintf(file, "[required item] %d %d %d\n",
+                script->m_requiredItem7c.m_itemIdx,
+                script->m_requiredItem7c.m_itemCount,
+                script->m_requiredItem7c.m_enableFlag != 0);
     }
-    fprintf(file, "%d\n%d\n", script->m_0, script->m_4);
+    if (script->m_a4 != local.m_a4)
+        fprintf(file, "[coin limit] %d", script->m_a4);
+    fprintf(file, "[basis level] %d\n", script->m_ac);
+    fprintf(file, "[experience increasing point] %.3f\n", (double)script->m_b0);
+    fprintf(file, "[champion] %d %d %d %d %d\n",
+            script->m_b4[0], script->m_b4[1], script->m_b4[2], script->m_b4[3],
+            script->m_b4[4]);
+    if (!script->m_vec98.empty())
+    {
+        fwrite("[item]\n", 1, 7, file);
+        for (std::vector<std::pair<int, int> >::iterator it = script->m_vec98.begin();
+             it != script->m_vec98.end(); ++it)
+            fprintf(file, "%d %d\n", it->first, it->second);
+        fwrite("[/item]\n", 1, 8, file);
+    }
+
+    // [pathgate object]：m_padF8（+0xf8）POD 区 10 个 int
+    int* pg = (int*)script->m_padF8;
+    fprintf(file, "[pathgate object]\n%d %d %d\n%d %d %d\n%d %d\n%d %d\n",
+            pg[0], pg[1], pg[2], pg[3], pg[4], pg[5], pg[6], pg[7], pg[9], pg[10]);
+
+    // ---- maze 循环 ----
+    for (unsigned int mi = 0; mi < script->m_mazeList170.size(); ++mi)
+    {
+        MazeScript& maze = script->m_mazeList170[mi];
+        fwrite("\n[maze info]\n", 1, 13, file);
+        fprintf(file, "[size] %d %d\n", maze.m_width, maze.m_height);
+        std::string greed;
+        for (int y = 0; y < maze.m_height; ++y)
+        {
+            for (int x = 0; x < maze.m_width; ++x)
+            {
+                GridScript* grid = maze.getGrid(x, y);
+                greed += g_gridSymbols[grid->m_gridValue];
+            }
+            if (maze.m_height - 1 != y)
+                greed += "\n ";
+        }
+        fprintf(file, "[greed]\n`%s`\n", greed.c_str());
+
+        for (int y = 0; y < maze.m_height; ++y)
+        {
+            for (int x = 0; x < maze.m_width; ++x)
+            {
+                GridScript* grid = maze.getGrid(x, y);
+                if (!grid->m_mapCandidates.empty())
+                {
+                    fprintf(file, "[map specification]\n%d %d\n", x, y);
+                    for (std::vector<int>::iterator it = grid->m_mapCandidates.begin();
+                         it != grid->m_mapCandidates.end(); ++it)
+                        fprintf(file, "%d\n", *it);
+                    fwrite("[/map specification]\n", 1, 21, file);
+                }
+                if (!grid->m_secondCandidates.empty())
+                {
+                    fprintf(file, "[boss map specification]\n%d %d\n", x, y);
+                    for (std::vector<int>::iterator it = grid->m_secondCandidates.begin();
+                         it != grid->m_secondCandidates.end(); ++it)
+                        fprintf(file, "%d\n", *it);
+                    fwrite("[/boss map specification]\n", 1, 26, file);
+                }
+                if (!grid->m_layeredMapIndexes.empty())
+                {
+                    fwrite("[layered map specification]\n", 1, 28, file);
+                    for (std::vector<int>::iterator it = grid->m_layeredMapIndexes.begin();
+                         it != grid->m_layeredMapIndexes.end(); ++it)
+                        fprintf(file, "%d\n", *it);
+                    fwrite("[/layered map specification]\n", 1, 29, file);
+                }
+            }
+        }
+
+        fwrite("[start map]\n", 1, 12, file);
+        for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec14.begin();
+             it != maze.m_vec14.end(); ++it)
+            fprintf(file, "%d %d\n", it->first, it->second);
+        fwrite("[/start map]\n", 1, 13, file);
+        fwrite("[boss map]\n", 1, 11, file);
+        for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec20.begin();
+             it != maze.m_vec20.end(); ++it)
+            fprintf(file, "%d %d\n", it->first, it->second);
+        fwrite("[/boss map]\n", 1, 12, file);
+    }
+
+    if (script->m_warRoom18c.m_10 != -1)
+        fprintf(file, "[warroom map index] %d\n", script->m_warRoom18c.m_10);
+
+    // [monster type spawn prob]
+    fwrite("[monster type spawn prob]", 1, 25, file);
+    for (unsigned int i = 0; i < script->m_warRoom18c.m_spawnProb.size(); ++i)
+    {
+        int* el = (int*)script->m_warRoom18c.m_spawnProb[i].m_pad;
+        for (int j = 0; j < 4; ++j)
+            fprintf(file, "%d ", el[j]);
+        fputc(10, file);
+    }
+    fwrite("[monster type spawn cost]", 1, 25, file);
+    for (int j = 0; j < 4; ++j)
+        fprintf(file, "%d", script->m_warRoom18c.m_c4[j]);
+    fputc(10, file);
+
+    fprintf(file, "[player kc] %d", script->m_warRoom18c.m_d4);
+
+    // ---- spawn common monster index ----
+    if (!script->m_warRoom18c.m_vec14[0].empty())
+    {
+        fwrite("[spawn common monster index]\n", 1, 29, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[0].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec14[0][i]);
+        fwrite("[/spawn common monster index]\n", 1, 30, file);
+    }
+    // ---- spawn common champion index ----
+    if (!script->m_warRoom18c.m_vec14[1].empty())
+    {
+        fwrite("[spawn common champion index]\n", 1, 30, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[1].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec14[1][i]);
+        fwrite("[/spawn common champion index]\n", 1, 31, file);
+    }
+    // ---- spawn super champion index ----
+    if (!script->m_warRoom18c.m_vec14[2].empty())
+    {
+        fwrite("[spawn super champion index]\n", 1, 29, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[2].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec14[2][i]);
+        fwrite("[/spawn super champion index]\n", 1, 30, file);
+    }
+    // ---- spawn boss index ----
+    if (!script->m_warRoom18c.m_vec14[3].empty())
+    {
+        fwrite("[spawn boss index]\n", 1, 19, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[3].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec14[3][i]);
+        fwrite("[/spawn boss index]\n", 1, 20, file);
+    }
+
+    fprintf(file, "[spawn step max] %d\n", script->m_warRoom18c.m_50);
+    if (!script->m_warRoom18c.m_vec44.empty())
+    {
+        fwrite("[spawn step resource pool]\n", 1, 27, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec44.size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec44[i]);
+        fwrite("[/spawn step resource pool]\n", 1, 28, file);
+    }
+    fprintf(file, "[kill count const] %d\n", (double)*(float*)&script->m_warRoom18c.m_ac);
+    fprintf(file, "[join cost gold] %d\n", script->m_warRoom18c.m_54);
+    fprintf(file, "[gold drop prob] %d\n", script->m_warRoom18c.m_58);
+    fprintf(file, "[common monster item drop prob] %d\n", script->m_warRoom18c.m_5c[0]);
+    fprintf(file, "[common champion item drop prob] %d\n", script->m_warRoom18c.m_5c[1]);
+    fprintf(file, "[super champion item drop prob] %d\n", script->m_warRoom18c.m_5c[2]);
+    fprintf(file, "[boss item drop prob] %d\n", script->m_warRoom18c.m_5c[3]);
+    fprintf(file, "[common monster exp const] %d\n", script->m_warRoom18c.m_9c[0]);
+    fprintf(file, "[common champion exp const] %d\n", script->m_warRoom18c.m_9c[1]);
+    fprintf(file, "[super champion exp const] %d\n", script->m_warRoom18c.m_9c[2]);
+    fprintf(file, "[boss exp const] %d\n", script->m_warRoom18c.m_9c[3]);
+
+    // ---- 四条 item drop list ----
+    if (!script->m_warRoom18c.m_vec6c[0].empty())
+    {
+        fwrite("[common monster item drop list]\n", 1, 32, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[0].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[0][i]);
+        fwrite("[/common monster item drop list]\n", 1, 33, file);
+    }
+    if (!script->m_warRoom18c.m_vec6c[1].empty())
+    {
+        fwrite("[common champion item drop list]\n", 1, 33, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[1].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[1][i]);
+        fwrite("[/common champion item drop list]\n", 1, 34, file);
+    }
+    if (!script->m_warRoom18c.m_vec6c[2].empty())
+    {
+        fwrite("[super champion item drop list]\n", 1, 32, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[2].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[2][i]);
+        fwrite("[/super champion item drop list]\n", 1, 33, file);
+    }
+    if (!script->m_warRoom18c.m_vec6c[3].empty())
+    {
+        fwrite("[boss item drop list]\n", 1, 22, file);
+        for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[3].size(); ++i)
+            fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[3][i]);
+        fwrite("[/boss item drop list]\n", 1, 23, file);
+    }
+
+    fprintf(file, "[battle spawn time] %d\n", script->m_warRoom18c.m_fc);
+    if ((unsigned char)script->m_28c != 0)
+        fprintf(file, "[ancient dungeon] %d", (unsigned int)(unsigned char)script->m_28c);
+    if ((unsigned char)script->m_4e0 != 0)
+        fprintf(file, "[risk dungeon] %d", (unsigned int)(unsigned char)script->m_4e0);
+    if ((unsigned char)script->m_47c != 0)
+        fprintf(file, "[SWAY EFFECT] %d %d \n", script->m_484, script->m_480);
+
     fclose(file);
-    return true;
+    convertBinaryToText(saveFileName);
+    return 1;
 }
 
 // ---- advancealtar 字符串枚举解析器 ----

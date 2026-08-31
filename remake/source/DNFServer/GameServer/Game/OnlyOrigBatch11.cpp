@@ -259,7 +259,7 @@ int daemon_init(char** argv)
 void getScriptFileFullPathFormat(char* out, unsigned int size,
                                  const char* fmt, ...)
 {
-    char buf[0x110];
+    char buf[0x104];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(buf, 0x104, fmt, ap);

@@ -2335,9 +2335,9 @@ bool CPrivateStoreMgr::IsBusyPrivateStore(CUser* user)
 void CPrivateStoreMgr::LoadPrivateStore(CUser* user)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PrivateStore.cpp", 0xcb9), true);
-    guard->operator<<(0x78);
-    guard->operator<<((int)user->GetUID());
-    guard->operator<<(user->get_charac_no(-1));
+    guard.operator*()->operator<<(0x78);                  // ORIG CStreamGuard::operator*
+    guard.operator*()->operator<<((int)user->GetUID());
+    guard.operator*()->operator<<(user->get_charac_no(-1));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -2677,7 +2677,7 @@ int village_object::CVillageObjectMgr::unregister_object(village_object::Zone zo
         m_objects.find(zone);
     if (it == m_objects.end())
         return 0;
-    std::list<village_object::IObject*>& objects = (*it).second;
+    std::list<village_object::IObject*>& objects = it->second;   // ORIG 用 operator->（pt）
     std::list<village_object::IObject*>::iterator found =
         std::find(objects.begin(), objects.end(), object);
     if (found == objects.end())
@@ -2698,6 +2698,6 @@ short STExpertJobScript::GetShopDollSlot(int index)
 {
     std::map<int, unsigned char>::iterator it = m_shopDollMap.find(index);
     if (it != m_shopDollMap.end())
-        return (short)(*it).second;   // +0x04 mapped value（movzbl 零扩展）
+        return (short)it->second;   // +0x04 mapped value（movzbl 零扩展；ORIG 用 operator->（pt））
     return -1;
 }

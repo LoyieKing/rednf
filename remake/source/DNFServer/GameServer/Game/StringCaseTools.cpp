@@ -162,7 +162,7 @@ CharString trimLeft(const CharString& str)
     int i = 0;
     for (; i <= end; ++i)
     {
-        if (!isspace((int)(unsigned char)src[i]))
+        if (!isspace((int)src[i]))
         {
             if (i == 0)
                 return CharString(str);
@@ -209,7 +209,7 @@ CharString trimRight(const CharString& str)
     int i = end;
     for (; i >= 0; --i)
     {
-        if (!isspace((int)(unsigned char)src[i]))
+        if (!isspace((int)src[i]))
         {
             if (i == end)
                 return CharString(str);

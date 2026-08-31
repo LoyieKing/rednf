@@ -18,6 +18,15 @@
 #include "TaiwanCash.h"        // BillTransaction 权威布局
 #include "DNFFunctionLib.h"    // StringToNumber
 
+// ORIG 的 GarenaAuthData getter 直接调用全局 C 的 ntohl/ntohs（@plt）。
+// 经 <netinet/in.h> 获取正确 C-linkage 声明（extern "C" 由系统头给出），
+// 再 #undef 其字节序宏（glibc 在 little-endian 下把 ntohl 宏为恒等/swap，
+// 会吞掉函数调用）；这样 getter 内 `ntohl(m_uid)` 编译为对 `ntohl@plt` 的
+// C 调用，而不绑定到 namespace Taiwan 内的 C++ 修饰成员。
+#include <netinet/in.h>
+#undef ntohl
+#undef ntohs
+
 // 说明：ORIG GarenaAuthPCRoom 只取 CUser::GetUID()/get_acc_id() 两个 const
 // 访问器。因上游 CUser.h→CDataManager.h→CItemGenerator.h 链正被其它批改造
 // （2026-08-27 波动期），此处采用【最小只读类视图】生成对真实 ORIG 符号
@@ -202,8 +211,7 @@ void base64_decode(std::string const& encoded_string,
 // ORIG T 0x08172fc8
 unsigned int GarenaAuthData::getUid()
 {
-    extern unsigned long ntohl(unsigned long);
-    return static_cast<unsigned int>(ntohl(m_uid));
+    return ntohl(m_uid);
 }
 
 // ORIG T 0x08172fde
@@ -215,7 +223,6 @@ char* GarenaAuthData::getUname()
 // ORIG T 0x08173008
 unsigned short GarenaAuthData::getGcaType()
 {
-    extern unsigned short ntohs(unsigned short);
     return ntohs(m_gcaType);
 }
 
@@ -234,8 +241,7 @@ unsigned char GarenaAuthData::getGoldMemberType()
 // ORIG T 0x08172fea
 unsigned int GarenaAuthData::getTimeStamp()
 {
-    extern unsigned long ntohl(unsigned long);
-    return static_cast<unsigned int>(ntohl(m_timeStamp)) + m_patchTime;
+    return ntohl(m_timeStamp) + m_patchTime;
 }
 
 // ORIG T 0x08173042

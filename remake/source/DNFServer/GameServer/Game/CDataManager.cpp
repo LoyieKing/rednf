@@ -1351,7 +1351,9 @@ T* GlobalInstance_CDM<T>::inst_ptr()
 
 CDataManager* G_CDataManager()
 {
-    return GlobalInstance_CDM<CDataManager>::inst_ptr();
+    // ORIG _Z14G_CDataManagerv：GlobalInstance<CDataManager>::inst_ptr()，
+    // 非本地 GlobalInstance_CDM（callee 名不同）。
+    return GlobalInstance<CDataManager>::inst_ptr();
 }
 
 // ---- CDataManager 成员类析构实现（G2/G5 批次细化）----

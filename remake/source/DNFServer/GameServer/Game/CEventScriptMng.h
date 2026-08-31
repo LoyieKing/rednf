@@ -39,7 +39,7 @@ public:
     std::string m_name;          // +0x08
     int m_startTime;             // +0x0c
     int m_endTime;               // +0x10
-    unsigned char m_isEventing;  // +0x14
+    int m_isEventing;            // +0x14（ORIG 拷贝构/赋值读 4 字节 → 实为 int；仅存 0/1）
 };
 
 class InGameEventInfoList

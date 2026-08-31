@@ -1374,7 +1374,7 @@ void CItemList::destroy()
     __gnu_cxx::hash_map<int, CItem*>::iterator end = m_itemMap.end();
     while (it != end)
     {
-        CItem* item = it->second;
+        CItem* item = (*it).second;   // ORIG 用 operator*（de）
         delete item;
         ++it;
     }

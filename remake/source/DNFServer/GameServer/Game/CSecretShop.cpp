@@ -128,7 +128,7 @@ void SHOPPER::BuyItem(int itemIdx, int count)
     std::vector<BUY_INFO>::iterator it;
     it = std::find(m_buys.begin(), m_buys.end(), itemIdx);
     if (it != m_buys.end()) {
-        it->m_count += count;
+        (*it).m_count += count;   // ORIG 用 operator*（de）
     } else {
         BUY_INFO b;
         b.m_itemIdx = itemIdx;
@@ -959,4 +959,3 @@ void* CUser::GetSecretShopData()
         return 0;
     return party->GetSecretShopData();
 }
-

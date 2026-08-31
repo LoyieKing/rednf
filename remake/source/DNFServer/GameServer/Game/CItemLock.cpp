@@ -199,7 +199,7 @@ void CItemLock::UpdateAvatarItem(CUser* user, Inven_Item* item)
     **guard << 0x1c2;
     **guard << (int)user->GetUID();
     **guard << item->m_addInfo2;
-    **guard << (unsigned char)(item->m_amp.GetLock() & 0xff);
+    **guard << (int)(item->m_amp.GetLock() & 0xff);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -211,17 +211,18 @@ void CItemLock::UpdateCreatereItem(CUser* user, Inven_Item* item)
     **guard << 0x1c1;
     **guard << (int)user->GetUID();
     **guard << item->m_addInfo2;
-    **guard << (unsigned char)(item->m_amp.GetLock() & 0xff);
+    **guard << (int)(item->m_amp.GetLock() & 0xff);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ORIG 0x8541e4e：item 空间字节(+0x01)==8 → creature 包；==5 → avatar 包。
+// ORIG 0x8541e4e：item 空间字节(+0x01)==8 → UpdateAvatarItem(0x1c2)；
+// ==5 → UpdateCreatereItem(0x1c1)。（注意 ORIG 判定次序：==8 先，调用的是 Avatar。）
 void CItemLock::UpdateItem(CUser* user, Inven_Item* item)
 {
     if (item->m_field1 == 8)
-        UpdateCreatereItem(user, item);
-    else if (item->m_field1 == 5)
         UpdateAvatarItem(user, item);
+    else if (item->m_field1 == 5)
+        UpdateCreatereItem(user, item);
 }
 
 // ORIG 0x85427a0：包 0xfb（put_header(0,0xfb)），short 计数占位后逐项写；
@@ -291,10 +292,11 @@ void CItemLock::SendItemLockList(CUser* user)
 // IsAble* 门禁（返回码即错误表索引；ORIG 精确常量）
 // ===========================================================================
 
-// ORIG 0x8541afe：空闲号池非空 → 0x16 可锁；空 → 0。（参数 lock 未使用。）
+// ORIG 0x8541afe：空闲号池空 → 0x16 可锁；非空 → 0（CTitleBook.h:290 注释一致；
+// 参数 lock 未使用）。
 int CItemLock::IsAbleItemLock(unsigned char /*lock*/) const
 {
-    return m_lockStack.empty() ? 0 : 0x16;
+    return m_lockStack.empty() ? 0x16 : 0;
 }
 
 // ORIG 0x8541b2a：map 未命中或 state!=1 → 0x13；state==1 → 0。

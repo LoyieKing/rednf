@@ -991,8 +991,8 @@ bool initObjectCategory()
     s_objCategoryString["[close-carefully]"] = ENUM_CATEGORY_CLOSE_CAREFULLY;
     s_objCategoryString["[full-superarmor]"] = ENUM_CATEGORY_FULL_SUPERARMOR;
     s_objCategoryString["[close-tough]"] = ENUM_CATEGORY_CLOSE_TOUGH;
-    s_objCategoryString["[close-manace]"] = ENUM_CATEGORY_CLOSE_MANACE;
     s_objCategoryString["[oneside move]"] = ENUM_CATEGORY_ONESIDE_MOVE;
+    s_objCategoryString["[close-manace]"] = ENUM_CATEGORY_CLOSE_MANACE;
     s_objCategoryString["[human armor]"] = ENUM_CATEGORY_HUMAN_ARMOR;
     s_objCategoryString["[fort armor]"] = ENUM_CATEGORY_FORT_ARMOR;
     s_objCategoryString["[divine armor]"] = ENUM_CATEGORY_DIVINE_ARMOR;
@@ -2158,8 +2158,8 @@ std::string getObjectCategoryString(ENUM_CATEGORY cat)
         s_objCategoryString.begin();
     for (; it != s_objCategoryString.end(); ++it)
     {
-        if (it->second == cat)
-            return it->first;
+        if ((*it).second == cat)   // ORIG 用 operator*（de）
+            return (*it).first;
     }
     return std::string("");
 }

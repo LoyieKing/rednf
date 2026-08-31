@@ -77,7 +77,7 @@ void DNFLex::stream_data_t::destroy()
     }
     if (buffer != 0)
     {
-        ::operator delete(buffer);
+        ::operator delete[](buffer);   // ORIG _ZdaPv（buffer 由 new[] 分配）
         buffer = 0;
     }
 }

@@ -34,14 +34,11 @@
 
 class CStreamGuard;
 
-namespace
-{
-
 // ORIG static _ZL19setPolicyApplyValue...（0x0816d490）：策略字符串 '0'/'1' 解析
 // 写入 policy vector（下标 1 起）；非法字符记日志置 0；越界即停。与
 // SecurityRestrictPolicy.cpp 中副本同源（ORIG 同文件单定义，跨 TU 各一份）。
-void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
-                         std::string const& str)
+static void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
+                                std::string const& str)
 {
     if (str.empty())
     {
@@ -71,8 +68,6 @@ void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& policy,
         ++idx;
     }
 }
-
-}  // namespace
 
 // ==================== 三个具体策略（ORIG 全局具名类，具名符号见 RestrictPolicy.h） ====================
 
@@ -124,8 +119,7 @@ AuthMobileRestrictPolicy::AuthMobileRestrictPolicy()
     m_svc.Init();             // ORIG 0816d702
     for (int i = 0; i <= 0x21; ++i)   // ORIG 0816d72f cmpl $0x21/setle（34 条）
     {
-        short v = 1;          // ORIG 0816d710 movw $1,-0xe（常量 1）
-        m_svc.push_back(v);
+        m_svc.push_back(static_cast<short>(1));   // ORIG push_back(short&&)
     }
 }
 
@@ -202,8 +196,7 @@ CreateCharacterRestrictPolicy::CreateCharacterRestrictPolicy()
     m_svc.Init();             // ORIG 0816de06
     for (int i = 0; i <= 2; ++i)      // ORIG 0816de34 cmpl $0x2/setle（3 条）
     {
-        short v = static_cast<short>(i);   // ORIG 0816de14 mov %ax,-0xe（push i 值）
-        m_svc.push_back(v);
+        m_svc.push_back(static_cast<short>(i));   // ORIG push_back(short&&)
     }
 }
 

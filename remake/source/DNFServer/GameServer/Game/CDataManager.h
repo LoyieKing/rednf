@@ -1671,7 +1671,7 @@ struct BuyUpgradeData
     BuyUpgradeData();             // ORIG C1 0x088a3570
     int m_nItemId;                    // +0x00
     int m_field4;                     // +0x04（[unlock stage index]）
-    int m_field8;                     // +0x08（[is settable slot]，仅 skill 段）
+    bool m_field8;                    // +0x08（[is settable slot]，仅 skill 段；ORIG 视 bool 型，拷贝构仅拷低 1 字节）
     std::string m_strDesc;            // +0x0c（[name]）
     std::vector<FieldType::T> m_fieldTypes;  // +0x10（[field name]*，getFieldType 命中项）
     LevelFieldDataMap m_listMap;      // +0x1c（[list] 行集：key=行首 FieldType-0 值）

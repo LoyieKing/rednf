@@ -97,7 +97,7 @@ void CQuestShop::clearQP(CUser* user)
 void CQuestShop::makePacket_BuyingStatusList(PacketGuard& packet, bool flag)
 {
     // ORIG 0x85ef5dc：flag 分支选 map（if(!flag) 取反布局）
-    const std::map<unsigned char, short>* status;
+    std::map<unsigned char, short>* status;   // ORIG 非 const begin/end
     if (!flag)
         status = &m_buyingStatus;
     else
@@ -105,8 +105,8 @@ void CQuestShop::makePacket_BuyingStatusList(PacketGuard& packet, bool flag)
     const unsigned char sz = static_cast<unsigned char>(status->size()); // -0x15
     packet.put_byte(static_cast<int>(sz));
 
-    std::map<unsigned char, short>::const_iterator end = status->end(); // -0x20 循环前
-    for (std::map<unsigned char, short>::const_iterator it =
+    std::map<unsigned char, short>::iterator end = status->end(); // -0x20 循环前
+    for (std::map<unsigned char, short>::iterator it =
              status->begin();                    // -0x24
          it != end; ++it)
     {

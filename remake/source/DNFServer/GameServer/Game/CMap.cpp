@@ -334,9 +334,11 @@ int CMap::box_item_index(std::list<std::pair<int, int> > itemList) const
 
 int CMap::CheckEntrance(int flag) const
 {
+    std::pair<int,int> entrance;   // ORIG 循环外默认构造 pair（C1Ev），体内拷贝
     for (unsigned int i = 0; i < m_entranceVec.size(); ++i)
     {
-        if ((m_entranceVec[i].second & flag) != 0)
+        entrance = m_entranceVec[i];
+        if ((entrance.second & flag) != 0)
             return 1;
     }
     return 0;
@@ -419,4 +421,3 @@ int CMap::set_map(STMapScript script)
     m_12c = script.m_fixChampion;
     return 1;
 }
-

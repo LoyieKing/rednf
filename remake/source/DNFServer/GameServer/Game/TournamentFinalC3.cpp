@@ -200,7 +200,7 @@ void CBattle_Field::MakeTournamentMonsterList(
 {
     for (int round = 1; round <= 4; ++round)
     {
-        std::vector<TournamentInfo>& vec = roundInfoMap[(short)round];
+        const std::vector<TournamentInfo>& vec = roundInfoMap[(short)round];   // ORIG const operator[]
         int peer = -1;
         for (int i = 0; i < 0x10; ++i)
         {

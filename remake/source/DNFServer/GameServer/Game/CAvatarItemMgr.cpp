@@ -175,7 +175,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(int itemIdx, int tick,
     }
     item->SetData(expireDate, tick, ipgAgency);
     item->setEmblemSocketData(emblem);
-    item->setColorEss(0, 0);
+    item->setColor(0, 0);   // ORIG 真名 setColor(short,short)
     // ORIG 0x82f95d3: lea 0x18(%eax),%ecx → 插入 m_waitAssignItems(+0x18)
     m_waitAssignItems.insert(std::make_pair(tempKey, item));
     return (unsigned long)tempKey;
@@ -186,7 +186,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(const Inven_Item& inve
     int tempKey = _AssignTempKey();
     Avatar_Item* item = m_AvatarItemPool.Acquire();
     item->SetData(invenItem.m_addInfo2, 0, "");
-    item->setColorEss(0, 0);
+    item->setColor(0, 0);
     m_waitAssignItems.insert(std::make_pair(tempKey, item));
     return (unsigned long)tempKey;
 }
@@ -199,7 +199,7 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(Inven_Item invenItem)
     int tempKey = _AssignTempKey();
     Avatar_Item* item = m_AvatarItemPool.Acquire();
     item->SetData(invenItem.m_addInfo2, 0, "");
-    item->setColorEss(0, 0);
+    item->setColor(0, 0);
     m_waitAssignItems.insert(std::make_pair(tempKey, item));
     return (unsigned long)tempKey;
 }
@@ -298,7 +298,7 @@ bool CAvatarItemMgr::SetAvatarColor(int key, short color1, short color2)
     Avatar_Item* item = _FindItemAll(key);
     if (item == 0)
         return false;
-    item->setColorEss(color1, color2);
+    item->setColor(color1, color2);
     return true;
 }
 
@@ -395,7 +395,7 @@ int CAvatarItemMgr::updateEmblemSocket(int key, unsigned int count, char* grades
         return 0;
     for (unsigned int i = 0; i < count; i++)
     {
-        item->updateEmblemSocket(grades[i], itemIds[i]);
+        item->updateEmblemSocket((unsigned int)grades[i], (unsigned int)itemIds[i]);
     }
     AddEmblemEndurance(key, item);
     return 1;

@@ -5168,8 +5168,7 @@ bool DB_UpdateOneDayLetheSkill::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7cac), true);
     guard.operator*()->operator<<((int)userIdx);
     guard.operator*()->operator<<((int)slot);
-    SIG_PREMIUM_LETHE_FLAG* p =
-        guard.operator*()->GetInBuffer<SIG_PREMIUM_LETHE_FLAG>();
+    SIG_PREMIUM_LETHE_FLAG* p = guard->GetInBuffer<SIG_PREMIUM_LETHE_FLAG>();
     p->m_flag = flag;
     p->m_state = out->m_state;
     p->m_treeKind = out->m_treeKind;
@@ -5742,7 +5741,7 @@ void DB_UpdateBingoEvent::makeRequest(int uid, unsigned int accId,
     guard.operator*()->operator<<(uid);
     guard.operator*()->operator<<(accId);
     guard.operator*()->operator<<(eventId);
-    guard.operator*()->operator<<(won);
+    guard.operator*()->operator<<(static_cast<char>(won));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -10812,8 +10811,7 @@ bool DB_LoadPuUserCheck::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xbcad), true);
     guard.operator*()->operator<<(0x2e1);
     guard.operator*()->operator<<(slot);
-    SIG_LOAD_PU_USER_INFO* out =
-        guard.operator*()->GetInBuffer<SIG_LOAD_PU_USER_INFO>();
+    SIG_LOAD_PU_USER_INFO* out = guard->GetInBuffer<SIG_LOAD_PU_USER_INFO>();
     *reinterpret_cast<char*>(out) = static_cast<char>(flag);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -11161,8 +11159,7 @@ bool DB_SelectCharacMid::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<(userIdx);
         guard.operator*()->operator<<(slot);
         DB_SelectCharacMidResultView* out =
-            (DB_SelectCharacMidResultView*)guard.operator*()
-                ->GetInBuffer<SIG_CHECK_CHAR_MID_RESULT>();
+            (DB_SelectCharacMidResultView*)guard->GetInBuffer<SIG_CHECK_CHAR_MID_RESULT>();
         out->m_mId = mId;
         out->m_field04 = sig->m_field04;
         out->m_field08 = sig->m_field08;
@@ -13290,8 +13287,8 @@ void DB_UpdateRevengeData::makeRequest(unsigned int characNo,
     guard.operator*()->operator<<((int)0x244);
     guard.operator*()->operator<<((int)-1);
     guard.operator*()->operator<<((unsigned int)characNo);
-    guard.operator*()->operator<<((int)attack);
-    guard.operator*()->operator<<((int)revenge);
+    guard.operator*()->operator<<(attack);
+    guard.operator*()->operator<<(revenge);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -18422,8 +18419,8 @@ bool DB_PassPadUpdateCancelCnt::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_PassPadUpdateCancelCntView* sig =
-        stream->GetOutBuffer<DB_PassPadUpdateCancelCntView>();
+    DB_PassPadUpdateCancelCntView* sig = reinterpret_cast<DB_PassPadUpdateCancelCntView*>(
+        stream->GetOutBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>());
     db->set_query(
         "upDate member_mousepass set cancel_cnt=%d where m_id=%s and enable_flag = '1'",
         sig->m_cancelCnt, NumberToString(sig->m_mId, 0));

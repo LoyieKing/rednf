@@ -523,8 +523,8 @@ void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
     // ORIG 0x88b85cf：全局表直接索引（无 bonus 指针变量）。
     if (MONSTER_DIFFICULTY_BONUS[diff].size() >= static_cast<unsigned int>(level))
     {
-        const std::vector<float>& row =
-            MONSTER_DIFFICULTY_BONUS[diff].at(level - 1);
+        std::vector<float>& row =
+            MONSTER_DIFFICULTY_BONUS[diff].at(level - 1);   // ORIG 非 const at
 
         info->m_hpBase = static_cast<int>(
             static_cast<float>(info->m_hpBase) *

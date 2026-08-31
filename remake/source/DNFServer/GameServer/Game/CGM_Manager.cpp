@@ -23,9 +23,9 @@ bool CGM_Manager::IsGm(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
     std::map<unsigned int, CGMRecord>::iterator it = m_gmMap.find(accId);
-    if (it != m_gmMap.end())
-        return false;
-    return true;
+    if (it == m_gmMap.end())   // ORIG 用 operator==（eq），非 operator!=
+        return true;
+    return false;
 }
 
 // ORIG 符号: _ZN11CGM_Manager10TurnGmModeEj @ 0x829917c

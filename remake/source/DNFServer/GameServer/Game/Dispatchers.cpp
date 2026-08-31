@@ -1792,13 +1792,13 @@ int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(&req.m_field14)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field14)))
     {
         return LineFunc(0x2b3c,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(&req.m_field15)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field15)))
     {
         return LineFunc(0x2b3f,
                         __PRETTY_FUNCTION__,
@@ -10508,7 +10508,7 @@ int Dispatcher_ChangeHostWarRoom::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(p + 0xe)))
+    if (!packet.get_int(*reinterpret_cast<unsigned long*>(p + 0xe)))
     {
         return LineFunc(0x4191,
                         __PRETTY_FUNCTION__,
@@ -10670,7 +10670,7 @@ int Dispatcher_Debug_Clear_Quest::read(PacketBuf& packet, MSG_BASE& msg)
 // UserQuest::get_quest_info 填充任务列表包并发送。
 void Dispatcher_Debug_Clear_Quest::send(CUser* user, ParamBase& param)
 {
-    const ReqDebugClearQuestResult& res = static_cast<const ReqDebugClearQuestResult&>(param);
+    ReqDebugClearQuestResult& res = static_cast<ReqDebugClearQuestResult&>(param);
     PacketGuard packet;
     packet.put_header(1, 0x1c9);
     packet.put_byte(1);
@@ -12393,7 +12393,7 @@ int Dispatcher_GuildCargoMoveItem::read(PacketBuf& packet, MSG_BASE& msg)
         return LineFunc(0x2dd2, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(*reinterpret_cast<int*>(m + 0x11)))
         return LineFunc(0x2dd4, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<short*>(m + 0xf)))
+    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0xf)))
         return LineFunc(0x2dd6, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(*reinterpret_cast<int*>(m + 0x15)))
         return LineFunc(0x2dd8, __PRETTY_FUNCTION__, 0, 0);
@@ -12518,13 +12518,13 @@ int Dispatcher_GuildCargoPushItem::read(PacketBuf& packet, MSG_BASE& msg)   // O
     char* pMsg = reinterpret_cast<char*>(&msg);
     if (!packet.get_byte(*reinterpret_cast<unsigned char*>(pMsg + 0x0d)))
         return LineFunc(0x2c91, kFunc, 0, 0);           // msg+0xd byte itemSpace
-    if (!packet.get_short(*reinterpret_cast<short*>(pMsg + 0x0e)))
+    if (!packet.get_short(*reinterpret_cast<unsigned short*>(pMsg + 0x0e)))
         return LineFunc(0x2c92, kFunc, 0, 0);           // msg+0xe short slot
     if (!packet.get_int(*reinterpret_cast<int*>(pMsg + 0x10)))
         return LineFunc(0x2c93, kFunc, 0, 0);           // msg+0x10 int
     if (!packet.get_int(*reinterpret_cast<int*>(pMsg + 0x14)))
         return LineFunc(0x2c94, kFunc, 0, 0);           // msg+0x14 int
-    if (!packet.get_short(*reinterpret_cast<short*>(pMsg + 0x18)))
+    if (!packet.get_short(*reinterpret_cast<unsigned short*>(pMsg + 0x18)))
         return LineFunc(0x2c95, kFunc, 0, 0);           // msg+0x18 short count
     return 0;
 }
@@ -16132,7 +16132,7 @@ int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_SeriaRoom_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(&req.m_decoEventId)))
+    if (!packet.get_short(req.m_decoEventId))
     {
         return LineFunc(0x5fff,
                         __PRETTY_FUNCTION__,
@@ -19086,7 +19086,7 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_SeriaRoom_Ani_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(&req.m_decoEventId)))
+    if (!packet.get_short(req.m_decoEventId))
     {
         return LineFunc(0x6540,
                         __PRETTY_FUNCTION__,
@@ -27068,4 +27068,3 @@ std::vector<EventRewardItemInfo>* DimensionActivationRewardData::getRewardGiveIt
     }
     return 0;
 }
-

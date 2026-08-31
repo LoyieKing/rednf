@@ -132,7 +132,7 @@ GameWorld* G_GameWorld()
 
 void CREATE_GameWorld()
 {
-    GlobalInstance<GameWorld>::create();
+    GlobalInstance<GameWorld>::inst();
 }
 
 void DESTROY_GameWorld()

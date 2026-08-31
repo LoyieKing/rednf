@@ -223,7 +223,7 @@ struct stGenerateResult_t
     ~stGenerateResult_t();
 
     std::vector<Inven_Item> m_dropItems;  // +0x00
-    CLuckPoint m_luckPoint;               // +0x0c（sizeof 0x24）
+    ::CLuckPoint m_luckPoint;             // +0x0c（sizeof 0x24；ORIG 用全局 ::CLuckPoint）
 };
 
 // ---- CGenerateRandomNumber（加权随机表宿主；sizeof 8） ----

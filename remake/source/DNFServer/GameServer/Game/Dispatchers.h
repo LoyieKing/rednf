@@ -3166,7 +3166,7 @@ public:
 };
 
 class Dispatcher_Enchant_3rdChronicleItem
-    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+    : public IPacketDispatcher<MSG_ENCHANT, stEnchantParam, ch_state0>
 {
 public:
     Dispatcher_Enchant_3rdChronicleItem();          // ORIG W 0x0859761e
@@ -3611,7 +3611,7 @@ public:
 };
 
 class Dispatcher_Select_3rdChronicleItem_ForEnchant
-    : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
+    : public IPacketDispatcher<MSG_BASE, stEnchantParam, ch_state0>
 {
 public:
     Dispatcher_Select_3rdChronicleItem_ForEnchant();   // ORIG W 0x08597602

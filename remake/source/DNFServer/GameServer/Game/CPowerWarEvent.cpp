@@ -225,7 +225,7 @@ void CPowerWarEvent::CleanupPowerWarServerMessage()
         packet.put_header(0, 0xc0);
         packet.put_byte(2);
         packet.put_byte(3);
-        const char* msg = "null string";
+        char* msg = "null string";
         int len = static_cast<int>(strlen(msg));
         for (int i = 0; i <= 2; ++i)
         {

@@ -615,7 +615,7 @@ Inven_Item* CInventory::GetInvenRef(int invenType, int slot)
     case 5:
     {
         CExpandEquipslot* pExpand =
-            m_pParent->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9);
+            m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
         return pExpand->GetInvenRefW(INVEN_TYPE_5, slot);
     }
     default:

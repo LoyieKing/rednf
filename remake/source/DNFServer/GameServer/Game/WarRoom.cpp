@@ -282,7 +282,7 @@ void WarRoom::UpdateBanList()
     std::map<unsigned int, int>::iterator e = m_map.end();
     while (it != e)
     {
-        int t = it->second;
+        int t = (*it).second;   // ORIG 用 operator*（de）
         if ((cur - t) >= G_CDataManager()->m_warAreaCounter.m_banInterval / 1000)
         {
             m_map.erase(it++);

@@ -2271,13 +2271,15 @@ public:
     CerashopAddRestrict::UserInfo m_ceraUserInfo;           // +0x8d1e4
     // +0x8d24d 起 0x17 字节：ORIG 为 CUser 平铺字段区（STExpReward 类型仅 4 字节
     // 用于 vector/解析；此处字段独立——2026-08-31 影子测试实测分离）。
-    int m_reward;                                           // +0x8d24d（dword）
+    // ORIG 该平铺区（m_reward@{0x8d24d} 非对齐 int）为 pack(1)。逐 int 成员加
+    // packed 属性避免 4 字节对齐 pad，使 m_reward 落 0x8d24d、m_localIp 落 0x8d254。
+    int m_reward __attribute__((packed));                   // +0x8d24d（dword）
     char m_field4;                                          // +0x8d251
     char m_field5;                                          // +0x8d252
     char m_powerUp;                                         // +0x8d253（SetPowerUp）
-    int m_localIp;                                          // +0x8d254
-    int m_publicIp;                                         // +0x8d258
-    int m_padf;                                             // +0x8d25c（int 视图）
+    int m_localIp __attribute__((packed));                  // +0x8d254
+    int m_publicIp __attribute__((packed));                 // +0x8d258
+    int m_padf __attribute__((packed));                     // +0x8d25c（int 视图）
     bool m_hangameUser;                                     // +0x8d260
     char m_pad261[0x8d264 - 0x8d261];                       // +0x8d261..+0x8d263
     APSystem::CActionPointManager m_actionPoint;            // +0x8d264

@@ -636,7 +636,6 @@ static const Point2d ASSAULT_RECT_PLAYER_POINT[8] = {
 };                                   // .rodata 0x8c1cce0 实测内容
 static const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd20
 
-Point2d::~Point2d() {}
 int Point2d::operator-(const Point2d& o) const
 {
     // ORIG 0x82f0486：|dx| + |dy|
@@ -749,8 +748,8 @@ void CCandidateMatrix::RemoveCandidatePoint(std::vector<MapArea>* areas) // ORIG
     std::vector<CandidatePoint>::iterator it = m_points.begin();
     while (it != m_points.end())
     {
-        if (!::IsIncludeVirtualMoveAreas(areas, it->m_point.m_x,
-                                       it->m_point.m_y))
+        if (!::IsIncludeVirtualMoveAreas(areas, (*it).m_point.m_x,
+                                       (*it).m_point.m_y))   // ORIG 用 operator*（de）
         {
             it = m_points.erase(it);
             continue;

@@ -86,21 +86,12 @@ extern char CStackableItem_IsAmplifyReinforceTicket(void* self)
 extern char CStackableItem_GetAmplifyReinforceRate(void* self)
     asm("_ZN14CStackableItem23GetAmplifyReinforceRateEv");
 
-namespace game_master
-{
-
-namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
-
-// CItem::is_stackable() const ORIG W（_Bool 返回；ORIG 调用点按 char 消费，
-// 以 char 返回的桥接保证 test %al 形态）。
-extern char CItem_is_stackable_char(void* self)
-    asm("_ZNK5CItem12is_stackableEv");
-
 // ============================================================================
 // CVillageAttackedStartCmd 专用监控包（ORIG 全局类；
 // ctor W 0x0822c088：PacketHeader(this,0x1779,0x1a) 后清 +0x0a/+0x0e）。
 // 总长 0x1a：+0x00 PacketHeader(10B) / +0x0a uid / +0x0e characNo /
 // +0x12 vill(atoi(args)) / +0x16 恒 0。
+// 注意须位于全局命名空间（ORIG callee 为 _ZN31Packet_VillageAttackedGMCommandC1Ev）。
 // ============================================================================
 struct Packet_VillageAttackedGMCommand : public PacketHeader
 {
@@ -116,6 +107,16 @@ struct Packet_VillageAttackedGMCommand : public PacketHeader
     unsigned int m_vill;      // +0x12（parse 结果）
     unsigned int m_field16;   // +0x16（execute 置 0）
 } __attribute__((packed));
+
+namespace game_master
+{
+
+namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
+
+// CItem::is_stackable() const ORIG W（_Bool 返回；ORIG 调用点按 char 消费，
+// 以 char 返回的桥接保证 test %al 形态）。
+extern char CItem_is_stackable_char(void* self)
+    asm("_ZNK5CItem12is_stackableEv");
 
 // ============================================================================
 // CViewTutorialFlagCmd — ORIG ctor 0x082a80d0（sizeof=0x8）/ execute 0x084a927e

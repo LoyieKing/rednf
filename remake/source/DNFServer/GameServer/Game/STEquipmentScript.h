@@ -27,6 +27,25 @@
 #include "EquipmentParameterInfo.h"
 #include "STItemScript.h"
 
+// ---- [war room point bonus]/[war room monster exp bonus] 载体（8 字节 POD）。
+// 与 CEquipItem.h 的 WpBonusPointData/ExpBonusPointData 同布局（int type/int value，
+// ORIG clear 置 type=2/value=0）；为避免 STEquipmentScript.h ↔ CEquipItem.h 循环
+// 包含，此处以同布局本地类型承载，ABI 完全一致。
+#ifndef DNF_STBONUSPOINTDATA_DEFINED
+#define DNF_STBONUSPOINTDATA_DEFINED
+struct stBonusPointData_t
+{
+    int m_type;    // +0x00
+    int m_value;   // +0x04
+
+    // ORIG WpBonusPointData::clear（0x8513a82）/ExpBonusPointData::clear 同型：
+    // type=2、value=0。ORIG C1 0x0898d25e 构造子对象时置位，STEquipmentScript::Clear
+    // 不清 +0x81c/+0x824，故必须随构造初始化。
+    stBonusPointData_t() : m_type(2), m_value(0) {}
+};
+#endif
+
+
 class STKeyCommand;
 // ---- 动画层类型（ORIG setEquipmentAniScriptLay 第 8 参 N16equipmentAniType1TE；
 //      0=normal 层、1=level 层、2=job 层） ----
@@ -85,24 +104,6 @@ enum ENUM_CHARACTERJOB
 #endif
 
 // ---- [equipment/OldEquipmentStatInfoList.dat] 旧装备统计条目。
-// ---- [war room point bonus]/[war room monster exp bonus] 载体（8 字节 POD）。
-// 与 CEquipItem.h 的 WpBonusPointData/ExpBonusPointData 同布局（int type/int value，
-// ORIG clear 置 type=2/value=0）；为避免 STEquipmentScript.h ↔ CEquipItem.h 循环
-// 包含，此处以同布局本地类型承载，ABI 完全一致。
-#ifndef DNF_STBONUSPOINTDATA_DEFINED
-#define DNF_STBONUSPOINTDATA_DEFINED
-struct stBonusPointData_t
-{
-    int m_type;    // +0x00
-    int m_value;   // +0x04
-
-    // ORIG WpBonusPointData::clear（0x8513a82）/ExpBonusPointData::clear 同型：
-    // type=2、value=0。ORIG C1 0x0898d25e 构造子对象时置位，STEquipmentScript::Clear
-    // 不清 +0x81c/+0x824，故必须随构造初始化。
-    stBonusPointData_t() : m_type(2), m_value(0) {}
-};
-#endif
-
 // ORIG 本 TU 段符号：C1/C2 T 0x0898d25e（调 clear）、clear T 0x0898d272；
 // clear 实证 38 个 int 全清 → sizeof 0x98：
 //   +0x00..+0x24 直接清零（hpMax..equipMagDef 10 字段）

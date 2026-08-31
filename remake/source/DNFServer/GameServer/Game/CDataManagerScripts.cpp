@@ -293,7 +293,7 @@ ConditionLevelChkDungeon::~ConditionLevelChkDungeon() {}
 // ORIG C1 0x83724f0：map 构造后 clear()；D1 仅析构 map；clear 0x83724c8 清空 map。
 FairPvPStatScript::FairPvPStatScript()
 {
-    m_map0.clear();
+    clear();   // ORIG C1 0x83724f0 调本类 clear()（W 0x83724c8）
 }
 FairPvPStatScript::~FairPvPStatScript() {}
 void FairPvPStatScript::clear() { m_map0.clear(); }
@@ -355,7 +355,7 @@ STBreakAwaySection STGrowthPowerData::get_break_away_section_data(int level)
     for (std::vector<STBreakAwaySection>::const_iterator it = m_vec0.begin();
          it != m_vec0.end(); ++it)
     {
-        if (it->m_field1 > level)
+        if ((*it).m_field1 > level)   // ORIG 用 operator*（de）
             break;
         memmove(&out, &*it, sizeof(STBreakAwaySection));
     }
@@ -370,9 +370,9 @@ int STGrowthPowerData::get_break_away_section_low_level(int lv)
     for (std::vector<STBreakAwaySection>::const_iterator it = m_vec0.begin();
          it != m_vec0.end(); ++it)
     {
-        if (it->m_field1 > lv)
+        if ((*it).m_field1 > lv)   // ORIG 用 operator*（de）
             return result;
-        result = it->m_field1;
+        result = (*it).m_field1;
     }
     return result;
 }
@@ -380,12 +380,12 @@ int STGrowthPowerData::get_break_away_section_low_level(int lv)
 // ORIG C1 0x8371194 / 0x83714c6：map 构造后 clear()。
 stLevelUpRewardItemScript::stLevelUpRewardItemScript()
 {
-    m_map0.clear();
+    clear();   // ORIG C1 0x8371194 调本类 clear()（W 0x083711d6）
 }
 stLevelUpRewardItemScript::~stLevelUpRewardItemScript() {}
 stStepRewardStackableItemScript::stStepRewardStackableItemScript()
 {
-    m_map0.clear();
+    clear();   // ORIG C1 0x83714c6 调本类 clear()（W 0x08371508），而非内联 map::clear
 }
 stStepRewardStackableItemScript::~stStepRewardStackableItemScript() {}
 stGrowthCapsuleScript::stGrowthCapsuleScript()
@@ -1231,7 +1231,7 @@ CNPCRelationEventManager::~CNPCRelationEventManager()
 
 // ---- CNPCRelationEventManager::AddNPCInfo（ORIG 0x890ceea：
 //      make_pair(idx, info) 后 map insert）----
-void CNPCRelationEventManager::AddNPCInfo(unsigned short idx,
+void CNPCRelationEventManager::AddNPCInfo(const unsigned short idx,
                                           stNPCRelationEventInfo* info)
 {
     m_npcEventMap.insert(std::make_pair(idx, info));
@@ -2048,7 +2048,7 @@ void EventEtcScript::clear()
 stReturnUserRewardScript::stReturnUserRewardScript()
     : m_field0(0), m_field4(0)
 {
-    m_levelUp.m_map0.clear();
+    m_levelUp.clear();   // ORIG C1 0x8371544 调 stLevelUpRewardItemScript::clear()
 }
 stReturnUserRewardScript::~stReturnUserRewardScript() {}
 stBingoScript::stBingoScript() : m_map0(), m_map18(), m_map30(), m_vec48()
@@ -2322,7 +2322,7 @@ int GuildParameterScript::getGuildExpWeight(int level)
 STAgitUpgradeInfo* GuildParameterScript::getGuildAgitUpgradeInfo(int level)
 {
     if (level - 1 < (int)m_vec2c.size())
-        return &m_vec2c[level - 1];
+        return &m_vec2c.at(level - 1);   // ORIG 用 at（含界检），非 operator[]
     return 0;
 }
 

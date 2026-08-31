@@ -136,8 +136,8 @@ public:
     LevelDataRandomReward()
         : m_field0(0xb)
     {
-        m_name.clear();
         m_levelDatas.clear();
+        m_name.clear();
     }
 
     int m_field0;                          // +0x00（ctor 默认 0xb）

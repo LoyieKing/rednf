@@ -61,7 +61,6 @@ class Point2d
 {
 public:
     Point2d() {}
-    ~Point2d();
     Point2d(int x, int y) : m_x(x), m_y(y) {}
 
     // ORIG operator+= 0x82f04c0：分量相加，返回 *this
@@ -512,5 +511,4 @@ CAssaultMgr* GetInstanceAssaultMgr();                    // guard 单例
 int GetMaxCandidateMatirxRow();
 
 #endif  // DNF_CASSAULTMGR_H_PART2
-
 

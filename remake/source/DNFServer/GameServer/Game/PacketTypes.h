@@ -10,6 +10,7 @@
 #include "PacketDispatcher.h"
 #include "CGameOption.h"      // CETCOption / CQuickChattingOption（MSG_SAVE_GAME_OPTION_* / MSG_QUICK_CHAT 子对象）
 #include "CPartyTelePort.h"   // stPartyTelePort（MSG_SOLO_TELEPORT +0x38 reset()）
+#include "CUserCharacInfo.h"  // CharacterOption（MSG_SAVE_CHARACTER_OPTION @+0x11）
 #include <vector>
 #include <string>
 
@@ -103,7 +104,7 @@ class MSG_BLUE_MARBLE : public MSG_BASE
 public:
     MSG_BLUE_MARBLE();
     // ORIG C1：+0xd byte 清零
-    unsigned char m_0d;       // +0x0d
+    char m_0d;                // +0x0d（ORIG get_byte(char&)）
     char m_pad0e[0xff];       // 保持占位总长 0x10d
 };
 
@@ -190,7 +191,7 @@ class MSG_CHANGE_ANOTHER_SKILL_TREE : public MSG_BASE
 public:
     MSG_CHANGE_ANOTHER_SKILL_TREE();
     // ORIG C1：+0xd byte = 0xff（未选中的技能树哨兵）
-    unsigned char m_0d;       // +0x0d
+    char m_0d;                // +0x0d（ORIG get_byte(char&)：按有符号 char 读）
     char m_pad0e[0xff];       // 保持占位总长 0x10d
 };
 // ORIG 布局（ctor 0x0822e0cc 直写实证 + Dispatcher_AvatarOptionChange/read.md）：
@@ -1299,9 +1300,9 @@ class MSG_SAVE_CHARACTER_OPTION : public MSG_BASE
 {
 public:
     MSG_SAVE_CHARACTER_OPTION();
-    // ORIG C1：CETCOption 构造于 +0x11（CGameOption.h，inline clear）
+    // ORIG C1：CharacterOption 构造于 +0x11（CUserCharacInfo.h，ctor memset 0xff,0x200；0x200 字节）
     char m_padD[4];            // +0x0d..+0x10
-    CETCOption m_option;       // +0x11（sizeof 0x48）
+    CharacterOption m_option;  // +0x11（sizeof 0x200）
 };
 
 #pragma pack(push, 1)
@@ -1322,14 +1323,13 @@ class MSG_SAVE_GAME_OPTION_2 : public MSG_BASE
 {
 public:
     MSG_SAVE_GAME_OPTION_2();
-    // ORIG C1：CETCOption 构造于 +0x11（CGameOption.h，inline clear）
-    // 注意：read 长度校验 <0xbd（Dispatcher_SaveGameOption_2/read.md get_int@msg+0xd），ORIG
-    // 选项缓冲可达 +0xcd，超出当前 0x59 占位 —— 布局按现 CETCOption 模型保留，尺寸待 ORIG 实证扩。
+    // ORIG C1：CHotkeyOption 构造于 +0x11（CGameOption.h，inline clear；0xbc 字节）。
+    // process 以 CHotkeyOption(0xbc) 语义 memcpy；read 校验 len<0xbd 后裸字节写入 m+0x11。
     unsigned int m_optionSize;  // +0x0d 选项二进制长度，read 校验 <0xbd【推断】
-    CETCOption m_option;        // +0x11（sizeof 0x48）
+    CHotkeyOption m_option;     // +0x11（sizeof 0xbc）
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_SAVE_GAME_OPTION_2) == 0x59, "MSG_SAVE_GAME_OPTION_2 size");
+static_assert(sizeof(MSG_SAVE_GAME_OPTION_2) == 0xcd, "MSG_SAVE_GAME_OPTION_2 size");
 #pragma pack(push, 1)
 class MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON : public MSG_BASE
 {
@@ -1522,7 +1522,7 @@ class MSG_SKILL_INIT : public MSG_BASE
 public:
     MSG_SKILL_INIT();
     // ORIG C1：+0xd byte 清零
-    unsigned char m_0d;       // +0x0d
+    char m_0d;                // +0x0d（ORIG get_byte(char&)）
     char m_pad0e[0xff];       // 保持占位总长 0x10d
 };
 
@@ -1549,7 +1549,7 @@ class MSG_SORT_ITEM
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // 布局证据：DisPatcher_SortItem::process(0x081c9c54)：仅读 +0x0d byte。
-    unsigned char m_invenType;        // +0x0d
+    char m_invenType;                 // +0x0d（ORIG get_byte(char&)）
 };
 #pragma pack(pop)
 
@@ -3122,4 +3122,3 @@ public:
 };
 
 #endif  // DNF_GAME_PACKET_TYPES_H_
-
