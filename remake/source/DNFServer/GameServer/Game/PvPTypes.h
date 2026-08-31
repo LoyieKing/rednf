@@ -43,6 +43,7 @@ class CUser;
 class CParty;
 #include "GameTypes.h"
 #include "GameEnums.h"
+#include "NpcScript.h"        // STScriptFileList（BlueMarble m_mapFileList/m_tileFileList 各 0x18）
 
 // Shared enums are provided by GameEnums.h.
 #ifndef DNF_ENUM_SEAT_STATE_DEFINED
@@ -260,8 +261,8 @@ public:
     BlueMarbleMapScript* getMap(int idx);
     BlueMarbleTileScript* getTile(int zone);
     // ---- ORIG 布局（ctor 0x88d614a / clear 0x88d622c / init* 三报告实证）----
-    std::map<int, std::string> m_mapFileList;    // +0x00（ORIG STScriptFileList@this+0）
-    std::map<int, std::string> m_tileFileList;   // +0x18（ORIG STScriptFileList@this+0x18）
+    STScriptFileList m_mapFileList;              // +0x00（ORIG STScriptFileList@this+0）
+    STScriptFileList m_tileFileList;             // +0x18（ORIG STScriptFileList@this+0x18）
     BlueMarbleInfoScript m_info;                 // +0x30（0x8c，initBlueMarbleInfo 以 this+0x30 调 importScript）
     std::map<int, BlueMarbleTileScript*> m_tiles;    // +0xbc
     std::map<int, BlueMarbleMapScript*> m_maps;      // +0xd4

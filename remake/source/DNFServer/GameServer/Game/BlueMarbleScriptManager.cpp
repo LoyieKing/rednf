@@ -6,14 +6,13 @@
 #include <map>
 #include <string>
 
-struct STScriptFileList;   // +0x00 即 std::map<int,std::string>（权威布局见
-                           // STScriptFileList.cpp；此处仅按 ORIG ABI 传址）。
+#include "BlueMarbleScriptManager.h"
+
 // ORIG _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii... 0x088bbd77 T
 //（定义 CDataManagerScripts.cpp/STScriptFileList.cpp；DNFLexWrapper.h 未含声明）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* unused);
 
-#include "BlueMarbleScriptManager.h"
 // BlueMarbleInfoScript（+0x30）、m_tiles/m_maps 两 map（成员默认构造即等价）；
 // 全部成员构造后调用 clear()（0x88d622c，清两文件列表与两 map）。
 BlueMarbleScriptManager::BlueMarbleScriptManager()
@@ -26,8 +25,8 @@ BlueMarbleScriptManager::BlueMarbleScriptManager()
 // m_info——与 ORIG clear 逐段一致）。
 void BlueMarbleScriptManager::clear()
 {
-    m_mapFileList.clear();
-    m_tileFileList.clear();
+    m_mapFileList.Clear();     // ORIG STScriptFileList::Clear
+    m_tileFileList.Clear();
     m_tiles.clear();
     m_maps.clear();
 }
@@ -77,15 +76,14 @@ bool BlueMarbleScriptManager::initBlueMarbleInfo(const char* dir, const char* fi
 // importScript(dir + 文件名)；成功入表，失败 delete。
 bool BlueMarbleScriptManager::initTileList(const char* dir, const char* list)
 {
-    if (!loadRDARScriptListFile(
-            reinterpret_cast<STScriptFileList*>(&m_tileFileList), dir, list, 0))
+    if (!loadRDARScriptListFile(&m_tileFileList, dir, list, 0))
     {
         return false;
     }
 
     m_tiles.clear();
-    for (std::map<int, std::string>::const_iterator it = m_tileFileList.begin();
-         it != m_tileFileList.end(); ++it)
+    for (std::map<int, std::string>::const_iterator it = m_tileFileList.m_fileMap.begin();
+         it != m_tileFileList.m_fileMap.end(); ++it)
     {
         BlueMarbleTileScript* tile = new BlueMarbleTileScript;
         std::string path(dir);
@@ -107,15 +105,14 @@ bool BlueMarbleScriptManager::initTileList(const char* dir, const char* list)
 // BlueMarbleMapScript（import 失败时 ORIG 先析构再 delete）。
 bool BlueMarbleScriptManager::initMapList(const char* dir, const char* list)
 {
-    if (!loadRDARScriptListFile(
-            reinterpret_cast<STScriptFileList*>(&m_mapFileList), dir, list, 0))
+    if (!loadRDARScriptListFile(&m_mapFileList, dir, list, 0))
     {
         return false;
     }
 
     m_maps.clear();
-    for (std::map<int, std::string>::const_iterator it = m_mapFileList.begin();
-         it != m_mapFileList.end(); ++it)
+    for (std::map<int, std::string>::const_iterator it = m_mapFileList.m_fileMap.begin();
+         it != m_mapFileList.m_fileMap.end(); ++it)
     {
         BlueMarbleMapScript* map = new BlueMarbleMapScript;
         std::string path(dir);
