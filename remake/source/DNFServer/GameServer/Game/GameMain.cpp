@@ -571,19 +571,70 @@ bool Init(int argc, char** argv)
         GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_0, E_SERVER_GROUP_NONE /*推断*/)
             ->GetQueryCounter());
 
-    // ---- 三类 ServerProxy 创建（ORIG 按 m_serverGroupMap 遍历配置；
-    //      该成员为 private 且 getter 未建模，此处以固定组占位 —「推断」）----
-    GlobalData::s_monitor_proxy_mgr->createServerProxy(1, 0, E_SERVER_GROUP_NONE,
-        G_CEnvironment()->get_udp_ip_monitor(), G_CEnvironment()->get_tcp_port_monitor(),
-        G_CEnvironment()->get_udp_port_monitor());
-    GlobalData::s_guild_proxy_mgr->createServerProxy(1, 0, E_SERVER_GROUP_NONE,
-        G_CEnvironment()->get_udp_ip_guild(), G_CEnvironment()->get_tcp_port_guild(),
-        G_CEnvironment()->get_udp_port_guild());
-    GlobalData::s_statistic_proxy_mgr->createServerProxy(1, 0, E_SERVER_GROUP_NONE,
-        G_CEnvironment()->get_udp_ip_statistic(), 0,
-        G_CEnvironment()->get_udp_port_statistic());
-
+    // ---- 三类 ServerProxy 创建（ORIG 82a13ac..1855 结构）----
+    // ORIG：GetChannelType()==7 跳过全部；IsIntegratedPvPBaseChannel() 时
+    // 遍历 m_serverGroupMap（config 键 *ip_of_* / *port_of_*）每组建 proxy；
+    // 否则固定 getter 单组。
+    if (G_GameWorld()->GetChannelType() != 7)
+    {
+        if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        {
+            typedef std::map<ENUM_SERVER_GROUP,
+                             std::map<std::string, std::string> > GrpMap;
+            GrpMap& grpMap = G_CEnvironment()->m_serverGroupMap;
+            const int proxyCount = static_cast<int>(grpMap.size());
+            const int idx = 0;  // ORIG -0x34 起始索引
+            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
+            {
+                ENUM_SERVER_GROUP g = it->first;
+                std::map<std::string, std::string>& c = it->second;
+                GlobalData::s_monitor_proxy_mgr->createServerProxy(
+                    proxyCount, idx, g,
+                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_monitor")),
+                    atoi(GetConfigFileString(c, "udp_port_of_monitor")),
+                    atoi(GetConfigFileString(c, "tcp_port_of_monitor")));
+            }
+            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
+            {
+                ENUM_SERVER_GROUP g = it->first;
+                std::map<std::string, std::string>& c = it->second;
+                GlobalData::s_guild_proxy_mgr->createServerProxy(
+                    proxyCount, idx, g,
+                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_guild")),
+                    atoi(GetConfigFileString(c, "udp_port_of_guild")),
+                    atoi(GetConfigFileString(c, "tcp_port_of_guild")));
+            }
+            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
+            {
+                ENUM_SERVER_GROUP g = it->first;
+                std::map<std::string, std::string>& c = it->second;
+                GlobalData::s_statistic_proxy_mgr->createServerProxy(
+                    proxyCount, idx, g,
+                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_statistic")),
+                    atoi(GetConfigFileString(c, "udp_port_of_statistic")), 0);
+            }
+        }
+        else
+        {
+            // 固定 getter 单组（ORIG 82a16aa 非 Integrated 分支）
+            GlobalData::s_monitor_proxy_mgr->createServerProxy(
+                1, 0, E_SERVER_GROUP_NONE,
+                G_CEnvironment()->get_udp_ip_monitor(),
+                G_CEnvironment()->get_tcp_port_monitor(),
+                G_CEnvironment()->get_udp_port_monitor());
+            GlobalData::s_guild_proxy_mgr->createServerProxy(
+                1, 0, E_SERVER_GROUP_NONE,
+                G_CEnvironment()->get_udp_ip_guild(),
+                G_CEnvironment()->get_tcp_port_guild(),
+                G_CEnvironment()->get_udp_port_guild());
+            GlobalData::s_statistic_proxy_mgr->createServerProxy(
+                1, 0, E_SERVER_GROUP_NONE,
+                G_CEnvironment()->get_udp_ip_statistic(), 0,
+                G_CEnvironment()->get_udp_port_statistic());
+        }
+    }
     G_GameWorld()->init();
+
 
     GlobalData::s_DailyScheduleManager->CheckAndSendToAllUserSchedule();
 

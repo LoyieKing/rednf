@@ -252,6 +252,7 @@ private:
     friend class StreamPool;
     friend class SmallStreamPool;
     friend class BigStreamPool;
+    friend bool Init(int, char**);              // GameMain.cpp（ORIG 直访 +0x50）
     CTEA m_cipher;                              // +0x04（0x48 字节）
     eStartArgumentType_t m_operationType;       // +0x4c
     std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > m_serverGroupMap;   // +0x50
