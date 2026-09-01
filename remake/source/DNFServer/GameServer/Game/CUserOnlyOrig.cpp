@@ -10197,28 +10197,27 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
     if (m_characList[slot].m_characNo != static_cast<int>(characNo)) {
         return false;
     }
-    _Charac_info& d = m_characList[slot];
-    char* dst = reinterpret_cast<char*>(&d);
     const char* s = reinterpret_cast<const char*>(src);
+    char* dst = reinterpret_cast<char*>(&m_characList[slot]);
     *reinterpret_cast<int*>(dst) = *reinterpret_cast<const int*>(s);   // characNo
     if (G_GameWorld()->GetChannelType() != 7) {
-        strncpy(d.m_name, s + 4, 0x1e);
+        strncpy(m_characList[slot].m_name, s + 4, 0x1e);
     }
-    dst[0x22] = s[0x22];                                   // growType
+    m_characList[slot].m_field22 = s[0x22];                // growType
     if (s[0x22] == 7) {                                    // 学徒 → 固定节点
-        dst[0x22] = 2;
-        dst[0x24] = 7;
+        m_characList[slot].m_field22 = 2;
+        m_characList[slot].m_field24 = 7;
     }
     if (s[0x22] == 8) {                                    // 二段成长互换
         char tmp = s[0x22];
-        dst[0x22] = s[0x23];
-        dst[0x25] = tmp;
+        m_characList[slot].m_field22 = s[0x23];
+        m_characList[slot].m_field25 = tmp;
     }
     if (s[0x22] == 0xc || s[0x22] == 0xd) {
-        dst[0x22] = 0xb;
+        m_characList[slot].m_field22 = 0xb;
     }
-    dst[0x23] = 2;
-    dst[0x26] = s[0x24];                                   // job
+    m_characList[slot].m_field23 = 2;
+    m_characList[slot].m_field26 = s[0x24];                // job
     *reinterpret_cast<short*>(dst + 0x27) = *reinterpret_cast<const short*>(s + 0x25);
     *reinterpret_cast<int*>(dst + 0x2b) = *reinterpret_cast<const int*>(s + 0x28);
     dst[0x29] = s[0x27];
@@ -10243,7 +10242,7 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
     char job = dst[0x26];
     char sub = dst[0x29];
     short level = *reinterpret_cast<short*>(dst + 0x27);
-    unsigned int no = static_cast<unsigned int>(d.m_characNo);
+    unsigned int no = static_cast<unsigned int>(m_characList[slot].m_characNo);
     global::tools::InitializeCharacStat::initCharacStat(
         *reinterpret_cast<_Additioal_info*>(dst + 0x88), no,
         static_cast<int>(job), static_cast<int>(level),
@@ -10315,7 +10314,7 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
         unsigned int useGold = *reinterpret_cast<const unsigned int*>(s + 0xd1);
         cMyTrace t(__PRETTY_FUNCTION__,
                    0xfd7, 0);
-        t("TRADE_RESTIRCTION charac_name(%s), use_gold(%u)", d.m_name, useGold);
+        t("TRADE_RESTIRCTION charac_name(%s), use_gold(%u)", m_characList[slot].m_name, useGold);
     }
     *reinterpret_cast<unsigned int*>(dst + 0xe49) = *reinterpret_cast<const unsigned int*>(s + 0xd5);
     *reinterpret_cast<unsigned int*>(dst + 0xe4d) = *reinterpret_cast<const unsigned int*>(s + 0xd9);
