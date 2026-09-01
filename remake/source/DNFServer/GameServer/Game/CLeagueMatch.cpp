@@ -629,44 +629,45 @@ bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
 {
     // ORIG 汇编对 other 直接按对象前部偏移读其第一队 PlayerInfo 槽
     // （this+slot*0x1c+0x24/0x28/0x2c），依赖 IMatch 派生类共享布局。
+    // ORIG 无引用缓存：每次成员访问都重算 base+i*0x1c（每处 7 条寻址指令），
+    // 且胜点比较是 MAX 宏形态 —— getPVPResultR()->m_pvpGrade 被求值两次；
+    // 差值判定用 abs()（单临时槽 sar/xor/sub 展开），不得手写三遍表达式。
     int maxWinSelf = 0;
     int maxWinOther = 0;
 
     for (int i = 0; i < 4; ++i) {
-        PlayerInfo const& pi = m_teamA.m_players[i];
-        if (pi.m_flag == 0 || pi.m_user == 0)
-            continue;
-        int win = pi.m_user->getPVPResultR()->m_pvpGrade;   // ORIG +0x14
-        if (maxWinSelf <= win)
-            maxWinSelf = win;
+        if (m_teamA.m_players[i].m_flag != 0 && m_teamA.m_players[i].m_user != 0)
+            maxWinSelf =
+                (m_teamA.m_players[i].m_user->getPVPResultR()->m_pvpGrade < maxWinSelf)
+                    ? maxWinSelf
+                    : m_teamA.m_players[i].m_user->getPVPResultR()->m_pvpGrade;
     }
     for (int i = 0; i < 4; ++i) {
-        PlayerInfo const& pi =
-            *reinterpret_cast<PlayerInfo const*>(reinterpret_cast<char*>(other) +
-                                                 0x1c + i * 0x1c);
-        if (pi.m_flag == 0 || pi.m_user == 0)
-            continue;
-        int win = pi.m_user->getPVPResultR()->m_pvpGrade;   // ORIG +0x14
-        if (maxWinOther <= win)
-            maxWinOther = win;
+        if (reinterpret_cast<CLeagueMatch*>(other)->m_teamA.m_players[i].m_flag != 0 &&
+            reinterpret_cast<CLeagueMatch*>(other)->m_teamA.m_players[i].m_user != 0)
+            maxWinOther = (reinterpret_cast<CLeagueMatch*>(other)
+                               ->m_teamA.m_players[i].m_user->getPVPResultR()->m_pvpGrade <
+                           maxWinOther)
+                              ? maxWinOther
+                              : reinterpret_cast<CLeagueMatch*>(other)
+                                    ->m_teamA.m_players[i]
+                                    .m_user->getPVPResultR()
+                                    ->m_pvpGrade;
     }
 
     if ((maxWinSelf >= 12 && maxWinSelf <= 14) && maxWinOther > 10)
         return false;
     if ((maxWinOther >= 12 && maxWinOther <= 14) && maxWinSelf > 10)
         return false;
-    if (((maxWinSelf - maxWinOther) ^ ((maxWinSelf - maxWinOther) >> 31)) -
-        ((maxWinSelf - maxWinOther) >> 31) > 4)
+    if (abs(maxWinSelf - maxWinOther) > 4)
         return false;
 
     for (int a = 0; a < 4; ++a) {
         for (int b = 0; b < 4; ++b) {
-            PlayerInfo const& pa = m_teamA.m_players[a];
-            PlayerInfo const& pb =
-                *reinterpret_cast<PlayerInfo const*>(reinterpret_cast<char*>(other) +
-                                                     0x1c + b * 0x1c);
-            if (pa.m_flag != 0 && pb.m_flag != 0 &&
-                pa.m_schoolNo == pb.m_schoolNo)
+            if (m_teamA.m_players[a].m_flag != 0 &&
+                reinterpret_cast<CLeagueMatch*>(other)->m_teamA.m_players[b].m_flag != 0 &&
+                m_teamA.m_players[a].m_schoolNo ==
+                    reinterpret_cast<CLeagueMatch*>(other)->m_teamA.m_players[b].m_schoolNo)
                 return false;
         }
     }

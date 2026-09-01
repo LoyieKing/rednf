@@ -114,8 +114,10 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
                         native.m_attackInfo[1].c_str());
                 if (ImportAttackInfoScript(&attackInfo, buf170, 0))
                 {
+                    // ORIG 0x0833d018：第二块（attackInfo[1]）用 over 组字段
+                    // (-0x64c=+0x6c m_overSkillType, -0x654=+0x64 m_overSkillMP)
                     sprintf(buf370, "%d,%d,%f,%d",
-                            native.m_skillType, native.m_skillMP,
+                            native.m_overSkillType, native.m_overSkillMP,
                             (double)attackInfo.m_damage, attackInfo.m_attackType);
                     if (attackInfo.m_elements.empty())
                     {
@@ -133,7 +135,9 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
                 }
                 else
                 {
-                    sprintf(buf370, "%d,%d", native.m_skillType, native.m_skillMP);
+                    // ORIG 0x0833d11b：同为 over 组字段
+                    sprintf(buf370, "%d,%d", native.m_overSkillType,
+                            native.m_overSkillMP);
                 }
             }
         }

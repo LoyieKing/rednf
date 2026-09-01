@@ -491,19 +491,28 @@ int CMapList::insert_map(int channel, int key, CMap* map,
             memcpy(&dst, &info, 5);
         }
     }
-    m_mainMap.insert(std::make_pair(mapIdx, map));
+    // ORIG 0x0834f2ed..0x0834f42e：4 处插入各只有两次 call —— 先就地构造
+    // hash_map 的 value_type（pair<const int,CMap*>），再 insert(value_type const&)：
+    //   +0x17b _ZNSt4pairIKiP4CMapEC1IiRS2_EEOT_OT0_   （第一实参为 get_index() 右值）
+    //   +0x1c4/+0x226/+0x272 …C1IRiRS2_…            （第一实参为左值 key）
+    // 用 make_pair 会多出 pair<int,CMap*> → value_type 的转换临时（第三次 call）。
+    m_mainMap.insert(
+        __gnu_cxx::hash_map<int, CMap*>::value_type(map->get_index(), map));
     int mapType = map->get_map_type();
     if (mapType == 0)
     {
-        m_mapList[channel + 1].insert(std::make_pair(key, map));
+        m_mapList[channel + 1].insert(
+            __gnu_cxx::hash_map<int, CMap*>::value_type(key, map));
     }
     else if (mapType == 2)
     {
-        m_typeMap2[channel].insert(std::make_pair(key, map));
+        m_typeMap2[channel].insert(
+            __gnu_cxx::hash_map<int, CMap*>::value_type(key, map));
     }
     else
     {
-        m_typeMap1[channel].insert(std::make_pair(key, map));
+        m_typeMap1[channel].insert(
+            __gnu_cxx::hash_map<int, CMap*>::value_type(key, map));
     }
     return 1;
 }
@@ -734,9 +743,14 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
               __PRETTY_FUNCTION__, 0xfa4);
         return;
     }
-    m_skillList[jobType].insert(std::make_pair(idx, skill));
-    int group = skill->get_group();
-    m_groupSkillMap[jobType].insert(std::make_pair(group, skill));
+    // ORIG 0x08351aa3/0x08351af5：两处插入各只有两次 call —— 就地构造 value_type
+    //   +0x0fd _ZNSt4pairIKiP6CSkillEC1IRiRS2_EEOT_OT0_（idx 左值）→ hash_map::insert
+    //   +0x14f _ZNSt4pairIKiP6CSkillEC1IiRS2_EEOT_OT0_ （get_group() 右值，无中间变量）
+    //          → multimap::insert；make_pair 会多出转换临时（第三次 call）。
+    m_skillList[jobType].insert(
+        __gnu_cxx::hash_map<int, CSkill*>::value_type(idx, skill));
+    m_groupSkillMap[jobType].insert(
+        std::multimap<int, CSkill*>::value_type(skill->get_group(), skill));
 }
 
 int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)

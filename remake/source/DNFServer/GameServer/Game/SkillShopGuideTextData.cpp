@@ -76,6 +76,13 @@ int importSkillShopGuideText(
              std::allocator<std::pair<std::pair<ENUM_CHARACTERJOB, int> const,
              std::vector<SkillShopGuideTextData, std::allocator<SkillShopGuideTextData> > > > >& out)
 {
+    typedef std::map<std::pair<ENUM_CHARACTERJOB, int>,
+                     std::vector<SkillShopGuideTextData,
+                                 std::allocator<SkillShopGuideTextData> >,
+                     std::less<std::pair<ENUM_CHARACTERJOB, int> >,
+                     std::allocator<std::pair<std::pair<ENUM_CHARACTERJOB, int> const,
+                     std::vector<SkillShopGuideTextData,
+                                 std::allocator<SkillShopGuideTextData> > > > > OutMap;
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
@@ -93,7 +100,8 @@ int importSkillShopGuideText(
 
     while (ScanType(token, true))
     {
-        static std::map<const char*, int, less_TCHAR> __lookup;
+        typedef std::map<const char*, int, less_TCHAR> LookupMap;
+        static LookupMap __lookup;
         static SpinLock __init_lock;
         static bool __inited = false;
 
@@ -124,17 +132,11 @@ int importSkillShopGuideText(
         case 0:
         case 0x332c:   // "[guide]"
             if (__inited) break;
-            {
-                int v = 0x332c;
-                __lookup.insert(std::pair<const char*, int>("[guide]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[guide]", 0x332c));
             // fall through
         case 0x3330:   // "[/guide]"
             if (__inited) break;
-            {
-                int v = 0x3330;
-                __lookup.insert(std::pair<const char*, int>("[/guide]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[/guide]", 0x3330));
             // fall through
         case 0x3334:   // "[character job]"
             if (__inited)
@@ -153,38 +155,31 @@ int importSkillShopGuideText(
                     return 0;
                 break;
             }
-            {
-                int v = 0x3334;
-                __lookup.insert(std::pair<const char*, int>("[character job]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[character job]", 0x3334));
             // fall through
         case 0x3342:   // "[/character job]"
             if (__inited)
             {
-                out.insert(std::make_pair(key, vec));
+                // ORIG 0x08914a7b：直接就地构造 out 的 value_type
+                // （_ZNSt4pairIKS_I17ENUM_CHARACTERJOBiESt6vectorI22SkillShopGuideTextData
+                //   SaIS4_EEEC1IRS1_RS6_EEOT_OT0_ = pair<const pair<JOB,int>,vector>
+                //   的 pair<pair<JOB,int>&, vector&> 模板构造），随后 map::insert；
+                // make_pair 会多出 pair<pair<JOB,int>,vector> → value_type 的转换临时。
+                out.insert(OutMap::value_type(key, vec));
                 key.first = (ENUM_CHARACTERJOB)0xb;
                 key.second = -1;
                 vec.clear();
                 break;
             }
-            {
-                int v = 0x3342;
-                __lookup.insert(std::pair<const char*, int>("[/character job]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[/character job]", 0x3342));
             // fall through
         case 0x334c:   // "[text info]"
             if (__inited) break;
-            {
-                int v = 0x334c;
-                __lookup.insert(std::pair<const char*, int>("[text info]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[text info]", 0x334c));
             // fall through
         case 0x3350:   // "[/text info]"
             if (__inited) break;
-            {
-                int v = 0x3350;
-                __lookup.insert(std::pair<const char*, int>("[/text info]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[/text info]", 0x3350));
             // fall through
         case 0x3355:   // "[text]"
             if (__inited)
@@ -192,10 +187,7 @@ int importSkillShopGuideText(
                 ScanStr(&data.m_text);
                 break;
             }
-            {
-                int v = 0x3355;
-                __lookup.insert(std::pair<const char*, int>("[text]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[text]", 0x3355));
             // fall through
         case 0x335a:   // "[color]"
             if (__inited)
@@ -205,10 +197,7 @@ int importSkillShopGuideText(
                 data.m_colorB = (unsigned char)ScanInt((bool*)0);
                 break;
             }
-            {
-                int v = 0x335a;
-                __lookup.insert(std::pair<const char*, int>("[color]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[color]", 0x335a));
             // fall through
         case 0x3361:   // "[level range]"
             if (__inited)
@@ -217,10 +206,7 @@ int importSkillShopGuideText(
                 data.m_levelMax = ScanInt((bool*)0);
                 break;
             }
-            {
-                int v = 0x3361;
-                __lookup.insert(std::pair<const char*, int>("[level range]", v));
-            }
+            __lookup.insert(LookupMap::value_type("[level range]", 0x3361));
             break;
         default:
             break;
@@ -269,7 +255,15 @@ int importSkillShopTree(
                 ENUM_CHARACTERJOB job = (ENUM_CHARACTERJOB)getCharacterJob(jobStr.c_str());
                 if (!ScanStr(&treeStr))
                     break;
-                out.insert(std::make_pair(job, treeStr));
+                // ORIG 0x0891439f：直接就地构造 value_type
+                // （_ZNSt4pairIK17ENUM_CHARACTERJOBSsEC1IRS0_RSsEEOT_OT0_ =
+                //   pair<const ENUM_CHARACTERJOB,string> 的 pair<JOB&,string&> 构造）
+                // 后 map::insert(value_type const&)；make_pair 会多出转换临时。
+                out.insert(
+                    std::map<ENUM_CHARACTERJOB, std::string,
+                             std::less<ENUM_CHARACTERJOB>,
+                             std::allocator<std::pair<ENUM_CHARACTERJOB const,
+                             std::string> > >::value_type(job, treeStr));
             }
         }
         else if (token == "[/skill tree]")

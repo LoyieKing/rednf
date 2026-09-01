@@ -6655,40 +6655,44 @@ void CUser::UpdateCharacView()
     SigUpdateCharacViewRecord* recs =
         reinterpret_cast<SigUpdateCharacViewRecord*>(sig);
 
+    // ORIG 无任何缓存：目标记录每次都按 sig + recIdx*0x94 + 偏移重算，源字段每次
+    // 都重新 it.operator->()（Ghidra C 每个字段前都有一次 __normal_iterator::
+    // operator->）；begin()/end() 各调一次转成 const_iterator 后再进循环。
     int recIdx = 0;
-    for (std::vector<_Charac_info>::iterator it = m_characList.begin();
-         it != m_characList.end(); ++it)
+    std::vector<_Charac_info>::const_iterator it = m_characList.begin();
+    std::vector<_Charac_info>::const_iterator endIt = m_characList.end();
+    for (; it != endIt; ++it)
     {
-        const CharacListElemView& view =
-            reinterpret_cast<const CharacListElemView&>(*it);
-        SigUpdateCharacViewRecord& rec = recs[recIdx];
+        recs[recIdx].m_data.m_characNo = it->m_characNo;
+        strncpy(recs[recIdx].m_data.m_name, it->m_name, 0x1e);
+        recs[recIdx].m_data.m_job = (unsigned char)it->m_field26;
+        recs[recIdx].m_data.m_field19 = (unsigned char)it->m_field29;
+        recs[recIdx].m_data.m_level = it->m_level;
 
-        rec.m_data.m_characNo = it->m_characNo;
-        strncpy(rec.m_data.m_name, it->m_name, 0x1e);
-        rec.m_data.m_job = (unsigned char)it->m_field26;
-        rec.m_data.m_field19 = (unsigned char)it->m_field29;
-        rec.m_data.m_level = it->m_level;
+        updateCharacViewVisibleData(*it, recs[recIdx].m_data);
 
-        updateCharacViewVisibleData(*it, rec.m_data);
-
-        rec.m_data.m_lastPlayTime = (long)view.m_createTime;
-        rec.m_data.m_field8c = view.m_fielde5d;
+        recs[recIdx].m_data.m_lastPlayTime =
+            (long)reinterpret_cast<const CharacListElemView&>(*it).m_createTime;
+        recs[recIdx].m_data.m_field8c =
+            reinterpret_cast<const CharacListElemView&>(*it).m_fielde5d;
 
         // bit0 ← 禁玩标记（info+0x1240 非零）。
-        unsigned int flagBit0 = (view.m_field1240 != 0) ? 1u : 0u;
-        rec.m_data.m_flags =
-            (unsigned char)(((unsigned int)rec.m_data.m_flags & 0xfeu) | flagBit0);
+        recs[recIdx].m_data.m_flags = (unsigned char)(
+            ((unsigned int)recs[recIdx].m_data.m_flags & 0xfeu) |
+            ((reinterpret_cast<const CharacListElemView&>(*it).m_field1240 != 0) ? 1u : 0u));
 
-        rec.m_data.m_field1d = it->m_field14b7;
-        rec.m_data.m_field1e = it->m_field14b8;
+        recs[recIdx].m_data.m_field1d = it->m_field14b7;
+        recs[recIdx].m_data.m_field1e = it->m_field14b8;
 
         // bit4 ← info+0xe40 的 bit1（ORIG shl $6 / sar $7 取位）。
-        unsigned int flagBit4 =
-            ((((unsigned int)(unsigned char)view.m_fielde40 << 6) >> 7) & 1u) << 4;
-        rec.m_data.m_flags =
-            (unsigned char)(((unsigned int)rec.m_data.m_flags & 0xefu) | flagBit4);
+        recs[recIdx].m_data.m_flags = (unsigned char)(
+            ((unsigned int)recs[recIdx].m_data.m_flags & 0xefu) |
+            (((((unsigned int)(unsigned char)
+                    reinterpret_cast<const CharacListElemView&>(*it).m_fielde40
+                << 6) >> 7) & 1u) << 4));
 
-        recs[recIdx + 1].m_headField = view.m_expireSec;
+        recs[recIdx + 1].m_headField =
+            reinterpret_cast<const CharacListElemView&>(*it).m_expireSec;
 
         ++recIdx;
     }
@@ -9292,74 +9296,74 @@ int CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* 
 {
     if (param_1 < 0 || param_1 >= (int)m_characList.size())
         return 0;
-    const _Charac_info& src = m_characList[param_1];
-    if ((unsigned int)src.m_characNo != characNo)
+    // ORIG 无引用缓存：每个字段都重新调用 m_characList.operator[](param_1)
+    // （ORIG 汇编内该 operator[] 共被调用 64 次，每次 6 条寻址+call）。
+    if ((unsigned int)m_characList[param_1].m_characNo != characNo)
         return 0;
     char* d = out->m_data;
-    const char* s = (const char*)&src;
 
-    *(int*)(d + 0x00) = src.m_characNo;
-    strncpy(d + 0x04, s + 0x04, 0x1e);
-    *(unsigned char*)(d + 0x22) = *(const unsigned char*)(s + 0x22);
-    *(unsigned char*)(d + 0x23) = *(const unsigned char*)(s + 0x25);
-    *(unsigned char*)(d + 0x24) = *(const unsigned char*)(s + 0x26);
-    *(short*)(d + 0x25) = *(const short*)(s + 0x27);
-    *(unsigned char*)(d + 0x27) = *(const unsigned char*)(s + 0x29);
-    *(int*)(d + 0x28) = *(const int*)(s + 0x2b);
-    *(unsigned short*)(d + 0x2c) = *(const unsigned short*)(s + 0x33);
-    *(unsigned short*)(d + 0x2e) = *(const unsigned short*)(s + 0x35);
-    *(unsigned short*)(d + 0x30) = *(const unsigned short*)(s + 0x37);
-    *(unsigned short*)(d + 0x32) = *(const unsigned short*)(s + 0x4f);
-    ((const CommonTime*)(s + 0x39))->GetCreateTime(d + 0x34);
-    *(int*)(d + 0x4d) = *(const int*)(s + 0x7b);
-    *(int*)(d + 0x56) = *(const int*)(s + 0xdbe);
-    *(unsigned char*)(d + 0x5a) = *(const unsigned char*)(s + 0xdc2);
-    *(unsigned short*)(d + 0x5b) = *(const unsigned short*)(s + 0x77);
-    *(unsigned short*)(d + 0x5d) = *(const unsigned short*)(s + 0x79);
-    *(unsigned char*)(d + 0x5f) = (*(const int*)(s + 0xe22) != 0) ? 1 : 0;
-    memcpy(d + 0x60, s + 0x88, 0x52);
-    *(unsigned char*)(d + 0xb2) = *(const unsigned char*)(s + 0x75);
-    *(unsigned short*)(d + 0xb3) = *(const unsigned short*)(s + 0x4d);
-    *(unsigned int*)(d + 0xb5) = *(const unsigned int*)(s + 0x51);
-    memcpy(d + 0xb9, s + 0x55, 0x10);
-    *(int*)(d + 0xc9) = ((const CReliablePerson*)(s + 0x65))->GetTradeGoldTotal();
-    *(int*)(d + 0xcd) = ((const CReliablePerson*)(s + 0x69))->GetTradeGoldTotalBillion();
-    *(int*)(d + 0xd1) = ((const CReliablePerson*)(s + 0x6d))->GetTradeGoldDaily();
-    *(int*)(d + 0xd5) = *(const int*)(s + 0xe49);
-    *(int*)(d + 0xd9) = *(const int*)(s + 0xe4d);
-    *(int*)(d + 0xdd) = *(const int*)(s + 0xe51);
-    *(int*)(d + 0xe1) = *(const int*)(s + 0xe55);
-    *(int*)(d + 0xe5) = *(const int*)(s + 0xe59);
-    *(int*)(d + 0xe9) = *(const int*)(s + 0xe5d);
-    *(int*)(d + 0xed) = *(const int*)(s + 0xe45);
-    *(int*)(d + 0xf1) = *(const int*)(s + 0xe68);
-    *(unsigned char*)(d + 0xf5) = *(const unsigned char*)(s + 0xe70);
-    *(int*)(d + 0xf6) = *(const int*)(s + 0xe71);
-    *(int*)(d + 0xfa) = *(const int*)(s + 0xe79);
-    *(unsigned int*)(d + 0xfe) = *(const unsigned int*)(s + 0xdf4);
-    *(unsigned int*)(d + 0x102) = *(const unsigned int*)(s + 0xdf8);
-    *(int*)(d + 0x106) = *(const int*)(s + 0xe7d);
-    *(int*)(d + 0x10a) = *(const int*)(s + 0xe81);
-    *(unsigned short*)(d + 0x10e) = *(const unsigned short*)(s + 0x121f);
-    *(int*)(d + 0x110) = *(const int*)(s + 0x1221);
-    *(int*)(d + 0x114) = *(const int*)(s + 0x1225);
-    *(int*)(d + 0x118) = *(const int*)(s + 0x7f);
-    *(unsigned short*)(d + 0x11c) = *(const unsigned short*)(s + 0x122c);
-    *(char*)(d + 0x11e) = *(const char*)(s + 0x1239);
-    *(char*)(d + 0x11f) = *(const char*)(s + 0x123e);
-    *(unsigned char*)(d + 0x120) = *(const unsigned char*)(s + 0x123f);
-    *(unsigned char*)(d + 0x121) = *(const unsigned char*)(s + 0x1241);
-    *(unsigned short*)(d + 0x122) = *(const unsigned short*)(s + 0x126c);
-    *(unsigned char*)(d + 0x124) = *(const unsigned char*)(s + 0x126e);
-    *(int*)(d + 0x125) = *(const int*)(s + 0x126f);
-    *(char*)(d + 0x129) = *(const char*)(s + 0x1275);
-    *(unsigned char*)(d + 0x12a) = *(const unsigned char*)(s + 0x1276);
-    *(unsigned char*)(d + 0x12b) = *(const unsigned char*)(s + 0x1277);
-    *(unsigned char*)(d + 0x12c) = *(const unsigned char*)(s + 0x1278);
-    *(unsigned char*)(d + 0x12d) = *(const unsigned char*)(s + 0x127a);
-    *(unsigned char*)(d + 0x12e) = *(const unsigned char*)(s + 0xe40);
-    *(unsigned char*)(d + 0x12f) = *(const unsigned char*)(s + 0x1280);
-    *(int*)(d + 0x130) = *(const int*)(s + 0x12ad);
+    *(int*)(d + 0x00) = m_characList[param_1].m_characNo;
+    strncpy(d + 0x04, (const char*)&m_characList[param_1] + 0x04, 0x1e);
+    *(unsigned char*)(d + 0x22) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x22);
+    *(unsigned char*)(d + 0x23) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x25);
+    *(unsigned char*)(d + 0x24) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x26);
+    *(short*)(d + 0x25) = *(const short*)((const char*)&m_characList[param_1] + 0x27);
+    *(unsigned char*)(d + 0x27) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x29);
+    *(int*)(d + 0x28) = *(const int*)((const char*)&m_characList[param_1] + 0x2b);
+    *(unsigned short*)(d + 0x2c) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x33);
+    *(unsigned short*)(d + 0x2e) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x35);
+    *(unsigned short*)(d + 0x30) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x37);
+    *(unsigned short*)(d + 0x32) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x4f);
+    ((const CommonTime*)((const char*)&m_characList[param_1] + 0x39))->GetCreateTime(d + 0x34);
+    *(int*)(d + 0x4d) = *(const int*)((const char*)&m_characList[param_1] + 0x7b);
+    *(int*)(d + 0x56) = *(const int*)((const char*)&m_characList[param_1] + 0xdbe);
+    *(unsigned char*)(d + 0x5a) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0xdc2);
+    *(unsigned short*)(d + 0x5b) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x77);
+    *(unsigned short*)(d + 0x5d) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x79);
+    *(unsigned char*)(d + 0x5f) = (*(const int*)((const char*)&m_characList[param_1] + 0xe22) != 0) ? 1 : 0;
+    memcpy(d + 0x60, (const char*)&m_characList[param_1] + 0x88, 0x52);
+    *(unsigned char*)(d + 0xb2) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x75);
+    *(unsigned short*)(d + 0xb3) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x4d);
+    *(unsigned int*)(d + 0xb5) = *(const unsigned int*)((const char*)&m_characList[param_1] + 0x51);
+    memcpy(d + 0xb9, (const char*)&m_characList[param_1] + 0x55, 0x10);
+    *(int*)(d + 0xc9) = ((const CReliablePerson*)((const char*)&m_characList[param_1] + 0x65))->GetTradeGoldTotal();
+    *(int*)(d + 0xcd) = ((const CReliablePerson*)((const char*)&m_characList[param_1] + 0x69))->GetTradeGoldTotalBillion();
+    *(int*)(d + 0xd1) = ((const CReliablePerson*)((const char*)&m_characList[param_1] + 0x6d))->GetTradeGoldDaily();
+    *(int*)(d + 0xd5) = *(const int*)((const char*)&m_characList[param_1] + 0xe49);
+    *(int*)(d + 0xd9) = *(const int*)((const char*)&m_characList[param_1] + 0xe4d);
+    *(int*)(d + 0xdd) = *(const int*)((const char*)&m_characList[param_1] + 0xe51);
+    *(int*)(d + 0xe1) = *(const int*)((const char*)&m_characList[param_1] + 0xe55);
+    *(int*)(d + 0xe5) = *(const int*)((const char*)&m_characList[param_1] + 0xe59);
+    *(int*)(d + 0xe9) = *(const int*)((const char*)&m_characList[param_1] + 0xe5d);
+    *(int*)(d + 0xed) = *(const int*)((const char*)&m_characList[param_1] + 0xe45);
+    *(int*)(d + 0xf1) = *(const int*)((const char*)&m_characList[param_1] + 0xe68);
+    *(unsigned char*)(d + 0xf5) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0xe70);
+    *(int*)(d + 0xf6) = *(const int*)((const char*)&m_characList[param_1] + 0xe71);
+    *(int*)(d + 0xfa) = *(const int*)((const char*)&m_characList[param_1] + 0xe79);
+    *(unsigned int*)(d + 0xfe) = *(const unsigned int*)((const char*)&m_characList[param_1] + 0xdf4);
+    *(unsigned int*)(d + 0x102) = *(const unsigned int*)((const char*)&m_characList[param_1] + 0xdf8);
+    *(int*)(d + 0x106) = *(const int*)((const char*)&m_characList[param_1] + 0xe7d);
+    *(int*)(d + 0x10a) = *(const int*)((const char*)&m_characList[param_1] + 0xe81);
+    *(unsigned short*)(d + 0x10e) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x121f);
+    *(int*)(d + 0x110) = *(const int*)((const char*)&m_characList[param_1] + 0x1221);
+    *(int*)(d + 0x114) = *(const int*)((const char*)&m_characList[param_1] + 0x1225);
+    *(int*)(d + 0x118) = *(const int*)((const char*)&m_characList[param_1] + 0x7f);
+    *(unsigned short*)(d + 0x11c) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x122c);
+    *(char*)(d + 0x11e) = *(const char*)((const char*)&m_characList[param_1] + 0x1239);
+    *(char*)(d + 0x11f) = *(const char*)((const char*)&m_characList[param_1] + 0x123e);
+    *(unsigned char*)(d + 0x120) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x123f);
+    *(unsigned char*)(d + 0x121) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x1241);
+    *(unsigned short*)(d + 0x122) = *(const unsigned short*)((const char*)&m_characList[param_1] + 0x126c);
+    *(unsigned char*)(d + 0x124) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x126e);
+    *(int*)(d + 0x125) = *(const int*)((const char*)&m_characList[param_1] + 0x126f);
+    *(char*)(d + 0x129) = *(const char*)((const char*)&m_characList[param_1] + 0x1275);
+    *(unsigned char*)(d + 0x12a) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x1276);
+    *(unsigned char*)(d + 0x12b) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x1277);
+    *(unsigned char*)(d + 0x12c) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x1278);
+    *(unsigned char*)(d + 0x12d) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x127a);
+    *(unsigned char*)(d + 0x12e) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0xe40);
+    *(unsigned char*)(d + 0x12f) = *(const unsigned char*)((const char*)&m_characList[param_1] + 0x1280);
+    *(int*)(d + 0x130) = *(const int*)((const char*)&m_characList[param_1] + 0x12ad);
     *(int*)(d + 0x134) = (int)get_acc_id();
     return 1;
 }

@@ -3378,22 +3378,25 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     guard << (int)0xb0;              // SIG opcode
     guard << user->GetUID();
 
-    // 0x10e 字节记录（B=基址；偏移为 ORIG 汇编实证）
+    // 0x10e 字节记录（B = ORIG 帧 -0x13b(%ebp)，memset 0x10e 实证；
+    // 以下偏移全部按 ORIG 汇编 0x0817991e 逐条核对）
     char rec[0x10e];
     memset(rec, 0, sizeof(rec));
-    strcpy(rec + 0x00, accName);                                  // B+0x00（strcpy 实证）
-    *(int*)(rec + 0x11) = 1;
-    *(const char**)(rec + 0x15) = itemName;
-    *(int*)(rec + 0x19) = 0;
-    *(int*)(rec + 0x1d) = 1;
-    *(int*)(rec + 0x21) = a3;
-    *(int*)(rec + 0x25) = a4;
-    *(unsigned int*)(rec + 0x29) = user->get_acc_id();
-    *(int*)(rec + 0x2d) = user->getCurCharacNo();
-    strcpy(rec + 0x31, user->get_acc_name());                     // B+0x31（char[0x19]）
-    *(int*)(rec + 0x4a) = user->get_charac_job();
+    // ORIG 0x081799d5：strcpy(B+0x00, 0x1c(%ebp)) —— 第 5 实参 itemName；
+    // 账号名（get_acc_name）写 B+0x35，被举报/支付名 accName 写 B+0x69。
+    strcpy(rec + 0x00, itemName);                                 // B+0x00
+    strcpy(rec + 0x35, user->get_acc_name());                     // B+0x35（char[0x19]）
+    *(int*)(rec + 0x15) = 1;                                      // ORIG -0x126
+    *(int*)(rec + 0x19) = a5;                                     // ORIG -0x122 = 0x18(%ebp)
+    *(int*)(rec + 0x1d) = 0;                                      // ORIG -0x11e
+    *(int*)(rec + 0x21) = 1;                                      // ORIG -0x11a
+    *(int*)(rec + 0x25) = a3;                                     // ORIG -0x116 = 0x10(%ebp)
+    *(int*)(rec + 0x29) = a4;                                     // ORIG -0x112 = 0x14(%ebp)
+    *(unsigned int*)(rec + 0x2d) = user->get_acc_id();            // ORIG -0x10e
+    *(int*)(rec + 0x31) = user->getCurCharacNo();                 // ORIG -0x10a
+    *(int*)(rec + 0x4e) = user->get_charac_job();                 // ORIG -0xed
 
-    // SSN 拆分 → 生日串（B+0x52 char[11]）与世纪类型（B+0x4e）
+    // SSN 拆分 → 生日串（B+0x56 char[11]）与世纪类型（B+0x52）
     const char* ssn = user->GetSsnString();
     char ssnPart[0xe];
     memset(ssnPart, 0, sizeof(ssnPart));
@@ -3410,57 +3413,58 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     memset(centBuf, 0, 2);
     centBuf[0] = ssnPart[6];
     int cent = atoi(centBuf);
-    char birth[0xb];
-    memset(birth, 0, sizeof(birth));
+    // ORIG 0x08179bcd 起：sprintf 直接写入记录 B+0x56（无独立局部缓冲），
+    // 世纪类型写 B+0x52。
     if (cent == 2)
     {
-        sprintf(birth, "19%s-%s-%s", yy, mm, dd);
-        *(int*)(rec + 0x4e) = 2;
+        sprintf(rec + 0x56, "19%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x52) = 2;
     }
     else if (cent == 1)
     {
-        sprintf(birth, "19%s-%s-%s", yy, mm, dd);
-        *(int*)(rec + 0x4e) = 1;
+        sprintf(rec + 0x56, "19%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x52) = 1;
     }
     else if (cent == 3)
     {
-        sprintf(birth, "20%s-%s-%s", yy, mm, dd);
-        *(int*)(rec + 0x4e) = 1;
+        sprintf(rec + 0x56, "20%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x52) = 1;
     }
     else if (cent == 4)
     {
-        sprintf(birth, "20%s-%s-%s", yy, mm, dd);
-        *(int*)(rec + 0x4e) = 2;
+        sprintf(rec + 0x56, "20%s-%s-%s", yy, mm, dd);
+        *(int*)(rec + 0x52) = 2;
     }
 
-    *(int*)(rec + 0x5d) = 1;
-    *(int*)(rec + 0x61) = 0;
-    *(int*)(rec + 0xc9) = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-    *(int*)(rec + 0xcd) = user->getCurCharacGrowType();
-    *(int*)(rec + 0xd1) = user->get_charac_level();
-    *(int*)(rec + 0xd5) = *(int*)(rec + 0xc9);
-    *(int*)(rec + 0xd9) = 0;
-    *(int*)(rec + 0xdd) = 0;
-    *(int*)(rec + 0xe1) = *(int*)(rec + 0x19);
-    *(int*)(rec + 0xe5) = 0;
-    *(int*)(rec + 0xe9) = priceLabel;
+    *(int*)(rec + 0x61) = 1;                                 // ORIG -0xda
+    *(int*)(rec + 0x65) = 0;                                 // ORIG -0xd6
+    // ORIG 0x08179cca：strcpy(B+0x69, 0x20(%ebp)) —— 第 6 实参 accName。
+    strcpy(rec + 0x69, accName);
+    *(int*)(rec + 0xcd) = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // -0x6e
+    *(int*)(rec + 0xd1) = user->getCurCharacGrowType();      // -0x6a
+    *(int*)(rec + 0xd5) = user->get_charac_level();          // -0x66
+    *(int*)(rec + 0xd9) = *(int*)(rec + 0xcd);               // -0x62
+    *(int*)(rec + 0xdd) = 0;                                 // -0x5e
+    *(int*)(rec + 0xe1) = *(int*)(rec + 0x19);               // -0x5a = a5
+    *(int*)(rec + 0xe5) = 0;                                 // -0x56
+    *(int*)(rec + 0xe9) = priceLabel;                        // -0x52 = 0x24(%ebp)
+    *(int*)(rec + 0xed) = *(int*)(rec + 0x19);               // -0x4e = a5
     // strcmp(accName,"mileage item"/"cera point")——ORIG 0x8179d49 源=0x20(%ebp) 实证
     if (strcmp(accName, "mileage item") == 0)
-        *(int*)(rec + 0xed) = 2;
+        *(int*)(rec + 0xf1) = 2;
     else if (strcmp(accName, "cera point") == 0)
-        *(int*)(rec + 0xed) = 3;
+        *(int*)(rec + 0xf1) = 3;
     else
-        *(int*)(rec + 0xed) = 1;
+        *(int*)(rec + 0xf1) = 1;
 
-    char ip[0x10];
-    memset(ip, 0, sizeof(ip));
-    if (user->m_network.GetPeerIP2(ip, 0x10) == 0)
-        memcpy(ip, "NONE", 5);
-    memcpy(rec + 0xf1, ip, 0x10);
-    *(unsigned int*)(rec + 0x101) = (unsigned int)(uid >> 32);
-    *(unsigned int*)(rec + 0x105) = (unsigned int)uid;      // ORIG -0x150 = 0x28(%ebp)
-    *(unsigned int*)(rec + 0x109) = (unsigned int)(uid >> 32);  // ORIG -0x14c
-    rec[0x10d] = payFlag;                                    // ORIG -0x154
+    // ORIG 0x08179d82：memset(B+0xf5,0,0x10) → GetPeerIP2(B+0xf5,0x10)，
+    // 失败（返回 0）时 strncpy(B+0xf5,"NONE",5)。
+    memset(rec + 0xf5, 0, 0x10);
+    if (user->m_network.GetPeerIP2(rec + 0xf5, 0x10) == 0)
+        memcpy(rec + 0xf5, "NONE", 5);
+    *(unsigned int*)(rec + 0x105) = (unsigned int)uid;           // ORIG -0x36 = 0x28(%ebp)
+    *(unsigned int*)(rec + 0x109) = (unsigned int)(uid >> 32);   // ORIG -0x32 = 0x2c(%ebp)
+    rec[0x10d] = payFlag;                                        // ORIG -0x2e = 0x30(%ebp)
 
     guard.put_binary(rec, 0x10e);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);

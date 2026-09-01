@@ -94,7 +94,8 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
 {
     // ORIG：__lookup 为 map<const char*,int,less_TCHAR>，__init_lock 为 SpinLock，
     // __inited 在锁保护下置位；使用真实公共类型以保留跨 TU 依赖和初始化语义。
-    static std::map<const char*, int, less_TCHAR> lookup;
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+    static LookupMap lookup;
     static SpinLock initLock;
     static bool inited = false;
 
@@ -104,27 +105,32 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
         if (!inited)
         {
             // 插入次序与 ORIG 初始化链一致（0x46..0xac）。
-            lookup.insert(std::make_pair("[physical attack]", 0x46));
-            lookup.insert(std::make_pair("[magical attack]", 0x4b));
-            lookup.insert(std::make_pair("[physical defense]", 0x50));
-            lookup.insert(std::make_pair("[magical defense]", 0x55));
-            lookup.insert(std::make_pair("[HP MAX]", 0x5a));
-            lookup.insert(std::make_pair("[MP MAX]", 0x5f));
-            lookup.insert(std::make_pair("[HP regen speed]", 100));
-            lookup.insert(std::make_pair("[MP Regen speed]", 0x69));
-            lookup.insert(std::make_pair("[attack speed]", 0x6e));
-            lookup.insert(std::make_pair("[move speed]", 0x73));
-            lookup.insert(std::make_pair("[cast speed]", 0x78));
-            lookup.insert(std::make_pair("[inventory limit]", 0x7d));
-            lookup.insert(std::make_pair("[stuck]", 0x82));
-            lookup.insert(std::make_pair("[stuck resistance]", 0x87));
-            lookup.insert(std::make_pair("[all activestatus resistance]", 0x8c));
-            lookup.insert(std::make_pair("[hit recovery]", 0x91));
-            lookup.insert(std::make_pair("[equipment magical defence]", 0x96));
-            lookup.insert(std::make_pair("[equipment physical defence]", 0x9c));
-            lookup.insert(std::make_pair("[jump power]", 0xa2));
-            lookup.insert(std::make_pair("[physical critical hit]", 0xa7));
-            lookup.insert(std::make_pair("[magical critical hit]", 0xac));
+            // ORIG 每条注册只有两次 call：先就地构造 value_type
+            // （pair<const char* const,int>，模板实参含 char const(&)[N]，故每个
+            // 字符串长度一个实例），再 map::insert(value_type const&)。用
+            // make_pair 会多出 pair<const char*,int> → value_type 的转换临时
+            // （第三次 call），与 ORIG 不符，故直接构造 value_type。
+            lookup.insert(LookupMap::value_type("[physical attack]", 0x46));
+            lookup.insert(LookupMap::value_type("[magical attack]", 0x4b));
+            lookup.insert(LookupMap::value_type("[physical defense]", 0x50));
+            lookup.insert(LookupMap::value_type("[magical defense]", 0x55));
+            lookup.insert(LookupMap::value_type("[HP MAX]", 0x5a));
+            lookup.insert(LookupMap::value_type("[MP MAX]", 0x5f));
+            lookup.insert(LookupMap::value_type("[HP regen speed]", 100));
+            lookup.insert(LookupMap::value_type("[MP Regen speed]", 0x69));
+            lookup.insert(LookupMap::value_type("[attack speed]", 0x6e));
+            lookup.insert(LookupMap::value_type("[move speed]", 0x73));
+            lookup.insert(LookupMap::value_type("[cast speed]", 0x78));
+            lookup.insert(LookupMap::value_type("[inventory limit]", 0x7d));
+            lookup.insert(LookupMap::value_type("[stuck]", 0x82));
+            lookup.insert(LookupMap::value_type("[stuck resistance]", 0x87));
+            lookup.insert(LookupMap::value_type("[all activestatus resistance]", 0x8c));
+            lookup.insert(LookupMap::value_type("[hit recovery]", 0x91));
+            lookup.insert(LookupMap::value_type("[equipment magical defence]", 0x96));
+            lookup.insert(LookupMap::value_type("[equipment physical defence]", 0x9c));
+            lookup.insert(LookupMap::value_type("[jump power]", 0xa2));
+            lookup.insert(LookupMap::value_type("[physical critical hit]", 0xa7));
+            lookup.insert(LookupMap::value_type("[magical critical hit]", 0xac));
             inited = true;
         }
         initLock.leave();

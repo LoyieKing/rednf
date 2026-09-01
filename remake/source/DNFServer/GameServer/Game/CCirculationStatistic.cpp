@@ -18,16 +18,35 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
     return &instance;
 }
 
+// ORIG 0x0860daaa：无 user 判空、无 level 局部缓存（get_charac_level 在条件里被
+// 调两次、错误分支再调一次、命中分支各调一次），且槽位不是 map::operator[] 而是
+// find/end 比较 + 未命中时栈上零初始化记录 insert(make_pair(...))。
 bool CCirculationStatistic::AddCirculationStatistic(CIRCULATION_STATISTIC_FIELD field, CUser* user,
                                                        unsigned int value)
 {
-    if (!user || field < 0 || field >= 0x30)
+    bool wrongIndex = !(field >= 0 && field < 0x30 &&
+                        user->get_charac_level() > 0 &&
+                        user->get_charac_level() < 0x47);
+    if (wrongIndex)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x39b, 0)(
+            "CIRCULATION_STATISTIC wrong index (%d,%d)", field, user->get_charac_level());
         return false;
-    const int level = user->get_charac_level();
-    if (level <= 0 || level >= 0x47)
-        return false;
-    stCirculationStatistic& stat = m_data[user->GetServerGroup()];
-    stat.m_values[level][field] += value;
+    }
+
+    std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
+        m_data.find(user->GetServerGroup());
+    if (it == m_data.end())
+    {
+        stCirculationStatistic stat;
+        memset(&stat, 0, 0x3540);
+        stat.m_values[user->get_charac_level()][field] = value;
+        m_data.insert(std::make_pair(user->GetServerGroup(), stat));
+    }
+    else
+    {
+        it->second.m_values[user->get_charac_level()][field] += value;
+    }
     return true;
 }
 

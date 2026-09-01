@@ -1636,7 +1636,14 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         return 0;
                     }
-                    table->m_machineFrames.insert(std::make_pair(key, info));
+                    // ORIG 0x08901e35：直接就地构造 value_type
+                    // （_ZNSt4pairIKiN15upgrade_table_t16MachineFrameInfoEEC1IRiRS2_EEOT_OT0_
+                    //  = pair<const int,MachineFrameInfo>::pair<int&,MachineFrameInfo&>）
+                    // 后 _Hashtable::insert(value_type const&)，无 make_pair 转换临时。
+                    // （上面 m_floatMap 那处 ORIG 确为 make_pair+转换，保持不动。）
+                    table->m_machineFrames.insert(
+                        std::unordered_map<int, upgrade_table_t::MachineFrameInfo>::value_type(
+                            key, info));
                 }
             }
         }

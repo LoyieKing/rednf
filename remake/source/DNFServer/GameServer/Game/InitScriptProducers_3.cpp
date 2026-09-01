@@ -830,7 +830,12 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
     if (!loadRDARScriptFile("", path))
         return false;
 
-    static std::map<const char*, int, less_TCHAR> __lookup;
+    // ORIG 每条键注册只有两次 call：pair<const char* const,int>::pair<char const(&)[N],int>
+    // （即 map::value_type 就地构造，符号 _ZNSt4pairIKPKciEC1IRA<N>_S0_iEEOT_OT0_）
+    // 再 map::insert(value_type const&)。用 make_pair 会多出
+    // pair<const char*,int> → value_type 的转换临时（第三次 call），与 ORIG 不符。
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+    static LookupMap __lookup;
     static SpinLock __init_lock;
     static char __inited = 0;
 
@@ -867,12 +872,12 @@ bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
         }
 
         // ---- 首遍：登记全部键值（顺序与 ORIG 级联一致）----
-        __lookup.insert(std::make_pair("[default reward]", 0x39));
-        __lookup.insert(std::make_pair("[title collection info]", 0x4d));
-        __lookup.insert(std::make_pair("[section]", 0x7f));
-        __lookup.insert(std::make_pair("[custom condition message]", 0xc6));
-        __lookup.insert(std::make_pair("[adjust list]", 0xe4));
-        __lookup.insert(std::make_pair("[view titlebook eventmark]", 0xf4));
+        __lookup.insert(LookupMap::value_type("[default reward]", 0x39));
+        __lookup.insert(LookupMap::value_type("[title collection info]", 0x4d));
+        __lookup.insert(LookupMap::value_type("[section]", 0x7f));
+        __lookup.insert(LookupMap::value_type("[custom condition message]", 0xc6));
+        __lookup.insert(LookupMap::value_type("[adjust list]", 0xe4));
+        __lookup.insert(LookupMap::value_type("[view titlebook eventmark]", 0xf4));
 
 dispatch:
         {
@@ -911,7 +916,7 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    __lookup.insert(std::make_pair("[default reward]", 0x39));
+                    __lookup.insert(LookupMap::value_type("[default reward]", 0x39));
                 }
                 break;
             }
@@ -939,7 +944,7 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    __lookup.insert(std::make_pair("[title collection info]", 0x4d));
+                    __lookup.insert(LookupMap::value_type("[title collection info]", 0x4d));
                 }
                 break;
             }
@@ -989,7 +994,7 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    __lookup.insert(std::make_pair("[section]", 0x7f));
+                    __lookup.insert(LookupMap::value_type("[section]", 0x7f));
                 }
                 break;
             }
@@ -1010,7 +1015,7 @@ dispatch:
                 else if (id != 0)
                 {
                     __lookup.insert(
-                        std::make_pair("[custom condition message]", 0xc6));
+                        LookupMap::value_type("[custom condition message]", 0xc6));
                 }
                 break;
             }
@@ -1030,7 +1035,7 @@ dispatch:
                 }
                 else if (id != 0)
                 {
-                    __lookup.insert(std::make_pair("[adjust list]", 0xe4));
+                    __lookup.insert(LookupMap::value_type("[adjust list]", 0xe4));
                 }
                 break;
             }
@@ -1045,7 +1050,7 @@ dispatch:
                 else if (id != 0)
                 {
                     __lookup.insert(
-                        std::make_pair("[view titlebook eventmark]", 0xf4));
+                        LookupMap::value_type("[view titlebook eventmark]", 0xf4));
                 }
                 break;
             }
