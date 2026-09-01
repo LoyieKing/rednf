@@ -11330,9 +11330,6 @@ Dispatcher_UpgradeGuildCargo::Dispatcher_UpgradeGuildCargo() {}
 Dispatcher_UpgradeGuildCargo::~Dispatcher_UpgradeGuildCargo() {}
 int Dispatcher_UpgradeGuildCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    Inven_Item local_99;                 // -0x95：GetInvenData 输出
-    PacketGuard local_5c;                // -0x58
-    Packet_Guild_Guild_Cargo_Upgrade local_4e;   // -0x4a
     char cVar2;
     int local_2c;                        // -0x2c：getGuildCargoUpradeInfo 结果
     unsigned int local_28;               // -0x28：info+8（扣减点数）
