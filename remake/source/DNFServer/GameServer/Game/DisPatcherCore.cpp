@@ -329,7 +329,6 @@ public:
 };
 
 
-DisPatcher_CheckConn::DisPatcher_CheckConn() {}
 DisPatcher_CheckConn::~DisPatcher_CheckConn() {}
 int DisPatcher_CheckConn::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -642,7 +641,6 @@ int DisPatcher_Login::read(PacketBuf& packet, MSG_BASE& msg)
 }
 int DisPatcher_Login::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232a74 W _ZN16DisPatcher_Login7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081e8c78)
 
-DisPatcher_SetIP::DisPatcher_SetIP() {}
 DisPatcher_SetIP::~DisPatcher_SetIP() {}
 int DisPatcher_SetIP::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -651,7 +649,6 @@ int DisPatcher_SetIP::read(PacketBuf& packet, MSG_BASE& msg)
 }
 int DisPatcher_SetIP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232fd2 W _ZN16DisPatcher_SetIP7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f468c)
 
-DisPatcher_Exit::DisPatcher_Exit() {}
 DisPatcher_Exit::~DisPatcher_Exit() {}
 int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -776,7 +773,6 @@ int DisPatcher_Exit::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_Exit::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232bea W _ZN15DisPatcher_Exit7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ed948)
 
-DisPatcher_SelectCharac::DisPatcher_SelectCharac() {}
 DisPatcher_SelectCharac::~DisPatcher_SelectCharac() {}
 int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1571,7 +1567,6 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-DisPatcher_CreateCharac::DisPatcher_CreateCharac() {}
 DisPatcher_CreateCharac::~DisPatcher_CreateCharac() {}
 int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1769,7 +1764,6 @@ void DisPatcher_CreateCharac::makeGift(CUser* /*user*/, SIG_CREATE_CHARAC* sig)
     }
 }
 
-DisPatcher_DeleteCharac::DisPatcher_DeleteCharac() {}
 DisPatcher_DeleteCharac::~DisPatcher_DeleteCharac() {}
 // ORIG 0x081c14f0 T _ZN23DisPatcher_DeleteCharac11check_errorEP5CUserR8MSG_BASE
 // 报告：docs/class_func_reports/DisPatcher_DeleteCharac/check_error.md（汇编+反编译 C 全读）
@@ -1952,7 +1946,6 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-DisPatcher_ReturnToSelectCharacter::DisPatcher_ReturnToSelectCharacter() {}
 DisPatcher_ReturnToSelectCharacter::~DisPatcher_ReturnToSelectCharacter() {}
 int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
@@ -1995,7 +1988,6 @@ int DisPatcher_ReturnToSelectCharacter::process(CUser* /*user*/, MSG_BASE& /*msg
     return 0;
 }
 
-DisPatcher_GetUserInfo::DisPatcher_GetUserInfo() {}
 DisPatcher_GetUserInfo::~DisPatcher_GetUserInfo() {}
 int DisPatcher_GetUserInfo::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -2050,7 +2042,6 @@ int DisPatcher_GetUserInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param
     return errNo;
 }
 
-DisPatcher_RecoverStamina::DisPatcher_RecoverStamina() {}
 DisPatcher_RecoverStamina::~DisPatcher_RecoverStamina() {}
 // ORIG 0x081c3f4a T _ZN25DisPatcher_RecoverStamina11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_RecoverStamina/check_error.md 逐块映射）：state!=3 → 99；
@@ -2140,7 +2131,6 @@ static inline int DispatchBig5_callAssaultPrevent(CUser* user)
             &expert_job::CAlchemist::GetAssaultPrevent);
     return fn(user, 0);
 }
-DisPatcher_ReqPeer::DisPatcher_ReqPeer() {}
 DisPatcher_ReqPeer::~DisPatcher_ReqPeer() {}
 // ============================================================================
 // ORIG T 0x081eed08 _ZN18DisPatcher_ReqPeer12dispatch_sigEP5CUserR9PacketBuf
@@ -2457,7 +2447,6 @@ int DisPatcher_ReqPeer::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_ReqPeer::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232de8 W _ZN18DisPatcher_ReqPeer7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081eed08)
 
-DisPatcher_ResPeer::DisPatcher_ResPeer() {}
 DisPatcher_ResPeer::~DisPatcher_ResPeer() {}
 // ============================================================================
 // ORIG T 0x081f088e _ZN18DisPatcher_ResPeer12dispatch_sigEP5CUserR9PacketBuf
@@ -3122,7 +3111,6 @@ int DisPatcher_ResPeer::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_ResPeer::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232eac W _ZN18DisPatcher_ResPeer7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f088e)
 
-DisPatcher_SetPartyInfo::DisPatcher_SetPartyInfo() {}
 DisPatcher_SetPartyInfo::~DisPatcher_SetPartyInfo() {}
 int DisPatcher_SetPartyInfo::check_error(CUser* /*user*/, MSG_BASE& msg)
 {
@@ -3228,7 +3216,6 @@ int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-DisPatcher_LeaveParty::DisPatcher_LeaveParty() {}
 DisPatcher_LeaveParty::~DisPatcher_LeaveParty() {}
 int DisPatcher_LeaveParty::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -3294,7 +3281,6 @@ int DisPatcher_LeaveParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_WalkoutParty::DisPatcher_WalkoutParty() {}
 DisPatcher_WalkoutParty::~DisPatcher_WalkoutParty() {}
 // ORIG 0x081cb062 T _ZN23DisPatcher_WalkoutParty11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_WalkoutParty/check_error.md 逐块映射）：user 空 →
@@ -3378,7 +3364,6 @@ int DisPatcher_WalkoutParty::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-DisPatcher_StartGame::DisPatcher_StartGame() {}
 DisPatcher_StartGame::~DisPatcher_StartGame() {}
 int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -3595,7 +3580,6 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_SelectDungeon::DisPatcher_SelectDungeon() {}
 DisPatcher_SelectDungeon::~DisPatcher_SelectDungeon() {}
 // ORIG 0x081c7f32 T _ZN24DisPatcher_SelectDungeon11check_errorEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/DisPatcher_SelectDungeon/check_error.md 汇编+反编译 C 全文转写）：
@@ -4089,7 +4073,6 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     return 0;
 }
 
-DisPatcher_SendMess::DisPatcher_SendMess() {}
 DisPatcher_SendMess::~DisPatcher_SendMess() {}
 // dispatch_sig 真实实现见文件尾第二批段（ORIG T 0x081f3540）。
 int DisPatcher_SendMess::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
@@ -4104,7 +4087,6 @@ int DisPatcher_SendMess::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081f3540，报告 docs/class_func_reports/DisPatcher_SendMess/dispatch_sig.md)。
 int DisPatcher_SendMess::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_DeleteItem::DisPatcher_DeleteItem() {}
 DisPatcher_DeleteItem::~DisPatcher_DeleteItem() {}
 // ORIG 0x081c1a6c T _ZN21DisPatcher_DeleteItem11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_DeleteItem/check_error.md 逐块映射）：背包校验和
@@ -4505,7 +4487,6 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     return 0;
 }
-DisPatcher_MoveItem::DisPatcher_MoveItem() {}
 DisPatcher_MoveItem::~DisPatcher_MoveItem() {}
 // ORIG 0x081c57a0 T _ZN19DisPatcher_MoveItem11check_errorEP5CUserR8MSG_BASE
 // （docs/class_func_reports/DisPatcher_MoveItem/check_error.md 汇编+反编译 C 全文转写）：
@@ -4734,7 +4715,6 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     return 0;
 }
-DisPatcher_SortItem::DisPatcher_SortItem() {}
 DisPatcher_SortItem::~DisPatcher_SortItem() {}
 // ORIG 0x081c9d64 T _ZN19DisPatcher_SortItem11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_SortItem/check_error.md 逐块映射）：user 空 →
@@ -4855,7 +4835,6 @@ int DisPatcher_SortItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     return 0;
 }
-DisPatcher_BuyItem::DisPatcher_BuyItem() {}
 DisPatcher_BuyItem::~DisPatcher_BuyItem() {}
 // ORIG 0x081be46a T _ZN18DisPatcher_BuyItem11check_errorEP5CUserR8MSG_BASE
 // （docs/class_func_reports/DisPatcher_BuyItem/check_error.md 汇编+反编译 C 全文转写）：
@@ -5237,7 +5216,6 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_RentAvatar::DisPatcher_RentAvatar() {}
 DisPatcher_RentAvatar::~DisPatcher_RentAvatar() {}
 int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5372,7 +5350,6 @@ int DisPatcher_RentAvatar::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_RentAvatar::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232d86 W _ZN21DisPatcher_RentAvatar7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ee59c)（租期/价格计算与 IPG 记录）
 
-DisPatcher_ExtendAvatar::DisPatcher_ExtendAvatar() {}
 DisPatcher_ExtendAvatar::~DisPatcher_ExtendAvatar() {}
 int DisPatcher_ExtendAvatar::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
 {
@@ -5384,7 +5361,6 @@ int DisPatcher_ExtendAvatar::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_ExtendAvatar::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232c4c W _ZN23DisPatcher_ExtendAvatar7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x081eddec) 同样为纯 ret（报告 docs/class_func_reports/DisPatcher_ExtendAvatar/dispatch_sig.md），该分发器整体为空壳
 
-DisPatcher_SellItem::DisPatcher_SellItem() {}
 DisPatcher_SellItem::~DisPatcher_SellItem() {}
 int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5559,7 +5535,6 @@ int DisPatcher_SellItem::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SellItem::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232f0e W _ZN19DisPatcher_SellItem7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f2d0c)（状态检查/Secu 保护/Store::user_sell_item）
 
-DisPatcher_RepairEquip::DisPatcher_RepairEquip() {}
 DisPatcher_RepairEquip::~DisPatcher_RepairEquip() {}
 int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
@@ -5654,7 +5629,6 @@ int DisPatcher_RepairEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param
 }
 
 
-DisPatcher_SetTradeState::DisPatcher_SetTradeState() {}
 DisPatcher_SetTradeState::~DisPatcher_SetTradeState() {}
 // ORIG 0x081f6232 T _ZN24DisPatcher_SetTradeState12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_SetTradeState/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -5709,7 +5683,6 @@ int DisPatcher_SetTradeState::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081f6232，报告 docs/class_func_reports/DisPatcher_SetTradeState/dispatch_sig.md)。
 int DisPatcher_SetTradeState::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_Compound::DisPatcher_Compound() {}
 DisPatcher_Compound::~DisPatcher_Compound() {}
 int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5780,7 +5753,6 @@ int DisPatcher_Compound::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_Compound::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232a9c W _ZN19DisPatcher_Compound7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081eaa5c)（compound_item 与结果回包）
 
-DisPatcher_DisJointItem::DisPatcher_DisJointItem() {}
 DisPatcher_DisJointItem::~DisPatcher_DisJointItem() {}
 // ORIG 0x081f9fb8 T _ZN23DisPatcher_DisJointItem12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_DisJointItem/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -6067,7 +6039,6 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
 }
 
 
-DisPatcher_Lottery::DisPatcher_Lottery() {}
 DisPatcher_Lottery::~DisPatcher_Lottery() {}
 // ORIG 0x081f8380 T _ZN18DisPatcher_Lottery12dispatch_sigEP5CUserR9PacketBuf
 // 报告：docs/class_func_reports/DisPatcher_Lottery/dispatch_sig.md（汇编+反编译 C 全读）
@@ -6130,7 +6101,6 @@ int DisPatcher_Lottery::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081f8380，报告 docs/class_func_reports/DisPatcher_Lottery/dispatch_sig.md)。
 int DisPatcher_Lottery::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_ChangeSkill::DisPatcher_ChangeSkill() {}
 DisPatcher_ChangeSkill::~DisPatcher_ChangeSkill() {}
 // ORIG 0x081c0196 T _ZN22DisPatcher_ChangeSkill11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_ChangeSkill/check_error.md 逐块映射）：技能树索引
@@ -6219,7 +6189,6 @@ int DisPatcher_ChangeSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param
     return errNo;
 }
 
-DisPatcher_BuySkill::DisPatcher_BuySkill() {}
 DisPatcher_BuySkill::~DisPatcher_BuySkill() {}
 // ORIG 0x081bf8be T _ZN19DisPatcher_BuySkill11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_BuySkill/check_error.md 逐块映射）：user 空 → -1；
@@ -6695,7 +6664,6 @@ void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKi
             secondGrow, addLevel);
 }
 
-DisPatcher_IncreStatus::DisPatcher_IncreStatus() {}
 DisPatcher_IncreStatus::~DisPatcher_IncreStatus() {}
 // ORIG 0x081ede34 T _ZN22DisPatcher_IncreStatus12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_IncreStatus/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -6753,7 +6721,6 @@ int DisPatcher_IncreStatus::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081ede34，报告 docs/class_func_reports/DisPatcher_IncreStatus/dispatch_sig.md)。
 int DisPatcher_IncreStatus::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_QuestAction::DisPatcher_QuestAction() {}
 DisPatcher_QuestAction::~DisPatcher_QuestAction() {}
 int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6903,7 +6870,6 @@ int DisPatcher_QuestAction::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081ee010，报告 docs/class_func_reports/DisPatcher_QuestAction/dispatch_sig.md)。
 int DisPatcher_QuestAction::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_SetPos::DisPatcher_SetPos() {}
 DisPatcher_SetPos::~DisPatcher_SetPos() {}
 int DisPatcher_SetPos::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6964,7 +6930,6 @@ int DisPatcher_SetPos::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return err;   // 该分支 err==0，与 ORIG `mov -0x20(%ebp),%eax` 一致
 }
 
-DisPatcher_SetArea::DisPatcher_SetArea() {}
 DisPatcher_SetArea::~DisPatcher_SetArea() {}
 // ORIG 0x081c93e8 T _ZN18DisPatcher_SetArea11check_errorEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/DisPatcher_SetArea/check_error.md 汇编+反编译 C 全文转写）：
@@ -7118,7 +7083,6 @@ int DisPatcher_SetArea::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_Fish::DisPatcher_Fish() {}
 DisPatcher_Fish::~DisPatcher_Fish() {}
 int DisPatcher_Fish::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 {
@@ -7149,7 +7113,6 @@ int DisPatcher_Fish::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 // call 模板基类实例 C1（IPacketDispatcher<MSG_FINISH_LOADING,stFinishLoadParam,
 // ch_state0>::C1，ORIG 0x85984c6；PacketTypes.cpp 显式实例化）后写最终虚表指针。
 // ---------------------------------------------------------------------------
-DisPatcher_FinishLoad::DisPatcher_FinishLoad() {}
 // ORIG T 0x08264bfe _ZN21DisPatcher_FinishLoad11check_errorEP5CUserR8MSG_BASE
 // （docs/class_func_reports/DisPatcher_FinishLoad/check_error.md ## 汇编 + ## 反编译 C
 // 全文转写）。ORIG mov 0xc(%ebp) 在隐式 this(+0x8) 之后即第一具名参数 user——
@@ -7368,7 +7331,6 @@ int DisPatcher_FinishLoad::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-DisPatcher_UseSkill::DisPatcher_UseSkill() {}
 DisPatcher_UseSkill::~DisPatcher_UseSkill() {}
 // ORIG 0x081cad80 T _ZN19DisPatcher_UseSkill11check_errorEP5CUserR8MSG_BASER9ParamBase
 // get_state(user)==5 → 0；否则 0x7fffffff（报告 DisPatcher_UseSkill/check_error.md 全文）。
@@ -7534,7 +7496,6 @@ int DisPatcher_UseSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_DieMob::DisPatcher_DieMob() {}
 DisPatcher_DieMob::~DisPatcher_DieMob() {}
 // ============================================================================
 // ORIG T 0x081eb0c4 _ZN17DisPatcher_DieMob12dispatch_sigEP5CUserR9PacketBuf
@@ -8056,7 +8017,6 @@ int DisPatcher_DieMob::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_DieMob::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232afe W _ZN17DisPatcher_DieMob7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081eb0c4)（读 MSG_MONSTER_DIE 各字段并按 get_state 分派 CParty::kill_monster/CDeathTower::handleKillMonster/Global::CBossTowerFunc::DieMob/advancealtar::Manager::dieMob/WarRoom::HandleMonsterKill，报告 docs/class_func_reports/DisPatcher_DieMob/dispatch_sig.md）
 
-DisPatcher_DieCharacInDungeon::DisPatcher_DieCharacInDungeon() {}
 DisPatcher_DieCharacInDungeon::~DisPatcher_DieCharacInDungeon() {}
 int DisPatcher_DieCharacInDungeon::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -8171,7 +8131,6 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
     return 0;
 }
 
-DisPatcher_UseCoin::DisPatcher_UseCoin() {}
 DisPatcher_UseCoin::~DisPatcher_UseCoin() {}
 // ORIG 0x081ca7d6 T _ZN18DisPatcher_UseCoin11check_errorEP5CUserR8MSG_BASER9ParamBase
 // （报告 DisPatcher_UseCoin/check_error.md 逐块映射）：user->get_state()==5 →
@@ -8278,7 +8237,6 @@ int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 
-DisPatcher_GiveUpGame::DisPatcher_GiveUpGame() {}
 DisPatcher_GiveUpGame::~DisPatcher_GiveUpGame() {}
 // ORIG 0x081c41e8 T _ZN21DisPatcher_GiveUpGame11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_GiveUpGame/check_error.md 逐块映射）：state ∈
@@ -8348,7 +8306,6 @@ int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return errNo;
 }
 
-DisPatcher_GetItem::DisPatcher_GetItem() {}
 DisPatcher_GetItem::~DisPatcher_GetItem() {}
 int DisPatcher_GetItem::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -8590,7 +8547,6 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 
-DisPatcher_UseStack::DisPatcher_UseStack() {}
 DisPatcher_UseStack::~DisPatcher_UseStack() {}
 // ============================================================================
 // ORIG T 0x081f63c0 _ZN19DisPatcher_UseStack12dispatch_sigEP5CUserR9PacketBuf
@@ -8964,7 +8920,6 @@ int DisPatcher_UseStack::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 int DisPatcher_UseStack::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
 
-DisPatcher_MoveMap::DisPatcher_MoveMap() {}
 DisPatcher_MoveMap::~DisPatcher_MoveMap() {}
 int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9295,7 +9250,6 @@ int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-DisPatcher_SetPlayResult::DisPatcher_SetPlayResult() {}
 DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 // ============================================================================
 // ORIG T 0x081f4ce6 _ZN24DisPatcher_SetPlayResult12dispatch_sigEP5CUserR9PacketBuf
@@ -9574,7 +9528,6 @@ int DisPatcher_SetPlayResult::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SetPlayResult::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233034 W _ZN24DisPatcher_SetPlayResult7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f4ce6)（GetParty → GameResultType 读包/反作弊计数/SetPlayResult，报告 docs/class_func_reports/DisPatcher_SetPlayResult/dispatch_sig.md）
 
-DisPatcher_DropItem::DisPatcher_DropItem() {}
 DisPatcher_DropItem::~DisPatcher_DropItem() {}
 // ORIG 0x081c2d9a T _ZN19DisPatcher_DropItem11check_errorEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/DisPatcher_DropItem/check_error.md 汇编+反编译 C 全文转写）：
@@ -9775,7 +9728,6 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 
-DisPatcher_UseEquip::DisPatcher_UseEquip() {}
 DisPatcher_UseEquip::~DisPatcher_UseEquip() {}
 int DisPatcher_UseEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
@@ -9851,7 +9803,6 @@ int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 
-DisPatcher_MakePVP::DisPatcher_MakePVP() {}
 DisPatcher_MakePVP::~DisPatcher_MakePVP() {}
 bool DisPatcher_MakePVP::ExtractPacket(PacketBuf& packet, MSG_MAKE_PVP_ROOM& msg)
 {
@@ -9939,7 +9890,6 @@ int DisPatcher_MakePVP::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081f803e，报告 docs/class_func_reports/DisPatcher_MakePVP/dispatch_sig.md)。
 int DisPatcher_MakePVP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_EnterPVP::DisPatcher_EnterPVP() {}
 DisPatcher_EnterPVP::~DisPatcher_EnterPVP() {}
 int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9995,7 +9945,6 @@ int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
 }
 int DisPatcher_EnterPVP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232b88 W _ZN19DisPatcher_EnterPVP7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ed6c8)（读 pvp 索引/密码后 CGameManager::GetPvp → EnterPVPRoom，报告 docs/class_func_reports/DisPatcher_EnterPVP/dispatch_sig.md）
 
-DisPatcher_SetPVPSeat::DisPatcher_SetPVPSeat() {}
 DisPatcher_SetPVPSeat::~DisPatcher_SetPVPSeat() {}
 // ORIG 0x081f5eba T _ZN21DisPatcher_SetPVPSeat12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_SetPVPSeat/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -10039,7 +9988,6 @@ int DisPatcher_SetPVPSeat::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SetPVPSeat::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233096 W _ZN21DisPatcher_SetPVPSeat7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f5eba)（seat/state 两 byte → PvP_Room::OnSetPVPSeatState(…,WALKOUT_TYPE_2)，失败 reset+PutPvp 回池，报告 docs/class_func_reports/DisPatcher_SetPVPSeat/dispatch_sig.md）
 
-DisPatcher_SetPVPReady::DisPatcher_SetPVPReady() {}
 DisPatcher_SetPVPReady::~DisPatcher_SetPVPReady() {}
 int DisPatcher_SetPVPReady::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10109,7 +10057,6 @@ int DisPatcher_SetPVPReady::process(CUser* user, MSG_BASE& msg, ParamBase& param
     return err;   // 该分支 err==0，与 ORIG `mov -0x18(%ebp),%ebx` 一致
 }
 
-DisPatcher_SetPVPTeam::DisPatcher_SetPVPTeam() {}
 DisPatcher_SetPVPTeam::~DisPatcher_SetPVPTeam() {}
 // ORIG 0x081f6020 T _ZN21DisPatcher_SetPVPTeam12dispatch_sigEP5CUserR9PacketBuf
 // 报告：docs/class_func_reports/DisPatcher_SetPVPTeam/dispatch_sig.md（汇编+反编译 C 全读）
@@ -10167,7 +10114,6 @@ int DisPatcher_SetPVPTeam::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SetPVPTeam::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082330f8 W _ZN21DisPatcher_SetPVPTeam7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f6020)（get_byte 队伍号 → set_pvp_mode，失败 make_seat_info(0xffff) 广播，报告 docs/class_func_reports/DisPatcher_SetPVPTeam/dispatch_sig.md）
 
-DisPatcher_DiePvP::DisPatcher_DiePvP() {}
 DisPatcher_DiePvP::~DisPatcher_DiePvP() {}
 // ORIG 0x081ece64 T _ZN17DisPatcher_DiePvP12dispatch_sigEP5CUserR9PacketBuf
 // 报告：docs/class_func_reports/DisPatcher_DiePvP/dispatch_sig.md（汇编+反编译 C 全读）
@@ -10224,7 +10170,6 @@ int DisPatcher_DiePvP::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_DiePvP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232b74 W _ZN17DisPatcher_DiePvP7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ece64)（get_state==7 时读死亡角色 id → PvP_Room::die_charac + CSwitchLog pvp@log + 应答包，报告 docs/class_func_reports/DisPatcher_DiePvP/dispatch_sig.md）
 
-DisPatcher_PvPTimeout::DisPatcher_PvPTimeout() {}
 DisPatcher_PvPTimeout::~DisPatcher_PvPTimeout() {}
 int DisPatcher_PvPTimeout::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10299,7 +10244,6 @@ int DisPatcher_PvPTimeout::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 
-DisPatcher_EndPvPResult::DisPatcher_EndPvPResult() {}
 DisPatcher_EndPvPResult::~DisPatcher_EndPvPResult() {}
 // ORIG 0x081f88ae T _ZN23DisPatcher_EndPvPResult12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_EndPvPResult/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -10360,7 +10304,6 @@ int DisPatcher_EndPvPResult::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_EndPvPResult::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233344 W _ZN23DisPatcher_EndPvPResult7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f88ae)（set_recv_pvp_end_result_flag → recv_pvp_end_result_all 全齐则 end_pvp_result/make_state_info 广播/end_pvp/battle_reset，报告 docs/class_func_reports/DisPatcher_EndPvPResult/dispatch_sig.md）
 
-DisPatcher_ResPvpRank::DisPatcher_ResPvpRank() {}
 DisPatcher_ResPvpRank::~DisPatcher_ResPvpRank() {}
 bool DisPatcher_ResPvpRank::ExtractPacket(MSG_RES_PVP_RANK& msg, PacketBuf& packet)
 {
@@ -10488,7 +10431,6 @@ int DisPatcher_ResPvpRank::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // ORIG 0x08232e98 W _ZN21DisPatcher_ResPvpRank7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 核实），全部逻辑位于 dispatch_sig(0x081f0282)：state==7 → MSG_RES_PVP_RANK ctor → ExtractPacket(0x081f039e)/SavePvpRank(0x081f05ea) + LineFunc 断言
 int DisPatcher_ResPvpRank::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_SetPVPMapIndex::DisPatcher_SetPVPMapIndex() {}
 DisPatcher_SetPVPMapIndex::~DisPatcher_SetPVPMapIndex() {}
 // ORIG 0x081f8602 T _ZN25DisPatcher_SetPVPMapIndex12dispatch_sigEP5CUserR9PacketBuf
 // 报告：docs/class_func_reports/DisPatcher_SetPVPMapIndex/dispatch_sig.md（汇编+反编译 C 全读）
@@ -10551,7 +10493,6 @@ int DisPatcher_SetPVPMapIndex::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SetPVPMapIndex::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082332e2 W _ZN25DisPatcher_SetPVPMapIndex7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f8602)（get_short 地图号 → CheckPvPMapMode/SetRequestedMapNo/make_state_info 广播，报告 docs/class_func_reports/DisPatcher_SetPVPMapIndex/dispatch_sig.md）
 
-DisPatcher_DebugCommand::DisPatcher_DebugCommand() {}
 DisPatcher_DebugCommand::~DisPatcher_DebugCommand() {}
 int DisPatcher_DebugCommand::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 {
@@ -10568,7 +10509,6 @@ int DisPatcher_DebugCommand::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 
 int DisPatcher_DebugCommand::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
-DisPatcher_AddFriend::DisPatcher_AddFriend() {}
 DisPatcher_AddFriend::~DisPatcher_AddFriend() {}
 // ORIG 0x081cb274 T _ZN20DisPatcher_AddFriend11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_AddFriend/check_error.md 逐块映射）：state<=2 → 0x7fffffff；
@@ -10671,7 +10611,6 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
     return 0;
 }
 
-DisPatcher_RemoveFriend::DisPatcher_RemoveFriend() {}
 DisPatcher_RemoveFriend::~DisPatcher_RemoveFriend() {}
 int DisPatcher_RemoveFriend::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10744,7 +10683,6 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-DisPatcher_Cera::DisPatcher_Cera() {}
 DisPatcher_Cera::~DisPatcher_Cera() {}
 int DisPatcher_Cera::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10761,7 +10699,6 @@ int DisPatcher_Cera::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_Cera::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082334ae W _ZN15DisPatcher_Cera7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081fd360)（IPGHelper 校验 + LoadMileage）
 
-DisPatcher_EnterWarRoom::DisPatcher_EnterWarRoom() {}
 DisPatcher_EnterWarRoom::~DisPatcher_EnterWarRoom() {}
 int DisPatcher_EnterWarRoom::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
 {
@@ -10774,7 +10711,6 @@ int DisPatcher_EnterWarRoom::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_EnterWarRoom::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233616 W _ZN23DisPatcher_EnterWarRoom7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x0820229e) 亦仅为 LineFunc(0x97fb) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_EnterWarRoom/dispatch_sig.md）
 
-DisPatcher_SetWarRoomSeatState::DisPatcher_SetWarRoomSeatState() {}
 DisPatcher_SetWarRoomSeatState::~DisPatcher_SetWarRoomSeatState() {}
 int DisPatcher_SetWarRoomSeatState::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
 {
@@ -10787,7 +10723,6 @@ int DisPatcher_SetWarRoomSeatState::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*
 }
 int DisPatcher_SetWarRoomSeatState::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823362a W _ZN30DisPatcher_SetWarRoomSeatState7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x082022ca) 亦仅为 LineFunc(0x9848) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_SetWarRoomSeatState/dispatch_sig.md）
 
-DisPatcher_DieWarRoomCharacter::DisPatcher_DieWarRoomCharacter() {}
 DisPatcher_DieWarRoomCharacter::~DisPatcher_DieWarRoomCharacter() {}
 int DisPatcher_DieWarRoomCharacter::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
 {
@@ -10800,7 +10735,6 @@ int DisPatcher_DieWarRoomCharacter::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*
 }
 int DisPatcher_DieWarRoomCharacter::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823363e W _ZN30DisPatcher_DieWarRoomCharacter7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x082022f6) 亦仅为 LineFunc(0x9867) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_DieWarRoomCharacter/dispatch_sig.md）
 
-DisPatcher_StartWarRoomTemp::DisPatcher_StartWarRoomTemp() {}
 DisPatcher_StartWarRoomTemp::~DisPatcher_StartWarRoomTemp() {}
 int DisPatcher_StartWarRoomTemp::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/)
 {
@@ -10813,7 +10747,6 @@ int DisPatcher_StartWarRoomTemp::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_StartWarRoomTemp::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082335ee W _ZN27DisPatcher_StartWarRoomTemp7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x08201b06) 亦仅为 LineFunc(0x9737) 占位，无业务逻辑（报告 docs/class_func_reports/DisPatcher_StartWarRoomTemp/dispatch_sig.md）
 
-DisPatcher_ReportClient4Hack::DisPatcher_ReportClient4Hack() {}
 DisPatcher_ReportClient4Hack::~DisPatcher_ReportClient4Hack() {}
 // ORIG 0x082041a0 T _ZN28DisPatcher_ReportClient4Hack12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_ReportClient4Hack/dispatch_sig.md 汇编+反编译 C 全文转写）：
@@ -10899,7 +10832,6 @@ Packet_Notice_Guild_War_Info::Packet_Notice_Guild_War_Info()
     }
 }
 
-DisPatcher_RequestGuildWarInfo::DisPatcher_RequestGuildWarInfo() {}
 DisPatcher_RequestGuildWarInfo::~DisPatcher_RequestGuildWarInfo() {}
 int DisPatcher_RequestGuildWarInfo::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
@@ -10922,7 +10854,6 @@ int DisPatcher_RequestGuildWarInfo::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*
 }
 int DisPatcher_RequestGuildWarInfo::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233756 W _ZN30DisPatcher_RequestGuildWarInfo7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x0820439a，见 docs/class_func_reports/DisPatcher_RequestGuildWarInfo/dispatch_sig.md)
 
-DisPatcher_PvpHeartBeat::DisPatcher_PvpHeartBeat() {}
 DisPatcher_PvpHeartBeat::~DisPatcher_PvpHeartBeat() {}
 int DisPatcher_PvpHeartBeat::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 {
@@ -10939,7 +10870,6 @@ int DisPatcher_PvpHeartBeat::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 }
 int DisPatcher_PvpHeartBeat::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x0823376a W _ZN23DisPatcher_PvpHeartBeat7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x08204458，见 docs/class_func_reports/DisPatcher_PvpHeartBeat/dispatch_sig.md)
 
-DisPatcher_MultiBoxLottery::DisPatcher_MultiBoxLottery() {}
 DisPatcher_MultiBoxLottery::~DisPatcher_MultiBoxLottery() {}
 // ORIG 0x0820b802 T _ZN26DisPatcher_MultiBoxLottery12dispatch_sigEP5CUserR9PacketBuf
 // 报告：docs/class_func_reports/DisPatcher_MultiBoxLottery/dispatch_sig.md（汇编+反编译 C 全读）
@@ -10999,7 +10929,6 @@ int DisPatcher_MultiBoxLottery::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_MultiBoxLottery::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233bdc W _ZN26DisPatcher_MultiBoxLottery7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x0820b802，见 docs/class_func_reports/DisPatcher_MultiBoxLottery/dispatch_sig.md)
 
-DisPatcher_UdpCharacteristic::DisPatcher_UdpCharacteristic() {}
 DisPatcher_UdpCharacteristic::~DisPatcher_UdpCharacteristic() {}
 int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11110,7 +11039,6 @@ int DisPatcher_UdpCharacteristic::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_UdpCharacteristic::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233d6c W _ZN28DisPatcher_UdpCharacteristic7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x0821abe0，见 docs/class_func_reports/DisPatcher_UdpCharacteristic/dispatch_sig.md)
 
-DIspatcher_OneDayLetheTicket::DIspatcher_OneDayLetheTicket() {}
 DIspatcher_OneDayLetheTicket::~DIspatcher_OneDayLetheTicket() {}
 int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
@@ -11150,7 +11078,6 @@ int DIspatcher_OneDayLetheTicket::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DIspatcher_OneDayLetheTicket::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233d80 W _ZN28DIspatcher_OneDayLetheTicket7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 0x08233d80..0x08233d94 核实），全部逻辑位于 dispatch_sig(0x0821b106：cMyTrace"ONE_DAY_LETHE : SKILL_INIT_PACKET"→state==3→非 PVP/PvPSkillTree 渠道校验→GetPremiumLetheManager().ResetSkillReq(user)，报告 docs/class_func_reports/DIspatcher_OneDayLetheTicket/dispatch_sig.md)
 
-Dispatcer_polic_one_to_one_chat_disable::Dispatcer_polic_one_to_one_chat_disable() {}
 Dispatcer_polic_one_to_one_chat_disable::~Dispatcer_polic_one_to_one_chat_disable() {}
 int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11181,7 +11108,6 @@ int Dispatcer_polic_one_to_one_chat_disable::read(PacketBuf& /*packet*/, MSG_BAS
 }
 int Dispatcer_polic_one_to_one_chat_disable::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x082342a8 W _ZN39Dispatcer_polic_one_to_one_chat_disable7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 0x082342a8..0x082342bc 核实），全部逻辑位于 dispatch_sig(0x082272ce：state>2 且当前角色存在 → 组 Packet_Disable_User_OneToOneChat_Police(get_int+get_str) → isGMUser 时经 s_monitor_proxy_mgr SendTcpPacket(0x30)，报告 docs/class_func_reports/Dispatcer_polic_one_to_one_chat_disable/dispatch_sig.md)
 
-DisPatcher_CheckSecurityProtection::DisPatcher_CheckSecurityProtection() {}
 DisPatcher_CheckSecurityProtection::~DisPatcher_CheckSecurityProtection() {}
 int DisPatcher_CheckSecurityProtection::check_error(CUser* /*user*/, MSG_BASE& /*msg*/)
 {
@@ -11215,7 +11141,6 @@ int DisPatcher_CheckSecurityProtection::process(CUser* user, MSG_BASE& /*msg*/, 
     return 0;
 }
 
-DisPatcher_EventDungeon_DestoryObject::DisPatcher_EventDungeon_DestoryObject() {}
 DisPatcher_EventDungeon_DestoryObject::~DisPatcher_EventDungeon_DestoryObject() {}
 int DisPatcher_EventDungeon_DestoryObject::check_error(CUser* /*user*/, MSG_BASE& /*msg*/)
 {
@@ -11256,7 +11181,6 @@ int DisPatcher_EventDungeon_DestoryObject::process(CUser* user, MSG_BASE& msg, P
     return 0;
 }
 
-DisPatcher_EventDungeon_ClearRoom::DisPatcher_EventDungeon_ClearRoom() {}
 // ORIG 0x0812c1c6 W _ZN33DisPatcher_EventDungeon_ClearRoomD1Ev/D2Ev/D0Ev（三地址相同）
 // objdump 实测 D1：写 vptr=0x8b66068 → 调 IPacketDispatcher<...>::D1 → 恒假 delete 守卫
 // —— 即编译器生成的空析构，{} 与其逐指令等价。
@@ -11320,7 +11244,6 @@ void DisPatcher_EventDungeon_ClearRoom::send(CUser* user, ParamBase& param)
     user->Send(guard);
 }
 
-Dispather_RegenerationRandomOption::Dispather_RegenerationRandomOption() {}
 Dispather_RegenerationRandomOption::~Dispather_RegenerationRandomOption() {}
 int Dispather_RegenerationRandomOption::check_state(CUser* user, PacketBuf& /*packet*/)
 {
@@ -11429,7 +11352,6 @@ void add(CUser* user, const char* tableName, const char* fieldName,
 
 
 
-DispatcherResetRandomOption::DispatcherResetRandomOption() {}
 DispatcherResetRandomOption::~DispatcherResetRandomOption() {}
 int DispatcherResetRandomOption::read(PacketBuf& packet, MSG_BASE& msg)
 {

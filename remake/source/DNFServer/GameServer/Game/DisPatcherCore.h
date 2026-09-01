@@ -15,7 +15,7 @@ struct MSG_RES_PVP_RANK;    // wave1: DisPatcher_ResPvpRank 两成员形参前�
 class DisPatcher_CheckConn : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_CheckConn();
+    DisPatcher_CheckConn() {}
     virtual ~DisPatcher_CheckConn();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -36,7 +36,7 @@ public:
 class DisPatcher_SetIP : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetIP();
+    DisPatcher_SetIP() {}
     virtual ~DisPatcher_SetIP();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -46,7 +46,7 @@ public:
 class DisPatcher_Exit : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Exit();
+    DisPatcher_Exit() {}
     virtual ~DisPatcher_Exit();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -56,7 +56,7 @@ public:
 class DisPatcher_SelectCharac : public IPacketDispatcher<MSG_CHARAC_SELECT, stSelectCharac, (ch_state)2>
 {
 public:
-    DisPatcher_SelectCharac();
+    DisPatcher_SelectCharac() {}
     virtual ~DisPatcher_SelectCharac();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -84,7 +84,7 @@ public:
 class DisPatcher_CreateCharac : public IPacketDispatcher<MSG_CREATE_CHARACTER, stCreateCharac, (ch_state)2>
 {
 public:
-    DisPatcher_CreateCharac();
+    DisPatcher_CreateCharac() {}
     virtual ~DisPatcher_CreateCharac();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -97,7 +97,7 @@ public:
 class DisPatcher_DeleteCharac : public IPacketDispatcher<MSG_DELETE_CHARACTER, stDeleteCharac, (ch_state)2>
 {
 public:
-    DisPatcher_DeleteCharac();
+    DisPatcher_DeleteCharac() {}
     virtual ~DisPatcher_DeleteCharac();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -109,7 +109,7 @@ public:
 class DisPatcher_ReturnToSelectCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ReturnToSelectCharacter();
+    DisPatcher_ReturnToSelectCharacter() {}
     virtual ~DisPatcher_ReturnToSelectCharacter();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -119,7 +119,7 @@ public:
 class DisPatcher_GetUserInfo : public IPacketDispatcher<MSG_USERINFO_REQ, stOnGetUserInfoParam, (ch_state)1>
 {
 public:
-    DisPatcher_GetUserInfo();
+    DisPatcher_GetUserInfo() {}
     virtual ~DisPatcher_GetUserInfo();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -129,7 +129,7 @@ public:
 class DisPatcher_RecoverStamina : public IPacketDispatcher<MSG_USERINFO_REQ, stOnRecoverStaminaParam, (ch_state)3>
 {
 public:
-    DisPatcher_RecoverStamina();
+    DisPatcher_RecoverStamina() {}
     virtual ~DisPatcher_RecoverStamina();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -140,7 +140,7 @@ public:
 class DisPatcher_ReqPeer : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ReqPeer();
+    DisPatcher_ReqPeer() {}
     virtual ~DisPatcher_ReqPeer();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -150,7 +150,7 @@ public:
 class DisPatcher_ResPeer : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ResPeer();
+    DisPatcher_ResPeer() {}
     virtual ~DisPatcher_ResPeer();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -160,7 +160,7 @@ public:
 class DisPatcher_SetPartyInfo : public IPacketDispatcher<MSG_PARTY_SET_INFO, stSetPartyInfo, (ch_state)3>
 {
 public:
-    DisPatcher_SetPartyInfo();
+    DisPatcher_SetPartyInfo() {}
     virtual ~DisPatcher_SetPartyInfo();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -171,7 +171,7 @@ public:
 class DisPatcher_LeaveParty : public IPacketDispatcher<MSG_BASE, stLeavePartyParam, (ch_state)0>
 {
 public:
-    DisPatcher_LeaveParty();
+    DisPatcher_LeaveParty() {}
     virtual ~DisPatcher_LeaveParty();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -183,7 +183,7 @@ public:
 class DisPatcher_WalkoutParty : public IPacketDispatcher<MSG_WALKOUT_PARTY, stWalkoutPartyParam, (ch_state)3>
 {
 public:
-    DisPatcher_WalkoutParty();
+    DisPatcher_WalkoutParty() {}
     virtual ~DisPatcher_WalkoutParty();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -194,7 +194,7 @@ public:
 class DisPatcher_StartGame : public IPacketDispatcher<MSG_BASE, stStartGameParam, (ch_state)0>
 {
 public:
-    DisPatcher_StartGame();
+    DisPatcher_StartGame() {}
     virtual ~DisPatcher_StartGame();
     // ORIG mangled _ZN20DisPatcher_StartGame11check_errorEP5CUserR8MSG_BASER9ParamBase
     // （nm 实证三参；stub 体保持 return 0，与 UseCoin/DropItem 同规约）
@@ -208,7 +208,7 @@ public:
 class DisPatcher_SelectDungeon : public IPacketDispatcher<MSG_SELECT_DUNGEON, stSelectDungeonParam, (ch_state)0>
 {
 public:
-    DisPatcher_SelectDungeon();
+    DisPatcher_SelectDungeon() {}
     virtual ~DisPatcher_SelectDungeon();
     // ORIG mangled _ZN24DisPatcher_SelectDungeon11check_errorEP5CUserR8MSG_BASER9ParamBase
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -221,7 +221,7 @@ public:
 class DisPatcher_SendMess : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SendMess();
+    DisPatcher_SendMess() {}
     virtual ~DisPatcher_SendMess();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -231,7 +231,7 @@ public:
 class DisPatcher_DeleteItem : public IPacketDispatcher<MSG_DELETE_ITEM, stDeleteItemParam, (ch_state)3>
 {
 public:
-    DisPatcher_DeleteItem();
+    DisPatcher_DeleteItem() {}
     virtual ~DisPatcher_DeleteItem();
     // ORIG check_error 为二参（_ZN21DisPatcher_DeleteItem11check_errorEP5CUserR8MSG_BASE）
     int check_error(CUser* user, MSG_BASE& msg);
@@ -246,7 +246,7 @@ public:
 class DisPatcher_MoveItem : public IPacketDispatcher<MSG_MOVE_ITEMSPACE, stMoveItemParam, (ch_state)3>
 {
 public:
-    DisPatcher_MoveItem();
+    DisPatcher_MoveItem() {}
     virtual ~DisPatcher_MoveItem();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -257,7 +257,7 @@ public:
 class DisPatcher_SortItem : public IPacketDispatcher<MSG_SORT_ITEM, stOnSortItemParam, (ch_state)3>
 {
 public:
-    DisPatcher_SortItem();
+    DisPatcher_SortItem() {}
     virtual ~DisPatcher_SortItem();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -268,7 +268,7 @@ public:
 class DisPatcher_BuyItem : public IPacketDispatcher<MSG_BUY_ITEM, BuyItemParam, (ch_state)3>
 {
 public:
-    DisPatcher_BuyItem();
+    DisPatcher_BuyItem() {}
     virtual ~DisPatcher_BuyItem();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -284,7 +284,7 @@ public:
 class DisPatcher_RentAvatar : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_RentAvatar();
+    DisPatcher_RentAvatar() {}
     virtual ~DisPatcher_RentAvatar();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -294,7 +294,7 @@ public:
 class DisPatcher_ExtendAvatar : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ExtendAvatar();
+    DisPatcher_ExtendAvatar() {}
     virtual ~DisPatcher_ExtendAvatar();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -304,7 +304,7 @@ public:
 class DisPatcher_SellItem : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SellItem();
+    DisPatcher_SellItem() {}
     virtual ~DisPatcher_SellItem();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -314,7 +314,7 @@ public:
 class DisPatcher_RepairEquip : public IPacketDispatcher<MSG_REPAIR_EQUIP, stRepairEquipParam, (ch_state)0>
 {
 public:
-    DisPatcher_RepairEquip();
+    DisPatcher_RepairEquip() {}
     virtual ~DisPatcher_RepairEquip();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -325,7 +325,7 @@ public:
 class DisPatcher_SetTradeState : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetTradeState();
+    DisPatcher_SetTradeState() {}
     virtual ~DisPatcher_SetTradeState();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -335,7 +335,7 @@ public:
 class DisPatcher_Compound : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Compound();
+    DisPatcher_Compound() {}
     virtual ~DisPatcher_Compound();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -346,7 +346,7 @@ class Inven_Item;
 class DisPatcher_DisJointItem : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_DisJointItem();
+    DisPatcher_DisJointItem() {}
     virtual ~DisPatcher_DisJointItem();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -363,7 +363,7 @@ public:
 class DisPatcher_Lottery : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Lottery();
+    DisPatcher_Lottery() {}
     virtual ~DisPatcher_Lottery();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -373,7 +373,7 @@ public:
 class DisPatcher_ChangeSkill : public IPacketDispatcher<MSG_CHANGE_SKILLSLOT, stOnChangeSkillParam, (ch_state)3>
 {
 public:
-    DisPatcher_ChangeSkill();
+    DisPatcher_ChangeSkill() {}
     virtual ~DisPatcher_ChangeSkill();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -384,7 +384,7 @@ public:
 class DisPatcher_BuySkill : public IPacketDispatcher<MSG_BUY_SKILL, stOnBuySkillParam, (ch_state)3>
 {
 public:
-    DisPatcher_BuySkill();
+    DisPatcher_BuySkill() {}
     virtual ~DisPatcher_BuySkill();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -402,7 +402,7 @@ public:
 class DisPatcher_IncreStatus : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_IncreStatus();
+    DisPatcher_IncreStatus() {}
     virtual ~DisPatcher_IncreStatus();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -412,7 +412,7 @@ public:
 class DisPatcher_QuestAction : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_QuestAction();
+    DisPatcher_QuestAction() {}
     virtual ~DisPatcher_QuestAction();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -422,7 +422,7 @@ public:
 class DisPatcher_SetPos : public IPacketDispatcher<MSG_USER_SET_POS, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetPos();
+    DisPatcher_SetPos() {}
     virtual ~DisPatcher_SetPos();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -432,7 +432,7 @@ public:
 class DisPatcher_SetArea : public IPacketDispatcher<MSG_SET_USER_AREA, stSetAreaParam, (ch_state)3>
 {
 public:
-    DisPatcher_SetArea();
+    DisPatcher_SetArea() {}
     virtual ~DisPatcher_SetArea();
     // ORIG mangled _ZN18DisPatcher_SetArea11check_errorEP5CUserR8MSG_BASER9ParamBase
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -444,7 +444,7 @@ public:
 class DisPatcher_Fish : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Fish();
+    DisPatcher_Fish() {}
     virtual ~DisPatcher_Fish();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -454,7 +454,7 @@ public:
 class DisPatcher_FinishLoad : public IPacketDispatcher<MSG_FINISH_LOADING, stFinishLoadParam, (ch_state)0>
 {
 public:
-    DisPatcher_FinishLoad();
+    DisPatcher_FinishLoad() {}
     virtual ~DisPatcher_FinishLoad();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -467,7 +467,7 @@ public:
 class DisPatcher_UseSkill : public IPacketDispatcher<MSG_USE_SKILL, stUseSkillParam, (ch_state)0>
 {
 public:
-    DisPatcher_UseSkill();
+    DisPatcher_UseSkill() {}
     virtual ~DisPatcher_UseSkill();
     // ORIG _ZN19DisPatcher_UseSkill11check_errorEP5CUserR8MSG_BASER9ParamBase（三参实证）
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -479,7 +479,7 @@ public:
 class DisPatcher_DieMob : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_DieMob();
+    DisPatcher_DieMob() {}
     virtual ~DisPatcher_DieMob();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -489,7 +489,7 @@ public:
 class DisPatcher_DieCharacInDungeon : public IPacketDispatcher<MSG_DIE_CHARACTER, stDieCharacInDungeon, (ch_state)0>
 {
 public:
-    DisPatcher_DieCharacInDungeon();
+    DisPatcher_DieCharacInDungeon() {}
     virtual ~DisPatcher_DieCharacInDungeon();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -501,7 +501,7 @@ public:
 class DisPatcher_UseCoin : public IPacketDispatcher<MSG_USE_COIN, stUseCoinParam, (ch_state)0>
 {
 public:
-    DisPatcher_UseCoin();
+    DisPatcher_UseCoin() {}
     virtual ~DisPatcher_UseCoin();
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN18DisPatcher_UseCoin11check_errorEP5CUserR8MSG_BASER9ParamBase
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -516,7 +516,7 @@ public:
 class DisPatcher_GiveUpGame : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_GiveUpGame();
+    DisPatcher_GiveUpGame() {}
     virtual ~DisPatcher_GiveUpGame();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -526,7 +526,7 @@ public:
 class DisPatcher_GetItem : public IPacketDispatcher<MSG_GET_ITEM, stGetItemParam, (ch_state)5>
 {
 public:
-    DisPatcher_GetItem();
+    DisPatcher_GetItem() {}
     virtual ~DisPatcher_GetItem();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -537,7 +537,7 @@ public:
 class DisPatcher_UseStack : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_UseStack();
+    DisPatcher_UseStack() {}
     virtual ~DisPatcher_UseStack();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -547,7 +547,7 @@ public:
 class DisPatcher_MoveMap : public IPacketDispatcher<MSG_MOVE_MAP, stMoveMapParam, (ch_state)0>
 {
 public:
-    DisPatcher_MoveMap();
+    DisPatcher_MoveMap() {}
     virtual ~DisPatcher_MoveMap();
     int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
@@ -563,7 +563,7 @@ class GameResultSet;
 class DisPatcher_SetPlayResult : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetPlayResult();
+    DisPatcher_SetPlayResult() {}
     virtual ~DisPatcher_SetPlayResult();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -574,7 +574,7 @@ public:
 class DisPatcher_DropItem : public IPacketDispatcher<MSG_DROP_ITEM, stDropItemParam, (ch_state)3>
 {
 public:
-    DisPatcher_DropItem();
+    DisPatcher_DropItem() {}
     virtual ~DisPatcher_DropItem();
     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN19DisPatcher_DropItem11check_errorEP5CUserR8MSG_BASER9ParamBase
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -585,7 +585,7 @@ public:
 class DisPatcher_UseEquip : public IPacketDispatcher<MSG_DECREASE_DURABILITY, stOnUseEquipParam, (ch_state)0>
 {
 public:
-    DisPatcher_UseEquip();
+    DisPatcher_UseEquip() {}
     virtual ~DisPatcher_UseEquip();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -596,7 +596,7 @@ public:
 class DisPatcher_MakePVP : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_MakePVP();
+    DisPatcher_MakePVP() {}
     virtual ~DisPatcher_MakePVP();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -609,7 +609,7 @@ public:
 class DisPatcher_EnterPVP : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_EnterPVP();
+    DisPatcher_EnterPVP() {}
     virtual ~DisPatcher_EnterPVP();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -619,7 +619,7 @@ public:
 class DisPatcher_SetPVPSeat : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetPVPSeat();
+    DisPatcher_SetPVPSeat() {}
     virtual ~DisPatcher_SetPVPSeat();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -629,7 +629,7 @@ public:
 class DisPatcher_SetPVPReady : public IPacketDispatcher<MSG_SET_READY_STATE, stOnSetPvPReadyParam, (ch_state)0>
 {
 public:
-    DisPatcher_SetPVPReady();
+    DisPatcher_SetPVPReady() {}
     virtual ~DisPatcher_SetPVPReady();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -640,7 +640,7 @@ public:
 class DisPatcher_SetPVPTeam : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetPVPTeam();
+    DisPatcher_SetPVPTeam() {}
     virtual ~DisPatcher_SetPVPTeam();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -650,7 +650,7 @@ public:
 class DisPatcher_DiePvP : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_DiePvP();
+    DisPatcher_DiePvP() {}
     virtual ~DisPatcher_DiePvP();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -660,7 +660,7 @@ public:
 class DisPatcher_PvPTimeout : public IPacketDispatcher<MSG_PVP_TIMEOUT, stOnPvPTimeOut, (ch_state)0>
 {
 public:
-    DisPatcher_PvPTimeout();
+    DisPatcher_PvPTimeout() {}
     virtual ~DisPatcher_PvPTimeout();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -671,7 +671,7 @@ public:
 class DisPatcher_EndPvPResult : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_EndPvPResult();
+    DisPatcher_EndPvPResult() {}
     virtual ~DisPatcher_EndPvPResult();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -681,7 +681,7 @@ public:
 class DisPatcher_ResPvpRank : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ResPvpRank();
+    DisPatcher_ResPvpRank() {}
     virtual ~DisPatcher_ResPvpRank();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -695,7 +695,7 @@ public:
 class DisPatcher_SetPVPMapIndex : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetPVPMapIndex();
+    DisPatcher_SetPVPMapIndex() {}
     virtual ~DisPatcher_SetPVPMapIndex();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -736,7 +736,7 @@ typedef char MSG_DEBUG_COMMAND_size_check[(sizeof(MSG_DEBUG_COMMAND) == 0x3e) ? 
 class DisPatcher_DebugCommand : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_DebugCommand();
+    DisPatcher_DebugCommand() {}
     virtual ~DisPatcher_DebugCommand();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -777,7 +777,7 @@ public:
 class DisPatcher_AddFriend : public IPacketDispatcher<MSG_ADD_FRIEND, stAddFriendParam, (ch_state)3>
 {
 public:
-    DisPatcher_AddFriend();
+    DisPatcher_AddFriend() {}
     virtual ~DisPatcher_AddFriend();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -789,7 +789,7 @@ public:
 class DisPatcher_RemoveFriend : public IPacketDispatcher<MSG_REMOVE_FRIEND, stRemoveFriendParam, (ch_state)3>
 {
 public:
-    DisPatcher_RemoveFriend();
+    DisPatcher_RemoveFriend() {}
     virtual ~DisPatcher_RemoveFriend();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -800,7 +800,7 @@ public:
 class DisPatcher_Cera : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Cera();
+    DisPatcher_Cera() {}
     virtual ~DisPatcher_Cera();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -810,7 +810,7 @@ public:
 class DisPatcher_EnterWarRoom : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_EnterWarRoom();
+    DisPatcher_EnterWarRoom() {}
     virtual ~DisPatcher_EnterWarRoom();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -820,7 +820,7 @@ public:
 class DisPatcher_SetWarRoomSeatState : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_SetWarRoomSeatState();
+    DisPatcher_SetWarRoomSeatState() {}
     virtual ~DisPatcher_SetWarRoomSeatState();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -830,7 +830,7 @@ public:
 class DisPatcher_DieWarRoomCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_DieWarRoomCharacter();
+    DisPatcher_DieWarRoomCharacter() {}
     virtual ~DisPatcher_DieWarRoomCharacter();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -840,7 +840,7 @@ public:
 class DisPatcher_StartWarRoomTemp : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_StartWarRoomTemp();
+    DisPatcher_StartWarRoomTemp() {}
     virtual ~DisPatcher_StartWarRoomTemp();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -850,7 +850,7 @@ public:
 class DisPatcher_ReportClient4Hack : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ReportClient4Hack();
+    DisPatcher_ReportClient4Hack() {}
     virtual ~DisPatcher_ReportClient4Hack();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -860,7 +860,7 @@ public:
 class DisPatcher_RequestGuildWarInfo : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_RequestGuildWarInfo();
+    DisPatcher_RequestGuildWarInfo() {}
     virtual ~DisPatcher_RequestGuildWarInfo();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -870,7 +870,7 @@ public:
 class DisPatcher_PvpHeartBeat : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_PvpHeartBeat();
+    DisPatcher_PvpHeartBeat() {}
     virtual ~DisPatcher_PvpHeartBeat();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -880,7 +880,7 @@ public:
 class DisPatcher_MultiBoxLottery : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_MultiBoxLottery();
+    DisPatcher_MultiBoxLottery() {}
     virtual ~DisPatcher_MultiBoxLottery();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -890,7 +890,7 @@ public:
 class DisPatcher_UdpCharacteristic : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_UdpCharacteristic();
+    DisPatcher_UdpCharacteristic() {}
     virtual ~DisPatcher_UdpCharacteristic();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -904,7 +904,7 @@ public:
 class DIspatcher_OneDayLetheTicket : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DIspatcher_OneDayLetheTicket();
+    DIspatcher_OneDayLetheTicket() {}
     virtual ~DIspatcher_OneDayLetheTicket();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -914,7 +914,7 @@ public:
 class Dispatcer_polic_one_to_one_chat_disable : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    Dispatcer_polic_one_to_one_chat_disable();
+    Dispatcer_polic_one_to_one_chat_disable() {}
     virtual ~Dispatcer_polic_one_to_one_chat_disable();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -924,7 +924,7 @@ public:
 class DisPatcher_CheckSecurityProtection : public IPacketDispatcher<MSG_BASE, CheckSecurityProtection, (ch_state)0>
 {
 public:
-    DisPatcher_CheckSecurityProtection();
+    DisPatcher_CheckSecurityProtection() {}
     virtual ~DisPatcher_CheckSecurityProtection();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -935,7 +935,7 @@ public:
 class DisPatcher_EventDungeon_DestoryObject : public IPacketDispatcher<CMDPacketStruct::_STReqEventDungeonDestoryObject, CMDPacketStruct::_STResEventDungeonDestoryObject, (ch_state)3>
 {
 public:
-    DisPatcher_EventDungeon_DestoryObject();
+    DisPatcher_EventDungeon_DestoryObject() {}
     virtual ~DisPatcher_EventDungeon_DestoryObject();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -946,7 +946,7 @@ public:
 class DisPatcher_EventDungeon_ClearRoom : public IPacketDispatcher<CMDPacketStruct::_STReqEventDungeonClearRoom, CMDPacketStruct::_STResEventDungeonClearRoom, (ch_state)3>
 {
 public:
-    DisPatcher_EventDungeon_ClearRoom();
+    DisPatcher_EventDungeon_ClearRoom() {}
     virtual ~DisPatcher_EventDungeon_ClearRoom();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -957,7 +957,7 @@ public:
 class Dispather_RegenerationRandomOption : public IPacketDispatcher<MSG_REGENERATION_RANDOM_OPTION, stRegenROIResult, (ch_state)0>
 {
 public:
-    Dispather_RegenerationRandomOption();
+    Dispather_RegenerationRandomOption() {}
     virtual ~Dispather_RegenerationRandomOption();
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -968,7 +968,7 @@ public:
 class DispatcherResetRandomOption : public IPacketDispatcher<MSG_RESET_RANDOM_OPTION, ParamBase, (ch_state)0>
 {
 public:
-    DispatcherResetRandomOption();
+    DispatcherResetRandomOption() {}
     virtual ~DispatcherResetRandomOption();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
