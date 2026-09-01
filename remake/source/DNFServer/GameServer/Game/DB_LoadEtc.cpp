@@ -127,27 +127,32 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
 
     // sig+0x340 起为 PvpResultType（本 TU 内按 ORIG 偏移访问；权威字段布局
     // 见 PvpResultType.h，+0x0c/+0x10 两列 DB 不读）。
+    // ORIG 逐列 get_int（unrolled），非循环。win/lose/pvp_point@pvpBase+0/+4/+8，
+    // pvp_grade@+0x14（跳过 +0x0c/+0x10）、avg[15]@+0x18..+0x50、pvp_count@+0x54、
+    // win_point@+0x58、pvp_grade_ext@+0x5c。
     static const unsigned int kPvpBase = 0x340;
-    int v;
-    for (int col = 0; col <= 2; ++col)              // win/lose/pvp_point
-    {
-        if (!db->get_int(col, v))
-            return -1;
-        SGF(sig, kPvpBase + col * 4) = v;
-    }
-    if (!db->get_int(3, SGF(sig, kPvpBase + 0x14)))   // pvp_grade（跳过 +0x0c/+0x10）
-        return -1;
-    for (int i = 0; i < 15; ++i)                    // col4..18 → avg[15](+0x18..+0x50)
-    {
-        if (!db->get_int(4 + i, SGF(sig, kPvpBase + 0x18 + i * 4)))
-            return -1;
-    }
-    if (!db->get_int(19, SGF(sig, kPvpBase + 0x54)))  // pvp_count
-        return -1;
-    if (!db->get_int(20, SGF(sig, kPvpBase + 0x58)))  // win_point
-        return -1;
-    if (!db->get_int(21, SGF(sig, kPvpBase + 0x5c)))  // pvp_grade_ext
-        return -1;
+    if (!db->get_int(0, SGF(sig, kPvpBase + 0x0))) return -1;   // win
+    if (!db->get_int(1, SGF(sig, kPvpBase + 0x4))) return -1;   // lose
+    if (!db->get_int(2, SGF(sig, kPvpBase + 0x8))) return -1;   // pvp_point
+    if (!db->get_int(3, SGF(sig, kPvpBase + 0x14))) return -1;  // pvp_grade
+    if (!db->get_int(4, SGF(sig, kPvpBase + 0x18))) return -1;
+    if (!db->get_int(5, SGF(sig, kPvpBase + 0x1c))) return -1;
+    if (!db->get_int(6, SGF(sig, kPvpBase + 0x20))) return -1;
+    if (!db->get_int(7, SGF(sig, kPvpBase + 0x24))) return -1;
+    if (!db->get_int(8, SGF(sig, kPvpBase + 0x28))) return -1;
+    if (!db->get_int(9, SGF(sig, kPvpBase + 0x2c))) return -1;
+    if (!db->get_int(10, SGF(sig, kPvpBase + 0x30))) return -1;
+    if (!db->get_int(11, SGF(sig, kPvpBase + 0x34))) return -1;
+    if (!db->get_int(12, SGF(sig, kPvpBase + 0x38))) return -1;
+    if (!db->get_int(13, SGF(sig, kPvpBase + 0x3c))) return -1;
+    if (!db->get_int(14, SGF(sig, kPvpBase + 0x40))) return -1;
+    if (!db->get_int(15, SGF(sig, kPvpBase + 0x44))) return -1;
+    if (!db->get_int(16, SGF(sig, kPvpBase + 0x48))) return -1;
+    if (!db->get_int(17, SGF(sig, kPvpBase + 0x4c))) return -1;
+    if (!db->get_int(18, SGF(sig, kPvpBase + 0x50))) return -1;
+    if (!db->get_int(19, SGF(sig, kPvpBase + 0x54))) return -1;  // pvp_count
+    if (!db->get_int(20, SGF(sig, kPvpBase + 0x58))) return -1;  // win_point
+    if (!db->get_int(21, SGF(sig, kPvpBase + 0x5c))) return -1;  // pvp_grade_ext
 
     int lastPlaySec = 0;
     if (!db->get_int(22, lastPlaySec))              // unix(last_play_time)→局部
