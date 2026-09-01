@@ -454,21 +454,32 @@ bool CUser::_ProcCompoundCore(
     CStackableItem* recipe,
     Inven_Item& keptOptionSrc)
 {
-    std::vector<int> insertedSlots;   // ebp-0x98（insert_event_items 输出，3 int/项）
+    // ORIG 0x08671120..0x08671145 入口连续三次构造，声明序即 ORIG 构造序：
+    //   ctor(ebp-0x8c) vector<int>  ← deletedSet
+    //   ctor(ebp-0x98) vector<int>  ← insertedSlots
+    //   ctor(ebp-0x9c) __gnu_cxx::__normal_iterator<int*, vector<int> >  ← it
+    // 第三个是 ORIG 真实存在的迭代器默认构造（Ghidra: local_a0），两个 3 元组
+    // 循环共用同一个迭代器变量，故必须在函数作用域声明、循环内仅赋值。
     std::vector<int> deletedSet;      // ebp-0x8c（delete_event_items 输出，3 int/项）
+    std::vector<int> insertedSlots;   // ebp-0x98（insert_event_items 输出，3 int/项）
+    std::vector<int>::iterator it;    // ebp-0x9c（ORIG __normal_iterator C1Ev ×1）
 
-    CInventory* invenW = getCurCharacInvenW();
-    const int delCount = invenW->delete_event_items(
+    // ORIG 入口未把 getCurCharacInvenW() 落到栈局部：接收者直接内联求值
+    // （ORIG 0x0867114a 先 movzbl cubeMode→%ebx，再 call getCurCharacInvenW）。
+    const int delCount = getCurCharacInvenW()->delete_event_items(
         mats, deletedSet, resultFlag,
         (eMoneySubReason)0xc, (eItemDelReason)8, cubeMode);
 
     if (delCount == 0)
     {
-        cMyTrace trace(
+        // ORIG 0x08671199 起先求 mats.size()→%esi、getCurCharacNo()→%ebx，
+        // 之后才 call cMyTrace::cMyTrace —— 即 operator() 作用于**临时**
+        // cMyTrace 对象（具名局部会先构造后求参，顺序与 ORIG 相反）。
+        cMyTrace(
             "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
-            0x5c8b, 5);
-        trace("CUser::compound_item, getCurCharacInvenR()->delete_event_items , size does not match! %d %d !=%d",
-              getCurCharacNo(), delCount, (int)mats.size());
+            0x5c8b, 5)(
+            "CUser::compound_item, getCurCharacInvenR()->delete_event_items , size does not match! %d %d !=%d",
+            getCurCharacNo(), delCount, (int)mats.size());
         return false;    // ORIG ebx=0 → 0x08671e69
     }
 
@@ -483,11 +494,11 @@ bool CUser::_ProcCompoundCore(
                 (INVEN_TYPE)1 /*INVEN_TYPE_EQUIP*/, mainMatSlotNo,
                 (int)mulCount, (eItemDelReason)8, true))
         {
-            cMyTrace trace(
+            cMyTrace(
                 "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
-                0x5c9a, 5);
-            trace("CUser::compound_item, getCurCharacInvenW()->delete_item failed , %d %d",
-                  getCurCharacNo(), mainMatSlotNo);
+                0x5c9a, 5)(
+                "CUser::compound_item, getCurCharacInvenW()->delete_item failed , %d %d",
+                getCurCharacNo(), mainMatSlotNo);
             return false;
         }
         pkt->put_byte(0);
@@ -498,8 +509,7 @@ bool CUser::_ProcCompoundCore(
     // 删除结果回包：deletedSet 三元组逐项 put_byte/put_short/put_int
     if (delCount > 0)
     {
-        for (std::vector<int>::const_iterator it = deletedSet.begin();
-             it != deletedSet.end();)
+        for (it = deletedSet.begin(); it != deletedSet.end();)
         {
             const int v0 = *it++;
             const int v1 = *it++;
@@ -530,21 +540,21 @@ bool CUser::_ProcCompoundCore(
 
     if (insCount != (int)outputs.size())
     {
-        cMyTrace trace(
+        cMyTrace(
             "bool CUser::_ProcCompoundCore(const IntPairVector&, IntPairVector&, IntVector&, int, bool, PacketGuard*, bool&, RequestItemCountType, stEquipCondition, CStackableItem*, Inven_Item&)",
-            0x5d73, 5);
-        trace("CUser::compound_item, getCurCharacInvenR()->insert_event_items failed %d",
-              getCurCharacNo());
+            0x5d73, 5)(
+            "CUser::compound_item, getCurCharacInvenR()->insert_event_items failed %d",
+            getCurCharacNo());
         return false;
     }
 
     // insertedSlots 三元组 [0/结果码 r, slotNo, count/itemIdx]：每轮消费 3 int
-    for (std::vector<int>::const_iterator it = insertedSlots.begin();
-         it != insertedSlots.end();)
+    for (it = insertedSlots.begin(); it != insertedSlots.end();)
     {
         const int slotRef = *it++;    // +0x453 deref → local_a4（push_back/put_short 用）
-        Inven_Item got;
-        got = getCurCharacInvenR()->GetInvenSlot((int)INVEN_TYPE_EQUIP, slotRef);
+        // ORIG 0x08671102 区内无 _ZN10Inven_ItemC1Ev 调用点，仅 1×GetInvenSlot：
+        // 按值返回直接 sret 拷贝初始化（NRVO），不存在"先默认构造再赋值"。
+        Inven_Item got = getCurCharacInvenR()->GetInvenSlot((int)INVEN_TYPE_EQUIP, slotRef);
 
         if (got.m_field1 == 1)        // ORIG movzbl got+0x01 cmp 1（ITEM_TYPE_EQUIP）
         {
@@ -4711,8 +4721,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     if (!(q->m_triggerType == 0 || q->m_triggerType == 0x19))
         return 0x11;
     {
-        std::vector<std::pair<int,int> >::const_iterator di;
-        for (di = q->m_triggerDataPairs.begin(); di != q->m_triggerDataPairs.end(); ++di) {
+        // ORIG 无 __normal_iterator<pair<int,int>const*> 实例，也无迭代器默认构造
+        // 调用点：迭代器在 for-init 内由 begin() 直接构造（非 const 重载）。
+        for (std::vector<std::pair<int,int> >::iterator di = q->m_triggerDataPairs.begin();
+             di != q->m_triggerDataPairs.end(); ++di) {
             pairTmp.first  = di->first;
             pairTmp.second = di->second * repeatN;
             delCond.push_back(pairTmp);
@@ -4733,11 +4745,13 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             return 0x11;                                       // -0x158 两出口同码
 
         if (q->m_fieldB8 /*+0xb8 计数哨兵*/ != 0) {                       // +0xb8 非空
-            std::vector<RewardItemInfo>* pool =
+            // ORIG 走 vector<RewardItemInfo> 的 const begin()/end()（×3 各），
+            // 无 iterator→const_iterator 转换构造、无迭代器默认构造调用点。
+            const std::vector<RewardItemInfo>* pool =
                 getUserQuestRewardItem(q, this);               // -0x88
             std::vector<std::pair<int,int> > insertList;       // -0x10c
-            std::vector<RewardItemInfo>::const_iterator ri;
-            for (ri = pool->begin(); ri != pool->end(); ++ri) {
+            for (std::vector<RewardItemInfo>::const_iterator ri = pool->begin();
+                 ri != pool->end(); ++ri) {
                 if (ri->m_job == 0xb ||
                     (ri->m_job == (int)get_charac_job() &&
                      (ri->m_growType == -1 ||
@@ -4797,6 +4811,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     bool touchedSlotEquip = false;                             // -0x125
     std::vector<int> updDelTriple;                             // -0x134(kind,tgt,cnt)*n
     std::vector<int> updAddQuad;                               // -0x140(idx,cnt,…)*n 四元组
+    // ORIG（quest_reward.md Ghidra C 行 2537-2541）在两个 vector<int> 构造之后
+    // 紧接 __gnu_cxx::__normal_iterator<int*,vector<int> >::__normal_iterator(local_148)：
+    // 这是 ORIG 真实存在的迭代器默认构造（ORIG 调用点 ×1），供下方三元组回包循环使用。
+    std::vector<int>::iterator tripleIt;                       // -0x148（ORIG C1Ev ×1）
     int delObjCnt   = 0;                                       // -0x9c
     int delAddObjCnt= 0;                                       // -0x98
 
@@ -4823,10 +4841,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                             get_charac_level(), get_acc_name()); // -0x80
         long curMoney = getCurCharacInvenR()->get_money();     // -0x7c
         std::vector<std::pair<int,int> > gains;                // -0x16c
-        std::vector<RewardItemInfo>* pool =
+        const std::vector<RewardItemInfo>* pool =
             getUserQuestRewardItem(q, this);                   // -0x74
-        std::vector<RewardItemInfo>::const_iterator ri;
-        for (ri = pool->begin(); ri != pool->end(); ++ri) {
+        for (std::vector<RewardItemInfo>::const_iterator ri = pool->begin();
+             ri != pool->end(); ++ri) {
             if (ri->m_job == 0xb ||
                 (ri->m_job == (int)get_charac_job() &&
                  (ri->m_growType == -1 ||
@@ -4842,8 +4860,8 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             pairTmp.second = sel->second * repeatN;
             gains.push_back(pairTmp);
         }
-        std::vector<std::pair<int,int> >::iterator gi;
-        for (gi = gains.begin(); gi != gains.end(); ++gi) {
+        for (std::vector<std::pair<int,int> >::iterator gi = gains.begin();
+             gi != gains.end(); ++gi) {
             if (gi->first == 0) {                              // 金钱项：上限封顶
                 long offer = goldGain * repeatN;               // local_120*rpt
                 moneyOfferSum = offer;
@@ -4882,11 +4900,19 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             ack.put_int(0);
         } else {
             ack.put_byte(delObjCnt);
-            for (size_t k = 0; k < updDelTriple.size();) {     // 三元组
-                ack.put_byte(updDelTriple[k]);
-                ack.put_short(updDelTriple[k+1]);
-                ack.put_int(updDelTriple[k+2]);
-                k += 3;
+            // ORIG（Ghidra C 2719-2745）：put_byte 之后有 0<delObjCnt 守卫，
+            // 循环体用共享迭代器逐 int 前进（operator* + 后置 operator++ ×3），
+            // 而非 operator[] 索引。
+            if (delObjCnt > 0) {
+                for (tripleIt = updDelTriple.begin();
+                     tripleIt != updDelTriple.end();) {        // 三元组
+                    ack.put_byte(*tripleIt);
+                    tripleIt++;
+                    ack.put_short(*tripleIt);
+                    tripleIt++;
+                    ack.put_int(*tripleIt);
+                    tripleIt++;
+                }
             }
         }
     }
@@ -4904,8 +4930,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             if (addedDef != 0 &&
                 addedDef->IsAvatarItem())                // vtable+0x10 无参 bool 虚调用（ORIG 0x866fd47）
                 ampFlag = 2;
-            Inven_Item chkItem;
-            chkItem = getCurCharacInvenR()->GetInvenSlot(1, updAddQuad[k+1]);
+            // ORIG 0x0866ea92 区内 _ZN10Inven_ItemC1Ev 仅 1 次（下方 selItem），
+            // 本处 GetInvenSlot 按值返回直接 sret 拷贝初始化，无默认构造。
+            Inven_Item chkItem = getCurCharacInvenR()->GetInvenSlot(1, updAddQuad[k+1]);
             stAmplifyOption_t& amp =
                 *&chkItem.m_amp;
             ack.put_byte(amp.getAbilityType() & 0xff);
@@ -5059,10 +5086,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
 
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x19) {                               // 宠物进化任务
         std::vector<std::pair<int,int> > evoList;              // -0x1bc
-        std::vector<RewardItemInfo>* pool =
+        const std::vector<RewardItemInfo>* pool =
             getUserQuestRewardItem(q, this);                   // -0x20
-        std::vector<RewardItemInfo>::const_iterator ri;
-        for (ri = pool->begin(); ri != pool->end(); ++ri) {
+        for (std::vector<RewardItemInfo>::const_iterator ri = pool->begin();
+             ri != pool->end(); ++ri) {
             if (ri->m_job == 0xb ||
                 (ri->m_job == (int)get_charac_job() &&
                  (ri->m_growType == -1 ||
@@ -5079,8 +5106,8 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             evoList.push_back(pairTmp);
         }
         if (evoList.size() == 1) {
-            std::vector<std::pair<int,int> >::const_iterator ei;
-            for (ei = evoList.begin(); ei != evoList.end(); ++ei) {
+            for (std::vector<std::pair<int,int> >::iterator ei = evoList.begin();
+                 ei != evoList.end(); ++ei) {
                 G_CDataManager();
                 CItem* tgt = G_CDataManager()->find_item(ei->first);
                 if (tgt == 0) return 0x16;
@@ -7943,8 +7970,9 @@ void CUser::increase_status(short slotNo)
         return;                                              // L086686d4
     }
 
-    Inven_Item slotItem;
-    slotItem = getCurCharacInvenR()->GetInvenSlot(1, slotNo);
+    // ORIG 0x086657fc 区内无 _ZN10Inven_ItemC1Ev 调用点，仅 1×GetInvenSlot：
+    // 按值返回 sret 直写拷贝初始化，无默认构造。
+    Inven_Item slotItem = getCurCharacInvenR()->GetInvenSlot(1, slotNo);
     const unsigned int itemIdx = (unsigned int)slotItem.m_addInfo;
 
     char type = -1;                                          // -0xd1
@@ -10633,7 +10661,9 @@ SIG_LOAD_ETC::SIG_LOAD_ETC()
     new (p + 0x466a) stTitleBook();                             // 0x848f62a
     new (p + 0xb1a4) stAchievement_DBData();                    // 0x828d8d8
     new (p + 0xc9af) SIG_SAVE_PC_ROOM_PLAY_TIME();              // 0x848fb64
-    new (p + 0xc9bc) std::bitset<32>();                         // 0x84954de
+    // +0xc9bc 的 std::bitset<32> 是 SIG_LOAD_ETC 的具名成员，编译器已在成员
+    // 初始化阶段构造（对应 ORIG 0x84920c7 的唯一一次 bitset ctor 调用点）；
+    // 此处再 placement new 会产生第二个 ctor 调用点，ORIG 无 → 删除。
     new (p + 0xc9c0) SIG_LOAD_SKILL();                          // 0x8491ee0
     new (p + 0xcdd5) SIG_REQUEST_PVP_MISSION_LIST();            // 0x848f8d4
     new (p + 0xd5a7) SIG_QUEST_SHOP_DATA();                     // 0x848f92e

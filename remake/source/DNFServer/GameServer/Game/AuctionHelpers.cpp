@@ -9,7 +9,7 @@
 
 #include "AuctionHelpers.h"
 
-int IsPriceError(int price, int limit)
+bool IsPriceError(int price, int limit)
 {
     if (price < -1 || limit < -1)
         return 1;
@@ -20,7 +20,7 @@ int IsPriceError(int price, int limit)
     return 1;
 }
 
-int IsValidMultiplyResult(int a, int b)
+bool IsValidMultiplyResult(int a, int b)
 {
     unsigned int A = (unsigned int)a;
     unsigned int B = (unsigned int)b;
