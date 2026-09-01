@@ -505,8 +505,20 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
     }
     std::string line;
     std::string str;
-    while (ScanType(line, true))
+    // ORIG 实证（0x08625064，size=1585）：本函数只有 3 个 _ZNSsC1Ev 调用点
+    // （line/str/name）与 14 个 _ZNSsD1Ev。name 为**函数作用域单例**并在三个分支
+    // 间复用（ScanStr 成功时整体覆盖），而非每分支各建一个具名局部；
+    // 分支内声明会额外产生 2 个 _ZNSsC1Ev + 4 个 _ZNSsD1Ev（含 unwind 清理）。
+    std::string name;
+    // ORIG 0x08625093：循环条件在**循环体首部**以 `xor $1 / test / jne` 求反后
+    // break（多出 1 个 xor + 2 个 nop），即 while(true){ if(!ScanType) break; }，
+    // 而非 while(ScanType(...)) 的底部条件形态。
+    while (true)
     {
+        if (!ScanType(line, true))
+        {
+            break;
+        }
         if (line == "[master type]")
         {
             int value = ScanInt((bool*)0);
@@ -535,13 +547,15 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
             int type = ScanInt((bool*)0);
             int subType = ScanInt((bool*)0);
             int value = ScanInt((bool*)0);
-            std::string name;
             ScanStr(&name);
             int job = getCharacterJob(str.c_str());
-            SWEAPONTYPE wp((ENUM_CHARACTERJOB)job, subType);
-            m_weaponMap[wp] = SITEMTYPE(false, (unsigned char)type,
-                                         (unsigned char)subType,
-                                         (unsigned short)value, name);
+            // ORIG 0x086252d7..0x08625318：先构造右值 SITEMTYPE(local_64)，
+            // 再构造下标键 SWEAPONTYPE(local_54)——键不是具名局部，
+            // 而是 operator[] 实参处的临时（gcc 右→左求值）。
+            m_weaponMap[SWEAPONTYPE((ENUM_CHARACTERJOB)job, subType)] =
+                SITEMTYPE(false, (unsigned char)type,
+                          (unsigned char)subType,
+                          (unsigned short)value, name);
         }
         else if (line == "[armor type]")
         {
@@ -549,12 +563,13 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
             int type = ScanInt((bool*)0);
             int subType = ScanInt((bool*)0);
             int value = ScanInt((bool*)0);
-            std::string name;
             ScanStr(&name);
-            SARMORTYPE ap((unsigned char)subType, str);
-            m_armorMap[ap] = SITEMTYPE(false, (unsigned char)type,
-                                       (unsigned char)subType,
-                                       (unsigned short)value, name);
+            // ORIG 0x08625408..0x0862545e：同上，SITEMTYPE(local_4c) 先建，
+            // SARMORTYPE(local_3c) 作为 operator[] 处的临时键后建。
+            m_armorMap[SARMORTYPE((unsigned char)subType, str)] =
+                SITEMTYPE(false, (unsigned char)type,
+                          (unsigned char)subType,
+                          (unsigned short)value, name);
         }
         else if (line == "[item type]")
         {
@@ -563,7 +578,6 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
             int subType = ScanInt((bool*)0);
             int value = ScanInt((bool*)0);
             int extra = ScanInt((bool*)0);
-            std::string name;
             ScanStr(&name);
             m_itemTypeMap[str] = SITEMTYPE(type != 0, (unsigned char)subType,
                                            (unsigned char)value,
@@ -1086,53 +1100,63 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     {
         return true;
     }
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
-        (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
+    static const int BUFSIZE = 0x100;  // ORIG _ZZN11sync_script11CSyncScript26insert_creature_info_to_db…E7BUFSIZE
     // ORIG：artifact_slot 列 = '0'+(R/G/B 三槽标志) 的 3 字符串
     // （CreatureScript+0x50/0x54/0x58，asm 0x08624437..0x0862445d，
     // 低字节存 (v+'0')&0xff；缓冲 movl$0 预清零即 NUL 结尾）。
-    char artifactSlot[4];
-    memset(artifactSlot, 0, sizeof(artifactSlot));
-    // ORIG：直接按 +0x50+i*4 读三槽标志（无中间数组）。
-    for (int i = 0; i < 3; ++i)
+    // ORIG local_5c 为 `movl $0x0` 单指令清零（聚合初始化），不是 memset 调用。
+    char artifactSlot[4] = {0};
+    // ORIG：直接按 +0x50+i*4 读三槽标志（无中间数组）；上界写成 sizeof-1
+    //（ORIG 0x0862444f 为 `mov i,%eax; cmp $0x2,%eax; setbe`：有符号 i 与
+    // size_t 上界比较产生的转换临时，非 `cmpl $imm,mem` 直比形态）。
+    for (int i = 0; i < sizeof(artifactSlot) - 1; ++i)
     {
         artifactSlot[i] = (char)((&script->m_artifactSlotRed)[i] + '0');
     }
-    // ORIG：CStringMaker(vector<int>) → "a,b,c"（无尾逗号，空向量→空串）。
+    // ORIG 0x0862448c/0x08624562/0x08624635：三处均为
+    //   CStringMaker::CStringMaker(临时 functor)
+    //   → std::for_each<__normal_iterator<int const*,vector<int>>, CStringMaker>
+    //   → CStringMaker::operator std::string()（sret 直接产出结果串）
+    //   → ~CStringMaker ×2
+    // 即 ORIG 无 c_str() → std::string(const char*, allocator) 的二次构造；
+    // 走 makeString(...).c_str() 会多出 _ZNSaIcEC1Ev ×3 / _ZNSsC1EPKcRKSaIcE ×3
+    // （及 _ZNSaIcED1Ev ×6）这些 ORIG 不存在的 eager 构造调用点。
     const std::string piercingStr =
-        makeString(script->m_piercing.begin(), script->m_piercing.end()).c_str();
+        std::for_each(script->m_piercing.begin(), script->m_piercing.end(),
+                      CStringMaker());
     const std::string skillLevelValuesStr =
-        makeString(script->m_skillLevelValues.begin(),
-                   script->m_skillLevelValues.end()).c_str();
+        std::for_each(script->m_skillLevelValues.begin(),
+                      script->m_skillLevelValues.end(), CStringMaker());
     const std::string overSkillLevelValuesStr =
-        makeString(script->m_overSkillLevelValues.begin(),
-                   script->m_overSkillLevelValues.end()).c_str();
-    static const int BUFSIZE = 0x100;  // ORIG _ZZN11sync_script11CSyncScript26insert_creature_info_to_db…E7BUFSIZE
-    char escaped[11][BUFSIZE];
-    memset(escaped, 0, 0x2c0);  // ORIG：一次 memset 0x2c0（11*0x40）
-    const char* values[11];
-    memset(values, 0, 0xb);     // ORIG：values 区 memset 0xb
+        std::for_each(script->m_overSkillLevelValues.begin(),
+                      script->m_overSkillLevelValues.end(), CStringMaker());
+    // ORIG：values 区 11 个 dword 就地清零（rep stos 0xb），非 memset 调用。
+    const char* values[11] = {0};
     values[0] = script->m_name.c_str();
     values[1] = artifactSlot;
     values[2] = param3;
     values[3] = param4;
     values[4] = piercingStr.c_str();
     // ORIG：skill_name/skill_desc/overskill_name/overskill_desc ←
-    // m_skillString（vector<string> @+0x128）前 4 项，越界项用 ""。
-    for (int i = 0; i < 4; ++i)
-    {
-        if (i < (int)script->m_skillString.size())
-        {
-            values[5 + i] = script->m_skillString[i].c_str();
-        }
-        else
-        {
-            values[5 + i] = "";
-        }
-    }
+    // m_skillString（vector<string> @+0x128）前 4 项，越界项用 ""；
+    // ORIG 为 4 段展开（size() ×4 + at() ×4），非循环 + operator[]。
+    values[5] = script->m_skillString.size() == 0
+                    ? "" : script->m_skillString.at(0).c_str();
+    values[6] = script->m_skillString.size() < 2
+                    ? "" : script->m_skillString.at(1).c_str();
+    values[7] = script->m_skillString.size() < 3
+                    ? "" : script->m_skillString.at(2).c_str();
+    values[8] = script->m_skillString.size() < 4
+                    ? "" : script->m_skillString.at(3).c_str();
     values[9] = skillLevelValuesStr.c_str();
     values[10] = overSkillLevelValuesStr.c_str();
-    for (int i = 0; i < 11; ++i)
+    // ORIG：escaped 区 0x2c0 个 dword 就地清零（= 11*0x100 字节），非 memset 调用；
+    // GetDBHandle 在清零之后才取。
+    char escaped[11][BUFSIZE] = {{0}};
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+        (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
+    // ORIG 0x08624a0e：同为 `mov i,%eax; cmp $0xa,%eax; setbe`（size_t 上界）。
+    for (int i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
     {
         GetEscapeString(db, values[i], escaped[i]);
     }
@@ -1146,7 +1170,13 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     {
         return false;
     }
-    return db->exec(true);
+    // ORIG 0x08624a5f：exec 结果经 `xor $1 / test` 分支回填 0/1，
+    // 而非 `return db->exec(true)` 的直接搬运。
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::truncate_creature_info_table()

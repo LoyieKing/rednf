@@ -436,7 +436,6 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[730] = new Inter_OwnerisVIP();  // slot +0xb68（ORIG 0xb68 注册，NEW 原缺失）
     m_dispatchers[732] = new Inter_DispatcherAradOnly();  // slot +0xb70（ORIG new 0x1c）
     m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
-    m_dispatchers[737] = new Inter_LoadPuUserCheck();  // slot +0xb84
     m_dispatchers[762] = new Inter_CollectItemsResult();  // slot +0xbe8
     m_dispatchers[763] = new Inter_CollectItemsReward();  // slot +0xbec
     m_dispatchers[764] = new Inter_CollectItemsRewardBroadcast();  // slot +0xbf0
@@ -451,7 +450,6 @@ InterDispatcher::InterDispatcher()
     m_dispatchers[830] = new Inter_CheckAddFriend();  // slot +0xcf8
     m_dispatchers[833] = new Inter_LoadCerashopAddRestrictType();  // slot +0xd04（ORIG 0xd04 注册，NEW 原缺失）
     m_dispatchers[846] = new Inter_DispatcherTaiwan();  // slot +0xd38（ORIG new 0x1c）
-    m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40
     m_dispatchers[848] = new Inter_LoadEventLevelupSupport();  // slot +0xd40
     m_dispatchers[850] = new Inter_SelectAllowProxyUser();  // slot +0xd48
 }
@@ -801,46 +799,32 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->m_network.GetPeerIP2(peerIp, 0x10);
 
         // 地区限制检测（跳过标志=1 时免检）
-        if (pInfo->m_geoAllowSkipFlag != 1)
+        // ORIG 084c5cd3..084c5f1c：两个 std::string 均为调用点临时对象，由
+        // _ZNSsC1EPKcRKSaIcE 直接从 char* 构造（无 _ZNSsC1ERKSs 拷贝构造）；
+        // Singleton::Get() 在两个临时对象之后调用；&& 短路使临时对象析构走
+        // 标志位公共清理块（报告 C 行 2774-2819 的 bVar6/7/9/11 + bVar8）。
+        if (pInfo->m_geoAllowSkipFlag != 1 &&
+            ARAD::Singleton<RestrictGeolocation>::Get()->isAllow(
+                std::string(user->get_acc_name()), std::string(peerIp)) != true)
         {
-            bool deny = false;
-            {
-                std::string ipStr(peerIp);
-                std::string accName(user->get_acc_name());
-                RestrictGeolocation* restrict =
-                    ARAD::Singleton<RestrictGeolocation>::Get();
-                if (restrict->isAllow(accName, ipStr) != true)
-                {
-                    deny = true;
-                }
-            }
-            if (deny)
-            {
-                guard.put_byte(0);
-                guard.put_byte(0x41);
-                guard.finalize(true);
-                user->Send(guard);
-                user->DisConnSig(DISCONN_SIG(0x15), true, 0);
-            }
+            guard.put_byte(0);
+            guard.put_byte(0x41);
+            guard.finalize(true);
+            user->Send(guard);
+            user->DisConnSig(DISCONN_SIG(0x15), true, 0);
         }
 
         // 综合 PvP 渠道的地区码记录
         if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         {
             char countryCode[16] = {'\0'};
-            {
-                std::string ipStr(peerIp);
+            // ORIG 084c5f5a..084c60ad：两处 std::string 同为调用点临时对象
+            // （报告 C 行 2839-2857），无中间局部 string、无 bool 中转。
+            ARAD::Singleton<RestrictGeolocation>::Get()
+                ->getCountryCode(countryCode, 0x10, std::string(peerIp));
+            user->setAllowLocationGeoState(
                 ARAD::Singleton<RestrictGeolocation>::Get()
-                    ->getCountryCode(countryCode, 0x10, ipStr);
-            }
-            bool allowGeo = false;
-            {
-                std::string countryStr(countryCode);
-                allowGeo =
-                    ARAD::Singleton<RestrictGeolocation>::Get()
-                        ->isAllow(countryStr);
-            }
-            user->setAllowLocationGeoState(allowGeo);
+                    ->isAllow(std::string(countryCode)));
         }
 
         user->set_state(static_cast<ch_state>(2));
