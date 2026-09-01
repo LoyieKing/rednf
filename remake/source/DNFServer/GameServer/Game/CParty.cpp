@@ -1855,48 +1855,43 @@ bool CParty::_checkValidUser(int idx)
 {
     if (m_member[idx].m_pUser != 0)
     {
-        if ((int)m_member[idx].m_pUser->GetUID() == m_member[idx].m_field8 &&
-            reinterpret_cast<CUserCharacInfo*>(m_member[idx].m_pUser)->getCurCharacR() != 0)
+        if ((int)m_member[idx].m_pUser->GetUID() == m_member[idx].m_field8)
         {
-            return 1;
+            if (reinterpret_cast<CUserCharacInfo*>(m_member[idx].m_pUser)->getCurCharacR() != 0)
+            {
+                return 1;
+            }
         }
-        char log1[16];
         int cState = (char)m_state;
         int pIndex = m_partyIndex;
         unsigned short dungIndex = m_dungIndex;
         CUser* manager = m_manager;
-        new (log1) cMyTrace(__PRETTY_FUNCTION__, 0x37cf, 5);
-        (*reinterpret_cast<cMyTrace*>(log1))(
+        cMyTrace log1(__PRETTY_FUNCTION__, 0x37cf, 5);
+        log1(
             "[PARTYPOOL] m_pManager : %x, dungeon_idx : %u, m_iIndex : %u, cState : %d",
             manager, (unsigned int)dungIndex, pIndex, cState);
         for (int i = 0; i <= 3; ++i)
         {
             if (m_member[i].m_pUser == 0)
             {
-                char log2[16];
-                new (log2) cMyTrace(__PRETTY_FUNCTION__, 0x37e5, 5);
-                (*reinterpret_cast<cMyTrace*>(log2))("User[%d] NULL uid : %d", i, m_member[i].m_field8);
+                cMyTrace log2(__PRETTY_FUNCTION__, 0x37e5, 5);
+                log2("User[%d] NULL uid : %d", i, m_member[i].m_field8);
             }
             else
             {
-                char log3[16];
-                int characNo = m_member[i].m_pUser->getCurCharacNo();
-                int uid2 = m_member[i].m_field8;
-                int uid = (int)m_member[i].m_pUser->GetUID();
-                int chState = m_member[i].m_pUser->get_state();
-                CUser* user = m_member[i].m_pUser;
-                new (log3) cMyTrace(__PRETTY_FUNCTION__, 0x37da, 5);
-                (*reinterpret_cast<cMyTrace*>(log3))(
+                cMyTrace log3(__PRETTY_FUNCTION__, 0x37da, 5);
+                log3(
                     "User[%d] %x, ch_state %d, uid : %d / %d, charac_no : %u",
-                    i, user, chState, uid, uid2, characNo);
+                    i, m_member[i].m_pUser, m_member[i].m_pUser->get_state(),
+                    (int)m_member[i].m_pUser->GetUID(), m_member[i].m_field8,
+                    m_member[i].m_pUser->getCurCharacNo());
             }
         }
-        char log4[16];
         int uid = (int)m_member[idx].m_pUser->GetUID();
         unsigned int accId = m_member[idx].m_pUser->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
-        new (log4) cMyTrace(__PRETTY_FUNCTION__, 0x37ed, 5);
-        (*reinterpret_cast<cMyTrace*>(log4))("User missmatched in party (m_id: %s)(uid: %d)", accIdStr, uid);
+        cMyTrace log4(__PRETTY_FUNCTION__, 0x37ed, 5);
+        log4("User missmatched in party (m_id: %s)(uid: %d)", accIdStr, uid);
         m_member[idx].m_pUser->DisConnSig((DISCONN_SIG)0x17, false, 0);
         m_member[idx].Init();
     }

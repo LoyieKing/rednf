@@ -47,25 +47,8 @@ void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item);
 void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig,
                                Inven_Item* item);
 
-namespace {
-
-// ORIG 段内联展开（无独立符号）：O0 下需 always_inline 强制内联对齐。
-inline __attribute__((always_inline))
-bool collectLock(const stAmplifyOption_t& amp, unsigned char space,
-                 short slot, std::vector<item_lock::stItemLockRef>& out)
-{
-    const unsigned char lock = amp.GetLock();
-    if (lock == 0)
-        return false;
-    item_lock::stItemLockRef ref;
-    ref.m_lock = lock;
-    ref.m_space = static_cast<char>(space);
-    ref.m_slot = slot;
-    out.push_back(ref);
-    return true;
-}
-
-}  // namespace
+// ORIG 段内联展开（无独立符号）：collectLock 逐段直接内联，用共享
+// 函数级临时 lock/ref 槽对齐 ORIG 的 6 个栈槽（frame 0x38 → disp8 编码）。
 
 // ---------------------------------------------------------------------------
 // ORIG W 0x084f0145 sz 0x647（报告缺失；objdump 0x084f0145..0x084f078c 逐指令
@@ -92,12 +75,25 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
                       std::vector<item_lock::stItemLockRef>& lockRefs,
                       CUser* user)
 {
+    int i;
+    Inven_Item* item;
+    int err;
+    unsigned char lock;
+    item_lock::stItemLockRef ref;
+
     // 段 A（SIG_LOAD_INVENTORY m_expandEquip.m_items，+0x14aa8 起 0x24 项）
-    for (int i = 0; i <= 0xb; ++i)
+    for (i = 0; i <= 0xb; ++i)
     {
-        Inven_Item* item = &sig->m_expandEquip.m_items[i];
-        collectLock(item->m_amp, 0x12, static_cast<short>(i + 0xa), lockRefs);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
+        item = &sig->m_expandEquip.m_items[i];
+        lock = item->m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x12;
+            ref.m_slot = static_cast<short>(i + 0xa);
+            lockRefs.push_back(ref);
+        }
+        err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -106,11 +102,18 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
     }
     // 段 B（m_equipMirror）——ORIG 无 meterial_item_change 调用（仅段 C/D 有）
-    for (int i = 0xa; i <= 0x15; ++i)
+    for (i = 0xa; i <= 0x15; ++i)
     {
-        Inven_Item* item = &sig->m_equipMirror[i];
-        collectLock(item->m_amp, 0x03, static_cast<short>(i), lockRefs);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
+        item = &sig->m_equipMirror[i];
+        lock = item->m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x03;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
+        err = _verifyItem(i, item, INVENTORY_TYPE_0, true, true, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -119,13 +122,20 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
     }
     // 段 C（m_invenType1）
-    for (int i = 0; i <= 0x137; ++i)
+    for (i = 0; i <= 0x137; ++i)
     {
-        Inven_Item* item = &sig->m_invenType1[i];
-        collectLock(item->m_amp, 0x00, static_cast<short>(i), lockRefs);
+        item = &sig->m_invenType1[i];
+        lock = item->m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x00;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
         if (item->m_fieldb != 0 || item->m_fieldd != 0)
             meterial_item_change(i, sig, item);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_1, false, false, user);
+        err = _verifyItem(i, item, INVENTORY_TYPE_1, false, false, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -134,14 +144,21 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
     }
     // 段 D（m_cargo）
-    for (int i = 0; i <= 0x97; ++i)
+    for (i = 0; i <= 0x97; ++i)
     {
-        Inven_Item* item = &sig->m_cargo[i];
-        collectLock(item->m_amp, 0x02, static_cast<short>(i), lockRefs);
+        item = &sig->m_cargo[i];
+        lock = item->m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x02;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
         // ORIG *(int*)(item+0x06)：m_attr(+0x06)+m_addInfo2 低 3 字节槽非零判定
         if (item->m_attr != 0 || (item->m_addInfo2 & 0xffffff) != 0)
             cago_meterial_item_change(i, sig, item);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_2, false, false, user);
+        err = _verifyItem(i, item, INVENTORY_TYPE_2, false, false, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -150,11 +167,18 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
     }
     // 段 E（m_invenType3）
-    for (int i = 0; i <= 0xf1; ++i)
+    for (i = 0; i <= 0xf1; ++i)
     {
-        Inven_Item* item = &sig->m_invenType3[i];
-        collectLock(item->m_amp, 0x07, static_cast<short>(i), lockRefs);
-        int err = _verifyItem(i, item, INVENTORY_TYPE_3, false, false, user);
+        item = &sig->m_invenType3[i];
+        lock = item->m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x07;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
+        err = _verifyItem(i, item, INVENTORY_TYPE_3, false, false, user);
         if (err != 0)
         {
             _writeIncorrectItemInventoryForRecovery(
@@ -163,19 +187,30 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         }
     }
     // 段 F（仅收集；m_equipMirror[i].m_amp，+0xa3b2 = 0xa3a1+0x11）
-    for (int i = 0; i <= 9; ++i)
+    for (i = 0; i <= 9; ++i)
     {
-        const stAmplifyOption_t& amp = sig->m_equipMirror[i].m_amp;
-        collectLock(amp, 0x03, static_cast<short>(i), lockRefs);
+        lock = sig->m_equipMirror[i].m_amp.GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x03;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
     }
     // 段 G（仅收集；ORIG +0x4065 = m_invenType2[i].m_random.m_field2 区，
     // 按 stAmplifyOption_t 视图读取——ORIG 语义保留类型视图）
-    for (int i = 0; i <= 0x68; ++i)
+    for (i = 0; i <= 0x68; ++i)
     {
-        const stAmplifyOption_t& amp =
-            *reinterpret_cast<const stAmplifyOption_t*>(
-                &sig->m_invenType2[i].m_random.m_field2);
-        collectLock(amp, 0x01, static_cast<short>(i), lockRefs);
+        lock = reinterpret_cast<const stAmplifyOption_t*>(
+            &sig->m_invenType2[i].m_random.m_field2)->GetLock();
+        if (lock != 0)
+        {
+            ref.m_lock = lock;
+            ref.m_space = 0x01;
+            ref.m_slot = static_cast<short>(i);
+            lockRefs.push_back(ref);
+        }
     }
     return true;
 }
