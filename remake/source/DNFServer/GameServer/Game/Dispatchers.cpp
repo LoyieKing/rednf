@@ -6245,10 +6245,6 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0xffffffff;
     }
-    if (user == 0)
-    {
-        return 0xffffffff;
-    }
     if (user->get_state() != 3)
     {
         return 0x7fffffff;
