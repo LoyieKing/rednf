@@ -351,7 +351,7 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
         DBMgr::stUserDBInfo_t info;
         info.m_userDBIdx = 0;
         info.m_userDBType = 0;
-        info.m_serverGroup = SGF<short>(sig, 0x3a38);   // serverGroup(short→int)
+        info.m_serverGroup = sig->m_channelRestrictField;   // serverGroup(short→int)
         GlobalData::s_db_mgr->addUserDBInfo(slot, info);
         GlobalData::s_db_mgr->setUserIdx(slot);
     }
@@ -359,109 +359,109 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     // ---- GetAccountInfo 失败 => 错误码 1 ----
     if (!GetAccountInfo(sig))
     {
-        SGF<int>(sig, 0xb8) = 1;
+        sig->m_errCode = 1;
         return SendResult(userDbIdx, slot, sig);
     }
 
-    SaveLoginTime(SGF<unsigned int>(sig, OFF_MEMBER_M_ID),
-                  SGF<int>(sig, OFF_TOKEN_TIME),
+    SaveLoginTime(sig->m_accId,
+                  sig->m_timeStamp,
                   SGB(sig, OFF_LOGIN_IP));
-    SGF<unsigned short>(sig, 0x38de) = 0;
+    sig->m_punishTradeAlertType = 0;
 
     // ---- 封禁/惩罚检查失败 => 错误码 0xf ----
     if (!GetPunishUserInfo(sig))
     {
-        SGF<int>(sig, 0xb8) = 0xf;
+        sig->m_errCode = 0xf;
         return SendResult(userDbIdx, slot, sig);
     }
 
-    SGF<char>(sig, 0x3f0c) = 0;
-    SGF<int>(sig, 0x3a24) = 0;
-    SGF<int>(sig, 0x3a28) = 0;
-    SGF<int>(sig, 0x3a2c) = 0;
+    sig->m_restingUserRestrict = 0;
+    sig->m_totalHackUserTradeCnt = 0;
+    sig->m_totalHackUserTradeGold = 0;
+    sig->m_totalHackUserTradeGoldHi = 0;
 
-    int punishCount = SGF<int>(sig, OFF_PUNISH_CNT);
+    int punishCount = sig->m_punishInfoCount;
     for (int i = 0; i < punishCount; ++i)
     {
-        const unsigned int rowOff = i * 0x18 + OFF_PUNISH_TBL;
+        const SIG_LOGIN_PUNISH_INFO& e = sig->m_punishInfos[i];
         // punish_type == 1：封禁中（含到期时间窗判断）
-        if (SGF<int>(sig, rowOff) == 1)
+        if (e.m_type == 1)
         {
-            long long endSec = SGF<int>(sig, rowOff + 0x14);        // unix end_time
+            long long endSec = e.m_endTime;        // unix end_time
             long long curSec = GlobalData::s_systemTime_.getCurSec();
             bool active = !(endSec < curSec && endSec != 0);
             if (active)
             {
-                if (SGF<int>(sig, rowOff + 0x14) == 0)
+                if (e.m_endTime == 0)
                 {
-                    if (SGF<int>(sig, rowOff + 0xc) == 1)       // apply_flag
-                        SGF<int>(sig, 0xb8) = 10;
-                    else if (SGF<int>(sig, rowOff + 0xc) == 2)
-                        SGF<int>(sig, 0xb8) = 11;
+                    if (e.m_field0c == 1)       // apply_flag
+                        sig->m_errCode = 10;
+                    else if (e.m_field0c == 2)
+                        sig->m_errCode = 11;
                 }
                 else
                 {
-                    int val = SGF<int>(sig, rowOff + 8);         // punish_value
+                    int val = e.m_stdDropRate;         // punish_value
                     if (val > 25) val = 25;
-                    SGF<int>(sig, 0xd8) = val;                   // ban_msg 序号
+                    sig->m_loginErrDetail = val;                   // ban_msg 序号
                 }
                 return SendResult(userDbIdx, slot, sig);
             }
         }
         // punish_type 2 / 0x3ea
-        if (SGF<int>(sig, rowOff) == 2 || SGF<int>(sig, rowOff) == 0x3ea)
+        if (e.m_type == 2 || e.m_type == 0x3ea)
         {
-            long long endSec = SGF<int>(sig, rowOff + 0x14);
+            long long endSec = e.m_endTime;
             long long curSec = GlobalData::s_systemTime_.getCurSec();
             bool active = !(endSec < curSec && endSec != 0);
             if (active)
             {
-                if (SGF<int>(sig, rowOff + 0x14) == 0)
+                if (e.m_endTime == 0)
                 {
-                    if (SGF<int>(sig, rowOff + 0xc) == 1)
-                        SGF<int>(sig, 0xb8) = 10;
-                    else if (SGF<int>(sig, rowOff + 0xc) == 2)
-                        SGF<int>(sig, 0xb8) = 11;
+                    if (e.m_field0c == 1)
+                        sig->m_errCode = 10;
+                    else if (e.m_field0c == 2)
+                        sig->m_errCode = 11;
                 }
                 else
                 {
-                    int val = SGF<int>(sig, rowOff + 8);
+                    int val = e.m_stdDropRate;
                     if (val > 25) val = 25;
-                    SGF<int>(sig, 0xb8) = val + 12;
+                    sig->m_errCode = val + 12;
                 }
                 return SendResult(userDbIdx, slot, sig);
             }
         }
         // punish_type 3 / 0x3eb（无时间窗直接拦截）
-        if (SGF<int>(sig, rowOff) == 3 || SGF<int>(sig, rowOff) == 0x3eb)
+        if (e.m_type == 3 || e.m_type == 0x3eb)
         {
-            if (SGF<int>(sig, rowOff + 0x14) == 0)
+            if (e.m_endTime == 0)
             {
-                if (SGF<int>(sig, rowOff + 0xc) == 1)
-                    SGF<int>(sig, 0xb8) = 10;
-                else if (SGF<int>(sig, rowOff + 0xc) == 2)
-                    SGF<int>(sig, 0xb8) = 11;
+                if (e.m_field0c == 1)
+                    sig->m_errCode = 10;
+                else if (e.m_field0c == 2)
+                    sig->m_errCode = 11;
             }
             else
             {
-                int val = SGF<int>(sig, rowOff + 8);
+                int val = e.m_stdDropRate;
                 if (val > 25) val = 25;
-                SGF<int>(sig, 0xb8) = val + 12;
+                sig->m_errCode = val + 12;
             }
             return SendResult(userDbIdx, slot, sig);
         }
         // punish_type 4：写通知码 0xd/0xe 到 +0x38de（short）
-        if (SGF<int>(sig, rowOff) == 4)
+        if (e.m_type == 4)
         {
-            if (SGF<int>(sig, rowOff + 0xc) == 1)
-                SGF<unsigned short>(sig, 0x38de) = 0xd;
-            else if (SGF<int>(sig, rowOff + 0xc) == 2)
-                SGF<unsigned short>(sig, 0x38de) = 0xe;
+            if (e.m_field0c == 1)
+                sig->m_punishTradeAlertType = 0xd;
+            else if (e.m_field0c == 2)
+                sig->m_punishTradeAlertType = 0xe;
         }
         // punish_type 10：置 +0x3f0c 标志
-        if (SGF<int>(sig, rowOff) == 10)
+        if (e.m_type == 10)
         {
-            SGF<char>(sig, 0x3f0c) = 1;
+            sig->m_restingUserRestrict = 1;
         }
     }
 
@@ -470,35 +470,35 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     // ---- PassPad 换算（+0x38e0 有效且 +0x390e 非 1 时执行）----
     // ORIG：res = _convertPassPadInfo(sig)；==0x48 → errcode 5；==0xa6 → 9；其它非零 → 6。
     int res = 0;
-    if (SGF<char>(sig, OFF_PASPPAD_ENABLE) != 0 &&
-        SGF<char>(sig, OFF_MPASS_CANCEL) != 1)
+    if (sig->m_passPadEnable != 0 &&
+        sig->m_passPadCertified != 1)
     {
         res = _convertPassPadInfo(sig);
     }
     if (res != 0)
     {
         if (res == 0x48)
-            SGF<int>(sig, 0xb8) = 5;
+            sig->m_errCode = 5;
         else if (res == 0xa6)
-            SGF<int>(sig, 0xb8) = 9;
+            sig->m_errCode = 9;
         else
-            SGF<int>(sig, 0xb8) = 6;
+            sig->m_errCode = 6;
         return SendResult(userDbIdx, slot, sig);
     }
 
-    SGF<int>(sig, 0xb8) = 0;
+    sig->m_errCode = 0;
 
     vecDNFEventEntry_t entries;
-    _LoadDNFEventEntry(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), entries);
+    _LoadDNFEventEntry(sig->m_accId, entries);
     GetPremiumInfo(0 /*int 占位形参，ORIG 未使用*/, sig, entries);
 
     // ---- 通道 7（公会战）：检查 BreakAway 数据完整 ----
     world = G_GameWorld();
     if (world->GetChannelType() == 7)
     {
-        if (SGF<int>(sig, OFF_BREAKAWAY_A) == 0 || SGF<int>(sig, OFF_BREAKAWAY_B) == 0)
+        if (sig->m_tournamentAccountFlag == 0 || sig->m_tournamentServerGroup == 0)
         {
-            SGF<int>(sig, 0xb8) = 8;
+            sig->m_errCode = 8;
             int ret = SendResult(userDbIdx, slot, sig);
             return ret;
         }
@@ -508,19 +508,19 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     if (world->GetChannelType() == 0xe)
     {
         bool blocked;
-        if (SGF<int>(sig, 0x39d4) == 0 || SGF<int>(sig, 0x39d0) == 0)
+        if (sig->m_onlinePrelimCharacNo == 0 || sig->m_onlinePrelimServerGroup == 0)
         {
             blocked = true;
         }
         else
         {
-            unsigned int modeMask = SGF<unsigned int>(sig, OFF_PVP_MODE_MASK);
+            unsigned int modeMask = sig->m_onlinePrelimPlayType;
             unsigned int pvpMode = (unsigned int)G_CDataManager()->GetPvPMode();
             blocked = ((pvpMode & modeMask) == 1);
         }
         if (blocked)
         {
-            SGF<int>(sig, 0xb8) = 8;
+            sig->m_errCode = 8;
             int ret = SendResult(userDbIdx, slot, sig);
             return ret;
         }
@@ -533,18 +533,18 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     }
     else
     {
-        SGF<int>(sig, 0xb8) = 0xf;
+        sig->m_errCode = 0xf;
     }
 
-    if (SGF<char>(sig, 0x39e0) != 0 && SGF<char>(sig, 0x39e1) != 1)
+    if (sig->m_secCardActivate != 0 && sig->m_secCardCertified != 1)
     {
         _getSecurityCardInfo(sig);
     }
 
     getCharacLinkSystemData(sig);
-    SGF<char>(sig, OFF_BREAKAWAY_RET) = (getBreakAwayMemberData(sig) == true) ? 1 : 0;
-    SGF<char>(sig, OFF_SCHOOL_JOINED) =
-        _isJoinedSchoolPointEvent(SGF<unsigned int>(sig, OFF_MEMBER_M_ID)) ? 1 : 0;
+    sig->m_breakAwayUvListFlag = (getBreakAwayMemberData(sig) == true) ? 1 : 0;
+    sig->m_joinedSchoolPointEventFlag =
+        _isJoinedSchoolPointEvent(sig->m_accId) ? 1 : 0;
     GetDailyCleanPadPoint(sig);
     IsThisIPLoginPermissionGranted(sig);
     GetReturnUserInfo(sig);
@@ -570,7 +570,7 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
-    char* mid = NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0);
+    char* mid = NumberToString(sig->m_accId, 0);
     db->set_query("seLect message_flag from charac_link_message where m_id=%s", mid);
     if (!db->exec(true))
     {
@@ -600,7 +600,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
         }
         cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
         trace("LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return true;    // cMyTrace::operator() 返回值原样透传（ORIG byte）
     }
     return false;
@@ -615,7 +615,7 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect  member_bonus_fatigue , update_time , login_ip , inform_notice  from login_common where m_id=%s",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -659,7 +659,7 @@ int DB_Login::GetReturnUserInfo(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect unix_timestamp(expire_time), first_login from return_user where m_id=%s and expire_time > now()",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -695,7 +695,7 @@ int DB_Login::GetDailyCleanPadPoint(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query("seLect cleanpad_point from member_login where m_id=%s",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -724,7 +724,7 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect punish_type, unix_timestamp(occ_time), punish_value, apply_flag, unix_timestamp(start_time), unix_timestamp(end_time) from member_punish_info where m_id=%s and apply_flag>=1 LIMIT %d",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0), 0x32);
+        NumberToString(sig->m_accId, 0), 0x32);
     if (!db->exec(true))
     {
         return true;   // ORIG 0x8410d7d：exec 失败视为无惩罚数据，正常继续
@@ -888,7 +888,7 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect card,fail_cnt,validity_time>unix_timestamp(now()),cert_flag, cert_cnt, q_pos from member_security_card where m_id=%s and apply_flag=1",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     db->exec(true);
     if (db->get_n_rows() == 0)
     {
@@ -922,7 +922,7 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
         {
             SGF<unsigned int>(sig, OFF_SEC_CERTFLAG) = 0;
             db->set_query("upDate member_security_card set cancel_cnt=0 where m_id=%s",
-                          NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                          NumberToString(sig->m_accId, 0));
             db->exec(true);
         }
     }
@@ -935,12 +935,12 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
 int DB_Login::_getPassPadInfo(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-    SGF<char>(sig, OFF_PASPPAD_ENABLE) = 0;
+    sig->m_passPadEnable = 0;
     SGF<unsigned int>(sig, OFF_MPASS_CANCEL2) = 0;
     SGF<unsigned int>(sig, OFF_MPASS_FAILCNT2) = 0;
     memset(SGB(sig, OFF_MOUSEPASS), 0, 0x24);
     db->set_query("seLect mousepass,fail_cnt,cancel_cnt from member_mousepass where m_id=%s and enable_flag = '1'",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 1;
@@ -965,7 +965,7 @@ int DB_Login::_getPassPadInfo(SIG_LOGIN_DATA* sig)
     {
         return 1;
     }
-    SGF<char>(sig, OFF_PASPPAD_ENABLE) = 1;
+    sig->m_passPadEnable = 1;
     if (SGF<int>(sig, OFF_MPASS_FAILCNT2) < 3)
     {
         return 0;
@@ -1008,15 +1008,15 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     SGF<char>(sig, 0x3f0d) = 0;
     SGF<char>(sig, 0x3f0e) = 0;
     SGF<char>(sig, 0x3f0f) = 0;
-    SGF<char>(sig, OFF_PASPPAD_ENABLE) = 0;
-    SGF<char>(sig, OFF_MPASS_CANCEL) = 0;
+    sig->m_passPadEnable = 0;
+    sig->m_passPadCertified = 0;
     SGF<char>(sig, OFF_SEC_CARD_FLAG) = 0;
     SGF<char>(sig, OFF_SEC_CARD_LIFE) = 0;
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect unix_timestamp(last_check_time), unix_timestamp(m_opt_reg), unix_timestamp(pc_opt_reg), unix_timestamp(security_card_reg), unix_timestamp(goblin_pass_mod), unix_timestamp(member_pc_reg), unix_timestamp(gatekeeper_otp_reg), goblin_validity_time>unix_timestamp(now()), security_card_validity_time>unix_timestamp(now()), validity_ip from member_security_grade where m_id = %s ",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     bool execOk = db->exec(true);
     if (!(execOk && db->get_n_rows() != 0))
     {
@@ -1062,11 +1062,11 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
 
     if (col[4] != 0)
     {
-        SGF<char>(sig, OFF_PASPPAD_ENABLE) = 1;     // goblin_pass_mod → mousepass 区有效位
+        sig->m_passPadEnable = 1;     // goblin_pass_mod → mousepass 区有效位
     }
     if ((col[7] != 0) && (ipMatch != '\0'))
     {
-        SGF<char>(sig, OFF_MPASS_CANCEL) = 1;       // +0x390e mousepass 换算已注册
+        sig->m_passPadCertified = 1;       // +0x390e mousepass 换算已注册
         SGF<char>(sig, 0x390c) = 2;                 // +0x390c cancel_cnt 类型
     }
     if (col[3] != 0)
@@ -1170,23 +1170,23 @@ void DB_Login::_LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
         {
         case 2:
             WongWork::EventATI::ArrangeATIEventItem(
-                SGF<unsigned int>(sig, OFF_MEMBER_M_ID), (unsigned int)&entries);
+                sig->m_accId, (unsigned int)&entries);
             break;
         case 3:
             WongWork::EventSigong::ArrangeSigongEventItem(
-                SGF<unsigned int>(sig, OFF_MEMBER_M_ID), (unsigned int)&entries);
+                sig->m_accId, (unsigned int)&entries);
             break;
         case 5:
             WongWork::EventMuz::ArrangeMuzEventItem(
-                SGF<unsigned int>(sig, OFF_MEMBER_M_ID), (unsigned int)&entries);
+                sig->m_accId, (unsigned int)&entries);
             break;
         case 6:
             WongWork::EventAlttle::ArrangeAlttleEventItem(
-                SGF<unsigned int>(sig, OFF_MEMBER_M_ID), (unsigned int)&entries);
+                sig->m_accId, (unsigned int)&entries);
             break;
         case 7:
             WongWork::EventFCCombo::ArrangeFCComboEventItem(
-                SGF<unsigned int>(sig, OFF_MEMBER_M_ID), (unsigned int)&entries);
+                sig->m_accId, (unsigned int)&entries);
             break;
         default:
             break;
@@ -1221,7 +1221,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             // ---- 广播/PvP 预选特殊事件 ----
             dbAccount->set_query(
                 "seLect m_id,charac_no,server_id,unix_timestamp(start_time),charac_name from member_broadcast where event_id=%d and m_id=%s and end_time>now() limit 1",
-                eventId, NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                eventId, NumberToString(sig->m_accId, 0));
             dbAccount->exec(true);
             if (dbAccount->get_n_rows() == 0)
             {
@@ -1275,20 +1275,20 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                 if (world->GetChannelType() == 7 || world->GetChannelType() == 0xe)
                 {
                     GlobalData::s_db_mgr->addUserDBInfo(
-                        SGF<unsigned int>(sig, OFF_MEMBER_M_ID) /*userIdx 占位见下*/,
+                        sig->m_accId /*userIdx 占位见下*/,
                         info);
                 }
                 if (eventId == 0xa02a)
                 {
                     SGF<unsigned int>(sig, 0x39d4) = characNo;
                     SGF<unsigned int>(sig, 0x39d0) = serverId;
-                    SGF<unsigned int>(sig, OFF_PVP_MODE_MASK) |= 1;
+                    sig->m_onlinePrelimPlayType |= 1;
                 }
                 else if (eventId == 0xa02b)
                 {
                     SGF<unsigned int>(sig, 0x39d4) = characNo;
                     SGF<unsigned int>(sig, 0x39d0) = serverId;
-                    SGF<unsigned int>(sig, OFF_PVP_MODE_MASK) |= 2;
+                    sig->m_onlinePrelimPlayType |= 2;
                 }
                 else
                 {
@@ -1317,7 +1317,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                 // ---- 常规 member_premium 查询 ----
                 dbPremium->set_query(
                     "seLect pre_type,unix_timestamp(service_start),unix_timestamp(service_end) from member_premium where m_id=%s and event_id=%d and service_end>now() and server_id in(0,%d) order by service_end desc limit 1",
-                    NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+                    NumberToString(sig->m_accId, 0),
                     eventId, entries[k].m_serverId);
                 if (!dbPremium->exec(true))
                 {
@@ -1337,21 +1337,21 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                     {
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x3628, 5);
                         trace("DB_Login::GetPremiumInfo, get(1) ERROR m_id=%s",
-                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                              NumberToString(sig->m_accId, 0));
                         return;    // ORIG：失败即收尾返回（不进收尾的 RemovePreminuInfo）
                     }
                     if (!dbPremium->get_int(1, svcStart))
                     {
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x362e, 5);
                         trace("DB_Login::GetPremiumInfo, get(2) ERROR m_id=%s",
-                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                              NumberToString(sig->m_accId, 0));
                         return;
                     }
                     if (!dbPremium->get_int(2, svcEnd))
                     {
                         cMyTrace trace(__PRETTY_FUNCTION__, 0x3634, 5);
                         trace("DB_Login::GetPremiumInfo, get(3) ERROR m_id=%s",
-                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                              NumberToString(sig->m_accId, 0));
                         return;
                     }
 
@@ -1400,7 +1400,7 @@ void DB_Login::RemovePreminuInfo(SIG_LOGIN_DATA* sig, std::vector<int>& ids)
     for (std::vector<int>::const_iterator it = ids.begin(); it != ids.end(); ++it)
     {
         db->set_query("deLete from dnf_event_entry where m_id=%s and event_id=%d",
-                      NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0), *it);
+                      NumberToString(sig->m_accId, 0), *it);
         db->exec(true);
     }
 }
@@ -1558,7 +1558,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, fetch() ERROR m_id=%s", userId);
         return false;
     }
-    if (!db->get_uint(0, SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
+    if (!db->get_uint(0, sig->m_accId))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x39b5, 5);
         trace("DB_Login::GetAccountInfo, get(0) ERROR m_id=%s", userId);
@@ -1570,12 +1570,12 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         // 重复账号：member_abnomal 记录重叠登录
         int nRows = db->get_n_rows();
         db->set_query("upDate member_abnomal set overlab_count=%d where user_id=%s",
-                      nRows, NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                      nRows, NumberToString(sig->m_accId, 0));
         bool updOk = db->exec(true);
         if (!(updOk && db->getAffectedRowCount() != 0))
         {
             db->set_query("inSert into member_abnomal(user_id, overlab_count) values(%s,%d)",
-                          NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+                          NumberToString(sig->m_accId, 0),
                           db->get_n_rows());
             db->exec(true);
         }
@@ -1596,13 +1596,13 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
 
     WongWork::CSimpleSSO::stOutputData_t ssoOut;
     if (!GlobalData::s_psimpleSSO->checkValidPassword(
-            SGF<unsigned int>(sig, OFF_MEMBER_M_ID), serverPwd,
+            sig->m_accId, serverPwd,
             SGB(sig, OFF_CLIENT_IP), ssoOut))
     {
         // ORIG 0x84136c0-0x841370e：失败记日志（行号 0x39da）并返回 false。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x39da, 0);
         trace("DB_Login::GetAccountInfo, checkValidPassword() ERROR m_id=%s",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return false;
     }
 
@@ -1667,11 +1667,11 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     if (firstSsn[0] != '\0')
     {
         if (!_DecryptUserInfo(firstSsn, decFirst,
-                              SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
+                              sig->m_accId))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x3a48, 5);
             trace("_DecryptUserInfo(1) ERROR m_id=%s",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
             return false;
         }
         firstVal = (unsigned int)atoi(decFirst);
@@ -1685,11 +1685,11 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     if (secondSsn[0] != '\0')
     {
         if (!_DecryptUserInfo(secondSsn, decSecond,
-                              SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
+                              sig->m_accId))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x3a5a, 5);
             trace("_DecryptUserInfo(2) ERROR m_id=%s",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
             return false;
         }
         secondVal = (unsigned int)atoi(decSecond);
@@ -1716,7 +1716,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         return false;
     }
     if (email[0] != '\0' &&
-        !_DecryptUserInfo(email, decEmail, SGF<unsigned int>(sig, OFF_MEMBER_M_ID)))
+        !_DecryptUserInfo(email, decEmail, sig->m_accId))
     {
         return false;
     }
@@ -1771,21 +1771,21 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
             LogManager::logFormat(
                 1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b14,
                 "[Taiwan, Auth] Fail Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
-                NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+                NumberToString(sig->m_accId, 0),
                 SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
             return false;
         }
         LogManager::logFormat(
             1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b0f,
             "[Taiwan, Auth] White Account Success Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
-            NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+            NumberToString(sig->m_accId, 0),
             SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
     }
     else
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3b1b, 0);
         trace("[Taiwan, Auth] Success Token reuse login. (mid:%s, token_time:%u, current_current:%u, login_time:%u, last_play_time:%u)",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+              NumberToString(sig->m_accId, 0),
               SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
     }
     return true;
@@ -1799,7 +1799,7 @@ bool DB_Login::GetWhiteAccount(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query("seLect m_id from member_white_account where m_id=%s",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
     bool execOk = db->exec(true);
     return (execOk && db->get_n_rows() != 0);
 }
@@ -1842,7 +1842,7 @@ int DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
     db->set_query(
         "seLect daily_green_badge, daily_red_badge, daily_blue_badge from school_member where school_id=%d and m_id = %s and  last_play_time >= from_unixtime(%d)",
         SGF<unsigned int>(sig, OFF_SCHOOL_ID),
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0), initTime);
+        NumberToString(sig->m_accId, 0), initTime);
     if (!db->exec(true))
     {
         return 0;
@@ -1911,7 +1911,7 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
     for (; i < count; ++i)
     {
         if (SGF<int>(sig, i * 0x94 + OFF_CHARAC_VIEW) ==
-            SGF<int>(sig, OFF_BREAKAWAY_A))             // server_id 匹配
+            sig->m_tournamentAccountFlag)             // server_id 匹配
         {
             memmove(SGB(sig, OFF_CHARAC_VIEW),
                     SGB(sig, i * 0x94 + OFF_CHARAC_VIEW), 0x94);
@@ -2000,7 +2000,7 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
     MySQL* db = _getGameDB(DB_HANDLE_2);
     db->set_query(
         "seLect info,hash_key,password(info),slot_effect_count,charac_slot_limit from charac_view where m_id=%s",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return -1;
@@ -2020,7 +2020,7 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
             __PRETTY_FUNCTION__,
             0x3beb, 5);
         trace("DB_Login::_getGameDBCharacView uncompress fail, m_id(%d)",
-              SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+              sig->m_accId);
         return -1;
     }
 
@@ -2078,7 +2078,7 @@ int DB_Login::UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig)
     guard.operator*()->operator<<(userDbIdx);
     SIG_UPDATE_LOGIN* pkt =
         guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>();
-    *reinterpret_cast<unsigned int*>(pkt) = SGF<unsigned int>(sig, OFF_MEMBER_M_ID);
+    *reinterpret_cast<unsigned int*>(pkt) = sig->m_accId;
     *reinterpret_cast<int*>(reinterpret_cast<char*>(pkt) + 8) =
         (int)SGF<short>(sig, 0x3a38);           // serverGroup(short→int)
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(pkt) + 4) =
@@ -2097,7 +2097,7 @@ int DB_Login::GetCheckPickUpRandomOptionItem(SIG_LOGIN_DATA* sig)
     SGF<unsigned char>(sig, OFF_PICKUP_CHECK) = 0;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query("seLect check_count from check_pick_up_random_option_item where m_id = %s",
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                  NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -2124,7 +2124,7 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)DB_HANDLE_D,
                                                   E_SERVER_GROUP_NONE);
-    unsigned int mid = SGF<unsigned int>(sig, OFF_MEMBER_M_ID);
+    unsigned int mid = sig->m_accId;
     SGF<unsigned int>(sig, OFF_ONTIME_IDX) = 0;
     db->set_query("seLect last_no from event_1112_ontime_user_%u where m_id=%s",
                   mid % 10, NumberToString(mid, 0));
@@ -2190,7 +2190,7 @@ int DB_Login::GetUserFatigueCount(SIG_LOGIN_DATA* sig)
     const char* table = toTString(*tableName);
 
     db->set_query("seLect fatigue from %s where m_id=%s and occ_day = %d", table,
-                  NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+                  NumberToString(sig->m_accId, 0),
                   (unsigned int)occDay);
     if (!db->exec(true))
     {
@@ -2223,7 +2223,7 @@ int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
     memset(SGB(sig, OFF_HISTORY_TBL), 0, 0x168);     // 60 行 × {type,h1,h2}
     db->set_query(
         "seLect type , history_1 ,history_2 from event_ingame_history where m_id=%s order by type desc",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -2284,7 +2284,7 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
         db->set_query("upDate login_common set login_ip='%s' where m_id=%u",
                       SGB(sig, OFF_LOGIN_IP),
-                      SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                      sig->m_accId);
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
@@ -2433,13 +2433,13 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect server_id, charac_no, growthweapon_id, timepiece, infinityweapon_id from event_1207_growthweapon where m_id = %d",
-        SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+        sig->m_accId);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0xb487,
                               "LoadGrowthWeaponEvent Query Error : m_id(%d)",
-                              SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                              sig->m_accId);
         return 0;
     }
     const unsigned int base = OFF_GROWTH_WEAPON;
@@ -2492,13 +2492,13 @@ int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect server_id, charac_no, job_type, charac_name from event_1208_growthcreature where m_id = %d",
-        SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+        sig->m_accId);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0xb4b9,
                               "LoadGrowthCreatureEvent Query Error : m_id(%d)",
-                              SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                              sig->m_accId);
         return 0;
     }
     if (db->get_n_rows() == 0)
@@ -2542,14 +2542,14 @@ int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query("seLect job_type, level from event_1208_level_achieve where m_id = %d",
-                  SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                  sig->m_accId);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
                               0xb4e8,
                               "LoadAccountCharacterLevelUpOnceGift Query Error : m_id(%d)",
-                              SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                              sig->m_accId);
         return 0;
     }
     if (db->get_n_rows() == 0)
@@ -2600,7 +2600,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
         (int)curSec, *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c));
     db->set_query(
         "seLect board,reward from event_1208_bingo where m_id = %s and occ_date > from_unixtime(%u)",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0),
+        NumberToString(sig->m_accId, 0),
         (unsigned int)resetBase);
     if (!db->exec(true))
     {
@@ -2614,7 +2614,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xb71b, 5);
         trace("DB_Login::GetBingoEvent, fetch() ERROR m_id=%s",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return 0;
     }
     const char* pretty = "bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA*)";
@@ -2625,7 +2625,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
     {
         cMyTrace trace(pretty, 0xb723, 5);
         trace("DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return 0;
     }
     col += 1;
@@ -2633,7 +2633,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
     {
         cMyTrace trace(pretty, 0xb729, 5);
         trace("DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return 0;
     }
     SGF<int>(sig, OFF_BINGO_EVT + 4) = reward;
@@ -2675,7 +2675,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
         SGF<char>(sig, OFF_ERR_CODE) = 1;
     }
     db->set_query("insert into member_join_info(m_id, reg_date, ip) values(%d, now(), '%s')",
-                  SGF<unsigned int>(sig, OFF_MEMBER_M_ID),
+                  sig->m_accId,
                   SGB(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
     {
@@ -2696,7 +2696,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect accrue_cera, play_info, last_reward_time, first_reward_time, luck_point, last_update_time, add_info, second_reward_time, quest_time from churn_member_info where m_id=%s",
-        NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+        NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
@@ -2712,7 +2712,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         playInfo[30] = '1';                  // local_42 = 0x31
         db->set_query(
             "inSert into churn_member_info(m_id,accrue_cera,play_info,last_reward_time,first_reward_time,server_id,charac_no,item_id,add_info,luck_point,last_update_time,second_reward_time) values(%s,0,'%s',0,0,0,0,0,0,0,0,0)",
-            NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0), playInfo);
+            NumberToString(sig->m_accId, 0), playInfo);
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
@@ -2722,7 +2722,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         }
         cMyTrace trace(__PRETTY_FUNCTION__, 0x308f, 0);
         trace("BREAK_AWAY : churn_member_info MEMBER INSERT!! M_ID(%s)",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
 
         // STBreakAwayMemberData::clear 等价展开（ORIG W 0x844d584）
         SGF<int>(sig, OFF_BREAKAWAY_REC) = 0;                // +0x3f18 accrue_cera
@@ -2741,7 +2741,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x309a, 5);
         trace("BREAK_AWAY : churn_member_info NO MEMBER USER!! M_ID(%s)",
-              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+              NumberToString(sig->m_accId, 0));
         return 0;
     }
 
@@ -2753,7 +2753,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0x30ab,
                               "BREAK_AWAY : ABNOMAL PLAY_INFO DATA!! M_ID(%s)",
-                              NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                              NumberToString(sig->m_accId, 0));
         return 0;
     }
     if (!db->get_uint(2, SGF<unsigned int>(sig, rec + 0x24))) return 0;   // last_reward_time(+0x3f3c)
@@ -2777,7 +2777,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
             SGF<int>(sig, rec + 0x3c) = 0;                     // luck_point 清零
             db->set_query("upDate churn_member_info set luck_point=%d where m_id=%s",
                           SGF<int>(sig, rec + 0x3c),
-                          NumberToString(SGF<unsigned int>(sig, OFF_MEMBER_M_ID), 0));
+                          NumberToString(sig->m_accId, 0));
             bool updOk = db->exec(true);
             if (!(updOk && db->getAffectedRowCount() != 0))
             {
@@ -2802,7 +2802,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
             SGF<unsigned int>(sig, rec + 0x34) = 0;            // quest_time = 0
             db->set_query("upDate churn_member_info set add_info=%d, quest_time=0 where m_id=%u",
                           SGF<int>(sig, rec + 0x30),
-                          SGF<unsigned int>(sig, OFF_MEMBER_M_ID));
+                          sig->m_accId);
             bool updOk = db->exec(true);
             if (!(updOk && db->getAffectedRowCount() != 0))
             {
