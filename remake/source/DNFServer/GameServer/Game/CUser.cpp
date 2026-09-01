@@ -6457,19 +6457,24 @@ void CUser::doLinkCharacDisconnect()
 // enableSaveCharacView(&m_characterView)。越界（a/b >= size）直接返回。
 int CUser::ChangeCharacSlot(unsigned int a, unsigned int b)
 {
-    if (a >= m_characList.size() || b >= m_characList.size())
-        return 0;
-    if (a < b)
+    if (a < m_characList.size())
     {
-        m_characList.insert(m_characList.begin() + (b + 1), m_characList[a]);
-        m_characList.erase(m_characList.begin() + a);
+        if (b < m_characList.size())
+        {
+            if (a < b)
+            {
+                m_characList.insert(m_characList.begin() + (b + 1), m_characList[a]);
+                m_characList.erase(m_characList.begin() + a);
+            }
+            else
+            {
+                m_characList.insert(m_characList.begin() + b, m_characList[a]);
+                m_characList.erase(m_characList.begin() + (a + 1));
+            }
+            m_characterView.enableSaveCharacView();
+            return 0;
+        }
     }
-    else
-    {
-        m_characList.insert(m_characList.begin() + b, m_characList[a]);
-        m_characList.erase(m_characList.begin() + (a + 1));
-    }
-    m_characterView.enableSaveCharacView();
     return 0;
 }
 
