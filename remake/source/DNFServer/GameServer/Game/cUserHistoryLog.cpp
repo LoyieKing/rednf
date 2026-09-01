@@ -284,10 +284,10 @@ void cUserHistoryLog::GuildAddExp(unsigned int guildKey,
 {
     const time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm local;
-    localtime_r(&now, &local);
+    struct tm* r = localtime_r(&now, &local);
     m_user->LogHistory(
         "GuildAddExp,\"%d/%d/%d\",%d,\"%s\",%d,%d",
-        local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
+        r->tm_year + 1900, r->tm_mon + 1, r->tm_mday,
         guildKey, guildDBInfo, characNo, exp);
 }
 
@@ -1213,9 +1213,9 @@ void cUserHistoryLog::GuildCreate(unsigned int guildKey, const char* guildName,
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
-    localtime_r(&now, &broken);
+    struct tm* r = localtime_r(&now, &broken);
     m_user->LogHistory("GuildCreate,\"%d/%d/%d\",%d,\"%s\",%d",
-                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
                        guildKey, guildName, characNo);
 }
 
