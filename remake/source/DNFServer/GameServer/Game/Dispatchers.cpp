@@ -757,7 +757,6 @@ inline char* resBytes(CMDPacketStruct::STBaseResponse& r) { return reinterpret_c
 // send_packet(0x242, 0xc) → 0。
 // process：res+0x08 = req+0x0d（pause 标志）；check_error 恒 0；
 //          Manager::pause(user, flag) → StageControl+0x04 ProcStage::pause。
-Dispatcher_Pause::Dispatcher_Pause() {}
 Dispatcher_Pause::~Dispatcher_Pause() {}
 int Dispatcher_Pause::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -834,7 +833,6 @@ int Dispatcher_Pause::process_packet(CUser* user, CMDPacketStruct::STBaseRequest
 // dispatch_sig：校验失败返回 0x380；read(0x20) → process → send_packet(0x23d, 0x1c)。
 // process：res 回显 req 全部字段；res+0x04 = check_error(0)；buyItem 依赖
 //          CharacAdvanceAltarManager 内部 AdvanceAltarData（未建模），标注推断。
-Dispatcher_BuyItem::Dispatcher_BuyItem() {}
 Dispatcher_BuyItem::~Dispatcher_BuyItem() {}
 int Dispatcher_BuyItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -965,7 +963,6 @@ int Dispatcher_BuyItem::process_packet(CUser* user, CMDPacketStruct::STBaseReque
 // dispatch_sig：校验失败返回 0x3fc；read(0x24) → process → send_packet(0x23e, 0x1c)。
 // process：res 回显 req（含 _SetSlotData 12B）；slotType 非 1/2 → error=2；
 //          setSlot 依赖未建模 AdvanceAltarData，标注推断。
-Dispatcher_SetSlot::Dispatcher_SetSlot() {}
 Dispatcher_SetSlot::~Dispatcher_SetSlot() {}
 int Dispatcher_SetSlot::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1054,7 +1051,6 @@ int Dispatcher_SetSlot::process_packet(CUser* user, CMDPacketStruct::STBaseReque
 // ==================== Dispatcher_ResetStar（ORIG 0x8140f6e）====================
 // dispatch_sig：校验失败返回 0x5c0；read(0x14) → process → send_packet(0x244, 0xc)。
 // process：res+0x04 = check_error(0)；resetStar 依赖未建模数据，标注推断。
-Dispatcher_ResetStar::Dispatcher_ResetStar() {}
 Dispatcher_ResetStar::~Dispatcher_ResetStar() {}
 int Dispatcher_ResetStar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1152,7 +1148,6 @@ int Dispatcher_ResetStar::process_packet(CUser* user, CMDPacketStruct::STBaseReq
 // send @ 0x813f92a：error==0 先 StageControl::gotoStage（推断）；发包 0x23c：
 //   put_byte(1)+put_binary(param,8)；成功后 set_state(0xd)+put_int(1)+ridable 数据
 //   （getAdvanceAltarDataByIndex/putRidableInfoToPacket 未建模，推断）。
-Dispatcher_StartGame::Dispatcher_StartGame() {}
 Dispatcher_StartGame::~Dispatcher_StartGame() {}
 int Dispatcher_StartGame::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1264,7 +1259,6 @@ void Dispatcher_StartGame::send(CUser* user, ParamBase& param)
 // dispatch_sig：校验失败返回 0x496；read(0x18) → process → send_packet(0x240, 0x14)。
 // process：res+0x08=req+0x0d、res+0x0c=req+0x10；check_error 0；若 gageLevel 匹配
 //   summonSlotUnit（真实偏移实现）；res+0x10 = getGage()。
-Dispatcher_SummonUnit::Dispatcher_SummonUnit() {}
 Dispatcher_SummonUnit::~Dispatcher_SummonUnit() {}
 int Dispatcher_SummonUnit::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1357,7 +1351,6 @@ int Dispatcher_SummonUnit::process_packet(CUser* user, CMDPacketStruct::STBaseRe
 // dispatch_sig：校验失败返回 0x446；read(0x18) → process → send_packet(0x23f, 0x14)。
 // process：res+0x08=升级前 gageLevel、res+0x04=upgreadGage()、res+0x0c=升级后、
 //          res+0x10=getGage()（真实偏移实现）。
-Dispatcher_UpgradeGage::Dispatcher_UpgradeGage() {}
 Dispatcher_UpgradeGage::~Dispatcher_UpgradeGage() {}
 int Dispatcher_UpgradeGage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1439,7 +1432,6 @@ int Dispatcher_UpgradeGage::process_packet(CUser* user, CMDPacketStruct::STBaseR
 // ==================== Dispatcher_ExchangeSlot（ORIG 0x8140774）====================
 // dispatch_sig：校验失败返回 0x4e8；read(0x30) → process → send_packet(0x241, 0x24)。
 // process：res+0x08=req+0x10；check_error 0；exchangeSlot 依赖未建模数据，推断。
-Dispatcher_ExchangeSlot::Dispatcher_ExchangeSlot() {}
 Dispatcher_ExchangeSlot::~Dispatcher_ExchangeSlot() {}
 int Dispatcher_ExchangeSlot::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1521,7 +1513,6 @@ int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBase
 // dispatch_sig：校验失败返回 0x571；read(0x14) → process（ORIG 为空）→
 //   send_packet(0x243)。send_packet：put_byte(1)+put_binary(res,0xc)+
 //   put_int(count)+逐项 _RewardItem（sendAchievementReward 未建模，推断）。
-Dispatcher_GetAchievementReward::Dispatcher_GetAchievementReward() {}
 Dispatcher_GetAchievementReward::~Dispatcher_GetAchievementReward() {}
 int Dispatcher_GetAchievementReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1610,7 +1601,6 @@ int Dispatcher_GetAchievementReward::process_packet(CUser* user,
 }
 
 }
-Dispatcher_Redeem::Dispatcher_Redeem() {}
 Dispatcher_Redeem::~Dispatcher_Redeem() {}
 // ORIG 0x08226250（报告 Dispatcher_Redeem/dispatch_sig.md）：
 // state>2 受理；get_byte 读 1 字节（有符号）作 redeemId 调 Redeem_Item。
@@ -1627,7 +1617,6 @@ int Dispatcher_Redeem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Redeem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Redeem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UseDye::Dispatcher_UseDye() {}
 Dispatcher_UseDye::~Dispatcher_UseDye() {}
 int Dispatcher_UseDye::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1656,7 +1645,6 @@ int Dispatcher_UseDye::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_Antibot::Dispatcher_Antibot() {}
 Dispatcher_Antibot::~Dispatcher_Antibot() {}
 int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1744,7 +1732,6 @@ int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Antibot::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Antibot::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ChangeHp::Dispatcher_ChangeHp() {}
 Dispatcher_ChangeHp::~Dispatcher_ChangeHp() {}
 // ORIG 0x0820748a（报告 Dispatcher_ChangeHp/dispatch_sig.md）：
 // state<=1 → LineFunc；get_int hp；CAssaultMgr::OnChangeHp(user,hp)!=1 → LineFunc。
@@ -1774,7 +1761,6 @@ int Dispatcher_ChangeHp::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ChangeHp::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ChangeHp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Teleport::Dispatcher_Teleport() {}
 Dispatcher_Teleport::~Dispatcher_Teleport() {}
 
 int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg)
@@ -1808,7 +1794,6 @@ int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 
-Dispatcher_UseJewel::Dispatcher_UseJewel() {}
 Dispatcher_UseJewel::~Dispatcher_UseJewel() {}
 int Dispatcher_UseJewel::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1819,7 +1804,6 @@ int Dispatcher_UseJewel::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UseJewel::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseJewel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BingoQuiz::Dispatcher_BingoQuiz() {}
 Dispatcher_BingoQuiz::~Dispatcher_BingoQuiz() {}
 int Dispatcher_BingoQuiz::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1925,7 +1909,6 @@ void Dispatcher_BingoQuiz::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_DieMobAll::Dispatcher_DieMobAll() {}
 Dispatcher_DieMobAll::~Dispatcher_DieMobAll() {}
 int Dispatcher_DieMobAll::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -1968,7 +1951,6 @@ int Dispatcher_DieMobAll::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DieMobAll::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DieMobAll::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SkillInit::Dispatcher_SkillInit() {}
 Dispatcher_SkillInit::~Dispatcher_SkillInit() {}
 int Dispatcher_SkillInit::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -2078,7 +2060,6 @@ void Dispatcher_SkillInit::process_skill_init(CUser* user, ParamBase& param)
     user->setComboSkillSet(true);
 }
 
-Dispatcher_Antibot_DP::Dispatcher_Antibot_DP() {}
 Dispatcher_Antibot_DP::~Dispatcher_Antibot_DP() {}
 int Dispatcher_Antibot_DP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2123,7 +2104,6 @@ int Dispatcher_Antibot_DP::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Antibot_DP::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Antibot_DP::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AskRematch::Dispatcher_AskRematch() {}
 Dispatcher_AskRematch::~Dispatcher_AskRematch() {}
 int Dispatcher_AskRematch::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2168,7 +2148,6 @@ int Dispatcher_AskRematch::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_AskRematch::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AskRematch::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BVHackInfo::Dispatcher_BVHackInfo() {}
 Dispatcher_BVHackInfo::~Dispatcher_BVHackInfo() {}
 int Dispatcher_BVHackInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2221,7 +2200,6 @@ int Dispatcher_BVHackInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_BVHackInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BVHackInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BlueMarble::Dispatcher_BlueMarble() {}
 Dispatcher_BlueMarble::~Dispatcher_BlueMarble() {}
 int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -2312,7 +2290,6 @@ void Dispatcher_BlueMarble::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_ChangeHost::Dispatcher_ChangeHost() {}
 Dispatcher_ChangeHost::~Dispatcher_ChangeHost() {}
 int Dispatcher_ChangeHost::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2381,7 +2358,6 @@ int Dispatcher_ComboSkill::checkComboSkillIndex(short idx)
     return 0;
 }
 
-Dispatcher_ComboSkill::Dispatcher_ComboSkill() {}
 Dispatcher_ComboSkill::~Dispatcher_ComboSkill() {}
 int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -2491,7 +2467,6 @@ void Dispatcher_ComboSkill::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_GM_Command::Dispatcher_GM_Command() {}
 Dispatcher_GM_Command::~Dispatcher_GM_Command() {}
 // ---- GM 命令监控包/信号局部视图（仅本 TU 使用；ORIG W
 //      Packet_Monitor_Notice_Message 0x822bbd6 / Packet_Forbid_Chat_By_Monitor
@@ -2909,7 +2884,6 @@ int Dispatcher_GM_Command::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;  // 同上：ORIG 无 read，逐字段在 dispatch_sig 内读取
 }
 
-Dispatcher_GuildCargo::Dispatcher_GuildCargo() {}
 Dispatcher_GuildCargo::~Dispatcher_GuildCargo() {}
 int Dispatcher_GuildCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -2951,7 +2925,6 @@ void Dispatcher_GuildCargo::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x109, (unsigned char)p.m_4);
 }
 
-Dispatcher_Join_Power::Dispatcher_Join_Power() {}
 Dispatcher_Join_Power::~Dispatcher_Join_Power() {}
 int Dispatcher_Join_Power::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2962,7 +2935,6 @@ int Dispatcher_Join_Power::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Join_Power::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Join_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_MotionHack::Dispatcher_MotionHack() {}
 Dispatcher_MotionHack::~Dispatcher_MotionHack() {}
 // ORIG 0x08264574（报告 Dispatcher_MotionHack/read.md）[随行依赖]：
 // get_byte(msg+0xd) / get_int(msg+0xe) / get_int(msg+0x12)。
@@ -2999,7 +2971,6 @@ int Dispatcher_MotionHack::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
-Dispatcher_MoveToGate::Dispatcher_MoveToGate() {}
 Dispatcher_MoveToGate::~Dispatcher_MoveToGate() {}
 int Dispatcher_MoveToGate::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3022,7 +2993,6 @@ int Dispatcher_MoveToGate::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_MoveToGate::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_RedeemList::Dispatcher_RedeemList() {}
 Dispatcher_RedeemList::~Dispatcher_RedeemList() {}
 int Dispatcher_RedeemList::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3037,7 +3007,6 @@ int Dispatcher_RedeemList::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RedeemList::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RedeemList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SelectItem::Dispatcher_SelectItem() {}
 Dispatcher_SelectItem::~Dispatcher_SelectItem() {}
 int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3167,7 +3136,6 @@ unsigned char CEquipItem::IsEmancipate()
 int Dispatcher_SelectItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SelectItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_TraceError::Dispatcher_TraceError() {}
 Dispatcher_TraceError::~Dispatcher_TraceError() {}
 int Dispatcher_TraceError::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3202,7 +3170,6 @@ int Dispatcher_TraceError::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_TraceError::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_TraceError::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_TryEnchant::Dispatcher_TryEnchant() {}
 Dispatcher_TryEnchant::~Dispatcher_TryEnchant() {}
 int Dispatcher_TryEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3258,7 +3225,6 @@ int Dispatcher_TryEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_TryEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_TryEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_VerifyGold::Dispatcher_VerifyGold() {}
 Dispatcher_VerifyGold::~Dispatcher_VerifyGold() {}
 int Dispatcher_VerifyGold::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3285,7 +3251,6 @@ int Dispatcher_VerifyGold::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_VerifyGold::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_VerifyGold::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BingoReward::Dispatcher_BingoReward() {}
 Dispatcher_BingoReward::~Dispatcher_BingoReward() {}
 int Dispatcher_BingoReward::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -3378,7 +3343,6 @@ void Dispatcher_BingoReward::send(CUser* user, ParamBase& param)
     user->Send(pkt);
 }
 
-Dispatcher_CranePickUp::Dispatcher_CranePickUp() {}
 Dispatcher_CranePickUp::~Dispatcher_CranePickUp() {}
 int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3453,7 +3417,6 @@ int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CranePickUp::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CranePickUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_EPLPCommand::Dispatcher_EPLPCommand() {}
 Dispatcher_EPLPCommand::~Dispatcher_EPLPCommand() {}
 int Dispatcher_EPLPCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3584,12 +3547,10 @@ int Dispatcher_EPLPCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_EPLPCommand::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_EPLPCommand::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ModItemAttr::Dispatcher_ModItemAttr() {}
 Dispatcher_ModItemAttr::~Dispatcher_ModItemAttr() {}
 
 
 
-Dispatcher_SecurityLog::Dispatcher_SecurityLog() {}
 Dispatcher_SecurityLog::~Dispatcher_SecurityLog() {}
 int Dispatcher_SecurityLog::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -3647,7 +3608,6 @@ int Dispatcher_SecurityLog::read(PacketBuf& packet, MSG_BASE& msg)
 }
 void Dispatcher_SecurityLog::send(CUser* user, ParamBase& param) {}
 
-Dispatcher_Select_Card::Dispatcher_Select_Card() {}
 Dispatcher_Select_Card::~Dispatcher_Select_Card() {}
 int Dispatcher_Select_Card::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3715,7 +3675,6 @@ int Dispatcher_Select_Card::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Select_Card::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Select_Card::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpgradeItem::Dispatcher_UpgradeItem() {}
 Dispatcher_UpgradeItem::~Dispatcher_UpgradeItem() {}
 int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3818,7 +3777,6 @@ int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpgradeItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AgreeEnchant::Dispatcher_AgreeEnchant() {}
 Dispatcher_AgreeEnchant::~Dispatcher_AgreeEnchant() {}
 // ORIG 0x0820adc6（报告 Dispatcher_AgreeEnchant/dispatch_sig.md）：
 // get_packet(0) → MSG_STATIC_COMMAND*；curCharac==0 → LineFunc 0xa6f1；
@@ -3848,7 +3806,6 @@ int Dispatcher_AgreeEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_AgreeEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AgreeEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Back2Village::Dispatcher_Back2Village() {}
 Dispatcher_Back2Village::~Dispatcher_Back2Village() {}
 int Dispatcher_Back2Village::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3911,7 +3868,6 @@ int Dispatcher_BossDieCheck::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
     return 0;
 }
 
-Dispatcher_BossDieCheck::Dispatcher_BossDieCheck() {}
 Dispatcher_BossDieCheck::~Dispatcher_BossDieCheck() {}
 // 技能校验和比对（不等记 hack 0x25c）；从战场 m_apcList(party+0xc3c) 删除
 // 上报 boss 序号(msg+0x10)，未命中 param=0x15；删空后记时刻、给队长挂 100ms
@@ -4045,7 +4001,6 @@ void Dispatcher_BossDieCheck::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_CodeCheckSum::Dispatcher_CodeCheckSum() {}
 Dispatcher_CodeCheckSum::~Dispatcher_CodeCheckSum() {}
 int Dispatcher_CodeCheckSum::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4166,7 +4121,6 @@ Packet_CollectItems::Packet_CollectItems() : PacketHeader(0x27e6, 0x39)
     memset(m_name, 0, sizeof(m_name));
 }
 
-Dispatcher_CollectItems::Dispatcher_CollectItems() {}
 Dispatcher_CollectItems::~Dispatcher_CollectItems() {}
 // 删收集物（INVEN_TYPE 1 / reason 3），失败 LineFunc(0x5aa7)；成功把
 // slot/count 回填 param，并向监控服代理上报 Packet_CollectItems(0x39 字节)。
@@ -4257,7 +4211,6 @@ void Dispatcher_CollectItems::send(CUser* user, ParamBase& param)
     user->Send(packet);
 }
 
-Dispatcher_DepositMoney::Dispatcher_DepositMoney() {}
 Dispatcher_DepositMoney::~Dispatcher_DepositMoney() {}
 int Dispatcher_DepositMoney::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4287,7 +4240,6 @@ int Dispatcher_DepositMoney::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DepositMoney::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DepositMoney::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_EvadeAssault::Dispatcher_EvadeAssault() {}
 Dispatcher_EvadeAssault::~Dispatcher_EvadeAssault() {}
 int Dispatcher_EvadeAssault::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -4327,7 +4279,6 @@ int Dispatcher_EvadeAssault::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 int Dispatcher_EvadeAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_FairPvPScore::Dispatcher_FairPvPScore() {}
 Dispatcher_FairPvPScore::~Dispatcher_FairPvPScore() {}
 int Dispatcher_FairPvPScore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4413,7 +4364,6 @@ int Dispatcher_FairPvPScore::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_FairPvPScore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_FairPvPScore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_HumanCertify::Dispatcher_HumanCertify() {}
 Dispatcher_HumanCertify::~Dispatcher_HumanCertify() {}
 int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4548,7 +4498,6 @@ int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_HumanCertify::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_HumanCertify::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_InformNotice::Dispatcher_InformNotice() {}
 Dispatcher_InformNotice::~Dispatcher_InformNotice() {}
 int Dispatcher_InformNotice::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -4604,7 +4553,6 @@ void Dispatcher_InformNotice::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1de, (unsigned char)err);
 }
 
-Dispatcher_JoinPowerWar::Dispatcher_JoinPowerWar() {}
 Dispatcher_JoinPowerWar::~Dispatcher_JoinPowerWar() {}
 int Dispatcher_JoinPowerWar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4615,7 +4563,6 @@ int Dispatcher_JoinPowerWar::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_JoinPowerWar::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_JoinPowerWar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_MailBox_Open::Dispatcher_MailBox_Open() {}
 Dispatcher_MailBox_Open::~Dispatcher_MailBox_Open() {}
 // ORIG 0x081cc2a2（报告 Dispatcher_MailBox_Open/check_error.md）
 int Dispatcher_MailBox_Open::check_error(CUser* user, MSG_BASE& msg)
@@ -4684,7 +4631,6 @@ void Dispatcher_MailBox_Open::send(CUser* user, ParamBase& param)
 
 
 
-Dispatcher_MemberSecede::Dispatcher_MemberSecede() {}
 Dispatcher_MemberSecede::~Dispatcher_MemberSecede() {}
 // ORIG 0x081cbbd0（报告 Dispatcher_MemberSecede/check_error.md）：
 // state<=2 或 curCharac==0 → -1；get_charac_memberkey()==0 → 0x7fffffff；否则 0。
@@ -4741,7 +4687,6 @@ int Dispatcher_MemberSecede::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_RequestMatch::Dispatcher_RequestMatch() {}
 Dispatcher_RequestMatch::~Dispatcher_RequestMatch() {}
 // ORIG 0x08217ad0 T _ZN23Dispatcher_RequestMatch12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/Dispatcher_RequestMatch/dispatch_sig.md 汇编+反编译 C 全文转写）
@@ -4782,7 +4727,6 @@ int Dispatcher_RequestMatch::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RequestMatch::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestMatch::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ScanBotByDll::Dispatcher_ScanBotByDll() {}
 Dispatcher_ScanBotByDll::~Dispatcher_ScanBotByDll() {}
 int Dispatcher_ScanBotByDll::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -4837,7 +4781,6 @@ int Dispatcher_ScanBotByDll::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
-Dispatcher_ScanBotByDrv::Dispatcher_ScanBotByDrv() {}
 Dispatcher_ScanBotByDrv::~Dispatcher_ScanBotByDrv() {}
 int Dispatcher_ScanBotByDrv::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_ScanBotByDrv::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -4874,7 +4817,6 @@ int Dispatcher_ScanBotByDrv::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_Secede_Power::Dispatcher_Secede_Power() {}
 Dispatcher_Secede_Power::~Dispatcher_Secede_Power() {}
 int Dispatcher_Secede_Power::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4885,10 +4827,8 @@ int Dispatcher_Secede_Power::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Secede_Power::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Secede_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SoloTeleport::Dispatcher_SoloTeleport() {}
 Dispatcher_SoloTeleport::~Dispatcher_SoloTeleport() {}
 
-Dispatcher_TitleBookGet::Dispatcher_TitleBookGet() {}
 Dispatcher_TitleBookGet::~Dispatcher_TitleBookGet() {}
 int Dispatcher_TitleBookGet::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -4970,7 +4910,6 @@ int Dispatcher_TitleBookGet::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_TitleBookPut::Dispatcher_TitleBookPut() {}
 Dispatcher_TitleBookPut::~Dispatcher_TitleBookPut() {}
 int Dispatcher_TitleBookPut::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -5052,7 +4991,6 @@ int Dispatcher_TitleBookPut::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_UpgradeCargo::Dispatcher_UpgradeCargo() {}
 Dispatcher_UpgradeCargo::~Dispatcher_UpgradeCargo() {}
 int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5141,11 +5079,9 @@ int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpgradeCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UseLimitCube::Dispatcher_UseLimitCube() {}
 Dispatcher_UseLimitCube::~Dispatcher_UseLimitCube() {}
 // process/read/send/check_error 实现于 Dispatcher_UseLimitCube_impl.cpp（ORIG 0x081d3d38 族）。
 
-Dispatcher_AssertManager::Dispatcher_AssertManager() {}
 Dispatcher_AssertManager::~Dispatcher_AssertManager() {}
 int Dispatcher_AssertManager::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5192,7 +5128,6 @@ int Dispatcher_AssertManager::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_AssertManager::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AssertManager::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CallGuildInfo::Dispatcher_CallGuildInfo() {}
 Dispatcher_CallGuildInfo::~Dispatcher_CallGuildInfo() {}
 int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5258,7 +5193,6 @@ int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CallGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ChangeEmotion::Dispatcher_ChangeEmotion() {}
 Dispatcher_ChangeEmotion::~Dispatcher_ChangeEmotion() {}
 // ORIG 0x081d1cec（报告 Dispatcher_ChangeEmotion/check_error.md）
 int Dispatcher_ChangeEmotion::check_error(CUser* user, MSG_BASE& msg)
@@ -5349,7 +5283,6 @@ void Dispatcher_ChangeEmotion::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_Clear_Used_QP::Dispatcher_Clear_Used_QP() {}
 Dispatcher_Clear_Used_QP::~Dispatcher_Clear_Used_QP() {}
 // ORIG 0x081d6746（报告 Dispatcher_Clear_Used_QP/check_error.md）[随行依赖，
 // process 语义必需；不在 55 桩清单]
@@ -5425,7 +5358,6 @@ void Dispatcher_Clear_Used_QP::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_ConnectP2PPvP::Dispatcher_ConnectP2PPvP() {}
 Dispatcher_ConnectP2PPvP::~Dispatcher_ConnectP2PPvP() {}
 int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5465,7 +5397,6 @@ int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ConnectP2PPvP::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ConnectP2PPvP::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DenyJoinGuild::Dispatcher_DenyJoinGuild() {}
 Dispatcher_DenyJoinGuild::~Dispatcher_DenyJoinGuild() {}
 int Dispatcher_DenyJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -5510,7 +5441,6 @@ int Dispatcher_DenyJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_EnchantByBead::Dispatcher_EnchantByBead() {}
 Dispatcher_EnchantByBead::~Dispatcher_EnchantByBead() {}
 int Dispatcher_EnchantByBead::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -5569,7 +5499,6 @@ void Dispatcher_EnchantByBead::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x113, (unsigned char)err);
 }
 
-Dispatcher_GenCeraTicket::Dispatcher_GenCeraTicket() {}
 Dispatcher_GenCeraTicket::~Dispatcher_GenCeraTicket() {}
 int Dispatcher_GenCeraTicket::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5596,9 +5525,6 @@ int Dispatcher_GenCeraTicket::read(PacketBuf& packet, MSG_BASE& msg) { return 0;
 // ORIG W 0x0821e474：int cnt = 0; return cnt;
 // ---- Dispatcher_GiveGiftToNPC 生命周期与分发表（ORIG W 实证）----
 // ctor W 0x08596a9c：基类 + vptr；dtor W 0x08241332/0x08241362：vptr + 基类析构。
-Dispatcher_GiveGiftToNPC::Dispatcher_GiveGiftToNPC()
-{
-}
 Dispatcher_GiveGiftToNPC::~Dispatcher_GiveGiftToNPC()
 {
 }
@@ -5639,7 +5565,6 @@ unsigned short Dispatcher_GiveGiftToNPC::_getResultFavor(
     return static_cast<unsigned short>(baseFavor + addFavor);
 }
 
-Dispatcher_GuildJoinList::Dispatcher_GuildJoinList() {}
 Dispatcher_GuildJoinList::~Dispatcher_GuildJoinList() {}
 int Dispatcher_GuildJoinList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -5676,7 +5601,6 @@ int Dispatcher_GuildJoinList::process(CUser* user, MSG_BASE& msg, ParamBase& par
 }
 int Dispatcher_GuildJoinList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_HatchCreature::Dispatcher_HatchCreature() {}
 Dispatcher_HatchCreature::~Dispatcher_HatchCreature() {}
 int Dispatcher_HatchCreature::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -5773,7 +5697,6 @@ void Dispatcher_HatchCreature::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x69, (unsigned char)p.m_4);
 }
 
-Dispatcher_JoinGuildInfo::Dispatcher_JoinGuildInfo() {}
 Dispatcher_JoinGuildInfo::~Dispatcher_JoinGuildInfo() {}
 // ORIG 0x081d5398（报告 Dispatcher_JoinGuildInfo/process.md）：
 // state==3 且 guildkey==0；非综合 PvP 基础渠道时 serverGroup 取
@@ -5801,7 +5724,6 @@ int Dispatcher_JoinGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& par
 }
 int Dispatcher_JoinGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_MouseRegister::Dispatcher_MouseRegister() {}
 Dispatcher_MouseRegister::~Dispatcher_MouseRegister() {}
 int Dispatcher_MouseRegister::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6124,10 +6046,8 @@ void DB_GoblinPadUpdateReward::makeRequest(unsigned int a, char b, bool c, char*
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
-Dispatcher_ObjectBringUp::Dispatcher_ObjectBringUp() {}
 Dispatcher_ObjectBringUp::~Dispatcher_ObjectBringUp() {}
 
-Dispatcher_Overflow_Info::Dispatcher_Overflow_Info() {}
 Dispatcher_Overflow_Info::~Dispatcher_Overflow_Info() {}
 // ORIG 0x0821e4b6（报告 Dispatcher_Overflow_Info/dispatch_sig.md）：
 // Packet_Overflow_Statistic_Add(0xc43,0xd) = PacketHeader(10B)+0xa uchar+0xb ushort。
@@ -6158,7 +6078,6 @@ int Dispatcher_Overflow_Info::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_Overflow_Info::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_QuickJoinRoom::Dispatcher_QuickJoinRoom() {}
 Dispatcher_QuickJoinRoom::~Dispatcher_QuickJoinRoom() {}
 int Dispatcher_QuickJoinRoom::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6236,7 +6155,6 @@ int Dispatcher_QuickJoinRoom::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_QuickJoinRoom::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_QuickJoinRoom::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SelectStriker::Dispatcher_SelectStriker() {}
 Dispatcher_SelectStriker::~Dispatcher_SelectStriker() {}
 int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6363,7 +6281,6 @@ void Dispatcher_SelectStriker::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e8, (unsigned char)err);
 }
 
-Dispatcher_UseCraneStart::Dispatcher_UseCraneStart() {}
 Dispatcher_UseCraneStart::~Dispatcher_UseCraneStart() {}
 int Dispatcher_UseCraneStart::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6404,7 +6321,6 @@ int Dispatcher_UseCraneStart::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UseCraneStart::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseCraneStart::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UseRenameCard::Dispatcher_UseRenameCard() {}
 Dispatcher_UseRenameCard::~Dispatcher_UseRenameCard() {}
 int Dispatcher_UseRenameCard::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6529,7 +6445,6 @@ int Dispatcher_UseRenameCard::getItem(const CUser& user, int invenType, short sl
     return 0;
 }
 
-Dispatcher_WithdrawMoney::Dispatcher_WithdrawMoney() {}
 Dispatcher_WithdrawMoney::~Dispatcher_WithdrawMoney() {}
 int Dispatcher_WithdrawMoney::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6562,7 +6477,6 @@ int Dispatcher_WithdrawMoney::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_WithdrawMoney::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_WithdrawMoney::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AuctionBidding::Dispatcher_AuctionBidding() {}
 Dispatcher_AuctionBidding::~Dispatcher_AuctionBidding() {}
 int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6717,7 +6631,6 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_AuctionBidding::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionBidding::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BuyAutomatItem::Dispatcher_BuyAutomatItem() {}
 Dispatcher_BuyAutomatItem::~Dispatcher_BuyAutomatItem() {}
 int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6816,7 +6729,6 @@ int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_BuyAutomatItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BuyAutomatItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CallMemberList::Dispatcher_CallMemberList() {}
 Dispatcher_CallMemberList::~Dispatcher_CallMemberList() {}
 int Dispatcher_CallMemberList::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6859,7 +6771,6 @@ int Dispatcher_CallMemberList::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 }
 int Dispatcher_CallMemberList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CheckJoinGuild::Dispatcher_CheckJoinGuild() {}
 Dispatcher_CheckJoinGuild::~Dispatcher_CheckJoinGuild() {}
 int Dispatcher_CheckJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -6907,11 +6818,9 @@ int Dispatcher_CheckJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_CompoundEmblem::Dispatcher_CompoundEmblem() {}
 Dispatcher_CompoundEmblem::~Dispatcher_CompoundEmblem() {}
 
 
-Dispatcher_DisJointAvatar::Dispatcher_DisJointAvatar() {}
 Dispatcher_DisJointAvatar::~Dispatcher_DisJointAvatar() {}
 int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7090,7 +6999,6 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DisJointAvatar::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DisJointAvatar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DisguiseCancel::Dispatcher_DisguiseCancel() {}
 Dispatcher_DisguiseCancel::~Dispatcher_DisguiseCancel() {}
 int Dispatcher_DisguiseCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7117,7 +7025,6 @@ int Dispatcher_DisguiseCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DisguiseCancel::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DisguiseCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_HellPartyStart::Dispatcher_HellPartyStart() {}
 Dispatcher_HellPartyStart::~Dispatcher_HellPartyStart() {}
 int Dispatcher_HellPartyStart::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7133,7 +7040,6 @@ int Dispatcher_HellPartyStart::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_HellPartyStart::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_HellPartyStart::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ItemDictionary::Dispatcher_ItemDictionary() {}
 Dispatcher_ItemDictionary::~Dispatcher_ItemDictionary() {}
 int Dispatcher_ItemDictionary::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -7171,7 +7077,6 @@ void Dispatcher_ItemDictionary::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b8, (unsigned char)p.m_4);
 }
 
-Dispatcher_Lag_Statistics::Dispatcher_Lag_Statistics() {}
 Dispatcher_Lag_Statistics::~Dispatcher_Lag_Statistics() {}
 int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7305,7 +7210,6 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Lag_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Lag_Statistics::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Mercenary_Info::Dispatcher_Mercenary_Info() {}
 Dispatcher_Mercenary_Info::~Dispatcher_Mercenary_Info() {}
 int Dispatcher_Mercenary_Info::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -7332,7 +7236,6 @@ void Dispatcher_Mercenary_Info::send(CUser* user, ParamBase& param)
     user->Send(guard);
 }
 
-Dispatcher_P2P_Statistics::Dispatcher_P2P_Statistics() {}
 Dispatcher_P2P_Statistics::~Dispatcher_P2P_Statistics() {}
 int Dispatcher_P2P_Statistics::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -7503,7 +7406,6 @@ int Dispatcher_P2P_Statistics::read(PacketBuf& packet, MSG_BASE& msg)
 
 
 
-Dispatcher_PvPChannelInfo::Dispatcher_PvPChannelInfo() {}
 Dispatcher_PvPChannelInfo::~Dispatcher_PvPChannelInfo() {}
 int Dispatcher_PvPChannelInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7539,7 +7441,6 @@ int Dispatcher_PvPChannelInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PvPChannelInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PvPChannelInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RemovePvPBuddy::Dispatcher_RemovePvPBuddy() {}
 Dispatcher_RemovePvPBuddy::~Dispatcher_RemovePvPBuddy() {}
 int Dispatcher_RemovePvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7567,7 +7468,6 @@ int Dispatcher_RemovePvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RemovePvPBuddy::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RemovePvPBuddy::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RenameCreature::Dispatcher_RenameCreature() {}
 Dispatcher_RenameCreature::~Dispatcher_RenameCreature() {}
 int Dispatcher_RenameCreature::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -7675,11 +7575,9 @@ void Dispatcher_RenameCreature::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x67, (unsigned char)p.m_4);
 }
 
-Dispatcher_UseBoosterItem::Dispatcher_UseBoosterItem() {}
 Dispatcher_UseBoosterItem::~Dispatcher_UseBoosterItem() {}
 
 
-Dispatcher_UserHistoryLog::Dispatcher_UserHistoryLog() {}
 Dispatcher_UserHistoryLog::~Dispatcher_UserHistoryLog() {}
 int Dispatcher_UserHistoryLog::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -7703,11 +7601,9 @@ int Dispatcher_UserHistoryLog::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_BuyCeraShopItem::Dispatcher_BuyCeraShopItem() {}
 Dispatcher_BuyCeraShopItem::~Dispatcher_BuyCeraShopItem() {}
 
 
-Dispatcher_CallGuildInvite::Dispatcher_CallGuildInvite() {}
 Dispatcher_CallGuildInvite::~Dispatcher_CallGuildInvite() {}
 int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7747,7 +7643,6 @@ int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CallGuildInvite::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildInvite::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CancelJoinGuild::Dispatcher_CancelJoinGuild() {}
 Dispatcher_CancelJoinGuild::~Dispatcher_CancelJoinGuild() {}
 // ORIG 0x081d4fcc（报告 Dispatcher_CancelJoinGuild/process.md）：
 // state==3 且 guildkey==0；param+0xd(unsigned)=申请索引；
@@ -7775,10 +7670,8 @@ int Dispatcher_CancelJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_CeraPackageOpen::Dispatcher_CeraPackageOpen() {}
 Dispatcher_CeraPackageOpen::~Dispatcher_CeraPackageOpen() {}
 
-Dispatcher_ChangeGuildName::Dispatcher_ChangeGuildName() {}
 Dispatcher_ChangeGuildName::~Dispatcher_ChangeGuildName() {}
 int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7862,7 +7755,6 @@ int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ChangeGuildName::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ChangeGuildName::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CompleteDisplay::Dispatcher_CompleteDisplay() {}
 Dispatcher_CompleteDisplay::~Dispatcher_CompleteDisplay() {}
 int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8003,7 +7895,6 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CompleteDisplay::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompleteDisplay::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CompleteLoadPvP::Dispatcher_CompleteLoadPvP() {}
 Dispatcher_CompleteLoadPvP::~Dispatcher_CompleteLoadPvP() {}
 // ORIG 0x082252fe（报告 Dispatcher_CompleteLoadPvP/dispatch_sig.md）：
 // state<=1 → LineFunc(0xe005)；matching 非空 → IMatch +0x54 vcall；
@@ -8029,7 +7920,6 @@ int Dispatcher_CompleteLoadPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CompleteLoadPvP::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompleteLoadPvP::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Compound_Avatar::Dispatcher_Compound_Avatar() {}
 Dispatcher_Compound_Avatar::~Dispatcher_Compound_Avatar() {}
 int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8117,7 +8007,6 @@ int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Compound_Avatar::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Compound_Avatar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DieBloodMonster::Dispatcher_DieBloodMonster() {}
 Dispatcher_DieBloodMonster::~Dispatcher_DieBloodMonster() {}
 int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8159,7 +8048,6 @@ int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DieBloodMonster::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DieBloodMonster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DisguiseRequest::Dispatcher_DisguiseRequest() {}
 Dispatcher_DisguiseRequest::~Dispatcher_DisguiseRequest() {}
 int Dispatcher_DisguiseRequest::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8209,7 +8097,6 @@ int Dispatcher_DisguiseRequest::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DisguiseRequest::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DisguiseRequest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DonateGuildFund::Dispatcher_DonateGuildFund() {}
 Dispatcher_DonateGuildFund::~Dispatcher_DonateGuildFund() {}
 int Dispatcher_DonateGuildFund::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -8270,7 +8157,6 @@ int Dispatcher_DonateGuildFund::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_GiveupExpertJob::Dispatcher_GiveupExpertJob() {}
 Dispatcher_GiveupExpertJob::~Dispatcher_GiveupExpertJob() {}
 // ORIG 0x0821eed2（报告 Dispatcher_GiveupExpertJob/dispatch_sig.md）：
 // state<=2 或 curCharac==0 → LineFunc 0xd797；否则 s_ExpertJobMgr->OnGiveup。
@@ -8289,7 +8175,6 @@ int Dispatcher_GiveupExpertJob::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_GiveupExpertJob::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GiveupExpertJob::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GoblinPadStatus::Dispatcher_GoblinPadStatus() {}
 Dispatcher_GoblinPadStatus::~Dispatcher_GoblinPadStatus() {}
 int Dispatcher_GoblinPadStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8318,7 +8203,6 @@ int Dispatcher_GoblinPadStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_GoblinPadStatus::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GoblinPadStatus::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_LimitNpcBuyItem::Dispatcher_LimitNpcBuyItem() {}
 Dispatcher_LimitNpcBuyItem::~Dispatcher_LimitNpcBuyItem() {}
 int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -8432,7 +8316,6 @@ void Dispatcher_LimitNpcBuyItem::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_MailBox_Extract::Dispatcher_MailBox_Extract() {}
 Dispatcher_MailBox_Extract::~Dispatcher_MailBox_Extract() {}
 // ORIG 0x081cceea（报告 Dispatcher_MailBox_Extract/check_error.md）：
 // 汇编内全部 CUser 操作以第二实参（user）为对象（this@esp+8、user@esp+0xc）。
@@ -8501,7 +8384,6 @@ void Dispatcher_MailBox_Extract::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_PVPRequestFight::Dispatcher_PVPRequestFight() {}
 Dispatcher_PVPRequestFight::~Dispatcher_PVPRequestFight() {}
 int Dispatcher_PVPRequestFight::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8529,7 +8411,6 @@ int Dispatcher_PVPRequestFight::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PVPRequestFight::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PVPRequestFight::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_QueryCharacInfo::Dispatcher_QueryCharacInfo() {}
 Dispatcher_QueryCharacInfo::~Dispatcher_QueryCharacInfo() {}
 int Dispatcher_QueryCharacInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8566,7 +8447,6 @@ int Dispatcher_QueryCharacInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_QueryCharacInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_QueryCharacInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ReportAbuseUser::Dispatcher_ReportAbuseUser() {}
 Dispatcher_ReportAbuseUser::~Dispatcher_ReportAbuseUser() {}
 // ORIG 0x0821ef48（报告 Dispatcher_ReportAbuseUser/dispatch_sig.md）：
 // state<3 || curCharacR==0 → LineFunc(0xd7a1)；OnAbuseUser==1 → 0；否则 LineFunc(0xd7b1)。
@@ -8591,7 +8471,6 @@ int Dispatcher_ReportAbuseUser::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ReportAbuseUser::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ReportAbuseUser::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestItemLock::Dispatcher_RequestItemLock() {}
 Dispatcher_RequestItemLock::~Dispatcher_RequestItemLock() {}
 int Dispatcher_RequestItemLock::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8631,7 +8510,6 @@ int Dispatcher_RequestItemLock::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RequestItemLock::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestItemLock::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SaveQuestNotify::Dispatcher_SaveQuestNotify() {}
 // ORIG _ZN26Dispatcher_SaveQuestNotifyD1Ev W 0x08260a8e：vptr 复位后调基类模板
 // D1（0x08262482）+ 恒假 delete 守卫；D0Ev W 0x08260abe = D1 + operator delete。
 Dispatcher_SaveQuestNotify::~Dispatcher_SaveQuestNotify() {}
@@ -8720,7 +8598,6 @@ int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& p
     return 0;
 }
 
-Dispatcher_SecuDataControl::Dispatcher_SecuDataControl() {}
 Dispatcher_SecuDataControl::~Dispatcher_SecuDataControl() {}
 int Dispatcher_SecuDataControl::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8755,7 +8632,6 @@ int Dispatcher_SecuDataControl::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_SecuDataControl::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecuDataControl::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_IPScan::Dispatcher_Security_IPScan() {}
 Dispatcher_Security_IPScan::~Dispatcher_Security_IPScan() {}
 int Dispatcher_Security_IPScan::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8770,7 +8646,6 @@ int Dispatcher_Security_IPScan::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Security_IPScan::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_IPScan::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Shop_Coin_Event::Dispatcher_Shop_Coin_Event() {}
 Dispatcher_Shop_Coin_Event::~Dispatcher_Shop_Coin_Event() {}
 int Dispatcher_Shop_Coin_Event::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8828,7 +8703,6 @@ int Dispatcher_Shop_Coin_Event::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Shop_Coin_Event::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Shop_Coin_Event::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_TutorialLevelUp::Dispatcher_TutorialLevelUp() {}
 Dispatcher_TutorialLevelUp::~Dispatcher_TutorialLevelUp() {}
 int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -8876,7 +8750,6 @@ int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& p
 }
 int Dispatcher_TutorialLevelUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ApproveJoinGuild::Dispatcher_ApproveJoinGuild() {}
 Dispatcher_ApproveJoinGuild::~Dispatcher_ApproveJoinGuild() {}
 // ORIG 0x081d50b4 T _ZN27Dispatcher_ApproveJoinGuild7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_ApproveJoinGuild/process.md 汇编+反编译 C 全文转写）
@@ -8914,7 +8787,6 @@ int Dispatcher_ApproveJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_CallGuildLevelUp::Dispatcher_CallGuildLevelUp() {}
 Dispatcher_CallGuildLevelUp::~Dispatcher_CallGuildLevelUp() {}
 int Dispatcher_CallGuildLevelUp::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8978,7 +8850,6 @@ int Dispatcher_CallGuildLevelUp::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CallGuildLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildLevelUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CallGuildMembers::Dispatcher_CallGuildMembers() {}
 Dispatcher_CallGuildMembers::~Dispatcher_CallGuildMembers() {}
 int Dispatcher_CallGuildMembers::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9022,12 +8893,10 @@ int Dispatcher_CallGuildMembers::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CallGuildMembers::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildMembers::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ChangeCharacName::Dispatcher_ChangeCharacName() {}
 Dispatcher_ChangeCharacName::~Dispatcher_ChangeCharacName() {}
 int Dispatcher_ChangeCharacName::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ChangeCharacName::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ChangeLetterStat::Dispatcher_ChangeLetterStat() {}
 Dispatcher_ChangeLetterStat::~Dispatcher_ChangeLetterStat() {}
 int Dispatcher_ChangeLetterStat::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9083,7 +8952,6 @@ void Dispatcher_ChangeLetterStat::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x89, (unsigned char)err);
 }
 
-Dispatcher_DieAssaultPlayer::Dispatcher_DieAssaultPlayer() {}
 Dispatcher_DieAssaultPlayer::~Dispatcher_DieAssaultPlayer() {}
 int Dispatcher_DieAssaultPlayer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9122,7 +8990,6 @@ int Dispatcher_DieAssaultPlayer::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_DieAssaultPlayer::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DieAssaultPlayer::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Equipslot_Switch::Dispatcher_Equipslot_Switch() {}
 Dispatcher_Equipslot_Switch::~Dispatcher_Equipslot_Switch() {}
 int Dispatcher_Equipslot_Switch::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9243,7 +9110,6 @@ void Dispatcher_Equipslot_Switch::send(CUser* user, ParamBase& param)
 // 0x0822c75a）；若后续其他 TU 需要请迁共享头并移除本文件定义。
 // ============================================================================
 
-Dispatcher_ExitPrivateStore::Dispatcher_ExitPrivateStore() {}
 Dispatcher_ExitPrivateStore::~Dispatcher_ExitPrivateStore() {}
 // ORIG 0x0820269c（报告 Dispatcher_ExitPrivateStore/dispatch_sig.md）：
 // state<3 || curCharacR==0 → 0；GetStoreBuyer 后经 IBuyer 调 ExitPrivateStore()。
@@ -9266,10 +9132,8 @@ int Dispatcher_ExitPrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ExitPrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ExitPrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ExpertExtraction::Dispatcher_ExpertExtraction() {}
 Dispatcher_ExpertExtraction::~Dispatcher_ExpertExtraction() {}
 
-Dispatcher_InformNotice_2nd::Dispatcher_InformNotice_2nd() {}
 Dispatcher_InformNotice_2nd::~Dispatcher_InformNotice_2nd() {}
 int Dispatcher_InformNotice_2nd::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9335,7 +9199,6 @@ void Dispatcher_InformNotice_2nd::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1de, (unsigned char)err);
 }
 
-Dispatcher_MemberEnterReply::Dispatcher_MemberEnterReply() {}
 Dispatcher_MemberEnterReply::~Dispatcher_MemberEnterReply() {}
 int Dispatcher_MemberEnterReply::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9379,7 +9242,6 @@ int Dispatcher_MemberEnterReply::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_Mercenary_Return::Dispatcher_Mercenary_Return() {}
 Dispatcher_Mercenary_Return::~Dispatcher_Mercenary_Return() {}
 int Dispatcher_Mercenary_Return::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -9434,7 +9296,6 @@ void Dispatcher_Mercenary_Return::send(CUser* user, ParamBase& param)     // ORI
     user->Send(guard);
 }
 
-Dispatcher_MultiMailBoxSend::Dispatcher_MultiMailBoxSend() {}
 Dispatcher_MultiMailBoxSend::~Dispatcher_MultiMailBoxSend() {}
 // ORIG T 0x081202a9：交易限次物品移动资格。
 bool CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok)
@@ -9628,7 +9489,6 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_MultiMailBoxSend::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_MultiMailBoxSend::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Open_Guild_Board::Dispatcher_Open_Guild_Board() {}
 Dispatcher_Open_Guild_Board::~Dispatcher_Open_Guild_Board() {}
 // ORIG 0x081d30d0（报告 Dispatcher_Open_Guild_Board/process.md）：
 // param+0xb2(unsigned char)=公告板页码；无状态门槛。
@@ -9654,7 +9514,6 @@ int Dispatcher_Open_Guild_Board::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_PvPBuddyConnList::Dispatcher_PvPBuddyConnList() {}
 Dispatcher_PvPBuddyConnList::~Dispatcher_PvPBuddyConnList() {}
 // ORIG 0x08224e08（报告 Dispatcher_PvPBuddyConnList/dispatch_sig.md）：
 // IsIntegratedPvPBaseChannel==1 → SendPvPBuddyList(accId, characNo)；恒返 0。
@@ -9671,7 +9530,6 @@ int Dispatcher_PvPBuddyConnList::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PvPBuddyConnList::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PvPBuddyConnList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RefreshGuildInfo::Dispatcher_RefreshGuildInfo() {}
 Dispatcher_RefreshGuildInfo::~Dispatcher_RefreshGuildInfo() {}
 // ORIG 0x081d4886（报告 Dispatcher_RefreshGuildInfo/process.md）：
 // state>2 且 guildkey!=0；characNo 经 get_charac_no(-1)。
@@ -9691,7 +9549,6 @@ int Dispatcher_RefreshGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& 
 }
 int Dispatcher_RefreshGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ReplyGuildInvite::Dispatcher_ReplyGuildInvite() {}
 Dispatcher_ReplyGuildInvite::~Dispatcher_ReplyGuildInvite() {}
 int Dispatcher_ReplyGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9736,7 +9593,6 @@ int Dispatcher_ReplyGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ReplyGuildInvite::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ReplyGuildInvite::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ReportBadP2PUser::Dispatcher_ReportBadP2PUser() {}
 Dispatcher_ReportBadP2PUser::~Dispatcher_ReportBadP2PUser() {}
 int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9783,7 +9639,6 @@ int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ReportBadP2PUser::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ReportBadP2PUser::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Req_Urgent_Quest::Dispatcher_Req_Urgent_Quest() {}
 Dispatcher_Req_Urgent_Quest::~Dispatcher_Req_Urgent_Quest() {}
 // ORIG 0x081df42c：state>2 → param+4=0/param+8=-1；等级 27..69 且
 // getCurCharacQuestR()->m_authenData.m_urgentQuest==-1 才继续；
@@ -9877,7 +9732,6 @@ void Dispatcher_Req_Urgent_Quest::send(CUser* user, ParamBase& param)
     user->Send(packet);
 }
 
-Dispatcher_RequestBlackList::Dispatcher_RequestBlackList() {}
 Dispatcher_RequestBlackList::~Dispatcher_RequestBlackList() {}
 int Dispatcher_RequestBlackList::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -9915,7 +9769,6 @@ int Dispatcher_RequestBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& 
 }
 int Dispatcher_RequestBlackList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestJoinGuild::Dispatcher_RequestJoinGuild() {}
 Dispatcher_RequestJoinGuild::~Dispatcher_RequestJoinGuild() {}
 int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -9989,7 +9842,6 @@ int Dispatcher_RequestJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 
-Dispatcher_ResponseCreature::Dispatcher_ResponseCreature() {}
 Dispatcher_ResponseCreature::~Dispatcher_ResponseCreature() {}
 int Dispatcher_ResponseCreature::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10005,7 +9857,6 @@ int Dispatcher_ResponseCreature::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ResponseCreature::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ResponseCreature::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SDC_Damage_Check::Dispatcher_SDC_Damage_Check() {}
 Dispatcher_SDC_Damage_Check::~Dispatcher_SDC_Damage_Check() {}
 int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10082,7 +9933,6 @@ int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_SDC_Damage_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SDC_Damage_Check::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SaveGameOption_1::Dispatcher_SaveGameOption_1() {}
 Dispatcher_SaveGameOption_1::~Dispatcher_SaveGameOption_1() {}
 int Dispatcher_SaveGameOption_1::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10142,7 +9992,6 @@ int Dispatcher_SaveGameOption_1::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_SaveGameOption_2::Dispatcher_SaveGameOption_2() {}
 Dispatcher_SaveGameOption_2::~Dispatcher_SaveGameOption_2() {}
 int Dispatcher_SaveGameOption_2::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10195,7 +10044,6 @@ int Dispatcher_SaveGameOption_2::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_UpgradeChronicle::Dispatcher_UpgradeChronicle() {}
 Dispatcher_UpgradeChronicle::~Dispatcher_UpgradeChronicle() {}
 int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10342,7 +10190,6 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpgradeChronicle::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeChronicle::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpgradeInventory::Dispatcher_UpgradeInventory() {}
 Dispatcher_UpgradeInventory::~Dispatcher_UpgradeInventory() {}
 int Dispatcher_UpgradeInventory::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10431,16 +10278,13 @@ int Dispatcher_UpgradeInventory::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpgradeInventory::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeInventory::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AddSocketToAvatar::Dispatcher_AddSocketToAvatar() {}
 Dispatcher_AddSocketToAvatar::~Dispatcher_AddSocketToAvatar() {}
 int Dispatcher_AddSocketToAvatar::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AddSocketToAvatar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AuctionRegistItem::Dispatcher_AuctionRegistItem() {}
 Dispatcher_AuctionRegistItem::~Dispatcher_AuctionRegistItem() {}
 
 
-Dispatcher_ChangeHostWarRoom::Dispatcher_ChangeHostWarRoom() {}
 Dispatcher_ChangeHostWarRoom::~Dispatcher_ChangeHostWarRoom() {}
 int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10520,7 +10364,6 @@ void Dispatcher_ChangeHostWarRoom::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x194, (unsigned char)p.m_4);
 }
 
-Dispatcher_ConnectP2PAssault::Dispatcher_ConnectP2PAssault() {}
 Dispatcher_ConnectP2PAssault::~Dispatcher_ConnectP2PAssault() {}
 int Dispatcher_ConnectP2PAssault::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10581,7 +10424,6 @@ int Dispatcher_ConnectP2PAssault::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ConnectP2PAssault::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ConnectP2PAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Debug_Clear_Quest::Dispatcher_Debug_Clear_Quest() {}
 Dispatcher_Debug_Clear_Quest::~Dispatcher_Debug_Clear_Quest() {}
 // ORIG 0x081df91c：isGMUser 否 → LineFunc(0x51f3) 返回其值；
 // res.m_index = msg（MsgClearQuestIndex::operator=，ORIG W 0x08235266）；
@@ -10684,7 +10526,6 @@ void Dispatcher_Debug_Clear_Quest::send(CUser* user, ParamBase& param)
     user->Send(questList);
 }
 
-Dispatcher_DeleteToBlackList::Dispatcher_DeleteToBlackList() {}
 Dispatcher_DeleteToBlackList::~Dispatcher_DeleteToBlackList() {}
 int Dispatcher_DeleteToBlackList::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -10733,7 +10574,6 @@ int Dispatcher_DeleteToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_EnterPrivateStore::Dispatcher_EnterPrivateStore() {}
 Dispatcher_EnterPrivateStore::~Dispatcher_EnterPrivateStore() {}
 int Dispatcher_EnterPrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10779,10 +10619,8 @@ int Dispatcher_EnterPrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_EnterPrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_EnterPrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_FatigueAttendance::Dispatcher_FatigueAttendance() {}
 Dispatcher_FatigueAttendance::~Dispatcher_FatigueAttendance() {}
 
-Dispatcher_GuildCargoHistory::Dispatcher_GuildCargoHistory() {}
 Dispatcher_GuildCargoHistory::~Dispatcher_GuildCargoHistory() {}
 int Dispatcher_GuildCargoHistory::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -10824,7 +10662,6 @@ void Dispatcher_GuildCargoHistory::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x109, (unsigned char)p.m_4);
 }
 
-Dispatcher_GuildCargoPopItem::Dispatcher_GuildCargoPopItem() {}
 Dispatcher_GuildCargoPopItem::~Dispatcher_GuildCargoPopItem() {}
 int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -10892,7 +10729,6 @@ void Dispatcher_GuildCargoPopItem::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc, (unsigned char)err);
 }
 
-Dispatcher_LoadingTimeReport::Dispatcher_LoadingTimeReport() {}
 Dispatcher_LoadingTimeReport::~Dispatcher_LoadingTimeReport() {}
 int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11031,7 +10867,6 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_LoadingTimeReport::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_LoadingTimeReport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_PeerConnectResult::Dispatcher_PeerConnectResult() {}
 Dispatcher_PeerConnectResult::~Dispatcher_PeerConnectResult() {}
 int Dispatcher_PeerConnectResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11067,7 +10902,6 @@ int Dispatcher_PeerConnectResult::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PeerConnectResult::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PeerConnectResult::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_PutItemForEnchant::Dispatcher_PutItemForEnchant() {}
 Dispatcher_PutItemForEnchant::~Dispatcher_PutItemForEnchant() {}
 int Dispatcher_PutItemForEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11098,7 +10932,6 @@ int Dispatcher_PutItemForEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PutItemForEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PutItemForEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestItemUnlock::Dispatcher_RequestItemUnlock() {}
 Dispatcher_RequestItemUnlock::~Dispatcher_RequestItemUnlock() {}
 int Dispatcher_RequestItemUnlock::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11137,7 +10970,6 @@ int Dispatcher_RequestItemUnlock::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RequestItemUnlock::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestItemUnlock::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SecretShopBuyItem::Dispatcher_SecretShopBuyItem() {}
 Dispatcher_SecretShopBuyItem::~Dispatcher_SecretShopBuyItem() {}
 // ORIG 0x081d26ea T _ZN28Dispatcher_SecretShopBuyItem7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_SecretShopBuyItem/process.md 汇编+反编译 C 全文转写）
@@ -11197,7 +11029,6 @@ void Dispatcher_SecretShopBuyItem::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x129, (unsigned char)err);
 }
 
-Dispatcher_SecurityCardIssue::Dispatcher_SecurityCardIssue() {}
 Dispatcher_SecurityCardIssue::~Dispatcher_SecurityCardIssue() {}
 int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11288,7 +11119,6 @@ int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_SecurityCardIssue::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecurityCardIssue::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SetSubGuildMaster::Dispatcher_SetSubGuildMaster() {}
 Dispatcher_SetSubGuildMaster::~Dispatcher_SetSubGuildMaster() {}
 int Dispatcher_SetSubGuildMaster::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11326,7 +11156,6 @@ int Dispatcher_SetSubGuildMaster::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_SetSubGuildMaster::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SetSubGuildMaster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpgradeGuildCargo::Dispatcher_UpgradeGuildCargo() {}
 Dispatcher_UpgradeGuildCargo::~Dispatcher_UpgradeGuildCargo() {}
 int Dispatcher_UpgradeGuildCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11454,7 +11283,6 @@ Dispatcher_UseVendingMachine::Dispatcher_UseVendingMachine()
 Dispatcher_UseVendingMachine::~Dispatcher_UseVendingMachine() {}
 
 
-Dispatcher_AchievementTrigger::Dispatcher_AchievementTrigger() {}
 Dispatcher_AchievementTrigger::~Dispatcher_AchievementTrigger() {}
 // ORIG 0x081d7f1e（报告 Dispatcher_AchievementTrigger/process.md）：
 // msg 为 MSG_ACHIEVEMENT_TRIGGER（m_field0d/11/13/15）；state<=2 → 0。
@@ -11491,7 +11319,6 @@ int Dispatcher_AchievementTrigger::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_Antibot_DPCallBack::Dispatcher_Antibot_DPCallBack() {}
 Dispatcher_Antibot_DPCallBack::~Dispatcher_Antibot_DPCallBack() {}
 int Dispatcher_Antibot_DPCallBack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11544,7 +11371,6 @@ int Dispatcher_Antibot_DPCallBack::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_Antibot_DPCallBack::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_BiddingRoutingItem::Dispatcher_BiddingRoutingItem() {}
 Dispatcher_BiddingRoutingItem::~Dispatcher_BiddingRoutingItem() {}
 int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11583,7 +11409,6 @@ int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_BiddingRoutingItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BiddingRoutingItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Cancel_Quick_Party::Dispatcher_Cancel_Quick_Party() {}
 Dispatcher_Cancel_Quick_Party::~Dispatcher_Cancel_Quick_Party() {}
 // ORIG 0x081de1b4（nm 实测，sz 0x43）：state>3 且 getCurCharacR()!=0 → 0，否则 -1。
 int Dispatcher_Cancel_Quick_Party::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11632,7 +11457,6 @@ void Dispatcher_Cancel_Quick_Party::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1bd, (unsigned char)err);
 }
 
-Dispatcher_ChangeRandomOption::Dispatcher_ChangeRandomOption() {}
 Dispatcher_ChangeRandomOption::~Dispatcher_ChangeRandomOption() {}
 int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -11838,7 +11662,6 @@ int Dispatcher_ChangeRandomOption::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_ChangeTutorialFlag::Dispatcher_ChangeTutorialFlag() {}
 Dispatcher_ChangeTutorialFlag::~Dispatcher_ChangeTutorialFlag() {}
 int Dispatcher_ChangeTutorialFlag::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11901,7 +11724,6 @@ int Dispatcher_ChangeTutorialFlag::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ChangeTutorialFlag::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ChangeTutorialFlag::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Change_Charac_Slot::Dispatcher_Change_Charac_Slot() {}
 Dispatcher_Change_Charac_Slot::~Dispatcher_Change_Charac_Slot() {}
 int Dispatcher_Change_Charac_Slot::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11955,7 +11777,6 @@ int Dispatcher_Change_Charac_Slot::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Change_Charac_Slot::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Change_Charac_Slot::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CharacterStatistic::Dispatcher_CharacterStatistic() {}
 Dispatcher_CharacterStatistic::~Dispatcher_CharacterStatistic() {}
 int Dispatcher_CharacterStatistic::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11989,7 +11810,6 @@ int Dispatcher_CharacterStatistic::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CharacterStatistic::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CharacterStatistic::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CloseDisjointStore::Dispatcher_CloseDisjointStore() {}
 Dispatcher_CloseDisjointStore::~Dispatcher_CloseDisjointStore() {}
 // ORIG 0x081d02c8（nm 实测，sz 0x9e）：state>2 且 curCharac!=0；ExpertJobType!=3
 // → -2；job 空 → 0x13；GetType()!=3 → 0x13；否则 0。
@@ -12046,7 +11866,6 @@ void Dispatcher_CloseDisjointStore::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf6, (unsigned char)p.m_4);
 }
 
-Dispatcher_CompatibilityIndex::Dispatcher_CompatibilityIndex() {}
 Dispatcher_CompatibilityIndex::~Dispatcher_CompatibilityIndex() {}
 int Dispatcher_CompatibilityIndex::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -12150,7 +11969,6 @@ int Dispatcher_CompatibilityIndex::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 
-Dispatcher_CreateAccountCargo::Dispatcher_CreateAccountCargo() {}
 Dispatcher_CreateAccountCargo::~Dispatcher_CreateAccountCargo() {}
 int Dispatcher_CreateAccountCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12165,7 +11983,6 @@ int Dispatcher_CreateAccountCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CreateAccountCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreateAccountCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CreatePrivateStore::Dispatcher_CreatePrivateStore() {}
 Dispatcher_CreatePrivateStore::~Dispatcher_CreatePrivateStore() {}
 int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12280,13 +12097,11 @@ int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CreatePrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreatePrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DungeonNPCBuffInfo::Dispatcher_DungeonNPCBuffInfo() {}
 Dispatcher_DungeonNPCBuffInfo::~Dispatcher_DungeonNPCBuffInfo() {}
 int Dispatcher_DungeonNPCBuffInfo::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_DungeonNPCBuffInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DungeonNPCBuffInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_EnterDisjointStore::Dispatcher_EnterDisjointStore() {}
 Dispatcher_EnterDisjointStore::~Dispatcher_EnterDisjointStore() {}
 int Dispatcher_EnterDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -12335,12 +12150,10 @@ void Dispatcher_EnterDisjointStore::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf5, (unsigned char)p.m_4);
 }
 
-Dispatcher_FrameLagStatistics::Dispatcher_FrameLagStatistics() {}
 Dispatcher_FrameLagStatistics::~Dispatcher_FrameLagStatistics() {}
 int Dispatcher_FrameLagStatistics::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_FrameLagStatistics::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GuildCargoMoveItem::Dispatcher_GuildCargoMoveItem() {}
 Dispatcher_GuildCargoMoveItem::~Dispatcher_GuildCargoMoveItem() {}
 int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -12405,7 +12218,6 @@ void Dispatcher_GuildCargoMoveItem::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfd, (unsigned char)err);
 }
 
-Dispatcher_GuildCargoPushItem::Dispatcher_GuildCargoPushItem() {}
 Dispatcher_GuildCargoPushItem::~Dispatcher_GuildCargoPushItem() {}
 // ORIG 0x081d0f64（OnlyOrigBatch13 组 E 转写；3 参数符号，字段自 ParamBase 读）：
 // state==3 且 curCharac 有效；guildkey==0→100；无公会驻地→0xb5；Secu Check 非 0
@@ -12536,7 +12348,6 @@ void Dispatcher_GuildCargoPushItem::send(CUser* user, ParamBase& param)     // O
     }
 }
 
-Dispatcher_RemovePrivateStore::Dispatcher_RemovePrivateStore() {}
 Dispatcher_RemovePrivateStore::~Dispatcher_RemovePrivateStore() {}
 int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12561,7 +12372,6 @@ int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RemovePrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RemovePrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestAddPvPBuddy::Dispatcher_RequestAddPvPBuddy() {}
 Dispatcher_RequestAddPvPBuddy::~Dispatcher_RequestAddPvPBuddy() {}
 int Dispatcher_RequestAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12589,7 +12399,6 @@ int Dispatcher_RequestAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RequestAddPvPBuddy::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestAddPvPBuddy::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestGuildSecede::Dispatcher_RequestGuildSecede() {}
 Dispatcher_RequestGuildSecede::~Dispatcher_RequestGuildSecede() {}
 int Dispatcher_RequestGuildSecede::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12674,7 +12483,6 @@ int Dispatcher_RequestGuildSecede::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RequestGuildSecede::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestGuildSecede::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestMemberEnter::Dispatcher_RequestMemberEnter() {}
 Dispatcher_RequestMemberEnter::~Dispatcher_RequestMemberEnter() {}
 int Dispatcher_RequestMemberEnter::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -12729,7 +12537,6 @@ void Dispatcher_RequestMemberEnter::send(CUser* user, ParamBase& param)
         return;
 }
 
-Dispatcher_Request_Seria_Buff::Dispatcher_Request_Seria_Buff() {}
 Dispatcher_Request_Seria_Buff::~Dispatcher_Request_Seria_Buff() {}
 // ORIG 0x081dbda0（报告 Dispatcher_Request_Seria_Buff/process.md）：
 // err=check_error(user, msg)（ORIG 0x081dbcd8 三参，声明已补 Dispatchers.h）；
@@ -12765,7 +12572,6 @@ void Dispatcher_Request_Seria_Buff::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_Score_Scroll_State::Dispatcher_Score_Scroll_State() {}
 Dispatcher_Score_Scroll_State::~Dispatcher_Score_Scroll_State() {}
 int Dispatcher_Score_Scroll_State::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12806,7 +12612,6 @@ int Dispatcher_Score_Scroll_State::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_Score_Scroll_State::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Score_Scroll_State::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SecurityCardDisuse::Dispatcher_SecurityCardDisuse() {}
 Dispatcher_SecurityCardDisuse::~Dispatcher_SecurityCardDisuse() {}
 int Dispatcher_SecurityCardDisuse::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12849,7 +12654,6 @@ int Dispatcher_SecurityCardDisuse::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_SecurityCardDisuse::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_TitleBookOtherUser::Dispatcher_TitleBookOtherUser() {}
 Dispatcher_TitleBookOtherUser::~Dispatcher_TitleBookOtherUser() {}
 // ORIG 0x081d7d56（报告 Dispatcher_TitleBookOtherUser/process.md）：
 // msg+0xd（unsigned short）为目标 uniqueId；两侧均要求 get_state() > 2。
@@ -12880,12 +12684,10 @@ int Dispatcher_TitleBookOtherUser::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_UnsealRandomOption::Dispatcher_UnsealRandomOption() {}
 Dispatcher_UnsealRandomOption::~Dispatcher_UnsealRandomOption() {}
 int Dispatcher_UnsealRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UnsealRandomOption::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ValidateScriptHash::Dispatcher_ValidateScriptHash() {}
 Dispatcher_ValidateScriptHash::~Dispatcher_ValidateScriptHash() {}
 // ORIG 0x08264364（报告 Dispatcher_ValidateScriptHash/get_hack_type.md）[随行依赖]：
 // switch(1..5) → 0x344..0x348；0 与越界分支 ORIG 未初始化 local_8（忠实保留）。
@@ -12943,7 +12745,6 @@ int Dispatcher_ValidateScriptHash::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_AuctionRegistCancel::Dispatcher_AuctionRegistCancel() {}
 Dispatcher_AuctionRegistCancel::~Dispatcher_AuctionRegistCancel() {}
 int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13011,7 +12812,6 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_AuctionRegistCancel::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionRegistCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BuyPrivateStoreItem::Dispatcher_BuyPrivateStoreItem() {}
 Dispatcher_BuyPrivateStoreItem::~Dispatcher_BuyPrivateStoreItem() {}
 int Dispatcher_BuyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13079,7 +12879,6 @@ int Dispatcher_BuyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_BuyPrivateStoreItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BuyPrivateStoreItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CallGuildAllMembers::Dispatcher_CallGuildAllMembers() {}
 Dispatcher_CallGuildAllMembers::~Dispatcher_CallGuildAllMembers() {}
 int Dispatcher_CallGuildAllMembers::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13121,7 +12920,6 @@ int Dispatcher_CallGuildAllMembers::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CallGuildAllMembers::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildAllMembers::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CompleteLoadAssault::Dispatcher_CompleteLoadAssault() {}
 Dispatcher_CompleteLoadAssault::~Dispatcher_CompleteLoadAssault() {}
 // ORIG 0x08206f10（报告 Dispatcher_CompleteLoadAssault/dispatch_sig.md）：
 // state<=1 → LineFunc(0xa199)；room+0x6e4 matching 非空 → IMatch 虚表 +0x54
@@ -13156,7 +12954,6 @@ int Dispatcher_CompleteLoadAssault::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CompleteLoadAssault::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompleteLoadAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CreateDisjointStore::Dispatcher_CreateDisjointStore() {}
 Dispatcher_CreateDisjointStore::~Dispatcher_CreateDisjointStore() {}
 int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -13238,7 +13035,6 @@ void Dispatcher_CreateDisjointStore::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xee, (unsigned char)p.m_4);
 }
 
-Dispatcher_CreatureSendMessage::Dispatcher_CreatureSendMessage() {}
 Dispatcher_CreatureSendMessage::~Dispatcher_CreatureSendMessage() {}
 int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13325,7 +13121,6 @@ int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_CreatureSendMessage::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreatureSendMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_FightVillageMonster::Dispatcher_FightVillageMonster() {}
 Dispatcher_FightVillageMonster::~Dispatcher_FightVillageMonster() {}
 int Dispatcher_FightVillageMonster::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13365,7 +13160,6 @@ int Dispatcher_FightVillageMonster::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_FightVillageMonster::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_FightVillageMonster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GuildAttendanceInfo::Dispatcher_GuildAttendanceInfo() {}
 Dispatcher_GuildAttendanceInfo::~Dispatcher_GuildAttendanceInfo() {}
 int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -13408,7 +13202,6 @@ int Dispatcher_GuildAttendanceInfo::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_GuildMasterDelegate::Dispatcher_GuildMasterDelegate() {}
 Dispatcher_GuildMasterDelegate::~Dispatcher_GuildMasterDelegate() {}
 int Dispatcher_GuildMasterDelegate::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13464,7 +13257,6 @@ int Dispatcher_GuildMasterDelegate::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_GuildMasterDelegate::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildMasterDelegate::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_New_Gmdebug_Command::Dispatcher_New_Gmdebug_Command() {}
 Dispatcher_New_Gmdebug_Command::~Dispatcher_New_Gmdebug_Command() {}
 int Dispatcher_New_Gmdebug_Command::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13524,7 +13316,6 @@ int Dispatcher_New_Gmdebug_Command::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_New_Gmdebug_Command::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_New_Gmdebug_Command::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_PowerWarProcessInfo::Dispatcher_PowerWarProcessInfo() {}
 Dispatcher_PowerWarProcessInfo::~Dispatcher_PowerWarProcessInfo() {}
 int Dispatcher_PowerWarProcessInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13552,7 +13343,6 @@ int Dispatcher_PowerWarProcessInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_PowerWarProcessInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PowerWarProcessInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_PvpMissionHPPercent::Dispatcher_PvpMissionHPPercent() {}
 Dispatcher_PvpMissionHPPercent::~Dispatcher_PvpMissionHPPercent() {}
 // ORIG 0x081d5864（报告 Dispatcher_PvpMissionHPPercent/process.md）：
 // 仅 curCharacR 门禁；UpdateMissionCondition(m_hpPercents, m_missionIdxs)。
@@ -13608,7 +13398,6 @@ void Dispatcher_PvpMissionHPPercent::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_RegisterToBlackList::Dispatcher_RegisterToBlackList() {}
 Dispatcher_RegisterToBlackList::~Dispatcher_RegisterToBlackList() {}
 int Dispatcher_RegisterToBlackList::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -13820,10 +13609,8 @@ int Dispatcher_RegisterToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_RequestAssaultPrice::Dispatcher_RequestAssaultPrice() {}
 Dispatcher_RequestAssaultPrice::~Dispatcher_RequestAssaultPrice() {}
 
-Dispatcher_RequestDisjointItem::Dispatcher_RequestDisjointItem() {}
 Dispatcher_RequestDisjointItem::~Dispatcher_RequestDisjointItem() {}
 int Dispatcher_RequestDisjointItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -13880,7 +13667,6 @@ void Dispatcher_RequestDisjointItem::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xef, (unsigned char)p.m_4);
 }
 
-Dispatcher_ResponseAddPvPBuddy::Dispatcher_ResponseAddPvPBuddy() {}
 Dispatcher_ResponseAddPvPBuddy::~Dispatcher_ResponseAddPvPBuddy() {}
 int Dispatcher_ResponseAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13908,7 +13694,6 @@ int Dispatcher_ResponseAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ResponseAddPvPBuddy::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ResponseAddPvPBuddy::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SaveCharacterOption::Dispatcher_SaveCharacterOption() {}
 Dispatcher_SaveCharacterOption::~Dispatcher_SaveCharacterOption() {}
 int Dispatcher_SaveCharacterOption::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -13958,7 +13743,6 @@ int Dispatcher_SaveCharacterOption::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_SecretShopOpenClose::Dispatcher_SecretShopOpenClose() {}
 Dispatcher_SecretShopOpenClose::~Dispatcher_SecretShopOpenClose() {}
 int Dispatcher_SecretShopOpenClose::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -14012,7 +13796,6 @@ void Dispatcher_SecretShopOpenClose::send(CUser* user, ParamBase& param)
         return;
 }
 
-Dispatcher_SecurityCardAuthReq::Dispatcher_SecurityCardAuthReq() {}
 Dispatcher_SecurityCardAuthReq::~Dispatcher_SecurityCardAuthReq() {}
 int Dispatcher_SecurityCardAuthReq::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14067,7 +13850,6 @@ int Dispatcher_SecurityCardAuthReq::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_SecurityCardAuthReq::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_SecurityCardCertKey::Dispatcher_SecurityCardCertKey() {}
 Dispatcher_SecurityCardCertKey::~Dispatcher_SecurityCardCertKey() {}
 int Dispatcher_SecurityCardCertKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14139,7 +13921,6 @@ int Dispatcher_SecurityCardCertKey::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_SecurityCardCertKey::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecurityCardCertKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpdateServerMessage::Dispatcher_UpdateServerMessage() {}
 Dispatcher_UpdateServerMessage::~Dispatcher_UpdateServerMessage() {}
 int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14247,7 +14028,6 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpdateServerMessage::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpdateServerMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpgradeAccountCargo::Dispatcher_UpgradeAccountCargo() {}
 Dispatcher_UpgradeAccountCargo::~Dispatcher_UpgradeAccountCargo() {}
 int Dispatcher_UpgradeAccountCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14262,7 +14042,6 @@ int Dispatcher_UpgradeAccountCargo::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UpgradeAccountCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeAccountCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UpgradeItemSeparate::Dispatcher_UpgradeItemSeparate() {}
 Dispatcher_UpgradeItemSeparate::~Dispatcher_UpgradeItemSeparate() {}
 // ORIG 0x081cbe84（报告 Dispatcher_UpgradeItemSeparate/check_error.md）：
 // state==3 且 curCharac!=0 否则 7；Secu Check(user,0x27) 非 0 原值返回；
@@ -14342,7 +14121,6 @@ int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 
-Dispatcher_UseSharedEffectItem::Dispatcher_UseSharedEffectItem() {}
 Dispatcher_UseSharedEffectItem::~Dispatcher_UseSharedEffectItem() {}
 int Dispatcher_UseSharedEffectItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14417,7 +14195,6 @@ int Dispatcher_UseSharedEffectItem::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_UseSharedEffectItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseSharedEffectItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_VerifyCreatureQuest::Dispatcher_VerifyCreatureQuest() {}
 Dispatcher_VerifyCreatureQuest::~Dispatcher_VerifyCreatureQuest() {}
 // ORIG 0x081e324c：user 非空且 state>2 时，对当前角色背包的装备宠物
 // 调 VerifyEquipedCreatureQuest（进化任务资格校验/任务列表包补发）。
@@ -14431,7 +14208,6 @@ int Dispatcher_VerifyCreatureQuest::process(CUser* user, MSG_BASE& msg, ParamBas
 }
 int Dispatcher_VerifyCreatureQuest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_WarRoomWpPerMonster::Dispatcher_WarRoomWpPerMonster() {}
 Dispatcher_WarRoomWpPerMonster::~Dispatcher_WarRoomWpPerMonster() {}
 int Dispatcher_WarRoomWpPerMonster::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -14508,7 +14284,6 @@ void Dispatcher_WarRoomWpPerMonster::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x179, (unsigned char)p.m_4);
 }
 
-Dispatcher_AbnormalUseStackable::Dispatcher_AbnormalUseStackable() {}
 Dispatcher_AbnormalUseStackable::~Dispatcher_AbnormalUseStackable() {}
 int Dispatcher_AbnormalUseStackable::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 // ORIG 0x082649ae（报告 Dispatcher_AbnormalUseStackable/process.md）：
@@ -14542,7 +14317,6 @@ int Dispatcher_AbnormalUseStackable::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_AuctionBuyItemApiece::Dispatcher_AuctionBuyItemApiece() {}
 Dispatcher_AuctionBuyItemApiece::~Dispatcher_AuctionBuyItemApiece() {}
 int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14623,7 +14397,6 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_AuctionBuyItemApiece::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionBuyItemApiece::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AuctionMyBiddingInfo::Dispatcher_AuctionMyBiddingInfo() {}
 Dispatcher_AuctionMyBiddingInfo::~Dispatcher_AuctionMyBiddingInfo() {}
 int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14673,11 +14446,9 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_AuctionMyBiddingInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionMyBiddingInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BuyCeraShopLimitItem::Dispatcher_BuyCeraShopLimitItem() {}
 Dispatcher_BuyCeraShopLimitItem::~Dispatcher_BuyCeraShopLimitItem() {}
 
 
-Dispatcher_CallGuildCreateRight::Dispatcher_CallGuildCreateRight() {}
 Dispatcher_CallGuildCreateRight::~Dispatcher_CallGuildCreateRight() {}
 int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14777,7 +14548,6 @@ int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_CallGuildCreateRight::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildCreateRight::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Check3rdPartyConcent::Dispatcher_Check3rdPartyConcent() {}
 Dispatcher_Check3rdPartyConcent::~Dispatcher_Check3rdPartyConcent() {}
 int Dispatcher_Check3rdPartyConcent::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -14792,7 +14562,6 @@ int Dispatcher_Check3rdPartyConcent::process(CUser* user, MSG_BASE& msg, ParamBa
 }
 int Dispatcher_Check3rdPartyConcent::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CheckGuildNameDouble::Dispatcher_CheckGuildNameDouble() {}
 Dispatcher_CheckGuildNameDouble::~Dispatcher_CheckGuildNameDouble() {}
 int Dispatcher_CheckGuildNameDouble::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -14846,7 +14615,6 @@ int Dispatcher_CheckGuildNameDouble::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_CheckGuildNameDouble::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CheckGuildNameDouble::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Compound_ExtreamItem::Dispatcher_Compound_ExtreamItem() {}
 Dispatcher_Compound_ExtreamItem::~Dispatcher_Compound_ExtreamItem() {}
 int Dispatcher_Compound_ExtreamItem::_push_newitem()
 {
@@ -15025,7 +14793,6 @@ int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_Compound_ExtreamItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Compound_ExtreamItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GatheringPartyStatus::Dispatcher_GatheringPartyStatus() {}
 Dispatcher_GatheringPartyStatus::~Dispatcher_GatheringPartyStatus() {}
 int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -15184,7 +14951,6 @@ int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_GatheringPartyStatus::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GatheringPartyStatus::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ItemHyperLinkMessage::Dispatcher_ItemHyperLinkMessage() {}
 Dispatcher_ItemHyperLinkMessage::~Dispatcher_ItemHyperLinkMessage() {}
 int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -15470,7 +15236,6 @@ void DB_InsertPoliceSaveChatting::makeRequest(unsigned int a, char b, char* c)
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
 }
 
-Dispatcher_NotifyMessageToGuild::Dispatcher_NotifyMessageToGuild() {}
 Dispatcher_NotifyMessageToGuild::~Dispatcher_NotifyMessageToGuild() {}
 int Dispatcher_NotifyMessageToGuild::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -15533,7 +15298,6 @@ int Dispatcher_NotifyMessageToGuild::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_NotifyMessageToGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_NotifyMessageToGuild::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_OperateRidableObject::Dispatcher_OperateRidableObject() {}
 Dispatcher_OperateRidableObject::~Dispatcher_OperateRidableObject() {}
 int Dispatcher_OperateRidableObject::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -15585,7 +15349,6 @@ int Dispatcher_OperateRidableObject::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_OperateRidableObject::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_OperateRidableObject::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_PartyTeleportConfirm::Dispatcher_PartyTeleportConfirm() {}
 Dispatcher_PartyTeleportConfirm::~Dispatcher_PartyTeleportConfirm() {}
 int Dispatcher_PartyTeleportConfirm::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -15705,7 +15468,6 @@ void Dispatcher_PartyTeleportConfirm::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_PcRoomPlayTimeReward::Dispatcher_PcRoomPlayTimeReward() {}
 Dispatcher_PcRoomPlayTimeReward::~Dispatcher_PcRoomPlayTimeReward() {}
 int Dispatcher_PcRoomPlayTimeReward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -15757,7 +15519,6 @@ void Dispatcher_PcRoomPlayTimeReward::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_PrecheckSoloTeleport::Dispatcher_PrecheckSoloTeleport() {}
 Dispatcher_PrecheckSoloTeleport::~Dispatcher_PrecheckSoloTeleport() {}
 int Dispatcher_PrecheckSoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -15816,7 +15577,6 @@ void Dispatcher_PrecheckSoloTeleport::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_PvpMissionComboClear::Dispatcher_PvpMissionComboClear() {}
 Dispatcher_PvpMissionComboClear::~Dispatcher_PvpMissionComboClear() {}
 int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -15869,7 +15629,6 @@ int Dispatcher_PvpMissionComboClear::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_Register_Quick_Party::Dispatcher_Register_Quick_Party() {}
 Dispatcher_Register_Quick_Party::~Dispatcher_Register_Quick_Party() {}
 // ORIG 0x081ddfce（nm 实测，sz 0x43）：state>3 且 getCurCharacR()!=0 → 0，否则 -1。
 int Dispatcher_Register_Quick_Party::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -15936,7 +15695,6 @@ void Dispatcher_Register_Quick_Party::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_ReportMannerlessUser::Dispatcher_ReportMannerlessUser() {}
 Dispatcher_ReportMannerlessUser::~Dispatcher_ReportMannerlessUser() {}
 int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16026,7 +15784,6 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_ReportMannerlessUser::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ReportMannerlessUser::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Request_PvpExpOfWeek::Dispatcher_Request_PvpExpOfWeek() {}
 Dispatcher_Request_PvpExpOfWeek::~Dispatcher_Request_PvpExpOfWeek() {}
 // ORIG 0x081fecaa（报告 Dispatcher_Request_PvpExpOfWeek/dispatch_sig.md）：
 // PacketGuard：put_header(0,0x39) → put_int(get_pvp_exp_of_week()) →
@@ -16044,7 +15801,6 @@ int Dispatcher_Request_PvpExpOfWeek::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_Request_PvpExpOfWeek::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Request_PvpExpOfWeek::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_ProcessScan::Dispatcher_Security_ProcessScan() {}
 Dispatcher_Security_ProcessScan::~Dispatcher_Security_ProcessScan() {}
 int Dispatcher_Security_ProcessScan::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16072,7 +15828,6 @@ int Dispatcher_Security_ProcessScan::dispatch_sig(CUser* user, PacketBuf& packet
 int Dispatcher_Security_ProcessScan::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_ProcessScan::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SeriaRoom_Deco_Event::Dispatcher_SeriaRoom_Deco_Event() {}
 Dispatcher_SeriaRoom_Deco_Event::~Dispatcher_SeriaRoom_Deco_Event() {}
 int Dispatcher_SeriaRoom_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -16154,7 +15909,6 @@ void Dispatcher_SeriaRoom_Deco_Event::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_WriteGuildMemberMemo::Dispatcher_WriteGuildMemberMemo() {}
 Dispatcher_WriteGuildMemberMemo::~Dispatcher_WriteGuildMemberMemo() {}
 int Dispatcher_WriteGuildMemberMemo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16211,7 +15965,6 @@ int Dispatcher_WriteGuildMemberMemo::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_WriteGuildMemberMemo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 
-Dispatcher_Client_Spec_Statistic::Dispatcher_Client_Spec_Statistic() {}
 Dispatcher_Client_Spec_Statistic::~Dispatcher_Client_Spec_Statistic() {}
 // ORIG 0x081ce794（报告 Dispatcher_Client_Spec_Statistic/send.md）[随行依赖]：
 // 构造 Packet_Client_Spec_Statistic（ORIG W 0x0822bc18），写 flag/count/len，
@@ -16267,7 +16020,6 @@ int Dispatcher_Client_Spec_Statistic::process(CUser* user, MSG_BASE& msg, ParamB
     return 0;
 }
 
-Dispatcher_CreatureScriptMessage::Dispatcher_CreatureScriptMessage() {}
 Dispatcher_CreatureScriptMessage::~Dispatcher_CreatureScriptMessage() {}
 int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16364,7 +16116,6 @@ L_9cf7:
 int Dispatcher_CreatureScriptMessage::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreatureScriptMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Mercenary_Competition::Dispatcher_Mercenary_Competition() {}
 Dispatcher_Mercenary_Competition::~Dispatcher_Mercenary_Competition() {}
 int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -16434,7 +16185,6 @@ void Dispatcher_Mercenary_Competition::send(CUser* user, ParamBase& param)    //
     user->Send(guard);
 }
 
-Dispatcher_OpenGuildCreateWindow::Dispatcher_OpenGuildCreateWindow() {}
 Dispatcher_OpenGuildCreateWindow::~Dispatcher_OpenGuildCreateWindow() {}
 int Dispatcher_OpenGuildCreateWindow::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16452,7 +16202,6 @@ int Dispatcher_OpenGuildCreateWindow::dispatch_sig(CUser* user, PacketBuf& packe
 int Dispatcher_OpenGuildCreateWindow::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_OpenGuildCreateWindow::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RepairDisjointMachine::Dispatcher_RepairDisjointMachine() {}
 Dispatcher_RepairDisjointMachine::~Dispatcher_RepairDisjointMachine() {}
 // ORIG 0x081cfddc（nm 实测，sz 0x5f）：state>2 且 curCharac!=0；ExpertJobType!=3 → -2。
 int Dispatcher_RepairDisjointMachine::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -16501,7 +16250,6 @@ void Dispatcher_RepairDisjointMachine::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf0, (unsigned char)p.m_4);
 }
 
-Dispatcher_AuctionAskAveragePrice::Dispatcher_AuctionAskAveragePrice() {}
 Dispatcher_AuctionAskAveragePrice::~Dispatcher_AuctionAskAveragePrice() {}
 int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -16616,7 +16364,6 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_AuctionAskAveragePrice::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionAskAveragePrice::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AuctionSearchByItemKey::Dispatcher_AuctionSearchByItemKey() {}
 Dispatcher_AuctionSearchByItemKey::~Dispatcher_AuctionSearchByItemKey() {}
 // ============================================================================
 // ORIG 0x082159fc（docs/class_func_reports/Dispatcher_AuctionSearchByItemKey/dispatch_sig.md）
@@ -16818,7 +16565,6 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_AuctionSearchByItemKey::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionSearchByItemKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Break_Away_Quest_Check::Dispatcher_Break_Away_Quest_Check() {}
 Dispatcher_Break_Away_Quest_Check::~Dispatcher_Break_Away_Quest_Check() {}
 // ORIG 0x081d390a：msg.m_checkFlag==0（+0xd）→ setBreakAwayDungeonClearCnt(-1)、
 // setBreakAwayQuestTime(0)、StreamPool::Acquire("PacketDispatcher_Impl_1.cpp",
@@ -16892,7 +16638,6 @@ void Dispatcher_Break_Away_Quest_Check::send(CUser* user, ParamBase& param)
     user->Send(packet);
 }
 
-Dispatcher_ChangeAnotherSkillTree::Dispatcher_ChangeAnotherSkillTree() {}
 Dispatcher_ChangeAnotherSkillTree::~Dispatcher_ChangeAnotherSkillTree() {}
 int Dispatcher_ChangeAnotherSkillTree::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -16977,7 +16722,6 @@ void Dispatcher_ChangeAnotherSkillTree::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_CharacSlotExtendEffect::Dispatcher_CharacSlotExtendEffect() {}
 Dispatcher_CharacSlotExtendEffect::~Dispatcher_CharacSlotExtendEffect() {}
 int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, ParamBase& paramBase)
 {
@@ -17039,7 +16783,6 @@ void Dispatcher_CharacSlotExtendEffect::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_CheckAssaultMotionHack::Dispatcher_CheckAssaultMotionHack() {}
 Dispatcher_CheckAssaultMotionHack::~Dispatcher_CheckAssaultMotionHack() {}
 int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17102,7 +16845,6 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_CheckAssaultMotionHack::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CheckAssaultMotionHack::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ConnectP2PAfterAssault::Dispatcher_ConnectP2PAfterAssault() {}
 Dispatcher_ConnectP2PAfterAssault::~Dispatcher_ConnectP2PAfterAssault() {}
 int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17162,7 +16904,6 @@ int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_ConnectP2PAfterAssault::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ConnectP2PAfterAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_DeathTowerStageCommand::Dispatcher_DeathTowerStageCommand() {}
 Dispatcher_DeathTowerStageCommand::~Dispatcher_DeathTowerStageCommand() {}
 int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17242,7 +16983,6 @@ int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_DeathTowerStageCommand::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DeathTowerStageCommand::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Delete_GuildBoard_Text::Dispatcher_Delete_GuildBoard_Text() {}
 Dispatcher_Delete_GuildBoard_Text::~Dispatcher_Delete_GuildBoard_Text() {}
 // ORIG 0x081d33a0（报告 Dispatcher_Delete_GuildBoard_Text/process.md）：
 // param+0x89(unsigned)=待删公告文本索引；无状态门槛。
@@ -17268,7 +17008,6 @@ int Dispatcher_Delete_GuildBoard_Text::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_DungeonEventStoryPause::Dispatcher_DungeonEventStoryPause() {}
 Dispatcher_DungeonEventStoryPause::~Dispatcher_DungeonEventStoryPause() {}
 int Dispatcher_DungeonEventStoryPause::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17337,7 +17076,6 @@ int Dispatcher_DungeonEventStoryPause::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_DungeonEventStoryPause::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DungeonEventStoryPause::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Float_RDATA_Modulation::Dispatcher_Float_RDATA_Modulation() {}
 Dispatcher_Float_RDATA_Modulation::~Dispatcher_Float_RDATA_Modulation() {}
 // ORIG 0x08264b5c（报告 Dispatcher_Float_RDATA_Modulation/check_error.md）
 // [随行依赖]：ORIG 逐指令即合法恒 0，忠实保留。
@@ -17381,7 +17119,6 @@ int Dispatcher_Float_RDATA_Modulation::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_LogIngameAdvertisement::Dispatcher_LogIngameAdvertisement() {}
 Dispatcher_LogIngameAdvertisement::~Dispatcher_LogIngameAdvertisement() {}
 int Dispatcher_LogIngameAdvertisement::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -17452,7 +17189,6 @@ void Dispatcher_LogIngameAdvertisement::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1ea, (unsigned char)err);
 }
 
-Dispatcher_QueryCharacInfoMailbox::Dispatcher_QueryCharacInfoMailbox() {}
 Dispatcher_QueryCharacInfoMailbox::~Dispatcher_QueryCharacInfoMailbox() {}
 int Dispatcher_QueryCharacInfoMailbox::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17479,7 +17215,6 @@ int Dispatcher_QueryCharacInfoMailbox::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_QueryCharacInfoMailbox::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_QueryCharacInfoMailbox::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestCharacSkillInfo::Dispatcher_RequestCharacSkillInfo() {}
 Dispatcher_RequestCharacSkillInfo::~Dispatcher_RequestCharacSkillInfo() {}
 // ORIG 0x081e3c08 T _ZN33Dispatcher_RequestCharacSkillInfo11check_errorEP5CUserR8MSG_BASE
 // （docs/class_func_reports/Dispatcher_RequestCharacSkillInfo/check_error.md 汇编+反编译 C 全文转写）
@@ -17570,7 +17305,6 @@ void Dispatcher_RequestCharacSkillInfo::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1e5, (unsigned char)p.m_4);
 }
 
-Dispatcher_SecurityCardAuthCancel::Dispatcher_SecurityCardAuthCancel() {}
 Dispatcher_SecurityCardAuthCancel::~Dispatcher_SecurityCardAuthCancel() {}
 int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17621,7 +17355,6 @@ int Dispatcher_SecurityCardAuthCancel::process(CUser* user, MSG_BASE& msg, Param
 }
 int Dispatcher_SecurityCardAuthCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SecurityCardRetransfer::Dispatcher_SecurityCardRetransfer() {}
 Dispatcher_SecurityCardRetransfer::~Dispatcher_SecurityCardRetransfer() {}
 int Dispatcher_SecurityCardRetransfer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17699,10 +17432,8 @@ int Dispatcher_SecurityCardRetransfer::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_SecurityCardRetransfer::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecurityCardRetransfer::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_TournamentRewardSelect::Dispatcher_TournamentRewardSelect() {}
 Dispatcher_TournamentRewardSelect::~Dispatcher_TournamentRewardSelect() {}
 
-Dispatcher_UpgradeDisjointMachine::Dispatcher_UpgradeDisjointMachine() {}
 Dispatcher_UpgradeDisjointMachine::~Dispatcher_UpgradeDisjointMachine() {}
 // ORIG 0x081cff34（nm 实测，sz 0x5f）：state>2 且 curCharac!=0；ExpertJobType!=3 → -2。
 int Dispatcher_UpgradeDisjointMachine::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -17751,7 +17482,6 @@ void Dispatcher_UpgradeDisjointMachine::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf4, (unsigned char)p.m_4);
 }
 
-Dispatcher_VerifyPrivateStoreItem::Dispatcher_VerifyPrivateStoreItem() {}
 Dispatcher_VerifyPrivateStoreItem::~Dispatcher_VerifyPrivateStoreItem() {}
 int Dispatcher_VerifyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17801,7 +17531,6 @@ int Dispatcher_VerifyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& pack
 int Dispatcher_VerifyPrivateStoreItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_VerifyPrivateStoreItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_AuctionMyAuctionHistory::Dispatcher_AuctionMyAuctionHistory() {}
 Dispatcher_AuctionMyAuctionHistory::~Dispatcher_AuctionMyAuctionHistory() {}
 // ORIG 0x08216d02（报告 Dispatcher_AuctionMyAuctionHistory/dispatch_sig.md）：
 // IsRunning!=1 → 0；state<3 || curCharacR==0 → LineFunc(0xc864)；否则
@@ -17831,7 +17560,6 @@ int Dispatcher_AuctionMyAuctionHistory::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_AuctionMyAuctionHistory::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionMyAuctionHistory::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Card_Select_Right_State::Dispatcher_Card_Select_Right_State() {}
 Dispatcher_Card_Select_Right_State::~Dispatcher_Card_Select_Right_State() {}
 int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17892,7 +17620,6 @@ int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_Card_Select_Right_State::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Card_Select_Right_State::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CheckGuildAddressDouble::Dispatcher_CheckGuildAddressDouble() {}
 Dispatcher_CheckGuildAddressDouble::~Dispatcher_CheckGuildAddressDouble() {}
 int Dispatcher_CheckGuildAddressDouble::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -17942,7 +17669,6 @@ int Dispatcher_CheckGuildAddressDouble::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_CheckGuildAddressDouble::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CheckGuildAddressDouble::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CompoundItemByExpertJob::Dispatcher_CompoundItemByExpertJob() {}
 Dispatcher_CompoundItemByExpertJob::~Dispatcher_CompoundItemByExpertJob() {}
 int Dispatcher_CompoundItemByExpertJob::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18031,11 +17757,9 @@ int Dispatcher_CompoundItemByExpertJob::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_CompoundItemByExpertJob::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompoundItemByExpertJob::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_InvestItemAmplifyOption::Dispatcher_InvestItemAmplifyOption() {}
 Dispatcher_InvestItemAmplifyOption::~Dispatcher_InvestItemAmplifyOption() {}
 
 
-Dispatcher_RequestItemUnlockCancel::Dispatcher_RequestItemUnlockCancel() {}
 Dispatcher_RequestItemUnlockCancel::~Dispatcher_RequestItemUnlockCancel() {}
 int Dispatcher_RequestItemUnlockCancel::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18067,7 +17791,6 @@ int Dispatcher_RequestItemUnlockCancel::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_RequestItemUnlockCancel::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestItemUnlockCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestPCRoomPlayerList::Dispatcher_RequestPCRoomPlayerList() {}
 Dispatcher_RequestPCRoomPlayerList::~Dispatcher_RequestPCRoomPlayerList() {}
 int Dispatcher_RequestPCRoomPlayerList::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18088,7 +17811,6 @@ int Dispatcher_RequestPCRoomPlayerList::dispatch_sig(CUser* user, PacketBuf& pac
 int Dispatcher_RequestPCRoomPlayerList::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestPCRoomPlayerList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Write_On_The_GuildBoard::Dispatcher_Write_On_The_GuildBoard() {}
 Dispatcher_Write_On_The_GuildBoard::~Dispatcher_Write_On_The_GuildBoard() {}
 int Dispatcher_Write_On_The_GuildBoard::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -18147,7 +17869,6 @@ void Dispatcher_Write_On_The_GuildBoard::send(CUser* user, ParamBase& param)
     user->SendCmdErrorPacket((ENUM_CMDPACKET)0x156, (unsigned char)p.m_4);
 }
 
-Dispatcher_AuctionSearchByNoItmeKey::Dispatcher_AuctionSearchByNoItmeKey() {}
 Dispatcher_AuctionSearchByNoItmeKey::~Dispatcher_AuctionSearchByNoItmeKey() {}
 int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18313,7 +18034,6 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_AuctionSearchByNoItmeKey::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionSearchByNoItmeKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CheckEnableServerMessage::Dispatcher_CheckEnableServerMessage() {}
 Dispatcher_CheckEnableServerMessage::~Dispatcher_CheckEnableServerMessage() {}
 int Dispatcher_CheckEnableServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18375,7 +18095,6 @@ int Dispatcher_CheckEnableServerMessage::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_CheckEnableServerMessage::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CheckEnableServerMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_CompleteLoadAfterAssault::Dispatcher_CompleteLoadAfterAssault() {}
 Dispatcher_CompleteLoadAfterAssault::~Dispatcher_CompleteLoadAfterAssault() {}
 int Dispatcher_CompleteLoadAfterAssault::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18411,7 +18130,6 @@ int Dispatcher_CompleteLoadAfterAssault::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_CompleteLoadAfterAssault::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompleteLoadAfterAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Enchant_3rdChronicleItem::Dispatcher_Enchant_3rdChronicleItem() {}
 Dispatcher_Enchant_3rdChronicleItem::~Dispatcher_Enchant_3rdChronicleItem() {}
 extern "C" int _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP11MSG_ENCHANTP11PacketGuard(
     void* self, CUser* user, void* msg, void* packet);
@@ -18538,7 +18256,6 @@ void Dispatcher_Enchant_3rdChronicleItem::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_GoblinPadRequestCryptKey::Dispatcher_GoblinPadRequestCryptKey() {}
 Dispatcher_GoblinPadRequestCryptKey::~Dispatcher_GoblinPadRequestCryptKey() {}
 int Dispatcher_GoblinPadRequestCryptKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18560,7 +18277,6 @@ int Dispatcher_GoblinPadRequestCryptKey::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_GoblinPadRequestCryptKey::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GoblinPadRequestCryptKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GoldTakeIncreasingAmount::Dispatcher_GoldTakeIncreasingAmount() {}
 Dispatcher_GoldTakeIncreasingAmount::~Dispatcher_GoldTakeIncreasingAmount() {}
 int Dispatcher_GoldTakeIncreasingAmount::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -18624,7 +18340,6 @@ void Dispatcher_GoldTakeIncreasingAmount::send(CUser* user, ParamBase& param)
     user->Send(pkt);
 }
 
-Dispatcher_LevelupSupportReqestItem::Dispatcher_LevelupSupportReqestItem() {}
 Dispatcher_LevelupSupportReqestItem::~Dispatcher_LevelupSupportReqestItem() {}
 int Dispatcher_LevelupSupportReqestItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18707,7 +18422,6 @@ int Dispatcher_LevelupSupportReqestItem::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_LevelupSupportReqestItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_LevelupSupportReqestItem::send(CUser* user, ParamBase& param) {}
 
-Dispatcher_RequestOnTimeEventReward::Dispatcher_RequestOnTimeEventReward() {}
 Dispatcher_RequestOnTimeEventReward::~Dispatcher_RequestOnTimeEventReward() {}
 int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18778,7 +18492,6 @@ int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_RequestOnTimeEventReward::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestOnTimeEventReward::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestPCRoomPlayerCount::Dispatcher_RequestPCRoomPlayerCount() {}
 Dispatcher_RequestPCRoomPlayerCount::~Dispatcher_RequestPCRoomPlayerCount() {}
 int Dispatcher_RequestPCRoomPlayerCount::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18799,7 +18512,6 @@ int Dispatcher_RequestPCRoomPlayerCount::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_RequestPCRoomPlayerCount::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestPCRoomPlayerCount::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_MemoryIntegrity::Dispatcher_Security_MemoryIntegrity() {}
 Dispatcher_Security_MemoryIntegrity::~Dispatcher_Security_MemoryIntegrity() {}
 int Dispatcher_Security_MemoryIntegrity::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18827,7 +18539,6 @@ int Dispatcher_Security_MemoryIntegrity::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_Security_MemoryIntegrity::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_MemoryIntegrity::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_PacketIntegrity::Dispatcher_Security_PacketIntegrity() {}
 Dispatcher_Security_PacketIntegrity::~Dispatcher_Security_PacketIntegrity() {}
 int Dispatcher_Security_PacketIntegrity::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18861,7 +18572,6 @@ int Dispatcher_Security_PacketIntegrity::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_Security_PacketIntegrity::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_PacketIntegrity::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_SelectUltimateDifficulty::Dispatcher_SelectUltimateDifficulty() {}
 Dispatcher_SelectUltimateDifficulty::~Dispatcher_SelectUltimateDifficulty() {}
 int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -18918,7 +18628,6 @@ int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& pa
 }
 int Dispatcher_SelectUltimateDifficulty::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Select_Item_Grwoth_Power::Dispatcher_Select_Item_Grwoth_Power() {}
 Dispatcher_Select_Item_Grwoth_Power::~Dispatcher_Select_Item_Grwoth_Power() {}
 int Dispatcher_Select_Item_Grwoth_Power::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -19069,7 +18778,6 @@ void Dispatcher_Select_Item_Grwoth_Power::send(CUser* user, ParamBase& param)
     }
 }
 
-Dispatcher_SeriaRoom_Ani_Deco_Event::Dispatcher_SeriaRoom_Ani_Deco_Event() {}
 Dispatcher_SeriaRoom_Ani_Deco_Event::~Dispatcher_SeriaRoom_Ani_Deco_Event() {}
 int Dispatcher_SeriaRoom_Ani_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -19088,7 +18796,6 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-Dispatcher_UpdateContractOfCubeInfo::Dispatcher_UpdateContractOfCubeInfo() {}
 Dispatcher_UpdateContractOfCubeInfo::~Dispatcher_UpdateContractOfCubeInfo() {}
 int Dispatcher_UpdateContractOfCubeInfo::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -19142,7 +18849,6 @@ void Dispatcher_UpdateContractOfCubeInfo::send(CUser* user, ParamBase& param)
     user->Send(pkt);
 }
 
-Dispatcher_UseCreatureEvolutionItem::Dispatcher_UseCreatureEvolutionItem() {}
 Dispatcher_UseCreatureEvolutionItem::~Dispatcher_UseCreatureEvolutionItem() {}
 int Dispatcher_UseCreatureEvolutionItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -19239,7 +18945,6 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
 int Dispatcher_UseCreatureEvolutionItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseCreatureEvolutionItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_UseRightOfChangeGrowType::Dispatcher_UseRightOfChangeGrowType() {}
 Dispatcher_UseRightOfChangeGrowType::~Dispatcher_UseRightOfChangeGrowType() {}
 int Dispatcher_UseRightOfChangeGrowType::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -19350,7 +19055,6 @@ void Dispatcher_UseRightOfChangeGrowType::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1f7, (unsigned char)err);
 }
 
-Dispatcher_AuctionMyRegistedItemInfo::Dispatcher_AuctionMyRegistedItemInfo() {}
 Dispatcher_AuctionMyRegistedItemInfo::~Dispatcher_AuctionMyRegistedItemInfo() {}
 int Dispatcher_AuctionMyRegistedItemInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -19408,7 +19112,6 @@ int Dispatcher_AuctionMyRegistedItemInfo::dispatch_sig(CUser* user, PacketBuf& p
 int Dispatcher_AuctionMyRegistedItemInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AuctionMyRegistedItemInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_BloodRoundUiPrepareFinish::Dispatcher_BloodRoundUiPrepareFinish() {}
 Dispatcher_BloodRoundUiPrepareFinish::~Dispatcher_BloodRoundUiPrepareFinish() {}
 int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -19449,7 +19152,6 @@ int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& p
 int Dispatcher_BloodRoundUiPrepareFinish::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BloodRoundUiPrepareFinish::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Skill_Command_All_Default::Dispatcher_Skill_Command_All_Default() {}
 Dispatcher_Skill_Command_All_Default::~Dispatcher_Skill_Command_All_Default() {}
 // ORIG 0x081d2ef8（报告 Dispatcher_Skill_Command_All_Default/process.md）：
 // defaultSkillCommand() 假 → param.m_4=0xfc；返 0。
@@ -19483,10 +19185,8 @@ void Dispatcher_Skill_Command_All_Default::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_Skill_Command_Customizing::Dispatcher_Skill_Command_Customizing() {}
 Dispatcher_Skill_Command_Customizing::~Dispatcher_Skill_Command_Customizing() {}
 
-Dispatcher_Buy_Charac_Status_Using_QP::Dispatcher_Buy_Charac_Status_Using_QP() {}
 Dispatcher_Buy_Charac_Status_Using_QP::~Dispatcher_Buy_Charac_Status_Using_QP() {}
 int Dispatcher_Buy_Charac_Status_Using_QP::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -19574,7 +19274,6 @@ void Dispatcher_Buy_Charac_Status_Using_QP::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_Change_PartyMemberPosition::Dispatcher_Change_PartyMemberPosition() {}
 Dispatcher_Change_PartyMemberPosition::~Dispatcher_Change_PartyMemberPosition() {}
 int Dispatcher_Change_PartyMemberPosition::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -19635,10 +19334,8 @@ int Dispatcher_Change_PartyMemberPosition::dispatch_sig(CUser* user, PacketBuf& 
 int Dispatcher_Change_PartyMemberPosition::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Change_PartyMemberPosition::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_RequestIngameAdvertisement::Dispatcher_RequestIngameAdvertisement() {}
 Dispatcher_RequestIngameAdvertisement::~Dispatcher_RequestIngameAdvertisement() {}
 
-Dispatcher_CallPartyMemberRealtimeInfo::Dispatcher_CallPartyMemberRealtimeInfo() {}
 Dispatcher_CallPartyMemberRealtimeInfo::~Dispatcher_CallPartyMemberRealtimeInfo() {}
 int Dispatcher_CallPartyMemberRealtimeInfo::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -19686,7 +19383,6 @@ void Dispatcher_CallPartyMemberRealtimeInfo::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_Direct_Entrance_Quick_Party::Dispatcher_Direct_Entrance_Quick_Party() {}
 Dispatcher_Direct_Entrance_Quick_Party::~Dispatcher_Direct_Entrance_Quick_Party() {}
 // ORIG 0x081de2e6（nm 实测，sz 0x43）：state>3 且 getCurCharacR()!=0 → 0，否则 -1。
 int Dispatcher_Direct_Entrance_Quick_Party::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -19731,7 +19427,6 @@ void Dispatcher_Direct_Entrance_Quick_Party::send(CUser* user, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1be, (unsigned char)err);
 }
 
-Dispatcher_Exchange_Random_Item_Reward::Dispatcher_Exchange_Random_Item_Reward() {}
 Dispatcher_Exchange_Random_Item_Reward::~Dispatcher_Exchange_Random_Item_Reward() {}
 int Dispatcher_Exchange_Random_Item_Reward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -19855,7 +19550,6 @@ void Dispatcher_Exchange_Random_Item_Reward::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_RequestConditionEventReward::Dispatcher_RequestConditionEventReward() {}
 Dispatcher_RequestConditionEventReward::~Dispatcher_RequestConditionEventReward() {}
 int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -19909,7 +19603,6 @@ int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser* user, PacketBuf&
 int Dispatcher_RequestConditionEventReward::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestConditionEventReward::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_TournamentRewardSelectState::Dispatcher_TournamentRewardSelectState() {}
 Dispatcher_TournamentRewardSelectState::~Dispatcher_TournamentRewardSelectState() {}
 // ORIG 0x081dff32（报告 Dispatcher_TournamentRewardSelectState/check_error.md）：
 // state!=5 → 0x7fffffff；GetParty(GetPartyIndex)==0 → -1；
@@ -20003,7 +19696,6 @@ void Dispatcher_TournamentRewardSelectState::send(CUser* user, ParamBase& param)
 }
 
 
-Dispatcher_Expand_Equipslot_Flag_Update::Dispatcher_Expand_Equipslot_Flag_Update() {}
 Dispatcher_Expand_Equipslot_Flag_Update::~Dispatcher_Expand_Equipslot_Flag_Update() {}
 // ORIG 0x081d5f10（报告 Dispatcher_Expand_Equipslot_Flag_Update/process.md）：
 // user==0 → 1；state<3 → 0x13；UpdateEquipslotFlag==0x13 → LineFunc(0x3df3)；
@@ -20054,7 +19746,6 @@ void Dispatcher_Expand_Equipslot_Flag_Update::send(CUser* user, ParamBase& param
     user->Send(pkt);
 }
 
-Dispatcher_FinishVillageMonsterFighting::Dispatcher_FinishVillageMonsterFighting() {}
 Dispatcher_FinishVillageMonsterFighting::~Dispatcher_FinishVillageMonsterFighting() {}
 // ORIG 0x0822284a T _ZN39Dispatcher_FinishVillageMonsterFighting12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/Dispatcher_FinishVillageMonsterFighting/dispatch_sig.md 汇编+反编译 C 全文转写）
@@ -20095,7 +19786,6 @@ int Dispatcher_FinishVillageMonsterFighting::dispatch_sig(CUser* user, PacketBuf
 int Dispatcher_FinishVillageMonsterFighting::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_FinishVillageMonsterFighting::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GrowthWeaponEventUseMaterial::Dispatcher_GrowthWeaponEventUseMaterial() {}
 Dispatcher_GrowthWeaponEventUseMaterial::~Dispatcher_GrowthWeaponEventUseMaterial() {}
 int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -20217,7 +19907,6 @@ void Dispatcher_GrowthWeaponEventUseMaterial::send(CUser* user, ParamBase& param
 }
 
 
-Dispatcher_HeroMissionEventState_Reward::Dispatcher_HeroMissionEventState_Reward() {}
 Dispatcher_HeroMissionEventState_Reward::~Dispatcher_HeroMissionEventState_Reward() {}
 int Dispatcher_HeroMissionEventState_Reward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -20273,7 +19962,6 @@ int Dispatcher_HeroMissionEventState_Reward::process(CUser* user, MSG_BASE& msg,
 int Dispatcher_HeroMissionEventState_Reward::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_HeroMissionEventState_Reward::send(CUser* user, ParamBase& param) {}
 
-Dispatcher_SaveGameOption_QuickChatting::Dispatcher_SaveGameOption_QuickChatting() {}
 Dispatcher_SaveGameOption_QuickChatting::~Dispatcher_SaveGameOption_QuickChatting() {}
 int Dispatcher_SaveGameOption_QuickChatting::process(CUser* user, MSG_BASE& msgBase, ParamBase& param)
 {
@@ -20316,7 +20004,6 @@ int Dispatcher_SaveGameOption_QuickChatting::read(PacketBuf& packet, MSG_BASE& m
     return 0;
 }
 
-Dispatcher_Avatar_Disjoint_Random_Reward::Dispatcher_Avatar_Disjoint_Random_Reward() {}
 Dispatcher_Avatar_Disjoint_Random_Reward::~Dispatcher_Avatar_Disjoint_Random_Reward() {}
 int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -20500,7 +20187,6 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
 int Dispatcher_SDC_ActiveStatus_Damage_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SDC_ActiveStatus_Damage_Check::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_police_queryCharacName_useMid::Dispatcher_police_queryCharacName_useMid() {}
 Dispatcher_police_queryCharacName_useMid::~Dispatcher_police_queryCharacName_useMid() {}
 int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -20548,7 +20234,6 @@ int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBu
 int Dispatcher_police_queryCharacName_useMid::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_police_queryCharacName_useMid::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_ImageCommunicationEquipmentUse::Dispatcher_ImageCommunicationEquipmentUse() {}
 Dispatcher_ImageCommunicationEquipmentUse::~Dispatcher_ImageCommunicationEquipmentUse() {}
 // ORIG 0x081e22e6（报告 Dispatcher_ImageCommunicationEquipmentUse/send.md）[随行依赖]。
 void Dispatcher_ImageCommunicationEquipmentUse::send(CUser* user, ParamBase& param)
@@ -20612,7 +20297,6 @@ int Dispatcher_ImageCommunicationEquipmentUse::process(CUser* user, MSG_BASE& ms
     return 0;
 }
 
-Dispatcher_Security_NonClient_GetResponse::Dispatcher_Security_NonClient_GetResponse() {}
 Dispatcher_Security_NonClient_GetResponse::~Dispatcher_Security_NonClient_GetResponse() {}
 int Dispatcher_Security_NonClient_GetResponse::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -20634,7 +20318,6 @@ int Dispatcher_Security_NonClient_GetResponse::dispatch_sig(CUser* user, PacketB
 int Dispatcher_Security_NonClient_GetResponse::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_NonClient_GetResponse::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_PI_HashModulation_C2C::Dispatcher_Security_PI_HashModulation_C2C() {}
 Dispatcher_Security_PI_HashModulation_C2C::~Dispatcher_Security_PI_HashModulation_C2C() {}
 int Dispatcher_Security_PI_HashModulation_C2C::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -20656,7 +20339,6 @@ int Dispatcher_Security_PI_HashModulation_C2C::dispatch_sig(CUser* user, PacketB
 int Dispatcher_Security_PI_HashModulation_C2C::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_PI_HashModulation_C2C::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Security_PI_HashModulation_S2C::Dispatcher_Security_PI_HashModulation_S2C() {}
 Dispatcher_Security_PI_HashModulation_S2C::~Dispatcher_Security_PI_HashModulation_S2C() {}
 int Dispatcher_Security_PI_HashModulation_S2C::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -20684,11 +20366,9 @@ int Dispatcher_Security_PI_HashModulation_S2C::dispatch_sig(CUser* user, PacketB
 int Dispatcher_Security_PI_HashModulation_S2C::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Security_PI_HashModulation_S2C::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_Compound_Equipment_Upgrade_Card::Dispatcher_Compound_Equipment_Upgrade_Card() {}
 Dispatcher_Compound_Equipment_Upgrade_Card::~Dispatcher_Compound_Equipment_Upgrade_Card() {}
 
 
-Dispatcher_GrowthWeaponEventChangeInfinity::Dispatcher_GrowthWeaponEventChangeInfinity() {}
 Dispatcher_GrowthWeaponEventChangeInfinity::~Dispatcher_GrowthWeaponEventChangeInfinity() {}
 int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -20810,7 +20490,6 @@ void Dispatcher_GrowthWeaponEventChangeInfinity::send(CUser* user, ParamBase& pa
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1f9, (unsigned char)err);
 }
 
-Dispatcher_SaveGameOption_ChattingEmoticon::Dispatcher_SaveGameOption_ChattingEmoticon() {}
 Dispatcher_SaveGameOption_ChattingEmoticon::~Dispatcher_SaveGameOption_ChattingEmoticon() {}
 int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& msgBase, ParamBase& param)
 {
@@ -20891,7 +20570,6 @@ void Dispatcher_SaveGameOption_ChattingEmoticon::send(CUser* user, ParamBase& pa
     user->SendChattingEmoticon();
 }
 
-Dispatcher_ComboSkillExtensionQuickSlotReset::Dispatcher_ComboSkillExtensionQuickSlotReset() {}
 Dispatcher_ComboSkillExtensionQuickSlotReset::~Dispatcher_ComboSkillExtensionQuickSlotReset() {}
 int Dispatcher_ComboSkillExtensionQuickSlotReset::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -20949,12 +20627,10 @@ void Dispatcher_ComboSkillExtensionQuickSlotReset::send(CUser* user, ParamBase& 
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1ff, (unsigned char)err);
 }
 
-Dispatcher_Select_3rdChronicleItem_ForEnchant::Dispatcher_Select_3rdChronicleItem_ForEnchant() {}
 Dispatcher_Select_3rdChronicleItem_ForEnchant::~Dispatcher_Select_3rdChronicleItem_ForEnchant() {}
 int Dispatcher_Select_3rdChronicleItem_ForEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Select_3rdChronicleItem_ForEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GrowthCreatureChangeInfinityCreature::Dispatcher_GrowthCreatureChangeInfinityCreature() {}
 Dispatcher_GrowthCreatureChangeInfinityCreature::~Dispatcher_GrowthCreatureChangeInfinityCreature() {}
 // 经 GiveGrowCreatureEvent vtable+0x34 槽（IsEventing，ORIG vtable 0x08b4bae0 实证）
 // 判事件开启；失败路径返回 1。
@@ -21056,7 +20732,6 @@ void Dispatcher_GrowthCreatureChangeInfinityCreature::send(CUser* user, ParamBas
     }
 }
 
-Dispatcher_P2PHolePunchingSuccessRateStatistics::Dispatcher_P2PHolePunchingSuccessRateStatistics() {}
 Dispatcher_P2PHolePunchingSuccessRateStatistics::~Dispatcher_P2PHolePunchingSuccessRateStatistics() {}
 int Dispatcher_P2PHolePunchingSuccessRateStatistics::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_P2PHolePunchingSuccessRateStatistics::process(CUser* user, MSG_BASE& msg,
@@ -21167,7 +20842,6 @@ int Dispatcher_AvartarRoulette::read(PacketBuf& packet, MSG_BASE& msg)
 
 // ==================== Dispatcher_AvartarCoinCount（ORIG 0x819e660 区）====================
 // 当前仅 checkWorkState/dispatch_sig 桩（工作列表不含）；保留签名，补最小骨架。
-Dispatcher_AvartarCoinCount::Dispatcher_AvartarCoinCount() {}
 Dispatcher_AvartarCoinCount::~Dispatcher_AvartarCoinCount() {}
 int Dispatcher_AvartarCoinCount::checkWorkState(CUser* user)
 {
@@ -21472,7 +21146,6 @@ int Dispatcher_AradUseAvatarRecharge::read(PacketBuf& packet, MSG_BASE& msg)
 // dispatch_sig：packet==0→0x7b3；state∉[3,4]→0；CEventCreateDnf 事件（GetRepeatEvent
 //   /GetRate/IsRewardCondition/SendReward，未建模）标注推断：发 0x22d 响应包
 //   （rate 0 + flag 0）并返回。
-Dispatcher_EventCreateDnfRequest::Dispatcher_EventCreateDnfRequest() {}
 Dispatcher_EventCreateDnfRequest::~Dispatcher_EventCreateDnfRequest() {}
 int Dispatcher_EventCreateDnfRequest::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -21576,7 +21249,6 @@ int Dispatcher_AvartarHiddenOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
 //   读 int itemId（0x212f/0x2130 限定，错误 0x7fb/0x800）；find_item 后
 //   make_item 注入背包（invenType=0xe），成功扣减次数并发
 //   InterSelectPcroomDailyReward::SendPacket / DBUpdatePcroomDailyReward::makeRequest。
-Dispatcher_RequestPrcoomDayilyReward::Dispatcher_RequestPrcoomDayilyReward() {}
 Dispatcher_RequestPrcoomDayilyReward::~Dispatcher_RequestPrcoomDayilyReward() {}
 int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -21652,7 +21324,6 @@ namespace ARAD {
 
 
 namespace APSystem {
-Dispatcher_ClearAction::Dispatcher_ClearAction() {}
 Dispatcher_ClearAction::~Dispatcher_ClearAction() {}
 int Dispatcher_ClearAction::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -21676,7 +21347,6 @@ int Dispatcher_ClearAction::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_ClearAction::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ClearAction::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
-Dispatcher_GetTodayReward::Dispatcher_GetTodayReward() {}
 Dispatcher_GetTodayReward::~Dispatcher_GetTodayReward() {}
 int Dispatcher_GetTodayReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -23362,9 +23032,6 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
 //   CompoundEmblemDeps.h(LineFunc)。）
 
 // ==== Dispatcher_PurifyItem::Dispatcher_PurifyItem (ORIG IPacketDispatcher C1 0x0859879e W 转发) ====
-Dispatcher_PurifyItem::Dispatcher_PurifyItem()
-{
-}
 
 // ==== Dispatcher_PurifyItem::~Dispatcher_PurifyItem (ORIG D1 0x0825afba / D0 0x0825afea，基类转发) ====
 Dispatcher_PurifyItem::~Dispatcher_PurifyItem()
@@ -26534,14 +26201,6 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
 // Dispatcher_SecurityCardAuthRpy  ORIG 0x08596498
 // Dispatcher_BlueMarbleConfirmInfo ORIG 0x08597de2
 // Dispatcher_PcRoomRentItem       ORIG 0x08597d8e
-Dispatcher_StackableActionUse::Dispatcher_StackableActionUse() {}
-Dispatcher_AvatarOptionChange::Dispatcher_AvatarOptionChange() {}
-Dispatcher_PartyTeleport::Dispatcher_PartyTeleport() {}
-Dispatcher_RefundSkill::Dispatcher_RefundSkill() {}
-Dispatcher_MailBox_Send::Dispatcher_MailBox_Send() {}
-Dispatcher_SecurityCardAuthRpy::Dispatcher_SecurityCardAuthRpy() {}
-Dispatcher_BlueMarbleConfirmInfo::Dispatcher_BlueMarbleConfirmInfo() {}
-Dispatcher_PcRoomRentItem::Dispatcher_PcRoomRentItem() {}
 
 // ============================================================================
 // DspD1 批 D1 依赖定义区（解阻 4 个 BLOCKED dispatch_sig；ORIG mangled/地址逐条注释）
