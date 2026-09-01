@@ -92,30 +92,13 @@ namespace
 {
 
 // ---- 子对象视图（与 CParty.cpp 同惯例） ----
-inline BattleData& bd(CParty* p)
-{
-    return *reinterpret_cast<BattleData*>(&p->m_padBattleData);
-}
-inline CBattle_Field& bf(CParty* p)
-{
-    return *reinterpret_cast<CBattle_Field*>(&p->m_padBattleField1);
-}
-inline CTraceMobDieHack& traceHack(CParty* p)
-{
-    return *reinterpret_cast<CTraceMobDieHack*>(&p->m_pad210);
-}
-inline CUser* memberUser(CParty* p, int i)
-{
-    return p->m_member[i].m_pUser;
-}
-
-// CBattle_Field+0x194：ORIG 以 int 读取并与 0x35 比较（check_allmember_loading
-// 0x085b17a4 反汇编：mov 0xcb8(%eax),%eax；cmp $0x35 —— 0xcb8-0xb24=0x194，
-// 即权威头 m_dungeonIndex）。文件头注记的 +0x94 系误标，已按 ORIG 修正。
-inline int cbfField94(CBattle_Field& field)
-{
-    return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&field) + 0x194);
-}
+// 用函数式宏而非 inline 函数：-O0 下 inline 函数参数必分配栈槽，always_inline
+// 会先 spill this 再 reload，比 ORIG 直接偏移算术更差（实测 0x826 -> 0x95c）。
+// 宏文本替换为 &p->m_memberOffset，直接产生 ORIG 的偏移寻址（check_allmember_loading 报告）。
+#define bd(p)         (*reinterpret_cast<BattleData*>(&(p)->m_padBattleData))
+#define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_padBattleField1))
+#define traceHack(p)  (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
+#define memberUser(p,i) ((p)->m_member[(i)].m_pUser)
 
 // CBattle_Field+0x1ec（ORIG int 最小地狱值）：见文件头注记。
 inline int cbfHellPartyMinValue(CBattle_Field& field)
@@ -779,25 +762,32 @@ void CParty::check_allmember_loading(bool flag)
         send_to_party(packet);
     }
 
-    // 副本游玩时间累计：acc(+0x358/0x35c) += now - moveTick(+0x360/0x364)
+    // 副本游玩时间累计：acc(+0x358/0x35c) += now - moveTick(+0x360/0x364)。
+    // 按 ORIG 以 32 位低高半 + 进位链（报告 asm +0x19b..+0x1ee），而非 64 位临时
+    // （-O0 会注入符号扩展/栈溢出链，且字段为 int，符号扩展与 ORIG 无符号语义不符）。
     {
-        unsigned long long acc =
-            (unsigned long long)bd(this).m_field30 << 32 | bd(this).m_field2c;
-        unsigned long long moveTick =
-            (unsigned long long)bd(this).m_field38 << 32 | bd(this).m_field34;
-        unsigned long long now = GlobalData::s_systemTime_.getCurTickCount();
-        acc += (now - moveTick);
-        bd(this).m_field2c = (unsigned int)acc;
-        bd(this).m_field30 = (unsigned int)(acc >> 32);
+        const unsigned int accLow  = (unsigned int)bd(this).m_field2c;   // +0x358
+        const unsigned int accHigh = (unsigned int)bd(this).m_field30;   // +0x35c
+        const unsigned int mtLow   = (unsigned int)bd(this).m_field34;   // +0x360
+        const unsigned int mtHigh  = (unsigned int)bd(this).m_field38;   // +0x364
+        const unsigned int now = GlobalData::s_systemTime_.getCurTickCount();  // 32-bit
+        const unsigned int dLow  = now - mtLow;
+        const unsigned int dHigh = 0u - mtHigh - (now < mtLow ? 1u : 0u);
+        const unsigned int newLow  = dLow + accLow;
+        const unsigned int newHigh = dHigh + accHigh + (newLow < dLow ? 1u : 0u);
+        bd(this).m_field2c = (int)newLow;
+        bd(this).m_field30 = (int)newHigh;
     }
-    // 地图基准 tick：base(+0x33c/0x340) = now - enterTick(+0x344/0x348)
+    // 地图基准 tick：base(+0x33c/0x340) = now - enterTick(+0x344/0x348)。
+    // 同上按 ORIG 32 位式（asm +0x1f4..+0x221）。
     {
-        unsigned long long now = GlobalData::s_systemTime_.getCurTickCount();
-        unsigned long long enterTick =
-            (unsigned long long)bd(this).m_field1c << 32 | bd(this).m_field18;
-        unsigned long long played = now - enterTick;
-        bd(this).m_field10 = (unsigned int)played;
-        bd(this).m_field14 = (unsigned int)(played >> 32);
+        const unsigned int now = GlobalData::s_systemTime_.getCurTickCount();  // 32-bit
+        const unsigned int etLow  = (unsigned int)bd(this).m_field18;   // +0x344
+        const unsigned int etHigh = (unsigned int)bd(this).m_field1c;   // +0x348
+        const unsigned int plLow  = now - etLow;
+        const unsigned int plHigh = 0u - etHigh - (now < etLow ? 1u : 0u);
+        bd(this).m_field10 = (int)plLow;
+        bd(this).m_field14 = (int)plHigh;
     }
 
     // PCRoom 统计上下文：非自动建队且人数>1 时开启追踪
@@ -833,7 +823,7 @@ void CParty::check_allmember_loading(bool flag)
 
     // 电梯副本收尾（BF+0x194==0x35 即 m_dungeonIndex==53 且 BF+0x13a 标志；
     // ORIG mov 0xcb8(%eax),%eax; cmp $0x35 / movzbl 0xc5e）
-    if (cbfField94(bf(this)) == 0x35 && bf(this).m_elevatorFlag != 0)
+    if (bf(this).m_dungeonIndex == 0x35 && bf(this).m_elevatorFlag != 0)
     {
         bf(this).m_elevatorTimer = 0;                    // +0x139
         bf(this).m_elevatorState = 2;                    // +0x138

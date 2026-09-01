@@ -431,12 +431,16 @@ void CompiledDNFLex::destroy()
 // 读下一个 STRING 记号作文件名，LoadStream+PushInputStream 切入包含文件。
 int CompiledDNFLex::getToken()
 {
-    stream_t* p = streamStack_.end()._M_cur;
-    if (p != streamStack_.begin()._M_cur)
+    // ORIG uses the std::deque internals directly; at -O0 end()._M_xxx
+    // re-materializes an iterator each time (4 end + 1 begin = 5 calls).
+    // Reuse two iterators.
+    std::deque<stream_t>::iterator endIt = streamStack_.end();
+    std::deque<stream_t>::iterator beginIt = streamStack_.begin();
+    stream_t* p = endIt._M_cur;
+    if (p != beginIt._M_cur)
     {
-        stream_t** node = streamStack_.end()._M_node;
-        if (p == streamStack_.end()._M_first)
-            p = *(node - 1) + STREAM_NODE_ELEMS;
+        if (p == endIt._M_first)
+            p = *(endIt._M_node - 1) + STREAM_NODE_ELEMS;
         p = p - 1;
         if (p != 0)
         {
@@ -458,7 +462,19 @@ int CompiledDNFLex::getToken()
     if (c != DNF_TOK_INCLUDE)
         return lastToken_;
 
-    stream_t* incl = GetInputStream();
+    // ORIG 内联计算当前流指针（栈顶 = finish._M_cur - 1），不调 GetInputStream()；
+    // 边界节点回退 node[-1]+0x1f4-1，栈空时为 0。
+    stream_t* incl = endIt._M_cur;
+    if (incl != beginIt._M_cur)
+    {
+        if (incl == endIt._M_first)
+            incl = *(endIt._M_node - 1) + STREAM_NODE_ELEMS;
+        incl = incl - 1;
+    }
+    else
+    {
+        incl = 0;
+    }
     int next = readCharFromBuffer(offset_);
     lastToken_ = next;
     if (next != DNF_TOK_STRING)

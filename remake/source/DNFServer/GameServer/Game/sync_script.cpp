@@ -1337,25 +1337,26 @@ bool CSyncScript::insert_old_equip_info_to_db()
              m_oldEquipMap.begin();
          it != m_oldEquipMap.end(); ++it)
     {
+        const std::pair<const unsigned int, STEquipmentStatInfo>& node = *it;
         if (!db->set_query(
                 "inSert into dnf_old_equip_info(it_id, hp_max, mp_max, phy_att, phy_def, mag_att, mag_def, equip_phy_att, equip_phy_def, equip_mag_att, equip_mag_def, ref_fire, ref_water, ref_dark, ref_light, ref_all_elements, ref_slow, ref_freeze, ref_poison, ref_stun, ref_curse, ref_blind, ref_lightning, ref_stone, ref_sleep, ref_burn, ref_weapon_break, ref_bleeding, ref_pierce, ref_stuck, ref_confuse, ref_hold, ref_armor_break, ref_all_state) values(%d, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i)",
-                it->first, it->second.m_hpMax, it->second.m_mpMax,
-                it->second.m_phyAtt, it->second.m_phyDef,
-                it->second.m_magAtt, it->second.m_magDef,
-                it->second.m_equipPhyAtt, it->second.m_equipPhyDef,
-                it->second.m_equipMagAtt, it->second.m_equipMagDef,
-                it->second.m_refFire, it->second.m_refWater,
-                it->second.m_refDark, it->second.m_refLight,
-                it->second.m_refAll, it->second.m_refSlow,
-                it->second.m_refFreeze, it->second.m_refPoison,
-                it->second.m_refStun, it->second.m_refCurse,
-                it->second.m_refBlind, it->second.m_refLightning,
-                it->second.m_refStone, it->second.m_refSleep,
-                it->second.m_refBurn, it->second.m_refWeaponBreak,
-                it->second.m_refBleeding, it->second.m_refPierce,
-                it->second.m_refStuck, it->second.m_refConfuse,
-                it->second.m_refHold, it->second.m_refArmorBreak,
-                it->second.m_refAllState))
+                node.first, node.second.m_hpMax, node.second.m_mpMax,
+                node.second.m_phyAtt, node.second.m_phyDef,
+                node.second.m_magAtt, node.second.m_magDef,
+                node.second.m_equipPhyAtt, node.second.m_equipPhyDef,
+                node.second.m_equipMagAtt, node.second.m_equipMagDef,
+                node.second.m_refFire, node.second.m_refWater,
+                node.second.m_refDark, node.second.m_refLight,
+                node.second.m_refAll, node.second.m_refSlow,
+                node.second.m_refFreeze, node.second.m_refPoison,
+                node.second.m_refStun, node.second.m_refCurse,
+                node.second.m_refBlind, node.second.m_refLightning,
+                node.second.m_refStone, node.second.m_refSleep,
+                node.second.m_refBurn, node.second.m_refWeaponBreak,
+                node.second.m_refBleeding, node.second.m_refPierce,
+                node.second.m_refStuck, node.second.m_refConfuse,
+                node.second.m_refHold, node.second.m_refArmorBreak,
+                node.second.m_refAllState))
         {
             return false;
         }
