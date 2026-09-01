@@ -457,22 +457,22 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
     {
         if ((direction & 1) != 0)
         {
-            std::pair<int, CMap*> value(1, map);
+            std::multimap<int, CMap*>::value_type value(1, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 2) != 0)
         {
-            std::pair<int, CMap*> value(2, map);
+            std::multimap<int, CMap*>::value_type value(2, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 4) != 0)
         {
-            std::pair<int, CMap*> value(4, map);
+            std::multimap<int, CMap*>::value_type value(4, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 8) != 0)
         {
-            std::pair<int, CMap*> value(8, map);
+            std::multimap<int, CMap*>::value_type value(8, map);
             m_map1a4[idx].insert(value);
         }
     }
@@ -482,22 +482,22 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
         {
             if ((direction & 1) != 0)
             {
-                std::pair<int, CMap*> value(1, map);
+                std::multimap<int, CMap*>::value_type value(1, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 2) != 0)
             {
-                std::pair<int, CMap*> value(2, map);
+                std::multimap<int, CMap*>::value_type value(2, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 4) != 0)
             {
-                std::pair<int, CMap*> value(4, map);
+                std::multimap<int, CMap*>::value_type value(4, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 8) != 0)
             {
-                std::pair<int, CMap*> value(8, map);
+                std::multimap<int, CMap*>::value_type value(8, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             m_hasDummyMap = 1;                         // +0x624（byte 写）
@@ -506,22 +506,22 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
         {
             if ((direction & 1) != 0)
             {
-                std::pair<int, CMap*> value(1, map);
+                std::multimap<int, CMap*>::value_type value(1, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 2) != 0)
             {
-                std::pair<int, CMap*> value(2, map);
+                std::multimap<int, CMap*>::value_type value(2, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 4) != 0)
             {
-                std::pair<int, CMap*> value(4, map);
+                std::multimap<int, CMap*>::value_type value(4, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 8) != 0)
             {
-                std::pair<int, CMap*> value(8, map);
+                std::multimap<int, CMap*>::value_type value(8, map);
                 m_dummyMap324[idx].insert(value);
             }
         }
@@ -532,7 +532,7 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
 // 以 CMap::get_index() 为键把起始地图插入 m_maplist[idx]（hash_map @+0x64）。
 void CDungeon::insertStart(int idx, CMap* map)
 {
-    std::pair<int, CMap*> value(map->get_index(), map);
+    std::multimap<int, CMap*>::value_type value(map->get_index(), map);
     m_maplist[idx].insert(value);
 }
 
