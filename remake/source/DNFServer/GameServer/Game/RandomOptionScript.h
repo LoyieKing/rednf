@@ -58,9 +58,6 @@ struct PartSelectonField
 {
     int m_partType;   // +0x00
     int m_weight;     // +0x04
-
-    // ORIG W 0x08a787f8：D1/D2 空体 → 显式空析构（与 QuantityRatio/ResetValue 同型）。
-    ~PartSelectonField() {}
 };  // sizeof 8（_get_part_type / _get_part_type_by_ItemGroup 报告实证）
 
 struct PartSelectonValue
@@ -108,17 +105,13 @@ struct QuantityRatio
     int m_field0;             // +0x00
     unsigned int m_weight4;   // +0x04（_get_option_quantity 读 +4 为权重；
                               //   步长 8 系 OptionValueRatio 同构推断，标注[推断]）
-    // ORIG W 0x08a79264：D1/D2 空体（new_allocator<QuantityRatio>::destroy
-    //   调用 D1 实证非 trivial）→ 显式空析构。
-    ~QuantityRatio() {}
 };  // sizeof 8
 
 struct OptionValueRatio
 {
-    // ORIG C1 W 0x085f4176（三字清零）/ D1 W 0x08a799f8（空体用户析构），
-    // 无 C1ERKS 符号（隐式拷贝），全 W → 头内联。
+    // ORIG C1 W 0x085f4176（三字清零）；D1 W 0x08a799f8 为弱空体符号（非用户析构，
+    // _Destroy_aux<ILb1> 实证平凡析构），无 C1ERKS 符号（隐式拷贝），全 W → 头内联。
     OptionValueRatio() : m_scaleRange0(0), m_scaleBase4(0), m_weight8(0) {}
-    ~OptionValueRatio() {}
 
     float m_scaleRange0;       // +0x00（handle::_get_option_value 以 (max-min) 加权；
                                //   W ctor 0x085f4176 三字清零）
@@ -222,13 +215,14 @@ struct ResetValue
     // 12 字节实证：ORIG _Vector_base<ResetValue>::~_Vector_base
     //   (0x0839fe6a) 步长 sar$2+imul 0xaaaaaaab = /12；_M_insert_aux
     //   (0x08a77b45) 异常清理 lea(%edx,%edx,2)+shl$2 亦 /12。
-    // ORIG W 0x08a7a958：D1/D2 空体；new_allocator<ResetValue>::destroy(0x08a7a95e)
-    //   call D1 实证非 trivial → 显式空析构（同 QuantityRatio/PartSelectonField 型）。
+    // ORIG 实证：D1/D2（0x08a7a958）为空体弱符号、new_allocator<ResetValue>::destroy
+    //   （0x08a7a95e）仍调 D1，但 _Destroy_aux<ILb1>::__destroy 走平凡无操作路径
+    //   → std::_Destroy_aux 判定平凡析构，无用户析构（同 PartSelectonField/QuantityRatio/
+    //   OptionValueRatio 三型）。故不声明 ~ResetValue(){}。
     int m_min;      // +0x00（reset_option 报告：区间下限）
     int m_max;      // +0x04（区间上限；pair 用 (m_max-m_min-1) 作 randInt 界）
     int m_weight8;  // +0x08（CRandomList<unsigned>::operator()(ResetValue)
                     //   0x085f5e9e 读 0x14(%ebp) 作权重累加）
-    ~ResetValue() {}
 };  // sizeof 0xc
 
 struct ResetValues

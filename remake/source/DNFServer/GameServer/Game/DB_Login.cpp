@@ -78,7 +78,7 @@ namespace online_preliminary
 class COnlinePreliminary
 {
 public:
-    unsigned int GetPlayCountPerOneTeam();         // T 0x0855fee8（成员版）
+    static unsigned int GetPlayCountPerOneTeam();  // T 0x0855fee8（ORIG 无 this，静态实证）
 };
 }  // namespace online_preliminary
 
@@ -87,7 +87,7 @@ namespace WongWork
 class CUserPremium
 {
 public:
-    bool IsRestrictedPremium(int type);            // T 0x086af7c4
+    static bool IsRestrictedPremium(int type);    // T 0x086af7c4（ORIG 无 this，静态实证）
 };
 }  // namespace WongWork
 
@@ -186,6 +186,9 @@ inline __attribute__((always_inline)) char* SGB(SIG_LOGIN_DATA* sig, unsigned in
 {
     return reinterpret_cast<char*>(sig) + off;
 }
+// 常量偏移直写：宏把 off 作为字面量替换，-O0 下折叠进基址/地址表达式
+// （SGF<T>(sig,off) 模板的 off 是运行期参数，会多做一次 add）。
+#define SGFC(type, sig, off) (*reinterpret_cast<type*>(reinterpret_cast<char*>(sig) + (off)))
 
 namespace   // 槽位偏移速查（均出自对应报告 ORIG 指令）
 {
@@ -1208,14 +1211,13 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
     std::vector<int> expiredIds;            // ORIG local_64
     int rowIdx = 0;
 
-    SGF<unsigned int>(sig, OFF_PREMIUM_CNT) = 0;
-    SGF<unsigned short>(sig, OFF_EVENTLIST_CNT) = 0;
-    SGF<unsigned int>(sig, 0x394c) = 0;
+    sig->m_premiumCount = 0;
+    sig->m_restrictedGoodsCount = 0;
+    SGFC(unsigned int, sig, 0x394c) = 0;   // ORIG 清零 +0x394c（pad 槽，无具名字段）
 
-    GameWorld* world = G_GameWorld();
-    for (size_t k = 0; k < entries.size(); ++k)
+    for (vecDNFEventEntry_t::iterator it = entries.begin(); it != entries.end(); ++it)
     {
-        int eventId = entries[k].m_eventId;
+        int eventId = it->m_eventId;
         if (eventId >= 0xa029 && eventId <= 0xa02b)
         {
             // ---- 广播/PvP 预选特殊事件 ----
@@ -1249,7 +1251,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             info.m_userDBType = characNo;
             info.m_serverGroup = serverId;
 
-            if (world->GetChannelType() == 7)
+            if (G_GameWorld()->GetChannelType() == 7)
             {
                 if (eventId != 0xa029 ||
                     !dbAccount->get_str(4, SGB(sig, 0x39b0), 0x1e))
@@ -1257,13 +1259,13 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                     continue;
                 }
             }
-            else if (world->GetChannelType() == 0xe)
+            else if (G_GameWorld()->GetChannelType() == 0xe)
             {
                 bool pass =
                     (eventId == 0xa02a &&
-                     ((online_preliminary::COnlinePreliminary*)0)->GetPlayCountPerOneTeam() == 1) ||
+                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1) ||
                     (eventId == 0xa02b &&
-                     ((online_preliminary::COnlinePreliminary*)0)->GetPlayCountPerOneTeam() != 1);
+                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() != 1);
                 if (!pass)
                 {
                     continue;
@@ -1272,7 +1274,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
 
             if ((int)startTime <= GlobalData::s_systemTime_.getCurSec())
             {
-                if (world->GetChannelType() == 7 || world->GetChannelType() == 0xe)
+                if (G_GameWorld()->GetChannelType() == 7 || G_GameWorld()->GetChannelType() == 0xe)
                 {
                     GlobalData::s_db_mgr->addUserDBInfo(
                         sig->m_accId /*userIdx 占位见下*/,
@@ -1280,20 +1282,20 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                 }
                 if (eventId == 0xa02a)
                 {
-                    SGF<unsigned int>(sig, 0x39d4) = characNo;
-                    SGF<unsigned int>(sig, 0x39d0) = serverId;
+                    sig->m_onlinePrelimCharacNo = characNo;
+                    sig->m_onlinePrelimServerGroup = serverId;
                     sig->m_onlinePrelimPlayType |= 1;
                 }
                 else if (eventId == 0xa02b)
                 {
-                    SGF<unsigned int>(sig, 0x39d4) = characNo;
-                    SGF<unsigned int>(sig, 0x39d0) = serverId;
+                    sig->m_onlinePrelimCharacNo = characNo;
+                    sig->m_onlinePrelimServerGroup = serverId;
                     sig->m_onlinePrelimPlayType |= 2;
                 }
                 else
                 {
-                    SGF<unsigned int>(sig, OFF_BREAKAWAY_A) = characNo;
-                    SGF<unsigned int>(sig, OFF_BREAKAWAY_B) = serverId;
+                    sig->m_tournamentAccountFlag = characNo;
+                    sig->m_tournamentServerGroup = serverId;
                 }
             }
         }
@@ -1302,23 +1304,23 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             if (eventId >= 70000 && eventId <= 89999)
             {
                 // 落表事件：登记到 sig 事件 id 列表
-                unsigned short cnt = SGF<unsigned short>(sig, OFF_EVENTLIST_CNT);
-                SGF<unsigned int>(sig, cnt * 4 + OFF_EVENTLIST_ARR) = eventId;
-                SGF<unsigned short>(sig, OFF_EVENTLIST_CNT) = cnt + 1;
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
             else if (eventId == 59000)
             {
-                unsigned short cnt = SGF<unsigned short>(sig, OFF_EVENTLIST_CNT);
-                SGF<unsigned int>(sig, cnt * 4 + OFF_EVENTLIST_ARR) = eventId;
-                SGF<unsigned short>(sig, OFF_EVENTLIST_CNT) = cnt + 1;
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
-            else if (!((WongWork::CUserPremium*)0)->IsRestrictedPremium((int)eventId))
+            else if (!WongWork::CUserPremium::IsRestrictedPremium((int)eventId))
             {
                 // ---- 常规 member_premium 查询 ----
                 dbPremium->set_query(
                     "seLect pre_type,unix_timestamp(service_start),unix_timestamp(service_end) from member_premium where m_id=%s and event_id=%d and service_end>now() and server_id in(0,%d) order by service_end desc limit 1",
                     NumberToString(sig->m_accId, 0),
-                    eventId, entries[k].m_serverId);
+                    eventId, it->m_serverId);
                 if (!dbPremium->exec(true))
                 {
                     continue;
@@ -1370,23 +1372,23 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                         SGF<int>(sig, (rowIdx + 0x229) * 0x10 + 0xc) = svcStart;
                         SGF<int>(sig, (rowIdx + 0x229) * 0x10 + 0x10) = svcEnd;
                         rowIdx += 1;
-                        unsigned short cnt = SGF<unsigned short>(sig, OFF_EVENTLIST_CNT);
-                        SGF<unsigned int>(sig, cnt * 4 + OFF_EVENTLIST_ARR) = eventId;
-                        SGF<unsigned short>(sig, OFF_EVENTLIST_CNT) = cnt + 1;
+                        unsigned short cnt = sig->m_restrictedGoodsCount;
+                        sig->m_restrictedGoods[cnt] = eventId;
+                        sig->m_restrictedGoodsCount = cnt + 1;
                     }
                 }
             }
             else
             {
                 // 受限 premium 事件：只登事件 id
-                unsigned short cnt = SGF<unsigned short>(sig, OFF_EVENTLIST_CNT);
-                SGF<unsigned int>(sig, cnt * 4 + OFF_EVENTLIST_ARR) = eventId;
-                SGF<unsigned short>(sig, OFF_EVENTLIST_CNT) = cnt + 1;
+                unsigned short cnt = sig->m_restrictedGoodsCount;
+                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoodsCount = cnt + 1;
             }
         }
     }
 
-    SGF<unsigned int>(sig, OFF_PREMIUM_CNT) = rowIdx;
+    sig->m_premiumCount = rowIdx;
     RemovePreminuInfo(sig, expiredIds);
 }
 
