@@ -1385,24 +1385,23 @@ bool CPrivateStore::MoveItems()
 {
     for (unsigned int i = 0; i < 0xe; ++i)
     {
-        PrivateStoreItem& item = m_items[i];
-        if (item.GetState() != 1)
+        if (m_items[i].GetState() != 1)
             continue;
 
-        int prevAddInfo2 = (int)item.m_item.m_addInfo2;
-        if (!GetItemInfo(m_pSeller, item))
+        int prevAddInfo2 = (int)m_items[i].m_item.m_addInfo2;
+        if (!GetItemInfo(m_pSeller, m_items[i]))
         {
             ResetItems();
             m_errorHandler.Do(0x11);
             return false;
         }
-        item.m_flag3d = 2;
+        m_items[i].m_flag3d = 2;
 
-        if ((int)item.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+        if ((int)m_items[i].m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
         {
             int expire =
                 m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpireDate(
-                    (int)item.m_item.m_addInfo2);
+                    (int)m_items[i].m_item.m_addInfo2);
             if (expire != 0)
             {
                 // 此失败路径不 ResetItems（ORIG 如此）。
@@ -1412,7 +1411,7 @@ bool CPrivateStore::MoveItems()
         }
         else
         {
-            item.m_item.m_addInfo2 = prevAddInfo2;
+            m_items[i].m_item.m_addInfo2 = prevAddInfo2;
         }
     }
 
