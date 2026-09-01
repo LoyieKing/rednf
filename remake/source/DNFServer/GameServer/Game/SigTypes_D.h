@@ -45,7 +45,7 @@ struct SIG_LOGIN_DATA
     int            m_gcNo;                  // +0x009c 服务端 gc 号（login 复核写入）
     char           m_loginType;             // +0x00a0 登录类型 byte（0/1/2）
     char           m_blackIpCheckBuf[0x14]; // +0x00a1 黑名单 IP 串缓冲（isBlackIP 实参）
-    unsigned char  m_geoAllowSkipFlag;      // +0x00b5 ==1 时跳过 RestrictGeolocation 检测
+    bool  m_geoAllowSkipFlag;             // +0x00b5 ==1 时跳过 RestrictGeolocation 检测（ORIG bool：movzbl;xor $0x1;test %al,%al，dispatch_sig 084c5cd3 段）
     char           m_pad0b6[2];             // +0x00b6..0x00b7
     int            m_errCode;               // +0x00b8 登录错误码槽（PUNISH_CHECK 复核结论）
     char           m_pad0bc[4];             // +0x00bc

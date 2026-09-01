@@ -1641,7 +1641,7 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     return m_money - oldMoney;
 }
 
-int CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
+bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
 {
     int oldMoney;
     int limit;
@@ -5809,8 +5809,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     return 1;
 }
 
-int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
-                            eItemDelReason reason, bool bLog)
+bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
+                             eItemDelReason reason, bool bLog)
 {
     if (CheckValidSlot(invenType, slot) != 1)
     {

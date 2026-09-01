@@ -656,7 +656,7 @@ public:
 
     // ---- 货币 ----
     int gain_money(int amount, eMoneyAddReason reason, bool bLog, int param);
-    int use_money(int amount, eMoneySubReason reason, bool bLog);
+    bool use_money(int amount, eMoneySubReason reason, bool bLog);  // ORIG bool：调用点 xor $0x1;test %al,%al（WarRoom 086bfd14 等）
     void UpdateDailyCoin(int value);
     int UseCoin(eCoinSubReason reason);
     int UseUpCoin(unsigned int amount);
@@ -665,8 +665,8 @@ public:
     int use_item(int slot, int count, int invenType);
     int try_use_item(int slot, int count, int invenType) const;
     int use_equip(int slot);
-    int delete_item(INVEN_TYPE invenType, int slot, int count, eItemDelReason reason,
-                    bool bLog);
+    bool delete_item(INVEN_TYPE invenType, int slot, int count, eItemDelReason reason,
+                     bool bLog);  // ORIG bool：调用点 xor $0x1;test %al,%al
     void update_item(INVEN_TYPE invenType, int slot, Inven_Item item);
     int move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot);
     int MoveItemToEmptySlotOfInventory(int slot, int start, int end);

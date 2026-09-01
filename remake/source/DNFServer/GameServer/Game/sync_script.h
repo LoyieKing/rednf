@@ -139,9 +139,12 @@ public:
         // ORIG C1 _ZN...SITEMTYPEC1EbhhtSs：第5参 std::string 按值。
         SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
                   unsigned short f4, std::string name)
-            : m_field0(usable ? 1 : 0), m_field1(f1), m_field2(f2),
-              m_field4(f4), m_str8(name)
         {
+            m_field0 = usable;    // 成员默认构造 + 函数体内赋值（ORIG 形态）
+            m_field1 = f1;
+            m_field2 = f2;
+            m_field4 = f4;
+            m_str8 = name;
         }
         char m_field0;        // +0x00
         unsigned char m_field1;  // +0x01
@@ -176,8 +179,9 @@ public:
         // ORIG C1/C2 _ZN...SARMORTYPEC1EhSs：(unsigned char, std::string)。
         SARMORTYPE() : m_field0(0), m_str4("") {}
         SARMORTYPE(unsigned char f0, std::string name)
-            : m_field0(f0), m_str4(name)
         {
+            m_field0 = f0;    // 成员默认构造 + 函数体内赋值（ORIG 形态）
+            m_str4 = name;
         }
         unsigned char m_field0;  // +0x00
         std::string m_str4;      // +0x04

@@ -242,7 +242,7 @@ public:
     int _tryAddStackItem(const Inven_Item& item, int slot) const;
     int _AddStackItem(const Inven_Item& item, int slot);
     void _AddItem(const Inven_Item& item, int slot);
-    int delete_item(int idx, int count, eItemDelReason reason);
+    bool delete_item(int idx, int count, eItemDelReason reason);  // ORIG bool 返回
     int move_item(int from, int to);
     void update_item(int idx, const Inven_Item& item);
     void _ResetSlot(int idx, eItemDelReason reason);

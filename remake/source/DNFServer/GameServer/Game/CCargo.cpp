@@ -268,7 +268,7 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 }
 
 // ---- 删除 ----
-int CCargo::delete_item(int idx, int count, eItemDelReason reason)
+bool CCargo::delete_item(int idx, int count, eItemDelReason reason)
 {
     if (!IsOperatorable(idx))
         return 0;
