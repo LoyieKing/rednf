@@ -149,10 +149,6 @@ namespace
 // ===========================================================================
 
 // ORIG ctor 0x082a89b8：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CMobileRestrictCommand::CMobileRestrictCommand()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084b3bdc：parser 非空时 m_str0=args[1]；+0xc=StringToNumber(args[2])!=0。
 void CMobileRestrictCommand::parse()
@@ -201,9 +197,6 @@ void CMobileRestrictCommand::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a861e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CMonsterDropTest::CMonsterDropTest()
-{
-}
 
 // ORIG clear 0x084b4096：两 int 槽清零。
 void CMonsterDropTest::clear()
@@ -862,9 +855,6 @@ void CMonsterDropTest::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a885a：基类 ctor → 自身 vptr，无数据成员。
-NpcLimitBuyItem::NpcLimitBuyItem()
-{
-}
 
 // ORIG parse 0x084b1f22：空实现。
 void NpcLimitBuyItem::parse()
@@ -890,9 +880,6 @@ void NpcLimitBuyItem::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a868e：基类 ctor → 自身 vptr，无数据成员。
-COneADayItemShop::COneADayItemShop()
-{
-}
 
 // ORIG execute 0x084b0610：G_GameWorld()->testResetOneADayItemShop()。
 void COneADayItemShop::execute()
@@ -906,9 +893,6 @@ void COneADayItemShop::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a822e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CPcroomPremiumCmd::CPcroomPremiumCmd()
-{
-}
 
 // ORIG parse 0x084a9db0：trim(args)；+0x08 = atoi(args)。
 void CPcroomPremiumCmd::parse()
@@ -933,9 +917,6 @@ void CPcroomPremiumCmd::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a89e2：基类 ctor → 自身 vptr，无数据成员。
-CPcroomRewardReset::CPcroomRewardReset()
-{
-}
 
 // ORIG parse 0x084b3d12：仅读 m_parser 判存（mov/test/ret），无副作用。
 void CPcroomRewardReset::parse()
@@ -968,9 +949,6 @@ void CPcroomRewardReset::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a85e6：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CPickup::CPickup()
-{
-}
 
 // ORIG parse 0x084ac84c：trim；find(" ") 切两段分别 atoi 入 +0x08/+0x0c。
 void CPickup::parse()
@@ -994,9 +972,6 @@ void CPickup::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a83c4：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CPowerWarStraightVictory::CPowerWarStraightVictory()
-{
-}
 
 // ORIG parse 0x084ab202：trim(args)；*(short*)(this+8) = (short)atoi(args)。
 void CPowerWarStraightVictory::parse()
@@ -1027,9 +1002,6 @@ void CPowerWarStraightVictory::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8656：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CRandomObjectTest::CRandomObjectTest()
-{
-}
 
 // ORIG clear 0x084b40ca：两 int 槽清零。
 void CRandomObjectTest::clear()
@@ -1219,9 +1191,6 @@ void CRandomObjectTest::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8972：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CRecipeSuccess::CRecipeSuccess()
-{
-}
 
 // ORIG parse 0x084b399a：parser 非空时按 args[1] 文本映射 1/2/0。
 void CRecipeSuccess::parse()
@@ -1257,9 +1226,6 @@ void CRecipeSuccess::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8602：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CRefund::CRefund()
-{
-}
 
 // ORIG parse 0x084ac96c：trim；find(" ") 切两段分别 atoi 入 +0x08/+0x0c。
 void CRefund::parse()

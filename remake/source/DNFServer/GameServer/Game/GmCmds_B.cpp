@@ -53,10 +53,6 @@ namespace game_master
 // CChangeCharacName — ORIG W ctor 0x082a8418：基类 vptr → 自身 vptr(0x8c81930)，
 // string@+0x08 默认构造（_ZNSsC1Ev）。
 // ===========================================================================
-CChangeCharacName::CChangeCharacName()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084ab524：trim(parser->args)；m_str0 = parser->args（新角色名）。
 void CChangeCharacName::parse()
@@ -77,9 +73,6 @@ void CChangeCharacName::execute()
 // CChangeExpertJobCmd — ORIG W ctor 0x082a816a：仅基类 vptr + 自身 vptr
 // (0x8c81b70)；+0x08 为 int 槽【专家职业类型】，不构造。
 // ===========================================================================
-CChangeExpertJobCmd::CChangeExpertJobCmd()
-{
-}
 
 // ORIG parse 0x084a98c8：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 void CChangeExpertJobCmd::parse()
@@ -137,9 +130,6 @@ void CChangeExpertJobCmd::execute()
 // CChangeExpertJobExpCmd — ORIG W ctor 0x082a8186：仅 vptr 设置；
 // +0x08 为 int 槽【专家职业经验增量】。
 // ===========================================================================
-CChangeExpertJobExpCmd::CChangeExpertJobExpCmd()
-{
-}
 
 // ORIG parse 0x084a9b98：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 void CChangeExpertJobExpCmd::parse()
@@ -159,9 +149,6 @@ void CChangeExpertJobExpCmd::execute()
 // CChangeNPCFavorCmd — ORIG W ctor 0x082a831c：仅 vptr；
 // +0x08/+0x0c 为双 int 槽【npcId / favor】。
 // ===========================================================================
-CChangeNPCFavorCmd::CChangeNPCFavorCmd()
-{
-}
 
 // ORIG parse 0x084aadd8：trim(args)；pos=args.find(" ")；
 // *(int*)(this+8)=atoi(substr(0,pos))；*(int*)(this+0xc)=atoi(substr(pos+1))。
@@ -186,9 +173,6 @@ void CChangeNPCFavorCmd::execute()
 // CChangeNPCMaxDayCmd — ORIG W ctor 0x082a8300：仅 vptr；
 // +0x08/+0x0c 为双 int 槽【npcId / maxDay】。
 // ===========================================================================
-CChangeNPCMaxDayCmd::CChangeNPCMaxDayCmd()
-{
-}
 
 // ORIG parse 0x084aacb8：与 CChangeNPCFavorCmd::parse 同构。
 void CChangeNPCMaxDayCmd::parse()
@@ -211,9 +195,6 @@ void CChangeNPCMaxDayCmd::execute()
 // ===========================================================================
 // CCharacStatCmd — ORIG W ctor 0x082a8098：仅 vptr（无成员）。
 // ===========================================================================
-CCharacStatCmd::CCharacStatCmd()
-{
-}
 
 // ORIG execute 0x084a905e：读 AdditionalInfo 移速/攻速/施速，组串回发本人。
 void CCharacStatCmd::execute()
@@ -242,9 +223,6 @@ void CCharacStatCmd::execute()
 // ===========================================================================
 // CChoiceItem — ORIG W ctor 0x082a87c2：仅 vptr；+0x08 为 int 槽【物品索引】。
 // ===========================================================================
-CChoiceItem::CChoiceItem()
-{
-}
 
 // ORIG parse 0x084b0a34：trim(args)；*(int*)(this+8) = atoi(args.c_str())。
 void CChoiceItem::parse()
@@ -273,9 +251,6 @@ void CChoiceItem::execute()
 // ===========================================================================
 // CCirculationStatisticCmd — ORIG W ctor 0x082a8044：仅 vptr（无成员）。
 // ===========================================================================
-CCirculationStatisticCmd::CCirculationStatisticCmd()
-{
-}
 
 // ORIG execute 0x084a8ff6：空实现（ret）。
 void CCirculationStatisticCmd::execute()
@@ -285,9 +260,6 @@ void CCirculationStatisticCmd::execute()
 // ===========================================================================
 // CClearInventoryCmd — ORIG W ctor 0x082a8338：仅 vptr（无成员）。
 // ===========================================================================
-CClearInventoryCmd::CClearInventoryCmd()
-{
-}
 
 // ORIG execute 0x084aaef8：清空背包槽 [3,0x137] 后 send_itemspace(INVENTORY)。
 void CClearInventoryCmd::execute()
@@ -312,9 +284,6 @@ void CClearInventoryCmd::execute()
 // ===========================================================================
 // CClearAvatarInvenCmd — ORIG W ctor 0x082a8354：仅 vptr（无成员）。
 // ===========================================================================
-CClearAvatarInvenCmd::CClearAvatarInvenCmd()
-{
-}
 
 // ORIG execute 0x084aafb0：逐 avatar 槽 [0,0x68] 删除非空物品并 SendAvatarEvent，
 // 末尾 send_itemspace(AVATAR)。
@@ -357,9 +326,6 @@ void CClearAvatarInvenCmd::execute()
 // ===========================================================================
 // CClearRewardTest — ORIG W ctor 0x082a8902：仅 vptr（无成员）。
 // ===========================================================================
-CClearRewardTest::CClearRewardTest()
-{
-}
 
 // ORIG parse 0x084b2a02：空实现（ret）。
 void CClearRewardTest::parse()

@@ -68,10 +68,6 @@ namespace game_master
 // ===========================================================================
 
 // ORIG ctor 0x082a8124：基类 ctor → 自身 vptr(0x8c81ba0)；string@+0x08 默认构造。
-CRequestDisjointCmd::CRequestDisjointCmd()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084a97c0：trim(parser->args)；m_str0 = parser->args（目标角色名）。
 void CRequestDisjointCmd::parse()
@@ -102,9 +98,6 @@ void CRequestDisjointCmd::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8370：基类 ctor → 自身 vptr，无数据成员。
-CReselectDailyQuestCmd::CReselectDailyQuestCmd()
-{
-}
 
 // ORIG execute 0x084ab4f2：G_GameWorld()->ReselectDailyQuest()（返回值丢弃）。
 void CReselectDailyQuestCmd::execute()
@@ -117,9 +110,6 @@ void CReselectDailyQuestCmd::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a838c：基类 ctor → 自身 vptr，无数据成员。
-CResetTrainingQuestCmd::CResetTrainingQuestCmd()
-{
-}
 
 // ORIG execute 0x084ab508：GetUser()->ResetTrainingQuest()。
 void CResetTrainingQuestCmd::execute()
@@ -132,9 +122,6 @@ void CResetTrainingQuestCmd::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a847a：基类 ctor → 自身 vptr，无数据成员。
-CSecretShopCheckLottery::CSecretShopCheckLottery()
-{
-}
 
 // ORIG execute 0x084ab9c4：GlobalData::s_secret_shop->CheckLottery()。
 void CSecretShopCheckLottery::execute()
@@ -147,9 +134,6 @@ void CSecretShopCheckLottery::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8496：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CSecretShopNpc::CSecretShopNpc()
-{
-}
 
 // ORIG parse 0x084ab9da：trim(args)；+0x08(int 占位槽) = atoi(args)（npc id）。
 void CSecretShopNpc::parse()
@@ -232,9 +216,6 @@ void CSecretShopNpc::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a8576：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CSetGuildFund::CSetGuildFund()
-{
-}
 
 // ORIG parse 0x084ac668：trim(args)；+0x08(int 占位槽) = atoi(args)（金额）。
 void CSetGuildFund::parse()
@@ -263,9 +244,6 @@ void CSetGuildFund::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a891e：基类 ctor → 自身 vptr；string@+0x08 默认构造。
-CSetMultiboxFailCnt::CSetMultiboxFailCnt()
-{
-}
 
 // ORIG parse 0x084b34a4：+0x08(int 占位槽) = 0；trim(args)；
 // atoi(parser->m_extra[1])（第二个分词）。
@@ -303,9 +281,6 @@ void CSetMultiboxFailCnt::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
-CSetTutorialFlagCmd::CSetTutorialFlagCmd()
-{
-}
 
 // ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
 void CSetTutorialFlagCmd::parse()
@@ -326,10 +301,6 @@ void CSetTutorialFlagCmd::execute()
 //                 +0x10 short param1 / +0x12 short param2。
 //   头文件使用真实字段布局，总大小 0x14。
 // ===========================================================================
-
-CStartEvent::CStartEvent()
-{
-}
 
 void CStartEvent::parse()
 {
@@ -384,9 +355,6 @@ void CStartEvent::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a81a2：基类 ctor → 自身 vptr，无数据成员。
-CStartMacroCmd::CStartMacroCmd()
-{
-}
 
 // ORIG execute 0x084a9bfa：函数体仅 push %ebp; mov %esp,%ebp; pop %ebp; ret
 // —— 原始二进制即为空实现（宏录制的启停在 CMacro/包处理链路，非此命令）。
@@ -400,9 +368,6 @@ void CStartMacroCmd::execute()
 // ===========================================================================
 
 // ORIG ctor 0x082a81be：基类 ctor → 自身 vptr，无数据成员。
-CStopMacroCmd::CStopMacroCmd()
-{
-}
 
 // ORIG execute 0x084a9c00：同 CStartMacroCmd，原始二进制即为空实现。
 void CStopMacroCmd::execute()

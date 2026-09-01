@@ -184,9 +184,6 @@ void gmA_compoundAvatar_ProcTest(void* avatar, int job, int equip, int recipe, i
 // CAutoMarketConditionsControlCmd — ORIG W ctor 0x082a8060：基类 vptr → 自身
 // vptr(0x8c81c58)，无字段（sizeof=0x8）。
 // ===========================================================================
-CAutoMarketConditionsControlCmd::CAutoMarketConditionsControlCmd()
-{
-}
 
 // ORIG execute 0x084a8ffc：ret（纯空实现）。
 void CAutoMarketConditionsControlCmd::execute()
@@ -196,9 +193,6 @@ void CAutoMarketConditionsControlCmd::execute()
 // ===========================================================================
 // CAssaultAbuseUserCmd — ORIG W ctor 0x082a8212：基类 vptr → 自身 vptr(0x8c81ae0)。
 // ===========================================================================
-CAssaultAbuseUserCmd::CAssaultAbuseUserCmd()
-{
-}
 
 // ORIG execute 0x084a9daa：ret（纯空实现）。
 void CAssaultAbuseUserCmd::execute()
@@ -208,9 +202,6 @@ void CAssaultAbuseUserCmd::execute()
 // ===========================================================================
 // CBloodMonsterListCmd — ORIG W ctor 0x082a824a：基类 vptr → 自身 vptr(0x8c81ab0)。
 // ===========================================================================
-CBloodMonsterListCmd::CBloodMonsterListCmd()
-{
-}
 
 // ORIG execute 0x084a9e34：仅地下城状态(state==5)且有队伍时，把当前地图怪物
 // uid 表拼成文本经 0x0c 号包回发给 GM。
@@ -262,9 +253,6 @@ void CBloodMonsterListCmd::execute()
 // CAddItemPollutionCmd — ORIG W ctor 0x082a82e4：基类 vptr → 自身 vptr(0x8c81a20)，
 // string@+0x08 默认构造（占位；真实 +0x08 为 int 物品索引）。
 // ===========================================================================
-CAddItemPollutionCmd::CAddItemPollutionCmd()
-{
-}
 
 // ORIG parse 0x084aa9c8：trim(args)；+0x08 = atoi(args.c_str())。
 void CAddItemPollutionCmd::parse()
@@ -340,9 +328,6 @@ void CAddItemPollutionCmd::execute()
 // CAddItemByMail — ORIG W ctor 0x082a853e：基类 vptr → 自身 vptr(0x8c81840)，
 // string@+0x08 默认构造（占位；真实 +0x08 为 int 物品索引）。
 // ===========================================================================
-CAddItemByMail::CAddItemByMail()
-{
-}
 
 // ORIG parse 0x084ac2aa：trim(args)；+0x08 = atoi(args.c_str())。
 void CAddItemByMail::parse()
@@ -407,9 +392,6 @@ void CAddItemByMail::execute()
 // ===========================================================================
 // CAdjustCharacStat — ORIG W ctor 0x082a855a：基类 vptr → 自身 vptr(0x8c81828)。
 // ===========================================================================
-CAdjustCharacStat::CAdjustCharacStat()
-{
-}
 
 // ORIG execute 0x084ac58c：重算角色属性后回发 basic_info 包。
 void CAdjustCharacStat::execute()
@@ -430,9 +412,6 @@ void CAdjustCharacStat::execute()
 // CBoosterTest — ORIG W ctor 0x082a863a：基类 vptr → 自身 vptr(0x8c81750)。
 // 布局：+0x08 int 物品索引（clear 置 -1）、+0x0c int 统计次数。
 // ===========================================================================
-CBoosterTest::CBoosterTest()
-{
-}
 
 // ORIG parse 0x084aeb5e：clear() 后 sscanf(args,"%d%d",&+0x08,&+0x0c)。
 void CBoosterTest::parse()
@@ -887,9 +866,6 @@ void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
 // CBindCubeTest — ORIG W ctor 0x082a8672：基类 vptr → 自身 vptr(0x8c81780)，
 // string@+0x08 默认构造（占位；真实 +0x08 为 byte 职业）。
 // ===========================================================================
-CBindCubeTest::CBindCubeTest()
-{
-}
 
 // ORIG parse 0x084acbe4：trim(args)；+0x08 = (byte)atoi(args.c_str())。
 void CBindCubeTest::parse()
@@ -943,9 +919,6 @@ void CBindCubeTest::execute()
 // 布局：+0x08 byte 步数、+0x09 byte move 标记、+0x0a byte enter 重置标记、
 //       +0x0c int token 计数（getParam 工作区）。
 // ===========================================================================
-BlueMarbleSet::BlueMarbleSet()
-{
-}
 
 // ORIG parse 0x084b22ca：三标记清零、token 计数清零，trim 后整串交给 getParam。
 void BlueMarbleSet::parse()
@@ -1024,10 +997,6 @@ void BlueMarbleSet::execute()
 // 无成员初始化（+0x08 int 未初始化，ORIG 如此）。类声明见 GameMasterCmd.h
 // （占位 std::string m_str0@+0x08，真实为 int 子命令码，本 TU 偏移访问）。
 // ===========================================================================
-
-CBingoGmTest::CBingoGmTest()
-{
-}
 
 // ORIG parse 0x084b35c4：trim(args)；+0x08 = atoi(args.c_str())。
 void CBingoGmTest::parse()
@@ -1132,10 +1101,6 @@ void CBingoGmTest::reqValue()
 // CBillingRechargeCommand — ORIG W ctor 0x082a898e：基类 vptr → 自身
 // vptr(0x8c814c8)，string@+0x08 默认构造（货币名）；+0x0c int 数额。
 // ===========================================================================
-CBillingRechargeCommand::CBillingRechargeCommand()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084b3a60：parser 有效时 m_str0=args 向量[1]，+0x0c=StringToNumber([2])。
 void CBillingRechargeCommand::parse()

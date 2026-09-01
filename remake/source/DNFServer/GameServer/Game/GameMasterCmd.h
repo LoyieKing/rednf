@@ -50,7 +50,7 @@ class CParser;   // ORIG: game_master::CParser（本命名空间内）
 class IGameMaster
 {
 public:
-    explicit IGameMaster(IGameMaster* next);              // 0x082a7f04
+    explicit IGameMaster(IGameMaster* next) : m_next(next) {}   // 0x082a7f04
     virtual void HandleRequest(CCommand* cmd);            // 0x082a7ed6：转发 m_next
 
 protected:
@@ -60,14 +60,14 @@ protected:
 class CSeniorGameMaster : public IGameMaster
 {
 public:
-    explicit CSeniorGameMaster(IGameMaster* next);        // 0x082a7f40（覆盖 vptr 0x8c81cb8）
+    explicit CSeniorGameMaster(IGameMaster* next) : IGameMaster(next) {}  // 0x082a7f40（覆盖 vptr 0x8c81cb8）
     virtual void HandleRequest(CCommand* cmd);            // 0x084a8c44
 };
 
 class CJuniorGameMaster : public IGameMaster
 {
 public:
-    explicit CJuniorGameMaster(IGameMaster* next);        // 0x082a7f1c（覆盖 vptr 0x8c81cc8）
+    explicit CJuniorGameMaster(IGameMaster* next) : IGameMaster(next) {}  // 0x082a7f1c（覆盖 vptr 0x8c81cc8）
     virtual void HandleRequest(CCommand* cmd);            // 0x084a8c06
 };
 
@@ -75,7 +75,7 @@ public:
 class CCommand
 {
 public:
-    CCommand();                                           // 0x082a7ff0（仅设 vptr）
+    CCommand() {}                                         // 0x082a7ff0（仅设 vptr，头内联）
 
     void SetParser(CParser* parser);                      // 0x08234972
     CUser* GetUser();                                     // 0x084b3fba：parser->user
@@ -184,7 +184,7 @@ private:
 class CMoveCharacCmd : public CCommand
 {
 public:
-    CMoveCharacCmd();                // ORIG W 0x082a7ffe（sizeof=0xc）
+    CMoveCharacCmd() : m_str0() {}                // ORIG W 0x082a7ffe（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a8cce
     virtual void execute();                          // ORIG T 0x084a8d02
 
@@ -193,37 +193,37 @@ public:
 class CPvPStartCmd : public CCommand
 {
 public:
-    CPvPStartCmd();                  // ORIG W 0x082a8028（sizeof=0x8）
+    CPvPStartCmd() {}                  // ORIG W 0x082a8028（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8f6a
 };
 class CCirculationStatisticCmd : public CCommand
 {
 public:
-    CCirculationStatisticCmd();      // ORIG W 0x082a8044（sizeof=0x8）
+    CCirculationStatisticCmd() {}      // ORIG W 0x082a8044（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8ff6
 };
 class CAutoMarketConditionsControlCmd : public CCommand
 {
 public:
-    CAutoMarketConditionsControlCmd(); // ORIG W 0x082a8060（sizeof=0x8）
+    CAutoMarketConditionsControlCmd() {} // ORIG W 0x082a8060（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8ffc
 };
 class CItemDropRateCmd : public CCommand
 {
 public:
-    CItemDropRateCmd();              // ORIG W 0x082a807c（sizeof=0x8）
+    CItemDropRateCmd() {}              // ORIG W 0x082a807c（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9002
 };
 class CCharacStatCmd : public CCommand
 {
 public:
-    CCharacStatCmd();                // ORIG W 0x082a8098（sizeof=0x8）
+    CCharacStatCmd() {}                // ORIG W 0x082a8098（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a905e
 };
 class CSetTutorialFlagCmd : public CCommand
 {
 public:
-    CSetTutorialFlagCmd();           // ORIG W 0x082a80b4（sizeof=0xc）
+    CSetTutorialFlagCmd() {}           // ORIG W 0x082a80b4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a921a
     virtual void execute();                          // ORIG T 0x084a9252
 
@@ -232,25 +232,25 @@ public:
 class CViewTutorialFlagCmd : public CCommand
 {
 public:
-    CViewTutorialFlagCmd();          // ORIG W 0x082a80d0（sizeof=0x8）
+    CViewTutorialFlagCmd() {}          // ORIG W 0x082a80d0（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a927e
 };
 class CResetTutorialFlagCmd : public CCommand
 {
 public:
-    CResetTutorialFlagCmd();         // ORIG W 0x082a80ec（sizeof=0x8）
+    CResetTutorialFlagCmd() {}         // ORIG W 0x082a80ec（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a94c6
 };
 class CCreateDisjointStoreCmd : public CCommand
 {
 public:
-    CCreateDisjointStoreCmd();       // ORIG W 0x082a8108（sizeof=0x8）
+    CCreateDisjointStoreCmd() {}       // ORIG W 0x082a8108（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9720
 };
 class CRequestDisjointCmd : public CCommand
 {
 public:
-    CRequestDisjointCmd();           // ORIG W 0x082a8124（sizeof=0xc）
+    CRequestDisjointCmd() : m_str0() {}           // ORIG W 0x082a8124（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a97c0
     virtual void execute();                          // ORIG T 0x084a97f4
 
@@ -259,13 +259,13 @@ public:
 class CTeleportCmd : public CCommand
 {
 public:
-    CTeleportCmd();                  // ORIG W 0x082a814e（sizeof=0x8）
+    CTeleportCmd() {}                  // ORIG W 0x082a814e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a986e
 };
 class CChangeExpertJobCmd : public CCommand
 {
 public:
-    CChangeExpertJobCmd();           // ORIG W 0x082a816a（sizeof=0xc）
+    CChangeExpertJobCmd() {}           // ORIG W 0x082a816a（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a98c8
     virtual void execute();                          // ORIG T 0x084a9900
 
@@ -274,7 +274,7 @@ public:
 class CChangeExpertJobExpCmd : public CCommand
 {
 public:
-    CChangeExpertJobExpCmd();        // ORIG W 0x082a8186（sizeof=0xc）
+    CChangeExpertJobExpCmd() {}        // ORIG W 0x082a8186（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a9b98
     virtual void execute();                          // ORIG T 0x084a9bd0
 
@@ -283,37 +283,37 @@ public:
 class CStartMacroCmd : public CCommand
 {
 public:
-    CStartMacroCmd();                // ORIG W 0x082a81a2（sizeof=0x8）
+    CStartMacroCmd() {}                // ORIG W 0x082a81a2（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9bfa
 };
 class CStopMacroCmd : public CCommand
 {
 public:
-    CStopMacroCmd();                 // ORIG W 0x082a81be（sizeof=0x8）
+    CStopMacroCmd() {}                 // ORIG W 0x082a81be（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c00
 };
 class CRunMacroCmd : public CCommand
 {
 public:
-    CRunMacroCmd();                  // ORIG W 0x082a81da（sizeof=0x8）
+    CRunMacroCmd() {}                  // ORIG W 0x082a81da（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c06
 };
 class CTestDisjointCmd : public CCommand
 {
 public:
-    CTestDisjointCmd();              // ORIG W 0x082a81f6（sizeof=0x8）
+    CTestDisjointCmd() {}              // ORIG W 0x082a81f6（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c0c
 };
 class CAssaultAbuseUserCmd : public CCommand
 {
 public:
-    CAssaultAbuseUserCmd();          // ORIG W 0x082a8212（sizeof=0x8）
+    CAssaultAbuseUserCmd() {}          // ORIG W 0x082a8212（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9daa
 };
 class CPcroomPremiumCmd : public CCommand
 {
 public:
-    CPcroomPremiumCmd();             // ORIG W 0x082a822e（sizeof=0xc）
+    CPcroomPremiumCmd() {}             // ORIG W 0x082a822e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a9db0
     virtual void execute();                          // ORIG T 0x084a9de8
 
@@ -322,13 +322,13 @@ public:
 class CBloodMonsterListCmd : public CCommand
 {
 public:
-    CBloodMonsterListCmd();          // ORIG W 0x082a824a（sizeof=0x8）
+    CBloodMonsterListCmd() {}          // ORIG W 0x082a824a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9e34
 };
 class CVillageAttackedStartCmd : public CCommand
 {
 public:
-    CVillageAttackedStartCmd();      // ORIG W 0x082a8266（sizeof=0xc）
+    CVillageAttackedStartCmd() {}      // ORIG W 0x082a8266（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa10c
     virtual void execute();                          // ORIG T 0x084aa144
 
@@ -337,19 +337,19 @@ public:
 class CVillageAttackedStopCmd : public CCommand
 {
 public:
-    CVillageAttackedStopCmd();       // ORIG W 0x082a8282（sizeof=0x8）
+    CVillageAttackedStopCmd() {}       // ORIG W 0x082a8282（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aa298
 };
 class CVillageAttackedFightCmd : public CCommand
 {
 public:
-    CVillageAttackedFightCmd();      // ORIG W 0x082a829e（sizeof=0x8）
+    CVillageAttackedFightCmd() {}      // ORIG W 0x082a829e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aa1dc
 };
 class CItemInfoCmd : public CCommand
 {
 public:
-    CItemInfoCmd();                  // ORIG W 0x082a82ba（sizeof=0xc）
+    CItemInfoCmd() : m_str0() {}                  // ORIG W 0x082a82ba（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa29e
     virtual void execute();                          // ORIG T 0x084aa2d2
 
@@ -358,7 +358,7 @@ public:
 class CAddItemPollutionCmd : public CCommand
 {
 public:
-    CAddItemPollutionCmd();          // ORIG W 0x082a82e4（sizeof=0xc）
+    CAddItemPollutionCmd() {}          // ORIG W 0x082a82e4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa9c8
     virtual void execute();                          // ORIG T 0x084aaa00
 
@@ -367,7 +367,7 @@ public:
 class CChangeNPCMaxDayCmd : public CCommand
 {
 public:
-    CChangeNPCMaxDayCmd();           // ORIG W 0x082a8300（sizeof=0x10）
+    CChangeNPCMaxDayCmd() {}           // ORIG W 0x082a8300（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aacb8
     virtual void execute();                          // ORIG T 0x084aadd2
 
@@ -377,7 +377,7 @@ public:
 class CChangeNPCFavorCmd : public CCommand
 {
 public:
-    CChangeNPCFavorCmd();            // ORIG W 0x082a831c（sizeof=0x10）
+    CChangeNPCFavorCmd() {}            // ORIG W 0x082a831c（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aadd8
     virtual void execute();                          // ORIG T 0x084aaef2
 
@@ -387,37 +387,37 @@ public:
 class CClearInventoryCmd : public CCommand
 {
 public:
-    CClearInventoryCmd();            // ORIG W 0x082a8338（sizeof=0x8）
+    CClearInventoryCmd() {}            // ORIG W 0x082a8338（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aaef8
 };
 class CClearAvatarInvenCmd : public CCommand
 {
 public:
-    CClearAvatarInvenCmd();          // ORIG W 0x082a8354（sizeof=0x8）
+    CClearAvatarInvenCmd() {}          // ORIG W 0x082a8354（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aafb0
 };
 class CReselectDailyQuestCmd : public CCommand
 {
 public:
-    CReselectDailyQuestCmd();        // ORIG W 0x082a8370（sizeof=0x8）
+    CReselectDailyQuestCmd() {}        // ORIG W 0x082a8370（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab4f2
 };
 class CResetTrainingQuestCmd : public CCommand
 {
 public:
-    CResetTrainingQuestCmd();        // ORIG W 0x082a838c（sizeof=0x8）
+    CResetTrainingQuestCmd() {}        // ORIG W 0x082a838c（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab508
 };
 class CInvalidGold : public CCommand
 {
 public:
-    CInvalidGold();                  // ORIG W 0x082a83a8（sizeof=0x8）
+    CInvalidGold() {}                  // ORIG W 0x082a83a8（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab16e
 };
 class CPowerWarStraightVictory : public CCommand
 {
 public:
-    CPowerWarStraightVictory();      // ORIG W 0x082a83c4（sizeof=0xc）
+    CPowerWarStraightVictory() {}      // ORIG W 0x082a83c4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab202
     virtual void execute();                          // ORIG T 0x084ab23e
 
@@ -427,13 +427,13 @@ public:
 class CDeleteGuild : public CCommand
 {
 public:
-    CDeleteGuild();                  // ORIG W 0x082a83e0（sizeof=0x8）
+    CDeleteGuild() {}                  // ORIG W 0x082a83e0（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab29c
 };
 class CEnduranceCmd : public CCommand
 {
 public:
-    CEnduranceCmd();                 // ORIG W 0x082a83fc（sizeof=0x10）
+    CEnduranceCmd() {}                 // ORIG W 0x082a83fc（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aa73a
     virtual void execute();                          // ORIG T 0x084aa858
 
@@ -443,7 +443,7 @@ public:
 class CChangeCharacName : public CCommand
 {
 public:
-    CChangeCharacName();             // ORIG W 0x082a8418（sizeof=0xc）
+    CChangeCharacName() : m_str0() {}             // ORIG W 0x082a8418（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab524
     virtual void execute();                          // ORIG T 0x084ab558
 
@@ -452,7 +452,7 @@ public:
 class CStartEvent : public CCommand
 {
 public:
-    CStartEvent();                   // ORIG W 0x082a8442（sizeof=0x14）
+    CStartEvent() {}                   // ORIG W 0x082a8442（sizeof=0x14）
     virtual void parse();                            // ORIG T 0x084ab5b6
     virtual void execute();                          // ORIG T 0x084ab886
     void getParam(std::string param);                // ORIG T 0x084ab64e
@@ -465,7 +465,7 @@ public:
 class CEndEvent : public CCommand
 {
 public:
-    CEndEvent();                     // ORIG W 0x082a845e（sizeof=0xc）
+    CEndEvent() {}                     // ORIG W 0x082a845e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab914
     virtual void execute();                          // ORIG T 0x084ab94c
 
@@ -474,13 +474,13 @@ public:
 class CSecretShopCheckLottery : public CCommand
 {
 public:
-    CSecretShopCheckLottery();       // ORIG W 0x082a847a（sizeof=0x8）
+    CSecretShopCheckLottery() {}       // ORIG W 0x082a847a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab9c4
 };
 class CSecretShopNpc : public CCommand
 {
 public:
-    CSecretShopNpc();                // ORIG W 0x082a8496（sizeof=0xc）
+    CSecretShopNpc() {}                // ORIG W 0x082a8496（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab9da
     virtual void execute();                          // ORIG T 0x084aba12
 
@@ -489,7 +489,7 @@ public:
 class CItemDropInDungeon : public CCommand
 {
 public:
-    CItemDropInDungeon();            // ORIG W 0x082a84b2（sizeof=0xc）
+    CItemDropInDungeon() {}            // ORIG W 0x082a84b2（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084abcb0
     virtual void execute();                          // ORIG T 0x084abce8
 
@@ -498,31 +498,31 @@ public:
 class CDeleteAccountCargo : public CCommand
 {
 public:
-    CDeleteAccountCargo();           // ORIG W 0x082a84ce（sizeof=0x8）
+    CDeleteAccountCargo() {}           // ORIG W 0x082a84ce（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abdb4
 };
 class CLinkSystem : public CCommand
 {
 public:
-    CLinkSystem();                   // ORIG W 0x082a84ea（sizeof=0x8）
+    CLinkSystem() {}                   // ORIG W 0x082a84ea（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abdd0
 };
 class CGuildExpBookDelete : public CCommand
 {
 public:
-    CGuildExpBookDelete();           // ORIG W 0x082a8506（sizeof=0x8）
+    CGuildExpBookDelete() {}           // ORIG W 0x082a8506（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abf2c
 };
 class CUserPremiumDelete : public CCommand
 {
 public:
-    CUserPremiumDelete();            // ORIG W 0x082a8522（sizeof=0x8）
+    CUserPremiumDelete() {}            // ORIG W 0x082a8522（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abf4e
 };
 class CAddItemByMail : public CCommand
 {
 public:
-    CAddItemByMail();                // ORIG W 0x082a853e（sizeof=0xc）
+    CAddItemByMail() {}                // ORIG W 0x082a853e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ac2aa
     virtual void execute();                          // ORIG T 0x084ac2e2
 
@@ -531,13 +531,13 @@ public:
 class CAdjustCharacStat : public CCommand
 {
 public:
-    CAdjustCharacStat();             // ORIG W 0x082a855a（sizeof=0x8）
+    CAdjustCharacStat() {}             // ORIG W 0x082a855a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ac58c
 };
 class CSetGuildFund : public CCommand
 {
 public:
-    CSetGuildFund();                 // ORIG W 0x082a8576（sizeof=0xc）
+    CSetGuildFund() {}                 // ORIG W 0x082a8576（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ac668
     virtual void execute();                          // ORIG T 0x084ac6a0
 
@@ -546,7 +546,7 @@ public:
 class CGuildDebug : public CCommand
 {
 public:
-    CGuildDebug();                   // ORIG W 0x082a8592（sizeof=0x14）
+    CGuildDebug() {}                   // ORIG W 0x082a8592（sizeof=0x14）
     virtual void parse();                            // ORIG T 0x084ac720
     virtual void execute();                          // ORIG T 0x084ac76c
 
@@ -557,13 +557,13 @@ public:
 class CDropItem : public CCommand
 {
 public:
-    CDropItem();                     // ORIG W 0x082a85ae（sizeof=0x8）
+    CDropItem() {}                     // ORIG W 0x082a85ae（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aca8c
 };
 class CGetCashInven : public CCommand
 {
 public:
-    CGetCashInven();                 // ORIG W 0x082a85ca（sizeof=0xc）
+    CGetCashInven() {}                 // ORIG W 0x082a85ca（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ac80a
     virtual void execute();                          // ORIG T 0x084ac846
 
@@ -572,7 +572,7 @@ public:
 class CPickup : public CCommand
 {
 public:
-    CPickup();                       // ORIG W 0x082a85e6（sizeof=0x10）
+    CPickup() {}                       // ORIG W 0x082a85e6（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084ac84c
     virtual void execute();                          // ORIG T 0x084ac966
 
@@ -582,7 +582,7 @@ public:
 class CRefund : public CCommand
 {
 public:
-    CRefund();                       // ORIG W 0x082a8602（sizeof=0x10）
+    CRefund() {}                       // ORIG W 0x082a8602（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084ac96c
     virtual void execute();                          // ORIG T 0x084aca86
 
@@ -592,7 +592,7 @@ public:
 class CMonsterDropTest : public CCommand
 {
 public:
-    CMonsterDropTest();              // ORIG W 0x082a861e（sizeof=0x10）
+    CMonsterDropTest() {}              // ORIG W 0x082a861e（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084ace8a
     virtual void execute();                          // ORIG T 0x084acf98
     void checkCommandExecuteError();                                       // 辅助（ORIG T 0x084ad82a，签名见报告）
@@ -613,7 +613,7 @@ public:
 class CBoosterTest : public CCommand
 {
 public:
-    CBoosterTest();                  // ORIG W 0x082a863a（sizeof=0x10）
+    CBoosterTest() {}                  // ORIG W 0x082a863a（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aeb5e
     virtual void execute();                          // ORIG T 0x084aed04
     void SendChatMsg();                                       // 辅助（ORIG T 0x084aeac6，签名见报告）
@@ -637,7 +637,7 @@ public:
 class CRandomObjectTest : public CCommand
 {
 public:
-    CRandomObjectTest();             // ORIG W 0x082a8656（sizeof=0x10）
+    CRandomObjectTest() {}             // ORIG W 0x082a8656（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b0032
     virtual void execute();                          // ORIG T 0x084b0082
     void checkCommandExecuteError();                                       // 辅助（ORIG T 0x084b02be，签名见报告）
@@ -652,7 +652,7 @@ public:
 class CBindCubeTest : public CCommand
 {
 public:
-    CBindCubeTest();                 // ORIG W 0x082a8672（sizeof=0xc）
+    CBindCubeTest() {}                 // ORIG W 0x082a8672（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084acbe4
     virtual void execute();                          // ORIG T 0x084acc1e
 
@@ -661,49 +661,49 @@ public:
 class COneADayItemShop : public CCommand
 {
 public:
-    COneADayItemShop();              // ORIG W 0x082a868e（sizeof=0x8）
+    COneADayItemShop() {}              // ORIG W 0x082a868e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b0610
 };
 class CCraneNeedMaterial : public CCommand
 {
 public:
-    CCraneNeedMaterial();            // ORIG W 0x082a86aa（sizeof=0x8）
+    CCraneNeedMaterial() {}            // ORIG W 0x082a86aa（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b0626
 };
 class CTitleBookReset : public CCommand
 {
 public:
-    CTitleBookReset();               // ORIG W 0x082a86c6（sizeof=0x8）
+    CTitleBookReset() {}               // ORIG W 0x082a86c6（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b063c
 };
 class CTitleBookAdjust : public CCommand
 {
 public:
-    CTitleBookAdjust();              // ORIG W 0x082a86e2（sizeof=0x8）
+    CTitleBookAdjust() {}              // ORIG W 0x082a86e2（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b068a
 };
 class CTitleBookNoClear : public CCommand
 {
 public:
-    CTitleBookNoClear();             // ORIG W 0x082a86fe（sizeof=0x8）
+    CTitleBookNoClear() {}             // ORIG W 0x082a86fe（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b0742
 };
 class CAchievementReset : public CCommand
 {
 public:
-    CAchievementReset();             // ORIG W 0x082a871a（sizeof=0x8）
+    CAchievementReset() {}             // ORIG W 0x082a871a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b076a
 };
 class CAchievementReport : public CCommand
 {
 public:
-    CAchievementReport();            // ORIG W 0x082a8736（sizeof=0x8）
+    CAchievementReport() {}            // ORIG W 0x082a8736（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b07fe
 };
 class CAchievementClear : public CCommand
 {
 public:
-    CAchievementClear();             // ORIG W 0x082a8752（sizeof=0xc）
+    CAchievementClear() {}             // ORIG W 0x082a8752（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b08f0
     virtual void execute();                          // ORIG T 0x084b092a
 
@@ -712,19 +712,19 @@ public:
 class CAchievementAllClear : public CCommand
 {
 public:
-    CAchievementAllClear();          // ORIG W 0x082a876e（sizeof=0x8）
+    CAchievementAllClear() {}          // ORIG W 0x082a876e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b097c
 };
 class CAchievementNoClear : public CCommand
 {
 public:
-    CAchievementNoClear();           // ORIG W 0x082a878a（sizeof=0x8）
+    CAchievementNoClear() {}           // ORIG W 0x082a878a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084b09a8
 };
 class CInGameEventSetDay : public CCommand
 {
 public:
-    CInGameEventSetDay();            // ORIG W 0x082a87a6（sizeof=0xc）
+    CInGameEventSetDay() {}            // ORIG W 0x082a87a6（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b09d0
     virtual void execute();                          // ORIG T 0x084b0a08
 
@@ -733,7 +733,7 @@ public:
 class CChoiceItem : public CCommand
 {
 public:
-    CChoiceItem();                   // ORIG W 0x082a87c2（sizeof=0xc）
+    CChoiceItem() {}                   // ORIG W 0x082a87c2（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b0a34
     virtual void execute();                          // ORIG T 0x084b0a6e
 
@@ -742,7 +742,7 @@ public:
 class CIndependentDrop : public CCommand
 {
 public:
-    CIndependentDrop();              // ORIG W 0x082a87de（sizeof=0x3c）
+    CIndependentDrop() {}              // ORIG W 0x082a87de（sizeof=0x3c）
     virtual void parse();                            // ORIG T 0x084b0b08
     virtual void execute();                          // ORIG T 0x084b0b4e
     void PrintItemDropList();                                       // 辅助（ORIG T 0x084b1756，签名见报告）
@@ -758,7 +758,7 @@ public:
 class CUpgradeCardDebug : public CCommand
 {
 public:
-    CUpgradeCardDebug();             // ORIG W 0x082a883e（sizeof=0xc）
+    CUpgradeCardDebug() {}             // ORIG W 0x082a883e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b1b5e
     virtual void execute();                          // ORIG T 0x084b1b96
     void SendChatMsg();                                       // 辅助（ORIG T 0x084b1e8a，签名见报告）
@@ -768,14 +768,14 @@ public:
 class NpcLimitBuyItem : public CCommand
 {
 public:
-    NpcLimitBuyItem();               // ORIG W 0x082a885a（sizeof=0x8）
+    NpcLimitBuyItem() {}               // ORIG W 0x082a885a（sizeof=0x8）
     virtual void parse();                            // ORIG T 0x084b1f22
     virtual void execute();                          // ORIG T 0x084b1f28
 };
 class CIndependentDropByForce : public CCommand
 {
 public:
-    CIndependentDropByForce();       // ORIG W 0x082a8876（sizeof=0xc）
+    CIndependentDropByForce() {}       // ORIG W 0x082a8876（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b1f8c
     virtual void execute();                          // ORIG T 0x084b1fda
 
@@ -784,7 +784,7 @@ public:
 class DungeonDifficulty : public CCommand
 {
 public:
-    DungeonDifficulty();             // ORIG W 0x082a8892（sizeof=0xc）
+    DungeonDifficulty() {}             // ORIG W 0x082a8892（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b2110
     virtual void execute();                          // ORIG T 0x084b2152
 
@@ -794,7 +794,7 @@ public:
 class BlueMarbleSet : public CCommand
 {
 public:
-    BlueMarbleSet();                 // ORIG W 0x082a88ae（sizeof=0x10）
+    BlueMarbleSet() {}                 // ORIG W 0x082a88ae（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b22ca
     virtual void execute();                          // ORIG T 0x084b25a4
     void getParam();                                       // 辅助（ORIG T 0x084b235c，签名见报告）
@@ -807,14 +807,14 @@ public:
 class CTestTradeRestrict : public CCommand
 {
 public:
-    CTestTradeRestrict();            // ORIG W 0x082a88ca（sizeof=0x8）
+    CTestTradeRestrict() {}            // ORIG W 0x082a88ca（sizeof=0x8）
     virtual void parse();                            // ORIG T 0x084b263a
     virtual void execute();                          // ORIG T 0x084b2640
 };
 class CGrowhWeaponEvent : public CCommand
 {
 public:
-    CGrowhWeaponEvent();             // ORIG W 0x082a88e6（sizeof=0x10）
+    CGrowhWeaponEvent() {}             // ORIG W 0x082a88e6（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b28d6
     virtual void execute();                          // ORIG T 0x084b293c
 
@@ -825,7 +825,7 @@ public:
 class CClearRewardTest : public CCommand
 {
 public:
-    CClearRewardTest();              // ORIG W 0x082a8902（sizeof=0x8）
+    CClearRewardTest() {}              // ORIG W 0x082a8902（sizeof=0x8）
     virtual void parse();                            // ORIG T 0x084b2a02
     virtual void execute();                          // ORIG T 0x084b2a08
     void printClient(CUser* user, char const* fileName, char const* content);
@@ -833,7 +833,7 @@ public:
 class CBingoGmTest : public CCommand
 {
 public:
-    CBingoGmTest();                  // ORIG W 0x082a893a（sizeof=0xc）
+    CBingoGmTest() {}                  // ORIG W 0x082a893a（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b35c4
     virtual void execute();                          // ORIG T 0x084b35fc
     void reqValue();                                 // ORIG T 0x084b368a
@@ -845,7 +845,7 @@ public:
 class CSetMultiboxFailCnt : public CCommand
 {
 public:
-    CSetMultiboxFailCnt();           // ORIG W 0x082a891e（sizeof=0xc）
+    CSetMultiboxFailCnt() {}           // ORIG W 0x082a891e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b34a4
     virtual void execute();                          // ORIG T 0x084b34f8
 
@@ -854,7 +854,7 @@ public:
 class CLevelUp : public CCommand
 {
 public:
-    CLevelUp();                      // ORIG W 0x082a8956（sizeof=0xc）
+    CLevelUp() {}                      // ORIG W 0x082a8956（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b388c
     virtual void execute();                          // ORIG T 0x084b38e2
     void getLevel();                                       // 辅助（ORIG T 0x084b398e，签名见报告）
@@ -865,7 +865,7 @@ public:
 class CRecipeSuccess : public CCommand
 {
 public:
-    CRecipeSuccess();                // ORIG W 0x082a8972（sizeof=0xc）
+    CRecipeSuccess() {}                // ORIG W 0x082a8972（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b399a
     virtual void execute();                          // ORIG T 0x084b3a34
 
@@ -874,7 +874,7 @@ public:
 class CBillingRechargeCommand : public CCommand
 {
 public:
-    CBillingRechargeCommand();       // ORIG W 0x082a898e（sizeof=0x10）
+    CBillingRechargeCommand() : m_str0() {}       // ORIG W 0x082a898e（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b3a60
     virtual void execute();                          // ORIG T 0x084b3ad4
 
@@ -883,7 +883,7 @@ public:
 class CMobileRestrictCommand : public CCommand
 {
 public:
-    CMobileRestrictCommand();        // ORIG W 0x082a89b8（sizeof=0x10）
+    CMobileRestrictCommand() : m_str0() {}        // ORIG W 0x082a89b8（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b3bdc
     virtual void execute();                          // ORIG T 0x084b3c60
 
@@ -893,14 +893,14 @@ public:
 class CPcroomRewardReset : public CCommand
 {
 public:
-    CPcroomRewardReset();            // ORIG W 0x082a89e2（sizeof=0x8）
+    CPcroomRewardReset() {}            // ORIG W 0x082a89e2（sizeof=0x8）
     virtual void parse();                            // ORIG T 0x084b3d12
     virtual void execute();                          // ORIG T 0x084b3d20
 };
 class CHeroMissionCommand : public CCommand
 {
 public:
-    CHeroMissionCommand();           // ORIG W 0x082a89fe（sizeof=0x14）
+    CHeroMissionCommand() : m_str0() {}           // ORIG W 0x082a89fe（sizeof=0x14）
     virtual void parse();                            // ORIG T 0x084b3db2
     virtual void execute();                          // ORIG T 0x084b3e5e
 

@@ -23,10 +23,6 @@ namespace game_master
 {
 
 // ORIG ctor 0x082a7ffe：基类 vptr → 自身 vptr(0x8c81ca0)；string@+0x08 默认构造。
-CMoveCharacCmd::CMoveCharacCmd()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084a8cce：trim(parser->args)；m_str0 = parser->args（目标角色名）。
 void CMoveCharacCmd::parse()
@@ -91,42 +87,6 @@ void CMoveCharacCmd::execute()
     // CCommand ctor @GmCore.cpp）。sizeof=0x8 类无自有成员，空体即由
     // 编译器生成「调基类 ctor + 设自身 vptr」，与 ORIG 一致。
     // -------------------------------------------------------------------
-
-    CPvPStartCmd::CPvPStartCmd()            // ORIG W 0x082a8028
-    {
-    }
-
-    CItemDropRateCmd::CItemDropRateCmd()    // ORIG W 0x082a807c
-    {
-    }
-
-    CResetTutorialFlagCmd::CResetTutorialFlagCmd()   // ORIG W 0x082a80ec
-    {
-    }
-
-    CRunMacroCmd::CRunMacroCmd()            // ORIG W 0x082a81da
-    {
-    }
-
-    CAchievementReset::CAchievementReset()      // ORIG W 0x082a871a
-    {
-    }
-
-    CAchievementReport::CAchievementReport()    // ORIG W 0x082a8736
-    {
-    }
-
-    CAchievementClear::CAchievementClear()      // ORIG W 0x082a8752（sizeof=0xc）
-    {
-    }
-
-    CAchievementAllClear::CAchievementAllClear()    // ORIG W 0x082a876e
-    {
-    }
-
-    CAchievementNoClear::CAchievementNoClear()      // ORIG W 0x082a878a
-    {
-    }
 
     // -------------------------------------------------------------------
     // CPvPStartCmd — ORIG execute 0x084a8f6a。

@@ -121,9 +121,6 @@ extern char CItem_is_stackable_char(void* self)
 // ============================================================================
 // CViewTutorialFlagCmd — ORIG ctor 0x082a80d0（sizeof=0x8）/ execute 0x084a927e
 // ============================================================================
-CViewTutorialFlagCmd::CViewTutorialFlagCmd()
-{
-}
 
 // 拼 "tutorial flag : " + 各置位教程位 "(%d) "，组包(0,0xc) 回发本人。
 void CViewTutorialFlagCmd::execute()
@@ -153,9 +150,6 @@ void CViewTutorialFlagCmd::execute()
 // ============================================================================
 // CTeleportCmd — ORIG ctor 0x082a814e（sizeof=0x8）/ execute 0x084a986e
 // ============================================================================
-CTeleportCmd::CTeleportCmd()
-{
-}
 
 // 调炼金术师 OnTeleportCharacter(本人, 当前村庄, 0,0,0, true) 回城传送。
 void CTeleportCmd::execute()
@@ -170,9 +164,6 @@ void CTeleportCmd::execute()
 // CVillageAttackedStartCmd — ORIG ctor 0x082a8266（sizeof=0xc，int@+0x08）/
 // parse 0x084aa10c / execute 0x084aa144
 // ============================================================================
-CVillageAttackedStartCmd::CVillageAttackedStartCmd()
-{
-}
 
 // trim(args)；atoi → +0x08。
 void CVillageAttackedStartCmd::parse()
@@ -198,9 +189,6 @@ void CVillageAttackedStartCmd::execute()
 // CVillageAttackedStopCmd — ORIG ctor 0x082a8282（sizeof=0x8）/
 // execute 0x084aa298（纯空）
 // ============================================================================
-CVillageAttackedStopCmd::CVillageAttackedStopCmd()
-{
-}
 
 void CVillageAttackedStopCmd::execute()
 {
@@ -210,9 +198,6 @@ void CVillageAttackedStopCmd::execute()
 // CVillageAttackedFightCmd — ORIG ctor 0x082a829e（sizeof=0x8）/
 // execute 0x084aa1dc
 // ============================================================================
-CVillageAttackedFightCmd::CVillageAttackedFightCmd()
-{
-}
 
 // 本人无队伍则借 GameManager 大厅队伍并设单人；随后发起村战入场，
 // 失败码经 SendCmdErrorPacket(0x10b, code) 回发。
@@ -238,9 +223,6 @@ void CVillageAttackedFightCmd::execute()
 // ============================================================================
 // CTestDisjointCmd — ORIG ctor 0x082a81f6（sizeof=0x8）/ execute 0x084a9c0c
 // ============================================================================
-CTestDisjointCmd::CTestDisjointCmd()
-{
-}
 
 // 对 6 个样本道具 × 9 个品级 × 1000 次跑分解结果并把六元组刷入日志
 // （disjoint_result："rarity;grade;f6;f0;f7;f2\n"，压栈序依 objdump 实测）。
@@ -280,9 +262,6 @@ void CTestDisjointCmd::execute()
 // ============================================================================
 // CUserPremiumDelete — ORIG ctor 0x082a8522（sizeof=0x8）/ execute 0x084abf4e
 // ============================================================================
-CUserPremiumDelete::CUserPremiumDelete()
-{
-}
 
 // 收集全部生效 premium 项：逐项发 DB_Q(0x54) 流、解除并重挂效果、通知剩余时长。
 void CUserPremiumDelete::execute()
@@ -338,9 +317,6 @@ void CUserPremiumDelete::execute()
 // ============================================================================
 // CDropItem — ORIG ctor 0x082a85ae（sizeof=0x8）/ execute 0x084aca8c
 // ============================================================================
-CDropItem::CDropItem()
-{
-}
 
 // 取 0x32 号分发器，手组掉落测试包（finalize(false)+set_index(0xf)）后
 // 经其虚表 [0] 入口 (this, user, PacketBuf*) 投递。
@@ -371,9 +347,6 @@ void CDropItem::execute()
 // ============================================================================
 // CTitleBookReset — ORIG ctor 0x082a86c6（sizeof=0x8）/ execute 0x084b063c
 // ============================================================================
-CTitleBookReset::CTitleBookReset()
-{
-}
 
 // 称号簿(扩展数据 0xe)：_gm_clear 后重发列表（ORIG 每次 GetUser 重取）。
 void CTitleBookReset::execute()
@@ -387,9 +360,6 @@ void CTitleBookReset::execute()
 // ============================================================================
 // CTitleBookAdjust — ORIG ctor 0x082a86e2（sizeof=0x8）/ execute 0x084b068a
 // ============================================================================
-CTitleBookAdjust::CTitleBookAdjust()
-{
-}
 
 // 称号簿清空 + 成就(0xf)_gm_init/adjust + 双列表重发（顺序照 ORIG）。
 void CTitleBookAdjust::execute()
@@ -409,9 +379,6 @@ void CTitleBookAdjust::execute()
 // ============================================================================
 // CTitleBookNoClear — ORIG ctor 0x082a86fe（sizeof=0x8）/ execute 0x084b0742
 // ============================================================================
-CTitleBookNoClear::CTitleBookNoClear()
-{
-}
 
 namespace { struct AchFlagView { char m_pad[0x25]; unsigned char m_flag; }; }
 
@@ -427,9 +394,6 @@ void CTitleBookNoClear::execute()
 // CUpgradeCardDebug — ORIG ctor 0x082a883e（sizeof=0xc，int@+0x08）/
 // parse 0x084b1b5e / execute 0x084b1b96 / SendChatMsg 0x084b1e8a
 // ============================================================================
-CUpgradeCardDebug::CUpgradeCardDebug()
-{
-}
 
 // trim(args)；atoi → +0x08。
 void CUpgradeCardDebug::parse()
@@ -539,9 +503,6 @@ void CUpgradeCardDebug::execute()
 // CTestTradeRestrict — ORIG ctor 0x082a88ca（sizeof=0x8）/
 // parse 0x084b263a（空）/ execute 0x084b2640
 // ============================================================================
-CTestTradeRestrict::CTestTradeRestrict()
-{
-}
 
 void CTestTradeRestrict::parse()
 {

@@ -185,10 +185,6 @@ const char kItemList[] = "\xbe\xc6\xc0\xcc\xc5\xdb \xb8\xae\xbd\xba\xc6\xae\n";
 // ===========================================================================
 
 // ORIG ctor：基类 vptr → 自身 vptr(0x8c81a50)；SsC1Ev 构造 +0x08。
-CItemInfoCmd::CItemInfoCmd()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084aa29e：trim(parser->args)；m_str0 = parser->args。
 void CItemInfoCmd::parse()
@@ -261,9 +257,6 @@ void CItemInfoCmd::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c819a8)。
-CInvalidGold::CInvalidGold()
-{
-}
 
 // ORIG execute 0x084ab16e。
 void CInvalidGold::execute()
@@ -284,9 +277,6 @@ void CInvalidGold::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c81888)。
-CLinkSystem::CLinkSystem()
-{
-}
 
 // ORIG execute 0x084abdd0。
 void CLinkSystem::execute()
@@ -318,9 +308,6 @@ void CLinkSystem::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c817e0)，+0x08 不初始化。
-CGetCashInven::CGetCashInven()
-{
-}
 
 // ORIG parse 0x084ac80a：trim(args)；*(short*)(this+8) = atoi(c_str(args))。
 void CGetCashInven::parse()
@@ -340,9 +327,6 @@ void CGetCashInven::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c818b8)。
-CItemDropInDungeon::CItemDropInDungeon()
-{
-}
 
 // ORIG parse 0x084abcb0：*(int*)(this+8) = atoi(c_str(trim(args)))。
 void CItemDropInDungeon::parse()
@@ -388,9 +372,6 @@ void CItemDropInDungeon::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c81630)。
-CInGameEventSetDay::CInGameEventSetDay()
-{
-}
 
 // ORIG parse 0x084b09d0：*(int*)(this+8) = atoi(c_str(trim(args)))。
 void CInGameEventSetDay::parse()
@@ -436,10 +417,6 @@ inline std::set<int>& indAiSet(CIndependentDrop* self)
 
 // ORIG ctor 0x082a87de：基类 vptr(0x8c81600) 后对 +0x0c/+0x24 各构造一次
 // set<int>（_ZNSt3setIiSt4lessIiESaIiEEC1Ev）；+0x08 bool 不初始化。
-CIndependentDrop::CIndependentDrop()
-{
-    // 头已声明真实 std::set<int> m_mons/m_ais（+0x0c/+0x24），隐式构造同 ORIG。
-}
 
 // ORIG parse 0x084b0b08：trim(args)；args=="all" → +0x08=1 否则 0。
 void CIndependentDrop::parse()
@@ -604,9 +581,6 @@ void CIndependentDrop::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c815b8)。
-CIndependentDropByForce::CIndependentDropByForce()
-{
-}
 
 // ORIG parse 0x084b1f8c：先清 0；trim(args)；args=="on" → 1。
 void CIndependentDropByForce::parse()
@@ -651,9 +625,6 @@ void CIndependentDropByForce::execute()
 // ===========================================================================
 
 // ORIG ctor：仅基类 vptr(0x8c814f8)。
-CLevelUp::CLevelUp()
-{
-}
 
 // ORIG parse 0x084b388c：parser 非空时 setLevel(StringToNumber(extra[1]))。
 void CLevelUp::parse()
@@ -688,10 +659,6 @@ void CLevelUp::execute()
 // ===========================================================================
 
 // ORIG ctor：基类 vptr(0x8c81480) + SsC1Ev 构造 +0x08。
-CHeroMissionCommand::CHeroMissionCommand()
-    : m_str0()
-{
-}
 
 // ORIG parse 0x084b3db2：parser 非空时 extra[1]→字符串，extra[2]/extra[3] 经
 // StringToNumber 写 +0x0c/+0x10。

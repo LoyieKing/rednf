@@ -12,10 +12,7 @@ namespace game_master
 {
 
 // ---- IGameMaster ----
-IGameMaster::IGameMaster(IGameMaster* next)
-{
-    m_next = next;
-}
+
 
 void IGameMaster::HandleRequest(CCommand* cmd)  // 0x082a7ed6
 {
@@ -25,9 +22,7 @@ void IGameMaster::HandleRequest(CCommand* cmd)  // 0x082a7ed6
     }
 }
 
-CSeniorGameMaster::CSeniorGameMaster(IGameMaster* next) : IGameMaster(next)
-{
-}
+
 
 void CSeniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c44
 {
@@ -38,9 +33,7 @@ void CSeniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c44
     }
 }
 
-CJuniorGameMaster::CJuniorGameMaster(IGameMaster* next) : IGameMaster(next)
-{
-}
+
 
 void CJuniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c06
 {
@@ -55,10 +48,7 @@ void CJuniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c06
 }
 
 // ---- CCommand ----
-CCommand::CCommand()                            // 0x082a7ff0
-{
-    // ORIG 仅写 vptr；m_parser 由 SetParser 注入。
-}
+
 
 void CCommand::SetParser(CParser* parser)       // 0x08234972
 {
@@ -183,4 +173,3 @@ CCommand* CGameMasterMgr::GetCommand(std::string& name)  // 0x084a8cb0
 }
 
 } // namespace game_master
-

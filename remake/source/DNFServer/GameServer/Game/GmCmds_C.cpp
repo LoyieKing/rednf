@@ -76,9 +76,6 @@ void gmShimDbGrowthWeaponTimepiece(unsigned int /*accId*/, short /*timepiece*/, 
 // ========================================================================
 
 // ORIG ctor 0x082a86aa：基类 vptr → 自身 vptr。
-CCraneNeedMaterial::CCraneNeedMaterial()
-{
-}
 
 // ORIG execute 0x084b0626：G_GameWorld()->UpdateMiniCraneSeed()。
 void CCraneNeedMaterial::execute()
@@ -91,9 +88,6 @@ void CCraneNeedMaterial::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a8108。
-CCreateDisjointStoreCmd::CCreateDisjointStoreCmd()
-{
-}
 
 // ORIG execute 0x084a9720：取分解师职业槽挂到 GM 角色，随后在其脚下
 // 以固定名 "test"/容量 500 创建分解商店（坐标取 GM 角色当前位置低 16 位）。
@@ -117,9 +111,6 @@ void CCreateDisjointStoreCmd::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a84ce。
-CDeleteAccountCargo::CDeleteAccountCargo()
-{
-}
 
 // ORIG execute 0x084abdb4：CAccountCargo::DeleteAccountCargo(GetUser())。
 // ORIG 该函数为静态语义直调（cdecl，无 this 使用）；此处经 CUser 内嵌实例
@@ -136,9 +127,6 @@ void CDeleteAccountCargo::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a83e0。
-CDeleteGuild::CDeleteGuild()
-{
-}
 
 // ORIG execute 0x084ab29c：GM 校验通过后向 guild 服务器发解散请求（0x1df 流）、
 // 清本地公会键并回发 0x3d 包，同时向 monitor 广播 Packet_Monitor_Notice_Guild_Dismiss。
@@ -188,9 +176,6 @@ void CDeleteGuild::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a8892。
-DungeonDifficulty::DungeonDifficulty()
-{
-}
 
 // ORIG parse 0x084b2110：难度字节清零后 atoi(args) 写入 +0x08。
 void DungeonDifficulty::parse()
@@ -244,9 +229,6 @@ void DungeonDifficulty::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a845e。
-CEndEvent::CEndEvent()
-{
-}
 
 // ORIG parse 0x084ab914：atoi(args) → +0x08。
 void CEndEvent::parse()
@@ -276,9 +258,6 @@ void CEndEvent::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a83fc。
-CEnduranceCmd::CEnduranceCmd()
-{
-}
 
 // ORIG parse 0x084aa73a：trim 后以首个空格切分 args；
 // 前段 atoi → 槽位(+0x08)，后段 atoi → 耐久(+0x0c)。ORIG 未校验 find 失配。
@@ -332,9 +311,6 @@ void CEnduranceCmd::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a88e6。
-CGrowhWeaponEvent::CGrowhWeaponEvent()
-{
-}
 
 // ORIG parse 0x084b28d6：args=="gw" 时置重置标记，否则标记清零并 atoi 存时计值。
 void CGrowhWeaponEvent::parse()
@@ -389,9 +365,6 @@ void CGrowhWeaponEvent::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a8592。
-CGuildDebug::CGuildDebug()
-{
-}
 
 // ORIG parse 0x084ac720：atoi(args) → +0x08；+0x0c、+0x10 显式清零。
 void CGuildDebug::parse()
@@ -425,9 +398,6 @@ void CGuildDebug::execute()
 // ========================================================================
 
 // ORIG ctor 0x082a8506。
-CGuildExpBookDelete::CGuildExpBookDelete()
-{
-}
 
 // ORIG execute 0x084abf2c：GetUser()->deleteGuildExpBook()。
 void CGuildExpBookDelete::execute()
