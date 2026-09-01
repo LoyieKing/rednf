@@ -9,7 +9,10 @@
 //   +0x24 int ability[9]       —— g_nElixerAbility 表值（m_data.m_elixerAbility）
 //   +0x48 int needCount[9]     —— 需求洗点书数量（union 内无具名，按偏移访问）
 //   +0x6c int needAbility[9]   —— 需求洗点书能力表
-//   +0x90 m_state.m_initialized；+0x91 保留字节
+//   +0x90 m_state.m_initialized —— SkillInitialize/GetCurCharacTotalSP 的 bool 入参
+//                                （_addSPRelatedItem 0x0860a8a8 movzbl 0x90 读取的门控）
+//   +0x91 m_state.m_reserved91  —— CountElixer 置 1 / SkillInitialize+
+//                                GetCurCharacTotalSP 置 0（movb $?,0x91）
 // ============================================================================
 
 #include <string.h>
@@ -52,7 +55,7 @@ void CSkillChanger::CountElixer(CUser* user)
     m_state.m_kindState1 = 8;
     m_state.m_kindState2 = 8;
     m_state.m_kindState3 = 8;
-    m_state.m_initialized = 1;                     // ORIG: this[0x91] = 1
+    m_state.m_reserved91 = 1;                      // ORIG 0x08609e41 movb $0x1,0x91(%eax)
     _GetUserItemCount(user);
     _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
     _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);

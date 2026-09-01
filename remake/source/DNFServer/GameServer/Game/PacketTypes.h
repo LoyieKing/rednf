@@ -95,7 +95,7 @@ class MSG_BINGO_QUIZ : public MSG_BASE
 public:
     MSG_BINGO_QUIZ();
     // ORIG C1 0x0822dc66：+0xd int 清零（其余未出线）
-    int m_0d;                 // +0x0d
+    int m_0d __attribute__((packed));  // +0x0d
     char m_pad11[0xfc];       // 保持占位总长 0x10d
 };
 
@@ -395,11 +395,11 @@ public:
     //   +0x0d byte itemSpace、+0x0e sbyte count、+0x0f short opType[i]、
     //   +0xd7 short position[i]、+0x19f int itemIdx[i]、+0x32f int countArr[i]。
     // 尾部无保留区：ORIG 线上格式即止于 countArr[99]（sizeof=0x4bf）。
-    unsigned char m_itemSpace;        // +0x0d
+    char m_itemSpace;                 // +0x0d（ORIG get_byte(char&)；char 非 unsigned char）
     signed char m_count;              // +0x0e
     short m_opType[100];              // +0x0f（==1 用途删除；2/3/4 方块统计）
     short m_position[100];            // +0xd7（槽位）
-    int m_itemIdx[100];               // +0x19f
+    unsigned long m_itemIdx[100];     // +0x19f（ORIG get_int(unsigned long&)；x86 32 位 unsigned long==int 宽度）
     int m_countArr[100];              // +0x32f
 };
 #pragma pack(pop)
@@ -650,7 +650,7 @@ public:
     unsigned char m_1;
     unsigned char m_2;
     char m_pad3[0x1e];
-};  // sizeof = 0x21
+} __attribute__((packed));  // sizeof = 0x21（packed；非 pack 时因 alignment=4 → 0x24，致 MSG_GUILD_BOARD m_b2 偏移 +3）
 
 class STGuildBoardDBInfo
 {
@@ -661,7 +661,7 @@ public:
     int m_7c;
     int m_80;
     STGuildMemberCharacData m_members;   // +0x84
-};  // sizeof = 0xa5
+} __attribute__((packed));  // sizeof = 0xa5
 
 #pragma pack(push, 1)
 class MSG_GUILD_BOARD : public MSG_BASE
@@ -913,16 +913,16 @@ public:
     //   +0x0d byte 源 space、+0x0e short 源槽位、+0x10/+0x14 双 u32 组成
     //   exchange_interspace 的 ulong 数量实参（低/高）、+0x18 byte 目的 space、
     //   +0x19 short 目的槽位、+0x1b u32 itemIdx、+0x23/+0x24 byte expand 参数。
-    unsigned char m_fromSpace;        // +0x0d
+    char m_fromSpace;                 // +0x0d（ORIG get_byte(char&)）
     short m_fromPos;                  // +0x0e
-    unsigned int m_count;             // +0x10（ulong 实参低 32 位）
-    unsigned int m_field14;           // +0x14（ulong 实参高 32 位）
-    unsigned char m_toSpace;          // +0x18
+    unsigned long m_count;            // +0x10（ORIG get_int(unsigned long&)；x86 32 位==u32 宽度）
+    int m_field14;                    // +0x14（ORIG get_int(int&) —— §119 误设 unsigned long，callee ERm→ERi 修正）
+    char m_toSpace;                   // +0x18（ORIG get_byte(char&)）
     short m_toPos;                    // +0x19
-    unsigned int m_itemIdx;           // +0x1b
+    unsigned long m_itemIdx;          // +0x1b（ORIG get_int(unsigned long&)）
     unsigned char m_pad1f[4];         // +0x1f..+0x22（ORIG 未读取区）
-    unsigned char m_expanda;          // +0x23
-    unsigned char m_expandb;          // +0x24
+    char m_expanda;                   // +0x23（ORIG get_byte(char&)）
+    char m_expandb;                   // +0x24
     char m_padTail[0x18];             // +0x25..+0x3c（帧推导总长 0x3d）
 };   // MSG_MOVE_ITEMSPACE
 #pragma pack(pop)

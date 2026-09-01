@@ -39,9 +39,9 @@ public:
 
 
     int m_index;                                          // +0x00
-    unsigned char m_isHellDungeon;                        // +0x04
+    bool m_isHellDungeon;                               // +0x04（ORIG IsInHellDungeon movzbl 按 bool 读取）
     int m_dungeonIndex;                                   // +0x08
-    unsigned char m_hasDeathTower;                        // +0x0c
+    bool m_hasDeathTower;                               // +0x0c（ORIG hasDeathTower movzbl 按 bool 读取）
     std::vector<int> m_dungeonList;                       // +0x10（GetDungeonList 返回；
                                                           //   hasDungeon 遍历；
                                                           //   ORIG 缺失致 m_field1c 等偏移漂移，本批补回）

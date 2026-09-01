@@ -206,7 +206,7 @@ public:
                                                      //   0x086971de movzbl 读；CUserOnlyOrig.cpp:7704 同义实现）
     char m_pad645[3];                                // +0x645..0x647（ORIG 无具名访问）
     int m_breakAwayDungeonClearCnt;                  // +0x648
-    char m_pad64c[4];                                // +0x64c..0x64f
+    int m_breakAwayAccureCera;                       // +0x64c（get/setBreakAwayAccureCera 实证，原 m_pad64c[4]；§8.3 字段化，证据 CUser.cpp:4500/4684）
     int m_breakAwayQuestTime;                        // +0x650
     // +0x654 区按 ORIG setter 实证具名（CGameOption 止于 +0x657，sizeof 0x658）：
     int m_breakAwayRewardOrder;                      // +0x654（setBreakAwayRewardOrder W 0x0831d4de 直写）

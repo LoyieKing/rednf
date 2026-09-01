@@ -1,10 +1,10 @@
 // CSuccessJobNode：CDungeonSuccessNode::m_jobMap 值类型（0x58 字节）。
 // 布局证据（objdump + 报告 docs/class_func_reports/CSuccessJobNode/）：
 //   +0x00 map<int,JobParty> m_jobPartyMap（0x18；ctor 0x08484c30 预插 job 2..4）
-//   +0x18 PlayInfo m_charac（0x40；ORIG 中该成员为 Character 类型调用 Character::Character/
-//     operator+=，但 ORIG 上下文尺寸 0x40 —— 栈槽证据 pair<JobKey,CSuccessJobNode> @
-//     -0xc8..-0x68 与对象 -0x68 无缝 + copy ctor 0x0848757e 复制 0x18..0x54 恰 0x40 字节；
-//     2026-08-28 Main 裁决：CUser.h Character 保持 0x4c，本成员用 PlayInfo）
+//   +0x18 Character m_charac（0x40；ORIG ctor 0x08484c30 调 Character::Character，
+//     dtor 0x08486c5a 调 Character::~Character（_ZN9CharacterD1Ev），
+//     copy ctor 0x0848757e 复制 0x18..0x54 恰 0x40 字节。
+//     CUser.h Character 大小已修为 0x40（与 PlayInfo 同布局），故本成员用 Character。）
 // 方法：ctor T 0x08484c30 / copy W 0x0848757e / dtor W 0x08486c5a（非虚，无 vtable，P39）/
 // InsertDB T 0x08486234 / UpdateCharacter T 0x08484d4c。
 #ifndef DNF_GAME_CSUCCESSJOBNODE_H_
@@ -30,7 +30,7 @@ public:
     int InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey);  // T 0x08486234
 
     std::map<int, JobParty> m_jobPartyMap;   // +0x00（0x18）
-    PlayInfo m_charac;                       // +0x18（0x40）
+    Character m_charac;                      // +0x18（0x40）
 };
 // sizeof 0x58
 

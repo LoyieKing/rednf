@@ -153,7 +153,7 @@ void CTradeSpace::reset()
     m_nState[0] = 2;
     m_nState[1] = 2;
     memset(&m_slotsData[0], 0, 0x798);
-    memset(&m_slotsData[0x798], 0, 0x798);
+    memset(&m_slotsData[1], 0, 0x798);
     memset(m_pad, 0, sizeof(m_pad));
     unlock();
 }
@@ -319,7 +319,7 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
     m_nState[0] = 0;
     m_nState[1] = 0;
     memset(&m_slotsData[0], 0, 0x798);
-    memset(&m_slotsData[0x798], 0, 0x798);
+    memset(&m_slotsData[1], 0, 0x798);
     memset(m_pad, 0, sizeof(m_pad));
     unlock();
     a->m_historyLog.TradeBegin();

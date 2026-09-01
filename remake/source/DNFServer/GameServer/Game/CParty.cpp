@@ -250,7 +250,7 @@ char CParty::get_state()
 
 bool CParty::IsSinglePlay()
 {
-    return m_singlePlay != 0;
+    return m_singlePlay;
 }
 
 void CParty::SetSinglePlay(bool flag)

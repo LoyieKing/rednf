@@ -302,7 +302,7 @@ void CAchievement::_setTrigger(unsigned int id, unsigned short t0,
         {
             ach.m_trigger2 = 0;
         }
-        m_achievements.insert(std::make_pair(id, ach));
+        m_achievements.insert(std::make_pair(ach.m_id, ach));
     }
     alter();
 }
@@ -712,7 +712,7 @@ void CAchievement::_gm_init()
              m_achievements.begin();
          it != m_achievements.end(); ++it)
     {
-        Quest* quest = G_CDataManager()->find_quest((int)it->first);
+        Quest* quest = G_CDataManager()->find_quest((int)it->second.m_id);
         if (quest == 0)
         {
             break;
@@ -723,7 +723,7 @@ void CAchievement::_gm_init()
         {
             break;
         }
-        _sendSetTrigger(it->first, 0);
+        _sendSetTrigger(it->second.m_id, 0);
     }
     alter();
 }

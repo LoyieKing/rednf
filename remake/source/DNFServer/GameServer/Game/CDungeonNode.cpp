@@ -389,8 +389,8 @@ int CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& jo
 // ============================================================================
 // CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC*) —— ORIG T 0x08484d4c
 // m_jobPartyMap.find(stat->m_charac[0x20] 处 int)：命中 → m_count 自增；
-// m_charac += stat->m_charac（PlayInfo 聚合；ORIG 为 Character::operator+= 单调用，
-// 本实现用 PlayInfo::operator+= + m_f3c 自增等效——Main 裁决 Character 本波不动）。
+// m_charac += stat->m_charac（Character 聚合；ORIG 为 Character::operator+= 单调用，
+// m_charac 成员现为 Character，与 ORIG 一致）。
 // ============================================================================
 int CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
@@ -401,7 +401,7 @@ int CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
     {
         it->second.m_count = it->second.m_count + 1;
     }
-    m_charac += *reinterpret_cast<const PlayInfo*>(stat->m_charac);
+    m_charac += *reinterpret_cast<const Character*>(stat->m_charac);
     m_charac.m_f3c = m_charac.m_f3c + 1;
     return 1;
 }

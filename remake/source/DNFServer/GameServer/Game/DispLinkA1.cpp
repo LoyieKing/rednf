@@ -194,8 +194,8 @@ void Dispatcher_CallGuildLevelUp::send_packet_guild_levelup(
 // ============================================================================
 int Dispatcher_Client_Spec_Statistic::check_error(CUser* user, MSG_BASE& msg)
 {
-    (void)user;
-    if (&msg == 0) {  // ORIG 显式空引用守卫（0x081ce760 cmp param_2,0）
+    if (user == 0) {  // ORIG 判 user@+0xc（0x081ce760 cmp param_1,0）；我们误判 msg ref@+0x10
+        (void)msg;
         return LineFunc(
             0x27fd,
             __PRETTY_FUNCTION__,

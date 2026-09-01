@@ -37,8 +37,8 @@ void DB_UpdateChuseokPackagePurchase::makeRequest(unsigned int mId)
 // DB_UpdateChuseokPackagePurchase::dispatch @ 0x0843c7bc
 // mangled _ZN31DB_UpdateChuseokPackagePurchase8dispatchEiiP6Stream
 // ============================================================================
-int DB_UpdateChuseokPackagePurchase::dispatch(int /*param1*/, int /*param2*/,
-                                              Stream* s)
+bool DB_UpdateChuseokPackagePurchase::dispatch(int /*userIdx*/, int /*slot*/,
+                                               Stream* s)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);
@@ -51,7 +51,7 @@ int DB_UpdateChuseokPackagePurchase::dispatch(int /*param1*/, int /*param2*/,
         "where m_id=%s",
         NumberToString(mId, 0));
     if (!db->exec(true))
-        return 0;
+        return false;
     if (db->getAffectedRowCount() == 0)
     {
         db->set_query(
@@ -59,7 +59,7 @@ int DB_UpdateChuseokPackagePurchase::dispatch(int /*param1*/, int /*param2*/,
             "values(%s, %u)",
             NumberToString(mId, 0), 1);
         if (!db->exec(true))
-            return 0;
+            return false;
     }
-    return 1;
+    return true;
 }

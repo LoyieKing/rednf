@@ -197,7 +197,16 @@ public:
     }
     void operator()(OptionGroup og)
     {
-        (*this)(static_cast<unsigned int>(og.m_weight4));
+        if (m_sum > m_n)
+        {
+            return;
+        }
+        if (m_n - m_sum < og.m_weight4)
+        {
+            m_value = m_count;
+        }
+        m_sum += og.m_weight4;
+        ++m_count;
     }
 
     // ORIG _ZN11CRandomListIjE9get_valueEv W @0x085f49a0（非 const）

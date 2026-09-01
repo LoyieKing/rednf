@@ -110,7 +110,9 @@ public:
 
     bool operator<(const CandidatePoint& o) const          // ORIG 0x82f04ea
     {
-        return this->m_priority > o.m_priority;
+        if (this->m_priority > o.m_priority)
+            return true;
+        return false;
     }
 
     int m_priority;      // +0x00（ctor 不初始化，由 _AddCandidatePoint 填写）
@@ -278,7 +280,7 @@ public:
     unsigned int m_state;           // +0x08
     unsigned int m_lastHpSec;       // +0x0c（ChangeHp 刷新）
     int m_hp;                       // +0x10
-    char m_powerWarWinner;          // +0x14
+    bool m_powerWarWinner;          // +0x14（ORIG IsPowerWarWinner movzbl 按 bool 读取）
     char m_connectIp[9];            // +0x15..+0x1d（SetUserConnectP2P memcpy ≤ min(n,8)）
     char m_pad1e[2];                // +0x1e..+0x1f（sizeof(CAssaulter)==0x20）
 };

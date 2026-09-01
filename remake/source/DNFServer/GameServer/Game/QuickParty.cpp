@@ -279,7 +279,7 @@ char CQuickParty::get_first_matching_cnt()
 
 bool CQuickParty::is_change_quick_party_count()
 {
-    return m_isChangeQuickPartyCount != 0;
+    return m_isChangeQuickPartyCount;
 }
 
 // get_party_object @0x082696d0：idx∈[0,3] 且槽非 -1 时经 GameManager 取 party。

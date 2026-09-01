@@ -82,7 +82,9 @@ bool CBreakAwayPreventSystem::calBreakAwayUserPoint()
                 ++lowCnt;
         }
     }
-    return highCnt == 1;
+    if (highCnt != 1)
+        return false;
+    return true;
 }
 
 // ---- selectReward（ORIG 0x0831c872）----------------------------------------
@@ -282,19 +284,21 @@ void DB_UpdateBreakAwayUvList::makeRequest(unsigned int accId, char* uvInfo)
 class CLocalChina_DB_BreakAwayReset
 {
 public:
-    void makeRequest(unsigned int accId);
+    static void makeRequest(unsigned int accId);
 };
 
 class CLocalChina_DB_LastDay_BreakAway
 {
 public:
-    void makeRequest(unsigned int accId, int day, int flag);
+    // ORIG 0x08128152 无 this：三参落 ebp+0x08/0x0c/0x10 → 静态成员
+    // （静态/非静态成员 mangled 相同：_ZN32...11makeRequestEjii）。
+    static void makeRequest(unsigned int accId, int day, int flag);
 };
 
 void CLocalChina_DB_BreakAwayReset::makeRequest(unsigned int accId)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-        "localchina/localchina_DBThread.c", 0x408), true);
+        "localchina/localchina_DBThread.cpp", 0x408), true);
     guard.operator*()->operator<<(0x2dd);   // ORIG opcode（localchina DBThread 分发表）
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(accId);   // ORIG operator<<(unsigned)
@@ -304,9 +308,8 @@ void CLocalChina_DB_BreakAwayReset::makeRequest(unsigned int accId)
 void CLocalChina_DB_LastDay_BreakAway::makeRequest(unsigned int accId,
                                                    int day, int flag)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localchina/localchina_DBThread.c", 0x438);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localchina/localchina_DBThread.cpp", 0x438), true);   // ORIG 字符串 .cpp
     guard.operator*()->operator<<(0x2de);  // ORIG opcode
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(accId);  // ORIG operator<<(unsigned)（ebp+0x08）
@@ -340,8 +343,7 @@ void CBreakAwayPreventSystem::GM_UpdateUvList(unsigned int accId,
     }
     DB_UpdateBreakAwayUvList::makeRequest(
         accId, m_base + 0x30b);   // ORIG 0x0831cb3e
-    CLocalChina_DB_BreakAwayReset req;
-    req.makeRequest(accId);          // ORIG 0x0831cb49
+    CLocalChina_DB_BreakAwayReset::makeRequest(accId);   // ORIG static (no this) 0x0831cb49
 }
 // ---- StubS3A_deps 批 ----
 // ORIG T 0x0831d164（报告 break_away_prevent__CBreakAwayPreventSystem/

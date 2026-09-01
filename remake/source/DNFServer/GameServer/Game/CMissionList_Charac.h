@@ -97,7 +97,7 @@ public:
     unsigned short m_field148;                 // +0x148
     unsigned short m_field14a;           // +0x14a
     unsigned short m_field14c;           // +0x14c
-    char m_field14e;                     // +0x14e
+    bool m_field14e;                     // +0x14e
     char m_pad14f[5];                    // +0x14f..0x153
     CUser* m_user;                       // +0x154
 };

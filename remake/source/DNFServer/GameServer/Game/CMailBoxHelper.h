@@ -94,9 +94,7 @@ public:
         unsigned int m_mailIndex;       // +0x00（Init 清零；AddNewMail ← input+0x00）
         unsigned int m_senderCharacNo;  // +0x04
         char m_senderName[0x20];        // +0x08（strncpy 0x1d）
-        unsigned int m_packageMoney;    // +0x28
-        Inven_Item m_item;              // +0x2c..+0x68（sizeof 0x3d）
-        char m_pad69[3];
+        struct { unsigned int m_packageMoney; Inven_Item m_item; } m_package;  // +0x28（CMail ._398 子对象；ORIG add $0x28 调 ._398C1→Inven_ItemC1）
         long m_period;                  // +0x6c（到期秒；GetPeriod/IsTimeOver）
         int m_packageType;              // +0x70（1=avatar / 2=creature / 0=无）
         unsigned char m_unlimit;        // +0x74（isUnlimit）

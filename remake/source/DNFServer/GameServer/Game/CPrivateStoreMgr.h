@@ -274,7 +274,7 @@ public:
     bool CheckValidItem(INVEN_TYPE type, int slot, int count);   // ORIG T 0x85c9bb8
     bool CheckValidItem(int cargoSlot, int count);               // ORIG T 0x85c9cc2
 
-    unsigned char m_dollCreated;        // +0x08（ctor 置 0）
+    bool m_dollCreated;                // +0x08（ctor 置 0；ORIG isDollCreated movzbl 按 bool 直返）
     char m_pad09[3];
     unsigned long m_dollItemID;         // +0x0c（ctor 置 0）
     unsigned char m_state;              // +0x10（ctor 置 0）

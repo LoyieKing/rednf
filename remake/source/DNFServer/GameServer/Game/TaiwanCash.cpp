@@ -67,7 +67,7 @@ int PurchaseQuery::getResult(MySQL& db)
             throw static_cast<int>(0x193);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x199,
@@ -105,7 +105,9 @@ void TaiwanCash::increaseRequest()
 // ---- checkResultCode —— ORIG 0x0817366e。----
 bool TaiwanCash::checkResultCode(int code)
 {
-    return code == 0;
+    if (code != 0)
+        return false;
+    return true;
 }
 
 // ---- purchase —— ORIG 0x08173a00：
@@ -251,7 +253,9 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 // ---- CheckBillingErrorCode —— ORIG 0x08146669：code==0 → true。----
 bool CheckBillingErrorCode(int code)
 {
-    return code == 0;
+    if (code == 0)
+        return true;
+    return false;
 }
 
 // ============================================================================

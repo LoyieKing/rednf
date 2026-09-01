@@ -9130,7 +9130,7 @@ Dispatcher_Equipslot_Switch::Dispatcher_Equipslot_Switch() {}
 Dispatcher_Equipslot_Switch::~Dispatcher_Equipslot_Switch() {}
 int Dispatcher_Equipslot_Switch::check_error(CUser* user, MSG_BASE& msg)
 {
-    if (&msg == 0)
+    if (user == 0)   // ORIG 判 user@+0xc；我们误判 msg ref@+0x10
     {
         return LineFunc(0x3e1c,
                         __PRETTY_FUNCTION__,
@@ -22244,7 +22244,7 @@ int Dispatcher_MailBox_Send::GuildMailCheck(CUser* user, MSG_BASE& msg)
     if (!user->IsSubGuildMaster() && !user->IsGuildMaster())    // 仅会长/副会长可发
         return 0x24;
 
-    const int fee = *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa624);  // +0xa624 公会邮件费（推断：ORIG 全局费用字段）
+    const int fee = G_CDataManager()->m_guildParameter.m_mail;  // +0xa624 公会邮件费（m_guildParameter.m_mail）
     const CInventory* inv = user->getCurCharacInvenR();
     if (inv->get_money() < fee)
         return 0x23;

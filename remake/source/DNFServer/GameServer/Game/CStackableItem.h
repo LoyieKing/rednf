@@ -442,7 +442,7 @@ public:
     CountinuousItemOption m_option2d8;    // +0x2d8（3 字节）
     StatChangeInfo m_stat2dc;             // +0x2dc（int+2char）
     CountinuousItemOption m_option2e4;    // +0x2e4（3 字节）
-    char m_char2e7;                       // +0x2e7
+    bool m_char2e7;                       // +0x2e7（exp 影响标记；ORIG IsExpAffect movzbl 按 bool 读取，非 char→bool 归一）
     int m_int2e8;                         // +0x2e8
     char m_char2ec;                       // +0x2ec
     char m_pad2ed[1];                     // +0x2ed
@@ -451,16 +451,16 @@ public:
     std::map<STEnchantSystemMapKey, STEnchantSystemMapData> m_enchantMap;  // +0x2f4
     char m_char30c;                       // +0x30c
     char m_chars30d[2];                   // +0x30d
-    char m_char30f;                       // +0x30f
+    bool m_char30f;                       // +0x30f
     unsigned short m_short310;            // +0x310
     char m_char312;                       // +0x312
-    char m_char313;                       // +0x313
+    bool m_char313;                       // +0x313
     unsigned short m_short314;            // +0x314
     char m_char316;                       // +0x316
     int m_int318;                         // +0x318
     int m_int31c;                         // +0x31c
     char m_char320;                       // +0x320
-    char m_char321;                       // +0x321
+    bool m_char321;                       // +0x321（可删除标记；ORIG movzbl 按 bool 读取）
     int m_int324;                         // +0x324
     int m_int328;                         // +0x328
     int m_int32c;                         // +0x32c
@@ -469,7 +469,7 @@ public:
     int m_int338;                         // +0x338
     int m_int33c;                         // +0x33c
     int m_int340;                         // +0x340
-    char m_char344;                       // +0x344
+    bool m_char344;                       // +0x344（随机增幅券标记；ORIG movzbl 按 bool 读取）
     std::map<int, int> m_amplifyMap;      // +0x348
     int m_int360;                         // +0x360
     char m_char364;                       // +0x364

@@ -114,9 +114,7 @@ int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b)
 {
     // ORIG 0x82e59f1 尾调 Point2d::operator-（= |dx|+|dy| 曼哈顿距离）。
     // 语义等价（ORIG 传参形态差异属编译器形式；operator- 实现一致）。
-    int dx = a.m_x - b.m_x;
-    int dy = a.m_y - b.m_y;
-    return (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+    return a - b;   // ORIG 尾调 Point2d::operator-（曼哈顿距离 10 insns，我们内联 29）
 }
 
 // ---- ORIG 域常量（nm：_ZN16village_attackedL…E，r 段；值自 ORIG rodata 读取）----

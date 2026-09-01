@@ -1451,7 +1451,7 @@ bool CCreatureScript::IsItemGrowCreature()
     {
         return false;
     }
-    return m_field4c != 0;
+    return m_field4c;
 }
 
 int CCreatureScript::GetTypeSelectEvolutionLevel()

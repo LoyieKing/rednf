@@ -63,7 +63,7 @@ public:
     unsigned char m_field2c;             // +0x2c（learnOverSkillLevel）
     char m_pad30[0x34 - 0x30];           // +0x30
     std::set<int> m_set34;               // +0x34（itemEvolutionCreatureIds，自 src+0x1c0）
-    unsigned char m_field4c;             // +0x4c（isItemGrow flag，自 src+0x18c）
+    bool m_field4c;                      // +0x4c（isItemGrow flag，自 src+0x18c；ORIG IsItemGrowCreature movzbl 按 bool 读取）
     char m_pad4d[0x50 - 0x4d];           // +0x4d
     int m_field50;                       // +0x50（typeSelectEvolutionLevel / growLevel）
     int m_field54;                       // +0x54（growATypeCreature）

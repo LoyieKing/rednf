@@ -2098,14 +2098,14 @@ CWorldMap* CWorldMapList::find_world_map(int idx) const
 }
 
 // ---- CWorldMap 访问器（ORIG 无独立报告；按 objdump 直读字节字段实现） ----
-bool CWorldMap::IsInHellDungeon()   // ORIG W 0x830e6ba：movzbl 0x4(%eax)（非 const）
+bool CWorldMap::IsInHellDungeon()   // ORIG W 0x830e6ba：movzbl 0x4(%eax)（非 const，直读 bool）
 {
-    return m_isHellDungeon != 0;
+    return m_isHellDungeon;
 }
 
-bool CWorldMap::hasDeathTower() const     // ORIG W 0x822b520：movzbl 0xc(%eax)
+bool CWorldMap::hasDeathTower() const     // ORIG W 0x822b520：movzbl 0xc(%eax)（直读 bool）
 {
-    return m_hasDeathTower != 0;
+    return m_hasDeathTower;
 }
 
 // ORIG W 0x0822b514 _ZNK9CWorldMap18getDungeonMinLevelEv（const）：返回
@@ -2230,8 +2230,8 @@ pvp_channel_info_t::pvp_channel_info_t()
     m_field0 = 0;
     m_minGrade = 0;
     m_maxGrade = 0;
-    m_channelType = 0;        // +0x10（先于 +0x0c 清零，与 ORIG 序一致）
-    m_upgradeRevision = 0;    // +0x0c
+    m_upgradeRevision = 0;    // +0x0c（ORIG 先清 +0x0c 再清 +0x10）
+    m_channelType = 0;        // +0x10
     m_minLevel = 0;
     m_maxLevel = 0;
     m_field1c = 0;

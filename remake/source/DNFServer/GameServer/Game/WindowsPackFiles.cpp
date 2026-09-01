@@ -713,7 +713,9 @@ bool WindowsDataFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
 
 bool WindowsDataFileFamily::IsScanningAddressReset()   // 0x08575444
 {
-    return m_scanOffset == 0;
+    if (m_scanOffset == 0)
+        return true;
+    return false;
 }
 
 // ===========================================================================

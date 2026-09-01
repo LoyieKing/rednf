@@ -43,9 +43,9 @@ void arad::SigSaveRewardEventItem::set(int a, unsigned int b, unsigned int c,
     m_field00 = a;
     m_field04 = b;
     m_field08 = c;
-    m_field0c = f;
     m_field10 = (unsigned int)d;
     m_field14 = (short)e;
+    m_field0c = f;
 }
 
 

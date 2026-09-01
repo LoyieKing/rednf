@@ -82,7 +82,9 @@ int ARAD::SCRIPT::AvatarFixedHiddenOption::getMaterialItemIndex()
 // ORIG 0x088b0170：return *(int*)(this+0x48) == itemIndex
 bool ARAD::SCRIPT::AvatarFixedHiddenOption::isMaterialItemIndex(int itemIndex)
 {
-    return m_materialItemIndex == itemIndex;
+    if (m_materialItemIndex == itemIndex)
+        return true;
+    return false;
 }
 
 // ORIG 0x088aef52 parseAbility：首次调用构建 21 项静态映射（SpinLock 双检的语义等价：

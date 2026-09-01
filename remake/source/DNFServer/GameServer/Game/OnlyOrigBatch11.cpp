@@ -77,7 +77,9 @@ bool TagSkillPenalty::isPenaltyLevel(int level)
 // ORIG T 0x08a9d81a：m_type == type。
 bool StrikerDirectionType::isType(T type)
 {
-    return m_type == static_cast<int>(type);
+    if (m_type == static_cast<int>(type))
+        return true;
+    return false;
 }
 
 // ============================================================================

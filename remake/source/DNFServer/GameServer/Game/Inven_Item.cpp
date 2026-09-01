@@ -129,7 +129,9 @@ void RandomOption::reset()
 // ORIG 0x822abd0 W：movzbl (this) → 首字节==0 返回 true。
 bool RandomOption::empty()
 {
-    return m_field0.m_field0 == 0;
+    if (m_field0.m_field0 == 0)
+        return true;
+    return false;
 }
 
 void ChronicleRandomOptionInfo::reset()
@@ -296,7 +298,9 @@ bool Inven_Item::isEquipableItemType() const
 
 bool Inven_Item::isEmpty() const
 {
-    return m_addInfo == 0;
+    if (m_addInfo == 0)
+        return true;
+    return false;
 }
 
 void Inven_Item::setCopy(const Inven_Item& other)

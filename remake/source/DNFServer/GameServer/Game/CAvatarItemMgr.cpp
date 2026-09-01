@@ -354,7 +354,9 @@ Avatar_Item* CAvatarItemMgr::EraseAvatarItem(int key)
 bool CAvatarItemMgr::isSocketAvatar(int key)   // ORIG 非 const
 {
     const char* jewelData = getJewelSocketData(key);
-    return *(short*)jewelData != 0;
+    if (*(short*)jewelData == 0)
+        return false;
+    return true;
 }
 
 int CAvatarItemMgr::setEmblemSocketData(int key, const stAvatarEmblemInfo_t& emblem)

@@ -102,7 +102,7 @@ public:
     void  set_event_end_time(int t);                  // m_endTime = t
 
 protected:
-    unsigned char       m_isEventing;     // +0x04
+    bool                m_isEventing;     // +0x04（ORIG is_eventing movzbl 按 bool 读取；仅存 0/1）
     std::string         m_dbTableName;    // +0x08
     int                 m_startTime;      // +0x0c
     int                 m_endTime;        // +0x10

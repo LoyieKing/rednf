@@ -25,7 +25,7 @@ static const unsigned char MAX_FIRST_GROWTH_TYPE = 8;
 #pragma pack(push, 1)
 struct _Additioal_info
 {
-    _Additioal_info() { memset(this, 0, sizeof(*this)); }
+    _Additioal_info() { clear(); }   // ORIG C1 调 clear()（0x8348254→clear 0x8348268）
     void clear() { memset(this, 0, 0x52); }
 
     // ORIG W 内联三件套；本工程收敛为单点强符号，定义见 CUserPremium.cpp。

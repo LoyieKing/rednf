@@ -1188,7 +1188,7 @@ public:
 
     void generatePowerUp(std::vector<CUser*>& users, int count);
     void sendPowerUpInfo(int team1Count, int team2Count);
-    void registNextTimer(long sec);
+    static void registNextTimer(long sec);   // ORIG static（sec@+0x8）
 
 private:
     std::vector<CUser*> m_team1Users;

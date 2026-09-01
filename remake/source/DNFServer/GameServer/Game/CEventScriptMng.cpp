@@ -116,8 +116,8 @@ CEventEntity::~CEventEntity()
 
 bool CEventEntity::is_eventing()
 {
-    // ORIG 0x810b016：movzbl 0x4(%eax)。
-    return m_isEventing != 0;
+    // ORIG 0x810b016：movzbl 0x4(%eax)（直读 bool）。
+    return m_isEventing;
 }
 
 void CEventEntity::set_event_flag(bool flag)

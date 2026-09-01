@@ -456,7 +456,7 @@ GiftQuery::GiftQuery(const char* account, const char* sendCharac,
                      const char* recvCharac, unsigned int price,
                      unsigned int pay, long long uid)
     : m_account(account), m_sendCharac(sendCharac), m_recvCharac(recvCharac),
-      m_uid(uid), m_price(price), m_pay(pay), m_resultCode(0)
+      m_price(price), m_pay(pay), m_uid(uid), m_resultCode(0)
 {
     m_trans.init();
 }
@@ -491,7 +491,7 @@ int GiftQuery::getResult(MySQL& db)
             throw static_cast<int>(0x1cb);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x1d1,
@@ -537,7 +537,7 @@ int ConfirmQuery::getResult(MySQL& db)
             throw static_cast<int>(0x1f7);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x1fd,
@@ -583,7 +583,7 @@ int CancelQuery::getResult(MySQL& db)
             throw static_cast<int>(0x223);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x229,
@@ -634,7 +634,7 @@ int ChargeQuery::getResult(MySQL& db)
             throw 600;   // ORIG movl $0x258 Ghidra 十进制化显示（同 0x258）
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x25e,
@@ -686,7 +686,7 @@ int CeraPointQuery::getResult(MySQL& db)
             throw static_cast<int>(0x28b);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x291,

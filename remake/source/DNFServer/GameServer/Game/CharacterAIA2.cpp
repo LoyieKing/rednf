@@ -1318,13 +1318,13 @@ void PowerParameterScript::clear()
     m_expReward = 0;                   // +0x10
     m_ghostTime = 0;                   // +0x14
     m_powerUpRatio = 0;                // +0x1c
-    m_vec20.clear();                   // +0x20
     m_refreshProcessInfo = 0;          // +0x30
     m_abuserBanTime = 0;               // +0x34
     m_powerUpGeneratePeriod = 0;       // +0x48
     m_powerUpAssaultCount = 0;         // +0x4c
     m_powerUpAssaultVictoryRatio = 0;  // +0x50
     m_powerWarPointMultiple = 0;       // +0x54
+    m_vec20.clear();                   // +0x20
     m_straightVictories = 0;           // +0x58
     m_timeAssaultSuperPowerStateOnJoin = 5;  // +0x5c（ORIG clear 默认 5）
     m_timeAssaultSuperPowerStateAfter = 5;   // +0x60（ORIG clear 默认 5）

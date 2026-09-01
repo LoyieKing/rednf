@@ -111,19 +111,15 @@ void COnlinePreliminaryTeam::IncreaseLoseCount()
 // ORIG T 0x08588436：rating（位模式）写入 +0x08；+0x3c=1。
 void COnlinePreliminaryTeam::SetRating(float rating)
 {
-    unsigned int bits;
-    memcpy(&bits, &rating, sizeof(bits));
-    m_field08 = static_cast<int>(bits);
+    // ORIG 内联 float→int 位拷贝（mov），不调 memcpy（我们 17→ORIG 9）
+    m_field08 = *reinterpret_cast<int*>(&rating);
     m_hasWinFlag = 1;
 }
 
 // ORIG W 0x08568eee GetRating() const【推断：objdump】：flds *(float*)(this+8)。
 float COnlinePreliminaryTeam::GetRating() const
 {
-    float f;
-    unsigned int bits = static_cast<unsigned int>(m_field08);
-    memcpy(&f, &bits, sizeof(f));
-    return f;
+    return *reinterpret_cast<const float*>(&m_field08);   // ORIG flds *(float*)(this+8)（9 insns，不 memcpy）
 }
 
 // ---- CurrentUserCount 族：全部操作 *(int*)(this+0x0)，无标志写入 ----

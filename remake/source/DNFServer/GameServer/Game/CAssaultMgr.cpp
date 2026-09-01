@@ -824,9 +824,9 @@ void CAssaulter::_PrepareAssault(CUser* user)     // ORIG T 0x82e6780
     }
 }
 
-bool CAssaulter::IsPowerWarWinner()     // ORIG W 0x82f05ae
+bool CAssaulter::IsPowerWarWinner()     // ORIG W 0x82f05ae：movzbl 0x14(%eax)（直读 bool）
 {
-    return m_powerWarWinner != 0;
+    return m_powerWarWinner;
 }
 
 void CAssaulter::SetPowerWarWinner(bool flag)   // ORIG W 0x82f0596

@@ -83,9 +83,9 @@ CHackAnalyzer::CHackAnalyzer()
 
 CHackAnalyzer::~CHackAnalyzer() {}
 
-ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_baseHackType; }
+ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_field7a08; }
 
-void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t) { m_baseHackType = (int)t; }
+void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t) { m_field7a08 = (int)t; }
 
 void CHackAnalyzer::setUserP(CUser* user)
 {
@@ -130,8 +130,8 @@ void CHackAnalyzer::resetServerHackAccumulatedCnt(ENUM_HACKTYPE type)
 
 void CHackAnalyzer::setLastMonsterDeadTime(long t)
 {
-    // ORIG W 0x085df98c：写 +0x7a08 时间戳（推断：resetHackInfo 清零项）。
-    m_field7a08 = (int)t;
+    // ORIG W 0x085df98c：写 +0x24 时间戳（=m_field24，resetHackInfo 清零项）。
+    m_field24 = (int)t;
 }
 
 void CHackAnalyzer::beginCollectHackInfo(CUser* user)

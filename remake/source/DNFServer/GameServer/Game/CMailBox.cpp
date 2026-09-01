@@ -79,10 +79,10 @@ unsigned char CMailBox::CMail::isUnlimit() const { return m_unlimit; }
 const char* CMailBox::CMail::GetSenderName() const { return m_senderName; }
 
 // ORIG 0x08557516 (W)
-unsigned int CMailBox::CMail::GetPackageMoney() const { return m_packageMoney; }
+unsigned int CMailBox::CMail::GetPackageMoney() const { return m_package.m_packageMoney; }
 
 // ORIG 0x08557522 (W)：sret 按值拷贝 Inven_Item（0x3d 字节）
-Inven_Item CMailBox::CMail::GetPackageItem() const { return m_item; }
+Inven_Item CMailBox::CMail::GetPackageItem() const { return m_package.m_item; }
 
 // ORIG 0x0855750a (W)
 unsigned int CMailBox::CMail::GetSenderCharacNo() const { return m_senderCharacNo; }
@@ -97,8 +97,8 @@ bool CMailBox::CMail::isCreaturePackage() const { return m_packageType == 2; }
 void CMailBox::CMail::ResetPackage()
 {
     m_senderName[0] = '\0';
-    m_item.reset();
-    m_packageMoney = 0;
+    m_package.m_item.reset();
+    m_package.m_packageMoney = 0;
     m_unlimit = 0;
     m_packageType = 0;
 }
@@ -112,47 +112,47 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
     packet->put_int((int)std::strlen(m_senderName));
     packet->put_str(m_senderName, (int)std::strlen(m_senderName));
 
-    packet->put_int(m_packageMoney);
-    packet->put_int(m_item.m_addInfo);            // item idx（Inven_Item+0x02）
-    packet->put_byte(m_item.m_field0 != 0 ? 1 : 0);         // Inven_Item+0x00
+    packet->put_int(m_package.m_packageMoney);
+    packet->put_int(m_package.m_item.m_addInfo);            // item idx（Inven_Item+0x02）
+    packet->put_byte(m_package.m_item.m_field0 != 0 ? 1 : 0);         // Inven_Item+0x00
 
     if (isAvatarPackage())
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        inv->GetAvatarItemMgrR()->GetRemainDate(m_item.m_addInfo2,
+        inv->GetAvatarItemMgrR()->GetRemainDate(m_package.m_item.m_addInfo2,
                                                 (int)nowSec);
     }
     else
     {
-        packet->put_int(m_item.m_addInfo2);           // avatar/creature uid 域
+        packet->put_int(m_package.m_item.m_addInfo2);           // avatar/creature uid 域
     }
 
-    packet->put_short((int)m_item.m_fieldb);
+    packet->put_short((int)m_package.m_item.m_fieldb);
 
-    packet->put_byte((int)(m_item.GetItemAttr() & 0xff));
+    packet->put_byte((int)(m_package.m_item.GetItemAttr() & 0xff));
 
-    packet->put_int(m_item.m_fieldd);
+    packet->put_int(m_package.m_item.m_fieldd);
 
-    // +0x3d 即 Inven_Item 内嵌 stAmplifyOption_t（m_item +0x11）
-    packet->put_byte((int)(m_item.m_amp.getAbilityType() & 0xff));
-    packet->put_short((int)(m_item.m_amp.getAbilityValue() & 0xffff));
+    // +0x3d 即 Inven_Item 内嵌 stAmplifyOption_t（m_package.m_item +0x11）
+    packet->put_byte((int)(m_package.m_item.m_amp.getAbilityType() & 0xff));
+    packet->put_short((int)(m_package.m_item.m_amp.getAbilityValue() & 0xffff));
 
-    if (m_item.m_field1 == 5)                               // ITEM_TYPE creature
+    if (m_package.m_item.m_field1 == 5)                               // ITEM_TYPE creature
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
         user_creature::CCreatureMgr* cmgr =
             const_cast<user_creature::CCreatureMgr*>(inv->GetCreatureMgrR());
         packet->put_int(
-            cmgr->getRemainTempPeriod(m_item.m_addInfo2, (int)nowSec));
+            cmgr->getRemainTempPeriod(m_package.m_item.m_addInfo2, (int)nowSec));
     }
 
-    packet->put_packet(m_item);
+    packet->put_packet(m_package.m_item);
 
     if (isAvatarPackage())
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
         const void* mgr = inv->GetAvatarItemMgrR();
-        int uid = m_item.m_addInfo2;
+        int uid = m_package.m_item.m_addInfo2;
 
         packet->put_int(0x1e);
         packet->put_binary(CMailBox_AvatarGetJewelSocketData(mgr, uid), 0x1e);
@@ -321,14 +321,14 @@ CMailBox::CMail* CMailBox::AddNewMail(const stAddNewMailInput& inputRaw)
 
     mail->m_mailIndex      = SIG_OFF(unsigned int, &inputRaw, 0x00);
     mail->m_senderCharacNo = SIG_OFF(unsigned int, &inputRaw, 0x04);
-    mail->m_packageMoney   = SIG_OFF(unsigned int, &inputRaw, 0x08);
+    mail->m_package.m_packageMoney   = SIG_OFF(unsigned int, &inputRaw, 0x08);
 
     // ORIG：srcItem 分支逐字段展开拷贝；空时构造 Inven_Item() 后逐字段搬移。
     const Inven_Item* srcItem = SIG_OFF(const Inven_Item*, &inputRaw, 0x24);
     if (srcItem == 0)
-        mail->m_item = Inven_Item();
+        mail->m_package.m_item = Inven_Item();
     else
-        mail->m_item = *srcItem;
+        mail->m_package.m_item = *srcItem;
 
     mail->m_period = (long)SIG_OFF(unsigned int, &inputRaw, 0x18);
 

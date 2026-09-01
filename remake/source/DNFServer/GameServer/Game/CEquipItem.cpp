@@ -75,14 +75,19 @@ public:
 // 不再保留本文件的 flat 工作布局副本（消除与权威头的重复定义）。
 // ===================== 报告函数（CEquipItem.md） =====================
 
+// ORIG WpBonusPointData/ExpBonusPointData ctor/clear 为独立符号（0x08513a6e/0x08513a82 等），
+// 由 CEquipItem::C1/STEquipmentScript::C1 调用；故在此 out-of-line 定义以发射符号。
+WpBonusPointData::WpBonusPointData() { clear(); }
+void WpBonusPointData::clear() { m_type = 2; m_value = 0; }
+ExpBonusPointData::ExpBonusPointData() { clear(); }
+void ExpBonusPointData::clear() { m_type = 2; m_value = 0; }
+
 // ORIG 0x851547e：+0x1e0 WpBonusPointData 与 +0x1e8 ExpBonusPointData 各自
 // clear()（m_type=2、m_value=0）。本文件以 4 个 int 平铺该 16 字节区
 // （m_field1e0..m_field1ec），初始化列表按声明顺序（0x1f0 vector 之前）补齐。
 CEquipItem::CEquipItem()
-    : m_field1e0(2),   // WpBonusPointData::m_type
-      m_field1e4(0),   // WpBonusPointData::m_value
-      m_field1e8(2),   // ExpBonusPointData::m_type
-      m_field1ec(0)    // ExpBonusPointData::m_value
+    : m_wpBonus1e0(),   // WpBonusPointData::C1（type=2, value=0）
+      m_expBonus1e8()    // ExpBonusPointData::C1（type=2, value=0）
 {
 }
 
@@ -159,7 +164,7 @@ bool CEquipItem::check_eType(char eType) const
 }
 ExpBonusPointData* CEquipItem::getExpBonusPoint() const
 {
-    return (ExpBonusPointData*)&m_field1e8;
+    return (ExpBonusPointData*)&m_expBonus1e8;
 }
 
 int CEquipItem::getGrowthGrade(int level) const
@@ -193,7 +198,7 @@ float CEquipItem::getUpgradeCostDiscount() const
 
 WpBonusPointData* CEquipItem::getWpBonusPoint() const
 {
-    return (WpBonusPointData*)&m_field1e0;
+    return (WpBonusPointData*)&m_wpBonus1e0;
 }
 int CEquipItem::get_aura_avatar_option_value()
 {
@@ -501,10 +506,10 @@ void CEquipItem::set_item(STEquipmentScript& script)
     {
         // ORIG 依字节偏移读 STEquipmentScript +0x81c/+0x820/+0x824/+0x828
         //（+0x81c/+0x820=wpBonus、+0x824/+0x828=expBonus，具名成员见 STEquipmentScript.h）。
-        m_field1e0 = script.m_wpBonus81c.m_type;
-        m_field1e4 = script.m_wpBonus81c.m_value;
-        m_field1e8 = script.m_expBonus824.m_type;
-        m_field1ec = script.m_expBonus824.m_value;
+        m_wpBonus1e0.m_type = script.m_wpBonus81c.m_type;
+        m_wpBonus1e0.m_value = script.m_wpBonus81c.m_value;
+        m_expBonus1e8.m_type = script.m_expBonus824.m_type;
+        m_expBonus1e8.m_value = script.m_expBonus824.m_value;
     }
     m_avatarAbility = script.m_param1c0.m_avatar264;
     if (script.m_890 == 1)

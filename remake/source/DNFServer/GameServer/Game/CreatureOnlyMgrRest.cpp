@@ -669,7 +669,7 @@ bool CCreatureMgr::checkMaxCreatureLevel(int itemId, bool growFlag) const
 // （isGrowCreatureMaxLevel.md）：movzbl +0x48 直返。
 bool CCreatureMgr::isGrowCreatureMaxLevel() const
 {
-    return m_isMaxLevelGrowCreature != 0;
+    return m_isMaxLevelGrowCreature;
 }
 
 }  // namespace user_creature

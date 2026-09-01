@@ -877,7 +877,7 @@ public:
     // 尾调 InitPremium()（定义 CUserPremium.cpp:668）。
     CUserPremium()
     {
-        memset(&m_pad862[0x5a], 0, 0x52);   // +0x8bd..+0x90e（_Additioal_info 前置区）
+        memset(m_pad8bd, 0, 0x52);   // +0x8bd..+0x90e（_Additioal_info 前置区）
         memset(&m_additionalInfo, 0, sizeof(_Additioal_info));
         memset(&m_pad961[0x3], 0, 0x18);   // +0x964 map 区（node_count 语义清零）
         InitPremium();
@@ -935,12 +935,23 @@ public:
     // g_SPremiumInfo[level].m_independentDropRates[type-1]，否则 0。
     unsigned int GetAddIndependentDropRate(int type, unsigned int level);
 
-    char m_pad[0x860];      // +0x00（原 0x97c pad 前段；0x848/0x850/0x858 等 ORIG
-                            //   字段仍以偏移访问，见 CUserPremium.cpp）
+    char m_pad[0x848];      // +0x00..0x847
+    int m_normalCount;      // +0x848
+    int m_restrictedCount;  // +0x84c
+    short m_outFatigueRate; // +0x850
+    char m_pad852[2];       // +0x852..0x853
+    int m_outPremiumCount;  // +0x854
+    int m_outExpRate;       // +0x858
+    bool m_overEquipFlag;   // +0x85c（overEquipFlag；isAffectedUnlimitFatigue movzbl 按 bool 读）
+    char m_pad85d[1];       // +0x85d
+    short m_overSkillLevel; // +0x85e
     unsigned short m_ceraDiscountRate;  // +0x860（getCeraShopDiscountRate movzwl 源；
                                         //       ReCalcAdvantage 取 def.m_field5a 较大者）
-    unsigned char m_field862;           // +0x862（startPremium 依 def.m_applyDayMask 置位）
-    char m_pad862[0x90f - 0x863];       // +0x863..+0x90e
+    bool m_field862;                    // +0x862（startPremium 依 def.m_applyDayMask 置位；ORIG IsNeedCheckEveryday movzbl 按 bool 读取）
+    char m_pad863[1];       // +0x863
+    int m_overEquipableLevel[0x16];  // +0x864..0x8bb（additionalInfo[0x58]，GetOverEquipableLevel 按 type 索引）
+    char m_field8bc;        // +0x8bc（field8bc）
+    char m_pad8bd[0x52];    // +0x8bd..0x90e（_Additioal_info 前置区，ctor memset）
     _Additioal_info m_additionalInfo;  // +0x90f（GetAdditionalInfo 0x8694a88 memcpy 源）
     char m_pad961[0x964 - 0x961];      // +0x961..0x963
     std::map<int, int> m_returnItemMap;  // +0x964..0x97b（ORIG 真实成员；C1/D1 自动构造/析构）
@@ -1263,8 +1274,8 @@ public:
     bool isTimeAttackSeccess();       // ORIG T 0x0859979c _ZN8Sanicova4CPad19isTimeAttackSeccessEv
 
     char m_pad[0x24];               // +0x00..0x23（setPassword memset 区）
-    unsigned char m_activate24;     // +0x24（isActivate/setActivate/init 清零）
-    unsigned char m_certified25;    // +0x25（isCertified/setCertified）
+    bool m_activate24;             // +0x24（isActivate/setActivate/init 清零；ORIG movzbl 按 bool 直返）
+    bool m_certified25;            // +0x25（isCertified/setCertified；ORIG movzbl 按 bool 直返）
     char m_version26;               // +0x26（setVersionInfo/getVersionInfo）
     char m_pad27[1];                // +0x27
     long m_checkTime28;             // +0x28（setCheckTime/reset 认证时间戳；4 字节到 0x2c）

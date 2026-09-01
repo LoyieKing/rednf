@@ -165,7 +165,7 @@ char CHackLog_InvalidAreaMove::isMovableRoute(int a, int b, int c, int d, int e,
 //   a == 2
 char CHackLog_InvalidAreaMove::IsHendonMyre(int a)
 {
-    return (a == 2) ? 1 : 0;
+    return a == 2;
 }
 
 // ORIG 0x08286318
@@ -173,7 +173,7 @@ char CHackLog_InvalidAreaMove::IsHendonMyre(int a)
 //   a == 7
 char CHackLog_InvalidAreaMove::IsWarfare(int a)
 {
-    return (a == 7) ? 1 : 0;
+    return a == 7;
 }
 
 // ORIG 0x08286324
@@ -181,7 +181,7 @@ char CHackLog_InvalidAreaMove::IsWarfare(int a)
 //   a == 8
 char CHackLog_InvalidAreaMove::IsGuildAgit(int a)
 {
-    return (a == 8) ? 1 : 0;
+    return a == 8;
 }
 
 // ORIG 0x08286462

@@ -242,7 +242,9 @@ bool CMission_winning_count::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_winning_count::verifyMission(const MissionInfo& info) const
 {
-    return m_winCount + 10 > (int)info.m_count;
+    if (m_winCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_winning_count::isSeriesMission() const
@@ -295,7 +297,9 @@ bool CMission_winning_streak::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_winning_streak::verifyMission(const MissionInfo& info) const
 {
-    return m_clear + 10 > (int)info.m_count;
+    if (m_clear + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_winning_streak::isSeriesMission() const
@@ -362,7 +366,9 @@ bool CMission_join::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_join::verifyMission(const MissionInfo& info) const
 {
-    return m_joinCount + 10 > (int)info.m_count;
+    if (m_joinCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_join::isSeriesMission() const
@@ -417,7 +423,9 @@ bool CMission_kill_count::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_kill_count::verifyMission(const MissionInfo& info) const
 {
-    return m_killCount + 10 > (int)info.m_count;
+    if (m_killCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_kill_count::isSeriesMission() const
@@ -457,7 +465,9 @@ bool CMission_hereafter_join::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_hereafter_join::verifyMission(const MissionInfo& info) const
 {
-    return m_joinCount + 10 > (int)info.m_count;
+    if (m_joinCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_hereafter_join::isSeriesMission() const
@@ -506,7 +516,9 @@ bool CMission_hereafter_winning_count::isClearable(MissionInfo& info,
 bool CMission_hereafter_winning_count::verifyMission(
     const MissionInfo& info) const
 {
-    return m_winCount + 10 > (int)info.m_count;
+    if (m_winCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_hereafter_winning_count::isSeriesMission() const
@@ -547,7 +559,9 @@ bool CMission_remain_hp::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_remain_hp::verifyMission(const MissionInfo& info) const
 {
-    return m_clear + 10 > (int)info.m_count;
+    if (m_clear + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_remain_hp::isSeriesMission() const
@@ -586,7 +600,9 @@ bool CMission_revenge::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_revenge::verifyMission(const MissionInfo& info) const
 {
-    return m_revengeCount + 10 > (int)info.m_count;
+    if (m_revengeCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_revenge::isSeriesMission() const
@@ -647,7 +663,9 @@ bool CMission_hereafter_kill_count::isClearable(MissionInfo& info,
 bool CMission_hereafter_kill_count::verifyMission(
     const MissionInfo& info) const
 {
-    return m_killCount + 10 > (int)info.m_count;
+    if (m_killCount + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_hereafter_kill_count::isSeriesMission() const
@@ -683,9 +701,11 @@ CMission_kill::~CMission_kill() {}
 
 bool CMission_kill::_canUpdate(const MissionClearCondition_Parameter& param) const
 {
-    // ORIG W 0x085e3bc4：cmp m_minKill, m_killCount; jl → true
-    // （killCount < minKill 时返回 true——"尚未满足"语义，与源码先前相反）。
-    return param.m_killCount < m_minKill;
+    // ORIG W 0x085e3bc4：cmp m_minKill, m_killCount; jl <false-block> → mov $1（killCount>=minKill 返回 true）。
+    // 修正：先前 source 写了 killCount < minKill（方向反了），按 ORIG 改为 >=。
+    if (param.m_killCount >= m_minKill)
+        return true;
+    return false;
 }
 
 bool CMission_kill::isClearable(MissionInfo& info, bool&) const
@@ -695,7 +715,9 @@ bool CMission_kill::isClearable(MissionInfo& info, bool&) const
 
 bool CMission_kill::verifyMission(const MissionInfo& info) const
 {
-    return m_clear + 10 > (int)info.m_count;
+    if (m_clear + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_kill::isSeriesMission() const
@@ -817,12 +839,16 @@ bool CMission_remains_hp::_isAcceptCondition(const CUser& user) const
 
 bool CMission_remains_hp::isClearable(MissionInfo& info, bool&) const
 {
-    return m_clear <= (int)info.m_count;
+    if (m_clear <= (int)info.m_count)
+        return true;
+    return false;
 }
 
 bool CMission_remains_hp::verifyMission(const MissionInfo& info) const
 {
-    return m_clear + 10 > (int)info.m_count;
+    if (m_clear + 10 <= (int)info.m_count)
+        return false;
+    return true;
 }
 
 bool CMission_remains_hp::isSeriesMission() const

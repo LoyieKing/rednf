@@ -5,6 +5,7 @@
 #include "Arad_StatisticsEventItemList.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace ARAD
 {

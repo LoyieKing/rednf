@@ -74,11 +74,11 @@ void CPad::setRequestState(ENUM_REQUEST_STATE state)      // ORIG W 0x0822efcc
     m_requestState40 = state;
 }
 
-bool CPad::isActivate() const { return m_activate24 != 0; }   // ORIG W 0x0822efda
+bool CPad::isActivate() const { return m_activate24; }   // ORIG W 0x0822efda
 
 void CPad::setActivate(bool flag) { m_activate24 = flag ; }  // ORIG W 0x084ebe08
 
-bool CPad::isCertified() const { return m_certified25 != 0; } // ORIG W 0x0822efe6
+bool CPad::isCertified() const { return m_certified25; } // ORIG W 0x0822efe6
 
 void CPad::setCertified(bool flag) { m_certified25 = flag ; }  // ORIG W 0x0826530e
 

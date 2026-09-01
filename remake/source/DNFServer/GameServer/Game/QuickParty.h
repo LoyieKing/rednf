@@ -103,7 +103,7 @@ private:
     char m_poolIndex;                    // +0x19
     int m_field1c;                       // +0x1c（timer key 计数数组槽 0，gen_timer_key 实证）
     int m_field20;                       // +0x20（timer key 计数数组槽 1，msg 0x9e 用）
-    unsigned char m_isChangeQuickPartyCount;  // +0x24
+    bool m_isChangeQuickPartyCount;          // +0x24（ORIG 改快速组队人数标记；movzbl 按 bool 读取）
     unsigned char m_pad25[3];
 };                                       // sizeof = 0x28
 

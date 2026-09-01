@@ -375,7 +375,7 @@ public:
     CArtifact m_artifacts[3];                       // +0x20..+0x2b（各 4B）
     int m_tempExpireDelta;                          // +0x2c（Reset 置 -1）
     std::map<int, int> m_field30;                   // +0x30
-    unsigned char m_isMaxLevelGrowCreature;         // +0x48（Reset 置 1）
+    bool m_isMaxLevelGrowCreature;                 // +0x48（Reset 置 1；ORIG isGrowCreatureMaxLevel movzbl 按 bool 读取）
     char m_pad49[3];                                // +0x49，总 0x4c
 };
 }

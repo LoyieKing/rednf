@@ -39,15 +39,16 @@ struct STRewardDataKey
     }
     bool operator<(const STRewardDataKey& other) const
     {
-        if (m_data[0] < other.m_data[0])
-            return true;
-        if (m_data[0] != other.m_data[0])
-            return false;
-        if (m_data[1] < other.m_data[1])
-            return true;
-        if (m_data[1] != other.m_data[1])
-            return false;
-        return m_data[2] < other.m_data[2];
+        // ORIG 0x0831d338：三元 jge/mov1/jmp - jne ret0 - jge/mov1/jmp - jne ret0 - jge ret0/mov1
+        // （嵌套相等块；signed char → jge）。原 != 形式生成 je skip; mov0 极性，与 ORIG 不符。
+        if (m_data[0] < other.m_data[0]) return true;
+        if (m_data[0] == other.m_data[0]) {
+            if (m_data[1] < other.m_data[1]) return true;
+            if (m_data[1] == other.m_data[1]) {
+                if (m_data[2] < other.m_data[2]) return true;
+            }
+        }
+        return false;
     }
 };
 

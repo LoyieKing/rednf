@@ -180,11 +180,11 @@ struct STSpecailItem_Param
     STSpecailItem_Param(std::vector<Inven_Item>& items,
                         WongWork::CCeraShop::stCeraShopItemParam_t& cera)
     {
+        m_items = &items;
+        m_ceraParam = &cera;
         m_user = 0;
         m_itemIdx = 0;
         m_value = 0;
-        m_items = &items;
-        m_ceraParam = &cera;
         m_count = 0;
         m_time = 0;
         m_flag = 0;

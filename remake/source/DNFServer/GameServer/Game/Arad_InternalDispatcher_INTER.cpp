@@ -95,7 +95,7 @@ namespace DISPATCHER
 int Arad_INTER_kLoadServerState::dispatch_sig(CUser* user, char* body, int len)
 {
     // param_3 即 (arad::SigServerState*) 包指针复用位。
-    char* packet = (char*)len;
+    char* packet = body;   // ORIG 用 body(char*@+0x10)；我们误 cast len(int@+0x14)
     if (packet == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -111,9 +111,9 @@ int Arad_INTER_kLoadServerState::dispatch_sig(CUser* user, char* body, int len)
 //   栈上构造 AradServerStateMessage{m_active=1, m_endSec=*(pkt+0x12)}，
 //   insertState(*(ENUM_GLOBAL_EFFECT_ARAD*)(pkt+0xe), msg)。
 // ============================================================================
-int Arad_INTER_kSaveServerState::dispatch_sig(CUser* /*user*/, char* /*body*/, int len)
+int Arad_INTER_kSaveServerState::dispatch_sig(CUser* /*user*/, char* body, int len)
 {
-    const char* packet = (const char*)len;
+    const char* packet = body;   // ORIG 用 body(char*@+0x10)；我们误 cast len(int@+0x14)
     if (packet == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -133,9 +133,9 @@ int Arad_INTER_kSaveServerState::dispatch_sig(CUser* /*user*/, char* /*body*/, i
 // ============================================================================
 // Arad_INTER_kDeleteServerState —— ORIG 0x0819935e
 // ============================================================================
-int Arad_INTER_kDeleteServerState::dispatch_sig(CUser* /*user*/, char* /*body*/, int len)
+int Arad_INTER_kDeleteServerState::dispatch_sig(CUser* /*user*/, char* body, int len)
 {
-    const char* packet = (const char*)len;
+    const char* packet = body;   // ORIG 用 body(char*@+0x10)；我们误 cast len(int@+0x14)
     if (packet == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,

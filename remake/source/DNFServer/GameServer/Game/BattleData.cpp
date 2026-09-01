@@ -59,10 +59,6 @@ void BattleData::Reset()
     m_field1c = 0;
     m_field20 = 0;
     m_field24 = 0;
-    m_flag28[0] = 0;
-    m_flag28[1] = 0;
-    m_flag28[2] = 0;
-    m_flag28[3] = 0;
     m_field2c = 0;
     m_field30 = 0;
     m_field34 = 0;
@@ -72,6 +68,10 @@ void BattleData::Reset()
     m_killedMonster2 = 0;
     m_field48 = 0;
     m_field4c = 0;
+    m_flag28[0] = 0;
+    m_flag28[1] = 0;
+    m_flag28[2] = 0;
+    m_flag28[3] = 0;
     m_field68c = 0;
     for (int i = 0; i < 4; ++i)
     {

@@ -209,8 +209,8 @@ namespace item_lock
 // ---- G1-3 临时外部桩（对应 TU 翻译后移除） ----
 // ORIG T 0x0808ca12：mov $0x7,%eax 直返 7
 unsigned char _NS_PI_2ND_GetDefaultRandomHashKey() { return 7; }
-// ORIG W 0x08695058：movl $0,0x10(%eax) —— 清 m_point(+0x10)。
-void WongWork::CMCAPManager::resetExposedCount() { m_point = 0; }
+// ORIG W 0x08695058：movl $0,0x10(%eax) —— 清 m_field10(+0x10)。
+void WongWork::CMCAPManager::resetExposedCount() { m_field10 = 0; }
 // 0x0864809c：antibot 校验/加密发送主链路（依据 AntibotSend.md 反编译；
 // s_antibotChecker_ vtable +0x34 校验 / +0x28 加密，ORIG 栈缓冲此处以 vector 等价）。
 extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user); // ORIG T 0x082751ee
@@ -2142,7 +2142,7 @@ int WongWork::CUserPremium::GetAdvantageCoin() const
 // ORIG 0x08694a54：movzbl 0x85c(%eax),%eax 直读 +0x85c（overEquipFlag byte）。
 bool WongWork::CUserPremium::isAffectedUnlimitFatigue() const
 {
-    return m_pad[0x85c] != 0;
+    return m_overEquipFlag;
 }
 
 UserQuest* CUser::getCurCharacQuestR() const
@@ -2697,9 +2697,8 @@ bool CUser::unlockDeleteCharac()
 
 STExpReward CUser::get_growth_power_exp_reward()
 {
-    STExpReward ret;
-    ret.m_reward = m_reward;
-    return ret;
+    // ORIG 把 CUser+0x8d24d 的 dword 直接写入 sret（无 STExpReward ctor，9 insns）。
+    return *reinterpret_cast<STExpReward*>(&m_reward);
 }
 
 void CUser::setAntibotKey(int key)
@@ -3202,8 +3201,8 @@ bool CUser::IsOverBirthDay()
     localtime_r(&cur, &local);
     int curMonth = local.tm_mon + 1;
     int curDay = local.tm_mday;
-    unsigned char birthMon = *(unsigned char*)((char*)this + 0x711d5);
-    unsigned char birthDay = *(unsigned char*)((char*)this + 0x711d4);
+    unsigned char birthMon = this->m_clientSpec.m_birthMonth;
+    unsigned char birthDay = this->m_clientSpec.m_birthDay;
     if (birthMon < curMonth)
         return true;
     if (birthMon == curMonth && birthDay < curDay)
@@ -3921,7 +3920,7 @@ int CUser::GetUsedCoinCount()
 // 返回 m_quest（+0x858d4）引用指针；与 getCurCharacQuestR 同址、独立符号。
 UserQuest* CUser::getCurCharacQuestRefR() const
 {
-    return (UserQuest*)((char*)this + 0x858d4);
+    return const_cast<UserQuest*>(&m_quest);
 }
 
 // ORIG W 0x0830edaa _ZN5CUser36getAddIndependentDropRateFromPremiumE17ENUM_PREMIUM_TYPEj
@@ -4498,7 +4497,7 @@ CGameMasterCharacter* CUser::GetGameMasterCharacter()
 
 int CUser::getBreakAwayAccureCera()
 {
-    return *(int*)((char*)m_gameOption.m_pad64c);
+    return m_gameOption.m_breakAwayAccureCera;
 }
 
 int CUser::getBreakAwayRewardOrder()
@@ -4682,7 +4681,7 @@ void CUser::recipeForceProbability(int v)
 
 void CUser::setBreakAwayAccureCera(int v)
 {
-    *(int*)((char*)m_gameOption.m_pad64c) = v;
+    m_gameOption.m_breakAwayAccureCera = v;
 }
 
 void CUser::setCharacAntibotSerialNum(int v)
@@ -5373,7 +5372,7 @@ int CUser::gainPowerWarRewardExp(int)
 
 void CUser::add_guild_point_item()
 {
-    int threshold = *(int*)((char*)G_CDataManager() + 0xa510);
+    int threshold = G_CDataManager()->m_guildParameter.m_field4;
     int rand = get_rand_int(0x2710);
     if (rand < threshold)
         add_inventory_item(0xc84);
@@ -5421,17 +5420,16 @@ void CUser::SendConditionEventInfo()
 
 void CUser::ResetCurCharacUsedGiftFatigueQuantity()
 {
-    int* pVal = (int*)((char*)this + 0x8ebac);
-    if (*pVal != 0)
+    if (m_field8ebac != 0)
     {
-        *pVal = 0;
+        m_field8ebac = 0;
         SetChangedGiftFatigueQuantity(true);
     }
 }
 
 void CUser::SetChangedGiftFatigueQuantity(bool flag)
 {
-    *(unsigned char*)((char*)this + 0x8ebb0) = flag ? 1 : 0;
+    m_field8ebb0 = flag;
 }
 
 void CUser::ResetDailyQuest()
@@ -6222,7 +6220,7 @@ void CUser::UpdateLogout(bool param)
     {
         *(sig + 0x12) = 1;
         *(int*)(sig + 0x13) =
-            (int)(now - *(long*)((char*)this + 0x71ba4));   // 推断：登录时刻
+            (int)(now - m_premium.m_loginTime);   // 推断：登录时刻
         *(unsigned int*)(sig + 0x17) = *(unsigned int*)((char*)this + 0x8d10c);
         *(unsigned int*)(sig + 0x1b) = m_gameOption.m_playExpAdd;   // ORIG this+0x703a4 = m_gameOption+0x640
         *(unsigned short*)(sig + 0x1f) =
@@ -6246,15 +6244,15 @@ void CUser::UpdateLogout(bool param)
         int playTime = *(int*)(sig + 0x13);
         cMyTrace tr1(__PRETTY_FUNCTION__, 0x22e0, 0);
         tr1("trace mid:%d playTime:%d login_time:%d now_time:%d",
-            mid, playTime, *(long*)((char*)this + 0x71ba4), (int)now);
+            mid, playTime, m_premium.m_loginTime, (int)now);
     }
-    *(long*)((char*)this + 0x71ba4) = now;
+    m_premium.m_loginTime = now;
     {
         int mid = get_unique_id();
         int playTime = *(int*)(sig + 0x13);
         cMyTrace tr2(__PRETTY_FUNCTION__, 0x22e2, 0);
         tr2("trace mid:%d playTime:%d login_time:%d now_time:%d",
-            mid, playTime, *(long*)((char*)this + 0x71ba4), (int)now);
+            mid, playTime, m_premium.m_loginTime, (int)now);
     }
 
     bool sendOut = get_acc_id() != 0 ||
@@ -9833,8 +9831,7 @@ bool CUser::IsGuildMaster()
 {
     if (get_charac_guildkey() == 0)
         return false;
-    return (int)getCurCharacNo() ==
-           *(const int*)((const char*)&m_guildDB + 0x17);
+    return (int)getCurCharacNo() == m_guildDB.m_masterNo;
 }
 
 // ORIG T 0x0866c414 sz0x55：m_guildDB+0x2e 起 5 个 int 副会长表。

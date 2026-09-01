@@ -17,7 +17,9 @@ namespace advancealtar
 // 仅 RidableId::RIDEABLE（值 1）有效。
 bool isValidRidableId(RidableId::T ridableId)
 {
-    return ridableId == RidableId::RIDEABLE;
+    if (ridableId == RidableId::RIDEABLE)
+        return true;
+    return false;
 }
 
 }  // namespace advancealtar

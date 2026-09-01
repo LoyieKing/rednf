@@ -1659,10 +1659,10 @@ const std::vector<stGlobalEffect_t>& CStackableItem::getGlobalEffectData() const
     return m_vec280;
 }
 
-// ORIG 0x8694736：返回 this+0x2e7 字节非零（movzbl 0x2e7(%eax); ret）
+// ORIG 0x8694736：movzbl 0x2e7(%eax); ret —— 直接返回 bool 字段（无 test/setne 归一）。
 bool CStackableItem::IsExpAffect()
 {
-    return m_char2e7 != 0;;
+    return m_char2e7;
 }
 
 // +0x2d8 为 CountinuousItemOption 子对象（m_option2d8：3 独立字节）。
@@ -1721,10 +1721,10 @@ bool CStackableItem::IsUse2ndUpgradeTableRecipe() const
     return m_boolD0;
 }
 
-// ORIG 0x822ca48 (W)：movzbl 0x321(%eax),%eax —— 返回 +0x321（m_char321）字节非零
+// ORIG 0x822ca48 (W)：movzbl 0x321(%eax),%eax —— 直接返回 bool 字段（无 test/setne）。
 bool CStackableItem::IsDeletableItem() const
 {
-    return m_char321 != 0;
+    return m_char321;
 }
 
 // ORIG _ZN14CStackableItem18IsSharedEffectItemEv W 0x0822ca18：movzbl 0x2ec(%eax),%eax —— 返回 m_char2ec 字节（共享特效物品标记）
@@ -1741,9 +1741,9 @@ unsigned short CStackableItem::GetEmancipate()
 
 // ============================================================================
 // CStackableItem::is_random_amplify_reinforce_ticket @ 0x854b518
-//   返回 +0x344 字节非零（随机增幅券标记）。
+//   返回 +0x344 bool（movzbl 0x344(%eax); ret，无 test/setne 归一）。
 // ============================================================================
 bool CStackableItem::is_random_amplify_reinforce_ticket()
 {
-    return m_char344 != 0;
+    return m_char344;
 }

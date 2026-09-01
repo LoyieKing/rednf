@@ -979,7 +979,7 @@ bool CCreatureMgr::SendMail(Inven_Item* item, int slot, int reason)
 // 故以 bool 返回其值（匹配 SendMail 调用处的分支判断）。
 bool CCreatureMgr::DeleteCreatureItem(int param_1, int param_2)
 {
-    return UnregisterCreatureItem(param_2);
+    return UnregisterCreatureItem(param_1);   // ORIG 读 param_1@+0xc（我们误用 param_2@+0x10）
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr22UnregisterCreatureItemEi T 0x0833a854。
@@ -1925,11 +1925,13 @@ bool user_creature::CEgg::Hatch(int* out)
 }
 
 // ============================================================================
-// CCreature::SetStomach @ 0x0833f070：写 +0x38 m_stomach.m_value = stomachValue。
+// CCreature::SetStomach @ 0x0833f070：调 CStomach::SetStomachValue(this+0x34, (float)stomachValue)，
+// ORIG 即 call SetStomachValue(写入 +0x4 m_value)。
 // ============================================================================
 void user_creature::CCreature::SetStomach(int stomachValue)
 {
-    m_stomach.m_value = (float)stomachValue;
+    char _pad[0x10];  // P31 帧对齐：ORIG sub $0x18，默认帧 sub $0x8，补 16B 达一致
+    m_stomach.SetStomachValue((float)stomachValue);
 }
 
 // ============================================================================

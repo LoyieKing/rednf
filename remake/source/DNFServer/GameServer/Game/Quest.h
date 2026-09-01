@@ -175,10 +175,10 @@ struct PostalReward
     PostalReward() {}
     void clear()
     {
-        m_title.clear();
-        m_contents.clear();
         m_itemIdx = 0;
         m_addInfo = 0;
+        m_title.clear();
+        m_contents.clear();
     }
 };
 

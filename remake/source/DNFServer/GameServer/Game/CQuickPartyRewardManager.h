@@ -26,6 +26,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <cstring>
 
 class CParty;
 
@@ -90,11 +91,8 @@ struct RewardData_Result
 
     void clear()
     {
-        m_value00 = 0;
-        m_value04 = 0;
-        m_value08 = 0;
-        m_value0c = 0;
-        m_value10 = 0;
+        // ORIG 0x0846998e：memset(this,0,0x14) 清零 +0x00..+0x13，再置 +0x14=1.0f/+0x18=1。
+        memset(this, 0, 0x14);
         m_rate14 = 1.0f;
         m_flag18 = 1;
     }

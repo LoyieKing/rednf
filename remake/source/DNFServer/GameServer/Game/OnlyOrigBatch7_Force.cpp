@@ -53,7 +53,7 @@ struct tagPacketHeader
     void setPacketID(int n) { msg_no = (char)n; }
     void setSize(int n) { sLength = (unsigned int)n; }
     int getSize() { return (int)sLength; }   // ORIG W 0x08106bcc
-};
+} __attribute__((packed));
 
 struct tagCS_UPDATE_CHANNEL_INFO : public tagPacketHeader
 {

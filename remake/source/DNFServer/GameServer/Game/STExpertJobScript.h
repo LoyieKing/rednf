@@ -54,11 +54,15 @@ struct DisjointMachineGrade
     // m_grade=b、m_field1=a、m_field2=c（get_disjoint_result_ 调用点实证）。
     bool operator<(const DisjointMachineGrade& o) const
     {
-        // ORIG W 0x085d3b60：比较顺序 [m_field1, m_grade, m_field2]
-        // （键序以 ctor 参数 a 为主键；与 ctor 的 m_grade=b、m_field1=a 转写一致）。
-        if (m_field1 != o.m_field1) return m_field1 < o.m_field1;
-        if (m_grade != o.m_grade) return m_grade < o.m_grade;
-        return m_field2 < o.m_field2;
+        // ORIG W 0x085d3b60：比较顺序 [m_field1, m_grade, m_field2]（嵌套短路，jae/mov1）。
+        if (m_field1 < o.m_field1) return true;
+        if (m_field1 == o.m_field1) {
+            if (m_grade < o.m_grade) return true;
+            if (m_grade == o.m_grade) {
+                if (m_field2 < o.m_field2) return true;
+            }
+        }
+        return false;
     }
 };
 

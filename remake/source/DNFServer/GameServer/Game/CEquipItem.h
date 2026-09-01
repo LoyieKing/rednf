@@ -58,26 +58,18 @@ struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，
 // (m_base)、type==1 → 加百分比附加值 (m_add)，value 为加数。
 struct WpBonusPointData
 {
-    // ORIG W ctor 0x08513a6e：调 clear()（+0x00=2、+0x04=0）。
-    WpBonusPointData() { clear(); }
-    void clear()
-    {
-        m_type = 2;
-        m_value = 0;
-    }
+    // ORIG W ctor 0x08513a6e（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
+    WpBonusPointData();
+    void clear();
     int m_type;     // +0x00（0=基础 / 1=附加）
     int m_value;    // +0x04
 };
 
 struct ExpBonusPointData
 {
-    // ORIG W ctor 0x08513a9a：调 clear()（+0x00=2、+0x04=0）。
-    ExpBonusPointData() { clear(); }
-    void clear()
-    {
-        m_type = 2;
-        m_value = 0;
-    }
+    // ORIG W ctor 0x08513a9a（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
+    ExpBonusPointData();
+    void clear();
     int m_type;     // +0x00（0=基础 / 1=附加）
     int m_value;    // +0x04
 };
@@ -200,10 +192,8 @@ public:
     int m_field1d4;                        // +0x1d4
     char m_auraOptionType;                 // +0x1d8
     int m_auraOptionValue;                 // +0x1dc
-    int m_field1e0;                        // +0x1e0
-    int m_field1e4;                        // +0x1e4
-    int m_field1e8;                        // +0x1e8
-    int m_field1ec;                        // +0x1ec
+    WpBonusPointData m_wpBonus1e0;         // +0x1e0（8 字节：type@+0x1e0/value@+0x1e4；与 m_field1e0..1e4 同布局）
+    ExpBonusPointData m_expBonus1e8;        // +0x1e8（8 字节：type@+0x1e8/value@+0x1ec）
     std::vector<STAvatarAbilityVariation> m_avatarAbility;  // +0x1f0
     bool m_pollutionFlag;                  // +0x1fc
     std::map<ItemUpgradeType::T, std::pair<int, int> > m_upgradeLevel;  // +0x200

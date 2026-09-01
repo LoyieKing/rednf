@@ -162,7 +162,7 @@ class CGameMasterMgr
 {
 public:
     CGameMasterMgr();                                 // 0x082a8a28（注册链，GmRegister TU）
-    IDispatcher* GetDispatcher(int code);             // 0x084a8a9a
+    static IDispatcher* GetDispatcher(int code);      // ORIG static（code@+0x8；0x084a8a9a）
     void HandleRequest(CCommand* cmd);                // 0x084a8c6e
     CCommand* GetCommand(int id);                     // 0x084a8c92
     CCommand* GetCommand(std::string& name);          // 0x084a8cb0

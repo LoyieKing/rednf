@@ -537,7 +537,11 @@ struct stClearTimeAverageMapKey
     int m_b;   // [推断]
     bool operator<(const stClearTimeAverageMapKey& o) const
     {
-        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+        // ORIG W 0x08370d48：jge/mov1/jmp - jne/jge/mov1/mov0（嵌套短路；int 有符号比较）；
+        // 单行 || 会生成 jl 极性，与 ORIG 不符。
+        if (m_a < o.m_a) return true;
+        if (m_a == o.m_a && m_b < o.m_b) return true;
+        return false;
     }
 };
 
@@ -549,9 +553,10 @@ struct stUnlimitChallengeKey
     unsigned char m_b;    // +0x02（字节写入：段常量 0..6）
     bool operator<(const stUnlimitChallengeKey& o) const
     {
+        // ORIG 0x0891b454：movzwl 判 +0 ushort，相等再 movzbl 判 +2 字节（嵌套短路）。
         if (m_a < o.m_a) return true;
-        if (o.m_a < m_a) return false;
-        return m_b < o.m_b;
+        if (m_a == o.m_a && m_b < o.m_b) return true;
+        return false;
     }
 };
 
@@ -569,11 +574,16 @@ struct PvPSkillTreeKey
         : m_a(a), m_b(b), m_c(c) {}
     bool operator<(const PvPSkillTreeKey& o) const
     {
+        // ORIG 0x08a5e6d8：三相 jae/mov1/jmp - jne ret0 - jae/mov1/jmp - jne ret0 - jae ret0/mov1（嵌套相等块）；
+        // 原 if(o.m_a<m_a)return false 生成交换操作数的比较，与 ORIG 不符。
         if (m_a < o.m_a) return true;
-        if (o.m_a < m_a) return false;
-        if (m_b < o.m_b) return true;
-        if (o.m_b < m_b) return false;
-        return m_c < o.m_c;
+        if (m_a == o.m_a) {
+            if (m_b < o.m_b) return true;
+            if (m_b == o.m_b) {
+                if (m_c < o.m_c) return true;
+            }
+        }
+        return false;
     }
 };
 
@@ -622,9 +632,9 @@ struct rewardKey
     }
     bool operator<(const rewardKey& o) const
     {
-        if ((char)m_job != (char)o.m_job) return (char)m_job < (char)o.m_job;
-        if ((char)m_a != (char)o.m_a) return (char)m_a < (char)o.m_a;
-        if ((char)m_b != (char)o.m_b) return (char)m_b < (char)o.m_b;
+        if (m_job != o.m_job) return m_job < o.m_job;
+        if (m_a != o.m_a) return m_a < o.m_a;
+        if (m_b != o.m_b) return m_b < o.m_b;
         // ORIG 0x080f1267：调用外部 rewardSubKey::operator<（OnlyOrigBatch12.cpp）
         return m_sub < o.m_sub;
     }
@@ -652,27 +662,22 @@ struct LevelUpRewardItemTableKey
     unsigned short m_lv;     // +0x00（clear 默认 200）
     unsigned char m_job;     // +0x02（clear 默认 0xb）
     unsigned char m_grow;    // +0x03
-    LevelUpRewardItemTableKey() : m_lv(0xc8), m_job(0xb), m_grow(0) {}
+    LevelUpRewardItemTableKey() { clear(); }   // ORIG C1 调 out-of-line weak clear()（-O0 不内联）
     void clear()
     {
-        m_lv = 0xc8;
-        m_job = 0xb;
         m_grow = 0;
+        m_job = 0xb;
+        m_lv = 0xc8;
     }
     // ORIG W 0x081b8896 C2Eiii：(+0)=level 截断 ushort、(+2)=job 字节、(+3)=grow 字节。
     LevelUpRewardItemTableKey(int level, int job, int grow);   // 定义 CUserDepsB.cpp
     // ORIG W 0x081b8830 逐字段 setl（有符号）比较；字段本身无符号加载。
     bool operator<(const LevelUpRewardItemTableKey& o) const
     {
-        if (static_cast<int>(static_cast<signed char>(m_job))
-            != static_cast<int>(static_cast<signed char>(o.m_job)))
-            return static_cast<signed char>(m_job)
-                   < static_cast<signed char>(o.m_job);
-        if (static_cast<int>(static_cast<signed char>(m_grow))
-            != static_cast<int>(static_cast<signed char>(o.m_grow)))
-            return static_cast<signed char>(m_grow)
-                   < static_cast<signed char>(o.m_grow);
-        return static_cast<short>(m_lv) < static_cast<short>(o.m_lv);
+        // ORIG W 0x081b8830：逐字段 setl（有符号）比较但字段为无符号加载（movzbl/movzwl）。
+        if (m_job != o.m_job) return m_job < o.m_job;
+        if (m_grow != o.m_grow) return m_grow < o.m_grow;
+        return m_lv < o.m_lv;
     }
 };
 
@@ -1262,9 +1267,11 @@ struct CharacterKind
     // ORIG 三段式比较（cmp/jae 形态，_ZNK13CharacterKindltERKS_ 实证）。
     bool operator<(const CharacterKind& o) const
     {
+        // ORIG 0x8693bf4: jae/mov1/jmp / jne / jae / mov1/jmp / mov0 (nested short-circuit early-return,
+        // 分支极性同 RandomApplicationKey::operator<)。原 if(o.m_job<m_job)return false 会生成交换操作数的比较，与 ORIG 不符。
         if (m_job < o.m_job) return true;
-        if (o.m_job < m_job) return false;
-        return m_grow < o.m_grow;
+        if (m_job == o.m_job && m_grow < o.m_grow) return true;
+        return false;
     }
     unsigned char m_job;     // +0x00
     unsigned char m_grow;    // +0x01
@@ -2002,8 +2009,8 @@ public:
     struct _StageMapSummary
     {
         _StageMapSummary()                      // ORIG W C1/C2 @0x083748aa：memset(this,0,0x10)
-            : m_uniqueId(0), m_stageId(0), m_nextId(0), m_flags(0), m_pad0d()
         {
+            memset(this, 0, 0x10);
         }
         int m_uniqueId;   // +0x00（makeStageMapUniqueId）
         int m_stageId;    // +0x04（map 键）
@@ -2033,8 +2040,7 @@ struct stWarPoint
     stWarPoint() { clear(); }
     void clear()
     {
-        m_0 = 0;
-        m_pts[0] = 0; m_pts[1] = 0; m_pts[2] = 0;
+        memset(this, 0, 0x10);   // ORIG: memset(this,0,0x10)
     }
     int m_0;       // +0x00
     int m_pts[3];  // +0x04..+0x0f
@@ -2253,7 +2259,8 @@ struct stLevelSection
     int m_maxLev;     // +0x08
     bool operator<(const stLevelSection& o) const
     {
-        return m_minLev < o.m_minLev;
+        // ORIG: 比较 m_levelIdx（+0x00；near 集 ORIG mov (%eax) vs 我们 mov 0x4(%eax)）。
+        return m_levelIdx < o.m_levelIdx;
     }
 };
 

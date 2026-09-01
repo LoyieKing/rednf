@@ -15,13 +15,11 @@ public:
         m_sub = 0;
     }
 
-    bool operator<(const JobKey& rhs) const   // ORIG W 0x084865e2
+    bool operator<(const JobKey& rhs) const   // ORIG W 0x084865e2：jge/mov1/jmp - jne - jge ret0/mov1/mov0
     {
         if (m_job < rhs.m_job)
             return true;
-        if (m_job != rhs.m_job)
-            return false;
-        if (m_sub < rhs.m_sub)
+        if (m_job == rhs.m_job && m_sub < rhs.m_sub)
             return true;
         return false;
     }

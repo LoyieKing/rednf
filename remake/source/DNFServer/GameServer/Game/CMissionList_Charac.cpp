@@ -863,5 +863,5 @@ bool CMissionList_Charac::isUserNewbie() const
 
 bool CMissionList_Charac::isClearStealingSkillMission() const
 {
-    return m_field14e != 0;
+    return m_field14e;
 }

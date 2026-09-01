@@ -288,18 +288,5 @@ unsigned int WongWork::CMailBox::CMail::getMailIdx() const
     return m_mailIndex;
 }
 
-// ---- CMail::_398 别名类 ctor（ORIG t 局部符号；成员名含 '.' 无法以 C++ 语言
-// 命名，本 TU 以 asm label 使 C1 直接挂 ORIG mangled 名，C2 为其 weak 别名，
-// 同地址同体，与 ORIG 编译器生成形态一致）----
-extern "C" void wk_mail_sub_398_ctor(void* self)
-    __asm__("_ZN8WongWork8CMailBox5CMail5._398C1Ev");
-
-// ORIG t 0x085519cc (size 0x16)：调用 Inven_Item::Inven_Item() 构造 this+0x4。
-void wk_mail_sub_398_ctor(void* self)
-{
-    new (reinterpret_cast<char*>(self) + 0x4) Inven_Item();
-}
-
-__asm__(".weak\t_ZN8WongWork8CMailBox5CMail5._398C2Ev\n"
-        ".set\t_ZN8WongWork8CMailBox5CMail5._398C2Ev, _ZN8WongWork8CMailBox5CMail5._398C1Ev\n"
-        ".local\t_ZN8WongWork8CMailBox5CMail5._398C1Ev\n");
+// CMail::._398 子对象 ctor 现由 CMailBoxHelper.h 的匿名 m_package 子对象声明确认，
+// 编译器自动生成（原先的 asm label 桥违反 §4.5，已移除）。

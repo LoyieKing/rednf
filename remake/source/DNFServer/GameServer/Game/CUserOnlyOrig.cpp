@@ -7782,7 +7782,9 @@ private:
 // ORIG T 0x0827b402（外联定义发射 T 符号）。
 bool cSecuUserAction::IsSecurityStateOff()
 {
-    return m_state == 1;
+    if (m_state == 1)
+        return true;
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -7808,7 +7810,7 @@ int CUser::InitOnAccept(int socketFd)
     m_gameOption.m_playExpAdd = 0;                     // +0x703a4（movl 直接 dword 写）
     m_gameOption.m_breakAwayDungeonClear = 0;          // +0x703a8（movb 单字节写）
     m_gameOption.m_breakAwayDungeonClearCnt = 0;       // +0x703ac
-    memset(m_gameOption.m_pad64c, 0, sizeof(m_gameOption.m_pad64c));  // +0x703b0
+    m_gameOption.m_breakAwayAccureCera = 0;                             // +0x703b0（§8.3 字段化 m_pad64c→int）
     m_gameOption.m_breakAwayQuestTime = 0;             // +0x703b4
     m_gameOption.m_breakAwayRewardOrder = 0;           // +0x703b8（int 宽写；CGameOption+0x654 具名化 by CU_D）
 

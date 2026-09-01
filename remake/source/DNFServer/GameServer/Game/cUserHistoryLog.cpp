@@ -971,7 +971,7 @@ void cUserHistoryLog::Auction(SIG_AUCTION_LOG_MESSAGE_AG* msg)
             break;
         case 2:
             m_user->LogHistory("Auction_bid_s,%llu,%d,%d,%d",
-                msg->m_key, msg->m_arg09, msg->m_arg0d, msg->m_arg11);
+                msg->m_key, msg->m_arg09, msg->m_arg11, msg->m_arg0d);
             break;
         case 3:
             m_user->LogHistory("Auction_bid_f,%llu,%d,%d",

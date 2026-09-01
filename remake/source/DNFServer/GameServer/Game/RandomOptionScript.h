@@ -31,8 +31,11 @@ struct RandomApplicationKey
     unsigned char m_field1;   // +0x01（level）
     bool operator<(const RandomApplicationKey& o) const
     {
-        return m_field0 < o.m_field0 ||
-               (m_field0 == o.m_field0 && m_field1 < o.m_field1);
+        // ORIG op< 0x085f4104：先判 f0 < f0，再判 f0==f0 && f1<f1；用嵌套结构匹配
+        // -O0 下 ORIG 的分支极性（jae/jne/jae 均判别远到 return 0），单行 || 会生成 jb。
+        if (m_field0 < o.m_field0) return true;
+        if (m_field0 == o.m_field0 && m_field1 < o.m_field1) return true;
+        return false;
     }
 };  // sizeof 2
 

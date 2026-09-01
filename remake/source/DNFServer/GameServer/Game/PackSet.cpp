@@ -782,12 +782,12 @@ bool PackSet::is_exist(char const* name)     // @0x08ac498c
 
 bool PackSet::is_ready() const               // @0x08ac4954
 {
-    return !m_indexes.empty();
+    return m_indexes.size() != 0;
 }
 
 bool PackSet::is_dirty() const               // @0x08ac4970
 {
-    return !m_addeds.empty();
+    return m_addeds.size() != 0;
 }
 
 PackSet::index_vector_t& PackSet::indexes()                    // 0x08ac4948

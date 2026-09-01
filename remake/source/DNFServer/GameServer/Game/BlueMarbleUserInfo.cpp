@@ -60,15 +60,12 @@ void BlueMarbleUserInfo::resetBlueMarbleUserInfo()
 }
 void BlueMarbleUserInfo::resetBuff()
 {
-    m_buff.m_exp = 1;   // BuffInfo::reset
-    m_buff.m_gold = 1;
-    m_buff.m_drop = 1;
+    m_buff.reset();   // ORIG BuffInfo::reset（定义在 BuffInfo.cpp）
 }
 
 void BlueMarbleUserInfo::resetIndex()
 {
-    m_tileIndex.m_dungeon = 0;   // TileIndexInfo::reset
-    m_tileIndex.m_item = 0;
+    m_tileIndex.reset();   // ORIG TileIndexInfo::reset
 }
 
 void BlueMarbleUserInfo::setUser(CUser* user)

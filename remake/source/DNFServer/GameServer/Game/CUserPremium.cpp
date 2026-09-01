@@ -650,54 +650,54 @@ static SUserPremiumInfo* Entries(CUserPremium* self)
 
 unsigned short CUserPremium::getOverSkillLevel() const
 {
-    return *reinterpret_cast<const unsigned short*>(&m_pad[0x85e]);
+    return m_overSkillLevel;
 }
 
 int CUserPremium::GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const
 {
     // ORIG：0x4(%eax,%edx,4) 且 edx = type+0x218 → this+0x864+4*type（additionalInfo[type]）
-    return *reinterpret_cast<const int*>(&m_pad[0x860 + (int)type * 4 + 4]);
+    return m_overEquipableLevel[(int)type];
 }
 
 int CUserPremium::GetAdvantageExpRate() const
 {
-    return *reinterpret_cast<const int*>(&m_pad[0x858]);
+    return m_outExpRate;
 }
 
 short CUserPremium::GetAdvantageFatigueRate() const
 {
-    return *reinterpret_cast<const short*>(&m_pad[0x850]);
+    return m_outFatigueRate;
 }
 
 int CUserPremium::GetAdvPremiumCount() const
 {
-    return *reinterpret_cast<const int*>(&m_pad[0x848]);
+    return m_normalCount;
 }
 
 // ORIG W 0x0863bd5c：*(int*)(this+0x848) + *(int*)(this+0x84c)
 int CUserPremium::GetTotalPremiumCount() const
 {
-    return *reinterpret_cast<const int*>(&m_pad[0x848])
-         + *reinterpret_cast<const int*>(&m_pad[0x84c]);
+    return m_normalCount
+         + m_restrictedCount;
 }
 
 void CUserPremium::InitPremium()
 {
     // ORIG：memset(this, 0, 0x848) —— 前缀 + entries
     memset(m_pad, 0, 0x848);
-    *(int*)&m_pad[0x848] = 0;                // normalCount
-    *(int*)&m_pad[0x84c] = 0;                // restrictedCount
-    *(short*)&m_pad[0x850] = 0;              // outFatigueRate
-    *(int*)&m_pad[0x854] = 0;                // outPremiumCount
-    *(int*)&m_pad[0x858] = 0;                // outExpRate
-    m_pad[0x85c] = 0;                        // overEquipFlag
-    *(short*)&m_pad[0x85e] = 0;              // overSkillLevel
+    m_normalCount = 0;                // normalCount
+    m_restrictedCount = 0;                // restrictedCount
+    m_outFatigueRate = 0;              // outFatigueRate
+    m_outPremiumCount = 0;                // outPremiumCount
+    m_outExpRate = 0;                // outExpRate
+    m_overEquipFlag = false;                        // overEquipFlag
+    m_overSkillLevel = 0;              // overSkillLevel
     m_ceraDiscountRate = 0;                  // +0x860（field860）
     m_field862 = 0;                          // +0x862（field862）
-    memset(&m_pad[0x864], 0, 0x58);         // additionalInfo[0x58]（+0x864..+0x8bb）
+    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));         // additionalInfo[0x58]（+0x864..+0x8bb）
     memset(&m_additionalInfo, 0, sizeof(_Additioal_info));  // additionalOut（+0x90f）
-    m_pad[0x8bc] = 0;                        // field8bc
-    memset(&m_pad862[0x5a], 0, 0x52);        // additionalBase（+0x8bd 起；0x58→0x52 对齐 _Additioal_info）
+    m_field8bc = 0;                        // field8bc
+    memset(m_pad8bd, 0, 0x52);        // additionalBase（+0x8bd 起；0x58→0x52 对齐 _Additioal_info）
     m_returnItemMap.clear();                 // returnItemMap
 }
 
@@ -726,13 +726,13 @@ void CUserPremium::RemovePremium(int type)
         const SPremiumInfo* def = GetPremiumDefinition(type);
         if (def->m_kind == 1)
         {
-            int c = *(int*)&m_pad[0x848] - 1;
-            *(int*)&m_pad[0x848] = c > 0 ? c : 0;
+            int c = m_normalCount - 1;
+            m_normalCount = c > 0 ? c : 0;
         }
         else
         {
-            int c = *(int*)&m_pad[0x84c] - 1;
-            *(int*)&m_pad[0x84c] = c > 0 ? c : 0;
+            int c = m_restrictedCount - 1;
+            m_restrictedCount = c > 0 ? c : 0;
         }
     }
 }
@@ -755,24 +755,24 @@ int CUserPremium::startPremium(int type, bool force)
             return 0;
     }
     if (def->m_kind == 1)
-        ++(*(int*)&m_pad[0x848]);
+        ++(m_normalCount);
     else
-        ++(*(int*)&m_pad[0x84c]);
+        ++(m_restrictedCount);
     entry[type].m_state = 1;
     return 1;
 }
 
 void CUserPremium::ReCalcAdvantage()
 {
-    *(short*)&m_pad[0x850] = 0;   // outFatigueRate
-    *(int*)&m_pad[0x854] = 0;     // outPremiumCount
-    *(int*)&m_pad[0x858] = 0;     // outExpRate
-    m_pad[0x85c] = 0;             // overEquipFlag
-    m_pad[0x8bc] = 0;             // field8bc
-    memset(&m_pad862[1], 0, 0x58);           // +0x864..+0x8bb
-    memset(&m_pad862[0x5a], 0, 0x52);        // +0x8bd..+0x90e
+    m_outFatigueRate = 0;   // outFatigueRate
+    m_outPremiumCount = 0;     // outPremiumCount
+    m_outExpRate = 0;     // outExpRate
+    m_overEquipFlag = false;             // overEquipFlag
+    m_field8bc = 0;             // field8bc
+    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));           // +0x864..+0x8bb
+    memset(m_pad8bd, 0, 0x52);        // +0x8bd..+0x90e
     memset(&m_additionalInfo, 0, sizeof(_Additioal_info));   // +0x90f 具名成员
-    *(short*)&m_pad[0x85e] = 0;   // overSkillLevel
+    m_overSkillLevel = 0;   // overSkillLevel
     m_ceraDiscountRate = 0;       // field860
     m_returnItemMap.clear();
 
@@ -795,18 +795,18 @@ void CUserPremium::ReCalcAdvantage()
         if (!_CheckApply(entryType, localTm))
             continue;
         if (def->m_needDailyCheck != 0)
-            m_pad[0x85c] = 1;
+            m_overEquipFlag = true;
         // ORIG：0x85e/0x860 取 def 值与当前值之较大者（_ZSt3maxIt，u16 语义）。
         if (*(unsigned short*)&m_pad[0x85e] < def->m_overSkillLevel)
             *(unsigned short*)&m_pad[0x85e] = def->m_overSkillLevel;
         if (m_ceraDiscountRate < def->m_field5a)
             m_ceraDiscountRate = def->m_field5a;
-        *(int*)&m_pad[0x858] += def->m_expRate;
-        *(int*)&m_pad[0x854] += def->m_premiumCount;
-        *(short*)&m_pad[0x850] =
-            (short)(*(short*)&m_pad[0x850] + def->m_fatigueRate);
+        m_outExpRate += def->m_expRate;
+        m_outPremiumCount += def->m_premiumCount;
+        m_outFatigueRate =
+            (short)(m_outFatigueRate + def->m_fatigueRate);
         if (def->m_overEquipFlag != 0)
-            m_pad[0x8bc] = 1;
+            m_field8bc = 1;
 
         // ORIG 双层循环（0x86ae10e +0x369 起）：组数 def->m_field64（+0x64，加载时
         // 已限 ≤5）；组索引 = m_returnPairs68[i].first（+0x68+8i）、数量 =
@@ -824,7 +824,7 @@ void CUserPremium::ReCalcAdvantage()
             for (int inner = 0; inner < oe.m_count; ++inner)
             {
                 int cat = oe.m_slots[inner];
-                int* slot = reinterpret_cast<int*>(&m_pad[0x864 + cat * 4]);
+                int* slot = m_overEquipableLevel + cat;
                 if (*slot < val)
                     *slot = val;
             }
@@ -855,7 +855,7 @@ void CUserPremium::ReCalcAdvantage()
 
         // ORIG（+0x5d1 起）：additionalBase（this+0x8bd）累加该 premium 的加成属性
         // （_Additioal_infopLERKS_，源 g_SPremiumInfo[type].m_additionalInfo +0xc8）。
-        *reinterpret_cast<_Additioal_info*>(&m_pad862[0x5a]) += def->m_additionalInfo;
+        *reinterpret_cast<_Additioal_info*>(m_pad8bd) += def->m_additionalInfo;
     }
 }
 
@@ -901,7 +901,7 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
     const unsigned char* addInfo =
         reinterpret_cast<const unsigned char*>(user->getCurCharacAddInfoR());
     const unsigned char* base =
-        reinterpret_cast<const unsigned char*>(&m_pad862[0x5a]);
+        reinterpret_cast<const unsigned char*>(m_pad8bd);
     unsigned char* out =
         reinterpret_cast<unsigned char*>(&m_additionalInfo);
 
@@ -1036,7 +1036,7 @@ bool CUserPremium::CheckPremium(int type) const
 // ORIG W 0x086b086c：返回 +0x862 字节（任一 premium 定义需每日检查时为 1）。
 bool CUserPremium::IsNeedCheckEveryday()
 {
-    return m_field862 != 0;
+    return m_field862;
 }
 
 // ---------------------------------------------------------------------------

@@ -171,5 +171,7 @@ TutorialData* GlobalScriptTutorial::getData(int index)
 
 bool GlobalScriptTutorial::IsGlobalTutorialDungeon(unsigned int dungeon)
 {
-    return dungeon == 0xdb2;
+    if (dungeon == 0xdb2)
+        return true;
+    return false;
 }

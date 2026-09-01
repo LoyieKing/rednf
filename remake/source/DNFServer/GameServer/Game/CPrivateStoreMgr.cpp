@@ -176,8 +176,8 @@ CPrivateStorePos::CPrivateStorePos(CPrivateStore* store, int centerX, int center
     : m_rect(), m_pStore(store)
 {
     m_rect.m_pos.m_x = centerX - 0x50;
+    m_rect.m_width = 0xa0;      // ORIG 先写 width 再 m_y（-O0 语句序）
     m_rect.m_pos.m_y = centerY - 0x32;
-    m_rect.m_width = 0xa0;
     m_rect.m_height = 0x64;
 }
 

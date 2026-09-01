@@ -521,7 +521,9 @@ long long uint32Time(short* fields);
 class CLocalChina_DB_LastDay_BreakAway
 {
 public:
-    void makeRequest(unsigned int accId, int day, int flag);
+    // ORIG 0x08128152 静态（调用点只压 3 个参数，无 this；
+    // 见 Dispatcher_New_Gmdebug_Command/oldGmRoutine.md +0x7414..+0x7428）。
+    static void makeRequest(unsigned int accId, int day, int flag);
 };
 
 // AradServerStateMessage::AradServerStateMessage（ORIG W 0x08186652）已由
@@ -1897,14 +1899,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (cmd == "SetRewardLast")
     {
         int v = StringToNumber(arg1.c_str());
-        CLocalChina_DB_LastDay_BreakAway req;
-        req.makeRequest(user->get_acc_id(), v, 1);
+        CLocalChina_DB_LastDay_BreakAway::makeRequest(user->get_acc_id(), v, 1);
     }
     else if (cmd == "SetQuestLast")
     {
         int v = StringToNumber(arg1.c_str());
-        CLocalChina_DB_LastDay_BreakAway req;
-        req.makeRequest(user->get_acc_id(), v, 0);
+        CLocalChina_DB_LastDay_BreakAway::makeRequest(user->get_acc_id(), v, 0);
     }
     else if (cmd == "SetBreak")
     {

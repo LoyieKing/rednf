@@ -32,9 +32,10 @@ struct stServerIndex
     int m_field4;   // +0x04
     bool operator<(const stServerIndex& o) const
     {
-        // ORIG 0x08a8cbce：先比 +0x04（m_field4），相等再比 +0x00（m_field0）。
-        return m_field4 < o.m_field4 ||
-               (m_field4 == o.m_field4 && m_field0 < o.m_field0);
+        // ORIG 0x08a8cbc4：jge/mov1/jmp - jne/jge ret0/mov1/mov0（嵌套短路；先 m_field4 后 m_field0）。
+        if (m_field4 < o.m_field4) return true;
+        if (m_field4 == o.m_field4 && m_field0 < o.m_field0) return true;
+        return false;
     }
 };
 
@@ -435,10 +436,15 @@ public:
         }
         bool operator<(const PvPPlayerKey& o) const
         {
-            return m_field0 < o.m_field0 ||
-                   (m_field0 == o.m_field0 &&
-                    (m_field1 < o.m_field1 ||
-                     (m_field1 == o.m_field1 && m_field2 < o.m_field2)));
+            // ORIG 0x084a6034：三相 jae/mov1/jmp - jne ret0 - ...（嵌套相等块；uchar）。
+            if (m_field0 < o.m_field0) return true;
+            if (m_field0 == o.m_field0) {
+                if (m_field1 < o.m_field1) return true;
+                if (m_field1 == o.m_field1) {
+                    if (m_field2 < o.m_field2) return true;
+                }
+            }
+            return false;
         }
         unsigned char m_field0;   // +0x00
         unsigned char m_field1;   // +0x01

@@ -94,7 +94,7 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     void decIncRate(int value);                // ORIG W 0x08694ff0 _ZN...10decIncRateEi
     void resetIncRate();                       // ORIG W 0x08694fe0 _ZN...12resetIncRateEv
     bool IsSaveCleanPadPoint();                // ORIG W 0x0822eede _ZN...19IsSaveCleanPadPointEv
-    int getPointPerHackType(WongWork::ENUM_HACKTYPE type);
+    static int getPointPerHackType(WongWork::ENUM_HACKTYPE type);   // ORIG static（type@+0x8）
                                                // ORIG W 0x08695025 _ZN...19getPointPerHackTypeENS_13ENUM_HACKTYPEE
 };
 }

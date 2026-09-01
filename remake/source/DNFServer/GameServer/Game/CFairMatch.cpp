@@ -215,7 +215,9 @@ void CFairMatch::OnEndPvP(PvP_Room*)
 // ORIG CheckSeat 0x8562b78。
 int CFairMatch::CheckSeat(int a)
 {
-    return a != 2;
+    if (a == 2)
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ class CHackLog_InvitationPaperSellToNPC
 {
 public:
     int GetHackType();
-    int IsInvitationPaper(int);
+    static int IsInvitationPaper(int);   // ORIG 读 itemNo@+0x8（static，无 this）
 };
 
 

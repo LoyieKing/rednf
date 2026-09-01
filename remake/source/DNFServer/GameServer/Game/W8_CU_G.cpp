@@ -317,7 +317,9 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
         static_cast<unsigned int>(m_mcap.m_cleanPadVeriA) +
         static_cast<unsigned int>(m_mcap.m_cleanPadVeriB) +
         static_cast<unsigned int>(m_mcap.m_cleanPadVeriC);
-    return value == sum;
+    if (value == sum)
+        return true;
+    return false;
 }
 
 // ORIG 0x0868a51a：向客户端下发人机认证图（capcha 队列随机一条 + 新鲜种子三段

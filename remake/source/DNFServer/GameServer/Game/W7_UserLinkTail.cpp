@@ -41,9 +41,10 @@ void CUser::SetChildrensDayEventValue(int slot, int targetItem, int period)
 // ---------------------------------------------------------------------------
 bool CUser::IsOKChildrensDayEventCondition()
 {
-    unsigned char v = *reinterpret_cast<const unsigned char*>(
-        reinterpret_cast<const char*>(this) + 0x8e098);
-    return v == 0xff;
+    // ORIG 0x08328220：movzbl 0x8e098(%eax)（具名 m_childrensDayEventState）；==0xff → true。
+    if (m_childrensDayEventState == 0xff)
+        return true;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
