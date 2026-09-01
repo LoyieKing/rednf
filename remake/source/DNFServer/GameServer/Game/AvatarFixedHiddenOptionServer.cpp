@@ -403,7 +403,8 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
 {
     CInventory* invW = user->getCurCharacInvenW();
     // 材料槽（INVEN 1）—— ORIG 以 sret 形式调用 GetInvenSlot（按值返回）
-    Inven_Item material = invW->GetInvenSlot(1, (int)sig->m_materialSlot);
+    Inven_Item material;
+    material = invW->GetInvenSlot(1, (int)sig->m_materialSlot);
     if (material.isEmpty())
     {
         LogManager::logFormat(
@@ -417,7 +418,8 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
     }
     if (m_script.isMaterialItemIndex((int)material.m_addInfo))
     {
-        Inven_Item avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);
+        Inven_Item avatar;
+        avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);
         if (avatar.isEmpty())
         {
             LogManager::logFormat(
