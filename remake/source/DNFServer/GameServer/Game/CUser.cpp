@@ -6459,15 +6459,14 @@ int CUser::ChangeCharacSlot(unsigned int a, unsigned int b)
 {
     if (a >= m_characList.size() || b >= m_characList.size())
         return 0;
-    _Charac_info tmp = m_characList[a];
     if (a < b)
     {
-        m_characList.insert(m_characList.begin() + (b + 1), tmp);
+        m_characList.insert(m_characList.begin() + (b + 1), m_characList[a]);
         m_characList.erase(m_characList.begin() + a);
     }
     else
     {
-        m_characList.insert(m_characList.begin() + b, tmp);
+        m_characList.insert(m_characList.begin() + b, m_characList[a]);
         m_characList.erase(m_characList.begin() + (a + 1));
     }
     m_characterView.enableSaveCharacView();
