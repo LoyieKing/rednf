@@ -19,6 +19,7 @@
 #include "DBMgr.h"
 #include "MySQL.h"
 #include "SigTypes.h"          // SIG_LOGIN_DATA / SIG_UPDATE_LOGIN
+#include "STBreakAwayMemberData.h"  // STBreakAwayMemberData::clear（ORIG W 0x844d584）
 #include "Stream.h"
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
@@ -189,6 +190,7 @@ inline __attribute__((always_inline)) char* SGB(SIG_LOGIN_DATA* sig, unsigned in
 // 常量偏移直写：宏把 off 作为字面量替换，-O0 下折叠进基址/地址表达式
 // （SGF<T>(sig,off) 模板的 off 是运行期参数，会多做一次 add）。
 #define SGFC(type, sig, off) (*reinterpret_cast<type*>(reinterpret_cast<char*>(sig) + (off)))
+#define SGBC(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
 namespace   // 槽位偏移速查（均出自对应报告 ORIG 指令）
 {
@@ -1538,7 +1540,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect m_id, passwd,first_ssn, second_ssn,DATE_FORMAT(from_unixtime(reg_date),'%%Y%%m%%d%%H'),user_name,email,hangame_flag,reg_date from  member_info  where  user_id='%s' and hangame_flag=%d",
-        userId, (unsigned int)(unsigned char)SGF<char>(sig, OFF_HANGAME_FLAG));
+        userId, (unsigned int)(unsigned char)SGFC(char, sig, OFF_HANGAME_FLAG));
     if (!db->exec(true))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x397f, 5);
@@ -1599,7 +1601,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     WongWork::CSimpleSSO::stOutputData_t ssoOut;
     if (!GlobalData::s_psimpleSSO->checkValidPassword(
             sig->m_accId, serverPwd,
-            SGB(sig, OFF_CLIENT_IP), ssoOut))
+            SGBC(sig, OFF_CLIENT_IP), ssoOut))
     {
         // ORIG 0x84136c0-0x841370e：失败记日志（行号 0x39da）并返回 false。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x39da, 0);
@@ -1612,37 +1614,37 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     // ORIG 0x8413713-0x8413790：+0x3950=accountFail、+0x3954=totalAccountFail、
     // +0x3958=lastPlayTime、+0x3960=reportCnt、+0x3964=reliableFlag、
     // +0x3968=tradeGoldDaily、+0x396c=schoolId、+0x3970=rating。
-    SGF<int>(sig, OFF_SSO_LASTPLAY) = ssoOut.m_accountFail;              // +0x3950
-    SGF<int>(sig, OFF_SSO_LASTPLAY + 4) = ssoOut.m_totalAccountFail;     // +0x3954
-    SGF<long long>(sig, OFF_SSO_TRADEGOLD) =                             // +0x3958 lastPlayTime
+    SGFC(int, sig, OFF_SSO_LASTPLAY) = ssoOut.m_accountFail;              // +0x3950
+    SGFC(int, sig, OFF_SSO_LASTPLAY + 4) = ssoOut.m_totalAccountFail;     // +0x3954
+    SGFC(long long, sig, OFF_SSO_TRADEGOLD) =                           // +0x3958 lastPlayTime
         ssoOut.m_lastPlayTime;   // 【ORIG】sig+0x3958 = stOut+0x00（lastPlayTime）
-    SGF<int>(sig, OFF_SSO_REPORTCNT) = ssoOut.m_reportCnt;               // +0x3960
-    SGF<char>(sig, OFF_SSO_RELIABLE) = ssoOut.m_reliableFlag;            // +0x3964
-    SGF<unsigned int>(sig, OFF_SSO_TRADEGOLD_DAILY) = ssoOut.m_tradeGoldDaily; // +0x3968
-    SGF<unsigned int>(sig, OFF_SCHOOL_ID) = ssoOut.m_schoolId;           // +0x396c
-    SGF<float>(sig, OFF_SSO_RATING) = ssoOut.m_rating;                   // +0x3970
-    memset(SGB(sig, OFF_SSO_CLEAR28), 0, 0x28);                          // +0x3974..0x39bb 清零
+    SGFC(int, sig, OFF_SSO_REPORTCNT) = ssoOut.m_reportCnt;               // +0x3960
+    SGFC(char, sig, OFF_SSO_RELIABLE) = ssoOut.m_reliableFlag;            // +0x3964
+    SGFC(unsigned int, sig, OFF_SSO_TRADEGOLD_DAILY) = ssoOut.m_tradeGoldDaily; // +0x3968
+    SGFC(unsigned int, sig, OFF_SCHOOL_ID) = ssoOut.m_schoolId;           // +0x396c
+    SGFC(float, sig, OFF_SSO_RATING) = ssoOut.m_rating;                   // +0x3970
+    memset(SGBC(sig, OFF_SSO_CLEAR28), 0, 0x28);                          // +0x3974..0x39bb 清零
 
     GameWorld* world = G_GameWorld();
-    if (world->IsSchoolPvPChannel() && SGF<int>(sig, OFF_SCHOOL_ID) != 0)
+    if (world->IsSchoolPvPChannel() && SGFC(int, sig, OFF_SCHOOL_ID) != 0)
     {
-        GetSchoolName(SGF<int>(sig, OFF_SCHOOL_ID), SGB(sig, OFF_SSO_CLEAR28));
+        GetSchoolName(SGFC(int, sig, OFF_SCHOOL_ID), SGBC(sig, OFF_SSO_CLEAR28));
         GetBadgeCount(sig);
     }
 
-    SGF<char>(sig, OFF_TUTORIAL_SKIP) = ssoOut.m_tutorialSkipable;       // +0x39a2
-    SGF<char>(sig, OFF_SECURITY_VALID) = ssoOut.m_securityFlag;          // +0x39dc
-    strncpy(SGB(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10);          // +0x3a3a
-    SGF<unsigned int>(sig, OFF_DUNGEON_GAIN) = ssoOut.m_dungeonGainGold; // +0x395c
+    SGFC(char, sig, OFF_TUTORIAL_SKIP) = ssoOut.m_tutorialSkipable;       // +0x39a2
+    SGFC(char, sig, OFF_SECURITY_VALID) = ssoOut.m_securityFlag;          // +0x39dc
+    strncpy(SGBC(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10);          // +0x3a3a
+    SGFC(unsigned int, sig, OFF_DUNGEON_GAIN) = ssoOut.m_dungeonGainGold; // +0x395c
 
     long long curSec = GlobalData::s_systemTime_.getCurSec();
     if (CheckDailyScheduleTime(*reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
                                ssoOut.m_lastPlayTime, curSec))
     {
-        SGF<unsigned int>(sig, OFF_DUNGEON_GAIN) = 0;
+        SGFC(unsigned int, sig, OFF_DUNGEON_GAIN) = 0;
     }
 
-    SGF<char>(sig, 0x3f10) = static_cast<char>(ssoOut.m_eventCharacFlag); // +0x3f10
+    SGFC(char, sig, 0x3f10) = static_cast<char>(ssoOut.m_eventCharacFlag); // +0x3f10
 
     // ---- first_ssn / second_ssn 解密 ----
     char firstSsn[33];
@@ -1705,7 +1707,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, get(4) ERROR m_id=%s", userId);
         return false;
     }
-    if (!db->get_str(5, SGB(sig, 0x2184), 0x80))    // user_name → sig+0x2184
+    if (!db->get_str(5, SGBC(sig, 0x2184), 0x80))    // user_name → sig+0x2184
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3a93, 5);
         trace("DB_Login::GetAccountInfo, get(5) ERROR m_id=%s", userId);
@@ -1722,7 +1724,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     {
         return false;
     }
-    OS_API::snprintf(SGB(sig, 0x2204), 0x7f, "%s", decEmail);   // ORIG snprintf 直传串
+    OS_API::snprintf(SGBC(sig, 0x2204), 0x7f, "%s", decEmail);   // ORIG snprintf 直传串
 
     unsigned int hangameFlag = 0;
     if (!db->get_uint(7, hangameFlag))
@@ -1731,7 +1733,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, get(7) ERROR m_id=%s", userId);
         return false;
     }
-    SGF<char>(sig, 0x38dd) = (hangameFlag != 0) ? 1 : 0;
+    SGFC(char, sig, 0x38dd) = (hangameFlag != 0) ? 1 : 0;
 
     unsigned int regRaw = 0;
     if (!db->get_uint(8, regRaw))
@@ -1740,14 +1742,14 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, get(9) ERROR m_id=%s", userId);
         // 注意：ORIG 此分支记日志后不返回，继续走时间换算
     }
-    SGF<unsigned int>(sig, OFF_BIRTH_DATE) = regRaw;
-    OS_API::snprintf(SGB(sig, 0x2284), 0x10, "%d%d", (int)firstVal, (int)secondVal);
+    SGFC(unsigned int, sig, OFF_BIRTH_DATE) = regRaw;
+    OS_API::snprintf(SGBC(sig, 0x2284), 0x10, "%d%d", (int)firstVal, (int)secondVal);
 
     firstVal = firstVal / 10000;
     secondVal = secondVal / 1000000;
-    SGF<unsigned int>(sig, OVERLAP_REG_DATE) =
+    SGFC(unsigned int, sig, OVERLAP_REG_DATE) =
         (secondVal < 3) ? (firstVal + 0x76c) : (firstVal + 2000);
-    SGF<unsigned int>(sig, OFF_REG_DATE) = regDate / 100;
+    SGFC(unsigned int, sig, OFF_REG_DATE) = regDate / 100;
 
     struct tm birthTm;
     memset(&birthTm, 0, sizeof(birthTm));
@@ -1759,13 +1761,13 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     birthTm.tm_hour = hourField % 100;
     birthTm.tm_min = 0;
     birthTm.tm_sec = 0;
-    SGF<time_t>(sig, OFF_SSN_TIME) = mktime(&birthTm);
+    SGFC(time_t, sig, OFF_SSN_TIME) = mktime(&birthTm);
 
     // ---- Garena token 复用检查 ----
     unsigned int nowSec = GlobalData::s_systemTime_.getCurSec();
     unsigned int loginTime = ssoOut.m_loginTime;
     unsigned int lastPlay = ssoOut.m_lastPlayTime;
-    if (!Taiwan::GarenaCheckTimeStamp(SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec,
+    if (!Taiwan::GarenaCheckTimeStamp(SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec,
                                       loginTime, lastPlay))
     {
         if (!GetWhiteAccount(sig))
@@ -1774,21 +1776,21 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
                 1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b14,
                 "[Taiwan, Auth] Fail Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
                 NumberToString(sig->m_accId, 0),
-                SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+                SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
             return false;
         }
         LogManager::logFormat(
             1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b0f,
             "[Taiwan, Auth] White Account Success Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
             NumberToString(sig->m_accId, 0),
-            SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+            SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
     }
     else
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3b1b, 0);
         trace("[Taiwan, Auth] Success Token reuse login. (mid:%s, token_time:%u, current_current:%u, login_time:%u, last_play_time:%u)",
               NumberToString(sig->m_accId, 0),
-              SGF<unsigned int>(sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+              SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
     }
     return true;
 }
@@ -2313,12 +2315,12 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
 
     int outIdx = 0;
     for (int i = 0;
-         i < SGF<int>(sig, OFF_CHARAC_CNT) && i < 0x24; ++i)
+         i < sig->m_characCount && i < 0x24; ++i)
     {
-        short level = SGF<short>(sig, i * 0x94 + 0xfa);       // 槽内 charac 等级(short)
+        short level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);       // 槽内 charac 等级(short)
         if (*reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa8e0) <= level)
         {
-            unsigned int characNo = SGF<unsigned int>(sig, i * 0x94 + OFF_CHARAC_VIEW);
+            unsigned int characNo = *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94);
             dbBonus->set_query(
                 "seLect mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period from charac_link_bonus where charac_no=%u",
                 characNo);
@@ -2327,15 +2329,12 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                 return 0;
             }
 
-            CHARAC_LOAD_MERCENARY& merc =
-                *reinterpret_cast<CHARAC_LOAD_MERCENARY*>(
-                    SGB(sig, outIdx * 0x54 + OFF_MERC_TBL));
+            CHARAC_LOAD_MERCENARY& merc = sig->m_mercenaries[outIdx];
             merc.Reset();
-            strncpy(SGB(sig, outIdx * 0x54 + OFF_MERC_TBL + 6),
-                    SGB(sig, i * 0x94 + 0xe4), 0x1e);        // 角色名
-            SGF<unsigned int>(sig, outIdx * 0x54 + OFF_MERC_TBL) = characNo;
-            SGF<unsigned short>(sig, outIdx * 0x54 + OFF_MERC_TBL + 4) =
-                SGF<unsigned short>(sig, i * 0x94 + 0xfa);
+            strncpy(merc.m_name,
+                    sig->m_characData + i * 0x94 + 4, 0x1e);        // 角色名
+            merc.m_characNo = characNo;
+            merc.m_level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);
 
             dbItems->set_query(
                 "seLect slot,it_id from user_items where charac_no=%u and expire_date>now() and stat=0 order by slot limit 8",
@@ -2377,15 +2376,15 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                     }
                     if (gotSlot != expectSlot)
                     {
-                        SGF<char>(sig, outIdx * 0x54 + 0x15e6) = 0;   // 连续槽位破坏标志
+                        merc.m_avatarBonus = 0;   // 连续槽位破坏标志（+0x32）
                         break;
                     }
-                    SGF<int>(sig, outIdx * 0x54 + expectSlot * 4 + 0x15e8) = itemId;
+                    merc.m_avatarItems[expectSlot] = itemId;
                 }
             }
             else
             {
-                SGF<char>(sig, outIdx * 0x54 + 0x15e6) = 0;
+                merc.m_avatarBonus = 0;
             }
             if (dbBonus->getAffectedRowCount() == 0)
             {
@@ -2394,25 +2393,25 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                     characNo);
                 if (dbBonus->exec(true))
                 {
-                    SGF<int>(sig, outIdx * 0x54 + 0x15dc) = 0;
-                    SGF<int>(sig, outIdx * 0x54 + 0x15e0) = 0;
-                    SGF<char>(sig, outIdx * 0x54 + 0x15e4) = 0xff;
-                    SGF<char>(sig, outIdx * 0x54 + 0x15e5) = 0xff;
+                    merc.m_field28 = 0;                 // mercenary_start_time(+0x28)
+                    merc.m_field2c = 0;                 // mercenary_finish_time(+0x2c)
+                    merc.m_field30 = 0xff;              // mercenary_area(+0x30)
+                    merc.m_field31 = 0xff;              // mercenary_period(+0x31)
                     outIdx += 1;
-                    SGF<int>(sig, OFF_QUICK_SLOT) += 1;
+                    sig->m_mercenaryCount += 1;
                 }
             }
             else
             {
                 bool ok = dbBonus->fetch();
-                if (ok) ok = dbBonus->get_int(0, SGF<int>(sig, outIdx * 0x54 + 0x15dc));
-                if (ok) ok = dbBonus->get_int(1, SGF<int>(sig, outIdx * 0x54 + 0x15e0));
-                if (ok) ok = dbBonus->get_byte(2, SGF<char>(sig, outIdx * 0x54 + 0x15e4));
-                if (ok) ok = dbBonus->get_byte(3, SGF<char>(sig, outIdx * 0x54 + 0x15e5));
+                if (ok) ok = dbBonus->get_int(0, merc.m_field28);
+                if (ok) ok = dbBonus->get_int(1, merc.m_field2c);
+                if (ok) ok = dbBonus->get_byte(2, reinterpret_cast<char&>(merc.m_field30));
+                if (ok) ok = dbBonus->get_byte(3, reinterpret_cast<char&>(merc.m_field31));
                 if (ok)
                 {
                     outIdx += 1;
-                    SGF<int>(sig, OFF_QUICK_SLOT) += 1;
+                    sig->m_mercenaryCount += 1;
                 }
             }
         }
@@ -2726,16 +2725,9 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         trace("BREAK_AWAY : churn_member_info MEMBER INSERT!! M_ID(%s)",
               NumberToString(sig->m_accId, 0));
 
-        // STBreakAwayMemberData::clear 等价展开（ORIG W 0x844d584）
-        SGF<int>(sig, OFF_BREAKAWAY_REC) = 0;                // +0x3f18 accrue_cera
-        memset(SGB(sig, OFF_BREAKAWAY_REC + 4), 0, 0x1f);    // play_info
-        for (unsigned int off = OFF_BREAKAWAY_REC + 0x24;
-             off <= OFF_BREAKAWAY_REC + 0x3c; off += 4)
-        {
-            SGF<int>(sig, off) = 0;
-        }
-        SGF<char>(sig, OFF_BREAKAWAY_REC + 0x40) = 0;
-        memcpy(SGB(sig, OFF_BREAKAWAY_REC + 4), playInfo, 0x1f);
+        // STBreakAwayMemberData::clear（ORIG W 0x844d584；rec = +0x3f18 起 0x41 字节）
+        reinterpret_cast<STBreakAwayMemberData*>(&sig->m_breakAwayAccureCera)->clear();
+        memcpy(sig->m_breakAwayPlayInfo, playInfo, 0x1f);
         return 1;
     }
 
@@ -2747,10 +2739,9 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         return 0;
     }
 
-    const unsigned int rec = OFF_BREAKAWAY_REC;
-    if (!db->get_int(0, SGF<int>(sig, rec))) return 0;                   // accrue_cera
-    if (!db->get_str(1, SGB(sig, rec + 4), 0x1f)) return 0;              // play_info
-    if (SGB(sig, rec + 4)[0] == '\0')
+    if (!db->get_int(0, sig->m_breakAwayAccureCera)) return 0;                   // accrue_cera
+    if (!db->get_str(1, reinterpret_cast<char*>(sig->m_breakAwayPlayInfo), 0x1f)) return 0;  // play_info
+    if (sig->m_breakAwayPlayInfo[0] == '\0')
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0x30ab,
@@ -2758,27 +2749,27 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
                               NumberToString(sig->m_accId, 0));
         return 0;
     }
-    if (!db->get_uint(2, SGF<unsigned int>(sig, rec + 0x24))) return 0;   // last_reward_time(+0x3f3c)
-    if (!db->get_uint(3, SGF<unsigned int>(sig, rec + 0x28))) return 0;   // first_reward_time(+0x3f40)
-    if (!db->get_int(4, SGF<int>(sig, rec + 0x3c))) return 0;             // luck_point(+0x3f54)
-    if (!db->get_uint(5, SGF<unsigned int>(sig, rec + 0x38))) return 0;   // last_update_time(+0x3f50)
-    if (!db->get_int(6, SGF<int>(sig, rec + 0x30))) return 0;             // add_info(+0x3f48)
-    if (!db->get_uint(7, SGF<unsigned int>(sig, rec + 0x2c))) return 0;   // second_reward_time(+0x3f44)
-    if (!db->get_uint(8, SGF<unsigned int>(sig, rec + 0x34))) return 0;   // quest_time(+0x3f4c)
+    if (!db->get_uint(2, sig->m_breakAwayLastRewardTime)) return 0;   // last_reward_time(+0x3f3c)
+    if (!db->get_uint(3, sig->m_breakAwayRewardBoundA)) return 0;   // first_reward_time(+0x3f40)
+    if (!db->get_int(4, sig->m_breakAwayLuckPoint)) return 0;             // luck_point(+0x3f54)
+    if (!db->get_uint(5, sig->m_breakAwayLastUpdateTime)) return 0;   // last_update_time(+0x3f50)
+    if (!db->get_int(6, sig->m_breakAwayDungeonClearCnt)) return 0;             // add_info(+0x3f48)
+    if (!db->get_uint(7, sig->m_breakAwayRewardBoundB)) return 0;   // second_reward_time(+0x3f44)
+    if (!db->get_uint(8, sig->m_breakAwayQuestTime)) return 0;   // quest_time(+0x3f4c)
 
     // last_reward_time 跨日（days>0）→ luck_point 清零并回写
-    if (SGF<int>(sig, rec + 0x24) != 0)
+    if (sig->m_breakAwayLastRewardTime != 0)
     {
-        long prev = getPrevScheduleTime(0, SGF<long>(sig, rec + 0x24));
+        long prev = getPrevScheduleTime(0, (long)sig->m_breakAwayLastRewardTime);
         int curSec = GlobalData::s_systemTime_.getCurSec();
         unsigned int days = (unsigned int)((curSec - prev) / 0x15180);
         unsigned int zero = 0;
         unsigned int maxDays = std::max<unsigned int>(zero, days);   // ORIG call _ZSt3maxIjERKT_S2_S2_
-        if (maxDays != 0 && SGF<int>(sig, rec + 0x3c) != 0)
+        if (maxDays != 0 && sig->m_breakAwayLuckPoint != 0)
         {
-            SGF<int>(sig, rec + 0x3c) = 0;                     // luck_point 清零
+            sig->m_breakAwayLuckPoint = 0;                     // luck_point 清零
             db->set_query("upDate churn_member_info set luck_point=%d where m_id=%s",
-                          SGF<int>(sig, rec + 0x3c),
+                          sig->m_breakAwayLuckPoint,
                           NumberToString(sig->m_accId, 0));
             bool updOk = db->exec(true);
             if (!(updOk && db->getAffectedRowCount() != 0))
@@ -2791,19 +2782,19 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         }
     }
 
-    // add_info!=0 且 quest_time 已过期且命中奖励时点 → add_info=-1 / quest_time=0 回写
-    if (SGF<int>(sig, rec + 0x30) != 0)
+    // quest_time!=0 且已过期且命中奖励时点 → add_info=-1 / quest_time=0 回写
+    if (sig->m_breakAwayQuestTime != 0)
     {
-        unsigned int questTime = SGF<unsigned int>(sig, rec + 0x34);
+        unsigned int questTime = sig->m_breakAwayQuestTime;
         unsigned int nowSec = GlobalData::s_systemTime_.getCurSec();
         if (questTime < nowSec &&
-            (SGF<int>(sig, rec + 0x24) == SGF<int>(sig, rec + 0x28) ||
-             SGF<int>(sig, rec + 0x24) == SGF<int>(sig, rec + 0x2c)))
+            (sig->m_breakAwayLastRewardTime == sig->m_breakAwayRewardBoundA ||
+             sig->m_breakAwayLastRewardTime == sig->m_breakAwayRewardBoundB))
         {
-            SGF<int>(sig, rec + 0x30) = -1;                    // add_info = -1
-            SGF<unsigned int>(sig, rec + 0x34) = 0;            // quest_time = 0
+            sig->m_breakAwayDungeonClearCnt = -1;                    // add_info = -1
+            sig->m_breakAwayQuestTime = 0;            // quest_time = 0
             db->set_query("upDate churn_member_info set add_info=%d, quest_time=0 where m_id=%u",
-                          SGF<int>(sig, rec + 0x30),
+                          sig->m_breakAwayDungeonClearCnt,
                           sig->m_accId);
             bool updOk = db->exec(true);
             if (!(updOk && db->getAffectedRowCount() != 0))

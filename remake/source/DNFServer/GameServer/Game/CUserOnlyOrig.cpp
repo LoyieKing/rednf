@@ -8021,14 +8021,13 @@ void CUser::increase_status(short slotNo)
                 if ((itemIdx == 3) || (itemIdx == 0x1c))
                 {
 L0866607b:
-                    if (GlobalData::s_pSecuProtectionField->Check(
-                            this, (SECURITY_PROTCTION)0x2c) != 0)
+                    unsigned char errSecu =
+                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                            this, (SECURITY_PROTCTION)0x2c);
+                    if (errSecu != 0)
                     {
-                        unsigned char errSecu =
-                            (unsigned char)GlobalData::s_pSecuProtectionField->Check(
-                                this, (SECURITY_PROTCTION)0x2c);
                         SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
-                        return;                              // L086686d4
+                        return;  // L086686d4
                     }
                     if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
                     {
@@ -8245,12 +8244,11 @@ L08666320:
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
                 return;
             }
-            if (GlobalData::s_pSecuProtectionField->Check(
-                    this, (SECURITY_PROTCTION)0x2c) != 0)
+            unsigned char errSecu =
+                (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                    this, (SECURITY_PROTCTION)0x2c);
+            if (errSecu != 0)
             {
-                unsigned char errSecu =
-                    (unsigned char)GlobalData::s_pSecuProtectionField->Check(
-                        this, (SECURITY_PROTCTION)0x2c);
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
                 return;
             }
@@ -8279,12 +8277,11 @@ L08666320:
                     SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
                     return;
                 }
-                if (GlobalData::s_pSecuProtectionField->Check(
-                        this, (SECURITY_PROTCTION)0x2c) != 0)
+                unsigned char errSecu =
+                    (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                        this, (SECURITY_PROTCTION)0x2c);
+                if (errSecu != 0)
                 {
-                    unsigned char errSecu =
-                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
-                            this, (SECURITY_PROTCTION)0x2c);
                     SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
                     return;
                 }
