@@ -1215,11 +1215,11 @@ public:
     // +0x00/+0x0c/+0x18/+0x24/+0x30），sizeof 0x3c。
     // importEquipmentGradeSampleInfo（0x890e18d）按 [grade_0]..[grade_4]
     // 五节分别向对应 vector push_back。
-    std::vector<unsigned int> m_grade0;   // +0x00
-    std::vector<unsigned int> m_grade1;   // +0x0c
-    std::vector<unsigned int> m_grade2;   // +0x18
-    std::vector<unsigned int> m_grade3;   // +0x24
-    std::vector<unsigned int> m_grade4;   // +0x30
+    // ORIG C1 0x837c810 / D1 0x837c884 实证：单个「计数 4→-1、步长 0xc」的
+    // 数组构造/析构循环（只有 1 个 vector ctor 调用点 + 1 个 EH 逆序析构循环），
+    // 即成员是 vector<unsigned int>[5] 数组而非 5 个具名成员；
+    // 拆成 5 个具名成员会产生 5 个构造调用点（多出 4 个 eager ctor）。
+    std::vector<unsigned int> m_grade[5];  // +0x00/+0x0c/+0x18/+0x24/+0x30
 };
 
 class stConditionEventInfo
@@ -1563,7 +1563,7 @@ struct stVillageAttacked_t
 
 namespace APSystem
 {
-class _ActionGroupIndex;   // 完整定义 CUserProc.h（APSystem::_ActionGroupIndex，int m_value）
+// _ActionGroupIndex（4 字节枚举）完整定义见 APSystemTypes.h（本头 833 行已包含）。
 
 // _SIG_LOAD_ACTION_POINT（含嵌套 _TodayRewardItem）/CActionPointEx/_MedalRewardItem
 // 权威定义见 APSystemTypes.h（MoreTypes.h 同样包含）。

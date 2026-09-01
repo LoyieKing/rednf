@@ -223,8 +223,8 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
         if (col != 0)
         {
             table[row].m_groupIndex = atoi(col);                     // *(int*)+2
-            _ActionGroupIndex groupChk;
-            groupChk.m_value = table[row].m_groupIndex;
+            const _ActionGroupIndex groupChk =
+                (_ActionGroupIndex)table[row].m_groupIndex;
             if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(groupChk))
             {
                 return false;
@@ -362,8 +362,7 @@ void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
     for (unsigned int row = 0; row < count; ++row)
     {
         const _ActionPoint& rec = table[row];
-        _ActionGroupIndex groupChk;
-        groupChk.m_value = rec.m_groupIndex;
+        const _ActionGroupIndex groupChk = (_ActionGroupIndex)rec.m_groupIndex;
         if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(groupChk))
         {
             continue;
@@ -694,12 +693,12 @@ void CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group, int 
         {
             break;
         }
-        if (m_sig.m_actionPoints[row].m_groupIndex != group.m_value)
+        if (m_sig.m_actionPoints[row].m_groupIndex != (int)group)
         {
             continue;
         }
-        _ActionGroupIndex groupOut;
-        groupOut.m_value = m_sig.m_actionPoints[row].m_groupIndex;
+        const _ActionGroupIndex groupOut =
+            (_ActionGroupIndex)m_sig.m_actionPoints[row].m_groupIndex;
         if (ClearActionOne(m_sig.m_actionPoints[row], itemIdx))
         {
             CUserProc::SendActionClear(user, m_sig.m_actionPoints[row].m_actionNo,

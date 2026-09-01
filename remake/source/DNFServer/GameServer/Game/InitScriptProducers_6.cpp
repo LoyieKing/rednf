@@ -1526,7 +1526,7 @@ bool importEquipmentGradeSampleInfo(const char* path,
             {
                 unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) { break; }
-                out->m_grade0.push_back(v);
+                out->m_grade[0].push_back(v);
             }
         }
         else if (token == "[grade_1]")
@@ -1535,7 +1535,7 @@ bool importEquipmentGradeSampleInfo(const char* path,
             {
                 unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) { break; }
-                out->m_grade1.push_back(v);
+                out->m_grade[1].push_back(v);
             }
         }
         else if (token == "[grade_2]")
@@ -1544,7 +1544,7 @@ bool importEquipmentGradeSampleInfo(const char* path,
             {
                 unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) { break; }
-                out->m_grade2.push_back(v);
+                out->m_grade[2].push_back(v);
             }
         }
         else if (token == "[grade_3]")
@@ -1553,7 +1553,7 @@ bool importEquipmentGradeSampleInfo(const char* path,
             {
                 unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) { break; }
-                out->m_grade3.push_back(v);
+                out->m_grade[3].push_back(v);
             }
         }
         else if (token == "[grade_4]")
@@ -1562,7 +1562,7 @@ bool importEquipmentGradeSampleInfo(const char* path,
             {
                 unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) { break; }
-                out->m_grade4.push_back(v);
+                out->m_grade[4].push_back(v);
             }
         }
     }

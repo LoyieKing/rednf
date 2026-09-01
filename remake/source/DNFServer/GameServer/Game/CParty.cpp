@@ -4491,10 +4491,8 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
 
     if (user != 0)
     {
-        APSystem::_ActionGroupIndex clearGroup;
-        clearGroup.m_value = 8;
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            user, clearGroup, 0, (ENUM_PACKETCLASS)0);
+            user, (APSystem::_ActionGroupIndex)8, 0, (ENUM_PACKETCLASS)0);
         if (reward.m_addInfo != 0)
         {
             CItem* item = G_CDataManager()->find_item(reward.m_addInfo);
@@ -4503,10 +4501,9 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
                 int rarity = item->get_rarity();
                 if (rarity >= 0 && rarity <= 4)
                 {
-                    APSystem::_ActionGroupIndex rewardGroup;
-                    rewardGroup.m_value = 0x15;
                     APSystem::CUserProc::ClearActionAndSendtoUser(
-                        user, rewardGroup, 0, (ENUM_PACKETCLASS)0);
+                        user, (APSystem::_ActionGroupIndex)0x15, 0,
+                        (ENUM_PACKETCLASS)0);
                 }
             }
         }
@@ -5512,10 +5509,9 @@ void CParty::onBloodClear(bool flag, int param)
             (int)(playTime / 1000), 0);
         if (*(char*)(*(int**)&m_dungeon + 0x89f) == 1)   // 血图进度（CDungeon 域待具名）
         {
-            APSystem::_ActionGroupIndex group;
-            group.m_value = 0x1a;
             APSystem::CUserProc::ClearActionAndSendtoUser(
-                m_member[param].m_pUser, group, 0, (ENUM_PACKETCLASS)0);
+                m_member[param].m_pUser, (APSystem::_ActionGroupIndex)0x1a, 0,
+                (ENUM_PACKETCLASS)0);
         }
         OnSuccessedDungeonClear(m_member[param].m_pUser);
     }
@@ -6447,10 +6443,9 @@ void CParty::clear_reward(int param)
         unsigned int newRankIdx = dm->getNewRankIndex(param);
         if (newRankIdx < 3)
         {
-            APSystem::_ActionGroupIndex group;
-            group.m_value = 0x10;
             APSystem::CUserProc::ClearActionAndSendtoUser(
-                user, group, 0, static_cast<ENUM_PACKETCLASS>(0));
+                user, (APSystem::_ActionGroupIndex)0x10, 0,
+                static_cast<ENUM_PACKETCLASS>(0));
         }
 
         Inven_Item* rewardItems = bd.m_itemGroups0[slot];

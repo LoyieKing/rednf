@@ -55,7 +55,7 @@ void APSystem::CUserProc::SendActionClear(CUser& user, unsigned short actionNo,
                                           ENUM_PACKETCLASS packetClass)
 {
     _MSG_ACTION_POINT_ACTION_CLEAR msg;
-    msg.m_group = group.m_value;
+    msg.m_group = (int)group;
     msg.m_actionNo = actionNo;
     msg.m_flag = flag ? 1 : 0;
 

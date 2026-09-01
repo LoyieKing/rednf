@@ -47,8 +47,8 @@ void CActionPointManager::GM_Set(CUser& user, unsigned int value)
                     *reinterpret_cast<unsigned int*>(bytes + 0x0c);
                 entry = static_cast<signed char>(-entry);
                 *reinterpret_cast<unsigned int*>(bytes + 0x0c) += entry;
-                _ActionGroupIndex group;
-                group.m_value = *reinterpret_cast<int*>(rec + 2);
+                const _ActionGroupIndex group =
+                    (_ActionGroupIndex)*reinterpret_cast<int*>(rec + 2);
                 CUserProc::SendActionClear(user,
                     *reinterpret_cast<unsigned short*>(rec), group, true,
                     ENUM_PACKETCLASS_0);

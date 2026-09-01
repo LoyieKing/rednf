@@ -25,26 +25,17 @@
 // 构造 / 析构 / Reset
 // ============================================================================
 
+// ORIG 0x082a4cea：ctor 体内只有 Reset()；三组 Inven_Item[4][2] 与
+// GameResultType[4] 的构造全部由编译器隐式生成（含 EH 反向析构 landing pad），
+// 不存在 placement-new（ORIG 无 _ZnwjPv 调用点）。
 BattleData::BattleData()
 {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 2; ++j)
-            new (&m_itemGroups0[i][j]) Inven_Item();
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 2; ++j)
-            new (&m_itemGroups1[i][j]) Inven_Item();
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 2; ++j)
-            new (&m_itemGroups2[i][j]) Inven_Item();
-    for (int i = 0; i < 4; ++i)
-        new (&m_gameResults[i]) GameResultType();
     Reset();
 }
 
+// ORIG 0x082a54d6：空体，仅隐式析构 GameResultType[4]（反向 0x140 → 0）。
 BattleData::~BattleData()
 {
-    for (int i = 0; i < 4; ++i)
-        reinterpret_cast<GameResultType*>(&m_gameResults[i])->~GameResultType();
 }
 
 void BattleData::Reset()
@@ -80,7 +71,7 @@ void BattleData::Reset()
         m_arr58[i] = 0;
         m_arr5c[i] = 0;
         m_arr60[i] = 0;
-        reinterpret_cast<GameResultType*>(&m_gameResults[i])->Clear();
+        m_gameResults[i].Clear();
         m_arr7e8[i] = 0x7fffffff;
         m_arr64[i] = 0;
         reinterpret_cast<Inven_Item*>(&m_itemGroups0[i][0])->reset();

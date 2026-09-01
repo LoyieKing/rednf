@@ -7904,10 +7904,8 @@ int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/
 
     if (static_cast<char>(msg[2]) == '\x01')         // 成功：清理 AP 9 号动作组
     {
-        APSystem::_ActionGroupIndex group;
-        group.m_value = 9;
         APSystem::CUserProc::ClearActionAndSendtoUser(
-            user, group, 0, (ENUM_PACKETCLASS)0);
+            user, (APSystem::_ActionGroupIndex)9, 0, (ENUM_PACKETCLASS)0);
     }
     return 0;
 }

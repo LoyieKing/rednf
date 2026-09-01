@@ -8261,10 +8261,9 @@ int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             UserQuest* quest = user->getCurCharacQuestW();   // thunk 0x814aa5e
             quest->set_authen_data(QUEST_CONDITION_3, 1, 0); // asm (3,1,0)
             party->IncreaseUsedCoinCount();                  // thunk 0x822d8ce = CParty::IncreaseUsedCoinCount
-            APSystem::_ActionGroupIndex group;               // ORIG 首参 0x25（_ActionGroupIndex）
-            group.m_value = 0x25;
-            APSystem::CUserProc::ClearActionAndSendtoUser(user, group, 0,
-                                                          (ENUM_PACKETCLASS)0);
+            // ORIG 首参 0x25（_ActionGroupIndex 枚举，直压立即数）
+            APSystem::CUserProc::ClearActionAndSendtoUser(
+                user, (APSystem::_ActionGroupIndex)0x25, 0, (ENUM_PACKETCLASS)0);
         }
     }
     else if (state == 8)

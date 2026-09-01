@@ -86,7 +86,7 @@ CActionPointEx::CActionPointEx()
 // ----------------------------------------------------------------------------
 bool CActionPointEtcParameter::IsValidActionGroupIndex(_ActionGroupIndex group)
 {
-    return group.m_value >= 1 && group.m_value <= 0x2d;
+    return (int)group >= 1 && (int)group <= 0x2d;
 }
 
 }  // namespace APSystem

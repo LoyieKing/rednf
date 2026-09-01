@@ -769,10 +769,8 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                     break;
                 }
 
-                _ActionGroupIndex groupIdx;
                 *reinterpret_cast<int*>(&ex.m_bytes02[0]) = v4;   // +0x02 int（组索引）
-                groupIdx.m_value = v4;
-                if (!IsValidActionGroupIndex(groupIdx))
+                if (!IsValidActionGroupIndex((_ActionGroupIndex)v4))
                 {
                     return false;                       // ORIG 错误码 0x62
                 }

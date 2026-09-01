@@ -1641,19 +1641,24 @@ void CParty::ClearDungeon()
                 if (m_dungeon->m_villageAttackEventFlag == 0)
                 {
                     if (m_dungeon->get_index() == 100)
-                        { APSystem::_ActionGroupIndex g; g.m_value = 0x19; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                        APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0x19, 0, (ENUM_PACKETCLASS)0);
                     else if (m_dungeon->m_89c == 0)
                     {
                         if (m_dungeon->get_dimension_possible() > 0)
-                            { APSystem::_ActionGroupIndex g; g.m_value = 0x1c; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                            APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0x1c, 0, (ENUM_PACKETCLASS)0);
                     }
                     else
-                        { APSystem::_ActionGroupIndex g; g.m_value = 0x1b; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                        APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0x1b, 0, (ENUM_PACKETCLASS)0);
                 }
                 else
-                    { APSystem::_ActionGroupIndex g; g.m_value = 0x18; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                    APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0x18, 0, (ENUM_PACKETCLASS)0);
                 if (!user->IsUsedCoinInDungeon())
-                    { APSystem::_ActionGroupIndex g; g.m_value = 0xf; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                    APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0xf, 0, (ENUM_PACKETCLASS)0);
             }
         }
         PacketGuard packet;
@@ -1683,20 +1688,22 @@ void CParty::ClearDungeon()
                 int layerCount = 5;
                 bf(this).m_todReward.m_todPos.first = -1;
                 bf(this).m_todReward.m_todPos.second = 0;
-                TOD_Layer layer(todState->m_lastEnterLayer ? todState->m_lastEnterLayer : 1);
+                // ORIG 0x085a9330：每次取层都是 todState->getLastEnterLayer()
+                //（sret 临时，无 TOD_Layer(ushort) 构造调用点，共 5 处）。
                 int apcIdx = reinterpret_cast<TowerOfDespairMgr*>(
                     GlobalData::s_pTowerOfDespairMgr)->Get_APCIndexByLayer(
-                        (unsigned int)layer.GetLayer() & 0xffff);
+                        (unsigned int)todState->getLastEnterLayer().GetLayer() & 0xffff);
                 if (apcIdx != -1)
                 {
                     const char* apcName = reinterpret_cast<TowerOfDespairMgr*>(
-                        GlobalData::s_pTowerOfDespairMgr)->Get_APCNameByLayer(layer);
+                        GlobalData::s_pTowerOfDespairMgr)->Get_APCNameByLayer(
+                            todState->getLastEnterLayer());
                     if (apcName != 0 && *apcName != '\0')
                     {
                         PacketGuard namePacket;
                         namePacket.put_header(0, 0x56);
                         namePacket.put_byte(8);
-                        namePacket.put_short((int)layer.GetLayer());
+                        namePacket.put_short((int)todState->getLastEnterLayer().GetLayer());
                         namePacket.put_int((int)strlen(apcName));
                         namePacket.put_str(apcName, (int)strlen(apcName));
                         const char* myName = manager->getCurCharacName();
@@ -1717,8 +1724,7 @@ void CParty::ClearDungeon()
                     bf(this).m_todReward.m_todPos.first = 0x4e4;
                     bf(this).m_todReward.m_todPos.second = 1;
                 }
-                TOD_Layer curLayer(todState->m_lastEnterLayer ? todState->m_lastEnterLayer : 1);
-                if (curLayer.GetLayer() == 100)
+                if (todState->getLastEnterLayer().GetLayer() == 100)
                 {
                     bf(this).m_todReward.m_todPos.first = 0xcf2;
                     bf(this).m_todReward.m_todPos.second = 1;
@@ -1772,8 +1778,7 @@ void CParty::ClearDungeon()
                 G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                             (TIMER_MESSAGE)0x2c, 2, (int)key, 0x2c);
                 Packet_TowerOfDespair_Statistic_GTS todStat;
-                TOD_Layer statLayer(todState->m_lastEnterLayer ? todState->m_lastEnterLayer : 1);
-                todStat.m_key.m_0 = (int)statLayer.GetLayer();
+                todStat.m_key.m_0 = (int)todState->getLastEnterLayer().GetLayer();
                 todStat.m_key.m_4 = 0;
                 CStatisticServerProxy* proxy =
                     GlobalData::s_statistic_proxy_mgr->GetServerProxy(
@@ -1816,7 +1821,8 @@ void CParty::ClearDungeon()
                     *shopItems,
                     shopData->m_openCode, dungeonIdx, level);
                 SendSecretShopItemList(user);
-                { APSystem::_ActionGroupIndex g; g.m_value = 0xd; APSystem::CUserProc::ClearActionAndSendtoUser(user, g, 0, (ENUM_PACKETCLASS)0); }
+                APSystem::CUserProc::ClearActionAndSendtoUser(
+                            user, (APSystem::_ActionGroupIndex)0xd, 0, (ENUM_PACKETCLASS)0);
             }
             if (user->getBreakAwayDungeonClearCnt() > 0)
                 user->subBreakAwayDungeonClearCnt();

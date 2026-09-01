@@ -380,11 +380,11 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
             stEquipmentGradeSample& grade = G_CDataManager()->m_equipGrade;
             switch (chanceGrade)
             {
-            case 0: sample = grade.m_grade0[r]; break;
-            case 1: sample = grade.m_grade1[r]; break;
-            case 2: sample = grade.m_grade2[r]; break;
-            case 3: sample = grade.m_grade3[r]; break;
-            default: sample = grade.m_grade4[r]; break;
+            case 0: sample = grade.m_grade[0][r]; break;
+            case 1: sample = grade.m_grade[1][r]; break;
+            case 2: sample = grade.m_grade[2][r]; break;
+            case 3: sample = grade.m_grade[3][r]; break;
+            default: sample = grade.m_grade[4][r]; break;
             }
         }
 

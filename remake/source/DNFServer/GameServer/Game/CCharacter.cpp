@@ -145,46 +145,72 @@ void CCharacter::clear()
     }
 }
 
-// ORIG CCharacter::set_data @ 0x08348894（objdump 全量转写）。
-// 源表布局（STCharacterScript.h 权威）：行 i=0 取 m_initialStatus(+0x24)，
-// 行 i=1..6 取 m_growStatus[0..5]；每行 STRDCharacterStatus(0x57 packed) 字段与
-// _Additioal_info(0x52 packed) 一一同名对应；尾字节 +0x76(m_field52) 写
-// m_growTypeFlag[i]。随后 m_giveSkillList[i] = script->m_skillList[i]。
-// 第二成长域：标量走具名字段（dst=m_secondGrowTypes[a].m_addInfo[b]，源=
-// m_secondGrow[a].m_statusA/B）；resist 两段循环在 ORIG 中以裸指针算术寻址，
-// B 维度步长 0x50 与成员布局 0x52 存在固有 -2B 偏移（B=1 时落在 addInfo 内
-// 偏移 -2 处）——按 ORIG 指令逐字节镜像，不改为具名字段访问。
+// ORIG CCharacter::set_data @ 0x08348894（objdump 全量转写，2901B / 932 条）。
+// ORIG 结构为 if(i==0)/else **双展开体**，两支各写一整套 24 条赋值，不共享缓存：
+//   读侧两支统一为 (&script->m_initialStatus)[i]（ORIG 每次读都重算 script+i*0x57+0x24；
+//   i=0 落 m_initialStatus，i=1..6 落 m_growStatus[i-1]，布局见 STCharacterScript.h）；
+//   写侧 i==0 支为常量偏移 this+0x00 一整套（m_baseInfo[0] / m_growTypeFlag[0]），
+//   else 支为 m_baseInfo[i] / m_growTypeFlag[i]（ORIG 写侧算式为
+//   (i-1)*0x52+0x52 与 (i-1)+0x7d5，地址等价；本工程 g++4.4.7 会把
+//   (i-1)*0x52+0x52 常量折叠成 i*0x52，两种写法生成码逐字节相同，
+//   故取无 UB 的下标形式）。
+//   两支之后共用 m_giveSkillList[i] = script->m_skillList[i]（vector::operator=）。
+// 第二成长域（a=0..6 × b=0..1）同样逐字段重算地址、不缓存引用：
+//   dst = m_secondGrowTypes[a].m_addInfo[b]（this + 0x294 + a*0xc0 + b*0x52），
+//   src = (&script->m_secondGrow[a].m_statusA)[b]（script + 0x3d0 + a*0x100 + b*0x57），
+//   resist 两段循环按具名字段寻址即与 ORIG 逐字节一致（+0x2a4 / +0x2ac），
+//   尾字节写 ((char*)&m_secondGrowTypes[a].m_fieldbc)[b]（ORIG +0x350+a*0xc0+b），
+//   末尾 m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b]。
 void CCharacter::set_data(STCharacterScript* script)
 {
-    const STRDCharacterStatus* rows[7];
-    rows[0] = &script->m_initialStatus;
-    for (int i = 1; i <= 6; ++i)
-        rows[i] = &script->m_growStatus[i - 1];
-
     for (int i = 0; i <= 6; ++i)
     {
-        _Additioal_info& dst = m_baseInfo[i];
-        const STRDCharacterStatus& s = *rows[i];
-        dst.m_field00 = s.m_hpMax;
-        dst.m_field04 = s.m_mpMax;
-        dst.m_field08 = s.m_physAttack;
-        dst.m_field0a = s.m_physDefense;
-        dst.m_field0c = s.m_magAttack;
-        dst.m_field0e = s.m_magDefense;
-        for (int j = 0; j <= 3; ++j)
-            dst.m_field10[j] = s.m_elemResist[j];
-        for (int k = 0; k <= 16; ++k)
-            dst.m_field18[k] = s.m_activeResist[k];
-        dst.m_field3a = s.m_inventoryLimit;
-        dst.m_field3e = s.m_hpRegen;
-        dst.m_field40 = s.m_mpRegen;
-        dst.m_field42 = s.m_moveSpeed;
-        dst.m_field46 = s.m_attackSpeed;
-        dst.m_field48 = s.m_castSpeed;
-        dst.m_field4a = s.m_hitRecovery;
-        dst.m_field4c = s.m_jumpPower;
-        dst.m_field4e = s.m_weight;
-        m_growTypeFlag[i] = (char)s.m_field52;
+        if (i == 0)
+        {
+            m_baseInfo[0].m_field00 = (&script->m_initialStatus)[i].m_hpMax;
+            m_baseInfo[0].m_field04 = (&script->m_initialStatus)[i].m_mpMax;
+            m_baseInfo[0].m_field08 = (&script->m_initialStatus)[i].m_physAttack;
+            m_baseInfo[0].m_field0a = (&script->m_initialStatus)[i].m_physDefense;
+            m_baseInfo[0].m_field0c = (&script->m_initialStatus)[i].m_magAttack;
+            m_baseInfo[0].m_field0e = (&script->m_initialStatus)[i].m_magDefense;
+            for (int j = 0; j <= 3; ++j)
+                m_baseInfo[0].m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
+            for (int k = 0; k <= 16; ++k)
+                m_baseInfo[0].m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
+            m_baseInfo[0].m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
+            m_baseInfo[0].m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
+            m_baseInfo[0].m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
+            m_baseInfo[0].m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
+            m_baseInfo[0].m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
+            m_baseInfo[0].m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
+            m_baseInfo[0].m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
+            m_baseInfo[0].m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
+            m_baseInfo[0].m_field4e = (&script->m_initialStatus)[i].m_weight;
+            m_growTypeFlag[0] = (char)(&script->m_initialStatus)[i].m_field52;
+        }
+        else
+        {
+            m_baseInfo[i].m_field00 = (&script->m_initialStatus)[i].m_hpMax;
+            m_baseInfo[i].m_field04 = (&script->m_initialStatus)[i].m_mpMax;
+            m_baseInfo[i].m_field08 = (&script->m_initialStatus)[i].m_physAttack;
+            m_baseInfo[i].m_field0a = (&script->m_initialStatus)[i].m_physDefense;
+            m_baseInfo[i].m_field0c = (&script->m_initialStatus)[i].m_magAttack;
+            m_baseInfo[i].m_field0e = (&script->m_initialStatus)[i].m_magDefense;
+            for (int j = 0; j <= 3; ++j)
+                m_baseInfo[i].m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
+            for (int k = 0; k <= 16; ++k)
+                m_baseInfo[i].m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
+            m_baseInfo[i].m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
+            m_baseInfo[i].m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
+            m_baseInfo[i].m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
+            m_baseInfo[i].m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
+            m_baseInfo[i].m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
+            m_baseInfo[i].m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
+            m_baseInfo[i].m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
+            m_baseInfo[i].m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
+            m_baseInfo[i].m_field4e = (&script->m_initialStatus)[i].m_weight;
+            m_growTypeFlag[i] = (char)(&script->m_initialStatus)[i].m_field52;
+        }
         m_giveSkillList[i] = script->m_skillList[i];   // vector::operator=
     }
 
@@ -192,38 +218,29 @@ void CCharacter::set_data(STCharacterScript* script)
     {
         for (int b = 0; b <= 1; ++b)
         {
-            const STRDCharacterStatus& st = (b == 0)
-                ? script->m_secondGrow[a].m_statusA
-                : script->m_secondGrow[a].m_statusB;
-            _Additioal_info& dst = m_secondGrowTypes[a].m_addInfo[b];
-            dst.m_field00 = st.m_hpMax;
-            dst.m_field04 = st.m_mpMax;
-            dst.m_field08 = st.m_physAttack;
-            dst.m_field0a = st.m_physDefense;
-            dst.m_field0c = st.m_magAttack;
-            dst.m_field0e = st.m_magDefense;
-            dst.m_field3a = st.m_inventoryLimit;
-            dst.m_field3e = st.m_hpRegen;
-            dst.m_field40 = st.m_mpRegen;
-            dst.m_field42 = st.m_moveSpeed;
-            dst.m_field46 = st.m_attackSpeed;
-            dst.m_field48 = st.m_castSpeed;
-            dst.m_field4a = st.m_hitRecovery;
-            dst.m_field4c = st.m_jumpPower;
-            dst.m_field4e = st.m_weight;
-
-            // ORIG loop-t EA = this + (b*0x28 + a*0x60 + t + 0x150)*2 + 4
-            unsigned short* pElem = reinterpret_cast<unsigned short*>(
-                reinterpret_cast<char*>(this) +
-                (b * 0x28 + a * 0x60 + 0x150) * 2 + 4);
+            m_secondGrowTypes[a].m_addInfo[b].m_field00 = (&script->m_secondGrow[a].m_statusA)[b].m_hpMax;
+            m_secondGrowTypes[a].m_addInfo[b].m_field04 = (&script->m_secondGrow[a].m_statusA)[b].m_mpMax;
+            m_secondGrowTypes[a].m_addInfo[b].m_field08 = (&script->m_secondGrow[a].m_statusA)[b].m_physAttack;
+            m_secondGrowTypes[a].m_addInfo[b].m_field0a = (&script->m_secondGrow[a].m_statusA)[b].m_physDefense;
+            m_secondGrowTypes[a].m_addInfo[b].m_field0c = (&script->m_secondGrow[a].m_statusA)[b].m_magAttack;
+            m_secondGrowTypes[a].m_addInfo[b].m_field0e = (&script->m_secondGrow[a].m_statusA)[b].m_magDefense;
             for (int t = 0; t <= 3; ++t)
-                pElem[t] = st.m_elemResist[t];
-            // ORIG loop-k EA = this + (b*0x28 + a*0x60 + k + 0x150)*2 + 0xc
-            unsigned short* pAct = reinterpret_cast<unsigned short*>(
-                reinterpret_cast<char*>(this) +
-                (b * 0x28 + a * 0x60 + 0x150) * 2 + 0xc);
+                m_secondGrowTypes[a].m_addInfo[b].m_field10[t] = (&script->m_secondGrow[a].m_statusA)[b].m_elemResist[t];
             for (int k = 0; k <= 16; ++k)
-                pAct[k] = st.m_activeResist[k];
+                m_secondGrowTypes[a].m_addInfo[b].m_field18[k] = (&script->m_secondGrow[a].m_statusA)[b].m_activeResist[k];
+            m_secondGrowTypes[a].m_addInfo[b].m_field3a = (&script->m_secondGrow[a].m_statusA)[b].m_inventoryLimit;
+            m_secondGrowTypes[a].m_addInfo[b].m_field3e = (&script->m_secondGrow[a].m_statusA)[b].m_hpRegen;
+            m_secondGrowTypes[a].m_addInfo[b].m_field40 = (&script->m_secondGrow[a].m_statusA)[b].m_mpRegen;
+            m_secondGrowTypes[a].m_addInfo[b].m_field42 = (&script->m_secondGrow[a].m_statusA)[b].m_moveSpeed;
+            m_secondGrowTypes[a].m_addInfo[b].m_field46 = (&script->m_secondGrow[a].m_statusA)[b].m_attackSpeed;
+            m_secondGrowTypes[a].m_addInfo[b].m_field48 = (&script->m_secondGrow[a].m_statusA)[b].m_castSpeed;
+            m_secondGrowTypes[a].m_addInfo[b].m_field4a = (&script->m_secondGrow[a].m_statusA)[b].m_hitRecovery;
+            m_secondGrowTypes[a].m_addInfo[b].m_field4c = (&script->m_secondGrow[a].m_statusA)[b].m_jumpPower;
+            m_secondGrowTypes[a].m_addInfo[b].m_field4e = (&script->m_secondGrow[a].m_statusA)[b].m_weight;
+            // ORIG this + a*0xc0 + b + 0x350：m_fieldbc 的第 b 个字节（源 +0x52）
+            reinterpret_cast<char*>(&m_secondGrowTypes[a].m_fieldbc)[b] =
+                (char)(&script->m_secondGrow[a].m_statusA)[b].m_field52;
+            m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b];
         }
     }
 }

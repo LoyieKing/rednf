@@ -270,45 +270,41 @@ void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
 const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a,
                                                      const wchar_t* b, bool flag) const
 {
-    // ORIG 0x8aa5e40
-    (void)flag;
-    static wchar_t retBuf[256];
-    static wchar_t errBuf[256];
+    // ORIG 0x8aa5e40（169 指令逐段转写）：全程窄 char[256] TLS 缓冲
+    //（%gs 相对 -0x3c248 / -0x3c148）+ ss_sprintf<256> + strcmp，
+    // 没有任何 std::wstring / std::allocator<wchar_t> 临时对象
+    //（ORIG 调用点里 _ZNSbIwSt11char_traitsIwESaIwEEC1* / _ZNSaIwEC1Ev 全为 0）。
+    // 原来的宽串拼接实现属臆造，每轮循环都多出 basic_string/allocator 构造
+    // 与其 EH 清理（eager-ctor 冗余），故按 ORIG 形态改回窄串缓冲。
+    static __thread char buf[256];      // ORIG TLS -0x3c248
+    static __thread char errBuf[256];   // ORIG TLS -0x3c148
 
+    (void)flag;                         // ORIG -0x2c：bool 形参归一化存栈后未再使用
+
+    int idx = -1;                       // ORIG -0x24
     if (static_cast<unsigned>(table) < dictionaries_.size())
     {
-        StringDictionary* d = dictionaries_[table];
-        int idx = getKeyIndex(table, a);
+        // ORIG -0x20 存的是 const operator[] 返回的引用地址，每次使用再解引用
+        StringDictionary* const& d = dictionaries_[table];
+        idx = getKeyIndex(table, a);
         if (idx == -1)
         {
             if (b != 0 && *b != L'\0')
                 idx = getKeyIndex(table, b);
 
-            std::wstring baseKey;
-            if (idx == -1)
-                baseKey = tag_;
+            const char* base = 0;       // ORIG -0x18
+            if (idx != -1)
+                base = d->getKey(idx);
             else
-                baseKey = toUnicode(d->getKey(idx));
+                base = reinterpret_cast<const char*>(tag_.c_str());  // ORIG 按窄串直用
 
             for (int i = 0; i < 10000; ++i)
             {
-                // 生成唯一候选键 "%s_%d"
-                std::wstring cand = baseKey;
-                cand += static_cast<wchar_t>('_');
-                std::wstring num;
+                ss_sprintf(buf, "%s_%d", base, i);
+                bool exists = false;                       // ORIG -0xd
+                for (int j = 0; j < d->getCount(); ++j)    // ORIG 每轮重调 getCount()
                 {
-                    wchar_t tmp[16];
-                    std::swprintf(tmp, 16, L"%d", i);
-                    num = tmp;
-                }
-                cand += num;
-
-                bool exists = false;
-                int n = d->getCount();
-                for (int j = 0; j < n; ++j)
-                {
-                    const char* k = d->getKey(j);
-                    if (k != 0 && cand == toUnicode(k))
+                    if (strcmp(d->getKey(j), buf) == 0)    // ORIG 无 NULL 检查
                     {
                         exists = true;
                         break;
@@ -316,29 +312,26 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
                 }
                 if (!exists)
                 {
-                    // ORIG 0x8aa5e40：add(key=buf, value=b) 直接把 wchar_t* 当
-                    // char* 传（addString 内 strlen 按窄串处理，存原始 wchar 字节）。
-                    d->add(toTString(cand.c_str()), reinterpret_cast<const char*>(b));
+                    // ORIG：add(key=buf, value=a[0x10(%ebp)]) 直接把 wchar_t* 当 char* 传。
+                    d->add(buf, reinterpret_cast<const char*>(a));
                     idx = d->getCount() - 1;
                     break;
                 }
             }
         }
 
+        int unusedSlot = 0;             // ORIG -0x1c：清零后未再引用
+        (void)unusedSlot;
         if (idx != -1)
         {
-            const char* key = d->getKey(idx);
-            std::wstring wkey = toUnicode(key);
-            std::swprintf(retBuf, 256, L"<%d::%s>", table, wkey.c_str());
-            return retBuf;
+            ss_sprintf(buf, "<%d::%s>", table, d->getKey(idx));
+            return toUnicode(buf);
         }
     }
 
-    const char* fname = fileList_.GetFileName(table);
-    std::wstring wb = (b != 0) ? b : L"";
-    std::wstring wfname = toUnicode(fname);
-    std::swprintf(errBuf, 256, L"`%s is not found, %s`", wb.c_str(), wfname.c_str());
-    return errBuf;
+    ss_sprintf(errBuf, "`%s is not found, %s`",
+               reinterpret_cast<const char*>(a), fileList_.GetFileName(table));
+    return reinterpret_cast<const wchar_t*>(errBuf);
 }
 
 void RDARScriptStringManager::setTableValue(int table, int key, const char* value)

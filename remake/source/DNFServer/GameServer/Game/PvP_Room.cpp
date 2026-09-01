@@ -3203,21 +3203,21 @@ int PvP_Room::pvp_reward()
                     {
                         if ((m_pvpBattleMode == 1) || (m_pvpBattleMode == 4))
                         {
-                            APSystem::_ActionGroupIndex group(0x12);
                             APSystem::CUserProc::ClearActionAndSendtoUser(
-                                local_58, group, 0, (ENUM_PACKETCLASS)0);
+                                local_58, (APSystem::_ActionGroupIndex)0x12, 0,
+                                (ENUM_PACKETCLASS)0);
                         }
                         else if ((m_pvpBattleMode == 2) || (m_pvpBattleMode == 5))
                         {
-                            APSystem::_ActionGroupIndex group(0x13);
                             APSystem::CUserProc::ClearActionAndSendtoUser(
-                                local_58, group, 0, (ENUM_PACKETCLASS)0);
+                                local_58, (APSystem::_ActionGroupIndex)0x13, 0,
+                                (ENUM_PACKETCLASS)0);
                         }
                         else if (m_pvpBattleMode == 3)
                         {
-                            APSystem::_ActionGroupIndex group(0x14);
                             APSystem::CUserProc::ClearActionAndSendtoUser(
-                                local_58, group, 0, (ENUM_PACKETCLASS)0);
+                                local_58, (APSystem::_ActionGroupIndex)0x14, 0,
+                                (ENUM_PACKETCLASS)0);
                         }
                     }
                 }

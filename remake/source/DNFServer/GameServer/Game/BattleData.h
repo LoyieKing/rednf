@@ -22,10 +22,9 @@ struct stEventClearData
 #include "Inven_Item.h"   // 权威物品布局（pack(1)，0x3d 每项；BattleData.cpp
                           //   placement-new Inven_Item 实证，替代 char 占位镜像）
 
-struct stGameResult
-{
-    char m_pad[0x50];
-};
+#include "GameResultType.h"   // ORIG C1/D1 反汇编实证：m_gameResults 是真实
+                              //   GameResultType[4] 成员（隐式数组构造/析构 + EH 清理），
+                              //   不是 char 占位镜像。
 
 // ORIG 符号：C1 0x082a4cea / D1 0x082a54d6 / Reset 0x082a4e8a /
 //   GetHellPartyValueTotal 0x0822d7c4 / SetHellPartyValueTotal 0x0822d7b2 /
@@ -79,7 +78,7 @@ public:
     Inven_Item m_itemGroups2[4][2];  // +0x444
     stEventClearData m_eventClear[12];// +0x62c
     int m_field68c;      // +0x68c
-    stGameResult m_gameResults[4];    // +0x690
+    GameResultType m_gameResults[4];  // +0x690（0x50 每项）
     int m_arr7d0[4];     // +0x7d0
     float m_hellPartyValueTotal;      // +0x7e0
     char m_arr7e4[4];    // +0x7e4

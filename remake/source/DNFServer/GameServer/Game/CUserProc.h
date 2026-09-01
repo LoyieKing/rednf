@@ -17,13 +17,7 @@ class CUser;
 namespace APSystem
 {
 
-class _ActionGroupIndex
-{
-public:
-    _ActionGroupIndex() {}
-    explicit _ActionGroupIndex(int v) : m_value(v) {}  // ORIG 调用点以整型组号直传（压栈形态）
-    int m_value;  // +0x00
-};
+// _ActionGroupIndex（4 字节枚举，ORIG 无任何构造符号）权威定义见 APSystemTypes.h。
 
 class _MSG_ACTION_POINT_ACTION_CLEAR
 {

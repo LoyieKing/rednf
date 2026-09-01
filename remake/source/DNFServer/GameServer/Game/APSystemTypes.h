@@ -16,6 +16,22 @@ namespace APSystem
 {
 
 // ============================================================================
+// APSystem::_ActionGroupIndex —— 动作点「组号」类型。
+// ORIG 实证（df_game_r 全符号表）：不存在 _ZN8APSystem17_ActionGroupIndexC1E*
+// / D1 / 任何成员函数符号；ClearActionAndSendtoUser / SendActionClear /
+// IsValidActionGroupIndex 的全部调用点都是一条 movl $<组号>,0x4(%esp) 直压
+// 立即数（如 CParty::ClearDungeon 0x085a9330 的 0x18/0x19/0x1b/0x1c/0xf/0xd）。
+// ⇒ 该形参类型是 4 字节枚举（Itanium ABI 下与 class 同名同 mangling
+//    NS_17_ActionGroupIndexE），而非带构造函数的类；建模成类会在每个调用点
+//    多出一次 C1Ev/C1Ei 构造调用（eager-ctor 冗余）。
+// ============================================================================
+enum _ActionGroupIndex
+{
+    _ACTION_GROUP_INDEX_NONE = 0   // 组号由调用点以整型强制转换直传 [1,0x2d]
+};
+
+
+// ============================================================================
 // APSystem::_TodayRewardItem —— 顶层类（ORIG W 0x08895736 C1/C2 同体，
 // memset(this,0,0xe)；D1/D2 0x08897d76 空体）。
 // CActionPointEtcParameter::m_todayRewards 的元素类型；import 段

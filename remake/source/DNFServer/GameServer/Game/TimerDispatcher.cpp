@@ -367,17 +367,15 @@ int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
     // UpdateData/GetUID 为 CUser 成员（CUser 继承 CUserCharacInfo），保持 CUser*。
     const int elapsedHours =
         (GlobalData::s_systemTime_.getCurSec() - user->GetLoginTick()) / 0xe10;
-    APSystem::_ActionGroupIndex group23(0x23);
-    APSystem::_ActionGroupIndex group24(0x24);
     if (elapsedHours == 1)
     {
-        APSystem::CUserProc::ClearActionAndSendtoUser(user, group23, 0,
-                                                       ENUM_PACKETCLASS_0);
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            user, (APSystem::_ActionGroupIndex)0x23, 0, ENUM_PACKETCLASS_0);
     }
     else if (elapsedHours > 0xb && elapsedHours < 0xd)
     {
-        APSystem::CUserProc::ClearActionAndSendtoUser(user, group24, 0,
-                                                       ENUM_PACKETCLASS_0);
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            user, (APSystem::_ActionGroupIndex)0x24, 0, ENUM_PACKETCLASS_0);
     }
     if (user->GetLoginTick() != p2 ||
         (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))

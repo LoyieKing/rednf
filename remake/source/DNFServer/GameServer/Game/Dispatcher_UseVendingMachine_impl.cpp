@@ -537,9 +537,8 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     resp.put_short(idx, cnt);
     resp.finalize(true);
     user->Send(resp);
-    APSystem::_ActionGroupIndex grp;
-    grp.m_value = 0x27;
-    APSystem::CUserProc::ClearActionAndSendtoUser(user, grp, 0, (ENUM_PACKETCLASS)0);
+    APSystem::CUserProc::ClearActionAndSendtoUser(
+        user, (APSystem::_ActionGroupIndex)0x27, 0, (ENUM_PACKETCLASS)0);
     return 0;
 }
 

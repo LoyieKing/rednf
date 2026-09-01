@@ -889,10 +889,8 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         pg->put_short((int)tSlot);
         if (upCount == 0)
         {
-            APSystem::_ActionGroupIndex group;
-            group.m_value = 0xc;
             APSystem::CUserProc::ClearActionAndSendtoUser(
-                user, group, 0, (ENUM_PACKETCLASS)0);
+                user, (APSystem::_ActionGroupIndex)0xc, 0, (ENUM_PACKETCLASS)0);
         }
     }
     else
