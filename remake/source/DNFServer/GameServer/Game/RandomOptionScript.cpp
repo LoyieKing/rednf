@@ -305,21 +305,23 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     script.m_map30.find(partType);
                 if (mit != script.m_map30.end())
                 {
-                    PartSelectonField f;
-                    f.m_partType = itemGroup;
-                    f.m_weight = weight;
-                    mit->second.m_vec10.push_back(f);
+                    // ORIG 0x8a70fdb/0x8a71032：把 itemGroup/weight 两个紧邻 int 槽直接
+                    // 当作 PartSelectonField 传给 push_back（ORIG 该结构可平凡析构，无 D1）。
+                    int fbuf[2];
+                    fbuf[0] = itemGroup;
+                    fbuf[1] = weight;
+                    mit->second.m_vec10.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
                     mit->second.m_fieldC += weight;
-                    mit->second.m_vec0.push_back(f);
+                    mit->second.m_vec0.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
                 }
                 else
                 {
                     PartSelectonValue val;
-                    PartSelectonField f;
-                    f.m_partType = itemGroup;
-                    f.m_weight = weight;
-                    val.m_vec10.push_back(f);
-                    val.m_vec0.push_back(f);
+                    int fbuf[2];
+                    fbuf[0] = itemGroup;
+                    fbuf[1] = weight;
+                    val.m_vec10.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
+                    val.m_vec0.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
                     val.m_fieldC = weight;
                     // ORIG 此分支 insert 不检查 duplicate。
                     script.m_map30.insert(std::make_pair(partType, val));
@@ -437,15 +439,17 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     break;
                 }
-                QuantityRatio qr;
-                qr.m_field0 = v;
+                int buf[2];
+                buf[0] = v;
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0xea;
                 }
-                qr.m_weight4 = (unsigned int)v;
-                script.m_veca8.push_back(qr);
+                buf[1] = (int)v;
+                // ORIG 0x8a7197f：把两个紧邻 int 槽（m_field0/m_weight4）直接当作
+                // QuantityRatio 传给 push_back（ORIG 该结构可平凡析构，无 D1 调用）。
+                script.m_veca8.push_back(*reinterpret_cast<QuantityRatio*>(buf));
             }
         }
         else if (line == "[option quantity]")
@@ -763,7 +767,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[option value ratio]")
         {
-            OptionValueRatio ratio;
+            // ORIG 0x8a72a15/~0x8a72ac1：ratio 存于 -0x554（+0 scaleRange0/+4 scaleBase4/+8 weight8），
+            // 构造后不复用 D1；用紧邻 float[3] 槽直接当作 OptionValueRatio 传给 push_back。
+            float rbuf[3];
             for (;;)
             {
                 float f = ScanFloat(&ok);
@@ -771,21 +777,21 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     break;
                 }
-                ratio.m_scaleBase4 = f;
+                rbuf[1] = f;   // m_scaleBase4 +0x04
                 f = ScanFloat(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ratio.m_scaleRange0 = f;
+                rbuf[0] = f;   // m_scaleRange0 +0x00
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x1f5;
                 }
-                ratio.m_weight8 = (unsigned int)v;
+                *(unsigned int*)(&rbuf[2]) = (unsigned int)v;   // m_weight8 +0x08
                 script.m_ratioE4.m_c += v;
-                script.m_ratioE4.m_vec0.push_back(ratio);
+                script.m_ratioE4.m_vec0.push_back(*reinterpret_cast<OptionValueRatio*>(rbuf));
             }
         }
         else if (line == "[option group]")
@@ -890,8 +896,8 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     break;
                 }
-                ChoosePrefix cp(minVal, maxVal, v);
-                script.m_choosePrefix1d8.push_back(cp);
+                // ORIG 0x8a7301f：ChoosePrefix 临时对象按右值 push_back（EOS0_ 移动重载）。
+                script.m_choosePrefix1d8.push_back(ChoosePrefix(minVal, maxVal, v));
             }
         }
         else if (line == "[break seal cost]")
@@ -1048,20 +1054,22 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 if (it != script.m_map1e8.end())
                 {
                     it->second.m_count += weight;
-                    ResetValue rv;
-                    rv.m_min = minVal;
-                    rv.m_max = maxVal;
-                    rv.m_weight8 = weight;
-                    it->second.m_values.push_back(rv);
+                    // ORIG 0x08a779..：minVal/maxVal/weight 三紧邻槽当作 ResetValue
+                    // 传给 push_back（ORIG 可平凡析构，无 D1）。
+                    int rbuf[3];
+                    rbuf[0] = minVal;
+                    rbuf[1] = maxVal;
+                    rbuf[2] = weight;
+                    it->second.m_values.push_back(*reinterpret_cast<ResetValue*>(rbuf));
                 }
                 else
                 {
                     ResetValues rvs;
-                    ResetValue rv;
-                    rv.m_min = minVal;
-                    rv.m_max = maxVal;
-                    rv.m_weight8 = weight;
-                    rvs.m_values.push_back(rv);
+                    int rbuf[3];
+                    rbuf[0] = minVal;
+                    rbuf[1] = maxVal;
+                    rbuf[2] = weight;
+                    rvs.m_values.push_back(*reinterpret_cast<ResetValue*>(rbuf));
                     script.m_map1e8.insert(std::make_pair(key, rvs));
                 }
             }

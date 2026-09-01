@@ -1713,17 +1713,11 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 unsigned int cur = (unsigned)
                     GlobalData::s_systemTime_.getCurSec();
-                std::string name("Arad_EventPeriodDataManager");
-                ARAD::Arad_DataManager* aradMgr =
-                    ARAD::Singleton<ARAD::Arad_DataManager>::Get();
-                ARAD::Arad_EventPeriodDataManager* period = 0;
                 // findGameScript 返回 Arad_InterfaceGameScript*，向下转型到 period 数据管理器
-                if (ARAD::Arad_InterfaceGameScript* script = aradMgr->findGameScript(name))
-                    period = reinterpret_cast<ARAD::Arad_EventPeriodDataManager*>(script);
-                bool applied = false;
-                if (period != 0)
-                    applied = period->isApplied(ENUM_REPEAT_EVENT_CODE(0x8e), cur);
-                if (applied)
+                if (reinterpret_cast<ARAD::Arad_EventPeriodDataManager*>(
+                        ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                            "Arad_EventPeriodDataManager"))
+                    ->isApplied(ENUM_REPEAT_EVENT_CODE(0x8e), cur))
                 {
                     AradServerStateMessage msg;
                     ARAD::notifyOpenMessageDialog(user, 0, 0x8e, msg);
