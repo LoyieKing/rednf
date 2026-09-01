@@ -1225,9 +1225,9 @@ void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
-    localtime_r(&now, &broken);
+    struct tm* r = localtime_r(&now, &broken);
     m_user->LogHistory("GuildJoin,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
                        guildKey, guildName, characNo, (unsigned)a, (int)b);
 }
 
@@ -1237,9 +1237,9 @@ void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
-    localtime_r(&now, &broken);
+    struct tm* r = localtime_r(&now, &broken);
     m_user->LogHistory("GuildOut,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
                        guildKey, guildName, characNo, (int)a, (unsigned)b);
 }
 
@@ -1250,9 +1250,9 @@ void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildN
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
-    localtime_r(&now, &broken);
+    struct tm* r = localtime_r(&now, &broken);
     m_user->LogHistory("GuildChangeGrade,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d,%d",
-                       broken.tm_year + 0x76c, broken.tm_mon + 1, broken.tm_mday,
+                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
                        guildKey, guildName, characNo, grade,
                        (unsigned)(oldGrade & 0xff), (unsigned)(newGrade & 0xff));
 }
