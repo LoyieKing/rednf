@@ -1540,7 +1540,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect m_id, passwd,first_ssn, second_ssn,DATE_FORMAT(from_unixtime(reg_date),'%%Y%%m%%d%%H'),user_name,email,hangame_flag,reg_date from  member_info  where  user_id='%s' and hangame_flag=%d",
-        userId, (unsigned int)(unsigned char)SGFC(char, sig, OFF_HANGAME_FLAG));
+        userId, (unsigned int)(unsigned char)sig->m_loginType);   // OFF_HANGAME_FLAG -> m_loginType @+0xa0
     if (!db->exec(true))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x397f, 5);
