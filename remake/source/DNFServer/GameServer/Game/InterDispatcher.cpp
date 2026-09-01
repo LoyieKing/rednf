@@ -531,7 +531,6 @@ bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
 // ======== 具体分发器生命周期 + dispatch_sig stub ========
 // stub 体待后续批次按 docs/class_func_reports 还原；地址=该函数 ORIG 起点。
 
-Inter_Disconnect::Inter_Disconnect() {}
 Inter_Disconnect::~Inter_Disconnect() {}
 // ORIG 0x084beb3c T dispatch_sig —— 用户断开清理：状态门/扩展槽切换/付费税上报/各管理器离开通知/DB 收尾。
 // 报告 docs/class_func_reports/Inter_Disconnect/dispatch_sig.md 全文转写。
@@ -601,7 +600,6 @@ int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SessionClose::Inter_SessionClose() {}
 Inter_SessionClose::~Inter_SessionClose() {}
 // ORIG 0x084c7af0 T dispatch_sig —— 监控侧会话强制关闭。
 // 报告 docs/class_func_reports/Inter_SessionClose/dispatch_sig.md 全文转写。
@@ -1288,10 +1286,8 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoginInfo::Inter_LoginInfo() {}
 Inter_LoginInfo::~Inter_LoginInfo() {}
 
-Inter_CreateCharac::Inter_CreateCharac() {}
 Inter_CreateCharac::~Inter_CreateCharac() {}
 int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -1485,7 +1481,6 @@ void Inter_CreateCharac::process_createGift(CUser* user, SIG_CREATE_CHARAC* sig)
     }
 }
 
-Inter_DeleteCharac::Inter_DeleteCharac() {}
 Inter_DeleteCharac::~Inter_DeleteCharac() {}
 // ORIG 0x084bf810 T dispatch_sig —— 删除角色应答分发：结果码 1/2/3 直接回执，
 // 其余构造 Packet_Monitor_Charac_Delete 上报 monitor/guild 后本地删角色并刷基础信息。
@@ -1565,7 +1560,6 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadCharac::Inter_LoadCharac() {}
 Inter_LoadCharac::~Inter_LoadCharac() {}
 // ORIG 0x084c3398 T dispatch_sig —— 登录加载角色。
 // 报告 docs/class_func_reports/Inter_LoadCharac/dispatch_sig.md 全文转写
@@ -2166,10 +2160,8 @@ void Inter_LoadInven::_UpdateDimensionRentalItems(CUser* user,
     }
 }
 
-Inter_LoadInven::Inter_LoadInven() {}
 Inter_LoadInven::~Inter_LoadInven() {}
 
-Inter_LoadSkill::Inter_LoadSkill() {}
 Inter_LoadSkill::~Inter_LoadSkill() {}
 // ORIG 0x084c5152 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_LoadSkill/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -2178,7 +2170,6 @@ int Inter_LoadSkill::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
     return 0;
 }
 
-Inter_LoadQuest::Inter_LoadQuest() {}
 Inter_LoadQuest::~Inter_LoadQuest() {}
 // ORIG 0x084c5054 T dispatch_sig —— DB 任务数据装载。
 // 报告 docs/class_func_reports/Inter_LoadQuest/dispatch_sig.md 全文转写。
@@ -2204,7 +2195,6 @@ int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadTicket::Inter_LoadTicket() {}
 Inter_LoadTicket::~Inter_LoadTicket() {}
 // ORIG 0x084c515c T dispatch_sig —— 点券 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadTicket/dispatch_sig.md 全文转写。
@@ -2225,7 +2215,6 @@ int Inter_LoadTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadDungeonClear::Inter_LoadDungeonClear() {}
 Inter_LoadDungeonClear::~Inter_LoadDungeonClear() {}
 // ORIG 0x084c7c42 T dispatch_sig —— 副本通关记录 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadDungeonClear/dispatch_sig.md 全文转写。
@@ -2253,7 +2242,6 @@ int Inter_LoadDungeonClear::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-APSystem::Inter_LoadActionPoint::Inter_LoadActionPoint() {}
 APSystem::Inter_LoadActionPoint::~Inter_LoadActionPoint() {}
 // ORIG 0x08124d2a T dispatch_sig —— 行动点 DB 加载写入 CActionPointManager。
 // 报告 docs/class_func_reports/APSystem__Inter_LoadActionPoint/dispatch_sig.md 全文转写。
@@ -2268,7 +2256,6 @@ int APSystem::Inter_LoadActionPoint::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-APSystem::Inter_EmptyActionPoint::Inter_EmptyActionPoint() {}
 APSystem::Inter_EmptyActionPoint::~Inter_EmptyActionPoint() {}
 // ORIG 0x08124db0 T dispatch_sig —— 行动点空载/当日奖励检查。
 // 报告 docs/class_func_reports/APSystem__Inter_EmptyActionPoint/dispatch_sig.md 全文转写。
@@ -2283,7 +2270,6 @@ int APSystem::Inter_EmptyActionPoint::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-APSystem::Inter_LoadRewardMedal::Inter_LoadRewardMedal() {}
 APSystem::Inter_LoadRewardMedal::~Inter_LoadRewardMedal() {}
 // ORIG 0x08124e2a T dispatch_sig —— 奖章 DB 更新请求。
 // 报告 docs/class_func_reports/APSystem__Inter_LoadRewardMedal/dispatch_sig.md 全文转写。
@@ -2299,7 +2285,6 @@ int APSystem::Inter_LoadRewardMedal::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-advancealtar::Inter_Load::Inter_Load() {}
 advancealtar::Inter_Load::~Inter_Load() {}
 // ORIG 0x0813f72a T dispatch_sig —— 祭坛角色数据 DB 加载写入管理器。
 // 报告 docs/class_func_reports/advancealtar__Inter_Load/dispatch_sig.md 全文转写。
@@ -2315,7 +2300,6 @@ int advancealtar::Inter_Load::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_DeleteChannel::Inter_DeleteChannel() {}
 Inter_DeleteChannel::~Inter_DeleteChannel() {}
 int Inter_DeleteChannel::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -2342,10 +2326,8 @@ int Inter_Notice::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 }
 // Inter_Notice ctor/dtor：ORIG C1/D1 W（对象尺寸 4，仅 vptr；ISigDispatcher 基类
 // vptr 覆写），与同文件 Inter_* 家族同构。
-Inter_Notice::Inter_Notice() {}
 Inter_Notice::~Inter_Notice() {}
 
-Inter_Terminate::Inter_Terminate() {}
 Inter_Terminate::~Inter_Terminate() {}
 int Inter_Terminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
@@ -2353,7 +2335,6 @@ int Inter_Terminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
     exit(0);
 }
 
-Inter_ReadyToTerminate::Inter_ReadyToTerminate() {}
 Inter_ReadyToTerminate::~Inter_ReadyToTerminate() {}
 // ORIG 0x084c7d2c T dispatch_sig —— 关服就绪信号入 DB 队列。
 // 报告 docs/class_func_reports/Inter_ReadyToTerminate/dispatch_sig.md 全文转写。
@@ -2368,7 +2349,6 @@ int Inter_ReadyToTerminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*
     return 0;
 }
 
-Inter_MonitorBuddyInOut::Inter_MonitorBuddyInOut() {}
 Inter_MonitorBuddyInOut::~Inter_MonitorBuddyInOut() {}
 // ORIG 0x084c8ec0 T dispatch_sig —— 好友上下线通知（0x36/0x37 包），上线且当前角色存在时补发系统邮件。
 // 报告 docs/class_func_reports/Inter_MonitorBuddyInOut/dispatch_sig.md 全文转写。
@@ -2419,7 +2399,6 @@ int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorLoginOK::Inter_MonitorLoginOK() {}
 Inter_MonitorLoginOK::~Inter_MonitorLoginOK() {}
 #include "CTimeGate.h"           // CTimeGate::isOpen/getNpcIndex（GlobalData 前向的完整类型）
 #include "TimerQueue.h"          // TimerEntry::OBJ_TYPE/TIMER_MESSAGE/G_TimerQueue()
@@ -2658,7 +2637,6 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorCallUserInfo::Inter_MonitorCallUserInfo() {}
 Inter_MonitorCallUserInfo::~Inter_MonitorCallUserInfo() {}
 // ORIG 0x084c89b2 T dispatch_sig —— 监控服索取用户信息上报。
 // 报告 docs/class_func_reports/Inter_MonitorCallUserInfo/dispatch_sig.md 全文转写。
@@ -2681,7 +2659,6 @@ int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*l
     return 0;
 }
 
-Inter_CutOffCallUserInfo::Inter_CutOffCallUserInfo() {}
 Inter_CutOffCallUserInfo::~Inter_CutOffCallUserInfo() {}
 // ORIG 0x084c8a70 T dispatch_sig —— 截断服索取用户信息。
 // 报告 docs/class_func_reports/Inter_CutOffCallUserInfo/dispatch_sig.md 全文转写。
@@ -2704,7 +2681,6 @@ int Inter_CutOffCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_MonitorUserGetout::Inter_MonitorUserGetout() {}
 Inter_MonitorUserGetout::~Inter_MonitorUserGetout() {}
 // ORIG 0x084c8b0c T dispatch_sig —— 监控侧用户强制退出。
 // 报告 docs/class_func_reports/Inter_MonitorUserGetout/dispatch_sig.md 全文转写。
@@ -2728,7 +2704,6 @@ int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_WebNoticeIngameAdvertisement::Inter_WebNoticeIngameAdvertisement() {}
 Inter_WebNoticeIngameAdvertisement::~Inter_WebNoticeIngameAdvertisement() {}
 // ORIG 0x084c8c4e T dispatch_sig —— 网页游戏内广告通知入 DB 队列。
 // 报告 docs/class_func_reports/Inter_WebNoticeIngameAdvertisement/dispatch_sig.md 全文转写。
@@ -2743,7 +2718,6 @@ int Inter_WebNoticeIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* /*da
     return 0;
 }
 
-Inter_ReloadIngameAdvertisement::Inter_ReloadIngameAdvertisement() {}
 Inter_ReloadIngameAdvertisement::~Inter_ReloadIngameAdvertisement() {}
 // ORIG 0x084c8d10 T dispatch_sig —— 游戏内广告条件重载。
 // 报告 docs/class_func_reports/Inter_ReloadIngameAdvertisement/dispatch_sig.md 全文转写。
@@ -2766,7 +2740,6 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
     return 0;
 }
 
-Inter_TcpServerConnect::Inter_TcpServerConnect() {}
 Inter_TcpServerConnect::~Inter_TcpServerConnect() {}
 // ORIG 0x084c8dca T dispatch_sig —— 公会/监控服代理 TCP 重连。
 // 报告 docs/class_func_reports/Inter_TcpServerConnect/dispatch_sig.md 全文转写。
@@ -2799,7 +2772,6 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
     return 0;
 }
 
-Inter_MonitorReplyBuddyList::Inter_MonitorReplyBuddyList() {}
 Inter_MonitorReplyBuddyList::~Inter_MonitorReplyBuddyList() {}
 // ORIG 0x084c9148 T dispatch_sig —— 监控服好友在线列表应答广播。
 // 报告 docs/class_func_reports/Inter_MonitorReplyBuddyList/dispatch_sig.md 全文转写。
@@ -2812,7 +2784,6 @@ int Inter_MonitorReplyBuddyList::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_MonitorCeraUpdate::Inter_MonitorCeraUpdate() {}
 Inter_MonitorCeraUpdate::~Inter_MonitorCeraUpdate() {}
 // ORIG 0x084cea92 T dispatch_sig —— IPG 塞拉更新：按 accId 定位用户并触发 IPG 查询。
 // 报告 docs/class_func_reports/Inter_MonitorCeraUpdate/dispatch_sig.md 全文转写。
@@ -2830,7 +2801,6 @@ int Inter_MonitorCeraUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_IPGResult::Inter_IPGResult() {}
 Inter_IPGResult::~Inter_IPGResult() {}
 // ORIG 0x084ceaee T dispatch_sig —— IPG 计费结果分发：数据流分支（ProcessIPGUserData）
 // 与查询结果分支（SendCashData / 点数查询 / CERA 查询 / 错误状态包）。
@@ -2913,7 +2883,6 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GenCeraTicket::Inter_GenCeraTicket() {}
 Inter_GenCeraTicket::~Inter_GenCeraTicket() {}
 // ORIG 0x084ceea2 T dispatch_sig —— 生成 Cera 票据并回发。
 // 报告 docs/class_func_reports/Inter_GenCeraTicket/dispatch_sig.md 全文转写。
@@ -2938,7 +2907,6 @@ int Inter_GenCeraTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadEventItem::Inter_LoadEventItem() {}
 Inter_LoadEventItem::~Inter_LoadEventItem() {}
 // ORIG 0x084cf0c4 T dispatch_sig —— Web 活动物品入库：RecvInfoFromDB 逐项校验后入 DB 队列。
 // 报告 docs/class_func_reports/Inter_LoadEventItem/dispatch_sig.md 全文转写。
@@ -2995,7 +2963,6 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorEventItemUpdate::Inter_MonitorEventItemUpdate() {}
 Inter_MonitorEventItemUpdate::~Inter_MonitorEventItemUpdate() {}
 // ORIG 0x084cefd2 T dispatch_sig —— 网页活动道具更新（CWebEvent::RecvInfoFromWeb）。
 // 报告 docs/class_func_reports/Inter_MonitorEventItemUpdate/dispatch_sig.md 全文转写。
@@ -3022,7 +2989,6 @@ int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int 
     return 0;
 }
 
-Inter_MonitorServerEventStart::Inter_MonitorServerEventStart() {}
 Inter_MonitorServerEventStart::~Inter_MonitorServerEventStart() {}
 // ORIG 0x084cf3ca T dispatch_sig —— 服务端事件启动：圣诞事件开启、广播与定时器注册。
 // 报告 docs/class_func_reports/Inter_MonitorServerEventStart/dispatch_sig.md 全文转写。
@@ -3060,7 +3026,6 @@ int Inter_MonitorServerEventStart::dispatch_sig(CUser* /*user*/, char* data, int
     return 0;
 }
 
-Inter_FatigueResetDBReply::Inter_FatigueResetDBReply() {}
 Inter_FatigueResetDBReply::~Inter_FatigueResetDBReply() {}
 // ORIG 0x084cf546 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_FatigueResetDBReply/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -3069,7 +3034,6 @@ int Inter_FatigueResetDBReply::dispatch_sig(CUser* /*user*/, char* /*data*/, int
     return 0;
 }
 
-Inter_SuicideWhenQueueIsEmpty::Inter_SuicideWhenQueueIsEmpty() {}
 Inter_SuicideWhenQueueIsEmpty::~Inter_SuicideWhenQueueIsEmpty() {}
 // ORIG 0x084cf550 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_SuicideWhenQueueIsEmpty/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -3078,7 +3042,6 @@ int Inter_SuicideWhenQueueIsEmpty::dispatch_sig(CUser* /*user*/, char* /*data*/,
     return 0;
 }
 
-Inter_MonitorNoticeGuildEnter::Inter_MonitorNoticeGuildEnter() {}
 Inter_MonitorNoticeGuildEnter::~Inter_MonitorNoticeGuildEnter() {}
 // ORIG 0x084c9194 T dispatch_sig —— 公会加入通知（0x3a 包 + GuildJoin 历史日志）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildEnter/dispatch_sig.md 全文转写。
@@ -3128,7 +3091,6 @@ int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_MonitorNoticeGuildSecede::Inter_MonitorNoticeGuildSecede() {}
 Inter_MonitorNoticeGuildSecede::~Inter_MonitorNoticeGuildSecede() {}
 // ORIG 0x084c957e T dispatch_sig —— 公会退出通知：校验角色号后组 0x3b 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildSecede/dispatch_sig.md 全文转写。
@@ -3169,7 +3131,6 @@ int Inter_MonitorNoticeGuildSecede::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_MonitorNoticeGuildMarkChange::Inter_MonitorNoticeGuildMarkChange() {}
 Inter_MonitorNoticeGuildMarkChange::~Inter_MonitorNoticeGuildMarkChange() {}
 // ORIG 0x084ca1e6 T dispatch_sig —— 公会徽标变更：校验 charac_no 后转发公会 key。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildMarkChange/dispatch_sig.md 全文转写。
@@ -3208,7 +3169,6 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
     return 0;
 }
 
-Inter_MonitorNoticeGuildDismiss::Inter_MonitorNoticeGuildDismiss() {}
 Inter_MonitorNoticeGuildDismiss::~Inter_MonitorNoticeGuildDismiss() {}
 // ORIG 0x084ca00c T dispatch_sig —— 公会解散通知：清公会标记并组 0x3d 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildDismiss/dispatch_sig.md 全文转写。
@@ -3253,7 +3213,6 @@ int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_MonitorNoticeGuildChatMsg::Inter_MonitorNoticeGuildChatMsg() {}
 Inter_MonitorNoticeGuildChatMsg::~Inter_MonitorNoticeGuildChatMsg() {}
 // ORIG 0x084c9e30 T dispatch_sig —— 公会聊天消息转发：校验角色号后组 0x41 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildChatMsg/dispatch_sig.md 全文转写。
@@ -3293,7 +3252,6 @@ int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_MonitorCallGuildMembers::Inter_MonitorCallGuildMembers() {}
 Inter_MonitorCallGuildMembers::~Inter_MonitorCallGuildMembers() {}
 // ORIG 0x084ca7e6 T dispatch_sig —— 公会成员列表下发（0x46 包 + MakePacketGuildMembersInfo）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildMembers/dispatch_sig.md 全文转写。
@@ -3345,7 +3303,6 @@ int Inter_MonitorCallGuildMembers::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_MonitorCallGuildMembersNext::Inter_MonitorCallGuildMembersNext() {}
 Inter_MonitorCallGuildMembersNext::~Inter_MonitorCallGuildMembersNext() {}
 // ORIG 0x084caa16 T dispatch_sig —— 公会成员信息续查：双校验后组 0x8e 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildMembersNext/dispatch_sig.md 全文转写。
@@ -3391,7 +3348,6 @@ int Inter_MonitorCallGuildMembersNext::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_MonitorCallGuildAllMembers::Inter_MonitorCallGuildAllMembers() {}
 Inter_MonitorCallGuildAllMembers::~Inter_MonitorCallGuildAllMembers() {}
 // ORIG 0x084cabda T dispatch_sig —— 公会全成员列表下发（0x8f 包 + MakePacketGuildMembersInfo）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildAllMembers/dispatch_sig.md 全文转写。
@@ -3443,7 +3399,6 @@ int Inter_MonitorCallGuildAllMembers::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_MonitorCallGuildAllMembersNext::Inter_MonitorCallGuildAllMembersNext() {}
 Inter_MonitorCallGuildAllMembersNext::~Inter_MonitorCallGuildAllMembersNext() {}
 // ORIG 0x084cae0a T dispatch_sig —— 公会全体成员信息续查：双校验后组 0x90 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildAllMembersNext/dispatch_sig.md 全文转写。
@@ -3489,7 +3444,6 @@ int Inter_MonitorCallGuildAllMembersNext::dispatch_sig(CUser* user, char* data, 
     return 0;
 }
 
-Inter_MonitorNoticeGuildNames::Inter_MonitorNoticeGuildNames() {}
 Inter_MonitorNoticeGuildNames::~Inter_MonitorNoticeGuildNames() {}
 // ORIG 0x084cafce T dispatch_sig —— 公会成员名列表通知：双重校验后组 0x3f 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildNames/dispatch_sig.md 全文转写。
@@ -3534,7 +3488,6 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_MonitorNoticeGuildLoginOut::Inter_MonitorNoticeGuildLoginOut() {}
 Inter_MonitorNoticeGuildLoginOut::~Inter_MonitorNoticeGuildLoginOut() {}
 // ORIG 0x084c93e4 T dispatch_sig —— 公会成员登录/登出广播：校验 charac_no 后转发登出包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildLoginOut/dispatch_sig.md 全文转写。
@@ -3569,7 +3522,6 @@ int Inter_MonitorNoticeGuildLoginOut::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_MonitorNoticeOtherChannelChat::Inter_MonitorNoticeOtherChannelChat() {}
 Inter_MonitorNoticeOtherChannelChat::~Inter_MonitorNoticeOtherChannelChat() {}
 // ORIG 0x084cb1ac T dispatch_sig —— 其它频道聊天通知：按消息类型（1/2/3/私聊回执）
 // 构造 0x41 聊天包转发给目标用户。
@@ -3661,7 +3613,6 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_MonitorCallGuildInfo::Inter_MonitorCallGuildInfo() {}
 Inter_MonitorCallGuildInfo::~Inter_MonitorCallGuildInfo() {}
 // ORIG 0x084cc006 T dispatch_sig —— 公会信息查询结果下发（0x4d 包，0x1d 步长成员数组）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildInfo/dispatch_sig.md 全文转写。
@@ -3706,7 +3657,6 @@ int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_MonitorNoticeGuildInfo::Inter_MonitorNoticeGuildInfo() {}
 Inter_MonitorNoticeGuildInfo::~Inter_MonitorNoticeGuildInfo() {}
 // ORIG 0x084cb726 T dispatch_sig —— 监控服公会信息通知：落 SetGuildDBInfo 后组
 // 0x46 公会信息包（成员等级过滤、公告/说明串）回发用户。
@@ -3790,7 +3740,6 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_MonitorSetGuildKey::Inter_MonitorSetGuildKey() {}
 Inter_MonitorSetGuildKey::~Inter_MonitorSetGuildKey() {}
 // ORIG 0x084cbd26 T dispatch_sig —— 设置公会 key：state==2 登录期直写，state>2 校验角色号后发包。
 // 报告 docs/class_func_reports/Inter_MonitorSetGuildKey/dispatch_sig.md 全文转写。
@@ -3857,7 +3806,6 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
     return 0;
 }
 
-Inter_MonitorNoticeGuildCreate::Inter_MonitorNoticeGuildCreate() {}
 Inter_MonitorNoticeGuildCreate::~Inter_MonitorNoticeGuildCreate() {}
 // ORIG 0x084cbb94 T dispatch_sig —— 公会创建通知：写 guildkey 后转发公会名。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildCreate/dispatch_sig.md 全文转写。
@@ -3893,7 +3841,6 @@ int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_MonitorGuildMemberNamingReply::Inter_MonitorGuildMemberNamingReply() {}
 Inter_MonitorGuildMemberNamingReply::~Inter_MonitorGuildMemberNamingReply() {}
 // ORIG 0x084cc23c T dispatch_sig —— 公会成员命名应答。
 // 报告 docs/class_func_reports/Inter_MonitorGuildMemberNamingReply/dispatch_sig.md 全文转写。
@@ -3921,7 +3868,6 @@ int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_MonitorSetSubGuildMasterReply::Inter_MonitorSetSubGuildMasterReply() {}
 Inter_MonitorSetSubGuildMasterReply::~Inter_MonitorSetSubGuildMasterReply() {}
 // ORIG 0x084cc35c T dispatch_sig —— 副会长设置应答（0x81 包 + GuildChangeGrade 日志）。
 // 报告 docs/class_func_reports/Inter_MonitorSetSubGuildMasterReply/dispatch_sig.md 全文转写。
@@ -3970,7 +3916,6 @@ int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_MonitorNoticeGuildMemberInfo::Inter_MonitorNoticeGuildMemberInfo() {}
 Inter_MonitorNoticeGuildMemberInfo::~Inter_MonitorNoticeGuildMemberInfo() {}
 // ORIG 0x084cc768 T dispatch_sig —— 公会成员信息通知：设成员等级并发 0x7f/0x02 包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildMemberInfo/dispatch_sig.md 全文转写。
@@ -4005,7 +3950,6 @@ int Inter_MonitorNoticeGuildMemberInfo::dispatch_sig(CUser* user, char* data, in
     return 0;
 }
 
-Inter_MonitorNoticeChangeGuildMemberGrade::Inter_MonitorNoticeChangeGuildMemberGrade() {}
 Inter_MonitorNoticeChangeGuildMemberGrade::~Inter_MonitorNoticeChangeGuildMemberGrade() {}
 // ORIG 0x084cc55e T dispatch_sig —— 监控服公会成员等级变更通知。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeChangeGuildMemberGrade/dispatch_sig.md 全文转写。
@@ -4023,7 +3967,6 @@ int Inter_MonitorNoticeChangeGuildMemberGrade::dispatch_sig(CUser* user, char* d
     return 0;
 }
 
-Inter_GuildNoticeGuildMessage::Inter_GuildNoticeGuildMessage() {}
 Inter_GuildNoticeGuildMessage::~Inter_GuildNoticeGuildMessage() {}
 // ORIG 0x084cc650 T dispatch_sig —— 公会公告消息转发。
 // 报告 docs/class_func_reports/Inter_GuildNoticeGuildMessage/dispatch_sig.md 全文转写。
@@ -4046,7 +3989,6 @@ int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_MonitorNoticeMemberLoginOut::Inter_MonitorNoticeMemberLoginOut() {}
 Inter_MonitorNoticeMemberLoginOut::~Inter_MonitorNoticeMemberLoginOut() {}
 // ORIG 0x084cc90a T dispatch_sig —— 公会员登录/登出通知（0x48 包 + 上线成员连接字段设置）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberLoginOut/dispatch_sig.md 全文转写。
@@ -4109,7 +4051,6 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_MonitorNoticeRequestMemberEnterToRequester::Inter_MonitorNoticeRequestMemberEnterToRequester() {}
 Inter_MonitorNoticeRequestMemberEnterToRequester::~Inter_MonitorNoticeRequestMemberEnterToRequester() {}
 // ORIG 0x084ccba0 T dispatch_sig —— 会员入会申请通知（发给申请者）：组 0x4f 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeRequestMemberEnterToRequester/dispatch_sig.md 全文转写。
@@ -4153,7 +4094,6 @@ int Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig(
     return 0;
 }
 
-Inter_MonitorNoticeRequestMemberEnterToResponser::Inter_MonitorNoticeRequestMemberEnterToResponser() {}
 Inter_MonitorNoticeRequestMemberEnterToResponser::~Inter_MonitorNoticeRequestMemberEnterToResponser() {}
 // ORIG 0x084ccd54 T dispatch_sig —— 公会员进入请求应答：单人模式/游戏选项→monitor 0x4b9 包，否则 0x49 拒绝包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeRequestMemberEnterToResponser/dispatch_sig.md 全文转写。
@@ -4211,7 +4151,6 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
     return 0;
 }
 
-Inter_MonitorNoticeMemberEnterOk::Inter_MonitorNoticeMemberEnterOk() {}
 Inter_MonitorNoticeMemberEnterOk::~Inter_MonitorNoticeMemberEnterOk() {}
 // ORIG 0x084cd218 T dispatch_sig —— 会员进入应答分发：solo 拒绝 / 上线会员设置 / 0x4a 状态包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberEnterOk/dispatch_sig.md 全文转写。
@@ -4287,7 +4226,6 @@ int Inter_MonitorNoticeMemberEnterOk::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_MonitorNoticeMemberEnterReply::Inter_MonitorNoticeMemberEnterReply() {}
 Inter_MonitorNoticeMemberEnterReply::~Inter_MonitorNoticeMemberEnterReply() {}
 // ORIG 0x084cd5ca T dispatch_sig —— 公会员进入应答（0x50 包 + 上线成员字段设置）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberEnterReply/dispatch_sig.md 全文转写。
@@ -4346,7 +4284,6 @@ int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_MonitorNoticeMemberSecede::Inter_MonitorNoticeMemberSecede() {}
 Inter_MonitorNoticeMemberSecede::~Inter_MonitorNoticeMemberSecede() {}
 // ORIG 0x084cd83a T dispatch_sig —— 会员退订通知（重置上位会员状态 + 0x51 包）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberSecede/dispatch_sig.md 全文转写。
@@ -4397,7 +4334,6 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_MonitorNoticeMemberSecedeToSeceder::Inter_MonitorNoticeMemberSecedeToSeceder() {}
 Inter_MonitorNoticeMemberSecedeToSeceder::~Inter_MonitorNoticeMemberSecedeToSeceder() {}
 // ORIG 0x084cda74 T dispatch_sig —— 会员退会通知（发给退会者）：清标记并组 0x4d 包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberSecedeToSeceder/dispatch_sig.md 全文转写。
@@ -4439,7 +4375,6 @@ int Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig(CUser* user, char* da
     return 0;
 }
 
-Inter_MonitorNoticeDeleteMemberId::Inter_MonitorNoticeDeleteMemberId() {}
 Inter_MonitorNoticeDeleteMemberId::~Inter_MonitorNoticeDeleteMemberId() {}
 // ORIG 0x084cdc2c T dispatch_sig —— 删除公会成员通知：清成员字段并刷新队伍信息。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeDeleteMemberId/dispatch_sig.md 全文转写。
@@ -4477,7 +4412,6 @@ int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_MonitorNoticeMemberChatMsg::Inter_MonitorNoticeMemberChatMsg() {}
 Inter_MonitorNoticeMemberChatMsg::~Inter_MonitorNoticeMemberChatMsg() {}
 // ORIG 0x084ccfda T dispatch_sig —— 会员聊天消息下发（memberkey 门 + 0x41 包）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberChatMsg/dispatch_sig.md 全文转写。
@@ -4527,7 +4461,6 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_MonitorCallMemberList::Inter_MonitorCallMemberList() {}
 Inter_MonitorCallMemberList::~Inter_MonitorCallMemberList() {}
 // ORIG 0x084cddac T dispatch_sig —— 公会成员列表下发：头条目 + 0x2a 字节 stride 成员循环。
 // 报告 docs/class_func_reports/Inter_MonitorCallMemberList/dispatch_sig.md 全文转写。
@@ -4592,7 +4525,6 @@ int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_MonitorPayTaxToUpper::Inter_MonitorPayTaxToUpper() {}
 Inter_MonitorPayTaxToUpper::~Inter_MonitorPayTaxToUpper() {}
 // ORIG 0x084ce164 T dispatch_sig —— 会员税额金币入账 + 会员奖励疲劳发放（上限钳制）。
 // 报告 docs/class_func_reports/Inter_MonitorPayTaxToUpper/dispatch_sig.md 全文转写。
@@ -4688,7 +4620,6 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_LoadPrivateStore::Inter_LoadPrivateStore() {}
 Inter_LoadPrivateStore::~Inter_LoadPrivateStore() {}
 // ORIG 0x084cf55a T dispatch_sig —— 个人商店加载应答转发给 PrivateStoreMgr。
 // 报告 docs/class_func_reports/Inter_LoadPrivateStore/dispatch_sig.md 全文转写。
@@ -4701,7 +4632,6 @@ int Inter_LoadPrivateStore::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UpdateLogout::Inter_UpdateLogout() {}
 Inter_UpdateLogout::~Inter_UpdateLogout() {}
 // ORIG 0x084ce548 T dispatch_sig —— 用户登出完成通知监控服。
 // 报告 docs/class_func_reports/Inter_UpdateLogout/dispatch_sig.md 全文转写。
@@ -4719,7 +4649,6 @@ int Inter_UpdateLogout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UserRepel::Inter_UserRepel() {}
 Inter_UserRepel::~Inter_UserRepel() {}
 int Inter_UserRepel::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
 {
@@ -4727,7 +4656,6 @@ int Inter_UserRepel::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
     return 0;
 }
 
-Inter_AvatarInsert::Inter_AvatarInsert() {}
 Inter_AvatarInsert::~Inter_AvatarInsert() {}
 // ORIG 0x084cf5a4 T dispatch_sig —— 跨服插入时装：槽位寻位+赋 key+回写槽。
 // 报告 docs/class_func_reports/Inter_AvatarInsert/dispatch_sig.md 全文转写。
@@ -4751,7 +4679,6 @@ int Inter_AvatarInsert::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AvatarChangeStat::Inter_AvatarChangeStat() {}
 Inter_AvatarChangeStat::~Inter_AvatarChangeStat() {}
 // ORIG 0x084cf6ec T dispatch_sig —— 跨服时装属性变更登记。
 // 报告 docs/class_func_reports/Inter_AvatarChangeStat/dispatch_sig.md 全文转写。
@@ -4782,7 +4709,6 @@ int Inter_AvatarChangeStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_TriggerEventStart::Inter_TriggerEventStart() {}
 Inter_TriggerEventStart::~Inter_TriggerEventStart() {}
 // ORIG 0x084ce5f4 T dispatch_sig —— 事件开始触发。
 // 报告 docs/class_func_reports/Inter_TriggerEventStart/dispatch_sig.md 全文转写。
@@ -4796,7 +4722,6 @@ int Inter_TriggerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return (ret & 0xff) ? 0 : 0x2a8b;
 }
 
-Inter_TriggerEventEnd::Inter_TriggerEventEnd() {}
 Inter_TriggerEventEnd::~Inter_TriggerEventEnd() {}
 // ORIG 0x084ce646 T dispatch_sig —— 事件结束触发。
 // 报告 docs/class_func_reports/Inter_TriggerEventEnd/dispatch_sig.md 全文转写。
@@ -4813,7 +4738,6 @@ int Inter_TriggerEventEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
     return (ret & 0xff) ? 0 : 0x2a9a;
 }
 
-Inter_MailBox_Req_List::Inter_MailBox_Req_List() {}
 Inter_MailBox_Req_List::~Inter_MailBox_Req_List() {}
 // ORIG 0x084cf7fa T dispatch_sig —— 邮箱列表装载：多重校验后设置邮箱信息。
 // 报告 docs/class_func_reports/Inter_MailBox_Req_List/dispatch_sig.md 全文转写。
@@ -4851,7 +4775,6 @@ int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MailBox_Req_CheckReceiver::Inter_MailBox_Req_CheckReceiver() {}
 Inter_MailBox_Req_CheckReceiver::~Inter_MailBox_Req_CheckReceiver() {}
 // ORIG 0x084cf95a T dispatch_sig —— 邮箱查验收件人请求：按检查类型（普通邮件 /
 // cera 直购 / 多附件邮件）完成校验、购买或入 DB 线程，并回 ACK 错误包。
@@ -5062,7 +4985,6 @@ int Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
     return 1;
 }
 
-Inter_MailBox_Req_Send::Inter_MailBox_Req_Send() {}
 Inter_MailBox_Req_Send::~Inter_MailBox_Req_Send() {}
 // ORIG 0x084d0130 T dispatch_sig —— 邮箱新邮件通知转发监控服。
 // 报告 docs/class_func_reports/Inter_MailBox_Req_Send/dispatch_sig.md 全文转写。
@@ -5078,7 +5000,6 @@ int Inter_MailBox_Req_Send::dispatch_sig(CUser* /*user*/, char* data, int /*len*
     return 0;
 }
 
-Inter_Monitor_Notify_New_Mail::Inter_Monitor_Notify_New_Mail() {}
 Inter_Monitor_Notify_New_Mail::~Inter_Monitor_Notify_New_Mail() {}
 // ORIG 0x084d017c T dispatch_sig —— 监控侧新邮件到达通知。
 // 报告 docs/class_func_reports/Inter_Monitor_Notify_New_Mail/dispatch_sig.md 全文转写。
@@ -5100,7 +5021,6 @@ int Inter_Monitor_Notify_New_Mail::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_InsertCreatureItemResult::Inter_InsertCreatureItemResult() {}
 Inter_InsertCreatureItemResult::~Inter_InsertCreatureItemResult() {}
 // ORIG 0x084d027e T dispatch_sig —— 生物蛋孵化结果插入（校验当前角色后透传）。
 // 报告 docs/class_func_reports/Inter_InsertCreatureItemResult/dispatch_sig.md 全文转写。
@@ -5114,7 +5034,6 @@ int Inter_InsertCreatureItemResult::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_UpdateCreatureItemResult::Inter_UpdateCreatureItemResult() {}
 Inter_UpdateCreatureItemResult::~Inter_UpdateCreatureItemResult() {}
 // ORIG 0x084d02ee T dispatch_sig —— 生物蛋孵化结果更新（校验当前角色后透传）。
 // 报告 docs/class_func_reports/Inter_UpdateCreatureItemResult/dispatch_sig.md 全文转写。
@@ -5128,7 +5047,6 @@ int Inter_UpdateCreatureItemResult::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_MonitorNoticeMessage::Inter_MonitorNoticeMessage() {}
 Inter_MonitorNoticeMessage::~Inter_MonitorNoticeMessage() {}
 // ORIG 0x084d035e T dispatch_sig —— 监控侧公告全员播发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMessage/dispatch_sig.md 全文转写。
@@ -5149,7 +5067,6 @@ int Inter_MonitorNoticeMessage::dispatch_sig(CUser* /*user*/, char* data, int /*
     return 0;
 }
 
-Inter_LastMsgResponse::Inter_LastMsgResponse() {}
 Inter_LastMsgResponse::~Inter_LastMsgResponse() {}
 // ORIG 0x084d0598 T dispatch_sig —— 关服末条消息应答计数。
 // 报告 docs/class_func_reports/Inter_LastMsgResponse/dispatch_sig.md 全文转写。
@@ -5172,7 +5089,6 @@ int Inter_LastMsgResponse::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*l
     return 0;
 }
 
-Inter_MonitorGuildPointDel::Inter_MonitorGuildPointDel() {}
 Inter_MonitorGuildPointDel::~Inter_MonitorGuildPointDel() {}
 // ORIG C1 W 0x084eb11a / D1 W 0x084eb136（D0 0x084eb166）—— 仅置 vptr。
 // ORIG T 0x084ce6d2 —— 月初 05:00 基准时刻；7 月（tm_mon==6）且年 ==0x6a 时特例 6 日。
@@ -5202,7 +5118,6 @@ int Inter_MonitorGuildPointDel::dispatch_sig(CUser* /*user*/, char* /*data*/, in
     return 0;
 }
 
-Inter_MonitorGuildWarInfo::Inter_MonitorGuildWarInfo() {}
 Inter_MonitorGuildWarInfo::~Inter_MonitorGuildWarInfo() {}
 // ORIG 0x084ce7f6 T dispatch_sig —— 公会战信息包（0x70，频道 6 专用）。
 // 报告 docs/class_func_reports/Inter_MonitorGuildWarInfo/dispatch_sig.md 全文转写。
@@ -5256,7 +5171,6 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_CodeChecksumRange::Inter_CodeChecksumRange() {}
 Inter_CodeChecksumRange::~Inter_CodeChecksumRange() {}
 // ORIG 0x084d0648 T dispatch_sig —— 校验码区间比对：对所有登录用户执行校验并计数作弊。
 // 报告 docs/class_func_reports/Inter_CodeChecksumRange/dispatch_sig.md 全文转写。
@@ -5287,7 +5201,6 @@ int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_MonitorForbidChat::Inter_MonitorForbidChat() {}
 Inter_MonitorForbidChat::~Inter_MonitorForbidChat() {}
 // ORIG 0x084d0466 T dispatch_sig —— 监控侧禁言指令落地。
 // 报告 docs/class_func_reports/Inter_MonitorForbidChat/dispatch_sig.md 全文转写。
@@ -5314,7 +5227,6 @@ int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_MouseRegister::Inter_MouseRegister() {}
 Inter_MouseRegister::~Inter_MouseRegister() {}
 // ORIG 0x084d07d2 T dispatch_sig —— 密保鼠标注册/注销结果处理，回发 0x74 应答。
 // 报告 docs/class_func_reports/Inter_MouseRegister/dispatch_sig.md 全文转写。
@@ -5360,7 +5272,6 @@ int Inter_MouseRegister::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_Monitor_MegaphoneMsg::Inter_Monitor_MegaphoneMsg() {}
 Inter_Monitor_MegaphoneMsg::~Inter_Monitor_MegaphoneMsg() {}
 // ORIG 0x084d09aa T dispatch_sig —— 大喇叭广播：构造广播包后按频道类型全服/分组发送。
 // 报告 docs/class_func_reports/Inter_Monitor_MegaphoneMsg/dispatch_sig.md 全文转写。
@@ -5394,7 +5305,6 @@ int Inter_Monitor_MegaphoneMsg::dispatch_sig(CUser* /*user*/, char* data, int /*
     return 0;
 }
 
-Inter_Monitor_RegisterBlackListResult::Inter_Monitor_RegisterBlackListResult() {}
 Inter_Monitor_RegisterBlackListResult::~Inter_Monitor_RegisterBlackListResult() {}
 // ORIG 0x084d0de0 T dispatch_sig —— 黑名单登记结果通知（0x79 包，按结果码填错误值）。
 // 报告 docs/class_func_reports/Inter_Monitor_RegisterBlackListResult/dispatch_sig.md 全文转写。
@@ -5455,7 +5365,6 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
     return 0;
 }
 
-Inter_Monitor_DeleteBlackListResult::Inter_Monitor_DeleteBlackListResult() {}
 Inter_Monitor_DeleteBlackListResult::~Inter_Monitor_DeleteBlackListResult() {}
 // ORIG 0x084d1034 T dispatch_sig —— 黑名单删除结果应答：按结果码组 0x7a 包回发。
 // 报告 docs/class_func_reports/Inter_Monitor_DeleteBlackListResult/dispatch_sig.md 全文转写。
@@ -5507,7 +5416,6 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_Monitor_RequestBlackListResult::Inter_Monitor_RequestBlackListResult() {}
 Inter_Monitor_RequestBlackListResult::~Inter_Monitor_RequestBlackListResult() {}
 // ORIG 0x084d0ba6 T dispatch_sig —— 黑名单查询结果下发（名字+时间+注册黑名单）。
 // 报告 docs/class_func_reports/Inter_Monitor_RequestBlackListResult/dispatch_sig.md 全文转写。
@@ -5553,7 +5461,6 @@ int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, 
     return 0;
 }
 
-Inter_DB_RequestBlackCount::Inter_DB_RequestBlackCount() {}
 Inter_DB_RequestBlackCount::~Inter_DB_RequestBlackCount() {}
 // ORIG 0x084d1218 T dispatch_sig —— DB 黑名单计数应答。
 // 报告 docs/class_func_reports/Inter_DB_RequestBlackCount/dispatch_sig.md 全文转写。
@@ -5580,7 +5487,6 @@ int Inter_DB_RequestBlackCount::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_MonitorNoticeBlackList::Inter_MonitorNoticeBlackList() {}
 Inter_MonitorNoticeBlackList::~Inter_MonitorNoticeBlackList() {}
 // ORIG 0x084d0b3a T dispatch_sig —— 监控服黑名单列表登记。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeBlackList/dispatch_sig.md 全文转写。
@@ -5597,7 +5503,6 @@ int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_WebNoticeSingle::Inter_WebNoticeSingle() {}
 Inter_WebNoticeSingle::~Inter_WebNoticeSingle() {}
 // ORIG 0x084d1344 T dispatch_sig —— 网页单条公告全员播发。
 // 报告 docs/class_func_reports/Inter_WebNoticeSingle/dispatch_sig.md 全文转写。
@@ -5616,7 +5521,6 @@ int Inter_WebNoticeSingle::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
     return 0;
 }
 
-Inter_MemberExpLevelUp::Inter_MemberExpLevelUp() {}
 Inter_MemberExpLevelUp::~Inter_MemberExpLevelUp() {}
 // ORIG 0x084d1448 T dispatch_sig —— 会员经验等级上限同步。
 // 报告 docs/class_func_reports/Inter_MemberExpLevelUp/dispatch_sig.md 全文转写。
@@ -5631,7 +5535,6 @@ int Inter_MemberExpLevelUp::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorAddBuddy::Inter_MonitorAddBuddy() {}
 Inter_MonitorAddBuddy::~Inter_MonitorAddBuddy() {}
 // ORIG 0x084d14b0 T dispatch_sig —— 好友添加结果通知（0x3f 包，成功带好友信息/失败带错误码）。
 // 报告 docs/class_func_reports/Inter_MonitorAddBuddy/dispatch_sig.md 全文转写。
@@ -5674,7 +5577,6 @@ int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorDelBuddy::Inter_MonitorDelBuddy() {}
 Inter_MonitorDelBuddy::~Inter_MonitorDelBuddy() {}
 // ORIG 0x084d16f6 T dispatch_sig —— 好友删除结果应答：按错误码组 0x40 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorDelBuddy/dispatch_sig.md 全文转写。
@@ -5713,7 +5615,6 @@ int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ChangeLetterStat::Inter_ChangeLetterStat() {}
 Inter_ChangeLetterStat::~Inter_ChangeLetterStat() {}
 // ORIG 0x084d18ac T dispatch_sig —— 信件状态变更（keep 计数增删 + 0x89 回包）。
 // 报告 docs/class_func_reports/Inter_ChangeLetterStat/dispatch_sig.md 全文转写。
@@ -5770,7 +5671,6 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SaveClientHackLog::Inter_SaveClientHackLog() {}
 Inter_SaveClientHackLog::~Inter_SaveClientHackLog() {}
 // ORIG 0x084d1ab6 T dispatch_sig —— 客户端外挂日志：按类型表计算掉率惩罚并入库。
 // 报告 docs/class_func_reports/Inter_SaveClientHackLog/dispatch_sig.md 全文转写。
@@ -5824,7 +5724,6 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_ReqChangeCharacName::Inter_ReqChangeCharacName() {}
 Inter_ReqChangeCharacName::~Inter_ReqChangeCharacName() {}
 int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -5961,7 +5860,6 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_ReqQueryCharacInfo::Inter_ReqQueryCharacInfo() {}
 Inter_ReqQueryCharacInfo::~Inter_ReqQueryCharacInfo() {}
 // ORIG 0x084d22fc T dispatch_sig —— 角色信息查询应答：组 0x8b 包回发。
 // 报告 docs/class_func_reports/Inter_ReqQueryCharacInfo/dispatch_sig.md 全文转写。
@@ -6000,7 +5898,6 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ReportMannerless::Inter_ReportMannerless() {}
 Inter_ReportMannerless::~Inter_ReportMannerless() {}
 // ORIG 0x084d24a2 T dispatch_sig —— 无礼行为举报：按类型回错误码或转发 LOGDB 队列 + 确认包。
 // 报告 docs/class_func_reports/Inter_ReportMannerless/dispatch_sig.md 全文转写。
@@ -6058,7 +5955,6 @@ int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 }
 
-Inter_ChagneUserHandicap::Inter_ChagneUserHandicap() {}
 Inter_ChagneUserHandicap::~Inter_ChagneUserHandicap() {}
 // ORIG 0x084d271e T dispatch_sig —— 用户掉落率调整（handicap）。
 // 报告 docs/class_func_reports/Inter_ChagneUserHandicap/dispatch_sig.md 全文转写。
@@ -6074,7 +5970,6 @@ int Inter_ChagneUserHandicap::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_GMRequestMid::Inter_GMRequestMid() {}
 Inter_GMRequestMid::~Inter_GMRequestMid() {}
 // ORIG 0x084d279e T dispatch_sig —— GM mid 请求转发。
 // 报告 docs/class_func_reports/Inter_GMRequestMid/dispatch_sig.md 全文转写。
@@ -6095,7 +5990,6 @@ int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UDP_Incoming_Capcha_Data::Inter_UDP_Incoming_Capcha_Data() {}
 Inter_UDP_Incoming_Capcha_Data::~Inter_UDP_Incoming_Capcha_Data() {}
 // ORIG 0x084d28c0 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_UDP_Incoming_Capcha_Data/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -6104,7 +5998,6 @@ int Inter_UDP_Incoming_Capcha_Data::dispatch_sig(CUser* /*user*/, char* /*data*/
     return 0;
 }
 
-Inter_Add_Slang::Inter_Add_Slang() {}
 Inter_Add_Slang::~Inter_Add_Slang() {}
 int Inter_Add_Slang::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -6114,7 +6007,6 @@ int Inter_Add_Slang::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ReplyGuildLetter::Inter_ReplyGuildLetter() {}
 Inter_ReplyGuildLetter::~Inter_ReplyGuildLetter() {}
 // ORIG 0x084d28ca T dispatch_sig —— 公会信件回复应答转发。
 // 报告 docs/class_func_reports/Inter_ReplyGuildLetter/dispatch_sig.md 全文转写。
@@ -6148,7 +6040,6 @@ int Inter_ReplyGuildLetter::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_CallGuildInviteToCaller::Inter_CallGuildInviteToCaller() {}
 Inter_CallGuildInviteToCaller::~Inter_CallGuildInviteToCaller() {}
 // ORIG 0x084d2a26 T dispatch_sig —— 公会邀请回执：按结果码回执发起者。
 // 报告 docs/class_func_reports/Inter_CallGuildInviteToCaller/dispatch_sig.md 全文转写。
@@ -6187,7 +6078,6 @@ int Inter_CallGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_CallGuildInviteToInvited::Inter_CallGuildInviteToInvited() {}
 Inter_CallGuildInviteToInvited::~Inter_CallGuildInviteToInvited() {}
 // ORIG 0x084d2b96 T dispatch_sig —— 被邀请方公会邀请应答转发（0x93 包 + 拒绝码上报）。
 // 报告 docs/class_func_reports/Inter_CallGuildInviteToInvited/dispatch_sig.md 全文转写。
@@ -6240,7 +6130,6 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_ReplyGuildInviteToInvited::Inter_ReplyGuildInviteToInvited() {}
 Inter_ReplyGuildInviteToInvited::~Inter_ReplyGuildInviteToInvited() {}
 // ORIG 0x084d2dfe T dispatch_sig —— 公会邀请回应：被邀者按结果码回执。
 // 报告 docs/class_func_reports/Inter_ReplyGuildInviteToInvited/dispatch_sig.md 全文转写。
@@ -6279,7 +6168,6 @@ int Inter_ReplyGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_ReplyGuildInviteToCaller::Inter_ReplyGuildInviteToCaller() {}
 Inter_ReplyGuildInviteToCaller::~Inter_ReplyGuildInviteToCaller() {}
 // ORIG 0x084d2f6e T dispatch_sig —— 公会邀请应答转发（SoloPlay 拒绝包 / 0x94 通知包）。
 // 报告 docs/class_func_reports/Inter_ReplyGuildInviteToCaller/dispatch_sig.md 全文转写。
@@ -6332,7 +6220,6 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_LoadDeathTowerBestRecord::Inter_LoadDeathTowerBestRecord() {}
 Inter_LoadDeathTowerBestRecord::~Inter_LoadDeathTowerBestRecord() {}
 // ORIG 0x084d316a T dispatch_sig —— 死亡之塔个人最优纪录批量登记。
 // 报告 docs/class_func_reports/Inter_LoadDeathTowerBestRecord/dispatch_sig.md 全文转写。
@@ -6363,7 +6250,6 @@ int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, in
     return 0;
 }
 
-Inter_DeathTowerLoadTopRanker::Inter_DeathTowerLoadTopRanker() {}
 Inter_DeathTowerLoadTopRanker::~Inter_DeathTowerLoadTopRanker() {}
 // ORIG 0x084d3364 T dispatch_sig —— 死亡之塔榜首记录批量装载。
 // 报告 docs/class_func_reports/Inter_DeathTowerLoadTopRanker/dispatch_sig.md 全文转写。
@@ -6398,7 +6284,6 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
     return 0;
 }
 
-Inter_MonitorDeathTowerRanking::Inter_MonitorDeathTowerRanking() {}
 Inter_MonitorDeathTowerRanking::~Inter_MonitorDeathTowerRanking() {}
 // ORIG 0x084d3290 T dispatch_sig —— 死亡之塔排行登记。
 // 报告 docs/class_func_reports/Inter_MonitorDeathTowerRanking/dispatch_sig.md 全文转写。
@@ -6422,7 +6307,6 @@ int Inter_MonitorDeathTowerRanking::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_MonitorTowerReloadTopRanker::Inter_MonitorTowerReloadTopRanker() {}
 Inter_MonitorTowerReloadTopRanker::~Inter_MonitorTowerReloadTopRanker() {}
 // ORIG 0x084d334a T dispatch_sig —— 触发死亡塔排行榜重载 DB 请求。
 // 报告 docs/class_func_reports/Inter_MonitorTowerReloadTopRanker/dispatch_sig.md 全文转写。
@@ -6432,7 +6316,6 @@ int Inter_MonitorTowerReloadTopRanker::dispatch_sig(CUser* /*user*/, char* /*dat
     return 0;
 }
 
-Inter_ReplyGuildSecede::Inter_ReplyGuildSecede() {}
 Inter_ReplyGuildSecede::~Inter_ReplyGuildSecede() {}
 // ORIG 0x084c9768 T dispatch_sig —— 退出公会应答：校验角色号后发 0x9c 包并刷 item lock 列表。
 // 报告 docs/class_func_reports/Inter_ReplyGuildSecede/dispatch_sig.md 全文转写。
@@ -6492,7 +6375,6 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
     return 0;
 }
 
-Inter_NoticeGuildMasterDelegate::Inter_NoticeGuildMasterDelegate() {}
 Inter_NoticeGuildMasterDelegate::~Inter_NoticeGuildMasterDelegate() {}
 // ORIG 0x084c9a32 T dispatch_sig —— 会长委任通知：转发新会长名字。
 // 报告 docs/class_func_reports/Inter_NoticeGuildMasterDelegate/dispatch_sig.md 全文转写。
@@ -6525,7 +6407,6 @@ int Inter_NoticeGuildMasterDelegate::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_GuildReplyGuildMasterDelegate::Inter_GuildReplyGuildMasterDelegate() {}
 Inter_GuildReplyGuildMasterDelegate::~Inter_GuildReplyGuildMasterDelegate() {}
 // ORIG 0x084c9b9a T dispatch_sig —— 会长委任回应：按结果码回执。
 // 报告 docs/class_func_reports/Inter_GuildReplyGuildMasterDelegate/dispatch_sig.md 全文转写。
@@ -6564,7 +6445,6 @@ int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, i
     return 0;
 }
 
-Inter_NoticeHasBeenGuildMaster::Inter_NoticeHasBeenGuildMaster() {}
 Inter_NoticeHasBeenGuildMaster::~Inter_NoticeHasBeenGuildMaster() {}
 // ORIG 0x084c9d0a T dispatch_sig —— 已成为公会会长通知。
 // 报告 docs/class_func_reports/Inter_NoticeHasBeenGuildMaster/dispatch_sig.md 全文转写。
@@ -6593,7 +6473,6 @@ int Inter_NoticeHasBeenGuildMaster::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_DBCheckDoubleGuildName::Inter_DBCheckDoubleGuildName() {}
 Inter_DBCheckDoubleGuildName::~Inter_DBCheckDoubleGuildName() {}
 // ORIG 0x084d347e T dispatch_sig —— 公会名重复检查应答。
 // 报告 docs/class_func_reports/Inter_DBCheckDoubleGuildName/dispatch_sig.md 全文转写。
@@ -6618,7 +6497,6 @@ int Inter_DBCheckDoubleGuildName::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_DBCheckDoubleGuildAddress::Inter_DBCheckDoubleGuildAddress() {}
 Inter_DBCheckDoubleGuildAddress::~Inter_DBCheckDoubleGuildAddress() {}
 // ORIG 0x084d358e T dispatch_sig —— 公会地址重复检查应答。
 // 报告 docs/class_func_reports/Inter_DBCheckDoubleGuildAddress/dispatch_sig.md 全文转写。
@@ -6642,7 +6520,6 @@ int Inter_DBCheckDoubleGuildAddress::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_ReplyGuildCreate::Inter_ReplyGuildCreate() {}
 Inter_ReplyGuildCreate::~Inter_ReplyGuildCreate() {}
 // ORIG 0x084d368a T dispatch_sig —— 建会应答：成功 → GuildCreate 日志 + 公会代理缓存 +
 // 全服基础信息广播；失败 → 退还建会费用并刷新物品列表。
@@ -6712,7 +6589,6 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NoticeGuildNameOnGuildCreate::Inter_NoticeGuildNameOnGuildCreate() {}
 Inter_NoticeGuildNameOnGuildCreate::~Inter_NoticeGuildNameOnGuildCreate() {}
 // ORIG 0x084d39ae T dispatch_sig —— 公会创建时公会名登记到代理。
 // 报告 docs/class_func_reports/Inter_NoticeGuildNameOnGuildCreate/dispatch_sig.md 全文转写。
@@ -6727,7 +6603,6 @@ int Inter_NoticeGuildNameOnGuildCreate::dispatch_sig(CUser* /*user*/, char* data
     return 0;
 }
 
-Inter_SecurityCardIssue::Inter_SecurityCardIssue() {}
 Inter_SecurityCardIssue::~Inter_SecurityCardIssue() {}
 // ORIG 0x084d3a22 T dispatch_sig —— 安全卡发放：加密序列号/账号/答案串并下发 0xa4 包，
 // 本地初始化 CSecurityCard。msg 布局：+4 serial +0x25 answers +0x37 serial 原文
@@ -6775,7 +6650,6 @@ int Inter_SecurityCardIssue::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SecurityCardActivate::Inter_SecurityCardActivate() {}
 Inter_SecurityCardActivate::~Inter_SecurityCardActivate() {}
 // ORIG 0x084d3d56 T dispatch_sig —— 安全卡激活应答。
 // 报告 docs/class_func_reports/Inter_SecurityCardActivate/dispatch_sig.md 全文转写。
@@ -6801,7 +6675,6 @@ int Inter_SecurityCardActivate::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_SecurityCardRetransfer::Inter_SecurityCardRetransfer() {}
 Inter_SecurityCardRetransfer::~Inter_SecurityCardRetransfer() {}
 // ORIG 0x084d3e78 T dispatch_sig —— 安全卡补发：加密串下发 0xca 包并重置 CSecurityCard。
 // msg 布局：+4 serial +0x2b serial 原文 +0x52 answers +0x88 错误码(int)。
@@ -6848,7 +6721,6 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_LoadDnfHackLog::Inter_LoadDnfHackLog() {}
 Inter_LoadDnfHackLog::~Inter_LoadDnfHackLog() {}
 // ORIG 0x084d41aa T dispatch_sig —— DNF hack 日志累计计数同步。
 // 报告 docs/class_func_reports/Inter_LoadDnfHackLog/dispatch_sig.md 全文转写。
@@ -6866,7 +6738,6 @@ int Inter_LoadDnfHackLog::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AutoPunishRuleBlackIP::Inter_AutoPunishRuleBlackIP() {}
 Inter_AutoPunishRuleBlackIP::~Inter_AutoPunishRuleBlackIP() {}
 // ORIG 0x084d422a T dispatch_sig —— 黑名单 IP 表载入（htonl/inet_ntoa + addBlackIP）。
 // 报告 docs/class_func_reports/Inter_AutoPunishRuleBlackIP/dispatch_sig.md 全文转写。
@@ -6922,7 +6793,6 @@ int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_AutoPunishRuleHackType::Inter_AutoPunishRuleHackType() {}
 Inter_AutoPunishRuleHackType::~Inter_AutoPunishRuleHackType() {}
 // ORIG 0x084d4440 T dispatch_sig —— 从 monitor 消息装载外挂自动惩罚规则表（HackType 规则）。
 // 报告 docs/class_func_reports/Inter_AutoPunishRuleHackType/dispatch_sig.md 全文转写。
@@ -6973,7 +6843,6 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
     return 0;
 }
 
-Inter_ReplyPowerWarScore::Inter_ReplyPowerWarScore() {}
 Inter_ReplyPowerWarScore::~Inter_ReplyPowerWarScore() {}
 // ORIG 0x084d46fa T dispatch_sig —— 力量战争得分全网广播。
 // 报告 docs/class_func_reports/Inter_ReplyPowerWarScore/dispatch_sig.md 全文转写。
@@ -6991,7 +6860,6 @@ int Inter_ReplyPowerWarScore::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_ReplyJoinPower::Inter_ReplyJoinPower() {}
 Inter_ReplyJoinPower::~Inter_ReplyJoinPower() {}
 // ORIG 0x084d47d4 T dispatch_sig —— 加入势力应答（0xb4 包 + 公会代理刷新）。
 // 报告 docs/class_func_reports/Inter_ReplyJoinPower/dispatch_sig.md 全文转写。
@@ -7044,7 +6912,6 @@ int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SecedePower::Inter_SecedePower() {}
 Inter_SecedePower::~Inter_SecedePower() {}
 // ORIG 0x084d49d6 T dispatch_sig —— 退出势力应答（0xb5 包 + 公会代理刷新，name 置空）。
 // 报告 docs/class_func_reports/Inter_SecedePower/dispatch_sig.md 全文转写。
@@ -7095,7 +6962,6 @@ int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NoticePowerWarStartTime::Inter_NoticePowerWarStartTime() {}
 Inter_NoticePowerWarStartTime::~Inter_NoticePowerWarStartTime() {}
 // ORIG 0x084d4bd2 T dispatch_sig —— 权力战开始时间：设置时间并全员广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarStartTime/dispatch_sig.md 全文转写。
@@ -7126,7 +6992,6 @@ int Inter_NoticePowerWarStartTime::dispatch_sig(CUser* /*user*/, char* data, int
     return 0;
 }
 
-Inter_NoticePowerWarEndTime::Inter_NoticePowerWarEndTime() {}
 Inter_NoticePowerWarEndTime::~Inter_NoticePowerWarEndTime() {}
 // ORIG 0x084d4d46 T dispatch_sig —— 力量战争结束时间全网广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarEndTime/dispatch_sig.md 全文转写。
@@ -7142,7 +7007,6 @@ int Inter_NoticePowerWarEndTime::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_NoticePowerWarInfo::Inter_NoticePowerWarInfo() {}
 Inter_NoticePowerWarInfo::~Inter_NoticePowerWarInfo() {}
 // ORIG 0x084d4e18 T dispatch_sig —— 权力战信息通知全员广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarInfo/dispatch_sig.md 全文转写。
@@ -7169,7 +7033,6 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_NoticePowerWarProlong::Inter_NoticePowerWarProlong() {}
 Inter_NoticePowerWarProlong::~Inter_NoticePowerWarProlong() {}
 // ORIG 0x084d4fce T dispatch_sig —— 力量战争延长公告广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarProlong/dispatch_sig.md 全文转写。
@@ -7183,7 +7046,6 @@ int Inter_NoticePowerWarProlong::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_ChangeGuildName::Inter_ChangeGuildName() {}
 Inter_ChangeGuildName::~Inter_ChangeGuildName() {}
 // ORIG 0x084d5072 T dispatch_sig —— 公会改名：成功改本地与 proxy 或回执错误码。
 // 报告 docs/class_func_reports/Inter_ChangeGuildName/dispatch_sig.md 全文转写。
@@ -7215,7 +7077,6 @@ int Inter_ChangeGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NoticeChangeGuildNameToMembers::Inter_NoticeChangeGuildNameToMembers() {}
 Inter_NoticeChangeGuildNameToMembers::~Inter_NoticeChangeGuildNameToMembers() {}
 // ORIG 0x084d51dc T dispatch_sig —— 公会改名成员通知：校验 charac_no 后转发新名并改名。
 // 报告 docs/class_func_reports/Inter_NoticeChangeGuildNameToMembers/dispatch_sig.md 全文转写。
@@ -7246,7 +7107,6 @@ int Inter_NoticeChangeGuildNameToMembers::dispatch_sig(CUser* user, char* data, 
     return 0;
 }
 
-Inter_SendAllUserInfoMiniumForGuildSystem::Inter_SendAllUserInfoMiniumForGuildSystem() {}
 Inter_SendAllUserInfoMiniumForGuildSystem::~Inter_SendAllUserInfoMiniumForGuildSystem() {}
 // ORIG 0x084d533a T dispatch_sig —— 公会系统最小用户信息全员广播。
 // 报告 docs/class_func_reports/Inter_SendAllUserInfoMiniumForGuildSystem/dispatch_sig.md 全文转写。
@@ -7277,7 +7137,6 @@ int Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig(CUser* user, char* d
     return 0;
 }
 
-Inter_LoadCleanPadPointReq::Inter_LoadCleanPadPointReq() {}
 Inter_LoadCleanPadPointReq::~Inter_LoadCleanPadPointReq() {}
 int Inter_LoadCleanPadPointReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
@@ -7289,7 +7148,6 @@ int Inter_LoadCleanPadPointReq::dispatch_sig(CUser* /*user*/, char* /*data*/, in
     return 0;
 }
 
-Inter_LoadCleanPadPoint::Inter_LoadCleanPadPoint() {}
 Inter_LoadCleanPadPoint::~Inter_LoadCleanPadPoint() {}
 int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -7298,7 +7156,6 @@ int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_NotifyAuctionMail::Inter_NotifyAuctionMail() {}
 Inter_NotifyAuctionMail::~Inter_NotifyAuctionMail() {}
 // ORIG 0x084d55a4 T dispatch_sig —— 拍卖邮件通知：未读邮件计数 +1 并组 0xa9 包回发。
 // 报告 docs/class_func_reports/Inter_NotifyAuctionMail/dispatch_sig.md 全文转写。
@@ -7334,7 +7191,6 @@ int Inter_NotifyAuctionMail::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AuctionResultAskPrice::Inter_AuctionResultAskPrice() {}
 Inter_AuctionResultAskPrice::~Inter_AuctionResultAskPrice() {}
 // ORIG 0x084d5740 T dispatch_sig —— 拍卖询价应答：GM 延迟追踪后组 0xb9 包回发。
 // 报告 docs/class_func_reports/Inter_AuctionResultAskPrice/dispatch_sig.md 全文转写。
@@ -7379,7 +7235,6 @@ int Inter_AuctionResultAskPrice::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_AuctionResultAskRegistedItemNum::Inter_AuctionResultAskRegistedItemNum() {}
 Inter_AuctionResultAskRegistedItemNum::~Inter_AuctionResultAskRegistedItemNum() {}
 // ============================================================================
 // ORIG 0x084d5930 T dispatch_sig —— 拍卖行"已登记物品数查询应答（登记执行）"。
@@ -7847,7 +7702,6 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     return 0;
 }
 
-Inter_AuctionResultRegist::Inter_AuctionResultRegist() {}
 Inter_AuctionResultRegist::~Inter_AuctionResultRegist() {}
 // ORIG 0x084d6ad6 T dispatch_sig —— 拍卖登记结果应答：GM 延迟追踪 + 0xba 包 + AP 清理。
 // 报告 docs/class_func_reports/Inter_AuctionResultRegist/dispatch_sig.md 全文转写。
@@ -7894,7 +7748,6 @@ int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_AuctionResultBidding::Inter_AuctionResultBidding() {}
 Inter_AuctionResultBidding::~Inter_AuctionResultBidding() {}
 // ORIG 0x084d6ca4 T dispatch_sig —— 拍卖竞标结果转发台湾平台实现。
 // 报告 docs/class_func_reports/Inter_AuctionResultBidding/dispatch_sig.md 全文转写。
@@ -8090,7 +7943,6 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
     }
     return 0;
 }
-Inter_AuctionResultRegistCancel::Inter_AuctionResultRegistCancel() {}
 Inter_AuctionResultRegistCancel::~Inter_AuctionResultRegistCancel() {}
 // ORIG 0x084d741c T dispatch_sig —— 拍卖登记取消结果：GM 延迟追踪后组 0xbb 包回发。
 // 报告 docs/class_func_reports/Inter_AuctionResultRegistCancel/dispatch_sig.md 全文转写。
@@ -8131,7 +7983,6 @@ int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_AuctionResultItemList::Inter_AuctionResultItemList() {}
 Inter_AuctionResultItemList::~Inter_AuctionResultItemList() {}
 // ORIG 0x084d75bc T dispatch_sig —— 拍卖物品列表应答：GM 延迟追踪 + 0xbd 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultItemList/dispatch_sig.md 全文转写。
@@ -8170,7 +8021,6 @@ int Inter_AuctionResultItemList::dispatch_sig(CUser* user, char* data, int len)
     return 0;
 }
 
-Inter_AuctionResultMyRegistedItems::Inter_AuctionResultMyRegistedItems() {}
 Inter_AuctionResultMyRegistedItems::~Inter_AuctionResultMyRegistedItems() {}
 // ORIG 0x084d7758 T dispatch_sig —— 我的登记物品列表应答：GM 追踪 + 0xbf 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultMyRegistedItems/dispatch_sig.md 全文转写。
@@ -8209,7 +8059,6 @@ int Inter_AuctionResultMyRegistedItems::dispatch_sig(CUser* user, char* data, in
     return 0;
 }
 
-Inter_AuctionResultMyBidding::Inter_AuctionResultMyBidding() {}
 Inter_AuctionResultMyBidding::~Inter_AuctionResultMyBidding() {}
 // ORIG 0x084d78f4 T dispatch_sig —— 我的竞拍列表应答：GM 追踪 + 0xc0 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultMyBidding/dispatch_sig.md 全文转写。
@@ -8248,7 +8097,6 @@ int Inter_AuctionResultMyBidding::dispatch_sig(CUser* user, char* data, int len)
     return 0;
 }
 
-Inter_AuctionLogMessage::Inter_AuctionLogMessage() {}
 Inter_AuctionLogMessage::~Inter_AuctionLogMessage() {}
 int Inter_AuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -8262,7 +8110,6 @@ int Inter_AuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AuctionNotifyAuctionService::Inter_AuctionNotifyAuctionService() {}
 Inter_AuctionNotifyAuctionService::~Inter_AuctionNotifyAuctionService() {}
 // ORIG 0x084d7ac8 T dispatch_sig —— 拍卖服务开关：置 proxy 运行态并全员广播。
 // 报告 docs/class_func_reports/Inter_AuctionNotifyAuctionService/dispatch_sig.md 全文转写。
@@ -8309,7 +8156,6 @@ int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data,
     return 0;
 }
 
-Inter_PointAuctionLogMessage::Inter_PointAuctionLogMessage() {}
 Inter_PointAuctionLogMessage::~Inter_PointAuctionLogMessage() {}
 int Inter_PointAuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -8323,7 +8169,6 @@ int Inter_PointAuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_PointAuctionChargeCeraPoint::Inter_PointAuctionChargeCeraPoint() {}
 Inter_PointAuctionChargeCeraPoint::~Inter_PointAuctionChargeCeraPoint() {}
 // ORIG 0x084d7c84 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_PointAuctionChargeCeraPoint/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -8332,7 +8177,6 @@ int Inter_PointAuctionChargeCeraPoint::dispatch_sig(CUser* /*user*/, char* /*dat
     return 0;
 }
 
-Inter_AuctionResultBuyItemApiece::Inter_AuctionResultBuyItemApiece() {}
 Inter_AuctionResultBuyItemApiece::~Inter_AuctionResultBuyItemApiece() {}
 // ORIG 0x084d7c8e T dispatch_sig —— 拍卖逐件购买结果（金币返还 + 0x14f 包）。
 // 报告 docs/class_func_reports/Inter_AuctionResultBuyItemApiece/dispatch_sig.md 全文转写。
@@ -8386,7 +8230,6 @@ int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_LoadGameOption::Inter_LoadGameOption() {}
 Inter_LoadGameOption::~Inter_LoadGameOption() {}
 // ORIG 0x084d7e84 T dispatch_sig —— 游戏选项载入（ETC/快捷聊天/表情配置 + 0xad 回包）。
 // 报告 docs/class_func_reports/Inter_LoadGameOption/dispatch_sig.md 全文转写。
@@ -8425,7 +8268,6 @@ int Inter_LoadGameOption::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_PvPChannelInfo::Inter_PvPChannelInfo() {}
 Inter_PvPChannelInfo::~Inter_PvPChannelInfo() {}
 // ORIG 0x084d8096 T dispatch_sig —— PvP 频道信息同步：组 0xc6 包逐频道回发。
 // 报告 docs/class_func_reports/Inter_PvPChannelInfo/dispatch_sig.md 全文转写。
@@ -8460,7 +8302,6 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_PvPChannelUserCount::Inter_PvPChannelUserCount() {}
 Inter_PvPChannelUserCount::~Inter_PvPChannelUserCount() {}
 // ORIG 0x084d8262 T dispatch_sig —— PvP 频道用户数统计回填并转发监控服。
 // 报告 docs/class_func_reports/Inter_PvPChannelUserCount/dispatch_sig.md 全文转写。
@@ -8481,7 +8322,6 @@ int Inter_PvPChannelUserCount::dispatch_sig(CUser* /*user*/, char* data, int /*l
     return 0;
 }
 
-Inter_LoadBloodDungeonBestRecord::Inter_LoadBloodDungeonBestRecord() {}
 Inter_LoadBloodDungeonBestRecord::~Inter_LoadBloodDungeonBestRecord() {}
 // ORIG 0x084d82f6 T dispatch_sig —— 血轮副本个人最佳记录 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadBloodDungeonBestRecord/dispatch_sig.md 全文转写。
@@ -8504,7 +8344,6 @@ int Inter_LoadBloodDungeonBestRecord::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_LoadBreakAwayPreventSystem::Inter_LoadBreakAwayPreventSystem() {}
 Inter_LoadBreakAwayPreventSystem::~Inter_LoadBreakAwayPreventSystem() {}
 int Inter_LoadBreakAwayPreventSystem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -8514,7 +8353,6 @@ int Inter_LoadBreakAwayPreventSystem::dispatch_sig(CUser* /*user*/, char* data, 
     return 0;
 }
 
-Inter_LoadBreakAwayPreventMessage::Inter_LoadBreakAwayPreventMessage() {}
 Inter_LoadBreakAwayPreventMessage::~Inter_LoadBreakAwayPreventMessage() {}
 // ORIG 0x084d92b4 T dispatch_sig —— 防流失活动状态通知（0x111 状态门 + 0x136 活动开启包）。
 // 报告 docs/class_func_reports/Inter_LoadBreakAwayPreventMessage/dispatch_sig.md 全文转写。
@@ -8555,7 +8393,6 @@ int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_LoadDimensionInout::Inter_LoadDimensionInout() {}
 Inter_LoadDimensionInout::~Inter_LoadDimensionInout() {}
 // ORIG 0x084d83d2 T dispatch_sig —— 维度进出标志载入（更新角色数组并回传差异）。
 // 报告 docs/class_func_reports/Inter_LoadDimensionInout/dispatch_sig.md 全文转写。
@@ -8604,7 +8441,6 @@ int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_BlackIPMonitorReq::Inter_BlackIPMonitorReq() {}
 Inter_BlackIPMonitorReq::~Inter_BlackIPMonitorReq() {}
 // ORIG 0x084d8608 T dispatch_sig —— 黑名单 IP 监控请求：触发 DB 加载并打日志。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitorReq/dispatch_sig.md 全文转写。
@@ -8617,7 +8453,6 @@ int Inter_BlackIPMonitorReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /
     return 0;
 }
 
-Inter_BlackIPMonitor::Inter_BlackIPMonitor() {}
 Inter_BlackIPMonitor::~Inter_BlackIPMonitor() {}
 // ORIG 0x084d8650 T dispatch_sig —— 黑名单 IP 惩罚表全量装载。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitor/dispatch_sig.md 全文转写。
@@ -8648,7 +8483,6 @@ int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_BlackIPMonitorPartLoadReq::Inter_BlackIPMonitorPartLoadReq() {}
 Inter_BlackIPMonitorPartLoadReq::~Inter_BlackIPMonitorPartLoadReq() {}
 // ORIG 0x084d87a0 T dispatch_sig —— 黑名单 IP 分批加载请求。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitorPartLoadReq/dispatch_sig.md 全文转写。
@@ -8662,7 +8496,6 @@ int Inter_BlackIPMonitorPartLoadReq::dispatch_sig(CUser* /*user*/, char* /*data*
     return 0;
 }
 
-Inter_BlackIPMonitorDeleteIP::Inter_BlackIPMonitorDeleteIP() {}
 Inter_BlackIPMonitorDeleteIP::~Inter_BlackIPMonitorDeleteIP() {}
 // ORIG 0x084d87e8 T dispatch_sig —— 黑名单 IP 表批量删除。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitorDeleteIP/dispatch_sig.md 全文转写。
@@ -8689,7 +8522,6 @@ int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* data, int 
     return 0;
 }
 
-Inter_LoadAutoMarketConditionsControl::Inter_LoadAutoMarketConditionsControl() {}
 Inter_LoadAutoMarketConditionsControl::~Inter_LoadAutoMarketConditionsControl() {}
 int Inter_LoadAutoMarketConditionsControl::dispatch_sig(
     CUser* /*user*/, char* data, int /*len*/)
@@ -8702,7 +8534,6 @@ int Inter_LoadAutoMarketConditionsControl::dispatch_sig(
     return 0;
 }
 
-Inter_UpdateOneDayLethe::Inter_UpdateOneDayLethe() {}
 Inter_UpdateOneDayLethe::~Inter_UpdateOneDayLethe() {}
 // ORIG 0x084d894c T dispatch_sig —— 一日忘却（OneDayLethe）状态更新：按
 // SIG+0x4 的状态机字节切换 USE/SKILL_CONFIRM/INIT/NOT_USE 四分支。
@@ -8855,7 +8686,6 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_DisconnectMonitorServer::Inter_DisconnectMonitorServer() {}
 Inter_DisconnectMonitorServer::~Inter_DisconnectMonitorServer() {}
 int Inter_DisconnectMonitorServer::dispatch_sig(
     CUser* /*user*/, char* data, int /*len*/)
@@ -8866,7 +8696,6 @@ int Inter_DisconnectMonitorServer::dispatch_sig(
     return 0;
 }
 
-Inter_ResposncePCRoomPlyerList::Inter_ResposncePCRoomPlyerList() {}
 Inter_ResposncePCRoomPlyerList::~Inter_ResposncePCRoomPlyerList() {}
 // ORIG 0x084d9cbe T dispatch_sig —— 网吧在线玩家列表下发：角色号校验 + 0x25 字节
 // stride 条目（名字/短值/属性字节）打包。
@@ -8930,7 +8759,6 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_ResposncePCRoomPlyerCount::Inter_ResposncePCRoomPlyerCount() {}
 Inter_ResposncePCRoomPlyerCount::~Inter_ResposncePCRoomPlyerCount() {}
 // ORIG 0x084da0aa T dispatch_sig —— 网吧玩家数应答转发。
 // 报告 docs/class_func_reports/Inter_ResposncePCRoomPlyerCount/dispatch_sig.md 全文转写。
@@ -8962,7 +8790,6 @@ int Inter_ResposncePCRoomPlyerCount::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_NoticePCRoomPlayerLoginOut::Inter_NoticePCRoomPlayerLoginOut() {}
 Inter_NoticePCRoomPlayerLoginOut::~Inter_NoticePCRoomPlayerLoginOut() {}
 // ORIG 0x084da1fa T dispatch_sig —— PC 房玩家登出通知：校验后组 0xba 包回发。
 // 报告 docs/class_func_reports/Inter_NoticePCRoomPlayerLoginOut/dispatch_sig.md 全文转写。
@@ -8999,7 +8826,6 @@ int Inter_NoticePCRoomPlayerLoginOut::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_NoticePowerWarRank::Inter_NoticePowerWarRank() {}
 Inter_NoticePowerWarRank::~Inter_NoticePowerWarRank() {}
 // ORIG 0x084d4f46 T dispatch_sig —— 力量战争前三名排行加载。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarRank/dispatch_sig.md 全文转写。
@@ -9017,7 +8843,6 @@ int Inter_NoticePowerWarRank::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_LoadPowerWarStatueRanker::Inter_LoadPowerWarStatueRanker() {}
 Inter_LoadPowerWarStatueRanker::~Inter_LoadPowerWarStatueRanker() {}
 int Inter_LoadPowerWarStatueRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -9026,7 +8851,6 @@ int Inter_LoadPowerWarStatueRanker::dispatch_sig(CUser* /*user*/, char* data, in
     return 0;
 }
 
-Inter_LoadPowerWarStatueInfo::Inter_LoadPowerWarStatueInfo() {}
 Inter_LoadPowerWarStatueInfo::~Inter_LoadPowerWarStatueInfo() {}
 int Inter_LoadPowerWarStatueInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -9036,7 +8860,6 @@ int Inter_LoadPowerWarStatueInfo::dispatch_sig(CUser* /*user*/, char* data, int 
     return 0;
 }
 
-Inter_UpdateServerMessage::Inter_UpdateServerMessage() {}
 Inter_UpdateServerMessage::~Inter_UpdateServerMessage() {}
 // ORIG 0x084da3e6 T dispatch_sig —— 全服公告转发：type 0 → 0xc0 包全频道广播；
 // type 1 → Packet_Monitor_Server_Message_Info 上报 monitor 服务器。
@@ -9096,7 +8919,6 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_LoadServerMessage::Inter_LoadServerMessage() {}
 Inter_LoadServerMessage::~Inter_LoadServerMessage() {}
 // ORIG 0x084daeee T dispatch_sig —— 事件服公告写入共享服消息管理器。
 // 报告 docs/class_func_reports/Inter_LoadServerMessage/dispatch_sig.md 全文转写。
@@ -9108,7 +8930,6 @@ int Inter_LoadServerMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_NoticeServerMessageInfo::Inter_NoticeServerMessageInfo() {}
 Inter_NoticeServerMessageInfo::~Inter_NoticeServerMessageInfo() {}
 // ORIG 0x084da726 T dispatch_sig —— 共享服务器公告下发（0xc0 包，全网 state3 广播）。
 // 报告 docs/class_func_reports/Inter_NoticeServerMessageInfo/dispatch_sig.md 全文转写。
@@ -9158,7 +8979,6 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
     return 0;
 }
 
-Inter_NoticeGuildMemo::Inter_NoticeGuildMemo() {}
 Inter_NoticeGuildMemo::~Inter_NoticeGuildMemo() {}
 // ORIG 0x084dad96 T dispatch_sig —— 公会 memo 通知双字符串转发。
 // 报告 docs/class_func_reports/Inter_NoticeGuildMemo/dispatch_sig.md 全文转写。
@@ -9185,7 +9005,6 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_PowerWarProcessInfo::Inter_PowerWarProcessInfo() {}
 Inter_PowerWarProcessInfo::~Inter_PowerWarProcessInfo() {}
 // ORIG 0x084daf30 T dispatch_sig —— 权力战进行信息下发。
 // 报告 docs/class_func_reports/Inter_PowerWarProcessInfo/dispatch_sig.md 全文转写。
@@ -9211,7 +9030,6 @@ int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_PowerWarEndInfo::Inter_PowerWarEndInfo() {}
 Inter_PowerWarEndInfo::~Inter_PowerWarEndInfo() {}
 // ORIG 0x084db070 T dispatch_sig —— 权力战结束信息：胜方判定后转发战果统计。
 // 报告 docs/class_func_reports/Inter_PowerWarEndInfo/dispatch_sig.md 全文转写。
@@ -9244,7 +9062,6 @@ int Inter_PowerWarEndInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NoticeCreateGuildAgit::Inter_NoticeCreateGuildAgit() {}
 Inter_NoticeCreateGuildAgit::~Inter_NoticeCreateGuildAgit() {}
 // ORIG 0x084da98e T dispatch_sig —— 公会聚点创建通知：置标记后按匹配关系回执/同步 proxy。
 // 报告 docs/class_func_reports/Inter_NoticeCreateGuildAgit/dispatch_sig.md 全文转写。
@@ -9275,7 +9092,6 @@ int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_NoticeDeleteGuildAgit::Inter_NoticeDeleteGuildAgit() {}
 Inter_NoticeDeleteGuildAgit::~Inter_NoticeDeleteGuildAgit() {}
 // ORIG 0x084dab18 T dispatch_sig —— 公会驻地删除通知：清标记并发 0xe8/0xbe 包。
 // 报告 docs/class_func_reports/Inter_NoticeDeleteGuildAgit/dispatch_sig.md 全文转写。
@@ -9312,7 +9128,6 @@ int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_NoticeLoadGuildAgit::Inter_NoticeLoadGuildAgit() {}
 Inter_NoticeLoadGuildAgit::~Inter_NoticeLoadGuildAgit() {}
 // ORIG 0x084dacda T dispatch_sig —— 公会行会据点加载通知。
 // 报告 docs/class_func_reports/Inter_NoticeLoadGuildAgit/dispatch_sig.md 全文转写。
@@ -9328,7 +9143,6 @@ int Inter_NoticeLoadGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_LoadExpertJob::Inter_LoadExpertJob() {}
 Inter_LoadExpertJob::~Inter_LoadExpertJob() {}
 // ORIG 0x084db200 T dispatch_sig —— 达人职业 DB 加载（扩展数据 loadData + 信息包）。
 // 报告 docs/class_func_reports/Inter_LoadExpertJob/dispatch_sig.md 全文转写。
@@ -9349,7 +9163,6 @@ int Inter_LoadExpertJob::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MonitorPunishUserReq::Inter_MonitorPunishUserReq() {}
 Inter_MonitorPunishUserReq::~Inter_MonitorPunishUserReq() {}
 // ORIG 0x084db294 T dispatch_sig —— 监控踢人：按账号表逐一断线。
 // 报告 docs/class_func_reports/Inter_MonitorPunishUserReq/dispatch_sig.md 全文转写。
@@ -9393,7 +9206,6 @@ int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*
     return 0;
 }
 
-Inter_PcroomResponse::Inter_PcroomResponse() {}
 Inter_PcroomResponse::~Inter_PcroomResponse() {}
 // ORIG 0x084db40e T IsShutdonTimeOverLogin —— 停机时段判定：当前小时 < 6。
 bool Inter_PcroomResponse::IsShutdonTimeOverLogin()
@@ -9487,7 +9299,6 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ItemLimitEdition_Sell_Start::Inter_ItemLimitEdition_Sell_Start() {}
 Inter_ItemLimitEdition_Sell_Start::~Inter_ItemLimitEdition_Sell_Start() {}
 // ORIG 0x084db878 T dispatch_sig —— 限购版道具开卖：清旧登记（广播移除包）、逐条目
 // 注册、广播信息包。msg 布局：+0xa flag(u8) +0xb count(u32) +0xf 起条目 stride 0x48。
@@ -9555,7 +9366,6 @@ regist:
     return 0;
 }
 
-Inter_ItemLimitEdition_Sell_End::Inter_ItemLimitEdition_Sell_End() {}
 Inter_ItemLimitEdition_Sell_End::~Inter_ItemLimitEdition_Sell_End() {}
 // ORIG 0x084dbbb2 T dispatch_sig —— 限量版道具销售结束：逐项移除并广播 IPG 列表。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Sell_End/dispatch_sig.md 全文转写。
@@ -9587,7 +9397,6 @@ int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, i
     return 0;
 }
 
-Inter_ItemLimitEdition_Update::Inter_ItemLimitEdition_Update() {}
 Inter_ItemLimitEdition_Update::~Inter_ItemLimitEdition_Update() {}
 // ORIG 0x084dbd16 T dispatch_sig —— 限售物品数量更新：逐条 updateItem 后广播 0xe1 包。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Update/dispatch_sig.md 全文转写。
@@ -9634,7 +9443,6 @@ int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int
     return 0;
 }
 
-Inter_ItemLimitEdition_Reply::Inter_ItemLimitEdition_Reply() {}
 Inter_ItemLimitEdition_Reply::~Inter_ItemLimitEdition_Reply() {}
 // ORIG 0x084dbef0 T —— 限时道具购买应答。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Reply/dispatch_sig.md 全文转写
@@ -9813,7 +9621,6 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_FindFactoryHub::Inter_FindFactoryHub() {}
 Inter_FindFactoryHub::~Inter_FindFactoryHub() {}
 // ORIG 0x084dc97a T dispatch_sig —— 工厂枢纽查找：计 hack 键并上报监视服。
 // 报告 docs/class_func_reports/Inter_FindFactoryHub/dispatch_sig.md 全文转写。
@@ -9850,7 +9657,6 @@ int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildExpLimit::Inter_GuildExpLimit() {}
 Inter_GuildExpLimit::~Inter_GuildExpLimit() {}
 int Inter_GuildExpLimit::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
@@ -9861,7 +9667,6 @@ int Inter_GuildExpLimit::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len
     return 0;
 }
 
-Inter_SetIPCount::Inter_SetIPCount() {}
 Inter_SetIPCount::~Inter_SetIPCount() {}
 // ORIG 0x084dcb18 T dispatch_sig —— 同 IP 连接计数表同步。
 // 报告 docs/class_func_reports/Inter_SetIPCount/dispatch_sig.md 全文转写。
@@ -9882,7 +9687,6 @@ int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SetFullIPCount::Inter_SetFullIPCount() {}
 Inter_SetFullIPCount::~Inter_SetFullIPCount() {}
 // ORIG 0x084dcbea T dispatch_sig —— 全 IP 连接计数表同步。
 // 报告 docs/class_func_reports/Inter_SetFullIPCount/dispatch_sig.md 全文转写。
@@ -9903,7 +9707,6 @@ int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_CancelRestingUser::Inter_CancelRestingUser() {}
 Inter_CancelRestingUser::~Inter_CancelRestingUser() {}
 int Inter_CancelRestingUser::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
 {
@@ -9914,7 +9717,6 @@ int Inter_CancelRestingUser::dispatch_sig(CUser* user, char* /*data*/, int /*len
     return 0;
 }
 
-Inter_ApplyTempPowerSide::Inter_ApplyTempPowerSide() {}
 Inter_ApplyTempPowerSide::~Inter_ApplyTempPowerSide() {}
 // ORIG 0x084dccde T dispatch_sig —— 临时势力侧应用（公会代理修改 + 全服广播 basic_info）。
 // 报告 docs/class_func_reports/Inter_ApplyTempPowerSide/dispatch_sig.md 全文转写。
@@ -9953,7 +9755,6 @@ int Inter_ApplyTempPowerSide::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ReloadPowerWarRanker::Inter_ReloadPowerWarRanker() {}
 Inter_ReloadPowerWarRanker::~Inter_ReloadPowerWarRanker() {}
 // ORIG 0x084dceec T dispatch_sig —— 力量战争排行器重载。
 // 报告 docs/class_func_reports/Inter_ReloadPowerWarRanker/dispatch_sig.md 全文转写。
@@ -9968,7 +9769,6 @@ int Inter_ReloadPowerWarRanker::dispatch_sig(CUser* /*user*/, char* /*data*/, in
     return 0;
 }
 
-Inter_LoadPowerWarInfo::Inter_LoadPowerWarInfo() {}
 Inter_LoadPowerWarInfo::~Inter_LoadPowerWarInfo() {}
 // ORIG 0x084dcf4a T dispatch_sig —— 力量战争胜负信息加载。
 // 报告 docs/class_func_reports/Inter_LoadPowerWarInfo/dispatch_sig.md 全文转写。
@@ -9988,7 +9788,6 @@ int Inter_LoadPowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*
     return 0;
 }
 
-Inter_SetFactoryHubUser::Inter_SetFactoryHubUser() {}
 Inter_SetFactoryHubUser::~Inter_SetFactoryHubUser() {}
 // ORIG 0x084dcfec T dispatch_sig —— 工厂中枢用户登记/查询。
 // 报告 docs/class_func_reports/Inter_SetFactoryHubUser/dispatch_sig.md 全文转写。
@@ -10014,7 +9813,6 @@ int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SetFactoryHubUserNotConn::Inter_SetFactoryHubUserNotConn() {}
 Inter_SetFactoryHubUserNotConn::~Inter_SetFactoryHubUserNotConn() {}
 // ORIG 0x084dd0c4 T dispatch_sig —— 工厂中枢用户未连接记录 DB 保存。
 // 报告 docs/class_func_reports/Inter_SetFactoryHubUserNotConn/dispatch_sig.md 全文转写。
@@ -10031,7 +9829,6 @@ int Inter_SetFactoryHubUserNotConn::dispatch_sig(CUser* user, char* data, int /*
     return 0;
 }
 
-Inter_Set_CleanPad_Point::Inter_Set_CleanPad_Point() {}
 Inter_Set_CleanPad_Point::~Inter_Set_CleanPad_Point() {}
 // ORIG 0x084dd12e T dispatch_sig —— CleanPad 点数设置（CMCAPManager）。
 // 报告 docs/class_func_reports/Inter_Set_CleanPad_Point/dispatch_sig.md 全文转写。
@@ -10052,7 +9849,6 @@ int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadNoCacheData::Inter_LoadNoCacheData() {}
 Inter_LoadNoCacheData::~Inter_LoadNoCacheData() {}
 // ORIG 0x084dd1ee T dispatch_sig —— 无缓存角色数据加载（扩展数据 loadData 虚调用）。
 // 报告 docs/class_func_reports/Inter_LoadNoCacheData/dispatch_sig.md 全文转写。
@@ -10068,7 +9864,6 @@ int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargo::Inter_GuildCargo() {}
 Inter_GuildCargo::~Inter_GuildCargo() {}
 // ORIG 0x084dd26c T dispatch_sig —— 公会仓库结果下发（状态门→历史日志→错误包/回填计数包）。
 // 报告 docs/class_func_reports/Inter_GuildCargo/dispatch_sig.md 全文转写。
@@ -10125,7 +9920,6 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NoticeGuildCargo::Inter_NoticeGuildCargo() {}
 Inter_NoticeGuildCargo::~Inter_NoticeGuildCargo() {}
 // ORIG 0x084dd4b2 T dispatch_sig —— 公会仓库容量应答：记历史、设容量、组 0xed 包回发。
 // 报告 docs/class_func_reports/Inter_NoticeGuildCargo/dispatch_sig.md 全文转写。
@@ -10165,7 +9959,6 @@ int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargoHistory::Inter_GuildCargoHistory() {}
 Inter_GuildCargoHistory::~Inter_GuildCargoHistory() {}
 // ORIG 0x084dd69e T dispatch_sig —— 公会仓库历史查询：组 0x10a 包回发并记历史。
 // 报告 docs/class_func_reports/Inter_GuildCargoHistory/dispatch_sig.md 全文转写。
@@ -10202,7 +9995,6 @@ int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargoCheckPushItem::Inter_GuildCargoCheckPushItem() {}
 Inter_GuildCargoCheckPushItem::~Inter_GuildCargoCheckPushItem() {}
 // ORIG 0x084dd856 T dispatch_sig —— 公会仓库上架申请：校验角色/物品/期限后删除
 // 背包物品并把物品内容打包转发给公会服务器代理。
@@ -10362,7 +10154,6 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     return 0;
 }
 
-Inter_GuildCargoPushItem::Inter_GuildCargoPushItem() {}
 Inter_GuildCargoPushItem::~Inter_GuildCargoPushItem() {}
 // ORIG 0x084ddea2 T dispatch_sig —— 公会仓库上架结果：成功回 0xfb 确认包；
 // 失败则把物品从 msg 载荷重建入背包（失败再走系统邮件回收）。
@@ -10445,7 +10236,6 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargoPopItem::Inter_GuildCargoPopItem() {}
 Inter_GuildCargoPopItem::~Inter_GuildCargoPopItem() {}
 int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -10588,7 +10378,6 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargoMoveItem::Inter_GuildCargoMoveItem() {}
 Inter_GuildCargoMoveItem::~Inter_GuildCargoMoveItem() {}
 // ORIG 0x084debb4 T dispatch_sig —— 公会仓库移动结果：记历史日志并回执客户端。
 // 报告 docs/class_func_reports/Inter_GuildCargoMoveItem/dispatch_sig.md 全文转写。
@@ -10625,7 +10414,6 @@ int Inter_GuildCargoMoveItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildCargoUpgrade::Inter_GuildCargoUpgrade() {}
 Inter_GuildCargoUpgrade::~Inter_GuildCargoUpgrade() {}
 // ORIG 0x084ded42 T dispatch_sig —— 公会仓库升级应答。
 // 报告 docs/class_func_reports/Inter_GuildCargoUpgrade/dispatch_sig.md 全文转写。
@@ -10653,7 +10441,6 @@ int Inter_GuildCargoUpgrade::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildBoardData::Inter_GuildBoardData() {}
 Inter_GuildBoardData::~Inter_GuildBoardData() {}
 // ORIG 0x084dee6a T dispatch_sig —— 公会留言板数据下发：按请求码 0x232a/0x232e
 // 组 0x155/0x156 回包，逐条 0xa5 记录转写。
@@ -10730,7 +10517,6 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildBoardDelete::Inter_GuildBoardDelete() {}
 Inter_GuildBoardDelete::~Inter_GuildBoardDelete() {}
 // ORIG 0x084df2ac T dispatch_sig —— 公会留言板删除应答。
 // 报告 docs/class_func_reports/Inter_GuildBoardDelete/dispatch_sig.md 全文转写。
@@ -10758,7 +10544,6 @@ int Inter_GuildBoardDelete::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_TakeScreenShot::Inter_TakeScreenShot() {}
 Inter_TakeScreenShot::~Inter_TakeScreenShot() {}
 // ORIG 0x084df3d6 T dispatch_sig —— 客户端截屏请求全网广播。
 // 报告 docs/class_func_reports/Inter_TakeScreenShot/dispatch_sig.md 全文转写。
@@ -10772,7 +10557,6 @@ int Inter_TakeScreenShot::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_VillageAttackedStart::Inter_VillageAttackedStart() {}
 Inter_VillageAttackedStart::~Inter_VillageAttackedStart() {}
 // ORIG 0x084df47a T dispatch_sig —— 村庄袭击开始：关闭极限地下城 + 全服广播 0xf1 包。
 // 报告 docs/class_func_reports/Inter_VillageAttackedStart/dispatch_sig.md 全文转写。
@@ -10816,7 +10600,6 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     return 0;
 }
 
-Inter_VillageAttackedEnd::Inter_VillageAttackedEnd() {}
 Inter_VillageAttackedEnd::~Inter_VillageAttackedEnd() {}
 // ORIG 0x084df6a4 T dispatch_sig —— 村庄攻防结束：开/关复仇副本、遍历在线用户
 // 发 0x1ec 结束包（疲劳结算、复仇次数落库），最后广播奖励类型。
@@ -10933,7 +10716,6 @@ int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_VillageAttackedCountdown::Inter_VillageAttackedCountdown() {}
 Inter_VillageAttackedCountdown::~Inter_VillageAttackedCountdown() {}
 // ORIG 0x084dfae0 T dispatch_sig —— 村庄攻击倒计时广播。
 // 报告 docs/class_func_reports/Inter_VillageAttackedCountdown/dispatch_sig.md 全文转写。
@@ -10956,7 +10738,6 @@ int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, in
     return 0;
 }
 
-Inter_VillageAttackedUpdate::Inter_VillageAttackedUpdate() {}
 Inter_VillageAttackedUpdate::~Inter_VillageAttackedUpdate() {}
 // ORIG 0x084dfbe6 T dispatch_sig —— 村庄攻击状态全员更新广播。
 // 报告 docs/class_func_reports/Inter_VillageAttackedUpdate/dispatch_sig.md 全文转写。
@@ -10981,7 +10762,6 @@ int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_VillageAttackedScore::Inter_VillageAttackedScore() {}
 Inter_VillageAttackedScore::~Inter_VillageAttackedScore() {}
 // ORIG 0x084dfd16 T dispatch_sig —— 村庄袭击比分：多门校验后转发四方比分。
 // 报告 docs/class_func_reports/Inter_VillageAttackedScore/dispatch_sig.md 全文转写。
@@ -11015,7 +10795,6 @@ int Inter_VillageAttackedScore::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_VillageAttackedReward::Inter_VillageAttackedReward() {}
 Inter_VillageAttackedReward::~Inter_VillageAttackedReward() {}
 // ORIG 0x084dfea6 T dispatch_sig —— 村庄攻防奖励发放：按奖励类型（win point /
 // 排名 / 参战）检索 Arad_VillageAttackRewardItem 脚本并发奖。
@@ -11140,7 +10919,6 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_VillageAttackedRewardServer::Inter_VillageAttackedRewardServer() {}
 Inter_VillageAttackedRewardServer::~Inter_VillageAttackedRewardServer() {}
 // ORIG 0x084e05c2 T dispatch_sig —— 村庄攻击奖励结束：组 0x1ec 包全网广播、清理复仇副本与角色状态。
 // 报告 docs/class_func_reports/Inter_VillageAttackedRewardServer/dispatch_sig.md 全文转写。
@@ -11188,7 +10966,6 @@ int Inter_VillageAttackedRewardServer::dispatch_sig(CUser* /*user*/, char* /*dat
     return 0;
 }
 
-Inter_FullLevelBroadCast::Inter_FullLevelBroadCast() {}
 Inter_FullLevelBroadCast::~Inter_FullLevelBroadCast() {}
 // ORIG 0x084e0816 T dispatch_sig —— 全服广播字符串（满级公告等）。
 // 报告 docs/class_func_reports/Inter_FullLevelBroadCast/dispatch_sig.md 全文转写。
@@ -11204,7 +10981,6 @@ int Inter_FullLevelBroadCast::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_Hack_CheckMyAccount::Inter_Hack_CheckMyAccount() {}
 Inter_Hack_CheckMyAccount::~Inter_Hack_CheckMyAccount() {}
 // ORIG 0x084e08fc T dispatch_sig —— 账号自查异常登记 hack 计数。
 // 报告 docs/class_func_reports/Inter_Hack_CheckMyAccount/dispatch_sig.md 全文转写。
@@ -11219,7 +10995,6 @@ int Inter_Hack_CheckMyAccount::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_SetSecounUserData::Inter_SetSecounUserData() {}
 Inter_SetSecounUserData::~Inter_SetSecounUserData() {}
 // ORIG 0x084e0972 T dispatch_sig —— 记录黑金没收用户的钱款入账。
 // 报告 docs/class_func_reports/Inter_SetSecounUserData/dispatch_sig.md 全文转写。
@@ -11233,7 +11008,6 @@ int Inter_SetSecounUserData::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SetARSInfo::Inter_SetARSInfo() {}
 Inter_SetARSInfo::~Inter_SetARSInfo() {}
 // ORIG 0x084e09ce T dispatch_sig —— 网吧自动惩罚规则(ARS)批量下发：reset 门 + 每条目
 // setTotalTrade/setHackCnt 分发与 trace，条目 stride 0xc。
@@ -11300,7 +11074,6 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_OnTimeEventRewardStart::Inter_OnTimeEventRewardStart() {}
 Inter_OnTimeEventRewardStart::~Inter_OnTimeEventRewardStart() {}
 // ORIG 0x084e0dc6 T dispatch_sig —— 定时活动奖励开始：0x33 号 repeat 事件广播 0x105 包。
 // 报告 docs/class_func_reports/Inter_OnTimeEventRewardStart/dispatch_sig.md 全文转写。
@@ -11344,7 +11117,6 @@ int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int 
     return 0;
 }
 
-Inter_OnTimeEventRewardEnd::Inter_OnTimeEventRewardEnd() {}
 Inter_OnTimeEventRewardEnd::~Inter_OnTimeEventRewardEnd() {}
 // ORIG 0x084e1062 T dispatch_sig —— 准时事件奖励结束：置奖励态并全员广播结束包。
 // 报告 docs/class_func_reports/Inter_OnTimeEventRewardEnd/dispatch_sig.md 全文转写。
@@ -11384,7 +11156,6 @@ int Inter_OnTimeEventRewardEnd::dispatch_sig(CUser* /*user*/, char* /*data*/, in
     return 0;
 }
 
-Inter_LoadPvPBuddy::Inter_LoadPvPBuddy() {}
 Inter_LoadPvPBuddy::~Inter_LoadPvPBuddy() {}
 // ORIG 0x084e16f4 T dispatch_sig —— 纯 ret 空函数。
 // 报告 docs/class_func_reports/Inter_LoadPvPBuddy/dispatch_sig.md 全文转写（汇编 9 字节，mov $0x0,%eax; ret）。
@@ -11393,7 +11164,6 @@ int Inter_LoadPvPBuddy::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*
     return 0;
 }
 
-Inter_PvPBuddyConnList::Inter_PvPBuddyConnList() {}
 Inter_PvPBuddyConnList::~Inter_PvPBuddyConnList() {}
 // ORIG 0x084e16fe T dispatch_sig —— PvP 伙伴连接列表下发。
 // 报告 docs/class_func_reports/Inter_PvPBuddyConnList/dispatch_sig.md 全文转写。
@@ -11419,7 +11189,6 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ReqAddPvPBuddy::Inter_ReqAddPvPBuddy() {}
 Inter_ReqAddPvPBuddy::~Inter_ReqAddPvPBuddy() {}
 // ORIG 0x084e1832 T dispatch_sig —— PvP 伙伴添加请求应答。
 // 报告 docs/class_func_reports/Inter_ReqAddPvPBuddy/dispatch_sig.md 全文转写。
@@ -11443,7 +11212,6 @@ int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AddPvPBuddyResult::Inter_AddPvPBuddyResult() {}
 Inter_AddPvPBuddyResult::~Inter_AddPvPBuddyResult() {}
 // ORIG 0x084e1978 T dispatch_sig —— PvP 好友添加结果通知（0x121/0x122 两包 + 错误码分支）。
 // 报告 docs/class_func_reports/Inter_AddPvPBuddyResult/dispatch_sig.md 全文转写。
@@ -11498,7 +11266,6 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_RemovePvPBuddyResult::Inter_RemovePvPBuddyResult() {}
 Inter_RemovePvPBuddyResult::~Inter_RemovePvPBuddyResult() {}
 // ORIG 0x084e1c1e T dispatch_sig —— PVP 好友删除结果：成功转发名字或错误码。
 // 报告 docs/class_func_reports/Inter_RemovePvPBuddyResult/dispatch_sig.md 全文转写。
@@ -11532,7 +11299,6 @@ int Inter_RemovePvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_NoticePvPBuddyInOut::Inter_NoticePvPBuddyInOut() {}
 Inter_NoticePvPBuddyInOut::~Inter_NoticePvPBuddyInOut() {}
 // ORIG 0x084e1d96 T dispatch_sig —— PVP 好友进出通知：登录/登出两种包头转发名字。
 // 报告 docs/class_func_reports/Inter_NoticePvPBuddyInOut/dispatch_sig.md 全文转写。
@@ -11564,7 +11330,6 @@ int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_LoadPvPLiveEventData::Inter_LoadPvPLiveEventData() {}
 Inter_LoadPvPLiveEventData::~Inter_LoadPvPLiveEventData() {}
 // ORIG 0x084e25cc T dispatch_sig —— PvP 直播活动数据 DB 加载（扩展数据槽 3）。
 // 报告 docs/class_func_reports/Inter_LoadPvPLiveEventData/dispatch_sig.md 全文转写。
@@ -11579,7 +11344,6 @@ int Inter_LoadPvPLiveEventData::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_Antibot_SendBufferClient::Inter_Antibot_SendBufferClient() {}
 Inter_Antibot_SendBufferClient::~Inter_Antibot_SendBufferClient() {}
 // ORIG 0x084e43bc T dispatch_sig —— ANTIBOT/DPROTO 缓冲透传客户端：getUser 状态门、
 // 异常计数日志、0x230/0x231 包发送与历史记录。
@@ -11679,7 +11443,6 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     return 0;
 }
 
-Inter_Antibot_PunishClient::Inter_Antibot_PunishClient() {}
 Inter_Antibot_PunishClient::~Inter_Antibot_PunishClient() {}
 // ORIG 0x084e4774 T dispatch_sig —— antibot 惩罚客户端指令。
 // 报告 docs/class_func_reports/Inter_Antibot_PunishClient/dispatch_sig.md 全文转写。
@@ -11712,7 +11475,6 @@ int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*
     return 0;
 }
 
-Inter_Antibot_ProcessProtectMsg::Inter_Antibot_ProcessProtectMsg() {}
 Inter_Antibot_ProcessProtectMsg::~Inter_Antibot_ProcessProtectMsg() {}
 // ORIG 0x084e48c2 T dispatch_sig —— 反外挂保护消息：按事件类型回 SAFEMODE 通知包。
 // 报告 docs/class_func_reports/Inter_Antibot_ProcessProtectMsg/dispatch_sig.md 全文转写。
@@ -11773,7 +11535,6 @@ int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, i
     return 0;
 }
 
-Inter_LoadOnlinePreliminaryMember::Inter_LoadOnlinePreliminaryMember() {}
 Inter_LoadOnlinePreliminaryMember::~Inter_LoadOnlinePreliminaryMember() {}
 // ORIG 0x084e263e T dispatch_sig —— 线上预选成员数据 DB 加载（扩展数据槽 4）。
 // 报告 docs/class_func_reports/Inter_LoadOnlinePreliminaryMember/dispatch_sig.md 全文转写。
@@ -11788,7 +11549,6 @@ int Inter_LoadOnlinePreliminaryMember::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_LoadOnlinePreliminaryTeam::Inter_LoadOnlinePreliminaryTeam() {}
 Inter_LoadOnlinePreliminaryTeam::~Inter_LoadOnlinePreliminaryTeam() {}
 // ORIG 0x084e26b0 T dispatch_sig —— 线上预选队伍成员进入。
 // 报告 docs/class_func_reports/Inter_LoadOnlinePreliminaryTeam/dispatch_sig.md 全文转写。
@@ -11803,7 +11563,6 @@ int Inter_LoadOnlinePreliminaryTeam::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_LoadOnlinePreliminaryMemberMatchList::Inter_LoadOnlinePreliminaryMemberMatchList() {}
 Inter_LoadOnlinePreliminaryMemberMatchList::~Inter_LoadOnlinePreliminaryMemberMatchList() {}
 // ORIG 0x084e271e T dispatch_sig —— 线上预选对战表数据 DB 加载（扩展数据槽 5）。
 // 报告 docs/class_func_reports/Inter_LoadOnlinePreliminaryMemberMatchList/dispatch_sig.md 全文转写。
@@ -11818,7 +11577,6 @@ int Inter_LoadOnlinePreliminaryMemberMatchList::dispatch_sig(CUser* user, char* 
     return 0;
 }
 
-Inter_LoadOnlinePreliminaryTeamMatchList::Inter_LoadOnlinePreliminaryTeamMatchList() {}
 Inter_LoadOnlinePreliminaryTeamMatchList::~Inter_LoadOnlinePreliminaryTeamMatchList() {}
 int Inter_LoadOnlinePreliminaryTeamMatchList::dispatch_sig(
     CUser* user, char* data, int /*len*/)
@@ -11827,7 +11585,6 @@ int Inter_LoadOnlinePreliminaryTeamMatchList::dispatch_sig(
     return 0;
 }
 
-Inter_LoadCharacLinkBonus::Inter_LoadCharacLinkBonus() {}
 Inter_LoadCharacLinkBonus::~Inter_LoadCharacLinkBonus() {}
 // ORIG 0x084e1f02 T dispatch_sig —— 角色联动奖励领取：经验直加、金币走系统邮件，
 // 更新联动状态并广播 0x123 通知包。
@@ -11896,7 +11653,6 @@ int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_CreateAccountCargo::Inter_CreateAccountCargo() {}
 Inter_CreateAccountCargo::~Inter_CreateAccountCargo() {}
 // ORIG 0x084e23a2 T dispatch_sig —— 账号仓库创建应答。
 // 报告 docs/class_func_reports/Inter_CreateAccountCargo/dispatch_sig.md 全文转写。
@@ -11923,7 +11679,6 @@ int Inter_CreateAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UpgradeAccountCargo::Inter_UpgradeAccountCargo() {}
 Inter_UpgradeAccountCargo::~Inter_UpgradeAccountCargo() {}
 // ORIG 0x084e243a T dispatch_sig —— 账号仓库扩容应答。
 // 报告 docs/class_func_reports/Inter_UpgradeAccountCargo/dispatch_sig.md 全文转写。
@@ -11945,7 +11700,6 @@ int Inter_UpgradeAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_LoadAccountCargo::Inter_LoadAccountCargo() {}
 Inter_LoadAccountCargo::~Inter_LoadAccountCargo() {}
 // ORIG 0x084e24ec T dispatch_sig —— 账号仓库 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadAccountCargo/dispatch_sig.md 全文转写。
@@ -11970,7 +11724,6 @@ int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_MultiMailBoxReqSend::Inter_MultiMailBoxReqSend() {}
 Inter_MultiMailBoxReqSend::~Inter_MultiMailBoxReqSend() {}
 // ORIG 0x084e27b8 T dispatch_sig —— 多邮件批量发送：逐收件人构造 MSG_MAILBOX_SEND 请求 DB 发信。
 // 报告 docs/class_func_reports/Inter_MultiMailBoxReqSend/dispatch_sig.md 全文转写。
@@ -12026,7 +11779,6 @@ int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_ReqQueryCharacInfoMailbox::Inter_ReqQueryCharacInfoMailbox() {}
 Inter_ReqQueryCharacInfoMailbox::~Inter_ReqQueryCharacInfoMailbox() {}
 // ORIG 0x084e2a06 T dispatch_sig —— 邮箱查询角色信息：转发角色名与等级/职业等摘要。
 // 报告 docs/class_func_reports/Inter_ReqQueryCharacInfoMailbox/dispatch_sig.md 全文转写。
@@ -12059,7 +11811,6 @@ int Inter_ReqQueryCharacInfoMailbox::dispatch_sig(CUser* user, char* data, int /
     return 0;
 }
 
-Inter_ReqGameServerInfo::Inter_ReqGameServerInfo() {}
 Inter_ReqGameServerInfo::~Inter_ReqGameServerInfo() {}
 // ORIG 0x084e2b94 T dispatch_sig —— 应答服务器信息查询（monitor/guild 代理 SendGameServerInfo）。
 // 报告 docs/class_func_reports/Inter_ReqGameServerInfo/dispatch_sig.md 全文转写。
@@ -12124,7 +11875,6 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
     return 0;
 }
 
-Inter_MonitorRegistGameServerAck::Inter_MonitorRegistGameServerAck() {}
 Inter_MonitorRegistGameServerAck::~Inter_MonitorRegistGameServerAck() {}
 // ORIG 0x084e2dee T dispatch_sig —— 监控服注册应答处理。
 // 报告 docs/class_func_reports/Inter_MonitorRegistGameServerAck/dispatch_sig.md 全文转写。
@@ -12159,7 +11909,6 @@ int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, 
     return 0;
 }
 
-Inter_LoadMileage::Inter_LoadMileage() {}
 Inter_LoadMileage::~Inter_LoadMileage() {}
 int Inter_LoadMileage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -12170,7 +11919,6 @@ int Inter_LoadMileage::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildExpBookDelete::Inter_GuildExpBookDelete() {}
 Inter_GuildExpBookDelete::~Inter_GuildExpBookDelete() {}
 // ORIG 0x084e2f1e T dispatch_sig —— 公会经验书删除：目标在线现场删除，离线走 DB+NoCache 包。
 // 报告 docs/class_func_reports/Inter_GuildExpBookDelete/dispatch_sig.md 全文转写。
@@ -12216,7 +11964,6 @@ int Inter_GuildExpBookDelete::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_NoCache::Inter_NoCache() {}
 Inter_NoCache::~Inter_NoCache() {}
 int Inter_NoCache::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -12246,7 +11993,6 @@ int Inter_NoCache::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_Send_Charac_no_from_monitor::Inter_Send_Charac_no_from_monitor() {}
 Inter_Send_Charac_no_from_monitor::~Inter_Send_Charac_no_from_monitor() {}
 // ORIG 0x084e312a T dispatch_sig —— 监控侧角色号下发。
 // 报告 docs/class_func_reports/Inter_Send_Charac_no_from_monitor/dispatch_sig.md 全文转写。
@@ -12268,7 +12014,6 @@ int Inter_Send_Charac_no_from_monitor::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_SendPeriodicMessage::Inter_SendPeriodicMessage() {}
 Inter_SendPeriodicMessage::~Inter_SendPeriodicMessage() {}
 // ORIG 0x084e3232 T dispatch_sig —— 周期性公告按状态播发。
 // 报告 docs/class_func_reports/Inter_SendPeriodicMessage/dispatch_sig.md 全文转写。
@@ -12286,7 +12031,6 @@ int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*l
     return 0;
 }
 
-Inter_SendTimeSync::Inter_SendTimeSync() {}
 Inter_SendTimeSync::~Inter_SendTimeSync() {}
 // ORIG 0x084e3326 T dispatch_sig —— 时间同步按状态广播。
 // 报告 docs/class_func_reports/Inter_SendTimeSync/dispatch_sig.md 全文转写。
@@ -12301,7 +12045,6 @@ int Inter_SendTimeSync::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_SendTimeSyncLogin::Inter_SendTimeSyncLogin() {}
 Inter_SendTimeSyncLogin::~Inter_SendTimeSyncLogin() {}
 // ORIG 0x084e33ec T dispatch_sig —— 登录时时间同步下发。
 // 报告 docs/class_func_reports/Inter_SendTimeSyncLogin/dispatch_sig.md 全文转写。
@@ -12318,7 +12061,6 @@ int Inter_SendTimeSyncLogin::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_AddGuildFundResult::Inter_AddGuildFundResult() {}
 Inter_AddGuildFundResult::~Inter_AddGuildFundResult() {}
 // ORIG 0x084e34ba T dispatch_sig —— 公会基金捐献结果处理。
 // 报告 docs/class_func_reports/Inter_AddGuildFundResult/dispatch_sig.md 全文转写。
@@ -12352,7 +12094,6 @@ int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_TodayGuildMember::Inter_TodayGuildMember() {}
 Inter_TodayGuildMember::~Inter_TodayGuildMember() {}
 // ORIG 0x084e358a T dispatch_sig —— 今日公会成员登记（SetTodayGuildMember + 0x130 包）。
 // 报告 docs/class_func_reports/Inter_TodayGuildMember/dispatch_sig.md 全文转写。
@@ -12394,7 +12135,6 @@ int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_CheckJoinGuild::Inter_CheckJoinGuild() {}
 Inter_CheckJoinGuild::~Inter_CheckJoinGuild() {}
 // ORIG 0x084e3790 T dispatch_sig —— 公会加入检查：错误码转发或公会信息包。
 // 报告 docs/class_func_reports/Inter_CheckJoinGuild/dispatch_sig.md 全文转写。
@@ -12429,7 +12169,6 @@ int Inter_CheckJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_RequestJoinGuild::Inter_RequestJoinGuild() {}
 Inter_RequestJoinGuild::~Inter_RequestJoinGuild() {}
 // ORIG 0x084e3924 T dispatch_sig —— 入会申请结果通知：成功组 0x15d 信息包，失败发错误包。
 // 报告 docs/class_func_reports/Inter_RequestJoinGuild/dispatch_sig.md 全文转写。
@@ -12466,7 +12205,6 @@ int Inter_RequestJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_JoinGuildInfo::Inter_JoinGuildInfo() {}
 Inter_JoinGuildInfo::~Inter_JoinGuildInfo() {}
 // ORIG 0x084e3ace T dispatch_sig —— 公会加入信息：按结果码选择字段转发。
 // 报告 docs/class_func_reports/Inter_JoinGuildInfo/dispatch_sig.md 全文转写。
@@ -12497,7 +12235,6 @@ int Inter_JoinGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_ApproveJoinGuild::Inter_ApproveJoinGuild() {}
 Inter_ApproveJoinGuild::~Inter_ApproveJoinGuild() {}
 // ORIG 0x084e3f0e T dispatch_sig —— 公会入会审批应答。
 // 报告 docs/class_func_reports/Inter_ApproveJoinGuild/dispatch_sig.md 全文转写。
@@ -12531,7 +12268,6 @@ int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildJoinList::Inter_GuildJoinList() {}
 Inter_GuildJoinList::~Inter_GuildJoinList() {}
 // ORIG 0x084e3c60 T dispatch_sig —— 公会加入申请列表下发（0x161 包，逐申请项序列化）。
 // 报告 docs/class_func_reports/Inter_GuildJoinList/dispatch_sig.md 全文转写。
@@ -12570,7 +12306,6 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GuildAttendanceInfo::Inter_GuildAttendanceInfo() {}
 Inter_GuildAttendanceInfo::~Inter_GuildAttendanceInfo() {}
 // ORIG 0x084e4052 T dispatch_sig —— 公会签到信息：校验当前角色号后转发签到统计字段。
 // 报告 docs/class_func_reports/Inter_GuildAttendanceInfo/dispatch_sig.md 全文转写。
@@ -12599,7 +12334,6 @@ int Inter_GuildAttendanceInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_AchieveGuildAttendance::Inter_AchieveGuildAttendance() {}
 Inter_AchieveGuildAttendance::~Inter_AchieveGuildAttendance() {}
 // ORIG 0x084e41e4 T dispatch_sig —— 公会签到达成应答。
 // 报告 docs/class_func_reports/Inter_AchieveGuildAttendance/dispatch_sig.md 全文转写。
@@ -12622,7 +12356,6 @@ int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_UpdatePurchaseCashItemBonus::Inter_UpdatePurchaseCashItemBonus() {}
 Inter_UpdatePurchaseCashItemBonus::~Inter_UpdatePurchaseCashItemBonus() {}
 // ORIG 0x084e42e0 T dispatch_sig —— 商城消费奖励邮件触发。
 // 报告 docs/class_func_reports/Inter_UpdatePurchaseCashItemBonus/dispatch_sig.md 全文转写。
@@ -12639,7 +12372,6 @@ int Inter_UpdatePurchaseCashItemBonus::dispatch_sig(CUser* user, char* data, int
     return 0;
 }
 
-Inter_HadesDisConnect::Inter_HadesDisConnect() {}
 Inter_HadesDisConnect::~Inter_HadesDisConnect() {}
 int Inter_HadesDisConnect::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
@@ -12647,7 +12379,6 @@ int Inter_HadesDisConnect::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*l
     return 0;
 }
 
-Inter_GoblinPadChagePwdReward::Inter_GoblinPadChagePwdReward() {}
 Inter_GoblinPadChagePwdReward::~Inter_GoblinPadChagePwdReward() {}
 int Inter_GoblinPadChagePwdReward::dispatch_sig(
     CUser* user, char* data, int /*len*/)
@@ -12661,7 +12392,6 @@ int Inter_GoblinPadChagePwdReward::dispatch_sig(
     return 0;
 }
 
-Inter_GoblinPadSamePwdCheck::Inter_GoblinPadSamePwdCheck() {}
 Inter_GoblinPadSamePwdCheck::~Inter_GoblinPadSamePwdCheck() {}
 int Inter_GoblinPadSamePwdCheck::dispatch_sig(
     CUser* user, char* data, int /*len*/)
@@ -12675,7 +12405,6 @@ int Inter_GoblinPadSamePwdCheck::dispatch_sig(
     return 0;
 }
 
-Inter_PunishCancel::Inter_PunishCancel() {}
 Inter_PunishCancel::~Inter_PunishCancel() {}
 // ORIG 0x084e4b02 T dispatch_sig —— 交易惩罚撤销。
 // 报告 docs/class_func_reports/Inter_PunishCancel/dispatch_sig.md 全文转写。
@@ -12699,7 +12428,6 @@ int Inter_PunishCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_BroadcastMsg::Inter_BroadcastMsg() {}
 Inter_BroadcastMsg::~Inter_BroadcastMsg() {}
 // ORIG 0x084e4c2a T dispatch_sig —— 少年频道公告组播。
 // 报告 docs/class_func_reports/Inter_BroadcastMsg/dispatch_sig.md 全文转写。
@@ -12753,7 +12481,6 @@ int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_TOD_ReturnToMonitor_APCSettingComplete::Inter_TOD_ReturnToMonitor_APCSettingComplete() {}
 Inter_TOD_ReturnToMonitor_APCSettingComplete::~Inter_TOD_ReturnToMonitor_APCSettingComplete() {}
 // ORIG 0x084e4d90 T dispatch_sig —— 绝望之塔随机选择完成上报监控服。
 // 报告 docs/class_func_reports/Inter_TOD_ReturnToMonitor_APCSettingComplete/dispatch_sig.md 全文转写。
@@ -12771,7 +12498,6 @@ int Inter_TOD_ReturnToMonitor_APCSettingComplete::dispatch_sig(
     return 0;
 }
 
-Inter_TOD_Reload_APC::Inter_TOD_Reload_APC() {}
 Inter_TOD_Reload_APC::~Inter_TOD_Reload_APC() {}
 // ORIG 0x084e4e26 T dispatch_sig —— 绝望之塔 APC 信息重载。
 // 报告 docs/class_func_reports/Inter_TOD_Reload_APC/dispatch_sig.md 全文转写。
@@ -12789,7 +12515,6 @@ int Inter_TOD_Reload_APC::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UpdateSecuServiceState::Inter_UpdateSecuServiceState() {}
 Inter_UpdateSecuServiceState::~Inter_UpdateSecuServiceState() {}
 // ORIG 0x084e4e84 T dispatch_sig —— 安全服务状态更新：msg[0x14]=0 后转 Secu_DataControl。
 // 报告 docs/class_func_reports/Inter_UpdateSecuServiceState/dispatch_sig.md 全文转写。
@@ -12808,7 +12533,6 @@ int Inter_UpdateSecuServiceState::dispatch_sig(CUser* user, char* data, int len)
     return 0;
 }
 
-Inter_LoadKillMonsterInfo::Inter_LoadKillMonsterInfo() {}
 Inter_LoadKillMonsterInfo::~Inter_LoadKillMonsterInfo() {}
 // ORIG 0x084e4ee4 T dispatch_sig —— 击杀怪物统计 DB 加载（扩展数据槽 0xc）。
 // 报告 docs/class_func_reports/Inter_LoadKillMonsterInfo/dispatch_sig.md 全文转写。
@@ -12823,7 +12547,6 @@ int Inter_LoadKillMonsterInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     return 0;
 }
 
-Inter_LevelUpReward::Inter_LevelUpReward() {}
 Inter_LevelUpReward::~Inter_LevelUpReward() {}
 // ORIG 0x084e4f56 T dispatch_sig —— 升级奖励信号数据暂存（局部拷贝后丢弃）。
 // 报告 docs/class_func_reports/Inter_LevelUpReward/dispatch_sig.md 全文转写。
@@ -12839,7 +12562,6 @@ int Inter_LevelUpReward::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GetUserRegdate::Inter_GetUserRegdate() {}
 Inter_GetUserRegdate::~Inter_GetUserRegdate() {}
 int Inter_GetUserRegdate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -12848,7 +12570,6 @@ int Inter_GetUserRegdate::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_GoldControlMoneyActionCancel::Inter_GoldControlMoneyActionCancel() {}
 Inter_GoldControlMoneyActionCancel::~Inter_GoldControlMoneyActionCancel() {}
 // ORIG 0x084e4fe8 T dispatch_sig —— 金币控制邮件操作取消/完成应答。
 // 报告 docs/class_func_reports/Inter_GoldControlMoneyActionCancel/dispatch_sig.md 全文转写。
@@ -12866,7 +12587,6 @@ int Inter_GoldControlMoneyActionCancel::dispatch_sig(CUser* user, char* data, in
     return 0;
 }
 
-Inter_MonitorNoticeGuildChatMsgHyperLink::Inter_MonitorNoticeGuildChatMsgHyperLink() {}
 Inter_MonitorNoticeGuildChatMsgHyperLink::~Inter_MonitorNoticeGuildChatMsgHyperLink() {}
 // ORIG 0x084e503c T dispatch_sig —— 监控公会聊天超链接广播（字符串+超链接数组）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildChatMsgHyperLink/dispatch_sig.md 全文转写。
@@ -12913,7 +12633,6 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
     return 0;
 }
 
-Inter_MonitorNoticeMemberChatMsgHyperLink::Inter_MonitorNoticeMemberChatMsgHyperLink() {}
 Inter_MonitorNoticeMemberChatMsgHyperLink::~Inter_MonitorNoticeMemberChatMsgHyperLink() {}
 // ORIG 0x084e5282 T dispatch_sig —— 公会员聊天超链接公告包（0x173）下发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberChatMsgHyperLink/dispatch_sig.md 全文转写。
@@ -12971,7 +12690,6 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
     return 0;
 }
 
-Inter_MonitorNoticeOtherChannelChatHyperLink::Inter_MonitorNoticeOtherChannelChatHyperLink() {}
 Inter_MonitorNoticeOtherChannelChatHyperLink::~Inter_MonitorNoticeOtherChannelChatHyperLink() {}
 int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     CUser* user, char* data, int /*len*/)
@@ -13069,7 +12787,6 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     return 0;
 }
 
-Inter_Monitor_MegaphoneMsgHyperLink::Inter_Monitor_MegaphoneMsgHyperLink() {}
 Inter_Monitor_MegaphoneMsgHyperLink::~Inter_Monitor_MegaphoneMsgHyperLink() {}
 // ORIG 0x084e5c26 T dispatch_sig —— 大喇叭超链接广播（0x174 包，按频道整合判定分发）。
 // 报告 docs/class_func_reports/Inter_Monitor_MegaphoneMsgHyperLink/dispatch_sig.md 全文转写。
@@ -13113,7 +12830,6 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
     return 0;
 }
 
-Inter_SendSecuReward::Inter_SendSecuReward() {}
 Inter_SendSecuReward::~Inter_SendSecuReward() {}
 int Inter_SendSecuReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -13142,7 +12858,6 @@ void Inter_HadesAction::send_alert(CUser* user, unsigned int code)
     user->Send(guard);
 }
 
-Inter_HadesAction::Inter_HadesAction() {}
 Inter_HadesAction::~Inter_HadesAction() {}
 // ORIG 0x084e5f02 T dispatch_sig —— Hades 行为处理：登录用户现场执行，未登录用户落惩罚 DB。
 // 报告 docs/class_func_reports/Inter_HadesAction/dispatch_sig.md 全文转写。
@@ -13187,7 +12902,6 @@ int Inter_HadesAction::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_Check3rdPartyConcent::Inter_Check3rdPartyConcent() {}
 Inter_Check3rdPartyConcent::~Inter_Check3rdPartyConcent() {}
 // ORIG 0x084e6096 T dispatch_sig —— 第三方聚合协议同意结果下发。
 // 报告 docs/class_func_reports/Inter_Check3rdPartyConcent/dispatch_sig.md 全文转写。
@@ -13204,7 +12918,6 @@ int Inter_Check3rdPartyConcent::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_SelectCharacMid::Inter_SelectCharacMid() {}
 Inter_SelectCharacMid::~Inter_SelectCharacMid() {}
 // ORIG 0x084e6170 T dispatch_sig —— 角色选择中间校验/hack 计数与金币追踪。
 // 报告 docs/class_func_reports/Inter_SelectCharacMid/dispatch_sig.md 全文转写。
@@ -13231,7 +12944,6 @@ int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_NpcLimitBuyItemInfoAll::Inter_NpcLimitBuyItemInfoAll() {}
 Inter_NpcLimitBuyItemInfoAll::~Inter_NpcLimitBuyItemInfoAll() {}
 // ORIG 0x084e6258 T dispatch_sig —— NPC 限购全部条目信息下发（0x193 包）。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfoAll/dispatch_sig.md 全文转写。
@@ -13269,7 +12981,6 @@ int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_NpcLimitBuyItemChangeInfo::Inter_NpcLimitBuyItemChangeInfo() {}
 Inter_NpcLimitBuyItemChangeInfo::~Inter_NpcLimitBuyItemChangeInfo() {}
 // ORIG 0x084e6448 T dispatch_sig —— NPC 限购道具变更全网广播。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemChangeInfo/dispatch_sig.md 全文转写。
@@ -13284,7 +12995,6 @@ int Inter_NpcLimitBuyItemChangeInfo::dispatch_sig(CUser* /*user*/, char* data, i
     return 0;
 }
 
-Inter_NpcLimitBuyItemInfoRenew::Inter_NpcLimitBuyItemInfoRenew() {}
 Inter_NpcLimitBuyItemInfoRenew::~Inter_NpcLimitBuyItemInfoRenew() {}
 // ORIG 0x084e6e82 T dispatch_sig —— NPC 限购物品余量刷新：组 0x193 包全服广播。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfoRenew/dispatch_sig.md 全文转写。
@@ -13319,7 +13029,6 @@ int Inter_NpcLimitBuyItemInfoRenew::dispatch_sig(CUser* /*user*/, char* data, in
     return 0;
 }
 
-Inter_MonitorReplyCharacInfo::Inter_MonitorReplyCharacInfo() {}
 Inter_MonitorReplyCharacInfo::~Inter_MonitorReplyCharacInfo() {}
 // ORIG 0x084e7024 T dispatch_sig —— 监控服角色信息查询应答：组 0x1d6 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorReplyCharacInfo/dispatch_sig.md 全文转写。
@@ -13360,7 +13069,6 @@ int Inter_MonitorReplyCharacInfo::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_CeraShopPurchaseCount::Inter_CeraShopPurchaseCount() {}
 Inter_CeraShopPurchaseCount::~Inter_CeraShopPurchaseCount() {}
 // ORIG 0x084e7bfe T dispatch_sig —— 塞拉商城购买加成道具处理。
 // 报告 docs/class_func_reports/Inter_CeraShopPurchaseCount/dispatch_sig.md 全文转写。
@@ -13382,7 +13090,6 @@ int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len
     return 0;
 }
 
-Inter_OwnerisVIP::Inter_OwnerisVIP() {}
 Inter_OwnerisVIP::~Inter_OwnerisVIP() {}
 // ORIG 0x084e7c90 T dispatch_sig —— 点数拍卖 VIP 购买：计费/组包/预付登记。
 // 报告 docs/class_func_reports/Inter_OwnerisVIP/dispatch_sig.md 全文转写。
@@ -13451,7 +13158,6 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadPuUserCheck::Inter_LoadPuUserCheck() {}
 Inter_LoadPuUserCheck::~Inter_LoadPuUserCheck() {}
 int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
@@ -13460,7 +13166,6 @@ int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_CollectItemsResult::Inter_CollectItemsResult() {}
 Inter_CollectItemsResult::~Inter_CollectItemsResult() {}
 // ORIG 0x084e770c T dispatch_sig —— 收集物品进度→时间门等级。
 // 报告 docs/class_func_reports/Inter_CollectItemsResult/dispatch_sig.md 全文转写。
@@ -13496,7 +13201,6 @@ int Inter_CollectItemsResult::dispatch_sig(CUser* /*user*/, char* data, int /*le
     return 0;
 }
 
-Inter_CollectItemsReward::Inter_CollectItemsReward() {}
 Inter_CollectItemsReward::~Inter_CollectItemsReward() {}
 // ORIG 0x084e71ee T dispatch_sig —— 收集品奖励邮件：result 分支选道具 + 脚本文案 +
 // CItem::make_item 生成物品经系统邮件发放。
@@ -13560,7 +13264,6 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_CollectItemsRewardBroadcast::Inter_CollectItemsRewardBroadcast() {}
 Inter_CollectItemsRewardBroadcast::~Inter_CollectItemsRewardBroadcast() {}
 // ORIG 0x084e7598 T dispatch_sig —— 收集活动奖励广播：时间之门等级联动全员通知。
 // 报告 docs/class_func_reports/Inter_CollectItemsRewardBroadcast/dispatch_sig.md 全文转写。
@@ -13625,7 +13328,6 @@ int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data,
     return 0;
 }
 
-Inter_RequestCharacSkillInfo::Inter_RequestCharacSkillInfo() {}
 Inter_RequestCharacSkillInfo::~Inter_RequestCharacSkillInfo() {}
 // ORIG 0x084e7884 T dispatch_sig —— 请求 tag 角色技能：写入技能树编号并重发技能信息。
 // 报告 docs/class_func_reports/Inter_RequestCharacSkillInfo/dispatch_sig.md 全文转写。
@@ -13663,7 +13365,6 @@ int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*le
     return 0;
 }
 
-Inter_RequestTagCharacInfo::Inter_RequestTagCharacInfo() {}
 Inter_RequestTagCharacInfo::~Inter_RequestTagCharacInfo() {}
 // ORIG 0x084e79f2 T dispatch_sig —— 切换 tag 角色：设置 tag 状态与全部子对象 parent 后广播。
 // 报告 docs/class_func_reports/Inter_RequestTagCharacInfo/dispatch_sig.md 全文转写。
@@ -13708,7 +13409,6 @@ int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_EmergencyPatchMessage::Inter_EmergencyPatchMessage() {}
 Inter_EmergencyPatchMessage::~Inter_EmergencyPatchMessage() {}
 // ORIG 0x084e7b84 T dispatch_sig —— 紧急补丁公告（禁止新连接+广播 10 分钟关服）。
 // 报告 docs/class_func_reports/Inter_EmergencyPatchMessage/dispatch_sig.md 全文转写。
@@ -13723,7 +13423,6 @@ int Inter_EmergencyPatchMessage::dispatch_sig(CUser* /*user*/, char* data, int /
     return 0;
 }
 
-Inter_AuctionSubMoney::Inter_AuctionSubMoney() {}
 Inter_AuctionSubMoney::~Inter_AuctionSubMoney() {}
 // ORIG 0x084e8004 T dispatch_sig —— 拍卖扣款异常登记服务器 hack 计数。
 // 报告 docs/class_func_reports/Inter_AuctionSubMoney/dispatch_sig.md 全文转写。
@@ -13739,7 +13438,6 @@ int Inter_AuctionSubMoney::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_UpdateServerSnapShot::Inter_UpdateServerSnapShot() {}
 Inter_UpdateServerSnapShot::~Inter_UpdateServerSnapShot() {}
 int Inter_UpdateServerSnapShot::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
@@ -13747,7 +13445,6 @@ int Inter_UpdateServerSnapShot::dispatch_sig(CUser* /*user*/, char* /*data*/, in
     return 0;
 }
 
-Inter_LoadCharacTypeHotKey::Inter_LoadCharacTypeHotKey() {}
 Inter_LoadCharacTypeHotKey::~Inter_LoadCharacTypeHotKey() {}
 // ORIG 0x084e87de T dispatch_sig —— DB 热键配置装载。
 // 报告 docs/class_func_reports/Inter_LoadCharacTypeHotKey/dispatch_sig.md 全文转写。
@@ -13770,7 +13467,6 @@ int Inter_LoadCharacTypeHotKey::dispatch_sig(CUser* user, char* data, int /*len*
     return 0;
 }
 
-Inter_UpdateMiniCraneSeed::Inter_UpdateMiniCraneSeed() {}
 Inter_UpdateMiniCraneSeed::~Inter_UpdateMiniCraneSeed() {}
 int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
@@ -13780,7 +13476,6 @@ int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* data, int /*l
     return 0;
 }
 
-Inter_GetPremiumSelectedCubeInfo::Inter_GetPremiumSelectedCubeInfo() {}
 Inter_GetPremiumSelectedCubeInfo::~Inter_GetPremiumSelectedCubeInfo() {}
 // ORIG 0x084e8936 T dispatch_sig —— 高级方块合约信息初始化。
 // 报告 docs/class_func_reports/Inter_GetPremiumSelectedCubeInfo/dispatch_sig.md 全文转写。
@@ -13802,7 +13497,6 @@ int Inter_GetPremiumSelectedCubeInfo::dispatch_sig(CUser* user, char* data, int 
     return 0;
 }
 
-Inter_CheckAddFriend::Inter_CheckAddFriend() {}
 Inter_CheckAddFriend::~Inter_CheckAddFriend() {}
 // ORIG 0x084e8a42 T dispatch_sig —— 添加好友检查：空指针告警或转发监视服添加请求。
 // 报告 docs/class_func_reports/Inter_CheckAddFriend/dispatch_sig.md 全文转写。
@@ -13849,7 +13543,6 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
     return 0;
 }
 
-Inter_LoadCerashopAddRestrictType::Inter_LoadCerashopAddRestrictType() {}
 Inter_LoadCerashopAddRestrictType::~Inter_LoadCerashopAddRestrictType() {}
 // ORIG 0x080e2104 T dispatch_sig —— DB 限购类型数据装载。
 // 报告 docs/class_func_reports/Inter_LoadCerashopAddRestrictType/dispatch_sig.md 全文转写。
@@ -14146,5 +13839,4 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 }
 
 // 基类定义故意置于所有派生类实现之后（B1 ABI 形状修复）。
-ISigDispatcher::ISigDispatcher() {}
 ISigDispatcher::~ISigDispatcher() {}

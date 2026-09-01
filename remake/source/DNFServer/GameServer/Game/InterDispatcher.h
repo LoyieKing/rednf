@@ -30,7 +30,7 @@ CUser* getUser(unsigned int uid);
 class ISigDispatcher
 {
 public:
-    ISigDispatcher();
+    ISigDispatcher() {}
     virtual int dispatch_sig(CUser* user, char* data, int len) = 0;
     virtual ~ISigDispatcher();
 };
@@ -38,7 +38,7 @@ public:
 class Inter_Disconnect : public ISigDispatcher
 {
 public:
-    Inter_Disconnect();
+    Inter_Disconnect() {}
     virtual ~Inter_Disconnect();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -49,7 +49,7 @@ private:
 class Inter_SessionClose : public ISigDispatcher
 {
 public:
-    Inter_SessionClose();
+    Inter_SessionClose() {}
     virtual ~Inter_SessionClose();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -60,7 +60,7 @@ private:
 class Inter_LoginInfo : public ISigDispatcher
 {
 public:
-    Inter_LoginInfo();
+    Inter_LoginInfo() {}
     virtual ~Inter_LoginInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -71,7 +71,7 @@ private:
 class Inter_CreateCharac : public ISigDispatcher
 {
 public:
-    Inter_CreateCharac();
+    Inter_CreateCharac() {}
     virtual ~Inter_CreateCharac();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -85,7 +85,7 @@ private:
 class Inter_DeleteCharac : public ISigDispatcher
 {
 public:
-    Inter_DeleteCharac();
+    Inter_DeleteCharac() {}
     virtual ~Inter_DeleteCharac();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -96,7 +96,7 @@ private:
 class Inter_LoadCharac : public ISigDispatcher
 {
 public:
-    Inter_LoadCharac();
+    Inter_LoadCharac() {}
     virtual ~Inter_LoadCharac();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -107,7 +107,7 @@ private:
 class Inter_LoadInven : public ISigDispatcher
 {
 public:
-    Inter_LoadInven();
+    Inter_LoadInven() {}
     virtual ~Inter_LoadInven();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -124,7 +124,7 @@ private:
 class Inter_LoadSkill : public ISigDispatcher
 {
 public:
-    Inter_LoadSkill();
+    Inter_LoadSkill() {}
     virtual ~Inter_LoadSkill();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -135,7 +135,7 @@ private:
 class Inter_LoadQuest : public ISigDispatcher
 {
 public:
-    Inter_LoadQuest();
+    Inter_LoadQuest() {}
     virtual ~Inter_LoadQuest();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -146,7 +146,7 @@ private:
 class Inter_LoadTicket : public ISigDispatcher
 {
 public:
-    Inter_LoadTicket();
+    Inter_LoadTicket() {}
     virtual ~Inter_LoadTicket();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -157,7 +157,7 @@ private:
 class Inter_LoadDungeonClear : public ISigDispatcher
 {
 public:
-    Inter_LoadDungeonClear();
+    Inter_LoadDungeonClear() {}
     virtual ~Inter_LoadDungeonClear();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -171,7 +171,7 @@ public:
     // ORIG T 0x084d8e68（ORIG 调用点无 this 压栈 → static；外部调用方
     // break_away_prevent::CBreakAwayPreventSystem::giveBreakAwayDungeonClearReward）
     static void giveBreakAwayReward(CUser* user);
-    Inter_LoadEtc();
+    Inter_LoadEtc() {}
     virtual ~Inter_LoadEtc();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -198,7 +198,7 @@ private:
 class Inter_DeleteChannel : public ISigDispatcher
 {
 public:
-    Inter_DeleteChannel();
+    Inter_DeleteChannel() {}
     virtual ~Inter_DeleteChannel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -209,7 +209,7 @@ private:
 class Inter_Notice : public ISigDispatcher
 {
 public:
-    Inter_Notice();
+    Inter_Notice() {}
     virtual ~Inter_Notice();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -220,7 +220,7 @@ private:
 class Inter_Terminate : public ISigDispatcher
 {
 public:
-    Inter_Terminate();
+    Inter_Terminate() {}
     virtual ~Inter_Terminate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -231,7 +231,7 @@ private:
 class Inter_ReadyToTerminate : public ISigDispatcher
 {
 public:
-    Inter_ReadyToTerminate();
+    Inter_ReadyToTerminate() {}
     virtual ~Inter_ReadyToTerminate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -242,7 +242,7 @@ private:
 class Inter_MonitorBuddyInOut : public ISigDispatcher
 {
 public:
-    Inter_MonitorBuddyInOut();
+    Inter_MonitorBuddyInOut() {}
     virtual ~Inter_MonitorBuddyInOut();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -253,7 +253,7 @@ private:
 class Inter_MonitorLoginOK : public ISigDispatcher
 {
 public:
-    Inter_MonitorLoginOK();
+    Inter_MonitorLoginOK() {}
     virtual ~Inter_MonitorLoginOK();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -264,7 +264,7 @@ private:
 class Inter_MonitorCallUserInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallUserInfo();
+    Inter_MonitorCallUserInfo() {}
     virtual ~Inter_MonitorCallUserInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -275,7 +275,7 @@ private:
 class Inter_CutOffCallUserInfo : public ISigDispatcher
 {
 public:
-    Inter_CutOffCallUserInfo();
+    Inter_CutOffCallUserInfo() {}
     virtual ~Inter_CutOffCallUserInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -286,7 +286,7 @@ private:
 class Inter_MonitorUserGetout : public ISigDispatcher
 {
 public:
-    Inter_MonitorUserGetout();
+    Inter_MonitorUserGetout() {}
     virtual ~Inter_MonitorUserGetout();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -297,7 +297,7 @@ private:
 class Inter_WebNoticeIngameAdvertisement : public ISigDispatcher
 {
 public:
-    Inter_WebNoticeIngameAdvertisement();
+    Inter_WebNoticeIngameAdvertisement() {}
     virtual ~Inter_WebNoticeIngameAdvertisement();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -308,7 +308,7 @@ private:
 class Inter_ReloadIngameAdvertisement : public ISigDispatcher
 {
 public:
-    Inter_ReloadIngameAdvertisement();
+    Inter_ReloadIngameAdvertisement() {}
     virtual ~Inter_ReloadIngameAdvertisement();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -319,7 +319,7 @@ private:
 class Inter_TcpServerConnect : public ISigDispatcher
 {
 public:
-    Inter_TcpServerConnect();
+    Inter_TcpServerConnect() {}
     virtual ~Inter_TcpServerConnect();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -330,7 +330,7 @@ private:
 class Inter_MonitorReplyBuddyList : public ISigDispatcher
 {
 public:
-    Inter_MonitorReplyBuddyList();
+    Inter_MonitorReplyBuddyList() {}
     virtual ~Inter_MonitorReplyBuddyList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -341,7 +341,7 @@ private:
 class Inter_MonitorCeraUpdate : public ISigDispatcher
 {
 public:
-    Inter_MonitorCeraUpdate();
+    Inter_MonitorCeraUpdate() {}
     virtual ~Inter_MonitorCeraUpdate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -352,7 +352,7 @@ private:
 class Inter_IPGResult : public ISigDispatcher
 {
 public:
-    Inter_IPGResult();
+    Inter_IPGResult() {}
     virtual ~Inter_IPGResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -363,7 +363,7 @@ private:
 class Inter_GenCeraTicket : public ISigDispatcher
 {
 public:
-    Inter_GenCeraTicket();
+    Inter_GenCeraTicket() {}
     virtual ~Inter_GenCeraTicket();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -374,7 +374,7 @@ private:
 class Inter_LoadEventItem : public ISigDispatcher
 {
 public:
-    Inter_LoadEventItem();
+    Inter_LoadEventItem() {}
     virtual ~Inter_LoadEventItem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -385,7 +385,7 @@ private:
 class Inter_MonitorEventItemUpdate : public ISigDispatcher
 {
 public:
-    Inter_MonitorEventItemUpdate();
+    Inter_MonitorEventItemUpdate() {}
     virtual ~Inter_MonitorEventItemUpdate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -396,7 +396,7 @@ private:
 class Inter_MonitorServerEventStart : public ISigDispatcher
 {
 public:
-    Inter_MonitorServerEventStart();
+    Inter_MonitorServerEventStart() {}
     virtual ~Inter_MonitorServerEventStart();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     // ORIG T _ZN29Inter_MonitorServerEventStart19SendEventNotiPacketEbssP5CUser
@@ -411,7 +411,7 @@ private:
 class Inter_FatigueResetDBReply : public ISigDispatcher
 {
 public:
-    Inter_FatigueResetDBReply();
+    Inter_FatigueResetDBReply() {}
     virtual ~Inter_FatigueResetDBReply();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -422,7 +422,7 @@ private:
 class Inter_SuicideWhenQueueIsEmpty : public ISigDispatcher
 {
 public:
-    Inter_SuicideWhenQueueIsEmpty();
+    Inter_SuicideWhenQueueIsEmpty() {}
     virtual ~Inter_SuicideWhenQueueIsEmpty();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -433,7 +433,7 @@ private:
 class Inter_MonitorNoticeGuildEnter : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildEnter();
+    Inter_MonitorNoticeGuildEnter() {}
     virtual ~Inter_MonitorNoticeGuildEnter();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -444,7 +444,7 @@ private:
 class Inter_MonitorNoticeGuildSecede : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildSecede();
+    Inter_MonitorNoticeGuildSecede() {}
     virtual ~Inter_MonitorNoticeGuildSecede();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -455,7 +455,7 @@ private:
 class Inter_MonitorNoticeGuildMarkChange : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildMarkChange();
+    Inter_MonitorNoticeGuildMarkChange() {}
     virtual ~Inter_MonitorNoticeGuildMarkChange();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -466,7 +466,7 @@ private:
 class Inter_MonitorNoticeGuildDismiss : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildDismiss();
+    Inter_MonitorNoticeGuildDismiss() {}
     virtual ~Inter_MonitorNoticeGuildDismiss();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -477,7 +477,7 @@ private:
 class Inter_MonitorNoticeGuildChatMsg : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildChatMsg();
+    Inter_MonitorNoticeGuildChatMsg() {}
     virtual ~Inter_MonitorNoticeGuildChatMsg();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -488,7 +488,7 @@ private:
 class Inter_MonitorCallGuildMembers : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallGuildMembers();
+    Inter_MonitorCallGuildMembers() {}
     virtual ~Inter_MonitorCallGuildMembers();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -499,7 +499,7 @@ private:
 class Inter_MonitorCallGuildMembersNext : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallGuildMembersNext();
+    Inter_MonitorCallGuildMembersNext() {}
     virtual ~Inter_MonitorCallGuildMembersNext();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -510,7 +510,7 @@ private:
 class Inter_MonitorCallGuildAllMembers : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallGuildAllMembers();
+    Inter_MonitorCallGuildAllMembers() {}
     virtual ~Inter_MonitorCallGuildAllMembers();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -521,7 +521,7 @@ private:
 class Inter_MonitorCallGuildAllMembersNext : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallGuildAllMembersNext();
+    Inter_MonitorCallGuildAllMembersNext() {}
     virtual ~Inter_MonitorCallGuildAllMembersNext();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -532,7 +532,7 @@ private:
 class Inter_MonitorNoticeGuildNames : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildNames();
+    Inter_MonitorNoticeGuildNames() {}
     virtual ~Inter_MonitorNoticeGuildNames();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -543,7 +543,7 @@ private:
 class Inter_MonitorNoticeGuildLoginOut : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildLoginOut();
+    Inter_MonitorNoticeGuildLoginOut() {}
     virtual ~Inter_MonitorNoticeGuildLoginOut();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -554,7 +554,7 @@ private:
 class Inter_MonitorNoticeOtherChannelChat : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeOtherChannelChat();
+    Inter_MonitorNoticeOtherChannelChat() {}
     virtual ~Inter_MonitorNoticeOtherChannelChat();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -565,7 +565,7 @@ private:
 class Inter_MonitorCallGuildInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallGuildInfo();
+    Inter_MonitorCallGuildInfo() {}
     virtual ~Inter_MonitorCallGuildInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -576,7 +576,7 @@ private:
 class Inter_MonitorNoticeGuildInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildInfo();
+    Inter_MonitorNoticeGuildInfo() {}
     virtual ~Inter_MonitorNoticeGuildInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -587,7 +587,7 @@ private:
 class Inter_MonitorSetGuildKey : public ISigDispatcher
 {
 public:
-    Inter_MonitorSetGuildKey();
+    Inter_MonitorSetGuildKey() {}
     virtual ~Inter_MonitorSetGuildKey();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -598,7 +598,7 @@ private:
 class Inter_MonitorNoticeGuildCreate : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildCreate();
+    Inter_MonitorNoticeGuildCreate() {}
     virtual ~Inter_MonitorNoticeGuildCreate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -609,7 +609,7 @@ private:
 class Inter_MonitorGuildMemberNamingReply : public ISigDispatcher
 {
 public:
-    Inter_MonitorGuildMemberNamingReply();
+    Inter_MonitorGuildMemberNamingReply() {}
     virtual ~Inter_MonitorGuildMemberNamingReply();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -620,7 +620,7 @@ private:
 class Inter_MonitorSetSubGuildMasterReply : public ISigDispatcher
 {
 public:
-    Inter_MonitorSetSubGuildMasterReply();
+    Inter_MonitorSetSubGuildMasterReply() {}
     virtual ~Inter_MonitorSetSubGuildMasterReply();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -631,7 +631,7 @@ private:
 class Inter_MonitorNoticeGuildMemberInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildMemberInfo();
+    Inter_MonitorNoticeGuildMemberInfo() {}
     virtual ~Inter_MonitorNoticeGuildMemberInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -642,7 +642,7 @@ private:
 class Inter_MonitorNoticeChangeGuildMemberGrade : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeChangeGuildMemberGrade();
+    Inter_MonitorNoticeChangeGuildMemberGrade() {}
     virtual ~Inter_MonitorNoticeChangeGuildMemberGrade();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -653,7 +653,7 @@ private:
 class Inter_GuildNoticeGuildMessage : public ISigDispatcher
 {
 public:
-    Inter_GuildNoticeGuildMessage();
+    Inter_GuildNoticeGuildMessage() {}
     virtual ~Inter_GuildNoticeGuildMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -664,7 +664,7 @@ private:
 class Inter_MonitorNoticeMemberLoginOut : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberLoginOut();
+    Inter_MonitorNoticeMemberLoginOut() {}
     virtual ~Inter_MonitorNoticeMemberLoginOut();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -675,7 +675,7 @@ private:
 class Inter_MonitorNoticeRequestMemberEnterToRequester : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeRequestMemberEnterToRequester();
+    Inter_MonitorNoticeRequestMemberEnterToRequester() {}
     virtual ~Inter_MonitorNoticeRequestMemberEnterToRequester();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -686,7 +686,7 @@ private:
 class Inter_MonitorNoticeRequestMemberEnterToResponser : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeRequestMemberEnterToResponser();
+    Inter_MonitorNoticeRequestMemberEnterToResponser() {}
     virtual ~Inter_MonitorNoticeRequestMemberEnterToResponser();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -697,7 +697,7 @@ private:
 class Inter_MonitorNoticeMemberEnterOk : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberEnterOk();
+    Inter_MonitorNoticeMemberEnterOk() {}
     virtual ~Inter_MonitorNoticeMemberEnterOk();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -708,7 +708,7 @@ private:
 class Inter_MonitorNoticeMemberEnterReply : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberEnterReply();
+    Inter_MonitorNoticeMemberEnterReply() {}
     virtual ~Inter_MonitorNoticeMemberEnterReply();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -719,7 +719,7 @@ private:
 class Inter_MonitorNoticeMemberSecede : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberSecede();
+    Inter_MonitorNoticeMemberSecede() {}
     virtual ~Inter_MonitorNoticeMemberSecede();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -730,7 +730,7 @@ private:
 class Inter_MonitorNoticeMemberSecedeToSeceder : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberSecedeToSeceder();
+    Inter_MonitorNoticeMemberSecedeToSeceder() {}
     virtual ~Inter_MonitorNoticeMemberSecedeToSeceder();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -741,7 +741,7 @@ private:
 class Inter_MonitorNoticeDeleteMemberId : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeDeleteMemberId();
+    Inter_MonitorNoticeDeleteMemberId() {}
     virtual ~Inter_MonitorNoticeDeleteMemberId();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -752,7 +752,7 @@ private:
 class Inter_MonitorNoticeMemberChatMsg : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberChatMsg();
+    Inter_MonitorNoticeMemberChatMsg() {}
     virtual ~Inter_MonitorNoticeMemberChatMsg();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -763,7 +763,7 @@ private:
 class Inter_MonitorCallMemberList : public ISigDispatcher
 {
 public:
-    Inter_MonitorCallMemberList();
+    Inter_MonitorCallMemberList() {}
     virtual ~Inter_MonitorCallMemberList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -774,7 +774,7 @@ private:
 class Inter_MonitorPayTaxToUpper : public ISigDispatcher
 {
 public:
-    Inter_MonitorPayTaxToUpper();
+    Inter_MonitorPayTaxToUpper() {}
     virtual ~Inter_MonitorPayTaxToUpper();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -785,7 +785,7 @@ private:
 class Inter_LoadPrivateStore : public ISigDispatcher
 {
 public:
-    Inter_LoadPrivateStore();
+    Inter_LoadPrivateStore() {}
     virtual ~Inter_LoadPrivateStore();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -796,7 +796,7 @@ private:
 class Inter_UpdateLogout : public ISigDispatcher
 {
 public:
-    Inter_UpdateLogout();
+    Inter_UpdateLogout() {}
     virtual ~Inter_UpdateLogout();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -807,7 +807,7 @@ private:
 class Inter_UserRepel : public ISigDispatcher
 {
 public:
-    Inter_UserRepel();
+    Inter_UserRepel() {}
     virtual ~Inter_UserRepel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -818,7 +818,7 @@ private:
 class Inter_AvatarInsert : public ISigDispatcher
 {
 public:
-    Inter_AvatarInsert();
+    Inter_AvatarInsert() {}
     virtual ~Inter_AvatarInsert();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -829,7 +829,7 @@ private:
 class Inter_AvatarChangeStat : public ISigDispatcher
 {
 public:
-    Inter_AvatarChangeStat();
+    Inter_AvatarChangeStat() {}
     virtual ~Inter_AvatarChangeStat();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -840,7 +840,7 @@ private:
 class Inter_TriggerEventStart : public ISigDispatcher
 {
 public:
-    Inter_TriggerEventStart();
+    Inter_TriggerEventStart() {}
     virtual ~Inter_TriggerEventStart();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -851,7 +851,7 @@ private:
 class Inter_TriggerEventEnd : public ISigDispatcher
 {
 public:
-    Inter_TriggerEventEnd();
+    Inter_TriggerEventEnd() {}
     virtual ~Inter_TriggerEventEnd();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -862,7 +862,7 @@ private:
 class Inter_MailBox_Req_List : public ISigDispatcher
 {
 public:
-    Inter_MailBox_Req_List();
+    Inter_MailBox_Req_List() {}
     virtual ~Inter_MailBox_Req_List();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -873,7 +873,7 @@ private:
 class Inter_MailBox_Req_CheckReceiver : public ISigDispatcher
 {
 public:
-    Inter_MailBox_Req_CheckReceiver();
+    Inter_MailBox_Req_CheckReceiver() {}
     virtual ~Inter_MailBox_Req_CheckReceiver();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -888,7 +888,7 @@ private:
 class Inter_MailBox_Req_Send : public ISigDispatcher
 {
 public:
-    Inter_MailBox_Req_Send();
+    Inter_MailBox_Req_Send() {}
     virtual ~Inter_MailBox_Req_Send();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -899,7 +899,7 @@ private:
 class Inter_Monitor_Notify_New_Mail : public ISigDispatcher
 {
 public:
-    Inter_Monitor_Notify_New_Mail();
+    Inter_Monitor_Notify_New_Mail() {}
     virtual ~Inter_Monitor_Notify_New_Mail();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -910,7 +910,7 @@ private:
 class Inter_InsertCreatureItemResult : public ISigDispatcher
 {
 public:
-    Inter_InsertCreatureItemResult();
+    Inter_InsertCreatureItemResult() {}
     virtual ~Inter_InsertCreatureItemResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -921,7 +921,7 @@ private:
 class Inter_UpdateCreatureItemResult : public ISigDispatcher
 {
 public:
-    Inter_UpdateCreatureItemResult();
+    Inter_UpdateCreatureItemResult() {}
     virtual ~Inter_UpdateCreatureItemResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -932,7 +932,7 @@ private:
 class Inter_MonitorNoticeMessage : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMessage();
+    Inter_MonitorNoticeMessage() {}
     virtual ~Inter_MonitorNoticeMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -943,7 +943,7 @@ private:
 class Inter_LastMsgResponse : public ISigDispatcher
 {
 public:
-    Inter_LastMsgResponse();
+    Inter_LastMsgResponse() {}
     virtual ~Inter_LastMsgResponse();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -954,7 +954,7 @@ private:
 class Inter_MonitorGuildPointDel : public ISigDispatcher
 {
 public:
-    Inter_MonitorGuildPointDel();
+    Inter_MonitorGuildPointDel() {}
     virtual ~Inter_MonitorGuildPointDel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     // ORIG 静态成员（与 dispatch 域同类：nm 同 mangled 类名实证）：
@@ -973,7 +973,7 @@ private:
 class Inter_MonitorGuildWarInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorGuildWarInfo();
+    Inter_MonitorGuildWarInfo() {}
     virtual ~Inter_MonitorGuildWarInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -984,7 +984,7 @@ private:
 class Inter_CodeChecksumRange : public ISigDispatcher
 {
 public:
-    Inter_CodeChecksumRange();
+    Inter_CodeChecksumRange() {}
     virtual ~Inter_CodeChecksumRange();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -995,7 +995,7 @@ private:
 class Inter_MonitorForbidChat : public ISigDispatcher
 {
 public:
-    Inter_MonitorForbidChat();
+    Inter_MonitorForbidChat() {}
     virtual ~Inter_MonitorForbidChat();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1006,7 +1006,7 @@ private:
 class Inter_MouseRegister : public ISigDispatcher
 {
 public:
-    Inter_MouseRegister();
+    Inter_MouseRegister() {}
     virtual ~Inter_MouseRegister();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1017,7 +1017,7 @@ private:
 class Inter_Monitor_MegaphoneMsg : public ISigDispatcher
 {
 public:
-    Inter_Monitor_MegaphoneMsg();
+    Inter_Monitor_MegaphoneMsg() {}
     virtual ~Inter_Monitor_MegaphoneMsg();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1028,7 +1028,7 @@ private:
 class Inter_Monitor_RegisterBlackListResult : public ISigDispatcher
 {
 public:
-    Inter_Monitor_RegisterBlackListResult();
+    Inter_Monitor_RegisterBlackListResult() {}
     virtual ~Inter_Monitor_RegisterBlackListResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1039,7 +1039,7 @@ private:
 class Inter_Monitor_DeleteBlackListResult : public ISigDispatcher
 {
 public:
-    Inter_Monitor_DeleteBlackListResult();
+    Inter_Monitor_DeleteBlackListResult() {}
     virtual ~Inter_Monitor_DeleteBlackListResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1050,7 +1050,7 @@ private:
 class Inter_Monitor_RequestBlackListResult : public ISigDispatcher
 {
 public:
-    Inter_Monitor_RequestBlackListResult();
+    Inter_Monitor_RequestBlackListResult() {}
     virtual ~Inter_Monitor_RequestBlackListResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1061,7 +1061,7 @@ private:
 class Inter_DB_RequestBlackCount : public ISigDispatcher
 {
 public:
-    Inter_DB_RequestBlackCount();
+    Inter_DB_RequestBlackCount() {}
     virtual ~Inter_DB_RequestBlackCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1072,7 +1072,7 @@ private:
 class Inter_MonitorNoticeBlackList : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeBlackList();
+    Inter_MonitorNoticeBlackList() {}
     virtual ~Inter_MonitorNoticeBlackList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1083,7 +1083,7 @@ private:
 class Inter_WebNoticeSingle : public ISigDispatcher
 {
 public:
-    Inter_WebNoticeSingle();
+    Inter_WebNoticeSingle() {}
     virtual ~Inter_WebNoticeSingle();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1094,7 +1094,7 @@ private:
 class Inter_MemberExpLevelUp : public ISigDispatcher
 {
 public:
-    Inter_MemberExpLevelUp();
+    Inter_MemberExpLevelUp() {}
     virtual ~Inter_MemberExpLevelUp();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1105,7 +1105,7 @@ private:
 class Inter_MonitorAddBuddy : public ISigDispatcher
 {
 public:
-    Inter_MonitorAddBuddy();
+    Inter_MonitorAddBuddy() {}
     virtual ~Inter_MonitorAddBuddy();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1116,7 +1116,7 @@ private:
 class Inter_MonitorDelBuddy : public ISigDispatcher
 {
 public:
-    Inter_MonitorDelBuddy();
+    Inter_MonitorDelBuddy() {}
     virtual ~Inter_MonitorDelBuddy();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1127,7 +1127,7 @@ private:
 class Inter_ChangeLetterStat : public ISigDispatcher
 {
 public:
-    Inter_ChangeLetterStat();
+    Inter_ChangeLetterStat() {}
     virtual ~Inter_ChangeLetterStat();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1138,7 +1138,7 @@ private:
 class Inter_SaveClientHackLog : public ISigDispatcher
 {
 public:
-    Inter_SaveClientHackLog();
+    Inter_SaveClientHackLog() {}
     virtual ~Inter_SaveClientHackLog();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1149,7 +1149,7 @@ private:
 class Inter_ReqChangeCharacName : public ISigDispatcher
 {
 public:
-    Inter_ReqChangeCharacName();
+    Inter_ReqChangeCharacName() {}
     virtual ~Inter_ReqChangeCharacName();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1160,7 +1160,7 @@ private:
 class Inter_ReqQueryCharacInfo : public ISigDispatcher
 {
 public:
-    Inter_ReqQueryCharacInfo();
+    Inter_ReqQueryCharacInfo() {}
     virtual ~Inter_ReqQueryCharacInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1171,7 +1171,7 @@ private:
 class Inter_ReportMannerless : public ISigDispatcher
 {
 public:
-    Inter_ReportMannerless();
+    Inter_ReportMannerless() {}
     virtual ~Inter_ReportMannerless();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1182,7 +1182,7 @@ private:
 class Inter_ChagneUserHandicap : public ISigDispatcher
 {
 public:
-    Inter_ChagneUserHandicap();
+    Inter_ChagneUserHandicap() {}
     virtual ~Inter_ChagneUserHandicap();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1193,7 +1193,7 @@ private:
 class Inter_GMRequestMid : public ISigDispatcher
 {
 public:
-    Inter_GMRequestMid();
+    Inter_GMRequestMid() {}
     virtual ~Inter_GMRequestMid();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1204,7 +1204,7 @@ private:
 class Inter_UDP_Incoming_Capcha_Data : public ISigDispatcher
 {
 public:
-    Inter_UDP_Incoming_Capcha_Data();
+    Inter_UDP_Incoming_Capcha_Data() {}
     virtual ~Inter_UDP_Incoming_Capcha_Data();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1215,7 +1215,7 @@ private:
 class Inter_Add_Slang : public ISigDispatcher
 {
 public:
-    Inter_Add_Slang();
+    Inter_Add_Slang() {}
     virtual ~Inter_Add_Slang();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1226,7 +1226,7 @@ private:
 class Inter_ReplyGuildLetter : public ISigDispatcher
 {
 public:
-    Inter_ReplyGuildLetter();
+    Inter_ReplyGuildLetter() {}
     virtual ~Inter_ReplyGuildLetter();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1237,7 +1237,7 @@ private:
 class Inter_CallGuildInviteToCaller : public ISigDispatcher
 {
 public:
-    Inter_CallGuildInviteToCaller();
+    Inter_CallGuildInviteToCaller() {}
     virtual ~Inter_CallGuildInviteToCaller();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1248,7 +1248,7 @@ private:
 class Inter_CallGuildInviteToInvited : public ISigDispatcher
 {
 public:
-    Inter_CallGuildInviteToInvited();
+    Inter_CallGuildInviteToInvited() {}
     virtual ~Inter_CallGuildInviteToInvited();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1259,7 +1259,7 @@ private:
 class Inter_ReplyGuildInviteToInvited : public ISigDispatcher
 {
 public:
-    Inter_ReplyGuildInviteToInvited();
+    Inter_ReplyGuildInviteToInvited() {}
     virtual ~Inter_ReplyGuildInviteToInvited();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1270,7 +1270,7 @@ private:
 class Inter_ReplyGuildInviteToCaller : public ISigDispatcher
 {
 public:
-    Inter_ReplyGuildInviteToCaller();
+    Inter_ReplyGuildInviteToCaller() {}
     virtual ~Inter_ReplyGuildInviteToCaller();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1281,7 +1281,7 @@ private:
 class Inter_LoadDeathTowerBestRecord : public ISigDispatcher
 {
 public:
-    Inter_LoadDeathTowerBestRecord();
+    Inter_LoadDeathTowerBestRecord() {}
     virtual ~Inter_LoadDeathTowerBestRecord();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1292,7 +1292,7 @@ private:
 class Inter_DeathTowerLoadTopRanker : public ISigDispatcher
 {
 public:
-    Inter_DeathTowerLoadTopRanker();
+    Inter_DeathTowerLoadTopRanker() {}
     virtual ~Inter_DeathTowerLoadTopRanker();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1303,7 +1303,7 @@ private:
 class Inter_MonitorDeathTowerRanking : public ISigDispatcher
 {
 public:
-    Inter_MonitorDeathTowerRanking();
+    Inter_MonitorDeathTowerRanking() {}
     virtual ~Inter_MonitorDeathTowerRanking();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1314,7 +1314,7 @@ private:
 class Inter_MonitorTowerReloadTopRanker : public ISigDispatcher
 {
 public:
-    Inter_MonitorTowerReloadTopRanker();
+    Inter_MonitorTowerReloadTopRanker() {}
     virtual ~Inter_MonitorTowerReloadTopRanker();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1325,7 +1325,7 @@ private:
 class Inter_ReplyGuildSecede : public ISigDispatcher
 {
 public:
-    Inter_ReplyGuildSecede();
+    Inter_ReplyGuildSecede() {}
     virtual ~Inter_ReplyGuildSecede();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1336,7 +1336,7 @@ private:
 class Inter_NoticeGuildMasterDelegate : public ISigDispatcher
 {
 public:
-    Inter_NoticeGuildMasterDelegate();
+    Inter_NoticeGuildMasterDelegate() {}
     virtual ~Inter_NoticeGuildMasterDelegate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1347,7 +1347,7 @@ private:
 class Inter_GuildReplyGuildMasterDelegate : public ISigDispatcher
 {
 public:
-    Inter_GuildReplyGuildMasterDelegate();
+    Inter_GuildReplyGuildMasterDelegate() {}
     virtual ~Inter_GuildReplyGuildMasterDelegate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1358,7 +1358,7 @@ private:
 class Inter_NoticeHasBeenGuildMaster : public ISigDispatcher
 {
 public:
-    Inter_NoticeHasBeenGuildMaster();
+    Inter_NoticeHasBeenGuildMaster() {}
     virtual ~Inter_NoticeHasBeenGuildMaster();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1369,7 +1369,7 @@ private:
 class Inter_DBCheckDoubleGuildName : public ISigDispatcher
 {
 public:
-    Inter_DBCheckDoubleGuildName();
+    Inter_DBCheckDoubleGuildName() {}
     virtual ~Inter_DBCheckDoubleGuildName();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1380,7 +1380,7 @@ private:
 class Inter_DBCheckDoubleGuildAddress : public ISigDispatcher
 {
 public:
-    Inter_DBCheckDoubleGuildAddress();
+    Inter_DBCheckDoubleGuildAddress() {}
     virtual ~Inter_DBCheckDoubleGuildAddress();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1391,7 +1391,7 @@ private:
 class Inter_ReplyGuildCreate : public ISigDispatcher
 {
 public:
-    Inter_ReplyGuildCreate();
+    Inter_ReplyGuildCreate() {}
     virtual ~Inter_ReplyGuildCreate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1402,7 +1402,7 @@ private:
 class Inter_NoticeGuildNameOnGuildCreate : public ISigDispatcher
 {
 public:
-    Inter_NoticeGuildNameOnGuildCreate();
+    Inter_NoticeGuildNameOnGuildCreate() {}
     virtual ~Inter_NoticeGuildNameOnGuildCreate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1413,7 +1413,7 @@ private:
 class Inter_SecurityCardIssue : public ISigDispatcher
 {
 public:
-    Inter_SecurityCardIssue();
+    Inter_SecurityCardIssue() {}
     virtual ~Inter_SecurityCardIssue();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1424,7 +1424,7 @@ private:
 class Inter_SecurityCardActivate : public ISigDispatcher
 {
 public:
-    Inter_SecurityCardActivate();
+    Inter_SecurityCardActivate() {}
     virtual ~Inter_SecurityCardActivate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1435,7 +1435,7 @@ private:
 class Inter_SecurityCardRetransfer : public ISigDispatcher
 {
 public:
-    Inter_SecurityCardRetransfer();
+    Inter_SecurityCardRetransfer() {}
     virtual ~Inter_SecurityCardRetransfer();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1446,7 +1446,7 @@ private:
 class Inter_LoadDnfHackLog : public ISigDispatcher
 {
 public:
-    Inter_LoadDnfHackLog();
+    Inter_LoadDnfHackLog() {}
     virtual ~Inter_LoadDnfHackLog();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1457,7 +1457,7 @@ private:
 class Inter_AutoPunishRuleBlackIP : public ISigDispatcher
 {
 public:
-    Inter_AutoPunishRuleBlackIP();
+    Inter_AutoPunishRuleBlackIP() {}
     virtual ~Inter_AutoPunishRuleBlackIP();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1468,7 +1468,7 @@ private:
 class Inter_AutoPunishRuleHackType : public ISigDispatcher
 {
 public:
-    Inter_AutoPunishRuleHackType();
+    Inter_AutoPunishRuleHackType() {}
     virtual ~Inter_AutoPunishRuleHackType();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1479,7 +1479,7 @@ private:
 class Inter_ReplyPowerWarScore : public ISigDispatcher
 {
 public:
-    Inter_ReplyPowerWarScore();
+    Inter_ReplyPowerWarScore() {}
     virtual ~Inter_ReplyPowerWarScore();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1490,7 +1490,7 @@ private:
 class Inter_ReplyJoinPower : public ISigDispatcher
 {
 public:
-    Inter_ReplyJoinPower();
+    Inter_ReplyJoinPower() {}
     virtual ~Inter_ReplyJoinPower();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1501,7 +1501,7 @@ private:
 class Inter_SecedePower : public ISigDispatcher
 {
 public:
-    Inter_SecedePower();
+    Inter_SecedePower() {}
     virtual ~Inter_SecedePower();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1512,7 +1512,7 @@ private:
 class Inter_NoticePowerWarStartTime : public ISigDispatcher
 {
 public:
-    Inter_NoticePowerWarStartTime();
+    Inter_NoticePowerWarStartTime() {}
     virtual ~Inter_NoticePowerWarStartTime();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1523,7 +1523,7 @@ private:
 class Inter_NoticePowerWarEndTime : public ISigDispatcher
 {
 public:
-    Inter_NoticePowerWarEndTime();
+    Inter_NoticePowerWarEndTime() {}
     virtual ~Inter_NoticePowerWarEndTime();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1534,7 +1534,7 @@ private:
 class Inter_NoticePowerWarInfo : public ISigDispatcher
 {
 public:
-    Inter_NoticePowerWarInfo();
+    Inter_NoticePowerWarInfo() {}
     virtual ~Inter_NoticePowerWarInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1545,7 +1545,7 @@ private:
 class Inter_NoticePowerWarProlong : public ISigDispatcher
 {
 public:
-    Inter_NoticePowerWarProlong();
+    Inter_NoticePowerWarProlong() {}
     virtual ~Inter_NoticePowerWarProlong();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1556,7 +1556,7 @@ private:
 class Inter_ChangeGuildName : public ISigDispatcher
 {
 public:
-    Inter_ChangeGuildName();
+    Inter_ChangeGuildName() {}
     virtual ~Inter_ChangeGuildName();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1567,7 +1567,7 @@ private:
 class Inter_NoticeChangeGuildNameToMembers : public ISigDispatcher
 {
 public:
-    Inter_NoticeChangeGuildNameToMembers();
+    Inter_NoticeChangeGuildNameToMembers() {}
     virtual ~Inter_NoticeChangeGuildNameToMembers();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1578,7 +1578,7 @@ private:
 class Inter_SendAllUserInfoMiniumForGuildSystem : public ISigDispatcher
 {
 public:
-    Inter_SendAllUserInfoMiniumForGuildSystem();
+    Inter_SendAllUserInfoMiniumForGuildSystem() {}
     virtual ~Inter_SendAllUserInfoMiniumForGuildSystem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1589,7 +1589,7 @@ private:
 class Inter_LoadCleanPadPointReq : public ISigDispatcher
 {
 public:
-    Inter_LoadCleanPadPointReq();
+    Inter_LoadCleanPadPointReq() {}
     virtual ~Inter_LoadCleanPadPointReq();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1600,7 +1600,7 @@ private:
 class Inter_LoadCleanPadPoint : public ISigDispatcher
 {
 public:
-    Inter_LoadCleanPadPoint();
+    Inter_LoadCleanPadPoint() {}
     virtual ~Inter_LoadCleanPadPoint();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1611,7 +1611,7 @@ private:
 class Inter_NotifyAuctionMail : public ISigDispatcher
 {
 public:
-    Inter_NotifyAuctionMail();
+    Inter_NotifyAuctionMail() {}
     virtual ~Inter_NotifyAuctionMail();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1622,7 +1622,7 @@ private:
 class Inter_AuctionResultAskPrice : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultAskPrice();
+    Inter_AuctionResultAskPrice() {}
     virtual ~Inter_AuctionResultAskPrice();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1633,7 +1633,7 @@ private:
 class Inter_AuctionResultAskRegistedItemNum : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultAskRegistedItemNum();
+    Inter_AuctionResultAskRegistedItemNum() {}
     virtual ~Inter_AuctionResultAskRegistedItemNum();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1644,7 +1644,7 @@ private:
 class Inter_AuctionResultRegist : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultRegist();
+    Inter_AuctionResultRegist() {}
     virtual ~Inter_AuctionResultRegist();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1655,7 +1655,7 @@ private:
 class Inter_AuctionResultBidding : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultBidding();
+    Inter_AuctionResultBidding() {}
     virtual ~Inter_AuctionResultBidding();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     // ORIG T 0x084d6cda _ZN26Inter_AuctionResultBidding19dispatch_sig_taiwanEP5CUserPci
@@ -1669,7 +1669,7 @@ private:
 class Inter_AuctionResultRegistCancel : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultRegistCancel();
+    Inter_AuctionResultRegistCancel() {}
     virtual ~Inter_AuctionResultRegistCancel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1680,7 +1680,7 @@ private:
 class Inter_AuctionResultItemList : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultItemList();
+    Inter_AuctionResultItemList() {}
     virtual ~Inter_AuctionResultItemList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1691,7 +1691,7 @@ private:
 class Inter_AuctionResultMyRegistedItems : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultMyRegistedItems();
+    Inter_AuctionResultMyRegistedItems() {}
     virtual ~Inter_AuctionResultMyRegistedItems();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1702,7 +1702,7 @@ private:
 class Inter_AuctionResultMyBidding : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultMyBidding();
+    Inter_AuctionResultMyBidding() {}
     virtual ~Inter_AuctionResultMyBidding();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1713,7 +1713,7 @@ private:
 class Inter_AuctionLogMessage : public ISigDispatcher
 {
 public:
-    Inter_AuctionLogMessage();
+    Inter_AuctionLogMessage() {}
     virtual ~Inter_AuctionLogMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1724,7 +1724,7 @@ private:
 class Inter_AuctionNotifyAuctionService : public ISigDispatcher
 {
 public:
-    Inter_AuctionNotifyAuctionService();
+    Inter_AuctionNotifyAuctionService() {}
     virtual ~Inter_AuctionNotifyAuctionService();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1735,7 +1735,7 @@ private:
 class Inter_PointAuctionLogMessage : public ISigDispatcher
 {
 public:
-    Inter_PointAuctionLogMessage();
+    Inter_PointAuctionLogMessage() {}
     virtual ~Inter_PointAuctionLogMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1746,7 +1746,7 @@ private:
 class Inter_PointAuctionChargeCeraPoint : public ISigDispatcher
 {
 public:
-    Inter_PointAuctionChargeCeraPoint();
+    Inter_PointAuctionChargeCeraPoint() {}
     virtual ~Inter_PointAuctionChargeCeraPoint();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1757,7 +1757,7 @@ private:
 class Inter_AuctionResultBuyItemApiece : public ISigDispatcher
 {
 public:
-    Inter_AuctionResultBuyItemApiece();
+    Inter_AuctionResultBuyItemApiece() {}
     virtual ~Inter_AuctionResultBuyItemApiece();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1768,7 +1768,7 @@ private:
 class Inter_LoadGameOption : public ISigDispatcher
 {
 public:
-    Inter_LoadGameOption();
+    Inter_LoadGameOption() {}
     virtual ~Inter_LoadGameOption();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1779,7 +1779,7 @@ private:
 class Inter_PvPChannelInfo : public ISigDispatcher
 {
 public:
-    Inter_PvPChannelInfo();
+    Inter_PvPChannelInfo() {}
     virtual ~Inter_PvPChannelInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1790,7 +1790,7 @@ private:
 class Inter_PvPChannelUserCount : public ISigDispatcher
 {
 public:
-    Inter_PvPChannelUserCount();
+    Inter_PvPChannelUserCount() {}
     virtual ~Inter_PvPChannelUserCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1801,7 +1801,7 @@ private:
 class Inter_LoadBloodDungeonBestRecord : public ISigDispatcher
 {
 public:
-    Inter_LoadBloodDungeonBestRecord();
+    Inter_LoadBloodDungeonBestRecord() {}
     virtual ~Inter_LoadBloodDungeonBestRecord();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1812,7 +1812,7 @@ private:
 class Inter_LoadBreakAwayPreventSystem : public ISigDispatcher
 {
 public:
-    Inter_LoadBreakAwayPreventSystem();
+    Inter_LoadBreakAwayPreventSystem() {}
     virtual ~Inter_LoadBreakAwayPreventSystem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1823,7 +1823,7 @@ private:
 class Inter_LoadBreakAwayPreventMessage : public ISigDispatcher
 {
 public:
-    Inter_LoadBreakAwayPreventMessage();
+    Inter_LoadBreakAwayPreventMessage() {}
     virtual ~Inter_LoadBreakAwayPreventMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1834,7 +1834,7 @@ private:
 class Inter_LoadDimensionInout : public ISigDispatcher
 {
 public:
-    Inter_LoadDimensionInout();
+    Inter_LoadDimensionInout() {}
     virtual ~Inter_LoadDimensionInout();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1845,7 +1845,7 @@ private:
 class Inter_BlackIPMonitorReq : public ISigDispatcher
 {
 public:
-    Inter_BlackIPMonitorReq();
+    Inter_BlackIPMonitorReq() {}
     virtual ~Inter_BlackIPMonitorReq();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1856,7 +1856,7 @@ private:
 class Inter_BlackIPMonitor : public ISigDispatcher
 {
 public:
-    Inter_BlackIPMonitor();
+    Inter_BlackIPMonitor() {}
     virtual ~Inter_BlackIPMonitor();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1867,7 +1867,7 @@ private:
 class Inter_BlackIPMonitorPartLoadReq : public ISigDispatcher
 {
 public:
-    Inter_BlackIPMonitorPartLoadReq();
+    Inter_BlackIPMonitorPartLoadReq() {}
     virtual ~Inter_BlackIPMonitorPartLoadReq();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1878,7 +1878,7 @@ private:
 class Inter_BlackIPMonitorDeleteIP : public ISigDispatcher
 {
 public:
-    Inter_BlackIPMonitorDeleteIP();
+    Inter_BlackIPMonitorDeleteIP() {}
     virtual ~Inter_BlackIPMonitorDeleteIP();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1889,7 +1889,7 @@ private:
 class Inter_LoadAutoMarketConditionsControl : public ISigDispatcher
 {
 public:
-    Inter_LoadAutoMarketConditionsControl();
+    Inter_LoadAutoMarketConditionsControl() {}
     virtual ~Inter_LoadAutoMarketConditionsControl();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1900,7 +1900,7 @@ private:
 class Inter_UpdateOneDayLethe : public ISigDispatcher
 {
 public:
-    Inter_UpdateOneDayLethe();
+    Inter_UpdateOneDayLethe() {}
     virtual ~Inter_UpdateOneDayLethe();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1911,7 +1911,7 @@ private:
 class Inter_DisconnectMonitorServer : public ISigDispatcher
 {
 public:
-    Inter_DisconnectMonitorServer();
+    Inter_DisconnectMonitorServer() {}
     virtual ~Inter_DisconnectMonitorServer();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1922,7 +1922,7 @@ private:
 class Inter_ResposncePCRoomPlyerList : public ISigDispatcher
 {
 public:
-    Inter_ResposncePCRoomPlyerList();
+    Inter_ResposncePCRoomPlyerList() {}
     virtual ~Inter_ResposncePCRoomPlyerList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1933,7 +1933,7 @@ private:
 class Inter_ResposncePCRoomPlyerCount : public ISigDispatcher
 {
 public:
-    Inter_ResposncePCRoomPlyerCount();
+    Inter_ResposncePCRoomPlyerCount() {}
     virtual ~Inter_ResposncePCRoomPlyerCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1944,7 +1944,7 @@ private:
 class Inter_NoticePCRoomPlayerLoginOut : public ISigDispatcher
 {
 public:
-    Inter_NoticePCRoomPlayerLoginOut();
+    Inter_NoticePCRoomPlayerLoginOut() {}
     virtual ~Inter_NoticePCRoomPlayerLoginOut();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1955,7 +1955,7 @@ private:
 class Inter_NoticePowerWarRank : public ISigDispatcher
 {
 public:
-    Inter_NoticePowerWarRank();
+    Inter_NoticePowerWarRank() {}
     virtual ~Inter_NoticePowerWarRank();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1966,7 +1966,7 @@ private:
 class Inter_LoadPowerWarStatueRanker : public ISigDispatcher
 {
 public:
-    Inter_LoadPowerWarStatueRanker();
+    Inter_LoadPowerWarStatueRanker() {}
     virtual ~Inter_LoadPowerWarStatueRanker();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1977,7 +1977,7 @@ private:
 class Inter_LoadPowerWarStatueInfo : public ISigDispatcher
 {
 public:
-    Inter_LoadPowerWarStatueInfo();
+    Inter_LoadPowerWarStatueInfo() {}
     virtual ~Inter_LoadPowerWarStatueInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1988,7 +1988,7 @@ private:
 class Inter_UpdateServerMessage : public ISigDispatcher
 {
 public:
-    Inter_UpdateServerMessage();
+    Inter_UpdateServerMessage() {}
     virtual ~Inter_UpdateServerMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -1999,7 +1999,7 @@ private:
 class Inter_LoadServerMessage : public ISigDispatcher
 {
 public:
-    Inter_LoadServerMessage();
+    Inter_LoadServerMessage() {}
     virtual ~Inter_LoadServerMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2010,7 +2010,7 @@ private:
 class Inter_NoticeServerMessageInfo : public ISigDispatcher
 {
 public:
-    Inter_NoticeServerMessageInfo();
+    Inter_NoticeServerMessageInfo() {}
     virtual ~Inter_NoticeServerMessageInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2021,7 +2021,7 @@ private:
 class Inter_NoticeGuildMemo : public ISigDispatcher
 {
 public:
-    Inter_NoticeGuildMemo();
+    Inter_NoticeGuildMemo() {}
     virtual ~Inter_NoticeGuildMemo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2032,7 +2032,7 @@ private:
 class Inter_PowerWarProcessInfo : public ISigDispatcher
 {
 public:
-    Inter_PowerWarProcessInfo();
+    Inter_PowerWarProcessInfo() {}
     virtual ~Inter_PowerWarProcessInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2043,7 +2043,7 @@ private:
 class Inter_PowerWarEndInfo : public ISigDispatcher
 {
 public:
-    Inter_PowerWarEndInfo();
+    Inter_PowerWarEndInfo() {}
     virtual ~Inter_PowerWarEndInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2054,7 +2054,7 @@ private:
 class Inter_NoticeCreateGuildAgit : public ISigDispatcher
 {
 public:
-    Inter_NoticeCreateGuildAgit();
+    Inter_NoticeCreateGuildAgit() {}
     virtual ~Inter_NoticeCreateGuildAgit();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2065,7 +2065,7 @@ private:
 class Inter_NoticeDeleteGuildAgit : public ISigDispatcher
 {
 public:
-    Inter_NoticeDeleteGuildAgit();
+    Inter_NoticeDeleteGuildAgit() {}
     virtual ~Inter_NoticeDeleteGuildAgit();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2076,7 +2076,7 @@ private:
 class Inter_NoticeLoadGuildAgit : public ISigDispatcher
 {
 public:
-    Inter_NoticeLoadGuildAgit();
+    Inter_NoticeLoadGuildAgit() {}
     virtual ~Inter_NoticeLoadGuildAgit();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2087,7 +2087,7 @@ private:
 class Inter_LoadExpertJob : public ISigDispatcher
 {
 public:
-    Inter_LoadExpertJob();
+    Inter_LoadExpertJob() {}
     virtual ~Inter_LoadExpertJob();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2098,7 +2098,7 @@ private:
 class Inter_MonitorPunishUserReq : public ISigDispatcher
 {
 public:
-    Inter_MonitorPunishUserReq();
+    Inter_MonitorPunishUserReq() {}
     virtual ~Inter_MonitorPunishUserReq();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2109,7 +2109,7 @@ private:
 class Inter_PcroomResponse : public ISigDispatcher
 {
 public:
-    Inter_PcroomResponse();
+    Inter_PcroomResponse() {}
     virtual ~Inter_PcroomResponse();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     bool IsShutdonTimeOverLogin();
@@ -2121,7 +2121,7 @@ private:
 class Inter_ItemLimitEdition_Sell_Start : public ISigDispatcher
 {
 public:
-    Inter_ItemLimitEdition_Sell_Start();
+    Inter_ItemLimitEdition_Sell_Start() {}
     virtual ~Inter_ItemLimitEdition_Sell_Start();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2132,7 +2132,7 @@ private:
 class Inter_ItemLimitEdition_Sell_End : public ISigDispatcher
 {
 public:
-    Inter_ItemLimitEdition_Sell_End();
+    Inter_ItemLimitEdition_Sell_End() {}
     virtual ~Inter_ItemLimitEdition_Sell_End();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2143,7 +2143,7 @@ private:
 class Inter_ItemLimitEdition_Update : public ISigDispatcher
 {
 public:
-    Inter_ItemLimitEdition_Update();
+    Inter_ItemLimitEdition_Update() {}
     virtual ~Inter_ItemLimitEdition_Update();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2154,7 +2154,7 @@ private:
 class Inter_ItemLimitEdition_Reply : public ISigDispatcher
 {
 public:
-    Inter_ItemLimitEdition_Reply();
+    Inter_ItemLimitEdition_Reply() {}
     virtual ~Inter_ItemLimitEdition_Reply();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2165,7 +2165,7 @@ private:
 class Inter_FindFactoryHub : public ISigDispatcher
 {
 public:
-    Inter_FindFactoryHub();
+    Inter_FindFactoryHub() {}
     virtual ~Inter_FindFactoryHub();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2176,7 +2176,7 @@ private:
 class Inter_GuildExpLimit : public ISigDispatcher
 {
 public:
-    Inter_GuildExpLimit();
+    Inter_GuildExpLimit() {}
     virtual ~Inter_GuildExpLimit();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2187,7 +2187,7 @@ private:
 class Inter_SetIPCount : public ISigDispatcher
 {
 public:
-    Inter_SetIPCount();
+    Inter_SetIPCount() {}
     virtual ~Inter_SetIPCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2198,7 +2198,7 @@ private:
 class Inter_SetFullIPCount : public ISigDispatcher
 {
 public:
-    Inter_SetFullIPCount();
+    Inter_SetFullIPCount() {}
     virtual ~Inter_SetFullIPCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2209,7 +2209,7 @@ private:
 class Inter_CancelRestingUser : public ISigDispatcher
 {
 public:
-    Inter_CancelRestingUser();
+    Inter_CancelRestingUser() {}
     virtual ~Inter_CancelRestingUser();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2220,7 +2220,7 @@ private:
 class Inter_ApplyTempPowerSide : public ISigDispatcher
 {
 public:
-    Inter_ApplyTempPowerSide();
+    Inter_ApplyTempPowerSide() {}
     virtual ~Inter_ApplyTempPowerSide();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2231,7 +2231,7 @@ private:
 class Inter_ReloadPowerWarRanker : public ISigDispatcher
 {
 public:
-    Inter_ReloadPowerWarRanker();
+    Inter_ReloadPowerWarRanker() {}
     virtual ~Inter_ReloadPowerWarRanker();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2242,7 +2242,7 @@ private:
 class Inter_LoadPowerWarInfo : public ISigDispatcher
 {
 public:
-    Inter_LoadPowerWarInfo();
+    Inter_LoadPowerWarInfo() {}
     virtual ~Inter_LoadPowerWarInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2253,7 +2253,7 @@ private:
 class Inter_SetFactoryHubUser : public ISigDispatcher
 {
 public:
-    Inter_SetFactoryHubUser();
+    Inter_SetFactoryHubUser() {}
     virtual ~Inter_SetFactoryHubUser();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2264,7 +2264,7 @@ private:
 class Inter_SetFactoryHubUserNotConn : public ISigDispatcher
 {
 public:
-    Inter_SetFactoryHubUserNotConn();
+    Inter_SetFactoryHubUserNotConn() {}
     virtual ~Inter_SetFactoryHubUserNotConn();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2275,7 +2275,7 @@ private:
 class Inter_Set_CleanPad_Point : public ISigDispatcher
 {
 public:
-    Inter_Set_CleanPad_Point();
+    Inter_Set_CleanPad_Point() {}
     virtual ~Inter_Set_CleanPad_Point();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2286,7 +2286,7 @@ private:
 class Inter_LoadNoCacheData : public ISigDispatcher
 {
 public:
-    Inter_LoadNoCacheData();
+    Inter_LoadNoCacheData() {}
     virtual ~Inter_LoadNoCacheData();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2297,7 +2297,7 @@ private:
 class Inter_GuildCargo : public ISigDispatcher
 {
 public:
-    Inter_GuildCargo();
+    Inter_GuildCargo() {}
     virtual ~Inter_GuildCargo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2308,7 +2308,7 @@ private:
 class Inter_NoticeGuildCargo : public ISigDispatcher
 {
 public:
-    Inter_NoticeGuildCargo();
+    Inter_NoticeGuildCargo() {}
     virtual ~Inter_NoticeGuildCargo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2319,7 +2319,7 @@ private:
 class Inter_GuildCargoHistory : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoHistory();
+    Inter_GuildCargoHistory() {}
     virtual ~Inter_GuildCargoHistory();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2330,7 +2330,7 @@ private:
 class Inter_GuildCargoCheckPushItem : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoCheckPushItem();
+    Inter_GuildCargoCheckPushItem() {}
     virtual ~Inter_GuildCargoCheckPushItem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2341,7 +2341,7 @@ private:
 class Inter_GuildCargoPushItem : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoPushItem();
+    Inter_GuildCargoPushItem() {}
     virtual ~Inter_GuildCargoPushItem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2352,7 +2352,7 @@ private:
 class Inter_GuildCargoPopItem : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoPopItem();
+    Inter_GuildCargoPopItem() {}
     virtual ~Inter_GuildCargoPopItem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2363,7 +2363,7 @@ private:
 class Inter_GuildCargoMoveItem : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoMoveItem();
+    Inter_GuildCargoMoveItem() {}
     virtual ~Inter_GuildCargoMoveItem();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2374,7 +2374,7 @@ private:
 class Inter_GuildCargoUpgrade : public ISigDispatcher
 {
 public:
-    Inter_GuildCargoUpgrade();
+    Inter_GuildCargoUpgrade() {}
     virtual ~Inter_GuildCargoUpgrade();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2385,7 +2385,7 @@ private:
 class Inter_GuildBoardData : public ISigDispatcher
 {
 public:
-    Inter_GuildBoardData();
+    Inter_GuildBoardData() {}
     virtual ~Inter_GuildBoardData();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2396,7 +2396,7 @@ private:
 class Inter_GuildBoardDelete : public ISigDispatcher
 {
 public:
-    Inter_GuildBoardDelete();
+    Inter_GuildBoardDelete() {}
     virtual ~Inter_GuildBoardDelete();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2407,7 +2407,7 @@ private:
 class Inter_TakeScreenShot : public ISigDispatcher
 {
 public:
-    Inter_TakeScreenShot();
+    Inter_TakeScreenShot() {}
     virtual ~Inter_TakeScreenShot();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2418,7 +2418,7 @@ private:
 class Inter_VillageAttackedStart : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedStart();
+    Inter_VillageAttackedStart() {}
     virtual ~Inter_VillageAttackedStart();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2429,7 +2429,7 @@ private:
 class Inter_VillageAttackedEnd : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedEnd();
+    Inter_VillageAttackedEnd() {}
     virtual ~Inter_VillageAttackedEnd();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2440,7 +2440,7 @@ private:
 class Inter_VillageAttackedCountdown : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedCountdown();
+    Inter_VillageAttackedCountdown() {}
     virtual ~Inter_VillageAttackedCountdown();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2451,7 +2451,7 @@ private:
 class Inter_VillageAttackedUpdate : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedUpdate();
+    Inter_VillageAttackedUpdate() {}
     virtual ~Inter_VillageAttackedUpdate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2462,7 +2462,7 @@ private:
 class Inter_VillageAttackedScore : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedScore();
+    Inter_VillageAttackedScore() {}
     virtual ~Inter_VillageAttackedScore();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2473,7 +2473,7 @@ private:
 class Inter_VillageAttackedReward : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedReward();
+    Inter_VillageAttackedReward() {}
     virtual ~Inter_VillageAttackedReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2488,7 +2488,7 @@ private:
 class Inter_VillageAttackedRewardServer : public ISigDispatcher
 {
 public:
-    Inter_VillageAttackedRewardServer();
+    Inter_VillageAttackedRewardServer() {}
     virtual ~Inter_VillageAttackedRewardServer();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2499,7 +2499,7 @@ private:
 class Inter_FullLevelBroadCast : public ISigDispatcher
 {
 public:
-    Inter_FullLevelBroadCast();
+    Inter_FullLevelBroadCast() {}
     virtual ~Inter_FullLevelBroadCast();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2510,7 +2510,7 @@ private:
 class Inter_Hack_CheckMyAccount : public ISigDispatcher
 {
 public:
-    Inter_Hack_CheckMyAccount();
+    Inter_Hack_CheckMyAccount() {}
     virtual ~Inter_Hack_CheckMyAccount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2521,7 +2521,7 @@ private:
 class Inter_SetSecounUserData : public ISigDispatcher
 {
 public:
-    Inter_SetSecounUserData();
+    Inter_SetSecounUserData() {}
     virtual ~Inter_SetSecounUserData();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2532,7 +2532,7 @@ private:
 class Inter_SetARSInfo : public ISigDispatcher
 {
 public:
-    Inter_SetARSInfo();
+    Inter_SetARSInfo() {}
     virtual ~Inter_SetARSInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2543,7 +2543,7 @@ private:
 class Inter_OnTimeEventRewardStart : public ISigDispatcher
 {
 public:
-    Inter_OnTimeEventRewardStart();
+    Inter_OnTimeEventRewardStart() {}
     virtual ~Inter_OnTimeEventRewardStart();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2554,7 +2554,7 @@ private:
 class Inter_OnTimeEventRewardEnd : public ISigDispatcher
 {
 public:
-    Inter_OnTimeEventRewardEnd();
+    Inter_OnTimeEventRewardEnd() {}
     virtual ~Inter_OnTimeEventRewardEnd();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2565,7 +2565,7 @@ private:
 class Inter_LoadPvPBuddy : public ISigDispatcher
 {
 public:
-    Inter_LoadPvPBuddy();
+    Inter_LoadPvPBuddy() {}
     virtual ~Inter_LoadPvPBuddy();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2576,7 +2576,7 @@ private:
 class Inter_PvPBuddyConnList : public ISigDispatcher
 {
 public:
-    Inter_PvPBuddyConnList();
+    Inter_PvPBuddyConnList() {}
     virtual ~Inter_PvPBuddyConnList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2587,7 +2587,7 @@ private:
 class Inter_ReqAddPvPBuddy : public ISigDispatcher
 {
 public:
-    Inter_ReqAddPvPBuddy();
+    Inter_ReqAddPvPBuddy() {}
     virtual ~Inter_ReqAddPvPBuddy();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2598,7 +2598,7 @@ private:
 class Inter_AddPvPBuddyResult : public ISigDispatcher
 {
 public:
-    Inter_AddPvPBuddyResult();
+    Inter_AddPvPBuddyResult() {}
     virtual ~Inter_AddPvPBuddyResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2609,7 +2609,7 @@ private:
 class Inter_RemovePvPBuddyResult : public ISigDispatcher
 {
 public:
-    Inter_RemovePvPBuddyResult();
+    Inter_RemovePvPBuddyResult() {}
     virtual ~Inter_RemovePvPBuddyResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2620,7 +2620,7 @@ private:
 class Inter_NoticePvPBuddyInOut : public ISigDispatcher
 {
 public:
-    Inter_NoticePvPBuddyInOut();
+    Inter_NoticePvPBuddyInOut() {}
     virtual ~Inter_NoticePvPBuddyInOut();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2631,7 +2631,7 @@ private:
 class Inter_LoadPvPLiveEventData : public ISigDispatcher
 {
 public:
-    Inter_LoadPvPLiveEventData();
+    Inter_LoadPvPLiveEventData() {}
     virtual ~Inter_LoadPvPLiveEventData();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2642,7 +2642,7 @@ private:
 class Inter_Antibot_SendBufferClient : public ISigDispatcher
 {
 public:
-    Inter_Antibot_SendBufferClient();
+    Inter_Antibot_SendBufferClient() {}
     virtual ~Inter_Antibot_SendBufferClient();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2653,7 +2653,7 @@ private:
 class Inter_Antibot_PunishClient : public ISigDispatcher
 {
 public:
-    Inter_Antibot_PunishClient();
+    Inter_Antibot_PunishClient() {}
     virtual ~Inter_Antibot_PunishClient();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2664,7 +2664,7 @@ private:
 class Inter_Antibot_ProcessProtectMsg : public ISigDispatcher
 {
 public:
-    Inter_Antibot_ProcessProtectMsg();
+    Inter_Antibot_ProcessProtectMsg() {}
     virtual ~Inter_Antibot_ProcessProtectMsg();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2675,7 +2675,7 @@ private:
 class Inter_LoadOnlinePreliminaryMember : public ISigDispatcher
 {
 public:
-    Inter_LoadOnlinePreliminaryMember();
+    Inter_LoadOnlinePreliminaryMember() {}
     virtual ~Inter_LoadOnlinePreliminaryMember();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2686,7 +2686,7 @@ private:
 class Inter_LoadOnlinePreliminaryTeam : public ISigDispatcher
 {
 public:
-    Inter_LoadOnlinePreliminaryTeam();
+    Inter_LoadOnlinePreliminaryTeam() {}
     virtual ~Inter_LoadOnlinePreliminaryTeam();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2697,7 +2697,7 @@ private:
 class Inter_LoadOnlinePreliminaryMemberMatchList : public ISigDispatcher
 {
 public:
-    Inter_LoadOnlinePreliminaryMemberMatchList();
+    Inter_LoadOnlinePreliminaryMemberMatchList() {}
     virtual ~Inter_LoadOnlinePreliminaryMemberMatchList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2708,7 +2708,7 @@ private:
 class Inter_LoadOnlinePreliminaryTeamMatchList : public ISigDispatcher
 {
 public:
-    Inter_LoadOnlinePreliminaryTeamMatchList();
+    Inter_LoadOnlinePreliminaryTeamMatchList() {}
     virtual ~Inter_LoadOnlinePreliminaryTeamMatchList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2719,7 +2719,7 @@ private:
 class Inter_LoadCharacLinkBonus : public ISigDispatcher
 {
 public:
-    Inter_LoadCharacLinkBonus();
+    Inter_LoadCharacLinkBonus() {}
     virtual ~Inter_LoadCharacLinkBonus();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2730,7 +2730,7 @@ private:
 class Inter_CreateAccountCargo : public ISigDispatcher
 {
 public:
-    Inter_CreateAccountCargo();
+    Inter_CreateAccountCargo() {}
     virtual ~Inter_CreateAccountCargo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2741,7 +2741,7 @@ private:
 class Inter_UpgradeAccountCargo : public ISigDispatcher
 {
 public:
-    Inter_UpgradeAccountCargo();
+    Inter_UpgradeAccountCargo() {}
     virtual ~Inter_UpgradeAccountCargo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2752,7 +2752,7 @@ private:
 class Inter_LoadAccountCargo : public ISigDispatcher
 {
 public:
-    Inter_LoadAccountCargo();
+    Inter_LoadAccountCargo() {}
     virtual ~Inter_LoadAccountCargo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2763,7 +2763,7 @@ private:
 class Inter_MultiMailBoxReqSend : public ISigDispatcher
 {
 public:
-    Inter_MultiMailBoxReqSend();
+    Inter_MultiMailBoxReqSend() {}
     virtual ~Inter_MultiMailBoxReqSend();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2774,7 +2774,7 @@ private:
 class Inter_ReqQueryCharacInfoMailbox : public ISigDispatcher
 {
 public:
-    Inter_ReqQueryCharacInfoMailbox();
+    Inter_ReqQueryCharacInfoMailbox() {}
     virtual ~Inter_ReqQueryCharacInfoMailbox();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2785,7 +2785,7 @@ private:
 class Inter_ReqGameServerInfo : public ISigDispatcher
 {
 public:
-    Inter_ReqGameServerInfo();
+    Inter_ReqGameServerInfo() {}
     virtual ~Inter_ReqGameServerInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2796,7 +2796,7 @@ private:
 class Inter_MonitorRegistGameServerAck : public ISigDispatcher
 {
 public:
-    Inter_MonitorRegistGameServerAck();
+    Inter_MonitorRegistGameServerAck() {}
     virtual ~Inter_MonitorRegistGameServerAck();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2807,7 +2807,7 @@ private:
 class Inter_LoadMileage : public ISigDispatcher
 {
 public:
-    Inter_LoadMileage();
+    Inter_LoadMileage() {}
     virtual ~Inter_LoadMileage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2818,7 +2818,7 @@ private:
 class Inter_GuildExpBookDelete : public ISigDispatcher
 {
 public:
-    Inter_GuildExpBookDelete();
+    Inter_GuildExpBookDelete() {}
     virtual ~Inter_GuildExpBookDelete();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2829,7 +2829,7 @@ private:
 class Inter_NoCache : public ISigDispatcher
 {
 public:
-    Inter_NoCache();
+    Inter_NoCache() {}
     virtual ~Inter_NoCache();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2840,7 +2840,7 @@ private:
 class Inter_Send_Charac_no_from_monitor : public ISigDispatcher
 {
 public:
-    Inter_Send_Charac_no_from_monitor();
+    Inter_Send_Charac_no_from_monitor() {}
     virtual ~Inter_Send_Charac_no_from_monitor();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2851,7 +2851,7 @@ private:
 class Inter_SendPeriodicMessage : public ISigDispatcher
 {
 public:
-    Inter_SendPeriodicMessage();
+    Inter_SendPeriodicMessage() {}
     virtual ~Inter_SendPeriodicMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2862,7 +2862,7 @@ private:
 class Inter_SendTimeSync : public ISigDispatcher
 {
 public:
-    Inter_SendTimeSync();
+    Inter_SendTimeSync() {}
     virtual ~Inter_SendTimeSync();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2873,7 +2873,7 @@ private:
 class Inter_SendTimeSyncLogin : public ISigDispatcher
 {
 public:
-    Inter_SendTimeSyncLogin();
+    Inter_SendTimeSyncLogin() {}
     virtual ~Inter_SendTimeSyncLogin();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2884,7 +2884,7 @@ private:
 class Inter_AddGuildFundResult : public ISigDispatcher
 {
 public:
-    Inter_AddGuildFundResult();
+    Inter_AddGuildFundResult() {}
     virtual ~Inter_AddGuildFundResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2895,7 +2895,7 @@ private:
 class Inter_TodayGuildMember : public ISigDispatcher
 {
 public:
-    Inter_TodayGuildMember();
+    Inter_TodayGuildMember() {}
     virtual ~Inter_TodayGuildMember();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2906,7 +2906,7 @@ private:
 class Inter_CheckJoinGuild : public ISigDispatcher
 {
 public:
-    Inter_CheckJoinGuild();
+    Inter_CheckJoinGuild() {}
     virtual ~Inter_CheckJoinGuild();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2917,7 +2917,7 @@ private:
 class Inter_RequestJoinGuild : public ISigDispatcher
 {
 public:
-    Inter_RequestJoinGuild();
+    Inter_RequestJoinGuild() {}
     virtual ~Inter_RequestJoinGuild();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2928,7 +2928,7 @@ private:
 class Inter_JoinGuildInfo : public ISigDispatcher
 {
 public:
-    Inter_JoinGuildInfo();
+    Inter_JoinGuildInfo() {}
     virtual ~Inter_JoinGuildInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2939,7 +2939,7 @@ private:
 class Inter_ApproveJoinGuild : public ISigDispatcher
 {
 public:
-    Inter_ApproveJoinGuild();
+    Inter_ApproveJoinGuild() {}
     virtual ~Inter_ApproveJoinGuild();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2950,7 +2950,7 @@ private:
 class Inter_GuildJoinList : public ISigDispatcher
 {
 public:
-    Inter_GuildJoinList();
+    Inter_GuildJoinList() {}
     virtual ~Inter_GuildJoinList();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2961,7 +2961,7 @@ private:
 class Inter_GuildAttendanceInfo : public ISigDispatcher
 {
 public:
-    Inter_GuildAttendanceInfo();
+    Inter_GuildAttendanceInfo() {}
     virtual ~Inter_GuildAttendanceInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2972,7 +2972,7 @@ private:
 class Inter_AchieveGuildAttendance : public ISigDispatcher
 {
 public:
-    Inter_AchieveGuildAttendance();
+    Inter_AchieveGuildAttendance() {}
     virtual ~Inter_AchieveGuildAttendance();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2983,7 +2983,7 @@ private:
 class Inter_UpdatePurchaseCashItemBonus : public ISigDispatcher
 {
 public:
-    Inter_UpdatePurchaseCashItemBonus();
+    Inter_UpdatePurchaseCashItemBonus() {}
     virtual ~Inter_UpdatePurchaseCashItemBonus();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -2994,7 +2994,7 @@ private:
 class Inter_HadesDisConnect : public ISigDispatcher
 {
 public:
-    Inter_HadesDisConnect();
+    Inter_HadesDisConnect() {}
     virtual ~Inter_HadesDisConnect();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3005,7 +3005,7 @@ private:
 class Inter_GoblinPadChagePwdReward : public ISigDispatcher
 {
 public:
-    Inter_GoblinPadChagePwdReward();
+    Inter_GoblinPadChagePwdReward() {}
     virtual ~Inter_GoblinPadChagePwdReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3016,7 +3016,7 @@ private:
 class Inter_GoblinPadSamePwdCheck : public ISigDispatcher
 {
 public:
-    Inter_GoblinPadSamePwdCheck();
+    Inter_GoblinPadSamePwdCheck() {}
     virtual ~Inter_GoblinPadSamePwdCheck();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3027,7 +3027,7 @@ private:
 class Inter_PunishCancel : public ISigDispatcher
 {
 public:
-    Inter_PunishCancel();
+    Inter_PunishCancel() {}
     virtual ~Inter_PunishCancel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3038,7 +3038,7 @@ private:
 class Inter_BroadcastMsg : public ISigDispatcher
 {
 public:
-    Inter_BroadcastMsg();
+    Inter_BroadcastMsg() {}
     virtual ~Inter_BroadcastMsg();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3049,7 +3049,7 @@ private:
 class Inter_TOD_ReturnToMonitor_APCSettingComplete : public ISigDispatcher
 {
 public:
-    Inter_TOD_ReturnToMonitor_APCSettingComplete();
+    Inter_TOD_ReturnToMonitor_APCSettingComplete() {}
     virtual ~Inter_TOD_ReturnToMonitor_APCSettingComplete();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3060,7 +3060,7 @@ private:
 class Inter_TOD_Reload_APC : public ISigDispatcher
 {
 public:
-    Inter_TOD_Reload_APC();
+    Inter_TOD_Reload_APC() {}
     virtual ~Inter_TOD_Reload_APC();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3071,7 +3071,7 @@ private:
 class Inter_UpdateSecuServiceState : public ISigDispatcher
 {
 public:
-    Inter_UpdateSecuServiceState();
+    Inter_UpdateSecuServiceState() {}
     virtual ~Inter_UpdateSecuServiceState();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3082,7 +3082,7 @@ private:
 class Inter_LoadKillMonsterInfo : public ISigDispatcher
 {
 public:
-    Inter_LoadKillMonsterInfo();
+    Inter_LoadKillMonsterInfo() {}
     virtual ~Inter_LoadKillMonsterInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3093,7 +3093,7 @@ private:
 class Inter_LevelUpReward : public ISigDispatcher
 {
 public:
-    Inter_LevelUpReward();
+    Inter_LevelUpReward() {}
     virtual ~Inter_LevelUpReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3104,7 +3104,7 @@ private:
 class Inter_GetUserRegdate : public ISigDispatcher
 {
 public:
-    Inter_GetUserRegdate();
+    Inter_GetUserRegdate() {}
     virtual ~Inter_GetUserRegdate();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3115,7 +3115,7 @@ private:
 class Inter_GoldControlMoneyActionCancel : public ISigDispatcher
 {
 public:
-    Inter_GoldControlMoneyActionCancel();
+    Inter_GoldControlMoneyActionCancel() {}
     virtual ~Inter_GoldControlMoneyActionCancel();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3126,7 +3126,7 @@ private:
 class Inter_MonitorNoticeGuildChatMsgHyperLink : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeGuildChatMsgHyperLink();
+    Inter_MonitorNoticeGuildChatMsgHyperLink() {}
     virtual ~Inter_MonitorNoticeGuildChatMsgHyperLink();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3137,7 +3137,7 @@ private:
 class Inter_MonitorNoticeMemberChatMsgHyperLink : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeMemberChatMsgHyperLink();
+    Inter_MonitorNoticeMemberChatMsgHyperLink() {}
     virtual ~Inter_MonitorNoticeMemberChatMsgHyperLink();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3148,7 +3148,7 @@ private:
 class Inter_MonitorNoticeOtherChannelChatHyperLink : public ISigDispatcher
 {
 public:
-    Inter_MonitorNoticeOtherChannelChatHyperLink();
+    Inter_MonitorNoticeOtherChannelChatHyperLink() {}
     virtual ~Inter_MonitorNoticeOtherChannelChatHyperLink();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3159,7 +3159,7 @@ private:
 class Inter_Monitor_MegaphoneMsgHyperLink : public ISigDispatcher
 {
 public:
-    Inter_Monitor_MegaphoneMsgHyperLink();
+    Inter_Monitor_MegaphoneMsgHyperLink() {}
     virtual ~Inter_Monitor_MegaphoneMsgHyperLink();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3170,7 +3170,7 @@ private:
 class Inter_SendSecuReward : public ISigDispatcher
 {
 public:
-    Inter_SendSecuReward();
+    Inter_SendSecuReward() {}
     virtual ~Inter_SendSecuReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3181,7 +3181,7 @@ private:
 class Inter_HadesAction : public ISigDispatcher
 {
 public:
-    Inter_HadesAction();
+    Inter_HadesAction() {}
     virtual ~Inter_HadesAction();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3195,7 +3195,7 @@ private:
 class Inter_Check3rdPartyConcent : public ISigDispatcher
 {
 public:
-    Inter_Check3rdPartyConcent();
+    Inter_Check3rdPartyConcent() {}
     virtual ~Inter_Check3rdPartyConcent();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3206,7 +3206,7 @@ private:
 class Inter_SelectCharacMid : public ISigDispatcher
 {
 public:
-    Inter_SelectCharacMid();
+    Inter_SelectCharacMid() {}
     virtual ~Inter_SelectCharacMid();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3247,7 +3247,7 @@ private:
 class Inter_NpcLimitBuyItemInfoAll : public ISigDispatcher
 {
 public:
-    Inter_NpcLimitBuyItemInfoAll();
+    Inter_NpcLimitBuyItemInfoAll() {}
     virtual ~Inter_NpcLimitBuyItemInfoAll();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3258,7 +3258,7 @@ private:
 class Inter_NpcLimitBuyItemChangeInfo : public ISigDispatcher
 {
 public:
-    Inter_NpcLimitBuyItemChangeInfo();
+    Inter_NpcLimitBuyItemChangeInfo() {}
     virtual ~Inter_NpcLimitBuyItemChangeInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3269,7 +3269,7 @@ private:
 class Inter_NpcLimitBuyItemInfoRenew : public ISigDispatcher
 {
 public:
-    Inter_NpcLimitBuyItemInfoRenew();
+    Inter_NpcLimitBuyItemInfoRenew() {}
     virtual ~Inter_NpcLimitBuyItemInfoRenew();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3280,7 +3280,7 @@ private:
 class Inter_MonitorReplyCharacInfo : public ISigDispatcher
 {
 public:
-    Inter_MonitorReplyCharacInfo();
+    Inter_MonitorReplyCharacInfo() {}
     virtual ~Inter_MonitorReplyCharacInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3291,7 +3291,7 @@ private:
 class Inter_CeraShopPurchaseCount : public ISigDispatcher
 {
 public:
-    Inter_CeraShopPurchaseCount();
+    Inter_CeraShopPurchaseCount() {}
     virtual ~Inter_CeraShopPurchaseCount();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3302,7 +3302,7 @@ private:
 class Inter_OwnerisVIP : public ISigDispatcher
 {
 public:
-    Inter_OwnerisVIP();
+    Inter_OwnerisVIP() {}
     virtual ~Inter_OwnerisVIP();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3313,7 +3313,7 @@ private:
 class Inter_LoadPuUserCheck : public ISigDispatcher
 {
 public:
-    Inter_LoadPuUserCheck();
+    Inter_LoadPuUserCheck() {}
     virtual ~Inter_LoadPuUserCheck();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3324,7 +3324,7 @@ private:
 class Inter_CollectItemsResult : public ISigDispatcher
 {
 public:
-    Inter_CollectItemsResult();
+    Inter_CollectItemsResult() {}
     virtual ~Inter_CollectItemsResult();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3335,7 +3335,7 @@ private:
 class Inter_CollectItemsReward : public ISigDispatcher
 {
 public:
-    Inter_CollectItemsReward();
+    Inter_CollectItemsReward() {}
     virtual ~Inter_CollectItemsReward();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3346,7 +3346,7 @@ private:
 class Inter_CollectItemsRewardBroadcast : public ISigDispatcher
 {
 public:
-    Inter_CollectItemsRewardBroadcast();
+    Inter_CollectItemsRewardBroadcast() {}
     virtual ~Inter_CollectItemsRewardBroadcast();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3357,7 +3357,7 @@ private:
 class Inter_RequestCharacSkillInfo : public ISigDispatcher
 {
 public:
-    Inter_RequestCharacSkillInfo();
+    Inter_RequestCharacSkillInfo() {}
     virtual ~Inter_RequestCharacSkillInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3373,7 +3373,7 @@ private:
 class Inter_RequestTagCharacInfo : public ISigDispatcher
 {
 public:
-    Inter_RequestTagCharacInfo();
+    Inter_RequestTagCharacInfo() {}
     virtual ~Inter_RequestTagCharacInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3384,7 +3384,7 @@ private:
 class Inter_EmergencyPatchMessage : public ISigDispatcher
 {
 public:
-    Inter_EmergencyPatchMessage();
+    Inter_EmergencyPatchMessage() {}
     virtual ~Inter_EmergencyPatchMessage();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3395,7 +3395,7 @@ private:
 class Inter_AuctionSubMoney : public ISigDispatcher
 {
 public:
-    Inter_AuctionSubMoney();
+    Inter_AuctionSubMoney() {}
     virtual ~Inter_AuctionSubMoney();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3406,7 +3406,7 @@ private:
 class Inter_UpdateServerSnapShot : public ISigDispatcher
 {
 public:
-    Inter_UpdateServerSnapShot();
+    Inter_UpdateServerSnapShot() {}
     virtual ~Inter_UpdateServerSnapShot();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3417,7 +3417,7 @@ private:
 class Inter_LoadCharacTypeHotKey : public ISigDispatcher
 {
 public:
-    Inter_LoadCharacTypeHotKey();
+    Inter_LoadCharacTypeHotKey() {}
     virtual ~Inter_LoadCharacTypeHotKey();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3428,7 +3428,7 @@ private:
 class Inter_UpdateMiniCraneSeed : public ISigDispatcher
 {
 public:
-    Inter_UpdateMiniCraneSeed();
+    Inter_UpdateMiniCraneSeed() {}
     virtual ~Inter_UpdateMiniCraneSeed();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3439,7 +3439,7 @@ private:
 class Inter_GetPremiumSelectedCubeInfo : public ISigDispatcher
 {
 public:
-    Inter_GetPremiumSelectedCubeInfo();
+    Inter_GetPremiumSelectedCubeInfo() {}
     virtual ~Inter_GetPremiumSelectedCubeInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3450,7 +3450,7 @@ private:
 class Inter_CheckAddFriend : public ISigDispatcher
 {
 public:
-    Inter_CheckAddFriend();
+    Inter_CheckAddFriend() {}
     virtual ~Inter_CheckAddFriend();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3461,7 +3461,7 @@ private:
 class Inter_LoadCerashopAddRestrictType : public ISigDispatcher
 {
 public:
-    Inter_LoadCerashopAddRestrictType();
+    Inter_LoadCerashopAddRestrictType() {}
     virtual ~Inter_LoadCerashopAddRestrictType();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3495,7 +3495,7 @@ namespace APSystem
 class Inter_LoadActionPoint : public ISigDispatcher
 {
 public:
-    Inter_LoadActionPoint();
+    Inter_LoadActionPoint() {}
     virtual ~Inter_LoadActionPoint();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3506,7 +3506,7 @@ private:
 class Inter_EmptyActionPoint : public ISigDispatcher
 {
 public:
-    Inter_EmptyActionPoint();
+    Inter_EmptyActionPoint() {}
     virtual ~Inter_EmptyActionPoint();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
@@ -3517,7 +3517,7 @@ private:
 class Inter_LoadRewardMedal : public ISigDispatcher
 {
 public:
-    Inter_LoadRewardMedal();
+    Inter_LoadRewardMedal() {}
     virtual ~Inter_LoadRewardMedal();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     void SendMail(CUser& user, unsigned int medalCount);   // ORIG T 0x08124ea0
@@ -3533,7 +3533,7 @@ namespace advancealtar
 class Inter_Load : public ISigDispatcher
 {
 public:
-    Inter_Load();
+    Inter_Load() {}
     virtual ~Inter_Load();
     virtual int dispatch_sig(CUser* user, char* data, int len);
 

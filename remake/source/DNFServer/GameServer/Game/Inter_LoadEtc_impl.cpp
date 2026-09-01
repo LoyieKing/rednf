@@ -1811,7 +1811,6 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
 // ORIG W 0x084e9cb6 sz 0x1c（_ZN13Inter_LoadEtcC1Ev，objdump 直接转写，
 // 无独立报告）：call ISigDispatcher ctor + vptr=0x8c8fff0。
-Inter_LoadEtc::Inter_LoadEtc() {}
 // ORIG W 0x084e9cd2 sz 0x30（D1：vptr=0x8c8fff0 → ISigDispatcher D1 → delete
 // 条件体）。out-of-line 定义使本 TU 成为 vtable for Inter_LoadEtc 的发出点
 // （key function=析构；此前无定义导致链接 undefined vtable）。
