@@ -452,21 +452,22 @@ void CDeathTowerRanking::init(unsigned int type)
     void* table = getRankTable(type);
     // ORIG 0x8c63370 实证每名 6 字符 + NUL（"AAAAAA\0" 等，7 字节；
     // memcpy 7 字节 = 6 字母 + NUL，与 ORIG 逐字节一致）
-    static const char* kDefaultNames[5] = {
-        "AAAAAA", "BBBBBB", "CCCCCC", "DDDDDD", "EEEEEE" };
     char* base = reinterpret_cast<char*>(table);
     for (unsigned int tower = 0; tower <= 4; ++tower)
     {
         for (unsigned int slot = 1; slot <= 5; ++slot)
             base[tower * 0x390 + slot * 0x98 + 0x90] = 0;
+        std::memcpy(base + tower * 0x390 + 0x9c, "AAAAAA", 7);
+        std::memcpy(base + tower * 0x390 + 0x134, "BBBBBB", 7);
+        std::memcpy(base + tower * 0x390 + 0x1cc, "CCCCCC", 7);
+        std::memcpy(base + tower * 0x390 + 0x264, "DDDDDD", 7);
+        std::memcpy(base + tower * 0x390 + 0x2fc, "EEEEEE", 7);
         for (unsigned int slot = 1; slot <= 5; ++slot)
         {
             unsigned int off = tower * 0x390 + slot * 0x98;
-            std::memcpy(base + off + 0x04, kDefaultNames[slot - 1], 7);
             *reinterpret_cast<int*>(base + off + 0x94) = static_cast<int>(slot);
             *reinterpret_cast<unsigned int*>(base + off + 0x8c) = 0;
-            *reinterpret_cast<unsigned int*>(base + off + 0x88) =
-                200 - slot;
+            *reinterpret_cast<unsigned int*>(base + off + 0x88) = 200 - slot;
         }
     }
     *reinterpret_cast<unsigned int*>(base + 0x70e0) = 200;
