@@ -2769,7 +2769,7 @@ public:
     // ---- 角色选择 / 登录数据 ----
     int SelectCharac(int slot, int param);
     int CreateCharac(SIG_CREATE_CHARAC* data);
-    int DeleteCharac(unsigned int characNo);
+    void DeleteCharac(unsigned int characNo);   // ORIG Ghidra: return; (void)
     void GiveItemsReturnUser();         // ORIG T 0x08692000
     void GiveEquipItemsReturnUser();    // ORIG T 0x08692140
     int ChangeCharacSlot(unsigned int a, unsigned int b);

@@ -2136,36 +2136,38 @@ void CUser::decideLinkCharacSlotIndexes(char idx, int maxIdx)
 //     return !isEmpty;
 // }
 
-int CUser::DeleteCharac(unsigned int characNo)
+void CUser::DeleteCharac(unsigned int characNo)
 {
     // ORIG 0x0864a63a（报告 DeleteCharac.md + objdump 逐指令核对）。
-    char erased = 0;
+    // ORIG 不缓存 _Charac_info& 引用：对每个字段读取均重新 m_characList[i]（operator[]）。
+    // ORIG 返回 void（Ghidra: return;）；调用方按语句调用不用返回值。
+    bool erased = false;
     std::vector<_Charac_info>::iterator delIt = m_characList.begin();
     int i = 0;
     while ((int)m_characList.size() > i)
     {
-        _Charac_info& ci = m_characList[i];
-        if (ci.m_characNo == (int)characNo)
+        if (m_characList[i].m_characNo == characNo)
         {
             HistoryLog::WriteDeleteCh(reinterpret_cast<FILE*>(m_field796f8),
-                                      ci.m_name, (int)ci.m_field26,
-                                      (int)(short)ci.m_level, (int)ci.m_field29);
+                                      m_characList[i].m_name,
+                                      (int)m_characList[i].m_field26,
+                                      (int)(short)m_characList[i].m_level,
+                                      (int)m_characList[i].m_field29);
             m_historyLog.CharacDel(i);
-            erased = 1;
+            erased = true;
         }
-        if (ci.m_field14b8 == (int)characNo)                   // +0x14b8 striker link 槽
-            ci.m_field14b8 = 0;
-        if (erased != 1)
-            ++delIt;
+        if (m_characList[i].m_field14b8 == characNo)        // +0x14b8 striker link 槽
+            m_characList[i].m_field14b8 = 0;
+        if (!erased)
+            delIt++;
         ++i;
     }
-    if (erased != 0)
+    if (erased)
     {
         m_characList.erase(delIt);
         CalcurateManageLevel();
     }
     m_characterView.enableSaveCharacView();
-    return 0;
 }
 
 // ---------------------------------------------------------------------------
