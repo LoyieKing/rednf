@@ -253,8 +253,8 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     struct tm tmc;
     localtime_r(&tt, &tmc);
     char date[16];
-    sprintf(date, "%04d-%02d-%02d", tmc.tm_mday, tmc.tm_mon + 1,
-            tmc.tm_year + 1900);
+    sprintf(date, "%04d-%02d-%02d", tmc.tm_year + 1900,
+            tmc.tm_mon + 1, tmc.tm_mday);
 
     db->set_query("select ap_sum, is_reward_medal, is_reward_item_1, "
                   "is_reward_item_2, is_reward_item_3, is_reward_item_4, "
