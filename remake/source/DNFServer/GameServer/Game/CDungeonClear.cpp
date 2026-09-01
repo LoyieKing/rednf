@@ -3,6 +3,7 @@
 #include "CDataManager.h"
 #include "CDungeon.h"
 #include "QuestClear.h"  // WongWork::CQuestClear 唯一权威定义
+#include "WongWorkEvents_A.h"  // WongWork::arad_parsing（ORIG 0x08483e98）
 
 #include <boost/tokenizer.hpp>
 #include <cstdarg>
@@ -50,29 +51,19 @@ unsigned int CDungeonClear::getDungeonClearSize() const
 
 void CDungeonClear::AradfromString(CUser* pUser, const char* str)
 {
-    if (!str)
-        return;
-
+    // ORIG 0x08483fb9：外层 char_separator(",",0,0) → 外层分隔符为 ","；
+    // 构造顺序与 ORIG 一致（先 char_separator，后 std::string s）。
+    boost::char_separator<char> sep(",");
     std::string s(str);
-    boost::char_separator<char> sep(";");
     boost::tokenizer<boost::char_separator<char>> tokens(s, sep);
 
-    for (boost::tokenizer<boost::char_separator<char>>::iterator it = tokens.begin();
-         it != tokens.end(); ++it)
+    std::vector<std::string> parts;
+
+    for (boost::tokenizer<boost::char_separator<char>>::iterator tit = tokens.begin();
+         tit != tokens.end(); ++tit)
     {
-        std::string token = *it;
-        std::vector<std::string> parts;
-        boost::char_separator<char> pipeSep("|");
-        boost::tokenizer<boost::char_separator<char>> pipeTokens(token, pipeSep);
-
-        for (boost::tokenizer<boost::char_separator<char>>::iterator pit = pipeTokens.begin();
-             pit != pipeTokens.end(); ++pit)
-        {
-            parts.push_back(*pit);
-        }
-
-        if (parts.size() < 2)
-            continue;
+        // ORIG 0x084840b6：内层 "|" 以临时 std::string 传给 arad_parsing。
+        arad_parsing(*tit, parts, std::string("|"));
 
         int dungeonIdx = atoi(parts[0].c_str());
         int diff = atoi(parts[1].c_str());
@@ -80,34 +71,32 @@ void CDungeonClear::AradfromString(CUser* pUser, const char* str)
         if (diff == 4)
             diff = 3;
 
-        CDataManager* pDataMgr = G_CDataManager();
-        if (pDataMgr)
+        CDungeon* pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+        unsigned char questCleared = 0;
+        unsigned int questId = 0;
+        if (pDungeon)
+            questId = pDungeon->getHeroesRequiredQuest();
+        if (questId != 0)
         {
-            CDungeon* pDungeon = pDataMgr->find_dungeon(dungeonIdx);
-            if (pDungeon)
-            {
-                unsigned int questId = pDungeon->getHeroesRequiredQuest();
-                if (questId != 0)
-                {
-                    // CQuestClear 位于 UserQuest 内嵌 +4 处（CListTables.cpp 同型声明）
-                    unsigned char questCleared =
-                        ((WongWork::CQuestClear*)((char*)pUser->getCurCharacQuestR() + 4))
-                            ->isClearedQuest(questId);
-                    if (questCleared != 0)
-                        diff = 3;   // ORIG 0x8484169：quest 已清 → 强制 diff=3
-                }
-            }
+            // CQuestClear 位于 UserQuest 内嵌 +4 处（CListTables.cpp 同型声明）
+            questCleared =
+                ((WongWork::CQuestClear*)((char*)pUser->getCurCharacQuestR() + 4))
+                    ->isClearedQuest(questId);
+            if (questCleared != 0)
+                diff = 3;   // ORIG 0x8484169：quest 已清 → 强制 diff=3
         }
 
-        std::map<short, char>::iterator it = m_map.find((short)dungeonIdx);
-        if (it != m_map.end())
+        std::map<short, char>::iterator mit = m_map.find((short)dungeonIdx);
+        if (mit != m_map.end())
         {
-            if (it->second < (char)diff)
-                it->second = (char)diff;
+            if (mit->second < (char)diff)
+                mit->second = (char)diff;
         }
         else
         {
-            m_map.insert(std::make_pair((short)dungeonIdx, (char)diff));
+            // ORIG 0x0848424f：make_pair<int&,int&>（不做 short/char 收窄转换），
+            // 由 pair<short,char> 转换构造收窄。
+            m_map.insert(std::make_pair(dungeonIdx, diff));
         }
     }
 }
