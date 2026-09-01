@@ -256,10 +256,12 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
     if (!items.empty())
     {
         // 迭代器成对读取（读 A→++→读 B→处理→++），与 ORIG 循环形态一致。
-        for (unsigned int i = 0; i < items.size(); i += 2)
+        for (std::vector<int>::const_iterator it = items.begin(); it != items.end(); )
         {
-            int itemNo = items[i];
-            int count = items[i + 1];
+            int itemNo = *it;
+            ++it;
+            int count = *it;
+            ++it;
             Inven_Item mailItem;                   // local_aa 每对新建
             if (itemNo == 0 && count > 0)
             {
