@@ -98,15 +98,14 @@ void TeamInfo::refresh()    // ORIG T 0x0855c9ae
 int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
 {
     for (int i = 0; i <= 3; ++i) {
-        PlayerInfo& pi = m_players[i];
-        if (pi.m_flag != 0)
+        if (m_players[i].m_flag != 0)
             continue;
-        pi.m_flag = 1;
-        pi.m_user = user;
-        pi.m_accId = user->get_acc_id();
-        pi.m_rating = user->GetRating();
-        pi.m_schoolNo = user->GetSchoolNo();
-        user->GetDailyBadge(pi.m_badges);
+        m_players[i].m_flag = 1;
+        m_players[i].m_user = user;
+        m_players[i].m_accId = user->get_acc_id();
+        m_players[i].m_rating = user->GetRating();
+        m_players[i].m_schoolNo = user->GetSchoolNo();
+        user->GetDailyBadge(m_players[i].m_badges);
         return 1;
     }
     return 0;
