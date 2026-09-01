@@ -4690,14 +4690,11 @@ void StackableAction::Action::init_function_type()
     // 与 ORIG 一致用 insert 方式（非 operator[]）。
     using boost::arg;
     m_map2.insert(std::make_pair(TYPE_BINGO,
-        boost::function<int(input_param&)>(
-            boost::bind(&Action::proc_bingo, this, arg<1>()))));
+        boost::bind(&Action::proc_bingo, this, arg<1>())));
     m_map2.insert(std::make_pair(TYPE_LOTTERY_COUNT,
-        boost::function<int(input_param&)>(
-            boost::bind(&Action::proc_lotteryCount, this, arg<1>()))));
+        boost::bind(&Action::proc_lotteryCount, this, arg<1>())));
     m_map2.insert(std::make_pair(TYPE_ADD_FATIGUE,
-        boost::function<int(input_param&)>(
-            boost::bind(&Action::proc_addFatigue, this, arg<1>()))));
+        boost::bind(&Action::proc_addFatigue, this, arg<1>())));
 }
 
 expert_extraction::CExtraction::CExtraction()
