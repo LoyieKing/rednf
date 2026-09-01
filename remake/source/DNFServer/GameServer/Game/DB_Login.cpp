@@ -2443,15 +2443,14 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
                               sig->m_accId);
         return 0;
     }
-    const unsigned int base = OFF_GROWTH_WEAPON;
     if (db->get_n_rows() == 0)
     {
-        SGF<char>(sig, base) = 0;                            // has flag
-        SGF<unsigned short>(sig, base + 0x12) = 0;           // server_id
-        SGF<unsigned int>(sig, base + 4) = 0;                // charac_no
-        SGF<unsigned int>(sig, base + 8) = 0;                // growthweapon_id
-        SGF<unsigned short>(sig, base + 0x10) = 0;           // timepiece
-        SGF<unsigned int>(sig, base + 0xc) = 0;              // infinityweapon_id
+        SGFC(char, sig, OFF_GROWTH_WEAPON) = 0;              // has flag
+        SGFC(unsigned short, sig, OFF_GROWTH_WEAPON + 0x12) = 0;  // server_id
+        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 4) = 0;  // charac_no
+        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 8) = 0;  // growthweapon_id
+        SGFC(unsigned short, sig, OFF_GROWTH_WEAPON + 0x10) = 0; // timepiece
+        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 0xc) = 0;    // infinityweapon_id
     }
     else
     {
@@ -2459,22 +2458,12 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
         {
             return 0;
         }
-        SGF<char>(sig, base) = 1;
-        short serverId = 0;
-        int characNo = 0;
-        int growthId = 0;
-        short timepiece = 0;
-        int infinityId = 0;
-        if (!db->get_short(0, serverId)) return 0;
-        if (!db->get_int(1, characNo)) return 0;
-        if (!db->get_int(2, growthId)) return 0;
-        if (!db->get_short(3, timepiece)) return 0;
-        if (!db->get_int(4, infinityId)) return 0;
-        SGF<short>(sig, base + 0x12) = serverId;
-        SGF<int>(sig, base + 4) = characNo;
-        SGF<int>(sig, base + 8) = growthId;
-        SGF<short>(sig, base + 0x10) = timepiece;
-        SGF<int>(sig, base + 0xc) = infinityId;
+        SGFC(char, sig, OFF_GROWTH_WEAPON) = 1;
+        if (!db->get_short(0, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x12))) return 0;   // server_id
+        if (!db->get_int(1, SGFC(int, sig, OFF_GROWTH_WEAPON + 4))) return 0;          // charac_no
+        if (!db->get_int(2, SGFC(int, sig, OFF_GROWTH_WEAPON + 8))) return 0;          // growthweapon_id
+        if (!db->get_short(3, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x10))) return 0;   // timepiece
+        if (!db->get_int(4, SGFC(int, sig, OFF_GROWTH_WEAPON + 0xc))) return 0;        // infinityweapon_id
     }
     return 1;
 }

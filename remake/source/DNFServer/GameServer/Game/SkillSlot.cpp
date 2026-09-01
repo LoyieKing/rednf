@@ -2025,9 +2025,9 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         {
             return -1;
         }
-        void* expertScript = 0;
-        ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType();
-        expertScript = G_CDataManager()->GetExpertJobScript(0);
+        void* expertScript =
+            G_CDataManager()->GetExpertJobScript(
+                ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
         if (expertScript != 0)
         {
             std::vector<std::pair<int, int> >& expertList =
@@ -2049,8 +2049,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         {
             return -1;
         }
-        bool found = false;
-        for (unsigned int i = 0; i < giveList.size(); ++i)
+        for (int i = 0; i < (int)giveList.size(); ++i)
         {
             pair = giveList[i];
             if (buf[slot].m_index == pair.first)
@@ -2060,7 +2059,6 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                     result = 7;
                     return -1;
                 }
-                found = true;
                 break;
             }
         }
@@ -2068,7 +2066,7 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
         int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
         G_CDataManager()->m_skillList->get_post_learning_skill(
             characJob, skillIdx, postList);
-        for (unsigned int i = 0; i < postList.size(); ++i)
+        for (int i = 0; i < (int)postList.size(); ++i)
         {
             int preSkillIdx = postList[i].first;
             int preLevel = postList[i].second;
