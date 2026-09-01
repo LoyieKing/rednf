@@ -86,12 +86,7 @@ CTimeInterval* CTimeInterval::Create()
     // ORIG @0x0856f974：operator new(0xc) → 三槽 u32 清零 →
     // 构造派生 CUnixTimeInterval（ORIG call _ZN15message_counter17CUnixTimeIntervalC1Ev，
     // 置派生 vtable；基类构造为空实现）→ 返回。
-    CTimeInterval* raw = static_cast<CTimeInterval*>(::operator new(0xc));
-    *reinterpret_cast<unsigned int*>(raw) = 0;
-    raw->m_last.tv_sec = 0;
-    raw->m_last.tv_usec = 0;
-    new (raw) CUnixTimeInterval();
-    return raw;
+    return new CUnixTimeInterval();   // ORIG：_Znwj(0xc) → C1（置 vptr）
 }
 
 void CTimeInterval::Destory(CTimeInterval* p)
@@ -111,6 +106,7 @@ long long CTimeInterval::GetTimeInterval()      // W 空覆盖 @0x08570182
 
 CUnixTimeInterval::CUnixTimeInterval() : CTimeInterval()
 {
+    // ORIG C1 仅调基类 ctor + 换 vptr；m_last 清零由 ORIG value-init 在调用点内联（gcc4.1）
 }
 
 // ORIG @0x08570236：gettimeofday(&this->m_last, 0)。
