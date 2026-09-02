@@ -116,6 +116,20 @@ struct stADDINFO
     short m_info1;        // +0x02
 };
 
+// stEVENTADDINFO（CEventManager::MakeNotiEventInfo 的 vector<stEVENTADDINFO> 元素）：
+// ORIG 0x08115de2 读取 +0x00(movswl eventId)/+0x04(movzwl info0)/+0x06(movzwl info1)，
+// 中间 +0x02 为 2 字节 gap；sizeof 0x08。CEventManager 此前用本地异名 EventAddInfo
+// （连续 3 ushort，6 字节）——布局不符，此地为权威声明（§4.4 唯一声明点）。
+struct stEVENTADDINFO
+{
+    stEVENTADDINFO() {}
+    ~stEVENTADDINFO() {}          // ORIG D1/D2 0x08118b56 W 空体（非平凡，发射 D1/D2）
+    unsigned short eventId;   // +0x00（movswl 读取）
+    unsigned short m_pad2;    // +0x02（ORIG 布局 gap，未访问）
+    unsigned short info0;     // +0x04（movzwl 读取）
+    unsigned short info1;     // +0x06（movzwl 读取）
+};
+
 // CEventBase（ORIG vtable 0x08b4bae0）：0/1 = 虚析构，2/3 = StartEvent()/
 // EndEvent() 纯虚，4 = StartEvent(Word_Param)（基类弱实现），5..13 =
 // StartAction/AppendInfo/GetAddInfo/changeCharacName/dailyresetData/

@@ -26,6 +26,7 @@
 #include "RefPvpGrade.h"     // stPvPGradeExp_t
 #include "STEquipmentScript.h" // stSetItemBackImageInfo
 #include "CItemAmplifier.h"  // upgrade_info_t
+#include "CGuildServerProxy.h"  // stEVENTADDINFO（§4.4 权威声明）
 #include "SigTypes_C.h"      // stMonsterInfo_t
 #include "CompiledDNFLex.h"  // CompiledDNFLex::stream_t
 #include "Quest.h"           // stQuestTargetCharacter_t
@@ -39,11 +40,8 @@
 // 缺失类型定义（ORIG 全局/共享头缺失，按 nm+objdump 恢复布局）
 // ============================================================================
 
-// stEVENTADDINFO（ORIG D1/D2 0x08118b56 W 空体；trivial POD，无成员析构）。
-struct stEVENTADDINFO
-{
-    ~stEVENTADDINFO() {}
-};
+// stEVENTADDINFO：权威声明在 CGuildServerProxy.h（ORIG D1/D2 0x08118b56 W 空体 +
+// 字段布局 +0x00/+0x04/+0x06，§4.4 唯一声明点）。此处不再本地定义。
 
 // tagPacketHeader / tagCS_UPDATE_CHANNEL_INFO（ORIG ctor 0x08106bfc W）：
 // header cat=1/id=2/size=0x33（setCategory/setPacketID/setSize 逐指令转写）。
