@@ -427,10 +427,7 @@ struct SIG_REDEEMINFO_LIST_TO_DB
     int  m_field4;                                 // +0x004（ctor 清零）
     Redeem_Item::Inven_Item_Expand_RedeemInfo m_items[0x15];  // +0x008（0x594）
 
-    SIG_REDEEMINFO_LIST_TO_DB()                    // ORIG W 0x0848f894（C1/C2 同址）
-    {
-        m_field4 = 0;
-    }
+    SIG_REDEEMINFO_LIST_TO_DB() : m_field4(0) {}   // ORIG W 0x0848f894（C1/C2 同址）：m_items[0x15] 自动数组先于 m_field4=0，故置 init-list
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_REDEEMINFO_LIST_TO_DB) == 0x59c,
