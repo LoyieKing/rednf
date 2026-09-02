@@ -113,9 +113,11 @@ static_assert(sizeof(stTitleRewardBasis) == 0xc,
 struct stRewardChangeStatus : public stTitleRewardBasis
 {
     stRewardChangeStatus()
-        : m_appendage(0x4d), m_valueType(2), m_value(0.0f)
     {
-        m_type = 0;
+        m_type = 0;          // ORIG C1：m_type=0 先于派生字段(全于 body)
+        m_appendage = 0x4d;
+        m_valueType = 2;
+        m_value = 0.0f;
     }
 
     int m_appendage;     // +0x0c（importRewards 覆写为 loadAppendageType）
@@ -129,9 +131,10 @@ static_assert(sizeof(stRewardChangeStatus) == 0x18,
 // ---- 给予表情奖励（ORIG C1 W 0x08aa96cc：type=1、emotionId=-1）----
 struct stRewardGiveEmotion : public stTitleRewardBasis
 {
-    stRewardGiveEmotion() : m_emotionId(-1)
+    stRewardGiveEmotion()
     {
-        m_type = 1;
+        m_type = 1;          // ORIG C1：m_type=1 先于 m_emotionId(全于 body)
+        m_emotionId = -1;
     }
 
     int m_emotionId;     // +0x0c（importRewards ScanInt 覆写）
