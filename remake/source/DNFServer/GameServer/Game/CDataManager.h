@@ -3087,7 +3087,7 @@ namespace WongWork { class CItemUpgrade_Separate; }  // ORIG _ZN8WongWork21CItem
 class ChattingEmoticonBase
 {
 public:
-    ChattingEmoticonBase() : m_index(0) {}   // ORIG Base::C1 0x80e5c2a 含 m_index=0
+    ChattingEmoticonBase() { m_index = 0; }   // ORIG Base::C1 0x80e5c2a：m_set(+8) 自动构造先于 m_index=0，故置 body
     virtual ~ChattingEmoticonBase() {}
     virtual bool isUsable(const CUser& user) const = 0;        // vtable+0x08
     virtual int GetStartArrayIndex() const = 0;                // vtable+0x0c
