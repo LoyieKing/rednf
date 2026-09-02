@@ -24,12 +24,12 @@ extern Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），定义于 Inven_
 // ============================================================================
 // 构造 / 基础存取（ORIG 0x8289794 / 0x8289816 / 0x828986c / 0x82898c0）
 // ============================================================================
-CAccountCargo::CAccountCargo()
+CAccountCargo::CAccountCargo() : m_pUser(0)
 {
-    m_pUser = 0;
-    // m_slots[0x38] 为具名 Inven_Item 数组（CUser.h:747），编译器于 ctor 自动逐元素
-    // 默认构造（ORIG 0x8289797..0x82897ca 的 Inven_ItemC1 循环即编译器自动数组初始化）
-    // 此前 for 内手动 placement-new 二次构造冗余 -> 删除，交由自动构造，与 ORIG 一致。
+    // m_slots[0x38] 为具名 Inven_Item 数组（CUser.h:747），编译器于 ctor 自动逐元素默认构造
+    // (ORIG 0x8289797..0x82897ca 的 Inven_ItemC1 循环即编译器自动数组初始化)；此前 for 内
+    // 手动 placement-new 二次构造冗余 -> 删除。m_pUser(+0x00) 声明先于 m_slots(+0x04)，
+    // 故放入成员初始化列表使 m_pUser=0 于自动数组初始化循环之前执行，匹配 ORIG 指令序。
     m_money = 0;
     m_capacity = 0;
     m_alter = 0;
