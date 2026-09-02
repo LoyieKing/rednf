@@ -27,8 +27,9 @@ extern Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），定义于 Inven_
 CAccountCargo::CAccountCargo()
 {
     m_pUser = 0;
-    for (int i = 0x37; i != -1; --i)
-        new (&m_slots[i]) Inven_Item();
+    // m_slots[0x38] 为具名 Inven_Item 数组（CUser.h:747），编译器于 ctor 自动逐元素
+    // 默认构造（ORIG 0x8289797..0x82897ca 的 Inven_ItemC1 循环即编译器自动数组初始化）
+    // 此前 for 内手动 placement-new 二次构造冗余 -> 删除，交由自动构造，与 ORIG 一致。
     m_money = 0;
     m_capacity = 0;
     m_alter = 0;
