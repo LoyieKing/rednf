@@ -439,7 +439,7 @@ public:
 class CAssaultMgr
 {
 public:
-    CAssaultMgr() : m_bAssaultChannel(false) {}
+    CAssaultMgr() { m_bAssaultChannel = false; }   // ORIG 0x82f0fc6：map 自动构造(成员初始化)先于 m_bAssaultChannel(false)，故置 body
 
     void OnMoveArea(CUser* user);                        // ORIG 0x82ef610
     void OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
