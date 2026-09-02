@@ -5537,9 +5537,17 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     Mutex& mtx = m_mutex2;   // ORIG this+0x8cfa0 实证
     mtx.lock();
 
-    // 推断：ORIG 经 ARAD::Singleton<Arad_DataManager>::findGameScript 取
-    // Arad_EventPeriodDataManager 并 delUserRewardData(this)；该 Singleton 特化
-    // 未实例化，留待 ARAD 域批次。
+    // ORIG 0x08648a45..0x08648a63（DisConnSig.md + objdump 实证）：持锁后立即
+    // 经 ARAD::Singleton<Arad_DataManager>::findGameScript("Arad_EventPeriodDataManager")
+    // 取周期事件管理并 delUserRewardData(this)，且此调用不受 sock<0/state==0 短路
+    // 影响（无条件在 socket 检查前执行）。此前重建缺失此调用 → 语义偏移，补回。
+    {
+        std::string name("Arad_EventPeriodDataManager");
+        ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
+        ARAD::Arad_EventPeriodDataManager* epdm =
+            (ARAD::Arad_EventPeriodDataManager*)adm->findGameScript(name);
+        epdm->delUserRewardData(this);
+    }
 
     int sock = m_network.m_sock;   // ORIG this+0xe0 实证
     int chState = m_chState;
