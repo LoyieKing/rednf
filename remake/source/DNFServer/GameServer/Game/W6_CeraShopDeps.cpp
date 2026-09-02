@@ -1263,8 +1263,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 unsigned int bonusCount = 0;                // local_128
                 if (buyFlag == 1 && accIdReq != 0)
                 {
-                    DB_UpdateGiftCount giftReq;
-                    giftReq.makeRequest(accIdReq, 1);
+                    DB_UpdateGiftCount::makeRequest(accIdReq, 1);
                 }
                 if (seq == itemCountField)
                 {
@@ -1291,9 +1290,9 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             {
                                 break;
                             }
-                            Inven_Item bufItem;
-                            bufItem = user->getCurCharacInvenR()->GetInvenSlot(
-                                2, targetSlot);
+                            const Inven_Item bufItem =
+                                user->getCurCharacInvenR()->GetInvenSlot(
+                                    2, targetSlot);
                             CInventory* invW = user->getCurCharacInvenW();
                             const int newSlot = invW->AddAvatarItem(
                                 bufItem.m_addInfo, targetPeriod, false,
