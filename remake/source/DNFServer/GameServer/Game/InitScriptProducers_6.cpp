@@ -20,6 +20,8 @@
 #include <utility>
 #include <vector>
 #include <map>
+#include "CEnvironment.h"   // SpinLock（ORIG 全局类）
+#include <map>
 
 #include "CDataManager.h"             // 脚本类型权威布局（stDeathTower_t 等）
 #include "sync_script.h"             // STEquipmentPartSetPiece/STEquipmentScript
