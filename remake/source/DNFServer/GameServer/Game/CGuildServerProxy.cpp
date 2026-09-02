@@ -73,7 +73,7 @@ STGuildProxy::STGuildProxy()
     m_level = 0;
     m_powerSide = 0;
     m_agitFlag = 0;
-    std::memset(this, 0, 0x17);
+    std::memset(&m_guildName, 0, 0x17);   // ORIG：memset(&+0 字段) 先计算地址(加载 this)再装常量(序匹配)
 }
 
 STGuildProxy::STGuildProxy(const char* name, unsigned char lev,

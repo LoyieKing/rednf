@@ -24,7 +24,7 @@ struct SIG_BEST_CLEAR_TIME_DIFFICULTY
 
     SIG_BEST_CLEAR_TIME_DIFFICULTY()
     {
-        memset(this, 0, 0x14);  // ORIG 0x80c8c72：memset(this, 0, 0x14)
+        memset(&m_time, 0, 0x14);   // ORIG 0x80c8c72：memset(&+0 字段) 先算地址(加载 this)再装常量(序匹配)
     }
 };
 

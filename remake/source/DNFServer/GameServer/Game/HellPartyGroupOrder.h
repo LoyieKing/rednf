@@ -18,7 +18,7 @@ struct STHellPartyGroupOrder
     // ORIG C1Ev 0x89e8712：list 构造于 +0xc 后 memset(this,0,0xc)（前 0xc 字节清零）。
     STHellPartyGroupOrder()
     {
-        memset(this, 0, 0xc);
+        memset(&m_rateByDifficulty, 0, 0xc);   // ORIG：memset(&+0 字段) 先算地址(加载 this)再装常量(序匹配)
     }
     // ORIG C1Ev 0x89e8712 / 拷贝 C1ERKS_ 0x89e9dfc 实证：
     //   memset(this,0,0xc) + list 构造于 +0xc（拷贝为三个 dword 复制 + list），

@@ -10676,7 +10676,7 @@ SIG_LOAD_ETC::SIG_LOAD_ETC()
 
 CharacterOption::CharacterOption()
 {
-    memset(this, -1, 0x200);     // ORIG 0x0822abec：memset(this,0xffffffff,0x200)
+    memset(&m_pad, -1, 0x200);   // ORIG 0x0822abec：memset(0xffffffff,0x200)；&+0 字段先算地址(加载 this)再装常量(序匹配)
 }
 
 // ORIG 0x08695ca4 _ZN19ExpBonusPointResultC1Ev/C2Ev：sub $0x18 后 call clear。
