@@ -11,10 +11,8 @@
 struct Packet_VillageAttackedGMCommand : public PacketHeader
 {
     Packet_VillageAttackedGMCommand()
-        : PacketHeader(0x1779, 0x1a)
+        : PacketHeader(0x1779, 0x1a), m_uid(0), m_characNo(0)  // init-list → ORIG 直址 movl $0,0xa/0xe
     {
-        m_uid = 0;         // ORIG movl $0x0,+0xa
-        m_characNo = 0;    // ORIG movl $0x0,+0xe
     }
 
     unsigned int m_uid;       // +0x0a
