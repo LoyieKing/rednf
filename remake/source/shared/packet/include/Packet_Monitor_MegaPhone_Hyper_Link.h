@@ -33,9 +33,9 @@ public:
     Packet_Monitor_MegaPhone_Hyper_Link() : PacketHeader(0x271b, 0x267),
         m_sg(0), m_channel(0), m_uniqueId(0), m_itemCount(0), m_msgLen(0)
     {
-    memset(m_items, 0, sizeof(m_items));
-    m_name[0] = 0;   // ORIG movb $0x0,0xf(%eax)
+    m_name[0] = 0;   // ORIG movb $0x0,0xf(%eax) — 先于 memset
     m_msg[0] = 0;
+    memset(m_items, 0, sizeof(m_items));
     }
 } __attribute__((packed));
 TEST_CLASS_SIZE(Packet_Monitor_MegaPhone_Hyper_Link, 0x267);
