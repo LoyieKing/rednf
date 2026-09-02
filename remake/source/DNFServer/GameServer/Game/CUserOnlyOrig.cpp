@@ -10730,11 +10730,10 @@ _Charac_info::_Charac_info()
 
 _Charac_info::~_Charac_info()
 {
-    typedef std::map<int, STSkillCommandData> SkillCommandMap;
-    typedef std::map<int, stBloodBestRecord> BloodBestMap;
     char* p = reinterpret_cast<char*>(this);
-    reinterpret_cast<SkillCommandMap*>(p + 0x1254)->~SkillCommandMap();   // call 0x8695ce4
-    reinterpret_cast<BloodBestMap*>(p + 0xecc)->~BloodBestMap();          // call 0x8695cd0
+    // m_skillCommandsMap(+0x1254)/m_bloodBestRecords(+0xecc) 为具名 std::map 成员，
+    // 编译器于 dtor 尾部自动析构；此前手动 ~map() 属二次析构（双重释放）冗余 -> 删除，
+    // 交由自动析构（同 ctor 侧去二次构造，对称）。
     reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xea6)->~vector();   // call 0x86980f2
     reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xe9a)->~vector();   // call 0x86980f2
     reinterpret_cast<CCargo*>(p + 0xdaa)->~CCargo();                      // call 0x86949f8
