@@ -124,10 +124,10 @@ struct stEVENTADDINFO
 {
     stEVENTADDINFO() {}
     ~stEVENTADDINFO() {}          // ORIG D1/D2 0x08118b56 W 空体（非平凡，发射 D1/D2）
-    unsigned short eventId;   // +0x00（movswl 读取）
-    unsigned short m_pad2;    // +0x02（ORIG 布局 gap，未访问）
-    unsigned short info0;     // +0x04（movzwl 读取）
-    unsigned short info1;     // +0x06（movzwl 读取）
+    short eventId;            // +0x00（mov (%eax);movswl %ax = 有符号短，符号扩展）
+    unsigned short m_pad2;    // +0x02（ORIG 布局 2 字节 gap，未访问）
+    unsigned short info0;     // +0x04（movzwl;movswl = 无符号短存储，读取处符号短）
+    unsigned short info1;     // +0x06（movzwl;movswl = 无符号短存储，读取处符号短）
 };
 
 // CEventBase（ORIG vtable 0x08b4bae0）：0/1 = 虚析构，2/3 = StartEvent()/
