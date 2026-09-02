@@ -30,6 +30,8 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CEventScriptMng.h"   // EventClassify::CEventScriptMng / CEventEntity /
 #include "CEventScriptMng.h"   // 新增：EventClassify::CEventScriptMng/CObjectBringUp
 #include "CTournamentDungeonReward.h"   // CTournamentDungeonReward /
+#include "CEventCreateDnf.h"   // CEventCreateDnf（Dispatcher_EventCreateDnfRequest 奖励核算 / IsEventing）
+#include "DBInsertCreateDnfUserInfo.h"   // DBInsertCreateDnfUserInfo::makeRequest（创建角色奖励落库）
 #include <utility>             // std::pair<int,int>
 #include <vector>
 #include "CDataManager.h"            // G_CDataManager / find_item
@@ -21098,6 +21100,12 @@ int Dispatcher_AradUseAvatarRecharge::read(PacketBuf& packet, MSG_BASE& msg)
 //   /GetRate/IsRewardCondition/SendReward，未建模）标注推断：发 0x22d 响应包
 //   （rate 0 + flag 0）并返回。
 Dispatcher_EventCreateDnfRequest::~Dispatcher_EventCreateDnfRequest() {}
+// ORIG 0x81a0362（ARAD__DISPATCHER__Dispatcher_EventCreateDnfRequest/dispatch_sig.md 全文转写）：
+// packet==0→0x7b3；getCurCharacR==0→0；state∉[3,4]→0；s_event_manager->GetRepeatEvent(0xa0)
+// 取 CEventCreateDnf；事件未进行（event==0 或 !IsEventing(0)）→log(0x7c1)+0；进行中且
+// （GetEventCreateDnfReward==1 或 !IsRewardCondition）→SendCmdErrorPacket(0x258,1)+log(0x7d6)；
+// 否则 SetEventCreateDnfReward(true)+DBInsertCreateDnfUserInfo::makeRequest+SendReward。
+// 末尾统一发 0x22d 响应（put_header(0,0x22d)+put_short(GetRate)+put_byte(0)）并返 0。
 int Dispatcher_EventCreateDnfRequest::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user == 0)
@@ -21113,15 +21121,41 @@ int Dispatcher_EventCreateDnfRequest::dispatch_sig(CUser* user, PacketBuf& packe
     {
         return 0;
     }
-    // [推断] ORIG 经 CEventManager::GetRepeatEvent(0xa0) 取 CEventCreateDnf 并
-    // 判定奖励条件/发放奖励（CEventCreateDnf 未建模）。此处仅发送 0x22d 响应
-    // 骨架：put_header(0,0x22d) + put_short(rate) + put_byte(0)。
-    PacketGuard guard;
-    guard.put_header(0, 0x22d);
-    guard.put_short(0);  // [推断] CEventCreateDnf::GetRate 未建模，置 0
-    guard.put_byte(0);
-    guard.finalize(true);
-    user->Send(guard);
+
+    CEventCreateDnf* event =
+        static_cast<CEventCreateDnf*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0xa0));
+    if (event != 0 && event->IsEventing((CUser*)0))
+    {
+        char reward = user->GetEventCreateDnfReward();
+        if (reward == 1 || event->IsRewardCondition() == 0)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x258, 1);
+            LogManager::logFormat(
+                1, "localjapan/Arad_PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0x7d6,
+                "[Taiwan, Event] condition error m_id:%d", user->get_acc_id());
+        }
+        else
+        {
+            user->SetEventCreateDnfReward(true);
+            DBInsertCreateDnfUserInfo::makeRequest(user->GetUID(), user->get_acc_id());
+            event->SendReward(user);
+        }
+
+        PacketGuard guard;
+        ((InterfacePacketBuf*)&guard)->put_header(0, 0x22d);
+        guard.put_short((int)event->GetRate());
+        guard.put_byte(0);
+        guard.finalize(true);
+        user->Send(guard);
+        return 0;
+    }
+
+    int eventing = (event != 0) ? (int)event->IsEventing((CUser*)0) : 0;
+    LogManager::logFormat(
+        1, "localjapan/Arad_PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0x7c1,
+        "[Taiwan, Event] stayEvent=%s eventing:%d",
+        (event == 0) ? "nullptr" : "ok", (int)(eventing & 0xff));
     return 0;
 }
 int Dispatcher_EventCreateDnfRequest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
