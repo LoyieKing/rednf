@@ -17876,7 +17876,7 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
     static const char* const kPretty =
         "virtual int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser*, PacketBuf&)";
 
-    unsigned char payType = 0;
+    unsigned char payType;   // ORIG 不预先初始化（get_byte 成功才写，失败即 return）
     if (packet.get_byte(payType) != 1)
         return LineFunc(0xc719, kPretty, 0, 0);
     if (payType > 1)   // cmp $0x1 / jbe
@@ -17902,45 +17902,26 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         // PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP ctor ORIG W 0x0822eafa：
         // PACKET_HEADER C1 + TSearchByCategory_ C1@0x1a + memset(this,0,0x33)
         // + setCategory(0x12) + setPacketID(7) + setSize(0x33)。
+        // 直接读入包成员（权威头 PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP：m_pad12@+0x12、
+        // m_cat@+0x1a(T SearchByCategory_)）；不再用 char* body 临时指针/局部变量回填。
         PCK_AUCTION_SEARCH_BY_NOITEMKEY_GP pck;
-        char* const body = reinterpret_cast<char*>(&pck);
-        *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
-        *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
+        *reinterpret_cast<unsigned int*>(&pck.m_pad12[0]) = user->GetUID();
+        *reinterpret_cast<int*>(&pck.m_pad12[4]) = user->getCurCharacNo();
 
-        unsigned int startIndex = 0;
-        if (packet.get_int(startIndex) != 1)
+        if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_cat.m_pad0[0])) != 1)
             return LineFunc(0xc748, kPretty, 0, 0);
-        *reinterpret_cast<unsigned int*>(body + 0x1a) = startIndex;
-
-        unsigned short category = 0;
-        if (packet.get_short(category) != 1)
+        if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_cat.m_pad0[4])) != 1)
             return LineFunc(0xc749, kPretty, 0, 0);
-        *reinterpret_cast<unsigned short*>(body + 0x1e) = category;
-
-        unsigned char rarity = 0;
-        if (packet.get_byte(rarity) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[6])) != 1)
             return LineFunc(0xc74a, kPretty, 0, 0);
-        body[0x20] = static_cast<char>(rarity);
-
-        unsigned char upgradeStart = 0;
-        if (packet.get_byte(upgradeStart) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[7])) != 1)
             return LineFunc(0xc74b, kPretty, 0, 0);
-        body[0x21] = static_cast<char>(upgradeStart);
-
-        unsigned char upgradeEnd = 0;
-        if (packet.get_byte(upgradeEnd) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[8])) != 1)
             return LineFunc(0xc74c, kPretty, 0, 0);
-        body[0x22] = static_cast<char>(upgradeEnd);
-
-        unsigned char lvStart = 0;
-        if (packet.get_byte(lvStart) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[9])) != 1)
             return LineFunc(0xc74d, kPretty, 0, 0);
-        body[0x23] = static_cast<char>(lvStart);
-
-        unsigned char lvEnd = 0;
-        if (packet.get_byte(lvEnd) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[0xa])) != 1)
             return LineFunc(0xc74e, kPretty, 0, 0);
-        body[0x24] = static_cast<char>(lvEnd);
 
         GlobalData::s_cera_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -17949,70 +17930,40 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         // PCK_AUCTION_SEARCH_BY_NOITEMKEY_GA ctor ORIG W 0x0822e736：
         // PACKET_HEADER C1 + TSearchByCategory_ C1@0x1a + memset(this,0,0x33)
         // + setCategory(0) + setPacketID(7) + setSize(0x33)。
+        // 权威头 PCK_AUCTION_SEARCH_BY_NOITEMKEY_GA：m_data@+0x12、m_search@+0x1a
+        // （含 m_roi ROI_Category@+0x25）、m_tail@+0x31。
         PCK_AUCTION_SEARCH_BY_NOITEMKEY_GA pck;
-        char* const body = reinterpret_cast<char*>(&pck);
-        *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
-        *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
+        *reinterpret_cast<unsigned int*>(&pck.m_data[0]) = user->GetUID();
+        *reinterpret_cast<int*>(&pck.m_data[4]) = user->getCurCharacNo();
 
-        unsigned int startIndex = 0;
-        if (packet.get_int(startIndex) != 1)
+        if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_search.m_pad0[0])) != 1)
             return LineFunc(0xc760, kPretty, 0, 0);
-        *reinterpret_cast<unsigned int*>(body + 0x1a) = startIndex;
-
-        unsigned short category = 0;
-        if (packet.get_short(category) != 1)
+        if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_search.m_pad0[4])) != 1)
             return LineFunc(0xc761, kPretty, 0, 0);
-        *reinterpret_cast<unsigned short*>(body + 0x1e) = category;
-
-        unsigned char rarity = 0;
-        if (packet.get_byte(rarity) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[6])) != 1)
             return LineFunc(0xc762, kPretty, 0, 0);
-        body[0x20] = static_cast<char>(rarity);
-
-        unsigned char upgradeStart = 0;
-        if (packet.get_byte(upgradeStart) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[7])) != 1)
             return LineFunc(0xc763, kPretty, 0, 0);
-        body[0x21] = static_cast<char>(upgradeStart);
-
-        unsigned char upgradeEnd = 0;
-        if (packet.get_byte(upgradeEnd) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[8])) != 1)
             return LineFunc(0xc764, kPretty, 0, 0);
-        body[0x22] = static_cast<char>(upgradeEnd);
-
-        unsigned char lvStart = 0;
-        if (packet.get_byte(lvStart) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[9])) != 1)
             return LineFunc(0xc765, kPretty, 0, 0);
-        body[0x23] = static_cast<char>(lvStart);
-
-        unsigned char lvEnd = 0;
-        if (packet.get_byte(lvEnd) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[0xa])) != 1)
             return LineFunc(0xc766, kPretty, 0, 0);
-        body[0x24] = static_cast<char>(lvEnd);
 
-        short roi0 = 0;
-        if (packet.get_short(roi0) != 1)
+        // ROI 键：m_search.m_roi.m_keys[0..2] @ +0x25/+0x27/+0x29（ORIG get_short(short&)，
+        // 以引用转型选中与 ORIG 相同重载，地址计算不变）。
+        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[0])) != 1)
             return LineFunc(0xc76a, kPretty, 0, 0);
-        *reinterpret_cast<short*>(body + 0x25) = roi0;
-
-        short roi1 = 0;
-        if (packet.get_short(roi1) != 1)
+        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[1])) != 1)
             return LineFunc(0xc76c, kPretty, 0, 0);
-        *reinterpret_cast<short*>(body + 0x27) = roi1;
-
-        short roi2 = 0;
-        if (packet.get_short(roi2) != 1)
+        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[2])) != 1)
             return LineFunc(0xc76e, kPretty, 0, 0);
-        *reinterpret_cast<short*>(body + 0x29) = roi2;
 
-        unsigned char refineStart = 0;
-        if (packet.get_byte(refineStart) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[0])) != 1)
             return LineFunc(0xc772, kPretty, 0, 0);
-        body[0x31] = static_cast<char>(refineStart);
-
-        unsigned char refineEnd = 0;
-        if (packet.get_byte(refineEnd) != 1)
+        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[1])) != 1)
             return LineFunc(0xc773, kPretty, 0, 0);
-        body[0x32] = static_cast<char>(refineEnd);
 
         GlobalData::s_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
