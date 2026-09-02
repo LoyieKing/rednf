@@ -1111,10 +1111,9 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     int key;
     db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    std::string typeName = ((StackScriptFull*)script)->m_flavorText;
     int out2;
     int out1;
-    if (!GetType(typeName, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
+    if (!GetType(((StackScriptFull*)script)->m_flavorText, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
     {
         return false;
     }
