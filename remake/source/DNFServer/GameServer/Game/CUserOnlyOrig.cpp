@@ -10716,10 +10716,11 @@ _Charac_info::_Charac_info()
     new (p + 0xe8d) STPowerWarCharacData();               // call 0x86959dc
     new (p + 0xe9a) std::vector<ContinuousItemInfo>();    // call 0x86980de
     new (p + 0xea6) std::vector<ContinuousItemInfo>();    // call 0x86980de
-    new (&m_bloodBestRecords) std::map<int, stBloodBestRecord>();   // +0xecc call 0x8698150
+    // m_bloodBestRecords(+0xecc)/m_skillCommandsMap(+0x1254) 为具名 std::map 成员
+    // （CUser.h:587/605），编译器于 ctor 自动构造；此前手动 placement-new 属二次构造
+    // 冗余 -> 删除，交由自动构造（净空 map 同语义，少 2 次 ctor call）。
     new (p + 0xeed) SIG_LOAD_PREMIUM_LETHE();             // call 0x848ff7c
     new (p + 0x1086) SIG_LOAD_PREMIUM_LETHE();            // call 0x848ff7c
-    new (&m_skillCommandsMap) std::map<int, STSkillCommandData>();  // +0x1254 call 0x86981ca
     new (p + 0x129d) WpBonusPointResult();                // call 0x8695c78
     new (p + 0x12a5) ExpBonusPointResult();               // call 0x8695ca4
     new (p + 0x12b7) CharacterOption();                   // call 0x822abec
