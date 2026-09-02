@@ -885,9 +885,9 @@ unsigned int DB_Login::_isPunishedHackUser(unsigned int mid)
 
 void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
 {
-    if (SGF<char>(sig, OFF_SECURITY_VALID) == 0)
+    if (SGFC(char, sig, OFF_SECURITY_VALID) == 0)
     {
-        SGF<char>(sig, OFF_SEC_CARD_FLAG) = 0;
+        SGFC(char, sig, OFF_SEC_CARD_FLAG) = 0;
         return;
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -897,35 +897,34 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     db->exec(true);
     if (db->get_n_rows() == 0)
     {
-        SGF<char>(sig, OFF_SEC_CARD_FLAG) = 0;
+        SGFC(char, sig, OFF_SEC_CARD_FLAG) = 0;
         return;
     }
     unsigned int validity = 0;
     db->fetch();
-    db->get_str(0, SGB(sig, OFF_SEC_CARD_NO), 0x27);              // card
-    db->get_int(1, SGF<int>(sig, OFF_SEC_FAILCNT));               // fail_cnt
+    db->get_str(0, SGBC(sig, OFF_SEC_CARD_NO), 0x27);              // card
+    db->get_int(1, SGFC(int, sig, OFF_SEC_FAILCNT));               // fail_cnt
     db->get_uint(2, validity);                                    // validity_time>now()
-    db->get_uint(3, SGF<unsigned int>(sig, OFF_SEC_CERTFLAG));    // cert_flag
-    db->get_byte(4, SGF<char>(sig, OFF_SEC_CERTCNT));             // cert_cnt（ORIG 先读列 4）
-    db->get_short(5, SGF<int>(sig, OFF_SEC_QPOS));                // q_pos（int 引用重载）
-    db->get_str(5, SGB(sig, 0x3a18), 5);                          // ORIG：列 5 再读 str 到 +0x3a18（长 5）
+    db->get_uint(3, SGFC(unsigned int, sig, OFF_SEC_CERTFLAG));    // cert_flag
+    db->get_byte(4, SGFC(char, sig, OFF_SEC_CERTCNT));             // cert_cnt（ORIG 先读列 4）
+    db->get_short(5, SGFC(int, sig, OFF_SEC_QPOS));                // q_pos（int 引用重载）
+    db->get_str(5, SGBC(sig, OFF_SEC_QPOS_STR), 5);                // ORIG：列 5 再读 str 到 +0x3a18（长 5）
     if (validity == 1)
     {
-        SGF<char>(sig, OFF_SEC_CARD_LIFE) = 1;
+        SGFC(char, sig, OFF_SEC_CARD_LIFE) = 1;
     }
-    SGF<char>(sig, OFF_SEC_CARD_FLAG) = 1;
+    SGFC(char, sig, OFF_SEC_CARD_FLAG) = 1;
 
     // cert_flag != 0 且当日已过疲劳重置点 → 清零 cancel 计数
-    if (SGF<int>(sig, OFF_SEC_CERTFLAG) != 0)
+    if (SGFC(int, sig, OFF_SEC_CERTFLAG) != 0)
     {
-        long long curSec = GlobalData::s_systemTime_.getCurSec();
+        long curSec = GlobalData::s_systemTime_.getCurSec();
         // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（单次调用）
-        char chk = CheckDailyScheduleTime(
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
-            SGF<long long>(sig, 0x3958), curSec);
-        if (chk != 0)
+        if (CheckDailyScheduleTime(
+                *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
+                SGFC(long, sig, 0x3958), curSec) != 0)
         {
-            SGF<unsigned int>(sig, OFF_SEC_CERTFLAG) = 0;
+            SGFC(unsigned int, sig, OFF_SEC_CERTFLAG) = 0;
             db->set_query("upDate member_security_card set cancel_cnt=0 where m_id=%s",
                           NumberToString(sig->m_accId, 0));
             db->exec(true);
