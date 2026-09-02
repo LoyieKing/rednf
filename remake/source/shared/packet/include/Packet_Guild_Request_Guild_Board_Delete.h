@@ -10,10 +10,10 @@
 class Packet_Guild_Request_Guild_Board_Delete : public PacketHeader {
 public:
     unsigned int m_boardNo;     // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned int m_charNo;      // +0x12
+    unsigned int m_charNo;      // +0xe
+    unsigned int m_guildKey;    // +0x12
     Packet_Guild_Request_Guild_Board_Delete() : PacketHeader(0x2331, 0x16),
-        m_boardNo(0), m_guildKey(0), m_charNo(0)
+        m_boardNo(0), m_charNo(0), m_guildKey(0)
     {
 
     };
