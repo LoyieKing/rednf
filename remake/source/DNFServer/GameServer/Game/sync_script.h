@@ -135,7 +135,7 @@ public:
     // ---- 成员布局（与 CItemList.cpp 私有声明一致） ----
     struct SITEMTYPE
     {
-        SITEMTYPE() : m_field0(0), m_field1(0), m_field2(0), m_field4(0) {}
+        SITEMTYPE() { m_field0 = 0; m_field1 = 0; m_field2 = 0; m_field4 = 0; }   // m_str8(+8) 自动构造先于标量，故标量置 body(ORIG 序)
         // ORIG C1 _ZN...SITEMTYPEC1EbhhtSs：第5参 std::string 按值。
         SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
                   unsigned short f4, std::string name)
