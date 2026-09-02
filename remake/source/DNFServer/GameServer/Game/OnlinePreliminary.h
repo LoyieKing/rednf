@@ -93,7 +93,7 @@ namespace online_preliminary
 
 struct PlayCountInfo
 {
-    PlayCountInfo() : m_count(0), m_flag(0) {}
+    PlayCountInfo() : m_count(0), m_flag((bool)0) {}
     // ORIG ctor 0x86ca0e4：bool 直存（mov %dl,0x4），无三目规范化。
     // b28 翻案（P211 异型化族）：m_flag uchar→bool ⇒ 4.4 尾 store 序翻为
     // LHS 地址先 = ORIG 形（/tmp/l12p1.cpp B/D 探针：bool 字段恒 `mov this;
@@ -126,7 +126,7 @@ struct CharacterInServer
 // ---- PlayCountInfoEx / COnlinePreliminaryTeam（自 CUserCharacInfo.h 迁入） ----
 struct PlayCountInfoEx
 {
-    PlayCountInfoEx() : m_count(0), m_flag(0) {}
+    PlayCountInfoEx() : m_count(0), m_flag((bool)0) {}
     // ORIG ctor 0x86ca141：bool 直存（mov %dl,0x4），无三目规范化。
     // b28：同 PlayCountInfo，m_flag uchar→bool 翻 N76 变体。
     PlayCountInfoEx(unsigned int count, bool flag)
