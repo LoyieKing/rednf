@@ -416,13 +416,11 @@ int _CompareSlot(const void* va, const void* vb)
 // AvatarCoin C1(+0x658) → CCreatureMgr C1(+0x6e8) → CAvatarItemMgr C1(+0x734)
 // → reset()。成员初始化列表按声明序即复现该序列。
 CInventory::CInventory()
-    : m_invenItem(), m_avatarCoin(), m_creatureMgr(), m_avatarItemMgr()
+    : m_invenItem(), m_pEquipSlot(0), m_pAvatarSlot(0), m_avatarCoin(),
+      m_pCreatureSlot(0), m_creatureMgr(), m_avatarItemMgr()
 {
-    m_pEquipSlot = 0;
-    m_pAvatarSlot = 0;
-    m_pCreatureSlot = 0;
     reset();
-}
+}   // 三槽指针(+0x650/+0x654/+0x6e4)声明先于 AvatarCoin/CCreatureMgr 自动构造，故入 init-list(ORIG 序)
 
 // ORIG D1 0x822d600 W：CAvatarItemMgr D1(+0x734) → CCreatureMgr D1(+0x6e8)；
 // 其余成员平凡析构，由编译器逆序发射。
