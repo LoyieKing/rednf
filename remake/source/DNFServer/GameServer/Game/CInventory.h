@@ -10,8 +10,8 @@ struct SIG_POSTAL_CREATURE_TEMP_PERIOD;    // ORIG 全局域；仅证 +0 uid/+4 
 // df_game_r 还原 —— CInventory（第八批 H3 + 第九批 I2 对齐，ORIG 布局）
 // 布局依据 CInventory.md 各函数反汇编逐成员推导：
 //   +0x00 CUser* m_pParent        +0x04 int m_money
-//   +0x08 int m_coin              +0x0c int m_payCoin
-//   +0x10 int m_eventCoin         +0x14 int m_field14
+//   +0x08 unsigned int m_coin    +0x0c unsigned int m_payCoin
+//   +0x10 unsigned int m_eventCoin +0x14 int m_field14
 //   +0x18 int m_inventoryCapacity +0x1c Inven_Item m_invenItem[26]
 //   +0x650 Inven_Item* m_pEquipSlot(0x138)   +0x654 Inven_Item* m_pAvatarSlot(0x69)
 //   +0x658 AvatarCoin m_avatarCoin +0x65c char m_pad65c[0x28]
