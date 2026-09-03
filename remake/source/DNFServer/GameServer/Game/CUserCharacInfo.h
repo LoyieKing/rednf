@@ -421,7 +421,7 @@ struct CharacInfoFields
     long m_lastPlayTick;               // +0x7b
     long m_lastPlayTickPowerWar;       // +0x7f
     char m_pad83[5];                   // +0x83..0x88
-    char m_addInfo[0x52];              // +0x88..0xda
+    _Additioal_info m_addInfo;       // +0x88（字段化=typed 成员，0x52）
     char m_inven[0x892 - 0xda];        // +0xda..0x892（CInventory 内嵌）
     char m_skill[0xdaa - 0x892];       // +0x892..0xdaa
     // [b28d-solo-CUserCharacInfo N107/P106] 真实 CCargo 类型（sizeof 0x14）：
