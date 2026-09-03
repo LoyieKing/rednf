@@ -28,6 +28,7 @@ class SkillSlot;   // wave1: getTagCharacSkillR(653) 返回类型前置声明
 #include "CDungeonClear.h"
 #include "PacketBuf.h"      // GameWorld / G_GameWorld / G_CDataManager
 #include "CPowerManager.h"   // 权威 CPowerManager 声明（GlobalData::s_power_manager 完整类型）
+#include "SigTypes_C.h"      // SIG_LOAD_PREMIUM_LETHE（_Charac_info m_backupSkill 字段化；字段化后需完整类型）
 #include "GameResultType.h"   // 权威 GameResultType（唯一声明点；取代本文件内空占位）
 // [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）；
 // 原 `namespace GlobalData { extern CSystemTime s_systemTime_; extern CPowerManager*
