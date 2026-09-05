@@ -27,7 +27,10 @@
 // ---- _APCInfo：TOD APC 数据块（POD，sizeof 0xbc，ORIG 无独立符号）--------
 struct _APCInfo
 {
-    int m_userCharacNo;                    // +0x00
+    // unsigned 实证（§8.3 字段化）：ORIG DB_TOD_Reset_UserAPC::dispatch
+    // 0x084402d4 `call _ZN5MySQL7get_intEiRj`（Rj=unsigned int& 重载，
+    // MySQL.h:92 / W 0x080e22ae）；int 形会错选 Ri（0x0811692c）。
+    unsigned int m_userCharacNo;           // +0x00
     char m_userCharacName[0x20];           // +0x04
     int m_lv;                              // +0x24
     int m_job;                             // +0x28

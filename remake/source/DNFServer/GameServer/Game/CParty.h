@@ -423,7 +423,7 @@ public:
 
     // ---- 连接管理 ----
     void ConnectP2P(CUser* user, char* ip, int port);
-    void _ClearConnectP2PAbsolute(int slot);
+    int _ClearConnectP2PAbsolute(int slot);   // P9: ORIG 0x0859a664 尾 mov$1 实返 1
     int _ClearConnectP2PRelative(int slot);
     bool _IsCannotConnectP2P(int a, int b);
     int _GetConnectP2PPoint(int slot);

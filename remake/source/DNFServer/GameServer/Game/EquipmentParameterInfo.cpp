@@ -1816,7 +1816,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(2);
         ScanStr(&token);
-        values.push_back(getCharacterJobToEnumValue(token));
+        v = getCharacterJobToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf34:
@@ -1847,28 +1848,32 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(5);
         ScanStr(&token);
-        values.push_back(getActiveStatusToEnumValue(token));
+        v = getActiveStatusToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf4b:
     {
         values.push_back(6);
         ScanStr(&token);
-        values.push_back(getStateToEnumValue(token));
+        v = getStateToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf52:
     {
         values.push_back(7);
         ScanStr(&token);
-        values.push_back(getStateToEnumValue(token));
+        v = getStateToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf58:
     {
         values.push_back(8);
         ScanStr(&token);
-        values.push_back(getStateToEnumValue(token));
+        v = getStateToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf5f:
@@ -1882,42 +1887,48 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(9);
         ScanStr(&token);
-        values.push_back(getActiveStatusToEnumValue(token));
+        v = getActiveStatusToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf6a:
     {
         values.push_back(0xa);
         ScanStr(&token);
-        values.push_back(getStateToEnumValue(token));
+        v = getStateToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf70:
     {
         values.push_back(0xb);
         ScanStr(&token);
-        values.push_back(getActiveStatusToEnumValue(token));
+        v = getActiveStatusToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf76:
     {
         values.push_back(0xc);
         ScanStr(&token);
-        values.push_back(getActiveStatusToEnumValue(token));
+        v = getActiveStatusToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf7c:
     {
         values.push_back(0xd);
         ScanStr(&token);
-        values.push_back(getElementToEnumValue(token));
+        v = getElementToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf82:
     {
         values.push_back(0xe);
         ScanStr(&token);
-        values.push_back(getAttackConditionToEnumValue(token));
+        v = getAttackConditionToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf88:
@@ -1931,14 +1942,16 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(0x10);
         ScanStr(&token);
-        values.push_back(getCategoryToEnumValue(token));
+        v = getCategoryToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf98:
     {
         values.push_back(0x11);
         ScanStr(&token);
-        values.push_back(getGradeToEnumValue(token));
+        v = getGradeToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         break;
     }
     case 0xf9f:
@@ -2030,7 +2043,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(0x15);
         ScanStr(&token);
-        values.push_back(getCharacterJobToEnumValue(token));
+        v = getCharacterJobToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         v = ScanInt((bool*)0);
         values.push_back(v);
         break;
@@ -2107,10 +2121,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 2;
         }
         values.push_back(k);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x1016:
@@ -2168,10 +2180,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             }
             values.push_back(k);
             ScanStr(&token);
-            v = token == "%" ? 1 : 0;
-            values.push_back(v);
-            v = ScanInt((bool*)0);
-            values.push_back(v);
+            values.push_back(token == "%" ? 1 : 0);   // ORIG EOi 形
+            values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         }
         break;
     }
@@ -2219,10 +2229,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         ScanStr(&token);
-        v = token == "%" ? 1 : 0;
-        values.push_back(v);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(token == "%" ? 1 : 0);   // ORIG EOi 形
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x105a:
@@ -2266,8 +2274,7 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         v = token == "%" ? 1 : 0;
         values.push_back(v);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x1076:
@@ -2277,8 +2284,7 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         v = token == "%" ? 1 : 0;
         values.push_back(v);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x107d:
@@ -2376,7 +2382,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             ScanTypeOrStr(isType, token, true);
             if (!isType)
             {
-                values.push_back(getCharacterJobToEnumValue(token));
+                v = getCharacterJobToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+                values.push_back(v);
                 v = ScanInt((bool*)0);
                 values.push_back(v);
             }
@@ -2387,7 +2394,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(0x22);
         ScanStr(&token);
-        values.push_back(getObjectTypeToEnumValue(token));
+        v = getObjectTypeToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         v = ScanInt((bool*)0);
         values.push_back(v);
         break;
@@ -2396,7 +2404,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     {
         values.push_back(0x23);
         ScanStr(&token);
-        values.push_back(getCharacterJobToEnumValue(token));
+        v = getCharacterJobToEnumValue(token);   // ORIG RKi 具名物化（@0x899d585 等 17 位点形）
+        values.push_back(v);
         v = ScanInt((bool*)0);
         values.push_back(v);
         break;
@@ -2497,8 +2506,7 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 4;
         }
         values.push_back(k);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x113e:
@@ -2526,10 +2534,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 0xc;
         }
         values.push_back(k);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         ScanStr(&token);
         k = 0;
         if (token == "=")
@@ -2553,8 +2559,7 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 4;
         }
         values.push_back(k);
-        v = ScanInt((bool*)0);
-        values.push_back(v);
+        values.push_back(ScanInt((bool*)0));   // ORIG EOi 直接形（叶区间实证）
         break;
     }
     case 0x116b:

@@ -99,16 +99,21 @@ void CParty::ConnectP2P(CUser* user, char* ip, int port)
 
 // ORIG T 0x0859a664（_ClearConnectP2PAbsolute.md）：除 slot 外全员中与该槽
 // P2P 不通的逐个以 ENUM_PARTY_INFO_TYPE 2 离队；恒返回 1。
-void CParty::_ClearConnectP2PAbsolute(int slot)
+int CParty::_ClearConnectP2PAbsolute(int slot)   // [P9] ORIG 尾返 1
 {
     for (int i = 0; i < 4; i++)
     {
-        if (slot != i && _IsCannotConnectP2P(slot, i))
+        // [拆&&] ORIG 双段直分支，&& 合一 4.4 出 5 行物化岛。
+        if (slot != i)
         {
-            leave_user(m_member[i].m_pUser,
-                       static_cast<ENUM_PARTY_INFO_TYPE>(2));
+            if (_IsCannotConnectP2P(slot, i))
+            {
+                leave_user(m_member[i].m_pUser,
+                           static_cast<ENUM_PARTY_INFO_TYPE>(2));
+            }
         }
     }
+    return 1;
 }
 
 // ORIG T 0x0859a6dc（_ClearConnectP2PRelative.md）：仅扫描槽位 2..3，
@@ -305,7 +310,9 @@ int CParty::GetCoinCount(CUser* user)
         }
         if (m_member[i].m_pUser == user)
         {
-            return 0x7fffffff - memberUsedCoin(this)[i];
+            // [P49] 弃 static inline helper（产真 call）：直成员访问让
+            // 4.4 折叠 scale4 单段（ORIG `add $0x2c0,%edx; mov 0x14(%eax,%edx,4)`）。
+            return 0x7fffffff - m_battleData.m_arr7e8[i];
         }
     }
     return 0;
@@ -437,11 +444,13 @@ int CParty::getMemberPassParty(CUser* user)
 void* CParty::GetUserSecretShop(CUser* user)
 {
     int slot = GetUserPosition(user);
-    if (slot < 0 || 3 < slot)
+    // [Ghidra 0x085b9e80 双证] 命中区间写正向 `0<=slot<=3`（ORIG js/jg 双
+    // 跳共享 0 岛）；偏移为 **8**+slot*0x1c（this+0x2a8，原 4 系差 4B bug）。
+    if (slot >= 0 && slot <= 3)
     {
-        return 0;
+        return &m_padShop[8 + slot * 0x1c];
     }
-    return &m_padShop[4 + slot * 0x1c];
+    return 0;
 }
 
 // ============================================================================
@@ -473,22 +482,25 @@ int CParty::join_user(CUser* user)
     {
         return -2;
     }
-    if (get_member_count() < static_cast<int>(m_userMax))
+    // [Ghidra 0x0859b2b6+setge 朝向] 满员判定写 count>=max 正向（ORIG
+    // `cmp %edx,%eax; setge`）；耗尽返 0、满员/空参返 -1。
+    if (get_member_count() >= static_cast<int>(m_userMax))
     {
-        for (int i = 0; i <= 3; i++)
+        return -1;
+    }
+    for (int i = 0; i <= 3; i++)
+    {
+        if (m_member[i].m_pUser == 0)
         {
-            if (m_member[i].m_pUser == 0)
-            {
-                m_member[i].m_pUser = user;
-                m_member[i].m_field8 = static_cast<int>(user->GetUID());
-                user->SetPartyIndex(static_cast<short>(m_partyIndex));
-                reinterpret_cast<CUserCharacInfo*>(user)
-                    ->resetStraightVictories();
-                return 1;
-            }
+            m_member[i].m_pUser = user;
+            m_member[i].m_field8 = static_cast<int>(user->GetUID());
+            user->SetPartyIndex(static_cast<short>(m_partyIndex));
+            reinterpret_cast<CUserCharacInfo*>(user)
+                ->resetStraightVictories();
+            return 1;
         }
     }
-    return -1;
+    return 0;
 }
 
 // ORIG T 0x0859b404（change_manager_for_quick_party.md）：manager 本人以
@@ -635,7 +647,12 @@ bool CParty::recv_party_packet_all()
         {
             continue;
         }
-        if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
+        // [X1·判据③有消费者] ORIG `call; xor$1,%eax; test; je`。
+        register unsigned char r asm("eax") =
+            (unsigned char)reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
+                ->IsRecv(i);
+        r ^= 1;
+        if (r)
         {
             return false;
         }
@@ -673,8 +690,12 @@ int CParty::TimeoutCompleteAfterAssault()
             {
                 continue;
             }
-            if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
-                     ->IsRecv(i))
+            // [X1·判据③] ORIG `call; xor$1,%eax; test; je`。
+            register unsigned char r asm("eax") =
+                (unsigned char)reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
+                    ->IsRecv(i);
+            r ^= 1;
+            if (r)
             {
                 // P87/P36：两中间结果跨 cMyTrace ctor 调用以 callee-saved
                 // %esi/%ebx 缓存（ORIG +0x0a6/+0x0b3）。
@@ -855,8 +876,13 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
     // （+0x03b.. test/jle），忠实转写。
     if (GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing(0))
     {
-        return 0 <
-               const_cast<CDungeon*>(dungeon)->get_dimension_possible();
+        // [判据②直分支形] ORIG O@36-42 `jle;mov$1;jmp;mov$0`，勿写表达式
+        // 返回（4.4 出 setne 物化）。
+        if (const_cast<CDungeon*>(dungeon)->get_dimension_possible() > 0)
+        {
+            return true;
+        }
+        return false;
     }
     return false;
 }
@@ -1105,7 +1131,8 @@ bool CParty::OnTODRewardTimer(TIMER_MESSAGE msg)   // CParty.h:592 bool（PSM �
 void CParty::SelectEPLPCommand(int cmd)
 {
     SetEPLPState(3);
-    int key = gen_timer_key(static_cast<TIMER_MESSAGE>(0x14));
+    // [判据⑤] ORIG O@13 `mov%eax,%esi`：key 跨 call 钉 %esi（免槽 spill）。
+    register int key asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x14));
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(1),
                                 GetPartyIndex(), static_cast<TIMER_MESSAGE>(0x14),
                                 cmd, key, 0);

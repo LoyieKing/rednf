@@ -117,11 +117,14 @@ int PVP_RELAY_BATTLE_TIME[2] = {0, 0};
 CSystemTime g_systemTimeInst;  // TODO(后续批次)
 int g_levelExpTable[256] = {0};  // TODO(后续批次)
 
-// CAutoMarketConditionsControl：ORIG ctor 0x082f8108 —— vector<int> @+0x3dc
-// 默认构造（成员自动），并置 +0x380 / +0x00 / +0x3e8 为 0（成员初始值）。
+// CAutoMarketConditionsControl：ORIG ctor 0x082f8108 —— m_vec3dc(+0x3dc) 默认
+// 构造（非平凡成员先行，0x082f8119），随后函数体逐句置 0，顺序
+// +0x380 → +0x00 → +0x3e8（0x082f8121/26/2f，每句重取 this = 体赋值形 P29）。
 CAutoMarketConditionsControl::CAutoMarketConditionsControl()
-    : m_field00(0), m_field380(0), m_field3e8(0)
 {
+    m_field380 = 0;
+    m_field00 = 0;
+    m_field3e8 = 0;
 }
 
 // ORIG dtor 0x082f8144：仅 vector<int> @+0x3dc 析构（成员自动）。
@@ -258,9 +261,10 @@ float CDataManager::getDropRate() const
 // 服务器频道加成版本：命中频道信息即固定 0.02f，否则 0.0f。
 float channel_script_t::getBonusRateEventServer(unsigned char channel, unsigned int idx) const
 {
-    if (getChannelInfo(channel, idx) != 0)
-        return 0.02f;
-    return 0.0f;
+    // ORIG 0x088dcee2：结果指针落槽(-0xc)后 `cmpl $0; jne 真值支`，双支
+    // bits 写回统一槽 flds 返回 = 具名指针三元形（!=0 直判产 setne 岛异形）。
+    const void* info = getChannelInfo(channel, idx);
+    return info == 0 ? 0.0f : 0.02f;
 }
 
 
@@ -402,6 +406,8 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     }
     // ORIG 0x8360cb8：SP-at-level-up 表首项位于 +0xda94；与
     // set_reward_sp 共用同一具名 ABI 视图，按 level-1 取表项。
+    // ORIG 地址 = this+4*level+0xDA90（`add $0x36a2; mov 0x8(,,4)` 两段拆分，
+    // 4.4 恒折为 add $0x36a4; sub $1 形，N1 拆分点不可复现）。
     return ((const CDataManagerRewardSpView*)this)->m_spAtLevelUp[level - 1];
 }
 
@@ -421,6 +427,8 @@ unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGr
     return m_moneyLimit[level];
 }
 
+// 残余 DIFF 归因：ORIG else 臂把表值直读进 %edx 后 `mov %edx,(%eax)`，4.4.7
+// 先落 %eax 再 spill %edx（N7/N18a 寄存器指派反向），界检查折叠同因。
 void CDataManager::get_mob_reward(int level, unsigned int& out) const
 {
     if (level <= 0 || level > 199)
@@ -940,7 +948,10 @@ bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
     return isUsable(user);
 }
 
-void ChattingEmoticonBase::AddPremiumIndex(int index)
+// P85：ORIG 判定链先 `mov 0xc(%ebp),%eax` 一次物化后 cmp $imm,%eax 三连
+// （0x080e5de4..0x080e5dfa）；4.4 对普通形参直发 `cmpl $imm,0xc(%ebp)` 折叠
+// （N18b），register 形参恢复物化形态。
+void ChattingEmoticonBase::AddPremiumIndex(register int index)
 {
     // ORIG 0x80e5dde：特定 index 映射到 premium 槽位集合。
     if (index < 0x2898bf)
@@ -971,6 +982,10 @@ ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
 //         GetEndArrayIndex] 区间内第一个空位，整行 0x16 字节拷贝）；
 //      ④ 遍历 m_map：GetIndex 未在 used 且 isCommonEmoticon → 同样区间内
 //         空行写入 m_nCount。 ----
+// 残余 DIFF 归因（o=298 n=296，无符号界/setbe 已对）：主体为 N7/N18a/N22
+// 族——同址参数装载的 eax↔edx 指派与 spill 序（如 `mov (%eax),%edx` vs
+// `mov (%eax),%eax` 后接不同中转），4.4.7 分配器固定反向，穷举表达式形
+// 不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
 void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
                                    const CUser& user)
 {
@@ -1966,27 +1981,31 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 // 加载 PvP 等级参考表，填充 GlobalData::s_ref_pvp_grade（RefPvpGrade）。
 // 调用 importPvPReferenceTable（本 TU 实现，ORIG 0x890857b）。
 // ============================================================================
+// 残余 DIFF 归因（o=93 n=90）：ORIG `mov &s_ref_pvp_grade,%eax` 为链接后
+// 绝对地址（.o 显示 $0x0 reloc）；循环体 SetPvpGrade 的 grade 指针 ORIG 经
+// 单次装载复用（0x08360b0x 区），4.4.7 每次重装载全局（P48 反向），序列
+// 等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
 int CDataManager::set_pvp_grade()
 {
-    RefPvpGrade* grade = GlobalData::s_ref_pvp_grade;
-    grade->Clear();
-    stPvpRefTable_t table;
-    table.m_count = 0;
-    if (importPvPReferenceTable("Etc/pvp_ref.etc", table) != 0)
-        return 0;
+    // ORIG 0x08360aa2：Clear 走 `mov &s_ref_pvp_grade,%eax; call` 两段直发
+    // （无指针命名槽）；lastGrade(-0x14)/prevExp(-0x10) 在 table ctor 前
+    // 初始化；table 由 C1 0x0837f45e 自带清零（ORIG 无 m_count 手写 store）。
     int lastGrade = 0;
     int prevExp = 0;
+    stPvpRefTable_t table;
+    if (importPvPReferenceTable("Etc/pvp_ref.etc", table) != 0)
+        return 0;
     for (unsigned int i = 1; i < (unsigned int)table.m_count; ++i)
     {
         RefPvpGrade::RefPvpGradeData data;
         data.curr = prevExp;
         data.next = table.m_grades[i].b;
-        grade->SetPvpGrade(table.m_grades[i].a, data);
+        GlobalData::s_ref_pvp_grade->SetPvpGrade(table.m_grades[i].a, data);
         prevExp = table.m_grades[i].b;
         ++lastGrade;
     }
-    grade->set(table);
-    grade->SetLastGrade(lastGrade);
+    GlobalData::s_ref_pvp_grade->set(table);
+    GlobalData::s_ref_pvp_grade->SetLastGrade(lastGrade);
     return 1;
 }
 
@@ -2013,30 +2032,37 @@ std::vector<stRefillItemInfo::RefillItem>* CDataManager::GetRefillItemInfo() con
 // operation_type==1 且 env+0x1b0==1 → 不带 channel 清；否则直接成功。
 // env+0x1b0 字段未建模，保留裸偏移（推断）。
 // ---------------------------------------------------------------------------
+// 残余 DIFF 归因（o=67 n=67，指令序列已同构）：hdb(-0xc)/result(-0xd) 与
+// 4.4 (hdb -0x10/result -0x9) 的 1B/4B 槽排布方向差（P112：4.1 后声明更深、
+// 4.4 后声明更浅），及 DBMgr 地址/字符串 reloc 显示差。
 bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 {
+    // ORIG 0x08360306：get_operation_type 无缓存、多次重调（P48 双臂双调 =
+    // 源码多处独立调用）；op!=1 时 result 无赋值（ORIG +0xa7 je 直落 +0xf4
+    // 返未初始化槽，忠实保留 UB 形）；内层 channelNo!=1 → result=true。
     MySQL* hdb = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
                                                    (ENUM_SERVER_GROUP)0);
-    CEnvironment* env = G_CEnvironment();
-    const int opType = env->get_operation_type();
     bool result;
-    if (opType == 0 || opType == 2)
+    if (G_CEnvironment()->get_operation_type() == 0 ||
+        G_CEnvironment()->get_operation_type() == 2)
     {
         hdb->set_query(
             "upDate login_account_%d set login_status=0 where m_channel_no=%d",
             serverGroup, channelNo);
         result = hdb->exec(true);
     }
-    else if (opType == 1 &&
-             env->m_serverEnvir.m_channelNo == 1)
+    else if (G_CEnvironment()->get_operation_type() == 1)
     {
-        hdb->set_query("upDate login_account_%d set login_status=0",
-                       serverGroup);
-        result = hdb->exec(true);
-    }
-    else
-    {
-        result = true;
+        if (G_CEnvironment()->m_serverEnvir.m_channelNo == 1)
+        {
+            hdb->set_query("upDate login_account_%d set login_status=0",
+                           serverGroup);
+            result = hdb->exec(true);
+        }
+        else
+        {
+            result = true;
+        }
     }
     return result;
 }

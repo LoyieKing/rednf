@@ -2342,12 +2342,8 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         local_24[i] = 0;
     }
 
-    // P168a X2：ORIG `call; xor $0x1,%eax; test %al,%al; je`——int callee 在调用点
-    // 经 register unsigned char asm("eax") 承载 ^1（in-place xor 阻 fold）
-    register unsigned char hc asm("eax") =
-        (unsigned char)user->checkHumanCertify(1, local_24);
-    hc ^= 1;
-    if (hc)
+    // P168a①：bool callee 一律裸形（技巧1：`!boolcall()` 直产 xor$1;test;je）
+    if (!user->checkHumanCertify(1, local_24))
     {
         if ((int)user->isSendMailCertified() == 1)
         {
@@ -2962,7 +2958,11 @@ void TimerGeneratePowerUp::generatePowerUp(std::vector<CUser*>& users, int count
     while (count > selected && loopCnt <= 10000)
     {
         CUser* picked = users[rand() % total];
-        if (picked->IsPowerUp() != 1)
+        // P168a X2：uchar callee `call; xor $0x1,%eax; test %al; je`——
+        // register unsigned char asm("eax") 承载 ^=1 in-place 阻 fold
+        register unsigned char pu asm("eax") = (unsigned char)picked->IsPowerUp();
+        pu ^= 1;
+        if (pu)
         {
             picked->SetPowerUp(true);
             buf.push_back(picked);

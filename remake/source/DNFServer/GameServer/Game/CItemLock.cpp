@@ -658,10 +658,11 @@ void CItemLock::SendRequestItemUnlockCancel(CUser* user, int space, int slot)
 // （lock 号 = i+1），使低号位最终落在栈顶（与空闲号池 LIFO 序一致）。恒真。
 bool CItemLock::loadData(CUser* user, char* pData)
 {
+    char* data = pData;   // ORIG 0x854171d mov %eax,-0x10 存槽复用
     for (int i = 99; i >= 0; --i)
     {
         PushItemLock(user, (unsigned char)(i + 1),
-                     (stItemLockInfo*)(pData + i * 8));
+                     (stItemLockInfo*)(data + i * 8));
     }
     return true;
 }

@@ -1089,11 +1089,16 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
 bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
                                           TAG_CHARAC_INVEN_DATA* out)
 {
+    // 声明序=槽深序（4.4 先声明→更深，实测）：db -0x14 / col -0x10 / ok -0xc
+    // （ORIG 08409xxx 区实证 mov%eax,-0x14 / movl$0,-0x10 / mov%al,-0x9）。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
                                                   (ENUM_SERVER_GROUP)0);
+    int col;
+    bool ok;
     db->set_query("seLect equipslot from inventory where charac_no = %d",
                   characNo);
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
         cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23e2, 5);
@@ -1101,7 +1106,8 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
           characNo);
         return 0;
     }
-    if (!db->fetch())
+    ok = db->fetch();
+    if (!ok)
     {
         cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23e8, 5);
@@ -1110,7 +1116,9 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
         return 0;
     }
     // TAG_CHARAC_INVEN_DATA equipslot 区：ORIG `add $0x262` = 第 10 槽起。
-    if (!get_compressed_blob_data(db, 0,
+    // ORIG 8409：col 入 -0x10 槽后传值（非字面量、无自增）。
+    col = 0;
+    if (!get_compressed_blob_data(db, col,
                                   reinterpret_cast<char*>(&out->m_items[10]),
                                   0x2dc, 0x3d))
     {
@@ -1146,8 +1154,10 @@ bool DB_LoadInventory::_GetEquipMaxItemLevel(SIG_LOAD_INVENTORY* sig)
     {
         return 0;
     }
-    // ORIG：get_int 失败（==0）返回 0，否则返回 1（勿直接返回 get_int）。
-    if (!db->get_int(0, *(int*)&sig->m_maxEquipLevel))
+    // ORIG 0840ab62..：col 命名槽（-0xc 浅，后声明→浅）+ col++ 实参形；
+    // get_int 失败（==0）返回 0，否则返回 1（勿直接返回 get_int）。
+    int col = 0;
+    if (!db->get_int(col++, *reinterpret_cast<int*>(&sig->m_maxEquipLevel)))
     {
         return 0;
     }

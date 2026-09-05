@@ -86,12 +86,11 @@ char StageControl::leaveUser()
 //   CharacData::upGage() + ProcStage::procTimeLine()，恒返回 1。
 char StageControl::onTimerStageTick()
 {
-    ProcStage* procStage = getProcStage();
-    int state = procStage->m_state;  // ProcStage::getState W 0x08134838（+0x04）
-    if (state == ProcStage::State::S_N3 || state == ProcStage::State::S_N4)
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getState() == ProcStage::State::S_N3 ||
+        reinterpret_cast<ProcStage*>(m_procStage)->getState() == ProcStage::State::S_N4)
     {
-        getCharacData()->upGage();
-        procStage->procTimeLine();
+        reinterpret_cast<CharacData*>(m_characData)->upGage();
+        reinterpret_cast<ProcStage*>(m_procStage)->procTimeLine();
     }
     return 1;  // ORIG 恒返回 1
 }
@@ -130,15 +129,17 @@ CharacData* StageControl::getCharacData()
 // ----------------------------------------------------------------------------
 void StageControl::sendStageInfo()
 {
-    CUser* user = getCharacData()->getUser();
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
         return;
     }
 
     char body[8];
-    int stageIndex = getProcStage()->getStageIndex();
-    int difficulty = getProcStage()->getStageDifficulty();
+    int stageIndex =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageIndex();
+    int difficulty =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageDifficulty();
     std::memcpy(body, &stageIndex, 4);
     std::memcpy(body + 4, &difficulty, 4);
 

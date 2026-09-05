@@ -789,18 +789,18 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
     ret = db->get_uint(idx++, out->m_qp);                       // qp          +0x04
     if (!ret)
     {
-        cMyTrace trace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
+        cMyTrace trq1("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
                        " CHARAC_QUEST_SHOP_DATA*)", 0x17ea, 5);
-        trace("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
+        trq1("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
               characNo);
         return false;
     }
     ret = db->get_uint(idx++, out->m_initCount);                // init_count  +0x08
     if (!ret)
     {
-        cMyTrace trace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
+        cMyTrace trq2("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
                        " CHARAC_QUEST_SHOP_DATA*)", 0x17f1, 5);
-        trace("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
+        trq2("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
               characNo);
         return false;
     }
@@ -1974,17 +1974,18 @@ bool DB_LoadEtc::LoadAttendanceInfo(SIG_ATTENDANCE_EVENT* sig, unsigned int accI
     long resetBase = GetCurrentResetBaseTime(
         GlobalData::s_systemTime_.getCurSec(),
         G_CEnvironment()->m_serverEnvir.m_fatigueTime /*ORIG +0x37c*/);
-    char* accStr = NumberToString(accId, 0);
+    // ORIG 8904a：NumberToString 结果直进实参（无保存槽）。
     db->set_query("seLect occ_date from event_1207_attendance where m_id = %s and"
-                  " occ_date > from_unixtime(%u)", accStr, resetBase);
+                  " occ_date > from_unixtime(%u)", NumberToString(accId, 0),
+                  resetBase);
     if (!db->exec(true))
     {
         return false;
     }
-    if (db->get_n_rows() == 0)
+    int nRows = db->get_n_rows();   // ORIG -0xc 保存+cmpl $0（后声明→浅槽）
+    if (nRows == 0)
     {
-        // ORIG cmpl $0,jne skip → n_rows==0 时 movb $1（当日尚可签）。
-        sig->m_isEnabled = 1;
+        sig->m_isEnabled = 1;        // 当日尚可签到
     }
     return true;
 }
@@ -1999,13 +2000,15 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
     {
         return false;
     }
+    // ORIG：ok=-0xd（深）先声明、db=-0xc（浅）后声明（4.4 后声明→浅）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect receive_flow, deco_flow from event_1208_seriaroom_anideco"
                   " where m_id = %d and server_id = %d and charac_no = %d",
                   sig->m_accId, sig->m_serverGroup, sig->m_characNo);
-    // ORIG 0844a2b0：exec 结果存 -0xd 槽后读回（bool 保存形），其余步 xor 直判。
-    bool ok = db->exec(true);
+    // ORIG 0844a2b0：exec 结果存 -0xd（深于 db=-0xc）→ ok 先声明。
+    ok = db->exec(true);
     if (!ok)
     {
         LogManager::logFormat(1, "DBThread.cpp",

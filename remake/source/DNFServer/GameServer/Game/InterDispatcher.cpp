@@ -5923,7 +5923,7 @@ void Inter_MailBox_Req_CheckReceiver::SendErrorPacket(
         0x2e12,
         "[ITEM_GIFT] Fail Command[%d] charac_no[%u] error_code[%d]",
         cmd,
-        static_cast<unsigned int>(user->get_charac_no(-1)),
+        user->get_charac_no(-1),
         regCode);
     if (cmd == 0x43)
         user->SendCmdErrorPacket2Byte(cmd, err);

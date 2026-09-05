@@ -11718,6 +11718,10 @@ bool DB_ForbidUserToPlay::dispatch(int userIdx, int slot, Stream* stream)
     // cmpb$1 融合且块序反（2-arg fall）。fall-through 块 = 1-arg SQL。
     // bool 槽 + `!flag`（f1 探针形）⇒ `movzbl slot,%eax; xor $1; test
     // %al; jne` 物化；uchar 槽一切写法折 cmpb/test。
+    // V2（FULL 内联 if + 单 stub）实测劣化：消掉 1 行 stub jmp 但反出
+    // cond2 方向（je↔jne）+ 双 body 填参各 +2 行装载序翻转 ⇒ 净差 4 行
+    // >1。维持 V1（双 goto 钉块序，残留 1 行 = 4.4 label-stub bb 的
+    // fall-through jmp，N-JMP 族）。
     if (!flag)
         goto SIMPLE_SQL;
     if (days != 0)

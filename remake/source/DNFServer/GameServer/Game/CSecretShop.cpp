@@ -641,7 +641,10 @@ char SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
         npcIt->second.m_dungeonSales.find(level);
     if (dunIt == npcIt->second.m_dungeonSales.end())
         return 0;
-    if (GetItems(rand, out, dunIt->second)) {
+    register unsigned char fv asm("eax") =
+        (unsigned char)GetItems(rand, out, dunIt->second);
+    fv ^= 1;
+    if (fv == 0) {
         if (event)
             GetItemByEvent(rand, out);
         return 1;
@@ -661,7 +664,10 @@ char SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
         npcIt->second.m_eventSales.find(levelIdx);
     if (dunIt == npcIt->second.m_eventSales.end())
         return 0;
-    if (GetItems(rand, out, dunIt->second)) {
+    register unsigned char fv asm("eax") =
+        (unsigned char)GetItems(rand, out, dunIt->second);
+    fv ^= 1;
+    if (fv == 0) {
         if (event)
             GetItemByEvent(rand, out);
         return 1;
@@ -673,8 +679,11 @@ char SecretShopScript::GetItemByEvent(CMTRand* rand,
                                       std::vector<secretshop::SALE_INFO>& out)
 {
     std::vector<secretshop::SALE_INFO> list;
-    if (GetItems(rand, list, m_eventDungeonSales)) {
-        for (unsigned int i = 0; i < list.size(); ++i) {
+    register unsigned char fv asm("eax") =
+        (unsigned char)GetItems(rand, list, m_eventDungeonSales);
+    fv ^= 1;
+    if (fv == 0) {
+        for (int i = 0; i < static_cast<int>(list.size()); ++i) {
             list[i].m_field18 = 1;
             out.push_back(list[i]);
         }

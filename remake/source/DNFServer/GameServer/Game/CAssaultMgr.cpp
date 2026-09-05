@@ -549,10 +549,10 @@ void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
-    // ORIG 0x82e6f1x call GetUserState 后 `mov %eax,%edx; mov 0xc(%ebp),%eax;
-    // mov %edx,0x4(%esp); mov %eax,(%esp)` ⇒ 结果先物化 %edx 再装 p（技巧28 register asm 中转）
-    register unsigned st asm("edx") = user->GetUserState();
-    p->put_byte(st);
+    // ORIG 0x82e8d60+0x30：`call GetUserState; mov %eax,%edx; mov 0xc(%ebp),%eax;
+    // mov %edx,0x4(%esp); mov %eax,(%esp)`——register asm("edx") 绑定实测在传
+    // uchar 形参处多一跳 `mov %edx,%eax`（36 vs 34），内联形复现装载序。
+    p->put_byte(user->GetUserState());
     p->finalize(true);
 }
 
@@ -1271,9 +1271,12 @@ void CAssaultPlace::_SendUserState()
 // ORIG T 0x82e8c5a：包 0x03 全场用户状态；先记录写位置，尾部回填人数。
 void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 {
+    // ORIG 0x82e8c5a +0x0b：`movl $0,-0x14; movl $0,-0x10` 双清零在前、
+    // get_index 覆写 index 在后（dead init 照抄 P171，与 MakeView 同法）。
     packet->put_header(0, 3);
-    int index = packet->get_index();
+    int index = 0;
     int count = 0;
+    index = packet->get_index();
     packet->put_byte(count);
     for (int i = 0; i < 8; ++i)
     {
