@@ -411,123 +411,141 @@ WindowsExeFile::~WindowsExeFile()
     m_commonSections.clear();
 }
 
-// ReadPeHeader —— T @0x085738f6（0x7de）：解析 PE 头产出常量区段表
+// ReadPeHeader —— T @0x085738f6（0x7de）：解析 PE 头产出常量区段表。
+// ORIG 真形修正（本批 objdump+Ghidra C 双段核读）：
+// ① 分支极性与直觉相反——`chars>=0 && 0x40000000` 门内，**(sh[9]&0x20000000)==0**
+//    走 dir/import 解剖大分支，可执行分支只减入口头 10 字节（0x08573a1c else 体）；
+// ② 两分支各持独立 IntervalSet+push 迭代器循环（dc/c4 双对象，dtor 各 1）；
+// ③ hint name 长度奇偶用 (char)(s+1)+(char)nameOff，且 nm!=0 外层判断；
+// ④ dll 名指针 = img+dllRva（**无** vaDelta），奇偶第二项 = thunkRva+vaDelta
+//    （local_38）——前批两处误读已修正。
 bool WindowsExeFile::ReadPeHeader()
 {
     if (m_image == 0)
     {
         return false;
     }
-
-    unsigned int peOff = *reinterpret_cast<unsigned int*>(m_image + 0x3c);
-    unsigned char* pe = m_image + peOff;                 // "PE\0\0"
-
+    unsigned char* img = m_image;
+    unsigned char* pe = img + *reinterpret_cast<unsigned int*>(img + 0x3c);
+    (void)*reinterpret_cast<unsigned int*>(pe);            // PE 签名读（local_68）
     unsigned short numberOfSections =
-        *reinterpret_cast<unsigned short*>(pe + 4 + 2);  // COFF+2 NumberOfSections
-    unsigned long* opt =
-        reinterpret_cast<unsigned long*>(pe + 0x18);     // OptionalHeader
-    unsigned long numOfRvaAndSizes = opt[0x17];          // +0x5c
+        *reinterpret_cast<unsigned short*>(pe + 6);        // COFF+2
+    unsigned long* opt = reinterpret_cast<unsigned long*>(pe + 0x18);
+    unsigned char* sechdr = pe + 0xf8;
 
-    unsigned char* sechdr = pe + 0xf8;                   // 首个 SectionHeader（标准 PE32）
-
-    for (int s = 0; s < numberOfSections; ++s, sechdr += 0x28)
+    for (int s = 0; s < static_cast<int>(numberOfSections); ++s, sechdr += 0x28)
     {
         unsigned long* sh = reinterpret_cast<unsigned long*>(sechdr);
-        unsigned int vaDelta = sh[5] - sh[3];            // PtrRawData - VirtualAddress
-        long chars = static_cast<long>(sh[9]);           // Characteristics
-        if (chars < 0 || (sh[9] & 0x40000000u) == 0)     // 未加载/不可读 → 跳过
+        unsigned long vaDelta = sh[5] - sh[3];
+        if (static_cast<long>(sh[9]) < 0 || (sh[9] & 0x40000000UL) == 0)
         {
             continue;
         }
-        unsigned int rawLen = (sh[2] < sh[4]) ? sh[2] : sh[4]; // min(VirtSize,RawSize)
-
+        unsigned long rawLen;
+        if (sh[2] < sh[4])
+        {
+            rawLen = sh[2];
+        }
+        else
+        {
+            rawLen = sh[4];
+        }
         IntervalSet workSet;
         Interval base(sh[3], rawLen);
         workSet.AddInterval(base);
-
-        if ((sh[9] & 0x20000000u) != 0)                  // CODE 可执行分支
+        if ((sh[9] & 0x20000000UL) == 0)               // 非可执行 → 解剖大分支
         {
-            for (unsigned long d = 0; d < numOfRvaAndSizes; ++d)
-            {
-                bool overlapped = IsOverlappedInterval(
-                    sh[3], sh[2],
-                    opt[(d + 12) * 2], opt[(d + 12) * 2 + 1]);   // DataDirectory[@opt+0x60]
-                if (overlapped && d != 2 && d != 6)
+                for (long d = 0; d < static_cast<long>(opt[0x17]); ++d)
                 {
-                    Interval dir(opt[(d + 12) * 2],
-                                 opt[(d + 12) * 2 + 1]);
-                    workSet.MinusInterval(dir);
-                }
-            }
-
-            // DataDirectory idx2 = Import Table：解剖描述符字符串/INT 表
-            bool hasImport =
-                (numOfRvaAndSizes >= 2) &&
-                IsOverlappedInterval(sh[3], sh[2], opt[0x1a], opt[0x1b]);
-            if (hasImport)
-            {
-                unsigned char* descBase = m_image + opt[0x1a];
-                for (int e = 0;
-                     *reinterpret_cast<unsigned int*>(descBase + e * 0x14) != 0 ||
-                     *reinterpret_cast<unsigned int*>(descBase + e * 0x14 + 0x10) != 0;
-                     ++e)
-                {
-                    unsigned int originalFirstThunk =
-                        *reinterpret_cast<unsigned int*>(descBase + e * 0x14);
-                    unsigned char* thunkArr =
-                        m_image + originalFirstThunk + vaDelta;
-                    int hintCount = 0;
-                    for (; *reinterpret_cast<unsigned int*>(thunkArr +
-                                                            hintCount * 4) != 0;
-                         ++hintCount)
+                    if (IsOverlappedInterval(
+                            sh[3], sh[2],
+                            opt[(d + 12) * 2], opt[(d + 12) * 2 + 1]) != 0 &&
+                        d != 2 && d != 6)
                     {
-                        unsigned int hintVal =
-                            *reinterpret_cast<unsigned int*>(thunkArr +
-                                                             hintCount * 4);
-                        long hint = static_cast<long>(hintVal);
-                        if (hint >= 0)
+                        Interval dir(opt[(d + 12) * 2], opt[(d + 12) * 2 + 1]);
+                        workSet.MinusInterval(dir);
+                    }
+                }
+                bool hasImport = false;
+                if (opt[0x17] >= 2)
+                {
+                    hasImport =
+                        IsOverlappedInterval(sh[3], sh[2], opt[0x1a], opt[0x1b]) != 0;
+                }
+                if (hasImport)
+                {
+                    unsigned char* desc = img + opt[0x1a];
+                    for (int e = 0;
+                         *reinterpret_cast<unsigned int*>(desc + e * 0x14) != 0 ||
+                         *reinterpret_cast<unsigned int*>(desc + e * 0x14 + 0x10) != 0;
+                         ++e)
+                    {
+                        unsigned long thunkRva =
+                            *reinterpret_cast<unsigned long*>(desc + e * 0x14);
+                        unsigned char* thunk = img + thunkRva + vaDelta;
+                        int n = 0;
+                        for (; *reinterpret_cast<unsigned int*>(thunk + n * 4) != 0; ++n)
                         {
-                            unsigned int nameOff = hintVal + vaDelta;
-                            const char* nm =
-                                reinterpret_cast<const char*>(m_image + nameOff);
-                            unsigned int strLen =
-                                static_cast<unsigned int>(strlen(nm)) + 1;
-                            if (((strLen + nameOff) & 1U) != 0)
+                            long hintVal =
+                                *reinterpret_cast<long*>(thunk + n * 4);
+                            if (hintVal < 0)
                             {
-                                strLen += 1;              // 对齐到偶数
+                                // ordinal 导入：ORIG 取低 16 位入槽（local_2a），
+                                // 不做减法
+                                unsigned short ord =
+                                    static_cast<unsigned short>(hintVal);
+                                (void)ord;
                             }
-                            Interval name(hint, strLen);
-                            workSet.MinusInterval(name);
+                            else
+                            {
+                                unsigned long nameOff =
+                                    static_cast<unsigned long>(hintVal) + vaDelta;
+                                (void)*reinterpret_cast<unsigned short*>(
+                                    img + nameOff);                     // hint 字
+                                unsigned long total = 2;
+                                char* nm = reinterpret_cast<char*>(img + nameOff + 2);
+                                if (nm != 0)
+                                {
+                                    size_t sl = strlen(nm);
+                                    unsigned long len = static_cast<unsigned long>(sl) + 1;
+                                    if ((static_cast<char>(len) +
+                                         static_cast<char>(nameOff) & 1) != 0)
+                                    {
+                                        len = static_cast<unsigned long>(sl) + 2;
+                                    }
+                                    total = 2 + len;
+                                    Interval name(hintVal, total);
+                                    workSet.MinusInterval(name);
+                                }
+                            }
                         }
-                        // hint<0（ordinal 导入）不减 name 段，仅计数推进
-                    }
-                    unsigned int dllNameRva =
-                        *reinterpret_cast<unsigned int*>(descBase + e * 0x14 + 0x0c);
-                    if (dllNameRva != 0)
-                    {
-                        const char* dllName = reinterpret_cast<const char*>(
-                            m_image + dllNameRva + vaDelta);
-                        unsigned int dl =
-                            static_cast<unsigned int>(strlen(dllName)) + 1;
-                        if (((dl + dllNameRva + vaDelta) & 1U) != 0)
+                        unsigned long dllRva =
+                            *reinterpret_cast<unsigned long*>(desc + e * 0x14 + 0x0c);
+                        if (dllRva != 0)
                         {
-                            dl += 1;
+                            unsigned long dl = 0;
+                            char* dn = reinterpret_cast<char*>(img + dllRva);
+                            size_t sdl = strlen(dn);
+                            dl = static_cast<unsigned long>(sdl) + 1;
+                            if ((static_cast<char>(dl) +
+                                 static_cast<char>(thunkRva + vaDelta) & 1) != 0)
+                            {
+                                dl = static_cast<unsigned long>(sdl) + 2;
+                            }
+                            Interval dll(dllRva, dl);
+                            workSet.MinusInterval(dll);
                         }
-                        Interval dll(static_cast<long>(dllNameRva), dl);
-                        workSet.MinusInterval(dll);
+                        Interval table(thunkRva,
+                                       static_cast<unsigned long>((n + 1) * 4));
+                        workSet.MinusInterval(table);
                     }
-                    Interval table(static_cast<long>(originalFirstThunk),
-                                   (hintCount + 1) * 4);
-                    workSet.MinusInterval(table);
                 }
             }
-        }
-        else                                             // 数据段：减入口前 10 字节
-        {
-            Interval entryHead(static_cast<long>(opt[4]), 10);   // AddressOfEntryPoint
-            workSet.MinusInterval(entryHead);
-        }
-
+            else                                            // 可执行：仅减入口头 10B
+            {
+                Interval entryHead(opt[4], 10);             // AddressOfEntryPoint
+                workSet.MinusInterval(entryHead);
+            }
         for (std::size_t iv = 0; iv < workSet.m_intervals.size(); ++iv)
         {
             long rangeStart = workSet.m_intervals[iv].m_start;
@@ -556,35 +574,49 @@ void WindowsExeFile::Sort()                                  // 0x0857415c
 bool WindowsExeFile::MakeCommonWindowsExeConstantSections(
     const IntervalSet& intervals)                            // 0x085741c6
 {
-    bool valid =
-        !(intervals.m_intervals.empty() || m_sections.empty());
-
+    // ORIG 0x085741c6 逐段：两枚 Interval 默认构造（local_48 + local_40 槽对）
+    // → clear（在合法检查**前**）→ `intervals.size()==0 || sections.size()!=0`
+    // 的 bVar 双否链 → 双层迭代器循环（每轮 end/operator!=/operator*/++）；
+    // src 四字段无条件拷入独立 uint 槽后再判；尾部一次 dead size() 调用。
+    Interval range0;                                         // local_48 第二默认构造
+    (void)range0;
+    std::vector<WindowsExeConstantSection*>::iterator sit0;  // ORIG 头部两枚迭代器
+    std::vector<Interval>::const_iterator it0;               // 默认构造 call
     m_commonSections.clear();
-    if (!valid)
+    if (intervals.m_intervals.size() == 0)
     {
         return false;
     }
-
-    for (std::size_t iv = 0; iv < intervals.m_intervals.size(); ++iv)
+    if (m_sections.size() == 0)
     {
-        long rangeStart = intervals.m_intervals[iv].m_start;
-        long rangeSize = intervals.m_intervals[iv].m_size;
-        for (std::size_t k = 0; k < m_sections.size(); ++k)
+        return false;
+    }
+    for (std::vector<Interval>::const_iterator it = intervals.m_intervals.begin();
+         it != intervals.m_intervals.end(); ++it)
+    {
+        Interval range = *it;                                // local_40/3c = start/size
+        for (std::vector<WindowsExeConstantSection*>::iterator sit = m_sections.begin();
+             sit != m_sections.end(); ++sit)
         {
-            const WindowsExeConstantSection& src = *m_sections[k];
-            if ((src.start <= rangeStart) &&
-                (rangeStart < src.start + src.size))
+            WindowsExeConstantSection* sec = *sit;           // local_18
+            unsigned long s0 = sec->start;                   // local_38
+            unsigned long s1 = sec->fileOffset;              // local_34
+            unsigned long s2 = sec->size;                    // local_30
+            unsigned long s3 = sec->flag;                    // local_2c
+            if ((s0 <= (unsigned long)range.m_start) &&
+                ((unsigned long)range.m_start < s0 + s2))
             {
                 WindowsExeConstantSection* item = new WindowsExeConstantSection;
-                item->start      = rangeStart;
-                item->fileOffset = src.fileOffset + (rangeStart - src.start);
-                item->size       = rangeSize;
-                item->flag       = src.flag;
+                item->start      = range.m_start;
+                item->size       = range.m_size;
+                item->flag       = s3;
+                item->fileOffset = s1 + ((unsigned long)range.m_start - s0);
                 m_commonSections.push_back(item);
                 break;                                       // 首个匹配即止
             }
         }
     }
+    m_commonSections.size();                                 // ORIG 尾部 dead size
     return true;
 }
 
@@ -808,13 +840,15 @@ bool WindowsExeFileFamily::LoadWindowsExeFile(const char* path,
         delete exe;
         return false;
     }
-    if (IsDifferentFileData(exe))
+    // ORIG 0x085746d5：`!IsDifferentFileData(exe)`（xor$1 取反）命中 → 先
+    // delete 重复项并 return 1（重复内容视为成功），push 分支在其后。
+    if (!IsDifferentFileData(exe))
     {
-        m_exeFiles.push_back(exe);
+        delete exe;
         return true;
     }
-    delete exe;
-    return true;                                             // 重复内容视为成功
+    m_exeFiles.push_back(exe);
+    return true;
 }
 
 bool WindowsExeFileFamily::IsDifferentFileData(WindowsExeFile* f) // 0x08574ace
