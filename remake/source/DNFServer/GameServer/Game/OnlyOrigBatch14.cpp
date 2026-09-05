@@ -982,37 +982,109 @@ int importUltimateSkillCutScene(const char*,
     return 0;
 }
 
-// ORIG T 0x088c1e68 _Z18importActiveStatusR14STActiveStatusb。
+// ORIG T 0x088c1e68 _Z18importActiveStatusR14STActiveStatusb
+// （报告缺失，按 §3.2 以 ORIG objdump 全量转写；两侧 AE 文本已逐段核对）。
+// 结构：flag 入参 spill、type 与 16 个 push 结果各占独立槽（ORIG -0x6c/-0x18/
+// -0x58..-0x1c，循环计数 -0x14/-0x10/-0xc）。4.4 槽按声明序自 -0xc 加深 ⇒
+// **逆序声明** 对齐 ORIG 深度。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
+    int i4;
+    int iD;
+    int i9;
+    int type;
+    int t4, tD, t9, tB, t6, t2, tA, t11, tF, t7, tCB, tCA, t0B, t0A, t5B, t5A;
     std::string s;
+    bool f = flag;  // ORIG 0x088c1e96 entry spill
+
     ScanStr(&s);
-    int type = getActiveStatusType(s);
+    type = getActiveStatusType(s);
     st.m_type = type;
     st.m_value4 = ScanFloat((bool*)0);
     st.m_value8 = ScanInt((bool*)0);
-    if (flag)
+    if (f)
     {
         st.m_flagC = ScanInt((bool*)0) != 0;
     }
     st.m_value10 = ScanInt((bool*)0);
-    // ORIG if 链布局（非 switch 位掩码）：5/0/0xc 各 2 值，
-    // 7/0xf/0x11/0xa/2/6/0xb 各 1 值，9/0xd/4 各循环 4 值。
-    if (type == 5 || type == 0 || type == 0xc)
+    if (type == 5)
     {
-        st.m_list14.push_back(ScanInt((bool*)0));
-        st.m_list14.push_back(ScanInt((bool*)0));
+        t5A = ScanInt((bool*)0);
+        st.m_list14.push_back(t5A);
+        t5B = ScanInt((bool*)0);
+        st.m_list14.push_back(t5B);
     }
-    else if (type == 7 || type == 0xf || type == 0x11 ||
-             type == 0xa || type == 2 || type == 6 || type == 0xb)
+    else if (type == 0)
     {
-        st.m_list14.push_back(ScanInt((bool*)0));
+        t0A = ScanInt((bool*)0);
+        st.m_list14.push_back(t0A);
+        t0B = ScanInt((bool*)0);
+        st.m_list14.push_back(t0B);
     }
-    else if (type == 9 || type == 0xd || type == 4)
+    else if (type == 0xc)
     {
-        for (int i = 0; i <= 3; ++i)
+        tCA = ScanInt((bool*)0);
+        st.m_list14.push_back(tCA);
+        tCB = ScanInt((bool*)0);
+        st.m_list14.push_back(tCB);
+    }
+    else if (type == 7)
+    {
+        t7 = ScanInt((bool*)0);
+        st.m_list14.push_back(t7);
+    }
+    else if (type == 0xf)
+    {
+        tF = ScanInt((bool*)0);
+        st.m_list14.push_back(tF);
+    }
+    else if (type == 0x11)
+    {
+        t11 = ScanInt((bool*)0);
+        st.m_list14.push_back(t11);
+    }
+    else if (type == 0xa)
+    {
+        tA = ScanInt((bool*)0);
+        st.m_list14.push_back(tA);
+    }
+    else if (type == 2)
+    {
+        t2 = ScanInt((bool*)0);
+        st.m_list14.push_back(t2);
+    }
+    else if (type == 6)
+    {
+        t6 = ScanInt((bool*)0);
+        st.m_list14.push_back(t6);
+    }
+    else if (type == 0xb)
+    {
+        tB = ScanInt((bool*)0);
+        st.m_list14.push_back(tB);
+    }
+    else if (type == 9)
+    {
+        for (i9 = 0; i9 <= 3; ++i9)
         {
-            st.m_list14.push_back(ScanInt((bool*)0));
+            t9 = ScanInt((bool*)0);
+            st.m_list14.push_back(t9);
+        }
+    }
+    else if (type == 0xd)
+    {
+        for (iD = 0; iD <= 3; ++iD)
+        {
+            tD = ScanInt((bool*)0);
+            st.m_list14.push_back(tD);
+        }
+    }
+    else if (type == 4)
+    {
+        for (i4 = 0; i4 <= 3; ++i4)
+        {
+            t4 = ScanInt((bool*)0);
+            st.m_list14.push_back(t4);
         }
     }
 }

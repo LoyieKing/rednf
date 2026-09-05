@@ -271,7 +271,14 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
     // 范式36：删 topSlot 具名中转（4.4 多 1 个 4B 槽 ⇒ ORIG tmp 基址 -0xa0 平移
     // -0xa4）；ORIG 0x084682a5/0x08468320 两处独立 imul 0x390 地址重算。
     // flag 判形 ORIG 0x084682ae：movzbl (%eax); xor $0x1; test %al; je —— (x^1) truthy。
-    if ((unsigned int)m_towers[towerIdx].m_slots[0].m_flag90 ^ 1u)
+    // 范式26+(unsigned long) 往返阻 4.4 disp 折叠（ORIG 0x084682a8 lea 后
+    // 单条 add $0x128,%eax + movzbl (%eax),%eax）；xor 先入 %eax 变量再判
+    // 阻 fold-const 把 (x^1)!=0 折成 cmp$1。
+    // P0：fx 无栈槽（绑 %eax，ORIG 0x084682ae xor $0x1,%eax 于 %eax 内完成）；
+    // 先物化到变量再 if 阻 fold-const 把 (x^1)!=0 折成 cmp$1。
+    register unsigned int fx asm("eax");
+    fx = (unsigned int)m_towers[towerIdx].m_slots[0].m_flag90 ^ 1u;
+    if (fx)
         return 0;
     stBestRecord_t tmp;
     tmp.m_playTime = playTime;
@@ -1968,6 +1975,8 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
     //（map_monster 为 pack(1)，second @ pair+4）。
     // ORIG 0x8461731/0x846176b：find/end 各经 _Rb_tree_const_iterator C1(iter&)
     //（0x81529e0 两次）⇒ const_iterator 具名；erase@0x8152a12 arg=&idx(key)。
+    // ORIG 0x846170e：roleType 槽 -0xc 于函数头 `movl $0` ⇒ 声明先于迭代器（P0 时机）。
+    int roleType = 0;
     std::map<int, map_monster>::const_iterator it = m_mapInfo.m_monsterMap.find(idx);
     std::map<int, map_monster>::const_iterator itEnd = m_mapInfo.m_monsterMap.end();
     if (it == itEnd)
@@ -1975,7 +1984,7 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
         return 0;
     }
     monster = it->second;
-    int roleType = (unsigned char)it->second.m_level;
+    roleType = (unsigned char)it->second.m_level;
     m_mapInfo.m_monsterMap.erase(idx);
     return roleType;
 }

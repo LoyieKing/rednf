@@ -22286,9 +22286,6 @@ int Dispatcher_BlueMarbleConfirmInfo::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stBlueMarbleConfirmInfo& out = static_cast<stBlueMarbleConfirmInfo&>(param);
-    MSG_BLUE_MARBLE_CONFIRM_INFO& req =
-        static_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
-
     out.m_4 = check_error(user, msg);
     if (out.m_4 > 0)
     {
@@ -22296,18 +22293,20 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
     }
     if (out.m_4 < 0)
     {
-        return LineFunc(24863,
-                        __PRETTY_FUNCTION__,
-                        out.m_4, 0);
+        // ORIG 0x81e634a：LineFunc 后跳公共 mov$0 出口（结果丢弃）。
+        LineFunc(0x611f, __PRETTY_FUNCTION__, out.m_4, 0);
+        return 0;
     }
-
+    // ORIG 0x81e6357：msg 死绑定（-0x2c）在两个 m_4 检查之后（P31/范式13 时机）。
+    MSG_BLUE_MARBLE_CONFIRM_INFO& req =
+        static_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
     // P4：1024 字节栈数组内联清零（rep stos 形态）
     char path[1024] = { '\0' };
     sprintf(path, "./log/%s/BlueMarbleConfirmInfo",
             G_CEnvironment()->get_file_name());
 
-    short clientIdx = static_cast<short>(user->getBlueMarbleIndex());   // u16→s16
-    short serverIdx = static_cast<short>(req.m_0e);                     // u16→s16
+    short clientIdx = static_cast<short>(user->getBlueMarbleIndex());   // u16->s16
+    short serverIdx = static_cast<short>(req.m_0e);                     // u16->s16
     int space = static_cast<int>(user->getMoveSpace());
     int state = user->get_state();
     int characNo = user->get_charac_no(-1);
@@ -22322,7 +22321,12 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
               idStr, characNo, state, space,
               static_cast<int>(clientIdx), static_cast<int>(serverIdx));
 
-    // ORIG 此处读 scriptMgr+0x30 至未消费局部（死值），省略不影响语义。
+    // ORIG 0x81e6464/0x81e6479：script +0x30 读死槽 -0x28；-0x24=0（diff 分支
+    // 两 marble 复用槽，0x81e64cd/0x81e65cc 两次赋值）。
+    int scriptDead = static_cast<BlueMarbleScriptManager*>(
+                         G_CDataManager()->getBlueMarbleScript())->m_info.m_playerMax;
+    (void)scriptDead;
+    BlueMarble* overlapBm = 0;
     if (req.m_0d == 0)                                   // 用户仍在蓝弹珠内存池
     {
         if (serverIdx == clientIdx)
@@ -22343,9 +22347,9 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
         }
         else
         {
-            BlueMarble* gmMarble =
-                G_CGameManager()->getBlueMarble(static_cast<int>(serverIdx));
-            if (gmMarble != 0)
+            overlapBm = static_cast<BlueMarble*>(
+                G_CGameManager()->getBlueMarble(static_cast<int>(serverIdx)));
+            if (overlapBm != 0)
             {
                 CMyFileLog gmLog(
                     "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
@@ -22355,11 +22359,10 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
                       " userSpace(%d)client_blueMarble_Index(%d) server_bluemarble_index(%d)",
                       idStr, characNo, state, space,
                       static_cast<int>(clientIdx), static_cast<int>(serverIdx));
-                gmMarble->checkBlueMarbleUserConfirm(user);
+                overlapBm->checkBlueMarbleUserConfirm(user);
             }
-            BlueMarble* userMarble =
-                static_cast<BlueMarble*>(user->getBlueMarble());
-            if (userMarble != 0)
+            overlapBm = static_cast<BlueMarble*>(user->getBlueMarble());
+            if (overlapBm != 0)
             {
                 CMyFileLog userLog(
                     "virtual int Dispatcher_BlueMarbleConfirmInfo::process(CUser*, MSG_BASE&, ParamBase&)",
@@ -22369,7 +22372,7 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
                         " userSpace(%d)client_blueMarble_Index(%d) server_bluemarble_index(%d)",
                         idStr, characNo, state, space,
                         static_cast<int>(clientIdx), static_cast<int>(serverIdx));
-                userMarble->checkBlueMarbleUserConfirm(user);
+                overlapBm->checkBlueMarbleUserConfirm(user);
             }
         }
     }

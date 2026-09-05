@@ -257,73 +257,122 @@ int SDCActiveStatusSyncCommon::getBleedingDamageClient(
     return static_cast<int>(static_cast<float>(d->m_baseDamage) / static_cast<float>(tick));
 }
 
+// ORIG 0x0808d4b4/0x0808d50e 共用 x87 取整宏（每 push_back 前 12 步内联序列，
+// 全 case 共享槽 -0x7a/-0x7c/-0x80）：fnstcw / movzwl+mov $0xc,%ah（ah 覆写=
+// RC=up(toward +inf)，bit8-9 同步清零）/ mov %ax / fldcw / fistpl(st0=前一
+// call 的 float 返回值) / fldcw 还原 / mov 取回。以整段 volatile asm 保序，
+// 实现固有 x87 语义（非符号桥；仓库 inline asm 先例见 ActiveStaticInfo.cpp 等）。
+// v 以 "t" 约束声明置于 st(0)（call 返回值天然所在，不出 fld/fstp）；
+// 整序列单条 volatile asm 阻断 4.4 把 fnstcw 前移。fistpl 目标共享 _ri，
+// 再 mov 入 _tv[i]（ORIG -0x80 共享 + 独立槽两步）。
+#define SDC_ROUND_UP(v, dst)                                                \
+    __extension__({                                                         \
+        __asm__ __volatile__(                                               \
+            "fnstcw %0\n\t"                                                  \
+            "movzwl %0, %%eax\n\t"                                          \
+            "movb $12, %%ah\n\t"                                            \
+            "movw %%ax, %1\n\t"                                             \
+            "fldcw %1\n\t"                                                  \
+            "fistpl %2\n\t"                                                 \
+            "fldcw %0"                                                      \
+            : : "m"(_cw), "m"(_cwUp), "m"(_ri), "t"(v)                      \
+            : "eax", "memory");                                             \
+        (dst) = _ri;                                                        \
+    })
+
 void SDCActiveStatusSyncCommon::makeEtcParameters(
     ENUM_ACTIVESTATUS status, int level, void* param, std::vector<int>* out,
     int* outPtr)
 // 0x0808d4b4：先回填 outPtr，再转发三参版本（param 作 DataSend 视图）。
 {
+    // ORIG 0x0808d4b4 entry：out 形参死 spill 命名槽 -0xc（P0：mov 0x18,%eax;
+    // mov %eax,-0xc 先于 outPtr 检查）。
+    std::vector<int>* pOut = out;
     if (outPtr != 0)
     {
         *outPtr = getDuration(status, level, param);
     }
     // ORIG 0x0808d4b4 无条件转发三参版本（无 out != 0 检查）。
-    makeEtcParameters(status, level, *out);
+    makeEtcParameters(status, level, *pOut);
 }
 
 void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,
                                                   int level,
                                                   std::vector<int>& out)
-// 0x0808d50e：switch 表逐 case push_back(ROUND(ETC_PARAMETER))。
+// 0x0808d50e：jump table（cmp $0x11; ja; mov table(,%eax,4); jmp *%eax）。
+// 每 push 独立具名结果槽（ORIG -0x6c..-0xc，tv1 最深、tv25 最浅——4.4 先声明
+// 更浅 ⇒ 声明序 tv25..tv1 逆序）；fcw 三临时最后声明（最深 -0x7a/-0x7c/-0x80）。
 {
-#define PUSH_ETC(j) \
-    out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, j)))
+    int tv1, tv2, tv3, tv4, tv5, tv6, tv7, tv8, tv9, tv10, tv11, tv12, tv13,
+        tv14, tv15, tv16, tv17, tv18, tv19, tv20, tv21, tv22, tv23, tv24, tv25;
+    char _gap12[12];  // 范式31：12B dead pad（ORIG fcw 槽 -0x7a/-0x7c/-0x80 精确深度）
+    (void)_gap12;
+    short _cw, _cwUp;
+    int _ri;
+#define PUSH_ETC(dst, j)                                                  \
+    do {                                                                  \
+        SDC_ROUND_UP(getActiveStatusEtcParameter(status, level, j), dst); \
+        out.push_back(dst);                                               \
+    } while (0)
+#define PUSH_CONST(dst, val) ((dst) = (val)); out.push_back(dst)
     switch (status)
     {
-    case 0:
-        PUSH_ETC(0);
-        PUSH_ETC(1);
+    case ACTIVE_STATUS_SLOW:
+        PUSH_ETC(tv25, 0);
+        PUSH_ETC(tv24, 1);
         break;
     case 2:
-        PUSH_ETC(0);
+        PUSH_ETC(tv23, 0);
         break;
     case 4:
-        PUSH_ETC(0);
+        PUSH_ETC(tv22, 0);
+        PUSH_ETC(tv21, 1);
+        PUSH_ETC(tv20, 2);
+        PUSH_ETC(tv19, 3);
+        break;
+    case 5:
+        PUSH_ETC(tv18, 0);
+        PUSH_ETC(tv17, 1);
+        break;
+    case 6:
+        PUSH_ETC(tv16, 0);
         break;
     case 7:
-        PUSH_ETC(0);
+        PUSH_ETC(tv15, 0);
         break;
     case 9:
-        PUSH_ETC(0);
-        PUSH_ETC(1);
-        out.push_back(1);
-        out.push_back(3000);
+        PUSH_ETC(tv14, 0);
+        PUSH_ETC(tv13, 1);
+        PUSH_CONST(tv12, 1);
+        PUSH_CONST(tv11, 3000);
         break;
     case 10:
-        PUSH_ETC(0);
+        PUSH_ETC(tv10, 0);
         break;
     case 11:
-        PUSH_ETC(0);
+        PUSH_ETC(tv9, 0);
         break;
     case 12:
-        PUSH_ETC(0);
-        PUSH_ETC(1);
+        PUSH_ETC(tv8, 0);
+        PUSH_ETC(tv7, 1);
         break;
     case 13:
-        PUSH_ETC(0);
-        PUSH_ETC(1);
-        PUSH_ETC(2);
-        PUSH_ETC(3);
+        PUSH_ETC(tv6, 0);
+        PUSH_ETC(tv5, 1);
+        PUSH_ETC(tv4, 2);
+        PUSH_ETC(tv3, 3);
         break;
     case 15:
-        out.push_back(1);
+        PUSH_CONST(tv2, 1);
         break;
-    case 17:
-        PUSH_ETC(0);
+    case ACTIVE_STATUS_17:
+        PUSH_ETC(tv1, 0);
         break;
     default:
         break;
     }
 #undef PUSH_ETC
+#undef PUSH_CONST
 }
 
 void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(

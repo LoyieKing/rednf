@@ -80,14 +80,26 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     // ========================================================================
     register int ret asm("ebx");        // ORIG 出口统一 mov %ebx,%eax
     try {
-    // ---- 1. 状态检查：state==3 且当前角色存在，否则错误包(0x54,0) 后 return ----
-    if (user->get_state() != 3 || user->getCurCharacR() == 0)
+    // ---- 1. 状态检查 ----
+    // ORIG 0x08200b1a..0x08200b41 实证是 **正向 || 物化双岛**，不是普通短路 if：
+    //   `call get_state; cmp $0x3; jne L1` / `call getCurCharacR; test; jne L2`
+    //   L1: mov $1,%eax ; jmp L3        L2: mov $0,%eax
+    //   L3: test %al,%al ; je 0x08200bdb
+    // ⇒ 必须先物化 bad 到 %al 再单点判跳（技巧40 家族的正向形，与 batch-10 的
+    //   `!(A && B)` 三条直分支形不同，不可混用）。
+    // 岛内：NumberToString 结果直落 %ebx（0x08200b62 `mov %eax,%ebx`）、第二次
+    // get_state 结果直落 %esi（0x08200b6f `mov %eax,%esi`），跨 cMyTrace 两 call
+    // 存活（技巧2）。
+    register bool bad asm("al");
+    bad = (user->get_state() != 3 || user->getCurCharacR() == 0);
+    if (bad)
     {
-        char* idStr = NumberToString(user->get_acc_id(), 0);
+        register char* idStr asm("ebx");
+        idStr = NumberToString(user->get_acc_id(), 0);
+        register int st asm("esi") = user->get_state();
         cMyTrace tr(__PRETTY_FUNCTION__,
                     0x95db, 5);
-        tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
-           user->get_state(), idStr);
+        tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s", st, idStr);
         throw 0;                        // ORIG 0x08200bd6 throw int(0)
     }
 

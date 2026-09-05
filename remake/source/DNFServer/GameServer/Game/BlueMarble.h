@@ -35,7 +35,8 @@ public:
     int getMemoryPoolIndex() const;
     void setMemoryPoolIndex(int idx);
     int getState() const;
-    int changeState(BlueMarbleState::T state);
+    // 原 int；ORIG 0x080d9202 尾 pop;ret 无 %eax 置值 ⇒ void（mangled 无返回类型）
+    void changeState(BlueMarbleState::T state);
     int getWinner() const;
     int getWaitUserCount() const;
     int getUserSlot(CUser* user) const;
@@ -113,7 +114,9 @@ public:
 private:
     int m_memoryPoolIndex;                     // +0x000
     std::vector<BlueMarbleUserInfo> m_users;   // +0x004
-    int m_state;                               // +0x010（getState/changeState 权威）
+    BlueMarbleState::T m_state;                // +0x010（getState/changeState 权威；
+                                               //   ORIG changeState 0x080d9205 this 先载直存
+                                               //   ⇒ 与形参同型，技巧5）
     CMTRand* m_pRands;                         // +0x014
     int m_diceNumber;                          // +0x018（getDiceNumber/setDiceNumber）
     int m_blueMarbleMap;                       // +0x01c（getBlueMarbleMap/setBlueMarbleMap）

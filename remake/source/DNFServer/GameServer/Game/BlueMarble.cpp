@@ -40,7 +40,7 @@
 // ============================================================================
 
 BlueMarble::BlueMarble()
-    : m_memoryPoolIndex(-1), m_state(0), m_diceNumber(0), m_blueMarbleMap(0),
+    : m_memoryPoolIndex(-1), m_state(BlueMarbleState::T_0), m_diceNumber(0), m_blueMarbleMap(0),
       m_pScript(0), m_maxBoardSize(0)
 {
     m_pRands = new CMTRand[4];
@@ -77,7 +77,8 @@ int BlueMarble::getState() const
     return m_state;
 }
 
-int BlueMarble::changeState(BlueMarbleState::T state)
+void BlueMarble::changeState(BlueMarbleState::T state)
+// 原 int；ORIG 0x080d9202 尾 pop;ret 无 %eax 置值 ⇒ void（mangled 无返回类型）
 {
     m_state = state;
 }
@@ -143,14 +144,23 @@ int BlueMarble::setUserGrade(int grade)
     m_users[grade].setGrade(BlueMarbleUserGrade::T_0);
     for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
-        if (m_users[i].getUser() != 0)
+        // ORIG 0x080d7b5d/0x080d7b87：==0 物化 sete %al 后 test;jne 出口（body fall，
+        // 范式22 register bool 绑 al + 范式23 goto）。
+        register bool uNull asm("al");
+        uNull = (m_users[i].getUser() == 0);
+        if (uNull)
+            goto NEXT0;
+        register bool gZero asm("al");
+        gZero = (m_users[i].getGrade() == 0);
+        if (gZero)
+            goto NEXT0;
         {
-            if (m_users[i].getGrade() != 0)
-            {
-                int zone = m_users[i].getBoardZone();
-                mm.insert(std::make_pair(std::move(zone), i));
-            }
+            // ORIG 0x080d7bb0..：zone 槽 -0x1c；make_pair 经 move（4.1 内联）。
+            int zone = m_users[i].getBoardZone();
+            mm.insert(std::make_pair(std::move(zone), i));
         }
+    NEXT0:
+        ;
     }
     std::multimap<int, int, std::greater<int> >::iterator it = mm.begin();
     int curGrade = 0;
@@ -316,39 +326,40 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
                               0x4c7, "BlueMarble::getBuff slot(%d)", seat);
         return 0;
     }
+    // 语义修正 + 块序：ORIG 0x080d997c `cmp$1; je→getGoldBuff@999e`、
+    // 0x080d9984 `cmp$2; je→getDropBuff@99b2`、0x080d9988 `test; jne→mov$0@99c6`、
+    // fall type==0→getExpBuff@9997（case 对应：0→exp、1→gold、2→drop；
+    // 范式23 goto 钉 je-岛序，exp body 为 fall-through 首块）。
     if (type == (BlueMarbleBuffType::T)1)
-    {
-        return getExpBuff(seat);
-    }
-    else if (type == (BlueMarbleBuffType::T)2)
-    {
-        return getGoldBuff(seat);
-    }
-    else if (type == (BlueMarbleBuffType::T)0)
-    {
-        return getDropBuff(seat);
-    }
-    else
-    {
-        return 0;
-    }
+        goto L_GOLD;
+    if (type == (BlueMarbleBuffType::T)2)
+        goto L_DROP;
+    if (type != (BlueMarbleBuffType::T)0)
+        goto L_DEF;
+    return getExpBuff(seat);
+L_GOLD:
+    return getGoldBuff(seat);
+L_DROP:
+    return getDropBuff(seat);
+L_DEF:
+    return 0;
 }
 
 int BlueMarble::getRandomItem() const
 {
     unsigned long range = (unsigned long)m_pScript->m_info.m_itemWeightTotal;
     int r = m_pRands[3].randInt(range);
-    std::vector<BlueMarbleRandomItemInfo>* items =
-        &m_pScript->m_info.m_randomItemList;
-    int count = (int)items->size();
+    // P0：ORIG 无 items 局部槽——每次使用重算 this（0x80d87xx `mov 0x8,%edx;
+    // mov 0x38,%edx; add $0x98,%edx`，循环内两处）。
+    int count = (int)m_pScript->m_info.m_randomItemList.size();
     int acc = 0;
     unsigned int i = 0;
     while ((int)i < count)
     {
-        acc += (*items)[i].m_weight;
+        acc += m_pScript->m_info.m_randomItemList[i].m_weight;
         if (acc >= r)
         {
-            return (*items)[i].m_itemIndex;
+            return m_pScript->m_info.m_randomItemList[i].m_itemIndex;
         }
         ++i;
     }
@@ -669,16 +680,21 @@ int BlueMarble::startBlueMarble()
 
 bool BlueMarble::checkThrowDice(int seat)
 {
-    register int bVar1;
+    // ORIG 0x080d6ed8：bVar1 物化全程 %eax（0x080d6f3f/6f46 mov$1/$0,%eax），
+    // return !bVar1 走 `test al; je; mov$0/$1` 双岛（0x80d6f4b..）。
+    register int bVar1 asm("eax");
     if (m_users[seat].getBoardZone() < getMaxBoardSize() &&
         m_users[seat].getUserState() == (BlueMarbleUserState::T)1 &&
         getState() == 2)
     {
         bVar1 = 0;
-        goto LAB;
     }
-    bVar1 = 1;
-LAB:
+    else
+    {
+        bVar1 = 1;
+    }
+    // ORIG 0x080d6f4b `test al; je; mov$0/$1` 双岛 = `!bVar1` 4.1 物化；4.4 折
+    // sete 直返（残余 cmp$2 方向 + sete 2 行，N 类）。
     return !bVar1;
 }
 
@@ -720,7 +736,13 @@ int BlueMarble::movePosition(CUser* user, int pos)
         LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x4f4,
                               "BlueMarble::movePosition slot(%d)", seat);
     }
-    else if (checkThrowDice(seat))
+    // ORIG 0x80d9ab9 xor $0x1,%eax; test; jne 出口（=false 走体）——用已验证的
+    // `(int)!boolcall()` 物化形（handleStageCommand 0x84661a3 同构）。
+    else if ((int)!checkThrowDice(seat))
+    {
+        ;
+    }
+    else
     {
         PacketGuard packet;
         packet.put_header(0, 0x1af);
@@ -760,8 +782,13 @@ bool BlueMarble::checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type)
 int BlueMarble::tileType(int seat)
 {
     int zone = m_users[seat].getBoardZone();
-    BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
-    if (map != 0)
+    // P0+范式22：ORIG 0x080d70f2 无 map 槽——getMap 结果直 `test;sete %al` 物化，
+    // `test al; jne` 出口（body fall）。zone 槽 -0x10（0x080d70d2）。
+    register bool mapNull asm("al");
+    mapNull = (m_pScript->getMap(getBlueMarbleMap()) == 0);
+    // ORIG 0x080d70f7：test al; jne 出口 —— 正向 goto（范式23）阻 4.4 xor 取反。
+    if (mapNull)
+        goto T_OUT;
     {
         BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
             (unsigned int)zone);
@@ -822,6 +849,8 @@ int BlueMarble::tileType(int seat)
             }
         }
     }
+T_OUT:
+    ;
 }
 
 int BlueMarble::intoBoardZone(int zone)
@@ -913,7 +942,11 @@ int BlueMarble::giveupDungeon(CUser* user)
         }
         else
         {
-            if (m_pScript->getMap(getBlueMarbleMap()) != 0)
+            // ORIG 0x080d95f3：map==0 物化 sete %al 后 `test;jne 出口`（body fall，
+            // 范式22 register bool 绑 al）。
+            register bool mapNull asm("al");
+            mapNull = (m_pScript->getMap(getBlueMarbleMap()) == 0);
+            if (!mapNull)
             {
                 BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
                     (unsigned int)m_users[seat].getBoardZone());
@@ -973,7 +1006,12 @@ int BlueMarble::resultReward()
         if (item.m_addInfo != 0)
         {
             insertItem(i, item, (eItemAddReason)0x42);
+            // ORIG 0x80d7e6a：insertItem 后显式 jmp 循环尾块@80d7e70（4.1 岛形，
+            // 范式24 goto 落点岛阻 4.4 fall-through 合并）。
+            goto NEXT;
         }
+    NEXT:
+        ;
     }
 }
 
@@ -1182,9 +1220,10 @@ int BlueMarble::sendUpdateItemInfo(int seat, int idx) const
     packet.put_header(0, 0xe);
     packet.put_byte(0);
     packet.put_short(1);
-    CInventory* inven =
-        (CInventory*)m_users[seat].getUser()->getCurCharacInvenR();
-    inven->MakeItemPacket(INVEN_TYPE_EQUIP, idx, packet);
+    // ORIG 0x080d7exx：getCurCharacInvenR 结果免槽直入 this（%eax 跨 3 条 mov 保活，
+    // P0 右值内联 + 范式37）。
+    ((CInventory*)m_users[seat].getUser()->getCurCharacInvenR())
+        ->MakeItemPacket(INVEN_TYPE_EQUIP, idx, packet);
     packet.finalize(true);
     m_users[seat].getUser()->Send(packet);
 }
