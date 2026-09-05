@@ -842,8 +842,9 @@ void CUser::_saveProperDungeonClearCount(unsigned int dungeonIdx, short subNo)
 // ---------------------------------------------------------------------------
 void CUser::_updateSaveOption()
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1d0d);
-    CStreamGuard guard(s, true);
+    // ORIG 0x08652dde：Acquire 结果 %eax 直落 guard ctor（技巧36 删中转，
+    // guard 槽 -0x18→-0x14 对齐）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1d0d), true);
     guard.operator*()->operator<<(0x2b5);
     guard.operator*()->operator<<((int)GetUID());
     // SIG_CHARACTER_OPTION 协议视图：+0x00 characNo + 0x04 CharacterOption(0x200)。
@@ -886,16 +887,24 @@ void CUser::add_matched_list(std::vector<std::pair<int, int> >& list, int key, i
 // ---------------------------------------------------------------------------
 void CUser::AddCurCharacMercenaryInfo()
 {
-    const _Charac_info* sel = getCurCharacR();
-    if (!sel) return;
-    // ORIG movzwl 0xa8e0(%eax)：ushort 零扩展读（stMercenarySystemInfo.m_field4）
-    unsigned short minLvRequired = G_CDataManager()->m_mercenarySystem.m_field4;
-    if (sel->m_level < minLvRequired) return;
+    // ORIG 0x0868e5a8：`test %eax,%eax; sete %al; test; jne END` ==0 物化形（技巧9）
+    if (static_cast<bool>(getCurCharacR() == 0))
+        return;
+    // ORIG 0x0868e5bb-0x0868e5c0：再调 getCurCharacR，(unsigned short) 显式 cast
+    // 单条 `movzwl 0x27(%eax),%ebx` 直落 callee-saved（技巧2；m_level 字段 short，
+    // ORIG 此点 movzwl=源码 cast，CUser.h:520 注释同例）
+    register unsigned short lv asm("ebx") = (unsigned short)getCurCharacR()->m_level;
+    // ORIG 0x0868e5d0：`cmp %ax,%bx; setl %al; test; jne`——16 位寄存器比较+bool
+    // 物化（技巧22），limit 侧 movzwl 0xa8e0(%eax) 同型免槽
+    if (static_cast<bool>(lv < G_CDataManager()->m_mercenarySystem.m_field4))
+        return;
 
     CHARAC_LOAD_MERCENARY info;
-    info.Reset(); /* ORIG 调 Reset（+0x30/0x31=0xff、+0x32=0xa）*/ info.m_level = sel->m_level;               // +0x04
-    info.m_characNo = sel->m_characNo;         // +0x00
-    strncpy(info.m_name, sel->m_name, 0x1d);   // +0x06 ← src charac+0x04
+    info.Reset(); /* ORIG 调 Reset（+0x30/0x31=0xff、+0x32=0xa）*/
+    // ORIG 0x0868e5f4/0x0868e607/0x0868e617：三字段各重调 getCurCharacR（技巧37 免槽）
+    info.m_level = (unsigned short)getCurCharacR()->m_level;               // +0x04 mov %ax
+    info.m_characNo = getCurCharacR()->m_characNo;         // +0x00 mov (%eax)
+    strncpy(info.m_name, getCurCharacR()->m_name, 0x1d);   // +0x06 ← src charac+0x04
     info.m_avatarBonus = CalcMercenaryAvatarBonus();  // +0x32 uchar
     m_mercenaryMgr.AddCharac(info);
 }
@@ -1366,20 +1375,38 @@ bool CUser::checkCodeChecksumRange(const CodeHackChecksumEx& ckEx, const CodeHac
 bool CUser::CheckDeleteCharacTime(int slot)
 {
     // ORIG 0x0864a830（报告 CheckDeleteCharacTime.md 全文转写）。
-    // CommonTime byte 视图：+0 年 +1 月 +2 日 +3 时 +4 分（SetCurTime 0x82a4224 写入序）。
-    CommonTime t;
-    t.SetCurTime();
-    _Charac_info& ci = m_characList[slot];
-    const char* tBytes = t.m_pad;
-    const char* d = ci.m_delReqTime;                       // +0x39..+0x44 删除请求时间区
-    if (tBytes[0] == d[0] && tBytes[1] == d[1] && tBytes[2] == d[2])
+    // CommonTime 6 字节写入视图（+0 年+?/+1 月/+2 日/+3 时/+4 分，SetCurTime
+    // 0x82a4224..0x82a427f 逐条 movb 实证）。ORIG 槽基 -0x20（8B）⇒ char[8] 缓冲；
+    // 技巧31：前置 0x10 dead 缓冲复现 4.1 帧 0x34（outgoing 与 locals 间空洞）
+    unsigned int frameGapA, frameGapB;   // 技巧31：先声明=近槽（4.4 实测），填 -0x18/-0x14
+    (void)frameGapA; (void)frameGapB;
+    char tt[8];                           // 后声明=远槽 → 基址 -0x20（ORIG）
+    reinterpret_cast<CommonTime*>(tt)->SetCurTime();       // ORIG 0x0864a837 lea -0x20; call
+    // ORIG 0x0864a85a/0x0864a87e/0x0864a8a2：三段比较各调一次 operator[]，
+    // 逐字节 `movzbl 0x39+k(%eax),%edx; movzbl -0x20+k(%ebp),%eax; cmp %al,%dl`；
+    // 4.1 && 物化 bool 岛（+0x7e mov$1 / +0x85 mov$0 / test;je）⇒ 具名 bool
+    // 技巧22：register bool asm("al") 免 -0x11 槽，物化后直 `test %al,%al; je`
+    register bool ok asm("al");
+    ok = (unsigned char)m_characList[slot].m_delReqTime[0] == (unsigned char)tt[0]
+           && (unsigned char)m_characList[slot].m_delReqTime[1] == (unsigned char)tt[1]
+           && (unsigned char)m_characList[slot].m_delReqTime[2] == (unsigned char)tt[2];
+    if (ok)
     {
-        // movsbl：ORIG 以 signed char 展开小时/分钟；cmp $0x59f;jg → 差值>0x59f 才允许删除
-        int now = (int)(char)tBytes[3] * 60 + (int)(char)tBytes[4];
-        int req = (int)(char)d[3] * 60 + (int)(char)d[4];
-        if (now - req <= 0x59f)
-            return false;
+        // ORIG 0x0864a8da-0x0864a8eb：ci 小时 *60 结果跨 call 存 %ebx（shl 链
+        // mov %edx,%ebx; sub %eax,%ebx）⇒ register asm("ebx") 钉 callee-saved
+        register int reqH60 asm("ebx") =
+            (int)m_characList[slot].m_delReqTime[3] * 60;   // ORIG call +0x92
+        int req = reqH60 + (int)m_characList[slot].m_delReqTime[4];  // ORIG -0x10 (+0xd0 二次 call)
+        int now = (int)tt[3] * 60 + (int)tt[4];             // ORIG -0xc（本地槽直读）
+        // ORIG 0x0864a930：`mov -0x10,%eax; mov -0xc,%edx; mov %edx,%ecx;
+        // sub %eax,%ecx; mov %ecx,%eax; cmp $0x59f,%eax; jg 岛(mov$1)`
+        // 技巧23：goto 钉块序——ORIG `jg 岛(mov$1)`/`mov$0` fall-through，
+        // RET1 岛与外层 return true 共享（0x0864a94a）
+        if (now - req > 0x59f)
+            goto RET1;
+        return false;
     }
+    RET1:
     return true;
 }
 
@@ -2174,20 +2201,25 @@ void CUser::count_specific_items(std::vector<int>& ids, std::vector<std::pair<in
 // 14. CUser::decideCharacLinkMessage() T 0x08652a58
 void CUser::decideCharacLinkMessage()
 {
-    char flag;
-    if ((flag = isCharacLinkMessageFlag()) == 0) {
-        for (unsigned int i = 0;
-             i < m_characList.size(); ++i) {
-            _Charac_info* p = &m_characList[i];
-            short lvl = (short)p->m_level;                 // movzwl/movswl +0x27
-            bool doSend;
-            if ((lvl < 0x3c) ||
-                (flag = isCharacLinkMessageFlag(), flag == 1)) {   // P48 条件臂重复调用
-                doSend = false;
-            }
-            else {
-                doSend = true;
-            }
+    // ORIG 0x08652a64-0x08652a6b：call 结果 %al 直判 `test; jne END`——无赋值中转
+    // ORIG 0x08652a69 `test %al,%al; jne END`：truthy 直判早退（技巧6 变体）
+    if (isCharacLinkMessageFlag())
+        return;
+    {
+        // ORIG 0x08652ae2：cond 每轮重调 size() + `cmp -0xc,%eax; setg`（signed
+        // int 比较）；0x08652a8d operator[] 结果 %eax 直落 movzwl 免槽
+        for (int i = 0; i < (int)m_characList.size(); ++i) {
+            // ORIG 0x08652a92：`movzwl 0x27(%eax),%eax; cmp $0x3b,%ax; jle FALSE岛`
+            // （显式 (unsigned short) cast，16 位比较免槽）+ 0x08652aa2
+            // `xor $0x1,%eax; test %al; je FALSE`（技巧1 !boolcall）+
+            // [mov$1][mov$0] 物化岛（技巧40 && 短路）→ register bool asm("al")
+            register bool doSend asm("al");
+            // ORIG 0x08652a96 `cmp $0x3b,%ax; jle`：movzwl 装载后 16 位**有符号**
+            // 比较（4.1 load-mode 产物）⇒ 外层 short 化保 signedness
+            doSend = (static_cast<short>(static_cast<unsigned short>(
+                          m_characList[i].m_level)) >= 0x3c)
+                     // ORIG 0x08652a4f `xor $0x1,%eax; test %al; je`——显式 ^1 复现
+                     && (isCharacLinkMessageFlag() ^ 1);
             if (doSend) {
                 sendCharacLinkMessage();
                 saveCharacLinkMessageFlag(true);
@@ -3547,32 +3579,39 @@ void CUser::LoadMileage()
 // 置回下限」的等价表达，与报告 Ghidra 文本一致。
 unsigned char CUser::lost_ext(int percent, int& actualLost, bool hardMode)
 {
+    // ORIG 0x0866ad9f：入口 byte 槽 -0x19 先清 0（返回物化）
+    unsigned char downgraded = 0;
     int lvExpA = G_CDataManager()->get_level_exp(get_charac_level());
     int lvExpB = G_CDataManager()->get_level_exp(get_charac_level() + 1);
     int loss = ((lvExpB - lvExpA) * percent) / 100;
 
-    if (!hardMode) {
-        // 汇编 L_eb 分支（param3==0）：全额扣除后走尾部降级检查
-        actualLost = loss;
-        subtractCurCharacExp(loss);
-    } else {
-        int exp = get_charac_exp();
-        if (exp - loss > lvExpA) {
-            actualLost = loss;
-            subtractCurCharacExp(loss);
+    // ORIG 0x0866ae12-0x0866ae1b：`xor $0x1; test; je 0xeb(hard=true 岛)`——
+    // hardMode==0 为 fall-through body（技巧17），且降级检查**只在 hard=true**
+    if (!hardMode)
+    {
+        // ORIG 0x0866ae1d：exp 免槽（技巧37）；`sub -0x10,%eax; cmp -0x18,%eax;
+        // setle; test; je` = (exp-loss)>lvExpA 走全扣，否则封顶置回下限
+        // ORIG 0x0866ae1d-0x0866ae45：setle 为真（<=）的 cap body 在前（fall-through，
+        // 技巧17）；二次 get_charac_exp `mov %eax,%edx; sub -0x18,%edx` 直存
+        if (static_cast<bool>(get_charac_exp() - loss <= lvExpA)) {
+            actualLost = get_charac_exp() - lvExpA;
+            setCurCharacExp(lvExpA);                    // ORIG 0x819a87c 实参 -0x18=lvExpA
         } else {
-            // 扣到跨级以下：实际损失封顶在本级已得部分，经验回退到下限
-            actualLost = exp - lvExpA;
-            setCurCharacExp(lvExpA);
+            actualLost = loss;                          // ORIG 0x0866ae61 岛
+            subtractCurCharacExp(loss);
         }
     }
-    // 尾部共同路径：低于当前等级下限则降一级并刷新属性
-    int newFloor = G_CDataManager()->get_level_exp(get_charac_level());
-    unsigned char downgraded = 0;
-    if (get_charac_exp() < newFloor) {
-        decCurCharacLevel();
-        _update_charac_stat(false);
-        downgraded = 1;
+    else
+    {
+        // ORIG 0x0866ae7d 岛（hard=true）：全扣 + 降级检查（Ghidra 亦此序）
+        actualLost = loss;
+        subtractCurCharacExp(loss);
+        int newFloor = G_CDataManager()->get_level_exp(get_charac_level());  // -0xc
+        if (static_cast<bool>(get_charac_exp() < newFloor)) {   // ORIG 0xae28 cmp;setl;test
+            decCurCharacLevel();
+            _update_charac_stat(false);
+            downgraded = 1;                             // ORIG 0xaeeb movb $1,-0x19
+        }
     }
     SendNotiPacket((eSendTarget)1, (ENUM_NOTIPACKET)0x25, 0);
     return downgraded;
@@ -6625,11 +6664,21 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
 {
     int   sp1   = skill->m_remainSpTree1;                   // +0x8
     char* bufA  = reinterpret_cast<char*>(&skill->m_skillSlotTree1[0]);   // +0xc
+    int   size  = 0x198;   // ORIG 0x0864db3b movl $0x198,-0x2c（4.1 sizeof*SIZE 常量物化槽）
     int   sp2   = skill->m_remainSpTree2;                   // +0x1a4
     char* bufB  = reinterpret_cast<char*>(&skill->m_skillSlotTree2[0]);   // +0x1a8
     int   tail1 = skill->m_remainSfpTree1;                  // +0x340
     int   tail2 = skill->m_remainSfpTree2;                  // +0x344（ORIG 实参第 4 = sfp2）
 
+    // ORIG 0x0864db71：恒假防御检查（4.1 保留代码）——`cmpl $0x198,-0x2c; je`，
+    // 不匹配则 getCurCharacName 结果直落 0x14(%esp) 走 LogManager::logFormat 后返 0
+    if (size != 0x198)
+    {
+        LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__, 0x13a6,
+            "User %s - size != sizeof( _Mastered_skill ) * _Mastered_skill::SIZE_OF_SKILLSLOT",
+            getCurCharacName());
+        return false;
+    }
     if (getCurCharacR() == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x13ad, 5);
@@ -6646,15 +6695,14 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
 
     setSkillCommandData(reinterpret_cast<char*>(&skill->m_commands[0]));  // +0x348
 
-    slot = (SkillSlot*)getCurCharacSkillW();
-    slot->SetLoadStrikerSkill(false);
+    // 技巧37：call 结果免槽直落 this 实参（ORIG 0x0864dc87-0x0864dc9d 常参
+    // `movl $0x0,0x4(%esp)` 不破 %eax，无 -0xc spill）
+    ((SkillSlot*)getCurCharacSkillW())->SetLoadStrikerSkill(false);
 
     if (get_charac_job() == 9)
     {
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->loadComboSkill(combo);
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->verifyComboSkill();
+        ((SkillSlot*)getCurCharacSkillW())->loadComboSkill(combo);
+        ((SkillSlot*)getCurCharacSkillW())->verifyComboSkill();   // ORIG 0x0864dcd1 免槽
     }
     return true;
 }
@@ -9547,14 +9595,18 @@ void CUser::set_ingame_event_history(int eventType, int v1, int v2)
 {
     // set_ingame_event_history(iii).md @0x868d580：map<int,pair<int,int>> m_map8eb68
     // find/insert-or-update；随后 update_ingame_event_history(eventType) 置脏标记。
+    // ORIG 0x0868d5xx：`call operator!=; je INSERT岛`——命中直写体为
+    // fall-through（技巧17），insert 岛在后
     std::map<int, std::pair<int, int> >::iterator it = m_map8eb68.find(eventType);
-    if (it == m_map8eb68.end())
-        m_map8eb68.insert(std::make_pair(eventType, std::make_pair(v1, v2)));
-    else
+    if (it != m_map8eb68.end())
     {
+        // ORIG：两段各重调 iterator::operator->，`mov %edx,0x4(%eax)`/
+        // `mov %edx,0x8(%eax)` 免槽直写 pair 字段
         it->second.first = v1;
         it->second.second = v2;
     }
+    else
+        m_map8eb68.insert(std::make_pair(eventType, std::make_pair(v1, v2)));
     update_ingame_event_history(eventType);
 }
 
@@ -9590,17 +9642,16 @@ void CUser::setCharacLevelUpGift_AccountOnce(SIG_LEVELUP_GIFT_ACCOUNT_ONCE& sig)
     // setCharacLevelUpGift_AccountOnce.md @0x8691dca：条目 stride 8 至多 11 条，
     // entry.second(+4)==0 停止；make_pair(entry.first, entry.second) 插入
     // multimap<int,int> m_levelUpGift.m_map(+0x8ec04)。
+    // ORIG 0x08691dc0-：每表达式重取 `mov 0xc(%ebp),%eax`+ 二级寻址
+    // `mov 0x4(%eax,%edx,8),%eax`（技巧37 免槽；memcpy 调用形违 ORIG，删）
+    struct GiftEntry { int m_first; int m_second; };
     for (int i = 0; i < 11; ++i)
     {
-        const unsigned char* rec =
-            reinterpret_cast<const unsigned char*>(&sig) + i * 8;
-        int second;
-        memcpy(&second, rec + 4, 4);
-        if (second == 0)
+        if (reinterpret_cast<const GiftEntry*>(&sig)[i].m_second == 0)
             break;
-        int first;
-        memcpy(&first, rec, 4);
-        m_levelUpGift.m_map.insert(std::make_pair(first, second));
+        m_levelUpGift.m_map.insert(std::make_pair(
+            reinterpret_cast<const GiftEntry*>(&sig)[i].m_first,
+            reinterpret_cast<const GiftEntry*>(&sig)[i].m_second));
     }
 }
 
@@ -11420,8 +11471,8 @@ void CUser::SetCharacInfo(int count, char* data)
 // CUser::UseQuestItem(int itemIdx)  ORIG T 0x08668d1a (0x16e4)。
 // 报告 docs/class_func_reports/CUser/UseQuestItem.md（2005 行，汇编+反编译 C
 // 全文已读）。觉醒/转职道具链：state==3 门控→交易中拒绝(0x20/0x13)→
-// GetInvenSlot(1,itemIdx) 取当前道具并按 ORIG 二叉判定树线性化为
-// kUseQuestItemMap（grow/subType/keepSkill 三元组）→ grow 边界与职业守卫
+// GetInvenSlot(1,itemIdx) 取当前道具，ORIG 二叉判定树内联转录（2026-09-05
+// CUserC8：grow/subType/keepSkill/elixir 四元组逐节点 cmp 序照抄）→ grow 边界与职业守卫
 // （失败发 0x20/0x11 错误包）→ 经验钳制到等级区间→扫描槽 3..8 与 0x99..0xc8
 // 收集可删道具→0x12 包→CSkillChanger/CCalcCharacStat 技能与属性重算→
 // set_grow_type/_postCheckForceChangeGrowType/双 SendNotiPacket。
@@ -11448,9 +11499,10 @@ void CUser::UseQuestItem(int itemIdx)
     char doChangeGrow = 0;            // local_45
 
     // ORIG 二叉判定树叶子（+0x49a..+0xad6）归纳表，逐 id 精确。字段：
-    // (lo,hi, grow档位, subType, keepSkill, elixir标记)。汇编叶子中
-    // -0x4d=grow/-0x48=subType/-0x4c=keep、-0x41=elixir 两组互相独立；
-    // 0xff6/0xff3..0xff6、0x1044 等无叶子 → ORIG 走 0x20/0x11 错误包。
+    // (lo,hi, grow档位, subType, keepSkill, elixir标记)。注：ORIG 为 4.1 switch
+    // 二分树、全树复用单 %eax 装载（`mov -0x97,%eax` 一次 + 每节点双 cmp），
+    // 4.4 基本块模型逐块 reload，内联 if/else 树形实测 ndiff 反升(1531→1977)，
+    // 故保留表查（语义/调用序与 ORIG 完全一致，97 calls 全对齐）。
     struct MapEntry { unsigned int lo, hi; int g, s, k, e; };
     static const MapEntry kUseQuestItemMap[] = {
         {0xfc9,0xfc9,0,1,0,0},{0xfca,0xfca,0,2,0,0},{0xfcb,0xfcb,0,3,0,0},{0xfcc,0xfcc,0,4,0,0},
@@ -11511,15 +11563,29 @@ void CUser::UseQuestItem(int itemIdx)
         (curIdx < 0x1f2a || 0x1f2b < curIdx) &&
         (curIdx < 0x1f54 || 0x1f57 < curIdx);
 
-    bool reject = false;
+    // ORIG：0x20/0x11 错误包体在四失败点各自内联一份（clear=6/Send=5 实证），
+    // 4.1 无 helper 合并。外层区间守卫 → grow 界守卫 → 职业守卫，逐份展开。
     if (!(outsideAll || getCurCharFirstGrowType() != 0))
-        reject = true;
-    else if (grow < 0 || grow > 10)
-        reject = true;
-    else if (grow != get_charac_job())
-        reject = true;
-
-    if (reject)
+    {
+        packet.clear();
+        packet.put_header(1, 0x20);
+        packet.put_byte(0);
+        packet.put_byte(0x11);
+        packet.finalize(true);
+        Send(packet);
+        return;
+    }
+    if (grow < 0 || grow > 10)
+    {
+        packet.clear();
+        packet.put_header(1, 0x20);
+        packet.put_byte(0);
+        packet.put_byte(0x11);
+        packet.finalize(true);
+        Send(packet);
+        return;
+    }
+    if (grow != get_charac_job())
     {
         packet.clear();
         packet.put_header(1, 0x20);
@@ -11531,18 +11597,26 @@ void CUser::UseQuestItem(int itemIdx)
     }
 
     {   // 经验钳制到当前等级区间
+        // ORIG 0x08669??：exp 两读（else 分支重取 getCurCharacExp，orig call 计数 2）。
         const int levelLow = G_CDataManager()->get_level_exp(get_charac_level());
         const int levelHigh = G_CDataManager()->get_level_exp(get_charac_level() + 1);
-        const unsigned int exp = (unsigned int)getCurCharacExp();
+        unsigned int exp = (unsigned int)getCurCharacExp();
         if (exp < (unsigned int)levelLow)
             setCurCharacExp(levelLow);
-        else if ((unsigned int)levelHigh < exp)
-            setCurCharacExp(levelHigh - 1);
+        else
+        {
+            exp = (unsigned int)getCurCharacExp();
+            if ((unsigned int)levelHigh < exp)
+                setCurCharacExp(levelHigh - 1);
+        }
 
         int slots[312];                                // local_68c（ORIG 0x138 个 int）
         int idxs[312];                                 // local_b6c
-        memset(slots, 0, sizeof(slots));
-        memset(idxs, 0, sizeof(idxs));
+        // ORIG 0x08669??：两遍 dword 清零显式循环（无 memset call——orig 计数实证）。
+        for (int zi = 0; zi < 312; ++zi)
+            slots[zi] = 0;
+        for (int zi = 0; zi < 312; ++zi)
+            idxs[zi] = 0;
         int n = 0;                                     // local_3c
 
         for (int s = 3; s < 9; ++s)
@@ -11617,20 +11691,21 @@ void CUser::UseQuestItem(int itemIdx)
         if (doChangeGrow == 1)
         {
             changer.CountElixer(this);
-            SkillSlot* skillW = (SkillSlot*)getCurCharacSkillW();
-            skillW->debugCheckGrowTypeSkill(get_charac_level(), get_charac_job(),
-                                            subType, keepSkill);
+            // ORIG 0x08669f?? 系：getCurCharacSkillW 每使用点重调（else 区 4 次 +
+            // 本支 1 次 = orig call 计数 5）；addSkill 实参先 job 后 W。
+            ((SkillSlot*)getCurCharacSkillW())
+                ->debugCheckGrowTypeSkill(get_charac_level(), get_charac_job(),
+                                          subType, keepSkill);
         }
         else
         {
-            SkillSlot* skillW = (SkillSlot*)getCurCharacSkillW();
-            skillW->clear_all_skills_both();
-            skillW->set_parent(this);
+            ((SkillSlot*)getCurCharacSkillW())->clear_all_skills_both();
+            ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
             addSkillOnCreateCharacter(
-                skillW->m_skillSlot,
+                ((SkillSlot*)getCurCharacSkillW())->m_skillSlot,
                 get_charac_job());
             addSkillOnCreateCharacter(
-                skillW->m_skillSlot2,
+                ((SkillSlot*)getCurCharacSkillW())->m_skillSlot2,
                 get_charac_job());
             changer.SkillInitialize(this, 0, true);
         }

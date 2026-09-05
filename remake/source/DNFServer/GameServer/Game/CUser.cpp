@@ -168,7 +168,7 @@ class CPrivateStoreMgr
 {
 public:
     CPrivateStore* FindStoreSeller(CUser* user);
-    bool IsBusyPrivateStore(CUser* user);   // ORIG 0x85cad5e（isEnableAvatarSocketAction 调用）
+    bool IsBusyPrivateStore(CUser* user);   // ORIG 0x85cad5e（isEnableAvatarSocketAction 调用；caller test %al ⇒ bool ABI）
 };
 CPrivateStoreMgr* GetInstancePrivateStoreMgr();
 }
@@ -2257,11 +2257,6 @@ unsigned int CUser::GetUID() const
 unsigned short CUser::get_unique_id() const
 {
     return (unsigned short)m_field704a8;
-}
-
-Secu_GoldControl* CUser::GetGoldControl()
-{
-    return &m_goldControl;
 }
 
 CDungeonGainedGold* CUser::getDungeonGainedGold()
@@ -4950,9 +4945,9 @@ bool CUser::IsProperLevelDungeonUser()
     return m_field8eb99;
 }
 
-unsigned char CUser::isCharacLinkMessageFlag()
+bool CUser::isCharacLinkMessageFlag()
 {
-    return (unsigned char)m_breakAway.m_field14;
+    return m_breakAway.m_field14;
 }
 
 unsigned char CUser::isLinkCharacDisconnectFlag()
@@ -10147,81 +10142,79 @@ void CUser::GetTicket(SIG_LOAD_TICKET* sig) const
 
 int CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* out) const
 {
+    // ORIG T 0x0864bdba：op[] 每字段重调 ~64 次（4.4 O0 不 CSE call ⇒ 逐处展开
+    // 同形；具名引用缓存折成单取是 gap343 主因）。字段序 = ORIG 汇编写序
+    // （报告 Ghidra C 段逐项对齐；宽度 cast 均经 ORIG 指令实证 2026-09-05 CUserC8）。
     if (param_1 < 0 || param_1 >= (int)m_characList.size())
         return 0;
-    // ORIG 无引用缓存：每个字段都重新调用 m_characList.operator[](param_1)
-    // （ORIG 汇编内该 operator[] 共被调用 64 次，每次 6 条寻址+call）。
     if ((unsigned int)m_characList[param_1].m_characNo != characNo)
         return 0;
-    const _Charac_info& ci = m_characList[param_1];   // 仅源码可读性；ORIG 每字段重取 op[]
-    out->m_characNo = ci.m_characNo;
-    strncpy(out->m_name, ci.m_name, 0x1e);
-    out->m_field22 = ci.m_field22;
-    out->m_field23 = ci.m_field25;
-    out->m_field24 = ci.m_field26;                    // job（ORIG movzbl 读，宽 1B）
-    out->m_field25 = (unsigned short)ci.m_level;      // ORIG movzwl 0x27（零扩展实证）
-    out->m_field27 = ci.m_field29;
-    out->m_field28 = ci.m_field2b;
-    out->m_field2c = ci.m_field33;
-    out->m_field2e = ci.m_field35;
-    out->m_field30 = ci.m_field37;
-    out->m_field32 = ci.m_field4f;
-    ((const CommonTime*)ci.m_delReqTime)->GetCreateTime(out->m_field34);
-    out->m_field4d = ci.m_field7b;
-    out->m_guildId = ci.m_guildId;
-    out->m_field5a = ci.m_fielddc2;
-    out->m_field5b = ci.m_field77;
-    out->m_field5d = ci.m_field79;
-    out->m_field5f = (ci.m_fielde22 != 0) ? 1 : 0;
-    memcpy(&out->m_add, &ci.m_field88, 0x52);
-    out->m_unkB2.m_fieldb2 = ci.m_stamina;
-    out->m_unkB2.m_fieldb3 = ci.m_field4d;
-    out->m_unkB2.m_fieldb5 = ci.m_field51;
-    memcpy(out->m_unkB2.m_fieldb9, ci.m_tradeRestrictData, 0x10);
-    // ORIG 三调用同 base `add $0x65`（0x0864c4de/0x0864c2b1/0x0864c2dd）——
-    // 修正原 +0x69/+0x6d 错误视图。
+    out->m_characNo = m_characList[param_1].m_characNo;                                   // mov (%edx),%eax←(%eax)
+    strncpy(out->m_name, m_characList[param_1].m_name, 0x1e);                             // strncpy 0x1e
+    out->m_field22 = m_characList[param_1].m_field22;                                     // +0x22←+0x22 movb
+    out->m_field24 = m_characList[param_1].m_field26;                                     // +0x24←+0x26 movb(job)
+    out->m_field25 = (unsigned short)m_characList[param_1].m_level;                       // +0x25←+0x27 movzwl 零扩展
+    out->m_field28 = m_characList[param_1].m_field2b;                                     // +0x28←+0x2b movl
+    out->m_field27 = m_characList[param_1].m_field29;                                     // +0x27←+0x29 movb
+    out->m_unkB2.m_fieldb2 = m_characList[param_1].m_stamina;                             // +0xb2←+0x75 movb
+    memcpy(&out->m_add, &m_characList[param_1].m_field88, 0x52);                          // +0x60←+0x88 0x52B
+    out->m_field2c = m_characList[param_1].m_field33;
+    out->m_field2e = m_characList[param_1].m_field35;
+    out->m_field30 = m_characList[param_1].m_field37;
+    out->m_field32 = m_characList[param_1].m_field4f;
+    out->m_field4d = m_characList[param_1].m_field7b;                                     // +0x4d←+0x7b movl
+    out->m_unkB2.m_field118 = m_characList[param_1].m_field7f;                            // +0x118←+0x7f movl
+    out->m_guildId = m_characList[param_1].m_guildId;                                     // +0x56←+0xdbe movl
+    out->m_field5a = m_characList[param_1].m_fielddc2;                                    // +0x5a←+0xdc2 movb
+    out->m_field5b = m_characList[param_1].m_field77;
+    out->m_field5d = m_characList[param_1].m_field79;
+    out->m_field5f = (m_characList[param_1].m_fielde22 != 0) ? 1 : 0;                     // +0x5f←(e22!=0)
+    ((const CommonTime*)m_characList[param_1].m_delReqTime)->GetCreateTime(out->m_field34); // +0x39→+0x34
+    out->m_unkB2.m_fieldb3 = m_characList[param_1].m_field4d;                             // +0xb3←+0x4d 2B
+    out->m_unkB2.m_fieldb5 = m_characList[param_1].m_field51;                             // +0xb5←+0x51 movl
+    memcpy(out->m_unkB2.m_fieldb9, m_characList[param_1].m_tradeRestrictData, 0x10);      // +0xb9←+0x55 0x10B
+    out->m_unkB2.m_fieldfe = m_characList[param_1].m_resetDwordDf4;                       // +0xfe←+0xdf4
+    out->m_unkB2.m_field102 = m_characList[param_1].m_resetDwordDf8;                      // +0x102←+0xdf8
     out->m_unkB2.m_fieldc9 =
-        ((const CReliablePerson*)ci.m_reliablePerson)->GetTradeGoldTotal();
+        ((const CReliablePerson*)m_characList[param_1].m_reliablePerson)->GetTradeGoldTotal();
     out->m_unkB2.m_fieldcd =
-        ((const CReliablePerson*)ci.m_reliablePerson)->GetTradeGoldTotalBillion();
+        ((const CReliablePerson*)m_characList[param_1].m_reliablePerson)->GetTradeGoldTotalBillion();
     out->m_unkB2.m_fieldd1 =
-        ((const CReliablePerson*)ci.m_reliablePerson)->GetTradeGoldDaily();
-    out->m_unkB2.m_fieldd5 = ci.m_fielde49;
-    out->m_unkB2.m_fieldd9 = ci.m_fielde4d;
-    out->m_unkB2.m_fielddd = ci.m_fielde51;
-    out->m_unkB2.m_fielde1 = ci.m_fielde55;
-    out->m_unkB2.m_fielde5 = ci.m_fielde59;
-    out->m_unkB2.m_fielde9 = ci.m_fielde5d;
-    out->m_unkB2.m_fielded = ci.m_fielde45;
-    out->m_unkB2.m_fieldf1 = ci.m_fielde68;
-    out->m_unkB2.m_fieldf5 = ci.m_fielde70;
-    out->m_unkB2.m_fieldf6 = ci.m_fielde71;
-    out->m_unkB2.m_fieldfa = ci.m_fielde79;
-    out->m_unkB2.m_fieldfe = ci.m_resetDwordDf4;
-    out->m_unkB2.m_field102 = ci.m_resetDwordDf8;
-    out->m_unkB2.m_field106 = ci.m_fielde7d;
-    out->m_unkB2.m_field10a = ci.m_fielde81;
-    out->m_unkB2.m_field10e = ci.m_field121f;
-    out->m_unkB2.m_field110 = ci.m_field1221;
-    out->m_unkB2.m_field114 = ci.m_field1225;
-    out->m_unkB2.m_field118 = ci.m_field7f;
-    out->m_unkB2.m_field11c = (unsigned short)ci.m_field122C;  // ORIG movzwl 0x122c
-    out->m_unkB2.m_field11e = ci.m_field1239;
-    out->m_unkB2.m_field11f = ci.m_field123e;
-    out->m_unkB2.m_field120 = ci.m_field123f;
-    out->m_unkB2.m_field121 = (unsigned char)ci.m_field1241;
-    out->m_unkB2.m_field122 = ci.m_field126c;
-    out->m_unkB2.m_b124 = (char)ci.m_field126e;
-    out->m_unkB2.m_i125 = ci.m_field126f;
-    out->m_unkB2.m_b129 = (char)ci.m_field1275;
-    out->m_unkB2.m_b12a = (char)ci.m_field1276;
-    out->m_unkB2.m_b12b = (char)ci.m_field1277;
-    out->m_unkB2.m_b12c = (char)ci.m_field1278;
-    out->m_unkB2.m_b12d = (char)ci.m_field127a;
-    out->m_unkB2.m_b12e = ci.m_tagVisibleFlags;   // ORIG movzbl 0xe40
-    out->m_unkB2.m_b12f = (char)ci.m_field1280;
-    out->m_unkB2.m_i130 = ci.m_field12ad;
-    out->m_unkB2.m_i134 = (int)get_acc_id();
+        ((const CReliablePerson*)m_characList[param_1].m_reliablePerson)->GetTradeGoldDaily();
+    out->m_unkB2.m_fieldd5 = m_characList[param_1].m_fielde49;
+    out->m_unkB2.m_fieldd9 = m_characList[param_1].m_fielde4d;
+    out->m_unkB2.m_fielddd = m_characList[param_1].m_fielde51;
+    out->m_unkB2.m_fielde1 = m_characList[param_1].m_fielde55;
+    out->m_unkB2.m_fielde5 = m_characList[param_1].m_fielde59;
+    out->m_unkB2.m_fielde9 = m_characList[param_1].m_fielde5d;
+    out->m_unkB2.m_fielded = m_characList[param_1].m_fielde45;
+    out->m_unkB2.m_fieldf1 = m_characList[param_1].m_fielde68;
+    out->m_unkB2.m_fieldf5 = m_characList[param_1].m_fielde70;                            // movb
+    out->m_unkB2.m_fieldf6 = m_characList[param_1].m_fielde71;                            // movl
+    out->m_unkB2.m_fieldfa = m_characList[param_1].m_fielde79;
+    out->m_unkB2.m_field10a = m_characList[param_1].m_fielde81;                           // ORIG 序 10a 先于 106
+    out->m_unkB2.m_field106 = m_characList[param_1].m_fielde7d;
+    out->m_unkB2.m_i134 = (int)get_acc_id();                           // +0x134←get_acc_id
+    out->m_unkB2.m_field10e = m_characList[param_1].m_field121f;                          // 2B
+    out->m_field23 = m_characList[param_1].m_field25;                                     // +0x23←+0x25 movb（ORIG 尾段）
+    out->m_unkB2.m_field110 = m_characList[param_1].m_field1221;                          // movl
+    out->m_unkB2.m_field114 = m_characList[param_1].m_field1225;                          // movl
+    out->m_unkB2.m_field11c = (unsigned short)m_characList[param_1].m_field122C;          // movzwl 122c
+    out->m_unkB2.m_field11e = m_characList[param_1].m_field1239;
+    out->m_unkB2.m_field11f = m_characList[param_1].m_field123e;
+    out->m_unkB2.m_field120 = m_characList[param_1].m_field123f;
+    out->m_unkB2.m_field121 = (unsigned char)m_characList[param_1].m_field1241;
+    out->m_unkB2.m_field122 = m_characList[param_1].m_field126c;                          // 2B
+    out->m_unkB2.m_b124 = (char)m_characList[param_1].m_field126e;
+    out->m_unkB2.m_i125 = m_characList[param_1].m_field126f;                              // movl
+    out->m_unkB2.m_b129 = (char)m_characList[param_1].m_field1275;
+    out->m_unkB2.m_b12a = (char)m_characList[param_1].m_field1276;
+    out->m_unkB2.m_b12b = (char)m_characList[param_1].m_field1277;
+    out->m_unkB2.m_b12d = (char)m_characList[param_1].m_field127a;                        // ORIG 序 12d 先于 12c
+    out->m_unkB2.m_b12c = (char)m_characList[param_1].m_field1278;
+    out->m_unkB2.m_b12e = m_characList[param_1].m_tagVisibleFlags;                        // movzbl e40
+    out->m_unkB2.m_b12f = (char)m_characList[param_1].m_field1280;
+    out->m_unkB2.m_i130 = m_characList[param_1].m_field12ad;                              // movl
     return 1;
 }
 

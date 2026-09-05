@@ -359,33 +359,62 @@ bool isOpenAdvanceAltar()
 // ============================================================================
 // putRidableInfoToPacket（ORIG T 0x08141781，报告全文）：前 0x21 字节直拷 +
 // 七个 map 各 put_int(size) 后逐元素 put_binary(&value, 元素尺寸)。
+// 去发明模板：ORIG nm 无 putMapEntries 实例（§4.1），七段逐循环内联，
+// 循环体形态按 ORIG 汇编（begin 前置 0x0851417d2 区、end 每轮尾构、
+// postfix it++ 带 dest 临时 0x08135f38、operator-> 后 +4/+1 直传 put_binary）。
 // ============================================================================
-namespace
-{
-template <typename MapT>
-void putMapEntries(InterfacePacketBuf& buf, const MapT& m, int elemSize)
-{
-    buf.put_int((int)m.size());
-    for (typename MapT::const_iterator it = m.begin(); it != m.end(); ++it)
-    {
-        buf.put_binary(reinterpret_cast<char*>(const_cast<typename MapT::mapped_type*>(&it->second)),
-                       elemSize);
-    }
-}
-}  // namespace
-
 void putRidableInfoToPacket(PacketGuard& packet, const AdvanceAltarData& data)
 {
     InterfacePacketBuf& buf = packet;
     buf.put_binary(const_cast<char*>(reinterpret_cast<const char*>(&data)), 0x21);   // [objdump 0x8141798]
 
-    putMapEntries<std::map<int, _Stage> >(buf, data.m_stages, sizeof(_Stage));       // [objdump 0x81417b5 起]
-    putMapEntries<std::map<int, _BuyItem> >(buf, data.m_buyItems1, sizeof(_BuyItem));  // +0x3c
-    putMapEntries<std::map<int, _BuyItem> >(buf, data.m_buyItems2, sizeof(_BuyItem));  // +0x54
-    putMapEntries<std::map<int, _BuyItem> >(buf, data.m_buyItems3, sizeof(_BuyItem));  // +0x6c
-    putMapEntries<std::map<unsigned char, _Slot> >(buf, data.m_slots1, sizeof(_Slot)); // +0x84
-    putMapEntries<std::map<unsigned char, _Slot> >(buf, data.m_slots2, sizeof(_Slot)); // +0x9c
-    putMapEntries<std::map<int, _Reward> >(buf, data.m_rewards, sizeof(_Reward));      // +0xb4
+    // +0x24 stages（put_binary 8 字节，0x081417fe）
+    buf.put_int((int)data.m_stages.size());                              // [0x081417ac/0x081417bd]
+    for (std::map<int, _Stage>::const_iterator it = data.m_stages.begin();
+         it != data.m_stages.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_Stage*>(&it->second)), sizeof(_Stage));
+
+    // +0x3c / +0x54 / +0x6c 三张 buyItem 表（各 0xc，0x081418b3/0x0814195e/
+    // 0x08141a09），局部引用形：ORIG 每轮 `lea 0xXX(%eax)` 重取容器地址。
+    buf.put_int((int)data.m_buyItems1.size());                           // [0x08141864]
+    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems1.begin();
+         it != data.m_buyItems1.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
+
+    buf.put_int((int)data.m_buyItems2.size());                           // [0x0814190f]
+    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems2.begin();
+         it != data.m_buyItems2.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
+
+    buf.put_int((int)data.m_buyItems3.size());                           // [0x081419ba]
+    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems3.begin();
+         it != data.m_buyItems3.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
+
+    // +0x84 / +0x9c slot 表（key uchar，value 偏移 +1，len 10，
+    // 0x08141abd/0x08141b6a）
+    buf.put_int((int)data.m_slots1.size());                              // [0x08141875]
+    for (std::map<unsigned char, _Slot>::const_iterator it = data.m_slots1.begin();
+         it != data.m_slots1.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_Slot*>(&it->second)), sizeof(_Slot));
+
+    buf.put_int((int)data.m_slots2.size());                              // [0x08141920]
+    for (std::map<unsigned char, _Slot>::const_iterator it = data.m_slots2.begin();
+         it != data.m_slots2.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_Slot*>(&it->second)), sizeof(_Slot));
+
+    // +0xb4 rewards（5 字节，0x08141c17）
+    buf.put_int((int)data.m_rewards.size());                             // [0x08141bc2]
+    for (std::map<int, _Reward>::const_iterator it = data.m_rewards.begin();
+         it != data.m_rewards.end(); it++)
+        buf.put_binary(reinterpret_cast<char*>(
+            const_cast<_Reward*>(&it->second)), sizeof(_Reward));
 }
 
 // ============================================================================

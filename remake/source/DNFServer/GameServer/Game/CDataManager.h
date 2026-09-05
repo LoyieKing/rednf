@@ -26,6 +26,7 @@ class CUser;
 class CMap;
 class CDungeon;
 class CItem;
+class CCeraShopGoods;   // CItemList::FindGoods 返回类型（完整定义 CItemList.h）
 class CMonster;
 class CSkill;
 class CWorldMap;
@@ -1084,10 +1085,13 @@ public:
     stUnlimitChallengeInfo();
     ~stUnlimitChallengeInfo();
 
-    // ORIG C1 0x837c53c：+0x00 int +0x04 vector<int> +0x10 vector<int>
-    // +0x1c vector<stUnlimitChallengeRewardInfo> +0x28 vector<stUnlimitChallengeMessageInfo>
+    // ORIG C1 0x837c53c：+0x00 1 字节标志（C1 不初始化）+0x04 vector<int>
+    // +0x10 vector<int> +0x1c vector<stUnlimitChallengeRewardInfo>
+    // +0x28 vector<stUnlimitChallengeMessageInfo>
     // +0x34 multimap<stUnlimitChallengeKey,stUnlimitChallengeItem>，sizeof 0x4c
-    int m_field0;                                       // +0x00
+    bool m_field0;   // +0x00（ORIG importUnlimit 0x0890bd29 `movb $0,(%eax)`
+                     // 1 字节写；SetChallengeInfo 0x08687828 movzbl 读首字节。
+                     // int→bool 修正；+0x04 vector 对齐不变，sizeof 0x4c 不变）
     std::vector<int> m_vec4;                            // +0x04
     std::vector<int> m_vec10;                           // +0x10
     std::vector<stUnlimitChallengeRewardInfo> m_vec1c;  // +0x1c
@@ -3333,7 +3337,11 @@ public:
     // ---- 查询（find_*）----
     CItem* find_item(int idx) const;
     CItem* find_item(const char* name) const;
-    CItem* FindGoods(int goodsIdx) const;
+    // ORIG 0x0835fde4 体：`mov 0xc(%eax),%eax; call _ZN9CItemList9FindGoodsEi`
+    // （纯转发），CItemList::FindGoods（CItemList.h:195 / ORIG 0x0817a10c W）返回
+    // CCeraShopGoods*；消费侧 ORIG 0x08176aed 将结果直存 CCeraShopGoods* 数组
+    // ⇒ 返回类型修正（mangled 无返回类型，零 ABI 风险；技巧33）。
+    CCeraShopGoods* FindGoods(int goodsIdx) const;
     // ORIG W 0x0830e6d2 _ZNK12CDataManager11getDropRateEv：读 m_dropRate（+0xb3f0）。
     float getDropRate() const;
     void set_AuctionRegFreeCeraItem(unsigned int idx);

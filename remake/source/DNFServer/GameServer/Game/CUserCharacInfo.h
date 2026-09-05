@@ -406,7 +406,7 @@ struct CharacInfoFields
     int m_chaosDieTime;                // +0xe5d
     int m_chaosStateTime;              // +0xe61
     unsigned char m_superState;        // +0xe65
-    unsigned char m_ghost;             // +0xe66
+    bool m_ghost;             // +0xe66
     unsigned char m_leaveTimeout;      // +0xe67
     int m_chaosKillTime;               // +0xe68
     int m_assaultFatigueCount;         // +0xe6c
@@ -853,8 +853,9 @@ public:
     void SetCurCharacChaosKillTime(int t);
     unsigned char GetCurCharacSuperState();
     void SetCurCharacSuperState(bool flag);
-    bool IsCurCharacGhost();   // ORIG 调用点 0x086810f2 `test %al;je` 直判（P143 bool 判据）；
-                               //   callee 0x080da2da movzbl 直返兼容
+    bool IsCurCharacGhost();           // EXP: bool member+bool return
+                               //   （bool 反产规范化岛、int 反产二段 promote）；
+                               //   调用点 test %al 直判同形（mangled 无返回类型）。
     void SetCurCharacGhost(bool flag);
     unsigned char IsCurCharacLeaveTimeout();
     void SetCurCharacLeaveTimeout(bool flag);

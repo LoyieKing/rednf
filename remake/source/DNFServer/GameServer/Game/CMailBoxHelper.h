@@ -34,10 +34,25 @@ class Stream;
 //      0x12b=299：memset 0x12b / 拷贝循环 0x12b / imul $0x12b；
 //      vector<SIG_LETTER_INFO>::push_back 实例 lea 0x12b；CMailBoxHelper.cpp
 //      detail 区按 i*299 步长访问） ----
+// 字段化（MbxC9 2026-09-05，SetMailBoxInfo ORIG 0x085525a6 汇编逐 disp 证据：
+//   letterId +0x00 ← 0x0855300c put_int(pair+0x4)/0x08553237 detail base+0xc；
+//   characNo +0x04 ← 0x0855302f pair+0x8/base+0x10；title +0x08 ← 0x08553052
+//   strlen(pair+0xc)/put_str；message +0x25 ← 0x085530bf strlen(pair+0x29)；
+//   period +0x125 ← 0x08553168 mov 0x129(pair)=value+0x125 put_int；flag
+//   +0x129 ← 0x0855318e movzwl pair+0x12d cwtl put_short / 0x085534e2
+//   cmp $0x3）。pack(1) 保 sizeof 0x12b（自然对齐抬 0x12c 与 imul $0x12b
+//   矛盾）；消费方 *(unsigned int*)&a / LetterOccView 视图兼容。
+#pragma pack(push, 1)
 struct SIG_LETTER_INFO
 {
-    char m_pad[0x12b];
+    unsigned int m_letterId;   // +0x00
+    unsigned int m_characNo;   // +0x04
+    char m_title[0x1d];        // +0x08
+    char m_message[0x100];     // +0x25
+    int m_period;              // +0x125（occ_time，CompareLetter 次键）
+    short m_flag;              // +0x129（==3 → InsertLetterKeepCount）
 };
+#pragma pack(pop)
 struct MSG_CHECK_MAIL_RECEIVER;               // 定义见 CGameManager.h（0x3f88）
 struct SIG_MAILBOX_LIST;                      // 定义见 SigTypes.h
 struct SIG_MAILBOX_SEND_NEW_MAIL;             // 定义见 SigTypes.h
@@ -67,11 +82,14 @@ public:
         // +0x04→mail+0x04、+0x08→mail+0x28（packageMoney）、+0x0c→mail+0x78、
         // +0x10→mail+0x7c、+0x14→mail+0x70、+0x18→mail+0x6c、+0x1c movzbl→
         // mail+0x74、+0x20 strncpy 0x1d→mail+0x08 名区、+0x24 指针 test→
-        // 非空整拷 Inven_Item）；CMailBox.cpp 同布局注释互证。0x25..0xff 区
-        // ORIG 无读写证据，仅经 m_pad 基名访问。sizeof 0x100 不变。
+        // 非空整拷 Inven_Item）；CMailBox.cpp 同布局注释互证。
+        // sizeof 修正（MbxC9 2026-09-05）：ORIG SetMailBoxInfo 栈槽
+        // -0x334..-0x30d 恰 0x28 字节、C1 0x085578ae 仅连续清零 0x00..0x24、
+        // ctor 符号尺寸 0x65——原 m_pad[0x100] 无 ORIG 证据且使本函数帧
+        // 虚增 0xd8。0x25.. 区无任何读写证据。
         union
         {
-            char m_pad[0x100];
+            char m_pad[0x28];
             struct
             {
                 unsigned int m_mailIndex;        // +0x00
@@ -197,7 +215,9 @@ public:
     static void SetPeriodCheckTimer(CUser* user);
     static unsigned int CheckMailTimeout(CUser* user, PacketGuard* packet); // ORIG 返回删除数
     static void MakeMailBoxListPacket(CUser* user, PacketGuard* packet);
-    static void SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info);
+    // ORIG 0x085525a6 尾部 `mov $0x1,%ebx`/早退 `mov $0x0,%ebx` 有返回值
+    // （P159 以函数尾定返回类型）；mangled 不含返回类型，ABI 不变。
+    static int SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info);
 
     // ---- 取件内部实现 ----
     static bool _DoGetPackage(CUser* user, CMailBox::CMail const* mail,

@@ -705,45 +705,147 @@ int getNpcMoodFromString(const char* name)
 // scanModuleType — ORIG @ 0x88c0b9a。
 // { std::string s; ScanStr(&s); return getModuleType(s.c_str()); }
 // ---------------------------------------------------------------------------
-// getModuleType — ORIG _Z13getModuleTypePKc @ 0x88c0bfc (size 0x834)。
-// ORIG：惰性注册表 map<字符串字面量, 模块枚举> + SpinLock；switch 把枚举换算为
-// 公开模块 id。等价实现（按内容匹配，标【推断】——ORIG 按字面量指针匹配，
-// 对脚本 token 场景行为一致）：
-//   [pvp]→4 [fair pvp]→5 [dungeon]→3 [main game]→3 [dead tower]→10
-//   [war room]→7 [room list]→1 [assault]→9 [pvp type]→18 [dungeon type]→19
-//   [all]→20 [blood system]→11 [tournament dungeon]→16 [despair tower]→12
-//   未命中/默认→17（ORIG 默认分支 mov $0x11,%eax）
 int getModuleType(const char* name)
 {
-    if (!name)
-        return 17;
-    static const struct { const char* name; int id; } table[] = {
-        { "[pvp]", 4 },
-        { "[fair pvp]", 5 },
-        { "[dungeon]", 3 },
-        { "[main game]", 3 },
-        { "[dead tower]", 10 },
-        { "[war room]", 7 },
-        { "[room list]", 1 },
-        { "[assault]", 9 },
-        { "[pvp type]", 18 },
-        { "[dungeon type]", 19 },
-        { "[all]", 20 },
-        { "[blood system]", 11 },
-        { "[tournament dungeon]", 16 },
-        { "[despair tower]", 12 },
-    };
-    static std::map<std::string, int> tbl;
-    if (tbl.empty())
+    // ORIG _Z13getModuleTypePKc @ 0x88c0bfc（报告 _lt_global_gt_/getModuleType.md
+    // 汇编+Ghidra C 双段转写）。与本文件 getChangeStatusType 同构：函数级静态
+    // __lookup(map<char const*,int,less_TCHAR>) + __init_lock(SpinLock) +
+    // __inited(bool) 双检；首调持锁以 idx=0 自 case 0（与 0xa8a 合并）贯穿
+    // insert 建表，表尾 default 释放锁置位回 guard 重 find 派发。
+    // case 0xa8e 无 else return（ORIG 0x088c0f7f je 直落 0xa8f 块，原码即然）。
+    // 命中返回公开模块 id：[pvp]→4 [fair pvp]→5 [dungeon/main game]→3
+    // [dead tower]→10 [war room]→7 [room list]→1 [assault]→9 [pvp type]→18
+    // [dungeon type]→19 [all]→20 [blood system]→11 [tournament dungeon]→16
+    // [despair tower]→12；未命中→17（ORIG 0x088c1420 mov $0x11）。
+    for (;;)
     {
-        const int n = static_cast<int>(sizeof(table) / sizeof(table[0]));
-        for (int i = 0; i < n; ++i)
-            tbl.insert(std::map<std::string, int>::value_type(table[i].name, table[i].id));
+        static EnumLookupMap __lookup;      // ORIG _ZZ13getModuleTypePKcE8__lookup
+        static SpinLock __init_lock;        // ORIG ...E11__init_lock
+        static bool __inited = false;       // ORIG ...E8__inited
+        int idx;
+        if (!__inited)
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                continue;                   // ORIG 0x088c0dd7 jmp +0xc（回 guard 重检）
+            }
+            idx = 0;
+        }
+        else
+        {
+            EnumLookupMap::const_iterator it = __lookup.find(name);
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        switch (idx)
+        {
+        case 0:
+        case 0xa8a:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[pvp]", 0xa8a));
+            else
+                return 4;
+            /* fall through */
+
+        case 0xa8c:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[fair pvp]", 0xa8c));
+            else
+                return 5;
+            /* fall through */
+
+        case 0xa8e:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[dungeon]", 0xa8e));
+            /* fall through（ORIG 0x088c0f7f 无 else 出口，直落 0xa8f 块）*/
+        case 0xa8f:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[main game]", 0xa8f));
+            else
+                return 3;
+            /* fall through */
+
+        case 0xa91:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[dead tower]", 0xa91));
+            else
+                return 10;
+            /* fall through */
+
+        case 0xa93:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[war room]", 0xa93));
+            else
+                return 7;
+            /* fall through */
+
+        case 0xa95:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[room list]", 0xa95));
+            else
+                return 1;
+            /* fall through */
+
+        case 0xa97:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[assault]", 0xa97));
+            else
+                return 9;
+            /* fall through */
+
+        case 0xa99:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[pvp type]", 0xa99));
+            else
+                return 18;
+            /* fall through */
+
+        case 0xa9b:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[dungeon type]", 0xa9b));
+            else
+                return 19;
+            /* fall through */
+
+        case 0xa9d:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[all]", 0xa9d));
+            else
+                return 20;
+            /* fall through */
+
+        case 0xa9f:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[blood system]", 0xa9f));
+            else
+                return 11;
+            /* fall through */
+
+        case 0xaa2:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[tournament dungeon]", 0xaa2));
+            else
+                return 16;
+            /* fall through */
+
+        case 0xaa6:
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[despair tower]", 0xaa6));
+            else
+                return 12;
+            /* fall through */
+
+        default:
+            if (!__inited)
+            {
+                __init_lock.leave();        // ORIG 0x088c140e
+                __inited = true;            // ORIG 0x088c1417 movb $0x1
+                continue;                   // ORIG 0x088c141a jmp +0xc
+            }
+            return 17;                      // ORIG 0x088c1424 mov $0x11,%eax
+        }
     }
-    std::map<std::string, int>::const_iterator it = tbl.find(name);
-    if (it != tbl.end())
-        return it->second;
-    return 17;
 }
 
 int scanModuleType()

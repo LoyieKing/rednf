@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "DNFLexWrapper.h"             // loadRDARScriptFile/ScanType/ScanInt/ScanStr
+#include "CEnvironment.h"              // less_TCHAR / SpinLock（__lookup 双相派发依赖）
 #include "InGameEventScripts.h"        // InGameEventScript 域权威声明（本批次补字段）
 #include "LevelupSupportEventManger.h" // LevelupSupportSciprt / LevelupSupport2ndScript
 
@@ -325,33 +326,175 @@ bool importAddItemCountDBEventScript(AddItemCountDBScript* script, char const* p
 }
 
 // ---- importPcBangPlayTimeScript T 0x0898512c（1661B）----
-// [objdump·报告缺失]。[play time]+0xc(int)/[number of time]+0x10(byte)/
-// [start tag]+0x12(word)/[end tag]+0x14(word) 均 ScanInt(NULL) 直存。
+// 报告 docs/class_func_reports/_lt_global_gt_/importPcBangPlayTimeScript.md
+// （双段完整阅读）。同 importAttendanceScript 双相派发形：8 个 (键,id) 注册链
+// +0x2d3→+0x33a→+0x3a7→+0x417→+0x47b→+0x4e2→+0x549→+0x5ae，公共尾 +0x611。
+// id：[/event]0x5d2 [title]0x5d7 [explain]0x5da [db table]0x5dd [play time]
+// 0x5e0 [number of time]0x5e3 [start tag]0x5e6 [end tag]0x5e9。[play time]
+// +0xc(int)/[number of time]+0x10(byte mov %dl)/[start tag]+0x12(word mov
+// %dx)/[end tag]+0x14(word) 均 ScanInt(NULL) 直存；-0x1d bool 槽初值 0 仅作
+// ScanType 失败返回（+0x63e movzbl -0x1d），此外从不写。
 bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool result = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool result = false;          // ORIG -0x1d：仅 ScanType 失败路径读取返回
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[play time]")
-            script->m_playTime = ScanInt((bool*)0);
-        else if (token == "[number of time]")
-            script->m_numberOfTime = static_cast<unsigned char>(ScanInt((bool*)0));
-        else if (token == "[start tag]")
-            script->m_startTag = static_cast<unsigned short>(ScanInt((bool*)0));
-        else if (token == "[end tag]")
-            script->m_endTag = static_cast<unsigned short>(ScanInt((bool*)0));
+        if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x226
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x23d
+                goto redo_lookup;                       // +0x243 → guard 重查
+            }
+            key = 0;                                    // +0x248 注册链入口
+        }
+
+        switch (key)
+        {
+            case 0x5d2:                                  // [/event]（+0x2d3）
+            case 0:
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[/event]", 0x5d2));
+                }
+                else
+                {
+                    return true;                        // +0x330 mov $1,%ebx
+                }
+            }
+            /* fall through */
+            case 0x5d7:                                  // [title]（+0x33a）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[title]", 0x5d7));
+                }
+                else
+                {
+                    ScanStr(&script->m_field00);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5da:                                  // [explain]（+0x3a7）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[explain]", 0x5da));
+                }
+                else
+                {
+                    ScanStr(&script->m_field04);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5dd:                                  // [db table]（+0x417）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[db table]", 0x5dd));
+                }
+                else
+                {
+                    ScanStr(&script->m_dbTableName);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5e0:                                  // [play time]（+0x47b）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[play time]", 0x5e0));
+                }
+                else
+                {
+                    script->m_playTime = ScanInt((bool*)0);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5e3:                                  // [number of time]（+0x4e2）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[number of time]", 0x5e3));
+                }
+                else
+                {
+                    script->m_numberOfTime =
+                        static_cast<unsigned char>(ScanInt((bool*)0));
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5e6:                                  // [start tag]（+0x549）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[start tag]", 0x5e6));
+                }
+                else
+                {
+                    script->m_startTag =
+                        static_cast<unsigned short>(ScanInt((bool*)0));
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5e9:                                  // [end tag]（+0x5ae）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[end tag]", 0x5e9));
+                }
+                else
+                {
+                    script->m_endTag =
+                        static_cast<unsigned short>(ScanInt((bool*)0));
+                    break;
+                }
+            }
+            }
+
+            if (!__inited)
+            {
+                __init_lock.leave();                    // +0x626
+                __inited = true;                        // +0x62b
+                goto redo_lookup;                       // +0x632 → guard 重派发
+            }
+            goto scan_exit;                             // +0x638 → ScanType 回边
     }
+scan_done:
     return result;
 }
 
@@ -478,114 +621,462 @@ bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* sc
 }
 
 // ---- importAttendanceScript T 0x08981539（2262B）----
-// [objdump·报告缺失]。[reward] 为 pair 循环（ScanInt(&ok) 失败回主循环），
-// 其余数值节均 ScanInt(NULL) 直存；ok 共享变量即返回值。
+// 报告 docs/class_func_reports/_lt_global_gt_/importAttendanceScript.md（汇编+
+// Ghidra C 双段完整阅读）。ORIG 为「函数级静态 __lookup(map<const char*,int,
+// less_TCHAR>)/__init_lock(SpinLock)/__inited(bool) 三件套 + case 贯穿建表链」
+// 双相派发（同 importTitleBookEtcScript 形）：首令牌以 key=0 进入注册链，自
+// case 0x26f（与 case 0 合并，+0x306）起逐 case insert 全部 12 个 (键,id)
+// （+0x306→+0x36d→+0x3da→+0x44a→+0x4ba→+0x52e→+0x59e→+0x60e→+0x6d1→+0x736→
+// +0x7ad→+0x80b），落公共尾（+0x867）leave+置位后回 guard 重派发同一令牌。
+// id：[/event]0x26f [title]0x271 [explain]0x274 [db table]0x277 [fatigue]0x27a
+// [reward explain]0x299 [final reward explain]0x29c [reward]0x29f
+// [final day condition]0x2ad [final reward]0x2b0 [send mail]0x2c7
+// [msg overbtn]0x2cb。[reward] 节为 pair 默认构造+ScanInt(&ok) 成对循环
+// （+0x65c..+0x6ca，ok 即 -0x121 返回值共享槽）；其余数值节 ScanInt(NULL)
+// 直存；ScanType 失败返回 ok（+0x893 movzbl -0x121）。
 bool importAttendanceScript(AttendanceScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool ok = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool ok = false;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[fatigue]")
-            script->m_field0c = ScanInt((bool*)0);
-        else if (token == "[reward explain]")
-            ScanStr(&script->m_str70);
-        else if (token == "[final reward explain]")
-            ScanStr(&script->m_str74);
-        else if (token == "[reward]")
+        if (!ScanType(token, true))
         {
-            for (;;)
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        // 三静态位于外层 token 循环体首；ORIG 重派发 jmp +0x66 = guard 检查点，
+        // goto 边每轮穿过 guard 测试。__inited 零初始化无 guard。
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x229
+            if (__inited)
             {
-                std::pair<int, int> attend;
-                attend.first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                attend.second = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_attends.push_back(attend);
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
             }
+            key = 0;                                    // +0x24b 注册链入口
         }
-        else if (token == "[final day condition]")
-            script->m_field24 = ScanInt((bool*)0);
-        else if (token == "[final reward]")
+
+        switch (key)
         {
-            script->m_pair1c.first  = ScanInt((bool*)0);   // +0x1c
-            script->m_pair1c.second = ScanInt((bool*)0);   // +0x20
-        }
-        else if (token == "[send mail]")
-            importActionMailScript(&script->m_mail);
-        else if (token == "[msg overbtn]")
-            ScanStr(&script->m_str28);
+            case 0x26f:                                  // [/event]（+0x306）
+            case 0:
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[/event]", 0x26f));
+                }
+                else
+                {
+                    return true;                        // +0x363 mov $1,%ebx
+                }
+            }
+            /* fall through */
+            case 0x271:                                  // [title]（+0x36d）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[title]", 0x271));
+                }
+                else
+                {
+                    ScanStr(&script->m_field00);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x274:                                  // [explain]（+0x3da）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[explain]", 0x274));
+                }
+                else
+                {
+                    ScanStr(&script->m_field04);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x277:                                  // [db table]（+0x44a）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[db table]", 0x277));
+                }
+                else
+                {
+                    ScanStr(&script->m_dbTableName);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x27a:                                  // [fatigue]（+0x4ba）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[fatigue]", 0x27a));
+                }
+                else
+                {
+                    script->m_field0c = ScanInt((bool*)0);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x299:                                  // [reward explain]（+0x52e）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[reward explain]", 0x299));
+                }
+                else
+                {
+                    ScanStr(&script->m_str70);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x29c:                                  // [final reward explain]（+0x59e）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[final reward explain]", 0x29c));
+                }
+                else
+                {
+                    ScanStr(&script->m_str74);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x29f:                                  // [reward]（+0x60e）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[reward]", 0x29f));
+                }
+                else
+                {
+                    for (;;)
+                    {
+                        std::pair<int, int> attend;     // +0x65c 每轮默认构造
+                        attend.first = ScanInt(&ok);    // +0x673
+                        if (!ok)
+                            break;                      // +0x68a → 公共尾
+                        attend.second = ScanInt(&ok);   // +0x697
+                        if (!ok)
+                            break;
+                        script->m_attends.push_back(attend);   // +0x6c5
+                    }
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x2ad:                                  // [final day condition]（+0x6d1）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[final day condition]", 0x2ad));
+                }
+                else
+                {
+                    script->m_field24 = ScanInt((bool*)0);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x2b0:                                  // [final reward]（+0x736）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[final reward]", 0x2b0));
+                }
+                else
+                {
+                    script->m_pair1c.first  = ScanInt((bool*)0);   // +0x1c
+                    script->m_pair1c.second = ScanInt((bool*)0);   // +0x20
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x2c7:                                  // [send mail]（+0x7ad）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[send mail]", 0x2c7));
+                }
+                else
+                {
+                    importActionMailScript(&script->m_mail);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x2cb:                                  // [msg overbtn]（+0x80b）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[msg overbtn]", 0x2cb));
+                }
+                else
+                {
+                    ScanStr(&script->m_str28);
+                    break;
+                }
+            }
+            }
+
+            if (!__inited)
+            {
+                __init_lock.leave();                    // +0x87c
+                __inited = true;                        // +0x881
+                goto redo_lookup;                       // +0x888 → guard 重派发
+            }
+            goto scan_exit;                             // +0x88e → ScanType（岛回跳）
     }
+scan_done:
     return ok;
 }
 
 // ---- importUsedFatigueGiveItemEventScript T 0x0898491b（2065B）----
-// [objdump·报告缺失]。result 初值 true；三个数值节 ScanInt 失败直接返回假；
-// [charc event] 置字节 +0x14=1；[apply job type] 经
+// 报告 docs/class_func_reports/_lt_global_gt_/importUsedFatigueGiveItemEventScript.md
+// （双段完整阅读）。同双相派发形：10 个 (键,id) 注册链 +0x2ec→+0x355→+0x3c2→
+// +0x432→+0x4a2→+0x531→+0x5af→+0x609→+0x6b5→+0x72f，公共尾 +0x7a2。
+// id：[/event]0x58f [title]0x592 [explain]0x595 [db table]0x598 [user type]
+// 0x59c [used fatigue]0x5a1 [charc event]0x5a7 [apply job type]0x5aa
+// [used fatigue limit]0x5af [send mail]0x5b5。result(-0xf9) 初值 true；
+// [/event] 返回 result 本体（+0x349 movzbl -0xf9，非恒真）；[user type]
+// ScanInt(&result) 字节存 +0xc、[used fatigue] int 存 +0x10、[used fatigue
+// limit] int 存 +0x1c，三者失败即 mov $0,%ebx 返回假（+0x527/+0x5a5/+0x725）；
+// [charc event] 置字节 +0x14=1；[apply job type] 局部 string → ScanStr →
 // getCharacterJobToEnumValue 存 +0x18；[send mail] 失败仅把 result 置假并继续。
 bool importUsedFatigueGiveItemEventScript(UsedFatigueGiveItemScript* script,
                                           char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool result = true;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool result = true;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return result;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[user type]")
+        if (!ScanType(token, true))
         {
-            script->m_userType = static_cast<unsigned char>(ScanInt(&result));
-            if (!result)
-                return false;
+        scan_exit:
+            goto scan_done;
         }
-        else if (token == "[used fatigue]")
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
         {
-            script->m_usedFatigue = ScanInt(&result);
-            if (!result)
-                return false;
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
         }
-        else if (token == "[charc event]")
+        else
         {
-            script->m_charcEventFlag = 1;
+            __init_lock.enter();                        // +0x229
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
+            }
+            key = 0;                                    // +0x24b 注册链入口
         }
-        else if (token == "[apply job type]")
+
+        switch (key)
         {
-            std::string jobName;
-            ScanStr(&jobName);
-            script->m_jobType = getCharacterJobToEnumValue(jobName);
-        }
-        else if (token == "[used fatigue limit]")
-        {
-            script->m_fatigueLimit = ScanInt(&result);
-            if (!result)
-                return false;
-        }
-        else if (token == "[send mail]")
-        {
-            if (!importActionMailScript(&script->m_mail))
-                result = false;
-        }
+            case 0x58f:                                  // [/event]（+0x2ec）
+            case 0:
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[/event]", 0x58f));
+                }
+                else
+                {
+                    return result;                      // +0x349 movzbl -0xf9
+                }
+            }
+            /* fall through */
+            case 0x592:                                  // [title]（+0x355）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[title]", 0x592));
+                }
+                else
+                {
+                    ScanStr(&script->m_field00);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x595:                                  // [explain]（+0x3c2）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[explain]", 0x595));
+                }
+                else
+                {
+                    ScanStr(&script->m_field04);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x598:                                  // [db table]（+0x432）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[db table]", 0x598));
+                }
+                else
+                {
+                    ScanStr(&script->m_dbTableName);
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x59c:                                  // [user type]（+0x4a2）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[user type]", 0x59c));
+                }
+                else
+                {
+                    script->m_userType =
+                        static_cast<unsigned char>(ScanInt(&result));
+                    if (!result)
+                        return false;                   // +0x527
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5a1:                                  // [used fatigue]（+0x531）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[used fatigue]", 0x5a1));
+                }
+                else
+                {
+                    script->m_usedFatigue = ScanInt(&result);
+                    if (!result)
+                        return false;                   // +0x5a5
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5a7:                                  // [charc event]（+0x5af）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[charc event]", 0x5a7));
+                }
+                else
+                {
+                    script->m_charcEventFlag = 1;       // +0x600 movb $1
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5aa:                                  // [apply job type]（+0x609）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[apply job type]", 0x5aa));
+                }
+                else
+                {
+                    std::string jobName;                // +0x660 局部 ctor
+                    ScanStr(&jobName);
+                    script->m_jobType =
+                        getCharacterJobToEnumValue(jobName);
+                    break;                              // +0x695 dtor → 公共尾
+                }
+            }
+            /* fall through */
+            case 0x5af:                                  // [used fatigue limit]（+0x6b5）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[used fatigue limit]", 0x5af));
+                }
+                else
+                {
+                    script->m_fatigueLimit = ScanInt(&result);
+                    if (!result)
+                        return false;                   // +0x725
+                    break;
+                }
+            }
+            /* fall through */
+            case 0x5b5:                                  // [send mail]（+0x72f）
+            {
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[send mail]", 0x5b5));
+                }
+                else
+                {
+                    // 失败仅置假 result 并继续主循环（+0x792 movb $0,-0xf9）。
+                    if (!importActionMailScript(&script->m_mail))
+                        result = false;
+                    break;
+                }
+            }
+            }
+
+            if (!__inited)
+            {
+                __init_lock.leave();                    // +0x7b7
+                __inited = true;                        // +0x7bc
+                goto redo_lookup;                       // +0x7c3 → guard 重派发
+            }
+            goto scan_exit;                             // +0x7c9 → ScanType 回边
     }
+scan_done:
     return result;
 }
 

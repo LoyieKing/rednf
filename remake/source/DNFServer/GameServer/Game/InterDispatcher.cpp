@@ -4242,10 +4242,11 @@ struct Inter_MonitorNoticeGuildInfoPktView
 
 int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeGuildInfoPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildInfoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    // ORIG 0x084****：state 岛后 pPkt 才物化 -0x1c（技巧13）。
+    Inter_MonitorNoticeGuildInfoPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildInfoPktView*>(data);
     if (user->get_charac_no(-1) !=
         pPkt->m_e)
     {
@@ -5419,10 +5420,11 @@ struct Inter_MonitorPayTaxToUpperPktView
 
 int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorPayTaxToUpperPktView* pPkt = reinterpret_cast<Inter_MonitorPayTaxToUpperPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
+    // ORIG 0x084d****：state 岛后、memberkey call 前 pPkt 才物化 -0x28（技巧13）。
+    Inter_MonitorPayTaxToUpperPktView* pPkt = reinterpret_cast<Inter_MonitorPayTaxToUpperPktView*>(data);
     if (user->get_charac_memberkey() == 0)
     {
         LogManager::logFormat(
@@ -5715,16 +5717,17 @@ int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
     SIG_MAILBOX_LIST* recv =
         reinterpret_cast<SIG_MAILBOX_LIST*>(data);     // -0x20(%ebp) 缓存消息指针
 
-    if (*reinterpret_cast<int*>(reinterpret_cast<char*>(recv) + 0x3332) !=
-        user->getCurCharacNo())
+    // ORIG 0x084cf845 `mov 0x3332(%eax),%ebx`：具名字段单段 disp（§4.3）。
+    if (recv->m_curCharacNo != user->getCurCharacNo())
         return 0x2ca0;                                 // 角色号不匹配
 
     WongWork::CMailBox* mailBox = (WongWork::CMailBox*)user->GetMailBox();  // CUser.h 冻结：GetMailBox 返回 void*
     if (mailBox == 0)
         return 0x2ca4;                                 // 无邮箱
 
-    if (*reinterpret_cast<int*>(reinterpret_cast<char*>(recv) + 0x3336) !=
-        mailBox->getMailLoadCount())
+    // ORIG 0x084cf8??：计数两处独立读（4.1 -0x3c 槽物化被 4.4 折并，实测具名反而
+    // 少 2 行失真，取直读形）。
+    if (recv->m_mailLoadCount != mailBox->getMailLoadCount())
     {   // 重复装载追踪
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -5733,7 +5736,7 @@ int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
               NumberToString(user->get_acc_id(), 0),
               user->getCurCharacNo(),
               mailBox->getMailLoadCount(),
-              *reinterpret_cast<int*>(reinterpret_cast<char*>(recv) + 0x3336));
+              recv->m_mailLoadCount);
         return 0x2caa;
     }
 
@@ -7301,6 +7304,10 @@ struct Inter_GMRequestMidPktView
 
 int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // 技巧31：前置 dead 槽把 pPkt/PG 整体推移 4B（ORIG pPkt=-0x10、PG=-0x1c、sub 0x30）。
+    // 双 gap 实测把 PG 顶深 4B（-0x20），单 gap 余 2 行 pPkt 槽差（4.4 dead 槽
+    // 相对序不可控）⇒ 取单 gap 最小形。
+    unsigned int gapPad;
     Inter_GMRequestMidPktView* pPkt = reinterpret_cast<Inter_GMRequestMidPktView*>(data);
     if (user->get_state() == 0)
         return 0;
@@ -7314,6 +7321,7 @@ int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_str(pPkt->m_16, strlen(pPkt->m_16));
     packet.finalize(true);
     user->Send(packet);
+    (void)gapPad;   // 技巧31：(void) 须置于末次使用点后
     return 0;
 }
 
@@ -11276,9 +11284,9 @@ struct Inter_NoticeCreateGuildAgitPktView
 int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NoticeCreateGuildAgitPktView* pPkt = reinterpret_cast<Inter_NoticeCreateGuildAgitPktView*>(data);
-
     user->SetGuildAgitFlag(true);
 
+    // ORIG 0x084daa2a：pPkt 槽 -0xc 入口即物化；m_12 比较。
     if (pPkt->m_12 == user->get_charac_no(-1))
     {   // 目标即本人 → 成功回执
         PacketGuard packet;
@@ -11293,10 +11301,11 @@ int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     notify.finalize(true);
     user->Send(notify);
 
-    CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
-        user->GetServerGroup());
-    proxy->ChangeGuildAgitFlagInProxy(
-        user->get_charac_guildkey(), 1);
+    // ORIG 0x084daac1..：guildkey 两段 `mov %eax,%ebx` 钉形，proxy 结果 %eax 免槽直落
+    // (%esp)（具名 proxy 变量会被 4.4 物化槽位、顶深 PG）。
+    register unsigned int guildKey asm("ebx") = user->get_charac_guildkey();
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        user->GetServerGroup())->ChangeGuildAgitFlagInProxy(guildKey, 1);
     return 0;
 }
 
@@ -11341,10 +11350,12 @@ int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     notice.finalize(true);
     user->Send(notice);
 
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->ChangeGuildAgitFlagInProxy(
-        static_cast<unsigned int>(user->get_charac_guildkey()), 0);
+    // ORIG 0x084dac90..：guildkey `mov %eax,%ebx` 钉形跨 call、proxy 结果 %eax 免槽
+    // （具名 proxy 槽会顶深 pPkt 至 -0x10，ORIG pPkt=-0xc）。
+    register unsigned int guildKey asm("ebx") =
+        static_cast<unsigned int>(user->get_charac_guildkey());
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        user->GetServerGroup())->ChangeGuildAgitFlagInProxy(guildKey, 0);
     return 0;
 }
 
@@ -12440,6 +12451,7 @@ int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(1, 0x10a);
     packet.put_byte(1);
+    // （asm("ebx") 钉形被 put_int(int&,int) 取址阻断，保持具名槽。）
     int countIdx = packet.get_index();         // 计数回填位
     packet.put_int(putCount);
     for (int i = 0; i <= 0x31; ++i)                  // asm cmpl $0x31, setle
@@ -13179,7 +13191,6 @@ struct Inter_VillageAttackedStartPktView
 
 int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    Inter_VillageAttackedStartPktView* pPkt = reinterpret_cast<Inter_VillageAttackedStartPktView*>(data);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         return 0;
 
@@ -13191,6 +13202,7 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     {
         G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, false);
         G_GameWorld()->send_all_dungeon_inout_message(0x2aff, false);
+        // ORIG 0x084df4f?：具名 trace 占深槽 -0x2c，else 临时链式占 -0x1c（技巧3）。
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x4b9a, 0);
@@ -13198,12 +13210,12 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     }
     else
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x4b9d, 0);
-        trace("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
+        cMyTrace(__PRETTY_FUNCTION__, 0x4b9d, 0)(
+            "ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
     }
 
+    // ORIG 0x084df51f：pPkt 槽 -0xc 在 trace 区后才物化（技巧13）。
+    Inter_VillageAttackedStartPktView* pPkt = reinterpret_cast<Inter_VillageAttackedStartPktView*>(data);
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xf1);

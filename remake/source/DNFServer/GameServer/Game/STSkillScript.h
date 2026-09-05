@@ -115,8 +115,18 @@ public:
     } m_growType[6];                      // +0x94（16 字节/个）
     std::vector<int> m_vecf4;             // +0xf4
     float m_f100[2];                      // +0x100（[consume MP] 逐级消耗，ScanFloat 写）
-    int m_i108[4];                        // +0x108（[maintain MP] ScanFloat 复用 [0..1] 位写；
+    union {
+        int m_i108[4];                    // +0x108（[maintain MP] ScanFloat 复用 [0..1] 位写；
                                           //          [casting time] ScanInt 写 [2..3]，即 +0x110/+0x114）
+        struct {
+            float m_f108[2];              // +0x108 视图：ORIG ImportSkillScript @08a990f2
+                                          //   `lea 0x40(%ebx),%edx; fstps 0x8(%eax,%edx,4)`
+                                          //   （maintain MP 以 float 基址 +0x108 折叠）
+            int   m_dw110[2];             // +0x110 视图：ORIG @08a98f57
+                                          //   `lea 0x44(%ebx),%ecx; mov %eax,(%edx,%ecx,4)`
+                                          //   （casting time 以 int 基址 +0x110 折叠）
+        };
+    };                                    // union sizeof=16=原 int[4]，成员偏移不变
     int m_118;                            // +0x118
     std::vector<SkillUseItem> m_useItems11c;  // +0x11c
     std::vector<int> m_vec128;            // +0x128

@@ -3621,40 +3621,55 @@ void OutputErrorMessage(const char* msg)
     LogManager::logFormat(0, "../RDARScript.cpp", __FUNCTION__, 0xa26, msg);
 }
 
-// ORIG 0x088bf2b8：职业/成长类型 → 成长类型名。ORIG 在函数内构造
-// map<pair<job,grow>,const char*>（32 条）后 find；此处以等价静态表线性
-// 查找建模，未命中返回 "none"（ORIG &DAT_08e08840）。
+// ORIG _Z15getGrowTypeName17ENUM_CHARACTERJOBi @ 0x088bf2b8（报告
+// _lt_global_gt_/getGrowTypeName.md 汇编+Ghidra C 双段转写）。ORIG 每次调用
+// 现场构造局部 std::map<std::pair<ENUM_CHARACTERJOB,int>, const char*>（32 条
+// operator[] 写入）后 find 派发，未命中返回 "none"（0x088bfd58）。逐条恢复。
+// 【残差豁免·NEAR 封顶】orig_insns=542 ours=542，帧 0x240 与全部栈槽（map@-0x22c、
+// 64 个 pair 物化槽 -0x20c..-0x1c、iterator/pair 临时）逐一对位，助记符序列全等。
+// 唯一文本差 = 每对物化槽立即数配对互换（ORIG 4.1 U1 先物化：`movl $1,-0x20c;
+// movl $0,-0x208`；4.4 U2 先：`movl $0,-0x20c; movl $1,-0x208`，ORIG 0x088bf2d1
+// vs ours .o 同偏移）——跨版本实参物化槽序，无合法源码写法翻转（P75 同类）。
 const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
 {
-    static const struct GrowTypeNameEntry
-    {
-        int m_job;
-        int m_grow;
-        const char* m_name;
-    } kGrowTypeNames[32] = {
-        { 1, 0, "weaponmaster" },     { 2, 0, "soulbringer" },
-        { 3, 0, "berserker" },        { 4, 0, "asura" },
-        { 1, 1, "nenmaster" },        { 2, 1, "striker" },
-        { 3, 1, "streetfighter" },    { 4, 1, "grappler" },
-        { 1, 2, "ranger" },           { 2, 2, "launcher" },
-        { 3, 2, "mechanic" },         { 4, 2, "spitfire" },
-        { 1, 3, "elementalmaster" },  { 2, 3, "summoner" },
-        { 3, 3, "battlemage" },       { 4, 3, "witch" },
-        { 1, 4, "crusader" },         { 2, 4, "infighter" },
-        { 3, 4, "exorcist" },         { 4, 4, "avenger" },
-        { 1, 5, "ranger" },           { 2, 5, "launcher" },
-        { 3, 5, "mechanic" },         { 4, 5, "spitfire" },
-        { 1, 6, "rogue" },            { 2, 6, "necromancer" },
-        { 1, 7, "nenmaster" },        { 2, 7, "striker" },
-        { 3, 7, "streetfighter" },    { 4, 7, "grappler" },
-        { 1, 8, "elementalbomber" },  { 2, 8, "glacialmaster" },
-    };
-    for (int i = 0; i < 32; ++i)
-    {
-        if (kGrowTypeNames[i].m_job == (int)job &&
-            kGrowTypeNames[i].m_grow == grow)
-            return kGrowTypeNames[i].m_name;
-    }
+    typedef std::pair<ENUM_CHARACTERJOB, int> GrowKey;
+    typedef std::map<GrowKey, const char*> GrowTypeMap;
+    GrowTypeMap table;                        // ORIG map ctor 0x088c4548
+    table[GrowKey((ENUM_CHARACTERJOB)1, 0)] = "weaponmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 0)] = "soulbringer";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 0)] = "berserker";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 0)] = "asura";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 1)] = "nenmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 1)] = "striker";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 1)] = "streetfighter";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 1)] = "grappler";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 2)] = "ranger";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 2)] = "launcher";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 2)] = "mechanic";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 2)] = "spitfire";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 3)] = "elementalmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 3)] = "summoner";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 3)] = "battlemage";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 3)] = "witch";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 4)] = "crusader";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 4)] = "infighter";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 4)] = "exorcist";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 4)] = "avenger";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 5)] = "ranger";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 5)] = "launcher";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 5)] = "mechanic";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 5)] = "spitfire";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 6)] = "rogue";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 6)] = "necromancer";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 7)] = "nenmaster";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 7)] = "striker";
+    table[GrowKey((ENUM_CHARACTERJOB)3, 7)] = "streetfighter";
+    table[GrowKey((ENUM_CHARACTERJOB)4, 7)] = "grappler";
+    table[GrowKey((ENUM_CHARACTERJOB)1, 8)] = "elementalbomber";
+    table[GrowKey((ENUM_CHARACTERJOB)2, 8)] = "glacialmaster";
+    GrowTypeMap::iterator it = table.find(GrowKey(job, grow));
+    if (it != table.end())
+        return it->second;
     return "none";
 }
 

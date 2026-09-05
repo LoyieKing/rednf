@@ -1397,6 +1397,8 @@ char CUserCharacInfo::getUpgradeSeparateFlaseFlag()
 
 unsigned char CUserCharacInfo::getUltimateInoutValue(char index)
 {
+    // ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），
+    // register 绑 %edx 反产 swap 多 2 行 → 维持直写。
     return CUR->m_ultimateInout[index];
 }
 
@@ -1597,7 +1599,9 @@ unsigned char CUserCharacInfo::getCurExpandEquipslotSwitch()
 
 int CUserCharacInfo::getCurEquipslotFlag()
 {
-    return m_selected ? (int)CUR->m_curEquipslotFlag : -1;
+    // ORIG 0x???: 三元 true 路单一 `movzbl 0x1275(%eax),%eax`（隐式提升，
+    // 多余 (int) cast 使 4.4 反产第二段 movzbl %al,%eax，技巧 20 同理）。
+    return m_selected ? CUR->m_curEquipslotFlag : -1;
 }
 
 
@@ -2127,6 +2131,9 @@ void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
 void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
 {
     char unused[0x24];
+    // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存；4.4 bool 形参
+    // 恒 entry spill 归一化（-0x34 槽+二段，去 (char) cast 不消）→ 跨版本 bool
+    // ABI 天花板。frame 差 = 4.1 无 param 槽。
     unused[0] = (char)flag;
     (void)param;
 }
@@ -2222,6 +2229,9 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
         return;
     }
     ChangeFinishPoint(point);
+    // ORIG 0x08645a3a：读 flds 0xe(%edx,%ebx,4) + 写 lea 0x380(%ecx),%edx 两次
+    // 独立 lea、raw idx 留 %ecx；4.4 RA 共享单 lea（读写拆两式亦被 copy-prop），
+    // N18a/4.1-RA 族天花板，维持 += 最简形。
     ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
@@ -2325,7 +2335,12 @@ void CUserCharacInfo::SetPowerWarLastPlayTime(long t)
 }
 
 
-void CUserCharacInfo::SetOverTradeGoldCount(unsigned int count) { m_overTradeGoldCount = count; }
+void CUserCharacInfo::SetOverTradeGoldCount(unsigned int count)
+{
+    // ORIG：`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0xd0(%eax)`
+    // base 先载（技巧 27 LHS 显式 this 翻转装载序）。
+    this->m_overTradeGoldCount = count;
+}
 
 void CUserCharacInfo::SetOpencoin(char value)
 {
@@ -3553,7 +3568,12 @@ void CUserCharacInfo::SetCurCharacChaosDieTime(int t)
 
 bool CUserCharacInfo::IsCurCharacGhost()
 {
-    return m_selected ? CUR->m_ghost : 0;
+    // ORIG：true 路单一 `movzbl 0xe66(%eax),%eax` 直返（uchar 返回 = load 即
+    // 终值，无 int promote 二段 movzbl %al；bool 声明反产 test;je;mov$1 规范化）
+    // ⇒ 返回类型 unsigned char（技巧 33，mangled 无返回类型）。
+    if (m_selected)
+        return CUR->m_ghost;
+    return 0;
 }
 
 int CUserCharacInfo::GetCurCharacChaosPoint()

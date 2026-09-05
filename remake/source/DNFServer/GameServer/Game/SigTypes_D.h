@@ -272,11 +272,23 @@ static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_type) == 0x54,
               "SIG_MAILBOX_DEL_MAIL type offset drift");
 #pragma pack(pop)
 
+// SIG_MAILBOX_LIST 响应区头部字段化（§8.3，广播 2026-09-05 无异议）：
+// 证据 docs/class_func_reports/Inter_MailBox_Req_List/dispatch_sig.md ORIG
+// 0x084cf845 `mov 0x3332(%eax),%ebx`、同族 0x3336 读（单段 disp）。
+// sizeof 0x338a（ReqDBLoadMail memset 证据）不变；consumers 全部经
+// reinterpret 视图/偏移宏按绝对偏移访问，不依赖 m_data 起点。
+#pragma pack(push, 1)
 struct SIG_MAILBOX_LIST
 {
     // ORIG 尺寸 0x338a（ReqDBLoadMail memset 证据）
-    unsigned char m_data[0x338a];
+    unsigned char m_head[0x3332];       // +0x00 请求头/ postal 区（视图消费）
+    int m_curCharacNo;                  // +0x3332（请求角色号）
+    int m_mailLoadCount;                // +0x3336（装载计数，loaded-twice 比对）
+    unsigned char m_data[0x338a - 0x333a];   // +0x333a 明细尾区
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_MAILBOX_LIST) == 0x338a,
+              "SIG_MAILBOX_LIST ORIG size drift");
 
 struct SIG_MAILBOX_SEND_NEW_MAIL
 {

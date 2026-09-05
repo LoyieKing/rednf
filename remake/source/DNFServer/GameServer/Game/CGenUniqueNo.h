@@ -7,7 +7,12 @@ class CGenUniqueNo
 {
 public:
     CGenUniqueNo();
-    char* GenUniqueNo(char* out);
+    // static 实证：ORIG 0x08177d35..0x08177d3e（ProcessBuyRequestEx 内）调用点只
+    // push 一个实参（`lea -0x1a1(%ebp),%eax; mov %eax,(%esp); call 084b76d8`），
+    // 无 this 槽；且实现（CGenUniqueNo.cpp）只读 static m_nTimeCount 与
+    // G_CEnvironment()/GlobalData::s_systemTime_，不触碰 this。
+    // C++98 下既有 obj.GenUniqueNo(x) 调用点对 static 成员同样合法。
+    static char* GenUniqueNo(char* out);
     enum ENUM_IPGNO_TYPE
     {
         ENUM_IPGNO_TYPE_0,

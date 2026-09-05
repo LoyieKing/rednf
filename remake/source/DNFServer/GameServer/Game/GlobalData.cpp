@@ -3653,11 +3653,9 @@ const char* const kPrettyGetItemString =
 const char* const kPrettyProcessBuy =
     "bool ItemVendingMachine::ProcessBuyRequestEx(CUser*, const MSG_BUY_CERASHOP_ITEM&)";
 
-// WongWork::CGenUniqueNo::GenUniqueNo(char*) —— ORIG _ZN8WongWork12CGenUniqueNo11GenUniqueNoEPc。
-// CGenUniqueNo.cpp 提供 C++ 定义（经 CGenUniqueNo.h），但 CInventory.h 以截断 stub 重声明
-// 该类（缺 GenUniqueNo）；本 TU 经 CInventory.h 纳入该 stub 类，故以 asm 别名引用 ORIG
-// 符号，避免类重定义冲突（与 CCeraShop_Special.cpp DB_SaveFeaturedGoodsIdx 先例一致）。
-char* GenUniqueNo_asm(char* out) asm("_ZN8WongWork12CGenUniqueNo11GenUniqueNoEPc");
+// asm 桥已清（§8 协议）：CInventory.h 现经 CGenUniqueNo.h 纳入权威完整类定义，
+// GenUniqueNo 亦按 ORIG 单实参证据 static 化 ⇒ 调用点直接真实调用
+// WongWork::CGenUniqueNo::GenUniqueNo（ORIG _ZN8WongWork12CGenUniqueNo11GenUniqueNoEPc）。
 }
 
 // _CheckEnableGiftCondition —— ORIG 0x08176722 (T)
@@ -3767,35 +3765,51 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
         return 0;
     }
 
-    unsigned int itemCount = msg.m_scalars.m_itemCount;
-    const unsigned int MAX_ENTRIES = 0x23;
-    if (itemCount > MAX_ENTRIES)
-        itemCount = MAX_ENTRIES;
-
-    CCeraShopGoods* goods[MAX_ENTRIES];
-    std::memset(goods, 0, sizeof(goods));
-    std::vector<std::pair<int, int> > pairs;
-    const CItem* relatedItemRef = 0;   // _CheckEnableItemCondition 输出（仅在 groupIdx 非 1/11 写入）
-
+    // ORIG 0x08176a4e..0x08176abd 初始化序（Ghidra C 与反汇编双向核对）：
+    //   0x08176a4e movl $0xffffffff,-0x78（groupIdx=-1）
+    //   0x08176a55/-0x74、0x08176a5c/-0x70、0x08176a63/-0x6c、0x08176a6a/-0x68（4 累计量=0）
+    //   0x08176a71 call vector<pair<int,int> >::vector（local_170=-0x16c）
+    //   0x08176a7f rep stos 0x24 dword @-0x280（related 指针数组，非单变量）
+    //   0x08176a95 rep stos 0x24 dword @-0x310（goods 指针数组）
+    //   0x08176aab call CUser::resetUsedCera
+    // 0x081769f6..0x081783e9 全区间不存在 $0x23 立即数 ⇒ 原码没有条目数上限钳制；
+    // 循环上界每处现读 msg 字节（0x08176bc5/0x08177dcc 区 movzbl 0x36(%eax)）。
     int groupIdx = -1;
     int totalCera = 0, totalGold = 0, totalWin = 0, totalMileage = 0;
 
+    std::vector<std::pair<int, int> > pairs;
+    const CItem* related[0x24];      // ORIG local_284（逐条目 _CheckEnableItemCondition 输出）
+    std::memset(related, 0, sizeof(related));
+    CCeraShopGoods* goods[0x24];     // ORIG local_314
+    std::memset(goods, 0, sizeof(goods));
+
     user->resetUsedCera();
 
+    const unsigned int itemCount = msg.m_scalars.m_itemCount;
+    const unsigned int MAX_ENTRIES = 0x23;   // 条目数上报上限（ProcessError 实参用）
+
     // ---- 第一遍：逐条目校验、总价累计 ----
-    for (unsigned int i = 0; i < itemCount; ++i)
+    for (int i = 0; i < (int)itemCount; ++i)
     {
         int productNo = msg.m_entrySection.m_arr[i].m_productNo;
         unsigned char slotByte = msg.m_entrySection.m_arr[i].m_avatarType0;
         unsigned char tagByte = msg.m_entrySection.m_arr[i].m_avatarType1;
         (void)slotByte; (void)tagByte;
 
-        goods[i] = G_CDataManager()->getItemList()->FindGoods(productNo);
+        // ORIG 0x08176ad5 G_CDataManager() → 0x08176ae8 直调
+        // _ZNK12CDataManager9FindGoodsEi（0x0835fde4，内部转发
+        // CItemList::FindGoods），结果 0x08176aed 直存 goods[i]（无 getItemList 层）。
+        goods[i] = G_CDataManager()->FindGoods(productNo);
         if (goods[i] == 0)
         {
-            m_ceraShop.ProcessError(user, 0x15, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 0x15, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            // ORIG 0x08176b95/0x08176bbb：每个校验失败分支 ProcessError + goods[i]=0
+            // 之后固定跟一对 cMyTrace（具名槽 -0x150）：tr("[%s][%d]", PRETTY, line)。
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2ad, 0);
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2ad);
             continue;
         }
 
@@ -3803,34 +3817,46 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
 
         if (!_CheckEnableGiftCondition(goods[i], user, (char)msg.m_scalars.m_buyFlag))
         {
-            m_ceraShop.ProcessError(user, 8, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 8, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2b4, 0);   // ORIG 0x08176ca2/0x08176cc8
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2b4);
             continue;
         }
 
         // IsBuyableRestrictItem(user, productNo, 1, i)：1=可购买（取反判不可购）。
         if (!CerashopAddRestrict::Manager::IsBuyableRestrictItem(user, productNo, 1, i))
         {
-            m_ceraShop.ProcessError(user, 0x71, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 0x71, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2bb, 0);   // ORIG 0x08176d9f
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2bb);
             continue;
         }
 
-        if (!_CheckEnableItemCondition(goods[i], relatedItemRef, pairs))
+        if (!_CheckEnableItemCondition(goods[i], related[i], pairs))
         {
-            m_ceraShop.ProcessError(user, 0x11, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 0x11, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2c2, 0);   // ORIG 0x08176e9f
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2c2);
             continue;
         }
 
         if (!_CheckEnableStateCondition(goods[i], user))
         {
-            m_ceraShop.ProcessError(user, 7, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 7, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2c8, 0);   // ORIG 0x08176f89
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2c8);
             continue;
         }
 
@@ -3840,9 +3866,12 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
                                               (unsigned short)msg.m_entrySection.m_arr[i].m_avatarType1,
                                               (char)msg.m_scalars.m_buyFlag, buyingCode))
         {
-            m_ceraShop.ProcessError(user, (unsigned short)buyingCode, groupIdx, productNo,
+            m_ceraShop.ProcessError(user, (unsigned short)buyingCode, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo,
                                     i + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x2d6, 0);   // ORIG 0x08177105
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2d6);
             continue;
         }
 
@@ -3854,9 +3883,13 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
                                              msg.m_entrySection.m_arr[i].m_avatarType0,
                                              avatarSel))
             {
-                m_ceraShop.ProcessError(user, 0x17, groupIdx, productNo, i + 1, itemCount,
+                m_ceraShop.ProcessError(user, 0x17, groupIdx,
+                                        msg.m_entrySection.m_arr[i].m_productNo,
+                                        i + 1, itemCount,
                                         (char)msg.m_scalars.m_buyFlag);
                 goods[i] = 0;
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x2ec, 0);   // ORIG 0x08177234
+                tr("[%s][%d]", __PRETTY_FUNCTION__, 0x2ec);
                 continue;
             }
             totalCera += avatarSel.m_fieldc;
@@ -3873,9 +3906,12 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
 
         if (msg.m_scalars.m_buytype == 1 && goods[i]->isCeraPointDisallowance_())
         {
-            m_ceraShop.ProcessError(user, 0x138b, groupIdx, productNo, i + 1, itemCount,
+            m_ceraShop.ProcessError(user, 0x138b, groupIdx,
+                                    msg.m_entrySection.m_arr[i].m_productNo, i + 1, itemCount,
                                     (char)msg.m_scalars.m_buyFlag);
             goods[i] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x305, 0);   // ORIG 0x0817738f
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x305);
             continue;
         }
     }
@@ -3918,8 +3954,17 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
     }
 
     // ---- 第二遍：逐条资金校验、扣减与 IPG 派发 ----
-    int curGold = user->getCurCharacMoney();
-    int curWin = user->GetWinPoint();
+    // ORIG 余额槽宽度实证（64 位比较序列 + max 模板实参 mangled）：
+    //   0x0817765a call getCurCharacMoney → 0x08177661 `sar $0x1f,%edx`（**符号**
+    //     扩展）→ mov %eax,-0x50 / mov %edx,-0x4c ⇒ curGold 是 signed long long。
+    //   0x08177670 call GetWinPoint → 0x08177675 `mov $0x0,%edx`（**零**扩展）
+    //     → -0x48/-0x44 ⇒ curWin 是 unsigned long long。
+    //   0x0817768d call GetMileage → mov %eax,-0x38（单 dword）⇒ curMileage 是 int。
+    // 扣减用 _ZSt3maxIi（0x08177991）+ _ZSt3maxIx ×2（0x081779e2/0x08177a37；
+    //   c++filt 实证 `x` = **long long**（有符号），非 unsigned long long
+    //   ⇒ 两个实参槽均须 long long 类型才能推导出同一实例）。
+    long long curGold = user->getCurCharacMoney();
+    long long curWin = user->GetWinPoint();
     int curMileage = user->GetMileage();
     int curSec = GlobalData::s_systemTime_.getCurSec();
 
@@ -3942,6 +3987,8 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
                                         msg.m_entrySection.m_arr[j].m_productNo,
                                         j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
                 goods[j] = 0;
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x37b, 0);   // ORIG 0x081777d6
+                tr("[%s][%d]", __PRETTY_FUNCTION__, 0x37b);
                 continue;
             }
             ceraPrice = avatarSel.m_fieldc;
@@ -3968,9 +4015,36 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
             if (user->GetCeraPoint() < (unsigned int)ceraPrice)
                 perErr = 0x138a;
         }
-        if (curGold < goldPrice) perErr = 10;
-        if (curWin < winPrice) perErr = 0xc;
-        if (user->GetMileage() < mileagePrice) perErr = 0x3ed;
+        // 0x08177917..0x08177962：三条**余额**校验（不是现读 user）。
+        //  ① -0x50/-0x4c(curGold) vs sext(goldPrice) → 有符号 64 位比较，
+        //     `jl/jg/cmp lo;jbe` 三段式 ⇒ `curGold < goldPrice` → perErr=10。
+        //  ② -0x48/-0x44(curWin) vs zero-ext(winPrice) → 无符号 64 位比较 → 0xc。
+        //  ③ -0x38(curMileage) vs -0x3c(mileagePrice) 32 位 `jge skip` → 0x3ed。
+        // 0x08177917..0x08177a44：ORIG 把三条余额校验与**扣减**全部排在
+        // 0x08177a47 `cmpl $0x0,-0x28(perErr); je 正常路径` 之前 ⇒ 即使本条目
+        // 判错，余额照样被扣（原码行为，非笔误）。扣减三处 = std::max：
+        // _ZSt3maxIi @0x08177991、_ZSt3maxIx @0x081779e2、@0x08177a37
+        // （Itanium ABI `x` = unsigned long long，解释 i386 上为何读 0x4(%eax)）；
+        // 声明顺序必须 diff 在前、zero 在后（ORIG 先 `mov %eax,-0xc0/-0xb8/-0xa8`
+        // 后 `movl $0x0,-0xbc/-0xb0/-0xa0`，技巧 21 后声明占近 ebp 槽）。
+        if (curGold < goldPrice) perErr = 10;         // 0x08177917 有符号 64 位比较
+        if (curWin < (unsigned int)winPrice) perErr = 0xc;   // 0x08177935 winPrice 零扩展
+        if (curMileage < mileagePrice) perErr = 0x3ed;             // 0x08177953 32 位
+        {
+            int diffMileage = curMileage - mileagePrice;   // ORIG -0xc0（先算差值）
+            int zeroMileage = 0;                           // ORIG -0xbc
+            curMileage = std::max(zeroMileage, diffMileage);   // 0x08177991
+        }
+        {
+            long long diffGold = curGold - goldPrice;      // ORIG sub/sbb → -0xb8/-0xb4
+            long long zeroGold = 0;                        // ORIG -0xb0/-0xac
+            curGold = (long long)std::max(zeroGold, diffGold);   // 0x081779e2
+        }
+        {
+            long long diffWin = curWin - (unsigned int)winPrice;  // ORIG -0xa8/-0xa4
+            long long zeroWin = 0;                                // ORIG -0xa0/-0x9c
+            curWin = std::max(zeroWin, diffWin);           // 0x08177a37
+        }
 
         if (perErr != 0)
         {
@@ -3983,27 +4057,35 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
                 " / UCera[%d] UGold[%d] UWP[%d] UMile[%d]\n",
                 user->GetCera(), user->getCurCharacInvenR()->get_money(),
                 user->GetWinPoint(), user->GetMileage());
+            // 0x08177b1e..0x08177b30：第三处 logFormat 的 %d 实参是**现读**
+            // msg 条目（`mov -0x2c,%eax; imul $0x1cf; lea (msg,…); add $0x30;
+            // mov 0x9(%eax)` = entry+0x39 = m_productNo），不是局部 productNo。
             LogManager::logFormat(
                 1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b9,
-                "Error Goods No : %d", productNo);
-            m_ceraShop.ProcessError(user, (unsigned short)perErr, groupIdx, productNo,
+                "Error Goods No : %d", msg.m_entrySection.m_arr[j].m_productNo);
+            m_ceraShop.ProcessError(user, (unsigned short)perErr, groupIdx,
+                                    msg.m_entrySection.m_arr[j].m_productNo,
                                     j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
             goods[j] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x3bb, 0);   // ORIG 0x08177bf4
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x3bb);
             continue;
         }
 
-        // 扣减（clamp 到 0）
-        curGold = (curGold - goldPrice) > 0 ? (curGold - goldPrice) : 0;
-        curWin = (curWin - winPrice) > 0 ? (curWin - winPrice) : 0;
-        curMileage = (curMileage - mileagePrice) > 0 ? (curMileage - mileagePrice) : 0;
+        // （扣减已按 ORIG 0x08177962..0x08177a44 前移至上方 perErr 判定之前）
 
         if (!user->IsRestrictedGoods(goods[j]->GetFeaturedIdx()))
         {
             Stream* stream = GlobalData::s_stream_pool->Acquire(
                 "localjapan/AppendVendingMachine.cpp", 0x3cb);
             CStreamGuard guard(stream, false);
-            CStreamGuard* g = guard.operator->();
-            stCeraShopIPGRequest_t* req = g->GetInBuffer<stCeraShopIPGRequest_t>();
+            // ORIG 0x08177d3b..0x08177d59：`lea -0x178; mov %eax,(%esp);
+            // call CStreamGuard::operator->(); mov %eax,(%esp);
+            // call GetInBuffer<stCeraShopIPGRequest_t>()` ⇒ 源码就是
+            // guard->GetInBuffer<...>()（CStreamGuard::operator-> 返回 this），
+            // 不得引入 g 中转变量（技巧 35/36：代理链 + 删中转槽）。
+            stCeraShopIPGRequest_t* req =
+                guard->GetInBuffer<stCeraShopIPGRequest_t>();
             req->m_productNo = productNo;
             req->m_groupIdx = goods[j]->GetGroupIdx();
             req->m_stackCount = (unsigned short)goods[j]->GetStackCount();
@@ -4050,44 +4132,66 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
             }
 
             guard.operator*()->operator<<(mileagePrice);
-            Stream* theStream = guard.Get();
 
             char itemStr[0x400];
             char ceraPriceStr[0x24];
             char productStr[8];
+            char itemIdxStr[0x14];      // ORIG -0x18c（0x08178137 取址目标，结果未被使用）
             char uniqueStr[0x15];
             std::memset(itemStr, 0, sizeof(itemStr));
             std::memset(ceraPriceStr, 0, sizeof(ceraPriceStr));
             std::memset(productStr, 0, sizeof(productStr));
+            std::memset(itemIdxStr, 0, sizeof(itemIdxStr));
             std::memset(uniqueStr, 0, sizeof(uniqueStr));
-            OS_API::snprintf(productStr, sizeof(productStr), "%d", productNo);
+            // ORIG 三次 snprintf 的**顺序与实参**（全部 OS_API::snprintf）：
+            //  ① 0x08178140 snprintf(-0x18c, 0x14, "%d", goods[j]->GetItemIdx())
+            //     （0x0817811e call _ZNK14CCeraShopGoods10GetItemIdxEv 结果作 %d，
+            //      输出缓冲此后不再被读 ⇒ 原码遗留的死写入，照抄）
+            //  ② 0x08178165 snprintf(-0x1f0, 0x24, "%d", ceraPrice[-0x58])
+            //  ③ 0x0817819c snprintf(-0x1a9, 0x8, "%d", 现读 msg entry+0x39)
+            OS_API::snprintf(itemIdxStr, sizeof(itemIdxStr), "%d",
+                             goods[j]->GetItemIdx());
             OS_API::snprintf(ceraPriceStr, sizeof(ceraPriceStr), "%d", ceraPrice);
+            OS_API::snprintf(productStr, sizeof(productStr), "%d",
+                             msg.m_entrySection.m_arr[j].m_productNo);
+            (void)itemIdxStr;
             _GetItemString(goods[j], itemStr, 0x400);
-            char* uniqueNo = GenUniqueNo_asm(uniqueStr);
-
-            // ORIG 081781d6..08178360（P5）：三分支各取 s_pIPGHelper vptr+0x18/+0x10/
-            // +0x14 槽直调（IIPGHelperInterface slot6 IPGOutputSimulation / slot4
-            // IPGOutputPoint / slot5 IPGOutput，TaiwanCash.h 声明序实证；实参序同）。
-            // 槽恒非 0（vtable 静态项），ORIG 无判空，改真实虚调用。
+            // ORIG 0x081781d6..0x08178360（P5）：三分支各取 s_pIPGHelper vptr+0x18/
+            // +0x10/+0x14 槽直调（slot6 IPGOutputSimulation / slot4 IPGOutputPoint /
+            // slot5 IPGOutput，TaiwanCash.h 声明序实证）。每分支前各有一对
+            // 0x081781eb/0x081781f3（及 0x0817827c/0x08178284、0x081782fc/0x08178304）
+            // `call CStreamGuard::operator->()` + `call CStreamGuard::Get()` ⇒
+            // 尾实参必须写 guard->Get()（链式，3 次），不得缓存到 theStream；
+            // 也不得显式 guard.~CStreamGuard()（ORIG 仅 2 次 D1：作用域尾 1 次 +
+            // EH 0x081783b0 1 次；显式调用会造成双重析构）。
+            // 另：uniqueNo 与 characName 同为**分支内内联实参**（ORIG 三次
+            // 0x08178210/0x081782a1/0x08178321 GenUniqueNo + 三次
+            // 0x08178200/0x08178291/0x08178311 getCurCharacName）⇒ 不得提到
+            // 分支外缓存成局部（否则各分支少 2 次 call）。
             if (ceraPrice == 0)
                 GlobalData::s_pIPGHelper->IPGOutputSimulation(
-                    user, productStr, ceraPriceStr, uniqueNo, itemStr,
-                    user->getCurCharacName(), theStream);
+                    user, productStr, ceraPriceStr,
+                    WongWork::CGenUniqueNo::GenUniqueNo(uniqueStr), itemStr,
+                    user->getCurCharacName(), guard->Get());
             else if (msg.m_scalars.m_buytype == 1)
                 GlobalData::s_pIPGHelper->IPGOutputPoint(
-                    user, productStr, ceraPriceStr, uniqueNo, itemStr,
-                    user->getCurCharacName(), theStream);
+                    user, productStr, ceraPriceStr,
+                    WongWork::CGenUniqueNo::GenUniqueNo(uniqueStr), itemStr,
+                    user->getCurCharacName(), guard->Get());
             else
                 GlobalData::s_pIPGHelper->IPGOutput(
-                    user, productStr, ceraPriceStr, uniqueNo, itemStr,
-                    user->getCurCharacName(), theStream);
-            guard.~CStreamGuard();
+                    user, productStr, ceraPriceStr,
+                    WongWork::CGenUniqueNo::GenUniqueNo(uniqueStr), itemStr,
+                    user->getCurCharacName(), guard->Get());
         }
         else
         {
-            m_ceraShop.ProcessError(user, 0x14, groupIdx, productNo,
+            m_ceraShop.ProcessError(user, 0x14, groupIdx,
+                                    msg.m_entrySection.m_arr[j].m_productNo,
                                     j + 1, itemCount, (char)msg.m_scalars.m_buyFlag);
             goods[j] = 0;
+            cMyTrace tr(__PRETTY_FUNCTION__, 0x3c1, 0);   // ORIG 0x08177cdc/0x08177d02
+            tr("[%s][%d]", __PRETTY_FUNCTION__, 0x3c1);
         }
     }
 

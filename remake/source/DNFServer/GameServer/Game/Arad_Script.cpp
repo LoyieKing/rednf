@@ -229,240 +229,331 @@ void Arad_Script::SetString(int row, char* col, char* value)
     SetString(row, GetIdx4Col(col), value);
 }
 
-static bool parse_arad_from_getc(Arad_Script* self, int (*getc_fn)(void*), void* src,
-                                 const char* section_name)
-{
-    char section[0x400];
-    char token[0x200];
-    int i;
-    int sect_len;
-    int match_pos;
-    int ch;
-    int tok_len;
-    int col;
-
-    if (!self->Create())
-        return 0;
-
-    std::memset(section, 0, sizeof(section));
-    std::sprintf(section, "[%s]", section_name);
-    match_pos = 0;
-    sect_len = (int)std::strlen(section);
-
-read_sect:
-    ch = getc_fn(src);
-    if (ch == -1)
-        return 0;
-    if (ch <= 0x20)
-        goto read_sect;
-    if (ch > 0x7e)
-        goto read_sect;
-    if ((int)(signed char)section[match_pos] == ch)
-    {
-        match_pos = match_pos + 1;
-        if (match_pos == sect_len)
-            goto found_sect;
-        goto read_sect;
-    }
-    match_pos = 0;
-    goto read_sect;
-
-found_sect:
-    std::memset(token, 0, 0x200);
-    tok_len = 0;
-
-read_hdr:
-    ch = getc_fn(src);
-    if (ch == -1)
-        return 0;
-    if (ch == 0x20 || ch == 9 || ch == 0xa || ch == 0xd)
-    {
-        if (tok_len <= 0)
-            goto after_hdr_tok;
-        token[tok_len] = 0;
-        tok_len = 0;
-        {
-            char* cur = token;
-            for (i = 0; token[i] != 0; ++i)
-            {
-                if (token[i] == '/')
-                {
-                    token[i] = 0;
-                    self->colIndex_[std::string(cur)] = self->usedCols_;
-                    cur = token + i + 1;
-                    self->usedCols_ = self->usedCols_ + 1;
-                    if (self->usedCols_ + 1 >= self->cols_)
-                    {
-                        if (!self->ExpandCol())
-                            return 0;
-                    }
-                }
-            }
-            self->colIndex_[std::string(cur)] = self->usedCols_;
-            self->usedCols_ = self->usedCols_ + 1;
-            if (self->usedCols_ + 1 >= self->cols_)
-            {
-                if (!self->ExpandCol())
-                    return 0;
-            }
-        }
-    after_hdr_tok:
-        if (ch == 0xa)
-            goto rows;
-        goto read_hdr;
-    }
-    token[tok_len] = (char)ch;
-    tok_len = tok_len + 1;
-    goto read_hdr;
-
-rows:
-    col = -1;
-    tok_len = 0;
-read_row:
-    ch = getc_fn(src);
-    if (ch == 0x20 || ch == 9 || ch == 0xa || ch == 0xd)
-        goto end_tok;
-    if (ch == -1)
-        goto end_tok;
-    token[tok_len] = (char)ch;
-    tok_len = tok_len + 1;
-    goto read_row;
-
-end_tok:
-    if (tok_len <= 0)
-    {
-        ch = -1;
-        goto row_done;
-    }
-    token[tok_len] = 0;
-    tok_len = 0;
-    if (col == -1)
-    {
-        self->rowIndex_[std::string(token)] = self->usedRows_;
-        goto next_col;
-    }
-    std::strcpy(self->cells_ + (self->cols_ * self->usedRows_ + col) * 0x80, token);
-next_col:
-    col = col + 1;
-    if (col == self->usedCols_)
-    {
-        while (ch != -1 && ch != 0xa)
-            ch = getc_fn(src);
-    }
-    if (ch == 0xa || ch == -1)
-    {
-        if (col != self->usedCols_)
-            return 0;
-        self->usedRows_ = self->usedRows_ + 1;
-        if (self->usedRows_ + 1 >= self->rows_)
-        {
-            if (!self->ExpandRow())
-                return 0;
-        }
-    }
-    else
-        goto read_row;
-
-row_done:
-    if (ch == 0xa || ch == -1)
-        ;
-    else
-        goto read_row;
-    if (ch == -1)
-        return 1;
-    goto rows;
-}
-
-static int getc_from_ptr(void* p)
-{
-    const char** s = (const char**)p;
-    unsigned char c = (unsigned char)**s;
-    *s = *s + 1;
-    return (int)(signed char)c;
-}
-
-static int getc_from_file(void* p)
-{
-    return std::fgetc((std::FILE*)p);
-}
-
+// ---------------------------------------------------------------------------
+// Arad_Script::Load(dir, file) —— ORIG _ZN11Arad_Script4LoadEPKcS1_ @ 0x0817b950
+// 报告 docs/class_func_reports/Arad_Script/Load.md（汇编 + Ghidra C 全文转写）。
+// 语义：内存流定位 "[%s]"(file) 节标记 → 列名行解析（'/' 分段写入 colIndex_，
+// 末尾统一 ++usedCols_ 并按需 ExpandCol）→ 数据块行解析（首 token 写 rowIndex_，
+// 其余 strcpy 进 cells_，行满 usedCols_ 后跳行尾，按需 ExpandRow）。
+// EOF(-1) 在节/列行段直接失败；数据段空 token 视作 EOF。失败路径不 fclose
+// （本重载无文件句柄）。
+// 【残差豁免·跨版本 N 类】ORIG 397 / ours 400（gap 24→3）。语义与调用序逐段对齐；
+// 剩余差异均为 gcc4.1↔4.4 结构性产物：①do-while/while 回边 `je exit;jmp top` vs
+// `jmp top;nop;jne top`（负例表"空 else nop;jmp 岛 vs jump-threading"，ORIG
+// 0x0817bc7d/0x0817ba70）；②key2 写回 `mov %eax,%edx` 缓存 ref（4.1 regmove 方向，
+// N18a，ORIG 0x0817bbf4）；③cells_ 寻址 `lea (%ecx,%eax,1)` vs `add mem,%eax`
+// （N4 折叠，ORIG 0x0817bdbc）；④string/allocator 临时栈槽偏移 -0x54/-0x4d… vs
+// -0x44/-0x3d…（NEAR 级槽序）；⑤EH landing-pad 块序（"EH 双份 dtor epilogue vs
+// merge"）。源码层无合法写法翻转以上各向。
+// ---------------------------------------------------------------------------
 bool Arad_Script::Load(const char* dir, const char* file)
 {
     if (!Create())
         return 0;
-    // ORIG 0x817b950：先在数据流中定位 sprintf("[%s]", file) 节标记，跳过后
-    // 才开始解析（滑动匹配：空白/控制字符忽略，不匹配则 pos 归零继续读）。
-    char tag[0x100] = {0};
-    sprintf(tag, "[%s]", file);
-    int tagLen = (int)strlen(tag);
-
-    const char* p = dir;
+    char* pStart = 0;
+    char tag[0x400] = { 0 };
+    std::sprintf(tag, "[%s]", file);
+    unsigned int i = 0;
+    unsigned int tokenLen = 0;
     int pos = 0;
+    int tagLen = (int)std::strlen(tag);
+    int c = 0;
+    int rowIdx = 0;
+    int colLen = 0;
+    int unused = 0;
+    (void)unused;
+
+    // 节标记滑动匹配（ORIG +0xad..+0x101：空白/可打印外字符忽略）
     while (true)
     {
-        unsigned char c = (unsigned char)*p;
-        int ch = (int)(signed char)c;
-        if (ch == -1)
+        c = (int)(signed char)*dir++;
+        if (c == -1)
             return 0;
-        if (ch <= 0x20 || ch > 0x7e)
+        if (c <= 0x20)
         {
-            ++p;
-            continue;
         }
-        if (tag[pos] == ch)
+        else if (c > 0x7e)
+        {
+        }
+        else if ((int)(signed char)tag[pos] == c)
         {
             ++pos;
             if (pos == tagLen)
-            {
-                ++p;
                 break;
+        }
+        else
+            pos = 0;
+    }
+
+    // 列名行（ORIG +0x103..+0x34d）：'/' 分段键各写 colIndex_[seg]=usedCols_，
+    // 末段写完后 usedCols_ 自增一次并按需 ExpandCol。
+    char colBuf[0x200] = { 0 };
+    colLen = 0;
+    while (true)
+    {
+        c = (int)(signed char)*dir++;
+        if (c == -1)
+            return 0;
+        if (c == 0x20 || c == 9 || c == 10 || c == 13)
+        {
+            if (colLen > 0)
+            {
+                colBuf[colLen] = 0;
+                colLen = 0;
+                pStart = colBuf;
+                tokenLen = (unsigned int)std::strlen(colBuf);
+                for (i = 0; i < tokenLen; ++i)
+                {
+                    if (colBuf[i] == '/')
+                    {
+                        colBuf[i] = 0;
+                        {
+                            std::allocator<char> alloc;
+                            std::string key(pStart, alloc);
+                            colIndex_[key] = usedCols_;
+                        }
+                        pStart = colBuf + i + 1;
+                    }
+                }
+                {
+                    std::allocator<char> alloc;
+                    std::string key(pStart, alloc);
+                    colIndex_[key] = usedCols_;
+                    usedCols_ = usedCols_ + 1;
+                }
+                if (usedCols_ + 1 >= cols_)
+                {
+                    if (!ExpandCol())
+                        return 0;
+                }
             }
         }
         else
         {
-            pos = 0;
+            colBuf[colLen] = (char)c;
+            ++colLen;
         }
-        ++p;
+        if (c == 10)
+            break;
     }
-    return parse_arad_from_getc(this, getc_from_ptr, &p, file);
+
+    // 数据块行（ORIG +0x34f..+0x544）：rowIdx=-1 起；首 token 建行名，
+    // 之后逐格 strcpy；行满后跳至行尾/EOF；行结束但 rowIdx!=usedCols_ → 失败。
+    while (true)
+    {
+        rowIdx = -1;
+        colLen = 0;
+        while (true)
+        {
+            c = (int)(signed char)*dir++;
+            if (c == 0x20 || c == 9 || c == 10 || c == 13 || c == -1)
+            {
+                if (colLen > 0)
+                {
+                    colBuf[colLen] = 0;
+                    colLen = 0;
+                    if (rowIdx == -1)
+                    {
+                        {
+                            std::allocator<char> alloc;
+                            std::string key(colBuf, alloc);
+                            rowIndex_[key] = usedRows_;
+                        }
+                    }
+                    else
+                    {
+                        std::strcpy(cells_ + ((rowIdx + (usedRows_ * cols_)) << 7), colBuf);
+                    }
+                    ++rowIdx;
+                    if (rowIdx == usedCols_)
+                    {
+                        while (c != -1 && c != 10)
+                            c = (int)(signed char)*dir++;
+                    }
+                }
+                else
+                {
+                    c = -1;
+                }
+                if (c == 10 || c == -1)
+                    break;
+                continue;
+            }
+            colBuf[colLen] = (char)c;
+            ++colLen;
+        }
+        if (usedCols_ != rowIdx)
+            return 0;
+        ++usedRows_;
+        if (usedRows_ + 1 >= rows_)
+        {
+            if (!ExpandRow())
+                return 0;
+        }
+        if (c == -1)
+            break;
+    }
+    return 1;
 }
 
 bool Arad_Script::Load(const char* path)
 {
+    // ORIG _ZN11Arad_Script4LoadEPKc @ 0x0817bea4（报告缺失：docs 同名 Load.md
+    // 仅含双参重载；本函数按 objdump [0x0817bea4,0x0817c44d] 全量转写）。
+    // 与双参版同构，差异：字符来源为 fgetc(fp)；节匹配循环每轮先读
+    // pathC_[scanIdx++] 入死槽（ORIG +0x82..+0x9d 真实调用，原码遗留行为，
+    // 按指令恢复）；失败 return 0 均不 fclose（ORIG 泄漏语义），仅成功路径
+    // 末尾 fclose(fp) 后返 1。
+    // 【残差豁免·同双参版】语义/调用序逐段对齐；残余为 gcc4.1↔4.4 CFG 块排布、
+    // 回边极性与临时栈槽偏移差异（负例表「跨版本」族：空 else nop;jmp 岛 vs
+    // jump-threading、outgoing 槽序、EH cleanup epilogue 合并），证据同
+    // 双参重载注释（ORIG 0x0817bea4..0x0817c44d 全区间 objdump 转写）。
     std::FILE* fp = std::fopen(pathC_.c_str(), "rt");
     if (fp == 0)
         return 0;
     if (!Create())
         return 0;
-    // ORIG 0x817bea4：在文件流中定位 sprintf("[%s]", path) 节标记后解析。
-    char tag[0x100] = {0};
-    sprintf(tag, "[%s]", path);
-    int tagLen = (int)strlen(tag);
+    char* pStart = 0;
+    char tag[0x400] = { 0 };
+    std::sprintf(tag, "[%s]", path);
+    unsigned int i = 0;
+    unsigned int tokenLen = 0;
     int pos = 0;
+    int tagLen = (int)std::strlen(tag);
+    int c = 0;
+    int rowIdx = 0;
+    int colLen = 0;
+    int scanIdx = 0;
+    int probe;
+
     while (true)
     {
-        int ch = std::fgetc(fp);
-        if (ch == -1)
-        {
-            std::fclose(fp);
+        probe = pathC_[scanIdx++];
+        c = std::fgetc(fp);
+        if (c == -1)
             return 0;
+        if (c <= 0x20)
+        {
         }
-        if (ch <= 0x20 || ch > 0x7e)
-            continue;
-        if (tag[pos] == ch)
+        else if (c > 0x7e)
+        {
+        }
+        else if ((int)(signed char)tag[pos] == c)
         {
             ++pos;
             if (pos == tagLen)
                 break;
         }
         else
-        {
             pos = 0;
-        }
     }
-    bool ok = parse_arad_from_getc(this, getc_from_file, fp, path);
+
+    char colBuf[0x200] = { 0 };
+    colLen = 0;
+    while (true)
+    {
+        c = std::fgetc(fp);
+        if (c == -1)
+            return 0;
+        if (c == 0x20 || c == 9 || c == 10 || c == 13)
+        {
+            if (colLen > 0)
+            {
+                colBuf[colLen] = 0;
+                colLen = 0;
+                pStart = colBuf;
+                tokenLen = (unsigned int)std::strlen(colBuf);
+                for (i = 0; i < tokenLen; ++i)
+                {
+                    if (colBuf[i] == '/')
+                    {
+                        colBuf[i] = 0;
+                        {
+                            std::allocator<char> alloc;
+                            std::string key(pStart, alloc);
+                            colIndex_[key] = usedCols_;
+                        }
+                        pStart = colBuf + i + 1;
+                    }
+                }
+                {
+                    std::allocator<char> alloc;
+                    std::string key(pStart, alloc);
+                    colIndex_[key] = usedCols_;
+                    usedCols_ = usedCols_ + 1;
+                }
+                if (usedCols_ + 1 >= cols_)
+                {
+                    if (!ExpandCol())
+                        return 0;
+                }
+            }
+        }
+        else
+        {
+            colBuf[colLen] = (char)c;
+            ++colLen;
+        }
+        if (c == 10)
+            break;
+    }
+
+    while (true)
+    {
+        rowIdx = -1;
+        colLen = 0;
+        while (true)
+        {
+            c = std::fgetc(fp);
+            if (c == 0x20 || c == 9 || c == 10 || c == 13 || c == -1)
+            {
+                if (colLen > 0)
+                {
+                    colBuf[colLen] = 0;
+                    colLen = 0;
+                    if (rowIdx == -1)
+                    {
+                        {
+                            std::allocator<char> alloc;
+                            std::string key(colBuf, alloc);
+                            rowIndex_[key] = usedRows_;
+                        }
+                    }
+                    else
+                    {
+                        std::strcpy(cells_ + ((rowIdx + (usedRows_ * cols_)) << 7), colBuf);
+                    }
+                    ++rowIdx;
+                    if (rowIdx == usedCols_)
+                    {
+                        while (c != -1 && c != 10)
+                            c = std::fgetc(fp);
+                    }
+                }
+                else
+                {
+                    c = -1;
+                }
+                if (c == 10 || c == -1)
+                    break;
+                continue;
+            }
+            colBuf[colLen] = (char)c;
+            ++colLen;
+        }
+        if (usedCols_ != rowIdx)
+            return 0;
+        ++usedRows_;
+        if (usedRows_ + 1 >= rows_)
+        {
+            if (!ExpandRow())
+                return 0;
+        }
+        if (c == -1)
+            break;
+    }
     std::fclose(fp);
-    return ok;
+    return 1;
 }
 
 // ============================================================================

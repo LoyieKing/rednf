@@ -17,19 +17,32 @@
 #include "GameTypes.h"   // Mutex（0x18；真实成员，C1 隐式构造同 ORIG）
 
 // ---- TradeSlot（0x48；Inven_Item 位于 +0x09）----
-#pragma pack(push, 1)
+// 自然对齐尝试（Main 批准逐成员断言兜底）：Inven_Item 是 pack(1) 类
+// （align 1）故 m_item 仍落 +0x09；结构 align 4 → sizeof 0x46 进位 0x48，
+// 尾部 2 字节为隐式 padding。ORIG 证据（remove_item@0x852bfcc）：
+//   m_field00@0：+0xa52 `movl $0x0,(%eax)`（lea +0x30 基）
+//   m_field04@4：+0xa79 `movl $0x0,(%eax)`（lea +0x34 基）
+//   m_field08@8：+0xaa0 `movb $0x0,0x8(%eax)`
+//   m_item@9：+0xb0f `add $0x9,%eax` 后 set_add_info/get_add_info 调用基
+//   行距 0x48：+0xa44 `imul $0x798`（=42*0x48）+ slot*0x48 shl 链
+//   拷贝 0x46（跳尾 padding）：+0x3c9 `rep movsl`17 dword + +0x3d1 尾 word
+// pack(1) 曾使 4.4 按 align1 走逐残基拷贝慢路（+16 ins/处×4 处）。
+// 若下列任一断言失败（align 假设破裂）⇒ 回退 pack(1) 并上报 Main 裁决。
 struct TradeSlot
 {
     int m_field00;   // +0x00
     int m_field04;   // +0x04
     char m_field08;  // +0x08
     Inven_Item m_item;  // +0x09（0x3d）
-    char m_pad[0x48 - 0x09 - 0x3d];
 
     TradeSlot();
     void Reset();
 };
-#pragma pack(pop)
+static_assert(offsetof(TradeSlot, m_field00) == 0x00, "ts0");
+static_assert(offsetof(TradeSlot, m_field04) == 0x04, "ts4");
+static_assert(offsetof(TradeSlot, m_field08) == 0x08, "ts8");
+static_assert(offsetof(TradeSlot, m_item) == 0x09, "ts9");
+static_assert(sizeof(TradeSlot) == 0x48, "ts size");
 
 class CTradeSpace
 {
@@ -52,7 +65,10 @@ public:
     int check_item_exist(int traderIdx, int itemId);
     bool check_trade_possibility();  // ORIG 0x852994a 体 xor$1+test al = bool 物化
     int get_empty_itemslot(int traderIdx);
-    int proceed_trade();
+    bool proceed_trade();  // 头声明 bool：ORIG __PRETTY_FUNCTION__ 串
+                           // "bool CTradeSpace::proceed_trade()"
+                           // （proceed_trade@0x853087a +0x1209 _ZZ…E19__PRETTY_FUNCTION__）；
+                           // mangled 不含返回类型，ABI 不变（尾部 mov%ebx,%eax 直返 0/1）
     int regist_item(CUser* user, int type, int a, int b);
     int remove_item(CUser* user, int a, int b, int c, int d);
     void reset();

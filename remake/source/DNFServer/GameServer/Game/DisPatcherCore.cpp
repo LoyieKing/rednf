@@ -263,10 +263,10 @@ int EnterPVPRoom(CUser* user, PvP_Room* room, ENUM_CMDPACKET cmd,
     user->Send(pg);
     return 0;
 }
-int checkSpecialChar(char* name);
+bool checkSpecialChar(char* name);
 //   ^ ORIG T 0x0829efae _Z16checkSpecialCharPc（wave1：CreateCharac::check_error 消费）
-int checkSpecialCharName(char* name);
-//   ^ ORIG T 0x0829f01f _Z20checkSpecialCharNamePc（同上）
+bool checkSpecialCharName(char* name);
+//   ^ ORIG T 0x0829f01f _Z20checkSpecialCharPc（同上）
 
 // MSG_RES_PVP_RANK（ORIG C1 0x08235378/D1 0x0823538e：仅构造/析构 +0xd PvpResultType，
 // sizeof 0x91 实证）。wave1 最小建模（当前全仓无定义；待迁 PacketTypes.h 权威区）。
@@ -1375,6 +1375,9 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
 // （报告 RequestDBTicket.md）：opcode 0xb / uid → DisableCharacInfo(4) →
 // 有效最后登录角色时追加 channelNo/characNo → SIG_LOAD_TICKET(0x19c 清零，
 // +0=get_charac_no(msg.m_slot)) → 有效登录 put Q5 否则 Q2。
+// SIG 缓冲首字视图（RequestDB* 系 sig 头写入用；ORIG `mov -0xc(%ebp),%eax;
+// mov %edx,(%eax)` 双钉 store 的同型字段载体，偏移 0 无对齐差）。
+struct SigWord { unsigned int m_w; };
 int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
@@ -1389,17 +1392,25 @@ int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg
     }
     SIG_LOAD_TICKET* sig = guard->GetInBuffer<SIG_LOAD_TICKET>();
     memset(sig, 0, sizeof(SIG_LOAD_TICKET));
-    *reinterpret_cast<unsigned int*>(sig) = static_cast<unsigned int>(
+    // ORIG 081c6e5x：同 RequestDBSkill 双钉+ebx 缓存形。
+    register unsigned int vNo asm("edx") = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
+    register SigWord* dst asm("eax") = reinterpret_cast<SigWord*>(sig);
+    dst->m_w = vNo;
+    register int res asm("ebx");
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
+        res = 1;
+        goto L_end;                 // ORIG +0x166 显式 jmp 尾岛（防 4.4 尾复制）
     }
     else
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        res = 1;
     }
-    return 1;
+L_end:
+    return res;
 }
 
 // ORIG 0x081c7bac T _ZN23DisPatcher_SelectCharac20RegistTimerSchedulesEP5CUser
@@ -1634,17 +1645,25 @@ int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
     }
     SIG_LOAD_SKILL* sig = guard->GetInBuffer<SIG_LOAD_SKILL>();
     memset(sig, 0, sizeof(SIG_LOAD_SKILL));
-    *reinterpret_cast<unsigned int*>(sig) = static_cast<unsigned int>(
+    // ORIG 081c7037 +0x12f：store 双钉（value→%edx、sig 槽 reload→%eax，技45）。
+    register unsigned int vNo asm("edx") = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
+    register SigWord* dst asm("eax") = reinterpret_cast<SigWord*>(sig);
+    dst->m_w = vNo;                                    // ORIG `mov %edx,(%eax)`
+    register int res asm("ebx");                      // ORIG +0x161 `mov $0x1,%ebx`
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
+        res = 1;
+        goto L_end2;                // ORIG +0x166 显式 jmp 尾岛
     }
     else
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        res = 1;
     }
-    return 1;
+L_end2:
+    return res;   // guard dtor 后 `mov %ebx,%eax`（技39 EH-ebx）
 }
 
 // ORIG 0x081c041e T _ZN23DisPatcher_CreateCharac7processEP5CUserR8MSG_BASER9ParamBase
@@ -1752,19 +1771,19 @@ int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
     CRestrictCharacCreationEvent* restrictEvt =
         reinterpret_cast<CRestrictCharacCreationEvent*>(
             GlobalData::s_event_manager->GetRepeatEvent(0x31));
-    bool eventing = false;
+    // ORIG +0x0a2：嵌套 if（无 eventing 槽）。+0xb8..+0xd4 bool→int 归一化双
+    // 常量岛 = `!= 0` 结果二次 test；4.1 形。残 call *%edx↔call *%eax = N7。
     if (restrictEvt != 0)
     {
         // ORIG vtable+0x34 槽直调（Ghidra C 原样；事件域虚表槽位归属见 FixEventVtable 批）
-        eventing = (*(int (**)(void*, int))(*(char**)restrictEvt + 0x34))(
-                       (void*)restrictEvt, 0) != 0;
-    }
-    if (eventing)
-    {
-        int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
-        if (limit != 0)
+        if ((*(int (**)(void*, int))(*(char**)restrictEvt + 0x34))(
+                (void*)restrictEvt, 0) != 0)
         {
-            return limit;
+            int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
+            if (limit != 0)
+            {
+                return limit;
+            }
         }
     }
     if (user->get_charac_count() >= (int)user->getCharacSlotLimit())
@@ -1800,55 +1819,73 @@ int DisPatcher_CreateCharac::check_state(CUser* user, PacketBuf& /*packet*/)
 }
 // ORIG 0x081c01ec T _ZN23DisPatcher_CreateCharac4readER9PacketBufR8MSG_BASE
 // 报告：docs/class_func_reports/DisPatcher_CreateCharac/read.md（汇编+反编译 C 全读）
+// 本 TU 局部视图（MoveMapMsgView 同法）：+0xe 的 4B nameLen 为真实 int 字段
+// （ORIG 081c0297 `mov 0xe(%eax),%eax` 单步 disp 证据），冻结头 m_padE[4] 的
+// 等偏移/等宽强类型化，sizeof(0x38) 不变；已同步列 PacketTypes 字段化请求给 Main。
+#pragma pack(push, 1)
+struct MSG_CREATE_CHARAC_VIEW
+{
+    char m_head[0xd];   // +0x0
+    unsigned char m_slot;  // +0xd
+    int m_nameLen;      // +0xe（ORIG read 081c02db get_intERi 目标）
+    char m_name[0x1e];  // +0x12..+0x2f
+    char m_padTail[8];  // +0x30..+0x37
+};
+#pragma pack(pop)
 int DisPatcher_CreateCharac::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_CREATE_CHARACTER& m = *reinterpret_cast<MSG_CREATE_CHARACTER*>(&msg);
-    memset(&m, 0, 0x30);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_slot)))  // +0x0d（signed char→char& 适配）
+    // 入口具名视图引用：ORIG +0x06 `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)` —
+    // msg 指针唯一槽 -0xc（所有读走该槽 reload，技13 声明位置=落栈时机）。
+    MSG_CREATE_CHARAC_VIEW& v = *reinterpret_cast<MSG_CREATE_CHARAC_VIEW*>(&msg);
+    memset(&v, 0, 0x30);
+    if (!packet.get_byte(*reinterpret_cast<char*>(&v.m_slot)))  // +0x0d（uchar→char& 适配）
     {
         return LineFunc(0x749,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!((signed char)m.m_slot < 0xc && m.m_slot >= 0))
+    // ORIG +0x6c..+0x80：两独立装载两次判（先无符号上限 `cmp $0xb; jg` 岛、
+    // 再重载 `test %al; jns` pass）= `a>11 || (char)a<0` 短路\|\|形。
+    if ((signed char)v.m_slot > 0xb || (signed char)v.m_slot < 0)
     {
         return LineFunc(0x74b,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (m.m_slot == 0xb)
+    if (v.m_slot == 0xb)
     {
         return LineFunc(0x763,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
     // +0x0e 名字长度 int（m_padE[4] 起点，ORIG 逐字节读同一槽）
-    int& nameLen = *reinterpret_cast<int*>(m.m_padE);
-    if (!packet.get_int(nameLen))
+    // ORIG 081c0297 `mov 0xe(%eax),%eax` 单步 disp ⇒ 该 4B 区为真实 int 字段。
+    // 冻结头 PacketTypes.h 内 m_padE[4] 无法字段化（已报 Main），本 TU 用同地址视图。
+    if (!packet.get_int(v.m_nameLen))
     {
         return LineFunc(0x766,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (nameLen < 4 || 0x12 < nameLen)
+    if (v.m_nameLen < 4 || 0x12 < v.m_nameLen)
     {
         return LineFunc(0x76a,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_str(m.m_name, 0x1d, nameLen))         // +0x12
+    if (!packet.get_str(v.m_name, 0x1d, v.m_nameLen))
     {
         return LineFunc(0x76e,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(m.m_name[0x1d]))                 // +0x2f 末字节标志
+    if (!packet.get_byte(v.m_name[0x1d]))                 // +0x2f 末字节标志
     {
         return LineFunc(0x780,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (m.m_name[0x1d] < 0)
+    if (v.m_name[0x1d] < 0)
     {
         return LineFunc(0x782,
                         __PRETTY_FUNCTION__,
@@ -4459,8 +4496,11 @@ int DisPatcher_DeleteItem::condition_check(CUser* user, MSG_BASE& msg, INVEN_TYP
     {
         return 0x17;   // 普通背包槽位 <=9 受保护
     }
-    const int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_itemSpace);
-    if (user->CheckItemLock(invenType, (int)req.m_position[idx]))
+    // ORIG +0x3f..+0x5c：position[idx] sext 直落 %ebx（技2，`movswl %ax,%ebx`，
+    // push %ebx 帧 0x24）；GetInvenType 结果 %eax 直传（技37 无 invenType 槽）。
+    register int pos asm("ebx") = (int)req.m_position[idx];
+    if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_itemSpace),
+                            pos))
     {
         return 0xd5;   // 物品锁定
     }
@@ -5329,14 +5369,18 @@ int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& p
 // 卖价估值入 VALUE_STATISTIC_FIELD(6)、货值入 (0xd)，材料对入 CCubeStatistic(0x6a)。
 void DisPatcher_BuyItem::statistic_process(CUser* user, BuyItemParam& param)
 {
-    int sellPrice = 0;
+    // ORIG +0x09：输出参 = `add $0xb0,%eax`（param.m_b0 字段，无局部 sellPrice、
+    // 无初始化写）；+0x57 `mov 0xb0(%eax),%eax` 读回。两次 AddValueStatistic 各自
+    // 现调 GetInstanceValueStatistic（+0x5f/+0x88，无 valueStat 槽，技37）。
     G_Store()->GetSellItemPrice(param.m_item, param.m_a8,
-                                (short)param.m_item.m_addInfo2, false, sellPrice);
-    CValueStatistic* valueStat = GetInstanceValueStatistic();
-    valueStat->AddValueStatistic((VALUE_STATISTIC_FIELD)6, user,
-                                 (unsigned int)sellPrice);
-    valueStat->AddValueStatistic((VALUE_STATISTIC_FIELD)0xd, user,
-                                 (unsigned int)param.m_80);
+                                (short)param.m_item.m_addInfo2, false, param.m_b0);
+    GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)6, user,
+                                                   (unsigned int)param.m_b0);
+    // ORIG +0x82 `mov 0x80(%eax),%ebx` 单步直落 %ebx；4.4 恒 `mov 0x80,%eax;
+    // mov %eax,%ebx` 两段（N18a 反向不可造，register asm("ebx") 绑定反产
+    // copy-back 4 段更差）→ 残 2 行 N 类。
+    GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0xd, user,
+                                                   param.m_80);
     GetInstanceCubeStatistic()->collectCubeStatistics(
         param.m_pair.first, param.m_pair.second, user, (CUBE_STATISTIC_FIELD)0x6a);
 }
@@ -9628,12 +9672,18 @@ DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 // 使用技能材料比率（0xe5、0xe4）/尾巴成员药丸检查（0x1a2）→
 // CheckRecvFromAllMember → SetPlayResult。
 // ============================================================================
+// SetPlayResult::dispatch_sig（ORIG 0x081f4ce6，报告 dispatch_sig.md 全读）。
+// 残 gap≈260 归 N78（Main 批准 2026-09-05）：ORIG +0x7e0..+0x906（081f54c6/
+// 081f5528/081f559e）4.1 将 memset 0x703 / memcpy 0x676 / memcpy 0x78 inline 成
+// rep stos/rep movsl 逐段展开；4.4 O0 恒 `call memset/memcpy`（GDataC8 探针实证
+// 同族 N78），单 TU 源码写法不可翻。+0x99..+0xc4 blood-dungeon 守卫缺段已补
+// （语义修复保留）。
 int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() != 5)
         return 0;
 
-    user->GetPartyIndex();                       // ORIG 直呼丢弃返回值
+    // ORIG +0x31..+0x45：GetPartyIndex 单次调用（movswl %ax,%ebx 缓存），勿重复。
     CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
     if (party == 0)
         return LineFunc(0x8155,
@@ -9641,6 +9691,18 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     if (party->m_partyType == 1)
         return 0;
+    // ORIG +0x99..+0xc4（前批缺段）：party 非空且 party+0xcac(dungeon) 非空且
+    // dungeon+0x89f(m_bloodDungeonType) 有符号 >0 → 直接返 0。dungeon 独立具名槽
+    // （ORIG -0x3c(%ebp)，技13）。
+    if (party != 0)
+    {
+        CDungeon* dungeon = party->m_dungeon;      // ORIG -0x3c(%ebp)
+        if (dungeon != 0)
+        {
+            if ((char)dungeon->m_bloodDungeonType > 0)   // ORIG `test %al,%al; jle`
+                return 0;
+        }
+    }
 
     // ---- 结果区：party+0x17f4 为 GameResultType（CParty.h:778 m_padResult[0x50]
     //      未建模该区，故经具名成员取址后按 GameResultType.h 权威字段逐字段访问；
@@ -9702,11 +9764,18 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0x818b,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (killCountRead != 0 && !party->checkBossRoom())
+    // ORIG +0x375：party 外层重判（cmpl $0,-0x48; je 尾）；&& 条件物化双常量岛
+    // （`!check()` xor 形先行、`kill!=0` 后行 → mov$1/mov$0 岛 + test al; je）。
+    if (party != 0)
     {
-        user->getHackAnalyzer()->addServerHackCnt(
-            user, (WongWork::ENUM_HACKTYPE)0x1fb,
-            static_cast<unsigned int>(killCountRead), 0, 0);
+        register bool bossCheat asm("al");
+        bossCheat = !party->checkBossRoom() && killCountRead != 0;
+        if (bossCheat)
+        {
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACKTYPE)0x1fb,
+                static_cast<unsigned int>(killCountRead), 0, 0);
+        }
     }
     // +0x1840 = GameResultType::m_field4c（头内声明 int；ORIG 0x081f50dd 以
     // get_int(unsigned int&) ERj 装载，故保留同宽度无符号引用视图）
@@ -10164,11 +10233,17 @@ int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x33, (unsigned char)(errNo & 0xff));
         return -1;
     }
-    MSG_DECREASE_DURABILITY& req = *reinterpret_cast<MSG_DECREASE_DURABILITY*>(&msg);
+    // ORIG +0x4d/+0x53：param→远槽 -0x10（out 先声明）、msg→近槽 -0xc（req 后
+    // 声明，技21）。slot 值 `movzbl; movsbl %al,%ebx` 直落 %ebx（技2）。
     stOnUseEquipParam& out = static_cast<stOnUseEquipParam&>(param);
+    MSG_DECREASE_DURABILITY& req = *reinterpret_cast<MSG_DECREASE_DURABILITY*>(&msg);
+    register int slot asm("ebx") = (int)(signed char)req.m_0d;
     CInventory* inven = user->getCurCharacInvenW();  // thunk 0x80da28e
-    out.m_errNo = inven->use_equip((int)(signed char)req.m_0d);  // movzbl+movesbl
-    out.m_8 = req.m_0d;                              // movzbl 0xd(%eax) -> mov %dl,0x8
+    // ORIG +0x7a 双钉 store（技45）。
+    register int ue asm("edx") = inven->use_equip(slot);
+    register stOnUseEquipParam* dst asm("eax") = &out;
+    dst->m_errNo = ue;
+    out.m_8 = req.m_0d;   // ORIG +0x85 `movzbl 0xd(%eax),%edx` 单步 QI 直存（同型）
     return errNo;
 }
 
@@ -11191,41 +11266,38 @@ int DisPatcher_ReportClient4Hack::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    int state = user->get_state();
-    if (state != 6)
+    // ORIG +0x40：重新 call get_state 取 %eax 后 4.1 switch 二分下探
+    // （`cmp $6;je; cmp $6;jg; cmp $5;je; jmp d; cmp $7;je; cmp $8;je; jmp d`，
+    // 技34 直写 switch 复现）；case5/7/8 校验失败走 LineFunc 岛，成功 break 共
+    // 尾 analyze（+0x1c7 汇合）；default 走全链后直接 return 0。
+    switch (user->get_state())
     {
-        if (state < 7)
+    case 5:
+        if (user->GetParty() == 0)
         {
-            if (state == 5)
-            {
-                if (user->GetParty() == 0)
-                {
-                    return LineFunc(0x9bb7, __PRETTY_FUNCTION__, 0, 0);
-                }
-            }
+            return LineFunc(0x9bb7, __PRETTY_FUNCTION__, 0, 0);
         }
-        else if (state == 7)
+        break;
+    case 7:
+        if (G_CGameManager()->GetPvp((int)user->GetPvpIndex(), user, 0) == 0)
         {
-            if (G_CGameManager()->GetPvp((int)user->GetPvpIndex(), user, 0) == 0)
-            {
-                return LineFunc(0x9bc1, __PRETTY_FUNCTION__, 0, 0);
-            }
+            return LineFunc(0x9bc1, __PRETTY_FUNCTION__, 0, 0);
         }
-        else if (state == 8)
+        break;
+    case 8:
+        if (user->GetWarRoom() == 0)
         {
-            if (user->GetWarRoom() == 0)
-            {
-                return LineFunc(0x9bc5, __PRETTY_FUNCTION__, 0, 0);
-            }
+            return LineFunc(0x9bc5, __PRETTY_FUNCTION__, 0, 0);
         }
-        else
-        {
-            user->getHackAnalyzer()->beginCollectHackInfo(user);
-            user->getHackAnalyzer()->analyzeHackReport(user, &packet);
-            user->getHackAnalyzer()->reportHackInfo();
-            user->getHackAnalyzer()->resetHackInfo();
-            return 0;
-        }
+        break;
+    case 6:
+        break;
+    default:
+        user->getHackAnalyzer()->beginCollectHackInfo(user);
+        user->getHackAnalyzer()->analyzeHackReport(user, &packet);
+        user->getHackAnalyzer()->reportHackInfo();
+        user->getHackAnalyzer()->resetHackInfo();
+        return 0;
     }
     user->getHackAnalyzer()->analyzeHackReport(user, &packet);
     return 0;

@@ -547,78 +547,149 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         static std::map<const char*, int, less_TCHAR> __lookup;
         static SpinLock __init_lock;
         static bool __inited = false;
+        // ORIG 0x899d3a2..+0x573 等：惰性注册链每 tag 一个 `if (!__inited)`
+        // 守卫块（movzbl __inited; xor $1; test; je <body>），insert 链尾统一
+        // leave + 置位。逐条守卫保持 ORIG 检查形态（报告 0x899ce3b 汇编）。
         if (!__inited)
         {
             __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+            }
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[consume item]", 0x1248));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target]", 0x1257));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[duration]", 0x126a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[equipment duration]", 0x127b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill duration]", 0x128c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce duration at pvp type module]", 0x12a0));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce duration at pvp module]", 0x12ac));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor]", 0x12b8));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor at pvp type module]", 0x12c4));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor at pvp module]", 0x12d0));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[delay]", 0x12dc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[probability]", 0x12e7));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce probability at pvp type module]", 0x12f2));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce probability at pvp module]", 0x12fe));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor]", 0x130a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor at pvp type module]", 0x1316));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor at pvp module]", 0x1322));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[active status]", 0x132e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[disenchant]", 0x136b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[buff]", 0x1374));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[appendage]", 0x137e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[appendage unique]", 0x138a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[aura]", 0x1396));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[add absolute damage]", 0x13a1));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[add absolute defense]", 0x13c8));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[add absolute defense percent]", 0x13e6));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[aura active]", 0x13fe));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[apply status in range]", 0x1419));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[stat by condition]", 0x141e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[stat level replace]", 0x1423));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[stat]", 0x1432));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[active status resistance]", 0x1435));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[element resistance]", 0x144a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[damage rate]", 0x1461));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[active status duration]", 0x146e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[active status buff event type]", 0x1478));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[passive object]", 0x14af));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[summon monster]", 0x14ec));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[event summon monster]", 0x1502));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[summon apc]", 0x150e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[restore]", 0x1523));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill]", 0x153f));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[perform skill]", 0x1553));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[end skill]", 0x156b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[thorn]", 0x157a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[knockback]", 0x1585));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[reduction]", 0x158f));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[elemental weapon]", 0x15a0));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x15ab));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[increase damage]", 0x15b1));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[increase critical damage]", 0x15c2));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[weakness]", 0x15d3));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[then probability]", 0x15dc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill data up]", 0x15e9));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[speech on]", 0x15f5));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[replace avatar ani]", 0x1619));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill super armor]", 0x1635));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill unbreakable]", 0x1642));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill cooltime reset]", 0x164e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[set hp]", 0x1663));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[stat change by stat]", 0x166d));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[add stat at once]", 0x1698));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[add skill summon]", 0x16ac));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[swap stat]", 0x16d3));
             if (!__inited)
             {
-            __lookup.insert(std::pair<const char* const, int>("[consume item]", 0x1248));
-            __lookup.insert(std::pair<const char* const, int>("[target]", 0x1257));
-            __lookup.insert(std::pair<const char* const, int>("[duration]", 0x126a));
-            __lookup.insert(std::pair<const char* const, int>("[equipment duration]", 0x127b));
-            __lookup.insert(std::pair<const char* const, int>("[skill duration]", 0x128c));
-            __lookup.insert(std::pair<const char* const, int>("[reduce duration at pvp type module]", 0x12a0));
-            __lookup.insert(std::pair<const char* const, int>("[reduce duration at pvp module]", 0x12ac));
-            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor]", 0x12b8));
-            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor at pvp type module]", 0x12c4));
-            __lookup.insert(std::pair<const char* const, int>("[reduce duration to human armor at pvp module]", 0x12d0));
-            __lookup.insert(std::pair<const char* const, int>("[delay]", 0x12dc));
-            __lookup.insert(std::pair<const char* const, int>("[probability]", 0x12e7));
-            __lookup.insert(std::pair<const char* const, int>("[reduce probability at pvp type module]", 0x12f2));
-            __lookup.insert(std::pair<const char* const, int>("[reduce probability at pvp module]", 0x12fe));
-            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor]", 0x130a));
-            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor at pvp type module]", 0x1316));
-            __lookup.insert(std::pair<const char* const, int>("[reduce probability to human armor at pvp module]", 0x1322));
-            __lookup.insert(std::pair<const char* const, int>("[active status]", 0x132e));
-            __lookup.insert(std::pair<const char* const, int>("[disenchant]", 0x136b));
-            __lookup.insert(std::pair<const char* const, int>("[buff]", 0x1374));
-            __lookup.insert(std::pair<const char* const, int>("[appendage]", 0x137e));
-            __lookup.insert(std::pair<const char* const, int>("[appendage unique]", 0x138a));
-            __lookup.insert(std::pair<const char* const, int>("[aura]", 0x1396));
-            __lookup.insert(std::pair<const char* const, int>("[add absolute damage]", 0x13a1));
-            __lookup.insert(std::pair<const char* const, int>("[add absolute defense]", 0x13c8));
-            __lookup.insert(std::pair<const char* const, int>("[add absolute defense percent]", 0x13e6));
-            __lookup.insert(std::pair<const char* const, int>("[aura active]", 0x13fe));
-            __lookup.insert(std::pair<const char* const, int>("[apply status in range]", 0x1419));
-            __lookup.insert(std::pair<const char* const, int>("[stat by condition]", 0x141e));
-            __lookup.insert(std::pair<const char* const, int>("[stat level replace]", 0x1423));
-            __lookup.insert(std::pair<const char* const, int>("[stat]", 0x1432));
-            __lookup.insert(std::pair<const char* const, int>("[active status resistance]", 0x1435));
-            __lookup.insert(std::pair<const char* const, int>("[element resistance]", 0x144a));
-            __lookup.insert(std::pair<const char* const, int>("[damage rate]", 0x1461));
-            __lookup.insert(std::pair<const char* const, int>("[active status duration]", 0x146e));
-            __lookup.insert(std::pair<const char* const, int>("[active status buff event type]", 0x1478));
-            __lookup.insert(std::pair<const char* const, int>("[passive object]", 0x14af));
-            __lookup.insert(std::pair<const char* const, int>("[summon monster]", 0x14ec));
-            __lookup.insert(std::pair<const char* const, int>("[event summon monster]", 0x1502));
-            __lookup.insert(std::pair<const char* const, int>("[summon apc]", 0x150e));
-            __lookup.insert(std::pair<const char* const, int>("[restore]", 0x1523));
-            __lookup.insert(std::pair<const char* const, int>("[skill]", 0x153f));
-            __lookup.insert(std::pair<const char* const, int>("[perform skill]", 0x1553));
-            __lookup.insert(std::pair<const char* const, int>("[end skill]", 0x156b));
-            __lookup.insert(std::pair<const char* const, int>("[thorn]", 0x157a));
-            __lookup.insert(std::pair<const char* const, int>("[knockback]", 0x1585));
-            __lookup.insert(std::pair<const char* const, int>("[reduction]", 0x158f));
-            __lookup.insert(std::pair<const char* const, int>("[elemental weapon]", 0x15a0));
-            __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x15ab));
-            __lookup.insert(std::pair<const char* const, int>("[increase damage]", 0x15b1));
-            __lookup.insert(std::pair<const char* const, int>("[increase critical damage]", 0x15c2));
-            __lookup.insert(std::pair<const char* const, int>("[weakness]", 0x15d3));
-            __lookup.insert(std::pair<const char* const, int>("[then probability]", 0x15dc));
-            __lookup.insert(std::pair<const char* const, int>("[skill data up]", 0x15e9));
-            __lookup.insert(std::pair<const char* const, int>("[speech on]", 0x15f5));
-            __lookup.insert(std::pair<const char* const, int>("[replace avatar ani]", 0x1619));
-            __lookup.insert(std::pair<const char* const, int>("[skill super armor]", 0x1635));
-            __lookup.insert(std::pair<const char* const, int>("[skill unbreakable]", 0x1642));
-            __lookup.insert(std::pair<const char* const, int>("[skill cooltime reset]", 0x164e));
-            __lookup.insert(std::pair<const char* const, int>("[set hp]", 0x1663));
-            __lookup.insert(std::pair<const char* const, int>("[stat change by stat]", 0x166d));
-            __lookup.insert(std::pair<const char* const, int>("[add stat at once]", 0x1698));
-            __lookup.insert(std::pair<const char* const, int>("[add skill summon]", 0x16ac));
-            __lookup.insert(std::pair<const char* const, int>("[swap stat]", 0x16d3));
+                __init_lock.leave();
                 __inited = true;
             }
-            __init_lock.leave();
         }
         std::map<const char*, int, less_TCHAR>::const_iterator it =
             __lookup.find(out.c_str());
@@ -631,7 +702,9 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     float fv;
 
     // 0x1248 [consume item]
-    if (id == 0x1248)
+    switch (id)
+    {
+    case 0x1248:
     {
         values.push_back(0.0f);
         if (!ScanInt(&iv)) return false;
@@ -641,7 +714,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1257 [target]
-    if (id == 0x1257)
+    case 0x1257:
     {
         int t = 0;
         if (!getTargetTag(&t)) return false;
@@ -657,21 +730,21 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x126a [duration]
-    if (id == 0x126a)
+    case 0x126a:
     {
         values.push_back(2.0f);
         if (!scanScriptValue(values)) return false;
         return true;
     }
     // 0x127b [equipment duration]
-    if (id == 0x127b)
+    case 0x127b:
     {
         values.push_back(3.0f);
         if (!scanScriptValue(values)) return false;
         return true;
     }
     // 0x128c [skill duration]
-    if (id == 0x128c)
+    case 0x128c:
     {
         values.push_back(52.0f);
         if (!ScanInt(&iv)) return false;
@@ -683,7 +756,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12a0 [reduce duration at pvp type module]
-    if (id == 0x12a0)
+    case 0x12a0:
     {
         values.push_back(26.0f);
         values.push_back(1.0f);
@@ -692,7 +765,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12ac [reduce duration at pvp module]
-    if (id == 0x12ac)
+    case 0x12ac:
     {
         values.push_back(26.0f);
         values.push_back(2.0f);
@@ -701,7 +774,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12b8 [reduce duration to human armor]
-    if (id == 0x12b8)
+    case 0x12b8:
     {
         values.push_back(26.0f);
         values.push_back(3.0f);
@@ -710,7 +783,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12c4 [reduce duration to human armor at pvp type module]
-    if (id == 0x12c4)
+    case 0x12c4:
     {
         values.push_back(26.0f);
         values.push_back(4.0f);
@@ -719,7 +792,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12d0 [reduce duration to human armor at pvp module]
-    if (id == 0x12d0)
+    case 0x12d0:
     {
         values.push_back(26.0f);
         values.push_back(4.0f);
@@ -728,7 +801,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12dc [delay]
-    if (id == 0x12dc)
+    case 0x12dc:
     {
         values.push_back(4.0f);
         if (!ScanInt(&iv)) return false;
@@ -736,7 +809,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12e7 [probability]
-    if (id == 0x12e7)
+    case 0x12e7:
     {
         values.push_back(5.0f);
         if (!ScanFloat(&fv)) return false;
@@ -744,7 +817,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12f2 [reduce probability at pvp type module]
-    if (id == 0x12f2)
+    case 0x12f2:
     {
         values.push_back(27.0f);
         values.push_back(1.0f);
@@ -753,7 +826,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x12fe [reduce probability at pvp module]
-    if (id == 0x12fe)
+    case 0x12fe:
     {
         values.push_back(27.0f);
         values.push_back(2.0f);
@@ -762,7 +835,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x130a [reduce probability to human armor]
-    if (id == 0x130a)
+    case 0x130a:
     {
         values.push_back(27.0f);
         values.push_back(0.0f);
@@ -771,7 +844,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1316 [reduce probability to human armor at pvp type module]
-    if (id == 0x1316)
+    case 0x1316:
     {
         values.push_back(27.0f);
         values.push_back(3.0f);
@@ -780,7 +853,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1322 [reduce probability to human armor at pvp module]
-    if (id == 0x1322)
+    case 0x1322:
     {
         values.push_back(27.0f);
         values.push_back(4.0f);
@@ -789,7 +862,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x132e [active status] —— 先压 tag/状态/数值，再扫描附加状态子键（armor break…curse）
-    if (id == 0x132e)
+    case 0x132e:
     {
         values.push_back(6.0f);
         if (!ScanStr(&token)) return false;
@@ -858,7 +931,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x136b [disenchant]
-    if (id == 0x136b)
+    case 0x136b:
     {
         if (!ScanInt(&iv)) return false;
         if (iv == 1)
@@ -866,7 +939,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1374 [buff]
-    if (id == 0x1374)
+    case 0x1374:
     {
         values.push_back(8.0f);
         if (!ScanStr(&token)) return false;
@@ -874,7 +947,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x137e [appendage]
-    if (id == 0x137e)
+    case 0x137e:
     {
         values.push_back(33.0f);
         if (!ScanInt(&iv)) return false;
@@ -882,7 +955,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x138a [appendage unique]
-    if (id == 0x138a)
+    case 0x138a:
     {
         values.push_back(34.0f);
         if (!ScanInt(&iv)) return false;
@@ -890,7 +963,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1396 [aura]
-    if (id == 0x1396)
+    case 0x1396:
     {
         values.push_back(35.0f);
         if (!ScanInt(&iv)) return false;
@@ -898,7 +971,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x13a1 [add absolute damage]
-    if (id == 0x13a1)
+    case 0x13a1:
     {
         values.push_back(9.0f);
         if (!ScanStr(&token)) return false;
@@ -910,7 +983,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x13c8 [add absolute defense]
-    if (id == 0x13c8)
+    case 0x13c8:
     {
         values.push_back(10.0f);
         if (!ScanStr(&token)) return false;
@@ -922,7 +995,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x13e6 [add absolute defense percent]
-    if (id == 0x13e6)
+    case 0x13e6:
     {
         values.push_back(43.0f);
         if (!ScanStr(&token)) return false;
@@ -931,7 +1004,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x13fe [aura active]
-    if (id == 0x13fe)
+    case 0x13fe:
     {
         values.push_back(11.0f);
         if (!ScanStr(&token)) return false;
@@ -946,20 +1019,20 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1419 [apply status in range]
-    if (id == 0x1419)
+    case 0x1419:
     {
         GetApplyStatusInRange(&values);
         return true;
     }
     // 0x141e [stat by condition]
-    if (id == 0x141e)
+    case 0x141e:
     {
         GetStatByCondition(&values);
         return true;
     }
     // 0x1423 [stat level replace] —— ORIG 0x899a3dd3：push 40.0 后两次 ScanStr
     // 与一次 ScanInt 均无成功检查（失败时值取 0/默认继续，返回 true）。
-    if (id == 0x1423)
+    case 0x1423:
     {
         values.push_back(40.0f);
         ScanStr(&token);
@@ -971,13 +1044,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1432 [stat]
-    if (id == 0x1432)
+    case 0x1432:
     {
         GetStat(&values);
         return true;
     }
     // 0x1435 [active status resistance]
-    if (id == 0x1435)
+    case 0x1435:
     {
         values.push_back(13.0f);
         if (!ScanStr(&token)) return false;
@@ -992,7 +1065,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x144a [element resistance]
-    if (id == 0x144a)
+    case 0x144a:
     {
         values.push_back(14.0f);
         if (!ScanStr(&token)) return false;
@@ -1005,7 +1078,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1461 [damage rate]
-    if (id == 0x1461)
+    case 0x1461:
     {
         values.push_back(15.0f);
         if (!ScanStr(&token)) return false;
@@ -1014,7 +1087,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x146e [active status duration]
-    if (id == 0x146e)
+    case 0x146e:
     {
         values.push_back(41.0f);
         if (!ScanFloat(&fv)) return false;
@@ -1022,7 +1095,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1478 [active status buff event type]
-    if (id == 0x1478)
+    case 0x1478:
     {
         values.push_back(42.0f);
         if (!ScanFloat(&fv)) return false;
@@ -1033,7 +1106,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     // 每组以 ScanTypeOrInt 取首值，随后 5 个 ScanInt 与 1 个 ScanStr（字符串仅
     // 校验成功不 push），push 6 个数值并递增组数；任一步扫描失败返回 false。
     // ScanTypeOrInt 读到 type 且 token=="[/passive object]" 时写回组数占位结束。
-    if (id == 0x14af)
+    case 0x14af:
     {
         values.push_back(16.0f);
         int cnt = 0;
@@ -1070,7 +1143,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         }
     }
     // 0x14ec [summon monster]
-    if (id == 0x14ec)
+    case 0x14ec:
     {
         values.push_back(17.0f);
         if (!ScanInt(&iv)) return false;
@@ -1083,7 +1156,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     }
     // 0x1502 [event summon monster] —— ORIG 0x899a4a0b：4×ScanInt 均无成功检查
     //（ScanInt((bool*)0)），失败亦返回 true。
-    if (id == 0x1502)
+    case 0x1502:
     {
         values.push_back(17.0f);
         values.push_back((float)ScanInt((bool*)0));
@@ -1093,7 +1166,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x150e [summon apc]
-    if (id == 0x150e)
+    case 0x150e:
     {
         values.push_back(18.0f);
         if (!ScanInt(&iv)) return false;
@@ -1105,7 +1178,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1523 [restore]
-    if (id == 0x1523)
+    case 0x1523:
     {
         values.push_back(25.0f);
         if (!ScanStr(&token)) return false;
@@ -1122,7 +1195,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x153f [skill]
-    if (id == 0x153f)
+    case 0x153f:
     {
         values.push_back(19.0f);
         if (!ScanStr(&token)) return false;
@@ -1134,7 +1207,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1553 [perform skill]
-    if (id == 0x1553)
+    case 0x1553:
     {
         values.push_back(20.0f);
         if (!ScanStr(&token)) return false;
@@ -1150,7 +1223,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x156b [end skill]
-    if (id == 0x156b)
+    case 0x156b:
     {
         values.push_back(21.0f);
         if (!ScanStr(&token)) return false;
@@ -1160,7 +1233,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x157a [thorn]
-    if (id == 0x157a)
+    case 0x157a:
     {
         values.push_back(22.0f);
         if (!ScanInt(&iv)) return false;
@@ -1168,7 +1241,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1585 [knockback]
-    if (id == 0x1585)
+    case 0x1585:
     {
         int en = 0;
         if (!ScanInt(&en)) return false;
@@ -1177,7 +1250,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x158f [reduction]
-    if (id == 0x158f)
+    case 0x158f:
     {
         values.push_back(24.0f);
         if (!ScanStr(&token)) return false;
@@ -1187,7 +1260,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x15a0 [elemental weapon]
-    if (id == 0x15a0)
+    case 0x15a0:
     {
         values.push_back(28.0f);
         if (!ScanStr(&token)) return false;
@@ -1195,13 +1268,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x15ab [skill levelup]
-    if (id == 0x15ab)
+    case 0x15ab:
     {
         if (!GetSkillLevelUp(&values)) return false;
         return true;
     }
     // 0x15b1 [increase damage]
-    if (id == 0x15b1)
+    case 0x15b1:
     {
         values.push_back(30.0f);
         if (!ScanStr(&token)) return false;
@@ -1212,7 +1285,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x15c2 [increase critical damage]
-    if (id == 0x15c2)
+    case 0x15c2:
     {
         values.push_back(31.0f);
         if (!ScanStr(&token)) return false;
@@ -1224,7 +1297,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     }
     // 0x15d3 [weakness]（action 变体）—— ORIG 0x899a5928：ScanInt 无成功检查
     //（ScanInt((bool*)0) 值直接入栈，解析失败亦返回 true）。
-    if (id == 0x15d3)
+    case 0x15d3:
     {
         values.push_back(32.0f);
         values.push_back((float)ScanInt((bool*)0));
@@ -1232,13 +1305,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     }
     // 0x15dc [then probability] —— ORIG 0x899a59dd：仅 ScanFloat 消费一个数值
     // 校验成功即返回（不向 values push 任何内容）。
-    if (id == 0x15dc)
+    case 0x15dc:
     {
         if (!ScanFloat(&fv)) return false;
         return true;
     }
     // 0x15e9 [skill data up] —— 在 info->m_skill1e8 追加一项并 importSkillDataUp
-    if (id == 0x15e9)
+    case 0x15e9:
     {
         values.push_back(36.0f);
         unsigned sz = info->m_skill1e8.size();
@@ -1248,7 +1321,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x15f5 [speech on] —— 写 info->m_vec1f4
-    if (id == 0x15f5)
+    case 0x15f5:
     {
         values.push_back(37.0f);
         if (!ScanInt(&iv)) return false;
@@ -1264,7 +1337,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1619 [replace avatar ani] —— 写 info->m_vec468
-    if (id == 0x1619)
+    case 0x1619:
     {
         bool isType = false;
         for (;;)
@@ -1281,7 +1354,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1635 [skill super armor]
-    if (id == 0x1635)
+    case 0x1635:
     {
         values.push_back(46.0f);
         if (!ScanStr(&token)) return false;
@@ -1291,7 +1364,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1642 [skill unbreakable]
-    if (id == 0x1642)
+    case 0x1642:
     {
         values.push_back(47.0f);
         if (!ScanStr(&token)) return false;
@@ -1301,7 +1374,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x164e [skill cooltime reset]
-    if (id == 0x164e)
+    case 0x164e:
     {
         values.push_back(48.0f);
         if (!ScanFloat(&fv)) return false;
@@ -1314,7 +1387,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1663 [set hp]
-    if (id == 0x1663)
+    case 0x1663:
     {
         values.push_back(49.0f);
         if (!ScanFloat(&fv)) return false;
@@ -1322,7 +1395,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x166d [stat change by stat]
-    if (id == 0x166d)
+    case 0x166d:
     {
         int t1 = 0; if (!getTargetTag(&t1)) return false;
         int v1 = -1; if (!ScanInt(&v1)) return false;
@@ -1344,7 +1417,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x1698 [add stat at once]
-    if (id == 0x1698)
+    case 0x1698:
     {
         int st = 0; if (!getStatusType(&st)) return false;
         int sg = 0; if (!getSign(&sg)) return false;
@@ -1356,7 +1429,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x16ac [add skill summon]
-    if (id == 0x16ac)
+    case 0x16ac:
     {
         values.push_back(53.0f);
         int a = 0; if (!ScanInt(&a)) return false;
@@ -1369,7 +1442,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         return true;
     }
     // 0x16d3 [swap stat] —— 嵌套 hp/mp/vp 双组交换
-    if (id == 0x16d3)
+    case 0x16d3:
     {
         if (!ScanStr(&token)) return false;
         // ORIG 0x89a13e5 __lookup_1：lhs 侧 hp/mp/vp 子表（未命中默认 3）。
@@ -1436,6 +1509,9 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(fv);
         return true;
     }
+    default:
+        break;
+    }
 
     // 未知关键字：ORIG 未命中 lookup → 返回 0。
     return false;
@@ -1462,74 +1538,141 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         static std::map<const char*, int, less_TCHAR> __lookup;
         static SpinLock __init_lock;
         static bool __inited = false;
+        // ORIG 0x899d3a2..+0x573 等：惰性注册链每 tag 一个 `if (!__inited)`
+        // 守卫块（movzbl __inited; xor $1; test; je <body>），insert 链尾统一
+        // leave + 置位。逐条守卫保持 ORIG 检查形态（报告 0x899ce3b 汇编）。
         if (!__inited)
         {
             __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+            }
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[cooltime]", 0xf22));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[start cooltime]", 0xf28));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[character]", 0xf2e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[casting]", 0xf34));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[distance]", 0xf39));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[my active status]", 0xf45));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[my state]", 0xf4b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[my prev state]", 0xf52));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target prev state]", 0xf58));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[my appendage]", 0xf5f));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target active status]", 0xf64));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target state]", 0xf6a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[my active status on]", 0xf70));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target active status on]", 0xf76));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[element]", 0xf7c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[attack condition]", 0xf82));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[attack type]", 0xf88));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target type]", 0xf92));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target grade]", 0xf98));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target check]", 0xf9f));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[hit]", 0xfb6));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[attack success]", 0xfbb));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[after attack]", 0xfc0));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[party count]", 0xfc5));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[use skill]", 0xfd7));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[use command]", 0xfdf));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill frame trigger]", 0xfe4));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill frame state]", 0xff3));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[change status in range]", 0x1005));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[change status]", 0x1016));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[stat change]", 0x103c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target stat]", 0x105a));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[check damage]", 0x1076));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[set my state]", 0x107d));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target death]", 0x1082));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[target cooltime]", 0x1087));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[party death]", 0x108c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[revive]", 0x1091));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[combo]", 0x1096));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[aerial]", 0x109b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[overkill]", 0x10a0));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[disable pvp]", 0x10a5));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[time]", 0x10aa));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill]", 0x10bc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[attacker]", 0x10cc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[event use skill]", 0x10d4));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[event hit]", 0x10dc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[event attack success]", 0x10e1));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[module]", 0x10e6));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[cooltime group]", 0x10f1));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[attack success effect animation]", 0x10fb));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[dungeon check]", 0x110c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[skill cooltime]", 0x112c));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[slot option]", 0x113e));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[keep my state]", 0x116b));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[is stat]", 0x1176));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[equipment upgrade]", 0x11a1));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[remove equip]", 0x11dc));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[is awakening state]", 0x11df));
+            if (!__inited)
+            __lookup.insert(std::pair<const char* const, int>("[timing]", 0x11e4));
             if (!__inited)
             {
-            __lookup.insert(std::pair<const char* const, int>("[cooltime]", 0xf22));
-            __lookup.insert(std::pair<const char* const, int>("[start cooltime]", 0xf28));
-            __lookup.insert(std::pair<const char* const, int>("[character]", 0xf2e));
-            __lookup.insert(std::pair<const char* const, int>("[casting]", 0xf34));
-            __lookup.insert(std::pair<const char* const, int>("[distance]", 0xf39));
-            __lookup.insert(std::pair<const char* const, int>("[my active status]", 0xf45));
-            __lookup.insert(std::pair<const char* const, int>("[my state]", 0xf4b));
-            __lookup.insert(std::pair<const char* const, int>("[my prev state]", 0xf52));
-            __lookup.insert(std::pair<const char* const, int>("[target prev state]", 0xf58));
-            __lookup.insert(std::pair<const char* const, int>("[my appendage]", 0xf5f));
-            __lookup.insert(std::pair<const char* const, int>("[target active status]", 0xf64));
-            __lookup.insert(std::pair<const char* const, int>("[target state]", 0xf6a));
-            __lookup.insert(std::pair<const char* const, int>("[my active status on]", 0xf70));
-            __lookup.insert(std::pair<const char* const, int>("[target active status on]", 0xf76));
-            __lookup.insert(std::pair<const char* const, int>("[element]", 0xf7c));
-            __lookup.insert(std::pair<const char* const, int>("[attack condition]", 0xf82));
-            __lookup.insert(std::pair<const char* const, int>("[attack type]", 0xf88));
-            __lookup.insert(std::pair<const char* const, int>("[target type]", 0xf92));
-            __lookup.insert(std::pair<const char* const, int>("[target grade]", 0xf98));
-            __lookup.insert(std::pair<const char* const, int>("[target check]", 0xf9f));
-            __lookup.insert(std::pair<const char* const, int>("[hit]", 0xfb6));
-            __lookup.insert(std::pair<const char* const, int>("[attack success]", 0xfbb));
-            __lookup.insert(std::pair<const char* const, int>("[after attack]", 0xfc0));
-            __lookup.insert(std::pair<const char* const, int>("[party count]", 0xfc5));
-            __lookup.insert(std::pair<const char* const, int>("[use skill]", 0xfd7));
-            __lookup.insert(std::pair<const char* const, int>("[use command]", 0xfdf));
-            __lookup.insert(std::pair<const char* const, int>("[skill frame trigger]", 0xfe4));
-            __lookup.insert(std::pair<const char* const, int>("[skill frame state]", 0xff3));
-            __lookup.insert(std::pair<const char* const, int>("[change status in range]", 0x1005));
-            __lookup.insert(std::pair<const char* const, int>("[change status]", 0x1016));
-            __lookup.insert(std::pair<const char* const, int>("[stat change]", 0x103c));
-            __lookup.insert(std::pair<const char* const, int>("[target stat]", 0x105a));
-            __lookup.insert(std::pair<const char* const, int>("[check damage]", 0x1076));
-            __lookup.insert(std::pair<const char* const, int>("[set my state]", 0x107d));
-            __lookup.insert(std::pair<const char* const, int>("[target death]", 0x1082));
-            __lookup.insert(std::pair<const char* const, int>("[target cooltime]", 0x1087));
-            __lookup.insert(std::pair<const char* const, int>("[party death]", 0x108c));
-            __lookup.insert(std::pair<const char* const, int>("[revive]", 0x1091));
-            __lookup.insert(std::pair<const char* const, int>("[combo]", 0x1096));
-            __lookup.insert(std::pair<const char* const, int>("[aerial]", 0x109b));
-            __lookup.insert(std::pair<const char* const, int>("[overkill]", 0x10a0));
-            __lookup.insert(std::pair<const char* const, int>("[disable pvp]", 0x10a5));
-            __lookup.insert(std::pair<const char* const, int>("[time]", 0x10aa));
-            __lookup.insert(std::pair<const char* const, int>("[skill]", 0x10bc));
-            __lookup.insert(std::pair<const char* const, int>("[attacker]", 0x10cc));
-            __lookup.insert(std::pair<const char* const, int>("[event use skill]", 0x10d4));
-            __lookup.insert(std::pair<const char* const, int>("[event hit]", 0x10dc));
-            __lookup.insert(std::pair<const char* const, int>("[event attack success]", 0x10e1));
-            __lookup.insert(std::pair<const char* const, int>("[module]", 0x10e6));
-            __lookup.insert(std::pair<const char* const, int>("[cooltime group]", 0x10f1));
-            __lookup.insert(std::pair<const char* const, int>("[attack success effect animation]", 0x10fb));
-            __lookup.insert(std::pair<const char* const, int>("[dungeon check]", 0x110c));
-            __lookup.insert(std::pair<const char* const, int>("[skill cooltime]", 0x112c));
-            __lookup.insert(std::pair<const char* const, int>("[slot option]", 0x113e));
-            __lookup.insert(std::pair<const char* const, int>("[keep my state]", 0x116b));
-            __lookup.insert(std::pair<const char* const, int>("[is stat]", 0x1176));
-            __lookup.insert(std::pair<const char* const, int>("[equipment upgrade]", 0x11a1));
-            __lookup.insert(std::pair<const char* const, int>("[remove equip]", 0x11dc));
-            __lookup.insert(std::pair<const char* const, int>("[is awakening state]", 0x11df));
-            __lookup.insert(std::pair<const char* const, int>("[timing]", 0x11e4));
+                __init_lock.leave();
                 __inited = true;
             }
-            __init_lock.leave();
         }
         std::map<const char*, int, less_TCHAR>::const_iterator it =
             __lookup.find(line.c_str());
@@ -1541,30 +1684,36 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     int k = 0;
     bool isType = false;
     bool isInt = false;
-    if (id == 0xf22)
+    switch (id)
+    {
+    case 0xf22:
     {
         values.push_back(0);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0xf28)
+    case 0xf28:
     {
         values.push_back(1);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0xf2e)
+    case 0xf2e:
     {
         values.push_back(2);
         ScanStr(&token);
         values.push_back(getCharacterJobToEnumValue(token));
+        break;
     }
-    else if (id == 0xf34)
+    case 0xf34:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(3);
         }
+        break;
     }
-    else if (id == 0xf39)
+    case 0xf39:
     {
         values.push_back(4);
         ScanStr(&token);
@@ -1578,92 +1727,107 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 1;
         }
         values.push_back(k);
+        break;
     }
-    else if (id == 0xf45)
+    case 0xf45:
     {
         values.push_back(5);
         ScanStr(&token);
         values.push_back(getActiveStatusToEnumValue(token));
+        break;
     }
-    else if (id == 0xf4b)
+    case 0xf4b:
     {
         values.push_back(6);
         ScanStr(&token);
         values.push_back(getStateToEnumValue(token));
+        break;
     }
-    else if (id == 0xf52)
+    case 0xf52:
     {
         values.push_back(7);
         ScanStr(&token);
         values.push_back(getStateToEnumValue(token));
+        break;
     }
-    else if (id == 0xf58)
+    case 0xf58:
     {
         values.push_back(8);
         ScanStr(&token);
         values.push_back(getStateToEnumValue(token));
+        break;
     }
-    else if (id == 0xf5f)
+    case 0xf5f:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x28);
         values.push_back(v);
+        break;
     }
-    else if (id == 0xf64)
+    case 0xf64:
     {
         values.push_back(9);
         ScanStr(&token);
         values.push_back(getActiveStatusToEnumValue(token));
+        break;
     }
-    else if (id == 0xf6a)
+    case 0xf6a:
     {
         values.push_back(0xa);
         ScanStr(&token);
         values.push_back(getStateToEnumValue(token));
+        break;
     }
-    else if (id == 0xf70)
+    case 0xf70:
     {
         values.push_back(0xb);
         ScanStr(&token);
         values.push_back(getActiveStatusToEnumValue(token));
+        break;
     }
-    else if (id == 0xf76)
+    case 0xf76:
     {
         values.push_back(0xc);
         ScanStr(&token);
         values.push_back(getActiveStatusToEnumValue(token));
+        break;
     }
-    else if (id == 0xf7c)
+    case 0xf7c:
     {
         values.push_back(0xd);
         ScanStr(&token);
         values.push_back(getElementToEnumValue(token));
+        break;
     }
-    else if (id == 0xf82)
+    case 0xf82:
     {
         values.push_back(0xe);
         ScanStr(&token);
         values.push_back(getAttackConditionToEnumValue(token));
+        break;
     }
-    else if (id == 0xf88)
+    case 0xf88:
     {
         // ORIG 0x899df17：push tag 0xf 后仅 ScanStr 消费一个 token（结果丢弃）。
         values.push_back(0xf);
         ScanStr(&token);
+        break;
     }
-    else if (id == 0xf92)
+    case 0xf92:
     {
         values.push_back(0x10);
         ScanStr(&token);
         values.push_back(getCategoryToEnumValue(token));
+        break;
     }
-    else if (id == 0xf98)
+    case 0xf98:
     {
         values.push_back(0x11);
         ScanStr(&token);
         values.push_back(getGradeToEnumValue(token));
+        break;
     }
-    else if (id == 0xf9f)
+    case 0xf9f:
     {
         // ORIG 0x899e116：push 0x12 后 while 循环 ScanTypeOrStr：每次读到
         // 非 type token（monster→2/apc→3/passiveobject→1/其它→4）push 该值
@@ -1692,26 +1856,30 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
                 values.push_back(ScanInt((bool*)0));
             }
         }
+        break;
     }
-    else if (id == 0xfb6)
+    case 0xfb6:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x13);
         values.push_back(v);
+        break;
     }
-    else if (id == 0xfbb)
+    case 0xfbb:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x14);
         values.push_back(v);
+        break;
     }
-    else if (id == 0xfc0)
+    case 0xfc0:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x2b);
         values.push_back(v);
+        break;
     }
-    else if (id == 0xfc5)
+    case 0xfc5:
     {
         // ORIG 0x899e498：push 0x2c；ScanStr 比较符 >/< /=/>=/=>/<=/=<
         // → 0/1/2/3/4（未命中保持 0），再 push 一个 ScanInt。
@@ -1740,21 +1908,24 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0xfd7)
+    case 0xfd7:
     {
         values.push_back(0x15);
         ScanStr(&token);
         values.push_back(getCharacterJobToEnumValue(token));
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0xfdf)
+    case 0xfdf:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x29);
         values.push_back(v);
+        break;
     }
-    else if (id == 0xfe4)
+    case 0xfe4:
     {
         // ORIG 0x899e809（tag 0x31）：ScanStr(job)→enum；ScanInt；ScanStr；
         // info 非空时该串 addString 得 key（否则 -1）；ScanInt；
@@ -1774,8 +1945,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(k);
         values.push_back(key);
         values.push_back(last);
+        break;
     }
-    else if (id == 0xff3)
+    case 0xff3:
     {
         // ORIG 0x899e9a3（tag 0x32）：同 trigger，末尾多一个 ScanInt；
         // push 0x32, job, int, key, int, int。
@@ -1796,8 +1968,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(key);
         values.push_back(last);
         values.push_back(extra);
+        break;
     }
-    else if (id == 0x1005)
+    case 0x1005:
     {
         // ORIG 0x899eb64（tag 0x30）：ScanStr hp/mp/vp→0/1/2 push，再 push
         // 两个 ScanInt。
@@ -1819,8 +1992,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(k);
         values.push_back(ScanInt((bool*)0));
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x1016)
+    case 0x1016:
     {
         // ORIG 0x899ecd3（tag 0x2f）do-while 循环：每轮 ScanStr 状态名
         // hp/mp/vp→0/1/2、"end"→跳出、其它→getChangeStatusType；随后
@@ -1878,8 +2052,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             values.push_back(token == "%" ? 1 : 0);
             values.push_back(ScanInt((bool*)0));
         }
+        break;
     }
-    else if (id == 0x103c)
+    case 0x103c:
     {
         // ORIG 0x899efdf（tag 0x16）：一次 ScanStr hp/mp/vp→0/1/2 + 比较符
         // + "%"bool + ScanInt（无循环）。
@@ -1925,8 +2100,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         values.push_back(token == "%" ? 1 : 0);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x105a)
+    case 0x105a:
     {
         // ORIG 0x899f2b2（tag 0x17）：仅 hp/mp→0/1 + 比较符 + "%"bool + ScanInt。
         values.push_back(0x17);
@@ -1967,75 +2143,86 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         values.push_back(token == "%" ? 1 : 0);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x1076)
+    case 0x1076:
     {
         // ORIG 0x899f55f（tag 0x18）：ScanStr "%"→bool push + ScanInt push。
         values.push_back(0x18);
         ScanStr(&token);
         values.push_back(token == "%" ? 1 : 0);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x107d)
+    case 0x107d:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x19);
         }
+        break;
     }
-    else if (id == 0x1082)
+    case 0x1082:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x1a);
         }
+        break;
     }
-    else if (id == 0x1087)
+    case 0x1087:
     {
         values.push_back(0x2a);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x108c)
+    case 0x108c:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x27);
         }
+        break;
     }
-    else if (id == 0x1091)
+    case 0x1091:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x1b);
         }
+        break;
     }
-    else if (id == 0x1096)
+    case 0x1096:
     {
         values.push_back(0x1c);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x109b)
+    case 0x109b:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x1d);
         }
+        break;
     }
-    else if (id == 0x10a0)
+    case 0x10a0:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x1e);
         }
+        break;
     }
-    else if (id == 0x10a5)
+    case 0x10a5:
     {
         if (ScanInt((bool*)0) == 1)
         {
             values.push_back(0x1f);
         }
+        break;
     }
-    else if (id == 0x10aa)
+    case 0x10aa:
     {
         // ORIG 0x899fbdf：三次 ScanInt，第二个仅保留「!=0」bool：
         // push 0x20, int1, (int2!=0), int3。
@@ -2046,8 +2233,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(t1);
         values.push_back(t2 != 0 ? 1 : 0);
         values.push_back(t3);
+        break;
     }
-    else if (id == 0x10bc)
+    case 0x10bc:
     {
         // ORIG 0x899fce4（tag 0x21）：while ScanTypeOrStr 循环：每个非 type
         // token 经 getCharacterJobToEnumValue push，随后 push 一个 ScanInt；
@@ -2063,34 +2251,39 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
                 values.push_back(ScanInt((bool*)0));
             }
         }
+        break;
     }
-    else if (id == 0x10cc)
+    case 0x10cc:
     {
         values.push_back(0x22);
         ScanStr(&token);
         values.push_back(getObjectTypeToEnumValue(token));
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x10d4)
+    case 0x10d4:
     {
         values.push_back(0x23);
         ScanStr(&token);
         values.push_back(getCharacterJobToEnumValue(token));
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x10dc)
+    case 0x10dc:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x24);
         values.push_back(v);
+        break;
     }
-    else if (id == 0x10e1)
+    case 0x10e1:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x25);
         values.push_back(v);
+        break;
     }
-    else if (id == 0x10e6)
+    case 0x10e6:
     {
         // ORIG 0x899a011f：push 0x26 后 while (scanModuleType() != 0x11)
         // 循环 push 每个返回值；0x11 为模块流结束标记。
@@ -2099,14 +2292,16 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         {
             values.push_back(v);
         }
+        break;
     }
-    else if (id == 0x10f1)
+    case 0x10f1:
     {
         v = ScanInt((bool*)0);
         values.push_back(0x2d);
         values.push_back(v);
+        break;
     }
-    else if (id == 0x10fb)
+    case 0x10fb:
     {
         // ORIG 0x899a0276：构造一个临时 EffectAnimationInfo（EAI ctor 1 + dtor
         // 2：正常出口 + ScanStr 抛出时的清理路径），随后 count = ScanInt；循环
@@ -2122,8 +2317,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             ScanInt((bool*)0);
             ScanInt((bool*)0);
         }
+        break;
     }
-    else if (id == 0x110c)
+    case 0x110c:
     {
         // ORIG 0x899a0372（tag 0x2e）：push 0x2e 后 while 循环
         // ScanTypeOrInt：读到非 type token 时 push 其整数值；
@@ -2139,12 +2335,44 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
                 values.push_back(v);
             }
         }
+        break;
     }
-    else if (id == 0x112c)
+    case 0x112c:
     {
-        // ORIG 0x899a0467（tag 0x34）：push 0x34；ScanInt 映射
-        // 1→0/2→2/3→0xc/0→3/其它→0x1c push；push 两个 ScanInt；
-        // ScanStr 比较符（=→0 >→1 <→2 >=/=>→3 <=/=<→4）push；push ScanInt。
+        // ORIG 0x89a04c7（tag 0x33）：push 0x33；ScanStr 比较符
+        // （=→0 >→1 <→2 >=/=>→3 <=/=<→4）push；push 一个 ScanInt。
+        values.push_back(0x33);
+        ScanStr(&token);
+        k = 0;
+        if (token == "=")
+        {
+            k = 0;
+        }
+        else if (token == ">")
+        {
+            k = 1;
+        }
+        else if (token == "<")
+        {
+            k = 2;
+        }
+        else if (token == ">=" || token == "=>")
+        {
+            k = 3;
+        }
+        else if (token == "<=" || token == "=<")
+        {
+            k = 4;
+        }
+        values.push_back(k);
+        values.push_back(ScanInt((bool*)0));
+        break;
+    }
+    case 0x113e:
+    {
+        // ORIG 0x89a06ae（tag 0x34）：ScanInt 映射 1→0/2→2/3→0xc/0→3/其它→0x1c
+        // push；push 两个 ScanInt；ScanStr 比较符（=→0 >→1 <→2 >=/=>→3
+        // <=/=<→4）push；push ScanInt。
         values.push_back(0x34);
         int m = ScanInt((bool*)0);
         k = 0x1c;
@@ -2191,23 +2419,14 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         values.push_back(ScanInt((bool*)0));
+        break;
     }
-    else if (id == 0x113e)
-    {
-        // ORIG 0x899a064e（tag 0x35）：push 0x35；ScanStr→getStateToEnumValue
-        // push；ScanInt（bool 出参）push 一次。
-        values.push_back(0x35);
-        ScanStr(&token);
-        values.push_back(getStateToEnumValue(token));
-        bool ok = false;
-        v = ScanInt(&ok);
-        values.push_back(v);
-    }
-    else if (id == 0x116b)
+    case 0x116b:
     {
         values.push_back(0x36);
+        break;
     }
-    else if (id == 0x1176)
+    case 0x1176:
     {
         // ORIG 0x899a09da（tag 0x36）：全链必须成功，任一步失败立即 return：
         // getTargetTag(t) + ScanInt(tag) + getStatusType(st) + ScanStr 比较符
@@ -2268,8 +2487,9 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(st);
         values.push_back(k);
         values.push_back(val);
+        break;
     }
-    else if (id == 0x11a1)
+    case 0x11a1:
     {
         // ORIG 0x899a0ced（tag 0x37）：push 0x37 后 while ScanStr 循环每条
         // 升级规格：第一词 upgrade→0/amplify→1/separate upgrade→2（其它即
@@ -2336,22 +2556,29 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             values.push_back(a2);
             values.push_back(b2);
         }
+        break;
     }
-    else if (id == 0x11dc)
+    case 0x11dc:
     {
         values.push_back(0x38);
+        break;
     }
-    else if (id == 0x11df)
+    case 0x11df:
     {
         values.push_back(0x39);
+        break;
     }
-    else if (id == 0x11e4)
+    case 0x11e4:
     {
         // ORIG 0x899a1128（tag 0x3a）：push 0x3a；ScanStr 后
         // getEquipmentEventTiming 转换结果 push。
         values.push_back(0x3a);
         ScanStr(&token);
         values.push_back(getEquipmentEventTiming(token));
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -2759,122 +2986,235 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         static std::map<const char*, int, less_TCHAR> __lookup;
         static SpinLock __init_lock;
         static bool __inited = false;
+        // ORIG 0x899d3a2..+0x573 等：惰性注册链每 tag 一个 `if (!__inited)`
+        // 守卫块（movzbl __inited; xor $1; test; je <body>），insert 链尾统一
+        // leave + 置位。逐条守卫保持 ORIG 检查形态（报告 0x899ce3b 汇编）。
         if (!__inited)
         {
             __init_lock.enter();
-            if (!__inited)
+            if (__inited)
             {
+                __init_lock.leave();
+            }
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[HP MAX]", 0x176d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[HP MAX rate]", 0x1770));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[MP MAX]", 0x1773));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[MP MAX rate]", 0x1776));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical attack]", 0x1779));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical defense]", 0x177c));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical attack]", 0x177f));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical defense]", 0x1782));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[if]", 0x1785));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[then]", 0x1788));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[multiple then]", 0x1795));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[equipment physical attack]", 0x17a5));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[equipment physical defense]", 0x17a9));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[equipment magical attack]", 0x17ad));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[equipment magical defense]", 0x17b1));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[additional effect index]", 0x17b6));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[recovery status]", 0x17bb));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[separate attack]", 0x17cc));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[separate rate]", 0x17d0));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical absolute damage]", 0x17e6));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical damage reduce]", 0x17e9));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical absolute defense]", 0x17ec));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical absolute damage]", 0x17ef));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical damage reduce]", 0x17f2));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical absolute defense]", 0x17f5));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[fire resistance]", 0x17f8));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[water resistance]", 0x17fb));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[dark resistance]", 0x17fe));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[light resistance]", 0x1801));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[all elemental resistance]", 0x1804));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[slow resistance]", 0x1807));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[freeze resistance]", 0x180a));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[poison resistance]", 0x180d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[stun resistance]", 0x1810));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[curse resistance]", 0x1813));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[blind resistance]", 0x1816));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[lightning resistance]", 0x1819));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[stone resistance]", 0x181c));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[sleep resistance]", 0x181f));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[burn resistance]", 0x1822));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[weapon break resistance]", 0x1825));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[bleeding resistance]", 0x1828));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[all activestatus resistance]", 0x182b));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[piercing resistance]", 0x182e));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[stuck resistance]", 0x1831));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[confuse resistance]", 0x1834));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[hold resistance]", 0x1837));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[armor break resistance]", 0x183a));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[inventory limit]", 0x183d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[HP regen speed]", 0x1840));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[MP regen speed]", 0x1843));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[MP regen speed rate]", 0x1846));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[move speed]", 0x1849));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[x move dash speed]", 0x184c));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[y move dash speed]", 0x184f));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[attack speed]", 0x1852));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[cast speed]", 0x1855));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[hit recovery]", 0x1858));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[jump power]", 0x185b));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[elemental property]", 0x185e));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[active status]", 0x1862));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[attacked active status]", 0x189e));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[add absolute damage]", 0x18d7));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[add absolute defense]", 0x18e0));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[item aura]", 0x18e9));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[skill data up]", 0x1941));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[push aside]", 0x1944));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[lift up]", 0x1947));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[physical critical hit]", 0x194a));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[magical critical hit]", 0x194d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[stuck]", 0x1950));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[ignore defense]", 0x1953));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[human damage rate]", 0x1956));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[fort damage rate]", 0x1959));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[monster damage rate]", 0x195c));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[HP drain]", 0x1969));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[MP drain]", 0x196c));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x1970));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[avatar select ability]", 0x1981));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[room list move speed rate]", 0x19c0));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[anti evil]", 0x19c4));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[rigidity]", 0x19c7));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[fire attack]", 0x19ca));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[water attack]", 0x19cd));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[dark attack]", 0x19d0));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[light attack]", 0x19d3));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[active status probability]", 0x19d6));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[active status level]", 0x19f4));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[active status control info]", 0x1a0e));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[account bind linear ability]", 0x1a5d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[level linear ability]", 0x1a60));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[all skill item]", 0x1b39));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[item overpower desc]", 0x1b3d));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[item overpower part]", 0x1b41));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[ice appendage]", 0x1b47));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[curse appendage]", 0x1b53));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[upgrade cost discount]", 0x1b65));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[upgrade prob increase]", 0x1b68));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[assault cost discount]", 0x1b6b));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[decrease critical damage]", 0x1b70));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[hardcoding parameter]", 0x1b83));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[all elemental attack]", 0x1b90));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[rebirth]", 0x1b96));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[potion physical attack]", 0x1bbb));
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[potion magical attack]", 0x1bbd));
             // ORIG 0x89acdf0：[variable stat]（串 @0x8e181de，15 字符）同样为本表项，
             // pair<const char(&)[16],int> IRA16 ctor 注册形。
+            if (!__inited)
             __lookup.insert(std::pair<const char* const, int>("[variable stat]", 0x1bc1));
+            if (!__inited)
+            {
+                __init_lock.leave();
                 __inited = true;
             }
-            __init_lock.leave();
         }
         std::map<const char*, int, less_TCHAR>::const_iterator it =
             __lookup.find(path.c_str());
@@ -2884,80 +3224,302 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     float fv;
     std::string s;
 
-    if (id == 0x176d)               { info->m_hpMax= ScanInt((bool*)0); goto done; }
-    if (id == 0x1770)          { info->m_hpMaxRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1773)               { info->m_mpMax= ScanInt((bool*)0); goto done; }
-    if (id == 0x1776)          { info->m_mpMaxRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1779)      { info->m_physicalAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x177c)     { info->m_physicalDefense= ScanInt((bool*)0); goto done; }
-    if (id == 0x177f)       { info->m_magicalAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x1782)      { info->m_magicalDefense= ScanInt((bool*)0); goto done; }
-
-    if (id == 0x17a5)
-    { info->getEquipmentPhysicalAttack(0)= ScanInt((bool*)0);
-      info->getEquipmentPhysicalAttack(1)= ScanInt((bool*)0); goto done; }
-    if (id == 0x17a9)
-    { info->getEquipmentPhysicalDefense(0)= ScanInt((bool*)0);
-      info->getEquipmentPhysicalDefense(1)= ScanInt((bool*)0); goto done; }
-    if (id == 0x17ad)
-    { info->getEquipmentMagicalAttack(0)= ScanInt((bool*)0);
-      info->getEquipmentMagicalAttack(1)= ScanInt((bool*)0); goto done; }
-    if (id == 0x17b1)
-    { info->getEquipmentMagicalDefense(0)= ScanInt((bool*)0);
-      info->getEquipmentMagicalDefense(1)= ScanInt((bool*)0); goto done; }
-
-    if (id == 0x17cc) { info->m_separateAttack[0]= ScanInt((bool*)0);
-                                        info->m_separateAttack[1]= ScanInt((bool*)0); goto done; }
-
-    if (id == 0x17e6) { info->m_physicalAbsoluteDamage= ScanInt((bool*)0); goto done; }
-    if (id == 0x17e9)   { info->m_physicalDamageReduce= ScanInt((bool*)0); goto done; }
-    if (id == 0x17ec){ info->m_physicalAbsoluteDefense= ScanFloat((bool*)0); goto done; }
-    if (id == 0x17ef)  { info->m_magicalAbsoluteDamage= ScanInt((bool*)0); goto done; }
-    if (id == 0x17f2)    { info->m_magicalDamageReduce= ScanInt((bool*)0); goto done; }
-    if (id == 0x17f5) { info->m_magicalAbsoluteDefense= ScanFloat((bool*)0); goto done; }
-
-    if (id == 0x17f8)    { info->m_fireResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x17fb)   { info->m_waterResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x17fe)    { info->m_darkResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1801)   { info->m_lightResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1804){ info->m_allElementalResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1807)    { info->m_slowResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x180a)  { info->m_freezeResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x180d)  { info->m_poisonResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1810)    { info->m_stunResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1813)   { info->m_curseResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1816)   { info->m_blindResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1819){ info->m_lightningResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x181c)   { info->m_stoneResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x181f)   { info->m_sleepResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1822)    { info->m_burnResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1825){ info->m_weaponBreakResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1828){ info->m_bleedingResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x182e){ info->m_piercingResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1831)   { info->m_stuckResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1834) { info->m_confuseResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x1837)    { info->m_holdResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x183a){ info->m_armorBreakResistance= ScanInt((bool*)0); goto done; }
-    if (id == 0x182b){ info->m_allActiveStatusResistance= ScanInt((bool*)0); goto done; }
-
-    if (id == 0x183d)    { info->m_inventoryLimit= ScanInt((bool*)0); goto done; }
-    if (id == 0x1840)     { info->m_hpRegenSpeed= ScanInt((bool*)0); goto done; }
-    if (id == 0x1843)     { info->m_mpRegenSpeed= ScanInt((bool*)0); goto done; }
-    if (id == 0x1846){ info->m_mpRegenSpeedRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1849)         { info->m_moveSpeed= ScanInt((bool*)0); goto done; }
-    if (id == 0x184c)  { info->m_xMoveDashSpeed= ScanFloat((bool*)0); goto done; }
-    if (id == 0x184f)  { info->m_yMoveDashSpeed= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1852)       { info->m_attackSpeed= ScanInt((bool*)0); goto done; }
-    if (id == 0x1855)         { info->m_castSpeed= ScanInt((bool*)0); goto done; }
-    if (id == 0x1858)       { info->m_hitRecovery= ScanInt((bool*)0); goto done; }
-    if (id == 0x185b)         { info->m_jumpPower= ScanInt((bool*)0); goto done; }
-    if (id == 0x194a){ info->m_physicalCriticalHit= ScanFloat((bool*)0); goto done; }
-    if (id == 0x194d){ info->m_magicalCriticalHit= ScanFloat((bool*)0); goto done; }
-
-    if (id == 0x185e)
-    { if (ScanStr(&s)) info->m_elementalProperty = getElement(s.c_str()); goto done; }
-
-    if (id == 0x1862)
+    switch (id)
+    {
+    case 0x176d:
+    {
+        info->m_hpMax= ScanInt((bool*)0); goto done;
+    }
+    case 0x1770:
+    {
+        info->m_hpMaxRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1773:
+    {
+        info->m_mpMax= ScanInt((bool*)0); goto done;
+    }
+    case 0x1776:
+    {
+        info->m_mpMaxRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1779:
+    {
+        info->m_physicalAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x177c:
+    {
+        info->m_physicalDefense= ScanInt((bool*)0); goto done;
+    }
+    case 0x177f:
+    {
+        info->m_magicalAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x1782:
+    {
+        info->m_magicalDefense= ScanInt((bool*)0); goto done;
+    }
+    case 0x1785:
+    {
+        int i = a; a = a + 1; scanIf(info, i); goto done;
+    }
+    case 0x1788:
+    {
+        if (b < a)
+        {
+        int i = b;
+        b = b + 1;
+        if (scanThen(dir, info, i)) goto done;
+        }
+        else
+        {
+        a = -a;
+        b = -b;
+        }
+        return false;
+    }
+    case 0x1795:
+    {
+        // ORIG 0x89a83c1：ScanType 流读到 EOF/失败或 "[/multiple then]" 时
+        // b(=*param_5)+1 并成功返回；读到 "[then]" 时以当前 b 调 scanThen
+        //（b 不递增），失败返回 false；其它 token 忽略继续读。
+        std::string t;
+        for (;;)
+        {
+        if (!ScanType(t, true))
+        {
+        b = b + 1;
+        goto done;
+        }
+        if (t == "[/multiple then]")
+        {
+        b = b + 1;
+        goto done;
+        }
+        if (t == "[then]")
+        {
+        if (!scanThen(dir, info, b)) return false;
+        }
+        }
+    }
+    case 0x17a5:
+    {
+        info->getEquipmentPhysicalAttack(0)= ScanInt((bool*)0);
+        info->getEquipmentPhysicalAttack(1)= ScanInt((bool*)0); goto done;
+    }
+    case 0x17a9:
+    {
+        info->getEquipmentPhysicalDefense(0)= ScanInt((bool*)0);
+        info->getEquipmentPhysicalDefense(1)= ScanInt((bool*)0); goto done;
+    }
+    case 0x17ad:
+    {
+        info->getEquipmentMagicalAttack(0)= ScanInt((bool*)0);
+        info->getEquipmentMagicalAttack(1)= ScanInt((bool*)0); goto done;
+    }
+    case 0x17b1:
+    {
+        info->getEquipmentMagicalDefense(0)= ScanInt((bool*)0);
+        info->getEquipmentMagicalDefense(1)= ScanInt((bool*)0); goto done;
+    }
+    case 0x17b6:
+    {
+        { iv = ScanInt((bool*)0); info->m_vec194.push_back(iv); } goto done;
+    }
+    case 0x17bb:
+    {
+        // ORIG 0x89a8902：清空 +0x240 vector<vector<float>>，ScanInt 次数 resize；
+        // 循环 ScanFloat（bool 成功出参）：v 追加到第 (i % n) 个子向量并递增 i。
+        info->m_vec240.clear();
+        int n = ScanInt((bool*)0);
+        info->m_vec240.resize(n);
+        int i = 0;
+        bool ok = false;
+        float v2 = ScanFloat(&ok);
+        while (ok)
+        {
+        info->m_vec240[i % n].push_back(v2);
+        ++i;
+        v2 = ScanFloat(&ok);
+        }
+        goto done;
+    }
+    case 0x17cc:
+    {
+        info->m_separateAttack[0]= ScanInt((bool*)0);
+        info->m_separateAttack[1]= ScanInt((bool*)0); goto done;
+    }
+    case 0x17d0:
+    {
+        // ORIG 0x89a8aea：两个 ScanFloat 无检查写 +0x390/+0x394（float 位模式）。
+        info->m_separateRate[0] = ScanFloat((bool*)0);
+        info->m_separateRate[1] = ScanFloat((bool*)0);
+        goto done;
+    }
+    case 0x17e6:
+    {
+        info->m_physicalAbsoluteDamage= ScanInt((bool*)0); goto done;
+    }
+    case 0x17e9:
+    {
+        info->m_physicalDamageReduce= ScanInt((bool*)0); goto done;
+    }
+    case 0x17ec:
+    {
+        info->m_physicalAbsoluteDefense= ScanFloat((bool*)0); goto done;
+    }
+    case 0x17ef:
+    {
+        info->m_magicalAbsoluteDamage= ScanInt((bool*)0); goto done;
+    }
+    case 0x17f2:
+    {
+        info->m_magicalDamageReduce= ScanInt((bool*)0); goto done;
+    }
+    case 0x17f5:
+    {
+        info->m_magicalAbsoluteDefense= ScanFloat((bool*)0); goto done;
+    }
+    case 0x17f8:
+    {
+        info->m_fireResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x17fb:
+    {
+        info->m_waterResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x17fe:
+    {
+        info->m_darkResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1801:
+    {
+        info->m_lightResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1804:
+    {
+        info->m_allElementalResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1807:
+    {
+        info->m_slowResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x180a:
+    {
+        info->m_freezeResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x180d:
+    {
+        info->m_poisonResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1810:
+    {
+        info->m_stunResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1813:
+    {
+        info->m_curseResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1816:
+    {
+        info->m_blindResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1819:
+    {
+        info->m_lightningResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x181c:
+    {
+        info->m_stoneResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x181f:
+    {
+        info->m_sleepResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1822:
+    {
+        info->m_burnResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1825:
+    {
+        info->m_weaponBreakResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1828:
+    {
+        info->m_bleedingResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x182b:
+    {
+        info->m_allActiveStatusResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x182e:
+    {
+        info->m_piercingResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1831:
+    {
+        info->m_stuckResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1834:
+    {
+        info->m_confuseResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x1837:
+    {
+        info->m_holdResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x183a:
+    {
+        info->m_armorBreakResistance= ScanInt((bool*)0); goto done;
+    }
+    case 0x183d:
+    {
+        info->m_inventoryLimit= ScanInt((bool*)0); goto done;
+    }
+    case 0x1840:
+    {
+        info->m_hpRegenSpeed= ScanInt((bool*)0); goto done;
+    }
+    case 0x1843:
+    {
+        info->m_mpRegenSpeed= ScanInt((bool*)0); goto done;
+    }
+    case 0x1846:
+    {
+        info->m_mpRegenSpeedRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1849:
+    {
+        info->m_moveSpeed= ScanInt((bool*)0); goto done;
+    }
+    case 0x184c:
+    {
+        info->m_xMoveDashSpeed= ScanFloat((bool*)0); goto done;
+    }
+    case 0x184f:
+    {
+        info->m_yMoveDashSpeed= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1852:
+    {
+        info->m_attackSpeed= ScanInt((bool*)0); goto done;
+    }
+    case 0x1855:
+    {
+        info->m_castSpeed= ScanInt((bool*)0); goto done;
+    }
+    case 0x1858:
+    {
+        info->m_hitRecovery= ScanInt((bool*)0); goto done;
+    }
+    case 0x185b:
+    {
+        info->m_jumpPower= ScanInt((bool*)0); goto done;
+    }
+    case 0x185e:
+    {
+        if (ScanStr(&s)) info->m_elementalProperty = getElement(s.c_str()); goto done;
+    }
+    case 0x1862:
     {
         if (ScanStr(&s)) info->m_activeStatusType = getActiveStatusType(s);
         info->m_activeStatusValue= ScanFloat((bool*)0);
@@ -2990,130 +3552,14 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         { info->m_vec158.push_back(ScanInt((bool*)0)); }
         else if (s == "[burn]")
         { info->m_vec158.push_back(ScanInt((bool*)0)); info->m_vec158.push_back(ScanInt((bool*)0));
-          info->m_vec158.push_back(ScanInt((bool*)0)); info->m_vec158.push_back(ScanInt((bool*)0)); }
+        info->m_vec158.push_back(ScanInt((bool*)0)); info->m_vec158.push_back(ScanInt((bool*)0)); }
         else if (s == "[bless]")
         { for (int k = 0; k < 4; ++k) info->m_vec158.push_back(ScanInt((bool*)0)); }
         else if (s == "[curse]")
         { for (int k = 0; k < 4; ++k) info->m_vec158.push_back(ScanInt((bool*)0)); }
         goto done;
     }
-
-    if (id == 0x17b6)
-    { { iv = ScanInt((bool*)0); info->m_vec194.push_back(iv); } goto done; }
-
-    if (id == 0x19d6 || id == 0x19f4)
-    {
-        // ORIG 0x89ab9c6（probability）/0x89abafc（level）：ScanStr 状态名转枚举，
-        // ScanInt 无检查；枚举 0x13 写满 18 槽，0..0x11 写对应槽，0x12/其它不写。
-        if (ScanStr(&s))
-        {
-            int st = getActiveStatusToEnumValue(s);
-            int val = ScanInt((bool*)0);
-            if (st != 0x12)
-            {
-                if (st == 0x13)
-                {
-                    for (int i = 0; i < 0x12; ++i)
-                    {
-                        if (id == 0x19d6)
-                            info->m_activeStatusProbability[i] = val;
-                        else
-                            info->m_activeStatusLevelTable[i] = val;
-                    }
-                }
-                else if (st >= 0 && st < 0x12)
-                {
-                    if (id == 0x19d6)
-                        info->m_activeStatusProbability[st] = val;
-                    else
-                        info->m_activeStatusLevelTable[st] = val;
-                }
-            }
-        }
-        goto done;
-    }
-    if (id == 0x1a0e)
-    {
-        // ORIG 0x89abc32：ScanStr 状态名→枚举，随后 3 个 ScanInt（无检查）分别写
-        // 概率槽/等级槽/控制槽；枚举 0x13 写满 18 槽，0..0x11 写对应槽并按其类型
-        // 追加特判：0/4/5/0xa/0x11 读入的数值仅消费不入表（部分仍写 control 区）。
-        if (ScanStr(&s))
-        {
-            int st = getActiveStatusToEnumValue(s);
-            int a = ScanInt((bool*)0);
-            int b = ScanInt((bool*)0);
-            int c = ScanInt((bool*)0);
-            if (st != 0x12)
-            {
-                if (st == 0x13)
-                {
-                    for (int i = 0; i < 0x12; ++i)
-                    {
-                        info->m_activeStatusProbability[i] = a;
-                        info->m_activeStatusLevelTable[i] = b;
-                        info->m_activeStatusCtrl[i] = c;
-                    }
-                }
-                else if (st >= 0 && st < 0x12)
-                {
-                    info->m_activeStatusProbability[st] = a;
-                    info->m_activeStatusLevelTable[st] = b;
-                    info->m_activeStatusCtrl[st] = c;
-                    if (st == 0)
-                    {
-                        ScanInt((bool*)0);
-                        ScanInt((bool*)0);
-                    }
-                    else if (st == 2)
-                    {
-                        info->m_activeStatusControlInfo[0] = ScanInt((bool*)0);
-                    }
-                    else if (st == 4)
-                    {
-                        ScanInt((bool*)0);
-                    }
-                    else if (st == 5)
-                    {
-                        ScanInt((bool*)0);
-                        ScanInt((bool*)0);
-                    }
-                    else if (st == 6)
-                    {
-                        info->m_activeStatusControlInfo[1] = ScanInt((bool*)0);
-                    }
-                    else if (st == 7)
-                    {
-                        info->m_activeStatusControlInfo[2] = ScanInt((bool*)0);
-                    }
-                    else if (st == 9)
-                    {
-                        int v = ScanInt((bool*)0);
-                        ScanInt((bool*)0);
-                        ScanInt((bool*)0);
-                        info->m_activeStatusControlInfo[3] = v;
-                    }
-                    else if (st == 0xa)
-                    {
-                        ScanInt((bool*)0);
-                    }
-                    else if (st == 0xb)
-                    {
-                        info->m_activeStatusControlInfo[4] = ScanInt((bool*)0);
-                    }
-                    else if (st == 0x11)
-                    {
-                        ScanInt((bool*)0);
-                    }
-                }
-            }
-        }
-        goto done;
-    }
-
-    if (id == 0x1941)
-    { importSkillDataUp(info->m_skill1b8); goto done; }
-
-    if (id == 0x189e)
+    case 0x189e:
     {
         // ORIG 0x899e...（0x189e 执行体）：状态附加 vector +0x17c 按状态名子键
         // 写入固定个数 int：blind/slow/haste→2，stone/confuse/armor break/
@@ -3156,22 +3602,21 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         { for (int k = 0; k < 4; ++k) info->m_vec17c.push_back(ScanInt((bool*)0)); }
         goto done;
     }
-
-    if (id == 0x18d7)
+    case 0x18d7:
     {
         if (ScanStr(&s)) info->m_addAbsoluteDamageType = (s == "[magical]") ? 1 : 0;
         info->m_addAbsoluteDamageValue= ScanFloat((bool*)0);
         info->m_addAbsoluteDamageExtra= ScanInt((bool*)0);
         goto done;
     }
-    if (id == 0x18e0)
+    case 0x18e0:
     {
         if (ScanStr(&s)) info->m_addAbsoluteDefenseType = (s == "[magical]") ? 3 : 2;
         info->m_addAbsoluteDefenseValue= ScanFloat((bool*)0);
         info->m_addAbsoluteDefenseExtra= ScanInt((bool*)0);
         goto done;
     }
-    if (id == 0x18e9)
+    case 0x18e9:
     {
         // ORIG 0x899a...（0x18e9 执行体）：ScanStr 状态名→m_field0；
         // ScanStr "%"→m_field4（0x01）；ScanFloat→m_float8；ScanInt→m_fieldc，
@@ -3186,34 +3631,381 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_aura188.push_back(aura);
         goto done;
     }
-
-    if (id == 0x1944)        { info->m_pushAside= ScanInt((bool*)0); goto done; }
-    if (id == 0x1947)           { info->m_liftUp= ScanInt((bool*)0); goto done; }
-    if (id == 0x1950)             { info->m_stuck= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1953)    { info->m_ignoreDefense = (ScanInt((bool*)0) != 0); goto done; }
-    if (id == 0x1956) { info->m_humanDamageRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1959)  { info->m_fortDamageRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x195c){ info->m_monsterDamageRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1969)          { info->m_hpDrain = (ScanInt((bool*)0) != 0); goto done; }
-    if (id == 0x196c)          { info->m_mpDrain = (ScanInt((bool*)0) != 0); goto done; }
-
-    if (id == 0x19c0){ info->m_roomListMoveSpeedRate= ScanFloat((bool*)0); goto done; }
-    if (id == 0x19c4)         { info->m_antiEvil= ScanInt((bool*)0); goto done; }
-    if (id == 0x19c7)          { info->m_rigidity= ScanInt((bool*)0); goto done; }
-    if (id == 0x19ca)       { info->m_fireAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x19cd)      { info->m_waterAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x19d0)       { info->m_darkAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x19d3)      { info->m_lightAttack= ScanInt((bool*)0); goto done; }
-    if (id == 0x1b90){ info->m_allElementalAttack= ScanInt((bool*)0); goto done; }
-
-    if (id == 0x1b41)
+    case 0x1941:
+    {
+        importSkillDataUp(info->m_skill1b8); goto done;
+    }
+    case 0x1944:
+    {
+        info->m_pushAside= ScanInt((bool*)0); goto done;
+    }
+    case 0x1947:
+    {
+        info->m_liftUp= ScanInt((bool*)0); goto done;
+    }
+    case 0x194a:
+    {
+        info->m_physicalCriticalHit= ScanFloat((bool*)0); goto done;
+    }
+    case 0x194d:
+    {
+        info->m_magicalCriticalHit= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1950:
+    {
+        info->m_stuck= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1953:
+    {
+        info->m_ignoreDefense = (ScanInt((bool*)0) != 0); goto done;
+    }
+    case 0x1956:
+    {
+        info->m_humanDamageRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1959:
+    {
+        info->m_fortDamageRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x195c:
+    {
+        info->m_monsterDamageRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1969:
+    {
+        info->m_hpDrain = (ScanInt((bool*)0) != 0); goto done;
+    }
+    case 0x196c:
+    {
+        info->m_mpDrain = (ScanInt((bool*)0) != 0); goto done;
+    }
+    case 0x1970:
+    {
+        info->m_levelUpSkills[0].clear();
+        while (ScanStr(&s))
+        {
+        LevelUpSkill lu;
+        lu.m_job = (s == "[common]") ? 0xb : getCharacterJob(s.c_str());
+        lu.m_field4 = ScanInt((bool*)0);
+        lu.m_field8 = ScanInt((bool*)0);
+        info->m_levelUpSkills[0].push_back(lu);
+        }
+        goto done;
+    }
+    case 0x1981:
+    {
+        // ORIG 0x089ab451：先清空 m_avatar264，再按 47 项能力名表（0x93f4840）
+        // 匹配解析；命中则填 STAvatarAbilityVariation（m_field0=表下标、
+        // m_field4='+'→0 / '*'→1 标志、m_field8=float 数值；[SKILL_LEVEL](43)
+        // 特殊：job 标签 + 两 int），size<=99 时 push_back；未命中项 push 默认值。
+        info->m_avatar264.clear();
+        static const char* const kAvatarAbilityNames[] = {
+        "[none]", "[HP MAX]", "[MP MAX]", "[PHYSICAL_ATTACK]",
+        "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
+        "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
+        "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
+        "[ELEMENT_TOLERANCE_FIRE]", "[ELEMENT_TOLERANCE_WATER]",
+        "[ELEMENT_TOLERANCE_DARK]", "[ELEMENT_TOLERANCE_LIGHT]",
+        "[ELEMENT_TOLERANCE_ALL]", "[ACTIVESTATUS_TOLERANCE_SLOW]",
+        "[ACTIVESTATUS_TOLERANCE_FREEZE]", "[ACTIVESTATUS_TOLERANCE_POISON]",
+        "[ACTIVESTATUS_TOLERANCE_STUN]", "[ACTIVESTATUS_TOLERANCE_CURSE]",
+        "[ACTIVESTATUS_TOLERANCE_BLIND]", "[ACTIVESTATUS_TOLERANCE_LIGHTNING]",
+        "[ACTIVESTATUS_TOLERANCE_STONE]", "[ACTIVESTATUS_TOLERANCE_SLEEP]",
+        "[ACTIVESTATUS_TOLERANCE_BURN]", "[ACTIVESTATUS_TOLERANCE_WEAPON_BREAK]",
+        "[ACTIVESTATUS_TOLERANCE_BLEEDING]", "[ACTIVESTATUS_TOLERANCE_PIERCE]",
+        "[ACTIVESTATUS_TOLERANCE_STUCK]", "[ACTIVESTATUS_TOLERANCE_CONFUSE]",
+        "[ACTIVESTATUS_TOLERANCE_HOLD]", "[ACTIVESTATUS_TOLERANCE_ALL]",
+        "[INVENTORY_MAX_WEIGHT]", "[HP_REGENRATE]", "[MP_REGENRATE]",
+        "[MP_REGENRATE_PERCENT_UP]", "[MOVE_SPEED]", "[ATTACK_SPEED]",
+        "[CAST_SPEED]", "[HIT_RECOVERY]", "[JUMP_POWER]", "[CRITICAL]",
+        "[SKILL_LEVEL]", "[PHYSICAL ABSOLUTE DEFENSE]",
+        "[MAGICAL ABSOLUTE DEFENSE]", "[STUCK ON ATTACK]"
+        };
+        while (ScanStr(&s))
+        {
+        STAvatarAbilityVariation var;
+        int i = 0;
+        while (i <= 0x2e)
+        {
+        if (s == kAvatarAbilityNames[i])
+        {
+        var.m_field0 = i;
+        if (i == 0x2b)
+        {
+        var.m_field4 = 0;
+        ScanStr(&s);
+        if (s == "[common]")
+        {
+        var.m_skill.m_job = 0xb;
+        }
+        else
+        {
+        int job = getCharacterJob(s.c_str());
+        if (job == 0xb)
+        {
+        LogManager::logFormat(0, "../RDARScriptItem.cpp",
+        __FUNCTION__, 0x199e,
+        "ImportEquipmentScript - file %s, invalid job tag %s",
+        dir, s.c_str());
+        return false;
+        }
+        var.m_skill.m_job = job;
+        }
+        var.m_skill.m_field4 = ScanInt((bool*)0);
+        var.m_skill.m_field8 = ScanInt((bool*)0);
+        }
+        else
+        {
+        ScanStr(&s);
+        if (s == "+")
+        {
+        var.m_field4 = 0;
+        }
+        else if (s == "*")
+        {
+        var.m_field4 = 1;
+        }
+        var.m_field8 = ScanFloat((bool*)0);
+        }
+        break;
+        }
+        ++i;
+        }
+        if (info->m_avatar264.size() <= 0x63)
+        info->m_avatar264.push_back(var);
+        }
+        goto done;
+    }
+    case 0x19c0:
+    {
+        info->m_roomListMoveSpeedRate= ScanFloat((bool*)0); goto done;
+    }
+    case 0x19c4:
+    {
+        info->m_antiEvil= ScanInt((bool*)0); goto done;
+    }
+    case 0x19c7:
+    {
+        info->m_rigidity= ScanInt((bool*)0); goto done;
+    }
+    case 0x19ca:
+    {
+        info->m_fireAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x19cd:
+    {
+        info->m_waterAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x19d0:
+    {
+        info->m_darkAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x19d3:
+    {
+        info->m_lightAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x19d6:
+    case 0x19f4:
+    {
+        // ORIG 0x89ab9c6（probability）/0x89abafc（level）：ScanStr 状态名转枚举，
+        // ScanInt 无检查；枚举 0x13 写满 18 槽，0..0x11 写对应槽，0x12/其它不写。
+        if (ScanStr(&s))
+        {
+        int st = getActiveStatusToEnumValue(s);
+        int val = ScanInt((bool*)0);
+        if (st != 0x12)
+        {
+        if (st == 0x13)
+        {
+        for (int i = 0; i < 0x12; ++i)
+        {
+        if (id == 0x19d6)
+        info->m_activeStatusProbability[i] = val;
+        else
+        info->m_activeStatusLevelTable[i] = val;
+        }
+        }
+        else if (st >= 0 && st < 0x12)
+        {
+        if (id == 0x19d6)
+        info->m_activeStatusProbability[st] = val;
+        else
+        info->m_activeStatusLevelTable[st] = val;
+        }
+        }
+        }
+        goto done;
+    }
+    case 0x1a0e:
+    {
+        // ORIG 0x89abc32：ScanStr 状态名→枚举，随后 3 个 ScanInt（无检查）分别写
+        // 概率槽/等级槽/控制槽；枚举 0x13 写满 18 槽，0..0x11 写对应槽并按其类型
+        // 追加特判：0/4/5/0xa/0x11 读入的数值仅消费不入表（部分仍写 control 区）。
+        if (ScanStr(&s))
+        {
+        int st = getActiveStatusToEnumValue(s);
+        int a = ScanInt((bool*)0);
+        int b = ScanInt((bool*)0);
+        int c = ScanInt((bool*)0);
+        if (st != 0x12)
+        {
+        if (st == 0x13)
+        {
+        for (int i = 0; i < 0x12; ++i)
+        {
+        info->m_activeStatusProbability[i] = a;
+        info->m_activeStatusLevelTable[i] = b;
+        info->m_activeStatusCtrl[i] = c;
+        }
+        }
+        else if (st >= 0 && st < 0x12)
+        {
+        info->m_activeStatusProbability[st] = a;
+        info->m_activeStatusLevelTable[st] = b;
+        info->m_activeStatusCtrl[st] = c;
+        if (st == 0)
+        {
+        ScanInt((bool*)0);
+        ScanInt((bool*)0);
+        }
+        else if (st == 2)
+        {
+        info->m_activeStatusControlInfo[0] = ScanInt((bool*)0);
+        }
+        else if (st == 4)
+        {
+        ScanInt((bool*)0);
+        }
+        else if (st == 5)
+        {
+        ScanInt((bool*)0);
+        ScanInt((bool*)0);
+        }
+        else if (st == 6)
+        {
+        info->m_activeStatusControlInfo[1] = ScanInt((bool*)0);
+        }
+        else if (st == 7)
+        {
+        info->m_activeStatusControlInfo[2] = ScanInt((bool*)0);
+        }
+        else if (st == 9)
+        {
+        int v = ScanInt((bool*)0);
+        ScanInt((bool*)0);
+        ScanInt((bool*)0);
+        info->m_activeStatusControlInfo[3] = v;
+        }
+        else if (st == 0xa)
+        {
+        ScanInt((bool*)0);
+        }
+        else if (st == 0xb)
+        {
+        info->m_activeStatusControlInfo[4] = ScanInt((bool*)0);
+        }
+        else if (st == 0x11)
+        {
+        ScanInt((bool*)0);
+        }
+        }
+        }
+        }
+        goto done;
+    }
+    case 0x1a60:
+    case 0x1a5d:
+    {
+        // ORIG 0x89abffa/0x89abf9b（两关键字共享执行体）：ScanInt（bool 出参）
+        // 必须成功写 m_growthLevelBegin，失败即返回 0；ScanInt 无检查写
+        // m_growthLevelEnd；随后 while ScanType 内层子标签循环写入成长表，
+        // 未知标签忽略继续；EOF 为正常结束。
+        int lv = 0;
+        if (!ScanInt(&lv)) return false;
+        info->m_growthLevelBegin = lv;
+        info->m_growthLevelEnd = ScanInt((bool*)0);
+        std::string t;
+        while (ScanType(t, true))
+        {
+        if (t == "[physical attack]")
+        {
+        for (int i = 0; i < 2; ++i) info->m_linPhyAtk[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[physical defense]")
+        {
+        for (int i = 0; i < 2; ++i) info->m_linPhyDef[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[magical attack]")
+        {
+        for (int i = 0; i < 2; ++i) info->m_linMagAtk[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[magical defense]")
+        {
+        for (int i = 0; i < 2; ++i) info->m_linMagDef[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[equipment physical attack]")
+        {
+        for (int i = 0; i < 4; ++i) info->m_linEqPhyAtk[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[equipment physical defense]")
+        {
+        for (int i = 0; i < 4; ++i) info->m_linEqPhyDef[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[equipment magical attack]")
+        {
+        for (int i = 0; i < 4; ++i) info->m_linEqMagAtk[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[equipment magical defense]")
+        {
+        for (int i = 0; i < 4; ++i) info->m_linEqMagDef[i] = ScanInt((bool*)0);
+        }
+        else if (t == "[grade]")
+        {
+        info->m_growthGradeBegin = ScanInt((bool*)0);
+        info->m_growthGradeEnd = ScanInt((bool*)0);
+        }
+        else if (t == "[separate attack]")
+        {
+        for (int i = 0; i < 4; ++i)
+        {
+        ScanInt(&info->m_linSepAtk[i]);
+        }
+        }
+        else if (t == "[separate rate]")
+        {
+        for (int i = 0; i < 4; ++i)
+        {
+        ScanFloat(&info->m_linSepRate[i]);
+        }
+        }
+        else if (t == "[repair price]")
+        {
+        info->m_growthRepairBegin = ScanInt((bool*)0);
+        info->m_growthRepairEnd = ScanInt((bool*)0);
+        }
+        else if (t == "[/level linear ability]")
+        {
+        break;
+        }
+        }
+        goto done;
+    }
+    case 0x1b39:
+    {
+        if (importAllSkillItem(info) != 1) return false; goto done;
+    }
+    case 0x1b3d:
+    {
+        if (importItemOverpowerDesc(info) != 1) return false; goto done;
+    }
+    case 0x1b41:
     {
         // ORIG 0x89ac64d：`mov 0x8(%ebp),%eax; movb $0x1,0x425(%eax)` →
         // info->+0x425（m_119.m_425）置 1，随后统一尾出口 jmp 0x89acebb。
         info->m_119.m_425 = 1;
         goto done;
     }
-    if (id == 0x1b47)
+    case 0x1b47:
     {
         // ORIG 0x89ac6b9：3× ScanInt((bool*)0) 先存独立局部 -0x3c/-0x38/-0x34，
         // 再按序写元素 -0xa74..-0xa68：{0, i1, i2, i3}（movl $0 + 3 次拷贝，
@@ -3230,7 +4022,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_aura200.push_back(e);
         goto done;
     }
-    if (id == 0x1b53)
+    case 0x1b53:
     {
         // ORIG 0x89ac78b：4× ScanInt((bool*)0) 先存独立局部 -0x30/-0x2c/-0x28/-0x24，
         // 再按序写元素 -0xa88..-0xa78：{1, j1, j2, j3, j4}（5 int 全写），
@@ -3248,7 +4040,63 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_aura200.push_back(e);
         goto done;
     }
-    if (id == 0x1bbb || id == 0x1bbd)
+    case 0x1b65:
+    {
+        // ORIG 0x89ac815：ScanFloat 无检查写 +0x444。
+        info->m_upgradeCostDiscount = ScanFloat((bool*)0);
+        goto done;
+    }
+    case 0x1b68:
+    {
+        // ORIG 0x89ac88c：ScanFloat 无检查写 +0x448。
+        info->m_upgradeProbIncrease = ScanFloat((bool*)0);
+        goto done;
+    }
+    case 0x1b6b:
+    {
+        info->m_assaultCostDiscount= ScanFloat((bool*)0); goto done;
+    }
+    case 0x1b70:
+    {
+        // ORIG 0x89aca1d：ScanStr "%" 判定；ScanInt 无检查转 float；
+        // 非 %：值位模式存 +0x210（汇编 mov 32 位）；%：+0x20c = 值 / 10.0。
+        ScanStr(&s);
+        float f = (float)ScanInt((bool*)0);
+        if (s == "%")
+        info->m_decreaseCriticalDamage = f / 10.0f;
+        else
+        info->m_210 = f;
+        goto done;
+    }
+    case 0x1b83:
+    {
+        bool ok = false;
+        int v;
+        while (ScanInt(&v)) { info->m_vec214.push_back(v); ok = true; }
+        (void)ok;
+        goto done;
+    }
+    case 0x1b90:
+    {
+        info->m_allElementalAttack= ScanInt((bool*)0); goto done;
+    }
+    case 0x1b96:
+    {
+        std::string t;
+        while (ScanType(t, true))
+        {
+        if (t == "[probability]")      { info->m_rebirth450.m_field0= ScanInt((bool*)0); }
+        else if (t == "[consume item]"){ info->m_rebirth450.m_pair4.first= ScanInt((bool*)0);
+        info->m_rebirth450.m_pair4.second= ScanInt((bool*)0); }
+        else if (t == "[hp recovery]") { info->m_rebirth450.m_fieldc= ScanInt((bool*)0); }
+        else if (t == "[cooltime]")    { info->m_rebirth450.m_field14= ScanInt((bool*)0); }
+        else if (t == "[mp recovery]") { info->m_rebirth450.m_field10= ScanInt((bool*)0); }
+        else break;
+        }
+        goto done;
+    }
+    case 0x1bbb:
+    case 0x1bbd:
     {
         // ORIG 0x89acd24（0x1bbb [potion physical attack]，串 @0x8e181ad，
         // pair IRA25 注册 @0x89acd5b）/0x89acd83（0x1bbd [potion magical attack]，
@@ -3258,161 +4106,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         // + return true）。ORIG 对该二 id 无任何解析实体，仅注册 + 命中不处理。
         goto done;
     }
-    if (id == 0x1b70)
-    {
-        // ORIG 0x89aca1d：ScanStr "%" 判定；ScanInt 无检查转 float；
-        // 非 %：值位模式存 +0x210（汇编 mov 32 位）；%：+0x20c = 值 / 10.0。
-        ScanStr(&s);
-        float f = (float)ScanInt((bool*)0);
-        if (s == "%")
-            info->m_decreaseCriticalDamage = f / 10.0f;
-        else
-            info->m_210 = f;
-        goto done;
-    }
-    if (id == 0x17d0)
-    {
-        // ORIG 0x89a8aea：两个 ScanFloat 无检查写 +0x390/+0x394（float 位模式）。
-        info->m_separateRate[0] = ScanFloat((bool*)0);
-        info->m_separateRate[1] = ScanFloat((bool*)0);
-        goto done;
-    }
-    if (id == 0x17bb)
-    {
-        // ORIG 0x89a8902：清空 +0x240 vector<vector<float>>，ScanInt 次数 resize；
-        // 循环 ScanFloat（bool 成功出参）：v 追加到第 (i % n) 个子向量并递增 i。
-        info->m_vec240.clear();
-        int n = ScanInt((bool*)0);
-        info->m_vec240.resize(n);
-        int i = 0;
-        bool ok = false;
-        float v2 = ScanFloat(&ok);
-        while (ok)
-        {
-            info->m_vec240[i % n].push_back(v2);
-            ++i;
-            v2 = ScanFloat(&ok);
-        }
-        goto done;
-    }
-    if (id == 0x1b83)
-    {
-        bool ok = false;
-        int v;
-        while (ScanInt(&v)) { info->m_vec214.push_back(v); ok = true; }
-        (void)ok;
-        goto done;
-    }
-    if (id == 0x1b6b){ info->m_assaultCostDiscount= ScanFloat((bool*)0); goto done; }
-    if (id == 0x1b65)
-    {
-        // ORIG 0x89ac815：ScanFloat 无检查写 +0x444。
-        info->m_upgradeCostDiscount = ScanFloat((bool*)0);
-        goto done;
-    }
-    if (id == 0x1b68)
-    {
-        // ORIG 0x89ac88c：ScanFloat 无检查写 +0x448。
-        info->m_upgradeProbIncrease = ScanFloat((bool*)0);
-        goto done;
-    }
-    if (id == 0x1b96)
-    {
-        std::string t;
-        while (ScanType(t, true))
-        {
-            if (t == "[probability]")      { info->m_rebirth450.m_field0= ScanInt((bool*)0); }
-            else if (t == "[consume item]"){ info->m_rebirth450.m_pair4.first= ScanInt((bool*)0);
-                                             info->m_rebirth450.m_pair4.second= ScanInt((bool*)0); }
-            else if (t == "[hp recovery]") { info->m_rebirth450.m_fieldc= ScanInt((bool*)0); }
-            else if (t == "[cooltime]")    { info->m_rebirth450.m_field14= ScanInt((bool*)0); }
-            else if (t == "[mp recovery]") { info->m_rebirth450.m_field10= ScanInt((bool*)0); }
-            else break;
-        }
-        goto done;
-    }
-
-    if (id == 0x1a60 || id == 0x1a5d)
-    {
-        // ORIG 0x89abffa/0x89abf9b（两关键字共享执行体）：ScanInt（bool 出参）
-        // 必须成功写 m_growthLevelBegin，失败即返回 0；ScanInt 无检查写
-        // m_growthLevelEnd；随后 while ScanType 内层子标签循环写入成长表，
-        // 未知标签忽略继续；EOF 为正常结束。
-        int lv = 0;
-        if (!ScanInt(&lv)) return false;
-        info->m_growthLevelBegin = lv;
-        info->m_growthLevelEnd = ScanInt((bool*)0);
-        std::string t;
-        while (ScanType(t, true))
-        {
-            if (t == "[physical attack]")
-            {
-                for (int i = 0; i < 2; ++i) info->m_linPhyAtk[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[physical defense]")
-            {
-                for (int i = 0; i < 2; ++i) info->m_linPhyDef[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[magical attack]")
-            {
-                for (int i = 0; i < 2; ++i) info->m_linMagAtk[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[magical defense]")
-            {
-                for (int i = 0; i < 2; ++i) info->m_linMagDef[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[equipment physical attack]")
-            {
-                for (int i = 0; i < 4; ++i) info->m_linEqPhyAtk[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[equipment physical defense]")
-            {
-                for (int i = 0; i < 4; ++i) info->m_linEqPhyDef[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[equipment magical attack]")
-            {
-                for (int i = 0; i < 4; ++i) info->m_linEqMagAtk[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[equipment magical defense]")
-            {
-                for (int i = 0; i < 4; ++i) info->m_linEqMagDef[i] = ScanInt((bool*)0);
-            }
-            else if (t == "[grade]")
-            {
-                info->m_growthGradeBegin = ScanInt((bool*)0);
-                info->m_growthGradeEnd = ScanInt((bool*)0);
-            }
-            else if (t == "[separate attack]")
-            {
-                for (int i = 0; i < 4; ++i)
-                {
-                    ScanInt(&info->m_linSepAtk[i]);
-                }
-            }
-            else if (t == "[separate rate]")
-            {
-                for (int i = 0; i < 4; ++i)
-                {
-                    ScanFloat(&info->m_linSepRate[i]);
-                }
-            }
-            else if (t == "[repair price]")
-            {
-                info->m_growthRepairBegin = ScanInt((bool*)0);
-                info->m_growthRepairEnd = ScanInt((bool*)0);
-            }
-            else if (t == "[/level linear ability]")
-            {
-                break;
-            }
-        }
-        goto done;
-    }
-    if (id == 0x1b39)
-    { if (importAllSkillItem(info) != 1) return false; goto done; }
-    if (id == 0x1b3d)
-    { if (importItemOverpowerDesc(info) != 1) return false; goto done; }
-    if (id == 0x1bc1)
+    case 0x1bc1:
     {
         // ORIG 0x89ace3f：VariableStat 局部 ctor（0x89c2dfc）后
         // while (scanVariableStat(v))（0x88bdb27）成功即 info->m_var474（+0x474）
@@ -3420,6 +4114,9 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         VariableStat v;
         while (scanVariableStat(v)) info->m_var474.push_back(v);
         goto done;
+    }
+    default:
+        break;
     }
 
     if (id == 0x1970)

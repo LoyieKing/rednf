@@ -78,10 +78,15 @@ struct MailBoxListV
         stAvatarExpansionInfo_t m_expansion; // +0x43
     };                                   // sizeof 0x47
 
+    // 条目基址 = info+0xd30+i*0x25（首 dword 与 m_creatureCount 槽重叠，
+    // ORIG 0x08552926/0x08552943 汇编实证即如此访问）。RegistTempPeriod 三
+    // int 实参 = base+0x04/+0x08/+0x0c（0x08552965/0x08552948/0x0855292b）。
     struct CreatureEntry
     {
-        int m_itemIdx;                   // +0x00
-        int m_expire;                    // +0x04
+        int m_countAlias;                // +0x00（与 count 槽重叠，ORIG 访问形）
+        int m_itemIdx;                   // +0x04
+        int m_period;                    // +0x08
+        int m_expire2;                   // +0x0c
     };                                   // 步长 0x25
 
     struct DetailEntry
@@ -732,12 +737,39 @@ void CMailBoxHelper::MakeMailBoxListPacket(CUser* user, PacketGuard* packet)
     packet->put_short(box->GetNotLoadedMailCount());
 }
 
-void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
+// ORIG 逐字段重读形（P157/P49）：ORIG 汇编对 SIG_MAILBOX_LIST 各段每次访问都
+// 重算 `mov 0xc(%ebp) + imul + lea + disp`（0x085528ee/0x08552a45/0x08553254
+// 等），不缓存条目指针槽 ⇒ 用宏直构（static inline 会发 call 符号，P49）。
+#define MBV (reinterpret_cast<MailBoxListV const*>(info))
+#define MB_ENTRY(k) (reinterpret_cast<MailBoxListV::Entry const*>( \
+    reinterpret_cast<char const*>(info) + (k) * 0x61))
+#define MB_AVATAR(k) (reinterpret_cast<MailBoxListV::AvatarEntry const*>( \
+    reinterpret_cast<char const*>(info) + 0x7a4 + (k) * 0x47))
+#define MB_CREATURE(k) (reinterpret_cast<MailBoxListV::CreatureEntry const*>( \
+    reinterpret_cast<char const*>(info) + 0xd30 + (k) * 0x25))
+#define MB_DETAIL(k) (reinterpret_cast<SIG_LETTER_INFO const*>( \
+    reinterpret_cast<char const*>(info) + 0x101c + (k) * 0x12b))
+
+// 残余 DIFF 归因（语义/调用序/字段序已按 ORIG 逐段恢复，insns 1086 vs 1117）：
+//  N1 族——ORIG(4.1.2) 条目基址两步常量折叠 `add $0x7e0; add $0x7` /
+//        `add $0x20; mov 0xa(%eax)`（0x08552822/0x08552a45），4.4.7 恒折单 add
+//        或先载 info 后加，穷举组合不可复现；
+//  P112——4.4.7 将浅层 dead 间隔槽位合并（nowSec 并入 len 层），致 -0x40..-0x4c
+//        一层平移 4 字节；声明序重排已把 -0x1c..-0x3c 与 -0x2b0..-0x384 深区
+//        对齐，剩余层不可控；
+//  P75/P52——avatar/creature 段 ORIG 先物化 3 int 至 edi/esi/ebx 再调 getter，
+//        4.4.7 先求值链式对象表达式，装载时刻跨版本调度差异。
+int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 {
     // ORIG 0x085525a6：DB 邮箱列表落地 → 增量/全量 0x61 列表包 + 信件明细。
+    // 结构按 ORIG 汇编逐段：首段 0x61 header/字节写在 mail-map 循环处
+    // （0x08552661..），但其 count/short 回填推迟到 SetNotLoadedMailCount 之后
+    // （0x08552ed b 区），与信件明细共用同一个 packet 顺序追加；明细前还要
+    // 先遍历 lackSet 把已在 m_letterInfo(+0x90) 暂存的信件补进包里并 erase
+    // （0x08552f90..0x085531d5，上一版缺失段）。
     CMailBox* box = (CMailBox*)user->GetMailBox();
     if (box == 0)
-        return;
+        return 0;
 
     box->incMailLoadCount();
     bool bFirstLoad = !box->IsLoaded();
@@ -746,109 +778,103 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
     long nowSec = GlobalData::s_systemTime_.getCurSec();
 
     // +0x333a：PackageLoadLack 表（20 项）
-    MailBoxListV const* list = reinterpret_cast<MailBoxListV const*>(info);
     std::set<unsigned int> lackSet;
-    box->SetPackageLoadLack(list->m_lackTable, 0x14, lackSet);
+    box->SetPackageLoadLack(MBV->m_lackTable, 0x14, lackSet);
 
     int count = 0;
+    int idx = 0;
     if (!bFirstLoad)
     {
         packet.put_header(0, 0x61);
-        int idx = packet.get_index();
-        packet.put_byte(list->m_mailCount);
+        idx = packet.get_index();
+        packet.put_byte(MBV->m_mailCount);
         packet.put_byte(1);
-        MailMap& mails = mail_map(box);
-        for (MailMap::iterator it = mails.begin(); it != mails.end(); ++it)
+        for (MailMap::const_iterator it = mail_map(box).begin();
+             it != mail_map(box).end(); ++it)   // ORIG 0x085526c4..0x085527bd
         {
-            unsigned int letterId = it->second->GetLetterId();
-            if (lackSet.find(letterId) == lackSet.end())
+            if (lackSet.find(it->second->GetLetterId()) == lackSet.end())
             {
                 it->second->MakePacket(&packet, nowSec, user);
                 count = count + 1;
             }
         }
-        packet.put_byte(idx, count); // ORIG：回填 count 于尾部
-        packet.put_short(list->m_notLoadedMailCount);
     }
 
     // +0x7a0 avatar 注册区，步长 0x47
-    int avatarCount = list->m_avatarCount;
-    for (int i = 0; i < avatarCount; ++i)
+    for (int i = 0; i < MBV->m_avatarCount; ++i)
     {
-        MailBoxListV::AvatarEntry const* av =
-            reinterpret_cast<MailBoxListV::AvatarEntry const*>(
-                reinterpret_cast<const char*>(&list->m_padAvatar[0]) + i * 0x47);
-        CInventory* invW = user->getCurCharacInvenW();
-        invW->GetAvatarItemMgrW()->RegistItem(
-            av->m_uid, av->m_itemIdx, av->m_expire, av->m_name,
-            av->m_emblem, av->m_expansion, false);
+        user->getCurCharacInvenW()->GetAvatarItemMgrW()->RegistItem(
+            MB_AVATAR(i)->m_uid, MB_AVATAR(i)->m_itemIdx, MB_AVATAR(i)->m_expire,
+            MB_AVATAR(i)->m_name, MB_AVATAR(i)->m_emblem,
+            MB_AVATAR(i)->m_expansion, false);
     }
 
-    // +0xd30 creature 临时期限区，步长 0x25
-    int creatureCount = list->m_creatureCount;
-    for (int i = 0; i < creatureCount; ++i)
+    // +0xd30 creature 临时期限区，步长 0x25。ORIG 0x0855298a
+    // RegistTempPeriod(iii) 三 int 自 base+4/+8/+0xc（base=info+0xd30+i*0x25）。
+    for (int i = 0; i < MBV->m_creatureCount; ++i)
     {
-        MailBoxListV::CreatureEntry const* ce =
-            reinterpret_cast<MailBoxListV::CreatureEntry const*>(
-                reinterpret_cast<const char*>(&list->m_padCreature[0]) + i * 0x25);
-        CInventory* invW = user->getCurCharacInvenW();
-        invW->GetCreatureMgrW()->RegistTempPeriod(ce->m_itemIdx, ce->m_expire, 0);
+        user->getCurCharacInvenW()->GetCreatureMgrW()->RegistTempPeriod(
+            MB_CREATURE(i)->m_itemIdx, MB_CREATURE(i)->m_period,
+            MB_CREATURE(i)->m_expire2);
     }
 
-    box->SetLoadState(true, list->m_loadTime);
+    box->SetLoadState(true, MBV->m_loadTime);
 
     // 信件条目区：count @+0x794，步长 0x61
-    int mailCount = list->m_mailCount;
-    for (int i = 0; i < mailCount; ++i)
+    for (int i = 0; i < MBV->m_mailCount; ++i)
     {
-        MailBoxListV::Entry const* entry =
-            reinterpret_cast<MailBoxListV::Entry const*>(
-                reinterpret_cast<const char*>(list) + i * 0x61);
         Inven_Item item;
-        int itemIdx = entry->m_itemIdx;
-        if (itemIdx != 0)
+        if (MB_ENTRY(i)->m_itemIdx == 0)
         {
-            if (itemIdx == 1)
+        }
+        else if (MB_ENTRY(i)->m_itemIdx == 1)
+        {
+            item.m_addInfo = MB_ENTRY(i)->m_itemIdx;
+            item.m_addInfo2 = MB_ENTRY(i)->m_addInfo2;
+            item.m_fieldb = MB_ENTRY(i)->m_field33;
+        }
+        else
+        {
+            CItem* proto = G_CDataManager()->find_item(MB_ENTRY(i)->m_itemIdx);
+            if (proto != 0)
             {
-                item.m_addInfo = itemIdx;
-                item.m_addInfo2 = entry->m_addInfo2;
-                item.m_fieldb = entry->m_field33;
-            }
-            else
-            {
-                CItem* proto = G_CDataManager()->find_item(itemIdx);
-                if (proto != 0)
+                proto->make_item(item);
+                item.m_field0 = MB_ENTRY(i)->m_itemField0;
+                item.m_addInfo = MB_ENTRY(i)->m_itemIdx;
+                item.m_addInfo2 = MB_ENTRY(i)->m_addInfo2;
+                item.SetItemAttr(MB_ENTRY(i)->m_itemAttr);
+                item.m_fieldb = MB_ENTRY(i)->m_field33;
+                item.m_fieldd = MB_ENTRY(i)->m_field35;
+                *reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(&item) + 0x15) = MB_ENTRY(i)->m_field39;
+                *reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(&item) + 0x19) = MB_ENTRY(i)->m_field3d;
+                *reinterpret_cast<unsigned short*>(
+                    reinterpret_cast<char*>(&item) + 0x1d) =
+                    MB_ENTRY(i)->m_field41;
+                item.m_amp.assign(MB_ENTRY(i)->m_ampType, MB_ENTRY(i)->m_ampIdx);
+                *reinterpret_cast<unsigned int*>(
+                    reinterpret_cast<char*>(&item) + 0x1f) =
+                    (unsigned int)MB_ENTRY(i)->m_field46;
+                *reinterpret_cast<unsigned int*>(
+                    reinterpret_cast<char*>(&item) + 0x23) =
+                    (unsigned int)MB_ENTRY(i)->m_field4a;
+                *reinterpret_cast<unsigned int*>(
+                    reinterpret_cast<char*>(&item) + 0x27) =
+                    (unsigned int)MB_ENTRY(i)->m_field4e;
+                *reinterpret_cast<unsigned short*>(
+                    reinterpret_cast<char*>(&item) + 0x2b) =
+                    MB_ENTRY(i)->m_field52;
+                item.m_upgradeSep.SetUpgradeSeparateAndTradeRestriction(
+                    MB_ENTRY(i)->m_upgradeSep);
+                if (MB_ENTRY(i)->m_attachType == 4)
                 {
-                    InvenItemRawV* raw = reinterpret_cast<InvenItemRawV*>(&item);
-                    proto->make_item(item);
-                    item.m_field0 = entry->m_itemField0;
-                    item.m_addInfo = itemIdx;
-                    item.m_addInfo2 = entry->m_addInfo2;
-                    item.SetItemAttr(entry->m_itemAttr);
-                    item.m_fieldb = entry->m_field33;
-                    item.m_fieldd = entry->m_field35;
-                    *reinterpret_cast<int*>(raw->m_ampArea + 4) = entry->m_field39;
-                    *reinterpret_cast<int*>(raw->m_ampArea + 8) = entry->m_field3d;
-                    *reinterpret_cast<unsigned short*>(raw->m_ampArea + 12) =
-                        entry->m_field41;
-                    item.m_amp.assign(entry->m_ampType, entry->m_ampIdx);
-                    *reinterpret_cast<unsigned int*>(raw->m_randomArea) =
-                        (unsigned int)entry->m_field46;
-                    *reinterpret_cast<unsigned int*>(raw->m_randomArea + 4) =
-                        (unsigned int)entry->m_field4a;
-                    *reinterpret_cast<unsigned int*>(raw->m_randomArea + 8) =
-                        (unsigned int)entry->m_field4e;
-                    *reinterpret_cast<unsigned short*>(raw->m_randomArea + 12) =
-                        entry->m_field52;
-                    item.m_upgradeSep.SetUpgradeSeparateAndTradeRestriction(
-                        entry->m_upgradeSep);
-
-                    if (entry->m_attachType == 4 &&
-                        IsTradeLimitAttachTypeItem(item))
+                    if (IsTradeLimitAttachTypeItem(item))
                     {
                         unsigned char limit = item.GetTradeLimitCount();
                         item.SetTradeLimitCount(limit + 0xff);
-                        user->m_historyLog.ChangeItemLimitCount(1, -1, itemIdx, -1, 4);
+                        user->m_historyLog.ChangeItemLimitCount(
+                            1, -1, (int)MB_ENTRY(i)->m_itemIdx, -1, 4);
                     }
                 }
             }
@@ -856,107 +882,140 @@ void CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 
         // 邮件类型：+0x59 money / +0x5a coin → 1/2/0
         int pkgType = 0;
-        if (entry->m_moneyFlag != 0)
+        if (MB_ENTRY(i)->m_moneyFlag != 0)
             pkgType = 1;
-        else if (entry->m_coinFlag != 0)
+        else if (MB_ENTRY(i)->m_coinFlag != 0)
             pkgType = 2;
 
+        // stAddNewMailInput 写入顺序 = ORIG 0x08552d05..0x08552dd4 逐槽序
+        // （+0x24 item 指针最先，+0x10 attach→m_remainSec 最后）。
         CMailBox::stAddNewMailInput input;
-        MailInputV* iv = reinterpret_cast<MailInputV*>(&input);
-        iv->m_mailIdx = entry->m_mailIdx;
-        iv->m_characNo = entry->m_characNo;
-        iv->m_unk08 = entry->m_unk25;                    // ORIG：input+0x08 ← 条目+0x25
-        iv->m_letterId = entry->m_letterId;
-        iv->m_attachType = entry->m_attachType;
-        iv->m_pkgType = pkgType;
-        iv->m_money = entry->m_money;
-        iv->m_unlimit = entry->m_unlimit;
-        iv->m_senderName = entry->m_senderName;          // ORIG：input+0x20 ← 条目+0x08
+        input.m_packageItem = &item;
+        input.m_unlimit = MB_ENTRY(i)->m_unlimit;
+        input.m_letterId = MB_ENTRY(i)->m_letterId;
+        input.m_mailIndex = MB_ENTRY(i)->m_mailIdx;
+        input.m_packageMoney = MB_ENTRY(i)->m_unk25;
+        input.m_packageType = pkgType;
+        input.m_period = MB_ENTRY(i)->m_money;
+        input.m_senderCharacNo = MB_ENTRY(i)->m_characNo;
+        input.m_senderName = MB_ENTRY(i)->m_senderName;
+        input.m_remainSec = MB_ENTRY(i)->m_attachType;
 
         CMailBox::CMail* added = box->AddNewMail(input);
-        if (added != 0 && box->FindPackageLoadLack(entry->m_letterId) == 0)
+        if (added != 0 && box->FindPackageLoadLack(MB_ENTRY(i)->m_letterId) == 0)
         {
             count = count + 1;
-            if (!bFirstLoad)
+            if (!bFirstLoad) {
                 added->MakePacket(&packet, nowSec, user);
+            }
         }
     }
 
-    box->SetNotLoadedMailCount(list->m_notLoadedMailCount);
-    if (!bFirstLoad)
-    {
-        packet.finalize(true);
-        user->Send(packet);
-    }
-    else
+    box->SetNotLoadedMailCount(MBV->m_notLoadedMailCount);
+    if (bFirstLoad)
     {
         MakeMailBoxListPacket(user, &packet);
-        if (mailCount > 0)
+        if (MBV->m_mailCount > 0)
             SetPeriodCheckTimer(user);
         box->ClearLetterKeepCount();
         box->SetLoadedLetterCount(0);
     }
-
-    box->SetLoadedLetterCount(box->GetLoadedLetterCount() + list->m_loadedAdd);
-
-    // ---- 信件明细区：count @+0x1018，SIG_LETTER_INFO 步长 299 ----
-    int detailCount = list->m_detailCount;
-    count = 0;
-    int idxPos = packet.get_index();
-    packet.clear();
-    packet.put_header(1, 0x61);
-    packet.put_short(detailCount);
-
-    for (int i = 0; i < detailCount; ++i)
+    else
     {
-        MailBoxListV::DetailEntry const* de =
-            reinterpret_cast<MailBoxListV::DetailEntry const*>(
-                reinterpret_cast<const char*>(&list->m_padDetail[0]) + i * 299);
-        unsigned int letterId = de->m_letterId;
-        if (box->FindPackageLoadLack(letterId) != 0)
-        {
-            // ORIG 0x8553407..3485：缺载信件入 m_letterInfo[key=letterId]
-            // （SIG_LETTER_INFO 0x12b；key=条目+0xc，与 de 基址差 0xc 等价）。
-            SIG_LETTER_INFO val;
-            std::memcpy(&val, de, sizeof(val));
-            box->m_letterInfo.insert(std::make_pair(letterId, val));
-            continue;
-        }
-
-        packet.put_int((int)de->m_letterId);
-        packet.put_int((int)de->m_characNo);
-        const char* pTitle = de->m_title;
-        packet.put_int((int)std::strlen(pTitle));
-        packet.put_str(pTitle, std::strlen(pTitle));
-        const char* pMsg = de->m_msg;
-        packet.put_int((int)std::strlen(pMsg));
-        packet.put_str(pMsg, std::strlen(pMsg));
-        if (!isUnlimitMail(info, letterId))
-            packet.put_int(de->m_period);
-        else
-            packet.put_int(0);
-        packet.put_short(de->m_flag);
-        count = count + 1;
-
-        box->SetLastLoadLetterIdx(std::max<unsigned int>(
-            (unsigned int)box->GetLastLoadLetterIdx(), letterId));
-        if (de->m_flag == 3)
-            box->InsertLetterKeepCount(letterId);
+        // ORIG 0x08552edb：首包 count/未载数回填（与明细共用同一 packet，
+        // finalize/Send 推迟到明细段之后）。
+        packet.put_byte(idx, count);
+        packet.put_short(MBV->m_notLoadedMailCount);
     }
-    packet.put_short(idxPos, count);
+
+    box->SetLoadedLetterCount(box->GetLoadedLetterCount() + MBV->m_loadedAdd);
+
+    // ---- 明细段：ORIG 0x08552f41..0x0855356e。同一 packet 上继续追加：
+    // get_index 暂存回填位 → put_short(明细总数) → 先消费 m_letterInfo 中
+    // 与 lackSet 匹配的暂存信件 → 再遍历明细条目区（步长 0x12b）。----
+    count = 0;
+    idx = packet.get_index();
+    packet.put_short(MBV->m_detailCount);
+
+    for (std::set<unsigned int>::const_iterator sit = lackSet.begin();
+         sit != lackSet.end(); ++sit)
+    {
+        std::map<unsigned int, SIG_LETTER_INFO>::iterator mit =
+            box->m_letterInfo.find(*sit);
+        if (mit != box->m_letterInfo.end())
+        {
+            // ORIG 每字段重读 operator->（0x08553004..0x085531a3，P157/P48：
+            // strlen 双调用、isUnlimitMail 用 value+0x0）。
+            packet.put_int(mit->second.m_letterId);
+            packet.put_int(mit->second.m_characNo);
+            packet.put_int((int)std::strlen(mit->second.m_title));
+            packet.put_str(mit->second.m_title,
+                           (int)std::strlen(mit->second.m_title));
+            packet.put_int((int)std::strlen(mit->second.m_message));
+            packet.put_str(mit->second.m_message,
+                           (int)std::strlen(mit->second.m_message));
+            if ((unsigned char)isUnlimitMail(info, mit->second.m_letterId))
+                packet.put_int(0);
+            else
+                packet.put_int(mit->second.m_period);
+            packet.put_short((int)mit->second.m_flag);
+            count = count + 1;
+            box->m_letterInfo.erase(mit);
+        }
+    }
+
+    for (int i = 0; i < MBV->m_detailCount; ++i)
+    {
+        if (box->FindPackageLoadLack(MB_DETAIL(i)->m_letterId) != 0)
+        {
+            // ORIG 0x08553407：make_pair(key 引用, value 引用) 同址
+            // （0x101c 既作 key dword 又作 SIG_LETTER_INFO 首字段），
+            // decay 后临时 pair → insert(pair const&)（0x08558848/886/88e2）。
+            box->m_letterInfo.insert(
+                std::make_pair(MB_DETAIL(i)->m_letterId, *MB_DETAIL(i)));
+        }
+        else
+        {
+            packet.put_int((int)MB_DETAIL(i)->m_letterId);
+            packet.put_int((int)MB_DETAIL(i)->m_characNo);
+            packet.put_int((int)std::strlen(MB_DETAIL(i)->m_title));
+            packet.put_str(MB_DETAIL(i)->m_title,
+                           (int)std::strlen(MB_DETAIL(i)->m_title));
+            packet.put_int((int)std::strlen(MB_DETAIL(i)->m_message));
+            packet.put_str(MB_DETAIL(i)->m_message,
+                           (int)std::strlen(MB_DETAIL(i)->m_message));
+            if ((unsigned char)isUnlimitMail(info, MB_DETAIL(i)->m_letterId))
+                packet.put_int(0);
+            else
+                packet.put_int(MB_DETAIL(i)->m_period);
+            packet.put_short((int)MB_DETAIL(i)->m_flag);
+            count = count + 1;
+        }
+        unsigned int lastIdx = (unsigned int)box->GetLastLoadLetterIdx();
+        box->SetLastLoadLetterIdx(std::max(lastIdx, MB_DETAIL(i)->m_letterId));
+        if (MB_DETAIL(i)->m_flag == 3)
+            box->InsertLetterKeepCount(MB_DETAIL(i)->m_letterId);
+    }
+    packet.put_short(idx, count);
     packet.finalize(true);
     user->Send(packet);
 
     if (!bFirstLoad)
     {
         packet.clear();
-        packet.put_header(1, 99);
+        packet.put_header(1, 0x63);
         packet.put_byte(1);
         packet.put_short(box->GetNotLoadedMailCount());
         packet.finalize(true);
         user->Send(packet);
     }
+    return 1;
 }
+#undef MBV
+#undef MB_ENTRY
+#undef MB_AVATAR
+#undef MB_CREATURE
+#undef MB_DETAIL
 
 // ---- 取件内部实现 ----
 bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,

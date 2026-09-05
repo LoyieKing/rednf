@@ -858,42 +858,49 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
     return 0;
 }
 
-// 执行交易（ORIG 完整转写）：防 hack 金币/头像上报 → 双方金币/物品互换 →
-// 零金币日志 → 物品转移（头像/生物/普通三分支）→ 发包 → 更新列表 → 收尾日志。
-// 失败物品不回补（ORIG 直接 reset 槽位并返回 0）。
-int CTradeSpace::proceed_trade()
+// 执行交易（ORIG 0x0853087a 完整转写）：防 hack 金币/头像上报 → 双方金币/物品
+// 互换 → 零金币日志 → 物品转移（头像/生物/普通三分支，共享 ret<0 失败出口）→
+// 发包 → 更新列表 → 收尾日志。失败物品不回补（ORIG 直接 reset 槽位返回 0）。
+// 形态（P157/P160，O=1606）：第二循环全程不缓存 m_pTraders/m_slotsData 指针，
+//   每用点重读成员（+0x8d6/+0x91d 等）；仅 ORIG 自身缓存处保留具名局部：
+//   -0x60/-0x5c src/dst（第一循环）、-0x3c item ptr（均价块）、
+//   -0x34 slot ptr（头像成功块）、-0x2c characNo/-0x28 size（生物块）、
+//   -0x4c/-0x50 from/to（零金币块）。
+//   ret 共享槽 -0xac 初值 0（ORIG +0x0de）；三分支各写，共享 +0x11ce 负值检查。
+//   ChangeItemLimitCount 记在**发送方** trader 的 historyLog（ORIG +0x1090）。
+//   TradeComplete 参数为 tradeLogMoney[trader]/[1-trader]（ORIG +0x1613/+0x1639
+//   直取 user+0x8e980，GetGoldControl 头内联 W@0x084ed008）。
+bool CTradeSpace::proceed_trade()
 {
     if (!IsLocked())
-        return 0;
+        return false;
     if (!checkTrade())
-        return 0;
+        return false;
 
+    int tradeLogMoney[2] = {0, 0};                // -0x88/-0x84（TradeEnd 用，恒 0）
+    int avgPrice[2] = {0, 0};                     // -0x90/-0x8c（拍卖均价累计）
     PacketGuard packet[2];                        // -0xa8 起 2 个
     std::map<CUser*, std::vector<int> > updateMap;  // -0xc4
-    int avgPrice[2] = {0, 0};                     // -0x90/-0x8c（拍卖均价累计）
-    int tradeLogMoney[2] = {0, 0};                // -0x88/-0x84（TradeEnd 用，恒 0）
 
     // ---- 第一段：防 hack 上报（trader 0..1）----
     for (int trader = 0; trader <= 1; ++trader)
     {
         CUser* src = m_pTraders[trader];          // -0x60
         CUser* dst = m_pTraders[1 - trader];      // -0x5c
-        char ip[16];
+        char ip[16];                              // -0xd4
         ((XNuclear::CHades*)dst->getHades())->GetIP(ip);
-        int money = m_nMoney[trader];             // +0xf60
         int srcMoney = src->getCurCharacInvenR()->get_money();
-        int accId = dst->get_acc_id();
-        src->getAcccountHackInfo()->sendGold(0, (unsigned)accId, (unsigned)money,
-                                             (unsigned)srcMoney, 0, ip);
+        // ORIG +0x14b-0x1b2：srcMoney→money→accId→receiver 求值序
+        src->getAcccountHackInfo()->sendGold(0, dst->get_acc_id(),
+                                             m_nMoney[trader], srcMoney, 0, ip);
         for (int slot = 3; slot <= 0x1a; ++slot)
         {
-            // ORIG 0x853087a：遍历 (1-trader) 行 —— 对方注册、将转给 src 的
-            // 头像物品（反编译 C：this + slot*0x48 + (1-local_68)*0x798 + 0x3b；
-            // 汇编 0x8530a3a sub $0x1,%ebx? 实为 1-local_68 行）。
-            int itemIdx = TradeSlotAt(m_slotsData, 1 - trader, slot)
-                              ->m_item.m_addInfo;
-            if (src->getAcccountHackInfo()->isAvatar((unsigned)itemIdx))
-                src->getAcccountHackInfo()->sendAvatar(0, (unsigned)accId);
+            // ORIG +0x1c0：遍历 (1-trader) 行、发方 src 上报（0x8530a3a）
+            int itemIdx = m_slotsData[1 - trader][slot].m_item.m_addInfo;
+            if (src->getAcccountHackInfo()->isAvatar((unsigned)itemIdx)) {
+                unsigned long acc = dst->get_acc_id();
+                src->getAcccountHackInfo()->sendAvatar(0, acc);
+            }
         }
     }
 
@@ -905,48 +912,49 @@ int CTradeSpace::proceed_trade()
         packet[trader].put_header(0, 0x12);
         for (int slot = 3; slot <= 0x1a; ++slot)
         {
-            if (TradeSlotAt(m_slotsData, trader, slot)->m_item.m_addInfo != 0)
+            if (m_slotsData[trader][slot].m_item.m_addInfo != 0)
                 ++count;
         }
-        int money = m_nMoney[trader];
-        if (money > 0)
+        if (m_nMoney[trader] > 0)
         {
             ++count;
             packet[trader].put_short(count);
             packet[trader].put_short(0);
             packet[trader].put_short(0);
-            CUser* dst = m_pTraders[1 - trader];
-            if (dst)
-                dst->getCurCharacInvenW()->gain_money(
-                    money, (eMoneyAddReason)1, 1, 0);
-            if (money % 10000 != 0)
+            if (m_pTraders[1 - trader])
+                m_pTraders[1 - trader]->getCurCharacInvenW()->gain_money(
+                    m_nMoney[trader], (eMoneyAddReason)1, 1, 0);
+            if (m_nMoney[trader] % 10000 != 0)
             {
-                int accId = m_pTraders[trader]->get_acc_id();
-                int etc = m_pTraders[1 - trader]->SetETC(0x2c4, accId);
-                CUser* u = m_pTraders[1 - trader];
-                u->getHackAnalyzer()->addServerHackCnt(
-                    u, (WongWork::ENUM_HACKTYPE)0x2c4, 1, (unsigned)etc, 0);
+                unsigned int etc = m_pTraders[1 - trader]->SetETC(
+                    0x2c4, m_pTraders[trader]->get_acc_id());
+                m_pTraders[1 - trader]->getHackAnalyzer()
+                    ->addServerHackCnt(m_pTraders[1 - trader],
+                                       (WongWork::ENUM_HACKTYPE)0x2c4, 1, etc,
+                                       0);
             }
-            CUser* src = m_pTraders[trader];
-            if ((src->isHackUser() || src->isHackUserTimer()) && money != 0)
-            {
-                int accId = src->get_acc_id();
+            if ((m_pTraders[trader]->isHackUser() ||
+                 m_pTraders[trader]->isHackUserTimer()) &&
+                m_nMoney[trader] != 0)
                 m_pTraders[1 - trader]->gainMoneyFromHackUser(
-                    (unsigned)accId, (unsigned long long)money, 1, 0);
-            }
+                    m_pTraders[trader]->get_acc_id(),
+                    (unsigned long long)(long long)m_nMoney[trader], 1, 0);
             if (m_pTraders[trader] && m_pTraders[1 - trader] &&
                 m_pTraders[trader]->getCurCharacMoney() == 0)
             {
                 CUser* to = m_pTraders[1 - trader];   // -0x50
                 CUser* from = m_pTraders[trader];     // -0x4c
                 CStreamGuard guard(
-                    GlobalData::s_stream_pool->Acquire("item_trade.cpp", 0xc51), true);
+                    GlobalData::s_stream_pool->Acquire("item_trade.cpp",
+                                                       0xc51),
+                    true);
                 guard.operator*()->operator<<(0xa1);
                 guard.operator*()->operator<<(-1);
                 SIG_SAVE_GOLD_ZERO_TRADE_LOG* log =
                     guard->GetInBuffer<SIG_SAVE_GOLD_ZERO_TRADE_LOG>();
                 log->m_to_m_id = (unsigned)to->get_acc_id();
-                std::strncpy(log->m_to_nat_ip, to->m_network.get_str_ip(), 0x10);
+                std::strncpy(log->m_to_nat_ip, to->m_network.get_str_ip(),
+                             0x10);
                 to->m_network.GetPeerIP2(log->m_to_peer_ip, 0x14);
                 log->m_to_nat_type = to->m_network.get_nat_type();
                 log->m_from_m_id = (unsigned)from->get_acc_id();
@@ -962,8 +970,7 @@ int CTradeSpace::proceed_trade()
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
             }
             m_nMoney[trader] = 0;
-            // ORIG 0x853087a：WriteTradeUp/Down 第三参在清零后读成员（恒 0），
-            // 金币金额不进物品交易日志。
+            // ORIG 0x853087a：WriteTradeUp/Down 第三参在清零后读成员（恒 0）
             HistoryLog::WriteTradeUp(
                 (FILE*)m_pTraders[trader]->m_field796f8, 0,
                 m_nMoney[trader]);
@@ -978,127 +985,142 @@ int CTradeSpace::proceed_trade()
 
         for (int slot = 3; slot <= 0x1a; ++slot)
         {
-            CUser* dst = m_pTraders[1 - trader];
-            if (!dst)
-                continue;
-            TradeSlot* ts = TradeSlotAt(m_slotsData, trader, slot);
-            if (ts->m_item.m_addInfo == 0)
-                continue;
-
-            // 拍卖均价累计
-            CAuctionAveragePrice* avgMgr =
-                G_CGameManager()->GetAuctionAveragePriceManager();
-            if (avgMgr)
+            if (m_pTraders[1 - trader] &&
+                m_slotsData[trader][slot].m_item.m_addInfo != 0)
             {
-                Inven_Item* item = &ts->m_item;
-                unsigned char upgrade = item->GetUpgrade();
-                int avg = avgMgr->GetAveragePrice(item->m_addInfo, upgrade);
-                if (item->m_field1 == 2 || item->m_field1 == 3)
-                    avg *= item->m_addInfo2;
-                avgPrice[trader] += avg;
-            }
-
-            int ret = -1;
-            if (ts->m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)  // 头像
-            {
-                ret = dst->getCurCharacInvenW()->insertAvatarIntoInventory(
-                    ts->m_item, (eAvatarItemAddReason)1, false);
-                if (ret >= 0)
+                int ret = 0;   // ORIG -0xac 初值 0（+0xde），三分支共享
+                // 拍卖均价累计（ORIG +0x91d；-0x3c item ptr 缓存形）
+                CAuctionAveragePrice* avgMgr =
+                    G_CGameManager()->GetAuctionAveragePriceManager();
+                if (avgMgr)
                 {
-                    TradeSlot* itemTs = TradeSlotAt(m_slotsData, trader, slot);
-                    unsigned int avatarUid = (unsigned)itemTs->m_item.m_addInfo2;
-                    unsigned int characNo =
-                        (unsigned)dst->getCurCharacNo();
-                    _SaveAvatarItemOwnerChange(
-                        itemTs->m_item.m_addInfo2, itemTs->m_field04,
-                        characNo, (unsigned char)ret);
-                    DB_InsertCeraItemHistory::makeRequest(
-                        itemTs->m_item.m_addInfo2, itemTs->m_field04,
-                        characNo, 2);
-                    // ORIG 0x853087a：EraseAvatarItem 于发送方(trader)的
-                    // CAvatarItemMgrW，AddAvatarItem 于接收方(dst)的 mgr
-                    //（汇编 0x8531400..0x8531456：Erase 侧取 (local_68+8)*4，
-                    //  Add 侧取 (9-local_68)*4）。
-                    WongWork::CAvatarItemMgr* srcMgr =
-                        m_pTraders[trader]->getCurCharacInvenW()
-                            ->GetAvatarItemMgrW();
-                    WongWork::Avatar_Item* av =
-                        srcMgr->EraseAvatarItem((int)avatarUid);
-                    WongWork::CAvatarItemMgr* dstMgr =
-                        dst->getCurCharacInvenW()->GetAvatarItemMgrW();
-                    dstMgr->AddAvatarItem((int)avatarUid, av);
-                    const char* agency = av->GetIPGAgencyNo();
-                    m_pTraders[trader]->m_historyLog.AvatarItemDel(
-                        itemTs->m_item.m_addInfo, (int)avatarUid, agency,
-                        (eAvatarItemDelReason)0);
-                    m_pTraders[1 - trader]->m_historyLog.AvatarItemAdd(
-                        itemTs->m_item.m_addInfo, (int)avatarUid, agency,
-                        (eAvatarItemAddReason)1);
+                    Inven_Item* item = &m_slotsData[trader][slot].m_item;
+                    unsigned char upgrade = item->GetUpgrade();
+                    int avg = avgMgr->GetAveragePrice(item->m_addInfo,
+                                                      upgrade);
+                    if (item->m_field1 == 2 || item->m_field1 == 3)
+                        avg *= item->m_addInfo2;
+                    avgPrice[trader] += avg;
                 }
-            }
-            else if (ts->m_field08 == 7)  // 生物
-            {
-                ret = dst->getCurCharacInvenW()->insertItemIntoInventory(
-                    ts->m_item, (eItemAddReason)0x1a, false, true);
-                if (ret >= 0)
+                if (m_slotsData[trader][slot].m_item.m_field1
+                        == Inven_Item::ITEM_TYPE_AVATAR)  // 头像
                 {
-                    if (ts->m_item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+                    ret = m_pTraders[1 - trader]->getCurCharacInvenW()
+                              ->insertAvatarIntoInventory(
+                                  m_slotsData[trader][slot].m_item,
+                                  (eAvatarItemAddReason)1, false);
+                    if (ret >= 0)
                     {
-                        int creatureId = ts->m_item.m_addInfo2;
-                        if (dst->getCurCharacInvenW()->GetCreatureMgrW()
-                                ->FindCreatureItem(creatureId) == 0)
-                            return 0;
+                        TradeSlot* itemTs = &m_slotsData[trader][slot];  // -0x34
+                        _SaveAvatarItemOwnerChange(
+                            itemTs->m_item.m_addInfo2, itemTs->m_field04,
+                            m_pTraders[1 - trader]->getCurCharacNo(),
+                            (unsigned char)ret);
+                        DB_InsertCeraItemHistory::makeRequest(
+                            itemTs->m_item.m_addInfo2, itemTs->m_field04,
+                            m_pTraders[1 - trader]->getCurCharacNo(), 2);
+                        // Erase 于发方 mgr、Add 于收方 mgr（ORIG
+                        // 0x8531400/0x8531443）；uid 两次重读（+0x0b74/+0x0ba5）
+                        WongWork::Avatar_Item* av =
+                            m_pTraders[trader]->getCurCharacInvenW()
+                                ->GetAvatarItemMgrW()
+                                ->EraseAvatarItem(
+                                    itemTs->m_item.m_addInfo2);
+                        m_pTraders[1 - trader]->getCurCharacInvenW()
+                            ->GetAvatarItemMgrW()
+                            ->AddAvatarItem(itemTs->m_item.m_addInfo2, av);
+                        // 两日志各调一次 GetIPGAgencyNo（P48 无 CSE）
+                        m_pTraders[trader]->m_historyLog.AvatarItemDel(
+                            itemTs->m_item.m_addInfo,
+                            itemTs->m_item.m_addInfo2,
+                            av->GetIPGAgencyNo(), (eAvatarItemDelReason)0);
+                        m_pTraders[1 - trader]->m_historyLog.AvatarItemAdd(
+                            itemTs->m_item.m_addInfo,
+                            itemTs->m_item.m_addInfo2,
+                            av->GetIPGAgencyNo(), (eAvatarItemAddReason)1);
                     }
-                    int characNo =
-                        m_pTraders[trader]->getCurCharacR()->m_characNo;
-                    int size =
-                        m_pTraders[trader]->getCurCharacInvenW()
-                            ->GetCreatureMgrR()->GetCreatureItemSize() +
-                        m_fieldF68[trader];
-                    dst->getCurCharacInvenW()->GetCreatureMgrW()->ChangeOwner(
-                        &ts->m_item, ret, 0x1a, characNo, size);
-                    m_fieldF68[1 - trader] += 1;
-                    int addInfo = ts->m_item.get_add_info();
-                    dst->getCurCharacInvenW()->GetCreatureMgrW()
-                        ->DeleteCreatureItem(addInfo, 0x14);
-                    int type = ts->m_item.m_field1;
-                    int addInfo2 = ts->m_item.get_add_info();
-                    m_pTraders[1 - trader]->m_historyLog.CreatureItemDel(
-                        (INVEN_TYPE)3, ts->m_item.m_addInfo, addInfo2, 0,
-                        type, (eItemDelReason)0x14);
                 }
-            }
-            else  // 普通物品
-            {
-                if (IsTradeLimitAttachTypeItem(ts->m_item))
+                else if (m_slotsData[trader][slot].m_field08 == 7)  // 生物
                 {
-                    DecreaseTradeLimitCount(ts->m_item);
-                    m_pTraders[1 - trader]->m_historyLog.ChangeItemLimitCount(
-                        1, slot, ts->m_item.m_addInfo, -1, 2);
+                    ret = m_pTraders[1 - trader]->getCurCharacInvenW()
+                              ->insertItemIntoInventory(
+                                  m_slotsData[trader][slot].m_item,
+                                  (eItemAddReason)0x1a, false, true);
+                    if (ret >= 0)
+                    {
+                        if (m_slotsData[trader][slot].m_item.m_field1
+                                == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+                        {
+                            if (m_pTraders[trader]->getCurCharacInvenW()
+                                     ->GetCreatureMgrW()
+                                     ->FindCreatureItem(m_slotsData[trader]
+                                                        [slot].m_item
+                                                            .m_addInfo2) == 0)
+                                return false;
+                        }
+                        int characNo =
+                            m_pTraders[trader]->getCurCharacR()->m_characNo;
+                        int size =
+                            m_pTraders[trader]->getCurCharacInvenW()
+                                ->GetCreatureMgrR()->GetCreatureItemSize() +
+                            m_fieldF68[trader];
+                        m_pTraders[1 - trader]->getCurCharacInvenW()
+                            ->GetCreatureMgrW()
+                            ->ChangeOwner(&m_slotsData[trader][slot].m_item,
+                                          ret, 0x1a, characNo, size);
+                        m_fieldF68[1 - trader] += 1;
+                        m_pTraders[trader]->getCurCharacInvenW()
+                            ->GetCreatureMgrW()
+                            ->DeleteCreatureItem(
+                                m_slotsData[trader][slot].m_item
+                                    .get_add_info(),
+                                0x14);
+                        m_pTraders[trader]->m_historyLog.CreatureItemDel(
+                            (INVEN_TYPE)3,
+                            m_slotsData[trader][slot].m_item.m_addInfo,
+                            m_slotsData[trader][slot].m_item.get_add_info(),
+                            0, m_slotsData[trader][slot].m_item.m_field1,
+                            (eItemDelReason)0x14);
+                    }
                 }
-                ret = dst->getCurCharacInvenW()->insertItemIntoInventory(
-                    ts->m_item, (eItemAddReason)1, true, true);
-                updateMap[m_pTraders[1 - trader]].push_back(ret);
-            }
+                else  // 普通物品
+                {
+                    if (IsTradeLimitAttachTypeItem(
+                            m_slotsData[trader][slot].m_item))
+                    {
+                        DecreaseTradeLimitCount(
+                            m_slotsData[trader][slot].m_item);
+                        // ORIG +0x1090：记发送方 trader 的 historyLog
+                        m_pTraders[trader]->m_historyLog.ChangeItemLimitCount(
+                            1, slot,
+                            m_slotsData[trader][slot].m_item.m_addInfo, -1,
+                            2);
+                    }
+                    ret = m_pTraders[1 - trader]->getCurCharacInvenW()
+                              ->insertItemIntoInventory(
+                                  m_slotsData[trader][slot].m_item,
+                                  (eItemAddReason)1, true, true);
+                    updateMap[m_pTraders[1 - trader]].push_back(ret);
+                }
 
-            if (ret < 0)
-            {
-                int characNo = dst->getCurCharacNo();
-                cMyTrace tr(__PRETTY_FUNCTION__, 0xce5, 5);
-                tr("insert_item(INVEN_TYPE_INVENTORY) fail - fatal! %d",
-                   characNo);
-                ts->m_item.reset();
-                return 0;
-            }
-            else
-            {
+                // 共享负值检查（ORIG +0x11ce）
+                if (ret < 0)
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0xce5, 5)(
+                        "insert_item(INVEN_TYPE_INVENTORY) fail - fatal! %d",
+                        m_pTraders[1 - trader]->getCurCharacNo());
+                    m_slotsData[trader][slot].m_item.reset();
+                    return false;
+                }
                 HistoryLog::WriteTradeUp(
                     (FILE*)m_pTraders[trader]->m_field796f8,
-                    ts->m_item.m_addInfo, ts->m_item.get_add_info());
+                    m_slotsData[trader][slot].m_item.m_addInfo,
+                    m_slotsData[trader][slot].m_item.get_add_info());
                 HistoryLog::WriteTradeDown(
                     (FILE*)m_pTraders[1 - trader]->m_field796f8,
-                    ts->m_item.m_addInfo, ts->m_item.get_add_info());
-                ts->m_item.reset();
+                    m_slotsData[trader][slot].m_item.m_addInfo,
+                    m_slotsData[trader][slot].m_item.get_add_info());
+                m_slotsData[trader][slot].m_item.reset();
                 packet[trader].put_short(slot);
                 packet[trader].put_short(ret);
             }
@@ -1120,12 +1142,13 @@ int CTradeSpace::proceed_trade()
     {
         CUser* user = it->first;
         if (!user)
-            return 0;
+            return false;
         std::vector<int>& vec = it->second;
         for (std::vector<int>::iterator vit = vec.begin(); vit != vec.end();
              ++vit)
         {
-            user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, *vit);
+            user->SendUpdateItemList((CUser::eSendTarget)1,
+                                     (ENUM_ITEMSPACE)0, *vit);
         }
     }
 
@@ -1134,10 +1157,12 @@ int CTradeSpace::proceed_trade()
         m_pTraders[trader]->m_historyLog.TradeEnd(
             (eTradeEndReason)2, avgPrice[trader], tradeLogMoney[trader],
             avgPrice[1 - trader], tradeLogMoney[1 - trader]);
-        m_pTraders[trader]->GetGoldControl()->TradeComplete(0, 0);
+        m_pTraders[trader]->GetGoldControl()->TradeComplete(
+            tradeLogMoney[trader], tradeLogMoney[1 - trader]);
     }
-    return 1;
+    return true;
 }
+
 // ---- regist_item @ 0x08529e7e ----
 // 注册物品/金钱到交易槽（ORIG 0x08529e7e，2021 条完整转写）：
 //   type==0 && a==0 → 金钱（use_money 扣钱 → m_nMoney[trader] += b）；
@@ -1508,24 +1533,36 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 }
 // ============================================================================
 // ============================================================================
-// remove_item @ 0x0852bfcc —— ORIG 完整转写（O=1767 vs N=357）
+// remove_item @ 0x0852bfcc —— ORIG 完整转写（O=1767）
+// 形态（P157/P160）：ORIG 全程不缓存槽指针，每个字段访问都重做
+//   trader*0x798 + trade_slot_no*0x48 + 0x30 两级寻址；本函数用
+//   m_slotsData[trader][trade_slot_no] 表达式逐点展开，包视图
+//   ((InterfacePacketBuf*)&packet) 内联 lea（ORIG 每 call 前重 lea -0x80）。
 // 语义：按 type 分派移除交易槽（0=金币/物品、1=头像、3=装备、7=生物），
 // 物品放回 user 背包（插入失败返回负值，不回滚槽位）。
 // 参数：trade_slot_no / type / target_slot(pos) / count(num)。
-// 反汇编要点（TradeSlot::m_item @ +0x09，槽位副本 0x46 字节）：
-//   - m_nMoney[trader] 编译为 (this + (0x3d8+trader)*4)
-//   - 金币包 put_int(m_nMoney>0 ? 0 : -1)；物品包固定 put_int(-1)/put_int(0)
-//   - type==0 且 trade_slot_no==0 时移除金币；否则按物品处理
-//   - case 1/7 移除后 TradeSlot::Reset()；case 0/3 手动清部分字段
-//   - case 0 非装备物品：仅 槽内数量>count 时部分扣减；count==数量时全清槽
-//     （包回 -1/0，同 EQUIP 全清路径；0x852cbc5/0x852ccd0 段）
-//   - case 3 校验 check_able_To_equip 后直接写 m_invenItem[target_slot]
-//   - 广播：case 3 且 trade_slot_no<=0xb 且 user 状态非 5/8 时 make_basic_info+send_all
+//   - 金币包为 if/else 两 put_int 调用点（ORIG +0x286/0x296/0x2ab）
+//   - 广播判定 get_state() 调用两次（ORIG +0x14f1/+0x1501，P48 无 CSE）
+//   - case3 取背包实体走成员 Inven_Item GetInvenSlot(int,int) const（sret，
+//     ORIG +0x109c _ZNK10CInventory12GetInvenSlotEii）
+//   - case0 部分扣减：条件与 newAddInfo 直读槽 m_item.m_addInfo2（ORIG
+//     +0xc44/+0xc9c 单 mov），非 get_add_info() 调用
+//   - case 1/7 移除后 TradeSlot::Reset()；case 0/3 手动逐字段清槽
+// 残差豁免（O=1767/N≈1771，canon 级剩余，跨版本结构性）：
+//   [setcc-fold] 3 处 char/bool 返回值 if 判定：4.4 生 test;setne;test;je
+//     （ORIG +0x17 IsLocked、+0x481/+0x837 check_empty_count 直判 test;je），
+//     无法以合法 C++ 抑制（P22/N 类同族）。
+//   [N18b] slotItemType 与 copy.m_item.m_field1 比较：ORIG +0x410-0x41f 两段
+//     物化（mov mem,%edx; movzbl; cmp reg,reg），4.4 恒折 cmp MEM,reg。
+//   [N76] newAddInfo 减法：ORIG +0xc49-0xc4f store-then-sub mem，4.4 折
+//     reg-sub。语义一致。
 // ============================================================================
 int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                              int target_slot, int count)
 {
-    if (IsLocked())
+    // ORIG +0x17 `test %al,%al; je`：直判形（4.4 对裸 if(char) 生 setne 物化，
+    // 显式 !=0 抑制归一尝试）
+    if (IsLocked() != 0)
         return -1;
     if (count <= 0)
         return -0x62;
@@ -1533,7 +1570,7 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
     PacketGuard packet;
     int trader;
     int other;
-    CUser* otherUser;
+    CUser* otherUser = 0;   // ORIG +0x40 `movl $0x0,-0x44`：先置零
     if (m_pTraders[0] == user) {
         otherUser = m_pTraders[1];
         trader = 0;
@@ -1550,48 +1587,53 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
         return -1;
     if (m_pTraders[trader]->getCurCharacR() == 0 ||
         user->getCurCharacR() == 0) {
-        cMyTrace tr("int CTradeSpace::remove_item(CUser*, int, int, int, int)",
-                    0x45a, 5);
-        tr("CTradeSpace::remove_item()\t0 == "
-           "m_pTraders[owner_index]->getCurCharacR() %x || 0 == "
-           "owner->getCurCharacR() %x",
-           m_pTraders[trader]->getCurCharacR(), user->getCurCharacR());
+        // P37 单语句链：实参在构造调用前求值（ORIG +0xc8/+0xd8 两 call 先于
+        // traceC@0x132），arg1 先 arg2 后
+        cMyTrace("int CTradeSpace::remove_item(CUser*, int, int, int, int)",
+                 0x45a, 5)
+            ("CTradeSpace::remove_item()\t0 == "
+             "m_pTraders[owner_index]->getCurCharacR() %x || 0 == "
+             "owner->getCurCharacR() %x",
+             m_pTraders[trader]->getCurCharacR(), user->getCurCharacR());
         return -1;
     }
 
-    TradeSlot* tradeSlot = TradeSlotAt(m_slotsData, trader, trade_slot_no);
-    if (tradeSlot->m_field08 != type)
+    if (m_slotsData[trader][trade_slot_no].m_field08 != type)
         return -1;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
     switch (type) {
     case 0:
         if (trade_slot_no == 0) {
             // ---- 金币 ----
-            if (m_nMoney[trader] - count < 0)
-                return -1;
-            user->getCurCharacInvenW()->gain_money(
-                count, (eMoneyAddReason)1, 1, 0);
-            m_nMoney[trader] -= count;
-            buf->clear();
-            buf->put_header(0, 0xf);
-            buf->put_short(trade_slot_no);
-            buf->put_int(m_nMoney[trader] > 0 ? 0 : -1);
-            buf->put_int(m_nMoney[trader]);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_packet(g_emptySlot);
-            buf->finalize(true);
-            otherUser->Send(packet);
-            m_nState[trader] = 0;
-            m_nState[other] = 0;
-            return 0;
+            // ORIG +0x1da `js`→负值跳尾块、正值直落（反向条件控布局）
+            if (m_nMoney[trader] - count >= 0) {
+                user->getCurCharacInvenW()->gain_money(
+                    count, (eMoneyAddReason)1, 1, 0);
+                m_nMoney[trader] -= count;
+                ((InterfacePacketBuf*)&packet)->clear();
+                ((InterfacePacketBuf*)&packet)->put_header(0, 0xf);
+                ((InterfacePacketBuf*)&packet)->put_short(trade_slot_no);
+                if (m_nMoney[trader] > 0)
+                    ((InterfacePacketBuf*)&packet)->put_int(0);
+                else
+                    ((InterfacePacketBuf*)&packet)->put_int(-1);
+                ((InterfacePacketBuf*)&packet)->put_int(m_nMoney[trader]);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_packet(g_emptySlot);
+                ((InterfacePacketBuf*)&packet)->finalize(true);
+                otherUser->Send(packet);
+                m_nState[trader] = 0;
+                m_nState[other] = 0;
+                return 0;
+            }
+            return -1;
         }
         {
             // ---- 物品（trade_slot_no != 0）----
-            TradeSlot copy = *tradeSlot;
+            TradeSlot copy = m_slotsData[trader][trade_slot_no];
             int ret = -1;
             int slotItemType =
                 m_pTraders[trader]->getCurCharacInvenR()->GetSlotItemType(
@@ -1683,95 +1725,73 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
             }
             m_nState[trader] = 0;
             m_nState[other] = 0;
-            if (ret == -1)
-                return ret;
-            buf->clear();
-            buf->put_header(0, 0xf);
-            buf->put_short(trade_slot_no);
-            // ORIG 0x852bfcc：EQUIP→全清；非EQUIP仅槽内数量>count 时扣减，否则全清。
-            if (tradeSlot->m_item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP) {
-                // 完全移除（清空槽位）
-                buf->put_int(-1);
-                buf->put_int(0);
-                tradeSlot->m_field00 = 0;
-                tradeSlot->m_field04 = 0;
-                tradeSlot->m_field08 = 0;
-                tradeSlot->m_item.m_field1 = 0;
-                tradeSlot->m_item.m_addInfo = 0;
-                tradeSlot->m_item.set_add_info(0);
-                tradeSlot->m_item.ResetItemAttr();
-                tradeSlot->m_item.m_fieldb = 0;
-                tradeSlot->m_item.m_fieldd = 0;
-            } else if (tradeSlot->m_item.get_add_info() > count) {
-                // 部分移除（槽位数量 -= count）
-                buf->put_int(copy.m_item.m_addInfo);
-                int newAddInfo = tradeSlot->m_item.get_add_info() - count;
-                buf->put_int(newAddInfo);
-                tradeSlot->m_item.set_add_info(newAddInfo);
+            // ORIG +0x99c `cmpl $-0x1; je 尾块`：!=−1 直落发包，−1 跳尾 return
+            if (ret != -1) {
+            ((InterfacePacketBuf*)&packet)->clear();
+            ((InterfacePacketBuf*)&packet)->put_header(0, 0xf);
+            ((InterfacePacketBuf*)&packet)->put_short(trade_slot_no);
+            // ORIG +0x9ff：EQUIP→全清；非EQUIP仅槽内数量>count 时扣减，否则全清。
+            if (m_slotsData[trader][trade_slot_no].m_item.m_field1
+                    == Inven_Item::ITEM_TYPE_EQUIP) {
+                ((InterfacePacketBuf*)&packet)->put_int(-1);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                m_slotsData[trader][trade_slot_no].m_field00 = 0;
+                m_slotsData[trader][trade_slot_no].m_field04 = 0;
+                m_slotsData[trader][trade_slot_no].m_field08 = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_field1 = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_addInfo = 0;
+                m_slotsData[trader][trade_slot_no].m_item.set_add_info(0);
+                m_slotsData[trader][trade_slot_no].m_item.ResetItemAttr();
+                m_slotsData[trader][trade_slot_no].m_item.m_fieldb = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_fieldd = 0;
+            } else if (m_slotsData[trader][trade_slot_no].m_item
+                           .get_add_info() > count) {
+                // 部分移除（ORIG +0xbc3/+0xc0f 两次 get_add_info 调用；
+                // newAddInfo 直读槽 m_addInfo2 @+0xc44）
+                ((InterfacePacketBuf*)&packet)->put_int(copy.m_item.m_addInfo);
+                ((InterfacePacketBuf*)&packet)->put_int(
+                    m_slotsData[trader][trade_slot_no].m_item.get_add_info()
+                    - count);
+                int newAddInfo =
+                    m_slotsData[trader][trade_slot_no].m_item.m_addInfo2
+                    - count;
+                m_slotsData[trader][trade_slot_no].m_item.set_add_info(
+                    newAddInfo);
                 if (newAddInfo > 0x3e7) {
-                    cMyTrace tr(
+                    // P37 链式：槽 m_addInfo 实参先于构造求值（ORIG
+                    // +0xcb0 mov 0xb(%eax),%ebx 先于 traceC@0xcd1）
+                    cMyTrace(
                         "int CTradeSpace::remove_item(CUser*, int, int, int, "
                         "int)",
-                        0x503, 5);
-                    tr("CTradeSpace::remove_item, "
-                       "m_ItemSlot[owner_index][trade_slot_no].item."
-                       "set_add_info , ITEM #%d, %d",
-                       tradeSlot->m_item.m_addInfo, newAddInfo);
+                        0x503, 5)
+                        ("CTradeSpace::remove_item, "
+                         "m_ItemSlot[owner_index][trade_slot_no].item."
+                         "set_add_info 2 , ITEM #%d, %d",
+                         m_slotsData[trader][trade_slot_no].m_item.m_addInfo,
+                         newAddInfo);
                 }
             } else {
-                // 数量取尽（count == 槽内数量）：包回 -1/0 并整体清槽（同 EQUIP 全清）
-                buf->put_int(-1);
-                buf->put_int(0);
-                tradeSlot->m_field00 = 0;
-                tradeSlot->m_field04 = 0;
-                tradeSlot->m_field08 = 0;
-                tradeSlot->m_item.m_field1 = 0;
-                tradeSlot->m_item.m_addInfo = 0;
-                tradeSlot->m_item.set_add_info(0);
-                tradeSlot->m_item.ResetItemAttr();
-                tradeSlot->m_item.m_fieldb = 0;
-                tradeSlot->m_item.m_fieldd = 0;
+                ((InterfacePacketBuf*)&packet)->put_int(-1);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                m_slotsData[trader][trade_slot_no].m_field00 = 0;
+                m_slotsData[trader][trade_slot_no].m_field04 = 0;
+                m_slotsData[trader][trade_slot_no].m_field08 = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_field1 = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_addInfo = 0;
+                m_slotsData[trader][trade_slot_no].m_item.set_add_info(0);
+                m_slotsData[trader][trade_slot_no].m_item.ResetItemAttr();
+                m_slotsData[trader][trade_slot_no].m_item.m_fieldb = 0;
+                m_slotsData[trader][trade_slot_no].m_item.m_fieldd = 0;
             }
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_packet(g_emptySlot);
-            buf->finalize(true);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_short(0);
+            ((InterfacePacketBuf*)&packet)->put_int(0);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_short(0);
+            ((InterfacePacketBuf*)&packet)->put_packet(g_emptySlot);
+            ((InterfacePacketBuf*)&packet)->finalize(true);
             otherUser->Send(packet);
-            return ret;
-        }
-    case 1:  // ---- 头像 ----
-        {
-            TradeSlot copy = *tradeSlot;
-            if (copy.m_field08 != 1)
-                return -1;
-            int ret = m_pTraders[trader]->getCurCharacInvenW()
-                          ->insertAvatarIntoSpecificSlot(
-                              copy.m_item, target_slot,
-                              (eAvatarItemAddReason)4, 1);
-            if (ret < 0)
-                return ret;
-            tradeSlot->Reset();
-            if (copy.m_field00 != ret) {
-                m_pTraders[trader]->getCurCharacInvenW()->SendAvatarEvent(
-                    0x32, copy.m_field00 + 0xa, ret + 0xa,
-                    copy.m_item.m_addInfo2, 0);
             }
-            buf->clear();
-            buf->put_header(0, 0xf);
-            buf->put_short(trade_slot_no);
-            buf->put_int(-1);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_packet(g_emptySlot);
-            buf->finalize(true);
-            otherUser->Send(packet);
             return ret;
         }
     case 3:  // ---- 装备 ----
@@ -1783,7 +1803,7 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                     0x59a, "trade_slot_no == 0");
                 return -1;
             }
-            TradeSlot copy = *tradeSlot;
+            TradeSlot copy = m_slotsData[trader][trade_slot_no];
             if (copy.m_field08 != 3) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
@@ -1798,17 +1818,18 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                     0x5a8, "moveitem.item.item_id == 0");
                 return -1;
             }
-            if (copy.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR) {
+            // ORIG +0x1047 `movzbl 0xa(%eax)`：读**槽**（非 copy）完整寻址
+            if (m_slotsData[trader][trade_slot_no].m_item.m_field1
+                    == Inven_Item::ITEM_TYPE_AVATAR) {
                 if (target_slot > 9)
                     return -1;
             } else {
                 if (target_slot <= 9 || target_slot > 0x15)
                     return -1;
             }
-            Inven_Item slotItem;
-            GetInvenSlot(&slotItem,
-                         const_cast<CInventory*>(user->getCurCharacInvenR()),
-                         0, target_slot);
+            // ORIG +0x109c：成员 sret 形 _ZNK10CInventory12GetInvenSlotEii
+            Inven_Item slotItem =
+                user->getCurCharacInvenR()->GetInvenSlot(0, target_slot);
             if (slotItem.m_addInfo != 0) {
                 LogManager::logFormat(
                     1, "item_trade.cpp",
@@ -1826,6 +1847,8 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                     0x5c3, "equip_ref == NULL");
                 return -1;
             }
+            // ORIG +0x1142/+0x114f：实参位直调（level 先于 job 求值，R2L），
+            // 结果留 callee-saved 寄存器，不命名局部（P36/P23）
             int res = equipRef->check_able_To_equip(
                 (char)target_slot, user->get_charac_job(),
                 user->get_charac_level());
@@ -1839,47 +1862,83 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
             }
             user->getCurCharacInvenW()->m_invenItem[target_slot] =
                 copy.m_item;
-            buf->clear();
-            buf->put_header(0, 0xf);
-            buf->put_short(trade_slot_no);
-            buf->put_int(-1);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_packet(g_emptySlot);
-            buf->finalize(true);
+            ((InterfacePacketBuf*)&packet)->clear();
+            ((InterfacePacketBuf*)&packet)->put_header(0, 0xf);
+            ((InterfacePacketBuf*)&packet)->put_short(trade_slot_no);
+            ((InterfacePacketBuf*)&packet)->put_int(-1);
+            ((InterfacePacketBuf*)&packet)->put_int(0);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_short(0);
+            ((InterfacePacketBuf*)&packet)->put_int(0);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_short(0);
+            ((InterfacePacketBuf*)&packet)->put_packet(g_emptySlot);
+            ((InterfacePacketBuf*)&packet)->finalize(true);
             otherUser->Send(packet);
-            tradeSlot->m_field00 = 0;
-            tradeSlot->m_field04 = 0;
-            tradeSlot->m_field08 = 0;
-            tradeSlot->m_item.m_field1 = 0;
-            tradeSlot->m_item.m_addInfo = 0;
-            tradeSlot->m_item.set_add_info(0);
-            tradeSlot->m_item.ResetItemAttr();
-            tradeSlot->m_item.m_fieldb = 0;
-            tradeSlot->m_item.m_fieldd = 0;
+            m_slotsData[trader][trade_slot_no].m_field00 = 0;
+            m_slotsData[trader][trade_slot_no].m_field04 = 0;
+            m_slotsData[trader][trade_slot_no].m_field08 = 0;
+            m_slotsData[trader][trade_slot_no].m_item.m_field1 = 0;
+            m_slotsData[trader][trade_slot_no].m_item.m_addInfo = 0;
+            m_slotsData[trader][trade_slot_no].m_item.set_add_info(0);
+            m_slotsData[trader][trade_slot_no].m_item.ResetItemAttr();
+            m_slotsData[trader][trade_slot_no].m_item.m_fieldb = 0;
+            m_slotsData[trader][trade_slot_no].m_item.m_fieldd = 0;
             m_nState[trader] = 0;
             m_nState[other] = 0;
             if (trade_slot_no <= 0xb) {
-                int st = user->get_state();
-                if (st != 5 && st != 8) {
-                    buf->clear();
-                    buf->put_header(0, 2);
-                    buf->put_byte(0);
-                    buf->put_short(1);
+                // ORIG +0x14f1/+0x1501：get_state 两次独立调用（P48）
+                if (user->get_state() != 5 && user->get_state() != 8) {
+                    ((InterfacePacketBuf*)&packet)->clear();
+                    ((InterfacePacketBuf*)&packet)->put_header(0, 2);
+                    ((InterfacePacketBuf*)&packet)->put_byte(0);
+                    ((InterfacePacketBuf*)&packet)->put_short(1);
                     user->make_basic_info((char*)&packet, 0);
-                    buf->finalize(true);
+                    ((InterfacePacketBuf*)&packet)->finalize(true);
                     G_GameWorld()->send_all(packet, user);
                 }
             }
             return target_slot;
         }
+    case 1:  // ---- 头像 ----
+        // ORIG 物理块序：case0(+0x1c4) → case3(+0xf27) → case1(+0x15bb) →
+        // case7(+0x186e)（switch 二分树 je 落点决定），源码书写序须一致。
+        {
+            TradeSlot copy = m_slotsData[trader][trade_slot_no];
+            if (copy.m_field08 != 1)
+                return -1;
+            int ret = m_pTraders[trader]->getCurCharacInvenW()
+                          ->insertAvatarIntoSpecificSlot(
+                              copy.m_item, target_slot,
+                              (eAvatarItemAddReason)4, 1);
+            // ORIG +0x16ed `js 尾块`：负值跳 return ret，成功直落
+            if (ret >= 0) {
+                m_slotsData[trader][trade_slot_no].Reset();
+                if (copy.m_field00 != ret) {
+                    m_pTraders[trader]->getCurCharacInvenW()
+                        ->SendAvatarEvent(0x32, copy.m_field00 + 0xa,
+                                          ret + 0xa, copy.m_item.m_addInfo2,
+                                          0);
+                }
+                ((InterfacePacketBuf*)&packet)->clear();
+                ((InterfacePacketBuf*)&packet)->put_header(0, 0xf);
+                ((InterfacePacketBuf*)&packet)->put_short(trade_slot_no);
+                ((InterfacePacketBuf*)&packet)->put_int(-1);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_packet(g_emptySlot);
+                ((InterfacePacketBuf*)&packet)->finalize(true);
+                otherUser->Send(packet);
+            }
+            return ret;
+        }
     case 7:  // ---- 生物 ----
         {
-            TradeSlot copy = *tradeSlot;
+            TradeSlot copy = m_slotsData[trader][trade_slot_no];
             if (copy.m_field08 != 7)
                 return -1;
             if (copy.m_item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP) {
@@ -1892,33 +1951,36 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                           ->insertCreatureIntoSpecificSlot(
                               copy.m_item, target_slot,
                               (eItemAddReason)0x1d, 1);
-            if (ret < 0)
-                return ret;
-            tradeSlot->Reset();
-            if (copy.m_field00 == ret) {
-                m_pTraders[trader]->getCurCharacInvenW()->WriteCreatureLog(
-                    (INVEN_TYPE)3, copy.m_item.m_addInfo,
-                    copy.m_item.m_addInfo2, 1, copy.m_item.m_field1,
-                    (eItemAddReason)0x1d);
+            // ORIG +0x19e7 `js 尾块`：负值跳 return ret，成功直落
+            if (ret >= 0) {
+                m_slotsData[trader][trade_slot_no].Reset();
+                // ORIG +0x1a1c：je→WriteLog 落块尾(+0x1a60)，ChangeSlotNo 直落
+                if (copy.m_field00 != ret) {
+                    m_pTraders[trader]->getCurCharacInvenW()
+                        ->GetCreatureMgrW()
+                        ->ChangeSlotNo(&copy.m_item, ret, 0x1d);
+                }
+                else {
+                    m_pTraders[trader]->getCurCharacInvenW()
+                        ->WriteCreatureLog(
+                            (INVEN_TYPE)3, copy.m_item.m_addInfo,
+                            copy.m_item.m_addInfo2, 1, copy.m_item.m_field1,
+                            (eItemAddReason)0x1d);
+                }
+                ((InterfacePacketBuf*)&packet)->clear();
+                ((InterfacePacketBuf*)&packet)->put_header(0, 0xf);
+                ((InterfacePacketBuf*)&packet)->put_short(trade_slot_no);
+                ((InterfacePacketBuf*)&packet)->put_int(-1);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_int(0);
+                ((InterfacePacketBuf*)&packet)->put_byte(0);
+                ((InterfacePacketBuf*)&packet)->put_short(0);
+                ((InterfacePacketBuf*)&packet)->put_packet(g_emptySlot);
+                ((InterfacePacketBuf*)&packet)->finalize(true);
+                otherUser->Send(packet);
             }
-            else {
-                m_pTraders[trader]->getCurCharacInvenW()
-                    ->GetCreatureMgrW()
-                    ->ChangeSlotNo(&copy.m_item, ret, 0x1d);
-            }
-            buf->clear();
-            buf->put_header(0, 0xf);
-            buf->put_short(trade_slot_no);
-            buf->put_int(-1);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_packet(g_emptySlot);
-            buf->finalize(true);
-            otherUser->Send(packet);
             return ret;
         }
     default:

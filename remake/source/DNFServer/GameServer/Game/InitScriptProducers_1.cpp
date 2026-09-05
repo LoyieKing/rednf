@@ -612,7 +612,10 @@ int ImportSeriaBlessingScript(const char* path, stSeriaBlessingScript& out)
 // ============================================================================
 
 
-// ORIG T 0x089107e9。分支顺序与 ORIG 一致；未知 token 跳过。
+// ORIG T 0x089107e9。八个职业分支各自携带独立内联解析循环与临时对象槽（ORIG
+// 汇编中 make_pair/pair/insert 临时槽按 swordman..thief 分支序自 -0xf4 依次
+// 分配至 -0x14，即每分支一条独立 insert(std::make_pair(key,data)) 语句）；
+// key/data 对象构造在 ScanType 主循环前（ORIG +0x35..+0x5b）。未知 token 跳过。
 int ImportLevelUpRewardItemScript(const char* path, stLevelUpRewardItemScript& script)
 {
     if (!loadRDARScriptFile("", path))
@@ -620,66 +623,165 @@ int ImportLevelUpRewardItemScript(const char* path, stLevelUpRewardItemScript& s
 
     std::string token;
     bool ok = false;
+    LevelUpRewardItemTableKey key;   // ORIG +0x38 ctor（-0x112，循环外唯一构造）
+    LevelUpRewardItemData data;      // ORIG +0x5b ctor（-0x11c）
 
-    while (ScanType(token, true))
+    for (;;)
     {
-        unsigned char job;
-        int errData0;
-        int errData1;
+        if (!ScanType(token, true))
+            break;
+
         if (token == "[swordman]")
         {
-            job = 0; errData0 = 0x2ac4; errData1 = 0x2ac8;
+            key.m_job = 0;                       // ORIG +0xa2 movb $0,-0x110
+            key.m_grow = ScanInt(&ok);           // ORIG +0xab mov %al,-0x10f
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2ac4;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2ac8;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[fighter]")
         {
-            job = 1; errData0 = 0x2add; errData1 = 0x2ae1;
+            key.m_job = 1;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2add;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2ae1;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[at fighter]")
         {
-            job = 7; errData0 = 0x2af6; errData1 = 0x2afa;
+            key.m_job = 7;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2af6;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2afa;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[gunner]")
         {
-            job = 2; errData0 = 0x2b0f; errData1 = 0x2b13;
+            key.m_job = 2;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2b0f;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2b13;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[at gunner]")
         {
-            job = 5; errData0 = 0x2b28; errData1 = 0x2b2c;
+            key.m_job = 5;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2b28;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2b2c;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[mage]")
         {
-            job = 3; errData0 = 0x2b41; errData1 = 0x2b45;
+            key.m_job = 3;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2b41;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2b45;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[priest]")
         {
-            job = 4; errData0 = 0x2b5a; errData1 = 0x2b5e;
+            key.m_job = 4;
+            key.m_grow = ScanInt(&ok);
+            if (!ok)
+                break;
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2b5a;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2b5e;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
         else if (token == "[thief]")
         {
-            job = 6; errData0 = 0x2b73; errData1 = 0x2b77;
-        }
-        else
-            continue;
-
-        LevelUpRewardItemTableKey key(0, (int)job, 0);
-        key.m_job = job;
-        key.m_grow = (unsigned char)ScanInt(&ok);
-        if (!ok)
-            return 0;
-
-        LevelUpRewardItemData data;
-        for (;;)
-        {
-            key.m_lv = (unsigned short)ScanInt(&ok);
+            key.m_job = 6;
+            key.m_grow = ScanInt(&ok);
             if (!ok)
                 break;
-            data.m_field0 = ScanInt(&ok);
-            if (!ok)
-                return errData0;
-            data.m_field4 = ScanInt(&ok);
-            if (!ok)
-                return errData1;
-            script.m_map0.insert(std::make_pair(key, data));
+            {
+                while (true)
+                {
+                    key.m_lv = ScanInt(&ok);
+                    if (!ok) break;
+                    data.m_field0 = ScanInt(&ok);
+                    if (!ok) return 0x2b73;
+                    data.m_field4 = ScanInt(&ok);
+                    if (!ok) return 0x2b77;
+                    script.m_map0.insert(std::make_pair(key, data));
+                }
+            }
         }
     }
     return 0;

@@ -82,20 +82,34 @@ bool check_url(const char* url)
 {
     if (url == 0)
         return false;
-    if ((unsigned char)url[0] == 0x5f)                 // cmp $0x5f,%al（首字符 '_' 拒绝）
+    // ORIG 0x08205791：单一指针槽 -0x10（首字符检查处 `mov 0x8,%eax; mov %eax,-0x10`
+    // 先物化，循环内 `mov 0x8,%eax; add -0xc,%eax; mov %eax,-0x10` 覆写同槽），
+    // 每次字符比较都重新 `mov -0x10,%eax; movzbl (%eax),%eax; cmp $K,%al`
+    // —— 不得引入 unsigned char 局部（4.4 会 spill 成 `mov %al,-0x9` + `cmpb mem`）。
+    const char* p = url;                                // -0x10
+    if ((unsigned char)*p == 0x5f)                      // 首字符 '_' 拒绝
         return false;
-    for (int i = 0; strlen(url) > (unsigned int)i; i++)
+    // 循环变量必须本身是 unsigned int：写成 int + `(unsigned int)i` 会让 4.4 在
+    // strlen 比较处多一步 `mov -0xc,%edx`（ORIG 是 `cmp -0xc(%ebp),%eax; seta`
+    // 直接把 mem 作 src），并使 `url + i` 的装载序变成 index 先载。
+    for (unsigned int i = 0; strlen(url) > i; ++i) // i → -0xc
     {
-        unsigned char c = (unsigned char)url[i];
-        if (c > 0x60 && c <= 0x7a)                     // a..z
+        // 指针加法经 (unsigned long) 往返（技巧26）阻断 4.4 的 lea 折叠，
+        // 得到 ORIG 的 2 条 `mov/add` 形（lea (%edx,%eax,1) 三条不可接受）。
+        p = (const char*)((unsigned long)url + i);
+        if ((unsigned char)*p > 0x60 && (unsigned char)*p <= 0x7a)   // a..z
             continue;
-        // ORIG 0x82057d0 控制流：c<=0x2f → jbe 0x57f8（0x57f8 检查 c==0x5f，
+        // ORIG 0x82057d0 控制流：c<=0x2f → jbe 0x57f8（该处检 c==0x5f，
         // c<=0x2f 时恒不成立 → 拒绝）；0x30..0x57（数字/大写/部分标点）→ 允许。
-        if (c > 0x2f && c <= 0x57)                     // '0'..'W'
+        if ((unsigned char)*p > 0x2f && (unsigned char)*p <= 0x57)   // '0'..'W'
             continue;
-        if (c == 0x5f)
-            continue;
-        return false;
+        // ORIG 0x82057f8：`cmp $0x5f,%al; jne <i++岛>` —— '_' 路径 fall 进
+        // `mov $0x0` 拒绝岛？不：ORIG 拒绝岛紧跟 jne 之后（fall），i++ 岛被跳。
+        // 技巧17：把「允许」写成空 then + else return false，使 4.4 的块序与之一致。
+        if ((unsigned char)*p == 0x5f) {
+        } else {
+            return false;
+        }
     }
     return true;
 }
@@ -9780,13 +9794,26 @@ Dispatcher_Open_Guild_Board::~Dispatcher_Open_Guild_Board() {}
 // param+0xb2(unsigned char)=公告板页码；无状态门槛。
 int Dispatcher_Open_Guild_Board::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    (void)msg;
-    unsigned int guildkey = (unsigned int)user->get_charac_guildkey();
-    unsigned int characNo = (unsigned int)user->getCurCharacNo();
-    char page = (char)*(unsigned char*)((char*)&param + 0xb2);
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendGuildBoardOpen(characNo, guildkey, page);
+    // ORIG 0x081d30d0：①两指针 dead 槽 —— param→-0x20（先声明占远槽）、
+    // msg→-0x1c（技巧21）；②页码取自 **msg**+0xb2（与 read() 的 get_byte(&msg+0xb2)
+    // 同一字段；旧写法误取 param+0xb2）：`movzbl 0xb2(%eax),%eax; movsbl %al,%edi`
+    // 两步入 %edi（技巧15/16 signedness 两步）；③guildkey→%esi、characNo→%ebx
+    // 跨 GetServerProxy call 存活（技巧2 register 类型全等直落 callee-saved）。
+    struct __attribute__((packed)) BoardMsgView {     // MSG_BASE +0xb2 = 页码
+        char m_head[0xb2];
+        unsigned char m_page;                        // +0x0b2
+    };
+    ParamBase* const pp = &param;                     // -0x20
+    BoardMsgView* const pm =
+        reinterpret_cast<BoardMsgView*>(&msg);        // -0x1c
+    (void)pp;
+    register int page asm("edi") = (signed char)pm->m_page;
+    register unsigned int guildkey asm("esi") = (unsigned int)user->get_charac_guildkey();
+    register unsigned int characNo asm("ebx") = (unsigned int)user->getCurCharacNo();
+    // GetServerProxy 结果免槽直用（技巧36/37）：不建 proxy 中转变量，否则它占
+    // 一个 4B 槽并把 param/msg 两 dead 槽整体推离 ORIG 的 -0x20/-0x1c。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendGuildBoardOpen(characNo, guildkey, page);
     return 0;
 }
 int Dispatcher_Open_Guild_Board::read(PacketBuf& packet, MSG_BASE& msg)

@@ -2069,26 +2069,41 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
                         break;
                     }
                     // ORIG 08a17ed0..08a183c5：speech 子表 if-else 链（bucket 选择）
-                    if (subId1 == 3321)              // [on attack] → 当前行号桶（ORIG 08a17fca：-0xf8=-0x100）
+                    switch (subId1)
+                    {
+                    case 3321:  // [on attack] → 当前行号桶（ORIG 08a17fca：-0xf8=-0x100）
                         bucket = index;
-                    else if (subId1 == 3324)         // [on damage]
+                        break;
+                    case 3324:  // [on damage]
                         bucket = 0x65;
-                    else if (subId1 == 3327)         // [on die]
+                        break;
+                    case 3327:  // [on die]
                         bucket = 0x66;
-                    else if (subId1 == 3330)         // [on revenge]
+                        break;
+                    case 3330:  // [on revenge]
                         bucket = 0x67;
-                    else if (subId1 == 3333)         // [on etc]
+                        break;
+                    case 3333:  // [on etc]
                         bucket = 0x68;
-                    else if (subId1 == 3336)         // [on appear]
+                        break;
+                    case 3336:  // [on appear]
                         bucket = 0x69;
-                    else if (subId1 == 3339)         // [on disappear]
+                        break;
+                    case 3339:  // [on disappear]
                         bucket = 0x6a;
-                    else if (subId1 == 3342)         // [on go to help]
+                        break;
+                    case 3342:  // [on go to help]
                         bucket = 0x6b;
-                    else if (subId1 == 3345)         // [on stand]
+                        break;
+                    case 3345:  // [on stand]
                         bucket = 0x6c;
-                    else if (subId1 == 3348)         // [on village]
+                        break;
+                    case 3348:  // [on village]
                         bucket = 0x6e;
+                        break;
+                    default:
+                        break;
+                    }
                     // ORIG 08a183c6：m_field70c[bucket]（stride 0xc）.push_back(local_str)
                     script->m_field70c[bucket].push_back(local_str);
                 }
@@ -2119,101 +2134,192 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
         {
             //  STThrowAttack 局部 + while(ScanStr 子标签行) __lookup_1(14 键 passive 字段表)
             //  分派 → 收尾 push_back m_throwAttacks +0x9c；字段槽映射 local_1d24+t 直证）
+            //  ORIG 08a184c3..08a19076：增量链式建表（case 0 哨兵 → 每 leaf
+            //  if(!__inited_1){insert 本键; jmp 下一 leaf} 链 → 尾 leave+置位重入）。
+            //  与 STMapScript [background animation] 同族范式。
             {
                 STThrowAttack elem;          // C1（ORIG -0x1d24）
                 std::string fname;           // -0x1a88（filename 循环暂存）
-                while (ScanStr(&token))
+                int subId2;                  // ORIG -0xec
+                int i;                       // ORIG -0xe8（各 resize/读循环共用）
+                while (true)
                 {
-                    int subId2 = -1;
-                    for (;;)
+                    static std::map<const char*, int, less_TCHAR> __lookup_1;
+                    static SpinLock __init_lock_1;
+                    static bool __inited_1 = false;
+                    if (__inited_1)
                     {
-                        static std::map<const char*, int, less_TCHAR> __lookup;
-                        static SpinLock __init_lock;
-                        static bool __inited = false;
-                        if (!__inited)
-                        {
-                            __init_lock.enter();
-                            if (__inited)
-                            {
-                                __init_lock.leave();
-                                continue;
-                            }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object filename]", 3370));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object number]", 3377));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3380));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[power]", 3383));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw frame]", 3386));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start x cood]", 3389));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start y cood]", 3396));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start z cood]", 3403));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[direction]", 3410));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack number]", 3417));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3420));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw sound]", 3423));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[object type]", 3426));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start kind]", 3429));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
-                        }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                            __lookup_1.find(token.c_str());
+                        if (__it != __lookup_1.end())
                             subId2 = __it->second;
-                        break;
+                        else
+                            subId2 = -1;
                     }
-                    if (subId2 == 3370)       // [passive object filename]：count(=m_field50) 条
+                    else
                     {
-                        for (int i = 0; i < elem.m_field50; ++i)
+                        __init_lock_1.enter();
+                        if (__inited_1)
+                        {
+                            __init_lock_1.leave();
+                            continue;                        // ORIG 08a18725 nop;jmp 08a18544
+                        }
+                        subId2 = 0;                          // ORIG 08a18730 movl $0,-0xec
+                    }
+                    switch (subId2)
+                    {
+                    case 0:
+                    case 3370:       // [passive object filename]：count(=m_field50) 条
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object filename]", 3370));
+                            goto sub2_3377;                  // ORIG 08a18866 jmp 08a188b9
+                        }
+                        for (i = 0; i < elem.m_field50; ++i)
                         {
                             ScanStr(&fname);
                             elem.m_field00.push_back(fname);
                         }
-                    }
-                    else if (subId2 == 3377)  // [passive object number] → +0x50
+                        break;
+                    sub2_3377:
+                    case 3377:       // [passive object number] → +0x50
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object number]", 3377));
+                            goto sub2_3380;                  // ORIG 08a18914 jmp 08a1892d
+                        }
                         elem.m_field50 = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3380)  // [passive object index] → +0xc
+                        break;
+                    sub2_3380:
+                    case 3380:       // [passive object index] → +0xc
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3380));
+                            goto sub2_3383;
+                        }
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3383)  // [power] → +0x10
+                        break;
+                    sub2_3383:
+                    case 3383:       // [power] → +0x10
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[power]", 3383));
+                            goto sub2_3386;
+                        }
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3386)  // [throw frame] → +0x14
+                        break;
+                    sub2_3386:
+                    case 3386:       // [throw frame] → +0x14
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw frame]", 3386));
+                            goto sub2_3389;
+                        }
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3389)  // [start x cood] → resize +0x18 后逐项 ScanInt
-                    {
+                        break;
+                    sub2_3389:
+                    case 3389:       // [start x cood] → resize +0x18 后逐项 ScanInt
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start x cood]", 3389));
+                            goto sub2_3396;
+                        }
                         elem.m_field18.resize(elem.m_field50);
-                        for (int i = 0; i < elem.m_field50; ++i)
+                        for (i = 0; i < elem.m_field50; ++i)
                             elem.m_field18[i] = ScanInt(static_cast<bool*>(0));
-                    }
-                    else if (subId2 == 3396)  // [start y cood] → +0x24
-                    {
+                        break;
+                    sub2_3396:
+                    case 3396:       // [start y cood] → +0x24
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start y cood]", 3396));
+                            goto sub2_3403;
+                        }
                         elem.m_field24.resize(elem.m_field50);
-                        for (int i = 0; i < elem.m_field50; ++i)
+                        for (i = 0; i < elem.m_field50; ++i)
                             elem.m_field24[i] = ScanInt(static_cast<bool*>(0));
-                    }
-                    else if (subId2 == 3403)  // [start z cood] → +0x30
-                    {
+                        break;
+                    sub2_3403:
+                    case 3403:       // [start z cood] → +0x30
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start z cood]", 3403));
+                            goto sub2_3410;
+                        }
                         elem.m_field30.resize(elem.m_field50);
-                        for (int i = 0; i < elem.m_field50; ++i)
+                        for (i = 0; i < elem.m_field50; ++i)
                             elem.m_field30[i] = ScanInt(static_cast<bool*>(0));
-                    }
-                    else if (subId2 == 3410)  // [direction] → resize +0x58（ORIG avStack_1ccc 直证）
-                    {
+                        break;
+                    sub2_3410:
+                    case 3410:       // [direction] → resize +0x58（ORIG avStack_1ccc 直证）
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[direction]", 3410));
+                            goto sub2_3417;
+                        }
                         elem.m_field58.resize(elem.m_field50);
-                        for (int i = 0; i < elem.m_field50; ++i)
+                        for (i = 0; i < elem.m_field50; ++i)
                             elem.m_field58[i] = ScanInt(static_cast<bool*>(0));
-                    }
-                    else if (subId2 == 3417)  // [attack number] → +0x3c
+                        break;
+                    sub2_3417:
+                    case 3417:       // [attack number] → +0x3c
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack number]", 3417));
+                            goto sub2_3420;
+                        }
                         elem.m_field3c = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3420)  // [attack index] → +0x44
+                        break;
+                    sub2_3420:
+                    case 3420:       // [attack index] → +0x44
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3420));
+                            goto sub2_3423;
+                        }
                         elem.m_field44 = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3423)  // [throw sound] → ScanStr 直读 +0x40
+                        break;
+                    sub2_3423:
+                    case 3423:       // [throw sound] → ScanStr 直读 +0x40
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw sound]", 3423));
+                            goto sub2_3426;
+                        }
                         ScanStr(&elem.m_field40);
-                    else if (subId2 == 3426)  // [object type] → +0x4c
+                        break;
+                    sub2_3426:
+                    case 3426:       // [object type] → +0x4c
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[object type]", 3426));
+                            goto sub2_3429;
+                        }
                         elem.m_field4c = ScanInt(static_cast<bool*>(0));
-                    else if (subId2 == 3429)  // [start kind] → +0x54
+                        break;
+                    sub2_3429:
+                    case 3429:       // [start kind] → +0x54
+                        if (!__inited_1)
+                        {
+                            __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[start kind]", 3429));
+                            goto sub2_end;                   // ORIG 末键 insert 直落尾
+                        }
                         elem.m_field54 = ScanInt(static_cast<bool*>(0));
-                    // ORIG：未命中键无字段分支，循环继续
+                        break;
+                    default:
+                        break;
+                    }
+                sub2_end:
+                    if (!__inited_1)
+                    {
+                        __init_lock_1.leave();               // ORIG 08a1902a..31
+                        __inited_1 = true;                   // ORIG 08a19036
+                        continue;                            // ORIG 08a1903d jmp 08a18544
+                    }
+                    if (!ScanStr(&token))                    // ORIG 08a19043..53
+                        break;
                 }
-                script->m_throwAttacks.push_back(elem);   // +0x9c
+                script->m_throwAttacks.push_back(elem);      // +0x9c ORIG 08a1906f
             }
             break;
         }
@@ -2322,11 +2428,15 @@ case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直�
                                 subId3 = __it->second;
                             break;
                         }
-                        if (subId3 == 3489)              // [probability] → +0x00
+                        switch (subId3)
+                        {
+                        case 3489:  // [probability] → +0x00
                             elem.m_field00 = ScanInt(static_cast<bool*>(0));
-                        else if (subId3 == 3492)         // [attack index] → +0x04
+                            break;
+                        case 3492:  // [attack index] → +0x04
                             elem.m_field04 = ScanInt(static_cast<bool*>(0));
-                        else if (subId3 == 3495)         // [damage type] → 三串比较映射 0/1/2 → +0x08
+                            break;
+                        case 3495:  // [damage type] → 三串比较映射 0/1/2 → +0x08
                         {
                             std::string kind;            // -0x1ad4（块内构造/析构）
                             ScanStr(&kind);
@@ -2337,8 +2447,13 @@ case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直�
                             else if (kind == "[all attack]")
                                 elem.m_field08 = 2;
                         }
-                        else if (subId3 == 3511)         // [need hp] → +0x10
+                            break;
+                        case 3511:  // [need hp] → +0x10
                             elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                            break;
+                        default:
+                            break;
+                        }
                     }
                     script->m_counterAttacks.push_back(elem);   // +0xa8
                 }
@@ -2393,28 +2508,44 @@ case 0xdc0:  // "[jump attack]"（收集父 case；ORIG asm 08a19a00：STJumpAtt
                             subId4 = __it->second;
                         break;
                     }
-                    if (subId4 == 3526)          // [attack index] → +0x00
+                    switch (subId4)
+                    {
+                    case 3526:  // [attack index] → +0x00
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3529)     // [start frame index] → +0x1c
+                        break;
+                    case 3529:  // [start frame index] → +0x1c
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3532)     // [end frame index] → +0x20
+                        break;
+                    case 3532:  // [end frame index] → +0x20
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3535)     // [jump height] → +0x04
+                        break;
+                    case 3535:  // [jump height] → +0x04
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3538)     // [jump speed] → +0x08
+                        break;
+                    case 3538:  // [jump speed] → +0x08
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3541)     // [on collision custom animation index] → +0x0c
+                        break;
+                    case 3541:  // [on collision custom animation index] → +0x0c
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3544)     // [ememy distance rate] → +0x10（ScanFloat，P79 float 域）
+                        break;
+                    case 3544:  // [ememy distance rate] → +0x10（ScanFloat，P79 float 域）
                         elem.m_field10 = ScanFloat(static_cast<bool*>(0));
-                    else if (subId4 == 3547)     // [limited x cood] → +0x24
+                        break;
+                    case 3547:  // [limited x cood] → +0x24
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3550)     // [limited y cood] → +0x28
+                        break;
+                    case 3550:  // [limited y cood] → +0x28
                         elem.m_field28 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3553)     // [jump type] → +0x14
+                        break;
+                    case 3553:  // [jump type] → +0x14
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
-                    else if (subId4 == 3556)     // [jump direction] → +0x18
+                        break;
+                    case 3556:  // [jump direction] → +0x18
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
+                        break;
+                    default:
+                        break;
+                    }
                 }
                 script->m_jumpAttacks.push_back(elem);   // +0xb4
             }
@@ -2467,13 +2598,18 @@ case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0
                             subId5 = __it->second;
                         break;
                     }
-                    if (subId5 == 3572)          // [function index] → +0x00
+                    switch (subId5)
+                    {
+                    case 3572:  // [function index] → +0x00
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3575)     // [attack index] → +0x04
+                        break;
+                    case 3575:  // [attack index] → +0x04
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3578)     // [pos random] → +0x08
+                        break;
+                    case 3578:  // [pos random] → +0x08
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3581)     // [monster kind] → +0x0c 数量 + infos reserve/loop
+                        break;
+                    case 3581:  // [monster kind] → +0x0c 数量 + infos reserve/loop
                     {
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         elem.m_infos.reserve(elem.m_field0c);
@@ -2486,16 +2622,25 @@ case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0
                             elem.m_infos.push_back(info);
                         }
                     }
-                    else if (subId5 == 3593)     // [summon term] → +0x1c
+                        break;
+                    case 3593:  // [summon term] → +0x1c
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3596)     // [probability] → +0x20
+                        break;
+                    case 3596:  // [probability] → +0x20
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3599)     // [enterance effect] → +0x24
+                        break;
+                    case 3599:  // [enterance effect] → +0x24
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3602)     // [max number] → +0x28
+                        break;
+                    case 3602:  // [max number] → +0x28
                         elem.m_field28 = ScanInt(static_cast<bool*>(0));
-                    else if (subId5 == 3605)     // [max frequency] → +0x2c
+                        break;
+                    case 3605:  // [max frequency] → +0x2c
                         elem.m_field2c = ScanInt(static_cast<bool*>(0));
+                        break;
+                    default:
+                        break;
+                    }
                 }
                 script->m_summons.push_back(elem);   // +0xc0
             }
@@ -2546,26 +2691,39 @@ case 0xe1d:  // "[dash attack]"（收集父 case；ORIG asm 08a1aaa6：STDash C1
                             subId6 = __it->second;
                         break;
                     }
-                    if (subId6 == 3620)          // [function index] → +0x00
+                    switch (subId6)
+                    {
+                    case 3620:  // [function index] → +0x00
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3623)     // [attack index] → +0x04
+                        break;
+                    case 3623:  // [attack index] → +0x04
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3626)     // [shakeable] → 连续三 int +0x08/+0x0c/+0x10
+                        break;
+                    case 3626:  // [shakeable] → 连续三 int +0x08/+0x0c/+0x10
                     {
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
                     }
-                    else if (subId6 == 3631)     // [first speed] → +0x14
+                        break;
+                    case 3631:  // [first speed] → +0x14
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3634)     // [last speed] → +0x18
+                        break;
+                    case 3634:  // [last speed] → +0x18
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3637)     // [dash time] → +0x1c
+                        break;
+                    case 3637:  // [dash time] → +0x1c
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3640)     // [dash ready time] → +0x20
+                        break;
+                    case 3640:  // [dash ready time] → +0x20
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
-                    else if (subId6 == 3643)     // [animation first index] → +0x24
+                        break;
+                    case 3643:  // [animation first index] → +0x24
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
+                        break;
+                    default:
+                        break;
+                    }
                 }
                 script->m_dashes.push_back(elem);   // +0xcc
             }
@@ -2614,7 +2772,9 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                             subId7 = __it->second;
                         break;
                     }
-                    if (subId7 == 3658)          // [function index] → +0x00；==1 时连读 +0x04/+0x08
+                    switch (subId7)
+                    {
+                    case 3658:  // [function index] → +0x00；==1 时连读 +0x04/+0x08
                     {
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         if (elem.m_field00 == 1)
@@ -2623,16 +2783,25 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                             elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         }
                     }
-                    else if (subId7 == 3666)     // [attack index] → +0x0c
+                        break;
+                    case 3666:  // [attack index] → +0x0c
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
-                    else if (subId7 == 3669)     // [offset] → +0x10
+                        break;
+                    case 3669:  // [offset] → +0x10
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
-                    else if (subId7 == 3673)     // [animation index] → +0x18
+                        break;
+                    case 3673:  // [animation index] → +0x18
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
-                    else if (subId7 == 3676)     // [min hold] → +0x1c
+                        break;
+                    case 3676:  // [min hold] → +0x1c
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
-                    else if (subId7 == 3679)     // [max hold] → +0x20
+                        break;
+                    case 3679:  // [max hold] → +0x20
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
+                        break;
+                    default:
+                        break;
+                    }
                 }
                 script->m_holds.push_back(elem);   // +0xd8
             }
@@ -2685,23 +2854,33 @@ case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1
                             subId8 = __it->second;
                         break;
                     }
-                    if (subId8 == 3694)          // [function index] → +0x00
+                    switch (subId8)
+                    {
+                    case 3694:  // [function index] → +0x00
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3697)     // [attack index] → +0x04
+                        break;
+                    case 3697:  // [attack index] → +0x04
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3700)     // [warp style] → +0x08
+                        break;
+                    case 3700:  // [warp style] → +0x08
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3703)     // [after attack] → +0x0c
+                        break;
+                    case 3703:  // [after attack] → +0x0c
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3706)     // [after appear time] → +0x10
+                        break;
+                    case 3706:  // [after appear time] → +0x10
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3709)     // [cool time] → +0x14
+                        break;
+                    case 3709:  // [cool time] → +0x14
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3712)     // [target offset] → +0x18
+                        break;
+                    case 3712:  // [target offset] → +0x18
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3715)     // [passive object index] → +0x1c
+                        break;
+                    case 3715:  // [passive object index] → +0x1c
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
-                    else if (subId8 == 3718)     // [category of target] → +0x20
+                        break;
+                    case 3718:  // [category of target] → +0x20
                     {
                         std::string cat;         // -0x1afc（块内构造/析构）
                         ScanStr(&cat);
@@ -2711,6 +2890,10 @@ case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1
                             elem.m_field20 = -1;
                         else
                             elem.m_field20 = getCategoryToEnumValue(cat);
+                    }
+                        break;
+                    default:
+                        break;
                     }
                 }
                 script->m_warps.push_back(elem);   // +0xe4
@@ -2763,34 +2946,40 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         break;
                     }
                     // 条件/触发模式（元素基 -0x1d24 实证：mode 于 +0）
-                    if (subId9 == 3749)
+                    switch (subId9)
+                    {
+                    case 3749:
                     {
                         elem.m_field00 = 0;
                         elem.m_field08 = ScanInt(&ok);   // +8
                         elem.m_field0c = ScanInt(&ok);   // +0xc
                         elem.m_field10 = ScanInt(&ok) != 0;   // +0x10 byte（CONCAT 低位）
                     }
-                    else if (subId9 == 3755)
+                        break;
+                    case 3755:
                     {
                         elem.m_field00 = 1;
                         elem.m_field08 = ScanInt(&ok);
                         elem.m_field0c = ScanInt(&ok);
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
-                    else if (subId9 == 3761)
+                        break;
+                    case 3761:
                     {
                         elem.m_field00 = 2;
                         elem.m_field08 = ScanInt(&ok);
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
-                    else if (subId9 == 3767)
+                        break;
+                    case 3767:
                     {
                         elem.m_field00 = 3;
                         elem.m_field08 = ScanInt(&ok);
                         elem.m_field0c = ScanInt(&ok);
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
-                    else if (subId9 == 3773)
+                        break;
+                    case 3773:
                     {
                         elem.m_field04 = 0;
                         elem.m_field14 = ScanInt(&ok);   // +0x14（local_1d10）
@@ -2798,7 +2987,8 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field1c = ScanInt(&ok);   // +0x1c
                         elem.m_field20 = ScanInt(&ok);   // +0x20
                     }
-                    else if (subId9 == 3780)
+                        break;
+                    case 3780:
                     {
                         elem.m_field04 = 1;
                         elem.m_field14 = ScanInt(&ok);
@@ -2806,7 +2996,8 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field1c = ScanInt(&ok);
                         elem.m_field20 = ScanInt(&ok);
                     }
-                    else if (subId9 == 3787)
+                        break;
+                    case 3787:
                     {
                         elem.m_field04 = 2;
                         elem.m_field14 = ScanInt(&ok);
@@ -2814,8 +3005,13 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field1c = ScanInt(&ok);
                         elem.m_field20 = ScanInt(&ok);
                     }
-                    else if (subId9 == 3794)
+                        break;
+                    case 3794:
                         elem.m_field24 = 1;   // +0x24 byte（CONCAT 置 1）
+                        break;
+                    default:
+                        break;
+                    }
                     // ORIG：未识别引导无字段分支，循环继续
                 }
                 script->m_eventSupers.push_back(elem);   // +0xfc
@@ -3683,13 +3879,18 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                             subId10 = __it->second;
                         break;
                     }
-                    if (subId10 == 4254)               // [/ridableskill definition]
+                    switch (subId10)
+                    {
+                    case 4254:  // [/ridableskill definition]
                         doneLine = true;
-                    else if (subId10 == 4260)          // [pattern] → sk +0x00
+                        break;
+                    case 4260:  // [pattern] → sk +0x00
                         sk.m_field00 = ScanInt(static_cast<bool*>(0));
-                    else if (subId10 == 4263)          // [image path] → sk +0x04
+                        break;
+                    case 4263:  // [image path] → sk +0x04
                         ScanStr(&sk.m_name);
-                    else if (subId10 == 4266)          // [skill]：8 组（2×int + type 词）
+                        break;
+                    case 4266:  // [skill]：8 组（2×int + type 词）
                     {
                         for (int i = 0; i < 8; ++i)
                         {
@@ -3735,6 +3936,10 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                             else if (subId11 == 4302) sk.m_field88[i] = 4;         // evasion
                             else if (subId11 == 4307) sk.m_field88[i] = 5;         // super
                         }
+                    }
+                        break;
+                    default:
+                        break;
                     }
                     if (doneLine)
                         closed = 1;
@@ -4196,49 +4401,58 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                             subId12 = __it->second;
                         break;
                     }
-                    if (subId12 == 4696)               // [index] → +0x658
+                    switch (subId12)
+                    {
+                    case 4696:  // [index] → +0x658
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field658 = v;
                     }
-                    else if (subId12 == 4704)          // [x pos] → +0x65c
+                        break;
+                    case 4704:  // [x pos] → +0x65c
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field65c = v;
                     }
-                    else if (subId12 == 4712)          // [y pos] → +0x660
+                        break;
+                    case 4712:  // [y pos] → +0x660
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field660 = v;
                     }
-                    else if (subId12 == 4720)          // [width] → +0x664
+                        break;
+                    case 4720:  // [width] → +0x664
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field664 = v;
                     }
-                    else if (subId12 == 4728)          // [height] → +0x668
+                        break;
+                    case 4728:  // [height] → +0x668
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field668 = v;
                     }
-                    else if (subId12 == 4736)          // [velocity x] → float +0x66c
+                        break;
+                    case 4736:  // [velocity x] → float +0x66c
                     {
                         const float f = ScanFloat(&ok);
                         if (!ok) return 0;
                         script->m_field66c = f;
                     }
-                    else if (subId12 == 4744)          // [velocity y] → float +0x670
+                        break;
+                    case 4744:  // [velocity y] → float +0x670
                     {
                         const float f = ScanFloat(&ok);
                         if (!ok) return 0;
                         script->m_field670 = f;
                     }
-                    else if (subId12 == 4752)          // [option] → ScanStr + convert y to z
+                        break;
+                    case 4752:  // [option] → ScanStr + convert y to z
                     {
                         std::string opt;               // local_1c00
                         bool okflag = false;
@@ -4277,7 +4491,8 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                         if (!okflag)
                             return 0;
                     }
-                    else if (subId12 == 4771)          // [transparency] → 词循环
+                        break;
+                    case 4771:  // [transparency] → 词循环
                     {
                         std::string word;              // local_1c08
                         bool done = false;
@@ -4371,7 +4586,8 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                         if (!done)
                             return 0;
                     }
-                    else if (subId12 == 4823)          // [fix direction] → ScanStr + left/right
+                        break;
+                    case 4823:  // [fix direction] → ScanStr + left/right
                     {
                         std::string dir;               // local_1c18
                         bool okflag = false;
@@ -4416,8 +4632,13 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                         if (!okflag)
                             return 0;
                     }
-                    else if (subId12 == 4844)          // [/control passive object] → 结束本 case
+                        break;
+                    case 4844:  // [/control passive object] → 结束本 case
                         ended = false;
+                        break;
+                    default:
+                        break;
+                    }
                     // ORIG：未命中键（含 -1）无动作，继续外层 do-while 读下一词
                 } while (ended == true);
             }

@@ -248,6 +248,10 @@ bool stBroadCastItemScript::isUnCommonItem(int itemIdx) const
 }
 
 // ORIG checkCommonItem 0x8918cdc：遍历 m_vec0 找 itemIdx
+// [N类·跨版本豁免] 语义与 ORIG 一致（it!=end 循环内 *it==itemIdx 命中返 1）。ORIG
+// 59 vs 我方 39 指令差为 gcc4.1.2 的 dead-bool XOR 哨兵（local_11^=1 + 嵌套 while +
+// int* 物化重载，见 ## 汇编 0x08918ce2 xorb/0x08918d7a）——非源码可表达；范式库
+// 「负例 N 类·跨版本」。证据 ORIG 0x08918cdc。
 bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 {
     for (std::vector<int>::const_iterator it = m_vec0.begin(); it != m_vec0.end(); ++it)
@@ -261,6 +265,9 @@ bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 }
 
 // ORIG checkUnCommonNestedItem 0x8918dfe：m_mapC.find(itemIdx) 命中后遍历其子 vector 找 subItemIdx
+// [N类·跨版本豁免] 语义与 ORIG 一致（find!=end → 子 vector 迭代 *vit==subItemIdx 返 1）。
+// ORIG 87 vs 我方 69 差同 checkCommonItem：dead-bool XOR 哨兵（0x08918f03 xorb + 嵌套
+// while + operator!=/operator* 双缓存续算），非源码可表达；范式库「跨版本」。证据 0x08918dfe。
 bool stBroadCastItemScript::checkUnCommonNestedItem(int itemIdx, int subItemIdx) const
 {
     std::map<int, std::vector<int> >::const_iterator it = m_mapC.find(itemIdx);
@@ -1358,10 +1365,11 @@ bool CNPCRelationEventManager::IsDislikeItem(unsigned short idx,
         return false;
 
     stNPCRelationEventInfo* node = it->second;
-    for (std::vector<int>::iterator vit = node->m_dislikeItems.begin();
-         vit != node->m_dislikeItems.end(); ++vit)
+    // ORIG 0x0890d100：索引循环 .size()/.at()（非迭代器），每元素一次 at()
+    // 返回指针后 (*puVar3==itemId) 用 sete 直判命中即返 1。
+    for (unsigned int col = 0; col < node->m_dislikeItems.size(); ++col)
     {
-        if (*vit == (int)itemId)
+        if (node->m_dislikeItems.at(col) == (int)itemId)
             return true;
     }
     return false;
@@ -1373,6 +1381,8 @@ bool CNPCRelationEventManager::IsDislikeItem(unsigned short idx,
 // （kind=0..2，步长 0x14）：item.m_itemId==itemId 且 item.m_count<=count：
 //   count==0 → 默认值（不写）；
 //   否则 → out.m_kind=kind、out.m_count=ROUND(count/item.m_count)。
+// [N类·跨版本豁免] 已还原 ORIG 真形（our 113 vs 112）：残 1 指令差为 gcc4.1/4.4 的
+// outgoing-frame / 死栈槽产物（范式库『跨版本』），助记符序列已对齐；语义完全一致。
 // ============================================================================
 stTempRewardInfo CNPCRelationEventManager::GetItemKind(
     unsigned short idx, unsigned int itemId, unsigned int count)
@@ -1384,23 +1394,25 @@ stTempRewardInfo CNPCRelationEventManager::GetItemKind(
         return result;
 
     stNPCRelationEventInfo* node = it->second;
+    // ORIG 0x0890d1c0：不绑定 vector 引用/迭代器，每轮 size()/at() 现取
+    // &node->m_favor[kind].m_items（m_items 在 favor[kind]+0，步长 0x14），
+    // at() 结果缓存一次后读 m_itemId(+0)/m_count(+4)；ROUND=(int)(long double)
+    // count/(long double)m_count（x87 fildll/fdivrp/fldcw-PC64/fistpl 最近舍入）。
     for (int kind = 0; kind < 3; ++kind)
     {
-        const std::vector<stNPCEventItemInfo>& items =
-            node->m_favor[kind].m_items;
-        for (std::vector<stNPCEventItemInfo>::const_iterator vit =
-                 items.begin(); vit != items.end(); ++vit)
+        for (unsigned int col = 0;
+             col < node->m_favor[kind].m_items.size(); ++col)
         {
-            if (vit->m_itemId != (int)itemId)
-                continue;
-            if (vit->m_count > (int)count)
-                continue;
-            if (vit->m_count == 0)
+            stNPCEventItemInfo& e = node->m_favor[kind].m_items.at(col);
+            unsigned int u = (unsigned int)e.m_count;
+            if (e.m_itemId == (int)itemId && u <= count)
+            {
+                if (u == 0)
+                    return result;
+                result.m_kind = kind;
+                result.m_count = (int)((long double)count / (long double)u);
                 return result;
-            result.m_kind = kind;
-            result.m_count = static_cast<int>(
-                (double)count / (double)vit->m_count + 0.5);
-            return result;
+            }
         }
     }
     return result;
@@ -1577,10 +1589,17 @@ bool DeleteInvalidItemScript::loadScript()
 
 // ============================================================================
 // advancealtar::ConfigParameter::importConfigParameter（ORIG 0x0889b6cc T）
-// [gage up rate] 行 (idx, a, b)：0<=idx<=3 时 rate[idx]=a、aux[idx]=b；
-// [gage upgrade cost percent] ScanFloat 存 +4；[daily refill ticket] 存 +0。
-// 错误码：a 失败 0x3e9、b 失败 0x3ec、float 失败 0x3f8、ticket 失败 0x3ff；
-// 成功/文件打开失败均返 0（init.md 口径非零=Fail）。
+// 逐段还原 ORIG ## 汇编 + ## 反编译 C：
+//  · [gage up rate] 行 (idx, P, Q)：0<=idx<=3 时 this+8(idx*4)=Q(m_gageUpRate)、
+//    this+0x1c(idx*4)=P(m_gageUpAux)（ORIG 0x0889b742/0x0889b757：+8 存第 3 个
+//    ScanInt=local_18，+0x1c 存第 2 个=local_1c，与直觉相反，原实现写反已修）；
+//    循环带一个 ORIG dead 计数 local_24（0..每行 ++，从不读）。P 失败→0x3e9、
+//    Q 失败→0x3ec。
+//  · [gage upgrade cost percent]：(float)(long double)ScanFloat 存 m_4(+4)，失败 0x3f8；
+//    [daily refill ticket]：ScanInt 存 m_0(+0)，失败 0x3ff。
+//  · 三个开标签均不匹配时（ORIG 最内 else 0x0889b84f..）短路比对
+//    [/gage up rate]、[/gage upgrade cost percent]、[/daily refill ticket]（结果丢弃）。
+//    原实现缺这三条比较 → we-smaller 主因。成功/文件打开失败均返 0（非零=Fail）。
 // ============================================================================
 int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 {
@@ -1593,27 +1612,29 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
     {
         if (token == "[gage up rate]")
         {
-            for (;;)
+            int lineNo = 0;                      // ORIG local_24：dead 行计数
+            for (;;)                              // ORIG 头：idx=ScanInt 于循环顶
             {
                 int idx = ScanInt(&ok);
                 if (!ok)
-                    break;                      // ORIG：行首失败仅结束本段
-                int rate = ScanInt(&ok);
+                    break;                        // ORIG：行首失败仅结束本段
+                int p = ScanInt(&ok);            // ORIG local_1c（第 2 个）
                 if (!ok)
                     return 0x3e9;
-                int aux = ScanInt(&ok);
+                int q = ScanInt(&ok);            // ORIG local_18（第 3 个）
                 if (!ok)
                     return 0x3ec;
-                if (idx >= 0 && idx <= 3)
+                if (idx > -1 && idx < 4)         // ORIG: -1 < idx && idx < 4
                 {
-                    m_gageUpRate[idx] = rate;
-                    m_gageUpAux[idx] = aux;
+                    m_gageUpRate[idx] = q;       // this+8   = 第 3 值
+                    m_gageUpAux[idx] = p;        // this+0x1c = 第 2 值
                 }
+                ++lineNo;                        // ORIG local_24++
             }
         }
         else if (token == "[gage upgrade cost percent]")
         {
-            m_4 = ScanFloat(&ok);
+            m_4 = (float)(long double)ScanFloat(&ok);
             if (!ok)
                 return 0x3f8;
         }
@@ -1623,8 +1644,10 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
             if (!ok)
                 return 0x3ff;
         }
-        // [/gage up rate] / [/gage upgrade cost percent] / [/daily refill ticket]
-        // 与未知 token 一致跳过（ORIG 仅做串比较后回循环头）。
+        else if (token != "[/gage up rate]" && token != "[/gage upgrade cost percent]")
+        {
+            (void)(token == "[/daily refill ticket]");
+        }
     }
     return 0;
 }
@@ -1632,14 +1655,30 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 // ============================================================================
 // advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter
 // （ORIG 0x088a10cc T，恒返 0）
-// [star reset fee gold]：(key, fee) 插入 m_starRestMap；[ridable id] 段以
-// isValidRidableId 校验后建 BuyShopData，[unit]/[skill]/[tower] 各自收集
-// [id] 子块入对应 vector；[/ridable id] 或文件尾把 shop 按 m_nField0 入
-// m_buyShopMap。
+// 语义（ORIG 汇编逐段还原，见 importAdvanceAltarShopParameter.md ## 汇编/## 反编译 C）：
+//  · [star reset fee gold] 段：每轮先 ctor _StarRestFeeByGold(-0x238)，key=ScanInt，
+//    fee=ScanInt，任一失败仅结束本段回外层扫描头；成功 insert(key,fee)。
+//  · 每个 [ridable id] 块：ridableId=ScanInt；!ok 或 !isValidRidableId ⇒ bVar4=假
+//    ⇒ 不插入直接返 0（原实现误无条件插入，已修正）。valid 时 shop.m_nField0=id，
+//    进 LAB_088a12ab 段循环，[unit]/[skill]/[tower] 各自内联展开三份独立解析块。
+//  · item [id] 子块字段序：unit/tower=[unlock stage index],[name],[field name],[list];
+//    skill 额外在 unlock 与 name 间插 [is settable slot]。
+//  · 关键：push_back(item) 绑定在 [list] 处理尾（非 [/id]），故 item 收集入
+//    shop.m_vecT0/T1/T2 由 [list] 触发；[list] 逐行读入 item.m_listMap(key=FieldType-0
+//    行 m_value)，直到某行 ScanStr/ScanInt 失败。[/ridable id] 或 EOF ⇒ 插入 shop。
+// [N类·跨版本豁免] 语义已全量还原为 ORIG 三段内联真形（our_insns 708→1404 vs ORIG
+// 1442，gap 727→38）。残留 38 指令差为 gcc 4.1.2 相对 4.4.7 的 EH landing-pad 与
+// BuyShopData/BuyUpgradeData 双份 dtor epilogue vs merge、deferred-write 寄存器轮换
+// （范式库「负例 N 类·跨版本：delete[]+成员 dtor EH cleanup / EH 双份 dtor epilogue vs
+// merge」），非源码可表达；证据 ORIG 0x088a18de/0x088a2731/0x088a2704 CatchHandler 区段。
 // ============================================================================
 int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     const char* path)
 {
+    // ORIG 0x088a10cc：三种段 [unit]/[skill]/[tower] 各自内联展开（各 ~190 指令），
+    // [list] 处理结尾 push_back 当前 item（非 [/id] 绑定），且仅当 isValidRidableId
+    // 通过并入 m_buyShopMap 后外层 do-while(bVar4) 才继续，否则返 0。下面按 ORIG
+    // 汇编 LAB 布局逐段还原为三块独立代码。
     std::string token;
     bool ok = false;
     if (!loadRDARScriptFile("", path))
@@ -1647,7 +1686,7 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
 
     for (;;)
     {
-        // 跳过无关 token，处理 [star reset fee gold]，直到 [ridable id] 或 EOF。
+        // 外层跳过：处理 [star reset fee gold]，直到 [ridable id]（isRidable）或 EOF。
         bool isRidable = false;
         while (ScanType(token, true))
         {
@@ -1655,11 +1694,11 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
             {
                 for (;;)
                 {
-                    _StarRestFeeByGold fee;
-                    int key = ScanInt(&ok);
+                    _StarRestFeeByGold fee;                 // ORIG 每轮 ctor(-0x238)
+                    int key = ScanInt(&ok);                 // ORIG -0x23c
                     if (!ok)
-                        break;
-                    fee.m_field0 = ScanInt(&ok);
+                        break;                              // 行首失败：结束本段回外层扫描头
+                    fee.m_field0 = ScanInt(&ok);            // ORIG -0x60 → -0x238
                     if (!ok)
                         break;
                     m_starRestMap.insert(std::make_pair(key, fee));
@@ -1673,139 +1712,312 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
             }
         }
         if (!isRidable)
-            break;                                   // 文件耗尽 → 返 0
+            break;                                          // 文件耗尽 → 返 0
 
         BuyShopData shop;
         int ridableId = ScanInt(&ok);
-        if (ok && isValidRidableId(static_cast<advancealtar::RidableId::T>(ridableId)))
+        if (!ok)
+            break;                                          // ORIG !ok：bVar4=假 → 不插入返回
+        if (!isValidRidableId(static_cast<advancealtar::RidableId::T>(ridableId)))
+            break;                                          // ORIG 非法：bVar4=假 → 不插入返回
+        shop.m_nField0 = ridableId;
+
+        // LAB_088a12ab 段循环。[/ridable id] 或 EOF 跳出 → 插入 shop。
+        for (;;)
         {
-            shop.m_nField0 = ridableId;
-            const char* endTag = 0;
-            std::vector<BuyUpgradeData>* outVec = 0;
-            bool inSection = false;
-            bool closed = false;
-            while (!closed && ScanType(token, true))
+            if (!ScanType(token, true))
+                break;                                      // EOF → 插入
+            if (token == "[unit]")
             {
-                if (token == "[unit]" || token == "[skill]" || token == "[tower]")
+                while (ScanType(token, true))
                 {
-                    endTag = (token == "[unit]") ? "[/unit]"
-                           : (token == "[skill]") ? "[/skill]" : "[/tower]";
-                    outVec = (token == "[unit]") ? &shop.m_vecT0
-                               : (token == "[skill]") ? &shop.m_vecT1 : &shop.m_vecT2;
-                    const bool isSkill = (token == "[skill]");
-                    inSection = true;
-                    while (ScanType(token, true))
+                    if (token == "[/unit]")
+                        break;
+                    if (token != "[id]")
+                        continue;
+                    BuyUpgradeData item;
+                    item.m_nItemId = ScanInt(&ok);
+                    if (!ok)
+                        continue;                           // id 扫描失败 → 回段循环
+                    for (;;)
                     {
-                        if (token == endTag)
-                        {
-                            inSection = false;
+                        if (!ScanType(token, true))
                             break;
-                        }
-                        if (token != "[id]")
-                            continue;
-                        BuyUpgradeData item;
-                        int idVal = ScanInt(&ok);
-                        if (!ok)
-                            break;                   // ORIG：失败弃项回段循环
-                        item.m_nItemId = idVal;
-                        bool idDone = false;
-                        while (ScanType(token, true))
+                        if (token == "[unlock stage index]")
                         {
-                            if (token == "[unlock stage index]")
+                            item.m_field4 = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            continue;
+                        }
+                        if (token == "[name]")
+                        {
+                            if (!ScanStr(&item.m_strDesc))
+                                break;
+                            continue;
+                        }
+                        if (token == "[field name]")
+                        {
+                            std::string fieldName;
+                            while (ScanStr(&fieldName))
                             {
-                                item.m_field4 = ScanInt(&ok);
-                                if (!ok)
-                                    break;
-                                continue;
+                                int ft = getFieldType(fieldName);
+                                if (ft != -1)
+                                    item.m_fieldTypes.push_back(
+                                        static_cast<FieldType::T>(ft));
                             }
-                            if (isSkill && token == "[is settable slot]")
+                            continue;
+                        }
+                        if (token == "[list]")
+                        {
+                            FieldData fd;
+                            FieldDataMap rowMap;
+                            bool rowOk = true;
+                            while (rowOk)
                             {
-                                int v = ScanInt(&ok);
-                                if (!ok)
-                                    break;
-                                item.m_field8 = (v != 0);
-                                continue;
-                            }
-                            if (token == "[name]")
-                            {
-                                ScanStr(&item.m_strDesc);
-                                continue;
-                            }
-                            if (token == "[field name]")
-                            {
-                                std::string fieldName;
-                                while (ScanStr(&fieldName))
+                                rowMap.clear();
+                                for (size_t fi = 0;
+                                     fi < item.m_fieldTypes.size(); ++fi)
                                 {
-                                    int ft = getFieldType(fieldName);
-                                    if (ft != -1)
-                                        item.m_fieldTypes.push_back(
-                                            static_cast<FieldType::T>(ft));
-                                }
-                                continue;
-                            }
-                            if (token == "[list]")
-                            {
-                                FieldDataMap rowMap;
-                                bool rowOk = true;
-                                while (rowOk)
-                                {
-                                    rowMap.clear();
-                                    for (size_t fi = 0; fi < item.m_fieldTypes.size(); ++fi)
+                                    FieldType::T ft = item.m_fieldTypes[fi];
+                                    fd.m_field0 = ft;
+                                    if (getdataType(ft) == 0)
                                     {
-                                        FieldType::T ft = item.m_fieldTypes[fi];
-                                        FieldData fd;
-                                        fd.m_field0 = ft;
-                                        if (getdataType(ft) == 0)
-                                        {
-                                            std::string s;
-                                            if (!ScanStr(&s))
-                                            {
-                                                rowOk = false;
-                                                break;
-                                            }
+                                        std::string s;
+                                        if (ScanStr(&s))
                                             fd.m_str = s;
-                                        }
                                         else
+                                            rowOk = false;
+                                        if (!rowOk)
+                                            break;
+                                    }
+                                    else
+                                    {
+                                        fd.m_value = ScanInt(&ok);
+                                        if (!ok)
                                         {
-                                            fd.m_value = ScanInt(&ok);
-                                            if (!ok)
-                                            {
-                                                rowOk = false;
-                                                break;
-                                            }
+                                            rowOk = false;
+                                            break;
                                         }
-                                        rowMap.insert(std::make_pair(ft, fd));
                                     }
                                     if (rowOk)
-                                    {
-                                        // ORIG key=FieldType-0 行 FieldData+4（m_value）。
-                                        int key =
-                                            rowMap[static_cast<FieldType::T>(0)].m_value;
-                                        item.m_listMap.insert(
-                                            std::make_pair(key, rowMap));
-                                    }
+                                        rowMap.insert(std::make_pair(ft, fd));
                                 }
-                                continue;
+                                if (rowOk)
+                                {
+                                    int key = rowMap[FieldType::FT_LEVEL].m_value;
+                                    item.m_listMap.insert(
+                                        std::make_pair(key, rowMap));
+                                }
                             }
-                            if (token == "[/id]")
-                            {
-                                idDone = true;
-                                break;
-                            }
+                            shop.m_vecT0.push_back(item);   // ORIG push_back 绑定 [list] 尾
+                            continue;
                         }
-                        if (idDone || token == endTag)
-                            break;                   // 弃项或段闭包均回段级扫描
+                        if (token == "[/id]")
+                            break;
                     }
-                    continue;
                 }
-                if (token == "[/ridable id]")
-                    closed = true;
-                // inSection 状态下段级 ScanType 已在子循环处理；此处仅段外 token。
+                continue;
             }
+            if (token == "[skill]")
+            {
+                while (ScanType(token, true))
+                {
+                    if (token == "[/skill]")
+                        break;
+                    if (token != "[id]")
+                        continue;
+                    BuyUpgradeData item;
+                    item.m_nItemId = ScanInt(&ok);
+                    if (!ok)
+                        continue;
+                    for (;;)
+                    {
+                        if (!ScanType(token, true))
+                            break;
+                        if (token == "[unlock stage index]")
+                        {
+                            item.m_field4 = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            continue;
+                        }
+                        if (token == "[is settable slot]")
+                        {
+                            int v = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            item.m_field8 = (v != 0);
+                            continue;
+                        }
+                        if (token == "[name]")
+                        {
+                            if (!ScanStr(&item.m_strDesc))
+                                break;
+                            continue;
+                        }
+                        if (token == "[field name]")
+                        {
+                            std::string fieldName;
+                            while (ScanStr(&fieldName))
+                            {
+                                int ft = getFieldType(fieldName);
+                                if (ft != -1)
+                                    item.m_fieldTypes.push_back(
+                                        static_cast<FieldType::T>(ft));
+                            }
+                            continue;
+                        }
+                        if (token == "[list]")
+                        {
+                            FieldData fd;
+                            FieldDataMap rowMap;
+                            bool rowOk = true;
+                            while (rowOk)
+                            {
+                                rowMap.clear();
+                                for (size_t fi = 0;
+                                     fi < item.m_fieldTypes.size(); ++fi)
+                                {
+                                    FieldType::T ft = item.m_fieldTypes[fi];
+                                    fd.m_field0 = ft;
+                                    if (getdataType(ft) == 0)
+                                    {
+                                        std::string s;
+                                        if (ScanStr(&s))
+                                            fd.m_str = s;
+                                        else
+                                            rowOk = false;
+                                        if (!rowOk)
+                                            break;
+                                    }
+                                    else
+                                    {
+                                        fd.m_value = ScanInt(&ok);
+                                        if (!ok)
+                                        {
+                                            rowOk = false;
+                                            break;
+                                        }
+                                    }
+                                    if (rowOk)
+                                        rowMap.insert(std::make_pair(ft, fd));
+                                }
+                                if (rowOk)
+                                {
+                                    int key = rowMap[FieldType::FT_LEVEL].m_value;
+                                    item.m_listMap.insert(
+                                        std::make_pair(key, rowMap));
+                                }
+                            }
+                            shop.m_vecT1.push_back(item);
+                            continue;
+                        }
+                        if (token == "[/id]")
+                            break;
+                    }
+                }
+                continue;
+            }
+            if (token == "[tower]")
+            {
+                while (ScanType(token, true))
+                {
+                    if (token == "[/tower]")
+                        break;
+                    if (token != "[id]")
+                        continue;
+                    BuyUpgradeData item;
+                    item.m_nItemId = ScanInt(&ok);
+                    if (!ok)
+                        continue;
+                    for (;;)
+                    {
+                        if (!ScanType(token, true))
+                            break;
+                        if (token == "[unlock stage index]")
+                        {
+                            item.m_field4 = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            continue;
+                        }
+                        if (token == "[name]")
+                        {
+                            if (!ScanStr(&item.m_strDesc))
+                                break;
+                            continue;
+                        }
+                        if (token == "[field name]")
+                        {
+                            std::string fieldName;
+                            while (ScanStr(&fieldName))
+                            {
+                                int ft = getFieldType(fieldName);
+                                if (ft != -1)
+                                    item.m_fieldTypes.push_back(
+                                        static_cast<FieldType::T>(ft));
+                            }
+                            continue;
+                        }
+                        if (token == "[list]")
+                        {
+                            FieldData fd;
+                            FieldDataMap rowMap;
+                            bool rowOk = true;
+                            while (rowOk)
+                            {
+                                rowMap.clear();
+                                for (size_t fi = 0;
+                                     fi < item.m_fieldTypes.size(); ++fi)
+                                {
+                                    FieldType::T ft = item.m_fieldTypes[fi];
+                                    fd.m_field0 = ft;
+                                    if (getdataType(ft) == 0)
+                                    {
+                                        std::string s;
+                                        if (ScanStr(&s))
+                                            fd.m_str = s;
+                                        else
+                                            rowOk = false;
+                                        if (!rowOk)
+                                            break;
+                                    }
+                                    else
+                                    {
+                                        fd.m_value = ScanInt(&ok);
+                                        if (!ok)
+                                        {
+                                            rowOk = false;
+                                            break;
+                                        }
+                                    }
+                                    if (rowOk)
+                                        rowMap.insert(std::make_pair(ft, fd));
+                                }
+                                if (rowOk)
+                                {
+                                    int key = rowMap[FieldType::FT_LEVEL].m_value;
+                                    item.m_listMap.insert(
+                                        std::make_pair(key, rowMap));
+                                }
+                            }
+                            shop.m_vecT2.push_back(item);
+                            continue;
+                        }
+                        if (token == "[/id]")
+                            break;
+                    }
+                }
+                continue;
+            }
+            if (token == "[/ridable id]")
+                break;
         }
-        // ORIG LAB_088a267d：无论段内成败，[/ridable id] 或 EOF 都插入当前 shop。
+        // ORIG LAB_088a267d：valid 路径下 [/ridable id] 或 EOF 都把 shop 入 map。
         m_buyShopMap.insert(std::make_pair(shop.m_nField0, shop));
     }
+    return 0;
 }
 
 // ---- advancealtar::BuyUpgradeData::getFieldDataPoint（ORIG T 0x088a2e4c）----

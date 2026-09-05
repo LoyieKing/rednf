@@ -2667,7 +2667,8 @@ public:
     void ProcProperLevelDungeonClear();   // ORIG 0x0868f5fa = GiveMeBoxReward（声明供
     void GiveMeBoxReward();               //   ORIG 0x08693758 = DBInsertGiveBoxEventReward::makeRequest
                                           //   TournamentDungeonClear 调用；定义待 CUser 域批次）
-    unsigned char isCharacLinkMessageFlag();   // ORIG movzbl 直返
+    bool isCharacLinkMessageFlag();   // ORIG callee 0x086973cc movzbl 直返+caller 0x08652a69 test %al 直判；
+                                      //   成员 m_field14 已 bool⇒返回 bool 两侧全对（uchar 反产 caller setne 岛）
     unsigned char isLinkCharacDisconnectFlag();   // ORIG movzbl 直返
     void setLinkCharacDisconnectFlag(bool flag);   // ORIG 0x086973dc
     unsigned char getDisconnectLinkCharacSlotIdx();
@@ -2889,7 +2890,9 @@ public:
     int GetAccountLastPlayTime();
     ENUM_SERVER_GROUP GetServerGroup() const;
     int GetServerGroupToPvP() const;   // ORIG T 0x0864a97c（定义 CUserDepsB.cpp）
-    Secu_GoldControl* GetGoldControl();
+    // ORIG W 0x084ed008（弱符号⇒头内 inline 定义；proceed_trade 0x853087a 调用点
+    // add $0x8e980 直取成员，消费侧按 ORIG 逐点改成员访问，TraC9 请求/Main 代落）
+    Secu_GoldControl* GetGoldControl() { return &m_goldControl; }
     CDungeonGainedGold* getDungeonGainedGold();
     WongWork::CHackAnalyzer* getHackAnalyzer();
     CExpandEquipslot* GetCharacExpandDataR(ENUM_CHARAC_EXPAND_TYPE type) const;

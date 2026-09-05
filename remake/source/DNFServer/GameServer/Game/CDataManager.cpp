@@ -288,9 +288,9 @@ CItem* CDataManager::find_item(const char* name) const
     return m_itemList->find_item(name);
 }
 
-CItem* CDataManager::FindGoods(int goodsIdx) const
+CCeraShopGoods* CDataManager::FindGoods(int goodsIdx) const
 {
-    return (CItem*)m_itemList->FindGoods(goodsIdx);
+    return m_itemList->FindGoods(goodsIdx);
 }
 
 CSkill* CDataManager::find_skill(int skillId, int level) const
