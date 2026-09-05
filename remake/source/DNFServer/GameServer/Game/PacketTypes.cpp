@@ -1,6 +1,17 @@
 // df_game_r 还原 —— MSG / Param 构造函数 + IPacketDispatcher 显式实例化
 #include "PacketTypes.h"
 #include <cstring>
+#include <ctype.h>      // isalnum（is_base64，ORIG _ZL9is_base64h）
+
+// ---------------------------------------------------------------------------
+// base64 族（ORIG 归属本 TU：__static_init @0x0807ee76 = ios_base::Init +
+// 本 string 动态构造/operator[](const 重载 _ZNKSsixEj 以 $0x93f56f4 为 this)、
+// _GLOBAL__I 键名 _GLOBAL__I__Z13base64_encodePKhjRSs @0x0807ef30、
+// base64_encode T 0x0807ea2e / base64_decode T 0x0807ebf4 地址紧邻、
+// _ZL12base64_chars b 0x093f56f4）。声明序：文件首个动态初始化对象。
+// ---------------------------------------------------------------------------
+static const std::string base64_chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 
 InstanceRentalSystem::RentOutput::RentOutput() : m_infos(), m_deleted() {}  // ORIG 0x8231c4e
@@ -871,3 +882,98 @@ template class IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>;
 template class IPacketDispatcher<MSG_BASE, ParamBase, ch_state2>;
 template class IPacketDispatcher<MSG_BASE, ParamBase, ch_state3>;
 template class IPacketDispatcher<MSG_BASE, ReqResult, ch_state3>;
+
+// ---------------------------------------------------------------------------
+// base64_encode / base64_decode（ORIG T 0x0807ea2e / 0x0807ebf4）。
+// 查表经 const std::string base64_chars：encode 用 operator[]（ORIG 调用点
+// `movl $0x93f56f4,(%esp); call _ZNKSsixEj`），decode 用 find(char,0)；
+// 追加经 `out += char`（_ZNSspLEc），'=' 补位（$0x3d）。encode 无 out.clear
+// （直接 +=）。is_base64 为 TU 内部（_ZL9is_base64h t 0x0807e9f8）。
+// ---------------------------------------------------------------------------
+static bool is_base64(unsigned char c)
+{
+    return isalnum(c) || (c == '+') || (c == '/');
+}
+
+void base64_encode(const unsigned char* data, unsigned int len,
+                   std::string& out)
+{
+    int i = 0;
+    unsigned char b3[3];
+    while (len != 0)
+    {
+        --len;
+        b3[i] = *data;
+        ++i;
+        ++data;
+        if (i == 3)
+        {
+            unsigned char b4[4];
+            b4[0] = static_cast<unsigned char>(b3[0] >> 2);
+            b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
+            b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
+            b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
+            for (int k = 0; k < 4; ++k)
+                out += base64_chars[b4[k]];
+            i = 0;
+        }
+    }
+    if (i > 0)
+    {
+        for (int k = i; k < 3; ++k)
+            b3[k] = 0;
+        unsigned char b4[4];
+        b4[0] = static_cast<unsigned char>(b3[0] >> 2);
+        b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
+        b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
+        b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
+        for (int k = 0; k < i + 1; ++k)
+            out += base64_chars[b4[k]];
+        for (int k = i + 1; k < 4; ++k)
+            out += '=';
+    }
+}
+
+void base64_decode(std::string const& in, std::vector<unsigned char>& out)
+{
+    int in_len = static_cast<int>(in.size());
+    int i = 0;
+    int in_ = 0;
+    unsigned char c4[4];
+    unsigned char c3[3];
+    while (in_len-- != 0)
+    {
+        char ch = in[in_++];
+        if (ch == '=')
+            break;
+        if (!is_base64(static_cast<unsigned char>(ch)))
+            break;
+        c4[i++] = static_cast<unsigned char>(ch);
+        if (i == 4)
+        {
+            for (i = 0; i < 4; i++)
+                c4[i] = static_cast<unsigned char>(
+                    base64_chars.find(static_cast<char>(c4[i]), 0));
+            c3[0] = static_cast<unsigned char>((c4[0] << 2) + ((c4[1] & 0x30) >> 4));
+            c3[1] = static_cast<unsigned char>((c4[1] << 4) + ((c4[2] & 0x3c) >> 2));
+            c3[2] = static_cast<unsigned char>((c4[2] << 6) + c4[3]);
+            for (i = 0; i < 3; i++)
+                out.push_back(c3[i]);
+            i = 0;
+        }
+    }
+    if (i != 0)
+    {
+        int j;
+        for (j = i; j <= 3; j++)
+            c4[j] = 0;
+        for (j = 0; j < 4; j++)
+            c4[j] = static_cast<unsigned char>(
+                base64_chars.find(static_cast<char>(c4[j]), 0));
+        c3[0] = static_cast<unsigned char>((c4[0] << 2) + ((c4[1] & 0x30) >> 4));
+        c3[1] = static_cast<unsigned char>((c4[1] << 4) + ((c4[2] & 0x3c) >> 2));
+        c3[2] = static_cast<unsigned char>((c4[2] << 6) + c4[3]);
+        for (j = 0; j < i - 1; j++)
+            out.push_back(c3[j]);
+    }
+}

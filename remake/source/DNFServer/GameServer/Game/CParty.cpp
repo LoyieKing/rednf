@@ -1549,9 +1549,16 @@ int CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,
                                           std::vector<int>& list1,
                                           std::vector<int>& list2)
 {
-    // ORIG 0x85a7d86
-    int validCount = 0;      // local_20：有效成员数
-    int passCount = 0;       // local_24：满足条件成员数
+    // ORIG 0x85a7d86：入口 4×int 初始化 + Inven_Item 局部（-0x6d，非对齐槽——
+    // 4.1 结构拷贝按 dword+残基拆分，本工具链按对齐槽整体赋值，拷贝序列差属
+    // 跨版本布局伪差）+ result 字节槽 + i。list2 用迭代器双缓存
+    // （begin 循环前一次、end 每轮重取、operator!= 调用）；
+    // GetInvenSlot(1,slot) 结果先整体赋给 item，再比 item.m_addInfo2。
+    int validCount = 0;      // local_20
+    int passCount = 0;       // local_24
+    int haveCount = 0;       // local_1c
+    int slot = 0;            // local_18
+    Inven_Item item;         // local_6d
     int result = 0;          // local_11
     for (int i = 0; i <= 3; ++i)
     {
@@ -1564,13 +1571,17 @@ int CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,
             if (dungeon->get_min_level() < 0x2d)
                 return 0;
             int needCount = getHellPartyEntranceItemNeedCount(dungeon->get_min_level());
-            int haveCount = 0;
-            for (unsigned int k = 0; k < list2.size(); ++k)
+            haveCount = 0;
+            for (std::vector<int>::const_iterator it = list2.begin();
+                 it != list2.end(); ++it)
             {
-                int slot = u->getCurCharacInvenR()->check_item_exist(list2[k]);
-                if (slot != -1 &&
-                    u->getCurCharacInvenR()->GetInvenSlot(1, slot).m_addInfo2 >= needCount)
-                    ++haveCount;
+                slot = u->getCurCharacInvenR()->check_item_exist(*it);
+                if (slot != -1)
+                {
+                    item = u->getCurCharacInvenR()->GetInvenSlot(1, slot);
+                    if (item.m_addInfo2 >= needCount)
+                        ++haveCount;
+                }
             }
             if (haveCount == (int)list2.size())
                 ++passCount;
@@ -2724,15 +2735,16 @@ int CParty::GetPartyType()
     {
         if (!_checkValidUser(i))
             continue;
-        int key = m_member[i].m_pUser->get_charac_guildkey();
-        if (key != 0)
+        // ORIG 0x85b6322/0x85b6350/0x85b63a0：get_charac_guildkey 三处独立调用
+        // （O0 无 CSE，P48），勿缓存 key。
+        if (m_member[i].m_pUser->get_charac_guildkey() != 0)
         {
             if (guildKey == 0)
             {
-                guildKey = key;
+                guildKey = m_member[i].m_pUser->get_charac_guildkey();
                 sameGuild = true;
             }
-            else if (key != guildKey)
+            else if (m_member[i].m_pUser->get_charac_guildkey() != guildKey)
             {
                 sameGuild = false;
             }
@@ -5201,10 +5213,11 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
 // ============================================================================
 void CParty::prepare_dungeon_clear()
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
     m_dungeonClearTracer.SetClearedDungeon(m_tournamentVictory != 0);
-    m_dungeonClearTracer.SetEndPoint(bf.check_end_point());
-    if (!bf.check_grid_clear())
+    // ORIG 0x85aa39a：bf 地址每次现取（mov 0x8 + add $0xb24），不建局部缓存槽。
+    m_dungeonClearTracer.SetEndPoint(
+        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point());
+    if (!reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_grid_clear())
         return;
 
     for (int i = 0; i < 4; ++i)
@@ -5213,7 +5226,9 @@ void CParty::prepare_dungeon_clear()
         {
             CUser* user = m_member[i].m_pUser;
             UserQuest* quest = user->getCurCharacQuestW();
-            quest->set_authen_data((QUEST_CONDITION)1, bf.get_cur_map(), 0);
+            quest->set_authen_data((QUEST_CONDITION)1,
+                                   reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_cur_map(),
+                                   0);
             if (0 < user->m_fatigueGain)
             {
                 const user_creature::CCreatureMgr* mgrR =
@@ -5234,10 +5249,12 @@ void CParty::prepare_dungeon_clear()
         }
     }
 
-    int mapIdx = bf.GetCurrentMapIndex();
-    if (bf.ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1, mapIdx))
+    int mapIdx =
+        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->GetCurrentMapIndex();
+    if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            ->ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1, mapIdx))
         ClearDungeon();
-    else if (bf.check_end_point())
+    else if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point())
         ClearDungeon();
 }
 

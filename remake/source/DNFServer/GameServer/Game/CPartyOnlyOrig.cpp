@@ -173,6 +173,9 @@ void CParty::ClearBadP2PUser()
 // ORIG T 0x0859cea2（send_party_ipinfo.md）：header(0,0xb) 广播各成员
 // uniqueId/内外网 IP/端口/账号/NAT 类型/MTU 与角色耐力字节，末尾
 // finalize(true) 后 send_to_party。
+// P157/P48：ORIG 每个使用点都重新走 m_member[i].m_pUser 取用户链（从不
+// 缓存局部），getCurCharacR 在 then/else 臂各调用一次；uid/port 低 16 位
+// 截断是 caller 侧 movzwl（用 static_cast<unsigned short>，非 & 0xffff）。
 void CParty::send_party_ipinfo()
 {
     PacketGuard packet;
@@ -180,27 +183,28 @@ void CParty::send_party_ipinfo()
     packet.put_byte(get_member_count());
     for (int i = 0; i < 4; i++)
     {
-        if (!_checkValidUser(i))
+        if (_checkValidUser(i))
         {
-            continue;
-        }
-        CUser* user = m_member[i].m_pUser;
-        packet.put_short(user->get_unique_id() & 0xffff);
-        packet.put_int(user->m_network.get_inner_ip());
-        packet.put_int(user->m_network.get_ip());
-        packet.put_short(user->m_network.get_port() & 0xffff);
-        packet.put_int(user->get_acc_id());
-        packet.put_byte(user->m_network.get_nat_type());
-        packet.put_int(user->m_network.get_mtu());
-        const _Charac_info* charac =
-            reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacR();
-        if (charac != 0)
-        {
-            packet.put_byte(charac->m_stamina);
-        }
-        else
-        {
-            packet.put_byte(0);
+            packet.put_short(static_cast<unsigned short>(
+                m_member[i].m_pUser->get_unique_id()));
+            packet.put_int(m_member[i].m_pUser->m_network.get_inner_ip());
+            packet.put_int(m_member[i].m_pUser->m_network.get_ip());
+            packet.put_short(static_cast<unsigned short>(
+                m_member[i].m_pUser->m_network.get_port()));
+            packet.put_int(m_member[i].m_pUser->get_acc_id());
+            packet.put_byte(m_member[i].m_pUser->m_network.get_nat_type());
+            packet.put_int(m_member[i].m_pUser->m_network.get_mtu());
+            if (reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
+                    ->getCurCharacR() != 0)
+            {
+                packet.put_byte(
+                    reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
+                        ->getCurCharacR()->m_stamina);
+            }
+            else
+            {
+                packet.put_byte(0);
+            }
         }
     }
     packet.finalize(true);
@@ -383,38 +387,40 @@ bool CParty::IsThereGhostInParty()
 int CParty::getMemberPassParty(CUser* user)
 {
     int maxLevel = 0;
+    int level = 0;
     for (int i = 0; i <= 3; i++)
     {
         if (!_checkValidUser(i))
         {
             continue;
         }
-        bool selfOrUpper =
-            reinterpret_cast<CUserCharacInfo*>(user)->get_connect_upper_member() ==
-                    m_member[i].m_pUser->get_charac_no(-1) ||
-            user->get_charac_no(-1) ==
-                    m_member[i].m_pUser->get_charac_no(-1);
-        if (!selfOrUpper)
+        // P133/P45：两比较各自 je/jne 短路桥（ORIG +0x6b/+0xad），不物化 bool。
+        if (reinterpret_cast<CUserCharacInfo*>(user)
+                ->get_connect_upper_member() ==
+            m_member[i].m_pUser->get_charac_no(-1))
         {
-            int level = m_member[i].m_pUser->get_charac_level();
-            if (level > maxLevel)
-            {
-                maxLevel = level;
-            }
+            continue;
         }
+        if (user->get_charac_no(-1) ==
+            m_member[i].m_pUser->get_charac_no(-1))
+        {
+            continue;
+        }
+        // ORIG +0xee：std::max 外部实例 call（0808e218）+ 返回指针解引用赋值。
+        level = m_member[i].m_pUser->get_charac_level();
+        maxLevel = std::max(maxLevel, level);
     }
     if (maxLevel == 0)
     {
         return 0;
     }
     if (maxLevel -
-            reinterpret_cast<CUserCharacInfo*>(user)
-                ->get_charac_level_before_dungeon() >
-        6)
+        reinterpret_cast<CUserCharacInfo*>(user)
+            ->get_charac_level_before_dungeon() <= 6)
     {
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ORIG T 0x085b9e80（GetUserSecretShop.md）：+0x2a8 + slot*0x1c 起的逐成员
@@ -522,9 +528,12 @@ int CParty::delete_party_for_quick_party(CUser* user,
     }
     if (get_member_count() == 1)
     {
-        short partyIdx = user->GetPartyIndex();
-        int userState = user->get_state();
-        char* idStr = NumberToString(user->get_acc_id(), 0);
+        // P87/P52：ORIG 以 %edi/%esi/%ebx 跨 NumberToString/cMyTrace ctor
+        // 缓存三实参（+0x27/+0x31/+0x38），4.4 普通局部恒 spill；register
+        // 形态贴近 callee-saved 驻留。
+        register int partyIdx = static_cast<short>(user->GetPartyIndex());
+        register int userState = user->get_state();
+        register char* idStr = NumberToString(user->get_acc_id(), 0);
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x46c, 0);
         trace("<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
@@ -542,7 +551,11 @@ int CParty::delete_party_for_quick_party(CUser* user,
     }
     for (int i = 0; i <= 3; i++)
     {
-        if (_checkValidUser(i) && m_member[i].m_pUser == user)
+        if (!_checkValidUser(i))
+        {
+            continue;
+        }
+        if (m_member[i].m_pUser == user)
         {
             m_member[i].m_pUser = 0;
             m_member[i].m_field8 = 0;
@@ -638,36 +651,38 @@ bool CParty::CheckRecvFromAllMember(CUser* user)
 // 返回 1（ORIG 主路径不写 +0x118；调用方 CAssaultMgr 两处均 test %al 消费返回值）。
 int CParty::TimeoutCompleteAfterAssault()
 {
-    if (!m_recvResultFlag)
+    if (m_recvResultFlag != 0)
     {
-        if (!recv_party_packet_all())
+        m_recvResultFlag = 0;
+        return 0;
+    }
+    if (recv_party_packet_all() == 0)
+    {
+        for (int i = 0; i <= 3; i++)
         {
-            for (int i = 0; i <= 3; i++)
+            if (!_checkValidUser(i))
             {
-                if (!_checkValidUser(i))
-                {
-                    continue;
-                }
-                if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
-                         ->IsRecv(i))
-                {
-                    const char* name =
-                        reinterpret_cast<CUserCharacInfo*>(get_user(i))
-                            ->getCurCharacName();
-                    int partyIdx = GetPartyIndex();
-                    cMyTrace trace(
-                        __PRETTY_FUNCTION__, 0x1fa, 0);
-                    trace("CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
-                          partyIdx, name);
-                    leave_user(get_user(i),
-                               static_cast<ENUM_PARTY_INFO_TYPE>(2));
-                }
+                continue;
+            }
+            if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
+                     ->IsRecv(i))
+            {
+                // P87/P36：两中间结果跨 cMyTrace ctor 调用以 callee-saved
+                // %esi/%ebx 缓存（ORIG +0x0a6/+0x0b3）。
+                register const char* name =
+                    reinterpret_cast<CUserCharacInfo*>(get_user(i))
+                        ->getCurCharacName();
+                register int partyIdx = GetPartyIndex();
+                // P37：cMyTrace 临时链式（args 在 ctor 后设置）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
+                    "CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
+                    partyIdx, name);
+                leave_user(get_user(i),
+                           static_cast<ENUM_PARTY_INFO_TYPE>(2));
             }
         }
-        return 1;
     }
-    m_recvResultFlag = false;
-    return 0;
+    return 1;
 }
 
 // ORIG T 0x085a82d2（IsClearedQuest.md）：任一有效成员未清任务即 false。
@@ -694,28 +709,33 @@ bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (!_checkValidUser(i))
+        if (_checkValidUser(i))
         {
-            continue;
+            // P48：两比较各调一次 get_state（ORIG +0x1a/+0x2d 双 call）。
+            if (m_member[i].m_pUser->get_state() != 5 &&
+                m_member[i].m_pUser->get_state() != 10)
+            {
+                continue;
+            }
+            register int qIdx = quest->m_index;
+            UserQuest* userQuest = m_member[i].m_pUser->getCurCharacQuestR();
+            if (userQuest->IsDoingQuest(qIdx) &&
+                quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
+            {
+                continue;
+            }
+            return false;
         }
-        int state = m_member[i].m_pUser->get_state();
-        if (state != 5 && state != 10)
-        {
-            continue;
-        }
-        UserQuest* userQuest = m_member[i].m_pUser->getCurCharacQuestR();
-        if (userQuest->IsDoingQuest(quest->m_index) &&
-            quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
-        {
-            continue;
-        }
-        return false;
     }
     return true;
 }
 
 // ORIG T 0x0859e7fe（CheckEnterAncientDungeon_0859e7fe.md，单参别名版）：
 // dungeon 未开组队入口时做 ancient 入场券检查；否则按 4 参事件版判定。
+// 残差归因（N 类）：ORIG 将 itemIdx 读入 %esi 跨 getCurCharacInvenR 调用
+// 缓存（4.4 恒为 call 后现场重读，P75 outgoing-arg 装载时刻族）、i 槽 -0xc
+// 与 items 基 -0x111（4.1 帧内 4B 交错，P112）、循环头双 movl $0 初始化
+// 复制（4.1 tail-duplicator 产物）均无法由合法源码复现。
 int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 {
     Inven_Item items[4];
@@ -725,7 +745,8 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 
     if (const_cast<CDungeon*>(dungeon)->m_entryRestrictFlag)
     {
-        unsigned char flag = 0;
+        unsigned char flag = 0;    // ORIG -0x1d：items 顶与 slots 底之间，+0x79
+                                  // 分支内清零
         return CheckEnterEventDungeon(dungeon, flag, items, slots) ? 1 : 0;
     }
 
@@ -767,9 +788,10 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 
 // ORIG T 0x085be56c（checkLimitUsedCoinCondition.md）：party/dungeon 双层
 // 硬币限额校验；超限返回 0x16、找不到副本返回 0x13、通过返回 0。
-int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeonParam)
+// 形参直写回 0xc(%ebp)（ORIG +0x34 `mov %eax,0xc(%ebp)`：find_dungeon 结果
+// 直接覆写形参槽，无本地别名副本）；diff 以内联实参入 getLimitCoinDiff。
+int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeon)
 {
-    CDungeon const* dungeon = dungeonParam;
     if (dungeon == 0)
     {
         int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
@@ -787,10 +809,11 @@ int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeonParam)
     }
 
     int limitCoin = 0;
-    int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
-                   ->get_dungeon_diff();
-    if (dungeon->getLimitCoinDiff(diff, limitCoin) && limitCoin != -1 &&
-        GetUsedCoinCount() >= limitCoin)
+    if (dungeon->getLimitCoinDiff(
+            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                ->get_dungeon_diff(),
+            limitCoin) &&
+        limitCoin != -1 && GetUsedCoinCount() >= limitCoin)
     {
         return 0x16;
     }
@@ -819,12 +842,14 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
             return false;
         }
     }
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x5e);
-    if (ev == 0 || !ev->IsEventing(0))
+    // ORIG 无 ev 判空（虚调用直发，+0x024..0x031）；尾条件为有符号 >0
+    // （+0x03b.. test/jle），忠实转写。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing(0))
     {
-        return false;
+        return 0 <
+               const_cast<CDungeon*>(dungeon)->get_dimension_possible();
     }
-    return const_cast<CDungeon*>(dungeon)->get_dimension_possible() != 0;
+    return false;
 }
 
 // ORIG T 0x085a834a（CheckHellCoinLimint.md）：hell 场景且 +0xcd4 开关打开、
@@ -897,31 +922,44 @@ int CParty::CheckMemberLastTryAssaultTime()
 // 各维度 inout 槽 (dm 上限, 成员现值) 同加 delta 并截断到 dm 上限。
 void CParty::increase_dimension_inout_count(int param)
 {
-    if (m_dungeon == 0 || m_dungeon->get_dimension_possible() == 0)
+    if (m_dungeon != 0)
     {
-        return;
-    }
-    for (int i = 0; i <= 3; i++)
-    {
-        if (!checkValidUser(i))
+        if (m_dungeon->get_dimension_possible() == 0)
         {
-            continue;
+            return;
         }
-        CUserCharacInfo* member =
-            reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser);
-        for (int j = 0; j < 6; j++)
         {
-            char dmValue =
-                static_cast<char>(G_CDataManager()->get_dimensionInout(j));
-            char userValue = member->getDemensionInoutValue(static_cast<char>(j));
-            char next = static_cast<char>(userValue + param);
-            if (dmValue + param < userValue + param)
+            for (int i = 0; i <= 3; i++)
             {
-                next = static_cast<char>(dmValue + param);
+                if (!checkValidUser(i))
+                {
+                    continue;
+                }
+                {
+                    for (int j = 0; j <= 5; j++)
+                    {
+                        int dmNext = static_cast<char>(
+                            G_CDataManager()->get_dimensionInout(j)) +
+                            param;                      // -0x10 单份
+                        int curNext = static_cast<char>(
+                            reinterpret_cast<CUserCharacInfo*>(
+                                m_member[i].m_pUser)
+                                ->getDemensionInoutValue(
+                                    static_cast<char>(j))) +
+                            param;                      // -0xc 单份
+                        if (curNext > dmNext)
+                            curNext = dmNext;
+                        reinterpret_cast<CUserCharacInfo*>(
+                            m_member[i].m_pUser)
+                            ->setDemensionInoutValue(
+                                static_cast<char>(j),
+                                static_cast<char>(curNext));
+                    }
+                }
             }
-            member->setDemensionInoutValue(static_cast<char>(j), next);
         }
     }
+    return;
 }
 
 // ORIG T 0x085a2320（GetExpPenaltyPercent.md）：等级差惩罚百分比表。
@@ -1063,26 +1101,40 @@ int CParty::_Send_TOD_ClearReward()
     packet.put_header(0, 0x15b);
     packet.put_int(
         *reinterpret_cast<const int*>(m_padBattleData));   // ORIG *(int*)(this+0x32c)
-    CUser* manager = getManager();
-    TOD_UserState* todState = reinterpret_cast<TOD_UserState*>(
-        manager->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)));
-    TOD_Layer lastLayer = todState->getLastEnterLayer();   // ORIG 无条件（无 null 检查）
-    packet.put_short(lastLayer.GetLayer() & 0xffff);
+    TOD_Layer lastLayer =
+        reinterpret_cast<TOD_UserState*>(
+            getManager()->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)))
+            ->getLastEnterLayer();                    // ORIG 无条件（无 null 检查）
+    packet.put_short(static_cast<unsigned short>(lastLayer.GetLayer()));
     packet.put_byte(10);   // ORIG +0x09c 固定 byte 10
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
-    size_t rewardCount = bf.m_todReward.m_todMap.size();
-    for (size_t i = 0; i < rewardCount; i++)
+    // P48/P157：size()/operator[] 每使用点独立求值（ORIG 循环条件每轮
+    // reload this + call size，无缓存）。
+    for (unsigned int i = 0;
+         i < reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                 ->m_todReward.m_todMap.size();
+         ++i)
     {
-        packet.put_int(bf.m_todReward.m_todMap[i].first);
-        packet.put_int(bf.m_todReward.m_todMap[i].second);
+        packet.put_int(
+            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                ->m_todReward.m_todMap[i].first);
+        packet.put_int(
+            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                ->m_todReward.m_todMap[i].second);
     }
-    for (size_t i = 0; i < 9U - rewardCount; i++)
+    for (unsigned int i = 0;
+         i < 9U -
+            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                ->m_todReward.m_todMap.size();
+         ++i)
     {
         packet.put_int(-1);
         packet.put_int(0);
     }
-    packet.put_int(bf.m_todReward.m_todPos.first);
-    packet.put_int(bf.m_todReward.m_todPos.second);
+    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                       ->m_todReward.m_todPos.first);
+    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                       ->m_todReward.m_todPos.second);
     packet.finalize(true);
     send_to_party(packet);
     return 1;
@@ -1092,9 +1144,12 @@ int CParty::_Send_TOD_ClearReward()
 // 免费复活条件不满足时扣操作者 BattleData 硬币（写使用日志），随后原地复活。
 int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
 {
-    if (!(m_state == 2 || GetEPLPState() != 0))
+    if (get_state() != 2)
     {
-        return 0x13;
+        if (GetEPLPState() == 0)
+        {
+            return 0x13;
+        }
     }
 
     CUser* dead = 0;
@@ -1104,9 +1159,7 @@ int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
         {
             continue;
         }
-        unsigned short uid =
-            static_cast<unsigned short>(m_member[i].m_pUser->get_unique_id());
-        if (uid == targetUid)
+        if (m_member[i].m_pUser->get_unique_id() == targetUid)
         {
             if (m_liveFlag[i] != 0)
             {
@@ -1121,23 +1174,28 @@ int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
         return 0x15;
     }
 
-    bool freeRevival = checkFreeRevivalCondition(0);
+    bool freeRevival = checkFreeRevivalCondition(0);   // -0x11 物化槽
     for (int j = 0; j <= 3; j++)
     {
         if (!_checkValidUser(j))
         {
             continue;
         }
-        if (m_member[j].m_pUser == actor && !freeRevival)
+        if (m_member[j].m_pUser == actor)
         {
-            if (memberUsedCoin(this)[j] == 0)
+            if (freeRevival != 0)
+            {
+                goto coin_skip;
+            }
+            if (m_memberUsedCoin[j] == 0)
             {
                 return 1;
             }
             HistoryLog::WriteUseCoin(
                 reinterpret_cast<_IO_FILE*>(actor->m_field796f8),
                 reinterpret_cast<CUserCharacInfo*>(dead)->getCurCharacName());
-            --memberUsedCoin(this)[j];
+            --m_memberUsedCoin[j];
+        coin_skip:;
         }
     }
     set_charac_live(dead, static_cast<ENUM_USER_DUNGEON_STATE>(1));

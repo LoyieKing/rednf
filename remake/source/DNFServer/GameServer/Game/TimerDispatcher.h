@@ -134,7 +134,8 @@ public:
     TimerFatigueReset();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerFatigueReset();
-    static int RegistNextTimer();
+    bool RegistNextTimer();     // ORIG 0x08633a04：调用点 0x086339d4 传 this ⇒ 非 static；
+                                // 返回 byte 物化 mov %al,-0x9 ⇒ bool
     int updateAbnormalClientCount();     // ORIG T 0x086339fa（定义 TimerDispatcher.cpp）
 
 private:
@@ -160,7 +161,7 @@ public:
     TimerStatisticsLog();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerStatisticsLog();
-    static bool RegistNextTimer();
+    bool RegistNextTimer();     // ORIG 调用点 0x08633f08 段尾传 this（mov 0x8(%ebp)）⇒ 非 static
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -571,7 +572,7 @@ public:
     TimerQueryCounter();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerQueryCounter();
-    static int RegistNextTimer();
+    int RegistNextTimer();      // ORIG 0x08635bdc：调用点传 this（mov 0x8(%ebp)）⇒ 非 static
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -828,7 +829,8 @@ public:
     TimerDungeonDataStatistic();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerDungeonDataStatistic();
-    static int RegistNextTimer();  // ORIG T 0x8636856，eax=1
+    bool RegistNextTimer();        // ORIG T 0x08636856：调用点 0x08636805 传 this ⇒
+                                   // 非 static；`mov %al,-0x9` byte 物化 ⇒ bool
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

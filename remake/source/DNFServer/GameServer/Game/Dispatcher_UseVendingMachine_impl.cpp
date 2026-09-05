@@ -375,17 +375,39 @@ void Dispatcher_UseVendingMachine::_notifyItemInfo(
  * ==================================================================== */
 int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0)
-        return 0;
-    if (user->get_state() != 3)
-        return 0;
-    if (user->CheckInTrade())
-        return 0;
-
+    // ========================================================================
+    // ORIG 0x0821c2e6（报告 docs/class_func_reports/Dispatcher_UseVendingMachine/
+    // dispatch_sig.md 全文已读：## 汇编 + ## 反编译 C 两段）。
+    // 关键结构证据：
+    //  · 出口统一 `mov %ebx,%eax`（0x0821d2b7），各 return 路径先写 %ebx ⇒
+    //    技巧39 EH-ebx 返回缓存。
+    //  · 0x0821c2f1 先 `call get_state; cmp $3; setne %al; test; je`，其后
+    //    0x0821c310 才 `cmpl $0x0,0xc(%ebp); je` + CheckInTrade 合并 bool
+    //    （旧实现把 user==0 放最前，顺序错）。
+    //  · 9 处 __cxa_allocate_exception(4) + __cxa_throw(&ENUM_ERROR::typeinfo=
+    //    0x8b75f40) —— 载荷值 1/1/4/0x16/0x16/0x16/0x11/0x16/0x16（旧实现退化成
+    //    return 0，既少 ~150 行指令又丢错误码上报，属语义缺陷）。
+    //  · 两处 catch handler（0x0821c75b try[56c..6c9] / 0x0821ce0e try[c8bb..cd3e]）
+    //    同体：`mov (%eax),%eax` 取 ENUM_ERROR → `movzbl %al` →
+    //    SendCmdErrorPacket(0xda, (unsigned char)e) → %ebx=0 → 公共出口。
+    //  · 空位检查 ORIG 是 7 次独立 check_empty_count 嵌套 if（0x0821c8bb.. 逐段），
+    //    不是循环。
+    // ========================================================================
+    register int ret asm("ebx");
     unsigned int machineId = 0;
     unsigned int slotId    = 0;
     short        pos       = -1;
-
+    int          remainingMoney = 0;
+    if ((bool)(user->get_state() != 3))
+    {
+        ret = 0;
+        return ret;
+    }
+    if (user == 0 || user->CheckInTrade())
+    {
+        ret = 0;
+        return ret;
+    }
     if (!packet.get_int(machineId))
         return LineFunc(0xd029, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(slotId))
@@ -400,32 +422,33 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     if (info == 0)
         return LineFunc(0xd033, __PRETTY_FUNCTION__, 0, 0);
 
-    // 随机源：ORIG ctor 以 time 种子构造 this->m_rand（Dispatchers.cpp ctor 已 new）。
-    // 给/赏物品数组（两槽：槽 0 给物品、槽 1 赏物品）。
+    CUserCharacInfo* chi = static_cast<CUserCharacInfo*>(user);
+    // 给/赏物品数组（ORIG 0x0821c520：数组默认构造 2 次 + 逐元素写 +0x02=-1，
+    // 无 Inven_Item::reset 调用；local_163 生命周期覆盖两 try 之后的 _putItemIntoUser）。
     Inven_Item give[2];
-    give[0].reset();
-    give[1].reset();
-    give[0].m_addInfo = -1;
-    give[1].m_addInfo = -1;
     for (int slot = 0; slot < 2; ++slot)
-    {
-        if (slot == 0)
+        give[slot].m_addInfo = -1;
+    // ORIG 有**两个**独立 catch handler：try1[0x0821c56c..0x0821c6c9]（给物品抽取，
+    // catch @0x0821c75b）、try2[0x0821c8bb..0x0821cd3e]（空位检查 + 扣款，
+    // catch @0x0821ce0e），两者同体。赏物品抽取（_getBonusItem）落在两 try 之间
+    // （0x0821c7b6..），故不可合并成单个 try。
+    try {
+        for (int slot = 0; slot < 1; ++slot)
         {
-            // ORIG 只在“全局效果已存在”的特殊物品上重抽；普通物品、
-            // 无效物品指针以及全局效果为空时均保留原选择。
-            unsigned int retry = 0;
+            unsigned int retry = 0;                 // -0x30
             do
             {
                 if (retry > 2)
-                    break;  // ORIG 此处抛 ENUM_ERROR(1)
-                Inven_Item picked = _getGiveItem(info);
-                give[slot] = picked;
+                    throw (ENUM_ERROR)1;            // ORIG 0x0821c56c
+                give[slot] = _getGiveItem(info);
                 if (give[slot].m_addInfo == -1)
-                    break;
+                    throw (ENUM_ERROR)1;            // ORIG 0x0821c672
                 CItem* git = G_CDataManager()->find_item(give[slot].m_addInfo);
+                bool redo = false;
                 if (git != 0 && git->GetItemType() == 0x17 &&
-                    GlobalData::s_globalEffectManager_ != 0 &&
                     GlobalData::s_globalEffectManager_->getEffectNum() != 0)
+                    redo = true;
+                if (redo)
                 {
                     give[slot].m_addInfo = -1;
                     give[slot].m_addInfo2 = 0;
@@ -433,104 +456,114 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
                 }
             } while (give[slot].m_addInfo == -1);
         }
+    } catch (ENUM_ERROR e) {
+        // ORIG catch handler 0x0821c75b（e 存 -0x2c）
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0xda, (unsigned char)e);
+        ret = 0;
+        return ret;
+    }
+    for (int slot = 1; slot < 2; ++slot)
+        give[slot] = _getBonusItem(info);
+
+    try {
+        // 空位检查：ORIG 逐背包区段 7 次 check_empty_count(zone, 2)（0x0821c8bb..），
+        // 全部 ==1 才继续查货架 GetRemainCapacity(2, 8)。
+        bool invFull = true;
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)1, 2) == '\x01') {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)2, 2) == 1) {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)3, 2) == 1) {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)10, 2) == 1) {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)9, 2) == 1) {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)5, 2) == 1) {
+        if (chi->getCurCharacInvenW()->check_empty_count(
+                (Inven_Item::ITEM_TYPE)6, 2) == 1) {
+            if (chi->getCurCharacInvenW()->GetRemainCapacity(
+                    (INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) > 1)
+                invFull = false;
+            else
+                invFull = true;
+        } else invFull = false;
+        } else invFull = false;
+        } else invFull = false;
+        } else invFull = false;
+        } else invFull = false;
+        } else invFull = false;
+        } else invFull = false;
+        if (invFull)
+            throw (ENUM_ERROR)4;                    // ORIG 0x0821ca32
+
+        if (info->m_payType == 0)
+        {
+            if (chi->getCurCharacInvenW()->use_money(info->m_payAmount,
+                                                     (eMoneySubReason)0x1c, 1) != 1)
+                throw (ENUM_ERROR)0x16;             // ORIG 0x0821ca9e
+            remainingMoney = chi->getCurCharacInvenW()->get_money();
+        }
+        else if (info->m_payType == 1)
+        {
+            if (chi->getCurCharacInvenR()->getTotalCoin() <
+                    (unsigned int)info->m_payAmount)
+                throw (ENUM_ERROR)0x16;             // ORIG 0x0821cb16
+            for (unsigned int i = 0; i < (unsigned int)info->m_payAmount; ++i)
+                chi->getCurCharacInvenW()->UseCoin((eCoinSubReason)6);
+            remainingMoney = (int)chi->getCurCharacInvenR()->getTotalCoin();
+        }
+        else if (info->m_payType == 2)
+        {
+            if (chi->GetWinPoint() < (unsigned int)info->m_payAmount)
+                throw (ENUM_ERROR)0x16;             // ORIG 0x0821cbba
+            user->UseWinPoint(info->m_payAmount, (eWPSubReason)4);
+            remainingMoney = chi->GetWinPoint();
+        }
         else
         {
-            // 赏物品
-            Inven_Item picked = _getBonusItem(info);
-            give[slot] = picked;
+            Inven_Item payItem =
+                chi->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, pos);
+            if (payItem.m_addInfo != info->m_payType)
+                throw (ENUM_ERROR)0x11;             // ORIG 0x0821cc59
+            if (payItem.m_fieldd < info->m_payAmount)
+                throw (ENUM_ERROR)0x16;             // ORIG 0x0821cc95
+            if (chi->getCurCharacInvenW()->delete_item(
+                    (INVEN_TYPE)1, (int)pos, info->m_payAmount,
+                    (eItemDelReason)0x1c, 1) != 1)
+                throw (ENUM_ERROR)0x16;             // ORIG 0x0821cd0a
+            remainingMoney = chi->getCurCharacInvenR()
+                                 ->GetInvenSlot((INVEN_TYPE)1, pos).m_fieldd;
         }
+    } catch (ENUM_ERROR e) {
+        // ORIG catch handler 0x0821ce0e（e 存 -0x20）
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0xda, (unsigned char)e);
+        ret = 0;
+        return ret;
     }
 
-    // 空位检查：多背包空间与货架空位（ORIG 逐背包区段 check_empty_count 1..10）。
-    bool invFull = true;
-    CUserCharacInfo* chi = static_cast<CUserCharacInfo*>(user);
-    {
-        const int zones[7] = { 1, 2, 3, 10, 9, 5, 6 };
-        for (int z = 0; z < 7; ++z)
-        {
-            CInventory* inv = chi->getCurCharacInvenW();
-            if (inv->check_empty_count((Inven_Item::ITEM_TYPE)zones[z], 2) != 1)
-            {
-                invFull = false;
-                break;
-            }
-        }
-        if (invFull)
-        {
-            CInventory* inv = chi->getCurCharacInvenW();
-            if (inv->GetRemainCapacity((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) > 1)
-                invFull = false;
-        }
-    }
-    if (invFull)
-        return 0;   // ORIG throw ENUM_ERROR(4)：背包满
-
-    // 扣款
-    int remainingMoney = 0;
-    if (info->m_payType == 0)
-    {
-        CInventory* invW = chi->getCurCharacInvenW();
-        if (invW->use_money(info->m_payAmount, (eMoneySubReason)0x1c, 1) != 1)
-            return 0;   // ORIG throw ENUM_ERROR(0x16)
-        remainingMoney = invW->get_money();
-    }
-    else if (info->m_payType == 1)
-    {
-        const CInventory* invR = chi->getCurCharacInvenR();
-        unsigned int total = invR->getTotalCoin();
-        if (total < (unsigned int)info->m_payAmount)
-            return 0;   // ORIG throw ENUM_ERROR(0x16)
-        for (int i = 0; i < info->m_payAmount; ++i)
-        {
-            CInventory* invW = chi->getCurCharacInvenW();
-            invW->UseCoin((eCoinSubReason)6);
-        }
-        const CInventory* invR2 = chi->getCurCharacInvenR();
-        remainingMoney = (int)invR2->getTotalCoin();
-    }
-    else if (info->m_payType == 2)
-    {
-        unsigned int wp = chi->GetWinPoint();
-        if (wp < (unsigned int)info->m_payAmount)
-            return 0;   // ORIG throw ENUM_ERROR(0x16)
-        user->UseWinPoint(info->m_payAmount, (eWPSubReason)4);   // ORIG CUser::UseWinPoint（含 WPSub 日志）
-        remainingMoney = chi->GetWinPoint();
-    }
-    else
-    {
-        // 以指定栏物品（pos 指向的）支付：payType 即所需支付物品 idx。
-        const CInventory* invR = chi->getCurCharacInvenR();
-        Inven_Item payItem = invR->GetInvenSlot((INVEN_TYPE)1, pos);
-        if (payItem.m_addInfo != info->m_payType)
-            return 0;   // ORIG throw ENUM_ERROR(0x11)
-        if (payItem.m_fieldd < info->m_payAmount)
-            return 0;   // ORIG throw ENUM_ERROR(0x16)
-        CInventory* invW = chi->getCurCharacInvenW();
-        if (invW->delete_item((INVEN_TYPE)1, (int)pos, info->m_payAmount,
-                              (eItemDelReason)0x1c, 1) != 1)
-            return 0;   // ORIG throw ENUM_ERROR(0x16)
-        const CInventory* invR2 = chi->getCurCharacInvenR();
-        remainingMoney = invR2->GetInvenSlot((INVEN_TYPE)1, pos).m_fieldd;
-    }
-
-    CVendingMachineStatistic* vst = GetInstanceVendingMachineStatistic();
-    if (vst)
-        vst->incUseCount();
+    GetInstanceVendingMachineStatistic()->incUseCount();   // ORIG 无空检查
 
     // 输出
     stPutItemResult_t result[2];
     for (int i = 0; i < 2; ++i)
         _putItemIntoUser(user, give[i].m_addInfo, give[i].m_addInfo2, result[i]);
 
-    // ORIG：首个给物品失败时，以给物品表的第一项再尝试一次；随后仅
-    // 对首项按 (itemIdx != -1 && count != 0) 触发延迟通知。
-    if (result[0].m_success != 1 && !info->m_vecGive.empty())
+    // ORIG 0x0821cee0 区：单元素循环 `for (i=0; i<1; ++i)` 内 ——
+    // 失败时走 `vector::begin()` + `__normal_iterator::operator*` 取表首（不是
+    // empty()/front()），再 _putItemIntoUser；随后按 (itemIdx != -1 && count != 0)
+    // 触发 _notifyItemInfo。
+    for (int i = 0; i < 1; ++i)
     {
-        const stVendingMachineOutput_t& fallback = info->m_vecGive.front();
-        _putItemIntoUser(user, fallback.m_itemId, fallback.m_count, result[0]);
+        if (result[i].m_success != 1)
+        {
+            stVendingMachineOutput_t fallback = *info->m_vecGive.begin();
+            _putItemIntoUser(user, fallback.m_itemId, fallback.m_count, result[i]);
+        }
+        if (result[i].m_itemIdx != 0xffffffffUL && result[i].m_count != 0)
+            _notifyItemInfo(info, user, result[i]);
     }
-    if (result[0].m_itemIdx != 0xffffffffUL && result[0].m_count != 0)
-        _notifyItemInfo(info, user, result[0]);
 
     // 回包：header 0xda
     PacketGuard resp;
@@ -538,7 +571,15 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     resp.put_byte(1);
     resp.put_short(pos);
     resp.put_int(remainingMoney);
-    for (int i = 0; i < 2; ++i)
+    // ORIG 0x0821d0xx：两段单元素循环（`for(i=0;i<1)` 与 `for(i=1;i<2)`）而非
+    // 一个 2 次循环 —— 4.1 里这两组 call 各自展开，合并循环会少一次
+    // put_item_idx/put_int。
+    for (int i = 0; i < 1; ++i)
+    {
+        resp.put_item_idx(result[i].m_itemIdx);
+        resp.put_int((int)result[i].m_count);
+    }
+    for (int i = 1; i < 2; ++i)
     {
         resp.put_item_idx(result[i].m_itemIdx);
         resp.put_int((int)result[i].m_count);
@@ -548,11 +589,22 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     resp.put_short(0);
     for (int i = 0; i < 2; ++i)
     {
+        // ORIG 0x0821d135..0x0821d204（objdump 权威，result[0] 基址 -0xa8、步长 0x10）：
+        //   +0x00 int  != -1      → m_itemIdx      (0x0821d146 cmp $0xffffffff)
+        //   +0x0c WORD != 0xffff  → m_slot         (0x0821d162 movzwl 0xc;cmp $0xffff)
+        //   +0x0e byte == 1       → m_success      (0x0821d181 movzbl 0xe;xor $1;test)
+        //   0x0821d19c `sub $0x98` = **+0x08 m_result** → put_byte(m_result)
+        //   0x0821d1d6 同 +0x08 → GetInvenTypeFromItemSpace(m_result) 作 MakeItemPacket
+        //   第一实参（InvC10 实证该函数全 ORIG 仅一重载：
+        //   0x084fc6bc (INVEN_TYPE,int,PacketGuard&) const）。
         if (result[i].m_itemIdx != 0xffffffffUL && result[i].m_slot != -1 &&
-            result[i].m_success != 0)
+            result[i].m_success == 1)
         {
+            resp.put_byte(result[i].m_result);                    // 0x0821d1ad
+            const int invenType =
+                GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)result[i].m_result);  // 0x0821d1e0
             CInventory* inv = const_cast<CInventory*>(chi->getCurCharacInvenR());
-            inv->MakeItemPacket((INVEN_TYPE)result[i].m_slot, (int)result[i].m_slot, resp);
+            inv->MakeItemPacket((INVEN_TYPE)invenType, (int)result[i].m_slot, resp);
             ++cnt;
         }
     }

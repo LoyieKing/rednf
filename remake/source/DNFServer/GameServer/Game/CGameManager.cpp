@@ -588,30 +588,39 @@ bool CGameManager::isConnectUserByAccId(unsigned int accId)
 
 CUser* CGameManager::createUser()
 {
-    Guard<Mutex> guard(&m_mutex);
-    CUser* user = m_userPool.Acquire();
-    // ORIG 无 user==0 分支（Acquire 后直接使用）。
+    // ORIG 0x08294296：Guard<Mutex> 仅护住 Acquire（析构紧随其后），随后才判
+    // user==0 → 空则 cMyTrace(0x8e3,level5)"createUser Failed! need to restart!"
+    // 并返 0；非空走 else 正常路径（原实现误删 null 分支且把 guard 放整函数作用域）。
+    CUser* user;
     {
-        unsigned int uid = user->GetUID();
-        unsigned int accId = user->get_acc_id();
-        check_user_var(user);
-        int idx = GetIdx(user);
-        user->SetSlotIDX((short)idx);
-        int err = m_userPool.GetLastErrorCode();
-        if (err != 0)
-        {
-            unsigned int newUid = user->GetUID();
-            const char* lastId = NumberToString(accId, 0);
-            cMyTrace tr(__PRETTY_FUNCTION__, 0x8f6, 0);
-            tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
-               err, user, lastId, uid, newUid);
-        }
-        short nxt = getNextUID();
-        user->SetIncreID(nxt);
-        unsigned short uniqueId =
-            CUserGlobalInfoHandleInstance()->get_uniqueid();
-        user->set_unique_id(uniqueId);
+        Guard<Mutex> guard(&m_mutex);
+        user = m_userPool.Acquire();
     }
+    if (user == 0)
+    {
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x8e3, 5);
+        tr("createUser Failed! need to restart!");
+        return 0;
+    }
+    unsigned int uid = user->GetUID();
+    unsigned int accId = user->get_acc_id();
+    check_user_var(user);
+    int idx = GetIdx(user);
+    user->SetSlotIDX((short)idx);
+    int err = m_userPool.GetLastErrorCode();
+    if (err != 0)
+    {
+        unsigned int newUid = user->GetUID();
+        const char* lastId = NumberToString(accId, 0);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x8f6, 0);
+        tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
+           err, user, lastId, uid, newUid);
+    }
+    short nxt = getNextUID();
+    user->SetIncreID(nxt);
+    unsigned short uniqueId =
+        CUserGlobalInfoHandleInstance()->get_uniqueid();
+    user->set_unique_id(uniqueId);
     return user;
 }
 void CGameManager::check_user_var(CUser* user)

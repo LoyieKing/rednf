@@ -2937,19 +2937,24 @@ bool DB_SaveAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 void DBSelectCreateDnfUserInfo::makeRequest(int userIdx, unsigned int accId)
 {
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0xa0);
-    bool enabled = true;                       // ORIG bVar1
+    // ORIG 0x0842a3??：enabled 无槽——%eax 物化（`mov $1/$0` 双常数岛 +
+    // vcall 后 `xor $1,%eax; test`）。真虚调 IsEventing(vtable+0x34) 复现
+    // `mov (%eax),%edx … call` 形（手写 SlotFn 三中转指针 = 多 4 槽 = 帧
+    // 外推 16B；§4.3 裸偏移改具名虚函数，repo 先例 CConditionEventManager/
+    // CBossPlay）；register bool asm("eax") 复现无槽物化（技巧39 同族）。
+    register bool enabled asm("eax");
+    // ORIG 0x0842a…：event==0 → 岛 false；非空 → vcall+双常数岛（V4 短路
+    // 合判形反把岛移尾，probe 实证；正判双分支最接近）。残留 N7 vcall
+    // callee 寄存器互换 + xor 物化位（setcc-fold 顶）。
     if (event != 0)
     {
-        // ORIG +0x26..+0x3e：add $0x34,%eax / mov (%eax),%edx 后 call —— vtable
-        // +0x34 槽直读（bool 判活），返回真（事件开启中）则置 enabled=false，
-        // 不发请求。工程 IsEventing 声明即该槽口径；此处按逐指令形态显式调用。
-        typedef char (*SlotFn)(const void*, int);
-        void** vt = *reinterpret_cast<void***>(event);
-        SlotFn fn = *reinterpret_cast<SlotFn*>(
-            reinterpret_cast<char*>(vt) + 0x34);
-        if (fn(event, 0))
+        if (event->IsEventing((CUser*)0))
+            enabled = true;
+        else
             enabled = false;
     }
+    else
+        enabled = false;
     if (!enabled)
         return;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
@@ -2959,10 +2964,9 @@ void DBSelectCreateDnfUserInfo::makeRequest(int userIdx, unsigned int accId)
     MSG* msg = guard->GetInBuffer<MSG>();
     if (msg == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x22c, 0);
-        trace("[Taiwan, Event] msg is null");
+        // 技巧3：临时链式（ORIG guard=-0x28/trace=-0x20，具名块对象把
+        // trace 外推到 -0x28 顶移 guard）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x22c, 0)("[Taiwan, Event] msg is null");
     }
     else
     {
@@ -12279,24 +12283,20 @@ bool DB_UpdateComboSkill::dispatch(int userIdx, int slot, Stream* stream)
     if (!setComboSkill(db, (unsigned int)sig->m_characNo, sig->m_tree1Count,
                        sig->m_tree1Data, SKILL_TREE_1))
     {
-        // ORIG 先读 characNo 存局部（跨 cMyTrace 构造保活）再 trace，
-        // 顺序对齐（ORIG 存 ebx，gcc4.4 存栈槽，寄存器差异 NEAR）。
-        unsigned int characNo = (unsigned int)sig->m_characNo;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbb2c, 5);
-        trace("DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
-              characNo);
+        // ORIG 块首 `mov (%eax),%ebx`+push %ebx：characNo 直落 callee-saved
+        // %ebx 跨 ctor call 保活（块内声明式绑定避免内存读场景的 spill 形）。
+        register unsigned int characNo asm("ebx") = (unsigned int)sig->m_characNo;
+        cMyTrace(__PRETTY_FUNCTION__, 0xbb2c, 5)(
+            "DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
+            characNo);
     }
     if (!setComboSkill(db, (unsigned int)sig->m_characNo, sig->m_tree2Count,
                        sig->m_tree2Data, SKILL_TREE_2))
     {
-        unsigned int characNo = (unsigned int)sig->m_characNo;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbb33, 5);
-        trace("DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
-              characNo);
+        register unsigned int characNo asm("ebx") = (unsigned int)sig->m_characNo;
+        cMyTrace(__PRETTY_FUNCTION__, 0xbb33, 5)(
+            "DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
+            characNo);
     }
     return 1;
 }
@@ -13367,8 +13367,10 @@ bool DB_InsertDungeonEntrance::dispatch(int /*userIdx*/, int /*slot*/,
     int dungeonIndex = 0;       // -0x30
     int enterCount = 0;         // -0x34
     int exerciseCount = 0;      // -0x38
-    std::string sql;            // -0x3c
+    // ORIG 0x08429696 执行序 = sql ctor(`lea -0x3c; call`) 在 rep stos 前；
+    // 4.4 对 `{init}` 对象按声明逆序发射初始化 ⇒ buf 声明前置。
     char buf[0x400] = { '\0' }; // -0x43c..-0x3c（P4 rep stos 内联清零）
+    std::string sql;            // -0x3c
     for (int i = 0; i < count; ++i)
     {
         *stream >> dungeonIndex;
@@ -13385,7 +13387,12 @@ bool DB_InsertDungeonEntrance::dispatch(int /*userIdx*/, int /*slot*/,
     db->set_query(
         "inSert into log_dungeon_entrance(channel_no,occ_date,dungeon_index,enter_count, exercise_count) values%s",
         sql.c_str());
-    return db->exec(true) == 1;
+    // ORIG 0x08429696：尾 bool 物化双常数岛（xor$1;test;je + mov$0/mov$1
+    // 入 %ebx）→ string dtor → 出口；catch 块置 dtor 前（4.1 EH 布局）。
+    // 直判返形先例：DB_InsertPVPMap/DB_InsertDungeonExp 闭合。
+    if (!db->exec(true))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -13410,12 +13417,17 @@ bool DB_UpdateBloodBestRecord::dispatch(int /*userIdx*/, int /*slot*/,
         "upDate charac_blood_best_record set best_round=%d, best_time=%u where charac_no=%u and dungeon_index=%d",
         sig->m_bestRound, sig->m_bestTime, sig->m_characNo,
         sig->m_dungeonIndex);
-    bool needInsert = true;
-    if (db->exec(true) == 1)
-    {
-        if (db->getAffectedRowCount() != 0)
-            needInsert = false;
-    }
+    // ORIG 0x08431c74：needInsert 无槽——4.1 以 %eax 分支物化双常数岛
+    // `mov $1; jmp T / mov $0 / T: test al; je`（首段 xor$1;test;jne =
+    // exec!=1 直落 true 路）。具名 bool = 4.4 必落槽(-0x9)外推帧 4B ⇒
+    // register bool asm("eax") 三分支显式赋值复现。
+    register bool needInsert asm("eax");
+    if (!db->exec(true))
+        needInsert = true;
+    else if (db->getAffectedRowCount() != 0)
+        needInsert = false;
+    else
+        needInsert = true;
     if (needInsert)
     {
         db->set_query(
@@ -18799,6 +18811,11 @@ bool DB_LoadEventLevelupSupport::dispatch(int userIdx, int slot, Stream* stream)
         {
             if (!db->fetch())
                 throw (unsigned int)0xc28c;
+            // 残留（N 类）：ORIG 0x0844cd38 循环体经 `movw $0,-0x4a/-0x4c`
+            // 临时 short 槽 + movzwl 回写 0x4/0x6(%base,i*4)（4.1 引用形参
+            // 物化）；4.4 对 `short tmp=0; get_ushort(0,tmp); fld=tmp` 探针
+            // 恒直落成员地址、tmp 槽被消除（diff 逐字节不变实证），唯
+            // 成员直传形与 ORIG 行数最接近。
             if (!db->get_ushort(0, out->m_entries[i].m_level))
                 throw (unsigned int)0xc28d;
             if (!db->get_ushort(1, out->m_entries[i].m_state))

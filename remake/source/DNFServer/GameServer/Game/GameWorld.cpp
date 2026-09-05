@@ -336,8 +336,13 @@ void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
 
 void GameWorld::UpdateChannelUser()
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("world.cpp", 0x1146);
-    CStreamGuard guard(stream, true);
+    // 删具名指针中转变量（技巧 36）：ORIG 0x086cb… 区是
+    // `call StreamPool::Acquire; movl $0x1,0x8(%esp); mov %eax,0x4(%esp);
+    // lea -0x14(%ebp),%eax; call CStreamGuard::C1` —— Acquire 结果 %eax 直落
+    // arg2，无 spill 槽；我们多一个 `Stream* stream` 局部 ⇒ 4.4 插入
+    // `mov %eax,-0x10(%ebp)` + `mov -0x10(%ebp),%eax` 两条，且该 4 字节把
+    // 后续所有槽号（guard -0x14→-0x18、buf -0x4e→-0x52）整体推偏。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("world.cpp", 0x1146), true);
     **guard << 0x2e;
     **guard << -1;
 
@@ -926,16 +931,25 @@ COND:
     {
         m_uniqueId = 0;
     }
-    // ORIG 0x86c4b8c test %al,%al; je 0x86c4b12 —— eq 真则 fall 到 return；假回 LOOP
-    if (m_UserInWorld.find(m_uniqueId) == m_UserInWorld.end())
+    // ORIG 调用序 = 0x086c4b57 `map::find` → 0x086c4b6f `map::end` → eq：
+    // 合并成一句 `find(...) == end()` 时 4.4 把 end() 排到前面（实测首个 call
+    // 变 end）⇒ 拆成两个具名 iterator 局部、按求值序声明钉住 find 先于 end。
+    // （试过"声明/赋值分离"让 last 先声明以换槽号：4.4 会多 emit iterator
+    //   默认构造 call + 赋值 copy 共 5 条，反而更差 ⇒ 回退，槽号差记 N82 族。）
+    // ORIG 尾 `test %al,%al; je 0x086c4b12` ⇒ 用 eq（真则 fall-through 到 return）。
+    std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.find(m_uniqueId);
+    std::map<unsigned short, CUser*>::iterator last = m_UserInWorld.end();
+    if (it == last)
     {
     }
     else
     {
         goto LOOP;
     }
-    // ORIG 0x86c4b93-0x86c4b97 双 movzwl：技巧16 半字版
-    register unsigned short uid asm("ax") = m_uniqueId;
+    // ORIG 0x086c4b8f-0x086c4b97：`mov 0x8(%ebp),%eax; movzwl 0x24(%eax),%eax;
+    // movzwl %ax,%eax` 双零扩展 ⇒ 绑 %eax 且目标类型写成 unsigned int
+    // （上一版绑 "ax" 的 ushort 形被 4.4 折成单段）。
+    register unsigned int uid asm("eax") = m_uniqueId;
     return uid;
 }
 
@@ -2730,6 +2744,12 @@ bool GameWorld::IsForbiddenChat(const char* name)
         return false;
     }
     std::string str(name);
+    // 槽序探针记录（N82 封顶，勿再试）：指令数已 124/124 与 ORIG 完全相等，
+    // 差集只剩 str/iterator 组整体 +16（ORIG -0x24/-0x1d/-0x1c vs
+    // OURS -0x14/-0xd/-0xc；-0x28/-0x18 两边一致）。已试并否决的三种写法：
+    //  ① 删具名 iterator 合并成 find(...)==end() → 30 NEAR 恶化到 42 DIFF；
+    //  ② iterator 声明/赋值分离 → 多 emit 默认构造 call；
+    //  ③ 删 str 直接传 name → key 类型不符（见 GetIDUserInIDMap 同类 N18a）。
     std::map<std::string, SimpleInfo>::iterator it = m_idMap.find(str);
     if (it == m_idMap.end())
     {

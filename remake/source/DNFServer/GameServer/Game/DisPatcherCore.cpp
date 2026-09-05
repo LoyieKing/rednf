@@ -3761,7 +3761,10 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     static const char* const kPretty =
         "virtual int DisPatcher_StartGame::process(CUser*, MSG_BASE&, ParamBase&)";
     stStartGameParam& out = static_cast<stStartGameParam&>(param);
-    out.m_errNo = check_error(user, msg, param);
+    // ORIG +0x20：errNo store 双钉（技45）。
+    register int ec asm("edx") = check_error(user, msg, param);
+    register stStartGameParam* dst asm("eax") = &out;
+    dst->m_errNo = ec;
     if (out.m_errNo > 0)
     {
         return 0;
@@ -3771,42 +3774,49 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return LineFunc(0x1e5b, kPretty, out.m_errNo, user->get_acc_id());
     }
 
+    // ORIG +0x84 `movb $0x0,-0x15` dead bool 初始化（技8 变体）：hasDeathTower
+    // 结果落 bool 槽；worldIdx 槽 -0x14。
+    bool deathTower = false;
     int worldIdx = G_GameWorld()->GetWorldMapIndex(user);
     if (worldIdx > 0)
     {
         CWorldMap* worldMap = G_CDataManager()->m_worldMapList.find_world_map(worldIdx);
         if (worldMap != 0)
         {
-            worldMap->hasDeathTower();   // ORIG 调用后丢弃结果
+            deathTower = worldMap->hasDeathTower();   // ORIG +0xd3 `mov %al,-0x15`
         }
     }
+    (void)deathTower;
 
-    if (!user->CheckInParty())
+    // ORIG +0xe8 `test %al,%al; je +0x134`：inParty 体是 fall-through 块（技17/19），
+    // `get_state()==3` 为 cmp+sete+test 物化（技9 直写 ==3 已实证产 sete）。
+    if (user->CheckInParty())
+    {
+        if (user->get_state() == 3)
+        {
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
+            {
+                party->game_start(user);
+            }
+        }
+        return 0;
+    }
     {
         CParty* party = G_CGameManager()->GetParty();
         if (party == 0)
         {
             LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x1e99,
                                   "cant party memory : you must free party memory!!!");
+            return 0;
         }
-        else
+        if (excludeAddHackCount(user))
         {
-            if (excludeAddHackCount(user))
-            {
-                user->getHackAnalyzer()->addServerHackCnt(
-                    user, (WongWork::ENUM_HACKTYPE)0x1f6, 1u, 0u, 0u);
-            }
-            party->set_single_play(user);
-            party->game_start(user);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACKTYPE)0x1f6, 1u, 0u, 0u);
         }
-    }
-    else if (user->get_state() == 3)
-    {
-        CParty* party = static_cast<CParty*>(user->GetParty());
-        if (party != 0)
-        {
-            party->game_start(user);
-        }
+        party->set_single_play(user);
+        party->game_start(user);
     }
     return 0;
 }
@@ -4884,7 +4894,17 @@ void DisPatcher_MoveItem::send(CUser* user, ParamBase& param)
     if (p.m_4 != 0x7fffffff)
     {
         guard.put_header(1, 0x13);
-        if (p.m_4 == 0)
+        // ORIG +0x4d `test; je` ⇒ 非零 4 字节回显块是 fall-through（技17 true 侧）。
+        if (p.m_4 != 0)
+        {
+            guard.put_byte(0);
+            guard.put_byte(p.m_4);
+            guard.put_byte((char)p.m_8);
+            guard.put_byte((char)p.m_10);
+            guard.finalize(true);
+            user->Send(guard);
+        }
+        else
         {
             guard.put_byte(1);
             guard.put_byte((char)p.m_8);
@@ -4896,15 +4916,6 @@ void DisPatcher_MoveItem::send(CUser* user, ParamBase& param)
             user->Send(guard);
             ARAD::Singleton<AvatarRechargeServer>::Get()->SendDurability(
                 user, (char)p.m_8, (short)p.m_a, (char)p.m_10, p.m_14);
-        }
-        else
-        {
-            guard.put_byte(0);
-            guard.put_byte(p.m_4);
-            guard.put_byte((char)p.m_8);
-            guard.put_byte((char)p.m_10);
-            guard.finalize(true);
-            user->Send(guard);
         }
     }
 }
@@ -6008,56 +6019,76 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1b), 0xd1);
         return 0;
     }
-    unsigned long local_17;
-    if (packet.get_int(local_17) != true)
+    // ORIG 0x081eaa5c：三 wire 字段是单 blob（base -0x20：get 传址 `lea -0x20,%eax;
+    // add $0xd/11/12`，读 `mov -0x13`/`movzbl -0xf`/`movzwl -0xe` disp 直读）——
+    // 单 pack(1) 视图复现（SetIP 同法）。
+    #pragma pack(push, 1)
+    struct CompoundMsgView {
+        char m_head[13];          // +0x00..0x0c
+        unsigned long m_itemId;   // +0x0d（ORIG +0x84 `get_intERm` ulong& 重载实证）
+        unsigned char m_type;     // +0x11
+        unsigned short m_count;   // +0x12
+    };
+    #pragma pack(pop)
+    // ORIG blob 基 -0x20；4.4 pack(1) 基 -0x21（1B 对齐缝）、变量级 aligned(4) 反
+    // 推远至 -0x24（4 对齐向远离 ebp 取整）——两向均留文本差，取奇基形（帧紧凑）。
+    CompoundMsgView msg;
+    if (packet.get_int(msg.m_itemId) != true)
     {
         return LineFunc(0x6c3a,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned char local_13;
-    if (packet.get_byte(local_13) != true)
+    if (packet.get_byte(msg.m_type) != true)
     {
         return LineFunc(0x6c3b,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned short local_12;
-    if (packet.get_short(local_12) != true)
+    if (packet.get_short(msg.m_count) != true)
     {
         return LineFunc(0x6c3d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (local_12 == 0)
+    if (msg.m_count == 0)
     {
         return LineFunc(0x6c40,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (local_13 != '\x01' &&
-        user->CheckItemLock(1, static_cast<int>(local_17)) != false)
+    if (msg.m_type != '\x01' &&
+        user->CheckItemLock(1, static_cast<int>(msg.m_itemId)) != false)
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1b), 0xd5);
         return 0;
     }
-    int local_10 = user->compound_item(static_cast<int>(local_17), local_13 == '\x01', local_12, 0x1b);
-    if (local_10 < 1)
+    // ORIG +0x1c8..+0x1f5：右→左求值 count(movzwl 两段→%ecx)、type==1（`cmp $1,%al;
+    // sete %al; movzbl %al,%edx` bool 物化经具名量传参，技9）、itemId(→%eax)；
+    // 分支 `cmpl $0,-0xc; jle fail岛` ⇒ 成功 guard 块是 fall-through（技17）。
+    // ORIG +0x1cf：`cmp $1,%al; sete %al; movzbl %al,%edx` 无槽值直达；bool 具名量
+    // 4.4 恒 byte 槽物化（挤 4B 帧致 guard/blob 基整体偏 1/4B），register asm("dl")
+    // 绑定强制免槽（技2 变体）。
+    register bool isOneType asm("dl");
+    isOneType = (msg.m_type == '\x01');
+    int local_10 = user->compound_item(static_cast<int>(msg.m_itemId),
+                                       isOneType, msg.m_count, 0x1b);
+    if (local_10 > 0)
     {
-        if (user != 0 && local_10 == 0)
-        {
-            APSystem::CUserProc::ClearActionAndSendtoUser(
-                user, static_cast<APSystem::_ActionGroupIndex>(6), 0,
-                static_cast<ENUM_PACKETCLASS>(0));
-        }
+        PacketGuard local_30;
+        local_30.put_header(1, 0x1b);
+        local_30.put_byte(0);
+        local_30.put_byte(local_10);
+        local_30.finalize(true);
+        user->Send(local_30);
         return 0;
     }
-    PacketGuard local_30;
-    local_30.put_header(1, 0x1b);
-    local_30.put_byte(0);
-    local_30.put_byte(local_10);
-    local_30.finalize(true);
-    user->Send(local_30);
+    if (user != 0 && local_10 == 0)
+    {
+        APSystem::CUserProc::ClearActionAndSendtoUser(
+            user, static_cast<APSystem::_ActionGroupIndex>(6), 0,
+            static_cast<ENUM_PACKETCLASS>(0));
+    }
     return 0;
 }
 int DisPatcher_Compound::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
@@ -10129,9 +10160,14 @@ void DisPatcher_DropItem::send(CUser* user, ParamBase& param)
 // m_errNo/m_8；其它 m_errNo=0x13。
 int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    stDropItemParam& out = static_cast<stDropItemParam&>(param);
+    // ORIG +0x09/+0x0f：req(msg)→远槽 -0x34、out(param)→近槽 -0x30（技21 声明序）；
+    // errNo store 双钉（技45）。state 无槽：三段各自 `call get_state; cmp $K,%eax;
+    // sete %al; test %al,%al; je`（技9 (bool)==K 物化形）。
     MSG_DROP_ITEM& req = *reinterpret_cast<MSG_DROP_ITEM*>(&msg);
-    out.m_errNo = check_error(user, msg, param);
+    stDropItemParam& out = static_cast<stDropItemParam&>(param);
+    register int ec asm("edx") = check_error(user, msg, param);
+    register stDropItemParam* dst asm("eax") = &out;
+    dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
         out.m_8 = req.m_11;
@@ -10143,8 +10179,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return LineFunc(0xdcc, __PRETTY_FUNCTION__, out.m_errNo,
                         user->get_acc_id());
     }
-    int state = user->get_state();
-    if (state == 5)
+    if (user->get_state() == 5)
     {
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party != 0)
@@ -10159,7 +10194,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         }
         return 0;
     }
-    if (state == 0xc)
+    if (user->get_state() == 0xc)
     {
         // ORIG 81c35b0：user->getBossTower()（0x08655220：idx<0→0 否则
         // mgr->getBossTower(idx)）→ vtable+0x20 handleDropItem。
@@ -10171,7 +10206,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         }
         return 0;
     }
-    if (state == 8)
+    if (user->get_state() == 8)
     {
         WarRoom* room = G_CGameManager()->GetWarRoom(user->GetWarRoomIndex());
         if (room != 0)
@@ -13092,43 +13127,55 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->get_state() >= 4)
         return 0;
 
-    char natType;                        // ORIG msg+0xd
-    unsigned int innerIp;                // msg+0xe
-    unsigned int natIp;                  // msg+0x12
-    unsigned short natPort;              // msg+0x16
-    unsigned int mtu;                    // msg+0x18
-    if (!packet.get_byte(natType))
+    // ORIG 0x081f468c：wire 字段全体是单个栈 blob（base -0xf6，`lea -0xf6,%eax;
+    // add $0xd/e/12/16/18/1c/20` 传址、`movzbl -0xe9` 等 disp 读）——单一 pack(1)
+    // 视图结构体本地量复现连续落栈（技47/50 同址视图法；独立局部分散落槽为 4.4 常态、
+    // 与 ORIG 差 20+ 行）。
+    #pragma pack(push, 1)
+    struct SetIPMsgView {
+        char m_head[13];                 // +0x00..0x0c
+        unsigned char m_natType;         // +0x0d（ORIG `movzbl -0xe9` 单步零延装载 ⇒ uchar）
+        unsigned int m_innerIp;          // +0x0e
+        unsigned int m_natIp;            // +0x12
+        unsigned short m_natPort;        // +0x16
+        unsigned int m_mtu;              // +0x18
+        int m_macLen;                    // +0x1c
+        char m_macBuf[0x41];             // +0x20..0x60
+    };
+    #pragma pack(pop)
+    SetIPMsgView msg;                    // 技36：无具名引用中转（引用会多占 spill 槽）
+    if (!packet.get_byte(msg.m_natType))
         return LineFunc(0x80e4, kPretty, 0, 0);
-    if (!packet.get_int(innerIp))
+    if (!packet.get_int(msg.m_innerIp))
         return LineFunc(0x80e5, kPretty, 0, 0);
-    if (!packet.get_int(natIp))
+    if (!packet.get_int(msg.m_natIp))
         return LineFunc(0x80e6, kPretty, 0, 0);
-    if (!packet.get_short(natPort))
+    if (!packet.get_short(msg.m_natPort))
         return LineFunc(0x80e7, kPretty, 0, 0);
-    if (!packet.get_int(mtu))
+    if (!packet.get_int(msg.m_mtu))
         return LineFunc(0x80e8, kPretty, 0, 0);
-    user->m_network.set_nat(natType, innerIp, natIp, natPort, mtu);
+    user->m_network.set_nat(msg.m_natType, msg.m_innerIp, msg.m_natIp,
+                            msg.m_natPort, msg.m_mtu);
 
-    int macLen;                          // ORIG msg+0x1c
-    char macBuf[0x41];                   // ORIG msg+0x20 / local_da
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(&macLen)))
+    if (!packet.get_int(msg.m_macLen))
         return LineFunc(0x8100, kPretty, 0, 0);
-    if (!packet.get_str(macBuf, 0x41, macLen))
+    if (!packet.get_str(msg.m_macBuf, 0x41, msg.m_macLen))
         return LineFunc(0x8102, kPretty, 0, 0);
 
     char digestHex[0x41];                // ORIG -0x95 零初始化
     memset(digestHex, 0, sizeof(digestHex));
-    getSha256UsingSalt(reinterpret_cast<const unsigned char*>(macBuf),
+    getSha256UsingSalt(reinterpret_cast<const unsigned char*>(msg.m_macBuf),
                        0x41, digestHex);
 
     cMyTrace trace(kPretty, 0x810b, 0);
     trace("(acc_id: %s) (nat type: %d) (inner_ip: %d) (nat_ip: %d) "
           "(nat_port: %d) (mac_addr: %s) (mtu: %d)",
-          NumberToString(user->get_acc_id(), 0), (int)(signed char)natType,
-          innerIp, natIp, (int)natPort, digestHex, mtu);
+          NumberToString(user->get_acc_id(), 0), (int)(signed char)msg.m_natType,
+          msg.m_innerIp, msg.m_natIp, (int)msg.m_natPort, digestHex, msg.m_mtu);
 
     // 第二次 set_nat：以 mac 摘要串写入（ORIG set_nat(...,const char* macAddr)）
-    user->m_network.set_nat(natType, innerIp, natIp, natPort, digestHex);
+    user->m_network.set_nat(msg.m_natType, msg.m_innerIp, msg.m_natIp,
+                            msg.m_natPort, digestHex);
 
     char peerIp[0x14];                   // ORIG local_44 零初始化
     memset(peerIp, 0, sizeof(peerIp));
@@ -13152,7 +13199,7 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     sig->m_accId = user->get_acc_id();
     strncpy(sig->m_strIp, user->m_network.get_str_ip(), 0x10);
     strncpy(sig->m_peerIp, peerIp, 0x10);
-    sig->m_natType = (unsigned char)natType;
+    sig->m_natType = (unsigned char)msg.m_natType;
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
 
     DB_SelectAllowProxyUser::makeRequest((int)user->GetUID(),

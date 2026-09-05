@@ -1060,15 +1060,13 @@ void CParty::send_hellParty_value()
 // ---------------------------------------------------------------------------
 unsigned int CParty::GetMapPlayingTime()
 {
-    unsigned long long now = GlobalData::s_systemTime_.getCurTickCount();
-    unsigned long long enterTick =
-        (unsigned long long)bd(this).m_field1c << 32 | bd(this).m_field18;
-    unsigned long long baseTick =
-        (unsigned long long)bd(this).m_field14 << 32 | bd(this).m_field10;
-    unsigned long long played = (now - enterTick) - baseTick;
-    bd(this).m_field8 = (unsigned int)played;          // ORIG 写 this+0x334/0x338
-    bd(this).m_fieldc = (unsigned int)(played >> 32);
-    return (unsigned int)played;
+    // ORIG 0x085b6768：getCurTickCount 后连减 m_enterTick(+0x344/48)、
+    // m_baseTick(+0x33c/40)（双 sub/sbb），结果写 m_playedTime(+0x334/338)，
+    // 再读回 lo/hi（edx=0）。P180 union u64 别名使直减形编译为 sub/sbb。
+    bd(this).m_playedTime =
+        (unsigned long long)GlobalData::s_systemTime_.getCurTickCount() -
+        bd(this).m_enterTick - bd(this).m_baseTick;
+    return (unsigned int)bd(this).m_playedTime;
 }
 
 // ============================================================================

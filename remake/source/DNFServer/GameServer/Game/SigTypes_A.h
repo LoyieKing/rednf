@@ -362,9 +362,15 @@ struct SIG_AVATAR_CHANGE_STATE
     char m_pad[0x51];
 };
 
+// 字段化（InvC10 batch-10，ORIG SendAvatarEvent 0x08508f43 段写侧实证：
+// mov %edx,(%eax)=characNo / mov %edx,0x4=uiId / mov %dx,0x8=short / mov %dx,0xa=short；
+// sizeof 0xc 与 m_pad 原形一致）。
 struct SIG_AVATAR_COLOR_CHANGE
 {
-    char m_pad[0xc];
+    int m_characNo;      // +0x00
+    int m_uiId;          // +0x04
+    short m_field8;      // +0x08
+    short m_fieldA;      // +0x0a
 };
 
 // 字段化（CInv 批次 2026-09-04，裸偏移清理）。写侧证据 = SIG_AVATAR_INSERT::set
@@ -408,9 +414,14 @@ static_assert(offsetof(SIG_AVATAR_INSERT, m_identity) == 0x4b,
               "SIG_AVATAR_INSERT m_identity offset drift");
 static_assert(offsetof(SIG_AVATAR_INSERT, m_expansion) == 0x4f,
               "SIG_AVATAR_INSERT m_expansion offset drift");
+// 字段化（InvC10 batch-10，ORIG SendAvatarEvent 0x08508f0f 段写侧实证：
+// mov %edx,(%eax)=uiId(int) / mov %dl,0x4=slot(char) / mov characNo,0x8(int)；
+// sizeof 0xc 不变）。
 struct SIG_AVATAR_OPTION_CHANGE
 {
-    char m_pad[0xc];
+    int m_uiId;          // +0x00
+    char m_field4;       // +0x04
+    int m_characNo;      // +0x08
 };
 
 // ORIG W ctor 0x0848fb02：2×movl(+0/+4) 清零 + 循环 1000 次 SIG_BEST_CLEAR_TIME_DATA

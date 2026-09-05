@@ -172,19 +172,22 @@ int CLocalChinaErrorDispatcher::ProcLockInSeriaRoom(CUser& /*user*/, ENUM_CMDPAC
 int CLocalChinaErrorDispatcher::doErrorDispatcher(CUser* user, unsigned short cmd) const
 {
     if (user == 0) return 0;
+    // ORIG 0x0812af87：null 岛后 ushort→int 物化具名槽（-0x18），find key 与四次
+    // Proc 实参均自该槽 lea/reload（枚举 lvalue 直传免临时槽，ORIG `lea -0x18` 实证）。
+    const ENUM_CMDPACKET cmdVal = (ENUM_CMDPACKET)cmd;
     std::map<ENUM_CMDPACKET, _PacketErrorCheck>::const_iterator it =
-        m_checks.find((ENUM_CMDPACKET)cmd);
+        m_checks.find(cmdVal);
     if (it == m_checks.end()) return 0;
     int result = 0;
     const _PacketErrorCheck& chk = it->second;
     if (chk.m_antiAddiction)
-        { result = ProcAntiAddiction(*user, (ENUM_CMDPACKET)cmd); if (result != 0) return result; }
+        { result = ProcAntiAddiction(*user, cmdVal); if (result != 0) return result; }
     if (chk.m_safeMode)
-        { result = ProcSafeModeUser(*user, (ENUM_CMDPACKET)cmd); if (result != 0) return result; }
+        { result = ProcSafeModeUser(*user, cmdVal); if (result != 0) return result; }
     if (chk.m_safeModeAfterLogin)
-        { result = ProcSaefModeAfterLogin(*user, (ENUM_CMDPACKET)cmd); if (result != 0) return result; }
+        { result = ProcSaefModeAfterLogin(*user, cmdVal); if (result != 0) return result; }
     if (chk.m_lockSeriaRoom)
-        { result = ProcLockInSeriaRoom(*user, (ENUM_CMDPACKET)cmd); if (result != 0) return result; }
+        { result = ProcLockInSeriaRoom(*user, cmdVal); if (result != 0) return result; }
     return 0;
 }
 
@@ -646,13 +649,18 @@ IDispatcher* PacketDispatcher::get_dispatcher(int code)
 {
     if (code > 0x25d) return 0;
     if (code < 0) return 0;
-    if (m_dispatchers[code] == 0) return 0;
-    return m_dispatchers[code];
+    // ORIG 0x0859490b `test; je +0x38(null 尾岛)`：非空体作 fall-through（技巧17
+    // 块序=ORIG fall 在前），null 返 0 置尾岛。
+    if (m_dispatchers[code] != 0) return m_dispatchers[code];
+    return 0;
 }
 
 // ORIG 0x8231f2e W：尾调 get_dispatcher。
 IDispatcher* PacketDispatcher::getDispatcher(int code)
 {
+    // ORIG 0x08231f31 `sub $0x18`（4.1 保守帧）：dead pad 撑帧对齐（技巧31）。
+    char framePad[0x10];
+    (void)framePad;
     return get_dispatcher(code);
 }
 
@@ -661,6 +669,9 @@ void PacketDispatcher::log_recv_packet(CUser* user, ENUM_PACKETCLASS cls,
                                        unsigned short cmd, char* data, int len)
 {
     (void)user; (void)data; (void)len;
+    // ORIG 0x0825f735：cmd spill 槽后 `movzwl -0xc,%esi` 单步直落 esi、cls→%ebx 跨
+    // call；4.4 恒 movzwl→%eax 中转+round-trip（N18a），register asm 实测 +6 行，
+    // 取直读最小形。
     CPacketTracer* tracer = CPacketTracerInstance();
     tracer->AddTcpLog((int)cls, (int)(unsigned short)cmd);
 }
@@ -673,12 +684,10 @@ void PacketDispatcher::server_load_monitoring()
     int remainQ0 = GlobalData::s_msgq_mgr->remain((MsgQueueMgr::QUEUE_IDX)0);
     int remainQ2 = GlobalData::s_msgq_mgr->remain((MsgQueueMgr::QUEUE_IDX)2);
     int remainQ4 = GlobalData::s_msgq_mgr->remain((MsgQueueMgr::QUEUE_IDX)4);
-    CAppLoadChecker* checker = CAppLoadCheckerInstance();
-    if (checker->CheckLoad(remainQ2, remainQ4, remainQ0, remainQ1))
-    {
-        checker = CAppLoadCheckerInstance();
-        checker->RequestDB(remainQ2, remainQ4, remainQ0, remainQ1);
-    }
+    // ORIG 0x0825f6d6/0x0825f703：两次独立 CAppLoadCheckerInstance 结果免槽直落
+    // (%esp)（具名 checker 槽占 -0x24 使 5 个 remain 槽整体顶深 4B，技巧36/37）。
+    if (CAppLoadCheckerInstance()->CheckLoad(remainQ2, remainQ4, remainQ0, remainQ1))
+        CAppLoadCheckerInstance()->RequestDB(remainQ2, remainQ4, remainQ0, remainQ1);
 }
 
 // ORIG 0x8594e52 逐指令转写。

@@ -7061,11 +7061,12 @@ int CUser::update_record(GameResultType& result)
 // ---------------------------------------------------------------------------
 void CUser::updateBlueMarbleEnterCount()
 {
-    // ORIG 0x0869107e `movzbl %al,%ebx` 单段零扩展直落 callee-saved：4.4 恒两段
-    // （probe p6.h2/p7.h5），N18a 变体；uchar asm(ebx) 反产原地双截断（p7.h4），
-    // 保持具名局部最短残差形。
-    const unsigned char count = getBlueMarbleEnterCount();
-    DB_UpdateBlueMarbleEnterCount::makeRequest(get_charac_no(-1), count);
+    // ORIG 0x0869107e 族：具名 count 槽使帧 0x24 且 movzbl 两段落 -0x9 再回读；
+    // 免槽内联（call 结果 movzbl 直进 4(%esp) 实参）与 ORIG 帧 0x14/调用序一致
+    //（2026-09-05 CUserC8 实测闭合 AE；此前 N18a 判读仅指 `movzbl %al,%ebx`
+    // callee-saved 直落形，本形走栈实参路径不受该 N 约束）。
+    DB_UpdateBlueMarbleEnterCount::makeRequest(get_charac_no(-1),
+                                               (int)getBlueMarbleEnterCount());
 }
 
 // ---------------------------------------------------------------------------
@@ -9812,8 +9813,9 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) + 1 >= slot) {
             return false;
         }
-        // ORIG 0x08??：movzbl -0x1c(%ebp)（无符号读槽）+ test %al → 须 uchar 化操作数
-        if ((static_cast<unsigned char>(linkPos) & 1) != 0) {
+        // ORIG `movzbl -0x1c,%eax; and $0x1; test %al`：-0x1c 系 4.1 uchar 型
+        // 回退）；4.4 arg 槽恒 movsbl + and 后 test %eax——3 行助记符残差封顶。
+        if ((linkPos & 1) != 0) {
             return false;
         }
         if (m_characList[linkPos + 1].m_characLinkType != 3) {
@@ -9824,7 +9826,7 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) - 1 < 0) {
             return false;
         }
-        if ((static_cast<unsigned char>(linkPos) & 1) == 0) {
+        if ((linkPos & 1) == 0) {
             return false;
         }
         if (m_characList[linkPos - 1].m_characLinkType != 2) {

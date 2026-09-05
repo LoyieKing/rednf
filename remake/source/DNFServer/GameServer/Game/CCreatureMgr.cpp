@@ -68,18 +68,27 @@ float CStomach::GetStomachValue(CREATURE_STATE state, bool growFlag)
 
     int curTime = GlobalData::s_systemTime_.getCurSec();
     float delta = (float)(curTime - m_lastTime);
-    int s = (int)state;
-    if (s == 1)
+    // ORIG 0x8336d1b：无 `int s` 槽；三分支二分下探树 `cmp $1;je B1 /
+    // cmp $1;jl DEF / cmp $3;jg DEF`（技巧 34，switch 直写枚举形参）。
+    switch (state)
+    {
+    case CREATURE_STATE_1:
     {
         m_value += delta / -60.0f;
         if (!(m_value > 0.0f))
             m_value = 0.0f;
+        break;
     }
-    else if (s > 1 && s <= 3)
+    case CREATURE_STATE_2:
+    case CREATURE_STATE_3:
     {
         m_value += delta / 360.0f;
         if (m_value > 100.0f)
             m_value = 100.0f;
+        break;
+    }
+    default:
+        break;
     }
     m_lastTime = curTime;
     return m_value;
@@ -220,18 +229,30 @@ bool CCreature::vaildItemExp(int itemIdx)
 // 达到 MaxLevel → 0。
 bool CCreature::GainExp(int exp, CUser* user)
 {
+    // ORIG 0x8337923..：m_level 缓存 %ebx 跨 call 存活（callee-saved，0x8337936
+    // `mov 0x2c(%eax),%ebx`）；两比较 sete/setne 物化于 %al（技巧 22），
+    // GetTypeSelectEvolutionLevel 二次独立 call（无 level 槽）。
+    register int lvlBx asm("ebx");
+    register bool v asm("al");
     if (m_script == 0)
         return false;
-    int selectEvolutionLevel = m_script->GetTypeSelectEvolutionLevel();
-    if (selectEvolutionLevel != -1 && m_level >= selectEvolutionLevel)
-        return false;
-    if (m_level < m_script->GetMaxLevel())
+    v = (m_script->GetTypeSelectEvolutionLevel() != -1);
+    if (v)
     {
-        if (m_isGrow == 1)
-            return GainExpCreature(exp, user);
-        return GainItemExpCreature(exp, user);
+        lvlBx = m_level;
+        v = (lvlBx >= m_script->GetTypeSelectEvolutionLevel());
+        if (v)
+            return false;
     }
-    return false;
+    lvlBx = m_level;
+    v = (lvlBx >= m_script->GetMaxLevel());
+    // ORIG 0x83379a0+：setge true → fall `mov0;jmp end`（return false 早退），
+    // 假路径 je→isGrow 分流区（`if(!v)` 反产 xor）。
+    if (v)
+        return false;
+    if (m_isGrow == 1)
+        return GainExpCreature(exp, user);
+    return GainItemExpCreature(exp, user);
 }
 
 // ============================================================================
@@ -1250,9 +1271,10 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    Inven_Item_Compatible* compat =
-        (Inven_Item_Compatible*)(void*)buf->m_item;   // buf+0x04
-    compat->setCopy(*item);
+    // ORIG：`lea 0x4(%eax),%edx` 临时 this（无 compat 槽，技巧 36）；同族
+    // RecvMail 0x833ff71 的 register %eax 钉 item 装填序。
+    register Inven_Item* itemAx asm("eax") = item;
+    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
     buf->m_slot = slot;                               // +0x2c
     buf->m_characNo = user->getCurCharacNo();         // +0x48
     buf->m_stomachValue = 100;                        // +0x44（固定 100）
@@ -1262,7 +1284,9 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
     buf->m_expireTick = expireTick;                   // +0x58
     buf->m_ceraOrderNo = (int)user->get_cera_item_order_no();  // +0x60
 
-    int itemIdx = item->m_addInfo;                    // +0x02（ORIG mov 0x2(%eax)）
+    // ORIG：itemIdx 跨 find_item call 存活于 %ebx（`mov %eax,%ebx` …
+    // `mov %ebx,0x4(%esp)`），prologue push %ebx + frame 0x24。
+    register int itemIdx asm("ebx") = item->m_addInfo;  // +0x02（ORIG mov 0x2(%eax)）
     CItem* found = G_CDataManager()->find_item(itemIdx);
     if (found == 0)
         return false;
@@ -1297,28 +1321,35 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
 // ============================================================================
 int CCreatureItemConverter::SetEggItem(Inven_Item* item)
 {
-    if (item == 0)
-        return 0;
-
+    // ORIG 0x08336eae：入口无 null 检查（直 `mov 0x2(%eax),%eax`），删臆造判空。
     CItem* found = G_CDataManager()->find_item(item->m_addInfo);
     if (found == 0)
         return 0;
     if (found->is_stackable())
         return 0;
 
+    // ORIG：`mov -0x14,%eax; mov %eax,-0x10(%ebp); mov -0x10(%ebp),%eax; call`
+    // equip 具名槽 -0x10；subType 无槽，switch 三级下探 cmp1;je;cmp2;je;test
+    // （技巧 34 直写 switch）。
     CEquipItem* equip = static_cast<CEquipItem*>(found);
-    int subType = equip->get_sub_type();
-    if (subType == 1)
+    switch (equip->get_sub_type())
+    {
+    case 1:
     {
         item->m_field0 = 1;
+        break;
     }
-    else if (subType == 2)
+    case 2:
     {
+        // ORIG 0x8336f1b..0x8336f52：仅 range 具名槽(-0xc)；randIdx/target 均
+        // 内联（call 结果 %eax 直落 arg，无槽）。
         int range = equip->m_randomTable.m_field0;
-        int randIdx = get_rand_int(range);
-        int target = equip->m_randomTable.GetRandomItemIndex(randIdx);
-        item->m_addInfo = target;
+        item->m_addInfo = equip->m_randomTable.GetRandomItemIndex(get_rand_int(range));
         item->m_field0 = 1;
+        break;
+    }
+    default:
+        break;
     }
     return 1;
 }
@@ -1335,20 +1366,25 @@ int CCreature::IsAbleEvolute(CUser* user) const
 {
     if (m_script == 0)
         return 0;
-    int evolutionLevel = m_script->GetEvolutionLevel();
-    if (evolutionLevel == 0)
+    // ORIG 0x8338121/0x8338142：两次独立 GetEvolutionLevel call，==0 用
+    // test;sete;test;je（0x8338126），> 用 cmp %edx,%eax;setg;test;je（0x833814d）。
+    if ((bool)(m_script->GetEvolutionLevel() == 0))
         return 0;
-    if (m_level < evolutionLevel)
+    if ((bool)(m_script->GetEvolutionLevel() > m_level))
         return 0;
-    if (!m_script->IsExistEvolutionQuest())
-        return 1;
-    if (user != 0)
+    // ORIG 0x8337dcb：`test;je e3b(mov1 尾岛)`——IsExist true 才 fall user 检查，
+    // return 1 为尾岛（`if(!call())return 1` 反产 xor;mov1;jmp 物化岛）。
+    if (m_script->IsExistEvolutionQuest())
     {
-        PacketGuard packet;
-        user->getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&packet));
-        user->Send(packet);
+        if (user != 0)
+        {
+            PacketGuard packet;
+            user->getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&packet));
+            user->Send(packet);
+        }
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ORIG _ZN13user_creature9CCreature19IsAbleSelectEvoluteEP5CUser T 0x08337d58：
@@ -1357,20 +1393,25 @@ int CCreature::IsAbleSelectEvolute(CUser* user)
 {
     if (m_script == 0)
         return 0;
-    int selectEvolutionLevel = m_script->GetTypeSelectEvolutionLevel();
-    if (selectEvolutionLevel == -1)
+    // ORIG 0x8337d7d/0x8337d9f：两次独立 call（无 level 缓存变量）；比较结果
+    // sete/setg 物化 + test;je（技巧 9/22），非直接 jne/jle 分支。
+    if ((bool)(m_script->GetTypeSelectEvolutionLevel() == -1))
         return 0;
-    if (m_level < selectEvolutionLevel)
+    if ((bool)(m_script->GetTypeSelectEvolutionLevel() > m_level))
         return 0;
-    if (!m_script->IsExistEvolutionQuest())
-        return 1;
-    if (user != 0)
+    // ORIG 0x8337dcb：`test;je e3b(mov1 尾岛)`——IsExist true 才 fall user 检查，
+    // return 1 为尾岛（`if(!call())return 1` 反产 xor;mov1;jmp 物化岛）。
+    if (m_script->IsExistEvolutionQuest())
     {
-        PacketGuard packet;
-        user->getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&packet));
-        user->Send(packet);
+        if (user != 0)
+        {
+            PacketGuard packet;
+            user->getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&packet));
+            user->Send(packet);
+        }
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ORIG _ZNK13user_creature12CCreatureMgr26VerifyEquipedCreatureQuestEv
@@ -1822,13 +1863,23 @@ int CCreatureMgr::ResponseCreature()
 // T 0x0833a77e：uid 查重后插入 m_creatureItems；重复则 cMyTrace 报错返回 false。
 bool CCreatureMgr::RegisterCreatureItem(CCreatureItem* item, int uid)
 {
-    if (FindCreatureItem(uid) != 0)
+    // ORIG 0x833a798：`test;setne %al;test;je` 查重物化（技巧 22）；true 块
+    // uid→%esi（0x833a7a1 `mov 0x10(%ebp),%esi`）、get_unique_id 结果
+    // `movzwl %ax,%ebx`（0x833a7b2）跨 ctor call 存活，trace 变参寄存器直传
+    // （0x833a7d8 `mov %esi,0xc(%esp); mov %ebx,0x8(%esp)`）。PF 串 @0x8c2f140。
+    register int uidSx asm("esi");
+    register unsigned int uniqBx asm("ebx");
+    register bool dup asm("al");
+    dup = (FindCreatureItem(uid) != 0);
+    if (dup)
     {
+        uidSx = uid;
+        // ORIG 0x833a7b2 `movzwl %ax,%ebx`：赋值点即零扩展进 %ebx（int 载体），
+        // ushort 载体使 4.4 把扩展推到 use 点（movzwl %dx 二段）。
+        uniqBx = (unsigned short)m_user->get_unique_id();
         cMyTrace trace(
-            "bool user_creature::CCreatureMgr::RegisterCreatureItem"
-            "(user_creature::CCreatureItem*, int)", 0xbb4, 5);
-        trace("RegisterCreatureItem failed. uid(%d), key(%d)\n",
-              m_user->get_unique_id() & 0xffff, uid);
+            __PRETTY_FUNCTION__, 0xbb4, 5);
+        trace("RegisterCreatureItem failed. uid(%d), key(%d)\n", uniqBx, uidSx);
         return false;
     }
     m_creatureItems.insert(std::make_pair(uid, item));
@@ -1957,14 +2008,14 @@ void Inven_Item_Compatible::makeInvenItem(Inven_Item& item)
     item.m_fieldb = m_endurance;
     item.SetItemAttr(m_attr);
     item.m_fieldd = m_fieldd;
-    // ORIG（objdump 0x833f481..0x833f497）：与 setCopy 严格互逆的
-    // mov 0x15/0x19、movzwl→mov 0x1d、mov 0x11 四条写。
-    *reinterpret_cast<int*>(&item.m_amp) = m_amp0;                   // → item+0x11
-    itemGloballyUniqueIdentifier_t* guid =
-        reinterpret_cast<itemGloballyUniqueIdentifier_t*>(&item.m_amp.m_pad4[0]);
-    guid->m_serverId = m_rand0;                                      // → item+0x15
-    guid->m_datetime = m_rand4;                                      // → item+0x19
-    guid->m_sequenceNo = m_rand8;                                    // → item+0x1d
+    // ORIG 0x833f476..0x833f497：guid 三写（0x15/0x19/0x1d）以单一 %eax 基址
+    // 连续（共享装载），m_amp0(→+0x11) 独立重载置后；中间变量 guid 反产 -0xc 槽。
+    // ORIG 0x833f476：三级 disp 共享 %eax=item 基址——具名嵌套成员路径折叠
+    // （cast+数组下标形反产每写一次 add 重算）。
+    item.m_amp.m_guid.m_serverId = m_rand0;                          // → item+0x15
+    item.m_amp.m_guid.m_datetime = m_rand4;                          // → item+0x19
+    item.m_amp.m_guid.m_sequenceNo = m_rand8;                        // → item+0x1d
+    *reinterpret_cast<int*>(&item.m_amp) = m_amp0;                   // → item+0x11（ORIG 置后独立重载）
 }
 
 // ============================================================================

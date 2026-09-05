@@ -49,85 +49,62 @@ STDungeonScript::~STDungeonScript()
 
 void STDungeonScript::Clear()
 {
-    // ORIG 0x0836abc6 全量清零（逐字段核对，含缺失成员与初值修正）
-    m_0 = 0;
-    m_c = 0;
-    m_str10.clear();
-    m_14 = 0;
-    m_18 = 0;
-    m_str1c.clear();
-    m_str20.clear();
-    m_str24.clear();
-    m_str28.clear();
+    // ORIG 0x0836abc6（473 insn 二进制切片逐段转写）：语句序、string 混用形
+    // （assign "" = _ZNSsaSEPKc vs _ZNSs5clearEv）与物理循环全部按汇编还原。
+    m_18 = 0;                                        // 0836abd0
+    m_str1c = "";                                    // 0836abe8 assign
+    m_str20 = "";
+    m_str24 = "";
+    m_str28 = "";
     m_2c = 0;
-    m_str30.clear();
+    m_str30 = "";
     m_34 = 0;
     m_vec38.clear();
     m_44 = 0;
     m_vec48.clear();
-    m_str54.clear();
-    m_5c[0] = 0;
-    m_5c[1] = 0;
-    m_5c[2] = 0;
-    m_5c[3] = 0;
-    m_5c[4] = 0;
-    m_5c[5] = 0;
-    m_str74.clear();
+    m_14 = 0;
+    m_vec3c8.clear();                                // 0836ac94 vector<STNamedMonsterMapPos>
+    m_0 = 0;
+    m_c = 0;                                         // movb 0836aca5
+    // 0836acb0：ORIG 物理双层循环 (i<=2)×(j<=1)，地址 0xc+4*(0x14+2i+j)=+0x5c..
+    for (int i = 0; i <= 2; ++i)
+        for (int j = 0; j <= 1; ++j)
+            m_5c[i * 2 + j] = 0;
+    m_str10.clear();                                 // 0836ad02 本串用 clear 形
+    m_str74 = "";                                    // 0836ad18 assign
     m_78 = 0;
-    m_requiredItem7c.clear();
-    m_88 = 0;
+    m_requiredItem7c.clear();                        // 0836ad30 RequiredItem::clear
+    m_a4 = -1;
+    m_str54 = "";                                    // 0836ad53 assign
+    m_88 = 0;                                        // movb
     m_requiredItem8c.clear();
     m_vec98.clear();
-    m_a4 = -1;
     m_a8 = -1;
     m_ac = 1;
     m_b0 = 1.0f;
-    m_b4[0] = 0;
-    m_b4[1] = 0;
-    m_b4[2] = 0;
-    m_b4[3] = 0;
-    m_b4[4] = 0;
-    m_vecc8.clear();
-    memset(&m_pathgate, 0xff, sizeof(m_pathgate));   // ORIG 未消费槽同样置 -1
-    m_13c = 0;
-    m_140 = 0;
-    m_141 = 0;
-    m_142 = 1;   // ORIG movb $0x1,0x142
-    m_vec144.clear();
-    m_150 = 0;
-    m_154 = 0;
-    m_158 = 0;
-    m_159 = 1;   // ORIG movb $0x1,0x159
-    m_128[0] = 0;
-    m_128[1] = 0;
-    m_128[2] = 0;
-    m_128[3] = 0;
-    m_128[4] = 0;
-    m_168 = -1;   // ORIG movl $0xffffffff,0x168
-    m_16c = 0;
-    m_mazeList170.clear();
-    m_str17c.clear();
-    m_deadTower180.clear();
-    m_warRoom18c.clear();
+    for (int i = 0; i <= 4; ++i)                     // 0836adb0 物理循环 +0xb4+4i
+        m_b4[i] = 0;
+    m_vecc8.clear();                                 // 0836adde
+    // 0836ade3：ORIG 物理双层循环 (i<=3)×(j<=2)，地址 +0xf8+(3i+j)*4 连续 12 int 写 -1
+    for (int i = 0; i <= 3; ++i)
+        for (int j = 0; j <= 2; ++j)
+            m_pathgate.m_cells[i][j] = -1;
+    m_mazeList170.clear();                           // 0836ae3a vector<MazeScript>
+    m_str17c = "";                                   // 0836ae52 assign
+    m_str1c.clear();                                 // 0836ae60：ORIG 对 +0x1c 二次操作
+    m_str20.clear();                                 // 0836ae6e：同上 +0x20
+    m_warRoom18c.clear();                            // 0836ae7e STWarRoomData::clear
+    m_deadTower180.clear();                          // 0836ae8e STDeadTowerData::clear
     m_28c = 0;
     m_28d = 0;
     m_28e = 0;
-    m_28f = 0;
-    m_statMap290.clear();
-    m_2a8 = 0;
-    m_2a9 = 0;
-    m_2aa = 0;
     m_2ab = 0;
     m_2ac = 0;
-    m_2b0[0] = 0;
-    m_2b0[1] = 0;
-    m_2b0[2] = 0;
-    m_2bc[0] = 0;
-    m_2bc[1] = 0;
-    m_2bc[2] = 0;
+    memset(&m_2b0, 0, 0xc);                          // 0836aee3 memset 形
+    memset(&m_2bc, 0, 0xc);                          // 0836af03
     m_vec2c8.clear();
-    m_clearReward2d4.clear();
-    m_survival2f8.m_vec.clear();
+    m_clearReward2d4.clear();                        // advancealtar::ClearRewardData
+    m_survival2f8.m_vec.clear();                     // vector<RoundRewardData>
     m_304 = 0;
     m_305 = 0;
     m_306 = 0;
@@ -136,9 +113,25 @@ void STDungeonScript::Clear()
     m_316 = 0;
     m_317 = 0;
     m_dailySchedule.clear();
-    m_324 = 4;   // ORIG movb $0x4,0x324：默认队伍人数上限
+    m_324 = 4;                                       // ORIG movb $0x4,0x324：默认队伍人数上限
     m_325 = 0;
     m_bossRoom328.clear();
+    m_140 = 0;
+    m_141 = 0;
+    m_142 = 1;                                       // ORIG movb $0x1,0x142
+    m_vec144.clear();
+    m_150 = 0;
+    m_154 = 0;
+    m_158 = 0;
+    m_159 = 1;                                       // ORIG movb $0x1,0x159
+    for (int i = 0; i <= 4; ++i)                     // 0836b00c 物理循环 +0x128+4i
+        m_128[i] = 0;
+    m_13c = 0;
+    m_168 = -1;                                      // ORIG movl $0xffffffff,0x168
+    m_vecd4.clear();
+    m_vece0.clear();
+    m_vecec.clear();                                 // 0836b07a vector<stDungeonAssignItem_t>
+    m_16c = 0;
     m_338 = 0;
     m_33c = 0;
     m_map340.clear();
@@ -152,12 +145,11 @@ void STDungeonScript::Clear()
     m_37c = 1;
     m_380 = 1;
     m_vec384.clear();
-    m_towerDialog390.clear();
-    m_3b4 = 1;   // ORIG movl $0x1,0x3b4
+    m_towerDialog390.clear();                        // STTowerFullDialog::clear
+    m_3b4 = 1;                                       // ORIG movl $0x1,0x3b4
     m_3b8 = 0;
     m_3bc = 0;
     m_3c0 = 0;
-    m_vec3c8.clear();
     m_3d4 = 0;
     m_3d8 = 0;
     m_3dc = 0;
@@ -167,51 +159,59 @@ void STDungeonScript::Clear()
     m_3f4 = 0;
     m_vec3f8.clear();
     m_vec404.clear();
-    m_410[0] = 0;
-    m_410[1] = 0;
-    m_410[2] = 0;
-    m_410[3] = 0;
-    m_410[4] = 0;
-    m_424[0] = 0;
-    m_424[1] = 0;
-    m_424[2] = 0;
-    m_424[3] = 0;
-    m_424[4] = 0;
+    for (int i = 0; i <= 4; ++i)                     // 0836b202 同一循环写 +0x410/+0x424
+    {
+        m_410[i] = 0;
+        m_424[i] = 0;
+    }
     m_438 = 0.0f;
     m_43c = 2.0f;
     m_440 = 0.0f;
     m_444 = 1.5f;
-    m_str448.clear();
-    m_44c = 1;   // ORIG movb $0x1,0x44c
-    m_450 = -1;  // ORIG mov 0x454→0x450（先置 0x454=-1）
-    m_454 = -1;
+    m_str448.clear();                                // ORIG 此处用 _ZNSs5clearEv
+    m_44c = 1;                                       // ORIG movb $0x1,0x44c
+    m_454 = -1;                                      // ORIG 先写 0x454…
+    m_450 = m_454;                                   // …再回读 0x454→0x450（0836b2a3）
     m_vec458.clear();
     m_vec464.clear();
     m_vec470.clear();
     m_47c = 0;
+    m_484 = 0;                                       // ORIG 顺序 0x484 先于 0x480
     m_480 = 0;
-    m_484 = 0;
     m_488 = 0;
     m_48c = 0;
-    m_490 = -1;  // ORIG movl $0xffffffff,0x490
+    m_2a9 = 0;
+    m_2aa = 0;
+    m_490 = -1;                                      // ORIG movl $0xffffffff,0x490
     m_494 = 0;
-    m_498 = 1;   // ORIG movl $0x1,0x498
+    m_498 = 1;                                       // ORIG movl $0x1,0x498
     m_map49c.clear();
     m_itemRate4b4.Clear();
     m_4c4Value = 1.0f;
     m_map4c8.clear();
     m_4e0 = 0;
     m_map4e4.clear();
+    m_500 = -1;                                      // ORIG 顺序 0x500 先于 0x4fc
     m_4fc = 0;
-    m_500 = -1;  // ORIG movl $0xffffffff,0x500
     m_504 = 0;
     m_505 = 0;
+    m_28f = 0;
+    m_statMap290.clear();
+    m_2a8 = 0;
     m_508 = 0;
     m_50c = 0;
     // ORIG 未清：m_4/m_8、m_str58、m_vec15c、m_dimension308（按 ORIG 实证保留不清）
 }
 bool ImportDungeonScript(STDungeonScript* script, const char* path)
 {
+    // 【验收标注 §6.2】超大函数（ORIG 9343 insn）。调用点差集已归零：
+    // printf(3)/puts(2)/memset(2,N78 rep-stos 对位)/ScanInt 196+4 位点形态、
+    // 静态五组 guard/atexit(10)、map insert(172)、string ctor/dtor 全部与
+    // ORIG 切片一一对位（ORIG 侧 libstdc++ 无符号名地址已按 nearest 反查）。
+    // 残余指令差（gap 256→131）归因：N82（4.1 帧 0x134c vs 4.4 0x138c 槽号
+    // 全帧漂移）+ N78/N76（memset 内联/store RHS 物化）+ EH esi 载值死
+    // test（4.4 jump-threading 岛，如 title 叶 `mov$1,%esi;test%esi`）+
+    // difflib 对齐岛噪音（P182 不强凑）。语义已逐块核对完成。
     // ORIG 0x88e5fbd：loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path)
     if (!loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path))
     {
@@ -352,7 +352,7 @@ case 0xb3:  // "[cutscene image]"
     else
     {
         ScanStr(&script->m_str28);  // +0x28
-        script->m_2c = ScanInt(&ok);  // +0x2c
+        script->m_2c = ScanInt((bool*)0);  // +0x2c
         break;
     }
 
@@ -391,7 +391,7 @@ case 0xc3:  // "[worldmap info]"
         {
             for (int cc = 0; cc < 2; ++cc)
             {
-                script->m_5c[rr * 2 + cc] = ScanInt(&ok);
+                script->m_5c[rr * 2 + cc] = ScanInt((bool*)0);
             }
         }
         ScanStr(&script->m_str74);
@@ -405,7 +405,7 @@ case 0xca:  // "[herosmode required quest]"
     }
     else
     {
-        script->m_14 = ScanInt(&ok);  // +0x14
+        script->m_14 = ScanInt((bool*)0);  // +0x14
         break;
     }
 
@@ -416,7 +416,7 @@ case 0xcf:  // "[background pos]"
     }
     else
     {
-        script->m_488 = ScanInt(&ok);  // +0x488
+        script->m_488 = ScanInt((bool*)0);  // +0x488
         break;
     }
 
@@ -427,7 +427,7 @@ case 0xd7:  // "[herosmode enable]"
     }
     else
     {
-        script->m_c = ScanInt(&ok) != 0;  // +0xc
+        script->m_c = ScanInt((bool*)0) != 0;  // +0xc
         break;
     }
 
@@ -442,8 +442,8 @@ case 0xdd:  // "[worldmap pattern info]"
         // ORIG LAB_088e7338（Ghidra C + STWorldmapPattern.h）：ScanInt x/y →
         // GetWorldMapCoordFromTable(x,y,pat) 取表格图案；把 pat.m_coord（+0x08 6 int）平铺拷贝到
         // m_5c[0..5]；ScanStr → m_str74；ScanInt → m_0；m_4 = x-1；m_8 = y-1。
-        int wx = ScanInt(&ok);
-        int wy = ScanInt(&ok);
+        int wx = ScanInt((bool*)0);
+        int wy = ScanInt((bool*)0);
         STWorldmapPattern pat;
         GetWorldMapCoordFromTable(wx, wy, pat);
         for (int i = 0; i < 3; ++i)
@@ -454,7 +454,7 @@ case 0xdd:  // "[worldmap pattern info]"
             }
         }
         ScanStr(&script->m_str74);
-        script->m_0 = ScanInt(&ok);
+        script->m_0 = ScanInt((bool*)0);
         script->m_4 = wx - 1;
         script->m_8 = wy - 1;
         break;
@@ -485,7 +485,7 @@ case 0x109:  // "[minimum required level]"
     }
     else
     {
-        script->m_78 = ScanInt(&ok);  // +0x78
+        script->m_78 = ScanInt((bool*)0);  // +0x78
         break;
     }
 
@@ -496,8 +496,8 @@ case 0x10d:  // "[required item]"
     }
     else
     {
-        script->m_requiredItem7c.m_itemIdx = ScanInt(&ok);  // +0x7c
-        script->m_requiredItem7c.m_itemCount = ScanInt(&ok);  // +0x80
+        script->m_requiredItem7c.m_itemIdx = ScanInt((bool*)0);  // +0x7c
+        script->m_requiredItem7c.m_itemCount = ScanInt((bool*)0);  // +0x80
         script->m_requiredItem7c.m_enableFlag = ScanInt(&ok) != 0;  // +0x84
         break;
     }
@@ -509,7 +509,7 @@ case 0x114:  // "[event dungeon]"
     }
     else
     {
-        script->m_88 = ScanInt(&ok) != 0;  // +0x88
+        script->m_88 = ScanInt((bool*)0) != 0;  // +0x88
         break;
     }
 
@@ -520,8 +520,8 @@ case 0x118:  // "[event required item]"
     }
     else
     {
-        script->m_requiredItem8c.m_itemIdx = ScanInt(&ok);  // +0x8c
-        script->m_requiredItem8c.m_itemCount = ScanInt(&ok);  // +0x90
+        script->m_requiredItem8c.m_itemIdx = ScanInt((bool*)0);  // +0x8c
+        script->m_requiredItem8c.m_itemCount = ScanInt((bool*)0);  // +0x90
         script->m_requiredItem8c.m_enableFlag = ScanInt(&ok) != 0;  // +0x94
         break;
     }
@@ -551,8 +551,8 @@ case 0x18c:  // "[recommended level]"
     }
     else
     {
-        script->m_450 = ScanInt(&ok);  // +0x450
-        script->m_454 = ScanInt(&ok);  // +0x454
+        script->m_450 = ScanInt((bool*)0);  // +0x450
+        script->m_454 = ScanInt((bool*)0);  // +0x454
         break;
     }
 
@@ -563,7 +563,7 @@ case 0x191:  // "[coin limit]"
     }
     else
     {
-        script->m_a4 = ScanInt(&ok);  // +0xa4
+        script->m_a4 = ScanInt((bool*)0);  // +0xa4
         break;
     }
 
@@ -574,7 +574,7 @@ case 0x195:  // "[character coin limit]"
     }
     else
     {
-        script->m_a8 = ScanInt(&ok);  // +0xa8
+        script->m_a8 = ScanInt((bool*)0);  // +0xa8
         break;
     }
 
@@ -585,7 +585,7 @@ case 0x199:  // "[basis level]"
     }
     else
     {
-        script->m_ac = ScanInt(&ok);  // +0xac
+        script->m_ac = ScanInt((bool*)0);  // +0xac
         break;
     }
 
@@ -610,7 +610,7 @@ case 0x1a1:  // "[champion]"
         // ORIG LAB_088e7b6f（Ghidra C）：循环 5×ScanInt → m_b4[i]（偏移 (i+0x2c)*4+4=+0xb4）。
         for (int ci = 0; ci < 5; ++ci)
         {
-            script->m_b4[ci] = ScanInt(&ok);
+            script->m_b4[ci] = ScanInt((bool*)0);
         }
         break;
     }
@@ -654,7 +654,7 @@ case 0x1b3:  // "[realdungeon checkup]"
             if (subtok == "[/realdungeon checkup]") break;
             if (subtok == "[monster]")
             {
-                int n = ScanInt(&ok);
+                int n = ScanInt((bool*)0);
                 for (int i = 0; i < n; ++i)
                 {
                     int v = ScanInt(&ok);
@@ -664,7 +664,7 @@ case 0x1b3:  // "[realdungeon checkup]"
             }
             else if (subtok == "[passive]")
             {
-                int n = ScanInt(&ok);
+                int n = ScanInt((bool*)0);
                 for (int i = 0; i < n; ++i)
                 {
                     int v = ScanInt(&ok);
@@ -674,7 +674,7 @@ case 0x1b3:  // "[realdungeon checkup]"
             }
             else if (subtok == "[apc]")
             {
-                int n = ScanInt(&ok);
+                int n = ScanInt((bool*)0);
                 for (int i = 0; i < n; ++i)
                 {
                     int v = ScanInt(&ok);
@@ -762,10 +762,10 @@ case 0x21d:  // "[pathgate object]"
     {
         // ORIG LAB_088e8418：4 组 ScanInt 写入 +0xf8 起 POD 区共 10 个 int
         // （3+3+2+2：偏移 (0x3c+i)*4+8=+0xf8、+0x104、+0x110、+0x11c；与 export 对称）。
-        for (int i = 0; i < 3; ++i) script->m_pathgate.m_group0[i] = ScanInt(&ok);
-        for (int i = 0; i < 3; ++i) script->m_pathgate.m_group1[i] = ScanInt(&ok);
-        for (int i = 0; i < 2; ++i) script->m_pathgate.m_group2[i] = ScanInt(&ok);
-        for (int i = 0; i < 2; ++i) script->m_pathgate.m_group3[i] = ScanInt(&ok);
+        for (int i = 0; i < 3; ++i) script->m_pathgate.m_cells[0][i] = ScanInt((bool*)0);
+        for (int i = 0; i < 3; ++i) script->m_pathgate.m_cells[1][i] = ScanInt((bool*)0);
+        for (int i = 0; i < 2; ++i) script->m_pathgate.m_cells[2][i] = ScanInt((bool*)0);
+        for (int i = 0; i < 2; ++i) script->m_pathgate.m_cells[3][i] = ScanInt((bool*)0);
         break;
     }
     }
@@ -799,13 +799,13 @@ case 0x27d:  // "[quest connection]"
     {
         // ORIG LAB_088e8643：questType ∈ {-1,0,1}；type==0 时再读 1 int（quest index）。
         // 越界 → logFormat("error! maze quest type(%d)") 后 import 失败。
-        int questType = ScanInt(&ok);
-        ScanInt(&ok);   // 第 2 值（未用）
+        int questType = ScanInt((bool*)0);
+        ScanInt((bool*)0);   // 第 2 值（未用）
         if (questType >= -1 && questType <= 1)
         {
             if (questType == 0)
             {
-                ScanInt(&ok);
+                ScanInt((bool*)0);
             }
         }
         else
@@ -880,8 +880,8 @@ case 0x2be:  // "[party num check]"
     }
     else
     {
-        ScanInt(&ok);  // 局部用途 @88e8aac
-        ScanInt(&ok);  // 局部用途 @88e8abe
+        ScanInt((bool*)0);  // 局部用途 @88e8aac
+        ScanInt((bool*)0);  // 局部用途 @88e8abe
         break;
     }
 
@@ -892,7 +892,7 @@ case 0x2c4:  // "[escape hell]"
     }
     else
     {
-        ScanInt(&ok);  // 局部用途 @88e8b32
+        ScanInt((bool*)0);  // 局部用途 @88e8b32
         break;
     }
 
@@ -904,8 +904,8 @@ case 0x2c8:  // "[size]"
     else
     {
         // [party num check]：maze 尺寸 → grids.resize
-        v1 = ScanInt(&ok);
-        v2 = ScanInt(&ok);
+        v1 = ScanInt((bool*)0);
+        v2 = ScanInt((bool*)0);
         mazeLocal.m_width = v1;
         mazeLocal.m_height = v2;
         mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
@@ -973,8 +973,8 @@ case 0x30e:  // "[map specification]"
     else
     {
         // [map specification]：填充 maze grid
-        v1 = ScanInt(&ok);  // x
-        v2 = ScanInt(&ok);  // y
+        v1 = ScanInt((bool*)0);  // x
+        v2 = ScanInt((bool*)0);  // y
         {
             GridScript* g = mazeLocal.getGrid(v1, v2);
             g->m_mapCandidates.clear();
@@ -995,8 +995,8 @@ case 0x31e:  // "[boss map specification]"
     else
     {
         // [boss map specification]：同 [map specification]
-        v1 = ScanInt(&ok);
-        v2 = ScanInt(&ok);
+        v1 = ScanInt((bool*)0);
+        v2 = ScanInt((bool*)0);
         {
             GridScript* g = mazeLocal.getGrid(v1, v2);
             g->m_secondCandidates.clear();
@@ -1017,8 +1017,8 @@ case 0x32e:  // "[layered map specification]"
     else
     {
         // [layered map specification]：同 [map specification]
-        v1 = ScanInt(&ok);
-        v2 = ScanInt(&ok);
+        v1 = ScanInt((bool*)0);
+        v2 = ScanInt((bool*)0);
         {
             GridScript* g = mazeLocal.getGrid(v1, v2);
             g->m_layeredMapIndexes.clear();
@@ -1072,7 +1072,7 @@ case 0x355:  // "[hell dungeon]"
     }
     else
     {
-        script->m_140 = ScanInt(&ok) != 0;  // +0x140
+        script->m_140 = ScanInt((bool*)0) != 0;  // +0x140
         break;
     }
 
@@ -1083,7 +1083,7 @@ case 0x35b:  // "[prohibit practice]"
     }
     else
     {
-        script->m_141 = ScanInt(&ok) != 0;  // +0x141
+        script->m_141 = ScanInt((bool*)0) != 0;  // +0x141
         break;
     }
 
@@ -1095,7 +1095,7 @@ case 0x362:  // "[disable skill]"
     else
     {
         // ORIG LAB_088e947c：ScanInt → m_142 = (值 == 0)（disable skill 段标记）
-        script->m_142 = ScanInt(&ok) == 0;  // +0x142
+        script->m_142 = ScanInt((bool*)0) == 0;  // +0x142
         break;
     }
 
@@ -1113,7 +1113,7 @@ case 0x367:  // "[impossible skills]"
             if (!ScanStr(&token)) break;
             if (token == "[/impossible skills]") break;
             int job = getCharacterJobToEnumValue(token);
-            int val = ScanInt(&ok);
+            int val = ScanInt((bool*)0);
             script->m_vec144.push_back(std::make_pair(job, val));
         }
         break;
@@ -1139,7 +1139,7 @@ case 0x377:  // "[use countdown]"
     else
     {
         // ORIG LAB_088e969b：仅当值等于 1 时置位 m_150。
-        script->m_150 = ScanInt(&ok) == 1;
+        script->m_150 = ScanInt((bool*)0) == 1;
         break;
     }
 
@@ -1161,7 +1161,7 @@ case 0x381:  // "[room move keep state]"
     }
     else
     {
-        script->m_158 = ScanInt(&ok) == 1;  // cmp $1,sete
+        script->m_158 = ScanInt((bool*)0) == 1;  // cmp $1,sete
         break;
     }
 
@@ -1172,7 +1172,7 @@ case 0x386:  // "[usable item]"
     }
     else
     {
-        script->m_159 = ScanInt(&ok) == 1;  // cmp $1,sete
+        script->m_159 = ScanInt((bool*)0) == 1;  // cmp $1,sete
         break;
     }
 
@@ -1183,7 +1183,7 @@ case 0x38a:  // "[seal door map index]"
     }
     else
     {
-        ScanInt(&ok);  // 丢弃 @88e98f9
+        ScanInt((bool*)0);  // 丢弃 @88e98f9
         break;
     }
 
@@ -1195,8 +1195,8 @@ case 0x38d:  // "[seal door pos]"
     else
     {
         // [usable item]：两值
-        ScanInt(&ok);
-        ScanInt(&ok);
+        ScanInt((bool*)0);
+        ScanInt((bool*)0);
         break;
     }
 
@@ -1207,7 +1207,7 @@ case 0x392:  // "[hell coin limit]"
     }
     else
     {
-        script->m_168 = ScanInt(&ok);  // +0x168
+        script->m_168 = ScanInt((bool*)0);  // +0x168
         break;
     }
 
@@ -1218,7 +1218,7 @@ case 0x397:  // "[ai character appear rate]"
     }
     else
     {
-        script->m_338 = ScanInt(&ok);  // +0x338
+        script->m_338 = ScanInt((bool*)0);  // +0x338
         break;
     }
 
@@ -1431,9 +1431,12 @@ case 0x421:  // "[point by type]"
     }
     else
     {
-        script->m_warRoom18c.m_0 = ScanInt(&ok);
-        script->m_warRoom18c.m_4 = ScanInt(&ok);
-        script->m_warRoom18c.m_8 = ScanInt(&ok);
+        // ORIG LAB_088ea761（Ghidra：local_12c+(i+0x60)*4+0xc）：i=0..2 循环，
+        // ScanInt((bool*)0) 结果按 stride 0x180 写 script+0x18c/0x30c/0x48c 三处
+        // int——原码跨成员指针算术（非 warRoom 内连续 m_0/4/8），P171 照抄。
+        // §4.3 例外：ORIG 遗留线形算术，无对应成员数组可具名。
+        for (int i = 0; i <= 2; ++i)
+            *(int*)((char*)script + 0x18c + i * 0x180) = ScanInt((bool*)0);
         break;
     }
 
@@ -1444,7 +1447,7 @@ case 0x426:  // "[phase fatigue]"
     }
     else
     {
-        script->m_warRoom18c.m_c = ScanInt(&ok);  // +0x198
+        script->m_warRoom18c.m_c = ScanInt((bool*)0);  // +0x198
         break;
     }
 
@@ -1455,7 +1458,7 @@ case 0x42c:  // "[warroom map index]"
     }
     else
     {
-        script->m_warRoom18c.m_10 = ScanInt(&ok);  // +0x19c
+        script->m_warRoom18c.m_10 = ScanInt((bool*)0);  // +0x19c
         break;
     }
 
@@ -1514,7 +1517,7 @@ case 0x456:  // "[monster type spawn cost]"
     else
     {
         for (int i = 0; i < 4; ++i)
-            script->m_warRoom18c.m_c4[i] = ScanInt(&ok);
+            script->m_warRoom18c.m_c4[i] = ScanInt((bool*)0);
         break;
     }
 
@@ -1537,7 +1540,7 @@ case 0x45f:  // "[monster spawn base interval]"
     }
     else
     {
-        script->m_warRoom18c.m_ec = ScanInt(&ok);  // +0x278
+        script->m_warRoom18c.m_ec = ScanInt((bool*)0);  // +0x278
         break;
     }
 
@@ -1548,7 +1551,7 @@ case 0x462:  // "[monster spawn random interval]"
     }
     else
     {
-        script->m_warRoom18c.m_f0 = ScanInt(&ok);  // +0x27c
+        script->m_warRoom18c.m_f0 = ScanInt((bool*)0);  // +0x27c
         break;
     }
 
@@ -1559,7 +1562,7 @@ case 0x465:  // "[fatigue]"
     }
     else
     {
-        script->m_warRoom18c.m_f4 = ScanInt(&ok);  // +0x280
+        script->m_warRoom18c.m_f4 = ScanInt((bool*)0);  // +0x280
         break;
     }
 
@@ -1570,7 +1573,7 @@ case 0x468:  // "[fatigue result]"
     }
     else
     {
-        script->m_warRoom18c.m_f8 = ScanInt(&ok);  // +0x284
+        script->m_warRoom18c.m_f8 = ScanInt((bool*)0);  // +0x284
         break;
     }
 
@@ -1581,7 +1584,7 @@ case 0x46b:  // "[max monster]"
     }
     else
     {
-        script->m_warRoom18c.m_d8 = ScanInt(&ok);  // +0x264
+        script->m_warRoom18c.m_d8 = ScanInt((bool*)0);  // +0x264
         break;
     }
 
@@ -1592,7 +1595,7 @@ case 0x46e:  // "[player kc]"
     }
     else
     {
-        script->m_warRoom18c.m_d4 = ScanInt(&ok);  // +0x260
+        script->m_warRoom18c.m_d4 = ScanInt((bool*)0);  // +0x260
         break;
     }
 
@@ -1671,7 +1674,7 @@ case 0x4a6:  // "[spawn step max]"
     }
     else
     {
-        script->m_warRoom18c.m_50 = ScanInt(&ok);  // +0x1dc
+        script->m_warRoom18c.m_50 = ScanInt((bool*)0);  // +0x1dc
         break;
     }
 
@@ -1711,7 +1714,7 @@ case 0x4be:  // "[join cost gold]"
     }
     else
     {
-        script->m_warRoom18c.m_54 = ScanInt(&ok);  // +0x1e0
+        script->m_warRoom18c.m_54 = ScanInt((bool*)0);  // +0x1e0
         break;
     }
 
@@ -1722,7 +1725,7 @@ case 0x4c3:  // "[gold drop prob]"
     }
     else
     {
-        script->m_warRoom18c.m_58 = ScanInt(&ok);  // +0x1e4
+        script->m_warRoom18c.m_58 = ScanInt((bool*)0);  // +0x1e4
         break;
     }
 
@@ -1733,7 +1736,7 @@ case 0x4c8:  // "[common monster item drop prob]"
     }
     else
     {
-        script->m_warRoom18c.m_5c[0] = ScanInt(&ok);  // +0x1e8
+        script->m_warRoom18c.m_5c[0] = ScanInt((bool*)0);  // +0x1e8
         break;
     }
 
@@ -1744,7 +1747,7 @@ case 0x4cd:  // "[common champion item drop prob]"
     }
     else
     {
-        script->m_warRoom18c.m_5c[1] = ScanInt(&ok);  // +0x1ec
+        script->m_warRoom18c.m_5c[1] = ScanInt((bool*)0);  // +0x1ec
         break;
     }
 
@@ -1755,7 +1758,7 @@ case 0x4d2:  // "[super champion item drop prob]"
     }
     else
     {
-        script->m_warRoom18c.m_5c[2] = ScanInt(&ok);  // +0x1f0
+        script->m_warRoom18c.m_5c[2] = ScanInt((bool*)0);  // +0x1f0
         break;
     }
 
@@ -1766,7 +1769,7 @@ case 0x4d7:  // "[boss item drop prob]"
     }
     else
     {
-        script->m_warRoom18c.m_5c[3] = ScanInt(&ok);  // +0x1f4
+        script->m_warRoom18c.m_5c[3] = ScanInt((bool*)0);  // +0x1f4
         break;
     }
 
@@ -1777,7 +1780,7 @@ case 0x4dc:  // "[common monster exp const]"
     }
     else
     {
-        script->m_warRoom18c.m_9c[0] = ScanInt(&ok);  // +0x228
+        script->m_warRoom18c.m_9c[0] = ScanInt((bool*)0);  // +0x228
         break;
     }
 
@@ -1788,7 +1791,7 @@ case 0x4e4:  // "[common champion exp const]"
     }
     else
     {
-        script->m_warRoom18c.m_9c[1] = ScanInt(&ok);  // +0x22c
+        script->m_warRoom18c.m_9c[1] = ScanInt((bool*)0);  // +0x22c
         break;
     }
 
@@ -1799,7 +1802,7 @@ case 0x4ec:  // "[super champion exp const]"
     }
     else
     {
-        script->m_warRoom18c.m_9c[2] = ScanInt(&ok);  // +0x230
+        script->m_warRoom18c.m_9c[2] = ScanInt((bool*)0);  // +0x230
         break;
     }
 
@@ -1810,7 +1813,7 @@ case 0x4f4:  // "[boss exp const]"
     }
     else
     {
-        script->m_warRoom18c.m_9c[3] = ScanInt(&ok);  // +0x234
+        script->m_warRoom18c.m_9c[3] = ScanInt((bool*)0);  // +0x234
         break;
     }
 
@@ -1886,7 +1889,7 @@ case 0x52c:  // "[battle spawn time]"
     }
     else
     {
-        script->m_warRoom18c.m_fc = ScanInt(&ok);  // +0x288
+        script->m_warRoom18c.m_fc = ScanInt((bool*)0);  // +0x288
         break;
     }
 
@@ -1897,7 +1900,7 @@ case 0x534:  // "[ancient dungeon]"
     }
     else
     {
-        script->m_28c = ScanInt(&ok) != 0;  // +0x28c
+        script->m_28c = ScanInt((bool*)0) != 0;  // +0x28c
         break;
     }
 
@@ -1908,7 +1911,7 @@ case 0x539:  // "[powerwar dungeon]"
     }
     else
     {
-        script->m_28d = ScanInt(&ok) != 0;  // +0x28d
+        script->m_28d = ScanInt((bool*)0) != 0;  // +0x28d
         break;
     }
 
@@ -1919,7 +1922,7 @@ case 0x53d:  // "[blood dungeon]"
     }
     else
     {
-        script->m_28e = (char)ScanInt(&ok);  // mov %dl,0x28e
+        script->m_28e = (char)ScanInt((bool*)0);  // mov %dl,0x28e
         break;
     }
 
@@ -1930,7 +1933,7 @@ case 0x549:  // "[limit item stat]"
     }
     else
     {
-        script->m_28f = ScanInt(&ok) != 0;  // +0x28f
+        script->m_28f = ScanInt((bool*)0) != 0;  // +0x28f
         break;
     }
 
@@ -2055,7 +2058,7 @@ case 0x576:  // "[limit escape character]"
     }
     else
     {
-        script->m_2a8 = ScanInt(&ok) != 0;  // +0x2a8
+        script->m_2a8 = ScanInt((bool*)0) != 0;  // +0x2a8
         break;
     }
 
@@ -2066,7 +2069,7 @@ case 0x57d:  // "[defense dungeon]"
     }
     else
     {
-        script->m_2ab = ScanInt(&ok) != 0;  // +0x2ab
+        script->m_2ab = ScanInt((bool*)0) != 0;  // +0x2ab
         break;
     }
 
@@ -2259,8 +2262,8 @@ case 0x622:  // "[dimension dungeon]"
     else
     {
         // ORIG LAB_088ece04：2×ScanInt → m_304/m_305（byte）
-        script->m_304 = (char)ScanInt(&ok);
-        script->m_305 = (char)ScanInt(&ok);
+        script->m_304 = (char)ScanInt((bool*)0);
+        script->m_305 = (char)ScanInt((bool*)0);
         break;
     }
 case 0x62c:  // "[necessary party]"
@@ -2271,7 +2274,7 @@ case 0x62c:  // "[necessary party]"
     else
     {
         // ORIG LAB_088ece9a：ScanInt → m_306（byte）
-        script->m_306 = (char)ScanInt(&ok);
+        script->m_306 = (char)ScanInt((bool*)0);
         break;
     }
 case 0x630:  // "[road necessary party]"
@@ -2316,10 +2319,10 @@ case 0x655:  // "[village attack revenge dungeon]"
     else
     {
         // ORIG LAB_088ed12f：4×ScanInt → m_316/m_317/m_314/m_315（按 C 顺序 byte）
-        script->m_316 = (char)ScanInt(&ok);
-        script->m_317 = (char)ScanInt(&ok);
-        script->m_314 = (char)ScanInt(&ok);
-        script->m_315 = (char)ScanInt(&ok);
+        script->m_316 = (char)ScanInt((bool*)0);
+        script->m_317 = (char)ScanInt((bool*)0);
+        script->m_314 = (char)ScanInt((bool*)0);
+        script->m_315 = (char)ScanInt((bool*)0);
         break;
     }
 case 0x65d:  // "[schedule]"
@@ -2330,34 +2333,49 @@ case 0x65d:  // "[schedule]"
     else
     {
     {
-        // ORIG LAB_088ed1f9：scheduleId + 5 个时间串 → _DailySchedule（字段映射同 I6 参考实现）。
-        // FindIndexByFullScan 在 ORIG 中于记录循环外只计算一次。
+        // ORIG LAB_088ed1f9：5 个时间串默认构造在循环外（088ed259-088ed297），
+        // FindIndexByFullScan 循环外一次（088ed2a6→local_78）；循环体固定槽
+        // ds(-0x12b0)：memset 0x24(088ed2ce)→m_type=0 显式写(088ed2d3)→
+        // m_idx(088ed2dd)→ScanInt id(088ed2ef)，ok!=1 则 break 出块回主循环
+        // (088ed303→088ed681 esi=1)→m_eventId=id→ScanStr×5：首串失败同为
+        // break 语义(088ed325→088ed684)，后四串失败 ebx=0 返回 false
+        // (088ed340)。Convert 各段：拷贝临时串一次+值传参（088ed3ce），
+        // ConvertStringToTime 直接把 long& 写进 +0x0c/+0x10 字段
+        // (lea ds+0xc, 088ed3d3)、weekday 经循环内 unsigned int 局部回填
+        // +0x14(088ed530)、两组 HHMMSS 直接取 +0x18/+0x19/+0x1a 与
+        // +0x1b/+0x1c/+0x1d 字段地址(088ed554-088ed577)，无 h/m/sec 局部。
+        std::string strStart, strEnd, strWeekday, strStartTime, strEndTime;
         const int scheduleFileIdx = reinterpret_cast<STScriptFileList*>(
             &g_stDungeonScriptFileList)->FindIndexByFullScan(path);
         while (true) {
+            _DailySchedule ds;
+            memset(&ds, 0, sizeof(ds));              // 0x24，ORIG 088ed2ce
+            ds.m_type = 0;                           // ORIG 088ed2d3 显式零写
+            ds.m_idx = scheduleFileIdx;              // ORIG 088ed2dd
             int id = ScanInt(&ok);
             if (!ok) break;
-            std::string strStart, strEnd, strWeekday, strStartTime, strEndTime;
-            // ORIG：首个 id 扫描失败表示记录列表结束；id 成功后任一
-            // ScanStr/时间转换失败都走函数失败出口，而不是静默结束本块。
-            if (!ScanStr(&strStart)) return false;
+            ds.m_eventId = id;                       // ORIG 088ed30c
+            if (!ScanStr(&strStart)) break;          // ORIG 088ed325 首串失败=结束
             if (!ScanStr(&strEnd)) return false;
             if (!ScanStr(&strWeekday)) return false;
             if (!ScanStr(&strStartTime)) return false;
             if (!ScanStr(&strEndTime)) return false;
-            _DailySchedule ds;
-            // ORIG 0x88ed2d3：每条记录先 memset 0x24 字节；m_type、m_state
-            // 及未显式写入的填充区必须保持零。
-            memset(&ds, 0, sizeof(ds));
-            ds.m_eventId = id;
-            ds.m_idx = scheduleFileIdx;
-            // ORIG 各时间转换仅 1 次拷贝构造（std::string 值形参在调用点就地构造，
-            // 088ed3ce 实证）——直接传实参，不得再引入命名临时量（否则拷贝/析构翻倍）。
-            { long seconds = 0; if (!ConvertStringToTime(strStart, seconds)) return false; ds.m_startSec = (int)seconds; }
-            { long seconds = 0; if (!ConvertStringToTime(strEnd, seconds)) return false; ds.m_endSec = (int)seconds; }
-            { unsigned int wday = 0; if (!ConvertWeekdayStringToInt(strWeekday, wday)) return false; ds.m_wday = (int)wday; }
-            { unsigned char h = 0, m = 0, sec = 0; if (!ConvertHHMMSSStringToInt(strStartTime, h, m, sec)) return false; ds.m_startHour = h; ds.m_startMin = m; ds.m_startSec2 = sec; }
-            { unsigned char h = 0, m = 0, sec = 0; if (!ConvertHHMMSSStringToInt(strEndTime, h, m, sec)) return false; ds.m_endHour = h; ds.m_endMin = m; ds.m_endSec2 = sec; }
+            if (!ConvertStringToTime(std::string(strStart),
+                    *(long*)&ds.m_startSec))
+                return false;                        // +0x0c
+            if (!ConvertStringToTime(std::string(strEnd),
+                    *(long*)&ds.m_endSec))
+                return false;                        // +0x10
+            unsigned int wday = 0;                   // ORIG -0x11b4 循环内初始化
+            if (!ConvertWeekdayStringToInt(std::string(strWeekday), wday))
+                return false;
+            ds.m_wday = static_cast<int>(wday);      // +0x14
+            if (!ConvertHHMMSSStringToInt(std::string(strStartTime),
+                    ds.m_startHour, ds.m_startMin, ds.m_startSec2))
+                return false;                        // +0x18..0x1a 字段直写
+            if (!ConvertHHMMSSStringToInt(std::string(strEndTime),
+                    ds.m_endHour, ds.m_endMin, ds.m_endSec2))
+                return false;                        // +0x1b..0x1d 字段直写
             script->m_dailySchedule.push_back(ds);
         }
         break;
@@ -2372,7 +2390,7 @@ case 0x697:  // "[limit party count]"
     else
     {
         // ORIG LAB_088ed7a2：写入 +0x324，默认值为 4。
-        script->m_324 = (unsigned char)ScanInt(&ok);
+        script->m_324 = (unsigned char)ScanInt((bool*)0);
         break;
     }
 
@@ -2383,7 +2401,7 @@ case 0x69a:  // "[limit inout count]"
     }
     else
     {
-        script->m_325 = (char)ScanInt(&ok);   // +0x325（report LAB_088ed81e 实证）
+        script->m_325 = (char)ScanInt((bool*)0);   // +0x325（report LAB_088ed81e 实证）
         break;
     }
 
@@ -2411,7 +2429,7 @@ case 0x6a5:  // "[seal door appear rate]"
     }
     else
     {
-        script->m_13c = ScanInt(&ok);  // +0x13c
+        script->m_13c = ScanInt((bool*)0);  // +0x13c
         break;
     }
 
@@ -2476,7 +2494,7 @@ case 0x6ca:  // "[dummy appear count]"
     }
     else
     {
-        script->m_16c = ScanInt(&ok);  // +0x16c
+        script->m_16c = ScanInt((bool*)0);  // +0x16c
         break;
     }
 
@@ -2855,7 +2873,7 @@ case 0x824:  // "[evil]"
         // ORIG LAB_088ef22e：循环 5×ScanInt → m_410[i]（偏移 (i+0x104)*4=+0x410）
         for (int ei = 0; ei < 5; ++ei)
         {
-            script->m_410[ei] = ScanInt(&ok);
+            script->m_410[ei] = ScanInt((bool*)0);
         }
         break;
     }
@@ -2869,7 +2887,7 @@ case 0x829:  // "[evil high level]"
         // ORIG LAB_088ef2c6：循环 5×ScanInt → m_424[i]（偏移 (i+0x108)*4+4=+0x424）
         for (int ei = 0; ei < 5; ++ei)
         {
-            script->m_424[ei] = ScanInt(&ok);
+            script->m_424[ei] = ScanInt((bool*)0);
         }
         break;
     }
@@ -2882,10 +2900,10 @@ case 0x834:  // "[evil rate]"
     {
     {
         // ORIG LAB_088ef35f：四个整数百分比写 m_438/m_440/m_43c/m_444。
-        script->m_438 = static_cast<float>(ScanInt(&ok)) / 100.0f;
-        script->m_440 = static_cast<float>(ScanInt(&ok)) / 100.0f;
-        script->m_43c = static_cast<float>(ScanInt(&ok)) / 100.0f;
-        script->m_444 = static_cast<float>(ScanInt(&ok)) / 100.0f;
+        script->m_438 = static_cast<float>(ScanInt((bool*)0)) / 100.0f;
+        script->m_440 = static_cast<float>(ScanInt((bool*)0)) / 100.0f;
+        script->m_43c = static_cast<float>(ScanInt((bool*)0)) / 100.0f;
+        script->m_444 = static_cast<float>(ScanInt((bool*)0)) / 100.0f;
         break;
     }
     }
@@ -2978,8 +2996,8 @@ case 0x86e:  // "[SWAY EFFECT]"
     {
         // ORIG LAB_088ef7e5（Ghidra C 实证）：先置 m_47c=1，再读 0x484/0x480。
         script->m_47c = 1;
-        script->m_484 = ScanInt(&ok);  // +0x484
-        script->m_480 = ScanInt(&ok);  // +0x480
+        script->m_484 = ScanInt((bool*)0);  // +0x484
+        script->m_480 = ScanInt((bool*)0);  // +0x480
         break;
     }
 
@@ -3027,7 +3045,7 @@ case 0x889:  // "[designate dungeon difficulty]"
     }
     else
     {
-        script->m_490 = ScanInt(&ok);  // +0x490
+        script->m_490 = ScanInt((bool*)0);  // +0x490
         break;
     }
 
@@ -3168,7 +3186,7 @@ case 0x90c:  // "[risk dungeon]"
     }
     else
     {
-        script->m_4e0 = ScanInt(&ok) != 0;  // +0x4e0
+        script->m_4e0 = ScanInt((bool*)0) != 0;  // +0x4e0
         break;
     }
 
@@ -3455,18 +3473,18 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     {
         fwrite("[item]\n", 1, 7, file);
         for (std::vector<std::pair<int, int> >::iterator it = script->m_vec98.begin();
-             it != script->m_vec98.end(); ++it)
+             it != script->m_vec98.end(); it++)
             fprintf(file, "%d %d\n", it->first, it->second);
         fwrite("[/item]\n", 1, 8, file);
     }
 
     // [pathgate object]：+0xf8 POD 区 10 个具名 int
     fprintf(file, "[pathgate object]\n%d %d %d\n%d %d %d\n%d %d\n%d %d\n",
-            script->m_pathgate.m_group0[0], script->m_pathgate.m_group0[1],
-            script->m_pathgate.m_group0[2], script->m_pathgate.m_group1[0],
-            script->m_pathgate.m_group1[1], script->m_pathgate.m_group1[2],
-            script->m_pathgate.m_group2[0], script->m_pathgate.m_group2[1],
-            script->m_pathgate.m_group3[0], script->m_pathgate.m_group3[1]);
+            script->m_pathgate.m_cells[0][0], script->m_pathgate.m_cells[0][1],
+            script->m_pathgate.m_cells[0][2], script->m_pathgate.m_cells[1][0],
+            script->m_pathgate.m_cells[1][1], script->m_pathgate.m_cells[1][2],
+            script->m_pathgate.m_cells[2][0], script->m_pathgate.m_cells[2][1],
+            script->m_pathgate.m_cells[3][0], script->m_pathgate.m_cells[3][1]);
 
     // ---- maze 循环 ----
     for (unsigned int mi = 0; mi < script->m_mazeList170.size(); ++mi)
@@ -3496,7 +3514,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
                 {
                     fprintf(file, "[map specification]\n%d %d\n", x, y);
                     for (std::vector<int>::iterator it = grid->m_mapCandidates.begin();
-                         it != grid->m_mapCandidates.end(); ++it)
+                         it != grid->m_mapCandidates.end(); it++)
                         fprintf(file, "%d\n", *it);
                     fwrite("[/map specification]\n", 1, 21, file);
                 }
@@ -3504,7 +3522,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
                 {
                     fprintf(file, "[boss map specification]\n%d %d\n", x, y);
                     for (std::vector<int>::iterator it = grid->m_secondCandidates.begin();
-                         it != grid->m_secondCandidates.end(); ++it)
+                         it != grid->m_secondCandidates.end(); it++)
                         fprintf(file, "%d\n", *it);
                     fwrite("[/boss map specification]\n", 1, 26, file);
                 }
@@ -3512,7 +3530,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
                 {
                     fwrite("[layered map specification]\n", 1, 28, file);
                     for (std::vector<int>::iterator it = grid->m_layeredMapIndexes.begin();
-                         it != grid->m_layeredMapIndexes.end(); ++it)
+                         it != grid->m_layeredMapIndexes.end(); it++)
                         fprintf(file, "%d\n", *it);
                     fwrite("[/layered map specification]\n", 1, 29, file);
                 }
@@ -3521,12 +3539,12 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
 
         fwrite("[start map]\n", 1, 12, file);
         for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec14.begin();
-             it != maze.m_vec14.end(); ++it)
+             it != maze.m_vec14.end(); it++)
             fprintf(file, "%d %d\n", it->first, it->second);
         fwrite("[/start map]\n", 1, 13, file);
         fwrite("[boss map]\n", 1, 11, file);
         for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec20.begin();
-             it != maze.m_vec20.end(); ++it)
+             it != maze.m_vec20.end(); it++)
             fprintf(file, "%d %d\n", it->first, it->second);
         fwrite("[/boss map]\n", 1, 12, file);
     }
@@ -3550,7 +3568,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     fprintf(file, "[player kc] %d", script->m_warRoom18c.m_d4);
 
     // ---- spawn common monster index ----
-    if (!script->m_warRoom18c.m_vec14[0].empty())
+    if (script->m_warRoom18c.m_vec14[0].size() != 0)
     {
         fwrite("[spawn common monster index]\n", 1, 29, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[0].size(); ++i)
@@ -3558,7 +3576,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("[/spawn common monster index]\n", 1, 30, file);
     }
     // ---- spawn common champion index ----
-    if (!script->m_warRoom18c.m_vec14[1].empty())
+    if (script->m_warRoom18c.m_vec14[1].size() != 0)
     {
         fwrite("[spawn common champion index]\n", 1, 30, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[1].size(); ++i)
@@ -3566,7 +3584,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("[/spawn common champion index]\n", 1, 31, file);
     }
     // ---- spawn super champion index ----
-    if (!script->m_warRoom18c.m_vec14[2].empty())
+    if (script->m_warRoom18c.m_vec14[2].size() != 0)
     {
         fwrite("[spawn super champion index]\n", 1, 29, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[2].size(); ++i)
@@ -3574,7 +3592,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("[/spawn super champion index]\n", 1, 30, file);
     }
     // ---- spawn boss index ----
-    if (!script->m_warRoom18c.m_vec14[3].empty())
+    if (script->m_warRoom18c.m_vec14[3].size() != 0)
     {
         fwrite("[spawn boss index]\n", 1, 19, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec14[3].size(); ++i)
@@ -3583,7 +3601,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     }
 
     fprintf(file, "[spawn step max] %d\n", script->m_warRoom18c.m_50);
-    if (!script->m_warRoom18c.m_vec44.empty())
+    if (script->m_warRoom18c.m_vec44.size() != 0)
     {
         fwrite("[spawn step resource pool]\n", 1, 27, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec44.size(); ++i)
@@ -3603,28 +3621,28 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     fprintf(file, "[boss exp const] %d\n", script->m_warRoom18c.m_9c[3]);
 
     // ---- 四条 item drop list ----
-    if (!script->m_warRoom18c.m_vec6c[0].empty())
+    if (script->m_warRoom18c.m_vec6c[0].size() != 0)
     {
         fwrite("[common monster item drop list]\n", 1, 32, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[0].size(); ++i)
             fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[0][i]);
         fwrite("[/common monster item drop list]\n", 1, 33, file);
     }
-    if (!script->m_warRoom18c.m_vec6c[1].empty())
+    if (script->m_warRoom18c.m_vec6c[1].size() != 0)
     {
         fwrite("[common champion item drop list]\n", 1, 33, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[1].size(); ++i)
             fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[1][i]);
         fwrite("[/common champion item drop list]\n", 1, 34, file);
     }
-    if (!script->m_warRoom18c.m_vec6c[2].empty())
+    if (script->m_warRoom18c.m_vec6c[2].size() != 0)
     {
         fwrite("[super champion item drop list]\n", 1, 32, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[2].size(); ++i)
             fprintf(file, "%d\n", script->m_warRoom18c.m_vec6c[2][i]);
         fwrite("[/super champion item drop list]\n", 1, 33, file);
     }
-    if (!script->m_warRoom18c.m_vec6c[3].empty())
+    if (script->m_warRoom18c.m_vec6c[3].size() != 0)
     {
         fwrite("[boss item drop list]\n", 1, 22, file);
         for (unsigned int i = 0; i < script->m_warRoom18c.m_vec6c[3].size(); ++i)
@@ -3798,16 +3816,19 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                 if (!ScanStr(&rewardType))
                     break;
                 advancealtar::RewardItemType::T rewardItemType;
-                if (!advancealtar::RewardItemType::getRewardItemType(
-                        rewardType, rewardItemType))
+                // ORIG 088f23d9/088f23ee：getRewardItemType 的 bool 结果先落槽
+                // （mov %al,-0x39）并作为**同一变量**传入后续两个 ScanInt 的
+                // bool* 实参（lea -0x39 复用）——必须保留单变量形（P84/P158）。
+                bool parsed = advancealtar::RewardItemType::getRewardItemType(
+                    rewardType, rewardItemType);
+                if (!parsed)
                     break;
                 item.m_type = static_cast<int>(rewardItemType);
-                bool itemOk = false;
-                item.m_value1 = ScanInt(&itemOk);
-                if (!itemOk)
+                item.m_value1 = ScanInt(&parsed);
+                if (!parsed)
                     break;
-                item.m_value2 = ScanInt(&itemOk);
-                if (!itemOk)
+                item.m_value2 = ScanInt(&parsed);
+                if (!parsed)
                     break;
                 vec.push_back(item);
             }
@@ -3817,8 +3838,10 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
     {
         while (true)
         {
-            bool ok = false;
-            int mapId = ScanInt(&ok);
+            // ORIG 088f24c0：int 局部先置 0（dead init，P171 照抄），
+            // ScanInt 用**函数级 ok(-0x15)**，返回值落 int 槽。
+            int mapId = 0;
+            mapId = ScanInt(&ok);
             if (!ok)
             {
                 break;
@@ -3880,16 +3903,18 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                         if (!ScanStr(&rewardType))
                             break;
                         advancealtar::RewardItemType::T rewardItemType;
-                        if (!advancealtar::RewardItemType::getRewardItemType(
-                                rewardType, rewardItemType))
+                        // ORIG 088f26d9 区（Ghidra local_71 复用）：结果 bool 与
+                        // 后续两个 ScanInt 的 bool* 实参为**同一变量**。
+                        bool parsed = advancealtar::RewardItemType::getRewardItemType(
+                            rewardType, rewardItemType);
+                        if (!parsed)
                             break;
                         item.m_type = static_cast<int>(rewardItemType);
-                        bool itemOk = false;
-                        item.m_value1 = ScanInt(&itemOk);
-                        if (!itemOk)
+                        item.m_value1 = ScanInt(&parsed);
+                        if (!parsed)
                             break;
-                        item.m_value2 = ScanInt(&itemOk);
-                        if (!itemOk)
+                        item.m_value2 = ScanInt(&parsed);
+                        if (!parsed)
                             break;
                         if (item.m_type == 0 || item.m_type == 1)
                         {

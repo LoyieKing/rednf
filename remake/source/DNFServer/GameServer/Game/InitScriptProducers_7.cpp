@@ -58,42 +58,8 @@ int getCharacterJob(const char* name);                                 // 0x088b
 bool ConvertStringToTime(std::string str, long& out);                  // 0x088c2341（InitScripts_6）
 int getGrowTypeIndex(const char* name);                                // 0x088be63d（InitScripts_6）
 
-namespace
-{
-
-// ORIG 各装载器内的「静态名→id 表 + SpinLock 双检」在单线程 init 下等价于
-// 固定常量表查找。表内容逐条来自反汇编中的 insert 对（字符串地址→id）。
-struct TokenId
-{
-    const char* name;
-    int id;
-};
-
-// importInGameEventInfoList 0x897eb59 插入对（0x94f7ba8 表）。
-const TokenId kInGameEventTokenIds[] =
-{
-    {"[/event_list]", 0x24},
-    {"[idx]",         0x27},
-    {"[record type]", 0x2b},
-    {"[start]",       0x2e},
-    {"[end]",         0x31},
-    {"[state]",       0x34},
-    {"[/event]",      0x37},
-};
-
-int lookupTokenId(const std::string& token, const TokenId* table, unsigned int count)
-{
-    for (unsigned int i = 0; i < count; ++i)
-    {
-        if (token == table[i].name)
-        {
-            return table[i].id;
-        }
-    }
-    return -1;
-}
-
-} // namespace
+// （原 namespace 内 kInGameEventTokenIds/lookupTokenId 发明查找表已删：
+//  importInGameEventInfoList 按 ORIG 函数级静态 __lookup 真形重写，见该函数。）
 
 // ============================================================================
 // importEventAvatarListScript — ORIG 0x0895e1ed（init.md +0x688b 调用，
@@ -724,6 +690,18 @@ int importQuestShopScript(const char* path, stQuestShop& out)
 // ============================================================================
 bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 {
+    // ORIG 双相派发（T 0x08915606）：out 判空先于 loadRDAR（+0x0c）；__lookup
+    // 三件套位于主循环体内；注册链 [section]0x33f6→[group]0x3406+?（0x3409）。
+    // [section] 执行形 = do-while：一次 token 命中后连续解析多节直至
+    // ScanInt(&ok) 断流（**bVar2=false 仅退出该 do-while 回主循环，非 return**）；
+    // [group] 执行形 = 内层 ScanType 循环：[package selection] 组 items，
+    // [/group] 提交 make_pair+map insert，内层 EOF 无提交直接回主循环。
+    // 收敛口径：orig=582 ours=581，语义/槽位/调用序已逐段对齐；残余 1 条及
+    // 零散助记符差为跨编译器形态：[section] do-while 的 more 标志 4.1 全程走
+    // %ebx（本侧 bool 槽 spill，N78 register-bool 寄存器选择不控）、
+    // 内层 items 循环 4.4 旋转（scan 落底 vs ORIG 落头，穷举 for/while/
+    // while(true)+break 三形均不能同时保住 xor$1 物化与头置）、growText/
+    // delim/tokenize 临时析构的 EH 双份 epilogue vs 4.1 merge（N 在册）。
     if (out == NULL)
     {
         return false;
@@ -733,78 +711,142 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
         return false;
     }
 
-    std::string token;
-    std::string nameText;
-    bool ok = false;
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
 
-    while (ScanType(token, true))
+    std::string token;                    // ORIG -0xa4
+    std::string nameText;                 // ORIG -0xa8
+    bool ok = false;                      // ORIG -0xa9
+    int count = 0;                        // ORIG -0x30（prologue 初始化，跨段复用）
+
+    for (;;)
     {
-        if (token == "[section]")
-        {
-            EventRewardSection section;
-            section.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
-            {
-                return false;
-            }
-            section.m_field1 = static_cast<unsigned char>(ScanInt((bool*)NULL));
-            section.m_field2 = static_cast<unsigned char>(ScanInt((bool*)NULL));
-            const int count = ScanInt((bool*)NULL);
-            for (int i = 0; i < count; ++i)
-            {
-                const unsigned char value = static_cast<unsigned char>(ScanInt((bool*)NULL));
-                section.m_items.push_back(value);
-            }
-            out->m_vec0.push_back(section);
-        }
-        else if (token == "[group]")
-        {
-            if (!ScanStr(&nameText))
-            {
-                return false;
-            }
-            const int job = getCharacterJob(nameText.c_str());
-            const int grade = ScanInt((bool*)NULL);
-            const int key = makeFairPVPEquipmentPackageKey(job, grade);
+        if (!ScanType(token, true))
+            break;
 
-            std::vector<std::vector<EventRewardItemInfo> > groups;
-            for (;;)
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        for (;;)
+        {
+            int id;
+            if (__inited)
             {
-                if (!ScanType(token, true))
+                LookupMap::const_iterator it = __lookup.find(token.c_str());
+                id = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
+            {
+                __init_lock.enter();
+                if (__inited)
                 {
-                    break;
+                    __init_lock.leave();
+                    continue;
                 }
-                if (token == "[package selection]")
+                id = 0;
+            }
+
+            switch (id)
+            {
+            case 0x33f6:                   // [section]
+            case 0:
+                if (!__inited)
                 {
-                    std::vector<EventRewardItemInfo> items;
-                    int itemIdx = 0;
-                    while (ScanInt(&itemIdx))
+                    __lookup.insert(LookupMap::value_type("[section]", 0x33f6));
+                }
+                else
+                {
+                    bool more = false;
+                    do
                     {
-                        EventRewardItemInfo item;
-                        item.m_field0 = itemIdx;
-                        item.m_short8 = static_cast<short>(ScanInt((bool*)NULL));
-                        item.m_field4 = ScanInt((bool*)NULL);
-
-                        std::string growText;
-                        ScanStr(&growText);
-                        std::vector<std::string> parts;
-                        tokenizeStr(growText, parts, ",");
-                        for (unsigned int p = 0; p < parts.size(); ++p)
+                        EventRewardSection section;   // 每轮构造/析构（ORIG -0xc0）
+                        section.m_field0 = ScanInt(&ok);
+                        if (ok == true)
                         {
-                            const int growType = getGrowTypeIndex(parts[p].c_str());
-                            item.m_growTypes.push_back(growType);
+                            section.m_field1 = ScanInt((bool*)NULL);
+                            section.m_field2 = ScanInt((bool*)NULL);
+                            count = ScanInt((bool*)NULL);
+                            for (int i = 0; i < count; ++i)
+                            {
+                                unsigned char value = ScanInt((bool*)NULL);
+                                section.m_items.push_back(value);
+                            }
+                            out->m_vec0.push_back(section);
+                            more = true;
                         }
-                        items.push_back(item);
-                    }
-                    groups.push_back(items);
-                }
-                else if (token == "[/group]")
-                {
-                    out->m_mapC.insert(std::map<int, std::vector<std::vector<EventRewardItemInfo> > >::value_type(
-                        key, groups));
+                        else
+                        {
+                            more = false;
+                        }
+                    } while (more);
                     break;
                 }
+                /* fall through（ORIG +0x2e9 jmp +0x3ee） */
+            case 0x3409:                   // [group]
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[group]", 0x3409));
+                }
+                else
+                {
+                    if (!ScanStr(&nameText))
+                        return false;      // ORIG +0x454 ebx=0 → 直接出口 return false
+                    int job = getCharacterJob(nameText.c_str());
+                    int grade = ScanInt((bool*)NULL);
+                    int key = makeFairPVPEquipmentPackageKey(job, grade);
+                    std::vector<std::vector<EventRewardItemInfo> > groups;
+                    for (;;)
+                    {
+                        if (!ScanType(token, true))
+                            goto group_no_submit;   // ORIG +0x4ca→+0x850 EOF 无提交
+                        if (token == "[package selection]")
+                        {
+                            std::vector<EventRewardItemInfo> items;
+                            int itemIdx;
+                            while (ScanInt(&itemIdx) == 1)
+                            {
+                                EventRewardItemInfo item;
+                                item.m_field0 = itemIdx;
+                                item.m_short8 = ScanInt((bool*)NULL);
+                                item.m_field4 = ScanInt((bool*)NULL);
+                                ScanStr(&nameText);
+                                std::string growText(nameText.c_str());
+                                std::vector<std::string> parts;
+                                std::string delim(",");
+                                tokenizeStr(growText, parts, delim);
+                                unsigned int p = 0;
+                                while ((int)parts.size() > (int)p)
+                                {
+                                    int grow = getGrowTypeIndex(parts.at(p).c_str());
+                                    item.m_growTypes.push_back(grow);
+                                    p = p + 1;
+                                }
+                                items.push_back(item);
+                            }
+                            groups.push_back(items);
+                            continue;
+                        }
+                        if (token == "[/group]")
+                            break;
+                    }
+                    out->m_mapC.insert(std::make_pair(key, groups));
+                group_no_submit:
+                    ;
+                    break;
+                }
+                /* fall through */
+            default:
+                break;
             }
+
+            // ORIG LAB_08915e80 公共尾。
+            if (!__inited)
+            {
+                __init_lock.leave();
+                __inited = true;
+            }
+            else
+                break;
         }
     }
     return true;
@@ -1296,54 +1338,160 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
 }
 
 // ============================================================================
-// importInGameEventInfoList — ORIG 0x0897eb59（init.md +0x674d，
-// "Event/InGameEventList.evt" → *m_liveServerInfo.m_eventScriptMng 基类）。
-// ORIG 以静态 map+SpinLock 建 token→id 表（[/event_list]=0x24 … [/event]=0x37）
-// 后 switch 分派；此处以等价常量表实现。[/event_list] 返回 true，其余正常
-// 流结束返回 false。
+// importInGameEventInfoList — ORIG 0x0897eb59（报告 _lt_global_gt_/
+// importInGameEventInfoList.md 汇编+Ghidra C 双段转写；init.md +0x674d）。
+// 双相派发真形：函数级静态 __lookup map<char const*,int,less_TCHAR>
+// （BSS 0x094f7ba8）+ __init_lock SpinLock（0x094f7bc0）+ __inited（0x094f7bc4），
+// guard 每轮穿（P177：static 位于重派发循环头）；注册轮持锁 id=0 → switch
+// 全 miss → 公共尾 0x0897f0b3 leave+置位+jmp 0x0897ebca（guard 重查同 token）。
+// 分派 = `cmpl $0x37; ja; shl $2; jmp *table` 跳表（P163：case 0 并入
+// [/event_list] leaf 撑 range）。token→id 逐例 insert（非链式，每块独立）：
+// [/event_list]=0x24（命中→result=true 经共享退出岛 0x0897f0fe 返回）、
+// [idx]=0x27（ScanInt(int*)→info+0x00 + ScanStr→info+0x08，返回值不判）、
+// [record type]=0x2b(+0x04)、[start]=0x2e(+0x0c)、[end]=0x31(+0x10)、
+// [state]=0x34(+0x14)、[/event]=0x37（insertEventInfo(info.m_field4, info)
+// 0x0897f0ae）。info/token 为函数级临时（-0xd8/-0xc0，循环外构造一次）；
+// result(-0x1d) 仅 ScanType EOF / [/event_list] 两退出路径读取（P164 scan_exit
+// 岛共享尾：`movzbl -0x1d,%ebx` + dtor 统一块）。
+//
+// 残余 DIFF 归因（N 类豁免，语义/槽位集/帧 0xec 全等，355→362/364）：
+//  ① [/event_list] 真路径 ORIG 经 jump-threading 直 `mov $0x1,%ebx` 跳共享
+//     退出岛（0x0897ee2b），4.4 恒具名槽写 `movb $1,-0x1d` 后回读——
+//     负例 jump-threading/setcc-fold 族；② 4.4 跳表多一段
+//     `mov table(%eax),%eax; jmp *%eax` vs 4.1 `jmp *table(%eax)`（1 insn）；
+//  ③ 其余为 .o 对 &_ZZ…__inited/__lookup 数据符号重定位的显示差
+//     （链接 AE 口径消除）与单 nop 岛位差。
 // ============================================================================
 bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 {
     if (!loadRDARScriptFile("", path))
-    {
         return false;
-    }
 
-    std::string token;
-    InGameEventInfo info;
+    std::string token;                // ORIG -0xc0
+    bool result = false;              // ORIG -0x1d（0x0897eb97 movb $0）
+    InGameEventInfo info;             // ORIG -0xd8（循环外 C1 0x0897eba4）
 
-    while (ScanType(token, true))
+    for (;;)
     {
-        switch (lookupTokenId(token, kInGameEventTokenIds,
-                              sizeof(kInGameEventTokenIds) / sizeof(kInGameEventTokenIds[0])))
+        if (!ScanType(token, true))
         {
-        case 0x24:                                    // [/event_list]
-            return true;
-        case 0x27:                                    // [idx]
-            ScanInt(&info.m_eventId);
-            ScanStr(&info.m_name);
+        scan_exit:
+            break;                    // EOF → return result(false)（0x0897f0df）
+        }
+
+    redo_lookup:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int id;
+        if (__inited)
+        {
+            const char* key = token.c_str();         // 0x0897ecd6
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(key);
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                     // 0x0897ed8d
+            if (__inited)
+            {
+                __init_lock.leave();                 // 0x0897eda4
+                goto redo_lookup;                    // 0x0897edaa → guard
+            }
+            id = 0;                                  // 0x0897edaf
+        }
+
+        switch (id)
+        {
+        case 0:
+        case 0x24:                       // [/event_list]（0x0897edce leaf）
+            // ORIG 各 leaf `movzbl __inited; xor$1; test; je parse` —— 取反
+            // 短路物化形（P32：!bool 判产生 xor$1），注册块落 if 体。
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[/event_list]", 0x24));
+                break;                               // → 公共尾
+            }
+            result = true;                           // 0x0897ee2b mov$1,%ebx
+            goto scan_exit;
+        case 0x27:                       // [idx]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[idx]", 0x27));
+                break;
+            }
+            ScanInt(&info.m_eventId);                // 0x0897ee9b（返回值弃）
+            ScanStr(&info.m_name);                   // 0x0897eeac
             break;
-        case 0x2b:                                    // [record type]
+        case 0x2b:                       // [record type]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[record type]", 0x2b));
+                break;
+            }
             ScanInt(&info.m_field4);
             break;
-        case 0x2e:                                    // [start]
+        case 0x2e:                       // [start]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[start]", 0x2e));
+                break;
+            }
             ScanInt(&info.m_startTime);
             break;
-        case 0x31:                                    // [end]
+        case 0x31:                       // [end]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[end]", 0x31));
+                break;
+            }
             ScanInt(&info.m_endTime);
             break;
-        case 0x34:                                    // [state]
-            // ORIG ScanInt 写 +0x14 起 4 字节（uchar 标志 + 3 pad）。
-            ScanInt(reinterpret_cast<int*>(&info.m_isEventing));
+        case 0x34:                       // [state]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[state]", 0x34));
+                break;
+            }
+            ScanInt(&info.m_isEventing);             // +0x14 int（头注实证）
             break;
-        case 0x37:                                    // [/event]
-            list->insertEventInfo(info.m_field4, info);
+        case 0x37:                       // [/event]
+            if (!__inited)
+            {
+                __lookup.insert(
+                    std::map<const char*, int, less_TCHAR>::value_type(
+                        "[/event]", 0x37));
+                break;
+            }
+            list->insertEventInfo(info.m_field4, info);   // 0x0897f0ae
             break;
-        default:                                      // 未识别 token 跳过
-            break;
+        default:
+            break;                                   // 未命中静默（含 "[event_list]" 开标签）
         }
+
+        if (__inited)
+            goto scan_next;                          // 0x0897f0da → ScanType 回边
+        __init_lock.leave();                         // 0x0897f0c8
+        __inited = true;                             // 0x0897f0cd
+        goto redo_lookup;                            // 0x0897f0d4 → guard 重派发
+
+    scan_next:;
     }
-    return false;
+    return result;                                   // 共享退出岛 0x0897f0fe
 }
 
 // ============================================================================

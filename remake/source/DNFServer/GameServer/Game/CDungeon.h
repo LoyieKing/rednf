@@ -188,15 +188,15 @@ public:
 };
 
 // ORIG ImportDungeonScript 0x088e8418：pathgate object 写入 3+3+2+2
-// 个 int，+0x118 与 +0x124 为未消费的结构槽，Clear 时同样置为 -1。
+// 个 int，+0x118 与 +0x124 为未消费的结构槽。Clear（0x0836adf5）为
+// 物理双层循环 i<=3×j<=2、地址 +0xf8+(3i+j)*4 连续 12 int 全写 -1，
+// 故建模为 int[4][3]（组边界=循环步长，非 3+3+2+2 分组）。
 struct STPathgateObject
 {
-    int m_group0[3];            // +0x00..+0x08（STDungeonScript +0xf8）
-    int m_group1[3];            // +0x0c..+0x14
-    int m_group2[2];            // +0x18..+0x1c
-    int m_unused20;             // +0x20
-    int m_group3[2];            // +0x24..+0x2c
-    int m_unused2c;             // +0x2c
+    int m_cells[4][3];          // +0x00..+0x2c（STDungeonScript +0xf8..+0x127）
+                                // [0]=group0、[1]=group1、[2][0..1]=group2、
+                                // [2][2]=unused@+0x118、[3][0..1]=group3、
+                                // [3][2]=unused@+0x124
 };
 static_assert(sizeof(STPathgateObject) == 0x30, "STPathgateObject size mismatch");
 

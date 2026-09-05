@@ -176,6 +176,67 @@ int RandomOptionScript::getOptionModificationCost(short level, ENUM_RARITY rarit
 //   [unable to modify postfix grade] → m_set200(+0x200)
 //   [gradeless postfix]         → m_set218(+0x218)
 
+// ============================================================================
+// 键拼装视图（batch-10 P167 反向差集复核）：ORIG 侧这些 map 键不是「先存若干
+// 临时量再移位或拼」，而是**每次 ScanInt 后直接把字节写进键对象自己的槽**，
+// 最后以 u64/int 视图作 make_pair 实参：
+//   [option quantity]        int  键 -0x4a4：`mov %al,-0x4a4/-0x4a3/-0x4a2/-0x4a1`
+//     （报告 ORIG +0xECA..+0xF05；值侧 `mov %ax,-0x4a8/-0x4a6` = m_minA/m_maxB 直存）
+//   [choose option group]    u64  键 -0x4b0：`mov %al,-0x4b0/-0x4af/-0x4ae`、
+//     `mov %eax,-0x4ac`（高 32）、`mov %al,-0x4ad`（+0x1393.. 区段），
+//     make_pair 实参型 `Ry`（unsigned long long&）⇒ 同对象 u64 视图
+//   [modified option selection] u64 键 -0x4e0：同形（-0x4e0/-0x4df/-0x4de/
+//     -0x4dc(dword)/-0x4dd）
+//   [break seal cost]        int  键 -0x588：`mov %al,-0x588`、`mov %ax,-0x586`、
+//     `mov %al,-0x587`（+2 word / +1 byte 混序，ORIG 逐条照抄）
+// 故用 union 视图复现「具名成员 + 常量偏移直存」形（范式库 P180）；移位或链在
+// -O0 会多出 40+ insns/站（本函数 we-bigger 221 的主因）。
+// ============================================================================
+
+namespace
+{
+
+union OptionQuantityKeyView
+{
+    int m_key;                      // map<int, OptionQuantityValue> 键
+    struct
+    {
+        unsigned char m_b0;         // +0x00（`mov %al,-0x4a4`）
+        unsigned char m_b1;         // +0x01
+        unsigned char m_b2;         // +0x02
+        unsigned char m_b3;         // +0x03
+    } m_bytes;
+};
+static_assert(sizeof(OptionQuantityKeyView) == 4, "ORIG int 键 4 字节");
+
+union OptionGroupChoiceKeyView
+{
+    unsigned long long m_key;       // map<u64, OptionGroupChoiceValue> 键
+    struct
+    {
+        unsigned char m_b0;         // +0x00
+        unsigned char m_b1;         // +0x01
+        unsigned char m_b2;         // +0x02（getItemGroupNameTable 值）
+        unsigned char m_b3;         // +0x03
+        unsigned int m_hi;          // +0x04（`mov %eax,-0x4ac`）
+    } m_bytes;
+};
+static_assert(sizeof(OptionGroupChoiceKeyView) == 8, "ORIG u64 键 8 字节");
+
+union BreakSealCostKeyView
+{
+    int m_key;
+    struct
+    {
+        unsigned char m_b0;         // +0x00（`mov %al,-0x588`）
+        unsigned char m_b1;         // +0x01（`mov %al,-0x587`）
+        unsigned short m_w2;        // +0x02（`mov %ax,-0x586`）
+    } m_bytes;
+};
+static_assert(sizeof(BreakSealCostKeyView) == 4, "ORIG break seal int 键 4 字节");
+
+}   // namespace
+
 int importRandomOptionScript(RandomOptionScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -194,31 +255,27 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             RandomApplicationKey key;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key.m_field0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                key.m_field1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x27;
                 }
-                key.m_field1 = (unsigned char)v;
-                v = ScanInt(&ok);
+                RandomApplicationValue val;
+                val.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2b;
                 }
-                RandomApplicationValue val;
-                val.m_field0 = v;
-                v = ScanInt(&ok);
+                val.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2f;
                 }
-                val.m_field4 = v;
                 if (!script.m_map0.insert(std::make_pair(key, val)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -233,31 +290,27 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             RandomApplicationKey key;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key.m_field0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                key.m_field1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x44;
                 }
-                key.m_field1 = (unsigned char)v;
-                v = ScanInt(&ok);
+                LevelLimitDecisionValue val;
+                val.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x48;
                 }
-                LevelLimitDecisionValue val;
-                val.m_field0 = v;
-                v = ScanInt(&ok);
+                val.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x4c;
                 }
-                val.m_field4 = v;
                 if (!script.m_map18.insert(std::make_pair(key, val)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -277,30 +330,28 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             int weight = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                partType = ScanInt(&ok);
                 if (!ok)
                 {
                     break;   // 段首字段失败 → 回主循环（ORIG esi=1）
                 }
-                partType = v;
                 name.clear();
                 if (!ScanStr(&name))
                 {
                     return 0x64;
                 }
-                std::map<std::string, int>::iterator git =
+                std::map<std::string, int>::const_iterator git =
                     getItemGroupNameTable().find(name);
                 if (git == getItemGroupNameTable().end())
                 {
                     return 0x68;
                 }
                 itemGroup = git->second;
-                v = ScanInt(&ok);
+                weight = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x6e;
                 }
-                weight = v;
                 std::map<int, PartSelectonValue>::iterator mit =
                     script.m_map30.find(partType);
                 if (mit != script.m_map30.end())
@@ -335,24 +386,21 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             int itemCount = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key.m_field0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                key.m_field1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x94;
                 }
-                key.m_field1 = (unsigned char)v;
-                v = ScanInt(&ok);
+                itemCount = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x98;
                 }
-                itemCount = v;
                 val.clear();
                 for (int i = 0; i < itemCount; ++i)
                 {
@@ -380,24 +428,21 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             int optionType = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key.m_field0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                optionType = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0xbc;
                 }
-                optionType = v;
-                v = ScanInt(&ok);
+                key.m_field1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0xc0;
                 }
-                key.m_field1 = (unsigned char)v;
                 give.clear();
                 for (int i = 0; i <= 2; ++i)
                 {
@@ -436,69 +481,57 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                v = ScanInt(&ok);
+                QuantityRatio ratio;
+                ratio.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                QuantityRatio ratio;
-                ratio.m_field0 = v;
-                v = ScanInt(&ok);
+                ratio.m_weight4 = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0xea;
                 }
-                ratio.m_weight4 = (unsigned int)v;
                 script.m_veca8.push_back(ratio);
             }
         }
         else if (line == "[option quantity]")
         {
+            OptionQuantityValue val;         // ORIG -0x4a8（m_minA/m_maxB 逐 word 直存）
+            OptionQuantityKeyView keyView;   // ORIG -0x4a4（逐 byte 直存，无移位或链）
             for (;;)
             {
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                unsigned char b0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0xfb;
                 }
-                unsigned char b1 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b2 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0xff;
                 }
-                unsigned char b2 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b3 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x103;
                 }
-                unsigned char b3 = (unsigned char)v;
-                v = ScanInt(&ok);
+                val.m_minA = static_cast<short>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x107;
                 }
-                short minVal = (short)v;
-                v = ScanInt(&ok);
+                val.m_maxB = static_cast<short>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x10b;
                 }
-                short maxVal = (short)v;
-                // key = 4 个字节按小端拼 int（ORIG -0x4a4..-0x4a1，b0 为低字节）。
-                int key = (int)((unsigned int)b0 | ((unsigned int)b1 << 8) |
-                                ((unsigned int)b2 << 16) | ((unsigned int)b3 << 24));
-                OptionQuantityValue val;
-                val.m_minA = minVal;
-                val.m_maxB = maxVal;
-                if (!script.m_mapb4.insert(std::make_pair(key, val)).second)
+                if (!script.m_mapb4.insert(std::make_pair(keyView.m_key, val)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
                                           __FUNCTION__, 0x10f,
@@ -512,50 +545,47 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             OptionGroupChoiceValue choice;
             std::string name;
             int groupCount = 0;
+            OptionGroupChoiceKeyView keyView;   // ORIG -0x4b0：逐字节/双字直存
             for (;;)
             {
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                unsigned char k0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x125;
                 }
-                unsigned char k1 = (unsigned char)v;
                 name.clear();
                 if (!ScanStr(&name))
                 {
                     return 0x129;
                 }
-                std::map<std::string, int>::iterator git =
+                std::map<std::string, int>::const_iterator git =
                     getItemGroupNameTable().find(name);
                 if (git == getItemGroupNameTable().end())
                 {
                     return 0x12d;
                 }
-                unsigned char k2 = (unsigned char)git->second;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b2 = static_cast<unsigned char>(git->second);
+                // ORIG +0x1289：ScanInt 结果整 dword 直存键 +4（无中间量）
+                keyView.m_bytes.m_hi = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x133;
                 }
-                int kHi = v;   // ORIG：0x133 行读入 -0x4ac（int），即 u64 键高 32 位
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b3 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x137;
                 }
-                unsigned char k3 = (unsigned char)v;   // ORIG：0x137 行读入 -0x4ad，低 32 位 idx3
-                v = ScanInt(&ok);
+                groupCount = ScanInt(&ok);   // ORIG +0x12e8：直存计数槽
                 if (!ok)
                 {
                     return 0x13b;
                 }
-                groupCount = v;
                 choice.clear();
                 for (int i = 0; i < groupCount; ++i)
                 {
@@ -576,16 +606,8 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     choice.m_vecC.push_back((unsigned int)v);
                     choice.m_field18 += v;
                 }
-                // key = u64：低 32 位按小端（k0,k1,k2,k3），高 32 位 kHi
-                // （ORIG 槽 -0x4b0..-0x4a9：高 32 = -0x4ac 的 0x133 行值；
-                //  idx3 = -0x4ad 的 0x137 行值）。
-                unsigned long long key =
-                    ((unsigned long long)(unsigned int)kHi << 32) |
-                    ((unsigned long long)k0) |
-                    ((unsigned long long)k1 << 8) |
-                    ((unsigned long long)k2 << 16) |
-                    ((unsigned long long)k3 << 24);
-                if (!script.m_mapcc.insert(std::make_pair(key, choice)).second)
+                // 键已按 ORIG 序逐段写入（b0/b1/b2/hi/b3），此处仅取 u64 视图
+                if (!script.m_mapcc.insert(std::make_pair(keyView.m_key, choice)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
                                           __FUNCTION__, 0x153,
@@ -599,50 +621,46 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             OptionGroupChoiceValue choice;
             std::string name;
             int groupCount = 0;
+            OptionGroupChoiceKeyView keyView;   // ORIG -0x4e0：逐字节/双字直存
             for (;;)
             {
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                unsigned char k0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x16a;
                 }
-                unsigned char k1 = (unsigned char)v;
                 name.clear();
                 if (!ScanStr(&name))
                 {
                     return 0x16e;
                 }
-                std::map<std::string, int>::iterator git =
+                std::map<std::string, int>::const_iterator git =
                     getItemGroupNameTable().find(name);
                 if (git == getItemGroupNameTable().end())
                 {
                     return 0x172;
                 }
-                unsigned char k2 = (unsigned char)git->second;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b2 = static_cast<unsigned char>(git->second);
+                keyView.m_bytes.m_hi = ScanInt(&ok);   // ORIG +0x1358：dword 直存键 +4
                 if (!ok)
                 {
                     return 0x178;
                 }
-                int kHi = v;   // ORIG：0x178 行读入 -0x4dc（int），即 u64 键高 32 位
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b3 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x17c;
                 }
-                unsigned char k3 = (unsigned char)v;   // ORIG：0x17c 行读入 -0x4dd，低 32 位 idx3
-                v = ScanInt(&ok);
+                groupCount = ScanInt(&ok);             // ORIG +0x1380：直存计数槽
                 if (!ok)
                 {
                     return 0x180;
                 }
-                groupCount = v;
                 choice.clear();
                 for (int i = 0; i < groupCount; ++i)
                 {
@@ -663,16 +681,8 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     choice.m_vecC.push_back((unsigned int)v);
                     choice.m_field18 += v;
                 }
-                // key = u64：低 32 位按小端（k0,k1,k2,k3），高 32 位 kHi
-                // （ORIG 槽 -0x4e0..-0x4d9：高 32 = -0x4dc 的 0x178 行值；
-                //  idx3 = -0x4dd 的 0x17c 行值）。
-                unsigned long long key =
-                    ((unsigned long long)(unsigned int)kHi << 32) |
-                    ((unsigned long long)k0) |
-                    ((unsigned long long)k1 << 8) |
-                    ((unsigned long long)k2 << 16) |
-                    ((unsigned long long)k3 << 24);
-                if (!script.m_map130.insert(std::make_pair(key, choice)).second)
+                // 键已按 ORIG 序（b0/b1/b2/hi/b3）逐段写入，取 u64 视图入表
+                if (!script.m_map130.insert(std::make_pair(keyView.m_key, choice)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
                                           __FUNCTION__, 0x198,
@@ -688,24 +698,21 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             int optionType = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key.m_field0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                optionType = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x1ac;
                 }
-                optionType = v;
-                v = ScanInt(&ok);
+                key.m_field1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x1b0;
                 }
-                key.m_field1 = (unsigned char)v;
                 give.clear();
                 for (int i = 0; i <= 2; ++i)
                 {
@@ -744,25 +751,22 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                v = ScanInt(&ok);
+                OPTION_MODIFICATION_COST cost;
+                cost.m_level = static_cast<short>(ScanInt(&ok));   // ORIG：word 直存 +0x00
                 if (!ok)
                 {
                     break;
                 }
-                OPTION_MODIFICATION_COST cost;
-                cost.m_level = (short)v;
-                v = ScanInt(&ok);
+                cost.m_cost2 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x1da;
                 }
-                cost.m_cost2 = v;
-                v = ScanInt(&ok);
+                cost.m_cost3 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x1de;
                 }
-                cost.m_cost3 = v;
                 script.m_costVec10c.push_back(cost);
             }
         }
@@ -798,34 +802,33 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         else if (line == "[option group]")
         {
             OptionGroupValue value;
-            v = ScanInt(&ok);
+            int type = ScanInt(&ok);
             if (!ok)
             {
                 return 0x203;
             }
-            int type = v;
             for (;;)
             {
-                v = ScanInt(&ok);
+                // ORIG 1939-1975：两次 ScanInt 结果**直接落进 g 的字段槽**
+                // （-0x56c = g.m_type0、-0x568 = g.m_weight04），界检读回 g.m_type0，
+                // 累计项取 g.m_weight4 —— 全程无 weight/v 中转量。
+                OptionGroup g;
+                g.m_type0 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int weight = v;
-                if (weight <= 0 || weight > 0xff)
+                if (g.m_type0 <= 0 || g.m_type0 > 0xff)
                 {
                     return 0x20c;
                 }
-                v = ScanInt(&ok);
+                g.m_weight4 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x210;
                 }
-                OptionGroup g;
-                g.m_type0 = weight;   // ORIG 数据流：结构体首字段 = 循环内首 int
-                g.m_weight4 = v;      // 第二字段 = 循环内次 int
                 value.m_vec0.push_back(g);
-                value.m_fieldC += v;
+                value.m_fieldC += g.m_weight4;
             }
             if (!script.m_map160.insert(std::make_pair(type, value)).second)
             {
@@ -837,21 +840,19 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[postfix]")
         {
-            v = ScanInt(&ok);
+            int count = ScanInt(&ok);   // ORIG：直存计数槽（无 v 中转）
             if (!ok)
             {
                 return 0;
             }
-            int count = v;
             std::string str;
             for (;;)
             {
-                v = ScanInt(&ok);
+                int grade = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int grade = v;
                 std::vector<std::string> vec;
                 for (int i = 0; i < count; ++i)
                 {
@@ -880,18 +881,16 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                v = ScanInt(&ok);
+                int minVal = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int minVal = v;
-                v = ScanInt(&ok);
+                int maxVal = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int maxVal = v;
                 v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -905,30 +904,26 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                v = ScanInt(&ok);
+                int k1 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int k1 = v;
-                v = ScanInt(&ok);
+                int k2 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x28f;
                 }
-                int k2 = v;
-                v = ScanInt(&ok);
+                int k3 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x293;
                 }
-                int k3 = v;
-                v = ScanInt(&ok);
+                int cost = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x297;
                 }
-                int cost = v;
                 // key 字节序：byte0=k1, byte1=k3, ushort@idx2=k2
                 // （ORIG 槽 -0x588/-0x587/-0x586）→ k1 | k3<<8 | k2<<16。
                 int key = (int)((unsigned int)(unsigned char)k1 |
@@ -977,18 +972,16 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x2ba;
                 }
                 unsigned char k1 = (unsigned char)v;
-                v = ScanInt(&ok);
+                int v2 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2be;
                 }
-                int v2 = v;
-                v = ScanInt(&ok);
+                int v3 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2c2;
                 }
-                int v3 = v;
                 if (v3 <= v2)
                 {
                     return 0x2c5;
@@ -1025,36 +1018,32 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             unsigned char key = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                key = (unsigned char)v;
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2eb;
                 }
                 // ORIG 0x08a73522：此行 ScanInt 结果仅消费、不入 ResetValue（丢弃）。
-                v = ScanInt(&ok);
+                int minVal = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2ef;
                 }
-                int minVal = v;
-                v = ScanInt(&ok);
+                int maxVal = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2f3;
                 }
-                int maxVal = v;
-                v = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2f7;
                 }
-                int weight = v;
                 ResetValue rv;
                 rv.m_min = minVal;       // +0x00
                 rv.m_max = maxVal;       // +0x04

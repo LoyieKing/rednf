@@ -566,7 +566,10 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG：G_CEnvironment()+0x37c（每日重置小时）即 m_serverEnvir.m_fatigueTime；
     // ORIG 每处均重新取 env。
-    const int dailyResetHour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
+    // ORIG 0x0863375d `mov 0x37c(%eax),%ebx` 单段直落 callee-saved 跨 update 调用；
+    // 绑定版消 int 槽（guard1/guard2 槽归位 -0x14/-0x1c），装载恒两段
+    // （N18a 残差 1 行）；volatile 指针读反产 add+mov 三段（更差，弃）
+    register int dailyResetHour asm("ebx") = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
     static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng())
         ->update_time_values(dailyResetHour);
@@ -594,19 +597,21 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
 
     advancealtar::HistoryLog::updateStatistics();   // 已声明，定义未链接 → UNLINKED_CALLEE
 
-    Stream* stream1 = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x512);
+    // ORIG 0x0863386c-0x086338fd：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)
+    // （技巧36）；guard1 槽 -0x14、guard2 槽 -0x1c 紧邻、dtor+catch 各随块尾
     {
-        CStreamGuard guard(stream1, true);          // 080c8c26 ctor(Stream*,bool)
-        guard << 0x4e;                              // operator<<(int) 080c8c56
-        guard << -1;
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x512), true);
+        // ORIG 0x08633888-0x086338b9：每写经显式 operator*() 调用（跨版本代理链
+        // 形，同 CUserOnlyOrig LoadMileage 模板；guard<<x 直调会丢 op* 段）
+        guard.operator*()->operator<<((int)0x4e);
+        guard.operator*()->operator<<((int)-1);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q /*2*/, guard);
     }
 
-    Stream* stream2 = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x51c);
     {
-        CStreamGuard guard(stream2, true);
-        guard << 0x50;
-        guard << -1;
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x51c), true);
+        guard.operator*()->operator<<((int)0x50);
+        guard.operator*()->operator<<((int)-1);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q /*4*/, guard);
     }
 
@@ -614,26 +619,36 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
     DB_CreateCharac::makeRequestResetLimitCreateMid();        // 定义 DB_CreateCharac.cpp
     G_GameWorld()->ResetOneADayItemShop();
 
-    return RegistNextTimer() == 1;                   // ORIG movzbl+xor1 结构：flag!=0 返 1
+    // ORIG 0x086339d9-0x086339e7：bool 返回 byte 槽 -0x9 物化 + `movzbl; xor $0x1;
+    // test; je TRUE岛(mov$1)`——false fall-through（技巧1/22 同族）
+    bool ok = RegistNextTimer();
+    if (ok != 1)
+        return 0;
+    return 1;
 }
 
 // ORIG T 0x08633a04 (_ZN17TimerFatigueReset15RegistNextTimerEv)
-// ⚠ ORIG 为非静态成员但不使用 this；当前头声明 static int 兼容（mangled 相同）。
-int TimerFatigueReset::RegistNextTimer()
+// ORIG 非静态成员但不使用 this（调用点 0x086339d4 传 this）；返回 bool。
+bool TimerFatigueReset::RegistNextTimer()
 {
-    int curSec = GlobalData::s_systemTime_.getCurSec();      // -0x4c
+    // ORIG 0x08633a17-0x08633a1c：`call getCurSec; mov %eax,-0x4c` 单段直存，
+    // curSec 槽与 tmv(-0x78..-0x49) 高端相邻——试先声明取得更外槽位
+    time_t curSec = GlobalData::s_systemTime_.getCurSec();   // -0x4c
+    tm timeInfo;                                             // local_7c -0x78
 
-    const time_t midNow = static_cast<time_t>(curSec);
-    tm timeInfo;                                             // local_7c
-    tm* pt = localtime_r(&midNow, &timeInfo);
+    tm* pt = localtime_r(&curSec, &timeInfo);                // ORIG sret 形 pt 槽 -0x28
 
-    const int hour = pt->tm_hour;                            // -0x24
-    const int sec  = pt->tm_sec;
-    const int min  = pt->tm_min;
+    const int hour = pt->tm_hour;                            // -0x24（08633a33 直读）
+    // ORIG 0x08633a40/0x45/0x47：三字段各 `mov -0x28,%eax` 重读 + 单段直落
+    // callee-saved edi/esi/ebx（跨 cMyTrace 双 call 存活）——register 绑定复现
+    register int sec asm("edi") = pt->tm_sec;
+    register int min asm("esi") = pt->tm_min;
+    register int hr asm("ebx") = pt->tm_hour;
 
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x572, 0);
-        trace("Reset all user's fatigue!(%02d:%02d:%02d)", hour, min, sec);
+        // ORIG 0x08633a71-0x08633a79：参数装载 edi→0x10/min→0xc/hr→0x8（右→左）
+        trace("Reset all user's fatigue!(%02d:%02d:%02d)", hr, min, sec);
     }
 
     // env+0x37c 写回 tm_hour；min/sec 清零（ORIG 0x8(%eax)/0x4(%eax)/(%eax) 槽序）。
@@ -643,13 +658,13 @@ int TimerFatigueReset::RegistNextTimer()
 
     int nextMidnight = static_cast<int>(mktime(pt));         // -0x20
     if (G_CEnvironment()->m_serverEnvir.m_fatigueTime <= hour)
-        nextMidnight += 0x15180;                             // +86400s 跨天
+        nextMidnight += 0x15180;                             // ORIG addl 原地 -0x20
 
-    const int delta = nextMidnight - curSec;                 // -0x1c
+    const int delta = nextMidnight - static_cast<int>(curSec);  // -0x1c
 
     {
         cMyTrace trace2(__PRETTY_FUNCTION__, 0x587, 0);
-        trace2("DELTA %d , CHECK_T %d , CUR_T %dn", delta, nextMidnight, curSec);
+        trace2("DELTA %d , CHECK_T %d , CUR_T %d\n", delta, nextMidnight, static_cast<int>(curSec));
     }
 
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2,
@@ -714,30 +729,45 @@ TimerStatisticsLog::TimerStatisticsLog() {}
 TimerStatisticsLog::~TimerStatisticsLog() {}
 int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x62f);
-    CStreamGuard guard(stream, true);
-    guard << 0xcd;
-    guard << -1;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    // ORIG 0x08633f3d-0x08633f54：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)
+    // （技巧36 删 s 中转槽）
+    // ORIG 0x08633f25-0x08633fce：guard 生命周期止于 put 后（dtor+catch 块夹在
+    // getter 段之前，ORIG 0x08633fad catch）⇒ 显式 {} 作用域块（技巧12）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x62f), true);
+        // ORIG 0x08633f59-0x08633f6f：显式 operator*() 代理链（同 FatigueReset 模板）
+        guard.operator*()->operator<<((int)0xcd);
+        guard.operator*()->operator<<((int)-1);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    }
 
+    // ORIG 0x08633fe0/0x08633ff0/0x086334000：前三 getter 结果槽 -0x44/-0x40/-0x3c
+    //（4.1 声明序布局；4.4 按生命周期落 -0x28..近端，槽序不可翻=N 族残差）
     int cacheLoadFailOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailOverflowCount();
     int cacheLoadFailCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailCount();
     int cacheLoadOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadOverflowCount();
-    int cacheLoadCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadCount();
-    int dbLoadOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadOverflowCount();
-    int dbLoadCount = exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadCount();
+    // ORIG 0x08634010/0x0863401f/0x0863402e：后三 getter 结果直落
+    // %edi/%esi/%ebx 跨 ctor 存活；绑定版残差=装载时多一条重排 mov（probe 实测
+    // 优于槽版 2 行）
+    register int cacheLoadCount asm("edi") =
+        exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadCount();
+    register int dbLoadOverflowCount asm("esi") =
+        exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadOverflowCount();
+    register int dbLoadCount asm("ebx") =
+        exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadCount();
 
     cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 0);
     trace("EXCHANGE_SERVER_HIT_RATE : db count(%u), overflow db count(%u), cache count(%u), overflow cache count(%u), cache fail count(%u), overflow cache fail count(%u)",
           dbLoadCount, dbLoadOverflowCount, cacheLoadCount, cacheLoadOverflowCount,
           cacheLoadFailCount, cacheLoadFailOverflowCount);
 
-    if (TimerStatisticsLog::RegistNextTimer() == '\x01')
-    {
-        return 1;
-    }
-
-    return 0;
+    // ORIG 0x08634092-0x0863409b：`mov %al,-0x19; movzbl -0x19,%eax; xor $0x1`——
+    // 具名 bool 局部 byte 槽 + 重读后 ==1 判定（技巧22 邻域）
+    bool ok = TimerStatisticsLog::RegistNextTimer();
+    // ORIG 0x08634099 `xor $0x1; test; je TRUE岛` ——false 为 fall-through 体
+    if (ok != 1)
+        return 0;
+    return 1;
 }
 
 TimerCardSelect::TimerCardSelect() {}
@@ -1460,17 +1490,22 @@ TimerQueryCounter::~TimerQueryCounter() {}
 // ORIG TimerQueryCounter::dispatch_sig @ 0x8635a60 (0x17b)
 int TimerQueryCounter::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // 第一段：LOGDB_Q(4)，值 0x7b / -1
-    Stream* streamA = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x97b);
-    CStreamGuard guard(streamA, true);
-    guard << 0x7b << -1;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    // 第一段：LOGDB_Q(4)，值 0x7b / -1 —— ORIG 0x08635a60 段：Acquire 免槽直落
+    // guard ctor、显式 operator*() 代理链、guard1 槽 -0x10 + {} 块界 dtor/catch
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x97b), true);
+        guard.operator*()->operator<<((int)0x7b);
+        guard.operator*()->operator<<((int)-1);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    }
 
-    // 第二段：DB_Q(2)，值 0x7c / -1
-    Stream* streamB = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x981);
-    CStreamGuard guard2(streamB, true);
-    guard2 << 0x7c << -1;
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard2);
+    // 第二段：DB_Q(2)，值 0x7c / -1（ORIG guard2 槽 -0x18 与 guard1 相邻）
+    {
+        CStreamGuard guard2(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0x981), true);
+        guard2.operator*()->operator<<((int)0x7c);
+        guard2.operator*()->operator<<((int)-1);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard2);
+    }
 
     RegistNextTimer();
     return 1;
@@ -1596,6 +1631,8 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
     // 8635f11/8635f2f 槽号）；`x ^ 1` 具名 char 槽条件出 movzbl+xor$1+test+je
     // （ORIG 8635f32，cmpb 融合形被 ^ 表达式阻断）。
     bool died;
+    // ORIG 0x08635eeb/0x08635f08：isSaveInven 先调（byte 槽 -0x9），
+    // CheckDiedCreature 后调（-0x11，4.1 两 byte 槽间留隙）
     const char saveInventory = user->isSaveInven();
     died = user->getCurCharacInvenW()->GetCreatureMgrW()->CheckDiedCreature();
     (void)died;
@@ -1961,37 +1998,55 @@ TimerDungeonDataStatistic::~TimerDungeonDataStatistic() {}
 // ORIG T 0x0863672a (_ZN25TimerDungeonDataStatistic12dispatch_sigEiij)
 int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0xb1a);
-    CStreamGuard guard(stream, true);
-    guard << 0xaf;
-    guard << -1;
+    // ORIG 0x0863674a-0x08636757：Acquire 免槽直落 ctor；guard 全程作用域
+    // （dtor 在 updateDataIntoDB/Regist 之后，catch @0fc）；写流走显式
+    // operator*() 代理链；GetInBuffer 经 operator->()（ORIG 0x086367a2 ptEv call）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0xb1a), true);
+    guard.operator*()->operator<<((int)0xaf);
+    guard.operator*()->operator<<((int)-1);
     SIG_DUNGEON_DATA_STATISTIC* stat =
-        guard.GetInBuffer<SIG_DUNGEON_DATA_STATISTIC>();
+        guard.operator->()->GetInBuffer<SIG_DUNGEON_DATA_STATISTIC>();
     memset(stat, 0, 0x80);
     *(int*)stat = 3;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     GetInstanceVendingMachineStatistic()->updateDataIntoDB();
-    return RegistNextTimer() == 1;
+    // ORIG 0x0863680a-0x08636824：Regist byte 槽 -0x9 物化 + `xor $0x1; test; je`
+    // 双岛直存 %ebx 跨 dtor（绑定消 bool byte 槽），单出口 return %ebx
+    bool ok = RegistNextTimer();
+    register int ret asm("ebx");
+    if (ok != 1)
+        ret = false;
+    else
+        ret = true;
+    return ret;
 }
 
 // ORIG T 0x08636856 (_ZN25TimerDungeonDataStatistic15RegistNextTimerEv)
-// 注意：TimerDispatcher.h 现声明为 `static void RegistNextTimer()`，
-// ORIG 返回 int（dispatch_sig 以返回值==1 决定结果），集成者需改声明为 int。
-int TimerDungeonDataStatistic::RegistNextTimer()
+// ORIG 非 static（调用点传 this）返回 bool（ORIG T 0x08636856）
+bool TimerDungeonDataStatistic::RegistNextTimer()
 {
-    const int curSec = GlobalData::s_systemTime_.getCurSec();
-    const time_t nowT = static_cast<time_t>(curSec);
+    // ORIG 0x086368xx：curSec 单 time_t 槽（免 int→long 拷贝）；localtime_r 返回
+    // pt 落槽 -0x18，各字段经 `mov -0x18,%eax` 重读 + 指针 disp 读写（技巧37 反用：
+    // 具名指针槽正是 ORIG 形）
+    time_t curSec = GlobalData::s_systemTime_.getCurSec();
     tm t;
-    localtime_r(&nowT, &t);
-    const int curHour = t.tm_hour;
-    t.tm_hour = 5;
-    t.tm_min = 0;
-    t.tm_sec = 0;
-    t.tm_min = G_CEnvironment()->m_serverEnvir.m_channelNo % 0x1e;  // +0x1b0
-    int target = static_cast<int>(mktime(&t));
-    if (t.tm_hour <= curHour)
+    tm* pt = localtime_r(&curSec, &t);
+    const int curHour = pt->tm_hour;
+    pt->tm_hour = 5;
+    pt->tm_min = 0;
+    pt->tm_sec = 0;
+    // ORIG 0x086368a7-0x086368e1：chn 全程 %ecx、x=chn/15 存 %ebx（sign 修正后）、
+    // 3x=%edx；`mov %edx,%eax; shl $4` =48x；`sub %edx,%eax` =45x；
+    // tm_min = chn-45x（Ghidra %0x1e 系 magic 误判，行为差在 chn≥15）。
+    // register 绑定消 spill 槽（pt/-0x18 等槽序归位）。
+    register int chn asm("ecx") = G_CEnvironment()->m_serverEnvir.m_channelNo; // +0x1b0
+    register int x asm("ebx") = chn / 15;
+    register int x3 asm("edx") = x * 3;
+    pt->tm_min = chn - (x3 * 16 - x3);
+    int target = static_cast<int>(mktime(pt));
+    if (pt->tm_hour <= curHour)
         target += 0x15180;
-    const int delay = target - curSec;
+    const int delay = target - static_cast<int>(curSec);
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x66,
                                 delay, 0, 0);
     return 1;
@@ -3073,7 +3128,8 @@ int TimerRequestExit::dispatch_sig(int p1, int p2, unsigned int p3)
     if (user->getCurCharacR() == 0)
         return 0;
     // ORIG 0x08638f3b：`mov 0x10(%ebp),%edx; cmp %edx,%eax`（call 结果 vs arg 两步形，
-    // 4.4 恒折 cmp MEM,%eax —— N18b 候选天花板，保留最近写法）。
+    // 4.4 恒折 `cmp $mem,%eax`（本轮复验 register asm("edx") 反产提前装载+拷贝链，
+    // N18b/N22 定案）。
     if (user->getCurCharacNo() != p2)
         return 0;
     user->DisConnSig(static_cast<DISCONN_SIG>(0x2f), 1, 0);   // ORIG 0x8638f6a
@@ -3237,21 +3293,24 @@ int Timer_Midnight::dispatch_sig(int p1, int p2, unsigned int p3)
 // ORIG T 0x08639554 _ZN14Timer_Midnight15RegistNextTimerEv
 bool Timer_Midnight::RegistNextTimer()
 {
-    const int nowSec = GlobalData::s_systemTime_.getCurSec();
-    const time_t midNow = static_cast<time_t>(nowSec);
+    // ORIG 0x08639554：curSec time_t 单槽 -0x3c（免 int→long 拷贝）；pt 槽 -0x28
+    // 各点 reload；hourNow 槽 -0x24；sec/min/hour 直落 edi/esi/ebx（绑定，N18a
+    // 两段残差）跨 cMyTrace ctor 存活
+    time_t nowSec = GlobalData::s_systemTime_.getCurSec();
     std::tm timePoint;
-    std::tm* pt = localtime_r(&midNow, &timePoint);
+    std::tm* pt = localtime_r(&nowSec, &timePoint);
     const int hourNow = pt->tm_hour;
-    const int minNow = pt->tm_min;
-    const int secNow = pt->tm_sec;
+    register int secNow asm("edi") = pt->tm_sec;
+    register int minNow asm("esi") = pt->tm_min;
+    register int hrNow asm("ebx") = pt->tm_hour;
     cMyTrace trace(__PRETTY_FUNCTION__, 0x1293, 0);
-    trace("Reset all user's fatigue!(%02d:%02d:%02d)", hourNow, minNow, secNow);
+    trace("Reset all user's fatigue!(%02d:%02d:%02d)", hrNow, minNow, secNow);
     pt->tm_hour = 0;
     pt->tm_min = 0;
     pt->tm_sec = 0;
     const long midnight = mktime(pt);
     const int nextAt = static_cast<int>(midnight + 0x15180);
-    const int delay = nextAt - nowSec;
+    const int delay = nextAt - static_cast<int>(nowSec);
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x8d, delay, 0, 0);
     return true;
@@ -4302,10 +4361,9 @@ bool TimerStatisticsLog::RegistNextTimer()
 // G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x9a, delta, 0, 0)。
 void Timer_Schedule_MidNight::RegistNextTimer()
 {
-    struct tm v;
     // ORIG 0x0863a9b4：getCurSec 结果寄存器内 add 后单落槽 -0x28(%ebp)。
-    // 4.4 scalar 恒先占近槽（-0x18..），ORIG(4.1) scalar/aggregate 交错分配 —— 槽号差记 N。
     time_t sec = (time_t)(GlobalData::s_systemTime_.getCurSec() + 0x15180);
+    struct tm v;                                 // ORIG v@-0x24（比 sec 近端）
     struct tm* pt = localtime_r(&sec, &v);
     pt->tm_hour = 0;
     pt->tm_min = 0;

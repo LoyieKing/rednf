@@ -372,9 +372,11 @@ bool CmmChannelProxy::ConnectBridgeServer()
     addr.sin_addr.s_addr = inet_addr(m_ip.c_str());    // inet_addr(c_str(this))
     addr.sin_port = htons((unsigned short)G_CEnvironment()->get_tcp_port_channel());
     // ORIG 0x08106336 区装载序 = addrlen→%ecx、&addr→%edx、m_sock→%eax
-    // （右起第三实参最先落寄存器）。4.4 恒把 %ecx 装载推迟到 m_sock 之后；
-    // 探针证明唯一能翻转装载序的 volatile 局部会占远槽（技巧21 volatile 特判）
-    // ⇒ 装载序与槽号不可两全，暂留裸形（记 N 类候选）。
+    // （右起第三实参最先落寄存器）。4.4 恒把 %ecx 装载推迟到 m_sock 之后
+    // ⇒ 唯一能翻转装载序的手段是把 addrlen 做成 volatile 局部（探针 f2 证），
+    // 但 4.4 的 volatile 特判把它塞进更远槽、并连带把 addr/nonblock 等**全部**
+    // 后续槽号推偏：实测 volatile + volatile 垫块回推的写法让本函数
+    // ndiff 2 → 20（非统一平移，无法补偿）⇒ 两难坐实，记 N82 族封顶。
     socklen_t addrlen = 16;
     if (connect(m_sock, reinterpret_cast<sockaddr*>(&addr), addrlen) < 0)
     {
@@ -5440,7 +5442,10 @@ void* CreateAntiServerObj(const char* path)
 {
     // ORIG W 0x082a6539：path + "libantisvrimport.so" → dlopen(2) →
     // dlsym("GetAntiBotInterfaceAll") → 无参调用并返回结果。
-    char buf[0x118];
+    // buf 基址实证：ORIG 0x082a654f `lea -0x118(%ebp),%ebx` 且帧 `add $0x120,%esp`
+    // ⇒ buf 尺寸 0x104（实测：0x100 落 -0x114、0x104 才落 -0x118；0x118 落 -0x12c）。
+    // 尾部 4 字节是 4.1 给 handle/err 之外多留的一槽，无读写语义。
+    char buf[0x104];
     memset(buf, 0, 0x41);   // ORIG 0x082a654f：仅清前 0x41 字节
     strncat(buf, path, strlen(path));
     strncat(buf, "libantisvrimport.so", 0x14);
@@ -5448,7 +5453,10 @@ void* CreateAntiServerObj(const char* path)
     const char* err = dlerror();
     if (err != 0)
     {
-        printf("Open Dll %s failed, %s\n", buf, err);
+        // 语义修正：ORIG 0x082a65e1 `movl $0x8c16189,0x4(%esp)`（.rodata 实测
+        // 0x8c16189 = "libantisvrimport.so"）+ 0x082a65e9 fmt@0x8c1619d ⇒
+        // 原码第 2 参是**库名字面量**，不是拼接后的 buf（buf 只用于 dlopen）。
+        printf("Open Dll %s failed, %s\n", "libantisvrimport.so", err);
         return 0;
     }
     void* fn = dlsym(handle, "GetAntiBotInterfaceAll");

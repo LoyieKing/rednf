@@ -42,6 +42,18 @@ enum ENUM_RARITY
 
 // ---- 强化选项（Inven_Item::m_amp @ +0x11；尺寸 0xe）----
 #pragma pack(push, 1)
+// amp 内嵌 guid 视图（恰 0xa）：ORIG makeInvenItem 0x833f418
+// `mov %ecx,0x15(%eax)/0x19(%eax)`、`mov %dx,0x1d(%eax)` = item+0x15/0x19/0x1d
+// = amp+0x04/0x08/0x0c（guid m_serverId/m_datetime/m_sequenceNo，SetXxx 实证）。
+// 不引用全局 itemGloballyUniqueIdentifier_t（其 m_tailPad[7] 使 sizeof=0x11 ≠
+// 0xa，撑爆 Inven_Item 链）。命名类型定义于 union 外（匿名 union 禁嵌套新类型）。
+struct stAmplifyGuidView
+{
+    int m_serverId;                  // +0x00
+    int m_datetime;                  // +0x04
+    unsigned short m_sequenceNo;     // +0x08
+};
+static_assert(sizeof(stAmplifyGuidView) == 0xa, "amp guid view size drift");
 class stAmplifyOption_t
 {
 public:
@@ -60,7 +72,11 @@ public:
     unsigned char m_abilityType;     // +0x00（bit7 = identified）
     unsigned short m_abilityValue;   // +0x01
     unsigned char m_lock;            // +0x03
-    char m_pad4[0xa];                // +0x04（尺寸 0xe）
+    union {
+        char m_pad4[0xa];            // +0x04（尺寸 0xe，历史视图保留——AraC9
+                                     //   cUserHistoryLog 等消费点不动）
+        stAmplifyGuidView m_guid;    // +0x04（恰 0xa，Main 批准的具名字段化）
+    };
 };
 #pragma pack(pop)
 

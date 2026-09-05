@@ -445,6 +445,15 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     // insert_equiptment_item_to_db.md（ORIG 0x861d87e）反编译 C 整函数转写：
     // 全部字段以权威 STEquipmentScript/STItemScript/EquipmentParameterInfo
     // 偏移直接访问，删除 EquipScriptFull 镜像布局（其声明序与权威偏移不符）。
+    // switch 块序 = 源码 case 序（ORIG 物理 case0@+0xaa → case1@+0x26d →
+    // case2@+0x27c，4.1 直落 case0 与跳板一致）。
+    // 残差豁免（O=2898/N=2887，canon 级全部为跨版本形态）：
+    //   [N18a] &buf[i] 元素址：ORIG mov/lea/shl/add/mov 5 段（结果先 eax
+    //     后拷 callee-saved），4.4 恒 4 段直出 ebx（×6）；
+    //   [N18a] ", '" 实参两跳：ORIG mov mem,%eax; mov %eax,%ebx，4.4 折
+    //     mov mem,%ebx（×2）；
+    //   [P23] GetEscapeString arg3 预计算位：ORIG +0x1001 提前 lea 入 ebx
+    //     跨调用保持，4.4 挪至 push 位（等长窗移）。
     if (m_field0 != 1)
     {
         return true;
@@ -467,14 +476,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     int local_74 = 0;
     switch (mode)
     {
-    case 1:
-        local_74 = idx;
-        idx = (unsigned int)-1;
-        break;
-    case 2:
-        local_74 = idx;
-        idx = (unsigned int)-2;
-        break;
+    // ORIG +0xaa case0 直落、case1@+0x26d、case2@+0x27c：物理块序 0,1,2
     case 0:
     {
         if (!GetType(script->m_strbc, (ENUM_CHARACTERJOB)foundAni,
@@ -496,6 +498,14 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         }
         break;
     }
+    case 1:
+        local_74 = idx;
+        idx = (unsigned int)-1;
+        break;
+    case 2:
+        local_74 = idx;
+        idx = (unsigned int)-2;
+        break;
     }
     // ---- socket（local_162[5..9]）：0x6cc ushort 段 + 0x6c0 avatar 段 ----
     char socketChars[5] = {0};
@@ -1889,19 +1899,21 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
     // ORIG：for (local_10 = 0; local_10 != 0xb; ++local_10)，读取 +0x38 起 11 字节
     for (int i = 0; i != 0xb; ++i)
     {
-        if (((const char*)script + 0x38)[i] != 0)
+        // STItemScript::m_usable@+0x38（继承成员具名，禁裸偏移）
+        if (script->m_usable[i] != 0)
         {
-            const long long key =
-                (long long)base +
-                (long long)(unsigned int)(i << 16) +
-                ((long long)kind << 32);
+            // ORIG +0x81-0xb5：L2R 64bit 进位链 kind<<32 → +i<<16(movzwl) → +base
+            long long key =
+                ((long long)kind << 32) +
+                (long long)((unsigned short)i << 16) +
+                (long long)base;
             Data data;
             data.m_item = itemId;
             data.m_str4 = script->m_arad178.m_strc;   // +0x184
             data.m_str8 = script->m_arad178.m_str10;  // +0x188
-            std::pair<std::map<long long, Data>::iterator, bool> inserted =
-                m_map.insert(std::make_pair(key, data));
-            if (!inserted.second)
+            // P81：ORIG pair<long long&, Data&> 引用对构造（非 make_pair 值对）
+            if (!m_map.insert(
+                    std::pair<long long&, Data&>(key, data)).second)
             {
                 return 0x122;   // 重复登记
             }
@@ -1934,9 +1946,11 @@ int Arad_GiftItem_Set::str_to_enum(const char* name)
 // ============================================================================
 Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLevel)
 {
-    const long long key =
-        ((long long)kind << 32) |
-        (((long long)job << 16) + (long long)usableLevel);
+    // ORIG：64bit 进位链 + 形（与 open 同构，| 会改 codegen）
+    long long key =
+        ((long long)kind << 32) +
+        (long long)((unsigned short)job << 16) +
+        (long long)usableLevel;
     std::map<long long, Data>::iterator it = m_map.find(key);
     if (it == m_map.end())
         return 0;
@@ -2217,8 +2231,9 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
         {
             return 0x12;
         }
-        int group = refs[i]->getItemGroupName();
-        if (group > 0 && group > 0x3a)
+        // ORIG +0x115/+0x123：两次独立 getItemGroupName 调用（P48 无 CSE）
+        if (refs[i]->getItemGroupName() > 0 &&
+            refs[i]->getItemGroupName() > 0x3a)
         {
             return 0x11;
         }
@@ -2390,13 +2405,19 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     unsigned int& idxOut, eBindSphereType bind) const
 {
     idxOut = _determine_level_bonus_index(baseLevel, inRarity, bind);
+    // ORIG +0xb8c+bind*0x30+0xc：**m_rates[0]**（不随 inRarity；rarity 只入
+    // _index）。返回 pair(下界=v[idx-1]+1, 上界=v[idx])（+0xca61-0xcbf1 装配实证，
+    // 0x4(%esp)=first 临时、0x8=second 引用）。
     const std::vector<unsigned int>& rates =
-        m_lvBonus[(int)bind].m_rates[(int)inRarity];
-    if (idxOut == 0 || idxOut >= rates.size())
+        m_lvBonus[(int)bind].m_rates[0];
+    if (idxOut == 0 || rates.size() <= idxOut)
     {
-        return std::pair<unsigned int, unsigned int>(0u, 0u);
+        int lo = 0;
+        int hi = 0;
+        return std::pair<unsigned int, unsigned int>(lo, hi);  // pair<int,int> 形
     }
-    return std::pair<unsigned int, unsigned int>(rates[idxOut], rates[idxOut - 1] + 1);
+    return std::pair<unsigned int, unsigned int>(rates[idxOut - 1] + 1,
+                                                 rates[idxOut]);
 }
 
 std::pair<unsigned int, unsigned int>                              // ORIG T 0x832cadc
@@ -2409,13 +2430,16 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     {
         --idx;
     }
+    // 同上：m_rates[0]，pair(下界, 上界)（ORIG 0x832cadc 段实证）
     const std::vector<unsigned int>& rates =
-        m_lvBonus[(int)bind].m_rates[(int)inRarity];
-    if (idx == 0 || idx >= rates.size())
+        m_lvBonus[(int)bind].m_rates[0];
+    if (idx == 0 || rates.size() <= idx)
     {
-        return std::pair<unsigned int, unsigned int>(0u, 0u);
+        int lo = 0;
+        int hi = 0;
+        return std::pair<unsigned int, unsigned int>(lo, hi);
     }
-    return std::pair<unsigned int, unsigned int>(rates[idx], rates[idx - 1] + 1);
+    return std::pair<unsigned int, unsigned int>(rates[idx - 1] + 1, rates[idx]);
 }
 
 unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T 0x832cc02
@@ -2426,19 +2450,12 @@ unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T
     {
         return 0;
     }
+    // ORIG while 形：size()!=0 && v[idx]<baseLevel 短路链，两调用每次
+    // 全地址重算（P48 无引用缓存）
     unsigned int idx = 0;
-    for (;;)
+    while (m_lvBonus[(int)bind].m_rates[(int)inRarity].size() != 0 &&
+           m_lvBonus[(int)bind].m_rates[(int)inRarity][idx] < baseLevel)
     {
-        const std::vector<unsigned int>& rates =
-            m_lvBonus[(int)bind].m_rates[(int)inRarity];
-        if (rates.size() == 0)
-        {
-            break;
-        }
-        if (rates[idx] >= baseLevel)
-        {
-            break;
-        }
         ++idx;
     }
     return idx;

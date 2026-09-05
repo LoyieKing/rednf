@@ -49,12 +49,21 @@ public:
 
     int m_field0;        // +0x00
     int m_field4;        // +0x04
-    int m_field8;        // +0x08
-    int m_fieldc;        // +0x0c
-    int m_field10;       // +0x10
-    int m_field14;       // +0x14
-    int m_field18;       // +0x18
-    int m_field1c;       // +0x1c
+    // P180 u64 别名（Main 批准批）：ORIG GetMapPlayingTime 0x085b6768 /
+    // ClearDungeon 0x085a94e0 均以双 sub/sbb 直对 64 位字段运算；int 拼接会
+    // 产生 sar/or 展开。union 别名不改任何偏移/尺寸。
+    union {                       // +0x08 played 结果（lo/hi）
+        struct { int m_field8; int m_fieldc; };
+        unsigned long long m_playedTime;
+    };
+    union {                       // +0x10 减数 1（baseTick）
+        struct { int m_field10; int m_field14; };
+        unsigned long long m_baseTick;
+    };
+    union {                       // +0x18 减数 2（enterTick）
+        struct { int m_field18; int m_field1c; };
+        unsigned long long m_enterTick;
+    };
     int m_field20;       // +0x20
     int m_field24;       // +0x24
     char m_flag28[4];    // +0x28

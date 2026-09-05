@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <utility>
+#include <stddef.h>   // offsetof（下方布局断言用）
 
 
 class CUser;   // SendCraneItemNeedMaterial(CUser*) 形参（Inter_LoadEtc 消费）
@@ -28,6 +29,33 @@ public:
     float m_viewRatio;                       // +0x0c（[viewRatio] ScanFloat）
     int m_pickRatio;                         // +0x10（[pickRatio] ScanInt）
 };                                           // sizeof = 0x14
+
+// 布局断言 —— 证据：ORIG importCraneMinigameScript 0x088e3924 逐条 disp：
+// `movl $0x14,(%esp); call _Znwj`（sizeof 0x14）、`mov %ax,(%ebx)`（+0 word）、
+// `mov %eax,0x4(%ebx)`（+4 dword）、`mov %ax,0x8(%ebx)`（+8 word）、
+// `fstps 0xc(%ebx)`（+0xc float）、`mov %eax,0x10(%ebx)`（+0x10 dword）。
+// 实测（4.4.7 -m32 模板参数回显）：sizeof=20、偏移 0/4/8/12/16。偏移断言走
+// POD 镜像（仓内 CDataManager.h/EquipmentParameterInfo.h 同法：带用户 ctor 的类
+// 直接 offsetof 会触发 GCC「invalid access to non-static data member of NULL
+// object」警告，镜像成员类型/顺序逐条照抄，零语义）。
+struct CraneItemInfoLayoutMirror
+{
+    unsigned short m_id;
+    unsigned short m_pad02;
+    int m_itemIdx;
+    unsigned short m_cnt;
+    unsigned short m_pad0a;
+    float m_viewRatio;
+    int m_pickRatio;
+};
+static_assert(sizeof(CraneItemInfoLayoutMirror) == 0x14
+                  && sizeof(CraneItemInfoLayoutMirror) == sizeof(CraneItemInfo),
+              "CraneItemInfo size drift (ORIG new 0x14)");
+static_assert(offsetof(CraneItemInfoLayoutMirror, m_id) == 0x00, "m_id +0x00 (mov %ax,(%ebx))");
+static_assert(offsetof(CraneItemInfoLayoutMirror, m_itemIdx) == 0x04, "m_itemIdx +0x04 (mov %eax,0x4(%ebx))");
+static_assert(offsetof(CraneItemInfoLayoutMirror, m_cnt) == 0x08, "m_cnt +0x08 (mov %ax,0x8(%ebx))");
+static_assert(offsetof(CraneItemInfoLayoutMirror, m_viewRatio) == 0x0c, "m_viewRatio +0x0c (fstps 0xc(%ebx))");
+static_assert(offsetof(CraneItemInfoLayoutMirror, m_pickRatio) == 0x10, "m_pickRatio +0x10 (mov %eax,0x10(%ebx))");
 
 // Action_SendMail（全局作用域，0x44 字节）内嵌于 +0x18..+0x5b；
 // 权威布局/成员见 InGameEventScripts.h（本头不再重复定义）。
@@ -55,6 +83,19 @@ public:
     CraneItemInfo* getItem(short idx);
 };
 
+// 布局断言 —— 证据：ORIG importCraneMinigameScript 0x088e3924 逐条 disp：
+// `mov %dx,(%eax)`（+0 word m_viewCnt）、`add $0x4,%eax` → vector::size /
+// push_back（+4 m_items）、`mov %eax,0x10(%edx)`（+0x10 dword m_material）、
+// `mov %dx,0x14(%eax)`（+0x14 word m_field14）、
+// `lea 0x18(%eax); call importActionMailScript`（+0x18 m_sendMail）、
+// `lea 0x5c(%eax); call vector<pair<int,int>>::push_back`（+0x5c m_needMaterials）。
+// Script/Manager 含非 Trivial 成员（vector / Action_SendMail），无法用 POD 镜像
+// 复刻偏移 ⇒ 只断言 sizeof（不触发 offsetof 警告）；偏移 0/4/16/20/24/92 与
+// sizeof=104(0x68) 已由 4.4.7 -m32 模板参数回显实测，成员偏移另由上方逐成员
+// ORIG disp 注释 + 本 TU importCraneMinigameScript 的具名字段访问锁定。
+static_assert(sizeof(CraneMinigameScript) == 0x68,
+              "CraneMinigameScript size drift (+0x5c vector 尾 0x68)");
+
 // ORIG C1 0x080ebc32 仅调 CraneMinigameScriptC1（构造 m_items/m_sendMail/
 // m_needMaterials）+ m_selectIdx=0；D1 仅调 CraneMinigameScriptD1。故
 // Manager 与 Script 同一对象布局，Manager 公开继承 Script（成员全部来自
@@ -81,5 +122,10 @@ public:
 private:
     unsigned char m_selectIdx;                     // +0x68（Script 无此成员）
 };
+
+// Manager 实测 sizeof=0x6c（+0x68 m_selectIdx 后补齐）；SendCraneItemNeedMaterial
+// 报告 0x080ebf2e `put_byte(this+0x68)` 实证偏移。
+static_assert(sizeof(CraneMinigameManager) == 0x6c,
+              "CraneMinigameManager size drift (+0x68 m_selectIdx 后补齐)");
 
 #endif  // DNF_GAME_CRANE_MINIGAME_MANAGER_H_

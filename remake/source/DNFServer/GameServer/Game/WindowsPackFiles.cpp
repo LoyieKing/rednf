@@ -760,28 +760,31 @@ bool WindowsDataFileFamily::GenerateRange(unsigned long* outStart,
 bool WindowsDataFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
                                              CodeHackCheckRangeEx* rangeEx) // 0x08575302
 {
+    // ORIG 0x08575302：GenerateRange 失败 → return 0（与 ExeFileFamily 恒 1 不同，
+    // 原码两版行为各异，逐版照抄）；rangeEx 回写在成功块内。
+    std::vector<WindowsDataFile*>::iterator it0;
+    CodeHackChecksum sum;
+    unsigned long rangeStart = 0;
+    unsigned long rangeLen = 0;
     ckEx->Clear();                                           // CodeHackChecksumData::Clear
     ckEx->SetFileName(m_name);
     rangeEx->SetFileName(m_name);
-
-    unsigned long rangeStart = 0;
-    unsigned long rangeLen = 0;
     if (!GenerateRange(&rangeStart, &rangeLen))
     {
         return false;
     }
-    rangeEx->m_start104 = static_cast<int>(rangeStart);
-    rangeEx->m_size108 = static_cast<int>(rangeLen);
-
-    CodeHackCheckRange range;
-    range.m_start = static_cast<int>(rangeStart);
-    range.m_size  = static_cast<int>(rangeLen);
-    for (std::size_t i = 0; i < m_files.size(); ++i)
     {
-        CodeHackChecksum sum;
-        m_files[i]->GenerateChecksum(&sum, rangeStart, rangeLen);
-        ckEx->SetCodeHackCheckRange(range);
-        ckEx->AddCodeHackChecksum(sum);
+        CodeHackCheckRange range;
+        range.m_start = static_cast<int>(rangeStart);
+        range.m_size  = static_cast<int>(rangeLen);
+        rangeEx->m_start104 = static_cast<int>(rangeStart);
+        rangeEx->m_size108 = static_cast<int>(rangeLen);
+        for (std::size_t i = 0; i < m_files.size(); ++i)
+        {
+            m_files[i]->GenerateChecksum(&sum, rangeStart, rangeLen);
+            ckEx->SetCodeHackCheckRange(range);
+            ckEx->AddCodeHackChecksum(sum);
+        }
     }
     return true;
 }
@@ -981,29 +984,30 @@ bool WindowsExeFileFamily::GenerateRange(long* outSecIdx,
 bool WindowsExeFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
                                             CodeHackCheckRangeEx* rangeEx) // 0x08574cf0
 {
-    ckEx->Clear();
-    ckEx->SetFileName(m_name);
-    rangeEx->SetFileName(m_name);
-
+    // ORIG 0x08574cf0 真形（Ghidra C 全文核读）：**恒 return 1**——GenerateRange
+    // 失败只是跳过聚合块，无 false 出口（前批 return false 系误转真语义 bug）；
+    // rangeEx 两字段回写位于成功块内；循环为迭代器形；sum 对象在函数头部声明。
+    std::vector<WindowsExeFile*>::iterator it0;
+    CodeHackChecksum sum;
     long secIdx = 0;
     unsigned long rangeStart = 0;
     unsigned long rangeLen = 0;
-    if (!GenerateRange(&secIdx, &rangeStart, &rangeLen))
+    ckEx->Clear();
+    ckEx->SetFileName(m_name);
+    rangeEx->SetFileName(m_name);
+    if (GenerateRange(&secIdx, &rangeStart, &rangeLen))
     {
-        return false;
-    }
-    rangeEx->m_start104 = static_cast<int>(rangeStart);
-    rangeEx->m_size108 = static_cast<int>(rangeLen);
-
-    CodeHackCheckRange range;
-    range.m_start = static_cast<int>(rangeStart);
-    range.m_size  = static_cast<int>(rangeLen);
-    for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
-    {
-        CodeHackChecksum sum;
-        m_exeFiles[i]->GenerateChecksum(&sum, secIdx, rangeStart, rangeLen);
-        ckEx->SetCodeHackCheckRange(range);
-        ckEx->AddCodeHackChecksum(sum);
+        CodeHackCheckRange range;
+        range.m_start = rangeStart;
+        range.m_size  = rangeLen;
+        rangeEx->m_start104 = static_cast<int>(rangeStart);
+        rangeEx->m_size108 = static_cast<int>(rangeLen);
+        for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+        {
+            m_exeFiles[i]->GenerateChecksum(&sum, secIdx, rangeStart, rangeLen);
+            ckEx->SetCodeHackCheckRange(range);
+            ckEx->AddCodeHackChecksum(sum);
+        }
     }
     return true;
 }

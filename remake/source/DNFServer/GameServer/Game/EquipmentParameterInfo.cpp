@@ -3009,24 +3009,61 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
             s_first = false;
             continue;
         }
-        if (token == "[/all skill item]")
+        // ORIG 0x089beeed..0x89bf247：函数局部 static map<char const*,int,less_TCHAR>
+        // 5 项（[/all skill item]=0x2fc1, [item growtype]=0x2fc5,
+        // [skill apply condition]=0x2fc9, [skill phase]=0x2fcd,
+        // [skill levelup]=0x2fd1，@0x89bef2c/89bef8a/89beffb/89bf06c/89bf0dd
+        // 逐条 !__inited 守卫+insert 链实证）→ find(token.c_str()) 分派。
+        int id;
+        {
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
+            {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[/all skill item]", 0x2fc1));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[item growtype]", 0x2fc5));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[skill apply condition]", 0x2fc9));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[skill phase]", 0x2fcd));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x2fd1));
+                if (!__inited)
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                }
+            }
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        if (id == 0x2fc1)
         {
             terminated = true;
             break;
         }
-        if (token == "[item growtype]")
+        if (id == 0x2fc5)
         {
             if (!GetItemGrowtype(&sp)) return 0;
         }
-        else if (token == "[skill apply condition]")
+        else if (id == 0x2fc9)
         {
             if (!GetSkillApplyCondition(&sp)) return 0;
         }
-        else if (token == "[skill phase]")
+        else if (id == 0x2fcd)
         {
             if (!GetSkillPhase(&sp)) return 0;
         }
-        else if (token == "[skill levelup]")
+        else if (id == 0x2fd1)
         {
             if (!GetSkillLevelUp(&sp.m_vec20)) return 0;
         }
@@ -4694,32 +4731,71 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
         e.m_v4 = ScanInt((bool*)0);
         e.m_module = scanModuleType();
         ScanStr(&line);   // 标签 token
-
-        if (line == "[static]")
+        // ORIG 0x088c077c..0x88c0a4f：函数局部 static map<char const*,int,less_TCHAR>
+        // 7 项（[static]=0xa47 [level]=0xa4b [cooltime]=0xa4f [mp]=0xa54
+        // [maintain mp]=0xa59 [skill consume item]=0xa5e [casting time]=0xa6d，
+        // insert 链 @0x88c078e..0x88c0a6b 逐条 !__inited 守卫实证）→ find 分派。
+        int id;
+        {
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
+            {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[static]", 0xa47));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[level]", 0xa4b));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[cooltime]", 0xa4f));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[mp]", 0xa54));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[maintain mp]", 0xa59));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[skill consume item]", 0xa5e));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[casting time]", 0xa6d));
+                if (!__inited)
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                }
+            }
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(line.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        if (id == 0xa47)
         {
             e.m_key = 0; e.m_v8 = ScanInt((bool*)0);
         }
-        else if (line == "[level]")
+        else if (id == 0xa4b)
         {
             e.m_key = 1; e.m_v8 = ScanInt((bool*)0);
         }
-        else if (line == "[cooltime]")
+        else if (id == 0xa4f)
         {
             e.m_key = 2; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
-        else if (line == "[mp]")
+        else if (id == 0xa54)
         {
             e.m_key = 3; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
-        else if (line == "[maintain mp]")
+        else if (id == 0xa59)
         {
             e.m_key = 4; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }
-        else if (line == "[skill consume item]")
+        else if (id == 0xa5e)
         {
             e.m_key = 5; e.m_v8 = ScanInt((bool*)0);
         }
-        else if (line == "[casting time]")
+        else if (id == 0xa6d)
         {
             e.m_key = 6; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
         }

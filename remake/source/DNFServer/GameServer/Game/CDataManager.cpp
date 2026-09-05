@@ -1720,6 +1720,13 @@ void* CDataManager::get_dungeon(int idx)
     return find_dungeon(idx);
 }
 
+// 残余 DIFF 归因（o=306 n=311；CStringMaker for_each 段/const 迭代器形/
+// cur-prev 单游标语义已按 ORIG 恢复）：① 70 元 multiset 数组 ORIG 4.1 发
+// 显式构造循环 `mov $0x45; 倒计数 call multiset C1`（0x08363d03..0x08363d2a），
+// 4.4.7 对 `multiset applyLevels[0x46]` 的构造循环寄存器/步序不可逐项复刻
+// （P151 同族形已用，槽 -0x6e4 对齐）；② for_each 段 4.4 引用别名物化槽
+// 使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
+// cleanup 展开）与 4.4 异常表结构差异属跨版本负例。
 bool CDataManager::reselectDailyTrainingQuest()
 {
     // ORIG 0x08363ce0 T。主分支：
@@ -1739,15 +1746,17 @@ bool CDataManager::reselectDailyTrainingQuest()
     for (int level = 1; level < 0x47; ++level)
     {
         m_dailyTrainingQuest[level - 1].clear();
-        int prevMin = 0x7fffffff;
         int prevApply = 0x7fffffff;
-        for (std::multiset<int>::iterator it = applyLevels[level - 1].begin();
-             it != applyLevels[level - 1].end(); ++it)
+        // ORIG 0x08363dee 调 _ZNKSt8multiset...beginEv（const 版）+
+        // _Rb_tree_const_iterator deref/!=，且无 iterator→const_iterator
+        // 转换调用 ⇒ 经 const 引用别名走 const 重载。
+        const std::multiset<int>& bucket = applyLevels[level - 1];
+        for (std::multiset<int>::const_iterator it = bucket.begin();
+             it != bucket.end(); ++it)
         {
-            prevApply = *it;
-            int questIdx =
-                m_trainingQuest.getTrainingQuest(level, prevApply, prevMin);
-            prevMin = prevApply;
+            int cur = *it;
+            int questIdx = m_trainingQuest.getTrainingQuest(level, cur, prevApply);
+            prevApply = cur;
             if (questIdx != 0x7fffffff)
             {
                 Quest* quest = m_questList->find_quest(questIdx);
@@ -1773,20 +1782,16 @@ bool CDataManager::reselectDailyTrainingQuest()
         m_trainingQuest.reset_same_apply_level_cnt();
         if (!m_dailyTrainingQuest[level - 1].empty())
         {
-            // [推断] ORIG 用 sync_script::CStringMaker 把 quest idx 拼成字符串后记
-            // cMyTrace；此处以逗号连接（语义等价）。
-            std::string questStr;
-            for (std::vector<int>::iterator vit =
-                     m_dailyTrainingQuest[level - 1].begin();
-                 vit != m_dailyTrainingQuest[level - 1].end(); ++vit)
-            {
-                char tmp[16];
-                sprintf(tmp, "%s%d", vit == m_dailyTrainingQuest[level - 1].begin() ? "" : ",",
-                        *vit);
-                questStr += tmp;
-            }
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2ad2, 0);
-            trace("TRAINING_QUEST level(%d), quest(%s)", level, questStr.c_str());
+            // ORIG 0x08363f58..0x08364075：maker(-0x44) 先构造，begin/end 落
+            // -0x3c/-0x40，for_each sret 回 -0x48（`for_each<normal_iterator
+            // <int*>,CStringMaker>` @0x0839519f），c_str()@0x08376034 → ebx，
+            // 再 cMyTrace 临时链（P37），末两 CStringMaker dtor@0x0837f580。
+            sync_script::CStringMaker maker;
+            sync_script::CStringMaker made = std::for_each(
+                m_dailyTrainingQuest[level - 1].begin(),
+                m_dailyTrainingQuest[level - 1].end(), maker);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2ad2, 0)(
+                "TRAINING_QUEST level(%d), quest(%s)", level, made.c_str());
         }
     }
     return 1;
@@ -1851,17 +1856,28 @@ int getCharacterJobToEnumValue(std::string& job)
 //   "[pvp team hp correction]"：ScanFloat 读取但丢弃（fstp st0）
 // 未知键忽略（继续 ScanType 循环）。
 // ============================================================================
+// 残余 DIFF 归因（o=318 n=309；ok 共享旗/落字段序/逗号 while/临时链已按
+// ORIG 恢复）：① resize 值参签名 `vector<GradeExp>::resizeEjS1_`(0x0891f268)
+// 为 4.1 libstdc++ 值传递形，4.4.7 头仅有 `resizeEjRKS1_` const& 形——跨
+// libstdc++ 版本结构性不可翻（范式库「libstdc++ 内部结构差」行）；② 内层
+// 逗号 while ORIG 头检测形 vs 4.4 循环旋转（P75/EvtC9 技巧①对该形未试全）；
+// ③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
+// ④ 入口三组 `jmp +0x42; nop` 中转岛 = 跨版本空 else nop;jmp 负例。
 int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 {
-    if (!loadRDARScriptFile("", path))
-        return 0x1816;
-
+    // ORIG 0x0890857b：ok(-0x25) 为函数级共享旗（入口 `movb $0,-0x25` 一次，
+    // 各 ScanInt(&ok) 复用不重置）；line(-0x2c) 先于 load 构造；各块
+    // 「先落 table 字段、后查 ok」（0x08908720/0x08908746/0x08908787）。
+    bool ok = false;
     std::string line;
+    if (!loadRDARScriptFile("", path))
+    {
+        return 0x1816;
+    }
     while (ScanType(line, true))
     {
         if (line == "[pvp experience max grade]")
         {
-            bool ok = false;
             int cnt = ScanInt(&ok);
             table.m_count = cnt + 1;
             if (!ok)
@@ -1871,51 +1887,43 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
         }
         else if (line == "[pvp experience]")
         {
-            while (true)
+            // ORIG 0x0890867f：while(逗号) 形——grade 先落 -0x10、再查 ok；
+            // 内层失败 ebx=0x182d；exp 落 -0xc；operator[] LHS 地址先行
+            // （0x089086c1），stPvPGradeExp_t(grade,exp) 临时(-0x1c) 后构，
+            // 末两 dword 写入。
+            int grade = 0;
+            while (grade = ScanInt(&ok), ok == true)
             {
-                bool ok = false;
-                int grade = ScanInt(&ok);
+                int exp = ScanInt(&ok);
                 if (!ok)
-                    break;
-                bool ok2 = false;
-                int exp = ScanInt(&ok2);
-                if (!ok2)
                     return 0x182d;
-                stPvPGradeExp_t g;
-                g.a = grade;
-                g.b = exp;
-                table.m_grades[grade] = g;
+                table.m_grades[grade] = stPvPGradeExp_t(grade, exp);
             }
         }
         else if (line == "[pvp experience loss]")
         {
-            bool ok = false;
-            int v1 = ScanInt(&ok);
+            table.m_pvpExpLoss1 = ScanInt(&ok);
             if (!ok)
+            {
                 return 0x1835;
-            table.m_pvpExpLoss1 = v1;
-            bool ok2 = false;
-            int v2 = ScanInt(&ok2);
-            if (!ok2)
+            }
+            table.m_pvpExpLoss2 = ScanInt(&ok);
+            if (!ok)
+            {
                 return 0x1838;
-            table.m_pvpExpLoss2 = v2;
+            }
         }
         else if (line == "[pvp rank rate grade]")
         {
-            bool ok = false;
-            int v = ScanInt(&ok);
+            table.m_rankRateGrade = ScanInt(&ok);
             if (!ok)
                 return 0x183e;
-            table.m_rankRateGrade = v;
         }
         else if (line == "[pvp rank rate]")
         {
-            while (true)
+            int v = 0;
+            while (v = ScanInt(&ok), ok == true)
             {
-                bool ok = false;
-                int v = ScanInt(&ok);
-                if (!ok)
-                    break;
                 table.m_rankRate.push_back(v);
             }
         }
@@ -1949,7 +1957,8 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             std::string job;
             while (ScanStr(&job))
             {
-                table.m_recordOrder.push_back(getCharacterJobToEnumValue(job));
+                int idx = getCharacterJobToEnumValue(job);
+                table.m_recordOrder.push_back(idx);
             }
         }
         else if (line == "[pvp team hp correction]")

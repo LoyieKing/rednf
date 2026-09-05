@@ -1017,6 +1017,9 @@ void CUser::ResetDBLogItem()
 
 void CUser::DBUpdateDBLogItem() const
 {
+    // ORIG：it 槽 -0x24（比 4.4 默认远 4）——前置 dead int 占 -0x20（技巧 31）。
+    unsigned int slotPad;
+    (void)slotPad;
     for (std::vector<_DBLogItemInfo>::const_iterator it = m_dbLogItems.begin();
          it != m_dbLogItems.end(); ++it)
     {
@@ -1816,10 +1819,10 @@ void CUser::send_equip(int slot)
 void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
                          ENUM_DBLOG_ITEM_TYPE value)
 {
-    // ORIG 0x08689360：循环步进用后置 it++（ppEi 符号），非 ++it
-    // 槽序（技巧 21）：ORIG info=-0x20（远）/it=-0x14（近）——4.4 先声明占远槽，
-    // 平凡类型 info 声明上提不产生代码，仅锚槽位。
-    _DBLogItemInfo info;
+    // ORIG 0x08689360：循环步进用后置 it++（ppEi 符号），非 ++it。
+    // 槽序实证（2026-09-05 CUserC8 修正前批方向）：ORIG info=-0x14（近，5 处
+    // lea -0x14）/it=-0x20（远）——4.4 后声明占近槽（技巧 21 正用）：info 声明
+    // 置于 for-init 之后。
     for (std::vector<_DBLogItemInfo>::iterator it = m_dbLogItems.begin();
          it != m_dbLogItems.end(); it++)
     {
@@ -1829,6 +1832,7 @@ void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
             return;
         }
     }
+    _DBLogItemInfo info;
     memset(&info, 0, 0xc);
     info.m_itemIdx = itemIdx;
     info.m_type = type;
@@ -2478,13 +2482,17 @@ int CUser::get_pvp_WinningRate_relateMission() const
 
 int CUser::get_aura_avatar_option_value(int idx)
 {
-    const _Charac_info* cur = getCurCharacR();
-    if (!cur)
+    // ORIG：判空 = 4.1 bool 物化 `test eax;setne al;test;je`（技巧 22 形，指针
+    // 结果免槽）；界检查单条无符号 `cmp $2; jg`（(unsigned)idx>2 吸收负数）；
+    // 取值**二次** getCurCharacR call（结果直用 `add $0x4a0; mov 0x1(%eax,%edx,4)`
+    // scaled 单级，scaled 分解残差记 N）。
+    register bool nul asm("al");
+    nul = (getCurCharacR() == 0);
+    if (nul)
         return -1;
-    if (idx < 0 || idx > 2)
+    if (idx < 0 || idx > 2)   // ORIG 双 mem cmp（js+jg）；unsigned 合并形反产 jbe+岛
         return -1;
-    // cur+0x1281+idx*4 = m_auraValue[idx]
-    return (&cur->m_auraValue0)[idx];
+    return (&getCurCharacR()->m_auraValue0)[idx];
 }
 
 void CUser::SetTradeSpace(int idx)
@@ -4512,10 +4520,9 @@ int CUser::getCharacLevelByCharacNo(int characNo) const
     for (; it != itend; ++idx, ++it)   // ORIG 0x84ecc4f ++idx 先于 ppEv
     {
         if (it->m_characNo == characNo)
-            // ORIG 0x84ecc49 单条 movzwl 0x27(%eax) 零扩展读（字段本体 short——
-            // CalcurateUserMaxLevel 0x869?? movzwl+cwtl 段证 signed，此处系 ORIG
-            // 显式 (unsigned short) cast）。4.4 值/p 指针 cast 均产两段 HImode 形
-            //（movzwl %ax,%eax 或 add+movzwl，probe 二试）——fold-const 残差 1 行。
+            // ORIG 0x84ecc49 单条 movzwl 0x27(%eax)（字段 short+源 (unsigned short)
+            // cast）。4.4 值 cast/register eax/&0xffff 三 probe 均产两段或三段
+            //（HImode 往返/符号化）——fold-const 残差 1 行封顶。
             return (unsigned short)it->m_level;
     }
     return -1;
@@ -4574,8 +4581,10 @@ int CUser::GetCharacViewState(int idx) const
 
 bool CUser::SetCharacViewStateByCharacNo(int characNo, int state)
 {
-    for (std::vector<_Charac_info>::iterator it = m_characList.begin();
-         it != m_characList.end(); ++it)
+    // ORIG 0x0868??：prologue begin→-0xc、end→-0x10 双缓存（技巧 25/T-CU3）。
+    std::vector<_Charac_info>::iterator it = m_characList.begin();
+    std::vector<_Charac_info>::iterator itend = m_characList.end();
+    for (; it != itend; ++it)
     {
         if (it->m_characNo == characNo)
         {
@@ -5631,14 +5640,14 @@ bool CUser::acceptable_within_mission() const
 
 bool CUser::isDuplicationMessage(const std::string& msg)
 {
-    bool dup = (msg == m_str79664[0]) || (msg == m_str79664[1]);
+    // ORIG 0x08688826：比较实参 = `lea 0x79664/0x79668(%eax),%edx` + `mov %eax,
+    // 0x4(%esp)` ⇒ **m_str[i] == msg**（str 在左占 this 槽，原 msg==str 反序）；
+    // idx 单 byte 槽 -0x9 + `movsbl %al,%eax` 原地（具名 slot 指针中转变量多占
+    // -0xc/-0xd 两槽致帧与序全偏，技巧 36 删中转）。
+    bool dup = (m_str79664[0] == msg) || (m_str79664[1] == msg);
     unsigned char idx = m_dupMsgSlotIdx;
-    // ORIG 0x08688826 写址 = this+0x79664+idx*4（Ghidra `(idx+0x1e598)*4+4` 换算
-    // = 0x79664+idx*4，即 m_str79664[idx]）。原 +0x79670 系误基址（会踩
-    // m_field79670/m_moneyLogs），修正。
-    std::string* slot = &m_str79664[idx];
-    *slot = msg;
-    m_dupMsgSlotIdx = idx ^ 1;
+    m_str79664[idx] = msg;   // 写址 this+0x79664+idx*4（Ghidra (idx+0x1e598)*4 换算）
+    m_dupMsgSlotIdx = m_dupMsgSlotIdx ^ 1;   // ORIG 0x8688?? `mov 0x8; movzbl 0x7966c` 重读成员
     return dup;
 }
 
@@ -5770,9 +5779,14 @@ void CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, 
 
 bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
 {
-    const WongWork::CDungeonClear* pClear = getDungeonClearRefR();
-    char curDiff = pClear->getClearedDungeonDiff(dungeonIdx);
-    if (curDiff < clearCount)
+    // ORIG 0x086??：getClearedDungeonDiff 结果 movsbl %al,%eax 原地单段（无 char
+    // 槽物化）+ 比较 setl %al;test;je 尾物化岛（技巧 22 register bool al，直折
+    // jge 反形）；残差 movswl %ax,%ebx（4.1 arg 截断 sext 直落 ebx）N18a。
+    // 二修：getter 结果直用免槽（技巧 37，ORIG call 后 %eax 即 this 实参）、
+    // 正向 `if(less)`（`!less` 反产 xor$1 取反）。
+    register bool less asm("al");
+    less = (getDungeonClearRefR()->getClearedDungeonDiff(dungeonIdx) < clearCount);
+    if (less)
     {
         getDungeonClearRefW()->addClearedDungeon(dungeonIdx, clearCount);
         return true;
@@ -8287,12 +8301,17 @@ void CUser::add_pvp_play_info(unsigned int a, unsigned int b)
     if (getPVPResultRefR()->m_nextResetTime + 0x15180 < (int)now)
     {
         getPVPResultRefW()->m_todayLoseCount = 0;
+        // ORIG 0x0865d??：&tmv 存指针槽 -0xc（`lea -0x3c,%eax; mov %eax,-0xc`），
+        // 三清零与 mktime 均 `mov -0xc,%eax` reload 解引用——4.4 值形会直写折掉
+        // 指针槽（技巧 36 反向：ORIG 保留中转），显式指针对象还原。
         tm tmv;
-        localtime_r(&now, &tmv);
-        tmv.tm_hour = 0;
-        tmv.tm_min = 0;
-        tmv.tm_sec = 0;
-        getPVPResultRefW()->m_nextResetTime = mktime(&tmv) + 0x15180;
+        // ORIG 0x0865da??：指针 = **localtime_r 返回值直用**（call 后 %eax 即 &tmv，
+        // `mov %eax,-0xc` 存槽，无二次 lea）。
+        tm* pTmv = localtime_r(&now, &tmv);
+        (*pTmv).tm_hour = 0;
+        (*pTmv).tm_min = 0;
+        (*pTmv).tm_sec = 0;
+        getPVPResultRefW()->m_nextResetTime = mktime(pTmv) + 0x15180;
     }
     getPVPResultRefW()->m_todayLoseCount += a;
     getPVPResultRefW()->m_todayPlayCount += b;
@@ -9510,9 +9529,13 @@ bool CUser::getCurrentCharacRentalInfo(
 void CUser::setCurrentCharacRentalInfo(
     std::vector<InstanceRentalSystem::RentalInfo>& in, int param)
 {
-    if (getCurCharacR() == 0)
+    // ORIG 0x8677516：cur 落 -0xc 槽判空（mov %eax,-0xc; cmpl $0,-0xc; je）；
+    // characNo = 直读 cur->m_characNo（`mov (%eax),%eax` @0x867752x，非
+    // getCurCharacNo 调用——我们旧形多一次 call 且判空被折 test;setne）。
+    const _Charac_info* cur = getCurCharacR();
+    if (cur == 0)
         return;
-    unsigned int characNo = (unsigned int)getCurCharacNo();
+    unsigned int characNo = (unsigned int)cur->m_characNo;
     if (characNo == 0)
         return;
     m_rentalInfo[(unsigned int)param][characNo] = in;

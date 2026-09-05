@@ -1661,118 +1661,143 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
                   " job_score,daily_play_count, unix_timestamp(last_play_time),"
                   " give_item from fair_pvp_score where charac_no=%u",
                   sig->m_characNo);
-    if (!db->exec(true))
+    // ORIG local_19（-0x15）为复用的 bool 结果槽：每步 call 后 `mov %al,-0x15;`
+    // `movzbl; xor$1; test; je` —— 命名 bool ok 赋值再判触发同形。
+    bool ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tr1(__PRETTY_FUNCTION__,
                        0x1618, 5);
-        trace("DB_LoadSkill::LoadFairPvPScore, exec() ERROR charac_no=%u",
+        tr1("DB_LoadSkill::LoadFairPvPScore, exec() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
     }
 
-    int col = 1;
+    int col = 0;                                            // 8904461 movl $0,-0x10
     if (db->get_n_rows() == 0)
     {
         db->set_query("inSert into fair_pvp_score (charac_no) values(%u)",
                       sig->m_characNo);
-        if (!db->exec(true))
+        ok = db->exec(true);                                // ORIG local_19 复用同槽
+        if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
+            cMyTrace tr2(__PRETTY_FUNCTION__,
                            0x1625, 5);
-            trace("DB_LoadEtc::LoadFairPvPScore insert, exec() ERROR"
+            tr2("DB_LoadEtc::LoadFairPvPScore insert, exec() ERROR"
                   " charac_no=%u", sig->m_characNo);
             return false;
         }
         return true;
     }
 
-    if (!db->fetch())
+    ok = db->fetch();
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tr3(__PRETTY_FUNCTION__,
                        0x162f, 5);
-        trace("DB_LoadEtc::LoadFairPvPScore, fetch() ERROR charac_no=%u",
+        tr3("DB_LoadEtc::LoadFairPvPScore, fetch() ERROR charac_no=%u",
               sig->m_characNo);
         return false;
     }
 
-    // 前 6 列按 i∈[0,1] 三连 uint 结构装载（stride 0xc，基址 +0xcf23）。
+    // 前 6 列：i∈[0,1] 外层循环内 3 个显式 get（ORIG 8904474..8904636 无内层循环，
+    // 字段地址 = sig + i*0xc + 0xcf23/27/2b；行号 0x1638/0x163f/0x1646）。
     for (int i = 0; i <= 1; ++i)
     {
-        for (int k = 0; k < 3; ++k)
+        ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 0]);
+        if (!ok)
         {
-            const int lineNo =
-                (k == 0) ? 0x1638 : (k == 1) ? 0x163f : 0x1646;
-            if (!db->get_uint(col++, sig->m_fairPvpScore[i * 3 + k]))
-            {
-                cMyTrace trace(__PRETTY_FUNCTION__,
-                               lineNo, 5);
-                trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-                      col, sig->m_characNo);
-                return false;
-            }
+            cMyTrace tr4(__PRETTY_FUNCTION__, 0x1638, 5);
+            tr4("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+                  col, sig->m_characNo);
+            return false;
         }
-    }
-
-    static const struct
-    {
-        int idx;      // m_fairPvpScore 下标（+0xcf23 + idx×4）
-        int line;
-    } plainCols[] =
-    {
-        { 6, 0x1667 },   // successive_win   → +0xcf3b
-        { 7, 0x166e },   // max_successive_win → +0xcf3f
-        { 8, 0x1675 },   // job_score        → +0xcf43
-        { 9, 0x167c },   // daily_play_count → +0xcf47
-    };
-    for (int n = 0; n < 4; ++n)
-    {
-        if (!db->get_uint(col++, sig->m_fairPvpScore[plainCols[n].idx]))
+        ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 1]);
+        if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           plainCols[n].line, 5);
-            trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+            cMyTrace tr5(__PRETTY_FUNCTION__, 0x163f, 5);
+            tr5("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+                  col, sig->m_characNo);
+            return false;
+        }
+        ok = db->get_uint(col++, sig->m_fairPvpScore[i * 3 + 2]);
+        if (!ok)
+        {
+            cMyTrace tr6(__PRETTY_FUNCTION__, 0x1646, 5);
+            tr6("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
                   col, sig->m_characNo);
             return false;
         }
     }
-
-    if (!get_compressed_blob_data(db, col++, sig->m_fairPvpGiveItem, 0x650, 0))
-    {                                                        // give_item
-        return false;
-    }
-    if (!db->get_uint(col++, sig->m_fairPvpLastPlayTime))    // +0xd59b
-    {                                                        // unix_timestamp(last_play_time)
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x1689, 5);
-        trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
-              col, sig->m_characNo);
-        return false;
-    }
-    int lastPlay = 0;
-    if (!db->get_int(col++, lastPlay))                       // give_item 后整型重读？
+    // 4 个独立 uint 列（8904649.. 平铺 je 前进/失败落 log 岛；行号 1667/6e/75/7c）
+    ok = db->get_uint(col++, sig->m_fairPvpScore[6]);        // successive_win +0xcf3b
+    if (!ok)
     {
-        // ORIG 本列实为 get_int(行号 0x1690)；占位目标与下方一致。
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x1690, 5);
-        trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+        cMyTrace tr7(__PRETTY_FUNCTION__, 0x1667, 5);
+        tr7("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
               col, sig->m_characNo);
         return false;
     }
-    sig->m_fairPvpLastPlaySec = lastPlay;                // 实际报告写点 +0xd59f
+    ok = db->get_uint(col++, sig->m_fairPvpScore[7]);        // max_successive_win +0xcf3f
+    if (!ok)
+    {
+        cMyTrace tr8(__PRETTY_FUNCTION__, 0x166e, 5);
+        tr8("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+              col, sig->m_characNo);
+        return false;
+    }
+    ok = db->get_uint(col++, sig->m_fairPvpScore[8]);        // job_score +0xcf43
+    if (!ok)
+    {
+        cMyTrace tr9(__PRETTY_FUNCTION__, 0x1675, 5);
+        tr9("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+              col, sig->m_characNo);
+        return false;
+    }
+    ok = db->get_uint(col++, sig->m_fairPvpScore[9]);        // daily_play_count +0xcf47
+    if (!ok)
+    {
+        cMyTrace tr10(__PRETTY_FUNCTION__, 0x167c, 5);
+        tr10("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+              col, sig->m_characNo);
+        return false;
+    }
+
+    // give_item 压缩列：fail 无 log（ORIG else 直落 return 0 岛 @89053xx）
+    if (!get_compressed_blob_data(db, col++, sig->m_fairPvpGiveItem, 0x650, 0))
+    {
+        return false;
+    }
+    ok = db->get_uint(col++, sig->m_fairPvpLastPlayTime);    // +0xd59b
+    if (!ok)
+    {
+        cMyTrace tr11(__PRETTY_FUNCTION__, 0x1689, 5);
+        tr11("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+              col, sig->m_characNo);
+        return false;
+    }
+    // get_int 直写 sig+0xd59f（ORIG 无中间局部；行号 0x1690）
+    ok = db->get_int(col++, sig->m_fairPvpLastPlaySec);
+    if (!ok)
+    {
+        cMyTrace tr12(__PRETTY_FUNCTION__, 0x1690, 5);
+        tr12("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+              col, sig->m_characNo);
+        return false;
+    }
     if (sig->m_fairPvpLastPlaySec < getDailyInitializeTime(6, 0, 0))
     {
         sig->m_fairPvpLastPlayTime = 0;                  // ORIG movl $0x0,+0xd59b
     }
-    unsigned char giveFlag = 0;
-    if (!db->get_ubyte(col++, giveFlag))                     // 末列 → +0xd5a3
+    // 末列 get_ubyte 直写 +0xd5a3（行号 0x16a5）
+    ok = db->get_ubyte(col++, sig->m_fairPvpGiveFlag);
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x16a5, 5);
-        trace("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
+        cMyTrace tr13(__PRETTY_FUNCTION__, 0x16a5, 5);
+        tr13("DB_LoadEtc::LoadFairPvPScore, get(%d) ERROR charac_no=%u",
               col, sig->m_characNo);
         return false;
     }
-    sig->m_fairPvpGiveFlag = giveFlag;                   // +0xd5a3
     return true;
 }
 
@@ -2012,51 +2037,59 @@ bool DB_LoadEtc::LoadEventServerMessageInfo(SIG_LOAD_ETC* sig)
         return false;
     }
 
-    int nRows = db->get_n_rows();
-    char message[50];
-    char name[20];
-    char kind = 0;
-    char msgIndex = 0;
-    int updateTime = 0;
-    int written = 0;
+    int nRows = db->get_n_rows();                            // local_18
+    bool ok = false;                                         // local_11 复用结果槽
+    char kind = 0;                                           // local_1d
+    char msgIndex = 0;                                       // local_1e
+    // ORIG 89045735.. 两段展开初始化：message[0x32] 走 2B头+rep stos+2B/1B尾
+    // （= 大数组 {0} 初始化形），name[0x14] 走 5 条 movl（小数组）。
+    char message[50] = { 0 };                                // local_6a
+    char name[20] = { 0 };                                   // local_32
+    int updateTime = 0;                                      // local_38
+    int written = 0;                                         // -0x10（entry 索引）
 
-    for (int i = 0; i < nRows; ++i)
+    for (int i = 0; i < nRows; ++i)                          // -0xc（循环计数）
     {
-        if (!db->fetch())
+        ok = db->fetch();
+        if (!ok)
         {
             return false;
         }
-        if (!db->get_byte(0, kind))                          // col0 kind
+        ok = db->get_byte(0, kind);                          // col0 kind
+        if (!ok)
         {
             return false;
         }
-        if (!db->get_byte(1, msgIndex))                      // col1 message_index
+        ok = db->get_byte(1, msgIndex);                      // col1 message_index
+        if (!ok)
         {
             return false;
         }
-        if (!db->get_str(2, name, 20))                       // col2 charac_name
+        ok = db->get_str(2, name, 0x14);                     // col2 charac_name
+        if (!ok)
         {
             return false;
         }
-        if (!db->get_str(3, message, 50))                    // col3 message
+        ok = db->get_str(3, message, 0x32);                  // col3 message
+        if (!ok)
         {
             return false;
         }
-        if (!db->get_int(4, updateTime))                     // col4 update_time
+        ok = db->get_int(4, updateTime);                     // col4 update_time
+        if (!ok)
         {
             return false;
         }
 
-        SIG_ETC_EVENT_MESSAGE* entry = &sig->m_eventMessages[written];
-        entry->m_kind  = (unsigned char)kind;            // 条目+0x00 movb
-        entry->m_index = (unsigned char)msgIndex;        // 条目+0x01 movb
-        size_t msgLen = strlen(message);
-        entry->m_messageLen = (unsigned int)msgLen;      // 条目+0x04 movl
-        strncpy(entry->m_message, message, msgLen);      // 条目+0x08
-        size_t nameLen = strlen(name);
-        entry->m_nameLen = (unsigned int)nameLen;        // 条目+0x3c movl
-        strncpy(entry->m_name, name, nameLen);           // 条目+0x40
-        entry->m_updateTime = updateTime;                // 条目+0x54 movl
+        // ORIG 89058e6..9cb：每个写点独立重算 sig + written*0x58 + base（P157 逐字段
+        // operator[] 重读，不缓存 entry 指针）；strlen/strcpy 结果直存。
+        sig->m_eventMessages[written].m_kind = (unsigned char)kind;       // +0x00
+        sig->m_eventMessages[written].m_index = (unsigned char)msgIndex;  // +0x01
+        sig->m_eventMessages[written].m_messageLen = strlen(message);     // +0x04
+        strcpy(sig->m_eventMessages[written].m_message, message);         // +0x08
+        sig->m_eventMessages[written].m_nameLen = strlen(name);           // +0x3c
+        strcpy(sig->m_eventMessages[written].m_name, name);               // +0x40
+        sig->m_eventMessages[written].m_updateTime = updateTime;          // +0x54
         ++written;
     }
 

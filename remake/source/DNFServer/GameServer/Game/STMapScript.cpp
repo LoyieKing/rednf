@@ -880,8 +880,9 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_element = 4;                          // param_1[0x1b]=4
     m_vecTile.clear();                      // vector<string>::clear(+0x1c)
     m_vecExtendedTile.clear();              // vector<string>::clear(+0x1f)
-    for (int i = 0; i < 6; ++i)             // 2×3 循环 param_1[0x22+..]=100
-        m_sightScroll[i] = 100;
+    for (int r = 0; r < 2; ++r)             // ORIG 0x0836c7f7：2×3 嵌套循环
+        for (int c = 0; c < 3; ++c)         // （外 -0x20≤1、内 -0x1c≤2）写回
+            m_sightScroll[r * 3 + c] = 100; //  0x20+r*3+c word 基 0x22..0x27
     m_vecBackAni.clear();                   // vector<BackAniScript>::clear(+0x28)
     m_vecBackGroundEffect.clear();          // vector<BackGroundEffect>::clear(+0x2b)
     m_vecBlockEffect.clear();               // vector<BackGroundEffectBlock>::clear(+0x2e)
@@ -893,10 +894,12 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_vecTownMovableArea.clear();           // vector<TownPath>::clear(+0x37)
     m_vecVirtualMovableArea.clear();        // vector<MapArea>::clear(+0x3a)
     m_vecGuildAgitEntrance.clear();         // vector<TownPath>::clear(+0x3d)
-    for (int i = 0; i < 8; ++i)             // 4×2 循环 param_1[0x40+..]=0
+    for (int i = 0; i < 4; ++i)             // ORIG 0x0836c91b：外层 4（-0x20≤3）
     {
-        m_pathgatePos[i] = 0;               // param_1[i*2+j+0x40]
-        m_pathgateRange[i] = 0;             // param_1[i*2+j+0x48]
+        for (int j = 0; j < 2; ++j)         // ORIG 0x0836c8f0/938：每外轮两
+            m_pathgatePos[i * 2 + j] = 0;   // 个内层 2 步循环（0x40+i*2+j、
+        for (int j = 0; j < 2; ++j)         // 0x48+i*2+j word 基）
+            m_pathgateRange[i * 2 + j] = 0;
     }
     m_dungeonStartArea.clear();             // MapArea::clear(+0x50)
     m_openingBgm.clear();                   // Ss::clear(+99=0x18c)
