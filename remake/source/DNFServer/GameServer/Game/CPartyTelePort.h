@@ -15,11 +15,12 @@ struct stPartyTelePort
     char m_pad1;
     short m_posx;
     short m_posy;
-    // ORIG mangled _ZN14CPartyTelePort16set_teleport_dataEhhsshc 第 5 参 = `s`
-    // (short)；0x08283d98 `movzwl 0x8(%edx),%edx; mov %dx,0xc(%eax)` 16 位拷贝
-    // ⇒ +0x08 是 short（占 8..9），尾 pad 相应缩为 2 字节（sizeof 仍 12）。
-    short m_direction;
-    char m_pad2[2];
+    // 字段宽度权威证据（撤销一次 short 误判）：ORIG mangled
+    // _ZN14CPartyTelePort16set_teleport_dataEhhsshc 参数编码 = h,h,s,s,**h**,c
+    // ⇒ direction 是 unsigned char；0x085bb88c `mov %dl,-0x3c(%ebp)`（1 字节
+    // store）与 0x085bf68e `movzbl`（1 字节读）双向实证。
+    unsigned char m_direction;
+    char m_pad2[3];
 };
 
 class CParty;

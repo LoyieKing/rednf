@@ -61,9 +61,9 @@ void PlayerInfoSecond::reset()
 // TeamInfoSecond
 // ---------------------------------------------------------------------------
 
-/* COnlinePreliminary ctor 未触碰 teams 区——保持 POD 语义【推断】；生命周期
- * 首次使用前经 OnCreateRoom/reset 显式清零。*/
-TeamInfoSecond::TeamInfoSecond() {}
+/* COnlinePreliminary ctor 未触碰 teams 区、ORIG nm 无 TeamInfoSecond::C1/C2
+ * ⇒ 无用户 ctor（POD 语义）；生命周期首次使用前经 OnCreateRoom/reset 显式
+ * 清零。声明用户 ctor 会让 4.4 在本 TU ctor 生成数组元素构造循环（ORIG 无）。 */
 
 /* ORIG reset T 0x855fdc0 */
 void TeamInfoSecond::reset()
@@ -84,9 +84,11 @@ int TeamInfoSecond::add(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
     {
-        /* ORIG @0855fe18 xor $1 / test / je：显式 ^1 复现（4.4 !byte 恒折
-         * test;jne） */
-        if ((m_seats[i].m_flag ^ 1) != 0)
+        /* ORIG @0855fe18 xor $1,%eax / test / je：register asm("eax") 钉住
+         * 装载结果使 ^1 原地出 xor（技巧16），阻断 4.4 fold-const 折 cmp */
+        register unsigned char fv asm("eax") = m_seats[i].m_flag;
+        fv ^= 1;
+        if (fv)
         {
             m_seats[i].m_flag = 1;
             m_seats[i].m_user = user;
@@ -199,6 +201,10 @@ int COnlinePreliminary::nextAuthValue_ = 0;
 COnlinePreliminary::COnlinePreliminary()
 {
     if (pWaitingRoomList_ == 0)
+        /* ORIG @0855ff42-0x66 value-init 有 6 条标量置零（4.1 对 new T() 先
+         * 清零再调 C1@0855ff70）；4.4 视 user-provided ctor 类免置零直调，
+         * probe(placement new+try) 反而引入 operator new(void*,ptr) call +
+         * EH spill，保留直译，置零差记 N 类 */
         pWaitingRoomList_ = new CLeagueMatchRoomList();   // ORIG new(0x1c)+置零+C1
     nWaitingRoomListRefCount_ = nWaitingRoomListRefCount_ + 1;
 }
@@ -349,11 +355,13 @@ PvP_Room* COnlinePreliminary::_MakeRoom(CUser* user)
     return (PvP_Room*)0;
 }
 
-/* ORIG T 0x085612a4：经 pWaitingRoomList_ vtable+0（IRoomList::AddRoom）虚调用 */
-void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* room)
+/* ORIG T 0x85612a4：vtable+0（IRoomList::AddRoom）虚调。@085612b3
+ * mov 0x8(%ebp),%edx→0x4(%esp)(@+0x17)：实参为 this（与 CFairMatch 同族
+ * 0x08563a32 一致），room 形参未用；具名 list 中转致 4.4 多 -0xc 槽【技巧
+ * 36】→ 直调 */
+void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* /*room*/)
 {
-    IRoomList* list = pWaitingRoomList_;
-    list->AddRoom(reinterpret_cast<IMatch*>(room));
+    pWaitingRoomList_->AddRoom(this);
 }
 
 // ---------------------------------------------------------------------------
@@ -413,19 +421,28 @@ int COnlinePreliminary::_CheckMatchable(PvP_Room* room) const
         CUser* u = reinterpret_cast<CUser*>(room->get_user_seat(i));
         if (u == 0)
             continue;
-        int tid = u->GetCurCharacOnlinePreliminaryTeamId();
+        /* ORIG @08561327 firstTeamId==0 分支内独立 call(@+0x6d) 赋 -0x14 后
+         * jmp 增量块(@+0x75)；else @+0x7d 再次 call + cmp -0x14,%eax; setne
+         * 物化(@+0x85【技巧22】)；log 分支 @+0x92 第三次 call */
         if (firstTeamId == 0)
-            firstTeamId = tid;
-        else if (tid != firstTeamId)
         {
-            LogManager::logFormat(
-                1, "MatchingSystem.cpp",
-                __PRETTY_FUNCTION__,
-                0x771, "(%d) found a different team_id(%d)", tid);
-            return 0x16;
+            firstTeamId = u->GetCurCharacOnlinePreliminaryTeamId();
+            continue;
         }
+        register bool ne asm("al");
+        ne = (u->GetCurCharacOnlinePreliminaryTeamId() != firstTeamId);
+        if (!ne)
+            continue;
+        int tid = u->GetCurCharacOnlinePreliminaryTeamId();
+        LogManager::logFormat(
+            1, "MatchingSystem.cpp",
+            __PRETTY_FUNCTION__,
+            0x771, "(%d) found a different team_id(%d)", tid);
+        return 0x16;
     }
-    return (m_teams[0].size() - observers == (int)(GetPlayCountPerOneTeam() & 0xff))
+    /* ORIG 尾 cmp %eax,%ebx（size 直落 ebx 跨 call）属 N22 类不可翻；
+     * byte 化用 (unsigned char) 强转产 movzbl(@085613c0) */
+    return (m_teams[0].size() - observers == (int)(unsigned char)GetPlayCountPerOneTeam())
                ? 0 : 0x16;
 }
 
@@ -512,18 +529,23 @@ float COnlinePreliminary::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
     return m_teams[(int)team].m_rating;
 }
 
-/* ORIG T 0x08560082 */
-int COnlinePreliminary::_GetRating(CUser* user)
+/* ORIG T 0x08560082：f 槽(-0xc)无 entry 初始化；else 路径 @085600e8
+ * `mov $0,%eax` 单物化；尾 merge `mov %eax,-0xc; flds -0xc`(@085600ed) */
+float COnlinePreliminary::_GetRating(CUser* user)
 {
-    float f = 0.0f;
+    /* ORIG(@08560082) 各分支 fstps 后 `mov -0xc,%eax` 经 int 路汇入 merge、
+     * 尾 `mov %eax,-0xc; flds -0xc` 同槽复用——4.4 恒另开 -0x1c float 临时
+     * 槽往返（probe：类型双关写/register asm("eax") 均产 lea/mov 间接形更
+     * 差），属 N18a 类跨版本 float 返回物化差 */
+    float f;
     if ((char)GetPlayCountPerOneTeam() == 1)
         f = reinterpret_cast<COnlinePreliminaryMember*>(
                 user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)4))->GetRating();
     else if (user->GetCurCharacOnlinePreliminaryTeam() != 0)
         f = user->GetCurCharacOnlinePreliminaryTeam()->GetRating();
-    int bits;
-    memcpy(&bits, &f, sizeof(bits));
-    return bits;
+    else
+        f = 0.0f;
+    return f;
 }
 
 /* ORIG T 0x08560368：首个在场成员同步个人 rating */
@@ -634,38 +656,50 @@ unsigned int COnlinePreliminary::_GetEachOtherPlayCount(CUser* a, CUser* b)
     if ((char)GetPlayCountPerOneTeam() == 1)
     {
         // 在 a 的“对过谁”表（charac_expand(5)）中记/查 b 的 (serverGroup,characNo)
-        COnlinePreliminaryMemberMatchList* list =
-            reinterpret_cast<COnlinePreliminaryMemberMatchList*>(
-                a->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)5));
-        return list->GetPeerPlayCount(b->GetServerGroup(),
-                                      b->getCurCharacNo());
+        /* ORIG @0856022e getCurCharacNo(b)→%ebx(@+0x21)、@0856023b
+         * GetServerGroup→%eax 后 @08560240 mov %eax,%esi（跨 call 保全，
+         * eax 钉值技巧）；expand(5) 最后(@+0x3e) */
+        register unsigned int no asm("ebx") = b->getCurCharacNo();
+        register ENUM_SERVER_GROUP grp asm("eax");
+        grp = b->GetServerGroup();
+        return reinterpret_cast<COnlinePreliminaryMemberMatchList*>(
+                   a->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)5))
+                   ->GetPeerPlayCount(grp, no);
     }
-    if (a->GetCurCharacOnlinePreliminaryTeam() == 0)
-        return 0;
-    return a->GetCurCharacOnlinePreliminaryTeam()->GetEachOtherTeamPlayCount(
-        b->GetCurCharacOnlinePreliminaryTeamId());
+    /* ORIG @08560272 test;setne %al;test;je→mov $0 岛(@+0x8f)：!=0 正向 */
+    if (a->GetCurCharacOnlinePreliminaryTeam() != 0)
+        return a->GetCurCharacOnlinePreliminaryTeam()->GetEachOtherTeamPlayCount(
+            b->GetCurCharacOnlinePreliminaryTeamId());
+    return 0;
 }
 
 /* ORIG T 0x0856050e：取两队在场的最后一名成员查询 */
 unsigned int COnlinePreliminary::_GetEachOtherPlayCount()
 {
+    /* ORIG @085605f4 槽序 lastA=-0x14/lastB=-0x10/i=-0xc；两循环共享同一
+     * 函数级 i（@+0x22 与 @+0x74 两次 i=0 初始化同一槽）*/
     CUser* lastA = 0;
     CUser* lastB = 0;
-    for (int i = 0; i <= 3; ++i)
+    int i = 0;                                     /* @08560522 声明+for 双写 */
+    for (i = 0; i <= 3; ++i)
     {
         if (m_teams[0].m_seats[i].m_flag != 0 &&
             m_teams[0].m_seats[i].m_user != 0)
             lastA = m_teams[0].m_seats[i].m_user;
     }
-    for (int i = 0; i <= 3; ++i)
+    for (i = 0; i <= 3; ++i)
     {
         if (m_teams[1].m_seats[i].m_flag != 0 &&
             m_teams[1].m_seats[i].m_user != 0)
             lastB = m_teams[1].m_seats[i].m_user;
     }
+    /* ORIG @085605bf/0x5c5 两独立 je→mov $0 岛(@+0x8f)：|| + goto 合并双直
+     * 跳，消除 4.4 单 goto 的跳板块【技巧23 变体】 */
     if (lastA == 0 || lastB == 0)
-        return 0;
+        goto RET0;
     return _GetEachOtherPlayCount(lastA, lastB);
+RET0:
+    return 0;
 }
 
 /* ORIG T 0x085602ae */
@@ -673,10 +707,15 @@ void COnlinePreliminary::_IncreaseEachOtherPlayCount(CUser* a, CUser* b)
 {
     if ((char)GetPlayCountPerOneTeam() == 1)
     {
+        /* ORIG 求值序：@085602ca getCurCharacNo(b)→%ebx(@+0x21)、@085602d7
+         * GetServerGroup(b)→%esi(@+0x2e)，再 @085602ec expand(5)，尾
+         * mov %ebx,0x8;mov %esi,0x4(@085602f1/0x2f5)【技巧28 钉寄存器】 */
+        register unsigned int no asm("ebx") = b->getCurCharacNo();
+        register ENUM_SERVER_GROUP grp asm("eax");
+        grp = b->GetServerGroup();
         reinterpret_cast<COnlinePreliminaryMemberMatchList*>(
             a->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)5))
-            ->IncreasePeerPlayCount(b->GetServerGroup(),
-                                    b->getCurCharacNo());
+            ->IncreasePeerPlayCount(grp, no);
     }
     else if (a->GetCurCharacOnlinePreliminaryTeam() != 0)
     {
@@ -688,24 +727,30 @@ void COnlinePreliminary::_IncreaseEachOtherPlayCount(CUser* a, CUser* b)
 /* ORIG T 0x085605ee：双向累计 */
 void COnlinePreliminary::_IncreaseEachOtherPlayCount()
 {
+    /* 同 _GetEachOtherPlayCount()：共享函数级 i【ORIG 085605ee @+0x14/@+0x1b
+     * 双写同槽】 */
     CUser* lastA = 0;
     CUser* lastB = 0;
-    for (int i = 0; i <= 3; ++i)
+    int i = 0;
+    for (i = 0; i <= 3; ++i)
     {
         if (m_teams[0].m_seats[i].m_flag != 0 &&
             m_teams[0].m_seats[i].m_user != 0)
             lastA = m_teams[0].m_seats[i].m_user;
     }
-    for (int i = 0; i <= 3; ++i)
+    for (i = 0; i <= 3; ++i)
     {
         if (m_teams[1].m_seats[i].m_flag != 0 &&
             m_teams[1].m_seats[i].m_user != 0)
             lastB = m_teams[1].m_seats[i].m_user;
     }
-    if (lastA == 0 || lastB == 0)
-        return;
-    _IncreaseEachOtherPlayCount(lastA, lastB);
-    _IncreaseEachOtherPlayCount(lastB, lastA);
+    /* ORIG @0856069f/0x6a5 双 je 直指 epilogue 无空块岛：正向 && 嵌套
+     * 【技巧11】 */
+    if (lastA != 0 && lastB != 0)
+    {
+        _IncreaseEachOtherPlayCount(lastA, lastB);
+        _IncreaseEachOtherPlayCount(lastB, lastA);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -741,17 +786,18 @@ bool COnlinePreliminary::CheckUnusableEquipment(const Inven_Item* item)
 }
 
 /* ORIG T 0x08560a42：装备栏 0..22 槽全检 */
-int COnlinePreliminary::CheckUnusableEquipmentInUser(CUser* user)
+bool COnlinePreliminary::CheckUnusableEquipmentInUser(CUser* user)
 {
     for (int slot = 0; slot <= 0x16; ++slot)
     {
         const Inven_Item* item =
             user->getCurCharacInvenR()->GetInvenRef(0, slot);   // T 0x84fc1de
+        /* ORIG @08560a7f xor $1,%eax / test / je 续循环；msg 免槽直用
+         * (@08560ab4 mov %eax,0x4(%esp)【技巧37】) */
         if (!CheckUnusableEquipment(item))
         {
-            const char* msg = g_scriptStringManager_.findString(
-                4, "game_server_msg_145", (bool*)0);
-            user->SendNotiPacketMessage(msg, (ENUM_MESSAGE_TYPE)0);
+            user->SendNotiPacketMessage(g_scriptStringManager_.findString(
+                4, "game_server_msg_145", (bool*)0), (ENUM_MESSAGE_TYPE)0);
             return 0;
         }
     }
@@ -773,8 +819,7 @@ int COnlinePreliminary::OnCreateRoom(CUser* user)
     m_teams[0].reset();
     m_teams[0].add(user);                         /* T 0x855fdfe */
     m_teams[0].m_teamId = user->GetCurCharacOnlinePreliminaryTeamId();
-    int ratingBits = _GetRating(user);
-    memcpy(&m_teams[0].m_rating, &ratingBits, 4);
+    m_teams[0].m_rating = _GetRating(user);
     return 0;                                     /* ORIG mov $0x0,%eax（0x8560b83） */
 }
 
@@ -835,8 +880,13 @@ int COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
         return 0;
     }
 
-    int err = _CheckMatchable(room);
-    if (err != 0)
+    /* ORIG @0856142d 声明初始化 `int err = 0;` 独立于 call 赋值(@+0x68)，
+     * @+0x6b cmpl;setne %al;test 物化【技巧22】 */
+    int err = 0;
+    err = _CheckMatchable(room);
+    register bool nz asm("al");
+    nz = (err != 0);
+    if (nz)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc7, (unsigned char)err);
         return 0;
@@ -957,8 +1007,10 @@ void COnlinePreliminary::OnEndFight(PvP_Room* room)
     int managerTeam = room->get_manager_team();           /* T 0x85d9242 */
     m_field04 = 0;
     _ReturnTeam(room, managerTeam, (CUser*)0);
+    /* ORIG @08562067 十对字 block-move（%eax=LHS %edx=RHS 双 this 装载、
+     * 末对复用 %edx）= 结构体整体赋值【GetUserList 同法】 */
     if (managerTeam != 1)
-        memcpy(&m_teams[0], &m_teams[1], sizeof(TeamInfoSecond));  /* ORIG 十双字块拷贝 */
+        m_teams[0] = m_teams[1];
     m_teams[0].refresh();                                 /* T 0x855fcf6 */
     m_teams[1].reset();
 }
@@ -1019,9 +1071,10 @@ void COnlinePreliminary::OnCompleteLoad(CUser* user)
         for (int i = 0; i <= 3; ++i)
         {
             CUser* u = m_teams[t].m_seats[i].m_user;
-            if (m_teams[t].m_seats[i].m_flag == 0 || u == 0)
-                continue;
-            u->Send(pkt);
+            /* ORIG 内层尾 call 后无跳板直落 addl：双 je 直指循环增量块
+             * （正向 && 【技巧11】，同 _IncreaseEachOtherPlayCount()） */
+            if (m_teams[t].m_seats[i].m_flag != 0 && u != 0)
+                u->Send(pkt);
         }
     }
 }
@@ -1099,10 +1152,13 @@ int COnlinePreliminary::OnGiveup(CUser* /*user*/)
  * 本类静态寻址（非虚）实证。 */
 float COnlinePreliminary::GetGap(IMatch* other)
 {
-    // ORIG 0x08561a0e：经 _GetRating(0) 取双方 rating（fsubrs + fabs）。
+    /* ORIG @08561a14 float 局部 0.0f 两段物化到 -0x8【技巧43】；具名指针
+     * 中转 other→-0x4(@08561a1c)【技巧13】；首 call 结果 fstps -0x14、次
+     * call 结果免 spill 直接 fsubrs(@08561a4b) */
+    float theirs = 0.0f;
+    COnlinePreliminary* o = static_cast<COnlinePreliminary*>(other);
     const float mine = _GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-    const float theirs = static_cast<COnlinePreliminary*>(other)->_GetRating(
-        static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
+    theirs = o->_GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
     return fabsf(mine - theirs);
 }
 
@@ -1111,8 +1167,11 @@ CUser* COnlinePreliminary::GetUser(unsigned int idx)
 {
     if (idx >= 4)
         return 0;
-    /* ORIG @085620e6 xor $1 / test / je body(@+0x2c)：显式 ^1 */
-    if ((m_teams[0].m_seats[idx].m_flag ^ 1) != 0)
+    /* ORIG @085620e6 xor $1,%eax / test / je body(@+0x2c)：eax 钉值原地 xor
+     * （技巧16） */
+    register unsigned char fv asm("eax") = m_teams[0].m_seats[idx].m_flag;
+    fv ^= 1;
+    if (fv)
         return 0;
     return m_teams[0].m_seats[idx].m_user;
 }
@@ -1122,18 +1181,15 @@ CUser* COnlinePreliminary::GetUser(unsigned int idx)
  * 按 10 个 dword 展开逐字复制到出参。 */
 void COnlinePreliminary::GetUserList(void* out)
 {
-    const unsigned int* src = reinterpret_cast<const unsigned int*>(&m_teams[0]);
-    unsigned int* dst = static_cast<unsigned int*>(out);
-    dst[0] = src[0];
-    dst[1] = src[1];
-    dst[2] = src[2];
-    dst[3] = src[3];
-    dst[4] = src[4];
-    dst[5] = src[5];
-    dst[6] = src[6];
-    dst[7] = src[7];
-    dst[8] = src[8];
-    dst[9] = src[9];
+    /* ORIG @08562107 一次性装载 out→%eax / this→%edx，随后 10 对字
+     * mov disp(%edx),%ecx / mov %ecx,disp(%eax)（末对复用 %edx）——4.1 O0
+     * 结构体整体赋值的 block-move 形；用 0x28 POD 视图结构赋值复现 */
+    struct TeamView28 { unsigned int w[10]; };  // 10 dword = m_teams[0] 全貌
+    /* pad+成员 形式使 0x1c 折进每条 disp（ORIG @+0x09 mov 0x1c(%edx),%ecx
+     * 无独立 add） */
+    struct TeamGap { char g[0x1c]; TeamView28 v; };
+    *static_cast<TeamView28*>(out) =
+        reinterpret_cast<const TeamGap*>(this)->v;
 }
 
 /* ORIG T 0x085623e0：teams[0].teamId */
@@ -1177,9 +1233,10 @@ void COnlinePreliminary::_SendMatchStatePacket(int a, int b)
         for (int i = 0; i <= 3; ++i)
         {
             CUser* u = m_teams[t].m_seats[i].m_user;
-            if (m_teams[t].m_seats[i].m_flag == 0 || u == 0)
-                continue;
-            u->Send(pkt);
+            /* ORIG 内层尾 call 后无跳板直落 addl：双 je 直指循环增量块
+             * （正向 && 【技巧11】，同 _IncreaseEachOtherPlayCount()） */
+            if (m_teams[t].m_seats[i].m_flag != 0 && u != 0)
+                u->Send(pkt);
         }
     }
 }

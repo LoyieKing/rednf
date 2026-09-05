@@ -268,13 +268,15 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
     // 将 param_2（clearTime）写 m_stage(+0x88)、param_3（playTime）写
     // m_playTime(+0x8c)（0x3f/0x45 两条 movl），调 stBestRecord_t::operator>
     // (tmp, m_towers[towerIdx].m_slots[0])（ORIG call 0x08469ce4）。
-    stBestRecord_t& topSlot = m_towers[towerIdx].m_slots[0];
-    if (topSlot.m_flag90 != 1)
+    // 范式36：删 topSlot 具名中转（4.4 多 1 个 4B 槽 ⇒ ORIG tmp 基址 -0xa0 平移
+    // -0xa4）；ORIG 0x084682a5/0x08468320 两处独立 imul 0x390 地址重算。
+    // flag 判形 ORIG 0x084682ae：movzbl (%eax); xor $0x1; test %al; je —— (x^1) truthy。
+    if ((unsigned int)m_towers[towerIdx].m_slots[0].m_flag90 ^ 1u)
         return 0;
     stBestRecord_t tmp;
     tmp.m_playTime = playTime;
     tmp.m_stage = clearTime;
-    return tmp > topSlot;
+    return tmp > m_towers[towerIdx].m_slots[0];
 }
 
 // 与 ORIG fistpll（默认 round-to-nearest，ties-to-even）一致的 32→64 取整。
@@ -434,8 +436,9 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
 void CDeathTowerRanking::unregistBestRecord(unsigned int characNo)
 {
     // ORIG 08468b4c T：for i in 0..4: _getBestRecordTable(i).erase(characNo)。
-    for (unsigned int i = 0; i < 5; ++i)
-        m_bestTables[i].erase(characNo);
+    // ORIG 0x8468b4c：体内 call _getBestRecordTable@0x8469dae（跨 TU W）；int 循环（setle）。
+    for (int i = 0; i <= 4; ++i)
+        _getBestRecordTable(i)->erase(characNo);
 }
 
 void CDeathTowerRanking::unregistRanking(unsigned int characNo)
@@ -574,19 +577,27 @@ bool CDeathTower::_checkTimerKey(TIMER_MESSAGE msg, unsigned int key)
     return key == (unsigned int)m_timerKeys[(int)msg - 0x48];
 }
 
-int CDeathTower::_checkMemberDie()
+bool CDeathTower::_checkMemberDie()
 {
-    for (int i = 0; i < 4; ++i)
+    // ORIG 0x8467188：循环变量 unsigned（0x84671ea setbe 实证）；双次置 0
+    // （0x846718e/0x8467195）；&& 物化岛（范式40）：valid&&alive 共享 mov$1/$0
+    // （0x84671d2/0x84671d9）；break 后尾置 i==4 两段物化（0x84671f4..0x8467201）。
+    unsigned int i = 0;
+    i = 0;
+    for (; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i))
+        register bool alive asm("eax");  // 范式22：物化直落 %eax 免槽（ORIG 0x84671d2 mov$1,%eax 无栈槽）
+        alive = m_party->checkValidUser(i) && m_playData.isMemberAlive(i);
+        if (alive)
         {
-            if (m_playData.isMemberAlive(i))
-            {
-                return 0;
-            }
+            break;
         }
     }
-    return 1;
+    if (i == 4)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 int CDeathTower::_checkMemberReady()
@@ -1154,11 +1165,16 @@ void CDeathTower::_onFinishDeathTower()
 {
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i))
-        {
-            CUser* user = m_party->get_user(i);
-            onLeaveUser(user);
-        }
+        // ORIG 0x8467f7d：循环体首 `movl $0,-0xc`（user 先置 0 再赋值，范式8）；
+        // || 共享物化岛（范式40）：0x8467f9f je→mov$1@8467fbc；第二操作数
+        // `!checkValidUser` 走 xor $0x1,%eax@8467fb5（范式1 值形）。
+        CUser* user = 0;
+        user = m_party->get_user(i);
+        register bool skip asm("eax");
+        skip = (user == 0) || (int)!m_party->checkValidUser(i);
+        if (skip)
+            continue;
+        onLeaveUser(user);
     }
     m_party->ReturnToVillage();
     if (getTowerState() > 0)
@@ -1192,8 +1208,11 @@ void CDeathTower::_onFinishStage()
 
 void CDeathTower::_onPrepareFinishTower()
 {
-    int key = _genTimerKey((TIMER_MESSAGE)0x4a);
-    int idx = m_idx;
+    // ORIG 0x8467e00：key 缓存 %ebx（mov %eax,%ebx）、idx 缓存 %esi（mov 0x4(%eax),%esi）
+    // ——callee-saved 直落免槽（范式2/39）。
+    register int idx asm("esi");
+    register int key asm("ebx") = _genTimerKey((TIMER_MESSAGE)0x4a);
+    idx = m_idx;
     G_TimerQueue()->InsertTimer(
         (TimerEntry::OBJ_TYPE)6, idx, (TIMER_MESSAGE)0x4a, 5, key, 0x4a);
 }
@@ -1251,7 +1270,7 @@ void CDeathTower::CStage::reset()
     m_mapInfo.Clear();
     m_mapInfo.m_assignItemIdx = get_rand_int(60000);
     m_mapInfo.m_dropItemCnt = get_rand_int(60000);
-    m_state = 0;
+    m_state = (ENUM_STAGE_STATE)0;
 }
 
 void CDeathTower::CStage::onStartStage()
@@ -1279,26 +1298,32 @@ int CDeathTower::CStage::getCurrentStage()
     return m_currentStage;
 }
 
-int CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& item, int* money1, int* money2)
+void CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& item, int* money1, int* money2)
 {
+    // ORIG 0x8466b02 尾 0x8466cf8..cf0 无 mov %eax 置值 —— 返回语义 void（mangled 无返回类型）。
     int money = item.m_item.get_add_info();
     int base = money / memberCnt;
     int remainder = money % memberCnt;
     int total = base + remainder;
+    // ORIG 0x8466b42/8466b45：base 出循环前再拷贝一份 -0x1c（独立槽），
+    // 循环内三元的 else 分支读该拷贝（0x8466bb4）而非 base 原槽。
+    int per = base;
 
     for (int i = 0; i <= 3; ++i)
     {
-        CUser* member = m_party->get_user(i);
+        // ORIG 0x8466b54 循环体首 `movl $0,-0x14`：member 显式置 0 再赋值（范式8 dead store）。
+        CUser* member = 0;
+        member = m_party->get_user(i);
         if (!member || !m_party->checkValidUser(i))
             continue;
 
-        int amount = (member == user) ? total : base;
+        int amount = (member == user) ? total : per;
         int taxed = amount;                                // ORIG -0xc（可能翻倍）
         if (item.m_count != 0)
         {
             money2[i] = member->getCurCharacInvenR()
                             ->GetCreatureMgrR()->GetExtraGold(amount);
-            taxed = amount * 2;
+            taxed = taxed + taxed;  // ORIG 0x8466bf9：mov/add/mov 三段寄存器往返（4.4 对 *= 出 shl 内存形）
         }
 
         money1[i] = member->getCurCharacInvenW()->gain_money(
@@ -1317,7 +1342,6 @@ int CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& it
             (VALUE_STATISTIC_FIELD)1, member, (unsigned int)money1[i]);
     }
 
-    return 0;
 }
 CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map_item& item, bool a5, char a6, const CItem* citem)
 {
@@ -1636,16 +1660,21 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
 
 int CDeathTower::_checkRenewMyRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b, unsigned int c)
 {
-    unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
-    void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
-    return ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewMyRecord(towerIdx, a, b, c);
+    // ORIG 0x846805e：towerIdx 缓存 %ebx（push %ebx 帧，0x846806d mov %eax,%ebx），
+    // rankTable call 结果免槽直用（范式37）。
+    register unsigned int towerIdx asm("ebx") =
+        WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+    return ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(
+                memberCnt))->checkRenewMyRecord(towerIdx, a, b, c);
 }
 
 int CDeathTower::_checkRenewTopRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b)
 {
-    unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
-    void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
-    return ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewTopRecord(towerIdx, a, b);
+    // ORIG 0x846801e 同构：ebx 缓存 + eax 免槽（0x8468034 mov %eax,%ebx）。
+    register unsigned int towerIdx asm("ebx") =
+        WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+    return ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(
+                memberCnt))->checkRenewTopRecord(towerIdx, a, b);
 }
 
 int CDeathTower::_checkStartGameCondition(unsigned char& flag)
@@ -1890,22 +1919,30 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
     // m_level(+0x10) 作返回值并 erase；未命中返回 0。
     // 注：ORIG movzbl 0x14(%pair) = pair+0x14 = map_monster+0x10 = m_level
     //（map_monster 为 pack(1)，second @ pair+4）。
-    std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(idx);
-    if (it == m_mapInfo.m_monsterMap.end())
+    // ORIG 0x8461731/0x846176b：find/end 各经 _Rb_tree_const_iterator C1(iter&)
+    //（0x81529e0 两次）⇒ const_iterator 具名；erase@0x8152a12 arg=&idx(key)。
+    std::map<int, map_monster>::const_iterator it = m_mapInfo.m_monsterMap.find(idx);
+    std::map<int, map_monster>::const_iterator itEnd = m_mapInfo.m_monsterMap.end();
+    if (it == itEnd)
     {
         return 0;
     }
     monster = it->second;
     int roleType = (unsigned char)it->second.m_level;
-    m_mapInfo.m_monsterMap.erase(it);
+    m_mapInfo.m_monsterMap.erase(idx);
     return roleType;
 }
 
 bool CDeathTower::CStage::peekItem(int idx, map_item& item)
 {
     // ORIG 0x8461534：m_mapInfo.m_itemMap.find(idx)；命中拷贝 0x54 字节返回 true。
-    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
-    if (it == m_mapInfo.m_itemMap.end())
+    // ORIG 0x8461569/0x8461593：find/end 结果各经 _Rb_tree_const_iterator C1(iter&)
+    // 转换（0x8152fa2 两次 call）⇒ 源以 const_iterator 具名持有。
+    std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
+    std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
+    unsigned int gapPad;  // 范式31：4B dead pad（槽深对齐尝试；4.1/4.4 temp 槽序相反为残余差）
+    (void)gapPad;
+    if (it == itEnd)
     {
         return false;
     }
@@ -1915,12 +1952,22 @@ bool CDeathTower::CStage::peekItem(int idx, map_item& item)
 
 int CDeathTower::handleLeaveUser(CUser* user)
 {
-    for (int i = 0; i <= 3; ++i)
+    // ORIG 0x8465aca/0x8465ad1：i 双次置 0 直落 -0xc（范式8）；循环内
+    // get_user==user 用 sete %al 直出（范式22，ORIG 0x8465b09）；
+    // allDead 物化于 %eax 无槽（0x8465c39/0x8465c40 mov$1/$0 岛）。
+    int i = 0;
+    i = 0;
+    for (; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
+        if (m_party->checkValidUser(i))
         {
+            // ORIG 0x8465b06：cmp 0xc(%ebp),%eax; sete %al; test al; je skip（范式22）。
+            register bool hit asm("al") = (m_party->get_user(i) == user);
+            if (hit)
+            {
             m_party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
             m_playData.setMemberAlive(i, false);
+            }
         }
     }
 
@@ -1936,11 +1983,8 @@ int CDeathTower::handleLeaveUser(CUser* user)
 
     onLeaveUser(user);
 
-    bool allDead = false;
-    if (m_party->get_member_count() > 0)
-    {
-        allDead = _checkMemberDie() != 0;
-    }
+    register bool allDead asm("eax");
+    allDead = (m_party->get_member_count() > 0) && _checkMemberDie();
     if (allDead)
     {
         _onFinishStage();
@@ -2140,16 +2184,18 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
 
 int CDeathTower::handleSelectEPLPCommand(CUser* user, int cmd)
 {
+    // ORIG 0x8466208：slot 具名槽 -0xc（0x8466224）；&& 物化岛共享 mov$1/$0
+    // （0x8466245/0x846624c）+ test/je 反判（范式22/40）；key/idx 缓存 ebx/esi。
     int slot = m_party->GetMemberSlotNo(user);
     if (slot == -1 || !m_party->checkValidUser(slot))
     {
         return 0;
     }
-
     m_party->SetEPLPState(3);
-    int key = _genTimerKey((TIMER_MESSAGE)0x4e);
+    register int key asm("ebx") = _genTimerKey((TIMER_MESSAGE)0x4e);
+    register int idx asm("esi") = m_idx;
     G_TimerQueue()->InsertTimer(
-        (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4e, cmd, key, 0x4e);
+        (TimerEntry::OBJ_TYPE)6, idx, (TIMER_MESSAGE)0x4e, cmd, key, 0x4e);
     return 1;
 }
 int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
@@ -2158,9 +2204,11 @@ int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
     {
         return 0;
     }
-    if (cmd == 1)
+    // ORIG 0x846617d：switch 下探（movzbl -0xc;cmp$1 je;cmp$2 je;jmp default@84661f8）。
+    switch (cmd)
     {
-        if (!m_stage.setState((ENUM_STAGE_STATE)1))
+    case 1:
+        if ((int)!m_stage.setState((ENUM_STAGE_STATE)1))  // ORIG 0x84661a3：xor $0x1,%eax; test; je
         {
             return 1;
         }
@@ -2169,17 +2217,15 @@ int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
             return 1;
         }
         _onStartStage();
-    }
-    else if (cmd == 2)
-    {
-        if (!m_stage.setState((ENUM_STAGE_STATE)2))
+        break;
+    case 2:
+        if ((int)!m_stage.setState((ENUM_STAGE_STATE)2))  // ORIG 0x84661ea
         {
             return 1;
         }
-    }
-    else
-    {
-        return 0;
+        break;
+    default:
+        return 0;  // ORIG 0x84661f8
     }
     return 1;
 }
@@ -2204,23 +2250,23 @@ bool CDeathTower::CStage::checkClearStage()
 
 bool CDeathTower::CStage::setState(ENUM_STAGE_STATE state)
 {
-    if (state == 1)
+    // ORIG 0x8461c5d：switch 下探形态（范式34）：mov 0xc,%eax; cmp$1 je;cmp$2 je;jmp default。
+    switch (state)
     {
+    case 1:  // STAGE_READY?（枚举值 1）：非 0 拒绝（ORIG 0x8461c6c）
         if (m_state != 0)
         {
             return false;
         }
-    }
-    else if (state == 2)
-    {
+        break;
+    case 2:  // 非 1 拒绝（ORIG 0x8461c80）
         if (m_state != 1)
         {
             return false;
         }
-    }
-    else
-    {
-        return false;
+        break;
+    default:
+        return false;  // ORIG 0x8461c95
     }
     m_state = state;
     return true;
@@ -2243,13 +2289,18 @@ bool CDeathTower::CStage::moveNextStage(unsigned int endStage)
 bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
 {
     // ORIG 0x84615e4：peek 语义 + erase。
-    std::map<int, map_item>::iterator it = m_mapInfo.m_itemMap.find(idx);
-    if (it == m_mapInfo.m_itemMap.end())
+    // ORIG 0x8461619/0x8461643：find/end 各经 _Rb_tree_const_iterator C1(0x8152fa2)
+    // 转换 ⇒ const_iterator 具名；erase@0x8152c18 arg=&idx（key 版）。
+    std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
+    std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
+    unsigned int gapPad;  // 范式31：4B pad（对齐 peekItem 同法）
+    (void)gapPad;
+    if (it == itEnd)
     {
         return false;
     }
     item = it->second;
-    m_mapInfo.m_itemMap.erase(it);
+    m_mapInfo.m_itemMap.erase(idx);
     return true;
 }
 

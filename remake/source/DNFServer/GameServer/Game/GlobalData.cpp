@@ -448,12 +448,20 @@ int CmmChannelProxy::RecvPacket()
         unsigned long* pBits = reinterpret_cast<unsigned long*>(&readfds);
         for (i = 0; i <= 31u; ++i)
         {
+            // （寻址模式残余差：ORIG 0x0810648f `mov -0x20,%edx; mov -0x1c,%eax;
+            // movl $0,(%eax,%edx,4)` scaled 直存；4.4 O0 恒折 shl+add 指针算术，
+            // register asm 钉基址/索引均无法回退 ⇒ 记 N 类。）
             pBits[i] = 0UL;
         }
     }
     // ORIG 0x081064b8：FD_SET 无符号 `shr $5`/`and $0x1f` 位图形，不留 us 槽。
-    readfds.fds_bits[static_cast<unsigned long>(m_sock) >> 5] |=
-        (1UL << (static_cast<unsigned long>(m_sock) & 31));
+    // ORIG 0x081064b8：`mov 0x18,%eax; shr $0x5,%eax; mov %eax,%edx;
+    // mov -0xdc(%ebp,%eax,4),%ebx … mov %eax,-0xdc(%ebp,%edx,4)` —— 位索引
+    // 单份计算（%eax）后复制到 %edx 供尾 store。4.4 默认重算两份 ⇒
+    // register asm("eax") 钉索引值（技巧 28）。
+    register unsigned long ix asm("eax") =
+        static_cast<unsigned long>(m_sock) >> 5;
+    readfds.fds_bits[ix] |= (1UL << (static_cast<unsigned long>(m_sock) & 31));
     ret = select(m_sock + 1, &readfds, 0, 0, &tv);
     if (ret <= 0)
     {
@@ -461,6 +469,9 @@ int CmmChannelProxy::RecvPacket()
     }
     int error = 0;
     socklen_t len = 4;
+    // （取参序残余差：ORIG 0x0810653d &error→%edx 先载、m_sock→%eax、
+    // &len→%ecx；4.4 恒 &len 先载且 m_sock 占 %eax ⇒ register asm("ecx")
+    // 反而打乱 store 序，probe 证不可翻 ⇒ 记 N 类。）
     getsockopt(m_sock, 1, 8, &error, &len);
     OS_API::Sleep(100);
     nread = static_cast<int>(::read(m_sock, m_buf + m_field1c,
@@ -470,7 +481,8 @@ int CmmChannelProxy::RecvPacket()
     // register asm(eax) 中转保 shr（技巧28 同族）。
     register unsigned int sgn asm("eax");
     sgn = static_cast<unsigned int>(nread) >> 31;
-    if (sgn)
+    // ORIG 0x081065ab `shr $0x1f,%eax; test %al,%al; je` —— 8 位 test。
+    if (static_cast<unsigned char>(sgn))
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
@@ -2670,6 +2682,9 @@ bool CPCRoomServerProxy::Init()
 
 // ORIG T 0x084718e2：ip/port 有效且 m_sock<0 时 CreateConnectionSocket；
 // 失败 cMyTrace 报错返 0；m_sock>=0 跳过连接，尾部汇合 return 1。
+// 残余差归因（N 类，块内求值序，见下方 0x0847196d 区注释）：ORIG 因提前求值
+// varargs 而多保存 %edi（0x084719d6 `add $0x4c,%esp; pop %ebx/esi/edi`），
+// 4.4 帧 0x40/仅 %ebx ⇒ 块序与帧大小联动不可源码翻转。
 bool CPCRoomServerProxy::InitTcp()
 {
     if (m_ip.length() == 0 || m_tcpPort == 0)
@@ -2680,6 +2695,11 @@ bool CPCRoomServerProxy::InitTcp()
     {
         // ORIG 0x08471xxx：ret 常规局部落 -0x1c 槽（cmp $0,-0x1c; setne 物化）。
         int ret;
+        // ORIG 0x0847196d..0x084719c5（临时链式实证）：4.1 在 cMyTrace ctor
+        // call 之前先按右起序求 varargs 并全部落 callee-saved —— 0x0847197c
+        // strerror(errno)→%ebx、0x08471983 errno→%edi、0x08471985 ret→%esi，
+        // 之后才 0x08471988 装填 ctor 实参；4.4 恒先 ctor 后 varargs（改具名
+        // 对象反而把 errno 推后 ⇒ probe 证两写法均不可翻）⇒ 记 N 类。
         if ((bool)((ret = CNetwork<100000, 100000>::CreateConnectionSocket(
                        m_tcp.m_sock, m_ip.c_str(), m_tcpPort)) != 0))
         {
@@ -4354,9 +4374,14 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
 {
     if (level < 1 || level > 200)
     {
+        // ORIG 0x0860ecd2：`mov 0xc(%ebp),%ebx` 发生在 cMyTrace ctor 实参装填
+        // 之前（level 跨 ctor call 保活 ⇒ 4.1 直落 callee-saved %ebx，
+        // 并连带 push/pop %ebx 与帧 0x64）。4.4 默认在 operator() 处重新
+        // reload ⇒ register asm("ebx") + 声明位置钉住早装载（技巧 2/13/28）。
+        register int lv asm("ebx") = level;
         cMyTrace tr(__PRETTY_FUNCTION__,
                     0x550, 0);
-        tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
+        tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", lv);
         return;
     }
     std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
@@ -4701,7 +4726,10 @@ IBusiness::IBusiness()
 CBusinessImpl::CBusinessImpl()
 {
     // ORIG 0x082a7c32：call IBusiness ctor + 设 vptr（编译器生成序列）。
-    // ORIG 帧 0x18（4.1 ctor 宽松帧），4.4 默认 0x4 → dead pad 撑帧（技巧31）。
+    // ORIG 0x082a7c3b `sub $0x18,%esp`（4.1 ctor 宽松帧）→ dead pad 撑帧
+    // （技巧31）。char[N] 维度、裸 int、volatile int 三种探针均
+    // 无法把 4.4 帧从 0x14 抬到 ORIG 0x082a7c3b 的 0x18（4.4 对未读未写局部
+    // 一律不分配槽，含 volatile）⇒ 余 4B 属 4.1/4.4 帧舍入差（N 类）。
     char pad[12];
     (void)pad;
 }
@@ -4843,20 +4871,26 @@ int StackableAction::Action::proc_bingo(input_param& p)
 {
     // ORIG 0x0827fb14：BingoEvent(0x6a) IsEventing(0) 检查后转发 reqBingoMark；
     // 未开启返回 0x13。
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (!ev->IsEventing(0))
+    // 0x0827fae6 区：GetRepeatEvent 结果 %eax 直作虚调用 this（`mov (%eax),%edx;
+    // add $0x34,%edx; mov (%edx),%edx; mov %eax,(%esp); call *%edx`，无 spill
+    // 槽 ⇒ 技巧 37 免槽直用）；判真伪为正向 `test %al,%al; je 0x13-岛`
+    // （技巧 1：`!boolcall()` 会多 xor ⇒ 此处 ORIG 无 xor ⇒ 源码为正向 if）。
+    // 0x0827fb14 区：bingoEvent 槽 -0x10、返回 temp 槽 -0xc（技巧 21 后声明占
+    // 近槽）；`cmpl $0x0,-0x10; je 0x13-岛` ⇒ 内层也是正向 if（技巧 17：
+    // fall-through 块=真路径在前，0x13 尾岛）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6a)->IsEventing(0))
     {
-        return 0x13;
+        // BingoEvent 完整类型已建模（BingoEvent.h 权威头，OrigBingoEvt 批次）；
+        // ORIG 0x0827fb4f 直调 _ZN10BingoEvent12reqBingoMarkERN15StackableAction11input_paramE。
+        BingoEvent* bingoEvent = static_cast<BingoEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x6a));
+        if (bingoEvent != 0)
+        {
+            int ret = bingoEvent->reqBingoMark(p);
+            return ret;
+        }
     }
-    // BingoEvent 完整类型已建模（BingoEvent.h 权威头，OrigBingoEvt 批次）；
-    // ORIG 0x0827fb14 直调 _ZN10BingoEvent12reqBingoMarkERN15StackableAction11input_paramE。
-    BingoEvent* bingoEvent = static_cast<BingoEvent*>(
-        GlobalData::s_event_manager->GetRepeatEvent(0x6a));
-    if (bingoEvent == 0)
-    {
-        return 0x13;
-    }
-    return bingoEvent->reqBingoMark(p);
+    return 0x13;
 }
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
@@ -5259,7 +5293,11 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     unsigned long t = (unsigned long)time(0);
     for (int i = 0; i < 13; ++i)
     {
-        m_rand[i].seed(t);
+        // ORIG 0x085f0dbc：`mov -0x20(%ebp),%eax`（seed 实参 t）在循环体最前
+        // 装载、跨 `imul`/`lea` 地址计算保活 ⇒ register asm("eax") 钉住早装载
+        // 并把基址挤到 %ecx（技巧 28）。
+        register unsigned long tv asm("eax") = t;
+        m_rand[i].seed(tv);
     }
     m_field08 = 0;
     m_disabled = 0;

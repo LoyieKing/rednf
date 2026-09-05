@@ -2272,22 +2272,32 @@ struct Inter_LoadQuestPktView
 
 int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadQuestPktView* pPkt = reinterpret_cast<Inter_LoadQuestPktView*>(data);
     if (user->get_state() == 0)
         return 0x1a13;
+    // ORIG 0x084c5079：pPkt 在 state 岛后才物化 -0x10（技巧13 声明位置）。
+    Inter_LoadQuestPktView* pPkt = reinterpret_cast<Inter_LoadQuestPktView*>(data);
     if (pPkt->m_4 == 1)
         return 0x1a1a;
     if (user->getCurCharacR() == 0)
         return 0x1a1d;
 
-    user->getCurCharacQuestR()->set_quest(
-        reinterpret_cast<const SIG_LOAD_QUEST*>(data));
+    // ORIG 0x084c50bd：questR 具名槽 -0xc（+0xc3 先物化 pPkt 实参、+0xc7 槽装 this）。
+    UserQuest* questR = user->getCurCharacQuestR();
+    questR->set_quest(
+        reinterpret_cast<const SIG_LOAD_QUEST*>(pPkt));
 
     if (GlobalData::s_timeGate_->isOpen())
     {
-        const int questIdx = GlobalData::s_timeGate_->getQuestIndex();
+        // ORIG 0x084c50f0/0x084c511a：index 两段 `mov %eax,%ebx` 跨 call 缓存（ebx 钉形），
+        // 且两次独立 getQuestIndex 重读（P48 无 CSE）。
+        register int questIdx asm("ebx") =
+            GlobalData::s_timeGate_->getQuestIndex();
         if (user->getCurCharacQuestR()->IsDoingQuest(questIdx))
-            user->getCurCharacQuestW()->giveup_quest(questIdx);
+        {
+            register int questIdx2 asm("ebx") =
+                GlobalData::s_timeGate_->getQuestIndex();
+            user->getCurCharacQuestW()->giveup_quest(questIdx2);
+        }
     }
     user->EnableCharacInfo((CACHE_SECTION)3);
     return 0;
@@ -5080,9 +5090,8 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
         return 0;
     }
 
-    const unsigned char type =                         // msg+0x12
-        pPkt->m_12;
-    if (type == 1)
+    // ORIG：m_12 各处独立 movzbl reload（无具名槽，槽数决定 pPkt=-0x14/PG=-0x20）。
+    if (pPkt->m_12 == 1)
     {
         user->set_connect_upper_member(0);
         user->set_uppermember_exp_level(0);
@@ -5093,17 +5102,17 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
 
     PacketGuard packet;
     packet.put_header(1, 0x51);
-    if (type == 1 || type == 2)
+    if (pPkt->m_12 == 1 || pPkt->m_12 == 2)
         packet.put_byte(1);
     else
         packet.put_byte(0);
     const size_t msgLen = strlen(pPkt->m_13);
     packet.put_int((int)msgLen);
     packet.put_str(pPkt->m_13, (int)msgLen);
-    if (type == 1 || type == 2)
+    if (pPkt->m_12 == 1 || pPkt->m_12 == 2)
         packet.put_byte(1);
     else
-        packet.put_byte((int)type);
+        packet.put_byte((int)pPkt->m_12);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -5331,10 +5340,11 @@ struct Inter_MonitorCallMemberListEntryWinView
 
 int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorCallMemberListPktView* pPkt = reinterpret_cast<Inter_MonitorCallMemberListPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
+    // ORIG 0x084e****：state 岛后 pPkt 才物化 -0x20（技巧13）。
+    Inter_MonitorCallMemberListPktView* pPkt = reinterpret_cast<Inter_MonitorCallMemberListPktView*>(data);
     if (user->get_charac_memberkey() == 0)
     {
         LogManager::logFormat(
@@ -6201,17 +6211,19 @@ int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len
     const char* next = range.setData(data);
     checksum.setData(next);
 
-    std::map<unsigned int, CUser*>& userMap =
-        G_CGameManager()->getUserByAccIdMap();         // ORIG +0x22c，每次循环重取 end()
-    for (std::map<unsigned int, CUser*>::iterator it = userMap.begin();
-         it != userMap.end(); ++it)
+    // ORIG +0x54/0x115：无 userMap 具名槽（G_CGameManager 直调），end 每轮 `lea 0x22c` 重取。
+    for (std::map<unsigned int, CUser*>::iterator it =
+             G_CGameManager()->getUserByAccIdMap().begin();
+         it != G_CGameManager()->getUserByAccIdMap().end(); ++it)
     {
         CUser* target = it->second;                    // pair second
         if (!target->checkCodeChecksumRange(checksum, range))   // xor $1 取反
         {
             if (target->get_state() > 1)               // cmp $1,setg
             {
-                target->GetChecksumAnswerCount();      // ORIG 读取后未使用（忠实保留调用）
+                // ORIG 0x084d0715 `mov %eax,-0xc`：结果落槽但从未使用（技巧8 死槽）。
+                int answerCnt = target->GetChecksumAnswerCount();
+                (void)answerCnt;
                 target->getHackAnalyzer()->addServerHackCnt(
                     target, (WongWork::ENUM_HACKTYPE)0x3b7, 1, 0, 0);
             }
@@ -7438,10 +7450,11 @@ struct Inter_CallGuildInviteToInvitedPktView
 
 int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_CallGuildInviteToInvitedPktView* pPkt = reinterpret_cast<Inter_CallGuildInviteToInvitedPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    // ORIG 0x084d2bbc：state 岛后 pPkt 才物化 -0x14（技巧13）。
+    Inter_CallGuildInviteToInvitedPktView* pPkt = reinterpret_cast<Inter_CallGuildInviteToInvitedPktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
@@ -7456,21 +7469,22 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     if (user->alonePlay_Mode())
     {
-        const unsigned char local_e = 2;
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                user->GetServerGroup());
-        proxy->SendReplyGuildInvite(user->getCurCharacNo(), local_e);
+        // ORIG 0x084d2c4c：slot -0xa 写 2 后 `movzbl -0xa,%esi` 单步；4.4 对 const
+        // 消槽、volatile 反产 5 段 round-trip（实测），取 movl $2,%esi 直落形。
+        register unsigned char modeE asm("esi") = 2;
+        register unsigned int characNo asm("ebx") = user->getCurCharacNo();
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(
+            user->GetServerGroup())->SendReplyGuildInvite(characNo, modeE);
         return 0;
     }
 
     if (user->GetGameOptionRef()->get_etc_option((ENUM_OPTION_ETC)0x1e) != 0)
     {
-        const unsigned char local_d = 3;
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                user->GetServerGroup());
-        proxy->SendReplyGuildInvite(user->getCurCharacNo(), local_d);
+        // ORIG 0x084d2cbd：同族第二份（slot -0x9，同上取直落形）。
+        register unsigned char modeD asm("esi") = 3;
+        register unsigned int characNo asm("ebx") = user->getCurCharacNo();
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(
+            user->GetServerGroup())->SendReplyGuildInvite(characNo, modeD);
     }
 
     PacketGuard packet;
@@ -7559,29 +7573,26 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
-    const int characNo =                               // msg+0xa
-        pPkt->m_a;
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG 0x084d2f**：m_a/m_12 各处独立 reload（P48 无 CSE，无具名槽）。
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x33cf,
             "MEMBER : Inter_ReplyGuildInviteToCaller::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_a);
         return 0;
     }
 
-    const int replyCode =                              // msg+0x12
-        pPkt->m_12;
-    if (replyCode == 2)
+    if (pPkt->m_12 == 2)
     {
         user->Send_SoloPlay_Reject_NotiPack(
             data + 0x16, static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(1),
             static_cast<ENUM_SOLO_PLAY_REJECT_MSG>(4));
         return 0;
     }
-    if (replyCode == 3)
+    if (pPkt->m_12 == 3)
     {
         user->Send_SoloPlay_Reject_NotiPack(
             data + 0x16, static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(0),
@@ -7591,8 +7602,9 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
 
     PacketGuard packet;
     packet.put_header(0, 0x94);
-    packet.put_byte(replyCode);
-    if (replyCode < 2)
+    packet.put_byte(pPkt->m_12);
+    // ORIG ja：unsigned 比较（signed jg 形不符）。
+    if ((unsigned int)pPkt->m_12 < 2u)
     {
         const size_t msgLen = strlen(pPkt->m_16);
         packet.put_int((int)msgLen);
@@ -7771,11 +7783,10 @@ struct Inter_ReplyGuildSecedePktView
 
 int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 {
+    // ORIG 无 len 槽（Ghidra local_28 系 PG 内部视图误标）；pPkt 入口即物化 -0x24。
     Inter_ReplyGuildSecedePktView* pPkt = reinterpret_cast<Inter_ReplyGuildSecedePktView*>(data);
     if (user->get_state() == 0)
         return 0;
-
-    const int local_28 = len;
 
     if (user->get_charac_no(-1) != pPkt->m_10)
     {
@@ -12937,14 +12948,16 @@ int Inter_GuildCargoMoveItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(1, 0xfd);
-    if (pPkt->m_12 == (signed char)0xc1)
-    {   // 结果码 0xc1 → 成功标记
-        packet.put_byte(1);
-    }
-    else
+    // ORIG 0x084dec77 `cmp $0xc1,%al; je then-island`：false-path（else 体）在前
+    // 作 fall-through（技巧17），then 为 taken 岛。
+    if (pPkt->m_12 != 0xc1)
     {
         packet.put_byte(0);
         packet.put_byte((unsigned int)pPkt->m_12);
+    }
+    else
+    {   // 结果码 0xc1 → 成功标记
+        packet.put_byte(1);
     }
     packet.put_short(pPkt->m_13);
     packet.put_short(pPkt->m_17);
@@ -13935,17 +13948,17 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() <= 2)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xa
+    // ORIG 一步 `mov 0xa(%eax),%ebx` 直落 callee-saved（具名槽会顶深 pPkt，技巧2）。
+    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
         pPkt->m_a;
     if (charIdMsg != (unsigned int)user->getCurCharacNo())
         return 0;
 
-    const int count = pPkt->m_12;
-
+    // ORIG：m_12 每处独立 reload（无 count 槽；put_int + 循环界各一次）。
     PacketGuard packet;
     packet.put_header(0, 0x10f);
-    packet.put_int(count);
-    for (int i = 0; i < count; ++i)
+    packet.put_int((int)pPkt->m_12);
+    for (int i = 0; i < (int)pPkt->m_12; ++i)
         packet.put_binary(data + 0x16 + i * 0x29, 0x29);
     packet.finalize(true);
     user->Send(packet);
@@ -15562,11 +15575,13 @@ int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*le
     if (user->get_state() <= 2)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xa
+    // ORIG 0x084e4214 `mov 0xa(%eax),%ebx`：register 直落 callee-saved（cmp 方向 N22）。
+    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
         pPkt->m_a;
     if (charIdMsg != (unsigned int)user->getCurCharacNo())
         return 0;
 
+    // ORIG 0x084e425b/0x084e4270：m_12/m_16 各自从 -0xc reload（PG 生命周期内无缓存）。
     PacketGuard packet;
     packet.put_header(0, 0x134);
     packet.put_int(pPkt->m_12);
@@ -17065,19 +17080,22 @@ struct Inter_LoadCharacTypeHotKeyPktView
 
 int Inter_LoadCharacTypeHotKey::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadCharacTypeHotKeyPktView* pPkt = reinterpret_cast<Inter_LoadCharacTypeHotKeyPktView*>(data);
     if (user->get_state() <= 1)
         return 0;
 
-    const unsigned char slot = pPkt->m_4;
-    user->GetGameOptionRef()->SetHotKeyOption(
-        slot, *reinterpret_cast<CHotkeyOption*>(data + 5));
+    // ORIG 0x084e87f9：pPkt 在 state 岛后物化 -0x10（技巧13）。
+    Inter_LoadCharacTypeHotKeyPktView* pPkt = reinterpret_cast<Inter_LoadCharacTypeHotKeyPktView*>(data);
+    // ORIG 0x084e8814 `mov %eax,-0xc`：gopt 具名槽；m_4 两处独立 reload（无 slot 槽）。
+    CGameOption* gopt = user->GetGameOptionRef();
+    gopt->SetHotKeyOption(
+        (unsigned int)pPkt->m_4,
+        *reinterpret_cast<CHotkeyOption*>(reinterpret_cast<char*>(pPkt) + 5));
 
     PacketGuard packet;
     packet.put_header(0, 0x1c4);
-    packet.put_byte(slot);
+    packet.put_byte((unsigned int)pPkt->m_4);
     packet.put_int(0xbc);
-    packet.put_binary(data + 5, 0xbc);
+    packet.put_binary(reinterpret_cast<char*>(pPkt) + 5, 0xbc);
     packet.finalize(true);
     user->Send(packet);
     return 0;

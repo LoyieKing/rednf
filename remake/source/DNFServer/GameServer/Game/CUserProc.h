@@ -19,7 +19,11 @@ namespace APSystem
 
 // _ActionGroupIndex（4 字节枚举，ORIG 无任何构造符号）权威定义见 APSystemTypes.h。
 
-class _MSG_ACTION_POINT_ACTION_CLEAR
+// ORIG 证据（2026-09-05 DispC8）：①ctor 0x08122aaa `memset(this,0,0xb)` ⇒ sizeof=0xb；
+// ②APSystem::Dispatcher_ClearAction::dispatch_sig ORIG 0x0812517e 栈对象落 -0x13
+// （1 对齐），默认对齐 4 的 4.4 只能落 -0x14。成员偏移不变
+// （m_group@0 / m_field4@4 / m_actionNo@8 / m_flag@0xa），仅对齐 4→1、sizeof 0xc→0xb。
+class __attribute__((packed)) _MSG_ACTION_POINT_ACTION_CLEAR
 {
 public:
     _MSG_ACTION_POINT_ACTION_CLEAR();

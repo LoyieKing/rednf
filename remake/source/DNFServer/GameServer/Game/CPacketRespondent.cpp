@@ -57,16 +57,16 @@ int CPacketRespondent::Send()
 //   +0x1c=0；vill==0 && area==0 → 返回 0；
 //   IsGateArea(m_user, area) → m_user->Send(*this)；
 //   否则 G_GameWorld()->send_to_area(vill, area, *this)；返回 1。
-bool CPacketRespondent::Broadcast(int vill, int area)
+int CPacketRespondent::Broadcast(int vill, int area)
 {
     m_autoSend = 0;
     if (vill == 0 && area == 0)
-        return false;
+        return 0;  // ORIG 0x834041e mov $0,%eax（int 返回，非 %al）
     if (IsGateArea(m_user, area))
         m_user->Send(*this);
     else
         G_GameWorld()->send_to_area(vill, area, *this);
-    return true;
+    return 1;      // ORIG 0x834047e mov $0x1,%eax
 }
 
 // ORIG SendAll @ 0x0834048a：+0x1c=0；G_GameWorld()->send_all(*this)；返回 1。

@@ -517,7 +517,7 @@ struct _Charac_info
     unsigned char m_field24;          // +0x24 特例写 7
     unsigned char m_field25;          // +0x25 备份 data[0x22]
     char m_field26;         // +0x26（job）
-    short m_level;          // +0x27
+    short m_level;          // +0x27（ORIG CalcurateUserMaxLevel 两处 movzwl+cwtl 符号扩展⇒signed；getCharacLevelByCharacNo 单 movzwl 系 ORIG 源码显式 (unsigned short) cast，非字段类型，CUserC8 反证回滚）
     char m_field29;         // +0x29（MakeTagCharacInfo put_byte(movsbl)）
     char m_pad2a;                     // +0x2a
     int m_field2b;                    // +0x2b ← CHARAC_DATA+0x28 (int)
@@ -963,17 +963,11 @@ enum ENUM_PREMIUM_STATE
 class CUserPremium
 {
 public:
-    // ORIG C1 W 0x08694b0e：+0x8bd/_Additioal_info C1（memset 0x52）、
-    // +0x90f/_Additioal_info C1（= m_additionalInfo）、+0x964 std::map<int,int>
-    // 空构造（returnItemMap，本 TU 以文件级容器近似，见 CUserPremium.cpp）、
-    // 尾调 InitPremium()（定义 CUserPremium.cpp:668）。
-    CUserPremium()
-    {
-        memset(&m_additionalBase, 0, sizeof(_Additioal_info));   // +0x8bd..+0x90e（_Additioal_info 前置区）
-        memset(&m_additionalInfo, 0, sizeof(_Additioal_info));
-        memset(&m_pad961[0x3], 0, 0x18);   // +0x964 map 区（node_count 语义清零）
-        InitPremium();
-    }
+    // ORIG C1 W 0x08694b0e：_Additioal_info C1(+0x8bd) → _Additioal_info C1(+0x90f)
+    // → std::map<int,int> C1(+0x964, m_returnItemMap 真实成员) → InitPremium()。
+    // 三成员均真实类型,编译器按声明序自动构造即与 ORIG 同形;原三条 memset 冗余
+    // (多 22 行 DIFF ndiff18),删。InitPremium 定义 CUserPremium.cpp:668（CUserC8）。
+    CUserPremium() { InitPremium(); }
     ~CUserPremium() {}
 
     // ---- 基础访问器（ORIG W 弱符号，const）----

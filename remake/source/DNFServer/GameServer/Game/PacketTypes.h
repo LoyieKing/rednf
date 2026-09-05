@@ -2954,8 +2954,8 @@ class stSetAreaParam : public ParamBase
 public:
     stSetAreaParam();
     int m_errNo;          // +0x04（三参 check_error 结果；>=1 直接返回 0）
-    unsigned char m_8;    // +0x08（ORIG C1 清零）
-    unsigned char m_9;    // +0x09（ORIG C1 清零）
+    signed char m_8;      // +0x08（ORIG SetArea::check_error 0x081c93e8 +0x44 movzbl 0xd,Q;mov %dl,0x8 单步直存需 LHS/RHS 全等 schar=schar；DCoreC8 probe）
+    signed char m_9;      // +0x09（同上）
 };
 
 class stSetPartyInfo : public ParamBase

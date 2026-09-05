@@ -1237,7 +1237,13 @@ int DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, i
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        *reinterpret_cast<int*>(&sig->m_tryEntries[idx][6]),
+        // ORIG 0x8421…：`lea (%ecx,%eax);add $0x20;mov 0xe(%eax)` 三段：
+        // 先行指针 lea(sig,10i)、再 add $0x20、disp 0xe。ul 往返形可对齐
+        // add/disp 但 spill 多 1 行（N18a：4.4 不提前保 sig 于 %ecx）；
+        // 取 g1 直写形（ndiff 4 = 装载序+add/lea 序，行为等价）。
+        reinterpret_cast<const DB_TryNatView*>(
+            reinterpret_cast<const char*>(
+                sig) + idx * 10 + 0x20)->m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -1279,7 +1285,11 @@ int DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig,
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        *reinterpret_cast<int*>(&sig->m_tryEntries[idx][6]),
+        // ORIG 0x842156a：同 pvp 版取 DB_TryNatView g1 直写形（残留
+        // 装载序/add-lea 序 2 对，N18a）。
+        reinterpret_cast<const DB_TryNatView*>(
+            reinterpret_cast<const char*>(
+                sig) + idx * 10 + 0x20)->m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -1288,8 +1298,9 @@ int DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig,
     ok = db->exec(true);
     if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x590f, 5);
-        trace("DB_GatheringParyStatus failed");
+        // ORIG：buf 远槽/trace 近槽 ⇒ 临时链式翻槽序（技巧3，同 pvp 版）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x590f, 5)(
+            "DB_GatheringParyStatus failed");
     }
     return 1;
 }
@@ -7468,6 +7479,9 @@ static_assert(sizeof(Inven_Item) == 0x3d,
 // MsgQueueMgr::put(DISPATCH_Q=1, guard) 返 1。
 bool DB_LoadPowerWarStatueInfo::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // ORIG 0x08434886 帧：guard=-0x34、characNo=-0x38（更远）、
+    // trace1=-0x2c、trace2=-0x1c、sig=-0xc。实测 4.4 本函数：guard 先声明
+    // 占更近槽、characNo 后声明反占远槽（对象优先），故 guard 在前。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7e9d), true);
     guard.operator*()->operator<<(userIdx);
@@ -7475,21 +7489,24 @@ bool DB_LoadPowerWarStatueInfo::dispatch(int userIdx, int slot, Stream* stream)
     SIG_LOAD_POWER_WAR_STATUE_INFO* sig =
         guard->GetInBuffer<SIG_LOAD_POWER_WAR_STATUE_INFO>();
     memset(sig, 0, 0x80);
-    unsigned int characNo;
+    // ORIG 0x08434…：`movl $0x0,-0x38` 声明即初始化（写后 stream>> 覆盖，
+    // 值语义不变）。
+    unsigned int characNo = 0;
     *stream >> characNo;
     if (!GetCharacInfo(sig, characNo))
     {
         memset(sig, 0, 0x80);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x7eaf, 5);
-        trace("DB_LoadPowerWarStatueInfo::GetInvenInfo, GetCharacInfo ERROR charac_no=%u",
-              characNo);
+        // 技巧3：临时链式（具名对象致 sig 槽内收，ORIG trace=-0x2c）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x7eaf, 5)(
+            "DB_LoadPowerWarStatueInfo::GetInvenInfo, GetCharacInfo ERROR charac_no=%u",
+            characNo);
     }
     if (!GetAvatarInfo(sig, characNo))
     {
         memset(sig, 0, 0x80);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x7eb7, 5);
-        trace("DB_LoadPowerWarStatueInfo::GetInvenInfo, exec GetInvenInfo charac_no=%u",
-              characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x7eb7, 5)(
+            "DB_LoadPowerWarStatueInfo::GetInvenInfo, exec GetInvenInfo charac_no=%u",
+            characNo);
     }
     ((DB_LoadPowerWarStatueInfoView*)sig)->m_characNo = characNo;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -7512,29 +7529,35 @@ bool DB_LoadPowerWarStatueInfo::GetCharacInfo(
         return 0;
     if (db->get_n_rows() != 1)
         return 0;
-    DB_LoadPowerWarStatueInfoView* v = (DB_LoadPowerWarStatueInfoView*)sig;
-    if (!db->get_str(0, v->m_name, 0x1d))
+    // 技巧36：删具名 v 中转（ORIG 每次 `mov 0xc(%ebp),%eax` 参数槽直读+
+    // add disp，0x08434b62/0x08434b98/…；指针槽会多占 -0x10 使整帧平移）。
+    if (!db->get_str(0, ((DB_LoadPowerWarStatueInfoView*)sig)->m_name, 0x1d))
         return 0;
-    if (!db->get_byte(1, v->m_job))
+    if (!db->get_byte(1, ((DB_LoadPowerWarStatueInfoView*)sig)->m_job))
         return 0;
-    if (!db->get_byte(2, v->m_lev))
+    if (!db->get_byte(2, ((DB_LoadPowerWarStatueInfoView*)sig)->m_lev))
         return 0;
-    if (!db->get_byte(3, v->m_growType))
+    if (!db->get_byte(3, ((DB_LoadPowerWarStatueInfoView*)sig)->m_growType))
         return 0;
-    if (!db->get_uint(4, v->m_guildId))
+    // ORIG 0x08434c22-0x08434c30：G_CEnvironment+0x378 取 serverId（-0x10）
+    // 与死局部 -0xc 清零均发生在第 5 个 get_uint 之前（4.1 声明序）。
+    // +0x378 = m_serverEnvir(+0x198).m_serverGroup(+0x1e0)；具名链访
+    // ORIG 0x08434c27 `mov 0x378(%eax),%eax` 单 disp 折叠。
+    int serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    int deadC = 0;
+    (void)deadC;
+    if (!db->get_uint(4, ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId))
         return 0;
-    int serverId = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);
-    if (v->m_guildId == 0)
+    if (((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId == 0)
         return 1;
     guildDb->set_query(
         "seLect guild_name from guild_info where guild_id=%d and server_id=%d",
-        v->m_guildId, serverId);
+        ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildId, serverId);
     if (!guildDb->exec(true) || !guildDb->fetch())
         return 0;
     if (guildDb->get_n_rows() != 1)
         return 0;
-    if (!guildDb->get_str(0, v->m_guildName, 0x28))
+    if (!guildDb->get_str(0, ((DB_LoadPowerWarStatueInfoView*)sig)->m_guildName, 0x28))
         return 0;
     return 1;
 }
@@ -9859,6 +9882,9 @@ bool DB_UpdateServerMessage::dispatch(int userIdx, int slot, Stream* stream)
     out->m_messageIndex = sig->m_messageIndex;
     out->m_kind = sig->m_kind;
     out->m_characNameLen = sig->m_characNameLen;
+    // 残留（N 类）：ORIG 0x8435… `lea 0x1(%eax),%ecx` 独立输出寄存器
+    // 物化；4.4 恒 `add $0x1,%eax` 原地复用（register asm("ecx"/"eax")
+    // /具名槽探针全试，均反产 spill，probe t1-t5 实证）。
     strncpy(out->m_characName, sig->m_characName, sig->m_characNameLen + 1);
     out->m_messageLen = sig->m_messageLen;
     strncpy(out->m_message, sig->m_message, sig->m_messageLen + 1);
@@ -10402,7 +10428,12 @@ bool DB_InsertPVPMap::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "inSert into log_pvp_map(channel_no,occ_date,map_id,play_count) values%s",
         sql.c_str());
-    return db->exec(true) == 1;
+    // ORIG 0x842…：返回值经 `xor$1;test;je` 双常数物化入 %ebx 再走
+    // string dtor 尾（4.1 bool 物化形）。4.4 对 `== 1` 恒折裸值直通
+    // ⇒ 试直判返形（技巧1/17 系）。
+    if (!db->exec(true))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -11728,7 +11759,12 @@ bool DB_InsertDungeonExp::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "inSert into log_dungeon_exp(occ_time,channel_no,lev,exp,fatigue,user_count) values%s",
         sql.c_str());
-    return db->exec(true) == 1;
+    // ORIG 0x0842e944：同 DB_InsertPVPMap 尾——bool 物化双常数岛
+    // （`xor$1;test;je` + mov$0/mov$1 入 %ebx）后走 string dtor；
+    // 4.4 直判返形复现（先例 DB_InsertPVPMap::dispatch 闭合）。
+    if (!db->exec(true))
+        return 0;
+    return 1;
 }
 // ============================================================================
 // DB_FatigueResetTimer::dispatch —— ORIG 0x0841abbc（报告 dispatch.md）
@@ -14627,18 +14663,30 @@ bool DB_Check3rdPartyConcent::dispatch(int userIdx, int slot, Stream* stream)
                   NumberToString(mId, 0));
     if (db->exec(true) != 1)
         return 0;
+    // ORIG 0x08445…：`mov %eax,-0xc`（get_n_rows 落槽）+ `movb $0,-0x15`
+    // （consent 在其后声明占 -0x15）+ `cmpl $0,-0xc;jle`——具名槽形
+    // （4.4 免槽直判会把整帧内推 4B 且 setg 折叠）。
+    int nRows = db->get_n_rows();
     unsigned char consent = 0;
-    if (db->get_n_rows() >= 1)
+    if (nRows > 0)
     {
         if (db->fetch() != 1)
             return 0;
         if (db->get_ubyte(0, consent) != 1)
             return 0;
     }
+    else
+    {
+        // ORIG 0x08445…：else 路径 `cmpl $0,-0xc;jne; movb $0,-0x15`
+        // （==0 判定：jne 跳过清零）。
+        if (nRows == 0)
+            consent = 0;
+    }
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xad91), true);
     guard.operator*()->operator<<((int)0x2b7);
-    guard.operator*()->operator<<((int)userIdx);
+    // ORIG 0x08445…：`mov 0x10(%ebp),%edx` = slot（成员函数 a2），非 userIdx。
+    guard.operator*()->operator<<((int)slot);
     guard.operator*()->operator<<(consent);   // ORIG lsEh（unsigned char 1 字节，勿转 int）
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -15929,24 +15977,30 @@ bool DB_SaveCharacInformNotice::dispatch(int /*userIdx*/, int /*slot*/,
     if (sig == 0)
         return 0;
     char esc[0x101] = { '\0' };
+    // bool r 占 -0x9 系近槽，自然把 db/sig/esc 外推 4B（ORIG db=-0x14、
+    // sig=-0x10、esc=-0x115、r=-0x9）。
     db->escape_string(esc,
                       reinterpret_cast<char*>(sig->m_flags));
     db->set_query(
         "upDate charac_option set charac_inform_notice='%s' where charac_no=%u",
         esc, sig->m_characNo);
-    if (db->exec(true) == 1)
+    // ORIG 0x0844c…：两处 exec 结果经 bool 槽 -0x9 spill+reload：
+    // `mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax; test; je BODY`
+    // （4.1 `if(!ok) return 0;` 物化形，技巧8 同族）。
+    bool r;
+    r = db->exec(true);
+    if (!r)
+        return 0;
+    if (db->getAffectedRowCount() == 0)
     {
-        if (db->getAffectedRowCount() == 0)
-        {
-            db->set_query(
-                "inSert into charac_option(charac_no, options, best_clear_time, blue_marble_enter_count, charac_inform_notice) values (%u, '%s', '%s', 0, '%s')",
-                sig->m_characNo, "", "", esc);
-            if (db->exec(true) != 1)
-                return 0;
-        }
-        return 1;
+        db->set_query(
+            "inSert into charac_option(charac_no, options, best_clear_time, blue_marble_enter_count, charac_inform_notice) values (%u, '%s', '%s', 0, '%s')",
+            sig->m_characNo, "", "", esc);
+        r = db->exec(true);
+        if (!r)
+            return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -18373,14 +18427,13 @@ bool DB_InsertRandomOptionItemInform::dispatch(int userIdx, int slot,
     if (!db->exec(true))
     {
         // ORIG 0x08442d42：cMyTrace(__PRETTY_FUNCTION__, 0xa47e, 5) + trace 日志。
-        char* idStr = NumberToString(m_id, 0);
-        {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xa47e, 5);
-            trace("InSert check_pick_up_random_option_item fail(m_id:%s)",
-                  idStr);
-        }
+        // ORIG 0x08442d2a `mov %eax,%ebx`：idStr 直落 callee-saved %ebx
+        // （无槽，技巧28/2），named char* 会多占 -0xc 槽使整帧平移。
+        register char* idStr asm("ebx") = NumberToString(m_id, 0);
+        // 技巧3：临时链式（具名块对象使 4.4 槽表外扩 8B，ORIG trace=-0x1c
+        // 0x08442d42 区实证）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa47e, 5)(
+            "InSert check_pick_up_random_option_item fail(m_id:%s)", idStr);
         return 0;
     }
     return 1;

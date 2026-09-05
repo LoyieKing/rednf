@@ -66,7 +66,8 @@ public:
 class TeamInfoSecond
 {
 public:
-    TeamInfoSecond();          // COnlinePreliminary ctor 未显式构造【推断】
+    // ORIG nm 无 TeamInfoSecond::C1/C2 符号 ⇒ 隐式平凡 ctor；显式声明会令
+    // 4.4 在 COnlinePreliminary ctor 为 m_teams[2] 生成元素构造循环（ORIG 无）。
     void reset();              // 0x855fdc0
     int  add(CUser* user);     // 0x855fdfe
     int  del(CUser* user);     // 0x855fe54
@@ -260,7 +261,9 @@ public:
     virtual float GetGap(IMatch* other);   // 0x8561a0e
 
     float _GetRating(ENUM_SCHOOL_MATCH_TEAM team);   // ORIG 0x08560342：flds 返回 float
-    int  _GetRating(CUser* user);
+    // ORIG 0x08560082 尾 flds -0xc(%ebp)：st0 float 返回（int→float 修正，
+    // mangled 无返回类型）
+    float _GetRating(CUser* user);
     void _SetRating(ENUM_SCHOOL_MATCH_TEAM team, float v);
     void _SetRating(CUser* user, float v);
     int  _PutInRoom(CUser* user, PvP_Room* room, bool observer);
@@ -285,7 +288,8 @@ public:
     unsigned int _GetEachOtherPlayCount();
     void _IncreaseEachOtherPlayCount(CUser* a, CUser* b);
     void _IncreaseEachOtherPlayCount();
-    int  CheckUnusableEquipmentInUser(CUser* user);
+    // ORIG 0x08560a42：0x8(%ebp) 即 user（无 this）→ static 实证
+    static bool CheckUnusableEquipmentInUser(CUser* user);
     PvP_Room* _MakeRoom(CUser* user);             // ORIG 0x8560f92（返回池化房间）
     int  GetTeamId();
     static bool CheckUnusableEquipment(const Inven_Item* item);  // 迁自 CUserCharacInfo.h，0x08560920

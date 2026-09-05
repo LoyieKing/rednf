@@ -108,7 +108,7 @@ namespace WongWork
             unsigned int m_startTick;   // +0x04
             unsigned int m_finishTick;  // +0x08
             MapInfo m_mapInfo;       // +0x0c..+0xf8（ORIG C1/D1/reset/dropItem 实证内嵌）
-            int m_state;             // +0xf8
+            ENUM_STAGE_STATE m_state;  // +0xf8（原 int；ORIG 0x8461ca0 store 序证据 → 同型直落）
         };
 
         class CPlayData
@@ -203,7 +203,7 @@ namespace WongWork
     ~CDeathTower();
 
     void _beginTowerClearProcess(bool);
-    int _checkMemberDie();
+    bool _checkMemberDie();   // 原 int；ORIG caller 0x84661bc `test %al,%al` 直用 al 无归一 ⇒ bool 返回（mangled 无返回类型）
     int _checkMemberReady();
     int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
     int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
@@ -219,7 +219,7 @@ namespace WongWork
     void _onStartDeathTower();
     void _onStartStage();
     CUser* _pickupItem(CUser*, char*, int, const map_item&, bool, char, const CItem*);
-    int _pickupItemMoney(CUser*, int, const map_item&, int*, int*);
+    void _pickupItemMoney(CUser*, int, const map_item&, int*, int*);  // 原 int；ORIG 0x8466cf8 尾无 %eax 置值 ⇒ void（mangled 无返回类型）
     void attachParty(CParty*);
     void deathTowerCardStatistic(int, CUser*, const Inven_Item*);
     int genTimerKey(TIMER_MESSAGE);

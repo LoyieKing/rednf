@@ -260,8 +260,11 @@ int CCreature::GetCreatureId(int itemId)
 // （注意与字段名直觉相反）；非成长宠且 exp==0 时 exp 低字节与 m_field4d 同置 5。
 void CCreature::SetItemId(int itemId)
 {
-    m_itemId = itemId;                       // CCreatureItem::SetItemId（+0x04）
-    int creatureId = GetCreatureId(m_itemId);
+    // ORIG 0x83375c1 call CCreatureItem::SetItemId W 0x833efb0；0x83375cc call
+    // GetItemId W 0x833efa4 后 mov %eax,0x4(%esp) → GetCreatureId(int) 0x833769c。
+    reinterpret_cast<CCreatureItem*>(this)->SetItemId(itemId);
+    int creatureId = GetCreatureId(
+        reinterpret_cast<CCreatureItem*>(this)->GetItemId());
     m_script = GetInstanceCreatureScriptMgr()->FindCreatureScript(creatureId);
     if (m_script == 0)
     {
@@ -275,8 +278,15 @@ void CCreature::SetItemId(int itemId)
         m_isGrow = 1;
     if (m_isGrow != 1 && m_exp == 0)
     {
-        m_exp = (m_exp & ~0xFF) | 0x05;      // ORIG movb $0x5 到 +0x30 低字节
-        m_field4d = 5;
+        // ORIG 0x833767f：栈 temp -0x20 先整字存、再 movb $5 覆写低字节（无
+        // lea）、回读 int 与 movzbl 同槽 → union 别名形（4.4 对 *(&int) 取
+        // 地址会物化 lea 反产两指令）。
+        union ExpAlias { int w; unsigned char b; };
+        ExpAlias expVal;
+        expVal.w = m_exp;
+        expVal.b = 5;
+        m_exp = expVal.w;
+        m_field4d = expVal.b;
     }
 }
 
@@ -319,17 +329,34 @@ int CCreature::GetExpLevel(int exp)
 // 槽位可用时取当前角色背包内 CCreatureMgr（ORIG invenW+0x6e8，镜像具名成员）
 // 的 GetArtifact(slot)；神器存在且（最低等级为 0 或 <=m_level）返回其经验量，
 // 否则 0.0f。
+namespace
+{
+    // ORIG 0x833775a `lea 0x6e8(%eax),%edx`：GetCreatureMgrW 为 4.1 头内联的
+    // 成员地址计算（无 call、无 extra 槽）。本 TU 以 pad 镜像视图复现单级 lea。
+    struct CInventoryCreatureMgrView
+    {
+        char m_prefix[0x6e8];
+        user_creature::CCreatureMgr m_creatureMgr;  // CInventory+0x6e8
+    };
+}
 float CCreature::GetAddExp(int artifactSlot, CUser* user)
 {
     float result = 0.0f;
+    // ORIG 0x8337732：entry `movl $0,-0x14`（inven 声明初始化 dead store，
+    // 4.1 copy-prop 后 call 结果不再回写该槽）。
+    CInventory* inven = 0;
     if (IsAvailableArtifact(artifactSlot))
     {
-        CInventory* inven = user->getCurCharacInvenW();
-        CArtifact* artifact =
-            inven->GetCreatureMgrW()->GetArtifact(artifactSlot);
+        (void)inven;
+        CArtifact* artifact = reinterpret_cast<CInventoryCreatureMgrView*>(
+                                  user->getCurCharacInvenW())
+                                  ->m_creatureMgr.GetArtifact(artifactSlot);
         if (artifact != 0)
         {
             int minLevel = artifact->GetCreatureMinimumLevel();
+            // ORIG 0x8337795：残差为 4.1 phi 物化（两路各 `mov -0x18,%eax` +
+            // jmp 值岛）；4.4 CFG merge 折成单一尾 load + jl。三元/自赋值形
+            // 均反产 fld/fsts 或 store，维持 if 形（4.1-PHI 天花板）。
             if (minLevel == 0 || minLevel <= m_level)
                 result = artifact->GetExperienceAmount();
         }
@@ -343,12 +370,17 @@ float CCreature::GetAddExp(int artifactSlot, CUser* user)
 // m_exp += gained + exp；新等级 = GetExpLevel(m_exp)，高于当前则置 levelUp。
 void CCreature::CalculateExp(int exp, bool& levelUp, CUser* user)
 {
+    // ORIG 0x83377bc/0x83377c4：两个 float 槽 entry 各自两段物化清零
+    // （-0x18 先声明=截断缓存、-0x14 后声明=累加器，技巧 43/21）。
+    float scaled = 0.0f;
     float addRate = 0.0f;
     addRate += GetAddExp(0x17, user);
     addRate += GetAddExp(0x18, user);
     addRate += GetAddExp(0x19, user);
-    int gain = (int)((float)exp * addRate / 100.0f);   // fistpl 截断
-    gain += exp;
+    // ORIG 0x8337840/0x8337843：`fstps -0x18; flds -0x18`——乘除结果先落具名
+    // float 变量、再从其 reload 做截断（4.4 表达式内联会省掉这对）。
+    scaled = (float)exp * addRate / 100.0f;
+    int gain = (int)scaled + exp;                       // ORIG fistpl 截断+加 exp
     m_exp += gain;
     int newLevel = GetExpLevel(m_exp);
     if (m_level < newLevel)
@@ -651,12 +683,21 @@ void CCreatureMgr::SetUser(CUser* user)
 int CCreatureMgr::UseItem(Inven_Item* item, int slot)
 {
     (void)slot;
-    if (item->m_addInfo == 0x18 && !UseFeed())
-        return 0x85;
-    if (m_equippedCreature != 0 &&
-        m_equippedCreature->vaildItemExp(item->m_addInfo) &&
-        !GainExp(item->m_addInfo))
-        return 0x11;
+    // ORIG 0x833a5cb/0x833a5dd：短路用直接分支（jne / xor;test;je），无 4.4
+    // && 物化岛（mov1;jmp;mov0;test）⇒ 展开为嵌套 if，false 路径 fall-through。
+    if (item->m_addInfo == 0x18)
+    {
+        if (!UseFeed())
+            return 0x85;
+    }
+    if (m_equippedCreature != 0)
+    {
+        if (m_equippedCreature->vaildItemExp(item->m_addInfo))
+        {
+            if (!GainExp(item->m_addInfo))
+                return 0x11;
+        }
+    }
     return 0;
 }
 
@@ -689,13 +730,17 @@ bool CCreatureMgr::UseFeed()
 // ORIG GainExp @ 0x8339b06。
 bool CCreatureMgr::GainExp(int exp)
 {
-    // ORIG 0x8339b14/0x8339b37：两条短路均 je 直达尾 mov0 岛（无 xor 取反、
-    // 无中段 mov0+jmp 物化）⇒ 正向 `A && B` 合并条件 + then 尾 return true。
-    if (m_equippedCreature != 0 && m_equippedCreature->GainExp(exp, m_user))
+    // ORIG 0x8339b14/0x8339b37：两条短路均 je 直达尾 mov0 岛（无 xor 取反）；
+    // 两条 false 路径共用单一尾 return（ORIG 两 je 同指 0x8339b66）。
+    if (m_equippedCreature != 0)
     {
-        if (m_equippedCreature->IsGrowCreature())
-            m_isMaxLevelGrowCreature = m_equippedCreature->isMaxLevel() ? 1 : 0;
-        return true;
+        if (m_equippedCreature->GainExp(exp, m_user))
+        {
+            if (m_equippedCreature->IsGrowCreature())
+                m_isMaxLevelGrowCreature =
+                    m_equippedCreature->isMaxLevel() ? 1 : 0;
+            return true;
+        }
     }
     return false;
 }
@@ -903,13 +948,15 @@ bool CCreatureMgr::IsCreatureEquipmentScope(int slot)
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr16RegistTempPeriodEiii T 0x0833d7de。
-// m_field30（map<int,int>）查 key=b；不存在则插入 (b,c) 并返回 true。
+// 汇编实证 key=a(0xc)、value=b(0x10)（0x833d7ed find(&a)、0x833d83b/0x833d842
+// make_pair(&a,&b)）；形参 c(0x14) 未引用。查中 → false；插入后 true。
 bool CCreatureMgr::RegistTempPeriod(int a, int b, int c)
 {
-    std::map<int, int>::const_iterator it = m_field30.find(b);
+    (void)c;
+    std::map<int, int>::iterator it = m_field30.find(a);
     if (it != m_field30.end())
         return false;
-    m_field30.insert(std::make_pair(b, c));
+    m_field30.insert(std::make_pair(a, b));
     return true;
 }
 
@@ -1583,12 +1630,29 @@ int CCreatureMgr::GetExtraGold(int gold) const
 // 装备宠存活且 itemId==0xf68a 且超技能计时有效时给 *5/100，否则 0。
 int CCreatureMgr::GetOverSkillExtraGold(int gold) const
 {
-    if (m_equippedCreature != 0 && !m_equippedCreature->IsDieCreature() &&
-        ((user_creature::CCreatureItem*)m_equippedCreature)->GetItemId() == 0xf68a &&
-        m_equippedCreature->GetOverSkillTime()->checkTime())
+    // ORIG 0x833c704：四步分断——creature==0/ItemId 不符/checkTime 假三条
+    // je→共享尾 mov0 岛(0x833c777)；IsDie 真值走中段 `mov0;jmp end` 物化岛
+    // （技巧 40 &&-materialize 形）；0xf68a 比较为 sete;test;je（技巧 9/22，
+    // bool 取反物化而非直接 jne）。
+    // ORIG 0x833c704 je→尾共享 mov0(0x833c777)：goto 钉块序（技巧 23）；
+    // IsDie true → 中置 `mov0;jmp end` 物化（技巧 40）；match 用 sete;test;je
+    // 直判（技巧 22，`return 0` 形反产 xor+物化岛）；checkTime 正向 fall=gold。
+    register bool match asm("al");  // 声明先于 goto（label 跨初始化限制）
+    if (m_equippedCreature == 0)
+        goto RET0;
+    if (m_equippedCreature->IsDieCreature())
+        return 0;
+    match =
+        (reinterpret_cast<user_creature::CCreatureItem*>(m_equippedCreature)
+             ->GetItemId() == 0xf68a);
+    // 正向 if(match)（技巧 19/22）：`if(!match)` 反产 sete;xor;jne 翻转形，
+    // 正向落 test %al,%al; je RET0（ORIG 0x833c735）。
+    if (match)
     {
-        return gold * 5 / 100;
+        if (m_equippedCreature->GetOverSkillTime()->checkTime())
+            return gold * 5 / 100;
     }
+RET0:
     return 0;
 }
 
@@ -1746,9 +1810,12 @@ int CCreatureMgr::ResponseCreature()
 {
     CPacketRespondent respondent(m_user, 0, 0);
     respondent.MakeNotipacketResponseCreature();
-    int area = m_user->get_area(false);
-    int vill = (int)(char)m_user->getCurCharacVill();  // ORIG movsbl 符号扩展
-    return (int)respondent.Broadcast(vill, area);
+    // ORIG 0x833a726/0x833a74c：area 与 Broadcast 返回值两段生命周期复用 %ebx
+    // （无栈槽，frame 0x30、respondent@-0x28）。register 绑 ebx 复现。
+    register int bx asm("ebx");
+    bx = m_user->get_area(false);
+    bx = respondent.Broadcast((int)(char)m_user->getCurCharacVill(), bx);
+    return bx;
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr20RegisterCreatureItemEPNS_13CCreatureItemEi
@@ -1800,9 +1867,8 @@ bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
     buf->m_hdr |= 0x244;   // ORIG asm 833fcf0：or $0x244（0x200|0x40|0x4）
     buf->m_addInfo2 = uid;                            // +0x30
     buf->m_flag50 = (unsigned char)flag;              // +0x50
-    Inven_Item_Compatible* compat =
-        (Inven_Item_Compatible*)(void*)buf->m_item;   // +0x04
-    compat->m_itemIdx = itemIdx;                      // +0x08
+    // ORIG 0x833fd0f：无 compat 槽，`mov %edx,0x8(%eax)` buf 基址直存。
+    *reinterpret_cast<int*>(&buf->m_item[4]) = itemIdx;  // buf+0x08
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54
     buf->m_expireTick = item->getExpirationDate();    // +0x58

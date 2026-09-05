@@ -268,7 +268,7 @@ int CUser::AntibotSend(PacketBuf& packet)
     return 1;
 }
 
-_Quest_Authen_Data::_Quest_Authen_Data() { reset(); }
+_Quest_Authen_Data::_Quest_Authen_Data() throw() { reset(); }  // throw()：ORIG UserQuest C1 0x8697b8a 无 EH pad
 // ORIG reset 0x0814aa16 逐字段清：movw +0/+2、movl +8、movb +0xc、movl +0x10/+0x14
 // （不动 +0x04/+0x18 起字段）；旧 memset 0x48 语义与形态均不符。
 void _Quest_Authen_Data::reset()
@@ -979,11 +979,18 @@ void* CUser::GetPICSMap()
 
 bool CUser::CheckMoney(int money)
 {
-    const char* accName = get_acc_name();
-    int level = get_charac_level();
+    // ORIG 0x866af2f/0x866af3c：accName→%esi、level→%ebx 跨 call 缓存（push esi/ebx
+    // 帧 0x20）；limit@-0x10、curMoney@-0xc；尾 `cmp -0x10,%eax; jg F; mov $1; jmp;
+    // F: mov $0` 直分支岛（技巧 23 goto 钉序，<=+setle 折叠反形）。
+    register const char* accName asm("esi") = get_acc_name();
+    register int level asm("ebx") = get_charac_level();
     int limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
     int curMoney = getCurCharacMoney();
-    return curMoney + money <= limit;
+    if (curMoney + money > limit)
+        goto RET0;
+    return true;
+RET0:
+    return false;
 }
 
 int CUser::getDungeonIdxAfterClear()
@@ -1048,9 +1055,12 @@ void* CUser::GetWarRoom()
 // 与 characNo 相等则返回下标，否则返回 -1。
 int CUser::get_charac_idx(unsigned int characNo) const
 {
+    // ORIG 0x864df12：prologue 连构 begin→-0x10、end→-0x14（尾循环 cond 双 lea
+    // 无重构，技巧 25 具名缓存消重）；声明序 end 后占远槽。
     int idx = 0;
-    for (std::vector<_Charac_info>::const_iterator it = m_characList.begin();
-         it != m_characList.end(); ++it)
+    std::vector<_Charac_info>::const_iterator it = m_characList.begin();
+    std::vector<_Charac_info>::const_iterator itend = m_characList.end();
+    for (; it != itend; ++it)
     {
         if ((unsigned int)it->m_characNo == characNo)
             return idx;
@@ -1060,15 +1070,17 @@ int CUser::get_charac_idx(unsigned int characNo) const
 }
 int CUser::get_charac_no(int param)
 {
-    if (param != -1)
+    // ORIG 0x08677a?? prologue cmp $-1 的 fall-through 块 = param==-1 路径
+    //（技巧 17：等号形让 -1 块前置，!= 形被 4.4 后置）。
+    if (param == -1)
     {
-        if (param < 0 || (int)m_characList.size() <= param)
+        if (getCurCharacR() == 0)
             return 0;
-        return *((unsigned int*)&m_characList[param]);
+        return *((unsigned int*)getCurCharacR());
     }
-    if (getCurCharacR() == 0)
+    if (param < 0 || (int)m_characList.size() <= param)
         return 0;
-    return *((unsigned int*)getCurCharacR());
+    return *((unsigned int*)&m_characList[param]);
 }
 
 bool CUser::CheckItemLock(int a, int b) const
@@ -1094,17 +1106,36 @@ bool CUser::CheckItemLock(int a, int b) const
 
 unsigned short CUser::getCurCharacTotalFatigue() const
 {
-    unsigned short total = getCurCharacFatigue();
-    short rate = m_premium.GetAdvantageFatigueRate();
-    if (rate != 0)
+    // ORIG 0x865776c：total dead-init `movw $0,-0xa`（技巧 8）+ call 物化 `mov %ax,-0xa`
+    // (0x865777d)；rate 无槽：test %ax,%ax;setne;test;je 物化（技巧 22，0x8657791-99）。
+    unsigned short total = 0;
+    total = getCurCharacFatigue();
+    register bool nz asm("al");
+    nz = (m_premium.GetAdvantageFatigueRate() != 0);
+    if (nz)
     {
-        unsigned short maxTotal = getCurCharacTotalMaxFatigue();
-        unsigned short maxPremium = getCurCharacMaxPremiumFatigue();
-        unsigned short premiumFatigue = getCurCharacPremiumFatigue();
-        unsigned short added = (unsigned short)(std::min(premiumFatigue, maxPremium) + total);
+        // ORIG 槽反推（声明序即分配序，技巧 21：先声明占近槽）：maxPremium@-0xe、
+        // premiumFatigue@-0xc（min 双 lea 0x86577c8-0x86577d2 实参序 (premium,maxPremium)
+        // 对应 std::min(a,b) 签名 (T,T) 取 &a,&b → min 第1参=premium@-0xc? lea -0xe 入
+        // 0x4(%esp)（第2参）、lea -0xc 入 (%esp)（第1参）⇒ min(premiumFatigue,maxPremium)
+        // 保留；added@-0x10、maxTotal@-0x12（后声明远槽——此处三者 ORIG 强制 -0x12<-0xe<-0xc
+        // 交叠，maxTotal 声明最先占最远 16bit 槽位序，见下）。
+        // 槽序=声明序（4.4 先声明近槽）：premium@-0xc/maxPremium@-0xe/added@-0x10/
+        // maxTotal@-0x12（ORIG 0x86577a6-0x86577c4 装载序与赋值分开写）。
+        unsigned short premiumFatigue;
+        unsigned short maxPremium;
+        unsigned short added;
+        unsigned short maxTotal;
+        maxTotal = getCurCharacTotalMaxFatigue();
+        maxPremium = getCurCharacMaxPremiumFatigue();
+        premiumFatigue = getCurCharacPremiumFatigue();
+        // ORIG 0x86577da-0x86577e1：`_ZSt3minIt` = min<unsigned short>（t=ushort），
+        // movzwl (%eax) 解引用 + `add -0xa,%ax`、截断写 added@-0x10。
+        added = std::min(premiumFatigue, maxPremium) + total;
+        // ORIG 0x86577f2-0x86577fa：total = min(added, maxTotal)（双 lea 形）。
         total = std::min(added, maxTotal);
     }
-    return total;
+    return total;  // ORIG 0x86577fe 单点 movzwl -0xa(%ebp)
 }
 
 unsigned short CUser::getCurCharacTotalMaxFatigue() const
@@ -4113,13 +4144,13 @@ void CUser::setSlotEffectCount(unsigned char count)
 // actionKind@+0xb）经 CStatisticServerProxy::SendPacket(pkt, 0xc) 发统计服务器（组 0）。
 void CUser::SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actionKind)
 {
+    // ORIG 0x8676826：无 proxy 判空/无具名槽（call 结果 %eax 直传 (%esp)，&pkt 先
+    // 载 %ebx 跨 call，技巧 37），SendPacket 无条件调（非虚 null-this 安全）。
     Packet_Randombox_statistic pkt;
     pkt.m_boxKind = static_cast<char>(boxKind);
     pkt.m_actionKind = static_cast<char>(actionKind);
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    if (proxy != 0)
-        proxy->SendPacket(reinterpret_cast<char*>(&pkt), 0xc);
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&pkt), 0xc);
 }
 
 // ORIG 0x0868f6bc (T)：find_item(itemIdx)→verifyStackableItemProcess
@@ -4478,11 +4509,18 @@ unsigned char CUser::GetCharacJob(int idx) const   // CUser.h:3290 uchar（DCore
 
 int CUser::getCharacLevelByCharacNo(int characNo) const
 {
+    // ORIG 0x0868e5xx：begin→-0x10、end→-0x14 prologue 双缓存（技巧 25）；
+    // return 无显式 cast（ORIG 尾单条 movzwl 直返，(unsigned short) 强转反产两段）。
     int idx = 0;
-    for (std::vector<_Charac_info>::const_iterator it = m_characList.begin();
-         it != m_characList.end(); ++it, ++idx)
+    std::vector<_Charac_info>::const_iterator it = m_characList.begin();
+    std::vector<_Charac_info>::const_iterator itend = m_characList.end();
+    for (; it != itend; ++idx, ++it)   // ORIG 0x84ecc4f ++idx 先于 ppEv
     {
         if (it->m_characNo == characNo)
+            // ORIG 0x84ecc49 单条 movzwl 0x27(%eax) 零扩展读（字段本体 short——
+            // CalcurateUserMaxLevel 0x869?? movzwl+cwtl 段证 signed，此处系 ORIG
+            // 显式 (unsigned short) cast）。4.4 值/p 指针 cast 均产两段 HImode 形
+            //（movzwl %ax,%eax 或 add+movzwl，probe 二试）——fold-const 残差 1 行。
             return (unsigned short)it->m_level;
     }
     return -1;
@@ -4501,9 +4539,12 @@ const char* CUser::get_charac_name_by_charac_no(int characNo) const
 
 bool CUser::setCharacName(int characNo, const char* name)   // ORIG W 0x084ecc7c：命中 true/未中 false
 {
+    // ORIG W 0x84ecc7c：prologue begin→-0x10、end→-0x14 双缓存；latch ++idx 先于
+    // ++it（技巧 25 具名缓存消 end 重构）。
     int idx = 0;
-    for (std::vector<_Charac_info>::iterator it = m_characList.begin();
-         it != m_characList.end(); ++it, ++idx)
+    std::vector<_Charac_info>::iterator it = m_characList.begin();
+    std::vector<_Charac_info>::iterator itend = m_characList.end();
+    for (; it != itend; ++idx, ++it)
     {
         if (it->m_characNo == characNo)
         {
@@ -5315,9 +5356,11 @@ void CUser::WorkPerTenMin()
     }
     if (getCurCharacR() == 0)
     {
-        cMyTrace trace("CUser::WorkPerTenMin()", 0x1d71, 5);
-        trace("WorkPerTenMin() m_id(%s) character - m_selected is null..",
-              NumberToString(get_acc_id(), 0));
+        // ORIG 0x86531f4-：NumberToString 两 call 先执行、结果暂 %ebx，cMyTrace
+        // 临时构造成其后（0x8653215 mov %eax,%ebx 证据）→ 临时链式（技巧 3）。
+        cMyTrace("CUser::WorkPerTenMin()", 0x1d71, 5)(
+            "WorkPerTenMin() m_id(%s) character - m_selected is null..",
+            NumberToString(get_acc_id(), 0));
         return;
     }
     if (get_charac_memberkey() != 0)
@@ -5778,8 +5821,10 @@ void CUser::SetChangedGiftFatigueQuantity(bool flag)
 void CUser::ResetDailyQuest()
 {
     std::list<int> questList;
-    QuestList* pQuestList = G_CDataManager()->m_questList;
-    pQuestList->GetDailyQuestList(questList);
+    // ORIG 0x865753x：G_CDataManager()->m_questList 结果不留槽（技巧 37），
+    // 直接 `mov %eax,(%esp)` 传 GetDailyQuestList——具名 pQuestList 反产 -0x10 spill
+    // 使整帧平移 4（ORIG it=-0x18/end=-0x1c 证据）。
+    G_CDataManager()->m_questList->GetDailyQuestList(questList);
     for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
@@ -8749,19 +8794,29 @@ void CUser::resetDailyData()
 // 最后按背包币是否足够（coin < need）设置 SetOpencoin(0/1)。
 void CUser::RecoverCoin(unsigned int v)
 {
+    // ORIG 0x8657f10：getCurCharacR 结果 sete 物化 guard（技巧 22 register bool al）；
+    // pEvent@-0xc（先赋后测 `cmpl $0,-0xc; je` 短路岛 @8657f46-4a，技巧 40）、
+    // IsEventing 尾 `test %al; je F; mov$1;F:` 物化（@8657f66）；三处 GetCoin 结果
+    // 直读 %eax `cmp 0xc(%ebp),%eax` 免槽（技巧 37，ORIG 0x8657faa/0x8657fe2/0x8657ff8）。
     if (getCurCharacR() == 0)
         return;
     CCoinEventPerDay* pEvent =
         (CCoinEventPerDay*)GlobalData::s_event_manager->GetRepeatEvent(4);
-    bool eventOn = (pEvent != 0) && (pEvent->IsEventing((CUser*)0) != 0);
+    register bool eventOn asm("al");
+    eventOn = false;
+    if (pEvent != 0)
+    {
+        if (pEvent->IsEventing((CUser*)0))
+            eventOn = true;
+    }
     if (eventOn)
     {
-        v = (unsigned int)pEvent->GetCoinNoPerDay(get_charac_level());
+        v = pEvent->GetCoinNoPerDay(get_charac_level());
         getCurCharacInvenR()->GetCoin();
     }
     if (IsHavePremiumAdvantage())
     {
-        v = v + (unsigned int)m_premium.GetAdvantageCoin();
+        v += m_premium.GetAdvantageCoin();
         getCurCharacInvenR()->GetCoin();
     }
     if (getCurCharacInvenR()->GetCoin() < v)
@@ -9092,7 +9147,9 @@ char CUser::is_equip_aura_avatar(char slot, int& out)
         return 0x11;
     if (item->isEquipableItemType() != (char)1)
         return 0x11;
-    int itemIdx = item->m_addInfo;   // +0x02 物品索引
+    // ORIG 0x868e088-0x868e09c：itemIdx 载 %eax 后 `mov %eax,%ebx` 跨 G_CDataManager
+    // call 缓存（push %ebx/帧 0x34），find_item 结果落 -0xc（equip 槽），item 槽 -0x10。
+    register int itemIdx asm("ebx") = item->m_addInfo;
     CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(itemIdx);
     if (equip == 0)
         return 0x11;
@@ -10609,10 +10666,13 @@ void CUser::SendRestrictedGoods(bool flag, int itemIdx)
 // ORIG T 0x08656636 sz0xad：遍历 m_characList 统计 _Charac_info+0x27(short)==type。
 int CUser::GetSpecialLevelCharacCnt(int type)
 {
+    // ORIG 0x8656636：const_iterator 循环（prologue begin + 每轮 end 临时重构，
+    // 帧 0x38 容纳三 8B 迭代器临时）；index 形（size/operator[]）与 ORIG 块序不合。
     int cnt = 0;
-    for (size_t i = 0; i < m_characList.size(); ++i)
+    for (std::vector<_Charac_info>::const_iterator it = m_characList.begin();
+         it != m_characList.end(); ++it)
     {
-        if ((int)m_characList[i].m_level == type)
+        if ((int)it->m_level == type)
             ++cnt;
     }
     return cnt;
@@ -10676,8 +10736,11 @@ int _checkTimeoutItem(const Inven_Item& item);
 int CUser::_isMatchedItem(int itemIdx,
                           const std::vector<std::pair<int, int> >& list)
 {
-    for (std::vector<std::pair<int, int> >::const_iterator it = list.begin();
-         it != list.end(); ++it)
+    // ORIG 0x867cf0c：prologue 单槽 it=-0xc（begin 缓存），循环 cond 无 end 重构
+    //（技巧 25 具名缓存；声明序 begin 后占近槽）。
+    std::vector<std::pair<int, int> >::const_iterator it = list.begin();
+    std::vector<std::pair<int, int> >::const_iterator itend = list.end();
+    for (; it != itend; ++it)
     {
         if (it->first == itemIdx)
             return it->second;
