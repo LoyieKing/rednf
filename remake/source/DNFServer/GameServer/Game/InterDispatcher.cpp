@@ -6867,8 +6867,9 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
+            register int letterIdx = pPkt->m_4;
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
-                ->InsertLetterKeepCount(pPkt->m_4);
+                ->InsertLetterKeepCount(letterIdx);
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
                 ->DecLoadedLetterCount();
         }
@@ -6877,9 +6878,10 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
+            register int deleteIdx = pPkt->m_4;
             register unsigned char r asm("eax") =
                 (unsigned char)static_cast<WongWork::CMailBox*>(user->GetMailBox())
-                    ->DeleteLetterKeepCount((unsigned int)pPkt->m_4);
+                    ->DeleteLetterKeepCount(deleteIdx);
             r ^= 1;
             if (r)
                 static_cast<WongWork::CMailBox*>(user->GetMailBox())

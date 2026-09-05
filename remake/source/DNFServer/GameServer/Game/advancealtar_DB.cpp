@@ -145,11 +145,10 @@ void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
 // ORIG T 0x08131710：把管理器内单个 AdvanceAltarData 拷到 _CharacAdvanceAltarDbData.m_db。
 void CharacAdvanceAltarManager::getCharacAdvanceAltarDbData(_CharacAdvanceAltarDbData& out) const
 {
-    // ORIG 循环 local_10 <= 0（一次）
-    for (int local_10 = 0; local_10 < 1; ++local_10)
+    // ORIG 循环 local_10 <= 0（一次），m_data 按 stride 0xd0 取第 i 行
+    for (int local_10 = 0; local_10 <= 0; ++local_10)
     {
-        // ORIG 基址 = &out + 4 + local_10*0x518 → m_db 起、行距 sizeof(_AdvanceAltarDbData)。
-        m_data[0].get(*reinterpret_cast<_AdvanceAltarDbData*>(
+        m_data[local_10].get(*reinterpret_cast<_AdvanceAltarDbData*>(
             reinterpret_cast<char*>(&out.m_db) +
             static_cast<unsigned>(local_10) * sizeof(_AdvanceAltarDbData)));
     }
@@ -173,17 +172,12 @@ void AdvanceAltarData::reset()
 // ORIG T 0x081316a0：检查首个 AdvanceAltarData 的更新标志（manager+0xd0 == m_data.m_update）。
 bool CharacAdvanceAltarManager::isUpdated() const
 {
-    int local_8 = 0;
-    for (;;)
+    for (int local_8 = 0; local_8 <= 0; ++local_8)
     {
-        if (0 < local_8)
-            return false;
-        // ORIG 读 +0xd0*(local_8+1) 字节 == m_data[local_8].m_update
-        //（m_data@+0x04、AdvanceAltarData::m_update@+0xcc、stride 0xd0）。
         if (m_data[local_8].m_update != 0)
             return true;
-        ++local_8;
     }
+    return false;
 }
 
 // ORIG T 0x813159a：槽位坐骑有效时把免费票补为配置值（CDataManager+0x6364
@@ -223,12 +217,9 @@ void CharacAdvanceAltarManager::reset()
 // 否则 *current（AdvanceAltarData::m_ridableId，_RidableBase+0x00）。
 int CharacAdvanceAltarManager::getCurrentRidableId() const
 {
-    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
-    if (cur == 0)
-    {
+    if (m_currentAdvanceAltarData == 0)
         return 0;
-    }
-    return cur->m_ridableId;
+    return m_currentAdvanceAltarData->m_ridableId;
 }
 
 // ORIG T 0x081312ec（isAvailableTciket.md 全文）：current 空 → 0；
@@ -710,9 +701,10 @@ bool DB_Load::parseReward(char* str, _Reward* out, int count)
 bool DB_Update::dispatch(int /*uid*/, int /*uniqueId*/, Stream* stream)
 {
     _CharacAdvanceAltarDbData* data = stream->GetOutBuffer<_CharacAdvanceAltarDbData>();
-    if (data != 0)
-        update(*data);
-    return data != 0;
+    if (data == 0)
+        return false;
+    update(*data);
+    return true;
 }
 
 void DB_Update::makeStageString(std::string& out, const _Stage* arr, int count)   // [objdump 0x813f380]
@@ -1023,9 +1015,14 @@ bool convertStringToZip(char* out, unsigned int outCap, const char* src,
         realLen = 0;
         return true;
     }
-    realLen = srcLen;                       // 先写入源长度（压缩前容量占位）
+    realLen = outCap;                       // ORIG 0x813dd5d：写入 outCap（容量占位）
     std::memset(out, 0, outCap);
-    return compress_zip(out, realLen, src, srcLen);
+    register unsigned char c asm("eax") = static_cast<unsigned char>(
+        compress_zip(out, realLen, src, srcLen));
+    c ^= 1;
+    if (c)
+        return false;
+    return true;
 }
 
 // [objdump 0x813dc48]
