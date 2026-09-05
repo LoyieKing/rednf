@@ -287,13 +287,14 @@ void AttackInfo::setElement(ENUM_ELEMENT element)
     }
     else
     {
-        m_elements.erase(element);
+        // ORIG 0x88907ba：movl $4,-0x14; erase(-0x14) → 固定删 NONE(4) 再 insert element
+        m_elements.erase(ENUM_ELEMENT_NONE);
         m_elements.insert(element);
     }
 }
 
 // ORIG 0x809576e：SDC 元素合法性（STComputeDamageVariable* 版本，定义于 SDCLink.cpp）。
-int isValidAttackInfoElement(STComputeDamageVariable* v, int elem);
+bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem);
 
 // ORIG 0x88907fe：对集合中每个元素（除 4）在 STComputeDamageVariable::m_elemEnable
 // 置 is-valid 标记，调用 isValidAttackInfoElement(STComputeDamageVariable*, int)。
@@ -1990,10 +1991,11 @@ int CCreatureScript::GetLearnOverSkillLevel()
 //   if (m_field5c==itemIdx || m_field60==itemIdx) return 1 else 0。
 bool CCreatureScript::validItemExp(int itemIdx)
 {
-    if (m_field4c != 0)
-    {
+    // ORIG 0x833f280：movzbl 0x4c;xor$1;test;je 校验 → m_field4c==1(有效)才校验
+    register unsigned char v asm("eax") = m_field4c;
+    v ^= 1;
+    if (v)
         return false;
-    }
     if (m_field5c == itemIdx || m_field60 == itemIdx)
     {
         return true;
@@ -2004,10 +2006,11 @@ bool CCreatureScript::validItemExp(int itemIdx)
 // ORIG 0x833f2bc：if (m_field4c != 0) return 0; if (m_field5c==itemIdx) return 1 else 0。
 bool CCreatureScript::validItem_AType(int itemIdx)
 {
-    if (m_field4c != 0)
-    {
+    // ORIG 0x833f2bc：movzbl 0x4c;xor$1;test;je 校验 → m_field4c==1 才校验
+    register unsigned char v asm("eax") = m_field4c;
+    v ^= 1;
+    if (v)
         return false;
-    }
     if (m_field5c == itemIdx)
     {
         return true;
@@ -2018,10 +2021,11 @@ bool CCreatureScript::validItem_AType(int itemIdx)
 // ORIG 0x833f2ee：if (m_field4c != 0) return 0; if (m_field60==itemIdx) return 1 else 0。
 bool CCreatureScript::validItem_BType(int itemIdx)
 {
-    if (m_field4c != 0)
-    {
+    // ORIG 0x833f2ee：同族，m_field4c==1 才校验
+    register unsigned char v asm("eax") = m_field4c;
+    v ^= 1;
+    if (v)
         return false;
-    }
     if (m_field60 == itemIdx)
     {
         return true;
