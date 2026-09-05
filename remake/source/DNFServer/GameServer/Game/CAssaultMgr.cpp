@@ -111,7 +111,8 @@ int CAssaultMgr::OnMoveArea(CUser* user)
 void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
 {
     // ORIG 0x82efb54：按用户所在袭击区域转发；flag=true 时限定队伍。
-    // ORIG 全程 try/catch-all（__cxa_begin_catch 后仅 end_catch）吞掉异常。
+    // ORIG EH：catch(int)（landing 带类型过滤 + begin_catch 后 `mov (%eax),%eax`
+    // 取值死槽，OnLeaveAssaultPlace/OnMoveArea 同款——此前 catch(...) 缺 6 条）。
     try
     {
         CAssaultPlace* place = _GetAssaultPlace(
@@ -127,7 +128,7 @@ void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
             place->SendPacket(*packet);
         }
     }
-    catch (...)
+    catch (int)
     {
     }
 }
@@ -315,8 +316,16 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet)
     bool ok = true;
     for (int i = 0; i < 8; ++i) {
         CUser* user = m_assaulters[i].GetUser();
-        if (user != 0 && !user->Send(packet))
-            ok = false;
+        if (user != 0)
+        {
+            // 判据③b/X2 同 TEAM 版：ORIG `call Send; xor $0x1,%eax; test %al`
+            // 单段 xor 物化。
+            register unsigned char sv asm("eax") =
+                (unsigned char)user->Send(packet);
+            sv ^= 1;
+            if (sv)
+                ok = false;
+        }
     }
     return ok;
 }
@@ -327,9 +336,18 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet, ENUM_ASSAULT_TEAM team)
     bool ok = true;
     for (int i = 0; i < 8; ++i) {
         CUser* user = m_assaulters[i].GetUser();
-        if (user != 0 && m_assaulters[i].GetTeam() == team
-            && !user->Send(packet))
-            ok = false;
+        if (user != 0 && m_assaulters[i].GetTeam() == team)
+        {
+            // 判据③b/X2（Main 批准五方形）：ORIG +0xcb 是 `call Send;
+            // xor $0x1,%eax; test %al,%al; je skip`——int 返回 callee 的 xor
+            // 物化有 je 消费者，register uchar 绑 %eax + `^= 1` 复现单段；
+            // 4.4 裸 `!call()` 折成 `test %eax,%eax; jne`（少 xor、真值序反）。
+            register unsigned char sv asm("eax") =
+                (unsigned char)user->Send(packet);
+            sv ^= 1;
+            if (sv)
+                ok = false;
+        }
     }
     return ok;
 }
@@ -389,39 +407,64 @@ void CAssaulter::DetachUser()
 }
 
 // ORIG T 0x82e6868：放弃惩罚 —— 备份耐力 → 记 GiveupPvP 日志 → 设 ghost 惩罚时间。
+// 收敛口径（batch-14 EmoC11）：o=142 n=143（原 -18）。已修语义两处：第一段
+// 条件真值 `!pw && vill!=7`→(7)/else(3)（旧写 `pw||vill==7`→7 为分支反了）+
+// 两段各自独立 IsPowerWarEventOn call、两分支独立 GiveupPvP（P48/P133）。
+// register bool asm("al") 岛形（技巧22）复现 $1/$0 物化+test 汇聚；全展开
+// m_user-> 直读（P183）。残 1 条 = ORIG push esi/ebx 寄存器接力 vs 4.4 栈槽
+// （register asm("ebx") 实测 146 劣化已回滚）+ .o 全局地址/槽号显示（AE 后核销）。
 void CAssaulter::GiveupPanalty()
 {
-    CUser* user = m_user;
-    if (user == 0)
+    // P183/P157：ORIG 不缓存 m_user（每点 `mov this; mov (%eax)` 重装载，
+    // penalty/now 处才用 %esi/%ebx 跨调用缓存）——重建禁 named user。
+    if (m_user == 0)
         return;
-    if (user->getCurCharacR() != 0)
+    // ORIG +0x1d：getCurCharacR `test %eax; setne %al; test %al; je`——4.4 对
+    // 裸 `!= 0` 指针比较恒产同款两段物化（带变量赋值反改 slot store+cmpl）。
+    if (m_user->getCurCharacR() != 0)
     {
-        unsigned char stamina = user->getCurCharacStamina();
-        user->setCurCharacBackupStamina(stamina);
-        bool powerWar = GlobalData::s_power_manager->IsPowerWarEventOn();
-        bool isPowerWarVill = powerWar || (user->getCurCharacVill() == 7);
-        user->m_historyLog.GiveupPvP(isPowerWarVill ? (ENUM_PVP_HISTORY_REASON)7
-                                                    : (ENUM_PVP_HISTORY_REASON)3);
-        int ghostTime;
-        if (powerWar && user->getCurCharacVill() == 7)
+        m_user->setCurCharacBackupStamina(m_user->getCurCharacStamina());
+        // ORIG 0x082e6868（P48/P84）：两处独立 IsPowerWarEventOn call、$1/$0
+        // 物化岛 + 二次 test 汇聚。第一段真值（+0x5d `xor $0x1` 后 test;je→$0
+        // 岛，+0x73 `cmp $7; je→$0`）= `!pw && vill!=7` → GiveupPvP(7)，
+        // else→(3)（两分支独立 call）；第二段（+0xd1 `test; jne→$1`，
+        // +0xe2 `cmp $7; jne→$0`）= `pw || vill==7`。
+        register bool powerWarVill1 asm("al") =
+            !GlobalData::s_power_manager->IsPowerWarEventOn() &&
+            m_user->getCurCharacVill() != 7;
+        if (powerWarVill1)
         {
-            float penalty = GlobalData::s_power_manager->GetPowerWarResponPenalty(user);
-            ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(user, penalty);
+            m_user->m_historyLog.GiveupPvP((ENUM_PVP_HISTORY_REASON)7);
         }
         else
         {
-            int chaos = user->GetCurCharacChaosPoint();
-            int level = user->get_charac_level();
+            m_user->m_historyLog.GiveupPvP((ENUM_PVP_HISTORY_REASON)3);
+        }
+        int ghostTime = 0;                    // ORIG +0xbb 第二段前预清零
+        register bool powerWarVill2 asm("al") =
+            GlobalData::s_power_manager->IsPowerWarEventOn() ||
+            m_user->getCurCharacVill() == 7;
+        if (powerWarVill2)
+        {
+            float penalty = GlobalData::s_power_manager->GetPowerWarResponPenalty(m_user);
+            ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(m_user, penalty);
+        }
+        else
+        {
+            int chaos = m_user->GetCurCharacChaosPoint();
+            int level = m_user->get_charac_level();
             ServerParameterScript* sps = (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
             ghostTime = sps->getAssaultGhostTime(level, chaos);
         }
         if (ghostTime != 0)
         {
-            user->SetCurCharacGhost(true);
+            m_user->SetCurCharacGhost(true);
+            //（ORIG 用 %ebx callee-saved 缓存 now；4.4 绑 %ebx 实测反增 spill，
+            // 维持具名槽，寄存器选择差记 N7/N82。）
             int now = GlobalData::s_systemTime_.getCurSec();
-            user->SetCurCharacChaosDieTime(now);
-            user->SetCurCharacChaosResponTime(now + ghostTime);
-            user->m_characterView.enableSaveCharacView();
+            m_user->SetCurCharacChaosDieTime(now);
+            m_user->SetCurCharacChaosResponTime(now + ghostTime);
+            m_user->m_characterView.enableSaveCharacView();
         }
     }
 }
@@ -1248,10 +1291,19 @@ void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 // ORIG T 0x82e6e2c：移除指定槽位用户并联动村庄/断线检测子系统。
 void CAssaultPlace::_DelUser(int index, bool flag)
 {
-    if (flag && m_assaulters[index].GetState() > (ENUM_ASSAULT_STATE)4)
+    // ORIG +0x24：flag 短路后第二项 `cmp $4; setg %al; test %al; je`——嵌套
+    // if + 内层 register bool asm("al") setg 物化（整表达式 && 在 4.4 落岛）。
+    if (flag)
     {
-        CUser* delUser = m_assaulters[index].GetUser();
+        register bool over4 asm("al") =
+            m_assaulters[index].GetState() > (ENUM_ASSAULT_STATE)4;
+        if (over4)
+        {
+        // ORIG +0x3f：GetUser 结果落 callee-saved %ebx 跨 GetInstance 调用直落
+        // arg（技巧 28 免槽形，实测有效再留）。
+        register CUser* delUser asm("ebx") = m_assaulters[index].GetUser();
         disconnect_detecter::GetInstanceDisconnectDetecter()->UnregisterUser(delUser);
+        }
     }
     int team = m_assaulters[index].GetTeam();
     CUser* delUser = m_assaulters[index].GetUser();
@@ -1259,27 +1311,28 @@ void CAssaultPlace::_DelUser(int index, bool flag)
     m_field100 -= 1;
     if (delUser == 0)
         return;
-    if (delUser->getCurCharacR() == 0)
-        return;
+    // ORIG +0xb5：`test;setne;test;je <尾>` = **正向 wrap** `if (r != 0) {全部}`
+    // （早退 `==0` 形 4.4 产 sete+jne 镜像，助记符序列差 1）。
+    if (delUser->getCurCharacR() != 0)
+    {
 
-    bool powerWarVill =
+    register bool powerWarVill asm("al") =
         GlobalData::s_power_manager->IsPowerWarEventOn()
         && delUser->getCurCharacVill() == 7;
+    // ORIG +0x0f2：EndPvP 段 getCurSec 差值落 %edx 跨装载直落 0xc(%esp)
+    // （P44 变参即时求值，无 now 槽）；+0x13d G_GameWorld 结果 %eax 直通
+    // receiver（P89 合并形，无 world 槽）；area 参数 get_area 结果直落。
     if (!powerWarVill)
     {
-        int now = GlobalData::s_systemTime_.getCurSec();
         delUser->m_historyLog.EndPvP(
-            (ENUM_PVP_HISTORY_REASON)5,
-            m_teamFlag[team],
-            now - m_abuseSec);
+            (ENUM_PVP_HISTORY_REASON)5, m_teamFlag[team],
+            GlobalData::s_systemTime_.getCurSec() - m_abuseSec);
     }
 
-    GameWorld* world = G_GameWorld();
-    Village* village = world->getUserVillage(delUser);
+    Village* village = G_GameWorld()->getUserVillage(delUser);
     if (village != 0)
     {
-        int areaIdx = delUser->get_area(false);
-        Area* area = village->getArea(areaIdx);
+        Area* area = village->getArea(delUser->get_area(false));
         if (area != 0)
         {
             area->send_area_users(delUser);
@@ -1289,6 +1342,7 @@ void CAssaultPlace::_DelUser(int index, bool flag)
     GlobalData::s_villageObjectMgr->on_move_area(delUser);
     GlobalData::s_villageMonsterMgr->OnMoveArea(delUser);
     delUser->SetAssaultPlace(0);
+    }
 }
 
 // ORIG T 0x82ea188 size 0x191：超时关场。trace 打印全场角色名；
@@ -1364,6 +1418,10 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 // ORIG T 0x82e9ad6 size 0x52d：关场主流程 —— 全员按 PowerWar/普通分支
 // 发关闭包并回补体力，广播状态与图标， ghost 记录，定时两队重载，
 // 清场后归还池。
+// 收敛口径（batch-14 EmoC11）：o=374 n=387。已修 PartyInfo::Get 发明 wrapper
+// 改 m_field00 直访（ORIG nm 无该符号、两处 `mov 0x12c(%eax)` 直读，P154/P169）。
+// 残 +13 = 循环体 slotUser 槽装载 vs ORIG callee-saved 接力 + ONLY-ORIG
+// 1×GetUser 重取点（P183 反向警告域，逐点展开反增差），N82/N76 封顶。
 void CAssaultPlace::CloseAssault()
 {
     int lastVill = 0;
@@ -1465,15 +1523,18 @@ void CAssaultPlace::CloseAssault()
         GlobalData::s_power_manager->IsPowerWarEventOn() && lastVill == 7;
     if (reloadParty)
     {
-        if (m_parties[0].Get() != 0)
+        // P154/P169：PartyInfo::Get 为重建发明 wrapper——ORIG 两处均
+        // `mov 0x12c(%eax)` 字段直读直判（同 TimeoutCloseAssault/Leave 段
+        // m_field00 用法），无 call 站点。
+        if (m_parties[0].m_field00 != 0)
         {
-            CParty* party = (CParty*)m_parties[0].Get();
+            CParty* party = (CParty*)m_parties[0].m_field00;
             TimerCompleteLoadAfterAssaultTimeout::registNextTimer(
                 0x3c, party->GetPartyIndex(), party->gen_timer_key((TIMER_MESSAGE)0x2a));
         }
-        if (m_parties[1].Get() != 0)
+        if (m_parties[1].m_field00 != 0)
         {
-            CParty* party = (CParty*)m_parties[1].Get();
+            CParty* party = (CParty*)m_parties[1].m_field00;
             TimerCompleteLoadAfterAssaultTimeout::registNextTimer(
                 0x3c, party->GetPartyIndex(), party->gen_timer_key((TIMER_MESSAGE)0x2a));
         }

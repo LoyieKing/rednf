@@ -415,7 +415,7 @@ bool updateUpgradeTableFromEventUpgradeJarScript(upgrade_table_t* table, EventUp
     for (unsigned int i = 0; i < 100; ++i)
     {
         int off = (i + 0x28) * 4 + 4;
-        table->intAt(off) = (int)(info->m_discountRate * (float)table->intAt(off));
+        UPG_TBL_INT(table, off) = (int)(info->m_discountRate * (float)UPG_TBL_INT(table, off));
     }
 
     return true;

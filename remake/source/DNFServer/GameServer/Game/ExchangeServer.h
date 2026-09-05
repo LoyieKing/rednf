@@ -102,7 +102,7 @@ public:
 
     bool WaitForEvent(int timeoutMs);                 // ORIG 0x8495f0a
     int RegisterSession(SESSION* session, int fd);    // ORIG 0x84964ca
-    void UnregisterSession(SESSION* session);         // ORIG 0x8496d5a
+    bool UnregisterSession(SESSION* session);         // ORIG 0x8496d5a（返 !ResetEpoll 物化）
 };
 
 // ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ public:
     CSessionManager();
     ~CSessionManager();
 
-    bool TryListen(int port, const char* ip);         // ORIG 0x8495570
+    int TryListen(int port, const char* ip);          // ORIG 0x8495570（尾直通 RegisterSession int 返回）
     bool TryConnect(const char* ip, int port);        // ORIG 0x8495506
     void TryDisconnect(SESSION* session);             // ORIG 0x8496236
     bool TrySend(SESSION* session, PACKETGUARD& g);   // ORIG 0x84953b2

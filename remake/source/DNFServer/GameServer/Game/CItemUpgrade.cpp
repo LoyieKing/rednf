@@ -43,15 +43,19 @@ float CItemUpgrade::getUpgradeItemRepairCostRate(int idx, bool flag) const
     //   flag==true  → GlobalData::s_itemAmplifier_->getUpgradeInfoTable()（=+0x100）
     //   flag==false → this+0x04（CItemUpgradeTable 子对象，getUpgradeInfoTable 返回自身）
     //   返回 table[(idx + 0x9c) * 4 + 4] 处 float（混合表按 4 字节步长）。
+    // 访问器宏化（batch-14）：表指针先落局部再单点直访，避免宏对 tbl 二次求值
+    // （getUpgradeInfoTable() 是有副作用风险的成员调用，不可重复展开）。
     float rate;
     if (flag)
     {
-        rate = GlobalData::s_itemAmplifier_->getUpgradeInfoTable()
-                   ->floatAt((idx + 0x9c) * 4 + 4);
+        const upgrade_table_t* tbl =
+            GlobalData::s_itemAmplifier_->getUpgradeInfoTable();
+        rate = UPG_TBL_CFLT(tbl, (idx + 0x9c) * 4 + 4);
     }
     else
     {
-        rate = getUpgradeInfoTable()->floatAt((idx + 0x9c) * 4 + 4);
+        const upgrade_table_t* tbl = getUpgradeInfoTable();
+        rate = UPG_TBL_CFLT(tbl, (idx + 0x9c) * 4 + 4);
     }
     return rate;
 }
@@ -185,7 +189,7 @@ int CItemUpgrade::ProcAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
         (VALUE_STATISTIC_FIELD)0xe, user, 0);
 
     unsigned char newUpgrade = item.GetUpgrade();
-    if (newUpgrade >= table->intAtConst(0x234))
+    if (newUpgrade >= table->m_bodyView.m_named.m_noticeUpgradeLevel)
     {
         _NoticeUpgrade(user, item, true);
     }
@@ -319,7 +323,7 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
 
     int rarity = itemScript->get_rarity();
     // ORIG 0x8546600：读 table+(rarity+0x104)*4+0xc（intAtConst 减 0xc 内偏）。
-    int penTable = table.intAtConst((rarity + 0x104) * 4 + 0xc);
+    int penTable = UPG_TBL_CINT(&table, (rarity + 0x104) * 4 + 0xc);
     if (penTable != -1)
     {
         if (penTable <= (int)upgrade)

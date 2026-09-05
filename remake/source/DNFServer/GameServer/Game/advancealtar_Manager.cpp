@@ -225,7 +225,7 @@ void Manager::eplp(CUser* user, EplpType::T type)
     {
         return;
     }
-    if (type > EplpType::EPLP_N2)   // ORIG: add $0; cmp $2 ja —— 枚举无符号比较
+    if (static_cast<unsigned int>(type) > static_cast<unsigned int>(EplpType::EPLP_N2))
     {
         return;
     }
@@ -1274,7 +1274,7 @@ int StageMapList::getNextStage(int stageIdx, bool& outFlags) const
         m_map.find(it->second.m_nextId);
     if (next != m_map.end())
     {
-        outFlags = next->second.m_flags != 0;
+        outFlags = next->second.m_flags;
     }
     return it->second.m_nextId;
 }

@@ -384,12 +384,18 @@ bool SetSockNonb(int fd, unsigned long arg)
 }
 
 // ORIG T 0x089bd03b _Z20IsDamageActiveStatusi：
-// status<=0xb && ((1<<status) & 0xac4)。
+// status<=0xb && ((1<<status) & 0xac4)。ORIG 形：bool 局部汇聚（089bd042
+// movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
+// cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
 {
-    if (status > 0xb)
-        return false;
-    return ((1 << status) & 0xac4) != 0;
+    bool ret = false;
+    if ((unsigned int)status <= 0xb)
+    {
+        if (((1 << status) & 0xac4) != 0)
+            ret = true;
+    }
+    return ret;
 }
 
 // ORIG T 0x0808c74b _Z13PI_GetType_SCcs：type==1 查表、type==2 if 链、缺省 0。
@@ -1491,6 +1497,14 @@ typedef std::map<const char*, int, less_TCHAR> LookupMap;
 bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                bool bRepair)
 {
+    // 【验收标注 §6.2】超大函数（ORIG 8490 insn 切片）。调用点差集归零
+    // （995=995，ORIG 侧 libstdc++/PLT 无符号地址已聚类反查对位）；
+    // leaf id 125/125（五子表 case-0 修复后跳表 2→0，注册轮 id=0 由
+    // ORIG 树根 test/je 实证路由链首，P163）。残余 gap -38 归因：
+    // ①0x2152/0x2193/0x21e1/0x2241 嵌套块内 4.1 提前装载 + 叶局部
+    // string 临时槽物化（N76/N82 槽号系）；②0x227e 族「子表 switch
+    // 注册 + 体外 if(id) 执行」等价重排（语义同、cmp 形每位 ±2）。
+    // 语义已逐块核对完成（子表 26 tag 字段解析修复前从未执行）。
     if (!loadRDARScriptFile(g_szPassiveObjectScriptBaseDirectory, path))
     {
         return false;
@@ -4866,10 +4880,12 @@ long GetSlicedInterval(long* out1, long* out2, long* out3, long* out4,
 }
 
 // ===== _Z24CheckDayScheduleTimeOveril —— ORIG 0x0846c370 =====
-// time(NULL) + day * (-86400) > checkTime（0xfffeae80 == -86400 补码）。
+// time(&local)（ORIG 0x0846c37a `lea -0xc(%ebp),%eax; call time` 传局部地址，
+// 非 time(NULL)）+ day * (-86400) > checkTime（0xfffeae80 == -86400 补码）。
 bool CheckDayScheduleTimeOver(int day, long checkTime)
 {
-    const long now = static_cast<long>(time(0));
+    time_t now;
+    time(&now);
     return now + static_cast<long>(day) * (-86400L) > checkTime;
 }
 

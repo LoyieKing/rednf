@@ -29,10 +29,10 @@ int CAssaultPlace::_GetTeamCount(ENUM_ASSAULT_TEAM team)
 {
     int count = 0;
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            if ((int)m_assaulters[i].GetTeam() == (int)team) {
-                count = count + 1;
-            }
+        if (m_assaulters[i].Empty())
+            continue;
+        if ((int)m_assaulters[i].GetTeam() == (int)team) {
+            count = count + 1;
         }
     }
     return count;
@@ -60,9 +60,7 @@ void CAssaultPlace::_GetTeamCount(int* counts, ENUM_ASSAULT_STATE state)
 void CAssaultPlace::_MakeChangeHp(PacketGuard* p, int index, int hp)
 {
     p->put_header(0, 0x88);
-    unsigned short uid =
-        m_assaulters[index].GetUserUniqueId();  // movzwl %ax zero-extend
-    p->put_short((int)(uid & 0xffff));
+    p->put_short((int)(m_assaulters[index].GetUserUniqueId() & 0xffff));
     p->put_int(hp);
     p->finalize(true);
 }
@@ -113,8 +111,9 @@ void CAssaultPlace::_SetReadyState()
 {
     m_state = 2;
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty())
-            m_assaulters[i].SetState((ENUM_ASSAULT_STATE)1);
+        if (m_assaulters[i].Empty())
+            continue;
+        m_assaulters[i].SetState((ENUM_ASSAULT_STATE)1);
     }
 }
 
@@ -125,8 +124,9 @@ void CAssaultPlace::DoConnectP2P()
 {
     m_state = 3;
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty())
-            m_assaulters[i].SetState((ENUM_ASSAULT_STATE)3);
+        if (m_assaulters[i].Empty())
+            continue;
+        m_assaulters[i].SetState((ENUM_ASSAULT_STATE)3);
     }
     TimerConnectP2PAssaultTimeout::registNextTimer(
         0xf, m_field104 /*+0x104*/, m_authenValue /*+0x108*/);
@@ -416,16 +416,16 @@ void CAssaultPlace::ConnectP2P(CUser* user, char* ip, int len)
 
     char allConnected = 1;
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            if (m_assaulters[i].GetUser() == user) {
-                if ((int)m_assaulters[i].GetState() != 3)
-                    throw (ENUM_ERROR)0x12;
-                m_assaulters[i].SetState((ENUM_ASSAULT_STATE)4);
-                m_assaulters[i].SetUserConnectP2P(ip, len);
-            }
-            if ((int)m_assaulters[i].GetState() != 4)
-                allConnected = 0;
+        if (m_assaulters[i].Empty())
+            continue;
+        if (m_assaulters[i].GetUser() == user) {
+            if ((int)m_assaulters[i].GetState() != 3)
+                throw (ENUM_ERROR)0x12;
+            m_assaulters[i].SetState((ENUM_ASSAULT_STATE)4);
+            m_assaulters[i].SetUserConnectP2P(ip, len);
         }
+        if ((int)m_assaulters[i].GetState() != 4)
+            allConnected = 0;
     }
 
     if (!allConnected)

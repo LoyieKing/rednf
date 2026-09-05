@@ -126,6 +126,12 @@ unsigned char CBitManager::GetBitFromLSB(int bits)          // 0x0831c160
     return ret;
 }
 
+// [N 类标注] 本函数与 ShiftLeft（0x0831c266）各 we-bigger 4（57/61、58/62）：
+// 逐块比对确认差异全在**变长移位的计数掩码**——4.1 对 `shr/shl %cl` 不插
+// `and $0x1f`（ORIG 侧仅 `sub 0xc(%ebp),%edx` 后直接 `shl %cl`），4.4 对每一处
+// 变长移位一律前置 `and $0x1f,%edx`（实测各 3 处），另 ORIG 多一条重复
+// `movl $0x0,-0x10(%ebp)` 循环量 init。源码侧 `bits & 0x1f` 已按 ORIG 语义保留，
+// 掩码条数不可控 ⇒ 范式库 N 类「跨版本 变长移位计数掩码」，语义等价，勿再耗轮次。
 void CBitManager::ShiftRight(int bits, unsigned char* buf)  // 0x0831c1d6
 {
     for (int i = m_size; i > 0; --i)
@@ -141,15 +147,15 @@ void CBitManager::ShiftRight(int bits, unsigned char* buf)  // 0x0831c1d6
     }
 }
 
-void CBitManager::ShiftLeft(int bits, unsigned char* buf)   // 0x0831c266
+void CBitManager::ShiftLeft(int bits, unsigned char* buf)   // 0x0831c266（同 [N 类标注]）
 {
     for (int i = 0; i < m_size; ++i)
     {
-        buf[i] = static_cast<unsigned char>(buf[i] << (bits & 0x1f));
+        buf[i] = static_cast<unsigned char>(buf[i] << bits);
         if (i != m_size - 1)
         {
             buf[i] = static_cast<unsigned char>(
-                buf[i] | (buf[i + 1] >> ((8 - (bits & 0x1f)) & 0x1f)));
+                buf[i] | (buf[i + 1] >> (8 - bits)));
         }
     }
 }
@@ -198,13 +204,19 @@ CObfuscator::~CObfuscator()                                  // 0x085858d6
 int CObfuscator::ObfuscatePacket(unsigned char* data, int len, int type) // 0x085858ea
 {
     ReadData(data, len);
-    if (type == 1)
+    // ORIG 0x085858ea +0x1b..+0x46：`mov 0x14(%ebp),%eax; cmp $0x1,%eax; je; 
+    // cmp $0x2,%eax; je; jmp 尾` ⇒ 值升序 switch 的 4.1 决策树形（P165②）；
+    // 旧 if/else-if 链被 4.4 做成 `cmpl $1,mem; jne` + 第二比较后置（少 2 insns）。
+    switch (type)
     {
+    case 1:
         Obfuscate1();
-    }
-    else if (type == 2)
-    {
+        break;
+    case 2:
         Obfuscate2();
+        break;
+    default:
+        break;
     }
     return reinterpret_cast<int>(m_buffer);
 }
@@ -212,22 +224,31 @@ int CObfuscator::ObfuscatePacket(unsigned char* data, int len, int type) // 0x08
 int CObfuscator::DeobfuscatePacket(unsigned char* data, int len, int type) // 0x08585938
 {
     ReadData(data, len);
-    if (type == 1)
+    // 同上（ORIG 0x08585938 同型 switch 决策树）
+    switch (type)
     {
+    case 1:
         Deobfuscate1();
-    }
-    else if (type == 2)
-    {
+        break;
+    case 2:
         Deobfuscate2();
+        break;
+    default:
+        break;
     }
     return reinterpret_cast<int>(m_buffer);
 }
 
 int CObfuscator::Obfuscate1()                                // 0x08585986
 {
-    int cnt = (m_size * 8) / 7;
-    m_field0c = (m_size * 8) % 7;                            // 余位（this+0xc）
-    for (int i = 0; i <= cnt; ++i)
+    // ORIG 槽序（P28/P38）：i(-0x18 函数首 `movl $0,-0x18` 预初始化) →
+    // total(-0x14，`shl$3; mov slot` 一次物化，/7 与 %7 两条 magic 链均
+    // `mov -0x14,%ecx` reload) → cnt(-0x10)。
+    int i = 0;
+    int total = m_size * 8;
+    int cnt = total / 7;
+    m_field0c = total % 7;                                   // 余位（this+0xc）
+    for (i = 0; i <= cnt; ++i)
     {
         unsigned char bits = GetBitFromLSB(7);
         if ((i >= 1) && (i < cnt))
@@ -245,15 +266,18 @@ int CObfuscator::Obfuscate1()                                // 0x08585986
 
 int CObfuscator::Deobfuscate1()                              // 0x08585aaa
 {
-    int cnt = (m_size * 8) / 7;
-    m_field0c = (m_size * 8) % 7;
-    for (int i = 0; i <= cnt; ++i)
+    // 同 Obfuscate1：i 提首 + total 槽物化（ORIG 0x08585aaa 头同构）。
+    int i = 0;
+    int total = m_size * 8;
+    int cnt = total / 7;
+    m_field0c = total % 7;
+    for (i = 0; i <= cnt; ++i)
     {
         if ((m_field0c == 0) && (i == cnt))
         {
             break;                                            // ORIG 循环条件排除该次迭代
         }
-        unsigned char bits;
+        unsigned char bits = 0;                               // ORIG `movb $0,-0x9`
         if ((i == 0) && (m_field0c != 0))
         {
             bits = GetBitFromLSB(m_field0c);
@@ -273,21 +297,28 @@ int CObfuscator::Deobfuscate1()                              // 0x08585aaa
 
 int CObfuscator::Obfuscate2()                                // 0x08585be4
 {
-    // ORIG 单函数 103 条指令（CObfuscator/Obfuscate2.md 报告）：
-    // 局部 i(this+8 区 size-1 倒序)、outIdx、tail 初值 6；
-    // 每轮 GetBit(idx,0,tail)<<（7-tail）与 GetBit(idx,tail+1,7)>>(tail+1)
-    // 合成字节写 m_buffer[size-1]，再搬到 m_buffer[outIdx]。
+    // ORIG 槽序（P28）：idx(-0x1c 函数首 movl$0 预初始化，for 再赋 m_size-1)
+    // → outIdx(-0x18) → tail(-0x14) → total8(-0x10 dead `shl$3;mov slot`) →
+    // 复用字节槽(-0x9)：hi 装载/移位/lo 装载/移位全走同一 uchar 槽（4.1 单槽
+    // 复用形，源码=同变量复合赋值 `hi <<= n; hi = ...; hi >>= n;`）。
+    // 变量移位 ORIG 无 and $0x1f 掩码（4.1 直发 shl/sar %cl），去掩码。
+    double framePad;                     // P31：ORIG 帧 0x34（4.1 esp 16B 对齐
+                                         // 进位）；double 触发 4.4 帧 +4 且 int
+                                         // 槽基整体下移，idx 落回 -0x1c
+    (void)&framePad;
+    int idx = 0;
     int outIdx = 0;
     int tail = 6;
-    for (int idx = m_size - 1; idx >= 0; --idx)
+    int total8 = m_size * 8;
+    (void)total8;
+    for (idx = m_size - 1; idx >= 0; --idx)
     {
-        unsigned char hi = static_cast<unsigned char>(
-            static_cast<unsigned int>(GetBit(idx, 0, tail)) <<
-                ((7 - tail) & 0x1f));
+        unsigned char hi = GetBit(idx, 0, tail);
+        hi <<= (7 - tail);
         m_buffer[m_size - 1] = hi;
-        unsigned char lo = GetBit(idx, tail + 1, 7);
-        m_buffer[m_size - 1] |= static_cast<unsigned char>(
-            (static_cast<unsigned int>(lo) >> ((tail + 1) & 0x1f)));
+        hi = GetBit(idx, tail + 1, 7);
+        hi >>= (tail + 1);
+        m_buffer[m_size - 1] |= hi;
         m_buffer[outIdx] = m_buffer[m_size - 1];
         ++outIdx;
         if (tail == 0)
@@ -304,19 +335,32 @@ int CObfuscator::Obfuscate2()                                // 0x08585be4
 
 int CObfuscator::Deobfuscate2()                              // 0x08585d2e
 {
-    // ORIG tail 初值：m_size%7==0 → 6；否则 m_size%7 - 1（0→6, 1→0 … 6→5）。
-    // 与 Obfuscate2 的固定 tail=6 不同。循环体两函数同构。
+    // 与 Obfuscate2 同构（同 double-pad 帧形 + 单 uchar 槽复合赋值链）；
+    // tail 初值 = m_size%7，若 0 → 6 否则 --（ORIG +0x060 cmpl$0/jne 形）。
+    double framePad;                     // P31 帧对齐 pad（同 Obfuscate2）
+    (void)&framePad;
+    int idx = 0;
     int outIdx = 0;
-    int tail = (m_size % 7 == 0) ? 6 : (m_size % 7) - 1;
-    for (int idx = m_size - 1; idx >= 0; --idx)
+    int tail = 0;                          // ORIG 函数首 movl$0,-0x14 预初始化
+    int total8 = m_size * 8;
+    (void)total8;
+    tail = m_size % 7;
+    if (tail == 0)
     {
-        unsigned char hi = static_cast<unsigned char>(
-            static_cast<unsigned int>(GetBit(idx, 0, tail)) <<
-                ((7 - tail) & 0x1f));
+        tail = 6;
+    }
+    else
+    {
+        --tail;
+    }
+    for (idx = m_size - 1; idx >= 0; --idx)
+    {
+        unsigned char hi = GetBit(idx, 0, tail);
+        hi <<= (7 - tail);
         m_buffer[m_size - 1] = hi;
-        unsigned char lo = GetBit(idx, tail + 1, 7);
-        m_buffer[m_size - 1] |= static_cast<unsigned char>(
-            (static_cast<unsigned int>(lo) >> ((tail + 1) & 0x1f)));
+        hi = GetBit(idx, tail + 1, 7);
+        hi >>= (tail + 1);
+        m_buffer[m_size - 1] |= hi;
         m_buffer[outIdx] = m_buffer[m_size - 1];
         ++outIdx;
         if (tail == 0)
@@ -330,6 +374,8 @@ int CObfuscator::Deobfuscate2()                              // 0x08585d2e
     }
     return 0;
 }
+
+
 
 // ===========================================================================
 // WindowsDataFile —— 0x08574e3e..
@@ -349,26 +395,33 @@ WindowsDataFile::~WindowsDataFile()
 
 bool WindowsDataFile::LoadWindowsDataFile(const char* path)  // 0x08574e80
 {
-    return LoadClientFile(&m_size,
-                          reinterpret_cast<void**>(&m_data), path);
+    // ORIG 0x08574e80 尾部（+0x20..+0x37）为 `call LoadClientFile; xor $1,%eax;
+    // test %al,%al; je L; mov $0,%eax; jmp end; L: mov $1,%eax; leave; ret` ——
+    // bool 归一化走**取反短路物化 + 常量分支岛**（P32 xor$1 族）。裸
+    // `return f(...)` 被 4.4 折成 call 后直接 ret（−6 insns），三目
+    // `return r ? true : false` 只得 test/je 缺 xor（−2）；本形 20/20 逐条全等。
+    if (!LoadClientFile(&m_size,
+                        reinterpret_cast<void**>(&m_data), path))
+    {
+        return false;
+    }
+    return true;
 }
 
 void WindowsDataFile::GenerateChecksum(CodeHackChecksum* ck,
                                        unsigned long offset,
                                        unsigned long len)    // 0x08574eba
 {
-    if (offset < m_size)
-    {
-        if (m_size < offset + len)
-        {
-            len = m_size - offset;
-        }
-        CalculateMemoryChecksum(ck, len, m_data + offset);
-    }
-    else
+    if (m_size <= offset)
     {
         ZeroMemoryChecksum(ck);
+        return;
     }
+    if (m_size < offset + len)
+    {
+        len = m_size - offset;
+    }
+    CalculateMemoryChecksum(ck, len, m_data + offset);
 }
 
 // ===========================================================================
@@ -739,7 +792,9 @@ bool WindowsDataFileFamily::GenerateRange(unsigned long* outStart,
         static_cast<unsigned long>(rand()) %
             (static_cast<unsigned long>(m_randMax) + 1U);
 
-    bool clipped = (m_maxSize <= m_scanOffset + span);
+    bool clipped = false;
+    if (m_maxSize <= m_scanOffset + span)
+        clipped = true;
     if (clipped)
     {
         span = m_maxSize - m_scanOffset;
@@ -1145,12 +1200,16 @@ bool WindowsCodeProtectorServer::LoadWindowsFile(const char* path,
 
 bool WindowsCodeProtectorServer::CompleteLoading()           // 0x0857592c
 {
-    if (m_exeFamily != 0)
+    // ORIG 双份 `movb $1,0x1c` 常量岛（+0x23/+0x38）= 4.1 对两条返回路径各自
+    // 展开赋值；内层为正向 `if (call())`（+0x1c test%al; je 无 xor）。
+    if (m_exeFamily)
     {
-        if (!m_exeFamily->CompleteLoadingWindowsExeFiles())
+        if (m_exeFamily->CompleteLoadingWindowsExeFiles())
         {
-            return false;
+            m_loaded = 1;
+            return true;
         }
+        return false;
     }
     m_loaded = 1;
     return true;

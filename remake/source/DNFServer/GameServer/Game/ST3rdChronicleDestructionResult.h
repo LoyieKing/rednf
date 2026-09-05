@@ -21,16 +21,10 @@ public:
     }
     ~ST3rdChronicleDestructionResult() {}  // ORIG W 0x0854b3a4（仅成员析构）
 
-    // 内联访问器（不产生符号）：+0x58 字段（upgrade_table_t 整体偏移 0x48c，
-    // importUpgradeTable 0x08900c26 直写实证）。
-    int getField58() const { return m_field58; }
-    void setField58(int v) { m_field58 = v; }
-    // m_vec（upgrade_table_t 整体偏移 0x490 = 旧 m_resultItems，importUpgradeTable
-    // 0x08900c26 [destruction result] 段直访实证）。
-    std::vector<STResultItemCnt>& getVec() { return m_vec; }
-    const std::vector<STResultItemCnt>& getVec() const { return m_vec; }
-
-private:
+    // 字段直访（batch-14 访问器专项）：原 4 个类内 inline 访问器已删 ——
+    // c6root gcc 4.4.7 `-O0` 对类内定义的 inline 成员函数**照样发 call**，而
+    // ORIG importUpgradeTable @0x08900c26 是 `mov 0x48(%eax)` / `lea 0x490(%eax)`
+    // 帧内直访（实测每访问点 +1 call）。偏移与 sizeof 零改动。
     float m_arr[22];                            // +0x00..+0x57
     int m_field58;                              // +0x58
     std::vector<STResultItemCnt> m_vec;         // +0x5c

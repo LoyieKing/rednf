@@ -1801,13 +1801,15 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     case 0xf22:
     {
         values.push_back(0);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0xf28:
     {
         values.push_back(1);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0xf2e:
@@ -1965,7 +1967,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
                     k = 1;
                 }
                 values.push_back(k);
-                values.push_back(ScanInt((bool*)0));
+                v = ScanInt((bool*)0);
+                values.push_back(v);
             }
         }
         break;
@@ -2019,7 +2022,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 4;
         }
         values.push_back(k);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0xfd7:
@@ -2027,7 +2031,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(0x15);
         ScanStr(&token);
         values.push_back(getCharacterJobToEnumValue(token));
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0xfdf:
@@ -2102,8 +2107,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 2;
         }
         values.push_back(k);
-        values.push_back(ScanInt((bool*)0));
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x1016:
@@ -2161,8 +2168,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             }
             values.push_back(k);
             ScanStr(&token);
-            values.push_back(token == "%" ? 1 : 0);
-            values.push_back(ScanInt((bool*)0));
+            v = token == "%" ? 1 : 0;
+            values.push_back(v);
+            v = ScanInt((bool*)0);
+            values.push_back(v);
         }
         break;
     }
@@ -2210,8 +2219,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         ScanStr(&token);
-        values.push_back(token == "%" ? 1 : 0);
-        values.push_back(ScanInt((bool*)0));
+        v = token == "%" ? 1 : 0;
+        values.push_back(v);
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x105a:
@@ -2253,8 +2264,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         }
         values.push_back(k);
         ScanStr(&token);
-        values.push_back(token == "%" ? 1 : 0);
-        values.push_back(ScanInt((bool*)0));
+        v = token == "%" ? 1 : 0;
+        values.push_back(v);
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x1076:
@@ -2262,8 +2275,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         // ORIG 0x899f55f（tag 0x18）：ScanStr "%"→bool push + ScanInt push。
         values.push_back(0x18);
         ScanStr(&token);
-        values.push_back(token == "%" ? 1 : 0);
-        values.push_back(ScanInt((bool*)0));
+        v = token == "%" ? 1 : 0;
+        values.push_back(v);
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x107d:
@@ -2285,7 +2300,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     case 0x1087:
     {
         values.push_back(0x2a);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x108c:
@@ -2307,7 +2323,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     case 0x1096:
     {
         values.push_back(0x1c);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x109b:
@@ -2360,7 +2377,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             if (!isType)
             {
                 values.push_back(getCharacterJobToEnumValue(token));
-                values.push_back(ScanInt((bool*)0));
+                v = ScanInt((bool*)0);
+                values.push_back(v);
             }
         }
         break;
@@ -2370,7 +2388,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(0x22);
         ScanStr(&token);
         values.push_back(getObjectTypeToEnumValue(token));
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x10d4:
@@ -2378,7 +2397,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         values.push_back(0x23);
         ScanStr(&token);
         values.push_back(getCharacterJobToEnumValue(token));
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x10dc:
@@ -2477,7 +2497,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 4;
         }
         values.push_back(k);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x113e:
@@ -2505,8 +2526,10 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 0xc;
         }
         values.push_back(k);
-        values.push_back(ScanInt((bool*)0));
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         ScanStr(&token);
         k = 0;
         if (token == "=")
@@ -2530,7 +2553,8 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             k = 4;
         }
         values.push_back(k);
-        values.push_back(ScanInt((bool*)0));
+        v = ScanInt((bool*)0);
+        values.push_back(v);
         break;
     }
     case 0x116b:

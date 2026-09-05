@@ -1279,6 +1279,9 @@ void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildN
 }
 
 // ORIG _ZN15cUserHistoryLog9useEmblemEmmjPKcj @0x08685a08
+// [N 归因修正] 非 EH：差异 = 4.1 五段 outgoing 全走 edx 逐段即用即弃，
+// 4.4 分配器前三段选 callee-saved ebx（push/pop+add esp 替 leave）且把
+// 0x10/0xc 装载提前——纯跨版本寄存器轮转+调度，无源码可控形，语义等价。
 void cUserHistoryLog::useEmblem(unsigned long a, unsigned long b, unsigned int c,
                                 const char* d, unsigned int e)
 {
@@ -1453,8 +1456,11 @@ void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int
 //   尾参为当前余额 CUser::GetCeraPoint()。
 void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
 {
+    // 技巧 28/36：ORIG 0x0868593c 对 GetCeraPoint 结果 `mov %eax,0x10(%esp)`
+    // 直落参（eax 跨后续装载存活）；4.4 默认先 spill mov 再装载（+1 条）。
+    register int balance __asm__("eax") = (int)m_user->GetCeraPoint();
     m_user->LogHistory("CeraPoint,%d,%d,%d", (int)type, amount,
-                       (int)m_user->GetCeraPoint());
+                       balance);
 }
 
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：

@@ -94,11 +94,12 @@ int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
 // ORIG T 0x088a3012：idx 越界 → -1；否则 m_fieldTypes[idx]。
 int BuyUpgradeData::getFieldType(int idx) const
 {
+    int result = -1;
     if (idx < (int)m_fieldTypes.size())
     {
-        return (int)m_fieldTypes[idx];
+        result = (int)m_fieldTypes[idx];
     }
-    return -1;
+    return result;
 }
 
 // ORIG T 0x088a3322：初值 0，取 m_listMap 最大 key。
@@ -218,9 +219,10 @@ std::string BuyUpgradeData::getStatStringIndex(FieldType::T ft) const
 // ORIG T 0x088a345e：!(level<min || max<level)。
 bool BuyUpgradeData::isValidLevel(int level)
 {
-    const bool outside =
-        (level < getMinLevel()) || (getMaxLevel() < level);
-    return !outside;
+    bool result = true;
+    if (level < getMinLevel() || getMaxLevel() < level)
+        result = false;
+    return result;
 }
 
 // ============================================================================
@@ -323,18 +325,12 @@ int AdvanceAltarShopParameter::getMaxStarResetGoldFee()
 // ============================================================================
 StageDifficulty::T StageDifficulty::getNextDifficulty(StageDifficulty::T diff)
 {
-    if (diff == DIFF_EASY)         // 0 → 1
-    {
+    if (diff == DIFF_EASY)
         return DIFF_MEDIUM;
-    }
-    if (diff == DIFF_MEDIUM)       // 1 → 2
-    {
+    if (diff == DIFF_MEDIUM)
         return DIFF_HARD;
-    }
     if (diff == (StageDifficulty::T)-1)
-    {
         return DIFF_EASY;          // -1 → 0
-    }
     return diff;
 }
 
@@ -351,9 +347,11 @@ bool isOnEvent()
 // ============================================================================
 bool isOpenAdvanceAltar()
 {
-    CDailyScheduleManager* sched = GlobalData::s_DailyScheduleManager;      // [objdump 0x812cff0]
-    const int state = sched->GetScheduleState((_DailyScheduleType)4, 0xa);  // [objdump 0x812d008]
-    return state == 1;
+    const int state =
+        GlobalData::s_DailyScheduleManager->GetScheduleState((_DailyScheduleType)4, 0xa);
+    if (state == 1)
+        return true;
+    return false;
 }
 
 // ============================================================================
@@ -458,15 +456,15 @@ std::map<int, _BuyItem>* AdvanceAltarData::getBuyItemMap(AdvanceAltarShopType::T
 std::map<unsigned char, _Slot>* AdvanceAltarData::getSlotMap(
     AdvanceAltarSlotType::T type)
 {
-    if ((int)type == 1)
+    switch (static_cast<int>(type))
     {
+    case 1:
         return &m_slots1;
-    }
-    if ((int)type == 2)
-    {
+    case 2:
         return &m_slots2;
+    default:
+        return 0;
     }
-    return 0;
 }
 
 // ORIG T 0x088992da（objdump 全文，四段循环逐条转写）。序列化侧 get()

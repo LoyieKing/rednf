@@ -261,14 +261,9 @@ public:
     std::unordered_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4
                                                        // （sizeof 0x20，与 ORIG 一致）
 
-    // 通用偏移视图（off 为对象内绝对偏移）。
-    int& intAt(int off) { return *(int*)(m_bodyView.m_body + off - 0xc); }
-    float& floatAt(int off)
-    { return *(float*)(m_bodyView.m_body + off - 0xc); }
-    float floatAt(int off) const
-    { return *(const float*)(m_bodyView.m_body + off - 0xc); }
-    int intAtConst(int off) const
-    { return *(const int*)(m_bodyView.m_body + off - 0xc); }
+    //（+0x00c 混合表的按脚本行/列偏移访问已改为文件级宏 UPG_TBL_*，见下方：
+    //  -O0 下成员函数访问器每个使用点额外发 1 条 call，而 ORIG 全部是
+    //  `mov/flds off(%eax,%edx,4)` 帧内直访 —— batch-14 访问器专项。）
 
     // ORIG 0x08900436：按 rarity/growthGrade/upgrade/equipType 计算 upgrade_info 到 out。
     // 返回 0 表示越界/失败，1 表示成功。
@@ -308,6 +303,30 @@ static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
               "upgrade_table_t +0x258 view offset drift");
 static_assert(offsetof(upgrade_table_t, m_destruction) == 0x434,
               "upgrade_table_t m_destruction offset drift");
+
+// ---------------------------------------------------------------------------
+// +0x00c 混合表的「脚本行/列号算偏移」访问宏（off = 对象内绝对偏移）。
+//
+// 为什么是宏而不是成员函数（batch-14 专项结论，同 N-A 手法）：工具链 c6root
+// gcc 4.4.7 `-O0` 对**类内定义的 inline 成员函数照样发 call**（不做内联），
+// 于是每个访问点从 ORIG 的单条直访变成「装载 off → 装载 this → call」3-5 条；
+// upgrade_table_t::C1 12 个点、importUpgradeTable 16 个点、get_upgrade_info
+// 11 个点各多一组，实测三函数合计偏差 ~190 insn。宏在预处理期展开为
+// `mov/flds off(%reg,%reg,4)`，与 ORIG 同形且**不新增任何符号**。
+//
+// 锚点是已建真实成员 m_bodyView.m_body（union 具名视图），非 (char*)this+K 裸
+// 偏移；写用途用非 const 版，只读用途用 C 版（可在 const 成员函数/const 指针
+// 上求值）。tbl 表达式会被求值两次（地址 + 偏移），调用点必须传**无副作用**的
+// 指针/引用（现有全部使用点均满足）。
+// ---------------------------------------------------------------------------
+#define UPG_TBL_INT(tbl, off) \
+    (*reinterpret_cast<int*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
+#define UPG_TBL_FLT(tbl, off) \
+    (*reinterpret_cast<float*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
+#define UPG_TBL_CINT(tbl, off) \
+    (*reinterpret_cast<const int*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
+#define UPG_TBL_CFLT(tbl, off) \
+    (*reinterpret_cast<const float*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
 
 class CItemAmplifier
 {

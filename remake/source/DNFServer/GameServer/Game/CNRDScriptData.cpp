@@ -128,13 +128,24 @@ int CNRDScriptData::import(const char* path)
     std::string section;
     std::string token;
     std::string value;
-    while (ScanType(section, true))
+    // ORIG 39-41：函数级两个带初值 temps（int→-0x54 `movl $0x0`；float→-0x58
+    // `mov $0x0,%eax; mov %eax,-0x58`），供 [int]/[float] 两支复用；
+    // 44-50 段首扫描为 `movl $1,0x4(%esp); call ScanType; xor $1; test; jne 远端出口岛`
+    // ⇒ for(;;) + `if (!ScanType(...)) break;`（P164 + P32 取反物化），内层
+    // `while (ScanStr(&token))` 保持 test/jne 回边形（ORIG 193-194 实证）。
+    int v = 0;
+    float f = 0;
+    for (;;)
     {
+        if (!ScanType(section, true))
+        {
+            break;
+        }
         if (section == "[int]")
         {
             while (ScanStr(&token))
             {
-                int v = ScanInt((bool*)0);
+                v = ScanInt((bool*)0);
                 m_intMap.insert(token.c_str(), v);
             }
         }
@@ -142,7 +153,7 @@ int CNRDScriptData::import(const char* path)
         {
             while (ScanStr(&token))
             {
-                float f = ScanFloat((bool*)0);
+                f = ScanFloat((bool*)0);
                 m_floatMap.insert(token.c_str(), f);
             }
         }

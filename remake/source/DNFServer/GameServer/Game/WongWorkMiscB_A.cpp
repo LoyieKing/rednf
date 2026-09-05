@@ -311,10 +311,10 @@ void CItemUpgrade::_getAdditionalDisjointItem(
     (void)itemScript;
     try
     {
-        const STResultItemCnt& elem = table.m_destruction.getVec().at(up);   // at 越界抛异常 → catch 吞掉并 trace
+        const STResultItemCnt& elem = table.m_destruction.m_vec.at(up);   // at 越界抛异常 → catch 吞掉并 trace
         if ((int)(short)elem.m_a != (int)up)
             return;
-        int slotIdx = table.m_destruction.getField58();
+        int slotIdx = table.m_destruction.m_field58;
         short count = flag ? (short)elem.m_c : (short)elem.m_b;     // ORIG 读合并 dword 的低/高半字
         if (count != 0)
         {

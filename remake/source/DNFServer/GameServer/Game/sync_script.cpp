@@ -429,34 +429,34 @@ void CSyncScript::GetLevelUpSkill(
 
 const char* CSyncScript::GetUsableCharacter(STEquipmentScript* script)
 {
-    if (script->m_fielda0 == 0)
+    // 正向早返形（ORIG +0x?? `test%al; je L_loop` + `mov $str,%eax; jmp`
+    // fall-through 主路径=非零分支；`==0` 负形产 jne 翻转+尾岛换位）。
+    if (script->m_fielda0)
+        return "\xb8\xf0\xb5\xce";   // 모두
+    for (int i = 0; i < 0xb; ++i)
     {
-        for (int i = 0; i < 0xb; ++i)
+        if (script->m_usable[i] != 0)
         {
-            if (script->m_usable[i] != 0)
-            {
-                return GetUserJob((ENUM_CHARACTERJOB)i);
-            }
+            return GetUserJob((ENUM_CHARACTERJOB)i);
         }
-        return "";
     }
-    return "\xb8\xf0\xb5\xce";   // 모두
+    return "";
 }
 
 const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
 {
-    if (script->m_fielda0 == 0)
+    // 正向早返形（ORIG +0x?? `test%al; je L_loop` + `mov $str,%eax; jmp`
+    // fall-through 主路径=非零分支；`==0` 负形产 jne 翻转+尾岛换位）。
+    if (script->m_fielda0)
+        return "\xb8\xf0\xb5\xce";   // 모두
+    for (int i = 0; i < 0xb; ++i)
     {
-        for (int i = 0; i < 0xb; ++i)
+        if (script->m_usable[i] != 0)
         {
-            if (script->m_usable[i] != 0)
-            {
-                return GetUserJob((ENUM_CHARACTERJOB)i);
-            }
+            return GetUserJob((ENUM_CHARACTERJOB)i);
         }
-        return "";
     }
-    return "\xb8\xf0\xb5\xce";   // 모두
+    return "";
 }
 
 bool CSyncScript::LoadItemInfoMasterScript(const char* path)
@@ -1082,7 +1082,10 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     // size_t 上界比较产生的转换临时，非 `cmpl $imm,mem` 直比形态）。
     for (int i = 0; i < sizeof(artifactSlot) - 1; ++i)
     {
-        artifactSlot[i] = (char)((&script->m_artifactSlotRed)[i] + '0');
+        // ORIG 0x0862445d `add $0x14,%ecx; mov (%edx,%ecx,4),%edx`：以结构首
+        // 字段 m_id(+0x00) 为基的 int 索引 [20+i]（= +0x50 槽区）。从
+        // &m_artifactSlotRed 起算会被 4.4 折成 lea 0x50+shl 两段（N18 向）。
+        artifactSlot[i] = (char)((&script->m_id)[20 + i] + '0');
     }
     // ORIG 0x0862448c/0x08624562/0x08624635：三处均为
     //   CStringMaker::CStringMaker(临时 functor)

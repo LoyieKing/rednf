@@ -108,16 +108,23 @@ int RandomOptionScript::getPrefixGrade(int level)
 std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
 {
     std::string out;
-    const std::map<int, std::vector<std::string> >& map =
-        flag ? m_prefixPremium : m_prefixNormal;
+    // ORIG 0x8a73956 逐条：①第三参数先拷入本地 byte 槽（`mov %al,-0x3c(%ebp)`），
+    // 此后两次以该槽作 `cmpb $0` 判；②表指针**先无条件取 m_prefixNormal(+0x1a8)**
+    // 存 -0x28，再在 flag 真时用 m_prefixPremium(+0x1c0) 覆盖（非三目选择形）；
+    // ③getPrefixGrade 结果入槽后条件 +3；④find/end/pt 全走非 const iterator。
+    bool premium = flag;
+    std::map<int, std::vector<std::string> >* pMap = &m_prefixNormal;
+    if (premium)
+    {
+        pMap = &m_prefixPremium;
+    }
     int idx = getPrefixGrade(grade);
-    if (flag)
+    if (premium)
     {
         idx += 3;
     }
-    std::map<int, std::vector<std::string> >::const_iterator it =
-        map.find(prefix);
-    if (it != map.end() && idx >= 0 && idx < (int)it->second.size())
+    std::map<int, std::vector<std::string> >::iterator it = pMap->find(prefix);
+    if (it != pMap->end() && idx >= 0 && idx < (int)it->second.size())
     {
         out = it->second[idx];
     }
@@ -147,6 +154,28 @@ int RandomOptionScript::getOptionModificationCost(short level, ENUM_RARITY rarit
 
 // ===================== importRandomOptionScript =====================
 // ORIG 0x08a70a90（0x2e10 字节脚本解析器，2754 条反汇编逐段核对）。
+//
+// 【batch-14 收敛】we-bigger 221 → 1（ORIG 2754 / ours 2755），P167 调用点差集
+// 双向 0（361/361 逐符号 Counter 全等）。削减手段两类：
+//  ① 键拼装改「扫描即直存键槽」：4 处 map 键（[option quantity] int 键 -0x4a4、
+//     [choose option group]/[modified option selection] u64 键 -0x4b0/-0x4e0、
+//     [break seal cost] int 键 -0x588、[different weight] short 键 -0x592）原用
+//     移位或链拼装在 -O0 每站 40-49 insns，ORIG 实为逐 byte/word/dword 直存
+//     （`mov %al,-0x4b0` / `mov %eax,-0x4ac` / `mov %ax,-0x586` …）⇒ 用文件内
+//     anonymous-namespace union 视图（P180，纯类型零符号 + static_assert 尺寸）复现；
+//  ② 44 处 `v = ScanInt(&ok); if(!ok)…; dst = (T)v;` 的共享 v 中转改写为
+//     `dst = (T)ScanInt(&ok); if(!ok)…`（P183 物化口径：ORIG 每次 Scan 结果
+//     `call 后紧接 mov %eax/%ax/%al,目的槽`，随后才 movzbl ok 检查），每站 −2 insns；
+//     同口径连带消掉 [part type] itemGroup/weight 与 [option group] weight 中转量。
+//  ③ 顺带修正两处语义缺失：[part type] 命中支缺 `field.m_weight = it->second.m_fieldC`
+//     累计回写（ORIG 313-317 第 4 次 pt，原缺 1 条 operator-> 调用）；
+//     [part type]/[option group] 第二 vector 实收累计权重而非原始 weight。
+// 残余 DIFF 归因：N82/P112 帧槽号（4.1 vs 4.4 分配序）+ .o 未 relink 的
+// R_386_PC32/R_386_32 显示差（AE 口径链接后核销）；本函数另有 3 站 std::string
+// 临时量与 map 迭代器具名实例化产生 C2/D2 别名拼写差（ORIG nm 双侧实存）。
+// 同 TU：getPrefix 0x8a73956 已按 ORIG 形重写（第三参拷本地 byte 槽、表指针
+// 先无条件取 m_prefixNormal 再条件覆盖、iterator 非 const）→ 99/99 gap 0。
+// ============================================================================
 // 主循环 ScanType 按段名分发，各段把脚本数值填入对应成员表；
 // 返回出错行号（成功 0）——与调用方 CDataManager::init
 // `const int err = importRandomOptionScript(...); if (err != 0)` 消费一致。
@@ -234,6 +263,19 @@ union BreakSealCostKeyView
     } m_bytes;
 };
 static_assert(sizeof(BreakSealCostKeyView) == 4, "ORIG break seal int 键 4 字节");
+
+// [different weight] 键 = short（ORIG 槽 -0x592/-0x591 两字节直存，
+// make_pair 实参型 `Rs` = short&）：`mov %al,-0x592` / `mov %al,-0x591`。
+union DifferentWeightKeyView
+{
+    short m_key;
+    struct
+    {
+        unsigned char m_b0;         // +0x00
+        unsigned char m_b1;         // +0x01
+    } m_bytes;
+};
+static_assert(sizeof(DifferentWeightKeyView) == 2, "ORIG different weight short 键 2 字节");
 
 }   // namespace
 
@@ -326,8 +368,7 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             // 重新读 partType。weight 读失败 → return 0x6e（非跳出）。
             std::string name;
             int partType = 0;
-            int itemGroup = 0;
-            int weight = 0;
+            PartSelectonField field;   // ORIG -0x428/-0x424：两 int 槽由扫描直填
             for (;;)
             {
                 partType = ScanInt(&ok);
@@ -346,8 +387,10 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x68;
                 }
-                itemGroup = git->second;
-                weight = ScanInt(&ok);
+                // ORIG 262-267：git->second 与 ScanInt 结果**直接落 field 的两个 int 槽**
+                // （node 侧 -0x428/-0x424），无 itemGroup/weight 中转量。
+                field.m_partType = git->second;
+                field.m_weight = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x6e;
@@ -356,24 +399,21 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     script.m_map30.find(partType);
                 if (mit != script.m_map30.end())
                 {
-                    // ORIG 0x8a70fdb/0x8a71032：以 (itemGroup, weight) 两紧邻 int 槽
-                    // 直接作 PartSelectonField（+0x00/+0x04）推入两 vector。
-                    PartSelectonField field;
-                    field.m_partType = itemGroup;   // +0x00
-                    field.m_weight = weight;        // +0x04
+                    // ORIG 297-325 四段 pt 链：①pt → m_vec10.push_back(field)
+                    // ②pt → m_fieldC += field.m_weight（node+0x10 就地累加）
+                    // ③pt → **field.m_weight = m_fieldC（累计值回写 field 权重槽）**
+                    // ④pt → m_vec0.push_back(field)（故第二表存的是累计权重）
                     mit->second.m_vec10.push_back(field);
-                    mit->second.m_fieldC += weight;
+                    mit->second.m_fieldC += field.m_weight;
+                    field.m_weight = mit->second.m_fieldC;   // ORIG +0x5ac 回写
                     mit->second.m_vec0.push_back(field);
                 }
                 else
                 {
                     PartSelectonValue val;
-                    PartSelectonField field;
-                    field.m_partType = itemGroup;   // +0x00
-                    field.m_weight = weight;        // +0x04
                     val.m_vec10.push_back(field);
                     val.m_vec0.push_back(field);
-                    val.m_fieldC = weight;
+                    val.m_fieldC = field.m_weight;
                     // ORIG 此分支 insert 不检查 duplicate。
                     script.m_map30.insert(std::make_pair(partType, val));
                 }
@@ -904,32 +944,32 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                int k1 = ScanInt(&ok);
+                // ORIG 2251-2287：cost 槽先清 0，随后三次 ScanInt 结果**直接落键对象**
+                // （byte0 = k1 → -0x588；**ushort@+2 = k2 → -0x586**；byte1 = k3 →
+                // -0x587），末次直存 cost(-0x58c) —— 无 k1/k2/k3 中转量、无移位或链。
+                BreakSealCostKeyView keyView;
+                int cost = 0;
+                keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                int k2 = ScanInt(&ok);
+                keyView.m_bytes.m_w2 = static_cast<unsigned short>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x28f;
                 }
-                int k3 = ScanInt(&ok);
+                keyView.m_bytes.m_b1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x293;
                 }
-                int cost = ScanInt(&ok);
+                cost = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x297;
                 }
-                // key 字节序：byte0=k1, byte1=k3, ushort@idx2=k2
-                // （ORIG 槽 -0x588/-0x587/-0x586）→ k1 | k3<<8 | k2<<16。
-                int key = (int)((unsigned int)(unsigned char)k1 |
-                                ((unsigned int)(unsigned char)k3 << 8) |
-                                ((unsigned int)(unsigned short)k2 << 16));
-                if (!script.m_map178.insert(std::make_pair(key, cost)).second)
+                if (!script.m_map178.insert(std::make_pair(keyView.m_key, cost)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
                                           __FUNCTION__, 0x29b,
@@ -960,18 +1000,18 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             for (;;)
             {
-                v = ScanInt(&ok);
+                // ORIG 2389/2399：两次 ScanInt 结果直接落 short 键的两字节槽
+                DifferentWeightKeyView keyView;
+                keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     break;
                 }
-                unsigned char k0 = (unsigned char)v;
-                v = ScanInt(&ok);
+                keyView.m_bytes.m_b1 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0x2ba;
                 }
-                unsigned char k1 = (unsigned char)v;
                 int v2 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -994,11 +1034,10 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x2cb;
                 }
-                short key = (short)(((unsigned short)k1 << 8) | k0);
                 DifferentWeightValue val;
                 val.m_field0 = v2;
                 val.m_field4 = v3;
-                if (!script.m_mapf4.insert(std::make_pair(key, val)).second)
+                if (!script.m_mapf4.insert(std::make_pair(keyView.m_key, val)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
                                           __FUNCTION__, 0x2cf,

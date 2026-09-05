@@ -162,6 +162,9 @@ public:
         int m_idx;    // +0x04
         bool operator<(const SWEAPONTYPE& o) const
         {
+            // ORIG LHS 两段物化（4.1 RTL 装载习惯）；4.4 恒直折 1 段，
+            // register edx 绑定实测打乱后续分配（ndiff 3→14 极性翻）
+            // ⇒ N22 向豁免，保裸形。
             if (m_job < o.m_job)
             {
                 return true;

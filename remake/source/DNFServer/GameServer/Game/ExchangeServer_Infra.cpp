@@ -80,9 +80,9 @@ int CEpoll<CSession>::RegisterSession(CSession* session, int type)
 //   return ResetEpoll(session->GetSocket()) == 0;
 // （ORIG 返回布尔但全部调用方均忽略返回值；头定稿 void。）
 template <>
-void CEpoll<CSession>::UnregisterSession(CSession* session)
+bool CEpoll<CSession>::UnregisterSession(CSession* session)
 {
-    ResetEpoll(session->GetSocket());
+    return !ResetEpoll(session->GetSocket());
 }
 
 // WaitForEvent 0x8495f0a（disasm 5364-5537）。epoll_wait(events*,0x258,t) 后：
@@ -193,13 +193,19 @@ template <>
 bool CSessionManager<CSession, PacketGuard, CEpoll>::TrySend(
     CSession* session, PacketGuard& guard)
 {
-    if (!session->Send(guard))
+    register unsigned char v asm("eax") =
+        static_cast<unsigned char>(session->Send(guard));
+    v ^= 1;
+    if (v)
     {
         TryDisconnect(session);
         return false;
     }
-    session->AddTriggerSessionEventType(0x2);
-    return true;
+    else
+    {
+        session->AddTriggerSessionEventType(0x2);
+        return true;
+    }
 }
 
 // WaitForSessionEvent 0x84952e0（disasm 5248-5258）：尾转发 WaitForEvent。
@@ -213,12 +219,14 @@ bool CSessionManager<CSession, PacketGuard, CEpoll>::WaitForSessionEvent(
 // TryListen 0x8495570：CSession::Listen(port,ip)→0 返 false；
 // 成功 RegisterSession(this,session,8) 后原样返回。
 template <>
-bool CSessionManager<CSession, PacketGuard, CEpoll>::TryListen(
+int CSessionManager<CSession, PacketGuard, CEpoll>::TryListen(
     int port, const char* ip)
 {
-    CSession* session = CSession::Listen(port, ip);
-    if (session == 0)
-        return false;
+    CSession* session = 0;
+    session = CSession::Listen(port, ip);
+    register bool z asm("al") = (session == 0);
+    if (z)
+        return 0;
     return RegisterSession(session, 8);
 }
 
@@ -232,7 +240,10 @@ bool CSessionManager<CSession, PacketGuard, CEpoll>::TryConnect(
     CSession* session = CSession::Connect(ip, port);
     if (session == 0)
         return false;
-    if (!RegisterSession(session, 0x14))
+    register unsigned char v asm("eax") =
+        static_cast<unsigned char>(RegisterSession(session, 0x14));
+    v ^= 1;
+    if (v)
         return false;
     session->AddTriggerSessionEventType(0x10);
     return true;
@@ -245,7 +256,7 @@ template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::TrySend(CSession*, PacketGuard&);
 template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::WaitForSessionEvent(int);
-template bool CSessionManager<CSession, PacketGuard, CEpoll>
+template int CSessionManager<CSession, PacketGuard, CEpoll>
     ::TryListen(int, const char*);
 template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::TryConnect(const char*, int);
@@ -413,7 +424,8 @@ void CExchangeServerHitRate::Reset()
 void CExchangeServerHitRate::IncrementDBLoadCount()
 {
     ++m_dbLoadCount;
-    if (m_dbLoadCount == 0)
+    register bool z asm("al") = (m_dbLoadCount == 0);
+    if (z)
         ++m_dbLoadOverflowCount;
 }
 
@@ -421,7 +433,8 @@ void CExchangeServerHitRate::IncrementDBLoadCount()
 void CExchangeServerHitRate::IncrementCacheLoadCount()
 {
     ++m_cacheLoadCount;
-    if (m_cacheLoadCount == 0)
+    register bool z asm("al") = (m_cacheLoadCount == 0);
+    if (z)
         ++m_cacheLoadOverflowCount;
 }
 
@@ -429,7 +442,8 @@ void CExchangeServerHitRate::IncrementCacheLoadCount()
 void CExchangeServerHitRate::IncrementCacheLoadFailCount()
 {
     ++m_cacheLoadFailCount;
-    if (m_cacheLoadFailCount == 0)
+    register bool z asm("al") = (m_cacheLoadFailCount == 0);
+    if (z)
         ++m_cacheLoadFailOverflowCount;
 }
 

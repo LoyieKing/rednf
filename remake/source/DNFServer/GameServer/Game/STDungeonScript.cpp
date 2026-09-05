@@ -3432,6 +3432,13 @@ void convertBinaryToText(const char* path);
 
 bool exportDungeonScript(STDungeonScript* script, const char* path)
 {
+    // 【验收标注 §6.2】超大函数（ORIG 1314 insn）。调用点差集零
+    // （176 vs 175，ORIG PLT 无符号地址聚类：fprintf 0x0807da90×52/
+    // fwrite 0x0807e320×31/fopen/fclose/fputc 全对位）；9 处 vector<int>
+    // size()!=0 检查形 + 6 处迭代器后自增形已按 ORIG 还原（-41→-8）。
+    // 残 -8 归因：[required item] enableFlag 4.1 分支独立物化 vs 4.4
+    // setne 折叠（setcc-fold/N18b）、maze operator[] 结果 4.1 具名槽
+    // 缓存（N82 槽号）、greed string 构造位序漂移岛（跨版本 EH 岛）。
     // ORIG 0x088f0a98（0x160c）——完整导出。按反汇编/Ghidra C 逐字段转写：
     //   fopen("wb") → STDungeonScript local（提供 m_a4 默认比较值）→ 各分区
     //   fprintf/fwrite 转储 → maze 循环（greed/map/boss/layered/start/boss）

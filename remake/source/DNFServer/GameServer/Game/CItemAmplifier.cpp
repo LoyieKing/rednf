@@ -30,32 +30,32 @@ upgrade_table_t::upgrade_table_t()
 {
     int i;
     for (i = 0; i <= 3; ++i)          // +0x0c..：1.0f
-        floatAt(i * 4 + 0xc) = 1.0f;
+        UPG_TBL_FLT(this, i * 4 + 0xc) = 1.0f;
     for (i = 0; i <= 0x15; ++i)       // +0x1c..：1.0f
-        floatAt((i + 4) * 4 + 0xc) = 1.0f;
+        UPG_TBL_FLT(this, (i + 4) * 4 + 0xc) = 1.0f;
     for (i = 0; i <= 5; ++i)
     {
-        floatAt((i + 0x1c) * 4 + 4) = 1.0f;    // ORIG 0x089000ca：+0x74..
-        floatAt((i + 0x20) * 4 + 0xc) = 1.0f;  // +0x8c..
+        UPG_TBL_FLT(this, (i + 0x1c) * 4 + 4) = 1.0f;    // ORIG 0x089000ca：+0x74..
+        UPG_TBL_FLT(this, (i + 0x20) * 4 + 0xc) = 1.0f;  // +0x8c..
     }
     for (i = 0; i <= 0x63; ++i)       // ORIG +0xa4..：整数 1
-        intAt((i + 0x28) * 4 + 4) = 1;
-    intAt(0x234) = 0;
+        UPG_TBL_INT(this, (i + 0x28) * 4 + 4) = 1;
+    UPG_TBL_INT(this, 0x234) = 0;
     for (i = 0; i <= 0x63; ++i)       // +0x274..：1.0f
-        floatAt((i + 0x9c) * 4 + 4) = 1.0f;
+        UPG_TBL_FLT(this, (i + 0x9c) * 4 + 4) = 1.0f;
     for (i = 0; i <= 5; ++i)
     {
-        intAt((i + 0x100) * 4 + 4) = -1;    // +0x404..
-        intAt((i + 0x104) * 4 + 0xc) = -1;  // +0x41c..
+        UPG_TBL_INT(this, (i + 0x100) * 4 + 4) = -1;    // +0x404..
+        UPG_TBL_INT(this, (i + 0x104) * 4 + 0xc) = -1;  // +0x41c..
     }
-    intAt(0x238) = -1;
-    intAt(0x23c) = 0;
+    UPG_TBL_INT(this, 0x238) = -1;
+    UPG_TBL_INT(this, 0x23c) = 0;
     for (i = 0; i <= 5; ++i)
     {
-        intAt((i + 0x90) * 4) = 0;          // +0x240..
-        intAt((i + 0x94) * 4 + 0xc) = 0;    // +0x25c..
+        UPG_TBL_INT(this, (i + 0x90) * 4) = 0;          // +0x240..
+        UPG_TBL_INT(this, (i + 0x94) * 4 + 0xc) = 0;    // +0x25c..
     }
-    intAt(0x258) = 0;
+    UPG_TBL_INT(this, 0x258) = 0;
 
     m_floatMap.clear();
     memset(m_zero4b4, 0, sizeof(m_zero4b4));
@@ -124,7 +124,7 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
     int grade = item->get_grade();
     int rarity = item->get_rarity();
     // ORIG 直读 `mov 0x25c(%eax,%edx,4)`（+0x25c 具名视图，无 cvt 无 call）；
-    // 走 inline 访问器 floatAt() 在 -O0 会额外发一次 call（+5 insn）。
+    // 走 inline 访问器 UPG_TBL_CFLT(this, ) 在 -O0 会额外发一次 call（+5 insn）。
     int base = m_upgrade.m_bodyView.m_named.m_baseGrade[rarity];
     int diff = grade - base;
     // 钳零保持 std::max 形：实测显式 if 版反而少 4 insn（139/130），
@@ -379,43 +379,73 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
     if (growthGrade >= 100)
         return 0;
 
-    float bias = 2.0f * 0.5f;  // 常量区：two(0x8c9d?) * pointFive
-    // 拷贝 m_infos.at(upgrade) 到 out（0x6c = 27 dwords；ORIG 用 at 带越界检查）。
-    memcpy(out, &m_infos.at(upgrade), sizeof(upgrade_info_t));
+    const float bias = 2.0f * 0.5f;  // _DAT_08c9d308(=2.0f) * _DAT_08c9d30c?（pointFive）
+    // ORIG 0x089004xx：拷贝是 **27 个 dword 的块移动展开**（Ghidra
+    // `for (iVar6 = 0x1b; ...; *pfVar7 = *pfVar5)`），不是 memcpy ⇒ 写结构赋值
+    // 让编译器自行展开/发块拷（batch-14 访问器专项连带项）。
+    *out = m_infos.at(upgrade);
 
-    float gain = floatAt((rarity + 0x20) * 4 + 0xc);
-    out->m_prob00[0] = 0;  // 占位：浮点区逐项缩放（见 floatAt 访问）
-    // 前 0x4 字节概率/等级混合区按 float 偏移缩放。
-    float* p = (float*)out->m_prob00;
-    // param_1[0..7] 与 param_1[0x13..0x1a] 各有系数缩放，这里按 ORIG 逐项到
-    // 0x6c 内 float 数组（0/1/2/3 用 +0xc/0x10/0x14/0x18 分母，4..7 直接乘）。
-    float* f = (float*)out;
-    f[0] = gain * f[0] * ((float)growthGrade / floatAt(0xc) + bias);
-    f[1] = gain * f[1] * ((float)growthGrade / floatAt(0x10) + bias);
-    f[2] = gain * f[2] * ((float)growthGrade / floatAt(0x14) + bias);
-    f[3] = gain * f[3] * ((float)growthGrade / floatAt(0x18) + bias);
-    f[4] = gain * f[4];
-    f[5] = gain * f[5];
-    f[6] = gain * f[6];
-    f[7] = gain * f[7];
-    f[0x13] = gain * f[0x13] * ((float)growthGrade / floatAt(0xc) + bias);
-    f[0x14] = gain * f[0x14] * ((float)growthGrade / floatAt(0x10) + bias);
-    f[0x15] = gain * f[0x15] * ((float)growthGrade / floatAt(0x14) + bias);
-    f[0x16] = gain * f[0x16] * ((float)growthGrade / floatAt(0x18) + bias);
-    f[0x17] = gain * f[0x17];
-    f[0x18] = gain * f[0x18];
-    f[0x19] = gain * f[0x19];
-    f[0x1a] = gain * f[0x1a];
-    // ORIG 0x8900436：两段系数均按 float 解读（flds，floatAt），非 int。
-    int disc = (int)f[0xd];
-    disc = (int)(-100.0f + floatAt((equipType + 4) * 4 + 0xc) * (float)disc);
-    disc = (int)(-100.0f + floatAt((rarity + 0x1c) * 4 + 4) * (float)disc);
+    // 16 行缩放：ORIG 每行重发 gain 取址（47×flds vs 重建 30×flds），但 4.4 的
+    // 展开形是「flds gain; fstps 临时; flds 下一操作数; …」并逐行多 2 条 store/load
+    // （实测逐行内联 gain → 471 insn，比缓存形 352 更偏离 371；缓存形与逐行形
+    // 各差 -19/+100）⇒ 取更接近的**缓存 gain** 形，余 19 归 x87 序列发形差
+    // （ORIG 用 fmulp 栈式紧凑链 1×fmuls+45×fmulp，4.4 用 fmuls mem 形）：
+    // 属 P176/N83 跨前端伪影，非语义缺口。分母逐行按 ORIG 直读（已宏化）。
+    const float gain = UPG_TBL_CFLT(this, (rarity + 0x20) * 4 + 0xc);
+    ((float*)out)[0] = gain *
+                       ((float*)out)[0] *
+                       ((float)growthGrade / UPG_TBL_CFLT(this, 0xc) + bias);
+    ((float*)out)[1] = gain *
+                       ((float*)out)[1] *
+                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x10) + bias);
+    ((float*)out)[2] = gain *
+                       ((float*)out)[2] *
+                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x14) + bias);
+    ((float*)out)[3] = gain *
+                       ((float*)out)[3] *
+                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x18) + bias);
+    ((float*)out)[4] = gain *
+                       ((float*)out)[4];
+    ((float*)out)[5] = gain *
+                       ((float*)out)[5];
+    ((float*)out)[6] = gain *
+                       ((float*)out)[6];
+    ((float*)out)[7] = gain *
+                       ((float*)out)[7];
+    ((float*)out)[0x13] = gain *
+                          ((float*)out)[0x13] *
+                          ((float)growthGrade / UPG_TBL_CFLT(this, 0xc) + bias);
+    ((float*)out)[0x14] = gain *
+                          ((float*)out)[0x14] *
+                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x10) + bias);
+    ((float*)out)[0x15] = gain *
+                          ((float*)out)[0x15] *
+                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x14) + bias);
+    ((float*)out)[0x16] = gain *
+                          ((float*)out)[0x16] *
+                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x18) + bias);
+    ((float*)out)[0x17] = gain *
+                          ((float*)out)[0x17];
+    ((float*)out)[0x18] = gain *
+                          ((float*)out)[0x18];
+    ((float*)out)[0x19] = gain *
+                          ((float*)out)[0x19];
+    ((float*)out)[0x1a] = gain *
+                          ((float*)out)[0x1a];
+    // 折扣基数：f[0xd] 两次叠加表系数（equipType 行、rarity 行），每次 -100.0f。
+    int disc = (int)((float*)out)[0xd];
+    disc = (int)(-100.0f +
+                 UPG_TBL_CFLT(this, (equipType + 4) * 4 + 0xc) * (float)disc);
+    disc = (int)(-100.0f +
+                 UPG_TBL_CFLT(this, (rarity + 0x1c) * 4 + 4) * (float)disc);
     out->m_discountBase = disc;
-    // ORIG：equipType 钳制到 0x12 后查 m_floatMap(+0x49c) 折扣，命中则覆盖。
+    // ORIG：equipType 钳到 0x12 后查 m_floatMap(+0x49c) 折扣，命中则覆盖。
     int et = equipType > 0x12 ? 0x12 : equipType;
     std::map<int, float>::const_iterator it = m_floatMap.find(et);
     if (it != m_floatMap.end())
+    {
         out->m_discountBase = static_cast<int>(it->second * (float)disc);
+    }
     return 1;
 }
 
@@ -426,7 +456,7 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
 int upgrade_table_t::GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                                     const upgrade_info_t* info) const
 {
-    int th = intAtConst((rarity + 0x100) * 4 + 4);
+    int th = UPG_TBL_CINT(this, (rarity + 0x100) * 4 + 4);
     if (th == -1 || (int)upgrade < th)
         return *(const int*)((const char*)info + 0x24);
     return 3;
