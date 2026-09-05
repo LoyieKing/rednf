@@ -147,8 +147,16 @@ int CBossTower::handleLeaveUser(CUser* user)
 //   (uchar)m_difficulty)；返回 1。
 int CBossTower::handleMoveMap(unsigned short* mapIndex)
 {
-    if (!CBossStage::handleMoveMap(mapIndex))
-        return 0;
+    // X1 形（XOR_FAMILY.tsv）+ 落点岛（技巧 24）：ORIG @0x…handleMoveMapEPt 是
+    // `call CBossStage::handleMoveMap; xor $0x1,%eax; test %al,%al; je BODY;
+    //  mov $0x0,%eax; jmp end; BODY: …` —— **return 0 走 fall-through、
+    //  成功路径跳走**。被调返回 int，4.4 对 `if (!intcall())` 恒产两段
+    //  `test;sete`，必须用绑 %eax 的具名 unsigned char + 显式 `^= 1`。
+    register unsigned char v asm("eax") = (unsigned char)CBossStage::handleMoveMap(mapIndex);
+    v ^= 1;
+    if (!v) goto BODY;
+    return 0;
+BODY:
     for (int i = 0; i < 4; ++i)
     {
         CUser* member = m_party->get_user(i);

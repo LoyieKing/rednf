@@ -1171,9 +1171,9 @@ int CInventory::check_slot_empty(int slot) const
     return 0;
 }
 
-// 返回类型按 ORIG 证据改为 int（见 CInventory.h 注释：0x08505019/0x08505031
-// dword 直写 + 0x08271062 尾无 movzbl）；体内 return 1/0 原样保留。
-int CInventory::check_empty_count(Inven_Item::ITEM_TYPE type, int count) const
+// 返回类型 bool（batch-13 Main 终裁，P22：调用点 test %al/xor$1 形均为 bool 产物）；
+// 体内 return 1/0 即 return true/false（0/1 语义与全部调用点兼容）。
+bool CInventory::check_empty_count(Inven_Item::ITEM_TYPE type, int count) const
 {
     int empty = 0;
     int start;
@@ -2570,23 +2570,31 @@ int CInventory::insertItemIntoCreatureStackable(Inven_Item item, eItemAddReason 
 
 int CInventory::insertItemIntoCreature(Inven_Item& item, eItemAddReason reason, bool bLog, bool b)
 {
+    // ORIG 0x0850a86a：单出口 result 变量形（三分支 call→mov %eax,-0xc→jmp 尾
+    // reload；error 路径 `mov $-1; jmp` 跳过 reload）。gap 6→0，AE 级闭合（残差
+    // 仅为 .o 切片 call/jmp 目标渲染，助记符序列全等）。
+    int result = 0;
     if (item.m_field1 == 7)
     {
-        return insertItemIntoCreatureStackable(item, reason, bLog);
+        result = insertItemIntoCreatureStackable(item, reason, bLog);
     }
-    if (item.m_field1 == 5)
+    else if (item.m_field1 == 5)
     {
-        return insertItemIntoCreatureEquipment(item, reason, bLog);
+        result = insertItemIntoCreatureEquipment(item, reason, bLog);
     }
-    if (item.m_field1 == 6)
+    else if (item.m_field1 == 6)
     {
-        return insertItemIntoArtifactEquipment(item, reason, bLog);
+        result = insertItemIntoArtifactEquipment(item, reason, bLog);
     }
-    LogManager::logFormat(
-        1, "inventory.cpp",
-        __PRETTY_FUNCTION__,
-        0x2549, "History ERROR, unknown inven_Item type, insertItemIntoCreature ");
-    return -1;
+    else
+    {
+        LogManager::logFormat(
+            1, "inventory.cpp",
+            __PRETTY_FUNCTION__,
+            0x2549, "History ERROR, unknown inven_Item type, insertItemIntoCreature ");
+        return -1;
+    }
+    return result;
 }
 
 int CInventory::tryInsertItemIntoCreature(Inven_Item& item) const
@@ -2704,7 +2712,7 @@ int CInventory::check_vilmark_dungeon_item_exist(int itemIdx) const
     return -1;
 }
 
-int CInventory::possible_to_insert(int itemIdx) const
+bool CInventory::possible_to_insert(int itemIdx) const
 {
     Inven_Item::ITEM_TYPE type = (Inven_Item::ITEM_TYPE)GetItemType(itemIdx);
     if (type == 0)
@@ -3366,6 +3374,10 @@ int CInventory::RemoveFPItem(Inven_Item* inven, Inven_Item* equip)
 {
     // ORIG 0x850a2d7..+0x43：三条件各为 || 短路 je/jbe/ja → INC 岛（0x850a314/
     // 0x850a317 4.1 nop 落点）；COND setle i<=0x19 / i<=0x137（i 槽 -0x10/-0xc）。
+    // [N 归因·4.1 pad 形] batch-13 P168a 五步亲验：非 xor 族；ORIG GCC 4.1 为空
+    // continue 出口铺 nop+二次 jmp 落点 pad（je 直落+jbe/ja 双岛），4.4.7 对 ||链/
+    // 正向嵌套/三层嵌套均直连 thread（实测 77/65 两形，无 nop 岛形可出）——源层
+    // 不可翻，维持 `||`+continue 形（gap 4 = 2×nop+2×jmp pad 缺失，版本指令选择）。
     for (int i = 0; i <= 0x19; i++)
     {
         if (inven[i].m_addInfo == 0 || inven[i].m_addInfo <= 0x1963 ||
@@ -3390,6 +3402,9 @@ int CInventory::RemoveKCItem()
 {
     return RemoveKCItem(m_invenItem, m_pEquipSlot);
 }
+// [N 归因·4.1 pad 形] batch-13 P168a 亲验：同 RemoveFPItem——ORIG 空 continue
+// 出口的 nop+jmp 落点 pad 为 GCC 4.1 指令选择，4.4.7 直连 thread 无该形，
+// ||/嵌套两式实测 146/138 vs ORIG 142，维持 `||`+continue 形封顶。
 
 int CInventory::RemoveKCItem(Inven_Item* inven, Inven_Item* equip)
 {
@@ -5077,6 +5092,8 @@ int CInventory::insertCreatureIntoSpecificSlot(Inven_Item item, int slot,
     }
     return result;
 }
+// [N82 封顶] batch-13：差集归零、207/208 gap=1。残 1 = ORIG 跨调用以 %ecx 存参/装载时刻
+// （`mov A(%ebp),%ecx`）vs 4.4.7 spill 直写形 + 尾 nop 豁免差，源层无操作柄。
 
 int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d,
                               const char* agency, eAvatarItemAddReason reason, bool e,
@@ -5122,6 +5139,10 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
     return -1;
 }
 
+// [N82 封顶] batch-13：三处 `start <= i` 翻 `i >= start` 复现 ORIG setge 向（已消除
+// replace 块）；残余 gap=5 = ORIG 跨 MoveItemToEmptySlot 调用以 %esi/%ebx 持两下标
+// （push/pop esi,ebx prologue）vs 4.4.7 caller-save 直用形，register-asm 强改有
+// qsort 段串扰风险，判 N82 不强求。
 int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
 {
     int start = 0;
@@ -5129,7 +5150,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
     int last = 0;
     StartEndPos(type, start, end);
     last = 0;
-    for (int i = end; start <= i; i--)
+    for (int i = end; i >= start; i--)
     {
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
@@ -5155,7 +5176,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
         return 0x12;
     }
     int dst = -1;
-    for (int i = end; start <= i; i--)
+    for (int i = end; i >= start; i--)
     {
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
@@ -5168,7 +5189,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
                 return moveResult;
             }
             int newLast = 0;
-            for (int j = end; start <= j; j--)
+            for (int j = end; j >= start; j--)
             {
                 if (m_pEquipSlot[j].m_addInfo != 0)
                 {
@@ -5744,9 +5765,14 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
     SendAvatarEvent(0x32, slot, dstSlot + 10, srcAddInfo2, dstAddInfo2);
     return 0;
 }
-// [N82 封顶] batch-10 新立项：差集 80=80 归零（4 处 GetAvatarItemMgrR()-> 改回成员
-// 直访 m_avatarItemMgr.（ORIG 该函数即 lea/add 0x734 直址）、输出点二次 GetUpgrade
-// (&0x7f)*2 物化）。gap 30 = 槽位/物化次序 N82。
+// [N82 封顶] batch-13 专项逐块：差集 80=80 保持归零（4 处 GetAvatarItemMgrR()->
+// 改回成员直访 m_avatarItemMgr. + 输出点二次 GetUpgrade(&0x7f)*2 物化）；
+// gap 30→1（658/659 长度近等）。定形项：函数头 listCount/count/countIdx 三初始化
+// +声明序（ORIG +0x1e）、flag 区 integrated/非 integrated 两组 dead 槽三步折叠
+// （未初始化 ampPad/resByte char + 双 `&1u` 掩码复现 and/mov/and 链，ORIG 语义
+// 忠实保留）、非 integrated 二次 GetUpgrade 直调、slotNo-0xc unsigned 界、
+// (unsigned)<=0x15。残余 ~10 replace 块（ja/jbe 向、shl↔sar 位测折叠、add/lea、
+// push/pop esi+ebx）= 跨版本指令选择+寄存器分配，AE 槽号归一口径形态尾差。
 
 // ============================================================================
 // CInventory::MakeEquipList（ORIG 0x084fe2e2，_ZNK10CInventory13MakeEquipListEPvb13ENUM_USERINFO14ENUM_EQUIPSLOT）。
@@ -5765,8 +5791,11 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     {
         return 0;
     }
+    // ORIG 序言 +0x1e：三变量依声明序初始化写 0（listCount/-0x40、count/-0x38、
+    // countIdx/-0x44——countIdx 先 0 后 get_index 覆写，slot 按 AE 口径归一）。
+    int listCount = 0;
     int count = 0;
-    int listCount;
+    int countIdx = 0;
     if (!flag)
     {
         listCount = 0xc;
@@ -5779,7 +5808,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     {
         listCount = 0xc;
     }
-    int countIdx = buf->get_index();
+    countIdx = buf->get_index();
     buf->put_byte(count);
     int nowTick = OS_API::GetDateTimeTick();
     CExpandEquipslot* expand = 0;
@@ -5847,10 +5876,12 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
                 G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
             {
+                // ORIG +0x45d..+0x4fc：三步位折叠 —— upgradeByte(-0x17 物化)/
+                // ampFlag(-0x16)/dead 结果槽(-0x4d，ORIG 读未初始化栈字节，忠实保留)。
                 char upgradeByte = 0;
                 if (slotNo != 10)
                 {
-                    if (slotNo < 10 || 9 < slotNo - 0xc)
+                    if (slotNo < 10 || (unsigned int)(slotNo - 0xc) > 9)
                     {
                         upgradeByte = (char)slots[i].GetUpgrade();
                     }
@@ -5864,19 +5895,31 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 {
                     ampFlag = 1;
                 }
-                // ORIG +0x547：输出点二次调用 GetUpgrade(&0x7f)*2（非复用 -0x17 变量）。
-                buf->put_byte((unsigned char)(
-                    (ampFlag & 1) | ((slots[i].GetUpgrade() & 0x7f) * 2)));
+                unsigned char ampBit = (unsigned char)(ampFlag & 1u);
+                unsigned char resByte;
+                resByte = (unsigned char)((resByte & 0xfffffffeu) | (ampBit & 1u));
+                resByte = (unsigned char)((resByte & 1u) |
+                                          (unsigned char)((upgradeByte & 0x7f) * 2));
+                buf->put_byte(resByte);
             }
             else
             {
-                // ORIG：读未初始化栈字节仅置 bit0（amp 有值→1），高位恒 0【按 ORIG 语义】
-                unsigned char attrByte = 0;
+                // ORIG +0x4fe..+0x56f：ampFlag(-0x15) 具名 + dead ampPad(-0x16)/
+                // dead 结果槽(-0x4e) 三步折叠，upgrade 位 = **二次 GetUpgrade 调用**
+                // （非变量复用）——未初始化读忠实保留。
+                char ampFlag = 0;
                 if (slots[i].m_amp.getAbilityType() != 0)
                 {
-                    attrByte |= 1;
+                    ampFlag = 1;
                 }
-                buf->put_byte(attrByte);
+                unsigned char ampPad;
+                unsigned char ampBit = (unsigned char)(ampPad & 1u);
+                (void)ampFlag;
+                unsigned char resByte;
+                resByte = (unsigned char)((resByte & 0xfffffffeu) | (ampBit & 1u));
+                resByte = (unsigned char)((resByte & 1u) |
+                                          (unsigned char)((slots[i].GetUpgrade() & 0x7f) * 2));
+                buf->put_byte(resByte);
             }
         }
         else
@@ -5896,7 +5939,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
             {
                 unsigned char attrByte = 0;
-                if ((unsigned)slotNo < 0x16 && ((1 << slotNo) & 0x3ff400) != 0)
+                if ((unsigned int)slotNo <= 0x15u && (((1 << slotNo) & 0x3ff400) != 0))
                 {
                     attrByte = (unsigned char)(slots[i].GetReSealCount() << 5);
                 }

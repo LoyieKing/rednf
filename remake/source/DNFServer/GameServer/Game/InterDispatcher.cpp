@@ -6854,35 +6854,34 @@ struct Inter_ChangeLetterStatPktView
 
 int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_ChangeLetterStatPktView* pPkt = reinterpret_cast<Inter_ChangeLetterStatPktView*>(data);
+    Inter_ChangeLetterStatPktView* pPkt;
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    const int characNoMsg = pPkt->m_0;      // msg+0x0
+    pPkt = reinterpret_cast<Inter_ChangeLetterStatPktView*>(data);
     if (user->getCurCharacR() == 0 ||
-        user->getCurCharacNo() != characNoMsg)
+        user->getCurCharacNo() != pPkt->m_0)
         return 0x30a2;
 
-    const short stat =                                 // msg+0x8
-        (short)pPkt->m_8;
-    if (stat == 3)
+    if ((short)pPkt->m_8 == 3)
     {
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
-                ->InsertLetterKeepCount(
-                    (unsigned int)pPkt->m_4);
+                ->InsertLetterKeepCount(pPkt->m_4);
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
                 ->DecLoadedLetterCount();
         }
     }
-    else if (stat == 0)
+    else if ((short)pPkt->m_8 == 0)
     {
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
-            if (static_cast<WongWork::CMailBox*>(user->GetMailBox())
-                    ->DeleteLetterKeepCount(
-                        (unsigned int)pPkt->m_4) != 1)
+            register unsigned char r asm("eax") =
+                (unsigned char)static_cast<WongWork::CMailBox*>(user->GetMailBox())
+                    ->DeleteLetterKeepCount((unsigned int)pPkt->m_4);
+            r ^= 1;
+            if (r)
                 static_cast<WongWork::CMailBox*>(user->GetMailBox())
                     ->DecLoadedLetterCount();
         }

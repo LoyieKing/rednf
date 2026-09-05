@@ -350,7 +350,7 @@ public:
     ~CLevelRewardTableMgr();   // ORIG 0x0868777c
     static CLevelRewardTableMgr* GetInstance();                  // ORIG W 0x0837505b
     void SetChallengeInfo(stUnlimitChallengeInfo& info);         // ORIG 0x08687828
-    bool IsOn();                             // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp；caller 0x0864a5cf `xor $0x1,%eax;test %al,%al` bool 形⇒声明 bool）
+    unsigned char IsOn();                    // ORIG W 0x08697792 体=movzbl (this)+ret 直返（P9：m_flag 为 uchar 字段、ORIG 无 setne ⇒ 返回类型 uchar；mangled 无返回类型零 ABI 风险。caller xor 形按 X2 自救：register uchar asm(eax)+^=1，见 CUserDepsB processLevelUpEvent）
     bool IsChallengingJob(char job);                  // ORIG T 0x08687792（定义 CUserDepsB.cpp）
     bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
     bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）

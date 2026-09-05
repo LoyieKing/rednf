@@ -61,7 +61,7 @@ inline CBattle_Field& bf(CParty* p)
 }
 inline BattleData& bd(CParty* p)
 {
-    return *reinterpret_cast<BattleData*>(&p->m_padBattleData);
+    return p->m_battleData;
 }
 inline CTraceMobDieHack& traceHack(CParty* p)
 {
@@ -329,7 +329,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     {
         if (!_checkValidUser(i))
             continue;
-        if (m_liveFlag[i] != 1 || m_partyType == 1)
+        if (m_battleData.m_arr54[i] != 1 || m_partyType == 1)
             continue;
         int questEnemyType = 1;
         if (mob.m_roleType > 4 && mob.m_roleType <= 8)
@@ -397,7 +397,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         CUser* member = m_member[i].m_pUser;
 
         // 未进入地图且非维度绕行 → 0 经验包
-        if (m_enterMapFlag[i] != 1 && m_dungeon != 0 &&
+        if (m_battleData.m_arr58[i] != 1 && m_dungeon != 0 &&
             m_dungeon->m_bloodDungeonType == 0)   // +0x89f
         {
             member->SendZeroExpPacket();

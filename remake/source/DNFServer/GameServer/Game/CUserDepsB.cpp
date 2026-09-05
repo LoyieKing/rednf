@@ -190,7 +190,9 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
 {
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     CLevelRewardTable* table = 0;                  // local_28 初值 0
-    if (!mgr->IsOn())                              // xor $1 后 jne 出口
+    if (!mgr->IsOn())   // uchar 返回（P9 翻转后）此点 4.4 产 test;sete 两段；
+                        // X2 绑 eax 形在本函数实测被 spill 化（mov %eax,-0x24
+                        // 续用），且该函数块序 ndiff150 深层非单点可救，回退。
         return;
     table = mgr->GetProperLevelRewardTableR();     // T 0x08687e62
     if (table == 0)
@@ -500,12 +502,16 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
 // ORIG W 0x086976f6：this+8+(jobIdx*0x46+levelIdx+0x44)*4 → m_rewardPrimary 下标。
 int CLevelRewardTable::GetRewardItemNo(int jobIdx, int levelIdx)
 {
+    // 【N18a 标注】同 GetItemCount（ORIG 0x086976f6 双寄存器 lea 形不可翻）。
     return m_rewardPrimary[jobIdx * 0x46 + levelIdx];
 }
 
 // ORIG W 0x08697712：this+(jobIdx*0x46+levelIdx+0x2bc)*4 → m_rewardSecondary 下标。
 int CLevelRewardTable::GetItemCount(int jobIdx, int levelIdx)
 {
+    // 【N18a 标注】ORIG 0x08697712：双实参先各入寄存器（ecx/edx）且乘积原地
+    // 留 ecx 无槽 + lea 合流；f3 具名中间量实测 ndiff 13>8 反劣化（spill/reload
+    // +sub/leave），匿名下标折 add mem 为 4.4 恒定选择，封顶（技巧 30 反例族）。
     return m_rewardSecondary[jobIdx * 0x46 + levelIdx];
 }
 
@@ -527,8 +533,8 @@ bool CLevelRewardTable::GetJobAffection()
     return m_jobAffection;
 }
 
-// ORIG W 0x08697792 sz 0xc：movzbl (this) —— 读 m_flag。
-bool CLevelRewardTableMgr::IsOn()
+// ORIG W 0x08697792 sz 0xc：movzbl (this) 直返全字（无 setne，P9）——uchar 返回。
+unsigned char CLevelRewardTableMgr::IsOn()
 {
     return m_flag;
 }
@@ -544,6 +550,9 @@ bool CLevelRewardTableMgr::IsChallengingJob(char job)
         return false;
     int itemNo = table->GetRewardItemNo(job + 1, 0);
     int count = table->GetItemCount(job + 1, 0);
+    // 【N 标注】ORIG 尾部 `cmpl $0; jne 远端 mov$1`（false 走 fall-through），
+    // 4.4 对 `a!=0||b!=0` 与取反短路两种写法均规范化 `je+mov$1 fall`（实测
+    // 同 44==44/ndiff6），布尔落位块序跨版本产物（0x0868782a）。
     return itemNo != 0 || count != 0;
 }
 

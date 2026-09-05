@@ -289,8 +289,14 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 // ============================================================================
 bool CVillageMonster::MakeVillageMonsterPositionPacket(PacketGuard& packet)
 {
-    if (m_field10 != 1)
+    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E）：ORIG T 0x86b36e6 是
+    // `movzbl 0x10(%eax),%eax; xor $0x1,%eax; test %al,%al; je BODY`，
+    // `字段 != 1` 在 4.4 只产 `cmp $0x1,%al`。
+    register unsigned char mv asm("eax") = m_field10;
+    mv ^= 1;
+    if (mv)
         return false;
+    // 以下保持原序：三次 put_short 后清零 m_field10。
     packet.put_short(m_id);
     packet.put_short(m_field04);
     packet.put_short(m_field08);

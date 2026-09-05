@@ -740,9 +740,16 @@ void DB_Update::makeSlotString(std::string& out, const _Slot* arr, int count)   
     char buf[128];
     for (int i = 0; i < count; ++i)
     {
-        std::sprintf(buf, "%d,%d,%d,%d|",
-                     static_cast<int>(arr[i].m_byte0), arr[i].m_int1,
-                     static_cast<int>(arr[i].m_byte5), arr[i].m_int6);
+        // ORIG 0x0813f4ef fmt="%d%s%d%s%d%s%d%s"，"," ×3(0xc/0x14/0x1c esp)+
+        // "|"@0x24 为独立 rodata 实参（9 实参槽 outgoing ⇒ 帧 0xc0）。同
+        // makeRewardString 配方（batch-13 帧差根因；实证装载序列 0x0813f483..0x0813f4fd，
+        // 值序 byte0,int1,byte5,int6 与现 cast 一致）。
+        // 【§6.2 标注】gap 5→1（o=73 n=68→72）：残余 1 = ORIG int1 装载两段
+        // `mov 0x1(%eax),%eax; mov %eax,%ecx`（0x0813f4a5/4a8，4.1 先载后转），
+        // 4.4 直出目标寄存器单段，寄存器分配形态差 N82，不可用 C++98 表达。
+        std::sprintf(buf, "%d%s%d%s%d%s%d%s",
+                     static_cast<int>(arr[i].m_byte0), ",", arr[i].m_int1, ",",
+                     static_cast<int>(arr[i].m_byte5), ",", arr[i].m_int6, "|");
         out += buf;
     }
 }
@@ -757,9 +764,20 @@ void DB_Update::makeRewardString(std::string& out, const _Reward* arr, int count
     {
         if (0 < arr[i].m_field0)
         {
-            std::sprintf(buf, "%d,%d|", arr[i].m_field0, static_cast<int>(arr[i].m_byte4));
+            // ORIG 0x0813f6e2 fmt="%d%s%d%s"(@0x8b6db4d)，逗号/竖线为独立 rodata 串常量
+            // （","@0x8b6d831 / "|"@0x8b6d82f，readelf 实证）→ 6 实参槽 outgoing 区
+            // 48B，帧 0xb8；先前 "%d,%d|" 2 参形态使帧缩为 0xa8（Main 指令之缓冲
+            // 16B 维度差的真实来源 = sprintf 实参集，非 buf 本体：buf 基址 -0x8c
+            // 两侧本就一致）。
+            std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, ",",
+                         static_cast<int>(arr[i].m_byte4), "|");
             out += buf;
         }
+        // 【§6.2 标注】残余 gap=2：ORIG if 体尾 `jmp +0xa6` + jle 目标空块 `nop@0xa5`
+        // （同族 makeBuyItemString 0x0813f644 同形）。系 ORIG 编译器块放置产物，
+        // gcc4.4 -O0 对空 else/尾分号均折叠，无 C++98 等价写法 ⇒ 控制流形态
+        // N 类豁免；语义与行为（帧 0xb8、buf@-0x8c、i@-0xc、6 实参、rodata fmt
+        // "%d%s%d%s"）已全部对齐。
     }
 }
 
@@ -773,8 +791,16 @@ void DB_Update::makeBuyItemString(std::string& out, const _BuyItem* arr, int cou
     {
         if (arr[i].m_field4 != 0 || arr[i].m_short8 != 0)
         {
-            std::sprintf(buf, "%d,%d,%d,%d|", arr[i].m_field0, arr[i].m_field4,
-                         static_cast<int>(arr[i].m_short8), static_cast<int>(arr[i].m_short10));
+            // ORIG 0x0813f619 fmt="%d%s%d%s%d%s%d%s"，"," ×3 + "|"（实证装载序列
+            // 0x0813f5d5..0x0813f615；双 short 为 movzwl+movswl 符号扩展，与
+            // static_cast<int> 同形）。同 makeRewardString 配方。
+            // 【§6.2 标注】gap 6→2（o=92 n=86→90）：残余 2 = if 体尾 `jmp+nop`
+            // 空块放置对（ORIG 0x0813f644/646，同 makeRewardString 0x0813f70d/0f
+            // 形），gcc4.4 折叠空块、无 C++98 等价写法 ⇒ 控制流形态 N 类豁免。
+            std::sprintf(buf, "%d%s%d%s%d%s%d%s", arr[i].m_field0, ",",
+                         arr[i].m_field4, ",",
+                         static_cast<int>(arr[i].m_short8), ",",
+                         static_cast<int>(arr[i].m_short10), "|");
             out += buf;
         }
     }

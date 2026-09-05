@@ -79,7 +79,7 @@ namespace
 // ---- 子对象视图宏（-O0 下函数形式会产生额外 call，ORIG 为 add $0xb24 内联直读，
 //      故用宏保持调用点内联展开） ----
 #define bf(p) (*reinterpret_cast<CBattle_Field*>(&((p)->m_padBattleField1)))
-#define bd(p) (*reinterpret_cast<BattleData*>(&((p)->m_padBattleData)))
+#define bd(p) ((p)->m_battleData)   // ORIG DWARF CParty+0x32c 具名化（本批专改）
 
 // CStatisticMgr +0x18 = CDungeonExpStatistic 子对象（本体即 map；
 // CStatisticMgr.h 仅建模 +0x00 m_levelDungeonPlay，本视图补 +0x18 区）。

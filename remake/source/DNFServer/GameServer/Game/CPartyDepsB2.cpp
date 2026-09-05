@@ -115,7 +115,11 @@ void CParty::die_user(CUser* user)
     }
     else
     {
-        if (m_liveFlag[slot] == 1)                      // +0x380[slot]
+        // X2 形（判据①-③：ORIG 0x085a797b `movzbl 0x380; xor $1,%eax;
+        // test %al,%al; je` 有 je 消费者，裸 ==1 出 cmp $1 单段不同形）
+        register unsigned char live asm("eax") = m_battleData.m_arr54[slot];
+        live ^= 1;
+        if (!live)                      // +0x380[slot]==1
         {
             set_charac_live(user, (ENUM_USER_DUNGEON_STATE)0);
             if (user->GetRevivalTime() >
@@ -153,9 +157,9 @@ void CParty::finish_loading(CUser* user)
     {
         if (m_member[i].m_pUser != user)
             continue;
-        if (m_finishLoadingFlag[i] != 0)        // ORIG: movzbl 0x37c; test; jne 循环尾
+        if (m_battleData.m_arr50[i] != 0)        // ORIG: movzbl 0x37c; test; jne 循环尾
             continue;
-        m_finishLoadingFlag[i] = 1;
+        m_battleData.m_arr50[i] = 1;
         // +0xb10 装载完成标志（ORIG 直取 this+0xb10，不建 BattleData 引用基址）
         if (!reinterpret_cast<unsigned char*>(this)[0xb10 + i])
         {

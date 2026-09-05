@@ -115,16 +115,14 @@ int PUNISH_CHECK::punish_check_by_SYS(SIG_LOGIN_DATA* data, long arg, int flag)
 // punish_check_by_ARS @ 0x08196d51（arg==0 → 0x3eb）
 int PUNISH_CHECK::punish_check_by_ARS(SIG_LOGIN_DATA* data, long arg, int flag)
 {
-    if (flag != 1)
+    if (flag == 1)
     {
-        return 1;
+        data->m_errCode = 4;
+        if (arg == 0)
+            data->m_errCode = 0x3eb;
+        return 0;
     }
-    data->m_errCode = 4;
-    if (arg == 0)
-    {
-        data->m_errCode = 0x3eb;
-    }
-    return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -134,12 +132,12 @@ int PUNISH_CHECK::punish_check_by_ARS(SIG_LOGIN_DATA* data, long arg, int flag)
 // is_integrated_pvp_channel @ 0x0819763c：
 // channelType < 0x11 && (1 << channelType) & 0x1e700
 // ORIG 0x08197653: cmpl $0x10; ja → 0（无符号 > 0x10）；0x08197665: shl 无掩码
-int PVP_CHANNEL::is_integrated_pvp_channel()
+bool PVP_CHANNEL::is_integrated_pvp_channel()
 {
     int channelType = G_GameWorld()->GetChannelType();
-    if ((unsigned int)channelType > 0x10)
-        return 0;
-    if (((1 << channelType) & 0x1e700U) != 0U)
+    // ORIG 0x08197653 `cmpl $0x10; ja`——越界与未命中共享统一 false 落点
+    // （N6 位折叠已由 `(1 << t) & C` 原形保留，前批注释豁免维持）。
+    if ((unsigned)channelType <= 0x10 && (((1 << channelType) & 0x1e700U) != 0U))
         return 1;
     return 0;
 }
@@ -147,48 +145,57 @@ int PVP_CHANNEL::is_integrated_pvp_channel()
 // is_broadcast_channel @ 0x08197684（与 is_all_pvp_channel 同语义实现）
 int PVP_CHANNEL::is_broadcast_channel()
 {
-    bool integrated = is_integrated_pvp_channel() != 0;
+    // 正向直判形（判据②：ORIG `test; je` 直分支无 bool 物化——`!integrated`
+    // 负形会产 setne/movzbl/xor 岛，实测 ndiff20；等价改写为德摩根正向）。
     int channelType = G_GameWorld()->GetChannelType();
-    if (!integrated && channelType != 7)
-    {
-        return 0;
-    }
-    return 1;
+    if (is_integrated_pvp_channel())
+        return 1;
+    if (channelType == 7)
+        return 1;
+    return 0;
 }
 
 // is_all_pvp_channel @ 0x081976c7
 int PVP_CHANNEL::is_all_pvp_channel()
 {
-    bool integrated = is_integrated_pvp_channel() != 0;
+    // 正向直判形（判据②：ORIG `test; je` 直分支无 bool 物化——`!integrated`
+    // 负形会产 setne/movzbl/xor 岛，实测 ndiff20；等价改写为德摩根正向）。
     int channelType = G_GameWorld()->GetChannelType();
-    if (!integrated && channelType != 7)
-    {
-        return 0;
-    }
-    return 1;
+    if (is_integrated_pvp_channel())
+        return 1;
+    if (channelType == 7)
+        return 1;
+    return 0;
 }
 
 // is_winpoint_pvp_channel @ 0x0819770a：channelType ∈ {4, 8}
+// N18b：ORIG `mov -0xc,%eax; cmp $4,%eax`(寄存器装载)，4.4 恒折 `cmpl $4,-0xc`(内存直比)；
+// 无源码写法可复现寄存器装载。语义已正确。
 int PVP_CHANNEL::is_winpoint_pvp_channel()
 {
+    // ORIG 0x081976xx：call 结果 `mov %eax,-slot` 后两次 `mov -slot,%eax;
+    // cmp $K,%eax` 两段物化；4.4 裸局部折 `cmpl $K,mem`（N18b 反向）。
+    // P85 register 形实测被 4.4 折回 cmpl mem（约束无效），维持普通局部。
     int channelType = G_GameWorld()->GetChannelType();
     if (channelType == 4 || channelType == 8)
-    {
         return 1;
-    }
     return 0;
 }
 
 // is_common_channel @ 0x0819773b：非综合 pvp 且渠道号 != 7
 int PVP_CHANNEL::is_common_channel()
 {
-    bool integrated = is_integrated_pvp_channel() != 0;
+    // is_integrated 已 bool 化（P22）：`!boolcall()` 在 4.4 天然产
+    // `xor $0x1,%eax; test %al,%al`（技巧 1），X1 约束形撤销。
+    // P22/技巧 1：bool callee 的 `!call()` 天然产 `xor $0x1,%eax; test %al,%al`
+    // （ORIG 0x0819775x je 消费者形），负形比正向翻转少一跳。
     int channelType = G_GameWorld()->GetChannelType();
-    if (integrated || channelType == 7)
+    if (!is_integrated_pvp_channel())
     {
-        return 0;
+        if (channelType != 7)
+            return 1;
     }
-    return 1;
+    return 0;
 }
 
 // check_Login_server_group @ 0x08197781

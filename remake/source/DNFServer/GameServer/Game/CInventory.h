@@ -589,9 +589,14 @@ public:
     int check_slot_empty(int slot) const;
     // ORIG 0x08505019 `mov $0x1,%eax` / 0x08505031 `mov $0x0,%eax`（dword 直写）
     // 且 0x08271062 尾 `call;leave;ret` 无 movzbl ⇒ 返回 int（技巧33）。
-    int check_empty_count(Inven_Item::ITEM_TYPE type, int count) const;
+    // 返回类型 bool（batch-13 Main 终裁：P22 判据——0x08505667 `if()` 直落
+    // `test %al,%al; je` 仅 bool 产；31 调用点 `xor $1,%eax; test %al,%al` 形
+    // = bool + `!fn()`。配对律：caller 链同步 bool（GlobalData 外层已翻）。
+    bool check_empty_count(Inven_Item::ITEM_TYPE type, int count) const;
     int check_item_exist(int itemIdx) const;
-    int possible_to_insert(int itemIdx) const;
+    // 返回类型 bool（batch-13 X1 前提/P22 判据，Main 授权：ORIG 消费点
+    // `xor $0x1,%eax; test %al` 直落仅 bool 产；mangled 无返回类型零 ABI）。
+    bool possible_to_insert(int itemIdx) const;
     static bool isEquipmentPlaceableAtInventory(int slot);
     int CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const;
     int doesExistEquipItem(int itemIdx, int slot);

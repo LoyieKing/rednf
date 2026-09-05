@@ -4560,7 +4560,7 @@ unsigned char CUser::GetCharacJob(int idx) const   // CUser.h:3290 uchar（DCore
     return (unsigned char)m_characList[idx].m_field26;
 }
 
-int CUser::getCharacLevelByCharacNo(int characNo) const
+unsigned short CUser::getCharacLevelByCharacNo(int characNo) const  // ORIG caller 0x84d205b mov %ax 截断+cmpw 实证 16 位返回（Main 落头 2026-09-05）
 {
     // ORIG 0x0868e5xx：begin→-0x10、end→-0x14 prologue 双缓存（技巧 25）；
     // return 无显式 cast（ORIG 尾单条 movzwl 直返，(unsigned short) 强转反产两段）。
@@ -4570,10 +4570,10 @@ int CUser::getCharacLevelByCharacNo(int characNo) const
     for (; it != itend; ++idx, ++it)   // ORIG 0x84ecc4f ++idx 先于 ppEv
     {
         if (it->m_characNo == characNo)
-            // ORIG 0x84ecc49 单条 movzwl 0x27(%eax)（字段 short+源 (unsigned short)
-            // cast）。4.4 值 cast/register eax/&0xffff 三 probe 均产两段或三段
-            //（HImode 往返/符号化）——fold-const 残差 1 行封顶。
-            return (unsigned short)it->m_level;
+            // 函数返回类型 ushort（Main 落头）后裸 return：4.4 隐式 HImode 截断
+            // 单条 movzwl 0x27(%eax)（ORIG 0x84ecc49 同形）；显式 cast 反产
+            // movzwl %ax 二段展宽（probe 三试）——本行为定稿。
+            return it->m_level;
     }
     return -1;
 }
@@ -6195,8 +6195,9 @@ void CUser::givePvPSkillTree(int a, bool b, int c)
             std::vector<std::pair<int, int> >* tree = 0;
             if (G_CDataManager()->m_pvpSkillTree.getPvPSkillTree(
                     get_charac_job(), (int)(signed char)getCurCharFirstGrowType(),
-                    secondGrow, grade, b, &tree) == false)
-                continue;   // ORIG test %al,%al;je 直判（技巧1 反例：!call 产 xor;jne）
+                    secondGrow, grade, b, &tree) == 0)
+                continue;   // P168a②直分支形：ORIG `test %al,%al; je` 无 xor 无岛
+                            // ——`== false`/`!fn()` 均产 xor 段（判据②定字 ==0）
             for (std::vector<std::pair<int, int> >::iterator it = tree->begin();
                  it != tree->end(); ++it)
             {
@@ -7669,24 +7670,54 @@ void CUser::prepareDisconnect()
 //   7 → 生物列表 + MakeItemList(3)、0xc → CAccountCargo::SendItemList（不存在时返回 1）。
 int CUser::send_itemspace(int space)
 {
+    // P168a/X2 五段化（2026-09-05 CUserC8，Main 派单）：ORIG 0x86?? 每 MakeItemList
+    // case `call; xor $0x1,%eax; test %al,%al; je` **带分支消费者**（判据③通过），
+    // char 暂存槽 -0x9 与 `cmp $1/setne` 岛形均为我方旧形失分点（判据②岛→直分支）。
+    // 裸 `!fn()` 对本批 MakeItemList(bool 返回) 实测产 xor 直落（判据①），case7 用
+    // !=1 系 char 域实测等价保留。
+    // X1 精确形（Main 广播定字 2026-09-05，int callee 调用点自救——MakeItemList/
+    // SendCreatureItemList 均 int 返回，裸 `!fn()` 实测产 test eax;sete 三段，
+    // uchar 绑 %eax + `^= 1` 后 `if (v)` 得 `xor $0x1,%eax; test %al,%al; je`
+    // 与 ORIG 0x8675 段系同形；赋值零成本（call 结果已在 %eax），块作用域隔离）。
     PacketGuard packet;
-    char ok = 0;
     switch (space)
     {
     case 0:
-        ok = (char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)1, &packet);
+    {
+        register unsigned char v0 asm("eax") =
+            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)1, &packet);
+        v0 ^= 1;
+        if (v0) return 0;
         break;
+    }
     case 1:
-        ok = (char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)2, &packet);
+    {
+        register unsigned char v1 asm("eax") =
+            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)2, &packet);
+        v1 ^= 1;
+        if (v1) return 0;
         break;
+    }
     case 2:
-        ok = (char)getCurCharacCargoR()->MakeItemList(&packet);
+    {
+        register unsigned char v2 asm("eax") =
+            (unsigned char)getCurCharacCargoR()->MakeItemList(&packet);
+        v2 ^= 1;
+        if (v2) return 0;
         break;
+    }
     case 7:
-        if (getCurCharacInvenR()->GetCreatureMgrR()->SendCreatureItemList() != (char)1)
-            return 0;
-        ok = (char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)3, &packet);
+    {
+        register unsigned char v3 asm("eax") = (unsigned char)
+            getCurCharacInvenR()->GetCreatureMgrR()->SendCreatureItemList();
+        v3 ^= 1;
+        if (v3) return 0;
+        register unsigned char v4 asm("eax") =
+            (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)3, &packet);
+        v4 ^= 1;
+        if (v4) return 0;
         break;
+    }
     case 0xc:
         if (IsExistAccountCargo() == 0)
             return 1;
@@ -7694,8 +7725,6 @@ int CUser::send_itemspace(int space)
     default:
         return 0;
     }
-    if (ok != (char)1)
-        return 0;
     Send(packet);
     return 1;
 }
@@ -10173,24 +10202,18 @@ void CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
     CExpandEquipslot* expand9 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9);
     (*(GetDataFn*)(*(void**)expand9 + 8))(expand9, (char*)&sig->m_expandEquip);
 
-    bool bFailed = false;
-    if (GetInventory(sig) != 1)
-        bFailed = true;
-    if (!bFailed)
-    {
-        const CInventory* inven = getCurCharacInvenR();
-        if (inven->GetCreatureMgrR()->GetCreatureItem(sig) != 1)
-            bFailed = true;
-    }
-    if (!bFailed)
-    {
-        const CInventory* inven = getCurCharacInvenR();
-        if (inven->GetAvatarItemMgrR()->GetItem(
-                reinterpret_cast<AvatarDetailInfo*>(&sig->m_avatarDetail),
-                &sig->m_avatarCount) != 1)
-            bFailed = true;
-    }
-    if (bFailed)
+    // X 族定稿（2026-09-05 CUserC8，判据②直分支/③消费者齐）：ORIG 0x864d534-
+    // 0x864d5b3 为三段 `call; xor $0x1,%eax; test %al,%al; jne 共享FAIL岛` 的
+    // **短路直落链**（无 bFailed 暂存、无 (x^1)|| 逗号物化）——ORIG xor $1（非
+    // 1 语义即真）⇒ 条件用 `== 1`（uchar 提升 int 零扩展，bool 返回会多 movzbl）；
+    // GetItem 两出参指针先求值缓存 %esi/%ebx（lea 在 getCurCharacInvenR 调用前）。
+    bool failed = (GetInventory(sig) != 1) ||
+                  (getCurCharacInvenR()->GetCreatureMgrR()
+                       ->GetCreatureItem(sig) != 1) ||
+                  (((CInventory*)getCurCharacInvenR())->GetAvatarItemMgrR()->GetItem(
+                       reinterpret_cast<AvatarDetailInfo*>(&sig->m_avatarDetail),
+                       &sig->m_avatarCount) != 1);
+    if (failed)
     {
         sig->m_result = 1;
         return;
@@ -11556,8 +11579,12 @@ void CUser::_processCoolTimeItem(CStackableItem* item, unsigned int itemIdx,
 void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
                                unsigned int curSec)
 {
-    // ORIG 0x0865ec1d `movzbl 0x2e0(%eax)`（unsigned 读；= m_stat2dc.m_flagLo）
-    if ((unsigned char)item->m_stat2dc.m_flagLo != 1)
+    // X2 字段形（判据②③：ORIG 0x0865ec1d `movzbl 0x2e0; xor $1; test al; je 消费者`
+    // ——`!= 1` 直写 4.4 产 `cmp $1,%al`，uchar 绑 eax + ^=1 复现 xor 段）。
+    register unsigned char tag asm("eax") =
+        (unsigned char)item->m_stat2dc.m_flagLo;
+    tag ^= 1;
+    if (! tag)
     {
         cMyTrace trace("void CUser::_processEffectItem(CStackableItem*, "
                        "unsigned int, unsigned int)", 0x391e, 0);
@@ -11576,17 +11603,17 @@ void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
     }
     std::vector<ContinuousItemInfo>* effect =
         GetCurCharacEffectItemList();
-    char found = 0;
+    bool found = false;
     for (unsigned int i = 0; i < effect->size(); ++i)
     {
         if ((*effect)[i].m_itemIdx == (int)itemIdx)
         {
             if ((*effect)[i].m_expireTime < expireSec)
                 (*effect)[i].m_expireTime = expireSec;
-            found = 1;
+            found = true;
         }
     }
-    if (!found)
+    if (! found)   // bool 值域聚合位，X2 免约束（判据①，ORIG 尾 testb %al 直判）
     {
         ContinuousItemInfo info;
         info.m_itemIdx = (int)itemIdx;

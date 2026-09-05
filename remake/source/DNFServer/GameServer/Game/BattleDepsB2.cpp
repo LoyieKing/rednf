@@ -72,7 +72,7 @@ bool CBattle_Field::CheckHellPartyCondition()
         return false;
 
     // ORIG 对 party+0xb0c 的 float 两次独立读取转换（flds/fldcw/fistpl ×2）。
-    BattleData* bd = reinterpret_cast<BattleData*>(&m_party->m_padBattleData);
+    BattleData* bd = &m_party->m_battleData;
 
     bool ok = false;
     if ((int)bd->m_hellPartyValueTotal >= get_rand_int(100))

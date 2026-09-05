@@ -94,7 +94,7 @@ namespace
 // 用函数式宏而非 inline 函数：-O0 下 inline 函数参数必分配栈槽，always_inline
 // 会先 spill this 再 reload，比 ORIG 直接偏移算术更差（实测 0x826 -> 0x95c）。
 // 宏文本替换为 &p->m_memberOffset，直接产生 ORIG 的偏移寻址（check_allmember_loading 报告）。
-#define bd(p)         (*reinterpret_cast<BattleData*>(&(p)->m_padBattleData))
+#define bd(p)         ((p)->m_battleData)   // ORIG DWARF CParty+0x32c 具名化
 #define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_padBattleField1))
 #define traceHack(p)  (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
 #define memberUser(p,i) ((p)->m_member[(i)].m_pUser)
@@ -324,8 +324,14 @@ char CParty::GetFirstValidMemberState()
 {
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i))
-            return (char)memberUser(this, i)->get_state();   // thunk 0x080da38c
+        // [X2·callee xor-化] ORIG 0x085ba574 O@9-12 `call; xor$1; test; je`。
+        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
+        v ^= 1;
+        if (v)
+        {
+            continue;
+        }
+        return (char)memberUser(this, i)->get_state();   // thunk 0x080da38c
     }
     return 0;
 }
@@ -339,9 +345,20 @@ bool CParty::HasAllMemberSelection()
 {
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i) &&
-            m_routingData.GetMemberRoutingState(i) == 0)     // thunk 0x085bf694
+        // [X2+技巧22] ORIG 0x085ba1c0 O@9-21：`call; xor$1; test; jne` +
+        // `call; test;sete%al; test; je`（al 直存 bool 物化，无槽 spill）。
+        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
+        v ^= 1;
+        if (v)
+        {
+            continue;
+        }
+        register bool s asm("al") =
+            m_routingData.GetMemberRoutingState(i) == 0;
+        if (s)
+        {
             return false;
+        }
     }
     return true;
 }
@@ -403,8 +420,9 @@ bool CParty::OnUsedSkill(CUser* user, int skillIdx, int param)   // ORIG 0x085b5
         {
             ++bd(this).m_arr7d0[i];                      // this+(i+0x2bc)*4+0xc
 
-            const int job = user->get_charac_job();      // thunk 0x080fdf20
-            if (isCheckUseSkill(job, skillIdx))          // T 0x085bb5b0
+            // [P148 嵌套实参] ORIG 0x085b5f8e O@28：call 结果留 %eax 直调
+            // outgoing arg，无 job 具名 spill。
+            if (isCheckUseSkill(user->get_charac_job(), skillIdx))  // T 0x085bb5b0
                 ++m_field1aa4[i];                        // this+(i+0x6a8)*4+4
         }
     }
@@ -419,15 +437,20 @@ bool CParty::OnUsedSkill(CUser* user, int skillIdx, int param)   // ORIG 0x085b5
 // ---------------------------------------------------------------------------
 bool CParty::isCheckUseSkill(int job, int skillIdx)
 {
-    if (skillIdx > 0xa8)                    return false;
-    if (job == 0 && skillIdx == 0x2e)       return false;
-    if (job == 1 && skillIdx == 0x5)        return false;
-    if (job == 2 && skillIdx == 0x4)        return false;
-    if (job == 3 && skillIdx == 0xc)        return false;
-    if (job == 4 && skillIdx == 0x1)        return false;
-    if (job == 5 && skillIdx == 0x4)        return false;
-    if (job == 6 && skillIdx == 0x1)        return false;
-    if (job == 7 && skillIdx == 0x5)        return false;
+    // [共享岛单链] ORIG 0x085bb5b0：9 条件合一 || 短路链，各 jcc 跳共享
+    // return false 岛（9 条独立 if 语句 4.4 会各出 mov0;jmp 岛 +16 行）。
+    if (skillIdx > 0xa8 ||
+        (job == 0 && skillIdx == 0x2e) ||
+        (job == 1 && skillIdx == 0x5) ||
+        (job == 2 && skillIdx == 0x4) ||
+        (job == 3 && skillIdx == 0xc) ||
+        (job == 4 && skillIdx == 0x1) ||
+        (job == 5 && skillIdx == 0x4) ||
+        (job == 6 && skillIdx == 0x1) ||
+        (job == 7 && skillIdx == 0x5))
+    {
+        return false;
+    }
     return true;
 }
 
@@ -436,15 +459,21 @@ bool CParty::isCheckUseSkill(int job, int skillIdx)
 // 报告：docs/class_func_reports/CParty/SaveCoin.md
 // eCoinSubReason 参数未消费（ORIG 形态）；全员 SaveMoneyCoin。
 // ---------------------------------------------------------------------------
-// [N-类] 剩 4：ORIG 4.1 `!_checkValidUser(i)` 产 xor$1;test;je 物化岛 +
-// ++i 在 continue 路径中部；4.4.7 恒折 test/jne + ++i 归条件块（setcc-fold/
-// 块布局跨版本，同 GetFirstValidMemberState 0x085ba574 剩 4 行）。
+// [X2·技巧22 精化形（Main 批准，ORIG 0x085b3520 O@9-12）] callee 结果
+// xor-化：绑 %eax 具名 uchar + ^=1 → `call; xorl $1,%eax; testb; jne`。
 void CParty::SaveCoin(eCoinSubReason reason)
 {
     (void)reason;
     for (int i = 0; i < 4; ++i)
-        if (_checkValidUser(i))
-            memberUser(this, i)->SaveMoneyCoin();        // T 0x086504d8
+    {
+        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
+        v ^= 1;
+        if (v)
+        {
+            continue;
+        }
+        memberUser(this, i)->SaveMoneyCoin();        // T 0x086504d8
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -482,9 +511,28 @@ bool CParty::canFatigueUp(unsigned char flag)
         return false;
     if (m_dungeon == 0)
         return false;
-    if (m_dungeon->m_bloodDungeonType == 0 && !m_dungeon->m_villageAttackEventFlag &&
-        !m_dungeon->isNoFatigueDungeon())
-        return true;
+    // [X2 形实测不适用] 0x085a8c88 O@19-34 为 `movzbl 0x89f; test; jne` /
+    // `movzbl 0x87a; xor$1; test; je` / `call; xor$1; test; je`：具名化后
+    // 裸 `==0`/`!` 形已出 movzbl+test 两段，xor$1 段系 4.1 指令选择，
+    // register-asm ^=1 反加 movzbl（6→13 实测回退）。
+    // [X2·callee/字段 xor-化] ORIG 0x085a8c88 O@24-34：`movzbl 0x87a;
+    // xor$1,%eax; test; je` + `call; xor$1,%eax; test; je`。
+    if (m_dungeon->m_bloodDungeonType == 0)
+    {
+        register unsigned char village asm("eax") =
+            m_dungeon->m_villageAttackEventFlag;
+        village ^= 1;
+        if (village)
+        {
+            register unsigned char nofat asm("eax") =
+                (unsigned char)m_dungeon->isNoFatigueDungeon();
+            nofat ^= 1;
+            if (nofat)
+            {
+                return true;
+            }
+        }
+    }
     return false;
 }
 
@@ -501,19 +549,19 @@ void CParty::changePartyMemberInfo(MSG_MOVE_MAP& info, char slot)
     if (!_checkValidUser(idx))
         return;
 
-    if (m_liveFlag[idx] != 1)                            // +0x380+slot
+    if (m_battleData.m_arr54[idx] != 1)                            // +0x380+slot
     {
-        if (m_enterMapFlag[idx] == 1 ||                  // +0x384+slot
-            m_field388[idx] == 1)                        // +0x388+slot
+        if (m_battleData.m_arr58[idx] == 1 ||                  // +0x384+slot
+            m_battleData.m_arr5c[idx] == 1)                        // +0x388+slot
         {
-            m_enterMapFlag[idx] = 0;
+            m_battleData.m_arr58[idx] = 0;
         }
         else
         {
             ++bd(this).m_arr64[idx];                     // this+(slot+0xe0)*4+0x10
         }
     }
-    m_field388[idx] = 0;
+    m_battleData.m_arr5c[idx] = 0;
 
     if (canFatigueUp(info.m_field17))                    // movzbl 0x17(%eax)
         memberUser(this, idx)->FatigueUp(0);             // T 0x08655c60
@@ -529,11 +577,10 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
     if (firstVisit)                                      // cmpb $0 jne 结束
         return;
 
-    bool eachMap;
-    if (m_dungeon == 0)
-        eachMap = false;
-    else
-        eachMap = m_dungeon->IsEnterEachMap();           // T 0x08365278
+    // [X2/技巧22] ORIG 0x085a8e3c O@8-21：正向 `test;je` + callee 结果
+    // mov$1/mov$0 立即数物化岛（%eax 直存，无槽 spill）。
+    register bool eachMap asm("al") =
+        m_dungeon != 0 ? m_dungeon->IsEnterEachMap() : false;  // T 0x08365278
 
     if (eachMap)
     {
@@ -651,7 +698,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         {
             const int level = memberUser(this, i)->get_charac_level();
             const int c = m_field1aa4[i];
-            if (level >= 0x14 && m_liveFlag[i] != 0 && c != 0)
+            if (level >= 0x14 && m_battleData.m_arr54[i] != 0 && c != 0)
             {
                 const unsigned int q = playTime / 5;     // mul 0xcccccccd shr 2
                 const unsigned int rem = playTime - q * 5;   // sec%5
@@ -732,7 +779,7 @@ void CParty::check_allmember_loading(bool flag)
     int loadedCount = 0;                                 // -0x2c
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i) && m_finishLoadingFlag[i])   // +0x37c+i byte
+        if (_checkValidUser(i) && m_battleData.m_arr50[i])   // +0x37c+i byte
             ++loadedCount;
     }
     if (loadedCount != memberCount)
@@ -962,6 +1009,8 @@ bool CParty::getDungeonDropTestFlag()
 // 插入 TIMER_MESSAGE 0xe 定时器：+0xc4c（BF+0x128 槽）short 非 0 → 3 秒，
 // 否则 10 秒。ORIG 直读 this+0xc4c（无 bf() 调用）。
 // ---------------------------------------------------------------------------
+// [具名化进度] 剩 22：0xc4c = m_padBattleField1+0x128 侧，待 MonC9
+// m_padBattleField1→CBattle_Field rename 后复验（bd 侧已随 m_battleData 折叠）。
 void CParty::send_dungeon_fail_msg()
 {
     int seconds = 10;
@@ -1033,6 +1082,8 @@ void CParty::sub_hellparty_value()
     // mov 0xd10 单段）；4.4.7 恒物化基址 `add $0x32c/$0xb24,%eax`+短位移
     // （地址算术折叠跨版本差，同 P112/memset-edx 类）。语义同址已验证
     // （0x32c+0x7e0=0xb0c、0xb24+0x1f8=0xd1c、0xb24+0x1ec=0xd10）。
+    // [待 CParty 具名化专改]（Main 裁决转 MonC9：m_padBattleData→BattleData
+    // m_battleData 后 4.4 或折叠单段位移）。
     float value = bf(this).m_hellPartyRatio4 *
                   bd(this).m_hellPartyValueTotal;                        // flds×2 fmulp
     if (D2_ROUND(value) < bf(this).m_hellPartyRatio1)                    // fistpl/jge
@@ -1073,6 +1124,7 @@ void CParty::send_hellParty_value()
 // DisPatcher_SetPlayResult/dispatch_sig）均只消费低 32 位 /1000，
 // 故按 CParty.h 既定 unsigned int 声明返回低 32 位。
 // ---------------------------------------------------------------------------
+
 unsigned int CParty::GetMapPlayingTime()
 {
     // ORIG 0x085b6768：getCurTickCount 后连减 m_enterTick(+0x344/48)、
@@ -1104,7 +1156,7 @@ void CLuckPoint::AddUser(CUser* user)
 
 // ---------------------------------------------------------------------------
 // CParty::GetLuckPoint —— ORIG T 0x085b61be（报告 GetLuckPoint.md）：
-//   有效成员按 flag（false=全部 / true=仅 m_liveFlag==1）收集到幸运点对象。
+//   有效成员按 flag（false=全部 / true=仅 m_battleData.m_arr54==1）收集到幸运点对象。
 // ---------------------------------------------------------------------------
 void CParty::GetLuckPoint(CLuckPoint* luckPoint, bool onlyAlive)
 {
@@ -1114,8 +1166,17 @@ void CParty::GetLuckPoint(CLuckPoint* luckPoint, bool onlyAlive)
     {
         if (!_checkValidUser(i))
             continue;
-        if (onlyAlive && m_liveFlag[i] != 1)
-            continue;
+        // [X2·技巧22 精化形] ORIG 0x085b61be O@17-22：`cmpb $0,onlyAlive;
+        // je` 短路 + `movzbl liveFlag; xor$1,%eax; test; je` 真值取反判。
+        if (onlyAlive)
+        {
+            register unsigned char lf asm("eax") = m_battleData.m_arr54[i];
+            lf ^= 1;
+            if (lf)
+            {
+                continue;
+            }
+        }
         luckPoint->AddUser(m_member[i].m_pUser);
     }
 }
@@ -1126,17 +1187,26 @@ void CParty::GetLuckPoint(CLuckPoint* luckPoint, bool onlyAlive)
 // ---------------------------------------------------------------------------
 void CParty::InsertTournamentDungeonTimer(TIMER_MESSAGE msg)
 {
-    if (msg == (TIMER_MESSAGE)0x2e)
+    // [switch+寄存器缓存] ORIG 0x085bd6de：`cmp $0x2e;je; cmp $0x2f;je; jmp`
+    // 双 case 共享尾 + key 留 %ebx、m_partyIndex 留 %esi（call 前置装载）。
+    switch (msg)
+    {
+    case (TIMER_MESSAGE)0x2e:
     {
         unsigned int key = (unsigned int)gen_timer_key(msg);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                     msg, 0x28, (int)key, 0);
+        break;
     }
-    else if (msg == (TIMER_MESSAGE)0x2f)
+    case (TIMER_MESSAGE)0x2f:
     {
         unsigned int key = (unsigned int)gen_timer_key(msg);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                     msg, 4, (int)key, 0);
+        break;
+    }
+    default:
+        break;
     }
 }
 
@@ -1552,6 +1622,9 @@ void TOD_UserState::ClearLayer()
 // ---------------------------------------------------------------------------
 // TowerOfDespair_APC_Mgr::Get_APC_Name_byIndex —— ORIG T 0x085ff020：
 //   映射命中返回 SendingAPC_Info::get_user_charac_name()，未命中返回 0。
+// [N-类] 剩 31：ORIG 为 it 默认构造(-0x10)+e 前置(-0xc)+find 临时(-0x1c)
+// 三段形；4.4 直构 iterator 无 C2Ev 弱实例可落（P50 实测改三段形
+// missing_in_game +2、ndiff 反化 31→30，已回退）。
 // ---------------------------------------------------------------------------
 const char* TowerOfDespair_APC_Mgr::Get_APC_Name_byIndex(const TOD_Layer& layer)
 {

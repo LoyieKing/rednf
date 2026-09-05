@@ -491,6 +491,12 @@ CharString app::getStr(int id)
 
 // ---------------------------------------------------------------------------
 // CStringManager::getStr —— ORIG T 0x08ac35f8。
+// 【验收 batch-11 尾项】orig=66 / our=66（gap 0）：errorMsg 改回 ORIG 的
+// `static __thread char[32]`（%gs+lea 两段重算、无中间槽）+ ss_sprintf<32>
+// 模板（W 定义/force 归 OnlyOrigBatch12.cpp，本 TU §8.1 声明）；is_sr_loaded
+// 仅成功路径写位（旧实现无条件 `= loaded` 已纠正）；loaded 具名 bool 跨 err
+// 析构存活。残差=4.1 把 loaded/return 聚合于 callee-saved %esi/%ebx 而 4.4
+// 用栈槽（N82/N7 族），助记符行集等长。
 // is_sr_loaded（ORIG _ZL12is_sr_loaded @0x0950189a）未置位时先加载一次；
 // 加载失败返回 NULL（ORIG ebx=0 路径）；命中取表项 c_str()；未命中 sprintf
 // "getStr(%d) == none"（格式串 @0x8e2e793）到静态 errorMsg 缓冲并返回。
@@ -498,23 +504,40 @@ CharString app::getStr(int id)
 // ---------------------------------------------------------------------------
 static bool is_sr_loaded = false;
 
+// 模板版 ss_sprintf<N>（ORIG W _Z10ss_sprintfILj32EEiRAT__cPKcz 等）：定义与
+// force 实例化归 OnlyOrigBatch12.cpp（属主批次），本 TU 按 §8.1 仅持等价声明，
+// 链接期绑定其 W 实例。签名与 mangled 逐字对齐（RAT__c = char(&)[N]）。
+template <size_t N>
+int ss_sprintf(char (&buffer)[N], const char* format, ...);
+
 char* CStringManager::getStr(int id)
 {
-    static char errorMsg[0x50];   // ORIG getStr 内局部静态 _ZZN14CStringManager6getStrEiE8errorMsg
+    // ORIG _ZZN14CStringManager6getStrEiE8errorMsg：bss 0x20 字节 TLS 形式
+    // 访问（asm `mov %gs:0x0,%eax; lea disp(%eax)` 两段、参数位与 return 各
+    // 重算一次——__thread 局部静态，无共享槽缓存，P183）。
+    static __thread char errorMsg[32];
     if (!is_sr_loaded)
     {
-        CharString err;
-        const bool loaded = loadString(&err);
-        is_sr_loaded = loaded;
+        // ORIG @0x30-0x48 双岛：成功才写 is_sr_loaded（失败不写），loaded 值
+        // 跨 err 析构于 callee-saved 聚合（具名 bool，P102/P158）。
+        bool loaded = false;
+        {
+            CharString err;
+            if (loadString(&err))
+            {
+                is_sr_loaded = true;
+                loaded = true;
+            }
+        }
+        if (!loaded)
+            return 0;
     }
-    if (!is_sr_loaded)
-        return 0;
 
-    const CharString* entry = 0;
+    const CharString* entry;              // ORIG 无初始化（直接取址传参）
     if (app::stringResource()->get(id, &entry))
         return const_cast<char*>(entry->c_str());
 
-    sprintf(errorMsg, "getStr(%d) == none", id);
+    ss_sprintf(errorMsg, "getStr(%d) == none", id);
     return errorMsg;
 }
 

@@ -58,7 +58,13 @@ void CAccountCargo::Clear()
 
 void CAccountCargo::ResetSlot(int slot)
 {
-    if (CheckValidSlot(slot))
+    // X1 形（XOR_FAMILY.tsv，probe 实证）：被调 `CheckValidSlot` 返回 int，
+    // 4.4 对 `if (intcall())` 恒产两段 `test %eax,%eax; setne %al; test`；
+    // ORIG 是单段 `call; xor $0x1,%eax; test %al,%al; jne end; body`。
+    // 绑 %eax 的具名 unsigned char + 显式 `^= 1` + `if (!v)` 可精确复现（形 B）。
+    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
+    v ^= 1;
+    if (!v)
         m_slots[slot].reset();
 }
 
@@ -108,11 +114,22 @@ Inven_Item CAccountCargo::GetSlot(int slot)
 
 Inven_Item* CAccountCargo::GetSlotRef(int slot)
 {
-    if (CheckValidSlot(slot)) {
+    // 技巧 31：ORIG 帧 `sub $0x18,%esp`（4.1 为 call outgoing 区 + 对齐保守分配），
+    // 4.4 只给 0x8 ⇒ 用 4 个 dead int 局部精确撑满 16B。
+    unsigned int g0, g1, g2, g3;
+    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
+    v ^= 1;
+    // X1 + 落点岛（技巧 24）：ORIG `xor $1; test %al,%al; je BODY;
+    // mov $0x0,%eax; jmp end; BODY: movb $0x1,0xd64(%eax); …`
+    // ⇒ **return 0 走 fall-through，命中路径跳走**。
+    if (!v) goto BODY;
+    return 0;
+BODY:
+    (void)g0; (void)g1; (void)g2; (void)g3;
+    {
         m_alter = 1;
         return &m_slots[slot];
     }
-    return 0;
 }
 
 // ---- 插入条件 / 插入 / 删除 / 移动 ----
@@ -247,9 +264,14 @@ int CAccountCargo::GetEmptySlot()
 
 int CAccountCargo::CheckSlotEmpty(int slot)
 {
-    if (CheckValidSlot(slot))
-        return m_slots[slot].m_addInfo == 0 ? 1 : 0;
+    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
+    v ^= 1;
+    // 再叠落点岛（技巧 24）：ORIG `xor $1; test %al,%al; je BODY; mov $0,%eax;
+    // jmp end; BODY: …` —— **return 0 走 fall-through、命中路径跳走**。
+    if (!v) goto BODY;
     return 0;
+BODY:
+    return m_slots[slot].m_addInfo == 0 ? 1 : 0;
 }
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)

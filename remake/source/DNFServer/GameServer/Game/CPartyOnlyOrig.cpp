@@ -49,7 +49,7 @@ namespace
 // +0xb14 BattleData 逐成员已用硬币数组具名成员视图。
 inline int* memberUsedCoin(CParty* party)
 {
-    return party->m_memberUsedCoin;
+    return party->m_battleData.m_arr7e8;
 }
 
 }  // namespace
@@ -218,17 +218,16 @@ void CParty::send_invite_pvp(int mapIdx)
     PacketGuard packet;
     for (int i = 0; i < 4; i++)
     {
-        if (!_checkValidUser(i))
+        if (_checkValidUser(i))     // ORIG 正向 test/jne+真路径 fall-through（技巧17/19）
         {
-            continue;
+            packet.clear();
+            packet.put_header(0, 7);
+            packet.put_short(mapIdx);
+            packet.put_byte(2);
+            packet.put_int(m_member[i].m_pUser->get_unique_id() & 0xffff);
+            packet.finalize(true);
+            m_member[i].m_pUser->Send(packet);
         }
-        packet.clear();
-        packet.put_header(0, 7);
-        packet.put_short(mapIdx);
-        packet.put_byte(2);
-        packet.put_int(m_member[i].m_pUser->get_unique_id() & 0xffff);
-        packet.finalize(true);
-        m_member[i].m_pUser->Send(packet);
     }
 }
 
@@ -237,17 +236,16 @@ void CParty::send_invite_warroom(int mapIdx)
     PacketGuard packet;
     for (int i = 0; i < 4; i++)
     {
-        if (!_checkValidUser(i))
+        if (_checkValidUser(i))     // ORIG 正向 test/jne+真路径 fall-through（技巧17/19）
         {
-            continue;
+            packet.clear();
+            packet.put_header(0, 7);
+            packet.put_short(mapIdx);
+            packet.put_byte(3);
+            packet.put_int(m_member[i].m_pUser->get_unique_id() & 0xffff);
+            packet.finalize(true);
+            m_member[i].m_pUser->Send(packet);
         }
-        packet.clear();
-        packet.put_header(0, 7);
-        packet.put_short(mapIdx);
-        packet.put_byte(3);
-        packet.put_int(m_member[i].m_pUser->get_unique_id() & 0xffff);
-        packet.finalize(true);
-        m_member[i].m_pUser->Send(packet);
     }
 }
 
@@ -261,7 +259,7 @@ void CParty::send_to_alive_member(PacketGuard& packet)
         {
             continue;
         }
-        if (m_member[i].m_pUser->get_state() == 5 && m_liveFlag[i] != 0)
+        if (m_member[i].m_pUser->get_state() == 5 && m_battleData.m_arr54[i] != 0)
         {
             m_member[i].m_pUser->Send(packet);
         }
@@ -345,22 +343,21 @@ bool CParty::isSamePCRoomParty()
     int firstRoomNo = 0;
     for (int i = 0; i <= 3; i++)
     {
-        if (!_checkValidUser(i))
+        if (_checkValidUser(i))     // ORIG 正向判定+真路径 fall-through（技巧17/19）
         {
-            continue;
-        }
-        int roomNo = m_member[i].m_pUser->GetPCRoomNo();
-        if (roomNo == 0)
-        {
-            return false;
-        }
-        if (firstRoomNo == 0)
-        {
-            firstRoomNo = roomNo;
-        }
-        else if (firstRoomNo != roomNo)
-        {
-            return false;
+            int roomNo = m_member[i].m_pUser->GetPCRoomNo();
+            if (roomNo == 0)
+            {
+                return false;
+            }
+            if (firstRoomNo == 0)
+            {
+                firstRoomNo = roomNo;
+            }
+            else if (firstRoomNo != roomNo)
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -1100,7 +1097,7 @@ int CParty::_Send_TOD_ClearReward()
     PacketGuard packet;
     packet.put_header(0, 0x15b);
     packet.put_int(
-        *reinterpret_cast<const int*>(m_padBattleData));   // ORIG *(int*)(this+0x32c)
+        *reinterpret_cast<const int*>(&m_battleData));   // ORIG *(int*)(this+0x32c)
     TOD_Layer lastLayer =
         reinterpret_cast<TOD_UserState*>(
             getManager()->GetCharacExpandData(
@@ -1161,7 +1158,7 @@ int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
         }
         if (m_member[i].m_pUser->get_unique_id() == targetUid)
         {
-            if (m_liveFlag[i] != 0)
+            if (m_battleData.m_arr54[i] != 0)
             {
                 return 0x12;
             }
@@ -1187,14 +1184,14 @@ int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
             {
                 goto coin_skip;
             }
-            if (m_memberUsedCoin[j] == 0)
+            if (m_battleData.m_arr7e8[j] == 0)
             {
                 return 1;
             }
             HistoryLog::WriteUseCoin(
                 reinterpret_cast<_IO_FILE*>(actor->m_field796f8),
                 reinterpret_cast<CUserCharacInfo*>(dead)->getCurCharacName());
-            --m_memberUsedCoin[j];
+            --m_battleData.m_arr7e8[j];
         coin_skip:;
         }
     }

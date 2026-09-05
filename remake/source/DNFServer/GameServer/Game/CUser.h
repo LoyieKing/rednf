@@ -3286,7 +3286,9 @@ public:
     int GetGuildIdBeforeDeleteCharacter(int slot);              // ORIG T 0x0864a956（读 m_characList[slot].m_guildId）
     const char* get_charac_name(int idx) const;
     unsigned char GetCharacJob(int idx) const;   // ORIG caller checkPvpEnterCharacter 0x081c6c22 `cmp $0x9,%al` 字节比较⇒uchar 返回（int 声明致调用点 cmpl %eax）
-    int getCharacLevelByCharacNo(int characNo) const;
+    unsigned short getCharacLevelByCharacNo(int characNo) const;
+    // ORIG caller Inter_ReqChangeCharacName 0x84d205b `mov %ax,-0x1a(%ebp); cmpw $0x0,-0x1a; jg`
+    // ⇒ 返回 HImode（int 声明致 movzwl%ax 往返残差；CUserC8 证据/Main 代落 batch-13）
     int GetSpecialLevelCharacCnt(int type);   // ORIG 0x08656636 T（CFatigueBatteryHandle 充电链使用）
     const char* get_charac_name_by_charac_no(int characNo) const;
     bool setCharacName(int characNo, const char* name);   // ORIG W 0x084ecc7c：命中返回 true

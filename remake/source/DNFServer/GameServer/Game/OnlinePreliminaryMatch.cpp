@@ -379,12 +379,11 @@ int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
     isNone = (user->GetCurCharacOnlinePreliminaryTeamId() == -1);
     if (isNone)
         return 0;
-    /* ORIG @0856070e 第二次 call 结果直落 %ebx（callee-saved），4.4 默认 spill
-     * 栈槽 → register asm("ebx") 钉住（技巧28） */
-    register int teamId asm("ebx") = user->GetCurCharacOnlinePreliminaryTeamId();
+    /* ORIG @0856070e 第二次 call 结果直落 %ebx、@0856071b 第三 call→%eax、
+     * @0856071d cmp %eax,%ebx：与 _CheckObserver 尾同族——lhs call 跨 rhs
+     * call 自动落 callee-saved；具名绑定/中转折算反产 mov 链 */
     register bool diff asm("al");
-    /* ORIG cmp %eax,%ebx：dst=ebx(src=call 结果) → call 表达式置 lhs */
-    diff = (GetTeamId() != teamId);
+    diff = (user->GetCurCharacOnlinePreliminaryTeamId() != GetTeamId());
     if (diff)
         return 0;
     return 1;
@@ -402,8 +401,14 @@ int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
     /* ORIG(@0856078a 起 size→%ebx / sub mem,%ebx / cmp %eax,%ebx; setge 物化)
      * 属 N22/N18a 类：4.4 恒将跨 call 差值 spill 或经 %eax 往返，probe(
      * register asm("ebx")+setge 技巧22/操作数对调) 均不可翻，保留直译 */
-    return (m_teams[0].size() - observers < (int)(unsigned char)GetPlayCountPerOneTeam())
-               ? 1 : 0;
+    /* ORIG @08560797 cmp %eax,%ebx; setge %al; test; je → mov $1 岛(@+0x71)、
+     * ge 真走 fall mov $0(@+0x6a)：register bool 物化+正向 if（同
+     * _CheckMatchable 尾法） */
+    register bool ge asm("al");
+    ge = (m_teams[0].size() - observers >= (int)(unsigned char)GetPlayCountPerOneTeam());
+    if (ge)
+        return 0;
+    return 1;
 }
 
 /* ORIG T 0x085612c6 const；返回 0 可匹配 / 0x16 失配 */
@@ -431,19 +436,27 @@ int COnlinePreliminary::_CheckMatchable(PvP_Room* room) const
         }
         register bool ne asm("al");
         ne = (u->GetCurCharacOnlinePreliminaryTeamId() != firstTeamId);
-        if (!ne)
-            continue;
-        int tid = u->GetCurCharacOnlinePreliminaryTeamId();
+        /* ORIG @08561348 test %al,%al; je→增量块(@+0xcf)，log 体走
+         * fall-through(@+0x8c)：正向 if 不取反 */
+        if (ne)
+        {
+        /* ORIG @08561352 第三次 call 结果直落 0x14(%esp)(@+0x97)，无具名
+         * 中转折算槽【技巧36/37】 */
         LogManager::logFormat(
             1, "MatchingSystem.cpp",
             __PRETTY_FUNCTION__,
-            0x771, "(%d) found a different team_id(%d)", tid);
+            0x771, "(%d) found a different team_id(%d)",
+            u->GetCurCharacOnlinePreliminaryTeamId());
         return 0x16;
+        }
     }
-    /* ORIG 尾 cmp %eax,%ebx（size 直落 ebx 跨 call）属 N22 类不可翻；
+    /* ORIG 尾 @085613c5 setne 物化 + 双常量岛(@0x16/jmp/mov$0)；
      * byte 化用 (unsigned char) 强转产 movzbl(@085613c0) */
-    return (m_teams[0].size() - observers == (int)(unsigned char)GetPlayCountPerOneTeam())
-               ? 0 : 0x16;
+    register bool diff asm("al");
+    diff = (m_teams[0].size() - observers != (int)(unsigned char)GetPlayCountPerOneTeam());
+    if (diff)
+        return 0x16;
+    return 0;
 }
 
 /* ORIG T 0x085607b2（switch 表 @0x8ca230c 实证） */
@@ -452,27 +465,46 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
     if (!CheckUnusableEquipmentInUser(user))
         return 1;
 
-    if (room->get_player_count() >= (int)((GetPlayCountPerOneTeam() & 0xff) * 2))
+    /* ORIG @08560862/@085608?? movzbl %al,%eax（(unsigned char) 强转形，
+     * `& 0xff` 出 and $0xff）+ add %eax,%eax 两段，size 累加走 add %eax,%ebx */
+    if (room->get_player_count() >= (int)(unsigned char)GetPlayCountPerOneTeam() * 2)
         return 4;
 
-    if ((int)((GetPlayCountPerOneTeam() & 0xff) * 2) <
-        m_teams[0].size() + m_teams[1].size())
+    /* ORIG @085608xx sum(两 size call)→%ebx 先、再第 2 次 pc call：
+     * lhs=sum 正向 `>`（cmp %eax,%ebx; setg） */
+    if (m_teams[0].size() + m_teams[1].size() >
+        (int)(unsigned char)GetPlayCountPerOneTeam() * 2)
         return 4;
 
     switch (m_field04)
     {
     case 0:
-        if (_CheckSameTeam(room, user))
+        /* ORIG 双 `xor $1,%eax; test %al,%al; je`(@08560866/@0856088d)：
+         * 两 call 均 int 返回取反判 → X1 变形（register uchar 绑 eax + ^=1，
+         * 主体 `if(!call) return 4` 连判【Main 批准铺池】） */
         {
-            if (!_CheckObserver(room, user))
-                return 0;
+            register unsigned char st asm("eax") =
+                (unsigned char)_CheckSameTeam(room, user);
+            st ^= 1;
+            if (st)
+                return 4;
+            register unsigned char ob asm("eax") =
+                (unsigned char)_CheckObserver(room, user);
+            ob ^= 1;
+            if (ob)
+                return 4;
+            return 0;
         }
-        return 4;
+    case 1:                     // 各 case 独立 body 才触发 4.4 O0 出表
+        return 4;               // （cmp $5;ja;mov table(%eax,4);jmp *%eax，
+    case 2:                     //  表 @0x8ca230c）；fall-through 合并会使
+        return 4;               //  4.4 退回比较链
     case 3:
         return 0;
-    case 1:                     // 与 4、5 及 default 同落 ret 4（表实证）
     case 4:
+        return 4;
     case 5:
+        return 4;
     default:
         return 4;
     }
@@ -494,9 +526,12 @@ RET1:
 /* ORIG T 0x085623ec */
 bool COnlinePreliminary::CheckMatchable(IMatch* other)
 {
-    CUser* otherUser = 0;
+    /* ORIG 槽序 selfUser@-0x14 / otherUser@-0x10 / 共享 i@-0xc(@08562434
+     * 声明+双循环 entry init 三写同 i 槽)；declaration order = far→near */
     CUser* selfUser = 0;
-    for (int i = 0; i <= 3; ++i)
+    CUser* otherUser = 0;
+    int i;                     /* ORIG entry 仅 for-init 单写 i(@+0x15) */
+    for (i = 0; i <= 3; ++i)
     {
         otherUser = other->GetUser(i);
         if (otherUser != 0)
@@ -504,7 +539,7 @@ bool COnlinePreliminary::CheckMatchable(IMatch* other)
     }
     if (otherUser == 0)
         return false;
-    for (int i = 0; i <= 3; ++i)
+    for (i = 0; i <= 3; ++i)
     {
         selfUser = GetUser(i);
         if (selfUser != 0)
@@ -513,9 +548,10 @@ bool COnlinePreliminary::CheckMatchable(IMatch* other)
     if (selfUser == 0)
         return false;
 
-    // ORIG 0x085624c3 有符号 setge 比较（count >= limit → false）。
-    unsigned int played = _GetEachOtherPlayCount(selfUser, otherUser);
-    if ((int)played >= G_CDataManager()->m_serverParameter.GetDailyMatchCount())
+    // ORIG 0x085624c3 有符号 setge 比较（count >= limit → false）；
+    // call 结果免 played 槽直 cmp
+    if ((int)_GetEachOtherPlayCount(selfUser, otherUser) >=
+        G_CDataManager()->m_serverParameter.GetDailyMatchCount())
         return false;
     return true;
 }

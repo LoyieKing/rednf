@@ -447,6 +447,13 @@ void UseCubeMission::processMission(CUser* /*user*/, HeroMissionValue& value,
 // ============================================================================
 bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
 {
+    // X1 形在此处**不适用**（实测 ndiff 11→13 变差，已回退）：
+    // ORIG @0x08165a2e 把 `value.m_fieldA != 0` 物化成 bool 值
+    // （`test %ax,%ax; je L; mov $1,%eax; jmp end; L: mov $0,%eax; end:
+    //   test %al,%al; je BODY`），而一旦把前面的 `!isRepeatMission()` 改写成
+    //   `register uchar + ^=1 + goto`，4.4 的 jump threading 就会顺手把这段
+    //   物化岛折叠掉（缺 5 条）。保持 `&&` 短路原写法反而更接近 ORIG。
+    // ⇒ X1 适用前提：**判断之后没有依赖同一条件的 bool 物化岛**。
     if (!isRepeatMission() && value.m_fieldA != 0)
     {
         LogManager::logFormat(

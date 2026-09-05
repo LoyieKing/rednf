@@ -1605,26 +1605,42 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 {
     std::string token;
     bool ok = false;
-    if (!loadRDARScriptFile("", path))
+    // [X2 形·技巧22精化（DispC8 probe 实证，Main 批准）] ORIG 对 bool callee 返回一律
+    // `xor $0x1,%eax; test %al,%al; j<cc>`（0x0889b6fd/0x0889b725/0x0889b764/…），4.4
+    // 直写 !call()/!ok 折成 test/sete 两段。写法：register unsigned char 绑 %eax +
+    // 显式 ^= 1（非 !、非 cmp、非绑 %al），复现 xor 单段。
+    register unsigned char lr asm("eax") = (unsigned char)loadRDARScriptFile("", path);
+    lr ^= 1;
+    if (lr)
         return 0;
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        register unsigned char st asm("eax") = (unsigned char)ScanType(token, true);
+        st ^= 1;
+        if (st)
+            break;                               // ORIG 0x0889b72a jne 出口 → 返 0
         if (token == "[gage up rate]")
         {
             int lineNo = 0;                      // ORIG local_24：dead 行计数
             for (;;)                              // ORIG 头：idx=ScanInt 于循环顶
             {
                 int idx = ScanInt(&ok);
-                if (!ok)
-                    break;                        // ORIG：行首失败仅结束本段
+                register unsigned char iok asm("eax") = (unsigned char)ok;
+                iok ^= 1;
+                if (iok)
+                    break;                        // ORIG：行首失败仅结束本段(0x…76c)
                 int p = ScanInt(&ok);            // ORIG local_1c（第 2 个）
-                if (!ok)
+                register unsigned char pok asm("eax") = (unsigned char)ok;
+                pok ^= 1;
+                if (pok)
                     return 0x3e9;
                 int q = ScanInt(&ok);            // ORIG local_18（第 3 个）
-                if (!ok)
+                register unsigned char qok asm("eax") = (unsigned char)ok;
+                qok ^= 1;
+                if (qok)
                     return 0x3ec;
-                if (idx > -1 && idx < 4)         // ORIG: -1 < idx && idx < 4
+                if (idx >= 0 && idx <= 3)        // ORIG cmpl $0/js + cmpl $3/jg
                 {
                     m_gageUpRate[idx] = q;       // this+8   = 第 3 值
                     m_gageUpAux[idx] = p;        // this+0x1c = 第 2 值
@@ -1634,18 +1650,30 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
         }
         else if (token == "[gage upgrade cost percent]")
         {
-            m_4 = (float)(long double)ScanFloat(&ok);
-            if (!ok)
+            float fv = ScanFloat(&ok);           // ORIG：fstps 暂存，校验后才写 this+4
+            register unsigned char fok asm("eax") = (unsigned char)ok;
+            fok ^= 1;
+            if (fok)
                 return 0x3f8;
+            m_4 = fv;
         }
         else if (token == "[daily refill ticket]")
         {
-            m_0 = ScanInt(&ok);
-            if (!ok)
+            int tv = ScanInt(&ok);               // ORIG：暂存 -0xc，校验后才写 this+0
+            register unsigned char tok asm("eax") = (unsigned char)ok;
+            tok ^= 1;
+            if (tok)
                 return 0x3ff;
+            m_0 = tv;
         }
-        else if (token != "[/gage up rate]" && token != "[/gage upgrade cost percent]")
+        else
         {
+            // ORIG 0x0889b872..：三段 `call operator== ; test %al,%al ; jne <loop>`，
+            // 命中闭标签直接回循环头（true→jne，非 != 取反物化）。
+            if (token == "[/gage up rate]")
+                continue;
+            if (token == "[/gage upgrade cost percent]")
+                continue;
             (void)(token == "[/daily refill ticket]");
         }
     }
@@ -1666,9 +1694,11 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 //  · 关键：push_back(item) 绑定在 [list] 处理尾（非 [/id]），故 item 收集入
 //    shop.m_vecT0/T1/T2 由 [list] 触发；[list] 逐行读入 item.m_listMap(key=FieldType-0
 //    行 m_value)，直到某行 ScanStr/ScanInt 失败。[/ridable id] 或 EOF ⇒ 插入 shop。
-// [N类·跨版本豁免] 语义已全量还原为 ORIG 三段内联真形（our_insns 708→1404 vs ORIG
-// 1442，gap 727→38）。残留 38 指令差为 gcc 4.1.2 相对 4.4.7 的 EH landing-pad 与
-// BuyShopData/BuyUpgradeData 双份 dtor epilogue vs merge、deferred-write 寄存器轮换
+// [N类·跨版本豁免] 语义已全量还原为 ORIG 三段内联真形，且 32 处 bool-callee 检查点
+// 按 X1/X2 配方（register uchar 绑 %eax + ^=1）翻成 ORIG xor 直落形（our_insns
+// 708→1403→1431 vs ORIG 1441，gap 727→38→10）。残留 10 指令差为 gcc 4.1.2 相对
+// 4.4.7 的 EH landing-pad 与 BuyShopData/BuyUpgradeData 双份 dtor epilogue vs merge、
+// deferred-write 寄存器轮换（技巧24 落点岛/技巧31 dead 撑帧无法从源码复现）
 // （范式库「负例 N 类·跨版本：delete[]+成员 dtor EH cleanup / EH 双份 dtor epilogue vs
 // merge」），非源码可表达；证据 ORIG 0x088a18de/0x088a2731/0x088a2704 CatchHandler 区段。
 // ============================================================================
@@ -1681,26 +1711,40 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     // 汇编 LAB 布局逐段还原为三块独立代码。
     std::string token;
     bool ok = false;
-    if (!loadRDARScriptFile("", path))
+    // [X2/X1 形·Main 批准配方] ORIG 全部 bool callee 检查为 `xor $0x1,%eax;
+    // test %al,%al; j…`（0x088a1101/0x088a112c/0x088a117c/… 共 24 处），4.4 直写
+    // !call/!ok 折成 test 单段缺 xor → 逐点 register unsigned char 绑 %eax + ^=1。
+    register unsigned char lr asm("eax") = (unsigned char)loadRDARScriptFile("", path);
+    lr ^= 1;
+    if (lr)
         return 0;
 
     for (;;)
     {
         // 外层跳过：处理 [star reset fee gold]，直到 [ridable id]（isRidable）或 EOF。
         bool isRidable = false;
-        while (ScanType(token, true))
+        for (;;)
         {
+            register unsigned char st asm("eax") = (unsigned char)ScanType(token, true);
+            st ^= 1;
+            if (st)
+                break;                          // ORIG 0x088a1136 jne → EOF 返 0
             if (token == "[star reset fee gold]")
             {
                 for (;;)
                 {
                     _StarRestFeeByGold fee;                 // ORIG 每轮 ctor(-0x238)
                     int key = ScanInt(&ok);                 // ORIG -0x23c
-                    if (!ok)
+                    register unsigned char kok asm("eax") = (unsigned char)ok;
+                    kok ^= 1;
+                    if (kok)
                         break;                              // 行首失败：结束本段回外层扫描头
-                    fee.m_field0 = ScanInt(&ok);            // ORIG -0x60 → -0x238
-                    if (!ok)
+                    int feeVal = ScanInt(&ok);              // ORIG -0x60
+                    register unsigned char vok asm("eax") = (unsigned char)ok;
+                    vok ^= 1;
+                    if (vok)
                         break;
+                    fee.m_field0 = feeVal;                  // ORIG 校验后才 -0x60→-0x238
                     m_starRestMap.insert(std::make_pair(key, fee));
                 }
                 continue;
@@ -1716,7 +1760,9 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
 
         BuyShopData shop;
         int ridableId = ScanInt(&ok);
-        if (!ok)
+        register unsigned char rok asm("eax") = (unsigned char)ok;
+        rok ^= 1;
+        if (rok)
             break;                                          // ORIG !ok：bVar4=假 → 不插入返回
         if (!isValidRidableId(static_cast<advancealtar::RidableId::T>(ridableId)))
             break;                                          // ORIG 非法：bVar4=假 → 不插入返回
@@ -1725,42 +1771,60 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
         // LAB_088a12ab 段循环。[/ridable id] 或 EOF 跳出 → 插入 shop。
         for (;;)
         {
-            if (!ScanType(token, true))
+            register unsigned char st2 asm("eax") = (unsigned char)ScanType(token, true);
+            st2 ^= 1;
+            if (st2)
                 break;                                      // EOF → 插入
             if (token == "[unit]")
             {
-                while (ScanType(token, true))
+                for (;;)
                 {
+                    register unsigned char st3 asm("eax") = (unsigned char)ScanType(token, true);
+                    st3 ^= 1;
+                    if (st3)
+                        break;                              // ORIG fail → 回段循环
                     if (token == "[/unit]")
                         break;
                     if (token != "[id]")
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
-                    if (!ok)
+                    register unsigned char iok asm("eax") = (unsigned char)ok;
+                    iok ^= 1;
+                    if (iok)
                         continue;                           // id 扫描失败 → 回段循环
                     for (;;)
                     {
-                        if (!ScanType(token, true))
+                        register unsigned char st4 asm("eax") = (unsigned char)ScanType(token, true);
+                        st4 ^= 1;
+                        if (st4)
                             break;
                         if (token == "[unlock stage index]")
                         {
                             item.m_field4 = ScanInt(&ok);
-                            if (!ok)
+                            register unsigned char uok asm("eax") = (unsigned char)ok;
+                            uok ^= 1;
+                            if (uok)
                                 break;
                             continue;
                         }
                         if (token == "[name]")
                         {
-                            if (!ScanStr(&item.m_strDesc))
+                            register unsigned char nok asm("eax") = (unsigned char)ScanStr(&item.m_strDesc);
+                            nok ^= 1;
+                            if (nok)
                                 break;
                             continue;
                         }
                         if (token == "[field name]")
                         {
                             std::string fieldName;
-                            while (ScanStr(&fieldName))
+                            for (;;)
                             {
+                                register unsigned char sv asm("eax") = (unsigned char)ScanStr(&fieldName);
+                                sv ^= 1;
+                                if (sv)
+                                    break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
                                     item.m_fieldTypes.push_back(
@@ -1784,8 +1848,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (ScanStr(&s))
-                                            fd.m_str = s;
+                                        register unsigned char sov14 asm("eax") = (unsigned char)ScanStr(&s);
+                                        sov14 ^= 1;
+                                        if (!sov14)
+                                                fd.m_str = s;
                                         else
                                             rowOk = false;
                                         if (!rowOk)
@@ -1794,7 +1860,9 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     else
                                     {
                                         fd.m_value = ScanInt(&ok);
-                                        if (!ok)
+                                        register unsigned char miok17 asm("eax") = (unsigned char)ok;
+                                        miok17 ^= 1;
+                                        if (miok17)
                                         {
                                             rowOk = false;
                                             break;
@@ -1821,46 +1889,64 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
             }
             if (token == "[skill]")
             {
-                while (ScanType(token, true))
+                for (;;)
                 {
+                    register unsigned char stsec1 asm("eax") = (unsigned char)ScanType(token, true);
+                    stsec1 ^= 1;
+                    if (stsec1)
+                        break;
                     if (token == "[/skill]")
                         break;
                     if (token != "[id]")
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
-                    if (!ok)
+                    register unsigned char itok5 asm("eax") = (unsigned char)ok;
+                    itok5 ^= 1;
+                    if (itok5)
                         continue;
                     for (;;)
                     {
-                        if (!ScanType(token, true))
+                        register unsigned char stid3 asm("eax") = (unsigned char)ScanType(token, true);
+                        stid3 ^= 1;
+                        if (stid3)
                             break;
                         if (token == "[unlock stage index]")
                         {
                             item.m_field4 = ScanInt(&ok);
-                            if (!ok)
+                            register unsigned char uok7 asm("eax") = (unsigned char)ok;
+                            uok7 ^= 1;
+                            if (uok7)
                                 break;
                             continue;
                         }
                         if (token == "[is settable slot]")
                         {
                             int v = ScanInt(&ok);
-                            if (!ok)
+                            register unsigned char slotok9 asm("eax") = (unsigned char)ok;
+                            slotok9 ^= 1;
+                            if (slotok9)
                                 break;
                             item.m_field8 = (v != 0);
                             continue;
                         }
                         if (token == "[name]")
                         {
-                            if (!ScanStr(&item.m_strDesc))
+                            register unsigned char nok10 asm("eax") = (unsigned char)ScanStr(&item.m_strDesc);
+                            nok10 ^= 1;
+                            if (nok10)
                                 break;
                             continue;
                         }
                         if (token == "[field name]")
                         {
                             std::string fieldName;
-                            while (ScanStr(&fieldName))
+                            for (;;)
                             {
+                                register unsigned char sv12 asm("eax") = (unsigned char)ScanStr(&fieldName);
+                                sv12 ^= 1;
+                                if (sv12)
+                                    break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
                                     item.m_fieldTypes.push_back(
@@ -1884,8 +1970,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (ScanStr(&s))
-                                            fd.m_str = s;
+                                        register unsigned char sov15 asm("eax") = (unsigned char)ScanStr(&s);
+                                        sov15 ^= 1;
+                                        if (!sov15)
+                                                fd.m_str = s;
                                         else
                                             rowOk = false;
                                         if (!rowOk)
@@ -1894,7 +1982,9 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     else
                                     {
                                         fd.m_value = ScanInt(&ok);
-                                        if (!ok)
+                                        register unsigned char miok18 asm("eax") = (unsigned char)ok;
+                                        miok18 ^= 1;
+                                        if (miok18)
                                         {
                                             rowOk = false;
                                             break;
@@ -1921,38 +2011,54 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
             }
             if (token == "[tower]")
             {
-                while (ScanType(token, true))
+                for (;;)
                 {
+                    register unsigned char stsec2 asm("eax") = (unsigned char)ScanType(token, true);
+                    stsec2 ^= 1;
+                    if (stsec2)
+                        break;
                     if (token == "[/tower]")
                         break;
                     if (token != "[id]")
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
-                    if (!ok)
+                    register unsigned char itok6 asm("eax") = (unsigned char)ok;
+                    itok6 ^= 1;
+                    if (itok6)
                         continue;
                     for (;;)
                     {
-                        if (!ScanType(token, true))
+                        register unsigned char stid4 asm("eax") = (unsigned char)ScanType(token, true);
+                        stid4 ^= 1;
+                        if (stid4)
                             break;
                         if (token == "[unlock stage index]")
                         {
                             item.m_field4 = ScanInt(&ok);
-                            if (!ok)
+                            register unsigned char uok8 asm("eax") = (unsigned char)ok;
+                            uok8 ^= 1;
+                            if (uok8)
                                 break;
                             continue;
                         }
                         if (token == "[name]")
                         {
-                            if (!ScanStr(&item.m_strDesc))
+                            register unsigned char nok11 asm("eax") = (unsigned char)ScanStr(&item.m_strDesc);
+                            nok11 ^= 1;
+                            if (nok11)
                                 break;
                             continue;
                         }
                         if (token == "[field name]")
                         {
                             std::string fieldName;
-                            while (ScanStr(&fieldName))
+                            for (;;)
                             {
+                                register unsigned char sv13 asm("eax") = (unsigned char)ScanStr(&fieldName);
+                                sv13 ^= 1;
+                                if (sv13)
+                                    break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
                                     item.m_fieldTypes.push_back(
@@ -1976,8 +2082,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (ScanStr(&s))
-                                            fd.m_str = s;
+                                        register unsigned char sov16 asm("eax") = (unsigned char)ScanStr(&s);
+                                        sov16 ^= 1;
+                                        if (!sov16)
+                                                fd.m_str = s;
                                         else
                                             rowOk = false;
                                         if (!rowOk)
@@ -1986,7 +2094,9 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     else
                                     {
                                         fd.m_value = ScanInt(&ok);
-                                        if (!ok)
+                                        register unsigned char miok19 asm("eax") = (unsigned char)ok;
+                                        miok19 ^= 1;
+                                        if (miok19)
                                         {
                                             rowOk = false;
                                             break;

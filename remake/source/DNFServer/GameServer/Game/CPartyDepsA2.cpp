@@ -237,7 +237,7 @@ void CParty::BloodHandleDieUser(CUser* user)
             continue;
         if (get_user(local_10) == user)
         {
-            if (m_liveFlag[local_10] != 1)
+            if (m_battleData.m_arr54[local_10] != 1)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
                 return;

@@ -22,9 +22,9 @@ struct CharStringHashTrait
         size_t operator()(const char* s) const
         {
             size_t h = 0;
-            char c;
-            while ((c = *s++) != '\0')
+            while (*s)
             {
+                const char c = *s++;
                 h = (h << 6) + (h << 16) - h + c;
             }
             return h;
@@ -35,9 +35,7 @@ struct CharStringHashTrait
     {
         bool operator()(const char* a, const char* b) const
         {
-            if (a == b)
-                return true;
-            if (strcmp(a, b) == 0)
+            if (a == b || strcmp(a, b) == 0)
                 return true;
             return false;
         }

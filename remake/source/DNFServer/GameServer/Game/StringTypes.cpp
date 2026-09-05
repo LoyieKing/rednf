@@ -328,7 +328,8 @@ char CharString::front() const
 
 char CharString::back() const
 {
-    if (length())
+    register unsigned int v asm("eax") = static_cast<unsigned int>(length());
+    if (v)
         return buffer_[length() - 1];
     return '\0';
 }
@@ -1070,7 +1071,8 @@ wchar_t WideString::front() const
 
 wchar_t WideString::back() const
 {
-    if (length())
+    register unsigned int v asm("eax") = static_cast<unsigned int>(length());
+    if (v)
         return buffer_[length() - 1];
     return 0;
 }

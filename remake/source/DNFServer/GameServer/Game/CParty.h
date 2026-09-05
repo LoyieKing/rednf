@@ -24,6 +24,7 @@
 #include "GameTypes.h"
 #include "GameEnums.h"   // ENUM_DUNGEON_MODE / eCoinSubReason 权威定义（不依赖 CUser.h 传递）
 #include "Inven_Item.h"
+#include "BattleData.h"   // m_battleData 具名成员（ORIG DWARF CParty+0x32c）
 #include "CUser.h"
 #include "PvPTypes.h"   // cElection<int,4,4> 模板（m_election @+0x0d8，ORIG 0x40）
 #include "CPartyResultRecvFlag.h"
@@ -742,16 +743,12 @@ public:
     bool m_firstMapClear;            // +0x324
     unsigned char m_pad325[3];       // +0x325
     int m_partyMemberCoinLimit;      // +0x328
-    unsigned char m_padBattleData[0x50];   // +0x32c BattleData 前半（占位）
-    char m_finishLoadingFlag[4];           // +0x37c（resetFinishLoadingVar）
-    char m_liveFlag[4];                    // +0x380（get_live_count / check_allmember_die）
-    char m_enterMapFlag[4];                // +0x384（get_live_count_enter_map）
-    char m_field388[4];                    // +0x388（game_start 逐成员清零的装载标志组）
-    char m_field38c[4];                    // +0x38c（game_start 逐成员清零）
-    unsigned char m_padBattleData2[0x784]; // +0x390 BattleData 余下（占位，至 0xb14）
-    int m_memberUsedCoin[4];               // +0xb14 BattleData 逐成员已用硬币数
-                                           //   （GetCoinCount=INT_MAX-该值、
-                                           //    ReviveUser 扣减；ORIG 报告实证）
+    // ORIG DWARF：CParty::m_battleData @+0x32c，sizeof(BattleData)=0x7f8
+    // → 0x32c+0x7f8=0xb24（m_padBattleField1 起点，零空洞；两侧偏移证据：
+    // CPartyC1 0x085b6d?? placement 构造 +0x32c 与 dtor 0x085b?? 析构调用；
+    // 旧 CParty 侧 0x37c..0x38f 五 char[4] 与 0xb14 int[4] 实为 BattleData
+    // 自身字段 m_arr50/m_arr54/m_arr58/m_arr5c/m_arr60/m_arr7e8 的双名）。
+    BattleData m_battleData;               // +0x32c..0xb23
     unsigned char m_padBattleField1[0x158];  // +0xb24（BF+0x000..0x157）
     CDungeonClearTracer m_dungeonClearTracer;  // +0xc7c（BF+0x158；ORIG giveup_game
                                                //   Trace((CDungeonClearTracer*)(this+0xc7c))）

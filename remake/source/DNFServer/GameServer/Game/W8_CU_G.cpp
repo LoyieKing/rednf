@@ -443,9 +443,13 @@ char CUser::VerifyPresentAvengerTitle()
     //    原 const 局部为语义误植）→ findString/strncpy 交替对 → ReqDBSend 系
     //    参数序 group→strlen→characNo → makeRequest 系 characNo→acc→GetUID →
     //    trace 段 idxVal→characNo→acc→NumberToString→C1→operator()。
-    unsigned int accId = (unsigned int)get_acc_id();
-    unsigned int createTime =
-        static_cast<unsigned int>(getCurCharacCreateTime());
+    // 判据⑤（X 族边界补注 CUserC8）：ORIG 0x868b558-5f accId→%ebx、createTime→
+    // %esi 双 callee-saved 跨 string/Get/findScript 四 call 存活（push esi/push ebx
+    // prologue 0x868b559-560）——register asm 钉回，免 -0x54/-0x58 两槽（帧差 0x30 主因）。
+    register unsigned int accId asm("ebx");
+    accId = (unsigned int)get_acc_id();
+    register unsigned int createTime asm("esi");
+    createTime = static_cast<unsigned int>(getCurCharacCreateTime());
     ARAD::Arad_EventPeriodDataManager* period =
         static_cast<ARAD::Arad_EventPeriodDataManager*>(
             ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(

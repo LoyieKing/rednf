@@ -271,8 +271,8 @@ public:
     Inven_Item* m_pItems;   // +0x04（0x98 槽；SetInventoryMemory 绑定）
     int m_itemCount;        // +0x08
     int m_capacity;         // +0x0c
-    char m_sorted;          // +0x10
-    char m_pad[3];          // +0x11
+    bool m_sorted;          // +0x10（ORIG sort 0x850bd0c 实证 movzbl+xor$1 布尔物化 = bool；P26 删显式 pad）
+                            // +0x11..+0x13 自然对齐 pad（keep sizeof 0x14）
 };
 
 class CTitleBook;   // 权威定义见 CTitleBook.h（本头经 CDataManager.h include）
@@ -927,7 +927,10 @@ public:
     void SetCurCharacRevengeData(unsigned char count, unsigned char ticket);
     void ResetRevengeDungeonClear();
     void DecreaseRevengeDungeonTicket();
-    int getCurEquipslotFlag();   // ORIG 0x08696c10 出口 movzbl 全字/mov $-1 ⇒ int（广播3，CUserC6 接受）
+    unsigned char getCurEquipslotFlag();  // ORIG 0x08696c23 true 单段 movzbl 直返
+                               // （int 声明使 4.4 反产二段 promote，IsCurCharacGhost
+                               // 同款三分法）；false 路 0x8696c2c `mov $0xffffffff`
+                               // dword -1（uchar 函数体内 return -1 保留 dword 形）。
     void setCurEquipslotFlag(char flag);
     unsigned char getCurChannelEquipslotSwitch();
     void setCurChannelEquipslotSwitch(char flag);

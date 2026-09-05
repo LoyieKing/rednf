@@ -141,11 +141,18 @@ char Quest::check_possible(const stSelectQuestParam& param) const
         }
     }
 
+    // 等号实测：改成 `<=` 会让本函数 ndiff 12→14 变差（-0x18 槽被前后三处
+    // 比较共用，改一处会连带改变 4.4 的 jcc 选择与装载序），故维持 `<`；
+    // ORIG 该点 `jge` 与我方 `jg` 的等号差属**跨点耦合残差**，标 N。
+    // 对照：同函数 m_levelMax 那处改 `>=` 是净收益（13→12），已保留。
     if (level < m_levelMin)
     {
         return 0;
     }
-    if (m_levelMax < level)
+    // ORIG @0x8352e…：`mov 0x28(%eax),%eax; cmp -0x14(%ebp),%eax; jle <ret0>`
+    // ⇒ 判定条件是 **m_levelMax <= level**（含等号），原写法 `m_levelMax < level`
+    // 少一个等号（重建语义误差一位）。写成 `>=` 后 4.4 产 `cmp; jle` 同形。
+    if (level >= m_levelMax)
     {
         return 0;
     }
@@ -156,7 +163,13 @@ char Quest::check_possible(const stSelectQuestParam& param) const
 
     if (m_type == 1)
     {
-        if (G_CDataManager()->isThereDailyTrainingQuestList(level, m_index) != 1)
+        // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B）：callee 返 int，
+        // `!= 1` 在 4.4 产 `cmp $0x1,%eax; setne %al; test`，ORIG 是
+        // `call; xor $0x1,%eax; test %al,%al; je`。
+        register unsigned char daily asm("eax") =
+            (unsigned char)G_CDataManager()->isThereDailyTrainingQuestList(level, m_index);
+        daily ^= 1;
+        if (daily)
         {
             return 0;
         }

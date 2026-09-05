@@ -116,6 +116,10 @@ int TeamInfo::del(CUser* user)   // ORIG T 0x0855cc9c
 
 int TeamInfo::size() const       // ORIG T 0x0855cd26
 {
+    /* ORIG @0855cd42 乘法链 lea(,%eax,4)/lea(,%edx,8)/sub %edx（PlayerInfo
+     * stride 0x1c）；4.4 恒把 i*4 折成 shl $2（probe：显式 unsigned long
+     * 两步 stride 同产 shl），指令选择成本模型差，N 类不可翻，保持具名
+     * 字段下标访问【§4.3】 */
     int n = 0;
     for (int i = 0; i <= 3; ++i)
         if (m_players[i].m_flag != 0)
@@ -599,10 +603,22 @@ int CLeagueMatch::CheckJoinable(PvP_Room* room, CUser* user)   // ORIG T 0x0855c
         return 4;
 
     switch (m_state) {
-    case 0:
-        return _CheckSchool(room, user) ? 0 : 4;
+    case 0: {
+        // X1: ORIG `call _CheckSchool; xor $1,%eax; test %al; je`（int 返回不自救不行，
+        // 绑 %eax 具名 uchar + ^=1 复现单段 xor——技巧 22 精化）
+        register unsigned char sc asm("eax") =
+            (unsigned char)_CheckSchool(room, user);
+        sc ^= 1;
+        if (sc)
+            return 4;
+        return 0;
+    }
     case 3:
         return 0;
+    case 1:
+    case 4:
+    case 5:
+        return 4;
     default:
         return 4;
     }
@@ -902,13 +918,22 @@ int CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
     return 0;
 }
 
-int CLeagueMatch::_GetOppositeTeam(register int team)  // ORIG T 0x0855e49e（P85 寄存器物化）
+int CLeagueMatch::_GetOppositeTeam(int team)  // ORIG T 0x0855e49e
 {
-    if (team != 1) {
-        if (team != 2) return team;
+    /* ORIG @0855e4a1 比较链 cmp $1,%eax;je/cmp $2;je/jmp def = 4.1 switch
+     * 下探形【技巧34，OnlinePreliminary 同法 IDENTICAL 已验】。ORIG default
+     * 块尾多一条 `mov 0xc(%ebp),%eax`(@0855e4be) 重载：4.4 沿 cfg 传播 eax
+     * 免载，probe(register 副本/asm("eax")+clobber)均不可逼出，N18a 类 */
+    switch (team)
+    {
+    case 1:
+        return 2;
+    case 2:
         return 1;
+    default:
+        break;
     }
-    return 2;
+    return team;
 }
 
 int CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)   // ORIG T 0x0855cef8
@@ -920,7 +945,9 @@ int CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)   // ORIG T 0x0855ce
         if (room->get_team(i) == 3)
             ++emptySeats;
     }
-    return (m_teamA.size() - emptySeats >= (int)nPlayerCountPerOneTeam_) ? 0 : 1;
+    if ((int)(m_teamA.size() - emptySeats) >= (int)nPlayerCountPerOneTeam_)
+        return 0;
+    return 1;
 }
 
 int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,

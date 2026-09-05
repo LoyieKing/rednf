@@ -178,6 +178,11 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
     // 三条件各自 je 直达统一出口（ORIG @0x1e/@0x25/@0x36 →0x22a）：`&&` 链在
     // 4.4 末尾条件折 bool 聚合岛（mov$1/jmp/mov$0，+3），正向嵌套同形 ORIG；
     // uchar 真值测试用 `> 0`（P73 反向，同 check_random 实证）。
+    // X1 形在此**不适用**（实测 ndiff 10→13 已回退）：ORIG 是
+    // `xor $1,%eax; test %al,%al; je BODY`（真值跳进 body），而 4.4 对
+    // `if (!v) {body}` 恒产 `test; jne SKIP`（假值跳过 body），je/jne 块序相反；
+    // 要翻成 je 需把三层嵌套体改成 `goto` 尾置块，会连带影响本函数
+    // 统一出口与其它 2 个条件的既有同形性 —— 属"块序+装载序"复合差，非纯 xor 族。
     if (IsEnableHellDungeon() > 0)
     {
     if (worldMap != 0)

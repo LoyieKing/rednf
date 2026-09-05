@@ -156,6 +156,10 @@ int CCreature::GetState()
 // GetStomachValue(m_state, m_isGrow) < 1.0f（ORIG fucompp+test0x45 sete=value<1）。
 bool CCreature::IsDieCreature()
 {
+    // ORIG 0x833a660 sub $0x28：float 比较物化 spill 槽 -0xc(fstps/flds)+slack。
+    // 4.4 栈顶保留不占槽 → 帧差 0x10；int[4] 16B 对齐恰好补齐（dead pad）。
+    int frameGap[4];  // 对齐帧撑宽，勿动
+    (void)frameGap;
     return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow) < 1.0f;
 }
 

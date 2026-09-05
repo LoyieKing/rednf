@@ -127,12 +127,21 @@ void CUser::deleteGuildExpBook()
     std::vector<std::pair<int, int> > requestItems;
     std::vector<std::pair<int, int> > deletedItems;
 
+    // 保持 enum 实参：实测改成 `(int)` 会让 4.4 走另一条内联展开路径，
+    // ndiff 4→27（gap +5，多出 mov/lea/call），TU 合计 90→87 连带回退三分，
+    // 已回退。pair 的 first/second 写入序差（ORIG 先 first 后 second）
+    // 属 4.4 对 `pair<ENUM,int>` → `pair<int,int>` 转换的固定形态，标 N。
     requestItems.push_back(
         std::make_pair((ENUM_HARDCODE_ITEM)ENUM_HARDCODE_ITEM_0, 0x4b0));
 
     deleteSpecificItem(requestItems, deletedItems);
 
-    if (send_itemspace((int)ENUM_ITEMSPACE_0) != 1)
+    // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B）：ORIG T 0x0867e898 对
+    // `send_itemspace()`(返 int) 的结果走 `xor $0x1,%eax; test %al,%al`，
+    // 而 `!= 1` 在 4.4 产 `cmp $0x1,%al; setne %al; test` 三段。
+    register unsigned char inv asm("eax") = (unsigned char)send_itemspace((int)ENUM_ITEMSPACE_0);
+    inv ^= 1;
+    if (inv)
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c57,
@@ -140,7 +149,9 @@ void CUser::deleteGuildExpBook()
             NumberToString(get_acc_id(), 0));
         return;
     }
-    if (send_itemspace(2) != 1)  // ENUM_ITEMSPACE_CARGO
+    register unsigned char car asm("eax") = (unsigned char)send_itemspace(2);  // ENUM_ITEMSPACE_CARGO
+    car ^= 1;
+    if (car)
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c5c,

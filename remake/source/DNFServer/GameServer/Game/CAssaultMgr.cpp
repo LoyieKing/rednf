@@ -50,13 +50,30 @@ CAssaultPlace* CAssaultMgr::_GetAssaultPlace(unsigned int id)
     return v;
 }
 
-void CAssaultMgr::OnMoveArea(CUser* user)
+int CAssaultMgr::OnMoveArea(CUser* user)
 {
     // ORIG 0x82ef610：向进入袭击区域的玩家汇总可见图标（包 0x86）。
+    // 整函数 try/catch(int)（尾 landing `cmp $0x1,%edx; je resume` +
+    // begin_catch `mov (%eax),%eax; mov %eax,-0xc` + end_catch），统一尾
+    // `mov $0x1,%eax; ret` ⇒ 返回 int 1（P159）。view 判定为**单条 && 短路链**
+    // （0x82ef6f0 ExistUser→xor$1 / CheckPlayable test / GetState cmp4 jne
+    // 三级直落 false 岛 `mov $0,%eax`，+0x122 test 汇聚；if/else-if 三态
+    // 赋值形产 setcc+cmpb 岛，不同形）。
+    // 收敛口径：o=149 n=156。语义修正已全落（catch(int)/int 返回/view 短路/
+    // dead 双清零/vill int 无截断+area (char) 收窄/movsbl 位点）。残余：
+    // vill 跨 get_area 调用 ORIG 用 callee-saved %ebx 免槽直落，4.4 分配器
+    // 因既有 ebx/esi 活跃改落栈槽（register asm("ebx") 实测反扰乱装载序
+    // 已回滚自然形）；it/place/计数槽 +0x4 平移与 nop 岛 = N82/N76/
+    // 跨版本 nop;jmp 岛族，byte 封顶。
+    try
+    {
     PacketGuard packet;
     packet.put_header(0, 0x86);
-    int countIdx = packet.get_index();
+    // ORIG：countIdx/count 先双清零（`movl $0,-0x28; movl $0,-0x14`，
+    // dead init 照抄 P171），随后 get_index 覆写 countIdx。
+    int countIdx = 0;
     int count = 0;
+    countIdx = packet.get_index();
     packet.put_short(count);
     for (std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.begin();
          it != m_places.end(); ++it)
@@ -64,18 +81,15 @@ void CAssaultMgr::OnMoveArea(CUser* user)
         CAssaultPlace* place = it->second;
         if (place == 0)
             continue;
-        int area = user->get_area(false);
-        char vill = (char)user->getCurCharacVill();
-        if (!place->IsArea((int)vill, area))
+        // ORIG 0x82ef6b0：vill 为 int（`call; mov %eax,%ebx` 无截断）；area 是
+        // `(char)` 收窄（`movsbl %al,%eax` 就地直落 arg2）。register 绑 %ebx
+        // 实测反扰乱 4.4 装载序（156>154），保持自然形，vill 槽 vs ebx 缓存
+        // 差按 N76/N82 标注。
+        int vill = user->getCurCharacVill();
+        if (!place->IsArea(vill, (char)user->get_area(false)))
             continue;
-        bool view;
-        if (place->ExistUser(user))
-            view = false;
-        else if (!place->CheckPlayable())
-            view = false;
-        else
-            view = (place->GetState() == 4);
-        if (view)
+        if (!place->ExistUser(user) && place->CheckPlayable() &&
+            place->GetState() == 4)
         {
             place->MakeViewAssaultIconOnePlayer(&packet, true);
             count += 1;
@@ -86,7 +100,12 @@ void CAssaultMgr::OnMoveArea(CUser* user)
         packet.put_short(countIdx, count);
         packet.finalize(true);
         user->Send(packet);
-    	}
+        }
+    }
+    catch (int)
+    {
+    }
+    return 1;
 }
 
 void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
@@ -115,15 +134,17 @@ void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
 
 int CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
 {
-    // ORIG 0x82ef176：取用户所在区域并执行离开流程；ORIG 全程 try/catch-all
-    // （__cxa_begin_catch 后仅 end_catch）吞掉异常。
+    // ORIG 0x82ef176：取用户所在区域并执行离开流程；ORIG EH 为 **catch(int)**
+    // （类型过滤 landing pad `cmp $0x1,%edx; je <resume>` + begin_catch 后
+    // `mov (%eax),%eax; mov %eax,-0xc` 取值落槽 + end_catch），吞掉 P6 族
+    // throw ENUM_ERROR(int)。此前写 catch(...) 少 6 条（无过滤器/无取值）。
     try
     {
         CAssaultPlace* place = _GetAssaultPlace(
             (unsigned int)user->GetAssaultPlace());
         place->LeaveAssaultPlace(user, flag);
     }
-    catch (...)
+    catch (int)
     {
     }
     // ORIG 0x82ef1da：尾 mov $1,%eax ⇒ int 返回 1
@@ -341,11 +362,11 @@ void CAssaultPlace::MakeViewAssaultIconOnePlayer(PacketGuard* packet, bool flag)
 
 void CAssaultPlace::LeaveAssaultPlace(CUser* user, bool flag)
 {
-    // ORIG T 0x82eb450：`push %ebx` + idx call 结果 %eax 直通 + flag 装载
-    // `movzbl -0xc(%ebp),%ebx` callee-saved ⇒ register asm 双绑定复现。
-    register bool f asm("ebx") = flag;
-    register int index asm("eax") = _GetUserIndex(user, true);
-    LeaveAssaultPlace(index, f, false);
+    // ORIG T 0x82eb450：入口 `mov %al,-0xc; movzbl -0xc,%ebx` 把 bool 形参
+    // 截断+零扩展入 callee-saved %ebx，idx 直落 %eax，传参 `mov %ebx,0x8(%esp)`
+    // 无二次物化。4.4 对 bool 值传 bool 形参恒发 `mov %ebx,%edx; movzbl %dl`
+    // （P33/P73 物化，多 2 条）；P78 禁局部 register asm。
+    LeaveAssaultPlace(_GetUserIndex(user, true), flag, false);
 }
 
 // ============================================================================
@@ -529,10 +550,17 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 }
 
 // ============================================================================
-// LeaveAssaultPlace(int,bool,bool) —— ORIG 0x82ead6a 逐段转写。
+// LeaveAssaultPlace(int,bool,bool) —— ORIG 0x082ead6a 逐段转写。
 // 结构：索引/用户校验 → GiveupPanalty 判定（m_state 区间分支）→ 逃跑广播 →
 // leave 包 + PowerWar 计数 + close 包 → _DelUser/用户状态包 → PowerWar 特判
 // （村庄==7 时 guild 点数/连击广播）→ 双方 SetAssaultState(6)+EndAssault。
+// 收敛口径（2026-09-05 EmoC11）：o=453 n=455。已消：G_GameWorld 具名中间槽
+// （P52/P134 内联实参 → %eax 直通 ×2）、Empty() 正向判定（P22/P59 去 xor 物化）。
+// P167 调用点差集 ONLY-ORIG=0（ONLY-OURS 仅 1×_Unwind_Resume：4.4 对第二个
+// PacketGuard 块独立 EH 岛 vs 4.1 merge——N 表跨版本「EH 双份 dtor epilogue vs
+// merge」族）。其余残余：帧 0x80 vs 0x70 + 全槽平移（N82/P112）、尾多 1 条
+// `jmp <epilogue>` 岛边（跨版本 nop;jmp 岛/jump-threading 族）、`add $0x70` vs
+// `sub $0xffffff80` 文本形差。语义完成、byte 层 N 封顶。
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
@@ -554,8 +582,7 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
             {
                 PacketGuard packet;
                 _MakeUserState(&packet, user);
-                GameWorld* world = G_GameWorld();
-                world->send_all(packet);
+                G_GameWorld()->send_all(packet);   // ORIG 82eaee3：%eax 直通实参
             }
         }
 
@@ -595,8 +622,7 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
             {
                 PacketGuard packet;
                 _MakeUserState(&packet, user);
-                GameWorld* world = G_GameWorld();
-                world->send_all(packet);
+                G_GameWorld()->send_all(packet);   // ORIG 82eb052 同形
             }
         }
     }
@@ -654,14 +680,15 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
                 user->resetStraightVictories();
             for (int i = 0; i <= 7; ++i)
             {
-                if (!m_assaulters[i].Empty())
+                // ORIG 82eb2e6：`call Empty; test %al; jne <loop-inc>` 正向
+                // 判定（P22/P59：写 !Empty() 会 xor$1 物化多 1 条）。
+                if (m_assaulters[i].Empty())
+                    continue;
+                CUser* slotUser = m_assaulters[i].GetUser();
+                if (slotUser->getPowerSide() != user->getPowerSide())
                 {
-                    CUser* slotUser = m_assaulters[i].GetUser();
-                    if (slotUser->getPowerSide() != user->getPowerSide())
-                    {
-                        _SendStraightVictories(slotUser);
-                        break;
-                    }
+                    _SendStraightVictories(slotUser);
+                    break;
                 }
             }
         }
@@ -689,16 +716,11 @@ static const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd
 
 int Point2d::operator-(const Point2d& o) const
 {
-    // ORIG 0x82f0486：|dx| + |dy|，4.1 产无分支 sar/xor/sub 三件套
-    // （4.4 对 if(x<0)x=-x 恒产内存 jns/neg 形 ⇒ 手工复现符号展开）。
-    // ORIG 0x82f0486 为 4.1 无分支 sar/xor/sub + callee-saved 寄存器接力，
-    // 4.4 O0 恒产槽/内存形态（register asm 中转引入多余 copy，ndiff 反升）
-    // ⇒ 保留语义写法，寄存器级差异标 blocked。
-    int dx = m_x - o.m_x;
-    int dy = m_y - o.m_y;
-    if (dx < 0) dx = -dx;
-    if (dy < 0) dy = -dy;
-    return dx + dy;
+    // ORIG 0x82f0486：|dx| + |dy|，abs 为无分支 `sar $0x1f; xor; sub` 三件套
+    // ⇒ __builtin_abs 复现（实测 4.4.7 -O0 同族展开；if(x<0)x=-x 在 4.4 恒产
+    // cmpl/jns/negl 分支形，多 3 条）。ORIG 全寄存器接力零槽 vs 4.4 store/load
+    // 往返属 N82 帧槽族，收敛到指令序同构即止。
+    return __builtin_abs(m_x - o.m_x) + __builtin_abs(m_y - o.m_y);
 }
 
 void PartyInfo::Set(CParty* party)                 // ORIG 0x82f05fc
@@ -707,10 +729,7 @@ void PartyInfo::Set(CParty* party)                 // ORIG 0x82f05fc
 }
 
 CandidatePoint::CandidatePoint() : m_point() {}    // +0 故意不初始化（ORIG 同）
-CandidatePoint::~CandidatePoint() {}
-
 CExtraMatrix::CExtraMatrix() {}
-CExtraMatrix::~CExtraMatrix() {}
 
 void CExtraMatrix::AddPoint(Point2d p)             // ORIG 0x82e5962
 {
@@ -722,7 +741,11 @@ void CExtraMatrix::MovePoint(const Point2d& delta) // ORIG 0x82e597c
     for (std::vector<Point2d>::iterator it = m_points.begin();
          it != m_points.end(); ++it)
     {
-        *it += delta;
+        // ORIG 82e5999：operator* 结果先物化临时槽 -0xc（`mov %eax,-0xc`），
+        // 再 `mov -0xc(%ebp),%eax` 装载 lhs 传 operator+=（4.1 物化形）。
+        // 直写 `*it += delta` 被 4.4 折成 eax 直通，少 2 条 ⇒ 具名引用中转。
+        Point2d& ref = *it;
+        ref += delta;
     }
 }
 
@@ -1102,10 +1125,7 @@ const char* CAssaultPlace::GetAnotherTeamCharacName(int idx)   // ORIG T 0x82eb3
     {
         for (int j = 0; j <= 7; ++j)
         {
-            register int a asm("ebx") = m_assaulters[j].GetTeam();
-            register bool diff asm("al") =
-                (a != m_assaulters[idx].GetTeam());
-            if (diff)
+            if (m_assaulters[j].GetTeam() != m_assaulters[idx].GetTeam())
             {
                 CUser* u = m_assaulters[j].GetUser();
                 if (u != 0)
@@ -1118,15 +1138,18 @@ const char* CAssaultPlace::GetAnotherTeamCharacName(int idx)   // ORIG T 0x82eb3
 
 void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192）
 {
-    unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
-    int diff = (int)(curSec - (unsigned int)m_abuseSec);
-    if (diff <= 19)  // ORIG 0x82eb5e2：cmp $0x13 setle
+    // ORIG 0x82eb5e2 转写：检查段第一次 getCurSec（`movl $0x941f714,(%esp)`），
+    // 块内**第二次独立** getCurSec 重算差值入 callee-saved %esi（P48 双臂
+    // 双 call），getCurCharacNo 入 %ebx；cMyTrace 用**临时链式**（P37：
+    // varargs 表达式分到 callee-saved，命名对象则提前落槽多装载）。
+    // 比较 `cmp $0x13,%eax; setle %al; test; je`（P51 setcc 物化）。
+    if ((int)(GlobalData::s_systemTime_.getCurSec() -
+              m_abuseSec) <= 19)
     {
-        int characNo = user->getCurCharacNo();
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xc23, 0);
-        trace("CAssaultPlace::AbuseUser() charac_no(%d), timeout sec(%d)",
-              characNo, diff);
+        cMyTrace(__PRETTY_FUNCTION__, 0xc23, 0)(
+            "CAssaultPlace::AbuseUser() charac_no(%d), timeout sec(%d)",
+            user->getCurCharacNo(),
+            (int)(GlobalData::s_systemTime_.getCurSec() - m_abuseSec));
     }
     if (m_state == 4)
     {
@@ -1134,10 +1157,15 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
         {
             if (m_assaulters[j].Empty())
                 continue;
-            CUser* slotUser = m_assaulters[j].GetUser();
-            WongWork::CHackAnalyzer* ha = slotUser->getHackAnalyzer();
-            ha->addServerHackCnt(slotUser,
-                                 (WongWork::ENUM_HACKTYPE)0x32e, 1, 0, 0);
+            // ORIG 82eb703：第一次 GetUser 落 callee-saved %ebx（跨调用作
+            // arg1 直通 `mov %ebx,0x4(%esp)`，Main 批准的新判据：约束产生
+            // 指令形收益=免槽装载）；第二次 GetUser 直落 getHackAnalyzer，
+            // 结果 %eax 无槽直通 this（P52 链式 receiver）。共 2 次 GetUser。
+            register CUser* slotUser asm("ebx") = m_assaulters[j].GetUser();
+            m_assaulters[j].GetUser()
+                ->getHackAnalyzer()
+                ->addServerHackCnt(slotUser,
+                                   (WongWork::ENUM_HACKTYPE)0x32e, 1, 0, 0);
         }
         m_state = 6;
     }

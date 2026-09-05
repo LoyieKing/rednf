@@ -114,7 +114,7 @@ public:
 class PVP_CHANNEL
 {
 public:
-    static int is_integrated_pvp_channel();      // 0x0819763c
+    static bool is_integrated_pvp_channel();     // 0x0819763c（P22：caller 0x081976xx/0x081977xx `test %al,%al` 单字节判据 ⇒ bool 返回；mangled 无返回类型零 ABI 风险）
     static int is_broadcast_channel();            // 0x08197684
     static int is_all_pvp_channel();              // 0x081976c7
     static int is_winpoint_pvp_channel();         // 0x0819770a

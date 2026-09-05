@@ -317,7 +317,12 @@ void CSharedServerMessageManager::SendServerMessageInfo(CUser* pUser,
 
 void CSharedServerMessageManager::SetServerMessage(SIG_EVENT_SERVER_MESSAGE* pMsg)
 {
-    if (m_isSet != 1)
+    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E 实证）：ORIG 对 byte 真值
+    // 判断走 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
+    // 而 `m_isSet != 1` 在 4.4 只产单条 `cmp $0x1,%al`（缺 xor+test）。
+    register unsigned char set asm("eax") = m_isSet;
+    set ^= 1;
+    if (set)
     {
         if (pMsg->m_count == 0)
             return;

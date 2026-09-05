@@ -61,23 +61,19 @@ void CCargo::reset()
 // ---- set_cargo @ 0x850b116 ----
 bool CCargo::set_cargo(void* data)
 {
-    if (0 < m_capacity) {
-        m_sorted = 0;
-        memcpy(m_pItems, data, 0x2438);
-        _GetItemCount();
-        return 1;
-    }
-    return 0;
+    if (m_capacity <= 0) return 0;
+    m_sorted = 0;
+    memcpy(m_pItems, data, 0x2438);
+    _GetItemCount();
+    return 1;
 }
 
 // ---- get_cargo @ 0x850b164 ----
 bool CCargo::get_cargo(void* out) const
 {
-    if (0 < m_capacity) {
-        memcpy(out, m_pItems, 0x2438);
-        return 1;
-    }
-    return 0;
+    if (m_capacity <= 0) return 0;
+    memcpy(out, m_pItems, 0x2438);
+    return 1;
 }
 
 // ---- 槽位访问 ----
@@ -98,7 +94,9 @@ const Inven_Item* CCargo::get_cargo_start() const
 
 bool CCargo::IsOperatorable(int idx) const
 {
-    return idx >= 0 && m_capacity > idx && idx <= 0x97;
+    if (idx < 0 || m_capacity <= idx || idx > 0x97)
+        return false;
+    return true;
 }
 
 Inven_Item* CCargo::GetCargoRef(int idx) const
@@ -379,9 +377,10 @@ void CCargo::calcCargoItemCount()
 int CCargo::_IsExistEquipItem(int itemIdx, int slot)
 {
     for (int i = 0; i <= 0x97; ++i) {
-        if (m_pItems[i].isEquipableItemType() &&
-            m_pItems[i].m_addInfo == itemIdx && m_pItems[i].m_addInfo2 == slot)
-            return 1;
+        if (!m_pItems[i].isEquipableItemType()) continue;
+        if (m_pItems[i].m_addInfo != itemIdx) continue;
+        if (m_pItems[i].m_addInfo2 != slot) continue;
+        return 1;
     }
     return 0;
 }
@@ -403,14 +402,10 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
 // ORIG 0x850c64c：m_capacity==0 时仍允许升级（仅当 m_capacity>capacity 才拒绝）。
 int CCargo::UpgradeCargo(int capacity)
 {
-    if (m_capacity != 0 && m_capacity > capacity)
-        return 0;
-    if (m_capacity < capacity)
-    {
-        m_capacity = capacity;
-        return 1;
-    }
-    return 0;
+    if (m_capacity != 0 && m_capacity > capacity) return 0;
+    if (m_capacity >= capacity) return 0;
+    m_capacity = capacity;
+    return 1;
 }
 
 // ORIG 0x850c698：同上判定，capacity<=0x98 才可升。
@@ -418,9 +413,9 @@ int CCargo::isUpgradable(int capacity) const
 {
     if (m_capacity != 0 && m_capacity > capacity)
         return 0;
-    if (m_capacity < capacity)
-        return capacity <= 0x98 ? 1 : 0;
-    return 0;
+    if (m_capacity >= capacity) return 0;
+    if (capacity > 0x98) return 0;
+    return 1;
 }
 
 int CCargo::_CompareSlot(const void* a, const void* b)

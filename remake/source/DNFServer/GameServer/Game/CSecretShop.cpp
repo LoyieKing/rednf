@@ -472,8 +472,11 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
     unsigned long randomSeed = 10000;
     int randVal = m_pRand->randInt(randomSeed);
     int npcIdx = 1000;
-    if (!((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
-             ->GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx))
+    register unsigned char fv asm("eax") =
+        (unsigned char)((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
+            ->GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx);
+    fv ^= 1;
+    if (fv)
         ((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
             ->GetNpcByDungeonLev(npcIdx, randVal, level);
     if (npcIdx != 0 && npcIdx != 1000)
@@ -790,13 +793,14 @@ void SecretShopScript::clear()
 // ---- SecretShopScript::verifyNpc（ORIG 0x8a82804）----
 void SecretShopScript::verifyNpc(std::multimap<int, stDungeonNpc>& npcMap)
 {
+    int total = 0;
     for (std::multimap<int, stDungeonNpc>::iterator it = npcMap.begin();
          it != npcMap.end(); ++it)
     {
-        int total = 0;
         std::pair<std::multimap<int, stDungeonNpc>::iterator,
                   std::multimap<int, stDungeonNpc>::iterator> range =
             npcMap.equal_range(it->first);
+        total = 0;
         for (std::multimap<int, stDungeonNpc>::iterator r = range.first;
              r != range.second; ++r)
         {
@@ -805,7 +809,7 @@ void SecretShopScript::verifyNpc(std::multimap<int, stDungeonNpc>& npcMap)
         if (total != 10000)
         {
             printf("[SecretShop Error] NPC ratio is wrong!(index:%d)\n",
-                   it->second.m_npcIdx);
+                   range.first->second.m_field0);
         }
     }
 }

@@ -121,7 +121,6 @@ CParty::CParty()
     new (&m_pad1dc) CPartyResultRecvFlag;
     new (&m_pad210) CTraceMobDieHack;
     new (&m_padShop) secretshop::SECRET_SHOP_DATA();
-    new (&m_padBattleData) BattleData();
     new (&m_padBattleField1) CBattle_Field();
     new (&m_padResult) GameResultSet();
     new (&m_padSecu) Secu_HackLogCheckByParty();
@@ -148,7 +147,6 @@ CParty::~CParty()
     reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->~Secu_HackLogCheckByParty();
     reinterpret_cast<GameResultSet*>(&m_padResult)->~GameResultSet();
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->~CBattle_Field();
-    reinterpret_cast<BattleData*>(&m_padBattleData)->~BattleData();
     reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->~SECRET_SHOP_DATA();
     reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->~CTraceMobDieHack();
 }
@@ -717,14 +715,14 @@ void CParty::init()
     for (int i = 0; i <= 1; ++i)
         for (int j = 0; j <= 3; ++j)
             m_field1e4[i][j] = 0;
-    reinterpret_cast<BattleData*>(&m_padBattleData)->SetHellPartyValueTotal(
+    m_battleData.SetHellPartyValueTotal(
         static_cast<stHellParty_t*>(
             G_CDataManager()->get_hellparty_script_values())
             ->m_baseValue);   // ORIG init.md 0859ab9f `mov 0x8(%eax)` =
                               // stHellParty_t::m_baseValue（DataManagerInitDepends.h
                               // importHellPartyScript 0x8909857 [base value] 实证）
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_hell_party_value();
-    reinterpret_cast<BattleData*>(&m_padBattleData)->Reset();
+    m_battleData.Reset();
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
     reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
     m_usedCoinCount = 0;
@@ -1095,7 +1093,7 @@ void CParty::battle_data_reset()
         m_member[i].m_pUser->set_charac_fatigue_buf_bonus_exp(0);
         m_member[i].m_pUser->set_charac_seria_buf_bonus_exp(0);
     }
-    reinterpret_cast<BattleData*>(&m_padBattleData)->Reset();
+    m_battleData.Reset();
     reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
     m_state = 1;
     SetEPLPState(0);
@@ -1219,7 +1217,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                     local_d = 0;
                 }
             }
-            if (local_d != 1)
+            if (!local_d)
             {
                 local_d = 1;
                 pi = &param[i];
@@ -1242,7 +1240,7 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                     }
                 }
             }
-            if (local_d != 1)
+            if (!local_d)
                 return 0;
         }
     }
@@ -1400,9 +1398,9 @@ int CParty::get_blood_dungeon_admission_fee(CUser* user)
 
 int CParty::check_dungeon_start(CDungeon const* dungeon)
 {
-    // ORIG 0x859fb16
-    int dtype = dungeon->get_blood_dungeon_type();
-    if (dtype == 1)
+    // ORIG 0x859fb1f/0x859fbd0：两判各**直接 movzbl 0x89f 字段读 + cmp $N,%al**
+    // （无 getter 调用、不复用局部，P48 逐臂重读）。
+    if (dungeon->m_bloodDungeonType == 1)
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -1414,7 +1412,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
                 return 10;
         }
     }
-    else if (dtype == 2)
+    else if (dungeon->m_bloodDungeonType == 2)
     {
         if (checkDugeonInoutTime(dungeon->get_index()) != 1)
             return 0xf4;
@@ -1618,7 +1616,7 @@ void CParty::resetFinishLoadingVar()
 {
     for (int i = 0; i <= 3; i++)
     {
-        m_finishLoadingFlag[i] = 0;
+        m_battleData.m_arr50[i] = 0;
     }
 }
 
@@ -1695,7 +1693,7 @@ bool CParty::check_allmember_die()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        if (m_liveFlag[i] != 0)
+        if (m_battleData.m_arr54[i] != 0)
         {
             return false;
         }
@@ -1710,7 +1708,7 @@ int CParty::get_live_count()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        if (m_liveFlag[i] != 0)
+        if (m_battleData.m_arr54[i] != 0)
         {
             count++;
         }
@@ -1725,7 +1723,7 @@ int CParty::get_live_count_enter_map()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        if (m_enterMapFlag[i] != 0)
+        if (m_battleData.m_arr58[i] != 0)
         {
             count++;
         }
@@ -1962,7 +1960,7 @@ void CParty::Reset_party_overlapped_drop_ratio()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        if (m_liveFlag[i] == 0)
+        if (m_battleData.m_arr54[i] == 0)
             continue;
         cntE = 0;
         Inven_Item item1 =
@@ -2469,13 +2467,13 @@ void CParty::set_charac_live(CUser* user, ENUM_USER_DUNGEON_STATE state)
 
     if (state == ENUM_USER_DUNGEON_STATE_0)
     {
-        m_liveFlag[slot] = 0;            // +0x380
+        m_battleData.m_arr54[slot] = 0;            // +0x380
     }
     else if (state >= ENUM_USER_DUNGEON_STATE_0 && state < (ENUM_USER_DUNGEON_STATE)3)
     {
-        m_liveFlag[slot] = 1;            // +0x380
-        m_enterMapFlag[slot] = 1;        // +0x384
-        m_field388[slot] = 1;            // BattleData 第三标志组首字节
+        m_battleData.m_arr54[slot] = 1;            // +0x380
+        m_battleData.m_arr58[slot] = 1;        // +0x384
+        m_battleData.m_arr5c[slot] = 1;            // BattleData 第三标志组首字节
         if (state == (ENUM_USER_DUNGEON_STATE)1)
             m_member[slot].m_field14 += 1;   // ORIG：*(int*)(this+slot*0x18+0x8c) += 1
     }
@@ -2884,10 +2882,10 @@ void CParty::game_start(CUser* user)
             hackFlag = 1;
             break;
         }
-        m_liveFlag[i] = 1;      // +0x380
-        m_enterMapFlag[i] = 1;  // +0x384
-        m_field388[i] = 0;      // +0x388
-        m_field38c[i] = 0;      // +0x38c
+        m_battleData.m_arr54[i] = 1;      // +0x380
+        m_battleData.m_arr58[i] = 1;  // +0x384
+        m_battleData.m_arr5c[i] = 0;      // +0x388
+        m_battleData.m_arr60[i] = 0;      // +0x38c
         m_member[i].m_pUser->make_basic_info((char*)&basicPacket, 1);
         G_GameWorld()->goto_dungeon(m_member[i].m_pUser);
         if (m_member[i].m_pUser->get_state() == 5)
@@ -2958,7 +2956,7 @@ void CParty::game_start(CUser* user)
     basicPacket.clear();
     basicPacket.put_header(0, 0x1b);
 
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     if (get_member_count() == 1)
     {
         bd.SetHellPartyValueTotal(
@@ -3041,7 +3039,7 @@ void CParty::game_start(CUser* user)
 int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 {
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
 
     resetMemberUseCoin();
     m_firstMapClear = 0;                                   // +0x324
@@ -3445,7 +3443,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     PacketGuard packet;                             // -0x240
 
     int slotNo = (int)GetMemberSlotNo(user);        // -0xe0
-    if (slotNo != -1 && m_liveFlag[slotNo] != 1)
+    if (slotNo != -1 && m_battleData.m_arr54[slotNo] != 1)
     {
         const user_creature::CCreatureMgr* cm = user->getCurCharacInvenR()->GetCreatureMgrR();
         if (cm->GetCreatureItemId() != (int)0xf631)
@@ -3553,7 +3551,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                           m_member[i].m_pUser->getCurCharacName(), base,
                           m_member[i].m_pUser->getCurCharacInvenR()->get_money());
                 }
-                if (m_enterMapFlag[i] != 1)
+                if (m_battleData.m_arr58[i] != 1)
                     gain = 0;
 
                 const int gainBase = gain;             // -0xa4（ORIG：bonusGold/guildFund 均基于初始 gain）
@@ -3738,7 +3736,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                           m_member[i].m_pUser->getCurCharacName(), gain,
                           m_member[i].m_pUser->getCurCharacInvenR()->get_money());
                 }
-                if (m_enterMapFlag[i] != 1)
+                if (m_battleData.m_arr58[i] != 1)
                     gain = 0;
 
                 const int gainBase = gain;             // -0x68（ORIG：bonusGold/guildFund 均基于初始 gain）
@@ -3962,7 +3960,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     if (!_checkValidUser(i))
                         continue;
                     // ORIG 0x085a591a：movzbl 0x380(...);xor $0x1;test;jne skip → 仅 liveFlag==1 参与
-                    if (m_liveFlag[i] != 1)
+                    if (m_battleData.m_arr54[i] != 1)
                         continue;
                     const CInventory* invR = m_member[i].m_pUser->getCurCharacInvenR();
                     int w = invR->tryInsertItemIntoInventory(mi.m_item);
@@ -4001,7 +3999,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     if (!_checkValidUser(i))
                         continue;
                     // ORIG 0x085a5bad：同上，仅 liveFlag==1 参与最优选择
-                    if (m_liveFlag[i] != 1)
+                    if (m_battleData.m_arr54[i] != 1)
                         continue;
                     if (weights[i] > best)
                     {
@@ -4470,9 +4468,11 @@ void CParty::map_load_forced_finish()
         int count = get_member_count();                 // -0x10
         if (count == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x3184, 0);
-            trace(
-                "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)");
+            // ORIG 0x85b1e9d：GetPartyIndex() 在 cMyTrace 临时链前求值，
+            // 返回值经 %ebx 跨构造传参（技巧36/37 临时链翻槽序）；勿具名局部。
+            cMyTrace(__PRETTY_FUNCTION__, 0x3184, 0)(
+                "<IN_DUNGEON_NULL_PARTY> not_member PartyIndex(%d)",
+                (int)GetPartyIndex());
             destroy();
             LogManager::logFormat(
                 1, "party.cpp", __PRETTY_FUNCTION__, 0x3187,
@@ -4483,7 +4483,7 @@ void CParty::map_load_forced_finish()
         {
             for (int i = 0; i <= 3; ++i)                // -0xc
             {
-                if (_checkValidUser(i) && m_finishLoadingFlag[i] != 1)
+                if (_checkValidUser(i) && m_battleData.m_arr50[i] != 1)
                     giveup_game(m_member[i].m_pUser, false, false, false);
             }
             if (get_member_count() > 0)
@@ -4537,7 +4537,7 @@ bool CParty::_checkGoldCardSelectable(CUser* user, eClearRewardCardType_t type,
 
 void CParty::SendEachCardInfo()
 {
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     PacketGuard packet;
     packet.clear();
     packet.put_header(1, 0x4a);
@@ -4565,7 +4565,7 @@ void CParty::SendEachCardInfo()
                 packet.put_byte(countIdx, 2);           // 回填选项组数
             }
         }
-        packet.put_byte((unsigned char)m_field38c[i]);  // +0x38c
+        packet.put_byte((unsigned char)m_battleData.m_arr60[i]);  // +0x38c
     }
     packet.finalize(true);
     send_to_party(packet);
@@ -4593,7 +4593,7 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
         return true;                                    // ORIG 跳共用尾部
 
     CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     Inven_Item& reward = bd.m_itemGroups2[slot][1];     // +0x7ad + slot*0x7a
     int putSlot = ci->getCurCharacInvenW()->tryInsertItemIntoInventory(reward);
     if (putSlot == -1)
@@ -4822,7 +4822,7 @@ void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
     {
         int one = 1;
         memcpy(&ref.m_rankBonusIndex, &one, sizeof(one));         // ORIG local_a4=1（int 写）
-        BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+        BattleData& bd = m_battleData;
         unsigned short v;
         v = (unsigned short)bd.m_field48;               // +0x374
         memcpy(&ref.m_goldBase, &v, sizeof(v));
@@ -5075,7 +5075,7 @@ int CParty::OnFightVillageMonster(CUser* user, int param)
             bf.MakePacket(0x1d, &packet);
             send_to_party(packet);
 
-            BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+            BattleData& bd = m_battleData;
             bd.m_field20 = (int)GlobalData::s_systemTime_.getCurTickCount();
             bd.m_field24 = 0;
             bd.m_field10 = 0;
@@ -5267,7 +5267,7 @@ void CParty::party_dungeon_fail()
         return;
 
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     char skipPanalty = 0;                               // -0x31
     CDungeon* dungeon = m_dungeon;                      // -0x30
     if (dungeon != 0)
@@ -5395,7 +5395,7 @@ void CParty::party_dungeon_fail()
 void CParty::dungeon_clear()
 {
     SaveCoin((eCoinSubReason)1);
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     PacketGuard packet;
     int memberCount = get_member_count();               // -0x20
     int goldCardCount = 0;                              // -0x24
@@ -6523,7 +6523,7 @@ void CParty::clear_reward(int param)
         return;
     }
 
-    BattleData& bd = *reinterpret_cast<BattleData*>(&m_padBattleData);
+    BattleData& bd = m_battleData;
     CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
 
     // ORIG:local_ec(G_CDataManager 首调结果)复用于 find_dungeon/getRankBonusIndex/+0x68。
@@ -6736,8 +6736,8 @@ void CParty::clear_reward(int param)
             }
         }
 
-        if (m_liveFlag[slot] != 1 && m_enterMapFlag[slot] != 1 &&
-            m_field388[slot] != 1)
+        if (m_battleData.m_arr54[slot] != 1 && m_battleData.m_arr58[slot] != 1 &&
+            m_battleData.m_arr5c[slot] != 1)
         {
             bd.m_arr64[slot] += 1;
         }
@@ -6748,7 +6748,7 @@ void CParty::clear_reward(int param)
             int addInfo = rewardItems[0].get_add_info();
             rewardItems[0].set_add_info(static_cast<int>(
                 (1.0f - deadPenalty) * static_cast<float>(addInfo)));
-            m_field38c[slot] = 1;
+            m_battleData.m_arr60[slot] = 1;
         }
 
         {

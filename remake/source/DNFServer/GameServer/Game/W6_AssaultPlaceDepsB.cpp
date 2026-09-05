@@ -47,8 +47,8 @@ namespace pvp_assault
 void CAssaultPlace::_MakeCompleteLoad(PacketGuard* p, int idx)
 {
     p->put_header(0, 0x81);
-    unsigned short uid = m_assaulters[idx].GetUserUniqueId();
-    p->put_short(uid & 0xffff);
+    // ORIG 无 uid 局部(P0 右值直传): GetUserUniqueId 结果 movzwl 直入 put_short
+    p->put_short(m_assaulters[idx].GetUserUniqueId() & 0xffff);
     p->finalize(true);
 }
 
@@ -63,8 +63,7 @@ void CAssaultPlace::_MakeStartAssault(PacketGuard* p)
 void CAssaultPlace::_MakeDieAssaultPlayer(PacketGuard* p, int idx)
 {
     p->put_header(0, 0x83);
-    unsigned short uid = m_assaulters[idx].GetUserUniqueId();
-    p->put_short(uid & 0xffff);
+    p->put_short(m_assaulters[idx].GetUserUniqueId() & 0xffff);
     p->finalize(true);
 }
 
@@ -241,8 +240,15 @@ int CAssaultPlace::_GetConnectP2PPoint(int idx)
 {
     int points = 0;                             // movl $0x0,-0x10(%ebp)
     for (int i = 0; i <= 7; ++i) {              // cmpl $0x7 … setle
-        if (idx != i && !_IsCannotConnectP2P(idx, i))
-            points++;
+        if (idx != i) {
+            // X2: ORIG `call _IsCannotConnectP2P; xor $1,%eax; test %al`（int 返回
+            // 不自救不行，绑 %eax 具名 uchar + ^=1 复现单段——技巧 22 精化）
+            register unsigned char ic asm("eax") =
+                (unsigned char)_IsCannotConnectP2P(idx, i);
+            ic ^= 1;
+            if (ic)
+                points++;
+        }
     }
     return points;
 }
@@ -267,11 +273,16 @@ void CAssaultPlace::_GetConnectP2PMaxMinPoint(int& maxPt, int& minPt)
 int CAssaultPlace::_ClearConnectP2PAbsolute(int idx)
 {
     for (int i = 0; i <= 7; ++i) {
-        if (idx != i && _IsCannotConnectP2P(idx, i)) {
-            if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-                GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountSecede();
+        if (idx != i) {
+            // _IsCannotConnectP2P int 返回→窄化 %eax 具名 uchar 得 ORIG `test %al; je`
+            register unsigned char ic asm("eax") =
+                (unsigned char)_IsCannotConnectP2P(idx, i);
+            if (ic) {
+                if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
+                    GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountSecede();
+                }
+                LeaveAssaultPlace(i, true, false);
             }
-            LeaveAssaultPlace(i, true, false);
         }
     }
     return 1;
@@ -870,9 +881,11 @@ void CAssaultPlace::_GetTeamCountAliveUser(int* counts)
 {
     for (int i = 0; i <= 7; ++i) {
         CUser* u = m_assaulters[i].GetUser();
-        if (u != 0 && !u->IsCurCharacGhost()) {
-            counts[m_assaulters[i].GetTeam()]++;
-        }
+        if (u == 0)
+            continue;
+        if (u->IsCurCharacGhost())
+            continue;
+        counts[m_assaulters[i].GetTeam()]++;
     }
 }
 

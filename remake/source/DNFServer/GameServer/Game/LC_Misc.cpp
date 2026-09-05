@@ -212,7 +212,13 @@ void Secu_MonsterCheck::SetMonsterInfo(const MSG_MONSTER_DIE* msg)
 // ORIG T 0x0827b288 sz 0x5c（init223.md）：active 未置 1 时记录首杀快照。
 void Secu_MonsterCheck::init223(const MSG_MONSTER_DIE* msg)
 {
-    if (m_active223 != 1)
+    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E 实证）：ORIG @0x0827b294
+    // 对 byte 真值判断走 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
+    // 而 `字段 != 1` 在 4.4 恒产单条 `cmp $0x1,%al`（缺 xor+test 两段、多一条 cmp）。
+    // 必须绑 %eax 的具名 unsigned char + 显式 `^= 1`（绑 %al 或用裸 `!` 会被折叠）。
+    register unsigned char act asm("eax") = m_active223;
+    act ^= 1;
+    if (act)
     {
         m_field08 = msg->m_mobSeq;       // +0x08 ← msg+0x0d
         m_field0a = msg->m_killPairA24;  // +0x0a ← msg+0xa24
@@ -226,6 +232,10 @@ void Secu_MonsterCheck::init223(const MSG_MONSTER_DIE* msg)
 // ORIG T 0x0827b2e4 sz 0x50（init224.md）
 void Secu_MonsterCheck::init224(const MSG_MONSTER_DIE* msg)
 {
+    // X2 形在此**不适用**（实测 ndiff 3→5 变差，已回退）：本函数体内有
+    // `GlobalData::s_systemTime_.getCurTickCount()` 调用，4.4 会为跨 call 存活
+    // 的 `act` 额外插一条 spill `mov`，反而多出一条。init223 无 call 故能闭合。
+    // ⇒ X2 第二前提：**判断与 body 之间不得有 call**（否则 %eax 绑定值需 spill）。
     if (m_active224 != 1)
     {
         m_field12 = msg->m_mobSeq;       // +0x12 ← msg+0x0d
@@ -239,6 +249,7 @@ void Secu_MonsterCheck::init224(const MSG_MONSTER_DIE* msg)
 // ORIG T 0x0827b334 sz 0x50（init225.md）
 void Secu_MonsterCheck::init225(const MSG_MONSTER_DIE* msg)
 {
+    // X2 形不适用，同 init224（body 内有 getCurTickCount 调用 ⇒ 多一条 spill mov）。
     if (m_active225 != 1)
     {
         m_field1c = msg->m_mobSeq;       // +0x1c ← msg+0x0d

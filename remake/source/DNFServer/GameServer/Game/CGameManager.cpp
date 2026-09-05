@@ -1291,13 +1291,23 @@ void CGameManager::checkOutDeathTower(CUser* user)
     else
     {
         WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
-        // onLeaveUser 返 int：(char)(x^1) 截断防 gcc4.4.7 将 int^1!=0 化简为 cmp$1
-        if (tower != 0 && (char)(tower->onLeaveUser(user) ^ 1))
+        // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B 实证）：`(char)(x^1)`
+        // 仍被 4.4 物化成 `cmp $0x1,%al; je; mov $1; jmp; mov $0` 五段，
+        // ORIG 只要 `call onLeaveUser; xor $0x1,%eax; test %al,%al; je`。
+        // 绑 %eax 的具名 uchar + 显式 ^=1 才能直落单段 xor。
+        // 短路拆成嵌套 if：4.4 下 `if (a) { if (b) }` 与 `if (a && b)` 同形，
+        // 且避免 `&&` 把 uchar 真值重新规范化。
+        if (tower != 0)
+        {
+            register unsigned char left asm("eax") = (unsigned char)tower->onLeaveUser(user);
+            left ^= 1;
+            if (left)
         {
             LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
                                   "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
                                   tower->getIdx(),
                                   NumberToString(user->get_acc_id(), 0));
+        }
         }
         return;
     }
@@ -1372,10 +1382,22 @@ void CGameManager::checkOutBossTower(CUser* user)
         WongWork::CBossTower* tower = getBossTower(user->getBossTowerIndex());
         if (tower != 0)
         {
-            // ORIG 调虚表槽 +0x14 = WongWork::CBossPlay::checkAllMemberReady(int)
-            // （vtable 0x08b70260 实证：槽内 0x081493fe；实参为 CUser* 转 int）。
-            // (bool)(x^1) 真值形态复现 xor$1;test;je（(char)!=1 生成 cmp+setne）
-            if ((bool)(tower->checkAllMemberReady((int)user) ^ 1))
+            // **虚槽仲裁（多点联立，非单点）**：ORIG 此处是
+            // `mov (%eax),%eax; add $0x14,%eax; mov (%eax),%edx; call *%edx`。
+            // %eax 取到的是 vptr（指向 _ZTV+0x08），故 +0x14 ⇒ _ZTV+0x1c。
+            // dump `_ZTVN8WongWork10CBossTowerE`@0x08b70260 全槽实测：
+            //   +0x00 generateRewardItem  +0x04 generateRewardExp
+            //   +0x08 _checkMemberDie     +0x0c checkAllMemberReady(0x081493fe)
+            //   +0x10 handleDieUser       **+0x14 handleLeaveUser(0x08143ae2)**
+            //   +0x18 handleMoveMap       +0x1c CBossStage::handlePickupItem
+            // ⇒ 原注释「+0x14 = checkAllMemberReady」把 **vtable 数组下标**当成
+            // **vptr 偏移**，实际被调的是 **CBossTower::handleLeaveUser(CUser*)**。
+            // 头文件虚声明顺序本身与 ORIG 完全一致，无需改布局（零 ABI 风险）。
+            // X1 形（probe /tmp/xg2.cpp 形 B）：`(bool)(x^1)` 在 4.4 仍产
+            // `cmp $0x1,%al; setne %al; test`，ORIG 是 `call *%edx; xor $0x1,%eax`。
+            register unsigned char left asm("eax") = (unsigned char)tower->handleLeaveUser(user);
+            left ^= 1;
+            if (left)
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",

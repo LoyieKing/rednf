@@ -113,7 +113,10 @@ class CandidatePoint
 {
 public:
     CandidatePoint();
-    ~CandidatePoint();
+    // 无用户析构（2026-09-05 EmoC11 P12/P71 归正）：ORIG _ZN11pvp_assault14CandidatePointD1Ev
+    // 为隐式 trivial 空体 W sz5（0x082f264a），swap<CandidatePoint>(ORIG 0x082f54f0) 与
+    // __uninitialized_copy/move 链均不发射析构调用；自定义空析构会被 4.4 判 non-trivial，
+    // 使 swap 尾多 3 条 `lea/mov/call D1`（本批 NEAR_POOL 族⑤根因）。
 
 
     bool operator<(const CandidatePoint& o) const          // ORIG 0x82f04ea
@@ -134,7 +137,7 @@ class CExtraMatrix
 {
 public:
     CExtraMatrix();
-    ~CExtraMatrix();
+    // 无用户析构（P12）：ORIG nm 无 CExtraMatrix D1/D2 符号。
 
 
     void AddPoint(Point2d p);                              // ORIG 0x82e5962
@@ -450,7 +453,9 @@ class CAssaultMgr
 public:
     CAssaultMgr() { m_bAssaultChannel = false; }   // ORIG 0x82f0fc6：map 自动构造(成员初始化)先于 m_bAssaultChannel(false)，故置 body
 
-    void OnMoveArea(CUser* user);                        // ORIG 0x82ef610
+    // 返回类型 int（P159：ORIG 0x082ef610 统一尾 `mov $0x1,%eax; ret` +
+    // catch(int) 尾同落点；mangled 不含返回类型，调用点零改动）。
+    int OnMoveArea(CUser* user);                         // ORIG 0x82ef610
     int OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
     void SendPacket(CUser* user, bool flag, PacketGuard* packet);
                                                          // ORIG 0x82efb54

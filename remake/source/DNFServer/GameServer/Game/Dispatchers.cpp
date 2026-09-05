@@ -5417,8 +5417,10 @@ int Dispatcher_ChangeEmotion::process(CUser* user, MSG_BASE& msg, ParamBase& par
         return -1;
     }
 
-    stChangeEmotionParam& out = static_cast<stChangeEmotionParam&>(param);
+    // 声明顺序决定落槽：ORIG 0x081d1cex 先物化 msg→-0x14、后物化 param→-0x10
+    // （技巧21 先声明占远槽），我方原顺序相反导致两槽互换 + 后续 `mov -0x10/%-0x14` 全错。
     MSG_CHANGE_EMOTION& req = static_cast<MSG_CHANGE_EMOTION&>(msg);
+    stChangeEmotionParam& out = static_cast<stChangeEmotionParam&>(param);
     out.m_4 = req.m_emotionIdx;                                 // msg+0x0d short → param+0x04
 
     try
@@ -5427,7 +5429,11 @@ int Dispatcher_ChangeEmotion::process(CUser* user, MSG_BASE& msg, ParamBase& par
         {
             throw static_cast<ENUM_ERROR>(3);
         }
-        if (isVaildEmotionValue((short)out.m_4) != 1)           // ORIG 0x081d1ebe（NEEDS_DECL）
+        // 同上配方：ORIG 0x081d1ebe 为 `xor $1,%eax; test %al,%al` 单段。
+        register unsigned char emBad asm("eax") =
+            (unsigned char)isVaildEmotionValue((short)out.m_4);
+        emBad ^= 1;
+        if (emBad)
         {
             throw static_cast<ENUM_ERROR>(1);
         }
@@ -9260,7 +9266,10 @@ int Dispatcher_DieAssaultPlayer::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xa1eb, __PRETTY_FUNCTION__, 0, 0);
     }
     pvp_assault::CAssaultMgr* assaultMgr = pvp_assault::GetInstanceAssaultMgr();
-    if (!assaultMgr->OnDieUser(user, (int)killerIdx, msg)) {
+    // X1 按位判据（同 GuildCargoPopItem 位 B）：ORIG 该点紧随的是 `test %eax,%eax; je`
+    // 直分支、无 `sete %al` 物化岛 ⇒ 此处必须写 `== 0`；我方原 `!intcallee()` 在 4.4
+    // 恒产 `test;sete %al;test %al,%al` 两段岛（台账 ours_only=sete1,test1）。
+    if (assaultMgr->OnDieUser(user, (int)killerIdx, msg) == 0) {
         return LineFunc(0xa1f1, __PRETTY_FUNCTION__, 0, 0);
     }
     return 0;
@@ -10758,7 +10767,13 @@ int Dispatcher_ConnectP2PAssault::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
     pvp_assault::CAssaultMgr* mgr = pvp_assault::GetInstanceAssaultMgr();   // 0x082350a0
-    if (mgr->OnConnectP2P(user, slots, (int)count) != 1)
+    // X2 形（Main 批准铺池，OPMC8/我 probe px2 t8/t11 双实证）：绑 %eax 的具名
+    // unsigned char + 显式 ^= 1 ⇒ 复现 ORIG `xor $0x1,%eax; testb %al,%al` 单段；
+    // 写 `!= 1` 会被 4.4 折成 `cmpb $1` + setne 两段。
+    register unsigned char p2pBad asm("eax") =
+        (unsigned char)mgr->OnConnectP2P(user, slots, (int)count);
+    p2pBad ^= 1;
+    if (p2pBad)
     {
         return LineFunc(0xa1cb,
                         __PRETTY_FUNCTION__,
@@ -11806,7 +11821,13 @@ int Dispatcher_Cancel_Quick_Party::process(CUser* user, MSG_BASE& msg,
     CParty* party = (CParty*)user->GetParty();
     CGameManager* gm = G_CGameManager();
     QuickParty::CQuickPartySystemManager* mgr = gm->GetQuickPartySystemManager();
-    if (mgr->cancel_quick_party(party, true, user) != 1)
+    // X1/X2 配方（OPMC8 提供、probe px2 t8/t11 实证）：4.4 复现 ORIG
+    // `xor $0x1,%eax; test %al,%al` 的唯一写法是「绑 %eax 的具名 char 局部 + ^= 1」；
+    // 裸 `!call()` 只在 callee 返回 bool 时直落，`!= 1`/`== 1` 恒被折成 cmpb $1。
+    register unsigned char cancelBad asm("eax") =
+        (unsigned char)mgr->cancel_quick_party(party, true, user);
+    cancelBad ^= 1;
+    if (cancelBad)
     {
         pref.m_4 = 1;
     }
@@ -17379,7 +17400,12 @@ int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& pack
         }
     }
     pvp_assault::CAssaultMgr* mgr = pvp_assault::GetInstanceAssaultMgr();   // 0x082350a0
-    if (mgr->OnConnectP2PAfterAssault(user, slots, (int)count) != 1)
+    // X2 形（同 Dispatcher_ConnectP2PAssault::dispatch_sig，Main 批准铺池）：
+    // 绑 %eax 具名 unsigned char + ^= 1 ⇒ ORIG 单段 `xor $1,%eax; testb %al,%al`。
+    register unsigned char p2pBad asm("eax") =
+        (unsigned char)mgr->OnConnectP2PAfterAssault(user, slots, (int)count);
+    p2pBad ^= 1;
+    if (p2pBad)
     {
         return LineFunc(0xa18f,
                         __PRETTY_FUNCTION__,
@@ -27142,7 +27168,10 @@ int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& msg,
         int guildkey = user->get_charac_guildkey();     // ORIG 0x080da38c 后链
         if (guildkey != 0)
         {
-            if (!user->IsExistGuildAgit())              // ORIG 0x082301d8 xor $1 形
+            // X1 位 A：ORIG 0x082301d8 此处是 `test;sete %al;test %al,%al;je` 物化岛
+            // （台账 ours_only 缺 sete/test），bool callee 用 (x == 0) 才出 sete；
+            // 裸 !boolcall() 反而出 xor 单段（技巧9/19 与技巧1 的分界）。
+            if ((bool)(user->IsExistGuildAgit() == 0))
             {
                 return 0xb5;
             }
@@ -27151,10 +27180,20 @@ int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& msg,
                     user, (SECURITY_PROTCTION)9);       // ORIG 0x08288a02
                 if (secu != 0)
                     return secu;
-                int itemIdx =
-                    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 0xf);
+                // 位 C：ORIG 0x081d16ex 是 `mov 0x10(%ebp),%eax; mov 0xf(%eax),%ebx`
+                // —— packed 具名视图给单级 disp（技巧14/F），register 绑 %ebx 同时把
+                // 值钉进 callee-saved（消掉我方裸偏移写法的 add+mov 三步，并让
+                // prologue 回到 ORIG 的 `push %ebx; sub $0x24,%esp`）。
+                struct __attribute__((packed)) CargoPopParamView {
+                    char m_head[0xf];
+                    int m_itemIdx;                   // +0x0f
+                };
+                register int itemIdx asm("ebx") =
+                    reinterpret_cast<CargoPopParamView*>(&param)->m_itemIdx;
                 const CInventory* inven = user->getCurCharacInvenR();
-                if (!inven->possible_to_insert(itemIdx))   // ORIG 0x0850562a
+                // X1 位 B：ORIG 0x0850562a 之后是 `test %eax,%eax; jne` 直分支
+                // （int callee 免物化），我方 `!intcall()` 恒被折成 sete 岛 ⇒ 写 == 0。
+                if (inven->possible_to_insert(itemIdx) == 0)
                     return 0xcb;
                 if (G_CDataManager()->find_item(itemIdx) == 0)   // ORIG 0x0835fa32
                     return 0xc5;

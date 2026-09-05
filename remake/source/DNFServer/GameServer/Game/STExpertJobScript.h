@@ -99,6 +99,8 @@ struct stRecipeInfo
 {
     char             m_pad[8];   // +0x00..+0x07
     unsigned short   m_field8;   // +0x08（学习门槛值，语义未证）
+    unsigned short   m_padA;     // +0x0a（尾 pad：ORIG sizeof 0xc，pair/_Rb_tree_node ctor
+                                 //  三 word 拷贝实证 mov 0x8../mov 0xc..；原 0xa 错位）
 };
 
 class STExpertJobScript

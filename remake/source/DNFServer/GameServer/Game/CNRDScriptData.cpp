@@ -61,31 +61,55 @@ void CNRDScriptData::destroy()
 int CNRDScriptData::getInt(const char* key) const
 {
     const int* p = m_intMap.get(key);
-    return p ? *p : -1;
+    // 落点岛形（技巧 24，ORIG 0x…getIntEPKc）：`cmpl $0x0,-0xc(%ebp); jne USE`
+    // → fall-through `mov $<A>,%eax; jmp end` → `USE: mov (%eax),%eax`。
+    // 即**空值分支走 fall-through、命中分支跳走**；写成 `if (p) return *p;`
+    // 或三目都会被 4.4 做成 je+默认值岛（极性反 + 岛位置反，ndiff 6）。
+    if (p != 0)
+        goto USE;
+    return -1;
+USE:
+    return *p;
 }
 
 int CNRDScriptData::getCLong(const char* key) const
 {
     const int* p = m_clongMap.get(key);
-    return p ? *p : -1;
+    if (p != 0)                 // 同上，ORIG 0x…getCLongEPKc 同型
+        goto USE;
+    return -1;
+USE:
+    return *p;
 }
 
 float CNRDScriptData::getFloat(const char* key) const
 {
     const float* p = m_floatMap.get(key);
-    return p ? *p : -1.0f;
+    if (p != 0)                 // 同上，ORIG 0x…getFloatEPKc 同型
+        goto USE;
+    return -1.0f;
+USE:
+    return *p;
 }
 
 float CNRDScriptData::getCFloat(const char* key) const
 {
     const float* p = m_cfloatMap.get(key);
-    return p ? *p : -1.0f;
+    if (p != 0)                 // 同族（台账极性族含此条）
+        goto USE;
+    return -1.0f;
+USE:
+    return *p;
 }
 
 const char* CNRDScriptData::getString(const char* key) const
 {
     const std::string* p = m_strMap.get(key);
-    return p ? p->c_str() : "CNRDScriptData::Error";
+    if (p != 0)                 // 同族：命中分支跳走、默认串走 fall-through
+        goto USE;
+    return "CNRDScriptData::Error";
+USE:
+    return p->c_str();
 }
 
 int CNRDScriptData::import(const char* path)

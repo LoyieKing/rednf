@@ -315,6 +315,9 @@ void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
     {
+        // ORIG `mov 0x10(%eax),%ecx` 单段直落 %ecx；4.4 hardreg 绑定仍产
+        // %eax→mov %ecx 二段（register asm("ecx") probe 无效，N18a 实证），
+        // 维持直写。
         CUR->m_weekendBonusExp = (int)((double)exp * (percent / 100.0f));
     }
 }
@@ -1597,11 +1600,14 @@ unsigned char CUserCharacInfo::getCurExpandEquipslotSwitch()
 }
 
 
-int CUserCharacInfo::getCurEquipslotFlag()
+unsigned char CUserCharacInfo::getCurEquipslotFlag()
 {
-    // ORIG 0x???: 三元 true 路单一 `movzbl 0x1275(%eax),%eax`（隐式提升，
-    // 多余 (int) cast 使 4.4 反产第二段 movzbl %al,%eax，技巧 20 同理）。
-    return m_selected ? CUR->m_curEquipslotFlag : -1;
+    // ORIG 0x8696c23 true 路单一 `movzbl 0x1275(%eax),%eax`、false 0x8696c2c
+    // `mov $0xffffffff,%eax`（dword -1）。int 返回三元/if 形均反产二段 promote
+    // （IsCurCharacGhost 同款教训）→ uchar 返回 + if 形，false 保留 dword -1。
+    if (m_selected)
+        return CUR->m_curEquipslotFlag;
+    return -1;
 }
 
 

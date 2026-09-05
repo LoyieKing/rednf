@@ -356,16 +356,18 @@ IndexEntry::~IndexEntry()
 // ORIG W @0x08ac9d92：隐式逐成员赋值
 IndexEntry& IndexEntry::operator=(const IndexEntry& rhs)
 {
-    if (this != &rhs)
-    {
-        type_ = rhs.type_;
-        name_ = rhs.name_;
-        size_ = rhs.size_;
-        aligned_size_ = rhs.aligned_size_;
-        crc_ = rhs.crc_;
-        offset_ = rhs.offset_;
-        content_ = rhs.content_;
-    }
+    // over-guard 修正（见 docs/function_audit/OVER_GUARD_SWEEP.tsv）：ORIG @0x08ac9d92
+    // 是**隐式逐成员赋值**，序言之后直接 `mov 0xc(%ebp),%eax` 开始逐字段拷贝，
+    // **没有** `mov this; cmp &rhs; je` 自赋值检查。补上该检查会多出 3 条
+    // （cmp + je + mov），使 ndiff=3 / gap=-3。与 P26「跳 pad 拷贝」同族：
+    // 这类手写 operator= 不要习惯性加自赋值保护，以 ORIG 指令序为准。
+    type_ = rhs.type_;
+    name_ = rhs.name_;
+    size_ = rhs.size_;
+    aligned_size_ = rhs.aligned_size_;
+    crc_ = rhs.crc_;
+    offset_ = rhs.offset_;
+    content_ = rhs.content_;
     return *this;
 }
 

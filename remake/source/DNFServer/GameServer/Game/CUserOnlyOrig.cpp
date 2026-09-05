@@ -789,7 +789,12 @@ void CUser::_processUnlimitChallenge(unsigned int level, char kind)
     if (mgr == 0) return;
     // ORIG 0x0864a5c8：`xor $0x1,%eax; test %al,%al; jne`。IsOn() 返 uchar(ORIG 0x08697792 movzbl 全字)，
     // 写法 (IsOn() ^ 1) 被 4.4 fold 成 cmp $1；具名掩码槽阻断 fold-const 保 xor。
-    if (!mgr->IsOn()) return;   // 声明已 bool（广播2，DCoreC6/DispC6 无异议）：技巧1 !boolcall ⇒ xor$1;test
+    {
+        register unsigned char onv __asm__("eax") = mgr->IsOn();
+        onv ^= 1;   // X2 形（AraC9 处方 2026-09-05，IsOn 现 uchar 返回
+                    // DataManagerInitDepends.h:353）：ORIG 0x864a5cf `xor $0x1,%eax; test %al,%al; je`
+        if (onv) return;
+    }
     if (mgr->IsOnServer(G_CEnvironment()->m_serverEnvir.m_serverGroup)
         == false) return;
     if (mgr->IsHaveStartLevelReward() == false) return;
@@ -1281,12 +1286,19 @@ int CUser::check_multibox_error(int requiredEmptySlots)
     // 4.4 把 `(x^1)||` 折成 `cmp $1`——register %eax 具名 + 逗号 expr 阻断
     // fold-const，复现 ORIG 0x08675f04 每段 `xor $0x1,%eax; test %al,%al; jne
     // 共享BAD岛(mov$1)`、末段 `je GOOD(mov$0)` 两级物化（probe t19 实证）
-    register unsigned r asm("eax");
-    if (((r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots) ^ 1, (unsigned char)r) ||
-         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots) ^ 1, (unsigned char)r) ||
-         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots) ^ 1, (unsigned char)r) ||
-         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots) ^ 1, (unsigned char)r) ||
-         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots) ^ 1, (unsigned char)r)))
+    // uchar 绑 %eax + 逗号短路 + **hit 值物化**（ORIG 0x8675fb3-0x8675fca：
+    // 真岛 mov$1 / 假岛 mov$0 / 合并 test %al; je → 0x13/0 双段——`if(a||b…)`
+    // 直判形不产 hit 值物化，必须 `bool hit = (…)||…;` 显式取值）。
+    // 另：本函数 ORIG 止于五段空位检查（0x8675fcf leave;ret）——前批臆造的
+    // IsCurCharacGhost/CheckInTrade/GetAssaultPlace/IsPVPChannel 四段已删
+    // （ORIG 全 68 insn 内无对应 call，2026-09-05 CUserC8 objdump 全文核对）。
+    register unsigned char r asm("eax");
+    bool hit = ((r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots), r) ||
+         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots), r) ||
+         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots), r) ||
+         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots), r) ||
+         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots), r));
+    if (hit)
         return 0x13;
     return 0;
 }

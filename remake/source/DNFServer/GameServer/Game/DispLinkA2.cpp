@@ -1605,8 +1605,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             CParty* party = static_cast<CParty*>(user->GetParty());
             if (party != 0 && party->get_member_count() >= 2)
             {
-                BattleData* bd =
-                    reinterpret_cast<BattleData*>(party->m_padBattleData);  // +0x32c
+                BattleData* bd = &party->m_battleData;   // +0x32c（MonC9 具名化：m_padBattleData→BattleData m_battleData）
                 bd->SetHellPartyValueTotal(v);
                 party->send_hellParty_value();
                 char b[0x100]; A2_ZERO(b);
